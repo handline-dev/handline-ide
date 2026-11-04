@@ -1,3 +1,4 @@
+import { Chat } from '#src/Chat.tsx';
 import { ArrowDownToLine, ArrowLeftToLine, ArrowRightToLine, ArrowUpToLine, Columns2, LayoutGrid, X } from 'lucide-react';
 import { useRef, useState, type DragEvent, type ReactNode } from 'react';
 import { canonical, choices, iconOf, labelOf } from '#src/layout/kinds.tsx';
@@ -150,7 +151,7 @@ function PaneView({
       </div>
       <div
         ref={body}
-        className="relative flex min-h-0 flex-1 bg-bg"
+        className="relative flex min-h-0 min-w-0 flex-1 bg-bg"
         onDragOver={(e) => {
           if (!isTabDrag(e) || !body.current) return;
           e.preventDefault();
@@ -164,6 +165,8 @@ function PaneView({
           dropTo(e, z === 'center' ? { pane: pane.id } : { pane: pane.id, edge: z }, { root, agent, dispatch });
         }}
       >
+        {current?.opens === 'chat' && agent && <Chat key={agent} agent={agent} />}
+        {current?.opens?.startsWith('chat:') && <Chat key={current.opens} agent={current.opens.slice(5)} />}
         {current && !current.opens && (
           <EmptyTab onPick={(kind) => dispatch({ type: 'choose', pane: pane.id, tab: current.id, opens: kind, title: labelOf(kind) })} />
         )}
