@@ -90,6 +90,10 @@ function App() {
   );
 }
 
+// Files dropped where nothing takes them are dropped, not opened in place of the app.
+for (const type of ['dragover', 'drop'] as const)
+  window.addEventListener(type, (e) => e.dataTransfer?.types.includes('Files') && e.preventDefault());
+
 createRoot(document.getElementById('root')!).render(
   location.pathname === '/gallery' ? (
     <>
