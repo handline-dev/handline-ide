@@ -1,4 +1,4 @@
-import { Gauge, Inbox, Settings, ListTodo, MessageSquare, Plus, Smartphone, SquareTerminal } from 'lucide-react';
+import { CircleHelp, Gauge, Inbox, SlidersHorizontal, Settings, ListTodo, MessageSquare, Plus, Smartphone, SquareTerminal } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { shortName } from '#src/layout/agentTree.ts';
 
@@ -12,6 +12,8 @@ const kinds: Record<string, { label: string; icon: ReactNode }> = {
   requests: { label: 'Requests', icon: <Inbox size={14} /> },
   usage: { label: 'Usage', icon: <Gauge size={14} /> },
   settings: { label: 'Settings', icon: <Settings size={14} /> },
+  preferences: { label: 'Settings', icon: <SlidersHorizontal size={14} /> },
+  help: { label: 'Help', icon: <CircleHelp size={14} /> },
 };
 
 /** Another agent's chat, dragged in from the sidebar, opens `chat:<name>`. */
@@ -34,5 +36,6 @@ export const iconOf = (kind?: string) => {
   return kinds[kind]?.icon ?? (chatName(kind) ? kinds.chat.icon : null);
 };
 
-/** The sidebar's pages, above the agents. */
+/** The sidebar's pages: above the agents, and at the bottom (the app's settings and help). */
 export const pages = ['tasks', 'requests', 'usage'].map((kind) => ({ kind, ...kinds[kind] }));
+export const footerPages = ['preferences', 'help'].map((kind) => ({ kind, ...kinds[kind] }));
