@@ -9,7 +9,7 @@ import { ago, useNow } from '#src/format/time.ts';
 import { ChevronLeft, ChevronRight, Circle, CircleAlert, ListChecks, LoaderCircle, Pin, Plus, PanelLeft } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { activityOf, agentTree, pathTo, splitPinned, shortName, workingUnder, type Activity, type AgentNode } from '#src/layout/agentTree.ts';
-import { chatOf, labelOf, pages } from '#src/layout/kinds.tsx';
+import { chatOf, footerPages, labelOf, pages } from '#src/layout/kinds.tsx';
 import { startTabDrag } from '#src/ui/dnd.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
 
@@ -41,6 +41,7 @@ function Row({
   selected = false,
   trail,
   note,
+  context,
   unread = 0,
   onShow,
 }: {
@@ -53,6 +54,8 @@ function Row({
   trail?: ReactNode;
   /** A second line under the title, one line long (an unread message). */
   note?: string;
+  /** Muted before the title: the team a pinned sub-agent belongs to. */
+  context?: string;
   /** How many messages the note stands for, shown beside it when more than none. */
   unread?: number;
   onShow: () => void;
@@ -71,7 +74,10 @@ function Row({
       <span className="flex h-5 items-center gap-1.5 group-aria-[current]:font-medium">
         {lead}
         <span className="grid size-4 shrink-0 place-items-center text-muted">{icon}</span>
-        <span className="flex-1 truncate">{title}</span>
+        <span className="flex-1 truncate">
+          {context && <span className="text-muted">{context} / </span>}
+          {title}
+        </span>
         {trail && <span className="shrink-0 text-xs text-muted tabular-nums">{trail}</span>}
       </span>
       {/* Under the title, from the icon's column on. */}
@@ -201,7 +207,9 @@ function AgentRows({
         <AgentMenu agent={agent} onSettings={() => pick.onSettings(agent.name)}>
           <Row
             opens={opens}
-            title={shortName(agent.name, under)}
+            // At a section's top a sub-agent is a pin out of its team: its short name after the team's.
+            title={under === null && agent.parent ? shortName(agent.name, agent.parent) : shortName(agent.name, under)}
+            context={under === null && agent.parent ? agent.parent : undefined}
             selected={pick.agent === agent.name}
             onShow={() => pick.onSelect(agent.name)}
             // Only a parent has the fold chevron; a leaf starts at its dot.
@@ -416,6 +424,13 @@ export function Sidebar({
         pick={{ agent, onSelect: onSelectAgent, onSettings: onAgentSettings, ...fold }}
         onNew={() => void newAgent().then((name) => name && onSelectAgent(name))}
       />
+      <nav className="mt-auto flex gap-0.5 border-t border-border pt-2">
+        {footerPages.map((p) => (
+          <IconButton key={p.kind} label={p.label} onClick={() => onSelectPage(p.kind, p.label)}>
+            {p.icon}
+          </IconButton>
+        ))}
+      </nav>
     </aside>
   );
 }
