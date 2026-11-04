@@ -1,7 +1,17 @@
 // Chat of one agent on the data layer: the person's messages and the agent's transcript as paged queries, and send as a write whose
 // row shows at once and, if refused, stays with its text and a Retry.
 import { useEffect, useState } from 'react';
-import { replaceEqualDeep, useInfiniteQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import {
+  infiniteQueryOptions,
+  replaceEqualDeep,
+  useInfiniteQuery,
+  usePrefetchInfiniteQuery,
+  useQueryClient,
+  useSuspenseInfiniteQuery,
+  type InfiniteData,
+  type QueryClient,
+  type UseInfiniteQueryResult,
+} from '@tanstack/react-query';
 import { useStore } from '@handline/app-react';
 import type { ChatMessage, TranscriptItem, Working } from '@handline/client';
 import { mapPages, type Pages } from '#src/cache.ts';
@@ -56,11 +66,42 @@ export const placesHeld = (qc: QueryClient): ReadonlySet<string> => heldPlace.ge
 
 const byId = <T extends { id: number }>(lists: T[][]): T[] => [...new Map(lists.flat().map((x) => [x.id, x])).values()];
 
-/** One agent's conversation, in the tab (`mine` or `all`) shown. */
-export function useChat(agent: string, scope: ChatScope): Chat {
-  const store = useStore();
+/** The two paged reads a chat is drawn from: its messages and the agent's transcript. */
+function chatQueries(store: ReturnType<typeof useStore>, daemon: string, agent: string, scope: ChatScope) {
+  return [
+    infiniteQueryOptions({
+      queryKey: qk.chatMessages(daemon, agent, scope),
+      staleTime: Infinity,
+      initialPageParam: undefined as number | undefined,
+      structuralSharing: sharedRows<MsgPage, ChatMessage>(
+        (p) => p.messages,
+        (p, messages) => ({ ...p, messages }),
+      ),
+      queryFn: ({ pageParam }) => store.client.call('chat.messages', { agent, scope, before: pageParam, limit: PAGE }),
+      getNextPageParam: (last: MsgPage) => (last.more && last.messages.length ? Math.min(...last.messages.map((x) => x.id)) : undefined),
+    }),
+    infiniteQueryOptions({
+      queryKey: qk.transcript(daemon, agent),
+      staleTime: Infinity,
+      initialPageParam: undefined as number | undefined,
+      structuralSharing: sharedRows<TrPage, TranscriptItem>(
+        (p) => p.items,
+        (p, items) => ({ ...p, items }),
+      ),
+      queryFn: ({ pageParam }) => store.client.call('chat.transcript', { agent, before: pageParam, limit: PAGE }),
+      getNextPageParam: (last: TrPage) => (last.more && last.items.length ? last.items[0]!.id : undefined),
+    }),
+  ] as const;
+}
+
+type Paged<P> = Pick<
+  UseInfiniteQueryResult<InfiniteData<P>>,
+  'data' | 'isError' | 'isPending' | 'error' | 'hasNextPage' | 'isFetchingNextPage' | 'refetch' | 'fetchNextPage'
+>;
+
+/** What both chat hooks share: the place a reader holds, and the feed that keeps the chat live. */
+function useChatBase(agent: string) {
   const qc = useQueryClient();
-  const { daemon } = useData();
   const holdPlace = (held: boolean) => {
     const set = heldPlace.get(qc) ?? heldPlace.set(qc, new Set()).get(qc)!;
     if (held) set.add(agent);
@@ -70,32 +111,11 @@ export function useChat(agent: string, scope: ChatScope): Chat {
   const m = useServes('chat.messages');
   const t = useServes('chat.transcript');
   const served = m.served && t.served;
-  const on = served && m.open;
   useFeed('chat', served);
-  const msgs = useInfiniteQuery({
-    queryKey: qk.chatMessages(daemon, agent, scope),
-    enabled: on,
-    staleTime: Infinity,
-    initialPageParam: undefined as number | undefined,
-    structuralSharing: sharedRows<MsgPage, ChatMessage>(
-      (p) => p.messages,
-      (p, messages) => ({ ...p, messages }),
-    ),
-    queryFn: ({ pageParam }) => store.client.call('chat.messages', { agent, scope, before: pageParam, limit: PAGE }),
-    getNextPageParam: (last: MsgPage) => (last.more && last.messages.length ? Math.min(...last.messages.map((x) => x.id)) : undefined),
-  });
-  const tr = useInfiniteQuery({
-    queryKey: qk.transcript(daemon, agent),
-    enabled: on,
-    staleTime: Infinity,
-    initialPageParam: undefined as number | undefined,
-    structuralSharing: sharedRows<TrPage, TranscriptItem>(
-      (p) => p.items,
-      (p, items) => ({ ...p, items }),
-    ),
-    queryFn: ({ pageParam }) => store.client.call('chat.transcript', { agent, before: pageParam, limit: PAGE }),
-    getNextPageParam: (last: TrPage) => (last.more && last.items.length ? last.items[0]!.id : undefined),
-  });
+  return { holdPlace, served, on: served && m.open, store: useStore(), daemon: useData().daemon };
+}
+
+function chatOf(msgs: Paged<MsgPage>, tr: Paged<TrPage>, served: boolean, holdPlace: (held: boolean) => void): Chat {
   return {
     status: !served ? 'off' : msgs.isError || tr.isError ? 'error' : msgs.isPending || tr.isPending ? 'loading' : 'ready',
     error: msgs.error ?? tr.error,
@@ -119,6 +139,33 @@ export function useChat(agent: string, scope: ChatScope): Chat {
       if (tr.hasNextPage) void tr.fetchNextPage();
     },
   };
+}
+
+/** One agent's conversation, in the tab (`mine` or `all`) shown. */
+export function useChat(agent: string, scope: ChatScope): Chat {
+  const { holdPlace, served, on, store, daemon } = useChatBase(agent);
+  const [mq, tq] = chatQueries(store, daemon, agent, scope);
+  return chatOf(useInfiniteQuery({ ...mq, enabled: on }), useInfiniteQuery({ ...tq, enabled: on }), served, holdPlace);
+}
+
+/** useChat for a React Suspense boundary: it suspends until the first page of both the messages and the transcript is read, both
+ * asked at once, so the chat appears whole. Older pages (loadOlder) and live lines never suspend: they arrive as `loadingOlder`
+ * and events. Render it only where the chat is served and the daemon connected (`useChatServed`); a failed read throws to the
+ * nearest error boundary. */
+export function useChatSuspense(agent: string, scope: ChatScope): Chat {
+  const { holdPlace, served, store, daemon } = useChatBase(agent);
+  const [mq, tq] = chatQueries(store, daemon, agent, scope);
+  // Both reads start before either suspends, so the second does not wait for the first.
+  usePrefetchInfiniteQuery(mq);
+  usePrefetchInfiniteQuery(tq);
+  return chatOf(useSuspenseInfiniteQuery(mq), useSuspenseInfiniteQuery(tq), served, holdPlace);
+}
+
+/** Whether a chat can be read now: the daemon serves it and is connected. */
+export function useChatServed(): boolean {
+  const m = useServes('chat.messages');
+  const t = useServes('chat.transcript');
+  return m.served && t.served && m.open;
 }
 
 /** The ready-made verbs of a conversation. A refused send stays as a `failed` row: Retry sends its text again, Discard drops it. */
