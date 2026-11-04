@@ -22,6 +22,7 @@ import { chatOf, footerPages, labelOf, pages } from '#src/layout/kinds.tsx';
 import { startTabDrag } from '#src/ui/dnd.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { useScrollFade } from '#src/ui/ScrollFade.tsx';
+import { useSpringOpen } from '#src/ui/springOpen.ts';
 import { useFolded } from '#src/useFolded.ts';
 
 /** Top-left controls: collapse the sidebar, back, forward. They stay put when the sidebar is collapsed. */
@@ -71,8 +72,11 @@ function Row({
   unread?: number;
   onShow: () => void;
 }) {
+  const spring = useSpringOpen(onShow);
   return (
     <div
+      {...spring.handlers}
+      data-spring={spring.hovering || undefined}
       role="button"
       aria-current={selected || undefined}
       tabIndex={0}
@@ -80,7 +84,7 @@ function Row({
       onDragStart={(e) => startTabDrag(e, { open: { opens, title: labelOf(opens) } })}
       onClick={onShow}
       onKeyDown={(e) => e.key === 'Enter' && onShow()}
-      className="group flex cursor-default flex-col rounded-md px-2 py-1 text-base text-fg outline-none select-none focus-visible:bg-hover aria-[current]:bg-selected"
+      className="group flex cursor-default flex-col rounded-md px-2 py-1 text-base text-fg outline-none select-none focus-visible:bg-hover aria-[current]:bg-selected data-[spring]:bg-hover"
     >
       <span className="flex h-5 items-center gap-1.5 group-aria-[current]:font-medium">
         {lead}
