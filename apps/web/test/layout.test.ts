@@ -1,0 +1,180 @@
+import { describe, expect, it } from 'vitest';
+import { findPane, initial, panes, reduce, type Action, type Node, type Pane } from '#src/layout/tree.ts';
+
+const run = (root: Node, ...actions: Action[]) => actions.reduce(reduce, root);
+const only = (root: Node) => root as Pane;
+const titles = (p: Pane | undefined) => p?.tabs.map((t) => t.title);
+const open = (pane: string, title: string, index?: number): Action => ({
+  type: 'open',
+  opens: title.toLowerCase(),
+  title,
+  to: { pane, index },
+});
+
+describe('layout tree', () => {
+  it('starts on one pane with a pinned Chat', () => {
+    const root = only(initial());
+    expect(titles(root)).toEqual(['Chat']);
+    expect(reduce(root, { type: 'closeTab', pane: root.id, tab: root.tabs[0].id })).toBe(root);
+  });
+
+  it('splits a pane with an Empty one, which + or a drop replaces', () => {
+    const p = only(initial());
+    let root = run(p, { type: 'split', pane: p.id, edge: 'right' });
+    const [, right] = panes(root);
+    expect(titles(right)).toEqual(['Empty']);
+    root = run(root, open(right.id, 'Tasks'));
+    expect(titles(findPane(root, right.id))).toEqual(['Tasks']);
+  });
+
+  it('closing the last tab of a split-off pane closes the pane', () => {
+    const p = only(initial());
+    let root = run(p, { type: 'split', pane: p.id, edge: 'down' });
+    const right = panes(root)[1];
+    root = run(root, { type: 'closeTab', pane: right.id, tab: right.tabs[0].id });
+    expect(root.kind).toBe('pane');
+  });
+
+  it('opens at an index, and reorders within a bar', () => {
+    const p = only(initial());
+    let root = run(p, open(p.id, 'A'), open(p.id, 'B'), open(p.id, 'C', 1));
+    expect(titles(only(root))).toEqual(['Chat', 'C', 'A', 'B']);
+    const b = only(root).tabs[3];
+    root = run(root, { type: 'move', from: p.id, tab: b.id, to: { pane: p.id, index: 1 } });
+    expect(titles(only(root))).toEqual(['Chat', 'B', 'C', 'A']);
+  });
+
+  it('merges a tab into another pane, closing the emptied source', () => {
+    const p = only(initial());
+    let root = run(p, { type: 'split', pane: p.id, edge: 'right' });
+    const right = panes(root)[1];
+    root = run(root, open(right.id, 'Tasks'));
+    const tasks = findPane(root, right.id)!.tabs[0];
+    root = run(root, { type: 'move', from: right.id, tab: tasks.id, to: { pane: p.id, index: 1 } });
+    expect(root.kind).toBe('pane');
+    expect(titles(only(root))).toEqual(['Chat', 'Tasks']);
+    expect(only(root).active).toBe(tasks.id);
+  });
+
+  it('drops a tab at an edge: a new pane on that side', () => {
+    const p = only(initial());
+    let root = run(p, open(p.id, 'Tasks'));
+    const tasks = only(root).tabs[1];
+    root = run(root, { type: 'move', from: p.id, tab: tasks.id, to: { pane: p.id, edge: 'left' } });
+    expect(root.kind === 'split' && root.axis).toBe('x');
+    expect(panes(root).map(titles)).toEqual([['Tasks'], ['Chat']]);
+  });
+
+  it('will not split a pane off itself with its only tab, nor move a pinned tab', () => {
+    const p = only(initial());
+    let root = run(p, { type: 'split', pane: p.id, edge: 'right' });
+    const right = panes(root)[1];
+    root = run(root, open(right.id, 'Tasks'));
+    const before = root;
+    const tasks = findPane(root, right.id)!.tabs[0];
+    expect(run(root, { type: 'move', from: right.id, tab: tasks.id, to: { pane: right.id, edge: 'down' } })).toBe(before);
+    expect(run(root, { type: 'move', from: p.id, tab: p.tabs[0].id, to: { pane: right.id } })).toBe(before);
+  });
+
+  it('opens a dragged-in thing (a sidebar agent) at an edge', () => {
+    const p = only(initial());
+    const root = run(p, { type: 'open', opens: 'agent', title: 'handline', to: { pane: p.id, edge: 'down' } });
+    expect(root.kind === 'split' && root.axis).toBe('y');
+    expect(panes(root).map(titles)).toEqual([['Chat'], ['handline']]);
+  });
+
+  it('clamps a resize', () => {
+    const p = only(initial());
+    let root = run(p, { type: 'split', pane: p.id, edge: 'right' });
+    root = run(root, { type: 'resize', split: root.id, ratio: 0.99 });
+    expect(root.kind === 'split' && root.ratio).toBe(0.85);
+  });
+});
+
+describe('agent tree', () => {
+  it('nests agents under their parent, sorted, with unknown or self parents at the top', async () => {
+    const { agentTree } = await import('#src/layout/agentTree.ts');
+    const tree = agentTree([
+      { name: 'handline.ui', parent: 'handline', state: 'running' },
+      { name: 'handline', parent: null, state: 'idle' },
+      { name: 'handline.api', parent: 'handline', state: 'idle' },
+      { name: 'orphan', parent: 'gone', state: 'idle' },
+      { name: 'loop', parent: 'loop', state: 'idle' },
+    ]);
+    const flat = (ns: typeof tree, d = 0): string[] => ns.flatMap((n) => [`${d}:${n.agent.name}`, ...flat(n.children, d + 1)]);
+    expect(flat(tree)).toEqual(['0:handline', '1:handline.api', '1:handline.ui', '0:loop', '0:orphan']);
+  });
+});
+
+describe('show', () => {
+  it('selects an open tab of that kind anywhere, else opens it in the first pane', () => {
+    const p = only(initial());
+    let root = run(p, { type: 'split', pane: p.id, edge: 'right' });
+    const right = panes(root)[1];
+    root = run(root, open(right.id, 'Tasks'), { type: 'select', pane: right.id, tab: right.tabs[0].id });
+    root = run(root, { type: 'show', opens: 'tasks', title: 'Tasks' });
+    expect(findPane(root, right.id)!.tabs.find((t) => t.id === findPane(root, right.id)!.active)?.opens).toBe('tasks');
+    root = run(root, { type: 'show', opens: 'usage', title: 'Usage' });
+    expect(titles(panes(root)[0])).toEqual(['Chat', 'Usage']);
+  });
+});
+
+describe('shortName', () => {
+  it('drops the parent prefix', async () => {
+    const { shortName } = await import('#src/layout/agentTree.ts');
+    expect(shortName('a.b', 'a')).toBe('b');
+    expect(shortName('a.b.c', 'a')).toBe('b.c');
+    expect(shortName('ab.c', 'a')).toBe('ab.c');
+    expect(shortName('a.b', null)).toBe('a.b');
+  });
+});
+
+describe('activityOf', () => {
+  it('sorts the state words into four, unknown as resting', async () => {
+    const { activityOf } = await import('#src/layout/agentTree.ts');
+    expect(['running', 'starting', 'queued'].map(activityOf)).toEqual(['working', 'working', 'working']);
+    expect(['parked', 'no_terminal'].map(activityOf)).toEqual(['asleep', 'asleep']);
+    expect(['stalled', 'blocked', 'waiting'].map(activityOf)).toEqual(['error', 'error', 'error']);
+    expect(['idle', 'something-new'].map(activityOf)).toEqual(['resting', 'resting']);
+  });
+});
+
+describe('pathTo', () => {
+  it('keeps only the branch down to the picked agent', async () => {
+    const { agentTree, pathTo } = await import('#src/layout/agentTree.ts');
+    const tree = agentTree([
+      { name: 'a', parent: null, state: 'idle' },
+      { name: 'a.b', parent: 'a', state: 'idle' },
+      { name: 'a.b.c', parent: 'a.b', state: 'idle' },
+      { name: 'a.d', parent: 'a', state: 'idle' },
+    ]);
+    const names = (ns: typeof tree): string[] => ns.flatMap((n) => [n.agent.name, ...names(n.children)]);
+    expect(names(pathTo(tree[0].children, 'a.b.c'))).toEqual(['a.b', 'a.b.c']);
+    expect(pathTo(tree[0].children, 'x')).toEqual([]);
+  });
+});
+
+describe('pins', () => {
+  it('moves pinned agents with their subtrees out of the tree, in pin order', async () => {
+    const { agentTree } = await import('#src/layout/agentTree.ts');
+    const agents = [
+      { name: 'a', parent: null, state: 'idle' },
+      { name: 'a.x', parent: 'a', state: 'idle' },
+      { name: 'b', parent: null, state: 'idle' },
+      { name: 'c', parent: null, state: 'idle' },
+    ];
+    const { splitPinned } = await import('#src/layout/agentTree.ts');
+    const { pinned, rest } = splitPinned(agentTree(agents), ['c', 'a']);
+    expect(pinned.map((n) => n.agent.name)).toEqual(['c', 'a']);
+    expect(pinned[1].children.map((n) => n.agent.name)).toEqual(['a.x']);
+    expect(rest.map((n) => n.agent.name)).toEqual(['b']);
+  });
+});
+
+describe('fixed tab', () => {
+  it('keeps the pane that holds it open', () => {
+    const start = only(initial());
+    const split = reduce(start, { type: 'split', pane: start.id, edge: 'right' });
+    expect(reduce(split, { type: 'closePane', pane: start.id })).toBe(split);
+  });
+});
