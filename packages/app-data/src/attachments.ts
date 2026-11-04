@@ -37,6 +37,14 @@ export function whyNotImage(f: { type: string; size: number; name: string }): st
   return null;
 }
 
+/** Why a file of any type cannot be attached (attachment.put keeps any type as sent; images are checked by their bytes); null when it can. */
+export function whyNotFile(f: { type: string; size: number; name: string }): string | null {
+  if (IMAGE_TYPES.includes(f.type as Mime)) return whyNotImage(f);
+  if (f.size > MAX_IMAGE) return `${f.name}: a file is at most 10 MB`;
+  if (f.size === 0) return `${f.name}: the file is empty`;
+  return null;
+}
+
 /** One chunk as base64. `FileReader` rather than `Blob.arrayBuffer`, which React Native's Blob does not have. */
 const chunkBase64 = (part: Blob) =>
   new Promise<string>((resolve, reject) => {
