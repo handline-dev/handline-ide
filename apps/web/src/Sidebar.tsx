@@ -1,3 +1,4 @@
+import { queuedBehind } from '@handline/app-core';
 import { useAgents, useNav } from '@handline/app-data';
 import { AgentMenu } from '#src/AgentMenu.tsx';
 import { newAgent } from '#src/NewAgent.tsx';
@@ -5,7 +6,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { spring } from '#src/motion.ts';
 import type { AgentView } from '@handline/client';
 import { ago, useNow } from '#src/format/time.ts';
-import { ChevronLeft, ChevronRight, Circle, CircleAlert, LoaderCircle, Pin, Plus, PanelLeft } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Circle, CircleAlert, ListChecks, LoaderCircle, Pin, Plus, PanelLeft } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { activityOf, agentTree, pathTo, splitPinned, shortName, workingUnder, type Activity, type AgentNode } from '#src/layout/agentTree.ts';
 import { chatOf, labelOf, pages } from '#src/layout/kinds.tsx';
@@ -219,13 +220,19 @@ function AgentRows({
             }
             icon={activityIcon[activityOf(agent.state)]}
             // When it last worked: now while running, else since it stopped (state_since).
-            // and how many below it are working, as a small spinner and count.
+            // how many below it are working (spinner and count), and its queued tasks.
             trail={
               <span className="flex items-center gap-1.5">
                 {workingUnder(children) > 0 && (
                   <span className="flex items-center gap-0.5 text-success" title="sub-agents working">
                     <LoaderCircle size={11} strokeWidth={3.5} className="animate-spin" />
                     {workingUnder(children)}
+                  </span>
+                )}
+                {(queuedBehind(agent) ?? 0) > 0 && (
+                  <span className="flex items-center gap-0.5" title="tasks queued">
+                    <ListChecks size={12} />
+                    {queuedBehind(agent)}
                   </span>
                 )}
                 {agent.state === 'running' ? 'now' : ago(agent.state_since, now)}
