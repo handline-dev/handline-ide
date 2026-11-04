@@ -3,7 +3,7 @@
 import type { Attachment } from '@handline/client';
 import { classify, sentence } from '#src/errors.ts';
 import { keptState } from '#src/kept.ts';
-import { MAX_PER_MESSAGE, forgetAttachment, rememberAttachment, useUploadImage, whyNotImage } from '#src/attachments.ts';
+import { MAX_PER_MESSAGE, forgetAttachment, rememberAttachment, useUploadImage, whyNotFile, whyNotImage } from '#src/attachments.ts';
 
 export interface ImageSource {
   blob: Blob;
@@ -32,8 +32,9 @@ interface Held {
 }
 const useHeld = keptState<Held>(() => ({ drafts: [], problem: null, live: new Map() }));
 
-/** `agent`: the drafts are kept for that agent, so they are still there when the person returns to it; without it they go with the component. */
-export function useImageDrafts(max = MAX_PER_MESSAGE, agent?: string) {
+/** `agent`: the drafts are kept for that agent, so they are still there when the person returns to it; without it they go with the component.
+ * `anyFile`: files of any type are taken too, not images alone (a non-image has an empty preview). */
+export function useImageDrafts(max = MAX_PER_MESSAGE, agent?: string, anyFile = false) {
   const upload = useUploadImage();
   const held = useHeld(agent);
   const { drafts, problem } = held.state;
@@ -56,9 +57,9 @@ export function useImageDrafts(max = MAX_PER_MESSAGE, agent?: string) {
   const add = (sources: ImageSource[]) => {
     held.set({ problem: null });
     for (const src of sources) {
-      const why = whyNotImage({ type: src.mime, size: src.blob.size, name: src.name });
+      const why = (anyFile ? whyNotFile : whyNotImage)({ type: src.mime, size: src.blob.size, name: src.name });
       if (why) return held.set({ problem: why });
-      if (live.size >= max) return held.set({ problem: `At most ${max} images to a message` });
+      if (live.size >= max) return held.set({ problem: `At most ${max} ${anyFile ? 'files' : 'images'} to a message` });
       const key = nextKey++;
       live.set(key, { aborted: false, src });
       held.set((s) => ({ drafts: [...s.drafts, { key, name: src.name, preview: src.preview, progress: 0 }] }));
