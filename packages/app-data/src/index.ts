@@ -32,3 +32,5 @@ export * from '#src/nav.ts';
 export * from '#src/task-seen.ts';
 export * as hooks from '#src/generated/hooks.ts';
 export * from '#src/generated/enums.ts';
+/** For an app's suspense boundary: a retry after a failed read reads again (React Query lives here). */
+export { QueryErrorResetBoundary } from '@tanstack/react-query';
