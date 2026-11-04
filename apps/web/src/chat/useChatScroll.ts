@@ -67,7 +67,10 @@ export function useChatScroll({
       state.current = a.state;
       setNewer(a.state.newer);
       if (a.to === null) return;
-      if (a.smooth && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      // A jump while our glide is under way would be overridden by the glide still heading for the old end (a send glides to the
+      // end, then its own line lands and the end moves): the glide is aimed at the new place instead.
+      const gliding = performance.now() < glide.current;
+      if ((a.smooth || gliding) && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
         glide.current = performance.now() + GLIDE_MS;
         intent.current = false;
         scrollTo(box, a.to, true);

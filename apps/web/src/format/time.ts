@@ -24,3 +24,6 @@ export function useNow(ms = 60_000): number {
   }, [ms]);
   return now;
 }
+
+/** The time of day, as hours and minutes in the reader's locale. */
+export const clock = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
