@@ -1,23 +1,88 @@
-import { AnimatePresence, motion } from 'framer-motion';
-import { chatView, sideOf, tickLevel } from '@handline/app-core';
-import { useAgents, useChat, useChatActions } from '@handline/app-data';
+import { chatView } from '@handline/app-core';
+import { useAgents, useChatActions, useChatServed, useChatSuspense } from '@handline/app-data';
 import { useMe, useNearEnd } from '@handline/app-react';
-import { Check, Copy, FoldVertical, LoaderCircle, Quote } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { AnimatePresence } from 'framer-motion';
+import { LoaderCircle } from 'lucide-react';
+import { useEffect, useImperativeHandle, useRef, type ReactNode, type Ref } from 'react';
+import { useAttachments } from '#src/chat/attachments.tsx';
+import { ChatLine } from '#src/chat/ChatLine.tsx';
+import { ChatSkeleton } from '#src/chat/ChatSkeleton.tsx';
+import { Composer } from '#src/chat/Composer.tsx';
+import { Dots } from '#src/chat/Dots.tsx';
+import { useDraft } from '#src/chat/drafts.ts';
+import { useChatScroll } from '#src/chat/useChatScroll.ts';
+import { Boundary } from '#src/ui/Boundary.tsx';
 import { Button } from '#src/ui/Button.tsx';
-import { IconButton } from '#src/ui/IconButton.tsx';
-import { Ticks } from '#src/Ticks.tsx';
-import { useChatScroll } from '#src/useChatScroll.ts';
-import { spring } from '#src/motion.ts';
+import { DropHint, useFileDrop } from '#src/ui/fileDrop.tsx';
 import { Page } from '#src/ui/Page.tsx';
-import { toast } from '#src/ui/toast.tsx';
-import { ModalFrame, openModal } from '#src/ui/modal.tsx';
-import { Markdown } from '#src/ui/Markdown.tsx';
 import { useScrollFade } from '#src/ui/ScrollFade.tsx';
 
-/** An agent's chat, first cut: its messages and replies, oldest first, each with copy and reference on hover, and a box to send one. */
+/** An agent's chat: its lines, and the box to write in. The box is there from the first moment; the lines wait, as a skeleton,
+ * until the messages and the transcript are both read (a suspense boundary), so the chat appears whole. */
 export function Chat({ agent }: { agent: string }) {
-  const chat = useChat(agent, 'mine');
+  const served = useChatServed();
+  const { send } = useChatActions(agent);
+  const [draft, setDraft] = useDraft(agent);
+  const attach = useAttachments(agent);
+  const drop = useFileDrop(attach.add);
+  const quote = (body: string) => setDraft((d) => `${body.replace(/^/gm, '> ')}\n\n${d}`);
+  // The stream's scroll hears of a send through this, once the stream is drawn.
+  const stream = useRef<{ sent: () => void }>(null);
+  const loading = (
+    <Shell>
+      <ChatSkeleton />
+    </Shell>
+  );
+
+  return (
+    // Files dropped anywhere on the chat go with the next message.
+    <div {...drop.handlers} className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+      <DropHint shown={drop.over} />
+      {served ? (
+        <Boundary
+          loading={loading}
+          failed={(retry) => (
+            <Shell>
+              <div className="flex items-center gap-3 text-sm text-danger">
+                Chat did not load.
+                <Button onClick={retry}>Retry</Button>
+              </div>
+            </Shell>
+          )}
+        >
+          <Stream ref={stream} agent={agent} onQuote={quote} />
+        </Boundary>
+      ) : (
+        loading
+      )}
+      <Page>
+        <Composer
+          agent={agent}
+          draft={draft}
+          setDraft={setDraft}
+          attach={attach}
+          onSend={(body, attachments) => {
+            send(body, { attachments });
+            stream.current?.sent();
+          }}
+        />
+      </Page>
+    </div>
+  );
+}
+
+/** The stream's frame without its lines: what stands while they load. */
+function Shell({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col justify-end overflow-hidden py-4">
+      <Page>{children}</Page>
+    </div>
+  );
+}
+
+/** The chat's lines, oldest first. Suspends until the first pages are in; an older page is read near the top without suspending. */
+function Stream({ agent, onQuote, ref }: { agent: string; onQuote: (text: string) => void; ref: Ref<{ sent: () => void }> }) {
+  const chat = useChatSuspense(agent, 'mine');
   const me = useMe();
   const { entries } = chatView(chat, 'mine', agent, me);
   const doing = useAgents().data?.agents.find((a) => a.name === agent)?.doing?.text;
@@ -26,7 +91,8 @@ export function Chat({ agent }: { agent: string }) {
   const fade = useScrollFade(stream);
   // Enters at the bottom, follows new lines while there, and keeps a reader above it on their line when
   // older pages or images land (the legacy chat's scroll, shared logic in app-core).
-  const scroll = useChatScroll({ stream, content, ready: chat.status === 'ready', agent, reading: chat.holdPlace });
+  const scroll = useChatScroll({ stream, content, ready: true, agent, reading: chat.holdPlace });
+  useImperativeHandle(ref, () => ({ sent: scroll.sent }), [scroll.sent]);
   // Lines added at the end (not an older page landing at the top): counted from the last line known.
   const last = useRef<string | null>(null);
   useEffect(() => {
@@ -35,294 +101,51 @@ export function Chat({ agent }: { agent: string }) {
     if (last.current !== null && at >= 0 && at < keys.length - 1) scroll.added(keys.length - 1 - at);
     last.current = keys.at(-1) ?? null;
   });
-  const top = useNearEnd<HTMLDivElement, HTMLDivElement>(
-    stream,
-    chat.loadOlder,
-    chat.hasOlder && !chat.loadingOlder && chat.status === 'ready',
-    {
-      atTop: true,
-      margin: 400,
-    },
-  );
-  const { send } = useChatActions(agent);
-  const [draft, setDraft] = useState('');
-  const submit = () => {
-    const body = draft.trim();
-    if (!body) return;
-    send(body);
-    scroll.sent();
-    setDraft('');
-  };
-  const quote = (body: string) => setDraft((d) => `${body.replace(/^/gm, '> ')}\n\n${d}`);
+  const top = useNearEnd<HTMLDivElement, HTMLDivElement>(stream, chat.loadOlder, chat.hasOlder && !chat.loadingOlder, {
+    atTop: true,
+    margin: 400,
+  });
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <div
-        ref={stream}
-        onScroll={scroll.onScroll}
-        onWheel={scroll.driven}
-        onTouchStart={scroll.driven}
-        onKeyDown={scroll.driven}
-        onPointerDown={scroll.driven}
-        className="min-h-0 flex-1 overflow-y-auto py-4"
-        style={fade}
-      >
-        <div ref={content}>
-          <Page className="flex flex-col">
-            {/* Near the top (400px out), the older page is read; useChatScroll keeps the line in view where it was. */}
-            {chat.hasOlder && <div ref={top} aria-hidden className="h-px" />}
-            {chat.loadingOlder && (
-              <div className="flex items-center justify-center gap-2 py-3 text-xs text-muted">
-                <LoaderCircle size={14} strokeWidth={3} className="animate-spin" />
-                Loading earlier messages
-              </div>
-            )}
-            {chat.status === 'loading' && <p className="text-sm text-muted">Loading…</p>}
-            {chat.status === 'error' && <p className="text-sm text-danger">Chat did not load.</p>}
-            {/* A new line fades in; the ones already there when the chat opens just show (initial off). */}
-            <AnimatePresence initial={false}>
-              {entries.map((e) => {
-                if (e.kind === 'item' && e.item.session)
-                  return (
-                    <motion.div
-                      key={`${e.kind}:${e.id}`}
-                      data-id={`${e.kind}:${e.id}`}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={spring}
-                    >
-                      <SessionLine at={e.at} cause={e.item.session.cause} handoff={e.item.session.handoff} />
-                    </motion.div>
-                  );
-                const text = e.kind === 'item' ? (e.item.text ?? '') : e.kind === 'proposal' ? '' : e.message.body;
-                if (!text) return null;
-                const mine = e.kind === 'message' && sideOf(e.message, agent, me) === 'person';
-                return (
-                  // The hover row keeps its height when hidden: that row is the space between lines.
-                  // Mine sit on the right, on the selection colour.
-                  <motion.div
-                    key={`${e.kind}:${e.id}`}
-                    data-id={`${e.kind}:${e.id}`}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={spring}
-                    className={`group flex flex-col ${mine ? 'items-end' : 'items-start'}`}
-                  >
-                    <p
-                      className={`max-w-150 min-w-0 text-base wrap-break-word whitespace-pre-wrap text-fg ${mine ? 'rounded-xl bg-selected px-4 py-2' : ''}`}
-                    >
-                      {text}
-                    </p>
-                    {/* On hover: the agent's [buttons] time; mine: read or not, time, [buttons]. */}
-                    <div className="flex items-center gap-1.5 text-xs text-muted opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
-                      {mine && e.kind === 'message' ? (
-                        <>
-                          <Ticks level={tickLevel(e.message)} />
-                          <time dateTime={e.at}>{clock(e.at)}</time>
-                          <Actions text={text} onQuote={quote} />
-                        </>
-                      ) : (
-                        <>
-                          <Actions text={text} onQuote={quote} />
-                          <time dateTime={e.at}>{clock(e.at)}</time>
-                        </>
-                      )}
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </AnimatePresence>
-            {/* The dots' row is always there, so turning them on or off does not move the chat. */}
-            <div
-              className={`h-5 transition-opacity ${chat.working.turn_running ? 'opacity-100' : 'opacity-0'}`}
-              aria-hidden={!chat.working.turn_running}
-            >
-              <span className="flex items-center gap-2">
-                <Dots />
-                {/* What the agent is doing right now: its newest tool call (AgentView.doing). */}
-                {doing && <span className="truncate text-xs text-muted">{doing}</span>}
-              </span>
-            </div>
-          </Page>
-        </div>
-      </div>
-      <Page>
-        <form
-          className="flex gap-2 py-3"
-          onSubmit={(e) => {
-            e.preventDefault();
-            submit();
-          }}
-        >
-          <textarea
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-                e.preventDefault();
-                submit();
-              }
-            }}
-            rows={2}
-            placeholder={`Message ${agent}`}
-            className="flex-1 resize-none rounded-xl border border-border bg-bg px-4 py-2 text-base text-fg outline-none focus:border-accent"
-          />
-          <Button type="submit">Send</Button>
-        </form>
-      </Page>
-    </div>
-  );
-}
-
-const clock = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-function Actions({ text, onQuote }: { text: string; onQuote: (text: string) => void }) {
-  return (
-    <span className="flex gap-0.5">
-      <CopyButton text={text} />
-      <IconButton label="Reference" onClick={() => onQuote(text)}>
-        <Quote size={14} />
-      </IconButton>
-    </span>
-  );
-}
-
-/** Copies `text`; a check stands in for the icon for a moment to show it took. */
-function CopyButton({ text }: { text: string }) {
-  const [done, setDone] = useState(false);
-  return (
-    <IconButton
-      label={done ? 'Copied' : 'Copy'}
-      onClick={() => {
-        navigator.clipboard.writeText(text).then(
-          () => {
-            setDone(true);
-            setTimeout(() => setDone(false), 1500);
-          },
-          () => toast('Copy did not work.', { tone: 'warning' }),
-        );
-      }}
+    <div
+      ref={stream}
+      onScroll={scroll.onScroll}
+      onWheel={scroll.driven}
+      onTouchStart={scroll.driven}
+      onKeyDown={scroll.driven}
+      onPointerDown={scroll.driven}
+      className="min-h-0 flex-1 overflow-y-auto"
+      style={fade}
     >
-      {done ? <Check size={14} className="text-success" /> : <Copy size={14} />}
-    </IconButton>
-  );
-}
-
-/** The agent is working: three dots rising in turn. */
-function Dots() {
-  return (
-    <span aria-label="working" className="flex h-5 items-center gap-1">
-      {[0, 1, 2].map((i) => (
-        <motion.span
-          key={i}
-          className="size-1.5 rounded-full bg-muted"
-          animate={{ y: [0, -3, 0], opacity: [0.4, 1, 0.4] }}
-          transition={{ duration: 0.9, repeat: Infinity, delay: i * 0.15 }}
-        />
-      ))}
-    </span>
-  );
-}
-
-/** Why a conversation began, as the line says it; a word the daemon adds later shows as it is. */
-const causes: Record<string, string> = {
-  launch: 'first start',
-  start: 'new work arrived',
-  wake: 'cache expired',
-  restart: 'restarted',
-  'fresh close': 'cache expired',
-  idle_close: 'cache expired',
-  move: 'moved to another account',
-  handoff: 'context was getting full',
-  context_full: 'context was full',
-  settings_applied: 'settings changed',
-  crash_recovery: 'recovered from a crash',
-};
-
-/** Where a new conversation of the agent began: a centred line between rules, with its handoff note when it had one. */
-function SessionLine({ at, cause, handoff }: { at: string; cause?: string; handoff: string | null }) {
-  const why = cause ? (causes[cause] ?? cause.replaceAll('_', ' ')) : null;
-  const [shown, setShown] = useState(false);
-  const hover = {
-    onPointerEnter: () => setShown(true),
-    onPointerLeave: () => setShown(false),
-    onFocus: () => setShown(true),
-    onBlur: () => setShown(false),
-  };
-  const box = 'flex flex-col items-center rounded-md px-2 py-0.5 transition-colors outline-none';
-  const label = `Compacted${why ? `: ${why}` : ''}`;
-  // The summary it was given is there for whoever wants it: the label opens it, nothing else points at it.
-  const body = (
-    <>
-      <span className="flex items-center gap-1.5">
-        <FoldVertical size={14} />
-        {label}
-      </span>
-      <motion.time
-        dateTime={at}
-        initial={false}
-        animate={shown ? { height: 'auto', opacity: 1 } : { height: 0, opacity: 0 }}
-        transition={spring}
-        className="overflow-hidden text-xs"
-      >
-        {clock(at)}
-      </motion.time>
-    </>
-  );
-  const open = () =>
-    void openModal((close) => (
-      <ModalFrame title="Context compacted" size="xl" onClose={() => close()}>
-        <Compaction at={at} why={why} handoff={handoff ?? ''} />
-      </ModalFrame>
-    ));
-  return (
-    // On hover the time opens under the label, inside its hover box, from no height to its own. The row
-    // holds the open box's height (label 20 + time 16 + padding 4), so the chat never moves; all is centred in it.
-    <div className="my-3 flex h-10 items-center gap-4 text-sm text-muted">
-      <div className="h-px flex-1 bg-border" />
-      {handoff ? (
-        <button
-          type="button"
-          onClick={open}
-          {...hover}
-          className={`${box} hover:bg-hover/30 hover:text-fg focus-visible:ring-2 focus-visible:ring-accent`}
-        >
-          {body}
-        </button>
-      ) : (
-        <div {...hover} className={box}>
-          {body}
-        </div>
-      )}
-      <div className="h-px flex-1 bg-border" />
-    </div>
-  );
-}
-
-/** What a compaction was: why and when first, then the note the agent carried over, read as Markdown. */
-function Compaction({ at, why, handoff }: { at: string; why: string | null; handoff: string }) {
-  return (
-    <div className="flex flex-col gap-5 pb-1">
-      <section className="flex flex-col gap-2">
-        <h3 className="text-xs font-medium text-muted">Summary</h3>
-        <dl className="flex flex-col gap-1 text-sm">
-          {[
-            ['Why', why ?? 'Not recorded'],
-            ['When', new Date(at).toLocaleString()],
-          ].map(([k, v]) => (
-            <div key={k} className="flex gap-4">
-              <dt className="w-16 shrink-0 text-muted">{k}</dt>
-              <dd className="min-w-0 text-fg">{v}</dd>
+      {/* At least as tall as the view, its lines at the bottom: a short chat sits on the box, as a messenger's does. */}
+      <div ref={content} className="flex min-h-full flex-col justify-end py-4">
+        <Page className="flex flex-col">
+          {/* Near the top (400px out), the older page is read; useChatScroll keeps the line in view where it was. */}
+          {chat.hasOlder && <div ref={top} aria-hidden className="h-px" />}
+          {chat.loadingOlder && (
+            <div className="flex items-center justify-center gap-2 py-3 text-xs text-muted">
+              <LoaderCircle size={14} strokeWidth={3} className="animate-spin" />
+              Loading earlier messages
             </div>
-          ))}
-        </dl>
-      </section>
-      <section className="flex flex-col gap-2">
-        <h3 className="text-xs font-medium text-muted">Handoff</h3>
-        <div className="text-sm text-fg">
-          <Markdown text={handoff} />
-        </div>
-      </section>
+          )}
+          <AnimatePresence initial={false}>
+            {entries.map((e) => (
+              <ChatLine key={`${e.kind}:${e.id}`} e={e} agent={agent} me={me} onQuote={onQuote} />
+            ))}
+          </AnimatePresence>
+          {/* The dots' row is always there, so turning them on or off does not move the chat. */}
+          <div
+            className={`h-5 transition-opacity ${chat.working.turn_running ? 'opacity-100' : 'opacity-0'}`}
+            aria-hidden={!chat.working.turn_running}
+          >
+            <span className="flex items-center gap-2">
+              <Dots />
+              {/* What the agent is doing right now: its newest tool call (AgentView.doing). */}
+              {doing && <span className="truncate text-xs text-muted">{doing}</span>}
+            </span>
+          </div>
+        </Page>
+      </div>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { Chat } from '#src/Chat.tsx';
+import { Chat } from '#src/chat/Chat.tsx';
 import { ArrowDownToLine, ArrowLeftToLine, ArrowRightToLine, ArrowUpToLine, Columns2, LayoutGrid, X } from 'lucide-react';
 import { useRef, useState, type DragEvent, type ReactNode } from 'react';
 import { canonical, choices, iconOf, labelOf } from '#src/layout/kinds.tsx';
