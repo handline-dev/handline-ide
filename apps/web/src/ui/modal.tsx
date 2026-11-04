@@ -3,6 +3,7 @@ import { X } from 'lucide-react';
 import { useState, useSyncExternalStore, type ReactNode } from 'react';
 import { Button } from '#src/ui/Button.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
+import { ScrollFade } from '#src/ui/ScrollFade.tsx';
 
 /** Promise-based modals: `const ok = await confirm({ ... })`. openModal works from anywhere (a handler, a
  * plain function) - the store lives here, and one <ModalHost /> at the root draws it. */
@@ -95,7 +96,7 @@ export function ModalHost() {
     >
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-50 bg-fg/40 transition-opacity duration-150 data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />
-        <Dialog.Viewport className="fixed inset-0 z-50 grid place-items-center p-4">{e.node}</Dialog.Viewport>
+        <Dialog.Viewport className="fixed inset-0 z-50 flex items-center justify-center p-4">{e.node}</Dialog.Viewport>
       </Dialog.Portal>
     </Dialog.Root>
   ));
@@ -135,9 +136,10 @@ export function ModalFrame({
           </IconButton>
         )}
       </div>
-      {children && <div className="min-h-0 overflow-auto px-4 pt-3 text-sm">{children}</div>}
+      {/* The body scrolls with its bar showing, its padding inside it, so it scrolls to the frame's edge. */}
+      {children && <ScrollFade className={`scrollbar-auto min-h-0 px-4 pt-3 text-sm ${footer ? '' : 'pb-4'}`}>{children}</ScrollFade>}
       {footer && <div className="flex justify-end gap-2 p-4">{footer}</div>}
-      {!footer && <div className="h-4" />}
+      {!footer && !children && <div className="h-4" />}
     </Dialog.Popup>
   );
 }

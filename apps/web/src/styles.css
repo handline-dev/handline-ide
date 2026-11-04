@@ -100,3 +100,10 @@ body {
   display: none;
 }
 
+/* The one place a scroll area shows its bar: a long read, such as a modal's body. */
+@utility scrollbar-auto {
+  scrollbar-width: auto;
+  &::-webkit-scrollbar {
+    display: initial;
+  }
+}
