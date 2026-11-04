@@ -7,11 +7,22 @@ import { spring } from '#src/motion.ts';
 import type { AgentView } from '@handline/client';
 import { ago, useNow } from '#src/format/time.ts';
 import { ChevronLeft, ChevronRight, Circle, CircleAlert, ListChecks, LoaderCircle, Pin, Plus, PanelLeft } from 'lucide-react';
-import { useEffect, useState, type ReactNode } from 'react';
-import { activityOf, agentTree, pathTo, splitPinned, shortName, workingUnder, type Activity, type AgentNode } from '#src/layout/agentTree.ts';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  activityOf,
+  agentTree,
+  pathTo,
+  splitPinned,
+  shortName,
+  workingUnder,
+  type Activity,
+  type AgentNode,
+} from '#src/layout/agentTree.ts';
 import { chatOf, footerPages, labelOf, pages } from '#src/layout/kinds.tsx';
 import { startTabDrag } from '#src/ui/dnd.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
+import { useScrollFade } from '#src/ui/ScrollFade.tsx';
+import { useFolded } from '#src/useFolded.ts';
 
 /** Top-left controls: collapse the sidebar, back, forward. They stay put when the sidebar is collapsed. */
 export function SidebarControls({ onToggle }: { onToggle: () => void }) {
@@ -113,31 +124,6 @@ type Pick = {
   folded: ReadonlySet<string>;
   toggleFold: (name: string) => void;
 };
-
-/** Which teams are folded, kept per browser: how much of the tree fits depends on the screen. */
-const FOLDED = 'web:folded';
-function useFolded() {
-  const [folded, setFolded] = useState<ReadonlySet<string>>(() => {
-    try {
-      return new Set(JSON.parse(localStorage.getItem(FOLDED) ?? '[]') as string[]);
-    } catch {
-      return new Set();
-    }
-  });
-  const toggleFold = (name: string) =>
-    setFolded((f) => {
-      const n = new Set(f);
-      if (n.has(name)) n.delete(name);
-      else n.add(name);
-      try {
-        localStorage.setItem(FOLDED, JSON.stringify([...n]));
-      } catch {
-        /* blocked storage: the fold just does not persist */
-      }
-      return n;
-    });
-  return { folded, toggleFold };
-}
 
 /** The agent row being dragged and the sibling group it came from; a drop reorders only within that group. */
 let dragged: { name: string; group: string } | null = null;
@@ -405,8 +391,10 @@ export function Sidebar({
   onAgentSettings: (name: string) => void;
 }) {
   const fold = useFolded();
+  const scroller = useRef<HTMLElement>(null);
+  const fade = useScrollFade(scroller);
   return (
-    <aside style={{ width }} className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto bg-surface px-2 pb-2">
+    <aside ref={scroller} style={{ width, ...fade }} className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto bg-surface px-2 pb-2">
       <nav className="flex flex-col gap-0.5">
         {pages.map((p) => (
           <Row
