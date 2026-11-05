@@ -10,6 +10,7 @@ import { Markdown } from '#src/ui/Markdown.tsx';
  * A click opens it in place, whole (its height from none to its own), and closes it again. */
 export function AgentNote({ m }: { m: ChatMessage }) {
   const [open, setOpen] = useState(false);
+
   const first = m.body.replace(/\s+/g, ' ').trim();
   return (
     // Like a message line, its time shows on hover in the row under it, which keeps its height so nothing moves.
