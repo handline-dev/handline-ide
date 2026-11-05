@@ -1,3 +1,4 @@
+import { howOf, type How } from '#src/layout/openTab.tsx';
 import { Plus, X } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { IconButton } from '#src/ui/IconButton.tsx';
@@ -68,7 +69,7 @@ export function TabBar({
   onClose: (id: string) => void;
   /** What + can open: a menu of these; picking one calls onAdd with its kind. */
   newTabKinds?: { kind: string; label: string; icon?: ReactNode }[];
-  onAdd?: (kind: string) => void;
+  onAdd?: (kind: string, how: How) => void;
   onTabDragStart?: (id: string, e: React.DragEvent) => void;
 }) {
   return (
@@ -92,7 +93,7 @@ export function TabBar({
           }
         >
           {newTabKinds.map((k) => (
-            <MenuItem key={k.kind} icon={k.icon} onClick={() => onAdd(k.kind)}>
+            <MenuItem key={k.kind} icon={k.icon} onClick={(e) => onAdd(k.kind, howOf(e))}>
               {k.label}
             </MenuItem>
           ))}

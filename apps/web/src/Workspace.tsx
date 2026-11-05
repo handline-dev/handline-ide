@@ -1,9 +1,10 @@
 import { Chat } from '#src/chat/Chat.tsx';
+import { PaneOpen, setShownWorkspace, type How } from '#src/layout/openTab.tsx';
 import { ArrowDownToLine, ArrowLeftToLine, ArrowRightToLine, ArrowUpToLine, Columns2, LayoutGrid, X } from 'lucide-react';
-import { useRef, useState, type DragEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type DragEvent, type ReactNode } from 'react';
 import { canonical, choices, iconOf, labelOf } from '#src/layout/kinds.tsx';
 import { toast } from '#src/ui/toast.tsx';
-import { hasFixed, isOpen, type Action, type Edge, type Node, type Pane, type Split, type Target } from '#src/layout/tree.ts';
+import { hasFixed, isOpen, panes, type Action, type Edge, type Node, type Pane, type Split, type Target } from '#src/layout/tree.ts';
 import { Button } from '#src/ui/Button.tsx';
 import { InsertLine, isTabDrag, readTabDrag, slotAt, startTabDrag, zoneAt, ZoneHighlight, type Zone } from '#src/ui/dnd.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
@@ -33,6 +34,18 @@ function dropTo(e: DragEvent, to: Target, { root, agent, dispatch }: Context) {
     return dispatch({ type: 'show', opens, title: labelOf(opens, agent) });
   }
   dispatch({ type: 'open', opens, title: labelOf(opens, agent), to });
+}
+
+/** Opens `opens` from pane `from`: here, a tab in that pane; beside, a tab in the pane after it, or a new split to its right when
+ * it is the last. Something already open is brought up where it is, not opened twice. */
+function openFrom({ root, agent, dispatch }: Context, from: string, kind: string, how: How = 'here') {
+  const opens = canonical(kind, agent);
+  const title = labelOf(opens, agent);
+  if (isOpen(root, opens)) return dispatch({ type: 'show', opens, title });
+  if (how === 'here') return dispatch({ type: 'open', opens, title, to: { pane: from } });
+  const all = panes(root);
+  const next = all[all.findIndex((p) => p.id === from) + 1];
+  dispatch({ type: 'open', opens, title, to: next ? { pane: next.id } : { pane: from, edge: 'right' } });
 }
 
 /** An Empty tab's body: pick what it shows, from the same list as the tab bar's +. */
@@ -139,7 +152,7 @@ function PaneView({
             onSelect={(tab) => dispatch({ type: 'select', pane: pane.id, tab })}
             onClose={(tab) => dispatch({ type: 'closeTab', pane: pane.id, tab })}
             newTabKinds={choices}
-            onAdd={(kind) => dispatch({ type: 'open', opens: kind, title: labelOf(kind), to: { pane: pane.id } })}
+            onAdd={(kind, how) => openFrom({ root, agent, dispatch }, pane.id, kind, how)}
             onTabDragStart={(tab, e) => startTabDrag(e, { move: { pane: pane.id, tab } })}
           />
           {line !== null && <InsertLine x={line} />}
@@ -165,8 +178,10 @@ function PaneView({
           dropTo(e, z === 'center' ? { pane: pane.id } : { pane: pane.id, edge: z }, { root, agent, dispatch });
         }}
       >
-        {current?.opens === 'chat' && agent && <Chat key={agent} agent={agent} />}
-        {current?.opens?.startsWith('chat:') && <Chat key={current.opens} agent={current.opens.slice(5)} />}
+        <PaneOpen.Provider value={(opens, how) => openFrom({ root, agent, dispatch }, pane.id, opens, how)}>
+          {current?.opens === 'chat' && agent && <Chat key={agent} agent={agent} />}
+          {current?.opens?.startsWith('chat:') && <Chat key={current.opens} agent={current.opens.slice(5)} />}
+        </PaneOpen.Provider>
         {current && !current.opens && (
           <EmptyTab onPick={(kind) => dispatch({ type: 'choose', pane: pane.id, tab: current.id, opens: kind, title: labelOf(kind) })} />
         )}
@@ -219,5 +234,7 @@ export function Workspace({ root, agent, dispatch, lead }: { root: Node; agent: 
         {[render(node.a, topLeft), render(node.b, false)]}
       </SplitView>
     );
+  // Opened from outside a pane (the sidebar): from the first pane.
+  useEffect(() => setShownWorkspace((opens, how) => openFrom({ root, agent, dispatch }, panes(root)[0]!.id, opens, how)));
   return <div className="flex min-h-0 min-w-0 flex-1">{render(root, true)}</div>;
 }

@@ -1,7 +1,7 @@
 import { ContextMenu as CM } from '@base-ui/react/context-menu';
 import { Menu as M } from '@base-ui/react/menu';
 import { Check, ChevronRight } from 'lucide-react';
-import type { ReactElement, ReactNode } from 'react';
+import type { MouseEvent, ReactElement, ReactNode } from 'react';
 import { floatingSurface } from '#src/ui/Popover.tsx';
 
 /** A list of actions on the popover surface; arrow keys and type-ahead come with it. */
@@ -48,7 +48,7 @@ export function MenuItem({
   checked,
   children,
 }: {
-  onClick?: () => void;
+  onClick?: (e: MouseEvent) => void;
   icon?: ReactNode;
   danger?: boolean;
   disabled?: boolean;

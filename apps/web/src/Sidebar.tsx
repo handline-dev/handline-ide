@@ -23,6 +23,7 @@ import { startTabDrag } from '#src/ui/dnd.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { useScrollFade } from '#src/ui/ScrollFade.tsx';
 import { useSpringOpen } from '#src/ui/springOpen.ts';
+import { openProps, useOpenTab } from '#src/layout/openTab.tsx';
 import { useFolded } from '#src/useFolded.ts';
 
 /** Top-left controls: collapse the sidebar, back, forward. They stay put when the sidebar is collapsed. */
@@ -73,6 +74,7 @@ function Row({
   onShow: () => void;
 }) {
   const spring = useSpringOpen(onShow);
+  const openTab = useOpenTab();
   return (
     <div
       {...spring.handlers}
@@ -82,8 +84,13 @@ function Row({
       tabIndex={0}
       draggable
       onDragStart={(e) => startTabDrag(e, { open: { opens, title: labelOf(opens) } })}
-      onClick={onShow}
-      onKeyDown={(e) => e.key === 'Enter' && onShow()}
+      {...openProps((how) => (how === 'here' ? onShow() : openTab(opens, 'side')))}
+      onKeyDown={(e) => {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        if (e.metaKey || e.ctrlKey) openTab(opens, 'side');
+        else onShow();
+      }}
       className="group flex cursor-default flex-col rounded-md px-2 py-1 text-base text-fg outline-none select-none focus-visible:bg-hover aria-[current]:bg-selected data-[spring]:bg-hover"
     >
       <span className="flex h-5 items-center gap-1.5 group-aria-[current]:font-medium">
