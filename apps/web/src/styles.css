@@ -207,3 +207,16 @@ body {
   background: var(--color-selected);
   transition: background 1s;
 }
+
+/* Just added or changed: the background lights up at once and fades slowly (a task's new comment or event, its brief or result). */
+@keyframes just-changed {
+  from {
+    background-color: color-mix(in srgb, var(--color-selected) 70%, transparent);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+.just-changed {
+  animation: just-changed 2.4s ease-out;
+}

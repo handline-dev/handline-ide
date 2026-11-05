@@ -31,7 +31,13 @@ export function useWrite<M extends WriteMethod>(method: M, target?: string) {
   const qc = useQueryClient();
   const { daemon } = useData();
   const spec = writes[method] as WriteSpec;
-  const ctx = (): Parameters<NonNullable<WriteSpec['patch']>>[0] => ({ qc, d: daemon, me: store.me, now: new Date().toISOString() });
+  const ctx = (): Parameters<NonNullable<WriteSpec['patch']>>[0] => ({
+    qc,
+    d: daemon,
+    me: store.me,
+    author: store.author || store.me,
+    now: new Date().toISOString(),
+  });
   const again = useRef<(p: CallParams<M>) => void>(() => {});
   const mutation = useMutation<Methods[M]['result'], unknown, CallParams<M>, { snapshot: Snapshot }>({
     mutationKey: writeKey(daemon, method),

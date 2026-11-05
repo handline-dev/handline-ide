@@ -1,10 +1,10 @@
 // The box under a task: a comment (the chat's own box, with @ and / and files), who it will reach, and someone to hand the task to with it.
 import { withImages } from '@handline/app-core';
 import type { TaskDetail } from '@handline/client';
-import { useAgents, useWrite } from '@handline/app-data';
+import { hooks, useAgents, useServes, useWrite } from '@handline/app-data';
 import { Check, CornerDownRight, Eye, Flag, Timer, Trash2, UserRound, X } from 'lucide-react';
 import { useState } from 'react';
-import { useAttachments } from '#src/chat/attachments.tsx';
+import type { Attachments } from '#src/chat/attachments.tsx';
 import { Composer } from '#src/chat/Composer.tsx';
 import { useDraft } from '#src/chat/drafts.ts';
 import type { Command } from '#src/chat/Suggest.tsx';
@@ -18,7 +18,7 @@ import { Page } from '#src/ui/Page.tsx';
 type Memo = TaskDetail['memos'][number];
 import { toast } from '#src/ui/toast.tsx';
 
-/** Who a comment reaches: the assignee always (the daemon tells them), and each agent it names with @. */
+/** Who a comment reaches by its own words: the assignee and each agent it names with @. */
 const readers = (owner: string, text: string, known: string[]) => [
   ...new Set([owner, ...[...text.matchAll(/@([\w.-]+)/g)].map((m) => m[1]!).filter((n) => known.includes(n))]),
 ];
@@ -45,17 +45,34 @@ function Readers({ names }: { names: string[] }) {
   );
 }
 
-export function CommentBox({ t, reply, onDrop }: { t: TaskDetail; reply: Memo | null; onDrop: () => void }) {
+export function CommentBox({
+  t,
+  reply,
+  onDrop,
+  attach,
+  onSent,
+}: {
+  t: TaskDetail;
+  reply: Memo | null;
+  onDrop: () => void;
+  attach: Attachments;
+  onSent: () => void;
+}) {
   const me = useMe();
   const read = useWrite('inbox.mark_read');
   const box = `task:${t.id}`;
   const [draft, setDraft] = useDraft(box);
-  const attach = useAttachments(box);
   const add = useWrite('task.comment.add', String(t.id));
   const edit = useWrite('task.edit');
   // Someone to hand it to with this comment; none keeps the owner.
   const [to, setTo] = useState<string | null>(null);
   const known = useAgents().data?.agents.map((a) => a.name) ?? [];
+  // Who it reaches, as the daemon will tell it (the assignee, each @name, and for the founder who the task answers to); asked again
+  // only when the @names change. A handover with it, or a daemon without the call, falls back to the assignee and the @names.
+  const named = readers('', draft, known).filter(Boolean).join(' ');
+  const served = useServes('task.comment.recipients').served;
+  const told = hooks.useTaskCommentRecipients({ task: t.id, text: named }, { enabled: served && !to }).data?.recipients;
+  const reach = !to && told ? told.map((r) => r.agent) : readers(to ?? t.to, draft, known);
   const done = useWrite('task.done');
   const discard = useWrite('task.discard');
   const change = (what: string, p: { owner?: string; priority?: 1 | 2 | 3; time_box?: string }) =>
@@ -139,7 +156,7 @@ export function CommentBox({ t, reply, onDrop }: { t: TaskDetail; reply: Memo | 
         }
         trailing={
           <>
-            <Readers names={readers(to ?? t.to, draft, known)} />
+            <Readers names={reach} />
             {to && (
               <IconButton label="Keep the assignee" onClick={() => setTo(null)}>
                 <X size={14} />
@@ -151,6 +168,7 @@ export function CommentBox({ t, reply, onDrop }: { t: TaskDetail; reply: Memo | 
           // The comment first, then the handover: the new owner finds it waiting.
           // An answer to a comment that asked the founder ends the wait: the open asks are closed with it.
           const answers = reply && /@human\b/.test(reply.text) ? openAsks(t, me).map((r) => r.id) : [];
+          onSent();
           add.mutate(
             { task: t.id, text: withImages(body, ids), ...(reply ? { reply: reply.id } : {}) },
             {

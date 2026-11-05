@@ -29,6 +29,10 @@ export class Store {
   /** The last try to reach the daemon failed and another is coming: a screen with one connection bar says so there instead of raising a notice. */
   unreachable = false;
   me = '';
+  /** The name the daemon records on this caller's writes: an agent's own name, else human (a device writes as the founder). */
+  author = '';
+  /** This browser's device id, when it connects as a paired device (hello's caller). */
+  device: string | undefined = undefined;
   /** The methods this caller may use, from hello; a screen shows only what the daemon serves. */
   served = new Set<string>();
   /** What the person is told: results of what they did, and events worth knowing about. */
@@ -80,6 +84,8 @@ export class Store {
     const hello = await this.client.start();
     this.conn = this.client.state;
     this.me = hello.caller.name;
+    this.author = hello.caller.kind === 'agent' ? hello.caller.name : 'human';
+    this.device = hello.caller.device;
     this.served = new Set([...hello.methods.filter((m) => m.allowed).map((m) => m.name), ...this.client.relayed]);
     this.emit();
     await this.client.subscribe(['agents', 'notifications']);

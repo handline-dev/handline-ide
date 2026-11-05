@@ -2,9 +2,8 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowRight, Check, ChevronDown, Pencil, Plus, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { HistoryRow, Task } from '@handline/client';
-import { useFeed, useTasks } from '@handline/app-data';
+import { useFeed, useTaskChanges, useTasks } from '@handline/app-data';
 import { look } from '#src/ui/taskLook.tsx';
-import { useStore } from '@handline/app-react';
 import { spring } from '#src/motion.ts';
 import { clock } from '#src/format/time.ts';
 import { taskOf } from '#src/layout/kinds.tsx';
@@ -173,7 +172,6 @@ const heard = new Set<() => void>();
 
 /** The task changes `agent` makes from now on: each task.changed is matched to its newest history row, and kept when the agent made it. */
 export function useTaskActivity(agent: string): TaskEvent[] {
-  const store = useStore();
   useFeed('tasks', true);
   const [, bump] = useState(0);
   useEffect(() => {
@@ -181,25 +179,14 @@ export function useTaskActivity(agent: string): TaskEvent[] {
     heard.add(redraw);
     return () => void heard.delete(redraw);
   }, []);
-  useEffect(
-    () =>
-      store.client.onEvent((e) => {
-        if (e.type !== 'task.changed') return;
-        const t = e.data as unknown as Task;
-        void store.client.call('task.history', { task: t.id }).then(({ rows }) => {
-          if (!rows.length) return;
-          const at = rows[0].at;
-          const now = rows.filter((r) => r.at === at);
-          const by = now[0].by;
-          const ev = fromRow(t.id, t.title, now);
-          if (!ev) return;
-          const list = made.get(by) ?? [];
-          if (list.some((x) => x.key === ev.key)) return;
-          made.set(by, [...list, ev]);
-          for (const f of heard) f();
-        });
-      }),
-    [store],
-  );
+  useTaskChanges((t, now) => {
+    const by = now[0]!.by;
+    const ev = fromRow(t.id, t.title, now);
+    if (!ev) return;
+    const list = made.get(by) ?? [];
+    if (list.some((x) => x.key === ev.key)) return;
+    made.set(by, [...list, ev]);
+    for (const f of heard) f();
+  });
   return made.get(agent) ?? [];
 }

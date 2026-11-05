@@ -1,5 +1,5 @@
-// Writes apps/web/src/tokens.css from the token values.
+// Writes apps/web/legacy/src/tokens.css from the token values.
 import { writeFileSync } from 'node:fs';
 import { tokensCss } from '#src/css.ts';
 
-writeFileSync(new URL('../../../apps/web/src/tokens.css', import.meta.url), tokensCss());
+writeFileSync(new URL('../../../apps/web/legacy/src/tokens.css', import.meta.url), tokensCss());

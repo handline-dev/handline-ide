@@ -1,13 +1,12 @@
-// Settings: over the whole app so the founder can focus on it, its sections in a menu on the left, closed by X or Escape.
+// Settings: over the whole app so the founder can focus on it, its sections in a menu on the left; Back at the menu's top, or Escape, leaves.
 // The rest of legacy's Settings (schedules, saved answers, appearance) joins the menu as it is built.
 import { AnimatePresence, motion } from 'framer-motion';
-import { HardDrive, MonitorSmartphone, UserRound, X } from 'lucide-react';
+import { ArrowLeft, HardDrive, MonitorSmartphone, UserRound } from 'lucide-react';
 import { useEffect, type ReactNode } from 'react';
 import { DevicesTab } from '#src/settings/DevicesTab.tsx';
 import { MachineTab } from '#src/settings/MachineTab.tsx';
 import { AccountsTab } from '#src/usage/AccountsTab.tsx';
 import { usePersisted } from '#src/persist/kv.ts';
-import { IconButton } from '#src/ui/IconButton.tsx';
 import { closeSettings, useSettingsOpen } from '#src/settings/open.ts';
 
 const SECTIONS = ['accounts', 'machine', 'devices'] as const;
@@ -47,7 +46,16 @@ function Frame() {
   }, []);
   return (
     <>
-      <nav aria-label="Settings" className="flex w-56 shrink-0 flex-col gap-0.5 bg-surface px-2 pt-12">
+      <nav aria-label="Settings" className="flex w-56 shrink-0 flex-col gap-0.5 bg-surface px-2 pt-1.5">
+        {/* Where the sidebar's top was, as Linear and Mattermost do it: out from the corner you came in by. */}
+        <button
+          type="button"
+          onClick={closeSettings}
+          className="mb-4 flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-muted hover:bg-hover/30 hover:text-fg"
+        >
+          <ArrowLeft size={14} />
+          Back
+        </button>
         <div className="px-2 pb-2 text-xs text-muted">Settings</div>
         {SECTIONS.map((s) => (
           <button
@@ -64,12 +72,7 @@ function Frame() {
           </button>
         ))}
       </nav>
-      <main className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto pt-8">
-        <div className="absolute top-2 right-2">
-          <IconButton label="Close settings" onClick={closeSettings}>
-            <X size={16} />
-          </IconButton>
-        </div>
+      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto pt-8">
         {section === 'accounts' && <AccountsTab />}
         {section === 'machine' && <MachineTab />}
         {section === 'devices' && <DevicesTab />}

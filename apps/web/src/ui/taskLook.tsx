@@ -7,7 +7,7 @@ const Dot = (p: LucideProps) => <Circle {...p} size={8} fill="currentColor" />;
 /** Each state's look: the same coloured square the chat's task cards carry, and its word. */
 export const STATE: Record<string, { icon: (p: LucideProps) => ReactNode; tone: string; word: string }> = {
   draft: { icon: CircleDot, tone: 'bg-muted', word: 'Draft' },
-  queued: { icon: Hourglass, tone: 'bg-muted', word: 'Queued' },
+  queued: { icon: Hourglass, tone: 'bg-muted', word: 'Up next' },
   pending: { icon: Hourglass, tone: 'bg-muted', word: 'Pending' },
   doing: { icon: Dot, tone: 'bg-accent', word: 'Doing' },
   waiting: { icon: Hand, tone: 'bg-warning', word: 'Waiting' },

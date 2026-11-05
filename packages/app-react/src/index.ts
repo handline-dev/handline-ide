@@ -93,6 +93,8 @@ export const useConnection = () => useSelector((s) => s.conn);
 export const useError = () => useSelector((s) => s.error);
 /** Who this window is and what the daemon said at hello: read through the store version, so a render is never left with the values from before the hello. */
 export const useMe = () => useSelected((s) => s.me);
+/** This browser's device id from the handshake, when it is a paired device. */
+export const useThisDevice = () => useSelected((s) => s.device);
 export const useHello = () => useSelector((s) => s.client.hello);
 
 /** Runs one async job at a time: a call while it runs does nothing. `going` is true meanwhile, for the buttons to disable. */

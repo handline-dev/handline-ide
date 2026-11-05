@@ -4,6 +4,7 @@ import { useMe } from '@handline/app-react';
 import type { TaskDetail } from '@handline/client';
 import {
   Check,
+  Eye,
   ChevronDown,
   CircleDot,
   Ellipsis,
@@ -25,8 +26,12 @@ import { IconButton } from '#src/ui/IconButton.tsx';
 import { Markdown } from '#src/ui/Markdown.tsx';
 import { Menu, MenuItem } from '#src/ui/Menu.tsx';
 import { Actions, CopyButton } from '#src/chat/MessageActions.tsx';
+import { Reference } from '#src/chat/ChatLine.tsx';
+import { HoverCard } from '#src/ui/HoverCard.tsx';
 import { Fields } from '#src/tools/TaskFields.tsx';
 import { CommentBox } from '#src/tools/TaskComment.tsx';
+import { useAttachments } from '#src/chat/attachments.tsx';
+import { FileDropArea } from '#src/ui/fileDrop.tsx';
 import { WaitingOnYou } from '#src/tools/TaskWaiting.tsx';
 import { Page } from '#src/ui/Page.tsx';
 import { ScrollFade } from '#src/ui/ScrollFade.tsx';
@@ -41,6 +46,8 @@ export function TaskTab({ id }: { id: number }) {
   const me = useMe();
   // The comment the box below answers, picked by Reply or a comment's Reference.
   const [replyTo, setReplyTo] = useState<TaskDetail['memos'][number] | null>(null);
+  // Files dropped anywhere on the task go with the next comment, as in the chat.
+  const attach = useAttachments(`task:${id}`);
   const t = q.data;
   if (q.isError) return <p className="m-auto text-sm text-danger">T{id} did not load.</p>;
   if (!t) return <p className="m-auto text-sm text-muted">Loading T{id}</p>;
@@ -53,8 +60,8 @@ export function TaskTab({ id }: { id: number }) {
       ? [...t.memos].reverse().find((m) => /@human\b/.test(m.text))
       : undefined;
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <ScrollFade keep={`task:${id}`} className="min-h-0 flex-1">
+    <FileDropArea take={attach.add} className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <ScrollFade keep={`task:${id}`} data-task-scroll={id} className="min-h-0 flex-1">
         <Page className="flex flex-col gap-6 py-4 text-base text-fg">
           <header className="flex flex-col gap-3">
             <div className="flex items-start gap-3">
@@ -108,7 +115,11 @@ export function TaskTab({ id }: { id: number }) {
               </div>
             )}
           </header>
-          {t.body && <Markdown text={t.body} />}
+          {t.body && (
+            <Flash text={t.body}>
+              <Markdown text={t.body} />
+            </Flash>
+          )}
           {t.subtasks.length > 0 && (
             <Section title="Sub-tasks">
               {t.subtasks.map((c) => (
@@ -118,7 +129,9 @@ export function TaskTab({ id }: { id: number }) {
           )}
           {t.evidence && (
             <Section title="Result">
-              <Markdown text={t.evidence} />
+              <Flash text={t.evidence}>
+                <Markdown text={t.evidence} />
+              </Flash>
             </Section>
           )}
           <Activity
@@ -127,7 +140,17 @@ export function TaskTab({ id }: { id: number }) {
           />
         </Page>
       </ScrollFade>
-      <CommentBox t={t} reply={replyTo} onDrop={() => setReplyTo(null)} />
+      <CommentBox t={t} reply={replyTo} onDrop={() => setReplyTo(null)} attach={attach} onSent={() => toBottom(id)} />
+    </FileDropArea>
+  );
+}
+
+/** Words that flash when they change after the task opened; drawn again for each change so each one flashes. */
+function Flash({ text, children }: { text: string; children: ReactNode }) {
+  const [first] = useState(text);
+  return (
+    <div key={text} className={`rounded-md ${text === first ? '' : 'just-changed'}`}>
+      {children}
     </div>
   );
 }
@@ -194,6 +217,14 @@ function Verbs({ id, open, state }: { id: number; open: boolean; state: string }
   );
 }
 
+/** After the founder comments: the page goes to its end, where the new comment is, once it is drawn. */
+function toBottom(id: number) {
+  setTimeout(() => {
+    const el = document.querySelector(`[data-task-scroll="${id}"]`);
+    el?.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+  }, 50);
+}
+
 /** Brings a comment into view and marks it for a moment. */
 function showMemo(id: number) {
   const el = document.querySelector(`[data-memo="${id}"]`);
@@ -227,6 +258,37 @@ function HoverRow({ at, edited, children }: { at: string; edited?: boolean; chil
   );
 }
 
+/** How many of the agents a founder's comment was told to have read it (eye 1/2); on hover, who has and who has not. */
+function ReadBy({ readers }: { readers?: ActivityItem['readers'] }) {
+  if (!readers?.length) return null;
+  const read = readers.filter((r) => r.state === 'read');
+  const not = readers.filter((r) => r.state !== 'read');
+  return (
+    <HoverCard
+      trigger={
+        <span className={`flex items-center gap-1 font-normal ${not.length ? '' : 'text-fg'}`}>
+          <Eye size={12} />
+          {read.length}/{readers.length}
+        </span>
+      }
+    >
+      <div className="flex flex-col gap-1 p-2 text-sm">
+        {not.length > 0 && <span className="text-xs text-muted">Not read yet</span>}
+        {not.map((r) => (
+          <span key={r.agent}>
+            {r.agent}
+            {r.state === 'held' && <span className="text-muted"> · waits for its next digest</span>}
+          </span>
+        ))}
+        {read.length > 0 && <span className={`text-xs text-muted ${not.length ? 'pt-1' : ''}`}>Read</span>}
+        {read.map((r) => (
+          <span key={r.agent}>{r.agent}</span>
+        ))}
+      </div>
+    </HoverCard>
+  );
+}
+
 /** The small round mark before each line of the activity. */
 function Mark({ icon: Icon }: { icon: typeof Check }) {
   return (
@@ -236,12 +298,18 @@ function Mark({ icon: Icon }: { icon: typeof Check }) {
   );
 }
 
+/** A line's key: a comment by its number and words, so an edit draws it again; an event by its time and words. */
+const keyOf = (i: ActivityItem) => (i.kind === 'comment' ? `c${i.memo}:${i.note}` : `e${i.at}${i.line}`);
+
 /** How many of the latest lines show before Earlier is opened. */
 const SHOWN = 5;
 
 /** Comments and changes in one list, oldest first: the last five, and Earlier opens the rest above them. */
 function Activity({ items, onReply }: { items: ActivityItem[]; onReply: (memo: number) => void }) {
   const [all, setAll] = useState(false);
+  // What was there when the task opened just shows; a comment or event that comes later, or a comment's new words, flash.
+  const [first] = useState(() => new Set(items.map(keyOf)));
+  const fresh = (i: ActivityItem) => (first.has(keyOf(i)) ? '' : 'just-changed');
   const shown = all ? items : items.slice(-SHOWN);
   const hidden = items.length - shown.length;
   // The line that was first when Earlier was clicked, and where it stood: the older ones come in above it, and it stays put.
@@ -276,26 +344,34 @@ function Activity({ items, onReply }: { items: ActivityItem[]; onReply: (memo: n
         {shown.map((i) =>
           i.kind === 'comment' ? (
             // A comment as a chat line: who, the words, and under them the chat's hover row (copy, reference, time).
-            <div key={`c${i.memo}`} data-memo={i.memo} className="group flex gap-2.5 rounded-md transition-colors">
+            <div key={keyOf(i)} data-memo={i.memo} className="group flex gap-2.5 rounded-md transition-colors">
               <Mark icon={MessageSquare} />
               <div className="flex min-w-0 flex-1 flex-col">
-                <span className="text-xs font-medium text-muted">{i.who}</span>
-                <Markdown text={i.note} />
+                <div className={`flex flex-col rounded-md ${fresh(i)}`}>
+                  <span className="text-xs font-medium text-muted">{i.who}</span>
+                  {i.replyTo != null && (
+                    <Reference text={items.find((r) => r.memo === i.replyTo)?.note} onClick={() => showMemo(i.replyTo!)} />
+                  )}
+                  <Markdown text={i.note} />
+                </div>
                 <HoverRow at={i.at} edited={i.edited}>
                   <Actions text={i.note} onQuote={() => i.memo != null && onReply(i.memo)} />
+                  <ReadBy readers={i.readers} />
                 </HoverRow>
               </div>
             </div>
           ) : (
-            <div key={`e${i.at}${i.line}`} className="group flex gap-2.5 text-xs text-muted">
+            <div key={keyOf(i)} className="group flex gap-2.5 text-xs text-muted">
               <Mark icon={eventIcon(i.line)} />
               <div className="flex min-w-0 flex-1 flex-col pt-0.5">
-                <span>{i.line}</span>
-                {i.note && (
-                  <div className="mt-1 border-l-2 border-border pl-3 text-sm text-fg">
-                    <Markdown text={i.note} />
-                  </div>
-                )}
+                <div className={`flex flex-col rounded-md ${fresh(i)}`}>
+                  <span>{i.line}</span>
+                  {i.note && (
+                    <div className="mt-1 border-l-2 border-border pl-3 text-sm text-fg">
+                      <Markdown text={i.note} />
+                    </div>
+                  )}
+                </div>
                 <HoverRow at={i.at}>{i.note && <CopyButton text={i.note} />}</HoverRow>
               </div>
             </div>

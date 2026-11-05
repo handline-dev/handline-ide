@@ -128,7 +128,14 @@ const tasks: Record<string, Patch> = {
     touches: memoKeys,
     patch: (c, p) => {
       const { task, text, reply } = as<{ task: number; text: string; reply?: number }>(p);
-      const memo: Memo = { id: provisionalId(), task, author: c.me, at: c.now, text, ...(reply === undefined ? {} : { reply_to: reply }) };
+      const memo: Memo = {
+        id: provisionalId(),
+        task,
+        author: c.author ?? c.me,
+        at: c.now,
+        text,
+        ...(reply === undefined ? {} : { reply_to: reply }),
+      };
       changeMemos(c, task, (l) => [...l, memo]);
     },
     reconcile: (c, p, r) => changeMemos(c, as<{ task: number }>(p).task, (l) => renumber(l, (m) => m.id < 0, (r as { memo: number }).memo)),
@@ -189,11 +196,7 @@ const settings: Record<string, Patch> = {
   },
   'settings.set': {
     // network_addresses moves the doors: the addresses and the listeners are read again.
-    touches: (d) => [
-      qk.resource(d, 'settings.get'),
-      qk.resource(d, 'connection.addresses'),
-      qk.resource(d, 'connection.get'),
-    ],
+    touches: (d) => [qk.resource(d, 'settings.get'), qk.resource(d, 'connection.addresses'), qk.resource(d, 'connection.get')],
     // A per-agent override is not the shared value, so only the shared one is shown early; null is the default, which only the daemon knows.
     patch: (c, p) => {
       const { agent, changes } = as<{ agent?: string; changes: PageSettings }>(p);

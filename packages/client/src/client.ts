@@ -16,21 +16,10 @@ import { RpcError } from '#src/errors.ts';
 import { BytesChannel } from '#src/bytes-channel.ts';
 import { toBase64 } from '#src/byte-terminal-view.ts';
 import { TerminalView } from '#src/terminal-view.ts';
-import type { CallParams, ClientOptions, ConnectionState, HelloResult } from '#src/client-options.ts';
+import { Listeners } from '#src/listeners.ts';
+import type { CallParams, ClientOptions, ConnectionState, DocNotice, Handler, HelloResult, Pending } from '#src/client-options.ts';
 
 export type { CallParams, ClientOptions, ConnectionState, HelloResult } from '#src/client-options.ts';
-
-type Handler<T> = (value: T) => void;
-interface Pending {
-  id: number;
-  method: string;
-  params: unknown;
-  resolve: (v: unknown) => void;
-  reject: (e: Error) => void;
-}
-
-/** A doc notice, its method in `kind`. */
-export type DocNotice = ({ kind: 'doc_changed' } & Notifications['doc_changed']) | ({ kind: 'doc_closed' } & Notifications['doc_closed']);
 
 export class DaemonClient {
   state: ConnectionState = 'connecting';
@@ -46,12 +35,12 @@ export class DaemonClient {
   private waitingForOpen: { ok: () => void; fail: (e: Error) => void }[] = [];
   private topics = new Set<Topic>();
   private cursor: number | undefined;
-  private eventHandlers = new Set<Handler<WireEvent>>();
-  private docHandlers = new Set<Handler<DocNotice>>();
-  private gapHandlers = new Set<Handler<Notifications['gap']>>();
-  private resumeHandlers = new Set<Handler<Resumed>>();
+  private eventHandlers = new Listeners<WireEvent>();
+  private docHandlers = new Listeners<DocNotice>();
+  private gapHandlers = new Listeners<Notifications['gap']>();
+  private resumeHandlers = new Listeners<Resumed>();
   private wasOpen = false; // the next connection is a reconnect
-  private stateHandlers = new Set<Handler<ConnectionState>>();
+  private stateHandlers = new Listeners<ConnectionState>();
   private views = new Map<string, TerminalView>();
   /** The terminal channel in format `bytes`, for a pane that renders the host's own escape codes. */
   readonly bytes = new BytesChannel(
@@ -85,14 +74,13 @@ export class DaemonClient {
   }
 
   onState(fn: Handler<ConnectionState>): () => void {
-    this.stateHandlers.add(fn);
-    return () => this.stateHandlers.delete(fn);
+    return this.stateHandlers.add(fn);
   }
 
   private setState(s: ConnectionState): void {
     if (this.state === s) return;
     this.state = s;
-    for (const fn of this.stateHandlers) fn(s);
+    this.stateHandlers.emit(s);
   }
 
   /** Connects and shakes hands. A connection that fails part way is closed here, and its retry is the caller's. */
@@ -157,7 +145,7 @@ export class DaemonClient {
       (await this.callNow('subscribe', { topics: [...this.topics], ...(back ? { resume: 'latest' as const } : { since: this.cursor }) }));
     const from = this.cursor;
     if (back && r) this.cursor = r.cursor;
-    if (back) for (const fn of this.resumeHandlers) fn({ from });
+    if (back) this.resumeHandlers.emit({ from });
     for (const v of this.views.values()) await this.attach(v);
     await this.bytes.reattachAll();
   }
@@ -292,22 +280,19 @@ export class DaemonClient {
     }
   }
   onEvent(fn: Handler<WireEvent>): () => void {
-    this.eventHandlers.add(fn);
-    return () => this.eventHandlers.delete(fn);
+    return this.eventHandlers.add(fn);
   }
   /** The connection is back and the stream restarts at the newest event: read again what is shown. */
   onResume(fn: Handler<Resumed>): () => void {
-    return (this.resumeHandlers.add(fn), () => this.resumeHandlers.delete(fn));
+    return this.resumeHandlers.add(fn);
   }
   /** A shared document this connection has open changed (doc_changed) or was let go (doc_closed). */
   onDoc(fn: Handler<DocNotice>): () => void {
-    this.docHandlers.add(fn);
-    return () => this.docHandlers.delete(fn);
+    return this.docHandlers.add(fn);
   }
   /** The daemon dropped history this client needed: refetch what the events described. */
   onGap(fn: Handler<Notifications['gap']>): () => void {
-    this.gapHandlers.add(fn);
-    return () => this.gapHandlers.delete(fn);
+    return this.gapHandlers.add(fn);
   }
 
   private notice(method: string, params: unknown): void {
@@ -316,19 +301,17 @@ export class DaemonClient {
         const e = params as WireEvent;
         if (this.cursor !== undefined && e.cursor <= this.cursor) return; // replayed twice
         this.cursor = e.cursor;
-        for (const fn of this.eventHandlers) fn(e);
+        this.eventHandlers.emit(e);
         break;
       }
       case 'doc_changed':
-      case 'doc_closed': {
-        const n = { kind: method, ...(params as object) } as DocNotice;
-        for (const fn of this.docHandlers) fn(n);
+      case 'doc_closed':
+        this.docHandlers.emit({ kind: method, ...(params as object) } as DocNotice);
         break;
-      }
       case 'gap': {
         const g = params as Notifications['gap'];
         this.cursor = g.cursor;
-        for (const fn of this.gapHandlers) fn(g);
+        this.gapHandlers.emit(g);
         break;
       }
       case 'output':

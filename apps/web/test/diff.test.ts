@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { ChangeSet, Text } from '@codemirror/state';
 import { diffChanges } from '#src/editor/diff.ts';
 
-const apply = (a: string, b: string) => diffChanges(a, b).apply(Text.of(a.split('\n'))).toString();
+const apply = (a: string, b: string) =>
+  diffChanges(a, b)
+    .apply(Text.of(a.split('\n')))
+    .toString();
 
 describe('diffChanges', () => {
   const cases: [string, string][] = [

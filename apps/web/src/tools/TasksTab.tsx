@@ -14,7 +14,7 @@ type Show = 'open' | 'draft' | 'closed';
 const GROUPS: { title: string; has: (t: Task) => boolean }[] = [
   { title: 'Doing', has: (t) => t.state === 'doing' && !t.waiting && !t.block_reason && !t.hold_reason },
   { title: 'Waiting', has: (t) => !!(t.waiting || t.block_reason || t.hold_reason) },
-  { title: 'Queued', has: () => true },
+  { title: 'Up next', has: () => true },
 ];
 
 /** The tasks: open ones grouped by what they are doing, drafts, or the closed ones; in an agent's pane, that agent's by default.

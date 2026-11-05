@@ -39,6 +39,6 @@ test('four surfaces, five type steps, space on a 4 px grid, three heights and ra
 });
 
 test('the PC tokens.css is the generated one', () => {
-  const file = readFileSync(new URL('../../../apps/web/src/tokens.css', import.meta.url), 'utf8');
+  const file = readFileSync(new URL('../../../apps/web/legacy/src/tokens.css', import.meta.url), 'utf8');
   assert.equal(file, tokensCss(), 'run `pnpm --filter @handline/tokens build:css` and prettier');
 });

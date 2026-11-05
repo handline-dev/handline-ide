@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { ImagePlus } from 'lucide-react';
-import { useRef, useState, type DragEvent } from 'react';
+import { useRef, useState, type DragEvent, type ReactNode } from 'react';
 
 /** Whether a drag carries files from outside the app (not a tab or a row dragged within it). */
 export const carriesFiles = (e: DragEvent) => e.dataTransfer.types.includes('Files');
@@ -84,5 +84,24 @@ export function DropHint({ shown, label = 'Drop files to attach' }: { shown: boo
         </motion.div>
       )}
     </AnimatePresence>
+  );
+}
+
+/** An area that takes files dropped anywhere on it, covered by the hint while they are held over it: the chat and a task's page. */
+export function FileDropArea({
+  take,
+  className,
+  children,
+}: {
+  take: (dropped: Dropped[]) => void;
+  className: string;
+  children: ReactNode;
+}) {
+  const drop = useFileDrop(take);
+  return (
+    <div {...drop.handlers} className={`relative ${className}`}>
+      <DropHint shown={drop.over} />
+      {children}
+    </div>
   );
 }

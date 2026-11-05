@@ -1,5 +1,5 @@
 import { chatView, isPerson, type TimelineEntry } from '@handline/app-core';
-import { useAgents, useChat, useChatActions, useChatServed, useChatSuspense, useVerbRun } from '@handline/app-data';
+import { useAgents, useChat, useChatActions, useChatReadMarks, useChatServed, useChatSuspense, useVerbRun } from '@handline/app-data';
 import { VERBS } from '@handline/app-core';
 import { useMe, useNearEnd } from '@handline/app-react';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -26,7 +26,7 @@ import { useChatScroll } from '#src/chat/useChatScroll.ts';
 import { Boundary } from '#src/ui/Boundary.tsx';
 import { Button } from '#src/ui/Button.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
-import { DropHint, useFileDrop } from '#src/ui/fileDrop.tsx';
+import { FileDropArea } from '#src/ui/fileDrop.tsx';
 import { Page } from '#src/ui/Page.tsx';
 import { toast } from '#src/ui/toast.tsx';
 import { useScrollFade } from '#src/ui/ScrollFade.tsx';
@@ -58,7 +58,6 @@ export function Chat({ agent }: { agent: string }) {
   ];
   const [draft, setDraft] = useDraft(agent);
   const attach = useAttachments(agent);
-  const drop = useFileDrop(attach.add);
   // A picture marked up in the chat or the box goes with the next message: its marked copy, and its comments after the draft.
   const addMarked = (marked: MarkedPicture[]) => {
     if (!marked.length) return;
@@ -78,8 +77,7 @@ export function Chat({ agent }: { agent: string }) {
 
   return (
     // Files dropped anywhere on the chat go with the next message.
-    <div {...drop.handlers} className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-      <DropHint shown={drop.over} />
+    <FileDropArea take={attach.add} className="flex min-h-0 min-w-0 flex-1 flex-col">
       {served ? (
         <Boundary
           loading={loading}
@@ -136,7 +134,7 @@ export function Chat({ agent }: { agent: string }) {
         />
         <StatusLine agent={agent} />
       </Page>
-    </div>
+    </FileDropArea>
   );
 }
 
@@ -164,8 +162,12 @@ function runs(
   const out: (TimelineEntry | { key: string; events: TaskEvent[] })[] = [];
   // Task changes heard while the chat is open go in by their time, joining a card next to them, so they scroll up as talk goes on.
   // A task made and given arrives twice, live and as the notice message: the notice's row is the one kept.
-  const noticed = new Set(entries.flatMap((e) => (e.kind === 'message' && taskNotice(e, agent, me) ? e.message.tasks.map((t) => `T${t.id}`) : [])));
-  const heard = live.filter((ev) => !(ev.kind === 'add' && noticed.has(ev.id))).sort((a, b) => Date.parse(a.at ?? '') - Date.parse(b.at ?? ''));
+  const noticed = new Set(
+    entries.flatMap((e) => (e.kind === 'message' && taskNotice(e, agent, me) ? e.message.tasks.map((t) => `T${t.id}`) : [])),
+  );
+  const heard = live
+    .filter((ev) => !(ev.kind === 'add' && noticed.has(ev.id)))
+    .sort((a, b) => Date.parse(a.at ?? '') - Date.parse(b.at ?? ''));
   const add = (rows: TaskEvent[], key: string) => {
     const last = out.at(-1);
     if (last && 'events' in last) {
@@ -221,6 +223,8 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
   // what the agent says to other agents, which this chat shows as quiet lines (ChatLine drops what others say to it).
   const chat = useChatSuspense(agent, 'all');
   const me = useMe();
+  // Opening the chat reads what the agent said: its newest message, and what it sent the Inbox about itself.
+  useChatReadMarks(agent, chat);
   const { entries } = chatView(chat, 'mine', agent, me);
   const doing = useAgents().data?.agents.find((a) => a.name === agent)?.doing?.text;
   const stream = useRef<HTMLDivElement>(null);

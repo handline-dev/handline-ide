@@ -1,4 +1,4 @@
-// The sidebar's bottom row: a quiet status dot, the host, keep-awake and the bell, the week's Usage %; a click goes to Settings > Machine.
+// The app's bottom bar, full width so later rows (a cluster of machines) have room: a quiet status dot, the host, keep-awake and the bell, the week's Usage %; a click goes to Settings > Machine.
 import { Bell, Coffee, Pause } from 'lucide-react';
 import { usePersisted } from '#src/persist/kv.ts';
 import { openSettings } from '#src/settings/open.ts';
@@ -11,7 +11,9 @@ export function StatusRow() {
   const [, setSection] = usePersisted<string>('settings:section', 'accounts');
   const busy = s.pending !== null;
   return (
-    <div className={`flex items-center gap-2 border-t border-border px-3 py-2 text-xs text-muted ${busy ? 'opacity-60' : ''}`}>
+    <div
+      className={`flex h-7 shrink-0 items-center gap-2 border-t border-border bg-surface px-3 text-xs text-muted ${busy ? 'opacity-60' : ''}`}
+    >
       <button
         type="button"
         title={s.text || undefined}
@@ -20,7 +22,7 @@ export function StatusRow() {
       >
         <span aria-label={s.level} className={`size-2 shrink-0 rounded-full ${s.paused ? 'bg-warning' : DOT[s.level]}`} />
         <span className="truncate">{s.host}</span>
-        {s.usagePct !== null && <span className="tabular-nums">{s.usagePct}%</span>}
+        {s.usagePct !== null && <span className="tabular-nums">Week {s.usagePct}% used</span>}
       </button>
       <button
         type="button"

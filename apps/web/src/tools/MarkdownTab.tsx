@@ -1,5 +1,4 @@
-import { classify, hooks, newOperationId, useServes } from '@handline/app-data';
-import { useStore } from '@handline/app-react';
+import { classify, hooks, useDocCalls, useServes } from '@handline/app-data';
 import { redo, undo } from '@codemirror/commands';
 import type { EditorView } from '@codemirror/view';
 import {
@@ -53,7 +52,7 @@ export function MarkdownTab({ agent, tab, start = '' }: { agent: string; tab: st
   const editor = useRef<EditorHandle>(null);
   const files = hooks.useFilesList({ agent, query: typed.endsWith('.md') ? typed : `${typed}.md`, limit: 20 });
   const md = (files.data?.files ?? []).filter((f) => /\.md$/i.test(f.path));
-  const store = useStore();
+  const calls = useDocCalls(agent);
   // Where writes go, read as they happen: a new file gets its path when it is named.
   const target = useRef(path);
   const [named, setNamed] = useState(path);
@@ -65,12 +64,12 @@ export function MarkdownTab({ agent, tab, start = '' }: { agent: string; tab: st
     kind: 'file',
     read: async () => {
       if (!target.current) return { text: '', etag: '' };
-      const r = await store.client.call('file.read', { agent, path: target.current });
+      const r = await calls.read(target.current);
       return { text: r.text, etag: r.etag, readOnly: r.truncated };
     },
     write: async (text, etag) => {
       if (!target.current) throw new Error(UNNAMED);
-      const r = await store.client.call('file.write', { agent, path: target.current, text, etag, request_id: newOperationId() });
+      const r = await calls.write(target.current, text, etag);
       setPath(target.current);
       return { etag: r.etag };
     },
@@ -83,29 +82,20 @@ export function MarkdownTab({ agent, tab, start = '' }: { agent: string; tab: st
   const docs = useServes('doc.open').served;
   const [shared] = useState<SharedSource>(() => ({
     kind: 'shared',
-    open: () => store.client.call('doc.open', { agent, path: target.current }),
-    push: async (doc, version, updates) =>
-      (
-        await store.client.call('doc.push', {
-          agent,
-          path: target.current,
-          doc,
-          version,
-          updates: updates as Parameters<typeof store.client.call<'doc.push'>>[1]['updates'],
-          request_id: newOperationId(),
-        })
-      ).version,
-    pull: (doc, version) => store.client.call('doc.pull', { agent, path: target.current, doc, version }),
-    close: () => void store.client.call('doc.close', { agent, path: target.current }).catch(() => {}),
+    open: () => calls.open(target.current),
+    push: (doc, version, updates) => calls.push(target.current, doc, version, updates),
+    pull: (doc, version) => calls.pull(target.current, doc, version),
+    close: () => calls.close(target.current),
     listen: (f) =>
-      store.client.onDoc((n) => {
-        if (n.agent !== agent || n.path !== target.current) return;
-        f(
-          n.kind === 'doc_changed'
-            ? { kind: 'changed', doc: n.doc, version: n.version, updates: n.updates }
-            : { kind: 'closed', doc: n.doc, reason: n.reason },
-        );
-      }),
+      calls.listen(
+        () => target.current,
+        (n) =>
+          f(
+            n.kind === 'doc_changed'
+              ? { kind: 'changed', doc: n.doc, version: n.version, updates: n.updates }
+              : { kind: 'closed', doc: n.doc, reason: n.reason },
+          ),
+      ),
     refusal: (e) => {
       const f = classify(e);
       return f.kind === 'refused' && (f.gate === 'behind' || f.gate === 'reopen') ? f.gate : null;

@@ -14,7 +14,8 @@ const NO_FAKE = {
 };
 
 // no-restricted-imports sees only static imports; this refuses a relative path in import(), require() and vi.mock() too.
-const RELATIVE_CALL = {
+// Exported so a package that sets its own no-restricted-syntax keeps it (a rule's options are replaced, not merged).
+export const RELATIVE_CALL = {
   selector: [
     'ImportExpression[source.value=/^\\./]',
     "CallExpression[callee.name='require'][arguments.0.value=/^\\./]",

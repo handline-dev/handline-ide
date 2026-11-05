@@ -9,6 +9,8 @@ export interface Ctx {
   qc: QueryClient;
   d: string;
   me: string;
+  /** The name the daemon records on this caller's comments: human for the founder's devices. */
+  author: string;
   now: string;
 }
 

@@ -73,5 +73,11 @@ export default defineConfig({
   plugins: [react({ babel: { plugins: ['babel-plugin-react-compiler'] } }), tailwindcss(), fakeDaemon(), realDaemon()],
   server: { host: '127.0.0.1', watch: { usePolling: true, interval: 300 } },
   // maxWorkers: several teams' runs share one machine
-  test: { environment: 'happy-dom', setupFiles: ['test/setup.ts'], include: ['test/**/*.test.{ts,tsx}'], testTimeout: 20_000, maxWorkers: 2 },
+  test: {
+    environment: 'happy-dom',
+    setupFiles: ['test/setup.ts'],
+    include: ['test/**/*.test.{ts,tsx}'],
+    testTimeout: 20_000,
+    maxWorkers: 2,
+  },
 });

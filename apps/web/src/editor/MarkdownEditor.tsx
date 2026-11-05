@@ -5,6 +5,7 @@
 // without doc.*, falls back to the file itself, read again while the tab shows and written with its etag.
 // Undo and redo walk only the person's own edits: what came in is not undone.
 import { collab, getClientID, getSyncedVersion, receiveUpdates, sendableUpdates, type Update } from '@codemirror/collab';
+import type { ChangeSet as WireChangeSet } from '@handline/client';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { ChangeSet, EditorState, StateEffect, StateField, type Extension } from '@codemirror/state';
@@ -37,7 +38,7 @@ export type SharedSource = {
   ) => () => void;
   refusal: (e: unknown) => 'behind' | 'reopen' | null;
 };
-export type SharedUpdate = { client: string; changes: unknown; by?: string };
+export type SharedUpdate = { client: string; changes: WireChangeSet; by?: string };
 export type DocSource = FileSource | SharedSource;
 export type SyncStatus = 'loading' | 'saved' | 'editing' | 'saving' | { failed: string };
 
