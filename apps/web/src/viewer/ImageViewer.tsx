@@ -18,6 +18,8 @@ import { useAttachmentUrl } from '@handline/app-data';
 import { ChevronLeft, ChevronRight, Copy, Download, Maximize, Minus, PenLine, Plus, Undo2, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { copy } from '#src/ui/copy.ts';
+import { toast } from '#src/ui/toast.tsx';
 import { Stage, type StageControls } from '#src/viewer/Stage.tsx';
 
 /** A picture to show: a daemon attachment by `id`, or any `url` (a blob, a capture). */
@@ -128,10 +130,11 @@ export function ImageViewer({
     };
   }, []);
 
-  const copy = async () => {
+  const copyPicture = async () => {
     if (!url) return;
-    const blob = await (await fetch(url)).blob();
-    await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+    const blob = await fetch(url).then((r) => r.blob(), () => null);
+    if (blob) void copy(blob, 'the picture', { say: true });
+    else toast('Could not copy the picture.', { tone: 'warning' });
   };
 
   return createPortal(
@@ -177,7 +180,7 @@ export function ImageViewer({
         )}
         {url && (
           <>
-            <Tool label="Copy" onClick={() => void copy().catch(() => undefined)}>
+            <Tool label="Copy" onClick={() => void copyPicture()}>
               <Copy size={15} />
             </Tool>
             <a
