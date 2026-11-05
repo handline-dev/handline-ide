@@ -1,4 +1,4 @@
-import { classify, hooks, newOperationId } from '@handline/app-data';
+import { classify, hooks, newOperationId, useServes } from '@handline/app-data';
 import { useStore } from '@handline/app-react';
 import { redo, undo } from '@codemirror/commands';
 import type { EditorView } from '@codemirror/view';
@@ -21,7 +21,14 @@ import {
 } from 'lucide-react';
 import { useId, useRef, useState, type ReactNode } from 'react';
 import { insertCodeBlock, toggleLinePrefix, toggleWrap } from '#src/editor/commands.ts';
-import { MarkdownEditor, type DocSource, type EditorHandle, type SyncStatus } from '#src/editor/MarkdownEditor.tsx';
+import {
+  MarkdownEditor,
+  type DocSource,
+  type EditorHandle,
+  type FileSource,
+  type SharedSource,
+  type SyncStatus,
+} from '#src/editor/MarkdownEditor.tsx';
 import { usePersisted } from '#src/persist/kv.ts';
 import { Input } from '#src/ui/Field.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
@@ -54,7 +61,8 @@ export function MarkdownTab({ agent, tab, start = '' }: { agent: string; tab: st
     target.current = p;
     setNamed(p);
   };
-  const [source] = useState<DocSource>(() => ({
+  const [file] = useState<FileSource>(() => ({
+    kind: 'file',
     read: async () => {
       if (!target.current) return { text: '', etag: '' };
       const r = await store.client.call('file.read', { agent, path: target.current });
@@ -71,6 +79,39 @@ export function MarkdownTab({ agent, tab, start = '' }: { agent: string; tab: st
       return f.kind === 'refused' && f.gate === 'stale';
     },
   }));
+  // A file that is there is edited through the daemon's shared doc, with everyone else on it; a new one is written as a file.
+  const docs = useServes('doc.open').served;
+  const [shared] = useState<SharedSource>(() => ({
+    kind: 'shared',
+    open: () => store.client.call('doc.open', { agent, path: target.current }),
+    push: async (doc, version, updates) =>
+      (
+        await store.client.call('doc.push', {
+          agent,
+          path: target.current,
+          doc,
+          version,
+          updates: updates as Parameters<typeof store.client.call<'doc.push'>>[1]['updates'],
+          request_id: newOperationId(),
+        })
+      ).version,
+    pull: (doc, version) => store.client.call('doc.pull', { agent, path: target.current, doc, version }),
+    close: () => void store.client.call('doc.close', { agent, path: target.current }).catch(() => {}),
+    listen: (f) =>
+      store.client.onDoc((n) => {
+        if (n.agent !== agent || n.path !== target.current) return;
+        f(
+          n.kind === 'doc_changed'
+            ? { kind: 'changed', doc: n.doc, version: n.version, updates: n.updates }
+            : { kind: 'closed', doc: n.doc, reason: n.reason },
+        );
+      }),
+    refusal: (e) => {
+      const f = classify(e);
+      return f.kind === 'refused' && (f.gate === 'behind' || f.gate === 'reopen') ? f.gate : null;
+    },
+  }));
+  const source: DocSource = opened && docs ? shared : file;
   const open = (p: string) => {
     name(p);
     setPath(p);
