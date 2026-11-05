@@ -1,5 +1,6 @@
-import { sideOf, tickLevel, type TimelineEntry } from '@handline/app-core';
+import { isPerson, sideOf, tickLevel, type TimelineEntry } from '@handline/app-core';
 import { motion } from 'framer-motion';
+import { AgentNote } from '#src/chat/AgentNote.tsx';
 import { CompactionLine } from '#src/chat/CompactionLine.tsx';
 import { Actions } from '#src/chat/MessageActions.tsx';
 import { Ticks } from '#src/chat/Ticks.tsx';
@@ -17,6 +18,16 @@ export function ChatLine({ e, agent, me, onQuote }: { e: TimelineEntry; agent: s
         <CompactionLine at={e.at} cause={e.item.session.cause} handoff={e.item.session.handoff} />
       </motion.div>
     );
+  // A message that does not involve the founder is the agent's talk with another. What it said to others is a quiet line, read
+  // whole on a click; what others said to it is not shown.
+  if ((e.kind === 'message' || e.kind === 'note') && !isPerson(e.message.from, me) && !isPerson(e.message.to, me)) {
+    if (e.message.from !== agent) return null;
+    return (
+      <motion.div data-id={key} {...fade} className="flex">
+        <AgentNote m={e.message} />
+      </motion.div>
+    );
+  }
   const text = e.kind === 'item' ? (e.item.text ?? '') : e.kind === 'proposal' ? '' : e.message.body;
   if (!text) return null;
   const mine = e.kind === 'message' && sideOf(e.message, agent, me) === 'person';
