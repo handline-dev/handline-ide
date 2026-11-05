@@ -1,53 +1,309 @@
-import { hooks } from '@handline/app-data';
-import { ago } from '#src/format/time.ts';
+import { activityOf, isPerson, isSystem, type ActivityItem } from '@handline/app-core';
+import { hooks, useWrite } from '@handline/app-data';
+import { useMe } from '@handline/app-react';
+import type { TaskDetail } from '@handline/client';
+import {
+  Check,
+  ChevronDown,
+  CircleDot,
+  Ellipsis,
+  Hand,
+  MessageSquare,
+  Pencil,
+  RotateCcw,
+  Send,
+  Trash2,
+  Undo2,
+  UserRound,
+} from 'lucide-react';
+import { look } from '#src/ui/taskLook.tsx';
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { ago, clock } from '#src/format/time.ts';
+import { taskOf } from '#src/layout/kinds.tsx';
+import { openProps, useOpenTab } from '#src/layout/openTab.tsx';
+import { IconButton } from '#src/ui/IconButton.tsx';
 import { Markdown } from '#src/ui/Markdown.tsx';
+import { Menu, MenuItem } from '#src/ui/Menu.tsx';
+import { Actions, CopyButton } from '#src/chat/MessageActions.tsx';
+import { Fields } from '#src/tools/TaskFields.tsx';
+import { CommentBox } from '#src/tools/TaskComment.tsx';
+import { WaitingOnYou } from '#src/tools/TaskWaiting.tsx';
+import { Page } from '#src/ui/Page.tsx';
 import { ScrollFade } from '#src/ui/ScrollFade.tsx';
+import { toast } from '#src/ui/toast.tsx';
 
-/** One task, opened from a T-number: its title and state, who opened it and who works it, the brief, the result, and its memos
- * oldest first. Read only for now; the task's verbs come with the Tasks page. */
+const CLOSED = ['done', 'discarded'];
+
+/** One task, opened from a T-number: its face as in the chat, a line of facts, why it waits, the brief, sub-tasks and result, then
+ * its activity (comments and changes in one list) and a box to comment in, the chat's own. */
 export function TaskTab({ id }: { id: number }) {
   const q = hooks.useTaskGet({ task: id });
+  const me = useMe();
+  // The comment the box below answers, picked by Reply or a comment's Reference.
+  const [replyTo, setReplyTo] = useState<TaskDetail['memos'][number] | null>(null);
   const t = q.data;
   if (q.isError) return <p className="m-auto text-sm text-danger">T{id} did not load.</p>;
   if (!t) return <p className="m-auto text-sm text-muted">Loading T{id}</p>;
-  const facts = [
-    t.state,
-    t.priority && `P${t.priority}`,
-    `${t.from} → ${t.to}`,
-    t.time_box && `time box ${t.time_box}`,
-    `opened ${ago(t.created)}`,
-    t.done && `done ${ago(t.done)}`,
-  ].filter(Boolean);
+  const open = !CLOSED.includes(t.state);
+  const s = look(t);
+  const why = t.waiting?.text ?? t.block_reason ?? t.hold_reason;
+  // Waiting on the founder: what was asked, in the words of the last comment that named them.
+  const asked =
+    t.waiting && (t.waiting.on === 'founder' || isPerson(t.waiting.on, me))
+      ? [...t.memos].reverse().find((m) => /@human\b/.test(m.text))
+      : undefined;
   return (
-    <ScrollFade keep={`task:${id}`} className="min-h-0 flex-1">
-      <article className="mx-auto flex max-w-180 flex-col gap-5 px-6 py-8 text-base text-fg">
-        <header className="flex flex-col gap-1">
-          <span className="text-sm text-muted">T{t.id}</span>
-          <h1 className="text-lg font-semibold">{t.title}</h1>
-          <p className="text-xs text-muted">{facts.join(' · ')}</p>
-          {(t.block_reason || t.hold_reason) && <p className="text-sm text-warning">{t.block_reason ?? t.hold_reason}</p>}
-        </header>
-        {t.body && <Markdown text={t.body} />}
-        {t.evidence && (
-          <section className="flex flex-col gap-1">
-            <h2 className="text-sm font-semibold text-muted">Result</h2>
-            <Markdown text={t.evidence} />
-          </section>
-        )}
-        {t.memos.length > 0 && (
-          <section className="flex flex-col gap-4">
-            <h2 className="text-sm font-semibold text-muted">Memos</h2>
-            {t.memos.map((m) => (
-              <div key={m.id} className="flex flex-col gap-1 border-t border-border pt-3">
-                <span className="text-xs text-muted">
-                  {m.author} · {ago(m.at)}
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <ScrollFade keep={`task:${id}`} className="min-h-0 flex-1">
+        <Page className="flex flex-col gap-6 py-4 text-base text-fg">
+          <header className="flex flex-col gap-3">
+            <div className="flex items-start gap-3">
+              <h1 className="min-w-0 flex-1 text-lg font-semibold">
+                {/* The state said once, in the title's first line: its mark and its word on its colour; the title wraps after it. */}
+                <span
+                  className={`mr-2 inline-flex h-6 items-center gap-1 rounded-md px-2 align-middle text-xs font-medium text-accent-fg ${s.tone}`}
+                >
+                  <s.icon size={12} strokeWidth={3} />
+                  {s.word}
                 </span>
-                <Markdown text={m.text} />
+                <span className="mr-1.5 font-normal text-muted">T{t.id}</span>
+                <span className={t.state === 'discarded' ? 'text-muted line-through' : ''}>{t.title}</span>
+              </h1>
+              <Verbs id={t.id} open={open} state={t.state} />
+            </div>
+            <p className="text-xs text-muted">
+              Asked by {t.from} · <span title={t.created}>created {ago(t.created)}</span>
+              {t.done && (
+                <>
+                  {' '}
+                  · <span title={t.done}>closed {ago(t.done)}</span>
+                </>
+              )}
+              {t.parent && (
+                <>
+                  {' '}
+                  · under <TaskLink id={t.parent} title={t.parent_title ?? undefined} />
+                </>
+              )}
+            </p>
+            <Fields t={t} open={open} />
+            {/* Shown only while something holds it: what it waits on, and why. */}
+            {open && (why || t.blockers.length > 0) && (
+              <div className="flex flex-col gap-1 rounded-lg bg-warning/10 px-3 py-2 text-sm">
+                {asked ? (
+                  <WaitingOnYou t={t} me={me} asked={asked} onDone={() => void q.refetch()} onShow={() => showMemo(asked.id)} />
+                ) : (
+                  why && (
+                    <p className="flex items-start gap-2">
+                      <Hand size={14} className="mt-1 shrink-0 text-warning" />
+                      <span>{why}</span>
+                    </p>
+                  )
+                )}
+                {t.blockers.map((b) => (
+                  <p key={b.task} className="flex items-center gap-2 pl-6 text-muted">
+                    Waiting on <TaskLink id={b.task} title={b.title} />
+                  </p>
+                ))}
               </div>
-            ))}
-          </section>
-        )}
-      </article>
-    </ScrollFade>
+            )}
+          </header>
+          {t.body && <Markdown text={t.body} />}
+          {t.subtasks.length > 0 && (
+            <Section title="Sub-tasks">
+              {t.subtasks.map((c) => (
+                <TaskLink key={c.id} id={c.id} title={c.title} />
+              ))}
+            </Section>
+          )}
+          {t.evidence && (
+            <Section title="Result">
+              <Markdown text={t.evidence} />
+            </Section>
+          )}
+          <Activity
+            onReply={(id) => setReplyTo(t.memos.find((m) => m.id === id) ?? null)}
+            items={activityOf(t.memos, t.timeline).filter((i) => !isSystem(i.who))}
+          />
+        </Page>
+      </ScrollFade>
+      <CommentBox t={t} reply={replyTo} onDrop={() => setReplyTo(null)} />
+    </div>
   );
 }
+
+function Section({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="flex flex-col gap-2">
+      <h2 className="text-sm font-semibold text-muted">{title}</h2>
+      {children}
+    </section>
+  );
+}
+
+/** A task by its number and title; a click opens it, Cmd+click beside. */
+function TaskLink({ id, title }: { id: number; title?: string }) {
+  const openTab = useOpenTab();
+  return (
+    <button
+      type="button"
+      {...openProps((how) => openTab(taskOf(id), how))}
+      className="min-w-0 truncate rounded-sm text-left hover:bg-hover/30"
+    >
+      <span className="text-muted">T{id}</span>
+      {title && <span className="ml-1 text-fg">{title}</span>}
+    </button>
+  );
+}
+
+/** The task's verbs: Done or Reopen, Discard. */
+function Verbs({ id, open, state }: { id: number; open: boolean; state: string }) {
+  const done = useWrite('task.done');
+  const reopen = useWrite('task.reopen');
+  const discard = useWrite('task.discard');
+  const failed = (what: string) => (e: unknown) =>
+    toast(`${what} did not work: ${e instanceof Error ? e.message : String(e)}`, { tone: 'warning' });
+  return (
+    // Every verb in the one menu: the state is read at the title, the verbs are asked for here.
+    <div className="flex shrink-0 items-center">
+      <Menu
+        align="end"
+        trigger={
+          <IconButton label="More">
+            <Ellipsis size={16} />
+          </IconButton>
+        }
+      >
+        {open && (
+          <MenuItem icon={<Check size={14} />} onClick={() => done.mutate({ task: id }, { onError: failed('Done') })}>
+            Done
+          </MenuItem>
+        )}
+        {state === 'done' && (
+          <MenuItem icon={<RotateCcw size={14} />} onClick={() => reopen.mutate({ task: id }, { onError: failed('Reopen') })}>
+            Reopen
+          </MenuItem>
+        )}
+        {open && (
+          <MenuItem danger icon={<Trash2 size={14} />} onClick={() => discard.mutate({ task: id }, { onError: failed('Discard') })}>
+            Discard
+          </MenuItem>
+        )}
+      </Menu>
+    </div>
+  );
+}
+
+/** Brings a comment into view and marks it for a moment. */
+function showMemo(id: number) {
+  const el = document.querySelector(`[data-memo="${id}"]`);
+  if (!el) return;
+  el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  el.classList.add('bg-warning/10');
+  setTimeout(() => el.classList.remove('bg-warning/10'), 1500);
+}
+
+/** What a change was, from its sentence: assigned or handed, done, discarded, edited, sent back, a request, or another state. */
+function eventIcon(line: string): typeof Check {
+  if (/handed it|assigned/.test(line)) return UserRound;
+  if (/marked it done/.test(line)) return Check;
+  if (/discarded/.test(line)) return Trash2;
+  if (/changed the brief/.test(line)) return Pencil;
+  if (/sent it back/.test(line)) return Undo2;
+  if (/sent a request/.test(line)) return Send;
+  return CircleDot;
+}
+
+/** Under a line, as under a chat message: its buttons and time on hover; the row keeps its height hidden, as the space between lines. */
+function HoverRow({ at, edited, children }: { at: string; edited?: boolean; children?: ReactNode }) {
+  return (
+    <div className="mb-0.5 flex h-6 items-center gap-1.5 text-xs text-muted opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+      {children}
+      <time dateTime={at} title={at}>
+        {clock(at)}
+        {edited && ' · edited'}
+      </time>
+    </div>
+  );
+}
+
+/** The small round mark before each line of the activity. */
+function Mark({ icon: Icon }: { icon: typeof Check }) {
+  return (
+    <span className="grid size-6 shrink-0 place-items-center rounded-full bg-surface text-muted">
+      <Icon size={12} />
+    </span>
+  );
+}
+
+/** How many of the latest lines show before Earlier is opened. */
+const SHOWN = 5;
+
+/** Comments and changes in one list, oldest first: the last five, and Earlier opens the rest above them. */
+function Activity({ items, onReply }: { items: ActivityItem[]; onReply: (memo: number) => void }) {
+  const [all, setAll] = useState(false);
+  const shown = all ? items : items.slice(-SHOWN);
+  const hidden = items.length - shown.length;
+  // The line that was first when Earlier was clicked, and where it stood: the older ones come in above it, and it stays put.
+  const list = useRef<HTMLDivElement>(null);
+  const kept = useRef<{ el: Element; top: number } | null>(null);
+  useLayoutEffect(() => {
+    const k = kept.current;
+    kept.current = null;
+    if (!k) return;
+    let box = k.el.parentElement;
+    while (box && !/(auto|scroll)/.test(getComputedStyle(box).overflowY)) box = box.parentElement;
+    if (box) box.scrollTop += k.el.getBoundingClientRect().top - k.top;
+  }, [all]);
+  if (!items.length) return null;
+  return (
+    <Section title="Activity">
+      {hidden > 0 && (
+        <button
+          type="button"
+          onClick={() => {
+            const el = list.current?.firstElementChild;
+            if (el) kept.current = { el, top: el.getBoundingClientRect().top };
+            setAll(true);
+          }}
+          className="flex w-fit items-center gap-1 rounded-sm text-xs text-muted hover:bg-hover/30"
+        >
+          <ChevronDown size={12} />
+          Earlier {hidden}
+        </button>
+      )}
+      <div ref={list} className="flex flex-col">
+        {shown.map((i) =>
+          i.kind === 'comment' ? (
+            // A comment as a chat line: who, the words, and under them the chat's hover row (copy, reference, time).
+            <div key={`c${i.memo}`} data-memo={i.memo} className="group flex gap-2.5 rounded-md transition-colors">
+              <Mark icon={MessageSquare} />
+              <div className="flex min-w-0 flex-1 flex-col">
+                <span className="text-xs font-medium text-muted">{i.who}</span>
+                <Markdown text={i.note} />
+                <HoverRow at={i.at} edited={i.edited}>
+                  <Actions text={i.note} onQuote={() => i.memo != null && onReply(i.memo)} />
+                </HoverRow>
+              </div>
+            </div>
+          ) : (
+            <div key={`e${i.at}${i.line}`} className="group flex gap-2.5 text-xs text-muted">
+              <Mark icon={eventIcon(i.line)} />
+              <div className="flex min-w-0 flex-1 flex-col pt-0.5">
+                <span>{i.line}</span>
+                {i.note && (
+                  <div className="mt-1 border-l-2 border-border pl-3 text-sm text-fg">
+                    <Markdown text={i.note} />
+                  </div>
+                )}
+                <HoverRow at={i.at}>{i.note && <CopyButton text={i.note} />}</HoverRow>
+              </div>
+            </div>
+          ),
+        )}
+      </div>
+    </Section>
+  );
+}
+
+/** The chat's message box, writing a comment on the task; its draft and files are kept per task. */
