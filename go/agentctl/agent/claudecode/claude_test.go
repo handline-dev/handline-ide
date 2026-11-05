@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/handline/handline/go/agentctl/agent"
 )
@@ -212,6 +213,30 @@ func TestReadAllowAllowsThePathAndWhatIsUnderIt(t *testing.T) {
 	want := `"allow":["Read(//h/attachments)","Read(//h/attachments/**)","Read(//etc/hosts)","Read(//etc/hosts/**)"]`
 	if s := argv[len(argv)-1]; !strings.Contains(strings.ReplaceAll(s, " ", ""), want) {
 		t.Fatalf("%s\nwant %s", s, want)
+	}
+}
+
+// Both keychain reads ask with keychainFind.
+func TestBothKeychainReadsUseKeychainFind(t *testing.T) {
+	t.Setenv("USER", "ron")
+	oldGoos, oldRun := goos, run
+	t.Cleanup(func() { goos, run = oldGoos, oldRun })
+	var asked [][]string
+	goos = "darwin"
+	run = func(_ time.Duration, _ []string, argv ...string) (int, string) {
+		asked = append(asked, argv)
+		return 0, `    "mdat"<timedate>=0x00  "20261106000000Z\000"`
+	}
+	dir := t.TempDir()
+	if present, known := (Driver{}).CredentialPresent(dir); !present || !known {
+		t.Fatalf("present %v known %v", present, known)
+	}
+	if got := (Driver{}).CredentialModified(dir); got == nil || *got != 1793923200 {
+		t.Fatalf("modified %v", got)
+	}
+	want := keychainFind(dir)
+	if len(asked) != 2 || !slices.Equal(asked[0], want) || !slices.Equal(asked[1], want) {
+		t.Fatalf("asked %q, want %q twice", asked, want)
 	}
 }
 

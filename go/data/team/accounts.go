@@ -56,7 +56,7 @@ func (a Accounts) credentialModified(acct string) *float64 {
 	}
 	var stamp *float64
 	if dir, err := AccountConfigDir(a.Home, acct); err == nil {
-		stamp = facts(AccountVendor(a.Home, acct)).CredentialModified(dir)
+		stamp = readCredentialModified(AccountVendor(a.Home, acct), dir)
 	}
 	modifiedMu.Lock()
 	if modifiedGen[key] == gen {
@@ -68,6 +68,9 @@ func (a Accounts) credentialModified(acct string) *float64 {
 	modifiedMu.Unlock()
 	return stamp
 }
+
+// readCredentialModified asks the vendor's driver, a variable so a test can stand in for it.
+var readCredentialModified = func(vendor, dir string) *float64 { return facts(vendor).CredentialModified(dir) }
 
 // CredentialChanged drops the account's cached modification time, and any read already under way, after a login wrote the credential.
 func (a Accounts) CredentialChanged(acct string) {
@@ -302,7 +305,15 @@ func (a Accounts) WrongLogin(acct string) string {
 		return ""
 	}
 	if want == "" {
-		text, _ := json.Marshal(map[string]string{"email": got})
+		var rec map[string]json.RawMessage // a record's other fields are kept as they are
+		if b, err := os.ReadFile(a.identityFile(acct)); err == nil {
+			_ = json.Unmarshal(b, &rec)
+		}
+		if rec == nil {
+			rec = map[string]json.RawMessage{}
+		}
+		rec["email"], _ = json.Marshal(got)
+		text, _ := json.Marshal(rec)
 		_ = os.WriteFile(a.identityFile(acct), text, 0o644)
 		return ""
 	}

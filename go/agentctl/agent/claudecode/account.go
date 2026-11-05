@@ -34,6 +34,12 @@ func KeychainService(configDir string) string {
 	return "Claude Code-credentials-" + hex.EncodeToString(h[:])[:8]
 }
 
+// goos and run are runtime.GOOS and agent.Run, variables so a test can stand in for them.
+var (
+	goos = runtime.GOOS
+	run  = agent.Run
+)
+
 // keychainAccountRe is the names Claude Code uses verbatim; others become "claude-code-user".
 var keychainAccountRe = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
 
@@ -51,10 +57,10 @@ func (Driver) CredentialPresent(configDir string) (present, known bool) {
 	if _, err := os.Stat(filepath.Join(configDir, ".credentials.json")); err == nil {
 		return true, true // file-backed storage (Linux, and macOS installs that opt out of Keychain)
 	}
-	if runtime.GOOS != "darwin" {
+	if goos != "darwin" {
 		return false, true
 	}
-	rc, _ := agent.Run(10*time.Second, nil, keychainFind(configDir)...)
+	rc, _ := run(10*time.Second, nil, keychainFind(configDir)...)
 	if rc == -1 {
 		return false, true
 	}
@@ -71,10 +77,10 @@ func (Driver) CredentialModified(configDir string) *float64 {
 		v := float64(st.ModTime().UnixNano()) / 1e9
 		return &v
 	}
-	if runtime.GOOS != "darwin" {
+	if goos != "darwin" {
 		return nil
 	}
-	_, out := agent.Run(10*time.Second, nil, keychainFind(configDir)...)
+	_, out := run(10*time.Second, nil, keychainFind(configDir)...)
 	m := mdatRe.FindStringSubmatch(out)
 	if m == nil {
 		return nil
