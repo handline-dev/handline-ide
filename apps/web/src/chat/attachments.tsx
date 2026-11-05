@@ -85,9 +85,19 @@ export type Attachments = ReturnType<typeof useAttachments>;
 const size = (bytes: number) =>
   bytes < 1024 ? `${bytes} B` : bytes < 1024 ** 2 ? `${Math.round(bytes / 1024)} KB` : `${(bytes / 1024 ** 2).toFixed(1)} MB`;
 
-/** A file on its way with the message: an image as its picture, another file as its name; faded until it is up, with remove
+/** A file on its way with the message: an image as its picture (a click opens it to look or mark up), another file as its name; faded until it is up, with remove
  * and, after a failure, retry. */
-export function UploadChip({ draft, onRemove, onRetry }: { draft: ImageDraft; onRemove: () => void; onRetry: () => void }) {
+export function UploadChip({
+  draft,
+  onOpen,
+  onRemove,
+  onRetry,
+}: {
+  draft: ImageDraft;
+  onOpen?: () => void;
+  onRemove: () => void;
+  onRetry: () => void;
+}) {
   const up = Boolean(draft.attachment);
   const bar = !up && !draft.error && (
     <div className="absolute inset-x-0 bottom-0 h-1 bg-border">
@@ -102,7 +112,9 @@ export function UploadChip({ draft, onRemove, onRetry }: { draft: ImageDraft; on
   if (draft.preview)
     return (
       <div className="group relative size-16 overflow-hidden rounded-md border border-border" title={draft.error ?? draft.name}>
-        <img src={draft.preview} alt={draft.name} className={`size-full object-cover ${up ? '' : 'opacity-50'}`} />
+        <button type="button" aria-label={`Open ${draft.name}`} onClick={onOpen} className="size-full outline-none">
+          <img src={draft.preview} alt={draft.name} className={`size-full object-cover ${up ? '' : 'opacity-50'}`} />
+        </button>
         {bar}
         {retry}
         <Remove onClick={onRemove} />
