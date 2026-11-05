@@ -1,5 +1,6 @@
 import { ArrowUp, Paperclip, Square } from 'lucide-react';
-import { useLayoutEffect, useRef, type ReactNode } from 'react';
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { ImageViewer, type MarkedPicture } from '#src/viewer/ImageViewer.tsx';
 import { FolderChip, UploadChip, type Attachments } from '#src/chat/attachments.tsx';
 import { readDropped } from '#src/ui/fileDrop.tsx';
 
@@ -17,6 +18,7 @@ export function Composer({
   running = false,
   onStop,
   locked,
+  onMarked,
 }: {
   agent: string;
   draft: string;
@@ -29,7 +31,11 @@ export function Composer({
   onStop?: () => void;
   /** Why the box takes no message now (a compaction under way), shown in its place; absent when it takes one. */
   locked?: string;
+  /** Takes the box's pictures marked up in the viewer; the marked copy replaces the picture. */
+  onMarked?: (marked: MarkedPicture[]) => void;
 }) {
+  const [viewing, setViewing] = useState<number | null>(null);
+  const shown = attach.uploads.filter((d) => d.preview);
   const picker = useRef<HTMLInputElement>(null);
   const box = useRef<HTMLTextAreaElement>(null);
   // Height follows the text: read it at no height, so it can shrink as well as grow; the cap is max-h-60.
@@ -59,8 +65,31 @@ export function Composer({
       {attach.uploads.length + attach.folders.length > 0 && (
         <div className="flex flex-wrap gap-2 pt-1">
           {attach.uploads.map((d) => (
-            <UploadChip key={`u${d.key}`} draft={d} onRemove={() => attach.remove(d.key)} onRetry={() => attach.retry(d.key)} />
+            <UploadChip
+              key={`u${d.key}`}
+              draft={d}
+              onOpen={d.preview ? () => setViewing(shown.indexOf(d)) : undefined}
+              onRemove={() => attach.remove(d.key)}
+              onRetry={() => attach.retry(d.key)}
+            />
           ))}
+          {viewing !== null && (
+            <ImageViewer
+              pictures={shown.map((d) => ({ url: d.preview, name: d.name }))}
+              start={viewing}
+              onClose={() => setViewing(null)}
+              onMarked={
+                onMarked &&
+                ((marked) => {
+                  for (const m of marked) {
+                    const d = shown.find((x) => x.preview === m.picture.url);
+                    if (d) attach.remove(d.key);
+                  }
+                  onMarked(marked);
+                })
+              }
+            />
+          )}
           {attach.folders.map((d) => (
             <FolderChip key={`f${d.key}`} draft={d} onRemove={() => attach.removeFolder(d.key)} onRetry={() => attach.retryFolder(d.key)} />
           ))}

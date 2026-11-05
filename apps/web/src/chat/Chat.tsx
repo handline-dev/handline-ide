@@ -13,6 +13,8 @@ import { useAttachments } from '#src/chat/attachments.tsx';
 import { ChatLine } from '#src/chat/ChatLine.tsx';
 import { ChatSkeleton } from '#src/chat/ChatSkeleton.tsx';
 import { Composer } from '#src/chat/Composer.tsx';
+import { MarkReply } from '#src/chat/MessageImages.tsx';
+import type { MarkedPicture } from '#src/viewer/ImageViewer.tsx';
 import { Dots } from '#src/chat/Dots.tsx';
 import { useDraft } from '#src/chat/drafts.ts';
 import { useChatScroll } from '#src/chat/useChatScroll.ts';
@@ -35,6 +37,12 @@ export function Chat({ agent }: { agent: string }) {
   const [draft, setDraft] = useDraft(agent);
   const attach = useAttachments(agent);
   const drop = useFileDrop(attach.add);
+  // A picture marked up in the chat or the box goes with the next message: its marked copy, and its comments after the draft.
+  const addMarked = (marked: MarkedPicture[]) => {
+    if (!marked.length) return;
+    attach.add(marked.map((m) => markedFile(m)));
+    setDraft((d) => [d.trimEnd(), ...marked.map((m) => m.text)].filter(Boolean).join('\n\n'));
+  };
   const quote = (body: string) => setDraft((d) => `${body.replace(/^/gm, '> ')}\n\n${d}`);
   // The stream's scroll hears of a send through this, once the stream is drawn.
   const stream = useRef<{ sent: () => void }>(null);
@@ -60,7 +68,9 @@ export function Chat({ agent }: { agent: string }) {
             </Shell>
           )}
         >
-          <Stream ref={stream} agent={agent} onQuote={quote} />
+          <MarkReply.Provider value={addMarked}>
+            <Stream ref={stream} agent={agent} onQuote={quote} />
+          </MarkReply.Provider>
         </Boundary>
       ) : (
         loading
@@ -71,6 +81,7 @@ export function Chat({ agent }: { agent: string }) {
           draft={draft}
           setDraft={setDraft}
           attach={attach}
+          onMarked={addMarked}
           leading={<ModelChip agent={agent} />}
           trailing={<ContextRing agent={agent} />}
           running={running}
@@ -90,6 +101,12 @@ export function Chat({ agent }: { agent: string }) {
     </div>
   );
 }
+
+/** A marked picture as a dropped file: `name-marked.png`. */
+const markedFile = (m: MarkedPicture) => {
+  const name = `${m.picture.name.replace(/\.[^.]+$/, '')}-marked.png`;
+  return { kind: 'file' as const, name, files: [{ path: name, file: new File([m.image], name, { type: 'image/png' }) }] };
+};
 
 /** The stream's frame without its lines: what stands while they load. */
 function Shell({ children }: { children: ReactNode }) {
