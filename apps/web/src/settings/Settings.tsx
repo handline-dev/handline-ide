@@ -3,6 +3,8 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { HardDrive, MonitorSmartphone, UserRound, X } from 'lucide-react';
 import { useEffect, type ReactNode } from 'react';
+import { DevicesTab } from '#src/settings/DevicesTab.tsx';
+import { MachineTab } from '#src/settings/MachineTab.tsx';
 import { AccountsTab } from '#src/usage/AccountsTab.tsx';
 import { usePersisted } from '#src/persist/kv.ts';
 import { IconButton } from '#src/ui/IconButton.tsx';
@@ -69,7 +71,8 @@ function Frame() {
           </IconButton>
         </div>
         {section === 'accounts' && <AccountsTab />}
-        {section !== 'accounts' && <div className="px-8 text-sm text-muted">{MENU[section].word} comes next.</div>}
+        {section === 'machine' && <MachineTab />}
+        {section === 'devices' && <DevicesTab />}
       </main>
     </>
   );
