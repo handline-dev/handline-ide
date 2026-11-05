@@ -47,7 +47,8 @@
   --radius-full: 9999px;
 
   --shadow-*: initial;
-  --shadow-popover: 0 4px 16px var(--shadow);
+  /* No shadows (founder 11-05): a floating panel stands apart by its border. */
+  --shadow-popover: 0 0 #0000;
 }
 
 :root {

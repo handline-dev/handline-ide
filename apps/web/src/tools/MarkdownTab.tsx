@@ -204,7 +204,7 @@ export function MarkdownTab({ agent, tab, start = '' }: { agent: string; tab: st
           </>
         )}
         <span className="mr-2 ml-auto">{statusText(status)}</span>
-        <div role="radiogroup" aria-label="View" className="flex rounded-md bg-surface p-0.5">
+        <div role="radiogroup" aria-label="View" className="flex rounded-lg bg-surface p-1">
           {(['markdown', 'rich'] as const).map((m) => (
             <button
               key={m}
