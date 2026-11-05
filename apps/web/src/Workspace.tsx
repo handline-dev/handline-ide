@@ -5,6 +5,7 @@ import { TaskTab } from '#src/tools/TaskTab.tsx';
 import { TasksTab } from '#src/tools/TasksTab.tsx';
 import { WebTab } from '#src/tools/WebTab.tsx';
 import { Usage } from '#src/usage/Usage.tsx';
+import { Settings } from '#src/settings/Settings.tsx';
 import { PaneOpen, setShownWorkspace, type How } from '#src/layout/openTab.tsx';
 import { ArrowDownToLine, ArrowLeftToLine, ArrowRightToLine, ArrowUpToLine, Columns2, LayoutGrid, X } from 'lucide-react';
 import { useEffect, useRef, useState, type DragEvent, type ReactNode } from 'react';
@@ -70,6 +71,9 @@ function EmptyTab({ onPick }: { onPick: (kind: string) => void }) {
     </div>
   );
 }
+
+/** The kinds of tab that draw something yet; the others (terminal, phones) stay off the + menu until they do. */
+const BUILT = new Set(['diff', 'tasks', 'markdown', 'web']);
 
 const splits: { edge: Edge | 'four'; label: string; icon: ReactNode }[] = [
   { edge: 'right', label: 'Split right', icon: <ArrowRightToLine size={14} /> },
@@ -157,16 +161,19 @@ function PaneView({
             active={pane.active}
             onSelect={(tab) => dispatch({ type: 'select', pane: pane.id, tab })}
             onClose={(tab) => dispatch({ type: 'closeTab', pane: pane.id, tab })}
-            newTabKinds={choices}
-            onAdd={(kind, how) => openFrom({ root, agent, dispatch }, pane.id, kind, how)}
+            newTabKinds={agent ? choices.filter((c) => BUILT.has(c.kind)) : []}
+            onAdd={agent ? (kind, how) => openFrom({ root, agent, dispatch }, pane.id, kind, how) : undefined}
             onTabDragStart={(tab, e) => startTabDrag(e, { move: { pane: pane.id, tab } })}
           />
           {line !== null && <InsertLine x={line} />}
         </div>
-        <SplitButton
-          onSplit={(edge) => dispatch({ type: 'split', pane: pane.id, edge })}
-          onClose={canClose ? () => dispatch({ type: 'closePane', pane: pane.id }) : undefined}
-        />
+        {/* A page (Usage, Tasks) on its own has nothing to open beside it; an agent's workspace splits. */}
+        {agent && (
+          <SplitButton
+            onSplit={(edge) => dispatch({ type: 'split', pane: pane.id, edge })}
+            onClose={canClose ? () => dispatch({ type: 'closePane', pane: pane.id }) : undefined}
+          />
+        )}
       </div>
       <div
         ref={body}
@@ -196,6 +203,7 @@ function PaneView({
             <MarkdownTab key={current.id} agent={agent} tab={current.id} start={current.opens.slice(5)} />
           )}
           {current?.opens === 'usage' && <Usage />}
+          {current?.opens === 'preferences' && <Settings />}
           {current?.opens === 'tasks' && <TasksTab agent={agent ?? null} />}
         </PaneOpen.Provider>
         {current && !current.opens && (

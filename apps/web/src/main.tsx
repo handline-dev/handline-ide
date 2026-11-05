@@ -1,3 +1,4 @@
+import { setPageGo } from '#src/layout/openTab.tsx';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -21,6 +22,7 @@ function App() {
   const [dragging, setDragging] = useState(false);
   const { agent, page, layout, select, selectPage, dispatch } = useAgentLayouts();
   const root = useRef<HTMLDivElement>(null);
+  setPageGo(selectPage);
   const toggle = () => setOpen((o) => !o);
 
   return (
