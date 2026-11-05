@@ -1,3 +1,4 @@
+import { CopyButton } from '#src/chat/MessageActions.tsx';
 import { marked, type Token, type Tokens } from 'marked';
 import { Fragment, type ReactNode } from 'react';
 import { useOpenTab, howOf } from '#src/layout/openTab.tsx';
@@ -32,9 +33,15 @@ function block(t: Token): ReactNode {
       return <List list={t as Tokens.List} />;
     case 'code':
       return (
-        <pre className="overflow-x-auto rounded-md bg-surface p-2 font-mono text-sm whitespace-pre">
-          <code>{t.text}</code>
-        </pre>
+        // A code block copies whole: its button at the top right, on hover.
+        <div className="group/code relative">
+          <pre className="rounded-md bg-surface p-2 pr-9 font-mono text-sm break-all whitespace-pre-wrap">
+            <code>{t.text}</code>
+          </pre>
+          <span className="absolute top-1 right-1 opacity-0 transition-opacity group-hover/code:opacity-100 focus-within:opacity-100">
+            <CopyButton text={t.text} />
+          </span>
+        </div>
       );
     case 'blockquote':
       return <blockquote className="flex flex-col gap-2 border-l-2 border-border pl-3 text-muted">{blocks(t.tokens ?? [])}</blockquote>;
