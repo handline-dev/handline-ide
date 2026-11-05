@@ -132,7 +132,10 @@ export function ImageViewer({
 
   const copyPicture = async () => {
     if (!url) return;
-    const blob = await fetch(url).then((r) => r.blob(), () => null);
+    const blob = await fetch(url).then(
+      (r) => r.blob(),
+      () => null,
+    );
     if (blob) void copy(blob, 'the picture', { say: true });
     else toast('Could not copy the picture.', { tone: 'warning' });
   };

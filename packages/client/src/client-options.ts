@@ -1,4 +1,4 @@
-import type { MethodName, Methods, RequestId } from '#src/protocol.ts';
+import type { MethodName, Methods, Notifications, RequestId } from '#src/protocol.ts';
 import type { Transport } from '#src/transport.ts';
 
 /** A call's params; the client fills in request_id on writes. */
@@ -18,4 +18,18 @@ export interface ClientOptions {
   newRequestId?: () => string;
   /** Methods answered by something other than the daemon connection (the desktop shell, for calls this caller may not make itself); each throws what a failed call throws. */
   relay?: { [M in MethodName]?: (params: CallParams<M>) => Promise<Methods[M]['result']> };
+}
+
+/** A doc notice, its method in `kind`. */
+export type DocNotice = ({ kind: 'doc_changed' } & Notifications['doc_changed']) | ({ kind: 'doc_closed' } & Notifications['doc_closed']);
+
+export type Handler<T> = (value: T) => void;
+
+/** A call sent and not yet answered. */
+export interface Pending {
+  id: number;
+  method: string;
+  params: unknown;
+  resolve: (v: unknown) => void;
+  reject: (e: Error) => void;
 }

@@ -7,7 +7,7 @@ const D = 'd1';
 const run = (payload: object) => {
   const qc = new QueryClient();
   qc.setQueryData(qk.accounts(D), { accounts: [{ name: 'a' }, { name: 'b' }] });
-  accountRemove.reconcile?.({ qc, d: D, me: 'me', now: '' }, payload as never, undefined as never);
+  accountRemove.reconcile?.({ qc, d: D, me: 'me', author: 'me', now: '' }, payload as never, undefined as never);
   return (qc.getQueryData(qk.accounts(D)) as { accounts: { name: string }[] }).accounts.map((a) => a.name);
 };
 

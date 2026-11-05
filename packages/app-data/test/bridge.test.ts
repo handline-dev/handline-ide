@@ -9,13 +9,24 @@ let qc: QueryClient;
 let c: Ctx;
 beforeEach(() => {
   qc = new QueryClient();
-  c = { qc, d: D, me: 'me', now: 't' };
+  c = { qc, d: D, me: 'me', author: 'me', now: 't' };
 });
 
 // A test names the fields it cares about; the rest of what the contract requires of the event is filled with null.
 const ev = (type: string, data: object, over: Partial<WireEvent> = {}): WireEvent => {
   const filled = { ...Object.fromEntries((EVENT_REQUIRED[type] ?? []).map((f) => [f, null])), ...data };
-  return { cursor: 1, topic: 'agents', type, at: 't', actor: null, agent: null, title: null, target: null, data: filled, ...over } as WireEvent;
+  return {
+    cursor: 1,
+    topic: 'agents',
+    type,
+    at: 't',
+    actor: null,
+    agent: null,
+    title: null,
+    target: null,
+    data: filled,
+    ...over,
+  } as WireEvent;
 };
 const agent = (name: string, state = 'idle') => ({ name, state, role: '', model: null, effort: null, account: null, task: null });
 const stale = (key: readonly unknown[]) => qc.getQueryState(key)?.isInvalidated === true;

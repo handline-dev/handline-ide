@@ -111,7 +111,7 @@ const WORD: Record<TimeLabel, string> = {
   agent: 'Waiting on an agent',
   account: 'At a usage limit',
   waiting: 'Waiting',
-  queued: 'Queued',
+  queued: 'Up next',
   starting: 'Waking up',
 };
 

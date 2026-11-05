@@ -17,14 +17,17 @@ describe('the spec holds the app tables', () => {
     expect(Object.keys(patches).filter((m) => !(m in writes))).toEqual([]);
   });
   it("each write the app makes has the spec's kind and label", () => {
-    for (const [m, s] of Object.entries(writes)) expect({ kind: s.kind, label: s.label }, m).toEqual((APP_WRITES as Record<string, unknown>)[m]);
+    for (const [m, s] of Object.entries(writes))
+      expect({ kind: s.kind, label: s.label }, m).toEqual((APP_WRITES as Record<string, unknown>)[m]);
   });
 });
 
 describe('no cache key is written by hand', () => {
   it('a key is built from the method name: only reads.ts and the generated tables name a resource', () => {
     const src = path.resolve(import.meta.dirname, '../src');
-    const files = fs.readdirSync(src, { recursive: true, encoding: 'utf8' }).filter((f) => f.endsWith('.ts') && f !== 'reads.ts' && !f.startsWith('generated'));
+    const files = fs
+      .readdirSync(src, { recursive: true, encoding: 'utf8' })
+      .filter((f) => f.endsWith('.ts') && f !== 'reads.ts' && !f.startsWith('generated'));
     const literal = /\[\s*'d'\s*,/;
     expect(files.filter((f) => literal.test(fs.readFileSync(path.join(src, f), 'utf8')))).toEqual([]);
   });

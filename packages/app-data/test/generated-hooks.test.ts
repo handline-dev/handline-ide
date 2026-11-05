@@ -9,7 +9,12 @@ describe('the generated hooks', () => {
     const callers = [hooks.useAgentGet, hooks.useAgentsList, hooks.useTaskNew, hooks.useTaskGet, hooks.useTaskCommentList];
     expect(callers.every((h) => typeof h === 'function')).toBe(true);
     for (const m of Object.keys(reads)) {
-      const name = 'use' + m.split(/[._]/).map((w) => w[0]!.toUpperCase() + w.slice(1)).join('');
+      const name =
+        'use' +
+        m
+          .split(/[._]/)
+          .map((w) => w[0]!.toUpperCase() + w.slice(1))
+          .join('');
       expect(typeof (hooks as Record<string, unknown>)[name], name).toBe('function');
     }
   });

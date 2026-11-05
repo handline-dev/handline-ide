@@ -13,6 +13,10 @@ export interface ActivityItem {
   /** The text behind an event (a handoff's note), shown on request. */
   note: string;
   memo: number | null;
+  /** The comment this one answers, for a reply. */
+  replyTo?: number | null;
+  /** For a founder's comment: where its tell stands with each agent it was told to. */
+  readers?: TaskDetail['memos'][number]['readers'];
   edited: boolean;
 }
 
@@ -33,6 +37,12 @@ const stateLine = (who: string, text: string): string => {
   return `${who} ${STATE_WORD[to] ?? `moved it to ${to || 'another state'}`}`;
 };
 
+const repeatsComment = (e: Entry, memos: TaskDetail['memos']): boolean => {
+  if (e.memo != null) return memos.some((m) => m.id === e.memo);
+  const from = e.who.split('→')[0]!.trim();
+  return memos.some((m) => m.author === from && e.text.includes(m.text.slice(0, 80)));
+};
+
 /** The memos as comments and the rest of the timeline as events in words, oldest first. */
 export function activityOf(memos: TaskDetail['memos'], timeline: readonly Entry[]): ActivityItem[] {
   const comments: ActivityItem[] = memos.map((m) => ({
@@ -42,6 +52,8 @@ export function activityOf(memos: TaskDetail['memos'], timeline: readonly Entry[
     line: '',
     note: m.text,
     memo: m.id,
+    replyTo: m.reply_to ?? null,
+    readers: m.readers,
     edited: !!m.edited_at,
   }));
   const events = timeline.flatMap((e): ActivityItem[] => {
@@ -60,6 +72,8 @@ export function activityOf(memos: TaskDetail['memos'], timeline: readonly Entry[
       case 'reject':
         return [{ ...base, line: `${e.who} sent it back`, note: e.text }];
       case 'request':
+        // An @human comment also opens an ask, which the timeline lists with no link to it (T8583): shown once, as the comment.
+        if (repeatsComment(e, memos)) return [];
         return [{ ...base, line: `${e.who} sent a request`, note: e.text }];
     }
   });

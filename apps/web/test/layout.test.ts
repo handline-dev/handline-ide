@@ -175,7 +175,10 @@ describe('pins', () => {
     expect(pinned.map((n) => [n.agent.name, n.children.length])).toEqual([['a.x', 0]]);
     expect(rest.find((n) => n.agent.name === 'a')!.children.map((n) => n.agent.name)).toEqual(['a.x']);
     const both = splitPinned(agentTree(agents), ['a', 'a.x']);
-    expect(both.pinned.map((n) => [n.agent.name, n.children.length])).toEqual([['a', 0], ['a.x', 0]]);
+    expect(both.pinned.map((n) => [n.agent.name, n.children.length])).toEqual([
+      ['a', 0],
+      ['a.x', 0],
+    ]);
   });
 });
 

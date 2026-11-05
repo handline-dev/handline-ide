@@ -403,11 +403,12 @@ export function Sidebar({
   onAgentSettings: (name: string) => void;
 }) {
   const fold = useFolded();
-  const scroller = useRef<HTMLElement>(null);
+  // Only the agents scroll; the pages above and the buttons below stay put.
+  const scroller = useRef<HTMLDivElement>(null);
   useKeptScroll(scroller, 'sidebar');
   const fade = useScrollFade(scroller);
   return (
-    <aside ref={scroller} style={{ width, ...fade }} className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto bg-surface px-2 pb-2">
+    <aside style={{ width }} className="flex min-h-0 flex-1 flex-col gap-4 bg-surface px-2 pb-2">
       <nav className="flex flex-col gap-0.5">
         {pages.map((p) => (
           <Row
@@ -420,11 +421,13 @@ export function Sidebar({
           />
         ))}
       </nav>
-      <Agents
-        page={page}
-        pick={{ agent, onSelect: onSelectAgent, onSettings: onAgentSettings, ...fold }}
-        onNew={() => void newAgent().then((name) => name && onSelectAgent(name))}
-      />
+      <div ref={scroller} style={fade} className="-mx-2 min-h-0 flex-1 overflow-y-auto px-2">
+        <Agents
+          page={page}
+          pick={{ agent, onSelect: onSelectAgent, onSettings: onAgentSettings, ...fold }}
+          onNew={() => void newAgent().then((name) => name && onSelectAgent(name))}
+        />
+      </div>
       <nav className="mt-auto flex gap-0.5 border-t border-border pt-2">
         {footerPages.map((p) => (
           <IconButton key={p.kind} label={p.label} onClick={() => onSelectPage(p.kind, p.label)}>

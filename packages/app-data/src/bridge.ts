@@ -217,7 +217,7 @@ export function createBridge(qc: QueryClient, d: string, me: () => string) {
   const flush = () => {
     const batch = queue;
     queue = [];
-    for (const e of batch) applyEvent({ qc, d, me: me(), now: e.at }, e);
+    for (const e of batch) applyEvent({ qc, d, me: me(), author: me(), now: e.at }, e);
   };
   return {
     push(e: WireEvent) {

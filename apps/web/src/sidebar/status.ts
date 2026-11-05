@@ -14,6 +14,8 @@ export const weekUsagePct = (accounts: { weekly: { used_pct: number } | null }[]
 
 export function useStatusRow() {
   const status = hooks.useDaemonStatus();
+  // The machine's own name: its name.local without .local (terminal_host is the terminal kind, not the machine).
+  const mdns = hooks.useConnectionAddresses().data?.addresses.find((a) => a.kind === 'mdns')?.host;
   const machine = useMachine();
   const accounts = useAccounts();
   const pause = hooks.useDaemonPause();
@@ -25,7 +27,7 @@ export function useStatusRow() {
     level: (status.isError ? 'down' : (s?.health?.level ?? 'ok')) as Level,
     text: s?.health?.text ?? '',
     unread: s?.inbox.unread ?? 0,
-    host: s?.terminal_host.name ?? '',
+    host: mdns?.replace(/\.local$/, '') ?? '',
     usagePct: weekUsagePct(accounts.data?.accounts ?? []),
     awake: machine.awake,
     cycleAwake: () => machine.setAwake(NEXT_AWAKE[machine.awake]),

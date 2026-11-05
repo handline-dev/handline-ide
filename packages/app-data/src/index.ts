@@ -20,6 +20,8 @@ export * from '#src/attachments.ts';
 export * from '#src/image-drafts.ts';
 export * from '#src/kept.ts';
 export * from '#src/file-editor.ts';
+export * from '#src/doc-calls.ts';
+export * from '#src/task-changes.ts';
 export * from '#src/chat-read.ts';
 export * from '#src/task-actions.ts';
 export * from '#src/team-board.ts';

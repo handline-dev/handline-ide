@@ -1,4 +1,4 @@
-import { react } from '@handline/config/eslint';
+import { react, RELATIVE_CALL, test } from '@handline/config/eslint';
 
 // Colors come only from the theme roles in src/styles.css. Tailwind no longer has a palette, so a
 // palette class silently draws nothing; these rules turn that and every other way in into an error.
@@ -13,6 +13,7 @@ const noHardcodedColor = {
   rules: {
     'no-restricted-syntax': [
       'error',
+      RELATIVE_CALL,
       ...[colorLiteral, paletteClass, arbitraryValue].flatMap((re) => [
         { selector: `Literal[value=/${re}/]`, message },
         { selector: `TemplateElement[value.raw=/${re}/]`, message },
@@ -21,4 +22,5 @@ const noHardcodedColor = {
   },
 };
 
-export default [{ ignores: ['legacy/**'] }, ...react(import.meta.dirname), noHardcodedColor];
+// legacy/ is the old web, frozen until it is removed: it is not linted.
+export default [{ ignores: ['legacy/**'] }, ...react(import.meta.dirname), noHardcodedColor, ...test];

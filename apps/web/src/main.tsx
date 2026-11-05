@@ -9,9 +9,9 @@ import { Sidebar, SidebarControls, sidebarWidth } from '#src/Sidebar.tsx';
 import { ModalHost } from '#src/ui/modal.tsx';
 import { ToastHost } from '#src/ui/toast.tsx';
 import { Splitter } from '#src/ui/Splitter.tsx';
-import { StatusBar } from '#src/StatusBar.tsx';
 import { useAgentLayouts } from '#src/layout/agentLayouts.ts';
 import { Workspace } from '#src/Workspace.tsx';
+import { StatusRow } from '#src/sidebar/StatusRow.tsx';
 import { Settings } from '#src/settings/Settings.tsx';
 import { openSettings } from '#src/settings/open.ts';
 import '#src/styles.css';
@@ -90,7 +90,7 @@ function App() {
             }
           />
         </div>
-        <StatusBar />
+        <StatusRow />
       </div>
       <Settings />
     </>

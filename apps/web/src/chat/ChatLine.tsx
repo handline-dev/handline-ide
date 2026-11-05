@@ -122,7 +122,7 @@ export function ChatLine({
 }
 
 /** Above a reply, what it answers: one line of the message's words; a click goes to that message when it is loaded. */
-function Reference({ text, onClick }: { text?: string; onClick?: () => void }) {
+export function Reference({ text, onClick }: { text?: string; onClick?: () => void }) {
   return (
     <button
       type="button"
