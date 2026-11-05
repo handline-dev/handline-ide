@@ -82,7 +82,9 @@ function Shell({ children }: { children: ReactNode }) {
 
 /** The chat's lines, oldest first. Suspends until the first pages are in; an older page is read near the top without suspending. */
 function Stream({ agent, onQuote, ref }: { agent: string; onQuote: (text: string) => void; ref: Ref<{ sent: () => void }> }) {
-  const chat = useChatSuspense(agent, 'mine');
+  // Every message the agent sent or received (the all scope), drawn by the chat's own rules (mine): app-core's all view leaves out
+  // what the agent says to other agents, which this chat shows as quiet lines (ChatLine drops what others say to it).
+  const chat = useChatSuspense(agent, 'all');
   const me = useMe();
   const { entries } = chatView(chat, 'mine', agent, me);
   const doing = useAgents().data?.agents.find((a) => a.name === agent)?.doing?.text;
