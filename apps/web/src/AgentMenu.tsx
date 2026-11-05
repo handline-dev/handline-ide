@@ -7,12 +7,9 @@ import { Button } from '#src/ui/Button.tsx';
 import { ContextMenu, MenuItem, MenuSeparator, SubMenu } from '#src/ui/Menu.tsx';
 import { confirm, ModalFrame, openModal } from '#src/ui/modal.tsx';
 import { toast } from '#src/ui/toast.tsx';
+import { copy as copyTo } from '#src/ui/copy.ts';
 
-const copy = (text: string, what: string) =>
-  void navigator.clipboard?.writeText(text).then(
-    () => toast(`Copied the ${what}.`),
-    () => toast(`Could not copy the ${what}.`, { tone: 'warning' }),
-  );
+const copy = (text: string, what: string) => void copyTo(text, `the ${what}`, { say: true });
 
 /** A worktree that holds work: how to delete (the safe answer first), or undefined to keep the agent. */
 function askWorktree(name: string, held: HeldWorktree[]) {

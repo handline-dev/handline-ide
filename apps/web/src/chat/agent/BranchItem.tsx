@@ -1,18 +1,17 @@
 import { useWorktrees } from '@handline/app-data';
 import { Check, Copy, FileDiff, GitBranch } from 'lucide-react';
-import { useState } from 'react';
 import { CardAction, chip, MenuHeading, MenuRule } from '#src/chat/agent/menuParts.tsx';
 import { focusIn } from '#src/layout/focus.ts';
 import { howOf, openProps, useOpenTab } from '#src/layout/openTab.tsx';
 import { HoverCard } from '#src/ui/HoverCard.tsx';
-import { toast } from '#src/ui/toast.tsx';
+import { useCopy } from '#src/ui/copy.ts';
 
 /** The branch: resting on it shows its changed files and copies its name; a click opens the Changes tab with the diff. */
 export function BranchItem({ agent, branch, path }: { agent: string; branch: string; path: string }) {
   const changed = useWorktrees({ owner: agent }).data?.worktrees.find((w) => w.path === path)?.changed ?? [];
   const openTab = useOpenTab();
   // The copy button says it took, in place, for a moment: the card stays open under the pointer, so it is seen there.
-  const [copied, setCopied] = useState(false);
+  const { copied, copy } = useCopy();
   const added = changed.reduce((n, f) => n + f.added, 0);
   const deleted = changed.reduce((n, f) => n + f.deleted, 0);
   const biggest = [...changed].sort((a, b) => b.added + b.deleted - (a.added + a.deleted)).slice(0, 5);
@@ -73,15 +72,7 @@ export function BranchItem({ agent, branch, path }: { agent: string; branch: str
         </CardAction>
         <CardAction
           icon={copied ? <Check size={14} className="text-success" /> : <Copy size={14} />}
-          onClick={() =>
-            void navigator.clipboard.writeText(branch).then(
-              () => {
-                setCopied(true);
-                setTimeout(() => setCopied(false), 1500);
-              },
-              () => toast('Copy did not work.', { tone: 'warning' }),
-            )
-          }
+          onClick={() => copy(branch, 'the branch name')}
         >
           {copied ? 'Copied' : 'Copy branch name'}
         </CardAction>
