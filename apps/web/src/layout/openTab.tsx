@@ -19,6 +19,13 @@ export const setShownWorkspace = (open: Open) => {
   shown = open;
 };
 
+/** Brings up an app page (Usage, Settings…) in place of what is on screen, as the sidebar's page items do; set once by the app. */
+let toPage: (kind: string, label: string) => void = () => {};
+export const setPageGo = (go: (kind: string, label: string) => void) => {
+  toPage = go;
+};
+export const goPage = (kind: string, label: string) => toPage(kind, label);
+
 /** Opens a tab: from the caller's own pane when it sits in one, else in the workspace on screen. */
 export function useOpenTab(): Open {
   const pane = useContext(PaneOpen);
