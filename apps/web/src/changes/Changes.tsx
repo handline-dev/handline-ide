@@ -48,7 +48,7 @@ export function Changes({ agent }: { agent: string }) {
   const files = diff.data ? byFile(diff.data.diff) : [];
   const counts = new Map(changed.map((f) => [f.path, f]));
   return (
-    <ScrollFade className="min-h-0 flex-1">
+    <ScrollFade keep={`changes:${agent}`} className="min-h-0 flex-1">
       <div ref={box} className="flex flex-col gap-3 p-4">
         <div className="flex items-center gap-2 text-sm text-muted">
           <GitBranch size={14} />

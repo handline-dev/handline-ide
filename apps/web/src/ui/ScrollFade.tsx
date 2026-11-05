@@ -1,3 +1,4 @@
+import { useKeptScroll } from '#src/ui/keptScroll.ts';
 import { useEffect, useRef, useState, type ComponentProps, type CSSProperties, type RefObject } from 'react';
 
 const FADE = 24; // px
@@ -50,10 +51,11 @@ export function useScrollFade(ref: RefObject<HTMLElement | null>): CSSProperties
   };
 }
 
-/** A scroll area whose edges fade while there is more to scroll that way. */
-export function ScrollFade({ className = '', style, children, ...props }: ComponentProps<'div'>) {
+/** A scroll area whose edges fade while there is more to scroll that way. With `keep`, it is found where it was left (ui/keptScroll). */
+export function ScrollFade({ className = '', style, children, keep, ...props }: ComponentProps<'div'> & { keep?: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const fade = useScrollFade(ref);
+  useKeptScroll(ref, keep);
   return (
     <div ref={ref} className={`overflow-auto ${className}`} style={{ ...fade, ...style }} {...props}>
       {children}

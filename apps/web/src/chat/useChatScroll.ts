@@ -1,6 +1,7 @@
 // The web side of the chat's scroll: measures the view, feeds the events to the shared `chatScroll` and does what it answers. This is the only
 // place that sets the stream's scroll position, and the PC enters a chat at the bottom and never pins a sent message to the top.
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
+import { keptScroll } from '#src/ui/keptScroll.ts';
 import { START, chatScroll, type ChatEntry, type Geometry, type ScrollEvent, type ScrollState } from '@handline/app-core';
 
 const NEAR = 40; // px from the end that still counts as the bottom
@@ -18,11 +19,12 @@ function lineInView(box: HTMLElement): { id: string; off: number } | null {
 }
 
 /** Scrolls `box` so the line `a` remembered is back where it was. Found again by its id: a page landing can re-create the element. */
-function putBack(box: HTMLElement, a: { id: string; off: number }) {
+function putBack(box: HTMLElement, a: { id: string; off: number }): boolean {
   const el = [...box.querySelectorAll('[data-id]')].find((n) => n.getAttribute('data-id') === a.id);
-  if (!el) return;
+  if (!el) return false;
   const drift = el.getBoundingClientRect().top - box.getBoundingClientRect().top - a.off;
   if (drift) box.scrollTop += drift;
+  return true;
 }
 
 /** Moves `box` to `top`; the DOM write lives here, outside the hook, so the compiler sees no mutation of the ref's element. */
@@ -88,8 +90,16 @@ export function useChatScroll({
     entered.current = agent;
     state.current = START;
     place.current = null;
+    // Back to a chat read above its bottom: on the line the reader left, as reading on; else entered at the bottom.
+    const left = keptScroll.get(`chat:${agent}`);
+    const box = stream.current;
+    if (box && left && typeof left === 'object' && putBack(box, left)) {
+      state.current = { mode: 'free', newer: 0 };
+      place.current = left;
+      return;
+    }
     dispatch({ type: 'enter' });
-  }, [ready, agent, dispatch]);
+  }, [ready, agent, dispatch, stream]);
 
   // A commit that changes the lines above the reader (a step folding, a page landing, a card coming) leaves them on the line they were on.
   useLayoutEffect(() => {
@@ -124,6 +134,7 @@ export function useChatScroll({
       if (!atBottom && !intent.current && performance.now() < glide.current) return;
       dispatch({ type: 'scrolled', atBottom });
       place.current = atBottom ? null : lineInView(box);
+      keptScroll.set(`chat:${agent}`, place.current ?? 'end');
       reading?.(!atBottom);
     },
     /** Entries were added at the end. */
