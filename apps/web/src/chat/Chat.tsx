@@ -1,9 +1,14 @@
 import { chatView } from '@handline/app-core';
-import { useAgents, useChatActions, useChatServed, useChatSuspense } from '@handline/app-data';
+import { useAgents, useChat, useChatActions, useChatServed, useChatSuspense, useVerbRun } from '@handline/app-data';
+import { VERBS } from '@handline/app-core';
 import { useMe, useNearEnd } from '@handline/app-react';
 import { AnimatePresence } from 'framer-motion';
 import { LoaderCircle } from 'lucide-react';
 import { useEffect, useImperativeHandle, useRef, type ReactNode, type Ref } from 'react';
+import { ContextRing } from '#src/chat/agent/ContextRing.tsx';
+import { COMPACTING_WORDS, useCompacting } from '#src/chat/agent/compaction.ts';
+import { ModelChip } from '#src/chat/agent/ModelChip.tsx';
+import { StatusLine } from '#src/chat/agent/StatusLine.tsx';
 import { useAttachments } from '#src/chat/attachments.tsx';
 import { ChatLine } from '#src/chat/ChatLine.tsx';
 import { ChatSkeleton } from '#src/chat/ChatSkeleton.tsx';
@@ -15,6 +20,7 @@ import { Boundary } from '#src/ui/Boundary.tsx';
 import { Button } from '#src/ui/Button.tsx';
 import { DropHint, useFileDrop } from '#src/ui/fileDrop.tsx';
 import { Page } from '#src/ui/Page.tsx';
+import { toast } from '#src/ui/toast.tsx';
 import { useScrollFade } from '#src/ui/ScrollFade.tsx';
 
 /** An agent's chat: its lines, and the box to write in. The box is there from the first moment; the lines wait, as a skeleton,
@@ -22,6 +28,10 @@ import { useScrollFade } from '#src/ui/ScrollFade.tsx';
 export function Chat({ agent }: { agent: string }) {
   const served = useChatServed();
   const { send } = useChatActions(agent);
+  // Whether a turn is running, for Stop: the same read the stream suspends on, here without suspending.
+  const running = useChat(agent, 'all').working.turn_running;
+  const run = useVerbRun(agent);
+  const compacting = useCompacting(agent);
   const [draft, setDraft] = useDraft(agent);
   const attach = useAttachments(agent);
   const drop = useFileDrop(attach.add);
@@ -61,11 +71,21 @@ export function Chat({ agent }: { agent: string }) {
           draft={draft}
           setDraft={setDraft}
           attach={attach}
+          leading={<ModelChip agent={agent} />}
+          trailing={<ContextRing agent={agent} />}
+          running={running}
+          locked={compacting ? COMPACTING_WORDS[compacting] : undefined}
+          onStop={() =>
+            run(VERBS.interrupt, undefined, {
+              onError: (e) => toast(`Stop did not work: ${e instanceof Error ? e.message : String(e)}`, { tone: 'warning' }),
+            })
+          }
           onSend={(body, attachments) => {
             send(body, { attachments });
             stream.current?.sent();
           }}
         />
+        <StatusLine agent={agent} />
       </Page>
     </div>
   );
