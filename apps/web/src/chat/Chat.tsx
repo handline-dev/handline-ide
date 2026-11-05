@@ -1,16 +1,18 @@
-import { chatView } from '@handline/app-core';
+import { chatView, isPerson, type TimelineEntry } from '@handline/app-core';
 import { useAgents, useChat, useChatActions, useChatServed, useChatSuspense, useVerbRun } from '@handline/app-data';
 import { VERBS } from '@handline/app-core';
 import { useMe, useNearEnd } from '@handline/app-react';
-import { AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
+import { spring } from '#src/motion.ts';
 import { LoaderCircle } from 'lucide-react';
-import { useEffect, useImperativeHandle, useRef, type ReactNode, type Ref } from 'react';
+import { useEffect, useImperativeHandle, useRef, useState, type ReactNode, type Ref } from 'react';
 import { ContextRing } from '#src/chat/agent/ContextRing.tsx';
 import { COMPACTING_WORDS, useCompacting } from '#src/chat/agent/compaction.ts';
 import { ModelChip } from '#src/chat/agent/ModelChip.tsx';
 import { StatusLine } from '#src/chat/agent/StatusLine.tsx';
+import { TaskActivity, useTaskActivity, type TaskEvent } from '#src/chat/TaskActivity.tsx';
 import { useAttachments } from '#src/chat/attachments.tsx';
-import { ChatLine } from '#src/chat/ChatLine.tsx';
+import { ChatLine, drawsNothing } from '#src/chat/ChatLine.tsx';
 import { ChatSkeleton } from '#src/chat/ChatSkeleton.tsx';
 import { Composer } from '#src/chat/Composer.tsx';
 import { MarkReply } from '#src/chat/MessageImages.tsx';
@@ -108,6 +110,46 @@ const markedFile = (m: MarkedPicture) => {
   return { kind: 'file' as const, name, files: [{ path: name, file: new File([m.image], name, { type: 'image/png' }) }] };
 };
 
+/** A task this agent gave or handed another agent, said as a message (kind task): drawn as the task, not as talk. */
+const taskNotice = (e: TimelineEntry, agent: string, me: string) =>
+  e.kind === 'message' &&
+  e.message.kind === 'task' &&
+  e.message.tasks.length > 0 &&
+  e.message.from === agent &&
+  !isPerson(e.message.to, me);
+
+/** The entries, with each run of task notices gathered into one card's rows. */
+function runs(entries: TimelineEntry[], agent: string, me: string): (TimelineEntry | { key: string; events: TaskEvent[] })[] {
+  const out: (TimelineEntry | { key: string; events: TaskEvent[] })[] = [];
+  for (const e of entries) {
+    if (!taskNotice(e, agent, me) || e.kind !== 'message') {
+      // A line that draws nothing is kept out of the way: it goes before the card, so the run goes on.
+      const last = out.at(-1);
+      if (last && 'events' in last && drawsNothing(e, agent, me)) out.splice(out.length - 1, 0, e);
+      else out.push(e);
+      continue;
+    }
+    const m = e.message;
+    // Said plainly: a task handed on from another holder, or given to this agent anew. The icon already points; no arrow in words.
+    const how = /^T\d+\s+handed\b/i.test(m.body) ? 'Handed to' : 'Assigned to';
+    const rows = m.tasks.map((t) => ({
+      key: `${m.id}:${t.id}`,
+      kind: 'handoff' as const,
+      id: `T${t.id}`,
+      title: t.title,
+      detail: `${how} ${m.to}`,
+      at: m.at,
+    }));
+    const last = out.at(-1);
+    // Keyed by its newest notice: an older page that lands on top joins the card without changing its key, so the reader's line is found again.
+    if (last && 'events' in last) {
+      last.events.push(...rows);
+      last.key = `tasks:${m.id}`;
+    } else out.push({ key: `tasks:${m.id}`, events: rows });
+  }
+  return out;
+}
+
 /** The stream's frame without its lines: what stands while they load. */
 function Shell({ children }: { children: ReactNode }) {
   return (
@@ -140,6 +182,17 @@ function Stream({ agent, onQuote, ref }: { agent: string; onQuote: (text: string
     if (last.current !== null && at >= 0 && at < keys.length - 1) scroll.added(keys.length - 1 - at);
     last.current = keys.at(-1) ?? null;
   });
+  // The index of the last line drawn before this render; what is at or above it (an older page included) just shows.
+  const end = entries.at(-1);
+  const endKey = end ? `${end.kind}:${end.id}` : null;
+  const [tail, setTail] = useState({ end: endKey, before: endKey });
+  if (tail.end !== endKey) setTail({ end: endKey, before: tail.end });
+  const known = (all: ReturnType<typeof runs>) => {
+    const at = all.map((r) => ('events' in r ? r.events.map((e) => `message:${e.key.split(':')[0]}`) : [`${r.kind}:${r.id}`]));
+    for (let i = at.length - 1; i >= 0; i--) if (at[i]!.includes(tail.before ?? '')) return i;
+    return Infinity;
+  };
+  const tasks = useTaskActivity(agent);
   const top = useNearEnd<HTMLDivElement, HTMLDivElement>(stream, chat.loadOlder, chat.hasOlder && !chat.loadingOlder, {
     atTop: true,
     margin: 400,
@@ -168,10 +221,30 @@ function Stream({ agent, onQuote, ref }: { agent: string; onQuote: (text: string
             </div>
           )}
           <AnimatePresence initial={false}>
-            {entries.map((e) => (
-              <ChatLine key={`${e.kind}:${e.id}`} e={e} agent={agent} me={me} onQuote={onQuote} />
-            ))}
+            {/* Task notices in a row are one card, as the live task card is (TaskActivity). Only lines after the last one known fade in:
+                an older page lands as one still block. */}
+            {runs(entries, agent, me).map((r, i, all) =>
+              'events' in r ? (
+                <motion.div
+                  key={r.key}
+                  data-id={r.key}
+                  initial={i <= known(all) ? false : { opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={spring}
+                  className="flex"
+                >
+                  <TaskActivity events={r.events} />
+                </motion.div>
+              ) : (
+                <ChatLine key={`${r.kind}:${r.id}`} e={r} agent={agent} me={me} onQuote={onQuote} fade={i > known(all)} />
+              ),
+            )}
           </AnimatePresence>
+          {tasks.length > 0 && (
+            <div className="mb-5">
+              <TaskActivity events={tasks} />
+            </div>
+          )}
           {/* The dots' row is always there, so turning them on or off does not move the chat. */}
           <div
             className={`h-5 transition-opacity ${chat.working.turn_running ? 'opacity-100' : 'opacity-0'}`}

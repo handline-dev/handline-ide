@@ -8,7 +8,7 @@ export function Actions({ text, onQuote }: { text: string; onQuote: (text: strin
   return (
     <span className="flex gap-0.5">
       <CopyButton text={text} />
-      <IconButton label="Reference" onClick={() => onQuote(text)}>
+      <IconButton className="size-6!" label="Reference" onClick={() => onQuote(text)}>
         <Quote size={14} />
       </IconButton>
     </span>
@@ -20,6 +20,7 @@ function CopyButton({ text }: { text: string }) {
   const [done, setDone] = useState(false);
   return (
     <IconButton
+      className="size-6!"
       label={done ? 'Copied' : 'Copy'}
       onClick={() => {
         navigator.clipboard.writeText(text).then(

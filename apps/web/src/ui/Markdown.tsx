@@ -1,106 +1,187 @@
-import type { ReactNode } from 'react';
+import { marked, type Token, type Tokens } from 'marked';
+import { Fragment, type ReactNode } from 'react';
+import { useOpenTab, howOf } from '#src/layout/openTab.tsx';
+import { fileOf, taskOf, webOf } from '#src/layout/kinds.tsx';
 
-/** A small Markdown reader: headings, bullet and numbered lists, paragraphs, fenced code, **bold** and `code`.
- * No HTML is read: every piece is a React text node or element. */
-
-type Block =
-  | { kind: 'code'; text: string }
-  | { kind: 'heading'; level: number; text: string }
-  | { kind: 'list'; ordered: boolean; items: string[] }
-  | { kind: 'para'; text: string };
-
-const FENCE = /^\s*```/;
-const HEADING = /^(#{1,4})\s+(.+)$/;
-const BULLET = /^\s*[-*]\s+(.*)$/;
-const NUMBER = /^\s*\d+[.)]\s+(.*)$/;
-
-function parse(text: string): Block[] {
-  const blocks: Block[] = [];
-  const lines = text.split('\n');
-  let para: string[] = [];
-  const flush = () => {
-    if (para.length) blocks.push({ kind: 'para', text: para.join('\n') });
-    para = [];
-  };
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]!;
-    if (FENCE.test(line)) {
-      flush();
-      const code: string[] = [];
-      for (i++; i < lines.length && !FENCE.test(lines[i]!); i++) code.push(lines[i]!);
-      blocks.push({ kind: 'code', text: code.join('\n') });
-      continue;
-    }
-    const heading = HEADING.exec(line);
-    const item = BULLET.exec(line) ?? NUMBER.exec(line);
-    if (heading) {
-      flush();
-      blocks.push({ kind: 'heading', level: heading[1]!.length, text: heading[2]! });
-    } else if (item) {
-      flush();
-      const ordered = !BULLET.test(line);
-      const last = blocks.at(-1);
-      if (last?.kind === 'list' && last.ordered === ordered) last.items.push(item[1]!);
-      else blocks.push({ kind: 'list', ordered, items: [item[1]!] });
-    } else if (!line.trim()) flush();
-    else para.push(line);
-  }
-  flush();
-  return blocks;
+/** Markdown as the chat and notes show it: marked reads it (GFM), and each token is drawn as a React element, so no HTML in the
+ * text is ever run. Lists keep the numbers as written (1. 2. or 1) 2)), not renumbered. In text, a task (T1234), a web address
+ * and a repo path (apps/web/src/main.tsx:12) open in a tab: a click here, Cmd+click beside. */
+export function Markdown({ text }: { text: string }) {
+  const tokens = marked.lexer(text, { gfm: true, breaks: true });
+  return <div className="flex flex-col gap-2 wrap-break-word">{blocks(tokens)}</div>;
 }
 
-const INLINE = /(`[^`\n]+`|\*\*[^*\n]+\*\*)/;
-const code = 'rounded-sm bg-surface px-1 font-mono';
+const code = 'rounded-sm bg-surface px-1 font-mono text-sm';
+const headings = ['text-lg', 'text-base', 'text-base', 'text-sm', 'text-sm', 'text-sm'];
 
-function Inline({ text }: { text: string }): ReactNode {
-  return text.split(INLINE).map((s, i) =>
-    i % 2 === 0 ? (
-      s
-    ) : s.startsWith('`') ? (
-      <code key={i} className={code}>
-        {s.slice(1, -1)}
-      </code>
-    ) : (
-      <strong key={i} className="font-semibold">
-        <Inline text={s.slice(2, -2)} />
-      </strong>
-    ),
+function blocks(tokens: Token[]): ReactNode {
+  return tokens.map((t, i) => <Fragment key={i}>{block(t)}</Fragment>);
+}
+
+function block(t: Token): ReactNode {
+  switch (t.type) {
+    case 'heading':
+      return (
+        <div role="heading" aria-level={t.depth} className={`${headings[t.depth - 1]} pt-1 font-semibold`}>
+          {inline(t.tokens)}
+        </div>
+      );
+    case 'paragraph':
+      return <p className="whitespace-pre-wrap">{inline(t.tokens)}</p>;
+    case 'list':
+      return <List list={t as Tokens.List} />;
+    case 'code':
+      return (
+        <pre className="overflow-x-auto rounded-md bg-surface p-2 font-mono text-sm whitespace-pre">
+          <code>{t.text}</code>
+        </pre>
+      );
+    case 'blockquote':
+      return <blockquote className="flex flex-col gap-2 border-l-2 border-border pl-3 text-muted">{blocks(t.tokens ?? [])}</blockquote>;
+    case 'hr':
+      return <hr className="border-border" />;
+    case 'table':
+      return <Table table={t as Tokens.Table} />;
+    case 'space':
+      return null;
+    default:
+      return 'tokens' in t && t.tokens ? <p className="whitespace-pre-wrap">{inline(t.tokens)}</p> : <p>{t.raw}</p>;
+  }
+}
+
+/** A list with each item's own marker as written: `2)` stays `2)`, a list starting at 3 starts at 3. */
+function List({ list }: { list: Tokens.List }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      {list.items.map((item, i) => {
+        const marker = /^\s*(\d+[.)]|[-*+])\s/.exec(item.raw)?.[1] ?? (list.ordered ? `${i + 1}.` : '-');
+        const bullet = /^[-*+]$/.test(marker);
+        return (
+          <div key={i} className="flex gap-2">
+            <span className={`shrink-0 text-right tabular-nums ${bullet ? 'w-3 text-muted' : 'min-w-5 text-muted'}`}>
+              {item.task ? (item.checked ? '☑' : '☐') : bullet ? '•' : marker}
+            </span>
+            <div className="flex min-w-0 flex-col gap-1">
+              {item.tokens.map((c, j) => (
+                <Fragment key={j}>{c.type === 'text' && 'tokens' in c && c.tokens ? <span>{inline(c.tokens)}</span> : block(c)}</Fragment>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
-const headings = ['text-lg', 'text-base', 'text-sm', 'text-sm'];
-
-export function Markdown({ text }: { text: string }) {
+function Table({ table }: { table: Tokens.Table }) {
   return (
-    <div className="flex flex-col gap-2 wrap-break-word">
-      {parse(text).map((b, i) =>
-        b.kind === 'code' ? (
-          <pre key={i} className={`${code} overflow-x-auto p-2 whitespace-pre`}>
-            <code>{b.text}</code>
-          </pre>
-        ) : b.kind === 'heading' ? (
-          <div key={i} role="heading" aria-level={b.level} className={`${headings[b.level - 1]} pt-1 font-semibold`}>
-            <Inline text={b.text} />
-          </div>
-        ) : b.kind === 'list' ? (
-          (() => {
-            const List = b.ordered ? 'ol' : 'ul';
-            return (
-              <List key={i} className={`${b.ordered ? 'list-decimal' : 'list-disc'} pl-5`}>
-                {b.items.map((t, j) => (
-                  <li key={j}>
-                    <Inline text={t} />
-                  </li>
-                ))}
-              </List>
-            );
-          })()
-        ) : (
-          <p key={i} className="whitespace-pre-wrap">
-            <Inline text={b.text} />
-          </p>
-        ),
-      )}
+    <div className="overflow-x-auto">
+      <table className="text-sm">
+        <thead>
+          <tr>
+            {table.header.map((h, i) => (
+              <th key={i} className="border-b border-border px-2 py-1 text-left font-semibold">
+                {inline(h.tokens)}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {table.rows.map((r, i) => (
+            <tr key={i}>
+              {r.map((c, j) => (
+                <td key={j} className="border-b border-border px-2 py-1">
+                  {inline(c.tokens)}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
+  );
+}
+
+function inline(tokens: Token[] | undefined): ReactNode {
+  return (tokens ?? []).map((t, i) => <Fragment key={i}>{span(t)}</Fragment>);
+}
+
+function span(t: Token): ReactNode {
+  switch (t.type) {
+    case 'strong':
+      return <strong className="font-semibold">{inline(t.tokens)}</strong>;
+    case 'em':
+      return <em>{inline(t.tokens)}</em>;
+    case 'del':
+      return <del className="text-muted">{inline(t.tokens)}</del>;
+    case 'codespan': {
+      // A path or a task written as code still opens.
+      const target = linkOf(t.text);
+      const c = <code className={code}>{t.text}</code>;
+      return target ? <Opens opens={target}>{c}</Opens> : c;
+    }
+    case 'br':
+      return <br />;
+    case 'link':
+      // Its words as plain text: a link inside a link would open twice.
+      return /^https?:\/\//i.test(t.href) ? <Opens opens={webOf(t.href)}>{t.text}</Opens> : t.text;
+    case 'text':
+      return 'tokens' in t && t.tokens ? inline(t.tokens) : <Linked text={t.text} />;
+    case 'escape':
+      return t.text;
+    default:
+      // HTML and anything unknown is shown as the text it is, never run.
+      return <Linked text={t.raw} />;
+  }
+}
+
+// A task (T1234), a web address, or a repo path with a / and an extension (a :line after it is kept on the link).
+const LINKS = /(\bT\d{2,}\b|https?:\/\/[^\s<>()]+[^\s<>().,;:!?'"]|(?<![\w/.-])(?:[\w.-]+\/)+[\w.-]+\.[A-Za-z][\w]{0,7}(?::\d+)?)/g;
+
+function linkOf(s: string): string | null {
+  if (/^T\d{2,}$/.test(s)) return taskOf(Number(s.slice(1)));
+  if (/^https?:\/\//i.test(s)) return webOf(s);
+  if (/^(?:[\w.-]+\/)+[\w.-]+\.[A-Za-z]\w{0,7}(?::\d+)?$/.test(s)) return fileOf(s.replace(/:\d+$/, ''));
+  return null;
+}
+
+function Linked({ text }: { text: string }) {
+  const parts = text.split(LINKS);
+  return parts.map((p, i) => {
+    const target = i % 2 ? linkOf(p) : null;
+    return target ? (
+      <Opens key={i} opens={target}>
+        {p}
+      </Opens>
+    ) : (
+      p
+    );
+  });
+}
+
+/** Text that opens a tab the app's way: a click here, Cmd+click (or a middle click) beside. */
+function Opens({ opens, children }: { opens: string; children: ReactNode }) {
+  const open = useOpenTab();
+  return (
+    <a
+      href={opens.startsWith('web:') ? opens.slice(4) : undefined}
+      role="link"
+      tabIndex={0}
+      onClick={(e) => {
+        e.preventDefault();
+        open(opens, howOf(e));
+      }}
+      onAuxClick={(e) => {
+        if (e.button !== 1) return;
+        e.preventDefault();
+        open(opens, 'side');
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') open(opens, howOf(e));
+      }}
+      className="cursor-pointer text-accent hover:underline"
+    >
+      {children}
+    </a>
   );
 }
