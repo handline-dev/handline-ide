@@ -1,4 +1,4 @@
-import { isPerson, sideOf, tickLevel, type TimelineEntry } from '@handline/app-core';
+import { isPerson, isSystem, sideOf, tickLevel, type TimelineEntry } from '@handline/app-core';
 import { motion } from 'framer-motion';
 import { CornerDownRight } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
@@ -16,6 +16,8 @@ import { spring } from '#src/motion.ts';
 export function drawsNothing(e: TimelineEntry, agent: string, me: string): boolean {
   if (e.kind === 'item') return !e.item.session && !e.item.text;
   if (e.kind === 'proposal') return true;
+  // The daemon's own bookkeeping (task-board digests and nudges) is not shown anywhere.
+  if (isSystem(e.message.from)) return true;
   if (!isPerson(e.message.from, me) && !isPerson(e.message.to, me)) return e.message.from !== agent;
   const text = e.message.parts ? e.message.parts.some((p) => 'text' in p && p.text.trim()) : !!e.message.body;
   return !text && !(e.message.attachments ?? []).some((a) => a.mime.startsWith('image/'));
@@ -46,6 +48,7 @@ export function ChatLine({
   fade?: boolean;
 }) {
   const key = `${e.kind}:${e.id}`;
+  if (drawsNothing(e, agent, me)) return null;
   const fade = { initial: fades ? { opacity: 0 } : (false as const), animate: { opacity: 1 }, transition: spring };
   if (e.kind === 'item' && e.item.session)
     return (
@@ -92,7 +95,9 @@ export function ChatLine({
       {m?.parent_item && <Reference text={m.parent_item.text} />}
       {text && (
         <Quotable text={text} on={!mine} onQuote={reply}>
-          <div className={`max-w-150 min-w-0 text-base text-fg ${mine ? 'rounded-xl bg-selected px-4 py-2' : ''}`}>
+          <div
+            className={`max-w-150 min-w-0 text-base text-fg ${images.length ? 'mt-2' : ''} ${mine ? 'rounded-xl bg-selected px-4 py-2' : ''}`}
+          >
             <Markdown text={text} />
           </div>
         </Quotable>

@@ -102,8 +102,8 @@ function ContextLine({ used, point, limit, over }: { used: number; point: number
   );
 }
 
-/** Where it compacts, as a setting: its name and the usual points side by side, the one in force selected; a click sets it. The last
- * segment is any other point: `…`, or the other point in force; a click turns it into a field, set on Enter or on leaving it, Esc leaves. */
+/** Where it compacts, as a setting: the usual points side by side, the one in force selected (another point in force gets its own
+ * segment); a click sets it. Other… is always last: a click turns it into a field, set on Enter or on leaving it, Esc leaves. */
 function CompactAt({ agent, point }: { agent: string; point: number | null }) {
   const set = useWrite('agent.set', agent);
   const served = useServes('agent.set').served;
@@ -120,7 +120,8 @@ function CompactAt({ agent, point }: { agent: string; point: number | null }) {
   const seg =
     'h-6 rounded-sm px-2 text-xs text-muted tabular-nums outline-none hover:text-fg focus-visible:ring-2 focus-visible:ring-accent aria-checked:bg-bg aria-checked:text-fg aria-checked:shadow-popover';
   return (
-    <div className="flex items-center justify-between gap-4 px-2 py-1">
+    // The name above its choices: side by side the last one (another point) was cut off at the card's edge.
+    <div className="flex flex-col gap-1.5 px-2 py-1">
       <span className="text-xs text-muted">Compact at</span>
       <div role="radiogroup" aria-label="Compact at" className="flex gap-0.5 rounded-md bg-surface p-0.5">
         {COMPACT_K.map((k) => (
@@ -128,16 +129,16 @@ function CompactAt({ agent, point }: { agent: string; point: number | null }) {
             {tokens(k * 1000)}
           </button>
         ))}
+        {/* A point in force that is not one of the usual: its own segment, selected. */}
+        {custom && (
+          <button type="button" role="radio" aria-checked onClick={() => undefined} className={seg}>
+            {tokens(chosen! * 1000)}
+          </button>
+        )}
+        {/* Any other point, always there: a click turns it into a field. */}
         {typed == null ? (
-          <button
-            type="button"
-            role="radio"
-            aria-checked={custom}
-            aria-label="Other point"
-            onClick={() => setTyped(custom ? String(chosen) : '')}
-            className={seg}
-          >
-            {custom ? tokens(chosen! * 1000) : '…'}
+          <button type="button" aria-label="Other point" onClick={() => setTyped(custom ? String(chosen) : '')} className={seg}>
+            Other…
           </button>
         ) : (
           <label className={`flex items-center bg-bg text-fg shadow-popover ${seg}`}>

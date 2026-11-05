@@ -7,13 +7,15 @@ import { spring } from '#src/motion.ts';
 import { LoaderCircle } from 'lucide-react';
 import { useEffect, useImperativeHandle, useRef, useState, type ReactNode, type Ref } from 'react';
 import { ContextRing } from '#src/chat/agent/ContextRing.tsx';
-import { COMPACTING_WORDS, useCompacting } from '#src/chat/agent/compaction.ts';
+import { COMPACTING_WORDS, useCompacting, useCompactNow } from '#src/chat/agent/compaction.ts';
+import type { Command } from '#src/chat/Suggest.tsx';
+import { useOpenTab } from '#src/layout/openTab.tsx';
 import { ModelChip } from '#src/chat/agent/ModelChip.tsx';
 import { StatusLine } from '#src/chat/agent/StatusLine.tsx';
 import { TaskActivity, useTaskActivity, type TaskEvent } from '#src/chat/TaskActivity.tsx';
 import { useAttachments } from '#src/chat/attachments.tsx';
 import { ChatLine, drawsNothing, type Reply } from '#src/chat/ChatLine.tsx';
-import { CornerDownRight, X } from 'lucide-react';
+import { CornerDownRight, FoldVertical, Square, SquareTerminal, X } from 'lucide-react';
 import { ChatSkeleton } from '#src/chat/ChatSkeleton.tsx';
 import { Composer } from '#src/chat/Composer.tsx';
 import { MarkReply } from '#src/chat/MessageImages.tsx';
@@ -38,6 +40,22 @@ export function Chat({ agent }: { agent: string }) {
   const running = useChat(agent, 'all').working.turn_running;
   const run = useVerbRun(agent);
   const compacting = useCompacting(agent);
+  const compactNow = useCompactNow(agent);
+  const openTab = useOpenTab();
+  const stop = () =>
+    run(VERBS.interrupt, undefined, {
+      onError: (e) => toast(`Stop did not work: ${e instanceof Error ? e.message : String(e)}`, { tone: 'warning' }),
+    });
+  const commands: Command[] = [
+    { name: 'stop', hint: 'Stop the turn running now', icon: <Square size={14} />, run: stop },
+    {
+      name: 'compact',
+      hint: 'Compact the context now',
+      icon: <FoldVertical size={14} />,
+      run: () => (compactNow ? compactNow() : toast('Compact is not open now.', { tone: 'warning' })),
+    },
+    { name: 'terminal', hint: 'Open the terminal beside', icon: <SquareTerminal size={14} />, run: () => openTab('shell', 'side') },
+  ];
   const [draft, setDraft] = useDraft(agent);
   const attach = useAttachments(agent);
   const drop = useFileDrop(attach.add);
@@ -92,11 +110,8 @@ export function Chat({ agent }: { agent: string }) {
           trailing={<ContextRing agent={agent} />}
           running={running}
           locked={compacting ? COMPACTING_WORDS[compacting] : undefined}
-          onStop={() =>
-            run(VERBS.interrupt, undefined, {
-              onError: (e) => toast(`Stop did not work: ${e instanceof Error ? e.message : String(e)}`, { tone: 'warning' }),
-            })
-          }
+          onStop={stop}
+          commands={commands}
           above={
             reply && (
               <div role="status" className="-ml-2 flex min-w-0 items-center gap-1.5 text-xs text-muted">
@@ -140,9 +155,30 @@ const taskNotice = (e: TimelineEntry, agent: string, me: string) =>
   !isPerson(e.message.to, me);
 
 /** The entries, with each run of task notices gathered into one card's rows. */
-function runs(entries: TimelineEntry[], agent: string, me: string): (TimelineEntry | { key: string; events: TaskEvent[] })[] {
+function runs(
+  entries: TimelineEntry[],
+  agent: string,
+  me: string,
+  live: TaskEvent[] = [],
+): (TimelineEntry | { key: string; events: TaskEvent[] })[] {
   const out: (TimelineEntry | { key: string; events: TaskEvent[] })[] = [];
+  // Task changes heard while the chat is open go in by their time, joining a card next to them, so they scroll up as talk goes on.
+  const heard = [...live].sort((a, b) => Date.parse(a.at ?? '') - Date.parse(b.at ?? ''));
+  const add = (rows: TaskEvent[], key: string) => {
+    const last = out.at(-1);
+    if (last && 'events' in last) {
+      last.events.push(...rows);
+      last.key = key;
+    } else out.push({ key, events: rows });
+  };
+  const until = (at: string) => {
+    while (heard.length && Date.parse(heard[0]!.at ?? '') <= Date.parse(at)) {
+      const ev = heard.shift()!;
+      add([ev], `tasks:${ev.key}`);
+    }
+  };
   for (const e of entries) {
+    until(e.at);
     if (!taskNotice(e, agent, me) || e.kind !== 'message') {
       // A line that draws nothing is kept out of the way: it goes before the card, so the run goes on.
       const last = out.at(-1);
@@ -151,23 +187,20 @@ function runs(entries: TimelineEntry[], agent: string, me: string): (TimelineEnt
       continue;
     }
     const m = e.message;
-    // Said plainly: a task handed on from another holder, or given to this agent anew. The icon already points; no arrow in words.
-    const how = /^T\d+\s+handed\b/i.test(m.body) ? 'Handed to' : 'Assigned to';
+    // A task handed on from another holder, or a new one made and given: said in words, its icon telling which.
+    const handed = /^T\d+\s+handed\b/i.test(m.body);
     const rows = m.tasks.map((t) => ({
       key: `${m.id}:${t.id}`,
-      kind: 'handoff' as const,
+      kind: handed ? ('handoff' as const) : ('add' as const),
       id: `T${t.id}`,
       title: t.title,
-      detail: `${how} ${m.to}`,
+      detail: handed ? `Handed to ${m.to}` : `Created and assigned to ${m.to}`,
       at: m.at,
     }));
-    const last = out.at(-1);
     // Keyed by its newest notice: an older page that lands on top joins the card without changing its key, so the reader's line is found again.
-    if (last && 'events' in last) {
-      last.events.push(...rows);
-      last.key = `tasks:${m.id}`;
-    } else out.push({ key: `tasks:${m.id}`, events: rows });
+    add(rows, `tasks:${m.id}`);
   }
+  until(new Date(8.64e15).toISOString());
   return out;
 }
 
@@ -246,7 +279,7 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
           <AnimatePresence initial={false}>
             {/* Task notices in a row are one card, as the live task card is (TaskActivity). Only lines after the last one known fade in:
                 an older page lands as one still block. */}
-            {runs(entries, agent, me).map((r, i, all) =>
+            {runs(entries, agent, me, tasks).map((r, i, all) =>
               'events' in r ? (
                 <motion.div
                   key={r.key}
@@ -271,11 +304,6 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
               ),
             )}
           </AnimatePresence>
-          {tasks.length > 0 && (
-            <div className="mb-5">
-              <TaskActivity events={tasks} />
-            </div>
-          )}
           {/* The dots' row is always there, so turning them on or off does not move the chat. */}
           <div
             className={`h-5 transition-opacity ${chat.working.turn_running ? 'opacity-100' : 'opacity-0'}`}
