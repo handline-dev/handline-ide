@@ -1,5 +1,8 @@
 import { Chat } from '#src/chat/Chat.tsx';
 import { Changes } from '#src/changes/Changes.tsx';
+import { MarkdownTab } from '#src/tools/MarkdownTab.tsx';
+import { TaskTab } from '#src/tools/TaskTab.tsx';
+import { WebTab } from '#src/tools/WebTab.tsx';
 import { Usage } from '#src/usage/Usage.tsx';
 import { PaneOpen, setShownWorkspace, type How } from '#src/layout/openTab.tsx';
 import { ArrowDownToLine, ArrowLeftToLine, ArrowRightToLine, ArrowUpToLine, Columns2, LayoutGrid, X } from 'lucide-react';
@@ -184,6 +187,13 @@ function PaneView({
           {current?.opens === 'chat' && agent && <Chat key={agent} agent={agent} />}
           {current?.opens?.startsWith('chat:') && <Chat key={current.opens} agent={current.opens.slice(5)} />}
           {current?.opens === 'diff' && agent && <Changes key={agent} agent={agent} />}
+          {current?.opens === 'markdown' && agent && <MarkdownTab key={current.id} agent={agent} tab={current.id} />}
+          {current?.opens === 'web' && <WebTab key={current.id} tab={current.id} />}
+          {current?.opens?.startsWith('web:') && <WebTab key={current.id} tab={current.id} start={current.opens.slice(4)} />}
+          {current?.opens?.startsWith('task:') && <TaskTab key={current.opens} id={Number(current.opens.slice(5))} />}
+          {current?.opens?.startsWith('file:') && agent && (
+            <MarkdownTab key={current.id} agent={agent} tab={current.id} start={current.opens.slice(5)} />
+          )}
           {current?.opens === 'usage' && <Usage />}
         </PaneOpen.Provider>
         {current && !current.opens && (

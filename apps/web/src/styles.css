@@ -107,3 +107,83 @@ body {
     display: initial;
   }
 }
+
+/* The Markdown editor (editor/MarkdownEditor): the source drawn as a document; livePreview hides its marks in the rich look. */
+.md-editor .cm-editor {
+  height: 100%;
+  background: var(--color-bg);
+  color: var(--color-fg);
+  &.cm-focused {
+    outline: none;
+  }
+}
+.md-editor .cm-scroller {
+  font-family: inherit;
+  font-size: var(--text-base);
+  line-height: 1.7;
+}
+.md-editor .cm-content {
+  max-width: 45rem;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+  caret-color: var(--color-fg);
+}
+.md-editor .cm-placeholder {
+  color: var(--color-muted);
+}
+.md-editor .cm-selectionBackground,
+.md-editor .cm-focused .cm-selectionBackground {
+  background: var(--color-selected) !important;
+}
+.md-editor .cm-md-h1 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 2.25rem;
+}
+.md-editor .cm-md-h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 2rem;
+}
+.md-editor .cm-md-h3 {
+  font-size: 1.0625rem;
+  font-weight: 600;
+}
+.md-editor .cm-md-h4 {
+  font-weight: 600;
+}
+.md-editor .cm-md-strong {
+  font-weight: 600;
+}
+.md-editor .cm-md-em {
+  font-style: italic;
+}
+.md-editor .cm-md-strike {
+  text-decoration: line-through;
+  color: var(--color-muted);
+}
+.md-editor .cm-md-link {
+  color: var(--color-accent);
+}
+.md-editor .cm-md-listmark {
+  color: var(--color-muted);
+}
+.md-editor .cm-md-code,
+.md-editor .cm-md-fence {
+  font-family: ui-monospace, monospace;
+  font-size: 0.9em;
+  background: var(--color-surface);
+}
+.md-editor .cm-md-code {
+  border-radius: var(--radius-sm);
+}
+.md-editor .cm-md-quote {
+  border-left: 2px solid var(--color-border);
+  padding-left: 1rem;
+  color: var(--color-muted);
+}
+/* An edit that came in from elsewhere, lit for a moment where it landed. */
+.md-editor .cm-md-incoming {
+  background: var(--color-selected);
+  transition: background 1s;
+}
