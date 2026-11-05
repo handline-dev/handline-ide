@@ -5,7 +5,6 @@ import { TaskTab } from '#src/tools/TaskTab.tsx';
 import { TasksTab } from '#src/tools/TasksTab.tsx';
 import { WebTab } from '#src/tools/WebTab.tsx';
 import { Usage } from '#src/usage/Usage.tsx';
-import { Settings } from '#src/settings/Settings.tsx';
 import { PaneOpen, setShownWorkspace, type How } from '#src/layout/openTab.tsx';
 import { ArrowDownToLine, ArrowLeftToLine, ArrowRightToLine, ArrowUpToLine, Columns2, LayoutGrid, X } from 'lucide-react';
 import { useEffect, useRef, useState, type DragEvent, type ReactNode } from 'react';
@@ -203,7 +202,6 @@ function PaneView({
             <MarkdownTab key={current.id} agent={agent} tab={current.id} start={current.opens.slice(5)} />
           )}
           {current?.opens === 'usage' && <Usage />}
-          {current?.opens === 'preferences' && <Settings />}
           {current?.opens === 'tasks' && <TasksTab agent={agent ?? null} />}
         </PaneOpen.Provider>
         {current && !current.opens && (
