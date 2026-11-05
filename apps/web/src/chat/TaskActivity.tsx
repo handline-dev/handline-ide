@@ -47,7 +47,6 @@ export function TaskActivity({ events }: { events: TaskEvent[] }) {
   return (
     <div className="group flex min-w-0 flex-col items-start">
       <motion.div
-        layout
         transition={spring}
         // Already there when the chat opens, it just shows; a card that comes later fades in with its line (the stream's AnimatePresence).
         initial={false}
@@ -105,7 +104,7 @@ function Row({ e, ruled }: { e: TaskEvent; ruled: boolean }) {
   const openTab = useOpenTab();
   return (
     <motion.div
-      // A row that comes in only fades in; the card around it grows to it (its layout animation).
+      // A row that comes in only fades in.
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
