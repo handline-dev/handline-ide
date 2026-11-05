@@ -12,6 +12,8 @@ import { Splitter } from '#src/ui/Splitter.tsx';
 import { StatusBar } from '#src/StatusBar.tsx';
 import { useAgentLayouts } from '#src/layout/agentLayouts.ts';
 import { Workspace } from '#src/Workspace.tsx';
+import { Settings } from '#src/settings/Settings.tsx';
+import { openSettings } from '#src/settings/open.ts';
 import '#src/styles.css';
 
 const clampWidth = (px: number) => Math.min(sidebarWidth.max, Math.max(sidebarWidth.min, px));
@@ -22,7 +24,9 @@ function App() {
   const [dragging, setDragging] = useState(false);
   const { agent, page, layout, select, selectPage, dispatch } = useAgentLayouts();
   const root = useRef<HTMLDivElement>(null);
-  setPageGo(selectPage);
+  // Settings covers the app instead of taking a tab.
+  const goPage = (kind: string, title: string) => (kind === 'preferences' ? openSettings() : selectPage(kind, title));
+  setPageGo(goPage);
   const toggle = () => setOpen((o) => !o);
 
   return (
@@ -45,7 +49,7 @@ function App() {
               width={width}
               agent={agent}
               page={page}
-              onSelectPage={selectPage}
+              onSelectPage={goPage}
               onSelectAgent={select}
               onAgentSettings={(name) => {
                 select(name);
@@ -88,6 +92,7 @@ function App() {
         </div>
         <StatusBar />
       </div>
+      <Settings />
     </>
   );
 }
