@@ -38,7 +38,6 @@ export function TasksTab({ agent }: { agent: string | null }) {
       <Page>
         <div className="flex flex-col gap-5 py-4">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="mr-2 text-lg font-semibold text-fg">Tasks</h1>
             {(['open', 'draft', 'closed'] as const).map((s) => (
               <Chip key={s} on={show === s} onClick={() => setShow(s)}>
                 {s === 'open' ? 'Open' : s === 'draft' ? 'Drafts' : 'Closed'}
@@ -64,7 +63,7 @@ export function TasksTab({ agent }: { agent: string | null }) {
                 )}
                 <div className="flex flex-col overflow-hidden rounded-lg border border-border">
                   {g.items.map((t, i) => (
-                    <Row key={t.id} t={t} ruled={i > 0} />
+                    <Row key={t.id} t={t} ruled={i > 0} owner={owner} />
                   ))}
                 </div>
               </section>
@@ -89,12 +88,22 @@ function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; chi
 }
 
 /** A task as the chat's task cards draw one: its state's square, number and title, and a line under it. */
-function Row({ t, ruled }: { t: Task; ruled: boolean }) {
+/** Why it waits, in a few words: on the founder, on tasks by number, or the first clause of the daemon's sentence. */
+function waitWords(t: Task): string | null {
+  const w = t.waiting;
+  if (w?.on === 'founder') return 'Waiting on you';
+  if (w?.tasks.length) return `Waits on ${w.tasks.map((n) => `T${n}`).join(', ')}`;
+  const text = w?.text ?? t.block_reason ?? t.hold_reason;
+  return text ? text.split(/[,;(]/)[0]!.trim() : null;
+}
+
+function Row({ t, ruled, owner }: { t: Task; ruled: boolean; owner?: string }) {
   const openTab = useOpenTab();
   const s = look(t);
-  const why = t.waiting?.text ?? t.block_reason ?? t.hold_reason;
+  const why = waitWords(t);
+  // The assignee is left out while the list is already that agent's.
   const detail = [
-    `Assigned to ${t.to}`,
+    owner ? null : `Assigned to ${t.to}`,
     t.priority && `P${t.priority}`,
     why,
     t.done ? `Closed ${ago(t.done)}` : `Created ${ago(t.created)}`,
