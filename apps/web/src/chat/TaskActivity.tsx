@@ -45,12 +45,13 @@ export function TaskActivity({ events }: { events: TaskEvent[] }) {
   const ats = events.flatMap((e) => (e.at ? [e.at] : []));
   const when = ats.length ? (clock(ats[0]!) === clock(ats.at(-1)!) ? clock(ats[0]!) : `${clock(ats[0]!)} ~ ${clock(ats.at(-1)!)}`) : '';
   return (
-    <div className="group flex min-w-0 flex-col items-start">
+    <div className="group flex w-full min-w-0 flex-col items-start">
       <motion.div
         transition={spring}
         // Already there when the chat opens, it just shows; a card that comes later fades in with its line (the stream's AnimatePresence).
         initial={false}
-        className="max-w-150 overflow-hidden rounded-lg border border-border bg-bg text-sm"
+        style={{ maxWidth: 'min(100%, 37.5rem)' }}
+        className="overflow-hidden rounded-lg border border-border bg-bg text-sm"
       >
         {older.length > 0 && (
           <>
