@@ -1,4 +1,6 @@
 import { Chat } from '#src/chat/Chat.tsx';
+import { Changes } from '#src/changes/Changes.tsx';
+import { Usage } from '#src/usage/Usage.tsx';
 import { PaneOpen, setShownWorkspace, type How } from '#src/layout/openTab.tsx';
 import { ArrowDownToLine, ArrowLeftToLine, ArrowRightToLine, ArrowUpToLine, Columns2, LayoutGrid, X } from 'lucide-react';
 import { useEffect, useRef, useState, type DragEvent, type ReactNode } from 'react';
@@ -181,6 +183,8 @@ function PaneView({
         <PaneOpen.Provider value={(opens, how) => openFrom({ root, agent, dispatch }, pane.id, opens, how)}>
           {current?.opens === 'chat' && agent && <Chat key={agent} agent={agent} />}
           {current?.opens?.startsWith('chat:') && <Chat key={current.opens} agent={current.opens.slice(5)} />}
+          {current?.opens === 'diff' && agent && <Changes key={agent} agent={agent} />}
+          {current?.opens === 'usage' && <Usage />}
         </PaneOpen.Provider>
         {current && !current.opens && (
           <EmptyTab onPick={(kind) => dispatch({ type: 'choose', pane: pane.id, tab: current.id, opens: kind, title: labelOf(kind) })} />
