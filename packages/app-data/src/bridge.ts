@@ -18,7 +18,7 @@ import { edit, inRead, put, upsert, type Ctx, type Pages } from '#src/cache.ts';
 import { markRemoved } from '#src/attachments.ts';
 import { chatEvent } from '#src/chat-events.ts';
 import { EVENT_REQUIRED } from '#src/generated/reads.ts';
-import { qk } from '#src/reads.ts';
+import { keyOf, qk } from '#src/reads.ts';
 
 type Rule = (c: Ctx, e: WireEvent) => void;
 type Data<T> = T & Record<string, unknown>;
@@ -31,6 +31,8 @@ const rules: Record<string, Rule> = {
     edit<AgentDetail>(qc, qk.agent(d, a.name), (old) => ({ ...old, ...a }), e.cursor);
     // The row does not carry what the detail adds (terminal, who may type, the open prompt), so an open detail is read again.
     void qc.invalidateQueries({ queryKey: qk.agent(d, a.name) });
+    // The strip (model, context) is read once and kept: a new session or a change of model shows only when it is read again.
+    void qc.invalidateQueries({ queryKey: keyOf(d, 'agent.strip', { agent: a.name }) });
   },
   // The founder deleted an image: every picture of it goes blank, and the texts that carry it say so when read again.
   'attachment.removed': ({ qc, d }, e) => {
