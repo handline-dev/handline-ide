@@ -18,6 +18,8 @@ export interface AssignGroup {
 
 /** Names that are the system itself, not someone to talk to. */
 const SYSTEM = new Set(['task-board', 'schedule', 'system']);
+/** The daemon's own senders (the task board's digests and nudges, the schedule): bookkeeping, not anyone to read or pick. */
+export const isSystem = (name: string) => SYSTEM.has(name);
 
 /** Everyone the task's history names, the most recent first, then its opener and holder; each once. */
 export function involved(t: PeopleTask): string[] {

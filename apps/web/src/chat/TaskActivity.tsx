@@ -2,7 +2,8 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowRight, Check, ChevronDown, Pencil, Plus, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { HistoryRow, Task } from '@handline/client';
-import { useFeed } from '@handline/app-data';
+import { useFeed, useTasks } from '@handline/app-data';
+import { look } from '#src/ui/taskLook.tsx';
 import { useStore } from '@handline/app-react';
 import { spring } from '#src/motion.ts';
 import { clock } from '#src/format/time.ts';
@@ -22,13 +23,8 @@ export type TaskEvent = {
   at?: string;
 };
 
-const LOOK: Record<TaskEventKind, { icon: typeof Plus; tone: string }> = {
-  add: { icon: Plus, tone: 'bg-accent' },
-  edit: { icon: Pencil, tone: 'bg-muted' },
-  done: { icon: Check, tone: 'bg-success' },
-  handoff: { icon: ArrowRight, tone: 'bg-warning' },
-  discard: { icon: X, tone: 'bg-danger' },
-};
+/** What was done to the task: a small grey mark before the words. The coloured square is the task's state, as everywhere. */
+const DID: Record<TaskEventKind, typeof Plus> = { add: Plus, edit: Pencil, done: Check, handoff: ArrowRight, discard: X };
 
 /** The rows kept open; older ones fold into one line at the top. */
 const SHOWN = 2;
@@ -37,6 +33,10 @@ const FOLD_FROM = 4;
 /** An agent's task changes in one card: one row per change, a new one growing in at the bottom, the oldest folding up as they pile. */
 export function TaskActivity({ events }: { events: TaskEvent[] }) {
   const [open, setOpen] = useState(false);
+  // Each task's state now, read once for the card's numbers.
+  const ids = [...new Set(events.map((e) => Number(e.id.slice(1))))];
+  const tasks = useTasks({ ids }, { enabled: ids.length > 0 }).data?.items ?? [];
+  const now = new Map(tasks.map((t) => [`T${t.id}`, t]));
   if (!events.length) return null;
   const folds = events.length >= FOLD_FROM;
   const older = folds ? events.slice(0, -SHOWN) : [];
@@ -63,7 +63,10 @@ export function TaskActivity({ events }: { events: TaskEvent[] }) {
             >
               <span className="flex">
                 {older.map((e) => (
-                  <span key={e.key} className={`-mr-0.5 size-2 rounded-full border border-bg ${LOOK[e.kind].tone}`} />
+                  <span
+                    key={e.key}
+                    className={`-mr-0.5 size-2 rounded-full border border-bg ${now.get(e.id) ? look(now.get(e.id)!).tone : 'bg-surface'}`}
+                  />
                 ))}
               </span>
               <span className="min-w-0 truncate">
@@ -78,14 +81,14 @@ export function TaskActivity({ events }: { events: TaskEvent[] }) {
               className="overflow-hidden"
             >
               {older.map((e) => (
-                <Row key={e.key} e={e} ruled />
+                <Row key={e.key} e={e} task={now.get(e.id)} ruled />
               ))}
             </motion.div>
           </>
         )}
         <AnimatePresence initial={false}>
           {recent.map((e, i) => (
-            <Row key={e.key} e={e} ruled={i > 0 || older.length > 0} />
+            <Row key={e.key} e={e} task={now.get(e.id)} ruled={i > 0 || older.length > 0} />
           ))}
         </AnimatePresence>
       </motion.div>
@@ -99,8 +102,9 @@ export function TaskActivity({ events }: { events: TaskEvent[] }) {
   );
 }
 
-function Row({ e, ruled }: { e: TaskEvent; ruled: boolean }) {
-  const { icon: Icon, tone } = LOOK[e.kind];
+function Row({ e, task, ruled }: { e: TaskEvent; task?: Task; ruled: boolean }) {
+  const s = task ? look(task) : null;
+  const Did = DID[e.kind];
   const openTab = useOpenTab();
   return (
     <motion.div
@@ -117,15 +121,16 @@ function Row({ e, ruled }: { e: TaskEvent; ruled: boolean }) {
         {...openProps((how) => openTab(taskOf(Number(e.id.slice(1))), how))}
         className={`flex w-full gap-2.5 px-3 py-2 text-left hover:bg-hover/30 ${ruled ? 'border-t border-border' : ''}`}
       >
-        <span className={`mt-0.5 grid size-5 shrink-0 place-items-center rounded-md text-accent-fg ${tone}`}>
-          <Icon size={12} strokeWidth={3} />
+        <span className={`mt-0.5 grid size-5 shrink-0 place-items-center rounded-md text-accent-fg ${s?.tone ?? 'bg-surface'}`}>
+          {s && <s.icon size={12} strokeWidth={3} />}
         </span>
         <div className="min-w-0">
           <div className="truncate">
             <span className="mr-1 text-muted">{e.id}</span>
             <span className={`font-medium ${e.kind === 'discard' ? 'text-muted line-through' : 'text-fg'}`}>{e.title}</span>
           </div>
-          <div className="text-xs text-muted">
+          <div className="flex items-center gap-1 text-xs text-muted">
+            <Did size={11} className="shrink-0" />
             {e.before !== undefined && (
               <>
                 <span className="line-through">{e.before}</span> → {e.after}
@@ -153,6 +158,8 @@ function fromRow(task: number, title: string, rows: HistoryRow[]): TaskEvent | n
   const who = rows.find((r) => r.field === 'assignee');
   if (who) return { key, at, kind: 'handoff', id, title, detail: state?.note ?? '', before: who.was || 'nobody', after: who.now };
   const r = rows[0];
+  if (r.field === 'blocked_by')
+    return { key, at, kind: 'edit', id, title, detail: r.now ? `Waits on ${r.now}` : `No longer waits on ${r.was}` };
   if (r.field === 'memo') return { key, at, kind: 'edit', id, title, detail: `Memo: ${r.now.replace(/\s+/g, ' ')}` };
   if (r.field === 'body') return { key, at, kind: 'edit', id, title, detail: 'Brief edited' };
   return { key, at, kind: 'edit', id, title, detail: r.field === 'title' ? '' : r.field, before: r.was || '—', after: r.now || '—' };

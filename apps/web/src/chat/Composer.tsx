@@ -1,3 +1,4 @@
+import { useSuggest, type Command } from '#src/chat/Suggest.tsx';
 import { ArrowUp, Paperclip, Square } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { ImageViewer, type MarkedPicture } from '#src/viewer/ImageViewer.tsx';
@@ -20,6 +21,8 @@ export function Composer({
   locked,
   onMarked,
   above,
+  placeholder,
+  commands = [],
 }: {
   agent: string;
   draft: string;
@@ -36,6 +39,10 @@ export function Composer({
   onMarked?: (marked: MarkedPicture[]) => void;
   /** A row at the top of the box (what the message replies to); the box takes focus when it comes. */
   above?: ReactNode;
+  /** The box's hint when empty; `Message <agent>` by default. */
+  placeholder?: string;
+  /** What `/` offers at the start of the line; `@` offers the agents always. */
+  commands?: Command[];
 }) {
   const [viewing, setViewing] = useState<number | null>(null);
   const shown = attach.uploads.filter((d) => d.preview);
@@ -52,10 +59,12 @@ export function Composer({
   useEffect(() => {
     if (replying) box.current?.focus();
   }, [replying, above]);
+  const suggest = useSuggest(draft, setDraft, commands);
   const body = draft.trim();
   // A message goes once every image in it is up and nothing is held back; one with images may go without text.
   const ready = !locked && (body || attach.ids.length > 0) && attach.sendable;
   const submit = () => {
+    if (suggest.command(draft)) return;
     if (!ready) return;
     onSend(body, attach.ids);
     setDraft('');
@@ -63,13 +72,15 @@ export function Composer({
   };
   return (
     <form
-      className="my-3 flex flex-col gap-2 rounded-xl border border-border bg-bg py-2 pr-2 pl-4 focus-within:border-accent"
+      className="relative my-3 flex flex-col gap-2 rounded-xl border border-border bg-bg py-2 pr-2 pl-4 focus-within:border-accent"
       onSubmit={(e) => {
         e.preventDefault();
         submit();
       }}
     >
-      {above}
+      {suggest.menu}
+      {/* Held to the box's width: a long line in it truncates instead of widening the page. */}
+      {above && <div className="min-w-0 overflow-hidden">{above}</div>}
       {attach.uploads.length + attach.folders.length > 0 && (
         <div className="flex flex-wrap gap-2 pt-1">
           {attach.uploads.map((d) => (
@@ -104,6 +115,7 @@ export function Composer({
         </div>
       )}
       {attach.problem && <p className="text-xs text-danger">{attach.problem}</p>}
+      {suggest.refused && <p className="text-xs text-danger">{suggest.refused}</p>}
       <textarea
         onPaste={(e) => {
           if (!e.clipboardData.files.length) return;
@@ -114,6 +126,7 @@ export function Composer({
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={(e) => {
+          if (suggest.onKeyDown(e)) return;
           if (e.key === 'Escape' && running && onStop) {
             e.preventDefault();
             onStop();
@@ -126,7 +139,7 @@ export function Composer({
         }}
         rows={1}
         disabled={!!locked}
-        placeholder={locked ?? `Message ${agent}`}
+        placeholder={locked ?? placeholder ?? `Message ${agent}`}
         className="scrollbar-auto disabled:placeholder:animate-pulse max-h-60 min-h-7 resize-none bg-transparent py-0.5 pr-2 text-base text-fg outline-none placeholder:text-muted"
       />
       <div className="-ml-2 flex items-center gap-1">
