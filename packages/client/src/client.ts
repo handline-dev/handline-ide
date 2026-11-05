@@ -29,6 +29,9 @@ interface Pending {
   reject: (e: Error) => void;
 }
 
+/** A doc notice, its method in `kind`. */
+export type DocNotice = ({ kind: 'doc_changed' } & Notifications['doc_changed']) | ({ kind: 'doc_closed' } & Notifications['doc_closed']);
+
 export class DaemonClient {
   state: ConnectionState = 'connecting';
   /** The methods a relay answers. */
@@ -44,6 +47,7 @@ export class DaemonClient {
   private topics = new Set<Topic>();
   private cursor: number | undefined;
   private eventHandlers = new Set<Handler<WireEvent>>();
+  private docHandlers = new Set<Handler<DocNotice>>();
   private gapHandlers = new Set<Handler<Notifications['gap']>>();
   private resumeHandlers = new Set<Handler<Resumed>>();
   private wasOpen = false; // the next connection is a reconnect
@@ -295,6 +299,11 @@ export class DaemonClient {
   onResume(fn: Handler<Resumed>): () => void {
     return (this.resumeHandlers.add(fn), () => this.resumeHandlers.delete(fn));
   }
+  /** A shared document this connection has open changed (doc_changed) or was let go (doc_closed). */
+  onDoc(fn: Handler<DocNotice>): () => void {
+    this.docHandlers.add(fn);
+    return () => this.docHandlers.delete(fn);
+  }
   /** The daemon dropped history this client needed: refetch what the events described. */
   onGap(fn: Handler<Notifications['gap']>): () => void {
     this.gapHandlers.add(fn);
@@ -308,6 +317,12 @@ export class DaemonClient {
         if (this.cursor !== undefined && e.cursor <= this.cursor) return; // replayed twice
         this.cursor = e.cursor;
         for (const fn of this.eventHandlers) fn(e);
+        break;
+      }
+      case 'doc_changed':
+      case 'doc_closed': {
+        const n = { kind: method, ...(params as object) } as DocNotice;
+        for (const fn of this.docHandlers) fn(n);
         break;
       }
       case 'gap': {
