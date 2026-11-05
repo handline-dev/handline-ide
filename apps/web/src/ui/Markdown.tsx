@@ -46,7 +46,7 @@ function block(t: Token): ReactNode {
     case 'blockquote':
       return <blockquote className="flex flex-col gap-2 border-l-2 border-border pl-3 text-muted">{blocks(t.tokens ?? [])}</blockquote>;
     case 'hr':
-      return <hr className="border-border" />;
+      return <hr className="m-0 w-full border-border" />;
     case 'table':
       return <Table table={t as Tokens.Table} />;
     case 'space':

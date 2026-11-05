@@ -163,7 +163,9 @@ function runs(
 ): (TimelineEntry | { key: string; events: TaskEvent[] })[] {
   const out: (TimelineEntry | { key: string; events: TaskEvent[] })[] = [];
   // Task changes heard while the chat is open go in by their time, joining a card next to them, so they scroll up as talk goes on.
-  const heard = [...live].sort((a, b) => Date.parse(a.at ?? '') - Date.parse(b.at ?? ''));
+  // A task made and given arrives twice, live and as the notice message: the notice's row is the one kept.
+  const noticed = new Set(entries.flatMap((e) => (e.kind === 'message' && taskNotice(e, agent, me) ? e.message.tasks.map((t) => `T${t.id}`) : [])));
+  const heard = live.filter((ev) => !(ev.kind === 'add' && noticed.has(ev.id))).sort((a, b) => Date.parse(a.at ?? '') - Date.parse(b.at ?? ''));
   const add = (rows: TaskEvent[], key: string) => {
     const last = out.at(-1);
     if (last && 'events' in last) {
