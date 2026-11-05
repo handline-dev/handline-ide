@@ -54,17 +54,21 @@ export function useImageDrafts(max = MAX_PER_MESSAGE, agent?: string, anyFile = 
     );
   };
 
-  const add = (sources: ImageSource[]) => {
+  /** Adds and starts each source; answers the keys of those taken, in order (a refused one ends the list). */
+  const add = (sources: ImageSource[]): number[] => {
     held.set({ problem: null });
+    const keys: number[] = [];
     for (const src of sources) {
       const why = (anyFile ? whyNotFile : whyNotImage)({ type: src.mime, size: src.blob.size, name: src.name });
-      if (why) return held.set({ problem: why });
-      if (live.size >= max) return held.set({ problem: `At most ${max} ${anyFile ? 'files' : 'images'} to a message` });
+      if (why) return (held.set({ problem: why }), keys);
+      if (live.size >= max) return (held.set({ problem: `At most ${max} ${anyFile ? 'files' : 'images'} to a message` }), keys);
       const key = nextKey++;
+      keys.push(key);
       live.set(key, { aborted: false, src });
       held.set((s) => ({ drafts: [...s.drafts, { key, name: src.name, preview: src.preview, progress: 0 }] }));
       start(key);
     }
+    return keys;
   };
   const retry = (key: number) => start(key);
   const remove = (key: number) => {

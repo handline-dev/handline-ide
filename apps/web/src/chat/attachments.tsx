@@ -1,10 +1,11 @@
 // What a message carries besides its text. Files of any type go up to the daemon as they are added (attachment.put), at most 10 MB
-// each and 6 to a message. A folder goes up as one attachment (attachment.folder, then each file into it); a daemon that does not
+// each and 6 to a message; each is kept per browser (keptFiles.ts) until sent or removed, so a reload brings it back. A folder goes up as one attachment (attachment.folder, then each file into it); a daemon that does not
 // take folders holds it as a chip, and `sendable` is false while one is held or going up, so nothing is dropped unseen. `access` is
 // the state a path the agent may not read will take (access_needed).
 import { keptState, MAX_PER_MESSAGE, uploadFolder, useImageDrafts, useServes, useWrite, type ImageDraft } from '@handline/app-data';
 import { File as FileIcon, Folder, RotateCw, X } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
+import { dropAll, dropEntry, keepEntry, takeKept } from '#src/chat/keptFiles.ts';
 import type { Dropped } from '#src/ui/fileDrop.tsx';
 
 const IMAGE = /^image\/(png|jpeg|gif|webp)$/;
@@ -19,6 +20,9 @@ export type FolderDraft = Dropped & {
 };
 
 let nextKey = 1;
+/** Per agent: the kept entry (keptFiles.ts) of each chip, by `u<key>` for a file and `f<key>` for a folder. */
+const entries = new Map<string, Map<string, string>>();
+const restored = new Set<string>();
 const useHeld = keptState<{ folders: FolderDraft[] }>(() => ({ folders: [] }));
 
 /** An agent's attachments for its next message, kept while the founder looks elsewhere. */
@@ -40,36 +44,65 @@ export function useAttachments(agent: string) {
       (e: unknown) => patch(d.key, { state: 'failed', error: e instanceof Error ? e.message : String(e) }),
     );
   };
+  const kept = entries.get(agent) ?? new Map<string, string>();
+  entries.set(agent, kept);
+  const forget = (chip: string) => {
+    const id = kept.get(chip);
+    if (id) dropEntry(agent, id);
+    kept.delete(chip);
+  };
+  const add = (dropped: Dropped[]) => {
+    const singles = dropped.filter((d) => d.kind === 'file');
+    const files = singles.flatMap((d) => d.files.map((f) => f.file));
+    const keys = uploads.add(
+      files.map((file) => ({
+        blob: file,
+        name: file.name,
+        mime: file.type || 'application/octet-stream',
+        // Only an image has a picture to show while it goes up.
+        preview: IMAGE.test(file.type) ? URL.createObjectURL(file) : '',
+      })),
+    );
+    keys.forEach((k, i) =>
+      kept.set(`u${k}`, keepEntry(agent, { kind: 'file', name: files[i]!.name, files: [{ path: files[i]!.name, file: files[i]! }] })),
+    );
+    const more = dropped
+      .filter((d) => d.kind === 'folder')
+      .map((d): FolderDraft => ({ ...d, key: nextKey++, state: takes ? 'uploading' : 'unsupported', progress: 0 }));
+    if (!more.length) return;
+    for (const d of more) kept.set(`f${d.key}`, keepEntry(agent, d));
+    held.set((s) => ({ folders: [...s.folders, ...more] }));
+    if (takes) more.forEach(send);
+  };
+  // What a reload left behind comes back once per page, and goes up again.
+  useEffect(() => {
+    if (restored.has(agent)) return;
+    restored.add(agent);
+    void takeKept(agent).then((back) => back.length && add(back));
+    // add reads this render's hooks; it runs once per agent
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agent]);
   return {
     uploads: uploads.drafts,
     folders,
     problem: uploads.problem,
-    add: (dropped: Dropped[]) => {
-      const files = dropped.flatMap((d) => (d.kind === 'file' ? d.files.map((f) => f.file) : []));
-      uploads.add(
-        files.map((file) => ({
-          blob: file,
-          name: file.name,
-          mime: file.type || 'application/octet-stream',
-          // Only an image has a picture to show while it goes up.
-          preview: IMAGE.test(file.type) ? URL.createObjectURL(file) : '',
-        })),
-      );
-      const more = dropped
-        .filter((d) => d.kind === 'folder')
-        .map((d): FolderDraft => ({ ...d, key: nextKey++, state: takes ? 'uploading' : 'unsupported', progress: 0 }));
-      if (!more.length) return;
-      held.set((s) => ({ folders: [...s.folders, ...more] }));
-      if (takes) more.forEach(send);
+    add,
+    remove: (key: number) => {
+      forget(`u${key}`);
+      uploads.remove(key);
     },
-    remove: uploads.remove,
     retry: uploads.retry,
     retryFolder: (key: number) => {
       const d = folders.find((f) => f.key === key);
       if (d) send(d);
     },
-    removeFolder: (key: number) => held.set((s) => ({ folders: s.folders.filter((f) => f.key !== key) })),
+    removeFolder: (key: number) => {
+      forget(`f${key}`);
+      held.set((s) => ({ folders: s.folders.filter((f) => f.key !== key) }));
+    },
     clear: () => {
+      kept.clear();
+      void dropAll(agent);
       uploads.clear();
       held.set({ folders: [] });
     },
