@@ -20,7 +20,7 @@ export function Usage() {
   }, []);
   useFocused('usage', '', !!list.data, show);
   return (
-    <ScrollFade className="min-h-0 flex-1">
+    <ScrollFade keep="usage" className="min-h-0 flex-1">
       <Page>
         <div ref={box} className="flex flex-col gap-3 py-4">
           <h1 className="text-lg font-semibold text-fg">Usage</h1>

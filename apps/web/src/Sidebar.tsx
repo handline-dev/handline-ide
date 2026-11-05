@@ -25,6 +25,7 @@ import { useScrollFade } from '#src/ui/ScrollFade.tsx';
 import { useSpringOpen } from '#src/ui/springOpen.ts';
 import { openProps, useOpenTab } from '#src/layout/openTab.tsx';
 import { useFolded } from '#src/useFolded.ts';
+import { useKeptScroll } from '#src/ui/keptScroll.ts';
 
 /** Top-left controls: collapse the sidebar, back, forward. They stay put when the sidebar is collapsed. */
 export function SidebarControls({ onToggle }: { onToggle: () => void }) {
@@ -403,6 +404,7 @@ export function Sidebar({
 }) {
   const fold = useFolded();
   const scroller = useRef<HTMLElement>(null);
+  useKeptScroll(scroller, 'sidebar');
   const fade = useScrollFade(scroller);
   return (
     <aside ref={scroller} style={{ width, ...fade }} className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto bg-surface px-2 pb-2">
