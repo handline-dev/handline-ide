@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { RpcError } from '@handline/client';
-import { CHUNK, forgetAttachment, knownAttachments, rememberAttachment, uploadImage, whyNotImage } from '#src/attachments.ts';
+import { CHUNK, forgetAttachment, knownAttachments, rememberAttachment, uploadFolder, uploadImage, whyNotImage } from '#src/attachments.ts';
 
 const file = (n: number) => new Blob([new Uint8Array(n)], { type: 'image/png' });
 const A = { id: 'a1', name: 'x.png', mime: 'image/png' as const, bytes: 0 };
@@ -110,5 +110,38 @@ describe('whyNotImage', () => {
     expect(whyNotImage({ type: 'image/svg+xml', size: 10, name: 'a.svg' })).toContain('only PNG');
     expect(whyNotImage({ type: 'image/png', size: 11 * 1024 * 1024, name: 'big.png' })).toContain('10 MB');
     expect(whyNotImage({ type: 'image/png', size: 0, name: 'e.png' })).toContain('empty');
+  });
+});
+
+describe('uploadFolder', () => {
+  it('opens the folder, then puts each file at its path inside it, folder and rel_path on the first chunk only', async () => {
+    const calls: [string, Record<string, unknown>][] = [];
+    let files = 0;
+    const call = async (m: string, p: Record<string, unknown>) => {
+      calls.push([m, p]);
+      if (m === 'attachment.folder') return { attachment: { id: 'd1', name: 'notes', mime: 'inode/directory', bytes: 0 } };
+      const received = ((p.offset as number) ?? 0) + atob(p.data as string).length;
+      const last = received >= (p.bytes as number);
+      if (last) files++;
+      return { upload: 'u', received, ...(last ? { attachment: { id: 'd1', mime: 'inode/directory', bytes: 0, files } } : {}) };
+    };
+    const seen: number[] = [];
+    const got = await uploadFolder(
+      call,
+      'notes',
+      [
+        { path: 'notes/a.md', file: file(CHUNK + 1), mime: 'text/plain' as never },
+        { path: 'notes/sub/b.md', file: file(3), mime: 'text/plain' as never },
+      ],
+      (s) => seen.push(s),
+    );
+    expect(got).toMatchObject({ id: 'd1', files: 2 });
+    expect(calls.map(([m, p]) => [m, p.folder, p.rel_path, p.offset ?? 0])).toEqual([
+      ['attachment.folder', undefined, undefined, 0],
+      ['attachment.put', 'd1', 'a.md', 0],
+      ['attachment.put', undefined, undefined, CHUNK],
+      ['attachment.put', 'd1', 'sub/b.md', 0],
+    ]);
+    expect(seen.at(-1)).toBe(CHUNK + 4);
   });
 });

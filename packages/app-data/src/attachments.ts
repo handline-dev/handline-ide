@@ -67,6 +67,7 @@ export async function uploadImage(
   mime: Mime,
   onProgress: (sent: number, total: number) => void = () => {},
   signal?: { aborted: boolean },
+  into?: { folder: string; rel_path: string },
 ): Promise<Attachment> {
   const bytes = file.size;
   let offset = 0;
@@ -74,7 +75,15 @@ export async function uploadImage(
   for (;;) {
     if (signal?.aborted) throw new Error('cancelled');
     const data = await chunkBase64(file.slice(offset, offset + CHUNK));
-    const params = { name, mime, bytes, data, ...(offset ? { offset } : {}), ...(upload ? { upload } : {}), request_id: newOperationId() };
+    const params = {
+      name,
+      mime,
+      bytes,
+      data,
+      ...(offset ? { offset } : (into ?? {})),
+      ...(upload ? { upload } : {}),
+      request_id: newOperationId(),
+    };
     let r: { upload: string; received: number; attachment?: Attachment } | undefined;
     for (let tries = 0; !r; tries++) {
       if (signal?.aborted) throw new Error('cancelled');
@@ -95,6 +104,32 @@ export async function uploadImage(
     onProgress(offset, bytes);
     if (r.attachment) return r.attachment;
   }
+}
+
+/** A dropped folder as one attachment: attachment.folder opens it, then each file goes in at its path inside it, one after another.
+ * `onProgress` counts bytes over all its files. Resolves with the folder once its last file is in. */
+export async function uploadFolder(
+  call: Call,
+  name: string,
+  files: { path: string; file: Blob; mime: Mime }[],
+  onProgress: (sent: number, total: number) => void = () => {},
+  signal?: { aborted: boolean },
+): Promise<Attachment> {
+  const total = files.reduce((n, f) => n + f.file.size, 0);
+  const opened = (await call('attachment.folder', { name, request_id: newOperationId() })) as { attachment: Attachment };
+  let folder = opened.attachment;
+  let done = 0;
+  for (const f of files) {
+    // The dropped path starts with the folder's own name; inside the folder it is the rest.
+    const rel = f.path.split('/').slice(1).join('/') || f.path;
+    const base = done;
+    folder = await uploadImage(call, f.file, rel.split('/').pop()!, f.mime, (sent) => onProgress(base + sent, total), signal, {
+      folder: folder.id,
+      rel_path: rel,
+    });
+    done += f.file.size;
+  }
+  return folder;
 }
 
 /** `uploadImage` through the write door: the chunks are `attachment.put` writes. */
