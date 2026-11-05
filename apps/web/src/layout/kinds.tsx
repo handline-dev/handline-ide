@@ -1,4 +1,16 @@
-import { CircleHelp, Gauge, Inbox, SlidersHorizontal, Settings, ListTodo, MessageSquare, Plus, Smartphone, SquareTerminal } from 'lucide-react';
+import {
+  CircleHelp,
+  FileDiff,
+  Gauge,
+  Inbox,
+  SlidersHorizontal,
+  Settings,
+  ListTodo,
+  MessageSquare,
+  Plus,
+  Smartphone,
+  SquareTerminal,
+} from 'lucide-react';
 import type { ReactNode } from 'react';
 import { shortName } from '#src/layout/agentTree.ts';
 
@@ -6,6 +18,7 @@ import { shortName } from '#src/layout/agentTree.ts';
 const kinds: Record<string, { label: string; icon: ReactNode }> = {
   chat: { label: 'Chat', icon: <MessageSquare size={14} /> },
   shell: { label: 'Terminal', icon: <SquareTerminal size={14} /> },
+  diff: { label: 'Changes', icon: <FileDiff size={14} /> },
   tasks: { label: 'Tasks', icon: <ListTodo size={14} /> },
   android: { label: 'Android', icon: <Smartphone size={14} /> },
   ios: { label: 'iOS', icon: <Smartphone size={14} /> },
@@ -23,7 +36,7 @@ export const canonical = (opens: string, agent: string | null) => (agent && open
 const chatName = (kind: string) => (kind.startsWith('chat:') ? kind.slice(5) : null);
 
 /** What a new tab can open (legacy CHOICES). Chat is not here: the first pane's Chat is the one chat. */
-export const choices = ['shell', 'tasks', 'android', 'ios'].map((kind) => ({ kind, ...kinds[kind] }));
+export const choices = ['shell', 'diff', 'tasks', 'android', 'ios'].map((kind) => ({ kind, ...kinds[kind] }));
 
 /** `within`: the agent whose workspace shows it, so its own agents' chats read short (see shortName). */
 export const labelOf = (kind: string, within: string | null = null) => {
