@@ -118,12 +118,12 @@ function CompactAt({ agent, point }: { agent: string; point: number | null }) {
     setTyped(null);
   };
   const seg =
-    'h-6 rounded-sm px-2 text-xs text-muted tabular-nums outline-none hover:text-fg focus-visible:ring-2 focus-visible:ring-accent aria-checked:bg-bg aria-checked:text-fg aria-checked:shadow-popover';
+    'h-6 rounded-sm px-2 text-xs text-muted tabular-nums outline-none hover:text-fg focus-visible:ring-2 focus-visible:ring-accent aria-checked:bg-bg aria-checked:text-fg';
   return (
     // The name above its choices: side by side the last one (another point) was cut off at the card's edge.
     <div className="flex flex-col gap-1.5 px-2 py-1">
       <span className="text-xs text-muted">Compact at</span>
-      <div role="radiogroup" aria-label="Compact at" className="flex gap-0.5 rounded-md bg-surface p-0.5">
+      <div role="radiogroup" aria-label="Compact at" className="flex gap-1 rounded-lg bg-surface p-1">
         {COMPACT_K.map((k) => (
           <button key={k} type="button" role="radio" aria-checked={k === chosen} onClick={() => apply(k)} className={seg}>
             {tokens(k * 1000)}
