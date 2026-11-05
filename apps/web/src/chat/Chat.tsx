@@ -12,7 +12,8 @@ import { ModelChip } from '#src/chat/agent/ModelChip.tsx';
 import { StatusLine } from '#src/chat/agent/StatusLine.tsx';
 import { TaskActivity, useTaskActivity, type TaskEvent } from '#src/chat/TaskActivity.tsx';
 import { useAttachments } from '#src/chat/attachments.tsx';
-import { ChatLine, drawsNothing } from '#src/chat/ChatLine.tsx';
+import { ChatLine, drawsNothing, type Reply } from '#src/chat/ChatLine.tsx';
+import { CornerDownRight, X } from 'lucide-react';
 import { ChatSkeleton } from '#src/chat/ChatSkeleton.tsx';
 import { Composer } from '#src/chat/Composer.tsx';
 import { MarkReply } from '#src/chat/MessageImages.tsx';
@@ -22,6 +23,7 @@ import { useDraft } from '#src/chat/drafts.ts';
 import { useChatScroll } from '#src/chat/useChatScroll.ts';
 import { Boundary } from '#src/ui/Boundary.tsx';
 import { Button } from '#src/ui/Button.tsx';
+import { IconButton } from '#src/ui/IconButton.tsx';
 import { DropHint, useFileDrop } from '#src/ui/fileDrop.tsx';
 import { Page } from '#src/ui/Page.tsx';
 import { toast } from '#src/ui/toast.tsx';
@@ -45,7 +47,9 @@ export function Chat({ agent }: { agent: string }) {
     attach.add(marked.map((m) => markedFile(m)));
     setDraft((d) => [d.trimEnd(), ...marked.map((m) => m.text)].filter(Boolean).join('\n\n'));
   };
-  const quote = (body: string) => setDraft((d) => `${body.replace(/^/gm, '> ')}\n\n${d}`);
+  // The message the next one replies to, picked by Reference or Quote; for this chat only.
+  const [picked, setPicked] = useState<(Reply & { agent: string }) | null>(null);
+  const reply = picked?.agent === agent ? picked : null;
   // The stream's scroll hears of a send through this, once the stream is drawn.
   const stream = useRef<{ sent: () => void }>(null);
   const loading = (
@@ -71,7 +75,7 @@ export function Chat({ agent }: { agent: string }) {
           )}
         >
           <MarkReply.Provider value={addMarked}>
-            <Stream ref={stream} agent={agent} onQuote={quote} />
+            <Stream ref={stream} agent={agent} onReply={(r) => setPicked({ ...r, agent })} />
           </MarkReply.Provider>
         </Boundary>
       ) : (
@@ -93,8 +97,25 @@ export function Chat({ agent }: { agent: string }) {
               onError: (e) => toast(`Stop did not work: ${e instanceof Error ? e.message : String(e)}`, { tone: 'warning' }),
             })
           }
+          above={
+            reply && (
+              <div role="status" className="-ml-2 flex min-w-0 items-center gap-1.5 text-xs text-muted">
+                <CornerDownRight size={14} className="ml-1 shrink-0" />
+                <span className="min-w-0 flex-1 truncate">Replying to: {(reply.quote ?? reply.text).replace(/\s+/g, ' ')}</span>
+                <IconButton className="size-6!" label="Drop the reply" onClick={() => setPicked(null)}>
+                  <X size={14} />
+                </IconButton>
+              </div>
+            )
+          }
           onSend={(body, attachments) => {
-            send(body, { attachments });
+            // A command goes as typed, so the reply is not put on it.
+            const to = reply && !body.startsWith('!') ? reply : null;
+            send(body, {
+              attachments,
+              ...(to?.kind === 'message' ? { parent: to.id, quote: to.quote } : to ? { parent_item: to.id } : {}),
+            });
+            setPicked(null);
             stream.current?.sent();
           }}
         />
@@ -160,7 +181,7 @@ function Shell({ children }: { children: ReactNode }) {
 }
 
 /** The chat's lines, oldest first. Suspends until the first pages are in; an older page is read near the top without suspending. */
-function Stream({ agent, onQuote, ref }: { agent: string; onQuote: (text: string) => void; ref: Ref<{ sent: () => void }> }) {
+function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) => void; ref: Ref<{ sent: () => void }> }) {
   // Every message the agent sent or received (the all scope), drawn by the chat's own rules (mine): app-core's all view leaves out
   // what the agent says to other agents, which this chat shows as quiet lines (ChatLine drops what others say to it).
   const chat = useChatSuspense(agent, 'all');
@@ -192,6 +213,8 @@ function Stream({ agent, onQuote, ref }: { agent: string; onQuote: (text: string
     for (let i = at.length - 1; i >= 0; i--) if (at[i]!.includes(tail.before ?? '')) return i;
     return Infinity;
   };
+  // The words of each loaded message, for the line above a reply.
+  const words = new Map(entries.flatMap((e) => (e.kind === 'message' ? [[e.message.id, e.message.body] as const] : [])));
   const tasks = useTaskActivity(agent);
   const top = useNearEnd<HTMLDivElement, HTMLDivElement>(stream, chat.loadOlder, chat.hasOlder && !chat.loadingOlder, {
     atTop: true,
@@ -236,7 +259,15 @@ function Stream({ agent, onQuote, ref }: { agent: string; onQuote: (text: string
                   <TaskActivity events={r.events} />
                 </motion.div>
               ) : (
-                <ChatLine key={`${r.kind}:${r.id}`} e={r} agent={agent} me={me} onQuote={onQuote} fade={i > known(all)} />
+                <ChatLine
+                  key={`${r.kind}:${r.id}`}
+                  e={r}
+                  agent={agent}
+                  me={me}
+                  onReply={onReply}
+                  parentText={r.kind === 'message' && r.message.parent != null ? words.get(r.message.parent) : undefined}
+                  fade={i > known(all)}
+                />
               ),
             )}
           </AnimatePresence>

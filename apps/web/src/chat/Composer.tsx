@@ -1,5 +1,5 @@
 import { ArrowUp, Paperclip, Square } from 'lucide-react';
-import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { ImageViewer, type MarkedPicture } from '#src/viewer/ImageViewer.tsx';
 import { FolderChip, UploadChip, type Attachments } from '#src/chat/attachments.tsx';
 import { readDropped } from '#src/ui/fileDrop.tsx';
@@ -19,6 +19,7 @@ export function Composer({
   onStop,
   locked,
   onMarked,
+  above,
 }: {
   agent: string;
   draft: string;
@@ -33,6 +34,8 @@ export function Composer({
   locked?: string;
   /** Takes the box's pictures marked up in the viewer; the marked copy replaces the picture. */
   onMarked?: (marked: MarkedPicture[]) => void;
+  /** A row at the top of the box (what the message replies to); the box takes focus when it comes. */
+  above?: ReactNode;
 }) {
   const [viewing, setViewing] = useState<number | null>(null);
   const shown = attach.uploads.filter((d) => d.preview);
@@ -45,6 +48,10 @@ export function Composer({
     el.style.height = '0';
     el.style.height = `${el.scrollHeight}px`;
   }, [draft]);
+  const replying = !!above;
+  useEffect(() => {
+    if (replying) box.current?.focus();
+  }, [replying, above]);
   const body = draft.trim();
   // A message goes once every image in it is up and nothing is held back; one with images may go without text.
   const ready = !locked && (body || attach.ids.length > 0) && attach.sendable;
@@ -62,6 +69,7 @@ export function Composer({
         submit();
       }}
     >
+      {above}
       {attach.uploads.length + attach.folders.length > 0 && (
         <div className="flex flex-wrap gap-2 pt-1">
           {attach.uploads.map((d) => (
