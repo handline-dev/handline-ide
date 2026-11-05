@@ -214,7 +214,7 @@ func Start(cfg Config) (*Daemon, error) {
 			d.leases.ReleaseAgent(agent, "", true, "the turn ended")
 		}
 	}
-	d.logins = &weblogin.Manager{Home: cfg.Home, Log: cfg.Log}
+	d.logins = newLogins(cfg)
 	d.prompts = prompts.New(db, cfg.Home, &reads.Env{DB: db, Home: cfg.Home, Started: d.started, Sha: version.Sha, Schema: store.LatestVersion()})
 	d.tchan = termchan.New(db, cfg.Home, func() term.Backend {
 		if cfg.Terminal != nil {
@@ -442,6 +442,9 @@ func (d *Daemon) accountChanged(name string, login weblogin.Login) {
 	}
 	d.acctSeq[name] = login.Seq
 }
+
+// newLogins is the daemon's web logins, logging each end to the daemon's log.
+func newLogins(cfg Config) *weblogin.Manager { return &weblogin.Manager{Home: cfg.Home, Log: cfg.Log} }
 
 // accountAdded says an account was added on the accounts topic, as accounts.list shows it: registered, not logged in.
 func (d *Daemon) accountAdded(name string) {

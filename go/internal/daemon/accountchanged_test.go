@@ -2,10 +2,12 @@ package daemon
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -53,8 +55,9 @@ func loginDaemon(t *testing.T, script string) *Daemon {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { db.Close() })
-	d := &Daemon{db: db, cfg: Config{Home: home, Log: func(string, ...any) {}}, hub: stream.NewHub(),
-		logins: &weblogin.Manager{Home: home, Lookup: func(string) (string, error) { return bin, nil }}}
+	d := &Daemon{db: db, cfg: Config{Home: home, Log: func(string, ...any) {}}, hub: stream.NewHub()}
+	d.logins = newLogins(d.cfg)
+	d.logins.Lookup = func(string) (string, error) { return bin, nil }
 	d.hub.Log = &stream.Log{DB: db}
 	d.logins.Changed = d.accountChanged
 	t.Cleanup(d.logins.Close)
@@ -201,11 +204,33 @@ func TestAnAnnouncementOlderThanThePublishedOneIsDropped(t *testing.T) {
 	}
 }
 
-// A failed login's reason reaches the accounts topic, where the app shows it; a login that did not fail has none.
-func TestAFailedLoginsReasonIsAnnounced(t *testing.T) {
-	d := loginDaemon(t, "exit 0\n")
-	d.accountChanged("main", weblogin.Login{ID: "a", State: weblogin.Done, Seq: 1})
-	d.accountChanged("main", weblogin.Login{ID: "b", State: weblogin.Failed, Reason: "logged in as x@example.com, not y@example.com", Seq: 2})
+// A failed login's reason reaches the accounts topic from the Manager, where the app shows it, and the end is in the daemon's log.
+func TestAFailedLoginsReasonIsAnnouncedAndLogged(t *testing.T) {
+	d := loginDaemon(t, "echo https://claude.example/oauth/authorize?state=abc\nsleep 0.2\nexit 1\n")
+	var mu sync.Mutex
+	var lines []string
+	d.cfg.Log = func(format string, args ...any) {
+		mu.Lock()
+		lines = append(lines, fmt.Sprintf(format, args...))
+		mu.Unlock()
+	}
+	lookup := d.logins.Lookup
+	d.logins = newLogins(d.cfg)
+	d.logins.Lookup, d.logins.Changed = lookup, d.accountChanged
+	t.Cleanup(d.logins.Close)
+	if _, err := d.logins.Start("main"); err != nil {
+		t.Fatal(err)
+	}
+	awaitStates(t, d, 2)
+	for i := 0; i < 400; i++ { // Log runs after the announcement
+		mu.Lock()
+		n := len(lines)
+		mu.Unlock()
+		if n > 0 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 	rows, err := d.hub.Log.Since(0, []string{"accounts"}, "", 100)
 	if err != nil {
 		t.Fatal(err)
@@ -218,7 +243,13 @@ func TestAFailedLoginsReasonIsAnnounced(t *testing.T) {
 		}
 		reasons = append(reasons, a.Login["reason"])
 	}
-	if len(reasons) != 2 || reasons[0] != nil || reasons[1] != "logged in as x@example.com, not y@example.com" {
+	const why = "the login command exited with an error"
+	if len(reasons) != 2 || reasons[0] != nil || reasons[1] != why {
 		t.Fatalf("reasons %v", reasons)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(lines) != 1 || lines[0] != "  login: main ended failed - "+why {
+		t.Fatalf("logged %q", lines)
 	}
 }

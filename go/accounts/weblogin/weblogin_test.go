@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/testkill"
 )
 
@@ -307,8 +308,8 @@ func TestExitWithoutTheCredentialOrWithAnErrorFails(t *testing.T) {
 	}
 }
 
-func TestAFailureSaysWhyAndEveryEndIsLogged(t *testing.T) {
-	r := newRig(t, "echo "+fakeURL+"\nsleep 0.2\nexit 1\n")
+// logged is what the rig's Manager logs from now on.
+func (r *rig) logged() func() []string {
 	var mu sync.Mutex
 	var lines []string
 	r.m.Log = func(format string, args ...any) {
@@ -316,17 +317,48 @@ func TestAFailureSaysWhyAndEveryEndIsLogged(t *testing.T) {
 		lines = append(lines, fmt.Sprintf(format, args...))
 		mu.Unlock()
 	}
-	if _, err := r.m.Start("main"); err != nil {
+	return func() []string { mu.Lock(); defer mu.Unlock(); return append([]string(nil), lines...) }
+}
+
+// eventually waits for ok to hold: Changed and Log run after the state that settles sees.
+func (r *rig) eventually(what string, ok func() bool) {
+	r.t.Helper()
+	for i := 0; i < 400 && !ok(); i++ {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if !ok() {
+		r.t.Fatalf("never: %s", what)
+	}
+}
+
+// A failure's reason shows in Of and ByID; its end is logged and announced once, even after a Cancel.
+func TestAFailureSaysWhyAndItsEndIsLoggedOnce(t *testing.T) {
+	r := newRig(t, "echo "+fakeURL+"\nsleep 0.2\nexit 1\n")
+	lines := r.logged()
+	l, err := r.m.Start("main")
+	if err != nil {
 		t.Fatal(err)
 	}
 	r.settles("main", Failed)
-	if l := r.m.Of("main"); l.Reason != "the login command exited with an error" {
-		t.Fatalf("reason %q", l.Reason)
+	const why = "the login command exited with an error"
+	if got, _ := r.m.ByID(l.ID); r.m.Of("main").Reason != why || got.Reason != why {
+		t.Fatalf("Of %q, ByID %q", r.m.Of("main").Reason, got.Reason)
 	}
-	mu.Lock()
-	defer mu.Unlock()
-	if len(lines) != 1 || lines[0] != "  login: main ended failed - the login command exited with an error" {
-		t.Fatalf("logged %q", lines)
+	r.eventually("the end is logged and announced", func() bool {
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		return len(lines()) == 1 && len(r.told) == 2
+	})
+	if err := r.m.Cancel(l.ID); err != nil {
+		t.Fatal(err)
+	}
+	if got := lines(); len(got) != 1 || got[0] != "  login: main ended failed - "+why {
+		t.Fatalf("logged %q", got)
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if len(r.told) != 2 || r.told[1] != Failed {
+		t.Fatalf("announced %v", r.told)
 	}
 }
 
@@ -480,12 +512,44 @@ func TestAChildThatDiesAtOnceDoesNotAnswerWaiting(t *testing.T) {
 // An account with no Anthropic account recorded records the one its first good login is to.
 func TestAGoodLoginRecordsTheAnthropicAccountWhenNoneIs(t *testing.T) {
 	r := newRig(t, loginAs("main@example.com"))
+	lines := r.logged()
 	if _, err := r.m.Start("main"); err != nil {
 		t.Fatal(err)
 	}
 	r.settles("main", Done)
+	r.eventually("the end is logged", func() bool { return len(lines()) == 1 })
+	if got := lines(); got[0] != "  login: main ended done" {
+		t.Fatalf("logged %q", got)
+	}
 	b, err := os.ReadFile(filepath.Join(r.home, "accounts", "main", "identity.json"))
 	if err != nil || string(b) != `{"email":"main@example.com"}` {
 		t.Fatalf("identity.json %q %v", b, err)
 	}
+}
+
+// A stalled account whose credential a tick has just read ends its login done: the end reads the new credential, not the cached stamp.
+func TestALoginEndsAStallTheCacheHasJustSeen(t *testing.T) {
+	r := newRig(t, "echo "+fakeURL+"\nsleep 0.2\ntouch \"$CLAUDE_CONFIG_DIR/.credentials.json\"\n")
+	cred := filepath.Join(r.home, "accounts", "main", ".claude", ".credentials.json")
+	if err := os.MkdirAll(filepath.Dir(cred), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(cred, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	hourAgo := time.Now().Add(-time.Hour)
+	if err := os.Chtimes(cred, hourAgo, hourAgo); err != nil {
+		t.Fatal(err)
+	}
+	accts := team.Accounts{Home: r.home}
+	if _, err := accts.StallAccount("main", "authentication_failed", "test", time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if accts.Stalled("main") == nil { // and the old stamp is cached
+		t.Fatal("not stalled")
+	}
+	if _, err := r.m.Start("main"); err != nil {
+		t.Fatal(err)
+	}
+	r.settles("main", Done)
 }
