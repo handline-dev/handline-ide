@@ -13,15 +13,20 @@ export function Popover({
   trigger,
   side = 'bottom',
   align = 'start',
+  open,
+  onOpenChange,
   children,
 }: {
   trigger: ReactElement;
   side?: Side;
   align?: Align;
+  /** Held by the caller, to close it from inside (a choice made). */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   children: ReactNode;
 }) {
   return (
-    <P.Root>
+    <P.Root open={open} onOpenChange={onOpenChange && ((o) => onOpenChange(o))}>
       <P.Trigger render={trigger} />
       <P.Portal>
         <P.Positioner side={side} align={align} sideOffset={4} collisionPadding={8} className="z-50">

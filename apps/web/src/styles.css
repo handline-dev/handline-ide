@@ -20,6 +20,13 @@
   --color-danger: var(--danger);
   --color-warning: var(--warning);
   --color-success: var(--success);
+  /* Telling agents apart in a chart (where a task's time went): six hues, none of them a state's colour. */
+  --color-series-1: var(--series-1);
+  --color-series-2: var(--series-2);
+  --color-series-3: var(--series-3);
+  --color-series-4: var(--series-4);
+  --color-series-5: var(--series-5);
+  --color-series-6: var(--series-6);
 
   /* Type, radius: only these steps exist. Spacing keeps Tailwind's 4px scale. */
   --text-*: initial;
@@ -56,6 +63,12 @@
   --danger: oklch(0.58 0.21 27);
   --warning: oklch(0.75 0.16 75);
   --success: oklch(0.6 0.15 150);
+  --series-1: oklch(0.6 0.15 255);
+  --series-2: oklch(0.62 0.12 190);
+  --series-3: oklch(0.58 0.17 300);
+  --series-4: oklch(0.64 0.16 350);
+  --series-5: oklch(0.6 0.13 125);
+  --series-6: oklch(0.6 0.12 40);
   --shadow: oklch(0 0 0 / 0.12);
 }
 
@@ -72,6 +85,12 @@
   --danger: oklch(0.68 0.19 27);
   --warning: oklch(0.8 0.15 75);
   --success: oklch(0.7 0.14 150);
+  --series-1: oklch(0.7 0.14 255);
+  --series-2: oklch(0.72 0.11 190);
+  --series-3: oklch(0.7 0.15 300);
+  --series-4: oklch(0.72 0.14 350);
+  --series-5: oklch(0.72 0.12 125);
+  --series-6: oklch(0.7 0.11 40);
   --shadow: oklch(0 0 0 / 0.5);
 }
 
