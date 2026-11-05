@@ -62,7 +62,7 @@ export function Composer({
             <UploadChip key={`u${d.key}`} draft={d} onRemove={() => attach.remove(d.key)} onRetry={() => attach.retry(d.key)} />
           ))}
           {attach.folders.map((d) => (
-            <FolderChip key={`f${d.key}`} draft={d} onRemove={() => attach.removeFolder(d.key)} />
+            <FolderChip key={`f${d.key}`} draft={d} onRemove={() => attach.removeFolder(d.key)} onRetry={() => attach.retryFolder(d.key)} />
           ))}
         </div>
       )}
