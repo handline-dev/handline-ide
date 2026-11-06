@@ -1,11 +1,11 @@
 // Which agents the agent list (every app) and the phone's dock show, from the person's prefs and this device's open tabs. Pure.
 import type { AgentView, NavPrefs, Prefs, Worktree } from '@handline/client';
-import { byUrgency, railMatch, railRows, visibleRows, RAIL_FILTERS, type Dot, type RailFilter, type RailRow } from '#src/model.ts';
+import { byUrgency, railMatch, railRows, RAIL_FILTERS, type Dot, type RailFilter, type RailRow } from '#src/model.ts';
 
 export type NavGroup = NavPrefs['hidden'][number];
 export type NavChip = 'all' | 'unread' | 'needs';
 
-export const DEFAULT_NAV: NavPrefs = { pins: [], unread_only: false, hidden: [], layout: 'tree', collapsed: [], order: [] };
+export const DEFAULT_NAV: NavPrefs = { pins: [], unread_only: false, hidden: [], layout: 'tree', order: [] };
 /** How many open tabs, not counting pinned agents, the dock keeps. */
 export const OPEN_MAX = 5;
 
@@ -93,7 +93,7 @@ export function navDock(
   return { pinned: pinnedOf(agents, pins).map(item), open: pinnedOf(agents, unpinned).map(item) };
 }
 
-/** The agent list: pinned agents on top, then what the filter lets through as a folded tree or flat by urgency. A filter or a search drops the Pinned section, so each match shows once. */
+/** The agent list: pinned agents on top, then what the filter lets through as a tree or flat by urgency. A filter or a search drops the Pinned section, so each match shows once. */
 export function navList(agents: AgentView[], nav: NavPrefs, search = ''): { pinned: AgentView[]; rows: RailRow[] } {
   const filter = filterOf(nav, search);
   const narrowed = nav.unread_only || nav.hidden.length > 0 || search.trim() !== '';
@@ -105,7 +105,7 @@ export function navList(agents: AgentView[], nav: NavPrefs, search = ''): { pinn
             .filter(railMatch(filter))
             .sort(byUrgency)
             .map((agent) => ({ agent, depth: 0, kids: 0 }))
-        : visibleRows(railRows(agents, filter, nav.order), new Set(nav.collapsed)),
+        : railRows(agents, filter, nav.order),
   };
 }
 

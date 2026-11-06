@@ -119,18 +119,6 @@ export const stuckUnder = (agents: readonly AgentView[], name: string): number =
 export const foldedTally = (agents: readonly AgentView[], name: string, shown: boolean): { working: number; stuck: number } =>
   shown ? { working: workingUnder(agents, name), stuck: stuckUnder(agents, name) } : { working: 0, stuck: 0 };
 
-/** The rows left once the collapsed agents hide their descendants: a row is dropped while it sits deeper than the nearest collapsed row above it. */
-export function visibleRows<R extends { agent: AgentView; depth: number }>(rows: R[], collapsed: ReadonlySet<string>): R[] {
-  const out: R[] = [];
-  let hideBelow: number | null = null;
-  for (const r of rows) {
-    if (hideBelow !== null && r.depth > hideBelow) continue;
-    hideBelow = collapsed.has(r.agent.name) ? r.depth : null;
-    out.push(r);
-  }
-  return out;
-}
-
 /** The daemon's agent state as the app words it: a parked agent waits for a time (docs/copy.md 7). */
 export const agentStateWord = (k: string): string => (k === 'parked' ? 'waiting' : k);
 
