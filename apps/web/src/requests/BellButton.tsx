@@ -3,6 +3,7 @@ import { useState, type RefObject } from 'react';
 import { goPage } from '#src/layout/openTab.tsx';
 import { useRequests } from '#src/requests/data.ts';
 import { isUnseen, RequestLine, TurnLine } from '#src/requests/rows.tsx';
+import { turnKey } from '#src/requests/RowMenu.tsx';
 import { Popover } from '#src/ui/Popover.tsx';
 
 const SHOWN = 5;
@@ -33,7 +34,7 @@ export function BellButton({ bar }: { bar: RefObject<HTMLElement | null> }) {
       <div className="-m-2 flex w-96 flex-col gap-2">
         <p className="px-2 pt-1 text-xs font-medium text-muted">Your turn</p>
         {!r.loaded ? null : r.turn.length ? (
-          r.turn.slice(0, SHOWN).map((p) => <TurnLine key={p.task ?? `item ${p.items[0]}`} p={p} onOpened={close} />)
+          r.turn.slice(0, SHOWN).map((p) => <TurnLine key={turnKey(p)} p={p} onOpened={close} />)
         ) : (
           <p className="px-2 text-muted">Nothing waits on you.</p>
         )}

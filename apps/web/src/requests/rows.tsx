@@ -13,7 +13,8 @@ import {
   ShieldQuestion,
   Signpost,
 } from 'lucide-react';
-import type { ReactNode } from 'react';
+import type { MouseEvent, ReactNode } from 'react';
+import { requestKey, RowMenu, turnKey, usePick, type Picked } from '#src/requests/RowMenu.tsx';
 import { ago } from '#src/format/time.ts';
 import { focusIn } from '#src/layout/focus.ts';
 import { chatOf, taskOf } from '#src/layout/kinds.tsx';
@@ -53,31 +54,64 @@ const ASK: Record<PendingRequest['kind'], string> = {
   comment: 'New comments',
 };
 
+/** One row. In Requests (not the bell) it can be picked: Shift+click, or the check box that takes the icon's place on hover; then
+ * a click picks more. A right-click opens its menu. A row dims while a write on it is on its way. */
 function Line({
   title,
   meta,
   onOpen,
   mark,
   icon,
+  row,
 }: {
   title: string;
   meta: string;
   onOpen: (how: 'here' | 'side') => void;
   mark?: boolean;
   icon: ReactNode;
+  row: Picked;
 }) {
-  return (
-    <button type="button" {...openProps(onOpen)} className="flex w-full gap-2.5 rounded-md px-2 py-1.5 text-left hover:bg-hover/30">
-      <span className="relative mt-0.5 grid size-4 shrink-0 place-items-center">
-        {icon}
-        {mark && <span className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-accent" />}
-      </span>
-      <span className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate text-fg">{title}</span>
-        <span className="truncate text-xs text-muted">{meta}</span>
-      </span>
-    </button>
+  const pick = usePick();
+  const picked = !!pick?.picked.has(row.key);
+  const busy = !!pick?.busy.has(row.key);
+  const open = openProps(onOpen);
+  const line = (
+    // The check box sits beside the row's button, over its icon, not inside it: a box in a button is no box to the keyboard.
+    <div
+      className={`group/line relative flex rounded-md ${picked ? 'bg-selected' : 'hover:bg-hover/30'} ${busy ? 'pointer-events-none opacity-50' : ''}`}
+    >
+      {pick && (
+        <input
+          type="checkbox"
+          aria-label={`Pick ${title}`}
+          checked={picked}
+          onChange={() => pick.toggle(row)}
+          className={`absolute top-2.5 left-2 z-10 size-4 accent-accent ${picked ? '' : 'opacity-0 group-hover/line:opacity-100 focus-visible:opacity-100'}`}
+        />
+      )}
+      <button
+        type="button"
+        {...open}
+        onClick={(e: MouseEvent<HTMLButtonElement>) => {
+          if (pick && (e.shiftKey || pick.picked.size > 0)) return pick.toggle(row);
+          open.onClick?.(e);
+        }}
+        className="flex w-full gap-2.5 px-2 py-1.5 text-left"
+      >
+        <span
+          className={`relative mt-0.5 grid size-4 shrink-0 place-items-center ${pick ? 'group-hover/line:invisible' : ''} ${picked ? 'invisible' : ''}`}
+        >
+          {icon}
+          {mark && <span className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-accent" />}
+        </span>
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="truncate text-fg">{title}</span>
+          <span className="truncate text-xs text-muted">{meta}</span>
+        </span>
+      </button>
+    </div>
   );
+  return pick ? <RowMenu row={row}>{line}</RowMenu> : line;
 }
 
 /** Where a row opens: its task; for a daemon warning, the account, the chat or the settings it is about; else Requests. */
@@ -97,15 +131,18 @@ function useOpenTurn(p: PendingRequest) {
 }
 
 /** Something waiting on the founder: what is asked, who asks (an agent, or the daemon itself), how long ago. */
-export function TurnLine({ p, onOpened }: { p: PendingRequest; onOpened?: () => void }) {
+export function TurnLine({ p, onOpened, until }: { p: PendingRequest; onOpened?: () => void; until?: string }) {
   const open = useOpenTurn(p);
   const daemon = p.kind === 'warning' || p.agent === null;
   return (
     <Line
       mark
+      row={{ key: turnKey(p), p }}
       title={p.title}
       icon={turnIcon(p)}
-      meta={[ASK[p.kind], daemon ? 'daemon' : p.agent, p.task !== null && `T${p.task}`, p.ask, ago(p.last_at)].filter(Boolean).join(' · ')}
+      meta={[until ? `back ${until}` : ASK[p.kind], daemon ? 'daemon' : p.agent, p.task !== null && `T${p.task}`, p.ask, ago(p.last_at)]
+        .filter(Boolean)
+        .join(' · ')}
       onOpen={(how) => {
         open(how);
         onOpened?.();
@@ -137,6 +174,7 @@ export function RequestLine({ r, onOpened }: { r: RequestRow; onOpened?: () => v
   return (
     <Line
       mark={isUnseen(r)}
+      row={{ key: requestKey(r), r }}
       icon={
         r.ended?.outcome === 'discarded' ? (
           <CircleSlash size={16} className="text-muted" />
