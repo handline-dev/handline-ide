@@ -122,9 +122,10 @@ agent (ROLE.md, base.md); this file does not repeat them.
   functions under 60; lint fails at 400 and 120 (tests 600, components 250), counted without blank or comment lines.
   A `max-lines` error means split the file by responsibility, not raise the limit or add a disable. The numbers are in
   `packages/config/eslint/limits.js`.
-- Landing: no pull requests. Squash your work to one commit, rebase it on `origin/main`, get `tools/check.sh` green, have a
-  review subagent read the diff, then `git push origin HEAD:main` (fast-forward only, never force). If the push is refused,
-  rebase and check again. Whoever turns main red fixes it first.
+- Landing: no pull requests. Keep your meaningful commits (no squash); fold review fixups into the commit they fix. Just
+  before pushing, `git fetch` and `git rebase origin/main` (no merge commits), get `tools/check.sh` green, have a review
+  subagent read the diff, then `git push origin HEAD:main` (fast-forward only, never force). If the push is refused,
+  fetch, rebase and check again. Whoever turns main red fixes it first.
 - A new limit, hold or refusal merges off by default, behind a setting the app can change; its default becomes on only when the founder asks for that change.
 - UI: don't design a screen alone. Agree on its shape with the human first,
   and after you build it, the human checks it by eye. Passing tests do not
