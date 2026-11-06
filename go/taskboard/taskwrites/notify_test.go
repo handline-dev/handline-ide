@@ -95,3 +95,14 @@ func TestADiscardTellsTheAskerBesideTheOpenerAndAMoveLeavesTheNewOwnerToItsBrief
 		t.Errorf("a move tells the opener and the old owner; the new one is sent the brief itself: %q", got)
 	}
 }
+
+// A worker reopening a task the founder opened writes the founder no line.
+func TestAReopenOfATaskTheFounderOpenedWritesThemNoLine(t *testing.T) {
+	t.Parallel()
+	d, mk := discardEnv(t)
+	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, created_at, done_evidence, done_at) VALUES(1, 'one', 'worker', 'human', 1, 'sha', 2)")
+	callAs(t, mk, "worker", "task.reopen", `{"task":1,"note":"it was wrong","request_id":"r1"}`)
+	if n := count(t, d, "SELECT COUNT(*) FROM requests WHERE target = 'human'"); n != 0 {
+		t.Fatalf("%d lines to the founder", n)
+	}
+}

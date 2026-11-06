@@ -71,9 +71,12 @@ func TestOnlyALaterMessageThatArrivesToTheSameAgentClearsALostOne(t *testing.T) 
 	if r := answerRow(t, e, "machine", "delivery:"+db.MsgPrefix+"abc"); r == nil {
 		t.Fatal("the later lost message was withdrawn, never arriving, and the first stopped warning")
 	}
-	run(t, e, "UPDATE requests SET landed_at = 9 WHERE id = 6")
-	if r := answerRow(t, e, "machine", "delivery:"+db.MsgPrefix+"abc"); r != nil {
-		t.Fatalf("the later message arrived, and the first still warns: %v", r)
+	for how, arrived := range map[string]string{"landed": "landed_at = 9", "read": "read_at = 9"} {
+		run(t, e, "UPDATE requests SET state = 'queued', landed_at = NULL, read_at = NULL WHERE id = 6")
+		run(t, e, "UPDATE requests SET "+arrived+" WHERE id = 6")
+		if r := answerRow(t, e, "machine", "delivery:"+db.MsgPrefix+"abc"); r != nil {
+			t.Fatalf("the later message was %s, and the first still warns: %v", how, r)
+		}
 	}
 }
 
@@ -187,6 +190,14 @@ func TestAnAccountThatNeedsALoginIsAWarningWhileTheWatchKeepsIt(t *testing.T) {
 	}
 	if r := answerRow(t, e, "machine", "login:alpha"); r == nil || r["title"] != "Account alpha cannot be used: billing_error." {
 		t.Fatalf("an unusable account: %v", r)
+	}
+	for _, value := range []string{"100", "{}"} {
+		if err := db.SetMeta(e.DB, db.LoginNeedPrefix+"alpha", value); err != nil {
+			t.Fatal(err)
+		}
+		if r := answerRow(t, e, "machine", "login:alpha"); r != nil {
+			t.Fatalf("%q is no need, and made a row: %v", value, r)
+		}
 	}
 	if err := db.ClearMeta(e.DB, db.LoginNeedPrefix+"alpha"); err != nil {
 		t.Fatal(err)

@@ -46,9 +46,16 @@ func TestTheLoginWatchHoldsANeedUntilTheLoginOrTheLastDay(t *testing.T) {
 	if err := w.Check(q, now-1); err != nil || asked != 1 {
 		t.Fatalf("the keychain is asked once a minute: %d %v", asked, err)
 	}
+	if _, err := q.Exec("UPDATE meta SET updated = 0 WHERE name = ?", db.LoginNeedPrefix+"alpha"); err != nil {
+		t.Fatal(err)
+	}
 	check()
 	if need() != first {
 		t.Fatalf("since moved from %s to %s", first, need())
+	}
+	var updated float64
+	if err := q.QueryRow("SELECT updated FROM meta WHERE name = ?", db.LoginNeedPrefix+"alpha").Scan(&updated); err != nil || updated != 0 {
+		t.Fatalf("an unchanged need was written again (the watchers follow meta): %v %v", updated, err)
 	}
 	in = true
 	check()
