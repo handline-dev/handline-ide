@@ -44,7 +44,7 @@ export const SEEDS: Record<string, Seed> = {
     });
   },
 
-  /** `handline.auditor` idle at its prompt with a shell, a monitor and two subagents running behind it. */
+  /** `handline.auditor` idle at its prompt with a shell, a monitor and two subagents running behind it, and two servers. */
   background: (d) => {
     const s = d.sessions.get(AUD)!;
     const ago = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
@@ -56,6 +56,10 @@ export const SEEDS: Record<string, Seed> = {
         { kind: 'monitor', label: 'Watch the deploy log for errors', since: ago(9) },
         { kind: 'subagent', label: 'Review the diff', since: ago(3), foreground: false },
         { kind: 'subagent', label: 'Explore', since: ago(0), foreground: true },
+      ],
+      servers: [
+        { port: 5173, address: '127.0.0.1', command: 'node node_modules/.bin/vite', pid: 4101, since: ago(40) },
+        { port: 8080, address: '0.0.0.0', command: 'python3 -m http.server 8080', pid: 4177, since: ago(6) },
       ],
     };
   },
