@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/handline/handline/go/agentctl/delivery"
 	"github.com/handline/handline/go/data/db"
@@ -293,15 +294,14 @@ func (e *Env) deliveryUnknown(q db.Q, agent, op, outcome, advice string) {
 	told := map[string]bool{}
 	for _, rid := range ridsOfOp(op) {
 		row := must(db.GetRequest(q, rid))
+		if row != nil && row.Requester == db.Human { // each a warning on the founder's turn, until it is seen to arrive or a later one is written
+			check(db.NoteUndelivered(q, db.LostMessagePrefix, rid, time.Now().Unix(), agent, outcome))
+			continue
+		}
 		if row == nil || told[row.Requester] || row.Requester == db.NoticeRequester {
 			continue
 		}
 		told[row.Requester] = true
-		if row.Requester == db.Human { // the founder's screens show no message id
-			text := fmt.Sprintf("Your message to %s %s. It is not sent again; %s.", agent, outcome, advice)
-			must(db.AddRequest(q, db.NewRequest{Requester: db.NoticeRequester, Target: db.Human, Body: text, Kind: "say"}))
-			continue
-		}
 		must(e.Notice(q, row.Requester, fmt.Sprintf("%s to %s %s. It is not sent again; %s.", row.Name(q), agent, outcome, advice), "delivery unknown"))
 	}
 }

@@ -3,8 +3,10 @@ package reads
 import (
 	"sort"
 	"strconv"
+	"time"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/internal/sparenotice"
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
@@ -62,14 +64,15 @@ func withUnread(task map[string]any, u unread) {
 
 func noUnread(task map[string]any) { withUnread(task, unread{}) }
 
-// requests.pending: what waits on the founder, by task, and the counts the sidebar badges show.
+// requests.pending: what waits on the founder to act, by task, and the counts the bell and the sidebar badges show.
 func (e *Env) requestsPending(_ *rpc.Conn, _ map[string]any) (any, error) {
 	all, err := e.unreadAll()
 	if err != nil {
 		return nil, err
 	}
 	row := func(task any, title, kind string, items []int64, u unread, at any) map[string]any {
-		out := map[string]any{"task": task, "title": title, "kind": kind, "items": items, "unread": u.n, "first_unread": nil, "last_at": at}
+		out := map[string]any{"task": task, "title": title, "kind": kind, "items": items, "unread": u.n, "first_unread": nil, "last_at": at,
+			"source": "", "id": "", "agent": nil, "ask": nil, "warning": nil}
 		if u.n > 0 {
 			out["first_unread"] = u.first
 		}
@@ -79,30 +82,48 @@ func (e *Env) requestsPending(_ *rpc.Conn, _ map[string]any) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	rank := map[string]int{"comment": 0, "ask": 1, "decide": 2, "allow": 3}
+	warnings, err := e.founderWarnings()
+	if err != nil {
+		return nil, err
+	}
+	warningOf := map[string]founderWarning{}
+	for _, w := range warnings {
+		warningOf[w.id] = w
+	}
+	rank := map[string]int{"comment": 0, "warning": 1, "ask": 2, "decide": 3, "allow": 4}
 	answer, byTask := []map[string]any{}, map[int64]map[string]any{}
 	for _, it := range forYou {
 		if _, deferred := it["later"]; deferred {
 			continue
 		}
 		kind, id := it["kind"].(string), it["id"].(string)
-		ask := map[string]string{"allow": "allow", "decide": "decide", "review": "decide", "do": "ask"}[it["asks"].(string)]
+		ask := map[string]string{"allow": "allow", "decide": "decide", "review": "decide"}[it["asks"].(string)]
+		var line, agent any
+		agent = it["agent"]
+		var warning map[string]any
 		var tid int64
 		switch kind {
 		case "task":
 			tid, _ = strconv.ParseInt(id, 10, 64)
 		case "comment":
+			line = it["title"]
+			ask = "ask"
 			if memo, _ := strconv.ParseInt(id, 10, 64); memo != 0 {
 				if r, err := queryOne(e.DB, "SELECT task_id FROM task_memos WHERE id = ?", memo); err != nil {
 					return nil, err
 				} else if r != nil {
-					tid, ask = r.i("task_id"), "ask"
+					tid = r.i("task_id")
 				}
+			}
+		case "machine":
+			w := warningOf[id]
+			tid, warning, ask = w.task, w.view, "warning"
+			if tid != 0 { // the row's title is the task's, so the warning's words go here
+				line = w.title
 			}
 		}
 		var items []int64
 		if tid != 0 {
-			// a task the founder owns with no request open on it is the Tasks page's Needs you, not a question
 			open, err := query(e.DB, "SELECT r.id FROM requests r JOIN task_requests l ON l.request_id = r.id WHERE l.task_id = ? AND r.target = ? "+
 				"AND r.state = 'queued' AND r.kind != 'say' ORDER BY r.id", tid, human)
 			if err != nil {
@@ -111,12 +132,30 @@ func (e *Env) requestsPending(_ *rpc.Conn, _ map[string]any) (any, error) {
 			for _, o := range open {
 				items = append(items, o.i("id"))
 			}
-			if len(items) == 0 && kind == "task" {
+			turn, err := queryOne(e.DB, "SELECT agent, ask, pushed_by FROM task_turns WHERE task_id = ? ORDER BY pos DESC LIMIT 1", tid)
+			if err != nil {
+				return nil, err
+			}
+			onTop := turn != nil && turn.str("agent") == human
+			// a task the founder owns with no turn and no request open on it is the Tasks page's Needs you, not their turn
+			if len(items) == 0 && kind == "task" && !onTop {
 				continue
+			}
+			if onTop && kind == "task" {
+				agent = turn.str("pushed_by")
+				if a := turn.str("ask"); a != "" {
+					line = a
+				}
 			}
 			if prev := byTask[tid]; prev != nil {
 				if rank[ask] > rank[prev["kind"].(string)] {
-					prev["kind"] = ask
+					prev["kind"], prev["source"], prev["id"], prev["agent"] = ask, kind, id, agent
+				}
+				if prev["ask"] == nil {
+					prev["ask"] = line
+				}
+				if warning != nil {
+					prev["warning"] = warning
 				}
 				continue
 			}
@@ -131,11 +170,25 @@ func (e *Env) requestsPending(_ *rpc.Conn, _ map[string]any) (any, error) {
 			if t != nil {
 				title = t.str("title")
 			}
+			if len(items) == 0 {
+				items = []int64{}
+			}
 			out = row(tid, title, ask, items, all[tid], it["since"])
 			byTask[tid] = out
+			if acct, err := sparenotice.AccountOf(e.DB, tid); err != nil {
+				return nil, err
+			} else if spare, err := queryOne(e.DB, "SELECT 1 AS n FROM task_tags WHERE task_id = ? AND tag = ?", tid, sparenotice.NoticeTag); err != nil {
+				return nil, err
+			} else if spare != nil {
+				out["kind"], agent, warning = "warning", nil, map[string]any{"kind": "weekly_use"}
+				if acct != "" {
+					warning["account"] = acct
+				}
+			}
 		} else {
 			out = row(nil, it["title"].(string), ask, []int64{}, unread{}, it["since"])
 		}
+		out["source"], out["id"], out["agent"], out["ask"], out["warning"] = kind, id, agent, line, warning
 		if out["kind"] == "" {
 			out["kind"] = "ask"
 		}
@@ -174,8 +227,12 @@ func (e *Env) requestsPending(_ *rpc.Conn, _ map[string]any) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	results, err := e.unseenResults(time.Now().Unix())
+	if err != nil {
+		return nil, err
+	}
 	return map[string]any{"answer": answer, "comments": comments,
-		"counts": map[string]any{"answer": len(answer), "comments": len(comments), "needs_you": needs, "drafts": drafts}}, nil
+		"counts": map[string]any{"answer": len(answer), "comments": len(comments), "needs_you": needs, "drafts": drafts, "unseen_results": results}}, nil
 }
 
 // needsYouAndDrafts counts the open tasks the founder owns or that wait on them (Task.waiting.on is founder), and the open drafts.

@@ -42,6 +42,9 @@ type mailbox struct {
 // founderOpen is a request to the founder still in their inbox.
 var founderOpen = db.FounderOpen("")
 
+// notBoard leaves out the task board's lines, which older daemons wrote to the founder: they are no one's to act on.
+const notBoard = "requester != '" + db.NoticeRequester + "'"
+
 const readSayKeepS = int64(policy.ReadSayShown / time.Second)
 
 func (e *Env) mailboxRows() ([]mailbox, error) { return e.mailboxRowsKept(false) }
@@ -63,7 +66,7 @@ func (e *Env) mailboxRowsKept(kept bool) ([]mailbox, error) {
 		where = "(" + founderOpen + " OR (kind = 'say' AND state = 'landed' AND read_at IS NOT NULL AND read_at >= ?))"
 		args = append(args, time.Now().Unix()-readSayKeepS)
 	}
-	rows, err := query(e.DB, "SELECT id, ref, ts, requester, kind, body, read_at, COALESCE(memo_id, 0) AS memo FROM requests WHERE target = ? AND "+where+" ORDER BY id", args...)
+	rows, err := query(e.DB, "SELECT id, ref, ts, requester, kind, body, read_at, COALESCE(memo_id, 0) AS memo FROM requests WHERE target = ? AND "+notBoard+" AND "+where+" ORDER BY id", args...)
 	if err != nil {
 		return nil, err
 	}

@@ -3,7 +3,13 @@ import { ago } from '#src/format/time.ts';
 import { chatOf, taskOf } from '#src/layout/kinds.tsx';
 import { openProps, useOpenTab } from '#src/layout/openTab.tsx';
 
-const ASK: Record<PendingRequest['kind'], string> = { allow: 'Allow?', decide: 'Decide', ask: 'Question', comment: 'New comments' };
+const ASK: Record<PendingRequest['kind'], string> = {
+  allow: 'Allow?',
+  decide: 'Decide',
+  ask: 'Question',
+  warning: 'Warning',
+  comment: 'New comments',
+};
 
 function Line({ title, meta, onOpen, mark }: { title: string; meta: string; onOpen: (how: 'here' | 'side') => void; mark?: boolean }) {
   return (

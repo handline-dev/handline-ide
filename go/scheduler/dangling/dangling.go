@@ -240,7 +240,7 @@ func (s *Sweep) tell(agent, text string) {
 	s.log("  %s: %s", agent, text)
 	to := team.ParentName(agent)
 	if to == "" {
-		to = db.Human
+		return // no manager: the founder has nothing to do about a closed terminal
 	}
 	if err := s.Ports.Tell(to, text); err != nil {
 		s.log("  %s: telling %s: %v", agent, to, err)

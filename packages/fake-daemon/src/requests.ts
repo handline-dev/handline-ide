@@ -85,6 +85,17 @@ export class FakeRequests {
     return accepted(existing ? 'Already a request.' : 'Request made.', { task: row.task, ...(existing ? { existing: true } : {}) });
   }
 
+  /** requests.pending's unseen_results: the finished rows the founder has not seen. */
+  unseen = (): RequestRow[] => this.rows.filter((r) => r.ended?.seen === false);
+
+  /** task.seen: the row of an ended task is seen. */
+  markSeen(task: number): void {
+    const row = this.rows.find((r) => r.task === task && r.ended && !r.ended.seen);
+    if (!row?.ended) return;
+    row.ended.seen = true;
+    this.host.emit('requests', 'request.changed', { agent: row.agent, data: { ...row } });
+  }
+
   /** A request named by a chat message's number: its row is made on the first call. */
   private fromChat(name: unknown): RequestRow | undefined {
     if (typeof name !== 'number' && !/^\d+$/.test(String(name))) return undefined;
@@ -99,9 +110,9 @@ export class FakeRequests {
   private list(p: Record<string, unknown>) {
     const limit = typeof p.limit === 'number' ? p.limit : PAGE;
     const from = typeof p.before === 'string' ? this.rows.findIndex((r) => r.cursor === p.before) + 1 : 0;
-    const rows = this.rows.filter((r) => p.state === undefined || r.status === p.state).slice(from, from + limit);
-    const more = this.rows.filter((r) => p.state === undefined || r.status === p.state).length > from + limit;
-    return { items: rows, more };
+    if (p.unseen !== undefined && typeof p.unseen !== 'boolean') throw invalidParams('unseen is true or false', 'unseen');
+    const kept = this.rows.filter((r) => (p.state === undefined || r.status === p.state) && (p.unseen !== true || r.ended?.seen === false));
+    return { items: kept.slice(from, from + limit), more: kept.length > from + limit };
   }
 }
 

@@ -704,11 +704,11 @@ export type Later = unknown | unknown;
 /** One open item waiting on the founder. A task given to the founder (or the ask on it) is `task`, an agent's `@human` ask in a task comment is `comment`, an agent's open permission prompt or dialog is `prompt`, a proposal that waits is `proposal`, and something the machine needs is `machine`. A plain say is not an item: nothing is asked. */
 export type ForYouItem = {
   kind: "task" | "comment" | "prompt" | "proposal" | "machine";
-  /** task: the task number. comment: the comment's number (InboxItem.memo), or the request's ref for an ask that is on no task. prompt: Prompt.id. proposal: the proposal's id (Proposal.id). machine: the need's kind, `disk`. The pair (kind, id) names the item, as in the keys of NavPrefs.later. */
+  /** task: the task number. comment: the comment's number (InboxItem.memo), or the request's ref for an ask that is on no task. prompt: Prompt.id. proposal: the proposal's id (Proposal.id). machine: the warning, `disk`, `login:<account>`, `delivery:<ref>` or `undelivered:<task>`. The pair (kind, id) names the item, as in the keys of NavPrefs.later. */
   id: string;
   /** Who asks; null for the machine. */
   agent: AgentName | null;
-  /** One line: a task's title, a comment's first line, a prompt's command or tool, a proposal's title, the machine need's text. */
+  /** One line: a task's title, a comment's first line, a prompt's command or tool, a proposal's title, the warning in plain words. */
   title: string;
   /** What the item wants of the founder. A task or comment: `review` when the task is tagged review, else `decide`. A prompt: `allow` for a permission, else `decide`. An proposal: `allow`. The machine: `do`. */
   asks: "allow" | "decide" | "review" | "do";

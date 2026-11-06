@@ -220,7 +220,7 @@ export type RequestRow = {
   /** The founder's message it was made from, or is; null for a task opened without one. */
   ref: RequestRef | null;
   title: string;
-  /** Read from the request's tree of tasks, never stored; the first that holds. waiting_on_you: a task assigned to the founder or a decision card waiting on them, anywhere in the tree. review: an open task has a PR. doing: some task in the tree is open. done: the request's own task is done (the agent that holds it judges and closes it; the founder does not). no_work: a message marked with task.none. not_yet: a message with neither a task nor a mark. */
+  /** Read from the request's tree of tasks, never stored; the first that holds. waiting_on_you: a task assigned to the founder or a decision card waiting on them, anywhere in the tree. review: an open task has a PR. doing: some task in the tree is open. done: the request's own task has ended, done or discarded (ended says which; the agent that holds it judges and closes it; the founder does not). no_work: a message marked with task.none. not_yet: a message with neither a task nor a mark. */
   status: "waiting_on_you" | "review" | "doing" | "done" | "no_work" | "not_yet";
   /** Who holds the request, or the agent the message was sent to. */
   agent: string;
@@ -244,12 +244,14 @@ export type RequestRow = {
   attention?: RequestAttention | null;
   /** Why a message needs no work (status no_work). */
   reason: string | null;
-  /** Agents' comments on the request that the founder has not read: what its inbox line counts. */
+  /** Agents' comments on the request that the founder has not read (Task.unread). */
   unread_comments: number;
   created: Timestamp;
   last_activity: Timestamp;
   /** Orders the list; pass the last row's as requests.list before. */
   cursor: string;
+  /** Set when status is done; null otherwise. Absent from a daemon that does not send it. */
+  ended?: RequestEnded | null;
   [key: string]: unknown;
 };
 
@@ -276,6 +278,14 @@ export type RequestAttention = {
   text: string;
   /** The tree task it is about; the request's own for quiet. */
   task: number;
+};
+
+/** How a finished request ended, and whether the founder has seen it since. */
+export type RequestEnded = {
+  outcome: "done" | "discarded";
+  at: Timestamp;
+  /** True once task.seen has been called on the task since it ended, when the founder ended it themselves, or when it ended before this daemon first kept the mark. */
+  seen: boolean;
 };
 
 export interface ChatMethods {
@@ -619,6 +629,8 @@ export interface ChatMethods {
 }; result: Accepted };
   "requests.list": { params: {
   state?: "waiting_on_you" | "review" | "doing" | "done" | "no_work" | "not_yet";
+  /** true: only finished requests the founder has not seen. The bell's list. */
+  unseen?: boolean;
   /** A row's cursor: the rows after it. */
   before?: string;
   limit?: number;

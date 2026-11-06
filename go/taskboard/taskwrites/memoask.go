@@ -49,7 +49,7 @@ func answerMemoAsks(tx *sql.Tx, tid int64) error {
 }
 
 // taskEnded: task tid is done or discarded.
-func taskEnded(tx *sql.Tx, tid int64) (bool, error) {
+func taskEnded(tx db.Q, tid int64) (bool, error) {
 	var n int
 	err := tx.QueryRow("SELECT COUNT(*) FROM tasks WHERE id = ? AND (COALESCE(done_evidence, '') != '' OR COALESCE(discarded_by, '') != '')", tid).Scan(&n)
 	return n > 0, err

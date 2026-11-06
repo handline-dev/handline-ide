@@ -107,11 +107,11 @@ Pick up a task as the caller's current one.
 
 ### `task.seen`
 
-Record that the founder has a task's comments in front of them, up to a comment number. What it moves: the founder's read marker for the task (a named cursor, task_seen:<person>:<task>), which only goes forward. Task.unread and Task.first_unread count the comments above it, and requests.pending drops a task whose comments are all read. It also marks read the inbox lines that announced those comments, so the phone's counts agree. It never reads away something that is waiting for an answer (a question to the founder, a decision, a permission request): those end only by answering. A task with no marker counts from a floor set once when the daemon first ran this version, so comments from before it do not show as new. A client calls it when the task page opens, and again when a new comment arrives while the page is open and in view. It sends the tasks feed event, so every device updates.
+Record that the founder has a task in front of them: its comments up to a number, and its result when it has ended. What it moves: the founder's read marker for the task (a named cursor, task_seen:<person>:<task>), which only goes forward. Task.unread and Task.first_unread count the comments above it, and requests.pending drops a task whose comments are all read. It never reads away something that is waiting for an answer (a question to the founder, a decision, a permission request): those end only by answering. A task with no marker counts from a floor set once when the daemon first ran this version, so comments from before it do not show as new. On a task that has ended it also marks the result seen (RequestRow.ended.seen), whatever upto says; a task reopened and ended again is unseen again. A client calls it when the task page opens, and again when a new comment arrives while the page is open and in view. It sends the tasks feed event, so every device updates.
 
 ### `requests.pending`
 
-What waits on the founder, grouped by task, and the counts the sidebar badges show. A task the founder has read (task.seen) drops out on the next read; a client that wants the open row to stay while the page is open keeps the row it opened. Refetch on the tasks and inbox feed events.
+What waits on the founder to act, in one read, and the counts the bell and the sidebar badges show. Agents' chat replies and the task board's notices are in neither list. A task the founder has read (task.seen) leaves comments on the next read and stays in answer. Refetch on the tasks, inbox, requests and for_you feed events.
 
 ### `task.comment.list`
 

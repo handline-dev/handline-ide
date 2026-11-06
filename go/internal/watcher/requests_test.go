@@ -2,6 +2,7 @@ package watcher
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -38,5 +39,12 @@ func TestARequestThatAppearedOrChangedIsToldAsItsRow(t *testing.T) {
 	}
 	if n := told(); len(n) != 1 {
 		t.Fatalf("no change told again: %v", n)
+	}
+}
+
+// A founder seeing a result moves only a cursor, and the row is told again with it.
+func TestRequestsWatchesTheCursorsTheResultMarkMoves(t *testing.T) {
+	if !slices.Contains((&Requests{}).Tables(), "cursors") {
+		t.Fatal("a mark on a result would not reach the requests topic")
 	}
 }

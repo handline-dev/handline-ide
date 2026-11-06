@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/protocol/rpc"
@@ -21,8 +22,29 @@ func SetSeenFloor(q db.Q) error {
 	return db.SetMeta(q, db.SeenFloorMeta, strconv.FormatInt(top.Int64, 10))
 }
 
-// MarkSeen moves the read marker only forward (to the newest comment when upto is 0); a queued question is never read away.
+// SetResultSeenFloor sets once the time before which a request that ended counts as seen, so a month of old results does not show as new.
+func SetResultSeenFloor(q db.Q) error {
+	if _, set, err := db.Meta(q, db.ResultSeenFloorMeta); err != nil || set {
+		return err
+	}
+	return db.SetMeta(q, db.ResultSeenFloorMeta, strconv.FormatInt(time.Now().Unix(), 10))
+}
+
+// markResultSeen records that the founder has seen how the ended task tid ended.
+func markResultSeen(tx db.Q, tid int64) error {
+	return db.SetCursor(tx, db.ResultSeenKey(tid), time.Now().Unix())
+}
+
+// MarkSeen moves the read marker only forward (to the newest comment when upto is 0), and marks an ended task's result seen; a queued question
+// is never read away.
 func MarkSeen(tx db.Q, tid, upto int64) (bool, error) {
+	if ended, err := taskEnded(tx, tid); err != nil {
+		return false, err
+	} else if ended {
+		if err := markResultSeen(tx, tid); err != nil {
+			return false, err
+		}
+	}
 	if upto == 0 {
 		var top sql.NullInt64
 		if err := tx.QueryRow("SELECT MAX(id) FROM task_memos WHERE task_id = ?", tid).Scan(&top); err != nil {
@@ -40,13 +62,7 @@ func MarkSeen(tx db.Q, tid, upto int64) (bool, error) {
 			return false, err
 		}
 	}
-	ids, err := db.IDs(tx, "SELECT r.id FROM requests r JOIN events e ON r.id = CASE WHEN json_valid(e.payload) THEN json_extract(e.payload, '$.request_id') END "+
-		"WHERE e.kind = 'request_comment_told' AND CASE WHEN json_valid(e.payload) THEN json_extract(e.payload, '$.task_id') END = ? "+
-		"AND r.target = ? AND r.read_at IS NULL", tid, db.Human)
-	if err != nil {
-		return false, err
-	}
-	return moved || len(ids) > 0, db.MarkRead(tx, ids)
+	return moved, nil
 }
 
 func seenMethod(c *rpc.Conn, p map[string]any) (any, error) {

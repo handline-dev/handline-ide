@@ -238,9 +238,6 @@ func memoAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, err
 					return nil, err
 				}
 			}
-			if err := noteRequestComment(tx, tid, c.Caller.Actor()); err != nil {
-				return nil, err
-			}
 			if c.Caller.Actor() == human {
 				if err = answerMemoAsks(tx, tid); err != nil {
 					return nil, err

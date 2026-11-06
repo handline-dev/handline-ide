@@ -1528,7 +1528,8 @@
       "description": "The task; null for an item that belongs to no task (a permission request such as Asks to use Bash)."
      },
      "title": {
-      "type": "string"
+      "type": "string",
+      "description": "The task's title; for an item with no task, its own line (a prompt's command or tool, a proposal's title, a warning in plain words)."
      },
      "kind": {
       "type": "string",
@@ -1536,9 +1537,10 @@
        "allow",
        "decide",
        "ask",
+       "warning",
        "comment"
       ],
-      "description": "The strongest item the row holds: allow (a permission request), decide (a decision), ask (a question to the founder), or comment (unread comments only)."
+      "description": "The strongest item the row holds: allow (a permission request), decide (a decision, or a turn on the task), ask (a question to the founder), warning (the daemon needs the founder to act: see warning), or comment (unread comments only)."
      },
      "items": {
       "type": "array",
@@ -1564,6 +1566,54 @@
      },
      "last_at": {
       "$ref": "#/components/schemas/Timestamp"
+     },
+     "source": {
+      "type": "string",
+      "enum": [
+       "task",
+       "comment",
+       "prompt",
+       "proposal",
+       "machine"
+      ],
+      "description": "What the row was made from, as ForYouItem.kind: with id it names the item for NavPrefs.later. A row of a task that holds several takes the one kind says. Absent from a daemon that does not send it."
+     },
+     "id": {
+      "type": "string",
+      "description": "ForYouItem.id of that item. Absent from a daemon that does not send it."
+     },
+     "agent": {
+      "oneOf": [
+       {
+        "$ref": "#/components/schemas/AgentName"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Who asks; null for the daemon's own warnings. Absent from a daemon that does not send it."
+     },
+     "ask": {
+      "oneOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "What is asked, one line: the turn's ask or the first line of the comment asking them; null when there is nothing beyond the title. Absent from a daemon that does not send it."
+     },
+     "warning": {
+      "oneOf": [
+       {
+        "$ref": "#/components/schemas/PendingWarning"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Set on a warning row, null on every other. Absent from a daemon that does not send it."
      }
     },
     "required": [
@@ -1630,6 +1680,38 @@
      "evidence"
     ],
     "additionalProperties": false
+   },
+   "PendingWarning": {
+    "type": "object",
+    "description": "What a warning row is about, so a client can draw it and open the right place. It is read from state each time and leaves by itself.",
+    "properties": {
+     "kind": {
+      "type": "string",
+      "enum": [
+       "disk",
+       "login",
+       "weekly_use",
+       "delivery",
+       "undelivered"
+      ],
+      "description": "When each leaves. disk: space is back. login: the account is logged in or woken; one past its end day never warns. weekly_use (the spare notice, a task of the founder's): answered, or the reset. delivery (a message of the founder's never seen to arrive): seen to arrive, withdrawn, or their next message to that agent is written. undelivered (a task queued, its delivery refused, its agent with no lead): delivered, given to another or ended."
+     },
+     "account": {
+      "type": "string",
+      "description": "login, weekly_use: the account."
+     },
+     "agent": {
+      "type": "string",
+      "description": "delivery, undelivered: the agent it did not reach."
+     },
+     "ref": {
+      "$ref": "#/components/schemas/RequestRef",
+      "description": "delivery: the message."
+     }
+    },
+    "required": [
+     "kind"
+    ]
    }
   }
  },
@@ -2572,7 +2654,10 @@
    },
    "x-role": "agent",
    "x-write": true,
-   "x-app-write": {"kind": "decided", "label": "give back"},
+   "x-app-write": {
+    "kind": "decided",
+    "label": "give back"
+   },
    "x-since": 1,
    "errors": [
     {
@@ -2928,7 +3013,7 @@
   },
   {
    "name": "task.seen",
-   "summary": "Record that the founder has a task's comments in front of them, up to a comment number.",
+   "summary": "Record that the founder has a task in front of them: its comments up to a number, and its result when it has ended.",
    "paramStructure": "by-name",
    "params": [
     {
@@ -2975,11 +3060,11 @@
      "$ref": "#/components/errors/bad_request"
     }
    ],
-   "description": "What it moves: the founder's read marker for the task (a named cursor, task_seen:<person>:<task>), which only goes forward. Task.unread and Task.first_unread count the comments above it, and requests.pending drops a task whose comments are all read. It also marks read the inbox lines that announced those comments, so the phone's counts agree. It never reads away something that is waiting for an answer (a question to the founder, a decision, a permission request): those end only by answering. A task with no marker counts from a floor set once when the daemon first ran this version, so comments from before it do not show as new. A client calls it when the task page opens, and again when a new comment arrives while the page is open and in view. It sends the tasks feed event, so every device updates."
+   "description": "What it moves: the founder's read marker for the task (a named cursor, task_seen:<person>:<task>), which only goes forward. Task.unread and Task.first_unread count the comments above it, and requests.pending drops a task whose comments are all read. It never reads away something that is waiting for an answer (a question to the founder, a decision, a permission request): those end only by answering. A task with no marker counts from a floor set once when the daemon first ran this version, so comments from before it do not show as new. On a task that has ended it also marks the result seen (RequestRow.ended.seen), whatever upto says; a task reopened and ended again is unseen again. A client calls it when the task page opens, and again when a new comment arrives while the page is open and in view. It sends the tasks feed event, so every device updates."
   },
   {
    "name": "requests.pending",
-   "summary": "What waits on the founder, grouped by task, and the counts the sidebar badges show.",
+   "summary": "What waits on the founder to act, in one read, and the counts the bell and the sidebar badges show.",
    "paramStructure": "by-name",
    "params": [],
    "result": {
@@ -2994,23 +3079,25 @@
          "items": {
           "$ref": "#/components/schemas/PendingRequest"
          },
-         "description": "One row per task with an unread item that needs an answer (ask, decide, allow), newest first; an item with no task is its own row. A read marker never removes one."
+         "description": "The founder's turn: one row per task with something only they can act on (a turn on it, a comment asking them, a decision), newest first, and an item with no task (a permission request, a proposal, a daemon warning) as its own row. A row leaves when it is resolved (answered, passed, delivered, logged in, its time gone) or put off (NavPrefs.later) and never by being read."
         },
         "comments": {
          "type": "array",
          "items": {
           "$ref": "#/components/schemas/PendingRequest"
          },
-         "description": "One row per task the founder answers for (its reporter is the founder, or its opener when it has none, or it is the founder's own) that has unread comments and is not already in answer, newest first."
+         "description": "Not the founder's turn: tasks the founder answers for (its reporter is the founder, or its opener when it has none, or it is the founder's own) with unread comments and no row in answer, newest first. task.seen removes a row. No badge counts it."
         },
         "counts": {
          "type": "object",
          "properties": {
           "answer": {
-           "type": "integer"
+           "type": "integer",
+           "description": "The founder's turn: the length of answer. The bell and the sidebar Requests badge both show this."
           },
           "comments": {
-           "type": "integer"
+           "type": "integer",
+           "description": "The length of comments."
           },
           "needs_you": {
            "type": "integer",
@@ -3019,6 +3106,10 @@
           "drafts": {
            "type": "integer",
            "description": "Open draft tasks, everyone's."
+          },
+          "unseen_results": {
+           "type": "integer",
+           "description": "Finished requests the founder has not seen (requests.list unseen): the bell's dot, not a number on it. Absent from a daemon that does not send it."
           }
          },
          "required": [
@@ -3027,7 +3118,7 @@
           "needs_you",
           "drafts"
          ],
-         "description": "The sidebar badges come only from here: Requests is answer plus comments, Tasks is needs_you. The page and the badge then cannot disagree."
+         "description": "Every badge comes only from here, so the page and the badge cannot disagree: bell and Requests are answer, Tasks is needs_you."
         }
        },
        "required": [
@@ -3049,7 +3140,7 @@
     "feed": "tasks"
    },
    "x-since": 1,
-   "description": "A task the founder has read (task.seen) drops out on the next read; a client that wants the open row to stay while the page is open keeps the row it opened. Refetch on the tasks and inbox feed events."
+   "description": "Agents' chat replies and the task board's notices are in neither list. A task the founder has read (task.seen) leaves comments on the next read and stays in answer. Refetch on the tasks, inbox, requests and for_you feed events."
   },
   {
    "name": "task.comment.list",

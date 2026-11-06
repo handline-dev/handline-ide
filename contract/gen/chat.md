@@ -27,7 +27,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `request.cancel` | founder | yes | `id`, `dry_run?`, `request_id` | `{ok, plan, said}` | `refused`, `bad_request` |  | not from the app |
 | `inbox.mark_read` | agent | yes | `ids`, `request_id` | `Accepted` | `not_found`, `refused`, `bad_request` |  | authored: mark read |
 | `inbox.reply` | agent | yes | `id`, `text`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | authored: reply |
-| `requests.list` | member |  | `state?`, `before?`, `limit?` | `{items, more}` | `bad_request` |  | `requests`, fed by requests |
+| `requests.list` | member |  | `state?`, `unseen?`, `before?`, `limit?` | `{items, more}` | `bad_request` |  | `requests`, fed by requests |
 | `answers.list` | founder |  | none | `{answers}` |  |  | `answers`, snapshot |
 | `answer.add` | founder | yes | `folder?`, `vendor?`, `title?`, `label?`, `request_id` | `Accepted` | `refused`, `bad_request` | unsupported | authored: add standing answer |
 | `answer.remove` | founder | yes | `kind`, `key`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | authored: remove standing answer |

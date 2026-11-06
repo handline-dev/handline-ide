@@ -50,8 +50,9 @@ type Env struct {
 
 // A notice is a loss at a time; once that time has passed it is wrong, and the sweep closes it. until is when, lost the words it ends with.
 type pending struct {
-	Until int64  `json:"until"`
-	Lost  string `json:"lost"`
+	Until   int64  `json:"until"`
+	Lost    string `json:"lost"`
+	Account string `json:"account"`
 }
 
 func pendingKey(tid int64) string { return fmt.Sprintf("spare_notice_until:%d", tid) }
@@ -62,6 +63,41 @@ type told struct {
 }
 
 func metaKey(acct string) string { return "spare_notice:" + acct }
+
+// AccountOf is the account a notice task is about; "" for a task that is none, or one written before the account was kept.
+func AccountOf(q db.Q, tid int64) (string, error) {
+	raw, ok, err := db.Meta(q, pendingKey(tid))
+	if err != nil || !ok {
+		return "", err
+	}
+	var p pending
+	if json.Unmarshal([]byte(raw), &p) != nil {
+		return "", nil
+	}
+	return p.Account, nil
+}
+
+// openNotice is whether the account has a notice the founder has not answered, which stands until its time passes: a second would only repeat it.
+func (e *Env) openNotice(acct string) (bool, error) {
+	keys, err := db.MetaNames(e.Q, "spare_notice_until:")
+	if err != nil {
+		return false, err
+	}
+	for _, key := range keys {
+		tid, _ := strconv.ParseInt(strings.TrimPrefix(key, "spare_notice_until:"), 10, 64)
+		if got, err := AccountOf(e.Q, tid); err != nil {
+			return false, err
+		} else if got != acct {
+			continue
+		}
+		if t, err := db.GetTask(e.Q, tid); err != nil {
+			return false, err
+		} else if t != nil && !t.Ended() {
+			return true, nil
+		}
+	}
+	return false, nil
+}
 
 // Sweep sends the notice for each account that will lose a tenth of its week or more within two days with nothing queued for it.
 func (e *Env) Sweep(int64) error {
@@ -79,6 +115,11 @@ func (e *Env) Sweep(int64) error {
 			continue
 		}
 		if !e.due(acct, *f.LeftAtReset) {
+			continue
+		}
+		if open, err := e.openNotice(acct); err != nil {
+			return fmt.Errorf("%s: %w", acct, err)
+		} else if open {
 			continue
 		}
 		if err := e.notify(acct, *f.LeftAtReset, e.ResetAt(acct)); err != nil {
@@ -190,7 +231,7 @@ func (e *Env) notify(acct string, left float64, resetAt int64) error {
 	if err != nil {
 		return err
 	}
-	lost, _ := json.Marshal(pending{Until: resetAt, Lost: "Its time passed unanswered. " + Lost(acct, left, time.Unix(resetAt, 0))})
+	lost, _ := json.Marshal(pending{Until: resetAt, Lost: "Its time passed unanswered. " + Lost(acct, left, time.Unix(resetAt, 0)), Account: acct})
 	if err := db.SetMeta(e.Q, pendingKey(tid), string(lost)); err != nil {
 		return err
 	}

@@ -3401,7 +3401,7 @@
      },
      "id": {
       "type": "string",
-      "description": "task: the task number. comment: the comment's number (InboxItem.memo), or the request's ref for an ask that is on no task. prompt: Prompt.id. proposal: the proposal's id (Proposal.id). machine: the need's kind, `disk`. The pair (kind, id) names the item, as in the keys of NavPrefs.later."
+      "description": "task: the task number. comment: the comment's number (InboxItem.memo), or the request's ref for an ask that is on no task. prompt: Prompt.id. proposal: the proposal's id (Proposal.id). machine: the warning, `disk`, `login:<account>`, `delivery:<ref>` or `undelivered:<task>`. The pair (kind, id) names the item, as in the keys of NavPrefs.later."
      },
      "agent": {
       "oneOf": [
@@ -3416,7 +3416,7 @@
      },
      "title": {
       "type": "string",
-      "description": "One line: a task's title, a comment's first line, a prompt's command or tool, a proposal's title, the machine need's text."
+      "description": "One line: a task's title, a comment's first line, a prompt's command or tool, a proposal's title, the warning in plain words."
      },
      "asks": {
       "type": "string",
