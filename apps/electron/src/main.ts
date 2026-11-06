@@ -385,6 +385,7 @@ if (!app.requestSingleInstanceLock({ background })) {
     const preview = new Preview(origin, () => win);
     ipcMain.handle(CHANNELS.preview, (e, arg) => preview.set(e, arg));
     ipcMain.handle(CHANNELS.capturePreview, (e) => preview.capture(e));
+    ipcMain.handle(CHANNELS.previewNav, (e, go) => preview.nav(e, go));
     handleDevices(origin);
     handleFounderCalls(origin, client, remote, app.getPath('temp'));
     // The worktree of an agent comes from the shell's own daemon connection, never from the page.

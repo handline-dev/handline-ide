@@ -1,7 +1,5 @@
 // Room for the Mac window buttons, which ignore page zoom and hide in full screen.
-import type { ShellApi } from '@handline/app-core';
-
-type Shell = Partial<Pick<ShellApi, 'zoom' | 'onFullScreen'>>;
+import { shell } from '#src/shell.ts';
 
 /** Where the window buttons are in screen px (apps/electron main.ts trafficLightPosition, plus the buttons themselves). */
 const LIGHTS = { right: 86, centre: 22 };
@@ -14,8 +12,8 @@ export function insetsFor(zoom: number, full: boolean): Record<string, string> {
 
 /** In the shell on a Mac, keeps the two variables current; in a browser it does nothing and the CSS defaults hold. */
 export function trackShellInsets(): void {
-  const s = (window as { handline?: Shell & { api?: number } }).handline;
-  if (!s || s.api !== 1 || !navigator.userAgent.includes('Mac')) return;
+  const s = shell();
+  if (!s || !navigator.userAgent.includes('Mac')) return;
   let full = false;
   const set = () => {
     const zoom = s.zoom?.() || 1;
