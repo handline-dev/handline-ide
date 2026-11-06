@@ -3,7 +3,6 @@ package reads
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/handline/handline/go/data/db"
 	"os"
 	"path/filepath"
 	"testing"
@@ -45,18 +44,21 @@ func TestATasksTimelineIsEverythingThatHappenedOnItInOrder(t *testing.T) {
 	}
 }
 
-func TestATasksTimelineLeavesOutAMemosTellAskAndTheBoardsDeliveryButKeepsTheOtherRequests(t *testing.T) {
+func TestATasksTimelineLeavesOutAMemosTellAndAskButKeepsTheOtherRequests(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	addAgent(t, e, "bob", "")
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'a', 'bob', 'amy', 10)")
 	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, notice, edge_ok) VALUES(1, 10, 'amy', 'bob', 'the brief', 'landed', 'task', 0, 1), "+
 		"(2, 20, 'amy', 'bob', 'a memo tell', 'landed', 'say', 2, 1), (3, 30, 'cy', 'bob', 'a child result', 'landed', 'say', 1, 1), "+
-		"(4, 40, 'bob', 'human', '@human ship it?', 'queued', NULL, 0, 1), "+
-		"(5, 50, '"+db.NoticeRequester+"', 'bob', 'T1 is your turn again: human passed it: a', 'landed', 'task', 0, 1), "+
-		"(6, 60, '"+db.NoticeRequester+"', 'bob', 'task T1 is unblocked', 'landed', 'say', 0, 1)")
+		"(4, 40, 'bob', 'human', '@human ship it?', 'queued', NULL, 0, 1), (5, 50, 'human', 'bob', 'T1 is your turn again: human passed it: a', 'landed', 'task', 0, 1)")
 	run(t, e, "UPDATE requests SET memo_id = 9 WHERE id = 4") // the ask bob's @human comment opened
-	run(t, e, "INSERT INTO task_requests(task_id, request_id) VALUES(1, 1), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6)")
+	run(t, e, "INSERT INTO task_requests(task_id, request_id) VALUES(1, 1), (1, 2), (1, 3), (1, 4), (1, 5)")
+	// the founder's comment that passed bob's turn back, and the pop that names its delivery
+	run(t, e, "INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(7, 1, 'human', 'now', 50)")
+	run(t, e, `INSERT INTO events(ts, agent, kind, payload) VALUES(50, 'human', 'task_turn_pop', '{"task_id": 1, "agent": "human", "note": "now", "request_id": 5}'), `+
+		`(10, 'amy', 'task_turn_pop', '{"task_id": 1, "agent": "amy", "note": "x", "request_id": 1}'), `+ // an agent's pass keeps its row
+		`(30, 'human', 'task_turn_pop', '{"task_id": 1, "agent": "bob", "note": "", "request_id": 3}')`) // so does the founder's Give back, with no note
 	got, err := e.taskGet(nil, map[string]any{"task": json.Number("1")})
 	if err != nil {
 		t.Fatal(err)
@@ -65,7 +67,7 @@ func TestATasksTimelineLeavesOutAMemosTellAskAndTheBoardsDeliveryButKeepsTheOthe
 	for _, r := range got.(map[string]any)["timeline"].([]any) {
 		rows = append(rows, fmt.Sprint(r.(map[string]any)["text"]))
 	}
-	want := []string{"landed  the brief", "landed  a child result", "landed  task T1 is unblocked"}
+	want := []string{"landed  the brief", "landed  a child result", "now"}
 	if fmt.Sprint(rows) != fmt.Sprint(want) {
 		t.Fatalf("got  %q\nwant %q", rows, want)
 	}

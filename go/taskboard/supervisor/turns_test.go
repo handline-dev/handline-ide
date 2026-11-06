@@ -77,21 +77,10 @@ func TestTheFoundersTurnFreesTheAgentsSlotAndTheirCommentGivesItBack(t *testing.
 	if turns, _ := db.Turns(r.DB, held); len(turns) != 0 {
 		t.Fatalf("%+v", turns)
 	}
-	var back, from string
-	r.must(r.DB.QueryRow("SELECT body, requester FROM requests r JOIN task_requests l ON l.request_id = r.id WHERE l.task_id = ? AND r.target = 'bob' ORDER BY r.id DESC LIMIT 1", held).Scan(&back, &from))
+	var back string
+	r.must(r.DB.QueryRow("SELECT body FROM requests r JOIN task_requests l ON l.request_id = r.id WHERE l.task_id = ? AND r.target = 'bob' ORDER BY r.id DESC LIMIT 1", held).Scan(&back))
 	if !strings.Contains(back, "your turn again") || !strings.Contains(back, "now") {
 		t.Fatalf("%q", back)
-	}
-	// the delivery is the board's, so the founder's chat does not show it as a request of theirs
-	if from != db.NoticeRequester {
-		t.Fatalf("the pass is delivered from %q", from)
-	}
-	var rid int64
-	r.must(r.DB.QueryRow("SELECT MAX(r.id) FROM requests r JOIN task_requests l ON l.request_id = r.id WHERE l.task_id = ? AND r.target = 'bob'", held).Scan(&rid))
-	req, err := db.GetRequest(r.DB, rid)
-	r.must(err)
-	if passes, err := db.PassesPause(r.DB, req); err != nil || !passes {
-		t.Fatalf("the founder's pass is held by a pause: %v %v", passes, err)
 	}
 }
 
@@ -289,5 +278,32 @@ func TestAnEditAnUnblockAndADoneUnderATurn(t *testing.T) {
 		if !told {
 			t.Fatalf("%s, below the turn, is told: %v", who, r.saysTo(who))
 		}
+	}
+}
+
+// The founder's pass names the request that carries the task back, so the task's page shows their comment and not that delivery again;
+// it passes a pause as their own request, and the task still moves on a team with no edge but the founder's.
+func TestTheFoundersPassIsTheirCommentsTellAndTheTaskStillMoves(t *testing.T) {
+	r := newRig(t)
+	r.founderOnlyTeam()
+	r.agentUp("bob")
+	held := r.beginCurrent("bob", "alice", "ship it")
+	r.turnCall("bob", "task.turn.push", fmt.Sprintf(`{"task":%d,"to":"human","ask":"now?","request_id":"p1"}`, held))
+	r.turnCall("human", "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"now","request_id":"c1"}`, held))
+	var rid, told int64
+	var from string
+	r.must(r.DB.QueryRow("SELECT r.id, r.requester FROM requests r JOIN task_requests l ON l.request_id = r.id WHERE l.task_id = ? AND r.target = 'bob' ORDER BY r.id DESC LIMIT 1", held).Scan(&rid, &from))
+	r.must(r.DB.QueryRow("SELECT COALESCE(MAX(json_extract(payload, '$.request_id')), 0) FROM events WHERE kind = 'task_turn_pop' AND agent = 'human'").Scan(&told))
+	if told != rid || from != db.Human {
+		t.Fatalf("the pass #%d from %q; the pop names #%d", rid, from, told)
+	}
+	req, err := db.GetRequest(r.DB, rid)
+	r.must(err)
+	if passes, err := db.PassesPause(r.DB, req); err != nil || !passes {
+		t.Fatalf("the founder's pass is held by a pause: %v %v", passes, err)
+	}
+	r.turnCall("human", "task.edit", fmt.Sprintf(`{"task":%d,"owner":"alice","request_id":"e1"}`, held))
+	if task, _ := db.GetTask(r.DB, held); task.Owner != "alice" {
+		t.Fatalf("the task did not move: %+v", task)
 	}
 }

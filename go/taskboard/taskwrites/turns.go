@@ -259,7 +259,7 @@ func popTurn(tx *sql.Tx, home string, tell Teller, tid int64, by, outcome, note 
 		}
 	}
 	pop := func() error {
-		if _, _, _, err := db.PopTurn(tx, tid, by, outcome, note); err != nil {
+		if _, _, _, err := db.PopTurn(tx, tid, by, outcome, note, h.RID); err != nil {
 			return err
 		}
 		if note == "" || commented {
@@ -282,19 +282,9 @@ func popTurn(tx *sql.Tx, home string, tell Teller, tid int64, by, outcome, note 
 	if note != "" {
 		body += "\n\n" + note
 	}
-	// System: the task goes back to an agent that already had it, so no team edge is asked for. The founder's pass is the board's delivery,
-	// not a request of theirs: their comment is what they wrote.
-	from := by
-	if by == human {
-		from = noticeFrom
-	}
-	asked, err := tell.TaskAsk(tx, AskReq{From: from, To: below, Kind: "task", System: true, Body: body, Within: func(rid int64) error {
+	// System: the task goes back to an agent that already had it, so no team edge is asked for
+	asked, err := tell.TaskAsk(tx, AskReq{From: by, To: below, Kind: "task", System: true, Body: body, Within: func(rid int64) error {
 		h.RID = rid
-		if by == human { // passes the pause, as the founder's own request does
-			if err := addEvent(tx, by, db.PausePassed, kv{"request_id", rid}, kv{"task_id", tid}); err != nil {
-				return err
-			}
-		}
 		return shiftTask(tx, tell, &h, "turn "+word, false, pop)
 	}})
 	return Popped{Handover: h, Asked: asked}, err
