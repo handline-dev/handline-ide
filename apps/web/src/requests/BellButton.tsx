@@ -1,5 +1,5 @@
 import { Bell } from 'lucide-react';
-import { useState } from 'react';
+import { useState, type RefObject } from 'react';
 import { goPage } from '#src/layout/openTab.tsx';
 import { useRequests } from '#src/requests/data.ts';
 import { isUnseen, RequestLine, TurnLine } from '#src/requests/rows.tsx';
@@ -9,7 +9,7 @@ const SHOWN = 5;
 
 /** The bell: its number is what waits on the founder, the same as the sidebar's Requests. A click opens a preview of Requests: the
  * first of the founder's turn and the finished ones not yet seen (else the latest), with a way to the whole page. A dot marks unseen results. */
-export function BellButton() {
+export function BellButton({ bar }: { bar: RefObject<HTMLElement | null> }) {
   const r = useRequests();
   const [open, setOpen] = useState(false);
   const close = () => setOpen(false);
@@ -19,6 +19,7 @@ export function BellButton() {
     <Popover
       side="top"
       align="end"
+      corner={bar}
       open={open}
       onOpenChange={setOpen}
       trigger={
