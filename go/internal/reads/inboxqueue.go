@@ -198,7 +198,7 @@ func (e *Env) founderQueue(all bool) (any, error) {
 		return out, nil
 	}
 	done, err := query(e.DB, "SELECT id, ref, requester, target, state, body, "+reasonSQL+" FROM requests "+
-		"WHERE (target = ? OR requester = ?) AND state != 'queued' ORDER BY id DESC LIMIT ?", human, human, dealtShown)
+		"WHERE (target = ? OR requester = ?) AND state != 'queued' AND "+notBoard+" ORDER BY id DESC LIMIT ?", human, human, dealtShown)
 	if err != nil {
 		return nil, err
 	}

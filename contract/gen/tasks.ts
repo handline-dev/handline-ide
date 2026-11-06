@@ -387,7 +387,7 @@ export type PendingRequest = {
   agent?: AgentName | null;
   /** What is asked, one line: the turn's ask or the first line of the comment asking them; null when there is nothing beyond the title. Absent from a daemon that does not send it. */
   ask?: string | null;
-  /** Set on a warning row, null on every other. Absent from a daemon that does not send it. */
+  /** The daemon's warning on the row: set on a warning row, and on a task row where a stronger item (an ask, a decision, a permission) outranks a warning the task also has; null otherwise. Absent from a daemon that does not send it. */
   warning?: PendingWarning | null;
 };
 

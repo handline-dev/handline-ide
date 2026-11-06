@@ -1,7 +1,6 @@
 package housekeeping
 
 import (
-	"strconv"
 	"strings"
 	"time"
 
@@ -14,7 +13,7 @@ import (
 // LoginCheckEveryS is how often the logins are looked at: asking takes the machine's keychain, which what reads the warning must not.
 const LoginCheckEveryS = 60
 
-// LoginWatch keeps db.LoginNeedPrefix: since when each account has wanted a login or stood stalled, but one past its last day, which is over.
+// LoginWatch keeps a db.LoginNeed for each account that wants a login or stands stalled, but one past its last day, which is over.
 type LoginWatch struct {
 	Home string
 	// State is the login check; nil asks the account's vendor.
@@ -44,16 +43,20 @@ func (w *LoginWatch) Check(q db.Q, now int64) error {
 			continue
 		}
 		wanted[a] = true
-		if _, set, err := db.Meta(q, db.LoginNeedPrefix+a); err != nil {
+		need := db.LoginNeed{Since: now}
+		stall := accounts.Stalled(a)
+		if stall != nil {
+			need.Since = int64(stall.At)
+			if word := team.StallWord(stall.Error); word != team.StallWord("") {
+				need.Unusable = word
+			}
+		}
+		if v, _, err := db.Meta(q, db.LoginNeedPrefix+a); err != nil {
 			return err
-		} else if set {
-			continue
+		} else if kept, ok := db.ReadLoginNeed(v); ok {
+			need.Since = kept.Since
 		}
-		since := now
-		if s := accounts.Stalled(a); s != nil {
-			since = int64(s.At)
-		}
-		if err := db.SetMeta(q, db.LoginNeedPrefix+a, strconv.FormatInt(since, 10)); err != nil {
+		if err := db.SetLoginNeed(q, a, need); err != nil {
 			return err
 		}
 	}

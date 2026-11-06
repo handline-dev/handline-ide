@@ -126,18 +126,14 @@ func linkRequest(tx *sql.Tx, tid, rid int64) error {
 	return refreshSent(tx, tid)
 }
 
-// addSay is db.add_request for a fire-and-forget say from `from` to `to` that starts its own chain. A notice, or any say to the
-// founder, is born landed: nothing is owed on it and nothing wakes its target.
+// addSay is db.add_request for a fire-and-forget say from `from` to `to` that starts its own chain. A notice is born landed: nothing
+// is owed on it and nothing wakes its target.
 func addSay(tx *sql.Tx, from, to, body string, notice bool) (int64, error) {
 	now := time.Now().Unix()
-	landed := notice || to == human
 	state := "queued"
 	var landedAt, noticeCol any
-	if landed {
-		state, landedAt = "landed", now
-	}
 	if notice {
-		noticeCol = 1
+		state, landedAt, noticeCol = "landed", now, 1
 	}
 	res, err := tx.Exec("INSERT INTO requests(ts, requester, target, body, kind, chain_depth, "+
 		"state, edge_ok, landed_at, state_at, notice) VALUES(?,?,?,?,'say',0,?,1,?,?,?)",
