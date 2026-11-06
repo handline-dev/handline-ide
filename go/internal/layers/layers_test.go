@@ -75,7 +75,6 @@ var layer = map[string]int{
 	"taskboard/requestref":    3,
 	"scheduler/session":       3,
 	"scheduler/settings":      3,
-	"sparenotice":             3,
 	"accounts/subscriptions":  3,
 	"scheduler/sysres":        3,
 	"taskboard/taskresult":    3,

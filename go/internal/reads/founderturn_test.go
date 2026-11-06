@@ -1,13 +1,11 @@
 package reads
 
 import (
-	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
 
 	"github.com/handline/handline/go/data/db"
-	"github.com/handline/handline/go/internal/sparenotice"
 )
 
 func answerRow(t *testing.T, e *Env, source, id string) map[string]any {
@@ -219,28 +217,6 @@ func TestAWarningIsNotAMachineNeed(t *testing.T) {
 	items, count, err := e.ForYou()
 	if err != nil || count != 1 || items[0]["kind"] != "machine" || items[0]["id"] != "delivery:"+db.MsgPrefix+"abc" || items[0]["asks"] != "do" {
 		t.Fatalf("for_you holds it: %v %d %v", items, count, err)
-	}
-}
-
-// The weekly loss rides its founder task: the row is the task's, says it is a warning about the account and asks as the daemon.
-func TestTheSpareNoticeIsAWarningOnItsTask(t *testing.T) {
-	t.Parallel()
-	e := testEnv(t)
-	runAll(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(7, '23% of alpha lost', 'human', 'daemon', 1, 'daemon')",
-		"INSERT INTO task_tags(task_id, tag) VALUES(7, '"+sparenotice.NoticeTag+"')",
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(5, 1, 'daemon', 'human', 'b', 'queued', 'task', 1)",
-		"INSERT INTO task_requests(task_id, request_id) VALUES(7, 5)")
-	raw, _ := json.Marshal(map[string]any{"until": time.Now().Unix() + 99, "lost": "l", "account": "alpha"})
-	if err := db.SetMeta(e.DB, "spare_notice_until:7", string(raw)); err != nil {
-		t.Fatal(err)
-	}
-	rows := pending(t, e)["answer"].([]map[string]any)
-	if len(rows) != 1 {
-		t.Fatalf("%v", rows)
-	}
-	w, _ := rows[0]["warning"].(map[string]any)
-	if rows[0]["kind"] != "warning" || rows[0]["task"] != int64(7) || rows[0]["agent"] != nil || w["kind"] != "weekly_use" || w["account"] != "alpha" {
-		t.Fatalf("%v", rows[0])
 	}
 }
 

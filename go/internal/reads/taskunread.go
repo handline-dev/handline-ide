@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/data/db"
-	"github.com/handline/handline/go/internal/sparenotice"
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
@@ -175,16 +174,6 @@ func (e *Env) requestsPending(_ *rpc.Conn, _ map[string]any) (any, error) {
 			}
 			out = row(tid, title, ask, items, all[tid], it["since"])
 			byTask[tid] = out
-			if acct, err := sparenotice.AccountOf(e.DB, tid); err != nil {
-				return nil, err
-			} else if spare, err := queryOne(e.DB, "SELECT 1 AS n FROM task_tags WHERE task_id = ? AND tag = ?", tid, sparenotice.NoticeTag); err != nil {
-				return nil, err
-			} else if spare != nil {
-				out["kind"], agent, warning = "warning", nil, map[string]any{"kind": "weekly_use"}
-				if acct != "" {
-					warning["account"] = acct
-				}
-			}
 		} else {
 			out = row(nil, it["title"].(string), ask, []int64{}, unread{}, it["since"])
 		}
