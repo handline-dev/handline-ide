@@ -2,6 +2,7 @@ package reads
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -192,5 +193,62 @@ func TestAccountsListSaysEachAccountsVendor(t *testing.T) {
 	}
 	if vendors["main"] != "claude" || vendors["other"] != "opencode" {
 		t.Fatalf("%v", vendors)
+	}
+}
+
+func TestAccountsListSaysWhyAnAccountIsNotPickedAndNothingForACandidate(t *testing.T) {
+	t.Parallel()
+	e := testEnv(t)
+	now := time.Now().Unix()
+	status := fmt.Sprintf(`{"collected_at": %d, "windows": [{"minutes": 300, "used_percent": 10, "resets_at": %d, "observed_at": %d},
+		{"minutes": 10080, "used_percent": 10, "resets_at": %d, "observed_at": %d}]}`, now-5, now+3600, now-5, now+90000, now-5)
+	for _, a := range []string{"ended", "good", "out", "unknown", "oc", "new"} {
+		dir := filepath.Join(e.Home, "accounts", a)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if a != "new" {
+			os.WriteFile(filepath.Join(dir, "status.json"), []byte(status), 0o644)
+		}
+		if a != "out" {
+			os.WriteFile(filepath.Join(dir, ".credentials.json"), []byte("{}"), 0o600)
+		}
+	}
+	os.WriteFile(filepath.Join(e.Home, "config.yaml"), []byte("month_cycle_ended: true\nsub_end_ended: \"2020-01-01\"\n"), 0o644)
+	os.WriteFile(filepath.Join(e.Home, "accounts", "oc", "vendor"), []byte("opencode\n"), 0o644)
+	login := e.LoginState
+	e.LoginState = func(a string) (bool, bool) {
+		if a == "unknown" {
+			return false, false
+		}
+		return login(a)
+	}
+	got, err := e.accountsList(nil, map[string]any{"usage": true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	np := map[string]any{}
+	for _, a := range got.(map[string]any)["accounts"].([]any) {
+		m := a.(map[string]any)
+		np[m["name"].(string)] = m["not_picked"]
+	}
+	ended, _ := np["ended"].(map[string]any)
+	out, _ := np["out"].(map[string]any)
+	if ended["kind"] != "subscription_ended" || !strings.Contains(ended["text"].(string), "2020-01-01") ||
+		!strings.Contains(ended["text"].(string), "may be out of date") {
+		t.Errorf("ended: %v", np["ended"])
+	}
+	if out["kind"] != "login" || out["text"] != "not logged in" {
+		t.Errorf("out: %v", np["out"])
+	}
+	for _, a := range []string{"good", "unknown", "new"} {
+		if v, has := np[a]; !has || v != nil {
+			t.Errorf("%s: a candidate's not_picked is null, an unknown login and a never-run one (bootstrap) included: %v", a, np)
+		}
+	}
+	// Judged by its own vendor's pick, never refused as "not claude"; with no opencode driver in this test its reading counts, so it is
+	// a candidate.
+	if v := np["oc"]; v != nil {
+		t.Errorf("oc: %v", v)
 	}
 }

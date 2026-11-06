@@ -318,6 +318,29 @@
       "type": "string",
       "description": "Only with accounts.list `usage: true`. Why assignable is what it is."
      },
+     "not_picked": {
+      "oneOf": [
+       {
+        "type": "object",
+        "properties": {
+         "kind": {
+          "type": "string",
+          "enum": ["subscription_ended", "week_cap", "five_hour_cap", "login", "held", "other"],
+          "description": "What keeps new work off it: its subscription end day has passed, its weekly or 5-hour window is at the wall, it is not logged in (which wins over the rest), the agent cap or the launch pace hold, or something else (a stale, lost or unreadable reading)."
+         },
+         "text": {
+          "type": "string",
+          "description": "The daemon's reason in words, as `hl status` prints it. An ended account that is logged in with a fresh reading adds that its end day may be out of date."
+         }
+        },
+        "required": ["kind", "text"]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Only with accounts.list `usage: true`. Why the daemon's pick for its vendor would not choose it now; null while it is a candidate. When the pick chooses none, a start may still fall back to a refused account. assign_reason says whether one more agent may start on it; not_picked says why the pick passes it over. A client shows not_picked."
+     },
      "stalled": {
       "oneOf": [
        {
@@ -1101,7 +1124,7 @@
      "required": false,
      "schema": {
       "type": "boolean",
-      "description": "Add each account's plan, windows, ctx_pct, age_s, runway, assignable and assign_reason (what `hl account list` prints beside the windows), and pace. Default false."
+      "description": "Add each account's plan, windows, ctx_pct, age_s, runway, assignable and assign_reason (what `hl account list` prints beside the windows), pace and not_picked. Default false."
      }
     }
    ],

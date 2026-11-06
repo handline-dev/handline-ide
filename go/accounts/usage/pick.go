@@ -379,8 +379,36 @@ func (e *Env) AccountVerdict(name string, st *AccountStatus, ld *Load, ranked []
 	return allowed && Unfit(st, ld, "") == "", why
 }
 
-// Reason is one account's line in a pick: why it was refused, or where it ranks.
-type Reason struct{ Account, Why string }
+// Reason is one account's line in a pick: why it was refused, or where it ranks. Kind is what refused it, "" for a candidate.
+type Reason struct{ Account, Why, Kind string }
+
+// The kinds of Reason.Kind.
+const (
+	KindEnded       = "subscription_ended"
+	KindWeekCap     = "week_cap"
+	KindFiveHourCap = "five_hour_cap"
+	KindLogin       = "login"
+	KindHeld        = "held" // the agent cap or the launch pace hold
+	KindOther       = "other"
+)
+
+// StaleEndNote is added to an ended account's reason while it is logged in and its usage reads fresh: the subscription was likely
+// renewed and the end day not changed.
+const StaleEndNote = " - but it is logged in and its usage reads fresh, so this end day may be out of date"
+
+// outrightReason is the reason of an account refused before its room is weighed; an ended one notes an end day that may be stale.
+func (e *Env) outrightReason(n string, facts verdict.Account, read func(string) *AccountStatus) Reason {
+	why := verdict.Admit(facts).Reasons[0]
+	if facts.Removing || facts.Excluded || facts.NotFor != e.EndedWhy(n) {
+		return Reason{n, why, KindOther}
+	}
+	if in, known := e.loginState(n); known && in {
+		if !read(n).Stale() {
+			why += StaleEndNote
+		}
+	}
+	return Reason{n, why, KindEnded}
+}
 
 func pickReason(st *AccountStatus, ld *Load, lasts *float64, picked bool, agent string) string {
 	week := st.LongTrusted()
@@ -466,7 +494,7 @@ func (e *Env) Pick(q db.Q, o PickOpts) (string, []Reason, error) {
 		if err != nil { // an unreadable agent.yaml picks nowhere
 			var out []Reason
 			for _, n := range names {
-				out = append(out, Reason{n, fmt.Sprintf("agent.yaml unreadable (%v)", err)})
+				out = append(out, Reason{n, fmt.Sprintf("agent.yaml unreadable (%v)", err), KindOther})
 			}
 			return "", out, nil
 		}
@@ -494,7 +522,7 @@ func (e *Env) Pick(q db.Q, o PickOpts) (string, []Reason, error) {
 		facts := verdict.Account{Removing: paths.Removing(e.Home, n), Excluded: excluded, ExcludeWhy: why, NotFor: e.NotFor(n, picking)}
 		// Before anything about room: neither kind has any to weigh, and both would otherwise reach the bootstrap list.
 		if facts.Outright() {
-			reasons = append(reasons, Reason{n, verdict.Admit(facts).Reasons[0]})
+			reasons = append(reasons, e.outrightReason(n, facts, read))
 			continue
 		}
 		st := read(n)
@@ -514,7 +542,8 @@ func (e *Env) Pick(q db.Q, o PickOpts) (string, []Reason, error) {
 				}
 			}
 		}
-		facts.Assignable, facts.AssignWhy = st.TakesWork(active)
+		var kind string
+		facts.Assignable, facts.AssignWhy, kind = st.takesWork(active)
 		facts.NoReading = !st.Exists
 		var lasts *float64
 		if facts.Assignable {
@@ -537,11 +566,14 @@ func (e *Env) Pick(q db.Q, o PickOpts) (string, []Reason, error) {
 			usable = append(usable, cand{n, st, ld, lasts})
 		case a.NeverRun && o.Bootstrap:
 			blank = append(blank, n)
-			reasons = append(reasons, Reason{n, a.Reasons[0] + " (bootstrap candidate, used only if nothing else qualifies)"})
+			reasons = append(reasons, Reason{n, a.Reasons[0] + " (bootstrap candidate, used only if nothing else qualifies)", ""})
 		case a.NeverRun:
-			reasons = append(reasons, Reason{n, facts.AssignWhy})
+			reasons = append(reasons, Reason{n, facts.AssignWhy, KindOther})
 		default:
-			reasons = append(reasons, Reason{n, a.Reasons[0]})
+			if facts.Assignable { // refused on its room: the cap or the pace hold
+				kind = KindHeld
+			}
+			reasons = append(reasons, Reason{n, a.Reasons[0], kind})
 		}
 	}
 	if len(usable) == 0 {
@@ -608,7 +640,7 @@ func (e *Env) Pick(q db.Q, o PickOpts) (string, []Reason, error) {
 	}
 	picked := keys[0].name
 	for _, k := range keys {
-		reasons = append(reasons, Reason{k.name, pickReason(k.st, k.ld, k.lasts, k.name == picked, o.Agent)})
+		reasons = append(reasons, Reason{k.name, pickReason(k.st, k.ld, k.lasts, k.name == picked, o.Agent), ""})
 	}
 	order := map[string]int{}
 	for i, n := range names {
