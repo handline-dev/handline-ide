@@ -1,9 +1,30 @@
 // The app's bottom bar, full width: a quiet status dot, the host, keep-awake, the bell (opens Notifications), the week's Usage %; the host opens Settings > Machine.
-import { Bell, Coffee, Pause } from 'lucide-react';
+import { Bell, Check, Coffee, Pause } from 'lucide-react';
+import { useState } from 'react';
+import type { KeepAwake } from '#src/settings/data/machine.ts';
+import { Popover } from '#src/ui/Popover.tsx';
 import { usePersisted } from '#src/persist/kv.ts';
 import { openSettings } from '#src/settings/open.ts';
 import { goPage } from '#src/layout/openTab.tsx';
 import { useStatusRow, type Level } from '#src/sidebar/status.ts';
+
+const AWAKE: { mode: KeepAwake; label: string; line: string }[] = [
+  { mode: 'off', label: 'Off', line: 'The Mac sleeps as usual.' },
+  { mode: 'on', label: 'Always on', line: 'The Mac stays awake while Handline runs.' },
+  { mode: 'working', label: 'While agents work', line: 'The Mac stays awake only while an agent is working.' },
+];
+
+/** What holds now, in one line: the daemon's word, or the mode alone from a daemon that does not say. */
+const heldLine = (awake: KeepAwake, held: boolean | null): string =>
+  awake === 'off'
+    ? 'Not keeping the Mac awake.'
+    : held === null
+      ? ''
+      : held
+        ? 'Keeping the Mac awake now.'
+        : awake === 'working'
+          ? 'Not holding now: no agent is working.'
+          : 'Not holding now: this machine cannot be kept awake.';
 
 const DOT: Record<Level, string> = { ok: 'bg-muted', near: 'bg-warning', held: 'bg-danger', down: 'bg-danger' };
 
@@ -25,15 +46,7 @@ export function StatusRow() {
         <span className="truncate">{s.host}</span>
         {s.usagePct !== null && <span className="tabular-nums">Week {s.usagePct}% used</span>}
       </button>
-      <button
-        type="button"
-        aria-label={`Keep awake: ${s.awake}`}
-        aria-pressed={s.awake !== 'off'}
-        disabled={busy}
-        onClick={() => void s.cycleAwake().catch(() => {})}
-      >
-        <Coffee size={14} className={s.awake === 'off' ? '' : 'text-fg'} />
-      </button>
+      <KeepAwakeButton s={s} busy={busy} />
       <button
         type="button"
         aria-label={s.paused ? 'Resume new work' : 'Pause new work'}
@@ -53,5 +66,43 @@ export function StatusRow() {
         {s.unread > 0 && <span className="absolute -top-1 -right-1 size-1.5 rounded-full bg-accent" />}
       </button>
     </div>
+  );
+}
+
+/** The coffee: lit while the Mac is held awake now (not just set to); a click opens the three choices and what holds now. */
+function KeepAwakeButton({ s, busy }: { s: ReturnType<typeof useStatusRow>; busy: boolean }) {
+  const [open, setOpen] = useState(false);
+  const lit = s.held ?? s.awake !== 'off';
+  return (
+    <Popover
+      side="top"
+      align="end"
+      open={open}
+      onOpenChange={setOpen}
+      trigger={
+        <button type="button" aria-label={`Keep awake: ${s.awake}${lit ? ', holding now' : ''}`} disabled={busy}>
+          <Coffee size={14} className={lit ? 'text-fg' : ''} />
+        </button>
+      }
+    >
+      <div className="flex w-80 flex-col gap-1">
+        <p className="px-2 pb-1 text-xs font-medium text-muted">Keep the Mac awake</p>
+        {AWAKE.map((a) => (
+          <button
+            key={a.mode}
+            type="button"
+            onClick={() => void s.setAwake(a.mode).catch(() => {})}
+            className="flex gap-2 rounded-md px-2 py-1.5 text-left hover:bg-hover/30"
+          >
+            <Check size={14} className={`mt-0.5 shrink-0 ${s.awake === a.mode ? '' : 'invisible'}`} />
+            <span className="flex flex-col">
+              <span className="text-fg">{a.label}</span>
+              <span className="text-xs text-muted">{a.line}</span>
+            </span>
+          </button>
+        ))}
+        {heldLine(s.awake, s.held) && <p className="border-t border-border px-2 pt-2 text-xs text-muted">{heldLine(s.awake, s.held)}</p>}
+      </div>
+    </Popover>
   );
 }

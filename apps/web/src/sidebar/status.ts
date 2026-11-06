@@ -1,10 +1,9 @@
 // The sidebar's status row: the machine's level and line, the pause switch, keep-awake, the inbox count and the week's Usage %.
 import { hooks, useAccounts } from '@handline/app-data';
-import { useMachine, type KeepAwake } from '#src/settings/data/machine.ts';
+import { useMachine } from '#src/settings/data/machine.ts';
 import { useKeyed } from '#src/settings/data/keyed.ts';
 
 export type Level = 'ok' | 'near' | 'held' | 'down';
-const NEXT_AWAKE: Record<KeepAwake, KeepAwake> = { off: 'working', working: 'on', on: 'off' };
 
 /** The highest weekly use over the accounts, or null when none reports one. */
 export const weekUsagePct = (accounts: { weekly: { used_pct: number } | null }[]): number | null => {
@@ -30,7 +29,9 @@ export function useStatusRow() {
     host: mdns?.replace(/\.local$/, '') ?? '',
     usagePct: weekUsagePct(accounts.data?.accounts ?? []),
     awake: machine.awake,
-    cycleAwake: () => machine.setAwake(NEXT_AWAKE[machine.awake]),
+    /** Whether the daemon holds the machine awake now (DaemonStatus.keep_awake.held); null from a daemon that does not say. */
+    held: s?.keep_awake ? s.keep_awake.held : null,
+    setAwake: machine.setAwake,
     paused,
     /** Pausing stops new work until resumed; the switch dims while the daemon answers. */
     togglePause: () => run('pause', () => (paused ? resume.mutateAsync({}) : pause.mutateAsync({}))).then(() => {}),
