@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/textsafe"
 )
 
@@ -24,7 +25,7 @@ func seconds(v any) float64 {
 }
 
 // taskTimeline is TaskDetail.timeline, as actions.task_timeline: the task's memos, handoffs (a request that carried one is that handoff's
-// row), the other requests linked to it (not a memo's tell or the ask an @human memo opens, which repeat the memo), the edits of its brief, its marks done and the notes it was sent back with, oldest first to the
+// row), the other requests linked to it (not a memo's tell, the ask an @human memo opens, or the board's delivery of the task, which repeat another row), the edits of its brief, its marks done and the notes it was sent back with, oldest first to the
 // fraction of a second. parts cuts a text at the images it names; a memo, a handoff, an edit and a reject row carry them.
 func (e *Env) taskTimeline(tid int64, memos, reqs []row, parts func(string) []any) ([]any, error) {
 	type entry struct {
@@ -61,7 +62,8 @@ func (e *Env) taskTimeline(tid int64, memos, reqs []row, parts func(string) []an
 		}
 	}
 	for _, r := range reqs {
-		if carried[r.i("id")] || r.i("notice") == 2 || r.set("memo_id") { // a memo's tell, or the ask an @human memo opened, repeats the memo row
+		// a memo's tell, the ask an @human memo opened, or the board's delivery of the task (a founder's pass is their comment) repeats another row
+		if carried[r.i("id")] || r.i("notice") == 2 || r.set("memo_id") || r.str("requester") == db.NoticeRequester && r.str("kind") == "task" {
 			continue
 		}
 		first := ""

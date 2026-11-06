@@ -125,7 +125,11 @@ func (e *Env) untoldBehind(q db.Q, agent string, head *db.Request) []*db.Request
 // batch:<agent> in the db, so a restart neither sends early nor forgets what is still owed.
 const BatchEveryS = 60
 
-func urgent(r *db.Request) bool { return r.Requester == db.Human || r.TellsNow() }
+// urgent is a request that does not wait for the batch: the founder's, a say or a marked one, or the board's delivery of a task already
+// the agent's (the founder's comment passing a turn back, its own queued task).
+func urgent(r *db.Request) bool {
+	return r.Requester == db.Human || r.TellsNow() || r.Requester == db.NoticeRequester && r.Kind.String == "task"
+}
 
 func (e *Env) batchDue(q db.Q, agent string, rows []*db.Request, freshSession bool) bool {
 	if freshSession {
