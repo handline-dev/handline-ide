@@ -1,12 +1,51 @@
 import { useWrite } from '@handline/app-data';
 import type { PendingRequest, RequestRow } from '@handline/client';
-import { Cpu } from 'lucide-react';
+import {
+  CircleCheck,
+  CircleDashed,
+  CircleSlash,
+  HardDrive,
+  Hourglass,
+  KeyRound,
+  Lightbulb,
+  MailWarning,
+  MessageCircleQuestion,
+  MessageSquare,
+  ShieldQuestion,
+  Signpost,
+} from 'lucide-react';
 import type { ReactNode } from 'react';
 import { ago } from '#src/format/time.ts';
 import { focusIn } from '#src/layout/focus.ts';
 import { chatOf, taskOf } from '#src/layout/kinds.tsx';
 import { openProps, useOpenTab } from '#src/layout/openTab.tsx';
 import { openSettings } from '#src/settings/open.ts';
+
+const WARN: Record<NonNullable<PendingRequest['warning']>['kind'], typeof HardDrive> = {
+  disk: HardDrive,
+  login: KeyRound,
+  weekly_use: Hourglass,
+  delivery: MailWarning,
+  undelivered: MailWarning,
+};
+
+const KIND: Record<PendingRequest['kind'], typeof HardDrive> = {
+  allow: ShieldQuestion,
+  decide: Signpost,
+  ask: MessageCircleQuestion,
+  warning: MailWarning,
+  comment: MessageSquare,
+};
+
+/** What kind of thing waits on the founder, at a glance; the word in the grey line says it too. */
+function turnIcon(p: PendingRequest): ReactNode {
+  if (p.warning) {
+    const W = WARN[p.warning.kind];
+    return <W size={16} className="text-warning" />;
+  }
+  const K = p.source === 'proposal' ? Lightbulb : KIND[p.kind];
+  return <K size={16} className="text-muted" />;
+}
 
 const ASK: Record<PendingRequest['kind'], string> = {
   allow: 'Allow?',
@@ -27,17 +66,17 @@ function Line({
   meta: string;
   onOpen: (how: 'here' | 'side') => void;
   mark?: boolean;
-  icon?: ReactNode;
+  icon: ReactNode;
 }) {
   return (
     <button type="button" {...openProps(onOpen)} className="flex w-full gap-2.5 rounded-md px-2 py-1.5 text-left hover:bg-hover/30">
-      <span className={`mt-1.5 size-1.5 shrink-0 rounded-full ${mark ? 'bg-accent' : ''}`} />
+      <span className="relative mt-0.5 grid size-4 shrink-0 place-items-center">
+        {icon}
+        {mark && <span className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-accent" />}
+      </span>
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="truncate text-fg">{title}</span>
-        <span className="flex items-center gap-1 truncate text-xs text-muted">
-          {icon}
-          {meta}
-        </span>
+        <span className="truncate text-xs text-muted">{meta}</span>
       </span>
     </button>
   );
@@ -67,7 +106,7 @@ export function TurnLine({ p, onOpened }: { p: PendingRequest; onOpened?: () => 
     <Line
       mark
       title={p.title}
-      icon={daemon && <Cpu size={11} aria-hidden className="shrink-0" />}
+      icon={turnIcon(p)}
       meta={[ASK[p.kind], daemon ? 'daemon' : p.agent, p.task !== null && `T${p.task}`, p.ask, ago(p.last_at)].filter(Boolean).join(' · ')}
       onOpen={(how) => {
         open(how);
@@ -100,6 +139,17 @@ export function RequestLine({ r, onOpened }: { r: RequestRow; onOpened?: () => v
   return (
     <Line
       mark={isUnseen(r)}
+      icon={
+        r.ended?.outcome === 'discarded' ? (
+          <CircleSlash size={16} className="text-muted" />
+        ) : r.status === 'done' ? (
+          <CircleCheck size={16} className="text-success" />
+        ) : r.status === 'no_work' ? (
+          <CircleCheck size={16} className="text-muted" />
+        ) : (
+          <CircleDashed size={16} className="text-muted" />
+        )
+      }
       title={r.title}
       meta={[...meta, ago(r.ended?.at ?? r.last_activity)].filter(Boolean).join(' · ')}
       onOpen={(how) => {
