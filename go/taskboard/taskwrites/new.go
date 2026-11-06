@@ -16,6 +16,10 @@ import (
 )
 
 // unserved are the parameters the contract names and no action is behind yet.
+// newForFounder is the refusal when an agent opens a task for the founder: the task is the agent's, and the founder's decision is a turn on it.
+const newForFounder = "An agent opens no task for the founder. Open it as yours, and when only the founder can decide, " +
+	"put them on it: hl task turn T<n> human \"<the decision, and what you recommend>\"."
+
 func unserved(p map[string]any, keys ...string) error {
 	for _, k := range keys {
 		if p[k] != nil {
@@ -154,7 +158,7 @@ func newMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, e
 			return nil, badParam("no_parent and parent together: choose one", "no_parent")
 		}
 		if owner == human && c.Caller.Actor() != human {
-			return nil, refusal(askFounderInstead)
+			return nil, refusal(newForFounder)
 		}
 		tags, err := TagList(p, "tags")
 		if err != nil {

@@ -115,7 +115,7 @@ func (e *Env) agentReason(q db.Q, agent string, now int64) (string, bool) {
 // TaskReason is why the task, queued or doing, has not been given to its owner, its cause (task, wall, cap or owner), and whether the owner
 // looks able to take it. ok false when it has been (typed, or nothing is waiting to type).
 func (e *Env) taskReason(q db.Q, t *db.Task, now int64) (why, cause string, able, ok bool) {
-	tid, agent := t.ID, t.Owner
+	tid, agent := t.ID, t.Acting
 	linked := must(db.TaskRequests(q, tid))
 	var req *db.Request
 	for _, r := range linked {
@@ -187,7 +187,7 @@ func (e *Env) ownerCause(q db.Q, agent string) string {
 func taskNames(ts []*db.Task) string {
 	parts := make([]string, len(ts))
 	for i, t := range ts {
-		parts[i] = fmt.Sprintf("T%d (%s)", t.ID, t.Owner)
+		parts[i] = fmt.Sprintf("T%d (%s)", t.ID, t.Acting)
 	}
 	return strings.Join(parts, ", ")
 }
@@ -232,9 +232,9 @@ func (e *Env) SweepHolds(now int64) (err error) {
 			ableSince = *rec.AbleSince
 		}
 		if able && rec.Warned == nil && now-ableSince >= AbleWarnS {
-			if lead := must(team.LoadTeam(e.Home)).LeadOf(t.Owner); lead != "" && lead != db.Human && e.registered(lead) {
+			if lead := must(team.LoadTeam(e.Home)).LeadOf(t.Acting); lead != "" && lead != db.Human && e.registered(lead) {
 				must(e.Notice(q, lead, fmt.Sprintf("T%d has waited %d min for %s, which looks able to take it (%s). Delivery should have landed it - this is a missed delivery, not a queue.",
-					tid, (now-ableSince)/60, t.Owner, why), "queued task not landing"))
+					tid, (now-ableSince)/60, t.Acting, why), "queued task not landing"))
 			}
 			rec.Warned = &now
 			changed = true

@@ -1,0 +1,240 @@
+{
+ "fixtures": [
+  {
+   "name": "task.turn.push.and_pop_refusals",
+   "spec": "task.turn.push",
+   "about": "On a task the founder opened for one agent: a push to its owner is refused, a push of an agent already on it is refused, a fourth turn is refused, and an agent that is neither the top turn's nor the founder may not pop it. The discard at the end clears the turns.",
+   "as": "agent",
+   "with": {
+    "founder": "founder"
+   },
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {},
+     "on": "founder"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "task.new",
+      "params": {
+       "owner": "{{turn_a}}",
+       "title": "turns",
+       "time_box": "1h",
+       "request_id": "conf-turn-2"
+      }
+     },
+     "result": {
+      "accepted": true,
+      "task": {
+       "$save": "tid"
+      }
+     },
+     "on": "founder"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "task.turn.push",
+      "params": {
+       "task": "{{tid}}",
+       "to": "{{turn_a}}",
+       "request_id": "conf-turn-3"
+      }
+     },
+     "error": {
+      "code": -32002,
+      "data": {
+       "code": "refused"
+      }
+     },
+     "on": "founder"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "task.turn.push",
+      "params": {
+       "task": "{{tid}}",
+       "to": "{{turn_b}}",
+       "ask": "look",
+       "request_id": "conf-turn-4"
+      }
+     },
+     "result": {
+      "accepted": true
+     },
+     "on": "founder"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "task.turn.push",
+      "params": {
+       "task": "{{tid}}",
+       "to": "{{turn_b}}",
+       "request_id": "conf-turn-5"
+      }
+     },
+     "error": {
+      "code": -32002,
+      "data": {
+       "code": "refused"
+      }
+     },
+     "on": "founder"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "task.turn.push",
+      "params": {
+       "task": "{{tid}}",
+       "to": "{{turn_c}}",
+       "request_id": "conf-turn-6"
+      }
+     },
+     "result": {
+      "accepted": true
+     },
+     "on": "founder"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "task.turn.push",
+      "params": {
+       "task": "{{tid}}",
+       "to": "human",
+       "request_id": "conf-turn-7"
+      }
+     },
+     "result": {
+      "accepted": true
+     },
+     "on": "founder"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "task.turn.push",
+      "params": {
+       "task": "{{tid}}",
+       "to": "{{ask_agent}}",
+       "request_id": "conf-turn-8"
+      }
+     },
+     "error": {
+      "code": -32002,
+      "data": {
+       "code": "refused"
+      }
+     },
+     "on": "founder"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "method": "task.turn.pop",
+      "params": {
+       "task": "{{tid}}",
+       "outcome": "pass",
+       "request_id": "conf-turn-9"
+      }
+     },
+     "error": {
+      "code": -32002,
+      "data": {
+       "code": "refused"
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "method": "task.discard",
+      "params": {
+       "task": "{{tid}}",
+       "reason": "a conformance fixture",
+       "request_id": "conf-turn-10"
+      }
+     },
+     "result": {
+      "accepted": true
+     },
+     "on": "founder"
+    }
+   ]
+  },
+  {
+   "name": "task.turn.pop.a_send_back_says_why",
+   "spec": "task.turn.pop",
+   "about": "An agent's send_back carries why: with no note it is bad_request naming note.",
+   "as": "agent",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "task.turn.pop",
+      "params": {
+       "task": 1,
+       "outcome": "send_back",
+       "request_id": "conf-turn-s1"
+      }
+     },
+     "error": {
+      "code": -32602,
+      "data": {
+       "code": "bad_request",
+       "field": "note"
+      }
+     }
+    }
+   ]
+  }
+ ]
+}

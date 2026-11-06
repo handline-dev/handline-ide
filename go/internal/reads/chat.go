@@ -51,7 +51,7 @@ type chat struct {
 func isAgent(c *rpc.Conn) bool { return c != nil && c.Caller.Role == "agent" }
 
 func (c *chat) taskState(taskID int64) (any, error) {
-	t, err := queryOne(c.e.DB, "SELECT * FROM tasks WHERE id = ?", taskID)
+	t, err := queryOne(c.e.DB, "SELECT *, "+taskActing+" FROM tasks WHERE id = ?", taskID)
 	if err != nil || t == nil {
 		return nil, err
 	}
@@ -1161,7 +1161,7 @@ func (e *Env) transcriptItems(agent string, tools []transcript.Tool) ([]map[stri
 	kinds := ChatTaskKinds()
 	// Two halves, not one OR, so the task half is read from events_kind_task alone instead of every task event's payload.
 	evs, err := query(e.DB, "SELECT id, ts, agent, kind, payload FROM events WHERE id IN (SELECT id FROM events WHERE kind IN ("+placeholders(len(kinds))+
-		") AND "+eventTask+" IN (SELECT id FROM tasks WHERE owner = ?) UNION ALL SELECT id FROM events WHERE kind = '"+batchKind+"' AND agent = ?)"+
+		") AND "+eventTask+" IN (SELECT id FROM tasks WHERE "+db.ActingSQL("tasks")+" = ?) UNION ALL SELECT id FROM events WHERE kind = '"+batchKind+"' AND agent = ?)"+
 		" ORDER BY id DESC LIMIT ?", append(anySlice(kinds), agent, agent, perSource)...)
 	if err != nil {
 		return nil, err

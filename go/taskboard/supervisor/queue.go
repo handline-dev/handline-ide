@@ -27,8 +27,8 @@ func (e *Env) SweepTaskQueue(now int64) (err error) {
 	}
 	set := map[string]bool{}
 	for _, t := range must(db.OpenTasks(q)) {
-		if t.QueuedBy.Valid && t.QueuedBy.String != "" && t.DoneEvidence.String == "" && t.Owner != db.Human {
-			set[t.Owner] = true
+		if t.QueuedBy.Valid && t.QueuedBy.String != "" && t.DoneEvidence.String == "" && t.Acting != db.Human {
+			set[t.Acting] = true
 		}
 	}
 	owners := make([]string, 0, len(set))
@@ -91,7 +91,7 @@ func (e *Env) moveOffWaiting(q db.Q, agent string) {
 	}
 	if key := fmt.Sprintf("overdue_ping:%d", cur.ID); must(db.Cursor(q, key)) != cur.TimeoutAt.Int64 {
 		check(db.SetCursor(q, key, cur.TimeoutAt.Int64))
-		e.typeSay(q, agent, fmt.Sprintf("T%d (%s) is %s. Do it, hand it on (`hl task handoff T%d <agent> \"<note>\"`), or mark what blocks it (`hl task edit T%d --blocked-by T<n>`).",
-			cur.ID, textsafe.Oneline(cur.Title), why, cur.ID, cur.ID), "overdue task, idle holder")
+		e.typeSay(q, agent, fmt.Sprintf("T%d (%s) is %s. Do it, hand it on (`hl task handoff T%d <agent> \"<note>\"`), mark what blocks it (`hl task edit T%d --blocked-by T<n>`), "+
+			"or put the founder on it if only they can decide (`hl task turn T%d human \"<the decision, and what you recommend>\"`).", cur.ID, textsafe.Oneline(cur.Title), why, cur.ID, cur.ID, cur.ID), "overdue task, idle holder")
 	}
 }

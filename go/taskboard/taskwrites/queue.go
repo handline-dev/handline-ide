@@ -190,8 +190,14 @@ func setQueued(tx *sql.Tx, home string, tid int64, by string, queued bool, kept 
 			memo = fmt.Sprintf(", memo %d keeps where %s stopped", mid, parked)
 		}
 	}
+	stack := []string{}
+	if !queued { // a draft is nobody's turn: it goes back to its owner
+		if stack, err = clearStack(tx, tid, by, ""); err != nil {
+			return queuedSet{}, err
+		}
+	}
 	var to []string
-	for _, who := range []string{t.OpenedBy, t.Owner} {
+	for _, who := range append([]string{t.OpenedBy, t.Owner}, stack...) {
 		if who != parked { // typed the stop by the Teller instead
 			to = append(to, who)
 		}

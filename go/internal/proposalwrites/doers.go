@@ -20,6 +20,7 @@ import (
 	"github.com/handline/handline/go/kit/timefmt"
 	"github.com/handline/handline/go/kit/yamlcompat"
 	"github.com/handline/handline/go/scheduler/cronspec"
+	"github.com/handline/handline/go/taskboard/taskwrites"
 )
 
 // The appliers: what approving each kind of change does.
@@ -186,6 +187,13 @@ func (e *Env) doRetire(p step) (bool, string, error) {
 	cleared, refused := e.clear(name, plans)
 	if refused != "" {
 		return false, refused, nil
+	}
+	var tell taskwrites.Teller // its turns go back to the agents below them; with nobody to tell they just go
+	if e.Say != nil {
+		tell = e.Say
+	}
+	if _, err := taskwrites.RetireTurns(p.tx, e.Home, tell, name); err != nil {
+		return false, "", err
 	}
 	ok, said, err := e.editTeamYaml(func(t string) (string, error) { return removeText(t, name) }, "", name, nil)
 	if err != nil || !ok {

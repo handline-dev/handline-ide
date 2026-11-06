@@ -163,7 +163,7 @@ func (e *Env) addStatusLine(roster *team.Roster, name string, view map[string]an
 
 // taskWaits is the reason the tick recorded for each open task the agent owns that waits, oldest first (taskholds.agent_waits).
 func (e *Env) taskWaits(name string) ([]any, error) {
-	rows, err := query(e.DB, "SELECT t.id, m.value FROM tasks t JOIN meta m ON m.name = 'taskhold:' || t.id WHERE t.owner = ? AND "+
+	rows, err := query(e.DB, "SELECT t.id, m.value FROM tasks t JOIN meta m ON m.name = 'taskhold:' || t.id WHERE "+db.ActingSQL("t")+" = ? AND "+
 		db.OpenSQL+" ORDER BY t.id", name)
 	if err != nil {
 		return nil, err

@@ -270,7 +270,7 @@ export type CommandRun = {
 
 /** Why a request needs the founder's eye (RequestRow.attention), read from facts of its tree and stored nowhere. The thresholds are settings; it only labels the row. */
 export type RequestAttention = {
-  /** The first that holds, in this order. overdue: an open tree task is past its time box (Task.time.overdue_since). bounced: an open tree task was sent back (reopened, not restored from discarded) attention_sent_back times or more. waiting: an open tree task, held by no open blocker and no decision card, has waited on cap, wall or owner (Task.waiting.on) for attention_wait_s or more. quiet: no tree task's clock runs and nothing in the tree has moved for attention_quiet_s or more. */
+  /** The first that holds, in this order. overdue: an open tree task is past its time box (Task.time.overdue_since). bounced: an open tree task was sent back (reopened, not restored from discarded, or a turn on it sent back by task.turn.pop, not by a retiring agent) attention_sent_back times or more. waiting: an open tree task, held by no open blocker and no decision card, has waited on cap, wall or owner (Task.waiting.on) for attention_wait_s or more. quiet: no tree task's clock runs and nothing in the tree has moved for attention_quiet_s or more. */
   kind: "overdue" | "bounced" | "waiting" | "quiet";
   /** The line to show, with no elapsed time in it: `T8504 sent back 2 times`, `T8513 waiting on owner`, `no recent activity`. */
   text: string;

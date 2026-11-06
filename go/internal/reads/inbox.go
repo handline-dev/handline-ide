@@ -50,7 +50,7 @@ func (e *Env) mailboxRows() ([]mailbox, error) { return e.mailboxRowsKept(false)
 func (e *Env) mailboxRowsKept(kept bool) ([]mailbox, error) {
 	gateRows, err := query(e.DB, "SELECT id FROM requests WHERE target = ? AND state = 'queued' AND id IN "+
 		"(SELECT MIN(l.request_id) FROM task_requests l JOIN tasks t ON t.id = l.task_id "+
-		"WHERE t.owner = ? AND t.discarded_by IS NULL AND t.done_evidence IS NULL GROUP BY t.id) ORDER BY id", human, human)
+		"WHERE "+db.ActingSQL("t")+" = ? AND t.discarded_by IS NULL AND t.done_evidence IS NULL GROUP BY t.id) ORDER BY id", human, human)
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +86,7 @@ func firstLine(text string) string {
 }
 
 func (e *Env) item(id int64, ref, kind, agent, body string, at int64, read bool) (map[string]any, error) {
-	tasks, err := query(e.DB, "SELECT t.* FROM tasks t JOIN task_requests l ON l.task_id = t.id WHERE l.request_id = ? ORDER BY t.id", id)
+	tasks, err := query(e.DB, "SELECT t.*, "+taskActingT+" FROM tasks t JOIN task_requests l ON l.task_id = t.id WHERE l.request_id = ? ORDER BY t.id", id)
 	if err != nil {
 		return nil, err
 	}

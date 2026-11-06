@@ -130,8 +130,8 @@ func TestMyTurnListsTheOpenTasksAssignedToTheFounder(t *testing.T) {
 	if fmt.Sprint(ids) != "[1]" {
 		t.Fatalf("my turn: %v", ids)
 	}
-	if _, err := e.tasksList(founder, map[string]any{"my_turn": true, "owner": "amy"}); err == nil {
-		t.Fatal("my_turn takes no owner")
+	if _, err := e.tasksList(founder, map[string]any{"my_turn": true, "acting": "amy"}); err == nil {
+		t.Fatal("my_turn takes no acting")
 	}
 }
 

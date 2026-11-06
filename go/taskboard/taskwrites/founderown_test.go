@@ -2,24 +2,39 @@ package taskwrites
 
 import "testing"
 
-func TestAnAgentCannotGiveATaskToTheFounder(t *testing.T) {
+// An agent's handoff or owner edit to the founder is the founder's turn on top of the task, which stays the agent's; an agent still opens no
+// task for the founder.
+func TestAnAgentsGiveToTheFounderIsTheFoundersTurn(t *testing.T) {
 	t.Parallel()
-	db, mk := discardEnv(t)
-	exec(t, db, "INSERT INTO tasks(id, title, owner, opened_by, created_at, sent_at) VALUES(1, 'build', 'worker', 'manager', 1, 1)")
-	refused := func(r map[string]any) bool {
-		e, _ := r["error"].(map[string]any)
-		return e != nil && e["message"] == askFounderInstead
-	}
-	r := call(t, mk("worker", &fakeTeller{}),
-		`{"jsonrpc":"2.0","id":2,"method":"task.handoff","params":{"task":1,"to":"human","note":"n","request_id":"h1"}}`,
-		`{"jsonrpc":"2.0","id":3,"method":"task.new","params":{"owner":"human","title":"d","time_box":"1h","request_id":"n1"}}`,
-		`{"jsonrpc":"2.0","id":4,"method":"task.edit","params":{"task":1,"owner":"human","request_id":"e1"}}`)
-	for i := 0; i < 3; i++ {
-		if !refused(r[i]) {
-			t.Errorf("call %d: %v", i, r[i])
+	for i, give := range []string{
+		`{"jsonrpc":"2.0","id":2,"method":"task.handoff","params":{"task":1,"to":"human","note":"ship now?","request_id":"h1"}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"task.edit","params":{"task":1,"owner":"human","request_id":"e1"}}`,
+	} {
+		db, mk := discardEnv(t)
+		exec(t, db, "INSERT INTO tasks(id, title, owner, opened_by, created_at, sent_at) VALUES(1, 'build', 'worker', 'manager', 1, 1)")
+		r := call(t, mk("worker", &fakeTeller{}), give)
+		if r[0]["error"] != nil {
+			t.Fatalf("give %d: %v", i, r[0])
+		}
+		if count(t, db, "SELECT COUNT(*) FROM tasks WHERE id = 1 AND owner = 'worker'") != 1 ||
+			count(t, db, "SELECT COUNT(*) FROM task_turns WHERE task_id = 1 AND agent = 'human' AND pushed_by = 'worker'") != 1 {
+			t.Fatalf("give %d: the task stays the worker's under the founder's turn", i)
+		}
+		if i == 0 && count(t, db, "SELECT COUNT(*) FROM task_turns WHERE ask = 'ship now?'") != 1 {
+			t.Fatal("the handoff's note is the ask")
+		}
+		again := call(t, mk("worker", &fakeTeller{}), `{"jsonrpc":"2.0","id":3,"method":"task.handoff","params":{"task":1,"to":"human","request_id":"h2"}}`)
+		if e, _ := again[0]["error"].(map[string]any); e == nil {
+			t.Fatalf("give %d: the worker acts on it no longer, so it cannot give it again", i)
 		}
 	}
-	if count(t, db, "SELECT COUNT(*) FROM tasks WHERE owner = 'human'") != 0 || count(t, db, "SELECT COUNT(*) FROM tasks WHERE id = 1 AND owner = 'worker'") != 1 {
-		t.Fatal("a refused give leaves the task with its owner")
+	db, mk := discardEnv(t)
+	r := call(t, mk("worker", &fakeTeller{}),
+		`{"jsonrpc":"2.0","id":3,"method":"task.new","params":{"owner":"human","title":"d","time_box":"1h","request_id":"n1"}}`)
+	if e, _ := r[0]["error"].(map[string]any); e == nil || e["message"] != newForFounder {
+		t.Fatalf("%v", r[0])
+	}
+	if count(t, db, "SELECT COUNT(*) FROM tasks WHERE owner = 'human'") != 0 {
+		t.Fatal("no task for the founder")
 	}
 }

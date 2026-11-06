@@ -84,6 +84,17 @@
      "to": {
       "type": "string"
      },
+     "acting": {
+      "type": "string",
+      "description": "Who acts on the task now: the agent of its top turn, or human, else its owner (to). Every rule that asks who works the task now (delivery, the doing slot, the time box and whom it tells, my_turn, requests.pending, the board's holder, whom a comment tells) reads this. Absent from a daemon that does not send it."
+     },
+     "turns": {
+      "type": "array",
+      "items": {
+       "$ref": "#/components/schemas/Turn"
+      },
+      "description": "The turns above the owner, bottom first; empty for most tasks, at most 3. The top acts now (acting); an agent below it acts on nothing, so its next task starts. Absent from a daemon that does not send it."
+     },
      "title": {
       "type": "string"
      },
@@ -1564,6 +1575,61 @@
      "first_unread",
      "last_at"
     ]
+   },
+   "Turn": {
+    "type": "object",
+    "description": "One turn on a task (docs/design/turns.md): the agent who acts on the task while it is on top, or human.",
+    "properties": {
+     "agent": {
+      "type": "string",
+      "description": "Who acts while this turn is on top: an agent, or human."
+     },
+     "ask": {
+      "type": "string",
+      "description": "What it was asked to do; empty when nothing was said."
+     },
+     "by": {
+      "type": "string",
+      "description": "Who put it there: the one acting below it, or the founder."
+     },
+     "since": {
+      "$ref": "#/components/schemas/Timestamp"
+     },
+     "on_pass": {
+      "oneOf": [
+       {
+        "type": "string",
+        "enum": [
+         "done"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "done: a pass of this turn closes the task with evidence, through the usual done gates."
+     },
+     "evidence": {
+      "oneOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "The done evidence a pass closes the task with (on_pass done)."
+     }
+    },
+    "required": [
+     "agent",
+     "ask",
+     "by",
+     "since",
+     "on_pass",
+     "evidence"
+    ],
+    "additionalProperties": false
    }
   }
  },
@@ -1578,6 +1644,14 @@
      "required": false,
      "schema": {
       "type": "string"
+     }
+    },
+    {
+     "name": "acting",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "description": "Only the tasks this agent, or human, acts on now (Task.acting)."
      }
     },
     {
@@ -1706,7 +1780,7 @@
      "required": false,
      "schema": {
       "type": "boolean",
-      "description": "Only the tasks the caller holds that wait on it: queued or doing, never draft or ended; the founder's are the ones assigned to human. One row per task. It takes no owner."
+      "description": "Only the tasks the caller acts on (acting) that wait on it: queued or doing, never draft or ended; the founder's are the ones acting is human. One row per task. It takes no acting."
      }
     },
     {
@@ -2313,7 +2387,7 @@
      "$ref": "#/components/errors/refused"
     }
    ],
-   "description": "The owner may not be the caller: a task an agent takes on itself is begun from the founder's message (task.begin).",
+   "description": "The owner may not be the caller: a task an agent takes on itself is begun from the founder's message (task.begin). An agent may not open a task owned by human: the task is the agent's, and the founder's decision is a turn on it (task.turn.push human).",
    "x-gates": [
     "duplicate_title"
    ]
@@ -2371,7 +2445,147 @@
      "$ref": "#/components/errors/not_found"
     }
    ],
-   "description": "Anyone may hand an open task on, not only its owner (the asker takes a task back so). A review is a handoff: the holder hands the task to its reviewer, who hands it back with findings or on, or marks it done. task.history's row names who made the move (by). An agent's handoff to `human` is refused with `Ask the founder with @human in a memo; keep the task.` (ask with `@human` in a comment, task.comment.add): a task answers to the founder through its reporter, it is not handed to them. The founder may hand a task to `human`."
+   "description": "Anyone may hand an open task on, not only its owner (the asker takes a task back so). It moves who acts on the task: its owner, or with turns open (task.turn.push) the agent of its top turn; it is refused to an agent that is the owner below the turns or already has a turn on it. task.history's row names who made the move (by). An agent's handoff to `human` is task.turn.push to human with the note as its ask: the task stays the agent's and waits on the founder. The founder may hand a task to `human`."
+  },
+  {
+   "name": "task.turn.push",
+   "summary": "Put another agent, or the founder, on top of a task you act on.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "task",
+     "required": true,
+     "schema": {
+      "type": "integer"
+     }
+    },
+    {
+     "name": "to",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "description": "An agent, or human."
+     }
+    },
+    {
+     "name": "ask",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "description": "What `to` is asked to do, in one or a few lines; for human, the decision and what you recommend."
+     }
+    },
+    {
+     "name": "on_pass",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "enum": [
+       "done"
+      ],
+      "description": "done: a pass of this turn closes the task with evidence (a review of finished work)."
+     }
+    },
+    {
+     "name": "evidence",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "description": "The done evidence; given with on_pass done, and only with it."
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Accepted"
+    }
+   },
+   "x-role": "agent",
+   "x-write": true,
+   "x-app-write": false,
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "description": "By the agent acting on the task (Task.acting) or the founder. `to` goes on top and acts on the task now; the one below keeps its turn but acts on nothing, so its doing slot frees and its next queued task starts. An agent is delivered the task with the ask; human is not delivered to: the task waits on the founder (requests.pending, my_turn), no agent is alarmed and its time box starts again when the turn ends. Refused: `to` is the owner or already has a turn, the task carries 3 turns, or the task is ended."
+  },
+  {
+   "name": "task.turn.pop",
+   "summary": "End the top turn on a task: pass, or send it back with why.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "task",
+     "required": true,
+     "schema": {
+      "type": "integer"
+     }
+    },
+    {
+     "name": "outcome",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "enum": [
+       "pass",
+       "send_back"
+      ]
+     }
+    },
+    {
+     "name": "note",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "description": "Why, for a send_back (required from an agent); for a pass, optional."
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Accepted"
+    }
+   },
+   "x-role": "agent",
+   "x-write": true,
+   "x-app-write": false,
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "description": "By the agent of the top turn or the founder. The turn comes off and the one below acts again: an agent gets the task at the front of its queue, with the note as a comment. A pass of a turn pushed with on_pass done closes the task with its evidence through the usual done gates instead; when a gate refuses (open children), the turn still comes off and the refusal is added to the note. While human is on top, the founder's comment on the task (task.comment.add) is a pass with the comment as its note, and the founder's give back is a pass with none."
   },
   {
    "name": "task.done",
@@ -2473,7 +2687,7 @@
      "$ref": "#/components/errors/bad_request"
     }
    ],
-   "description": "Exactly one of evidence, request or reason-with-evidence; none or two is bad_request. A commit and shots are optional, for any task; when given they are kept with the task (task.get result). A done by the assignee, the owner (who the task answers to, the opener unless another is named) or the founder closes the task: nothing waits on an accept. The founder's done with evidence words on a task they own whose card still waits on them decides that card with the words, so the asker is told and what waits on the answer (a trust proposal) is applied; it says `T<n> decided`."
+   "description": "Exactly one of evidence, request or reason-with-evidence; none or two is bad_request. A commit and shots are optional, for any task; when given they are kept with the task (task.get result). A done by the assignee, the owner (who the task answers to, the opener unless another is named) or the founder closes the task: nothing waits on an accept. The founder's done with evidence words on a task they own whose card still waits on them decides that card with the words, so the asker is told and what waits on the answer (a trust proposal) is applied; it says `T<n> decided`. The agent acting on the task (Task.acting) may close it as its assignee may. A done clears its turns and tells the agents that held them."
   },
   {
    "name": "task.reopen",
@@ -2525,7 +2739,8 @@
     {
      "$ref": "#/components/errors/bad_request"
     }
-   ]
+   ],
+   "description": "A reopened task goes to its owner with no turns."
   },
   {
    "name": "task.progress",
@@ -2965,7 +3180,7 @@
   {
    "name": "task.comment.add",
    "summary": "Add a comment; anyone may. It is told only to an agent that has to act on it: the task's assignee (its holder), each agent it names as @name, and, when the founder wrote it, who the task answers to (its reporter, else its opener); with now every one of those readers, mid-turn too. It is never told to its writer, and a comment that names no one is told to the assignee only. task.comment.recipients says who will be told before posting; skip leaves some of them out. The founder is told by one inbox line per request (a task made from their message, task.request) while it stays unread, counting the agents' new comments. A reader at its prompt is told at once and a reader mid-turn at the end of its turn. comment.edit and comment.delete are told the same way. A comment by an agent that names `@human` asks the founder, as the description says. The wire still calls a comment a memo (Memo, `memo`, `memos`); task.memo.add is its old name.",
-   "description": "A comment by an agent that names `@human` asks the founder: it opens one ask to the founder, linked to the task (InboxItem kind ask, `task` and `memo` set), so the task reads waiting on the founder. The ask stays open until (1) the founder replies to it (inbox.reply), (2) the founder adds any comment to that task, (3) the founder marks it read (inbox.mark_read naming its id), (4) its comment is deleted or edited so it no longer names `@human`, or (5) the task is done or discarded. An edit that keeps `@human` keeps the one ask and updates its body; one that adds `@human` opens it.",
+   "description": "A comment by an agent that names `@human` asks the founder: it opens one ask to the founder, linked to the task (InboxItem kind ask, `task` and `memo` set), so the task reads waiting on the founder. The ask stays open until (1) the founder replies to it (inbox.reply), (2) the founder adds any comment to that task, (3) the founder marks it read (inbox.mark_read naming its id), (4) its comment is deleted or edited so it no longer names `@human`, or (5) the task is done or discarded. An edit that keeps `@human` keeps the one ask and updates its body; one that adds `@human` opens it. While human is the top turn (Task.acting), the founder's comment passes that turn, the comment its note (task.turn.pop). An @human comment by an agent asks without stopping the work: it does not free the agent's slot; to wait on the founder, task.turn.push human.",
    "paramStructure": "by-name",
    "params": [
     {
@@ -3732,7 +3947,8 @@
     {
      "$ref": "#/components/errors/bad_request"
     }
-   ]
+   ],
+   "description": "A draft clears the task's turns, telling the agents that held them: it goes back to its owner."
   },
   {
    "name": "task.merge",
@@ -3850,7 +4066,8 @@
     {
      "$ref": "#/components/errors/bad_request"
     }
-   ]
+   ],
+   "description": "With turns open (Task.turns): by the top turn's agent or the founder it is a send_back of that turn with the reason (task.turn.pop); by anyone else, the owner too, it is refused: the top turn is popped first."
   },
   {
    "name": "task.request",
@@ -4059,7 +4276,8 @@
     {
      "$ref": "#/components/errors/bad_request"
     }
-   ]
+   ],
+   "description": "The wait blocks the task whoever acts on it: the slot freed is the acting agent's (Task.acting)."
   },
   {
    "name": "task.discard",
@@ -4136,7 +4354,7 @@
      "$ref": "#/components/errors/bad_request"
     }
    ],
-   "description": "A request that already landed in its agent's session does not refuse the task's asker or the founder: the task is discarded, that request closes with it and its holder is told why; anyone else is refused."
+   "description": "A request that already landed in its agent's session does not refuse the task's asker or the founder: the task is discarded, that request closes with it and its holder is told why; anyone else is refused. A discard clears the task's turns and tells the agents that held them."
   },
   {
    "name": "task.board",
@@ -4442,7 +4660,8 @@
     {
      "$ref": "#/components/errors/not_found"
     }
-   ]
+   ],
+   "description": "A new owner (assignee) moves who acts as task.handoff does: with turns open it replaces the top turn's agent; an agent's owner `human` is task.turn.push human. blocked_by and unblock block the task whoever acts on it: the slot freed is the acting agent's (Task.acting)."
   },
   {
    "name": "task.ask",

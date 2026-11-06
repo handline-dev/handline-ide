@@ -171,7 +171,7 @@ func (e *Env) waitingOn(q db.Q, agent string) []string {
 	}
 	var who []string
 	for _, t := range must(db.OpenTasks(q)) {
-		if t.Owner == agent {
+		if t.Acting == agent {
 			who = append(who, t.OpenedBy)
 		}
 	}

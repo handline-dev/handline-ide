@@ -21,6 +21,10 @@ export type Task = {
   id: number;
   from: string;
   to: string;
+  /** Who acts on the task now: the agent of its top turn, or human, else its owner (to). Every rule that asks who works the task now (delivery, the doing slot, the time box and whom it tells, my_turn, requests.pending, the board's holder, whom a comment tells) reads this. Absent from a daemon that does not send it. */
+  acting?: string;
+  /** The turns above the owner, bottom first; empty for most tasks, at most 3. The top acts now (acting); an agent below it acts on nothing, so its next task starts. Absent from a daemon that does not send it. */
+  turns?: Turn[];
   title: string;
   /** draft, queued, doing, done or discarded. doing is its owner's current, unblocked task (one per agent). */
   state: string;
@@ -376,9 +380,26 @@ export type PendingRequest = {
   last_at: Timestamp;
 };
 
+/** One turn on a task (docs/design/turns.md): the agent who acts on the task while it is on top, or human. */
+export type Turn = {
+  /** Who acts while this turn is on top: an agent, or human. */
+  agent: string;
+  /** What it was asked to do; empty when nothing was said. */
+  ask: string;
+  /** Who put it there: the one acting below it, or the founder. */
+  by: string;
+  since: Timestamp;
+  /** done: a pass of this turn closes the task with evidence, through the usual done gates. */
+  on_pass: "done" | null;
+  /** The done evidence a pass closes the task with (on_pass done). */
+  evidence: string | null;
+};
+
 export interface TasksMethods {
   "tasks.list": { params: {
   owner?: string;
+  /** Only the tasks this agent, or human, acts on now (Task.acting). */
+  acting?: string;
   /** Who the task answers to (Task.asker). */
   reporter?: string;
   from?: string;
@@ -405,7 +426,7 @@ export interface TasksMethods {
   all?: boolean;
   /** Every team's tasks, not only the caller's and its reports'. */
   everyone?: boolean;
-  /** Only the tasks the caller holds that wait on it: queued or doing, never draft or ended; the founder's are the ones assigned to human. One row per task. It takes no owner. */
+  /** Only the tasks the caller acts on (acting) that wait on it: queued or doing, never draft or ended; the founder's are the ones acting is human. One row per task. It takes no acting. */
   my_turn?: boolean;
   /** Also count, over the last 30 days, the requests that ended with no reason and how tasks were closed (the `reason_gaps` of the result). It costs seconds on a large database: a screen that polls never asks. */
   reason_gaps?: boolean;
@@ -507,6 +528,25 @@ export interface TasksMethods {
   task: number;
   to: string;
   /** Markdown. It may name images (x-attachments, texts); they are the task's while it is open. */
+  note?: string;
+  request_id: RequestId;
+}; result: Accepted };
+  "task.turn.push": { params: {
+  task: number;
+  /** An agent, or human. */
+  to: string;
+  /** What `to` is asked to do, in one or a few lines; for human, the decision and what you recommend. */
+  ask?: string;
+  /** done: a pass of this turn closes the task with evidence (a review of finished work). */
+  on_pass?: "done";
+  /** The done evidence; given with on_pass done, and only with it. */
+  evidence?: string;
+  request_id: RequestId;
+}; result: Accepted };
+  "task.turn.pop": { params: {
+  task: number;
+  outcome: "pass" | "send_back";
+  /** Why, for a send_back (required from an agent); for a pass, optional. */
   note?: string;
   request_id: RequestId;
 }; result: Accepted };
@@ -795,6 +835,8 @@ export const TASKS_METHODS: { [K in keyof TasksMethods]: { role: Role; callers: 
   "task.shot": { role: "member", callers: null, write: false, since: 1 },
   "task.new": { role: "agent", callers: null, write: true, since: 1 },
   "task.handoff": { role: "agent", callers: null, write: true, since: 1 },
+  "task.turn.push": { role: "agent", callers: null, write: true, since: 1 },
+  "task.turn.pop": { role: "agent", callers: null, write: true, since: 1 },
   "task.done": { role: "agent", callers: null, write: true, since: 1 },
   "task.reopen": { role: "agent", callers: null, write: true, since: 1 },
   "task.progress": { role: "agent", callers: ["agent"], write: true, since: 1 },
@@ -846,9 +888,11 @@ export const TASKS_APP_CACHE: { [K in "tasks.list" | "task.get" | "task.history"
 };
 
 /** x-app-write of each write (x-app in core.json). */
-export const TASKS_APP_WRITES: { [K in "task.new" | "task.handoff" | "task.done" | "task.reopen" | "task.progress" | "task.begin" | "task.start" | "task.seen" | "task.comment.add" | "task.memo.add" | "task.comment.edit" | "task.memo.edit" | "task.comment.delete" | "task.comment.send_now" | "task.memo.delete" | "task.view.save" | "task.view.delete" | "task.queue" | "task.draft" | "task.merge" | "task.release" | "task.request" | "task.none" | "task.wait" | "task.discard" | "task.withdraw" | "task.cancel" | "task.edit" | "task.ask"]: { kind: WriteKind; label: string } | false } = {
+export const TASKS_APP_WRITES: { [K in "task.new" | "task.handoff" | "task.turn.push" | "task.turn.pop" | "task.done" | "task.reopen" | "task.progress" | "task.begin" | "task.start" | "task.seen" | "task.comment.add" | "task.memo.add" | "task.comment.edit" | "task.memo.edit" | "task.comment.delete" | "task.comment.send_now" | "task.memo.delete" | "task.view.save" | "task.view.delete" | "task.queue" | "task.draft" | "task.merge" | "task.release" | "task.request" | "task.none" | "task.wait" | "task.discard" | "task.withdraw" | "task.cancel" | "task.edit" | "task.ask"]: { kind: WriteKind; label: string } | false } = {
   "task.new": {"kind": "authored", "label": "new task"},
   "task.handoff": false,
+  "task.turn.push": false,
+  "task.turn.pop": false,
   "task.done": {"kind": "authored", "label": "done"},
   "task.reopen": {"kind": "authored", "label": "reopen"},
   "task.progress": false,

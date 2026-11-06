@@ -7,11 +7,12 @@ import (
 	"github.com/handline/handline/go/data/db"
 )
 
-// SaidStopText is the notice for an agent that wrote to the founder and stopped with tid in doing: a say is not a question the board
-// knows about, a memo with `@human` on the task is.
+// SaidStopText is the notice for an agent that wrote to the founder and stopped with tid in doing: a say is not a wait the board knows
+// about, the founder's turn on the task is.
 func SaidStopText(tid int64) string {
-	return fmt.Sprintf("You wrote to the founder and stopped with T%d in doing. If you wait for an answer, ask it in a memo "+
-		"on the task that starts with @human and keep the task (it cannot be handed to the founder). Otherwise go on.", tid)
+	return fmt.Sprintf("You wrote to the founder and stopped with T%d in doing. If you cannot go on without their decision, put them on "+
+		"the task: `hl task turn T%d human \"<the decision, and what you recommend>\"`, and your next task starts. A question that does not stop "+
+		"the work is a comment starting with @human. Otherwise go on.", tid, tid)
 }
 
 // SweepSaidAndStopped tells, once per turn and task, each agent whose last turn ended (Stop) after it wrote a say to the founder and
@@ -39,7 +40,7 @@ func (e *Env) SweepSaidAndStopped() (err error) {
 			continue
 		}
 		t := must(db.GetTask(q, h.tid))
-		if t == nil || t.Owner != h.agent || !must(db.IsDoing(q, h.tid)) {
+		if t == nil || t.Acting != h.agent || !must(db.IsDoing(q, h.tid)) {
 			continue
 		}
 		var asking bool // the task already waits on the founder in a memo: the say is part of that, nothing to hand over

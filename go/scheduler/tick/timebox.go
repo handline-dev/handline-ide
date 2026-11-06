@@ -117,7 +117,7 @@ func (b *Timebox) answerer(t *Tick, agent string, tid int64) string {
 // every stretch until it is done, extended or released. A task with no timeout_s takes the default where it becomes doing.
 func (b *Timebox) SweepTaskTimeouts(t *Tick, now int64) {
 	for _, row := range must(db.TasksToClock(t.Q)) {
-		tid, holder := row.ID, db.HolderOf(row.Owner)
+		tid, holder := row.ID, db.HolderOf(row.Acting)
 		if holder == verdict.GateHolds {
 			continue // the gate sweep closes it at its deadline
 		}
@@ -143,11 +143,12 @@ func (b *Timebox) SweepTaskTimeouts(t *Tick, now int64) {
 		box := row.TimeoutS.Int64
 		title := shortTitle(row.Title)
 		text := fmt.Sprintf("T%d (%s), held by %s, has been doing past its %s timeout.%s Do it, hand it on (`hl task handoff T%d <agent> \"<note>\"`), "+
-			"or mark what blocks it (`hl task edit T%d --blocked-by T<n>`). `hl task release T%d \"<reason>\"` takes it back.",
-			tid, title, row.Owner, timefmt.Ago(box), behindLine(t, row.Owner, tid), tid, tid, tid)
+			"mark what blocks it (`hl task edit T%d --blocked-by T<n>`), or put the founder on it if only they can decide (`hl task turn T%d human \"<the decision, and what you recommend>\"`). "+
+			"`hl task release T%d \"<reason>\"` takes it back.",
+			tid, title, row.Acting, timefmt.Ago(box), behindLine(t, row.Acting, tid), tid, tid, tid, tid)
 		// the holder can act on it, and its lead routes; the opener of a task another agent holds cannot
 		var told []string
-		for _, who := range []string{row.Owner, b.boss(row.Owner)} {
+		for _, who := range []string{row.Acting, b.boss(row.Acting)} {
 			if who != db.Human { // never the founder; it waits in the next digest
 				check(b.Ports.SendBatch(t.Q, who, text))
 				told = append(told, who)
@@ -161,7 +162,7 @@ func (b *Timebox) SweepTaskTimeouts(t *Tick, now int64) {
 			nextAt = next.TimeoutAt.Int64
 		}
 		// on the holder, whom it is about; the opener is not told
-		must(db.AddEvent(t.Q, row.Owner, "task_timeout_exceeded", db.KV{K: "task_id", V: tid}, db.KV{K: "timeout_s", V: box}, db.KV{K: "notified", V: told},
+		must(db.AddEvent(t.Q, row.Acting, "task_timeout_exceeded", db.KV{K: "task_id", V: tid}, db.KV{K: "timeout_s", V: box}, db.KV{K: "notified", V: told},
 			db.KV{K: "text", V: text}, db.KV{K: "deadline", V: row.TimeoutAt.Int64}, db.KV{K: "next", V: nextAt}))
 		t.logf("  T%d: doing, past its %s timeout - %s told", tid, timefmt.Ago(box), strings.Join(told, ", "))
 	}
@@ -188,7 +189,7 @@ func (b *Timebox) SweepQueuedBlockers(t *Tick, now int64) {
 			check(db.ClearCursor(t.Q, lead))
 			continue
 		}
-		if db.HolderOf(row.Owner) != verdict.AgentHolds || must(db.TaskState(t.Q, row)) != "queued" || must(db.TaskWaits(t.Q, tid)) {
+		if db.HolderOf(row.Acting) != verdict.AgentHolds || must(db.TaskState(t.Q, row)) != "queued" || must(db.TaskWaits(t.Q, tid)) {
 			continue
 		}
 		since := waiters[0].Since
@@ -199,17 +200,17 @@ func (b *Timebox) SweepQueuedBlockers(t *Tick, now int64) {
 		since = max(since, reopened)
 		text := fmt.Sprintf("T%d (%s), held by %s, is queued, and %s %s waited on it for %s. Start it, close it if its work is done "+
 			"(`hl task done T%d \"<evidence>\"`), or hand it on (`hl task handoff T%d <agent> \"<note>\"`).",
-			tid, shortTitle(row.Title), row.Owner, waitNames(waiters), waitVerb(waiters, "has", "have"), timefmt.Ago(now-since), tid, tid)
+			tid, shortTitle(row.Title), row.Acting, waitNames(waiters), waitVerb(waiters, "has", "have"), timefmt.Ago(now-since), tid, tid)
 		for _, level := range []struct {
 			key, who string
 			afterS   int64
-		}{{held, row.Owner, holderS}, {lead, b.boss(row.Owner), leadS}} {
+		}{{held, row.Acting, holderS}, {lead, b.boss(row.Acting), leadS}} {
 			if told := must(db.Cursor(t.Q, level.key)); now-since < level.afterS || level.who == db.Human || told != 0 && told >= reopened {
 				continue
 			}
 			check(b.Ports.SendBatch(t.Q, level.who, text))
 			check(db.SetCursor(t.Q, level.key, now))
-			must(db.AddEvent(t.Q, row.Owner, "queued_blocker_alarm", db.KV{K: "task_id", V: tid}, db.KV{K: "told", V: level.who},
+			must(db.AddEvent(t.Q, row.Acting, "queued_blocker_alarm", db.KV{K: "task_id", V: tid}, db.KV{K: "told", V: level.who},
 				db.KV{K: "since", V: since}, db.KV{K: "text", V: text}))
 			t.logf("  T%d: queued, waited on by %s for %s - %s told", tid, waitNames(waiters), timefmt.Ago(now-since), level.who)
 		}
@@ -471,9 +472,10 @@ func (b *Timebox) SweepForgottenResolveCapped(t *Tick, now int64) {
 }
 
 // SweepHeldTaskAfterClose: an agent whose session closed while it held a doing task that waits on nothing has no new delivery to wake it, so
-// nothing would ever tell it to act. It is woken once per task with a say that asks it to do the task, hand it on or mark what blocks it, and
-// carries the notices waiting for it. If the session the ask woke closes with nothing done on the task (no memo, no turn or command of its own
-// beyond the ask's), the task goes to whom it answers to, so the tasks queued behind it move. An agent that did work is asked anew at a later close.
+// nothing would ever tell it to act. It is woken once per task with a say that asks it to do the task, hand it on, mark what blocks it or put
+// the founder on it, and carries the notices waiting for it. If the session the ask woke closes with nothing done on the task (no memo, no
+// turn or command of its own beyond the ask's), the task goes to whom it answers to, so the tasks queued behind it move. An agent that did
+// work is asked anew at a later close.
 func (b *Timebox) SweepHeldTaskAfterClose(t *Tick, now int64) {
 	for _, agent := range t.Host.Agents() {
 		row := must(db.GetAgentState(t.Q, agent))
@@ -482,7 +484,7 @@ func (b *Timebox) SweepHeldTaskAfterClose(t *Tick, now int64) {
 		}
 		tid, has := must2(db.CurrentTask(t.Q, agent))
 		task := must(db.GetTask(t.Q, tid))
-		if !has || task == nil || task.Owner != agent || !b.Ports.TaskDoing(t.Q, task) || must(db.TaskWaits(t.Q, tid)) {
+		if !has || task == nil || task.Acting != agent || !b.Ports.TaskDoing(t.Q, task) || must(db.TaskWaits(t.Q, tid)) {
 			continue
 		}
 		key := fmt.Sprintf("held_asked:%d", tid)
@@ -494,7 +496,8 @@ func (b *Timebox) SweepHeldTaskAfterClose(t *Tick, now int64) {
 		}
 		if asked == 0 {
 			text := fmt.Sprintf("You hold T%d (%s) and your session was closed.%s Do it, hand it on (`hl task handoff T%d <agent> \"<note>\"`), "+
-				"or mark what blocks it (`hl task edit T%d --blocked-by T<n>`).", tid, shortTitle(task.Title), behindLine(t, agent, tid), tid, tid)
+				"mark what blocks it (`hl task edit T%d --blocked-by T<n>`), or put the founder on it if only they can decide (`hl task turn T%d human \"<the decision, and what you recommend>\"`).",
+				tid, shortTitle(task.Title), behindLine(t, agent, tid), tid, tid, tid)
 			check(b.Ports.SayNow(t.Q, agent, text))
 			check(db.SetCursor(t.Q, key, now))
 			t.logf("  %s: closed holding doing T%d - asked to act on it", agent, tid)

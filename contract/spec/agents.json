@@ -1688,7 +1688,8 @@
     "state",
     "dirty",
     "worktree"
-   ]
+   ],
+   "description": "Its turns on open tasks come off: the top one is sent back to the agent below it with the note `retired` (not counted as bounced), and one lower down just goes."
   },
   {
    "name": "agent.create",

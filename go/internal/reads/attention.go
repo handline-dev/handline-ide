@@ -51,9 +51,10 @@ func (e *Env) attentionFacts(clock int64) (*attention, error) {
 		on, since := holdCause(decodeObject(h.str("value")))
 		a.holds[tid] = waitHold{on: on, since: since}
 	}
-	// A reopen of a discarded task is a restore, not a send-back.
-	reopens, err := query(e.DB, "SELECT "+eventTask+" AS task, COUNT(*) AS n FROM events WHERE kind = 'reopen_task' "+
-		"AND COALESCE(CASE WHEN json_valid(payload) THEN json_extract(payload, '$.was') END, '') != 'discarded' GROUP BY task")
+	// A send-back is a reopen (but a reopen of a discarded task is a restore) or a turn sent back (but not by a retiring agent).
+	reopens, err := query(e.DB, "SELECT "+eventTask+" AS task, COUNT(*) AS n FROM events WHERE (kind = 'reopen_task' "+
+		"AND COALESCE(CASE WHEN json_valid(payload) THEN json_extract(payload, '$.was') END, '') != 'discarded') OR (kind = 'task_turn_pop' "+
+		"AND json_valid(payload) AND json_extract(payload, '$.outcome') = 'send_back' AND json_extract(payload, '$.note') != 'retired') GROUP BY task")
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +92,7 @@ func (a *attention) of(root int64, tree []requestNode, last int64, cards map[int
 		if err != nil {
 			return nil, err
 		}
-		if verdict.Overdue("doing", db.HolderOf(n.owner), waits, n.due, a.clock) {
+		if verdict.Overdue("doing", db.HolderOf(n.acting), waits, n.due, a.clock) {
 			return say(attnOverdue, n.id, fmt.Sprintf("T%d past its time box", n.id)), nil
 		}
 	}
