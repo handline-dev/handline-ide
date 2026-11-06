@@ -92,7 +92,7 @@ The person's view preferences: the agent list's pins, filter, layout and folds.
 
 ### `prefs.set`
 
-Change the person's view preferences: each key given in changes.nav replaces the stored one, but `later` merges by item. A pin, a fold or an order entry naming an agent the daemon does not know, or a name given twice, is bad_request naming the field. Once stored, a prefs.changed event on the prefs topic carries the whole Prefs. agent.retire drops the agent from pins, collapsed and order (and sends prefs.changed); a rename (proposals) carries it over in place.
+Change the person's view preferences: each key given in changes.nav replaces the stored one, but `later` merges by item. A pin or an order entry naming an agent the daemon does not know, or a name given twice, is bad_request naming the field. Once stored, a prefs.changed event on the prefs topic carries the whole Prefs. agent.retire drops the agent from pins and order (and sends prefs.changed); a rename (proposals) carries it over in place.
 
 ### `hook.record`
 

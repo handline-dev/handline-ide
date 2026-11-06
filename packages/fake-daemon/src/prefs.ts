@@ -11,7 +11,7 @@ export interface PrefsHost {
 }
 
 export class FakePrefs {
-  private nav: NavPrefs = { pins: [], unread_only: false, hidden: [], layout: 'tree', collapsed: [], order: [], later: {} };
+  private nav: NavPrefs = { pins: [], unread_only: false, hidden: [], layout: 'tree', order: [], later: {} };
   private host: PrefsHost;
 
   constructor(host: PrefsHost) {
@@ -31,9 +31,9 @@ export class FakePrefs {
   /** A retired agent leaves the pins, the folds and the order. */
   forget(agent: string): void {
     const drop = (names: string[]) => names.filter((n) => n !== agent);
-    const { pins, collapsed, order } = this.nav;
-    if (![pins, collapsed, order].some((names) => names.includes(agent))) return;
-    this.store({ pins: drop(pins), collapsed: drop(collapsed), order: drop(order) });
+    const { pins, order } = this.nav;
+    if (![pins, order].some((names) => names.includes(agent))) return;
+    this.store({ pins: drop(pins), order: drop(order) });
   }
 
   /** Every key is checked as the contract types it; a pin, a fold or an order entry must name a known agent, once. */
@@ -45,7 +45,7 @@ export class FakePrefs {
       throw invalidParams('unread_only is a boolean', 'changes.nav.unread_only');
     if (nav.layout !== undefined && !LAYOUTS.includes(nav.layout)) throw invalidParams(`no layout ${nav.layout}`, 'changes.nav.layout');
     if (nav.hidden?.some((g) => !GROUPS.includes(g))) throw invalidParams('hidden names an unknown group', 'changes.nav.hidden');
-    for (const field of ['pins', 'collapsed', 'order'] as const) {
+    for (const field of ['pins', 'order'] as const) {
       const names = nav[field] ?? [];
       if (!Array.isArray(names)) throw invalidParams(`${field} is a list of agent names`, `changes.nav.${field}`);
       if (new Set(names).size !== names.length) throw invalidParams(`${field} names an agent twice`, `changes.nav.${field}`);

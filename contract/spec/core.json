@@ -3167,13 +3167,6 @@
       ],
       "description": "tree: team, lead, members by parent. flat: urgency first, then by name."
      },
-     "collapsed": {
-      "type": "array",
-      "items": {
-       "$ref": "#/components/schemas/AgentName"
-      },
-      "description": "Agents folded in the tree."
-     },
      "order": {
       "type": "array",
       "items": {
@@ -3201,7 +3194,6 @@
      "unread_only",
      "hidden",
      "layout",
-     "collapsed",
      "order"
     ],
     "additionalProperties": false
@@ -3243,13 +3235,6 @@
       ],
       "description": "tree: team, lead, members by parent. flat: urgency first, then by name."
      },
-     "collapsed": {
-      "type": "array",
-      "items": {
-       "$ref": "#/components/schemas/AgentName"
-      },
-      "description": "Agents folded in the tree."
-     },
      "order": {
       "type": "array",
       "items": {
@@ -3276,7 +3261,7 @@
    },
    "Prefs": {
     "type": "object",
-    "description": "The person's view preferences, one set for the founder's devices, kept by the daemon. A new daemon serves the defaults: no pins, unread_only false, hidden empty, layout tree, collapsed empty, order empty.",
+    "description": "The person's view preferences, one set for the founder's devices, kept by the daemon. A new daemon serves the defaults: no pins, unread_only false, hidden empty, layout tree, order empty.",
     "properties": {
      "nav": {
       "$ref": "#/components/schemas/NavPrefs"
@@ -4957,7 +4942,7 @@
      "$ref": "#/components/errors/refused"
     }
    ],
-   "description": "A pin, a fold or an order entry naming an agent the daemon does not know, or a name given twice, is bad_request naming the field. Once stored, a prefs.changed event on the prefs topic carries the whole Prefs. agent.retire drops the agent from pins, collapsed and order (and sends prefs.changed); a rename (proposals) carries it over in place."
+   "description": "A pin or an order entry naming an agent the daemon does not know, or a name given twice, is bad_request naming the field. Once stored, a prefs.changed event on the prefs topic carries the whole Prefs. agent.retire drops the agent from pins and order (and sends prefs.changed); a rename (proposals) carries it over in place."
   },
   {
    "name": "hook.record",

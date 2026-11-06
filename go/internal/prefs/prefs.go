@@ -20,7 +20,6 @@ type Nav struct {
 	UnreadOnly bool     `json:"unread_only"`
 	Hidden     []string `json:"hidden"`
 	Layout     string   `json:"layout"`
-	Collapsed  []string `json:"collapsed"`
 	Order      []string `json:"order"`
 	// Later is the For you items put off, by "kind:id".
 	Later map[string]Later `json:"later,omitempty"`
@@ -41,7 +40,7 @@ var (
 )
 
 func defaults() Nav {
-	return Nav{Pins: []string{}, Hidden: []string{}, Layout: "tree", Collapsed: []string{}, Order: []string{}}
+	return Nav{Pins: []string{}, Hidden: []string{}, Layout: "tree", Order: []string{}}
 }
 
 type querier interface {
@@ -57,6 +56,7 @@ func Of(q querier, person string) (map[string]any, error) {
 	return map[string]any{"nav": nav}, nil
 }
 
+// navOf ignores a stored key Nav no longer has (collapsed); the next save drops it.
 func navOf(q querier, person string) (Nav, error) {
 	n := defaults()
 	var raw string
@@ -116,7 +116,7 @@ func apply(n *Nav, changes map[string]any, agents []string, open func(int64) boo
 	for k, v := range changes {
 		field := "changes.nav." + k
 		switch k {
-		case "pins", "collapsed", "order":
+		case "pins", "order":
 			names, ok := uniqueNames(v)
 			if !ok {
 				return bad(field+" is a list of agent names, none twice", field)
@@ -126,12 +126,9 @@ func apply(n *Nav, changes map[string]any, agents []string, open func(int64) boo
 					return bad(field+" names "+name+", which is no agent", field)
 				}
 			}
-			switch k {
-			case "pins":
+			if k == "pins" {
 				n.Pins = names
-			case "collapsed":
-				n.Collapsed = names
-			default:
+			} else {
 				n.Order = names
 			}
 		case "hidden":
@@ -257,14 +254,14 @@ func uniqueNames(v any) ([]string, bool) {
 	return out, true
 }
 
-// Forget drops agent from every person's pins, folds and order.
+// Forget drops agent from every person's pins and order.
 func Forget(tx *sql.Tx, agent string) error {
 	return each(tx, func(names []string) []string {
 		return slices.DeleteFunc(names, func(s string) bool { return s == agent })
 	})
 }
 
-// Rename makes old new in every person's pins, folds and order, in place.
+// Rename makes old new in every person's pins and order, in place.
 func Rename(tx *sql.Tx, old, new string) error {
 	return each(tx, func(names []string) []string {
 		for i, s := range names {
@@ -276,7 +273,7 @@ func Rename(tx *sql.Tx, old, new string) error {
 	})
 }
 
-// each rewrites the pins, folds and order of every person, storing only what changed.
+// each rewrites the pins and order of every person, storing only what changed.
 func each(tx *sql.Tx, edit func([]string) []string) error {
 	rows, err := tx.Query("SELECT person FROM prefs")
 	if err != nil {
@@ -300,9 +297,9 @@ func each(tx *sql.Tx, edit func([]string) []string) error {
 		if err != nil {
 			return err
 		}
-		pins, folds, order := slices.Clone(n.Pins), slices.Clone(n.Collapsed), slices.Clone(n.Order)
-		n.Pins, n.Collapsed, n.Order = edit(n.Pins), edit(n.Collapsed), edit(n.Order)
-		if slices.Equal(pins, n.Pins) && slices.Equal(folds, n.Collapsed) && slices.Equal(order, n.Order) {
+		pins, order := slices.Clone(n.Pins), slices.Clone(n.Order)
+		n.Pins, n.Order = edit(n.Pins), edit(n.Order)
+		if slices.Equal(pins, n.Pins) && slices.Equal(order, n.Order) {
 			continue
 		}
 		if err := save(tx, p, n); err != nil {

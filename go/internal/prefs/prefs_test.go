@@ -58,7 +58,7 @@ func TestABadChangeIsRefusedNamingItsFieldAndKeepsNothing(t *testing.T) {
 	}{
 		{map[string]any{"pins": []any{"ghost"}}, "changes.nav.pins"},
 		{map[string]any{"pins": []any{"a", "a"}}, "changes.nav.pins"},
-		{map[string]any{"collapsed": []any{"ghost"}}, "changes.nav.collapsed"},
+		{map[string]any{"collapsed": []any{"a"}}, "changes.nav.collapsed"}, // a key NavPrefs no longer has
 		{map[string]any{"order": []any{"ghost"}}, "changes.nav.order"},
 		{map[string]any{"order": []any{"a", "a"}}, "changes.nav.order"},
 		{map[string]any{"order": "a"}, "changes.nav.order"},
@@ -77,10 +77,10 @@ func TestABadChangeIsRefusedNamingItsFieldAndKeepsNothing(t *testing.T) {
 	}
 }
 
-func TestARetiredAgentLeavesPinsFoldsAndOrderAndARenamedOneKeepsItsPlace(t *testing.T) {
+func TestARetiredAgentLeavesPinsAndOrderAndARenamedOneKeepsItsPlace(t *testing.T) {
 	d := storetest.Open(t)
 	agents := []string{"a", "b", "c"}
-	if err := set(t, d, "human", map[string]any{"pins": []any{"a", "b", "c"}, "collapsed": []any{"b"}, "order": []any{"c", "b", "a"}}, agents); err != nil {
+	if err := set(t, d, "human", map[string]any{"pins": []any{"a", "b", "c"}, "order": []any{"c", "b", "a"}}, agents); err != nil {
 		t.Fatal(err)
 	}
 	if err := set(t, d, "other", map[string]any{"order": []any{"b", "a", "c"}}, agents); err != nil { // the order alone names them
@@ -95,7 +95,7 @@ func TestARetiredAgentLeavesPinsFoldsAndOrderAndARenamedOneKeepsItsPlace(t *test
 	}
 	tx.Commit()
 	n, _ := navOf(d, "human")
-	if !slices.Equal(n.Pins, []string{"z", "c"}) || len(n.Collapsed) != 0 || !slices.Equal(n.Order, []string{"c", "z"}) {
+	if !slices.Equal(n.Pins, []string{"z", "c"}) || !slices.Equal(n.Order, []string{"c", "z"}) {
 		t.Fatalf("%+v", n)
 	}
 	if n, _ := navOf(d, "other"); !slices.Equal(n.Order, []string{"z", "c"}) {
@@ -184,5 +184,22 @@ func TestASetDropsTheDeferralsThatAreOver(t *testing.T) {
 	got, _ := LaterOf(d, "human")
 	if len(got) != 2 || got["comment:2"].Until != soon || got["machine:disk"].AfterTask != 4 {
 		t.Fatalf("only a future time and an open task stay: %+v", got)
+	}
+}
+
+func TestAStoredFoldListFromBeforeItWasDroppedLoadsAndGoesAtTheNextSave(t *testing.T) {
+	d := storetest.Open(t)
+	if _, err := d.Exec(`INSERT INTO prefs(person, nav, updated_at) VALUES('human', '{"pins":["a"],"layout":"flat","collapsed":["a"],"order":[]}', 1)`); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := navOf(d, "human"); err != nil || !slices.Equal(n.Pins, []string{"a"}) || n.Layout != "flat" {
+		t.Fatalf("%+v %v", n, err)
+	}
+	if err := set(t, d, "human", map[string]any{"unread_only": true}, []string{"a"}); err != nil {
+		t.Fatal(err)
+	}
+	var raw string
+	if err := d.QueryRow("SELECT nav FROM prefs WHERE person = 'human'").Scan(&raw); err != nil || strings.Contains(raw, "collapsed") {
+		t.Fatalf("%s %v", raw, err)
 	}
 }

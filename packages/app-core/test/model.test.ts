@@ -17,7 +17,6 @@ import {
   foldedTally,
   stuckUnder,
   workingUnder,
-  visibleRows,
   queueOf,
   queuedBehind,
   waitingTasks,
@@ -105,26 +104,6 @@ test('a child whose parent is filtered out still shows', () => {
     railRows([agent('b'), agent('kid', { parent: 'b', role: 'x' })], { search: 'kid' }).map((r) => r.agent.name),
     ['kid'],
   );
-});
-
-test('a collapsed parent hides its descendants', () => {
-  const list = [agent('a'), agent('a.k', { parent: 'a' }), agent('a.k.g', { parent: 'a.k' }), agent('b'), agent('b.k', { parent: 'b' })];
-  const rows = railRows(list);
-  assert.deepEqual(
-    rows.map((r) => [r.agent.name, r.depth, r.kids]),
-    [
-      ['a', 0, 1],
-      ['a.k', 1, 1],
-      ['a.k.g', 2, 0],
-      ['b', 0, 1],
-      ['b.k', 1, 0],
-    ],
-  );
-  const names = (c: string[]) => visibleRows(rows, new Set(c)).map((r) => r.agent.name);
-  assert.deepEqual(names([]), ['a', 'a.k', 'a.k.g', 'b', 'b.k']);
-  assert.deepEqual(names(['a']), ['a', 'b', 'b.k']);
-  assert.deepEqual(names(['a.k']), ['a', 'a.k', 'b', 'b.k']);
-  assert.deepEqual(names(['a', 'b']), ['a', 'b']);
 });
 
 test('the filter choices cover each rail dot once', () => {

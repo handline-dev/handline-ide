@@ -636,8 +636,6 @@ export type NavPrefs = {
   hidden: ("needs" | "working" | "waking" | "idle" | "sleeping")[];
   /** tree: team, lead, members by parent. flat: urgency first, then by name. */
   layout: "tree" | "flat";
-  /** Agents folded in the tree. */
-  collapsed: AgentName[];
   /** The person's order for the tree layout: agents under one parent, and the top-level agents, stand in this order; one not listed (a new agent) comes after the listed ones, by name. The flat layout ignores it. No name twice. */
   order: AgentName[];
   /** For you items the founder put off, by `kind:id` (ForYouItem.kind and id, such as `task:42`). prefs.set merges this key entry by entry: an entry sets or replaces one item, null clears it; the other entries stay, so two devices deferring different items lose nothing. An entry whose time passed or whose task ended is dead and the daemon drops it at the next prefs.set that changes later. Absent entries mean not deferred. */
@@ -654,15 +652,13 @@ export type NavPrefsChanges = {
   hidden?: ("needs" | "working" | "waking" | "idle" | "sleeping")[];
   /** tree: team, lead, members by parent. flat: urgency first, then by name. */
   layout?: "tree" | "flat";
-  /** Agents folded in the tree. */
-  collapsed?: AgentName[];
   /** The person's order for the tree layout: agents under one parent, and the top-level agents, stand in this order; one not listed (a new agent) comes after the listed ones, by name. The flat layout ignores it. No name twice. */
   order?: AgentName[];
   /** Entries to set or clear in NavPrefs.later: an entry sets or replaces one item's deferral, null clears it; the other items stay. A key is `kind:id` of a For you item (kind task, comment or machine: a prompt or a proposal cannot be put off); an entry has exactly one of until and after_task. */
   later?: { [key: string]: Later | null };
 };
 
-/** The person's view preferences, one set for the founder's devices, kept by the daemon. A new daemon serves the defaults: no pins, unread_only false, hidden empty, layout tree, collapsed empty, order empty. */
+/** The person's view preferences, one set for the founder's devices, kept by the daemon. A new daemon serves the defaults: no pins, unread_only false, hidden empty, layout tree, order empty. */
 export type Prefs = {
   nav: NavPrefs;
 };

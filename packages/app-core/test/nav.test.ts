@@ -32,15 +32,13 @@ test('missing prefs read as the defaults', () => {
   assert.deepEqual(navOf({ nav: { ...DEFAULT_NAV, layout: 'flat' } }).layout, 'flat');
 });
 
-test('the list keeps the pinned agents on top, and folds the tree', () => {
+test('the list keeps the pinned agents on top', () => {
   const pins = ['orca', 'gone', 'handline.pc'];
   const l = navList(team, { ...DEFAULT_NAV, pins });
   assert.deepEqual(
     l.pinned.map((a) => a.name),
     ['orca', 'handline.pc'],
   );
-  const folded = navList(team, { ...DEFAULT_NAV, collapsed: ['handline'] });
-  assert.deepEqual(names(folded.rows), ['handline', 'orca']);
 });
 
 test('a filter or a search lists each match once: no Pinned section, a pinned match stays in its team', () => {
@@ -64,7 +62,7 @@ test('a filter or a search lists each match once: no Pinned section, a pinned ma
 });
 
 test('flat lists every shown agent at the top level by urgency', () => {
-  const l = navList(team, { ...DEFAULT_NAV, layout: 'flat', collapsed: ['handline'] });
+  const l = navList(team, { ...DEFAULT_NAV, layout: 'flat' });
   assert.deepEqual(names(l.rows), ['handline.daemon', 'handline.pc', 'handline', 'orca', 'handline.daemon.auditor']);
 });
 
