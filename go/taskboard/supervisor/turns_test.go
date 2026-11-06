@@ -77,10 +77,21 @@ func TestTheFoundersTurnFreesTheAgentsSlotAndTheirCommentGivesItBack(t *testing.
 	if turns, _ := db.Turns(r.DB, held); len(turns) != 0 {
 		t.Fatalf("%+v", turns)
 	}
-	var back string
-	r.must(r.DB.QueryRow("SELECT body FROM requests r JOIN task_requests l ON l.request_id = r.id WHERE l.task_id = ? AND r.target = 'bob' ORDER BY r.id DESC LIMIT 1", held).Scan(&back))
+	var back, from string
+	r.must(r.DB.QueryRow("SELECT body, requester FROM requests r JOIN task_requests l ON l.request_id = r.id WHERE l.task_id = ? AND r.target = 'bob' ORDER BY r.id DESC LIMIT 1", held).Scan(&back, &from))
 	if !strings.Contains(back, "your turn again") || !strings.Contains(back, "now") {
 		t.Fatalf("%q", back)
+	}
+	// the delivery is the board's, so the founder's chat does not show it as a request of theirs
+	if from != db.NoticeRequester {
+		t.Fatalf("the pass is delivered from %q", from)
+	}
+	var rid int64
+	r.must(r.DB.QueryRow("SELECT MAX(r.id) FROM requests r JOIN task_requests l ON l.request_id = r.id WHERE l.task_id = ? AND r.target = 'bob'", held).Scan(&rid))
+	req, err := db.GetRequest(r.DB, rid)
+	r.must(err)
+	if passes, err := db.PassesPause(r.DB, req); err != nil || !passes {
+		t.Fatalf("the founder's pass is held by a pause: %v %v", passes, err)
 	}
 }
 
