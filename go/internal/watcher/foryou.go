@@ -37,7 +37,7 @@ func ForYouSignature(q *sql.DB) string {
 func (*ForYou) Name() string { return "for_you" }
 
 func (*ForYou) Tables() []string {
-	return []string{"agent_state", "cursors", "events", "prefs", "prompt_blocks", "requests", "task_blocks", "task_requests", "task_tags", "task_turns", "tasks"}
+	return []string{"agent_state", "cursors", "events", "meta", "prefs", "prompt_blocks", "requests", "task_blocks", "task_requests", "task_tags", "task_turns", "tasks"} // meta: the pause moves a task between doing and queued
 }
 
 func (w *ForYou) Scan(_ *sql.DB, emit Emit) error {

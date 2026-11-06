@@ -311,3 +311,26 @@ func TestThePauseHoldsAnAgentsMessageToAnAgentAtItsPromptButNotAPersonsOrOneMidT
 		t.Fatal("the held message was not told after the pause")
 	}
 }
+
+func TestThePauseHoldsATaskMidTurnTooButNotOneTheFounderSent(t *testing.T) {
+	r := newRig(t)
+	r.agentUp("bob")
+	r.must(db.SetAgentState(r.DB, "bob", states.Running, 0, ""))
+	paused := "Waiting: new work is paused."
+	r.Paused = func() string { return paused }
+	r.task("bob", "alice", "job")
+	if sent, _ := r.DeliverQueued(r.DB, "bob"); sent || len(r.term.typed) != 0 {
+		t.Fatalf("a task reached an agent mid-turn while paused: %v", r.term.typed)
+	}
+	paused = ""
+	if sent, _ := r.DeliverQueued(r.DB, "bob"); !sent {
+		t.Fatal("the held task was not told after the pause")
+	}
+	r2 := newRig(t)
+	r2.agentUp("bob")
+	r2.Paused = func() string { return "Waiting: new work is paused." }
+	r2.task("bob", db.Human, "the founder's own")
+	if sent, _ := r2.DeliverQueued(r2.DB, "bob"); !sent {
+		t.Fatal("a task the founder sent was held by the pause")
+	}
+}

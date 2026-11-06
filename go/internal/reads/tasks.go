@@ -54,6 +54,7 @@ type board struct {
 	sent     map[int64]bool
 	blocked  map[int64]bool
 	current  map[string]int64
+	paused   bool       // the founder's pause of new work is in force
 	team     *team.Team // read on first use, once per board
 	teamRead bool
 }
@@ -72,6 +73,11 @@ func (b *board) leadOf(home, agent string) string { return b.teamOf(home).LeadOf
 
 func (e *Env) loadBoard() (*board, error) {
 	b := &board{begun: map[int64]bool{}, sent: map[int64]bool{}, blocked: map[int64]bool{}, current: map[string]int64{}}
+	if p, err := db.GetPause(e.DB, time.Now()); err != nil {
+		return nil, err
+	} else {
+		b.paused = p != nil
+	}
 	begunTask := "CASE WHEN json_valid(e.payload) THEN json_extract(e.payload, '$.task_id') END"
 	rows, err := query(e.DB, "SELECT DISTINCT "+begunTask+" AS t FROM events e WHERE kind IN ('task_begin', 'task_self_start')"+db.SinceRelease(begunTask))
 	if err != nil {
@@ -113,8 +119,10 @@ func (b *board) holds(t row) bool {
 // state is one of draft, queued, doing, done, discarded: verdict.TaskState of the board's facts for t.
 func (b *board) state(t row) string {
 	id := t.i("id")
+	// as db.pauseHolds: the pause holds a task its acting agent was not told and did not begin
+	pauseHolds := b.paused && !b.begun[id] && !t.set("delivered_at") && actingOf(t) != human && actingOf(t) != db.Gate
 	return verdict.TaskState(verdict.TaskFacts{Discarded: t.str("discarded_by") != "", Done: t.str("done_evidence") != "",
-		Begun: b.begun[id], Sent: b.sent[id], Held: b.holds(t), Blocked: b.blocked[id], Queued: t.str("queued_by") != ""})
+		Begun: b.begun[id], Sent: b.sent[id], Held: b.holds(t), Blocked: b.blocked[id], Queued: t.str("queued_by") != "", PauseHolds: pauseHolds})
 }
 
 // openTasks are the open tasks in priority then number order.

@@ -126,8 +126,21 @@ func TaskState(q Q, t *Task) (string, error) {
 			return "", err
 		}
 		f.Blocked = len(bs) > 0
+		if f.PauseHolds, err = pauseHolds(q, t, f.Begun); err != nil {
+			return "", err
+		}
 	}
 	return verdict.TaskState(f), nil
+}
+
+// pauseHolds: new work is paused and the task has not reached the agent that acts on it, nor did that agent begin it itself. The founder
+// and the gates act on theirs with no delivery, so the pause holds none of theirs.
+func pauseHolds(q Q, t *Task, begun bool) (bool, error) {
+	if begun || t.DeliveredAt.Valid || t.Acting == Human || t.Acting == Gate {
+		return false, nil
+	}
+	p, err := GetPause(q, time.Now())
+	return p != nil, err
 }
 
 // ChildBlockerOf is actions.child_blocker_of: the open child task of someone else that blocks tid, nil for none.
