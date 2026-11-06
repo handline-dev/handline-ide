@@ -109,3 +109,13 @@ test('daemon.status keep_awake follows the setting: held under on, since the sta
   const st = await client.call('daemon.status', {});
   assert.deepEqual(st.keep_awake, { mode: 'on', held: true, since: st.started_at });
 });
+
+test('daemon.status keep_awake under working is held only while a session runs', async () => {
+  const { client, daemon } = setup();
+  await client.start();
+  for (const s of daemon.sessions.values()) s.state = 'idle';
+  await client.call('settings.set', { changes: { keep_awake: 'working' }, request_id: 'k2' });
+  assert.deepEqual((await client.call('daemon.status', {})).keep_awake, { mode: 'working', held: false });
+  daemon.sessions.values().next().value!.state = 'running';
+  assert.equal((await client.call('daemon.status', {})).keep_awake?.held, true);
+});
