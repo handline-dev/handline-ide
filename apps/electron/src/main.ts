@@ -427,9 +427,10 @@ if (!app.requestSingleInstanceLock({ background })) {
     const opening = login.hidden() || background ? Promise.resolve() : openWindow();
     void own
       .ready()
-      .then(async () => {
+      // Also after a failed start: a page that loaded while the token was pending is always told.
+      .finally(() => {
         const fresh = own.freshToken();
-        if (fresh && win && !win.isDestroyed()) win.webContents.send(CHANNELS.deviceToken, fresh);
+        if (fresh !== null && win && !win.isDestroyed()) win.webContents.send(CHANNELS.deviceToken, fresh);
       })
       .then(() => opening)
       .then(() => (background ? openWindow() : undefined))

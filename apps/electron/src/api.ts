@@ -22,9 +22,13 @@ export function makeApi(ipc: Ipc, zoom: () => number = () => 1): ShellApi {
     full = on === true;
     fullListeners.forEach((f) => f(full));
   });
+  // The last word on the token is kept for a listener that registers later (the page may still be loading when it comes).
+  let lastToken: string | null = null;
   const tokenListeners = new Set<(token: string) => void>();
   ipc.on(CHANNELS.deviceToken, (_e, t) => {
-    if (typeof t === 'string') tokenListeners.forEach((f) => f(t));
+    if (typeof t !== 'string') return;
+    lastToken = t;
+    tokenListeners.forEach((f) => f(t));
   });
   // The shell sends the update state on every change; the last one is kept for the first listener.
   let update: ShellUpdate | null = null;
@@ -93,6 +97,7 @@ export function makeApi(ipc: Ipc, zoom: () => number = () => 1): ShellApi {
     pairRemote: (a) => call(CHANNELS.pairRemote, a),
     onToken(cb) {
       tokenListeners.add(cb);
+      if (lastToken !== null) cb(lastToken);
       return () => void tokenListeners.delete(cb);
     },
     onFullScreen(cb) {

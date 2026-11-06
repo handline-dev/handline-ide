@@ -19,7 +19,9 @@ export function Connect({ children }: { children: ReactNode }) {
   const [token, setToken] = useState(() => (needsToken(url) ? loadToken(storage, url) : null));
   const [lost, setLost] = useState(false);
   // The desktop shell's newer device token (the preload has already kept it): the page connects with it, no reload.
-  useEffect(() => shell()?.onToken?.(setToken), []);
+  // In the shell a page without a token waits for the shell's word (a token, or '' for none) on the app's skeleton, not the pairing form.
+  const [shellSaidNone, setShellSaidNone] = useState(() => !shell()?.onToken || !storage?.getItem('shell:token-pending'));
+  useEffect(() => shell()?.onToken?.((t) => (t ? setToken(t) : setShellSaidNone(true))), []);
   // A revoked device, or a token from an older pairing: the listener refuses it, so it goes and pairing comes back.
   useEffect(() => {
     if (!token || !needsToken(url)) return;
@@ -47,6 +49,7 @@ export function Connect({ children }: { children: ReactNode }) {
 
   // Refused before it starts, or a failure before the daemon has answered once: the reason, not a skeleton that waits for ever.
   if (off || (error && store.served.size === 0)) return <Stopped text={error ?? failure ?? ''} />;
+  if (needsToken(url) && !token && !shellSaidNone) return <AppSkeleton />;
   if (needsToken(url) && !token) return <Pair url={url} storage={storage} lost={lost} onPaired={setToken} />;
   return (
     <DaemonProvider store={store} where={url} connect>
@@ -55,6 +58,25 @@ export function Connect({ children }: { children: ReactNode }) {
         {children}
       </DataProvider>
     </DaemonProvider>
+  );
+}
+
+/** The app's frame drawn empty while the page waits to connect: sidebar, main pane, status bar. */
+function AppSkeleton() {
+  return (
+    <div aria-busy aria-label="Loading" className="flex h-full animate-pulse flex-col">
+      <div className="flex min-h-0 flex-1">
+        <div className="flex w-60 shrink-0 flex-col gap-3 bg-surface px-4 pt-14">
+          {[50, 60, 45, 0, 70, 55, 65, 50].map((w, i) =>
+            w ? <div key={i} className="h-3.5 rounded-sm bg-border" style={{ width: `${w}%` }} /> : <div key={i} className="h-3" />,
+          )}
+        </div>
+        <div className="flex flex-1 flex-col">
+          <div className="h-10 border-b border-border bg-surface" />
+        </div>
+      </div>
+      <div className="h-7 border-t border-border bg-surface" />
+    </div>
   );
 }
 
