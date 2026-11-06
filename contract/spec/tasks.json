@@ -2572,7 +2572,7 @@
    },
    "x-role": "agent",
    "x-write": true,
-   "x-app-write": false,
+   "x-app-write": {"kind": "decided", "label": "give back"},
    "x-since": 1,
    "errors": [
     {

@@ -1,4 +1,4 @@
-import { activityOf, isPerson, isSystem, type ActivityItem } from '@handline/app-core';
+import { activityOf, foundersTurn, isPerson, turnChain, isSystem, type ActivityItem } from '@handline/app-core';
 import { hooks, useWrite } from '@handline/app-data';
 import { useMe } from '@handline/app-react';
 import type { TaskDetail } from '@handline/client';
@@ -32,7 +32,7 @@ import { Fields } from '#src/tools/TaskFields.tsx';
 import { CommentBox } from '#src/tools/TaskComment.tsx';
 import { useAttachments } from '#src/chat/attachments.tsx';
 import { FileDropArea } from '#src/ui/fileDrop.tsx';
-import { WaitingOnYou } from '#src/tools/TaskWaiting.tsx';
+import { WaitingOnYou, YourTurn } from '#src/tools/TaskWaiting.tsx';
 import { Page } from '#src/ui/Page.tsx';
 import { ScrollFade } from '#src/ui/ScrollFade.tsx';
 import { toast } from '#src/ui/toast.tsx';
@@ -54,6 +54,8 @@ export function TaskTab({ id }: { id: number }) {
   const open = !CLOSED.includes(t.state);
   const s = look(t);
   const why = t.waiting?.text ?? t.block_reason ?? t.hold_reason;
+  const mine = open && foundersTurn(t, me);
+  const chain = turnChain(t, me);
   // Waiting on the founder: what was asked, in the words of the last comment that named them.
   const asked =
     t.waiting && (t.waiting.on === 'founder' || isPerson(t.waiting.on, me))
@@ -80,6 +82,7 @@ export function TaskTab({ id }: { id: number }) {
             </div>
             <p className="text-xs text-muted">
               Asked by {t.from} · <span title={t.created}>created {ago(t.created)}</span>
+              {open && chain && <> · {chain}</>}
               {t.done && (
                 <>
                   {' '}
@@ -95,9 +98,11 @@ export function TaskTab({ id }: { id: number }) {
             </p>
             <Fields t={t} open={open} />
             {/* Shown only while something holds it: what it waits on, and why. */}
-            {open && (why || t.blockers.length > 0) && (
+            {open && (mine || why || t.blockers.length > 0) && (
               <div className="flex flex-col gap-1 rounded-lg bg-warning/10 px-3 py-2 text-sm">
-                {asked ? (
+                {mine ? (
+                  <YourTurn t={t} onDone={() => void q.refetch()} />
+                ) : asked ? (
                   <WaitingOnYou t={t} me={me} asked={asked} onDone={() => void q.refetch()} onShow={() => showMemo(asked.id)} />
                 ) : (
                   why && (

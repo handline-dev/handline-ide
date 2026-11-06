@@ -1,5 +1,7 @@
 import type { Task } from '@handline/client';
-import { useTasks } from '@handline/app-data';
+import { foundersTurn, turnChain } from '@handline/app-core';
+import { classify, sentence, useGiveBack, useTasks } from '@handline/app-data';
+import { useMe } from '@handline/app-react';
 import { useState } from 'react';
 import { ago } from '#src/format/time.ts';
 import { taskOf } from '#src/layout/kinds.tsx';
@@ -7,6 +9,7 @@ import { openProps, useOpenTab } from '#src/layout/openTab.tsx';
 import { Page } from '#src/ui/Page.tsx';
 import { ScrollFade } from '#src/ui/ScrollFade.tsx';
 import { look } from '#src/ui/taskLook.tsx';
+import { toast } from '#src/ui/toast.tsx';
 
 type Show = 'open' | 'draft' | 'closed';
 
@@ -99,31 +102,48 @@ function waitWords(t: Task): string | null {
 
 function Row({ t, ruled, owner }: { t: Task; ruled: boolean; owner?: string }) {
   const openTab = useOpenTab();
+  const me = useMe();
+  const back = useGiveBack();
   const s = look(t);
   const why = waitWords(t);
   // The assignee is left out while the list is already that agent's.
+  const chain = turnChain(t, me);
   const detail = [
-    owner ? null : `Assigned to ${t.to}`,
+    chain || (owner ? null : `Assigned to ${t.to}`),
     t.priority && `P${t.priority}`,
     why,
     t.done ? `Closed ${ago(t.done)}` : `Created ${ago(t.created)}`,
   ];
   return (
-    <button
-      type="button"
-      {...openProps((how) => openTab(taskOf(t.id), how))}
-      className={`flex w-full gap-2.5 px-3 py-2 text-left text-sm hover:bg-hover/30 ${ruled ? 'border-t border-border' : ''}`}
-    >
-      <span className={`mt-0.5 grid size-5 shrink-0 place-items-center rounded-md text-accent-fg ${s.tone}`}>
-        <s.icon size={12} strokeWidth={3} />
-      </span>
-      <div className="min-w-0">
-        <div className="truncate">
-          <span className="mr-1 text-muted">T{t.id}</span>
-          <span className={`font-medium ${t.state === 'discarded' ? 'text-muted line-through' : 'text-fg'}`}>{t.title}</span>
+    <div className={`flex items-center hover:bg-hover/30 ${ruled ? 'border-t border-border' : ''}`}>
+      <button
+        type="button"
+        {...openProps((how) => openTab(taskOf(t.id), how))}
+        className="flex min-w-0 flex-1 gap-2.5 px-3 py-2 text-left text-sm"
+      >
+        <span className={`mt-0.5 grid size-5 shrink-0 place-items-center rounded-md text-accent-fg ${s.tone}`}>
+          <s.icon size={12} strokeWidth={3} />
+        </span>
+        <div className="min-w-0">
+          <div className="truncate">
+            <span className="mr-1 text-muted">T{t.id}</span>
+            <span className={`font-medium ${t.state === 'discarded' ? 'text-muted line-through' : 'text-fg'}`}>{t.title}</span>
+          </div>
+          <div className="truncate text-xs text-muted">{detail.filter(Boolean).join(' · ')}</div>
         </div>
-        <div className="truncate text-xs text-muted">{detail.filter(Boolean).join(' · ')}</div>
-      </div>
-    </button>
+      </button>
+      {foundersTurn(t, me) && (
+        <button
+          type="button"
+          disabled={back.pending}
+          onClick={() =>
+            back.give(t.id, { onError: (e) => toast(`Give back did not work: ${sentence(classify(e))}`, { tone: 'warning' }) })
+          }
+          className="mr-3 shrink-0 rounded-md px-2 py-1 text-sm font-medium hover:bg-hover/30 disabled:opacity-40"
+        >
+          Give back
+        </button>
+      )}
+    </div>
   );
 }

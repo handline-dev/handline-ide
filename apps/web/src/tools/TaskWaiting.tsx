@@ -2,7 +2,7 @@
 // (its Reference in Activity, then the comment box below), or with Dismiss when there is nothing to answer; seeing it does not end it.
 import { isPerson } from '@handline/app-core';
 import type { TaskDetail } from '@handline/client';
-import { useWrite } from '@handline/app-data';
+import { classify, sentence, useGiveBack, useWrite } from '@handline/app-data';
 import { Hand, X } from 'lucide-react';
 import { useState } from 'react';
 import { IconButton } from '#src/ui/IconButton.tsx';
@@ -69,6 +69,26 @@ export function WaitingOnYou({
           {asked.author} · {clock(asked.at)}
         </span>
         <span className="line-clamp-2 pl-6">{asked.text.replace(/@human\s*/g, '')}</span>
+      </button>
+    </div>
+  );
+}
+
+/** The founder holds the top turn: what the turn asked, and Give back, which passes it to the turn below. A comment passes it too. */
+export function YourTurn({ t, onDone }: { t: TaskDetail; onDone: () => void }) {
+  const back = useGiveBack();
+  const ask = t.turns?.at(-1)?.ask;
+  const give = () =>
+    back.give(t.id, { onSuccess: onDone, onError: (e) => toast(`Give back did not work: ${sentence(classify(e))}`, { tone: 'warning' }) });
+  return (
+    <div aria-busy={back.pending} className={`flex items-start gap-2 ${back.pending ? 'pointer-events-none opacity-40' : ''}`}>
+      <Hand size={14} className="mt-1 shrink-0 text-warning" />
+      <span className="flex min-w-0 flex-1 flex-col gap-1">
+        <span className="font-medium">Your turn</span>
+        {ask && <span className="line-clamp-2">{ask}</span>}
+      </span>
+      <button type="button" onClick={give} className="shrink-0 rounded-md px-2 py-1 text-sm font-medium hover:bg-hover/30">
+        Give back
       </button>
     </div>
   );

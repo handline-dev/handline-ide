@@ -107,6 +107,7 @@ export const useDeviceRename = (target?: string) => useWrite("device.rename", ta
 export const useFileWrite = (target?: string) => useWrite("file.write", target);
 export const useWorktreeSetStatus = (target?: string) => useWrite("worktree.set_status", target);
 export const useTaskNew = (target?: string) => useWrite("task.new", target);
+export const useTaskTurnPop = (target?: string) => useWrite("task.turn.pop", target);
 export const useTaskDone = (target?: string) => useWrite("task.done", target);
 export const useTaskReopen = (target?: string) => useWrite("task.reopen", target);
 export const useTaskSeen = (target?: string) => useWrite("task.seen", target);

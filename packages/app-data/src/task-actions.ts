@@ -31,3 +31,12 @@ export function useTaskActions() {
   };
   return { ...w, verbs };
 }
+
+/** Give back: the founder passes their top turn to the turn below; a second press while one is on its way sends nothing. */
+export function useGiveBack() {
+  const w = useWrite('task.turn.pop');
+  const give = (task: number, on?: { onSuccess?: () => void; onError?: (e: unknown) => void }) => {
+    if (!w.isPending) w.mutate({ task, outcome: 'pass' }, on);
+  };
+  return { give, pending: w.isPending, error: w.error };
+}
