@@ -62,8 +62,12 @@ func TestARunningTurnsTranscriptFillsTheChatOnlyWithTheSetting(t *testing.T) {
 			}
 			return out
 		}
+		// The tool row is told with its call and gets its output when the result line is read: wait for what is checked, not the rows.
+		filled := func(g map[string]map[string]any) bool {
+			return g["reply"]["text"] == "Reading it." && g["tool"]["output"] == "package a"
+		}
 		got := kinds()
-		for end := time.Now().Add(5 * time.Second); on && len(got) < 2 && time.Now().Before(end); got = kinds() {
+		for end := time.Now().Add(5 * time.Second); on && !filled(got) && time.Now().Before(end); got = kinds() {
 			time.Sleep(50 * time.Millisecond)
 		}
 		if !on {
@@ -83,7 +87,7 @@ func TestARunningTurnsTranscriptFillsTheChatOnlyWithTheSetting(t *testing.T) {
 			}
 			continue
 		}
-		if got["reply"]["text"] != "Reading it." || got["tool"]["output"] != "package a" {
+		if !filled(got) {
 			t.Fatalf("on: %v", got)
 		}
 	}
