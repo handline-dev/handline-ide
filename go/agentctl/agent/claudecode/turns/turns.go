@@ -83,7 +83,7 @@ type turn struct {
 	state      State
 	at         int64 // when the hook that set state ran
 	background []string
-	bgKnown    bool          // background is what the last Stop said; an interrupt leaves it unknown
+	bgKnown    bool          // background is what the last Stop said; an interrupt, or a StopFailure (no list), leaves it unknown
 	settled    bool          // a Stop closed the turn and no prompt has been raised since
 	ended      bool          // SessionEnd or the process's exit ended the session, and no launch or SessionStart came since
 	changed    chan struct{} // closed on every change
@@ -232,7 +232,9 @@ func (t *Tracker) hook(tr *turn, agent, event string, raw map[string]any, at int
 		}
 	case "Stop", "StopFailure":
 		tr.stopWatch()
-		tr.at, tr.background, tr.bgKnown = at, runningTasks(raw["background_tasks"]), true
+		// a StopFailure carries no background_tasks: then the footer says what runs
+		tasks, listed := raw["background_tasks"]
+		tr.at, tr.background, tr.bgKnown = at, runningTasks(tasks), listed
 		tr.set(Idle)
 		tr.settled = event == "Stop" // a StopFailure may leave the usage-limit dialog up
 	case "PermissionRequest":

@@ -191,6 +191,18 @@ func TestStopSaysWhetherBackgroundWorkStillRuns(t *testing.T) {
 	}
 }
 
+func TestAStopFailureLeavesTheBackgroundUnknown(t *testing.T) {
+	tr, _ := tracker(t)
+	tr.Hook("amy", "UserPromptSubmit", nil, 10)
+	tr.Hook("amy", "StopFailure", map[string]any{"session_id": "s"}, 11) // it carries no background_tasks
+	if running, known := tr.Background("%1"); running != "" || known {
+		t.Fatalf("a StopFailure read as known: %q %v", running, known)
+	}
+	if got := tr.Running("amy"); got != nil {
+		t.Fatalf("named %q", got)
+	}
+}
+
 func TestOnlyAStopWithNoPromptSinceSettlesTheTurn(t *testing.T) {
 	tr, _ := tracker(t)
 	at := int64(10)
