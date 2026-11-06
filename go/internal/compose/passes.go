@@ -2,7 +2,6 @@ package compose
 
 import (
 	"sort"
-	"time"
 
 	"github.com/handline/handline/go/accounts/subscriptions"
 	"github.com/handline/handline/go/accounts/usage"
@@ -11,7 +10,6 @@ import (
 	"github.com/handline/handline/go/internal/heal"
 	"github.com/handline/handline/go/internal/proposalwrites"
 	"github.com/handline/handline/go/internal/reads"
-	"github.com/handline/handline/go/internal/sparenotice"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/scheduler/cronspec"
 	"github.com/handline/handline/go/scheduler/keepawake"
@@ -43,7 +41,6 @@ func (p *Parts) passes(cfg Config, tk *tick.Tick) []tick.NamedSweep {
 	if lc.Env.Observer != nil {
 		held.Live = lc.Env.Observer.LiveSessions
 	}
-	spare := p.spareNotice(cfg)
 	return []tick.NamedSweep{
 		{Name: "keep-awake", Run: func(q db.Q, now int64) error {
 			p.awake.Sync(keepawake.ModeOf(usage.LoadConfig(cfg.Home)), lc.Gate.Active() > 0)
@@ -59,7 +56,6 @@ func (p *Parts) passes(cfg Config, tk *tick.Tick) []tick.NamedSweep {
 		{Name: "schedules", Run: func(q db.Q, now int64) error { return sched.Sweep(now) }},
 		{Name: "apply-settings", Run: func(q db.Q, now int64) error { return apply.Sweep(tk, now) }},
 		{Name: "heal", Run: healer.Sweep},
-		{Name: "spare-notice", Run: func(q db.Q, now int64) error { return spare.Sweep(now) }},
 		{Name: "proposal-held", Run: func(q db.Q, now int64) error {
 			return held.SweepHeld(heldPorts(tk, q, healPorts{lc: lc, home: cfg.Home}))
 		}},
@@ -219,52 +215,3 @@ func (t timeboxPorts) BgJobs(_ db.Q, agent string, count int, _ int64) []string 
 	return jobs
 }
 
-// spareNotice is the sweep that tells the founder of a weekly loss coming, and offers the spare tasks to use it.
-func (p *Parts) spareNotice(cfg Config) *sparenotice.Env {
-	lc, home := p.LC, cfg.Home
-	now := func() time.Time {
-		if cfg.Now != nil {
-			return cfg.Now()
-		}
-		return time.Now()
-	}
-	return &sparenotice.Env{Q: p.db, Now: now, Log: cfg.Log,
-		Accounts: func() []string {
-			var out []string
-			for _, a := range paths.ListAccounts(home) {
-				if lc.usage.NotFor(a, team.DefaultVendor) == "" {
-					out = append(out, a)
-				}
-			}
-			return out
-		},
-		Forecast: func(acct string) (usage.Forecast, bool) {
-			rows, err := usage.SamplesSince(p.db, now().Unix()-86400-usage.OutlookMaxAgeS)
-			if err != nil {
-				return usage.Forecast{}, false
-			}
-			return lc.usage.ForecastFor(p.db, acct, rows)
-		},
-		ResetAt: func(acct string) int64 {
-			left, _ := usage.WeekEndsIn(lc.usage.Read(acct), float64(now().Unix()))
-			return now().Unix() + int64(left)
-		},
-		Waiting: func(acct string) bool {
-			for _, agent := range paths.ListAgents(home) {
-				if cur, _ := team.CurrentAccount(p.db, agent); cur == acct {
-					if n, err := db.UnreachedCount(p.db, agent); err == nil && n > 0 {
-						return true
-					}
-				}
-			}
-			return false
-		},
-		Ask: func(title, body string, tags ...string) (int64, error) {
-			return taskwrites.AskFounder(p.db, lc.Env, title, body, tags...)
-		},
-		Tell: func(text string) error { return lc.Env.SystemSay(db.NoticeRequester, "handline", text) },
-		Close: func(tid int64, words string) error {
-			return taskwrites.CloseFounderTask(p.db, home, lc.Env, tid, words)
-		},
-	}
-}

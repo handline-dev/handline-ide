@@ -17,7 +17,7 @@ type founderWarning struct {
 	view      map[string]any
 }
 
-// founderWarnings is PendingWarning's rows but the spare notice, which is a task of its own.
+// founderWarnings is PendingWarning's rows.
 func (e *Env) founderWarnings() ([]founderWarning, error) {
 	var out []founderWarning
 	for _, n := range e.machineNeeds() {

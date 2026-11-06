@@ -408,9 +408,9 @@ export type Turn = {
 
 /** What a warning row is about, so a client can draw it and open the right place. It is read from state each time and leaves by itself. */
 export type PendingWarning = {
-  /** When each leaves. disk: space is back. login: the account is logged in or woken; one past its end day never warns. weekly_use (the spare notice, a task of the founder's): answered, or the reset. delivery (a message of the founder's never seen to arrive): seen to arrive, withdrawn, or their next message to that agent is written. undelivered (a task queued, its delivery refused, its agent with no lead): delivered, given to another or ended. */
+  /** When each leaves. disk: space is back. login: the account is logged in or woken; one past its end day never warns. weekly_use: no longer sent (the weekly-loss notice is gone, T8671); kept until the app drops it. delivery (a message of the founder's never seen to arrive): seen to arrive, withdrawn, or their next message to that agent is written. undelivered (a task queued, its delivery refused, its agent with no lead): delivered, given to another or ended. */
   kind: "disk" | "login" | "weekly_use" | "delivery" | "undelivered";
-  /** login, weekly_use: the account. */
+  /** login: the account. */
   account?: string;
   /** delivery, undelivered: the agent it did not reach. */
   agent?: string;

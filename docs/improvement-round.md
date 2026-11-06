@@ -17,8 +17,7 @@ when the founder asks for it; nothing is scheduled.
 2. Pick at most 3 causes, the ones that cost the most time or repeat the most. A cause already on an open task is skipped.
 3. Open one task per cause as a spare draft: `--tag spare --tag improve --priority 3`, then `hl task draft T<n>`, assigned to the
    agent whose layer holds the cause, owner `handline`. Each body names the evidence and a done-criterion that can be checked.
-   Nothing starts a draft by itself: handline queues spare drafts by hand when an account's weekly limit would otherwise expire
-   unused, and real work keeps its higher priority.
+   Nothing starts a draft by itself: handline queues spare drafts by hand when capacity is free, and real work keeps its higher priority.
 4. Classify each in its body:
    - Internal efficiency (tests, tools, daemon speed, CI): goes through the auditor only.
    - Look, wording or rules: goes to the founder with a mock, as before.
