@@ -66,3 +66,43 @@ func TestAMemoChangeIsKeptAsAnEventWithItsTextBeforeAndAfter(t *testing.T) {
 		t.Fatal("a missing memo is not an error here: its caller says no memo")
 	}
 }
+
+// A later tell replaces a say as a comment's tell, so its read mark follows the newest, and a link to no request; a task's return that
+// carried the comment stays it while it may still reach its reader or once it has, and gives way once it was closed without reaching them.
+func TestALaterTellReplacesASayButNotATaskReturnThatMayReachItsReader(t *testing.T) {
+	q := open(t)
+	if _, err := q.Exec("INSERT INTO requests(id, ts, requester, target, body, state, kind, landed_at, edge_ok) VALUES" +
+		"(1, 1, 'task-board', 'bob', 'told', 'landed', 'say', 1, 1), (2, 2, 'task-board', 'bob', 'edited', 'landed', 'say', 2, 1), " +
+		"(3, 3, 'human', 'bob', 'T1 is your turn again', 'queued', 'task', NULL, 1), (4, 4, 'task-board', 'bob', 'edited again', 'landed', 'say', 4, 1), " +
+		"(5, 5, 'human', 'bob', 'T1 is your turn again', 'withdrawn', 'task', 5, 1)"); err != nil {
+		t.Fatal(err)
+	}
+	tell := func(rid int64) int64 {
+		t.Helper()
+		if err := LinkMemoTell(q, 7, "bob", rid); err != nil {
+			t.Fatal(err)
+		}
+		var got int64
+		if err := q.QueryRow("SELECT request_id FROM memo_tells WHERE memo_id = 7 AND reader = 'bob'").Scan(&got); err != nil {
+			t.Fatal(err)
+		}
+		return got
+	}
+	if tell(99) != 99 || tell(1) != 1 || tell(2) != 2 {
+		t.Fatal("a later tell did not replace a say, or a link to no request")
+	}
+	if tell(3) != 3 || tell(4) != 3 {
+		t.Fatal("a say replaced the task's return")
+	}
+	for _, closed := range []string{"withdrawn", "denied", "replaced"} {
+		if _, err := q.Exec("UPDATE requests SET state = ? WHERE id = 3", closed); err != nil {
+			t.Fatal(err)
+		}
+		if tell(3) != 3 || tell(4) != 4 {
+			t.Fatalf("a return %s before it reached bob kept its place", closed)
+		}
+	}
+	if tell(5) != 5 || tell(4) != 5 {
+		t.Fatal("a return withdrawn after it reached bob gave way")
+	}
+}

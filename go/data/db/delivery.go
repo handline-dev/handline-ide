@@ -1,5 +1,7 @@
 package db
 
+import "strings"
+
 // Where a request stands is read from four columns: delivered_at (handed to the reader's session, or listed in a digest), typed_at
 // (typed into its terminal), landed_at (in the session, or settled) and read_at (opened by hl read or on the page). Every SQL test that
 // combines them is one of these, so its meaning is written once; a is the table's alias with its dot ("r."), or "".
@@ -16,6 +18,11 @@ func NeverArrived(a string) string {
 
 // Arrived is a request seen to reach its reader: landed or read.
 func Arrived(a string) string { return "(" + HasLanded(a) + " OR " + a + "read_at IS NOT NULL)" }
+
+// NeverReached is a request closed (neverReachedTarget) before it was seen to reach its reader.
+func NeverReached(a string) string {
+	return "(" + a + "state IN ('" + strings.Join(neverReachedTarget, "', '") + "') AND NOT " + Arrived(a) + ")"
+}
 
 // HasLanded is a request that reached its reader's session, or was settled there.
 func HasLanded(a string) string { return a + "landed_at IS NOT NULL" }
