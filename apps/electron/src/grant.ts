@@ -5,9 +5,11 @@ export interface Grant {
   token: string | null;
   ownHost: string | null;
   failure: string | null;
+  /** The shell is still getting this device's token: the page waits for it (onToken) instead of offering pairing. */
+  pending: boolean;
 }
 
-export function grant(token: string | null, ownHost: string | null, owner: { state: string; reason: string }): Grant {
+export function grant(token: string | null, ownHost: string | null, owner: { state: string; reason: string }, pending = false): Grant {
   const failure = owner.state === 'failed' ? owner.reason || 'the daemon did not start' : null;
-  return { token, ownHost, failure };
+  return { token, ownHost, failure, pending: pending && !token && !failure };
 }

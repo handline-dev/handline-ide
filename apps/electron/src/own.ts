@@ -116,7 +116,7 @@ function relaunchWith(file: SettingsFile, next: Settings): void {
 }
 
 export interface Own {
-  /** The token to hand the open page if it read a stale one, else null; marks it given. */
+  /** The token to hand the open page if it read a stale one, '' when there is none to give, else null; marks it given. */
   freshToken(): string | null;
   /** Draws the tray menu again, after something it shows changed. */
   redraw(): void;
@@ -297,15 +297,21 @@ export function ownDaemon(o: {
   const tokens = new TokenFile(path.join(app.getPath('userData'), 'device.json'));
   let token: string | null = remote ? null : (tokens.read()?.token ?? null);
   let ownHost: string | null = null;
+  let settled = false; // ready() has ended: the token is what it will be
   let given: string | null | undefined; // the token the page last read; it reads once per load
   ipcMain.on(CHANNELS.token, (e) => {
     if (!fromWindow(e, o.origin)) return void (e.returnValue = null);
     given = token;
-    e.returnValue = grant(token, ownHost, owner);
+    e.returnValue = grant(token, ownHost, owner, !settled);
   });
   const pairing = localPairing(o.home, o.socket);
   return {
-    freshToken: () => (given === undefined || given === token || !token ? null : (given = token)),
+    // '' when neither the page nor the shell has one: the page stops waiting and shows pairing.
+    freshToken: () => {
+      if (given === undefined) return null;
+      if (given === token) return token ? null : '';
+      return token ? (given = token) : null;
+    },
     redraw: draw,
     setUnread: (n) => ((counts.unread = n), draw()),
     setWorking: (n) => (counts.working = n),
@@ -320,19 +326,26 @@ export function ownDaemon(o: {
     pair,
     useThisMac: () => relaunchAs({ ...o.current, remote: null }),
     async ready() {
-      if (remote) {
-        const c = await attach(remote, link);
-        token = c.token;
-        ownHost = c.host;
-        return c.address;
+      try {
+        return await bringUp();
+      } finally {
+        settled = true;
       }
-      if (!o.listen) return undefined;
-      await owner.start();
-      ownHost = onTailnet(o.listen) ? o.listen.split(':')[0]! : null; // named even when nothing started: the page shows the reason (grant)
-      if (owner.state !== 'running') return o.listen;
-      token = await ensureToken(pairing, tokens, sleep).catch(() => null);
-      link.set('connected', { address: o.listen });
-      return o.listen;
     },
   };
+  async function bringUp() {
+    if (remote) {
+      const c = await attach(remote, link);
+      token = c.token;
+      ownHost = c.host;
+      return c.address;
+    }
+    if (!o.listen) return undefined;
+    await owner.start();
+    ownHost = onTailnet(o.listen) ? o.listen.split(':')[0]! : null; // named even when nothing started: the page shows the reason (grant)
+    if (owner.state !== 'running') return o.listen;
+    token = await ensureToken(pairing, tokens, sleep).catch(() => null);
+    link.set('connected', { address: o.listen });
+    return o.listen;
+  }
 }

@@ -7,7 +7,16 @@ test('a daemon that failed to start goes to the page as the reason, with the own
     token: null,
     ownHost: '100.1.2.3',
     failure: 'the daemon exited at start (exit 1)',
+    pending: false,
   });
+});
+
+test('the token is pending only while the shell is still getting it and nothing failed', () => {
+  const up = { state: 'running', reason: '' };
+  assert.equal(grant(null, null, up, true).pending, true);
+  assert.equal(grant('t', null, up, true).pending, false);
+  assert.equal(grant(null, null, { state: 'failed', reason: 'x' }, true).pending, false);
+  assert.equal(grant(null, null, up, false).pending, false);
 });
 
 test('a failure with no reason still says that nothing started; a running or stopped daemon is no failure', () => {
