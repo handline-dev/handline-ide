@@ -1,6 +1,7 @@
 import { isPerson, isSystem, sideOf, tickLevel, type TimelineEntry } from '@handline/app-core';
 import { motion } from 'framer-motion';
 import { CornerDownRight } from 'lucide-react';
+import { BashChip } from '#src/chat/Composer.tsx';
 import { useState, type ReactNode } from 'react';
 import { AgentNote } from '#src/chat/AgentNote.tsx';
 import { CompactionLine } from '#src/chat/CompactionLine.tsx';
@@ -95,11 +96,21 @@ export function ChatLine({
       {m?.parent_item && <Reference text={m.parent_item.text} />}
       {text && (
         <Quotable text={text} on={!mine} onQuote={reply}>
-          <div
-            className={`max-w-150 min-w-0 text-base text-fg ${images.length ? 'mt-2' : ''} ${mine ? 'rounded-xl bg-selected px-4 py-2' : ''}`}
-          >
-            <Markdown text={text} />
-          </div>
+          {mine && text.startsWith('!') ? (
+            // A command the person ran in the agent's terminal (bash mode): the command as typed, not a message bubble.
+            <div
+              className={`flex max-w-150 min-w-0 items-start gap-2 rounded-xl border border-border px-3 py-2 ${images.length ? 'mt-2' : ''}`}
+            >
+              <BashChip />
+              <code className="min-w-0 py-0.5 font-mono text-sm break-all whitespace-pre-wrap text-fg">{text.slice(1).trim()}</code>
+            </div>
+          ) : (
+            <div
+              className={`max-w-150 min-w-0 text-base text-fg ${images.length ? 'mt-2' : ''} ${mine ? 'rounded-xl bg-selected px-4 py-2' : ''}`}
+            >
+              <Markdown text={text} />
+            </div>
+          )}
         </Quotable>
       )}
       {/* On hover: the agent's [buttons] time; mine: read or not, time, [buttons]. */}
