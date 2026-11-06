@@ -482,6 +482,44 @@
      }
     }
    ]
+  },
+  {
+   "name": "agents.list.view_fields_servers",
+   "spec": "agents.list",
+   "about": "Every agent carries servers, the list of TCP ports its processes listen on (empty when none), each with port, address, command, pid and since.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "agents.list",
+      "params": {}
+     },
+     "result": {
+      "agents": {
+       "$contains": {
+        "servers": {
+         "$type": "array"
+        }
+       }
+      }
+     }
+    }
+   ]
   }
  ]
 }

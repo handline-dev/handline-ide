@@ -73,7 +73,7 @@ func (e *Env) baseViewOf(name string, stored map[string]json.RawMessage) (json.R
 	}
 	view := map[string]any{
 		"name": name, "role": e.roleLine(name), "model": nil, "effort": nil, "state": noView, "state_detail": "",
-		"state_since": nil, "block": nil, "wall_reason": nil, "background_since": nil, "background": []any{}, "would_wake": false,
+		"state_since": nil, "block": nil, "wall_reason": nil, "background_since": nil, "background": []any{}, "servers": []any{}, "would_wake": false,
 		"blocker": nil, "account": nil, "task": nil, "cache_until": nil, "has_dialog": false, "parent": nil,
 		"status": status.Status{State: status.Off, Reason: status.None, Text: "no terminal"}.Map(),
 	}

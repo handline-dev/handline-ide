@@ -17,6 +17,7 @@ import (
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/scheduler/keepawake"
 	"github.com/handline/handline/go/scheduler/lifecycle"
+	"github.com/handline/handline/go/scheduler/procload"
 	"github.com/handline/handline/go/scheduler/sysres"
 )
 
@@ -40,6 +41,8 @@ type Config struct {
 	DiskFree func(path string) (free, total int64, err error)
 	// Machine is the machine's latest measure for the load gate (sysres.Sampler.LatestMachine); nil checks only the agent cap.
 	Machine func() *sysres.Machine
+	// Servers is the TCP servers an agent's processes listen on (procload.Tracker.ServersOf); nil is none.
+	Servers func(agent string) []procload.Server
 	// NotifiedNeedsYou has an unanswered prompt that Claude Code's Notification hook reports raise the needs-you card.
 	NotifiedNeedsYou bool
 	// FounderTyped has the founder's own messages typed at a terminal agent as its person's prompt (supervisor.Env.FounderTyped); needs

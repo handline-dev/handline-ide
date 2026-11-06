@@ -117,7 +117,8 @@ func (p *Parts) agentView(cfg Config, terminals bool, tu tickUsage) *agentview.E
 			}
 			return d.Text, d.At, true
 		},
-		Jobs: func(agent string, now int64) []agentview.Job { return p.backgroundJobs(home, agent, now) },
+		Servers: cfg.Servers,
+		Jobs:    func(agent string, now int64) []agentview.Job { return p.backgroundJobs(home, agent, now) },
 		Walled: func(agent string, row *db.AgentState) *agentview.Wall {
 			if yes, err := lc.Manager.WouldWake(row); err != nil || !yes {
 				return nil

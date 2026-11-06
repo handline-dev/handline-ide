@@ -22,6 +22,8 @@ export type AgentView = {
   background_since?: Timestamp | null;
   /** What runs behind the agent's prompt now, oldest first: its background shells and monitors, and its subagents, a foreground one while the turn waits on it. Empty when nothing runs. Absent from a daemon that does not send it. */
   background?: BackgroundJob[];
+  /** The TCP ports the agent's processes (those load.get attributes to it) listen on, lowest port first; empty when none. The session's own are left out: its claude or codex process and that process's direct children that are not a shell (MCP and LSP servers), so a server started through its Bash tool stays; so are the daemon's and the panes'. Read every 15 s; a change is an agent.changed. Absent from a daemon that does not send it. */
+  servers?: AgentServer[];
   would_wake?: boolean;
   blocker?: string | null;
   /** The account the agent is on: the one its session runs on, or, at rest, the one whose prompt cache still holds its conversation, until cache_until. null at rest once cache_until has passed or is null: the agent is on no account and counts on none. Its next wake goes to the account with the most weekly headroom (furthest behind its pace line, Account.pace; with pacing off, the most left of its weekly window), carrying the conversation there; it starts fresh from its handoff only when the conversation cannot be carried. While the cache lives a wake stays on its account, unless that account cannot run it now (its wall, its pace, no free slot), when the usual moves apply. */
@@ -261,6 +263,19 @@ export type BackgroundJob = {
   since: Timestamp;
   /** Subagents only: true while the agent's turn waits on it, false when it runs in the background. */
   foreground?: boolean;
+};
+
+/** One TCP port a process of an agent listens on. */
+export type AgentServer = {
+  port: number;
+  /** The address it listens on: 127.0.0.1 or ::1 (this machine only), 0.0.0.0 or :: (every interface), else the interface's. A process on several addresses of one port is one entry, the first of 127.0.0.1, 0.0.0.0, ::1, ::. */
+  address: string;
+  /** The command line of the process that listens, as ps shows it, cut to 120 characters. */
+  command: string;
+  /** The process that listens. */
+  pid: number;
+  /** When that process began. */
+  since: Timestamp;
 };
 
 export interface AgentsMethods {

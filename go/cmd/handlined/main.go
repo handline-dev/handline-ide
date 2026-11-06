@@ -26,6 +26,7 @@ import (
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/version"
 	"github.com/handline/handline/go/protocol/sessiontoken"
+	"github.com/handline/handline/go/scheduler/procload"
 	"github.com/handline/handline/go/scheduler/sysres"
 	"github.com/handline/handline/go/taskboard/supervisor"
 	"github.com/handline/handline/go/taskboard/taskwrites"
@@ -151,6 +152,8 @@ func main() {
 		}
 		cfg.Resources = &sysres.Sampler{Home: homeDir, Log: func(s string) { log.Print(s) }}
 		ccfg.Machine = cfg.Resources.LatestMachine
+		cfg.Load = &procload.Tracker{Home: homeDir, Log: func(s string) { log.Print(s) }}
+		ccfg.Servers = cfg.Load.ServersOf
 		parts := compose.New(ccfg)
 		cfg.Watch = *terminalTick
 		fromParts(&cfg, parts, &ccfg)

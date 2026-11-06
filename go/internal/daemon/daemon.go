@@ -97,6 +97,8 @@ type Config struct {
 	HealthEvery time.Duration
 	// Resources, when set, is the sampler shared with the load gate, run whether or not Watch is; nil makes one for Watch.
 	Resources *sysres.Sampler
+	// Load, when set, is the process tracker shared with the agent views (its servers); the daemon gives it the database and the panes. Nil makes one for Watch.
+	Load *procload.Tracker
 	// Context is the model id and context figures of an agent on an account (agent.strip). Nil leaves them null.
 	Context func(agent, account string) (string, *int, *int64, int)
 	// Delivery is what the supervisor knows of why a queued line waits (a chat line's sending_reason). Nil leaves out the reasons that need it.
@@ -263,7 +265,11 @@ func Start(cfg Config) (*Daemon, error) {
 			d.res = &sysres.Sampler{Home: cfg.Home, Log: func(s string) { cfg.Log("%s", s) }}
 		}
 		d.res.Panes = d.agentPanes
-		d.load = &procload.Tracker{Home: cfg.Home, DB: db, Panes: d.agentPanes, Log: func(s string) { cfg.Log("%s", s) }}
+		d.load = cfg.Load
+		if d.load == nil {
+			d.load = &procload.Tracker{Home: cfg.Home, Log: func(s string) { cfg.Log("%s", s) }}
+		}
+		d.load.DB, d.load.Panes = db, d.agentPanes
 	}
 	d.hclock = &reads.HealthClock{}
 	d.local = d.newServer("local")
