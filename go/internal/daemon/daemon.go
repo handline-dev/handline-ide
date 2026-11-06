@@ -204,8 +204,9 @@ func Start(cfg Config) (*Daemon, error) {
 		_ = hookEnv.NoteBackground(agent, raw)
 		d.files.Touched(agent, raw) // names the agent on a shared doc its edit changed
 	}
-	d.hooks.Subagent = func(agent, session string) (string, error) {
-		return (&usage.Env{Home: cfg.Home}).StartSubagent(db, agent, session, time.Now().Unix())
+	d.hooks.Subagent = func(agent, session string, c hooks.SubagentCall) (string, error) {
+		m := dbpkg.SubagentMeta{Description: c.Description, Type: c.Type, Background: c.Background}
+		return (&usage.Env{Home: cfg.Home}).StartSubagent(db, agent, session, time.Now().Unix(), m)
 	}
 	d.leases = &leases.Manager{Log: cfg.Log, Max: func(kind string) int { return leases.Max(usage.LoadConfig(cfg.Home), kind) }}
 	d.hooks.TurnEnded = func(agent, kind string) {

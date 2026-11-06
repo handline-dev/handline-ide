@@ -533,3 +533,47 @@ func TestALaunchTheDaemonBeganReadsStartingBeforeHlLaunchKeepsItsStart(t *testin
 		t.Fatal("its first hook ends starting")
 	}
 }
+
+func TestAnAgentsBackgroundListsItsJobsAndItsStatusNamesThem(t *testing.T) {
+	r := newRig(t, "bg", "none")
+	r.state(t, "bg", states.Idle, "")
+	r.state(t, "none", states.Idle, "")
+	r.sess.alive["bg"], r.bg.work["bg"] = true, true
+	fg := true
+	r.env.Jobs = func(agent string, _ int64) []Job {
+		if agent != "bg" {
+			return nil
+		}
+		return []Job{{Kind: "shell", Label: "check.sh", Since: 4000}, {Kind: "subagent", Label: "review", Since: 4500, Foreground: &fg}}
+	}
+	if err := r.env.Refresh(); err != nil {
+		t.Fatal(err)
+	}
+	v := r.stored(t, "bg")
+	got, _ := json.Marshal(v["background"])
+	if string(got) != `[{"kind":"shell","label":"check.sh","since":"1970-01-01T01:06:40Z"},{"foreground":true,"kind":"subagent","label":"review","since":"1970-01-01T01:15:00Z"}]` {
+		t.Fatalf("background %s", got)
+	}
+	if s, _ := v["status"].(map[string]any); s["reason"] != "background" || s["text"] != "check.sh · review" {
+		t.Fatalf("status %v", s)
+	}
+	if b, _ := json.Marshal(r.stored(t, "none")["background"]); string(b) != "[]" {
+		t.Fatalf("nothing running is an empty list: %s", b)
+	}
+	r.state(t, "bg", states.Running, "") // mid-turn the status is the turn's, though the list still shows the jobs
+	r.sess.busy["bg"] = true
+	if err := r.env.Refresh(); err != nil {
+		t.Fatal(err)
+	}
+	if s, _ := r.stored(t, "bg")["status"].(map[string]any); s["reason"] != "turn" || s["text"] != "working" {
+		t.Fatalf("mid-turn status %v", s)
+	}
+	r.sess.alive["none"], r.bg.work["none"] = true, true // background work the view has no job for keeps the status's own words
+	r.env.Jobs = func(string, int64) []Job { return nil }
+	if err := r.env.Refresh(); err != nil {
+		t.Fatal(err)
+	}
+	if s, _ := r.stored(t, "none")["status"].(map[string]any); s["reason"] != "background" || s["text"] == "" {
+		t.Fatalf("status %v", s)
+	}
+}

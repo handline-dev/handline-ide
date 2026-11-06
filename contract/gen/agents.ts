@@ -20,6 +20,8 @@ export type AgentView = {
   block?: Block | null;
   wall_reason?: string | null;
   background_since?: Timestamp | null;
+  /** What runs behind the agent's prompt now, oldest first: its background shells and monitors, and its subagents, a foreground one while the turn waits on it. Empty when nothing runs. Absent from a daemon that does not send it. */
+  background?: BackgroundJob[];
   would_wake?: boolean;
   blocker?: string | null;
   /** The account the agent is on: the one its session runs on, or, at rest, the one whose prompt cache still holds its conversation, until cache_until. null at rest once cache_until has passed or is null: the agent is on no account and counts on none. Its next wake goes to the account with the most weekly headroom (furthest behind its pace line, Account.pace; with pacing off, the most left of its weekly window), carrying the conversation there; it starts fresh from its handoff only when the conversation cannot be carried. While the cache lives a wake stays on its account, unless that account cannot run it now (its wall, its pace, no free slot), when the usual moves apply. */
@@ -247,6 +249,18 @@ export type Grant = {
 export type AccessChanged = {
   agent: AgentName;
   grants: Grant[];
+};
+
+/** One piece of work running behind an agent's prompt. */
+export type BackgroundJob = {
+  /** shell: a command run in the background; monitor: a Monitor tool watch; subagent: an Agent tool call. */
+  kind: "shell" | "monitor" | "subagent";
+  /** What it is, in at most 100 characters: the call's description, else a shell's command, else, for a subagent, its subagent_type. */
+  label: string;
+  /** When it started. */
+  since: Timestamp;
+  /** Subagents only: true while the agent's turn waits on it, false when it runs in the background. */
+  foreground?: boolean;
 };
 
 export interface AgentsMethods {

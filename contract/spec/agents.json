@@ -83,6 +83,13 @@
        }
       ]
      },
+     "background": {
+      "type": "array",
+      "items": {
+       "$ref": "#/components/schemas/BackgroundJob"
+      },
+      "description": "What runs behind the agent's prompt now, oldest first: its background shells and monitors, and its subagents, a foreground one while the turn waits on it. Empty when nothing runs. Absent from a daemon that does not send it."
+     },
      "would_wake": {
       "type": "boolean"
      },
@@ -1061,6 +1068,40 @@
      "agent",
      "grants"
     ]
+   },
+   "BackgroundJob": {
+    "type": "object",
+    "description": "One piece of work running behind an agent's prompt.",
+    "properties": {
+     "kind": {
+      "type": "string",
+      "enum": [
+       "shell",
+       "monitor",
+       "subagent"
+      ],
+      "description": "shell: a command run in the background; monitor: a Monitor tool watch; subagent: an Agent tool call."
+     },
+     "label": {
+      "type": "string",
+      "maxLength": 100,
+      "description": "What it is, in at most 100 characters: the call's description, else a shell's command, else, for a subagent, its subagent_type."
+     },
+     "since": {
+      "$ref": "#/components/schemas/Timestamp",
+      "description": "When it started."
+     },
+     "foreground": {
+      "type": "boolean",
+      "description": "Subagents only: true while the agent's turn waits on it, false when it runs in the background."
+     }
+    },
+    "required": [
+     "kind",
+     "label",
+     "since"
+    ],
+    "additionalProperties": false
    }
   }
  },

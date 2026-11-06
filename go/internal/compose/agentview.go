@@ -1,6 +1,9 @@
 package compose
 
 import (
+	"sort"
+	"time"
+
 	"github.com/handline/handline/go/agentctl/agent/claudecode/turns"
 	"github.com/handline/handline/go/agentctl/term"
 	"github.com/handline/handline/go/agentctl/verdict"
@@ -10,6 +13,7 @@ import (
 	"github.com/handline/handline/go/internal/prompts"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/scheduler/lifecycle"
+	"github.com/handline/handline/go/scheduler/session"
 	"github.com/handline/handline/go/scheduler/tick"
 	"github.com/handline/handline/go/taskboard/handoff"
 )
@@ -113,6 +117,7 @@ func (p *Parts) agentView(cfg Config, terminals bool, tu tickUsage) *agentview.E
 			}
 			return d.Text, d.At, true
 		},
+		Jobs: func(agent string, now int64) []agentview.Job { return p.backgroundJobs(home, agent, now) },
 		Walled: func(agent string, row *db.AgentState) *agentview.Wall {
 			if yes, err := lc.Manager.WouldWake(row); err != nil || !yes {
 				return nil
@@ -133,6 +138,26 @@ func (p *Parts) agentView(cfg Config, terminals bool, tu tickUsage) *agentview.E
 			return out
 		},
 	}
+}
+
+// backgroundJobs is what runs behind agent's prompt, oldest first: its background shells while its footer reports work (the last as many
+// as the footer counts), and its subagents still running.
+func (p *Parts) backgroundJobs(home, agent string, now int64) []agentview.Job {
+	var jobs []agentview.Job
+	if has, err := p.LC.Env.HasBackgroundWork(p.db, agent); err == nil && has {
+		count, _ := db.Cursor(p.db, "bgcount:"+agent)
+		shells, _ := (&session.Env{DB: p.db, Home: home}).RunningJobs(agent, int(count))
+		for _, j := range shells {
+			jobs = append(jobs, agentview.Job{Kind: "shell", Label: j.Label(), Since: j.Started})
+		}
+	}
+	subs, _ := db.RunningSubagents(p.db, agent, time.Unix(now, 0))
+	for _, s := range subs {
+		fg := !s.Background
+		jobs = append(jobs, agentview.Job{Kind: "subagent", Label: s.Label(), Since: s.At, Foreground: &fg})
+	}
+	sort.SliceStable(jobs, func(i, j int) bool { return jobs[i].Since < jobs[j].Since })
+	return jobs
 }
 
 // agentViewPass is the tick's pass that stores the views.

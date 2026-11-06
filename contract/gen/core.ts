@@ -1028,6 +1028,9 @@ export interface CoreMethods {
   "subagent.start": { params: {
   agent: AgentName;
   session_id?: string;
+  description?: string;
+  subagent_type?: string;
+  run_in_background?: boolean;
 }; result: {
     /** Why the subagent may not start, in plain words with the times; the hook denies the call with it. Absent when it may start, and then its start is recorded. */
     deny?: string;

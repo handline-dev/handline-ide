@@ -282,3 +282,25 @@ func TestAStopAnswersWithTheNudgeTheDaemonReturns(t *testing.T) {
 		t.Fatalf("no nudge from the daemon: exit %d, out %q", code, out)
 	}
 }
+
+// An Agent call's start goes to the daemon with what the call said of the subagent, and nothing it did not say.
+func TestAnAgentCallsStartCarriesItsDescriptionTypeAndBackground(t *testing.T) {
+	r := hookRig(t, true)
+	calls := r.daemon(nil)
+	in := preToolUse("Agent", map[string]any{"description": "Review the diff", "subagent_type": "Explore", "run_in_background": true, "prompt": "p"})
+	if out, _, _ := r.runIn(in, asAgent, "hook", "PreToolUse"); strings.TrimSpace(out) != "{}" {
+		t.Fatalf("refused: %q", out)
+	}
+	var params map[string]any
+	for _, c := range calls() {
+		if c["method"] == "subagent.start" {
+			params, _ = c["params"].(map[string]any)
+		}
+	}
+	if params["description"] != "Review the diff" || params["subagent_type"] != "Explore" || params["run_in_background"] != true || params["session_id"] != "s" {
+		t.Fatalf("subagent.start: %v", params)
+	}
+	if _, ok := params["prompt"]; ok {
+		t.Fatalf("the prompt went too: %v", params)
+	}
+}

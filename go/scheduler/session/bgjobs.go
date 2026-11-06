@@ -53,7 +53,8 @@ func (e *Env) NoteBackground(agent string, raw map[string]any) error {
 		}
 	}
 	command, _ := in["command"].(string)
-	return e.AddEvent(agent, BackgroundKind, map[string]any{"command": command, "job": job, "output": output,
+	description, _ := in["description"].(string)
+	return e.AddEvent(agent, BackgroundKind, map[string]any{"command": command, "description": description, "job": job, "output": output,
 		"tool_use_id": raw["tool_use_id"], "session": raw["session_id"]})
 }
 
@@ -92,9 +93,10 @@ func ended(output string) bool {
 
 // BgJob is a recorded background command.
 type BgJob struct {
-	Command string
-	Started int64
-	Job     string // "" when the call named none
+	Command     string
+	Description string // the Bash call's own, "" when it gave none
+	Started     int64
+	Job         string // "" when the call named none
 }
 
 // RunningJobs is the recorded jobs still going, oldest first; with count above zero, only the last count of them.
@@ -123,8 +125,9 @@ func (e *Env) RunningJobs(agent string, count int) ([]BgJob, error) {
 			continue
 		}
 		cmd, _ := p["command"].(string)
+		desc, _ := p["description"].(string)
 		job, _ := p["job"].(string)
-		jobs = append(jobs, BgJob{cmd, ts, job})
+		jobs = append(jobs, BgJob{Command: cmd, Description: desc, Started: ts, Job: job})
 	}
 	if count > 0 && len(jobs) > count {
 		jobs = jobs[len(jobs)-count:]
@@ -132,11 +135,25 @@ func (e *Env) RunningJobs(agent string, count int) ([]BgJob, error) {
 	return jobs, rows.Err()
 }
 
+// Label is what the job is in one line, cut to CommandWidth: its description, else its command.
+func (j BgJob) Label() string {
+	s := j.Description
+	if strings.TrimSpace(s) == "" {
+		s = j.Command
+	}
+	return CutLine(s, CommandWidth)
+}
+
+// CutLine is s on one line, at most n runes, an ellipsis ending one that was cut.
+func CutLine(s string, n int) string {
+	s = strings.Join(strings.Fields(s), " ")
+	if r := []rune(s); len(r) > n {
+		s = string(r[:n-1]) + "…"
+	}
+	return s
+}
+
 // Line is the job in one line: its command, cut to CommandWidth, and how long it has run.
 func (j BgJob) Line(now int64, ago func(secs int64) string) string {
-	cmd := strings.Join(strings.Fields(j.Command), " ")
-	if r := []rune(cmd); len(r) > CommandWidth {
-		cmd = string(r[:CommandWidth-1]) + "…"
-	}
-	return "`" + cmd + "` for " + ago(max(0, now-j.Started))
+	return "`" + CutLine(j.Command, CommandWidth) + "` for " + ago(max(0, now-j.Started))
 }

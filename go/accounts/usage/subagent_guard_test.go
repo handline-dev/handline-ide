@@ -24,11 +24,11 @@ func TestTheSubagentGuardRefusesOnlyWhenTheSettingIsOn(t *testing.T) {
 	}
 	e := testEnv(home, clock)
 	e.Config = func() Config { return Config{} }
-	if why, err := e.StartSubagent(q, "x", "s1", clock); err != nil || why != "" || starts() != 1 {
+	if why, err := e.StartSubagent(q, "x", "s1", clock, db.SubagentMeta{}); err != nil || why != "" || starts() != 1 {
 		t.Fatalf("a fresh config: %q %v, %d starts", why, err, starts())
 	}
 	e.Config = func() Config { return Config{SubagentGuardKey: true} }
-	if why, err := e.StartSubagent(q, "x", "s1", clock); err != nil || why == "" || starts() != 1 {
+	if why, err := e.StartSubagent(q, "x", "s1", clock, db.SubagentMeta{}); err != nil || why == "" || starts() != 1 {
 		t.Fatalf("the guard on: %q %v, %d starts", why, err, starts())
 	}
 }

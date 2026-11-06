@@ -375,3 +375,16 @@ func TestAStopListingRunningWorkSetsTheBackgroundCursorsAtOnce(t *testing.T) {
 		t.Fatalf("bgcount %d", n)
 	}
 }
+
+func TestASubagentStartPassesOnWhatTheAgentCallSaid(t *testing.T) {
+	h := testRecorder(t)
+	var got SubagentCall
+	h.Subagent = func(_, _ string, m SubagentCall) (string, error) { got = m; return "", nil }
+	if _, err := h.subagentStart(&rpc.Conn{}, map[string]any{"agent": "w", "session_id": "s", "description": "review the diff",
+		"subagent_type": "general-purpose", "run_in_background": true}); err != nil {
+		t.Fatal(err)
+	}
+	if got != (SubagentCall{Description: "review the diff", Type: "general-purpose", Background: true}) {
+		t.Fatalf("%+v", got)
+	}
+}

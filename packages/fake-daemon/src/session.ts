@@ -125,6 +125,7 @@ export function view(s: Session): AgentView {
         }
       : null,
     parent: s.fx.parent,
+    background: [],
     ...(s.structured && { structured: true }),
     ...s.fx.view,
   };
