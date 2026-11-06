@@ -107,7 +107,12 @@ const rules: Record<string, Rule> = {
       const items = page.items.some(same) ? page.items.map((x) => (same(x) ? row : x)) : [row, ...page.items];
       qc.setQueryData(key, { ...page, items });
     }
+    // A result seen or newly finished changes the bell's count of unseen results.
+    void qc.invalidateQueries({ queryKey: qk.resource(d, 'requests.pending') });
   },
+  // The daemon's warnings come and go only here.
+  'for_you.opened': ({ qc, d }) => void qc.invalidateQueries({ queryKey: qk.resource(d, 'requests.pending') }),
+  'for_you.closed': ({ qc, d }) => void qc.invalidateQueries({ queryKey: qk.resource(d, 'requests.pending') }),
 };
 
 type TaskFilter = {

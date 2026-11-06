@@ -1,4 +1,4 @@
-import { hooks } from '@handline/app-data';
+import { hooks, useFeed } from '@handline/app-data';
 import type { PendingRequest, RequestRow } from '@handline/client';
 
 const FINISHED = new Set<RequestRow['status']>(['done', 'no_work']);
@@ -7,6 +7,8 @@ const FINISHED = new Set<RequestRow['status']>(['done', 'no_work']);
  * one number the bell and the sidebar's Requests show (requests.pending's answer). */
 export function useRequests() {
   const pending = hooks.useRequestsPending();
+  // The daemon's warnings reach requests.pending only through the for_you topic's events.
+  useFeed('for_you', true);
   const list = hooks.useRequestsList({ limit: 100 });
   const rows = list.data?.items ?? [];
   const turn: PendingRequest[] = pending.data?.answer ?? [];
@@ -17,5 +19,7 @@ export function useRequests() {
     doing: rows.filter((r) => !FINISHED.has(r.status)),
     done: rows.filter((r) => FINISHED.has(r.status)),
     count: pending.data?.counts.answer ?? 0,
+    /** Finished requests the founder has not opened since they ended: the bell's dot. */
+    unseen: pending.data?.counts.unseen_results ?? 0,
   };
 }

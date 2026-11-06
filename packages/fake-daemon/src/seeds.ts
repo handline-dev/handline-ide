@@ -64,12 +64,26 @@ export const SEEDS: Record<string, Seed> = {
     };
   },
 
-  /** Two tasks waiting on the founder, for the Requests view's first section and the bell: a decision and a question. */
+  /** What waits on the founder, for the Requests view's first section and the bell: a decision, a question and a daemon warning. */
   'founder-turn': (d) => {
     d.tasks.seed({ id: 8635, from: ARCH, to: ME, title: 'Bell redesign: decision 2, a line for each pause', state: 'doing' });
     d.tasks.seed({ id: 8651, from: 'handline.ui', to: ME, title: 'Chat box in bash mode: which of two looks', state: 'doing' });
     d.inbox.add({ kind: 'decision', agent: ARCH, title: 'Bell redesign: decision 2, a line for each pause', body: 'A or B?', task: 8635 });
     d.inbox.add({ kind: 'ask', agent: 'handline.ui', title: 'Chat box in bash mode: which of two looks', body: 'Which one?', task: 8651 });
+    d.tasks.warnings.push({
+      task: null,
+      title: "alpha's 23% of this week's use is lost at its reset at 10:59",
+      kind: 'warning',
+      source: 'machine',
+      id: 'weekly_use:alpha',
+      agent: null,
+      ask: null,
+      warning: { kind: 'weekly_use', account: 'alpha' },
+      items: [],
+      unread: 0,
+      first_unread: null,
+      last_at: new Date(Date.now() - 30 * 60_000).toISOString(),
+    });
   },
 
   /** This machine is paused and holds T8642 from handline.auditor: its chat ends in the pause card. */
@@ -154,7 +168,20 @@ export const SEEDS: Record<string, Seed> = {
       open: 1,
       unread_comments: 2,
     });
-    d.requests.add({ title: 'Settings in one place', task: 5983, status: 'done', agent: 'handline.pc', done: 6 });
+    const ended = (min: number, seen: boolean) => ({
+      outcome: 'done' as const,
+      at: new Date(Date.now() - min * 60_000).toISOString(),
+      seen,
+    });
+    d.requests.add({ title: 'Settings in one place', task: 5983, status: 'done', agent: 'handline.pc', done: 6, ended: ended(90, true) });
+    d.requests.add({
+      title: 'Coffee popover for keep-awake',
+      task: 8613,
+      status: 'done',
+      agent: 'handline.ui',
+      done: 2,
+      ended: ended(20, false),
+    });
     d.requests.add({ title: 'Why is the build so slow today?', kind: 'message', agent: 'handline' });
   },
 

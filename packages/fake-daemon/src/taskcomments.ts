@@ -17,7 +17,7 @@ export interface Pending {
   id?: string;
   agent?: string | null;
   ask?: string | null;
-  warning?: null;
+  warning?: { kind: 'disk' | 'login' | 'weekly_use' | 'delivery' | 'undelivered'; account?: string; agent?: string } | null;
   items: number[];
   unread: number;
   first_unread: number | null;
@@ -25,6 +25,9 @@ export interface Pending {
 }
 
 export class TaskComments extends TaskStore {
+  /** The daemon's own warnings in requests.pending (a login gone, weekly use about to be lost); a seed puts them in. */
+  readonly warnings: Pending[] = [];
+
   /**
    * task.comment.recipients: who the daemon tells of a comment, and why, by its one rule. An agent named with `@` is asked and the assignee (the
    * holder) is always told; when the founder wrote it (or it is sent now) who the task answers to is told too. Never the writer.
@@ -111,10 +114,10 @@ export class TaskComments extends TaskStore {
     const newest = (a: Pending, b: Pending) => b.last_at.localeCompare(a.last_at);
     const open = this.rows.filter((r) => r.state !== 'done' && r.state !== 'discarded');
     return {
-      answer: [...answer.values()].sort(newest),
+      answer: [...answer.values(), ...this.warnings].sort(newest),
       comments: comments.sort(newest),
       counts: {
-        answer: answer.size,
+        answer: answer.size + this.warnings.length,
         comments: comments.length,
         needs_you: open.filter((r) => r.state !== 'draft' && (r.to === 'human' || this.waiting(r)?.on === 'founder')).length,
         drafts: open.filter((r) => r.state === 'draft').length,
