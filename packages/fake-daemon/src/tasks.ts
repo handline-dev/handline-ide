@@ -13,7 +13,7 @@ export class FakeTasks extends TaskVerbs {
   }
   /** Whether hello lists the method: every method that is not a task one, and the task ones this serves. */
   lists(method: string): boolean {
-    return !/^tasks?\./.test(method) || this.serves(method) || /^task\.(request|none)$/.test(method); // those two are the requests module's
+    return !/^tasks?\./.test(method) || this.serves(method) || /^task\.(request|none|send_now)$/.test(method); // served by the requests and admin modules
   }
   create(p: Record<string, unknown>, person: string, agent = false): number {
     const owner = String(p.owner ?? '');

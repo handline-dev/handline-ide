@@ -263,26 +263,17 @@ func (s *AccountStatus) LastKnown() string {
 // Assignable: may new work be given to this account? active is agents of ours already mid-turn on it, which only matters to a stale
 // reading (IdleFloor).
 func (s *AccountStatus) Assignable(active int) (bool, string) {
-	ok, why, _ := s.assignable(active)
-	return ok, why
-}
-
-// assignable is Assignable with the kind of a refusal (Reason.Kind; "" when it may).
-func (s *AccountStatus) assignable(active int) (bool, string, string) {
 	switch {
 	case s.Unmetered:
-		return false, UnmeteredWhy, KindOther
+		return false, UnmeteredWhy
 	case !s.Exists:
-		return false, "no status.json - no session has run yet (fail-closed)", KindOther
+		return false, "no status.json - no session has run yet (fail-closed)"
 	case s.Error != "":
-		return false, fmt.Sprintf("status.json unreadable: %s (fail-closed)", s.Error), KindOther
+		return false, fmt.Sprintf("status.json unreadable: %s (fail-closed)", s.Error)
 	}
 	if s.Stale() {
 		if ok, why := s.IdleFloor(active); why != "" {
-			if ok {
-				return true, why, ""
-			}
-			return false, why, KindOther
+			return ok, why
 		}
 		week := s.Long.Pct
 		if week != nil && *week >= LongBlock && !s.Long.Lost && !(s.Long.Reset != 0 && float64(s.Long.Reset) <= s.now()) {
@@ -290,26 +281,26 @@ func (s *AccountStatus) assignable(active int) (bool, string, string) {
 			if s.Long.Reset != 0 {
 				back = " - resets " + timefmt.Stamp(s.Long.Reset, timefmt.Short)
 			}
-			return false, fmt.Sprintf("%s %d%% at last reading%s", s.Long.Label(), *week, back), KindWeekCap
+			return false, fmt.Sprintf("%s %d%% at last reading%s", s.Long.Label(), *week, back)
 		}
 		shown := "unknown"
 		if a := s.AgeS(); a != nil {
 			shown = timefmt.Ago(int64(*a))
 		}
-		return false, fmt.Sprintf("nothing has run on it for %s - the snapshot is stale (fail-closed)", shown), KindOther
+		return false, fmt.Sprintf("nothing has run on it for %s - the snapshot is stale (fail-closed)", shown)
 	}
 	pct := s.ShortTrusted()
 	if pct == nil {
-		return false, fmt.Sprintf("%s usage unknown (fail-closed)", s.Short.Label()), KindOther
+		return false, fmt.Sprintf("%s usage unknown (fail-closed)", s.Short.Label())
 	}
 	if *pct >= ShortBlock {
-		return false, fmt.Sprintf("%s usage %d%% >= %d%%", s.Short.Label(), *pct, ShortBlock), KindFiveHourCap
+		return false, fmt.Sprintf("%s usage %d%% >= %d%%", s.Short.Label(), *pct, ShortBlock)
 	}
 	if week := s.LongTrusted(); week != nil && *week >= LongBlock {
-		return false, fmt.Sprintf("%s usage %d%% >= %d%%", s.Long.Label(), *week, LongBlock), KindWeekCap
+		return false, fmt.Sprintf("%s usage %d%% >= %d%%", s.Long.Label(), *week, LongBlock)
 	}
 	if s.Long.Lost {
-		return false, fmt.Sprintf("%s usage was lost - the longest window's gate cannot be checked (fail-closed)", s.Long.Label()), KindOther
+		return false, fmt.Sprintf("%s usage was lost - the longest window's gate cannot be checked (fail-closed)", s.Long.Label())
 	}
 	switch s.ShortSource() {
 	case "carried_old":
@@ -317,29 +308,23 @@ func (s *AccountStatus) assignable(active int) (bool, string, string) {
 		if a := s.ShortAgeS(); a != nil {
 			shown = fmt.Sprintf("%dm", int(*a/60))
 		}
-		return false, fmt.Sprintf("%s %d%% was observed %s ago and only ever rises (carried past %ds)", s.Short.Label(), *pct, shown, CarryMaxAgeS), KindOther
+		return false, fmt.Sprintf("%s %d%% was observed %s ago and only ever rises (carried past %ds)", s.Short.Label(), *pct, shown, CarryMaxAgeS)
 	case "quiet":
-		return true, fmt.Sprintf("%s window quiet - nothing spent in it (inferred 0%%)", s.Short.Label()), ""
+		return true, fmt.Sprintf("%s window quiet - nothing spent in it (inferred 0%%)", s.Short.Label())
 	case "carried":
-		return true, fmt.Sprintf("%s %d%% (carried, still inside the window)", s.Short.Label(), *pct), ""
+		return true, fmt.Sprintf("%s %d%% (carried, still inside the window)", s.Short.Label(), *pct)
 	}
-	return true, fmt.Sprintf("%s %d%%", s.Short.Label(), *pct), ""
+	return true, fmt.Sprintf("%s %d%%", s.Short.Label(), *pct)
 }
 
 // TakesWork: may a session be started here: assignable, or a rolled-over stale account, and under the weekly wall. The usage half of
 // the question; Unfit adds the cap and the stretch.
 func (s *AccountStatus) TakesWork(active int) (bool, string) {
-	ok, why, _ := s.takesWork(active)
-	return ok, why
-}
-
-// takesWork is TakesWork with the kind of a refusal (Reason.Kind; "" when it may).
-func (s *AccountStatus) takesWork(active int) (bool, string, string) {
-	ok, why, kind := s.assignable(active)
+	ok, why := s.Assignable(active)
 	week := s.LongTrusted()
 	if rolled, rwhy := s.RolledOver(); !ok && rolled {
 		// Its weekly figure is a floor unless the week itself has passed.
-		ok, why, kind = true, rwhy, ""
+		ok, why = true, rwhy
 		if s.Long.Reset != 0 && float64(s.Long.Reset) <= s.now() {
 			week = nil
 		} else {
@@ -347,9 +332,9 @@ func (s *AccountStatus) takesWork(active int) (bool, string, string) {
 		}
 	}
 	if ok && week != nil && *week >= LongBlock {
-		return false, fmt.Sprintf("%s usage %d%% >= %d%%", s.Long.Label(), *week, LongBlock), KindWeekCap
+		return false, fmt.Sprintf("%s usage %d%% >= %d%%", s.Long.Label(), *week, LongBlock)
 	}
-	return ok, why, kind
+	return ok, why
 }
 
 // RolledOver: a stale account whose shortest window has passed can take work if its last weekly reading had room: the session that

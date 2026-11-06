@@ -15,4 +15,3 @@ task.view.delete
 task.view.list
 task.view.save
 task.wait
-task.send_now

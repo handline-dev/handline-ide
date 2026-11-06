@@ -174,6 +174,7 @@ export function statusReply(
   startedAt: Timestamp,
   needs: readonly MachineNeed[] = [],
   keepAwake = 'off',
+  paused: object | null = null,
 ) {
   const by_state: Record<string, number> = {};
   for (const s of sessions.values()) by_state[s.state] = (by_state[s.state] ?? 0) + 1;
@@ -191,6 +192,7 @@ export function statusReply(
     resources: fakeResources(sessions, startedAt),
     keep_awake: { mode: keepAwake, held, ...(held ? { since: startedAt } : {}) },
     ...(needs.length ? { needs_you: [...needs] } : {}),
+    ...(paused ? { paused } : {}),
   };
 }
 

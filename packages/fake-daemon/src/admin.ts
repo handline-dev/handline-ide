@@ -22,7 +22,7 @@ const FINGERPRINT = 'sha256:3f9c1e7a52b84d06a1e3c7f90b2d4856e1a7c3095bd8f2e46a0c
 
 /** The methods this answers. */
 const ADMIN =
-  /^(stats\.|connection\.(get|addresses)|settings\.|answers?\.|devices?\.(list|revoke)|agent\.triggers|memory\.status|events\.feed)/;
+  /^(stats\.|connection\.(get|addresses)|settings\.|answers?\.|devices?\.(list|revoke)|agent\.triggers|memory\.status|events\.feed|daemon\.(pause|resume)|task\.send_now)/;
 /** The built-in handoff prompt (go/taskboard/handoff/note.go AskTemplate). */
 const BUILTIN_HANDOFF =
   "Write your handoff to {path} now, while your prompt cache is warm, with one Write (replace what is there), then stop and run nothing else. The next session of you, if it starts fresh, reads it first: copy yourself into it. At most {max} characters, about 30 lines, only what `hl` and your memory cannot tell it: (1) what you were deciding and why; (2) what you meant to do next; (3) promises or doubts not yet on any task; (4) the founder's preferences and the pitfalls you learned this session; (5) who you wait on, as T<n>/#<n> numbers only; (6) what slowed you down: one line each, starting with 'Slowed:', naming the command, tool, rule or T number and what it cost (retries, a wait, a refusal), or 'Slowed: none' if nothing did. Do not restate what a task or message holds; cite its T or # number. A lasting lesson or preference goes to your memory first, not here. If there is nothing, write the single word: nothing.";
@@ -93,6 +93,9 @@ export class FakeAdmin {
 
   /** The machine's own needs-you items in daemon.status (a full disk); `setMachineNeeds` of helpers.ts changes them. */
   machineNeeds: MachineNeed[] = [];
+
+  /** daemon.pause on this machine (DaemonStatus.paused), null while new work runs. */
+  paused: { since: Timestamp; until: null; machine: { id: string; name: string } } | null = null;
 
   /** `on` false is a daemon that does not serve stats, settings or standing answers: it lists none of their methods. */
   constructor(now: () => Timestamp, on: boolean, host: PrefsHost) {
@@ -178,6 +181,15 @@ export class FakeAdmin {
         return (this.add(p), accepted('Added.'));
       case 'answer.remove':
         return (this.remove(p), accepted('Removed.'));
+      case 'daemon.pause':
+        this.paused = { since: this.now(), until: null, machine: { id: 'm-fake', name: 'mac' } };
+        return accepted('Paused.');
+      case 'daemon.resume':
+        this.paused = null;
+        return accepted('Resumed.');
+      case 'task.send_now':
+        if (!this.paused) throw new Failure('refused', 'nothing is paused', { reason: 'not_paused' });
+        return accepted(`T${String(p.task)} goes to its agent now.`);
       default:
         throw new Failure('refused', `the fake daemon does not serve ${method}`, { reason: 'unsupported', gate: 'unsupported' });
     }

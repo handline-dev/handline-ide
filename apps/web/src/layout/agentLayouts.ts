@@ -17,7 +17,20 @@ const ensured = (s: Saved): Saved => {
   return { ...s, layouts: { ...s.layouts, [k]: page ? initial(page, labelOf(page)) : initial() } };
 };
 
-const load = (): Saved => ensured(read<Saved>(KEY, { agent: null, layouts: {} }));
+/** The Notifications page (inbox) became Requests: a saved tab or page of it opens Requests. */
+const renamed = (n: Node): Node =>
+  n.kind === 'split'
+    ? { ...n, a: renamed(n.a), b: renamed(n.b) }
+    : { ...n, tabs: n.tabs.map((t) => (t.opens === 'inbox' ? { ...t, opens: 'requests', title: 'Requests' } : t)) };
+const upgraded = (s: Saved): Saved => {
+  const { [`${PAGE}inbox`]: _gone, ...layouts } = s.layouts;
+  return {
+    agent: s.agent === `${PAGE}inbox` ? `${PAGE}requests` : s.agent,
+    layouts: Object.fromEntries(Object.entries(layouts).map(([k, n]) => [k, renamed(n)])),
+  };
+};
+
+const load = (): Saved => ensured(upgraded(read<Saved>(KEY, { agent: null, layouts: {} })));
 
 /** Layout changes that move the person somewhere: each is a step that Back and Forward walk. Closing, splitting, moving and resizing are not. */
 const MOVES = new Set<Action['type']>(['select', 'open', 'show', 'choose']);
