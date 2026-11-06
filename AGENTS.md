@@ -39,7 +39,8 @@ True for any agent, whatever tool runs it. Your name is in `$HANDLINE_AGENT`.
 
 ## Repositories
 
-- `handline-dev/handline-legacy`: the working repo. Clean history, no old PRs.
+- `handline-dev/handline-ide`: the working repo. Clean history, no old PRs.
+- `handline-dev/handline-legacy` and `handline-dev/handline-old3`: archives. Read only; do not push there.
 - `handline-dev/handline-old`: private archive of the old history and PRs. Read only.
 - `handline-dev/handline`: the tidy public repo, opened by the founder after the improvements. Nothing is made public before then.
 - The mobile app is hands-off: no Android builds.
