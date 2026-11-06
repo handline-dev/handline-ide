@@ -25,9 +25,9 @@ True for any agent, whatever tool runs it. Your name is in `$HANDLINE_AGENT`.
 - A screen change posts a before and after picture of each screen it adds or changes (PC and phone
   where both change) on its task, for the founder to look at first. The commit message
   carries no pictures.
-- To ask the founder to look at a change, write a memo on your own task that starts with `@human`, with the before and after pictures attached and one line,
-  and keep the task: `hl task comment T<own> add --attach before.png --attach after.png "@human <one line>"`.
-  "Approved" is the reply that closes it; "Change asked: <words>" is what to fix, then ask again with a new memo.
+- To ask the founder to look at a change, post the before and after pictures, then put the founder on the task:
+  `hl task comment T<own> add --attach before.png --attach after.png "<one line>"`, then `hl task turn T<own> human "Look: <one line>"`.
+  Their comment gives the task back: "Approved" closes the look; "Change asked: <words>" is what to fix, then ask again the same way.
 - A task or a say can be refused; the refusal says why, and the policy behind
   it is deliberate, not a fault to route around. A name that is not on
   `hl team` (a bare `auditor` for `<team>.auditor`) is refused with "unknown
