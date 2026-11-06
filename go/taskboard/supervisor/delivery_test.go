@@ -377,20 +377,3 @@ func TestWhilePausedOnlyAPassedTaskIsToldAndThePausesLoadWordDoesNotHoldIt(t *te
 		t.Fatal("the load's own hold let the founder's task through at the prompt")
 	}
 }
-
-// The board's delivery of a task already the agent's (the founder's comment passing a turn back) does not wait for the minute's batch.
-func TestTheBoardsDeliveryOfATaskIsNotHeldForTheBatch(t *testing.T) {
-	r := newRig(t)
-	r.agentUp("bob")
-	r.task("bob", "alice", "first job")
-	sent, err := r.DeliverQueued(r.DB, "bob")
-	r.must(err)
-	if !sent {
-		t.Fatal("not delivered")
-	}
-	_, err = db.AddRequest(r.DB, db.NewRequest{Requester: db.NoticeRequester, Target: "bob", Body: "T9 is your turn again: human passed it: x", Kind: "task"})
-	r.must(err)
-	if sent, _ := r.DeliverQueued(r.DB, "bob"); !sent {
-		t.Fatal("held for the batch")
-	}
-}

@@ -79,7 +79,8 @@ func PushTurn(q Q, tid int64, t Turn) error {
 }
 
 // PopTurn takes the top turn off task tid by `by` with outcome and note, and answers it and the agent that acts now; ok false with no turn.
-func PopTurn(q Q, tid int64, by, outcome, note string) (top Turn, acting string, ok bool, err error) {
+// rid is the request that carries the task back to its agent, 0 for none.
+func PopTurn(q Q, tid int64, by, outcome, note string, rid int64) (top Turn, acting string, ok bool, err error) {
 	turns, err := Turns(q, tid)
 	if err != nil || len(turns) == 0 {
 		return Turn{}, "", false, err
@@ -91,8 +92,11 @@ func PopTurn(q Q, tid int64, by, outcome, note string) (top Turn, acting string,
 	if acting, err = Acting(q, tid); err != nil {
 		return Turn{}, "", false, err
 	}
-	_, err = AddEvent(q, by, "task_turn_pop", KV{K: "task_id", V: tid}, KV{K: "agent", V: top.Agent}, KV{K: "outcome", V: outcome},
-		KV{K: "note", V: note}, KV{K: "to", V: acting})
+	kv := []KV{{K: "task_id", V: tid}, {K: "agent", V: top.Agent}, {K: "outcome", V: outcome}, {K: "note", V: note}, {K: "to", V: acting}}
+	if rid != 0 {
+		kv = append(kv, KV{K: "request_id", V: rid})
+	}
+	_, err = AddEvent(q, by, "task_turn_pop", kv...)
 	return top, acting, true, err
 }
 
