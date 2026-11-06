@@ -1,0 +1,179 @@
+// Package claude is the Claude Code vendor as a launch uses it (handline/vendors/claude.py and claude_hooks.py): the
+// command line a terminal agent is started with, and the shared settings file that carries Handline's hooks.
+package claudecode
+
+import (
+	"os/exec"
+	"path/filepath"
+	"regexp"
+	"strings"
+
+	"github.com/handline/handline/go/agentctl/agent"
+	"github.com/handline/handline/go/agentctl/term"
+)
+
+// Driver is the Claude vendor for one program.
+type Driver struct{ agent.Host }
+
+var _ agent.Agent = Driver{}
+
+func (Driver) Name() string { return "claude" }
+
+// IsResume is whether the extra arguments resume a session, in any of its three spellings.
+func (Driver) IsResume(extra []string) bool {
+	for _, x := range extra {
+		if x == "--resume" || strings.HasPrefix(x, "--resume=") || x == "-r" {
+			return true
+		}
+	}
+	return false
+}
+
+// Binary is the claude on PATH, "" when there is none.
+// Screen is Claude Code's wording of its screen.
+func (Driver) Screen() term.Driver { return Screen{} }
+
+// ScreenFor is the screen driver for any handle: every terminal agent here runs Claude Code. It is the lookup term.New takes.
+func ScreenFor(string) term.Driver { return Screen{} }
+
+var _ term.Driver = Screen{}
+
+func (Driver) Binary() string {
+	p, err := exec.LookPath("claude")
+	if err != nil {
+		return ""
+	}
+	return p
+}
+
+func (d Driver) Hooks() agent.Hooks { return Hooks{d.Host} }
+
+func (Driver) AutoModeArgv() []string { return []string{"--permission-mode", "auto"} }
+
+func (Driver) PermissionModeArgv(mode string) []string {
+	switch mode {
+	case "default", "acceptEdits", "plan":
+		return []string{"--permission-mode", mode}
+	}
+	return nil
+}
+
+func (Driver) LaunchEnv(string, string, string) map[string]string { return map[string]string{} }
+func (Driver) PromptArgv(prompt string) []string                  { return []string{prompt} }
+
+var notAlnum = regexp.MustCompile(`[^A-Za-z0-9]`)
+
+// TranscriptDir is where the sessions run in worktree are recorded: claude names the folder after the path, every
+// character that is not a letter or digit becoming a dash.
+func (Driver) TranscriptDir(configDir, worktree string) (string, bool) {
+	return filepath.Join(configDir, "projects", notAlnum.ReplaceAllString(worktree, "-")), true
+}
+
+// LaunchArgv is the command line a session starts with. Every setting goes in one --settings object, since a second
+// one would replace the first.
+func (Driver) LaunchArgv(exe string, o agent.LaunchArgs) []string {
+	argv := []string{exe}
+	if o.Model != "" {
+		argv = append(argv, "--model", o.Model)
+	}
+	argv = append(argv, "--disallowedTools", o.Disallowed, "--effort", o.Effort)
+	if o.Chrome {
+		argv = append(argv, "--chrome")
+	} else {
+		argv = append(argv, "--no-chrome")
+	}
+	argv = append(argv, o.MCPArgs...)
+	if len(o.ExtraDirs) > 0 {
+		argv = append(append(argv, "--add-dir"), o.ExtraDirs...)
+	}
+	if o.Preamble != "" {
+		argv = append(argv, "--append-system-prompt", o.Preamble)
+	}
+	settings := NewObject()
+	if o.MemoryDir != "" {
+		settings.Set("autoMemoryDirectory", o.MemoryDir)
+	}
+	writable := append(append([]string{}, o.ExtraDirs...), o.AllowWrite...)
+	if o.CacheDir != "" {
+		writable = append(writable, o.CacheDir)
+	}
+	if len(o.Hide) > 0 || len(o.NoWrite) > 0 || len(writable) > 0 || len(o.AllowDomains) > 0 {
+		fs := NewObject()
+		if len(o.Hide) > 0 {
+			fs.Set("denyRead", o.Hide)
+		}
+		if len(o.NoWrite) > 0 {
+			fs.Set("denyWrite", o.NoWrite)
+		}
+		if len(writable) > 0 {
+			fs.Set("allowWrite", writable) // a working directory is readable; Bash may write it only when it is named here
+		}
+		sb := NewObject()
+		sb.Set("filesystem", fs)
+		if len(o.AllowDomains) > 0 {
+			net := NewObject()
+			net.Set("allowedDomains", o.AllowDomains)
+			sb.Set("network", net)
+		}
+		settings.Set("sandbox", sb)
+	}
+	// Said either way, so the shared settings never decide it. Off, commands run unsandboxed; the Read/Edit denies below
+	// are permissions, not the sandbox, and stay.
+	settings.setDefault("sandbox", NewObject()).(*Object).Set("enabled", !o.SandboxOff)
+	if o.WeakerNetwork {
+		settings.block("sandbox").Set("enableWeakerNetworkIsolation", true)
+	}
+	if len(o.Excluded) > 0 {
+		settings.block("sandbox").Set("excludedCommands", o.Excluded)
+	}
+	if o.CacheDir != "" {
+		env := NewObject()
+		for _, kv := range CacheEnv(o.CacheDir) {
+			env.Set(kv[0], kv[1])
+		}
+		settings.Set("env", env)
+	}
+	// go clean drops the cache every worktree builds from, and their builds fail on files that vanish under them.
+	deny := []string{"Bash(go clean:*)"}
+	for _, p := range o.Hide {
+		deny = append(deny, "Read(/"+strings.TrimRight(p, "/")+"/**)") // denyRead binds Bash; the Read tool is a permission
+	}
+	for _, p := range o.NoWrite {
+		deny = append(deny, "Edit(/"+p+")") // Claude Code matches only Edit rules for the file tools, and they cover Write
+	}
+	var allow []string
+	for _, p := range o.ReadAllow {
+		p = strings.TrimRight(p, "/")
+		allow = append(allow, "Read(/"+p+")", "Read(/"+p+"/**)") // a file outside the worktree asks, unless a rule allows it
+	}
+	perms := NewObject()
+	if len(allow) > 0 {
+		perms.Set("allow", allow)
+	}
+	perms.Set("deny", deny)
+	settings.Set("permissions", perms)
+	if len(o.Trusted) > 0 {
+		// The classifier reads autoMode from --settings; "$defaults" keeps the built-in entries.
+		auto := NewObject()
+		auto.Set("environment", append([]string{"$defaults"}, o.Trusted...))
+		settings.Set("autoMode", auto)
+	}
+	if len(o.MCPApproved) > 0 {
+		settings.Set("enabledMcpjsonServers", o.MCPApproved) // else the session waits at start for a person to approve them
+	}
+	if settings.Len() > 0 {
+		argv = append(argv, "--settings", Dumps(settings, 0, true))
+	}
+	return argv
+}
+
+// CacheEnv is the Go, npm and pnpm caches of a sandboxed session, in its own folder: a cache the sandbox may write is one an unsandboxed
+// build reads from, so the shared ones stay out of its reach.
+func CacheEnv(dir string) [][2]string {
+	var env [][2]string
+	for _, kv := range [][2]string{{"GOCACHE", "go-build"}, {"GOMODCACHE", "go-mod"}, {"GOPATH", "go-path"}, {"npm_config_cache", "npm"},
+		{"npm_config_store_dir", "pnpm-store"}, {"npm_config_cache_dir", "pnpm-cache"}, {"npm_config_state_dir", "pnpm-state"}} {
+		env = append(env, [2]string{kv[0], dir + "/" + kv[1]})
+	}
+	return env
+}

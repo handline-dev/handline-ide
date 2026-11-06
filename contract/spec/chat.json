@@ -1,0 +1,3294 @@
+{
+ "components": {
+  "schemas": {
+   "InboxItem": {
+    "type": "object",
+    "properties": {
+     "id": {
+      "type": "integer"
+     },
+     "ref": {
+      "$ref": "#/components/schemas/RequestRef"
+     },
+     "kind": {
+      "type": "string"
+     },
+     "agent": {
+      "oneOf": [
+       {
+        "$ref": "#/components/schemas/AgentName"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "title": {
+      "type": "string"
+     },
+     "body": {
+      "type": "string"
+     },
+     "evidence": {
+      "oneOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "task": {
+      "oneOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "created": {
+      "$ref": "#/components/schemas/Timestamp"
+     },
+     "read": {
+      "type": "boolean"
+     },
+     "prompt": {
+      "oneOf": [
+       {
+        "$ref": "#/components/schemas/Prompt"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "fix": {
+      "type": "string",
+      "enum": [
+       "open_terminal"
+      ],
+      "description": "Only on a card the daemon raised after its own recovery failed: the action to offer as a button. open_terminal opens the item's agent's terminal, since every step the daemon could take was taken."
+     },
+     "memo": {
+      "type": "integer",
+      "description": "Only on an ask an agent's task comment raised by naming `@human` (task.comment.add): that comment's id on `task`. A client opens the comment itself. Absent on any other item."
+     }
+    },
+    "required": [
+     "id",
+     "kind",
+     "agent",
+     "title",
+     "body",
+     "evidence",
+     "task",
+     "created",
+     "read",
+     "prompt"
+    ]
+   },
+   "Landing": {
+    "type": "string",
+    "enum": [
+     "queued",
+     "typed",
+     "delivered",
+     "withdrawn"
+    ],
+    "description": "Landing state of a message; open set."
+   },
+   "ChatMessage": {
+    "type": "object",
+    "properties": {
+     "id": {
+      "type": "integer",
+      "description": "Request id."
+     },
+     "ref": {
+      "$ref": "#/components/schemas/RequestRef"
+     },
+     "at": {
+      "$ref": "#/components/schemas/Timestamp"
+     },
+     "state_at": {
+      "$ref": "#/components/schemas/Timestamp",
+      "description": "When the request entered its current state (queued, typed, landed, withdrawn...). Never null; the creation time until it first changes."
+     },
+     "from": {
+      "type": "string"
+     },
+     "to": {
+      "type": "string"
+     },
+     "state": {
+      "type": "string"
+     },
+     "landing": {
+      "$ref": "#/components/schemas/Landing"
+     },
+     "sending_reason": {
+      "oneOf": [
+       {
+        "type": "string",
+        "description": "Why it is still sending."
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "body": {
+      "type": "string"
+     },
+     "delivered_at": {
+      "oneOf": [
+       {
+        "$ref": "#/components/schemas/Timestamp"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "typed_at": {
+      "oneOf": [
+       {
+        "$ref": "#/components/schemas/Timestamp"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "landed_at": {
+      "oneOf": [
+       {
+        "$ref": "#/components/schemas/Timestamp"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "parent": {
+      "oneOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "quote": {
+      "type": "string",
+      "description": "The words of the parent message this one quotes, when it was sent with quote: as chat.send kept them, whitespace collapsed. Absent with no quote."
+     },
+     "kind": {
+      "type": "string"
+     },
+     "tasks": {
+      "type": "array",
+      "items": {
+       "type": "object",
+       "properties": {
+        "id": {
+         "type": "integer"
+        },
+        "title": {
+         "type": "string"
+        }
+       },
+       "required": [
+        "id",
+        "title"
+       ]
+      }
+     },
+     "agent": {
+      "type": "string",
+      "description": "Only in chat.search hits: the agent whose chat shows the message."
+     },
+     "scope": {
+      "type": "string",
+      "enum": [
+       "mine",
+       "all"
+      ],
+      "description": "Only in chat.search hits: which of that agent's chats shows it (the jump is chat.locate)."
+     },
+     "receipt": {
+      "$ref": "#/components/schemas/Receipt",
+      "description": "Only for a message to a structured agent, while it is drawn (a withdrawn one is not). Changes ride the chat event. See x-delivery."
+     },
+     "attachments": {
+      "type": "array",
+      "items": {
+       "$ref": "#/components/schemas/Attachment"
+      },
+      "description": "Every attachment of the message (images, files, folders), in order: those the body names that are still kept, then those sent in `attachments`. Absent when it has none."
+     },
+     "refs": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      },
+      "description": "The paths the founder sent by reference (chat.send refs), as sent. Absent when it has none."
+     },
+     "parts": {
+      "type": "array",
+      "items": {
+       "oneOf": [
+        {
+         "$ref": "#/components/schemas/TextPart"
+        },
+        {
+         "$ref": "#/components/schemas/ImagePart"
+        }
+       ]
+      },
+      "description": "`body` cut at the images it names, in order, then one part per image sent with it in `attachments` that the body does not name (an empty caption); present only when the message has an image. The text parts joined give `body` with each reference left out."
+     },
+     "parent_item": {
+      "oneOf": [
+       {
+        "type": "object",
+        "description": "The agent reply this message answers, when it was sent with parent_item.",
+        "properties": {
+         "id": {
+          "type": "integer",
+          "description": "The transcript item id. chat.transcript with since=id reads the page that shows it."
+         },
+         "text": {
+          "type": "string",
+          "description": "The reply's first 300 characters (Unicode code points, no ellipsis) when the message was sent."
+         }
+        },
+        "required": [
+         "id",
+         "text"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "proposal": {
+      "type": "integer",
+      "description": "Only on the message that tells an agent how the founder decided its proposal: that proposal's id, as proposal.list gives it. A client that draws the decided proposal as a card can leave this line out."
+     },
+     "actions": {
+      "type": "array",
+      "description": "One-tap buttons for a message to the founder that waits on a decision about a task it is tied to. Present only while that task is owned by the founder and open (OK, No). Never read from the words; gone once the task changes, so a client refetches when a task event arrives. A tap calls `verb` with `params` (the client adds request_id); an action with `needs` takes that param from the person first. No answer state: each is an ordinary task verb.",
+      "items": {
+       "$ref": "#/components/schemas/ChatAction"
+      }
+     },
+     "request_task": {
+      "oneOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "On a message of the founder's to an agent: the request task made from it (task.request); null for none."
+     },
+     "no_work": {
+      "oneOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "On a message of the founder's to an agent: why it needs no work (task.none); null for none."
+     },
+     "runs": {
+      "type": "array",
+      "items": {
+       "$ref": "#/components/schemas/CommandRun"
+      },
+      "description": "The runs of this message's command blocks, one per block, oldest start first. Absent when none was started. Phone and PC draw 'Running · 4s', 'Done · exit 0 · 3s', 'Failed · exit 1 · 3s' or 'Stopped' from it."
+     }
+    },
+    "required": [
+     "id",
+     "at",
+     "state_at",
+     "from",
+     "to",
+     "state",
+     "landing",
+     "sending_reason",
+     "body",
+     "delivered_at",
+     "typed_at",
+     "landed_at",
+     "parent",
+     "kind",
+     "tasks"
+    ],
+    "description": "One request between the person and an agent."
+   },
+   "TranscriptItem": {
+    "type": "object",
+    "properties": {
+     "id": {
+      "type": "integer",
+      "description": "Its time and its source's row, so it never changes. An item that arrives in a second a client has read up to can sort before the last one it has: `since` reads from that second and a client drops the ids it already holds. For kind reply it is also what chat.send takes as parent_item. A reply has one of two sources, told apart by the last digit of its number within the second: a structured session's text block (even; the same id on every read and in the live event's `item`) and the answer to a request (odd); each is the same on every read, and chat.transcript lists both. Source numbers within the second: 0 reply, 1 prompt, 2 task event, 3 tool call, 4 session start (its number is the session_starts row)."
+     },
+     "at": {
+      "$ref": "#/components/schemas/Timestamp"
+     },
+     "kind": {
+      "type": "string",
+      "enum": [
+       "reply",
+       "tool",
+       "prompt",
+       "task_event",
+       "session",
+       "task_batch"
+      ]
+     },
+     "text": {
+      "type": "string"
+     },
+     "tool": {
+      "type": "string"
+     },
+     "output": {
+      "type": "string",
+      "description": "For kind tool: the text the tool printed, as the store holds it. Absent when the store holds none."
+     },
+     "dropped_lines": {
+      "type": "integer",
+      "description": "For kind tool: how many lines the store cut from the end of the output (it keeps the start). 0 or absent when nothing was cut."
+     },
+     "runs": {
+      "type": "array",
+      "items": {
+       "$ref": "#/components/schemas/CommandRun"
+      },
+      "description": "Kind reply only: the runs of this reply's command blocks (shell.open block \"r<id>:<n>\"), one per block, oldest start first, as ChatMessage.runs. Absent when none was started. A start and an end send the item again as a chat.transcript event."
+     },
+     "prompt": {
+      "$ref": "#/components/schemas/Prompt",
+      "description": "Prompt card; `open` says whether it can still be answered."
+     },
+     "open": {
+      "type": "boolean"
+     },
+     "answer": {
+      "description": "For kind prompt, once it is answered or closed: what it got. Answered through Handline (prompt.answer): `label` is the words for the choice (Allowed or Denied for a permission; the picked options' labels, joined by \", \", for a question, or Other for typed text; the option's label for a dialog; Cancelled for Esc), `note` the typed text or a deny's reason when there is one, `by` who answered (a person or a paired device, by name) and `at` when. Closed any other way (answered in the terminal, or gone): `outside` true and `at` when the daemon saw it close. Absent while the prompt is open and unanswered.",
+      "oneOf": [
+       {
+        "type": "object",
+        "properties": {
+         "label": {
+          "type": "string"
+         },
+         "note": {
+          "type": "string"
+         },
+         "by": {
+          "type": "string"
+         },
+         "at": {
+          "$ref": "#/components/schemas/Timestamp"
+         }
+        },
+        "required": [
+         "label",
+         "by",
+         "at"
+        ]
+       },
+       {
+        "type": "object",
+        "properties": {
+         "outside": {
+          "type": "boolean",
+          "const": true
+         },
+         "at": {
+          "$ref": "#/components/schemas/Timestamp"
+         }
+        },
+        "required": [
+         "outside",
+         "at"
+        ]
+       }
+      ]
+     },
+     "task_event": {
+      "type": "object",
+      "properties": {
+       "event": {
+        "type": "string",
+        "enum": [
+         "opened",
+         "changed",
+         "done",
+         "withdrawn"
+        ]
+       },
+       "task": {
+        "type": "integer"
+       },
+       "request": {
+        "oneOf": [
+         {
+          "type": "integer"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       },
+       "evidence": {
+        "oneOf": [
+         {
+          "type": "string"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       },
+       "who": {
+        "type": "string",
+        "description": "Who did it: the agent (or human) that opened, changed, closed or withdrew the task, as ChatRequestItem.who."
+       },
+       "change": {
+        "type": "string",
+        "description": "What a `changed` event changed, as chat.requests words it: `assigned to X, priority 2 -> 1`, `title changed`, `handed to X`. Absent when the event word says it all. An open set: a client draws a word it does not know as text."
+       }
+      },
+      "required": [
+       "event",
+       "task",
+       "request",
+       "evidence",
+       "who"
+      ]
+     },
+     "session": {
+      "type": "object",
+      "description": "For kind session: a conversation of this agent began here. Listed for every session start that did not resume the old conversation, once its session id is known (a fresh launch has none for its first seconds). When one begins the daemon publishes the item as chat.transcript, as it does a reply.",
+      "properties": {
+       "id": {
+        "type": "string"
+       },
+       "started": {
+        "$ref": "#/components/schemas/Timestamp"
+       },
+       "handoff": {
+        "oneOf": [
+         {
+          "type": "string",
+          "description": "The handoff text the session began with; null when it began with none."
+         },
+         {
+          "type": "null"
+         }
+        ]
+       },
+       "cause": {
+        "type": "string",
+        "description": "Why the conversation began. Words the daemon writes: `launch` (first start of a spawned agent), `start` (work arrived for a closed agent), `wake` (a closed agent woken), `restart`, `fresh close` (the old conversation was closed and not resumed; the one word with a space), `move` (to another account), `handoff` (folded into a handoff), and, where the daemon knows it, `context_full`, `settings_applied`, `crash_recovery`, `idle_close`. Open set: a client draws a word it does not know as text. Absent from a daemon that does not serve it."
+       }
+      },
+      "required": [
+       "id",
+       "started",
+       "handoff"
+      ]
+     },
+     "task_batch": {
+      "type": "object",
+      "description": "For kind task_batch: a batch discard, shown once in the chat of whoever made it.",
+      "properties": {
+       "batch": {
+        "type": "string"
+       },
+       "who": {
+        "type": "string"
+       },
+       "tasks": {
+        "type": "array",
+        "items": {
+         "type": "object",
+         "properties": {
+          "task": {
+           "type": "integer"
+          },
+          "title": {
+           "type": "string"
+          },
+          "reason": {
+           "type": "string"
+          }
+         },
+         "required": [
+          "task",
+          "title",
+          "reason"
+         ]
+        }
+       }
+      },
+      "required": [
+       "batch",
+       "who",
+       "tasks"
+      ]
+     }
+    },
+    "required": [
+     "id",
+     "at",
+     "kind"
+    ]
+   },
+   "Working": {
+    "type": "object",
+    "properties": {
+     "turn_running": {
+      "type": "boolean"
+     },
+     "line": {
+      "oneOf": [
+       {
+        "type": "string",
+        "description": "What it waits for or is blocked by."
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "since": {
+      "oneOf": [
+       {
+        "$ref": "#/components/schemas/Timestamp"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     }
+    },
+    "required": [
+     "turn_running",
+     "line",
+     "since"
+    ]
+   },
+   "StandingAnswer": {
+    "type": "object",
+    "required": [
+     "kind",
+     "key",
+     "text"
+    ],
+    "properties": {
+     "kind": {
+      "type": "string",
+      "enum": [
+       "trust",
+       "dialog"
+      ],
+      "description": "trust: a folder trusted for every session; dialog: a rule that answers a vendor's dialog."
+     },
+     "key": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      },
+      "description": "What answer.remove takes: [folder] for trust, [vendor, title, label] for dialog."
+     },
+     "text": {
+      "type": "string"
+     }
+    }
+   },
+   "ChatRequestItem": {
+    "type": "object",
+    "properties": {
+     "type": {
+      "type": "string",
+      "enum": [
+       "request",
+       "task_event",
+       "session"
+      ]
+     },
+     "at": {
+      "$ref": "#/components/schemas/Timestamp",
+      "description": "Where it sits in time: a request where its agent read it (landed_at) or else when it was made."
+     },
+     "message": {
+      "$ref": "#/components/schemas/ChatMessage",
+      "description": "request only."
+     },
+     "task_state": {
+      "oneOf": [
+       {
+        "type": "string",
+        "description": "request only: the live state of the task a task delivery carries, else null."
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "task": {
+      "type": "integer",
+      "description": "task_event only."
+     },
+     "title": {
+      "type": "string",
+      "description": "task_event only: the task's title."
+     },
+     "who": {
+      "type": "string",
+      "description": "task_event only: who did it."
+     },
+     "change": {
+      "type": "string",
+      "description": "task_event only: `queued -> doing`, `handed to X`, `assigned to X`, `title changed`, `priority 2 -> 1`. An open set: a client draws a word it does not know as text."
+     },
+     "note": {
+      "type": "string",
+      "description": "task_event only: the text typed with a handoff, else empty. Text from an agent."
+     },
+     "request": {
+      "oneOf": [
+       {
+        "type": "integer",
+        "description": "task_event only: the delivery a handoff belongs to, when it has one."
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "request_ref": {
+      "oneOf": [
+       {
+        "$ref": "#/components/schemas/RequestRef"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "task_event only: the ref of the delivery in request."
+     },
+     "cause": {
+      "type": "string",
+      "description": "session only: why a new conversation started (restart, wake, fresh close, move, handoff, launch). An open set."
+     },
+     "handoff": {
+      "oneOf": [
+       {
+        "type": "string",
+        "description": "session only: the handoff record the session was given, else null."
+       },
+       {
+        "type": "null"
+       }
+      ]
+     }
+    },
+    "required": [
+     "type",
+     "at"
+    ]
+   },
+   "Receipt": {
+    "type": "object",
+    "properties": {
+     "state": {
+      "type": "string",
+      "enum": [
+       "queued",
+       "sent",
+       "confirmed",
+       "unknown"
+      ],
+      "description": "queued: held by the daemon behind a running turn, not written to the CLI. sent: written to the CLI, not yet echoed. confirmed: the CLI echoed the message's uuid. unknown: written, and the daemon or the CLI ended before the echo; never written again."
+     },
+     "uuid": {
+      "type": "string",
+      "description": "The message's uuid, derived by the daemon from the request_id; the id the transcript stream's turn_start carries. Read it, do not compute it."
+     },
+     "seq": {
+      "type": "integer",
+      "description": "The seq of the transcript event that carries this uuid, when there is one; absent otherwise (a message that joined a running turn has no turn_start of its own). Best effort; a client does not wait for it."
+     }
+    },
+    "required": [
+     "state",
+     "uuid"
+    ],
+    "description": "Where a message to a structured agent is on its way into the CLI. Only for an agent whose AgentView.structured is true; see x-delivery."
+   },
+   "Attachment": {
+    "type": "object",
+    "description": "A file the person attached to a message: an image, any other file, or a folder of files (x-attachments, folders). The file lives on the daemon's machine; a client draws an image with attachment.get.",
+    "properties": {
+     "id": {
+      "$ref": "#/components/schemas/AttachmentId"
+     },
+     "name": {
+      "type": "string",
+      "maxLength": 128,
+      "description": "The file name the client gave, with no folder in it (the daemon cuts one off). Shown to the person; never used as a path."
+     },
+     "mime": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]*/[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]*$",
+      "maxLength": 100,
+      "description": "The type the file was put with. For a PNG, JPEG, GIF or WebP it is the type its first bytes say; for any other file it is the type the client gave, kept as sent. A folder is inode/directory."
+     },
+     "bytes": {
+      "type": "integer",
+      "description": "The file's size; for a folder, the sum of its files so far."
+     },
+     "width": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The picture's width in pixels as it is drawn (a JPEG's Exif orientation applied), read from its header when it was put, so a client can size it before it arrives. Absent when the header could not be read, or for an image put before it was kept."
+     },
+     "height": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The picture's height in pixels; present exactly when width is."
+     },
+     "files": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Only for a folder (mime inode/directory): how many files it holds so far."
+     }
+    },
+    "required": [
+     "id",
+     "name",
+     "mime",
+     "bytes"
+    ]
+   },
+   "ChatAction": {
+    "type": "object",
+    "properties": {
+     "key": {
+      "type": "string",
+      "enum": [
+       "ok",
+       "no"
+      ]
+     },
+     "label": {
+      "type": "string"
+     },
+     "verb": {
+      "type": "string",
+      "enum": [
+       "task.done",
+       "task.handoff"
+      ]
+     },
+     "task": {
+      "type": "integer"
+     },
+     "params": {
+      "type": "object",
+      "description": "The verb's params but request_id."
+     },
+     "needs": {
+      "type": "string",
+      "description": "A param the person must write before the tap sends."
+     }
+    },
+    "required": [
+     "key",
+     "label",
+     "verb",
+     "task",
+     "params"
+    ]
+   },
+   "RequestRow": {
+    "type": "object",
+    "properties": {
+     "kind": {
+      "type": "string",
+      "enum": [
+       "task",
+       "message"
+      ],
+      "description": "task: a request the founder opened (task.request, or a task of their own for a lead). message: a message of theirs that is not a task yet."
+     },
+     "task": {
+      "oneOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "The request's task; null for a message."
+     },
+     "ref": {
+      "oneOf": [
+       {
+        "$ref": "#/components/schemas/RequestRef"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "The founder's message it was made from, or is; null for a task opened without one."
+     },
+     "title": {
+      "type": "string"
+     },
+     "status": {
+      "type": "string",
+      "enum": [
+       "waiting_on_you",
+       "review",
+       "doing",
+       "done",
+       "no_work",
+       "not_yet"
+      ],
+      "description": "Read from the request's tree of tasks, never stored; the first that holds. waiting_on_you: a task assigned to the founder or a decision card waiting on them, anywhere in the tree. review: an open task has a PR. doing: some task in the tree is open. done: the request's own task is done (the agent that holds it judges and closes it; the founder does not). no_work: a message marked with task.none. not_yet: a message with neither a task nor a mark."
+     },
+     "agent": {
+      "type": "string",
+      "description": "Who holds the request, or the agent the message was sent to."
+     },
+     "origin": {
+      "type": "string",
+      "description": "The agent the message it was made from was sent to. Only on a task made from a message."
+     },
+     "holders": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      },
+      "description": "Agents holding an open task in the tree; empty once done."
+     },
+     "open": {
+      "type": "integer",
+      "description": "Open tasks under the request's own."
+     },
+     "done": {
+      "type": "integer",
+      "description": "Ended tasks under the request's own."
+     },
+     "prs": {
+      "type": "array",
+      "items": {
+       "type": "integer"
+      },
+      "description": "PRs of the open tasks in the tree."
+     },
+     "now": {
+      "oneOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "The agent holding the open task with the latest activity under the request (the one at work now); null once done, when the founder holds the open one, or for a message."
+     },
+     "blocked": {
+      "type": "boolean",
+      "description": "The open task named by `now` waits on another open task (task_blocks, not dormant)."
+     },
+     "progress": {
+      "type": "string",
+      "description": "The request's state in one line for the list, from the same facts as the fields: `sub 3/5 done, now daemon-core, in review` (subtasks done of all under the request's own task; the agent at work now; `in review` with a PR, `waiting on you`, `blocked`). Without subtasks `now daemon-core, in review`; empty for a message; `done` once done."
+     },
+     "attention": {
+      "oneOf": [
+       {
+        "$ref": "#/components/schemas/RequestAttention"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Why the request needs the founder's eye; null when nothing calls for it, once done, and for a message. Absent from a daemon that does not send it."
+     },
+     "reason": {
+      "oneOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Why a message needs no work (status no_work)."
+     },
+     "unread_comments": {
+      "type": "integer",
+      "description": "Agents' comments on the request that the founder has not read: what its inbox line counts."
+     },
+     "created": {
+      "$ref": "#/components/schemas/Timestamp"
+     },
+     "last_activity": {
+      "$ref": "#/components/schemas/Timestamp"
+     },
+     "cursor": {
+      "type": "string",
+      "description": "Orders the list; pass the last row's as requests.list before."
+     }
+    },
+    "required": [
+     "kind",
+     "task",
+     "ref",
+     "title",
+     "status",
+     "agent",
+     "holders",
+     "open",
+     "done",
+     "prs",
+     "now",
+     "blocked",
+     "progress",
+     "reason",
+     "unread_comments",
+     "created",
+     "last_activity",
+     "cursor"
+    ],
+    "additionalProperties": true,
+    "description": "One row of the founder's requests. A request is a task whose reporter is the founder (a task opened by them or made from their message), top of its tree."
+   },
+   "CommandRun": {
+    "type": "object",
+    "description": "One run of a command block of a message or of an agent's reply (shell.open command and block): the last run only.",
+    "properties": {
+     "block": {
+      "type": "string",
+      "description": "\"<message id>:<n>\" for a chat message's block or \"r<item id>:<n>\" for a reply item's, as shell.open took it."
+     },
+     "terminal": {
+      "type": "string",
+      "description": "The run's window, as terminal.attach takes it; gone once the window is closed."
+     },
+     "started_at": {
+      "$ref": "#/components/schemas/Timestamp"
+     },
+     "state": {
+      "type": "string",
+      "enum": [
+       "running",
+       "done",
+       "failed",
+       "stopped"
+      ],
+      "description": "running: the command has not ended. done: it ended with exit 0. failed: it ended with another exit status. stopped: its window was closed before it ended, so there is no exit status."
+     },
+     "exit": {
+      "type": "integer",
+      "description": "The command's exit status; only when state is done or failed. A command ended by a signal reads 128 plus the signal, as a shell says it."
+     },
+     "seconds": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Seconds from start to end; only when state is done or failed."
+     }
+    },
+    "required": [
+     "block",
+     "terminal",
+     "started_at",
+     "state"
+    ]
+   },
+   "RequestAttention": {
+    "type": "object",
+    "properties": {
+     "kind": {
+      "type": "string",
+      "enum": [
+       "overdue",
+       "bounced",
+       "waiting",
+       "quiet"
+      ],
+      "description": "The first that holds, in this order. overdue: an open tree task is past its time box (Task.time.overdue_since). bounced: an open tree task was sent back (reopened, not restored from discarded) attention_sent_back times or more. waiting: an open tree task, held by no open blocker and no decision card, has waited on cap, wall or owner (Task.waiting.on) for attention_wait_s or more. quiet: no tree task's clock runs and nothing in the tree has moved for attention_quiet_s or more."
+     },
+     "text": {
+      "type": "string",
+      "description": "The line to show, with no elapsed time in it: `T8504 sent back 2 times`, `T8513 waiting on owner`, `no recent activity`."
+     },
+     "task": {
+      "type": "integer",
+      "description": "The tree task it is about; the request's own for quiet."
+     }
+    },
+    "required": [
+     "kind",
+     "text",
+     "task"
+    ],
+    "description": "Why a request needs the founder's eye (RequestRow.attention), read from facts of its tree and stored nowhere. The thresholds are settings; it only labels the row."
+   }
+  }
+ },
+ "methods": [
+  {
+   "name": "chat.messages",
+   "summary": "Messages of an agent's chat, newest first. Page with before (older) or since (newer).",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "agent",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/AgentName"
+     }
+    },
+    {
+     "name": "scope",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "enum": [
+       "mine",
+       "all"
+      ],
+      "description": "mine: person and this agent; all: everything it sent or received."
+     }
+    },
+    {
+     "name": "before",
+     "required": false,
+     "schema": {
+      "type": "integer"
+     }
+    },
+    {
+     "name": "since",
+     "required": false,
+     "schema": {
+      "type": "integer"
+     }
+    },
+    {
+     "name": "limit",
+     "required": false,
+     "schema": {
+      "type": "integer"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "allOf": [
+      {
+       "type": "object",
+       "properties": {
+        "messages": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/ChatMessage"
+         }
+        },
+        "more": {
+         "type": "boolean"
+        }
+       },
+       "required": [
+        "messages",
+        "more"
+       ]
+      },
+      {
+       "$ref": "#/components/schemas/ReadCursor"
+      }
+     ]
+    }
+   },
+   "x-role": "member",
+   "x-write": false,
+   "x-app-cache": {
+    "resource": "chat-messages",
+    "feed": "chat"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ]
+  },
+  {
+   "name": "chat.requests",
+   "summary": "A chat's threads for the screen that draws them: the requests of an agent's chat oldest first, with the task changes and the session starts among them, and one version that changes when anything in the chat does.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "agent",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/AgentName"
+     }
+    },
+    {
+     "name": "scope",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "enum": [
+       "mine",
+       "all"
+      ],
+      "description": "mine: person and this agent; all: everything it sent or received."
+     }
+    },
+    {
+     "name": "before",
+     "required": false,
+     "schema": {
+      "type": "integer",
+      "description": "Request id: read the page just older than it."
+     }
+    },
+    {
+     "name": "since",
+     "required": false,
+     "schema": {
+      "type": "integer",
+      "description": "Request id: read every request from it on (no `more`); how a window already drawn is brought up to date. Not with `before`."
+     }
+    },
+    {
+     "name": "limit",
+     "required": false,
+     "schema": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 200,
+      "description": "Requests in a page; default 10."
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "properties": {
+      "items": {
+       "type": "array",
+       "items": {
+        "$ref": "#/components/schemas/ChatRequestItem"
+       }
+      },
+      "more": {
+       "type": "boolean",
+       "description": "Older requests remain (never true with `since`)."
+      },
+      "version": {
+       "type": "string",
+       "description": "Opaque: equal on two reads when nothing in the chat changed between them (a request made, closed, changed, delivered or landed, a task event, a session start). Cheap to compare; a client that sees it change reads again."
+      },
+      "cursor": {
+       "type": "integer",
+       "description": "The newest stream cursor when this was read: subscribe with since=cursor and topics [chat] to hear what changes after it."
+      }
+     },
+     "required": [
+      "items",
+      "more",
+      "version",
+      "cursor"
+     ]
+    }
+   },
+   "x-role": "member",
+   "x-write": false,
+   "x-app-cache": {
+    "resource": "chat-requests",
+    "feed": null
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "description": "items are oldest first, each with a `type`: `request` is a chat.messages ChatMessage plus `task_state`; `task_event` is a change of a task delivered in the page, since the first request in it (the state it reached, a handoff, an edit), with `request` naming the delivery a handoff belongs to so a client can draw both as one card; `session` is the start of a new conversation of the agent since that request (one that resumed the old conversation is not listed). Requests that no chat draws (withdrawn, never reached their target) are left out. HR cards are proposal.list's."
+  },
+  {
+   "name": "chat.transcript",
+   "summary": "The agent's replies, tool activity, prompt cards and task events as ordered items, plus its working state.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "agent",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/AgentName"
+     }
+    },
+    {
+     "name": "before",
+     "required": false,
+     "schema": {
+      "type": "integer"
+     }
+    },
+    {
+     "name": "since",
+     "required": false,
+     "schema": {
+      "type": "integer"
+     }
+    },
+    {
+     "name": "limit",
+     "required": false,
+     "schema": {
+      "type": "integer"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "allOf": [
+      {
+       "type": "object",
+       "properties": {
+        "items": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/TranscriptItem"
+         }
+        },
+        "more": {
+         "type": "boolean"
+        },
+        "working": {
+         "$ref": "#/components/schemas/Working"
+        }
+       },
+       "required": [
+        "items",
+        "more",
+        "working"
+       ]
+      },
+      {
+       "$ref": "#/components/schemas/ReadCursor"
+      }
+     ]
+    }
+   },
+   "x-role": "member",
+   "x-write": false,
+   "x-app-cache": {
+    "resource": "chat-transcript",
+    "id": "agent",
+    "feed": "chat"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "description": "Oldest first, in pages: `before` reads the page just older than an item id, `since` reads the items from the second that id is in. Items are the agent's replies, its tool calls, the prompts it opened and the events of the tasks it owns. A tool item's id is the second of the call and its `output` is what the store held when the page was read: a result that lands in a later second than its call is not sent again by `since`, so a client that needs it reads the page again (without `since`). A page carries at most 2 MiB of tool output between its items; the newest items keep their output and an older one is cut to fit, with `dropped_lines` counting what was left out. Session items (kind session) are part of the list: each carries session.cause and session.handoff, and sorts among the others by its second."
+  },
+  {
+   "name": "chat.locate",
+   "summary": "Where a message sits (its msg_ name, a bare hash or its number): its conversation, scope, the page of messages around it and the transcript of the same span.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "request",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestName"
+     }
+    },
+    {
+     "name": "agent",
+     "required": false,
+     "schema": {
+      "$ref": "#/components/schemas/AgentName",
+      "description": "Optional: the daemon finds the conversation from the message itself."
+     }
+    },
+    {
+     "name": "limit",
+     "required": false,
+     "schema": {
+      "type": "integer",
+      "description": "Page size, default 50."
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "required": [
+      "agent",
+      "scope",
+      "message",
+      "messages",
+      "more_older",
+      "more_newer",
+      "transcript",
+      "transcript_more_older",
+      "transcript_more_newer"
+     ],
+     "properties": {
+      "agent": {
+       "$ref": "#/components/schemas/AgentName",
+       "description": "The agent whose chat shows it."
+      },
+      "scope": {
+       "type": "string",
+       "enum": [
+        "mine",
+        "all"
+       ],
+       "description": "mine: person and this agent; all: everything it sent or received."
+      },
+      "message": {
+       "$ref": "#/components/schemas/ChatMessage"
+      },
+      "messages": {
+       "type": "array",
+       "items": {
+        "$ref": "#/components/schemas/ChatMessage"
+       },
+       "description": "A page, newest first, containing message; continue with chat.messages before (older) or since (newer)."
+      },
+      "more_older": {
+       "type": "boolean"
+      },
+      "more_newer": {
+       "type": "boolean"
+      },
+      "transcript": {
+       "type": "array",
+       "items": {
+        "$ref": "#/components/schemas/TranscriptItem"
+       },
+       "description": "chat.transcript's items for the agent from the second of the page's oldest message to the end of its newest's (on to now when more_newer is false), oldest first: up to 200, kept around message."
+      },
+      "transcript_more_older": {
+       "type": "boolean",
+       "description": "The span has older items than transcript holds; continue with chat.transcript before the first item's id."
+      },
+      "transcript_more_newer": {
+       "type": "boolean",
+       "description": "The span has newer items than transcript holds; continue with chat.transcript since the last item's id."
+      }
+     }
+    }
+   },
+   "x-role": "member",
+   "x-write": false,
+   "x-app-cache": {
+    "resource": "chat-locate",
+    "feed": null
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "description": "not_found when the request does not exist or no chat draws it (withdrawn, or never reached its target). The page has up to `limit` messages, about half of them older than the one asked for. When the request exists and only no chat draws it, the not_found data also carries `from`, `to` and `body` of that request (body as typed, control characters stripped), so a client can say what it was; for a request that does not exist it carries none of them."
+  },
+  {
+   "name": "chat.refs",
+   "summary": "What a # in the composer can point at: the agent's newest requests.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "agent",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/AgentName"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "required": [
+      "requests"
+     ],
+     "properties": {
+      "requests": {
+       "type": "array",
+       "items": {
+        "type": "object",
+        "required": [
+         "request",
+         "from",
+         "to",
+         "line"
+        ],
+        "properties": {
+         "request": {
+          "type": "integer"
+         },
+         "from": {
+          "type": "string"
+         },
+         "to": {
+          "type": "string"
+         },
+         "line": {
+          "type": "string",
+          "description": "The first line of the body, at most 60 characters."
+         }
+        }
+       },
+       "description": "Up to 30, newest first: every request the agent sent or received that was not withdrawn or turned away."
+      }
+     }
+    }
+   },
+   "x-role": "member",
+   "x-write": false,
+   "x-app-cache": {
+    "resource": "chat-refs",
+    "id": "agent",
+    "feed": null
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "description": "The agent's tasks are `tasks.list` with `owner` or `from`. A request that no chat shows is read with `chat.locate`, whose not_found carries from, to and body."
+  },
+  {
+   "name": "chat.search",
+   "summary": "Find messages by text; each hit carries the scope that shows it (the jump is chat.locate). An agent searches only its own messages: `agent` absent is the caller, any other name is refused (gate role).",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "agent",
+     "required": false,
+     "schema": {
+      "$ref": "#/components/schemas/AgentName"
+     }
+    },
+    {
+     "name": "query",
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    },
+    {
+     "name": "scope",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "enum": [
+       "mine",
+       "all"
+      ],
+      "description": "mine: person and this agent; all: everything it sent or received."
+     }
+    },
+    {
+     "name": "with",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "description": "Only messages whose other party is this name: an agent, or `human` for the person. When one agent's messages are searched (`agent`, or the caller for an agent), the party other than that agent; when the person searches every agent (no `agent`), messages from or to the name. A name no message has finds nothing."
+     }
+    },
+    {
+     "name": "since",
+     "required": false,
+     "schema": {
+      "$ref": "#/components/schemas/Timestamp",
+      "description": "Only messages sent at or after this time; one that is not a timestamp is bad_request (field since)."
+     }
+    },
+    {
+     "name": "limit",
+     "required": false,
+     "schema": {
+      "type": "integer"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "properties": {
+      "messages": {
+       "type": "array",
+       "items": {
+        "$ref": "#/components/schemas/ChatMessage"
+       }
+      }
+     },
+     "required": [
+      "messages"
+     ]
+    }
+   },
+   "x-role": "agent",
+   "x-write": false,
+   "x-app-cache": {
+    "resource": "chat-search",
+    "feed": null
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/bad_request"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/refused"
+    }
+   ],
+   "x-gates": [
+    "role"
+   ]
+  },
+  {
+   "name": "chat.send",
+   "summary": "A message to an agent through the daemon's delivery (queued, typed, landed); needs no input hold. With parent, a reply to a message. To a structured agent the request_id is the operation id and the result carries a receipt. From a person (the founder or a member device), to a terminal agent, which takes the person's words mid-turn too, the call answers once the message is typed into its session; other calls on the connection are answered meanwhile. Not typed within 10 minutes, it is taken back (withdrawn) and the call is refused (gate state), and a retry does not send it again. The one exception is a message to a structured agent: its receipt is already the outcome, written or queued behind the turn running there, which the app shows as a queued bubble that chat.send_now and chat.cancel act on; that call answers at once and the message is never withdrawn. An agent's call (hl say, hl reply) answers once the message is written, and it is queued until the target takes it. A message that opens a task answers once the task is written; telling the agent is delivery.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "agent",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/AgentName"
+     }
+    },
+    {
+     "name": "body",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "description": "Markdown. It may name images (x-attachments, texts), with or without `task`; with `task` it is the task's brief."
+     }
+    },
+    {
+     "name": "task",
+     "required": false,
+     "schema": {
+      "type": "object",
+      "properties": {
+       "title": {
+        "type": "string"
+       },
+       "time_box": {
+        "$ref": "#/components/schemas/Duration"
+       }
+      },
+      "required": [
+       "title"
+      ]
+     }
+    },
+    {
+     "name": "parent",
+     "required": false,
+     "schema": {
+      "$ref": "#/components/schemas/RequestName",
+      "description": "The message this one replies to: a reference, for any message whatever it asked of the person. The message is only a say to the agent with the parent link; it answers, settles or changes nothing about the parent. Not with task. A message that does not exist is not_found. The message goes to agent whoever the parent's requester or target is, so a row relayed from another agent can be quoted in this agent's chat. request in the result is the new message."
+     }
+    },
+    {
+     "name": "quote",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "maxLength": 1000,
+      "description": "The words of the parent message this one answers, picked by the person: kept with the message (ChatMessage.quote) and delivered as a `> ` line, then a blank line, above the body. Whitespace is collapsed, and then it must appear in the parent's body, whitespace collapsed the same way, so a quote never shows words the parent did not say. Only with parent; alone, with parent_item or task, empty, longer than 1000 characters as sent, or not in the parent, it is bad_request, field quote."
+     }
+    },
+    {
+     "name": "attachments",
+     "required": false,
+     "schema": {
+      "type": "array",
+      "items": {
+       "$ref": "#/components/schemas/AttachmentId"
+      },
+      "maxItems": 6,
+      "uniqueItems": true,
+      "description": "Attachments from attachment.put (images, files, folders) to send with this message, drawn after those the body names (x-attachments, flow); an id the body names too counts once, and the two together are at most 6 (bad_request, field attachments when the list goes over). Then body may be empty. An id may be sent again. A malformed id or an unfinished upload or a folder with no file finished is bad_request, field attachments; an attachment never put or no longer kept is not_found, what attachment. Not with task (bad_request): a brief names its images in its text."
+     }
+    },
+    {
+     "name": "refs",
+     "required": false,
+     "schema": {
+      "type": "array",
+      "items": {
+       "type": "string",
+       "pattern": "^/",
+       "maxLength": 4096
+      },
+      "maxItems": 6,
+      "uniqueItems": true,
+      "description": "Files and folders on the daemon's machine named by absolute path, not copied (x-attachments, refs). Founder only: another caller is refused, gate role. Counted with attachments, at most 6 in all (bad_request, field refs). Then body may be empty. Not with task (bad_request, field refs). With chat_refs_need_grant on, a ref the agent may not read is refused, gate access_needed (x-access)."
+     }
+    },
+    {
+     "name": "parent_item",
+     "required": false,
+     "schema": {
+      "type": "integer",
+      "description": "A reply of the agent's own that this message answers: the `id` of an item of kind reply that chat.transcript lists for this agent (a structured session's text block, whose live event carries the same id as `item`, or the answer to a request). The agent's turn text has no message number, so it cannot be `parent`; the two do not go together, nor does this with task (bad_request, field parent_item). It may go with attachments. An id that is no item of this agent's transcript, or one of another agent's, is not_found (what: item); one that is not a reply (a tool call, a prompt, a task event, a session) is bad_request."
+     }
+    },
+    {
+     "name": "delivery",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "enum": [
+       "now",
+       "queue"
+      ],
+      "description": "For a structured agent whose turn is running: now joins the running turn, queue (the default) is held by the daemon and written when the turn ends, one message per turn. With no turn running they are the same. A terminal agent accepts the field and ignores it. Another word is bad_request."
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "allOf": [
+      {
+       "$ref": "#/components/schemas/Accepted"
+      },
+      {
+       "type": "object",
+       "properties": {
+        "request": {
+         "type": "integer"
+        },
+        "receipt": {
+         "$ref": "#/components/schemas/Receipt"
+        }
+       },
+       "required": [
+        "request"
+       ]
+      }
+     ]
+    }
+   },
+   "x-role": "member",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "authored",
+    "label": "send"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "description": "To a structured agent the result holds `receipt`; to a terminal agent it does not. A repeat (the same request_id and params) returns replayed true and the receipt as it is now, not the first reply, and writes nothing; see x-delivery. A repeat of an operation that was withdrawn is refused (gate state): a retry does not bring back what the person took back. With attachments, the delivered text ends with one path line per attachment, then one per ref (x-attachments). With parent_item the delivered text begins with the reply quoted, each line after `> `, then a blank line, then the body. The quote is the reply's first 300 characters, counted as Unicode code points (not UTF-16 units), with no ellipsis added; the daemon cuts, once, and keeps the same text with the message (ChatMessage.parent_item), so a client draws it without reading the transcript again and the stored and the delivered quote are the same.",
+   "x-gates": [
+    "access_needed",
+    "role",
+    "state"
+   ]
+  },
+  {
+   "name": "chat.send_now",
+   "summary": "Write a queued message now, ahead of the daemon's delivery order; the request keeps its id and goes on as sent. To a terminal agent, from a person, it answers once the message is typed, as chat.send does, and is taken back past 10 minutes.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "request",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestName",
+      "description": "A ChatMessage.id still in state queued."
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "allOf": [
+      {
+       "$ref": "#/components/schemas/Accepted"
+      },
+      {
+       "type": "object",
+       "properties": {
+        "receipt": {
+         "$ref": "#/components/schemas/Receipt"
+        }
+       }
+      }
+     ]
+    }
+   },
+   "x-role": "member",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "send now"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "description": "For a message to a structured agent whose receipt is queued: written to the CLI with priority now, receipt sent. Any other receipt is refused (gate state), including a message written meanwhile. The daemon makes the release atomic with its queue, so a write that has started is never promoted twice. A terminal agent's message is as before."
+  },
+  {
+   "name": "chat.cancel",
+   "summary": "Take back a message the person sent, delivered or not.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "request",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestName"
+     }
+    },
+    {
+     "name": "confirm",
+     "required": false,
+     "schema": {
+      "type": "boolean",
+      "description": "Needed once the agent has been told the message. Without it the call is refused (gate confirm) and error data.plan holds what cancelling would do and who is told; send it again with confirm true to do it."
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Accepted"
+    }
+   },
+   "x-role": "member",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "withdraw"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "description": "The person's own undo. A message not yet delivered is taken back and nobody is told. To a structured agent a message whose receipt is queued is withdrawn the same way, with no confirm: it was never written to the CLI. A delivered one (receipt sent, confirmed or unknown, or a terminal agent's delivered message) is closed as rejected after confirm, its agent is told to stop and whatever queued behind it moves up. A withdrawn operation is dropped from chat.messages and a chat.send of its request_id is refused (gate state). A message the person did not send, or one already closed, is refused (gate state)."
+  },
+  {
+   "name": "chat.seen",
+   "summary": "Record that the person has an agent's messages in front of them, up to a message number.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "agent",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/AgentName"
+     }
+    },
+    {
+     "name": "up_to",
+     "required": true,
+     "schema": {
+      "type": "integer",
+      "description": "The highest message number that has been in view. A lower number than before changes nothing: what arrives later has a higher one, so nothing unseen is hidden."
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Accepted"
+    }
+   },
+   "x-role": "member",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "mark seen"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "description": "What it moves: the agent's messages to the person up to up_to leave the FOR YOU list as new (the mailbox's unseen count). Only that list forgets; decisions still count in the summary. An ask raised by a task comment stays open past up_to (task.comment.add says what closes it). A client sends the newest of the agent's messages that has been in view, never merely loaded, so opening a chat clears only what it showed."
+  },
+  {
+   "name": "attachment.put",
+   "summary": "Upload a file for a message, in chunks; the last chunk returns the Attachment to name in chat.send.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "name",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "maxLength": 128
+     }
+    },
+    {
+     "name": "mime",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]*/[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]*$",
+      "maxLength": 100,
+      "description": "The file's type, as a MIME type (`application/octet-stream` when the client does not know). PNG, JPEG, GIF and WebP are checked against the first bytes; any other type is kept as sent."
+     }
+    },
+    {
+     "name": "bytes",
+     "required": true,
+     "schema": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The whole file's size, the same in every chunk of one upload."
+     }
+    },
+    {
+     "name": "offset",
+     "required": false,
+     "schema": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Where this chunk starts. Default 0."
+     }
+    },
+    {
+     "name": "upload",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "description": "From the first reply. Absent on the chunk at offset 0 that opens the upload."
+     }
+    },
+    {
+     "name": "data",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "contentEncoding": "base64",
+      "maxLength": 716800,
+      "description": "The chunk, at most 512 KiB of file."
+     }
+    },
+    {
+     "name": "folder",
+     "required": false,
+     "schema": {
+      "$ref": "#/components/schemas/AttachmentId",
+      "description": "A folder from attachment.folder this file goes in. Only on the chunk at offset 0, with rel_path."
+     }
+    },
+    {
+     "name": "rel_path",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "maxLength": 1024,
+      "description": "The file's path inside the folder, `/` between parts: no empty, `.` or `..` part, no leading `/`. folder and rel_path go together, only on the chunk at offset 0: one without the other, or either on a later chunk, is bad_request with that field; a path the folder already holds is bad_request, field rel_path."
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "allOf": [
+      {
+       "$ref": "#/components/schemas/Accepted"
+      },
+      {
+       "type": "object",
+       "properties": {
+        "upload": {
+         "type": "string"
+        },
+        "received": {
+         "type": "integer",
+         "description": "Bytes held so far."
+        },
+        "attachment": {
+         "$ref": "#/components/schemas/Attachment",
+         "description": "Only on the chunk that completes the file."
+        }
+       },
+       "required": [
+        "upload",
+        "received"
+       ]
+      }
+     ]
+    }
+   },
+   "x-role": "member",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "attach image"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "x-gates": [
+    "role",
+    "limit"
+   ],
+   "description": "See x-attachments. A chunk whose offset is not `received` is bad_request, field offset, and the reply's data says what the daemon holds, so a client that lost a reply resumes from there; the same request_id and params replays as for every write and writes nothing. When received reaches bytes the daemon checks an image type (PNG, JPEG, GIF, WebP) by the first bytes, takes any other file as sent, and answers with `attachment`; a size over 10 MiB, an unsent total over its limit or too many open uploads is refused, gate limit, and the partial upload is dropped. An upload id that is unknown or expired is not_found. With folder, the file is one of that folder's (x-attachments, folders) and the reply's attachment is the folder as it is now; a folder unknown or expired is not_found, what attachment, and one over 2000 files is refused, gate limit."
+  },
+  {
+   "name": "attachment.folder",
+   "summary": "Open a folder attachment that attachment.put then fills file by file, for a dropped folder.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "name",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "maxLength": 128,
+      "description": "The folder's name as dropped, shown to the person."
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "allOf": [
+      {
+       "$ref": "#/components/schemas/Accepted"
+      },
+      {
+       "type": "object",
+       "properties": {
+        "attachment": {
+         "$ref": "#/components/schemas/Attachment",
+         "description": "mime inode/directory, bytes 0, files 0."
+        }
+       },
+       "required": [
+        "attachment"
+       ]
+      }
+     ]
+    }
+   },
+   "x-role": "member",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "attach folder"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "x-gates": [
+    "role",
+    "limit"
+   ],
+   "description": "See x-attachments, folders. An empty name is bad_request, field name. An agent is refused, gate role, as for attachment.put; more than 20 unsent uploads and folders open at once is refused, gate limit."
+  },
+  {
+   "name": "attachment.get",
+   "summary": "Read an attached image or a memo's file, or a small copy of an image, for drawing.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/AttachmentId"
+     }
+    },
+    {
+     "name": "thumb",
+     "required": false,
+     "schema": {
+      "type": "boolean",
+      "description": "A copy with its longest side at most 320 px, as PNG or JPEG, in one reply (at most 256 KiB). Default false."
+     }
+    },
+    {
+     "name": "offset",
+     "required": false,
+     "schema": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Where to read the original from. Default 0. Not with thumb."
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "properties": {
+      "mime": {
+       "type": "string",
+       "pattern": "^[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]*/[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]*$",
+       "maxLength": 100,
+       "description": "The file's type, or the thumbnail's when thumb."
+      },
+      "bytes": {
+       "type": "integer",
+       "description": "The size of the whole original, or of the thumbnail when thumb."
+      },
+      "offset": {
+       "type": "integer"
+      },
+      "data": {
+       "type": "string",
+       "contentEncoding": "base64",
+       "description": "At most 512 KiB of file; the rest is another call at offset + the length read."
+      },
+      "done": {
+       "type": "boolean",
+       "description": "True when this reply reaches the end."
+      }
+     },
+     "required": [
+      "mime",
+      "bytes",
+      "offset",
+      "data",
+      "done"
+     ]
+    }
+   },
+   "x-role": "member",
+   "x-write": false,
+   "x-app-cache": false,
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "x-gates": [
+    "role"
+   ],
+   "description": "See x-attachments. An id that no longer exists (never put, or kept past its time) is not_found."
+  },
+  {
+   "name": "attachment.remove",
+   "summary": "The founder deletes an image or a memo's file everywhere it is named; dry_run counts the places first.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/AttachmentId"
+     }
+    },
+    {
+     "name": "dry_run",
+     "required": false,
+     "schema": {
+      "type": "boolean",
+      "description": "Remove nothing: answer removed_from alone, for the confirm."
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "allOf": [
+      {
+       "$ref": "#/components/schemas/Accepted"
+      },
+      {
+       "type": "object",
+       "properties": {
+        "removed_from": {
+         "type": "integer",
+         "minimum": 0,
+         "description": "How many chat messages, task texts and memos name it or carry it, each once; 0 when it was removed already."
+        }
+       },
+       "required": [
+        "removed_from"
+       ]
+      }
+     ]
+    }
+   },
+   "x-role": "founder",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "delete the photo"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "x-gates": [
+    "role"
+   ],
+   "description": "See x-attachments. The file is deleted at once, wherever it is named: in a chat message, a task's brief, a memo or a note, or carried as a memo's file. Every read that names the id then answers as for an image no longer kept, ImagePart and MemoFile with gone: true, and with removed: true as well, so a client tells a deletion from an expiry; attachment.get is not_found. The texts that name it are not changed. ChatMessage.attachments and turn_start.attachments still list the id; a client reads gone and removed from parts. The event attachment.removed goes on the chat and tasks topics. An id removed already is accepted with removed_from 0, so a retried tap is no error; one never put is not_found, what attachment. A dry run writes nothing and keeps no reply under the request_id. An agent or member caller is refused, gate role. Agents are not told: one that was given the path keeps its line, and reading it later fails."
+  },
+  {
+   "name": "inbox.list",
+   "summary": "Inbox items; an agent sees its own.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "unread",
+     "required": false,
+     "schema": {
+      "type": "boolean"
+     }
+    },
+    {
+     "name": "kind",
+     "required": false,
+     "schema": {
+      "type": "string"
+     }
+    },
+    {
+     "name": "agent",
+     "required": false,
+     "schema": {
+      "$ref": "#/components/schemas/AgentName"
+     }
+    },
+    {
+     "name": "before",
+     "required": false,
+     "schema": {
+      "type": "integer",
+      "description": "Return rows older than this id."
+     }
+    },
+    {
+     "name": "limit",
+     "required": false,
+     "schema": {
+      "type": "integer",
+      "description": "Default 50, at most 200."
+     }
+    },
+    {
+     "name": "wait_s",
+     "required": false,
+     "schema": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 600,
+      "description": "Hold the call up to this many seconds while no item matches the other params (unread, kind, agent, before; read items count unless unread is true), and return when one arrives (an empty list on timeout). Default 0, at most 600; the call is in flight and the connection is not idle."
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "allOf": [
+      {
+       "type": "object",
+       "properties": {
+        "items": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/InboxItem"
+         }
+        },
+        "more": {
+         "type": "boolean"
+        }
+       },
+       "required": [
+        "items",
+        "more"
+       ]
+      },
+      {
+       "$ref": "#/components/schemas/ReadCursor"
+      }
+     ]
+    }
+   },
+   "x-role": "agent",
+   "x-write": false,
+   "x-app-cache": {
+    "resource": "inbox",
+    "feed": "inbox"
+   },
+   "x-since": 1,
+   "x-note": "hl inbox --wait is inbox.queue with wait_s; hl read --wait is request.read with wait_s."
+  },
+  {
+   "name": "inbox.queue",
+   "summary": "An inbox as hl inbox prints it.",
+   "description": "An agent's inbox is the one request at the head of its queue (the oldest queued one whose routing was checked; a say is never the head), and with `all` every request ever sent to it. The founder's is the mailbox folded to one line per agent, a decision keeping its own line, and with `all` the 20 most recent requests to or from the founder that are no longer queued. An agent may list its own inbox and those of the agents it supervises; the founder any. Nothing is marked read: the caller sends inbox.mark_read for the head it showed.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "whose",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "description": "An agent's name, or `human` for the founder's mailbox. Default: the caller's own."
+     }
+    },
+    {
+     "name": "all",
+     "required": false,
+     "schema": {
+      "type": "boolean",
+      "description": "Add `history` (an agent's inbox) or `dealt` (the founder's). Default false."
+     }
+    },
+    {
+     "name": "since",
+     "required": false,
+     "schema": {
+      "type": "integer",
+      "description": "With `wait_s`: a `newest` from an earlier reply. The call holds until something newer waits. Default 0: it holds while nothing waits."
+     }
+    },
+    {
+     "name": "wait_s",
+     "required": false,
+     "schema": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 600,
+      "description": "Hold the call up to this many seconds while `newest` is not above `since`. On timeout the reply is the inbox as it is, `newest` unchanged. Default 0, at most 600."
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "properties": {
+      "whose": {
+       "type": "string"
+      },
+      "newest": {
+       "type": "integer",
+       "description": "The number of the newest thing waiting in this inbox, 0 for nothing: for an agent a request no state has settled, for the founder a mailbox row."
+      },
+      "head": {
+       "oneOf": [
+        {
+         "type": "object",
+         "properties": {
+          "id": {
+           "type": "integer"
+          },
+          "requester": {
+           "type": "string"
+          },
+          "chain_depth": {
+           "type": "integer"
+          },
+          "body": {
+           "type": "string"
+          },
+          "more_waiting": {
+           "type": "integer",
+           "minimum": 0,
+           "description": "How many requests wait in the queue behind this one."
+          },
+          "more_waiting_line": {
+           "type": "string",
+           "description": "The sentence that says so and when the next one comes; empty when none wait."
+          },
+          "how_to_close": {
+           "type": "string",
+           "description": "What the agent does to close it: the reply that answers it, or for a task the hand-on and done commands."
+          }
+         },
+         "required": [
+          "id",
+          "requester",
+          "chain_depth",
+          "body",
+          "more_waiting",
+          "more_waiting_line",
+          "how_to_close"
+         ]
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "The head of an agent's queue; null when the queue is empty and for the founder's mailbox."
+      },
+      "history": {
+       "type": "array",
+       "description": "An agent's inbox with `all`: every request sent to it, oldest first.",
+       "items": {
+        "type": "object",
+        "properties": {
+         "id": {
+          "type": "integer"
+         },
+         "requester": {
+          "type": "string"
+         },
+         "state": {
+          "type": "string"
+         },
+         "chain_depth": {
+          "type": "integer"
+         },
+         "line": {
+          "type": "string",
+          "description": "The body as one line, cut to 60 characters."
+         }
+        },
+        "required": [
+         "id",
+         "requester",
+         "state",
+         "chain_depth",
+         "line"
+        ]
+       }
+      },
+      "waiting": {
+       "type": "integer",
+       "minimum": 0,
+       "description": "The founder's mailbox: how many requests and answers wait, before folding."
+      },
+      "lines": {
+       "type": "array",
+       "description": "The founder's mailbox: decisions first, then the rest, oldest first in each.",
+       "items": {
+        "type": "object",
+        "properties": {
+         "id": {
+          "type": "integer",
+          "description": "The newest request the line stands for."
+         },
+         "from": {
+          "type": "string"
+         },
+         "kind": {
+          "type": "string"
+         },
+         "decision": {
+          "type": "boolean",
+          "description": "Only the founder can decide it."
+         },
+         "answer": {
+          "type": "boolean",
+          "description": "It is an answer to something the founder asked; `id` is the founder's request."
+         },
+         "line": {
+          "type": "string",
+          "description": "Its first line, cut to 60 characters."
+         },
+         "unread": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "How many unseen messages of that agent the line stands for."
+         }
+        },
+        "required": [
+         "id",
+         "from",
+         "kind",
+         "decision",
+         "answer",
+         "line",
+         "unread"
+        ]
+       }
+      },
+      "dealt": {
+       "type": "array",
+       "description": "The founder's mailbox with `all`: newest first, without what `lines` still lists.",
+       "items": {
+        "type": "object",
+        "properties": {
+         "id": {
+          "type": "integer"
+         },
+         "outgoing": {
+          "type": "boolean",
+          "description": "The founder sent it; `agent` is whom it went to."
+         },
+         "agent": {
+          "type": "string"
+         },
+         "state": {
+          "type": "string"
+         },
+         "line": {
+          "type": "string",
+          "description": "The first line of what closed it, else of its body, cut to 60 characters."
+         }
+        },
+        "required": [
+         "id",
+         "outgoing",
+         "agent",
+         "state",
+         "line"
+        ]
+       }
+      }
+     },
+     "required": [
+      "whose",
+      "newest",
+      "head"
+     ]
+    }
+   },
+   "x-role": "agent",
+   "x-write": false,
+   "x-app-cache": false,
+   "x-since": 1,
+   "x-gates": [
+    "listing"
+   ],
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ]
+  },
+  {
+   "name": "inbox.get",
+   "summary": "One item.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestName"
+     }
+    },
+    {
+     "name": "wait_s",
+     "required": false,
+     "schema": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 600,
+      "description": "Hold the call up to this many seconds until the request settles. Default 0, at most 600."
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "allOf": [
+      {
+       "$ref": "#/components/schemas/InboxItem"
+      },
+      {
+       "$ref": "#/components/schemas/ReadCursor"
+      }
+     ]
+    }
+   },
+   "x-role": "agent",
+   "x-write": false,
+   "x-app-cache": {
+    "resource": "inbox-item",
+    "id": "id",
+    "feed": "inbox"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ]
+  },
+  {
+   "name": "request.read",
+   "summary": "One request whole, as hl read prints it.",
+   "description": "Any caller may read any request, with both of its ends named; a request to an agent that the routing table has not passed yet is not_found to that agent. The founder reading one opens it: it is marked read, and when it is one the founder asked, its answer is marked told. A member's device reading it opens nothing. With `wait_s` the call holds while the request is queued; `state` says whether it settled, and a wait that ends with it still queued opens nothing.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestName"
+     }
+    },
+    {
+     "name": "wait_s",
+     "required": false,
+     "schema": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 600,
+      "description": "Hold the call up to this many seconds while the request is queued. Default 0, at most 600."
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "properties": {
+      "id": {
+       "type": "integer"
+      },
+      "ref": {
+       "$ref": "#/components/schemas/RequestRef"
+      },
+      "requester": {
+       "type": "string"
+      },
+      "target": {
+       "type": "string"
+      },
+      "kind": {
+       "type": "string",
+       "description": "ask, task, say and the like; a request with none is an ask."
+      },
+      "state": {
+       "type": "string",
+       "description": "queued until it settles; then landed, or denied, withdrawn or replaced for one that never reached its target."
+      },
+      "created": {
+       "$ref": "#/components/schemas/Timestamp"
+      },
+      "chain_depth": {
+       "type": "integer"
+      },
+      "parent": {
+       "oneOf": [
+        {
+         "type": "object",
+         "properties": {
+          "id": {
+           "type": "integer"
+          },
+          "ref": {
+           "$ref": "#/components/schemas/RequestRef"
+          },
+          "line": {
+           "type": "string",
+           "description": "The start of the parent's first line, at most 40 characters and an ellipsis."
+          }
+         },
+         "required": [
+          "id",
+          "line"
+         ]
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "body": {
+       "type": "string"
+      },
+      "answer": {
+       "oneOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "What came back, or for a request that never reached its target why it closed. Null while there is none."
+      },
+      "parts": {
+       "type": "array",
+       "items": {
+        "oneOf": [
+         {
+          "$ref": "#/components/schemas/TextPart"
+         },
+         {
+          "$ref": "#/components/schemas/ImagePart"
+         }
+        ]
+       },
+       "description": "`body` cut at the images it names, in order, then one part per image sent with it in `attachments` that the body does not name (an empty caption); present only when the message has an image. The text parts joined give `body` with each reference left out."
+      },
+      "refs": {
+       "type": "array",
+       "items": {
+        "type": "object",
+        "properties": {
+         "path": {
+          "type": "string"
+         },
+         "folder": {
+          "type": "boolean"
+         }
+        },
+        "required": [
+         "path",
+         "folder"
+        ]
+       },
+       "description": "The paths the founder sent by reference (chat.send refs), as sent, and whether each was a folder then. Absent when it has none."
+      }
+     },
+     "required": [
+      "id",
+      "requester",
+      "target",
+      "kind",
+      "state",
+      "created",
+      "chain_depth",
+      "parent",
+      "body",
+      "answer"
+     ]
+    }
+   },
+   "x-role": "agent",
+   "x-write": false,
+   "x-app-cache": false,
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ]
+  },
+  {
+   "name": "request.withdraw",
+   "summary": "Take back a request of your own before it is delivered, as hl withdraw does.",
+   "description": "The caller is the requester: an agent's session withdraws that agent's request, and the founder's key withdraws the founder's own. A request that is not the caller's, one already delivered or closed, and an id that does not exist are not errors: the reply has `ok` false and `said` gives the reason.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestName"
+     }
+    },
+    {
+     "name": "reason",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "description": "Why, kept with the withdrawal. Not empty when given."
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "required": [
+      "ok",
+      "said"
+     ],
+     "properties": {
+      "ok": {
+       "type": "boolean",
+       "description": "Whether the request was withdrawn."
+      },
+      "said": {
+       "type": "string",
+       "description": "What was withdrawn, or why nothing was."
+      }
+     }
+    }
+   },
+   "x-role": "agent",
+   "x-write": true,
+   "x-app-write": false,
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ]
+  },
+  {
+   "name": "request.cancel",
+   "summary": "The founder takes any request out of an agent's queue, as hl cancel does; dry_run names what would happen.",
+   "description": "Unlike chat.cancel it is not limited to messages the person sent, and it asks for no confirm: the call without `dry_run` is the go-ahead. A queued request is closed as rejected, delivered or not; its agent is told to stop when it was delivered, and its requester is told unless that is the founder. The founder's own request that was never delivered is withdrawn and nobody is told. A request that is gone or already closed is not an error: `ok` is false, with the reason in `plan` (dry run) or `said`. A dry run writes nothing and records nothing, and no reply is kept under the request_id.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestName"
+     }
+    },
+    {
+     "name": "dry_run",
+     "required": false,
+     "schema": {
+      "type": "boolean",
+      "description": "Change nothing: answer `plan`."
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "required": [
+      "ok"
+     ],
+     "properties": {
+      "ok": {
+       "type": "boolean",
+       "description": "Dry run: whether the request can be cancelled. Otherwise: whether it was."
+      },
+      "plan": {
+       "type": "string",
+       "description": "Dry run only: what cancelling would do and who is told, or why it cannot be cancelled."
+      },
+      "said": {
+       "type": "string",
+       "description": "Without dry_run: what was cancelled and who was told, or `not cancelled - ` and the reason."
+      }
+     }
+    }
+   },
+   "x-role": "founder",
+   "x-write": true,
+   "x-app-write": false,
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ]
+  },
+  {
+   "name": "inbox.mark_read",
+   "summary": "Mark items read; an id that is not yours is not_found.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "ids",
+     "required": true,
+     "schema": {
+      "type": "array",
+      "items": {
+       "$ref": "#/components/schemas/RequestName"
+      }
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Accepted"
+    }
+   },
+   "x-role": "agent",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "authored",
+    "label": "mark read"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "description": "For the founder, every message of an agent up to the newest id named is read; a decision or a reply owed is never read away, so such an id, and what lies past it, stays unread (refused, gate state, when nothing could be read). For an agent only the head of its own queue can be read, as `hl inbox` does; another id of its own is refused, gate state. An ask raised by a task comment (InboxItem.memo) is read only by naming its own id: reading an agent's messages past it leaves it open."
+  },
+  {
+   "name": "inbox.reply",
+   "summary": "Reply to an item. From a person to a terminal agent it answers once the reply is typed, as chat.send does; an agent's reply is queued until the target takes it.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestName"
+     }
+    },
+    {
+     "name": "text",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "description": "Markdown. It may name images (x-attachments, texts)."
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Accepted"
+    }
+   },
+   "x-role": "agent",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "authored",
+    "label": "reply"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "description": "A message to whoever sent the item, with the item as its parent link (`hl say --parent`); it settles nothing. An agent replies to its own incoming items; the founder to a mailbox item that is not a decision (a decision is a task, closed with task.done: refused, gate state). A reply to an ask raised by a task comment (InboxItem.memo) is also added to that task as the founder's comment, a reply to that comment, which closes the ask and is told to the task's readers at once."
+  },
+  {
+   "name": "requests.list",
+   "summary": "The founder's requests, newest activity first: the tasks they opened or that an agent opened in the turn of their message, and the messages of theirs that are not a task yet, each with a status read from its tree of tasks: the tasks under it and the tasks that serve it (Task.request). Done requests stay listed 30 days.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "state",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "enum": [
+       "waiting_on_you",
+       "review",
+       "doing",
+       "done",
+       "no_work",
+       "not_yet"
+      ]
+     }
+    },
+    {
+     "name": "before",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "description": "A row's cursor: the rows after it."
+     }
+    },
+    {
+     "name": "limit",
+     "required": false,
+     "schema": {
+      "type": "integer"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "properties": {
+      "items": {
+       "type": "array",
+       "items": {
+        "$ref": "#/components/schemas/RequestRow"
+       }
+      },
+      "more": {
+       "type": "boolean"
+      }
+     },
+     "required": [
+      "items",
+      "more"
+     ]
+    }
+   },
+   "x-role": "member",
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "x-write": false,
+   "x-app-cache": {
+    "resource": "requests",
+    "feed": "requests"
+   }
+  },
+  {
+   "name": "answers.list",
+   "summary": "The founder's saved answers: trusted folders and dialog rules (Home settings).",
+   "paramStructure": "by-name",
+   "params": [],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "properties": {
+      "answers": {
+       "type": "array",
+       "items": {
+        "$ref": "#/components/schemas/StandingAnswer"
+       }
+      }
+     },
+     "required": [
+      "answers"
+     ]
+    }
+   },
+   "x-role": "founder",
+   "x-write": false,
+   "x-app-cache": {
+    "resource": "answers",
+    "feed": null
+   },
+   "x-since": 1,
+   "description": "A daemon that answers no dialog lists no dialog rules (x-dialogs)."
+  },
+  {
+   "name": "answer.add",
+   "summary": "Save a standing answer: a folder to trust, or a dialog rule (vendor, title and label).",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "folder",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "description": "A folder to trust; must exist. Give folder, or the three rule fields."
+     }
+    },
+    {
+     "name": "vendor",
+     "required": false,
+     "schema": {
+      "type": "string"
+     }
+    },
+    {
+     "name": "title",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "description": "The dialog's title; a long command's truncated title is refused."
+     }
+    },
+    {
+     "name": "label",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "description": "The option label to choose."
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Accepted"
+    }
+   },
+   "x-role": "founder",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "authored",
+    "label": "add standing answer"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "description": "Blank fields add nothing; a half-filled rule is refused. Founder because the dialog-rule store and trust are the founder's alone: an agent that could write them could answer its own dialogs. A dialog rule (vendor, title, label) is refused, gate unsupported, and nothing is saved, because the daemon answers no dialog (x-dialogs); a folder is saved.",
+   "x-gates": [
+    "unsupported"
+   ]
+  },
+  {
+   "name": "answer.remove",
+   "summary": "Remove a standing answer by the kind and key answers.list gave.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "kind",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "enum": [
+       "trust",
+       "dialog"
+      ]
+     }
+    },
+    {
+     "name": "key",
+     "required": true,
+     "schema": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Accepted"
+    }
+   },
+   "x-role": "founder",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "authored",
+    "label": "remove standing answer"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,1031 @@
+{
+ "fixtures": [
+  {
+   "name": "doc.open.the_text_at_version_0",
+   "spec": "doc.open",
+   "about": "A .md file opens as a doc at version 0 with the file's text (the seed's notes/todo.md holds x); opening it again on the connection gives the same doc and nothing to pull; closing it is an empty answer, and closing it again is not an error.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "doc.open",
+      "params": {
+       "agent": "{{files_agent}}",
+       "path": "notes/todo.md"
+      }
+     },
+     "result": {
+      "doc": {
+       "$save": "doc",
+       "$type": "string"
+      },
+      "version": 0,
+      "text": "x"
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "doc.open",
+      "params": {
+       "agent": "{{files_agent}}",
+       "path": "notes/todo.md"
+      }
+     },
+     "result": {
+      "doc": "{{doc}}",
+      "version": 0,
+      "text": "x"
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "doc.pull",
+      "params": {
+       "agent": "{{files_agent}}",
+       "path": "notes/todo.md",
+       "doc": "{{doc}}",
+       "version": 0
+      }
+     },
+     "result": {
+      "version": 0,
+      "updates": []
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "doc.close",
+      "params": {
+       "agent": "{{files_agent}}",
+       "path": "notes/todo.md"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "doc.close",
+      "params": {
+       "agent": "{{files_agent}}",
+       "path": "notes/todo.md"
+      }
+     },
+     "result": {}
+    }
+   ]
+  },
+  {
+   "name": "doc.open.what_is_not_an_open_md_file",
+   "spec": "doc.open",
+   "about": "Not .md, a .. part or a missing file: bad_request naming path, or not_found. An agent with no worktree is not_found.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "doc.open",
+      "params": {
+       "agent": "{{files_agent}}",
+       "path": "lib/main.go"
+      }
+     },
+     "error": {
+      "code": {
+       "$oneOf": [
+        -32600,
+        -32602
+       ]
+      },
+      "data": {
+       "code": "bad_request",
+       "field": "path"
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "doc.open",
+      "params": {
+       "agent": "{{files_agent}}",
+       "path": "notes/../README.md"
+      }
+     },
+     "error": {
+      "code": {
+       "$oneOf": [
+        -32600,
+        -32602
+       ]
+      },
+      "data": {
+       "code": "bad_request",
+       "field": "path"
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "doc.open",
+      "params": {
+       "agent": "{{files_agent}}",
+       "path": "notes/none.md"
+      }
+     },
+     "error": {
+      "code": -32001,
+      "data": {
+       "code": "not_found"
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "doc.open",
+      "params": {
+       "agent": "conf.no-such-agent",
+       "path": "notes/todo.md"
+      }
+     },
+     "error": {
+      "code": -32001,
+      "data": {
+       "code": "not_found"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "doc.open.an_agent_session_is_refused",
+   "spec": "doc.open",
+   "about": "Only the founder opens a doc, gate role.",
+   "as": "agent",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "doc.open",
+      "params": {
+       "agent": "{{files_agent}}",
+       "path": "notes/todo.md"
+      }
+     },
+     "error": {
+      "code": -32002,
+      "data": {
+       "code": "refused",
+       "gate": "role"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "doc.push.every_editor_gets_the_updates",
+   "spec": "doc.push",
+   "about": "A push on the current version is taken: the version goes up by one per update, and every connection that has the doc open, the pusher too, gets doc_changed with the updates, each by human. The second update puts the text back.",
+   "as": "founder",
+   "with": {
+    "b": "founder"
+   },
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {},
+     "on": "b"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "doc.open",
+      "params": {
+       "agent": "{{files_agent}}",
+       "path": "notes/todo.md"
+      }
+     },
+     "result": {
+      "doc": {
+       "$save": "doc",
+       "$type": "string"
+      },
+      "version": 0,
+      "text": "x"
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "doc.open",
+      "params": {
+       "agent": "{{files_agent}}",
+       "path": "notes/todo.md"
+      }
+     },
+     "result": {
+      "doc": {
+       "$save": "doc_b",
+       "$type": "string"
+      },
+      "version": 0,
+      "text": "x"
+     },
+     "on": "b"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "doc.push",
+      "params": {
+       "agent": "{{files_agent}}",
+       "path": "notes/todo.md",
+       "doc": "{{doc}}",
+       "version": 0,
+       "updates": [
+        {
+         "client": "conf-a",
+         "changes": [
+          1,
+          [
+           0,
+           "y"
+          ]
+         ]
+        }
+       ],
+       "request_id": "conf-doc-1"
+      }
+     },
+     "result": {
+      "version": 1
+     },
+     "notices": [
+      {
+       "jsonrpc": "2.0",
+       "method": "doc_changed",
+       "params": {
+        "agent": "{{files_agent}}",
+        "path": "notes/todo.md",
+        "doc": "{{doc}}",
+        "version": 1,
+        "updates": [
+         {
+          "client": "conf-a",
+          "changes": [
+           1,
+           [
+            0,
+            "y"
+           ]
+          ],
+          "by": "human"
+         }
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "on": "b",
+     "notices": [
+      {
+       "jsonrpc": "2.0",
+       "method": "doc_changed",
+       "params": {
+        "agent": "{{files_agent}}",
+        "path": "notes/todo.md",
+        "doc": "{{doc}}",
+        "version": 1,
+        "updates": [
+         {
+          "client": "conf-a",
+          "changes": [
+           1,
+           [
+            0,
+            "y"
+           ]
+          ],
+          "by": "human"
+         }
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "doc.push",
+      "params": {
+       "agent": "{{files_agent}}",
+       "path": "notes/todo.md",
+       "doc": "{{doc}}",
+       "version": 1,
+       "updates": [
+        {
+         "client": "conf-a",
+         "changes": [
+          1,
+          [
+           1
+          ]
+         ]
+        }
+       ],
+       "request_id": "conf-doc-2"
+      }
+     },
+     "result": {
+      "version": 2
+     },
+     "notices": [
+      {
+       "jsonrpc": "2.0",
+       "method": "doc_changed",
+       "params": {
+        "agent": "{{files_agent}}",
+        "path": "notes/todo.md",
+        "doc": "{{doc}}",
+        "version": 2,
+        "updates": [
+         {
+          "client": "conf-a",
+          "changes": [
+           1,
+           [
+            1
+           ]
+          ],
+          "by": "human"
+         }
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "doc.push.behind_is_refused_and_pull_catches_up",
+   "spec": "doc.push",
+   "about": "A push on an old version takes nothing, gate behind with the current version; doc.pull from that version gives the updates since, and from the current one none.",
+   "as": "founder",
+   "with": {
+    "b": "founder"
+   },
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {},
+     "on": "b"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "doc.open",
+      "params": {
+       "agent": "{{files_agent}}",
+       "path": "notes/todo.md"
+      }
+     },
+     "result": {
+      "doc": {
+       "$save": "doc",
+       "$type": "string"
+      },
+      "version": 0,
+      "text": "x"
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "doc.open",
+      "params": {
+       "agent": "{{files_agent}}",
+       "path": "notes/todo.md"
+      }
+     },
+     "result": {
+      "doc": {
+       "$save": "doc_b",
+       "$type": "string"
+      },
+      "version": 0,
+      "text": "x"
+     },
+     "on": "b"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "doc.push",
+      "params": {
+       "agent": "{{files_agent}}",
+       "path": "notes/todo.md",
+       "doc": "{{doc}}",
+       "version": 0,
+       "updates": [
+        {
+         "client": "conf-a",
+         "changes": [
+          1,
+          [
+           0,
+           "y"
+          ]
+         ]
+        }
+       ],
+       "request_id": "conf-doc-3"
+      }
+     },
+     "result": {
+      "version": 1
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "doc.push",
+      "params": {
+       "agent": "{{files_agent}}",
+       "path": "notes/todo.md",
+       "doc": "{{doc}}",
+       "version": 0,
+       "updates": [
+        {
+         "client": "conf-b",
+         "changes": [
+          [
+           1,
+           "z"
+          ]
+         ]
+        }
+       ],
+       "request_id": "conf-doc-4"
+      }
+     },
+     "error": {
+      "code": -32002,
+      "data": {
+       "code": "refused",
+       "gate": "behind",
+       "version": 1
+      }
+     },
+     "on": "b"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "doc.pull",
+      "params": {
+       "agent": "{{files_agent}}",
+       "path": "notes/todo.md",
+       "doc": "{{doc}}",
+       "version": 0
+      }
+     },
+     "result": {
+      "version": 1,
+      "updates": [
+       {
+        "client": "conf-a",
+        "changes": [
+         1,
+         [
+          0,
+          "y"
+         ]
+        ],
+        "by": "human"
+       }
+      ]
+     },
+     "on": "b"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "doc.pull",
+      "params": {
+       "agent": "{{files_agent}}",
+       "path": "notes/todo.md",
+       "doc": "{{doc}}",
+       "version": 1
+      }
+     },
+     "result": {
+      "version": 1,
+      "updates": []
+     },
+     "on": "b"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "doc.push",
+      "params": {
+       "agent": "{{files_agent}}",
+       "path": "notes/todo.md",
+       "doc": "{{doc}}",
+       "version": 1,
+       "updates": [
+        {
+         "client": "conf-a",
+         "changes": [
+          1,
+          [
+           1
+          ]
+         ]
+        }
+       ],
+       "request_id": "conf-doc-5"
+      }
+     },
+     "result": {
+      "version": 2
+     }
+    }
+   ]
+  },
+  {
+   "name": "doc.push.what_does_not_fit_is_refused",
+   "spec": "doc.push",
+   "about": "A ChangeSet whose lengths do not add up to the text is bad_request naming updates; a doc id that is not the loaded copy is refused, gate reopen; a doc not open on this connection is not_found. Nothing is taken: the version stays 0.",
+   "as": "founder",
+   "with": {
+    "b": "founder"
+   },
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {},
+     "on": "b"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "doc.open",
+      "params": {
+       "agent": "{{files_agent}}",
+       "path": "notes/todo.md"
+      }
+     },
+     "result": {
+      "doc": {
+       "$save": "doc",
+       "$type": "string"
+      },
+      "version": 0,
+      "text": "x"
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "doc.push",
+      "params": {
+       "agent": "{{files_agent}}",
+       "path": "notes/todo.md",
+       "doc": "{{doc}}",
+       "version": 0,
+       "updates": [
+        {
+         "client": "conf-a",
+         "changes": [
+          5,
+          [
+           0,
+           "y"
+          ]
+         ]
+        }
+       ],
+       "request_id": "conf-doc-6"
+      }
+     },
+     "error": {
+      "code": {
+       "$oneOf": [
+        -32600,
+        -32602
+       ]
+      },
+      "data": {
+       "code": "bad_request",
+       "field": "updates"
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "doc.push",
+      "params": {
+       "agent": "{{files_agent}}",
+       "path": "notes/todo.md",
+       "doc": "not-this-doc",
+       "version": 0,
+       "updates": [
+        {
+         "client": "conf-a",
+         "changes": [
+          1,
+          [
+           0,
+           "y"
+          ]
+         ]
+        }
+       ],
+       "request_id": "conf-doc-7"
+      }
+     },
+     "error": {
+      "code": -32002,
+      "data": {
+       "code": "refused",
+       "gate": "reopen"
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "doc.push",
+      "params": {
+       "agent": "{{files_agent}}",
+       "path": "notes/todo.md",
+       "doc": "{{doc}}",
+       "version": 0,
+       "updates": [
+        {
+         "client": "conf-a",
+         "changes": [
+          1,
+          [
+           0,
+           "y"
+          ]
+         ]
+        }
+       ],
+       "request_id": "conf-doc-8"
+      }
+     },
+     "error": {
+      "code": -32001,
+      "data": {
+       "code": "not_found"
+      }
+     },
+     "on": "b"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "doc.pull",
+      "params": {
+       "agent": "{{files_agent}}",
+       "path": "notes/todo.md",
+       "doc": "{{doc}}",
+       "version": 0
+      }
+     },
+     "result": {
+      "version": 0,
+      "updates": []
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "doc.pull",
+      "params": {
+       "agent": "{{files_agent}}",
+       "path": "notes/todo.md",
+       "doc": "{{doc}}",
+       "version": 3
+      }
+     },
+     "error": {
+      "code": {
+       "$oneOf": [
+        -32600,
+        -32602
+       ]
+      },
+      "data": {
+       "code": "bad_request",
+       "field": "version"
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "doc.pull",
+      "params": {
+       "agent": "{{files_agent}}",
+       "path": "notes/todo.md",
+       "doc": "not-this-doc",
+       "version": 0
+      }
+     },
+     "error": {
+      "code": -32002,
+      "data": {
+       "code": "refused",
+       "gate": "reopen"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "doc.push.the_file_is_written_and_read_back",
+   "spec": "doc.push",
+   "about": "After a push the file holds the new text: once every connection has closed the doc, opening it again loads the file, a new doc at version 0 with the pushed text. A last push puts x back.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "doc.open",
+      "params": {
+       "agent": "{{files_agent}}",
+       "path": "notes/todo.md"
+      }
+     },
+     "result": {
+      "doc": {
+       "$save": "doc",
+       "$type": "string"
+      },
+      "version": 0,
+      "text": "x"
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "doc.push",
+      "params": {
+       "agent": "{{files_agent}}",
+       "path": "notes/todo.md",
+       "doc": "{{doc}}",
+       "version": 0,
+       "updates": [
+        {
+         "client": "conf-a",
+         "changes": [
+          1,
+          [
+           0,
+           "y"
+          ]
+         ]
+        }
+       ],
+       "request_id": "conf-doc-9"
+      }
+     },
+     "result": {
+      "version": 1
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "doc.close",
+      "params": {
+       "agent": "{{files_agent}}",
+       "path": "notes/todo.md"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "doc.open",
+      "params": {
+       "agent": "{{files_agent}}",
+       "path": "notes/todo.md"
+      }
+     },
+     "result": {
+      "doc": {
+       "$save": "doc2",
+       "$type": "string"
+      },
+      "version": 0,
+      "text": "xy"
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "doc.push",
+      "params": {
+       "agent": "{{files_agent}}",
+       "path": "notes/todo.md",
+       "doc": "{{doc2}}",
+       "version": 0,
+       "updates": [
+        {
+         "client": "conf-a",
+         "changes": [
+          1,
+          [
+           1
+          ]
+         ]
+        }
+       ],
+       "request_id": "conf-doc-10"
+      }
+     },
+     "result": {
+      "version": 1
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "doc.close",
+      "params": {
+       "agent": "{{files_agent}}",
+       "path": "notes/todo.md"
+      }
+     },
+     "result": {}
+    }
+   ]
+  }
+ ]
+}

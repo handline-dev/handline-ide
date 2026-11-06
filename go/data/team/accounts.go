@@ -1,0 +1,445 @@
+package team
+
+import (
+	"database/sql"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/handline/handline/go/kit/paths"
+)
+
+// Accounts is handline/team/accounts.py: the account directories and what is known of their logins. Credentials are never
+// touched: a login is told by a credential's presence (and, for the keychain, its modification time), never by reading it.
+// Registering an account's shared links, the subscription and identity lookups through the vendor's own commands, and
+// adding or removing an account are in accountsadmin.go.
+type Accounts struct {
+	Home string
+	// Login replaces LoginState where GoneSince asks it: the daemon's own login check, which a test stands in for.
+	Login func(acct string) (loggedIn, known bool)
+}
+
+// ModifiedTTLS: the keychain read behind a credential's modification time is a subprocess, and every tick asks for each agent on
+// a stalled account, so a login is seen within this long.
+const ModifiedTTLS = 5
+
+// modifiedKey is one account of one home: two homes in a process (a test's, or the daemon's and a probe's) never share a stamp.
+type modifiedKey struct{ home, acct string }
+
+var (
+	modifiedMu sync.Mutex
+	modified   = map[modifiedKey]struct {
+		at    time.Time
+		stamp *float64
+	}{}
+	modifiedGen = map[modifiedKey]uint64{} // bumped by CredentialChanged: a read begun before it is not cached
+)
+
+func (a Accounts) stallFile(acct string) string {
+	return filepath.Join(paths.AccountDir(a.Home, acct), "login_expired.json")
+}
+
+// credentialModified is when the credential last changed, as epoch seconds, never its content; nil when this vendor or process cannot tell.
+func (a Accounts) credentialModified(acct string) *float64 {
+	key := modifiedKey{a.Home, acct}
+	modifiedMu.Lock()
+	seen, ok := modified[key]
+	gen := modifiedGen[key]
+	modifiedMu.Unlock()
+	if ok && time.Since(seen.at) < ModifiedTTLS*time.Second {
+		return seen.stamp
+	}
+	var stamp *float64
+	if dir, err := AccountConfigDir(a.Home, acct); err == nil {
+		stamp = facts(AccountVendor(a.Home, acct)).CredentialModified(dir)
+	}
+	modifiedMu.Lock()
+	if modifiedGen[key] == gen {
+		modified[key] = struct {
+			at    time.Time
+			stamp *float64
+		}{time.Now(), stamp}
+	}
+	modifiedMu.Unlock()
+	return stamp
+}
+
+// CredentialChanged drops the account's cached modification time, and any read already under way, after a login wrote the credential.
+func (a Accounts) CredentialChanged(acct string) {
+	key := modifiedKey{a.Home, acct}
+	modifiedMu.Lock()
+	delete(modified, key)
+	modifiedGen[key]++
+	modifiedMu.Unlock()
+}
+
+// Stall is why and when an account was found unusable, until a login after that time or a wake. Error is the StopFailure error that
+// stalled it; empty is authentication_failed (a file written before the field).
+type Stall struct {
+	Why   string
+	Error string
+	At    float64
+}
+
+// StallWord is the reason a stall gives for errType, on the agent's line and the account's card: an expired login, or the error itself.
+func StallWord(errType string) string {
+	if errType == "" || errType == "authentication_failed" {
+		return "login expired"
+	}
+	return errType
+}
+
+// Stalled is the account's stall, when there is one (login_expired.json, Python's name for it). The credential is still there, so its
+// presence says nothing; its modification time does: a login writes it anew, and the stall then ends. A vendor that cannot give the
+// time keeps the stall until it is woken.
+func (a Accounts) Stalled(acct string) *Stall {
+	b, err := os.ReadFile(a.stallFile(acct))
+	if err != nil {
+		return nil
+	}
+	var data struct {
+		Why   any      `json:"why"`
+		Error string   `json:"error"`
+		At    *float64 `json:"at"`
+	}
+	if json.Unmarshal(b, &data) != nil || data.At == nil {
+		return nil
+	}
+	if changed := a.credentialModified(acct); changed != nil && *changed > *data.At {
+		a.ClearStall(acct)
+		return nil
+	}
+	return &Stall{Why: pyStr(data.Why), Error: data.Error, At: *data.At}
+}
+
+// LoggedInSince is whether the account's credential changed after the refusal that happened in epoch second at: a login made since
+// answers it. The refusal is known to the second, so a change within that second is not told from before it.
+func (a Accounts) LoggedInSince(acct string, at int64) bool {
+	changed := a.credentialModified(acct)
+	return changed != nil && *changed > float64(at+1)
+}
+
+// StallAccount records that an account was found unusable, on errType, at the given time (the refusal's, not the sighting's, so a
+// login made between the two ends the stall at once). False when it already is stalled: the first sighting stands.
+func (a Accounts) StallAccount(acct, errType, why string, now time.Time) (bool, error) {
+	if a.Stalled(acct) != nil {
+		return false, nil
+	}
+	f := a.stallFile(acct)
+	if err := os.MkdirAll(filepath.Dir(f), 0o755); err != nil {
+		return false, err
+	}
+	whyJSON, _ := json.Marshal(why)
+	errJSON, _ := json.Marshal(errType)
+	text := fmt.Sprintf(`{"why": %s, "error": %s, "at": %s}`, whyJSON, errJSON, yamlFloat(float64(now.UnixNano())/1e9))
+	return true, os.WriteFile(f, []byte(text), 0o644)
+}
+
+// ClearStall ends the stall.
+func (a Accounts) ClearStall(acct string) { _ = os.Remove(a.stallFile(acct)) }
+
+// LoginState is whether the account has credentials, as its driver answers: a file's existence for claude, a run of `opencode
+// auth list` for opencode. An account whose vendor has no driver cannot be driven, so it is not logged in. An account found with
+// an expired login is not logged in, whatever its credential says. known is false when this process cannot tell.
+func (a Accounts) LoginState(acct string) (loggedIn, known bool) {
+	vendor := AccountVendor(a.Home, acct)
+	if CheckVendor(vendor) != nil {
+		return false, true
+	}
+	if a.Stalled(acct) != nil {
+		return false, true
+	}
+	dir, _ := AccountConfigDir(a.Home, acct)
+	return CredentialPresent(vendor, dir)
+}
+
+// LoggedIn is a confirmed login. Unknown is not one.
+func (a Accounts) LoggedIn(acct string) bool { in, known := a.LoginState(acct); return in && known }
+
+// MayStart is false only for a confirmed absence: a launch is refused for that, and for nothing it merely cannot see.
+func (a Accounts) MayStart(acct string) bool {
+	in, known := a.LoginState(acct)
+	return !known || in
+}
+
+// GoneSince is from when the account could not be used, the graphs counting it as nothing left; ok is false while it can. A logged-out
+// account is out from the moment its expired login was found, or from now for one with no credential, until it logs in again.
+func (a Accounts) GoneSince(acct string, now float64) (float64, bool) {
+	if m := a.Stalled(acct); m != nil {
+		return m.At, true
+	}
+	login := a.LoginState
+	if a.Login != nil {
+		login = a.Login
+	}
+	if in, known := login(acct); known && !in {
+		return now, true
+	}
+	return 0, false
+}
+
+// LoginWord is a login state in words; known false is the sandboxed one.
+func LoginWord(loggedIn, known, short bool) string {
+	switch {
+	case !known && short:
+		return "?"
+	case !known:
+		return "unknown (sandboxed)"
+	case short && loggedIn:
+		return "yes"
+	case short:
+		return "no"
+	case loggedIn:
+		return "logged in"
+	}
+	return "NOT logged in"
+}
+
+// LoginCommand is the line a human runs to log in to the account.
+func (a Accounts) LoginCommand(acct string) (string, error) {
+	vendor := AccountVendor(a.Home, acct)
+	if err := CheckVendor(vendor); err != nil {
+		return "", err
+	}
+	dir, _ := AccountConfigDir(a.Home, acct)
+	return fmt.Sprintf(`%s="%s" %s`, ConfigDirEnv(vendor), dir, strings.Join(LoginArgv(vendor), " ")), nil
+}
+
+// RecordedSubscriptionType is the plan already recorded for the account, read from disk alone.
+func (a Accounts) RecordedSubscriptionType(acct string) (string, bool) {
+	b, err := os.ReadFile(filepath.Join(paths.AccountDir(a.Home, acct), "subscription.json"))
+	if err != nil {
+		return "", false
+	}
+	var data map[string]any
+	if json.Unmarshal(b, &data) != nil {
+		return "", false
+	}
+	if v := data["subscriptionType"]; truthy(v) {
+		return pyStr(v), true
+	}
+	return "", false
+}
+
+// RecordedPlan is the account's recorded subscription type and rate-limit tier ("" when not recorded): the tier tells Max 5x from Max 20x,
+// which the subscription type does not.
+func (a Accounts) RecordedPlan(acct string) (subscription, tier string) {
+	b, err := os.ReadFile(filepath.Join(paths.AccountDir(a.Home, acct), "subscription.json"))
+	if err != nil {
+		return "", ""
+	}
+	var data struct {
+		Sub  string `json:"subscriptionType"`
+		Tier string `json:"rateLimitTier"`
+	}
+	if json.Unmarshal(b, &data) != nil {
+		return "", ""
+	}
+	return data.Sub, data.Tier
+}
+
+// RateLimitTier is the tier the vendor's own config file holds for the logged-in account (oauthAccount in .claude.json), the user's
+// over the organization's; "" when there is none.
+func RateLimitTier(configDir string) string {
+	o := readOAuthAccount(configDir)
+	if o.User != nil && *o.User != "" {
+		return *o.User
+	}
+	if o.Org != nil {
+		return *o.Org
+	}
+	return ""
+}
+
+// oauthAccount is what Claude Code's .claude.json says of the logged-in account.
+type oauthAccount struct {
+	Email string  `json:"emailAddress"`
+	User  *string `json:"userRateLimitTier"`
+	Org   *string `json:"organizationRateLimitTier"`
+}
+
+func readOAuthAccount(configDir string) oauthAccount {
+	var data struct {
+		OAuth oauthAccount `json:"oauthAccount"`
+	}
+	if b, err := os.ReadFile(filepath.Join(configDir, ".claude.json")); err == nil {
+		_ = json.Unmarshal(b, &data)
+	}
+	return data.OAuth
+}
+
+func (a Accounts) identityFile(acct string) string {
+	return filepath.Join(paths.AccountDir(a.Home, acct), "identity.json")
+}
+
+// RecordedEmail is the email of the Anthropic account this account was set up with (identity.json); "" when none was recorded.
+func (a Accounts) RecordedEmail(acct string) string {
+	var data struct {
+		Email string `json:"email"`
+	}
+	if b, err := os.ReadFile(a.identityFile(acct)); err == nil {
+		_ = json.Unmarshal(b, &data)
+	}
+	return data.Email
+}
+
+// WrongLogin is, in one line, how a claude account is logged in to an Anthropic account other than the one recorded for it, naming
+// the other accounts recorded with that one; "" when it is the recorded one or either is unknown. With none recorded, it records the
+// logged-in one.
+func (a Accounts) WrongLogin(acct string) string {
+	dir, err := AccountConfigDir(a.Home, acct)
+	if err != nil || AccountVendor(a.Home, acct) != DefaultVendor {
+		return ""
+	}
+	got := readOAuthAccount(dir).Email
+	want := a.RecordedEmail(acct)
+	if got == "" {
+		return ""
+	}
+	if want == "" {
+		text, _ := json.Marshal(map[string]string{"email": got})
+		_ = os.WriteFile(a.identityFile(acct), text, 0o644)
+		return ""
+	}
+	if strings.EqualFold(got, want) {
+		return ""
+	}
+	var same []string
+	for _, other := range paths.ListAccounts(a.Home) {
+		if other != acct && strings.EqualFold(a.RecordedEmail(other), got) {
+			same = append(same, other)
+		}
+	}
+	why := fmt.Sprintf("logged in as %s, not %s", got, want)
+	if len(same) > 0 {
+		why += ": the same Anthropic account as " + strings.Join(same, ", ")
+	}
+	return why
+}
+
+// UsersOf are the agents with a session open on the account. A closed agent is not one: it has no session to strand.
+func (a Accounts) UsersOf(db *sql.DB, acct string) ([]string, error) {
+	var out []string
+	for _, name := range paths.ListAgents(a.Home) {
+		var account sql.NullString
+		var closed sql.NullInt64
+		err := db.QueryRow("SELECT account, closed_at FROM agent_state WHERE agent = ?", name).Scan(&account, &closed)
+		if errors.Is(err, sql.ErrNoRows) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		if account.String == acct && closed.Int64 == 0 {
+			out = append(out, name)
+		}
+	}
+	return out, nil
+}
+
+// RemovePlan is whether the account may be removed, and the line to say about it. Refused while an agent has a session open on
+// it: removing the account strands that session.
+func (a Accounts) RemovePlan(db *sql.DB, acct string) (bool, string, error) {
+	if !contains(paths.ListAccounts(a.Home), acct) {
+		return false, fmt.Sprintf("no account '%s'", acct), nil
+	}
+	users, err := a.UsersOf(db, acct)
+	if err != nil {
+		return false, "", err
+	}
+	if len(users) > 0 {
+		them := "them"
+		if len(users) == 1 {
+			them = "it"
+		}
+		return false, fmt.Sprintf("account '%s' has a session open for %s - close %s on the screen (c) first", acct, strings.Join(users, ", "), them), nil
+	}
+	return true, "", nil
+}
+
+// LogoutArgv is the vendor's own logout, run against this account's config directory: it removes its own credential, Handline
+// never touches it. Empty when there is nothing logged in to remove.
+func (a Accounts) LogoutArgv(acct string) ([]string, map[string]string) {
+	if !a.LoggedIn(acct) {
+		return nil, nil
+	}
+	if AccountVendor(a.Home, acct) == "opencode" {
+		return []string{"opencode", "auth", "logout"}, a.EnvFor(acct, "")
+	}
+	return []string{"claude", "auth", "logout"}, a.EnvFor(acct, "")
+}
+
+// Retire takes the account off the roster by moving its directory aside, not deleting it: its transcripts are the only record
+// of what was spent on it. A dot directory is invisible to ListAccounts.
+func (a Accounts) Retire(acct string, now time.Time) (string, error) {
+	dir := filepath.Join(paths.AccountsDir(a.Home), ".retired")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", err
+	}
+	dest := filepath.Join(dir, acct+"-"+now.Format("20060102-150405"))
+	return dest, os.Rename(filepath.Join(paths.AccountsDir(a.Home), acct), dest)
+}
+
+// AccountNamedBy is the account a config-dir variable's value points into, or "" for a directory that is not one of ours.
+func (a Accounts) AccountNamedBy(value string) string {
+	root, ok := resolved(paths.AccountsDir(a.Home))
+	if !ok {
+		return ""
+	}
+	v, ok := resolved(value)
+	if !ok || !strings.HasPrefix(v, root+"/") {
+		return ""
+	}
+	first, _, _ := strings.Cut(strings.TrimPrefix(v, root+"/"), "/")
+	return first
+}
+
+// EnvFor is the environment for launching this account's vendor as this account (and as agent, when one is named): a config-dir
+// variable inherited from whoever launched this and pointing into an account goes, and the account's own is set. env is given
+// as a map.
+func (a Accounts) EnvFor(acct, agent string) map[string]string {
+	base := map[string]string{}
+	for _, kv := range os.Environ() {
+		k, v, _ := strings.Cut(kv, "=")
+		base[k] = v
+	}
+	return a.EnvFrom(base, acct, agent)
+}
+
+// EnvFrom is EnvFor over the environment base, which it does not change.
+func (a Accounts) EnvFrom(base map[string]string, acct, agent string) map[string]string {
+	env := make(map[string]string, len(base))
+	for k, v := range base {
+		env[k] = v
+	}
+	// Only one pointing into an account goes: XDG_DATA_HOME is also the user's own, and claude reads it.
+	for _, vendor := range KnownVendors() {
+		k := ConfigDirEnv(vendor)
+		if v := env[k]; v != "" && a.AccountNamedBy(v) != "" {
+			delete(env, k)
+		}
+	}
+	// An inherited OPENCODE_CONFIG_CONTENT is another session's whole config; OPENCODE_CONFIG_DIR stays.
+	delete(env, "OPENCODE_CONFIG_CONTENT")
+	// OCP_* is the old prefix, carried by sessions started before the rename: an old hook reading it would name another home.
+	for k := range env {
+		if strings.HasPrefix(k, "OCP_") {
+			delete(env, k)
+		}
+	}
+	vendor := AccountVendor(a.Home, acct)
+	if dir, err := AccountConfigDir(a.Home, acct); err == nil {
+		env[ConfigDirEnv(vendor)] = dir
+	}
+	paths.Setenv(env, "HOME", a.Home)
+	paths.Setenv(env, "ACCOUNT", acct)
+	if agent != "" {
+		paths.Setenv(env, "AGENT", agent)
+	}
+	return env
+}

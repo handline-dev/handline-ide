@@ -1,0 +1,134 @@
+package taskwrites
+
+import (
+	"fmt"
+	"github.com/handline/handline/go/taskboard/msgtest"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/handline/handline/go/kit/store"
+	"github.com/handline/handline/go/kit/storetest"
+	"github.com/handline/handline/go/protocol/rpc"
+)
+
+func TestDoneIsTheOwnersWithOneKindOfEvidenceAndTellsWhoWaited(t *testing.T) {
+	t.Parallel()
+	db, err := storetest.OpenAt(t, filepath.Join(t.TempDir(), "db.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	home := t.TempDir()
+	for _, a := range []string{"w", "boss"} {
+		os.MkdirAll(filepath.Join(home, "agents", a), 0o755)
+		os.WriteFile(filepath.Join(home, "agents", a, "agent.yaml"), nil, 0o644)
+	}
+	repo := t.TempDir()
+	git := gitIn(t, repo)
+	git("init", "-q", "-b", "main")
+	git("commit", "-q", "--allow-empty", "-m", "on main")
+	onMain := git("rev-parse", "HEAD")
+	git("checkout", "-q", "-b", "side")
+	git("commit", "-q", "--allow-empty", "-m", "off main")
+	offMain := git("rev-parse", "HEAD")
+	for _, q := range []string{
+		"INSERT INTO tasks(id, title, owner, opened_by, created_at, expects) VALUES(1, 'a', 'w', 'w', 1, 'report'), (2, 'parent', 'w', 'boss', 1, 'report'), (3, 'kid', 'w', 'boss', 1, 'report'), " +
+			"(4, 'waits', 'w', 'boss', 1, 'report'), (5, 'blocker', 'boss', 'boss', 1, 'report'), (6, 'sha', 'w', 'w', 1, 'sha'), (7, 'ans', 'w', 'w', 1, 'report'), (8, 'left', 'w', 'boss', 1, 'report'), (9, 'asked', 'w', 'boss', 1, 'report')",
+		"UPDATE tasks SET parent_task = 2 WHERE id = 3",
+		"INSERT INTO task_blocks(task_id, blocks_on, created_at) VALUES(4, 5, 1)",
+		"INSERT INTO requests(id, requester, target, kind, state, ts, body) VALUES(10, 'boss', 'w', 'task', 'queued', 1, 'x'), (11, 'boss', 'w', 'say', 'landed', 1, 'x'), (12, 'boss', 'w', 'task', 'queued', 1, 'x')",
+		"INSERT INTO task_requests(task_id, request_id) VALUES(1, 10), (8, 12)",
+		"UPDATE tasks SET done_evidence = 'earlier', done_at = 2 WHERE id = 8",
+	} {
+		if _, err := db.Exec(q); err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+	}
+	f := &fakeTeller{}
+	mk := func(agent string) *rpc.Server {
+		s := rpc.NewServer(auth{agent}, "x", store.LatestVersion(), "local", func(string, ...any) {})
+		s.DB = db
+		Register(s, home, f, nil)
+		return s
+	}
+	done := func(agent, rid string, task int, params string) map[string]any {
+		return call(t, mk(agent), fmt.Sprintf(`{"jsonrpc":"2.0","id":2,"method":"task.done","params":{"task":%d,"request_id":%q%s}}`, task, rid, params))[0]
+	}
+	refused := func(why string, r map[string]any, want string) {
+		t.Helper()
+		if got := msgtest.IDs(db, errText(r)); got != want {
+			t.Fatalf("%s: %q, want %q", why, got, want)
+		}
+	}
+	refused("unknown", done("w", "a1", 99, `,"evidence":"x"`), fmt.Sprintf("no task T%d", 99))
+	refused("not the owner", done("else", "a2", 1, `,"evidence":"x"`), "task T1 can only be marked done by its assignee (w), owner (w), its parent's owner, a lead of its team or the founder")
+	refused("both", done("w", "a3", 1, `,"evidence":"x","request":11`), "done takes exactly one of evidence or request")
+	refused("neither", done("w", "a4", 1, ``), "done takes exactly one of evidence or request")
+	refused("a queued request", done("w", "a5", 1, `,"request":10`), "request #10 is still queued - not answered yet")
+	refused("a missing request", done("w", "a6", 1, `,"request":77`), "no request #77")
+	refused("an open child", done("w", "a7", 2, `,"evidence":"x"`), "task T2 still has open child tasks - it is done once they are closed:\n  T3  draft  w  kid\n"+
+		"close each: `hl task discard T3 \"<reason>\"` for one not needed (a duplicate of T2, say), or its assignee's `hl task done T3` for one finished")
+	refused("an open blocker", done("w", "a8", 4, `,"evidence":"x"`), "task T4 is waiting on T5 - it is done only once they are")
+	refused("a sha off main", done("w", "a9", 1, fmt.Sprintf(`,"evidence":%q,"repo":%q`, offMain, repo)), offMain+" is not an ancestor of main")
+	refused("a sha needs a repo", done("w", "b1", 1, `,"evidence":"abcd1234"`), "a sha is checked against a repo: name one")
+	refused("a third agent is neither", done("else", "b2", 9, `,"evidence":"x"`), "task T9 can only be marked done by its assignee (w), owner (boss), its parent's owner, a lead of its team or the founder")
+
+	r := done("w", "ok", 1, `,"evidence":"  all\n  done  "`)
+	if r["error"] != nil || r["result"].(map[string]any)["said"] != "task T1 done (  all\n  done  )" {
+		t.Fatalf("done: %v", r)
+	}
+	var via string
+	db.QueryRow("SELECT done_via FROM tasks WHERE id = 1").Scan(&via)
+	count := func(q string) (n int) { db.QueryRow(q).Scan(&n); return }
+	if via != "reason" || count("SELECT COUNT(*) FROM requests WHERE id = 10 AND state = 'withdrawn'") != 1 {
+		t.Fatalf("the evidence kind is kept and the leftover delivery is closed quietly: %q", via)
+	}
+	if count("SELECT COUNT(*) FROM requests WHERE body LIKE 'T1 done%'") != 0 ||
+		count("SELECT COUNT(*) FROM events WHERE kind = 'mark_task_done'") != 1 || len(f.done) != 1 || f.done[0] != "T1 w w 0 true" {
+		t.Fatalf("an owner closing its own task tells nobody, and the teller follows: %v", f.done)
+	}
+	if r := done("boss", "b3", 9, `,"evidence":"checked"`); r["error"] != nil {
+		t.Fatalf("the opener, whom the task answers to, could not close it: %v", r)
+	}
+
+	r = done("w", "c2", 6, `,"evidence":"it never merged"`)
+	if r["error"] != nil {
+		t.Fatalf("a task once expecting a sha closes on words: %v", r)
+	}
+	r = done("w", "c3", 7, fmt.Sprintf(`,"evidence":%q,"repo":%q`, onMain, repo))
+	if r["error"] != nil || r["result"].(map[string]any)["said"] != "task T7 done ("+onMain+")" {
+		t.Fatalf("a sha on main is stored in full: %v", r)
+	}
+	r = done("w", "c4", 8, `,"evidence":"again"`)
+	if r["error"] != nil || r["result"].(map[string]any)["said"] != "task T8 is already done (earlier); its leftover request is settled" || f.done[len(f.done)-1] != "T8 w w 1 false" {
+		t.Fatalf("a leftover request is settled: %v %v", r, f.done)
+	}
+}
+
+// The stall this guards against: a parent's holder reported done while a duplicate of the parent, opened under it and handed to another agent, was
+// still open. The refusal names the child with its state, assignee and title and the command that clears it, and the holder clears it
+// from there.
+func TestDoneWithAnOpenDuplicateChildNamesItAndTheDiscardThatClearsIt(t *testing.T) {
+	t.Parallel()
+	sdb, mk := discardEnv(t)
+	exec(t, sdb, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'Story 1-0', 'worker', 'manager', 1), (2, 'Story 1-0', 'other', 'worker', 1)",
+		"UPDATE tasks SET parent_task = 1 WHERE id = 2")
+	r := call(t, mk("worker"), `{"jsonrpc":"2.0","id":1,"method":"task.done","params":{"task":1,"evidence":"shipped","request_id":"d1"}}`)[0]
+	e, _ := r["error"].(map[string]any)
+	data, _ := e["data"].(map[string]any)
+	if !strings.Contains(errText(r), "\n  T2  draft  other  Story 1-0\n") || !strings.Contains(errText(r), "`hl task discard T2 \"<reason>\"`") || data["gate"] != "open_children" {
+		t.Fatalf("the refusal does not name the child and how to clear it: %v", r)
+	}
+	kids, _ := data["children"].([]any)
+	if len(kids) != 1 || fmt.Sprint(kids[0]) != "map[assignee:other state:draft task:2 title:Story 1-0]" {
+		t.Fatalf("data.children: %v", data["children"])
+	}
+	if r := call(t, mk("worker"), `{"jsonrpc":"2.0","id":2,"method":"task.discard","params":{"task":2,"reason":"duplicate of T1","request_id":"d2"}}`)[0]; r["error"] != nil {
+		t.Fatalf("the parent's holder could not discard the duplicate: %v", r)
+	}
+	if r := call(t, mk("worker"), `{"jsonrpc":"2.0","id":3,"method":"task.done","params":{"task":1,"evidence":"shipped","request_id":"d3"}}`)[0]; r["error"] != nil {
+		t.Fatalf("done after the duplicate went: %v", r)
+	}
+}

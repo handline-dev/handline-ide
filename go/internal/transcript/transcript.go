@@ -1,0 +1,210 @@
+// Package transcript reads an agent's stored transcript rows for chat: reply, tool and session items of chat.transcript.
+// Record writes these rows from a terminal session's transcript while chat_transcript_rows is on.
+package transcript
+
+import (
+	"database/sql"
+	"encoding/json"
+	"strconv"
+	"strings"
+	"unicode/utf8"
+
+	"github.com/handline/handline/go/agentctl/agent/claudecode/turns"
+)
+
+// Item sources of chat.transcript's ids, and the id itself: the time in seconds, a source, and a number within it.
+const (
+	ItemReply   = 0
+	ItemPrompt  = 1
+	ItemTool    = 3 // 2 is the task events'; a tool item takes its tool_use event's seq
+	ItemSession = 4 // a session start; its number is the session_starts row
+)
+
+func ItemID(at, source, n int64) int64 { return at*1_000_000 + source*100_000 + n%100_000 }
+
+// Replies are agent's text events as chat.transcript's reply items, newest first up to limit: id, time and text.
+func Replies(db *sql.DB, agent string, limit int) ([]Reply, error) {
+	rows, err := db.Query("SELECT item, at, body FROM transcript_events WHERE agent = ? AND kind = 'text' AND item IS NOT NULL ORDER BY seq DESC LIMIT ?", agent, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Reply
+	for rows.Next() {
+		var r Reply
+		var body string
+		if err := rows.Scan(&r.ID, &r.At, &body); err != nil {
+			return nil, err
+		}
+		var b struct {
+			Text string `json:"text"`
+		}
+		json.Unmarshal([]byte(body), &b)
+		r.Text = b.Text
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
+// ReplyByID is reply item id and the agent it is of; ok is false when there is no such reply.
+func ReplyByID(db *sql.DB, id int64) (r Reply, agent string, ok bool, err error) {
+	var body string
+	err = db.QueryRow("SELECT agent, at, body FROM transcript_events WHERE kind = 'text' AND item = ? ORDER BY seq DESC LIMIT 1", id).Scan(&agent, &r.At, &body)
+	if err == sql.ErrNoRows {
+		return r, "", false, nil
+	}
+	if err != nil {
+		return r, "", false, err
+	}
+	var b struct {
+		Text string `json:"text"`
+	}
+	json.Unmarshal([]byte(body), &b)
+	r.ID, r.Text = id, b.Text
+	return r, agent, true, nil
+}
+
+// IsReply is whether item id is one of agent's reply items (a text event with that item id).
+func IsReply(db *sql.DB, agent string, id int64) (bool, error) {
+	var n int
+	err := db.QueryRow("SELECT count(*) FROM transcript_events WHERE agent = ? AND kind = 'text' AND item = ?", agent, id).Scan(&n)
+	return n > 0, err
+}
+
+type Reply struct {
+	ID, At int64
+	Text   string
+}
+
+// Tool is a tool call as chat.transcript's tool item: the call with its result when one came. Output is nil with no result;
+// Dropped is the lines the store cut from the end of the output.
+type Tool struct {
+	ID, At  int64
+	Name    string
+	Text    string
+	Output  *string
+	Dropped int64
+}
+
+// ToolWindow is which of an agent's tool calls a page needs: at most Limit of them, the newest with an item id below Before, or with
+// Since the oldest from that second on. A zero is no bound. Calls share a second, so Before is held to the id itself: a call the page
+// would drop must not use up a slot.
+type ToolWindow struct {
+	Before, Since int64
+	Limit         int
+}
+
+// toolItemSQL is a tool_use row's item id (ItemID of its second, ItemTool and seq), as SQL.
+var toolItemSQL = "(at * 1000000 + " + strconv.Itoa(ItemTool*100000) + " + seq % 100000)"
+
+// Tools are agent's tool_use events in the window paired by tool_use_id with their tool_result, oldest first. A call with no result yet
+// is an item with no output. Only the results of the calls read are read.
+func Tools(db *sql.DB, agent string, w ToolWindow) ([]Tool, error) {
+	query, args := "SELECT seq, at, body FROM transcript_events WHERE agent = ? AND kind = 'tool_use'", []any{agent}
+	order := "DESC"
+	if w.Since > 0 {
+		query, args, order = query+" AND at >= ?", append(args, w.Since/1_000_000), "ASC"
+	} else if w.Before > 0 {
+		query, args = query+" AND "+toolItemSQL+" < ?", append(args, w.Before)
+	}
+	rows, err := db.Query(query+" ORDER BY seq "+order+" LIMIT ?", append(args, w.Limit)...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Tool
+	byUse := map[string]int{}
+	var ids []any
+	oldest := int64(0)
+	for rows.Next() {
+		var seq, at int64
+		var body string
+		if err := rows.Scan(&seq, &at, &body); err != nil {
+			return nil, err
+		}
+		var b struct {
+			Use struct {
+				ID    string         `json:"id"`
+				Tool  string         `json:"tool"`
+				Input map[string]any `json:"input"`
+			} `json:"tool_use"`
+		}
+		json.Unmarshal([]byte(body), &b)
+		byUse[b.Use.ID] = len(out)
+		ids = append(ids, b.Use.ID)
+		out = append(out, Tool{ID: ItemID(at, ItemTool, seq), At: at, Name: b.Use.Tool, Text: turns.ToolText(b.Use.Input)})
+		if oldest == 0 || seq < oldest {
+			oldest = seq
+		}
+	}
+	if err := rows.Err(); err != nil || len(out) == 0 {
+		return out, err
+	}
+	res, err := db.Query("SELECT body FROM transcript_events WHERE agent = ? AND kind = 'tool_result' AND seq > ? AND json_extract(body, '$.tool_result.tool_use_id') IN ("+
+		strings.TrimSuffix(strings.Repeat("?,", len(ids)), ",")+") ORDER BY seq", append([]any{agent, oldest}, ids...)...)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
+	for res.Next() {
+		var body string
+		if err := res.Scan(&body); err != nil {
+			return nil, err
+		}
+		var b struct {
+			Result struct {
+				ID      string `json:"tool_use_id"`
+				Text    string `json:"text"`
+				Cut     bool   `json:"truncated"`
+				Dropped int64  `json:"dropped_lines"`
+			} `json:"tool_result"`
+		}
+		json.Unmarshal([]byte(body), &b)
+		if i, ok := byUse[b.Result.ID]; ok && out[i].Output == nil {
+			text := b.Result.Text
+			out[i].Output, out[i].Dropped = &text, b.Result.Dropped
+			if b.Result.Cut && out[i].Dropped < 1 {
+				out[i].Dropped = 1 // a row written before the count was kept: a cut output never reads as whole
+			}
+		}
+	}
+	if err := res.Err(); err != nil {
+		return nil, err
+	}
+	if w.Since == 0 { // read newest first: oldest first, as every other source
+		for i, j := 0, len(out)-1; i < j; i, j = i+1, j-1 {
+			out[i], out[j] = out[j], out[i]
+		}
+	}
+	return out, nil
+}
+
+// FitOutput is text cut to at most max bytes at a character boundary, and the lines the cut left out (0 when nothing was).
+func FitOutput(text string, max int) (string, int64) {
+	kept, cut := cutText(text, max)
+	if !cut {
+		return text, 0
+	}
+	return kept, int64(linesIn(text[len(kept):]))
+}
+
+// cutText is s cut to at most max bytes at a character boundary, and whether it was cut.
+func cutText(s string, max int) (string, bool) {
+	if len(s) <= max {
+		return s, false
+	}
+	s = s[:max]
+	for !utf8.ValidString(s) {
+		s = s[:len(s)-1]
+	}
+	return s, true
+}
+
+// linesIn is how many lines s holds, a last one with no newline included: a cut that leaves anything out cuts at least one.
+func linesIn(s string) int {
+	n := strings.Count(s, "\n")
+	if s != "" && !strings.HasSuffix(s, "\n") {
+		n++
+	}
+	return n
+}

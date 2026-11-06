@@ -1,0 +1,1874 @@
+{
+ "components": {
+  "schemas": {
+   "Window": {
+    "type": "object",
+    "properties": {
+     "used_pct": {
+      "type": "number"
+     },
+     "resets_at": {
+      "oneOf": [
+       {
+        "$ref": "#/components/schemas/Timestamp"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "source": {
+      "type": "string",
+      "description": "Where the number comes from, e.g. measured or estimated."
+     }
+    },
+    "required": [
+     "used_pct",
+     "resets_at",
+     "source"
+    ]
+   },
+   "Account": {
+    "type": "object",
+    "properties": {
+     "name": {
+      "type": "string"
+     },
+     "login_state": {
+      "type": "string",
+      "enum": [
+       "ok",
+       "needs_login",
+       "unknown"
+      ]
+     },
+     "five_hour": {
+      "oneOf": [
+       {
+        "$ref": "#/components/schemas/Window"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "weekly": {
+      "oneOf": [
+       {
+        "$ref": "#/components/schemas/Window"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "agents": {
+      "type": "array",
+      "items": {
+       "$ref": "#/components/schemas/AgentName"
+      },
+      "description": "The agents on this account (AgentView.account): running on it, or at rest with their prompt cache alive. One past its cache life is on none."
+     },
+     "moves": {
+      "type": "array",
+      "items": {
+       "type": "object",
+       "properties": {
+        "at": {
+         "$ref": "#/components/schemas/Timestamp"
+        },
+        "agent": {
+         "$ref": "#/components/schemas/AgentName"
+        },
+        "from": {
+         "oneOf": [
+          {
+           "type": "string"
+          },
+          {
+           "type": "null"
+          }
+         ]
+        },
+        "to": {
+         "type": "string"
+        },
+        "reason": {
+         "type": "string"
+        }
+       },
+       "required": [
+        "at",
+        "agent",
+        "from",
+        "to",
+        "reason"
+       ]
+      }
+     },
+     "label": {
+      "type": "string",
+      "description": "The name screens show; the account's own name until an alias is set."
+     },
+     "vendor": {
+      "type": "string",
+      "description": "The tool the account is for (`claude`, `opencode`, ...), as account.add set it."
+     },
+     "cap": {
+      "oneOf": [
+       {
+        "type": "integer",
+        "minimum": 1
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "The account's own cap: most agents mid-turn at once; null follows active_cap."
+     },
+     "cap_effective": {
+      "type": "integer",
+      "description": "The cap in force: cap, else the active_cap setting; with launch_pace_hold on, shrunk where the agents mid-turn would reach the week's block before it ends, and by the account's pace (Account.pace)."
+     },
+     "recover": {
+      "type": "boolean",
+      "description": "Whether a dead usage read may spend one real turn to fix itself (hl account recover)."
+     },
+     "cycle": {
+      "type": "object",
+      "required": [
+       "on",
+       "end",
+       "end_is_default"
+      ],
+      "properties": {
+       "on": {
+        "type": "boolean",
+        "description": "One-month subscription; off is renewing."
+       },
+       "end": {
+        "oneOf": [
+         {
+          "type": "string",
+          "format": "date",
+          "description": "Last usable day, YYYY-MM-DD."
+         },
+         {
+          "type": "null"
+         }
+        ]
+       },
+       "end_is_default": {
+        "type": "boolean",
+        "description": "No end day is typed: end is null, and the account ends only when its login drops."
+       }
+      }
+     },
+     "agents_assigned": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Only with accounts.list `roster: true`. Agents on this account (Account.agents), running or at rest with their prompt cache alive (the figure `hl account list` prints)."
+     },
+     "agents_running": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Only with accounts.list `roster: true`. Those of them that are mid-turn or otherwise running."
+     },
+     "agents_unplaced": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Only with accounts.list `roster: true`. Agents whose config cannot be read and so count on no account; the same on every account, and every figure above is a floor while it is above 0."
+     },
+     "login": {
+      "oneOf": [
+       {
+        "type": "object",
+        "properties": {
+         "login_id": {
+          "type": "string"
+         },
+         "state": {
+          "type": "string",
+          "enum": [
+           "waiting",
+           "code_sent",
+           "done",
+           "failed",
+           "cancelled"
+          ]
+         },
+         "reason": {
+          "type": "string",
+          "description": "Why the login ended failed, one plain line (e.g. logged in to an Anthropic account other than the one recorded for this account); absent unless it failed."
+         }
+        },
+        "required": [
+         "login_id",
+         "state"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "The login in progress or the last one to end; null when none was started. Reported on the accounts topic as account.changed. Never carries the authorize URL: only the founder's account.login reply has it."
+     },
+     "plan": {
+      "oneOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Only with accounts.list `usage: true`. The plan claude reports (`max`, `pro`), null when not recorded."
+     },
+     "windows": {
+      "type": "array",
+      "description": "Only with accounts.list `usage: true`. The shortest and, when the vendor has one, the longest window: the figure read, the one that may be acted on, and where it came from.",
+      "items": {
+       "type": "object",
+       "required": [
+        "window",
+        "minutes",
+        "pct",
+        "effective",
+        "source",
+        "reset"
+       ],
+       "properties": {
+        "window": {
+         "type": "string"
+        },
+        "minutes": {
+         "type": "integer"
+        },
+        "pct": {
+         "oneOf": [
+          {
+           "type": "integer"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "The figure as read."
+        },
+        "effective": {
+         "oneOf": [
+          {
+           "type": "integer"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "The figure the daemon acts on."
+        },
+        "source": {
+         "type": "string",
+         "description": "Where the figure comes from, or why it is not trusted."
+        },
+        "reset": {
+         "oneOf": [
+          {
+           "type": "integer"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Unix seconds the window resets."
+        }
+       }
+      }
+     },
+     "ctx_pct": {
+      "oneOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Only with accounts.list `usage: true`. Context used by the account's last session, percent."
+     },
+     "age_s": {
+      "oneOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Only with accounts.list `usage: true`. Seconds since the usage was read."
+     },
+     "runway": {
+      "type": "string",
+      "description": "Only with accounts.list `usage: true`. How long the account lasts at its recent burn, in words (`~10m to wall`), as `hl account list` prints it."
+     },
+     "assignable": {
+      "type": "boolean",
+      "description": "Only with accounts.list `usage: true`. Whether one more agent may start on it."
+     },
+     "assign_reason": {
+      "type": "string",
+      "description": "Only with accounts.list `usage: true`. Why assignable is what it is."
+     },
+     "stalled": {
+      "oneOf": [
+       {
+        "type": "object",
+        "properties": {
+         "reason": {
+          "type": "string",
+          "description": "The line a row shows beside STALLED, as an agent's stall does: `login expired` for authentication_failed, else the error itself."
+         },
+         "error": {
+          "type": "string",
+          "description": "The StopFailure error that stalled it, as the CLI gave it."
+         },
+         "detail": {
+          "type": "string",
+          "description": "The turn that showed it, in words."
+         },
+         "since": {
+          "$ref": "#/components/schemas/Timestamp"
+         }
+        },
+        "required": [
+         "reason",
+         "error",
+         "detail",
+         "since"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Set while the account is STALLED: a turn on it ended on an error that says the account itself cannot be used (a refused login, an org that disallows it, a hold or billing problem), or on one error the daemon does not name four times with no good turn between. No agent is placed on it; account.wake, a login or a good turn there ends it. null while it is usable. Absent from a daemon that does not send it."
+     },
+     "pace": {
+      "oneOf": [
+       {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+         "state": {
+          "type": "string",
+          "enum": [
+           "behind",
+           "ahead",
+           "over",
+           "off"
+          ],
+          "description": "behind: used_pct is at or under line_pct, and the cap is not shrunk for pace. ahead: over the line by at most pace_burst_pct points; the pace cap is ceil(C x (line_pct + pace_burst_pct - used_pct) / pace_burst_pct), at least 1, where C is cap, else the active_cap setting. over: further ahead; the pace cap is 0 and the account starts no new turn. off: launch_pace_hold is off; the figures are still given. cap_effective is the smallest of C, the wall-cutoff cap and the pace cap."
+         },
+         "line_pct": {
+          "type": "number",
+          "description": "Where the line is now: pace_target_pct x (now - start) / (end - start), where start is its weekly reset less 7 days and end is that reset or the subscription end, whichever comes first."
+         },
+         "used_pct": {
+          "type": "integer",
+          "description": "The weekly window's used percent the pace is judged on: the last weekly reading, kept until its reset."
+         },
+         "rate_pct_h": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Points of the week per hour the account may use from now to reach pace_target_pct at the end of its week: (pace_target_pct - used_pct) / hours left; 0 at or past the target."
+         },
+         "back_at": {
+          "oneOf": [
+           {
+            "$ref": "#/components/schemas/Timestamp"
+           },
+           {
+            "type": "null"
+           }
+          ]
+         }
+        },
+        "required": [
+         "state",
+         "line_pct",
+         "used_pct",
+         "rate_pct_h",
+         "back_at"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Only with accounts.list `usage: true`. The account's weekly pace (settings launch_pace_hold, pace_target_pct, pace_burst_pct), judged on its last weekly reading, which is kept until its weekly reset even when it is stale. null when it has no weekly reading or its reset is not known; a null pace does not shrink the cap. back_at: for state over, when the line will have caught up to within pace_burst_pct of used_pct at no further use, or the end of its week when the line never gets there; else null."
+     },
+     "factors": {
+      "oneOf": [
+       {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+         "short",
+         "long",
+         "plan_scale"
+        ],
+        "properties": {
+         "short": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+           "usd_per_pct",
+           "source",
+           "samples"
+          ],
+          "properties": {
+           "usd_per_pct": {
+            "type": "number",
+            "description": "API-equivalent dollars per point of the window; 0 when source is none."
+           },
+           "source": {
+            "type": "string",
+            "enum": [
+             "own",
+             "pooled",
+             "none"
+            ],
+            "description": "own: the median of the account's own recent stretches. pooled: the median of every account's, in Pro units, times plan_scale. none: no account has a stretch yet."
+           },
+           "samples": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The account's own stretches; it switches to own at 5."
+           }
+          },
+          "description": "Dollars per point of the 5-hour window."
+         },
+         "long": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+           "usd_per_pct",
+           "source",
+           "samples"
+          ],
+          "properties": {
+           "usd_per_pct": {
+            "type": "number",
+            "description": "API-equivalent dollars per point of the window; 0 when source is none."
+           },
+           "source": {
+            "type": "string",
+            "enum": [
+             "own",
+             "pooled",
+             "none"
+            ],
+            "description": "own: the median of the account's own recent stretches. pooled: the median of every account's, in Pro units, times plan_scale. none: no account has a stretch yet."
+           },
+           "samples": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The account's own stretches; it switches to own at 5."
+           }
+          },
+          "description": "Dollars per point of the week."
+         },
+         "plan_scale": {
+          "type": "number",
+          "description": "The plan's size relative to Pro (Pro 1, Max 5x 5, Max 20x 20), from the recorded subscription type and rate-limit tier."
+         }
+        }
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Only with accounts.list `usage: true`. What a point of each window costs on this account in API-equivalent dollars, learned from stretches of live readings over which the figure rose 5 points or more: the account's priced token calls in the stretch over the rise. Recomputed every 10 minutes from the last 7 days. null before the daemon has read the account."
+     }
+    },
+    "required": [
+     "name",
+     "login_state",
+     "five_hour",
+     "weekly",
+     "agents",
+     "moves",
+     "label",
+     "vendor",
+     "cap",
+     "cap_effective",
+     "recover",
+     "cycle"
+    ]
+   },
+   "Stats": {
+    "type": "object",
+    "properties": {
+     "window": {
+      "type": "string",
+      "enum": [
+       "24h",
+       "7d"
+      ]
+     },
+     "since": {
+      "$ref": "#/components/schemas/Timestamp"
+     },
+     "until": {
+      "$ref": "#/components/schemas/Timestamp"
+     },
+     "tasks_done": {
+      "type": "integer"
+     },
+     "use": {
+      "type": "array",
+      "items": {
+       "$ref": "#/components/schemas/AgentAccountUse"
+      },
+      "description": "Each agent's use of each account in the window, largest cost first; an agent on two accounts has two rows."
+     },
+     "moves": {
+      "type": "integer"
+     },
+     "handoffs": {
+      "type": "integer"
+     },
+     "blocks": {
+      "type": "integer"
+     },
+     "per_account": {
+      "type": "array",
+      "items": {
+       "type": "object",
+       "properties": {
+        "account": {
+         "type": "string"
+        },
+        "five_hour_used_pct": {
+         "oneOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ]
+        },
+        "weekly_used_pct": {
+         "oneOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ]
+        }
+       },
+       "required": [
+        "account",
+        "five_hour_used_pct",
+        "weekly_used_pct"
+       ]
+      }
+     }
+    },
+    "required": [
+     "window",
+     "since",
+     "until",
+     "tasks_done",
+     "use",
+     "moves",
+     "handoffs",
+     "blocks",
+     "per_account"
+    ]
+   },
+   "AgentAccountUse": {
+    "type": "object",
+    "description": "One agent's use of one account. tokens and cost are measured; week_pct is an estimate of the split, not of the account's rise.",
+    "properties": {
+     "agent": {
+      "type": "string",
+      "description": "Empty for the calls of no agent's worktree (the founder's own sessions, the usage poll); drawn as Other."
+     },
+     "account": {
+      "type": "string"
+     },
+     "tokens": {
+      "type": "integer",
+      "description": "Input, cache and output tokens."
+     },
+     "cost": {
+      "type": "number",
+      "description": "List price, USD."
+     },
+     "share": {
+      "type": "number",
+      "description": "This row's cost over the account's cost in the window, 0 to 1."
+     },
+     "week_pct": {
+      "oneOf": [
+       {
+        "type": "number",
+        "description": "Estimated points of the account's weekly limit used: share times the account's rise in the window, so an account's rows add up to it."
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "null when the account has no reading in the window or its calls had no list price."
+     }
+    },
+    "required": [
+     "agent",
+     "account",
+     "tokens",
+     "cost",
+     "share",
+     "week_pct"
+    ]
+   },
+   "Outlook": {
+    "type": "object",
+    "properties": {
+     "range": {
+      "type": "string",
+      "enum": [
+       "12h",
+       "24h",
+       "3d",
+       "7d",
+       "14d",
+       "30d"
+      ]
+     },
+     "now": {
+      "$ref": "#/components/schemas/Timestamp"
+     },
+     "accounts": {
+      "type": "integer",
+      "description": "How many accounts have a reading."
+     },
+     "past": {
+      "type": "array",
+      "items": {
+       "type": "object",
+       "properties": {
+        "at": {
+         "$ref": "#/components/schemas/Timestamp"
+        },
+        "left_pct": {
+         "oneOf": [
+          {
+           "type": "number",
+           "description": "Percent of the week left, averaged over the accounts that have a reading at that time; an account that could not be used then (its login gone or expired) counts as 0."
+          },
+          {
+           "type": "null"
+          }
+         ]
+        }
+       },
+       "required": [
+        "at",
+        "left_pct"
+       ]
+      },
+      "description": "What usage samples recorded, oldest first."
+     },
+     "future": {
+      "type": "array",
+      "items": {
+       "type": "object",
+       "properties": {
+        "at": {
+         "$ref": "#/components/schemas/Timestamp"
+        },
+        "left_pct": {
+         "oneOf": [
+          {
+           "type": "number",
+           "description": "Percent of the week left, averaged over the accounts that have a reading at that time; an account that could not be used then (its login gone or expired) counts as 0."
+          },
+          {
+           "type": "null"
+          }
+         ]
+        }
+       },
+       "required": [
+        "at",
+        "left_pct"
+       ]
+      },
+      "description": "A guess. With launch_pace_hold on, each account's week goes at the smaller of its pace (Account.pace rate_pct_h, which ends at pace_target_pct) and its use over the last day; with pacing off, at its use over the last day. A week that resets starts again from nothing used. An account whose last reading is stale or at a wall keeps that reading until its reset and is not left out. An account that cannot be used now (its login gone or expired) counts as 0 ahead. Kept apart from `past`, never joined to it."
+     },
+     "runway": {
+      "type": "array",
+      "items": {
+       "type": "object",
+       "properties": {
+        "account": {
+         "type": "string"
+        },
+        "runs_out_in_seconds": {
+         "oneOf": [
+          {
+           "type": "integer",
+           "description": "How long its headroom lasts at the current burn, whichever window runs out first; null when its reading is stale, there is no burn, or the window resets first."
+          },
+          {
+           "type": "null"
+          }
+         ]
+        },
+        "week_resets_at": {
+         "oneOf": [
+          {
+           "$ref": "#/components/schemas/Timestamp"
+          },
+          {
+           "type": "null"
+          }
+         ]
+        }
+       },
+       "required": [
+        "account",
+        "runs_out_in_seconds",
+        "week_resets_at"
+       ]
+      }
+     },
+     "cost_per_day": {
+      "$ref": "#/components/schemas/DayCosts"
+     },
+     "agent_use": {
+      "type": "array",
+      "items": {
+       "type": "object",
+       "properties": {
+        "agent": {
+         "type": "string"
+        },
+        "tokens": {
+         "type": "integer",
+         "description": "Tokens the agent used in the span."
+        },
+        "cost": {
+         "type": "number",
+         "description": "Its cost in US dollars at list price in the span, from the token log."
+        },
+        "share": {
+         "type": "number",
+         "description": "Its cost as a fraction (0 to 1) of everyone's cost in the span; 0 when nothing was spent."
+        },
+        "est_pct": {
+         "oneOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "An estimate of the points of the combined week the agent used in the span: its cost share of each account times the points that account used, averaged over the accounts. An estimate, because what the plan charges is not what the price list says. Null when no account has a reading."
+        },
+        "fracs": {
+         "type": "object",
+         "additionalProperties": {
+          "type": "number"
+         },
+         "description": "Its cost share of each account in the span, by account name (a fraction, 0 to 1). An account on which nothing at all was spent is absent; one on which others spent but none of this agent's tokens was priced is 0."
+        }
+       },
+       "required": [
+        "agent",
+        "tokens",
+        "cost",
+        "share",
+        "est_pct",
+        "fracs"
+       ]
+      },
+      "description": "What each agent used over the last `range` (the span of `past`), largest cost first, ties by name. A client groups agents by the first part of the dotted name; a group's numbers are the sums of its members' (est_pct null if any member's is). Absent from a daemon that does not send it."
+     },
+     "overlay": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      },
+      "description": "Only with `agent`: the points of the combined week the pick had used by each time of `past`, one number per `past` entry in the same order: its cost share of each account times what that account had used so far, averaged over the accounts. Empty when the pick used nothing in the span or is not an agent or group. Absent from a daemon that does not send it."
+     },
+     "by_account": {
+      "type": "array",
+      "items": {
+       "type": "object",
+       "additionalProperties": false,
+       "properties": {
+        "account": {
+         "type": "string"
+        },
+        "past": {
+         "type": "array",
+         "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+           "at": {
+            "$ref": "#/components/schemas/Timestamp"
+           },
+           "five_left": {
+            "oneOf": [
+             {
+              "type": "number",
+              "description": "What the 5h window had left, in percent; null where it had no reading."
+             },
+             {
+              "type": "null"
+             }
+            ]
+           },
+           "week_left": {
+            "oneOf": [
+             {
+              "type": "number",
+              "description": "What the weekly window had left, in percent; null where it had no reading."
+             },
+             {
+              "type": "null"
+             }
+            ]
+           },
+           "line_left": {
+            "oneOf": [
+             {
+              "type": "number",
+              "description": "What the week would have left on the pace line at that time (100 - line_pct); null where its reset is not known or pacing is off."
+             },
+             {
+              "type": "null"
+             }
+            ]
+           }
+          },
+          "required": [
+           "at",
+           "five_left",
+           "week_left",
+           "line_left"
+          ]
+         },
+         "description": "What usage samples recorded, at the same points as `past`."
+        },
+        "future": {
+         "type": "array",
+         "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+           "at": {
+            "$ref": "#/components/schemas/Timestamp"
+           },
+           "five_left": {
+            "oneOf": [
+             {
+              "type": "number",
+              "description": "What the 5h window had left, in percent; null where it had no reading."
+             },
+             {
+              "type": "null"
+             }
+            ]
+           },
+           "week_left": {
+            "oneOf": [
+             {
+              "type": "number",
+              "description": "What the weekly window had left, in percent; null where it had no reading."
+             },
+             {
+              "type": "null"
+             }
+            ]
+           },
+           "line_left": {
+            "oneOf": [
+             {
+              "type": "number",
+              "description": "What the week would have left on the pace line at that time (100 - line_pct); null where its reset is not known or pacing is off."
+             },
+             {
+              "type": "null"
+             }
+            ]
+           }
+          },
+          "required": [
+           "at",
+           "five_left",
+           "week_left",
+           "line_left"
+          ]
+         },
+         "description": "The guess of `future` for this account, at the same points. The 5h window starts again from nothing at each reset, so its line is a saw; it goes at its use over the last day, and with launch_pace_hold on at no more than the paced week rate converted to the 5h window by the account's factors (Account.factors: its 5-hour factor over its week factor)."
+        },
+        "resets": {
+         "type": "array",
+         "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+           "at": {
+            "$ref": "#/components/schemas/Timestamp"
+           },
+           "window": {
+            "type": "string",
+            "enum": [
+             "5h",
+             "7d"
+            ]
+           },
+           "unused_pct": {
+            "type": "number",
+            "description": "Only on a weekly (7d) reset the samples recorded: the percent of that week left unused at the last sample before it. Absent for a 5h reset, a guessed one, or a week with no sample."
+           }
+          },
+          "required": [
+           "at",
+           "window"
+          ]
+         },
+         "description": "Resets in the span, oldest first: those samples recorded, then those guessed."
+        }
+       },
+       "required": [
+        "account",
+        "past",
+        "future",
+        "resets"
+       ]
+      },
+      "description": "Each account that has a reading in the span, by name: its windows and its pace line, for a chart per account. Absent from a daemon that does not send it."
+     }
+    },
+    "required": [
+     "range",
+     "now",
+     "accounts",
+     "past",
+     "future",
+     "runway",
+     "cost_per_day"
+    ]
+   },
+   "Retro": {
+    "type": "object",
+    "description": "The cost of one founder's task: its wall time, and the tokens spent inside the doing windows of every task in its subtree, per agent.",
+    "properties": {
+     "task": {
+      "type": "integer"
+     },
+     "wall_seconds": {
+      "type": "integer",
+      "description": "From the task's creation to its done or discard time; to now while it is open."
+     },
+     "tokens": {
+      "type": "integer",
+      "description": "All agents together: inp, cc, cr and out (thinking is a part of out)."
+     },
+     "cost": {
+      "type": "number",
+      "description": "USD at list price, all agents together."
+     },
+     "agents": {
+      "type": "array",
+      "description": "One row per agent that was doing a task of the subtree, most tokens first, ties by agent.",
+      "items": {
+       "type": "object",
+       "properties": {
+        "agent": {
+         "type": "string"
+        },
+        "doing_seconds": {
+         "type": "integer",
+         "description": "Time it held tasks of the subtree in doing, waits on a blocker included."
+        },
+        "tokens": {
+         "type": "integer"
+        },
+        "cost": {
+         "type": "number"
+        },
+        "tasks": {
+         "type": "array",
+         "items": {
+          "type": "integer"
+         },
+         "description": "The subtree tasks it did, by id."
+        }
+       },
+       "required": [
+        "agent",
+        "doing_seconds",
+        "tokens",
+        "cost",
+        "tasks"
+       ]
+      }
+     }
+    },
+    "required": [
+     "task",
+     "wall_seconds",
+     "tokens",
+     "cost",
+     "agents"
+    ]
+   },
+   "DayCosts": {
+    "type": "array",
+    "items": {
+     "type": "object",
+     "properties": {
+      "day": {
+       "type": "string",
+       "description": "Local calendar day, YYYY-MM-DD."
+      },
+      "agents": {
+       "type": "object",
+       "additionalProperties": {
+        "type": "number"
+       },
+       "description": "List-price cost in US dollars of each agent that day."
+      }
+     },
+     "required": [
+      "day",
+      "agents"
+     ]
+    },
+    "description": "What the agents cost per local calendar day, oldest first; a day with no calls is absent."
+   },
+   "CostPerDay": {
+    "type": "object",
+    "properties": {
+     "range": {
+      "type": "string",
+      "enum": [
+       "12h",
+       "24h",
+       "3d",
+       "7d",
+       "14d",
+       "30d"
+      ],
+      "description": "The range asked for."
+     },
+     "cost_per_day": {
+      "$ref": "#/components/schemas/DayCosts"
+     }
+    },
+    "required": [
+     "range",
+     "cost_per_day"
+    ]
+   }
+  }
+ },
+ "methods": [
+  {
+   "name": "accounts.list",
+   "summary": "Accounts with login state, use, cap, agents, recent moves.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "roster",
+     "required": false,
+     "schema": {
+      "type": "boolean",
+      "description": "Add each account's agents_assigned, agents_running and agents_unplaced. Default false."
+     }
+    },
+    {
+     "name": "usage",
+     "required": false,
+     "schema": {
+      "type": "boolean",
+      "description": "Add each account's plan, windows, ctx_pct, age_s, runway, assignable and assign_reason (what `hl account list` prints beside the windows), and pace. Default false."
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "allOf": [
+      {
+       "type": "object",
+       "properties": {
+        "accounts": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/Account"
+         }
+        }
+       },
+       "required": [
+        "accounts"
+       ]
+      },
+      {
+       "$ref": "#/components/schemas/ReadCursor"
+      }
+     ]
+    }
+   },
+   "x-role": "agent",
+   "x-write": false,
+   "x-app-cache": {
+    "resource": "accounts",
+    "feed": "accounts"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ]
+  },
+  {
+   "name": "status.pick",
+   "summary": "Which account the next agent would be placed on, each account's reason, and what one more agent costs by kind.",
+   "paramStructure": "by-name",
+   "params": [],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "required": [
+      "picked",
+      "candidates",
+      "agent_costs"
+     ],
+     "properties": {
+      "picked": {
+       "oneOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "The account to place the next agent on; null when none may take work (fail-closed)."
+      },
+      "candidates": {
+       "type": "array",
+       "items": {
+        "type": "object",
+        "required": [
+         "account",
+         "reason"
+        ],
+        "properties": {
+         "account": {
+          "type": "string"
+         },
+         "reason": {
+          "type": "string"
+         }
+        }
+       }
+      },
+      "agent_costs": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       },
+       "description": "One line per agent kind: its price per minute of the 5h window and what the price rests on."
+      },
+      "agent_pace_usd": {
+       "type": "array",
+       "items": {
+        "type": "object",
+        "required": [
+         "model",
+         "usd_per_min",
+         "source",
+         "samples"
+        ],
+        "properties": {
+         "model": {
+          "type": "string",
+          "description": "The model, or \"all agents\" for the whole pool."
+         },
+         "usd_per_min": {
+          "type": "number",
+          "description": "Median API-equivalent dollars per minute of work of its latest samples."
+         },
+         "source": {
+          "type": "string",
+          "description": "What the figure rests on: the model, \"all agents\" or \"starting value\"."
+         },
+         "samples": {
+          "type": "integer",
+          "description": "Samples behind it; 0 for the starting value."
+         }
+        }
+       },
+       "description": "What one agent spends per minute of work, by model, pooled across accounts, then the whole pool."
+      }
+     }
+    }
+   },
+   "x-role": "agent",
+   "x-write": false,
+   "x-app-cache": false,
+   "x-since": 1
+  },
+  {
+   "name": "account.set",
+   "summary": "The account Settings form in one call: alias, cap, usage recovery and the month cycle; nothing is written if any is refused.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "account",
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    },
+    {
+     "name": "label",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "maxLength": 40,
+      "description": "Alias, one plain line; empty clears."
+     }
+    },
+    {
+     "name": "cap",
+     "required": false,
+     "schema": {
+      "type": "integer",
+      "minimum": 1
+     }
+    },
+    {
+     "name": "recover",
+     "required": false,
+     "schema": {
+      "type": "boolean"
+     }
+    },
+    {
+     "name": "cycle",
+     "required": false,
+     "schema": {
+      "type": "boolean",
+      "description": "The one-month subscription switch (hl account cycle on|off); off keeps the end day."
+     }
+    },
+    {
+     "name": "cycle_end",
+     "required": false,
+     "schema": {
+      "oneOf": [
+       {
+        "type": "string",
+        "format": "date"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Last usable day YYYY-MM-DD; a date alone turns the cycle on, as `hl account cycle --end` does; null clears it."
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Accepted"
+    }
+   },
+   "x-role": "founder",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "authored",
+    "label": "save account"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "description": "Fields not given are left alone. Chosen over set_cycle_on/set_cycle_end methods because the UI saves these together and the CLI twins (cap, cycle, recover, alias) each write one of these fields."
+  },
+  {
+   "name": "account.wake",
+   "summary": "Wake a STALLED account: its stall ends, agents may be placed on it again and the agents stalled with it are released, as session.wake clears a stalled agent (hl account wake). A login on the account, or a turn that ends well there, ends the stall too. Refused (gate state) when the account is not stalled.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "account",
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Accepted"
+    }
+   },
+   "x-role": "founder",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "authored",
+    "label": "wake"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "x-gates": [
+    "state"
+   ]
+  },
+  {
+   "name": "account.add",
+   "summary": "Register an account on this machine; it is not logged in until account.login runs.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "account",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The new account's name: one plain line, no slash, not starting with a dot."
+     }
+    },
+    {
+     "name": "vendor",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "description": "The tool the account is for; omitted means the default (claude)."
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "allOf": [
+      {
+       "$ref": "#/components/schemas/Accepted"
+      },
+      {
+       "type": "object",
+       "properties": {
+        "account": {
+         "type": "string",
+         "description": "The name as registered."
+        }
+       },
+       "required": [
+        "account"
+       ]
+      }
+     ]
+    }
+   },
+   "x-role": "founder",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "add account"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "description": "As `hl account add <name> --no-login`: the account's directory is made and linked to the shared files, and nothing is logged in, so accounts.list shows it with login_state needs_login and the accounts topic sends account.changed. A name already used is refused (gate `state`). A name that is empty, holds a slash, starts with a dot or would not be read back as text is bad_request, field `account`; a vendor the daemon has no driver for is bad_request, field `vendor`. Nothing is changed on a refusal. The app then calls account.login. Offering to trust the agents' worktrees on the new account is not part of it (settings.trust).",
+   "x-gates": [
+    "role",
+    "state"
+   ]
+  },
+  {
+   "name": "account.login",
+   "summary": "Start a login on the account; answers the login id and the URL to open.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "account",
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "allOf": [
+      {
+       "$ref": "#/components/schemas/Accepted"
+      },
+      {
+       "type": "object",
+       "properties": {
+        "login_id": {
+         "type": "string"
+        },
+        "state": {
+         "type": "string",
+         "enum": [
+          "waiting"
+         ]
+        },
+        "url": {
+         "type": "string",
+         "description": "The authorize URL the claude CLI printed; the person opens it and brings the code back with account.login_code."
+        }
+       },
+       "required": [
+        "login_id",
+        "state",
+        "url"
+       ]
+      }
+     ]
+    }
+   },
+   "x-role": "founder",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "log in"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    }
+   ],
+   "description": "No terminal is opened: the CLI runs without one, its URL is read from its stdout and its code is fed to its stdin by account.login_code. Refused with gate `state` while the account is already logging in; not_found for an unknown account. The end of a login is not a method: the accounts topic reports it in the account's `login`, state waiting, then code_sent after account.login_code, then done, or failed with a `reason`, or cancelled by account.login_cancel. A login that is done leaves login_state ok.",
+   "x-gates": [
+    "role",
+    "state"
+   ]
+  },
+  {
+   "name": "account.login_cancel",
+   "summary": "Stop a login in progress.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "login_id",
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Accepted"
+    }
+   },
+   "x-role": "founder",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "cancel login"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    }
+   ],
+   "description": "Idempotent: a login already ended answers accepted. An id the daemon never issued is not_found. The login's whole process group is killed, since the CLI ignores SIGTERM for a second.",
+   "x-gates": [
+    "role"
+   ]
+  },
+  {
+   "name": "account.login_code",
+   "summary": "Hand the one-time code from the authorize page to a login waiting for it.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "login_id",
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    },
+    {
+     "name": "code",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "minLength": 1,
+      "description": "One-time; written to the CLI's stdin and nowhere else."
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Accepted"
+    }
+   },
+   "x-role": "founder",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "send code"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "description": "The code is never echoed back, never in an event, a log or the request record. Refused with gate `state` when the login is not waiting for a code. An id the daemon never issued is not_found.",
+   "x-gates": [
+    "role",
+    "state"
+   ]
+  },
+  {
+   "name": "account.remove",
+   "summary": "Log an account out and take it off the roster; dry_run names what would happen.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "account",
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    },
+    {
+     "name": "dry_run",
+     "required": false,
+     "schema": {
+      "type": "boolean",
+      "description": "Change nothing: answer `plan` and `would_remove`. A dry run needs no `confirm`."
+     }
+    },
+    {
+     "name": "confirm",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "description": "The account's name, as the founder typed it; required unless dry_run."
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "allOf": [
+      {
+       "$ref": "#/components/schemas/Accepted"
+      },
+      {
+       "type": "object",
+       "properties": {
+        "would_remove": {
+         "type": "boolean",
+         "description": "Dry run only: whether the removal would go ahead."
+        },
+        "plan": {
+         "type": "array",
+         "items": {
+          "type": "string"
+         },
+         "description": "Dry run only: what it would do, line by line, or the one line that says why it would refuse."
+        }
+       }
+      }
+     ]
+    }
+   },
+   "x-role": "founder",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "remove"
+   },
+   "x-since": 1,
+   "description": "The sequence of `hl account remove`: refused (gate `state`) while an agent is on the account or when claude's logout fails. The account's directory is moved aside, never deleted. A dry run writes nothing and records nothing.",
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ]
+  },
+  {
+   "name": "stats.get",
+   "summary": "Counts over a window, and each agent's use of each account's weekly limit.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "window",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "enum": [
+       "24h",
+       "7d"
+      ]
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Stats"
+    }
+   },
+   "x-role": "member",
+   "x-write": false,
+   "x-app-cache": {
+    "resource": "stats",
+    "feed": null
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ]
+  },
+  {
+   "name": "stats.outlook",
+   "summary": "The week left of the accounts together, recorded and guessed, each account's runway, and what the agents cost per day.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "range",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "enum": [
+       "12h",
+       "24h",
+       "3d",
+       "7d",
+       "14d",
+       "30d"
+      ],
+      "description": "Headroom: that long back and as long ahead. Cost per day: the last that many days (under 1 day counts as 1)."
+     }
+    },
+    {
+     "name": "agent",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "description": "Also give `overlay` for this pick: an agent's name, or `grp:<name>` for the group of agents whose dotted names start with `<name>.` (and the agent `<name>` itself), the key of a row of the agents table a client draws. It rides on this call and not on a method of its own because the curve is read against `past` and must be sampled at the same moment as it; one pick costs one array, not one per agent."
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Outlook"
+    }
+   },
+   "x-role": "member",
+   "x-write": false,
+   "x-app-cache": {
+    "resource": "outlook",
+    "feed": null
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ]
+  },
+  {
+   "name": "stats.cost",
+   "summary": "What the agents cost per day: stats.outlook's cost_per_day alone, without the headroom it computes, for a client that draws only the cost.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "range",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "enum": [
+       "12h",
+       "24h",
+       "3d",
+       "7d",
+       "14d",
+       "30d"
+      ],
+      "description": "The last that many days (under 1 day counts as 1), as stats.outlook counts them."
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/CostPerDay"
+    }
+   },
+   "x-role": "member",
+   "x-write": false,
+   "x-app-cache": {
+    "resource": "cost",
+    "feed": null
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ]
+  },
+  {
+   "name": "stats.retro",
+   "summary": "What a founder's task cost: wall time, and tokens per agent from the doing windows of its subtree.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "task",
+     "required": true,
+     "schema": {
+      "type": "integer"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Retro"
+    }
+   },
+   "x-role": "member",
+   "x-write": false,
+   "x-app-cache": {
+    "resource": "retro",
+    "feed": null
+   },
+   "x-since": 1,
+   "description": "A read only. The subtree is the task and every task opened under it, to any depth. A doing window of a task runs from the moment its holder began it (task_begin or task_start, or a delivery of it landing with the holder) to the first of: done, discard, release, a report, any other move out of doing, handoff to another agent, or the holder beginning another task. A holder has at most one open window, so its windows never overlap; doing_seconds is time the agent held the task in doing, waits on a blocker included. A call of token_calls counts to an agent when its ts is after a window's begin and up to its end (as in stats.get) in one of that agent's windows and its cwd is in that agent's worktree. Calls outside every window are not counted. A task that is not found is `not_found`; a task that is not a founder's task (its reporter is not human) is `bad_request`.",
+   "errors": [
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ]
+  }
+ ]
+}

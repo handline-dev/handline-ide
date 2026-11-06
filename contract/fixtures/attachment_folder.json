@@ -1,0 +1,1093 @@
+{
+ "fixtures": [
+  {
+   "name": "attachment.folder.an_agent_session_is_refused",
+   "spec": "attachment.folder",
+   "about": "An agent may not open a folder, gate role, as for attachment.put.",
+   "as": "agent",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "attachment.folder",
+      "params": {
+       "name": "notes",
+       "request_id": "conf-fo-1"
+      }
+     },
+     "error": {
+      "code": -32002,
+      "data": {
+       "code": "refused",
+       "gate": "role"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "attachment.folder.an_empty_name_is_bad_request",
+   "spec": "attachment.folder",
+   "about": "A folder needs a name: empty is bad_request, field name.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "attachment.folder",
+      "params": {
+       "name": "",
+       "request_id": "conf-fo-2"
+      }
+     },
+     "error": {
+      "code": {
+       "$oneOf": [
+        -32600,
+        -32602
+       ]
+      },
+      "data": {
+       "code": "bad_request",
+       "field": "name"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "attachment.folder.files_fill_it_and_a_message_names_it",
+   "spec": "attachment.folder",
+   "about": "Files put with folder and rel_path fill one folder attachment: its bytes are their sum and files their count; a message names the folder as one attachment.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "attachment.folder",
+      "params": {
+       "name": "notes",
+       "request_id": "conf-fo-3"
+      }
+     },
+     "result": {
+      "accepted": true,
+      "attachment": {
+       "id": {
+        "$regex": "^[0-9a-f]{16}$",
+        "$save": "dir"
+       },
+       "name": "notes",
+       "mime": "inode/directory",
+       "bytes": 0,
+       "files": 0
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "attachment.put",
+      "params": {
+       "name": "a.md",
+       "mime": "text/plain",
+       "bytes": 6,
+       "data": "YWxwaGEK",
+       "request_id": "conf-fo-4",
+       "folder": "{{dir}}",
+       "rel_path": "a.md"
+      }
+     },
+     "result": {
+      "received": 6,
+      "attachment": {
+       "id": "{{dir}}",
+       "mime": "inode/directory",
+       "bytes": 6,
+       "files": 1
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "attachment.put",
+      "params": {
+       "name": "b.md",
+       "mime": "text/plain",
+       "bytes": 6,
+       "data": "YmV0YSEK",
+       "request_id": "conf-fo-5",
+       "folder": "{{dir}}",
+       "rel_path": "sub/b.md"
+      }
+     },
+     "result": {
+      "received": 6,
+      "attachment": {
+       "id": "{{dir}}",
+       "mime": "inode/directory",
+       "bytes": 12,
+       "files": 2
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "chat.send",
+      "params": {
+       "agent": "{{ask_agent}}",
+       "body": "the notes folder",
+       "attachments": [
+        "{{dir}}"
+       ],
+       "request_id": "conf-fo-6"
+      }
+     },
+     "result": {
+      "accepted": true,
+      "request": {
+       "$save": "rid"
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "chat.messages",
+      "params": {
+       "agent": "{{ask_agent}}",
+       "scope": "mine"
+      }
+     },
+     "result": {
+      "messages": {
+       "$contains": {
+        "id": "{{rid}}",
+        "attachments": [
+         {
+          "id": "{{dir}}",
+          "name": "notes",
+          "mime": "inode/directory",
+          "bytes": 12,
+          "files": 2
+         }
+        ]
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "attachment.put.a_rel_path_with_dotdot_is_bad_request",
+   "spec": "attachment.folder",
+   "about": "A rel_path with a `..` part is bad_request, field rel_path; nothing is stored.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "attachment.folder",
+      "params": {
+       "name": "notes",
+       "request_id": "conf-fo-10"
+      }
+     },
+     "result": {
+      "accepted": true,
+      "attachment": {
+       "id": {
+        "$regex": "^[0-9a-f]{16}$",
+        "$save": "dir"
+       },
+       "name": "notes",
+       "mime": "inode/directory",
+       "bytes": 0,
+       "files": 0
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "attachment.put",
+      "params": {
+       "name": "x.md",
+       "mime": "text/plain",
+       "bytes": 2,
+       "data": "eAo=",
+       "request_id": "conf-fo-20",
+       "folder": "{{dir}}",
+       "rel_path": "../x.md"
+      }
+     },
+     "error": {
+      "code": {
+       "$oneOf": [
+        -32600,
+        -32602
+       ]
+      },
+      "data": {
+       "code": "bad_request",
+       "field": "rel_path"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "attachment.put.a_rel_path_with_a_leading_slash_is_bad_request",
+   "spec": "attachment.folder",
+   "about": "A rel_path with a leading `/` is bad_request, field rel_path; nothing is stored.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "attachment.folder",
+      "params": {
+       "name": "notes",
+       "request_id": "conf-fo-11"
+      }
+     },
+     "result": {
+      "accepted": true,
+      "attachment": {
+       "id": {
+        "$regex": "^[0-9a-f]{16}$",
+        "$save": "dir"
+       },
+       "name": "notes",
+       "mime": "inode/directory",
+       "bytes": 0,
+       "files": 0
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "attachment.put",
+      "params": {
+       "name": "x.md",
+       "mime": "text/plain",
+       "bytes": 2,
+       "data": "eAo=",
+       "request_id": "conf-fo-21",
+       "folder": "{{dir}}",
+       "rel_path": "/x.md"
+      }
+     },
+     "error": {
+      "code": {
+       "$oneOf": [
+        -32600,
+        -32602
+       ]
+      },
+      "data": {
+       "code": "bad_request",
+       "field": "rel_path"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "attachment.put.a_rel_path_with_an_empty_part_is_bad_request",
+   "spec": "attachment.folder",
+   "about": "A rel_path with an empty part is bad_request, field rel_path; nothing is stored.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "attachment.folder",
+      "params": {
+       "name": "notes",
+       "request_id": "conf-fo-12"
+      }
+     },
+     "result": {
+      "accepted": true,
+      "attachment": {
+       "id": {
+        "$regex": "^[0-9a-f]{16}$",
+        "$save": "dir"
+       },
+       "name": "notes",
+       "mime": "inode/directory",
+       "bytes": 0,
+       "files": 0
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "attachment.put",
+      "params": {
+       "name": "x.md",
+       "mime": "text/plain",
+       "bytes": 2,
+       "data": "eAo=",
+       "request_id": "conf-fo-22",
+       "folder": "{{dir}}",
+       "rel_path": "a//x.md"
+      }
+     },
+     "error": {
+      "code": {
+       "$oneOf": [
+        -32600,
+        -32602
+       ]
+      },
+      "data": {
+       "code": "bad_request",
+       "field": "rel_path"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "attachment.put.a_rel_path_with_a_dot_part_is_bad_request",
+   "spec": "attachment.folder",
+   "about": "A rel_path with a `.` part is bad_request, field rel_path; nothing is stored.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "attachment.folder",
+      "params": {
+       "name": "notes",
+       "request_id": "conf-fo-13"
+      }
+     },
+     "result": {
+      "accepted": true,
+      "attachment": {
+       "id": {
+        "$regex": "^[0-9a-f]{16}$",
+        "$save": "dir"
+       },
+       "name": "notes",
+       "mime": "inode/directory",
+       "bytes": 0,
+       "files": 0
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "attachment.put",
+      "params": {
+       "name": "x.md",
+       "mime": "text/plain",
+       "bytes": 2,
+       "data": "eAo=",
+       "request_id": "conf-fo-23",
+       "folder": "{{dir}}",
+       "rel_path": "./x.md"
+      }
+     },
+     "error": {
+      "code": {
+       "$oneOf": [
+        -32600,
+        -32602
+       ]
+      },
+      "data": {
+       "code": "bad_request",
+       "field": "rel_path"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "attachment.put.a_rel_path_the_folder_holds_is_bad_request",
+   "spec": "attachment.folder",
+   "about": "A second file at a path the folder already holds is bad_request, field rel_path.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "attachment.folder",
+      "params": {
+       "name": "notes",
+       "request_id": "conf-fo-30"
+      }
+     },
+     "result": {
+      "accepted": true,
+      "attachment": {
+       "id": {
+        "$regex": "^[0-9a-f]{16}$",
+        "$save": "dir"
+       },
+       "name": "notes",
+       "mime": "inode/directory",
+       "bytes": 0,
+       "files": 0
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "attachment.put",
+      "params": {
+       "name": "a.md",
+       "mime": "text/plain",
+       "bytes": 6,
+       "data": "YWxwaGEK",
+       "request_id": "conf-fo-31",
+       "folder": "{{dir}}",
+       "rel_path": "a.md"
+      }
+     },
+     "result": {
+      "attachment": {
+       "files": 1
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "attachment.put",
+      "params": {
+       "name": "a.md",
+       "mime": "text/plain",
+       "bytes": 6,
+       "data": "YWdhaW4K",
+       "request_id": "conf-fo-32",
+       "folder": "{{dir}}",
+       "rel_path": "a.md"
+      }
+     },
+     "error": {
+      "code": {
+       "$oneOf": [
+        -32600,
+        -32602
+       ]
+      },
+      "data": {
+       "code": "bad_request",
+       "field": "rel_path"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "attachment.put.an_unknown_folder_is_not_found",
+   "spec": "attachment.folder",
+   "about": "A folder id never opened is not_found.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "attachment.put",
+      "params": {
+       "name": "a.md",
+       "mime": "text/plain",
+       "bytes": 6,
+       "data": "YWxwaGEK",
+       "request_id": "conf-fo-40",
+       "folder": "0123456789abcdef",
+       "rel_path": "a.md"
+      }
+     },
+     "error": {
+      "code": -32001,
+      "data": {
+       "code": "not_found",
+       "what": "attachment"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "attachment.put.folder_without_rel_path_is_bad_request",
+   "spec": "attachment.folder",
+   "about": "folder and rel_path go together: folder alone is bad_request, field rel_path.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "attachment.folder",
+      "params": {
+       "name": "notes",
+       "request_id": "conf-fo-60"
+      }
+     },
+     "result": {
+      "accepted": true,
+      "attachment": {
+       "id": {
+        "$regex": "^[0-9a-f]{16}$",
+        "$save": "dir"
+       },
+       "name": "notes",
+       "mime": "inode/directory",
+       "bytes": 0,
+       "files": 0
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "attachment.put",
+      "params": {
+       "name": "a.md",
+       "mime": "text/plain",
+       "bytes": 2,
+       "data": "YQo=",
+       "folder": "{{dir}}",
+       "request_id": "conf-fo-61"
+      }
+     },
+     "error": {
+      "code": {
+       "$oneOf": [
+        -32600,
+        -32602
+       ]
+      },
+      "data": {
+       "code": "bad_request",
+       "field": "rel_path"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "attachment.put.a_folder_that_is_not_text_is_bad_request",
+   "spec": "attachment.put",
+   "about": "folder is the id attachment.folder gave: anything but text is bad_request, field folder.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "attachment.put",
+      "params": {
+       "name": "a.md",
+       "mime": "text/plain",
+       "bytes": 2,
+       "data": "YQo=",
+       "folder": 5,
+       "request_id": "conf-fo-90"
+      }
+     },
+     "error": {
+      "code": {
+       "$oneOf": [
+        -32600,
+        -32602
+       ]
+      },
+      "data": {
+       "code": "bad_request",
+       "field": "folder"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "attachment.put.rel_path_without_folder_is_bad_request",
+   "spec": "attachment.folder",
+   "about": "rel_path alone is bad_request, field folder.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "attachment.put",
+      "params": {
+       "name": "a.md",
+       "mime": "text/plain",
+       "bytes": 2,
+       "data": "YQo=",
+       "rel_path": "a.md",
+       "request_id": "conf-fo-62"
+      }
+     },
+     "error": {
+      "code": {
+       "$oneOf": [
+        -32600,
+        -32602
+       ]
+      },
+      "data": {
+       "code": "bad_request",
+       "field": "folder"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "attachment.put.folder_on_a_later_chunk_is_bad_request",
+   "spec": "attachment.folder",
+   "about": "folder goes only on the chunk at offset 0 that opens the upload; on a later chunk it is bad_request, field folder.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "attachment.folder",
+      "params": {
+       "name": "notes",
+       "request_id": "conf-fo-70"
+      }
+     },
+     "result": {
+      "accepted": true,
+      "attachment": {
+       "id": {
+        "$regex": "^[0-9a-f]{16}$",
+        "$save": "dir"
+       },
+       "name": "notes",
+       "mime": "inode/directory",
+       "bytes": 0,
+       "files": 0
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "attachment.put",
+      "params": {
+       "name": "a.md",
+       "mime": "text/plain",
+       "bytes": 4,
+       "data": "YWI=",
+       "folder": "{{dir}}",
+       "rel_path": "a.md",
+       "request_id": "conf-fo-71"
+      }
+     },
+     "result": {
+      "upload": {
+       "$save": "up"
+      },
+      "received": 2
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "attachment.put",
+      "params": {
+       "name": "a.md",
+       "mime": "text/plain",
+       "bytes": 4,
+       "data": "Ywo=",
+       "offset": 2,
+       "upload": "{{up}}",
+       "folder": "{{dir}}",
+       "rel_path": "a.md",
+       "request_id": "conf-fo-72"
+      }
+     },
+     "error": {
+      "code": {
+       "$oneOf": [
+        -32600,
+        -32602
+       ]
+      },
+      "data": {
+       "code": "bad_request",
+       "field": "folder"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "attachment.put.rel_path_on_a_later_chunk_is_bad_request",
+   "spec": "attachment.folder",
+   "about": "rel_path goes only on the first chunk: on a later one it is bad_request, field rel_path.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "attachment.folder",
+      "params": {
+       "name": "notes",
+       "request_id": "conf-fo-91"
+      }
+     },
+     "result": {
+      "accepted": true,
+      "attachment": {
+       "id": {
+        "$regex": "^[0-9a-f]{16}$",
+        "$save": "dir"
+       },
+       "name": "notes",
+       "mime": "inode/directory",
+       "bytes": 0,
+       "files": 0
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "attachment.put",
+      "params": {
+       "name": "a.md",
+       "mime": "text/plain",
+       "bytes": 4,
+       "data": "YWI=",
+       "folder": "{{dir}}",
+       "rel_path": "a.md",
+       "request_id": "conf-fo-92"
+      }
+     },
+     "result": {
+      "upload": {
+       "$save": "up"
+      },
+      "received": 2
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "attachment.put",
+      "params": {
+       "name": "a.md",
+       "mime": "text/plain",
+       "bytes": 4,
+       "data": "Ywo=",
+       "offset": 2,
+       "upload": "{{up}}",
+       "rel_path": "a.md",
+       "request_id": "conf-fo-93"
+      }
+     },
+     "error": {
+      "code": {
+       "$oneOf": [
+        -32600,
+        -32602
+       ]
+      },
+      "data": {
+       "code": "bad_request",
+       "field": "rel_path"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "chat.send.a_folder_with_no_file_is_bad_request",
+   "spec": "attachment.folder",
+   "about": "A folder no file has finished in is bad_request, field attachments, and nothing is sent.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "attachment.folder",
+      "params": {
+       "name": "notes",
+       "request_id": "conf-fo-50"
+      }
+     },
+     "result": {
+      "accepted": true,
+      "attachment": {
+       "id": {
+        "$regex": "^[0-9a-f]{16}$",
+        "$save": "dir"
+       },
+       "name": "notes",
+       "mime": "inode/directory",
+       "bytes": 0,
+       "files": 0
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "chat.send",
+      "params": {
+       "agent": "{{ask_agent}}",
+       "body": "empty",
+       "attachments": [
+        "{{dir}}"
+       ],
+       "request_id": "conf-fo-51"
+      }
+     },
+     "error": {
+      "code": {
+       "$oneOf": [
+        -32600,
+        -32602
+       ]
+      },
+      "data": {
+       "code": "bad_request",
+       "field": "attachments"
+      }
+     }
+    }
+   ]
+  }
+ ]
+}

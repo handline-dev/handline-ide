@@ -1,0 +1,189 @@
+// Package paths is the layout of the handline home, as handline/infra/paths.py has it.
+package paths
+
+import (
+	"errors"
+	"fmt"
+	"io/fs"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"sort"
+	"strings"
+	"sync"
+	"syscall"
+	"testing"
+)
+
+// Getenv reads HANDLINE_<suffix>.
+func Getenv(suffix string) (string, bool) {
+	return os.LookupEnv("HANDLINE_" + suffix)
+}
+
+// UserHome is the user's home, or the test suite's stand-in for it. A test binary never gets the real one: with no TEST_ROOT set it gets
+// a folder beside itself, in the build folder `go test` removes after the run, so a test that forgets to set one leaves nothing behind.
+func UserHome() string {
+	if t, ok := Getenv("TEST_ROOT"); ok && t != "" {
+		return t
+	}
+	if testing.Testing() {
+		return testRoot()
+	}
+	h, _ := os.UserHomeDir()
+	return h
+}
+
+var testRoot = sync.OnceValue(func() string {
+	exe, err := os.Executable()
+	if err != nil {
+		panic(fmt.Sprintf("a test binary needs a stand-in user home: %v", err))
+	}
+	d := filepath.Join(filepath.Dir(exe), "user-home")
+	if err := os.MkdirAll(d, 0o700); err != nil {
+		panic(fmt.Sprintf("a test binary needs a stand-in user home: %v", err))
+	}
+	return d
+})
+
+// Home is the handline home: the environment's, else ~/.handline.
+func Home() string {
+	if h, ok := Getenv("HOME"); ok && h != "" {
+		return h
+	}
+	return filepath.Join(UserHome(), ".handline")
+}
+
+func DBFile(home string) string     { return filepath.Join(home, "db.sqlite") }
+func SocketFile(home string) string { return filepath.Join(home, "daemon.sock") }
+
+// Commands is the command, main name first (handline/infra/names.py).
+var Commands = []string{"hl", "handline"}
+
+// Setenv sets HANDLINE_<suffix> in env.
+func Setenv(env map[string]string, suffix, value string) {
+	env["HANDLINE_"+suffix] = value
+}
+
+func ConfigFile(home string) string { return filepath.Join(home, "config.yaml") }
+func TeamFile(home string) string   { return filepath.Join(home, "team.yaml") }
+func MCPConfig(home string) string  { return filepath.Join(home, "shared", "mcp.json") }
+
+// QuietDir is the folder a claude the daemon starts outside any worktree runs in: empty and its own, under the daemon's home, so a claude
+// that walks its working folder finds nothing, and never inherits the daemon's (which may be / or the person's home).
+func QuietDir() string {
+	dir := filepath.Join(Home(), "run", "claude")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		dir = filepath.Join(os.TempDir(), "handline-claude")
+		os.MkdirAll(dir, 0o755)
+	}
+	return dir
+}
+
+func AccountsDir(home string) string      { return filepath.Join(home, "accounts") }
+func AccountDir(home, acct string) string { return filepath.Join(home, "accounts", acct) }
+func StatusFile(home, acct string) string {
+	return filepath.Join(AccountDir(home, acct), "status.json")
+}
+func AgentsDir(home string) string { return filepath.Join(home, "agents") }
+func AgentDir(home, name string) string {
+	return filepath.Join(home, "agents", name)
+}
+
+// CacheDir is a sandboxed agent's own build caches (claude.CacheEnv).
+func CacheDir(home, name string) string { return filepath.Join(home, "caches", name) }
+
+// RemoveCacheDir removes an agent's build caches. Go keeps its module cache read-only, so folders are made writable first.
+func RemoveCacheDir(home, name string) error {
+	d := CacheDir(home, name)
+	_ = filepath.WalkDir(d, func(p string, e fs.DirEntry, err error) error {
+		if err == nil && e.IsDir() {
+			_ = os.Chmod(p, 0o755)
+		}
+		return nil
+	})
+	return os.RemoveAll(d)
+}
+func AgentStatusFile(home, name string) string {
+	return filepath.Join(AgentDir(home, name), "status.json")
+}
+func HandoffNoteFile(home, agent string) string {
+	return filepath.Join(AgentDir(home, agent), "handoff.md")
+}
+
+// HandoffArchiveDir keeps each handoff record an agent was handed with its note in it, one timestamped file per record.
+func HandoffArchiveDir(home, agent string) string {
+	return filepath.Join(AgentDir(home, agent), "handoffs")
+}
+
+// StrayHandoffFile is where a session in a dangling terminal of the agent writes its handoff before the terminal is closed.
+func StrayHandoffFile(home, agent string, pid int) string {
+	return filepath.Join(AgentDir(home, agent), fmt.Sprintf("handoff-%d.md", pid))
+}
+
+// ListAccounts is the account folders, by name, not hidden ones.
+func ListAccounts(home string) []string {
+	entries, err := os.ReadDir(AccountsDir(home))
+	if err != nil {
+		return []string{}
+	}
+	out := []string{}
+	for _, e := range entries {
+		if st, err := os.Stat(filepath.Join(AccountsDir(home), e.Name())); err == nil && st.IsDir() && !strings.HasPrefix(e.Name(), ".") {
+			out = append(out, e.Name())
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// Removing is whether the account is mid-removal: nothing is started on an account about to go.
+func Removing(home, acct string) bool {
+	_, err := os.Stat(filepath.Join(AccountDir(home, acct), ".removing"))
+	return err == nil
+}
+
+// ListAgents is the registered agents: a folder holding agent.yaml, by name. A listing that cannot be read is an empty one; a caller
+// that must tell the two apart uses ReadAgents.
+func ListAgents(home string) []string {
+	out, _ := ReadAgents(home)
+	if out == nil {
+		return []string{}
+	}
+	return out
+}
+
+// ReadAgents is ListAgents with the read errors: the agents directory, or an entry's agent.yaml, that cannot be read for a reason other
+// than not being there (no agents directory is no agents).
+func ReadAgents(home string) ([]string, error) {
+	entries, err := os.ReadDir(AgentsDir(home))
+	if errors.Is(err, fs.ErrNotExist) {
+		return []string{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	out := []string{}
+	for _, e := range entries {
+		_, err := os.Stat(filepath.Join(AgentsDir(home), e.Name(), "agent.yaml"))
+		if err == nil {
+			out = append(out, e.Name())
+		} else if !errors.Is(err, fs.ErrNotExist) && !errors.Is(err, syscall.ENOTDIR) {
+			return nil, err
+		}
+	}
+	sort.Strings(out)
+	return out, nil
+}
+
+// HlExe is the command a hook or launch line should call hl with: HANDLINE_BIN, else the first of Commands on PATH.
+func HlExe() string {
+	if v, ok := Getenv("BIN"); ok && v != "" {
+		return v
+	}
+	for _, c := range Commands {
+		if p, err := exec.LookPath(c); err == nil {
+			return p
+		}
+	}
+	return ""
+}

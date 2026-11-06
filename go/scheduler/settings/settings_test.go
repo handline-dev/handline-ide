@@ -1,0 +1,109 @@
+package settings
+
+import (
+	"os"
+	"strings"
+	"testing"
+
+	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/kit/paths"
+	"github.com/handline/handline/go/taskboard/handoff"
+)
+
+func settingsWith(t *testing.T, config, agent string) *Settings {
+	t.Helper()
+	home := t.TempDir()
+	s := &Settings{Home: home, Roster: team.NewRoster(home)}
+	if config != "" {
+		if err := os.WriteFile(paths.ConfigFile(home), []byte(config), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if agent != "" {
+		_ = os.MkdirAll(strings.TrimSuffix(s.Roster.AgentFile("ann"), "agent.yaml"), 0o755)
+		if err := os.WriteFile(s.Roster.AgentFile("ann"), []byte(agent), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return s
+}
+
+func TestSettingsReadTheAgentsOwnThenTheGlobalThenTheDefault(t *testing.T) {
+	s := settingsWith(t, "bg_notice_s: 100\nbg_check_s: 0\nnotice_digest_s: 40\npark_timeout_s: 7\n", "vendor: claude\nbg_grace_s: 9\npark_timeout_s: 0\n")
+	if s.BgGraceS("ann") != 9 || s.BgGraceS("bob") != BgGraceS {
+		t.Fatal("grace")
+	}
+	if s.BgNoticeS("ann") != 100 || s.NoticeDigestS("ann") != 40 {
+		t.Fatal("global")
+	}
+	if s.BgCheckS("ann") != BgCheckS {
+		t.Fatal("a zero is not a positive number of seconds")
+	}
+	if s.CloseTimeoutS("ann") != 0 || s.CloseTimeoutS("bob") != 7 || s.Never() != Never {
+		t.Fatal("park timeout: the agent's zero means never")
+	}
+	if got := s.ConfigSeconds("bg_notice_s", 5); got != 100 {
+		t.Fatal(got)
+	}
+	if got := s.ConfigSeconds("missing", 5); got != 5 {
+		t.Fatal(got)
+	}
+	// A config nobody can read is empty, not a failure.
+	if bad := settingsWith(t, "{{{", "vendor: [unclosed\n"); bad.BgGraceS("ann") != BgGraceS {
+		t.Fatal("unreadable config")
+	}
+}
+
+func TestSetFlagKeepsTheOtherSettingsAndRefusesToOverwriteWhatIsNotAMapping(t *testing.T) {
+	s := settingsWith(t, "park_timeout_s: 7\nignore_cache_expiry: false\n", "")
+	if s.Flag("ignore_cache_expiry", true) {
+		t.Fatal("read false as true")
+	}
+	if !s.Flag("absent", true) {
+		t.Fatal("default lost")
+	}
+	if err := s.SetFlag("ignore_cache_expiry", true); err != nil || !s.Flag("ignore_cache_expiry", false) {
+		t.Fatal(err)
+	}
+	if err := s.SetFlag("new_flag", true); err != nil || s.DefaultCloseTimeoutS() != 7 || !s.Flag("new_flag", false) {
+		t.Fatal(err)
+	}
+	list := settingsWith(t, "- a\n- b\n", "")
+	if err := list.SetFlag("x", true); err == nil {
+		t.Fatal("a list was overwritten")
+	}
+	if b, _ := os.ReadFile(paths.ConfigFile(list.Home)); string(b) != "- a\n- b\n" {
+		t.Fatalf("%q", b)
+	}
+	if fresh := settingsWith(t, "", ""); fresh.SetFlag("x", true) != nil || !fresh.Flag("x", false) {
+		t.Fatal("no config.yaml yet")
+	}
+}
+
+func TestTheHandoffAskIsTheAgentsOwnPromptThenTheGlobalThenTheBuiltIn(t *testing.T) {
+	ask := func(s *Settings, agent string) string {
+		return handoff.AskText(s.TextSetting(agent, handoff.PromptKey), "/n/"+agent+".md")
+	}
+	s := settingsWith(t, `handoff_prompt: "Note to {path}, under {max} chars, 100% honest."`+"\n", `vendor: claude`+"\n"+`handoff_prompt: "ann: write {path}"`+"\n")
+	if got := ask(s, "ann"); got != "ann: write /n/ann.md" {
+		t.Fatalf("the agent's own: %q", got)
+	}
+	if got := ask(s, "bob"); got != "Note to /n/bob.md, under 3000 chars, 100% honest." {
+		t.Fatalf("the global one, a %% left as it is: %q", got)
+	}
+	s = settingsWith(t, `handoff_prompt: ""`+"\n", `vendor: claude`+"\n"+`handoff_prompt: ""`+"\n")
+	if got := ask(s, "ann"); !strings.HasPrefix(got, "Write your handoff to /n/ann.md now,") || !strings.Contains(got, "At most 3000 characters") {
+		t.Fatalf("both empty, the built-in: %q", got)
+	}
+	s = settingsWith(t, "handoff_prompt: Write your handoff note now.\n", "")
+	if got := ask(s, "bob"); got != "Write your handoff note now.\nWrite it to /n/bob.md" {
+		t.Fatalf("no {path}: %q", got)
+	}
+}
+
+func TestTheNoticeDigestWindowIsFiveMinutesUnlessAnAgentSetsItsOwn(t *testing.T) {
+	s := settingsWith(t, "", "vendor: claude\nnotice_digest_s: 60\n")
+	if s.NoticeDigestS("bob") != 300 || s.NoticeDigestS("ann") != 60 {
+		t.Fatalf("bob %d, ann %d", s.NoticeDigestS("bob"), s.NoticeDigestS("ann"))
+	}
+}

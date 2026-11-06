@@ -1,0 +1,339 @@
+package taskwrites
+
+import (
+	"database/sql"
+	"fmt"
+	"regexp"
+	"strings"
+
+	"github.com/handline/handline/go/agentctl/delivery"
+	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/kit/gitrun"
+	"github.com/handline/handline/go/kit/textsafe"
+	"github.com/handline/handline/go/protocol/rpc"
+	"github.com/handline/handline/go/taskboard/requestref"
+	"github.com/handline/handline/go/taskboard/taskresult"
+)
+
+var shaLike = regexp.MustCompile(`^[0-9a-fA-F]{4,40}$`)
+
+// doneMethod is task.done (actions.mark_task_done): the assignee's, the owner's (who it answers to, the opener unless named) or the founder's call, with exactly one of a merge sha on main, a
+// request already answered, or a one-line fact. Done closes the task: a review is the task handed to its reviewer before the done.
+func doneMethod(home string, tell Teller, decide CardDecider) func(*rpc.Conn, map[string]any) (any, error) {
+	return func(c *rpc.Conn, p map[string]any) (any, error) {
+		tid, err := taskID(p)
+		if err != nil {
+			return nil, err
+		}
+		var evidence *string
+		if v := p["evidence"]; v != nil {
+			s, ok := v.(string)
+			if ok && strings.TrimSpace(s) == "" && c.Caller.Actor() == human && p["request"] == nil {
+				s = "Done" // the founder needs no evidence
+			} else if !ok || strings.TrimSpace(s) == "" {
+				return nil, badParam("evidence is text and not empty", "evidence")
+			}
+			evidence = &s
+		} else if p["request"] == nil && c.Caller.Actor() == human {
+			evidence = new(string)
+			*evidence = "Done"
+		}
+		var request *int64
+		if p["request"] != nil {
+			request = new(int64) // resolved in the write's transaction
+		}
+		if (evidence == nil) == (request == nil) {
+			return nil, badParam("done takes exactly one of evidence or request", "evidence")
+		}
+		forceWords, err := optionalBool(p, "reason")
+		if err != nil {
+			return nil, err
+		}
+		in := DoneIn{Task: tid}
+		if in.Commit, in.Shots, err = resultParams(p); err != nil {
+			return nil, err
+		}
+		by := c.Caller.Actor()
+		var sha, words string
+		if evidence != nil {
+			if !forceWords && shaLike.MatchString(*evidence) {
+				sha = *evidence
+			} else {
+				words = *evidence
+			}
+		}
+		repo := ""
+		if v := p["repo"]; v != nil {
+			s, ok := v.(string)
+			if !ok {
+				return nil, badParam("repo is text", "repo")
+			}
+			repo = s
+		}
+		if repo == "" && (sha != "" || in.Commit != "") {
+			repo = team.NewRoster(home).RepoOf(by)
+		}
+		if (sha != "" || in.Commit != "") && repo == "" {
+			return nil, badParam("a sha is checked against a repo: name one", "repo")
+		}
+		var done *DoneResult
+		var decided func()
+		out, err := c.Effect(func(tx *sql.Tx) (map[string]any, error) {
+			if request != nil {
+				var err error
+				*request, err = requestref.Resolve(tx, home, p["request"], requestref.Viewer(c), "request")
+				if name, missing := requestref.Missing(err); missing {
+					return nil, refusal("no request #" + name)
+				}
+				if err != nil {
+					return nil, err
+				}
+			}
+			in.Sha, in.Words, in.Request, in.Repo = sha, words, request, repo
+			if decide != nil && by == db.Human && words != "" && in.Commit == "" && len(in.Shots) == 0 {
+				handled, said, then, err := decide(tx, tid, words)
+				if err != nil {
+					return nil, err
+				}
+				if handled {
+					decided = then
+					return accepted(said, nil), nil
+				}
+			}
+			res, err := MarkDone(tx, home, by, in)
+			if err != nil {
+				return nil, err
+			}
+			done = res
+			return accepted(res.Said, nil), nil
+		})
+		if err == nil && done != nil && done.Keep != nil {
+			if kerr := done.Keep(); kerr != nil {
+				return nil, fmt.Errorf("task T%d is done, but its screenshots could not be put in place: %w", tid, kerr)
+			}
+		}
+		if err == nil && decided != nil {
+			decided()
+		}
+		if err == nil && done != nil && tell != nil {
+			tell.Done(tid, by, done.Owner, done.Told, done.Finished)
+		}
+		return out, err
+	}
+}
+
+// CardDecider ends the founder's own decision task through its card while that card is still queued, so what waits on the answer (a trust
+// proposal) runs. handled is false for any other task, which MarkDone then ends; then runs once the call has committed.
+type CardDecider func(tx *sql.Tx, tid int64, words string) (handled bool, said string, then func(), err error)
+
+// DoneIn is what MarkDone is given: exactly one of Sha (checked against Repo's main), Request (already answered) or Words.
+type DoneIn struct {
+	Task       int64
+	Sha, Words string
+	Request    *int64
+	Repo       string
+	// Commit is the sha the work was done at (it need not be on main); Shots are absolute paths of PNG files. Both are optional.
+	Commit string
+	Shots  []string
+}
+
+// DoneResult is what a MarkDone leaves for the telling that follows the commit. Finished is false when only a leftover request of an
+// already done task was settled.
+type DoneResult struct {
+	Said     string
+	Owner    string
+	Told     []db.Notice
+	Finished bool
+	// Keep puts the task's screenshots in place; the caller runs it once the end has committed. nil when there are none.
+	Keep func() error
+}
+
+// MarkDone is actions.mark_task_done in the caller's transaction: a refusal is the error, nothing is written then. The caller hands the
+// result to Teller.Done once it has committed.
+func MarkDone(tx *sql.Tx, home, by string, in DoneIn) (*DoneResult, error) {
+	tid, sha, words, request, repo := in.Task, in.Sha, in.Words, in.Request, in.Repo
+	t, err := getTask(tx, tid)
+	if err != nil {
+		return nil, err
+	}
+	if t == nil {
+		return nil, refusal(fmt.Sprintf("no task T%d", tid))
+	}
+	if t.DiscardedBy.Valid && t.DiscardedBy.String != "" {
+		return nil, refusal(fmt.Sprintf("task T%d is already discarded (%s)", tid, t.DiscardedBy.String))
+	}
+	if t.done() {
+		// a delivery left queued when the task ended some other way is settled here
+		reqs, err := taskRequests(tx, tid)
+		if err != nil {
+			return nil, err
+		}
+		for _, r := range reqs {
+			if r.State == "queued" && (by == t.Owner || by == t.reporter() || by == human) {
+				notes, err := endTask(tx, home, tid, by, t, doneText(tid, by, t.DoneEvidence.String), delivery.Failed(t.DoneEvidence.String), nil)
+				if err != nil {
+					return nil, err
+				}
+				return &DoneResult{Said: fmt.Sprintf("task T%d is already done (%s); its leftover request is settled", tid, t.DoneEvidence.String),
+					Owner: t.Owner, Told: notes}, nil
+			}
+		}
+		return nil, refusal(fmt.Sprintf("task T%d is already done (%s)", tid, t.DoneEvidence.String))
+	}
+	if ok, err := mayClose(tx, home, by, t); err != nil {
+		return nil, err
+	} else if !ok {
+		return nil, refusal(fmt.Sprintf("task T%d can only be marked done by its assignee (%s), owner (%s), its parent's owner, a lead of its team or the founder", tid, t.Owner, t.reporter()))
+	}
+	var mark, via string
+	switch {
+	case sha != "":
+		full, why := shaOnMain(repo, sha)
+		if full == "" {
+			if why != "" {
+				why = " (" + why + ")"
+			}
+			return nil, refusal(fmt.Sprintf("%s is not an ancestor of main%s", sha, why))
+		}
+		mark, via = full, "sha"
+	case request != nil:
+		var state string
+		switch err := tx.QueryRow("SELECT state FROM requests WHERE id = ?", *request).Scan(&state); {
+		case err == sql.ErrNoRows:
+			return nil, refusal("no such message")
+		case err != nil:
+			return nil, err
+		}
+		if state == "queued" {
+			return nil, refusal(fmt.Sprintf("request %s is still queued - not answered yet", db.MsgName(tx, *request)))
+		}
+		mark, via = fmt.Sprintf("request %s", db.MsgName(tx, *request)), "request"
+	default:
+		mark, via = words, "reason"
+	}
+	kids, err := openChildren(tx, tid)
+	if err != nil {
+		return nil, err
+	}
+	if len(kids) > 0 {
+		return nil, openChildrenRefusal(tx, tid, kids)
+	}
+	blockers, err := taskBlockers(tx, tid)
+	if err != nil {
+		return nil, err
+	}
+	if len(blockers) > 0 && by != human {
+		var waits []int64
+		for _, b := range blockers {
+			waits = append(waits, b.ID)
+		}
+		return nil, refusal(fmt.Sprintf("task T%d is waiting on %s - it is done only once they are", tid, taskList(waits)))
+	}
+	result, finalize, err := doneResult(tx, home, by, t, in, via, mark)
+	if err != nil {
+		return nil, err
+	}
+	from, err := state(tx, t)
+	if err != nil {
+		return nil, err
+	}
+	won, err := db.MarkTaskDone(tx, tid, mark, via)
+	if err != nil {
+		return nil, err
+	}
+	if !won {
+		return nil, refusal(fmt.Sprintf("task T%d was marked done by someone else just now", tid))
+	}
+	if err := addEvent(tx, by, "mark_task_done", kv{"task_id", tid}, kv{"done", mark}, kv{"from", from}); err != nil {
+		return nil, err
+	}
+	if !result.Empty() {
+		if err := taskresult.Save(tx, tid, result); err != nil {
+			return nil, err
+		}
+	}
+	var also []string
+	if t.Owner == human { // closed from under the founder: they hear it in one line
+		also = append(also, human)
+	}
+	notes, err := endTask(tx, home, tid, by, t, doneText(tid, by, mark), delivery.Failed(mark), also)
+	if err != nil {
+		return nil, err
+	}
+	return &DoneResult{Said: fmt.Sprintf("task T%d done (%s)", tid, mark), Owner: t.Owner, Told: notes, Finished: true, Keep: finalize}, nil
+}
+
+// doneText is what a task's end says to whoever it tells: "T<n> done by <by>: <evidence on one line>".
+func doneText(tid int64, by, evidence string) string {
+	who := by
+	if by == human {
+		who = "the founder"
+	}
+	return strings.TrimRight(fmt.Sprintf("T%d done by %s: %s", tid, who, strings.Join(strings.Fields(evidence), " ")), ": ")
+}
+
+// mayClose is whether by may mark t done: its assignee, owner, the founder, the owner of its parent task, or a lead of its team.
+func mayClose(tx *sql.Tx, home, by string, t *task) (bool, error) {
+	if by == t.Owner || by == t.reporter() || by == human {
+		return true, nil
+	}
+	if t.Parent.Valid {
+		p, err := getTask(tx, t.Parent.Int64)
+		if err != nil {
+			return false, err
+		}
+		if p != nil && (by == p.Owner || by == p.reporter()) {
+			return true, nil
+		}
+	}
+	return leadsTreeOf(home, by, t)
+}
+
+// shaOnMain is _sha_on_main: the full sha `sha` names in repo when main reaches it, else "" and why. A sha typed by hand that never
+// merged must not mark a task done, so this runs before anything is written, and what is stored is the full sha.
+func shaOnMain(repo, sha string) (full, why string) {
+	r := gitrun.Run(repo, "rev-parse", "--verify", "--quiet", sha+"^{commit}")
+	if r.RC < 0 {
+		return "", r.Stderr
+	}
+	if r.RC != 0 {
+		return "", "no such commit in this repo"
+	}
+	full = strings.TrimSpace(r.Stdout)
+	r = gitrun.Run(repo, "merge-base", "--is-ancestor", full, gitrun.IntegrationBranch)
+	switch {
+	case r.RC < 0:
+		return "", r.Stderr
+	case r.RC == 0:
+		return full, ""
+	}
+	msg := r.Stderr
+	if msg == "" {
+		msg = r.Stdout
+	}
+	return "", textsafe.Oneline(strings.TrimSpace(msg))
+}
+
+// openChildrenRefusal refuses a parent's done while children are open, naming each child (number, state, assignee, title) and the
+// commands that close them, so the one refused can clear them from the refusal itself; data.children carries the same for the app.
+func openChildrenRefusal(tx *sql.Tx, tid int64, kids []int64) error {
+	lines := []string{fmt.Sprintf("task T%d still has open child tasks - it is done once they are closed:", tid)}
+	var children []map[string]any
+	for _, id := range kids {
+		t, err := db.GetTask(tx, id)
+		if err != nil {
+			return err
+		}
+		state, err := db.TaskState(tx, t)
+		if err != nil {
+			return err
+		}
+		lines = append(lines, fmt.Sprintf("  T%d  %s  %s  %s", id, state, t.Owner, t.Title))
+		children = append(children, map[string]any{"task": id, "state": state, "assignee": t.Owner, "title": t.Title})
+	}
+	hint := fmt.Sprintf("close each: `hl task discard T%d \"<reason>\"` for one not needed (a duplicate of T%d, say), or its assignee's `hl task done T%d` for one finished", kids[0], tid, kids[0])
+	err := rpc.Refused(strings.Join(append(lines, hint), "\n"), "open_children", hint)
+	err.Data["children"] = children
+	return err
+}

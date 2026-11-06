@@ -1,0 +1,309 @@
+package rpc
+
+import (
+	"bufio"
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/handline/handline/go/kit/store"
+	"github.com/handline/handline/go/kit/storetest"
+)
+
+// fakeNet pairs the tokens "t1" and "t2" as devices d1 and d2.
+type fakeNet struct{}
+
+func (fakeNet) Know(token string) bool { return token == "t1" || token == "t2" }
+func (fakeNet) Login(token, _ string, _ func()) (string, string, func(), bool) {
+	if !(fakeNet{}).Know(token) {
+		return "", "", nil, false
+	}
+	return "d" + token[1:], "phone" + token[1:], func() {}, true
+}
+func (fakeNet) Live(string) bool { return true }
+
+// writeServer is a server over db with test.effect registered; ran counts how often the effect ran.
+func writeServer(t *testing.T, db *sql.DB, ran *int, net NetGate) *Server {
+	t.Helper()
+	srv := NewServer(fakeAuth{key: "k"}, "abc1234", store.LatestVersion(), "local", func(string, ...any) {})
+	srv.DB, srv.Net = db, net
+	srv.Register("test.effect", Method{Role: "member", Write: true, Handler: func(c *Conn, p map[string]any) (any, error) {
+		return c.Effect(func(tx *sql.Tx) (map[string]any, error) {
+			*ran++
+			if p["fail"] == true {
+				return nil, BadRequestError("asked to fail", "fail", BadRequest)
+			}
+			return map[string]any{"n": *ran}, nil
+		})
+	}})
+	return srv
+}
+
+// connect serves one connection of srv and says hello with params.
+func connect(t *testing.T, srv *Server, hello string) *client {
+	t.Helper()
+	cl, sv := net.Pipe()
+	done := make(chan struct{})
+	go func() { srv.Serve(NewLineTransport(sv), 0); sv.Close(); close(done) }()
+	t.Cleanup(func() { cl.Close(); <-done })
+	c := &client{cl, bufio.NewReader(cl)}
+	c.raw(t, `{"jsonrpc":"2.0","id":1,"method":"hello","params":`+hello+`}`)
+	return c
+}
+
+// writeClient serves one founder connection over a real database.
+func writeClient(t *testing.T) (*client, *sql.DB, *int) {
+	t.Helper()
+	db, ran := storetest.Open(t), new(int)
+	return connect(t, writeServer(t, db, ran, nil), `{"client":"t","protocol":1,"key":"k"}`), db, ran
+}
+
+func TestEffectIsRecordedWithTheWriteAndAnswersARetryAfterTheReplyWasLost(t *testing.T) {
+	c, db, ran := writeClient(t)
+	r := c.raw(t, `{"jsonrpc":"2.0","id":2,"method":"test.effect","params":{"request_id":"r1"}}`)["result"].(map[string]any)
+	if r["n"].(float64) != 1 || *ran != 1 {
+		t.Fatalf("%v ran %d", r, *ran)
+	}
+	var n int
+	db.QueryRow("SELECT COUNT(*) FROM write_effects WHERE request_id = 'r1' AND method = 'test.effect'").Scan(&n)
+	if n != 1 {
+		t.Fatal("the effect was not recorded")
+	}
+	// the reply was lost with the daemon: only the effect is left
+	if _, err := db.Exec("DELETE FROM rpc_replies"); err != nil {
+		t.Fatal(err)
+	}
+	r = c.raw(t, `{"jsonrpc":"2.0","id":3,"method":"test.effect","params":{"request_id":"r1"}}`)["result"].(map[string]any)
+	if r["n"].(float64) != 1 || r["replayed"] != true || *ran != 1 {
+		t.Fatalf("a retry repeats nothing and says replayed: %v ran %d", r, *ran)
+	}
+}
+
+func TestAnEffectThatFailsLeavesNoRecordAndALaterRetryRunsAgain(t *testing.T) {
+	c, db, ran := writeClient(t)
+	if code, _ := errOf(t, c.raw(t, `{"jsonrpc":"2.0","id":2,"method":"test.effect","params":{"request_id":"r2","fail":true}}`)); code == 0 {
+		t.Fatal("no error")
+	}
+	var n int
+	db.QueryRow("SELECT COUNT(*) FROM write_effects").Scan(&n)
+	if n != 0 {
+		t.Fatal("a failed write left an effect")
+	}
+	if r := c.raw(t, `{"jsonrpc":"2.0","id":3,"method":"test.effect","params":{"request_id":"r2"}}`)["result"].(map[string]any); r["n"].(float64) != 2 || *ran != 2 {
+		t.Fatalf("%v", r)
+	}
+}
+
+func TestWritesAreKeptPerWriterSoTwoDevicesAndTheFounderMayUseOneRequestID(t *testing.T) {
+	db, ran := storetest.Open(t), new(int)
+	call := `{"jsonrpc":"2.0","id":2,"method":"test.effect","params":{"request_id":"r1"}}`
+	clients := map[string]*client{
+		"founder": connect(t, writeServer(t, db, ran, nil), `{"client":"t","protocol":1,"key":"k"}`),
+		"d1":      connect(t, writeServer(t, db, ran, fakeNet{}), `{"client":"t","protocol":1,"token":"t1"}`),
+		"d2":      connect(t, writeServer(t, db, ran, fakeNet{}), `{"client":"t","protocol":1,"token":"t2"}`),
+	}
+	want := map[string]float64{"founder": 1, "d1": 2, "d2": 3}
+	for _, who := range []string{"founder", "d1", "d2"} {
+		r := clients[who].raw(t, call)["result"].(map[string]any)
+		if r["n"].(float64) != want[who] || r["replayed"] != nil {
+			t.Fatalf("%s: its own write runs once, not another's reply: %v", who, r)
+		}
+	}
+	for _, who := range []string{"founder", "d1", "d2"} {
+		r := clients[who].raw(t, call)["result"].(map[string]any)
+		if r["n"].(float64) != want[who] || r["replayed"] != true {
+			t.Fatalf("%s: a retry replays its own: %v", who, r)
+		}
+	}
+	if *ran != 3 {
+		t.Fatalf("each write ran once: %d", *ran)
+	}
+	rows, err := db.Query("SELECT caller FROM write_effects ORDER BY caller")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var got []string
+	for rows.Next() {
+		var c string
+		rows.Scan(&c)
+		got = append(got, c)
+	}
+	if len(got) != 3 || got[0] != "device:d1" || got[1] != "device:d2" || got[2] != "human" {
+		t.Fatalf("kept under the writer: %v", got)
+	}
+}
+
+func TestACommitThenErrorKeepsTheWritesAndTheRefusalButNoRecord(t *testing.T) {
+	db := storetest.Open(t)
+	srv := writeServer(t, db, new(int), nil)
+	srv.Register("test.keep", Method{Role: "member", Write: true, Handler: func(c *Conn, p map[string]any) (any, error) {
+		return c.Effect(func(tx *sql.Tx) (map[string]any, error) {
+			if _, err := tx.Exec("INSERT OR REPLACE INTO meta(name, value, updated) VALUES('kept', '1', 1)"); err != nil {
+				return nil, err
+			}
+			return nil, &CommitThen{Err: Refused("denied", "", "")}
+		})
+	}})
+	c := connect(t, srv, `{"client":"t","protocol":1,"key":"k"}`)
+	for i, rid := range []string{"k1", "k2"} {
+		r := c.raw(t, fmt.Sprintf(`{"jsonrpc":"2.0","id":%d,"method":"test.keep","params":{"request_id":%q}}`, i+2, rid))
+		if r["error"].(map[string]any)["data"].(map[string]any)["code"] != "refused" {
+			t.Fatalf("answered refused: %v", r)
+		}
+	}
+	var kept, effects int
+	db.QueryRow("SELECT COUNT(*) FROM meta WHERE name = 'kept'").Scan(&kept)
+	db.QueryRow("SELECT COUNT(*) FROM write_effects").Scan(&effects)
+	if kept == 0 || effects != 0 {
+		t.Fatalf("the write stands, nothing is recorded, so a retry is judged again: %d %d", kept, effects)
+	}
+}
+
+// capNet is a gate whose device holds at most one connection: a login past the cap closes the oldest, as devices.Manager does.
+type capNet struct {
+	fakeNet
+	open   map[int]func()
+	next   int
+	closed int
+}
+
+func (g *capNet) Login(token, _ string, closeConn func()) (string, string, func(), bool) {
+	if token != "t1" {
+		return "", "", nil, false
+	}
+	if g.open == nil {
+		g.open = map[int]func(){}
+	}
+	for len(g.open) >= 1 {
+		for n, f := range g.open {
+			delete(g.open, n)
+			g.closed++
+			if f != nil {
+				f()
+			}
+			break
+		}
+	}
+	g.next++
+	n := g.next
+	g.open[n] = closeConn
+	return "d1", "phone1", func() { delete(g.open, n) }, true
+}
+
+func TestARehelloAtTheCapDoesNotEvictItsOwnConnection(t *testing.T) {
+	g := &capNet{}
+	srv := writeServer(t, storetest.Open(t), new(int), g)
+	c := connect(t, srv, `{"client":"t","protocol":1,"token":"t1"}`)
+	if r := c.raw(t, `{"jsonrpc":"2.0","id":2,"method":"hello","params":{"client":"t","protocol":1,"token":"t1"}}`); r["result"] == nil {
+		t.Fatalf("the second hello was refused or the connection closed: %v", r)
+	}
+	if g.closed != 0 {
+		t.Fatalf("%d connections evicted: the earlier login must be released before the new one", g.closed)
+	}
+	// a re-hello with a token nobody holds is unpaired, and the earlier login is not kept
+	if r := c.raw(t, `{"jsonrpc":"2.0","id":3,"method":"hello","params":{"client":"t","protocol":1,"token":"nope"}}`); r["error"] == nil {
+		t.Fatalf("a bad token was taken: %v", r)
+	}
+	if len(g.open) != 0 {
+		t.Fatalf("%d logins still held", len(g.open))
+	}
+}
+
+func TestEveryHelloTheFounderKeyIsTakenOnLeavesARecordOfWhoPresentedIt(t *testing.T) {
+	db := storetest.Open(t)
+	srv := writeServer(t, db, new(int), nil)
+	hello := func(key string) {
+		cl, sv := net.Pipe()
+		done := make(chan struct{})
+		go func() { srv.Serve(NewLineTransport(sv), os.Getpid()); sv.Close(); close(done) }()
+		c := &client{cl, bufio.NewReader(cl)}
+		c.raw(t, `{"jsonrpc":"2.0","id":1,"method":"hello","params":{"client":"t/1","protocol":1,"key":"`+key+`"}}`)
+		cl.Close()
+		<-done
+	}
+	hello("k")
+	hello("wrong")
+	hello("")
+	hello("k")
+	rows, err := db.Query("SELECT agent, payload FROM events WHERE kind = 'founder_key'")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var got []map[string]any
+	for rows.Next() {
+		var agent, payload string
+		rows.Scan(&agent, &payload)
+		var p map[string]any
+		json.Unmarshal([]byte(payload), &p)
+		if agent != Human {
+			t.Fatalf("recorded under %q", agent)
+		}
+		got = append(got, p)
+	}
+	if len(got) != 2 {
+		t.Fatalf("one record per hello the key was taken on, none for the others: %v", got)
+	}
+	self := filepath.Base(os.Args[0]) + ":" + strconv.Itoa(os.Getpid())
+	if p := got[0]; int(p["pid"].(float64)) != os.Getpid() || !strings.HasPrefix(p["chain"].(string), self) || p["client"] != "t/1" {
+		t.Fatalf("the record names the process, the programs above it and the client: %v (want the chain to start %s)", p, self)
+	}
+	if _, ok := got[0]["terminal"].(string); !ok {
+		t.Fatalf("no terminal field: %v", got[0])
+	}
+}
+
+// One notice's bytes go to every subscriber: writing them must leave the slice as it was, spare capacity and all.
+func TestALineIsWrittenWithoutTouchingTheCallersBytes(t *testing.T) {
+	a, b := net.Pipe()
+	defer a.Close()
+	defer b.Close()
+	go io.Copy(io.Discard, b)
+	shared := make([]byte, 2, 8)
+	copy(shared, "{}")
+	spare := shared[:3]
+	spare[2] = 'x'
+	if err := NewLineTransport(a).WriteMessage(shared); err != nil {
+		t.Fatal(err)
+	}
+	if spare[2] != 'x' {
+		t.Fatalf("the newline was written into the caller's slice: %q", spare)
+	}
+}
+
+// A write that waits (agent.retire waiting out a turn) runs beside the connection's other calls: one sent after it is answered first,
+// and its own answer, once it comes, is kept for a retry like any write's.
+func TestAWaitingWriteDoesNotHoldUpTheCallsAfterItAndKeepsItsReply(t *testing.T) {
+	db, ran := storetest.Open(t), new(int)
+	srv := writeServer(t, db, ran, nil)
+	release := make(chan struct{})
+	srv.Register("test.slow", Method{Role: "member", Write: true, Waits: true, Handler: func(c *Conn, _ map[string]any) (any, error) {
+		<-release
+		return c.Effect(func(*sql.Tx) (map[string]any, error) { return map[string]any{"done": true}, nil })
+	}})
+	c := connect(t, srv, `{"client":"t","protocol":1,"key":"k"}`)
+	c.c.SetDeadline(time.Now().Add(10 * time.Second))
+	if _, err := c.c.Write([]byte(`{"jsonrpc":"2.0","id":2,"method":"test.slow","params":{"request_id":"s1"}}` + "\n")); err != nil {
+		t.Fatal(err)
+	}
+	if r := c.raw(t, `{"jsonrpc":"2.0","id":3,"method":"test.effect","params":{"request_id":"e1"}}`); r["id"].(float64) != 3 || r["result"] == nil {
+		t.Fatalf("the call after the waiting write was not answered first: %v", r)
+	}
+	close(release)
+	c.c.SetDeadline(time.Now().Add(10 * time.Second))
+	if r := c.read(t); r["id"].(float64) != 2 || r["result"].(map[string]any)["done"] != true {
+		t.Fatalf("the waiting write's own answer: %v", r)
+	}
+	if r := c.raw(t, `{"jsonrpc":"2.0","id":4,"method":"test.slow","params":{"request_id":"s1"}}`); r["result"].(map[string]any)["replayed"] != true {
+		t.Fatalf("a retry gets the kept reply: %v", r)
+	}
+}

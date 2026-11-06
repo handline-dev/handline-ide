@@ -1,0 +1,243 @@
+package lifecycle
+
+import (
+	"sync"
+	"time"
+
+	"github.com/handline/handline/go/agentctl/term"
+	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/scheduler/pause"
+	"github.com/handline/handline/go/scheduler/settings"
+	"github.com/handline/handline/go/taskboard/supervisor"
+)
+
+// Waits the lifecycle runs on (infra/waits.py and delivery's own).
+const (
+	WakeSessionTimeoutS = 15
+)
+
+// TableRetryPauses are the pauses between reads of a process table that missed: a session just ended leaves the table while it is
+// read, which is the moment a restart reads it.
+var TableRetryPauses = []time.Duration{300 * time.Millisecond, 700 * time.Millisecond}
+
+// WakeBackoffS is the pause after the first, second and later failed wakes of a restart owed.
+var WakeBackoffS = []int64{10, 30, 90}
+
+// Delivery is daemon/delivery.py as the lifecycle uses it; *supervisor.Env satisfies it.
+type Delivery interface {
+	BgHolds(q db.Q, agent string, now int64) (bool, error)
+	IdleSince(q db.Q, agent string) (int64, bool, error)
+	BgOwesNothing(q db.Q, agent string) (bool, error)
+	BgMayStop(q db.Q, agent string, now int64) (bool, error)
+	BgPromptedAt(q db.Q, agent string) (int64, error)
+	BgSilentS(q db.Q, agent string, now int64) (int64, bool, error)
+	HeadTaskBlocked(q db.Q, agent string, head *db.Request) (bool, error)
+	EffectiveHead(q db.Q, agent string) (*db.Request, error)
+	ForgottenResolve(q db.Q, agent string, row *db.AgentState, now int64) (*supervisor.Forgotten, error)
+	SessionChanged(q db.Q, agent string) (bool, error)
+	SessionStillDrawn(handle string, wait bool) bool
+	WaitSessionGone(agent string) bool
+	WaitForSession(agent string, timeoutS int, promptFile string) bool
+	WaitingPrompt(q db.Q, agent string) (text string, told func(session string) error, ok bool, err error)
+	EnforceEdges(q db.Q, agent string) (bool, error)
+	SessionPresent(agent string) (bool, error)
+	PastDialog(q db.Q, agent string) (string, error) // delivery._past_dialog
+}
+
+// HandoffPort is session/handoff.py, daemon/handoff.py and handoff_note.py as the lifecycle uses them.
+type HandoffPort interface {
+	// Capture reads the handoff record of a live session; missing names what could not be read.
+	Capture(q db.Q, agent string) (text string, missing []string, err error)
+	// Record takes and keeps the record (db.set_handoff) for a session; the gaps it could not read. closedSession names the session of a
+	// closed agent, "" for the live one.
+	Record(q db.Q, agent, closedSession string) (gaps []string, err error)
+	MemoryLine(agent string) string
+	// PreviousSession is the agent's previous session and its transcript's path ("" when none).
+	PreviousSession(q db.Q, agent, account string) (session, path string)
+	RequestLine(q db.Q, agent string) string
+	// MovePlan is the account a pinned agent can start fresh on, and why not when there is none (starting: a wake asks, so work is
+	// waiting); BackingOff says a move was tried too lately.
+	MovePlan(q db.Q, agent, kind string, starting bool) (account, why string)
+	BackingOff(q db.Q, agent string) bool
+	// AnsweredTurn: the agent has answered the ask for its handoff note, restarting its idle clock.
+	AnsweredTurn(q db.Q, agent string) bool
+	// CacheClock is when the session last answered and how long its prompt cache lives; ok false when the transcript gives no clock.
+	CacheClock(q db.Q, agent, session string) (at, ttl int64, ttlKnown, ok bool)
+	CacheMargin(ttl int64) int64
+	// ContextUsed is how many tokens the session's context held at its last reply; ok false when its transcript gives none.
+	ContextUsed(q db.Q, agent, session string) (tokens int64, ok bool)
+	// ContextFull: the session's context is at or over the agent's context limit; false when it cannot be read.
+	ContextFull(q db.Q, agent, session string) bool
+	ClearNote(q db.Q, agent string)
+}
+
+// Terminal is session/term.py as the lifecycle uses it. *term.Term satisfies the part that has landed; the closing and relaunching
+// calls are G4's.
+type Terminal interface {
+	Available() bool
+	WaitIdle(handle string) bool
+	WaitDrawn(handle string) bool
+	TypeableNow(handle string) bool
+	ScreenBlocker(handle string) *term.Blocker
+	BackgroundWork(handle string) (running string, known bool)
+	TrustPromptShowing(handle string) bool
+	TrustPromptFolder(handle string) string
+	CloseSession(handle string) (bool, string)  // types /exit
+	CloseTerminal(handle string) (bool, string) // closes the pane
+	Relaunch(handle, cmd string, started func() bool) (bool, string)
+	// DriverScope holds one driver lookup for the calls made inside it; the returned func ends it.
+	DriverScope() func()
+}
+
+// Blocked is session/blocked.py as the lifecycle uses it.
+type Blocked interface {
+	NoteCloseFailure(q db.Q, agent string)
+	// PastDialog gets past a dialog on screen; ok is whether it went.
+	PastDialog(q db.Q, agent string) (ok bool, why string)
+	StopWorkAndExit(q db.Q, agent string) bool
+}
+
+// Launch is session/launch.py (the next group of this port): what a wake launches and where it can.
+type Launch interface {
+	Drifted(agent string, row *db.AgentState) bool
+	// WakeWait is why the account a wake would land on is full, nil when it has room.
+	WakeWait(q db.Q, agent string, row *db.AgentState) *WakeWait
+	DescribeWakeWait(w *WakeWait) string
+	// CommandFor is the launch command for a wake; account "" for the agent's own.
+	CommandFor(agent, account, why, by string) (string, error)
+	ChooseAccount(q db.Q, agent string) bool
+	// AccountFor is the account this launch would run on (launch.choose_account), "" for none; resuming goes back to the recorded one.
+	AccountFor(q db.Q, agent string, resuming bool) string
+	NoRoom(agent string) string
+	// SlowestPaced is the account other than skip with a free slot that is furthest behind its week, "" when none has room.
+	SlowestPaced(q db.Q, agent string, row *db.AgentState, skip string) string
+	// RoomElsewhere is the same pick with every account in exclude left out (name -> why); the second result says why none has room.
+	RoomElsewhere(q db.Q, agent string, row *db.AgentState, exclude map[string]string) (account, why string)
+	// RoomOn is why acct cannot take the agent, "" when it can.
+	RoomOn(q db.Q, agent string, row *db.AgentState, acct string) string
+	// WorthRepick is whether a closed agent's cold wake should land on to instead of its own account: to's unused week runs out faster by
+	// usage.RepickGain, or one of them cannot be read.
+	WorthRepick(own, to string) bool
+	// RoomNow is a person's start off skip: the account with the most headroom, no older waiter ahead of it.
+	RoomNow(q db.Q, agent string, row *db.AgentState, skip string) (account, why string)
+}
+
+// Spawner is team/spawn.py.
+type Spawner interface {
+	// WorktreePath is the worktree if it still exists, "" otherwise.
+	WorktreePath(worktree string) string
+	StartIn(agent, worktree, cmd string) (bool, string, error)
+	// Trust marks worktree trusted for agent's vendor before a launch there.
+	Trust(agent, worktree string)
+	SpawnWith(agent, repo string, o SpawnOpts) (bool, string, error)
+	// Recreate makes the recorded worktree that is gone again from its branch in repo: its path, or "" and why it cannot be.
+	Recreate(agent, repo, recorded string) (path, why string)
+}
+
+// AgentsPort is team/agents.py, trust.py and measure as the lifecycle reads them.
+type AgentsPort interface {
+	RepoOf(agent string) string
+	// ReadConfig fails for an agent.yaml that will not read.
+	ReadConfig(agent string) error
+	CurrentAccount(q db.Q, agent string) string
+	MeasureBegin(q db.Q, agent, account string)
+	RaiseDecision(q db.Q, agent, text, reason string) error
+	VendorName(agent string) string
+}
+
+// SessionStatus is usage/status.py's reading of an agent's session.
+type SessionStatus struct {
+	SessionID string
+	CtxPct    any // nil when unknown
+}
+
+// StatusPort reads it.
+type StatusPort interface {
+	ReadForAgent(agent, account string) SessionStatus
+}
+
+// Observer is session/observe.live_sessions: the agents with a running session and its pid; ok false when the table could not be read.
+type Observer interface {
+	LiveSessions() (map[string]int, bool)
+}
+
+// Typing is the terminal lock.
+type Typing interface {
+	// TakeTerminal is the right to type at agent, nil-release false when someone else holds it.
+	TakeTerminal(agent string) (release func(), ok bool)
+}
+
+// Manager is daemon/lifecycle.py: closing and waking an agent's session, and the folder-trust prompt a wake can meet.
+type Manager struct {
+	Q        db.Q
+	Home     string
+	Log      func(format string, args ...any)
+	Settings *settings.Settings
+
+	Delivery Delivery
+	Handoff  HandoffPort
+	Term     Terminal
+	Blocked  Blocked
+	Launch   Launch
+	Spawn    Spawner
+	Agents   AgentsPort
+	Status   StatusPort
+	Observe  Observer
+	Typing   Typing
+	// TermRun is the terminal agents' sessions as their session files report them; nil keeps a handoff from finding one.
+	TermRun TermSessions
+
+	// OnLaunch is told each time a wake's launch has begun (NoteLaunch); nil tells no one.
+	OnLaunch func(agent string)
+	// OnStartStall is told once, when starts for waiting work have failed often enough to stall the agent, with the last one's reason.
+	OnStartStall func(q db.Q, agent, why string)
+	// LoadHeld is why the machine's load holds the daemon's own start of an agent, "" when it does not (loadgate); nil holds nothing.
+	LoadHeld func(agent string) string
+
+	Locks *AgentLocks // shared with Spawns, so a spawn and a wake take the same lock; made on first use when nil
+	once  sync.Once
+
+	Now   func() int64
+	Sleep func(time.Duration)
+}
+
+func (m *Manager) now() int64 {
+	if m.Now != nil {
+		return m.Now()
+	}
+	return time.Now().Unix()
+}
+
+func (m *Manager) sleep(d time.Duration) {
+	if m.Sleep != nil {
+		m.Sleep(d)
+		return
+	}
+	time.Sleep(d)
+}
+
+var _ Delivery = (*supervisor.Env)(nil)
+
+// loadHeld is why the machine's load holds a start of agent the daemon makes on its own, "" when nothing does. A person's message is
+// never held: its agent goes, and the pass is recorded once for that message (load_limit_passed). The founder's pause holds it the same
+// way, and lets a person's message go with nothing recorded.
+func (m *Manager) loadHeld(agent string) string {
+	if m.LoadHeld == nil {
+		return ""
+	}
+	why := m.LoadHeld(agent)
+	if why == "" {
+		return ""
+	}
+	head := m.personHead(agent)
+	if head == nil {
+		return why
+	}
+	if pause.IsPaused(why) { // a person's turn passes the pause
+		return ""
+	}
+	if !must(db.RequestHasEvent(m.Q, "load_limit_passed", head.ID)) {
+		must(db.AddEvent(m.Q, agent, "load_limit_passed", db.KV{K: "held", V: why}, db.KV{K: "request_id", V: head.ID}))
+	}
+	return ""
+}

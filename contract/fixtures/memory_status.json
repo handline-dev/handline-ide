@@ -1,0 +1,140 @@
+{
+ "fixtures": [
+  {
+   "name": "memory.status.every_agent",
+   "spec": "memory.status",
+   "as": "founder",
+   "about": "Every registered agent's memory index against its budget, and the topic files it has not used lately.",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "memory.status",
+      "params": {}
+     },
+     "result": {
+      "agents": {
+       "$contains": {
+        "agent": "{{task_owner}}",
+        "bytes": {
+         "$type": "integer"
+        },
+        "budget": {
+         "$type": "integer"
+        },
+        "entries": {
+         "$type": "integer"
+        },
+        "unused": {
+         "$type": "array"
+        }
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "memory.status.one_agent",
+   "spec": "memory.status",
+   "as": "agent",
+   "about": "Naming an agent reads that one alone.",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1
+      }
+     },
+     "result": {
+      "role": "agent"
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "memory.status",
+      "params": {
+       "agent": "{{task_owner}}"
+      }
+     },
+     "result": {
+      "agents": [
+       {
+        "agent": "{{task_owner}}",
+        "bytes": {
+         "$type": "integer"
+        },
+        "budget": {
+         "$type": "integer"
+        },
+        "entries": {
+         "$type": "integer"
+        },
+        "unused": {
+         "$type": "array"
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "memory.status.no_such_agent",
+   "spec": "memory.status",
+   "as": "founder",
+   "about": "An agent that is not registered is not_found.",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "memory.status",
+      "params": {
+       "agent": "no.such.agent"
+      }
+     },
+     "error": {
+      "code": -32001,
+      "data": {
+       "code": "not_found"
+      }
+     }
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,109 @@
+package taskwrites
+
+import (
+	"database/sql"
+	"fmt"
+	"strings"
+
+	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/textsafe"
+	"github.com/handline/handline/go/protocol/rpc"
+	"github.com/handline/handline/go/taskboard/requestref"
+)
+
+// parsePriority is actions.parse_priority: P1, p2 or a bare 3.
+func parsePriority(v any) (int64, error) {
+	raw := fmt.Sprint(v)
+	t := strings.ToUpper(strings.TrimSpace(raw))
+	t = strings.TrimPrefix(t, "P")
+	if t == "1" || t == "2" || t == "3" {
+		return int64(t[0] - '0'), nil
+	}
+	return 0, badParam(fmt.Sprintf("'%s' is not a priority - write P1 (high), P2 (default) or P3 (low)", raw), "")
+}
+
+// begin is task.begin (actions.task_begin): the founder's own message to the caller is approval enough, so the caller opens a task for
+// itself and starts it. What stands in for the approval is the message linked to the task; why, when given, goes on the event.
+func begin(c *rpc.Conn, p map[string]any, home string) (any, error) {
+	title, err := text(p, "title")
+	if err != nil {
+		return nil, err
+	}
+	why, ok := p["why"].(string)
+	if p["why"] != nil && !ok {
+		return nil, badParam("why is text", "why")
+	}
+	if p["body"] != nil {
+		return nil, badParam("body is not served yet: a task's words are its title and the founder's message it links", "body")
+	}
+	if p["message"] == nil {
+		return nil, badParam("message is the founder's message it answers", "message")
+	}
+	prio := int64(db.DefaultPriority)
+	if p["priority"] != nil {
+		if prio, err = parsePriority(p["priority"]); err != nil {
+			return nil, err
+		}
+	}
+	me := c.Caller.Actor()
+	clean := strings.TrimSpace(textsafe.Oneline(title))
+	if clean == "" {
+		return nil, badParam("a task needs a title", "title")
+	}
+	return c.Effect(func(tx *sql.Tx) (map[string]any, error) {
+		if me == human {
+			return nil, refusal("a task is begun by an agent, never in the founder's name")
+		}
+		chat, err := requestref.Resolve(tx, home, p["message"], me, "message")
+		if name, missing := requestref.Missing(err); missing {
+			return nil, refusal("no request #" + name)
+		}
+		if err != nil {
+			return nil, err
+		}
+		req, err := db.GetRequest(tx, chat)
+		if err != nil {
+			return nil, err
+		}
+		if req.Requester != human || req.Target != me {
+			return nil, refusal(fmt.Sprintf("request %s is not a message from the founder to %s: only that lets you start a task without approval", db.MsgName(tx, chat), me))
+		}
+		used, err := db.TasksForRequest(tx, chat)
+		if err != nil {
+			return nil, err
+		}
+		if len(used) > 0 {
+			return nil, refusal(fmt.Sprintf("request %s already opened T%d", db.MsgName(tx, chat), used[0].ID))
+		}
+		tid, err := db.NewTask(tx, clean, me, me, 0, prio, "report", 0, human)
+		if err != nil {
+			return nil, err
+		}
+		if err := db.LinkRequest(tx, tid, chat); err != nil {
+			return nil, err
+		}
+		held, has, err := db.CurrentTask(tx, me)
+		if err != nil {
+			return nil, err
+		}
+		if !has {
+			if err := db.SetCurrentTask(tx, me, tid, true); err != nil {
+				return nil, err
+			}
+		}
+		ev := []kv{{"task_id", tid}, {"chat_request", chat}}
+		if said := strings.TrimSpace(textsafe.Oneline(why)); said != "" {
+			ev = append(ev, kv{"why", said})
+		}
+		if err := addEvent(tx, me, "task_begin", ev...); err != nil {
+			return nil, err
+		}
+		msg := fmt.Sprintf("task T%d begun from founder message %s", tid, db.MsgName(tx, chat))
+		if !has {
+			msg += " and is now your current task"
+		} else {
+			msg += fmt.Sprintf("; T%d is still current - `hl task start T%d` when you switch", held, tid)
+		}
+		return accepted(msg, map[string]any{"task": tid}), nil
+	})
+}

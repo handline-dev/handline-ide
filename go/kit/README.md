@@ -1,0 +1,16 @@
+# kit
+
+The shared leaf utilities of the daemon and `hl`: its own Go module, `github.com/handline/handline/go/kit`. It imports no other
+module of this repo; the daemon at `go/` requires it with a `replace` to this folder, and `go/go.work` lists it.
+
+| Package | What it is |
+|---|---|
+| `paths` | The Handline home's layout, the live-home guard, the tmux server name and the scratch root |
+| `protected`, `sealed` | What only the founder may say, kept where no agent can write it; team.yaml and agent.yaml sealed |
+| `store` | Opens the daemon's sqlite database and brings its schema up (migrations and their manifest) |
+| `yamlcompat`, `textsafe`, `timefmt` | YAML as Python wrote it, text with no terminal controls, times as shown |
+| `policy`, `pyjson` | How long things are kept or wait, in one place; JSON written as Python's json.dumps writes it |
+| `storetest` | A migrated database for a test, the schema built once per test binary |
+| `atomicfile`, `lock`, `gitrun`, `peer`, `testkill`, `version` | Atomic writes, file locks, git runs, who is on the other end of a unix socket, tearing down what a test starts, the build's sha |
+
+Test it alone: `cd go/kit && GOWORK=off go test ./...`, which `tools/test-go.sh ./kit/...` runs too.

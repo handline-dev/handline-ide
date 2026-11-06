@@ -1,0 +1,932 @@
+package lifecycle
+
+import (
+	"crypto/rand"
+	"encoding/hex"
+	"fmt"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
+
+	"github.com/handline/handline/go/agentctl/verdict"
+	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/states"
+)
+
+var shellSafe = regexp.MustCompile(`^[A-Za-z0-9_@%+=:,./-]+$`)
+
+// shlexQuote is shlex.quote.
+func shlexQuote(s string) string {
+	if s == "" {
+		return "''"
+	}
+	if shellSafe.MatchString(s) {
+		return s
+	}
+	return "'" + strings.ReplaceAll(s, "'", `'"'"'`) + "'"
+}
+
+// RestartNotice is the line a restarted agent opens with: who restarted it and how, and the settings it was restarted to apply. A
+// restart usually means something went wrong, so it is told to retry that.
+func RestartNotice(by string, resumed bool, settings []string) string {
+	applying := ""
+	if len(settings) > 0 {
+		applying = " to apply changed settings: " + strings.Join(settings, ", ")
+	}
+	how := "fresh"
+	if resumed {
+		how = "resumed"
+	}
+	return fmt.Sprintf("Restarted by %s (%s)%s. If something was going wrong before this, retry it.", by, how, applying)
+}
+
+// WakePromptIn is what wake_prompt is given beyond the agent and whether it resumed.
+type WakePromptIn struct {
+	WasClosed   bool
+	MovedTo     string
+	Cold        bool
+	ContextFull bool   // the last session ended with its context full
+	Waiting     string // what was waiting for a resume, "" for none
+	RestartNote string
+}
+
+func joinNonEmpty(parts ...string) string {
+	var out []string
+	for _, p := range parts {
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return strings.Join(out, "\n\n")
+}
+
+// WakePrompt is what an agent is told when it comes back. A resume is started for a message and is handed that message, nothing else; a
+// fresh start is handed it last, after where to find its context.
+// One a person asked for, with nothing waiting, is handed nothing: the prompt file is empty, which the launch still takes (that is how a
+// launch is known to be ours) and starts no turn from. A resumed session already holds everything it knew, so it is told where it is
+// rather than what it did. One that was parked is given its handoff here; one started fresh gets it in its system prompt, and is told
+// which. A session that has no record is told so.
+func (m *Manager) WakePrompt(agent string, resumed bool, in WakePromptIn) (text string, err error) {
+	defer catch(&err)
+	var parts []string
+	record := ""
+	if in.RestartNote != "" && !resumed {
+		parts = append(parts, in.RestartNote)
+	}
+	switch {
+	case resumed:
+		return joinNonEmpty(in.RestartNote, in.Waiting), nil
+	case in.MovedTo != "":
+		// A move is not a close. Its handoff was taken as its session ended, and the launch has already put it in this session's system prompt.
+		parts = append(parts, fmt.Sprintf("Your account was at or near its usage limit, so this session was started on %s. Your handoff is in your system prompt above; carry on from there.", in.MovedTo))
+	case in.Cold:
+		// The handoff is in the system prompt, and carries the transcript's path: nothing more is appended for it below.
+		record = must(db.GetHandoff(m.Q, agent))
+		parts = append(parts, "Your session was closed while idle and this is a fresh one. Your handoff is in your system prompt above; pick the task back up from it.")
+	case in.WasClosed:
+		// Taking the parked branch here would tell an agent that was never parked that its context was cleared.
+		record = must(db.GetHandoff(m.Q, agent))
+		if record != "" && in.ContextFull {
+			parts = append(parts, "Your context was full, so this is a fresh session. Your handoff is in your system prompt above.")
+		} else if record != "" {
+			parts = append(parts, "Your session could not be resumed, so this is a fresh one. Your handoff is in your system prompt above.")
+		} else {
+			parts = append(parts, "Your session could not be resumed, so this is a fresh one. There is no handoff. Read your journal and your inbox before carrying on.")
+			if note := m.Handoff.MemoryLine(agent); note != "" {
+				parts = append(parts, note)
+			}
+		}
+	default:
+		parts = append(parts, "You were parked; this is a fresh session and your context is empty. Your handoff record follows. If it names a request or task, carry on with it; if it says none, wait - the next item is typed to you when it comes.")
+		record = must(db.GetHandoff(m.Q, agent))
+		if record != "" {
+			parts = append(parts, record)
+		}
+	}
+	if record == "" {
+		// Nothing carried the request or the transcript, so this says both, finding the path by the session's id when the status names none.
+		session, path := m.Handoff.PreviousSession(m.Q, agent, m.Agents.CurrentAccount(m.Q, agent))
+		if in.MovedTo == "" {
+			parts = append(parts, m.Handoff.RequestLine(m.Q, agent))
+		}
+		if path != "" {
+			parts = append(parts, fmt.Sprintf("Your previous session is %s, recorded at %s\nGrep it for what you need - do not read it whole, it is a JSONL transcript with every tool result in it, and reading it back would undo the point of parking you.", session, path))
+		} else if in.MovedTo == "" {
+			parts = append(parts, "Your previous session's transcript could not be found; read your journal and your inbox to see where you were.")
+		}
+	}
+	if in.Waiting != "" {
+		parts = append(parts, "This is what woke you; take it first:\n\n"+in.Waiting)
+	}
+	return strings.Join(parts, "\n\n"), nil
+}
+
+// StartCause is what a start for waiting work is recorded as: the contract's word for work arriving for a closed agent.
+const StartCause = "start"
+
+// StartForWork gives an agent somewhere to run, because work is waiting for it. Counted against the same streak a failed wake is: a repo
+// that will never check out would otherwise be retried every tick for ever. After MaxFailedAttempts it stalls and says so.
+func (m *Manager) StartForWork(agent string) (said string, err error) {
+	defer catch(&err)
+	row := must(db.GetAgentState(m.Q, agent))
+	if m.ResumableWithoutTerminal(row) {
+		// The caller wakes it, opening the terminal and resuming the session; starting it here would lose that.
+		return agent + ": closed with a session to resume - a wake brings it back", nil
+	}
+	repo := m.Agents.RepoOf(agent)
+	if repo == "" {
+		w := "work"
+		if asked := len(must(db.QueuedFor(m.Q, agent))); asked > 0 {
+			w = fmt.Sprintf("%d request(s)", asked)
+		}
+		return fmt.Sprintf("%s: %s waiting and it has no terminal - set `repo:` in its agent.yaml, or start it by hand (t)", agent, w), nil
+	}
+	if why := m.loadHeld(agent); why != "" {
+		return fmt.Sprintf("%s: not started - %s", agent, why), nil
+	}
+	// With no room `hl launch` would refuse in the new terminal, and the refusal would count against the agent though it is the accounts
+	// that are full.
+	if !m.Launch.ChooseAccount(m.Q, agent) {
+		return fmt.Sprintf("%s: not started - %s", agent, m.Launch.NoRoom(agent)), nil
+	}
+	// Each waiting message can ask for a start while the last one's session is still coming up: one start at a time, and a start that
+	// lost the race finds the terminal the winner opened.
+	release, mine := m.Typing.TakeTerminal(agent)
+	if !mine {
+		return agent + ": a start or wake is under way - not starting twice", nil
+	}
+	defer release()
+	if row = must(db.GetAgentState(m.Q, agent)); m.hasSession(agent, row) || m.ResumableWithoutTerminal(row) {
+		return agent + ": started already - not starting twice", nil
+	}
+	if row != nil && row.WakeFailures >= states.MaxFailedAttempts {
+		if row.State == states.Stalled {
+			return fmt.Sprintf("%s: not started again - %d attempts have failed", agent, row.WakeFailures), nil
+		}
+		// Latched IDLE by a daemon that did not stall it: one more try, which starts it or fails into the stall below with the reason.
+		check(db.ResetCounter(m.Q, agent, "wake_failures"))
+		check(db.BumpCounter(m.Q, agent, "wake_failures", states.MaxFailedAttempts-1))
+	}
+	// Its own worktree if it still has one - a terminal can be closed by a human or lost when the terminal host restarts without anything happening to
+	// the branch or to what is uncommitted in it, and a second worktree would strand the first.
+	// One recorded and gone is made again from its branch, never replaced by a fresh one without a word: that is the failed start below,
+	// saying why, which a stall then tells the agent's lead.
+	wt, gone := "", ""
+	if row != nil && row.Worktree.String != "" {
+		if wt = m.Spawn.WorktreePath(row.Worktree.String); wt == "" {
+			if wt, gone = m.Spawn.Recreate(agent, realpath(expandUser(repo)), row.Worktree.String); wt != "" {
+				must(db.AddEvent(m.Q, agent, "worktree_recreated", db.KV{K: "worktree", V: wt}))
+				m.Log("  %s: its worktree %s was gone; made again from its branch", agent, wt)
+			}
+		}
+	}
+	// ok is StartIn/Spawn's own answer, not re-derived from the row: they confirm a session actually started now, so a terminal left
+	// standing with nothing in it counts as the failed wake it is.
+	var ok bool
+	switch {
+	case gone != "":
+		said = gone
+	case wt != "":
+		cmd, cerr := m.Launch.CommandFor(agent, "", StartCause, "")
+		check(cerr)
+		ok, said, err = m.Spawn.StartIn(agent, wt, cmd)
+	default:
+		ok, said, err = m.Spawn.SpawnWith(agent, realpath(expandUser(repo)), SpawnOpts{Why: StartCause})
+	}
+	// A start that could not be tried (git cannot run, no descriptors) is no failed start of the agent's own: it is not counted.
+	check(err)
+	first := strings.SplitN(said, "\n", 2)[0]
+	if ok {
+		check(db.ResetCounter(m.Q, agent, "wake_failures"))
+		check(db.ResetCounter(m.Q, agent, "failed_attempts"))
+		ev := []db.KV{{K: "repo", V: repo}}
+		if head := must(db.HeadOfQueue(m.Q, agent, 0)); head != nil {
+			ev = append(ev, db.KV{K: "request_id", V: head.ID}) // the work that was waiting
+		}
+		must(db.AddEvent(m.Q, agent, "started_for_work", ev...))
+		m.Log("  %s: started in %s - work was waiting for it", agent, repo)
+		return fmt.Sprintf("%s: started for work waiting - %s", agent, first), nil
+	}
+	check(db.BumpCounter(m.Q, agent, "wake_failures", 1))
+	m.Log("  %s: could not start for waiting work: %s", agent, first)
+	if fresh := must(db.GetAgentState(m.Q, agent)); fresh != nil && fresh.WakeFailures >= states.MaxFailedAttempts {
+		check(db.SetStalled(m.Q, agent, string(verdict.StuckStart), fmt.Sprintf("%d %s: %s", fresh.WakeFailures, StartStall, first), map[string]string{"why": first}))
+		m.Log("  %s: STALLED after %d failed starts", agent, fresh.WakeFailures)
+		if m.OnStartStall != nil {
+			m.OnStartStall(m.Q, agent, first)
+		}
+	}
+	return fmt.Sprintf("%s: could not be started - %s", agent, first), nil
+}
+
+func (m *Manager) writeWakePrompt(agent, text, suffix string) (string, error) {
+	d := filepath.Join(m.Home, "wake")
+	if err := os.MkdirAll(d, 0o755); err != nil {
+		return "", err
+	}
+	p := filepath.Join(d, agent+"."+suffix)
+	return p, os.WriteFile(p, []byte(text), 0o644)
+}
+
+// WakeOpts say why and how a session is brought back. Force is a human asking for the session: a closed agent is brought back with
+// nothing waiting for it. Warm resumes the session whatever its prompt cache says. Cause is what the start is recorded as ("wake",
+// "fresh close" or "move" when empty). RestartedBy names who asked for a restart: the session's first prompt says so. MovedTo names the
+// account this wake starts the agent on when it is not the one the last session was on. Person is a start a person pressed, not a restart
+// the daemon owes nor a tick's wake: it queues behind no older closed agent, and a full or walled account sends it to one with room at once.
+type WakeOpts struct {
+	Force, Warm bool
+	Person      bool
+	Cause       string
+	RestartedBy string
+	Applying    []string
+	MovedTo     string
+}
+
+// WakeAgent hands a cleared agent back its own handoff so it can carry on. The agent kept its account across the park, and the handoff is
+// what it knows when it wakes. A closed agent has no terminal; a new one is opened for it in its worktree.
+func (m *Manager) WakeAgent(agent string, o WakeOpts) (ok bool, said string, err error) {
+	defer catch(&err)
+	release, mine := m.Typing.TakeTerminal(agent)
+	if !mine {
+		// A human's key and a tick can both land here, and this one holds the terminal for as long as a session takes to appear.
+		return false, TypingElsewhere + "; not waking twice", nil
+	}
+	defer release()
+	ok, said = m.wakeAgent(agent, o)
+	return ok, said, nil
+}
+
+// WakeAgentLocked is a wake for callers already holding the terminal lock.
+func (m *Manager) WakeAgentLocked(agent string, o WakeOpts) (ok bool, said string, err error) {
+	defer catch(&err)
+	ok, said = m.wakeAgent(agent, o)
+	return ok, said, nil
+}
+
+// liveSessionsSettled reads the process table again after a pause while it misses.
+func (m *Manager) liveSessionsSettled() (map[string]int, bool) {
+	for _, pause := range TableRetryPauses {
+		if s, ok := m.Observe.LiveSessions(); ok {
+			return s, true
+		}
+		m.sleep(pause)
+	}
+	return m.Observe.LiveSessions()
+}
+
+func newHandoffID() string {
+	b := make([]byte, 6)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
+func isClosed(row *db.AgentState) bool {
+	return row != nil && row.ClosedAt.Valid && row.ClosedAt.Int64 != 0
+}
+
+func (m *Manager) wakeAgent(agent string, o WakeOpts) (bool, string) {
+	handle := must(db.Terminal(m.Q, agent))
+	row := must(db.GetAgentState(m.Q, agent))
+	closed := isClosed(row)
+	// A closed session's pane was closed with it; the wake opens a new terminal in the worktree the agent kept.
+	wt := ""
+	if row != nil {
+		wt = m.Spawn.WorktreePath(row.Worktree.String)
+	}
+	if !m.Term.Available() || !(handle != "" || (closed && wt != "")) {
+		return false, "no terminal to wake"
+	}
+	if !closed && row != nil && must(m.Delivery.SessionPresent(agent)) {
+		// A drifted session is ended and takes the closed agent's wake path below, with its own session id to resume. Ending it is only for
+		// the resume that follows, and nothing resumes without a message; with none waiting it is woken in place as before.
+		if m.Launch.Drifted(agent, row) && m.waitingFor(agent) {
+			st := m.Status.ReadForAgent(agent, m.Agents.CurrentAccount(m.Q, agent))
+			switch {
+			case st.SessionID == "":
+				m.Log("  %s: launch recipe changed but there is no session id to resume - waking it in place", agent)
+			default:
+				if ended, _ := m.endSession(agent, st.SessionID, st, true, false); !ended {
+					m.Log("  %s: launch recipe changed but its session would not end - waking it in place", agent)
+				} else {
+					m.Log("  %s: launch recipe changed since this session started - relaunching instead of waking it in place", agent)
+					row = must(db.GetAgentState(m.Q, agent))
+					closed = isClosed(row)
+				}
+			}
+		}
+	}
+	switch {
+	case closed:
+		return m.wakeClosed(agent, row, handle, wt, o)
+	case must(db.GetHandoff(m.Q, agent)) == "":
+		return false, "no handoff to resume from"
+	}
+	// Nothing is typed at a session that runs: a handoff closes it and the wake starts a new one from the record.
+	return false, "its session is still running; a handoff closes it and the wake starts a new one"
+}
+
+// personWaiting is whether what the agent would wake for is a person's message.
+func (m *Manager) personWaiting(agent string) bool { return m.personHead(agent) != nil }
+
+// personHead is the person's message the agent would wake for, else nil: the head of its queue when that is the founder's, or else the
+// founder's oldest message not yet shown to it (a say is never a head, so it is looked for on its own).
+func (m *Manager) personHead(agent string) *db.Request {
+	if head, err := m.Delivery.EffectiveHead(m.Q, agent); err == nil && head != nil && head.Requester == db.Human {
+		return head
+	}
+	if rows, err := db.FounderPending(m.Q, agent); err == nil && len(rows) > 0 {
+		return rows[0]
+	}
+	return nil
+}
+
+// continuesWork is whether a wake of the closed agent carries on a handoff, restart or move rather than starting new work, which the
+// load hold is for: one still owed, a close while a handoff's note wait counted, or the park a completed handoff left. The handoff
+// record is not a sign of it: every close keeps one.
+func (m *Manager) continuesWork(agent string, row *db.AgentState) bool {
+	if row == nil {
+		return false
+	}
+	if m.restartOwed(agent, row) != nil || m.moveOwed(agent, row) != nil {
+		return true
+	}
+	if _, ok := must2(db.CloseOwedHandoff(m.Q, agent, m.now(), row.ClosedAt.Int64)); ok {
+		return true
+	}
+	if row.State != states.Parked {
+		return false
+	}
+	h := must(db.LatestHandoff(m.Q, agent))
+	return h != nil && h.Step == "released" && h.Updated+db.NoteWaitStaleS >= row.ClosedAt.Int64
+}
+
+// freshFrom takes the handoff record of the closed session and lets go of its id, so the wake starts a new session with the record.
+func (m *Manager) freshFrom(agent, session string) {
+	if gaps := must(m.Handoff.Record(m.Q, agent, session)); len(gaps) > 0 {
+		m.Log("  %s: handoff with gaps (could not read %s)", agent, strings.Join(gaps, ", "))
+	}
+	check(db.ForgetResume(m.Q, agent))
+}
+
+// wakeClosed brings a closed agent back: its shell is put back into the session, resuming the same one first (which is what makes
+// closing cheap) and a fresh start the fallback, not the plan.
+func (m *Manager) wakeClosed(agent string, row *db.AgentState, handle, wt string, o WakeOpts) (bool, string) {
+	force, warm, cause, restartedBy, movedTo := o.Force, o.Warm, o.Cause, o.RestartedBy, o.MovedTo
+	// The load holds the daemon's own wakes; one a person asked for, a restart, or one that continues work already begun goes.
+	if !force && !o.Person && !m.continuesWork(agent, row) {
+		if why := m.loadHeld(agent); why != "" {
+			return false, why
+		}
+	}
+	if owed := m.restartOwed(agent, row); owed != nil {
+		// The restart that closed it is finished by this wake, as it was asked: same conversation unless it was fresh, same requester. A
+		// person's own force is not made to wait.
+		var left int64
+		if !force {
+			var err error
+			left, err = m.RestartRetryWait(agent, row, m.now())
+			check(err)
+		}
+		if left != 0 {
+			return false, "its restart failed; trying again shortly"
+		}
+		fresh, _ := owed["fresh"].(bool)
+		by, _ := owed["by"].(string)
+		oc, _ := owed["cause"].(string)
+		force, warm = true, !fresh
+		if restartedBy == "" {
+			restartedBy = by
+		}
+		if cause == "" {
+			cause = oc
+		}
+	}
+	// A handoff that asked for the agent's note and was closed before it went on (an idle close can come first) goes on here: this wake is
+	// its new session, given the record with the note in it, never a resume of the conversation that wrote the note. So nothing waiting
+	// reaches the old session; it is the new one's first prompt.
+	// A close while the note wait counted owes the handoff, however late the wake.
+	kind, waits := must2(db.CloseOwedHandoff(m.Q, agent, m.now(), row.ClosedAt.Int64))
+	if movedTo != "" {
+		check(db.ClearNoteWait(m.Q, agent))
+	}
+	if waits && movedTo == "" {
+		if row.ResumeSession.String != "" {
+			m.freshFrom(agent, row.ResumeSession.String)
+		}
+		check(db.ClearNoteWait(m.Q, agent))
+		force, warm = true, false
+		if cause == "" && kind == "context" {
+			cause = "context_full"
+		}
+		row = must(db.GetAgentState(m.Q, agent))
+	}
+	// Before anything is typed: an agent.yaml that will not read is this agent's config error, which the callers stall by name.
+	if err := m.Agents.ReadConfig(agent); err != nil {
+		panic(&ConfigError{err})
+	}
+	// Nothing ever delivers to a closed agent, so nothing has enforced its edges either - do it before waitingFor, which would otherwise
+	// not count a request still edge-unconfirmed.
+	must(m.Delivery.EnforceEdges(m.Q, agent))
+	// A closed agent is brought back for a message. With none, there is nothing to tell it and no reason to spend a session on it; the
+	// message that arrives is what wakes it. A move is the exception: the agent was mid-work and its handoff is what it is started with.
+	if movedTo == "" && !force && !m.waitingFor(agent) {
+		return false, NothingWaiting
+	}
+	// A session closed with its context at the agent's limit (an idle close can come before the trigger was evaluated) would fire the
+	// context trigger at once if resumed: it starts fresh the way a close owing a handoff does.
+	if movedTo == "" && row.ResumeSession.String != "" && m.Handoff.ContextFull(m.Q, agent, row.ResumeSession.String) {
+		m.freshFrom(agent, row.ResumeSession.String)
+		warm = false
+		if cause == "" {
+			cause = "context_full"
+		}
+		row = must(db.GetAgentState(m.Q, agent))
+	}
+	if owed := m.moveOwed(agent, row); movedTo == "" && owed != nil {
+		// A person moved it while it was closed: the session goes with it (carried) and the handoff record is the fallback.
+		to, _ := owed["to"].(string)
+		by, _ := owed["by"].(string)
+		if why := m.Launch.RoomOn(m.Q, agent, row, to); why != "" {
+			return false, fmt.Sprintf("%s %s - waiting to start %s there (moved by %s)", to, why, agent, by)
+		}
+		if row.ResumeSession.String != "" && must(db.GetHandoff(m.Q, agent)) == "" {
+			if gaps := must(m.Handoff.Record(m.Q, agent, row.ResumeSession.String)); len(gaps) > 0 {
+				m.Log("  %s: moved with no handoff (could not read %s)", agent, strings.Join(gaps, ", "))
+			}
+		}
+		movedID, _ := must2(db.LastEventID(m.Q, agent, "moved_account"))
+		if owedID, _ := must2(db.LastEventID(m.Q, agent, MoveOwedKind)); movedID < owedID {
+			// Once per move, not on every retry of a wake that fails after it.
+			if m.carried(agent, row.ResumeSession.String) == "" {
+				check(db.ForgetResume(m.Q, agent))
+			}
+			must(db.AddEvent(m.Q, agent, "moved_account", db.KV{K: "from", V: row.Account.String}, db.KV{K: "to", V: to},
+				db.KV{K: "trigger", V: "forced"}))
+			m.Agents.MeasureBegin(m.Q, agent, to)
+		}
+		row, movedTo = must(db.GetAgentState(m.Q, agent)), to
+	}
+	// `hl launch` refuses at the 5h wall, and the daemon can read that before it types anything. Trying anyway would spend the wake
+	// timeout to be told what we already knew, and count a streak against an agent whose only problem rolls over by itself. The account
+	// this launch lands on is the one a session to resume lives under. Keeping the conversation is worth a wait only while its prompt cache
+	// lives; past that a resume pays for its context in full on any account, so it moves rather than waits.
+	session := row.ResumeSession.String
+	rehomed := false
+	moveFrom := ""
+	if movedTo == "" && !warm && session != "" && m.cachePast(agent, session, m.now()) {
+		// Past its cache's life the agent is on no account: it goes to the one whose unused week runs out soonest that has room (a clear
+		// gain, else it stays), its own included, taking the session along (so ignore_cache_expiry, which only keeps the session, does not hold it).
+		if to, _ := m.Launch.RoomElsewhere(m.Q, agent, row, nil); to != "" && to != row.Account.String && m.Launch.WorthRepick(row.Account.String, to) {
+			var kept string
+			if kept, rehomed = m.moveElsewhere(agent, session, row.Account.String, to, "its prompt cache has expired"); rehomed {
+				session, movedTo, moveFrom = kept, to, row.Account.String
+			}
+		}
+	}
+	wait := m.Launch.WakeWait(m.Q, agent, row)
+	if rehomed {
+		wait = nil // the account it moved to was picked for having room
+	}
+	if wait != nil && (wait.Pace != nil || wait.FiveHour) && (force || m.personWaiting(agent)) {
+		// The pace and the 5-hour limit hold only the daemon's own work: a person's start or message, and a restart, go.
+		wait = nil
+	}
+	if o.Person && wait != nil && movedTo == "" {
+		// A person's start queues behind no older closed agent, and a full or walled account sends it where there is room now: the account
+		// with the most headroom against both its 5h and weekly fill rate.
+		if wait.Slot && wait.Busy < wait.Unpaced {
+			wait = nil
+		} else if session != "" {
+			to, why := m.Launch.RoomNow(m.Q, agent, row, wait.Account)
+			kept, moved := "", false
+			if to != "" {
+				if kept, moved = m.moveElsewhere(agent, session, wait.Account, to, "started by a person, "+wait.Account+" has no room"); !moved {
+					why = "its handoff could not be read whole"
+				}
+			}
+			if !moved {
+				return false, m.Launch.DescribeWakeWait(wait) + "; not moved: " + why
+			}
+			session, movedTo, moveFrom, wait = kept, to, wait.Account, nil
+		}
+	}
+	if wait != nil && wait.Slot {
+		// No wall, no slot. When a slot frees cannot be told, so it is never within the prompt cache's life: the agent moves to an account
+		// with a free slot, the one furthest behind its week, a warm restart too, and takes its session along. With nowhere to go any wake
+		// waits.
+		to := ""
+		if movedTo == "" && session != "" {
+			to = m.Launch.SlowestPaced(m.Q, agent, row, wait.Account)
+		}
+		kept, moved := "", false
+		if to != "" {
+			kept, moved = m.moveElsewhere(agent, session, wait.Account, to, fmt.Sprintf("%s is full", wait.Account))
+		}
+		if !moved {
+			return false, m.Launch.DescribeWakeWait(wait)
+		}
+		session, movedTo, moveFrom, wait = kept, to, wait.Account, nil
+	}
+	if wait != nil {
+		// The resume account is at the wall. Unless it resets within the prompt cache's life (MovePlan), move where another account has
+		// room, taking the session along.
+		// The handoff is the record the close took while the session was live; a snapshot read now is stale by construction. One that is
+		// missing a fact keeps the id, since the session is the only complete copy of the context.
+		rescued := false
+		acct, pct := wait.Account, wait.Pct
+		kind := "usage"
+		if wait.IsLong {
+			kind = "usage_7d"
+		}
+		elsewhere, planWhy := "", ""
+		if session != "" && !wait.Assumed && !m.Handoff.BackingOff(m.Q, agent) {
+			elsewhere, planWhy = m.Handoff.MovePlan(m.Q, agent, kind, true)
+		}
+		if elsewhere != "" {
+			why := fmt.Sprintf("pinned to %s at %d%% (%s)", acct, pct, wait.Window)
+			if kept, moved := m.moveElsewhere(agent, session, acct, elsewhere, why); moved {
+				session, movedTo, moveFrom, rescued = kept, elsewhere, acct, true
+			}
+		}
+		if !rescued {
+			// Returned, not logged: this is reached on every retry for as long as the window lasts, and each caller says it in its own
+			// place. The reason it did not move rides along, so the wait does not read as if nothing had looked elsewhere.
+			msg := m.Launch.DescribeWakeWait(wait)
+			if planWhy != "" {
+				msg += "; not moved: " + planWhy
+			}
+			return false, msg
+		}
+	}
+	c := closed2{force, warm, cause, restartedBy, movedTo, moveFrom, o.Applying}
+	return m.launchClosed(agent, row, wt, session, c)
+}
+
+// moveElsewhere moves a closed agent off the account its session is tied to, and the wake that follows starts on `to`: resuming the
+// session it returns (carried), else fresh from the handoff the close took. why is what the log says the agent was stuck on. moved is
+// false when the handoff could not be read whole: it is the fallback should the resume fail, so the agent stays and the wake goes on
+// waiting.
+func (m *Manager) moveElsewhere(agent, session, from, to, why string) (kept string, moved bool) {
+	hid := newHandoffID()
+	check(db.StartHandoff(m.Q, hid, agent, session, "pinned", m.now()+states.HandoffDeadlineS))
+	var missing []string
+	if must(db.GetHandoff(m.Q, agent)) == "" {
+		missing = must(m.Handoff.Record(m.Q, agent, ""))
+	}
+	if len(missing) > 0 {
+		gap := "could not read " + strings.Join(missing, ", ")
+		check(db.AdvanceHandoff(m.Q, hid, "released", "degraded", clip300(gap)))
+		check(db.BumpCounter(m.Q, agent, "throttle_count", 1))
+		m.Log("  %s: handoff degraded (%s); keeping the resume id", agent, gap)
+		return "", false
+	}
+	check(db.AdvanceHandoff(m.Q, hid, "released", "done", ""))
+	check(db.ResetCounter(m.Q, agent, "throttle_count"))
+	kept = m.carried(agent, session)
+	check(db.SetClosed(m.Q, agent, kept))
+	m.Log("  %s: %s - %s on %s", agent, why, ifTrue(kept != "", "resuming")+ifTrue(kept == "", "starting fresh"), to)
+	return kept, true
+}
+
+// recordMove writes the move moveElsewhere decided, once the launch on `to` has happened: a wake that gives up before it has moved nobody.
+func (m *Manager) recordMove(agent, from, to string) {
+	must(db.AddEvent(m.Q, agent, "moved_account", db.KV{K: "from", V: from}, db.KV{K: "to", V: to}, db.KV{K: "trigger", V: "pinned"}))
+	m.Agents.MeasureBegin(m.Q, agent, to)
+}
+
+// ResumeMaxContext is the most context a resume the prompt cache cannot serve is worth: its first turn reads it all again once, still
+// quicker back to work than a fresh start finding its way from the handoff. Past it, a fresh start with the handoff.
+const ResumeMaxContext = 120_000
+
+// carried is the session a wake past the cache, or a move, resumes: "" when its context is past ResumeMaxContext. An unread size is not
+// too big: a resume of a transcript that is not there fails, and the fresh start after it has the handoff.
+func (m *Manager) carried(agent, session string) string {
+	if used, ok := m.Handoff.ContextUsed(m.Q, agent, session); ok && used >= ResumeMaxContext {
+		return ""
+	}
+	return session
+}
+
+func clip300(s string) string {
+	if r := []rune(s); len(r) > 300 {
+		return string(r[:300])
+	}
+	return s
+}
+
+type closed2 struct {
+	force, warm        bool
+	cause, restartedBy string
+	movedTo            string
+	movedFrom          string // set when moveElsewhere moved it: its moved_account is written at the launch
+	applying           []string
+}
+
+// wakeCause is what a wake nobody gave a cause records its start as: a move, else what ended the last session - a fold of a full
+// context, a context-full handoff, an idle close, a fresh close - else "wake".
+func (m *Manager) wakeCause(agent string, row *db.AgentState, movedTo string) string {
+	if movedTo != "" {
+		return "move"
+	}
+	at := func(kind string) int64 { // the latest event of kind, if it is at or after the close; else -1
+		at, ok := must2(db.LastEventTS(m.Q, agent, kind))
+		if !ok || at < row.ClosedAt.Int64 {
+			return -1
+		}
+		return at
+	}
+	parkedFor := func() any {
+		_, p, _ := must3(db.LastEvent(m.Q, agent, "park"))
+		return p["kind"]
+	}
+	switch fresh := at("fresh_close"); {
+	case fresh >= 0 && at(states.FoldKind) >= fresh:
+		return "context_full"
+	case fresh >= 0:
+		return "fresh close"
+	case at("park") >= 0 && parkedFor() == "context":
+		return "context_full"
+	case at(IdleCloseKind) >= 0:
+		return "idle_close"
+	}
+	return "wake"
+}
+
+// launchClosed relaunches a closed agent: a launch command typed at the shell its last session left, or run in a new terminal.
+func (m *Manager) launchClosed(agent string, row *db.AgentState, wt, session string, c closed2) (bool, string) {
+	closed := true
+	why0 := c.cause
+	if why0 == "" {
+		why0 = m.wakeCause(agent, row, c.movedTo)
+	}
+	base, err := m.Launch.CommandFor(agent, c.movedTo, why0, c.restartedBy)
+	check(err)
+
+	// Resuming the session is what makes closing cheap, so it is tried first - but a resume can be the very thing that fails: an id whose
+	// transcript was pruned, or a worktree moved out from under it, gives a launch that refuses every time it is retried. A fresh start in
+	// the same terminal loses the context and keeps the agent, which is the better of the two ends this can have. The wake prompt travels
+	// as the session's own first prompt, in a file the launch reads and deletes: typed at the terminal instead, it lands in a bare shell
+	// whenever the session dies first, and the shell runs it line by line.
+	resumed, foreign, taken := false, false, false
+	var why string
+
+	// runningElsewhere is (foreign, why, found). Unreadable is not "none": typing over a session that might be there reaches it as a
+	// prompt, so it is refused the same way and for the same reason it is not blamed on the agent's own streak.
+	runningElsewhere := func() (bool, string, bool) {
+		sessions, ok := m.liveSessionsSettled()
+		if !ok {
+			return true, Unconfirmed, true
+		}
+		if sessions[agent] != 0 {
+			return !taken, "a session it did not start is running", true
+		}
+		// The table lists none. Its one failure that matters is a live session missing from it, so the screen is asked too: a launch line
+		// typed at a drawn session is a prompt to it.
+		if h := must(db.Terminal(m.Q, agent)); h != "" && m.Delivery.SessionStillDrawn(h, false) {
+			return true, "the process table lists no session, but one is drawn on the terminal's screen; typed nothing", true
+		}
+		return false, "", false
+	}
+
+	// Past the cache's life a resume reads the whole transcript again, worth it up to ResumeMaxContext; past that a fresh start costs the
+	// handoff, and the record stays on the row for the launch to inject.
+	cold := c.movedTo == "" && !c.warm && m.cacheExpiredAt(agent, session, m.now()) && m.carried(agent, session) == ""
+	// A fresh start goes where there is room. With none, `hl launch` would refuse and the refusal would count against the agent's wake
+	// attempts, though it is the accounts that are full.
+	if c.movedTo == "" && (cold || session == "") && !m.Launch.ChooseAccount(m.Q, agent) {
+		return false, m.Launch.NoRoom(agent)
+	}
+	// The slot is held from here, so a second wake in this tick sees it taken.
+	slot := c.movedTo
+	if slot == "" {
+		slot = m.Launch.AccountFor(m.Q, agent, session != "" && !cold)
+	}
+	if slot != "" {
+		must(db.AddEventFor(m.Q, agent, slot, "wake_reserved", db.KV{K: "account", V: slot}))
+	}
+	took := false
+	if cold && must(db.GetHandoff(m.Q, agent)) == "" {
+		// The close that would have taken it failed, and the snapshot no longer names the session; the id on the row still does.
+		gaps := must(m.Handoff.Record(m.Q, agent, session))
+		took = true
+		if len(gaps) > 0 {
+			w := "could not read " + strings.Join(gaps, ", ")
+			// "handoff" must stay out of the activity kinds: this is Handline's own bookkeeping about a failed take, not the agent doing
+			// anything, and counting it would read a dead cache warm.
+			must(db.AddEvent(m.Q, agent, "handoff", db.KV{K: "degraded", V: true}, db.KV{K: "session", V: nilIfEmpty(session)}, db.KV{K: "why", V: w}))
+			m.Log("  %s: cold wake handoff degraded (%s)", agent, w)
+		}
+	}
+	attempts := []bool{false}
+	if session != "" && !cold {
+		attempts = []bool{true, false}
+	}
+	var waiting struct {
+		text string
+		told func(string) error
+		ok   bool
+	}
+	ok := false
+	for _, resume := range attempts {
+		handle := must(db.Terminal(m.Q, agent))
+		// Checked fresh before every send, not only after one fails: the closed branch has no lock on the world outside Handline, and a session
+		// can come up here between the first attempt's check and the second's, or before either has run at all. taken still holds the
+		// previous attempt's own verdict here: a session already live now is that attempt's own come up late, not foreign, if that attempt's
+		// launch took the prompt file.
+		if f, w, found := runningElsewhere(); found {
+			if f {
+				foreign, why = true, w
+			}
+			break
+		}
+		// A fresh start is handed it too: told the ordinary way, it would wait behind a first turn spent on the handoff.
+		t, told, got := must3(m.Delivery.WaitingPrompt(m.Q, agent))
+		waiting.text, waiting.told, waiting.ok = t, told, got
+		// A task the agent holds has landed in the session that closed: nothing is left to type, and the resume is what brings the agent
+		// back to it. Giving up on it left the wake reserved, silent and the same on every tick.
+		if resume && !got && !c.force && !m.waitingFor(agent) {
+			why = "what was waiting for it is gone; nothing to resume it for"
+			m.wakeDropped(agent, why)
+			return false, why
+		}
+		restartNote := ""
+		if c.restartedBy != "" {
+			restartNote = RestartNotice(c.restartedBy, resume, c.applying)
+		}
+		text, err := m.WakePrompt(agent, resume, WakePromptIn{WasClosed: closed, MovedTo: c.movedTo, Cold: cold, ContextFull: why0 == "context_full", Waiting: waiting.text,
+			RestartNote: restartNote})
+		check(err)
+		pf, err := m.writeWakePrompt(agent, text, "txt")
+		check(err)
+		cmd := base + " --prompt-file " + shlexQuote(pf)
+		if resume {
+			cmd += " -- --resume " + session
+		}
+		var launched bool
+		launched, why = m.launchInPane(agent, handle, wt, cmd, func() bool { return m.tookPrompt(agent, pf) })
+		if launched {
+			resumed, ok = resume, true
+			break
+		}
+		m.Log("  %s: wake attempt (%s) did not take: %s", agent, ifTrue(resume, "resume")+ifTrue(!resume, "fresh"), clip(why, 160))
+		_, statErr := os.Stat(pf)
+		taken = os.IsNotExist(statErr)
+		_ = os.Remove(pf)
+		// A resume of a long transcript can come up after the wait: a session inside the pane this launch used is this launch's own,
+		// and a fresh start over it would make a second one.
+		if late, pid := m.ownLateSession(agent); late {
+			m.Log("  %s: the %s launch's session (pid %d) came up after the wait; no second launch", agent, ifTrue(resume, "resume")+ifTrue(!resume, "fresh"), pid)
+			resumed, ok = resume, true
+			break
+		}
+		// A session owns the terminal now, and the next attempt's command would be typed into it as a prompt. It is this launch's own,
+		// come up late, only if the launch took the prompt.
+		if f, w, found := runningElsewhere(); found {
+			if f {
+				foreign, why = true, w
+			}
+			break
+		}
+	}
+	if !ok {
+		return false, m.wakeFailed(agent, session, why, took, foreign)
+	}
+	if c.movedFrom != "" {
+		m.recordMove(agent, c.movedFrom, c.movedTo)
+	}
+	// A relaunch is where claude shows its folder-trust screen - on a moved agent the new account has never trusted this folder - and the
+	// wake prompt waits behind it. Until it is past, the agent is not woken.
+	handle := must(db.Terminal(m.Q, agent))
+	cleared, w := true, ""
+	if handle != "" {
+		cleared, w = m.startupScreens(agent, handle)
+	}
+	if !cleared {
+		if waiting.ok {
+			// The session took the message as its first prompt and reads it once past the screen. Recorded now, after the closed mark came
+			// off, so nothing later voids it and has it told twice.
+			check(waiting.told(ifTrue(resumed, session)))
+		}
+		return false, w
+	}
+	// A good wake ends both streaks, so failures from before it cannot add up to a stall later.
+	check(db.ResetCounter(m.Q, agent, "wake_failures"))
+	check(db.ResetCounter(m.Q, agent, "failed_attempts"))
+	if f := must(db.GetAgentState(m.Q, agent)); f != nil && isClosed(f) {
+		check(db.ClearClosed(m.Q, agent))
+	}
+	if waiting.ok {
+		// After clear_closed, which voids what a session was told. A fresh session's id is the live one's.
+		check(waiting.told(ifTrue(resumed, session)))
+	}
+	payload := []db.KV{{K: "resumed_session", V: nilIfEmpty(ifTrue(resumed, session))}}
+	if cold {
+		payload = append(payload, db.KV{K: "cache_expired", V: true})
+	}
+	must(db.AddEvent(m.Q, agent, "wake", payload...))
+	check(db.ClearHandoff(m.Q, agent))
+	how := ""
+	switch {
+	case resumed:
+		how = " (session resumed)"
+	case cold:
+		how = " (fresh - its prompt cache had expired and its context is too big to read again)"
+	}
+	m.Log("  %s: relaunched with its wake prompt%s", agent, how)
+	return true, "relaunched with the wake prompt"
+}
+
+// wakeDropped records a wake that gave up after its account was reserved, and with the event lets the reservation go (usage.activeSQL),
+// so the account does not count the agent as running until a Stop that will not come.
+func (m *Manager) wakeDropped(agent, why string) {
+	must(db.AddEvent(m.Q, agent, "wake_dropped", db.KV{K: "why", V: why}))
+	m.Log("  %s: wake dropped: %s", agent, why)
+}
+
+// wakeFailed records a wake that started nothing and returns what to say. foreign: a session it did not start is running, which is no
+// failed wake to count toward STALLED.
+func (m *Manager) wakeFailed(agent, session, why string, took, foreign bool) string {
+	if took {
+		// A record no session was handed would be typed at whichever live session the next wake finds, as if it had been parked.
+		check(db.ClearHandoff(m.Q, agent))
+	}
+	// The closed mark and resume_session are the whole way back. A wake that started nothing leaves both alone: the next attempt -
+	// work arriving, or the next restart - has nothing else to use.
+	must(db.AddEvent(m.Q, agent, "wake_failed", db.KV{K: "resume_session", V: nilIfEmpty(session)}, db.KV{K: "why", V: why}))
+	if foreign {
+		// The agent is running, so this is no failed wake to count toward STALLED; the sweep sees the session and clears the closed mark.
+		m.Log("  %s: %s; typed nothing more", agent, why)
+		return why
+	}
+	check(db.BumpCounter(m.Q, agent, "wake_failures", 1))
+	m.Log("  %s: %s; still closed", agent, why)
+	if f := must(db.GetAgentState(m.Q, agent)); f != nil && f.WakeFailures >= states.MaxFailedAttempts {
+		// Work arriving retries the wake every tick, so a launch that will never work is a loop that never ends and never says so.
+		// Three launches that started nothing is not the wall - that was turned away above - and not a resume that can be dropped,
+		// which the fallback above already did. It waits for a human, or for the sweep to see a session after all.
+		check(db.SetStalled(m.Q, agent, string(verdict.StuckWake), fmt.Sprintf("%d %s: %s", f.WakeFailures, WakeStall, why), map[string]string{"why": why}))
+		m.Log("  %s: STALLED after %d failed wakes", agent, f.WakeFailures)
+	}
+	return why
+}
+
+func ifTrue(b bool, s string) string {
+	if b {
+		return s
+	}
+	return ""
+}
+
+func nilIfEmpty(s string) any {
+	if s == "" {
+		return nil
+	}
+	return s
+}
+
+// tookPrompt is WaitForSession for a wake's launch, and the closed mark goes the moment a session has taken the prompt: what follows
+// holds the terminal until the session's first turn is over (up to two minutes), and a session that is running must not read as closed
+// meanwhile.
+func (m *Manager) tookPrompt(agent, promptFile string) bool {
+	up := m.Delivery.WaitForSession(agent, WakeSessionTimeoutS, promptFile)
+	if up {
+		check(db.ClearClosed(m.Q, agent))
+	}
+	return up
+}
+
+// ownLateSession is whether the agent's live session runs inside its recorded pane.
+func (m *Manager) ownLateSession(agent string) (bool, int) {
+	handle := must(db.Terminal(m.Q, agent))
+	if handle == "" || m.TermRun == nil {
+		return false, 0
+	}
+	sessions, ok := m.Observe.LiveSessions()
+	if !ok || sessions[agent] == 0 {
+		return false, 0
+	}
+	holds, known := m.TermRun.PaneHolds(handle, sessions[agent])
+	return known && holds, sessions[agent]
+}
+
+// launchInPane runs the launch command for agent: typed into the shell its last session left, or - a closed session's pane is closed
+// with it - in a new terminal in its worktree. started says whether a typed launch took.
+func (m *Manager) launchInPane(agent, handle, wt, cmd string, started func() bool) (bool, string) {
+	if handle != "" {
+		m.Spawn.Trust(agent, wt)
+		// Relaunch asks started right after the line is typed.
+		return m.Term.Relaunch(handle, cmd, func() bool { check(NoteLaunch(m.Q, m.OnLaunch, agent)); return started() })
+	}
+	ok, why, err := m.Spawn.StartIn(agent, wt, cmd)
+	check(err)
+	if ok && !started() {
+		return false, "the launch command was run but no session took its prompt"
+	}
+	if ok {
+		if nh := must(db.Terminal(m.Q, agent)); nh != "" {
+			m.Term.WaitDrawn(nh)
+		}
+	}
+	return ok, why
+}

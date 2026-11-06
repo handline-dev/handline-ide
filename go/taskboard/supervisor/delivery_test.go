@@ -1,0 +1,313 @@
+package supervisor
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/states"
+)
+
+func (r *rig) ask(from, to, body, kind string) int64 {
+	r.t.Helper()
+	out, err := r.Ask(r.DB, AskIn{Target: to, Body: body, Requester: from, Kind: kind})
+	r.must(err)
+	if !out.OK {
+		r.t.Fatalf("ask refused: %s", out.Message)
+	}
+	out.Finish()
+	return out.RID
+}
+
+func TestASayIsTypedWithItsLines(t *testing.T) {
+	r := newRig(t)
+	r.agentUp("bob")
+	out, err := r.Say(r.DB, SayIn{Target: "bob", Body: "Done:\n\n- one\x07\n- two\n", Requester: "alice"})
+	r.must(err)
+	head := mustReq(r, out.RID)
+	if got := r.ids(tellText(r.DB, head, 1, nil, false, nil, "")); !strings.HasPrefix(got, "#1 from alice, waiting for you:\nDone:\n\n- one\n- two\n`hl read #1`") {
+		t.Fatalf("%q", got)
+	}
+}
+
+func TestAHandoffNoteIsTypedWithItsLinesAndTheTitleOnItsOwn(t *testing.T) {
+	r := newRig(t)
+	r.agentUp("bob")
+	for note, want := range map[string]string{
+		"Step 1:\n- a\x07\n- b": "T1 handed to you. Note: Step 1:\n- a\n- b\nTitle: write the docs\n",
+		"check it":              "T1 handed to you. Note: check it Title: write the docs\n",
+	} {
+		head := mustReq(r, r.ask("alice", "bob", "T1 handed to you by alice: write the docs\n\n"+note, "task"))
+		if got := tellText(r.DB, head, 1, nil, false, nil, ""); !strings.Contains(got, "waiting for you:\n"+want) {
+			t.Errorf("%q", got)
+		}
+	}
+}
+
+func TestDeliverQueuedTellsTheHeadTaskThenBatchesWhatArrivesBehindIt(t *testing.T) {
+	r := newRig(t)
+	r.agentUp("bob")
+	head := r.task("bob", "alice", "first job")
+	sent, err := r.DeliverQueued(r.DB, "bob")
+	r.must(err)
+	if !sent {
+		t.Fatal("not delivered")
+	}
+	if n, _ := db.Cursor(r.DB, "notify:bob"); n != head {
+		t.Fatalf("notify cursor %d", n)
+	}
+	if got := r.term.last(); !strings.HasPrefix(got, "#1 from alice, waiting for you:\nfirst job\n`hl read #1` shows it whole; you own T1 now: hand it on with ") {
+		t.Fatalf("%q", got)
+	}
+	// two more arrive behind the open head: told as a batch, once a minute
+	r.task("bob", "alice", "second job")
+	r.task("bob", "alice", "third job")
+	r.term.typed = nil
+	if sent, _ := r.DeliverQueued(r.DB, "bob"); sent {
+		t.Fatal("a batch inside the minute")
+	}
+	r.clock += BatchEveryS
+	sent, _ = r.DeliverQueued(r.DB, "bob")
+	if !sent || !strings.HasPrefix(r.term.last(), "2 more tasks queued behind #1, which is still open:\n#2 from alice: second job\n#3 from alice: third job\n") {
+		t.Fatalf("%v %q", sent, r.term.last())
+	}
+	if sent, _ := r.DeliverQueued(r.DB, "bob"); sent {
+		t.Fatal("told twice")
+	}
+}
+
+func TestSeveralUntoldTasksGoOutAsOneBatchWithTheHeadFirst(t *testing.T) {
+	r := newRig(t)
+	r.agentUp("bob")
+	r.task("bob", "alice", "one")
+	r.task("bob", "alice", "two")
+	sent, _ := r.DeliverQueued(r.DB, "bob")
+	if !sent || !strings.HasPrefix(r.term.last(), "2 tasks waiting for you:\n#1 from alice: one\n#2 from alice: two\n`hl read <id>` shows one whole.") {
+		t.Fatalf("%v %q", sent, r.term.last())
+	}
+	if n, _ := db.Cursor(r.DB, "notify:bob"); n != 1 {
+		t.Fatal(n)
+	}
+}
+
+func TestDeliverQueuedExplainsWhyItIsHolding(t *testing.T) {
+	r := newRig(t)
+	r.agentUp("bob")
+	r.task("bob", "alice", "job")
+	r.Agents.(*sessionAgents).live["bob"] = false
+	if sent, _ := r.DeliverQueued(r.DB, "bob"); sent || len(r.term.typed) != 0 {
+		t.Fatal("told an agent with no session")
+	}
+	why, contestable, ok := r.HeldReason("bob", r.clock)
+	if !ok || why != "no live session" || contestable {
+		t.Fatalf("%q %v %v", why, contestable, ok)
+	}
+	if !r.logged("request 1 is held - no live session") {
+		t.Fatal(r.logs)
+	}
+	r.logs = nil
+	r.DeliverQueued(r.DB, "bob")
+	if r.logged("is held") {
+		t.Fatal("the same reason is logged on every tick")
+	}
+}
+
+func TestTheLoadHoldsATaskForAnAgentAtItsPromptButNotOneMidTurn(t *testing.T) {
+	r := newRig(t)
+	r.agentUp("bob")
+	r.task("bob", "alice", "job")
+	r.LoadHeld = func(string) string { return "held: machine load - 3 of 3 agents mid-turn" }
+	if sent, _ := r.DeliverQueued(r.DB, "bob"); sent || len(r.term.typed) != 0 {
+		t.Fatal("a task started a turn past the load")
+	}
+	if why, _, ok := r.HeldReason("bob", r.clock); !ok || why != "held: machine load - 3 of 3 agents mid-turn" {
+		t.Fatalf("%q %v", why, ok)
+	}
+	r.must(db.SetAgentState(r.DB, "bob", states.Running, 0, ""))
+	if sent, _ := r.DeliverQueued(r.DB, "bob"); !sent {
+		t.Fatal("an agent mid-turn was not told")
+	}
+}
+
+func TestDeliverQueuedToATerminalAgentSaysWhyItHolds(t *testing.T) {
+	t.Run("a live session through the peer inbox: delivered", func(t *testing.T) {
+		r := newRig(t)
+		r.agentUp("bob") // peer on is the default: the port answers structured and live
+		r.task("bob", "alice", "job")
+		if sent, err := r.DeliverQueued(r.DB, "bob"); err != nil || !sent || len(r.term.typed) != 1 {
+			t.Fatalf("%v %v %v", sent, err, r.term.typed)
+		}
+	})
+	t.Run("peer_inbox off with a live session: the reason names it", func(t *testing.T) {
+		r := newRig(t)
+		r.agentUp("bob")
+		r.Agents.(*sessionAgents).noPeer["bob"] = true
+		r.task("bob", "alice", "job")
+		if sent, _ := r.DeliverQueued(r.DB, "bob"); sent || len(r.term.typed) != 0 {
+			t.Fatal("told an agent nothing reaches")
+		}
+		why, _, ok := r.HeldReason("bob", r.clock)
+		if !ok || why != "peer_inbox is off in agent.yaml; nothing types any more" {
+			t.Fatalf("%q %v", why, ok)
+		}
+	})
+	t.Run("no live session: no live session", func(t *testing.T) {
+		r := newRig(t)
+		r.agentUp("bob")
+		r.Agents.(*sessionAgents).live["bob"] = false
+		r.task("bob", "alice", "job")
+		r.DeliverQueued(r.DB, "bob")
+		if why, _, ok := r.HeldReason("bob", r.clock); !ok || why != "no live session" {
+			t.Fatalf("%q %v", why, ok)
+		}
+	})
+}
+
+type noSession struct{ *fakeTerm }
+
+func (noSession) SessionOnScreen(string) (bool, bool) { return false, true }
+
+func TestEnforceEdgesDeniesWhatTheTableDoesNotAllow(t *testing.T) {
+	r := newRig(t)
+	r.agentUp("bob")
+	rid := r.ask("alice", "bob", "x", "")
+	// queued before the edges' relation, response and kind stopped being read: those are not the table's to check
+	r.DB.Exec("UPDATE requests SET edge_ok = NULL, relation = 'supervisor', response = 'fire_and_forget', kind = 'verdict' WHERE id = ?", rid)
+	deep := r.ask("alice", "bob", "y", "")
+	r.DB.Exec("UPDATE requests SET edge_ok = NULL, chain_depth = 4 WHERE id = ?", deep)
+	ok, err := r.EnforceEdges(r.DB, "bob")
+	r.must(err)
+	if !ok {
+		t.Fatal("untrusted")
+	}
+	if row, _ := db.GetRequest(r.DB, rid); row.State != "queued" || row.EdgeOK.Int64 != 1 {
+		t.Fatalf("%+v", row)
+	}
+	if row, _ := db.GetRequest(r.DB, deep); row.State != "denied" || row.Reason.String != "refused at delivery: chain depth 4 reached the limit 4 (loop guard)" {
+		t.Fatalf("%+v", row)
+	}
+	// a system name is not an agent's edge
+	sys, _ := db.AddRequest(r.DB, db.NewRequest{Requester: db.NoticeRequester, Target: "bob", Body: "s", Kind: "say"})
+	r.DB.Exec("UPDATE requests SET edge_ok = NULL WHERE id = ?", sys)
+	r.EnforceEdges(r.DB, "bob")
+	if row, _ := db.GetRequest(r.DB, sys); !row.EdgeOK.Valid || row.State != "queued" {
+		t.Fatalf("%+v", row)
+	}
+	// a changed team.yaml holds everything
+	os.WriteFile(filepath.Join(r.home, "team.yaml"), []byte(teamYAML+"# an agent wrote this\n"), 0o644)
+	if ok, _ := r.EnforceEdges(r.DB, "bob"); ok {
+		t.Fatal("trusted a changed table")
+	}
+	if !r.logged("nothing delivered - team.yaml is not trusted") {
+		t.Fatal(r.logs)
+	}
+}
+
+func TestResolvingAnAskTypesNothingAtItsAsker(t *testing.T) {
+	r := newRig(t)
+	r.agentUp("alice")
+	q := r.ask("alice", "bob", "what time is it", "ask")
+	ok, msg, err := r.Resolve(r.DB, ResolveIn{RID: q, Verdict: "noon"})
+	r.must(err)
+	if !ok || strings.Contains(msg, "alice") {
+		t.Fatal(ok, msg)
+	}
+	if last := r.term.last(); last != "" {
+		t.Fatalf("an answer is no longer typed at whoever asked: %q", last)
+	}
+}
+
+func TestWaitingPromptIsTheTellTheNextTickWouldType(t *testing.T) {
+	r := newRig(t)
+	r.agentUp("bob")
+	rid := r.ask("alice", "bob", "wake up", "ask")
+	text, told, ok, err := r.WaitingPrompt(r.DB, "bob")
+	r.must(err)
+	if !ok || !strings.HasPrefix(r.ids(text), "#1 from alice, waiting for you:\nwake up\n") {
+		t.Fatalf("%q", text)
+	}
+	if row, _ := db.GetRequest(r.DB, rid); !row.DeliveredAt.Valid {
+		t.Fatal("not marked delivered before the launch")
+	}
+	told("s7")
+	if n, _ := db.Cursor(r.DB, "notify:bob"); n != rid {
+		t.Fatal(n)
+	}
+	if s, _ := db.NotifiedSession(r.DB, "bob"); s != "s7" {
+		t.Fatal(s)
+	}
+	r.must(db.MarkLanded(r.DB, rid)) // the resumed session read it: it leaves the line
+	rid = r.ask("alice", "bob", "start fresh", "ask")
+	_, told, _, _ = r.WaitingPrompt(r.DB, "bob")
+	told("") // a fresh start: recorded as told to the session now live, so it is not told again
+	if s, _ := db.NotifiedSession(r.DB, "bob"); s != "s1" {
+		t.Fatal(s)
+	}
+	r.must(db.MarkLanded(r.DB, rid))
+	db.AddPending(r.DB, "bob", "a bare line", 5)
+	text, told, ok, _ = r.WaitingPrompt(r.DB, "bob")
+	if !ok || text != "a bare line" {
+		t.Fatal(text)
+	}
+	told("s7")
+	if rows, _ := db.ListPending(r.DB, "bob"); len(rows) != 0 {
+		t.Fatal("pending row kept")
+	}
+}
+
+// The task bob holds stays at the head of his queue once it has landed; the say behind it is what waits for the session that wakes him.
+func TestWaitingPromptPassesOverAHeldTaskToTheSayBehindIt(t *testing.T) {
+	r := newRig(t)
+	r.agentUp("bob")
+	held := r.task("bob", "alice", "the one bob holds")
+	if _, err := db.MarkDelivered(r.DB, held); err != nil {
+		t.Fatal(err)
+	}
+	r.must(db.MarkLanded(r.DB, held))
+	say := r.ask("task-board", "bob", "T9 is unblocked", "say")
+	text, _, ok, err := r.WaitingPrompt(r.DB, "bob")
+	r.must(err)
+	if !ok || !strings.Contains(text, "T9 is unblocked") {
+		t.Fatalf("%v %q", ok, text)
+	}
+	if row, _ := db.GetRequest(r.DB, say); !row.DeliveredAt.Valid {
+		t.Fatal("the say was not marked delivered")
+	}
+}
+
+// task opens a queued task for owner with the delivery request, as task new does.
+func (r *rig) task(owner, opener, title string) int64 {
+	r.t.Helper()
+	tid, err := db.NewTask(r.DB, title, owner, opener, 0, db.DefaultPriority, "", 0, "")
+	r.must(err)
+	db.SetTaskQueued(r.DB, tid, opener)
+	rid := r.ask(opener, owner, title, "task")
+	r.must(db.LinkRequest(r.DB, tid, rid))
+	return rid
+}
+
+func TestThePauseHoldsAnAgentsMessageToAnAgentAtItsPromptButNotAPersonsOrOneMidTurn(t *testing.T) {
+	r := newRig(t)
+	r.agentUp("bob")
+	paused := "Waiting: new work is paused."
+	r.Paused = func() string { return paused }
+	rid := r.ask("alice", "bob", "look at this", "ask")
+	if got, _ := r.TellNow(r.DB, rid); !strings.Contains(got, paused) || len(r.term.typed) != 0 {
+		t.Fatalf("an agent's message started a turn while paused: %q %v", got, r.term.typed)
+	}
+	if got, _ := r.TellNow(r.DB, r.ask(db.Human, "bob", "from the founder", "ask")); got != "sent" {
+		t.Fatalf("the founder's message was held: %q", got)
+	}
+	r.must(db.SetAgentState(r.DB, "bob", states.Running, 0, ""))
+	if got, _ := r.TellNow(r.DB, r.ask("alice", "bob", "mid-turn", "ask")); got != "sent" {
+		t.Fatalf("an agent mid-turn was not told: %q", got)
+	}
+	r.must(db.SetAgentState(r.DB, "bob", states.Idle, 0, ""))
+	paused = ""
+	r.must(r.TellUndelivered(r.DB, "bob"))
+	if row, _ := db.GetRequest(r.DB, rid); !row.DeliveredAt.Valid {
+		t.Fatal("the held message was not told after the pause")
+	}
+}

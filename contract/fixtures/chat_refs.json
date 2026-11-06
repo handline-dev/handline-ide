@@ -1,0 +1,393 @@
+{
+ "fixtures": [
+  {
+   "name": "chat.send.a_relative_ref_is_bad_request",
+   "spec": "chat.send",
+   "about": "A ref must be absolute: bad_request, field refs.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "chat.send",
+      "params": {
+       "agent": "{{ask_agent}}",
+       "body": "see these",
+       "refs": [
+        "notes/a.md"
+       ],
+       "request_id": "conf-rf-2"
+      }
+     },
+     "error": {
+      "code": {
+       "$oneOf": [
+        -32600,
+        -32602
+       ]
+      },
+      "data": {
+       "code": "bad_request",
+       "field": "refs"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "chat.send.a_ref_that_does_not_exist_is_not_found",
+   "spec": "chat.send",
+   "about": "A ref the daemon's machine has no file or folder at is not_found, and nothing is sent.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "chat.send",
+      "params": {
+       "agent": "{{ask_agent}}",
+       "body": "see these",
+       "refs": [
+        "/no/such/conformance/path"
+       ],
+       "request_id": "conf-rf-3"
+      }
+     },
+     "error": {
+      "code": -32001,
+      "data": {
+       "code": "not_found",
+       "what": "path"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "chat.send.refs_with_a_task_are_bad_request",
+   "spec": "chat.send",
+   "about": "Refs go with a message, not a task: bad_request.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "chat.send",
+      "params": {
+       "agent": "{{ask_agent}}",
+       "body": "see these",
+       "refs": [
+        "/tmp"
+       ],
+       "request_id": "conf-rf-4",
+       "task": {
+        "title": "look"
+       }
+      }
+     },
+     "error": {
+      "code": {
+       "$oneOf": [
+        -32600,
+        -32602
+       ]
+      },
+      "data": {
+       "code": "bad_request",
+       "field": "refs"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "chat.send.a_ref_is_kept_with_the_message",
+   "spec": "chat.send",
+   "about": "With chat_refs_need_grant off a ref is sent as it is, and ChatMessage.refs lists it. request.read gives it too, with whether it was a folder.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "chat.send",
+      "params": {
+       "agent": "{{ask_agent}}",
+       "body": "",
+       "refs": [
+        "/tmp"
+       ],
+       "request_id": "conf-rf-6"
+      }
+     },
+     "result": {
+      "accepted": true,
+      "request": {
+       "$save": "rid"
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "chat.messages",
+      "params": {
+       "agent": "{{ask_agent}}",
+       "scope": "mine"
+      }
+     },
+     "result": {
+      "messages": {
+       "$contains": {
+        "id": "{{rid}}",
+        "refs": [
+         "/tmp"
+        ]
+       }
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "request.read",
+      "params": {
+       "id": "{{rid}}"
+      }
+     },
+     "result": {
+      "refs": [
+       {
+        "path": "/tmp",
+        "folder": true
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "chat.send.refs_and_attachments_are_at_most_six",
+   "spec": "chat.send",
+   "about": "Refs count with attachments: five attachments and two refs is bad_request, field refs, though each list alone is under 6.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "attachment.put",
+      "params": {
+       "name": "n0.txt",
+       "mime": "text/plain",
+       "bytes": 7,
+       "data": "bm90ZSAwCg==",
+       "request_id": "conf-rf-10"
+      }
+     },
+     "result": {
+      "attachment": {
+       "id": {
+        "$regex": "^[0-9a-f]{16}$",
+        "$save": "a0"
+       }
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "attachment.put",
+      "params": {
+       "name": "n1.txt",
+       "mime": "text/plain",
+       "bytes": 7,
+       "data": "bm90ZSAxCg==",
+       "request_id": "conf-rf-11"
+      }
+     },
+     "result": {
+      "attachment": {
+       "id": {
+        "$regex": "^[0-9a-f]{16}$",
+        "$save": "a1"
+       }
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "attachment.put",
+      "params": {
+       "name": "n2.txt",
+       "mime": "text/plain",
+       "bytes": 7,
+       "data": "bm90ZSAyCg==",
+       "request_id": "conf-rf-12"
+      }
+     },
+     "result": {
+      "attachment": {
+       "id": {
+        "$regex": "^[0-9a-f]{16}$",
+        "$save": "a2"
+       }
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "attachment.put",
+      "params": {
+       "name": "n3.txt",
+       "mime": "text/plain",
+       "bytes": 7,
+       "data": "bm90ZSAzCg==",
+       "request_id": "conf-rf-13"
+      }
+     },
+     "result": {
+      "attachment": {
+       "id": {
+        "$regex": "^[0-9a-f]{16}$",
+        "$save": "a3"
+       }
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "attachment.put",
+      "params": {
+       "name": "n4.txt",
+       "mime": "text/plain",
+       "bytes": 7,
+       "data": "bm90ZSA0Cg==",
+       "request_id": "conf-rf-14"
+      }
+     },
+     "result": {
+      "attachment": {
+       "id": {
+        "$regex": "^[0-9a-f]{16}$",
+        "$save": "a4"
+       }
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "chat.send",
+      "params": {
+       "agent": "{{ask_agent}}",
+       "body": "see these",
+       "refs": [
+        "/tmp",
+        "/usr"
+       ],
+       "request_id": "conf-rf-15",
+       "attachments": [
+        "{{a0}}",
+        "{{a1}}",
+        "{{a2}}",
+        "{{a3}}",
+        "{{a4}}"
+       ]
+      }
+     },
+     "error": {
+      "code": {
+       "$oneOf": [
+        -32600,
+        -32602
+       ]
+      },
+      "data": {
+       "code": "bad_request",
+       "field": "refs"
+      }
+     }
+    }
+   ]
+  }
+ ]
+}

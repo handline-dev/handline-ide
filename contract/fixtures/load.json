@@ -1,0 +1,156 @@
+{
+ "fixtures": [
+  {
+   "name": "load.get.minutes_is_a_whole_number",
+   "spec": "load.get",
+   "about": "minutes that is not a whole number is refused, naming the field.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "load.get",
+      "params": {
+       "minutes": "60"
+      }
+     },
+     "error": {
+      "code": -32602,
+      "data": {
+       "code": "bad_request",
+       "field": "minutes"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "load.get.minutes_is_at_most_a_week",
+   "spec": "load.get",
+   "about": "More than the 7 days the minutes are kept (10080) is refused.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "load.get",
+      "params": {
+       "minutes": 10081
+      }
+     },
+     "error": {
+      "code": -32602,
+      "data": {
+       "code": "bad_request",
+       "field": "minutes"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "load.get.minutes_is_not_negative",
+   "spec": "load.get",
+   "about": "A negative window is refused.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "load.get",
+      "params": {
+       "minutes": -1
+      }
+     },
+     "error": {
+      "code": -32602,
+      "data": {
+       "code": "bad_request",
+       "field": "minutes"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "load.get.agent_is_a_string",
+   "spec": "load.get",
+   "about": "agent that is not a string is refused.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "load.get",
+      "params": {
+       "agent": 5
+      }
+     },
+     "error": {
+      "code": -32602,
+      "data": {
+       "code": "bad_request",
+       "field": "agent"
+      }
+     }
+    }
+   ]
+  }
+ ]
+}

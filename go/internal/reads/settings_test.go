@@ -1,0 +1,170 @@
+package reads
+
+import (
+	"os"
+	"path/filepath"
+	"reflect"
+	"strings"
+	"testing"
+
+	"github.com/handline/handline/go/kit/paths"
+	"github.com/handline/handline/go/taskboard/handoff"
+)
+
+func TestIsOurHookRecognisesTheCommandWhateverPathItWasWrittenWith(t *testing.T) {
+	t.Parallel()
+	for command, want := range map[string]bool{
+		"/usr/local/bin/hl hook Stop": true, "/x/handline hook Stop": true,
+		"hl hook SessionStart": false, "echo hook Stop": false, "hl Stop": false, "hook Stop": false,
+	} {
+		if got := isOurHook(command, "Stop"); got != want {
+			t.Errorf("%q: %v", command, got)
+		}
+	}
+	if isOurHook(42, "Stop") {
+		t.Error("a command that is not text is not ours")
+	}
+}
+
+func TestHooksInstalledNeedsOneOfOursForEveryWantedEvent(t *testing.T) {
+	t.Parallel()
+	home := t.TempDir()
+	e := &Env{Home: home}
+	if e.hooksInstalled() {
+		t.Fatal("no settings file: not installed")
+	}
+	write := func(events []string) {
+		hooks := []string{}
+		for _, ev := range events {
+			hooks = append(hooks, `"`+ev+`": [{"hooks": [{"type": "command", "command": "/p/hl hook `+ev+`"}]}]`)
+		}
+		dir := filepath.Join(home, "shared", ".claude")
+		os.MkdirAll(dir, 0o755)
+		os.WriteFile(filepath.Join(dir, "settings.json"), []byte(`{"hooks": {`+strings.Join(hooks, ",")+`}}`), 0o644)
+	}
+	write(hooksWanted[1:])
+	if e.hooksInstalled() {
+		t.Fatal("one event missing: not installed")
+	}
+	var noNotification []string
+	for _, ev := range hooksWanted {
+		if ev != "Notification" {
+			noNotification = append(noNotification, ev)
+		}
+	}
+	write(noNotification)
+	if e.hooksInstalled() {
+		t.Fatal("no Notification hook: not installed, or no needs-you card comes from it")
+	}
+	write(hooksWanted)
+	if !e.hooksInstalled() {
+		t.Fatal("every event has our entry: installed")
+	}
+	os.WriteFile(filepath.Join(home, "shared", ".claude", "settings.json"), []byte("{not json"), 0o644)
+	if e.hooksInstalled() {
+		t.Fatal("a file that cannot be read is not installed")
+	}
+}
+
+func TestSettingsShowTheHandoffPromptAsSetOrTheBuiltInAndAnAgentsOwn(t *testing.T) {
+	t.Parallel()
+	e := testEnv(t)
+	os.MkdirAll(filepath.Join(e.Home, "agents", "ann"), 0o755)
+	writeAgentYAML(t, e, "ann", "role: r\nhandoff_prompt: \"ann: {path}\"\n")
+	get := func(agent string) map[string]any {
+		t.Helper()
+		params := map[string]any{}
+		if agent != "" {
+			params["agent"] = agent
+		}
+		out, err := e.settingsGet(nil, params)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return out.(map[string]any)
+	}
+	if got := get("")["values"].(map[string]any)[handoff.PromptKey]; got != handoff.AskTemplate {
+		t.Fatalf("unset: %q", got)
+	}
+	os.WriteFile(paths.ConfigFile(e.Home), []byte("handoff_prompt: \"Mine: {path}\"\n"), 0o644)
+	if got := get("")["values"].(map[string]any)[handoff.PromptKey]; got != "Mine: {path}" {
+		t.Fatalf("set: %q", got)
+	}
+	if got := get("ann")["overrides"].(map[string]any)[handoff.PromptKey]; got != "ann: {path}" {
+		t.Fatalf("ann's own: %q", got)
+	}
+	// the built-in text stays beside the value once one is set, and the agents with their own are named; neither is part of one agent's view
+	all := get("")
+	if all["handoff_prompt_default"] != handoff.AskTemplate || !reflect.DeepEqual(all["handoff_prompt_own"], []string{"ann"}) {
+		t.Fatalf("%v %v", all["handoff_prompt_default"], all["handoff_prompt_own"])
+	}
+	if _, ok := get("ann")["handoff_prompt_own"]; ok {
+		t.Fatal("an agent's view carries the roster")
+	}
+}
+
+func TestTheOffByDefaultSwitchesAreOffUntilTheFounderTurnsThemOn(t *testing.T) {
+	t.Parallel()
+	for _, key := range []string{"context_clear_past_background", "chat_transcript_rows", "blocker_alarm"} {
+		e := testEnv(t)
+		value := func() any {
+			t.Helper()
+			out, err := e.settingsGet(nil, map[string]any{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			return out.(map[string]any)["values"].(map[string]any)[key]
+		}
+		if value() != false {
+			t.Fatalf("%s shown as %v by default", key, value())
+		}
+		os.WriteFile(paths.ConfigFile(e.Home), []byte(key+": true\n"), 0o644)
+		if value() != true {
+			t.Fatalf("%s turned on, shown as %v", key, value())
+		}
+	}
+}
+
+func TestEveryNotificationKindPushesUntilTheFounderTurnsItOff(t *testing.T) {
+	t.Parallel()
+	e := testEnv(t)
+	kinds := []string{"push_prompt_asked", "push_task_done", "push_stall", "push_account_out"}
+	values := func() map[string]any {
+		t.Helper()
+		out, err := e.settingsGet(nil, map[string]any{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return out.(map[string]any)["values"].(map[string]any)
+	}
+	for _, k := range kinds {
+		if values()[k] != true {
+			t.Fatalf("%s is off by default", k)
+		}
+	}
+	for _, off := range kinds {
+		os.WriteFile(paths.ConfigFile(e.Home), []byte(off+": false\n"), 0o644)
+		for _, k := range kinds {
+			if v := values(); v[k] != (k != off) {
+				t.Fatalf("%s turned off: %s is %v", off, k, v[k])
+			}
+		}
+	}
+}
+
+func TestTheLoadLimitsShowTheirDefaultsAndWhatIsSet(t *testing.T) {
+	t.Parallel()
+	home := t.TempDir()
+	e := &Env{Home: home}
+	v := e.settingsValues()
+	if v["host_active_cap"] != 0 || v["load_per_core_pct"] != 0 || v["ram_free_min_pct"] != 0 || v["disk_free_min_gb"] != 0 {
+		t.Fatalf("defaults: %v %v %v", v["host_active_cap"], v["load_per_core_pct"], v["ram_free_min_pct"])
+	}
+	if v["simulator_max"] != 0 || v["browser_max"] != 0 {
+		t.Fatalf("lease defaults: %v %v", v["simulator_max"], v["browser_max"])
+	}
+	os.WriteFile(filepath.Join(home, "config.yaml"), []byte("host_active_cap: 4\nload_per_core_pct: 150\nbrowser_max: 1\n"), 0o644)
+	if v = e.settingsValues(); v["host_active_cap"] != 4 || v["load_per_core_pct"] != 150 || v["browser_max"] != 1 {
+		t.Fatalf("set: %v %v %v", v["host_active_cap"], v["load_per_core_pct"], v["browser_max"])
+	}
+}

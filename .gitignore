@@ -1,0 +1,24 @@
+__pycache__/
+*.pyc
+
+# local only, kept on disk
+KICKOFF.md
+handoff.md
+phase0/
+docs/phase-reports.md
+docs/vendor-extension-board.md
+
+# built Go daemon
+/go/handlined
+/go/cmd/handlined/handlined
+/go/hl
+/go/hl.src
+
+node_modules/
+.turbo/
+dist/
+.pnpm-store/
+.DS_Store
+/go/cmd/hl/hl
+apps/electron/release/
+storybook-static/

@@ -1,0 +1,191 @@
+// The fake daemon's workroom: worktree.set_status, which labels a row of the admin surface's worktrees, and agent.create, a long-running
+// operation that registers an agent, makes its worktree and starts it, reported on the operations topic.
+import type { AgentOptions, Operation, Repo, Timestamp } from '@handline/contract';
+import { AGENTS, type AgentFixture } from '#src/fixtures.ts';
+import { Failure, invalidParams, refused } from '#src/errors.ts';
+import { newSession, view, type Session } from '#src/session.ts';
+import type { FakeWorktrees } from '#src/worktrees.ts';
+
+/** What the workroom needs of the daemon that hosts it: its topics, its agents and the repos and worktrees of its admin surface. */
+interface Host {
+  emit(topic: 'operations' | 'agents', type: string, f: { agent?: string; title?: string; data: Record<string, unknown> }): void;
+  sessions: Map<string, Session>;
+  admin: { worktrees: FakeWorktrees };
+  accounts: { list(): { accounts: { name: string; login_state: string }[] } };
+}
+type Accepted = (said: string, extra?: object) => unknown;
+
+const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'];
+const MODELS = ['fable', 'mythos', 'opus', 'sonnet', 'haiku'];
+const ROLE_NOTES: Record<string, string> = {
+  implementer: 'Builds a change on a branch and opens the pull request.',
+  architect: 'Plans and reviews the design; does not build.',
+  auditor: 'Reviews a branch before it goes up.',
+};
+/** Agents the team file names that have no session yet: what the form suggests as a name. */
+const TEAM_NAMES = ['handline.new-builder', 'handline.new-reviewer'];
+const STEPS = ['registering the agent', 'making its worktree', 'starting the agent'];
+const METHODS = /^(worktree\.set_status|agent\.create|agent\.options|operation\.get)$/;
+
+export class FakeWork {
+  /** How long each step of agent.create takes; a test that wants to see a step sets it. */
+  stepMs = 0;
+  /** Makes each step of agent.create wait until the test calls the returned function: one call lets one step finish. */
+  stepByStep(): () => void {
+    this.gates = [];
+    return () => this.gates?.shift()?.();
+  }
+  private gates: (() => void)[] | null = null;
+  private ops = new Map<string, Operation>();
+  private count = 0;
+
+  private host: Host;
+  private now: () => Timestamp;
+
+  constructor(host: Host, now: () => Timestamp) {
+    this.host = host;
+    this.now = now;
+  }
+
+  owns = (name: string): boolean => METHODS.test(name);
+  lists = (): boolean => true;
+
+  call(method: string, p: Record<string, unknown>, accepted: Accepted): unknown {
+    switch (method) {
+      case 'worktree.set_status':
+        return this.setStatus(p, accepted);
+      case 'operation.get':
+        return this.operation(p.operation);
+      case 'agent.options':
+        return this.options();
+      default:
+        return this.create(p, accepted);
+    }
+  }
+
+  private setStatus(p: Record<string, unknown>, accepted: Accepted) {
+    if (typeof p.path !== 'string' || !p.path) throw invalidParams('path is a worktree path', 'path');
+    if (typeof p.status !== 'string' || !p.status || p.status.length > 40)
+      throw invalidParams('status is a label of 1 to 40 characters', 'status');
+    const row = this.host.admin.worktrees.rows.find((w) => w.path === p.path);
+    if (!row) throw notFound(`${p.path} is not a worktree an agent works in`, 'worktree');
+    row.status = p.status;
+    return accepted(`Status is ${p.status}.`);
+  }
+
+  /** agent.options: what the new-agent form offers, from the fake's repos, agents, accounts and the team's free names. */
+  private options(): AgentOptions {
+    const { sessions, admin } = this.host;
+    return {
+      repos: admin.worktrees.repos.map((r) => ({ ...r })),
+      roles: [...new Set([...sessions.values()].map((s) => s.fx.role))].map((r) => ({ name: r, description: ROLE_NOTES[r] ?? r })),
+      models: MODELS,
+      efforts: EFFORTS,
+      accounts: this.host.accounts.list().accounts.map((a) => ({ name: a.name, login_state: a.login_state })),
+      free_names: TEAM_NAMES.filter((n) => !sessions.has(n)),
+    };
+  }
+
+  private operation(id: unknown): Operation {
+    if (typeof id !== 'string') throw invalidParams('operation is a string', 'operation');
+    const op = this.ops.get(id);
+    if (!op) throw notFound(`no operation ${id}`, 'operation');
+    return { ...op };
+  }
+
+  private create(p: Record<string, unknown>, accepted: Accepted) {
+    const { name, role, repo, base, parent } = p;
+    if (typeof name !== 'string' || !/^[^./\s][^/\s]*$/.test(name))
+      throw invalidParams('name is plain text: no /, no leading . and no spaces', 'name');
+    if (typeof role !== 'string' || !role) throw invalidParams('role is the agent’s role, a string', 'role');
+    for (const k of ['model', 'base', 'parent', 'repo'] as const)
+      if (p[k] !== undefined && typeof p[k] !== 'string') throw invalidParams(`${k} is a string`, k);
+    if (p.effort !== undefined && !EFFORTS.includes(String(p.effort)))
+      throw invalidParams(`effort is one of ${EFFORTS.join(', ')}`, 'effort');
+    if (p.account !== undefined && typeof p.account !== 'string') throw invalidParams('account is a string', 'account');
+    if (p.account !== undefined && !this.host.accounts.list().accounts.some((a) => a.name === p.account))
+      throw notFound(`no account ${p.account}`, 'account');
+    const found = this.host.admin.worktrees.repos.find((r) => r.path === repo);
+    if (!found) throw notFound(`no repo ${String(repo)}`, 'repo');
+    if (parent !== undefined && !this.host.sessions.has(String(parent))) throw notFound(`no agent ${String(parent)}`, 'agent');
+    if (parent !== undefined && !name.startsWith(`${String(parent)}.`))
+      throw invalidParams(`under ${String(parent)} the name is ${String(parent)}.<name>`, 'name');
+    if (this.host.sessions.has(name)) throw refused('state', `${name} is already an agent`);
+    const id = `op-${++this.count}`;
+    const op: Operation = {
+      id,
+      kind: 'agent.create',
+      state: 'running',
+      step: null,
+      steps_done: 0,
+      steps_total: STEPS.length,
+      message: null,
+      result: null,
+      agent: name,
+    };
+    this.ops.set(id, op);
+    const fx: AgentFixture = {
+      ...AGENTS[0]!,
+      name,
+      role,
+      state: 'parked',
+      account: typeof p.account === 'string' ? p.account : null,
+      task: null,
+      parent: typeof parent === 'string' ? parent : null,
+      worktree: `${found.path}.${name}`,
+      branch: `agent/${name}`,
+      session: null,
+    };
+    setImmediate(() => void this.run(op, fx, typeof base === 'string' ? base : 'main', found));
+    return accepted(`Creating ${name}.`, { operation: id });
+  }
+
+  private async run(op: Operation, fx: AgentFixture, base: string, repo: Repo): Promise<void> {
+    const report = (o: Partial<Operation>) => {
+      Object.assign(op, o);
+      this.host.emit('operations', 'operation.progress', { agent: fx.name, title: `Creating ${fx.name}`, data: { ...op } });
+    };
+    report({ step: STEPS[0] });
+    await this.wait();
+    const s = newSession(fx, this.now());
+    this.host.sessions.set(fx.name, s);
+    this.host.emit('agents', 'agent.changed', { agent: fx.name, data: view(s) as unknown as Record<string, unknown> });
+    report({ steps_done: 1, step: STEPS[1] });
+    await this.wait();
+    if (base !== repo.default_branch)
+      return report({ state: 'failed', message: `no branch ${base} in ${repo.name}`, result: { agent: fx.name, registered: true } });
+    this.addRow(fx, repo);
+    report({ steps_done: 2, step: STEPS[2] });
+    await this.wait();
+    const up = newSession({ ...fx, state: 'idle', session: `s-${fx.name}` }, this.now());
+    this.host.sessions.set(fx.name, up);
+    this.host.emit('agents', 'agent.changed', { agent: fx.name, data: view(up) as unknown as Record<string, unknown> });
+    report({ state: 'done', steps_done: 3, step: null, message: null, result: { agent: fx.name, registered: true } });
+  }
+
+  /** The worktree the operation made: a row of worktrees.list, and a child of its parent's. */
+  private addRow(fx: AgentFixture, repo: Repo): void {
+    const { rows } = this.host.admin.worktrees;
+    const parent = rows.find((w) => w.owner === fx.parent);
+    parent?.children.push(fx.worktree);
+    rows.push({
+      path: fx.worktree,
+      repo: repo.name,
+      branch: fx.branch,
+      owner: fx.name,
+      parent: parent?.path ?? null,
+      children: [],
+      status: 'todo',
+      changed: [],
+      base: 'main',
+      files_changed: 0,
+      commits_ahead: 0,
+      size_bytes: null,
+      pr: null,
+    });
+  }
+
+  private wait = (): Promise<void> => new Promise((done) => (this.gates ? this.gates.push(done) : setTimeout(done, this.stepMs)));
+}
+
+const notFound = (message: string, what: string) => new Failure('not_found', message, { what });

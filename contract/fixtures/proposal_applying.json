@@ -1,0 +1,215 @@
+{
+ "fixtures": [
+  {
+   "name": "proposal.decide.a_rename_of_a_running_agent_answers_once_it_is_applied",
+   "spec": "proposal.decide",
+   "as": "founder",
+   "with": {
+    "lead": "agent"
+   },
+   "about": "Approving a rename of an agent mid-turn: the call waits while the proposal is applying with the agent in waiting_on (other calls are answered meanwhile), and answers once the turn ended and the rename is applied: the old name is gone and the new one has a session. Needs --var proposal_turn_agent (an agent a proposal may rename, mid-turn in a turn that ends on its own 20 to 60 s after the fixture starts) and proposal_turn_rename_to (a free name).",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "on": "lead",
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "subscribe",
+      "params": {
+       "topics": [
+        "proposals"
+       ]
+      }
+     },
+     "result": {
+      "cursor": {
+       "$type": "integer"
+      }
+     }
+    },
+    {
+     "on": "lead",
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "proposal.propose",
+      "params": {
+       "kind": "rename",
+       "args": {
+        "name": "{{proposal_turn_agent}}",
+        "to": "{{proposal_turn_rename_to}}"
+       },
+       "why": "conformance: a rename waits for the turn",
+       "request_id": "conf-proposal-applying-1"
+      }
+     },
+     "result": {
+      "accepted": true,
+      "proposal": {
+       "$save": "applying_id"
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "proposal.list",
+      "params": {
+       "state": "open"
+      }
+     },
+     "result": {
+      "proposals": {
+       "$contains": {
+        "id": "{{applying_id}}",
+        "subject": {
+         "$save": "applying_subject"
+        }
+       }
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "proposal.decide",
+      "params": {
+       "proposal": "{{applying_id}}",
+       "decision": "approve",
+       "subject": "{{applying_subject}}",
+       "request_id": "conf-proposal-applying-2"
+      }
+     },
+     "notices": [
+      {
+       "jsonrpc": "2.0",
+       "method": "event",
+       "params": {
+        "topic": "proposals",
+        "type": "proposal.settled",
+        "data": {
+         "proposal": {
+          "id": "{{applying_id}}",
+          "state": "applying",
+          "waiting_on": [
+           "{{proposal_turn_agent}}"
+          ],
+          "settled": null
+         }
+        }
+       }
+      }
+     ]
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "proposal.list",
+      "params": {
+       "state": "applying"
+      }
+     },
+     "result": {
+      "proposals": {
+       "$contains": {
+        "id": "{{applying_id}}",
+        "state": "applying"
+       }
+      }
+     },
+     "within_s": 5
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "proposal.decide",
+      "params": {
+       "proposal": "{{applying_id}}",
+       "decision": "approve",
+       "subject": "{{applying_subject}}",
+       "request_id": "conf-proposal-applying-3"
+      }
+     },
+     "error": {
+      "code": -32002,
+      "data": {
+       "code": "refused",
+       "gate": "proposal_settled"
+      }
+     },
+     "within_s": 5
+    },
+    {
+     "await": 4,
+     "result": {
+      "accepted": true,
+      "said": {
+       "$regex": "{{proposal_turn_rename_to}}"
+      }
+     },
+     "within_s": 90,
+     "at_least_s": 10
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "agent.get",
+      "params": {
+       "agent": "{{proposal_turn_rename_to}}"
+      }
+     },
+     "result": {
+      "name": "{{proposal_turn_rename_to}}",
+      "session_open": true
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "agent.get",
+      "params": {
+       "agent": "{{proposal_turn_agent}}"
+      }
+     },
+     "error": {
+      "code": -32001,
+      "data": {
+       "code": "not_found"
+      }
+     }
+    }
+   ]
+  }
+ ]
+}

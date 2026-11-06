@@ -1,0 +1,255 @@
+package supervisor
+
+import (
+	"encoding/json"
+	"fmt"
+	"strings"
+
+	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/states"
+	"github.com/handline/handline/go/data/team"
+)
+
+// A task waiting for its owner always says why (daemon/taskholds.py). Each tick this reads the facts the delivery paths already weigh as one level
+// and keeps a line per waiting task in meta, for readers in other processes. A reason is a cause (behind another task, blocked, mid-turn, closed,
+// usage limit, dialog, no terminal) or "the owner can take it". Past AbleWarnS in that second state the cause is unnamed: the owner's lead is
+// told once.
+
+const (
+	// HoldPrefix names the meta rows.
+	HoldPrefix = "taskhold:"
+	// AbleWarnS: owner able, task still waiting: this long is a missed delivery, not a tick's delay.
+	AbleWarnS = 300
+)
+
+func holdKey(tid int64) string { return fmt.Sprintf("%s%d", HoldPrefix, tid) }
+
+// holdRec is one kept line: why a task waits and the one word for its cause (Task.waiting.on), whether the owner looks able, since when, and
+// the clocks of the warning.
+type holdRec struct {
+	Why       string
+	On        string
+	Able      bool
+	Since     int64
+	AbleSince *int64
+	Warned    *int64
+	order     []string
+}
+
+// readHold parses the record a Python or Go sweep kept; nil when there is none or it is not an object.
+func readHold(q db.Q, tid int64) *holdRec {
+	raw, found := ok2(db.Meta(q, holdKey(tid)))
+	if !found || raw == "" {
+		return nil
+	}
+	var m map[string]json.RawMessage
+	if json.Unmarshal([]byte(raw), &m) != nil {
+		return nil
+	}
+	rec := &holdRec{}
+	for k, v := range m {
+		switch k {
+		case "why":
+			json.Unmarshal(v, &rec.Why)
+		case "on":
+			json.Unmarshal(v, &rec.On)
+		case "able":
+			json.Unmarshal(v, &rec.Able)
+		case "since":
+			json.Unmarshal(v, &rec.Since)
+		case "able_since":
+			var n int64
+			if json.Unmarshal(v, &n) == nil {
+				rec.AbleSince = &n
+			}
+		case "warned":
+			var n int64
+			if json.Unmarshal(v, &n) == nil {
+				rec.Warned = &n
+			}
+		}
+	}
+	return rec
+}
+
+// write is the record as Python's json.dumps writes it, so a Python reader sees the same text.
+func (r *holdRec) write(q db.Q, tid int64) {
+	yes := map[bool]string{true: "true", false: "false"}
+	parts := []string{fmt.Sprintf(`"why": %s`, pyQuote(r.Why)), fmt.Sprintf(`"on": %s`, pyQuote(r.On)), fmt.Sprintf(`"able": %s`, yes[r.Able]),
+		fmt.Sprintf(`"since": %d`, r.Since)}
+	if r.AbleSince != nil {
+		parts = append(parts, fmt.Sprintf(`"able_since": %d`, *r.AbleSince))
+	}
+	if r.Warned != nil {
+		parts = append(parts, fmt.Sprintf(`"warned": %d`, *r.Warned))
+	}
+	check(db.SetMeta(q, holdKey(tid), "{"+strings.Join(parts, ", ")+"}"))
+}
+
+// AgentReason is why work is not reaching the agent, and whether it looks able to take it: the daemon's own gates in the order it meets them.
+// ("", true) when nothing is in the way.
+func (e *Env) agentReason(q db.Q, agent string, now int64) (string, bool) {
+	row := stateOf(q, agent)
+	if failed := e.FailedReason(agent, now); failed != "" {
+		return failed, false
+	}
+	if blk := must(db.BlockGet(q, agent)); blk != nil {
+		return e.Dialogs.Reason(blk.Kind, blk.Detail), false
+	}
+	if why, _ := e.Stuck.DeliveryBlock(q, agent); why != "" {
+		return why, false
+	}
+	if row != nil && e.Waits.WaitingOnPrompt(q, row) {
+		return agent + " is waiting on a permission prompt", false
+	}
+	if e.clearOwed(q, agent) != 0 {
+		return agent + " owes a context clear first (background work is still running)", false
+	}
+	if why, contestable, ok := e.HeldReason(agent, now); ok {
+		// The state says idle and the screen says otherwise: that misread is exactly this.
+		return why, contestable && row != nil && (row.State == states.Idle || row.State == states.Queued)
+	}
+	return "", true
+}
+
+// TaskReason is why the task, queued or doing, has not been given to its owner, its cause (task, wall, cap or owner), and whether the owner
+// looks able to take it. ok false when it has been (typed, or nothing is waiting to type).
+func (e *Env) taskReason(q db.Q, t *db.Task, now int64) (why, cause string, able, ok bool) {
+	tid, agent := t.ID, t.Owner
+	linked := must(db.TaskRequests(q, tid))
+	var req *db.Request
+	for _, r := range linked {
+		if db.Asks(r) && r.Target == agent {
+			req = r
+			break
+		}
+	}
+	if agent == db.Human || agent == db.Gate || t.Ended() || (!(t.QueuedBy.Valid && t.QueuedBy.String != "") && req == nil) {
+		return "", "", false, false
+	}
+	if blockers := must(db.TaskBlockers(q, tid)); len(blockers) > 0 {
+		return "blocked by " + taskNames(blockers), "task", false, true
+	}
+	if kids := must(db.OpenChildTasks(q, tid)); len(kids) > 0 {
+		return "waits on its child " + taskNames(kids), "task", false, true
+	}
+	if !e.registered(agent) {
+		return agent + " is not registered - nothing will take it", "owner", false, true
+	}
+	holds := must(db.HoldsCurrent(q, t))
+	if !holds || (req == nil && must(db.CurrentTaskStillAsking(q, agent))) {
+		why := must(db.ChildWait(q, agent))
+		if why == "" {
+			why = must(db.BlockWait(q, agent))
+		}
+		if why == "" {
+			why = "still open"
+		}
+		cur, _ := ok2(db.CurrentTask(q, agent))
+		return fmt.Sprintf("behind T%d, which %s holds (%s)", cur, agent, why), "owner", false, true
+	}
+	if req == nil {
+		var kind, payload string
+		err := q.QueryRow("SELECT kind, payload FROM events WHERE CASE WHEN json_valid(payload) THEN json_extract(payload, '$.task_id') END = ? ORDER BY id DESC LIMIT 1", tid).Scan(&kind, &payload)
+		if err == nil && kind == "task_deliver_refused" {
+			var p struct {
+				Why any `json:"why"`
+			}
+			json.Unmarshal([]byte(payload), &p)
+			return fmt.Sprintf("its delivery was refused: %s", pyStr(p.Why)), "owner", false, true
+		}
+		return states.Ready, "owner", true, true
+	}
+	if req.DeliveredAt.Valid && req.DeliveredAt.Int64 != 0 {
+		return "", "", false, false
+	}
+	if head := e.effectiveHead(q, agent); head != nil && head.ID != req.ID {
+		return fmt.Sprintf("behind an earlier message, which %s has not resolved", agent), "owner", false, true
+	}
+	if why, able := e.agentReason(q, agent, now); why != "" {
+		return why, e.ownerCause(q, agent), able, true
+	}
+	return states.Ready, "owner", true, true
+}
+
+// ownerCause is the cause of a wait on the owner itself: wall when its account is at a usage limit, cap when the account has no free slot,
+// else owner.
+func (e *Env) ownerCause(q db.Q, agent string) string {
+	if e.wallReason(q, agent, nil) != "" {
+		return "wall"
+	}
+	if c := must(e.Lifecycle.AccountWait(q, agent)); c != "" {
+		return c
+	}
+	return "owner"
+}
+
+func taskNames(ts []*db.Task) string {
+	parts := make([]string, len(ts))
+	for i, t := range ts {
+		parts[i] = fmt.Sprintf("T%d (%s)", t.ID, t.Owner)
+	}
+	return strings.Join(parts, ", ")
+}
+
+func pyStr(v any) string {
+	if v == nil {
+		return "None"
+	}
+	return fmt.Sprint(v)
+}
+
+// SweepHolds records why each waiting task waits, drops what no longer waits, and tells the owner's lead once of a task whose owner could take it
+// and does not.
+func (e *Env) SweepHolds(now int64) (err error) {
+	defer Catch(&err)
+	q := db.Q(e.DB)
+	seen := map[int64]bool{}
+	for _, t := range must(db.OpenTasks(q)) {
+		why, cause, able, found := e.taskReason(q, t, now)
+		if !found {
+			continue
+		}
+		tid := t.ID
+		seen[tid] = true
+		rec := readHold(q, tid)
+		if rec == nil {
+			rec = &holdRec{}
+		}
+		changed := rec.Why != why || rec.On != cause || rec.Able != able || readHold(q, tid) == nil
+		if changed {
+			wasAble := rec.Able
+			rec.Why, rec.On, rec.Able, rec.Since = why, cause, able, now
+			if able && !wasAble {
+				rec.AbleSince = &now
+			}
+			if !able {
+				rec.AbleSince, rec.Warned = nil, nil
+			}
+		}
+		ableSince := now
+		if rec.AbleSince != nil {
+			ableSince = *rec.AbleSince
+		}
+		if able && rec.Warned == nil && now-ableSince >= AbleWarnS {
+			if lead := must(team.LoadTeam(e.Home)).LeadOf(t.Owner); lead != "" && lead != db.Human && e.registered(lead) {
+				must(e.Notice(q, lead, fmt.Sprintf("T%d has waited %d min for %s, which looks able to take it (%s). Delivery should have landed it - this is a missed delivery, not a queue.",
+					tid, (now-ableSince)/60, t.Owner, why), "queued task not landing"))
+			}
+			rec.Warned = &now
+			changed = true
+			e.log("  T%d: waited %d min for an owner that looks able - its lead told", tid, AbleWarnS/60)
+		}
+		if changed {
+			rec.write(q, tid)
+		}
+	}
+	for _, name := range must(db.MetaNames(q, HoldPrefix)) {
+		var tid int64
+		fmt.Sscan(name[len(HoldPrefix):], &tid)
+		if !seen[tid] {
+			check(db.ClearMeta(q, name))
+		}
+	}
+	return nil
+}

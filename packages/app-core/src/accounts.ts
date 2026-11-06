@@ -1,0 +1,133 @@
+// What an account's usage windows say, for the gauge cards and the usage popup: the bar's colour, how far through the window we are,
+// the reset in words, and how long the rest lasts at the pace so far. Pure: the page passes the time.
+import type { Account, Window } from '@handline/client';
+import { dateTime } from '#src/time.ts';
+
+export const FIVE_HOURS_MS = 5 * 3_600_000;
+export const WEEK_MS = 7 * 86_400_000;
+
+/** The bridge's gauge thresholds (`gauge.py`): from 60% the bar warns, from 85% it is failing. */
+export type Tone = 'ok' | 'warn' | 'bad';
+export const toneOf = (pct: number): Tone => (pct >= 85 ? 'bad' : pct >= 60 ? 'warn' : 'ok');
+
+export interface Gauge {
+  pct: number;
+  tone: Tone;
+  /** How far through the window the clock is, 0 to 100, or null when the reset is unknown. */
+  through: number | null;
+  /** Milliseconds to the reset, or null. */
+  resetIn: number | null;
+  /** Milliseconds until the window is full at the pace so far; null with no pace to go on or when the reset comes first. */
+  runway: number | null;
+  /** The number's source ("measured", "estimated"). */
+  source: string;
+}
+
+export function gaugeOf(w: Window, spanMs: number, now: number): Gauge {
+  const pct = Math.min(100, Math.max(0, Math.round(w.used_pct)));
+  const resetIn = w.resets_at ? Math.max(0, Date.parse(w.resets_at) - now) : null;
+  const elapsed = resetIn === null ? null : Math.min(spanMs, Math.max(0, spanMs - resetIn));
+  const through = elapsed === null ? null : Math.round((elapsed / spanMs) * 100);
+  let runway: number | null = null;
+  if (elapsed && pct > 0) {
+    const left = ((100 - pct) / pct) * elapsed;
+    runway = resetIn !== null && left >= resetIn ? null : left;
+  }
+  return { pct, tone: toneOf(pct), through, resetIn, runway, source: w.source };
+}
+
+/** The popup's warning for an account (docs/story9-my-turn.md 9-3): amber from 90% of the 5 h window or when the agents stop before it resets, red from 95% or in under 15 minutes. */
+export interface Headroom {
+  tone: Tone;
+  /** When agents stop at this rate (ms since the epoch); null when the daemon gave no stop time (stale reading, no burn, or the window resets first). */
+  stopAt: number | null;
+}
+export function headroom(five: Window | null, runsOutInSeconds: number | null, now: number): Headroom {
+  const pct = five?.used_pct ?? 0;
+  const reset = five?.resets_at ? Date.parse(five.resets_at) : NaN;
+  const at = runsOutInSeconds === null ? null : now + runsOutInSeconds * 1000;
+  const stopAt = at !== null && Number.isFinite(reset) && at >= reset ? null : at;
+  const red = pct >= 95 || (runsOutInSeconds !== null && runsOutInSeconds < 15 * 60);
+  const amber = pct >= 90 || (stopAt !== null && Number.isFinite(reset) && stopAt < reset);
+  return { tone: red ? 'bad' : amber ? 'warn' : 'ok', stopAt };
+}
+
+export type AccountState = 'needs_login' | 'out' | 'in_use' | 'idle' | 'unknown';
+export const STATE_WORD: Record<AccountState, string> = {
+  needs_login: 'login needed',
+  out: 'out',
+  in_use: 'in use',
+  idle: 'idle',
+  unknown: 'unknown',
+};
+
+/** A plain word for each error that stalls an account; one the daemon does not name shows as it is. */
+const STALL_WORD: Record<string, string> = {
+  authentication_failed: 'login expired',
+  oauth_org_not_allowed: 'organization not allowed',
+  account_on_hold: 'account on hold',
+  verification_required: 'verification needed',
+  billing_error: 'billing problem',
+  cloud_credential_error: 'cloud credentials problem',
+};
+export const stallWord = (s: { reason: string; error: string }): string => STALL_WORD[s.error] ?? STALL_WORD[s.reason] ?? s.reason;
+
+/** The state chip: login first, then a full window (out until it resets), then whether agents sit on it. */
+export function stateOf(a: Account): AccountState {
+  if (a.login_state === 'needs_login') return 'needs_login';
+  if ((a.five_hour?.used_pct ?? 0) >= 100 || (a.weekly?.used_pct ?? 0) >= 100) return 'out';
+  if (a.login_state === 'unknown') return 'unknown';
+  return a.agents.length ? 'in_use' : 'idle';
+}
+
+/** When an account that is out comes back: the latest reset among its full windows. */
+export function outUntil(a: Account): string | null {
+  const full = [a.five_hour, a.weekly].filter((w): w is Window => !!w && w.used_pct >= 100 && !!w.resets_at);
+  return (
+    full
+      .map((w) => w.resets_at!)
+      .sort()
+      .at(-1) ?? null
+  );
+}
+
+export type Capacity = 'plenty' | 'tight' | 'short';
+/** The status bar's one word for all accounts together: the 5 h room left across those that can still run agents; null with no reading to go on. */
+export function capacityOf(accounts: Account[]): { word: Capacity; left: number; usable: Account[] } | null {
+  const usable = accounts.filter((a) => {
+    const s = stateOf(a);
+    return s !== 'needs_login' && s !== 'out';
+  });
+  const read = usable.filter((a) => a.five_hour);
+  if (!read.length) return accounts.length && !usable.length ? { word: 'short', left: 0, usable } : null;
+  const left = Math.round(read.reduce((n, a) => n + 100 - Math.min(100, a.five_hour!.used_pct), 0) / read.length);
+  return { word: left < 15 ? 'short' : left < 40 ? 'tight' : 'plenty', left, usable };
+}
+
+/** A login the daemon has not ended: the URL (when this app started it) and the code box belong to it. */
+export const loginRunning = (a: Account): boolean => a.login?.state === 'waiting' || a.login?.state === 'code_sent';
+
+/** Agents working on the account now over the most it takes at once; before the usage read arrives only the cap is known. */
+export const agentsLine = (account: Pick<Account, 'agents_running' | 'cap_effective'>): string =>
+  account.agents_running === undefined
+    ? `up to ${account.cap_effective} at once`
+    : `${account.agents_running} of ${account.cap_effective} working`;
+
+/** What an account's pace means for starting agents, in words (`short` for a one-word row form); null for pacing off or an account with no pace. */
+export function paceLine(account: Pick<Account, 'pace'>, short = false): string | null {
+  const pace = account.pace;
+  if (!pace) return null;
+  switch (pace.state) {
+    case 'behind':
+      return 'on track';
+    case 'ahead':
+      return short ? 'ahead' : 'ahead of pace: fewer agents start';
+    case 'over': {
+      const back = pace.back_at ? dateTime(pace.back_at) : '';
+      if (short) return back ? `over · until ${back}` : 'over';
+      return back ? `over pace: no new turns until ${back}` : 'over pace: no new turns';
+    }
+    default:
+      return null;
+  }
+}

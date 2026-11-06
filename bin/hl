@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# The installed `hl` is a symlink into the repo, so BASH_SOURCE is walked to the real file before go/hl is looked for beside it.
+# No `readlink -f` on macOS.
+set -euo pipefail
+source="${BASH_SOURCE[0]}"
+while [ -L "$source" ]; do
+    target="$(readlink "$source")"
+    case "$target" in
+        /*) source="$target" ;;
+        *) source="$(dirname "$source")/$target" ;;
+    esac
+done
+gohl="$(cd "$(dirname "$source")" && pwd)/../go/hl"
+if [ ! -x "$gohl" ]; then
+    echo "hl: $gohl is not built: run tools/build-hl.sh" >&2
+    exit 1
+fi
+exec "$gohl" "$@"

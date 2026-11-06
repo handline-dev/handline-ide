@@ -1,0 +1,244 @@
+{
+ "fixtures": [
+  {
+   "name": "task.board.the_founders_own_todo",
+   "spec": "task.board",
+   "as": "founder",
+   "about": "The founder's board is the tasks it owns: its own todo, held by the founder while the request on it asks.",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "task.new",
+      "params": {
+       "owner": "human",
+       "title": "board todo",
+       "body": "b",
+       "request_id": "conf-board-todo"
+      }
+     },
+     "result": {
+      "accepted": true,
+      "task": {
+       "$save": "made"
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "task.board",
+      "params": {}
+     },
+     "result": {
+      "mine": {
+       "$contains": {
+        "task": {
+         "id": "{{made}}",
+         "to": "human"
+        },
+        "holder": "human",
+        "now": {
+         "kind": "held",
+         "agents": [
+          "human"
+         ],
+         "tasks": []
+        }
+       }
+      },
+      "reports": {
+       "$type": "array"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "task.board.everyone_shows_who_holds_a_task",
+   "spec": "task.board",
+   "as": "founder",
+   "about": "With everyone, the founder sees an agent's task too, held by that agent while the request asks it.",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "task.new",
+      "params": {
+       "owner": "{{task_owner}}",
+       "title": "board held",
+       "body": "b",
+       "request_id": "conf-board-held"
+      }
+     },
+     "result": {
+      "accepted": true,
+      "task": {
+       "$save": "made"
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "task.board",
+      "params": {}
+     },
+     "result": {
+      "mine": {
+       "$each": {
+        "task": {
+         "to": "human"
+        }
+       }
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "task.board",
+      "params": {
+       "everyone": true
+      }
+     },
+     "result": {
+      "reports": {
+       "$contains": {
+        "task": {
+         "id": "{{made}}"
+        },
+        "holder": "{{task_owner}}",
+        "now": {
+         "kind": "held",
+         "agents": [
+          "{{task_owner}}"
+         ],
+         "tasks": []
+        }
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "task.board.an_agents_own_board",
+   "spec": "task.board",
+   "as": "agent",
+   "about": "An agent reads its own board: its open tasks and its reports', each with who holds it.",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1
+      }
+     },
+     "result": {
+      "role": "agent"
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "task.board",
+      "params": {}
+     },
+     "result": {
+      "mine": {
+       "$each": {
+        "task": {
+         "id": {
+          "$type": "integer"
+         }
+        },
+        "now": {
+         "kind": {
+          "$type": "string"
+         }
+        }
+       }
+      },
+      "reports": {
+       "$type": "array"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "task.board.everyone_is_true_or_false",
+   "spec": "task.board",
+   "as": "founder",
+   "about": "everyone that is not a boolean is bad_request naming it.",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "task.board",
+      "params": {
+       "everyone": "yes"
+      }
+     },
+     "error": {
+      "code": -32602,
+      "data": {
+       "code": "bad_request",
+       "field": "everyone"
+      }
+     }
+    }
+   ]
+  }
+ ]
+}

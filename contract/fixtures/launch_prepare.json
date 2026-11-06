@@ -1,0 +1,81 @@
+{
+ "fixtures": [
+  {
+   "name": "session.launch_prepare.unknown_agent_is_not_found",
+   "spec": "session.launch_prepare",
+   "about": "An agent the daemon does not have is not_found; nothing is built or recorded.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "session.launch_prepare",
+      "params": {
+       "agent": "nobody.here",
+       "cwd": "/tmp"
+      }
+     },
+     "error": {
+      "code": -32001,
+      "data": {
+       "code": "not_found"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "session.launch_prepare.cwd_is_an_absolute_folder",
+   "spec": "session.launch_prepare",
+   "about": "A relative cwd is bad_request naming the field.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "session.launch_prepare",
+      "params": {
+       "agent": "nobody.here",
+       "cwd": "tmp"
+      }
+     },
+     "error": {
+      "code": -32602,
+      "data": {
+       "code": "bad_request",
+       "field": "cwd"
+      }
+     }
+    }
+   ]
+  }
+ ]
+}

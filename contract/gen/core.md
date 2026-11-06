@@ -1,0 +1,128 @@
+<!-- Generated from contract/spec/ by contract/generate.py; do not edit. -->
+# core methods (protocol 1)
+
+A method marked write takes a required `request_id`. Framing, roles, errors and gates are in [protocol.md](../protocol.md); field types in `protocol.ts`.
+
+| Method | Role | Write | Params | Result | Errors | Gates | App |
+|---|---|---|---|---|---|---|---|
+| `hello` | anonymous |  | `client`, `protocol`, `token?`, `key?`, `client_build?`, `note?` | `{protocol, min_client, daemon, version, exe, schema, role, caller, capabilities, transport, methods}` | `refused`, `bad_request` |  | not cached |
+| `whoami` | agent |  | none | `{caller, role, methods}` |  |  | not cached |
+| `subscribe` | agent |  | `topics`, `since?`, `resume?`, `agent?` | `{cursor}` | `bad_request`, `refused` | role | not cached |
+| `unsubscribe` | agent |  | `topics` | `object` | `bad_request` |  | not cached |
+| `daemon.status` | agent |  | none | `DaemonStatus & ReadCursor` |  |  | `status`, fed by status |
+| `daemon.pause` | founder | yes | `until?`, `request_id` | `Accepted` | `refused`, `bad_request` |  | decided: pause new work |
+| `daemon.resume` | founder | yes | `request_id` | `Accepted` | `refused` |  | decided: resume new work |
+| `lease.take` | agent |  | `agent`, `kind`, `hold?` | `{lease, waited_s}` | `refused`, `bad_request` |  | not cached |
+| `lease.release` | agent |  | `agent`, `lease?`, `kind?` | `{released}` | `refused`, `bad_request` |  | not cached |
+| `lease.get` | agent |  | none | `{kinds}` |  |  | not cached |
+| `load.get` | agent |  | `minutes?`, `agent?` | `{at, every_s, machine, total, agents, unowned, processes, sampling, series} \| null` | `bad_request` |  | `load`, snapshot |
+| `events.feed` | agent |  | `since?`, `topics?`, `limit?` | `{events, cursor, gap}` | `bad_request` |  | not cached |
+| `operation.get` | member |  | `operation` | `Operation & ReadCursor` | `not_found` |  | `operation` by operation, fed by operations |
+| `debug.terminals` | member |  | none | `{host, now, panes}` | `refused` | role, unsupported, state | `debug-terminals`, snapshot |
+| `prefs.get` | member (only member, founder) |  | none | `Prefs & ReadCursor` | `refused` |  | `prefs`, fed by prefs |
+| `prefs.set` | member (only member, founder) | yes | `changes`, `request_id` | `Accepted` | `bad_request`, `refused` |  | authored: save view preferences |
+| `hook.record` | agent (only agent) | yes | `agent`, `kind`, `at`, `data`, `request_id` | `Accepted & {nudge}` | `refused` | not_self | not from the app |
+| `subagent.start` | agent (only agent) | yes | `agent`, `session_id?` | `{deny}` | `refused`, `bad_request` | not_self | not from the app |
+| `memory.status` | agent |  | `agent?` | `{agents}` |  |  | `memory`, snapshot |
+| `connection.get` | founder |  | none | `ConnectionInfo` |  |  | `connection`, snapshot |
+| `connection.addresses` | founder |  | none | `ConnectionAddresses` |  |  | `addresses`, snapshot |
+| `settings.get` | founder |  | `agent?` | `Settings` | `bad_request`, `not_found` |  | `settings`, snapshot |
+| `settings.set` | founder | yes | `changes`, `agent?`, `request_id` | `Accepted` | `refused`, `bad_request` |  | authored: save settings |
+| `for_you.list` | member |  | none | `ForYouList & ReadCursor` |  |  | `for-you`, fed by for_you |
+
+### `hello`
+
+First call on every connection: versions and who the caller is. A client whose protocol is below min_client gets `refused` (gate `protocol`) with hint `Open the Handline app.`. A newer client gets a normal reply and decides itself whether to run. Any other call before hello is bad_request. Role by proof: a matching `key` gives founder; with no key, a peer pid that verifies against a recorded session gives agent; a device token (network listener) gives member; anything else is anonymous and every method but hello is refused until a later hello proves more. On the network listener a hello without a valid `token` is refused, gate `unpaired`, with no data; with one it is member.
+
+### `whoami`
+
+The viewer, the device, the role and the methods allowed.
+
+### `subscribe`
+
+Turn the connection into a stream of `event` notices; replays after `since` first, unless `resume` is latest. topics is a non-empty list of known topics, else -32602 bad_request naming `topics`. Notices start only after this reply is sent. devices is subscribed on its own, by the founder: a topics list naming devices and any other topic is -32602 bad_request naming `topics`, because devices is live only and every other topic has a cursor. A devices subscription is live only: `since` and `agent` are ignored, the reply cursor is 0, its events carry cursor 0, and a client that reconnects reads devices.list again.
+
+### `unsubscribe`
+
+Stop some topics; a subscription with no topics left ends. Result {}. Naming devices follows the same rule as subscribe: on its own.
+
+### `daemon.status`
+
+Status bar: alive, versions, terminal host, agent counts, inbox count.
+
+### `daemon.pause`
+
+Pause new work: from now no new turn of an agent starts and the daemon starts none of its own work, until daemon.resume or until. A running turn goes to its end, and a turn a person starts still goes. A pause while paused replaces its until; since stays. The pause is kept across a daemon restart.
+
+### `daemon.resume`
+
+End a pause (daemon.pause): held work starts at the next tick. Accepted, and changes nothing, when not paused.
+
+### `lease.take`
+
+hl use asks for a simulator or browser lease: the call is held until one is free and nobody asked before (first come first served per kind), then answers the lease. Refused after 30 minutes, naming who holds them. With the kind's limit 0 (simulator_max, browser_max) it is granted at once. A command's lease (hold false) belongs to the calling process, the hl use the command runs under: it is freed by lease.release, by the agent's session end, or within 5 s once that process and every process last seen under it are gone. A hold is freed by lease.release or the agent's turn or session end; the PreToolUse guard lets the agent's own starters of its kind through while it is held. An ask whose caller hangs up leaves the queue. Leases are kept in the daemon's memory: a restart frees them all.
+
+### `lease.release`
+
+Gives back the caller's lease, or with no lease every one it holds of kind (of every kind when kind is absent); the first ask waiting gets it.
+
+### `lease.get`
+
+The simulator and browser leases: per kind its limit, who holds each lease (since when, its processes) and who waits, in order.
+
+### `load.get`
+
+What every process on this machine uses and whose it is: per agent (CPU, memory, process count, heaviest processes), per process, and the machine's totals; with `minutes`, each agent's per-minute series. Read only; no limit is applied from it.
+
+### `events.feed`
+
+Resumable feed of events with their deep-link targets; the polling twin of subscribe. topics defaults to [notifications]; limit defaults to 50, at most 200. Without `since`: the newest events, oldest first. With `since`: the events after it; if `since` is older than retention the feed starts at the oldest kept event and `gap` is true. cursor is the newest cursor in the reply, or the current newest when there are no events.
+
+### `operation.get`
+
+A long-running operation's current state.
+
+### `debug.terminals`
+
+Every pane of the terminal host with what the daemon knows of it, for the hidden debug window. Lists every pane of the daemon's terminal server (tmux), whichever agent has it or none, to find panes kept open past their prompt cache and shells left behind after an agent's session exited. Reads only: the host's pane list, the process table and the daemon's own rows; of the agent's view only cache_until. A host that cannot list its panes is refused, gate unsupported; one that cannot be reached, gate state. Watching a listed pane is terminal.attach by its handle; a pane no agent has takes no input. Callers: the founder and a paired device (member); below that is refused, gate role.
+
+### `prefs.get`
+
+The person's view preferences: the agent list's pins, filter, layout and folds.
+
+### `prefs.set`
+
+Change the person's view preferences: each key given in changes.nav replaces the stored one, but `later` merges by item. A pin, a fold or an order entry naming an agent the daemon does not know, or a name given twice, is bad_request naming the field. Once stored, a prefs.changed event on the prefs topic carries the whole Prefs. agent.retire drops the agent from pins, collapsed and order (and sends prefs.changed); a rename (proposals) carries it over in place.
+
+### `hook.record`
+
+A hook records an event; the spool replays it with the same request_id. A PostToolUse that started a background command is noted for the agent; a Stop answers with the founder's nudge when one is due.
+
+### `subagent.start`
+
+The PreToolUse guard asks before an Agent call: refused when one more subagent would take the agent's account to its 5-hour or weekly limit before that window resets, else the start is recorded. The account's recorded burn plus the agent's own measured cost stands for the subagent's. Unread, stale or unmeasured figures refuse nothing. A start runs until a SubagentStop of the same session or until that session ends (subagents.counts). A hook the daemon does not answer in time lets the call through, unrecorded.
+
+### `memory.status`
+
+Per-agent memory against its budget (hl memory status).
+
+### `connection.get`
+
+How this process is reached: its doors and dev mode. Read only.
+
+### `connection.addresses`
+
+Every host this machine can be reached on, and whether a door serves it. Read only. Read again on every call: addresses come and go with Wi-Fi. Choosing hosts is settings.set network_addresses.
+
+### `settings.get`
+
+Timings, terminal host, trust folders, hooks installed.
+
+### `settings.set`
+
+Change settings: any keys of SettingsValues, globally or as one agent's override.
+
+### `for_you.list`
+
+Every open item waiting on the founder, whatever it is made of today (task rows, comment asks, prompts, proposals, the machine's needs), and the count of those not deferred.
+

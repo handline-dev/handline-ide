@@ -1,0 +1,321 @@
+{
+ "fixtures": [
+  {
+   "name": "agent.retire.unknown_agent_is_not_found",
+   "spec": "agent.retire",
+   "about": "An agent the daemon does not have is not_found; nothing is retired.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "agent.retire",
+      "params": {
+       "agent": "nobody.here",
+       "request_id": "conf-ret-1"
+      }
+     },
+     "error": {
+      "code": -32001,
+      "data": {
+       "code": "not_found"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "agent.retire.needs_a_request_id",
+   "spec": "agent.retire",
+   "about": "A write without a request_id is bad_request naming it.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "agent.retire",
+      "params": {
+       "agent": "nobody.here"
+      }
+     },
+     "error": {
+      "code": -32600,
+      "data": {
+       "code": "bad_request",
+       "field": "request_id"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "agent.retire.an_agent_session_is_refused_by_role",
+   "spec": "agent.retire",
+   "about": "Retiring is the founder's: an agent session is refused, gate role.",
+   "as": "agent",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "agent.retire",
+      "params": {
+       "agent": "a.one",
+       "request_id": "conf-ret-2"
+      }
+     },
+     "error": {
+      "code": -32002,
+      "data": {
+       "code": "refused",
+       "gate": "role"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "agent.retire.an_agent_with_agents_under_it_is_refused",
+   "spec": "agent.retire",
+   "about": "An agent another agent hangs under, or reports to, is refused (gate state) and the reason says so and names them; nothing is retired.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "agent.retire",
+      "params": {
+       "agent": "{{retire_parent}}",
+       "request_id": "conf-ret-3"
+      }
+     },
+     "error": {
+      "code": -32002,
+      "data": {
+       "code": "refused",
+       "gate": "state",
+       "reason": {
+        "$regex": "has agents under it"
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "agent.retire.a_running_agent_answers_once_its_turn_ended_and_it_is_retired",
+   "spec": "agent.retire",
+   "about": "An agent mid-turn: the call waits, other calls on the connection are answered meanwhile, and it answers only once the turn ended and the agent is retired, with a said naming it. Needs --var retire_turn_agent (an agent the founder may retire, mid-turn in a turn that ends on its own 20 to 60 s after the fixture starts).",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "subscribe",
+      "params": {
+       "topics": [
+        "agents"
+       ]
+      }
+     },
+     "result": {
+      "cursor": {
+       "$type": "integer"
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "agent.retire",
+      "params": {
+       "agent": "{{retire_turn_agent}}",
+       "request_id": "conf-ret-4"
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "agent.get",
+      "params": {
+       "agent": "{{retire_turn_agent}}"
+      }
+     },
+     "result": {
+      "name": "{{retire_turn_agent}}",
+      "session_open": true
+     },
+     "within_s": 5
+    },
+    {
+     "await": 3,
+     "result": {
+      "accepted": true,
+      "said": {
+       "$regex": "{{retire_turn_agent}} is retired"
+      }
+     },
+     "within_s": 90,
+     "at_least_s": 10
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "agent.get",
+      "params": {
+       "agent": "{{retire_turn_agent}}"
+      }
+     },
+     "error": {
+      "code": -32001,
+      "data": {
+       "code": "not_found"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "agent.retire.retires_and_the_agent_is_gone",
+   "spec": "agent.retire",
+   "about": "A retired agent is accepted with a said line, a retry of the same request_id is replayed and retires nothing twice, and the agent is then not_found.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "agent.retire",
+      "params": {
+       "agent": "{{retire_agent}}",
+       "request_id": "conf-ret-5"
+      }
+     },
+     "result": {
+      "accepted": true,
+      "said": {
+       "$regex": "is retired"
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "agent.retire",
+      "params": {
+       "agent": "{{retire_agent}}",
+       "request_id": "conf-ret-5"
+      }
+     },
+     "result": {
+      "accepted": true,
+      "replayed": true
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "agent.retire",
+      "params": {
+       "agent": "{{retire_agent}}",
+       "request_id": "conf-ret-6"
+      }
+     },
+     "error": {
+      "code": -32001,
+      "data": {
+       "code": "not_found"
+      }
+     }
+    }
+   ]
+  }
+ ]
+}
