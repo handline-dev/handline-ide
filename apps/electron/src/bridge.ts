@@ -15,6 +15,7 @@ export const CHANNELS = {
   unsent: 'handline:unsent',
   navigate: 'handline:navigate',
   fullScreen: 'handline:full-screen',
+  deviceToken: 'handline:device-token',
   openPath: 'handline:openPath',
   openIn: 'handline:openIn',
   openInApps: 'handline:openInApps',

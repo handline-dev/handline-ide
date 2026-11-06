@@ -16,6 +16,8 @@ export interface MenuActions {
   closeTab(): void;
   /** Where the app is a Mac app: the name leads the menu bar. */
   mac: boolean;
+  /** A dev run (not the packaged app): View has Toggle Developer Tools. */
+  dev?: boolean;
 }
 
 export function appMenu(a: MenuActions): MenuItemConstructorOptions[] {
@@ -67,6 +69,7 @@ export function appMenu(a: MenuActions): MenuItemConstructorOptions[] {
         { role: 'zoomOut' },
         { type: 'separator' },
         { role: 'togglefullscreen' },
+        ...(a.dev ? [{ type: 'separator' as const }, { role: 'toggleDevTools' as const }] : []),
       ],
     },
     go,

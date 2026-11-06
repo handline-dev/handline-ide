@@ -7,6 +7,13 @@ const labels = (m: MenuItemConstructorOptions[]) => m.map((i) => i.label);
 const sub = (m: MenuItemConstructorOptions[], label: string) =>
   (m.find((i) => i.label === label)?.submenu ?? []) as MenuItemConstructorOptions[];
 
+test('View has Toggle Developer Tools in a dev run only', () => {
+  const view = (dev: boolean) =>
+    sub(appMenu({ mac: true, dev, go: () => undefined, closeTab: () => undefined }), 'View').map((i) => i.role);
+  assert.ok(view(true).includes('toggleDevTools'));
+  assert.ok(!view(false).includes('toggleDevTools'));
+});
+
 test('on a Mac the menu bar leads with Handline, then Edit, View, Go and Window', () => {
   const m = appMenu({ mac: true, go: () => undefined, closeTab: () => undefined });
   assert.deepEqual(labels(m), ['Handline', 'Edit', 'View', 'Go', 'Window']);

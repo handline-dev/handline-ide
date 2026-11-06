@@ -22,6 +22,10 @@ export function makeApi(ipc: Ipc, zoom: () => number = () => 1): ShellApi {
     full = on === true;
     fullListeners.forEach((f) => f(full));
   });
+  const tokenListeners = new Set<(token: string) => void>();
+  ipc.on(CHANNELS.deviceToken, (_e, t) => {
+    if (typeof t === 'string') tokenListeners.forEach((f) => f(t));
+  });
   // The shell sends the update state on every change; the last one is kept for the first listener.
   let update: ShellUpdate | null = null;
   const updateListeners = new Set<(v: ShellUpdate) => void>();
@@ -86,6 +90,10 @@ export function makeApi(ipc: Ipc, zoom: () => number = () => 1): ShellApi {
     cli: () => call(CHANNELS.cli),
     linkCli: () => call(CHANNELS.linkCli),
     pairRemote: (a) => call(CHANNELS.pairRemote, a),
+    onToken(cb) {
+      tokenListeners.add(cb);
+      return () => void tokenListeners.delete(cb);
+    },
     onFullScreen(cb) {
       fullListeners.add(cb);
       cb(full);
