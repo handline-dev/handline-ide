@@ -85,9 +85,11 @@ func MemoTexts(q Q, tid int64) ([]string, error) {
 	return out, rows.Err()
 }
 
-// LinkMemoTell keeps that request rid told reader of memo mid.
+// LinkMemoTell keeps that request rid told reader of memo mid. A task's return that carried the comment stays its tell: an edit's later
+// tell does not replace it, or the return would show again as a request of its own.
 func LinkMemoTell(q Q, mid int64, reader string, rid int64) error {
-	_, err := q.Exec("INSERT OR REPLACE INTO memo_tells(memo_id, reader, request_id) VALUES (?, ?, ?)", mid, reader, rid)
+	_, err := q.Exec("INSERT INTO memo_tells(memo_id, reader, request_id) VALUES (?, ?, ?) ON CONFLICT(memo_id, reader) DO UPDATE SET "+
+		"request_id = excluded.request_id WHERE (SELECT kind FROM requests WHERE id = memo_tells.request_id) IS NOT 'task'", mid, reader, rid)
 	return err
 }
 

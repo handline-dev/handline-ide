@@ -65,9 +65,15 @@ func (c *chat) taskState(taskID int64) (any, error) {
 	return c.b.state(t), nil
 }
 
-// chatScope is the requests a chat draws. A notice the digest has listed is left out: the digest line carries it, and drawing both shows it twice.
+// memoReturnsSQL is the task returns that told a comment still on the task (memo_tells): a turn passed with a note, the founder's comment
+// or the one the pop wrote. The comment says it, so the task's page and the chat do not show the return again as a request.
+const memoReturnsSQL = "SELECT t.request_id FROM memo_tells t JOIN task_memos m ON m.id = t.memo_id JOIN requests r ON r.id = t.request_id " +
+	"WHERE r.kind = 'task'"
+
+// chatScope is the requests a chat draws. A notice the digest has listed is left out: the digest line carries it, and drawing both shows it
+// twice; so is a turn's return that told a comment (memoReturnsSQL).
 func chatScope(agent string, everyone bool) (string, []any) {
-	undigested := " AND NOT " + db.Digested("")
+	undigested := " AND NOT " + db.Digested("") + " AND id NOT IN (" + memoReturnsSQL + ")"
 	if everyone {
 		return "((requester = ? OR target = ?)" + undigested + ")", []any{agent, agent}
 	}

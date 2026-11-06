@@ -281,8 +281,8 @@ func TestAnEditAnUnblockAndADoneUnderATurn(t *testing.T) {
 	}
 }
 
-// The founder's pass names the request that carries the task back, so the task's page shows their comment and not that delivery again;
-// it passes a pause as their own request, and the task still moves on a team with no edge but the founder's.
+// The founder's comment passing a turn is told the agent below by the task's return, so the task's page and the chat show the comment and
+// not that delivery again; it passes a pause as their own request, and the task still moves on a team with no edge but the founder's.
 func TestTheFoundersPassIsTheirCommentsTellAndTheTaskStillMoves(t *testing.T) {
 	r := newRig(t)
 	r.founderOnlyTeam()
@@ -293,9 +293,21 @@ func TestTheFoundersPassIsTheirCommentsTellAndTheTaskStillMoves(t *testing.T) {
 	var rid, told int64
 	var from string
 	r.must(r.DB.QueryRow("SELECT r.id, r.requester FROM requests r JOIN task_requests l ON l.request_id = r.id WHERE l.task_id = ? AND r.target = 'bob' ORDER BY r.id DESC LIMIT 1", held).Scan(&rid, &from))
-	r.must(r.DB.QueryRow("SELECT COALESCE(MAX(json_extract(payload, '$.request_id')), 0) FROM events WHERE kind = 'task_turn_pop' AND agent = 'human'").Scan(&told))
-	if told != rid || from != db.Human {
-		t.Fatalf("the pass #%d from %q; the pop names #%d", rid, from, told)
+	toldBob := func() int64 {
+		r.must(r.DB.QueryRow("SELECT COALESCE(MAX(t.request_id), 0) FROM memo_tells t JOIN task_memos m ON m.id = t.memo_id WHERE m.task_id = ? AND m.author = 'human' AND t.reader = 'bob'", held).Scan(&told))
+		return told
+	}
+	var comments int
+	r.must(r.DB.QueryRow("SELECT COUNT(*) FROM task_memos WHERE task_id = ? AND author = 'human'", held).Scan(&comments))
+	if toldBob() != rid || from != db.Human || comments != 1 {
+		t.Fatalf("the pass #%d from %q; the comment's tell to bob #%d; %d comments", rid, from, told, comments)
+	}
+	// an edit tells bob again, and the return stays the comment's tell
+	var mid int64
+	r.must(r.DB.QueryRow("SELECT MAX(id) FROM task_memos WHERE task_id = ? AND author = 'human'", held).Scan(&mid))
+	r.turnCall("human", "task.comment.edit", fmt.Sprintf(`{"task":%d,"memo":%d,"text":"now, please","request_id":"c2"}`, held, mid))
+	if toldBob() != rid {
+		t.Fatalf("an edit replaced the return #%d as the comment's tell: #%d", rid, told)
 	}
 	req, err := db.GetRequest(r.DB, rid)
 	r.must(err)
@@ -305,5 +317,21 @@ func TestTheFoundersPassIsTheirCommentsTellAndTheTaskStillMoves(t *testing.T) {
 	r.turnCall("human", "task.edit", fmt.Sprintf(`{"task":%d,"owner":"alice","request_id":"e1"}`, held))
 	if task, _ := db.GetTask(r.DB, held); task.Owner != "alice" {
 		t.Fatalf("the task did not move: %+v", task)
+	}
+}
+
+// An agent's pass with a note writes the note as its comment, and the task's return is that comment's tell to the one below.
+func TestAnAgentsNotedPassIsToldByTheTasksReturn(t *testing.T) {
+	r := newRig(t)
+	r.agentUp("bob")
+	r.agentUp("alice")
+	tid := r.beginCurrent("bob", "amy", "ship it")
+	r.turnCall("bob", "task.turn.push", fmt.Sprintf(`{"task":%d,"to":"alice","request_id":"p1"}`, tid))
+	r.turnCall("alice", "task.turn.pop", fmt.Sprintf(`{"task":%d,"outcome":"send_back","note":"the test fails","request_id":"p2"}`, tid))
+	var rid, told int64
+	r.must(r.DB.QueryRow("SELECT MAX(r.id) FROM requests r JOIN task_requests l ON l.request_id = r.id WHERE l.task_id = ? AND r.target = 'bob'", tid).Scan(&rid))
+	r.must(r.DB.QueryRow("SELECT COALESCE(MAX(t.request_id), 0) FROM memo_tells t JOIN task_memos m ON m.id = t.memo_id WHERE m.task_id = ? AND m.author = 'alice' AND m.body = 'the test fails' AND t.reader = 'bob'", tid).Scan(&told))
+	if told == 0 || told != rid {
+		t.Fatalf("the return #%d; alice's comment told bob by #%d", rid, told)
 	}
 }
