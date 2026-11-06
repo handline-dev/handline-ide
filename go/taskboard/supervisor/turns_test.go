@@ -335,3 +335,23 @@ func TestAnAgentsNotedPassIsToldByTheTasksReturn(t *testing.T) {
 		t.Fatalf("the return #%d; alice's comment told bob by #%d", rid, told)
 	}
 }
+
+// When the founder's comment passes a review turn whose done is refused, the refusal is news to the one below: the pop writes it as a
+// comment of its own, and the task's return tells that one.
+func TestARefusedDoneOnTheFoundersPassIsAComment(t *testing.T) {
+	r := newRig(t)
+	r.agentUp("bob")
+	held := r.beginCurrent("bob", "alice", "ship it")
+	child := r.newTask("alice", "alice", "first this")
+	_, err := r.DB.Exec("UPDATE tasks SET parent_task = ? WHERE id = ?", held, child) // an open child refuses the done
+	r.must(err)
+	r.turnCall("bob", "task.turn.push", fmt.Sprintf(`{"task":%d,"to":"human","ask":"review","on_pass":"done","evidence":"PR #9","request_id":"p1"}`, held))
+	r.turnCall("human", "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"looks good","request_id":"c1"}`, held))
+	var rid, told int64
+	r.must(r.DB.QueryRow("SELECT MAX(r.id) FROM requests r JOIN task_requests l ON l.request_id = r.id WHERE l.task_id = ? AND r.target = 'bob'", held).Scan(&rid))
+	r.must(r.DB.QueryRow("SELECT COALESCE(MAX(t.request_id), 0) FROM memo_tells t JOIN task_memos m ON m.id = t.memo_id WHERE m.task_id = ? AND m.author = 'human' "+
+		"AND m.body LIKE 'looks good (not closed: %' AND t.reader = 'bob'", held).Scan(&told))
+	if told == 0 || told != rid {
+		t.Fatalf("the return #%d; the refusal's comment told bob by #%d", rid, told)
+	}
+}

@@ -70,8 +70,9 @@ func TestAFounderCommentShowsWhereItsTellStandsForEachReader(t *testing.T) {
 		"(1, 1, 'n', 'a', 'b', 'landed', 'say', 2, 100, NULL, NULL),"+ // held for a digest
 		"(2, 1, 'n', 'b', 'b', 'landed', 'say', 2, 100, 200, NULL),"+ // sent in a digest
 		"(3, 1, 'n', 'c', 'b', 'landed', 'say', 2, 100, 200, 300),"+ // opened
-		"(4, 1, 'n', 'd', 'b', 'landed', 'say', 0, 400, NULL, NULL)") // typed at once
-	run(t, e, "INSERT INTO memo_tells(memo_id, reader, request_id) VALUES(1, 'a', 1), (1, 'b', 2), (1, 'c', 3), (1, 'd', 4), (2, 'a', 1)")
+		"(4, 1, 'n', 'd', 'b', 'landed', 'say', 0, 400, NULL, NULL),"+ // typed at once
+		"(5, 1, 'human', 'e', 'T1 is your turn again', 'withdrawn', 'task', 0, NULL, NULL, NULL)") // a return withdrawn before it reached e
+	run(t, e, "INSERT INTO memo_tells(memo_id, reader, request_id) VALUES(1, 'a', 1), (1, 'b', 2), (1, 'c', 3), (1, 'd', 4), (1, 'e', 5), (2, 'a', 1)")
 	got, err := e.taskMemoList(nil, nums(map[string]any{"task": 1}))
 	if err != nil {
 		t.Fatal(err)
