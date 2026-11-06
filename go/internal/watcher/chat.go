@@ -30,13 +30,16 @@ const chatTouchedNewest = "SELECT COALESCE(MAX(COALESCE(state_at, ts)), 0) FROM 
 type Chat struct {
 	Reads *reads.Env
 	// Panes is what the terminal host says of the windows that run commands; nil, or nil from it, ends no run.
-	Panes   func() map[string]term.PaneRun
-	runSeen map[string]string // run block -> the run as last said
-	done    map[int64]string  // request -> the message as last said, for the ones touched in the second the cursor is at
-	open    map[int64]bool    // the prompts told open and not yet told closed
-	working map[string]string
-	running bool           // a command run was still running at the last look
-	unbound map[int64]bool // the fresh session starts whose session id was not known at the last look
+	Panes       func() map[string]term.PaneRun
+	runSeen     map[string]string // run block -> the run as last said
+	done        map[int64]string  // request -> the message as last said, for the ones touched in the second the cursor is at
+	open        map[int64]bool    // the prompts told open and not yet told closed
+	working     map[string]string
+	running     bool             // a command run was still running at the last look
+	unbound     map[int64]bool   // the fresh session starts whose session id was not known at the last look
+	bashSaid    map[int64]string // the bash items of recent ! lines, as last said
+	bashSettled map[int64]bool   // the recent ! lines that have landed with their output in
+	bashOpen    bool             // one of them was still waiting for its output at the last look
 }
 
 func (*Chat) Name() string { return "chat" }
@@ -45,8 +48,9 @@ func (*Chat) Tables() []string {
 	return []string{"agent_view", "cursors", "events", "meta", "operations", "prompt_blocks", "requests", "session_starts", "task_requests", "tasks"}
 }
 
-// Pending is whether a command run was still running at the last look and the terminal host is asked: its window ends without a write.
-func (c *Chat) Pending() bool { return c.running && c.Panes != nil }
+// Pending is whether a command run was still running at the last look and the terminal host is asked: its window ends without a write. So
+// is a ! line waiting for its output, which reaches the transcript and no table.
+func (c *Chat) Pending() bool { return (c.running && c.Panes != nil) || c.bashOpen }
 
 func encoded(v any) string {
 	b, _ := json.Marshal(v)
@@ -76,7 +80,55 @@ func (c *Chat) Scan(q *sql.DB, emit Emit) error {
 	if err := c.sessions(q, emit); err != nil {
 		return err
 	}
+	if err := c.bash(q, emit); err != nil {
+		return err
+	}
 	return c.workingStates(q, emit)
+}
+
+// bashWatch is how long after a ! line was sent its bash item is watched for; a read finds a later output.
+const bashWatch = 15 * 60
+
+// bash says the bash item of each ! line sent lately, when it appears and when its output comes. A line that has landed with its output in is
+// settled, and its agent's transcript is not read again for it. The first look says nothing.
+func (c *Chat) bash(q *sql.DB, emit Emit) error {
+	since := db.Now() - bashWatch
+	lines, err := reads.BashLines(q, since)
+	if err != nil {
+		return err
+	}
+	first := c.bashSaid == nil
+	if first {
+		c.bashSaid, c.bashSettled = map[int64]string{}, map[int64]bool{}
+	}
+	read := map[string]bool{}
+	c.bashOpen = false
+	for _, l := range lines {
+		if !l.Landed || c.bashSettled[l.ID] || read[l.Agent] {
+			continue
+		}
+		read[l.Agent] = true
+		items, waiting, err := c.Reads.BashItems(l.Agent, since, 0)
+		if err != nil {
+			return err
+		}
+		c.bashOpen = c.bashOpen || len(waiting) > 0
+		for _, item := range items {
+			id, now := item["id"].(int64), encoded(item)
+			if !first && c.bashSaid[id] != now {
+				if err := c.say(emit, "chat.transcript", l.Agent, item); err != nil {
+					return err
+				}
+			}
+			c.bashSaid[id] = now
+		}
+		for _, other := range lines {
+			if other.Agent == l.Agent && other.Landed && !slices.Contains(waiting, other.ID) {
+				c.bashSettled[other.ID] = true
+			}
+		}
+	}
+	return nil
 }
 
 func (c *Chat) requests(q *sql.DB, emit Emit) error {

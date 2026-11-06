@@ -79,15 +79,15 @@ export type ChatMessage = {
 };
 
 export type TranscriptItem = {
-  /** Its time and its source's row, so it never changes. An item that arrives in a second a client has read up to can sort before the last one it has: `since` reads from that second and a client drops the ids it already holds. For kind reply it is also what chat.send takes as parent_item. A reply has one of two sources, told apart by the last digit of its number within the second: a structured session's text block (even; the same id on every read and in the live event's `item`) and the answer to a request (odd); each is the same on every read, and chat.transcript lists both. Source numbers within the second: 0 reply, 1 prompt, 2 task event, 3 tool call, 4 session start (its number is the session_starts row). */
+  /** Its time and its source's row, so it never changes. An item that arrives in a second a client has read up to can sort before the last one it has: `since` reads from that second and a client drops the ids it already holds. For kind reply it is also what chat.send takes as parent_item. A reply has one of two sources, told apart by the last digit of its number within the second: a structured session's text block (even; the same id on every read and in the live event's `item`) and the answer to a request (odd); each is the same on every read, and chat.transcript lists both. Source numbers within the second: 0 reply, 1 prompt, 2 task event, 3 tool call, 4 session start (its number is the session_starts row), 5 bash command (its number is its place in the session's transcript). */
   id: number;
   at: Timestamp;
-  kind: "reply" | "tool" | "prompt" | "task_event" | "session" | "task_batch";
+  kind: "reply" | "tool" | "prompt" | "task_event" | "session" | "task_batch" | "bash";
   text?: string;
   tool?: string;
   /** For kind tool: the text the tool printed, as the store holds it. Absent when the store holds none. */
   output?: string;
-  /** For kind tool: how many lines the store cut from the end of the output (it keeps the start). 0 or absent when nothing was cut. */
+  /** For kind tool or bash: how many lines the store cut from the end of the output (it keeps the start). 0 or absent when nothing was cut. */
   dropped_lines?: number;
   /** Kind reply only: the runs of this reply's command blocks (shell.open block "r<id>:<n>"), one per block, oldest start first, as ChatMessage.runs. Absent when none was started. A start and an end send the item again as a chat.transcript event. */
   runs?: CommandRun[];
@@ -122,6 +122,16 @@ export type TranscriptItem = {
     /** Why the conversation began. Words the daemon writes: `launch` (first start of a spawned agent), `start` (work arrived for a closed agent), `wake` (a closed agent woken), `restart`, `fresh close` (the old conversation was closed and not resumed; the one word with a space), `move` (to another account), `handoff` (folded into a handoff), and, where the daemon knows it, `context_full`, `settings_applied`, `crash_recovery`, `idle_close`. Open set: a client draws a word it does not know as text. Absent from a daemon that does not serve it. */
     cause?: string;
   };
+  /** For kind bash: a person's ! line as it ran, without the !. */
+  command?: string;
+  /** For kind bash: what it printed, cut as a tool's output is, with dropped_lines saying how much. A command that succeeds can have its stderr here. Absent until done. */
+  stdout?: string;
+  /** For kind bash: as stdout. The transcript records no exit code, and neither field says whether the command failed. */
+  stderr?: string;
+  /** For kind bash: its output is recorded. The live event says the same id again when it is. */
+  done?: boolean;
+  /** For kind bash: the id of the person's message that sent this line, to draw the two as one row. Absent when none is known, for a line typed at the terminal or sent before messages recorded their landing. */
+  request?: number;
   /** For kind task_batch: a batch discard, shown once in the chat of whoever made it. */
   task_batch?: {
     batch: string;

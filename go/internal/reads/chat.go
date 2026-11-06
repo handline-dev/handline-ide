@@ -1244,6 +1244,9 @@ func (e *Env) chatTranscript(c *rpc.Conn, params map[string]any) (any, error) {
 		items = kept
 	}
 	fitToolOutput(items)
+	if items, err = e.withBashItems(agent, items, before, since, more); err != nil {
+		return nil, err
+	}
 	working, err := e.working(agent)
 	if err != nil {
 		return nil, err
