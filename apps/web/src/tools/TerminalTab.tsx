@@ -1,0 +1,277 @@
+// An agent's terminal on the `bytes` channel: xterm.js draws the host's own escape codes, colour and cursor included. Moved from the
+// legacy web (BytesTab); see docs/terminal-pane.md.
+import { useEffect, useRef, useState } from 'react';
+import { type AgentDetail, type ByteListener, type ByteTerminalView, type ByteViewState } from '@handline/client';
+import { useStore } from '@handline/app-react';
+import { useAgentDetail, useWrite } from '@handline/app-data';
+import { RESIZE_MS } from '@handline/app-core';
+import { keep, reclaim } from '#src/terminal/keep.ts';
+import {
+  DEFAULT_FONT,
+  MAX_UNWRITTEN,
+  fontFor,
+  gridToSend,
+  guard,
+  isEscapeChord,
+  keySender,
+  markerLabel,
+  paint,
+  type PaneTerm,
+} from '#src/terminal/core.ts';
+import { traceResize } from '#src/terminal/trace.ts';
+import { Button } from '#src/ui/Button.tsx';
+
+const SKELETON_DELAY_MS = 150;
+const SKELETON_MIN_MS = 300;
+const SKELETON_ROWS = [64, 82, 48, 90, 36, 72, 56, 28]; // percent of the width, in the shape of a screen of text
+const utf8 = new TextEncoder();
+const NOTE: Record<ByteViewState, string> = { attaching: '', live: '', stale: 'Reconnecting…', failed: '' };
+
+/** The skeleton of the first load: shown after a short delay, then kept for a minimum so it does not flash. */
+function useSkeleton(loading: boolean): boolean {
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    if (loading) {
+      const t = setTimeout(() => setShown(true), SKELETON_DELAY_MS);
+      return () => clearTimeout(t);
+    }
+    if (!shown) return;
+    const t = setTimeout(() => setShown(false), SKELETON_MIN_MS);
+    return () => clearTimeout(t);
+  }, [loading, shown]);
+  return shown;
+}
+
+const reasonOf = (e: unknown) => (e as { reason?: string }).reason ?? (e as Error).message;
+
+export function TerminalTab({ agent }: { agent: string }) {
+  const q = useAgentDetail(agent);
+  if (!q.data)
+    return (
+      <div className="grid min-h-0 flex-1 place-items-center bg-term-bg text-xs text-term-ink">
+        {q.isError && `${agent} did not load: ${reasonOf(q.error)}`}
+      </div>
+    );
+  return <BytesTab agent={agent} detail={q.data} />;
+}
+
+function BytesTab({ agent, detail }: { agent: string; detail: Pick<AgentDetail, 'terminal'> }) {
+  const store = useStore();
+  const host = useRef<HTMLDivElement>(null);
+  const takeInput = useWrite('input.take', agent);
+  const releaseInput = useWrite('input.release', agent);
+  const { mutate: take } = takeInput;
+  const { mutate: release } = releaseInput;
+  const live = useRef<{ view: ByteTerminalView; pane: PaneTerm } | null>(null);
+  const [state, setState] = useState<ByteViewState>('attaching');
+  const [failure, setFailure] = useState('');
+  const [title, setTitle] = useState('');
+  const [everLive, setEverLive] = useState(false);
+  const [holds, setHolds] = useState(false); // this device holds the input: keys go in and the pane sets the size
+  const [refused, setRefused] = useState('');
+  const [heldBy, setHeldBy] = useState(''); // someone else holds the input: a click cannot take it
+  const [attempt, setAttempt] = useState(0); // Retry runs the effect again
+  const hasTerminal = !!detail.terminal;
+  const key = agent; // what the view and the kept screen are filed under
+
+  useEffect(() => {
+    if (!hasTerminal) return;
+    let cancelled = false,
+      cleanup = () => {};
+    void (async () => {
+      const make = (await import('#src/terminal/xterm.ts')).createXterm;
+      if (cancelled) return;
+      const el = host.current!;
+      const back = reclaim(key); // a quick switch back shows the last screen at once; the new snapshot repaints it
+      const stage = back?.stage ?? el.appendChild(document.createElement('div'));
+      if (back) el.appendChild(stage);
+      const title = back?.title ?? { to: setTitle };
+      title.to = setTitle;
+      const pane = back?.pane ?? make(stage);
+      const quiet = back?.quiet ?? guard(pane.term, (t) => title.to(t));
+      let unwritten = 0;
+      let wasLive = false;
+      let holding = false,
+        otherHolds = false, // another person holds the input: they size the terminal and this pane only scales its font
+        timer: ReturnType<typeof setTimeout> | undefined;
+      /** The pane sizes the host unless another person holds the input: the one who holds, or anyone while nobody does. */
+      const sizes = () => holding || !otherHolds;
+      const sendSize = () => {
+        const v = live.current?.view;
+        const g = v && v.state === 'live' && sizes() ? gridToSend(pane.propose(), v) : null;
+        if (v && g) {
+          traceResize('ask', `${g.cols}x${g.rows} (host ${v.cols}x${v.rows})`);
+          void store.client.bytes.resize(v, g.cols, g.rows).catch(() => {}); // a refused size leaves the grid as it is
+        }
+      };
+      /** The window changed (or the pane just went live): ask the host for the grid that fits it, after a short debounce. */
+      const layout = () => {
+        const v = live.current?.view;
+        if (!v) return;
+        traceResize('observer', `${el.clientWidth}x${el.clientHeight}`);
+        if (!sizes()) return pane.setFontSize(fontFor(el.clientWidth, v.cols));
+        clearTimeout(timer);
+        timer = setTimeout(sendSize, RESIZE_MS);
+        repaint();
+      };
+      /** The host's grid changed, whoever changed it. Never asks for a size: two panes of different sizes would trade sizes for ever. */
+      const repaint = () => {
+        const v = live.current?.view;
+        if (!v) return;
+        const px = sizes() ? DEFAULT_FONT : fontFor(el.clientWidth, v.cols); // a font that tracked the host's grid would move the grid this pane proposes
+        traceResize('host', `${v.cols}x${v.rows}, font ${px}, sizes ${sizes()} holders ${v.holders.map((h) => h.kind).join()}`);
+        pane.setFontSize(px);
+      };
+      const watch = new ResizeObserver(layout);
+      const sendKeys = keySender(
+        (data) => (live.current ? store.client.bytes.input(live.current.view, data) : Promise.resolve()), // keys queued past a detach are dropped
+        (e) => setRefused(e.message),
+      );
+      const typing = pane.term.onData((d) => {
+        if (holding && live.current) sendKeys(utf8.encode(d));
+      });
+      const grab = () => {
+        const v = live.current?.view;
+        if (!v || holding || v.state !== 'live' || v.holders.some((h) => h.kind !== 'daemon')) return;
+        take({ agent }); // a refusal is reported by the write
+      };
+      /** The one key the app keeps: the terminal lets go of the keyboard and the hold is released. */
+      const leave = (e: KeyboardEvent) => {
+        if (!isEscapeChord(e)) return;
+        pane.blur?.();
+        if (holding) release({ agent });
+      };
+      /** Focus leaving the terminal (a click elsewhere) lets go of the hold. */
+      const drop = (e: FocusEvent) => {
+        if (holding && !stage.contains(e.relatedTarget as Node | null)) release({ agent });
+      };
+      stage.addEventListener('mousedown', grab);
+      stage.addEventListener('focusout', drop);
+      stage.addEventListener('focusin', grab);
+      stage.addEventListener('keydown', leave);
+      watch.observe(el);
+      const fitted = pane.onFit?.(layout); // xterm measures its cells after it first draws: no element resize says so
+      let off = () => {};
+      /** The view's state, holders included: what the person sees, and whether this pane sizes the host (on going live and on any change). */
+      const settle = (v: ByteTerminalView) => {
+        setState(v.state);
+        setFailure(v.failure);
+        const now = v.state === 'live' && v.holders.some((h) => h.kind !== 'daemon' && h.name === store.me);
+        const other = v.state === 'live' && v.holders.some((h) => h.kind !== 'daemon' && h.name !== store.me);
+        setHeldBy(v.holders.find((h) => h.kind !== 'daemon' && h.name !== store.me)?.name ?? '');
+        const wentLive = v.state === 'live' && !wasLive;
+        wasLive = v.state === 'live';
+        if (now !== holding || other !== otherHolds || wentLive) {
+          if (now !== holding) setRefused('');
+          holding = now;
+          otherHolds = other;
+          setHolds(now);
+          layout();
+        }
+        if (v.state === 'live') setEverLive(true);
+      };
+      const onEvent: ByteListener = (e, v) => {
+        if (e.type === 'marker') return pane.mark(markerLabel(e.marker));
+        if (e.type === 'state') return void settle(v);
+        if (e.type === 'write') unwritten += e.data.length;
+        paint(pane.term, v, e, (n) => (unwritten -= n));
+        if (e.type === 'reset') repaint();
+        if (unwritten > MAX_UNWRITTEN) {
+          unwritten = 0;
+          void store.client.bytes.resync(v); // a stream the screen cannot keep up with is dropped and taken again
+        }
+      };
+      try {
+        const opened = await store.client.bytes.open(agent, onEvent);
+        off = opened.off;
+        live.current = { view: opened.view, pane };
+        settle(opened.view);
+        layout(); // a state notice that came while opening found no view yet
+      } catch (e) {
+        setState('failed');
+        setFailure(reasonOf(e));
+      }
+      cleanup = () => {
+        watch.disconnect();
+        fitted?.dispose();
+        clearTimeout(timer);
+        typing.dispose();
+        stage.removeEventListener('mousedown', grab);
+        stage.removeEventListener('focusin', grab);
+        stage.removeEventListener('focusout', drop);
+        stage.removeEventListener('keydown', leave);
+        off();
+        if (live.current) {
+          void store.client.bytes.close(key).catch(() => {});
+        }
+        live.current = null;
+        keep(key, { stage, pane, quiet, title });
+      };
+      if (cancelled) cleanup();
+    })();
+    return () => {
+      cancelled = true;
+      cleanup();
+    };
+  }, [store, agent, key, hasTerminal, attempt, take, release]);
+
+  const skeleton = useSkeleton(hasTerminal && state === 'attaching' && !everLive);
+  const note = !hasTerminal ? '' : state === 'failed' ? failure : NOTE[state];
+
+  return (
+    <div className="terminal-tab flex min-h-0 flex-1 flex-col">
+      <div
+        className={`terminal xterm-pane relative flex min-h-0 flex-1 flex-col bg-term-bg${state === 'stale' || !hasTerminal ? ' dim [&_.xterm-host]:opacity-55' : ''}`}
+        title={title}
+      >
+        <div
+          className="xterm-host min-h-0 flex-1 overflow-hidden px-2.5 py-2 [&>div]:h-full"
+          ref={host}
+          aria-label={`Terminal of ${agent}`}
+        />
+        {!hasTerminal && <StartTerminal agent={agent} />}
+        {state === 'live' && heldBy && !holds ? (
+          <div className="input-elsewhere absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-term-bg/70">
+            <span className="text-xs text-term-ink">Typing is on {heldBy}</span>
+            <Button variant="primary" onClick={() => take({ agent, force: true })}>
+              Type here
+            </Button>
+          </div>
+        ) : null}
+        {skeleton && (
+          <div className="term-skeleton absolute inset-0 flex flex-col gap-2 bg-term-bg px-2.5 py-3" aria-hidden="true">
+            {SKELETON_ROWS.map((w, i) => (
+              <div
+                key={i}
+                className="term-skeleton-row h-3 animate-pulse rounded-sm bg-term-ink/20 motion-reduce:animate-none"
+                style={{ width: `${w}%` }}
+              />
+            ))}
+          </div>
+        )}
+        <div className="grid-status px-2.5 pb-1.5 text-xs text-warning empty:hidden">
+          {note}
+          {refused || (takeInput.error ? `Could not take the input: ${reasonOf(takeInput.error)}` : '')}
+          {state === 'failed' && (
+            <Button className="ml-2" onClick={() => setAttempt((n) => n + 1)}>
+              Retry
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** While no terminal runs: one button that starts it. The pane attaches by itself once the daemon records the terminal. */
+function StartTerminal({ agent }: { agent: string }) {
+  const start = useWrite('session.start', agent);
+  return (
+    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2">
+      <Button variant="primary" disabled={start.isPending} onClick={() => start.mutate({ agent })}>
+        {start.isPending ? 'Starting…' : 'Start terminal'}
+      </Button>
+      {start.error ? <span className="text-xs text-term-ink">Could not start it: try again</span> : null}
+    </div>
+  );
+}
