@@ -44,6 +44,22 @@ export const SEEDS: Record<string, Seed> = {
     });
   },
 
+  /** `handline.auditor` idle at its prompt with a shell, a monitor and two subagents running behind it. */
+  background: (d) => {
+    const s = d.sessions.get(AUD)!;
+    const ago = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
+    s.fx.view = {
+      ...s.fx.view,
+      status: { state: 'running', reason: 'background', text: 'tools/check.sh · Review the diff', until: null, since: ago(12), tasks: [] },
+      background: [
+        { kind: 'shell', label: 'tools/check.sh', since: ago(12) },
+        { kind: 'monitor', label: 'Watch the deploy log for errors', since: ago(9) },
+        { kind: 'subagent', label: 'Review the diff', since: ago(3), foreground: false },
+        { kind: 'subagent', label: 'Explore', since: ago(0), foreground: true },
+      ],
+    };
+  },
+
   /** The daemon's weekly-loss notice: a task for the person tagged spare-notice, listing four spare drafts. */
   'spare-notice': (d) => {
     const spare = [
