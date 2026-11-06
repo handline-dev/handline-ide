@@ -1212,3 +1212,22 @@ func TestThePauseHoldsAnAgentsMessageButNotAPersonsAndRecordsNoLoadPass(t *testi
 		t.Fatal("a pause recorded a load pass")
 	}
 }
+
+// A task task.send_now let go passes the pause as the founder's message does: its agent starts for it.
+func TestATaskSendNowLetGoStartsItsAgentWhilePaused(t *testing.T) {
+	m, d, _ := newManager(t)
+	paused := pause.Text(pause.State{Since: 1})
+	m.LoadHeld = func(string) string { return paused }
+	m.Agents = fakeAgents{repo: "/repo"}
+	sp := m.Spawn.(*fakeSpawn)
+	d.head = &db.Request{ID: 9, TS: m.now(), Requester: "lead", Target: "harbor"}
+	if said, _ := m.StartForWork("harbor"); !strings.Contains(said, "new work is paused") {
+		t.Fatalf("an agent's task went past the pause: %q", said)
+	}
+	if _, err := db.AddEvent(m.Q, "harbor", db.PausePassed, db.KV{K: "request_id", V: 9}); err != nil {
+		t.Fatal(err)
+	}
+	if said, _ := m.StartForWork("harbor"); strings.Contains(said, "paused") || len(sp.spawned)+len(sp.startedIn) == 0 {
+		t.Fatalf("the task send_now let go was held: %q", said)
+	}
+}

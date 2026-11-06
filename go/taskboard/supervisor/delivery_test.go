@@ -334,3 +334,46 @@ func TestThePauseHoldsATaskMidTurnTooButNotOneTheFounderSent(t *testing.T) {
 		t.Fatal("a task the founder sent was held by the pause")
 	}
 }
+
+// While paused, only the deliveries that pass the pause are told, alone; and the load's word for the pause, which the real gate gives
+// an agent at its prompt, does not hold them.
+func TestWhilePausedOnlyAPassedTaskIsToldAndThePausesLoadWordDoesNotHoldIt(t *testing.T) {
+	r := newRig(t)
+	r.agentUp("bob")
+	paused := "Waiting: new work is paused."
+	r.Paused = func() string { return paused }
+	load := paused
+	r.LoadHeld = func(string) string { return load }
+	r.task("bob", "alice", "the first job")
+	second := r.task("bob", "alice", "the second job")
+	if sent, _ := r.DeliverQueued(r.DB, "bob"); sent || len(r.term.typed) != 0 {
+		t.Fatalf("told while paused: %v", r.term.typed)
+	}
+	_, err := db.AddEvent(r.DB, "bob", db.PausePassed, db.KV{K: "request_id", V: second})
+	r.must(err)
+	r.must(db.PromoteToFront(r.DB, second))
+	if sent, _ := r.DeliverQueued(r.DB, "bob"); !sent {
+		t.Fatal("the passed task was held")
+	}
+	typed := strings.Join(r.term.typed, "\n")
+	if !strings.Contains(typed, "the second job") || strings.Contains(typed, "the first job") {
+		t.Fatalf("told: %q", typed)
+	}
+	r3 := newRig(t)
+	r3.agentUp("bob")
+	r3.Paused = func() string { return paused }
+	r3.LoadHeld = func(string) string { return paused }
+	r3.task("bob", db.Human, "the founder's own")
+	if sent, _ := r3.DeliverQueued(r3.DB, "bob"); !sent {
+		t.Fatal("the founder's task at the prompt was held by the pause")
+	}
+	load = "Waiting: the computer is busy right now."
+	r2 := newRig(t)
+	r2.agentUp("bob")
+	r2.Paused = func() string { return paused }
+	r2.LoadHeld = func(string) string { return load }
+	r2.task("bob", db.Human, "the founder's own")
+	if sent, _ := r2.DeliverQueued(r2.DB, "bob"); sent {
+		t.Fatal("the load's own hold let the founder's task through at the prompt")
+	}
+}

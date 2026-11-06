@@ -209,3 +209,55 @@ func TestAWakeThePauseHoldsShowsReasonPausedAndItsUntil(t *testing.T) {
 		t.Fatalf("the load reads as a pause: %v", s)
 	}
 }
+
+// An agent at its prompt whose task the pause holds is waiting on the pause, and names that task; one waking for it names it too.
+func TestAnAgentWhoseTaskThePauseHoldsSaysSoAndNamesIt(t *testing.T) {
+	r := newRig(t, "bob", "harbor", "quiet")
+	r.state(t, "bob", states.Idle, "")
+	r.sess.alive["bob"] = true
+	r.state(t, "quiet", states.Idle, "")
+	r.sess.alive["quiet"] = true
+	r.state(t, "harbor", states.Idle, "")
+	if _, err := r.env.Q.Exec("UPDATE agent_state SET closed_at = 4000 WHERE agent = 'harbor'"); err != nil {
+		t.Fatal(err)
+	}
+	r.wake.would["harbor"] = true
+	queued := func(owner string) int64 {
+		t.Helper()
+		tid, err := db.NewTask(r.env.Q, "job", owner, "alice", 0, db.DefaultPriority, "", 0, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		db.SetTaskQueued(r.env.Q, tid, "alice")
+		rid, err := db.AddRequest(r.env.Q, db.NewRequest{Requester: "alice", Target: owner, Body: "job", Kind: "task"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		db.LinkRequest(r.env.Q, tid, rid)
+		return tid
+	}
+	bobs, harbors := queued("bob"), queued("harbor")
+	status := func(agent string) map[string]any {
+		r.env.RefreshOne(agent)
+		s, _ := r.stored(t, agent)["status"].(map[string]any)
+		return s
+	}
+	if s := status("bob"); s["reason"] != "none" {
+		t.Fatalf("not paused: %v", s)
+	}
+	st, err := pause.Set(r.env.Q, time.Unix(1, 0), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.env.LoadHeld = func(string) string { return pause.Text(st) }
+	if s := status("bob"); s["state"] != "waiting" || s["reason"] != "paused" || s["text"] != pause.Text(st) ||
+		!reflect.DeepEqual(s["tasks"], []any{float64(bobs)}) {
+		t.Fatalf("at its prompt: %v", s)
+	}
+	if s := status("harbor"); s["reason"] != "paused" || !reflect.DeepEqual(s["tasks"], []any{float64(harbors)}) {
+		t.Fatalf("waking: %v", s)
+	}
+	if s := status("quiet"); s["reason"] != "none" {
+		t.Fatalf("paused with nothing held is idle: %v", s)
+	}
+}

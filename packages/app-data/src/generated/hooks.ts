@@ -115,6 +115,7 @@ export const useTaskCommentAdd = (target?: string) => useWrite("task.comment.add
 export const useTaskCommentEdit = (target?: string) => useWrite("task.comment.edit", target);
 export const useTaskCommentDelete = (target?: string) => useWrite("task.comment.delete", target);
 export const useTaskCommentSendNow = (target?: string) => useWrite("task.comment.send_now", target);
+export const useTaskSendNow = (target?: string) => useWrite("task.send_now", target);
 export const useTaskViewSave = (target?: string) => useWrite("task.view.save", target);
 export const useTaskViewDelete = (target?: string) => useWrite("task.view.delete", target);
 export const useTaskQueue = (target?: string) => useWrite("task.queue", target);

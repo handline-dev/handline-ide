@@ -329,10 +329,11 @@ func (m *Manager) wakeAgent(agent string, o WakeOpts) (bool, string) {
 // personWaiting is whether what the agent would wake for is a person's message.
 func (m *Manager) personWaiting(agent string) bool { return m.personHead(agent) != nil }
 
-// personHead is the person's message the agent would wake for, else nil: the head of its queue when that is the founder's, or else the
-// founder's oldest message not yet shown to it (a say is never a head, so it is looked for on its own).
+// personHead is the person's message the agent would wake for, else nil: the head of its queue when it passes the pause (the founder's, or
+// a task task.send_now let go), or else the founder's oldest message not yet shown to it (a say is never a head, so it is looked for on
+// its own).
 func (m *Manager) personHead(agent string) *db.Request {
-	if head, err := m.Delivery.EffectiveHead(m.Q, agent); err == nil && head != nil && head.Requester == db.Human {
+	if head, err := m.Delivery.EffectiveHead(m.Q, agent); err == nil && head != nil && must(db.PassesPause(m.Q, head)) {
 		return head
 	}
 	if rows, err := db.FounderPending(m.Q, agent); err == nil && len(rows) > 0 {

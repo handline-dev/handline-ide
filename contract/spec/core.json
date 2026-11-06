@@ -310,7 +310,7 @@
    "move": "An account move is settling.",
    "load": "The machine is over a load limit (host_active_cap, load_per_core_pct, ram_free_min_pct): the daemon starts none of its work until it is under, by itself; text names the limit that tripped. agent.force_start lets it go once. A message the person sends (the founder's or a paired device's) is never held by it: its agent wakes at once, and load_limit_passed is recorded in agent.timeline within 10 s of the send; the limit holds only agents' work and the daemon's own, and for at most 10 minutes: work held that long goes once, and load_limit_passed (by: ceiling) is recorded. A message held by the load is not a stuck delivery: no heal step or stuck card is made for it.",
    "pace": "Every account it may run on has no free slot only because of its weekly pace (Account.pace; without the launch pace hold one would have room), or none would last to its 5-hour reset with one more agent on it: the daemon starts it when a slot frees, a line catches up or a 5-hour window starts over, by itself, and a start goes to the account furthest behind its line. text names the account and how far ahead it is for the pace, and names no account for the 5-hour limit; until is the earliest back_at, or the earliest 5-hour reset, null when not known. A turn a person starts (a message a person sends, a person's own start or wake) and a restart are never held. agent.force_start lets it go once.",
-   "paused": "Paused (daemon.pause): the daemon starts none of an agent's work and none of its own; a turn already running goes to its end. A turn a person starts (a message a person sends, a person's own start or wake) and a restart are never held. A message an agent or the daemon sends waits too, unless its agent is mid-turn. Clocks keep running: a task's timeout and a gate's watch go on while paused, and only the turns they would start wait. It goes on at daemon.resume, or by itself at the pause's until; until is that time, null when there is none. agent.force_start does not pass it.",
+   "paused": "Paused (daemon.pause): the daemon starts none of an agent's work and none of its own; a turn already running goes to its end. A turn a person starts (a message a person sends, a person's own start or wake) and a restart are never held. A message an agent or the daemon sends waits too, unless its agent is mid-turn. Clocks keep running: a task's timeout and a gate's watch go on while paused, and only the turns they would start wait. It goes on at daemon.resume, or by itself at the pause's until; until is that time, null when there is none. agent.force_start does not pass it. A task is held the same way, mid-turn too, unless the founder sent it. When the pause is what keeps queued tasks from their agent, the agent's status is waiting, reason paused, with those tasks in tasks, oldest first, whether its session is up or not: task.send_now lets one of them go while the pause stays, daemon.resume lets everything go.",
    "wall": "The account it would run on is at a usage limit; until is when the window rolls over, null when not known.",
    "cap": "No account has a free slot; it starts when a running turn ends.",
    "stalled": "Stopped until a person unstalls it; text says why it stopped.",
@@ -1148,7 +1148,7 @@
       "items": {
        "type": "integer"
       },
-      "description": "The tasks it waits on, for reason task; empty otherwise."
+      "description": "The tasks it waits on, for reason task; for reason paused on an agent, the queued tasks the pause keeps from it, oldest first; empty otherwise."
      }
     },
     "required": [
@@ -1359,6 +1359,10 @@
      "keep_awake": {
       "$ref": "#/components/schemas/DaemonKeepAwake",
       "description": "Absent on a daemon that does not serve it."
+     },
+     "machine": {
+      "$ref": "#/components/schemas/Machine",
+      "description": "The machine this daemon runs on. Absent on a daemon that does not serve it."
      }
     },
     "required": [
@@ -1388,13 +1392,17 @@
        }
       ],
       "description": "When it goes on by itself; null when only daemon.resume ends it."
+     },
+     "machine": {
+      "$ref": "#/components/schemas/Machine",
+      "description": "The machine that is paused: this daemon's (DaemonStatus.machine). Absent on a daemon that does not serve it."
      }
     },
     "required": [
      "since",
      "until"
     ],
-    "description": "A pause of new work (daemon.pause)."
+    "description": "A pause of new work on one machine (daemon.pause)."
    },
    "DaemonKeepAwake": {
     "type": "object",
@@ -3505,6 +3513,24 @@
      "kind",
      "id",
      "count"
+    ]
+   },
+   "Machine": {
+    "type": "object",
+    "description": "A machine a daemon runs on. The pause is a machine's state: with several machines each has its own.",
+    "properties": {
+     "id": {
+      "type": "string",
+      "description": "The machine's id: made once by its daemon and kept, so a rename keeps it."
+     },
+     "name": {
+      "type": "string",
+      "description": "The machine's name as its owner set it (the computer name), else its host name."
+     }
+    },
+    "required": [
+     "id",
+     "name"
     ]
    }
   },

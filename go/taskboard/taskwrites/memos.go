@@ -100,6 +100,7 @@ func Register(s *rpc.Server, home string, tell Teller, decide CardDecider) {
 	s.Register("task.comment.recipients", rpc.Method{Handler: memoRecipients(tell)})
 	s.Register("task.seen", rpc.Method{Handler: seenMethod})
 	s.Register("task.comment.send_now", rpc.Method{Handler: memoSendNow(tell)})
+	s.Register("task.send_now", rpc.Method{Handler: sendNow})
 	s.Register("task.view.save", rpc.Method{Handler: viewSave})
 	s.Register("task.view.delete", rpc.Method{Handler: viewDelete})
 }

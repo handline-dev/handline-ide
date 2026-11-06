@@ -5,11 +5,13 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/accounts/usage"
+	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/internal/housekeeping"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/scheduler/keepawake"
 	"github.com/handline/handline/go/scheduler/loadgate"
 	"github.com/handline/handline/go/scheduler/pause"
+	"github.com/handline/handline/go/scheduler/sysres"
 )
 
 func (e *Env) status(c *rpc.Conn, params map[string]any) (any, error) { return e.Status(c.Server()) }
@@ -53,6 +55,7 @@ func (e *Env) StatusHealth(srv *rpc.Server) (map[string]any, Health, error) {
 		"inbox":         map[string]any{"unread": len(items)},
 		"resources":     e.resources(),
 		"paused":        e.paused(),
+		"machine":       e.machine(),
 		"keep_awake":    e.KeepAwakeView(),
 	}
 	// The machine's own needs-you items, none of an agent's: a disk too full for builds.
@@ -77,7 +80,13 @@ func (e *Env) paused() any {
 	if p.Until != 0 {
 		until = ts(p.Until)
 	}
-	return map[string]any{"since": ts(p.Since), "until": until}
+	return map[string]any{"since": ts(p.Since), "until": until, "machine": e.machine()}
+}
+
+// machine is DaemonStatus.machine: the machine this daemon runs on, its id kept in the database.
+func (e *Env) machine() map[string]any {
+	id, _ := db.MachineID(e.DB)
+	return map[string]any{"id": id, "name": sysres.MachineName()}
 }
 
 // machineNeeds are the items daemon.status carries: what the machine needs of the founder, oldest first.

@@ -120,7 +120,7 @@ export type Status = {
   until: Timestamp | null;
   /** Since when it has been so; null when not known. */
   since: Timestamp | null;
-  /** The tasks it waits on, for reason task; empty otherwise. */
+  /** The tasks it waits on, for reason task; for reason paused on an agent, the queued tasks the pause keeps from it, oldest first; empty otherwise. */
   tasks: number[];
 };
 
@@ -173,13 +173,17 @@ export type DaemonStatus = {
   health?: DaemonHealth;
   /** Absent on a daemon that does not serve it. */
   keep_awake?: DaemonKeepAwake;
+  /** The machine this daemon runs on. Absent on a daemon that does not serve it. */
+  machine?: Machine;
 };
 
-/** A pause of new work (daemon.pause). */
+/** A pause of new work on one machine (daemon.pause). */
 export type DaemonPause = {
   since: Timestamp;
   /** When it goes on by itself; null when only daemon.resume ends it. */
   until: Timestamp | null;
+  /** The machine that is paused: this daemon's (DaemonStatus.machine). Absent on a daemon that does not serve it. */
+  machine?: Machine;
 };
 
 /** Keeping the machine from idle sleep: what is set and whether it holds now. status.changed is told within 10 s of a change. */
@@ -734,6 +738,14 @@ export type ForYouClosed = {
   id: string;
   /** The count without it. */
   count: number;
+};
+
+/** A machine a daemon runs on. The pause is a machine's state: with several machines each has its own. */
+export type Machine = {
+  /** The machine's id: made once by its daemon and kept, so a rename keeps it. */
+  id: string;
+  /** The machine's name as its owner set it (the computer name), else its host name. */
+  name: string;
 };
 
 export interface CoreMethods {
