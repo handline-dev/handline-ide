@@ -23,7 +23,7 @@ import { remoteUrl, SettingsFile, type Link, type Remote } from '#src/mode.ts';
 import { ownDaemon, readFounderKey, type Own } from '#src/own.ts';
 import { quitQuietly } from '#src/ask.ts';
 import { askBeforeQuit, countWorking, loginLaunch, saveOpenAtLogin, trayFollow, trayUpdate } from '#src/app-life.ts';
-import { addressesChosen, listenAddress, magicDnsName, onTailnet, TAILSCALE_CLIS } from '#src/tailnet.ts';
+import { addressesChosen, listenAddress, magicDnsName, onTailnet, TAILSCALE_CLIS, windowDaemon } from '#src/tailnet.ts';
 import { Cli, Connection, DaemonView, Page, Settings, Update, CHANNELS } from '#src/bridge.ts';
 import { serveDir } from '#src/serve.ts';
 import { buildId, UNSENT_PROBE, Updater } from '#src/update.ts';
@@ -61,7 +61,7 @@ let listen = env('WS') && !env('LISTEN') ? undefined : listenAddress(env('LISTEN
 /** The checkout the app runs from; a packaged app names its binaries with HANDLINE_HANDLINED. */
 const root = path.resolve(import.meta.dirname, '../../..');
 /** The window always carries its daemon: a built page without `?daemon=` would take its own origin, which here is the static server. */
-let ws = env('WS') ?? (listen ? `ws://${listen}/rpc` : 'ws://127.0.0.1:7777');
+let ws = env('WS') ?? (listen ? windowDaemon(listen) : 'ws://127.0.0.1:7777');
 app.setName('Handline'); // the menu bar and the About panel; the bundle name of an unpackaged run is set by launch.ts
 const APP_ICON = path.join(import.meta.dirname, '../assets/icon.png');
 const dist = env('WEB_DIST') ?? carried?.web ?? path.resolve(import.meta.dirname, '../../web/dist');
@@ -84,11 +84,11 @@ async function editorEnv(): Promise<EditorEnv> {
 
 /** The listener takes a browser's socket only from its own origin; this page is served here, so the shell says so for that socket. The device token still decides. */
 function allowListenerOrigin(): void {
-  session.defaultSession.webRequest.onBeforeSendHeaders({ urls: ['ws://*/*', 'wss://*/*'] }, (d, done) =>
-    done({
-      requestHeaders: listen && new URL(d.url).host === listen ? { ...d.requestHeaders, Origin: `http://${listen}` } : d.requestHeaders,
-    }),
-  );
+  session.defaultSession.webRequest.onBeforeSendHeaders({ urls: ['ws://*/*', 'wss://*/*'] }, (d, done) => {
+    const host = new URL(d.url).host;
+    const ours = listen && (host === listen || host === new URL(ws).host);
+    done({ requestHeaders: ours ? { ...d.requestHeaders, Origin: `http://${host}` } : d.requestHeaders });
+  });
 }
 
 const background = inBackground(process.env);
@@ -426,11 +426,9 @@ if (!app.requestSingleInstanceLock({ background })) {
     const opening = login.hidden() || background ? Promise.resolve() : openWindow();
     void own
       .ready()
-      .then(async (at) => {
-        if (!remote && at && at !== listen && !env('WS')) {
-          ws = `ws://${(listen = at)}/rpc`;
-          if (win && !win.isDestroyed()) await win.loadURL(`${web.url}?daemon=${encodeURIComponent(ws)}${savedRoute()}`);
-        }
+      .then(async () => {
+        if (own.pageTokenStale() && win && !win.isDestroyed())
+          await win.loadURL(`${web.url}?daemon=${encodeURIComponent(ws)}${savedRoute()}`);
       })
       .then(() => opening)
       .then(() => (background ? openWindow() : undefined))

@@ -275,3 +275,14 @@ func TestWithoutTheWebPageThePairingHasNoWebLink(t *testing.T) {
 		t.Fatalf("%v", res)
 	}
 }
+
+func TestUnsetAddressesKeepADoorForTheDesktopAppThatIsListedNowhere(t *testing.T) {
+	n := &netDoors{cfg: Config{Home: t.TempDir(), Listen: "100.64.0.1:7443"}}
+	hosts, doors, chosen := n.want()
+	if chosen || len(hosts) != 1 || hosts[0].Host != "100.64.0.1" {
+		t.Fatalf("only the -listen host is listed: %v %v", hosts, chosen)
+	}
+	if isTLS, ok := doors[loopback]; !ok || isTLS {
+		t.Fatalf("no plain loopback door: %v", doors)
+	}
+}

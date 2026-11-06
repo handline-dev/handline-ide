@@ -175,10 +175,10 @@ func (n *netDoors) watch() {
 	}
 }
 
-// want is the hosts to serve and, by IP, whether that door is TLS. Unset network_addresses is the -listen door alone. Set, it is a door
-// for each chosen host this machine has an address for now, and a plain loopback door for the desktop app on this machine.
+// want is the hosts to serve and, by IP, whether that door is TLS. Unset network_addresses is the -listen door. Set, it is a door for each
+// chosen host this machine has an address for now. Either way there is a plain loopback door for the desktop app on this machine.
 func (n *netDoors) want() (hosts []netAddress, tls map[string]bool, chosen bool) {
-	tls = map[string]bool{}
+	tls = map[string]bool{loopback: false} // the desktop app's door
 	list := chosenHosts(n.cfg.Home)
 	if list == nil {
 		host, _, _ := net.SplitHostPort(n.cfg.Listen)
@@ -187,7 +187,6 @@ func (n *netDoors) want() (hosts []netAddress, tls map[string]bool, chosen bool)
 		tls[a.Host] = !n.cfg.plain()
 		return []netAddress{a}, tls, false
 	}
-	tls[loopback] = false // the desktop app's door
 	have := map[string]netAddress{}
 	for _, a := range addressesNow() {
 		have[a.Host] = a
