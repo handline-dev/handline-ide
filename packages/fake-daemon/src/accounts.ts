@@ -52,7 +52,7 @@ export class FakeAccounts {
 
   private emit(a: Account) {
     // The topic row is the one without the usage fields, as the daemon sends it.
-    const { plan: _p, assignable: _a, assign_reason: _r, agents_assigned: _n, agents_running: _g, ...row } = a;
+    const { plan: _p, assignable: _a, assign_reason: _r, not_picked: _np, agents_assigned: _n, agents_running: _g, ...row } = a;
     this.host.emit('accounts', 'account.changed', { title: a.label, data: row });
   }
   private agentsOn(account: string): string[] {
@@ -94,6 +94,7 @@ export class FakeAccounts {
       plan: 'pro',
       assignable: true,
       assign_reason: '',
+      not_picked: null,
     });
     this.add({
       name: 'beta',
@@ -105,9 +106,17 @@ export class FakeAccounts {
       plan: 'pro',
       assignable: false,
       assign_reason: '5h 88% at last reading',
+      not_picked: { kind: 'other', text: '5h 88% at last reading' },
     });
     // gamma's pace is its last weekly reading, kept until the week resets though the login has lapsed: it is far over the line.
-    this.add({ name: 'gamma', login_state: 'needs_login', five_hour: null, weekly: null, pace: paceOf(97, 50, now) });
+    this.add({
+      name: 'gamma',
+      login_state: 'needs_login',
+      five_hour: null,
+      weekly: null,
+      pace: paceOf(97, 50, now),
+      not_picked: { kind: 'login', text: 'not logged in' },
+    });
   }
 
   /** One accounts method; `accepted` makes the reply of a write. */

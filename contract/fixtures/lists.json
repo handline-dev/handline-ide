@@ -149,6 +149,21 @@
         },
         "assign_reason": {
          "$type": "string"
+        },
+        "not_picked": {
+         "$oneOf": [
+          {
+           "kind": {
+            "$type": "string"
+           },
+           "text": {
+            "$type": "string"
+           }
+          },
+          {
+           "$type": "null"
+          }
+         ]
         }
        }
       }
@@ -191,6 +206,9 @@
          "$absent": true
         },
         "windows": {
+         "$absent": true
+        },
+        "not_picked": {
          "$absent": true
         }
        }
