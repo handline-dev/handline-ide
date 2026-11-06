@@ -23,3 +23,8 @@ test('an agent is working, needs you or is idle', () => {
   assert.equal(mentionState({ state: 'waiting' }), 'needs you');
   assert.equal(mentionState({ state: 'parked' }), 'idle');
 });
+
+test('an agent at its prompt with background work running reads as working: status, not state, decides', () => {
+  assert.equal(mentionState({ state: 'idle', status: { state: 'running', reason: 'background' } }), 'working');
+  assert.equal(mentionState({ state: 'running', status: { state: 'idle', reason: 'none' } }), 'idle');
+});

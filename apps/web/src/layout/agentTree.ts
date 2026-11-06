@@ -1,6 +1,8 @@
+import { dotOf } from '@handline/app-core';
 /** The sidebar's agent tree: each agent under the agent it reports to (`parent`). Siblings stand in the
  * person's `order` (nav prefs); one not in it comes after, by name. */
-export type AgentLike = { name: string; parent: string | null; state: string };
+type DotFacts = Parameters<typeof dotOf>[0];
+export type AgentLike = { name: string; parent: string | null; state: string } & Partial<Omit<DotFacts, 'state'>>;
 export type AgentNode<A extends AgentLike = AgentLike> = { agent: A; children: AgentNode<A>[] };
 
 export function agentTree<A extends AgentLike>(agents: readonly A[], order: readonly string[] = []): AgentNode<A>[] {
@@ -28,10 +30,12 @@ export function agentTree<A extends AgentLike>(agents: readonly A[], order: read
  * working (running, or about to), asleep (parked for a time, or no terminal), in trouble (stalled, blocked,
  * or a person must answer), or resting (idle at its prompt). */
 export type Activity = 'working' | 'asleep' | 'error' | 'resting';
-export function activityOf(state: string): Activity {
-  if (state === 'running' || state === 'starting' || state === 'queued') return 'working';
-  if (state === 'parked' || state === 'no_terminal') return 'asleep';
-  if (state === 'stalled' || state === 'blocked' || state === 'waiting') return 'error';
+export function activityOf(a: Pick<AgentLike, keyof DotFacts>): Activity {
+  // From the rail dot, which reads AgentView.status first: an agent at its prompt with background work running is working.
+  const dot = dotOf({ ...a, has_dialog: a.has_dialog ?? false });
+  if (dot === 'running' || dot === 'waking') return 'working';
+  if (dot === 'parked' || dot === 'none') return 'asleep';
+  if (dot === 'waiting' || dot === 'blocked') return 'error';
   return 'resting';
 }
 
@@ -70,5 +74,5 @@ export function shortName(name: string, parent: string | null): string {
 
 /** How many agents under these nodes, at any depth, are working. */
 export function workingUnder(nodes: AgentNode[]): number {
-  return nodes.reduce((n, c) => n + (activityOf(c.agent.state) === 'working' ? 1 : 0) + workingUnder(c.children), 0);
+  return nodes.reduce((n, c) => n + (activityOf(c.agent) === 'working' ? 1 : 0) + workingUnder(c.children), 0);
 }

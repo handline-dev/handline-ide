@@ -130,12 +130,20 @@ describe('shortName', () => {
 });
 
 describe('activityOf', () => {
+  const of = (state: string) => ({ state, has_dialog: false });
   it('sorts the state words into four, unknown as resting', async () => {
     const { activityOf } = await import('#src/layout/agentTree.ts');
-    expect(['running', 'starting', 'queued'].map(activityOf)).toEqual(['working', 'working', 'working']);
-    expect(['parked', 'no_terminal'].map(activityOf)).toEqual(['asleep', 'asleep']);
-    expect(['stalled', 'blocked', 'waiting'].map(activityOf)).toEqual(['error', 'error', 'error']);
-    expect(['idle', 'something-new'].map(activityOf)).toEqual(['resting', 'resting']);
+    const words = (l: string[]) => l.map((w) => activityOf(of(w)));
+    expect(words(['running', 'starting', 'queued'])).toEqual(['working', 'working', 'working']);
+    expect(words(['parked', 'no_terminal'])).toEqual(['asleep', 'asleep']);
+    expect(words(['stalled', 'blocked', 'waiting'])).toEqual(['error', 'error', 'error']);
+    expect(words(['idle', 'something-new'])).toEqual(['resting', 'resting']);
+  });
+
+  it('reads AgentView.status: idle state with background work running is working', async () => {
+    const { activityOf } = await import('#src/layout/agentTree.ts');
+    const status = { state: 'running', reason: 'background', text: '', until: null, since: null, tasks: [] };
+    expect(activityOf({ ...of('idle'), status })).toBe('working');
   });
 });
 
