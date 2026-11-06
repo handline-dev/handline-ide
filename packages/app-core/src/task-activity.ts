@@ -17,6 +17,8 @@ export interface ActivityItem {
   replyTo?: number | null;
   /** For a founder's comment: where its tell stands with each agent it was told to. */
   readers?: TaskDetail['memos'][number]['readers'];
+  /** A comment's pictures, still kept. */
+  images?: { id: string; name: string }[];
   edited: boolean;
 }
 
@@ -48,6 +50,7 @@ export function activityOf(memos: TaskDetail['memos'], timeline: readonly Entry[
     memo: m.id,
     replyTo: m.reply_to ?? null,
     readers: m.readers,
+    images: (m.files ?? []).filter((f) => f.kind === 'image' && !f.gone).map((f) => ({ id: f.id, name: f.name })),
     edited: !!m.edited_at,
   }));
   const events = timeline.flatMap((e): ActivityItem[] => {
