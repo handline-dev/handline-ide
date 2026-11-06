@@ -310,3 +310,28 @@ func TestAToolUseLeavesAMovingRowQueued(t *testing.T) {
 		}
 	}
 }
+
+func TestAStopKeepsWhatItSaidStillRunsCutShort(t *testing.T) {
+	h := testRecorder(t)
+	long := strings.Repeat("x", 300)
+	tasks := []any{map[string]any{"id": "b1", "type": "shell", "status": "running", "description": "", "command": "curl -H 'Authorization: x'", "output_file": "/tmp/o"},
+		"not an entry", map[string]any{"id": "a1", "type": "local_agent", "status": "running", "description": long}}
+	for i := 0; i < 30; i++ {
+		tasks = append(tasks, map[string]any{"id": "c" + strconv.Itoa(i), "type": "shell", "status": "completed"})
+	}
+	if err := Apply(h.DB, h.Home, "w", "Stop", map[string]any{"background_tasks": tasks}, "a", time.Now().Unix()); err != nil {
+		t.Fatal(err)
+	}
+	var raw string
+	h.DB.QueryRow("SELECT json_extract(payload, '$.background_tasks') FROM events WHERE agent = 'w' AND kind = 'Stop'").Scan(&raw)
+	var got []map[string]string
+	if err := json.Unmarshal([]byte(raw), &got); err != nil || len(got) != 20 || strings.Contains(raw, "Authorization") {
+		t.Fatalf("%d kept (%v): %s", len(got), err, raw)
+	}
+	if b := got[0]; len(b) != 3 || b["id"] != "b1" || b["status"] != "running" { // no empty description, no command, no output_file
+		t.Fatalf("the shell %v", b)
+	}
+	if a := got[1]; a["id"] != "a1" || len([]rune(a["description"])) != 100 { // the string entry is skipped
+		t.Fatalf("the subagent %v", a)
+	}
+}

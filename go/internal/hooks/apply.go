@@ -32,7 +32,12 @@ var endsWait = set("UserPromptSubmit", "Stop", "StopFailure", "SessionStart", "S
 
 // allowlist is, per event, the stdin fields worth keeping.
 var allowlist = []string{"session_id", "hook_event_name", "source", "reason", "cwd", "prompt_length", "transcript_path",
-	"model", "trigger", "tool_name", "error", "error_details", "notification_type"}
+	"model", "trigger", "tool_name", "error", "error_details", "notification_type", "background_tasks"}
+
+// bgTasksKept is how many of a Stop's background_tasks are stored, and bgTaskFields what of each: never the command, which can hold a secret.
+const bgTasksKept = 20
+
+var bgTaskFields = []string{"id", "type", "status", "description"}
 
 func set(names ...string) map[string]bool {
 	m := make(map[string]bool, len(names))
@@ -77,6 +82,10 @@ func slim(raw map[string]any) map[string]any {
 			if k == "model" {
 				out[k] = t["id"]
 			}
+		case []any:
+			if k == "background_tasks" {
+				out[k] = slimTasks(t)
+			}
 		default:
 			if k == "transcript_path" {
 				out[k] = fmt.Sprint(t)
@@ -85,6 +94,28 @@ func slim(raw map[string]any) map[string]any {
 	}
 	if p, ok := raw["prompt"].(string); ok {
 		out["prompt_length"] = int64(utf8.RuneCountInString(p))
+	}
+	return out
+}
+
+// slimTasks is what a Stop said still runs behind the session, each entry cut to its id, type, status and a short description.
+func slimTasks(list []any) []any {
+	out := []any{}
+	for _, e := range list {
+		m, _ := e.(map[string]any)
+		if m == nil {
+			continue
+		}
+		if len(out) == bgTasksKept {
+			break
+		}
+		kept := map[string]any{}
+		for _, f := range bgTaskFields {
+			if v, ok := m[f].(string); ok && v != "" {
+				kept[f] = cut(v, 100)
+			}
+		}
+		out = append(out, kept)
 	}
 	return out
 }
