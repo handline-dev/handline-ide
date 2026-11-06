@@ -2,6 +2,7 @@ package procload
 
 import (
 	"errors"
+	"os/exec"
 	"reflect"
 	"testing"
 )
@@ -88,5 +89,91 @@ func TestFailedReadKeepsTheLastServers(t *testing.T) {
 	tr.Sample(1015)
 	if n := len(tr.ServersOf("alice")); n != 1 {
 		t.Fatalf("a failed read dropped the servers: %d", n)
+	}
+}
+
+func TestAnEndedProcessIsNotAServerWhateverTheCachedSocketsSay(t *testing.T) {
+	procs := []Proc{{PID: 6, Agent: "alice", Cmd: "node", Start: 1, Gone: true}}
+	if got := serversOf([]Listener{{6, "127.0.0.1", 2}, {7, "127.0.0.1", 3}}, procs, nil, 1); len(got) != 0 {
+		t.Fatalf("a gone process and one out of the table serve: %+v", got)
+	}
+	// through Sample: the process leaves the table, and its last row (Gone, kept for the view) is not a server either
+	rows := []Raw{{PID: 100, PPID: 1, Start: 1, Cmd: "-zsh"}, {PID: 104, PPID: 100, Start: 5, Cmd: "node a.js"}}
+	tr := tracker(&rows, map[int]string{}, map[string]int{"alice": 100})
+	tr.Listen = func() ([]Listener, error) { return []Listener{{104, "127.0.0.1", 5173}}, nil }
+	tr.Sample(1000)
+	rows = rows[:1]
+	tr.Sample(1005)
+	if n := len(tr.ServersOf("alice")); n != 0 {
+		t.Fatalf("%d", n)
+	}
+}
+
+func TestTheSessionRuleIsPerAgentAndLeavesShellsAlone(t *testing.T) {
+	procs := []Proc{
+		{PID: 1, Agent: "alice", Cmd: "/bin/claude", Start: 1},
+		{PID: 2, PPID: 1, Agent: "bob", Cmd: "node bob-server", Start: 1}, // bob's, though its parent is alice's claude
+		{PID: 3, PPID: 1, Agent: "alice", Cmd: "/bin/zsh -c eval", Start: 1},
+		{PID: 4, PPID: 1, Agent: "alice", Cmd: "node mcp", Start: 1},
+		{PID: 5, Agent: "", Cmd: "stranger", Start: 1},
+	}
+	ls := []Listener{{2, "127.0.0.1", 12}, {3, "127.0.0.1", 13}, {4, "127.0.0.1", 14}, {5, "127.0.0.1", 15}}
+	got := serversOf(ls, procs, nil, 0)
+	if len(got["bob"]) != 1 || len(got["alice"]) != 1 || got["alice"][0].PID != 3 || len(got) != 2 {
+		t.Fatalf("%+v", got)
+	}
+}
+
+func TestOneAddressPerPortAndNoPortZero(t *testing.T) {
+	procs := []Proc{{PID: 6, Agent: "alice", Cmd: "node", Start: 1}}
+	got := serversOf([]Listener{{6, "10.0.0.2", 2}, {6, "10.0.0.1", 2}, {6, "::", 3}, {6, "0.0.0.0", 3}}, procs, nil, 0)["alice"]
+	if len(got) != 2 || got[0].Addr != "10.0.0.1" || got[1].Addr != "0.0.0.0" {
+		t.Fatalf("%+v", got)
+	}
+	if ls := parseLsof("p6\ntIPv4\nn*:0\nn*:70000\nn127.0.0.1:1\n"); len(ls) != 1 || ls[0].Port != 1 {
+		t.Fatalf("%+v", ls)
+	}
+}
+
+func TestLsofExitsAreToldApart(t *testing.T) {
+	exitErr := func(code string) error { return exec.Command("sh", "-c", "exit "+code).Run() }
+	if ls, err := lsofResult(nil, exitErr("1")); err != nil || ls == nil || len(ls) != 0 {
+		t.Fatalf("exit 1 with no output is an empty read: %v %v", ls, err)
+	}
+	if ls, err := lsofResult(nil, exitErr("2")); err == nil || ls != nil {
+		t.Fatalf("exit 2 is a failure: %v %v", ls, err)
+	}
+	if _, err := lsofResult([]byte("p1\n"), exitErr("1")); err == nil {
+		t.Fatal("exit 1 with output is a failure")
+	}
+}
+
+func TestAnEmptyReadClearsAndAFailedReadWaitsToo(t *testing.T) {
+	rows := []Raw{{PID: 100, PPID: 1, Start: 1, Cmd: "-zsh"}, {PID: 104, PPID: 100, Start: 5, Cmd: "node a.js"}}
+	tr := tracker(&rows, map[int]string{}, map[string]int{"alice": 100})
+	reads, mode := 0, "some"
+	tr.Listen = func() ([]Listener, error) {
+		reads++
+		switch mode {
+		case "fail":
+			return nil, errors.New("x")
+		case "none":
+			return nil, nil
+		}
+		return []Listener{{104, "127.0.0.1", 5173}}, nil
+	}
+	tr.Sample(1000)
+	mode = "none"
+	tr.Sample(1015)
+	if n := len(tr.ServersOf("alice")); n != 0 {
+		t.Fatalf("a read of nothing keeps %d", n)
+	}
+	mode = "fail"
+	tr.Sample(1030)
+	for _, at := range []int64{1035, 1040} {
+		tr.Sample(at)
+	}
+	if reads != 3 {
+		t.Fatalf("a failed read ran again before ListenEvery: %d reads", reads)
 	}
 }

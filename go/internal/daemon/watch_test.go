@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/internal/watcher"
+	"github.com/handline/handline/go/scheduler/procload"
 )
 
 // watchedTypes are the event types the test counts, one source change each: a task, an agent view, a task-done event, a request and a
@@ -80,5 +81,26 @@ func TestTheWatcherIsOffUnlessAskedForAndThenOneChangeIsOneRow(t *testing.T) {
 		if n != 1 {
 			t.Errorf("one change wrote %d %s rows", n, typ)
 		}
+	}
+}
+
+// A tracker the caller made is the one the daemon samples and serves, with the database and the panes set on it.
+func TestTheDaemonRunsTheLoadTrackerItIsGiven(t *testing.T) {
+	dir, err := os.MkdirTemp("", "hl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+	tr := &procload.Tracker{Home: dir}
+	d, err := Start(Config{Home: dir, DBFile: filepath.Join(dir, "db.sqlite"), SocketFile: filepath.Join(dir, "d.sock"), Auth: fakeAuth{}, Watch: true, Load: tr})
+	if err != nil {
+		if strings.Contains(err.Error(), "operation not permitted") {
+			t.Skipf("this environment will not bind a socket: %v", err)
+		}
+		t.Fatal(err)
+	}
+	defer d.Close()
+	if d.load != tr || tr.DB == nil || tr.Panes == nil {
+		t.Fatalf("daemon's tracker %p, given %p, db %v", d.load, tr, tr.DB != nil)
 	}
 }
