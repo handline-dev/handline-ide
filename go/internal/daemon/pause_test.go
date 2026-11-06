@@ -3,6 +3,7 @@ package daemon
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
@@ -94,8 +95,10 @@ func TestAPauseIsToldOnTheStatusTopicAndEndsByItselfAtItsUntil(t *testing.T) {
 	if p, _ := f.statusEvent(5 * time.Second)["paused"].(map[string]any); p == nil || p["since"] == nil || p["until"] != nil {
 		t.Fatalf("paused %v", p)
 	}
-	if r := f.ask(6, `{"jsonrpc":"2.0","id":6,"method":"daemon.status","params":{}}`)["result"].(map[string]any); r["paused"] == nil {
-		t.Fatal("daemon.status does not say it is paused")
+	r := f.ask(6, `{"jsonrpc":"2.0","id":6,"method":"daemon.status","params":{}}`)["result"].(map[string]any)
+	m, _ := r["machine"].(map[string]any)
+	if r["paused"] == nil || m["id"] == "" || m["id"] == nil || m["name"] == nil || !reflect.DeepEqual(r["paused"].(map[string]any)["machine"], m) {
+		t.Fatalf("daemon.status does not say this machine is paused: %v", r)
 	}
 	f.ask(7, `{"jsonrpc":"2.0","id":7,"method":"daemon.resume","params":{"request_id":"r1"}}`)
 	if p := f.statusEvent(5 * time.Second)["paused"]; p != nil {

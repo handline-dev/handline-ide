@@ -30,6 +30,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `task.memo.edit` | agent | yes | `task`, `memo`, `text`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | not from the app |
 | `task.comment.delete` | agent | yes | `task`, `memo`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | authored: delete comment |
 | `task.comment.send_now` | member | yes | `memo`, `agent`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | decided: send now |
+| `task.send_now` | member | yes | `task`, `request_id` | `Accepted` | `refused`, `not_found` |  | decided: run this one now |
 | `task.memo.delete` | agent | yes | `task`, `memo`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | not from the app |
 | `task.view.list` | member |  | none | `{views}` |  |  | `task-views`, snapshot |
 | `task.view.save` | member | yes | `name`, `filter`, `request_id` | `Accepted` | `bad_request` |  | decided: save view |
@@ -147,6 +148,10 @@ Delete a comment: its author or the founder. Deleting a comment withdraws the as
 ### `task.comment.send_now`
 
 Send a founder's comment now to a reader whose tell waits for the reader's next digest. Refused when the tell is not held (already sent, read or never told).
+
+### `task.send_now`
+
+While new work is paused (daemon.pause), give this one queued task to its agent now, as one the founder sent: it is told, and its agent starts or wakes for it as for a person's message. The pause stays and holds the rest. Refused when nothing is paused, or when the pause is not what holds the task: it is not queued, not for an agent, or already told.
 
 ### `task.memo.delete`
 

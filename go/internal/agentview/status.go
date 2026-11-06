@@ -43,6 +43,7 @@ func (e *Env) status(agent string, row *db.AgentState, state, detail string, han
 		if p, _ := pause.Get(e.Q, time.Unix(now, 0)); p != nil {
 			s.Until = p.Until
 		}
+		s.Tasks = must(db.PauseHeldTasks(e.Q, agent, time.Unix(now, 0)))
 		return s
 	}
 	switch state {
@@ -106,6 +107,10 @@ func (e *Env) status(agent string, row *db.AgentState, state, detail string, han
 	}
 	if row != nil && must(e.HasBackgroundWork(e.Q, agent)) {
 		return at(status.Running, status.Background, detail)
+	}
+	// At its prompt with tasks the pause holds: the load gate asks only before a start, so nothing above saw them.
+	if why := pause.Why(e.Q, time.Unix(now, 0)); why != "" && len(must(db.PauseHeldTasks(e.Q, agent, time.Unix(now, 0)))) > 0 {
+		return held(why)
 	}
 	if tasks := e.waitsOn(agent); len(tasks) > 0 {
 		s := at(status.Waiting, status.Task, detail)
