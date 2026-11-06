@@ -101,6 +101,8 @@ type Config struct {
 	Context func(agent, account string) (string, *int, *int64, int)
 	// Delivery is what the supervisor knows of why a queued line waits (a chat line's sending_reason). Nil leaves out the reasons that need it.
 	Delivery reads.Delivery
+	// KeepAwake is whether the sleep lock is held now, and since when (DaemonStatus.keep_awake.held). Nil reads as not held.
+	KeepAwake func() (bool, time.Time)
 	// Session makes the env of the session methods (session.start, wake, stop, restart, park, interrupt) once the lifecycle is built; nil
 	// serves none of them.
 	Session func() *sessionrpc.Env
@@ -534,7 +536,7 @@ func (d *Daemon) operationEvent(topic, typ string, data any, agent string) {
 // readsEnv is the env of the reads every server serves, and of the status the daemon tells the status topic.
 func (d *Daemon) readsEnv() reads.Env {
 	renv := reads.Env{DB: d.db, Home: d.cfg.Home, Started: d.started, Sha: version.Sha, Schema: store.LatestVersion(), Delivery: d.cfg.Delivery,
-		Context: d.cfg.Context, HealthClock: d.hclock}
+		Context: d.cfg.Context, HealthClock: d.hclock, KeepAwake: d.cfg.KeepAwake}
 	if d.res != nil {
 		renv.Resources = d.res.Latest
 		renv.Machine = d.res.LatestMachine

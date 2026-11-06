@@ -216,6 +216,11 @@ export class FakeAdmin {
     };
   }
 
+  /** The keep_awake mode the settings say (DaemonStatus.keep_awake.mode). */
+  keepAwake(): string {
+    return this.values.keep_awake ?? 'off';
+  }
+
   settings(): Settings {
     const values = structuredClone(this.values) as Record<string, unknown>;
     return {

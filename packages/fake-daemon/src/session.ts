@@ -167,9 +167,17 @@ export function accountsReply(names: string[] | null, sessions: Session[]) {
   return { accounts };
 }
 
-export function statusReply(sessions: Map<string, Session>, unread: number, startedAt: Timestamp, needs: readonly MachineNeed[] = []) {
+export function statusReply(
+  sessions: Map<string, Session>,
+  unread: number,
+  startedAt: Timestamp,
+  needs: readonly MachineNeed[] = [],
+  keepAwake = 'off',
+) {
   const by_state: Record<string, number> = {};
   for (const s of sessions.values()) by_state[s.state] = (by_state[s.state] ?? 0) + 1;
+  // the sleep lock is held under on, and under working while an agent runs; the fake has held it since it started
+  const held = keepAwake === 'on' || (keepAwake === 'working' && (by_state.running ?? 0) > 0);
   return {
     alive: true,
     version: 'fake0000',
@@ -180,6 +188,7 @@ export function statusReply(sessions: Map<string, Session>, unread: number, star
     agents: { total: sessions.size, by_state },
     inbox: { unread },
     resources: fakeResources(sessions, startedAt),
+    keep_awake: { mode: keepAwake, held, ...(held ? { since: startedAt } : {}) },
     ...(needs.length ? { needs_you: [...needs] } : {}),
   };
 }

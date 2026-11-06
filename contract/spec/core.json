@@ -1355,6 +1355,10 @@
      "health": {
       "$ref": "#/components/schemas/DaemonHealth",
       "description": "Absent on a daemon that does not serve it."
+     },
+     "keep_awake": {
+      "$ref": "#/components/schemas/DaemonKeepAwake",
+      "description": "Absent on a daemon that does not serve it."
      }
     },
     "required": [
@@ -1391,6 +1395,33 @@
      "until"
     ],
     "description": "A pause of new work (daemon.pause)."
+   },
+   "DaemonKeepAwake": {
+    "type": "object",
+    "properties": {
+     "mode": {
+      "type": "string",
+      "enum": [
+       "off",
+       "on",
+       "working"
+      ],
+      "description": "config.yaml keep_awake (settings.get): off; on, held while the daemon runs; working, held while an agent is mid-turn."
+     },
+     "held": {
+      "type": "boolean",
+      "description": "Whether the daemon holds macOS caffeinate -i now. False under on when caffeinate could not start (not macOS)."
+     },
+     "since": {
+      "$ref": "#/components/schemas/Timestamp",
+      "description": "When the hold now in force began; absent while not held."
+     }
+    },
+    "required": [
+     "mode",
+     "held"
+    ],
+    "description": "Keeping the machine from idle sleep: what is set and whether it holds now. status.changed is told within 10 s of a change."
    },
    "DaemonHealth": {
     "type": "object",

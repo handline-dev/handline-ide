@@ -144,6 +144,7 @@ func main() {
 		parts := compose.New(ccfg)
 		cfg.Watch = *terminalTick
 		cfg.Delivery = parts.Delivery()
+		cfg.KeepAwake = parts.KeepAwake
 		cfg.Transcripts = true
 		cfg.OnOpen = func(db *sql.DB, env *supervisor.Env) {
 			parts.Bind(db, env)

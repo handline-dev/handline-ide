@@ -171,6 +171,8 @@ export type DaemonStatus = {
   paused?: DaemonPause | null;
   /** Absent on a daemon that does not serve it. */
   health?: DaemonHealth;
+  /** Absent on a daemon that does not serve it. */
+  keep_awake?: DaemonKeepAwake;
 };
 
 /** A pause of new work (daemon.pause). */
@@ -178,6 +180,16 @@ export type DaemonPause = {
   since: Timestamp;
   /** When it goes on by itself; null when only daemon.resume ends it. */
   until: Timestamp | null;
+};
+
+/** Keeping the machine from idle sleep: what is set and whether it holds now. status.changed is told within 10 s of a change. */
+export type DaemonKeepAwake = {
+  /** config.yaml keep_awake (settings.get): off; on, held while the daemon runs; working, held while an agent is mid-turn. */
+  mode: "off" | "on" | "working";
+  /** Whether the daemon holds macOS caffeinate -i now. False under on when caffeinate could not start (not macOS). */
+  held: boolean;
+  /** When the hold now in force began; absent while not held. */
+  since?: Timestamp;
 };
 
 /** The machine's state in one line. held, the first that applies: the founder's pause (daemon.pause); the load holding starts (Resources.start_hold, by its own rules); any needs_you item; any agent whose status reason is cap, wall or pace, with the count in text. near, when nothing holds: the load per core at least its limit less 10 percentage points (load_per_core_pct), or free memory less than its limit plus 10 (ram_free_min_pct), when that limit is set; never before the first measure. host_active_cap is never near: at it, starts are held. status.changed is told within 10 s of a change of level or text. */
