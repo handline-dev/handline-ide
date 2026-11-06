@@ -15,6 +15,7 @@ import { StatusRow } from '#src/sidebar/StatusRow.tsx';
 import { Settings } from '#src/settings/Settings.tsx';
 import { openSettings } from '#src/settings/open.ts';
 import '#src/styles.css';
+import { trackShellInsets } from '#src/shellInsets.ts';
 
 const clampWidth = (px: number) => Math.min(sidebarWidth.max, Math.max(sidebarWidth.min, px));
 
@@ -31,9 +32,8 @@ function App() {
 
   return (
     <>
-      {/* The controls never move: the top-left corner is the sidebar's header when it is open and the
-          first tab bar's start when it is closed, where a spacer opens up for them. */}
-      <div className="fixed top-1.5 left-2 z-30">
+      {/* Fixed top-left; right of the Mac window buttons in the shell (shellInsets.ts). */}
+      <div className="fixed z-30" style={{ top: 'var(--controls-top, 6px)', left: 'calc(8px + var(--lights-w, 0px))' }}>
         <SidebarControls onToggle={toggle} />
       </div>
       <div className="flex h-full flex-col">
@@ -44,7 +44,7 @@ function App() {
             transition={dragging ? instant : spring}
             className="flex shrink-0 flex-col overflow-hidden bg-surface"
           >
-            <div className="h-10 shrink-0" />
+            <div className="shrink-0" style={{ height: 'max(40px, calc(var(--controls-top, 6px) + 34px))' }} />
             <Sidebar
               width={width}
               agent={agent}
@@ -83,7 +83,7 @@ function App() {
                     transition={spring}
                     className="shrink-0"
                   >
-                    <div className="w-26" />
+                    <div style={{ width: 'calc(104px + var(--lights-w, 0px))' }} />
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -101,6 +101,7 @@ function App() {
 for (const type of ['dragover', 'drop'] as const)
   window.addEventListener(type, (e) => e.dataTransfer?.types.includes('Files') && e.preventDefault());
 
+trackShellInsets();
 createRoot(document.getElementById('root')!).render(
   location.pathname === '/gallery' ? (
     <>

@@ -27,6 +27,7 @@ import { Markdown } from '#src/ui/Markdown.tsx';
 import { Menu, MenuItem } from '#src/ui/Menu.tsx';
 import { Actions, CopyButton } from '#src/chat/MessageActions.tsx';
 import { Reference } from '#src/chat/ChatLine.tsx';
+import { MessageImages } from '#src/chat/MessageImages.tsx';
 import { HoverCard } from '#src/ui/HoverCard.tsx';
 import { Fields } from '#src/tools/TaskFields.tsx';
 import { CommentBox } from '#src/tools/TaskComment.tsx';
@@ -358,6 +359,7 @@ function Activity({ items, onReply }: { items: ActivityItem[]; onReply: (memo: n
                     <Reference text={items.find((r) => r.memo === i.replyTo)?.note} onClick={() => showMemo(i.replyTo!)} />
                   )}
                   <Markdown text={i.note} />
+                  {i.images && <MessageImages images={i.images} />}
                 </div>
                 <HoverRow at={i.at} edited={i.edited}>
                   <Actions text={i.note} onQuote={() => i.memo != null && onReply(i.memo)} />
