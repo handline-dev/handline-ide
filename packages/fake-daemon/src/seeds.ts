@@ -34,6 +34,15 @@ export const SEEDS: Record<string, Seed> = {
     d.inbox.add({ kind: 'decision', agent: ARCH, title: 'Review: wider margin on the board', body: 'Is this right?', task: 9301 });
   },
 
+  /** A comment with five pasted pictures, two on one line and three each on their own: they fill a row and wrap (T9302). */
+  pictures: (d) => {
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+    const ids = [1, 2, 3, 4, 5].map((i) => d.uploads.add(`shot-${i}.png`, png).id);
+    const ref = (i: number) => `![shot ${i + 1}](attachment:${ids[i]})`;
+    d.tasks.seed({ id: 9302, from: ARCH, to: ME, title: 'Five screenshots of the board', state: 'doing' });
+    d.tasks.memo({ task: 9302, text: `Here they are.\n${ref(0)} ${ref(1)}\n\n${ref(2)}\n\n${ref(3)}\n${ref(4)}` }, 'add', ARCH);
+  },
+
   /** An open task given to the person, with its card in the architect's chat: the card then offers Open and Done. */
   'task-card': (d) => {
     d.tasks.seed({ id: 1695, from: ARCH, to: ME, title: 'Confirm the chat plan', state: 'doing' });
@@ -149,6 +158,9 @@ export const SEEDS: Record<string, Seed> = {
       open: 1,
       unread_comments: 2,
     });
+    // The tasks behind the finished rows, so task.seen finds them.
+    d.tasks.seed({ id: 5983, from: ME, to: 'handline.pc', title: 'Settings in one place', state: 'done' });
+    d.tasks.seed({ id: 8613, from: ME, to: 'handline.ui', title: 'Coffee popover for keep-awake', state: 'done' });
     const ended = (min: number, seen: boolean) => ({
       outcome: 'done' as const,
       at: new Date(Date.now() - min * 60_000).toISOString(),
