@@ -81,6 +81,9 @@ True for any agent, whatever tool runs it. Your name is in `$HANDLINE_AGENT`.
    `tools/localrefs.py` enforces it, and refuses an @-mention outside code in a commit message, in the git hooks
    (`tools/install-git-hooks.sh`), and CI (pr-rules) runs it on each push:
    `tools/localrefs.py diff main...<sha>` and `tools/localrefs.py log main..<sha>`.
+7. A leftover on one machine (a stuck row, a stale card) is cleaned by hand and reported on the task: cancel it in
+   the app, or run one sql line and quote it. Never with code the repo keeps: no migration, sweep or helper for it.
+   A migration is for a schema or data change every install needs. Auditors FAIL a diff that adds one-off cleanup code.
 
 Easy to get wrong:
 
