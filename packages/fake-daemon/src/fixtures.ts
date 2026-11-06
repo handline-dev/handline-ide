@@ -37,6 +37,7 @@ export interface AgentFixture {
       | 'handoff'
       | 'status'
       | 'doing'
+      | 'background'
     >
   >;
 }

@@ -34,7 +34,7 @@ const NetworkAddressesKey = "network_addresses"
 
 // StartSubagent is the guard's question before agent's session starts a subagent at at: the refusal on the agent's account when the
 // guard is on, or "" once the start is recorded (db.RecordSubagentStart).
-func (e *Env) StartSubagent(q db.Q, agent, session string, at int64) (string, error) {
+func (e *Env) StartSubagent(q db.Q, agent, session string, at int64, m db.SubagentMeta) (string, error) {
 	var acct sql.NullString
 	if err := q.QueryRow("SELECT account FROM agent_state WHERE agent = ?", agent).Scan(&acct); err != nil && err != sql.ErrNoRows {
 		return "", err
@@ -44,5 +44,5 @@ func (e *Env) StartSubagent(q db.Q, agent, session string, at int64) (string, er
 			return why, nil
 		}
 	}
-	return "", db.RecordSubagentStart(q, agent, acct.String, session, at)
+	return "", db.RecordSubagentStart(q, agent, acct.String, session, at, m)
 }

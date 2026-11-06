@@ -105,7 +105,15 @@ func hook(c *hlclient.Client, args []string) (int, bool) {
 func subagentStart(c *hlclient.Client, agent string, raw map[string]any) string {
 	sid, _ := raw["session_id"].(string)
 	quick := &hlclient.Client{Home: c.Home, Dial: hlclient.Dialer(c.Home, 2*time.Second), As: "hook", Deadline: 2 * time.Second}
-	res, err := quick.Call("subagent.start", map[string]any{"agent": agent, "session_id": sid})
+	params := map[string]any{"agent": agent, "session_id": sid}
+	if in, _ := raw["tool_input"].(map[string]any); in != nil {
+		for _, k := range []string{"description", "subagent_type", "run_in_background"} {
+			if v, ok := in[k]; ok {
+				params[k] = v
+			}
+		}
+	}
+	res, err := quick.Call("subagent.start", params)
 	if err != nil {
 		return ""
 	}

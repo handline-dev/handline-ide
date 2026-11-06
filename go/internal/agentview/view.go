@@ -93,6 +93,43 @@ type Env struct {
 	LoadHeld func(agent string) string
 	// Doing is the running turn's newest tool call (its line and when it began), ok false for none. Nil is none.
 	Doing func(agent string) (text string, at int64, ok bool)
+	// Jobs is what runs behind agent's prompt now, oldest first (AgentView.background). Nil is nothing.
+	Jobs func(agent string, now int64) []Job
+}
+
+// Job is one BackgroundJob: kind shell, monitor or subagent, its label, when it started, and for a subagent whether the turn waits on it.
+type Job struct {
+	Kind, Label string
+	Since       int64
+	Foreground  *bool
+}
+
+func (e *Env) jobs(agent string, now int64) []Job {
+	if e.Jobs == nil {
+		return nil
+	}
+	return e.Jobs(agent, now)
+}
+
+func jobsView(jobs []Job) []any {
+	out := []any{}
+	for _, j := range jobs {
+		m := map[string]any{"kind": j.Kind, "label": j.Label, "since": stamp(j.Since)}
+		if j.Foreground != nil {
+			m["foreground"] = *j.Foreground
+		}
+		out = append(out, m)
+	}
+	return out
+}
+
+// jobsText names the work for the status's background text: the labels, joined.
+func jobsText(jobs []Job) string {
+	labels := make([]string, len(jobs))
+	for i, j := range jobs {
+		labels[i] = j.Label
+	}
+	return strings.Join(labels, " · ")
 }
 
 func (e *Env) now() int64 {
@@ -397,6 +434,10 @@ func (e *Env) Compute(agent string) (view map[string]any, err error) {
 		}
 	}
 	st := e.status(agent, row, state, detail, handoff, now)
+	jobs := e.jobs(agent, now)
+	if st.Reason == status.Background && len(jobs) > 0 {
+		st.Text = jobsText(jobs)
+	}
 	return map[string]any{
 		"name": agent, "role": e.roleLine(agent), "model": model, "effort": effort,
 		"state": state, "state_detail": detail, "state_since": since,
@@ -404,7 +445,7 @@ func (e *Env) Compute(agent string) (view map[string]any, err error) {
 		"would_wake": row != nil && must(e.WouldWake(row)),
 		"blocker":    blocker, "account": account, "task": task, "cache_until": cache, "ctx_pct": ctx,
 		"has_dialog": word == "DIALOG", "parent": parent, "needs_you": needsView(needs), "handoff": handoff, "doing": doing,
-		"status": st.Map(),
+		"status": st.Map(), "background": jobsView(jobs),
 	}, nil
 }
 

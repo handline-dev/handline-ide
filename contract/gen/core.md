@@ -22,7 +22,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `prefs.get` | member (only member, founder) |  | none | `Prefs & ReadCursor` | `refused` |  | `prefs`, fed by prefs |
 | `prefs.set` | member (only member, founder) | yes | `changes`, `request_id` | `Accepted` | `bad_request`, `refused` |  | authored: save view preferences |
 | `hook.record` | agent (only agent) | yes | `agent`, `kind`, `at`, `data`, `request_id` | `Accepted & {nudge}` | `refused` | not_self | not from the app |
-| `subagent.start` | agent (only agent) | yes | `agent`, `session_id?` | `{deny}` | `refused`, `bad_request` | not_self | not from the app |
+| `subagent.start` | agent (only agent) | yes | `agent`, `session_id?`, `description?`, `subagent_type?`, `run_in_background?` | `{deny}` | `refused`, `bad_request` | not_self | not from the app |
 | `memory.status` | agent |  | `agent?` | `{agents}` |  |  | `memory`, snapshot |
 | `connection.get` | founder |  | none | `ConnectionInfo` |  |  | `connection`, snapshot |
 | `connection.addresses` | founder |  | none | `ConnectionAddresses` |  |  | `addresses`, snapshot |

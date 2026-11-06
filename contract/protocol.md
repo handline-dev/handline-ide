@@ -235,7 +235,7 @@ Every agent (AgentView.status) and every task (Task.status) carries one status: 
 | `turn` | A turn is running (agents); the owner has the task (tasks). |
 | `watch` | A gate watches outside state; text names it ("watching PR #412 CI"). |
 | `handoff` | A hand-off to a new session is moving. |
-| `background` | Background work runs while the agent sits at its prompt. |
+| `background` | Background work runs while the agent sits at its prompt. Status text names that work, the labels of AgentView.background joined by ' · ' ('check.sh · review subagent'), not a count. |
 | `you` | A person must answer: a dialog or prompt on the agent, an open request to the founder on the task, or a task the founder owns. |
 | `opener` | A draft: waits on its opener to queue it. |
 | `task` | Waits on other tasks; tasks lists them. |

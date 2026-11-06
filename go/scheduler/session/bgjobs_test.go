@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func TestFooterCountAddsEveryNumber(t *testing.T) {
@@ -55,7 +56,9 @@ func TestRunningListsTheJobsWithNoExitLine(t *testing.T) {
 	f.now++
 	f.NoteBackground("worker", bgCall("make   watch", fmt.Sprintf(`{"backgroundTaskId": "bbb", "out": "%s"}`, going)))
 	f.now++
-	f.NoteBackground("worker", bgCall("tail -f log", map[string]any{"shellId": "ccc"}))
+	tail := bgCall("tail -f log", map[string]any{"shellId": "ccc"})
+	tail["tool_input"].(map[string]any)["description"] = "Follow the log"
+	f.NoteBackground("worker", tail)
 	f.now++
 	f.NoteBackground("worker", bgCall("nothing said", "ok"))
 
@@ -73,7 +76,8 @@ func TestRunningListsTheJobsWithNoExitLine(t *testing.T) {
 	if got := strings.Join(ids, "|"); got != "bbb|ccc|" {
 		t.Errorf("job ids: %q", got)
 	}
-	if last, _ := f.RunningJobs("worker", 2); len(last) != 2 || last[0].Command != "tail -f log" {
+	if last, _ := f.RunningJobs("worker", 2); len(last) != 2 || last[0].Command != "tail -f log" || last[0].Description != "Follow the log" ||
+		last[1].Description != "" {
 		t.Errorf("last two: %v", last)
 	}
 
@@ -95,5 +99,17 @@ func TestLineCutsAndCountsTheTime(t *testing.T) {
 	want := "`" + strings.Repeat("é", 99) + "…` for 0s"
 	if got := long.Line(50, ago); got != want {
 		t.Errorf("got %q", got)
+	}
+}
+
+func TestAJobsLabelIsItsDescriptionElseItsCommand(t *testing.T) {
+	if l := (BgJob{Command: "tools/check.sh > x", Description: "Run the full check"}).Label(); l != "Run the full check" {
+		t.Fatal(l)
+	}
+	if l := (BgJob{Command: "sleep  60", Description: " "}).Label(); l != "sleep 60" {
+		t.Fatal(l)
+	}
+	if l := (BgJob{Description: strings.Repeat("é", 150)}).Label(); utf8.RuneCountInString(l) != CommandWidth {
+		t.Fatal(utf8.RuneCountInString(l))
 	}
 }
