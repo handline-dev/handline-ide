@@ -93,3 +93,16 @@ func TestTheFoundersTurnHoldsNoSlot(t *testing.T) {
 		t.Fatal("the founder's turn reads doing")
 	}
 }
+
+// A task the founder owns with an agent on top waits on that agent's slot: busy with another task, it may not go out to it.
+func TestAFoundersTaskWaitsOnTheSlotOfTheAgentOnTop(t *testing.T) {
+	q := open(t)
+	tid := seedTask(t, q, Human, "x")
+	turnOn(t, q, tid, "e")
+	busy := seedTask(t, q, "e", "x")
+	ok(t, SetCurrentTask(q, "e", busy, true))
+	task, _ := GetTask(q, tid)
+	if holds, err := HoldsCurrent(q, task); err != nil || holds {
+		t.Fatal("e holds another task", err)
+	}
+}
