@@ -102,3 +102,53 @@ func TestATasksPageNamesItsSubtasksParentMergeAndWhomToAsk(t *testing.T) {
 		t.Fatalf("merged_into %v", got.(map[string]any)["merged_into"])
 	}
 }
+
+func TestWhilePausedATaskItsAgentWasNotToldReadsQueuedOnItsPage(t *testing.T) {
+	t.Parallel()
+	e := testEnv(t)
+	addAgent(t, e, "bob", "")
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by, sent_at) VALUES(1, 'a', 'bob', 'amy', 1, 'amy', 2)")
+	run(t, e, "INSERT INTO agent_state(agent, state, current_task, updated) VALUES('bob', 'IDLE', 1, 1)")
+	run(t, e, `INSERT INTO meta(name, value, updated) VALUES('daemon_pause', '{"since": 1}', 1)`)
+	state := func() any {
+		got, err := e.taskGet(nil, map[string]any{"task": json.Number("1")})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got.(map[string]any)["state"]
+	}
+	if s := state(); s != "queued" {
+		t.Fatalf("paused, not yet told: %v", s)
+	}
+	run(t, e, "UPDATE tasks SET delivered_at = 3 WHERE id = 1")
+	if s := state(); s != "doing" {
+		t.Fatalf("told: %v", s)
+	}
+}
+
+func TestThePauseHoldsNeitherASelfStartedTaskNorTheFoundersNorAGatesOnTheirPages(t *testing.T) {
+	t.Parallel()
+	e := testEnv(t)
+	addAgent(t, e, "bob", "")
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by, sent_at) VALUES(1, 'a', 'bob', 'amy', 1, 'amy', 2), "+
+		"(2, 'b', 'human', 'amy', 1, 'amy', 2), (3, 'c', 'gate', 'amy', 1, 'amy', 2)")
+	run(t, e, "INSERT INTO agent_state(agent, state, current_task, updated) VALUES('bob', 'IDLE', 1, 1)")
+	run(t, e, `INSERT INTO events(ts, agent, kind, payload) VALUES(1, 'bob', 'task_self_start', '{"task_id": 1}')`)
+	state := func(id int) any {
+		got, err := e.taskGet(nil, map[string]any{"task": json.Number(fmt.Sprint(id))})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got.(map[string]any)["state"]
+	}
+	unpaused := []any{state(1), state(2), state(3)}
+	if unpaused[0] != "doing" {
+		t.Fatalf("setup: %v", unpaused)
+	}
+	run(t, e, `INSERT INTO meta(name, value, updated) VALUES('daemon_pause', '{"since": 1}', 1)`)
+	for i, want := range unpaused {
+		if got := state(i + 1); got != want {
+			t.Errorf("task %d: %v paused, %v unpaused", i+1, got, want)
+		}
+	}
+}

@@ -14,7 +14,7 @@ import (
 )
 
 // Key is the meta row the pause is kept in.
-const Key = "daemon_pause"
+const Key = db.PauseKey
 
 // Prefix starts every reason Why gives. It starts with loadgate.HeldPrefix, so a caller that tells a hold from a failure sees one.
 const Prefix = loadgate.HeldPrefix + "new work is paused"
@@ -22,27 +22,11 @@ const Prefix = loadgate.HeldPrefix + "new work is paused"
 // IsPaused is whether why is a reason Why gave.
 func IsPaused(why string) bool { return strings.HasPrefix(why, Prefix) }
 
-// State is a pause: since when, and when it ends by itself (0 for only at a resume). Unix seconds.
-type State struct {
-	Since int64 `json:"since"`
-	Until int64 `json:"until,omitempty"`
-}
+// State is a pause (db.Pause).
+type State = db.Pause
 
-// Get is the pause in force at now, nil when there is none. A pause whose until has come is none.
-func Get(q db.Q, now time.Time) (*State, error) {
-	v, ok, err := db.Meta(q, Key)
-	if err != nil || !ok || v == "" {
-		return nil, err
-	}
-	var s State
-	if err := json.Unmarshal([]byte(v), &s); err != nil {
-		return nil, err
-	}
-	if s.Until != 0 && now.Unix() >= s.Until {
-		return nil, nil
-	}
-	return &s, nil
-}
+// Get is the pause in force at now, nil when there is none (db.GetPause).
+func Get(q db.Q, now time.Time) (*State, error) { return db.GetPause(q, now) }
 
 // Set pauses from now until until (0 for until a resume). A pause in force keeps its since.
 func Set(q db.Q, now time.Time, until int64) (State, error) {

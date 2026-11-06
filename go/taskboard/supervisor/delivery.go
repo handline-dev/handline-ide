@@ -188,6 +188,12 @@ func (e *Env) DeliverQueued(q db.Q, agent string) (sent bool, err error) {
 		}
 		return e.holdBack(agent, head, why, false), nil
 	}
+	// The founder's pause holds every task but one the founder sent, mid-turn too: told, it is new work.
+	if e.Paused != nil && head.Requester != db.Human {
+		if why := e.Paused(); why != "" {
+			return e.holdBack(agent, head, why, false), nil
+		}
+	}
 	// A task starts a turn in an agent at its prompt, which the load holds; one mid-turn adds no load by being told.
 	if e.LoadHeld != nil {
 		if st := stateOf(q, agent); st == nil || st.State != states.Running {

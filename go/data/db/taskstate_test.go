@@ -250,3 +250,70 @@ func TestDeliveryAndTheCurrentTaskAgreeOnWhatIsInTheWay(t *testing.T) {
 		t.Fatalf("the delivered task reads %s", s)
 	}
 }
+
+func TestWhilePausedATaskItsAgentWasNotToldReadsQueued(t *testing.T) {
+	q := open(t)
+	tid := seedTask(t, q, "b", "a")
+	SetTaskQueued(q, tid, "a")
+	rid := ask(t, q, "a", "b", "work", "task")
+	LinkRequest(q, tid, rid)
+	SetCurrentTask(q, "b", tid, true)
+	state := func() string {
+		task, _ := GetTask(q, tid)
+		s, err := TaskState(q, task)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return s
+	}
+	SetMeta(q, PauseKey, `{"since": 1}`)
+	if got := state(); got != "queued" {
+		t.Fatalf("paused, not yet told: %s", got)
+	}
+	SetMeta(q, PauseKey, `{"since": 1, "until": 2}`) // a pause whose end has passed holds nothing
+	if got := state(); got != "doing" {
+		t.Fatalf("after the pause's end: %s", got)
+	}
+	SetMeta(q, PauseKey, `{"since": 1}`)
+	StampTaskDelivered(q, rid)
+	if got := state(); got != "doing" {
+		t.Fatalf("told before the pause, it stays doing: %s", got)
+	}
+}
+
+func TestThePauseHoldsNeitherASelfStartedTaskNorTheFoundersNorAGates(t *testing.T) {
+	q := open(t)
+	state := func(tid int64) string {
+		task, _ := GetTask(q, tid)
+		s, err := TaskState(q, task)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return s
+	}
+	sent := func(owner string) int64 {
+		tid := seedTask(t, q, owner, "a")
+		SetTaskQueued(q, tid, "a")
+		LinkRequest(q, tid, ask(t, q, "a", owner, "work", "task"))
+		return tid
+	}
+	self := sent("b") // begun by its agent, never delivered
+	SetCurrentTask(q, "b", self, true)
+	if _, err := q.Exec(`INSERT INTO events(ts, agent, kind, payload) VALUES(1, 'b', 'task_self_start', json_object('task_id', ?))`, self); err != nil {
+		t.Fatal(err)
+	}
+	tasks := map[string]int64{"self-started": self, "the founder's": sent(Human), "a gate's": sent(Gate)}
+	unpaused := map[string]string{}
+	for name, tid := range tasks {
+		unpaused[name] = state(tid)
+	}
+	if unpaused["self-started"] != "doing" {
+		t.Fatalf("setup: %v", unpaused)
+	}
+	SetMeta(q, PauseKey, `{"since": 1}`)
+	for name, tid := range tasks {
+		if got := state(tid); got != unpaused[name] {
+			t.Errorf("%s task: %s paused, %s unpaused", name, got, unpaused[name])
+		}
+	}
+}

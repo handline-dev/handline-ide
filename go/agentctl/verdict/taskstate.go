@@ -8,20 +8,21 @@ type TaskFacts struct {
 	Held            bool // it is the task its owner holds now (the founder and the gates hold all of theirs)
 	Blocked         bool // an open, not dormant, blocker
 	Queued          bool // someone queued it
+	PauseHolds      bool // new work is paused and its delivery has not reached the agent that acts on it
 }
 
 // Asked is whether the task's work has been asked for: sent to its owner, or begun.
 func (f TaskFacts) Asked() bool { return f.Begun || f.Sent }
 
-// TaskState is one of discarded, done, doing, queued, draft. Doing is asked for, held by its owner and unblocked; any other asked or
-// queued open task is queued.
+// TaskState is one of discarded, done, doing, queued, draft. Doing is asked for, held by its owner, unblocked and not held back by the
+// pause; any other asked or queued open task is queued.
 func TaskState(f TaskFacts) string {
 	switch {
 	case f.Discarded:
 		return "discarded"
 	case f.Done:
 		return "done"
-	case f.Asked() && f.Held && !f.Blocked:
+	case f.Asked() && f.Held && !f.Blocked && !f.PauseHolds:
 		return "doing"
 	case f.Queued || f.Asked():
 		return "queued"
