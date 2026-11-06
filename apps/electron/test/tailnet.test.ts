@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { addressesChosen, listenAddress, magicDnsName, onTailnet, tailscaleAddress } from '#src/tailnet.ts';
+import { addressesChosen, listenAddress, magicDnsName, onTailnet, tailscaleAddress, windowDaemon } from '#src/tailnet.ts';
 
 const nic = (address: string) => [{ address, family: 'IPv4', internal: false }] as never;
 
@@ -33,4 +33,9 @@ test('addresses are chosen when config.yaml gives network_addresses a value', ()
   assert.equal(addressesChosen('# network_addresses: [a]\nx: 1\n'), false);
   assert.equal(addressesChosen(''), false);
   assert.equal(listenAddress(undefined, { utun4: nic('100.101.2.3') }, 7443, true), '127.0.0.1:7443');
+});
+
+test('the window reaches the daemon on loopback, on the port of whatever address the listener binds', () => {
+  assert.equal(windowDaemon('100.101.2.3:7443'), 'ws://127.0.0.1:7443/rpc');
+  assert.equal(windowDaemon('127.0.0.1:9000'), 'ws://127.0.0.1:9000/rpc');
 });

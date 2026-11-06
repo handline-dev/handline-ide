@@ -26,6 +26,11 @@ export function listenAddress(named: string | undefined, ifaces: Ifaces, port = 
   return named ?? `${(!chosen && tailscaleAddress(ifaces)) || '127.0.0.1'}:${port}`;
 }
 
+/** The daemon's door for a window on this machine: loopback on the listener's port, which needs no network and no firewall exception. */
+export function windowDaemon(listen: string): string {
+  return `ws://127.0.0.1:${listen.slice(listen.lastIndexOf(':') + 1)}/rpc`;
+}
+
 /** Whether config.yaml has network_addresses set to something: the person chose the addresses devices connect on. */
 export function addressesChosen(configYaml: string): boolean {
   return /^network_addresses:[ \t]*[^\s#]/m.test(configYaml);

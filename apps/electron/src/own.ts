@@ -65,13 +65,6 @@ const executable = (file: string): boolean => {
   }
 };
 
-/** Whether the daemon's listener answers an HTTP request at all within three seconds. */
-const reachable = (hostPort: string): Promise<boolean> =>
-  fetch(`http://${hostPort}/`, { signal: AbortSignal.timeout(3000) }).then(
-    () => true,
-    () => false,
-  );
-
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 /** Starts the daemon on its own: a session of its own (detached), nothing on its stdin and its output in daemon.log, and not waited on,
@@ -123,6 +116,8 @@ function relaunchWith(file: SettingsFile, next: Settings): void {
 }
 
 export interface Own {
+  /** The open page read a token that is no longer the one to use. */
+  pageTokenStale(): boolean;
   /** Draws the tray menu again, after something it shows changed. */
   redraw(): void;
   /** The My turn count: the tray's dot and line. */
@@ -296,13 +291,18 @@ export function ownDaemon(o: {
   logChanges(owner, log);
   draw();
   // The key stays in this process; the page gets the device token only, from its own origin's top frame.
-  let token: string | null = null;
+  const tokens = new TokenFile(path.join(app.getPath('userData'), 'device.json'));
+  let token: string | null = remote ? null : (tokens.read()?.token ?? null);
   let ownHost: string | null = null;
+  let given: string | null | undefined; // the token the page last read; it reads once per load
   ipcMain.on(CHANNELS.token, (e) => {
-    e.returnValue = fromWindow(e, o.origin) ? grant(token, ownHost, owner) : null;
+    if (!fromWindow(e, o.origin)) return void (e.returnValue = null);
+    given = token;
+    e.returnValue = grant(token, ownHost, owner);
   });
   const pairing = localPairing(o.home, o.socket);
   return {
+    pageTokenStale: () => given !== undefined && given !== token,
     redraw: draw,
     setUnread: (n) => ((counts.unread = n), draw()),
     setWorking: (n) => (counts.working = n),
@@ -327,21 +327,9 @@ export function ownDaemon(o: {
       await owner.start();
       ownHost = onTailnet(o.listen) ? o.listen.split(':')[0]! : null; // named even when nothing started: the page shows the reason (grant)
       if (owner.state !== 'running') return o.listen;
-      let address = o.listen;
-      // A Mac firewall can accept the connection on the Tailscale address and answer nothing: the daemon moves to loopback.
-      if (onTailnet(address) && !(await reachable(address))) {
-        const loopback = `127.0.0.1:${address.split(':')[1] ?? '7443'}`;
-        await owner.restart(() => daemonCmd({ ...o, listen: loopback, advertise: null }));
-        if (owner.state !== 'running' || !(await reachable(loopback))) {
-          owner.fail(`the daemon does not answer on ${o.listen} (a firewall?)`);
-          return o.listen;
-        }
-        address = loopback;
-      }
-      ownHost = onTailnet(address) ? address.split(':')[0]! : null;
-      token = await ensureToken(pairing, new TokenFile(path.join(app.getPath('userData'), 'device.json')), sleep).catch(() => null);
-      link.set('connected', { address });
-      return address;
+      token = await ensureToken(pairing, tokens, sleep).catch(() => null);
+      link.set('connected', { address: o.listen });
+      return o.listen;
     },
   };
 }
