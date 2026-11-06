@@ -18,8 +18,31 @@ func ResultSeenKey(tid int64) string { return ResultSeenPrefix + strconv.FormatI
 
 func SeenKey(tid int64) string { return "task_seen:" + Human + ":" + strconv.FormatInt(tid, 10) }
 
-// LoginNeedPrefix is the meta rows holding since when each account has wanted a login or stood stalled.
+// LoginNeedPrefix is the meta rows holding a LoginNeed for each account that wants a login or stands stalled.
 const LoginNeedPrefix = "founder_login_need:"
+
+// LoginNeed is since when an account has wanted a login, and Unusable, when its stall is not a login's, the word for why it cannot be used.
+type LoginNeed struct {
+	Since    int64  `json:"since"`
+	Unusable string `json:"unusable,omitempty"`
+}
+
+// ReadLoginNeed is the need a meta value holds; ok is false for a value that is not one.
+func ReadLoginNeed(value string) (n LoginNeed, ok bool) {
+	return n, json.Unmarshal([]byte(value), &n) == nil && n.Since > 0
+}
+
+// SetLoginNeed keeps need for acct, writing only when it changed.
+func SetLoginNeed(q Q, acct string, need LoginNeed) error {
+	raw, err := json.Marshal(need)
+	if err != nil {
+		return err
+	}
+	if v, _, err := Meta(q, LoginNeedPrefix+acct); err != nil || v == string(raw) {
+		return err
+	}
+	return SetMeta(q, LoginNeedPrefix+acct, string(raw))
+}
 
 // A founder warning kept in meta until its state says it is over. Each is one JSON Undelivered, by the request or the task it is about.
 const (

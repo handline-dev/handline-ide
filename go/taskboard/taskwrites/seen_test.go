@@ -72,8 +72,8 @@ func TestSeenMarksAnEndedTasksResultOnly(t *testing.T) {
 	if at, _ := db.Cursor(d, db.ResultSeenKey(1)); at != 0 {
 		t.Fatalf("an open task got a mark: %d", at)
 	}
-	if at, _ := db.Cursor(d, db.ResultSeenKey(2)); at == 0 {
-		t.Fatal("an ended task got no mark")
+	if at, _ := db.Cursor(d, db.ResultSeenKey(2)); at < 5 {
+		t.Fatalf("the mark %d is before the end at 5, so RequestRow.ended.seen stays false", at)
 	}
 }
 
@@ -97,16 +97,12 @@ func TestAResultTheFounderEndedIsAlreadySeen(t *testing.T) {
 	d, mk := discardEnv(t)
 	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, reporter, created_at) VALUES(1, 'a', 'worker', 'human', 'human', 1), (2, 'b', 'worker', 'human', 'human', 1)")
 	done := func(who string, id int) {
-		t.Helper()
-		r := call(t, mk(who, &fakeTeller{}), fmt.Sprintf(`{"jsonrpc":"2.0","id":2,"method":"task.done","params":{"task":%d,"evidence":"it is built","request_id":"d%d"}}`, id, id))
-		if r[0]["error"] != nil {
-			t.Fatal(r[0])
-		}
+		callAs(t, mk, who, "task.done", fmt.Sprintf(`{"task":%d,"evidence":"it is built","request_id":"d%d"}`, id, id))
 	}
 	done("", 1)
 	done("worker", 2)
-	if at, _ := db.Cursor(d, db.ResultSeenKey(1)); at == 0 {
-		t.Fatal("the founder's own end is not seen")
+	if at, _ := db.Cursor(d, db.ResultSeenKey(1)); at < int64(count(t, d, "SELECT CAST(done_at AS INTEGER) FROM tasks WHERE id = 1")) {
+		t.Fatalf("the founder's own end is not seen: mark %d", at)
 	}
 	if at, _ := db.Cursor(d, db.ResultSeenKey(2)); at != 0 {
 		t.Fatal("an agent's end is marked seen")
@@ -143,11 +139,7 @@ func TestAResultTheFounderMergedAwayIsAlreadySeen(t *testing.T) {
 	d, mk := discardEnv(t)
 	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'keep', 'worker', 'human', 1), (2, 'two', 'worker', 'human', 1), (3, 'three', 'worker', 'human', 1)")
 	merge := func(who string, id int) {
-		t.Helper()
-		r := call(t, mk(who, &fakeTeller{}), fmt.Sprintf(`{"jsonrpc":"2.0","id":2,"method":"task.merge","params":{"into":1,"tasks":[%d],"request_id":"m%d"}}`, id, id))
-		if r[0]["error"] != nil {
-			t.Fatal(r[0])
-		}
+		callAs(t, mk, who, "task.merge", fmt.Sprintf(`{"into":1,"tasks":[%d],"request_id":"m%d"}`, id, id))
 	}
 	merge("", 2)
 	merge("worker", 3)
@@ -156,5 +148,14 @@ func TestAResultTheFounderMergedAwayIsAlreadySeen(t *testing.T) {
 	}
 	if at, _ := db.Cursor(d, db.ResultSeenKey(3)); at != 0 {
 		t.Fatal("an agent's merge is marked seen")
+	}
+}
+
+// callAs calls method with params as who, and fails the test on an error.
+func callAs(t *testing.T, mk func(string, ...Teller) *rpc.Server, who, method, params string) {
+	t.Helper()
+	r := call(t, mk(who, &fakeTeller{}), `{"jsonrpc":"2.0","id":2,"method":"`+method+`","params":`+params+`}`)
+	if r[0]["error"] != nil {
+		t.Fatal(r[0])
 	}
 }

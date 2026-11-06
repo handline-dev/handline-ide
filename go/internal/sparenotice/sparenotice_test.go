@@ -182,7 +182,7 @@ func TestANoticeThatCouldNotBeClosedIsTriedAgainAtTheNextSweep(t *testing.T) {
 	}
 }
 
-// The account a notice is about is kept with it, and an open notice holds back only its own account.
+// The account a notice is about is kept with it, and a notice not yet answered holds back only its own account.
 func TestAnOpenNoticeHoldsBackItsOwnAccountOnly(t *testing.T) {
 	r := newRig(t)
 	r.Sweep(0)
@@ -202,5 +202,11 @@ func TestAnOpenNoticeHoldsBackItsOwnAccountOnly(t *testing.T) {
 	}
 	if open, err := r.openNotice("alpha"); err != nil || open {
 		t.Fatalf("%v %v", open, err)
+	}
+	if _, err := db.MarkTaskDone(r.Q, tid, "dismiss", "reason"); err != nil {
+		t.Fatal(err)
+	}
+	if open, err := r.openNotice("theta"); err != nil || open {
+		t.Fatalf("an answered notice holds back the next: %v %v", open, err)
 	}
 }

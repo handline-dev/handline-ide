@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/handline/handline/go/data/db"
-	"github.com/handline/handline/go/data/team"
 )
 
 // founderWarning is what the daemon needs of the founder and cannot do itself, read from state, so it leaves when the state does.
@@ -42,7 +41,7 @@ func (e *Env) founderWarnings() ([]founderWarning, error) {
 	return append(append(out, lost...), refused...), nil
 }
 
-// loginWarnings is each account the login watch says wants a login or stands stalled.
+// loginWarnings is each account the login watch says wants a login or stands stalled, from its rows alone: a read asks no keychain.
 func (e *Env) loginWarnings() ([]founderWarning, error) {
 	rows, err := query(e.DB, "SELECT name, value FROM meta WHERE name LIKE ? ORDER BY name", db.LoginNeedPrefix+"%")
 	if err != nil {
@@ -51,14 +50,15 @@ func (e *Env) loginWarnings() ([]founderWarning, error) {
 	var out []founderWarning
 	for _, r := range rows {
 		a := strings.TrimPrefix(r.str("name"), db.LoginNeedPrefix)
-		since, _ := strconv.ParseInt(r.str("value"), 10, 64)
-		title := fmt.Sprintf("Account %s needs a login.", a)
-		if s := (team.Accounts{Home: e.Home}).Stalled(a); s != nil {
-			if word := team.StallWord(s.Error); word != team.StallWord("") {
-				title = fmt.Sprintf("Account %s cannot be used: %s.", a, word)
-			}
+		need, ok := db.ReadLoginNeed(r.str("value"))
+		if !ok {
+			continue
 		}
-		out = append(out, founderWarning{id: "login:" + a, title: title, since: ts(since), view: map[string]any{"kind": "login", "account": a}})
+		title := fmt.Sprintf("Account %s needs a login.", a)
+		if need.Unusable != "" {
+			title = fmt.Sprintf("Account %s cannot be used: %s.", a, need.Unusable)
+		}
+		out = append(out, founderWarning{id: "login:" + a, title: title, since: ts(need.Since), view: map[string]any{"kind": "login", "account": a}})
 	}
 	return out, nil
 }
@@ -82,13 +82,13 @@ func (e *Env) undelivered(prefix string, each func(id int64, u db.Undelivered) e
 }
 
 // lostMessages is each message of the founder's that was never seen to arrive: over once it is (or it is withdrawn), or once a later message
-// of theirs to that agent is written and not lost too, which is what the warning asks them to do.
+// of theirs to that agent is written and not lost too, or lost and since arrived, which is what the warning asks them to do.
 func (e *Env) lostMessages() ([]founderWarning, error) {
 	var out []founderWarning
 	err := e.undelivered(db.LostMessagePrefix, func(id int64, u db.Undelivered) error {
 		r, err := queryOne(e.DB, "SELECT r.ref, r.body FROM requests r WHERE r.id = ? AND "+db.NeverArrived("r.")+" "+
 			"AND NOT EXISTS (SELECT 1 FROM requests n WHERE n.requester = r.requester AND n.target = r.target AND n.id > r.id AND n.typed_at IS NOT NULL "+
-			"AND NOT EXISTS (SELECT 1 FROM meta WHERE name = ? || n.id))", id, db.LostMessagePrefix)
+			"AND ("+db.Arrived("n.")+" OR NOT EXISTS (SELECT 1 FROM meta WHERE name = ? || n.id)))", id, db.LostMessagePrefix)
 		if err != nil || r == nil {
 			return err
 		}

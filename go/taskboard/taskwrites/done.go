@@ -256,9 +256,6 @@ func MarkDone(tx *sql.Tx, home, by string, in DoneIn) (*DoneResult, error) {
 		}
 	}
 	var also []string
-	if t.Owner == human { // closed from under the founder: they hear it in one line
-		also = append(also, human)
-	}
 	top := ""
 	if in.TurnPassed {
 		top = db.TurnPass

@@ -568,7 +568,8 @@ func TestTheLoginWatchEntryKeepsAStalledAccount(t *testing.T) {
 			}
 		}
 	}
-	if v, ok, _ := dbpkg.Meta(p.db, dbpkg.LoginNeedPrefix+"stalled"); !ok || v != fmt.Sprint(at) {
-		t.Fatalf("the loop's login watch kept %q %v", v, ok)
+	v, _, _ := dbpkg.Meta(p.db, dbpkg.LoginNeedPrefix+"stalled")
+	if n, ok := dbpkg.ReadLoginNeed(v); !ok || n.Since != at {
+		t.Fatalf("the loop's login watch kept %q", v)
 	}
 }

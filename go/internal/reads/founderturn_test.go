@@ -40,6 +40,43 @@ func TestTwoMessagesLostTogetherEachWarn(t *testing.T) {
 	}
 }
 
+// A later message clears the warning only when the founder typed it to the same agent; one lost too clears it once it arrives.
+func TestOnlyALaterMessageThatArrivesToTheSameAgentClearsALostOne(t *testing.T) {
+	t.Parallel()
+	later := func(requester, target, typed string) string {
+		return "INSERT INTO requests(id, ts, requester, target, body, state, kind, ref, typed_at, edge_ok) VALUES(6, 9, '" + requester + "', '" + target + "', 'two', 'queued', 'say', 'abd', " + typed + ", 1)"
+	}
+	for name, c := range map[string]struct {
+		later string
+		stays bool
+	}{
+		"not typed":         {later("human", "bob", "NULL"), true},
+		"to another agent":  {later("human", "carol", "9"), true},
+		"from someone else": {later("alice", "bob", "9"), true},
+		"typed to bob":      {later("human", "bob", "9"), false},
+	} {
+		e := testEnv(t)
+		runAll(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, ref, typed_at, edge_ok) VALUES(5, 1, 'human', 'bob', 'one', 'queued', 'say', 'abc', 2, 1)", c.later)
+		noteLost(t, e, db.LostMessagePrefix, 5, "bob", "lost")
+		if got := answerRow(t, e, "machine", "delivery:"+db.MsgPrefix+"abc") != nil; got != c.stays {
+			t.Errorf("%s: the warning stays %v, want %v", name, got, c.stays)
+		}
+	}
+	e := testEnv(t)
+	runAll(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, ref, typed_at, edge_ok) VALUES"+
+		"(5, 1, 'human', 'bob', 'one', 'queued', 'say', 'abc', 2, 1), (6, 1, 'human', 'bob', 'two', 'queued', 'say', 'abd', 2, 1)")
+	noteLost(t, e, db.LostMessagePrefix, 5, "bob", "lost")
+	noteLost(t, e, db.LostMessagePrefix, 6, "bob", "lost")
+	run(t, e, "UPDATE requests SET state = 'withdrawn' WHERE id = 6")
+	if r := answerRow(t, e, "machine", "delivery:"+db.MsgPrefix+"abc"); r == nil {
+		t.Fatal("the later lost message was withdrawn, never arriving, and the first stopped warning")
+	}
+	run(t, e, "UPDATE requests SET landed_at = 9 WHERE id = 6")
+	if r := answerRow(t, e, "machine", "delivery:"+db.MsgPrefix+"abc"); r != nil {
+		t.Fatalf("the later message arrived, and the first still warns: %v", r)
+	}
+}
+
 // A delivery from before the refusal does not end the warning: the task went away and came back, and this one was refused.
 func TestAnOldDeliveryDoesNotEndARefusal(t *testing.T) {
 	t.Parallel()
@@ -138,12 +175,18 @@ func TestARefusedTaskIsAWarningOnItsRowUntilItMoves(t *testing.T) {
 func TestAnAccountThatNeedsALoginIsAWarningWhileTheWatchKeepsIt(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	if err := db.SetMeta(e.DB, db.LoginNeedPrefix+"alpha", "100"); err != nil {
+	if err := db.SetLoginNeed(e.DB, "alpha", db.LoginNeed{Since: 100}); err != nil {
 		t.Fatal(err)
 	}
 	r := answerRow(t, e, "machine", "login:alpha")
 	if r == nil || r["kind"] != "warning" || r["title"] != "Account alpha needs a login." || r["last_at"] != ts(int64(100)) || r["warning"].(map[string]any)["account"] != "alpha" {
 		t.Fatalf("%v", pending(t, e)["answer"])
+	}
+	if err := db.SetLoginNeed(e.DB, "alpha", db.LoginNeed{Since: 100, Unusable: "billing_error"}); err != nil {
+		t.Fatal(err)
+	}
+	if r := answerRow(t, e, "machine", "login:alpha"); r == nil || r["title"] != "Account alpha cannot be used: billing_error." {
+		t.Fatalf("an unusable account: %v", r)
 	}
 	if err := db.ClearMeta(e.DB, db.LoginNeedPrefix+"alpha"); err != nil {
 		t.Fatal(err)
@@ -201,6 +244,50 @@ func TestATurnIsARowAndATaskMerelyOwnedIsNot(t *testing.T) {
 	if taskIDs(got["answer"]) != "[1]" || rows[0]["kind"] != "decide" || rows[0]["source"] != "task" || rows[0]["agent"] != "bob" || rows[0]["ask"] != "pick one" {
 		t.Fatalf("%v", rows)
 	}
+	if items, _ := rows[0]["items"].([]int64); items == nil {
+		t.Fatalf("a turn with no request open has items [], not null: %#v", rows[0]["items"])
+	}
+	// a turn on top for an agent is not the founder's: a request to them on that task is the row, asked by its sender
+	runAll(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(3, 'asked', 'bob', 'amy', 1, 'amy')",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(20, 10, 'amy', 'human', 'b', 'queued', 'task', 1)",
+		"INSERT INTO task_requests(task_id, request_id) VALUES(3, 20)",
+		"INSERT INTO task_turns(task_id, pos, agent, ask, pushed_by, since) VALUES(3, 1, 'bob', 'yours', 'carl', 5)")
+	if r := answerRow(t, e, "task", "3"); r == nil || r["agent"] != "amy" || r["ask"] != nil {
+		t.Fatalf("an agent's turn spoke for the row: %v", r)
+	}
+}
+
+// A task holding several items is one row: the strongest says its kind, source, id and who asks; the first line found is its ask; a
+// warning it also holds stays on it.
+func TestATaskHoldingSeveralItemsIsOneRowTheStrongestNames(t *testing.T) {
+	t.Parallel()
+	setup := func(first, second string) *Env {
+		e := testEnv(t)
+		runAll(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(7, 'the task', 'gone', 'human', 1, 'human')",
+			"INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(1, 7, 'bob', 'which one @human?', 10)",
+			"INSERT INTO requests(id, ts, requester, target, body, state, kind, memo_id, edge_ok) VALUES"+first+", "+second,
+			"INSERT INTO task_requests(task_id, request_id) VALUES(7, 20), (7, 21)")
+		noteLost(t, e, db.RefusedTaskPrefix, 7, "gone", "refused")
+		return e
+	}
+	const decide, comment = "'amy', 'human', 'pick', 'queued', 'task', NULL, 1)", "'bob', 'human', 'which one @human?', 'queued', 'ask', 1, 1)"
+	for name, c := range map[string]struct {
+		e                       *Env
+		source, id, agent, kind string
+	}{
+		"the decision first": {setup("(20, 10, "+decide, "(21, 11, "+comment), "task", "7", "amy", "decide"},
+		"the comment first":  {setup("(20, 10, "+comment, "(21, 11, "+decide), "task", "7", "amy", "decide"},
+	} {
+		rows := pending(t, c.e)["answer"].([]map[string]any)
+		if len(rows) != 1 {
+			t.Fatalf("%s: %v", name, rows)
+		}
+		r := rows[0]
+		w, _ := r["warning"].(map[string]any)
+		if r["kind"] != c.kind || r["source"] != c.source || r["id"] != c.id || r["agent"] != c.agent || r["ask"] != "which one ?" || w["kind"] != "undelivered" {
+			t.Fatalf("%s: %v", name, r)
+		}
+	}
 }
 
 // The board's old lines to the founder are hidden from their inbox, and new requests are told in no line at all.
@@ -212,6 +299,42 @@ func TestTheBoardsOldLinesAreHiddenFromTheFoundersInbox(t *testing.T) {
 	rows, err := e.mailboxRows()
 	if err != nil || len(rows) != 1 || rows[0].id != 6 {
 		t.Fatalf("%+v %v", rows, err)
+	}
+	q, err := e.founderQueue(true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range q.(map[string]any)["dealt"].([]any) {
+		if d.(map[string]any)["id"] == int64(5) {
+			t.Fatalf("hl inbox --all lists a board line as dealt: %v", d)
+		}
+	}
+}
+
+// A queued board line linked to a task does not make its request wait on the founder.
+func TestAnOldBoardLineDoesNotMakeARequestWait(t *testing.T) {
+	t.Parallel()
+	e := testEnv(t)
+	runAll(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(7, 'the task', 'bob', 'human', 1, 'human')",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(5, 1, '"+db.NoticeRequester+"', 'human', 'T7 unblocked', 'queued', 'task', 1)",
+		"INSERT INTO task_requests(task_id, request_id) VALUES(7, 5)")
+	if r := requestRowOf(t, e, 7); r == nil || r["status"] == reqWaitingOnYou {
+		t.Fatalf("%v", r)
+	}
+}
+
+// requests.list takes unseen only as a boolean, and the bell's dot counts only results ended within the window.
+func TestUnseenIsABooleanAndTheDotCountsTheWindowOnly(t *testing.T) {
+	t.Parallel()
+	e := testEnv(t)
+	if _, err := e.requestsList(asFounder, map[string]any{"unseen": "yes"}); err == nil {
+		t.Fatal("unseen \"yes\" was taken")
+	}
+	now := time.Now().Unix()
+	run(t, e, fmt.Sprintf("INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by, done_evidence, done_at) VALUES"+
+		"(1, 'old', 'bob', 'human', 1, 'human', 'x', %d), (2, 'new', 'bob', 'human', 1, 'human', 'x', %d)", now-requestWindowS-5, now-5))
+	if n, err := e.unseenResults(now); err != nil || n != 1 {
+		t.Fatalf("%d %v", n, err)
 	}
 }
 

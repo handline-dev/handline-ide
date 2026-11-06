@@ -21,7 +21,7 @@ type Retired struct {
 }
 
 // releaseMethod is task.release (actions.release_task): anyone's call, with a one-line reason, to take a doing task back to queued or
-// draft. Its opener and assignee are told, and the founder too when the task was begun on their message.
+// draft. Its opener and assignee are told.
 func releaseMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, error) {
 	return func(c *rpc.Conn, p map[string]any) (any, error) {
 		if p["to"] != nil {
@@ -200,8 +200,8 @@ func releaseTask(tx *sql.Tx, home, by string, tid int64, reason string) (release
 		}
 	}
 	var to []string
-	for _, who := range []string{t.OpenedBy, t.Owner, human} {
-		if !stopped[who] && (who != human || begun) {
+	for _, who := range []string{t.OpenedBy, t.Owner} {
+		if !stopped[who] {
 			to = append(to, who)
 		}
 	}

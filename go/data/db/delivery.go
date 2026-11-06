@@ -14,6 +14,9 @@ func NeverArrived(a string) string {
 	return "(" + a + "state = 'queued' AND NOT " + HasLanded(a) + " AND " + a + "read_at IS NULL)"
 }
 
+// Arrived is a request seen to reach its reader: landed or read.
+func Arrived(a string) string { return "(" + HasLanded(a) + " OR " + a + "read_at IS NOT NULL)" }
+
 // HasLanded is a request that reached its reader's session, or was settled there.
 func HasLanded(a string) string { return a + "landed_at IS NOT NULL" }
 
