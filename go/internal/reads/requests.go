@@ -34,7 +34,7 @@ const (
 // requestNode is one task of a request's tree.
 type requestNode struct {
 	id, at, pr int64
-	due        int64 // its timeout_at, 0 when its clock is not running
+	due        int64  // its timeout_at, 0 when its clock is not running
 	acting     string // who acts on it now (db.ActingSQL)
 	open       bool
 	blocked    bool // it waits on another open task

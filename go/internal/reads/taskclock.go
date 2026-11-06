@@ -55,7 +55,7 @@ func (e *Env) taskClock(t row, state string) (any, error) {
 		if err != nil {
 			return nil, err
 		}
-		if verdict.Overdue(state, db.HolderOf(t.str("owner")), waits, end, now) {
+		if verdict.Overdue(state, db.HolderOf(actingOf(t)), waits, end, now) {
 			first = end
 		}
 	}

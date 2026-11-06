@@ -16,6 +16,7 @@ type tbPorts struct {
 	TimeboxPorts
 	doing      map[int64]bool
 	boss       string
+	bosses     map[string]string // an agent's own lead, over boss
 	lead       string
 	sendOK     bool
 	sent       []string // "who: text", typed at once
@@ -48,8 +49,13 @@ func (p *tbPorts) HandOffHeld(_ db.Q, tid int64, to, note string) error {
 	p.handed = append(p.handed, fmt.Sprintf("T%d to %s: %s", tid, to, note))
 	return nil
 }
-func (p *tbPorts) TaskDoing(_ db.Q, t *db.Task) bool           { return p.doing[t.ID] }
-func (p *tbPorts) SupervisorOf(string) string                  { return p.boss }
+func (p *tbPorts) TaskDoing(_ db.Q, t *db.Task) bool { return p.doing[t.ID] }
+func (p *tbPorts) SupervisorOf(agent string) string {
+	if s, ok := p.bosses[agent]; ok {
+		return s
+	}
+	return p.boss
+}
 func (p *tbPorts) BgStale(db.Q, string, int64) bool            { return p.bgStale }
 func (p *tbPorts) BgOwesNothing(db.Q, string) bool             { return p.bgOwes }
 func (p *tbPorts) NeverCloses(string) bool                     { return p.never }
@@ -930,5 +936,63 @@ func TestATaskUnderTheFoundersTurnRemindsNoAgent(t *testing.T) {
 	check(tk.Q.QueryRow("SELECT timeout_at, timeout_left FROM tasks WHERE id = ?", tid).Scan(&at, &left))
 	if at.Valid || left.Int64 != 100 {
 		t.Fatalf("its clock waits whole for the turn to end: %v %v", at, left)
+	}
+}
+
+// toldHolderThenLead checks that the digest got one notice for holder, about it, then one for lead.
+func toldHolderThenLead(t *testing.T, p *tbPorts, holder, lead string) {
+	t.Helper()
+	if len(p.batched) != 2 || !strings.HasPrefix(p.batched[0], holder+": ") || !strings.HasPrefix(p.batched[1], lead+": ") || !strings.Contains(p.batched[0], "held by "+holder) {
+		t.Fatalf("%v", p.batched)
+	}
+}
+
+// A task owned by o with a on top is a's to act on: past its time box a and a's lead are told, not o or o's lead.
+func TestATaskUnderAnAgentsTurnTellsThatAgentAndItsLead(t *testing.T) {
+	tk, _, b, p := timebox(t)
+	p.bosses = map[string]string{"a": "alead", "o": "olead"}
+	tid := newTask(t, tk, "o", "boss", 100)
+	check(db.PushTurn(tk.Q, tid, db.Turn{Agent: "a", By: "o", Since: 900}))
+	p.doing[tid] = true
+	b.SweepTaskTimeouts(tk, 1000)
+	b.SweepTaskTimeouts(tk, 1200)
+	toldHolderThenLead(t, p, "a", "alead")
+}
+
+// The blocker alarm is about whoever acts on the queued task: an agent on top is told, then its lead, whoever owns it.
+func TestTheBlockerAlarmTellsTheAgentOnTop(t *testing.T) {
+	tk, _, b, p := timebox(t)
+	p.alarmOn = true
+	p.bosses = map[string]string{"a": "alead", "c": "clead"}
+	blocker, _ := queuedBlocker(t, tk)
+	check(db.PushTurn(tk.Q, blocker, db.Turn{Agent: "c", By: "a", Since: 900}))
+	b.SweepQueuedBlockers(tk, 1100)
+	b.SweepQueuedBlockers(tk, 1400)
+	toldHolderThenLead(t, p, "c", "clead")
+	// a task the founder owns with an agent on top alarms that agent
+	tk2, _, b2, p2 := timebox(t)
+	p2.alarmOn = true
+	blocker2, _ := queuedBlocker(t, tk2)
+	_, err := tk2.Q.Exec("UPDATE tasks SET owner = ? WHERE id = ?", db.Human, blocker2)
+	check(err)
+	check(db.PushTurn(tk2.Q, blocker2, db.Turn{Agent: "c", By: db.Human, Since: 900}))
+	b2.SweepQueuedBlockers(tk2, 1100)
+	if len(p2.batched) != 1 || !strings.HasPrefix(p2.batched[0], "c: ") {
+		t.Fatalf("%v", p2.batched)
+	}
+}
+
+// An agent closed while it holds a doing task it acts on by a turn over another owner is asked to act on it.
+func TestAClosedAgentHoldingATaskByATurnIsAsked(t *testing.T) {
+	tk, _, b, p := timebox(t)
+	tid := newTask(t, tk, "o", "boss", 100)
+	check(db.PushTurn(tk.Q, tid, db.Turn{Agent: "a", By: "o", Since: 900}))
+	p.doing[tid] = true
+	check(db.SetCurrentTask(tk.Q, "a", tid, true))
+	check(db.SetAgentState(tk.Q, "a", states.Idle, 0, ""))
+	tk.Q.Exec("UPDATE agent_state SET closed_at = ? WHERE agent = 'a'", int64(500))
+	b.SweepHeldTaskAfterClose(tk, 1000)
+	if len(p.said) != 1 || !strings.HasPrefix(p.said[0], fmt.Sprintf("a: You hold T%d", tid)) {
+		t.Fatalf("%v", p.said)
 	}
 }
