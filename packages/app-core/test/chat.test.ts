@@ -16,7 +16,9 @@ import {
   taskRow,
   changeParts,
   timeline,
+  foldBash,
   foldTasks,
+  maybeRanNote,
   chatEntries,
   activity,
   restartCause,
@@ -466,4 +468,22 @@ test("a task handed to an agent is drawn as the board's delivery, never as the p
   assert.equal(sideOf(task, A, 'Handline desktop'), 'other');
   assert.equal(isTaskDelivery(pm({ from: 'human', to: A, kind: 'say' })), false);
   assert.equal(sideOf(pm({ from: 'human', to: A, kind: 'say' }), A, 'Handline desktop'), 'person');
+});
+
+test('foldBash folds an item into the message that sent it; an item with no loaded message stays its own row', () => {
+  const at = '2026-01-01T10:00:00Z';
+  const m = { id: 7, from: 'human', to: 'a', body: '!ls', at } as ChatMessage;
+  const items = [
+    { id: 1, at, kind: 'bash', command: 'ls', request: 7 },
+    { id: 2, at, kind: 'bash', command: 'pwd' },
+    { id: 3, at, kind: 'bash', command: 'old', request: 99 },
+  ] as TranscriptItem[];
+  const { entries, bash } = foldBash(timeline([m], items, 'mine', 'a'));
+  assert.deepEqual(entries.map((e) => `${e.kind}:${e.id}`), ['message:7', 'item:2', 'item:3']);
+  assert.equal(bash.get(7)?.id, 1);
+});
+
+test('a ! line of unknown delivery is never advised to go again', () => {
+  assert.doesNotMatch(maybeRanNote('!rm x'), /send it/i);
+  assert.match(maybeRanNote('hello'), /send it again/);
 });

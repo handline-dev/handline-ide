@@ -1,5 +1,6 @@
 // Seeds for the chat screen.
 import { crc32, deflateSync } from 'node:zlib';
+import type { TranscriptItem } from '@handline/client';
 import type { FakeDaemon } from '#src/daemon.ts';
 import { task } from '#src/seedkit.ts';
 
@@ -30,6 +31,28 @@ function solidPng(w: number, h: number): Buffer {
 }
 
 export const CHAT_SEEDS: Record<string, Seed> = {
+  /** ! lines (T8684). */
+  bash: (d) => {
+    const iso = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
+    const line = (min: number, body: string, item: Partial<TranscriptItem>) => {
+      const request = d.chat.seed(ARCH, { from: ME, to: ARCH, body: `!${body}`, at: iso(min), landing: 'delivered' });
+      d.chat.seedItem(ARCH, { at: iso(min), kind: 'bash', command: body, request, ...item });
+    };
+    line(9, 'git log --oneline -3', { done: true, stdout: 'd3d1fa0 Requests\ncd13127 Removes step 49\ne49eecd Hard rule', dropped_lines: 12 });
+    line(8, 'ls /no/such/path', { done: true, stderr: 'ls: /no/such/path: No such file or directory' });
+    line(7, 'true', { done: true });
+    d.chat.seed(ARCH, {
+      from: ME,
+      to: ARCH,
+      body: '!npm test',
+      at: iso(6),
+      landing: 'delivered',
+      receipt: { state: 'unknown', uuid: 'seed-bash-lost' },
+    });
+    d.chat.seedItem(ARCH, { at: iso(5), kind: 'bash', command: 'pwd', done: true, stdout: '/Users/user/work' });
+    line(1, 'sleep 600', { done: false });
+  },
+
   /** Chat messages with one-tap actions: OK / No on an open task the founder owns. */
   'chat-actions': (d) => {
     const at = Date.now();

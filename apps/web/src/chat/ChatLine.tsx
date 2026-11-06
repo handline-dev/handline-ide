@@ -1,21 +1,23 @@
-import { isPerson, isSystem, sideOf, tickLevel, type TimelineEntry } from '@handline/app-core';
+import { BASH_WATCH_MS, isPerson, isSystem, maybeRanNote, sideOf, tickLevel, type TimelineEntry } from '@handline/app-core';
+import type { TranscriptItem } from '@handline/client';
 import { motion } from 'framer-motion';
 import { CornerDownRight } from 'lucide-react';
 import { BashChip } from '#src/chat/Composer.tsx';
 import { useState, type ReactNode } from 'react';
 import { AgentNote } from '#src/chat/AgentNote.tsx';
 import { CompactionLine } from '#src/chat/CompactionLine.tsx';
-import { Actions } from '#src/chat/MessageActions.tsx';
+import { Dots } from '#src/chat/Dots.tsx';
+import { Actions, CopyButton } from '#src/chat/MessageActions.tsx';
 import { MessageImages } from '#src/chat/MessageImages.tsx';
 import { Ticks } from '#src/chat/Ticks.tsx';
 import { Markdown } from '#src/ui/Markdown.tsx';
-import { clock } from '#src/format/time.ts';
+import { clock, useNow } from '#src/format/time.ts';
 import { spring } from '#src/motion.ts';
 
 /** Whether a line draws nothing (what others said to the agent, an empty item): the rules ChatLine follows, so a run of task
  * cards is not cut by a line nobody sees. */
 export function drawsNothing(e: TimelineEntry, agent: string, me: string): boolean {
-  if (e.kind === 'item') return !e.item.session && !e.item.text;
+  if (e.kind === 'item') return !e.item.session && !e.item.text && e.item.kind !== 'bash';
   if (e.kind === 'proposal') return true;
   // The daemon's own bookkeeping (task-board digests and nudges) is not shown anywhere.
   if (isSystem(e.message.from)) return true;
@@ -38,6 +40,7 @@ export function ChatLine({
   me,
   onReply,
   parentText,
+  bash,
   fade: fades = true,
 }: {
   e: TimelineEntry;
@@ -46,6 +49,8 @@ export function ChatLine({
   onReply: (r: Reply) => void;
   /** The words of the message this one replies to, when it is loaded. */
   parentText?: string;
+  /** What this ! line ran and printed, once the daemon has paired them. */
+  bash?: TranscriptItem;
   fade?: boolean;
 }) {
   const key = `${e.kind}:${e.id}`;
@@ -57,6 +62,19 @@ export function ChatLine({
         <CompactionLine at={e.at} cause={e.item.session.cause} handoff={e.item.session.handoff} />
       </motion.div>
     );
+  // A command with no message to fold into: typed at the terminal, or sent before messages recorded their landing.
+  if (e.kind === 'item' && e.item.kind === 'bash') {
+    const command = e.item.command ?? '';
+    return (
+      <motion.div data-id={key} {...fade} className="group flex flex-col items-end">
+        <CommandBox command={command} bash={e.item} />
+        <div className="mb-2 flex h-6 items-center gap-1.5 text-xs text-muted opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+          <time dateTime={e.at}>{clock(e.at)}</time>
+          <CopyButton text={command} />
+        </div>
+      </motion.div>
+    );
+  }
   // A message that does not involve the founder is the agent's talk with another. What it said to others is a quiet line, read
   // whole on a click; what others said to it is not shown.
   if ((e.kind === 'message' || e.kind === 'note') && !isPerson(e.message.from, me) && !isPerson(e.message.to, me)) {
@@ -96,14 +114,9 @@ export function ChatLine({
       {m?.parent_item && <Reference text={m.parent_item.text} />}
       {text && (
         <Quotable text={text} on={!mine} onQuote={reply}>
-          {mine && text.startsWith('!') ? (
+          {bash || (mine && text.startsWith('!')) ? (
             // A command the person ran in the agent's terminal (bash mode): the command as typed, not a message bubble.
-            <div
-              className={`flex max-w-150 min-w-0 items-start gap-2 rounded-xl border border-border px-3 py-2 ${images.length ? 'mt-2' : ''}`}
-            >
-              <BashChip />
-              <code className="min-w-0 py-0.5 font-mono text-sm break-all whitespace-pre-wrap text-fg">{text.slice(1).trim()}</code>
-            </div>
+            <CommandBox command={bash?.command ?? text.slice(1).trim()} bash={bash} className={images.length ? 'mt-2' : ''} />
           ) : (
             <div
               className={`max-w-150 min-w-0 text-base text-fg ${images.length ? 'mt-2' : ''} ${mine ? 'rounded-xl bg-selected px-4 py-2' : ''}`}
@@ -112,6 +125,11 @@ export function ChatLine({
             </div>
           )}
         </Quotable>
+      )}
+      {mine && m?.receipt?.state === 'unknown' && (
+        <p role="note" className="mt-1 max-w-150 text-xs text-danger">
+          {maybeRanNote(text)}
+        </p>
       )}
       {/* On hover: the agent's [buttons] time; mine: read or not, time, [buttons]. */}
       <div className="mb-2 flex h-6 items-center gap-1.5 text-xs text-muted opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
@@ -129,6 +147,42 @@ export function ChatLine({
         )}
       </div>
     </motion.div>
+  );
+}
+
+/** A command run in the agent's terminal and, under it, what it printed. No success or failure mark: the transcript records no exit code, and stderr does not tell. */
+function CommandBox({ command, bash, className = '' }: { command: string; bash?: TranscriptItem; className?: string }) {
+  const output = [bash?.stdout, bash?.stderr].filter(Boolean).join('\n');
+  const dropped = bash?.dropped_lines ?? 0;
+  return (
+    <div className={`flex w-fit max-w-150 min-w-0 flex-col rounded-xl border border-border ${className}`}>
+      <div className="flex min-w-0 items-start gap-2 px-3 py-2">
+        <BashChip />
+        <code className="min-w-0 py-0.5 font-mono text-sm break-all whitespace-pre-wrap text-fg">{command}</code>
+      </div>
+      {bash && !bash.done && <Running at={bash.at} />}
+      {output && (
+        <pre className="max-h-80 overflow-auto border-t border-border px-3 py-2 font-mono text-xs break-all whitespace-pre-wrap text-muted">
+          {output}
+        </pre>
+      )}
+      {dropped > 0 && (
+        <div className="border-t border-border px-3 py-1 text-xs text-muted">
+          {dropped} more {dropped === 1 ? 'line' : 'lines'} not kept
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Dots while the daemon still watches for the output; after that nothing, as a killed command may never record any. */
+function Running({ at }: { at: string }) {
+  const now = useNow();
+  if (now - Date.parse(at) > BASH_WATCH_MS) return null;
+  return (
+    <div className="border-t border-border px-3 py-1">
+      <Dots />
+    </div>
   );
 }
 

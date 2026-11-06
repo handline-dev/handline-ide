@@ -87,6 +87,27 @@ export function timeline(
   }, []);
 }
 
+/** The entries with each bash item whose sending message is loaded taken out, and those items by message, to draw the two as one row. An item with no such message stays as its own row. */
+export function foldBash(entries: TimelineEntry[]): { entries: TimelineEntry[]; bash: Map<number, TranscriptItem> } {
+  const sent = new Set(entries.flatMap((e) => (e.kind === 'message' ? [e.message.id] : [])));
+  const bash = new Map<number, TranscriptItem>();
+  const rest = entries.filter((e) => {
+    if (e.kind !== 'item' || e.item.kind !== 'bash' || e.item.request == null || !sent.has(e.item.request)) return true;
+    bash.set(e.item.request, e.item);
+    return false;
+  });
+  return { entries: rest, bash };
+}
+
+/** The daemon's bashWatch (go/internal/watcher/chat.go); after that an item with none is no longer running as far as anyone can tell. */
+export const BASH_WATCH_MS = 15 * 60_000;
+
+/** The words under a message whose delivery is unknown. A ! line must not be advised to go again: that runs the command again. */
+export const maybeRanNote = (body: string) =>
+  body.startsWith('!')
+    ? 'It may or may not have run. Look at its terminal before running it again.'
+    : 'This message may or may not have run. It is not sent again; send it again yourself if it matters.';
+
 const PLAIN_START = new Set(['launch', 'start']);
 /** One restart is one line: back-to-back session starts collapse into the last, which keeps the handoff and the cause the run was told (a plain launch is the least telling cause). */
 function mergeSessions(a: Extract<TimelineEntry, { kind: 'item' }>, b: Extract<TimelineEntry, { kind: 'item' }>): TimelineEntry {

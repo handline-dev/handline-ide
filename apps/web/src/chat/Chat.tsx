@@ -1,4 +1,4 @@
-import { chatView, isPerson, type TimelineEntry } from '@handline/app-core';
+import { chatView, foldBash, isPerson, type TimelineEntry } from '@handline/app-core';
 import { useAgents, useChat, useChatActions, useChatReadMarks, useChatServed, useChatSuspense, useVerbRun } from '@handline/app-data';
 import { VERBS } from '@handline/app-core';
 import { useMe, useNearEnd } from '@handline/app-react';
@@ -226,7 +226,7 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
   const me = useMe();
   // Opening the chat reads what the agent said: its newest message, and what it sent the Inbox about itself.
   useChatReadMarks(agent, chat);
-  const { entries } = chatView(chat, 'mine', agent, me);
+  const { entries, bash } = foldBash(chatView(chat, 'mine', agent, me).entries);
   const doing = useAgents().data?.agents.find((a) => a.name === agent)?.doing?.text;
   const stream = useRef<HTMLDivElement>(null);
   const content = useRef<HTMLDivElement>(null);
@@ -306,6 +306,7 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
                   me={me}
                   onReply={onReply}
                   parentText={r.kind === 'message' && r.message.parent != null ? words.get(r.message.parent) : undefined}
+                  bash={r.kind === 'message' ? bash.get(r.message.id) : undefined}
                   fade={i > known(all)}
                 />
               ),
