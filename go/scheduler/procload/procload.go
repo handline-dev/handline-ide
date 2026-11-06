@@ -2,11 +2,12 @@
 // process's environment (which survives a child that daemonizes and is reparented to init) or, failing that, by an ancestor that is
 // the agent's terminal pane or already owned. It samples each process's CPU (the change in CPU time over the time between two
 // samples) and memory, keeps the last Keep of samples in memory, rolls each agent up by the minute into the database for a week, and
-// serves it as one read. It only reads: no limit is applied from here.
+// serves it as one read. It also reads the listening sockets every ListenEvery seconds and gives each agent the servers it holds. It only reads: no limit is applied from here.
 package procload
 
 import (
 	"database/sql"
+	"os"
 	"runtime"
 	"sort"
 	"sync"
@@ -88,6 +89,8 @@ type Tracker struct {
 	AgentOf func(pid int) (agent string, ok bool)
 	// Machine reads the machine's memory and load; nil reads this one.
 	Machine func() (sysres.Machine, error)
+	// Listen reads the machine's listening TCP sockets; nil runs lsof.
+	Listen func() ([]Listener, error)
 	// Disk is the free and total bytes of the volume holding a path; nil is statfs.
 	Disk func(path string) (free, total int64, err error)
 	Home string
@@ -95,20 +98,23 @@ type Tracker struct {
 	DB  *sql.DB
 	Log func(string)
 
-	mu       sync.Mutex
-	marks    map[key]cpuMark
-	owners   map[key]string // the environment's answer, kept per process: "" is read and has none
-	sticky   map[key]string // an owner found once by the tree, kept: a child whose parent ended and was reparented stays its agent's
-	cur      []Proc
-	ended    map[key]Proc
-	ring     []sample
-	machine  sysres.Machine
-	at       int64
-	acc      map[string]*minuteAcc
-	cost     time.Duration // the last sample's own time
-	costSum  time.Duration
-	samples  int
-	lastPrun int64
+	mu        sync.Mutex
+	marks     map[key]cpuMark
+	owners    map[key]string // the environment's answer, kept per process: "" is read and has none
+	sticky    map[key]string // an owner found once by the tree, kept: a child whose parent ended and was reparented stays its agent's
+	cur       []Proc
+	listeners []Listener
+	listenAt  int64
+	servers   map[string][]Server
+	ended     map[key]Proc
+	ring      []sample
+	machine   sysres.Machine
+	at        int64
+	acc       map[string]*minuteAcc
+	cost      time.Duration // the last sample's own time
+	costSum   time.Duration
+	samples   int
+	lastPrun  int64
 }
 
 func (t *Tracker) agentOf(pid int) (string, bool) {
@@ -147,6 +153,10 @@ func (t *Tracker) Sample(now int64) error {
 		disk = sysres.StatfsFree
 	}
 	m.DiskFree, m.DiskTotal, _ = disk(t.Home)
+	var listeners []Listener // read before the lock, like the table: lsof can take seconds
+	if t.listenDue(now) {
+		listeners = t.readListeners()
+	}
 
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -176,6 +186,10 @@ func (t *Tracker) Sample(now int64) error {
 		}
 	}
 	t.cur, t.machine, t.at = procs, m, now
+	if listeners != nil {
+		t.listeners, t.listenAt = listeners, now
+	}
+	t.servers = serversOf(t.listeners, t.cur, panes, os.Getpid())
 	by := map[string]Use{}
 	for _, p := range procs {
 		u := by[p.Agent]

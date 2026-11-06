@@ -13,6 +13,7 @@ import (
 	"github.com/handline/handline/go/data/states"
 	"github.com/handline/handline/go/internal/prompts"
 	"github.com/handline/handline/go/kit/storetest"
+	"github.com/handline/handline/go/scheduler/procload"
 )
 
 type fakeSessions struct{ structured, alive, busy map[string]bool }
@@ -575,5 +576,27 @@ func TestAnAgentsBackgroundListsItsJobsAndItsStatusNamesThem(t *testing.T) {
 	}
 	if s, _ := r.stored(t, "none")["status"].(map[string]any); s["reason"] != "background" || s["text"] == "" {
 		t.Fatalf("status %v", s)
+	}
+}
+
+func TestAnAgentsViewListsTheServersItsProcessesListenOn(t *testing.T) {
+	r := newRig(t, "web", "none")
+	r.state(t, "web", states.Idle, "")
+	r.state(t, "none", states.Idle, "")
+	r.env.Servers = func(agent string) []procload.Server {
+		if agent != "web" {
+			return nil
+		}
+		return []procload.Server{{PID: 7, Port: 5173, Addr: "127.0.0.1", Command: "node vite", Since: 4000}}
+	}
+	if err := r.env.Refresh(); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := json.Marshal(r.stored(t, "web")["servers"])
+	if string(got) != `[{"address":"127.0.0.1","command":"node vite","pid":7,"port":5173,"since":"1970-01-01T01:06:40Z"}]` {
+		t.Fatalf("servers %s", got)
+	}
+	if b, _ := json.Marshal(r.stored(t, "none")["servers"]); string(b) != "[]" {
+		t.Fatalf("no server is an empty list: %s", b)
 	}
 }

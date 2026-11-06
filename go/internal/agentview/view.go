@@ -17,6 +17,7 @@ import (
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/kit/timefmt"
+	"github.com/handline/handline/go/scheduler/procload"
 	"github.com/handline/handline/go/scheduler/session"
 )
 
@@ -95,6 +96,8 @@ type Env struct {
 	Doing func(agent string) (text string, at int64, ok bool)
 	// Jobs is what runs behind agent's prompt now, oldest first (AgentView.background). Nil is nothing.
 	Jobs func(agent string, now int64) []Job
+	// Servers is the TCP servers agent's processes listen on, lowest port first (AgentView.servers). Nil is none.
+	Servers func(agent string) []procload.Server
 }
 
 // Job is one BackgroundJob: kind shell, monitor or subagent, its label, when it started, and for a subagent whether the turn waits on it.
@@ -109,6 +112,14 @@ func (e *Env) jobs(agent string, now int64) []Job {
 		return nil
 	}
 	return e.Jobs(agent, now)
+}
+
+func serversView(servers []procload.Server) []any {
+	out := []any{}
+	for _, s := range servers {
+		out = append(out, map[string]any{"port": s.Port, "address": s.Addr, "command": s.Command, "pid": s.PID, "since": stamp(s.Since)})
+	}
+	return out
 }
 
 func jobsView(jobs []Job) []any {
@@ -130,6 +141,13 @@ func jobsText(jobs []Job) string {
 		labels[i] = j.Label
 	}
 	return strings.Join(labels, " · ")
+}
+
+func (e *Env) servers(agent string) []any {
+	if e.Servers == nil {
+		return []any{}
+	}
+	return serversView(e.Servers(agent))
 }
 
 func (e *Env) now() int64 {
@@ -445,7 +463,7 @@ func (e *Env) Compute(agent string) (view map[string]any, err error) {
 		"would_wake": row != nil && must(e.WouldWake(row)),
 		"blocker":    blocker, "account": account, "task": task, "cache_until": cache, "ctx_pct": ctx,
 		"has_dialog": word == "DIALOG", "parent": parent, "needs_you": needsView(needs), "handoff": handoff, "doing": doing,
-		"status": st.Map(), "background": jobsView(jobs),
+		"status": st.Map(), "background": jobsView(jobs), "servers": e.servers(agent),
 	}, nil
 }
 

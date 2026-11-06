@@ -90,6 +90,13 @@
       },
       "description": "What runs behind the agent's prompt now, oldest first: its background shells and monitors, and its subagents, a foreground one while the turn waits on it. Empty when nothing runs. Absent from a daemon that does not send it."
      },
+     "servers": {
+      "type": "array",
+      "items": {
+       "$ref": "#/components/schemas/AgentServer"
+      },
+      "description": "The TCP ports the agent's processes (those load.get attributes to it) listen on, lowest port first; empty when none. The session's own are left out: its claude or codex process and that process's direct children that are not a shell (MCP and LSP servers), so a server started through its Bash tool stays; so are the daemon's and the panes'. Read every 15 s; a change is an agent.changed. Absent from a daemon that does not send it."
+     },
      "would_wake": {
       "type": "boolean"
      },
@@ -1099,6 +1106,42 @@
     "required": [
      "kind",
      "label",
+     "since"
+    ],
+    "additionalProperties": false
+   },
+   "AgentServer": {
+    "type": "object",
+    "description": "One TCP port a process of an agent listens on.",
+    "properties": {
+     "port": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535
+     },
+     "address": {
+      "type": "string",
+      "description": "The address it listens on: 127.0.0.1 or ::1 (this machine only), 0.0.0.0 or :: (every interface), else the interface's. A process on several addresses of one port is one entry, the first of 127.0.0.1, 0.0.0.0, ::1, ::."
+     },
+     "command": {
+      "type": "string",
+      "maxLength": 120,
+      "description": "The command line of the process that listens, as ps shows it, cut to 120 characters."
+     },
+     "pid": {
+      "type": "integer",
+      "description": "The process that listens."
+     },
+     "since": {
+      "$ref": "#/components/schemas/Timestamp",
+      "description": "When that process began."
+     }
+    },
+    "required": [
+     "port",
+     "address",
+     "command",
+     "pid",
      "since"
     ],
     "additionalProperties": false
