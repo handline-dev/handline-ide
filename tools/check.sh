@@ -68,6 +68,7 @@ group_files() {
     node tools/ui-copy-check.mjs || r=1
     [ -n "$base" ] || return "$r"
     python3 tools/pr_checks.py files "$base" || r=1
+    python3 tools/localrefs.py authors "$base..HEAD" || r=1  # a push to main has no pr-rules run; a clone without the hooks still gets caught here
     pretty="$(git diff --name-only --no-renames --diff-filter=AM "$base...HEAD" |
         grep -E '^((packages|apps|web)/.*\.(ts|tsx|js|mjs|json|css)|[^/]*\.json)$')"
     [ -z "$pretty" ] || xargs pnpm exec prettier --check <<< "$pretty" || r=1

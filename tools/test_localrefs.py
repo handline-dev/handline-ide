@@ -34,6 +34,12 @@ class Messages(unittest.TestCase):
         self.assertEqual(localrefs.scan_message("Merge origin/main into story/t6670-x", "m"), ["m:1: task id: t6670"])
 
 
+class Emails(unittest.TestCase):
+    def test_a_personal_author_or_committer_is_refused_and_a_noreply_passes(self):
+        got = localrefs.scan_emails([("author", "me@corp.test"), ("committer", "1+x@users.noreply.github.com")], "commit abc")
+        self.assertEqual(got, ["commit abc: author email: me@corp.test"])
+
+
 class Diff(unittest.TestCase):
     def test_a_mention_in_prose_is_refused(self):
         got = localrefs.scan_diff(diff("docs/a.md", "a comment naming @human opens an ask", "write `@human`"), [])

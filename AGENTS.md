@@ -79,7 +79,7 @@ True for any agent, whatever tool runs it. Your name is in `$HANDLINE_AGENT`.
    file an id that is an argument of an `hl` command is the product's own syntax and passes.
    A commit's author and committer email must be a noreply address too
    (`git config user.email <id>+<name>@users.noreply.github.com`).
-   `tools/localrefs.py` enforces it, and refuses an @-mention outside code in a commit message, in the git hooks
+   `tools/localrefs.py` enforces it (a push to main also runs `localrefs.py authors` in `check.sh --group files`, so a fresh clone without the hooks is caught; set the email before the first commit in any clone), and refuses an @-mention outside code in a commit message, in the git hooks
    (`tools/install-git-hooks.sh`), and CI (pr-rules) runs it on each push:
    `tools/localrefs.py diff main...<sha>` and `tools/localrefs.py log main..<sha>`.
 7. A leftover on one machine (a stuck row, a stale card) is cleaned by hand and reported on the task: cancel it in

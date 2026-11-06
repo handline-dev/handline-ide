@@ -5,6 +5,7 @@
   tools/localrefs.py log RANGE                 the commit messages in RANGE
   tools/localrefs.py message [--verbatim] FILE one commit message, as the commit-msg hook gets it;
                                                --verbatim reads a line starting with # as text, not as git's comment
+  tools/localrefs.py authors RANGE             only the author and committer emails of the commits in RANGE
   tools/localrefs.py ident                     the author and committer email a commit made now would carry
 
 Exit 0: clean. Exit 1: findings, one per line as `where: kind: text`, then what to write instead.
@@ -223,7 +224,7 @@ def _git(*args: str) -> str:
 
 
 def main(argv: list[str]) -> int:
-    if not argv or argv[0] not in ("diff", "log", "message", "ident"):
+    if not argv or argv[0] not in ("diff", "log", "authors", "message", "ident"):
         print(__doc__, file=sys.stderr)
         return 2
     mode, rest = argv[0], argv[1:]
@@ -238,6 +239,11 @@ def main(argv: list[str]) -> int:
             sha, author, committer = (head.split("\x02") + ["", ""])[:3]
             found += scan_emails([("author", author), ("committer", committer)], f"commit {sha}")
             found += scan_message(body, f"commit {sha}", words, comments=False)
+    elif mode == "authors":
+        found = []
+        for line in _git("log", "--format=%h%x02%ae%x02%ce", *rest[:1]).splitlines():
+            sha, author, committer = line.split("\x02")
+            found += scan_emails([("author", author), ("committer", committer)], f"commit {sha}")
     elif mode == "ident":
         found = []
         for role, var in (("author", "GIT_AUTHOR_IDENT"), ("committer", "GIT_COMMITTER_IDENT")):
