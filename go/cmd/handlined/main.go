@@ -87,6 +87,16 @@ func missingTools(claude string) {
 	}
 }
 
+// fromParts gives the daemon what the composed parts serve: why a queued line waits, the sleep lock, the session methods (on ccfg as
+// OnOpen leaves it), the wait before the database closes, and the agents' context figures.
+func fromParts(cfg *daemon.Config, parts *compose.Parts, ccfg *compose.Config) {
+	cfg.Delivery = parts.Delivery()
+	cfg.KeepAwake = parts.KeepAwake
+	cfg.Session = func() *sessionrpc.Env { return parts.SessionRPC(*ccfg) }
+	cfg.BeforeClose = parts.Wait
+	cfg.Context = parts.Context
+}
+
 func main() {
 	home := flag.String("home", "", "the handline home (required while the daemon is in development)")
 	allowReal := flag.Bool("allow-real-home", false, "with no -home, use the default home, which a running install uses")
@@ -143,8 +153,7 @@ func main() {
 		ccfg.Machine = cfg.Resources.LatestMachine
 		parts := compose.New(ccfg)
 		cfg.Watch = *terminalTick
-		cfg.Delivery = parts.Delivery()
-		cfg.KeepAwake = parts.KeepAwake
+		fromParts(&cfg, parts, &ccfg)
 		cfg.Transcripts = true
 		cfg.OnOpen = func(db *sql.DB, env *supervisor.Env) {
 			parts.Bind(db, env)
@@ -169,9 +178,6 @@ func main() {
 				}
 			}
 		}
-		cfg.Session = func() *sessionrpc.Env { return parts.SessionRPC(ccfg) }
-		cfg.BeforeClose = parts.Wait
-		cfg.Context = parts.Context
 	}
 	if cfg.DBFile == "" {
 		cfg.DBFile = paths.DBFile(homeDir)

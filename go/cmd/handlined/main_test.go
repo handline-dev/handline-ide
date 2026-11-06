@@ -10,6 +10,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/handline/handline/go/internal/compose"
+	"github.com/handline/handline/go/internal/daemon"
 )
 
 func TestTheDefaultHomeIsRefusedUnlessAskedFor(t *testing.T) {
@@ -72,5 +75,18 @@ func TestTheDaemonStopsWhenItsOwnersPipeCloses(t *testing.T) {
 	case <-ctx.Done():
 	case <-time.After(time.Second):
 		t.Fatal("still running after the pipe closed")
+	}
+}
+
+// The daemon gets each part the composer serves it, the sleep lock the tick holds among them.
+func TestTheDaemonGetsWhatThePartsServe(t *testing.T) {
+	ccfg := compose.Config{Home: t.TempDir(), Log: func(string, ...any) {}}
+	var cfg daemon.Config
+	fromParts(&cfg, compose.New(ccfg), &ccfg)
+	if cfg.Delivery == nil || cfg.KeepAwake == nil || cfg.Session == nil || cfg.BeforeClose == nil || cfg.Context == nil {
+		t.Fatalf("%+v", cfg)
+	}
+	if held, _ := cfg.KeepAwake(); held {
+		t.Fatal("held before any tick")
 	}
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/handline/handline/go/data/states"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/paths"
+	"github.com/handline/handline/go/scheduler/keepawake"
 	"github.com/handline/handline/go/scheduler/tick"
 )
 
@@ -522,5 +523,29 @@ func TestTheTickTypesAnAgentsScheduledMessageWhenItIsDue(t *testing.T) {
 	var body string
 	if err := d.QueryRow("SELECT body FROM requests WHERE requester = 'schedule' AND target = 'alice'").Scan(&body); err != nil || body != "[schedule * * * * *] check the queue" {
 		t.Fatalf("%q %v", body, err)
+	}
+}
+
+// The tick's keep-awake pass syncs the holder the status reads: with keep_awake on, Parts.KeepAwake says it holds, since when.
+func TestTheKeepAwakePassHoldsTheLockTheStatusReads(t *testing.T) {
+	p, _, _, _ := wired(t)
+	p.awake.Start = func() (*keepawake.Lock, error) {
+		return &keepawake.Lock{Release: func() {}, Alive: func() bool { return true }}, nil
+	}
+	if err := os.WriteFile(paths.ConfigFile(p.home), []byte("keep_awake: \"on\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	tk := p.Tick(cfgOf(p), TickConfig{})
+	ran := false
+	for _, s := range tk.Tick.Passes {
+		if s.Name == "keep-awake" {
+			if err := s.Run(p.db, 1); err != nil {
+				t.Fatal(err)
+			}
+			ran = true
+		}
+	}
+	if held, since := p.KeepAwake(); !ran || !held || since.IsZero() {
+		t.Fatalf("ran %v, held %v since %v", ran, held, since)
 	}
 }
