@@ -141,3 +141,18 @@ func TestAPauseKeptAcrossARestartStillEndsAtItsUntil(t *testing.T) {
 		t.Fatalf("the until came and went: %v at %v", p, time.Now())
 	}
 }
+
+// A clock that comes before the until, as the monotonic timer can when the wall clock runs behind, tells nothing and waits again: the status topic hears the end once, after the until.
+func TestAPauseClockThatComesEarlyWaitsForItsUntil(t *testing.T) {
+	d := startStream(t)
+	f := readAll(t, pipeTo(t, d, "k"), 2)
+	until := time.Now().Add(time.Second).Truncate(time.Second).Add(time.Second)
+	if _, err := pause.Set(d.db, time.Now(), until.Unix()); err != nil {
+		t.Fatal(err)
+	}
+	f.ask(2, `{"jsonrpc":"2.0","id":2,"method":"subscribe","params":{"topics":["status"]}}`)
+	d.pauseCame()
+	if p := f.statusEvent(5 * time.Second)["paused"]; p != nil || time.Now().Before(until) {
+		t.Fatalf("an early clock told: %v at %v", p, time.Now())
+	}
+}
