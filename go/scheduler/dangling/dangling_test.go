@@ -268,3 +268,12 @@ func TestTheNoticeSaysWhenTheSessionCouldNotBeAsked(t *testing.T) {
 		t.Fatalf("the notice does not claim an ask: %v", r.h.told)
 	}
 }
+
+// An agent at the top has no manager; the founder has nothing to do about a closed terminal, so no one is told.
+func TestAClosedTerminalOfATopAgentTellsNoOne(t *testing.T) {
+	r := newRig(t)
+	r.s.tell("top", "closed top's terminal")
+	if len(r.h.told) != 0 {
+		t.Fatalf("%v", r.h.told)
+	}
+}

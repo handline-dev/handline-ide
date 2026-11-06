@@ -549,3 +549,26 @@ func TestTheKeepAwakePassHoldsTheLockTheStatusReads(t *testing.T) {
 		t.Fatalf("ran %v, held %v since %v", ran, held, since)
 	}
 }
+
+func TestTheLoginWatchEntryKeepsAStalledAccount(t *testing.T) {
+	p, _, _, _ := wired(t)
+	at := time.Now().Unix() + 1000 // after any credential the rig has, so the stall stands
+	dir := filepath.Join(paths.AccountsDir(p.home), "stalled")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "login_expired.json"), []byte(fmt.Sprintf(`{"why":"x","error":"authentication_failed","at":%d}`, at)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	tk := p.Tick(cfgOf(p), TickConfig{Stop: make(chan struct{})})
+	for _, h := range tk.Loop.Housekeeping {
+		if h.Name == "login watch" {
+			if err := h.Run(p.db, time.Now().Unix()); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	if v, ok, _ := dbpkg.Meta(p.db, dbpkg.LoginNeedPrefix+"stalled"); !ok || v != fmt.Sprint(at) {
+		t.Fatalf("the loop's login watch kept %q %v", v, ok)
+	}
+}

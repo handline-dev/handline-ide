@@ -13,26 +13,22 @@ func seenCall(t *testing.T, mk func(string, ...Teller) *rpc.Server, params, rid 
 	return call(t, mk("", &fakeTeller{}), fmt.Sprintf(`{"jsonrpc":"2.0","id":2,"method":"task.seen","params":{%s"request_id":%q}}`, params, rid))[0]
 }
 
-func TestSeenMovesTheMarkerForwardOnlyAndReadsAwaySaysButNeverAQuestion(t *testing.T) {
+func TestSeenMovesTheMarkerForwardOnlyAndReadsAwayNeitherASayNorAQuestion(t *testing.T) {
 	t.Parallel()
 	d, mk := discardEnv(t)
 	exec(t, d,
 		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'one', 'worker', 'manager', 1)",
 		"INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(3, 1, 'worker', 'a', 1), (8, 1, 'worker', 'b', 2)",
 		"INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES"+
-			"(20, 1, 'task-board', 'human', 'T1 memo added', 'landed', 'say', 1), (21, 1, 'worker', 'human', 'decide @human', 'queued', 'ask', 1)",
+			"(21, 1, 'worker', 'human', 'decide @human', 'queued', 'ask', 1)",
 		"INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(22, 1, 'worker', 'human', 'a reply', 'landed', 'say', 1)",
-		"INSERT INTO events(ts, agent, kind, payload) VALUES(1, 'task-board', 'request_comment_told', '{\"task_id\":1,\"request_id\":20,\"count\":1}')",
-		"INSERT INTO task_requests(task_id, request_id) VALUES(1, 20), (1, 21), (1, 22)")
+		"INSERT INTO task_requests(task_id, request_id) VALUES(1, 21), (1, 22)")
 	cur := func() int64 { n, _ := db.Cursor(d, db.SeenKey(1)); return n }
 	if r := seenCall(t, mk, `"task":1,"upto":3,`, "s1"); r["result"] == nil || cur() != 3 {
 		t.Fatalf("%v marker %d", r, cur())
 	}
 	if seenCall(t, mk, `"task":1,"upto":1,`, "s2"); cur() != 3 {
 		t.Fatalf("a lower number moved the marker back to %d", cur())
-	}
-	if n := count(t, d, "SELECT COUNT(*) FROM requests WHERE id = 20 AND read_at IS NOT NULL"); n != 1 {
-		t.Fatalf("the say that announced the comments is read: %d", n)
 	}
 	if n := count(t, d, "SELECT COUNT(*) FROM requests WHERE id = 22 AND read_at IS NULL"); n != 1 {
 		t.Fatalf("a reply say linked to the task is not a comment notice and stays unread: %d", n)
@@ -63,5 +59,102 @@ func TestTheSeenFloorIsSetOnceToTheNewestCommentAndNotMovedAfter(t *testing.T) {
 	}
 	if v, ok, _ := db.Meta(d, db.SeenFloorMeta); !ok || v != "9" {
 		t.Fatalf("the floor is %q (set), want 9 and not moved by the second run", v)
+	}
+}
+
+// task.seen on an ended task marks its result seen, whatever upto says; on an open task it leaves no mark, so the later end is unseen.
+func TestSeenMarksAnEndedTasksResultOnly(t *testing.T) {
+	t.Parallel()
+	d, mk := discardEnv(t)
+	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, created_at, done_evidence, done_at) VALUES(1, 'open', 'worker', 'human', 1, NULL, NULL), (2, 'ended', 'worker', 'human', 1, 'x', 5)")
+	seenCall(t, mk, `"task":1,`, "o")
+	seenCall(t, mk, `"task":2,"upto":1,`, "e")
+	if at, _ := db.Cursor(d, db.ResultSeenKey(1)); at != 0 {
+		t.Fatalf("an open task got a mark: %d", at)
+	}
+	if at, _ := db.Cursor(d, db.ResultSeenKey(2)); at == 0 {
+		t.Fatal("an ended task got no mark")
+	}
+}
+
+func TestTheResultFloorIsSetOnce(t *testing.T) {
+	t.Parallel()
+	d, _ := discardEnv(t)
+	if err := db.SetMeta(d, db.ResultSeenFloorMeta, "7"); err != nil {
+		t.Fatal(err)
+	}
+	if err := SetResultSeenFloor(d); err != nil {
+		t.Fatal(err)
+	}
+	if v, _, _ := db.Meta(d, db.ResultSeenFloorMeta); v != "7" {
+		t.Fatalf("moved to %q", v)
+	}
+}
+
+// A request the founder ends is already seen; one an agent ends is not.
+func TestAResultTheFounderEndedIsAlreadySeen(t *testing.T) {
+	t.Parallel()
+	d, mk := discardEnv(t)
+	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, reporter, created_at) VALUES(1, 'a', 'worker', 'human', 'human', 1), (2, 'b', 'worker', 'human', 'human', 1)")
+	done := func(who string, id int) {
+		t.Helper()
+		r := call(t, mk(who, &fakeTeller{}), fmt.Sprintf(`{"jsonrpc":"2.0","id":2,"method":"task.done","params":{"task":%d,"evidence":"it is built","request_id":"d%d"}}`, id, id))
+		if r[0]["error"] != nil {
+			t.Fatal(r[0])
+		}
+	}
+	done("", 1)
+	done("worker", 2)
+	if at, _ := db.Cursor(d, db.ResultSeenKey(1)); at == 0 {
+		t.Fatal("the founder's own end is not seen")
+	}
+	if at, _ := db.Cursor(d, db.ResultSeenKey(2)); at != 0 {
+		t.Fatal("an agent's end is marked seen")
+	}
+	if n := count(t, d, "SELECT COUNT(*) FROM requests WHERE target = 'human'"); n != 0 {
+		t.Fatalf("%d lines to the founder", n)
+	}
+}
+
+// With the founder holding the task, neither its last blocker's discard nor its child's writes them a line; the task still comes free.
+func TestAnEndTellsAFounderHoldingTheNextTaskNothing(t *testing.T) {
+	t.Parallel()
+	d, mk := discardEnv(t)
+	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, parent_task, created_at) VALUES(1, 'held', 'human', 'gp', NULL, 1), (2, 'blocker', 'worker', 'gp', NULL, 1), (3, 'child', 'worker', 'gp', 1, 1)",
+		"INSERT INTO task_blocks(task_id, blocks_on, created_at) VALUES(1, 2, 1), (1, 3, 1)")
+	f := &fakeTeller{}
+	for _, id := range []int{3, 2} {
+		r := call(t, mk("gp", f), fmt.Sprintf(`{"jsonrpc":"2.0","id":2,"method":"task.discard","params":{"task":%d,"reason":"not needed","request_id":"d%d"}}`, id, id))
+		if r[0]["error"] != nil {
+			t.Fatal(r[0])
+		}
+	}
+	if n := count(t, d, "SELECT COUNT(*) FROM requests WHERE target = 'human'"); n != 0 {
+		t.Fatalf("%d lines to the founder", n)
+	}
+	if n := count(t, d, "SELECT COUNT(*) FROM task_blocks WHERE task_id = 1"); n != 0 {
+		t.Fatalf("%d blocks left", n)
+	}
+}
+
+// A merge folds a task away as a discard: the founder's own merge is already seen, an agent's is not.
+func TestAResultTheFounderMergedAwayIsAlreadySeen(t *testing.T) {
+	t.Parallel()
+	d, mk := discardEnv(t)
+	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'keep', 'worker', 'human', 1), (2, 'two', 'worker', 'human', 1), (3, 'three', 'worker', 'human', 1)")
+	merge := func(who string, id int) {
+		t.Helper()
+		r := call(t, mk(who, &fakeTeller{}), fmt.Sprintf(`{"jsonrpc":"2.0","id":2,"method":"task.merge","params":{"into":1,"tasks":[%d],"request_id":"m%d"}}`, id, id))
+		if r[0]["error"] != nil {
+			t.Fatal(r[0])
+		}
+	}
+	merge("", 2)
+	merge("worker", 3)
+	if at, _ := db.Cursor(d, db.ResultSeenKey(2)); at == 0 {
+		t.Fatal("the founder's own merge is not seen")
+	}
+	if at, _ := db.Cursor(d, db.ResultSeenKey(3)); at != 0 {
+		t.Fatal("an agent's merge is marked seen")
 	}
 }

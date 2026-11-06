@@ -110,7 +110,7 @@ func TestATaskHangsUnderTheRequestItsOpenerIsWorkingOn(t *testing.T) {
 	}
 }
 
-func TestACommentOnARequestRepliesAndTellsTheFounderInOneLine(t *testing.T) {
+func TestACommentOnARequestRepliesAndTellsTheFounderNothing(t *testing.T) {
 	t.Parallel()
 	db, mk := discardEnv(t)
 	exec(t, db,
@@ -124,24 +124,13 @@ func TestACommentOnARequestRepliesAndTellsTheFounderInOneLine(t *testing.T) {
 		t.Fatalf("%v", r)
 	}
 	for q, want := range map[string]int{
-		"SELECT COUNT(*) FROM task_memos WHERE body = 'note a' AND reply_to = 1":                                                     1,
-		"SELECT COUNT(*) FROM task_memos WHERE body = 'note b' AND reply_to IS NULL":                                                 1,
-		"SELECT COUNT(*) FROM requests WHERE target = 'human' AND body LIKE 'Request T1 %has 2 new comment(s)%' AND read_at IS NULL": 1,
-		"SELECT COUNT(*) FROM requests WHERE target = 'human'":                                                                       1,
-		"SELECT COUNT(*) FROM task_requests WHERE task_id = 1 AND request_id IN (SELECT id FROM requests WHERE target = 'human')":    1,
+		"SELECT COUNT(*) FROM task_memos WHERE body = 'note a' AND reply_to = 1":     1,
+		"SELECT COUNT(*) FROM task_memos WHERE body = 'note b' AND reply_to IS NULL": 1,
+		"SELECT COUNT(*) FROM requests WHERE target = 'human'":                       0,
 	} {
 		if got := count(t, db, q); got != want {
 			t.Errorf("%s: %d, want %d", q, got, want)
 		}
-	}
-	exec(t, db, "UPDATE requests SET read_at = 5 WHERE target = 'human'")
-	call(t, mk("manager", &fakeTeller{}), add(2, 1, "", "e"))
-	if count(t, db, "SELECT COUNT(*) FROM requests WHERE target = 'human' AND read_at IS NULL AND body LIKE '%has 1 new comment(s)%'") != 1 {
-		t.Errorf("once read, the next comment starts a new line")
-	}
-	call(t, mk("", &fakeTeller{}), add(2, 1, "", "f"))
-	if count(t, db, "SELECT COUNT(*) FROM requests WHERE target = 'human'") != 2 {
-		t.Errorf("the founder's own comment tells no one")
 	}
 }
 

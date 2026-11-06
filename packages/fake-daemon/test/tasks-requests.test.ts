@@ -69,3 +69,21 @@ test('tasks.list serves open and draft whole, and closed by cursor with done and
   await assert.rejects(s.client.call('tasks.list', { state: 'closed' }), /order/);
   s.client.close();
 });
+
+test('a finished request stays unseen until task.seen, in the list and in the count', async () => {
+  const s = setup({ client: 'boss' });
+  s.daemon.tasks.verbs = true;
+  await s.client.start();
+  const task = (await s.client.call('task.new', { owner: ARCH, title: 'built', body: 'b', request_id: 'r1' })).task;
+  s.daemon.requests.add({ title: 'built', task, status: 'done', ended: { outcome: 'done', at: '2026-01-01T00:00:00Z', seen: false } });
+  s.daemon.requests.add({ title: 'open', task: 78 });
+  const unseen = await s.client.call('requests.list', { unseen: true });
+  assert.deepEqual(
+    unseen.items.map((r) => r.task),
+    [task],
+  );
+  assert.equal((await s.client.call('requests.pending', {})).counts.unseen_results, 1);
+  await s.client.call('task.seen', { task, request_id: 'r2' });
+  assert.equal((await s.client.call('requests.pending', {})).counts.unseen_results, 0);
+  assert.deepEqual((await s.client.call('requests.list', { unseen: true })).items, []);
+});

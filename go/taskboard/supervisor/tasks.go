@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/handline/handline/go/agentctl/delivery"
 	"github.com/handline/handline/go/data/db"
@@ -50,12 +51,14 @@ func (e *Env) noteRefusal(q db.Q, agent string, tid int64, msg string, refused m
 	e.tellRefusal(q, agent, tid, msg)
 }
 
-// tellRefusal tells the owner's manager (the founder when it has none) that tid sits queued because its delivery was refused.
+// tellRefusal tells the owner's manager that tid sits queued because its delivery was refused; with no manager it is a warning on the founder's turn.
 func (e *Env) tellRefusal(q db.Q, agent string, tid int64, msg string) {
-	to := db.Human
-	if t, err := team.LoadTeam(e.Home); err == nil && t.ManagerOf(agent) != "" {
-		to = t.ManagerOf(agent)
+	t, err := team.LoadTeam(e.Home)
+	if err != nil || t.ManagerOf(agent) == "" {
+		check(db.NoteUndelivered(q, db.RefusedTaskPrefix, tid, time.Now().Unix(), agent, msg))
+		return
 	}
+	to := t.ManagerOf(agent)
 	text := fmt.Sprintf("T%d could not be delivered to %s and is waiting: %s", tid, agent, msg)
 	rid := must(db.AddRequest(q, db.NewRequest{Requester: db.NoticeRequester, Target: to, Body: text, Kind: "say"}))
 	check(db.LinkRequest(q, tid, rid))
@@ -241,7 +244,7 @@ func (e *Env) tellAssigneeIdle(q db.Q, tid int64, by, assignee string, told []db
 // reopen voids it).
 func (e *Env) childResultNotice(q db.Q, dep *db.Task, by string, tid int64) *db.Notice {
 	child := must(db.GetTask(q, tid))
-	if child == nil || !child.ParentTask.Valid || child.ParentTask.Int64 != dep.ID || dep.Acting == by {
+	if child == nil || !child.ParentTask.Valid || child.ParentTask.Int64 != dep.ID || dep.Acting == by || dep.Acting == db.Human {
 		return nil
 	}
 	var since sql.NullInt64
@@ -302,7 +305,9 @@ func (e *Env) clearBlocksOn(q db.Q, tid int64, closer, how string) ([]db.Notice,
 			must(db.AddEvent(q, closer, "unblock_task", db.KV{K: "task_id", V: depID}, db.KV{K: "blocks_on", V: tid}, db.KV{K: "after_request", V: must(db.NewestRequest(q))}))
 			continue
 		}
-		notices = append(notices, e.notifyUnblocked(q, depID, dep.Acting, closer, tid, how))
+		if dep.Acting != db.Human {
+			notices = append(notices, e.notifyUnblocked(q, depID, dep.Acting, closer, tid, how))
+		}
 	}
 	return notices, freed
 }
@@ -335,7 +340,7 @@ func (e *Env) freeBlockedBy(q db.Q, tid int64, by string) ([]db.Notice, []string
 			notices = append(notices, *n)
 		}
 		free := len(must(db.TaskBlockers(q, depID))) == 0
-		told := free && dep.Acting != by // the one who finished it does not need telling
+		told := free && dep.Acting != by && dep.Acting != db.Human // the one who finished it does not need telling, and the board tells the founder nothing
 		must(db.AddEvent(q, by, "released_at_done", db.KV{K: "task_id", V: depID}, db.KV{K: "blocks_on", V: tid}, db.KV{K: "freed", V: free}, db.KV{K: "told", V: told}))
 		if free && !seen[dep.Acting] {
 			seen[dep.Acting] = true
@@ -436,6 +441,9 @@ func (e *Env) releaseOne(tid int64, how string) (waiting []int64, err error) {
 
 // TypeSay writes a say from the task board to owner, typed at once.
 func (e *Env) typeSay(q db.Q, owner, body, why string) int64 {
+	if owner == db.Human {
+		return 0
+	}
 	rid := e.queueSay(q, owner, body, why)
 	e.Push(q, owner, rid)
 	return rid

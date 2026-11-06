@@ -23,8 +23,11 @@ func TestFounderHeldTaskIsClosedByItsParentOwnerOrALead(t *testing.T) {
 		task  int
 	}{{"mgr", 3}, {"lead.auditor", 4}, {"boss", 5}, {"lead", 6}} {
 		said(t, call(c.agent, "task.done", fmt.Sprint("r", c.task), fmt.Sprintf(`,"task":%d,"evidence":"taken back"`, c.task)))
-		if n(fmt.Sprintf("SELECT COUNT(*) FROM requests WHERE target = 'human' AND body = 'T%d done by %s: taken back'", c.task, c.agent)) != 1 {
-			t.Fatalf("the founder was not told in one line that %s closed T%d", c.agent, c.task)
+		if n(fmt.Sprintf("SELECT COUNT(*) FROM tasks WHERE id = %d AND done_evidence = 'taken back'", c.task)) != 1 {
+			t.Fatalf("%s did not close T%d", c.agent, c.task)
+		}
+		if n("SELECT COUNT(*) FROM requests WHERE target = 'human' AND requester = 'task-board'") != 0 {
+			t.Fatalf("the board told the founder that %s closed T%d", c.agent, c.task)
 		}
 	}
 }

@@ -9,9 +9,9 @@ import (
 
 // tellTask writes a notice of a change to a task for each of to (its opener and assignee, and whoever else the change concerns), to be
 // delivered after the commit (Teller.Notified). Anyone may change a task, so these are who learn of it; the actor, the board and names no
-// one holds are skipped.
+// one holds are skipped, and so is the founder, who never hears from the board.
 func tellTask(tx *sql.Tx, home, by, text string, to ...string) ([]told, error) {
-	known := map[string]bool{human: true}
+	known := map[string]bool{}
 	for _, a := range paths.ListAgents(home) {
 		known[a] = true
 	}

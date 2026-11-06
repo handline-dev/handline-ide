@@ -49,6 +49,9 @@ func (e *Env) say(q db.Q, to, text, reason string) int64 {
 // Notice writes one notice from the task board to `to` (delivery.ClassBatch): it waits for the next digest or rides on the next delivery.
 func (e *Env) Notice(q db.Q, to, text, reason string) (rid int64, err error) {
 	defer Catch(&err)
+	if to == db.Human { // the board tells the founder nothing
+		return 0, nil
+	}
 	rid = must(db.AddRequest(q, db.NewRequest{Requester: db.NoticeRequester, Target: to, Body: text, Kind: "say", Notice: true}))
 	return rid, nil
 }

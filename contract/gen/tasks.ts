@@ -368,9 +368,10 @@ export type MemoReader = {
 export type PendingRequest = {
   /** The task; null for an item that belongs to no task (a permission request such as Asks to use Bash). */
   task: number | null;
+  /** The task's title; for an item with no task, its own line (a prompt's command or tool, a proposal's title, a warning in plain words). */
   title: string;
-  /** The strongest item the row holds: allow (a permission request), decide (a decision), ask (a question to the founder), or comment (unread comments only). */
-  kind: "allow" | "decide" | "ask" | "comment";
+  /** The strongest item the row holds: allow (a permission request), decide (a decision, or a turn on the task), ask (a question to the founder), warning (the daemon needs the founder to act: see warning), or comment (unread comments only). */
+  kind: "allow" | "decide" | "ask" | "warning" | "comment";
   /** The inbox ids of the answer-needed items; empty for a comment row. */
   items: number[];
   /** The task's unread comments (Task.unread); 0 for a row without a task. */
@@ -378,6 +379,16 @@ export type PendingRequest = {
   /** Task.first_unread. */
   first_unread: number | null;
   last_at: Timestamp;
+  /** What the row was made from, as ForYouItem.kind: with id it names the item for NavPrefs.later. A row of a task that holds several takes the one kind says. Absent from a daemon that does not send it. */
+  source?: "task" | "comment" | "prompt" | "proposal" | "machine";
+  /** ForYouItem.id of that item. Absent from a daemon that does not send it. */
+  id?: string;
+  /** Who asks; null for the daemon's own warnings. Absent from a daemon that does not send it. */
+  agent?: AgentName | null;
+  /** What is asked, one line: the turn's ask or the first line of the comment asking them; null when there is nothing beyond the title. Absent from a daemon that does not send it. */
+  ask?: string | null;
+  /** Set on a warning row, null on every other. Absent from a daemon that does not send it. */
+  warning?: PendingWarning | null;
 };
 
 /** One turn on a task (docs/design/turns.md): the agent who acts on the task while it is on top, or human. */
@@ -393,6 +404,18 @@ export type Turn = {
   on_pass: "done" | null;
   /** The done evidence a pass closes the task with (on_pass done). */
   evidence: string | null;
+};
+
+/** What a warning row is about, so a client can draw it and open the right place. It is read from state each time and leaves by itself. */
+export type PendingWarning = {
+  /** When each leaves. disk: space is back. login: the account is logged in or woken; one past its end day never warns. weekly_use (the spare notice, a task of the founder's): answered, or the reset. delivery (a message of the founder's never seen to arrive): seen to arrive, withdrawn, or their next message to that agent is written. undelivered (a task queued, its delivery refused, its agent with no lead): delivered, given to another or ended. */
+  kind: "disk" | "login" | "weekly_use" | "delivery" | "undelivered";
+  /** login, weekly_use: the account. */
+  account?: string;
+  /** delivery, undelivered: the agent it did not reach. */
+  agent?: string;
+  /** delivery: the message. */
+  ref?: RequestRef;
 };
 
 export interface TasksMethods {
@@ -600,18 +623,22 @@ export interface TasksMethods {
   request_id: RequestId;
 }; result: Accepted };
   "requests.pending": { params: { [key: string]: unknown }; result: {
-    /** One row per task with an unread item that needs an answer (ask, decide, allow), newest first; an item with no task is its own row. A read marker never removes one. */
+    /** The founder's turn: one row per task with something only they can act on (a turn on it, a comment asking them, a decision), newest first, and an item with no task (a permission request, a proposal, a daemon warning) as its own row. A row leaves when it is resolved (answered, passed, delivered, logged in, its time gone) or put off (NavPrefs.later) and never by being read. */
     answer: PendingRequest[];
-    /** One row per task the founder answers for (its reporter is the founder, or its opener when it has none, or it is the founder's own) that has unread comments and is not already in answer, newest first. */
+    /** Not the founder's turn: tasks the founder answers for (its reporter is the founder, or its opener when it has none, or it is the founder's own) with unread comments and no row in answer, newest first. task.seen removes a row. No badge counts it. */
     comments: PendingRequest[];
-    /** The sidebar badges come only from here: Requests is answer plus comments, Tasks is needs_you. The page and the badge then cannot disagree. */
+    /** Every badge comes only from here, so the page and the badge cannot disagree: bell and Requests are answer, Tasks is needs_you. */
     counts: {
+      /** The founder's turn: the length of answer. The bell and the sidebar Requests badge both show this. */
       answer: number;
+      /** The length of comments. */
       comments: number;
       /** Open tasks owned by the founder or waiting on the founder (Task.waiting.on is founder). */
       needs_you: number;
       /** Open draft tasks, everyone's. */
       drafts: number;
+      /** Finished requests the founder has not seen (requests.list unseen): the bell's dot, not a number on it. Absent from a daemon that does not send it. */
+      unseen_results?: number;
     };
   } & ReadCursor };
   "task.comment.list": { params: {

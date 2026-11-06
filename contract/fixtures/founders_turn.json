@@ -1,0 +1,1171 @@
+{
+ "fixtures": [
+  {
+   "name": "requests.pending.a_turn_stays_through_task_seen_and_leaves_when_passed",
+   "spec": "requests.pending",
+   "as": "agent",
+   "with": {
+    "boss": "founder"
+   },
+   "about": "A task with the founder on top is one row and one more in the count; reading it changes nothing; passing it removes it.",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1
+      }
+     },
+     "result": {
+      "caller": {
+       "name": {
+        "$save": "me"
+       }
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {},
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "method": "requests.pending",
+      "params": {}
+     },
+     "result": {
+      "counts": {
+       "answer": {
+        "$type": "integer",
+        "$save": "c0"
+       },
+       "unseen_results": {
+        "$type": "integer",
+        "$save": "u0"
+       }
+      }
+     },
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "task.new",
+      "params": {
+       "owner": "{{me}}",
+       "title": "a turn task",
+       "body": "build it; done is it built",
+       "time_box": "1h",
+       "request_id": "conf-ft-turn task-new"
+      }
+     },
+     "result": {
+      "accepted": true,
+      "task": {
+       "$save": "tid"
+      }
+     },
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "task.turn.push",
+      "params": {
+       "task": "{{tid}}",
+       "to": "human",
+       "ask": "pick one",
+       "request_id": "conf-ft-turn-push"
+      }
+     },
+     "result": {
+      "accepted": true
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "requests.pending",
+      "params": {}
+     },
+     "result": {
+      "answer": {
+       "$contains": {
+        "task": "{{tid}}",
+        "kind": "decide",
+        "source": "task",
+        "agent": "{{me}}",
+        "ask": "pick one",
+        "warning": null
+       }
+      },
+      "counts": {
+       "answer": {
+        "$next": "c0"
+       }
+      }
+     },
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "task.seen",
+      "params": {
+       "task": "{{tid}}",
+       "request_id": "conf-ft-turn-seen"
+      }
+     },
+     "result": {
+      "accepted": true
+     },
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "requests.pending",
+      "params": {}
+     },
+     "result": {
+      "answer": {
+       "$contains": {
+        "task": "{{tid}}"
+       }
+      },
+      "counts": {
+       "answer": {
+        "$next": "c0"
+       }
+      }
+     },
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "task.turn.pop",
+      "params": {
+       "task": "{{tid}}",
+       "outcome": "pass",
+       "request_id": "conf-ft-turn-pop"
+      }
+     },
+     "result": {
+      "accepted": true
+     },
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "requests.pending",
+      "params": {}
+     },
+     "result": {
+      "counts": {
+       "answer": "{{c0}}"
+      }
+     },
+     "on": "boss"
+    }
+   ]
+  },
+  {
+   "name": "requests.pending.a_human_comment_stays_through_task_seen_and_leaves_when_answered",
+   "spec": "requests.pending",
+   "as": "agent",
+   "with": {
+    "boss": "founder"
+   },
+   "about": "An @human comment is one row with its first line as ask; reading it changes nothing; the founder's comment on the task answers it.",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1
+      }
+     },
+     "result": {
+      "caller": {
+       "name": {
+        "$save": "me"
+       }
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {},
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "method": "requests.pending",
+      "params": {}
+     },
+     "result": {
+      "counts": {
+       "answer": {
+        "$type": "integer",
+        "$save": "c0"
+       },
+       "unseen_results": {
+        "$type": "integer",
+        "$save": "u0"
+       }
+      }
+     },
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "task.new",
+      "params": {
+       "owner": "{{me}}",
+       "title": "a memo task",
+       "body": "build it; done is it built",
+       "time_box": "1h",
+       "request_id": "conf-ft-memo task-new"
+      }
+     },
+     "result": {
+      "accepted": true,
+      "task": {
+       "$save": "tid"
+      }
+     },
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "task.comment.add",
+      "params": {
+       "task": "{{tid}}",
+       "request_id": "conf-ft-memo-add",
+       "text": "@human which one?"
+      }
+     },
+     "result": {
+      "accepted": true
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "requests.pending",
+      "params": {}
+     },
+     "result": {
+      "answer": {
+       "$contains": {
+        "task": "{{tid}}",
+        "kind": "ask",
+        "source": "comment",
+        "agent": "{{me}}",
+        "ask": {
+         "$regex": "which one\\?"
+        }
+       }
+      },
+      "counts": {
+       "answer": {
+        "$next": "c0"
+       }
+      }
+     },
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "task.seen",
+      "params": {
+       "task": "{{tid}}",
+       "request_id": "conf-ft-memo-seen"
+      }
+     },
+     "result": {
+      "accepted": true
+     },
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "requests.pending",
+      "params": {}
+     },
+     "result": {
+      "counts": {
+       "answer": {
+        "$next": "c0"
+       }
+      }
+     },
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "task.comment.add",
+      "params": {
+       "task": "{{tid}}",
+       "request_id": "conf-ft-memo-answer",
+       "text": "the first"
+      }
+     },
+     "result": {
+      "accepted": true
+     },
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "requests.pending",
+      "params": {}
+     },
+     "result": {
+      "counts": {
+       "answer": "{{c0}}"
+      }
+     },
+     "on": "boss"
+    }
+   ]
+  },
+  {
+   "name": "requests.pending.an_unread_comment_is_not_the_founders_turn",
+   "spec": "requests.pending",
+   "as": "agent",
+   "with": {
+    "boss": "founder"
+   },
+   "about": "A plain comment on the founder's task is a comments row and does not move the count; task.seen removes the row.",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1
+      }
+     },
+     "result": {
+      "caller": {
+       "name": {
+        "$save": "me"
+       }
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {},
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "method": "requests.pending",
+      "params": {}
+     },
+     "result": {
+      "counts": {
+       "answer": {
+        "$type": "integer",
+        "$save": "c0"
+       },
+       "unseen_results": {
+        "$type": "integer",
+        "$save": "u0"
+       }
+      }
+     },
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "task.new",
+      "params": {
+       "owner": "{{me}}",
+       "title": "a plain comment task",
+       "body": "build it; done is it built",
+       "time_box": "1h",
+       "request_id": "conf-ft-plain comment task-new"
+      }
+     },
+     "result": {
+      "accepted": true,
+      "task": {
+       "$save": "tid"
+      }
+     },
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "task.comment.add",
+      "params": {
+       "task": "{{tid}}",
+       "request_id": "conf-ft-plain-add",
+       "text": "made some progress"
+      }
+     },
+     "result": {
+      "accepted": true
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "requests.pending",
+      "params": {}
+     },
+     "result": {
+      "comments": {
+       "$contains": {
+        "task": "{{tid}}",
+        "kind": "comment"
+       }
+      },
+      "counts": {
+       "answer": "{{c0}}"
+      }
+     },
+     "on": "boss"
+    }
+   ]
+  },
+  {
+   "name": "task.done.no_notice_reaches_the_founder",
+   "spec": "task.done",
+   "as": "agent",
+   "with": {
+    "boss": "founder"
+   },
+   "about": "The task board tells the founder nothing: an edit and a done of the founder's task add no line to their inbox. The result shows on requests.list.",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1
+      }
+     },
+     "result": {
+      "caller": {
+       "name": {
+        "$save": "me"
+       }
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {},
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "task.new",
+      "params": {
+       "owner": "{{me}}",
+       "title": "a quiet task",
+       "body": "build it; done is it built",
+       "time_box": "1h",
+       "request_id": "conf-ft-quiet task-new"
+      }
+     },
+     "result": {
+      "accepted": true,
+      "task": {
+       "$save": "tid"
+      }
+     },
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "task.edit",
+      "params": {
+       "task": "{{tid}}",
+       "title": "a quiet task, renamed",
+       "request_id": "conf-ft-quiet-edit"
+      }
+     },
+     "result": {
+      "accepted": true
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "task.done",
+      "params": {
+       "task": "{{tid}}",
+       "evidence": "built",
+       "request_id": "conf-ft-quiet-done"
+      }
+     },
+     "result": {
+      "accepted": true
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "inbox.list",
+      "params": {
+       "limit": 200
+      }
+     },
+     "result": {
+      "items": {
+       "$each": {
+        "agent": {
+         "$regex": "^(?!task-board$)"
+        }
+       }
+      }
+     },
+     "on": "boss"
+    }
+   ]
+  },
+  {
+   "name": "requests.list.a_finished_request_is_unseen_until_task_seen",
+   "spec": "requests.list",
+   "as": "agent",
+   "with": {
+    "boss": "founder"
+   },
+   "about": "An agent's done on the founder's request makes it status done, ended.outcome done, unseen, in the unseen list and one more in counts.unseen_results; task.seen marks it seen.",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1
+      }
+     },
+     "result": {
+      "caller": {
+       "name": {
+        "$save": "me"
+       }
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {},
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "method": "requests.pending",
+      "params": {}
+     },
+     "result": {
+      "counts": {
+       "answer": {
+        "$type": "integer",
+        "$save": "c0"
+       },
+       "unseen_results": {
+        "$type": "integer",
+        "$save": "u0"
+       }
+      }
+     },
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "task.new",
+      "params": {
+       "owner": "{{me}}",
+       "title": "a seen request",
+       "body": "build it; done is it built",
+       "time_box": "1h",
+       "request_id": "conf-ft-seen request-new"
+      }
+     },
+     "result": {
+      "accepted": true,
+      "task": {
+       "$save": "tid"
+      }
+     },
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "task.done",
+      "params": {
+       "task": "{{tid}}",
+       "evidence": "built",
+       "request_id": "conf-ft-seen-done"
+      }
+     },
+     "result": {
+      "accepted": true
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "requests.list",
+      "params": {
+       "unseen": true
+      }
+     },
+     "result": {
+      "items": {
+       "$contains": {
+        "task": "{{tid}}",
+        "status": "done",
+        "ended": {
+         "outcome": "done",
+         "at": {
+          "$type": "timestamp"
+         },
+         "seen": false
+        }
+       }
+      }
+     },
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "requests.pending",
+      "params": {}
+     },
+     "result": {
+      "counts": {
+       "unseen_results": {
+        "$next": "u0"
+       }
+      }
+     },
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "task.seen",
+      "params": {
+       "task": "{{tid}}",
+       "request_id": "conf-ft-seen-seen"
+      }
+     },
+     "result": {
+      "accepted": true
+     },
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "requests.list",
+      "params": {
+       "state": "done"
+      }
+     },
+     "result": {
+      "items": {
+       "$contains": {
+        "task": "{{tid}}",
+        "ended": {
+         "seen": true
+        }
+       }
+      }
+     },
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "requests.pending",
+      "params": {}
+     },
+     "result": {
+      "counts": {
+       "unseen_results": "{{u0}}"
+      }
+     },
+     "on": "boss"
+    }
+   ]
+  },
+  {
+   "name": "requests.list.a_discarded_request_is_finished",
+   "spec": "requests.list",
+   "as": "agent",
+   "with": {
+    "boss": "founder"
+   },
+   "about": "A request discarded by the agent is status done, outcome discarded, unseen.",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1
+      }
+     },
+     "result": {
+      "caller": {
+       "name": {
+        "$save": "me"
+       }
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {},
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "task.new",
+      "params": {
+       "owner": "{{me}}",
+       "title": "a discarded request",
+       "body": "build it; done is it built",
+       "time_box": "1h",
+       "request_id": "conf-ft-discarded request-new"
+      }
+     },
+     "result": {
+      "accepted": true,
+      "task": {
+       "$save": "tid"
+      }
+     },
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "task.draft",
+      "params": {
+       "tasks": [
+        "{{tid}}"
+       ],
+       "request_id": "conf-ft-draft-_is_finished"
+      }
+     },
+     "result": {
+      "accepted": true
+     },
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "task.discard",
+      "params": {
+       "task": "{{tid}}",
+       "reason": "not needed",
+       "request_id": "conf-ft-disc"
+      }
+     },
+     "result": {
+      "accepted": true
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "requests.list",
+      "params": {
+       "state": "done"
+      }
+     },
+     "result": {
+      "items": {
+       "$contains": {
+        "task": "{{tid}}",
+        "status": "done",
+        "ended": {
+         "outcome": "discarded",
+         "seen": false
+        }
+       }
+      }
+     },
+     "on": "boss"
+    }
+   ]
+  },
+  {
+   "name": "requests.list.a_request_the_founder_ended_is_already_seen",
+   "spec": "requests.list",
+   "as": "agent",
+   "with": {
+    "boss": "founder"
+   },
+   "about": "The founder discarding their own request has nothing to see.",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1
+      }
+     },
+     "result": {
+      "caller": {
+       "name": {
+        "$save": "me"
+       }
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {},
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "task.new",
+      "params": {
+       "owner": "{{me}}",
+       "title": "a founder ended request",
+       "body": "build it; done is it built",
+       "time_box": "1h",
+       "request_id": "conf-ft-founder ended request-new"
+      }
+     },
+     "result": {
+      "accepted": true,
+      "task": {
+       "$save": "tid"
+      }
+     },
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "task.draft",
+      "params": {
+       "tasks": [
+        "{{tid}}"
+       ],
+       "request_id": "conf-ft-draft-already_seen"
+      }
+     },
+     "result": {
+      "accepted": true
+     },
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "task.discard",
+      "params": {
+       "task": "{{tid}}",
+       "reason": "not needed",
+       "request_id": "conf-ft-own"
+      }
+     },
+     "result": {
+      "accepted": true
+     },
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "requests.list",
+      "params": {
+       "state": "done"
+      }
+     },
+     "result": {
+      "items": {
+       "$contains": {
+        "task": "{{tid}}",
+        "ended": {
+         "outcome": "discarded",
+         "seen": true
+        }
+       }
+      }
+     },
+     "on": "boss"
+    }
+   ]
+  },
+  {
+   "name": "requests.list.an_open_row_has_no_ended",
+   "spec": "requests.list",
+   "as": "founder",
+   "about": "Every row not finished has ended null, and each row of the founder's turn says what it is.",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "requests.list",
+      "params": {
+       "state": "doing"
+      }
+     },
+     "result": {
+      "items": {
+       "$each": {
+        "ended": null
+       }
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "requests.pending",
+      "params": {}
+     },
+     "result": {
+      "answer": {
+       "$each": {
+        "source": {
+         "$type": "string"
+        },
+        "id": {
+         "$type": "string"
+        },
+        "agent": {
+         "$oneOf": [
+          {
+           "$type": "string"
+          },
+          {
+           "$type": "null"
+          }
+         ]
+        },
+        "ask": {
+         "$oneOf": [
+          {
+           "$type": "string"
+          },
+          {
+           "$type": "null"
+          }
+         ]
+        },
+        "warning": {
+         "$oneOf": [
+          {
+           "$type": "object"
+          },
+          {
+           "$type": "null"
+          }
+         ]
+        }
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "requests.list.an_unseen_that_is_no_boolean_is_bad_request",
+   "spec": "requests.list",
+   "as": "founder",
+   "about": "unseen is a boolean.",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "requests.list",
+      "params": {
+       "unseen": "yes"
+      }
+     },
+     "error": {
+      "code": -32602
+     }
+    }
+   ]
+  }
+ ]
+}

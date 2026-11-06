@@ -134,11 +134,13 @@ func (e *Env) ForYou() ([]map[string]any, int, error) {
 		}
 	}
 
-	// What the machine needs.
-	needs := e.machineNeeds()
-	for _, n := range needs {
-		need := n.(map[string]any)
-		add(forYouItem("machine", need["kind"].(string), nil, need["text"].(string), "do", need["since"]))
+	// What the daemon needs and cannot do itself.
+	warnings, err := e.founderWarnings()
+	if err != nil {
+		return nil, 0, err
+	}
+	for _, w := range warnings {
+		add(forYouItem("machine", w.id, nil, w.title, "do", w.since))
 	}
 
 	deferred, err := prefs.LaterOf(e.DB, human)

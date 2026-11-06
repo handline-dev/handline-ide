@@ -12,7 +12,12 @@ const NAMED = /(?:^|[^A-Za-z0-9._@-])@([A-Za-z0-9][A-Za-z0-9._-]*)/g;
 export interface Pending {
   task: number | null;
   title: string;
-  kind: 'allow' | 'decide' | 'ask' | 'comment';
+  kind: 'allow' | 'decide' | 'ask' | 'warning' | 'comment';
+  source?: 'task' | 'comment' | 'prompt' | 'proposal' | 'machine';
+  id?: string;
+  agent?: string | null;
+  ask?: string | null;
+  warning?: null;
   items: number[];
   unread: number;
   first_unread: number | null;
@@ -49,15 +54,16 @@ export class TaskComments extends TaskStore {
       this.seenUpto.set(t.id, upto);
       this.emit(this.view(t));
     }
+    this.host.requests.markSeen(t.id);
   }
 
   /** requests.pending: what waits on the founder by task, and the counts the badges show. */
   pending(): {
     answer: Pending[];
     comments: Pending[];
-    counts: { answer: number; comments: number; needs_you: number; drafts: number };
+    counts: { answer: number; comments: number; needs_you: number; drafts: number; unseen_results: number };
   } {
-    const strength = { comment: 0, ask: 1, decide: 2, allow: 3 };
+    const strength = { comment: 0, warning: 1, ask: 2, decide: 3, allow: 4 };
     const answer = new Map<string, Pending>();
     for (const i of this.host.inbox.list({ unread: true, limit: 500 }).items) {
       const kind = i.kind === 'ask' ? 'ask' : i.kind === 'decision' ? 'decide' : i.kind === 'prompt' ? 'allow' : null;
@@ -76,6 +82,11 @@ export class TaskComments extends TaskStore {
         task: i.task,
         title: t?.title ?? i.title,
         kind,
+        source: i.task === null ? (i.kind === 'prompt' ? 'prompt' : 'comment') : 'task',
+        id: String(i.task ?? i.id),
+        agent: i.agent,
+        ask: null,
+        warning: null,
         items: [i.id],
         unread: v?.unread ?? 0,
         first_unread: v?.first_unread ?? null,
@@ -107,6 +118,7 @@ export class TaskComments extends TaskStore {
         comments: comments.length,
         needs_you: open.filter((r) => r.state !== 'draft' && (r.to === 'human' || this.waiting(r)?.on === 'founder')).length,
         drafts: open.filter((r) => r.state === 'draft').length,
+        unseen_results: this.host.requests.unseen().length,
       },
     };
   }

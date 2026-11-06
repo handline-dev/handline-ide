@@ -88,7 +88,7 @@ func TestReleaseTakesADoingTaskBackAndRetiresTheRequestsOutOnIt(t *testing.T) {
 	refused("again", release("boss", "again", 1, why), "task T1 is queued, not doing - nothing to release")
 }
 
-func TestATaskBegunOnTheFoundersMessageIsReleasedByAnyoneAndTheFounderIsTold(t *testing.T) {
+func TestATaskBegunOnTheFoundersMessageIsReleasedByAnyone(t *testing.T) {
 	t.Parallel()
 	db, mk := discardEnv(t)
 	exec(t, db,
@@ -103,11 +103,8 @@ func TestATaskBegunOnTheFoundersMessageIsReleasedByAnyoneAndTheFounderIsTold(t *
 	if len(f.released) != 1 || f.released[0] != (Retired{Target: "worker", Held: true}) {
 		t.Fatalf("its owner is to be told to stop: %+v", f.released)
 	}
-	var to string
-	db.QueryRow("SELECT group_concat(target, ' ') FROM (SELECT target FROM requests WHERE requester = 'task-board' AND body = " +
-		"'task T7 released by gp: wrong turn' ORDER BY target)").Scan(&to)
-	if to != "human" || len(f.notified) != 1 {
-		t.Fatalf("the founder is told, with the reason; the owner only its stop: %q %v", to, f.notified)
+	if n := count(t, db, "SELECT COUNT(*) FROM requests WHERE requester = 'task-board'"); n != 0 || len(f.notified) != 0 {
+		t.Fatalf("the board tells the founder nothing, and the owner only its stop: %d %v", n, f.notified)
 	}
 	if count(t, db, "SELECT COUNT(*) FROM tasks WHERE id = 7 AND timeout_at IS NULL") != 1 {
 		t.Fatal("its clock is paused")

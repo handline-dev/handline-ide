@@ -321,4 +321,7 @@ func TestADaemonStartSetsTheSeenFloor(t *testing.T) {
 	if v, ok, err := dbpkg.Meta(p.db, dbpkg.SeenFloorMeta); err != nil || !ok || v != "7" {
 		t.Fatalf("floor %q set %v err %v", v, ok, err)
 	}
+	if _, ok, err := dbpkg.Meta(p.db, dbpkg.ResultSeenFloorMeta); err != nil || !ok {
+		t.Fatalf("result floor set %v err %v", ok, err)
+	}
 }

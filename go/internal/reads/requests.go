@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -27,8 +28,6 @@ const (
 const (
 	// requestWindowS is how far back a message, or a request done, is listed.
 	requestWindowS = 30 * 24 * 3600
-	// tellEvent is the event noteRequestComment (taskwrites) keeps the count of unread agent comments in.
-	tellEvent = "request_comment_told"
 )
 
 // requestNode is one task of a request's tree.
@@ -43,8 +42,8 @@ type requestNode struct {
 // RequestRows is requests.list's rows, newest activity first, before filtering by state and paging.
 func (e *Env) RequestRows(clock int64) ([]map[string]any, error) {
 	since := clock - requestWindowS
-	roots, err := query(e.DB, "SELECT id, title, owner, COALESCE(from_request, turn_origin) AS origin, created_at, done_evidence, done_at FROM tasks WHERE "+requestRootSQL+
-		" AND discarded_by IS NULL AND (done_evidence IS NULL OR done_at >= ?) ORDER BY id", human, human, since)
+	roots, err := query(e.DB, "SELECT id, title, owner, COALESCE(from_request, turn_origin) AS origin, created_at, done_evidence, done_at, discarded_by, discarded_at FROM tasks WHERE "+requestRootSQL+
+		" AND (discarded_by IS NOT NULL AND discarded_at >= ? OR discarded_by IS NULL AND (done_evidence IS NULL OR done_at >= ?)) ORDER BY id", human, human, since, since)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +55,11 @@ func (e *Env) RequestRows(clock int64) ([]map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	unread, err := e.unreadComments()
+	unread, err := e.unreadAll()
+	if err != nil {
+		return nil, err
+	}
+	seen, err := e.resultMarks()
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +105,7 @@ func (e *Env) RequestRows(clock int64) ([]map[string]any, error) {
 			}
 		}
 		switch {
-		case r.set("done_evidence"):
+		case r.set("done_evidence") || r.set("discarded_by"):
 			status, holders = reqDone, map[string]bool{}
 		case waiting:
 			status = reqWaitingOnYou
@@ -119,8 +122,11 @@ func (e *Env) RequestRows(clock int64) ([]map[string]any, error) {
 		}
 		row := map[string]any{"kind": "task", "task": id, "ref": nil, "title": r.str("title"), "status": status, "agent": agent,
 			"holders": sortedKeys(holders), "open": open, "done": done, "prs": sortedNums(prs), "now": nowAgent, "blocked": blocked,
-			"progress": progressLine(status, open, done, nowAgent, blocked), "reason": nil, "unread_comments": unread[id],
-			"created": ts(r["created_at"]), "last_activity": ts(last), "cursor": cursorOf(last, "t", id), "attention": nil}
+			"progress": progressLine(status, open, done, nowAgent, blocked), "reason": nil, "unread_comments": unread[id].n,
+			"created": ts(r["created_at"]), "last_activity": ts(last), "cursor": cursorOf(last, "t", id), "attention": nil, "ended": endedOf(r, seen)}
+		if r.set("discarded_by") {
+			row["progress"] = "discarded"
+		}
 		if status != reqDone {
 			a, err := facts.of(id, tree, last, cards)
 			if err != nil {
@@ -147,7 +153,7 @@ func (e *Env) RequestRows(clock int64) ([]map[string]any, error) {
 		}
 		out = append(out, map[string]any{"kind": "message", "task": nil, "ref": db.MsgPrefix + m.str("ref"), "title": head(firstLine(m.str("body")), 80),
 			"status": status, "agent": m.str("target"), "holders": []string{}, "open": 0, "done": 0, "prs": []int64{}, "now": nil, "blocked": false, "progress": "", "reason": reason, "unread_comments": 0,
-			"created": ts(m["ts"]), "last_activity": ts(m["ts"]), "cursor": cursorOf(m.i("ts"), "m", m.i("id")), "attention": nil})
+			"created": ts(m["ts"]), "last_activity": ts(m["ts"]), "cursor": cursorOf(m.i("ts"), "m", m.i("id")), "attention": nil, "ended": nil})
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i]["cursor"].(string) > out[j]["cursor"].(string) })
 	return out, nil
@@ -230,22 +236,58 @@ func (e *Env) cardTasks() (map[int64]bool, error) {
 	return out, nil
 }
 
-// unreadComments is, by request task, the agents' new comments the founder has not read: what the newest inbox line for it counts.
-func (e *Env) unreadComments() (map[int64]int64, error) {
-	rows, err := query(e.DB, "SELECT json_extract(e.payload, '$.task_id') AS task, json_extract(e.payload, '$.count') AS n, r.read_at AS read_at FROM events e "+
-		"JOIN requests r ON r.id = CASE WHEN json_valid(e.payload) THEN json_extract(e.payload, '$.request_id') END WHERE e.kind = ? ORDER BY e.id", tellEvent)
-	if err != nil {
-		return nil, err
+// resultMarks is when the founder last saw each ended task, and the time at or before which every result counts as seen.
+type resultMarks struct {
+	at    map[int64]int64
+	floor int64
+}
+
+func (e *Env) resultMarks() (resultMarks, error) {
+	out := resultMarks{at: map[int64]int64{}}
+	if v, ok := queryMeta(e, db.ResultSeenFloorMeta); ok {
+		out.floor, _ = strconv.ParseInt(v, 10, 64)
 	}
-	out := map[int64]int64{}
+	rows, err := query(e.DB, "SELECT name, row_id FROM cursors WHERE name LIKE ?", db.ResultSeenPrefix+"%")
+	if err != nil {
+		return out, err
+	}
 	for _, r := range rows {
-		if r.set("read_at") {
-			out[r.i("task")] = 0
-		} else {
-			out[r.i("task")] = r.i("n")
-		}
+		id, _ := strconv.ParseInt(strings.TrimPrefix(r.str("name"), db.ResultSeenPrefix), 10, 64)
+		out.at[id] = r.i("row_id")
 	}
 	return out, nil
+}
+
+// endedOf is RequestRow.ended for a root row: nil while it is open.
+func endedOf(r row, seen resultMarks) any {
+	outcome, at := "done", r.i("done_at")
+	if r.set("discarded_by") {
+		outcome, at = "discarded", r.i("discarded_at")
+	} else if !r.set("done_evidence") {
+		return nil
+	}
+	return map[string]any{"outcome": outcome, "at": ts(at), "seen": at <= seen.floor || at <= seen.at[r.i("id")]}
+}
+
+// unseenResults counts the requests ended in the window that the founder has not seen (RequestRow.ended.seen false).
+func (e *Env) unseenResults(clock int64) (int, error) {
+	since := clock - requestWindowS
+	seen, err := e.resultMarks()
+	if err != nil {
+		return 0, err
+	}
+	rows, err := query(e.DB, "SELECT id, done_evidence, done_at, discarded_by, discarded_at FROM tasks WHERE "+requestRootSQL+
+		" AND (discarded_by IS NOT NULL AND discarded_at >= ? OR discarded_by IS NULL AND done_evidence IS NOT NULL AND done_at >= ?)", human, human, since, since)
+	if err != nil {
+		return 0, err
+	}
+	n := 0
+	for _, r := range rows {
+		if !endedOf(r, seen).(map[string]any)["seen"].(bool) {
+			n++
+		}
+	}
+	return n, nil
 }
 
 type origin struct{ ref, agent string }
@@ -291,6 +333,10 @@ func (e *Env) requestsList(_ *rpc.Conn, params map[string]any) (any, error) {
 	if state != nil && !slices.Contains([]string{reqWaitingOnYou, reqReview, reqDoing, reqDone, reqNoWork, reqNotYet}, *state) {
 		return nil, badParam("state is waiting_on_you, review, doing, done, no_work or not_yet", "state")
 	}
+	unseen, ok := params["unseen"].(bool)
+	if !ok && params["unseen"] != nil {
+		return nil, badParam("unseen is true or false", "unseen")
+	}
 	before, err := optStr(params, "before")
 	if err != nil {
 		return nil, err
@@ -307,6 +353,9 @@ func (e *Env) requestsList(_ *rpc.Conn, params map[string]any) (any, error) {
 	more := false
 	for _, r := range rows {
 		if (state != nil && r["status"] != *state) || (before != nil && r["cursor"].(string) >= *before) {
+			continue
+		}
+		if ended, finished := r["ended"].(map[string]any); unseen && (!finished || ended["seen"] == true) {
 			continue
 		}
 		if len(kept) == limit {

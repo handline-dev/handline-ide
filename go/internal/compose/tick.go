@@ -163,6 +163,7 @@ func (p *Parts) Tick(cfg Config, tc TickConfig) *Tick {
 			Notice: func(q db.Q, to, text, reason string) error { _, err := env.Notice(q, to, text, reason); return err }}).Check},
 		{Name: "disk watch", Run: (&housekeeping.DiskWatch{Home: home, Log: logLine, Free: cfg.DiskFree,
 			Floor: func() int64 { return diskWarnFloor(loadgate.LimitsOf(usage.LoadConfig(home)).DiskFreeGB) }}).Check},
+		{Name: "login watch", Run: (&housekeeping.LoginWatch{Home: home}).Check},
 		{Name: "worktree sizes", Run: (&housekeeping.WorktreeSizes{Log: logLine}).Check},
 		{Name: "orphans", Run: (&housekeeping.Orphans{Log: logLine, Scratch: paths.ScratchRoot(),
 			Mode: func() string { return housekeeping.OrphansModeOf(usage.LoadConfig(home)) }}).Check},
@@ -192,7 +193,7 @@ func migrateAtStart(q *sql.DB, home string, env *supervisor.Env, logLine func(st
 	for _, m := range back {
 		logLine("  " + m)
 	}
-	return errors.Join(err, backErr, taskwrites.SetSeenFloor(q), env.MigrateOldMessages(q))
+	return errors.Join(err, backErr, taskwrites.SetSeenFloor(q), taskwrites.SetResultSeenFloor(q), env.MigrateOldMessages(q))
 }
 
 // leadCheck is whether an agent answers to no one in the team as it stands now.

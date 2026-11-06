@@ -93,13 +93,13 @@ func TestALossComingNamesTheSpareDraftsToTheFounderAndHandlineOnce(t *testing.T)
 	r.forecast.LeftAtReset = &left
 	r.now = r.now.Add(11 * time.Minute)
 	r.Sweep(0)
-	if len(r.asked) != 2 {
-		t.Fatalf("told again when the loss doubled: %v", r.asked)
+	if len(r.asked) != 1 {
+		t.Fatalf("a notice still open stands, even when the loss doubles: %v", r.asked)
 	}
 	r.now = r.now.Add(13 * time.Hour)
 	r.Sweep(0)
-	if len(r.asked) != 3 {
-		t.Fatalf("and after 12 hours: %v", r.asked)
+	if len(r.asked) != 2 {
+		t.Fatalf("once the notice's time has closed it, a new one may come: %v", r.asked)
 	}
 }
 
@@ -179,5 +179,28 @@ func TestANoticeThatCouldNotBeClosedIsTriedAgainAtTheNextSweep(t *testing.T) {
 	r.closeErr = nil
 	if err := r.Sweep(0); err != nil || len(r.closed) != 1 {
 		t.Fatalf("%v %v", err, r.closed)
+	}
+}
+
+// The account a notice is about is kept with it, and an open notice holds back only its own account.
+func TestAnOpenNoticeHoldsBackItsOwnAccountOnly(t *testing.T) {
+	r := newRig(t)
+	r.Sweep(0)
+	if len(r.asked) != 1 {
+		t.Fatalf("%v", r.asked)
+	}
+	tid := int64(0)
+	keys, _ := db.MetaNames(r.Q, "spare_notice_until:")
+	for _, k := range keys {
+		fmt.Sscanf(k, "spare_notice_until:%d", &tid)
+	}
+	if acct, err := AccountOf(r.Q, tid); err != nil || acct != "theta" {
+		t.Fatalf("%q %v", acct, err)
+	}
+	if open, err := r.openNotice("theta"); err != nil || !open {
+		t.Fatalf("%v %v", open, err)
+	}
+	if open, err := r.openNotice("alpha"); err != nil || open {
+		t.Fatalf("%v %v", open, err)
 	}
 }

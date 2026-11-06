@@ -52,6 +52,11 @@ func mergeMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any,
 				if n, _ := res.RowsAffected(); n == 0 {
 					return nil, refusal(fmt.Sprintf("task T%d was done or discarded by someone else just now", r.ID))
 				}
+				if by == human {
+					if err := markResultSeen(tx, r.ID); err != nil {
+						return nil, err
+					}
+				}
 				edges, err := blocksOn(tx, keep) // keep waiting on the folded task is no wait on itself: that edge goes
 				if err != nil {
 					return nil, err

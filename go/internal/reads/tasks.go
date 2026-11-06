@@ -625,7 +625,7 @@ func (e *Env) waitingOf(t row, state string, waits []row, rec map[string]any) (m
 		return map[string]any{"on": "task", "text": "blocked by " + tids(on), "tasks": on, "since": ts(since)}, since, nil
 	}
 	asked, err := queryOne(e.DB, "SELECT MIN(r.ts) AS since FROM requests r JOIN task_requests l ON l.request_id = r.id "+
-		"WHERE l.task_id = ? AND r.target = ? AND "+founderOpen, t.i("id"), human)
+		"WHERE l.task_id = ? AND r.target = ? AND "+notBoard+" AND "+founderOpen, t.i("id"), human)
 	if err != nil {
 		return nil, 0, err
 	}

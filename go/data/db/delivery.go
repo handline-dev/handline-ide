@@ -9,6 +9,11 @@ func FounderOpen(a string) string {
 	return "(" + a + "state = 'queued' OR (" + a + "kind = 'say' AND " + a + "state = 'landed' AND " + HasLanded(a) + " AND " + a + "read_at IS NULL))"
 }
 
+// NeverArrived is a request still waiting that was never seen to reach its reader: not landed, not read.
+func NeverArrived(a string) string {
+	return "(" + a + "state = 'queued' AND NOT " + HasLanded(a) + " AND " + a + "read_at IS NULL)"
+}
+
 // HasLanded is a request that reached its reader's session, or was settled there.
 func HasLanded(a string) string { return a + "landed_at IS NOT NULL" }
 

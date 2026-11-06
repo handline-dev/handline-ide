@@ -179,11 +179,17 @@ func closeQueuedQuietly(tx *sql.Tx, r linked) (closed bool, err error) {
 
 // endTask is _end_task: the task's queued deliveries close quietly, and whoever opened it and `also` are told `text` in one say each,
 // written in this transaction. The opener's say is typed at once; also's are notices for the digest unless the result is urgent (a done
-// task that says it failed). Whoever only passed the task along (a linked delivery's asker) hears only an urgent result.
+// task that says it failed). Whoever only passed the task along (a linked delivery's asker) hears only an urgent result. The founder is told
+// nothing: their result is the request's row on requests.list, and one they ended themselves is already seen.
 func endTask(tx *sql.Tx, home string, tid int64, by string, t *task, text string, urgentResult bool, also []string) ([]told, error) {
 	reqs, err := closeDeliveries(tx, tid)
 	if err != nil {
 		return nil, err
+	}
+	if by == human {
+		if err := markResultSeen(tx, tid); err != nil {
+			return nil, err
+		}
 	}
 	skip := map[string]bool{by: true, noticeFrom: true}
 	if t.Parent.Valid {
@@ -195,7 +201,7 @@ func endTask(tx *sql.Tx, home string, tid int64, by string, t *task, text string
 			return nil, err
 		}
 	}
-	known := map[string]bool{human: true}
+	known := map[string]bool{}
 	for _, a := range paths.ListAgents(home) {
 		known[a] = true
 	}
@@ -286,7 +292,7 @@ func clearBlocksOn(tx *sql.Tx, tid int64, closer, how string) ([]told, []string,
 			seen[d.Acting] = true
 			freed = append(freed, d.Acting)
 		}
-		if d.Acting == closer { // no notice for the closer, but the task still comes due again
+		if d.Acting == closer || d.Acting == human { // no notice for the closer or the founder, but the task still comes due again
 			after, err := newestRequest(tx)
 			if err != nil {
 				return nil, nil, err
