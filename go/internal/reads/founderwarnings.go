@@ -94,10 +94,19 @@ func (e *Env) lostMessages() ([]founderWarning, error) {
 		}
 		ref := db.MsgPrefix + r.str("ref")
 		out = append(out, founderWarning{id: "delivery:" + ref, since: ts(u.At), view: map[string]any{"kind": "delivery", "agent": u.Agent, "ref": ref},
-			title: fmt.Sprintf("Your message to %s %s: %s", u.Agent, lostWord(u.Why), head(firstLine(r.str("body")), 80))})
+			title: lostTitle(u.Agent, u.Why, head(firstLine(r.str("body")), 80))})
 		return nil
 	})
 	return out, err
+}
+
+// lostTitle is the warning for a lost message. A ! line that was written may have run, and sending it again runs it again, so its warning says
+// to look first.
+func lostTitle(agent, outcome, line string) string {
+	if strings.HasPrefix(line, "!") && lostWord(outcome) != "was not read" {
+		return fmt.Sprintf("Your command to %s may or may not have run: look at its terminal before running it again: %s", agent, line)
+	}
+	return fmt.Sprintf("Your message to %s %s: %s", agent, lostWord(outcome), line)
 }
 
 // lostWord is the delivery's outcome cut to what the founder can act on.

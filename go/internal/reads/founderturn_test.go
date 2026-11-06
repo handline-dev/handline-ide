@@ -408,3 +408,31 @@ func TestARequestsUnreadCommentsComeFromTheMarker(t *testing.T) {
 		t.Fatalf("%v", r)
 	}
 }
+
+// A lost ! line may have run: its warning says to look, where a lost message's is about being read.
+func TestALostBashLineWarnsToLookBeforeRunningItAgain(t *testing.T) {
+	t.Parallel()
+	e := testEnv(t)
+	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, ref, typed_at, edge_ok) VALUES"+
+		"(5, 1, 'human', 'bob', '!rm x', 'queued', 'say', 'abc', 2, 1), (6, 1, 'human', 'carol', 'hello', 'queued', 'say', 'abd', 2, 1), "+
+		"(7, 1, 'human', 'dan', '!rm y', 'queued', 'say', 'abe', 2, 1)")
+	noteLost(t, e, db.LostMessagePrefix, 5, "bob", "was written")
+	noteLost(t, e, db.LostMessagePrefix, 6, "carol", "was written")
+	noteLost(t, e, db.LostMessagePrefix, 7, "dan", "was not written to its session")
+	title := func(ref string) string {
+		row := answerRow(t, e, "machine", "delivery:"+db.MsgPrefix+ref)
+		if row == nil {
+			t.Fatalf("no warning for %s: %v", ref, pending(t, e)["answer"])
+		}
+		return row["title"].(string)
+	}
+	if got := title("abc"); got != "Your command to bob may or may not have run: look at its terminal before running it again: !rm x" {
+		t.Fatal(got)
+	}
+	if got := title("abd"); got != "Your message to carol may not have been read: hello" {
+		t.Fatal(got)
+	}
+	if got := title("abe"); got != "Your message to dan was not read: !rm y" { // never typed, so it did not run
+		t.Fatal(got)
+	}
+}

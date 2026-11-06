@@ -427,23 +427,37 @@ func peerRecord(id string) matcher {
 func ShowsTyped(line, text string) bool { return typedRecord(text)(line) == recSeen }
 
 // typedRecord finds text typed at the session: seen as the person's user record, or a queued_command attachment that is not a peer's
-// (typed mid-turn, taken into it); queued by a queue-operation enqueue of it.
+// (typed mid-turn, taken into it); queued by a queue-operation enqueue of it. A ! line is recorded as its command: wrapped in bash-input with
+// no origin when it runs, and bare in the enqueue when it is typed mid-turn.
 func typedRecord(text string) matcher {
 	text = strings.TrimSpace(text)
+	command, isBash := strings.CutPrefix(text, "!")
+	command = strings.TrimSpace(command)
 	return func(line string) recKind {
 		var r entry
 		if json.Unmarshal([]byte(line), &r) != nil {
 			return recOther
 		}
 		switch {
-		case r.Type == "queue-operation" && r.Operation == "enqueue" && same(r.Content, text):
+		case r.Type == "queue-operation" && r.Operation == "enqueue" && (same(r.Content, text) || same(r.Content, command)):
 			return recQueued
 		case r.Type == "user" && r.Origin.Kind == "human" && same(r.Message.Content, text),
+			isBash && r.Type == "user" && sameBashInput(r.Message.Content, command),
 			r.Type == "attachment" && r.Attachment.Type == "queued_command" && r.Attachment.Origin.Kind != "peer" && same(r.Attachment.Prompt, text):
 			return recSeen
 		}
 		return recOther
 	}
+}
+
+func sameBashInput(v any, command string) bool {
+	s, ok := v.(string)
+	if !ok {
+		return false
+	}
+	s, open := strings.CutPrefix(s, "<bash-input>")
+	s, closed := strings.CutSuffix(s, "</bash-input>")
+	return open && closed && same(s, command)
 }
 
 // pasted is how Claude Code records a multi-line paste it collapsed to "[Pasted text #1 +3 lines]": the text wrapped in a tag pair.
