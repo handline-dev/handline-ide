@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/handline/handline/go/agentctl/agent/claudecode/turns"
 	"github.com/handline/handline/go/agentctl/term"
 )
 
@@ -120,5 +121,27 @@ func TestASettledTurnHasOnlyTheSessionPickerUp(t *testing.T) {
 	tm.Turns = fakeTurns{idle: true, known: true, settled: true}
 	if b := tm.DialogUp("%1"); b == nil || b.Kind != term.Backgrounded {
 		t.Fatalf("a settled turn at the session picker: %+v", b)
+	}
+}
+
+// With the real tracker: a StopFailure, which carries no background_tasks, lets the footer say what runs; a Stop listing nothing is idle.
+func TestAStopFailureLetsTheFooterSayWhatRuns(t *testing.T) {
+	quiet := []string{rule, "❯ ", rule, "  ⏵⏵ auto mode on"}
+	shown := []string{rule, "❯ ", rule, "  ⏵⏵ auto mode on · 1 shell · ↓ to manage"}
+	stop := func(screen []string, event string, raw map[string]any) *term.Term {
+		tm := newTerm(&fakeHost{screenAt: func(int) []string { return screen }})
+		tr := &turns.Tracker{Agent: func(string) string { return "amy" }, Interrupted: func(string) {}, Log: t.Logf}
+		tr.Hook("amy", "UserPromptSubmit", nil, 10)
+		tr.Hook("amy", event, raw, 11)
+		tm.Turns = tr
+		return tm
+	}
+	tm := stop(shown, "StopFailure", map[string]any{"session_id": "s"})
+	if got, ok := tm.BackgroundWork("%1"); got != "1 shell" || !ok || !tm.IdleWithBackground("%1") {
+		t.Fatalf("the shell the footer shows: %q %v", got, ok)
+	}
+	tm = stop(quiet, "Stop", map[string]any{"background_tasks": []any{}})
+	if got, ok := tm.BackgroundWork("%1"); got != "" || !ok || tm.IdleWithBackground("%1") {
+		t.Fatalf("a Stop listing nothing read as work: %q %v", got, ok)
 	}
 }
