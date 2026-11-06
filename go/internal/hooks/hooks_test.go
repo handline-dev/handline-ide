@@ -335,3 +335,43 @@ func TestAStopKeepsWhatItSaidStillRunsCutShort(t *testing.T) {
 		t.Fatalf("the subagent %v", a)
 	}
 }
+
+func TestAStopListingRunningWorkSetsTheBackgroundCursorsAtOnce(t *testing.T) {
+	h := testRecorder(t)
+	cursor := func(name string) (int64, int64) {
+		var id, at int64
+		h.DB.QueryRow("SELECT row_id, updated FROM cursors WHERE name = ?", name).Scan(&id, &at)
+		return id, at
+	}
+	running := map[string]any{"id": "b1", "type": "shell", "status": "running"}
+	hook := func(event, rid string, at int64, tasks ...any) {
+		t.Helper()
+		if err := Apply(h.DB, h.Home, "w", event, map[string]any{"background_tasks": tasks}, rid, at); err != nil {
+			t.Fatal(err)
+		}
+	}
+	stop := func(rid string, at int64, tasks ...any) { t.Helper(); hook("Stop", rid, at, tasks...) }
+	now := time.Now().Unix()
+	hook("SubagentStop", "s", now-40, running) // it carries the session's list too, mid-turn
+	if id, _ := cursor("bgwork:w"); id != 0 {
+		t.Fatal("a SubagentStop set the cursor")
+	}
+	stop("a", now-30, map[string]any{"id": "c1", "type": "shell", "status": "completed"})
+	if id, _ := cursor("bgwork:w"); id != 0 {
+		t.Fatal("a Stop with nothing running set the cursor")
+	}
+	stop("b", now-20, running, map[string]any{"id": "c1", "type": "shell", "status": "completed"})
+	if id, at := cursor("bgwork:w"); id != 1 || at != now-20 {
+		t.Fatalf("bgwork %d at %d", id, at)
+	}
+	if n, _ := cursor("bgcount:w"); n != 1 {
+		t.Fatalf("bgcount %d", n)
+	}
+	stop("c", now-10, running, map[string]any{"id": "b2", "type": "shell", "status": "running"})
+	if _, at := cursor("bgwork:w"); at != now-20 {
+		t.Fatalf("the cursor lost when the work was first seen: %d", at)
+	}
+	if n, _ := cursor("bgcount:w"); n != 2 {
+		t.Fatalf("bgcount %d", n)
+	}
+}
