@@ -13,6 +13,8 @@ import (
 
 	"github.com/handline/handline/go/internal/compose"
 	"github.com/handline/handline/go/internal/daemon"
+	"github.com/handline/handline/go/scheduler/procload"
+	"github.com/handline/handline/go/scheduler/sysres"
 )
 
 func TestTheDefaultHomeIsRefusedUnlessAskedFor(t *testing.T) {
@@ -88,5 +90,30 @@ func TestTheDaemonGetsWhatThePartsServe(t *testing.T) {
 	}
 	if held, _ := cfg.KeepAwake(); held {
 		t.Fatal("held before any tick")
+	}
+}
+
+// The agent views read the servers off the tracker the daemon serves the load from.
+func TestTheViewsAndTheDaemonShareOneLoadTracker(t *testing.T) {
+	ccfg := compose.Config{Home: t.TempDir()}
+	var cfg daemon.Config
+	shareLoad(&cfg, &ccfg)
+	if cfg.Load == nil || ccfg.Servers == nil {
+		t.Fatal("the tracker or the servers read is not set")
+	}
+	cfg.Load.Table = func() ([]procload.Raw, error) {
+		return []procload.Raw{{PID: 7, PPID: 1, Start: 1, Cmd: "node a.js"}}, nil
+	}
+	cfg.Load.AgentOf = func(int) (string, bool) { return "alice", true }
+	cfg.Load.Listen = func() ([]procload.Listener, error) {
+		return []procload.Listener{{PID: 7, Addr: "127.0.0.1", Port: 80}}, nil
+	}
+	cfg.Load.Machine = func() (sysres.Machine, error) { return sysres.Machine{}, nil }
+	cfg.Load.Disk = func(string) (int64, int64, error) { return 0, 0, nil }
+	if err := cfg.Load.Sample(1000); err != nil {
+		t.Fatal(err)
+	}
+	if got := ccfg.Servers("alice"); len(got) != 1 || got[0].Port != 80 {
+		t.Fatalf("%+v", got)
 	}
 }

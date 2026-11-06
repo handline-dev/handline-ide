@@ -12,6 +12,7 @@ import (
 	"github.com/handline/handline/go/agentctl/agent/claudecode/turns"
 	dbpkg "github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/scheduler/procload"
 )
 
 // termTickRig is bob, a terminal agent in worktree wt, pane %1, recorded on account a1.
@@ -375,5 +376,21 @@ func TestAStopHookWritesATerminalAgentsViewIdleAtOnceThoughItsSessionFileStillSa
 	tracker.Hook("bob", "Stop", map[string]any{}, 101)
 	if s := state(); s != "idle" {
 		t.Fatalf("after the Stop, with the session file still busy: %s, want idle", s)
+	}
+}
+
+// The views carry the servers the composer is given.
+func TestTheAgentViewReadsTheServersTheConfigGives(t *testing.T) {
+	p, _, _ := termTickRig(t)
+	cfg := cfgOf(p)
+	cfg.Servers = func(agent string) []procload.Server {
+		return []procload.Server{{PID: 1, Port: 80, Addr: "127.0.0.1", Command: agent}}
+	}
+	av := p.agentView(cfg, true, tickUsage{p: p, u: p.LC.usage, roster: p.LC.roster})
+	if av.Servers == nil {
+		t.Fatal("the view does not read the servers")
+	}
+	if got := av.Servers("bob"); len(got) != 1 || got[0].Command != "bob" {
+		t.Fatalf("%+v", got)
 	}
 }

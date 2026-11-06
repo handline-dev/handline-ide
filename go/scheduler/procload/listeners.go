@@ -42,9 +42,14 @@ func lsofListeners() ([]Listener, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	out, err := exec.CommandContext(ctx, "lsof", "-nP", "-iTCP", "-sTCP:LISTEN", "-F", "pPtn").Output()
+	return lsofResult(out, err)
+}
+
+// lsofResult reads the end of an lsof run: lsof exits 1 with no output when nothing listens, which is an empty read, not a failed one.
+func lsofResult(out []byte, err error) ([]Listener, error) {
 	if err != nil {
 		var exit *exec.ExitError
-		if errors.As(err, &exit) && exit.ExitCode() == 1 && len(out) == 0 { // lsof exits 1 when it lists nothing
+		if errors.As(err, &exit) && exit.ExitCode() == 1 && len(out) == 0 {
 			return []Listener{}, nil
 		}
 		return nil, err

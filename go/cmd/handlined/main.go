@@ -98,6 +98,12 @@ func fromParts(cfg *daemon.Config, parts *compose.Parts, ccfg *compose.Config) {
 	cfg.Context = parts.Context
 }
 
+// shareLoad has the daemon and the agent views read one process tracker: the daemon serves its load, the views carry its servers.
+func shareLoad(cfg *daemon.Config, ccfg *compose.Config) {
+	cfg.Load = &procload.Tracker{Home: ccfg.Home, Log: func(s string) { log.Print(s) }}
+	ccfg.Servers = cfg.Load.ServersOf
+}
+
 func main() {
 	home := flag.String("home", "", "the handline home (required while the daemon is in development)")
 	allowReal := flag.Bool("allow-real-home", false, "with no -home, use the default home, which a running install uses")
@@ -152,8 +158,7 @@ func main() {
 		}
 		cfg.Resources = &sysres.Sampler{Home: homeDir, Log: func(s string) { log.Print(s) }}
 		ccfg.Machine = cfg.Resources.LatestMachine
-		cfg.Load = &procload.Tracker{Home: homeDir, Log: func(s string) { log.Print(s) }}
-		ccfg.Servers = cfg.Load.ServersOf
+		shareLoad(&cfg, &ccfg)
 		parts := compose.New(ccfg)
 		cfg.Watch = *terminalTick
 		fromParts(&cfg, parts, &ccfg)

@@ -154,7 +154,8 @@ func (t *Tracker) Sample(now int64) error {
 	}
 	m.DiskFree, m.DiskTotal, _ = disk(t.Home)
 	var listeners []Listener // read before the lock, like the table: lsof can take seconds
-	if t.listenDue(now) {
+	read := t.listenDue(now)
+	if read {
 		listeners = t.readListeners()
 	}
 
@@ -186,8 +187,11 @@ func (t *Tracker) Sample(now int64) error {
 		}
 	}
 	t.cur, t.machine, t.at = procs, m, now
-	if listeners != nil {
-		t.listeners, t.listenAt = listeners, now
+	if read { // a failed read (nil) keeps the last one, and the next waits ListenEvery too
+		t.listenAt = now
+		if listeners != nil {
+			t.listeners = listeners
+		}
 	}
 	t.servers = serversOf(t.listeners, t.cur, panes, os.Getpid())
 	by := map[string]Use{}
