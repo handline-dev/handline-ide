@@ -71,6 +71,18 @@ export class Preview {
     return { ok: true };
   }
 
+  /** Back, forward or reload in the shown page. */
+  nav(e: Sender, go: unknown): { ok: true } | Fail<'bad_request' | 'unavailable'> {
+    if (!fromWindow(e, this.origin)) return bad('not from the app window');
+    if (!this.view) return { ok: false, code: 'unavailable', message: 'The preview is not showing.' };
+    const h = this.view.webContents.navigationHistory;
+    if (go === 'back') h.goBack();
+    else if (go === 'forward') h.goForward();
+    else if (go === 'reload') this.view.webContents.reload();
+    else return bad('go is back, forward or reload');
+    return { ok: true };
+  }
+
   /** The page as drawn now, for the person to mark. */
   async capture(e: Sender): Promise<{ ok: true; png: string } | Fail<'bad_request' | 'unavailable'>> {
     if (!fromWindow(e, this.origin)) return bad('not from the app window');

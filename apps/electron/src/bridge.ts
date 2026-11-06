@@ -41,6 +41,7 @@ export const CHANNELS = {
   settingsSet: 'handline:settingsSet',
   preview: 'handline:preview',
   capturePreview: 'handline:capturePreview',
+  previewNav: 'handline:previewNav',
   deviceShot: 'handline:deviceShot',
   deviceTap: 'handline:deviceTap',
   deviceList: 'handline:deviceList',

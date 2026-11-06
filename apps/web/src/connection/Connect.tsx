@@ -1,5 +1,6 @@
 // Opens the daemon: a listener that wants a device token gets the pairing screen until this browser holds one.
-import { Store, type KV, type ShellApi } from '@handline/app-core';
+import { Store, type KV } from '@handline/app-core';
+import { shell } from '#src/shell.ts';
 import { DataProvider, SKELETON_CSS, type BoxComponent } from '@handline/app-data';
 import { DaemonProvider } from '@handline/app-react';
 import { DaemonClient, webSocketTransport } from '@handline/client';
@@ -18,7 +19,7 @@ export function Connect({ children }: { children: ReactNode }) {
   const [token, setToken] = useState(() => (needsToken(url) ? loadToken(storage, url) : null));
   const [lost, setLost] = useState(false);
   // The desktop shell's newer device token (the preload has already kept it): the page connects with it, no reload.
-  useEffect(() => (window as { handline?: ShellApi }).handline?.onToken?.(setToken), []);
+  useEffect(() => shell()?.onToken?.(setToken), []);
   // A revoked device, or a token from an older pairing: the listener refuses it, so it goes and pairing comes back.
   useEffect(() => {
     if (!token || !needsToken(url)) return;
