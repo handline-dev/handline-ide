@@ -14,7 +14,7 @@ export type AgentView = {
   role: string;
   model: string | null;
   effort: string | null;
-  /** One of x-state-words, lower case; an open set, clients treat an unknown word as idle. */
+  /** The session's lifecycle word for the state column only: one of x-state-words, lower case; an open set, clients treat an unknown word as idle. It is not whether the agent is working: an agent idle at its prompt with background work running is state idle and status.state running. Whether an agent is working is status.state, and nothing else. */
   state: string;
   state_since: Timestamp;
   block?: Block | null;

@@ -244,7 +244,34 @@ func apply(tx *sql.Tx, home, agent, event string, raw map[string]any, at int64, 
 	if event == "Notification" && raw["notification_type"] == "permission_prompt" {
 		noteNotified(home, agent, at)
 	}
+	if event == "Stop" {
+		if err := noteStopBackground(tx, agent, raw["background_tasks"], at); err != nil {
+			return err
+		}
+	}
 	return markActivity(tx, agent, event, payload)
+}
+
+// noteStopBackground: a Stop that lists work still running sets the background cursors the tick's footer read sets
+// (supervisor.TrackBackgroundWork), so the view shows that work from the Stop on, not from the next tick. One already set keeps when it
+// was first seen. Ending the work stays the footer's call.
+func noteStopBackground(tx *sql.Tx, agent string, tasks any, at int64) error {
+	n := 0
+	list, _ := tasks.([]any)
+	for _, e := range list {
+		if m, _ := e.(map[string]any); m != nil && m["status"] == "running" {
+			n++
+		}
+	}
+	if n == 0 {
+		return nil
+	}
+	if _, err := tx.Exec("INSERT INTO cursors(name, row_id, updated) VALUES(?, 1, ?) ON CONFLICT(name) DO NOTHING", "bgwork:"+agent, at); err != nil {
+		return err
+	}
+	_, err := tx.Exec("INSERT INTO cursors(name, row_id, updated) VALUES(?, ?, ?) ON CONFLICT(name) DO UPDATE SET row_id = excluded.row_id, "+
+		"updated = excluded.updated", "bgcount:"+agent, n, at)
+	return err
 }
 
 const bindWindow = 600 * time.Second
