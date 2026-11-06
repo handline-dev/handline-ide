@@ -30,6 +30,7 @@ A name that does not exist is an error.
 | `proposal-apply-failed` | An approved proposal for `handline.architect` that did not apply, with the daemon's raw error: the chat card shows one line and the words behind Details. |
 | `proposal-followup` | Two approved proposals whose change is applied but whose agent did not start: `handline.architect` waits for the load (`follow_up.state` waiting), `handline.auditor` failed. `agent.force_start` ends the architect's. |
 | `chat-actions` | A message from `handline.architect` with OK / No actions on an open task the founder owns (T6902). |
+| `bash` | ! lines on `handline.architect`: with output, cut output, stderr, no output, lost, typed at the terminal, still running (T8684). |
 | `chat-long` | 120 messages with `handline.architect` (four pages), every seventh with a picture. |
 | `account-stalled` | The account `beta` stalled (`billing_error`): the Usage list shows STALLED and its reason, and `account.wake` ends it. |
 
