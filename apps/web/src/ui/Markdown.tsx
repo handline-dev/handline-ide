@@ -1,4 +1,6 @@
 import { CopyButton } from '#src/chat/MessageActions.tsx';
+import { MessageImages } from '#src/chat/MessageImages.tsx';
+import { attachmentOf } from '@handline/app-core';
 import { marked, type Token, type Tokens } from 'marked';
 import { Fragment, type ReactNode } from 'react';
 import { useOpenTab, howOf } from '#src/layout/openTab.tsx';
@@ -28,7 +30,7 @@ function block(t: Token): ReactNode {
         </div>
       );
     case 'paragraph':
-      return <p className="whitespace-pre-wrap">{inline(t.tokens)}</p>;
+      return <Paragraph tokens={t.tokens ?? []} />;
     case 'list':
       return <List list={t as Tokens.List} />;
     case 'code':
@@ -54,6 +56,24 @@ function block(t: Token): ReactNode {
     default:
       return 'tokens' in t && t.tokens ? <p className="whitespace-pre-wrap">{inline(t.tokens)}</p> : <p>{t.raw}</p>;
   }
+}
+
+/** A paragraph's words, then the pictures pasted into it (`![caption](attachment:id)`) as one row of thumbnails sharing a viewer. */
+function Paragraph({ tokens }: { tokens: Token[] }) {
+  const pictures = tokens.flatMap((t) => {
+    const id = t.type === 'image' ? attachmentOf(t.href) : null;
+    return id ? [{ id, name: (t as Tokens.Image).text || 'picture' }] : [];
+  });
+  const words = tokens.filter((t) => !(t.type === 'image' && attachmentOf(t.href)));
+  // The line breaks the pictures sat on go with them, or they draw as blank lines under the words.
+  while (words.length && (words.at(-1)!.type === 'br' || !words.at(-1)!.raw.trim())) words.pop();
+  const said = words.length > 0;
+  return (
+    <>
+      {said && <p className="whitespace-pre-wrap">{inline(words)}</p>}
+      <MessageImages images={pictures} />
+    </>
+  );
 }
 
 /** A list with each item's own marker as written: `2)` stays `2)`, a list starting at 3 starts at 3. */
