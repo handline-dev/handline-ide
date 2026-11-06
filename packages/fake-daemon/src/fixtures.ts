@@ -38,6 +38,7 @@ export interface AgentFixture {
       | 'status'
       | 'doing'
       | 'background'
+      | 'servers'
     >
   >;
 }

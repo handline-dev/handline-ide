@@ -196,8 +196,8 @@ function PaneView({
           {current?.opens?.startsWith('chat:') && <Chat key={current.opens} agent={current.opens.slice(5)} />}
           {current?.opens === 'diff' && agent && <Changes key={agent} agent={agent} />}
           {current?.opens === 'markdown' && agent && <MarkdownTab key={current.id} agent={agent} tab={current.id} />}
-          {current?.opens === 'web' && <WebTab key={current.id} tab={current.id} />}
-          {current?.opens?.startsWith('web:') && <WebTab key={current.id} tab={current.id} start={current.opens.slice(4)} />}
+          {current?.opens === 'web' && <WebTab key={current.id} tab={current.id} agent={agent} />}
+          {current?.opens?.startsWith('web:') && <WebTab key={current.id} tab={current.id} agent={agent} start={current.opens.slice(4)} />}
           {current?.opens?.startsWith('task:') && <TaskTab key={current.opens} id={Number(current.opens.slice(5))} />}
           {current?.opens?.startsWith('file:') && agent && (
             <MarkdownTab key={current.id} agent={agent} tab={current.id} start={current.opens.slice(5)} />

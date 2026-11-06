@@ -2,6 +2,7 @@ import { ArrowLeft, ArrowRight, ExternalLink, RotateCw } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { usePersisted } from '#src/persist/kv.ts';
 import { shell } from '#src/shell.ts';
+import { ServerPicker } from '#src/tools/ServerPicker.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { Input } from '#src/ui/Field.tsx';
 
@@ -21,7 +22,7 @@ export function addressOf(typed: string): string | null {
 let owner: object | null = null;
 
 /** A web page beside the chat, its address kept per tab: the shell's native view (every site shows), or an iframe in a browser. */
-export function WebTab({ tab, start = '' }: { tab: string; start?: string }) {
+export function WebTab({ tab, agent, start = '' }: { tab: string; agent: string | null; start?: string }) {
   const [url, setUrl] = usePersisted(`tab/${tab}/url`, start);
   const [typed, setTyped] = useState(url);
   const [reload, setReload] = useState(0);
@@ -35,6 +36,11 @@ export function WebTab({ tab, start = '' }: { tab: string; start?: string }) {
     };
   }, [me]);
   const native = me !== null;
+  const open = (a: string) => {
+    setUrl(a);
+    setTyped(a);
+    setReload((n) => n + 1);
+  };
   const nav = (go: 'back' | 'forward' | 'reload') => {
     if (native) return void shell()?.previewNav?.(go);
     if (go === 'reload') return setReload((n) => n + 1);
@@ -51,10 +57,7 @@ export function WebTab({ tab, start = '' }: { tab: string; start?: string }) {
         onSubmit={(e) => {
           e.preventDefault();
           const a = addressOf(typed);
-          if (!a) return;
-          setUrl(a);
-          setTyped(a);
-          setReload((n) => n + 1);
+          if (a) open(a);
         }}
       >
         <IconButton label="Back" onClick={() => nav('back')} disabled={!url}>
@@ -66,6 +69,7 @@ export function WebTab({ tab, start = '' }: { tab: string; start?: string }) {
         <IconButton label="Reload" onClick={() => nav('reload')} disabled={!url}>
           <RotateCw size={14} />
         </IconButton>
+        {agent && <ServerPicker agent={agent} current={url} onPick={open} />}
         <Input
           autoFocus={!url}
           className="h-7 flex-1"
