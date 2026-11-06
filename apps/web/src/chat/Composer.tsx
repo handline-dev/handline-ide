@@ -1,5 +1,5 @@
 import { useSuggest, type Command } from '#src/chat/Suggest.tsx';
-import { ArrowUp, Paperclip, Square } from 'lucide-react';
+import { ArrowUp, CornerDownLeft, Paperclip, Square, SquareTerminal } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { ImageViewer, type MarkedPicture } from '#src/viewer/ImageViewer.tsx';
 import { FolderChip, UploadChip, type Attachments } from '#src/chat/attachments.tsx';
@@ -7,7 +7,9 @@ import { readDropped } from '#src/ui/fileDrop.tsx';
 
 /** The box a message is written in: it grows with the text up to a cap, then scrolls; Enter sends, Shift+Enter breaks a line.
  * Under the text, a row: attach and `leading` on the left (the model), `trailing` and send on the right (the context). While the
- * agent works and nothing is written, send is Stop; Esc in the box stops it too, as in a terminal agent. */
+ * agent works and nothing is written, send is Stop; Esc in the box stops it too, as in a terminal agent. A `!` first is bash mode:
+ * the box runs a command in the agent's terminal, so it says so (an orange border, a Bash chip in the `!`'s place, mono text);
+ * Esc, or Backspace with nothing written, goes back to a message. */
 export function Composer({
   agent,
   draft,
@@ -60,9 +62,19 @@ export function Composer({
     if (replying) box.current?.focus();
   }, [replying, above]);
   const suggest = useSuggest(draft, setDraft, commands);
+  // A command keeps its `!` in the draft, first, whatever came before it; the box shows it as the chip.
+  const bash = draft.startsWith('!');
+  const write = (v: string) => setDraft(/^\s+!/.test(v) ? v.trimStart() : v);
+  // Typing the `!` in front of words already written hides it: the caret stays where it was, one back.
+  const caret = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    if (caret.current === null) return;
+    box.current?.setSelectionRange(caret.current, caret.current);
+    caret.current = null;
+  }, [bash]);
   const body = draft.trim();
-  // A message goes once every image in it is up and nothing is held back; one with images may go without text.
-  const ready = !locked && (body || attach.ids.length > 0) && attach.sendable;
+  // A message goes once every image in it is up and nothing is held back; one with images may go without text. A command needs one.
+  const ready = !locked && (bash ? body.slice(1).trim() : body || attach.ids.length > 0) && attach.sendable;
   const submit = () => {
     if (suggest.command(draft)) return;
     if (!ready) return;
@@ -72,13 +84,13 @@ export function Composer({
   };
   return (
     <form
-      className="relative my-3 flex flex-col gap-2 rounded-xl border border-border bg-bg py-2 pr-2 pl-4 focus-within:border-accent"
+      className={`relative my-3 flex flex-col gap-2 rounded-xl border bg-bg py-2 pr-2 pl-4 ${bash ? 'border-warning' : 'border-border focus-within:border-accent'}`}
       onSubmit={(e) => {
         e.preventDefault();
         submit();
       }}
     >
-      {suggest.menu}
+      {!bash && suggest.menu}
       {/* Held to the box's width: a long line in it truncates instead of widening the page. */}
       {above && <div className="min-w-0 overflow-hidden">{above}</div>}
       {attach.uploads.length + attach.folders.length > 0 && (
@@ -116,32 +128,45 @@ export function Composer({
       )}
       {attach.problem && <p className="text-xs text-danger">{attach.problem}</p>}
       {suggest.refused && <p className="text-xs text-danger">{suggest.refused}</p>}
-      <textarea
-        onPaste={(e) => {
-          if (!e.clipboardData.files.length) return;
-          e.preventDefault();
-          void readDropped(e.clipboardData).then(attach.add);
-        }}
-        ref={box}
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onKeyDown={(e) => {
-          if (suggest.onKeyDown(e)) return;
-          if (e.key === 'Escape' && running && onStop) {
+      <div className="flex items-start gap-2">
+        {bash && <BashChip className="mt-0.5" />}
+        <textarea
+          onPaste={(e) => {
+            if (!e.clipboardData.files.length) return;
             e.preventDefault();
-            onStop();
-            return;
-          }
-          if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-            e.preventDefault();
-            submit();
-          }
-        }}
-        rows={1}
-        disabled={!!locked}
-        placeholder={locked ?? placeholder ?? `Message ${agent}`}
-        className="scrollbar-auto disabled:placeholder:animate-pulse max-h-60 min-h-7 resize-none bg-transparent py-0.5 pr-2 text-base text-fg outline-none placeholder:text-muted"
-      />
+            void readDropped(e.clipboardData).then(attach.add);
+          }}
+          ref={box}
+          value={bash ? draft.slice(1) : draft}
+          onChange={(e) => {
+            const v = e.target.value;
+            if (!bash && v.trimStart().startsWith('!'))
+              caret.current = Math.max(0, e.target.selectionStart - 1 - (v.length - v.trimStart().length));
+            write(bash ? `!${v}` : v);
+          }}
+          onKeyDown={(e) => {
+            if (!bash && suggest.onKeyDown(e)) return;
+            if (bash && (e.key === 'Escape' || (e.key === 'Backspace' && draft === '!'))) {
+              e.preventDefault();
+              setDraft(draft.slice(1));
+              return;
+            }
+            if (e.key === 'Escape' && running && onStop) {
+              e.preventDefault();
+              onStop();
+              return;
+            }
+            if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+              e.preventDefault();
+              submit();
+            }
+          }}
+          rows={1}
+          disabled={!!locked}
+          placeholder={locked ?? (bash ? `A command for ${agent}'s terminal` : (placeholder ?? `Message ${agent}`))}
+          className={`scrollbar-auto disabled:placeholder:animate-pulse max-h-60 min-h-7 flex-1 resize-none bg-transparent py-0.5 pr-2 text-fg outline-none placeholder:text-muted ${bash ? 'font-mono text-sm' : 'text-base'}`}
+        />
+      </div>
       <div className="-ml-2 flex items-center gap-1">
         <button
           type="button"
@@ -164,7 +189,7 @@ export function Composer({
           }}
         />
         {leading}
-        <span className="flex-1" />
+        <span className="flex-1 truncate px-1 text-xs text-muted">{bash && 'Esc for a message'}</span>
         {trailing}
         {running && onStop && !ready ? (
           <button
@@ -179,15 +204,25 @@ export function Composer({
         ) : (
           <button
             type="submit"
-            aria-label="Send"
-            title="Send"
+            aria-label={bash ? 'Run' : 'Send'}
+            title={bash ? 'Run (Enter)' : 'Send'}
             disabled={!ready}
-            className="grid size-7 shrink-0 place-items-center rounded-md bg-accent text-accent-fg transition-opacity outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-30"
+            className={`grid size-7 shrink-0 place-items-center rounded-md transition-opacity outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-30 ${bash ? 'bg-warning text-bg' : 'bg-accent text-accent-fg'}`}
           >
-            <ArrowUp size={16} />
+            {bash ? <CornerDownLeft size={15} /> : <ArrowUp size={16} />}
           </button>
         )}
       </div>
     </form>
+  );
+}
+
+/** The mark of a command run in the agent's terminal: in the box while one is written, and on the line it leaves in the chat. */
+export function BashChip({ className = '' }: { className?: string }) {
+  return (
+    <span className={`flex h-6 shrink-0 items-center gap-1 rounded-md bg-warning/15 px-1.5 text-xs font-medium text-warning ${className}`}>
+      <SquareTerminal size={13} />
+      Bash
+    </span>
   );
 }
