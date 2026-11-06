@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -284,5 +285,51 @@ func TestUnsetAddressesKeepADoorForTheDesktopAppThatIsListedNowhere(t *testing.T
 	}
 	if isTLS, ok := doors[loopback]; !ok || isTLS {
 		t.Fatalf("no plain loopback door: %v", doors)
+	}
+}
+
+func TestWithChosenAddressesALoopbackDoorThatCannotBeBoundFailsTheStartAndAnotherHostIsOnlyLogged(t *testing.T) {
+	held, err := net.Listen("tcp", "127.0.0.1:0") // another program on the daemon's port
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := held.Addr().(*net.TCPAddr).Port
+	// 10.9.9.9 is listed as this machine's, so its door is wanted, but no interface has it: its bind fails
+	serveHosts(t, netAddress{Host: "10.9.9.9", Kind: kindLAN, Iface: "en0", IPs: []net.IP{net.ParseIP("10.9.9.9")}})
+	var mu sync.Mutex
+	var logged []string
+	start := func() (*Daemon, error) {
+		dir, err := os.MkdirTemp("", "hl") // short: the socket path has a length limit
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { os.RemoveAll(dir) })
+		os.WriteFile(filepath.Join(dir, "config.yaml"), []byte("network_addresses:\n  - 10.9.9.9\n"), 0o644)
+		return Start(Config{Home: dir, DBFile: filepath.Join(dir, "db.sqlite"), SocketFile: filepath.Join(dir, "d.sock"),
+			Listen: fmt.Sprintf("127.0.0.1:%d", port), Auth: fakeAuth{key: "k"}, Log: func(f string, a ...any) {
+				mu.Lock()
+				logged = append(logged, fmt.Sprintf(f, a...))
+				mu.Unlock()
+			}})
+	}
+	if d, err := start(); err == nil || !strings.Contains(err.Error(), "127.0.0.1") {
+		if d != nil {
+			d.Close()
+		}
+		t.Fatalf("the start went on without the desktop app's door: %v", err)
+	}
+	held.Close()
+	d, err := start()
+	if err != nil {
+		t.Fatalf("with the port free: %v", err)
+	}
+	defer d.Close()
+	if boundAddr(t, d, loopback) == "" || boundAddr(t, d, "10.9.9.9") != "" {
+		t.Fatalf("want the loopback door alone: loopback %q", boundAddr(t, d, loopback))
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if !strings.Contains(strings.Join(logged, "\n"), "network listener on 10.9.9.9") {
+		t.Fatalf("a chosen host that cannot be bound is logged and the start goes on: %q", logged)
 	}
 }

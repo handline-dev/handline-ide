@@ -204,8 +204,8 @@ func (n *netDoors) want() (hosts []netAddress, tls map[string]bool, chosen bool)
 	return hosts, tls, true
 }
 
-// relisten opens the doors wanted and closes the rest. With network_addresses unset, a -listen that cannot be bound is the error; a
-// chosen host that cannot be bound is logged and tried again on the next round.
+// relisten opens the doors wanted and closes the rest. The loopback door, and with network_addresses unset the -listen door, that cannot
+// be bound is the error: without it the desktop app loads forever. A chosen host that cannot be bound is logged and tried again on the next round.
 func (n *netDoors) relisten() error {
 	n.relistening.Lock()
 	defer n.relistening.Unlock()
@@ -222,7 +222,7 @@ func (n *netDoors) relisten() error {
 			n.cfg.Log("network listener on %s closed", l.ln.Addr())
 		}
 	}
-	var failed error
+	var failed, loopFailed error
 	for ip, isTLS := range want {
 		if n.open[ip] != nil {
 			continue
@@ -231,6 +231,9 @@ func (n *netDoors) relisten() error {
 		if err != nil {
 			n.cfg.Log("network listener on %s: %v", ip, err)
 			failed = err
+			if ip == loopback {
+				loopFailed = err
+			}
 			continue
 		}
 		n.open[ip] = l
@@ -245,7 +248,7 @@ func (n *netDoors) relisten() error {
 	if !chosen {
 		return failed
 	}
-	return nil
+	return loopFailed
 }
 
 // servesLocked says whether every IP of a has an open door. Called with n.mu held.
