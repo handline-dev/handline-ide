@@ -72,13 +72,13 @@ export const SEEDS: Record<string, Seed> = {
     d.inbox.add({ kind: 'ask', agent: 'handline.ui', title: 'Chat box in bash mode: which of two looks', body: 'Which one?', task: 8651 });
     d.tasks.warnings.push({
       task: null,
-      title: "alpha's 23% of this week's use is lost at its reset at 10:59",
+      title: 'gamma is not logged in: log in to put agents on it',
       kind: 'warning',
       source: 'machine',
-      id: 'weekly_use:alpha',
+      id: 'login:gamma',
       agent: null,
       ask: null,
-      warning: { kind: 'weekly_use', account: 'alpha' },
+      warning: { kind: 'login', account: 'gamma' },
       items: [],
       unread: 0,
       first_unread: null,
@@ -102,25 +102,6 @@ export const SEEDS: Record<string, Seed> = {
         tasks: [8642],
       },
     };
-  },
-
-  /** The daemon's weekly-loss notice: a task for the person tagged spare-notice, listing four spare drafts. */
-  'spare-notice': (d) => {
-    const spare = [
-      [7101, 'Tidy the gap list'],
-      [7102, 'Add tests for the fold'],
-      [7103, 'Check the phone card'],
-      [7104, 'Rename the helpers'],
-    ] as const;
-    for (const [id, title] of spare) d.tasks.seed({ id, from: ME, to: ARCH, title, state: 'draft', tags: ['spare'] });
-    d.tasks.seed({
-      id: 7100,
-      from: ARCH,
-      to: ME,
-      title: `18% of theta's weekly use will be lost at ${new Date(Date.now() + 3 * 3600_000).toTimeString().slice(0, 5)}. These spare tasks can use it: T7101, T7102, T7103, T7104.`, // local-ref-ok: fixture text
-      state: 'doing',
-      tags: ['spare-notice'],
-    });
   },
 
   /** 200 tasks, so a list has to scroll and page. */

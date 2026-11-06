@@ -5,7 +5,6 @@ import {
   CircleDashed,
   CircleSlash,
   HardDrive,
-  Hourglass,
   KeyRound,
   Lightbulb,
   MailWarning,
@@ -24,7 +23,6 @@ import { openSettings } from '#src/settings/open.ts';
 const WARN: Record<NonNullable<PendingRequest['warning']>['kind'], typeof HardDrive> = {
   disk: HardDrive,
   login: KeyRound,
-  weekly_use: Hourglass,
   delivery: MailWarning,
   undelivered: MailWarning,
 };
@@ -88,7 +86,7 @@ function useOpenTurn(p: PendingRequest) {
   return (how: 'here' | 'side') => {
     const w = p.warning;
     if (p.task !== null) return openTab(taskOf(p.task), how);
-    if (w?.account && (w.kind === 'login' || w.kind === 'weekly_use')) {
+    if (w?.account && w.kind === 'login') {
       focusIn('usage', '', w.account);
       return openTab('usage', how);
     }
