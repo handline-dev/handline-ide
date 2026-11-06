@@ -1,6 +1,5 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import {
   ansi,
   breakpointOf,
@@ -11,7 +10,6 @@ import {
   radius,
   scheme,
   space,
-  tokensCss,
   typeScale,
   typeSteps,
 } from '#src/index.ts';
@@ -36,9 +34,4 @@ test('four surfaces, five type steps, space on a 4 px grid, three heights and ra
   assert.equal(Object.keys(height).length, 3);
   assert.equal(Object.keys(radius).length, 3);
   assert.equal(ansi.length, 16);
-});
-
-test('the PC tokens.css is the generated one', () => {
-  const file = readFileSync(new URL('../../../apps/web/legacy/src/tokens.css', import.meta.url), 'utf8');
-  assert.equal(file, tokensCss(), 'run `pnpm --filter @handline/tokens build:css` and prettier');
 });

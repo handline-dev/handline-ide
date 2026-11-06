@@ -36,7 +36,7 @@ const colorVars = (c: Colors, indent: string): string[] => {
 
 const spaceNames = Object.keys(space) as (keyof typeof space)[];
 
-/** The text of apps/web/legacy/src/tokens.css, written by `pnpm --filter @handline/tokens build:css`. */
+/** The tokens as CSS custom properties. */
 export function tokensCss(): string {
   const px = (n: number) => `${n}px`;
   const out: string[] = [
