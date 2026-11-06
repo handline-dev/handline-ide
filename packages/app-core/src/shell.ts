@@ -161,6 +161,8 @@ export interface ShellApi {
   zoom?(): number;
   /** The window entered or left full screen (the traffic lights are gone in it); called once with the current state on registering. Returns the way to stop listening. */
   onFullScreen?(cb: (full: boolean) => void): () => void;
+  /** The shell has a new device token for this page (after a first pairing, or a daemon started again). Returns the way to stop listening. */
+  onToken?(cb: (token: string) => void): () => void;
   /** settings.get through the shell's own daemon connection, for a window that is a paired device and may not read settings. Absent in a shell that lacks it. */
   settingsGet?(a?: {
     agent?: string;

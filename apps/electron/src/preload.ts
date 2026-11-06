@@ -18,3 +18,8 @@ try {
 } catch {
   /* no token: the page shows its pairing screen */
 }
+// A token the shell gets later is kept where the page keeps one, before the page hears of it (Connect's onToken).
+ipcRenderer.on(CHANNELS.deviceToken, (_e, t) => {
+  const daemon = new URLSearchParams(location.search).get('daemon');
+  if (typeof t === 'string' && daemon) localStorage.setItem(`token:${daemon}`, t);
+});

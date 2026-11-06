@@ -9,10 +9,10 @@ import { founderKeyFile } from '#src/pair.ts';
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
-/** Whether something is listening on this Unix socket. */
-export const answers = (file: string): Promise<boolean> =>
+/** Whether something is listening on this Unix socket, or on this loopback port. */
+export const answers = (where: string | number): Promise<boolean> =>
   new Promise((resolve) => {
-    const c = net.createConnection(file);
+    const c = typeof where === 'number' ? net.createConnection(where, '127.0.0.1') : net.createConnection(where);
     c.setTimeout(3000, () => (c.destroy(), resolve(false))); // a full backlog never answers; the probe must not stay open
     c.once('connect', () => (c.destroy(), resolve(true)));
     c.once('error', () => (c.destroy(), resolve(false)));

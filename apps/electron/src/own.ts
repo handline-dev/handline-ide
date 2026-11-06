@@ -116,8 +116,8 @@ function relaunchWith(file: SettingsFile, next: Settings): void {
 }
 
 export interface Own {
-  /** The open page read a token that is no longer the one to use. */
-  pageTokenStale(): boolean;
+  /** The token to hand the open page if it read a stale one, else null; marks it given. */
+  freshToken(): string | null;
   /** Draws the tray menu again, after something it shows changed. */
   redraw(): void;
   /** The My turn count: the tray's dot and line. */
@@ -251,8 +251,11 @@ export function ownDaemon(o: {
   // HANDLINE_ATTACH=1: a dev run on a home whose daemon is not this app's to start or stop (hl dev, try-prototype beside the installed app).
   const attachOnly = o.env('ATTACH') === '1';
   const mine = !remote && !attachOnly;
+  // The window's loopback door: the listen port on 127.0.0.1 (windowDaemon).
+  const door = o.listen ? Number(o.listen.slice(o.listen.lastIndexOf(':') + 1)) : null;
   const owner = new Owner({
     socketUp: () => answers(o.socket),
+    ...(door !== null && { doorUp: () => answers(door) }),
     daemonBuild: () => daemonBuild(o.socket),
     holder: () => lockHolder(o.home),
     stopPid: (pid) => process.kill(pid, 'SIGTERM'),
@@ -302,7 +305,7 @@ export function ownDaemon(o: {
   });
   const pairing = localPairing(o.home, o.socket);
   return {
-    pageTokenStale: () => given !== undefined && given !== token,
+    freshToken: () => (given === undefined || given === token || !token ? null : (given = token)),
     redraw: draw,
     setUnread: (n) => ((counts.unread = n), draw()),
     setWorking: (n) => (counts.working = n),

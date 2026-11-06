@@ -427,8 +427,8 @@ if (!app.requestSingleInstanceLock({ background })) {
     void own
       .ready()
       .then(async () => {
-        if (own.pageTokenStale() && win && !win.isDestroyed())
-          await win.loadURL(`${web.url}?daemon=${encodeURIComponent(ws)}${savedRoute()}`);
+        const fresh = own.freshToken();
+        if (fresh && win && !win.isDestroyed()) win.webContents.send(CHANNELS.deviceToken, fresh);
       })
       .then(() => opening)
       .then(() => (background ? openWindow() : undefined))

@@ -29,7 +29,10 @@ interface World {
   stoppedAt?: number;
 }
 
-function rig(w: World, over: { appBuild?: string | null; gatewayStays?: boolean; neverUp?: boolean } = {}) {
+function rig(
+  w: World,
+  over: { appBuild?: string | null; gatewayStays?: boolean; neverUp?: boolean; doorUp?: () => Promise<boolean>; attachOnly?: boolean } = {},
+) {
   const spawned: Cmd[] = [];
   const stopped: number[] = [];
   const clock = { now: 1_000_000 };
@@ -63,6 +66,8 @@ function rig(w: World, over: { appBuild?: string | null; gatewayStays?: boolean;
     },
     now: () => clock.now,
     build: over.appBuild === undefined ? 'aaaa111' : over.appBuild,
+    doorUp: over.doorUp,
+    attachOnly: over.attachOnly,
     polls: 5,
   });
   return { owner, spawned, stopped, clock, w };
@@ -256,4 +261,19 @@ test('attach only (a dev run): whatever answers is adopted, whatever its build; 
   await none.start();
   assert.equal(none.state, 'failed');
   assert.match(none.reason, /only attaches/);
+});
+
+test('a daemon whose loopback door does not answer is replaced; one attached to only fails with that reason', async () => {
+  // The adopted daemon's door is dead; the one started in its place answers.
+  const box: { spawned: Cmd[] } = { spawned: [] };
+  const r = rig({ pid: 42, answers: true, build: 'aaaa111', exitsAfter: 0 }, { doorUp: async () => box.spawned.length > 0 });
+  box.spawned = r.spawned;
+  await r.owner.start();
+  assert.deepEqual([r.stopped, r.owner.came], [[42], 'started']);
+  r.owner.close();
+  const attach = rig({ pid: 42, answers: true, build: 'aaaa111', exitsAfter: 0 }, { doorUp: async () => false, attachOnly: true }).owner;
+  await attach.start();
+  assert.equal(attach.state, 'failed');
+  assert.match(attach.reason, /loopback door/);
+  attach.close();
 });

@@ -27,6 +27,8 @@ export const WATCH_MS = 2_000;
 export interface OwnerDeps {
   /** Whether something answers on the daemon's socket. */
   socketUp(): Promise<boolean>;
+  /** Whether the daemon's loopback door, the one the window uses, answers; absent when the window does not use one. */
+  doorUp?(): Promise<boolean>;
   /** The build the daemon on the socket says it is (its hello's sha); null when it says none or does not answer. */
   daemonBuild(): Promise<string | null>;
   /** The live pid of the daemon holding the home's lock, answering or not; null when none does. */
@@ -103,6 +105,8 @@ export class Owner {
   private async bringUp(): Promise<void> {
     if (this.d.attachOnly) {
       if (!(await this.d.socketUp())) throw new Error('nothing answers on this home’s daemon socket, and this run only attaches');
+      if (!(await this.doorUp()))
+        throw new Error('the daemon answers on its socket but not on its loopback door, and this run only attaches');
       this.came = 'adopted';
       this.set('running');
       this.watch();
@@ -116,7 +120,8 @@ export class Owner {
     }
     if (await this.d.socketUp()) {
       const theirs = await this.d.daemonBuild();
-      if (!this.d.build || !theirs || mismatch(theirs, this.d.build) === null) {
+      // One whose loopback door does not answer would leave the window loading: it is replaced like one of another build.
+      if ((!this.d.build || !theirs || mismatch(theirs, this.d.build) === null) && (await this.doorUp())) {
         this.came = 'adopted';
         this.set('running');
         this.watch();
@@ -125,6 +130,10 @@ export class Owner {
     }
     if (pid !== null) await this.stopHolder(pid, 'the daemon already running on this home');
     await this.spawnUp();
+  }
+
+  private doorUp(): Promise<boolean> {
+    return this.d.doorUp?.() ?? Promise.resolve(true);
   }
 
   private async stopHolder(pid: number, what: string): Promise<void> {
