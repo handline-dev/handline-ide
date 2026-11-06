@@ -5,6 +5,8 @@ import { newAgent } from '#src/NewAgent.tsx';
 import { AnimatePresence, motion } from 'framer-motion';
 import { spring } from '#src/motion.ts';
 import type { AgentView } from '@handline/client';
+import { JobList, type Job } from '#src/chat/agent/BackgroundItem.tsx';
+import { HoverCard } from '#src/ui/HoverCard.tsx';
 import { ago, useNow } from '#src/format/time.ts';
 import { ChevronLeft, ChevronRight, Circle, CircleAlert, ListChecks, LoaderCircle, Pin, Plus, PanelLeft } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
@@ -18,12 +20,10 @@ import {
   type Activity,
   type AgentNode,
 } from '#src/layout/agentTree.ts';
-import { chatOf, footerPages, labelOf, pages } from '#src/layout/kinds.tsx';
-import { startTabDrag } from '#src/ui/dnd.tsx';
+import { chatOf, footerPages, pages } from '#src/layout/kinds.tsx';
+import { Row } from '#src/sidebar/Row.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { useScrollFade } from '#src/ui/ScrollFade.tsx';
-import { useSpringOpen } from '#src/ui/springOpen.ts';
-import { openProps, useOpenTab } from '#src/layout/openTab.tsx';
 import { useFolded } from '#src/useFolded.ts';
 import { useKeptScroll } from '#src/ui/keptScroll.ts';
 
@@ -46,78 +46,19 @@ export function SidebarControls({ onToggle }: { onToggle: () => void }) {
 
 export const sidebarWidth = { min: 180, max: 480, initial: 240 };
 
-/** A sidebar row: click shows it in the workspace, drag drops it on a tab bar or a pane's edge. */
-function Row({
-  opens,
-  title,
-  icon,
-  lead,
-  selected = false,
-  trail,
-  note,
-  context,
-  unread = 0,
-  onShow,
-}: {
-  opens: string;
-  title: string;
-  icon: ReactNode;
-  lead?: ReactNode;
-  selected?: boolean;
-  /** Drawn at the right end, muted (a time). */
-  trail?: ReactNode;
-  /** A second line under the title, one line long (an unread message). */
-  note?: string;
-  /** Muted before the title: the team a pinned sub-agent belongs to. */
-  context?: string;
-  /** How many messages the note stands for, shown beside it when more than none. */
-  unread?: number;
-  onShow: () => void;
-}) {
-  const spring = useSpringOpen(onShow);
-  const openTab = useOpenTab();
-  return (
-    <div
-      {...spring.handlers}
-      data-spring={spring.hovering || undefined}
-      role="button"
-      aria-current={selected || undefined}
-      tabIndex={0}
-      draggable
-      onDragStart={(e) => startTabDrag(e, { open: { opens, title: labelOf(opens) } })}
-      {...openProps((how) => (how === 'here' ? onShow() : openTab(opens, 'side')))}
-      onKeyDown={(e) => {
-        if (e.key !== 'Enter') return;
-        e.preventDefault();
-        if (e.metaKey || e.ctrlKey) openTab(opens, 'side');
-        else onShow();
-      }}
-      className="group flex cursor-default flex-col rounded-md px-2 py-1 text-base text-fg outline-none select-none focus-visible:bg-hover aria-[current]:bg-selected data-[spring]:bg-hover"
-    >
-      <span className="flex h-5 items-center gap-1.5 group-aria-[current]:font-medium">
-        {lead}
-        <span className="grid size-4 shrink-0 place-items-center text-muted">{icon}</span>
-        <span className="flex-1 truncate">
-          {context && <span className="text-muted">{context} / </span>}
-          {title}
-        </span>
-        {trail && <span className="shrink-0 text-xs text-muted tabular-nums">{trail}</span>}
-      </span>
-      {/* Under the title, from the icon's column on. */}
-      {note && (
-        <span className="flex items-center gap-1.5 pl-6 text-xs text-muted">
-          <span className="flex-1 truncate">{note}</span>
-          {unread > 0 && <span className="shrink-0 rounded-full bg-accent px-1.5 font-medium text-accent-fg tabular-nums">{unread}</span>}
-        </span>
-      )}
-    </div>
-  );
-}
-
 /** The newest message to the founder they have not read: one line of it, or nothing when all is read. */
 function unreadNote(a: AgentView): string | undefined {
   if (!a.founder_unread || !a.last_to_founder) return undefined;
   return a.last_to_founder.text.replace(/\s+/g, ' ').trim();
+}
+
+/** Resting on an agent's row shows what runs behind its prompt, beside the row; a row with nothing running shows no card. */
+function AgentRowCard({ jobs, children }: { jobs: Job[]; children: ReactNode }) {
+  return (
+    <HoverCard side="right" off={jobs.length === 0} trigger={<div>{children}</div>}>
+      <JobList jobs={jobs} />
+    </HoverCard>
+  );
 }
 
 const activityIcon: Record<Activity, ReactNode> = {
@@ -172,7 +113,7 @@ function AgentRows({
     return (
       <div
         key={agent.name}
-        className="relative flex flex-col rounded-lg border border-transparent has-[>div>[role=button]:hover]:border-border"
+        className="relative flex flex-col rounded-lg border border-transparent has-[>div>div>[role=button]:hover]:border-border"
         onDragStart={(e) => {
           e.stopPropagation();
           dragged = { name: agent.name, group };
@@ -203,50 +144,52 @@ function AgentRows({
           <span className={`pointer-events-none absolute inset-x-1 h-0.5 rounded-full bg-accent ${line.after ? '-bottom-1' : '-top-1'}`} />
         )}
         <AgentMenu agent={agent} onSettings={() => pick.onSettings(agent.name)}>
-          <Row
-            opens={opens}
-            // At a section's top a sub-agent is a pin out of its team: its short name after the team's.
-            title={under === null && agent.parent ? shortName(agent.name, agent.parent) : shortName(agent.name, under)}
-            context={under === null && agent.parent ? agent.parent : undefined}
-            selected={pick.agent === agent.name}
-            onShow={() => pick.onSelect(agent.name)}
-            // Only a parent has the fold chevron; a leaf starts at its dot.
-            lead={
-              children.length > 0 && (
-                <span
-                  className="grid size-3 shrink-0 place-items-center text-muted"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    pick.toggleFold(agent.name);
-                  }}
-                >
-                  <ChevronRight size={12} className={`transition-transform duration-150 ${open ? 'rotate-90' : ''}`} />
+          <AgentRowCard jobs={agent.background ?? []}>
+            <Row
+              opens={opens}
+              // At a section's top a sub-agent is a pin out of its team: its short name after the team's.
+              title={under === null && agent.parent ? shortName(agent.name, agent.parent) : shortName(agent.name, under)}
+              context={under === null && agent.parent ? agent.parent : undefined}
+              selected={pick.agent === agent.name}
+              onShow={() => pick.onSelect(agent.name)}
+              // Only a parent has the fold chevron; a leaf starts at its dot.
+              lead={
+                children.length > 0 && (
+                  <span
+                    className="grid size-3 shrink-0 place-items-center text-muted"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      pick.toggleFold(agent.name);
+                    }}
+                  >
+                    <ChevronRight size={12} className={`transition-transform duration-150 ${open ? 'rotate-90' : ''}`} />
+                  </span>
+                )
+              }
+              icon={activityIcon[activityOf(agent)]}
+              // When it last worked: now while running, else since it stopped (state_since).
+              // how many below it are working (spinner and count), and its queued tasks.
+              trail={
+                <span className="flex items-center gap-1.5">
+                  {workingUnder(children) > 0 && (
+                    <span className="flex items-center gap-0.5 text-success" title="sub-agents working">
+                      <LoaderCircle size={11} strokeWidth={3.5} className="animate-spin" />
+                      {workingUnder(children)}
+                    </span>
+                  )}
+                  {(queuedBehind(agent) ?? 0) > 0 && (
+                    <span className="flex items-center gap-0.5" title="tasks queued">
+                      <ListChecks size={12} />
+                      {queuedBehind(agent)}
+                    </span>
+                  )}
+                  {dotOf(agent) === 'running' ? 'now' : ago(agent.state_since, now)}
                 </span>
-              )
-            }
-            icon={activityIcon[activityOf(agent)]}
-            // When it last worked: now while running, else since it stopped (state_since).
-            // how many below it are working (spinner and count), and its queued tasks.
-            trail={
-              <span className="flex items-center gap-1.5">
-                {workingUnder(children) > 0 && (
-                  <span className="flex items-center gap-0.5 text-success" title="sub-agents working">
-                    <LoaderCircle size={11} strokeWidth={3.5} className="animate-spin" />
-                    {workingUnder(children)}
-                  </span>
-                )}
-                {(queuedBehind(agent) ?? 0) > 0 && (
-                  <span className="flex items-center gap-0.5" title="tasks queued">
-                    <ListChecks size={12} />
-                    {queuedBehind(agent)}
-                  </span>
-                )}
-                {dotOf(agent) === 'running' ? 'now' : ago(agent.state_since, now)}
-              </span>
-            }
-            note={unreadNote(agent)}
-            unread={agent.founder_unread ?? 0}
-          />
+              }
+              note={unreadNote(agent)}
+              unread={agent.founder_unread ?? 0}
+            />
+          </AgentRowCard>
         </AgentMenu>
         <AnimatePresence initial={false}>
           {shown.length > 0 && (
