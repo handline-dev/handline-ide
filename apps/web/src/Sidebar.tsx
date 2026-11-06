@@ -21,6 +21,7 @@ import {
   type AgentNode,
 } from '#src/layout/agentTree.ts';
 import { chatOf, footerPages, pages } from '#src/layout/kinds.tsx';
+import { useRequests } from '#src/requests/data.ts';
 import { Row } from '#src/sidebar/Row.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { useScrollFade } from '#src/ui/ScrollFade.tsx';
@@ -346,6 +347,7 @@ export function Sidebar({
   onAgentSettings: (name: string) => void;
 }) {
   const fold = useFolded();
+  const waiting = useRequests().count;
   // Only the agents scroll; the pages above and the buttons below stay put.
   const scroller = useRef<HTMLDivElement>(null);
   useKeptScroll(scroller, 'sidebar');
@@ -361,6 +363,7 @@ export function Sidebar({
             icon={p.icon}
             selected={page === p.kind}
             onShow={() => onSelectPage(p.kind, p.label)}
+            trail={p.kind === 'requests' && waiting > 0 ? waiting : undefined}
           />
         ))}
       </nav>

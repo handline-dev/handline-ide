@@ -246,7 +246,7 @@ func TestAccountVerdictSaysWhyAnAccountCannotTakeWork(t *testing.T) {
 	if ok, why := e.AccountVerdict("a", st, ld, nil, true); !ok || why != "5h 10%" {
 		t.Fatalf("%v %q", ok, why)
 	}
-	if ok, why := e.AccountVerdict("a", st, ld, []Reason{{"a", "ranked", ""}}, true); !ok || why != "ranked" {
+	if ok, why := e.AccountVerdict("a", st, ld, []Reason{{"a", "ranked"}}, true); !ok || why != "ranked" {
 		t.Fatalf("%v %q", ok, why)
 	}
 	if ok, why := e.AccountVerdict("a", st, &Load{Account: "a", Active: 2, Cap: 2}, nil, true); ok || why != "5h 10%" {

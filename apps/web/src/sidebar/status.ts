@@ -25,7 +25,6 @@ export function useStatusRow() {
   return {
     level: (status.isError ? 'down' : (s?.health?.level ?? 'ok')) as Level,
     text: s?.health?.text ?? '',
-    unread: s?.inbox.unread ?? 0,
     host: mdns?.replace(/\.local$/, '') ?? '',
     usagePct: weekUsagePct(accounts.data?.accounts ?? []),
     awake: machine.awake,

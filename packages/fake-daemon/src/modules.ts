@@ -11,7 +11,7 @@ import type { Knobs } from '#src/knobs.ts';
 import { invalidParams } from '#src/errors.ts';
 import type { FakeRequests } from '#src/requests.ts';
 import type { Script } from '#src/script.ts';
-import { accountsReply, type Session } from '#src/session.ts';
+import { accountsReply, view, type Session } from '#src/session.ts';
 import type { FakeTasks } from '#src/tasks.ts';
 import { taskCall } from '#src/taskcall.ts';
 import type { FakeWork } from '#src/workroom.ts';
@@ -29,13 +29,24 @@ export interface ModuleHost {
   readonly tasks: FakeTasks;
   readonly chat: FakeChat;
   readonly script: Script;
-  emit(topic: Topic, type: string, f?: { data?: Record<string, unknown> }): void;
+  emit(topic: Topic, type: string, f?: { agent?: string; data?: Record<string, unknown> }): void;
   session(agent: unknown): Session;
   actor(c: Conn): Actor;
 }
 
 type Ok = (said: string, extra?: object) => object;
 type Area = (d: ModuleHost, c: Conn, method: string, p: Record<string, unknown>, ok: Ok) => { value: unknown } | null;
+
+/** The agents the pause held let go: every task on resume, else the one sent now. */
+function release(d: ModuleHost, task: number | null): void {
+  for (const s of d.sessions.values()) {
+    const st = s.fx.view?.status;
+    if (st?.reason !== 'paused') continue;
+    const tasks = task === null ? [] : st.tasks.filter((t) => t !== task);
+    s.fx.view = { ...s.fx.view, status: tasks.length ? { ...st, tasks } : undefined };
+    d.emit('agents', 'agent.changed', { agent: s.fx.name, data: view(s) as unknown as Record<string, unknown> });
+  }
+}
 
 const AREAS: Area[] = [
   (d, _c, method, p, ok) => {
@@ -46,6 +57,7 @@ const AREAS: Area[] = [
     if (!d.admin.owns(method)) return null;
     const value = d.admin.call(method, p, ok);
     if (method === 'device.revoke') d.emit('devices', 'device.revoked', { data: { device: p.device } });
+    if (method === 'daemon.resume' || method === 'task.send_now') release(d, method === 'task.send_now' ? Number(p.task) : null);
     return { value };
   },
   (d, _c, method, p, ok) => (d.work.owns(method) ? { value: d.work.call(method, p, ok) } : null),

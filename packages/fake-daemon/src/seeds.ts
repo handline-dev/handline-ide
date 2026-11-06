@@ -64,6 +64,32 @@ export const SEEDS: Record<string, Seed> = {
     };
   },
 
+  /** Two tasks waiting on the founder, for the Requests view's first section and the bell: a decision and a question. */
+  'founder-turn': (d) => {
+    d.tasks.seed({ id: 8635, from: ARCH, to: ME, title: 'Bell redesign: decision 2, a line for each pause', state: 'doing' });
+    d.tasks.seed({ id: 8651, from: 'handline.ui', to: ME, title: 'Chat box in bash mode: which of two looks', state: 'doing' });
+    d.inbox.add({ kind: 'decision', agent: ARCH, title: 'Bell redesign: decision 2, a line for each pause', body: 'A or B?', task: 8635 });
+    d.inbox.add({ kind: 'ask', agent: 'handline.ui', title: 'Chat box in bash mode: which of two looks', body: 'Which one?', task: 8651 });
+  },
+
+  /** This machine is paused and holds T8642 from handline.auditor: its chat ends in the pause card. */
+  paused: (d) => {
+    d.admin.paused = { since: new Date(Date.now() - 20 * 60_000).toISOString(), until: null, machine: { id: 'm-fake', name: 'mac' } };
+    d.tasks.seed({ id: 8642, from: ARCH, to: AUD, title: 'Audit the pause card', state: 'queued' });
+    const s = d.sessions.get(AUD)!;
+    s.fx.view = {
+      ...s.fx.view,
+      status: {
+        state: 'waiting',
+        reason: 'paused',
+        text: 'Paused: new work waits',
+        until: null,
+        since: d.admin.paused.since,
+        tasks: [8642],
+      },
+    };
+  },
+
   /** The daemon's weekly-loss notice: a task for the person tagged spare-notice, listing four spare drafts. */
   'spare-notice': (d) => {
     const spare = [

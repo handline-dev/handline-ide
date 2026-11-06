@@ -1,11 +1,11 @@
-// The app's bottom bar, full width: a quiet status dot, the host, keep-awake, the bell (opens Notifications), the week's Usage %; the host opens Settings > Machine.
-import { Bell, Check, Coffee, Pause } from 'lucide-react';
+// The app's bottom bar, full width: a quiet status dot, the host, keep-awake, the bell (a preview of Requests), the week's Usage %; the host opens Settings > Machine.
+import { Check, Coffee, Pause } from 'lucide-react';
+import { BellButton } from '#src/requests/BellButton.tsx';
 import { useState } from 'react';
 import type { KeepAwake } from '#src/settings/data/machine.ts';
 import { Popover } from '#src/ui/Popover.tsx';
 import { usePersisted } from '#src/persist/kv.ts';
 import { openSettings } from '#src/settings/open.ts';
-import { goPage } from '#src/layout/openTab.tsx';
 import { useStatusRow, type Level } from '#src/sidebar/status.ts';
 
 const AWAKE: { mode: KeepAwake; label: string; line: string }[] = [
@@ -56,15 +56,7 @@ export function StatusRow() {
       >
         <Pause size={14} className={s.paused ? 'text-warning' : ''} />
       </button>
-      <button
-        type="button"
-        className="relative"
-        aria-label={`Notifications, ${s.unread} unread`}
-        onClick={() => goPage('inbox', 'Notifications')}
-      >
-        <Bell size={14} />
-        {s.unread > 0 && <span className="absolute -top-1 -right-1 size-1.5 rounded-full bg-accent" />}
-      </button>
+      <BellButton />
     </div>
   );
 }

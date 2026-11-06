@@ -61,6 +61,7 @@ const rules: Record<string, Rule> = {
     void qc.invalidateQueries({ queryKey: qk.taskHistory(d, t.id) });
     patchTaskLists(qc, d, t, e.cursor);
     void qc.invalidateQueries({ queryKey: qk.resource(d, 'task.board') });
+    void qc.invalidateQueries({ queryKey: qk.resource(d, 'requests.pending') });
     // A message's one-tap actions follow its task's state, so the chat is read again.
     void qc.invalidateQueries({ queryKey: qk.resource(d, 'chat.messages') });
   },
@@ -179,6 +180,8 @@ function inbox({ qc, d }: Ctx, e: WireEvent) {
   const item = data<InboxItem>(e);
   // agent.changed carries no last_to_founder or founder_unread, so the agent rows are read again.
   void qc.invalidateQueries({ queryKey: qk.agents(d) });
+  // What waits on the founder is read from the unread inbox.
+  void qc.invalidateQueries({ queryKey: qk.resource(d, 'requests.pending') });
   for (const [key] of qc.getQueriesData({ queryKey: qk.inboxes(d) })) {
     if (key.length === qk.inboxes(d).length)
       edit<{ items: InboxItem[] }>(qc, key, (l) => ({ ...l, items: upsert(l.items, item, (x) => x.id === item.id, 'start') }), e.cursor);

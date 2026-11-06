@@ -23,6 +23,8 @@ A name that does not exist is an error.
 | `agent-held` | `handline.architect` waits on the machine load (`status.reason` load): its chat shows the line and Start now, and `agent.force_start` ends it. |
 | `agent-blocked` | `handline.architect` waits on T1684 (`status.reason` task): its chat shows the blocked-by card with the task as a link. |
 | `background` | `handline.auditor` at its prompt with a shell, a monitor and two subagents running behind it, and two servers it listens on. |
+| `founder-turn` | Two tasks waiting on the founder (a decision, a question): Requests' first section and the bell. |
+| `paused` | This machine is paused and holds T8642 from `handline.auditor`: its chat ends in the pause card; `daemon.resume` and `task.send_now` are served. |
 | `agent-usage` | `handline.architect` hit the session limit (`needs_you` kind usage): its chat shows the needs-you card. |
 | `proposal-apply-failed` | An approved proposal for `handline.architect` that did not apply, with the daemon's raw error: the chat card shows one line and the words behind Details. |
 | `proposal-followup` | Two approved proposals whose change is applied but whose agent did not start: `handline.architect` waits for the load (`follow_up.state` waiting), `handline.auditor` failed. `agent.force_start` ends the architect's. |
