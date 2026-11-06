@@ -1,0 +1,377 @@
+// Package devices is who may use the network listener: one-time pairing codes, device tokens kept as hashes,
+// and the connections a device has open, which revoking it closes at once (contract/protocol.md, "Network").
+package devices
+
+import (
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
+	"net"
+	"net/url"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/handline/handline/go/protocol/rpc"
+)
+
+const (
+	DefaultTTL = 300 * time.Second
+	MaxTTL     = 600 * time.Second
+	// wrongPerCode is how many wrong tries a live code survives; wrongPerHost wrong tries within hostWindow lock a
+	// host out of device.redeem for hostLock.
+	wrongPerCode = 5
+	wrongPerHost = 5
+	hostWindow   = 10 * time.Minute
+	hostLock     = 15 * time.Minute
+	codeAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+)
+
+// Device is a paired device as devices.list shows it.
+type Device struct {
+	ID       string
+	Name     string
+	Created  int64
+	LastSeen *int64
+	Address  string // the host it was paired on; "" for a device paired before addresses were kept
+	Push     *Push  // nil until the device gives a push token
+	Kind     string // what the client said it is at device.redeem (ios, android, web, desktop); "" when it did not say
+	Client   string // the client its last hello named; "" before one
+}
+
+// Push is where a notification for a device goes: the token its OS gave, for APNs or FCM.
+type Push struct {
+	Platform string // apns or fcm
+	Token    string
+	Sandbox  bool // an APNs token of a development build, sent to the sandbox host
+}
+
+// Store keeps the paired devices; a token is only ever given to it as a hash.
+type Store interface {
+	Add(d Device, tokenHash string) error
+	ByTokenHash(hash string) (Device, bool, error)
+	Delete(id string) (bool, error)
+	List() ([]Device, error)
+	Touch(id string, ts int64) error
+	SetClient(id, client string) error
+	Rename(id, name string) (bool, error)
+	SetPush(id string, p Push) (bool, error)
+	DropPush(id, token string) error // only while token is still the device's: a newer one it gave since stays
+}
+
+type code struct {
+	expires time.Time
+	wrong   int
+	host    string // the host the pairing names, kept on the device it makes
+}
+
+// Door is one address a pairing can name: host:port, whether it is TLS and its certificate's fingerprint, and whether the web page is
+// served there.
+type Door struct {
+	Addr, Fingerprint string
+	TLS, Web          bool
+}
+
+// Manager is the pairing state of one daemon. Pairing codes live in memory only: a restart voids them.
+type Manager struct {
+	store Store
+	now   func() time.Time
+
+	mu         sync.Mutex
+	codes      map[string]*code // by the hash of the code
+	wrongs     map[string][]time.Time
+	lockedTill map[string]time.Time
+	conns      map[string]map[int]func() // by device id: what closes each open connection, by the order they logged in
+	next       int
+	maxConns   int
+	// Log, when set, hears of each connection closed to make room: a client that leaks connections shows up by its device's name.
+	Log func(format string, args ...any)
+	// PushPlatforms is the platforms the daemon has push credentials for; none is push off.
+	PushPlatforms []string
+	// Doors finds the door a device.pair address names ("" the default one), or answers the hosts that are served; the daemon sets it.
+	Doors func(host string) (d Door, served []string, ok bool)
+}
+
+// MaxConnsPerDevice is how many connections one paired device may hold open at once. A client that leaks sockets fills the daemon's
+// descriptors for everyone, so past this the oldest are closed to make room: the leaked ones are the old ones, and a client that is
+// alive reconnects. Refusing the new one instead would lock the live app out until it was quit.
+const MaxConnsPerDevice = 16
+
+func New(store Store) *Manager {
+	return &Manager{store: store, now: time.Now, codes: map[string]*code{}, wrongs: map[string][]time.Time{},
+		lockedTill: map[string]time.Time{}, conns: map[string]map[int]func(){}, maxConns: MaxConnsPerDevice}
+}
+
+func hashOf(s string) string {
+	sum := sha256.Sum256([]byte(s))
+	return hex.EncodeToString(sum[:])
+}
+
+func random(n int) string {
+	b := make([]byte, n)
+	if _, err := rand.Read(b); err != nil {
+		panic(err)
+	}
+	return hex.EncodeToString(b)
+}
+
+func newCode() string {
+	b := make([]byte, 12)
+	if _, err := rand.Read(b); err != nil {
+		panic(err)
+	}
+	var sb strings.Builder
+	for i, x := range b {
+		if i > 0 && i%4 == 0 {
+			sb.WriteByte('-')
+		}
+		sb.WriteByte(codeAlphabet[int(x)%len(codeAlphabet)])
+	}
+	return sb.String()
+}
+
+// Pair makes a one-time code that lives ttl, for the default door (none before Doors is set).
+func (m *Manager) Pair(ttl time.Duration) (c string, expires time.Time, fingerprint, uri string) {
+	var door Door
+	if m.Doors != nil {
+		door, _, _ = m.Doors("")
+	}
+	return m.PairAt(ttl, door)
+}
+
+// PairAt makes a one-time code that lives ttl and a handline://pair uri naming door.
+func (m *Manager) PairAt(ttl time.Duration, door Door) (c string, expires time.Time, fingerprint, uri string) {
+	c = newCode()
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	expires = m.now().Add(ttl)
+	m.codes[hashOf(c)] = &code{expires: expires, host: hostOf(door.Addr)}
+	q := url.Values{"host": {door.Addr}, "code": {c}}
+	if door.TLS {
+		q.Set("fp", door.Fingerprint) // a plain door has no certificate to pin
+	}
+	return c, expires, door.Fingerprint, "handline://pair?" + q.Encode()
+}
+
+// WebLink is the browser's invite to door: the page opened with the code, which it trades for a device token.
+func WebLink(door Door, code string) string {
+	scheme := "http"
+	if door.TLS {
+		scheme = "https"
+	}
+	return scheme + "://" + door.Addr + "/#pair=" + url.QueryEscape(code)
+}
+
+func hostOf(addr string) string {
+	if h, _, err := net.SplitHostPort(addr); err == nil {
+		return h
+	}
+	return addr
+}
+
+func pairingRefused() *rpc.Error {
+	return rpc.Refused("that pairing code is not valid", "pairing_code", "")
+}
+
+// Redeem trades a code for a device token, once. kind is what the client says it is, "" for nothing. remote is the caller's host: wrong
+// tries are counted per host.
+func (m *Manager) Redeem(c, name, kind, remote string) (token string, d Device, err error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	now := m.now()
+	if until, locked := m.lockedTill[remote]; locked {
+		if now.Before(until) {
+			return "", Device{}, rpc.Refused("too many wrong pairing codes from this address", "attempt_limit", "")
+		}
+		delete(m.lockedTill, remote)
+	}
+	h := hashOf(strings.ToUpper(strings.TrimSpace(c)))
+	live, ok := m.codes[h]
+	if ok && !now.Before(live.expires) {
+		delete(m.codes, h)
+		ok = false
+	}
+	if !ok {
+		m.wrongTry(remote, now)
+		return "", Device{}, pairingRefused()
+	}
+	token = "hld_" + random(32)
+	d = Device{ID: "dev_" + random(6), Name: name, Created: now.Unix(), Address: live.host, Kind: kind}
+	if err := m.store.Add(d, hashOf(token)); err != nil {
+		return "", Device{}, err
+	}
+	delete(m.codes, h)
+	return token, d, nil
+}
+
+// wrongTry counts a wrong code against every live code and the host. Called with m.mu held.
+func (m *Manager) wrongTry(remote string, now time.Time) {
+	for h, c := range m.codes {
+		if c.wrong++; c.wrong >= wrongPerCode || !now.Before(c.expires) {
+			delete(m.codes, h)
+		}
+	}
+	for h, ts := range m.wrongs {
+		if now.Sub(ts[len(ts)-1]) >= hostWindow {
+			delete(m.wrongs, h) // a host that has been quiet a whole window starts over
+		}
+	}
+	var recent []time.Time
+	for _, t := range m.wrongs[remote] {
+		if now.Sub(t) < hostWindow {
+			recent = append(recent, t)
+		}
+	}
+	recent = append(recent, now)
+	m.wrongs[remote] = recent
+	if len(recent) >= wrongPerHost {
+		m.lockedTill[remote] = now.Add(hostLock)
+		delete(m.wrongs, remote)
+	}
+}
+
+// Revoke cancels a device and closes its connections. false when it is not paired.
+func (m *Manager) Revoke(id string) (bool, error) {
+	m.mu.Lock()
+	found, err := m.store.Delete(id)
+	var closers []func()
+	for _, f := range m.conns[id] {
+		closers = append(closers, f)
+	}
+	delete(m.conns, id)
+	m.mu.Unlock()
+	for _, f := range closers {
+		f()
+	}
+	return found, err
+}
+
+// Rename gives a device a new name and answers it as it is now. false when it is not paired.
+func (m *Manager) Rename(id, name string) (Device, bool, error) {
+	found, err := m.store.Rename(id, name)
+	if err != nil || !found {
+		return Device{}, found, err
+	}
+	ds, err := m.store.List()
+	for _, d := range ds {
+		if d.ID == id {
+			return d, true, err
+		}
+	}
+	return Device{}, false, err
+}
+
+// SetPush keeps the push token a device gave, in place of any it gave before. false when it is not paired.
+func (m *Manager) SetPush(id string, p Push) (bool, error) { return m.store.SetPush(id, p) }
+
+// List is the paired devices, each with whether it has a connection open; self, the caller's own device ("" for none), is current.
+func (m *Manager) List(self string) ([]map[string]any, error) {
+	ds, err := m.store.List()
+	if err != nil {
+		return nil, err
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := make([]map[string]any, 0, len(ds))
+	for _, d := range ds {
+		r := m.row(d)
+		r["current"] = d.ID == self
+		out = append(out, r)
+	}
+	return out, nil
+}
+
+// Devices is every paired device as the store keeps it.
+func (m *Manager) Devices() ([]Device, error) { return m.store.List() }
+
+// Row is a device as the Device schema shows it, for an event.
+func (m *Manager) Row(d Device) map[string]any {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.row(d)
+}
+
+func (m *Manager) row(d Device) map[string]any {
+	var seen any
+	if d.LastSeen != nil {
+		seen = time.Unix(*d.LastSeen, 0).UTC().Format("2006-01-02T15:04:05Z")
+	}
+	return map[string]any{"id": d.ID, "name": d.Name, "role": "founder",
+		"created": time.Unix(d.Created, 0).UTC().Format("2006-01-02T15:04:05Z"), "last_seen": seen, "connected": len(m.conns[d.ID]) > 0,
+		"push": d.Push != nil, "kind": orNil(d.Kind), "client": orNil(d.Client), "current": false}
+}
+
+func orNil(s string) any {
+	if s == "" {
+		return nil
+	}
+	return s
+}
+
+// Know, Login and Live are rpc.NetGate.
+
+func (m *Manager) Know(token string) bool {
+	_, ok, err := m.store.ByTokenHash(hashOf(token))
+	return ok && err == nil
+}
+
+// maxClient bounds the client a hello names that is kept on its device: it is a name/version, so this is room, not a format.
+const maxClient = 200
+
+func (m *Manager) Login(token, client string, closeConn func()) (id, name string, release func(), ok bool) {
+	m.mu.Lock()
+	var evict []func()
+	defer func() {
+		m.mu.Unlock()
+		for _, f := range evict {
+			f()
+		}
+	}()
+	d, found, err := m.store.ByTokenHash(hashOf(token))
+	if !found || err != nil {
+		return "", "", nil, false
+	}
+	for len(m.conns[d.ID]) >= m.maxConns {
+		oldest := -1
+		for n := range m.conns[d.ID] {
+			if oldest < 0 || n < oldest {
+				oldest = n
+			}
+		}
+		evict = append(evict, m.conns[d.ID][oldest])
+		if m.Log != nil {
+			m.Log("  device %s (%s): at %d connections, closing the oldest for a new one", d.Name, d.ID, m.maxConns)
+		}
+		delete(m.conns[d.ID], oldest)
+	}
+	m.next++
+	n := m.next
+	if m.conns[d.ID] == nil {
+		m.conns[d.ID] = map[int]func(){}
+	}
+	if closeConn == nil {
+		closeConn = func() {}
+	}
+	m.conns[d.ID][n] = closeConn
+	m.store.Touch(d.ID, m.now().Unix())
+	if client != "" && len(client) <= maxClient {
+		m.store.SetClient(d.ID, client)
+	}
+	return d.ID, d.Name, func() {
+		m.mu.Lock()
+		defer m.mu.Unlock()
+		delete(m.conns[d.ID], n)
+		if len(m.conns[d.ID]) == 0 {
+			delete(m.conns, d.ID)
+		}
+		m.store.Touch(d.ID, m.now().Unix())
+	}, true
+}
+
+func (m *Manager) Live(id string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.conns[id]) > 0
+}
+
+var _ rpc.NetGate = (*Manager)(nil)

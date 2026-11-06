@@ -1,0 +1,73 @@
+package prompts
+
+import (
+	"errors"
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/handline/handline/go/kit/paths"
+	"github.com/handline/handline/go/protocol/rpc"
+)
+
+func asRon() *rpc.Conn {
+	return &rpc.Conn{Caller: rpc.Caller{Role: "member", Info: map[string]any{"kind": "person", "name": "casey"}}}
+}
+
+func register(e *Env) {
+	dir := paths.AgentsDir(e.Home)
+	os.MkdirAll(filepath.Join(dir, "backend"), 0o755)
+	os.WriteFile(filepath.Join(dir, "backend", "agent.yaml"), []byte("vendor: claude\n"), 0o644)
+}
+
+func answers(e *Env, prompt string, choice any) (any, error) {
+	return e.answer(asRon(), map[string]any{"agent": "backend", "prompt": prompt, "choice": choice})
+}
+
+func refusal(t *testing.T, err error, code string) *rpc.Error {
+	t.Helper()
+	var re *rpc.Error
+	if !errors.As(err, &re) || re.Code != code {
+		t.Fatalf("want %s, got %v", code, err)
+	}
+	return re
+}
+
+func mustErr(_ any, err error) error { return err }
+
+func TestAStalePromptGetsTheCurrentOneAndNothingIsDone(t *testing.T) {
+	t.Parallel()
+	e := testEnv(t)
+	register(e)
+	call, b := ask(t, e, "go vet ./...")
+	re := refusal(t, mustErr(answers(e, "not-the-open-one", "allow")), "stale_prompt")
+	if re.Data["current"] == nil {
+		t.Fatalf("a stale answer is told the current prompt: %v", re.Data)
+	}
+	if _, err := answers(e, b.Fingerprint, "allow"); err != nil {
+		t.Fatal(err)
+	}
+	reply(t, call)
+	re = refusal(t, mustErr(answers(e, b.Fingerprint, "allow")), "stale_prompt")
+	if re.Data["current"] != nil {
+		t.Fatalf("with no prompt open there is no current one: %v", re.Data)
+	}
+}
+
+func TestAKeyAHookQuestionDoesNotOfferIsABadRequest(t *testing.T) {
+	t.Parallel()
+	e := testEnv(t)
+	register(e)
+	call, b := ask(t, e, "go vet ./...")
+	for _, choice := range []any{"yes", "no", "esc", "1", "", []any{"allow"}, map[string]any{"text": "x"}, 7} {
+		refusal(t, mustErr(answers(e, b.Fingerprint, choice)), "bad_request")
+	}
+	_, err := e.answer(asRon(), map[string]any{"agent": "backend", "choice": "allow"})
+	refusal(t, err, "bad_request")
+	_, err = e.answer(asRon(), map[string]any{"agent": "nobody", "prompt": b.Fingerprint, "choice": "allow"})
+	refusal(t, err, "not_found")
+	if _, err := answers(e, b.Fingerprint, "deny"); err != nil {
+		t.Fatal(err)
+	}
+	reply(t, call)
+}

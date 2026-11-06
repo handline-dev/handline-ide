@@ -1,0 +1,388 @@
+package supervisor
+
+import (
+	"fmt"
+	"strconv"
+	"strings"
+	"sync"
+
+	"github.com/handline/handline/go/agentctl/delivery"
+	"github.com/handline/handline/go/data/db"
+)
+
+// The one send path to a structured session (docs/design/structured-sessions.md, "Delivery"): the same for a person's message, another agent's,
+// the daemon's own notices and a task. A message goes out once under an operation id; a retry that finds it already out writes nothing; one
+// that was written and not confirmed when its session ended is marked unknown, never written again, and the sender of each request in it is told. A pending message and a batch of answers have no sender to tell: the delivery_unknown event records them.
+//
+// The ledger is the cursors table, one row per operation, so nothing here needs a schema of its own: `send:<agent>:<op>` holds the state.
+// The Agents port's contract: an error from Send means nothing was written. A message written and never echoed stays Written; ending it needs
+// a deadline from the session layer (S1).
+
+// The states of a send, as the ledger holds them.
+const (
+	sendWritten   = 1 // written to the session, not yet echoed
+	sendConfirmed = 2 // the session echoed it
+	sendUnknown   = 3 // the session ended after the write and before the echo: it may or may not have run
+	sendHeld      = 4 // held behind a running turn, not yet written
+)
+
+// SendState is where a send is, in words.
+type SendState string
+
+const (
+	NotSent   SendState = ""       // nothing was written: no live session, or the write failed
+	Held      SendState = "queued" // held behind a running turn
+	Written   SendState = "sent"   // written, not yet confirmed
+	Confirmed SendState = "confirmed"
+	Unknown   SendState = "unknown" // written, and the session ended before it confirmed: not written again
+)
+
+func ledgerKey(agent, op string) string { return "send:" + agent + ":" + op }
+
+func stateOfLedger(v int64) SendState {
+	switch v {
+	case sendWritten:
+		return Written
+	case sendConfirmed:
+		return Confirmed
+	case sendUnknown:
+		return Unknown
+	case sendHeld:
+		return Held
+	}
+	return NotSent
+}
+
+// structuredAgent says whether the agent is delivered to by the send path.
+func (e *Env) structuredAgent(agent string) bool {
+	return e.Agents != nil && e.Agents.Structured(agent)
+}
+
+// openSession says whether the agent has a session a message can be told to: a structured agent's is its live process (it has no terminal
+// to look for), a terminal agent's is its terminal. state is the agent's row.
+func (e *Env) openSession(agent string, state *db.AgentState) bool {
+	if e.structuredAgent(agent) {
+		return e.Agents.Live(agent)
+	}
+	return state != nil && state.Terminal.String != ""
+}
+
+// requestOp is the operation id of a message that tells the agent about these requests: the same requests are the same operation.
+func requestOp(rids ...int64) string { return "request:" + idList(rids) }
+
+func ridsOfOp(op string) []int64 {
+	list, ok := strings.CutPrefix(op, "request:")
+	if !ok {
+		return nil
+	}
+	var out []int64
+	for _, p := range strings.Split(list, ",") {
+		if n, err := strconv.ParseInt(p, 10, 64); err == nil {
+			out = append(out, n)
+		}
+	}
+	return out
+}
+
+// nextOp is a fresh operation id for a message nothing else names (a notice, a nudge).
+func (e *Env) nextOp(q db.Q, prefix string) string {
+	n := must(db.Cursor(q, "send_seq")) + 1
+	check(db.SetCursor(q, "send_seq", n))
+	return fmt.Sprintf("%s:%d", prefix, n)
+}
+
+// sendOnce sends text to a structured agent under op. A repeat of an operation answers its state and writes nothing. NotSent says nothing
+// was written (no live session, or the session refused the write) and the caller may try again; any other state means the daemon owns the
+// message from here and must not send it again.
+func (e *Env) sendOnce(q db.Q, agent, op, text string, d delivery.Delivery) (SendState, string) {
+	lock := e.sendLock(agent)
+	lock.Lock()
+	defer lock.Unlock()
+	key := ledgerKey(agent, op)
+	if v := must(db.Cursor(q, key)); v != 0 {
+		return stateOfLedger(v), ""
+	}
+	if !e.Agents.Live(agent) {
+		return NotSent, agent + " has no live session"
+	}
+	check(db.SetCursor(q, key, sendWritten)) // recorded before the write: a crash after it must find it
+	rcpt, err := e.Agents.Send(agent, op, text, d)
+	if err != nil {
+		check(db.ClearCursor(q, key))
+		return NotSent, err.Error()
+	}
+	for _, o := range append([]string{op}, singleOps(op)...) {
+		check(db.ClearCursor(q, arrivedKey(agent, o)))
+	}
+	if rcpt.State == delivery.Withdrawn { // its sender took it back: nothing was or will be written
+		check(db.ClearCursor(q, key))
+		return NotSent, "withdrawn"
+	}
+	// The echo can come before Send answers: only a row still Written moves on, so a Confirmed one is never taken back to Held.
+	switch rcpt.State {
+	case delivery.Queued:
+		check(moveLedger(q, key, sendWritten, sendHeld))
+	case delivery.Confirmed:
+		check(moveLedger(q, key, sendWritten, sendConfirmed))
+	}
+	v := must(db.Cursor(q, key))
+	if v == 0 { // the echo landed every request while Send answered, and that took it off the ledger: it is delivered
+		return Confirmed, ""
+	}
+	return stateOfLedger(v), ""
+}
+
+// arrivedDuringRestart is the line that heads a message held while its agent restarted, so the new session knows why it comes first.
+const arrivedDuringRestart = "(This arrived while you were restarting for a handoff.)\n"
+
+// handingOff is why nothing more is typed at agent's session: from the moment a handoff is decided (its row, or the wait for its note)
+// until the session is closed, what arrives goes to the session that follows. ops are the operations held back; each is marked, and
+// arrivalLine heads its text when it is told. "" when nothing is held.
+func (e *Env) handingOff(q db.Q, agent string, ops ...string) string {
+	held, err := db.RestartHeld(q, agent, e.now())
+	check(err)
+	if !held {
+		return ""
+	}
+	for _, op := range ops {
+		check(db.SetCursor(q, arrivedKey(agent, op), 1))
+	}
+	return "held while it restarts; the new session gets it"
+}
+
+func arrivedKey(agent, op string) string { return "restart-arrived:" + agent + ":" + op }
+
+// arrivalLine heads text with arrivedDuringRestart when any of ops was held by handingOff; sendOnce forgets the mark once text is written.
+func (e *Env) arrivalLine(q db.Q, agent, text string, ops ...string) string {
+	line := ""
+	for _, op := range ops {
+		if must(db.Cursor(q, arrivedKey(agent, op))) != 0 {
+			line = arrivedDuringRestart
+		}
+	}
+	return line + text
+}
+
+// moveLedger sets a ledger row to to if it is still from, in one statement.
+func moveLedger(q db.Q, key string, from, to int64) error {
+	_, err := q.Exec("UPDATE cursors SET row_id = ?, updated = ? WHERE name = ? AND row_id = ?", to, db.Now(), key, from)
+	return err
+}
+
+// sendLock is agent's send lock: a write to one stuck CLI holds up that agent's sends and no one else's.
+func (e *Env) sendLock(agent string) *sync.Mutex {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.sendLocks == nil {
+		e.sendLocks = map[string]*sync.Mutex{}
+	}
+	if e.sendLocks[agent] == nil {
+		e.sendLocks[agent] = &sync.Mutex{}
+	}
+	return e.sendLocks[agent]
+}
+
+// SessionConfirmed is what the session layer calls when the CLI echoes a message: the operation is delivered, and the requests it told the
+// agent about have landed.
+func (e *Env) SessionConfirmed(q db.Q, agent, op string) (err error) {
+	defer Catch(&err)
+	key := ledgerKey(agent, op)
+	was := must(db.Cursor(q, key))
+	check(moveLedger(q, key, sendWritten, sendConfirmed))
+	check(moveLedger(q, key, sendHeld, sendConfirmed))
+	if (was != sendWritten && was != sendHeld) || must(db.Cursor(q, key)) != sendConfirmed {
+		return nil
+	}
+	for _, rid := range ridsOfOp(op) {
+		row := must(db.GetRequest(q, rid))
+		if row == nil || row.LandedAt.Valid {
+			continue
+		}
+		check(db.MarkLanded(q, rid))
+		must(db.AddEvent(q, agent, "landed", db.KV{K: "request_id", V: rid}))
+	}
+	return nil
+}
+
+// SessionLost is what the session layer calls when an agent's session ended. A message written and not confirmed is unknown: the sender is
+// told and it is not written again. A message that was only held was never written and is owed again.
+func (e *Env) SessionLost(q db.Q, agent string) (err error) {
+	defer Catch(&err)
+	prefix := ledgerKey(agent, "")
+	rows := must(q.Query("SELECT name, row_id FROM cursors WHERE name LIKE ? ESCAPE '\\' ORDER BY name", likeEscape(prefix)+"%"))
+	type lost struct {
+		op string
+		v  int64
+	}
+	var ops []lost
+	for rows.Next() {
+		var name string
+		var v int64
+		check(rows.Scan(&name, &v))
+		if v == sendWritten || v == sendHeld {
+			ops = append(ops, lost{strings.TrimPrefix(name, prefix), v})
+		}
+	}
+	check(rows.Err())
+	rows.Close()
+	for _, l := range ops {
+		key := ledgerKey(agent, l.op)
+		if l.v == sendHeld {
+			check(db.ClearCursor(q, key))
+			for _, rid := range ridsOfOp(l.op) {
+				check(db.ClearDelivered(q, rid))
+			}
+			continue
+		}
+		if actedOn(q, l.op) { // its fate is known after all: nothing to ask anyone
+			check(db.ClearCursor(q, key))
+			continue
+		}
+		check(db.SetCursor(q, key, sendUnknown))
+		e.deliveryUnknown(q, agent, l.op, "was written to its session, and the session ended before it confirmed it: it may or may not have been read",
+			"ask "+agent+" whether it saw it, or send it again")
+	}
+	return nil
+}
+
+// actedOn is whether every request a written op carried has since been seen to arrive: landed, read with hl read, or no longer queued
+// (answered, settled, withdrawn). A daemon restart ends every session, and an old delivery like that is not one that may be lost.
+func actedOn(q db.Q, op string) bool {
+	rids := ridsOfOp(op)
+	for _, rid := range rids {
+		row := must(db.GetRequest(q, rid))
+		if row != nil && row.State == "queued" && !row.LandedAt.Valid && !row.ReadAt.Valid {
+			return false
+		}
+	}
+	return len(rids) > 0
+}
+
+// SessionNotDelivered is what a terminal agent's peer inbox calls when a message is not in its transcript after the resend (written: it
+// was written at least once; else nothing was, the session having no inbox to write to). Like a message lost with its session it is
+// unknown and not written again (the sender is told), and the agent needs a person: the event is the IDE's cue. Nothing is typed at its
+// terminal. The ledger, the event and the sender's note are one transaction; the telling follows the commit.
+func (e *Env) SessionNotDelivered(agent, op, why string, written bool) (err error) {
+	defer Catch(&err)
+	tx := must(e.DB.Begin())
+	defer tx.Rollback()
+	key := ledgerKey(agent, op)
+	if must(db.Cursor(tx, key)) != sendWritten { // not a message that was out and unconfirmed: nothing to settle
+		return nil
+	}
+	check(moveLedger(tx, key, sendWritten, sendUnknown))
+	must(db.AddEvent(tx, agent, "needs_you", db.KV{K: "reason", V: "a message was not delivered: " + why}, db.KV{K: "op", V: op}))
+	if written {
+		e.deliveryUnknown(tx, agent, op, "was written to its session, and its transcript never showed it ("+why+"): it may or may not have been read",
+			"ask "+agent+" whether it saw it, or send it again")
+	} else {
+		e.deliveryUnknown(tx, agent, op, "was not written to its session ("+why+"): it was not read", "send it again")
+	}
+	check(tx.Commit())
+	return nil
+}
+
+func likeEscape(s string) string {
+	return strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(s)
+}
+
+// deliveryUnknown records that a write may or may not have run, and tells the sender of each request in it (ops with no request name no one):
+// "#N to <agent> <outcome>. It is not sent again; <advice>." An agent sender gets it as a notice.
+func (e *Env) deliveryUnknown(q db.Q, agent, op, outcome, advice string) {
+	must(db.AddEvent(q, agent, "delivery_unknown", db.KV{K: "op", V: op}))
+	told := map[string]bool{}
+	for _, rid := range ridsOfOp(op) {
+		row := must(db.GetRequest(q, rid))
+		if row == nil || told[row.Requester] || row.Requester == db.NoticeRequester {
+			continue
+		}
+		told[row.Requester] = true
+		if row.Requester == db.Human { // the founder's screens show no message id
+			text := fmt.Sprintf("Your message to %s %s. It is not sent again; %s.", agent, outcome, advice)
+			must(db.AddRequest(q, db.NewRequest{Requester: db.NoticeRequester, Target: db.Human, Body: text, Kind: "say"}))
+			continue
+		}
+		must(e.Notice(q, row.Requester, fmt.Sprintf("%s to %s %s. It is not sent again; %s.", row.Name(q), agent, outcome, advice), "delivery unknown"))
+	}
+}
+
+// hasSession says whether the agent has a running session: a structured agent's is open, a terminal agent's is in its terminal.
+func (e *Env) hasSession(agent string) bool {
+	if e.structuredAgent(agent) {
+		return e.Agents.Live(agent)
+	}
+	return e.sessionPresent(agent)
+}
+
+// tellNowStructured tells a structured agent about request row at once, joining the running turn.
+func (e *Env) tellNowStructured(q db.Q, row *db.Request) (what string, err error) {
+	what, _, err = e.tellStructured(q, row, delivery.Now)
+	return what, err
+}
+
+// tellStructured tells a structured agent about request row. The row is marked delivered before the write (it closes withdraw and replace's
+// race) and owed again only when nothing was written; a message that was written is never written again. A Queue message held behind a
+// running turn is not delivered: the row is left as it was, and SessionWritten marks it when the session writes it.
+func (e *Env) tellStructured(q db.Q, row *db.Request, d delivery.Delivery) (what string, state SendState, err error) {
+	defer Catch(&err)
+	agent, rid := row.Target, row.ID
+	if !e.Agents.Live(agent) {
+		return "queued - no live session; told when it is up", NotSent, nil
+	}
+	if why := e.handingOff(q, agent, requestOp(rid)); why != "" {
+		return "queued - " + why, NotSent, nil
+	}
+	if !must(db.MarkDelivered(q, rid)) {
+		return "withdrawn first", NotSent, nil
+	}
+	folded := foldedNotices(q, agent)
+	text := tellText(q, row, 1, nil, false, folded, e.imageLines(q, row))
+	if e.typedRow(q, row) {
+		if why := e.typeable(agent); why != "" {
+			defer e.sayInstead(q, rid)()
+			e.log("  %s: request %d is said through the inbox, not typed: %s", agent, rid, why)
+		} else {
+			folded, text = nil, founderText(q, row, e.imageLines(q, row))
+		}
+	}
+	text = e.arrivalLine(q, agent, text, requestOp(rid))
+	state, why := e.sendOnce(q, agent, requestOp(rid), text, d)
+	switch state {
+	case NotSent:
+		check(db.ClearDelivered(q, rid))
+		return "queued - " + why, state, nil
+	case Held:
+		check(db.ClearDelivered(q, rid))
+		return "held behind the running turn", state, nil
+	}
+	session := e.liveSession(q, agent)
+	check(db.MarkNoticesShown(q, requestIDs(folded), session))
+	check(db.MarkToldAhead(q, agent, rid, requestIDs(must(db.QueuedFor(q, agent))))) // becoming the head is not news
+	check(db.MarkTyped(q, rid, session))
+	e.NoteTyped(rid)
+	must(db.AddEvent(q, agent, "notified", db.KV{K: "request_id", V: rid}, db.KV{K: "more_waiting", V: 0}))
+	if state == Confirmed {
+		check(db.MarkLanded(q, rid))
+		e.FinishSay(q, row) // a say that was only written can still be taken back, with its confirm
+	}
+	e.log("  %s: told about request %d at once", agent, rid)
+	return "sent", state, nil
+}
+
+// batchOps are the operations of the requests in a batch, one each.
+func batchOps(batch []*db.Request) []string {
+	var ops []string
+	for _, r := range batch {
+		ops = append(ops, requestOp(r.ID))
+	}
+	return ops
+}
+
+// singleOps splits a batch's operation into one per request, the way handingOff marks them.
+func singleOps(op string) []string {
+	var ops []string
+	for _, rid := range ridsOfOp(op) {
+		ops = append(ops, requestOp(rid))
+	}
+	return ops
+}

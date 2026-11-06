@@ -1,0 +1,280 @@
+package sessionrpc
+
+import (
+	"fmt"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/handline/handline/go/agentctl/agent/claudecode"
+	"github.com/handline/handline/go/agentctl/term"
+	"github.com/handline/handline/go/internal/inputhold"
+	"github.com/handline/handline/go/kit/lock"
+)
+
+// host is a terminal that keeps what is sent to it and shows the rows a test sets.
+type host struct {
+	rows []string
+	sent []string
+	// afterEsc, when set, is what the screen shows once Esc is sent; unreadable makes the screen unreadable from then on.
+	afterEsc   []string
+	unreadable bool
+	escaped    bool
+	// frames are screens shown one per read after Esc, before afterEsc.
+	frames [][]string
+}
+
+func (h *host) Name() string                                   { return "fake" }
+func (h *host) Available() bool                                { return true }
+func (h *host) ListTerminals() map[string]bool                 { return map[string]bool{"%1": true} }
+func (h *host) WaitIdle(string, int, func([]string) bool) bool { return true }
+func (h *host) ReadScreen(string, int) *term.Screen {
+	if h.unreadable && h.escaped {
+		return nil
+	}
+	if h.escaped && len(h.frames) > 0 {
+		f := h.frames[0]
+		h.frames = h.frames[1:]
+		return &term.Screen{Tail: f, Source: "screen"}
+	}
+	return &term.Screen{Tail: h.rows, Source: "screen"}
+}
+func (h *host) Send(_, text string, enter bool) (bool, string) {
+	if enter {
+		text += "<enter>"
+	}
+	h.sent = append(h.sent, text)
+	if text == term.Escape && h.afterEsc != nil {
+		h.rows, h.escaped = h.afterEsc, true
+	}
+	return true, ""
+}
+
+func typingRig(t *testing.T) (*rig, *host, *conn) {
+	r := newRig(t)
+	h := &host{rows: []string{"> "}}
+	r.e.Holds = &inputhold.Store{DB: r.e.DB, Now: r.e.Now}
+	r.e.Term = term.New(h, claudecode.ScreenFor)
+	return r, h, r.dial(false)
+}
+
+func TestTakeAndReleaseAreTheHoldersAlone(t *testing.T) {
+	r, _, c := typingRig(t)
+	got := result(t, c.call("input.take", map[string]any{"agent": "ann", "request_id": rid("t1")}))
+	if got["holder"].(map[string]any)["name"] != c.name {
+		t.Fatalf("take %v", got)
+	}
+	if row, _ := r.e.Holds.Holder("ann"); row == nil || row.Name != c.name {
+		t.Fatalf("holder %v", row)
+	}
+	// someone else's hold is not the caller's to release or take
+	r.e.DB.Exec("UPDATE input_holders SET name = 'sam'")
+	if g := refused(c.call("input.take", map[string]any{"agent": "ann", "request_id": rid("t2")})); g != "input_holder" {
+		t.Fatalf("gate %q", g)
+	}
+	if g := refused(c.call("input.release", map[string]any{"agent": "ann", "request_id": rid("r1")})); g != "input_holder" {
+		t.Fatalf("gate %q", g)
+	}
+	r.e.DB.Exec("UPDATE input_holders SET name = ?", c.name)
+	result(t, c.call("input.release", map[string]any{"agent": "ann", "request_id": rid("r2")}))
+	if row, _ := r.e.Holds.Holder("ann"); row != nil {
+		t.Fatalf("released, got %v", row)
+	}
+	if said := result(t, c.call("input.release", map[string]any{"agent": "ann", "request_id": rid("r3")}))["said"]; !strings.Contains(said.(string), "already") {
+		t.Fatalf("said %v", said)
+	}
+}
+
+func TestForceTakesFromAnotherHolderWhoIsTold(t *testing.T) {
+	r, _, c := typingRig(t)
+	told := []string{}
+	r.e.Holds.Changed = func(_ string, h []map[string]any) { told = append(told, h[0]["name"].(string)) }
+	r.e.Holds.Take("ann", "device", "sam")
+	if g := refused(c.call("input.take", map[string]any{"agent": "ann", "request_id": rid("f1")})); g != "input_holder" {
+		t.Fatalf("without force: gate %q", g)
+	}
+	if f := badField(c.call("input.take", map[string]any{"agent": "ann", "force": "yes", "request_id": rid("f2")})); f != "force" {
+		t.Fatalf("field %q", f)
+	}
+	got := result(t, c.call("input.take", map[string]any{"agent": "ann", "force": true, "request_id": rid("f3")}))
+	if got["holder"].(map[string]any)["name"] != c.name {
+		t.Fatalf("take %v", got)
+	}
+	if strings.Join(told, ",") != "sam,"+c.name { // the holder notice reaches every pane on the terminal, sam's too
+		t.Fatalf("told %v", told)
+	}
+}
+
+func TestForceDoesNotTypeIntoAnAgentsTurn(t *testing.T) {
+	r, h, c := typingRig(t)
+	busy := lock.TakeTerminal(r.e.Home, "ann") // the tick, mid-turn
+	defer busy.Release()
+	result(t, c.call("input.take", map[string]any{"agent": "ann", "force": true, "request_id": rid("f1")}))
+	if g := refused(c.call("session.type", map[string]any{"agent": "ann", "text": "x", "request_id": rid("f2")})); g != "terminal_lock" {
+		t.Fatalf("gate %q", g)
+	}
+	if len(h.sent) != 0 {
+		t.Fatalf("sent %q", h.sent)
+	}
+}
+
+func TestKeysAndTypeSendWhatTheyNameAndSkipTheDialogCheck(t *testing.T) {
+	r, h, c := typingRig(t)
+	h.rows = []string{"Do you want to proceed?", "Enter to confirm · Esc to cancel"} // a dialog is open
+	result(t, c.call("session.keys", map[string]any{"agent": "ann", "keys": []any{"down", "enter", "esc", "2"}, "request_id": rid("k1")}))
+	if got := strings.Join(h.sent, "|"); got != "\x1b[B|<enter>|\x1b|2" {
+		t.Fatalf("sent %q", got)
+	}
+	result(t, c.call("session.type", map[string]any{"agent": "ann", "text": "ls\tx", "request_id": rid("y1")}))
+	if h.sent[len(h.sent)-1] != "ls\tx" {
+		t.Fatalf("sent %q", h.sent)
+	}
+	var typed int64
+	r.e.DB.QueryRow("SELECT row_id FROM cursors WHERE name = 'typed_at:ann'").Scan(&typed)
+	if typed != 1_000_000 {
+		t.Fatalf("typed_at %d", typed)
+	}
+	for _, p := range []map[string]any{
+		{"agent": "ann", "keys": []any{"f13"}},
+		{"agent": "ann", "keys": []any{}},
+	} {
+		p["request_id"] = rid("bad" + strings.Join(strings.Fields("k"), ""))
+		if f := badField(c.call("session.keys", p)); f != "keys" {
+			t.Fatalf("%v: field %q", p, f)
+		}
+	}
+	if f := badField(c.call("session.type", map[string]any{"agent": "ann", "text": "a\x1b[A", "request_id": rid("y2")})); f != "text" {
+		t.Fatalf("Esc is a key, not text: field %q", f)
+	}
+}
+
+func TestSessionInputTypesAtAComposerAndIsRefusedAtAShellADialogTheWallAndByAnotherHolder(t *testing.T) {
+	r, h, c := typingRig(t)
+	call := func(n string) map[string]any {
+		return c.call("session.input", map[string]any{"agent": "ann", "text": "hello", "request_id": rid(n)})
+	}
+	h.rows = []string{"user@host ~ $"} // no composer box: not a session screen, so a line would answer nothing it can see
+	if g := refused(call("i1")); g != "screen_blocker" {
+		t.Fatalf("a shell: gate %q", g)
+	}
+	h.rows = []string{"Do you want to proceed?", "Enter to confirm · Esc to cancel"}
+	if g := refused(call("i2")); g != "screen_blocker" {
+		t.Fatalf("a dialog: gate %q", g)
+	}
+	r.e.Wall = func(string) string { return "ann is at its usage limit" }
+	if g := refused(call("i3")); g != "wall" {
+		t.Fatalf("the wall: gate %q", g)
+	}
+	r.e.Wall = nil
+	h.rows = []string{"", "────────────────────────────────", "❯ ", "────────────────────────────────", "  ? for shortcuts"}
+	if got := call("i5"); got["error"] != nil || strings.Join(h.sent, "|") != "hello<enter>" {
+		t.Fatalf("a session at its composer is typed at: %v %q", got, h.sent)
+	}
+	h.sent = nil
+	r.e.Holds.Take("ann", "person", "sam")
+	if g := refused(call("i4")); g != "input_holder" {
+		t.Fatalf("another holds it: gate %q", g)
+	}
+	if len(h.sent) != 0 {
+		t.Fatalf("nothing was typed: %q", h.sent)
+	}
+}
+
+// ended is hooks that saw the session end: they know nothing else.
+type ended struct{}
+
+func (ended) WaitIdle(string, time.Duration) (bool, bool) { return false, false }
+func (ended) Background(string) (string, bool)            { return "", false }
+func (ended) Settled(string) bool                         { return false }
+func (ended) Session(string) (bool, bool)                 { return false, true }
+
+func TestSessionInputTypesNothingWhereTheHooksSawTheSessionEnd(t *testing.T) {
+	rg, h, c := typingRig(t)
+	rg.e.Term.Turns = ended{}
+	h.rows = []string{"", "────────────────────────────────", "❯ ", "────────────────────────────────", "  ? for shortcuts"}
+	r := c.call("session.input", map[string]any{"agent": "ann", "text": "hello", "request_id": rid("e1")})
+	if g := refused(r); g != "state" || len(h.sent) != 0 {
+		t.Fatalf("a composer still drawn: gate %q, sent %q", g, h.sent)
+	}
+}
+
+func TestATypingCallWhileTheTickHoldsTheTerminalLockIsRefusedAtOnce(t *testing.T) {
+	r, h, c := typingRig(t)
+	busy := lock.TakeTerminal(r.e.Home, "ann")
+	defer busy.Release()
+	if g := refused(c.call("session.type", map[string]any{"agent": "ann", "text": "x", "request_id": rid("l1")})); g != "terminal_lock" {
+		t.Fatalf("gate %q", g)
+	}
+	if len(h.sent) != 0 {
+		t.Fatalf("sent %q", h.sent)
+	}
+}
+
+func TestInterruptPressesEscOnATerminalAgentsPaneBehindTheTypingGates(t *testing.T) {
+	r, h, c := typingRig(t)
+	r.e.InterruptTerminal = r.e.PressEsc
+	c = r.dial(false)                                                                        // the method is registered on a dial that has the port
+	result(t, c.call("input.take", map[string]any{"agent": "ann", "request_id": rid("t1")})) // the caller's own hold lets it through
+	got := result(t, c.call("session.interrupt", map[string]any{"agent": "ann", "request_id": rid("i1")}))
+	if got["said"] != "ann: interrupted" || strings.Join(h.sent, "|") != term.Escape {
+		t.Fatalf("%v sent %q", got, h.sent)
+	}
+	r.e.DB.Exec("UPDATE input_holders SET name = 'sam'")
+	if g := refused(c.call("session.interrupt", map[string]any{"agent": "ann", "request_id": rid("i2")})); g != "input_holder" {
+		t.Fatalf("someone else holds its input: %q", g)
+	}
+	r.e.DB.Exec("DELETE FROM input_holders")
+	hold := lock.TakeTerminal(r.e.Home, "ann") // someone is typing at it this moment
+	if g := refused(c.call("session.interrupt", map[string]any{"agent": "ann", "request_id": rid("i3")})); g != "terminal_lock" {
+		t.Fatalf("an Esc into the middle of something being typed: %q", g)
+	}
+	hold.Release()
+	r.e.DB.Exec("UPDATE agent_state SET terminal = '' WHERE agent = 'ann'")
+	if g := refused(c.call("session.interrupt", map[string]any{"agent": "ann", "request_id": rid("i4")})); g != "state" {
+		t.Fatalf("no terminal: %q", g)
+	}
+}
+
+// ender is a turns tracker that says mark and keeps what it was asked to close.
+type ender struct {
+	mark   int
+	closed []int
+}
+
+func (e *ender) TurnMark(string) int                  { return e.mark }
+func (e *ender) InterruptTurn(agent string, mark int) { e.closed = append(e.closed, mark) }
+
+// An Esc before the first reply writes no interrupt entry, so the screen is the witness: the turn the Esc was pressed on is closed when
+// its status row is gone, and left alone when the row stays (a queued message the Esc sent starts the next turn), when the screen
+// cannot be read, when no driver reads it, or when it is gone for single frames only.
+func TestInterruptEndsTheTurnWhenTheScreenNoLongerShowsIt(t *testing.T) {
+	settle, probe := escSettle, escProbe
+	escSettle, escProbe = 300*time.Millisecond, 10*time.Millisecond
+	t.Cleanup(func() { escSettle, escProbe = settle, probe })
+	running := []string{"> ", "  auto mode on (shift+tab to cycle) · esc to interrupt"}
+	idle := []string{"> the prompt it took back", "  auto mode on (shift+tab to cycle)"}
+	for _, c := range []struct {
+		name   string
+		frames [][]string
+		after  []string
+		blind  bool
+		closed string
+	}{{"gone", nil, idle, false, "[7]"}, {"stays", nil, running, false, "[]"}, {"single frames without the row", [][]string{idle, running, idle}, running, false, "[]"},
+		{"unreadable", nil, nil, false, "[]"}, {"no driver", nil, idle, true, "[]"}} {
+		r, h, _ := typingRig(t)
+		h.rows, h.afterEsc, h.frames = running, c.after, c.frames
+		if c.after == nil {
+			h.afterEsc, h.unreadable = []string{}, true
+		}
+		if c.blind {
+			r.e.Term = term.New(h, func(string) term.Driver { return nil })
+		}
+		turns := &ender{mark: 7}
+		r.e.Turns = turns
+		r.e.InterruptTerminal = r.e.PressEsc
+		result(t, r.dial(false).call("session.interrupt", map[string]any{"agent": "ann", "request_id": rid("e1")}))
+		if got := fmt.Sprint(turns.closed); got != c.closed {
+			t.Fatalf("%s: closed turns %q, want %q", c.name, got, c.closed)
+		}
+	}
+}

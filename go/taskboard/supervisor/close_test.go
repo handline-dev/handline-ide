@@ -1,0 +1,242 @@
+package supervisor
+
+import (
+	"strings"
+	"testing"
+
+	"github.com/handline/handline/go/data/db"
+)
+
+func TestWithdrawTakesBackAnUndeliveredRequestOnlyForItsRequester(t *testing.T) {
+	r := newRig(t)
+	rid := r.ask("alice", "bob", "oops", "ask")
+	after := &After{}
+	if ok, msg, _ := r.WithdrawWrite(r.DB, after, rid, "bob", "", nil); ok || !strings.Contains(msg, "not yours to withdraw") {
+		t.Fatalf("%v %s", ok, msg)
+	}
+	ok, msg, err := r.WithdrawWrite(r.DB, after, rid, "alice", "wrong target", nil)
+	r.must(err)
+	if !ok || r.ids(msg) != "request #1 to bob withdrawn" {
+		t.Fatalf("%v %s", ok, msg)
+	}
+	row, _ := db.GetRequest(r.DB, rid)
+	if row.State != "withdrawn" || row.Reason.String != "withdrawn: wrong target" {
+		t.Fatalf("%+v", row)
+	}
+	if ok, msg, _ := r.WithdrawWrite(r.DB, after, rid, "alice", "", nil); ok || !strings.Contains(msg, "already withdrawn") {
+		t.Fatalf("%s", msg)
+	}
+	// once delivered it is too late
+	rid2 := r.ask("alice", "bob", "second", "ask")
+	db.MarkDelivered(r.DB, rid2)
+	ok, msg, _ = r.WithdrawWrite(r.DB, after, rid2, "alice", "", nil)
+	if ok || !strings.Contains(r.ids(msg), "was already delivered to bob - too late to withdraw; tell bob with a message (`hl say bob \"...\" --parent #2`)") {
+		t.Fatalf("%s", msg)
+	}
+}
+
+func TestCancelClosesADeliveredRequestAndTellsItsAgentToStop(t *testing.T) {
+	r := newRig(t)
+	r.agentUp("bob")
+	r.agentUp("alice")
+	rid := r.ask("alice", "bob", "big job", "ask")
+	if got, _ := r.TellNow(r.DB, rid); got != "sent" {
+		t.Fatal(got)
+	}
+	after := &After{}
+	plan, ok, msg, err := r.CancelWrite(r.DB, after, rid, nil, nil)
+	r.must(err)
+	if !ok || plan == nil {
+		t.Fatal(msg)
+	}
+	out, err := r.CancelTell(r.DB, plan)
+	r.must(err)
+	if !strings.HasPrefix(r.ids(out), "#1 to bob cancelled (bob was told to stop)\nrequest #1 -> rejected") {
+		t.Fatalf("%q", out)
+	}
+	if got := r.ids(r.term.last()); got != "#1 from alice was cancelled: withdrawn by the founder. Stop work on it; it is closed and needs no resolve. `hl read #1` shows it." {
+		t.Fatalf("%q", got)
+	}
+	row, _ := db.GetRequest(r.DB, rid)
+	if row.State != "landed" || row.Reason.String != "withdrawn by the founder" {
+		t.Fatalf("%+v", row)
+	}
+	if yes, _ := db.ClosedUnder(r.DB, rid); !yes {
+		t.Fatal("no closed_under event")
+	}
+	if _, ok, msg, _ := r.CancelWrite(r.DB, after, rid, nil, nil); ok || !strings.Contains(msg, "already landed - nothing to cancel") {
+		t.Fatalf("%s", msg)
+	}
+}
+
+func TestCancelOfTheFoundersUndeliveredRequestIsAWithdrawal(t *testing.T) {
+	r := newRig(t)
+	rid := r.ask("human", "bob", "do x", "")
+	after := &After{}
+	plan, ok, msg, err := r.CancelWrite(r.DB, after, rid, nil, nil)
+	r.must(err)
+	if !ok || plan != nil || r.ids(msg) != "request #1 to bob withdrawn" {
+		t.Fatalf("%v %v %q", ok, plan, msg)
+	}
+}
+
+// A link only allows a message: the founder's request carries no response kind, and its close wakes nobody.
+func TestTheFoundersRequestCarriesNoResponseAndItsCloseWakesNobody(t *testing.T) {
+	r := newRig(t)
+	rid := r.ask("human", "bob", "do x", "")
+	var unset bool
+	r.DB.QueryRow("SELECT relation IS NULL AND response IS NULL AND settles IS NULL FROM requests WHERE id = ?", rid).Scan(&unset)
+	if !unset {
+		t.Fatal("relation, response and settles are written NULL")
+	}
+	if ok, msg, err := r.Resolve(r.DB, ResolveIn{RID: rid, Verdict: "done"}); err != nil || !ok {
+		t.Fatalf("%v %q %v", ok, msg, err)
+	}
+	if len(r.eval.calls) != 0 {
+		t.Fatalf("%v", r.eval.calls)
+	}
+}
+
+func TestCancelGuardRefusesInsideTheTransaction(t *testing.T) {
+	r := newRig(t)
+	rid := r.ask("alice", "bob", "job", "ask")
+	db.MarkDelivered(r.DB, rid)
+	_, ok, msg, _ := r.CancelWrite(r.DB, &After{}, rid, nil, func(db.Q, *db.Request) string { return "it landed meanwhile" })
+	if ok || msg != "it landed meanwhile" {
+		t.Fatalf("%v %q", ok, msg)
+	}
+	if row, _ := db.GetRequest(r.DB, rid); row.State != "queued" {
+		t.Fatal("closed despite the guard")
+	}
+}
+
+// Nothing waits on an answer any more, so a resolve wakes nobody: work that needs an answer is a task, whose done tells its opener.
+func TestResolveRefusesToOverwriteAnAnswerAndWakesNobody(t *testing.T) {
+	r := newRig(t)
+	rid := r.ask("alice", "bob", "q", "ask")
+	ok, msg, err := r.Resolve(r.DB, ResolveIn{RID: rid, Verdict: "yes"})
+	r.must(err)
+	if !ok || !strings.HasPrefix(r.ids(msg), "request #1 -> done") {
+		t.Fatalf("%v %q", ok, msg)
+	}
+	if len(r.eval.calls) != 0 {
+		t.Fatalf("%v", r.eval.calls)
+	}
+	if ok, msg, _ := r.Resolve(r.DB, ResolveIn{RID: rid, Verdict: "no"}); ok || r.ids(msg) != "#1 is already landed - nothing to resolve" {
+		t.Fatalf("%v %q", ok, msg)
+	}
+	if ok, msg, _ := r.Resolve(r.DB, ResolveIn{RID: 99}); ok || msg != "request 99 does not exist" {
+		t.Fatal(msg)
+	}
+	// not while the asker still has another async ask out
+	a := r.ask("alice", "bob", "q1", "ask")
+	r.ask("alice", "bob", "q2", "ask")
+	r.eval.calls = nil
+	r.Resolve(r.DB, ResolveIn{RID: a, Verdict: "ok"})
+	if len(r.eval.calls) != 0 {
+		t.Fatalf("the asker is queued with another ask outstanding: %v", r.eval.calls)
+	}
+}
+
+func TestResolveOpensTasksInTheSameWriteAndNamesThem(t *testing.T) {
+	r := newRig(t)
+	rid := r.ask("alice", "bob", "plan?", "ask")
+	tx, err := r.DB.Begin()
+	r.must(err)
+	res, ok, msg, err := r.ResolveWrite(tx, ResolveIn{RID: rid, Verdict: "do it",
+		OpenTasks: func(q db.Q) ([]int64, error) {
+			a, _ := db.NewTask(q, "step", "bob", "bob", 0, db.DefaultPriority, "", 0, "")
+			return []int64{a}, nil
+		}})
+	r.must(err)
+	if !ok {
+		t.Fatal(msg)
+	}
+	r.must(tx.Commit())
+	if res.Verdict != "do it\n\nOpened as task(s): T1" {
+		t.Fatalf("%q", res.Verdict)
+	}
+	if row, _ := db.GetRequest(r.DB, rid); row.Reason.String != res.Verdict {
+		t.Fatalf("%q", row.Reason.String)
+	}
+}
+
+func TestResolveRefusedLeavesNothingWhenItLostTheRace(t *testing.T) {
+	r := newRig(t)
+	rid := r.ask("alice", "bob", "q", "ask")
+	db.CloseIfQueued(r.DB, rid, "done", "first")
+	tx, _ := r.DB.Begin()
+	defer tx.Rollback()
+	_, ok, msg, _ := r.ResolveWrite(tx, ResolveIn{RID: rid, Verdict: "second"})
+	if ok || r.ids(msg) != "#1 is already landed - nothing to resolve" {
+		t.Fatalf("%v %q", ok, msg)
+	}
+	if row, _ := db.GetRequest(tx, rid); row.Reason.String != "first" {
+		t.Fatalf("the first close's reason stands: %+v", row)
+	}
+}
+
+func TestRetireWriteClosesAHeldRequestAndLeavesItsDecisionTaskOpen(t *testing.T) {
+	r := newRig(t)
+	r.agentUp("alice")
+	card := r.ask("alice", "human", "decide", "")
+	tid, _ := db.TaskOfCard(r.DB, card)
+	if tid == 0 {
+		t.Fatal("no decision task")
+	}
+	plan, ok, why, err := r.RetireWrite(r.DB, card, "released")
+	r.must(err)
+	if !ok {
+		t.Fatal(why)
+	}
+	if task, _ := db.GetTask(r.DB, tid); task.Ended() {
+		t.Fatal("a release settled the task")
+	}
+	if _, err := r.RetireTell(r.DB, plan); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, why, _ := r.RetireWrite(r.DB, card, "again"); ok || r.ids(why) != "#1 is already withdrawn - nothing to retire" {
+		t.Fatalf("%v %q", ok, why)
+	}
+}
+
+// A name no agent directory backs has no state to queue: the write made `hl ps` list it as an agent.
+func TestResolveQueuesNoStateRowForARequesterThatIsNoAgent(t *testing.T) {
+	r := newRig(t)
+	rid := r.ask("ghost", "bob", "q", "ask")
+	_, _, err := r.Resolve(r.DB, ResolveIn{RID: rid, Verdict: "yes"})
+	r.must(err)
+	if len(r.eval.calls) != 0 {
+		t.Fatalf("a requester no agent has was queued: %v", r.eval.calls)
+	}
+}
+
+// 10-20 00:45: asked for its handoff note, an agent is told nothing more; what arrives waits for the session that follows.
+func TestNothingIsTypedAtASessionWritingItsHandoffNote(t *testing.T) {
+	r := newRig(t)
+	r.agentUp("bob")
+	r.must(db.MarkNoteWait(r.DB, "bob", "context", r.now()))
+	rid := r.ask("alice", "bob", "a new ask", "ask")
+	if got, _ := r.TellNow(r.DB, rid); !strings.Contains(got, "restarts") {
+		t.Fatalf("told at once: %q", got)
+	}
+	r.task("bob", "alice", "a task")
+	if sent, _ := r.DeliverQueued(r.DB, "bob"); sent {
+		t.Fatal("the queue was told")
+	}
+	if ok, msg, _ := r.SendMessage(r.DB, "bob", "a bare line"); !ok || strings.Contains(msg, "sent") {
+		t.Fatalf("a pending line: %v %q", ok, msg)
+	}
+	if last := r.term.last(); last != "" {
+		t.Fatalf("typed: %q", last)
+	}
+	r.must(db.ClearNoteWait(r.DB, "bob")) // the wait is over: the close went ahead, or it was given up
+	if got, _ := r.TellNow(r.DB, rid); got != "sent" {
+		t.Fatal(got)
+	}
+	// a wait nobody acted on for longer than NoteWaitStaleS holds nothing
+	r.must(db.MarkNoteWait(r.DB, "bob", "context", r.now()-db.NoteWaitStaleS-1))
+	if got, _ := r.TellNow(r.DB, r.ask("alice", "bob", "after a stale wait", "ask")); got != "sent" {
+		t.Fatalf("a stale wait still holds: %q", got)
+	}
+}

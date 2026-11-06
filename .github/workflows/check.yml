@@ -1,0 +1,163 @@
+# The check of a pull request: tools/check.sh's groups as parallel jobs on GitHub's runners (docs/ci-runner.md). A job only sets
+# up and calls `tools/check.sh --group <name>`, so the checks live in one place and local green is CI green; a test
+# (tools/test_pr_checks.py) fails a step that runs anything else. The Go suite runs in shards of packages (tools/go-shard.sh). The Go jobs restore setup-go's module and build cache, keyed by the modules' go.sum.
+name: check
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  merge_group:
+  push:
+    branches: [main] # warms the caches a pull request reads
+
+concurrency:
+  group: check-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  BASE: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before }}
+
+jobs:
+  apps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - name: Plan
+        id: plan
+        run: tools/check.sh --plan "$BASE" >> "$GITHUB_OUTPUT"
+      - if: steps.plan.outputs.apps != 'no'
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - if: steps.plan.outputs.apps != 'no'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - if: steps.plan.outputs.apps != 'no'
+        run: pnpm install --frozen-lockfile
+      - if: steps.plan.outputs.apps != 'no'
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .turbo/cache
+          key: turbo-${{ runner.os }}-${{ github.sha }}
+          restore-keys: turbo-${{ runner.os }}-
+      - run: tools/check.sh --group apps "$BASE"
+
+  daemon:
+    name: daemon (${{ matrix.shard }})
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [compose, cli, daemon, terminal, agentctl, kit, protocol, data, accounts, taskboard, scheduler, other]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - name: Plan
+        id: plan
+        run: tools/check.sh --plan "$BASE" >> "$GITHUB_OUTPUT"
+      - if: steps.plan.outputs.kind == 'go'
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/**/go.sum
+      - if: steps.plan.outputs.kind == 'go'
+        timeout-minutes: 6 # a hung package mirror fails here, not at the job's 30 minutes
+        run: tools/ci-tmux.sh # the terminal tests drive a real tmux; git and python3 are on the image
+      - if: steps.plan.outputs.kind == 'go'
+        run: tools/check.sh --group go --shard ${{ matrix.shard }} "$BASE"
+
+  # The fakes build (-tags fakes) with the tick on: a job of its own, so it runs beside the gates, not after them.
+  contract-fakes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - name: Plan
+        id: plan
+        run: tools/check.sh --plan "$BASE" >> "$GITHUB_OUTPUT"
+      - if: steps.plan.outputs.kind == 'go'
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/**/go.sum
+      - if: steps.plan.outputs.kind == 'go'
+        timeout-minutes: 6 # a hung package mirror fails here, not at the job's 30 minutes
+        run: tools/ci-tmux.sh # the terminal tests drive a real tmux; git and python3 are on the image
+      - if: steps.plan.outputs.kind == 'go'
+        run: tools/check.sh --group fakes "$BASE"
+
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - name: Plan
+        id: plan
+        run: tools/check.sh --plan "$BASE" >> "$GITHUB_OUTPUT"
+      - if: steps.plan.outputs.kind == 'go'
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/**/go.sum
+      - if: steps.plan.outputs.kind == 'go'
+        timeout-minutes: 6 # a hung package mirror fails here, not at the job's 30 minutes
+        run: tools/ci-tmux.sh # the terminal tests drive a real tmux; git and python3 are on the image
+      - if: steps.plan.outputs.kind == 'go'
+        run: tools/check.sh --group contract "$BASE"
+
+  # What a reviewer would otherwise catch by hand in the files the change adds or edits, and Prettier on those it formats.
+  files:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - if: true
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - if: true
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - if: true
+        run: pnpm install --frozen-lockfile
+      - run: tools/check.sh --group files "$BASE"
+
+  # The commits of the change hold no secret.
+  secrets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - run: tools/check.sh --group secrets "$BASE"
+
+  # The required check on main: green only when every shard and both contract jobs passed.
+  go:
+    needs: [daemon, contract, contract-fakes]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - run: test "${{ needs.daemon.result }}" = success && test "${{ needs.contract.result }}" = success && test "${{ needs.contract-fakes.result }}" = success
+
+  # The one check an auditor waits for before starting: the apps, the Go suite, the file checks and the secrets scan all passed.
+  pre-audit:
+    needs: [apps, go, files, secrets]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - run: test "${{ needs.apps.result }}" = success && test "${{ needs.go.result }}" = success && test "${{ needs.files.result }}" = success && test "${{ needs.secrets.result }}" = success

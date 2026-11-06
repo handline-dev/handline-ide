@@ -1,0 +1,12 @@
+dist
+.turbo
+node_modules
+.pnpm-store
+pnpm-lock.yaml
+contract/protocol.ts
+contract/gen/
+packages/app-data/src/generated/
+contract/fixtures
+*.py
+go
+tsconfig*.json

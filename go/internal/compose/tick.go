@@ -1,0 +1,789 @@
+package compose
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"os"
+	"sync"
+	"time"
+
+	"github.com/handline/handline/go/accounts/usage"
+	"github.com/handline/handline/go/agentctl/term"
+	"github.com/handline/handline/go/agentctl/verdict"
+	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/states"
+	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/internal/fold"
+	"github.com/handline/handline/go/internal/gates"
+	"github.com/handline/handline/go/internal/housekeeping"
+	"github.com/handline/handline/go/kit/paths"
+	"github.com/handline/handline/go/scheduler/dangling"
+	"github.com/handline/handline/go/scheduler/lifecycle"
+	"github.com/handline/handline/go/scheduler/loadgate"
+	"github.com/handline/handline/go/scheduler/session"
+	"github.com/handline/handline/go/scheduler/settings"
+	"github.com/handline/handline/go/scheduler/tick"
+	"github.com/handline/handline/go/scheduler/worktreelock"
+	"github.com/handline/handline/go/scheduler/worktreepaths"
+	"github.com/handline/handline/go/taskboard/attachments"
+	"github.com/handline/handline/go/taskboard/handoff"
+	"github.com/handline/handline/go/taskboard/supervisor"
+	"github.com/handline/handline/go/taskboard/taskwrites"
+)
+
+// This file builds the policy tick. With TickConfig.Terminals it supervises the terminal agents, reading their sessions from
+// <config dir>/sessions/<pid>.json, and a Python daemon must not tick the same agents then. Folding the day is a
+// model call that stays the Python daemon's.
+
+// Tick is the policy tick and what it needs beside the lifecycle.
+type Tick struct {
+	Tick *tick.Tick
+	Loop *tick.Loop
+
+	dev       *tick.DevMode
+	restarted bool
+	// Startup is loop.py's start, run once before the first tick: reconcile, bring up the agents with work waiting, settle old messages,
+	// and try every pending one.
+	Startup func()
+	// gates opens the gate tasks on its own clock until its stop closes, which Start does when the loop ends.
+	gates *gates.Sweep
+}
+
+// Restarting says the loop ended because the executable changed and started clean: the caller releases the lock and the database, then
+// calls Restart.
+func (t *Tick) Restarting() bool { return t.restarted }
+
+// Restart execs the daemon's own executable again; it returns only when that fails.
+func (t *Tick) Restart() error { return t.dev.Restart() }
+
+// TickConfig is what only the daemon main knows beyond Config.
+type TickConfig struct {
+	// Stop ends the loop when closed; Why says what closed it, for the loop's last line.
+	Stop <-chan struct{}
+	Why  func() string
+	// Terminals puts the terminal agents under this tick: it wakes, closes, restarts and hands off their sessions. Their agent_view rows
+	// stay the Python daemon's until the view covers them.
+	Terminals bool
+}
+
+// Tick builds the tick. The lifecycle must be built and the database bound.
+func (p *Parts) Tick(cfg Config, tc TickConfig) *Tick {
+	lc, q, home := p.LC, p.db, cfg.Home
+	env := lc.Env
+	uenv := lc.usage
+	now := func() int64 { return nowOf(cfg.Now)().Unix() }
+	logLine := func(s string) { cfg.Log("%s", s) }
+	tu := tickUsage{p: p, u: uenv, roster: lc.roster}
+	view := p.agentView(cfg, tc.Terminals, tu)
+	wake := make(chan struct{}, 1)
+	if cfg.Turns != nil && tc.Terminals {
+		cfg.Turns.OnChange(view.RefreshOne)
+		cfg.Turns.OnEnd(p.sessionPid, func(string) {
+			select {
+			case wake <- struct{}{}:
+			default:
+			}
+		})
+	}
+	agents := func() []string { return p.tickAgents(tc.Terminals) }
+	reconciler := &lifecycle.Reconciler{Q: q, Log: logLine, Ports: lifecycle.ReconcilerPorts{
+		Agents:     agents,
+		Registered: func() ([]string, error) { return paths.ReadAgents(home) },
+		Observe: func(names []string, terminals map[string]string) map[string]session.Observed {
+			if !tc.Terminals {
+				return map[string]session.Observed{}
+			}
+			return p.observeTerminals(names, terminals)
+		},
+		NoteSeen:      func(map[string]session.Observed, time.Time) {},
+		ResumeHandoff: func(_ db.Q, row db.HandoffRow) error { return lc.Mover.ResumeHandoff(row) },
+		EnforceEdges:  func(q db.Q, agent string) error { _, err := env.EnforceEdges(q, agent); return err },
+		WaitingFor:    func(q db.Q, agent string) (bool, error) { return lc.Manager.WaitingFor(agent) },
+		WakeAgent: func(q db.Q, agent string) (bool, string, error) {
+			return lc.Manager.WakeAgent(agent, lifecycle.WakeOpts{})
+		},
+		QueuedOrIdle:     func(q db.Q, agent, why string) (string, error) { return tick.QueuedOrIdle(q, agent, why) },
+		RefreshView:      func(_ db.Q, agent string) { view.RefreshOne(agent) },
+		LiftLogin:        liftLogin(team.Accounts{Home: home}),
+		StillDrawn:       func(string) bool { return false },
+		ResumableSession: func(q db.Q, agent string) string { return p.resumableSession(q, agent, tu) },
+		Resolve: func(id int64, why string) error {
+			_, _, err := env.Resolve(q, supervisor.ResolveIn{RID: id, Verdict: why})
+			return err
+		},
+		Term: reconcileTerm{p: p, on: tc.Terminals},
+		Now:  now,
+	}}
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		<-tc.Stop
+		cancel()
+	}()
+	poller := newPoller(ctx, cfg, uenv, q)
+	pollUsage := func(db.Q) error { poller.Tick(ctx); return nil }
+	t := &tick.Tick{Q: q, Log: logLine, Now: now,
+		Host:      tickHost{p: p, terminals: tc.Terminals},
+		Usage:     tu,
+		Delivery:  tickDelivery{env: env},
+		Messaging: tickMessaging{env: env},
+		Lifecycle: tickLifecycle{m: lc.Manager, gate: lc.Gate},
+		Handoff:   tickHandoff{ho: lc.Handoff, mv: lc.Mover},
+		Login:     loginPorts(team.Accounts{Home: home}, uenv.EndedWhy, founderAsker{env}),
+		Reconcile: tickReconciler{r: reconciler},
+		Sweeps: tick.Sweeps{
+			BlockedSweep:    func(db.Q, int64) {},            // dialogs on a screen: this tick reads none
+			CollectSnapshot: func(db.Q) error { return nil }, // no screen is read
+			PollUsage:       pollUsage,
+			RelinkAccounts:  func() (map[string][]string, error) { return team.RelinkAll(home, logLine), nil },
+			Rollover:        (&fold.Env{Home: home, Today: today(cfg)}).Rollover,
+			Today:           today(cfg),
+		},
+		Cost:    &tick.CostPilot{Ports: costPorts{}},
+		Observe: tickObserve{u: uenv, home: home, now: nowOf(cfg.Now), out: newLoginMemo(home)},
+		Config:  tickConfig{roster: lc.roster, set: lc.Manager.Settings},
+	}
+	t.Passes = append(p.passes(cfg, t), agentViewPass(view))
+	if tc.Terminals {
+		strays := &dangling.Sweep{Q: q, Home: home, Ports: danglingPorts{p: p}, Log: cfg.Log}
+		t.Passes = append(t.Passes, tick.NamedSweep{Name: "dangling-terminals", Run: func(_ db.Q, now int64) error { return strays.Run(now) }})
+	}
+	dev := &tick.DevMode{Enabled: func() bool { return lc.Manager.Settings.Flag("dev_mode", false) }, Log: logLine, Now: nowOf(cfg.Now)}
+	dev.Exe, _ = os.Executable()
+	dev.Baseline()
+	fds := &housekeeping.FDs{Log: logLine}
+	loop := &tick.Loop{Tick: t, Log: logLine, Stop: tc.Stop, Why: tc.Why, Dev: dev, Wake: wake, Housekeeping: []tick.NamedSweep{
+		{Name: "fd check", Run: func(db.Q, int64) error { fds.Check(); return nil }},
+		{Name: "log rotation", Run: func(db.Q, int64) error { return housekeeping.RotateLogs(home) }},
+		{Name: "attachment sweep", Run: func(q db.Q, _ int64) error { return attachments.New(home).Sweep(q) }},
+		{Name: "handoff archive", Run: func(_ db.Q, now int64) error { return handoff.SweepArchive(home, time.Unix(now, 0)) }},
+		{Name: "worktree locks", Run: func(q db.Q, _ int64) error { return releaseWorktreeLocks(q, home) }},
+		{Name: "unanswered founder messages", Run: (&housekeeping.Unanswered{Lead: leadCheck(home), Log: logLine,
+			Notice: func(q db.Q, to, text, reason string) error { _, err := env.Notice(q, to, text, reason); return err }}).Check},
+		{Name: "disk watch", Run: (&housekeeping.DiskWatch{Home: home, Log: logLine, Free: cfg.DiskFree,
+			Floor: func() int64 { return diskWarnFloor(loadgate.LimitsOf(usage.LoadConfig(home)).DiskFreeGB) }}).Check},
+		{Name: "worktree sizes", Run: (&housekeeping.WorktreeSizes{Log: logLine}).Check},
+		{Name: "orphans", Run: (&housekeeping.Orphans{Log: logLine, Scratch: paths.ScratchRoot(),
+			Mode: func() string { return housekeeping.OrphansModeOf(usage.LoadConfig(home)) }}).Check},
+	}, Signalled: func() bool {
+		select {
+		case <-tc.Stop:
+			return true
+		default:
+			return false
+		}
+	}}
+	startup := func() {
+		runStartup(logLine, startPorts{Reconcile: reconciler.Reconcile, StartWaiting: t.StartWaiting,
+			Migrate: func() error { return migrateAtStart(q, home, env, logLine) },
+			Reload:  func() error { return env.ReloadPending(q) }})
+	}
+	return &Tick{Tick: t, Loop: loop, dev: dev, Startup: startup, gates: &gates.Sweep{DB: q, Home: home, Tell: env, Log: cfg.Log}}
+}
+
+// migrateAtStart makes the one-time moves a daemon start makes on the board.
+func migrateAtStart(q *sql.DB, home string, env *supervisor.Env, logLine func(string)) error {
+	moved, err := taskwrites.EndReviews(q, home, env)
+	for _, m := range moved {
+		logLine("  " + m)
+	}
+	back, backErr := taskwrites.ReturnFounderTasks(q, home, env)
+	for _, m := range back {
+		logLine("  " + m)
+	}
+	return errors.Join(err, backErr, taskwrites.SetSeenFloor(q), env.MigrateOldMessages(q))
+}
+
+// leadCheck is whether an agent answers to no one in the team as it stands now.
+func leadCheck(home string) func(string) bool {
+	return func(agent string) bool {
+		tm, err := team.LoadTeam(home)
+		return err == nil && tm.LeadOf(agent) == ""
+	}
+}
+
+// startPorts are the steps of the daemon's start.
+type startPorts struct {
+	Reconcile    func() ([]string, error)
+	StartWaiting func() []string
+	Migrate      func() error
+	Reload       func() error
+}
+
+// runStartup is loop.py's start, in its order: reconcile; settle what could not be typed before the restart (an old say, a request told but
+// never marked typed) so that it goes first, to agents already free; start the agents with work waiting and no session; retry every pending
+// message. A reconcile that fails ends the start: starting agents on state it did not settle would act on a wrong picture.
+func runStartup(log func(string), s startPorts) {
+	log("daemon starting - reconciling")
+	actions, err := s.Reconcile()
+	for _, a := range actions {
+		log("  " + a)
+	}
+	if err != nil {
+		log(fmt.Sprintf("  reconcile: %v - the rest of the start is skipped", err))
+		return
+	}
+	if err := s.Migrate(); err != nil {
+		log(fmt.Sprintf("  migrate: %v", err))
+	}
+	for _, a := range s.StartWaiting() {
+		log("  " + a)
+	}
+	if err := s.Reload(); err != nil {
+		log(fmt.Sprintf("  reload pending: %v", err))
+	}
+}
+
+// Start runs the loop until Stop closes and returns a channel that closes when the tick in hand has finished. The daemon closes the
+// database only after that: a close or a wake cut off by the process ending leaves a half write.
+func (t *Tick) Start() (done <-chan struct{}) {
+	d := make(chan struct{})
+	gatesStop, gatesDone := make(chan struct{}), make(chan struct{})
+	go func() {
+		defer close(gatesDone)
+		if t.gates != nil {
+			t.gates.Run(gatesStop)
+		}
+	}()
+	go func() {
+		defer close(d)
+		if t.Startup != nil {
+			t.Startup()
+		}
+		t.restarted = t.Loop.Run()
+		close(gatesStop) // the loop ended (a stop or a restart): the gate pass stops too, and done waits for it
+		<-gatesDone
+	}()
+	return d
+}
+
+// today is fold.today: the date on the daemon's clock, which names the day's digest.
+func today(cfg Config) func() string {
+	return func() string { return nowOf(cfg.Now)().Format("2006-01-02") }
+}
+
+// tickAgents is the agents the tick supervises: every one when terminals is set, else none.
+func (p *Parts) tickAgents(terminals bool) []string {
+	if !terminals {
+		return nil
+	}
+	return paths.ListAgents(p.home)
+}
+
+// reconcileTerm is what the reconciler asks of a terminal. It reads no screen: a stalled agent's trust prompt and dialog count as gone,
+// and a session is idle when its own file says so.
+type reconcileTerm struct {
+	p  *Parts
+	on bool
+}
+
+func (t reconcileTerm) Available() bool {
+	return t.on && t.p.LC != nil && t.p.LC.term.Backend.Available()
+}
+func (reconcileTerm) TrustPromptGone(string) bool        { return true }
+func (reconcileTerm) ScreenBlocker(string) *term.Blocker { return nil }
+func (t reconcileTerm) IdleNow(handle string) bool {
+	agent := t.p.agentAt(handle)
+	return agent != "" && t.p.sessionStatus(agent) == "idle"
+}
+
+// tickHost is tick.Host over the terminal agents' sessions, with terminals.
+type tickHost struct {
+	p         *Parts
+	terminals bool
+}
+
+func (h tickHost) Agents() []string   { return h.p.tickAgents(h.terminals) }
+func (h tickHost) Accounts() []string { return paths.ListAccounts(h.p.home) }
+
+func (h tickHost) SessionAlive(agent string) bool {
+	return h.terminals && h.p.sessionStatus(agent) != ""
+}
+
+// SessionIdle: the session file says idle (a restart must not cut a turn short).
+func (h tickHost) SessionIdle(agent string) bool {
+	return h.terminals && verdict.SafeToMove(verdict.AgentState(verdict.Input{Status: h.p.sessionStatus(agent)}))
+}
+
+// RunningAccount is the account the terminal session runs under; "" when unknown, which never contradicts the recorded account.
+func (h tickHost) RunningAccount(agent string) string {
+	if p := h.p; h.terminals && p.LC != nil {
+		if _, acct, found := p.terminalSession(agent, p.LC.term.LiveTerminals()); found == sessionFound {
+			return acct
+		}
+	}
+	return ""
+}
+
+// resumableSession is the session id to remember for a closed agent: the one its statusline or session file gave, else the one stored.
+func (p *Parts) resumableSession(q db.Q, agent string, tu tickUsage) string {
+	acct, _ := team.CurrentAccount(q, agent)
+	if sid := tu.ReadForAgent(agent, acct).SessionID; sid != "" {
+		return sid
+	}
+	if row, err := db.GetAgentState(q, agent); err == nil && row != nil {
+		return row.ResumeSession.String
+	}
+	return ""
+}
+
+// sessionStatus is what the agent's terminal session says of itself, "" when none runs. A session in the file with no status reads "unknown".
+func (p *Parts) sessionStatus(agent string) string {
+	if p.LC == nil {
+		return ""
+	}
+	rec, _, found := p.terminalSession(agent, p.LC.term.LiveTerminals())
+	switch {
+	case found == sessionNone:
+		return ""
+	case found == sessionUnknown || rec.Status == "":
+		return "unknown" // a process runs, and what it says of itself cannot be read: alive, not idle
+	}
+	return rec.Status
+}
+
+// agentAt is the terminal agent whose terminal is handle.
+func (p *Parts) agentAt(handle string) string {
+	for _, a := range paths.ListAgents(p.home) {
+		if row, err := db.GetAgentState(p.db, a); err == nil && row != nil && row.Terminal.String == handle {
+			return a
+		}
+	}
+	return ""
+}
+
+// observeTerminals is session/observe for the terminal agents: whether each one's terminal is listed and which session runs in it.
+func (p *Parts) observeTerminals(names []string, terminals map[string]string) map[string]session.Observed {
+	out := map[string]session.Observed{}
+	if p.LC == nil {
+		return out
+	}
+	live := p.LC.term.LiveTerminals() // nil: the host could not say, which is not "gone"
+	for _, a := range names {
+		if terminals[a] == "" || live == nil {
+			continue
+		}
+		alive := live[terminals[a]]
+		o := session.Observed{TerminalAlive: &alive, SessionSeen: true}
+		switch rec, _, found := p.terminalSession(a, live); found {
+		case sessionFound:
+			pid := rec.Pid
+			o.SessionPID = &pid
+		case sessionUnknown:
+			o.SessionSeen = false // could not look: not "no session"
+		}
+		out[a] = o
+	}
+	return out
+}
+
+// tickUsage is tick.Usage over the usage package.
+type tickUsage struct {
+	p      *Parts
+	u      *usage.Env
+	roster *team.Roster
+}
+
+func statusOf(st *usage.AccountStatus) tick.Status {
+	out := tick.Status{ModelID: st.ModelID, SessionID: st.SessionID, TranscriptPath: st.Transcript,
+		ShortTrusted: st.ShortTrusted(), LongTrusted: st.LongTrusted()}
+	if used := st.TrustedCtxUsed(); used != nil {
+		n := int(*used)
+		out.TrustedCtxUsed = &n
+	}
+	return out
+}
+
+func (t tickUsage) AccountReading(q db.Q, agent string) (tick.AccountReading, bool) {
+	r, ok, err := team.ReadAccount(t.p.db, agent, func() string { return t.u.ReportedAccount(agent) })
+	if err != nil || !ok {
+		return tick.AccountReading{}, false
+	}
+	return tick.AccountReading{Account: r.Account, Source: r.Source}, true
+}
+
+func (t tickUsage) ReadForAgent(agent, acct string) tick.Status {
+	st := statusOf(t.u.ReadForAgent(agent, acct))
+	if acct == "" || t.p.LC == nil {
+		return st
+	}
+	t.fillFromSession(agent, acct, &st)
+	return st
+}
+
+// fillFromSession completes a terminal agent's reading from its session file and transcript where the statusline gave none: the session
+// id, and the context the newest reply says the window holds.
+func (t tickUsage) fillFromSession(agent, acct string, st *tick.Status) {
+	if st.SessionID == "" {
+		if rec, _, found := t.p.terminalSession(agent, t.p.LC.term.LiveTerminals()); found == sessionFound {
+			st.SessionID = rec.SessionID
+		}
+	}
+	if st.SessionID == "" || st.TrustedCtxUsed != nil {
+		return
+	}
+	if st.TranscriptPath == "" {
+		st.TranscriptPath = t.p.LC.Handoff.FindTranscript(st.SessionID, acct)
+	}
+	if used, model, ok := lastContext(st.TranscriptPath); ok {
+		n := int(used)
+		st.TrustedCtxUsed, st.ModelID = &n, model
+	}
+}
+
+// ContextLimit is status.effective_context_limit: the agent's own figure, held to a share of the model's window when the window is known.
+func (t tickUsage) ContextLimit(agent, modelID string) int {
+	cfg, _ := t.roster.Read(agent)
+	limit := int(team.ContextTokensOf(cfg))
+	if size := usage.ContextWindow(modelID); size > 0 {
+		limit = min(limit, int(float64(size)*tick.ContextClampFraction))
+	}
+	return limit
+}
+
+// limitAt is when the limit the agent's last turn ended on was hit, ok false when it did not end on one.
+func (t tickUsage) limitAt(q db.Q, agent string) (int64, bool) {
+	at, err := handoff.AtLimit(q, agent)
+	if err != nil || at == nil {
+		return 0, false
+	}
+	switch v := at["at"].(type) {
+	case int64:
+		return v, true
+	case float64:
+		return int64(v), true
+	}
+	return 0, false
+}
+
+func (t tickUsage) AtLimit(q db.Q, agent string) *tick.Limit {
+	at, err := handoff.AtLimit(q, agent)
+	if err != nil || at == nil {
+		return nil
+	}
+	text, _ := at["text"].(string)
+	source, _ := at["source"].(string)
+	return &tick.Limit{Text: text, Source: source}
+}
+
+func (t tickUsage) Settle(q db.Q, agent string) { t.u.SettleColdStart(q, agent) }
+
+// tickDelivery is tick.Delivery over the supervisor's delivery; a call that fails says nothing, as Python's does.
+type tickDelivery struct{ env *supervisor.Env }
+
+func (d tickDelivery) EnforceEdges(q db.Q, agent string) error {
+	_, err := d.env.EnforceEdges(q, agent)
+	return err
+}
+func (d tickDelivery) NoteFailure(agent, why string) { d.env.NoteFailure(agent, why) }
+func (d tickDelivery) TrackBackgroundWork(q db.Q, agent string, row *db.AgentState) {
+	d.env.TrackBackgroundWork(q, agent, row)
+}
+func (d tickDelivery) DeliverQueued(q db.Q, agent string) bool {
+	sent, _ := d.env.DeliverQueued(q, agent)
+	return sent
+}
+func (d tickDelivery) NudgeForgottenResolve(q db.Q, agent string, row *db.AgentState, now int64) {
+	d.env.NudgeForgottenResolve(q, agent, row, now)
+}
+func (d tickDelivery) SessionPresent(agent string) bool {
+	ok, _ := d.env.SessionPresent(agent)
+	return ok
+}
+func (d tickDelivery) HasBackgroundWork(q db.Q, agent string) bool {
+	ok, _ := d.env.HasBackgroundWork(q, agent)
+	return ok
+}
+func (d tickDelivery) IdleSince(q db.Q, agent string) (int64, bool) {
+	at, ok, _ := d.env.IdleSince(q, agent)
+	return at, ok
+}
+
+// tickMessaging is tick.Messaging over the supervisor's landing and messaging.
+type tickMessaging struct{ env *supervisor.Env }
+
+func (m tickMessaging) LandingSweep(q db.Q, agent string)    { m.env.LandingSweep(q, agent) }
+func (m tickMessaging) TellUndelivered(q db.Q, agent string) { m.env.TellUndelivered(q, agent) }
+func (m tickMessaging) DeliverPending(q db.Q, agent string)  { m.env.DeliverPending(q, agent) }
+
+// tickLifecycle is tick.Lifecycle over the lifecycle manager.
+type tickLifecycle struct {
+	m    *lifecycle.Manager
+	gate *loadgate.Gate
+}
+
+func (l tickLifecycle) ForgetLoadHold(agent string) { l.gate.Forget(agent) }
+
+func sessionOf(st tick.Status) lifecycle.SessionStatus {
+	return lifecycle.SessionStatus{SessionID: st.SessionID}
+}
+
+func (l tickLifecycle) WaitingFor(_ db.Q, agent string) bool {
+	ok, _ := l.m.WaitingFor(agent)
+	return ok
+}
+func (l tickLifecycle) ResumableWithoutTerminal(row *db.AgentState) bool {
+	return l.m.ResumableWithoutTerminal(row)
+}
+func (l tickLifecycle) WakeAgent(_ db.Q, agent string) (bool, string) {
+	ok, said, err := l.m.WakeAgent(agent, lifecycle.WakeOpts{})
+	if err != nil {
+		return false, err.Error()
+	}
+	return ok, said
+}
+func (l tickLifecycle) StartOrWakeNeeded(_ db.Q, agent string, row *db.AgentState) *tick.Need {
+	kind, what, err := l.m.StartOrWakeNeeded(agent, row)
+	if err != nil || kind == "" {
+		return nil
+	}
+	return &tick.Need{Kind: kind, What: what}
+}
+func (l tickLifecycle) StartForWork(_ db.Q, agent string) string {
+	said, err := l.m.StartForWork(agent)
+	if err != nil {
+		return agent + ": could not start for work: " + err.Error()
+	}
+	return said
+}
+func (l tickLifecycle) ColdBeforeSend(_ db.Q, agent string, row *db.AgentState, now int64, st tick.Status) *bool {
+	tried, closed, err := l.m.ColdBeforeTyping(agent, row, now, sessionOf(st))
+	if err != nil || !tried {
+		return nil
+	}
+	return &closed
+}
+func (l tickLifecycle) ShouldClose(_ db.Q, agent, state string, row *db.AgentState, now int64, st tick.Status) bool {
+	yes, _ := l.m.ShouldClose(agent, state, row, now, st.SessionID)
+	return yes
+}
+func (l tickLifecycle) CloseAgent(_ db.Q, agent string, st tick.Status) (bool, string) {
+	ok, said, err := l.m.CloseAgent(agent, sessionOf(st), lifecycle.CloseOpts{Idle: true})
+	if err != nil {
+		return false, err.Error()
+	}
+	return ok, said
+}
+func (l tickLifecycle) CloseFresh(_ db.Q, agent string, st tick.Status) (bool, string) {
+	ok, said, err := l.m.CloseFresh(agent, sessionOf(st), lifecycle.CloseOpts{})
+	if err != nil {
+		return false, err.Error()
+	}
+	return ok, said
+}
+func (l tickLifecycle) RestartAgent(_ db.Q, agent string, st tick.Status, by string, applying []string, cause string) (bool, string) {
+	ok, said, err := l.m.RestartAgent(agent, sessionOf(st), lifecycle.RestartOpts{By: by, Applying: applying, Cause: cause})
+	if err != nil {
+		return false, err.Error()
+	}
+	return ok, said
+}
+func (l tickLifecycle) TriggersApply(row *db.AgentState) bool {
+	return row != nil && lifecycle.TriggersApply(row)
+}
+
+// tickHandoff is tick.Handoff: the note, the handoff itself and the move to another account.
+type tickHandoff struct {
+	ho *handoff.Env
+	mv *lifecycle.Mover
+}
+
+func (h tickHandoff) SettleOwedClear(_ db.Q, agent string) bool {
+	owed, _ := h.mv.SettleOwedClear(agent)
+	return owed
+}
+func (h tickHandoff) Movable(kind string) bool { return lifecycle.MovableTrigger(kind) }
+func (h tickHandoff) MovePlan(_ db.Q, agent, kind string) (string, string) {
+	dest, why, err := h.mv.MovePlan(agent, kind, false)
+	if err != nil {
+		return "", err.Error()
+	}
+	return dest, why
+}
+func (h tickHandoff) MoveToRoom(_ db.Q, agent string, t tick.Trigger) bool {
+	moved, _ := h.mv.MoveToRoom(agent, lifecycle.HandoffTrigger{Kind: t.Kind, Reason: t.Reason})
+	return moved
+}
+func (h tickHandoff) PerformHandoff(_ db.Q, agent string, t tick.Trigger, dest string) bool {
+	ok, err := h.mv.PerformHandoff(agent, lifecycle.HandoffTrigger{Kind: t.Kind, Reason: t.Reason}, dest)
+	return ok && err == nil
+}
+func (h tickHandoff) NoteHold(_ db.Q, agent string, now int64) bool {
+	hold, _ := h.ho.Hold(agent, now)
+	return hold
+}
+func (h tickHandoff) NoteAtCacheEdge(_ db.Q, agent string, now int64, st tick.Status) {
+	h.ho.AtCacheEdge(agent, now, st.TranscriptPath)
+}
+func (h tickHandoff) NoteEnabled(agent string) bool { return h.ho.Enabled(agent) }
+func (h tickHandoff) NoteAsked(_ db.Q, agent string) (int, bool) {
+	_, prompts, ok, err := h.ho.Asked(agent)
+	return prompts, err == nil && ok
+}
+func (h tickHandoff) NoteAsk(_ db.Q, agent, why string) bool {
+	ok, _ := h.ho.Ask(agent, why)
+	return ok
+}
+func (h tickHandoff) NoteAnsweredTurn(_ db.Q, agent string) bool {
+	ok, _ := h.ho.AnsweredTurn(agent)
+	return ok
+}
+func (h tickHandoff) NoteText(_ db.Q, agent string) (string, bool) {
+	text, err := h.ho.NoteText(agent)
+	return text, err == nil && text != ""
+}
+func (tickHandoff) AskMarginS() int { return handoff.AskMarginS }
+
+// tickReconciler is tick.Reconciler over the lifecycle's reconciler.
+type tickReconciler struct{ r *lifecycle.Reconciler }
+
+func (t tickReconciler) Sweep(_ db.Q, actions *[]string) { t.r.Sweep(actions) }
+func (t tickReconciler) ExpireHandoffs(db.Q) []string {
+	out, _ := t.r.ExpireHandoffs()
+	return out
+}
+func (t tickReconciler) StallAgent(_ db.Q, agent string, actions *[]string, err error, kind string) {
+	t.r.StallAgent(agent, actions, err, kind)
+}
+
+// tickObserve is tick.Observe over the usage package.
+type tickObserve struct {
+	u    *usage.Env
+	home string
+	now  func() time.Time
+	out  *loginMemo
+}
+
+// loginMemo keeps whether each account could not be used for LoginCheckCooldownS, as the usage poll spaces its own login checks: on macOS
+// the check is a keychain subprocess, too much for every sample.
+type loginMemo struct {
+	ask func(acct string, now int64) bool
+	mu  sync.Mutex
+	at  map[string]loginAnswer
+}
+
+func newLoginMemo(home string) *loginMemo {
+	ask := func(acct string, now int64) bool {
+		_, out := team.Accounts{Home: home}.GoneSince(acct, float64(now))
+		return out
+	}
+	return &loginMemo{ask: ask, at: map[string]loginAnswer{}}
+}
+
+type loginAnswer struct {
+	asked int64
+	out   bool
+}
+
+func (m *loginMemo) loggedOut(acct string, now int64) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if a, ok := m.at[acct]; ok && now-a.asked < states.LoginCheckCooldownS {
+		return a.out
+	}
+	out := m.ask(acct, now)
+	m.at[acct] = loginAnswer{now, out}
+	return out
+}
+
+func (o tickObserve) ReadAccount(acct string) tick.Status { return statusOf(o.u.Read(acct)) }
+func (o tickObserve) RecordUsageSample(q db.Q, acct string, _ tick.Status) error {
+	now := o.now().Unix()
+	return o.u.RecordSample(q, acct, o.u.Read(acct), now, o.out.loggedOut(acct, now))
+}
+func (o tickObserve) PruneUsageSamples(q db.Q) error {
+	_, err := o.u.PruneSamples(q)
+	return err
+}
+func (o tickObserve) IngestTokens(q db.Q, acct string) error {
+	_, err := o.u.IngestTokens(q, acct, usage.BytesPerTick)
+	return err
+}
+func (o tickObserve) PruneTokens(q db.Q) error {
+	_, err := o.u.PruneTokens(q)
+	return err
+}
+func (o tickObserve) RefreshDollarPace(q db.Q) error {
+	return o.u.RefreshDollarPace(q, o.now().Unix(), false)
+}
+func (o tickObserve) RefreshFactors(q db.Q) error {
+	return o.u.RefreshFactors(q, o.now().Unix(), false)
+}
+
+// costPorts is tick.CostPorts: the prompt-cache clock of a session, read from the transcript the status names.
+type costPorts struct{}
+
+func (costPorts) ReadCache(transcriptPath string) *tick.CacheClock {
+	c := handoff.ReadClock(transcriptPath)
+	if c == nil {
+		return nil
+	}
+	out := &tick.CacheClock{Left: func(now int64) *float64 {
+		if left, ok := c.Left(float64(now)); ok {
+			return &left
+		}
+		return nil
+	}}
+	if c.TTL != 0 {
+		ttl := int64(c.TTL)
+		out.TTL = &ttl
+	}
+	return out
+}
+
+// tickConfig is tick.Config over agent.yaml and config.yaml.
+type tickConfig struct {
+	roster *team.Roster
+	set    *settings.Settings
+}
+
+func (c tickConfig) AgentConfig(agent string) map[string]any {
+	cfg, err := c.roster.Read(agent)
+	if err != nil {
+		return map[string]any{}
+	}
+	return cfg
+}
+func (c tickConfig) Seconds(key string, def int64) int64 { return c.set.ConfigSeconds(key, def) }
+func (c tickConfig) MoveBeforePct() int                  { return c.set.Percent(usage.MoveBeforeKey) }
+
+// releaseWorktreeLocks lets go of every lock a session that is gone took (worktreelock.Release), over each linked worktree of the
+// repositories the agents work in, read from the repository: a retired agent's is let go too, and so is one whose folder was deleted.
+func releaseWorktreeLocks(q db.Q, home string) error {
+	rows, err := db.AllAgentStates(q)
+	if err != nil {
+		return err
+	}
+	var repos []string
+	roster := team.NewRoster(home)
+	for _, a := range paths.ListAgents(home) {
+		repos = append(repos, lifecycle.ExpandRepo(roster.RepoOf(a)))
+	}
+	for _, r := range rows {
+		repos = append(repos, worktreepaths.WorktreePath(r.Worktree.String)) // a repo agent.yaml does not name is reached through a worktree
+	}
+	seen := map[string]bool{}
+	for _, repo := range repos {
+		if repo == "" || seen[repo] {
+			continue
+		}
+		seen[repo] = true
+		for _, linked := range worktreelock.Linked(repo) {
+			if !seen["wt:"+linked] {
+				seen["wt:"+linked] = true
+				_, _ = worktreelock.Release(repo, linked, worktreelock.Running) // a repo that is no checkout has none to let go
+			}
+		}
+	}
+	return nil
+}
+
+// diskWarnFloor is the free bytes under which the founder is warned: disk_free_min_gb when it is set, else housekeeping.DiskLow, so the
+// warning stays on while that hold is off by default.
+func diskWarnFloor(gb int) int64 {
+	if gb > 0 {
+		return int64(gb) * housekeeping.GB
+	}
+	return housekeeping.DiskLow
+}

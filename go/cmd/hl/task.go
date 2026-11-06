@@ -1,0 +1,763 @@
+package main
+
+import (
+	"fmt"
+	"path/filepath"
+	"slices"
+	"strconv"
+	"strings"
+
+	"golang.org/x/sys/unix"
+
+	"github.com/handline/handline/go/internal/hlclient"
+	"github.com/handline/handline/go/kit/paths"
+	"github.com/handline/handline/go/kit/textsafe"
+)
+
+// taskCmd is one `hl task` subcommand (cli/task.py): it reads its parsed arguments, and ok false hands the argv to Python.
+type taskCmd func(c *hlclient.Client, args []string) (int, bool)
+
+var taskCmds = map[string]taskCmd{
+	"new": taskNew, "begin": taskBegin, "handoff": taskHandoff, "start": taskStart, "note": taskNote,
+	"comment": taskMemo, "memo": taskMemo, "show": taskShow, "list": taskList, "queue": taskQueue(true), "draft": taskQueue(false),
+	"edit": taskEdit, "merge": taskMerge, "done": taskDone, "reopen": taskReopen, "release": taskRelease,
+	"discard": taskDiscard, "board": taskBoard, "wait": taskWait, "request": taskRequest, "none": taskNone,
+}
+
+// taskReads are the subcommands that change nothing, so no verb_chain is recorded for them (parser._TASK_READS).
+var taskReads = []string{"list", "show", "board"}
+
+func task(c *hlclient.Client, args []string) (int, bool) {
+	if len(args) == 0 {
+		return 0, false
+	}
+	run := taskCmds[args[0]]
+	if run == nil {
+		return 0, false
+	}
+	return run(c, args[1:])
+}
+
+// mutating records the verb chain the way parser.main does once the arguments parsed, for every write.
+func mutating(c *hlclient.Client, sub string) {
+	if !slices.Contains(taskReads, sub) {
+		c.NoteVerbChain([]string{"task", sub})
+	}
+}
+
+// asking is the asking agent, or false after printing why it cannot be named.
+func asking(c *hlclient.Client, verb string) bool {
+	if c.AskingAgent() == "" {
+		fmt.Println(hlclient.WhoRefusal(verb))
+		return false
+	}
+	return true
+}
+
+// said prints what a write said, and its exit code (cli/client.said).
+func said(ok bool, text string) int {
+	fmt.Println(text)
+	if ok {
+		return 0
+	}
+	return 1
+}
+
+// optOf is an optional option read by read: (value, given, ok); a value read refuses names what the option wants.
+func optOf[T any](p parsed, name, wants string, read func(string) (T, bool)) (T, bool, bool) {
+	v, given := p.opt(name)
+	if !given {
+		var zero T
+		return zero, false, true
+	}
+	n, ok := read(v)
+	if !ok {
+		argProblem = fmt.Sprintf("%s %s, not %q", name, wants, v)
+	}
+	return n, true, ok
+}
+
+// optTask, optPriority and optTimeout are an optional option of that type.
+func optTask(p parsed, name string) (int, bool, bool) {
+	return optOf(p, name, "wants a task, T<n>", taskRef)
+}
+func optPriority(p parsed, name string) (int, bool, bool) {
+	return optOf(p, name, "is 1 to 5", priority)
+}
+func optTimeout(p parsed, name string) (int64, bool, bool) {
+	return optOf(p, name, "is a span like 30m or 2h", taskTimeout)
+}
+
+// optEstimate is --estimate: story points (the daemon says which), or none to clear it (nil). ok false for anything else.
+func optEstimate(p parsed) (points any, given, ok bool) {
+	v, given := p.opt("--estimate")
+	if !given {
+		return nil, false, true
+	}
+	if v == "none" {
+		return nil, true, true
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		argProblem = fmt.Sprintf("--estimate is a number of points or none, not %q", v)
+	}
+	return n, true, err == nil
+}
+
+// oneTask is a subcommand that takes T<n> and nothing else.
+func oneTask(args []string) (int, bool) {
+	p, ok := parse(args, nil, nil, nil)
+	if !ok {
+		return 0, false
+	}
+	if len(p.pos) != 1 {
+		return wrongArgs("it takes one task, T<n>, and got %d word(s)", len(p.pos))
+	}
+	tid, ok := taskRef(p.pos[0])
+	if !ok {
+		argProblem = fmt.Sprintf("%q is not a task: T<n>", p.pos[0])
+	}
+	return tid, ok
+}
+
+func taskNew(c *hlclient.Client, args []string) (int, bool) {
+	p, ok := parse(args, []string{"--file", "--assign", "--owner", "--parent", "--blocked-by", "--priority", "--estimate", "--expects", "--timeout", "--tag"},
+		[]string{"--duplicate-ok", "--no-parent"}, map[string]string{"-t": "--timeout"})
+	if !ok {
+		return 0, false
+	}
+	if len(p.pos) < 1 || len(p.pos) > 2 {
+		return wrongArgs("it takes the title and the body, each in quotes, and got %d word(s)", len(p.pos))
+	}
+	// --assign is who works the task; --owner is who answers for it, the opener when not given.
+	assignee, hasAssign := p.opt("--assign")
+	accountable, hasOwner := p.opt("--owner")
+	parent, hasParent, ok1 := optTask(p, "--parent")
+	blocked, hasBlocked, ok2 := optTask(p, "--blocked-by")
+	prio, hasPrio, ok3 := optPriority(p, "--priority")
+	timeout, hasTimeout, ok4 := optTimeout(p, "--timeout")
+	points, hasEstimate, ok5 := optEstimate(p)
+	if !ok1 || !ok2 || !ok3 || !ok4 || !ok5 || (hasEstimate && points == nil) { // --expects is accepted and ignored
+		return 0, false
+	}
+	mutating(c, "new")
+	if !asking(c, "open a task") {
+		return 1, true
+	}
+	file, _ := p.opt("--file")
+	var body *string
+	if len(p.pos) == 2 {
+		body = &p.pos[1]
+	}
+	typed := func(title string) string {
+		parts := []string{"hl task new", "--assign", assignee}
+		if hasTimeout {
+			t := fmt.Sprintf("%ds", timeout)
+			if timeout%60 == 0 {
+				t = fmt.Sprintf("%dm", timeout/60)
+			}
+			parts = append(parts, "-t", t)
+		}
+		parts = append(parts, shQuote(title))
+		if hasOwner {
+			parts = append(parts, "--owner", accountable)
+		}
+		if body != nil && *body != "-" {
+			parts = append(parts, shQuote(*body))
+		}
+		if file != "" {
+			parts = append(parts, "--file", shQuote(file))
+		}
+		if hasParent {
+			parts = append(parts, fmt.Sprintf("--parent T%d", parent))
+		}
+		if hasBlocked {
+			parts = append(parts, fmt.Sprintf("--blocked-by T%d", blocked))
+		}
+		if hasPrio {
+			parts = append(parts, fmt.Sprintf("--priority P%d", prio))
+		}
+		if hasEstimate {
+			parts = append(parts, fmt.Sprintf("--estimate %d", points))
+		}
+		for _, tag := range p.each["--tag"] {
+			parts = append(parts, "--tag", shQuote(tag))
+		}
+		return strings.Join(parts, " ")
+	}
+	if !hasAssign {
+		if hasOwner { // --owner named who works a task until owner and assignee were split
+			assignee, hasOwner = accountable, false
+		} else {
+			assignee = "<agent>"
+		}
+		fmt.Printf("a task needs --assign: who works it (--owner is who answers for it, you when not given). Try:\n  %s\n", typed(p.pos[0]))
+		return 1, true
+	}
+	for _, who := range []string{assignee, accountable} {
+		if who != "" && who != hlclient.Human && !slices.Contains(paths.ListAgents(c.Home), who) {
+			fmt.Printf("no agent named %s\n", who)
+			return 1, true
+		}
+	}
+	title := textsafe.Strip(textsafe.Oneline(p.pos[0]))
+	if title == "" {
+		fmt.Printf("a task needs a title. Try:\n  %s\n", typed("<title>"))
+		return 1, true
+	}
+	inline := ""
+	if body != nil {
+		inline = *body
+	}
+	if file != "" || inline == "-" {
+		text, why := textArg(body, file, "body")
+		if why != "" {
+			fmt.Println(why)
+			return 1, true
+		}
+		inline = text
+	}
+	params := map[string]any{"owner": assignee, "title": title}
+	if hasTimeout {
+		params["time_box"] = fmt.Sprintf("%ds", timeout)
+	}
+	if b := textsafe.Strip(textsafe.Text(inline)); b != "" {
+		params["body"] = b
+	}
+	if hasParent {
+		params["parent"] = parent
+	}
+	if p.flags["--duplicate-ok"] {
+		params["duplicate_ok"] = true
+	}
+	if p.flags["--no-parent"] {
+		params["no_parent"] = true
+	}
+	if hasBlocked {
+		params["blocked_by"] = blocked
+	}
+	if hasPrio {
+		params["priority"] = prio
+	}
+	if hasEstimate {
+		params["estimate"] = points
+	}
+	if hasOwner {
+		params["reporter"] = accountable
+	}
+	if tags := p.tags("--tag"); len(tags) > 0 {
+		params["tags"] = tags
+	}
+	done, msg, got := c.Written("task.new", params)
+	fmt.Println(msg)
+	if !done {
+		return 1, true
+	}
+	fmt.Printf("T%v\n", got["task"]) // the number this opened, alone on the last line, for a script to read
+	return 0, true
+}
+
+func taskBegin(c *hlclient.Client, args []string) (int, bool) {
+	p, ok := parse(args, []string{"--chat", "--why", "--priority", "--expects"}, nil, nil)
+	if !ok || len(p.pos) != 1 {
+		return 0, false
+	}
+	chatText, hasChat := p.opt("--chat")
+	why, hasWhy := p.opt("--why")
+	chat, ok1 := requestArg(chatText)
+	prio, hasPrio, ok2 := optPriority(p, "--priority")
+	exp := "report"
+	if v, given := p.opt("--expects"); given {
+		if exp, ok = expects(v); !ok {
+			return 0, false
+		}
+	}
+	if !hasChat || !ok1 || !ok2 {
+		return 0, false
+	}
+	mutating(c, "begin")
+	if !asking(c, "begin a task") {
+		return 1, true
+	}
+	title := textsafe.Strip(textsafe.Oneline(p.pos[0]))
+	if title == "" {
+		fmt.Println("a task needs a title")
+		return 1, true
+	}
+	params := map[string]any{"title": title, "message": chat, "expects": exp}
+	if hasWhy {
+		params["why"] = why
+	}
+	if hasPrio {
+		params["priority"] = prio
+	}
+	return said(c.Write("task.begin", params)), true
+}
+
+func taskHandoff(c *hlclient.Client, args []string) (int, bool) {
+	p, ok := parse(args, []string{"--file"}, nil, nil)
+	if !ok || len(p.pos) < 2 || len(p.pos) > 3 {
+		return 0, false
+	}
+	tid, ok := taskRef(p.pos[0])
+	if !ok {
+		return 0, false
+	}
+	mutating(c, "handoff")
+	if !asking(c, "hand a task over") {
+		return 1, true
+	}
+	var inline *string
+	if len(p.pos) == 3 {
+		inline = &p.pos[2]
+	}
+	file, _ := p.opt("--file")
+	note := ""
+	if inline == nil && file == "" { // a note is optional: none given is none sent
+		if !hlclient.StdinIsTerminal() {
+			note = readStdin()
+		}
+	} else if file == "-" || inline != nil && *inline == "-" { // an empty stdin is an empty note
+		if file != "" && inline != nil {
+			fmt.Println("give note inline or with --file, not both")
+			return 1, true
+		}
+		note = readStdin()
+	} else if text, why := textArg(inline, file, "note"); why != "" {
+		fmt.Println(why)
+		return 1, true
+	} else {
+		note = text
+	}
+	return said(c.Write("task.handoff", map[string]any{"task": tid, "to": p.pos[1], "note": note})), true
+}
+
+func taskStart(c *hlclient.Client, args []string) (int, bool) {
+	tid, ok := oneTask(args)
+	if !ok {
+		return 0, false
+	}
+	mutating(c, "start")
+	if !asking(c, "start a task") {
+		return 1, true
+	}
+	return said(c.Write("task.start", map[string]any{"task": tid})), true
+}
+
+func taskNote(c *hlclient.Client, args []string) (int, bool) {
+	p, ok := parse(args, nil, nil, nil)
+	if !ok || len(p.pos) != 2 {
+		return 0, false
+	}
+	tid, ok := taskRef(p.pos[0])
+	if !ok {
+		return 0, false
+	}
+	mutating(c, "note")
+	if !asking(c, "write a comment") {
+		return 1, true
+	}
+	return said(c.Write("task.comment.add", map[string]any{"task": tid, "text": p.pos[1]})), true
+}
+
+func taskMemo(c *hlclient.Client, args []string) (int, bool) {
+	p, ok := parse(args, []string{"--file", "--attach", "--reply"}, []string{"--now"}, nil)
+	if !ok || len(p.pos) < 2 {
+		return 0, false
+	}
+	tid, ok := taskRef(p.pos[0])
+	verb, rest := p.pos[1], slices.Clone(p.pos[2:])
+	now := p.flags["--now"]
+	shape, known := map[string]int{"list": 0, "add": 1, "edit": 2, "delete": 1}[verb]
+	if !ok || !known {
+		return 0, false
+	}
+	var mid int
+	if verb == "edit" || verb == "delete" { // an id Python's int() reads some other way, or refuses, is Python's to say
+		if len(rest) > 0 {
+			if mid, ok = integer(strings.TrimSpace(rest[0])); !ok {
+				return 0, false
+			}
+		}
+	}
+	mutating(c, "memo")
+	if !asking(c, "write a comment") {
+		return 1, true
+	}
+	if now && verb != "add" {
+		fmt.Println("--now goes with add")
+		return 1, true
+	}
+	replyText, hasReply := p.opt("--reply")
+	reply, okReply := integer(strings.TrimSpace(replyText))
+	if hasReply && !okReply {
+		fmt.Println("--reply wants the id of a comment")
+		return 1, true
+	}
+	if hasReply && verb != "add" {
+		fmt.Println("--reply goes with add")
+		return 1, true
+	}
+	attach := p.each["--attach"]
+	if len(attach) > 0 && verb != "add" {
+		fmt.Println("--attach goes with add")
+		return 1, true
+	}
+	file, _ := p.opt("--file")
+	dash := len(rest) > 0 && rest[len(rest)-1] == "-"
+	if (verb == "add" || verb == "edit") && (file != "" || dash) {
+		var inline *string
+		if dash {
+			inline = &rest[len(rest)-1]
+			rest = rest[:len(rest)-1]
+		}
+		text, why := textArg(inline, file, "comment text")
+		if why != "" {
+			fmt.Println(why)
+			return 1, true
+		}
+		rest = append(rest, text)
+	}
+	if len(rest) != shape {
+		fmt.Println(map[string]string{"list": "list takes nothing more", "add": "add takes the comment text",
+			"edit": "edit takes the comment id, then the new text", "delete": "delete takes the comment id"}[verb])
+		return 1, true
+	}
+	switch verb {
+	case "list":
+		return memoList(c, tid), true
+	case "add":
+		params := map[string]any{"task": tid, "text": rest[0]}
+		if now {
+			params["now"] = true
+		}
+		if hasReply {
+			params["reply"] = reply
+		}
+		if len(attach) > 0 {
+			files := make([]string, len(attach))
+			for i, a := range attach {
+				files[i], _ = filepath.Abs(a) // the daemon reads it from its own cwd
+			}
+			params["files"] = files
+		}
+		return said(c.Write("task.comment.add", params)), true
+	}
+	if verb == "edit" {
+		return said(c.Write("task.comment.edit", map[string]any{"task": tid, "memo": mid, "text": rest[1]})), true
+	}
+	return said(c.Write("task.comment.delete", map[string]any{"task": tid, "memo": mid})), true
+}
+
+func taskQueue(queued bool) taskCmd {
+	sub, method, verb := "draft", "task.draft", "draft a task"
+	if queued {
+		sub, method, verb = "queue", "task.queue", "queue a task"
+	}
+	return func(c *hlclient.Client, args []string) (int, bool) {
+		p, ok := parse(args, nil, nil, nil)
+		if !ok || len(p.pos) == 0 {
+			return 0, false
+		}
+		tids, ok := taskRefs(p.pos)
+		if !ok {
+			return 0, false
+		}
+		mutating(c, sub)
+		if !asking(c, verb) {
+			return 1, true
+		}
+		failed := false
+		for _, tid := range tids { // one call each: a refusal of one does not hold back the rest
+			done, msg := c.Write(method, map[string]any{"tasks": []int{tid}})
+			fmt.Println(msg)
+			failed = failed || !done
+		}
+		if failed {
+			return 1, true
+		}
+		return 0, true
+	}
+}
+
+func taskEdit(c *hlclient.Client, args []string) (int, bool) {
+	p, ok := parse(args, []string{"--assign", "--owner", "--title", "--body", "--body-file", "--priority", "--estimate", "--blocked-by", "--unblock",
+		"--timeout", "--tag", "--untag", "--pr"}, nil, nil)
+	if !ok || len(p.pos) != 1 {
+		return 0, false
+	}
+	tid, ok := taskRef(p.pos[0])
+	prio, hasPrio, ok1 := optPriority(p, "--priority")
+	blocked, hasBlocked, ok2 := optTask(p, "--blocked-by")
+	unblock, hasUnblock, ok3 := optTask(p, "--unblock")
+	timeout, hasTimeout, ok4 := optTimeout(p, "--timeout")
+	prText, hasPR := p.opt("--pr")
+	pr, err := strconv.ParseInt(strings.TrimPrefix(prText, "#"), 10, 64)
+	points, hasEstimate, ok5 := optEstimate(p)
+	if !ok || !ok1 || !ok2 || !ok3 || !ok4 || !ok5 || hasPR && (err != nil || pr <= 0) {
+		return 0, false
+	}
+	mutating(c, "edit")
+	if !asking(c, "edit a task") {
+		return 1, true
+	}
+	// --owner moved the work until owner and assignee were split; alone it would now quietly leave the work where it is.
+	if owner, given := p.opt("--owner"); given {
+		if _, assigned := p.opt("--assign"); !assigned {
+			fmt.Printf("--owner is who answers for a task, not who works it, so it needs --assign too. To move the work:\n  hl task edit T%d --assign %s\n"+
+				"To change only who answers for it, name the assignee it keeps:\n  hl task edit T%d --owner %s --assign <its assignee>\n", tid, owner, tid, owner)
+			return 1, true
+		}
+	}
+	params := map[string]any{"task": tid}
+	body, hasBody := p.opt("--body")
+	bodyFile, _ := p.opt("--body-file")
+	if hasBody || bodyFile != "" {
+		var inline *string
+		if hasBody {
+			inline = &body
+		}
+		text, why := textArg(inline, bodyFile, "body")
+		if why != "" {
+			fmt.Println(why)
+			return 1, true
+		}
+		params["body"] = text
+	}
+	if v, given := p.opt("--assign"); given { // the wire's owner is who works the task, its reporter who answers for it
+		params["owner"] = v
+	}
+	if v, given := p.opt("--owner"); given {
+		params["reporter"] = v
+	}
+	if v, given := p.opt("--title"); given {
+		params["title"] = v
+	}
+	if hasPrio {
+		params["priority"] = prio
+	}
+	if hasEstimate {
+		params["estimate"] = points
+	}
+	if hasTimeout {
+		params["time_box"] = fmt.Sprintf("%ds", timeout)
+	}
+	if hasBlocked {
+		params["blocked_by"] = blocked
+	}
+	if hasPR {
+		params["pr"] = pr
+	}
+	if hasUnblock {
+		params["unblock"] = unblock
+	}
+	if tags := p.tags("--tag"); len(tags) > 0 {
+		params["add_tags"] = tags
+	}
+	if tags := p.tags("--untag"); len(tags) > 0 {
+		params["remove_tags"] = tags
+	}
+	if len(params) == 1 {
+		fmt.Println("edit needs a new assignee, a new owner, a new title, --body, --priority, --estimate, --blocked-by, --unblock, --timeout, --tag, --untag or --pr")
+		return 1, true
+	}
+	return said(c.Write("task.edit", params)), true
+}
+
+func taskMerge(c *hlclient.Client, args []string) (int, bool) {
+	p, ok := parse(args, nil, nil, nil)
+	if !ok || len(p.pos) < 2 {
+		return 0, false
+	}
+	tids, ok := taskRefs(p.pos)
+	if !ok {
+		return 0, false
+	}
+	mutating(c, "merge")
+	if !asking(c, "merge tasks") {
+		return 1, true
+	}
+	return said(c.Write("task.merge", map[string]any{"into": tids[0], "tasks": tids[1:]})), true
+}
+
+func taskDone(c *hlclient.Client, args []string) (int, bool) {
+	p, ok := parse(args, []string{"--request", "--repo", "--commit", "--shot"}, []string{"--reason"}, nil)
+	if !ok || len(p.pos) < 1 || len(p.pos) > 2 {
+		return 0, false
+	}
+	tid, ok := taskRef(p.pos[0])
+	if !ok {
+		return 0, false
+	}
+	req, hasReq := p.opt("--request")
+	request, ok := requestArg(req)
+	if hasReq && !ok {
+		return 0, false
+	}
+	mutating(c, "done")
+	if !asking(c, "mark a task done") {
+		return 1, true
+	}
+	// A sha is checked against the repo this is typed in unless --repo names another.
+	repo, _ := p.opt("--repo")
+	if repo != "" {
+		repo = pyPath(repo)
+	} else {
+		wd, err := unix.Getwd()
+		if err != nil {
+			fmt.Printf("error: %v\n", err)
+			return 1, true
+		}
+		repo = wd
+	}
+	params := map[string]any{"task": tid, "repo": repo}
+	if len(p.pos) == 2 {
+		evidence := p.pos[1]
+		if evidence == "-" {
+			var why string
+			if evidence, why = textArg(&evidence, "", "evidence"); why != "" {
+				fmt.Println(why)
+				return 1, true
+			}
+		}
+		params["evidence"] = strings.TrimSpace(evidence) // a heredoc's last newline would keep a sha from reading as one
+		if p.flags["--reason"] {
+			params["reason"] = true
+		}
+	}
+	if hasReq {
+		params["request"] = request
+	}
+	if v, given := p.opt("--commit"); given {
+		params["commit"] = v
+	}
+	if shots := p.each["--shot"]; len(shots) > 0 {
+		wd, err := unix.Getwd()
+		if err != nil {
+			fmt.Printf("error: %v\n", err)
+			return 1, true
+		}
+		abs := make([]string, len(shots)) // the daemon reads them from its own cwd (os.path.abspath)
+		for i, s := range shots {
+			if !filepath.IsAbs(s) {
+				s = filepath.Join(wd, s)
+			}
+			abs[i] = filepath.Clean(s)
+		}
+		params["shots"] = abs
+	}
+	return said(c.Write("task.done", params)), true
+}
+
+func taskReopen(c *hlclient.Client, args []string) (int, bool) {
+	return taskWithReason(c, args, "reopen", "reopen a task", "task.reopen", "note", true)
+}
+
+// taskDiscard is `hl task discard T<n> "<why>"`, or a batch: `hl task discard T1 T2 --why "<why>" [--why-each T2="<why>"]...`, one call
+// that discards all of them or none.
+func taskDiscard(c *hlclient.Client, args []string) (int, bool) {
+	p, ok := parse(args, []string{"--why", "--why-each"}, nil, nil)
+	if !ok {
+		return 0, false
+	}
+	if p.opts["--why"] == "" && len(p.each["--why-each"]) == 0 {
+		return taskWithReason(c, args, "discard", "discard a task", "task.discard", "reason", false)
+	}
+	tids, ok := taskRefs(p.pos)
+	if !ok || len(tids) == 0 {
+		return 0, false
+	}
+	reasons := map[string]any{}
+	for _, e := range p.each["--why-each"] {
+		ref, why, cut := strings.Cut(e, "=")
+		tid, isTask := taskRef(ref)
+		if !cut || !isTask || strings.TrimSpace(why) == "" {
+			return 0, false
+		}
+		reasons[strconv.Itoa(tid)] = why
+	}
+	mutating(c, "discard")
+	if !asking(c, "discard tasks") {
+		return 1, true
+	}
+	list := make([]any, len(tids))
+	for i, t := range tids {
+		list[i] = t
+	}
+	return said(c.Write("task.discard", map[string]any{"tasks": list, "reason": p.opts["--why"], "reasons": reasons})), true
+}
+
+// taskWithReason is a subcommand taking T<n> and a reason, sent as key; with optional the reason may be left out.
+func taskWithReason(c *hlclient.Client, args []string, sub, verb, method, key string, optional bool) (int, bool) {
+	p, ok := parse(args, nil, nil, nil)
+	if !ok {
+		return 0, false
+	}
+	if len(p.pos) > 2 || len(p.pos) < 2 && !(optional && len(p.pos) == 1) {
+		return wrongArgs("it takes T<n> and the %s in quotes, and got %d word(s)", key, len(p.pos))
+	}
+	tid, ok := taskRef(p.pos[0])
+	if !ok {
+		return wrongArgs("%q is not a task: T<n>", p.pos[0])
+	}
+	mutating(c, sub)
+	if !asking(c, verb) {
+		return 1, true
+	}
+	params := map[string]any{"task": tid}
+	if len(p.pos) == 2 {
+		params[key] = p.pos[1]
+	}
+	return said(c.Write(method, params)), true
+}
+
+func taskRelease(c *hlclient.Client, args []string) (int, bool) {
+	return taskWithReason(c, args, "release", "release a task", "task.release", "reason", true)
+}
+
+// taskRequest is `hl task request <msg> ["<title>"]`: a founder's message made a request, a task the founder opened.
+func taskRequest(c *hlclient.Client, args []string) (int, bool) {
+	p, ok := parse(args, []string{"--owner"}, nil, nil)
+	if !ok {
+		return 0, false
+	}
+	if len(p.pos) < 1 || len(p.pos) > 2 {
+		return wrongArgs("it takes the founder's message and, in quotes, a title, and got %d word(s)", len(p.pos))
+	}
+	msg, ok := requestArg(p.pos[0])
+	if !ok {
+		return wrongArgs("%q is not a message: msg_<hash>", p.pos[0])
+	}
+	mutating(c, "request")
+	if !asking(c, "make a request") {
+		return 1, true
+	}
+	params := map[string]any{"request": msg}
+	if len(p.pos) == 2 {
+		params["title"] = p.pos[1]
+	}
+	if owner, given := p.opt("--owner"); given {
+		params["owner"] = owner
+	}
+	return said(c.Write("task.request", params)), true
+}
+
+// taskNone is `hl task none <msg> "<why>"`: a founder's message that needs no work.
+func taskNone(c *hlclient.Client, args []string) (int, bool) {
+	p, ok := parse(args, nil, nil, nil)
+	if !ok {
+		return 0, false
+	}
+	if len(p.pos) != 2 {
+		return wrongArgs("it takes the founder's message and the reason in quotes, and got %d word(s)", len(p.pos))
+	}
+	msg, ok := requestArg(p.pos[0])
+	if !ok {
+		return wrongArgs("%q is not a message: msg_<hash>", p.pos[0])
+	}
+	mutating(c, "none")
+	if !asking(c, "mark a message as needing no work") {
+		return 1, true
+	}
+	return said(c.Write("task.none", map[string]any{"request": msg, "reason": p.pos[1]})), true
+}

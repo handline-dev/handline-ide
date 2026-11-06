@@ -1,0 +1,555 @@
+package taskwrites
+
+import (
+	"database/sql"
+	"fmt"
+	"strings"
+
+	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/kit/paths"
+	"github.com/handline/handline/go/kit/pyjson"
+	"github.com/handline/handline/go/kit/textsafe"
+	"github.com/handline/handline/go/kit/timefmt"
+	"github.com/handline/handline/go/protocol/rpc"
+)
+
+// Edited is what a committed task.edit leaves for the telling layer.
+type Edited struct {
+	Task     int64
+	By       string
+	Body     bool   // a body was given: the holder of a doing task is told it changed
+	WasOwner string // the owner before the edit, when an owner was given: a task that changed hands is sent on
+	Freed    string // the owner whose last blocker the edit cleared, or whose current task it blocked: its turn is reconsidered
+}
+
+// pyRepr is Python's repr of a string: single quotes unless it holds one and no double quote.
+func pyRepr(s string) string {
+	q := byte('\'')
+	if strings.Contains(s, "'") && !strings.Contains(s, `"`) {
+		q = '"'
+	}
+	var b strings.Builder
+	b.WriteByte(q)
+	for _, r := range s {
+		switch {
+		case r == rune(q) || r == '\\':
+			b.WriteByte('\\')
+			b.WriteRune(r)
+		case r == '\n':
+			b.WriteString(`\n`)
+		case r == '\r':
+			b.WriteString(`\r`)
+		case r == '\t':
+			b.WriteString(`\t`)
+		case r < 0x20 || r == 0x7f:
+			fmt.Fprintf(&b, `\x%02x`, r)
+		default:
+			b.WriteRune(r)
+		}
+	}
+	b.WriteByte(q)
+	return b.String()
+}
+
+func priorityRef(n int64) string { return fmt.Sprintf("P%d", n) }
+
+// pointsRef is an estimate as an edit records it: "" for none.
+func pointsRef(n int64) string {
+	if n == 0 {
+		return ""
+	}
+	return fmt.Sprintf("%d points", n)
+}
+
+// estimatePoints are the story points a task may be estimated at.
+var estimatePoints = map[int64]bool{1: true, 2: true, 3: true, 5: true, 8: true, 13: true}
+
+// estimateParam is the estimate param: its points, 0 for an explicit null (clear it), and whether it was given at all.
+func estimateParam(p map[string]any) (int64, bool, error) {
+	v, given := p["estimate"]
+	if !given {
+		return 0, false, nil
+	}
+	if v == nil {
+		return 0, true, nil
+	}
+	n, ok := rpc.AsInt(v)
+	if !ok || !estimatePoints[n] {
+		return 0, false, badParam("estimate is story points: 1, 2, 3, 5, 8 or 13", "estimate")
+	}
+	return n, true, nil
+}
+
+type change struct {
+	key      string
+	old, new string
+	kept     bool // the words are kept apart from the event's text (a body, a result): the reply says only that they changed
+}
+
+// undeliverable is why task t cannot be moved to agent to, or "": the move asks to on behalf of whoever asked the old owner, or the
+// tick does as whoever queued it, and with no edge from them to to that ask is denied and the task sits unread (Supervisor.sendMovedTask).
+func undeliverable(tx *sql.Tx, t *task, to, home string) (string, error) {
+	asker := t.QueuedBy.String
+	live, err := db.LiveDelivery(tx, t.ID, t.Owner)
+	if err != nil {
+		return "", err
+	}
+	if live != nil {
+		asker = live.Requester
+	}
+	if asker == "" || asker == to {
+		return "", nil
+	}
+	tm, err := team.LoadTeam(home)
+	if err != nil {
+		return "", err
+	}
+	if d := tm.Route(asker, to, 0); !d.Allowed {
+		return fmt.Sprintf("T%d cannot go to %s: its brief is sent on %s's behalf, and %s", t.ID, to, asker, d.Reason), nil
+	}
+	return "", nil
+}
+
+// waitIsOwnBookkeeping: a wait on a task held inside the waiting task's own team is the team's own bookkeeping and tells no one; a blocker the
+// founder, another team or nobody holds is news to the lead.
+func waitIsOwnBookkeeping(tx *sql.Tx, home string, tid, other int64) (bool, error) {
+	t, err := getTask(tx, tid)
+	if err != nil || t == nil {
+		return false, err
+	}
+	b, err := getTask(tx, other)
+	if err != nil || b == nil {
+		return false, err
+	}
+	if b.Owner == "" || b.Owner == human {
+		return false, nil
+	}
+	if b.Owner == t.Owner || b.Owner == db.Gate { // a wait on its own PR is its owner's own
+		return true, nil
+	}
+	tm, err := team.LoadTeam(home)
+	if err != nil {
+		return false, nil // no team file: nothing says it is internal, so the lead is told
+	}
+	group := tm.TeamOf(t.Owner)
+	return group != "" && tm.TeamOf(b.Owner) == group, nil
+}
+
+// editTask is actions.edit_task: a task's owner, reporter, title, priority, estimate (0 clears it), timeout and/or body changed by anyone;
+// every change is kept as an edit_task event under who made it. It answers the refusal ("" when it edited) and the message.
+func editTask(tx *sql.Tx, tid int64, by string, home string, owner, reporter, title, body, evidence *string, priority, estimate, timeoutS *int64) (string, string, error) {
+	t, err := getTask(tx, tid)
+	if err != nil {
+		return "", "", err
+	}
+	if t == nil {
+		return fmt.Sprintf("no task T%d", tid), "", nil
+	}
+	if owner != nil && *owner == human && t.Owner != human && by != human {
+		return askFounderInstead, "", nil
+	}
+	reshape := title != nil || priority != nil || estimate != nil || timeoutS != nil || body != nil || evidence != nil
+	if owner != nil && *owner != t.Owner && *owner != human {
+		if why, err := undeliverable(tx, t, *owner, home); err != nil || why != "" {
+			return why, "", err
+		}
+	}
+	if owner == nil && reporter == nil && !reshape {
+		return "edit needs a new assignee, a new owner, a new title, a new priority, an estimate, --timeout, a new body, a new result, or any of them", "", nil
+	}
+	var changes []change
+	var newBody *string
+	var bodyRID int64
+	if body != nil {
+		text := strings.TrimSpace(textsafe.Text(*body))
+		var rid int64
+		var requester, old string
+		err := tx.QueryRow("SELECT r.id, r.requester, COALESCE(r.body, '') FROM task_requests l JOIN requests r ON r.id = l.request_id "+
+			"WHERE l.task_id = ? ORDER BY l.rowid LIMIT 1", tid).Scan(&rid, &requester, &old)
+		if err != nil && err != sql.ErrNoRows {
+			return "", "", err
+		}
+		if err == sql.ErrNoRows || requester != t.OpenedBy {
+			return fmt.Sprintf("task T%d has no brief its opener wrote to edit - a task begun from a message, or linked to someone else's request, keeps those words as they are", tid), "", nil
+		}
+		if text != strings.TrimSpace(old) {
+			if err := claimImages(tx, home, by, text, old, "body"); err != nil {
+				return "", "", err
+			}
+			newBody, bodyRID = &text, rid
+			changes = append(changes, change{key: "body", old: old, new: text, kept: true})
+		}
+	}
+	var newEvidence *string
+	if evidence != nil {
+		if !t.done() {
+			return fmt.Sprintf("task T%d is not done - it has no result to edit yet; its result is what hl task done writes", tid), "", nil
+		}
+		text := strings.TrimSpace(textsafe.Text(*evidence))
+		if text == "" {
+			return fmt.Sprintf("a done task keeps a result - an empty one would reopen T%d", tid), "", nil
+		}
+		if by != human { // merge tooling lands a PR on this text: an agent adds a comment, it does not rewrite the result
+			return fmt.Sprintf("only the founder can change the result of a done task; add a comment to T%d instead", tid), "", nil
+		}
+		if text != strings.TrimSpace(t.DoneEvidence.String) {
+			newEvidence = &text
+			changes = append(changes, change{key: "evidence", old: t.DoneEvidence.String, new: text, kept: true})
+		}
+	}
+	var newOwner *string
+	if owner != nil && *owner != t.Owner {
+		if !contains(paths.ListAgents(home), *owner) {
+			return "no agent named " + *owner, "", nil
+		}
+		newOwner = owner
+		changes = append(changes, change{key: "owner", old: t.Owner, new: *owner})
+	}
+	var newReporter *string
+	if reporter != nil && *reporter != t.reporter() {
+		if *reporter != human && !contains(paths.ListAgents(home), *reporter) {
+			return "no agent named " + *reporter, "", nil
+		}
+		newReporter = reporter
+		changes = append(changes, change{key: "reporter", old: t.reporter(), new: *reporter})
+	}
+	var newTitle *string
+	if title != nil {
+		clean := strings.TrimSpace(textsafe.Oneline(*title))
+		if clean == "" {
+			return "a task needs a title", "", nil
+		}
+		if clean != t.Title {
+			newTitle = &clean
+			changes = append(changes, change{key: "title", old: t.Title, new: clean})
+		}
+	}
+	var newPriority *int64
+	if priority != nil {
+		if *priority < 1 || *priority > 3 {
+			return fmt.Sprintf("%d is not a priority - P1, P2 or P3", *priority), "", nil
+		}
+		var cur int64
+		if err := tx.QueryRow("SELECT priority FROM tasks WHERE id = ?", tid).Scan(&cur); err != nil {
+			return "", "", err
+		}
+		if *priority != cur {
+			newPriority = priority
+			changes = append(changes, change{key: "priority", old: priorityRef(cur), new: priorityRef(*priority)})
+		}
+	}
+	if estimate != nil {
+		var cur sql.NullInt64
+		if err := tx.QueryRow("SELECT estimate FROM tasks WHERE id = ?", tid).Scan(&cur); err != nil {
+			return "", "", err
+		}
+		if *estimate != cur.Int64 {
+			changes = append(changes, change{key: "estimate", old: pointsRef(cur.Int64), new: pointsRef(*estimate)})
+		} else {
+			estimate = nil
+		}
+	}
+	doing := false
+	if timeoutS != nil {
+		switch {
+		case *timeoutS <= 0:
+			return "a task timeout is at least 1s - it counts time still to run, not none", "", nil
+		case *timeoutS > db.MaxTaskTimeoutS:
+			return fmt.Sprintf("a task timeout is at most %s - %s is longer", timefmt.Span(db.MaxTaskTimeoutS, false), timefmt.Span(*timeoutS, false)), "", nil
+		}
+		if doing, err = db.IsDoing(tx, t.ID); err != nil {
+			return "", "", err
+		}
+		was := "none"
+		if t.TimeoutS.Valid && t.TimeoutS.Int64 != 0 {
+			was = timefmt.Span(t.TimeoutS.Int64, false)
+		}
+		now := timefmt.Span(*timeoutS, false) + ", once it is doing"
+		if doing {
+			now = timefmt.Span(*timeoutS, false) + ", from now"
+		}
+		changes = append(changes, change{key: "timeout", old: was, new: now})
+	}
+	if len(changes) == 0 {
+		return fmt.Sprintf("task T%d already reads that way - nothing to edit", tid), "", nil
+	}
+	if err := db.EditTask(tx, tid, by, db.TaskEdit{Owner: newOwner, Reporter: newReporter, Title: newTitle, Priority: newPriority, Estimate: estimate, TimeoutS: timeoutS, IsDoing: doing}); err != nil {
+		return "", "", err
+	}
+	if newOwner != nil {
+		went, err := db.SyncSelfBlocks(tx, tid, t.Owner)
+		if err != nil {
+			return "", "", err
+		}
+		if err := reportDormant(tx, by, *newOwner, went); err != nil {
+			return "", "", err
+		}
+	}
+	if newEvidence != nil {
+		if _, err := tx.Exec("UPDATE tasks SET done_evidence = ? WHERE id = ?", *newEvidence, tid); err != nil {
+			return "", "", err
+		}
+	}
+	if newBody != nil {
+		if _, err := tx.Exec("UPDATE requests SET body = ? WHERE id = ?", *newBody, bodyRID); err != nil {
+			return "", "", err
+		}
+	}
+	payload := []kv{{"task_id", tid}}
+	var said []string
+	for _, c := range changes {
+		payload = append(payload, kv{c.key, pyjson.Pairs{{K: "old", V: c.old}, {K: "new", V: c.new}}})
+		if c.kept {
+			said = append(said, c.key+" changed")
+		} else {
+			said = append(said, fmt.Sprintf("%s %s -> %s", saidAs(c.key), pyRepr(c.old), pyRepr(c.new)))
+		}
+	}
+	if err := addEvent(tx, by, "edit_task", payload...); err != nil {
+		return "", "", err
+	}
+	return "", fmt.Sprintf("task T%d edited by %s: %s", tid, by, strings.Join(said, ", ")), nil
+}
+
+// setPR names the pull request an open task's work merges in: accepted, the task then waits on that PR's merge (acceptForMerge).
+func setPR(tx *sql.Tx, tid int64, by string, pr int64) (string, string, error) {
+	t, err := getTask(tx, tid)
+	if err != nil || t == nil {
+		return fmt.Sprintf("no task T%d", tid), "", err
+	}
+	if t.done() || t.DiscardedBy.String != "" {
+		return fmt.Sprintf("task T%d is already finished - its PR no longer matters", tid), "", nil
+	}
+	if t.PR.Int64 == pr {
+		return fmt.Sprintf("task T%d already names PR #%d - nothing to edit", tid, pr), "", nil
+	}
+	old := ""
+	if t.PR.Valid {
+		old = fmt.Sprintf("#%d", t.PR.Int64)
+	}
+	if _, err := tx.Exec("UPDATE tasks SET pr = ?, edited_by = ?, edited_at = ? WHERE id = ?", pr, by, db.Now(), tid); err != nil {
+		return "", "", err
+	}
+	if err := addEvent(tx, by, "edit_task", kv{"task_id", tid}, kv{"pr", pyjson.Pairs{{K: "old", V: old}, {K: "new", V: fmt.Sprintf("#%d", pr)}}}); err != nil {
+		return "", "", err
+	}
+	return "", fmt.Sprintf("task T%d edited by %s: pr %s -> '#%d'", tid, by, pyRepr(old), pr), nil
+}
+
+// saidAs is how an edit's reply names a field: the owner column holds who works the task (its assignee), the reporter who answers for it
+// (its owner). The event keeps the column names.
+func saidAs(key string) string {
+	switch key {
+	case "owner":
+		return "assignee"
+	case "reporter":
+		return "owner"
+	}
+	return key
+}
+
+// editMethod is task.edit (rpc_tasks._edit): every part in one transaction, so a later refusal undoes the earlier parts.
+func editMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, error) {
+	return func(c *rpc.Conn, p map[string]any) (any, error) {
+		if err := unserved(p, "relation", "response", "reply", "waits_on"); err != nil {
+			return nil, err
+		}
+		tid, err := taskID(p)
+		if err != nil {
+			return nil, err
+		}
+		optText := func(key string) (*string, error) {
+			if p[key] == nil {
+				return nil, nil
+			}
+			s, ok := p[key].(string)
+			if !ok {
+				return nil, badParam(key+" is text", key)
+			}
+			return &s, nil
+		}
+		var owner, reporter, title, body, evidence *string
+		for _, f := range []struct {
+			key string
+			dst **string
+		}{{"owner", &owner}, {"reporter", &reporter}, {"title", &title}, {"body", &body}, {"evidence", &evidence}} {
+			if *f.dst, err = optText(f.key); err != nil {
+				return nil, err
+			}
+		}
+		secs, err := timeBox(p, "time_box")
+		if err != nil {
+			return nil, err
+		}
+		var timeoutS, priority *int64
+		if secs != 0 {
+			timeoutS = &secs
+		}
+		if p["priority"] != nil {
+			n, ok := rpc.AsInt(p["priority"])
+			if !ok || n < 1 || n > 3 {
+				return nil, badParam("priority is 1, 2 or 3", "priority")
+			}
+			priority = &n
+		}
+		points, hasEstimate, err := estimateParam(p)
+		if err != nil {
+			return nil, err
+		}
+		var estimate *int64
+		if hasEstimate {
+			estimate = &points
+		}
+		blocker, hasBlocker, err := optionalTask(p, "blocked_by")
+		if err != nil {
+			return nil, err
+		}
+		unblockOn, hasUnblock, err := optionalTask(p, "unblock")
+		if err != nil {
+			return nil, err
+		}
+		addTags, err := TagList(p, "add_tags")
+		if err != nil {
+			return nil, err
+		}
+		removeTags, err := TagList(p, "remove_tags")
+		if err != nil {
+			return nil, err
+		}
+		hasTags := len(addTags) > 0 || len(removeTags) > 0
+		var pr int64
+		if p["pr"] != nil {
+			n, ok := rpc.AsInt(p["pr"])
+			if !ok || n <= 0 {
+				return nil, badParam("pr is a pull request number", "pr")
+			}
+			pr = n
+		}
+		fields := owner != nil || reporter != nil || title != nil || body != nil || evidence != nil || timeoutS != nil || priority != nil || estimate != nil
+		if !fields && !hasBlocker && !hasUnblock && !hasTags && pr == 0 {
+			return nil, badParam("edit needs an owner, a reporter, a title, a priority, an estimate, a body, an evidence, a time_box, blocked_by, unblock, add_tags, remove_tags or pr", "")
+		}
+		for _, who := range []*string{owner, reporter} {
+			if who != nil && *who != human && !contains(paths.ListAgents(home), *who) {
+				return nil, agentNotFound(*who)
+			}
+		}
+		me := c.Caller.Actor()
+		var (
+			done  Edited
+			notes []told
+		)
+		out, err := c.Effect(func(tx *sql.Tx) (map[string]any, error) {
+			done = Edited{Task: tid, By: me}
+			if t, err := getTask(tx, tid); err != nil {
+				return nil, err
+			} else if t != nil {
+				done.WasOwner = t.Owner
+			}
+			var msgs, tellMsgs []string
+			if fields {
+				why, msg, err := editTask(tx, tid, me, home, owner, reporter, title, body, evidence, priority, estimate, timeoutS)
+				if err != nil {
+					return nil, err
+				}
+				if why != "" {
+					return nil, refusal(why)
+				}
+				msgs = append(msgs, msg)
+				tellMsgs = append(tellMsgs, msg)
+			}
+			if hasTags { // a tag is bookkeeping: it is in the reply and the history, and nobody is told
+				why, msg, err := retag(tx, tid, me, addTags, removeTags)
+				if err != nil {
+					return nil, err
+				}
+				if why != "" {
+					return nil, refusal(why)
+				}
+				msgs = append(msgs, msg)
+			}
+			if pr != 0 {
+				why, msg, err := setPR(tx, tid, me, pr)
+				if err != nil {
+					return nil, err
+				}
+				if why != "" {
+					return nil, refusal(why)
+				}
+				msgs = append(msgs, msg)
+				tellMsgs = append(tellMsgs, msg)
+			}
+			if hasBlocker {
+				why, err := recordBlock(tx, tid, blocker, me)
+				if err != nil {
+					return nil, err
+				}
+				if why != "" {
+					return nil, refusal(why)
+				}
+				if done.Freed, err = freeHolder(tx, tid); err != nil {
+					return nil, err
+				}
+				msg := fmt.Sprintf("task T%d now waits on T%d", tid, blocker)
+				msgs = append(msgs, msg)
+				if own, err := waitIsOwnBookkeeping(tx, home, tid, blocker); err != nil {
+					return nil, err
+				} else if !own {
+					tellMsgs = append(tellMsgs, msg)
+				}
+			}
+			if hasUnblock {
+				why, err := unblock(tx, tid, unblockOn, me)
+				if err != nil {
+					return nil, err
+				}
+				if why != "" {
+					return nil, refusal(why)
+				}
+				msg := fmt.Sprintf("task T%d no longer waits on T%d", tid, unblockOn)
+				msgs = append(msgs, msg)
+				if own, err := waitIsOwnBookkeeping(tx, home, tid, unblockOn); err != nil {
+					return nil, err
+				} else if !own {
+					tellMsgs = append(tellMsgs, msg)
+				}
+				left, err := taskBlockers(tx, tid)
+				if err != nil {
+					return nil, err
+				}
+				if len(left) == 0 {
+					t, err := getTask(tx, tid)
+					if err != nil {
+						return nil, err
+					}
+					done.Freed = t.Owner
+				}
+			}
+			done.Body = body != nil
+			if owner == nil {
+				done.WasOwner = ""
+			}
+			said := strings.Join(msgs, "; ")
+			t, err := getTask(tx, tid)
+			if err != nil {
+				return nil, err
+			}
+			to := []string{t.OpenedBy, done.WasOwner}
+			if done.WasOwner == "" || done.WasOwner == t.Owner { // a new owner is asked the brief itself (Teller.Edited)
+				to = append(to, t.Owner)
+			}
+			if len(tellMsgs) > 0 {
+				if notes, err = tellTask(tx, home, me, strings.Join(tellMsgs, "; "), to...); err != nil {
+					return nil, err
+				}
+			}
+			return accepted(said, nil), nil
+		})
+		if err == nil && tell != nil {
+			tell.Edited(done)
+			tell.Notified(notes)
+		}
+		return out, err
+	}
+}

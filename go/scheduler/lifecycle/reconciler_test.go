@@ -1,0 +1,430 @@
+package lifecycle
+
+import (
+	"errors"
+	"io/fs"
+	"path/filepath"
+	"slices"
+	"strings"
+	"syscall"
+	"testing"
+	"time"
+
+	"github.com/handline/handline/go/agentctl/term"
+	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/states"
+	"github.com/handline/handline/go/kit/storetest"
+	"github.com/handline/handline/go/scheduler/session"
+)
+
+func openDB(t *testing.T) db.Q {
+	t.Helper()
+	d, err := storetest.OpenAt(t, filepath.Join(t.TempDir(), "db.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { d.Close() })
+	return d
+}
+
+func newRec(t *testing.T, seen map[string]session.Observed) (*Reconciler, *[]string) {
+	var logs []string
+	r := &Reconciler{Q: openDB(t), Log: func(s string) { logs = append(logs, s) }}
+	r.Ports = ReconcilerPorts{
+		Agents:           func() []string { return []string{"a"} },
+		Registered:       func() ([]string, error) { return []string{"a"}, nil },
+		Observe:          func([]string, map[string]string) map[string]session.Observed { return seen },
+		NoteSeen:         func(map[string]session.Observed, time.Time) {},
+		RefreshView:      func(db.Q, string) {},
+		StillDrawn:       func(string) bool { return false },
+		ResumableSession: func(db.Q, string) string { return "s1" },
+		Now:              func() int64 { return 5000 },
+	}
+	return r, &logs
+}
+
+func ptr[T any](v T) *T { return &v }
+
+func TestAHandoffPastItsDeadlineDegradesItsAgent(t *testing.T) {
+	r, _ := newRec(t, nil)
+	if _, err := r.Q.Exec("INSERT INTO handoff(id, agent, trigger_kind, step, deadline, state, updated) VALUES('h','a','x','requested',4000,'in_flight',1)"); err != nil {
+		t.Fatal(err)
+	}
+	acts, err := r.ExpireHandoffs()
+	if err != nil || len(acts) != 1 || !strings.Contains(acts[0], "timed out at step 'requested'") {
+		t.Fatalf("%v %v", acts, err)
+	}
+	row, _ := db.GetAgentState(r.Q, "a")
+	if row.State != states.Degraded || row.WakeAt.Int64 != 5000+states.DegradedRetryS || row.ThrottleCount != 1 {
+		t.Fatalf("%+v", row)
+	}
+	if left, _ := db.InFlightHandoffs(r.Q); len(left) != 0 {
+		t.Fatal("still in flight")
+	}
+}
+
+func TestADeadTerminalDropsTheHandleButKeepsTheWorktree(t *testing.T) {
+	r, _ := newRec(t, map[string]session.Observed{"a": {TerminalAlive: ptr(false)}})
+	db.SetTerminal(r.Q, "a", "term1", "/wt")
+	db.SetAgentState(r.Q, "a", states.Running, 0, "")
+	var acts []string
+	if err := r.Sweep(&acts); err != nil {
+		t.Fatal(err)
+	}
+	row, _ := db.GetAgentState(r.Q, "a")
+	if row.Terminal.String != "" || row.Worktree.String != "/wt" || !row.ClosedAt.Valid || row.ResumeSession.String != "s1" || row.State != states.Idle {
+		t.Fatalf("%+v", row)
+	}
+	if len(acts) != 1 || !strings.Contains(acts[0], "recorded as closed (resume s1)") {
+		t.Fatalf("%v", acts)
+	}
+}
+
+func TestASessionWithNoProcessIsRecordedClosedUnlessTheScreenDrawsOne(t *testing.T) {
+	seen := map[string]session.Observed{"a": {TerminalAlive: ptr(true), SessionSeen: true}}
+	r, _ := newRec(t, seen)
+	db.SetTerminal(r.Q, "a", "term1", "/wt")
+	r.Ports.StillDrawn = func(string) bool { return true }
+	var acts []string
+	if err := r.Sweep(&acts); err != nil || len(acts) != 0 {
+		t.Fatalf("%v %v", acts, err)
+	}
+	r.Ports.StillDrawn = func(string) bool { return false }
+	if err := r.Sweep(&acts); err != nil || len(acts) != 1 {
+		t.Fatalf("%v %v", acts, err)
+	}
+	if row, _ := db.GetAgentState(r.Q, "a"); !row.ClosedAt.Valid {
+		t.Fatal("not closed")
+	}
+}
+
+func TestAnUnreadTableChangesNothing(t *testing.T) {
+	r, _ := newRec(t, map[string]session.Observed{"a": {TerminalAlive: ptr(true)}})
+	db.SetTerminal(r.Q, "a", "term1", "/wt")
+	var acts []string
+	if err := r.Sweep(&acts); err != nil || len(acts) != 0 {
+		t.Fatalf("%v %v", acts, err)
+	}
+}
+
+type reconTerm struct {
+	promptGone, idle bool
+	blocker          *term.Blocker
+}
+
+func (reconTerm) Available() bool                      { return true }
+func (t reconTerm) TrustPromptGone(string) bool        { return t.promptGone }
+func (t reconTerm) ScreenBlocker(string) *term.Blocker { return t.blocker }
+func (t reconTerm) IdleNow(string) bool                { return t.idle }
+
+func TestReconcileWakesDueClosedAgentsAndKeepsAFailedWakeDue(t *testing.T) {
+	r, _ := newRec(t, nil)
+	var enforced []string
+	woke, wakeOK := 0, false
+	r.Ports.Agents = func() []string { return []string{"a", "b", "new"} }
+	r.Ports.EnforceEdges = func(_ db.Q, a string) error { enforced = append(enforced, a); return nil }
+	r.Ports.WaitingFor = func(db.Q, string) (bool, error) { return true, nil }
+	r.Ports.WakeAgent = func(db.Q, string) (bool, string, error) { woke++; return wakeOK, "no room", nil }
+	r.Ports.QueuedOrIdle = func(q db.Q, a, why string) (string, error) {
+		return states.Idle, db.SetAgentState(q, a, states.Idle, 0, why)
+	}
+	for _, a := range []string{"a", "b"} {
+		db.SetAgentState(r.Q, a, states.Parked, 4000, "")
+		db.SetTerminal(r.Q, a, "t-"+a, "/wt")
+		db.SetClosed(r.Q, a, "s1")
+	}
+	acts, err := r.Reconcile()
+	if err != nil || woke != 2 || len(enforced) != 2 {
+		t.Fatalf("%v %v %d", acts, err, woke)
+	}
+	if row, _ := db.GetAgentState(r.Q, "a"); row.State != states.Parked || row.WakeAt.Int64 != 4000 {
+		t.Fatalf("a failed wake stays due: %+v", row)
+	}
+	if !strings.Contains(strings.Join(acts, "|"), "a: could not wake at reconciliation, still due - no room") || !strings.Contains(strings.Join(acts, "|"), "new: IDLE (first seen)") {
+		t.Fatalf("%v", acts)
+	}
+	wakeOK = true
+	acts, _ = r.Reconcile()
+	if row, _ := db.GetAgentState(r.Q, "a"); row.State != states.Idle {
+		t.Fatalf("%+v %v", row, acts)
+	}
+	if !strings.Contains(strings.Join(acts, "|"), "a: woken at reconciliation") || !strings.Contains(strings.Join(acts, "|"), "a: PARKED -> IDLE (wake_at was 4000)") {
+		t.Fatalf("%v", acts)
+	}
+}
+
+func TestAHandoffThatCannotBeResumedCountsAgainstItsAgentUntilItStalls(t *testing.T) {
+	r, _ := newRec(t, nil)
+	r.Ports.ResumeHandoff = func(db.Q, db.HandoffRow) error { return &ConfigError{errors.New("agent.yaml unreadable")} }
+	db.StartHandoff(r.Q, "h1", "a", "", "idle", 0)
+	var acts []string
+	for i := 0; i < states.MaxFailedAttempts; i++ {
+		var err error
+		if acts, err = r.Reconcile(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	row, _ := db.GetAgentState(r.Q, "a")
+	if row.State != states.Stalled || row.FailedAttempts != states.MaxFailedAttempts || !strings.Contains(row.Detail.String, "could not resume handoff from step 'requested'") {
+		t.Fatalf("%+v %v", row, acts)
+	}
+}
+
+func TestASweepLiftsAStallWhoseScreenIsAnswered(t *testing.T) {
+	alive := map[string]session.Observed{"a": {TerminalAlive: ptr(true), SessionSeen: true, SessionPID: ptr(7)}}
+	r, _ := newRec(t, alive)
+	r.Ports.Term = reconTerm{promptGone: true}
+	r.Ports.LiftLogin = func(db.Q, string, *db.AgentState, *[]string) {}
+	db.SetTerminal(r.Q, "a", "t1", "/wt")
+	db.SetStalled(r.Q, "a", "trust", "a's terminal is showing claude's "+TrustStall, nil)
+	var acts []string
+	if err := r.Sweep(&acts); err != nil {
+		t.Fatal(err)
+	}
+	if row, _ := db.GetAgentState(r.Q, "a"); row.State != states.Idle || len(acts) != 1 || !strings.Contains(acts[0], "STALLED -> IDLE") {
+		t.Fatalf("%+v %v", row, acts)
+	}
+	// A dialog stall waits for the dialog to go.
+	db.SetStalled(r.Q, "a", "dialog", "a's terminal is showing a "+DialogStall, nil)
+	r.Ports.Term = reconTerm{blocker: &term.Blocker{Kind: term.Modal}}
+	if err := r.Sweep(&acts); err != nil {
+		t.Fatal(err)
+	}
+	if row, _ := db.GetAgentState(r.Q, "a"); row.State != states.Stalled {
+		t.Fatalf("lifted while the dialog stands: %+v", row)
+	}
+	r.Ports.Term = reconTerm{}
+	if err := r.Sweep(&acts); err != nil {
+		t.Fatal(err)
+	}
+	if row, _ := db.GetAgentState(r.Q, "a"); row.State != states.Idle {
+		t.Fatalf("%+v", row)
+	}
+}
+
+func TestARunningAgentIsUnstuckOnlyWithTwoWitnesses(t *testing.T) {
+	alive := map[string]session.Observed{"a": {TerminalAlive: ptr(true), SessionSeen: true, SessionPID: ptr(7)}}
+	r, _ := newRec(t, alive) // now is 5000
+	db.SetTerminal(r.Q, "a", "t1", "/wt")
+	db.SetAgentState(r.Q, "a", states.Running, 0, "")
+	db.AddEventAt(r.Q, 1, "a", "Stop")
+	r.Ports.Term = reconTerm{idle: false}
+	var acts []string
+	r.Sweep(&acts)
+	if row, _ := db.GetAgentState(r.Q, "a"); row.State != states.Running {
+		t.Fatal("Orca says it is mid-turn")
+	}
+	r.Ports.Term = reconTerm{idle: true, blocker: &term.Blocker{Kind: term.Modal}}
+	r.Sweep(&acts)
+	if row, _ := db.GetAgentState(r.Q, "a"); row.State != states.Running {
+		t.Fatal("an unanswered prompt is not idle")
+	}
+	r.Ports.Term = reconTerm{idle: true}
+	if err := r.Sweep(&acts); err != nil {
+		t.Fatal(err)
+	}
+	if row, _ := db.GetAgentState(r.Q, "a"); row.State != states.Idle || len(acts) != 1 || !strings.Contains(acts[0], "back to IDLE") {
+		t.Fatalf("%+v %v", row, acts)
+	}
+}
+
+func TestThreeFailuresThenASuccessfulWakeLeaveTheCounterAtZero(t *testing.T) {
+	m, d, tm := newManager(t)
+	d.tookPrompt, tm.launchOK = true, true
+	r, _ := newRec(t, nil)
+	r.Q = m.Q
+	db.SetTerminal(m.Q, "a", "t1", "/wt")
+	db.SetClosed(m.Q, "a", "sess-1")
+	var acts []string
+	for i := 0; i < states.MaxFailedAttempts; i++ {
+		if err := r.StallAgent("a", &acts, errors.New("resume failed"), "resume"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if row, _ := db.GetAgentState(m.Q, "a"); row.FailedAttempts != states.MaxFailedAttempts {
+		t.Fatalf("%+v", row)
+	}
+	if ok, said, err := m.WakeAgent("a", WakeOpts{Force: true}); err != nil || !ok {
+		t.Fatalf("%v %q %v", ok, said, err)
+	}
+	if row, _ := db.GetAgentState(m.Q, "a"); row.FailedAttempts != 0 {
+		t.Fatalf("the streak outlived the wake: %+v", row)
+	}
+}
+
+func TestADescriptorShortageIsNotCountedAgainstTheAgent(t *testing.T) {
+	r, logs := newRec(t, nil)
+	r.Ports.ResumeHandoff = func(db.Q, db.HandoffRow) error {
+		return &fs.PathError{Op: "open", Path: "agent.yaml", Err: syscall.EMFILE}
+	}
+	db.StartHandoff(r.Q, "h1", "a", "", "idle", 0)
+	for i := 0; i < states.MaxFailedAttempts+1; i++ {
+		if _, err := r.Reconcile(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if row, _ := db.GetAgentState(r.Q, "a"); row != nil && (row.State == states.Stalled || row.FailedAttempts != 0) {
+		t.Fatalf("%+v", row)
+	}
+	if n := strings.Count(strings.Join(*logs, "\n"), "out of file descriptors"); n != 1 {
+		t.Fatalf("said %d times in one minute", n)
+	}
+}
+
+func TestOnlyAnAgentsOwnFailureStallsItAndTheDaemonsPropagates(t *testing.T) {
+	r, _ := newRec(t, nil)
+	db.StartHandoff(r.Q, "h1", "a", "", "idle", 0)
+	r.Ports.ResumeHandoff = func(db.Q, db.HandoffRow) error { return errors.New("database is locked") }
+	if _, err := r.Reconcile(); err == nil {
+		t.Fatal("a failed statement was counted against the agent")
+	}
+	if row, _ := db.GetAgentState(r.Q, "a"); row != nil && row.FailedAttempts != 0 {
+		t.Fatalf("%+v", row)
+	}
+	// A wake that fails on the agent's own config counts against it; any other error ends the pass.
+	r.Ports.ResumeHandoff = func(db.Q, db.HandoffRow) error { return nil }
+	db.AdvanceHandoff(r.Q, "h1", "done", "finished", "")
+	db.SetAgentState(r.Q, "w", states.Parked, 4000, "")
+	db.SetTerminal(r.Q, "w", "t", "/wt")
+	db.SetClosed(r.Q, "w", "s")
+	r.Ports.EnforceEdges = func(db.Q, string) error { return nil }
+	r.Ports.WaitingFor = func(db.Q, string) (bool, error) { return true, nil }
+	r.Ports.QueuedOrIdle = func(db.Q, string, string) (string, error) { return states.Idle, nil }
+	r.Ports.WakeAgent = func(db.Q, string) (bool, string, error) { return false, "", &ConfigError{errors.New("bad yaml")} }
+	acts, err := r.Reconcile()
+	if err != nil || !strings.Contains(strings.Join(acts, "|"), "w: could not wake at reconciliation: bad yaml") {
+		t.Fatalf("%v %v", acts, err)
+	}
+	if row, _ := db.GetAgentState(r.Q, "w"); row.FailedAttempts != 1 {
+		t.Fatalf("%+v", row)
+	}
+	r.Ports.WakeAgent = func(db.Q, string) (bool, string, error) { return false, "", errors.New("database is locked") }
+	if _, err := r.Reconcile(); err == nil {
+		t.Fatal("a database error at the wake disappeared")
+	}
+	r.Ports.WaitingFor = func(db.Q, string) (bool, error) { return false, errors.New("database is locked") }
+	if _, err := r.Reconcile(); err == nil {
+		t.Fatal("a database error reading what is waiting disappeared")
+	}
+}
+
+func TestASweepDropsTheStateRowOfANameNoAgentHasButNotARegisteredAgentsOrOneWithATerminal(t *testing.T) {
+	r, _ := newRec(t, nil)
+	db.SetAgentState(r.Q, "a", states.Idle, 0, "registered")
+	db.SetAgentState(r.Q, "ghost", states.Queued, 0, "written for a name that never was an agent")
+	db.SetAgentState(r.Q, "retired", states.Idle, 0, "")
+	db.SetTerminal(r.Q, "retired", "t1", "/wt")
+	var acts []string
+	if err := r.Sweep(&acts); err != nil {
+		t.Fatal(err)
+	}
+	if row, _ := db.GetAgentState(r.Q, "ghost"); row != nil {
+		t.Fatalf("kept: %+v", row)
+	}
+	for _, keep := range []string{"a", "retired"} {
+		if row, _ := db.GetAgentState(r.Q, keep); row == nil {
+			t.Fatalf("%s was dropped", keep)
+		}
+	}
+	if len(acts) != 1 || acts[0] != "ghost: no such agent; its state row is dropped" {
+		t.Fatalf("%v", acts)
+	}
+}
+
+func TestASweepDropsNothingWhenTheAgentsCannotBeListedOrNoneAre(t *testing.T) {
+	for name, list := range map[string]func() ([]string, error){
+		"unreadable": func() ([]string, error) { return nil, errors.New("too many open files") },
+		"empty":      func() ([]string, error) { return []string{}, nil },
+	} {
+		r, logs := newRec(t, nil)
+		r.Ports.Registered = list
+		db.SetAgentState(r.Q, "structured", states.Idle, 0, "no terminal by design")
+		var acts []string
+		if err := r.Sweep(&acts); err != nil {
+			t.Fatal(err)
+		}
+		if row, _ := db.GetAgentState(r.Q, "structured"); row == nil || len(acts) != 0 {
+			t.Fatalf("%s: row dropped: %v", name, acts)
+		}
+		if n := strings.Count(strings.Join(*logs, "\n"), "could not be listed"); (name == "unreadable") != (n == 1) {
+			t.Fatalf("%s: logged %d times", name, n)
+		}
+	}
+}
+
+// The stall that stayed: three starts failed and stalled the agent, a start that lost the race then reset the streak, and the session that
+// came up late never lifted the stall, since the lift asked for the streak.
+func TestASessionRunningLiftsAWakeStallWhateverTheStreak(t *testing.T) {
+	alive := map[string]session.Observed{"a": {TerminalAlive: ptr(true), SessionSeen: true, SessionPID: ptr(7)}}
+	r, _ := newRec(t, alive)
+	r.Ports.LiftLogin = func(db.Q, string, *db.AgentState, *[]string) {}
+	db.SetTerminal(r.Q, "a", "t1", "/wt")
+	for kind, detail := range map[string]string{"start": "3 " + StartStall + ": a: started in /wt", "wake": "3 " + WakeStall + ": no session"} {
+		db.SetStalled(r.Q, "a", kind, detail, nil)
+		var acts []string
+		if err := r.Sweep(&acts); err != nil {
+			t.Fatal(err)
+		}
+		if row, _ := db.GetAgentState(r.Q, "a"); row.State != states.Idle || !slices.ContainsFunc(acts, func(a string) bool { return strings.Contains(a, "STALLED -> IDLE") }) {
+			t.Fatalf("%q: %+v %v", detail, row, acts)
+		}
+	}
+	// A late session ends the streak of failed starts too.
+	db.BumpCounter(r.Q, "a", "wake_failures", 2)
+	var acts []string
+	if err := r.Sweep(&acts); err != nil {
+		t.Fatal(err)
+	}
+	if row, _ := db.GetAgentState(r.Q, "a"); row.WakeFailures != 0 {
+		t.Fatalf("%+v", row)
+	}
+}
+
+func TestARunningSessionEndsTheStreakOfFailedAttempts(t *testing.T) {
+	alive := map[string]session.Observed{"a": {TerminalAlive: ptr(true), SessionSeen: true, SessionPID: ptr(7)}}
+	r, _ := newRec(t, alive)
+	db.SetTerminal(r.Q, "a", "t1", "/wt")
+	var acts []string
+	for i := 0; i < states.MaxFailedAttempts; i++ {
+		if err := r.StallAgent("a", &acts, errors.New("resume failed"), "resume"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	db.SetAgentState(r.Q, "a", states.Idle, 0, "")
+	if err := r.Sweep(&acts); err != nil {
+		t.Fatal(err)
+	}
+	if row, _ := db.GetAgentState(r.Q, "a"); row.FailedAttempts != 0 {
+		t.Fatalf("the streak outlived the running session: %+v", row)
+	}
+}
+
+// A [dialog stall] card an older daemon raised stays while its agent is stalled on a start-up dialog and is resolved once it is not, even
+// with no terminal to look at.
+func TestAStaleDialogStallCardIsResolved(t *testing.T) {
+	r, _ := newRec(t, map[string]session.Observed{})
+	var resolved []int64
+	r.Ports.Resolve = func(id int64, _ string) error { resolved = append(resolved, id); return nil }
+	for _, stmt := range []string{
+		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'dialog', ?, 'a', 1)",
+		"INSERT INTO requests(id, requester, target, kind, state, ts, body) VALUES(10, 'a', ?, 'task', 'queued', 1, '" + DialogDecision + " a is at a dialog')",
+		"INSERT INTO task_requests(task_id, request_id) VALUES(1, 10)",
+	} {
+		var args []any
+		if strings.Contains(stmt, "?") {
+			args = append(args, db.Human)
+		}
+		if _, err := r.Q.Exec(stmt, args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	db.SetStalled(r.Q, "a", "dialog", "a's terminal is showing a "+DialogStall, nil)
+	var acts []string
+	if err := r.Sweep(&acts); err != nil || len(resolved) != 0 {
+		t.Fatalf("the card stays while the stall does: %v %v", err, resolved)
+	}
+	db.SetAgentState(r.Q, "a", states.Idle, 0, "")
+	if err := r.Sweep(&acts); err != nil || len(resolved) != 1 || resolved[0] != 10 {
+		t.Fatalf("a stale card is resolved: %v %v", err, resolved)
+	}
+}

@@ -1,0 +1,134 @@
+// `useWrite`: the one door every UI write goes through (docs/turborepo-layout.md §8.5). An authored write edits the cache first and puts
+// it back if the daemon refuses; a decided write leaves the cache alone and is shown by its pending mark.
+import { useCallback, useRef } from 'react';
+import { useIsMutating, useMutation, useMutationState, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { useStore } from '@handline/app-react';
+import type { AgentDetail, AgentView, CallParams, MethodName, Methods } from '@handline/client';
+import { useData } from '#src/provider.ts';
+import { qk, reads, type Key, type NOT_QUERIES, type ReadMethod } from '#src/reads.ts';
+import { NOT_FOR_STRUCTURED, type NOT_FROM_UI, type PAIRING } from '#src/write-lists.ts';
+import { writes } from '#src/writes.ts';
+import type { WriteSpec } from '#src/write-spec.ts';
+
+/** Every method the UI may write: the contract's methods that are in none of the other lists. */
+export type WriteMethod = Exclude<
+  MethodName,
+  ReadMethod | (typeof NOT_QUERIES)[number] | (typeof NOT_FROM_UI)[number] | (typeof PAIRING)[number]
+>;
+
+/** An entry as it was before the edit, and as the edit left it: a refusal restores it only if nothing else has changed it since. */
+type Snapshot = { key: Key; before: unknown; after: unknown }[];
+const FED = new Set<string>(Object.values(reads).flatMap((r) => ('feed' in r ? [r.resource] : [])));
+
+const writeKey = (daemon: string, method: string) => ['w', daemon, method] as const;
+
+/**
+ * A write. `target` (an agent, a task) orders the writes on that target: they run one after another. The returned mutation has
+ * `isPending`, `error` and `variables` for the pending mark and the reason.
+ */
+export function useWrite<M extends WriteMethod>(method: M, target?: string) {
+  const store = useStore();
+  const qc = useQueryClient();
+  const { daemon } = useData();
+  const spec = writes[method] as WriteSpec;
+  const ctx = (): Parameters<NonNullable<WriteSpec['patch']>>[0] => ({ qc, d: daemon, me: store.me, now: new Date().toISOString() });
+  const again = useRef<(p: CallParams<M>) => void>(() => {});
+  const mutation = useMutation<Methods[M]['result'], unknown, CallParams<M>, { snapshot: Snapshot }>({
+    mutationKey: writeKey(daemon, method),
+    scope: target ? { id: `${daemon}:${target}` } : undefined,
+    mutationFn: async (p) => {
+      refuseStructured(qc, daemon, method, (p as { agent?: string }).agent ?? target);
+      return store.client.call(method, p);
+    },
+    onMutate: async (p) => {
+      if (spec.kind !== 'authored') return { snapshot: [] };
+      const keys = spec.touches?.(daemon, p as never) ?? [];
+      await Promise.all(keys.map((queryKey) => qc.cancelQueries({ queryKey })));
+      const before = keys.flatMap((queryKey) => qc.getQueriesData({ queryKey }));
+      spec.patch?.(ctx(), p as never);
+      return { snapshot: before.map(([key, data]) => ({ key, before: data, after: qc.getQueryData(key) })) };
+    },
+    onError: (e, p, mine) => {
+      const handled = spec.fail?.(ctx(), p as never, e) ?? false;
+      if (!handled) restore(qc, mine?.snapshot ?? []);
+      if (!spec.asks?.(e)) store.reportError(spec.label, e, () => again.current(p));
+    },
+    onSuccess: (r, p) => {
+      spec.reconcile?.(ctx(), p as never, r as never);
+      if (!spec.quiet) store.dismissError();
+    },
+    onSettled: (_r, _e, p) => settle(qc, daemon, spec, p as never),
+  });
+  // The same write pressed again while it is in flight is the same press: it joins the first one instead of being sent twice. A refusal
+  // ends the flight, and a screen opened anew starts with none, so a lost reply cannot hold a retry. A chat message is the exception:
+  // the same words twice are two messages.
+  const flights = useRef(new Map<string, Promise<unknown>>());
+  const { mutateAsync: run } = mutation;
+  const mutateAsync = useCallback(
+    (p: CallParams<M>, o?: Parameters<typeof run>[1]): Promise<Methods[M]['result']> => {
+      const key = `${daemon}\n${method}\n${JSON.stringify(p)}`;
+      const first = method === 'chat.send' ? undefined : flights.current.get(key);
+      if (first) return first as Promise<Methods[M]['result']>;
+      const call = run(p, o);
+      if (method !== 'chat.send') {
+        flights.current.set(key, call);
+        const done = () => flights.current.delete(key);
+        call.then(done, done);
+      }
+      return call;
+    },
+    [daemon, method, run],
+  );
+  const mutate = useCallback((p: CallParams<M>, o?: Parameters<typeof run>[1]) => void mutateAsync(p, o).catch(() => {}), [mutateAsync]);
+  again.current = mutate;
+  return { ...mutation, mutate, mutateAsync };
+}
+
+/** A structured agent has no terminal and no input to hold: a write that needs one never leaves the app. */
+function refuseStructured(qc: QueryClient, daemon: string, method: string, agent: string | undefined) {
+  if (!agent || !(NOT_FOR_STRUCTURED as readonly string[]).includes(method)) return;
+  const row = qc.getQueryData<{ agents: AgentView[] }>(qk.agents(daemon))?.agents.find((a) => a.name === agent);
+  const detail = qc.getQueryData<AgentDetail>(qk.agent(daemon, agent));
+  if (row?.structured || detail?.structured) throw new Error(`${method}: ${agent} is a structured agent and has no terminal`);
+}
+
+/**
+ * Back to the entries as they were before the edit. An entry an event (or another write) changed meanwhile holds the daemon's newer
+ * truth, so it is read again instead of being overwritten with the old value.
+ */
+function restore(qc: QueryClient, snapshot: Snapshot) {
+  for (const { key, before, after } of snapshot) {
+    if (qc.getQueryData(key) === after) qc.setQueryData(key, before);
+    else void qc.invalidateQueries({ queryKey: key });
+  }
+}
+
+/** Only entries no topic keeps current are read again; the others get the daemon's event. */
+function settle(qc: QueryClient, daemon: string, spec: WriteSpec, p: never) {
+  for (const queryKey of spec.touches?.(daemon, p) ?? []) if (!FED.has(String(queryKey[2]))) void qc.invalidateQueries({ queryKey });
+}
+
+/** The variables of this method's writes now in flight, for a pending mark anywhere in the tree ("starting…", a card's buttons off). */
+export function usePending<M extends WriteMethod>(method: M): CallParams<M>[] {
+  const { daemon } = useData();
+  return useMutationState({
+    filters: { mutationKey: writeKey(daemon, method), status: 'pending' },
+    select: (m) => m.state.variables as CallParams<M>,
+  });
+}
+
+/** The variables of the writes now in flight for any of these methods. */
+export function usePendingAny(methods: readonly WriteMethod[]): Record<string, unknown>[] {
+  const { daemon } = useData();
+  return useMutationState({
+    filters: {
+      status: 'pending',
+      predicate: (m) => m.options.mutationKey?.[1] === daemon && methods.includes(m.options.mutationKey?.[2] as WriteMethod),
+    },
+    select: (m) => m.state.variables as Record<string, unknown>,
+  });
+}
+
+/** True while a write is in flight (the desktop shell holds back a restart over it); the notes that messages were seen or read lose nothing if cut off. */
+export const useBusy = (): boolean =>
+  useIsMutating({ predicate: (m) => !['chat.seen', 'task.seen', 'inbox.mark_read'].includes(String(m.options.mutationKey?.at(-1))) }) > 0;

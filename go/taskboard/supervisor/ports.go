@@ -1,0 +1,122 @@
+// Package supervisor is the Python daemon's telling layer: ask routing, sends, messaging, landing, delivery, the task queue,
+// holds and the notice digest (team/ask.py, daemon/{sends,messaging,landing,delivery,taskqueue,taskholds,noticedigest}.py).
+//
+// It reaches everything it does not own through the ports below, one small interface each, so the groups that own them (G2
+// usage, G3b observe/blocked/waiting, G4 terminal channel, G6 lifecycle, G7 handoff, G8 evaluate) only have to satisfy them.
+// Tests use fakes.
+package supervisor
+
+import (
+	"github.com/handline/handline/go/agentctl/agent"
+	"github.com/handline/handline/go/data/db"
+)
+
+// Terminal is session/term.py as the telling layer uses it: the terminal host's screen reads. Nothing is typed at a terminal; a terminal
+// agent is told through the peer inbox.
+type Terminal interface {
+	Available() bool
+	SessionOnScreen(handle string) (session, known bool)
+	BackgroundWork(handle string) (running string, known bool)
+}
+
+// Observer is session/observe.py: what the process table says.
+type Observer interface {
+	// LiveSessions is the agents with a running session; ok is false when the table could not be read.
+	LiveSessions() (sessions map[string]bool, ok bool)
+}
+
+// Dialogs is session/blocked.py: getting past a dialog, and the words for a recorded block.
+type Dialogs interface {
+	// PastDialog gets past a dialog standing before a type at the agent: "" when nothing stands in the way, else why and the dialog's title.
+	PastDialog(q db.Q, agent string, onlyLimit bool) (why, title string)
+	Reason(kind, detail string) string
+	DecisionAfterS() int64 // how long a dialog stands before the founder is told
+}
+
+// Waits is session/waiting.py and session/events.py: whether the agent's screen is on a permission prompt, and whether its last turn ended on the limit.
+type Waits interface {
+	WaitingOnPrompt(q db.Q, row *db.AgentState) bool
+	AtLimit(q db.Q, agent string) bool
+}
+
+// Idle is session/idle_close.py and bgjobs.py: the timeouts config.yaml and the agent's own settings give.
+type Idle interface {
+	NoticeDigestS(agent string) int64
+	CloseTimeoutS(agent string) int64
+	Never() int64 // CloseTimeoutS's "never"
+	BgGraceS(agent string) int64
+	ConfigSeconds(name string, def int64) int64
+	FooterCount(running string) int // the background jobs a footer reports
+}
+
+// Sessions is usage/status.py and session/handoff.py as delivery reads them: which session an agent is in, and where its transcript is.
+type Sessions interface {
+	// LiveSession is the id of the session the agent is in now, "" when unknown.
+	LiveSession(q db.Q, agent string) string
+	// ContextUse is the context the session has used and its limit, for the clear notice; used < 0 when unknown.
+	ContextUse(q db.Q, agent string) (used, limit int64)
+	// KeepsTranscripts says whether the account's vendor leaves a transcript to read.
+	KeepsTranscripts(account string) bool
+	// FindTranscript is the transcript file of a session under an account, "" when none.
+	FindTranscript(session, account string) string
+	// MovableTrigger says whether a handoff trigger parks the agent until its usage window rolls over.
+	MovableTrigger(kind string) bool
+	// CacheLeft is the seconds until the agent's prompt cache lapses, by the TTL its session wrote; ok is false when that is unknown.
+	CacheLeft(agent string, now int64) (left int64, ok bool)
+}
+
+// Lifecycle is daemon/lifecycle.py (G6): starting and waking an agent's session.
+type Lifecycle interface {
+	// StartForWork starts an agent that has no terminal because work is waiting; the words for the log.
+	StartForWork(q db.Q, agent string) string
+	WakeAgent(q db.Q, agent string) (ok bool, why string)
+	// AccountWait is what holds back waking the agent on its account: "wall" at a usage limit, "cap" with no free slot, "" for neither.
+	AccountWait(q db.Q, agent string) (string, error)
+}
+
+// Evaluate is daemon/evaluate.py (G8): the state an agent returns to once nothing it asked is outstanding.
+type Evaluate interface {
+	QueuedOrIdle(q db.Q, agent, why string) error
+}
+
+// Proposals is team/trust.py and decisions.py: the founder answering a trust proposal. Required: a reply or a resolve with no Proposals
+// port closes nothing, since it cannot tell a proposal's card from any other.
+type Proposals interface {
+	// OpenProposalOf is the id of the open trust proposal a request is the card of, "" for none.
+	OpenProposalOf(rid int64) string
+	// Answered carries out the founder's answer to proposal pid: the line for the proposer, and what to report to the founder when an
+	// approve could not be applied ("" for nothing).
+	Answered(q db.Q, pid string, card *db.Request, verdict string) (line, report string, err error)
+}
+
+// Stuck is actions/stuck.py (_delivery_block): why work is not reaching an agent, in the daemon's own words.
+type Stuck interface {
+	// DeliveryBlock is (why, whether it resolves itself); "" when nothing is in the way.
+	DeliveryBlock(q db.Q, agent string) (why string, clears bool)
+}
+
+// Agents is the session port the one send path delivers through (agent.Port; the peer inbox, go/internal/compose). A nil port means every
+// agent is a terminal agent, and the typing code is what delivers.
+type Agents = agent.Port
+
+// Ports is every port; a nil field is an owner that has not landed yet.
+type Ports struct {
+	Agents    Agents // optional: nil is all-terminal
+	Terminal  Terminal
+	Observer  Observer
+	Dialogs   Dialogs
+	Waits     Waits
+	Idle      Idle
+	Sessions  Sessions
+	Lifecycle Lifecycle
+	Evaluate  Evaluate
+	Proposals Proposals
+	Stuck     Stuck
+}
+
+// Wired says every port has its owner: only then can a write's telling run, since a missing port is a nil call. A daemon that serves the
+// writes before the ports land makes them and leaves the telling to the tick.
+func (p Ports) Wired() bool {
+	return p.Terminal != nil && p.Observer != nil && p.Dialogs != nil && p.Waits != nil && p.Idle != nil && p.Sessions != nil &&
+		p.Lifecycle != nil && p.Evaluate != nil && p.Proposals != nil && p.Stuck != nil
+}

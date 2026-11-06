@@ -1,0 +1,192 @@
+package supervisor
+
+import (
+	"database/sql"
+	"fmt"
+	"sort"
+	"sync"
+	"time"
+
+	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/paths"
+	"github.com/handline/handline/go/kit/pyjson"
+)
+
+// Bounds the telling layer waits by (infra/waits.py).
+const (
+	EndWaitS         = 60
+	WakeSessionWaitS = 15
+)
+
+// Env is what the telling layer runs on: the database, the home, a log and the ports. The process memory the Python modules kept in
+// module globals (what the sweep saw, the hold reasons, the text last typed) lives here.
+type Env struct {
+	DB   *sql.DB
+	Home string
+	Log  func(format string, args ...any)
+	Ports
+	Now   func() time.Time
+	Sleep func(time.Duration)
+	// LoadHeld is why the machine's load holds new work for an agent, "" when it does not (loadgate); nil holds nothing.
+	LoadHeld func(agent string) string
+	// Paused is the founder's pause of new work (package pause), "" when there is none; nil is never. It holds a message an agent or the
+	// daemon sends to an agent not mid-turn: told, it would start a turn.
+	Paused func() string
+	// FounderTyped says the founder's own messages to agent are typed into its terminal as its person's prompt, and the agent's plain text
+	// after one is its reply (founderchat.go); nil is never.
+	FounderTyped func(agent string) bool
+	// ShowsTyped is whether a transcript line is text, typed at the session, as the session took it in: the agent CLI's own record, so the
+	// implementation of the agent in use gives it. Nil shows nothing, and a typed message is not seen landing.
+	ShowsTyped func(line, text string) bool
+	// Typeable is why the founder's words cannot be typed at agent now, "" when they can; nil is always. One that cannot be typed is
+	// said through the inbox instead (db.MarkFounderSaid).
+	Typeable func(agent string) string
+
+	mu        sync.Mutex
+	sendLocks map[string]*sync.Mutex // per agent: its send ledger is read and written under its lock, so two callers never write one operation twice
+	seen      map[string]Seen
+	seenAt    time.Time
+	drawn     map[string]drawnAt
+	typedAt   map[int64]int64 // request -> when this daemon last typed it (landing)
+	saying    map[int64]bool  // founder's messages being said through the inbox by the send in hand, not yet committed (TypedOp)
+	held      map[string]string
+	noted     map[string]noted
+	failed    map[string]failure
+	bg        sync.WaitGroup // the tellings still running off the caller (background)
+}
+
+// Seen is what the sweep saw of one agent's session this tick (observe.Observed).
+type Seen struct {
+	SessionPID  int
+	HasPID      bool
+	SessionSeen bool // whether the process table could be read
+}
+
+type drawnAt struct {
+	at  time.Time
+	yes bool
+}
+
+type noted struct {
+	why         string
+	at          int64
+	contestable bool
+}
+
+type failure struct {
+	why string
+	at  int64
+}
+
+func (e *Env) now() int64 {
+	if e.Now != nil {
+		return e.Now().Unix()
+	}
+	return time.Now().Unix()
+}
+
+func (e *Env) nowT() time.Time {
+	if e.Now != nil {
+		return e.Now()
+	}
+	return time.Now()
+}
+
+func (e *Env) sleep(d time.Duration) {
+	if e.Sleep != nil {
+		e.Sleep(d)
+		return
+	}
+	time.Sleep(d)
+}
+
+func (e *Env) log(format string, args ...any) {
+	if e.Log != nil {
+		e.Log(format, args...)
+	}
+}
+
+func (e *Env) init() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.seen == nil {
+		e.seen = map[string]Seen{}
+		e.drawn = map[string]drawnAt{}
+		e.typedAt = map[int64]int64{}
+		e.saying = map[int64]bool{}
+		e.held = map[string]string{}
+		e.noted = map[string]noted{}
+		e.failed = map[string]failure{}
+	}
+}
+
+// NoteSeen records what the tick's sweep saw, for the sends that follow within SeenFreshS.
+func (e *Env) NoteSeen(seen map[string]Seen) {
+	e.init()
+	e.mu.Lock()
+	e.seen, e.seenAt = seen, e.nowT()
+	e.mu.Unlock()
+}
+
+// agents is the registered agents (paths.list_agents).
+func (e *Env) agents() []string { return paths.ListAgents(e.Home) }
+
+func (e *Env) registered(name string) bool {
+	for _, a := range e.agents() {
+		if a == name {
+			return true
+		}
+	}
+	return false
+}
+
+// dbFailure carries a database error up through the ported code, which reads like the Python it follows; Catch turns it back.
+type dbFailure struct{ err error }
+
+// Catch is deferred by every exported method that touches the database: *err gets the failure a statement raised.
+func Catch(err *error) {
+	switch r := recover().(type) {
+	case nil:
+	case dbFailure:
+		*err = r.err
+	default:
+		panic(r)
+	}
+}
+
+func check(err error) {
+	if err != nil {
+		panic(dbFailure{fmt.Errorf("database: %w", err)})
+	}
+}
+
+func must[T any](v T, err error) T {
+	check(err)
+	return v
+}
+
+// ok2 is must for the (value, found) pairs of the db package.
+func ok2[T any](v T, found bool, err error) (T, bool) {
+	check(err)
+	return v, found
+}
+
+// stateOf is db.get_agent_state with the failure raised.
+func stateOf(q db.Q, agent string) *db.AgentState { return must(db.GetAgentState(q, agent)) }
+
+// guard is deferred by what runs after a commit, where a failed statement is logged and said, not raised: the row is written and the tick is the net.
+func (e *Env) guard(what string, out *string) {
+	switch r := recover().(type) {
+	case nil:
+	case dbFailure:
+		e.log("  %s failed: %v", what, r.err)
+		*out = "  " + what + " failed: " + r.err.Error()
+	default:
+		panic(r)
+	}
+}
+
+func sortStrings(xs []string) { sort.Strings(xs) }
+
+// pyQuote is a string as Python's json.dumps writes it (non-ASCII escaped).
+func pyQuote(s string) string { return pyjson.PyJSON(s, false, true) }

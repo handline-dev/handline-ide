@@ -1,0 +1,4 @@
+0 waiting. `hl read <id>` shows one whole.
+`hl say <who> --parent <id> "<text>"` replies to one, in its thread.
+
+0 most recent, already dealt with:

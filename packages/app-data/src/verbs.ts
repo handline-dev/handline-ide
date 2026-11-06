@@ -1,0 +1,69 @@
+// The writes and the in-flight mark of the agent verbs (wake, interrupt, restart, close, park, fold, move account, clear stall), shared by the web menu and the phone's.
+import { useMutation } from '@tanstack/react-query';
+import { useStore } from '@handline/app-react';
+import { callOf, VERBS, type Verb, type VerbId, type WorktreeAnswer } from '@handline/app-core';
+import { usePending, useWrite } from '#src/write.ts';
+
+/** What a caller may ask to hear of a verb's write: it settled, or the daemon refused it. */
+export interface VerbDone {
+  onSuccess?: () => void;
+  onError?: (e: unknown) => void;
+}
+
+/** Starts a verb's write. */
+export function useVerbRun(agent: string) {
+  const interrupt = useWrite('session.interrupt', agent);
+  const stop = useWrite('session.stop', agent);
+  const restart = useWrite('session.restart', agent);
+  const park = useWrite('session.park', agent);
+  const fold = useWrite('agent.fold', agent);
+  const move = useWrite('agent.move', agent);
+  const unstall = useWrite('agent.unstall', agent);
+  const forceStart = useWrite('agent.force_start', agent);
+  return (v: Verb, account?: string, on?: VerbDone) => {
+    const p = callOf(v, agent, account).params as never;
+    if (v.method === 'session.interrupt') interrupt.mutate(p, on);
+    else if (v.method === 'session.stop') stop.mutate(p, on);
+    else if (v.method === 'session.restart') restart.mutate(p, on);
+    else if (v.method === 'session.park') park.mutate(p, on);
+    else if (v.method === 'agent.fold') fold.mutate(p, on);
+    else if (v.method === 'agent.move') move.mutate(p, on);
+    else if (v.method === 'agent.unstall') unstall.mutate(p, on);
+    else if (v.method === 'agent.force_start') forceStart.mutate(p, on);
+  };
+}
+
+/** Retires the agent (the founder's Delete agent): the daemon refuses while it has a running session or others hang under it, and says why.
+ * A worktree that holds work refuses it too (gate dirty, Failure.held) until the call says what to do with it. */
+export function useRetireAgent(agent: string) {
+  const retire = useWrite('agent.retire', agent);
+  // The agent leaving closes the screen that asked, which would drop mutate's own callbacks: the promise still answers.
+  return (on?: VerbDone, worktree?: WorktreeAnswer) =>
+    void retire.mutateAsync({ agent, worktree }).then(
+      () => on?.onSuccess?.(),
+      (e: unknown) => on?.onError?.(e),
+    );
+}
+
+/** The gerund of the verb in flight on this agent ("parking…"), for the state cell; null when none. `skip` leaves out verbs the caller marks itself. */
+export function useVerbMark(agent: string, skip: VerbId[] = []): string | null {
+  const mine = <T extends { agent: string }>(l: T[]) => l.filter((v) => v.agent === agent);
+  const hits: [boolean, VerbId][] = [
+    [mine(usePending('session.interrupt')).length > 0, 'interrupt'],
+    [mine(usePending('session.stop')).some((v) => v.mode === 'close'), 'close'],
+    [mine(usePending('session.restart')).length > 0, 'restart'],
+    [mine(usePending('session.park')).length > 0, 'park'],
+    [mine(usePending('agent.fold')).length > 0, 'fold'],
+    [mine(usePending('agent.move')).length > 0, 'move'],
+    [mine(usePending('agent.unstall')).length > 0, 'clear_stall'],
+    [mine(usePending('agent.force_start')).length > 0, 'force_start'],
+  ];
+  const hit = hits.find(([on, id]) => on && !skip.includes(id));
+  return hit ? VERBS[hit[1]].gerund : null;
+}
+
+/** Where an agent's terminal is and how to attach to it (`terminal.open`): a question, not a write, asked on each click. */
+export function useOpenTerminal(agent: string) {
+  const store = useStore();
+  return useMutation({ mutationFn: () => store.client.call('terminal.open', { agent }) });
+}

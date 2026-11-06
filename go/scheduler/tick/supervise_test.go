@@ -1,0 +1,425 @@
+package tick
+
+import (
+	"strings"
+	"testing"
+
+	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/states"
+)
+
+func setState(t *testing.T, tk *Tick, agent, state string, wakeAt int64) {
+	t.Helper()
+	if err := db.SetAgentState(tk.Q, agent, state, wakeAt, ""); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func supervise(tk *Tick, agent string) []string {
+	var actions []string
+	tk.Supervise(agent, 10_000, &actions)
+	return actions
+}
+
+func addRequest(t *testing.T, tk *Tick, target string) {
+	t.Helper()
+	if _, err := db.AddRequest(tk.Q, db.NewRequest{Requester: "human", Target: target, Body: "x", Kind: "ask"}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestADueParkWakesTheAgentAndSaysWhatItBecame(t *testing.T) {
+	tk, w := newWorld(t)
+	setState(t, tk, "a", states.Parked, 9_000)
+	w.wakeOK = true
+	actions := supervise(tk, "a")
+	if !w.did("wake a") || !has(actions, "PARKED -> IDLE (nothing queued)") {
+		t.Fatalf("%v %v", w.calls, actions)
+	}
+	row, _ := db.GetAgentState(tk.Q, "a")
+	if row.State != states.Idle {
+		t.Fatalf("%+v", row)
+	}
+	// With a request waiting the same wake leaves it QUEUED: the window rolled over for work.
+	tk, w = newWorld(t)
+	setState(t, tk, "a", states.Throttled, 9_000)
+	addRequest(t, tk, "a")
+	w.wakeOK = true
+	if actions := supervise(tk, "a"); !has(actions, "THROTTLED -> QUEUED (window rolled over)") {
+		t.Fatalf("%v", actions)
+	}
+}
+
+func TestADeadlineNotYetDueDoesNotWake(t *testing.T) {
+	tk, w := newWorld(t)
+	setState(t, tk, "a", states.Parked, 20_000)
+	supervise(tk, "a")
+	if w.did("wake") {
+		t.Fatalf("woke before its deadline: %v", w.calls)
+	}
+}
+
+func TestAClosedAgentWhoseDeadlineIsSpentWithNothingWaitingStaysClosed(t *testing.T) {
+	tk, w := newWorld(t)
+	setState(t, tk, "a", states.Parked, 9_000)
+	if err := db.SetClosed(tk.Q, "a", "s1"); err != nil {
+		t.Fatal(err)
+	}
+	w.alive["a"], w.waiting, w.resumable = false, false, true
+	actions := supervise(tk, "a")
+	if w.did("wake") {
+		t.Fatalf("a closed session was resumed to be told nothing: %v", w.calls)
+	}
+	// The park is spent: it reads IDLE, and what arrives next is what wakes it.
+	if !has(actions, "PARKED -> IDLE") {
+		t.Fatalf("%v", actions)
+	}
+}
+
+func TestAClosedAgentWhoseWakeFailsStaysDueAndTheFailureIsNoted(t *testing.T) {
+	tk, w := newWorld(t)
+	setState(t, tk, "a", states.Parked, 9_000)
+	db.SetClosed(tk.Q, "a", "s1")
+	w.alive["a"], w.waiting, w.resumable, w.wakeOK, w.wakeWhy = false, true, true, false, "no room"
+	supervise(tk, "a")
+	if !w.did(`failure "could not be woken - no room"`) || !w.logged("stays PARKED, still due") {
+		t.Fatalf("%v %v", w.calls, w.logs)
+	}
+	row, _ := db.GetAgentState(tk.Q, "a")
+	if row.State != states.Parked || row.WakeAt.Int64 != 9_000 {
+		t.Fatalf("the deadline was cleared by a wake that did not work: %+v", row)
+	}
+}
+
+func TestWorkWaitingForAnAgentWithNoSessionStartsItAndSaysSoOncePerReason(t *testing.T) {
+	tk, w := newWorld(t)
+	w.alive["a"] = false
+	w.need = &Need{Kind: "start", What: "work waiting"}
+	w.startSaid = "a: not started - no room"
+	actions := supervise(tk, "a")
+	supervise(tk, "a")
+	if !w.did("start a") || !has(actions, "a: not started - no room") || !w.did(`failure "could not be started - a: not started - no room"`) {
+		t.Fatalf("%v %v", w.calls, actions)
+	}
+	n := 0
+	for _, l := range w.logs {
+		if strings.Contains(l, "could not be started") {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Fatalf("a refusal that lasts for hours was said %d times", n)
+	}
+	// A start that leaves a session running clears the failure.
+	tk, w = newWorld(t)
+	w.alive["a"], w.need, w.startAlive, w.startSaid = false, &Need{Kind: "start", What: "work waiting"}, true, "a: started"
+	supervise(tk, "a")
+	if !w.did(`failure ""`) {
+		t.Fatalf("%v", w.calls)
+	}
+}
+
+func TestALoadHoldIsForgottenOnlyWhenNothingWaits(t *testing.T) {
+	cases := []struct {
+		name    string
+		need    *Need
+		waiting bool
+		forget  bool
+	}{
+		{"nothing to start, wake or tell", nil, false, true},
+		{"a task to tell an open session", nil, true, false},
+		{"work queued for no session", &Need{Kind: "start", What: "work waiting"}, false, false},
+		{"a closed agent to wake", &Need{Kind: "wake", What: "a request"}, false, false},
+	}
+	for _, c := range cases {
+		tk, w := newWorld(t)
+		w.need, w.waiting = c.need, c.waiting
+		supervise(tk, "a")
+		if w.did("forget hold a") != c.forget {
+			t.Errorf("%s: forgot %v, want %v: %v", c.name, !c.forget, c.forget, w.calls)
+		}
+	}
+}
+
+func TestWorkWaitingForAClosedAgentWakesIt(t *testing.T) {
+	tk, w := newWorld(t)
+	w.need = &Need{Kind: "wake", What: "a request"}
+	w.wakeOK = true
+	if actions := supervise(tk, "a"); !has(actions, "a: woken for a request") {
+		t.Fatalf("%v", actions)
+	}
+	tk, w = newWorld(t)
+	w.need = &Need{Kind: "wake", What: "a request"}
+	w.wakeWhy = "the session would not start"
+	actions := supervise(tk, "a")
+	if !has(actions, "a: could not wake - the session would not start") || !w.did(`failure "could not be woken - the session would not start"`) {
+		t.Fatalf("%v %v", actions, w.calls)
+	}
+}
+
+func TestAnIdleOpenSessionIsClosedUnlessItsNoteIsBeingWrittenFor(t *testing.T) {
+	tk, w := newWorld(t)
+	w.shouldClose, w.closeOK = true, true
+	if actions := supervise(tk, "a"); !w.did("close a") || !has(actions, "a: session closed while idle") {
+		t.Fatalf("%v %v", w.calls, actions)
+	}
+	tk, w = newWorld(t)
+	w.shouldClose, w.hold = true, true
+	supervise(tk, "a")
+	if w.did("close") {
+		t.Fatalf("closed while the close was held for the note: %v", w.calls)
+	}
+	// A refusal is said once per reason.
+	tk, w = newWorld(t)
+	w.shouldClose, w.closeWhy = true, "mid-turn"
+	supervise(tk, "a")
+	supervise(tk, "a")
+	n := 0
+	for _, l := range w.logs {
+		if strings.Contains(l, "idle but not closed - mid-turn") {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Fatalf("said %d times", n)
+	}
+}
+
+func TestAnAgentAtTheWallIsNotClosedOrSentWork(t *testing.T) {
+	tk, w := newWorld(t)
+	w.shouldClose, w.closeOK = true, true
+	w.atLimit = &Limit{Text: "5-hour limit reached", Source: "StopFailure"}
+	supervise(tk, "a")
+	if w.did("close") || w.did("queued") || w.did("answers") {
+		t.Fatalf("an agent at the wall was sent work or closed: %v", w.calls)
+	}
+}
+
+func TestAUsageParkEndsTheMomentTheReadingNoLongerFiresAndNotOnAGuess(t *testing.T) {
+	setup := func(source string) (*Tick, *world) {
+		tk, w := newWorld(t)
+		setState(t, tk, "a", states.Parked, 99_999) // not yet due: only the un-park can end it
+		if err := db.StartHandoff(tk.Q, "h1", "a", "", "usage", 99_999); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.AdvanceHandoff(tk.Q, "h1", "done", "done", ""); err != nil {
+			t.Fatal(err)
+		}
+		w.reading = &AccountReading{Account: "acct", Source: source}
+		w.movable["usage"] = true
+		pct := 40
+		w.status = Status{ShortTrusted: &pct}
+		return tk, w
+	}
+	tk, w := setup("recorded")
+	actions := supervise(tk, "a")
+	if !has(actions, "PARKED -> IDLE (usage recovered)") {
+		t.Fatalf("%v %v", actions, w.calls)
+	}
+	// An account that is only assumed is not evidence enough to wake the agent into.
+	tk, _ = setup("assumed")
+	if actions := supervise(tk, "a"); has(actions, "usage recovered") {
+		t.Fatalf("%v", actions)
+	}
+	// Still at the wall: it stays parked.
+	tk, w = setup("recorded")
+	wall := 100
+	w.status.ShortTrusted = &wall
+	if actions := supervise(tk, "a"); has(actions, "usage recovered") {
+		t.Fatalf("%v", actions)
+	}
+}
+
+func TestAParkedAgentAtTheWallWithRoomElsewhereMovesOffItsAccount(t *testing.T) {
+	tk, w := newWorld(t)
+	setState(t, tk, "a", states.Parked, 99_999)
+	db.StartHandoff(tk.Q, "h1", "a", "", "usage", 99_999)
+	db.AdvanceHandoff(tk.Q, "h1", "done", "done", "")
+	w.reading = &AccountReading{Account: "acct", Source: "recorded"}
+	w.movable["usage"] = true
+	w.movePlan, w.moved = "other", true
+	wall := 100
+	w.status = Status{ShortTrusted: &wall}
+	if actions := supervise(tk, "a"); !has(actions, "a: moved off a parked account") || !w.did("moveroom") {
+		t.Fatalf("%v %v", actions, w.calls)
+	}
+}
+
+func TestAnIdleAgentPastUsageMoveBeforePctIsHandedOffBeforeItsWorkIsDelivered(t *testing.T) {
+	pct := func(n int) *int { return &n }
+	setup := func(here Status) (*Tick, *world) {
+		tk, w := newWorld(t)
+		w.reading = &AccountReading{Account: "acct", Source: "recorded"}
+		w.movable[states.EarlyUsageTrigger] = true
+		w.movePlan, w.performOK = "other", true
+		w.moveBefore = 90
+		w.status = here
+		w.statusOf = map[string]Status{"other": {ShortTrusted: pct(20), LongTrusted: pct(30)}}
+		return tk, w
+	}
+	tk, w := setup(Status{ShortTrusted: pct(92), LongTrusted: pct(40)})
+	w.onHandoff = func() { setState(t, tk, "a", states.Parked, 99_999) }
+	if actions := supervise(tk, "a"); !has(actions, "a: handoff (usage_early)") || !w.did("handoff a usage_early other") || w.did("queued") {
+		t.Fatalf("%v %v", actions, w.calls)
+	}
+	// A handoff that did nothing leaves the agent idle, and its work is delivered.
+	tk, w = setup(Status{ShortTrusted: pct(92)})
+	if actions := supervise(tk, "a"); !w.did("handoff a usage_early other") || !w.did("queued") {
+		t.Fatalf("%v %v", actions, w.calls)
+	}
+	tk, w = setup(Status{ShortTrusted: pct(10), LongTrusted: pct(95)})
+	if actions := supervise(tk, "a"); !w.did("handoff a usage_early other") {
+		t.Fatalf("the weekly window past the setting did not hand it off: %v %v", actions, w.calls)
+	}
+	// Waiting on the note its handoff asked for, the work waits and nothing is handed off again.
+	tk, w = setup(Status{ShortTrusted: pct(92)})
+	if err := db.MarkNoteWait(tk.Q, "a", states.EarlyUsageTrigger, 10_000); err != nil {
+		t.Fatal(err)
+	}
+	w.hold = true
+	if actions := supervise(tk, "a"); w.did("handoff") || w.did("queued") {
+		t.Fatalf("%v %v", actions, w.calls)
+	}
+	// The note is in: the move goes to an account still under the setting, or, with none, the wait is dropped and the work delivered next.
+	noteIn := func(change func(*world)) (*Tick, *world, []string) {
+		tk, w := setup(Status{ShortTrusted: pct(92)})
+		if err := db.MarkNoteWait(tk.Q, "a", states.EarlyUsageTrigger, 10_000); err != nil {
+			t.Fatal(err)
+		}
+		change(w)
+		return tk, w, supervise(tk, "a")
+	}
+	if _, w, actions := noteIn(func(*world) {}); !w.did("handoff a usage_early other") || w.did("queued") {
+		t.Fatalf("%v %v", actions, w.calls)
+	}
+	for name, change := range map[string]func(*world){
+		"dest now full": func(w *world) { w.statusOf["other"] = Status{ShortTrusted: pct(95)} },
+		"no room":       func(w *world) { w.movePlan = "" },
+		"turned off":    func(w *world) { w.moveBefore = 0 },
+	} {
+		tk, w, actions := noteIn(change)
+		if _, _, kept, _ := db.NoteWaitKept(tk.Q, "a", 10_000); w.did("handoff") || kept {
+			t.Fatalf("%s: %v %v", name, actions, w.calls)
+		}
+		if supervise(tk, "a"); !w.did("queued") {
+			t.Fatalf("%s: the work was not delivered after the wait was dropped: %v", name, w.calls)
+		}
+	}
+	// Off, under the setting, on a guessed account, nowhere to go, or a destination as full: it stays and its work is delivered.
+	cases := map[string]func(*world){
+		"off":       func(w *world) { w.moveBefore = 0 },
+		"under":     func(w *world) { w.status = Status{ShortTrusted: pct(89), LongTrusted: pct(40)} },
+		"assumed":   func(w *world) { w.reading.Source = "assumed" },
+		"no room":   func(w *world) { w.movePlan = "" },
+		"dest full": func(w *world) { w.statusOf["other"] = Status{ShortTrusted: pct(91)} },
+	}
+	for name, change := range cases {
+		tk, w := setup(Status{ShortTrusted: pct(92), LongTrusted: pct(40)})
+		change(w)
+		if actions := supervise(tk, "a"); w.did("handoff") || !w.did("queued") {
+			t.Fatalf("%s: %v %v", name, actions, w.calls)
+		}
+	}
+}
+
+func TestAFiredTriggerHandsTheAgentOffAndDegradedOnesCountTowardsAStall(t *testing.T) {
+	tk, w := newWorld(t)
+	over := 250_000
+	w.status = Status{TrustedCtxUsed: &over}
+	w.performOK = true
+	actions := supervise(tk, "a")
+	if !w.did("handoff a context") || !has(actions, "a: handoff (context)") || has(actions, "degraded") {
+		t.Fatalf("%v %v", w.calls, actions)
+	}
+	// A handoff that degraded says so, and the streak that reaches the limit stalls the agent for a human.
+	tk, w = newWorld(t)
+	w.status = Status{TrustedCtxUsed: &over}
+	w.performOK = false
+	if err := db.BumpCounter(tk.Q, "a", "throttle_count", states.MaxThrottleStreak); err != nil {
+		t.Fatal(err)
+	}
+	actions = supervise(tk, "a")
+	if !has(actions, "a: handoff (context) -> degraded") || !has(actions, "STALLED after 5 degraded handoffs") {
+		t.Fatalf("%v", actions)
+	}
+	row, _ := db.GetAgentState(tk.Q, "a")
+	if row.State != states.Stalled {
+		t.Fatalf("%+v", row)
+	}
+}
+
+func TestAHandoffThatParksWithItsWakeDueStartsTheNextSessionInTheSameTick(t *testing.T) {
+	tk, w := newWorld(t)
+	over := 250_000
+	w.status = Status{TrustedCtxUsed: &over}
+	w.performOK = true
+	w.onHandoff = func() { setState(t, tk, "a", states.Parked, 9_999) }
+	w.wakeOK = true
+	supervise(tk, "a")
+	if !w.did("handoff a context") || !w.did("wake a") {
+		t.Fatalf("the wake waits for the next poll: %v", w.calls)
+	}
+}
+
+func TestATurnThatEndedOnTheUsageLimitIsHandedOffEvenWhenTheReadingLags(t *testing.T) {
+	tk, w := newWorld(t)
+	w.atLimit = &Limit{Text: "You've hit your weekly limit", Source: "StopFailure"}
+	pct := 10
+	w.status = Status{ShortTrusted: &pct}
+	w.performOK = true
+	supervise(tk, "a")
+	if !w.did("handoff a usage_7d") {
+		t.Fatalf("%v", w.calls)
+	}
+}
+
+func TestAnAgentMidHandoffAndAnUnrelatedTriggerlessAgentAreLeftAlone(t *testing.T) {
+	tk, w := newWorld(t)
+	over := 250_000
+	w.status = Status{TrustedCtxUsed: &over}
+	db.StartHandoff(tk.Q, "h1", "a", "", "context", 99_999)
+	supervise(tk, "a")
+	if len(w.calls) != 0 {
+		t.Fatalf("an agent mid-handoff is excluded from trigger evaluation: %v", w.calls)
+	}
+	tk, w = newWorld(t)
+	w.triggers = false // a closed agent's other end is a shell prompt
+	w.status = Status{TrustedCtxUsed: &over}
+	supervise(tk, "a")
+	if w.did("handoff") {
+		t.Fatalf("%v", w.calls)
+	}
+}
+
+// 10-20 00:45: the context reading that fired a handoff is not trusted again once the note's turn is over; the handoff goes on all the same.
+func TestAHandoffWaitingOnItsNoteGoesOnOnceTheNoteIsInWhateverTheReadingSays(t *testing.T) {
+	tk, w := newWorld(t)
+	w.performOK = true
+	db.MarkNoteWait(tk.Q, "a", "context", 9_990)
+	w.hold = true // the note's turn has not ended
+	supervise(tk, "a")
+	if w.did("handoff") {
+		t.Fatalf("handed off before the note: %v", w.calls)
+	}
+	w.hold = false
+	supervise(tk, "a")
+	if !w.did("handoff a context") {
+		t.Fatalf("the note is in and nothing closed the session: %v", w.calls)
+	}
+	tk, w = newWorld(t)
+	db.MarkNoteWait(tk.Q, "a", "context", 10_000-db.NoteWaitStaleS-1) // a wait nobody acted on for too long is over
+	supervise(tk, "a")
+	if w.did("handoff") {
+		t.Fatalf("%v", w.calls)
+	}
+}
+
+// A trigger deferred behind a running turn holds messages only while it still fires.
+func TestADeferredTriggerThatNoLongerFiresIsForgotten(t *testing.T) {
+	tk, _ := newWorld(t)
+	db.MarkDeferred(tk.Q, "a", 9_990)
+	supervise(tk, "a")
+	if v, _ := db.Cursor(tk.Q, "handoff_deferred:a"); v != 0 {
+		t.Fatal("the deferred mark is kept with no trigger firing")
+	}
+}

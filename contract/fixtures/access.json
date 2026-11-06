@@ -1,0 +1,658 @@
+{
+ "fixtures": [
+  {
+   "name": "access.grant.an_agent_session_is_refused",
+   "spec": "access.grant",
+   "about": "Only the founder grants, gate role.",
+   "as": "agent",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "access.grant",
+      "params": {
+       "agent": "{{ask_agent}}",
+       "path": "/tmp",
+       "scope": "once",
+       "request_id": "conf-acc-1"
+      }
+     },
+     "error": {
+      "code": -32002,
+      "data": {
+       "code": "refused",
+       "gate": "role"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "access.grant.a_relative_path_is_bad_request",
+   "spec": "access.grant",
+   "about": "A path must be absolute: bad_request, field path.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "access.grant",
+      "params": {
+       "agent": "{{ask_agent}}",
+       "path": "tmp",
+       "scope": "once",
+       "request_id": "conf-acc-2"
+      }
+     },
+     "error": {
+      "code": {
+       "$oneOf": [
+        -32600,
+        -32602
+       ]
+      },
+      "data": {
+       "code": "bad_request",
+       "field": "path"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "access.grant.another_scope_is_bad_request",
+   "spec": "access.grant",
+   "about": "scope is once or always.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "access.grant",
+      "params": {
+       "agent": "{{ask_agent}}",
+       "path": "/tmp",
+       "scope": "forever",
+       "request_id": "conf-acc-3"
+      }
+     },
+     "error": {
+      "code": {
+       "$oneOf": [
+        -32600,
+        -32602
+       ]
+      },
+      "data": {
+       "code": "bad_request",
+       "field": "scope"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "access.grant.a_path_that_does_not_exist_is_not_found",
+   "spec": "access.grant",
+   "about": "A path with nothing at it is not_found.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "access.grant",
+      "params": {
+       "agent": "{{ask_agent}}",
+       "path": "/no/such/conformance/path",
+       "scope": "once",
+       "request_id": "conf-acc-4"
+      }
+     },
+     "error": {
+      "code": -32001,
+      "data": {
+       "code": "not_found",
+       "what": "path"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "access.revoke.an_agent_session_is_refused",
+   "spec": "access.revoke",
+   "about": "Only the founder revokes, gate role.",
+   "as": "agent",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "access.revoke",
+      "params": {
+       "agent": "{{ask_agent}}",
+       "path": "/tmp",
+       "request_id": "conf-acc-6"
+      }
+     },
+     "error": {
+      "code": -32002,
+      "data": {
+       "code": "refused",
+       "gate": "role"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "access.list.an_agent_session_is_refused",
+   "spec": "access.list",
+   "about": "Only the founder lists grants, gate role.",
+   "as": "agent",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "access.list",
+      "params": {
+       "agent": "{{ask_agent}}"
+      }
+     },
+     "error": {
+      "code": -32002,
+      "data": {
+       "code": "refused",
+       "gate": "role"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "access.grant.an_unknown_agent_is_not_found",
+   "spec": "access.grant",
+   "about": "A grant for an agent the daemon does not know is not_found.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "access.grant",
+      "params": {
+       "agent": "no.such-agent",
+       "path": "/tmp",
+       "scope": "once",
+       "request_id": "conf-acc-7"
+      }
+     },
+     "error": {
+      "code": -32001,
+      "data": {
+       "code": "not_found",
+       "what": "agent"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "access.list.an_unknown_agent_is_not_found",
+   "spec": "access.list",
+   "about": "access.list of an agent the daemon does not know is not_found.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "access.list",
+      "params": {
+       "agent": "no.such-agent"
+      }
+     },
+     "error": {
+      "code": -32001,
+      "data": {
+       "code": "not_found",
+       "what": "agent"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "access.revoke.a_path_never_granted_is_removed_false",
+   "spec": "access.revoke",
+   "about": "Revoking a path never granted is accepted with removed false.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "access.revoke",
+      "params": {
+       "agent": "{{ask_agent}}",
+       "path": "/sbin",
+       "request_id": "conf-acc-5"
+      }
+     },
+     "result": {
+      "accepted": true,
+      "removed": false
+     }
+    }
+   ]
+  },
+  {
+   "name": "access.grant.granted_listed_replaced_and_revoked",
+   "spec": "access.grant",
+   "about": "A grant is listed and announced as access.changed on the agents topic; a second grant of the path replaces its scope; a revoke removes it.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "subscribe",
+      "params": {
+       "topics": [
+        "agents"
+       ]
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "access.grant",
+      "params": {
+       "agent": "{{ask_agent}}",
+       "path": "/usr",
+       "scope": "once",
+       "request_id": "conf-acc-10"
+      }
+     },
+     "result": {
+      "accepted": true,
+      "grant": {
+       "path": "/usr",
+       "scope": "once",
+       "at": {
+        "$type": "timestamp"
+       }
+      },
+      "applies_from": {
+       "$oneOf": [
+        "now",
+        "next_session"
+       ]
+      }
+     },
+     "notices": [
+      {
+       "method": "event",
+       "params": {
+        "topic": "agents",
+        "type": "access.changed",
+        "data": {
+         "agent": "{{ask_agent}}",
+         "grants": {
+          "$contains": {
+           "path": "/usr",
+           "scope": "once"
+          }
+         }
+        }
+       }
+      }
+     ]
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "access.grant",
+      "params": {
+       "agent": "{{ask_agent}}",
+       "path": "/usr",
+       "scope": "always",
+       "request_id": "conf-acc-11"
+      }
+     },
+     "result": {
+      "grant": {
+       "path": "/usr",
+       "scope": "always"
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "access.list",
+      "params": {
+       "agent": "{{ask_agent}}"
+      }
+     },
+     "result": {
+      "grants": {
+       "$contains": {
+        "path": "/usr",
+        "scope": "always"
+       }
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "access.revoke",
+      "params": {
+       "agent": "{{ask_agent}}",
+       "path": "/usr",
+       "request_id": "conf-acc-12"
+      }
+     },
+     "result": {
+      "accepted": true,
+      "removed": true
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "access.list",
+      "params": {
+       "agent": "{{ask_agent}}"
+      }
+     },
+     "result": {
+      "grants": {
+       "$each": {
+        "path": {
+         "$regex": "^(?!/usr$)"
+        }
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "access.grant.a_ref_needs_a_grant_with_the_setting_on",
+   "spec": "access.grant",
+   "about": "With chat_refs_need_grant on, a ref outside the agent's readable roots is refused, gate access_needed, naming the agent and the path, and nothing is sent; after access.grant the same call is sent. The setting is put back off; if a step fails it stays on, and later chat.send fixtures with refs fail too.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "settings.set",
+      "params": {
+       "changes": {
+        "chat_refs_need_grant": true
+       },
+       "request_id": "conf-acc-20"
+      }
+     },
+     "result": {
+      "accepted": true
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "chat.send",
+      "params": {
+       "agent": "{{ask_agent}}",
+       "body": "see these",
+       "refs": [
+        "/bin"
+       ],
+       "request_id": "conf-acc-21"
+      }
+     },
+     "error": {
+      "code": -32002,
+      "data": {
+       "code": "refused",
+       "gate": "access_needed",
+       "agent": "{{ask_agent}}",
+       "paths": [
+        "/bin"
+       ]
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "access.grant",
+      "params": {
+       "agent": "{{ask_agent}}",
+       "path": "/bin",
+       "scope": "once",
+       "request_id": "conf-acc-22"
+      }
+     },
+     "result": {
+      "grant": {
+       "path": "/bin"
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "chat.send",
+      "params": {
+       "agent": "{{ask_agent}}",
+       "body": "see these",
+       "refs": [
+        "/bin"
+       ],
+       "request_id": "conf-acc-21"
+      }
+     },
+     "result": {
+      "accepted": true,
+      "request": {
+       "$type": "integer"
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "access.revoke",
+      "params": {
+       "agent": "{{ask_agent}}",
+       "path": "/bin",
+       "request_id": "conf-acc-23"
+      }
+     },
+     "result": {
+      "removed": true
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "settings.set",
+      "params": {
+       "changes": {
+        "chat_refs_need_grant": false
+       },
+       "request_id": "conf-acc-24"
+      }
+     },
+     "result": {
+      "accepted": true
+     }
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,955 @@
+{
+ "components": {
+  "schemas": {
+   "ChangedFile": {
+    "type": "object",
+    "properties": {
+     "path": {
+      "type": "string"
+     },
+     "status": {
+      "type": "string",
+      "description": "M, A, D, R or ?."
+     },
+     "added": {
+      "type": "integer"
+     },
+     "deleted": {
+      "type": "integer"
+     }
+    },
+    "required": [
+     "path",
+     "status",
+     "added",
+     "deleted"
+    ]
+   },
+   "WorktreePR": {
+    "type": "object",
+    "properties": {
+     "number": {
+      "type": "integer"
+     },
+     "url": {
+      "type": "string"
+     },
+     "verdict": {
+      "type": "string",
+      "enum": [
+       "ready",
+       "checks_failing",
+       "waiting_review",
+       "changes_requested",
+       "draft",
+       "merged"
+      ],
+      "description": "merged: it was merged. draft: it is a draft. checks_failing: a check failed (`failing` counts them). changes_requested: a reviewer asked for changes. waiting_review: a review is required and none approved. ready: nothing holds it."
+     },
+     "failing": {
+      "type": "integer",
+      "description": "Present only when verdict is checks_failing: how many checks failed."
+     }
+    },
+    "required": [
+     "number",
+     "url",
+     "verdict"
+    ]
+   },
+   "Worktree": {
+    "type": "object",
+    "properties": {
+     "path": {
+      "type": "string"
+     },
+     "repo": {
+      "type": "string"
+     },
+     "branch": {
+      "type": "string"
+     },
+     "owner": {
+      "oneOf": [
+       {
+        "$ref": "#/components/schemas/AgentName"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "parent": {
+      "oneOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "children": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "status": {
+      "type": "string"
+     },
+     "changed": {
+      "type": "array",
+      "items": {
+       "$ref": "#/components/schemas/ChangedFile"
+      }
+     },
+     "base": {
+      "type": "string",
+      "description": "The branch it merges into: its repo's default branch."
+     },
+     "files_changed": {
+      "type": "integer",
+      "description": "Its changed and untracked files, as git status counts them."
+     },
+     "commits_ahead": {
+      "type": "integer",
+      "description": "Its commits not on base."
+     },
+     "size_bytes": {
+      "oneOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "The bytes it takes on disk, as housekeeping last measured them (at most hourly, off the daemon's tick); null until measured."
+     },
+     "pr": {
+      "oneOf": [
+       {
+        "$ref": "#/components/schemas/WorktreePR"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "The pull request of its branch, read with the daemon's own gh login and kept about a minute; null when the branch has none open or merged, it is base itself, or gh could not answer (never a guess)."
+     }
+    },
+    "required": [
+     "path",
+     "repo",
+     "branch",
+     "owner",
+     "parent",
+     "children",
+     "status",
+     "changed",
+     "base",
+     "files_changed",
+     "commits_ahead",
+     "size_bytes",
+     "pr"
+    ]
+   },
+   "ChangeSet": {
+    "type": "array",
+    "description": "CodeMirror's ChangeSet.toJSON(): in document order, an integer is that many characters kept, and an array [n, ...lines] replaces n characters with the lines joined by \\n ([n] deletes them). Lengths count UTF-16 code units, as CodeMirror does. The kept and replaced lengths add up to the document's length.",
+    "items": {
+     "oneOf": [
+      {
+       "type": "integer",
+       "minimum": 0
+      },
+      {
+       "type": "array",
+       "minItems": 1,
+       "items": {
+        "oneOf": [
+         {
+          "type": "integer",
+          "minimum": 0
+         },
+         {
+          "type": "string"
+         }
+        ]
+       }
+      }
+     ]
+    }
+   },
+   "DocUpdate": {
+    "type": "object",
+    "properties": {
+     "client": {
+      "type": "string",
+      "description": "The pushing editor's client id, which collab matches its own updates by; `disk` for a change made to the file outside the doc."
+     },
+     "changes": {
+      "$ref": "#/components/schemas/ChangeSet"
+     },
+     "by": {
+      "type": "string",
+      "description": "Who made it: `human` for a push; for a disk change, the agent whose Edit, Write or MultiEdit named the file in the 10 s before it was seen; absent when the daemon cannot tell."
+     }
+    },
+    "required": [
+     "client",
+     "changes"
+    ]
+   }
+  }
+ },
+ "methods": [
+  {
+   "name": "repos.list",
+   "summary": "Repos.",
+   "paramStructure": "by-name",
+   "params": [],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "properties": {
+      "repos": {
+       "type": "array",
+       "items": {
+        "$ref": "#/components/schemas/Repo"
+       }
+      }
+     },
+     "required": [
+      "repos"
+     ]
+    }
+   },
+   "x-role": "member",
+   "x-write": false,
+   "x-app-cache": {
+    "resource": "repos",
+    "feed": null
+   },
+   "x-since": 1
+  },
+  {
+   "name": "worktrees.list",
+   "summary": "Worktrees with status, changed files, what each holds beyond its base and its pull request.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "repo",
+     "required": false,
+     "schema": {
+      "type": "string"
+     }
+    },
+    {
+     "name": "owner",
+     "required": false,
+     "schema": {
+      "$ref": "#/components/schemas/AgentName"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "properties": {
+      "worktrees": {
+       "type": "array",
+       "items": {
+        "$ref": "#/components/schemas/Worktree"
+       }
+      }
+     },
+     "required": [
+      "worktrees"
+     ]
+    }
+   },
+   "x-role": "member",
+   "x-write": false,
+   "x-app-cache": {
+    "resource": "worktrees",
+    "feed": null
+   },
+   "x-since": 1,
+   "description": "The worktrees agents work in, each with what it holds that main does not and its size. `repo` narrows them, by the repo's name or path."
+  },
+  {
+   "name": "worktree.diff",
+   "summary": "Read-only git diff run by the daemon. Without `file`: the changes to tracked files against HEAD, then a new-file diff of each untracked file that .gitignore does not ignore (at most 200; one too big for what is left of the size cap is listed as `(new file, N bytes: not shown)`, not diffed). With `file`: that file alone, untracked or not.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "path",
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    },
+    {
+     "name": "file",
+     "required": false,
+     "schema": {
+      "type": "string"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "properties": {
+      "path": {
+       "type": "string"
+      },
+      "file": {
+       "oneOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "diff": {
+       "type": "string",
+       "description": "Unified diff."
+      },
+      "truncated": {
+       "type": "boolean"
+      }
+     },
+     "required": [
+      "path",
+      "file",
+      "diff",
+      "truncated"
+     ]
+    }
+   },
+   "x-role": "member",
+   "x-write": false,
+   "x-app-cache": {
+    "resource": "worktree-diff",
+    "feed": null
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/not_found"
+    }
+   ]
+  },
+  {
+   "name": "files.list",
+   "summary": "The files of an agent's worktree, for the chat's @ menu.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "agent",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/AgentName"
+     }
+    },
+    {
+     "name": "query",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "description": "Matched case-insensitively as a subsequence of the path: its letters appear in the path in order, not necessarily side by side. Absent, null or empty lists every file. Anything else that is not a string is bad_request (field query)."
+     }
+    },
+    {
+     "name": "limit",
+     "required": false,
+     "schema": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 200,
+      "default": 50,
+      "description": "The most files returned; absent or null is 50. Outside 1..200, or not an integer: bad_request (field limit)."
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "properties": {
+      "files": {
+       "type": "array",
+       "items": {
+        "type": "object",
+        "properties": {
+         "path": {
+          "type": "string",
+          "description": "Relative to the worktree, with `/` between parts."
+         },
+         "size": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "The file's size in bytes."
+         }
+        },
+        "required": [
+         "path",
+         "size"
+        ]
+       },
+       "description": "With no query, every file in byte order of path. With one, the matches best first: a match inside the file's name (the part after the last `/`) comes first, then one elsewhere in the path, then a subsequence that is not side by side; within each, the shorter path first, then byte order."
+      },
+      "more": {
+       "type": "boolean",
+       "description": "More files matched than limit let through."
+      }
+     },
+     "required": [
+      "files",
+      "more"
+     ]
+    }
+   },
+   "x-role": "member",
+   "x-write": false,
+   "x-app-cache": {
+    "resource": "files",
+    "feed": null
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/bad_request"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    }
+   ],
+   "description": "The files are what git tracks plus the untracked files it does not ignore (`git ls-files --cached --others --exclude-standard`), the regular files among them that are there now. An agent with no worktree, or whose worktree is gone, is not_found. It reads only names and sizes, never a file's content."
+  },
+  {
+   "name": "file.read",
+   "summary": "The founder reads a text file in an agent's worktree.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "agent",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/AgentName"
+     }
+    },
+    {
+     "name": "path",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "description": "Relative to the agent's worktree, with `/` between parts. No .., no empty or . part, not absolute, no backslash, and no part of it (nor the worktree path under it) may be a symlink: bad_request (field path) otherwise."
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "properties": {
+      "text": {
+       "type": "string",
+       "description": "UTF-8 text; the first 1 MiB when the file is longer (truncated)."
+      },
+      "size": {
+       "type": "integer",
+       "minimum": 0,
+       "description": "The file's size in bytes."
+      },
+      "truncated": {
+       "type": "boolean",
+       "description": "The file is over 1 MiB and text is its first 1 MiB. Do not write it back."
+      },
+      "mtime": {
+       "$ref": "#/components/schemas/Timestamp"
+      },
+      "etag": {
+       "type": "string",
+       "description": "SHA-256 of the whole file, hex: file.write takes it back."
+      }
+     },
+     "required": [
+      "text",
+      "size",
+      "truncated",
+      "mtime",
+      "etag"
+     ]
+    }
+   },
+   "x-role": "founder",
+   "x-write": false,
+   "x-app-cache": {
+    "resource": "file",
+    "feed": null
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/bad_request"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/refused"
+    }
+   ]
+  },
+  {
+   "name": "file.write",
+   "summary": "The founder replaces or creates a .md or .json file in an agent's worktree, if it is still what the etag says.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "agent",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/AgentName"
+     }
+    },
+    {
+     "name": "path",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "description": "Relative to the agent's worktree, with `/` between parts. No .., no empty or . part, not absolute, no backslash, and no part of it (nor the worktree path under it) may be a symlink: bad_request (field path) otherwise."
+     }
+    },
+    {
+     "name": "text",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "description": "The whole new content: UTF-8 text without NUL, at most 1 MiB; for a .json file, valid JSON."
+     }
+    },
+    {
+     "name": "etag",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "description": "The etag file.read gave; empty to create a file that must not exist (its folder must)."
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "properties": {
+      "size": {
+       "type": "integer",
+       "minimum": 0
+      },
+      "mtime": {
+       "$ref": "#/components/schemas/Timestamp"
+      },
+      "etag": {
+       "type": "string",
+       "description": "The new file's etag."
+      }
+     },
+     "required": [
+      "size",
+      "mtime",
+      "etag"
+     ]
+    }
+   },
+   "x-role": "founder",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "save file"
+   },
+   "x-since": 1,
+   "x-gates": [
+    "denied",
+    "stale",
+    "too_big"
+   ],
+   "errors": [
+    {
+     "$ref": "#/components/errors/bad_request"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/refused"
+    }
+   ]
+  },
+  {
+   "name": "worktree.set_status",
+   "summary": "Set the status label of a worktree. The status is a free string (Worktree.status), 1 to 40 characters; the label changes nothing on disk, and worktrees.list shows it in place of the daemon's own word (dirty or clean). A path that is not a worktree an agent works in is not_found, what worktree, as for worktree.diff.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "path",
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    },
+    {
+     "name": "status",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Accepted"
+    }
+   },
+   "x-role": "member",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "set status"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ]
+  },
+  {
+   "name": "doc.open",
+   "summary": "The founder opens a .md file of an agent's worktree as a shared document: the daemon holds the text, orders every edit, and writes it to the file.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "agent",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/AgentName"
+     }
+    },
+    {
+     "name": "path",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "description": "As file.write's path, and a .md file: bad_request (field path) otherwise."
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "properties": {
+      "doc": {
+       "type": "string",
+       "description": "The id of this loaded copy. The daemon loads the file again (a new id, versions from 0) after the last connection closed it."
+      },
+      "version": {
+       "type": "integer",
+       "minimum": 0,
+       "description": "How many updates the doc has taken since it was loaded."
+      },
+      "text": {
+       "type": "string",
+       "description": "The document at that version."
+      }
+     },
+     "required": [
+      "doc",
+      "version",
+      "text"
+     ]
+    }
+   },
+   "x-role": "founder",
+   "x-write": false,
+   "x-app-cache": false,
+   "x-since": 1,
+   "x-gates": [
+    "too_big"
+   ],
+   "errors": [
+    {
+     "$ref": "#/components/errors/bad_request"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/refused"
+    }
+   ],
+   "description": "The connection gets doc_changed and doc_closed notices for the doc until doc.close or until it closes. Opening a doc the connection has open again is answered the same and sends nothing twice. The text has \\n line breaks: a file written with \\r\\n is held with \\n and written back with \\r\\n. not_found: the file is not there. too_big: the file is over 1 MiB. bad_request (field path): not a file, not UTF-8 text without NUL, or a \\r that is not before \\n. Path rules and the denied places are file.write's."
+  },
+  {
+   "name": "doc.push",
+   "summary": "An editor sends its updates to a shared document, based on the version it has.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "agent",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/AgentName"
+     }
+    },
+    {
+     "name": "path",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "description": "As file.write's path, and a .md file: bad_request (field path) otherwise."
+     }
+    },
+    {
+     "name": "doc",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "description": "The doc id doc.open gave."
+     }
+    },
+    {
+     "name": "version",
+     "required": true,
+     "schema": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "The version the updates were made on: must be the doc's current one."
+     }
+    },
+    {
+     "name": "updates",
+     "required": true,
+     "schema": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": {
+       "type": "object",
+       "properties": {
+        "client": {
+         "type": "string",
+         "minLength": 1,
+         "maxLength": 100
+        },
+        "changes": {
+         "$ref": "#/components/schemas/ChangeSet"
+        }
+       },
+       "required": [
+        "client",
+        "changes"
+       ]
+      }
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "properties": {
+      "version": {
+       "type": "integer",
+       "minimum": 0,
+       "description": "The doc's version after the updates."
+      }
+     },
+     "required": [
+      "version"
+     ]
+    }
+   },
+   "x-role": "founder",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "uncached",
+    "label": "edit"
+   },
+   "x-since": 1,
+   "x-gates": [
+    "behind",
+    "reopen",
+    "too_big"
+   ],
+   "errors": [
+    {
+     "$ref": "#/components/errors/bad_request"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/refused"
+    }
+   ],
+   "description": "The updates are applied in order, each on the document the one before it left; every connection that has the doc open (the pusher too) gets one doc_changed with them, each carrying by `human`. The daemon writes the file about 300 ms after the last push and at the last close. Before each write it reads the file: a change made there that it did not write is first taken in as one update (client `disk`, sent with doc_changed), so the write keeps it; an outside change is never written over. The two are merged line by line: where an editor typed inside a line the outside change also changed, the outside change's line is kept. A write that fails is tried again; a doc whose last editor closed it stays loaded until its write is made. A file found deleted or unreadable then is let go (doc_closed), not written again. A retry with the same request_id is judged again, not replayed: if the first was taken, it answers behind, and doc.pull shows the updates (collab knows its own by client). behind: version is not the current one (data.version is): nothing is taken; pull, rebase, push again. reopen: doc is not the loaded copy (the daemon loaded the file again): open it again. too_big: the document would be over 1 MiB. bad_request (field updates): a ChangeSet whose lengths do not add up to the document it applies to, a line with \\r or NUL, or one that cuts a character in two; nothing is taken. bad_request (field path or doc) as doc.open's path, or a missing doc. The doc must be open on this connection: not_found otherwise."
+  },
+  {
+   "name": "doc.pull",
+   "summary": "The updates a shared document took after a version, to catch up.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "agent",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/AgentName"
+     }
+    },
+    {
+     "name": "path",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "description": "As file.write's path, and a .md file: bad_request (field path) otherwise."
+     }
+    },
+    {
+     "name": "doc",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "description": "The doc id doc.open gave."
+     }
+    },
+    {
+     "name": "version",
+     "required": true,
+     "schema": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "The version the caller has."
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "properties": {
+      "version": {
+       "type": "integer",
+       "minimum": 0
+      },
+      "updates": {
+       "type": "array",
+       "items": {
+        "$ref": "#/components/schemas/DocUpdate"
+       }
+      }
+     },
+     "required": [
+      "version",
+      "updates"
+     ]
+    }
+   },
+   "x-role": "founder",
+   "x-write": false,
+   "x-app-cache": false,
+   "x-since": 1,
+   "x-gates": [
+    "reopen"
+   ],
+   "errors": [
+    {
+     "$ref": "#/components/errors/bad_request"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/refused"
+    }
+   ],
+   "description": "updates are those after `version`, in order, and `version` the doc's current one: none when the caller is current. reopen: doc is not the loaded copy, or the version is older than the updates the daemon keeps (the last 1000): open it again. bad_request (field version): above the current version; (field path or doc) as doc.push. The doc must be open on this connection: not_found otherwise."
+  },
+  {
+   "name": "doc.close",
+   "summary": "Stop receiving a shared document on this connection.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "agent",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/AgentName"
+     }
+    },
+    {
+     "name": "path",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "description": "As file.write's path, and a .md file: bad_request (field path) otherwise."
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "properties": {}
+    }
+   },
+   "x-role": "founder",
+   "x-write": false,
+   "x-app-cache": false,
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "description": "Not an error when the doc is not open here; bad_request (field path) as doc.open's path. When no connection has it open any more, the daemon writes what it has not written (as doc.push says) and lets it go. Closing the connection closes its docs."
+  }
+ ]
+}

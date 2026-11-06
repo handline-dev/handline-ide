@@ -1,0 +1,235 @@
+{
+ "fixtures": [
+  {
+   "name": "task.done.closes_at_once",
+   "spec": "task.done",
+   "as": "agent",
+   "with": {
+    "boss": "founder"
+   },
+   "about": "A done by its owner closes the task at once, whoever it answers to and whatever lead the owner has: nothing waits on an accept. A second done is refused.",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1
+      }
+     },
+     "result": {
+      "caller": {
+       "name": {
+        "$save": "me"
+       }
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {},
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "task.new",
+      "params": {
+       "owner": "{{me}}",
+       "title": "a task done by its owner",
+       "body": "build it; done is it built and tested",
+       "time_box": "1h",
+       "request_id": "conf-done-1"
+      }
+     },
+     "result": {
+      "accepted": true,
+      "task": {
+       "$save": "tid"
+      }
+     },
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "task.done",
+      "params": {
+       "task": "{{tid}}",
+       "evidence": "built and tested",
+       "request_id": "conf-done-2"
+      }
+     },
+     "result": {
+      "accepted": true,
+      "said": {
+       "$regex": "done"
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "task.get",
+      "params": {
+       "task": "{{tid}}"
+      }
+     },
+     "result": {
+      "state": "done",
+      "evidence": "built and tested"
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "task.done",
+      "params": {
+       "task": "{{tid}}",
+       "evidence": "again",
+       "request_id": "conf-done-3"
+      }
+     },
+     "error": {
+      "code": -32002,
+      "data": {
+       "code": "refused"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "task.done.the_notice_names_the_agent_the_task_and_the_result",
+   "spec": "task.done",
+   "as": "agent",
+   "with": {
+    "boss": "founder"
+   },
+   "about": "A done sends the founder's notifications topic a task_done whose agent is the closer and whose data carries the task's id, title and the first line of its evidence, so a bell row needs no task fetch.",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1
+      }
+     },
+     "result": {
+      "caller": {
+       "name": {
+        "$save": "me"
+       }
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {},
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "subscribe",
+      "params": {
+       "topics": [
+        "notifications"
+       ]
+      }
+     },
+     "result": {
+      "cursor": {
+       "$type": "integer"
+      }
+     },
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "task.new",
+      "params": {
+       "owner": "{{me}}",
+       "title": "a task the bell names",
+       "body": "build it; done is it built",
+       "time_box": "1h",
+       "request_id": "conf-done-bell-1"
+      }
+     },
+     "result": {
+      "accepted": true,
+      "task": {
+       "$save": "bell_tid"
+      }
+     },
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "task.done",
+      "params": {
+       "task": "{{bell_tid}}",
+       "evidence": "built and tested\nPR 12, check green",
+       "request_id": "conf-done-bell-2"
+      }
+     },
+     "result": {
+      "accepted": true
+     }
+    },
+    {
+     "on": "boss",
+     "notices": [
+      {
+       "jsonrpc": "2.0",
+       "method": "event",
+       "params": {
+        "topic": "notifications",
+        "type": "task_done",
+        "agent": "{{me}}",
+        "data": {
+         "task": "{{bell_tid}}",
+         "task_title": "a task the bell names",
+         "result": "built and tested"
+        }
+       }
+      }
+     ],
+     "notices_within_s": 15
+    }
+   ]
+  }
+ ]
+}

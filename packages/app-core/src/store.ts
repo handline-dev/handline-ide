@@ -1,0 +1,225 @@
+// What the apps keep of the daemon outside the query cache (`@handline/app-data`): the connection, who the caller is and what it may call, the
+// error line, what happened to each agent while this page watched, and the one open agent page (phone). Screens subscribe to it.
+import type { DaemonClient } from '@handline/client';
+import { Notices } from '#src/notices.ts';
+import { RpcError, type ConnectionState, type Event as WireEvent, type TerminalView } from '@handline/client';
+
+export interface Note {
+  at: string;
+  kind: string;
+  text: string;
+  actor: string | null;
+}
+export type PageTab = 'chat' | 'terminal';
+/** The agent a one-page app has open: which tab shows, and its attached terminal, null for a structured agent, which has none (its row and detail are `useAgentDetail(agent)`). */
+export interface Page {
+  agent: string;
+  tab: PageTab;
+  view: TerminalView | null;
+}
+
+/** What is a command for a terminal, not words for a person: a flag, a backtick or an `hl` command. */
+const COMMAND_LINE = /--\w|`|\bhl [a-z]/;
+const firstSentence = (s: string) => s.split(/(?<=[.!?])\s/, 1)[0] ?? s;
+
+export class Store {
+  client: DaemonClient;
+  notes = new Map<string, Note[]>(); // what happened to each agent while this page watched
+  conn: ConnectionState = 'connecting';
+  /** The last try to reach the daemon failed and another is coming: a screen with one connection bar says so there instead of raising a notice. */
+  unreachable = false;
+  me = '';
+  /** The methods this caller may use, from hello; a screen shows only what the daemon serves. */
+  served = new Set<string>();
+  /** What the person is told: results of what they did, and events worth knowing about. */
+  notices = new Notices();
+  page: Page | null = null;
+  /** Counts changes; a UI binding reads it as the snapshot that tells it to draw again. */
+  version = 0;
+  private wired = false;
+  /** The newest failure still on screen, for a screen that shows one line. */
+  get error(): string | null {
+    return this.notices.latestFailure();
+  }
+  private listeners = new Set<() => void>();
+  private openSeq = 0; // the latest openAgent call: an earlier one that finishes late undoes itself
+  private offs: (() => void)[] = [];
+  private unwatchView: (() => void) | null = null;
+
+  constructor(client: DaemonClient) {
+    this.client = client;
+    this.notices.subscribe(() => this.emit());
+  }
+
+  subscribe(fn: () => void): () => void {
+    this.listeners.add(fn);
+    return () => this.listeners.delete(fn);
+  }
+  private emit() {
+    this.version++;
+    for (const fn of this.listeners) fn();
+  }
+
+  /** Whether the daemon lets this caller use the method; false for a daemon that does not serve it. */
+  can(method: string): boolean {
+    return this.served.has(method);
+  }
+
+  /** Connects and learns who the caller is and what it may call; safe to call again after a failure to reach the daemon. */
+  async start(): Promise<void> {
+    if (!this.wired) {
+      this.wired = true;
+      this.offs.push(
+        this.client.onState((s) => {
+          this.conn = s;
+          this.emit();
+        }),
+      );
+      this.offs.push(this.client.onEvent((e) => this.onEvent(e)));
+    }
+    const hello = await this.client.start();
+    this.conn = this.client.state;
+    this.me = hello.caller.name;
+    this.served = new Set([...hello.methods.filter((m) => m.allowed).map((m) => m.name), ...this.client.relayed]);
+    this.emit();
+    await this.client.subscribe(['agents', 'notifications']);
+  }
+
+  /** Detaches from the daemon and closes the connection. */
+  stop(): void {
+    for (const off of this.offs) off();
+    this.offs = [];
+    this.wired = false;
+    this.unwatchView?.();
+    this.unwatchView = null;
+    this.page = null;
+    this.client.close(); // a restart begins clean; the client is closing, so nothing is detached
+  }
+
+  private onEvent(e: WireEvent): void {
+    this.notices.takeEvent(e);
+    if (e.type === 'agent.removed' && e.agent && this.page?.agent === e.agent) {
+      this.notices.push('fail', `${e.agent} was removed`);
+      void this.closeAgent();
+    }
+    if (e.agent && e.type === 'agent.control') {
+      const d = e.data as { at: string; kind: string; text: string; actor: { name: string } | null };
+      const list = this.notes.get(e.agent) ?? [];
+      list.push({ at: d.at, kind: d.kind, text: d.text, actor: d.actor?.name ?? null });
+      this.notes.set(e.agent, list.slice(-200));
+    }
+    this.emit();
+  }
+
+  /** Says why a call the person asked for failed: "Couldn't <what>: <first sentence of the reason>", the daemon's full words behind Details, `retry` behind "Try again". A lost connection says nothing here: the banner does, and the reconnect refetches. */
+  reportError(what: string, e: unknown, retry?: () => void): void {
+    if (e instanceof RpcError && e.code === 'transport') return;
+    const rpc = e instanceof RpcError ? e : null;
+    const reason = rpc ? (rpc.reason ?? rpc.message) : (e as Error).message;
+    const hint = rpc?.hint && !COMMAND_LINE.test(rpc.hint) ? ` (${rpc.hint})` : '';
+    const said = `${firstSentence(reason)}${hint}`;
+    const raw = `${reason}${rpc?.hint ? ` (${rpc.hint})` : ''}`;
+    this.notices.push(
+      'fail',
+      `Couldn't ${what.charAt(0).toLowerCase()}${what.slice(1)}: ${said}`,
+      'system',
+      undefined,
+      raw === said ? undefined : raw,
+      retry,
+    );
+    this.emit();
+  }
+
+  setUnreachable(v: boolean): void {
+    if (this.unreachable === v) return;
+    this.unreachable = v;
+    this.emit();
+  }
+
+  dismissError(): void {
+    this.notices.dismissToasts();
+    this.emit();
+  }
+  /** Says what a call the person asked for did, as a toast that goes by itself. */
+  say(message: string): void {
+    this.notices.push('ok', message);
+    this.emit();
+  }
+  /** Shows a sentence the store itself did not produce, such as an unreachable daemon. */
+  fail(message: string): void {
+    this.notices.push('fail', message);
+    this.emit();
+  }
+
+  // ---- the open agent page (one-page apps) ----
+
+  /** Opens the agent's page: attaches its terminal (a structured agent has none) and sets the page. Two quick calls end with the later one open; the earlier one lets go of what it took. */
+  async openAgent(agent: string): Promise<void> {
+    const seq = ++this.openSeq;
+    await this.closeAgent();
+    if (seq !== this.openSeq) return;
+    let attached = false;
+    try {
+      // The daemon refuses a terminal to a structured agent, and an agent with no terminal has none to attach: both pages open without
+      // one (chat, tasks and actions work; the terminal tab offers to start one). A failed read is left to the attach to report.
+      const { structured, bare } = await this.client.call('agent.get', { agent }).then(
+        (d) => ({ structured: d.structured === true, bare: d.terminal === null }),
+        () => ({ structured: false, bare: false }),
+      );
+      if (seq !== this.openSeq) throw new Superseded();
+      if (structured || bare) {
+        this.notices.dismissToasts();
+        this.page = { agent, tab: 'chat', view: null };
+        this.emit();
+        return;
+      }
+      const view = await this.client.attachTerminal(agent);
+      attached = true;
+      if (seq !== this.openSeq) throw new Superseded();
+      this.notices.dismissToasts();
+      this.unwatchView = view.subscribe(() => this.emit());
+      this.page = { agent, tab: 'chat', view };
+      this.emit();
+    } catch (e) {
+      if (attached) await this.client.detachTerminal(agent).catch(() => {});
+      if (!(e instanceof Superseded)) this.reportError('open', e);
+    }
+  }
+  /** Attaches the open page's terminal once the agent has one (it was started from the page); a refusal leaves the page as it is. */
+  async attachView(): Promise<void> {
+    const p = this.page;
+    if (!p || p.view) return;
+    const view = await this.client.attachTerminal(p.agent).catch(() => null);
+    if (!view) return;
+    if (this.page !== p) return void this.client.detachTerminal(p.agent).catch(() => {});
+    this.unwatchView = view.subscribe(() => this.emit());
+    this.page = { ...p, view };
+    this.emit();
+  }
+  async closeAgent(): Promise<void> {
+    const p = this.page;
+    if (!p) return;
+    this.unwatchView?.();
+    this.unwatchView = null;
+    this.page = null;
+    this.emit();
+    if (p.view) await this.client.detachTerminal(p.agent).catch(() => {});
+  }
+  setTab(tab: PageTab): void {
+    if (this.page) {
+      this.page = { ...this.page, tab };
+      this.emit();
+    }
+  }
+  loadOlder(): Promise<void> {
+    const v = this.page?.view;
+    if (!v) return Promise.resolve();
+    return this.client.loadOlder(v).then(
+      () => {},
+      (e) => this.reportError('load older', e),
+    );
+  }
+}
+
+/** A later openAgent took over while this one was attaching. */
+class Superseded extends Error {}

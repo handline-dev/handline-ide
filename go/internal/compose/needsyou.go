@@ -1,0 +1,132 @@
+package compose
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/handline/handline/go/agentctl/peerinbox"
+	"github.com/handline/handline/go/agentctl/verdict"
+	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/states"
+	"github.com/handline/handline/go/internal/agentview"
+	"github.com/handline/handline/go/internal/heal"
+	"github.com/handline/handline/go/internal/hooks"
+	"github.com/handline/handline/go/scheduler/session"
+)
+
+// titles is the card's title for a need the agent's session or a hook reports, by its kind.
+var titles = map[string]string{"permission": "Waiting for your OK", "question": "Asked you a question", "usage": "Usage limit: choose what to do",
+	"dialog": "Waiting at a dialog"}
+
+// movedOn is whether the agent's own turn went on past the prompt the wait file names (session.WaitOf's second path): it asked, reported or
+// committed after the prompt was raised, so the prompt was answered. A wait that names no event is left showing rather than guessed at.
+func movedOn(q db.Q, agent string, w map[string]any) bool {
+	after, ok := hooks.WaitID(w)
+	if !ok {
+		return false
+	}
+	last, found, err := db.LastActivityID(q, agent, session.MovedOnKinds)
+	return err == nil && found && last > after
+}
+
+// liveTerminals is the terminals the host lists, nil when it could not say (or there is no host).
+func (p *Parts) liveTerminals() map[string]bool {
+	if p.LC == nil || p.LC.term == nil {
+		return nil
+	}
+	return p.LC.term.LiveTerminals()
+}
+
+// needsYou is where an agent's need of a person comes from, never the screen: the session's own file saying status waiting (read through
+// terminalSession, the one reader of a terminal agent's session), and the wait file the PermissionRequest hook writes. An agent that is not
+// there to wait (no row, closed, or no live session) needs nobody; a live session that says it is not waiting is past the prompt whatever a
+// wait file still says, since the file is taken away only by the call that ran or a hook that ends the turn, and the call may run for
+// minutes. The hook's file counts for an agent whose row is running (session.WaitOf): a session at a prompt sends no Stop, so its row stays
+// running, and one that died there leaves the file behind. With Config.NotifiedNeedsYou, a prompt Claude Code's Notification hook reports
+// as unanswered (hooks.Notified) needs a person too, at the terminal.
+func (p *Parts) needsYou() func(agent string) *agentview.NeedsYou {
+	home, q, notified := p.home, p.db, p.notified
+	return func(agent string) *agentview.NeedsYou {
+		row, err := db.GetAgentState(q, agent)
+		if err != nil || row == nil || (row.ClosedAt.Valid && row.ClosedAt.Int64 != 0) {
+			return nil
+		}
+		// The daemon's own record of an agent waiting on a person: a start-up dialog it will not answer, a dialog it cannot get past, an
+		// agent it could not heal. One card for the event, and it goes when the dialog closes or the trouble does.
+		if row.State == states.Stalled {
+			if n := stallNeed(row); n != nil {
+				return n
+			}
+		}
+		if since, up := heal.CardUp(q, agent); up {
+			return &agentview.NeedsYou{Kind: "stuck", Source: "daemon", Since: since, Title: "Stuck after restarts",
+				Text: strings.TrimPrefix(heal.CardText, "stuck: ")}
+		}
+		var sess *sessionRec
+		if rec, _, found := p.terminalSession(agent, p.liveTerminals()); found == sessionFound {
+			sess = &rec
+		}
+		if sess != nil && sess.Status != "waiting" {
+			return nil
+		}
+		w := hooks.ReadWait(home, agent)
+		// Claude Code saying nobody answered comes first; a question is left to its own card.
+		if since, ok := hooks.Notified(home, agent); notified && ok && w["tool"] != "AskUserQuestion" {
+			return &agentview.NeedsYou{Kind: "permission", Source: "notification", Since: since, Title: titles["permission"]}
+		}
+		if w != nil && row.State == states.Running && !movedOn(q, agent, w) {
+			since, _ := w["since"].(float64)
+			tool, _ := w["tool"].(string)
+			command, _ := w["command"].(string)
+			kind := "permission"
+			if tool == "AskUserQuestion" {
+				kind = "question"
+			}
+			return &agentview.NeedsYou{Kind: kind, Source: "hook", Since: int64(since), Title: titles[kind], Text: strings.TrimSpace(tool + ": " + command)}
+		}
+		if sess != nil {
+			s := peerinbox.Session{Status: sess.Status, WaitingFor: sess.WaitingFor}
+			kind := s.NeedsKind()
+			return &agentview.NeedsYou{Kind: kind, Source: "session", Since: sess.UpdatedAt / 1000, Title: titles[kind], Text: sess.WaitingFor}
+		}
+		return nil
+	}
+}
+
+// stallNeed is the card for a stall the daemon raised itself, one of five kinds: the title and the sentence under it are fixed here, from the
+// stalled row's detail, so the two paths that raise a dialog stall (the launch's and the sender's) say the same thing. nil for a stall it has no card for.
+func stallNeed(row *db.AgentState) *agentview.NeedsYou {
+	need := func(kind, title, text string) *agentview.NeedsYou {
+		return &agentview.NeedsYou{Kind: kind, Source: "daemon", Since: row.Updated, Title: title, Text: text}
+	}
+	facts := row.StallFacts()
+	switch verdict.ParseStuckKind(row.StallKind.String) {
+	case verdict.StuckTrust:
+		folder := facts["folder"]
+		if folder == "" {
+			folder = "its folder"
+		}
+		return need("trust", "Waiting for folder trust", "Claude Code is asking whether to trust the files in "+folder+". Only you can answer it, in the terminal.")
+	case verdict.StuckDialog:
+		ask := facts["ask"]
+		if ask == "" {
+			ask = "a question"
+		}
+		return need("dialog", "Stuck at a start-up dialog", "Claude Code is asking "+ask+". Only you can answer it, in the terminal.")
+	case verdict.StuckSendDialog:
+		return need("dialog", "Stuck at a dialog", "A dialog came up while it was working, so messages can't reach it: "+stallWhy(facts)+".")
+	case verdict.StuckStart:
+		return need("start_failed", "Won't start", fmt.Sprintf("The last %d starts failed: %s.", states.MaxFailedAttempts, stallWhy(facts)))
+	case verdict.StuckWake:
+		return need("no_session", "Woke but didn't start", fmt.Sprintf("It was woken %d times and no session started: %s.", states.MaxFailedAttempts, stallWhy(facts)))
+	}
+	return nil
+}
+
+// stallWhy is the reason the stall was raised with, "an unknown reason" when it was raised without one.
+func stallWhy(facts map[string]string) string {
+	if w := facts["why"]; w != "" {
+		return w
+	}
+	return "an unknown reason"
+}

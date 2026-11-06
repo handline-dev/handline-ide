@@ -1,0 +1,246 @@
+// Chat of one agent on the data layer: the person's messages and the agent's transcript as paged queries, and send as a write whose
+// row shows at once and, if refused, stays with its text and a Retry.
+import { useEffect, useState } from 'react';
+import { replaceEqualDeep, useInfiniteQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { useStore } from '@handline/app-react';
+import type { ChatMessage, TranscriptItem, Working } from '@handline/client';
+import { mapPages, type Pages } from '#src/cache.ts';
+import { NOT_WORKING, type MsgPage, type TrPage } from '#src/chat-events.ts';
+import { useData, useFeed, useServes } from '#src/provider.ts';
+import { qk } from '#src/reads.ts';
+import { forgetRow, newOperationId, operationOf, type Delivery } from '#src/send-ops.ts';
+import { useWrite } from '#src/write.ts';
+
+export type ChatScope = 'mine' | 'all';
+const PAGE = 30;
+
+/**
+ * Keeps a row's object when a page is written again with the same row in it. React Query matches rows by position, and a message that
+ * arrives shifts every row after it, so by position nothing would match and every row would draw again.
+ */
+const sharedRows =
+  <P, R extends { id: number }>(rowsOf: (page: P) => R[], withRows: (page: P, rows: R[]) => P) =>
+  (prev: unknown, next: unknown): Pages<P> => {
+    const to = next as Pages<P>;
+    const before = new Map(((prev as Pages<P> | undefined)?.pages ?? []).flatMap((p) => rowsOf(p)).map((r) => [r.id, r]));
+    return mapPages(to, (page) =>
+      withRows(
+        page,
+        rowsOf(page).map((r) => (before.has(r.id) ? replaceEqualDeep(before.get(r.id), r) : r)),
+      ),
+    );
+  };
+
+export interface Chat {
+  /** off: the daemon does not serve chat; loading: nothing cached yet (draw a skeleton); error; ready. */
+  status: 'off' | 'loading' | 'error' | 'ready';
+  error: unknown;
+  messages: ChatMessage[]; // oldest first
+  items: TranscriptItem[]; // oldest first
+  working: Working;
+  hasOlder: boolean;
+  /** The daemon has older messages / transcript lines than the oldest read: what `chatView` needs to draw only the stretch both have read. */
+  moreMessages: boolean;
+  moreItems: boolean;
+  loadingOlder: boolean;
+  loadOlder: () => void;
+  /** Reads both again (the error block's Retry). */
+  refetch: () => void;
+  /** Tells the data layer the person is reading up in the older messages (true) or is back at the newest (false), so a reconnect knows what to keep. */
+  holdPlace: (held: boolean) => void;
+}
+
+/** Per cache, the agents whose chat a person is reading above the newest messages: a reconnect keeps those older pages. */
+const heldPlace = new WeakMap<QueryClient, Set<string>>();
+export const placesHeld = (qc: QueryClient): ReadonlySet<string> => heldPlace.get(qc) ?? new Set();
+
+const byId = <T extends { id: number }>(lists: T[][]): T[] => [...new Map(lists.flat().map((x) => [x.id, x])).values()];
+
+/** One agent's conversation, in the tab (`mine` or `all`) shown. */
+export function useChat(agent: string, scope: ChatScope): Chat {
+  const store = useStore();
+  const qc = useQueryClient();
+  const { daemon } = useData();
+  const holdPlace = (held: boolean) => {
+    const set = heldPlace.get(qc) ?? heldPlace.set(qc, new Set()).get(qc)!;
+    if (held) set.add(agent);
+    else set.delete(agent);
+  };
+  useEffect(() => () => void heldPlace.get(qc)?.delete(agent), [qc, agent]);
+  const m = useServes('chat.messages');
+  const t = useServes('chat.transcript');
+  const served = m.served && t.served;
+  const on = served && m.open;
+  useFeed('chat', served);
+  const msgs = useInfiniteQuery({
+    queryKey: qk.chatMessages(daemon, agent, scope),
+    enabled: on,
+    staleTime: Infinity,
+    initialPageParam: undefined as number | undefined,
+    structuralSharing: sharedRows<MsgPage, ChatMessage>(
+      (p) => p.messages,
+      (p, messages) => ({ ...p, messages }),
+    ),
+    queryFn: ({ pageParam }) => store.client.call('chat.messages', { agent, scope, before: pageParam, limit: PAGE }),
+    getNextPageParam: (last: MsgPage) => (last.more && last.messages.length ? Math.min(...last.messages.map((x) => x.id)) : undefined),
+  });
+  const tr = useInfiniteQuery({
+    queryKey: qk.transcript(daemon, agent),
+    enabled: on,
+    staleTime: Infinity,
+    initialPageParam: undefined as number | undefined,
+    structuralSharing: sharedRows<TrPage, TranscriptItem>(
+      (p) => p.items,
+      (p, items) => ({ ...p, items }),
+    ),
+    queryFn: ({ pageParam }) => store.client.call('chat.transcript', { agent, before: pageParam, limit: PAGE }),
+    getNextPageParam: (last: TrPage) => (last.more && last.items.length ? last.items[0]!.id : undefined),
+  });
+  return {
+    status: !served ? 'off' : msgs.isError || tr.isError ? 'error' : msgs.isPending || tr.isPending ? 'loading' : 'ready',
+    error: msgs.error ?? tr.error,
+    // A withdrawn message of a structured agent was never written: it is not drawn.
+    messages: byId((msgs.data?.pages ?? []).map((p) => p.messages))
+      .filter((m) => !(m.receipt && m.landing === 'withdrawn'))
+      .sort((a, b) => a.id - b.id),
+    items: byId([...(tr.data?.pages ?? [])].reverse().map((p) => p.items)).sort((a, b) => a.id - b.id),
+    working: tr.data?.pages[0]?.working ?? NOT_WORKING,
+    hasOlder: !!msgs.hasNextPage || !!tr.hasNextPage,
+    moreMessages: !!msgs.hasNextPage,
+    moreItems: !!tr.hasNextPage,
+    loadingOlder: msgs.isFetchingNextPage || tr.isFetchingNextPage,
+    refetch: () => {
+      void msgs.refetch();
+      void tr.refetch();
+    },
+    holdPlace,
+    loadOlder: () => {
+      if (msgs.hasNextPage) void msgs.fetchNextPage();
+      if (tr.hasNextPage) void tr.fetchNextPage();
+    },
+  };
+}
+
+/** The ready-made verbs of a conversation. A refused send stays as a `failed` row: Retry sends its text again, Discard drops it. */
+export function useChatActions(agent: string) {
+  const qc = useQueryClient();
+  const { daemon } = useData();
+  const send = useWrite('chat.send', agent);
+  const sendNow = useWrite('chat.send_now', agent);
+  const cancel = useWrite('chat.cancel', agent);
+  const rows = (f: (m: ChatMessage) => boolean) => {
+    for (const [key] of qc.getQueriesData<Pages<MsgPage>>({ queryKey: qk.chatMessagesOf(daemon, agent) }))
+      qc.setQueryData<Pages<MsgPage>>(key, (d) => d && mapPages(d, (p) => ({ ...p, messages: p.messages.filter(f) })));
+  };
+  const failed = (id: number) =>
+    qc
+      .getQueriesData<Pages<MsgPage>>({ queryKey: qk.chatMessagesOf(daemon, agent) })
+      .flatMap(([, d]) => d?.pages.flatMap((p) => p.messages) ?? [])
+      .find((m) => m.id === id && m.state === 'failed');
+  /** One operation id per message; a retry of a failed row sends the row's own. */
+  const post = (
+    to: string,
+    body: string,
+    parent: number | null,
+    op = newOperationId(),
+    delivery?: Delivery,
+    attachments: string[] = [],
+    parentItem?: number,
+    quote?: string,
+  ) =>
+    send.mutate({
+      agent: to,
+      body,
+      ...(parent != null ? { parent } : {}),
+      ...(parentItem != null ? { parent_item: parentItem } : {}),
+      ...(quote ? { quote } : {}),
+      ...(attachments.length ? { attachments } : {}),
+      ...(delivery ? { delivery } : {}),
+      request_id: op,
+    });
+  return {
+    /** `parent` replies to a message, `parent_item` to one of the agent's own replies; `to` is another agent's chat. */
+    send: (
+      body: string,
+      opts?: { parent?: number; parent_item?: number; quote?: string; to?: string; delivery?: Delivery; attachments?: string[] },
+    ) => post(opts?.to ?? agent, body, opts?.parent ?? null, undefined, opts?.delivery, opts?.attachments, opts?.parent_item, opts?.quote),
+    retry: (id: number) => {
+      const m = failed(id);
+      if (!m) return;
+      const was = operationOf(id);
+      rows((x) => x.id !== id);
+      forgetRow(id);
+      post(
+        m.to,
+        m.body,
+        m.parent,
+        was?.op,
+        was?.delivery,
+        m.attachments?.map((a) => a.id),
+        m.parent_item?.id,
+        m.quote,
+      );
+    },
+    discard: (id: number) => {
+      rows((x) => x.id !== id);
+      forgetRow(id);
+    },
+    /** Writes a queued message to the agent now; its receipt goes to sent. */
+    sendNow: (request: number) => sendNow.mutate({ request }),
+    /** Takes the message back, delivered or not (a queued one of a structured agent leaves the conversation, with no confirm); one the agent already has needs `confirm`. Resolves when the daemon has done it, rejects when it refuses. */
+    cancel: (request: number, confirm = false) => cancel.mutateAsync({ request, ...(confirm ? { confirm: true } : {}) }),
+    sending: send.isPending,
+  };
+}
+
+export interface ChatWindow {
+  /** The message the window was opened on; null while the live tail is shown. */
+  target: number | null;
+  messages: ChatMessage[]; // oldest first
+  hasOlder: boolean;
+  hasNewer: boolean;
+  loading: boolean;
+  /** Opens a window around a message, from what chat.locate returned. */
+  open: (target: number, messages: ChatMessage[], moreOlder: boolean, moreNewer: boolean) => void;
+  loadOlder: () => void;
+  loadNewer: () => void;
+  /** Back to the live tail. */
+  close: () => void;
+}
+
+interface Held {
+  target: number;
+  messages: ChatMessage[];
+  older: boolean;
+  newer: boolean;
+}
+
+/** A stretch of one chat around an old message, read in both directions from it instead of paging up from the newest. `target` is null while the live tail is shown. */
+export function useChatWindow(agent: string, scope: ChatScope): ChatWindow {
+  const store = useStore();
+  const [held, setHeld] = useState<Held | null>(null);
+  const [loading, setLoading] = useState(false);
+  const read = (h: Held, params: { before: number } | { since: number }, edge: 'older' | 'newer') => {
+    setLoading(true);
+    void store.client
+      .call('chat.messages', { agent, scope, ...params, limit: PAGE })
+      .then((r) =>
+        setHeld((cur) => {
+          if (!cur || cur.target !== h.target) return cur;
+          return { ...cur, messages: byId([cur.messages, r.messages]).sort((a, b) => a.id - b.id), [edge]: r.more };
+        }),
+      )
+      .finally(() => setLoading(false));
+  };
+  return {
+    target: held?.target ?? null,
+    messages: held?.messages ?? [],
+    hasOlder: !!held?.older,
+    hasNewer: !!held?.newer,
+    loading,
+    open: (target, messages, older, newer) => setHeld({ target, messages: [...messages].sort((a, b) => a.id - b.id), older, newer }),
+    loadOlder: () => held && !loading && held.older && read(held, { before: Math.min(...held.messages.map((m) => m.id)) }, 'older'),
+    loadNewer: () => held && !loading && held.newer && read(held, { since: Math.max(...held.messages.map((m) => m.id)) }, 'newer'),
+    close: () => setHeld(null),
+  };
+}

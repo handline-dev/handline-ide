@@ -1,0 +1,107 @@
+package reads
+
+import (
+	"sort"
+
+	"github.com/handline/handline/go/internal/cmdruns"
+	"github.com/handline/handline/go/internal/transcript"
+)
+
+// What the chat topic's events carry is what the chat reads return, built by the same functions: these are the entry points the watcher
+// calls with the ids it found changed.
+
+// ChatRequest is one request as chat.messages shows it.
+type ChatRequest struct {
+	Message           map[string]any
+	Requester, Target string
+}
+
+// ChatRequests reads requests for one pass of the chat watcher: the task board a task delivery's state needs is loaded once for the
+// pass, not once a request.
+type ChatRequests struct{ ch *chat }
+
+// ChatRequests starts a pass; one that outlives a change of the board shows the board as it was.
+func (e *Env) ChatRequests() *ChatRequests { return &ChatRequests{&chat{e: e}} }
+
+// ChatRequest reads request id whether or not any chat draws it; nil when there is none.
+func (e *Env) ChatRequest(id int64) (*ChatRequest, error) { return e.ChatRequests().Get(id) }
+
+// Get is ChatRequest within the pass.
+func (p *ChatRequests) Get(id int64) (*ChatRequest, error) {
+	ch := p.ch
+	r, err := ch.requestRow(id)
+	if err != nil || r == nil {
+		return nil, err
+	}
+	m, err := ch.messageOf(r)
+	if err != nil {
+		return nil, err
+	}
+	return &ChatRequest{Message: m, Requester: r.str("requester"), Target: r.str("target")}, nil
+}
+
+// TaskEventItem is the task event with that id as a transcript item, and the owner of the task it names; ok is false when the chat does
+// not show the event or its task is gone.
+func (e *Env) TaskEventItem(id int64) (item map[string]any, owner string, ok bool, err error) {
+	ev, err := queryOne(e.DB, "SELECT id, ts, agent, kind, payload FROM events WHERE id = ?", id)
+	if err != nil || ev == nil {
+		return nil, "", false, err
+	}
+	item, tid, shown := taskItemOf(ev)
+	if !shown {
+		return nil, "", false, nil
+	}
+	if tid == 0 { // a batch: its author's chat
+		return item, ev.str("agent"), true, nil
+	}
+	t, err := queryOne(e.DB, "SELECT owner FROM tasks WHERE id = ?", tid)
+	if err != nil || t == nil || inBatchCard(ev, t.str("owner")) {
+		return nil, "", false, err
+	}
+	return item, t.str("owner"), true, nil
+}
+
+// ReplyItem is reply item id as a transcript item with its runs, and the agent it is of; ok is false when there is no such reply.
+func (e *Env) ReplyItem(id int64) (item map[string]any, agent string, ok bool, err error) {
+	r, agent, ok, err := transcript.ReplyByID(e.DB, id)
+	if err != nil || !ok {
+		return nil, "", false, err
+	}
+	runs, err := cmdruns.OfReply(e.DB, id)
+	if err != nil {
+		return nil, "", false, err
+	}
+	return replyItemOf(r, runs), agent, true, nil
+}
+
+// PromptItem is the prompt block with that id as a transcript item, and the agent it belongs to; ok is false when there is no such block.
+func (e *Env) PromptItem(id int64) (item map[string]any, agent string, ok bool, err error) {
+	b, err := queryOne(e.DB, "SELECT * FROM prompt_blocks WHERE id = ?", id)
+	if err != nil || b == nil {
+		return nil, "", false, err
+	}
+	return promptItemOf(b.str("agent"), b), b.str("agent"), true, nil
+}
+
+// SessionItem is a session start as a chat.transcript item and its agent; false for a resume, and until the session id is known.
+func (e *Env) SessionItem(id int64) (item map[string]any, agent string, ok bool, err error) {
+	starts, err := freshStarts(e.DB, "id = ?", id)
+	if err != nil || len(starts) == 0 {
+		return nil, "", false, err
+	}
+	item, ok = sessionItemOf(starts[0])
+	return item, starts[0].str("agent"), ok, nil
+}
+
+// WorkingOf is a stored agent view (the agent_view row's JSON) as the spec's Working.
+func WorkingOf(view string) map[string]any { return workingFrom(decodeObject(view)) }
+
+// ChatTaskKinds are the kinds of task event the chat shows, a batch discard's among them, sorted.
+func ChatTaskKinds() []string {
+	kinds := []string{batchKind}
+	for k := range transcriptEvents {
+		kinds = append(kinds, k)
+	}
+	sort.Strings(kinds)
+	return kinds
+}

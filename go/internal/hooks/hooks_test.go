@@ -1,0 +1,312 @@
+package hooks
+
+import (
+	"database/sql"
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/handline/handline/go/agentctl/agent/claudecode/turns"
+	"github.com/handline/handline/go/kit/storetest"
+	"github.com/handline/handline/go/protocol/rpc"
+)
+
+func testRecorder(t *testing.T) *Recorder {
+	t.Helper()
+	home := t.TempDir()
+	db, err := storetest.OpenAt(t, filepath.Join(home, "db.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+	return &Recorder{DB: db, Home: home, Log: func(string, ...any) {}}
+}
+
+func count(t *testing.T, db *sql.DB, q string, args ...any) int {
+	t.Helper()
+	var n int
+	if err := db.QueryRow(q, args...).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	return n
+}
+
+func TestAHookAppliesOnceByRequestIDAndALateOneMovesNothing(t *testing.T) {
+	h := testRecorder(t)
+	now := time.Now().Unix()
+	apply := func(kind, rid string, at int64) {
+		t.Helper()
+		if err := Apply(h.DB, h.Home, "w", kind, map[string]any{}, rid, at); err != nil {
+			t.Fatal(err)
+		}
+	}
+	apply("UserPromptSubmit", "a", now-10)
+	apply("UserPromptSubmit", "a", now-9) // the same id
+	apply("Stop", "b", now-5)             // RUNNING -> IDLE
+	apply("UserPromptSubmit", "c", now-8) // late: recorded, nothing moves
+	if n := count(t, h.DB, "SELECT COUNT(*) FROM events WHERE agent = 'w'"); n != 3 {
+		t.Errorf("%d events, want 3", n)
+	}
+	var state string
+	h.DB.QueryRow("SELECT state FROM agent_state WHERE agent = 'w'").Scan(&state)
+	if state != "IDLE" {
+		t.Errorf("state %s: a late event moved it", state)
+	}
+}
+
+func TestOnlyAFreshSessionStartNamesTheLaunchItCameFrom(t *testing.T) {
+	h := testRecorder(t)
+	now := time.Now().Unix()
+	start := func(source, sid string) {
+		t.Helper()
+		if err := Apply(h.DB, h.Home, "w", "SessionStart", map[string]any{"source": source, "session_id": sid}, sid, now); err != nil {
+			t.Fatal(err)
+		}
+	}
+	named := func() string {
+		var sid sql.NullString
+		h.DB.QueryRow("SELECT session_id FROM session_starts WHERE agent = 'w' ORDER BY id LIMIT 1").Scan(&sid)
+		return sid.String
+	}
+	if _, err := h.DB.Exec("INSERT INTO session_starts (agent, ts, cause, resumed, text, prompt) VALUES ('w', ?, 'wake', 0, '', '')", now); err != nil {
+		t.Fatal(err)
+	}
+	start("clear", "s-clear")
+	if got := named(); got != "" {
+		t.Errorf("a /clear claimed the launch: %q", got)
+	}
+	start("startup", "s-new")
+	if got := named(); got != "s-new" {
+		t.Errorf("the new session did not name its launch: %q", got)
+	}
+	if _, err := h.DB.Exec("INSERT INTO session_starts (agent, ts, cause, resumed, text, prompt) VALUES ('w', ?, 'launch', 0, '', '')", now-7200); err != nil {
+		t.Fatal(err)
+	}
+	start("startup", "s-late")
+	if n := count(t, h.DB, "SELECT COUNT(*) FROM session_starts WHERE session_id = 's-late'"); n != 0 {
+		t.Errorf("a launch too old was claimed")
+	}
+}
+
+func TestTheSpoolSetsABadLineAsideAndAppliesTheRest(t *testing.T) {
+	h := testRecorder(t)
+	now := time.Now().Unix()
+	good := `{"agent": "w", "kind": "Stop", "at": ` + itoa(now-5) + `, "data": {}, "request_id": "g1"}`
+	os.WriteFile(spoolPath(h.Home), []byte("garbage\n"+good+"\n"+good+"\n"), 0o600)
+	n, err := h.Ingest()
+	if err != nil || n != 2 {
+		t.Fatalf("applied %d, %v", n, err)
+	}
+	if c := count(t, h.DB, "SELECT COUNT(*) FROM events WHERE agent = 'w'"); c != 1 {
+		t.Errorf("%d events, want 1: a duplicate id applies once", c)
+	}
+	rej, _ := os.ReadFile(filepath.Join(h.Home, rejectedName))
+	if !strings.Contains(string(rej), "garbage") {
+		t.Errorf("rejected: %s", rej)
+	}
+	if _, err := os.Stat(ingesting(h.Home)); err == nil {
+		t.Error("the ingest file was not removed")
+	}
+}
+
+func TestAnIngestThatFailsKeepsTheLinesItDidNotApply(t *testing.T) {
+	h := testRecorder(t)
+	line := func(id string) string {
+		return `{"agent": "w", "kind": "Stop", "at": 1, "data": {}, "request_id": "` + id + `"}`
+	}
+	os.WriteFile(ingesting(h.Home), []byte(line("k1")+"\n"+line("k2")+"\n"), 0o600)
+	h.DB.Close() // every apply now fails: not the lines' fault
+	if _, err := h.Ingest(); err == nil {
+		t.Fatal("no error from a closed database")
+	}
+	b, _ := os.ReadFile(ingesting(h.Home))
+	if !strings.Contains(string(b), "k1") || !strings.Contains(string(b), "k2") {
+		t.Errorf("lines were lost: %s", b)
+	}
+}
+
+func itoa(n int64) string { return strconv.FormatInt(n, 10) }
+
+func TestAnUnansweredPermissionPromptIsNotedUntilTheAgentMovesOn(t *testing.T) {
+	h := testRecorder(t)
+	now := time.Now().Unix()
+	rid := 0
+	apply := func(kind string, raw map[string]any) {
+		t.Helper()
+		rid++
+		if err := Apply(h.DB, h.Home, "w", kind, raw, strconv.Itoa(rid), now); err != nil {
+			t.Fatal(err)
+		}
+	}
+	prompt := map[string]any{"notification_type": "permission_prompt", "message": "Claude needs your permission"}
+	apply("Notification", map[string]any{"notification_type": "idle_prompt"})
+	if _, ok := Notified(h.Home, "w"); ok {
+		t.Fatal("an idle notification is no prompt")
+	}
+	for _, next := range []string{"PostToolUse", "PostToolUseFailure", "Stop", "StopFailure", "UserPromptSubmit", "SessionEnd"} {
+		apply("Notification", prompt)
+		if since, ok := Notified(h.Home, "w"); !ok || since != now {
+			t.Fatalf("a permission prompt left unanswered is noted: %d %v", since, ok)
+		}
+		apply(next, map[string]any{"tool_name": "Bash"})
+		if _, ok := Notified(h.Home, "w"); ok {
+			t.Errorf("%s: the agent moved on, and the prompt is still noted", next)
+		}
+	}
+	if n := count(t, h.DB, "SELECT COUNT(*) FROM events WHERE agent = 'w' AND kind = 'Notification' AND payload LIKE '%permission_prompt%'"); n != 6 {
+		t.Errorf("%d permission_prompt events recorded, want 6", n)
+	}
+}
+
+func TestTheViewIsToldWhenAHookRaisesOrClearsTheNeedsYouCard(t *testing.T) {
+	h := testRecorder(t)
+	h.Turns = &turns.Tracker{Agent: func(string) string { return "w" }}
+	var told int
+	h.Turns.OnChange(func(string) { told++ })
+	now := time.Now().Unix()
+	apply := func(kind, rid string, raw map[string]any, want int) {
+		t.Helper()
+		told = 0
+		if err := h.apply("w", kind, raw, rid, now); err != nil {
+			t.Fatal(err)
+		}
+		if told != want {
+			t.Errorf("%s: the view was told %d times, want %d", kind, told, want)
+		}
+	}
+	apply("UserPromptSubmit", "a", map[string]any{}, 1)
+	apply("Notification", "b", map[string]any{"notification_type": "permission_prompt"}, 1)
+	apply("PostToolUse", "c", map[string]any{"tool_name": "Bash"}, 1)
+	apply("PostToolUse", "d", map[string]any{"tool_name": "Bash"}, 0)
+}
+
+func TestAnInterruptIsWhatAStopWouldHaveDone(t *testing.T) {
+	h := testRecorder(t)
+	h.Turns = &turns.Tracker{Agent: func(string) string { return "w" }}
+	now := time.Now().Unix()
+	if err := h.apply("w", "UserPromptSubmit", map[string]any{}, "a", now); err != nil {
+		t.Fatal(err)
+	}
+	if idle, known := h.Turns.WaitIdle("%1", 0); idle || !known {
+		t.Fatalf("the tracker was not told the prompt: idle=%v known=%v", idle, known)
+	}
+	noteWait(h.Home, "w", "Bash", map[string]any{"command": "ls"}, 1)
+	if err := MarkInterrupted(h.DB, h.Home, "w"); err != nil {
+		t.Fatal(err)
+	}
+	var state, detail string
+	h.DB.QueryRow("SELECT state, detail FROM agent_state WHERE agent = 'w'").Scan(&state, &detail)
+	if state != "IDLE" || detail != "interrupted its turn" || ReadWait(h.Home, "w") != nil {
+		t.Fatalf("%s %q, wait %v", state, detail, ReadWait(h.Home, "w"))
+	}
+	h.DB.Exec("UPDATE agent_state SET state = 'STALLED' WHERE agent = 'w'")
+	if err := MarkInterrupted(h.DB, h.Home, "w"); err != nil {
+		t.Fatal(err)
+	}
+	h.DB.QueryRow("SELECT state FROM agent_state WHERE agent = 'w'").Scan(&state)
+	if state != "STALLED" {
+		t.Fatalf("an interrupt moved a state the daemon owns: %s", state)
+	}
+}
+
+// The call that ran (or failed) after its permission question was answered at the agent's own dialog closes that question; a parallel
+// call to another tool or command leaves it open.
+func TestAToolCallThatRanClosesItsPermissionQuestion(t *testing.T) {
+	h := testRecorder(t)
+	now := time.Now().Unix()
+	open := func() int {
+		return count(t, h.DB, "SELECT COUNT(*) FROM prompt_blocks WHERE agent = 'w' AND gone_at IS NULL")
+	}
+	for i, c := range []struct {
+		event, tool, command string
+		closes               bool
+	}{
+		{"PostToolUse", "Bash", "other", false},
+		{"PostToolUse", "Read", "cd /x && make", false},
+		{"PostToolUse", "Bash", "cd /x && make", true},
+		{"PostToolUseFailure", "Bash", "cd /x && make", true},
+	} {
+		if _, err := h.DB.Exec("INSERT INTO prompt_blocks(agent, kind, fingerprint, title, panel, detail, answerable, first_seen, last_seen) "+
+			"VALUES('w','permission',?, 't','[]', ?, 1, ?, ?)", "fp"+strconv.Itoa(i),
+			`{"source":"hook","tool":"Bash","command":"cd /x && make"}`, now, now); err != nil {
+			t.Fatal(err)
+		}
+		in := map[string]any{"command": c.command}
+		if err := Apply(h.DB, h.Home, "w", c.event, map[string]any{"tool_name": c.tool, "tool_input": in}, "r"+strconv.Itoa(i), now+int64(i)); err != nil {
+			t.Fatal(err)
+		}
+		if got := open() == 0; got != c.closes {
+			t.Fatalf("%+v: closed %v", c, got)
+		}
+		h.DB.Exec("DELETE FROM prompt_blocks")
+	}
+}
+
+func TestAStopAsksForTheNudgeBeforeItIsRecordedAndAPostToolUseTellsBackground(t *testing.T) {
+	h := testRecorder(t)
+	var order []string
+	h.Nudge = func(agent string, raw map[string]any) string {
+		order = append(order, "nudge")
+		if n := count(t, h.DB, "SELECT COUNT(*) FROM events WHERE agent = 'w' AND kind = 'Stop'"); n != 0 {
+			t.Errorf("the Stop was recorded before the nudge was asked: %d", n)
+		}
+		return "answer it"
+	}
+	h.Background = func(agent string, raw map[string]any) { order = append(order, "background:"+agent) }
+	call := func(kind, rid string) map[string]any {
+		t.Helper()
+		got, err := h.record(&rpc.Conn{}, map[string]any{"agent": "w", "kind": kind, "at": json.Number(strconv.FormatInt(time.Now().Unix(), 10)),
+			"data": map[string]any{}, "request_id": rid})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got.(map[string]any)
+	}
+	if got := call("Stop", "s1"); got["nudge"] != "answer it" {
+		t.Fatalf("result %v", got)
+	}
+	if got := call("PostToolUse", "p1"); got["nudge"] != nil {
+		t.Fatalf("a PostToolUse is nudged: %v", got)
+	}
+	if want := "nudge background:w"; strings.Join(order, " ") != want {
+		t.Fatalf("order %v, want %s", order, want)
+	}
+}
+
+func TestATurnsEndIsToldOnceApplied(t *testing.T) {
+	h := testRecorder(t)
+	var told []string
+	h.TurnEnded = func(agent, kind string) { told = append(told, agent+":"+kind) }
+	for i, kind := range []string{"PostToolUse", "Stop", "StopFailure", "SubagentStop", "SessionEnd"} {
+		if err := h.apply("w", kind, map[string]any{}, "t"+strconv.Itoa(i), time.Now().Unix()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if want := "w:Stop w:StopFailure w:SessionEnd"; strings.Join(told, " ") != want {
+		t.Fatalf("told %v, want %s", told, want)
+	}
+}
+
+// A tool use moves a queued row to RUNNING unless the move machinery queued it: its park reason says so, not its detail's words.
+func TestAToolUseLeavesAMovingRowQueued(t *testing.T) {
+	h := testRecorder(t)
+	now := time.Now().Unix()
+	for agent, reason := range map[string]any{"mover": "moving", "worded": nil} {
+		if _, err := h.DB.Exec("INSERT INTO agent_state(agent, state, detail, updated, park_reason) VALUES(?, 'QUEUED', 'moving a -> b', 0, ?)", agent, reason); err != nil {
+			t.Fatal(err)
+		}
+		if err := h.apply(agent, "PostToolUse", map[string]any{"tool_name": "Bash"}, "r-"+agent, now); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for agent, want := range map[string]string{"mover": "QUEUED", "worded": "RUNNING"} {
+		var got string
+		if err := h.DB.QueryRow("SELECT state FROM agent_state WHERE agent = ?", agent).Scan(&got); err != nil || got != want {
+			t.Errorf("%s: %q %v, want %s", agent, got, err, want)
+		}
+	}
+}

@@ -1,0 +1,69 @@
+# The whole Go suite with -race on main's head, nightly (about 19:30 UTC) and on a manual run: a push tests only the modules and
+# packages it reaches (tools/go-modules.py), so this is what catches a wrong selection. The same groups and shards as check.yml.
+# A failed run comments on one open issue titled "Nightly Go run failed" (opened if none), naming the sha and the failing packages.
+name: nightly
+
+on:
+  schedule:
+    - cron: '30 19 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: nightly-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CHECK_FULL: 1
+  HANDLINE_GO_RACE: 1
+
+jobs:
+  go:
+    name: go (${{ matrix.group }}${{ matrix.shard && format(' {0}', matrix.shard) || '' }})
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [go]
+        shard: [compose, cli, daemon, terminal, agentctl, kit, protocol, data, accounts, taskboard, scheduler, other]
+        include:
+          - group: contract
+          - group: fakes
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/**/go.sum
+      - timeout-minutes: 6
+        run: tools/ci-tmux.sh
+      - run: tools/check.sh --group ${{ matrix.group }} ${{ matrix.shard && format('--shard {0}', matrix.shard) || '' }} HEAD
+
+  report:
+    needs: [go]
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      issues: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title='Nightly Go run failed'
+          failed="$(gh run view "$RUN_ID" --json jobs -q '.jobs[]|select(.conclusion=="failure")|"\(.databaseId)\t\(.name)"')"
+          jobs="$(cut -f2 <<< "$failed" | paste -sd, -)"
+          # Each failed job's raw log by curl: gh run view refuses the logs of a run still going, as this one is, and gh api a log with
+          # colour codes in it. go test prints FAIL<tab><package>.
+          pkgs="$(for id in $(cut -f1 <<< "$failed"); do curl -sfL -H "Authorization: Bearer $GH_TOKEN" "$GITHUB_API_URL/repos/$GH_REPO/actions/jobs/$id/logs"; done | grep -oP 'FAIL\t\S+' | cut -f2 | sort -u | paste -sd' ' -)"
+          body="The nightly Go run (-race, every module) failed on $GITHUB_REF_NAME at $GITHUB_SHA ($GITHUB_EVENT_NAME): $RUN
+          Failed jobs: ${jobs:-unknown}
+          Failed packages: ${pkgs:-none named in the log}"
+          n="$(gh issue list --state open --search "\"$title\" in:title" --json number,title -q "[.[]|select(.title==\"$title\")][0].number // empty")"
+          if [ -n "$n" ]; then gh issue comment "$n" --body "$body"; else gh issue create --title "$title" --body "$body"; fi

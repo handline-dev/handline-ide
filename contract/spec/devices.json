@@ -1,0 +1,465 @@
+{
+ "components": {
+  "schemas": {
+   "Device": {
+    "type": "object",
+    "properties": {
+     "id": {
+      "type": "string"
+     },
+     "name": {
+      "type": "string"
+     },
+     "role": {
+      "type": "string",
+      "description": "A paired device is the founder.",
+      "enum": [
+       "founder"
+      ]
+     },
+     "created": {
+      "$ref": "#/components/schemas/Timestamp"
+     },
+     "last_seen": {
+      "oneOf": [
+       {
+        "$ref": "#/components/schemas/Timestamp"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "connected": {
+      "type": "boolean"
+     },
+     "push": {
+      "type": "boolean",
+      "description": "Whether the device gave a push token (device.push_token) that the daemon still holds."
+     },
+     "kind": {
+      "oneOf": [
+       {
+        "type": "string",
+        "enum": [
+         "ios",
+         "android",
+         "web",
+         "desktop"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "What the client said it is at device.redeem; null when it did not say. Absent on a daemon that does not serve it."
+     },
+     "current": {
+      "type": "boolean",
+      "description": "True in devices.list for the caller's own device; false in events. Absent on a daemon that does not serve it."
+     },
+     "client": {
+      "oneOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "The client its last hello named (hello's client); null before one. Absent on a daemon that does not serve it."
+     }
+    },
+    "required": [
+     "id",
+     "name",
+     "role",
+     "created",
+     "last_seen",
+     "connected",
+     "push"
+    ]
+   }
+  }
+ },
+ "methods": [
+  {
+   "name": "devices.list",
+   "summary": "Paired devices with last seen and whether each is connected.",
+   "paramStructure": "by-name",
+   "params": [],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "properties": {
+      "devices": {
+       "type": "array",
+       "items": {
+        "$ref": "#/components/schemas/Device"
+       }
+      },
+      "push_platforms": {
+       "type": "array",
+       "items": {
+        "type": "string",
+        "enum": [
+         "apns",
+         "fcm"
+        ]
+       },
+       "description": "The platforms the daemon has push credentials for (config.yaml). Empty is push off: no device is sent a notification, whatever token it gave."
+      }
+     },
+     "required": [
+      "devices",
+      "push_platforms"
+     ]
+    }
+   },
+   "x-role": "founder",
+   "x-write": false,
+   "x-app-cache": {
+    "resource": "devices",
+    "feed": "devices"
+   },
+   "x-since": 1
+  },
+  {
+   "name": "device.pair",
+   "summary": "Make a one-time pairing code.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "name",
+     "required": false,
+     "schema": {
+      "type": "string"
+     }
+    },
+    {
+     "name": "ttl_s",
+     "required": false,
+     "schema": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 600,
+      "description": "Seconds the code lives; default 300."
+     }
+    },
+    {
+     "name": "address",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "description": "A host a door serves (connection.get listeners); absent is the default door (listener). Any other is refused, gate address, with data.addresses the hosts served."
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "allOf": [
+      {
+       "$ref": "#/components/schemas/Accepted"
+      },
+      {
+       "type": "object",
+       "properties": {
+        "code": {
+         "type": "string"
+        },
+        "expires_at": {
+         "$ref": "#/components/schemas/Timestamp"
+        },
+        "fingerprint": {
+         "type": "string",
+         "description": "Certificate fingerprint of the door; empty on a plain door."
+        },
+        "uri": {
+         "type": "string",
+         "description": "What the QR carries: handline://pair with the host:port and, on a TLS door, the fingerprint."
+        },
+        "web_link": {
+         "oneOf": [
+          {
+           "type": "string"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "The browser's invite on the same door: http(s)://host:port/#pair=code. null when the web page is not served there."
+        }
+       },
+       "required": [
+        "code",
+        "expires_at",
+        "fingerprint",
+        "uri",
+        "web_link"
+       ]
+      }
+     ]
+    }
+   },
+   "x-role": "founder",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "pair"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    }
+   ],
+   "description": "Founder only. The code is single use and expires: `ttl_s` seconds (default 300, at most 600). The reply carries the listener certificate fingerprint and the address in `uri`, which is what the QR holds; a client pins that fingerprint and refuses any other certificate. It is not replayed by request_id: a retry with the same request_id runs again and makes another code.",
+   "x-note": "The code is shown once and kept only as a hash; a second call makes a new code and leaves the first valid until it expires or is used."
+  },
+  {
+   "name": "device.redeem",
+   "summary": "Trade a pairing code for a device token.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "code",
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    },
+    {
+     "name": "name",
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    },
+    {
+     "name": "kind",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "description": "What the client is: ios, android, web or desktop, kept as Device.kind. Any other value is kept as null, so a newer client still pairs."
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "allOf": [
+      {
+       "$ref": "#/components/schemas/Accepted"
+      },
+      {
+       "type": "object",
+       "properties": {
+        "token": {
+         "type": "string"
+        },
+        "device": {
+         "type": "string"
+        }
+       },
+       "required": [
+        "token",
+        "device"
+       ]
+      }
+     ]
+    }
+   },
+   "x-role": "anonymous",
+   "x-write": true,
+   "x-app-write": false,
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    }
+   ],
+   "x-gates": [
+    "pairing_code",
+    "attempt_limit"
+   ],
+   "description": "The only method an unpaired network caller may call. A code that is wrong, expired or already used is refused, gate `pairing_code`, without saying which; too many wrong tries are refused, gate `attempt_limit`. A code redeems once: the token is in this one reply and never again, and the daemon keeps only its hash. `name` is how the device is listed. It is not replayed by request_id either: a retry runs again, and a code that was redeemed stays used, so the retry is refused. The wrong-code count for a redeem over the local socket is kept under the host '' (the empty string), since it has no address."
+  },
+  {
+   "name": "device.revoke",
+   "summary": "Cancel a device and close its connections at once.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "device",
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Accepted"
+    }
+   },
+   "x-role": "founder",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "revoke"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    }
+   ],
+   "description": "Cancels the device's token. Its open connections and terminal attaches are closed at once, its next call is refused (gate `unpaired`), and a device.revoked event is sent on the devices topic. Revoking a device that is not paired is not_found."
+  },
+  {
+   "name": "device.rename",
+   "summary": "Give a paired device a new name.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "device",
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    },
+    {
+     "name": "name",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "description": "Stored trimmed: not empty, at most 64 characters."
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Accepted"
+    }
+   },
+   "x-role": "founder",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "rename device"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "description": "A device.renamed event with the Device is sent on the devices topic. A device that is not paired is not_found."
+  },
+  {
+   "name": "device.push_token",
+   "summary": "A paired device gives the push token its OS gave it.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "platform",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "enum": [
+       "apns",
+       "fcm"
+      ]
+     }
+    },
+    {
+     "name": "token",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096
+     }
+    },
+    {
+     "name": "sandbox",
+     "required": false,
+     "schema": {
+      "type": "boolean",
+      "description": "An APNs token of a development build, which goes to Apple's sandbox host. Default false."
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Accepted"
+    }
+   },
+   "x-role": "founder",
+   "x-write": true,
+   "x-app-write": false,
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    }
+   ],
+   "x-gates": [
+    "device"
+   ],
+   "description": "Called by the paired device itself, after pairing and whenever its OS gives it a new token; the token is kept on that device's row in place of the one before. A connection that is no paired device (the local socket) is refused, gate `device`. The token is dropped when the device is revoked. devices.list shows whether a device has one (`push`)."
+  }
+ ]
+}

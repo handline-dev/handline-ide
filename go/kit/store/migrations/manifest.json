@@ -1,0 +1,237 @@
+[
+ {
+  "version": 1,
+  "name": "baseline",
+  "additive": true
+ },
+ {
+  "version": 2,
+  "name": "rpc_replies",
+  "additive": true
+ },
+ {
+  "version": 3,
+  "name": "agent_view",
+  "additive": true
+ },
+ {
+  "version": 4,
+  "name": "stream_log",
+  "additive": true
+ },
+ {
+  "version": 5,
+  "name": "hook_applied",
+  "additive": true
+ },
+ {
+  "version": 6,
+  "name": "write_effects",
+  "additive": true
+ },
+ {
+  "version": 7,
+  "name": "input_holders",
+  "additive": true
+ },
+ {
+  "version": 8,
+  "name": "operations",
+  "additive": true
+ },
+ {
+  "version": 9,
+  "name": "devices",
+  "additive": true
+ },
+ {
+  "version": 10,
+  "name": "agent_extra_worktrees",
+  "additive": true
+ },
+ {
+  "version": 11,
+  "name": "transcript_events",
+  "additive": true
+ },
+ {
+  "version": 12,
+  "name": "land_fixes",
+  "additive": true
+ },
+ {
+  "version": 13,
+  "name": "task_reporter",
+  "additive": true
+ },
+ {
+  "version": 14,
+  "name": "agent_terminals",
+  "additive": true
+ },
+ {
+  "version": 15,
+  "name": "drop_lands",
+  "additive": true
+ },
+ {
+  "version": 16,
+  "name": "task_report",
+  "additive": true
+ },
+ {
+  "version": 17,
+  "name": "task_timeout_left",
+  "additive": true
+ },
+ {
+  "version": 18,
+  "name": "requests_touched",
+  "additive": true
+ },
+ {
+  "version": 19,
+  "name": "requests_ref",
+  "additive": true
+ },
+ {
+  "version": 20,
+  "name": "task_tags_and_views",
+  "additive": true
+ },
+ {
+  "version": 21,
+  "name": "task_review",
+  "additive": true
+ },
+ {
+  "version": 22,
+  "name": "task_estimate",
+  "additive": true
+ },
+ {
+  "version": 23,
+  "name": "requests_founder_auth",
+  "additive": true
+ },
+ {
+  "version": 24,
+  "name": "task_watch",
+  "additive": true
+ },
+ {
+  "version": 25,
+  "name": "prefs",
+  "additive": true
+ },
+ {
+  "version": 26,
+  "name": "request_threads",
+  "additive": true
+ },
+ {
+  "version": 27,
+  "name": "tasks_from_request",
+  "additive": true
+ },
+ {
+  "version": 28,
+  "name": "memo_tells",
+  "additive": true
+ },
+ {
+  "version": 29,
+  "name": "request_memo",
+  "additive": true
+ },
+ {
+  "version": 30,
+  "name": "device_push",
+  "additive": true
+ },
+ {
+  "version": 31,
+  "name": "prompt_answer",
+  "additive": true
+ },
+ {
+  "version": 32,
+  "name": "request_quote",
+  "additive": true
+ },
+ {
+  "version": 33,
+  "name": "events_account_ts",
+  "additive": true
+ },
+ {
+  "version": 34,
+  "name": "table_changes",
+  "additive": true
+ },
+ {
+  "version": 35,
+  "name": "proposal_names",
+  "additive": false
+ },
+ {
+  "version": 36,
+  "name": "stall_kind",
+  "additive": true
+ },
+ {
+  "version": 37,
+  "name": "login_stall_kind",
+  "additive": true
+ },
+ {
+  "version": 38,
+  "name": "park_reason",
+  "additive": true
+ },
+ {
+  "version": 39,
+  "name": "stall_args",
+  "additive": true
+ },
+ {
+  "version": 40,
+  "name": "token_call_owner",
+  "additive": true
+ },
+ {
+  "version": 41,
+  "name": "load_minutes",
+  "additive": true
+ },
+ {
+  "version": 42,
+  "name": "device_address",
+  "additive": true
+ },
+ {
+  "version": 43,
+  "name": "task_request",
+  "additive": true
+ },
+ {
+  "version": 44,
+  "name": "task_turn_origin",
+  "additive": true
+ },
+ {
+  "version": 45,
+  "name": "usage_sample_logged_out",
+  "additive": true
+ },
+ {
+  "version": 46,
+  "name": "device_client",
+  "additive": true
+ },
+ {
+  "version": 47,
+  "name": "task_request_backfill",
+  "additive": true
+ }
+]

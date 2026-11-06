@@ -1,0 +1,454 @@
+package reads
+
+import (
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/internal/worktreeprune"
+	"github.com/handline/handline/go/kit/gitrun"
+	"github.com/handline/handline/go/kit/paths"
+	"github.com/handline/handline/go/protocol/rpc"
+)
+
+const (
+	maxChanged   = 200
+	maxDiffChars = 200_000
+)
+
+// git is rpc_worktrees._git: a read-only run, optional locks off.
+func git(path string, args ...string) (bool, string) {
+	r := gitrun.RunTimeout(path, 20*time.Second, append([]string{"--no-optional-locks"}, args...)...)
+	return r.RC == 0, r.Stdout
+}
+
+func isDir(p string) bool { st, err := os.Stat(p); return err == nil && st.IsDir() }
+
+func realpath(p string) string {
+	if abs, err := filepath.Abs(p); err == nil {
+		p = abs
+	}
+	if r, err := filepath.EvalSymlinks(p); err == nil {
+		return r
+	}
+	return p
+}
+
+// repoOf is agents.repo_of: where the agent was told to work.
+func (e *Env) repoOf(agent string) string {
+	cfg, err := team.NewRoster(e.Home).Read(agent)
+	if err != nil {
+		return ""
+	}
+	s, _ := cfg["repo"].(string)
+	return s
+}
+
+func defaultBranch(repo string) string { return worktreeprune.DefaultBranch(repo) }
+
+// repos is rpc_worktrees.repos: the repos the agents were told to work in, by path.
+func (e *Env) repos() []any {
+	out := []any{}
+	for _, p := range worktreeprune.Repos(e.Home) {
+		out = append(out, map[string]any{"name": filepath.Base(p), "path": p, "default_branch": defaultBranch(p)})
+	}
+	return out
+}
+
+func worktreePath(recorded string) string {
+	if recorded == "" {
+		return ""
+	}
+	p := recorded
+	if i := strings.Index(recorded, "::"); i >= 0 {
+		p = recorded[i+2:]
+	}
+	if isDir(p) {
+		return p
+	}
+	return ""
+}
+
+// known is a dict in Python's sense: later writes to a key keep its first place.
+type known struct {
+	who   map[string]string
+	order []string
+}
+
+func (k *known) put(path, agent string) {
+	if _, has := k.who[path]; !has {
+		k.order = append(k.order, path)
+	}
+	k.who[path] = agent
+}
+
+func jsonList(text string) ([]any, bool) {
+	if text == "" {
+		return nil, true
+	}
+	var v any
+	if json.Unmarshal([]byte(text), &v) != nil {
+		return nil, false
+	}
+	l, ok := v.([]any)
+	return l, ok
+}
+
+// knownWorktrees is path -> the agent that works there, for every agent whose recorded worktree exists.
+func (e *Env) knownWorktrees() (known, error) {
+	out := known{who: map[string]string{}}
+	for _, name := range paths.ListAgents(e.Home) {
+		row, err := queryOne(e.DB, "SELECT worktree, extra_worktrees FROM agent_state WHERE agent = ?", name)
+		if err != nil {
+			return known{}, err
+		}
+		var all []string
+		if p := worktreePath(row.str("worktree")); p != "" {
+			all = append(all, p)
+		}
+		if listed, ok := jsonList(row.str("extra_worktrees")); ok {
+			for _, x := range listed {
+				if s, ok := x.(string); ok {
+					if p := worktreePath(s); p != "" {
+						all = append(all, p)
+					}
+				}
+			}
+		}
+		for _, p := range all {
+			out.put(realpath(p), name)
+		}
+	}
+	return out, nil
+}
+
+func isDigits(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+func countOf(s string) int64 {
+	if !isDigits(s) {
+		return 0
+	}
+	n, _ := strconv.ParseInt(s, 10, 64)
+	return n
+}
+
+// changed is rpc_worktrees._changed: the changed files with git's status letter and line counts, up to maxChanged, and how many there are.
+func changed(path string) ([]any, int) {
+	ok, status := git(path, "status", "--porcelain=v1", "-z", "-uall")
+	if !ok {
+		return []any{}, 0
+	}
+	counts := map[string][2]int64{}
+	if ok, stat := git(path, "diff", "--numstat", "-z", "--no-ext-diff", "HEAD"); ok {
+		parts := strings.Split(stat, "\x00")
+		for i := 0; i < len(parts); i++ {
+			head := parts[i]
+			a, rest, _ := strings.Cut(head, "\t")
+			d, name, _ := strings.Cut(rest, "\t")
+			if name == "" && i+2 < len(parts) && strings.Count(head, "\t") == 2 {
+				name, i = parts[i+2], i+2
+			}
+			if head != "" {
+				counts[name] = [2]int64{countOf(a), countOf(d)}
+			}
+		}
+	}
+	rows, total := []any{}, 0
+	entries := strings.Split(status, "\x00")
+	for i := 0; i < len(entries); i++ {
+		entry := entries[i]
+		if len([]rune(entry)) < 4 {
+			continue
+		}
+		code, name := entry[:2], entry[3:]
+		if strings.ContainsAny(code, "RC") {
+			i++
+		}
+		if total++; len(rows) >= maxChanged {
+			continue
+		}
+		mark := "M"
+		if code == "??" {
+			mark = "?"
+		} else {
+			for _, c := range "RAD" {
+				if strings.ContainsRune(code, c) {
+					mark = string(c)
+					break
+				}
+			}
+		}
+		n := counts[name]
+		rows = append(rows, map[string]any{"path": name, "status": mark, "added": n[0], "deleted": n[1]})
+	}
+	return rows, total
+}
+
+// bosses is each agent's supervisor from team.yaml; empty when it cannot be read.
+func (e *Env) bosses() map[string]string {
+	t, err := team.LoadTeam(e.Home)
+	if err != nil {
+		return map[string]string{}
+	}
+	out := map[string]string{}
+	for _, a := range paths.ListAgents(e.Home) {
+		out[a] = t.SupervisorOf(a)
+	}
+	return out
+}
+
+// StatusLabelPrefix starts the meta name a worktree's status label is kept under: the prefix, then the worktree's real path.
+const StatusLabelPrefix = "worktree_status:"
+
+// LabelKey is the meta name of the label of the worktree at path, and whether an agent works there; false is not a worktree to label.
+func (e *Env) LabelKey(path string) (string, bool, error) {
+	kn, err := e.knownWorktrees()
+	if err != nil {
+		return "", false, err
+	}
+	root := realpath(path)
+	_, ok := kn.who[root]
+	return StatusLabelPrefix + root, ok, nil
+}
+
+// labels is the status labels people set, by worktree path.
+func (e *Env) labels() (map[string]string, error) {
+	rows, err := e.DB.Query("SELECT name, value FROM meta WHERE name LIKE ?", StatusLabelPrefix+"%")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]string{}
+	for rows.Next() {
+		var name string
+		var value sql.NullString
+		if err := rows.Scan(&name, &value); err != nil {
+			return nil, err
+		}
+		if value.String != "" {
+			out[strings.TrimPrefix(name, StatusLabelPrefix)] = value.String
+		}
+	}
+	return out, rows.Err()
+}
+
+// facts are what every worktree carries besides its changed files: the branch it merges into, its commits not on it, its changed and
+// untracked files and the size housekeeping last measured (nil until it has). The pull request is set later, by attachPRs.
+func (e *Env) facts(path string, files int) (map[string]any, error) {
+	var size any
+	if v, ok, err := db.Meta(e.DB, worktreeprune.SizePrefix+worktreeprune.Real(path)); err != nil {
+		return nil, err
+	} else if n, err := strconv.ParseInt(v, 10, 64); ok && err == nil {
+		size = n
+	}
+	_, ahead := worktreeprune.Ahead(path)
+	return map[string]any{"base": defaultBranch(path), "commits_ahead": ahead, "files_changed": files, "size_bytes": size, "pr": nil}, nil
+}
+
+func (e *Env) worktree(path, owner string, kn known, bosses map[string]string, labels map[string]string) (map[string]any, error) {
+	ok, branch := git(path, "rev-parse", "--abbrev-ref", "HEAD")
+	ch, files := changed(path)
+	facts, err := e.facts(path, files)
+	if err != nil {
+		return nil, err
+	}
+	boss := bosses[owner]
+	repo := e.repoOf(owner)
+	repoName := ""
+	if repo != "" {
+		repoName = filepath.Base(repo)
+	}
+	var parent any
+	children := []string{}
+	for _, p := range kn.order {
+		o := kn.who[p]
+		if boss != "" && o == boss && parent == nil {
+			parent = p
+		}
+		if bosses[o] == owner {
+			children = append(children, p)
+		}
+	}
+	sort.Strings(children)
+	status := "clean"
+	if len(ch) > 0 {
+		status = "dirty"
+	}
+	if label := labels[path]; label != "" { // the label a person set stands in for the daemon's own word
+		status = label
+	}
+	b := ""
+	if ok {
+		b = strings.TrimSpace(branch)
+	}
+	facts["path"], facts["repo"], facts["branch"], facts["owner"], facts["parent"] = path, repoName, b, owner, parent
+	facts["children"], facts["status"], facts["changed"] = children, status, ch
+	return facts, nil
+}
+
+// throughALink is rpc_worktrees._through_a_link: whether file is, or passes through, a symbolic link under root, or resolves
+// outside it.
+func throughALink(root, file string) bool {
+	cur := root
+	for _, part := range strings.Split(file, "/") {
+		if part == "" || part == "." {
+			continue
+		}
+		cur = filepath.Join(cur, part)
+		if st, err := os.Lstat(cur); err == nil && st.Mode()&os.ModeSymlink != 0 {
+			return true
+		}
+	}
+	real := realpath(cur)
+	return real != root && !strings.HasPrefix(real, root+"/")
+}
+
+// untrackedDiffs are the new-file diffs of the files git does not track and does not ignore, as the per-file diff shows one.
+func untrackedDiffs(root string) string {
+	ok, list := git(root, "ls-files", "--others", "--exclude-standard", "-z")
+	if !ok {
+		return ""
+	}
+	var out strings.Builder
+	for i, file := range strings.Split(list, "\x00") {
+		if file == "" || i >= maxChanged || out.Len() > maxDiffChars {
+			break
+		}
+		st, err := os.Lstat(filepath.Join(root, file))
+		if err != nil || !st.Mode().IsRegular() {
+			continue
+		}
+		if left := maxDiffChars - out.Len(); st.Size() > int64(left) { // git would read all of it before the cap cuts in
+			fmt.Fprintf(&out, "diff --git a/%[1]s b/%[1]s\nnew file mode 100644\n(new file, %d bytes: not shown)\n", file, st.Size())
+			continue
+		}
+		_, d := git(root, "diff", "--no-index", "--no-ext-diff", "--no-textconv", "--no-color", "--", os.DevNull, file)
+		out.WriteString(d)
+	}
+	return out.String()
+}
+
+func (e *Env) reposList(_ *rpc.Conn, _ map[string]any) (any, error) {
+	return map[string]any{"repos": e.repos()}, nil
+}
+
+func (e *Env) worktreesList(_ *rpc.Conn, params map[string]any) (any, error) {
+	var repo, owner *string
+	for _, f := range []struct {
+		k string
+		p **string
+	}{{"repo", &repo}, {"owner", &owner}} {
+		v, err := optStr(params, f.k)
+		if err != nil {
+			return nil, badParam(f.k+" is a string", f.k)
+		}
+		*f.p = v
+	}
+	kn, err := e.knownWorktrees()
+	if err != nil {
+		return nil, err
+	}
+	bosses := e.bosses()
+	labels, err := e.labels()
+	if err != nil {
+		return nil, err
+	}
+	keys := append([]string(nil), kn.order...)
+	sort.Strings(keys)
+	out := []any{}
+	for _, p := range keys {
+		who := kn.who[p]
+		wt, err := e.worktree(p, who, kn, bosses, labels)
+		if err != nil {
+			return nil, err
+		}
+		if (owner == nil || who == *owner) && (repo == nil || *repo == wt["repo"] || *repo == e.repoOf(who)) {
+			out = append(out, wt)
+		}
+	}
+	rows := make([]map[string]any, len(out))
+	for i, wt := range out {
+		rows[i] = wt.(map[string]any)
+	}
+	e.attachPRs(rows)
+	return map[string]any{"worktrees": out}, nil
+}
+
+func (e *Env) worktreeDiff(_ *rpc.Conn, params map[string]any) (any, error) {
+	path, _ := params["path"].(string)
+	if path == "" {
+		return nil, badParam("path is a worktree path", "path")
+	}
+	var file string
+	hasFile := false
+	if v, has := params["file"]; has && v != nil {
+		s, ok := v.(string)
+		if !ok || s == "" || strings.HasPrefix(s, "/") || strings.HasPrefix(s, "-") || strings.ContainsRune(s, 0) {
+			return nil, badParam("file is a path inside the worktree", "file")
+		}
+		for _, part := range strings.Split(s, "/") {
+			if part == ".." {
+				return nil, badParam("file is a path inside the worktree", "file")
+			}
+		}
+		file, hasFile = s, true
+	}
+	kn, err := e.knownWorktrees()
+	if err != nil {
+		return nil, err
+	}
+	root := realpath(path)
+	if _, ok := kn.who[root]; !ok {
+		nf := rpc.NotFoundError(path + " is not a worktree an agent works in")
+		nf.Data = map[string]any{"what": "worktree", "path": path}
+		return nil, nf
+	}
+	if hasFile && throughALink(root, file) {
+		return nil, badParam("file goes through a link: only what lies inside the worktree is read", "file")
+	}
+	args := []string{"diff", "--no-ext-diff", "--no-textconv", "--no-color", "HEAD"}
+	if hasFile {
+		args = append(args, "--", file)
+	}
+	_, out := git(root, args...)
+	if hasFile && out == "" {
+		full := filepath.Join(root, file)
+		if st, err := os.Lstat(full); err == nil && st.Mode().IsRegular() {
+			if tracked, _ := git(root, "ls-files", "--error-unmatch", "--", file); !tracked {
+				_, out = git(root, "diff", "--no-index", "--no-ext-diff", "--no-textconv", "--no-color", "--", os.DevNull, file)
+			}
+		}
+	}
+	if !hasFile {
+		out += untrackedDiffs(root)
+	}
+	shown, truncated := out, false
+	if len(out) > maxDiffChars {
+		if r := []rune(out); len(r) > maxDiffChars {
+			shown, truncated = string(r[:maxDiffChars]), true
+		}
+	}
+	var fileOut any
+	if hasFile {
+		fileOut = file
+	}
+	return map[string]any{"path": path, "file": fileOut, "diff": shown, "truncated": truncated}, nil
+}

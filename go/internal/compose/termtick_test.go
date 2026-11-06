@@ -1,0 +1,379 @@
+package compose
+
+import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/handline/handline/go/agentctl/agent/claudecode/turns"
+	dbpkg "github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/team"
+)
+
+// termTickRig is bob, a terminal agent in worktree wt, pane %1, recorded on account a1.
+func termTickRig(t *testing.T) (*Parts, *fakeTerminals, string) {
+	t.Helper()
+	ft := newFakeTerminals()
+	p, _, _, _ := wiredWith(t, ft)
+	wt, _ := filepath.EvalSymlinks(t.TempDir())
+	if err := dbpkg.SetAccount(p.db, "bob", "a1", "recorded"); err != nil {
+		t.Fatal(err)
+	}
+	if err := dbpkg.SetTerminal(p.db, "bob", "%1", wt); err != nil {
+		t.Fatal(err)
+	}
+	ft.live["%1"] = true
+	// A session the test runs as has the test's own pid, which never exits: an end waited out in real time costs a minute a test.
+	p.LC.Manager.Sleep = func(time.Duration) {}
+	return p, ft, wt
+}
+
+// writeSession is the file a running claude keeps for its process under an account's config directory.
+func writeSession(t *testing.T, p *Parts, acct string, pid int, body string) {
+	t.Helper()
+	dir, _ := team.AccountConfigDir(p.home, acct)
+	os.MkdirAll(filepath.Join(dir, "sessions"), 0o755)
+	if err := os.WriteFile(filepath.Join(dir, "sessions", strconv.Itoa(pid)+".json"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestTheTickReadsATerminalAgentsSessionFromItsSessionFile(t *testing.T) {
+	p, ft, wt := termTickRig(t)
+	host := tickHost{p: p, terminals: true}
+	if host.SessionAlive("bob") {
+		t.Fatal("no session file, no session")
+	}
+	writeSession(t, p, "a2", os.Getpid(), `{"cwd":"`+wt+`","sessionId":"s1","status":"busy"}`)
+	if !host.SessionAlive("bob") || host.SessionIdle("bob") {
+		t.Fatal("a session mid-turn is alive and not idle")
+	}
+	if got := host.RunningAccount("bob"); got != "a2" {
+		t.Fatalf("the account is the one whose directory holds the file, not the recorded one: %q", got)
+	}
+	writeSession(t, p, "a2", os.Getpid(), `{"cwd":"`+wt+`","sessionId":"s1","status":"waiting","waitingFor":"permission prompt"}`)
+	if host.SessionIdle("bob") {
+		t.Fatal("a session at a permission prompt is not idle: a restart would cut it short")
+	}
+	writeSession(t, p, "a2", os.Getpid(), `{"cwd":"`+wt+`","sessionId":"s1","status":"idle"}`)
+	if !host.SessionIdle("bob") {
+		t.Fatal("idle")
+	}
+	delete(ft.live, "%1")
+	if host.SessionAlive("bob") {
+		t.Fatal("a file whose pane is not listed is a stranger's")
+	}
+	ft.live["%1"] = true
+	writeSession(t, p, "a2", 1<<30, `{"cwd":"`+wt+`","sessionId":"s1","status":"idle"}`)
+	os.Remove(filepath.Join(p.home, "accounts", "a2", ".claude", "sessions", strconv.Itoa(os.Getpid())+".json"))
+	if host.SessionAlive("bob") {
+		t.Fatal("a file left by a process that died is not a session")
+	}
+}
+
+func TestTerminalAgentsAreOnlyTickedWhenAskedFor(t *testing.T) {
+	p, _, _ := termTickRig(t)
+	has := func(list []string, a string) bool {
+		return strings.Contains(" "+strings.Join(list, " ")+" ", " "+a+" ")
+	}
+	if got := (tickHost{p: p}).Agents(); len(got) != 0 {
+		t.Fatalf("without terminals no agent is ticked: %v", got)
+	}
+	if !has(tickHost{p: p, terminals: true}.Agents(), "bob") {
+		t.Fatal("with terminals bob is ticked")
+	}
+}
+
+func TestTheReconcilerRecordsATerminalAgentWhoseSessionEndedAsClosedWithItsSession(t *testing.T) {
+	p, _, wt := termTickRig(t)
+	d := p.db
+	dbpkg.SetResumeSession(d, "bob", "22222222-2222-4222-8222-222222222222")
+	tk := p.Tick(cfgOf(p), TickConfig{Terminals: true})
+	// the pane is listed and no session runs in it: the session ended without us
+	actions := []string{}
+	tk.Tick.Reconcile.Sweep(d, &actions)
+	row, _ := dbpkg.GetAgentState(d, "bob")
+	if !row.ClosedAt.Valid || row.ClosedAt.Int64 == 0 || row.ResumeSession.String != "22222222-2222-4222-8222-222222222222" {
+		t.Fatalf("closed with its session kept: %+v %v", row, actions)
+	}
+	// a session runs again (a human relaunched it): the closed mark was wrong
+	writeSession(t, p, "a1", os.Getpid(), `{"cwd":"`+wt+`","sessionId":"s2","status":"idle"}`)
+	tk.Tick.Reconcile.Sweep(d, &actions)
+	if row, _ = dbpkg.GetAgentState(d, "bob"); row.ClosedAt.Valid && row.ClosedAt.Int64 != 0 {
+		t.Fatalf("a running session clears the closed mark: %v", actions)
+	}
+}
+
+func TestATerminalAgentWithNoStatuslineHasItsSessionAndContextFromItsFileAndTranscript(t *testing.T) {
+	p, _, wt := termTickRig(t)
+	sid := "33333333-3333-4333-8333-333333333333"
+	writeSession(t, p, "a1", os.Getpid(), `{"cwd":"`+wt+`","sessionId":"`+sid+`","status":"idle"}`)
+	dir, _ := team.AccountConfigDir(p.home, "a1")
+	os.MkdirAll(filepath.Join(dir, "projects", "x"), 0o755)
+	os.WriteFile(filepath.Join(dir, "projects", "x", sid+".jsonl"), []byte(
+		`{"type":"assistant","message":{"model":"claude-opus-5-1","usage":{"input_tokens":10,"cache_read_input_tokens":150000,"cache_creation_input_tokens":5}}}`+"\n"), 0o644)
+	tk := p.Tick(cfgOf(p), TickConfig{Terminals: true})
+	st := tk.Tick.Usage.ReadForAgent("bob", "a1")
+	if st.SessionID != sid || st.TrustedCtxUsed == nil || *st.TrustedCtxUsed != 150015 {
+		t.Fatalf("%+v", st)
+	}
+}
+
+func TestASessionFileThatCannotBeReadUnderALivePidIsUnknownNotAbsent(t *testing.T) {
+	for name, body := range map[string]string{"empty": "", "invalid json": `{"cwd": "`} {
+		t.Run(name, func(t *testing.T) {
+			p, _, _ := termTickRig(t)
+			d := p.db
+			writeSession(t, p, "a1", os.Getpid(), body) // being written as the tick looks
+			host := tickHost{p: p, terminals: true}
+			if !host.SessionAlive("bob") || host.SessionIdle("bob") {
+				t.Fatal("a process runs and what it says cannot be read: alive, not idle")
+			}
+			tk := p.Tick(cfgOf(p), TickConfig{Terminals: true})
+			actions := []string{}
+			tk.Tick.Reconcile.Sweep(d, &actions)
+			if row, _ := dbpkg.GetAgentState(d, "bob"); row.ClosedAt.Valid && row.ClosedAt.Int64 != 0 {
+				t.Fatalf("a live agent was recorded closed: %v", actions)
+			}
+		})
+	}
+}
+
+func TestOfSeveralSessionFilesInTheWorktreeTheNewestByUpdatedAtIsTheSession(t *testing.T) {
+	p, _, wt := termTickRig(t)
+	writeSession(t, p, "a1", os.Getpid(), `{"cwd":"`+wt+`","sessionId":"old","status":"idle","updatedAt":100}`)
+	writeSession(t, p, "a1", os.Getppid(), `{"cwd":"`+wt+`","sessionId":"new","status":"busy","updatedAt":200}`)
+	rec, _, found := p.terminalSession("bob", map[string]bool{"%1": true})
+	if found != sessionFound || rec.SessionID != "new" {
+		t.Fatalf("%v %+v", found, rec)
+	}
+}
+
+func TestAHandoffReadsATerminalAgentsSessionAndItsPidFromTheSessionFile(t *testing.T) {
+	p, _, wt := termTickRig(t)
+	run := termRun{p}
+	if pid, status := run.Session("bob"); pid != 0 || status != "" {
+		t.Fatalf("no file, no session: %d %q", pid, status)
+	}
+	writeSession(t, p, "a1", os.Getpid(), `{"cwd":"`+wt+`","sessionId":"s1","status":"idle"}`)
+	if pid, status := run.Session("bob"); pid != os.Getpid() || status != "idle" {
+		t.Fatalf("%d %q", pid, status)
+	}
+	writeSession(t, p, "a1", os.Getpid(), `{"cwd": "`)
+	if pid, status := run.Session("bob"); pid != 0 || status != "unknown" {
+		t.Fatalf("a file that cannot be read has no pid to prove an end by: %d %q", pid, status)
+	}
+	if run.PidGone(os.Getpid()) || !run.PidGone(1<<30) {
+		t.Fatal("a pid is gone when no process has it")
+	}
+}
+
+// A terminal agent has an agent view row when the daemon ticks terminals: its session file says whether it runs and is busy, and a session
+// at a prompt shows needs_you.
+func TestATerminalAgentsViewRowSaysWhatItsSessionFileSays(t *testing.T) {
+	p, _, wt := termTickRig(t)
+	if err := dbpkg.SetAgentState(p.db, "bob", "IDLE", 0, ""); err != nil { // a row that has not caught up with a turn that began
+		t.Fatal(err)
+	}
+	tu := tickUsage{p: p, u: p.LC.usage, roster: p.LC.roster}
+	stored := func(av interface{ RefreshOne(string) }, want string) map[string]any {
+		t.Helper()
+		av.RefreshOne("bob")
+		var raw string
+		if err := p.db.QueryRow("SELECT view FROM agent_view WHERE agent = 'bob'").Scan(&raw); err != nil {
+			t.Fatalf("no row: %v", err)
+		}
+		var v map[string]any
+		json.Unmarshal([]byte(raw), &v)
+		if v["state"] != want {
+			t.Fatalf("state %v, want %s: %v", v["state"], want, v)
+		}
+		return v
+	}
+	// Not ticking terminals: the Python daemon's row stands, nothing is written.
+	p.agentView(cfgOf(p), false, tu).RefreshOne("bob")
+	var n int
+	p.db.QueryRow("SELECT COUNT(*) FROM agent_view WHERE agent = 'bob'").Scan(&n)
+	if n != 0 {
+		t.Fatal("a terminal agent's row was written by a daemon that does not tick terminals")
+	}
+	av := p.agentView(cfgOf(p), true, tu)
+	writeSession(t, p, "a1", os.Getpid(), `{"cwd":"`+wt+`","sessionId":"s1","status":"busy"}`)
+	if v := stored(av, "running"); v["needs_you"] != nil { // busy session: the turn is running whatever the row says
+		t.Fatal(v)
+	}
+	if err := dbpkg.SetAgentState(p.db, "bob", "RUNNING", 0, ""); err != nil { // the prompt arrives mid-turn: the row stays running
+		t.Fatal(err)
+	}
+	writeSession(t, p, "a1", os.Getpid(), `{"cwd":"`+wt+`","sessionId":"s1","status":"waiting","waitingFor":"permission prompt","updatedAt":5000000}`)
+	v := stored(av, "waiting")
+	ny, _ := v["needs_you"].(map[string]any)
+	if v["has_dialog"] != true || ny["kind"] != "permission" || ny["source"] != "session" {
+		t.Fatal(v)
+	}
+	writeSession(t, p, "a1", os.Getpid(), `{"cwd":"`+wt+`","sessionId":"s1","status":"idle"}`)
+	if err := dbpkg.SetAgentState(p.db, "bob", "IDLE", 0, ""); err != nil { // the turn ended: the Stop hook moved the row
+		t.Fatal(err)
+	}
+	if v := stored(av, "idle"); v["needs_you"] != nil || v["has_dialog"] != false {
+		t.Fatal(v)
+	}
+}
+
+// loginRig is termTickRig with the session of bob running on a1 and a second logged-in account, a2, to move to.
+func loginRig(t *testing.T) (*Parts, *Tick, string) {
+	t.Helper()
+	p, _, wt := termTickRig(t)
+	dir, _ := team.AccountConfigDir(p.home, "a2")
+	os.MkdirAll(dir, 0o755)
+	os.WriteFile(filepath.Join(dir, ".credentials.json"), []byte("{}"), 0o600)
+	writeSession(t, p, "a1", os.Getpid(), `{"cwd":"`+wt+`","sessionId":"s1","status":"idle"}`)
+	if err := dbpkg.SetAgentState(p.db, "bob", "IDLE", 0, ""); err != nil {
+		t.Fatal(err)
+	}
+	return p, p.Tick(cfgOf(p), TickConfig{Terminals: true}), wt
+}
+
+func TestARefusedLoginOnATerminalAgentsAccountMarksItAndMovesTheAgent(t *testing.T) {
+	p, tk, _ := loginRig(t)
+	d := p.db
+	if _, err := dbpkg.AddEventFor(d, "bob", "a1", "StopFailure", dbpkg.KV{K: "error", V: "authentication_failed"}, dbpkg.KV{K: "error_details", V: "401"}); err != nil {
+		t.Fatal(err)
+	}
+	res, err := tk.Tick.Run()
+	if err != nil {
+		t.Fatal(err)
+	}
+	acc := team.Accounts{Home: p.home}
+	if acc.Stalled("a1") == nil || acc.Stalled("a2") != nil {
+		t.Fatalf("a1 is stalled and a2 is not: %v", res.Actions)
+	}
+	found := false
+	for _, a := range res.Actions {
+		found = found || strings.Contains(a, "bob: handoff (login)")
+	}
+	if !found {
+		t.Fatalf("the agent is handed off: %v", res.Actions)
+	}
+	if _, _, ok, _ := dbpkg.LastEvent(d, "bob", "login_expired"); !ok {
+		t.Fatal("the stall is on record")
+	}
+}
+
+// authFailed is the StopFailure the CLI's hook leaves when its login is refused.
+func authFailed(t *testing.T, p *Parts, acct string) {
+	t.Helper()
+	if _, err := dbpkg.AddEventFor(p.db, "bob", acct, "StopFailure", dbpkg.KV{K: "error", V: "authentication_failed"}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestARefusalLeftOnTheAccountATerminalAgentWasMovedFromMarksNothing(t *testing.T) {
+	p, tk, wt := loginRig(t)
+	authFailed(t, p, "a1") // the last event of the agent, which now runs on a2
+	dbpkg.SetAccount(p.db, "bob", "a2", "recorded")
+	writeSession(t, p, "a2", os.Getpid(), `{"cwd":"`+wt+`","sessionId":"s2","status":"idle"}`)
+	os.Remove(filepath.Join(p.home, "accounts", "a1", ".claude", "sessions", strconv.Itoa(os.Getpid())+".json"))
+	if _, err := tk.Tick.Run(); err != nil {
+		t.Fatal(err)
+	}
+	acc := team.Accounts{Home: p.home}
+	if acc.Stalled("a1") != nil || acc.Stalled("a2") != nil {
+		t.Fatal("a refusal on the account it left stalled an account")
+	}
+}
+
+func TestAPromptAfterARefusalClearsItForATerminalAgent(t *testing.T) {
+	p, tk, _ := loginRig(t)
+	authFailed(t, p, "a1")
+	if _, err := dbpkg.AddEventFor(p.db, "bob", "a1", "UserPromptSubmit"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tk.Tick.Run(); err != nil {
+		t.Fatal(err)
+	}
+	if (team.Accounts{Home: p.home}).Stalled("a1") != nil {
+		t.Fatal("a turn that began after the refusal stalled the account")
+	}
+}
+
+func TestARefusalOlderThanTheAccountsLastLoginMarksNothing(t *testing.T) {
+	p, tk, _ := loginRig(t)
+	authFailed(t, p, "a1")
+	cred := filepath.Join(p.home, "accounts", "a1", ".claude", ".credentials.json")
+	later := time.Now().Add(time.Hour)
+	if err := os.Chtimes(cred, later, later); err != nil { // logged in again since the refusal, which no prompt has followed
+		t.Fatal(err)
+	}
+	if _, err := tk.Tick.Run(); err != nil {
+		t.Fatal(err)
+	}
+	if (team.Accounts{Home: p.home}).Stalled("a1") != nil {
+		t.Fatal("a refusal from before the login stalled the account")
+	}
+}
+
+func TestARefusalThePythonDaemonAlreadyLiftedIsNotStalledAgain(t *testing.T) {
+	p, tk, _ := loginRig(t)
+	d := p.db
+	authFailed(t, p, "a1")
+	// Python's lift keeps a session row id under this name and sets it when it lifts: only the time it was written can be compared here.
+	if err := dbpkg.SetCursor(d, "login_lifted:bob", 77); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tk.Tick.Run(); err != nil {
+		t.Fatal(err)
+	}
+	acc := team.Accounts{Home: p.home}
+	if acc.Stalled("a1") != nil {
+		t.Fatal("the refusal that daemon lifted stalled the account")
+	}
+	if _, err := d.Exec("UPDATE cursors SET updated = updated - 100 WHERE name = 'login_lifted:bob'"); err != nil { // a lift from before the refusal
+		t.Fatal(err)
+	}
+	if _, err := tk.Tick.Run(); err != nil {
+		t.Fatal(err)
+	}
+	if acc.Stalled("a1") == nil {
+		t.Fatal("a refusal after the last lift is the account's")
+	}
+}
+
+func TestAStopHookWritesATerminalAgentsViewIdleAtOnceThoughItsSessionFileStillSaysBusy(t *testing.T) {
+	p, _, wt := termTickRig(t)
+	tracker := &turns.Tracker{}
+	cfg := cfgOf(p)
+	cfg.Turns = tracker
+	p.Tick(cfg, TickConfig{Terminals: true}) // wires the tracker's changes to the view
+	state := func() string {
+		t.Helper()
+		var raw string
+		if err := p.db.QueryRow("SELECT view FROM agent_view WHERE agent = 'bob'").Scan(&raw); err != nil {
+			t.Fatalf("no row: %v", err)
+		}
+		var v map[string]any
+		json.Unmarshal([]byte(raw), &v)
+		s, _ := v["state"].(string)
+		return s
+	}
+	// claude marks its session file idle only after the Stop hook has run
+	writeSession(t, p, "a1", os.Getpid(), `{"cwd":"`+wt+`","sessionId":"s1","status":"busy"}`)
+	if err := dbpkg.SetAgentState(p.db, "bob", "RUNNING", 0, ""); err != nil {
+		t.Fatal(err)
+	}
+	tracker.Hook("bob", "UserPromptSubmit", map[string]any{}, 100)
+	if s := state(); s != "running" {
+		t.Fatalf("after the prompt: %s", s)
+	}
+	if err := dbpkg.SetAgentState(p.db, "bob", "IDLE", 0, ""); err != nil { // what the Stop hook does to the row
+		t.Fatal(err)
+	}
+	tracker.Hook("bob", "Stop", map[string]any{}, 101)
+	if s := state(); s != "idle" {
+		t.Fatalf("after the Stop, with the session file still busy: %s, want idle", s)
+	}
+}

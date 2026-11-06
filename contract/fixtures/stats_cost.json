@@ -1,0 +1,86 @@
+{
+ "fixtures": [
+  {
+   "name": "stats.cost.days",
+   "spec": "stats.cost",
+   "about": "The cost per day alone: the range asked for and a row per day with calls, each agent's cost a number.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "stats.cost",
+      "params": {
+       "range": "7d"
+      }
+     },
+     "result": {
+      "range": "7d",
+      "cost_per_day": {
+       "$each": {
+        "day": {
+         "$regex": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "agents": {
+         "$type": "object"
+        }
+       }
+      },
+      "$exact": true
+     }
+    }
+   ]
+  },
+  {
+   "name": "stats.cost.unknown_range",
+   "spec": "stats.cost",
+   "about": "A range that is not one of stats.outlook's is bad_request naming it.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "stats.cost",
+      "params": {
+       "range": "2d"
+      }
+     },
+     "error": {
+      "data": {
+       "code": "bad_request",
+       "field": "range"
+      }
+     }
+    }
+   ]
+  }
+ ]
+}
