@@ -100,7 +100,7 @@ func sayCmd(q db.Q, target, body string, parent int64, flags ...string) string {
 // that would reach it; else the plain say.
 func (e *Env) workingSay(q db.Q, me, target, body string, parent, task int64) string {
 	if task != 0 {
-		if row := must(db.GetTask(q, task)); row != nil && row.Owner == target {
+		if row := must(db.GetTask(q, task)); row != nil && row.Acting == target {
 			return sayCmd(q, target, body, parent, fmt.Sprintf("--task T%d", task))
 		}
 	}
@@ -169,7 +169,7 @@ func (e *Env) SayVerb(q db.Q, in SayVerbIn) (out *SayVerbOut, err error) {
 		mine := func() []int64 {
 			var ids []int64
 			for _, t := range must(db.OpenTasks(q)) {
-				if t.Owner == me {
+				if t.Acting == me {
 					ids = append(ids, t.ID)
 				}
 			}
@@ -264,8 +264,8 @@ func (e *Env) SayVerb(q db.Q, in SayVerbIn) (out *SayVerbOut, err error) {
 				}
 			}}, nil
 		}
-		if row.Owner != target {
-			return fail(fmt.Sprintf("T%d is with %s, not %s. Try:\n  %s", task, row.Owner, target, sayCmd(q, row.Owner, body, in.Parent, fmt.Sprintf("--task T%d", task))))
+		if row.Acting != target {
+			return fail(fmt.Sprintf("T%d is with %s, not %s. Try:\n  %s", task, row.Acting, target, sayCmd(q, row.Acting, body, in.Parent, fmt.Sprintf("--task T%d", task))))
 		}
 		ok, msg, mid, merr := e.MemoAdd(q, task, me, body)
 		if merr != nil {
@@ -379,8 +379,8 @@ func (e *Env) checkHumanResolve(q db.Q, row *db.Request, tasks []int64, noTask *
 			}
 			return fmt.Sprintf("task T%d is already %s", tid, word)
 		}
-		if me != "" && me != db.Human && me != t.Owner && me != t.OpenedBy {
-			return fmt.Sprintf("T%d is not yours: only a task you hold, or opened, can be named here (it is %s's)", tid, t.Owner)
+		if me != "" && me != db.Human && me != t.Acting && me != t.Owner && me != t.OpenedBy {
+			return fmt.Sprintf("T%d is not yours: only a task you hold, or opened, can be named here (it is %s's)", tid, t.Acting)
 		}
 	}
 	if row.Requester != db.Human || me == db.Human {

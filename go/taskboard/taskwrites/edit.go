@@ -91,7 +91,7 @@ type change struct {
 // tick does as whoever queued it, and with no edge from them to to that ask is denied and the task sits unread (Supervisor.sendMovedTask).
 func undeliverable(tx *sql.Tx, t *task, to, home string) (string, error) {
 	asker := t.QueuedBy.String
-	live, err := db.LiveDelivery(tx, t.ID, t.Owner)
+	live, err := db.LiveDelivery(tx, t.ID, t.Acting)
 	if err != nil {
 		return "", err
 	}
@@ -145,9 +145,6 @@ func editTask(tx *sql.Tx, tid int64, by string, home string, owner, reporter, ti
 	}
 	if t == nil {
 		return fmt.Sprintf("no task T%d", tid), "", nil
-	}
-	if owner != nil && *owner == human && t.Owner != human && by != human {
-		return askFounderInstead, "", nil
 	}
 	reshape := title != nil || priority != nil || estimate != nil || timeoutS != nil || body != nil || evidence != nil
 	if owner != nil && *owner != t.Owner && *owner != human {
@@ -437,8 +434,10 @@ func editMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, 
 		}
 		me := c.Caller.Actor()
 		var (
-			done  Edited
-			notes []told
+			done   Edited
+			notes  []told
+			moved  *Handover
+			movedA *Asked
 		)
 		out, err := c.Effect(func(tx *sql.Tx) (map[string]any, error) {
 			done = Edited{Task: tid, By: me}
@@ -448,6 +447,32 @@ func editMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, 
 				done.WasOwner = t.Owner
 			}
 			var msgs, tellMsgs []string
+			// a new assignee while turns are open replaces the one acting, and an agent's to the founder is the founder's turn: both move as a
+			// handoff does, and the rest of the edit goes on without it
+			if owner != nil {
+				turns, err := db.Turns(tx, tid)
+				if err != nil {
+					return nil, err
+				}
+				if len(turns) > 0 || *owner == human && me != human {
+					var h Handover
+					var asked *Asked
+					if *owner == human && me != human {
+						h, asked, err = pushTurn(tx, tell, tid, me, human, "", "", "")
+					} else {
+						h, asked, err = handOff(tx, tell, tid, me, *owner, "", paths.ListAgents(home), false)
+					}
+					if err != nil {
+						return nil, err
+					}
+					if !asked.OK {
+						return nil, &rpc.CommitThen{Err: refusal(asked.Msg)}
+					}
+					moved, movedA, owner, done.WasOwner = &h, asked, nil, ""
+					msgs = append(msgs, fmt.Sprintf("T%d is %s's turn now", tid, h.To))
+					fields = reporter != nil || title != nil || body != nil || evidence != nil || timeoutS != nil || priority != nil || estimate != nil
+				}
+			}
 			if fields {
 				why, msg, err := editTask(tx, tid, me, home, owner, reporter, title, body, evidence, priority, estimate, timeoutS)
 				if err != nil {
@@ -523,7 +548,7 @@ func editMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, 
 					if err != nil {
 						return nil, err
 					}
-					done.Freed = t.Owner
+					done.Freed = t.Acting
 				}
 			}
 			done.Body = body != nil
@@ -546,7 +571,14 @@ func editMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, 
 			}
 			return accepted(said, nil), nil
 		})
+		if movedA != nil && !movedA.OK && movedA.After != nil {
+			movedA.After()
+		}
 		if err == nil && tell != nil {
+			if moved != nil {
+				moved.After = movedA.After
+				tell.HandedOver(*moved)
+			}
 			tell.Edited(done)
 			tell.Notified(notes)
 		}

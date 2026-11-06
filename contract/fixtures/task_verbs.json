@@ -372,9 +372,9 @@
    ]
   },
   {
-   "name": "task.handoff.not_to_the_founder",
-   "spec": "task.handoff",
-   "about": "An agent handing a task to human is refused: it keeps the task and asks with @human.",
+   "name": "task.turn.push.evidence_comes_with_on_pass",
+   "spec": "task.turn.push",
+   "about": "A turn whose pass closes the task names the evidence it closes with: on_pass done without evidence is bad_request naming evidence.",
    "as": "agent",
    "steps": [
     {
@@ -393,19 +393,58 @@
      "send": {
       "jsonrpc": "2.0",
       "id": 2,
-      "method": "task.handoff",
+      "method": "task.turn.push",
       "params": {
        "task": 1,
        "to": "human",
-       "note": "n",
+       "on_pass": "done",
        "request_id": "conf-2"
       }
      },
      "error": {
-      "code": -32002,
-      "message": "Ask the founder with @human in a memo; keep the task.",
+      "code": -32602,
       "data": {
-       "code": "refused"
+       "code": "bad_request",
+       "field": "evidence"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "task.turn.pop.outcome_is_pass_or_send_back",
+   "spec": "task.turn.pop",
+   "about": "A pop says how the turn ended: an outcome that is not pass or send_back is bad_request naming outcome.",
+   "as": "agent",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "task.turn.pop",
+      "params": {
+       "task": 1,
+       "outcome": "maybe",
+       "request_id": "conf-4"
+      }
+     },
+     "error": {
+      "code": -32602,
+      "data": {
+       "code": "bad_request",
+       "field": "outcome"
       }
      }
     }
@@ -414,7 +453,7 @@
   {
    "name": "task.new.not_to_the_founder",
    "spec": "task.new",
-   "about": "An agent opening a task owned by human is refused the same way.",
+   "about": "An agent opening a task owned by human is refused: the task is the agent's, and the founder's decision is a turn on it.",
    "as": "agent",
    "steps": [
     {
@@ -442,7 +481,7 @@
      },
      "error": {
       "code": -32002,
-      "message": "Ask the founder with @human in a memo; keep the task.",
+      "message": "An agent opens no task for the founder. Open it as yours, and when only the founder can decide, put them on it: hl task turn T<n> human \"<the decision, and what you recommend>\".",
       "data": {
        "code": "refused"
       }

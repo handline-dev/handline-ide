@@ -204,7 +204,7 @@ func StuckWaits(q db.Q) ([]StuckWait, error) {
 			}
 			found.put(StuckWait{fmt.Sprintf("gone:%d>%d", waiter.ID, p.blocker), waiter.ID, fmt.Sprintf(
 				"T%d (%s) waited on T%d, which %s. That wait no longer holds it back, but what it waited for never happened - "+
-					"check whether T%d can go on, or say what it needs instead.", waiter.ID, waiter.Owner, p.blocker, gone, waiter.ID)})
+					"check whether T%d can go on, or say what it needs instead.", waiter.ID, waiter.Acting, p.blocker, gone, waiter.ID)})
 		} else if open(blocker) {
 			edges[waiter.ID] = append(edges[waiter.ID], blocker.ID)
 		}
@@ -213,7 +213,7 @@ func StuckWaits(q db.Q) ([]StuckWait, error) {
 		loop := ring(edges, group)
 		var names []string
 		for _, id := range append(append([]int64{}, loop...), loop[0]) {
-			names = append(names, fmt.Sprintf("T%d (%s)", id, tasks[id].Owner))
+			names = append(names, fmt.Sprintf("T%d (%s)", id, tasks[id].Acting))
 		}
 		var more, ids []string
 		inLoop := map[int64]bool{}
@@ -276,7 +276,7 @@ func (w *WaitFor) Sweep(q db.Q, now int64) error {
 			return err
 		}
 		who := db.Human
-		for _, o := range []string{task.Owner, task.OpenedBy} {
+		for _, o := range []string{task.Acting, task.OpenedBy} {
 			if o != db.Human {
 				who = o
 				break

@@ -7,7 +7,7 @@ True for any agent, whatever tool runs it. Your name is in `$HANDLINE_AGENT`.
 - A task you were handed ends with `hl task done T<n> "<evidence>"` or `hl task handoff T<n> <agent> "<note>"` - that is your report, even a deferral: the next task arrives only then, and an answer typed in chat reaches no one.
 - Never end a turn holding a task you are not working on: it blocks the tasks queued behind it. Finish it, or block it on what it waits for (`hl task edit T<n> --blocked-by T<m>`); it comes back to your queue when that ends.
 - A done closes the task; nothing waits on an accept. Review is a subagent you run before the push, not a handoff.
-- A decision or a block only the founder can clear is an `@human` memo on the task you hold, which stays with you: `hl task comment T<n> add "@human ..."`.
+- When you cannot go on without the founder's decision, put them on the task you hold: `hl task turn T<n> human "<the decision, and what you recommend>"`, then take your next task or stop; their comment gives it back to you. A question that does not stop the work is an `@human` comment: `hl task comment T<n> add "@human ..."`.
 <!-- /protocol -->
 - There is one kind of message, `hl say <target> "..."`: typed at once, needs
   no answer, starts no work. Anything that needs an answer or a result is a

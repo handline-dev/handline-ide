@@ -106,8 +106,8 @@ func (e *Env) loadBoard() (*board, error) {
 
 // holds is whether the task is the one its owner holds: the founder and the gates hold none, and every task of theirs reads as held.
 func (b *board) holds(t row) bool {
-	held, has := b.current[t.str("owner")]
-	return t.str("owner") == human || t.str("owner") == db.Gate || has && held == t.i("id")
+	held, has := b.current[actingOf(t)]
+	return actingOf(t) == human || actingOf(t) == db.Gate || has && held == t.i("id")
 }
 
 // state is one of draft, queued, doing, done, discarded: verdict.TaskState of the board's facts for t.
@@ -119,7 +119,7 @@ func (b *board) state(t row) string {
 
 // openTasks are the open tasks in priority then number order.
 func (e *Env) openTasks() ([]row, error) {
-	return query(e.DB, "SELECT * FROM tasks WHERE "+openTask+" ORDER BY priority, id")
+	return query(e.DB, "SELECT *, "+taskActing+" FROM tasks WHERE "+openTask+" ORDER BY priority, id")
 }
 
 // reach is the agents whose tasks agent sees: itself and everyone under it, walked down the supervisor edges the
@@ -158,6 +158,10 @@ func (e *Env) reach(agent string) (map[string]bool, error) {
 
 func (e *Env) tasksList(c *rpc.Conn, params map[string]any) (any, error) {
 	owner, err := optStr(params, "owner")
+	if err != nil {
+		return nil, err
+	}
+	acting, err := optStr(params, "acting") // who acts on it now: its top turn's agent, else its owner
 	if err != nil {
 		return nil, err
 	}
@@ -224,16 +228,16 @@ func (e *Env) tasksList(c *rpc.Conn, params map[string]any) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	turn, err := optBool(params, "my_turn") // the caller's own open tasks that wait on it: queued or doing, not draft or answered
+	turn, err := optBool(params, "my_turn") // the open tasks the caller acts on that wait on it: queued or doing, not draft or answered
 	if err != nil {
 		return nil, err
 	}
 	if turn {
-		if owner != nil {
-			return nil, badParam("my_turn is the caller's own tasks: it takes no owner", "owner")
+		if acting != nil {
+			return nil, badParam("my_turn is the tasks the caller acts on: it takes no acting", "acting")
 		}
 		me := c.Caller.Actor()
-		owner = &me
+		acting = &me
 	}
 	var owners map[string]bool
 	if !everyone && c.Caller.Role == "agent" {
@@ -241,7 +245,7 @@ func (e *Env) tasksList(c *rpc.Conn, params map[string]any) (any, error) {
 			return nil, err
 		}
 	}
-	for _, name := range []*string{owner, closer} {
+	for _, name := range []*string{owner, acting, closer} {
 		if name != nil && owners != nil && !owners[*name] {
 			return nil, rpc.Refused(fmt.Sprintf("%s is not you or one of your reports: everyone shows every team's tasks", *name), "", "")
 		}
@@ -269,7 +273,7 @@ func (e *Env) tasksList(c *rpc.Conn, params map[string]any) (any, error) {
 	for _, f := range []struct {
 		col string
 		v   *string
-	}{{"owner", owner}, {"opened_by", opener}, {askerSQL, closer}} {
+	}{{"owner", owner}, {db.ActingSQL("tasks"), acting}, {"opened_by", opener}, {askerSQL, closer}} {
 		if f.v != nil {
 			cond(f.col+" = ?", *f.v)
 		}
@@ -318,7 +322,7 @@ func (e *Env) tasksList(c *rpc.Conn, params map[string]any) (any, error) {
 	if byClose {
 		order = closedAtSQL + " DESC, id DESC"
 	}
-	shown, err := query(e.DB, "SELECT *, "+closedAtSQL+" AS closed_at FROM tasks WHERE "+strings.Join(where, " AND ")+" ORDER BY "+order+page, args...)
+	shown, err := query(e.DB, "SELECT *, "+taskActing+", "+closedAtSQL+" AS closed_at FROM tasks WHERE "+strings.Join(where, " AND ")+" ORDER BY "+order+page, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -474,7 +478,7 @@ func (e *Env) askerOf(t row) (string, error) {
 }
 
 func (e *Env) blockers(tid int64) ([]row, error) {
-	return query(e.DB, "SELECT t.* FROM tasks t JOIN task_blocks b ON b.blocks_on = t.id "+
+	return query(e.DB, "SELECT t.*, "+taskActingT+" FROM tasks t JOIN task_blocks b ON b.blocks_on = t.id "+
 		"WHERE b.task_id = ? AND b.dormant = 0 AND t.discarded_by IS NULL AND t.done_evidence IS NULL ORDER BY t.id", tid)
 }
 
@@ -519,15 +523,19 @@ func (e *Env) taskOf(t row, state string, b *board) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
+	turns, err := e.turnsOf(t.i("id"))
+	if err != nil {
+		return nil, err
+	}
 	var waitingOut any // a nil map would not read as nil
 	if waiting != nil {
 		waitingOut = waiting
 	}
 	task := map[string]any{
 		"blocked_by": blockedBy, "waits": waitList, "waiting": waitingOut, "time": clock, "status": st.Map(),
-		"asker": asker, "id": t.i("id"), "from": t.str("opened_by"), "to": t.str("owner"), "title": t.str("title"), "state": state, "time_box": nil,
+		"asker": asker, "id": t.i("id"), "from": t.str("opened_by"), "to": t.str("owner"), "acting": actingOf(t), "title": t.str("title"), "state": state, "time_box": nil,
 		"parent": t.intOrNil("parent_task"), "request": t.intOrNil("request"), "role": b.teamOf(e.Home).TaskRole(t.str("owner")), "created": ts(t["created_at"]), "delivered": ts(t["delivered_at"]),
-		"done": ts(t["done_at"]), "priority": t.i("priority"), "hold_reason": hold, "block_reason": nil, "evidence": t.strOrNil("done_evidence"), "spent_usd": nil,
+		"turns": turns, "done": ts(t["done_at"]), "priority": t.i("priority"), "hold_reason": hold, "block_reason": nil, "evidence": t.strOrNil("done_evidence"), "spent_usd": nil,
 	}
 	active := max(t.i("created_at"), t.i("edited_at"), t.i("done_at"), t.i("discarded_at"))
 	linked := make([]map[string]any, len(reqs))
@@ -652,7 +660,7 @@ func taskMismatch(t row, state string, reqs []row) any {
 	if t.str("queued_by") == "" && sent {
 		return "draft with work out - its opener has not queued it"
 	}
-	if state == "queued" && !sent && t.str("owner") != human {
+	if state == "queued" && !sent && actingOf(t) != human {
 		return "approved, but no request is out"
 	}
 	return nil
@@ -716,7 +724,7 @@ func (e *Env) Tasks(ids []int64) (map[int64]map[string]any, error) {
 		return nil, err
 	}
 	for _, id := range ids {
-		t, err := queryOne(e.DB, "SELECT * FROM tasks WHERE id = ?", id)
+		t, err := queryOne(e.DB, "SELECT *, "+taskActing+" FROM tasks WHERE id = ?", id)
 		if err != nil {
 			return nil, err
 		}
@@ -735,7 +743,7 @@ func (e *Env) taskGet(c *rpc.Conn, params map[string]any) (any, error) {
 	if err != nil || tid == nil {
 		return nil, badParam("task is a task number", "task")
 	}
-	t, err := queryOne(e.DB, "SELECT * FROM tasks WHERE id = ?", *tid)
+	t, err := queryOne(e.DB, "SELECT *, "+taskActing+" FROM tasks WHERE id = ?", *tid)
 	if err != nil {
 		return nil, err
 	}
@@ -831,10 +839,10 @@ func (e *Env) taskGet(c *rpc.Conn, params map[string]any) (any, error) {
 	bs := []any{}
 	for _, bl := range blockers {
 		bs = append(bs, map[string]any{"task": bl.i("id"), "owner": bl.str("owner"), "title": bl.str("title"),
-			"reason": fmt.Sprintf("T%d (%s) %s", bl.i("id"), bl.str("owner"), bl.str("title"))})
+			"reason": fmt.Sprintf("T%d (%s) %s", bl.i("id"), actingOf(bl), bl.str("title"))})
 	}
 	task["blockers"] = bs
-	kids, err := query(e.DB, "SELECT * FROM tasks WHERE parent_task = ? ORDER BY id", *tid)
+	kids, err := query(e.DB, "SELECT *, "+taskActing+" FROM tasks WHERE parent_task = ? ORDER BY id", *tid)
 	if err != nil {
 		return nil, err
 	}
@@ -1043,4 +1051,34 @@ func (e *Env) taskMemoList(c *rpc.Conn, params map[string]any) (any, error) {
 		}
 	}
 	return map[string]any{"memos": memos, "more": more}, nil
+}
+
+// taskActing and taskActingT are the acting column (db.ActingSQL) of a tasks row read whole, unaliased or as t.
+var (
+	taskActing  = actingSQL + " AS acting"
+	taskActingT = db.ActingSQL("t") + " AS acting"
+	actingSQL   = db.ActingSQL("tasks") // who acts on a tasks row, as an expression
+	actingSQLc  = db.ActingSQL("c")
+)
+
+// actingOf is who acts on task row t now: its acting column, else its owner for a row read without one.
+func actingOf(t row) string {
+	if a := t.str("acting"); a != "" {
+		return a
+	}
+	return t.str("owner")
+}
+
+// turnsOf is Task.turns: the turns on task tid, bottom first.
+func (e *Env) turnsOf(tid int64) ([]any, error) {
+	turns, err := db.Turns(e.DB, tid)
+	out := make([]any, len(turns))
+	for i, u := range turns {
+		var onPass, evidence any
+		if u.OnPass != "" {
+			onPass, evidence = u.OnPass, u.Evidence
+		}
+		out[i] = map[string]any{"agent": u.Agent, "ask": u.Ask, "by": u.By, "since": ts(u.Since), "on_pass": onPass, "evidence": evidence}
+	}
+	return out, err
 }

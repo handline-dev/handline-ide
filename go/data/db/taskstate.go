@@ -46,13 +46,13 @@ func ReadsDoing(q Q, tid int64) (bool, error) {
 
 // HoldsCurrent is actions.holds_current: the task may be delivered (wayFree).
 func HoldsCurrent(q Q, t *Task) (bool, error) {
-	if t.Owner == Human || t.Owner == Gate {
+	if t.Acting == Human || t.Acting == Gate {
 		return true, nil
 	}
-	if held, ok, err := CurrentTask(q, t.Owner); err != nil || ok && held == t.ID {
+	if held, ok, err := CurrentTask(q, t.Acting); err != nil || ok && held == t.ID {
 		return err == nil, err
 	}
-	return wayFree(q, t.Owner)
+	return wayFree(q, t.Acting)
 }
 
 // wayFree: agent holds no open, unblocked task.
@@ -70,10 +70,10 @@ func wayFree(q Q, agent string) (bool, error) {
 }
 
 func isCurrent(q Q, t *Task) (bool, error) {
-	if t.Owner == Human || t.Owner == Gate {
+	if t.Acting == Human || t.Acting == Gate {
 		return true, nil
 	}
-	held, ok, err := CurrentTask(q, t.Owner)
+	held, ok, err := CurrentTask(q, t.Acting)
 	return ok && held == t.ID, err
 }
 
@@ -84,7 +84,7 @@ func HeldByHolder(q Q, agent string, r *Request) (bool, error) {
 		return false, err
 	}
 	for _, t := range tasks {
-		if t.Owner != agent {
+		if t.Acting != agent {
 			continue
 		}
 		if holds, err := HoldsCurrent(q, t); err != nil || !holds {
@@ -147,7 +147,7 @@ func ChildBlockerOf(q Q, tid int64) (*Task, error) {
 		}
 	}
 	for _, b := range children {
-		if b.Owner != t.Owner {
+		if b.Acting != t.Acting {
 			continue
 		}
 		st, err := TaskState(q, b)
@@ -159,7 +159,7 @@ func ChildBlockerOf(q Q, tid int64) (*Task, error) {
 		}
 	}
 	for _, b := range children {
-		if b.Owner != t.Owner {
+		if b.Acting != t.Acting {
 			return b, nil
 		}
 	}
@@ -188,7 +188,7 @@ func ChildWait(q Q, agent string) (string, error) {
 	if err != nil || child == nil {
 		return "", err
 	}
-	return "waiting for T" + itoa(child.ID) + " (" + child.Owner + ")", nil
+	return "waiting for T" + itoa(child.ID) + " (" + child.Acting + ")", nil
 }
 
 // BlockWait is actions.block_wait: what the agent is held up by when its current task is blocked ("blocked by T<n> (owner), ...").
@@ -203,7 +203,7 @@ func BlockWait(q Q, agent string) (string, error) {
 	}
 	parts := make([]string, len(bs))
 	for i, b := range bs {
-		parts[i] = "T" + itoa(b.ID) + " (" + b.Owner + ")"
+		parts[i] = "T" + itoa(b.ID) + " (" + b.Acting + ")"
 	}
 	return "blocked by " + strings.Join(parts, ", "), nil
 }
@@ -249,7 +249,7 @@ func WaitingTasks(q Q, agent string) ([]WaitingTask, error) {
 	}
 	var out []WaitingTask
 	for _, t := range open {
-		if t.Owner != agent || t.DoneEvidence.String != "" {
+		if t.Acting != agent || t.DoneEvidence.String != "" {
 			continue
 		}
 		bs, err := TaskBlockers(q, t.ID)

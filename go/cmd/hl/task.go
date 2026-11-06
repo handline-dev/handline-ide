@@ -22,6 +22,7 @@ var taskCmds = map[string]taskCmd{
 	"comment": taskMemo, "memo": taskMemo, "show": taskShow, "list": taskList, "queue": taskQueue(true), "draft": taskQueue(false),
 	"edit": taskEdit, "merge": taskMerge, "done": taskDone, "reopen": taskReopen, "release": taskRelease,
 	"discard": taskDiscard, "board": taskBoard, "wait": taskWait, "request": taskRequest, "none": taskNone,
+	"turn": taskTurn, "pass": taskPop("pass"), "back": taskPop("send_back"),
 }
 
 // taskReads are the subcommands that change nothing, so no verb_chain is recorded for them (parser._TASK_READS).

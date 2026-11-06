@@ -16,6 +16,7 @@ import (
 type task struct {
 	ID                                  int64
 	Owner, OpenedBy, Title              string
+	Acting                              string // its top turn's agent, else Owner
 	DoneEvidence, DiscardedBy, QueuedBy sql.NullString
 	Reporter                            sql.NullString
 	SentAt                              sql.NullInt64
@@ -27,9 +28,9 @@ type task struct {
 func getTask(tx *sql.Tx, tid int64) (*task, error) {
 	t := &task{ID: tid}
 	err := tx.QueryRow("SELECT owner, opened_by, title, done_evidence, discarded_by, queued_by, sent_at, timeout_s, parent_task, reporter, "+
-		"pr FROM tasks WHERE id = ?", tid).
+		"pr, "+db.ActingSQL("tasks")+" FROM tasks WHERE id = ?", tid).
 		Scan(&t.Owner, &t.OpenedBy, &t.Title, &t.DoneEvidence, &t.DiscardedBy, &t.QueuedBy, &t.SentAt, &t.TimeoutS, &t.Parent, &t.Reporter,
-			&t.PR)
+			&t.PR, &t.Acting)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/internal/prefs"
 	"github.com/handline/handline/go/protocol/rpc"
 )
@@ -85,7 +86,7 @@ func (e *Env) ForYou() ([]map[string]any, int, error) {
 	if err != nil {
 		return nil, 0, err
 	}
-	owned, err := query(e.DB, "SELECT * FROM tasks WHERE owner = ? AND "+openTask+" ORDER BY id", human)
+	owned, err := query(e.DB, "SELECT *, "+taskActing+" FROM tasks WHERE "+db.ActingSQL("tasks")+" = ? AND "+openTask+" ORDER BY id", human)
 	if err != nil {
 		return nil, 0, err
 	}

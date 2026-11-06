@@ -78,6 +78,8 @@ func Register(s *rpc.Server, home string, tell Teller, decide CardDecider) {
 	s.Register("progress.get", rpc.Method{Handler: progressGet})
 	s.Register("task.begin", rpc.Method{Handler: func(c *rpc.Conn, p map[string]any) (any, error) { return begin(c, p, home) }})
 	s.Register("task.handoff", rpc.Method{Handler: handoffMethod(home, tell)})
+	s.Register("task.turn.push", rpc.Method{Handler: turnPushMethod(home, tell)})
+	s.Register("task.turn.pop", rpc.Method{Handler: turnPopMethod(home, tell)})
 	s.Register("task.new", rpc.Method{Handler: newMethod(home, tell)})
 	s.Register("task.edit", rpc.Method{Handler: editMethod(home, tell)})
 	s.Register("task.ask", rpc.Method{Handler: askMethod(home, tell)})
@@ -209,6 +211,7 @@ func memoAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, err
 		store := attachments.New(home)
 		var files []attachments.Info
 		var added int64
+		var popped *Popped // the founder's comment that ended the founder's turn
 		out, err := c.Effect(func(tx *sql.Tx) (map[string]any, error) {
 			if ok, err := hasTask(tx, tid); err != nil || !ok {
 				if err != nil {
@@ -238,7 +241,21 @@ func memoAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, err
 				return nil, err
 			}
 			if c.Caller.Actor() == human {
-				err = answerMemoAsks(tx, tid)
+				if err = answerMemoAsks(tx, tid); err != nil {
+					return nil, err
+				}
+				// while the founder's turn is on top, their comment passes it, the comment its note
+				if acting, err := db.Acting(tx, tid); err != nil {
+					return nil, err
+				} else if turns, err := db.Turns(tx, tid); err != nil {
+					return nil, err
+				} else if acting == human && len(turns) > 0 {
+					p, err := popTurn(tx, home, tell, tid, human, db.TurnPass, body, true)
+					if err != nil {
+						return nil, err
+					}
+					popped = &p
+				}
 			} else {
 				err = syncMemoAsk(tx, tid, mid, c.Caller.Actor(), body)
 			}
@@ -257,6 +274,12 @@ func memoAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, err
 			told := body
 			if lines := store.FileLines(files); lines != "" {
 				told += "\n" + lines
+			}
+			if popped != nil {
+				popped.tell(tell)
+				if popped.Done == nil && popped.Asked != nil && popped.Asked.OK {
+					skip = append(skip, popped.To) // the task's return to it carries the comment
+				}
 			}
 			tell.MemoChanged(tid, added, c.Caller.Actor(), "added", told, now, skip)
 		}

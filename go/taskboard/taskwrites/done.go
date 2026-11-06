@@ -136,6 +136,8 @@ type DoneIn struct {
 	// Commit is the sha the work was done at (it need not be on main); Shots are absolute paths of PNG files. Both are optional.
 	Commit string
 	Shots  []string
+	// TurnPassed is a review turn's pass closing the task (task.turn.pop): its turn's event says pass, not cleared.
+	TurnPassed bool
 }
 
 // DoneResult is what a MarkDone leaves for the telling that follows the commit. Finished is false when only a leftover request of an
@@ -170,7 +172,7 @@ func MarkDone(tx *sql.Tx, home, by string, in DoneIn) (*DoneResult, error) {
 			return nil, err
 		}
 		for _, r := range reqs {
-			if r.State == "queued" && (by == t.Owner || by == t.reporter() || by == human) {
+			if r.State == "queued" && (by == t.Owner || by == t.Acting || by == t.reporter() || by == human) {
 				notes, err := endTask(tx, home, tid, by, t, doneText(tid, by, t.DoneEvidence.String), delivery.Failed(t.DoneEvidence.String), nil)
 				if err != nil {
 					return nil, err
@@ -257,11 +259,22 @@ func MarkDone(tx *sql.Tx, home, by string, in DoneIn) (*DoneResult, error) {
 	if t.Owner == human { // closed from under the founder: they hear it in one line
 		also = append(also, human)
 	}
+	top := ""
+	if in.TurnPassed {
+		top = db.TurnPass
+	}
+	stack, err := clearStack(tx, tid, by, top)
+	if err != nil {
+		return nil, err
+	}
+	if len(stack) > 0 { // ended under turns: everyone on the stack hears it, the owner below them too
+		also = append(append(also, stack...), t.Owner)
+	}
 	notes, err := endTask(tx, home, tid, by, t, doneText(tid, by, mark), delivery.Failed(mark), also)
 	if err != nil {
 		return nil, err
 	}
-	return &DoneResult{Said: fmt.Sprintf("task T%d done (%s)", tid, mark), Owner: t.Owner, Told: notes, Finished: true, Keep: finalize}, nil
+	return &DoneResult{Said: fmt.Sprintf("task T%d done (%s)", tid, mark), Owner: t.Acting, Told: notes, Finished: true, Keep: finalize}, nil
 }
 
 // doneText is what a task's end says to whoever it tells: "T<n> done by <by>: <evidence on one line>".
@@ -275,7 +288,7 @@ func doneText(tid int64, by, evidence string) string {
 
 // mayClose is whether by may mark t done: its assignee, owner, the founder, the owner of its parent task, or a lead of its team.
 func mayClose(tx *sql.Tx, home, by string, t *task) (bool, error) {
-	if by == t.Owner || by == t.reporter() || by == human {
+	if by == t.Owner || by == t.Acting || by == t.reporter() || by == human {
 		return true, nil
 	}
 	if t.Parent.Valid {

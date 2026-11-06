@@ -279,21 +279,21 @@ func (e *Env) tellBodyEdited(q db.Q, tid int64, by string) {
 	var latest sql.NullString
 	err := q.QueryRow("SELECT json_extract(payload, '$.body.new') FROM events WHERE kind = 'edit_task' AND json_valid(payload) AND "+
 		"json_extract(payload, '$.task_id') = ? AND json_type(payload, '$.body') = 'object' ORDER BY id DESC LIMIT 1", tid).Scan(&latest)
-	if err == sql.ErrNoRows || row == nil || row.Owner == db.Human || row.Owner == db.Gate || row.Owner == by || must(db.TaskState(q, row)) != "doing" {
+	if err == sql.ErrNoRows || row == nil || row.Acting == db.Human || row.Acting == db.Gate || row.Acting == by || must(db.TaskState(q, row)) != "doing" {
 		return
 	}
 	check(err)
-	e.typeSay(q, row.Owner, fmt.Sprintf("T%d body edited by %s: %s", tid, by, firstRunes(textsafe.Oneline(latest.String), 400)), "task body edited")
+	e.typeSay(q, row.Acting, fmt.Sprintf("T%d body edited by %s: %s", tid, by, firstRunes(textsafe.Oneline(latest.String), 400)), "task body edited")
 }
 
 // sendMovedTask (actions.send_moved_task): after an edit gave the task to a new owner, the old owner's request for it is taken back and the
 // new owner is asked the same brief now, as task.new would; an old owner that had the task in hand is told to stop. No-op if the owner did not change.
 func (e *Env) sendMovedTask(q db.Q, tid int64, old, by string) {
 	row := must(db.GetTask(q, tid))
-	if row == nil || row.Owner == old {
+	if row == nil || row.Acting == old {
 		return
 	}
-	owner := row.Owner
+	owner := row.Acting
 	var taken []*db.Request
 	if live := must(db.LiveDelivery(q, tid, old)); live != nil {
 		taken = append(taken, live)

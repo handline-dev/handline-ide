@@ -28,17 +28,17 @@ func (e *Env) taskBoard(c *rpc.Conn, params map[string]any) (any, error) {
 			return nil, err
 		}
 	}
-	// In SQL, before any per-task read: a task in reach by its owner, or, on an agent's board, one it answers to someone in reach for.
-	q, args := "SELECT * FROM tasks WHERE "+openTask, []any{}
+	// In SQL, before any per-task read: a task in reach by who acts on it, or, on an agent's board, one it answers to someone in reach for.
+	q, args := "SELECT *, "+taskActing+" FROM tasks WHERE "+openTask, []any{}
 	if owners != nil {
 		for n := range owners {
 			args = append(args, n)
 		}
 		in := "(" + placeholders(len(args)) + ")"
 		if me == human {
-			q += " AND owner IN " + in
+			q += " AND " + actingSQL + " IN " + in
 		} else {
-			q += " AND (owner IN " + in + " OR " + askerSQL + " IN " + in + ")"
+			q += " AND (" + actingSQL + " IN " + in + " OR " + askerSQL + " IN " + in + ")"
 			args = append(args, args...)
 		}
 	}
@@ -52,7 +52,7 @@ func (e *Env) taskBoard(c *rpc.Conn, params map[string]any) (any, error) {
 	}
 	mine, reports := []any{}, []any{}
 	for _, t := range open {
-		reach := owners == nil || owners[t.str("owner")]
+		reach := owners == nil || owners[actingOf(t)]
 		task, err := e.taskOf(t, b.state(t), b)
 		if err != nil {
 			return nil, err
@@ -66,7 +66,7 @@ func (e *Env) taskBoard(c *rpc.Conn, params map[string]any) (any, error) {
 			holder = agents[0]
 		}
 		r := map[string]any{"task": task, "holder": holder, "now": now}
-		if t.str("owner") == me || !reach {
+		if actingOf(t) == me || !reach {
 			mine = append(mine, r)
 		} else {
 			reports = append(reports, r)
@@ -125,7 +125,7 @@ func (e *Env) heldBy(tid int64, me string, blocked bool) (map[string]any, error)
 	if len(kids) > 0 {
 		return now("sub_task", kids, nil), nil
 	}
-	holds, err := query(e.DB, "SELECT c.id, c.owner FROM tasks c WHERE c.parent_task = ? AND "+openTask+" AND EXISTS (SELECT 1 FROM task_requests a "+
+	holds, err := query(e.DB, "SELECT c.id, c.owner, "+actingSQLc+" AS acting FROM tasks c WHERE c.parent_task = ? AND "+openTask+" AND EXISTS (SELECT 1 FROM task_requests a "+
 		"JOIN task_requests p ON p.request_id = a.request_id WHERE a.task_id = c.id AND p.task_id = ?) ORDER BY c.priority, c.id", tid, tid)
 	if err != nil {
 		return nil, err
@@ -134,7 +134,7 @@ func (e *Env) heldBy(tid int64, me string, blocked bool) (map[string]any, error)
 		var agents []string
 		var ids []int64
 		for _, h := range holds {
-			agents, ids = append(agents, h.str("owner")), append(ids, h.i("id"))
+			agents, ids = append(agents, actingOf(h)), append(ids, h.i("id"))
 		}
 		return now("held_as_sub_task", agents, ids), nil
 	}

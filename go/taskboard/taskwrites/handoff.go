@@ -42,9 +42,6 @@ type Handover struct {
 	After        func() string
 }
 
-// askFounderInstead is the refusal when an agent gives a task to the founder: it keeps the task and asks them in a comment.
-const askFounderInstead = "Ask the founder with @human in a memo; keep the task."
-
 // handoffRefusal is why the task may not go to `to`, or "": anyone hands an open task on, with a note (its asker takes it back so).
 func handoffRefusal(t *task, to string, agents []string) string {
 	switch {
@@ -52,8 +49,10 @@ func handoffRefusal(t *task, to string, agents []string) string {
 		return fmt.Sprintf("task T%d is already finished - nothing to hand over", t.ID)
 	case to != human && !contains(agents, to):
 		return "no agent named " + to
-	case to == t.Owner:
+	case to == t.Acting:
 		return fmt.Sprintf("T%d is already %s's", t.ID, to)
+	case to == t.Owner:
+		return fmt.Sprintf("T%d is %s's already, under its turns: pass or send back the turns above it (`hl task turn pop`)", t.ID, to)
 	}
 	return ""
 }
@@ -90,9 +89,6 @@ func handoffMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (an
 			return nil, e
 		}
 		me := c.Caller.Actor()
-		if to == human && me != human {
-			return nil, refusal(askFounderInstead)
-		}
 		said := strings.TrimSpace(textsafe.Text(note))
 		var (
 			h     Handover
@@ -104,7 +100,11 @@ func handoffMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (an
 				return nil, err
 			}
 			var err error
-			h, asked, err = handOff(tx, tell, tid, me, to, said, agents, false)
+			if to == human && me != human { // an agent's handoff to the founder is the founder's turn: the task stays the agent's
+				h, asked, err = pushTurn(tx, tell, tid, me, human, said, "", "")
+			} else {
+				h, asked, err = handOff(tx, tell, tid, me, to, said, agents, false)
+			}
 			if err != nil {
 				return nil, err
 			}
@@ -141,10 +141,15 @@ func handOff(tx *sql.Tx, tell Teller, tid int64, by, to, note string, agents []s
 	if why := handoffRefusal(t, to, agents); why != "" {
 		return Handover{}, nil, refusal(why)
 	}
+	if in, err := db.InStack(tx, tid, to); err != nil {
+		return Handover{}, nil, err
+	} else if in {
+		return Handover{}, nil, refusal(fmt.Sprintf("%s already has a turn on T%d", to, tid))
+	}
 	if tell == nil {
 		return Handover{}, nil, fmt.Errorf("task.handoff needs the supervisor to route its ask")
 	}
-	h := Handover{Task: tid, By: by, From: t.Owner, To: to, Title: t.Title}
+	h := Handover{Task: tid, By: by, From: t.Acting, To: to, Title: t.Title}
 	asked, err := tell.TaskAsk(tx, AskReq{From: by, To: to, Kind: "task", System: system, Body: fmt.Sprintf("T%d handed to you by %s: %s\n\n%s", tid, by, t.Title, note),
 		Within: func(rid int64) error {
 			h.RID = rid
@@ -153,16 +158,43 @@ func handOff(tx *sql.Tx, tell Teller, tid int64, by, to, note string, agents []s
 	return h, asked, err
 }
 
-// moveTask is what follows an allowed ask, in its transaction: the old owner's open requests close, the task changes hands and links the
-// delivery.
+// moveTask is what follows an allowed ask, in its transaction: the old owner's open requests close, the task changes hands (or, with turns
+// on it, its top turn does) and links the delivery.
 func moveTask(tx *sql.Tx, tell Teller, h *Handover, note string) error {
+	return shiftTask(tx, tell, h, "handed to "+h.To, true, func() error {
+		replaced, err := db.ReplaceTopTurn(tx, h.Task, h.To)
+		if err != nil {
+			return err
+		}
+		if !replaced {
+			if err := db.EditTask(tx, h.Task, h.By, db.TaskEdit{Owner: &h.To}); err != nil {
+				return err
+			}
+			went, err := db.SyncSelfBlocks(tx, h.Task, h.From)
+			if err != nil {
+				return err
+			}
+			if err := reportDormant(tx, h.By, h.To, went); err != nil {
+				return err
+			}
+		}
+		at := float64(time.Now().UnixNano()) / 1e9
+		return addEvent(tx, h.By, "task_handoff", kv{"task_id", h.Task}, kv{"from", h.From}, kv{"to", h.To}, kv{"note", note},
+			kv{"request_id", h.RID}, kv{"at", at})
+	})
+}
+
+// shiftTask moves who acts on task h.Task from h.From to h.To in tx, change being the write that does it (a new owner, a turn pushed or
+// popped): h.From's open requests for it close (why) and its slot frees, and h.To gets the task as its delivery h.RID (none for the
+// founder), typed at once (now) or at the front of its queue.
+func shiftTask(tx *sql.Tx, tell Teller, h *Handover, why string, now bool, change func() error) error {
 	reqs, err := taskRequests(tx, h.Task)
 	if err != nil {
 		return err
 	}
 	for _, r := range reqs {
 		if r.State == "queued" && r.Target == h.From && r.ID != h.RID {
-			told, err := tell.HandoffRetire(tx, r.ID, "handed to "+h.To)
+			told, err := tell.HandoffRetire(tx, r.ID, why)
 			if err != nil {
 				return err
 			}
@@ -174,26 +206,20 @@ func moveTask(tx *sql.Tx, tell Teller, h *Handover, note string) error {
 	if err := db.EndHeld(tx, h.Task, h.From); err != nil {
 		return err
 	}
-	if err := db.EditTask(tx, h.Task, h.By, db.TaskEdit{Owner: &h.To}); err != nil {
+	if err := change(); err != nil {
 		return err
 	}
-	went, err := db.SyncSelfBlocks(tx, h.Task, h.From)
-	if err != nil {
-		return err
-	}
-	if err := reportDormant(tx, h.By, h.To, went); err != nil {
-		return err
-	}
-	if err := db.LinkRequest(tx, h.Task, h.RID); err != nil {
-		return err
-	}
-	if _, err := db.MarkSendNow(tx, h.RID); err != nil { // a handoff is typed on arrival, whatever its holder is doing
-		return err
-	}
-	at := float64(time.Now().UnixNano()) / 1e9
-	if err := addEvent(tx, h.By, "task_handoff", kv{"task_id", h.Task}, kv{"from", h.From}, kv{"to", h.To}, kv{"note", note},
-		kv{"request_id", h.RID}, kv{"at", at}); err != nil {
-		return err
+	if h.RID != 0 {
+		if err := db.LinkRequest(tx, h.Task, h.RID); err != nil {
+			return err
+		}
+		if now {
+			if _, err := db.MarkSendNow(tx, h.RID); err != nil { // typed on arrival, whatever its holder is doing
+				return err
+			}
+		} else if err := db.PromoteToFront(tx, h.RID); err != nil {
+			return err
+		}
 	}
 	if cur, held, err := db.CurrentTask(tx, h.From); err != nil {
 		return err
@@ -203,7 +229,7 @@ func moveTask(tx *sql.Tx, tell Teller, h *Handover, note string) error {
 			return err
 		}
 	}
-	if h.To == human { // a task the founder holds is asked of them, so it is queued: a draft is outside "for you"
+	if h.To == human { // a task the founder acts on is asked of them, so it is queued: a draft is outside "for you"
 		_, err := db.SetTaskQueued(tx, h.Task, h.By)
 		return err
 	}

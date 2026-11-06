@@ -151,7 +151,7 @@ func (e *Env) AdvanceToDormantBlocker(q db.Q, agent string) (changed bool, err e
 // QueueDeliver is what queuing does after its write commits: the task goes out now if its owner is free. row is the task as it was before.
 func (e *Env) QueueDeliver(q db.Q, tid int64, by string, queued bool, row *db.Task) (msg string, err error) {
 	defer Catch(&err)
-	if queued && row.Owner == db.Human {
+	if queued && row.Acting == db.Human {
 		// The founder holds no current task, so nothing advances it: queuing is putting the card back on their board.
 		out, aerr := e.Ask(q, AskIn{Target: db.Human, Body: row.Title, Requester: row.OpenedBy, Kind: "task", OnBehalfOf: true, Notify: true})
 		if aerr != nil {
@@ -168,18 +168,18 @@ func (e *Env) QueueDeliver(q db.Q, tid int64, by string, queued bool, row *db.Ta
 	if queued {
 		word = "queued"
 		// advance's own answer says whether the owner's current task moved on at all, not whether it landed on tid; the task's state says which happened.
-		changed, refused, aerr := e.AdvanceCurrentTask(q, row.Owner)
+		changed, refused, aerr := e.AdvanceCurrentTask(q, row.Acting)
 		if aerr != nil {
 			return "", aerr
 		}
 		if changed {
-			e.Push(q, row.Owner, 0)
+			e.Push(q, row.Acting, 0)
 		}
 		if st := must(db.TaskState(q, must(db.GetTask(q, tid)))); st == "doing" {
-			return fmt.Sprintf("task T%d is queued (%s) - %s was free, so it went out now", tid, by, row.Owner), nil
+			return fmt.Sprintf("task T%d is queued (%s) - %s was free, so it went out now", tid, by, row.Acting), nil
 		}
 		if why, ok := refused[tid]; ok { // queued, but not sent, and the approver is told why
-			return fmt.Sprintf("task T%d is queued (%s) but was not sent to %s: %s", tid, by, row.Owner, why), nil
+			return fmt.Sprintf("task T%d is queued (%s) but was not sent to %s: %s", tid, by, row.Acting, why), nil
 		}
 	}
 	return fmt.Sprintf("task T%d is %s (%s)", tid, word, by), nil
@@ -241,7 +241,7 @@ func (e *Env) tellAssigneeIdle(q db.Q, tid int64, by, assignee string, told []db
 // reopen voids it).
 func (e *Env) childResultNotice(q db.Q, dep *db.Task, by string, tid int64) *db.Notice {
 	child := must(db.GetTask(q, tid))
-	if child == nil || !child.ParentTask.Valid || child.ParentTask.Int64 != dep.ID || dep.Owner == by {
+	if child == nil || !child.ParentTask.Valid || child.ParentTask.Int64 != dep.ID || dep.Acting == by {
 		return nil
 	}
 	var since sql.NullInt64
@@ -258,7 +258,7 @@ func (e *Env) childResultNotice(q db.Q, dep *db.Task, by string, tid int64) *db.
 	var text string
 	switch {
 	case child.DoneEvidence.Valid && child.DoneEvidence.String != "":
-		text = fmt.Sprintf("T%d done by %s: %s", tid, child.Owner, oneSpace(child.DoneEvidence.String))
+		text = fmt.Sprintf("T%d done by %s: %s", tid, child.Acting, oneSpace(child.DoneEvidence.String))
 	case child.DiscardedBy.Valid && child.DiscardedBy.String != "":
 		text = fmt.Sprintf("T%d discarded by %s: %s", tid, child.DiscardedBy.String, oneSpace(child.DiscardReason.String))
 	default:
@@ -268,10 +268,10 @@ func (e *Env) childResultNotice(q db.Q, dep *db.Task, by string, tid int64) *db.
 	if delivery.ClassOf(delivery.Result, false, delivery.Failed(child.DoneEvidence.String)) != delivery.ClassNow {
 		return nil // a child's result that did not fail is on the parent's board, not in its owner's inbox
 	}
-	rid := must(db.AddRequest(q, db.NewRequest{Requester: db.NoticeRequester, Target: dep.Owner, Body: text, Kind: "say"}))
+	rid := must(db.AddRequest(q, db.NewRequest{Requester: db.NoticeRequester, Target: dep.Acting, Body: text, Kind: "say"}))
 	check(db.LinkRequest(q, dep.ID, rid))
 	must(db.AddEvent(q, by, "child_result_told", db.KV{K: "task_id", V: dep.ID}, db.KV{K: "child", V: tid}, db.KV{K: "request_id", V: rid}))
-	return &db.Notice{RID: rid, To: dep.Owner, Text: text}
+	return &db.Notice{RID: rid, To: dep.Acting, Text: text}
 }
 
 // ClearBlocksOn runs after tid is discarded: drop every block row naming it, and for each task that leaves with no open blocker, write a notice
@@ -293,16 +293,16 @@ func (e *Env) clearBlocksOn(q db.Q, tid int64, closer, how string) ([]db.Notice,
 		if len(must(db.TaskBlockers(q, depID))) > 0 {
 			continue
 		}
-		if !seen[dep.Owner] {
-			seen[dep.Owner] = true
-			freed = append(freed, dep.Owner)
+		if !seen[dep.Acting] {
+			seen[dep.Acting] = true
+			freed = append(freed, dep.Acting)
 		}
-		if dep.Owner == closer {
+		if dep.Acting == closer {
 			// No notice for the closer, but the task still comes due again.
 			must(db.AddEvent(q, closer, "unblock_task", db.KV{K: "task_id", V: depID}, db.KV{K: "blocks_on", V: tid}, db.KV{K: "after_request", V: must(db.NewestRequest(q))}))
 			continue
 		}
-		notices = append(notices, e.notifyUnblocked(q, depID, dep.Owner, closer, tid, how))
+		notices = append(notices, e.notifyUnblocked(q, depID, dep.Acting, closer, tid, how))
 	}
 	return notices, freed
 }
@@ -335,14 +335,14 @@ func (e *Env) freeBlockedBy(q db.Q, tid int64, by string) ([]db.Notice, []string
 			notices = append(notices, *n)
 		}
 		free := len(must(db.TaskBlockers(q, depID))) == 0
-		told := free && dep.Owner != by // the one who finished it does not need telling
+		told := free && dep.Acting != by // the one who finished it does not need telling
 		must(db.AddEvent(q, by, "released_at_done", db.KV{K: "task_id", V: depID}, db.KV{K: "blocks_on", V: tid}, db.KV{K: "freed", V: free}, db.KV{K: "told", V: told}))
-		if free && !seen[dep.Owner] {
-			seen[dep.Owner] = true
-			freed = append(freed, dep.Owner)
+		if free && !seen[dep.Acting] {
+			seen[dep.Acting] = true
+			freed = append(freed, dep.Acting)
 		}
 		if told {
-			notices = append(notices, e.notifyUnblocked(q, depID, dep.Owner, by, tid, "done"))
+			notices = append(notices, e.notifyUnblocked(q, depID, dep.Acting, by, tid, "done"))
 		}
 	}
 	return notices, freed
@@ -424,7 +424,7 @@ func (e *Env) releaseOne(tid int64, how string) (waiting []int64, err error) {
 		if how == "discarded" {
 			notices, owners = e.clearBlocksOn(tx, tid, row.DiscardedBy.String, how)
 		} else {
-			notices, owners = e.freeBlockedBy(tx, tid, row.Owner)
+			notices, owners = e.freeBlockedBy(tx, tid, row.Acting)
 		}
 		check(tx.Commit())
 	}()
@@ -498,14 +498,14 @@ func (e *Env) memoRecipients(row *db.Task, by, text, to string, now bool) []task
 	var out []taskwrites.Recipient
 	for _, a := range e.memoReaders(row, by, named) {
 		asked := a == to || slices.Contains(named, a)
-		if delivery.ClassOf(delivery.Memo, now || by == db.Human || asked || a == row.Owner, false) != delivery.ClassNow {
+		if delivery.ClassOf(delivery.Memo, now || by == db.Human || asked || a == row.Acting, false) != delivery.ClassNow {
 			continue
 		}
 		why := "owner"
 		switch {
 		case asked:
 			why = "asked"
-		case a == row.Owner:
+		case a == row.Acting:
 			why = "assignee"
 		}
 		out = append(out, taskwrites.Recipient{Agent: a, Why: why})
@@ -526,7 +526,7 @@ func (e *Env) linkMemoTell(q db.Q, mid int64, reader string, rid int64) {
 // memoReaders is whom a memo on row concerns, each once: who the task answers to (its reporter), its assignee whatever the task's state, and
 // every registered agent the memo names with @. Never the writer, or the founder, who reads the board.
 func (e *Env) memoReaders(row *db.Task, by string, mentioned []string) []string {
-	named := append([]string{row.AnswersTo(), row.Owner}, mentioned...)
+	named := append([]string{row.AnswersTo(), row.Acting}, mentioned...)
 	skip := map[string]bool{"": true, by: true, db.Human: true}
 	var out []string
 	for _, a := range named {

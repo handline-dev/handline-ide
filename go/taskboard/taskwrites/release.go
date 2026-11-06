@@ -36,13 +36,43 @@ func releaseMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (an
 			return nil, badParam("reason is text", "reason")
 		}
 		var r released
+		var popped *Popped // the top turn's agent let go: its turn is sent back
+		me := c.Caller.Actor()
 		out, err := c.Effect(func(tx *sql.Tx) (map[string]any, error) {
-			var err error
-			if r, err = releaseTask(tx, home, c.Caller.Actor(), tid, reason); err != nil {
+			turns, err := db.Turns(tx, tid)
+			if err != nil {
+				return nil, err
+			}
+			if len(turns) > 0 {
+				if top := turns[len(turns)-1].Agent; me != top && me != human {
+					return nil, refusal(fmt.Sprintf("T%d has turns on it, and %s's is on top: it releases by sending the task back (hl task back), "+
+						"or you take your turn back once it is passed", tid, top))
+				}
+				why := strings.TrimSpace(reason)
+				if why == "" {
+					why = "released"
+				}
+				p, err := popTurn(tx, home, tell, tid, me, db.TurnSendBack, why, false)
+				if err != nil {
+					return nil, err
+				}
+				popped = &p
+				if p.Asked != nil && !p.Asked.OK {
+					return nil, &rpc.CommitThen{Err: refusal(p.Asked.Msg)}
+				}
+				return accepted(fmt.Sprintf("T%d sent back to %s: %s", tid, p.To, why), nil), nil
+			}
+			if r, err = releaseTask(tx, home, me, tid, reason); err != nil {
 				return nil, err
 			}
 			return accepted(r.said(), nil), nil
 		})
+		if popped != nil {
+			popped.tell(tell) // a refused return runs its After
+			if err == nil {
+				return out, nil
+			}
+		}
 		if err == nil && tell != nil {
 			if said := r.tell(tell, tid); said != "" {
 				out["said"] = said

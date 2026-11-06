@@ -23,16 +23,21 @@ type Task struct {
 	DoneEvidence, DoneVia, EditedBy, ClosedBy, DiscardedBy sql.NullString
 	DiscardReason, QueuedBy, Expects                       sql.NullString
 	Reporter                                               sql.NullString
+	// Acting is who acts on the task now: its top turn's agent, else Owner (ActingSQL).
+	Acting string
 }
 
-const taskCols = "id, title, owner, parent_task, opened_by, done_evidence, done_at, done_via, edited_by, edited_at, created_at, closed_by, closed_at, " +
+var taskCols = "id, title, owner, parent_task, opened_by, done_evidence, done_at, done_via, edited_by, edited_at, created_at, closed_by, closed_at, " +
 	"discarded_by, discard_reason, discarded_at, priority, merged_into, queued_by, queued_at, timeout_s, timeout_at, delivered_at, sent_at, expects, " +
-	"reporter"
+	"reporter, " + actingCol
+
+// actingCol is ActingSQL for a query of the tasks table unaliased.
+var actingCol = ActingSQL("tasks")
 
 func (t *Task) dest() []any {
 	return []any{&t.ID, &t.Title, &t.Owner, &t.ParentTask, &t.OpenedBy, &t.DoneEvidence, &t.DoneAt, &t.DoneVia, &t.EditedBy, &t.EditedAt, &t.CreatedAt,
 		&t.ClosedBy, &t.ClosedAt, &t.DiscardedBy, &t.DiscardReason, &t.DiscardedAt, &t.Priority, &t.MergedInto, &t.QueuedBy, &t.QueuedAt,
-		&t.TimeoutS, &t.TimeoutAt, &t.DeliveredAt, &t.SentAt, &t.Expects, &t.Reporter}
+		&t.TimeoutS, &t.TimeoutAt, &t.DeliveredAt, &t.SentAt, &t.Expects, &t.Reporter, &t.Acting}
 }
 
 // AnswersTo is who the task answers to: its reporter, or its opener when none was set.
@@ -77,9 +82,9 @@ func OpenTasks(q Q) ([]*Task, error) {
 	return taskRows(q, "SELECT "+taskCols+" FROM tasks WHERE "+OpenSQL+" ORDER BY priority, id")
 }
 
-// OpenTasksOf is the open tasks owner holds, by priority then id.
-func OpenTasksOf(q Q, owner string) ([]*Task, error) {
-	return taskRows(q, "SELECT "+taskCols+" FROM tasks WHERE owner = ? AND "+OpenSQL+" ORDER BY priority, id", owner)
+// OpenTasksOf is the open tasks agent acts on (Task.Acting), by priority then id.
+func OpenTasksOf(q Q, agent string) ([]*Task, error) {
+	return taskRows(q, "SELECT "+taskCols+" FROM tasks WHERE "+actingCol+" = ? AND "+OpenSQL+" ORDER BY priority, id", agent)
 }
 
 // OpenChildTasks is db.open_child_tasks.
@@ -89,9 +94,7 @@ func OpenChildTasks(q Q, tid int64) ([]*Task, error) {
 
 // TasksForRequest is db.tasks_for_request: the tasks a request is linked to, oldest first.
 func TasksForRequest(q Q, rid int64) ([]*Task, error) {
-	return taskRows(q, "SELECT t.id, t.title, t.owner, t.parent_task, t.opened_by, t.done_evidence, t.done_at, t.done_via, t.edited_by, t.edited_at, t.created_at, t.closed_by, t.closed_at, "+
-		"t.discarded_by, t.discard_reason, t.discarded_at, t.priority, t.merged_into, t.queued_by, t.queued_at, t.timeout_s, t.timeout_at, t.delivered_at, t.sent_at, t.expects, t.reporter "+
-		"FROM tasks t JOIN task_requests l ON l.task_id = t.id WHERE l.request_id = ? ORDER BY t.id", rid)
+	return taskRows(q, "SELECT "+taskCols+" FROM tasks WHERE id IN (SELECT task_id FROM task_requests WHERE request_id = ?) ORDER BY id", rid)
 }
 
 // TaskRequests is db.task_requests: the requests linked to a task, as they are now.
@@ -118,9 +121,8 @@ func LiveDelivery(q Q, tid int64, owner string) (*Request, error) {
 
 // TaskBlockers is db.task_blockers: the tasks still blocking tid.
 func TaskBlockers(q Q, tid int64) ([]*Task, error) {
-	return taskRows(q, "SELECT t.id, t.title, t.owner, t.parent_task, t.opened_by, t.done_evidence, t.done_at, t.done_via, t.edited_by, t.edited_at, t.created_at, t.closed_by, t.closed_at, "+
-		"t.discarded_by, t.discard_reason, t.discarded_at, t.priority, t.merged_into, t.queued_by, t.queued_at, t.timeout_s, t.timeout_at, t.delivered_at, t.sent_at, t.expects, t.reporter "+
-		"FROM tasks t JOIN task_blocks b ON b.blocks_on = t.id WHERE b.task_id = ? AND b.dormant = 0 AND t.discarded_by IS NULL AND t.done_evidence IS NULL ORDER BY t.id", tid)
+	return taskRows(q, "SELECT "+taskCols+" FROM tasks WHERE id IN (SELECT blocks_on FROM task_blocks WHERE task_id = ? AND dormant = 0) "+
+		"AND discarded_by IS NULL AND done_evidence IS NULL ORDER BY id", tid)
 }
 
 // NewTask is db.new_task, with the request it serves (SetTaskRequest). The clock of timeoutS starts when the task is doing, so timeout_at stays NULL. A reporter of "" is the opener.

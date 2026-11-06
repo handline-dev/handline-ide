@@ -35,7 +35,7 @@ const (
 type requestNode struct {
 	id, at, pr int64
 	due        int64 // its timeout_at, 0 when its clock is not running
-	owner      string
+	acting     string // who acts on it now (db.ActingSQL)
 	open       bool
 	blocked    bool // it waits on another open task
 }
@@ -87,10 +87,10 @@ func (e *Env) RequestRows(clock int64) ([]map[string]any, error) {
 			if !n.open {
 				continue
 			}
-			if n.owner == human || cards[n.id] {
+			if n.acting == human || cards[n.id] {
 				waiting = true
-			} else if n.owner != db.Gate {
-				holders[n.owner] = true
+			} else if n.acting != db.Gate {
+				holders[n.acting] = true
 				if n.id == id {
 					rootNow = &tree[i]
 				} else if now == nil || n.at >= now.at {
@@ -115,7 +115,7 @@ func (e *Env) RequestRows(clock int64) ([]map[string]any, error) {
 		agent := r.str("owner")
 		nowAgent, blocked := any(nil), false
 		if now != nil && status != reqDone {
-			nowAgent, blocked = now.owner, now.blocked
+			nowAgent, blocked = now.acting, now.blocked
 		}
 		row := map[string]any{"kind": "task", "task": id, "ref": nil, "title": r.str("title"), "status": status, "agent": agent,
 			"holders": sortedKeys(holders), "open": open, "done": done, "prs": sortedNums(prs), "now": nowAgent, "blocked": blocked,
@@ -202,7 +202,7 @@ const requestTreeSQL = "WITH RECURSIVE story(id) AS (SELECT ? UNION SELECT id FR
 func (e *Env) requestNodes(since int64) (map[int64][]requestNode, error) {
 	rows, err := query(e.DB, "WITH RECURSIVE sub(root, id) AS (SELECT id, id FROM tasks WHERE "+requestRootSQL+
 		" UNION SELECT request, id FROM tasks WHERE request IS NOT NULL UNION SELECT s.root, k.id FROM tasks k JOIN sub s ON k.parent_task = s.id) "+
-		"SELECT s.root, t.id, t.owner, COALESCE(t.pr, 0) AS pr, (t.done_evidence IS NULL AND t.discarded_by IS NULL) AS open, "+
+		"SELECT s.root, t.id, "+db.ActingSQL("t")+" AS acting, COALESCE(t.pr, 0) AS pr, (t.done_evidence IS NULL AND t.discarded_by IS NULL) AS open, "+
 		"EXISTS(SELECT 1 FROM task_blocks b JOIN tasks w ON w.id = b.blocks_on WHERE b.task_id = t.id AND b.dormant = 0 AND w.done_evidence IS NULL AND w.discarded_by IS NULL) AS blocked, "+
 		"COALESCE(t.timeout_at, 0) AS due, MAX(t.created_at, COALESCE(t.done_at, 0), COALESCE(t.edited_at, 0), COALESCE(t.discarded_at, 0), "+
 		"COALESCE((SELECT MAX(m.created_at) FROM task_memos m WHERE m.task_id = t.id), 0)) AS at "+
@@ -212,7 +212,7 @@ func (e *Env) requestNodes(since int64) (map[int64][]requestNode, error) {
 	}
 	out := map[int64][]requestNode{}
 	for _, r := range rows {
-		out[r.i("root")] = append(out[r.i("root")], requestNode{id: r.i("id"), owner: r.str("owner"), pr: r.i("pr"), open: r.i("open") == 1, blocked: r.i("blocked") == 1, at: r.i("at"), due: r.i("due")})
+		out[r.i("root")] = append(out[r.i("root")], requestNode{id: r.i("id"), acting: r.str("acting"), pr: r.i("pr"), open: r.i("open") == 1, blocked: r.i("blocked") == 1, at: r.i("at"), due: r.i("due")})
 	}
 	return out, nil
 }

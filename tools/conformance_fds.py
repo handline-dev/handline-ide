@@ -62,7 +62,7 @@ def seed_states(home: Path, daemon: subprocess.Popen) -> dict[str, str]:
     output_agent = "s.output"
     ask_agent = ASK_AGENT
     order = {"order_a": names["idle"], "order_b": names["running"], **ORDER}
-    for n in [*names.values(), output_agent, ask_agent, DOING_AGENT, AGENT, LEAD, *RETIRE, *ORDER.values()]:
+    for n in [*names.values(), output_agent, ask_agent, DOING_AGENT, AGENT, LEAD, *RETIRE, *ORDER.values(), *TURNS]:
         (home / "agents" / n).mkdir(parents=True)
         (home / "agents" / n / "agent.yaml").write_text("role: seeded by conformance_fds\n")
     for _ in range(200):
@@ -82,12 +82,13 @@ def seed_states(home: Path, daemon: subprocess.Popen) -> dict[str, str]:
             seed_files(home, con)
             seed_open_question(con, ask_agent)
             typing = seed_typing_gates(home, con)
-            write_team(home, [*names.values(), output_agent, ask_agent, DOING_AGENT, AGENT, LEAD, *RETIRE, *ORDER.values(), *typing.values()])
+            write_team(home, [*names.values(), output_agent, ask_agent, DOING_AGENT, AGENT, LEAD, *RETIRE, *ORDER.values(), *typing.values(), *TURNS])
             con.commit()
             con.close()
             return {**{f"state_{w}": n for w, n in names.items()}, "output_agent": output_agent, "session_agent": output_agent,
                     "ask_agent": ask_agent, "triggers_agent": names["idle"], "doing_agent": DOING_AGENT, "view_plain_agent": names["idle"], "retire_agent": RETIRE[0],
-                    "retire_parent": RETIRE[1], "files_agent": FILES_AGENT, **WORKROOM, **typing, **order, "order_rename_to": "o.new"}
+                    "retire_parent": RETIRE[1], "files_agent": FILES_AGENT, **WORKROOM, **typing, **order, "order_rename_to": "o.new",
+                    **{f"turn_{k}": n for k, n in zip("abc", TURNS)}}
         except sqlite3.Error:
             if daemon.poll() is not None:
                 break
@@ -165,6 +166,8 @@ esac
 
 
 ASK_AGENT = "s.ask"
+# task_turns.json: three agents only its fixtures put on a task, so the turns they take touch no other fixture's agent.
+TURNS = ("t.one", "t.two", "t.three")
 # agent.get.doing_names_the_tool_call: a running agent whose turn's newest tool call is Bash `sleep 30`, as the tick stores it.
 DOING_AGENT = "s.doing"
 

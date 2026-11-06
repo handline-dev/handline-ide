@@ -149,7 +149,7 @@ func (e *Env) requestsPending(_ *rpc.Conn, _ map[string]any) (any, error) {
 		if byTask[tid] != nil {
 			continue
 		}
-		t, err := queryOne(e.DB, "SELECT * FROM tasks WHERE id = ? AND COALESCE(discarded_by, '') = ''", tid)
+		t, err := queryOne(e.DB, "SELECT *, "+taskActing+" FROM tasks WHERE id = ? AND COALESCE(discarded_by, '') = ''", tid)
 		if err != nil || t == nil {
 			if err != nil {
 				return nil, err
@@ -158,7 +158,7 @@ func (e *Env) requestsPending(_ *rpc.Conn, _ map[string]any) (any, error) {
 		}
 		if who, err := e.askerOf(t); err != nil {
 			return nil, err
-		} else if who != human && t.str("owner") != human {
+		} else if who != human && actingOf(t) != human {
 			continue
 		}
 		comments = append(comments, row(tid, t.str("title"), "comment", []int64{}, u, ts(u.last)))
@@ -184,7 +184,7 @@ func (e *Env) needsYouAndDrafts() (needs, drafts int, err error) {
 	if err != nil {
 		return 0, 0, err
 	}
-	open, err := query(e.DB, "SELECT * FROM tasks WHERE "+openTask+" ORDER BY id")
+	open, err := query(e.DB, "SELECT *, "+taskActing+" FROM tasks WHERE "+openTask+" ORDER BY id")
 	if err != nil {
 		return 0, 0, err
 	}
@@ -193,7 +193,7 @@ func (e *Env) needsYouAndDrafts() (needs, drafts int, err error) {
 		case "draft":
 			drafts++
 		case "queued", "doing":
-			if t.str("owner") == human {
+			if actingOf(t) == human {
 				needs++
 				continue
 			}

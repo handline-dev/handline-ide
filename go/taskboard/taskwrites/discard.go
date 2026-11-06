@@ -280,7 +280,7 @@ func discardOne(tx *sql.Tx, home, by string, tid int64, reason, batch string, st
 	inHand := false
 	var withdrew []any
 	if stops && len(live) > 0 { // the open requests are cancelled instead of refusing
-		cur, _, err := db.CurrentTask(tx, t.Owner)
+		cur, _, err := db.CurrentTask(tx, t.Acting)
 		if err != nil {
 			return nil, err
 		}
@@ -289,7 +289,7 @@ func discardOne(tx *sql.Tx, home, by string, tid int64, reason, batch string, st
 			delivered = delivered || r.DeliveredAt.Valid
 		}
 		inHand = cur == tid || delivered
-		d.sayStop = inHand && t.Owner != human && !delivered
+		d.sayStop = inHand && t.Acting != human && !delivered
 		for _, r := range live {
 			if r.State != "queued" {
 				continue // landed: held by its agent, told to stop below; nothing to cancel
@@ -351,6 +351,11 @@ func discardOne(tx *sql.Tx, home, by string, tid int64, reason, batch string, st
 	}
 	also = append(also, who, t.OpenedBy)
 	also = append(also, holders...)
+	stack, err := clearStack(tx, tid, by, "")
+	if err != nil {
+		return nil, err
+	}
+	also = append(also, stack...)
 	ended, err := endTask(tx, home, tid, by, t, strings.TrimRight(fmt.Sprintf("T%d discarded by %s: %s", tid, byWord, said), ": "), false, also)
 	if err != nil {
 		return nil, err
@@ -368,7 +373,7 @@ func discardOne(tx *sql.Tx, home, by string, tid int64, reason, batch string, st
 	if err != nil {
 		return nil, err
 	}
-	d.notes, d.freed, d.owner = append(d.notes, cleared...), owners, t.Owner
+	d.notes, d.freed, d.owner = append(d.notes, cleared...), owners, t.Acting
 	d.title, d.reason, d.said = t.Title, said, fmt.Sprintf("task T%d discarded by %s: %s", tid, by, said)
 	return d, nil
 }

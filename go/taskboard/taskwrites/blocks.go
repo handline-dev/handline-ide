@@ -105,16 +105,16 @@ func recordBlock(tx *sql.Tx, tid, blocksOn int64, by string) (string, error) {
 // freeHolder lets go of tid when it is its owner's current task and now blocked. It answers that owner, "" for none.
 func freeHolder(tx *sql.Tx, tid int64) (string, error) {
 	t, err := getTask(tx, tid)
-	if err != nil || t == nil || t.Owner == human || t.Owner == db.Gate {
+	if err != nil || t == nil || t.Acting == human || t.Acting == db.Gate {
 		return "", err
 	}
-	if cur, ok, err := db.CurrentTask(tx, t.Owner); err != nil || !ok || cur != tid {
+	if cur, ok, err := db.CurrentTask(tx, t.Acting); err != nil || !ok || cur != tid {
 		return "", err
 	}
 	if bs, err := taskBlockers(tx, tid); err != nil || len(bs) == 0 {
 		return "", err
 	}
-	return t.Owner, db.SetCurrentTask(tx, t.Owner, 0, false)
+	return t.Acting, db.SetCurrentTask(tx, t.Acting, 0, false)
 }
 
 // unblock is actions.unblock: one waiting edge removed. It answers the refusal, "" when it was.

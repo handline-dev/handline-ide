@@ -1,6 +1,7 @@
 package tick
 
 import (
+	"database/sql"
 	"fmt"
 	"github.com/handline/handline/go/taskboard/msgtest"
 	"strings"
@@ -910,5 +911,24 @@ func TestADiscardedTaskDropsItsAlarmCursors(t *testing.T) {
 	tk.Q.QueryRow("SELECT COUNT(*) FROM cursors WHERE name LIKE 'blocker_alarm%'").Scan(&n)
 	if len(p.batched) != 2 || n != 0 {
 		t.Fatalf("told %v, %d cursors left", p.batched, n)
+	}
+}
+
+// A task the founder's turn is on top of is the founder's to act on: its time box tells no agent and starts over when the turn ends.
+func TestATaskUnderTheFoundersTurnRemindsNoAgent(t *testing.T) {
+	tk, _, b, p := timebox(t)
+	p.boss = "lead"
+	tid := newTask(t, tk, "a", "boss", 100)
+	p.doing[tid] = true
+	b.SweepTaskTimeouts(tk, 1000)
+	check(db.PushTurn(tk.Q, tid, db.Turn{Agent: db.Human, By: "a", Since: 1000}))
+	b.SweepTaskTimeouts(tk, 1200)
+	if len(p.batched) != 0 {
+		t.Fatalf("%v", p.batched)
+	}
+	var at, left sql.NullInt64
+	check(tk.Q.QueryRow("SELECT timeout_at, timeout_left FROM tasks WHERE id = ?", tid).Scan(&at, &left))
+	if at.Valid || left.Int64 != 100 {
+		t.Fatalf("its clock waits whole for the turn to end: %v %v", at, left)
 	}
 }

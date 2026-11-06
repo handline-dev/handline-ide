@@ -282,11 +282,11 @@ func clearBlocksOn(tx *sql.Tx, tid int64, closer, how string) ([]told, []string,
 		if len(left) > 0 {
 			continue
 		}
-		if !seen[d.Owner] { // every owner left with a task to deliver, told or not (its queued task is not reconsidered on its own once skipped over blocked)
-			seen[d.Owner] = true
-			freed = append(freed, d.Owner)
+		if !seen[d.Acting] { // every owner left with a task to deliver, told or not (its queued task is not reconsidered on its own once skipped over blocked)
+			seen[d.Acting] = true
+			freed = append(freed, d.Acting)
 		}
-		if d.Owner == closer { // no notice for the closer, but the task still comes due again
+		if d.Acting == closer { // no notice for the closer, but the task still comes due again
 			after, err := newestRequest(tx)
 			if err != nil {
 				return nil, nil, err
@@ -296,7 +296,7 @@ func clearBlocksOn(tx *sql.Tx, tid int64, closer, how string) ([]told, []string,
 			}
 			continue
 		}
-		n, err := notifyUnblocked(tx, dep, d.Owner, closer, tid, how)
+		n, err := notifyUnblocked(tx, dep, d.Acting, closer, tid, how)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -344,7 +344,7 @@ func childResultNotice(tx *sql.Tx, dep *task, by string, child int64) (*told, er
 		}
 		return nil, err
 	}
-	if !parent.Valid || parent.Int64 != dep.ID || dep.Owner == by {
+	if !parent.Valid || parent.Int64 != dep.ID || dep.Acting == by {
 		return nil, nil
 	}
 	var since int64
@@ -372,7 +372,7 @@ func childResultNotice(tx *sql.Tx, dep *task, by string, child int64) (*told, er
 	if delivery.ClassOf(delivery.Result, false, delivery.Failed(evidence.String)) != delivery.ClassNow {
 		return nil, nil // a child's result that did not fail is on the parent's board, not in its owner's inbox
 	}
-	rid, err := addSay(tx, noticeFrom, dep.Owner, text, false)
+	rid, err := addSay(tx, noticeFrom, dep.Acting, text, false)
 	if err != nil {
 		return nil, err
 	}
@@ -382,5 +382,5 @@ func childResultNotice(tx *sql.Tx, dep *task, by string, child int64) (*told, er
 	if err := addEvent(tx, by, "child_result_told", kv{"task_id", dep.ID}, kv{"child", child}, kv{"request_id", rid}); err != nil {
 		return nil, err
 	}
-	return &told{RID: rid, To: dep.Owner, Text: text}, nil
+	return &told{RID: rid, To: dep.Acting, Text: text}, nil
 }

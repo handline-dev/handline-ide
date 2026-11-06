@@ -5,13 +5,15 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 
 | Method | Role | Write | Params | Result | Errors | Gates | App |
 |---|---|---|---|---|---|---|---|
-| `tasks.list` | agent |  | `owner?`, `reporter?`, `from?`, `state?`, `tags?`, `parent?`, `under?`, `request?`, `ids?`, `before?`, `order?`, `cursor?`, `limit?`, `all?`, `everyone?`, `my_turn?`, `reason_gaps?` | `{items, more, reason_gaps, next} & ReadCursor` |  |  | `tasks`, fed by tasks |
+| `tasks.list` | agent |  | `owner?`, `acting?`, `reporter?`, `from?`, `state?`, `tags?`, `parent?`, `under?`, `request?`, `ids?`, `before?`, `order?`, `cursor?`, `limit?`, `all?`, `everyone?`, `my_turn?`, `reason_gaps?` | `{items, more, reason_gaps, next} & ReadCursor` |  |  | `tasks`, fed by tasks |
 | `task.get` | agent |  | `task` | `TaskDetail & ReadCursor` | `not_found` |  | `task` by task, fed by tasks |
 | `task.history` | agent |  | `task` | `{task, rows}` | `not_found`, `bad_request` |  | `task-history` by task, snapshot |
 | `task.time` | agent |  | `task` | `{task, start, end, segments, estimate, expected} & ReadCursor` | `not_found`, `bad_request` |  | `task-time` by task, fed by tasks |
 | `task.shot` | member |  | `task`, `n`, `offset?` | `{mime, bytes, offset, data, done}` | `not_found`, `bad_request` |  | not cached |
 | `task.new` | agent | yes | `owner`, `reporter?`, `title`, `body?`, `time_box?`, `parent?`, `no_parent?`, `duplicate_ok?`, `blocked_by?`, `watch?`, `priority?`, `estimate?`, `tags?`, `expects?`, `ui?`, `request_id` | `Accepted & {task}` | `refused` | duplicate_title | authored: new task |
 | `task.handoff` | agent | yes | `task`, `to`, `note?`, `request_id` | `Accepted` | `refused`, `not_found` |  | not from the app |
+| `task.turn.push` | agent | yes | `task`, `to`, `ask?`, `on_pass?`, `evidence?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | not from the app |
+| `task.turn.pop` | agent | yes | `task`, `outcome`, `note?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | not from the app |
 | `task.done` | agent | yes | `task`, `evidence?`, `request?`, `repo?`, `reason?`, `commit?`, `shots?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | open_children | authored: done |
 | `task.reopen` | agent | yes | `task`, `note?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | authored: reopen |
 | `task.progress` | agent (only agent) | yes | `task?`, `note`, `request_id` | `Accepted` | `refused`, `not_found` | not_self | not from the app |
@@ -68,19 +70,27 @@ A screenshot kept with a finished task. One screenshot of a task whose end recor
 
 ### `task.new`
 
-Create a task. The founder or a member device opens one for an agent only, and it opens queued. An agent owning it to `human` is refused as task.handoff does; a task begun from the founder's message answers to the founder (task.begin). The owner may not be the caller: a task an agent takes on itself is begun from the founder's message (task.begin).
+Create a task. The founder or a member device opens one for an agent only, and it opens queued. An agent owning it to `human` is refused as task.handoff does; a task begun from the founder's message answers to the founder (task.begin). The owner may not be the caller: a task an agent takes on itself is begun from the founder's message (task.begin). An agent may not open a task owned by human: the task is the agent's, and the founder's decision is a turn on it (task.turn.push human).
 
 ### `task.handoff`
 
-Hand a task to another agent. Anyone may hand an open task on, not only its owner (the asker takes a task back so). A review is a handoff: the holder hands the task to its reviewer, who hands it back with findings or on, or marks it done. task.history's row names who made the move (by). An agent's handoff to `human` is refused with `Ask the founder with @human in a memo; keep the task.` (ask with `@human` in a comment, task.comment.add): a task answers to the founder through its reporter, it is not handed to them. The founder may hand a task to `human`.
+Hand a task to another agent. Anyone may hand an open task on, not only its owner (the asker takes a task back so). It moves who acts on the task: its owner, or with turns open (task.turn.push) the agent of its top turn; it is refused to an agent that is the owner below the turns or already has a turn on it. task.history's row names who made the move (by). An agent's handoff to `human` is task.turn.push to human with the note as its ask: the task stays the agent's and waits on the founder. The founder may hand a task to `human`.
+
+### `task.turn.push`
+
+Put another agent, or the founder, on top of a task you act on. By the agent acting on the task (Task.acting) or the founder. `to` goes on top and acts on the task now; the one below keeps its turn but acts on nothing, so its doing slot frees and its next queued task starts. An agent is delivered the task with the ask; human is not delivered to: the task waits on the founder (requests.pending, my_turn), no agent is alarmed and its time box starts again when the turn ends. Refused: `to` is the owner or already has a turn, the task carries 3 turns, or the task is ended.
+
+### `task.turn.pop`
+
+End the top turn on a task: pass, or send it back with why. By the agent of the top turn or the founder. The turn comes off and the one below acts again: an agent gets the task at the front of its queue, with the note as a comment. A pass of a turn pushed with on_pass done closes the task with its evidence through the usual done gates instead; when a gate refuses (open children), the turn still comes off and the refusal is added to the note. While human is on top, the founder's comment on the task (task.comment.add) is a pass with the comment as its note, and the founder's give back is a pass with none.
 
 ### `task.done`
 
-Finish a task with evidence. Exactly one of evidence, request or reason-with-evidence; none or two is bad_request. A commit and shots are optional, for any task; when given they are kept with the task (task.get result). A done by the assignee, the owner (who the task answers to, the opener unless another is named) or the founder closes the task: nothing waits on an accept. The founder's done with evidence words on a task they own whose card still waits on them decides that card with the words, so the asker is told and what waits on the answer (a trust proposal) is applied; it says `T<n> decided`.
+Finish a task with evidence. Exactly one of evidence, request or reason-with-evidence; none or two is bad_request. A commit and shots are optional, for any task; when given they are kept with the task (task.get result). A done by the assignee, the owner (who the task answers to, the opener unless another is named) or the founder closes the task: nothing waits on an accept. The founder's done with evidence words on a task they own whose card still waits on them decides that card with the words, so the asker is told and what waits on the answer (a trust proposal) is applied; it says `T<n> decided`. The agent acting on the task (Task.acting) may close it as its assignee may. A done clears its turns and tells the agents that held them.
 
 ### `task.reopen`
 
-Reopen a done task: anyone may, with a reason the opener and assignee are told. A discarded task comes back as a draft, to be queued again.
+Reopen a done task: anyone may, with a reason the opener and assignee are told. A discarded task comes back as a draft, to be queued again. A reopened task goes to its owner with no turns.
 
 ### `task.progress`
 
@@ -112,7 +122,7 @@ The old name of task.comment.list: the same params, result and errors. Kept for 
 
 ### `task.comment.add`
 
-Add a comment; anyone may. It is told only to an agent that has to act on it: the task's assignee (its holder), each agent it names as @name, and, when the founder wrote it, who the task answers to (its reporter, else its opener); with now every one of those readers, mid-turn too. It is never told to its writer, and a comment that names no one is told to the assignee only. task.comment.recipients says who will be told before posting; skip leaves some of them out. The founder is told by one inbox line per request (a task made from their message, task.request) while it stays unread, counting the agents' new comments. A reader at its prompt is told at once and a reader mid-turn at the end of its turn. comment.edit and comment.delete are told the same way. A comment by an agent that names `@human` asks the founder, as the description says. The wire still calls a comment a memo (Memo, `memo`, `memos`); task.memo.add is its old name. A comment by an agent that names `@human` asks the founder: it opens one ask to the founder, linked to the task (InboxItem kind ask, `task` and `memo` set), so the task reads waiting on the founder. The ask stays open until (1) the founder replies to it (inbox.reply), (2) the founder adds any comment to that task, (3) the founder marks it read (inbox.mark_read naming its id), (4) its comment is deleted or edited so it no longer names `@human`, or (5) the task is done or discarded. An edit that keeps `@human` keeps the one ask and updates its body; one that adds `@human` opens it.
+Add a comment; anyone may. It is told only to an agent that has to act on it: the task's assignee (its holder), each agent it names as @name, and, when the founder wrote it, who the task answers to (its reporter, else its opener); with now every one of those readers, mid-turn too. It is never told to its writer, and a comment that names no one is told to the assignee only. task.comment.recipients says who will be told before posting; skip leaves some of them out. The founder is told by one inbox line per request (a task made from their message, task.request) while it stays unread, counting the agents' new comments. A reader at its prompt is told at once and a reader mid-turn at the end of its turn. comment.edit and comment.delete are told the same way. A comment by an agent that names `@human` asks the founder, as the description says. The wire still calls a comment a memo (Memo, `memo`, `memos`); task.memo.add is its old name. A comment by an agent that names `@human` asks the founder: it opens one ask to the founder, linked to the task (InboxItem kind ask, `task` and `memo` set), so the task reads waiting on the founder. The ask stays open until (1) the founder replies to it (inbox.reply), (2) the founder adds any comment to that task, (3) the founder marks it read (inbox.mark_read naming its id), (4) its comment is deleted or edited so it no longer names `@human`, or (5) the task is done or discarded. An edit that keeps `@human` keeps the one ask and updates its body; one that adds `@human` opens it. While human is the top turn (Task.acting), the founder's comment passes that turn, the comment its note (task.turn.pop). An @human comment by an agent asks without stopping the work: it does not free the agent's slot; to wait on the founder, task.turn.push human.
 
 ### `task.comment.recipients`
 
@@ -160,7 +170,7 @@ Approve draft tasks to run: anyone may; each task's opener and assignee are told
 
 ### `task.draft`
 
-Send queued or doing tasks back to draft: anyone may; each task's opener and assignee are told. A holder working the task is told to stop and moved on to its next task, and commits or changes it left in its worktree are kept in a memo on the task.
+Send queued or doing tasks back to draft: anyone may; each task's opener and assignee are told. A holder working the task is told to stop and moved on to its next task, and commits or changes it left in its worktree are kept in a memo on the task. A draft clears the task's turns, telling the agents that held them: it goes back to its owner.
 
 ### `task.merge`
 
@@ -168,7 +178,7 @@ Fold tasks into one: the kept task takes their titles, requests and sub-tasks; a
 
 ### `task.release`
 
-Take a doing task back to queued or draft: anyone may, with a reason the opener and assignee are told (and the founder, for a task begun on their message).
+Take a doing task back to queued or draft: anyone may, with a reason the opener and assignee are told (and the founder, for a task begun on their message). With turns open (Task.turns): by the top turn's agent or the founder it is a send_back of that turn with the reason (task.turn.pop); by anyone else, the owner too, it is refused: the top turn is popped first.
 
 ### `task.request`
 
@@ -180,11 +190,11 @@ Mark a founder's chat message as needing no work, with a reason in one line, so 
 
 ### `task.wait`
 
-Make a task wait on outside state: a gate on watch (as task.new with owner gate), the task blocked by it and, when doing, released, all in one write, so the task never waits on a gate that blocks nothing. The task comes back to its holder's queue when the gate opens.
+Make a task wait on outside state: a gate on watch (as task.new with owner gate), the task blocked by it and, when doing, released, all in one write, so the task never waits on a gate that blocks nothing. The task comes back to its holder's queue when the gate opens. The wait blocks the task whoever acts on it: the slot freed is the acting agent's (Task.acting).
 
 ### `task.discard`
 
-Throw away a task that is not done: anyone may, with a reason the opener, assignee and asker are told. A request still open on it refuses, unless the caller leads a team whose tree holds the task (its owner or opener is the lead or reports to it): then each open request is withdrawn and its target told. tasks in place of task discards a batch in one call, all or none, with one discard_batch event: the one task_batch card in the caller's chat. A request that already landed in its agent's session does not refuse the task's asker or the founder: the task is discarded, that request closes with it and its holder is told why; anyone else is refused.
+Throw away a task that is not done: anyone may, with a reason the opener, assignee and asker are told. A request still open on it refuses, unless the caller leads a team whose tree holds the task (its owner or opener is the lead or reports to it): then each open request is withdrawn and its target told. tasks in place of task discards a batch in one call, all or none, with one discard_batch event: the one task_batch card in the caller's chat. A request that already landed in its agent's session does not refuse the task's asker or the founder: the task is discarded, that request closes with it and its holder is told why; anyone else is refused. A discard clears the task's turns and tells the agents that held them.
 
 ### `task.board`
 
@@ -200,7 +210,7 @@ Cancel a task.
 
 ### `task.edit`
 
-Change a task: owner (an agent giving it to `human` is refused, as task.handoff does), reporter, title, priority, body, result and time box, by anyone (the body at any state, a closed task included; the time box until it is delivered), except the result, which only the founder changes. Waiting on other tasks is added (blocked_by) or removed (unblock) with it. Never silent: the opener and assignee are told, and the edit is kept with who made it.
+Change a task: owner (an agent giving it to `human` is refused, as task.handoff does), reporter, title, priority, body, result and time box, by anyone (the body at any state, a closed task included; the time box until it is delivered), except the result, which only the founder changes. Waiting on other tasks is added (blocked_by) or removed (unblock) with it. Never silent: the opener and assignee are told, and the edit is kept with who made it. A new owner (assignee) moves who acts as task.handoff does: with turns open it replaces the top turn's agent; an agent's owner `human` is task.turn.push human. blocked_by and unblock block the task whoever acts on it: the slot freed is the acting agent's (Task.acting).
 
 ### `task.ask`
 

@@ -74,8 +74,8 @@ func progress(c *rpc.Conn, p map[string]any) (any, error) {
 		if t == nil {
 			return nil, refusal(fmt.Sprintf("no task T%d", tid))
 		}
-		if t.Owner != me {
-			return nil, rpc.Refused(fmt.Sprintf("task T%d is %s's: progress is kept by whoever holds it", tid, t.Owner), "state", "")
+		if t.Acting != me {
+			return nil, rpc.Refused(fmt.Sprintf("task T%d is %s's: progress is kept by whoever holds it", tid, t.Acting), "state", "")
 		}
 		if cur, held, err := db.CurrentTask(tx, me); err != nil {
 			return nil, err
