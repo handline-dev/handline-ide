@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -204,32 +203,42 @@ func TestAnAnnouncementOlderThanThePublishedOneIsDropped(t *testing.T) {
 	}
 }
 
-// A failed login's reason reaches the accounts topic from the Manager, where the app shows it, and the end is in the daemon's log.
+// Start's Manager logs a login's end, and a failed login's reason reaches the accounts topic.
 func TestAFailedLoginsReasonIsAnnouncedAndLogged(t *testing.T) {
-	d := loginDaemon(t, "echo https://claude.example/oauth/authorize?state=abc\nsleep 0.2\nexit 1\n")
-	var mu sync.Mutex
-	var lines []string
-	d.cfg.Log = func(format string, args ...any) {
-		mu.Lock()
-		lines = append(lines, fmt.Sprintf(format, args...))
-		mu.Unlock()
+	t.Setenv("HANDLINE_TEST_ROOT", t.TempDir())
+	home := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(home, "accounts", "main"), 0o755); err != nil {
+		t.Fatal(err)
 	}
-	lookup := d.logins.Lookup
-	d.logins = newLogins(d.cfg)
-	d.logins.Lookup, d.logins.Changed = lookup, d.accountChanged
-	t.Cleanup(d.logins.Close)
+	bin := filepath.Join(t.TempDir(), "claude")
+	if err := os.WriteFile(bin, []byte("#!/bin/sh\necho https://claude.example/oauth/authorize?state=abc\nsleep 0.2\nexit 1\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	ended := make(chan string, 1)
+	d, err := Start(Config{Home: home, DBFile: filepath.Join(home, "db.sqlite"), Auth: fakeAuth{}, Log: func(format string, args ...any) {
+		if line := fmt.Sprintf(format, args...); strings.HasPrefix(line, "  login: ") {
+			select {
+			case ended <- line:
+			default:
+			}
+		}
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(d.Close)
+	d.logins.Lookup = func(string) (string, error) { return bin, nil }
 	if _, err := d.logins.Start("main"); err != nil {
 		t.Fatal(err)
 	}
-	awaitStates(t, d, 2)
-	for i := 0; i < 400; i++ { // Log runs after the announcement
-		mu.Lock()
-		n := len(lines)
-		mu.Unlock()
-		if n > 0 {
-			break
+	const why = "the login command exited with an error"
+	select {
+	case line := <-ended:
+		if line != "  login: main ended failed - "+why {
+			t.Fatalf("logged %q", line)
 		}
-		time.Sleep(10 * time.Millisecond)
+	case <-time.After(5 * time.Second):
+		t.Fatal("the login's end was never logged")
 	}
 	rows, err := d.hub.Log.Since(0, []string{"accounts"}, "", 100)
 	if err != nil {
@@ -243,13 +252,7 @@ func TestAFailedLoginsReasonIsAnnouncedAndLogged(t *testing.T) {
 		}
 		reasons = append(reasons, a.Login["reason"])
 	}
-	const why = "the login command exited with an error"
 	if len(reasons) != 2 || reasons[0] != nil || reasons[1] != why {
 		t.Fatalf("reasons %v", reasons)
-	}
-	mu.Lock()
-	defer mu.Unlock()
-	if len(lines) != 1 || lines[0] != "  login: main ended failed - "+why {
-		t.Fatalf("logged %q", lines)
 	}
 }
