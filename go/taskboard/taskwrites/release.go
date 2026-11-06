@@ -52,7 +52,7 @@ func releaseMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (an
 				if why == "" {
 					why = "released"
 				}
-				p, err := popTurn(tx, home, tell, tid, me, db.TurnSendBack, why, false)
+				p, err := popTurn(tx, home, tell, tid, me, db.TurnSendBack, why, 0)
 				if err != nil {
 					return nil, err
 				}

@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/textsafe"
 )
 
@@ -24,7 +25,7 @@ func seconds(v any) float64 {
 }
 
 // taskTimeline is TaskDetail.timeline, as actions.task_timeline: the task's memos, handoffs (a request that carried one is that handoff's
-// row), the other requests linked to it (not a memo's tell or the ask an @human memo opens, which repeat the memo), the edits of its brief, its marks done and the notes it was sent back with, oldest first to the
+// row), the other requests linked to it (not a memo's tell, the ask an @human memo opens or a return that told a memo, which repeat the memo), the edits of its brief, its marks done and the notes it was sent back with, oldest first to the
 // fraction of a second. parts cuts a text at the images it names; a memo, a handoff, an edit and a reject row carry them.
 func (e *Env) taskTimeline(tid int64, memos, reqs []row, parts func(string) []any) ([]any, error) {
 	type entry struct {
@@ -50,16 +51,21 @@ func (e *Env) taskTimeline(tid int64, memos, reqs []row, parts func(string) []an
 		add(seconds(m["created_at"]), m.str("author"), "memo", m.str("body"), m.i("id"), edited, true)
 	}
 	events, err := query(e.DB, "SELECT ts, agent, kind, payload FROM events WHERE kind IN ('task_handoff', 'edit_task', 'mark_task_done', "+
-		"'reject_task', 'task_turn_pop') AND "+eventTask+" = ? ORDER BY id", tid)
+		"'reject_task') AND "+eventTask+" = ? ORDER BY id", tid)
 	if err != nil {
 		return nil, err
 	}
-	// a request that carried a handoff is that handoff's row; one that carried the founder's pass of a turn with a note, their comment's
-	carried := map[int64]bool{}
+	told, err := db.IDs(e.DB, memoReturnsSQL+" AND m.task_id = ?", tid)
+	if err != nil {
+		return nil, err
+	}
+	carried := map[int64]bool{} // a request that carried a handoff is that handoff's row, and a return that told a comment is the comment's
+	for _, rid := range told {
+		carried[rid] = true
+	}
 	for _, ev := range events {
-		p := decodeObject(ev.str("payload"))
-		if k := ev.str("kind"); k == "task_handoff" || k == "task_turn_pop" && ev.str("agent") == human && p["note"] != nil && p["note"] != "" {
-			carried[int64(seconds(p["request_id"]))] = true
+		if ev.str("kind") == "task_handoff" {
+			carried[int64(seconds(decodeObject(ev.str("payload"))["request_id"]))] = true
 		}
 	}
 	for _, r := range reqs {

@@ -179,7 +179,7 @@ func turnPopMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (an
 		var popped Popped
 		out, err := c.Effect(func(tx *sql.Tx) (map[string]any, error) {
 			var err error
-			if popped, err = popTurn(tx, home, tell, tid, me, outcome, note, false); err != nil {
+			if popped, err = popTurn(tx, home, tell, tid, me, outcome, note, 0); err != nil {
 				return nil, err
 			}
 			if popped.Asked != nil && !popped.Asked.OK {
@@ -221,10 +221,11 @@ func (p Popped) tell(tell Teller) {
 }
 
 // popTurn takes the top turn off task tid in tx: a pass or a send-back (with a note) by the agent whose turn it is or the founder. The task
-// goes back to the one below, at the front of its queue, with the note as a comment (commented: the note is a comment already, the
-// founder's). A pass of a turn pushed with on_pass "done" closes the task instead, by that turn's agent through the done gates; when a gate
-// refuses, the turn still comes off with the refusal added to its note. Popped.Asked not OK is a refused return: nothing changed.
-func popTurn(tx *sql.Tx, home string, tell Teller, tid int64, by, outcome, note string, commented bool) (Popped, error) {
+// goes back to the one below, at the front of its queue, with the note as a comment: memo, the founder's comment the note already is, or
+// one the pop writes (0). That return is the comment's tell to the one below. A pass of a turn pushed with on_pass "done" closes the task
+// instead, by that turn's agent through the done gates; when a gate refuses, the turn still comes off with the refusal added to its note.
+// Popped.Asked not OK is a refused return: nothing changed.
+func popTurn(tx *sql.Tx, home string, tell Teller, tid int64, by, outcome, note string, memo int64) (Popped, error) {
 	t, err := getTask(tx, tid)
 	if err != nil {
 		return Popped{}, err
@@ -253,20 +254,24 @@ func popTurn(tx *sql.Tx, home string, tell Teller, tid int64, by, outcome, note 
 			return Popped{Handover: h, Done: res}, nil
 		case errors.As(err, &refused) && refused.Code == "refused":
 			note = strings.TrimSpace(note + " (not closed: " + refused.Message + ")")
-			commented = false // the refusal is news to the one below
+			memo = 0 // the refusal is news to the one below
 		default:
 			return Popped{}, err
 		}
 	}
 	pop := func() error {
-		if _, _, _, err := db.PopTurn(tx, tid, by, outcome, note, h.RID); err != nil {
+		if _, _, _, err := db.PopTurn(tx, tid, by, outcome, note); err != nil {
 			return err
 		}
-		if note == "" || commented {
+		if note != "" && memo == 0 {
+			if memo, err = db.AddMemo(tx, tid, by, note); err != nil {
+				return err
+			}
+		}
+		if memo == 0 || h.RID == 0 {
 			return nil
 		}
-		_, err := db.AddMemo(tx, tid, by, note)
-		return err
+		return db.LinkMemoTell(tx, memo, below, h.RID) // the note reaches the one below on the task's return: its tell
 	}
 	word := "passed"
 	if outcome == db.TurnSendBack {
@@ -316,7 +321,7 @@ func RetireTurns(tx *sql.Tx, home string, tell Teller, agent string) ([]int64, e
 		}
 		if acting == agent && tell != nil {
 			var p Popped
-			if p, err = popTurn(tx, home, tell, tid, agent, db.TurnSendBack, "retired", false); err == nil && p.Asked != nil && !p.Asked.OK {
+			if p, err = popTurn(tx, home, tell, tid, agent, db.TurnSendBack, "retired", 0); err == nil && p.Asked != nil && !p.Asked.OK {
 				err = db.RemoveTurn(tx, tid, agent) // the way back refused: the turn goes all the same, its agent leaving
 			}
 		} else {

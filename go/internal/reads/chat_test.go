@@ -614,3 +614,29 @@ func TestChatTranscriptServesAReplysRuns(t *testing.T) {
 		t.Fatalf("message 1002's run is not reply 1002's: %v", replies[1002])
 	}
 }
+
+// A turn's return that told a comment still on the task is not drawn again in the chat; a Give back with no comment, a return whose comment
+// was deleted and a board line telling a comment keep theirs.
+func TestTheChatLeavesOutAReturnThatToldAComment(t *testing.T) {
+	t.Parallel()
+	e := testEnv(t)
+	addAgent(t, e, "bob", "")
+	runAll(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(1, 1, 'human', 'bob', 'T1 is your turn again: human passed it: a', 'landed', 'task'), "+
+		"(2, 2, 'human', 'bob', 'T2 is your turn again: human passed it: b', 'landed', 'task'), (3, 3, 'human', 'bob', 'plain', 'landed', 'say'), "+
+		"(4, 4, 'human', 'bob', 'T3 is your turn again: human passed it: c', 'landed', 'task'), (5, 5, 'task-board', 'bob', 'T1 comment by the founder', 'landed', 'say')",
+		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'a', 'bob', 'human', 1)",
+		"INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(7, 1, 'human', 'now', 1), (9, 1, 'human', 'also', 5)",
+		// 8 is a comment since deleted: its return shows again; 9's tell is a board line, which stays
+		"INSERT INTO memo_tells(memo_id, reader, request_id) VALUES(7, 'bob', 1), (8, 'bob', 4), (9, 'bob', 5)")
+	got, err := e.chatMessages(nil, map[string]any{"agent": "bob", "scope": "all"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ids := map[string]bool{}
+	for _, m := range got.(map[string]any)["messages"].([]any) {
+		ids[fmt.Sprint(m.(map[string]any)["id"])] = true
+	}
+	if len(ids) != 4 || ids["1"] {
+		t.Fatalf("%v", ids)
+	}
+}

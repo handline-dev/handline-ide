@@ -248,7 +248,7 @@ func memoAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, err
 				} else if turns, err := db.Turns(tx, tid); err != nil {
 					return nil, err
 				} else if acting == human && len(turns) > 0 {
-					p, err := popTurn(tx, home, tell, tid, human, db.TurnPass, body, true)
+					p, err := popTurn(tx, home, tell, tid, human, db.TurnPass, body, mid)
 					if err != nil {
 						return nil, err
 					}
