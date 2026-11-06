@@ -3,9 +3,13 @@ package watcher
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
+	_ "github.com/handline/handline/go/agentctl/agent/vendors"
 	"github.com/handline/handline/go/agentctl/term"
 	"github.com/handline/handline/go/data/stream"
 	"github.com/handline/handline/go/internal/cmdruns"
@@ -301,5 +305,149 @@ func TestARunOfAReplysBlockIsTheItemSaidAgainWithItsRuns(t *testing.T) {
 	if json.Unmarshal(rows[1].Data, &item) != nil || item.ID != 1000 || item.Kind != "reply" || item.Text != "run make" || len(item.Runs) != 1 ||
 		item.Runs[0]["block"] != "r1000:0" || item.Runs[0]["state"] != "done" || item.Runs[0]["exit"] != float64(0) {
 		t.Fatalf("%s", rows[1].Data)
+	}
+}
+
+const bashTestSession = "11111111-2222-3333-4444-555555555555"
+
+// bashRig is a chat watcher with one session transcript of bob's under its home.
+type bashRig struct {
+	*chatRig
+	c   *Chat
+	dir string
+}
+
+func newBashRig(t *testing.T) *bashRig {
+	t.Helper()
+	r := newChatRig(t)
+	home := t.TempDir()
+	dir := filepath.Join(home, "accounts", "alpha", ".claude", "projects", "p")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return &bashRig{r, &Chat{Reads: &reads.Env{DB: r.d, Home: home}}, dir}
+}
+
+func (r *bashRig) write(uuid, parent, content string) {
+	r.t.Helper()
+	b, _ := json.Marshal(map[string]any{"type": "user", "uuid": uuid, "parentUuid": parent, "timestamp": time.Now().UTC().Format(time.RFC3339Nano),
+		"message": map[string]any{"content": content}})
+	f, err := os.OpenFile(filepath.Join(r.dir, bashTestSession+".jsonl"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		r.t.Fatal(err)
+	}
+	defer f.Close()
+	if _, err := f.Write(append(b, '\n')); err != nil {
+		r.t.Fatal(err)
+	}
+}
+
+// sent is a founder's ! line typed now; landed says whether it has landed, a second on.
+func (r *bashRig) sent(id int64, landed bool) {
+	r.t.Helper()
+	now := time.Now().Unix()
+	var at any
+	if landed {
+		at = now + 1
+	}
+	if _, err := r.d.Exec("INSERT INTO requests(id, ts, requester, target, body, state, kind, ref, typed_at, typed_session, landed_at, edge_ok) "+
+		"VALUES(?, ?, 'human', 'bob', '!x', 'landed', 'say', ?, ?, ?, ?, 1)", id, now, fmt.Sprintf("r%d", id), now, bashTestSession, at); err != nil {
+		r.t.Fatal(err)
+	}
+}
+
+func (r *bashRig) said() []map[string]any {
+	r.t.Helper()
+	var out []map[string]any
+	for _, e := range r.rows() {
+		var m map[string]any
+		if e.Type == "chat.transcript" && json.Unmarshal(e.Data, &m) == nil && m["kind"] == "bash" {
+			out = append(out, m)
+		}
+	}
+	return out
+}
+
+// A ! line's item is said when it appears and again when its output comes; the watcher stays pending only while it waits. Once settled its
+// transcript is not read again.
+func TestABashLineIsSaidAndSaidAgainWithItsOutput(t *testing.T) {
+	r := newBashRig(t)
+	r.scan(r.c) // the first look says nothing
+	r.write("a", "", "<bash-input>sleep 1</bash-input>")
+	r.sent(1, true)
+	r.scan(r.c)
+	got := r.said()
+	if len(got) != 1 || got[0]["done"] != false || got[0]["request"] == nil {
+		t.Fatalf("%v", got)
+	}
+	if !r.c.Pending() {
+		t.Fatal("not pending while the output is waited for")
+	}
+	r.scan(r.c)
+	if got := r.said(); len(got) != 1 {
+		t.Fatalf("said again with nothing new: %v", got)
+	}
+	r.write("b", "a", "<bash-stdout>ok</bash-stdout><bash-stderr></bash-stderr>")
+	r.scan(r.c)
+	if got := r.said(); len(got) != 2 || got[1]["done"] != true || got[1]["stdout"] != "ok" || got[1]["id"] != got[0]["id"] {
+		t.Fatalf("%v", got)
+	}
+	if r.c.Pending() {
+		t.Fatal("pending with the output in")
+	}
+	r.write("t", "", "<bash-input>typed at the terminal</bash-input>")
+	r.scan(r.c)
+	if got := r.said(); len(got) != 2 {
+		t.Fatalf("read again with every line settled: %v", got)
+	}
+}
+
+// A line not landed is no reason to read, and a read for another line does not settle it: its landing brings its own.
+func TestABashLineNotLandedIsReadWhenItLands(t *testing.T) {
+	r := newBashRig(t)
+	r.scan(r.c)
+	r.sent(2, false)
+	r.scan(r.c)
+	if got := r.said(); len(got) != 0 {
+		t.Fatalf("%v", got)
+	}
+	r.write("a", "", "<bash-input>one</bash-input>")
+	r.write("b", "a", "<bash-stdout>1</bash-stdout><bash-stderr></bash-stderr>")
+	r.sent(1, true)
+	r.scan(r.c)
+	if got := r.said(); len(got) != 1 {
+		t.Fatalf("%v", got)
+	}
+	r.write("c", "", "<bash-input>two</bash-input>")
+	r.write("d", "c", "<bash-stdout>2</bash-stdout><bash-stderr></bash-stderr>")
+	if _, err := r.d.Exec("UPDATE requests SET landed_at = ? WHERE id = 2", time.Now().Unix()+1); err != nil {
+		t.Fatal(err)
+	}
+	r.scan(r.c)
+	if got := r.said(); len(got) != 2 || got[1]["command"] != "two" {
+		t.Fatalf("%v", got)
+	}
+}
+
+// A restart's first look takes what is there as said.
+func TestTheFirstLookSaysNoBashItem(t *testing.T) {
+	r := newBashRig(t)
+	r.write("a", "", "<bash-input>old</bash-input>")
+	r.write("b", "a", "<bash-stdout>x</bash-stdout><bash-stderr></bash-stderr>")
+	r.sent(1, true)
+	r.scan(r.c)
+	if got := r.said(); len(got) != 0 {
+		t.Fatalf("%v", got)
+	}
+}
+
+func TestAWaitingBashLineDoesNotReadTheTranscript(t *testing.T) {
+	r := newBashRig(t)
+	r.scan(r.c)
+	r.write("a", "", "<bash-input>in the file already</bash-input>")
+	r.sent(1, false)
+	r.scan(r.c)
+	if got := r.said(); len(got) != 0 {
+		t.Fatalf("%v", got)
 	}
 }

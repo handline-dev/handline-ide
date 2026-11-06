@@ -18,6 +18,7 @@ const (
 	ItemPrompt  = 1
 	ItemTool    = 3 // 2 is the task events'; a tool item takes its tool_use event's seq
 	ItemSession = 4 // a session start; its number is the session_starts row
+	ItemBash    = 5 // a person's ! line; its number is its place in the session's transcript
 )
 
 func ItemID(at, source, n int64) int64 { return at*1_000_000 + source*100_000 + n%100_000 }
