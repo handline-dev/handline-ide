@@ -52,3 +52,17 @@ test('noteHead cuts by lines and by characters at a word, and leaves a short not
   assert.ok(head.length <= NOTE_LINES * 80 + 1 && head.endsWith('…') && !head.endsWith(' …'));
   assert.ok(para.startsWith(head.slice(0, -1)) && /^word\d+$/.test(head.slice(0, -1).split(' ').pop()!));
 });
+
+test('a comment lists the image files its text does not name; one it names is drawn in place, not again', () => {
+  const memo = {
+    id: 1,
+    author: 'human',
+    at: '2026-11-06T00:00:00Z',
+    text: 'look ![capture](attachment:aaa)',
+    files: [
+      { id: 'aaa', name: 'capture.png', kind: 'image', gone: false },
+      { id: 'bbb', name: 'other.png', kind: 'image', gone: false },
+    ],
+  } as unknown as Parameters<typeof activityOf>[0][number];
+  assert.deepEqual(activityOf([memo], [])[0]!.images, [{ id: 'bbb', name: 'other.png' }]);
+});

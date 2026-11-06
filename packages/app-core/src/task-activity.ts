@@ -1,6 +1,7 @@
 // The Activity of a task as one list: its comments, and its events in words (a handoff is one line, its note opens on "Read note").
 // Comments come from the memos, which a write patches at once; the other entries from the daemon's timeline.
 import type { TaskDetail } from '@handline/client';
+import { findImageRefs } from '#src/images.ts';
 
 type Entry = TaskDetail['timeline'][number];
 
@@ -41,18 +42,22 @@ const stateLine = (who: string, text: string): string => {
 
 /** The memos as comments and the rest of the timeline as events in words, oldest first. */
 export function activityOf(memos: TaskDetail['memos'], timeline: readonly Entry[]): ActivityItem[] {
-  const comments: ActivityItem[] = memos.map((m) => ({
-    kind: 'comment',
-    at: m.at,
-    who: m.author,
-    line: '',
-    note: m.text,
-    memo: m.id,
-    replyTo: m.reply_to ?? null,
-    readers: m.readers,
-    images: (m.files ?? []).filter((f) => f.kind === 'image' && !f.gone).map((f) => ({ id: f.id, name: f.name })),
-    edited: !!m.edited_at,
-  }));
+  const comments: ActivityItem[] = memos.map((m) => {
+    const named = new Set(findImageRefs(m.text).map((r) => r.id));
+    return {
+      kind: 'comment',
+      at: m.at,
+      who: m.author,
+      line: '',
+      note: m.text,
+      memo: m.id,
+      replyTo: m.reply_to ?? null,
+      readers: m.readers,
+      // A picture the text names is drawn there, in the text: listed again under it, it would show twice.
+      images: (m.files ?? []).filter((f) => f.kind === 'image' && !f.gone && !named.has(f.id)).map((f) => ({ id: f.id, name: f.name })),
+      edited: !!m.edited_at,
+    };
+  });
   const events = timeline.flatMap((e): ActivityItem[] => {
     const base = { kind: 'event' as const, at: e.at, who: e.who, memo: e.memo, edited: false };
     switch (e.kind) {
