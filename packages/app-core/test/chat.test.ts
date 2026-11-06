@@ -479,7 +479,10 @@ test('foldBash folds an item into the message that sent it; an item with no load
     { id: 3, at, kind: 'bash', command: 'old', request: 99 },
   ] as TranscriptItem[];
   const { entries, bash } = foldBash(timeline([m], items, 'mine', 'a'));
-  assert.deepEqual(entries.map((e) => `${e.kind}:${e.id}`), ['message:7', 'item:2', 'item:3']);
+  assert.deepEqual(
+    entries.map((e) => `${e.kind}:${e.id}`),
+    ['message:7', 'item:2', 'item:3'],
+  );
   assert.equal(bash.get(7)?.id, 1);
 });
 

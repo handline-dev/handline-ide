@@ -38,7 +38,11 @@ export const CHAT_SEEDS: Record<string, Seed> = {
       const request = d.chat.seed(ARCH, { from: ME, to: ARCH, body: `!${body}`, at: iso(min), landing: 'delivered' });
       d.chat.seedItem(ARCH, { at: iso(min), kind: 'bash', command: body, request, ...item });
     };
-    line(9, 'git log --oneline -3', { done: true, stdout: 'd3d1fa0 Requests\ncd13127 Removes step 49\ne49eecd Hard rule', dropped_lines: 12 });
+    line(9, 'git log --oneline -3', {
+      done: true,
+      stdout: 'd3d1fa0 Requests\ncd13127 Removes step 49\ne49eecd Hard rule',
+      dropped_lines: 12,
+    });
     line(8, 'ls /no/such/path', { done: true, stderr: 'ls: /no/such/path: No such file or directory' });
     line(7, 'true', { done: true });
     d.chat.seed(ARCH, {
