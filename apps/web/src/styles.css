@@ -227,3 +227,12 @@ body {
 .just-changed {
   animation: just-changed 2.4s ease-out;
 }
+
+/* In the desktop shell, which has no title bar: the top strips move the window, and what is clickable on them stays clickable. */
+.app-drag {
+  -webkit-app-region: drag;
+}
+.app-drag :is(button, a, input, [role='tab'], [role='button'], [draggable='true']),
+body[data-dragging] .app-drag {
+  -webkit-app-region: no-drag;
+}

@@ -113,6 +113,18 @@ function SplitButton({ onSplit, onClose }: { onSplit: (edge: Edge | 'four') => v
   );
 }
 
+/** The pane the person last clicked or focused in: Cmd+W closes its tab. */
+let lastPane: string | null = null;
+
+const MAC = /Mac|iPhone|iPad/.test(globalThis.navigator?.platform ?? '');
+/** Cmd+W on a Mac, Ctrl+W elsewhere; in a terminal there Ctrl+W deletes a word, so it is Ctrl+Shift+W. */
+function isCloseChord(e: KeyboardEvent): boolean {
+  if (e.key.toLowerCase() !== 'w' || e.altKey) return false;
+  if (MAC) return e.metaKey && !e.ctrlKey && !e.shiftKey;
+  const inTerminal = e.target instanceof HTMLElement && !!e.target.closest('.xterm');
+  return e.ctrlKey && !e.metaKey && e.shiftKey === inTerminal;
+}
+
 /** One pane: its tab bar (a drop there inserts at the line) and its body (a drop at an edge splits there,
  * in the middle merges). */
 function PaneView({
@@ -140,8 +152,13 @@ function PaneView({
   };
 
   return (
-    <section className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <div className="flex items-center border-b border-border bg-surface pr-2">
+    <section
+      data-pane={pane.id}
+      onPointerDownCapture={() => (lastPane = pane.id)}
+      onFocusCapture={() => (lastPane = pane.id)}
+      className="flex min-h-0 min-w-0 flex-1 flex-col"
+    >
+      <div className="app-drag flex items-center border-b border-border bg-surface pr-2">
         {lead}
         <div
           ref={bar}
@@ -260,6 +277,31 @@ export function Workspace({ root, agent, dispatch, lead }: { root: Node; agent: 
         {[render(node.a, topLeft), render(node.b, false)]}
       </SplitView>
     );
+  // Cmd+W (Ctrl+W elsewhere) closes the tab on screen in the pane last used; the desktop shell's Close Tab sends the same key.
+  useEffect(() => {
+    const close = (e: KeyboardEvent) => {
+      if (!isCloseChord(e) || document.querySelector('[role="dialog"], [role="alertdialog"]')) return; // nothing closes behind a modal
+      const all = panes(root);
+      const p = all.find((x) => x.id === lastPane) ?? all[0]!;
+      e.preventDefault();
+      dispatch({ type: 'closeTab', pane: p.id, tab: p.active });
+    };
+    addEventListener('keydown', close);
+    return () => removeEventListener('keydown', close);
+  }, [root, dispatch]);
+  // A drag region takes no drop: while a tab is dragged it steps aside, so a drop on the tab bar's free space still lands.
+  useEffect(() => {
+    const on = () => (document.body.dataset.dragging = '');
+    const off = () => delete document.body.dataset.dragging;
+    addEventListener('dragstart', on, true);
+    addEventListener('dragend', off, true);
+    addEventListener('drop', off, true);
+    return () => {
+      removeEventListener('dragstart', on, true);
+      removeEventListener('dragend', off, true);
+      removeEventListener('drop', off, true);
+    };
+  }, []);
   // Opened from outside a pane (the sidebar): from the first pane.
   useEffect(() => setShownWorkspace((opens, how) => openFrom({ root, agent, dispatch }, panes(root)[0]!.id, opens, how)));
   return <div className="flex min-h-0 min-w-0 flex-1">{render(root, true)}</div>;
