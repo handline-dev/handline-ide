@@ -169,11 +169,11 @@ describe('pins', () => {
     expect(rest.map((n) => n.agent.name)).toEqual(['b']);
   });
 
-  it('pins a sub-agent alone and keeps it in its team', async () => {
+  it('pins a sub-agent out of its team: it shows once, under Pinned', async () => {
     const { agentTree, splitPinned } = await import('#src/layout/agentTree.ts');
     const { pinned, rest } = splitPinned(agentTree(agents), ['a.x']);
     expect(pinned.map((n) => [n.agent.name, n.children.length])).toEqual([['a.x', 0]]);
-    expect(rest.find((n) => n.agent.name === 'a')!.children.map((n) => n.agent.name)).toEqual(['a.x']);
+    expect(rest.find((n) => n.agent.name === 'a')!.children.map((n) => n.agent.name)).toEqual([]);
     const both = splitPinned(agentTree(agents), ['a', 'a.x']);
     expect(both.pinned.map((n) => [n.agent.name, n.children.length])).toEqual([
       ['a', 0],

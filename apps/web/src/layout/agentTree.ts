@@ -35,21 +35,15 @@ export function activityOf(state: string): Activity {
   return 'resting';
 }
 
-/** Splits the tree for the sidebar: the pinned agents in pin order, and the rest of the tree. A pinned
- * top-level agent moves up with its whole team; a pinned sub-agent goes up alone and
- * stays in its team in the tree, though not in a pinned team. */
+/** Splits the tree for the sidebar: the pinned agents in pin order, each with its own sub-agents, and the rest of the tree without them. */
 export function splitPinned<A extends AgentLike>(tree: AgentNode<A>[], pins: readonly string[]) {
   const pinned: AgentNode<A>[] = [];
   const take = (nodes: AgentNode<A>[]): AgentNode<A>[] =>
     nodes.flatMap((n) => {
       const kept = { ...n, children: take(n.children) };
       if (!pins.includes(n.agent.name)) return [kept];
-      if (n.agent.parent === null) {
-        pinned.push({ ...n, children: unpinned(n.children) });
-        return [];
-      }
-      pinned.push({ ...n, children: [] });
-      return [kept];
+      pinned.push({ ...n, children: unpinned(n.children) });
+      return [];
     });
   // A pinned team leaves out its own sub-agents that are pinned: they show once, on their own line.
   const unpinned = (nodes: AgentNode<A>[]): AgentNode<A>[] =>
