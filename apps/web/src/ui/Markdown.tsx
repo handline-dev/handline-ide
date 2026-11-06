@@ -18,7 +18,37 @@ const code = 'rounded-sm bg-surface px-1 font-mono text-sm';
 const headings = ['text-lg', 'text-base', 'text-base', 'text-sm', 'text-sm', 'text-sm'];
 
 function blocks(tokens: Token[]): ReactNode {
-  return tokens.map((t, i) => <Fragment key={i}>{block(t)}</Fragment>);
+  return joinPictures(tokens).map((t, i) => <Fragment key={i}>{block(t)}</Fragment>);
+}
+
+const isPicture = (t: Token): boolean => t.type === 'image' && attachmentOf(t.href) !== null;
+const isGap = (t: Token): boolean => t.type === 'br' || !t.raw.trim();
+/** A paragraph of nothing but pasted pictures. */
+const picturesOnly = (t: Token): boolean =>
+  t.type === 'paragraph' && (t.tokens ?? []).some(isPicture) && (t.tokens ?? []).every((x) => isPicture(x) || isGap(x));
+
+/** A paragraph whose last thing is a pasted picture: more pictures after it join its row. */
+const endsInPictures = (t: Token): boolean => {
+  if (t.type !== 'paragraph') return false;
+  const shown = (t.tokens ?? []).filter((x) => !isGap(x));
+  return shown.length > 0 && isPicture(shown.at(-1)!);
+};
+
+/** Pictures pasted on lines of their own after other pictures join the paragraph before: one row that wraps, not one row each. */
+function joinPictures(tokens: Token[]): Token[] {
+  const out: Token[] = [];
+  for (const t of tokens) {
+    let at = out.length - 1;
+    while (at >= 0 && out[at]!.type === 'space') at--;
+    const last = out[at];
+    if (picturesOnly(t) && last && endsInPictures(last)) {
+      out.splice(at, out.length - at, {
+        ...last,
+        tokens: [...(last as Tokens.Paragraph).tokens, ...(t as Tokens.Paragraph).tokens],
+      } as Token);
+    } else out.push(t);
+  }
+  return out;
 }
 
 function block(t: Token): ReactNode {
@@ -60,13 +90,12 @@ function block(t: Token): ReactNode {
 
 /** A paragraph's words, then the pictures pasted into it (`![caption](attachment:id)`) as one row of thumbnails sharing a viewer. */
 function Paragraph({ tokens }: { tokens: Token[] }) {
-  const pictures = tokens.flatMap((t) => {
-    const id = t.type === 'image' ? attachmentOf(t.href) : null;
-    return id ? [{ id, name: (t as Tokens.Image).text || 'picture' }] : [];
-  });
-  const words = tokens.filter((t) => !(t.type === 'image' && attachmentOf(t.href)));
+  const pictures = tokens
+    .filter(isPicture)
+    .map((t) => ({ id: attachmentOf((t as Tokens.Image).href)!, name: (t as Tokens.Image).text || 'picture' }));
+  const words = tokens.filter((t) => !isPicture(t));
   // The line breaks the pictures sat on go with them, or they draw as blank lines under the words.
-  while (words.length && (words.at(-1)!.type === 'br' || !words.at(-1)!.raw.trim())) words.pop();
+  while (words.length && isGap(words.at(-1)!)) words.pop();
   const said = words.length > 0;
   return (
     <>

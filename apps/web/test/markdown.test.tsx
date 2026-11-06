@@ -34,6 +34,16 @@ describe('Markdown', () => {
     expect(container.querySelector('p [data-ids]')).toBeNull();
     expect(container.textContent).toBe('look');
   });
+  it('puts pictures pasted on lines or paragraphs of their own into one row', () => {
+    const one = render(<Markdown text={'![a](attachment:a)'} />).container;
+    expect([...one.querySelectorAll('[data-ids]')].map((e) => e.getAttribute('data-ids'))).toEqual(['a']);
+    const five = render(
+      <Markdown text={'see\n\n![a](attachment:a)\n\n![b](attachment:b)\n![c](attachment:c)\n\n![d](attachment:d)\n\n![e](attachment:e)'} />,
+    ).container;
+    expect([...five.querySelectorAll('[data-ids]')].map((e) => e.getAttribute('data-ids'))).toEqual(['a b c d e']);
+    const said = render(<Markdown text={'look\n![a](attachment:a)\n\n![b](attachment:b)'} />).container;
+    expect([...said.querySelectorAll('[data-ids]')].map((e) => e.getAttribute('data-ids'))).toEqual(['a b']);
+  });
   it('shows HTML as text', () => {
     const { container } = render(<Markdown text={'<b>x</b>'} />);
     expect(container.querySelector('b')).toBeNull();
