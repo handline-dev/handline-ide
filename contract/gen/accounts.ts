@@ -78,6 +78,13 @@ export type Account = {
   assignable?: boolean;
   /** Only with accounts.list `usage: true`. Why assignable is what it is. */
   assign_reason?: string;
+  /** Only with accounts.list `usage: true`. Why the daemon's pick for its vendor would not choose it now; null while it is a candidate. When the pick chooses none, a start may still fall back to a refused account. assign_reason says whether one more agent may start on it; not_picked says why the pick passes it over. A client shows not_picked. */
+  not_picked?: {
+    /** What keeps new work off it: its subscription end day has passed, its weekly or 5-hour window is at the wall, it is not logged in (which wins over the rest), the agent cap or the launch pace hold, or something else (a stale, lost or unreadable reading). */
+    kind: "subscription_ended" | "week_cap" | "five_hour_cap" | "login" | "held" | "other";
+    /** The daemon's reason in words, as `hl status` prints it. An ended account that is logged in with a fresh reading adds that its end day may be out of date. */
+    text: string;
+  } | null;
   /** Set while the account is STALLED: a turn on it ended on an error that says the account itself cannot be used (a refused login, an org that disallows it, a hold or billing problem), or on one error the daemon does not name four times with no good turn between. No agent is placed on it; account.wake, a login or a good turn there ends it. null while it is usable. Absent from a daemon that does not send it. */
   stalled?: {
     /** The line a row shows beside STALLED, as an agent's stall does: `login expired` for authentication_failed, else the error itself. */
@@ -260,7 +267,7 @@ export interface AccountsMethods {
   "accounts.list": { params: {
   /** Add each account's agents_assigned, agents_running and agents_unplaced. Default false. */
   roster?: boolean;
-  /** Add each account's plan, windows, ctx_pct, age_s, runway, assignable and assign_reason (what `hl account list` prints beside the windows), and pace. Default false. */
+  /** Add each account's plan, windows, ctx_pct, age_s, runway, assignable and assign_reason (what `hl account list` prints beside the windows), pace and not_picked. Default false. */
   usage?: boolean;
 }; result: {
     accounts: Account[];

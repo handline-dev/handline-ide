@@ -110,6 +110,7 @@ func (e *Env) accountsList(_ *rpc.Conn, params map[string]any) (any, error) {
 	}
 	v := e.accountView()
 	var loads map[string]*usage.Load
+	var notPicked map[string]any
 	if withUsage {
 		var err error
 		if loads, err = v.ue.ReadAll(e.DB, ""); err != nil {
@@ -118,12 +119,16 @@ func (e *Env) accountsList(_ *rpc.Conn, params map[string]any) (any, error) {
 		if v.factors, err = usage.Factors(e.DB); err != nil {
 			return nil, err
 		}
+		if notPicked, err = v.notPicked(loads); err != nil {
+			return nil, err
+		}
 	}
 	var accts []any
 	for _, a := range paths.ListAccounts(e.Home) {
 		acct := v.of(a)
 		if withUsage {
 			v.addUsage(acct, a, loads[a])
+			acct["not_picked"] = notPicked[a]
 		}
 		accts = append(accts, acct)
 	}
@@ -208,6 +213,33 @@ func stallOf(s *team.Stall) any {
 		errType = "authentication_failed"
 	}
 	return map[string]any{"reason": team.StallWord(errType), "error": errType, "detail": s.Why, "since": ts(s.At)}
+}
+
+// notPicked is Account.not_picked of every account: its own vendor's pick, as placement asks it (bootstrap included), nil for a
+// candidate. A logged-out account is left out of the pick and refused for its login, whatever else is true of it.
+func (v *accountView) notPicked(loads map[string]*usage.Load) (map[string]any, error) {
+	out := map[string]any{}
+	byVendor := map[string][]string{}
+	for _, a := range paths.ListAccounts(v.e.Home) {
+		if in, known := v.e.loginState(a); known && !in {
+			out[a] = map[string]any{"kind": usage.KindLogin, "text": "not logged in"}
+			continue
+		}
+		vendor := team.AccountVendor(v.e.Home, a)
+		byVendor[vendor] = append(byVendor[vendor], a)
+	}
+	for vendor, accts := range byVendor {
+		_, reasons, err := v.ue.Pick(v.e.DB, usage.PickOpts{Candidates: accts, Bootstrap: true, Load: loads, Vendor: vendor})
+		if err != nil {
+			return nil, err
+		}
+		for _, r := range reasons {
+			if r.Kind != "" {
+				out[r.Account] = map[string]any{"kind": r.Kind, "text": r.Why}
+			}
+		}
+	}
+	return out, nil
 }
 
 // addUsage adds what `hl account list` shows beside the windows: the plan, the windows' report, the context figure, the age of the
