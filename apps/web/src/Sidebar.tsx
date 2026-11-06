@@ -1,4 +1,4 @@
-import { queuedBehind } from '@handline/app-core';
+import { dotOf, queuedBehind } from '@handline/app-core';
 import { useAgents, useNav } from '@handline/app-data';
 import { AgentMenu } from '#src/AgentMenu.tsx';
 import { newAgent } from '#src/NewAgent.tsx';
@@ -224,7 +224,7 @@ function AgentRows({
                 </span>
               )
             }
-            icon={activityIcon[activityOf(agent.state)]}
+            icon={activityIcon[activityOf(agent)]}
             // When it last worked: now while running, else since it stopped (state_since).
             // how many below it are working (spinner and count), and its queued tasks.
             trail={
@@ -241,7 +241,7 @@ function AgentRows({
                     {queuedBehind(agent)}
                   </span>
                 )}
-                {agent.state === 'running' ? 'now' : ago(agent.state_since, now)}
+                {dotOf(agent) === 'running' ? 'now' : ago(agent.state_since, now)}
               </span>
             }
             note={unreadNote(agent)}

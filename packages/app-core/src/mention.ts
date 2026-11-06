@@ -1,3 +1,4 @@
+import { dotOfStatus } from '#src/status.ts';
 // The "@name" typed at the caret: which word is being typed and which agents it may become. Pure.
 
 /** The `@word` that ends the text before the caret (at the start or after a space), or null. */
@@ -25,5 +26,8 @@ export function mentionNames(query: string, names: readonly string[], near: read
 }
 
 /** What an agent is doing, in the words next to its name in the list: "needs you", "working" or "idle". */
-export const mentionState = (a: { state: string; needs_you?: unknown }): string =>
-  a.needs_you || a.state === 'waiting' ? 'needs you' : a.state === 'running' ? 'working' : 'idle';
+export const mentionState = (a: { state: string; needs_you?: unknown; status?: { state: string; reason: string } }): string => {
+  const dot = a.status ? dotOfStatus(a.status) : null;
+  if (a.needs_you || dot === 'waiting' || (!dot && a.state === 'waiting')) return 'needs you';
+  return dot === 'running' || (!dot && a.state === 'running') ? 'working' : 'idle';
+};
