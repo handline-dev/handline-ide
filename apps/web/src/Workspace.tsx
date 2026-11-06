@@ -3,6 +3,7 @@ import { Changes } from '#src/changes/Changes.tsx';
 import { MarkdownTab } from '#src/tools/MarkdownTab.tsx';
 import { TaskTab } from '#src/tools/TaskTab.tsx';
 import { TasksTab } from '#src/tools/TasksTab.tsx';
+import { InboxTab } from '#src/tools/InboxTab.tsx';
 import { WebTab } from '#src/tools/WebTab.tsx';
 import { Usage } from '#src/usage/Usage.tsx';
 import { PaneOpen, setShownWorkspace, type How } from '#src/layout/openTab.tsx';
@@ -202,6 +203,7 @@ function PaneView({
             <MarkdownTab key={current.id} agent={agent} tab={current.id} start={current.opens.slice(5)} />
           )}
           {current?.opens === 'usage' && <Usage />}
+          {current?.opens === 'inbox' && <InboxTab />}
           {current?.opens === 'tasks' && <TasksTab agent={agent ?? null} />}
         </PaneOpen.Provider>
         {current && !current.opens && (
