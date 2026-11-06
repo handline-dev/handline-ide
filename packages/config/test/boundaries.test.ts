@@ -33,12 +33,12 @@ const bad: [string, string, string][] = [
   ['a relative import in a package', 'packages/app-core/src/zz.ts', "import './store.ts';\n"],
   ['a relative import in an app test', 'apps/web/test/zz.ts', "import '../src/zz.ts';\n"],
   ['a relative import()', 'apps/web/src/zz.ts', "void import('./zz.ts');\n"],
-  ['a relative vi.mock', 'apps/mobile/test/zz.ts', "vi.mock('../src/zz.ts');\n"],
+  ['a relative vi.mock', 'apps/web/test/zz.ts', "vi.mock('../src/zz.ts');\n"],
   ['the electron app from a package', 'packages/app-data/src/zz.ts', "import '@handline/electron';\n"],
   ['React Query outside app-data', 'packages/app-react/src/zz.ts', "import '@tanstack/react-query';\n"],
   ['React Query in an app', 'apps/web/src/zz.ts', "import '@tanstack/react-query';\n"],
   ['the fake daemon in app source', 'apps/web/src/zz.ts', "import '@handline/fake-daemon/daemon';\n"],
-  ['one app from another', 'apps/mobile/src/zz.ts', "import '@handline/web';\n"],
+  ['one app from another', 'apps/electron/src/zz.ts', "import '@handline/web';\n"],
 ];
 for (const [what, file, code] of bad) {
   test(`${what} is refused`, async () => {
@@ -49,7 +49,7 @@ for (const [what, file, code] of bad) {
 
 const allowed: [string, string, string][] = [
   ['the fake daemon in an app test', 'apps/web/test/zz.ts', "import '@handline/fake-daemon';\n"],
-  ['the fake daemon in a dev script', 'apps/mobile/scripts/zz.ts', "import '@handline/fake-daemon';\n"],
+  ['the fake daemon in a dev script', 'apps/electron/scripts/zz.ts', "import '@handline/fake-daemon';\n"],
   ['React in an app', 'apps/web/src/zz.ts', "import 'react';\n"],
   ['a #path inside the package', 'apps/web/test/zz.ts', "import '#src/zz.ts';\nvoid import('#src/zz.ts');\n"],
 ];
