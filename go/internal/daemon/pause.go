@@ -24,6 +24,10 @@ func (d *Daemon) pauseChanged() {
 func (d *Daemon) armPause() {
 	d.pause.mu.Lock()
 	defer d.pause.mu.Unlock()
+	d.armPauseLocked()
+}
+
+func (d *Daemon) armPauseLocked() {
 	if d.pause.timer != nil {
 		d.pause.timer.Stop()
 		d.pause.timer = nil
@@ -35,13 +39,21 @@ func (d *Daemon) armPause() {
 	if err != nil || p == nil || p.Until == 0 {
 		return
 	}
-	d.pause.timer = time.AfterFunc(time.Until(time.Unix(p.Until, 0)), func() {
-		d.pause.mu.Lock()
-		defer d.pause.mu.Unlock() // held while it tells, so Close waits for it before the database closes
-		if !d.pause.closed {
-			d.statusChanged()
-		}
-	})
+	d.pause.timer = time.AfterFunc(time.Until(time.Unix(p.Until, 0)), d.pauseCame)
+}
+
+// pauseCame tells that the pause ended at its until. The timer runs on the monotonic clock and the until is wall time, so it can come a little early: then the pause is still in force and the clock is set again.
+func (d *Daemon) pauseCame() {
+	d.pause.mu.Lock()
+	defer d.pause.mu.Unlock() // held while it tells, so Close waits for it before the database closes
+	if d.pause.closed {
+		return
+	}
+	if p, _ := pause.Get(d.db, time.Now()); p != nil {
+		d.armPauseLocked()
+		return
+	}
+	d.statusChanged()
 }
 
 // stopPause stops the clock for good; Close calls it before the database closes.
