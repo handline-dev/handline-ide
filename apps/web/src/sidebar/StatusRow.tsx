@@ -1,7 +1,7 @@
 // The app's bottom bar, full width: a quiet status dot, the host, keep-awake, the bell (a preview of Requests), the week's Usage %; the host opens Settings > Machine.
 import { Check, Coffee, Pause } from 'lucide-react';
 import { BellButton } from '#src/requests/BellButton.tsx';
-import { useState } from 'react';
+import { useRef, useState, type RefObject } from 'react';
 import type { KeepAwake } from '#src/settings/data/machine.ts';
 import { Popover } from '#src/ui/Popover.tsx';
 import { usePersisted } from '#src/persist/kv.ts';
@@ -32,8 +32,10 @@ export function StatusRow() {
   const s = useStatusRow();
   const [, setSection] = usePersisted<string>('settings:section', 'accounts');
   const busy = s.pending !== null;
+  const bar = useRef<HTMLDivElement>(null);
   return (
     <div
+      ref={bar}
       className={`flex h-7 shrink-0 items-center gap-2 border-t border-border bg-surface px-3 text-xs text-muted ${busy ? 'opacity-60' : ''}`}
     >
       <button
@@ -46,7 +48,7 @@ export function StatusRow() {
         <span className="truncate">{s.host}</span>
         {s.usagePct !== null && <span className="tabular-nums">Week {s.usagePct}% used</span>}
       </button>
-      <KeepAwakeButton s={s} busy={busy} />
+      <KeepAwakeButton s={s} busy={busy} bar={bar} />
       <button
         type="button"
         aria-label={s.paused ? 'Resume new work' : 'Pause new work'}
@@ -56,19 +58,20 @@ export function StatusRow() {
       >
         <Pause size={14} className={s.paused ? 'text-warning' : ''} />
       </button>
-      <BellButton />
+      <BellButton bar={bar} />
     </div>
   );
 }
 
 /** The coffee: lit while the Mac is held awake now (not just set to); a click opens the three choices and what holds now. */
-function KeepAwakeButton({ s, busy }: { s: ReturnType<typeof useStatusRow>; busy: boolean }) {
+function KeepAwakeButton({ s, busy, bar }: { s: ReturnType<typeof useStatusRow>; busy: boolean; bar: RefObject<HTMLDivElement | null> }) {
   const [open, setOpen] = useState(false);
   const lit = s.held ?? s.awake !== 'off';
   return (
     <Popover
       side="top"
       align="end"
+      corner={bar}
       open={open}
       onOpenChange={setOpen}
       trigger={
