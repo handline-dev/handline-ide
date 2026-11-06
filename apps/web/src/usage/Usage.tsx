@@ -1,3 +1,4 @@
+import type { Account } from '@handline/client';
 import { RowsLoading } from '#src/usage/UsageViews.tsx';
 import { useAccountUsage, useAccounts } from '@handline/app-data';
 import { TriangleAlert } from 'lucide-react';
@@ -30,7 +31,10 @@ import { FIVE_HOURS, UsageBar, WEEK } from '#src/usage/UsageBar.tsx';
 export function Usage() {
   const list = useAccounts();
   // The plan (max, pro) comes only with the usage read.
-  const plans = new Map((useAccountUsage().data?.accounts ?? []).map((u) => [u.name, u.plan]));
+  const usage = useAccountUsage().data?.accounts ?? [];
+  const plans = new Map(usage.map((u) => [u.name, u.plan]));
+  // Why the daemon would not pick an account now (its week cap, an ended subscription); absent when it would.
+  const notPicked = new Map(usage.flatMap((u) => (u.not_picked ? [[u.name, u.not_picked] as const] : [])));
   const [view, setView] = usePersisted<View>('usage:view', 'accounts');
   const [win, setWin] = usePersisted<Win>('usage:window', '24h');
   const [range, setRange] = usePersisted<CostRange>('usage:cost-range', '7d');
@@ -85,6 +89,7 @@ export function Usage() {
                       {a.agents.length ? `${a.agents.length} agents · up to ${a.cap_effective}` : 'No agents'}
                     </span>
                   )}
+                  <NotPicked why={notPicked.get(a.name)} needsLogin={a.login_state === 'needs_login'} />
                 </div>
                 {/* An account that needs login cannot be used: its windows read dimmed. */}
                 <div className={`min-w-40 flex-1 ${a.login_state === 'needs_login' ? 'opacity-40' : ''}`}>
@@ -105,5 +110,17 @@ export function Usage() {
         </div>
       </Page>
     </ScrollFade>
+  );
+}
+
+/** Why new agents do not go to this account: loud when only the founder can fix it (an ended subscription, a login). */
+function NotPicked({ why, needsLogin }: { why: Account['not_picked'] | undefined; needsLogin: boolean }) {
+  if (!why || (why.kind === 'login' && needsLogin)) return null; // Needs login already says so
+  const loud = why.kind === 'subscription_ended' || why.kind === 'login';
+  return (
+    <span className={`flex items-start gap-1 text-xs ${loud ? 'text-danger' : 'text-muted'}`} title={why.text}>
+      {loud && <TriangleAlert size={12} className="mt-0.5 shrink-0" />}
+      <span className="line-clamp-2">Not used: {why.text}</span>
+    </span>
   );
 }
