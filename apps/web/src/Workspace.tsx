@@ -4,6 +4,7 @@ import { MarkdownTab } from '#src/tools/MarkdownTab.tsx';
 import { TaskTab } from '#src/tools/TaskTab.tsx';
 import { TasksTab } from '#src/tools/TasksTab.tsx';
 import { RequestsTab } from '#src/requests/RequestsTab.tsx';
+import { TerminalTab } from '#src/tools/TerminalTab.tsx';
 import { WebTab } from '#src/tools/WebTab.tsx';
 import { Usage } from '#src/usage/Usage.tsx';
 import { PaneOpen, setShownWorkspace, type How } from '#src/layout/openTab.tsx';
@@ -73,7 +74,7 @@ function EmptyTab({ onPick }: { onPick: (kind: string) => void }) {
 }
 
 /** The kinds of tab that draw something yet; the others (terminal, phones) stay off the + menu until they do. */
-const BUILT = new Set(['diff', 'tasks', 'markdown', 'web']);
+const BUILT = new Set(['shell', 'diff', 'tasks', 'markdown', 'web']);
 
 const splits: { edge: Edge | 'four'; label: string; icon: ReactNode }[] = [
   { edge: 'right', label: 'Split right', icon: <ArrowRightToLine size={14} /> },
@@ -195,6 +196,7 @@ function PaneView({
           {current?.opens === 'chat' && agent && <Chat key={agent} agent={agent} />}
           {current?.opens?.startsWith('chat:') && <Chat key={current.opens} agent={current.opens.slice(5)} />}
           {current?.opens === 'diff' && agent && <Changes key={agent} agent={agent} />}
+          {current?.opens === 'shell' && agent && <TerminalTab key={agent} agent={agent} />}
           {current?.opens === 'markdown' && agent && <MarkdownTab key={current.id} agent={agent} tab={current.id} />}
           {current?.opens === 'web' && <WebTab key={current.id} tab={current.id} agent={agent} />}
           {current?.opens?.startsWith('web:') && <WebTab key={current.id} tab={current.id} agent={agent} start={current.opens.slice(4)} />}
