@@ -1,7 +1,8 @@
-// The app's bottom bar, full width so later rows (a cluster of machines) have room: a quiet status dot, the host, keep-awake and the bell, the week's Usage %; a click goes to Settings > Machine.
+// The app's bottom bar, full width: a quiet status dot, the host, keep-awake, the bell (opens Notifications), the week's Usage %; the host opens Settings > Machine.
 import { Bell, Coffee, Pause } from 'lucide-react';
 import { usePersisted } from '#src/persist/kv.ts';
 import { openSettings } from '#src/settings/open.ts';
+import { goPage } from '#src/layout/openTab.tsx';
 import { useStatusRow, type Level } from '#src/sidebar/status.ts';
 
 const DOT: Record<Level, string> = { ok: 'bg-muted', near: 'bg-warning', held: 'bg-danger', down: 'bg-danger' };
@@ -42,10 +43,15 @@ export function StatusRow() {
       >
         <Pause size={14} className={s.paused ? 'text-warning' : ''} />
       </button>
-      <span className="relative" aria-label={`${s.unread} unread`}>
+      <button
+        type="button"
+        className="relative"
+        aria-label={`Notifications, ${s.unread} unread`}
+        onClick={() => goPage('inbox', 'Notifications')}
+      >
         <Bell size={14} />
         {s.unread > 0 && <span className="absolute -top-1 -right-1 size-1.5 rounded-full bg-accent" />}
-      </span>
+      </button>
     </div>
   );
 }
