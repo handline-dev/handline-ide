@@ -44,7 +44,7 @@ function App() {
             transition={dragging ? instant : spring}
             className="flex shrink-0 flex-col overflow-hidden bg-surface"
           >
-            <div className="shrink-0" style={{ height: 'max(40px, calc(var(--controls-top, 6px) + 34px))' }} />
+            <div className="app-drag shrink-0" style={{ height: 'max(40px, calc(var(--controls-top, 6px) + 34px))' }} />
             <Sidebar
               width={width}
               agent={agent}
