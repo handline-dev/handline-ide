@@ -892,7 +892,7 @@ export const TASKS_APP_WRITES: { [K in "task.new" | "task.handoff" | "task.turn.
   "task.new": {"kind": "authored", "label": "new task"},
   "task.handoff": false,
   "task.turn.push": false,
-  "task.turn.pop": false,
+  "task.turn.pop": {"kind": "decided", "label": "give back"},
   "task.done": {"kind": "authored", "label": "done"},
   "task.reopen": {"kind": "authored", "label": "reopen"},
   "task.progress": false,
