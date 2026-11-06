@@ -1,8 +1,10 @@
 package daemon
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -89,5 +91,43 @@ func TestEveryServerSharesTheHealthClock(t *testing.T) {
 	d := startStream(t)
 	if a, b := d.readsEnv().HealthClock, d.readsEnv().HealthClock; a == nil || a != b {
 		t.Fatalf("%p %p", a, b)
+	}
+}
+
+// keep_awake on daemon.status says the mode config.yaml sets and whether the sleep lock is held; the check tells a change of either once.
+func TestTheHealthCheckTellsAChangeOfKeepAwake(t *testing.T) {
+	cfg := tlsConfig(t, t.TempDir())
+	var held atomic.Bool
+	since := time.Unix(1_800_000_000, 0)
+	cfg.Auth, cfg.KeepAwake = pidAuth{}, func() (bool, time.Time) { return held.Load(), since }
+	d, err := Start(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(d.Close)
+	f := readAll(t, pipeTo(t, d, "k"), 2, 3)
+	r := f.ask(2, `{"jsonrpc":"2.0","id":2,"method":"daemon.status","params":{}}`)["result"].(map[string]any)
+	if fmt.Sprint(r["keep_awake"]) != "map[held:false mode:off]" {
+		t.Fatalf("%v", r["keep_awake"])
+	}
+	f.ask(3, `{"jsonrpc":"2.0","id":3,"method":"subscribe","params":{"topics":["status"]}}`)
+	if d.checkHealth() {
+		t.Fatal("told with nothing changed since the start")
+	}
+	held.Store(true)
+	if !d.checkHealth() || d.checkHealth() {
+		t.Fatal("the lock taken is told once")
+	}
+	if a := f.statusEvent(5 * time.Second)["keep_awake"]; fmt.Sprint(a) != "map[held:true mode:off since:2027-01-15T08:00:00Z]" {
+		t.Fatalf("%v", a)
+	}
+	if err := os.WriteFile(filepath.Join(d.cfg.Home, "config.yaml"), []byte("keep_awake: working\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if !d.checkHealth() {
+		t.Fatal("a new mode is told")
+	}
+	if a := f.statusEvent(5 * time.Second)["keep_awake"].(map[string]any); a["mode"] != "working" {
+		t.Fatalf("%v", a)
 	}
 }

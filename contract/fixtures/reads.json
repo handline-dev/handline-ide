@@ -3,7 +3,7 @@
   {
    "name": "daemon.status.shape",
    "spec": "daemon.status",
-   "about": "The daemon says it is alive, what it runs, its terminal host, its agents and its inbox.",
+   "about": "The daemon says it is alive, what it runs, its terminal host, its agents, its inbox, and whether it keeps the machine awake.",
    "as": "founder",
    "steps": [
     {
@@ -63,6 +63,18 @@
       "inbox": {
        "unread": {
         "$type": "integer"
+       }
+      },
+      "keep_awake": {
+       "mode": {
+        "$oneOf": [
+         "off",
+         "on",
+         "working"
+        ]
+       },
+       "held": {
+        "$type": "boolean"
        }
       }
      }

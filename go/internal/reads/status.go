@@ -7,6 +7,7 @@ import (
 	"github.com/handline/handline/go/accounts/usage"
 	"github.com/handline/handline/go/internal/housekeeping"
 	"github.com/handline/handline/go/protocol/rpc"
+	"github.com/handline/handline/go/scheduler/keepawake"
 	"github.com/handline/handline/go/scheduler/loadgate"
 	"github.com/handline/handline/go/scheduler/pause"
 )
@@ -52,6 +53,7 @@ func (e *Env) StatusHealth(srv *rpc.Server) (map[string]any, Health, error) {
 		"inbox":         map[string]any{"unread": len(items)},
 		"resources":     e.resources(),
 		"paused":        e.paused(),
+		"keep_awake":    e.KeepAwakeView(),
 	}
 	// The machine's own needs-you items, none of an agent's: a disk too full for builds.
 	if needs := e.machineNeeds(); len(needs) > 0 {
@@ -110,4 +112,15 @@ func (e *Env) resources() map[string]any {
 	}
 	r["start_hold"] = hold
 	return r
+}
+
+// KeepAwakeView is DaemonStatus.keep_awake: the mode config.yaml sets, whether the sleep lock is held now, and since when while it is.
+func (e *Env) KeepAwakeView() map[string]any {
+	out := map[string]any{"mode": keepawake.ModeOf(usage.LoadConfig(e.Home)), "held": false}
+	if e.KeepAwake != nil {
+		if held, since := e.KeepAwake(); held {
+			out["held"], out["since"] = true, ts(since.Unix())
+		}
+	}
+	return out
 }

@@ -15,6 +15,7 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/internal/heal"
 	"github.com/handline/handline/go/kit/paths"
+	"github.com/handline/handline/go/scheduler/keepawake"
 	"github.com/handline/handline/go/scheduler/lifecycle"
 	"github.com/handline/handline/go/scheduler/sysres"
 )
@@ -60,6 +61,7 @@ type Parts struct {
 	tell     Telling
 	log      func(format string, args ...any)
 	healer   *heal.Healer // the tick's, once Tick has built it
+	awake    *keepawake.Holder
 }
 
 // Wait returns once the heal steps still running off the tick have ended: the daemon closes the database only after.
@@ -83,12 +85,16 @@ func New(cfg Config) *Parts {
 	if peer == nil {
 		peer = PeerFromYAML(cfg.Home)
 	}
-	p := &Parts{Locks: &lifecycle.AgentLocks{}, Peer: peer, log: cfg.Log, home: cfg.Home, notified: cfg.NotifiedNeedsYou, turns: cfg.Turns}
+	p := &Parts{Locks: &lifecycle.AgentLocks{}, Peer: peer, log: cfg.Log, home: cfg.Home, notified: cfg.NotifiedNeedsYou, turns: cfg.Turns,
+		awake: &keepawake.Holder{Log: func(s string) { cfg.Log("%s", s) }}}
 	if cfg.DB != nil {
 		p.Bind(cfg.DB, nil)
 	}
 	return p
 }
+
+// KeepAwake is whether the tick holds the sleep lock now, and since when (daemon.Config.KeepAwake).
+func (p *Parts) KeepAwake() (bool, time.Time) { return p.awake.State() }
 
 // Bind gives the parts the database when it is open and the telling that follows a session's deliveries and its end; a nil tell tells
 // nothing.

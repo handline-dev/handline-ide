@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"runtime"
 	"sync"
+	"time"
 
 	"github.com/handline/handline/go/accounts/usage"
 )
@@ -44,14 +45,24 @@ type Holder struct {
 
 	mu     sync.Mutex
 	lock   *Lock
+	since  time.Time // when lock was taken
 	failed bool
 }
 
 // Holding is whether the lock is held now.
 func (h *Holder) Holding() bool {
+	held, _ := h.State()
+	return held
+}
+
+// State is whether the lock is held now, and since when.
+func (h *Holder) State() (held bool, since time.Time) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	return h.lock != nil && h.lock.Alive()
+	if h.lock == nil || !h.lock.Alive() {
+		return false, time.Time{}
+	}
+	return true, h.since
 }
 
 // Sync holds the lock when mode wants it (on, or working with an agent mid-turn) and releases it otherwise.
@@ -76,7 +87,7 @@ func (h *Holder) Sync(mode string, working bool) {
 			}
 			return
 		}
-		h.lock = lock
+		h.lock, h.since = lock, time.Now()
 	case !want && h.lock != nil:
 		h.lock.Release()
 		h.lock = nil

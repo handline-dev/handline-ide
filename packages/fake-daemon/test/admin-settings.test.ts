@@ -100,3 +100,12 @@ test('settings.get shows the built-in handoff prompt and who sets their own; a s
   assert.equal((await client.call('settings.get', {})).values.handoff_prompt, 'Write {path}: what is next, and why.');
   client.close();
 });
+
+test('daemon.status keep_awake follows the setting: held under on, since the start; not under off', async () => {
+  const { client } = setup();
+  await client.start();
+  assert.deepEqual((await client.call('daemon.status', {})).keep_awake, { mode: 'off', held: false });
+  await client.call('settings.set', { changes: { keep_awake: 'on' }, request_id: 'k1' });
+  const st = await client.call('daemon.status', {});
+  assert.deepEqual(st.keep_awake, { mode: 'on', held: true, since: st.started_at });
+});

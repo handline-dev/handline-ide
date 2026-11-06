@@ -2,6 +2,7 @@ package keepawake
 
 import (
 	"testing"
+	"time"
 
 	"github.com/handline/handline/go/accounts/usage"
 )
@@ -86,5 +87,19 @@ func TestALockWhoseProcessDiedIsTakenAgain(t *testing.T) {
 	h.Sync(On, false)
 	if held != 2 {
 		t.Fatalf("started %d times", held)
+	}
+}
+
+// State says since when the lock now held was taken, and nothing once it is released.
+func TestStateSaysSinceWhenTheLockIsHeld(t *testing.T) {
+	h := &Holder{Start: func() (*Lock, error) { return &Lock{Release: func() {}, Alive: func() bool { return true }}, nil }}
+	before := time.Now()
+	h.Sync(On, false)
+	if held, since := h.State(); !held || since.Before(before) {
+		t.Fatalf("%v %v", held, since)
+	}
+	h.Sync(Off, false)
+	if held, since := h.State(); held || !since.IsZero() {
+		t.Fatalf("%v %v", held, since)
 	}
 }

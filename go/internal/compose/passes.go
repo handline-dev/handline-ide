@@ -44,10 +44,9 @@ func (p *Parts) passes(cfg Config, tk *tick.Tick) []tick.NamedSweep {
 		held.Live = lc.Env.Observer.LiveSessions
 	}
 	spare := p.spareNotice(cfg)
-	awake := &keepawake.Holder{Log: func(s string) { cfg.Log("%s", s) }}
 	return []tick.NamedSweep{
 		{Name: "keep-awake", Run: func(q db.Q, now int64) error {
-			awake.Sync(keepawake.ModeOf(usage.LoadConfig(cfg.Home)), lc.Gate.Active() > 0)
+			p.awake.Sync(keepawake.ModeOf(usage.LoadConfig(cfg.Home)), lc.Gate.Active() > 0)
 			return nil
 		}},
 		{Name: "timebox", Run: func(q db.Q, now int64) error { return timebox.Sweep(tk, now) }},

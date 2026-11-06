@@ -59,6 +59,8 @@ type Env struct {
 	Machine func() *sysres.Machine
 	// HealthClock keeps since when DaemonStatus.health has had its level, shared by every server of the daemon; nil is since the start.
 	HealthClock *HealthClock
+	// KeepAwake is whether the daemon holds the sleep lock now, and since when (DaemonStatus.keep_awake); nil reads as not held.
+	KeepAwake func() (bool, time.Time)
 	// AccountWall is when an account's work stops and starts again, for a task's expected start and end: blockedUntil, the reset that
 	// lifts the limit it is at now (0 when it is not); runsOutAt, when it reaches a limit at the current burn (0 when it does not or
 	// is not known); resetsAt, when that limit lifts. nil reads the usage files.
