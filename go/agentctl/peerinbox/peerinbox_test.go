@@ -523,3 +523,59 @@ func TestAPromptThatCouldNotBeTypedIsNotDelivered(t *testing.T) {
 		t.Fatalf("typed and never shown: %+v", res)
 	}
 }
+
+// bashInput is what Claude Code writes when a ! line runs: the command wrapped in bash-input, with no origin. It keeps the space after the !.
+func (r *rig) bashInput(command string) {
+	r.append(map[string]any{"type": "user", "message": map[string]any{"role": "user", "content": "<bash-input>" + command + "</bash-input>"}})
+}
+
+func TestABashLineIsDeliveredOnceTheSessionRunsIt(t *testing.T) {
+	for typed, recorded := range map[string]string{
+		"!echo hi":            "echo hi",
+		"! echo spaced":       " echo spaced",
+		"!  echo two  ":       "  echo two",
+		"!a && b < /dev/null": "a && b < /dev/null",
+		"!echo one\necho two": "echo one\necho two",
+	} {
+		r := newRig(t)
+		res := r.s.Type(context.Background(), r.sess, typed, func(string) error { r.bashInput(recorded); return nil })
+		if res.Kind != Delivered {
+			t.Fatalf("%q recorded as %q: %+v", typed, recorded, res)
+		}
+	}
+}
+
+// Typed mid-turn it is enqueued as the bare command, and runs after the turn.
+func TestABashLineTypedMidTurnIsQueuedAndDeliveredWhenItRuns(t *testing.T) {
+	r := newRig(t)
+	res := r.s.Type(context.Background(), r.sess, "! echo mid", func(string) error {
+		r.append(map[string]any{"type": "queue-operation", "operation": "enqueue", "content": "echo mid"})
+		return nil
+	})
+	if res.Kind != Queued || res.Await == nil {
+		t.Fatalf("%+v", res)
+	}
+	r.bashInput("echo mid")
+	if !res.Await(context.Background()) {
+		t.Fatal("the line running delivers it")
+	}
+}
+
+// Only that command: another's bash-input does not deliver it, a person's prompt of the bare words does not, and a message that is no ! line
+// is not delivered by a command of the same words.
+func TestABashInputDeliversOnlyItsOwnLine(t *testing.T) {
+	r := newRig(t)
+	res := r.s.Type(context.Background(), r.sess, "!echo mine", func(string) error {
+		r.bashInput("echo other")
+		r.append(map[string]any{"type": "user", "origin": map[string]any{"kind": "human"}, "message": map[string]any{"role": "user", "content": "echo mine"}})
+		r.append(map[string]any{"type": "user", "message": map[string]any{"role": "user", "content": "<bash-input>echo mine"}})
+		return nil
+	})
+	if res.Kind != NotDelivered {
+		t.Fatalf("%+v", res)
+	}
+	r = newRig(t)
+	if res = r.s.Type(context.Background(), r.sess, "echo mine", func(string) error { r.bashInput("echo mine"); return nil }); res.Kind != NotDelivered {
+		t.Fatalf("a plain message: %+v", res)
+	}
+}
