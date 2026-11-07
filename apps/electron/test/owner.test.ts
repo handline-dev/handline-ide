@@ -12,6 +12,8 @@ import {
   portHolder,
   resolveClaude,
   daemonPath,
+  markPathTimedOut,
+  pathTimedOut,
   RESTART_WINDOW_MS,
   STOP_LIMIT_MS,
   WATCH_MS,
@@ -163,12 +165,11 @@ test('Stop daemon stops it and it stays stopped: the watch does not start it aga
 test('Restart daemon stops the one running and starts it again, also with another command (a listener that moves)', async () => {
   const r = rig({ pid: 42, answers: true, build: 'aaaa111', exitsAfter: 250 });
   await r.owner.start();
-  const LOOPBACK: Cmd = { file: 'daemon', args: ['-listen', '127.0.0.1:7443'], pathTimedOut: true };
+  const LOOPBACK: Cmd = { file: 'daemon', args: ['-listen', '127.0.0.1:7443'] };
   await r.owner.restart(LOOPBACK);
   r.owner.close();
   assert.deepEqual(r.stopped, [42]);
   assert.deepEqual(r.spawned, [LOOPBACK]);
-  assert.equal(r.owner.spawned, LOOPBACK, 'the command it runs on, as the page reads pathTimedOut from it');
   assert.equal(r.owner.state, 'running');
 });
 
@@ -221,6 +222,23 @@ test('daemonPath: the login PATH first, then the app PATH, each only when there 
   assert.equal(daemonPath('/opt/homebrew/bin:/usr/bin', '/usr/bin:/bin'), '/opt/homebrew/bin:/usr/bin:/usr/bin:/bin');
   assert.equal(daemonPath(undefined, '/usr/bin:/bin'), '/usr/bin:/bin');
   assert.equal(daemonPath('/opt/homebrew/bin', undefined), '/opt/homebrew/bin');
+});
+
+test('a timed-out PATH is kept with the daemon: a later read, as a relaunch that adopts it makes, sees it until a start on the login PATH', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'hl-owner-'));
+  try {
+    assert.equal(pathTimedOut(home), false);
+    markPathTimedOut(home, true);
+    assert.equal(pathTimedOut(home), true);
+    markPathTimedOut(home, true);
+    assert.equal(pathTimedOut(home), true);
+    markPathTimedOut(home, false);
+    assert.equal(pathTimedOut(home), false);
+    markPathTimedOut(home, false);
+    assert.equal(pathTimedOut(home), false);
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
+  }
 });
 
 test('lockPid reads the pid the daemon wrote in its lock file, and null when there is none', () => {

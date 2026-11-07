@@ -11,7 +11,7 @@ import { PROTOCOL, webSocketTransport } from '@handline/client';
 import { pinnedWebSocketTransport, unixSocketTransport } from '@handline/client-node';
 import { CHANNELS, fromWindow } from '#src/bridge.ts';
 import { Link, pairRemote, plainRemoteHost, helloOf, type OfferInput, type Remote, type Settings, type SettingsFile } from '#src/mode.ts';
-import { commands, daemonPath, detachedSpawn, Owner, resolveClaude, type Cmd } from '#src/owner.ts';
+import { commands, daemonPath, detachedSpawn, markPathTimedOut, Owner, pathTimedOut, resolveClaude, type Cmd } from '#src/owner.ts';
 import { answers, lockHolder, stopLeftovers } from '#src/leftovers.ts';
 import { ensureToken, founderKeyFile, once, TokenFile, type PairDeps } from '#src/pair.ts';
 import { grant } from '#src/grant.ts';
@@ -69,7 +69,8 @@ const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 /** Starts the daemon on its own: a session of its own (detached), nothing on its stdin and its output in daemon.log, and not waited on,
  * so it keeps running when the app quits. */
-function spawnDetached(cmd: Cmd, log: number): void {
+function spawnDetached(cmd: Cmd, log: number, home: string): void {
+  markPathTimedOut(home, !!cmd.pathTimedOut);
   const p = spawn(cmd.file, cmd.args, { ...detachedSpawn(log), env: cmd.path ? { ...process.env, PATH: cmd.path } : process.env });
   p.on('error', (e) => fs.writeSync(log, `${new Date().toISOString()} app: the daemon did not start: ${e.message}\n`));
   p.unref();
@@ -271,7 +272,7 @@ export function ownDaemon(o: {
     holder: () => lockHolder(o.home),
     stopPid: (pid) => process.kill(pid, 'SIGTERM'),
     stopLeftovers: () => stopLeftovers(o.home, o.listen),
-    spawn: (cmd) => spawnDetached(cmd, log),
+    spawn: (cmd) => spawnDetached(cmd, log, o.home),
     daemon: () => daemonCmd(o),
     wait: sleep,
     now: () => Date.now(),
@@ -330,7 +331,7 @@ export function ownDaemon(o: {
     link,
     remote,
     restartDaemon,
-    daemon: () => ({ state: owner.state, reason: owner.reason, canStart: !remote, pathTimedOut: owner.spawned?.pathTimedOut ?? false }),
+    daemon: () => ({ state: owner.state, reason: owner.reason, canStart: !remote, pathTimedOut: pathTimedOut(o.home) }),
     onDaemon: (f) => owner.onChange(f),
     startDaemon: () => void owner.start(),
     running: () => mine && owner.state === 'running',
