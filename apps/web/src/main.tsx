@@ -13,6 +13,7 @@ import { Splitter } from '#src/ui/Splitter.tsx';
 import { useAgentLayouts } from '#src/layout/agentLayouts.ts';
 import { Workspace } from '#src/Workspace.tsx';
 import { StatusRow } from '#src/sidebar/StatusRow.tsx';
+import { FirstRunGate } from '#src/firstrun/FirstRun.tsx';
 import { Settings } from '#src/settings/Settings.tsx';
 import { openSettings } from '#src/settings/open.ts';
 import '#src/styles.css';
@@ -115,7 +116,13 @@ createRoot(document.getElementById('root')!).render(
   ) : (
     <Connect>
       <Boundary loading={null} failed={brokenView('Handline')}>
-        {terminalOf ? <TerminalWindow agent={terminalOf} /> : <App />}
+        {terminalOf ? (
+          <TerminalWindow agent={terminalOf} />
+        ) : (
+          <FirstRunGate>
+            <App />
+          </FirstRunGate>
+        )}
       </Boundary>
       <ModalHost />
       <ToastHost />
