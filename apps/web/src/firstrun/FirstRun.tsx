@@ -3,6 +3,7 @@
 import { classify, hooks, sentence, useAgents, useCreateProgress, useWrite } from '@handline/app-data';
 import { FolderGit2, LoaderCircle } from 'lucide-react';
 import { useState } from 'react';
+import { shell } from '#src/shell.ts';
 import { GetReady } from '#src/firstrun/GetReady.tsx';
 import { Button } from '#src/ui/Button.tsx';
 import { Field, Input } from '#src/ui/Field.tsx';
@@ -110,10 +111,12 @@ function ChooseFolder({ onPick }: { onPick: (f: Folder) => void }) {
   );
 }
 
-/** A folder path typed in. */
+/** The desktop app's folder chooser where it has one; a path typed in otherwise. */
 function ChooseAnother({ onPick }: { onPick: (f: Folder) => void }) {
   const [path, setPath] = useState('');
   const name = (p: string) => p.replace(/\/+$/, '').split('/').pop() ?? p;
+  const api = shell();
+  const pick = api?.pickFolder ? () => api.pickFolder!() : null;
   return (
     <form
       className="flex items-end gap-2"
@@ -128,6 +131,17 @@ function ChooseAnother({ onPick }: { onPick: (f: Folder) => void }) {
       <Button type="submit" disabled={!path.trim()}>
         Use it
       </Button>
+      {pick && (
+        <Button
+          onClick={() =>
+            void pick().then((r) => {
+              if (r.ok && r.path) onPick({ path: r.path, name: name(r.path) });
+            })
+          }
+        >
+          Choose a folder…
+        </Button>
+      )}
     </form>
   );
 }
