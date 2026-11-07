@@ -10,6 +10,7 @@ import { Usage } from '#src/usage/Usage.tsx';
 import { PaneOpen, setShownWorkspace, type How } from '#src/layout/openTab.tsx';
 import { ArrowDownToLine, ArrowLeftToLine, ArrowRightToLine, ArrowUpToLine, Columns2, LayoutGrid, X } from 'lucide-react';
 import { useEffect, useRef, useState, type DragEvent, type ReactNode } from 'react';
+import { Boundary, brokenView } from '#src/ui/Boundary.tsx';
 import { canonical, choices, iconOf, labelOf } from '#src/layout/kinds.tsx';
 import { toast } from '#src/ui/toast.tsx';
 import { hasFixed, isOpen, panes, type Action, type Edge, type Node, type Pane, type Split, type Target } from '#src/layout/tree.ts';
@@ -209,22 +210,26 @@ function PaneView({
           dropTo(e, z === 'center' ? { pane: pane.id } : { pane: pane.id, edge: z }, { root, agent, dispatch });
         }}
       >
-        <PaneOpen.Provider value={(opens, how) => openFrom({ root, agent, dispatch }, pane.id, opens, how)}>
-          {current?.opens === 'chat' && agent && <Chat key={agent} agent={agent} />}
-          {current?.opens?.startsWith('chat:') && <Chat key={current.opens} agent={current.opens.slice(5)} />}
-          {current?.opens === 'diff' && agent && <Changes key={agent} agent={agent} />}
-          {current?.opens === 'shell' && agent && <TerminalTab key={agent} agent={agent} />}
-          {current?.opens === 'markdown' && agent && <MarkdownTab key={current.id} agent={agent} tab={current.id} />}
-          {current?.opens === 'web' && <WebTab key={current.id} tab={current.id} agent={agent} />}
-          {current?.opens?.startsWith('web:') && <WebTab key={current.id} tab={current.id} agent={agent} start={current.opens.slice(4)} />}
-          {current?.opens?.startsWith('task:') && <TaskTab key={current.opens} id={Number(current.opens.slice(5))} />}
-          {current?.opens?.startsWith('file:') && agent && (
-            <MarkdownTab key={current.id} agent={agent} tab={current.id} start={current.opens.slice(5)} />
-          )}
-          {current?.opens === 'usage' && <Usage />}
-          {current?.opens === 'requests' && <RequestsTab />}
-          {current?.opens === 'tasks' && <TasksTab agent={agent ?? null} />}
-        </PaneOpen.Provider>
+        <Boundary key={`${current?.id}:${current?.opens}`} loading={null} failed={brokenView('This tab')}>
+          <PaneOpen.Provider value={(opens, how) => openFrom({ root, agent, dispatch }, pane.id, opens, how)}>
+            {current?.opens === 'chat' && agent && <Chat key={agent} agent={agent} />}
+            {current?.opens?.startsWith('chat:') && <Chat key={current.opens} agent={current.opens.slice(5)} />}
+            {current?.opens === 'diff' && agent && <Changes key={agent} agent={agent} />}
+            {current?.opens === 'shell' && agent && <TerminalTab key={agent} agent={agent} />}
+            {current?.opens === 'markdown' && agent && <MarkdownTab key={current.id} agent={agent} tab={current.id} />}
+            {current?.opens === 'web' && <WebTab key={current.id} tab={current.id} agent={agent} />}
+            {current?.opens?.startsWith('web:') && (
+              <WebTab key={current.id} tab={current.id} agent={agent} start={current.opens.slice(4)} />
+            )}
+            {current?.opens?.startsWith('task:') && <TaskTab key={current.opens} id={Number(current.opens.slice(5))} />}
+            {current?.opens?.startsWith('file:') && agent && (
+              <MarkdownTab key={current.id} agent={agent} tab={current.id} start={current.opens.slice(5)} />
+            )}
+            {current?.opens === 'usage' && <Usage />}
+            {current?.opens === 'requests' && <RequestsTab />}
+            {current?.opens === 'tasks' && <TasksTab agent={agent ?? null} />}
+          </PaneOpen.Provider>
+        </Boundary>
         {current && !current.opens && (
           <EmptyTab onPick={(kind) => dispatch({ type: 'choose', pane: pane.id, tab: current.id, opens: kind, title: labelOf(kind) })} />
         )}

@@ -15,6 +15,7 @@ import { toggleWrap } from '#src/editor/commands.ts';
 import { diffChanges } from '#src/editor/diff.ts';
 import { livePreview, setRich } from '#src/editor/livePreview.ts';
 import { keptScroll } from '#src/ui/keptScroll.ts';
+import { uuid } from '#src/ui/uuid.ts';
 
 /** Where the text lives: read it with its etag, write it against one. A stale etag rejects the write (`stale` true). */
 export type FileSource = {
@@ -140,7 +141,7 @@ export function MarkdownEditor({
 
     function fileSync(source: FileSource) {
       // Each editor its own id: two panes on one file are two writers.
-      const ME = crypto.randomUUID();
+      const ME = uuid();
       let gone = false;
       // The text both sides agree on, and the etag it was read or written with.
       let synced = '';
@@ -376,7 +377,7 @@ function shared(
       make(
         r.text,
         r.version,
-        crypto.randomUUID(),
+        uuid(),
         () => (say('editing'), schedule()),
         () => void send(),
       );

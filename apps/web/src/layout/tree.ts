@@ -1,6 +1,8 @@
 /** The workspace layout as data: a binary tree whose leaves are panes of tabs. Every change is a pure
  * function here, so the view only dispatches and renders, and the rules are tested without a DOM. */
 
+import { uuid } from '#src/ui/uuid.ts';
+
 export type Tab = {
   id: string;
   title: string;
@@ -31,7 +33,7 @@ export type Action =
   | { type: 'resize'; split: string; ratio: number };
 
 /** Unique across reloads too: layouts are saved. */
-export const newId = () => crypto.randomUUID();
+export const newId = uuid;
 
 export const pane = (tabs: Tab[], active = tabs[0].id): Pane => ({ kind: 'pane', id: newId(), tabs, active });
 export const hasFixed = (p: Pane) => p.tabs.some((t) => t.closable === false);

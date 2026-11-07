@@ -1,5 +1,6 @@
 import { QueryErrorResetBoundary } from '@handline/app-data';
 import { Component, Suspense, type ReactNode } from 'react';
+import { Button } from '#src/ui/Button.tsx';
 
 type Failed = (retry: () => void) => ReactNode;
 
@@ -30,3 +31,13 @@ export function Boundary({ loading, failed, children }: { loading: ReactNode; fa
     </QueryErrorResetBoundary>
   );
 }
+
+/** `failed` for a whole panel or the app: the part that broke says so and offers a retry, and the rest stays up. */
+export const brokenView =
+  (what: string): Failed =>
+  (retry) => (
+    <div className="flex min-h-0 flex-1 items-center justify-center gap-3 p-6 text-sm text-danger">
+      {what} stopped working.
+      <Button onClick={retry}>Retry</Button>
+    </div>
+  );
