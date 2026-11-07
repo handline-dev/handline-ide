@@ -95,6 +95,19 @@ describe('send as one operation with a receipt', () => {
     expect(calls[1]!.request_id).toBe(calls[0]!.request_id);
   });
 
+  it('a task goes into chat.send, and a retry repeats it under the same id', async () => {
+    const { store, daemon, v, rows } = await connected();
+    const spy = vi.spyOn(store.client, 'call');
+    daemon.knobs.refuse('chat.send', 'state', 'no', undefined, 1);
+    act(() => v.get().act.send('Fix the gap\nthe brief', { task: { title: 'Fix the gap' } }));
+    await until(() => rows('Fix the gap\nthe brief')[0]?.state === 'failed', 'the failed row');
+    act(() => v.get().act.retry(rows('Fix the gap\nthe brief')[0]!.id));
+    await until(() => (rows('Fix the gap\nthe brief')[0]?.id ?? 0) > 0, 'sent');
+    const calls = spy.mock.calls.filter((c) => c[0] === 'chat.send').map((c) => c[1] as { task?: { title: string }; request_id: string });
+    expect(calls.map((c) => c.task)).toEqual([{ title: 'Fix the gap' }, { title: 'Fix the gap' }]);
+    expect(calls[1]!.request_id).toBe(calls[0]!.request_id);
+  });
+
   it('the row is queued at once and follows the receipt to sent, then confirmed', async () => {
     const { daemon, v, rows } = await connected();
     daemon.knobs.latency(300);
