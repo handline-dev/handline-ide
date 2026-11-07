@@ -14,6 +14,8 @@ export interface Cmd {
   args: string[];
   /** The PATH the daemon runs with; unset keeps the app's own. */
   path?: string;
+  /** The login shell did not answer in time, so path is the app's own. */
+  pathTimedOut?: boolean;
 }
 
 /** How the daemon is spawned: a session of its own, nothing on its stdin, its output in the log, so it outlives the app. */
@@ -63,6 +65,8 @@ export class Owner {
   reason = '';
   /** How the daemon in use came: adopted (it was running), started by this app, or none yet. */
   came: 'adopted' | 'started' | null = null;
+  /** The command this app last started the daemon with; null before it has started one. */
+  spawned: Cmd | null = null;
   private busy: Promise<void> | null = null;
   private restartedAt = -Infinity;
   private watching = false;
@@ -144,7 +148,8 @@ export class Owner {
   }
 
   private async spawnUp(cmd: Cmd | (() => Promise<Cmd>) = this.d.daemon): Promise<void> {
-    this.d.spawn(typeof cmd === 'function' ? await cmd() : cmd);
+    this.spawned = typeof cmd === 'function' ? await cmd() : cmd;
+    this.d.spawn(this.spawned);
     for (let i = 0; i < (this.d.polls ?? 120); i++) {
       if (await this.d.socketUp()) {
         this.came = 'started';

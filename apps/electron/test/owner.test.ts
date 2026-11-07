@@ -163,11 +163,12 @@ test('Stop daemon stops it and it stays stopped: the watch does not start it aga
 test('Restart daemon stops the one running and starts it again, also with another command (a listener that moves)', async () => {
   const r = rig({ pid: 42, answers: true, build: 'aaaa111', exitsAfter: 250 });
   await r.owner.start();
-  const LOOPBACK: Cmd = { file: 'daemon', args: ['-listen', '127.0.0.1:7443'] };
+  const LOOPBACK: Cmd = { file: 'daemon', args: ['-listen', '127.0.0.1:7443'], pathTimedOut: true };
   await r.owner.restart(LOOPBACK);
   r.owner.close();
   assert.deepEqual(r.stopped, [42]);
   assert.deepEqual(r.spawned, [LOOPBACK]);
+  assert.equal(r.owner.spawned, LOOPBACK, 'the command it runs on, as the page reads pathTimedOut from it');
   assert.equal(r.owner.state, 'running');
 });
 
