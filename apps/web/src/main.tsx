@@ -35,10 +35,6 @@ function App() {
 
   return (
     <>
-      {/* Fixed top-left; right of the Mac window buttons in the shell (shellInsets.ts). */}
-      <div className="app-no-drag fixed z-30" style={{ top: 'var(--controls-top, 6px)', left: 'calc(8px + var(--lights-w, 0px))' }}>
-        <SidebarControls onToggle={toggle} />
-      </div>
       <div className="flex h-full flex-col">
         <div ref={root} className="flex min-h-0 flex-1">
           <motion.div
@@ -96,6 +92,11 @@ function App() {
         <StatusRow />
       </div>
       <Settings />
+      {/* Fixed top-left; right of the Mac window buttons in the shell (shellInsets.ts). Last in the page: the shell
+          takes the last region drawn where drag strips and this overlap. */}
+      <div className="app-no-drag fixed z-30" style={{ top: 'var(--controls-top, 6px)', left: 'calc(8px + var(--lights-w, 0px))' }}>
+        <SidebarControls onToggle={toggle} />
+      </div>
     </>
   );
 }
