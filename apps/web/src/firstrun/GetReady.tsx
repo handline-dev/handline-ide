@@ -6,12 +6,25 @@ import { Bell, Check, TriangleAlert } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '#src/ui/Button.tsx';
 import { copy } from '#src/ui/copy.ts';
+import { shell } from '#src/shell.ts';
 import { Login } from '#src/usage/AccountsTab.tsx';
 
 const ACCOUNT = 'claude';
 
+/** True when the desktop app says its login shell did not answer at the daemon's start: the missing tools it names may be installed. */
+function usePathTimedOut(): boolean {
+  const [timedOut, setTimedOut] = useState(false);
+  useEffect(() => {
+    void shell()
+      ?.daemon?.()
+      .then((d) => setTimedOut(d.ok && d.pathTimedOut === true));
+  }, []);
+  return timedOut;
+}
+
 export function GetReady({ onContinue }: { onContinue: () => void }) {
   const missing = useStatus().data?.missing_tools ?? [];
+  const slowShell = usePathTimedOut();
   const accounts = useAccounts();
   const list = accounts.data?.accounts ?? [];
   const account = list[0];
@@ -36,6 +49,11 @@ export function GetReady({ onContinue }: { onContinue: () => void }) {
     <div className="flex flex-col gap-6">
       <h1 className="text-xl font-medium text-fg">Get ready</h1>
       <Row done={!missing.length} title="Tools">
+        {slowShell && (
+          <p className="text-sm text-warning">
+            Your login shell did not answer in time, so the tools below may be installed already. A restart asks it again.
+          </p>
+        )}
         {missing.length ? (
           missing.map((m) => (
             <div key={m.tool} className="flex items-center gap-2 text-sm">
