@@ -4,14 +4,15 @@ import { MarkdownTab } from '#src/tools/MarkdownTab.tsx';
 import { TaskTab } from '#src/tools/TaskTab.tsx';
 import { TasksTab } from '#src/tools/TasksTab.tsx';
 import { RequestsTab } from '#src/requests/RequestsTab.tsx';
-import { TerminalTab } from '#src/tools/TerminalTab.tsx';
+import { ShellTab, TerminalTab } from '#src/tools/TerminalTab.tsx';
+import { useWrite } from '@handline/app-data';
 import { WebTab } from '#src/tools/WebTab.tsx';
 import { Usage } from '#src/usage/Usage.tsx';
 import { PaneOpen, setShownWorkspace, type How } from '#src/layout/openTab.tsx';
 import { ArrowDownToLine, ArrowLeftToLine, ArrowRightToLine, ArrowUpToLine, Columns2, LayoutGrid, X } from 'lucide-react';
-import { useEffect, useRef, useState, type DragEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type DragEvent, type ReactNode } from 'react';
 import { Boundary, brokenView } from '#src/ui/Boundary.tsx';
-import { canonical, choices, iconOf, labelOf } from '#src/layout/kinds.tsx';
+import { canonical, choices, iconOf, labelOf, shellHandle, shellOf } from '#src/layout/kinds.tsx';
 import { toast } from '#src/ui/toast.tsx';
 import { hasFixed, isOpen, panes, type Action, type Edge, type Node, type Pane, type Split, type Target } from '#src/layout/tree.ts';
 import { Button } from '#src/ui/Button.tsx';
@@ -75,7 +76,7 @@ function EmptyTab({ onPick }: { onPick: (kind: string) => void }) {
 }
 
 /** The kinds of tab that draw something yet; the others (terminal, phones) stay off the + menu until they do. */
-const BUILT = new Set(['shell', 'diff', 'tasks', 'markdown', 'web']);
+const BUILT = new Set(['newshell', 'diff', 'tasks', 'markdown', 'web']);
 
 const splits: { edge: Edge | 'four'; label: string; icon: ReactNode }[] = [
   { edge: 'right', label: 'Split right', icon: <ArrowRightToLine size={14} /> },
@@ -148,6 +149,21 @@ function PaneView({
   const [line, setLine] = useState<number | null>(null);
   const [zone, setZone] = useState<Zone | null>(null);
   const current = pane.tabs.find((t) => t.id === pane.active);
+  const closeShells = useCloseShells(agent);
+  const close = (ids: string[]) => {
+    closeShells(pane.tabs.filter((t) => ids.includes(t.id)));
+    ids.forEach((tab) => dispatch({ type: 'closeTab', pane: pane.id, tab }));
+  };
+  const openShell = useWrite('shell.open', agent ?? undefined);
+  /** Places what was picked; a new Terminal first opens its shell, so the tab is made with its handle. */
+  const pick = (kind: string, place: (opens: string) => void) => {
+    if (kind !== 'newshell') return place(kind);
+    if (agent)
+      openShell
+        .mutateAsync({ agent })
+        .then((r) => place(shellOf(r.terminal)))
+        .catch((e: Error) => toast(`The terminal did not open: ${e.message}`, { tone: 'warning' }));
+  };
   const leave = (e: DragEvent, clear: () => void) => {
     if (!e.currentTarget.contains(e.relatedTarget as globalThis.Node | null)) clear();
   };
@@ -179,9 +195,10 @@ function PaneView({
             tabs={pane.tabs.map((t) => ({ ...t, title: t.opens ? labelOf(t.opens, agent) : t.title, icon: iconOf(t.opens) }))}
             active={pane.active}
             onSelect={(tab) => dispatch({ type: 'select', pane: pane.id, tab })}
-            onClose={(tab) => dispatch({ type: 'closeTab', pane: pane.id, tab })}
+            onClose={(tab) => close([tab])}
+            onCloseTabs={close}
             newTabKinds={agent ? choices.filter((c) => BUILT.has(c.kind)) : []}
-            onAdd={agent ? (kind, how) => openFrom({ root, agent, dispatch }, pane.id, kind, how) : undefined}
+            onAdd={agent ? (kind, how) => pick(kind, (opens) => openFrom({ root, agent, dispatch }, pane.id, opens, how)) : undefined}
             onTabDragStart={(tab, e) => startTabDrag(e, { move: { pane: pane.id, tab } })}
           />
           {line !== null && <InsertLine x={line} />}
@@ -190,7 +207,14 @@ function PaneView({
         {agent && (
           <SplitButton
             onSplit={(edge) => dispatch({ type: 'split', pane: pane.id, edge })}
-            onClose={canClose ? () => dispatch({ type: 'closePane', pane: pane.id }) : undefined}
+            onClose={
+              canClose
+                ? () => {
+                    closeShells(pane.tabs);
+                    dispatch({ type: 'closePane', pane: pane.id });
+                  }
+                : undefined
+            }
           />
         )}
       </div>
@@ -216,6 +240,9 @@ function PaneView({
             {current?.opens?.startsWith('chat:') && <Chat key={current.opens} agent={current.opens.slice(5)} />}
             {current?.opens === 'diff' && agent && <Changes key={agent} agent={agent} />}
             {current?.opens === 'shell' && agent && <TerminalTab key={agent} agent={agent} />}
+            {shellHandle(current?.opens ?? '') && agent && (
+              <ShellTab key={current!.id} agent={agent} handle={shellHandle(current!.opens!)!} />
+            )}
             {current?.opens === 'markdown' && agent && <MarkdownTab key={current.id} agent={agent} tab={current.id} />}
             {current?.opens === 'web' && <WebTab key={current.id} tab={current.id} agent={agent} />}
             {current?.opens?.startsWith('web:') && (
@@ -231,7 +258,11 @@ function PaneView({
           </PaneOpen.Provider>
         </Boundary>
         {current && !current.opens && (
-          <EmptyTab onPick={(kind) => dispatch({ type: 'choose', pane: pane.id, tab: current.id, opens: kind, title: labelOf(kind) })} />
+          <EmptyTab
+            onPick={(kind) =>
+              pick(kind, (opens) => dispatch({ type: 'choose', pane: pane.id, tab: current.id, opens, title: labelOf(opens) }))
+            }
+          />
         )}
         {zone && <ZoneHighlight zone={zone} />}
       </div>
@@ -282,6 +313,7 @@ export function Workspace({ root, agent, dispatch, lead }: { root: Node; agent: 
         {[render(node.a, topLeft), render(node.b, false)]}
       </SplitView>
     );
+  const closeShells = useCloseShells(agent);
   // Cmd+W (Ctrl+W elsewhere) closes the tab on screen in the pane last used; the desktop shell's Close Tab sends the same key.
   useEffect(() => {
     const close = (e: KeyboardEvent) => {
@@ -289,11 +321,12 @@ export function Workspace({ root, agent, dispatch, lead }: { root: Node; agent: 
       const all = panes(root);
       const p = all.find((x) => x.id === lastPane) ?? all[0]!;
       e.preventDefault();
+      closeShells(p.tabs.filter((t) => t.id === p.active));
       dispatch({ type: 'closeTab', pane: p.id, tab: p.active });
     };
     addEventListener('keydown', close);
     return () => removeEventListener('keydown', close);
-  }, [root, dispatch]);
+  }, [root, dispatch, closeShells]);
   // A drag region takes no drop: while a tab is dragged it steps aside, so a drop on the tab bar's free space still lands.
   useEffect(() => {
     const on = () => (document.body.dataset.dragging = '');
@@ -310,4 +343,18 @@ export function Workspace({ root, agent, dispatch, lead }: { root: Node; agent: 
   // Opened from outside a pane (the sidebar): from the first pane.
   useEffect(() => setShownWorkspace((opens, how) => openFrom({ root, agent, dispatch }, panes(root)[0]!.id, opens, how)));
   return <div className="flex min-h-0 min-w-0 flex-1">{render(root, true)}</div>;
+}
+
+/** Closes the shells of tabs being closed (a pinned tab never closes). */
+function useCloseShells(agent: string | null) {
+  const { mutate } = useWrite('shell.close', agent ?? undefined);
+  return useCallback(
+    (tabs: { opens?: string; closable?: boolean }[]) => {
+      for (const t of tabs) {
+        const h = t.closable !== false && shellHandle(t.opens ?? '');
+        if (h) mutate({ terminal: h });
+      }
+    },
+    [mutate],
+  );
 }

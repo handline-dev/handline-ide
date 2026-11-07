@@ -19,7 +19,8 @@ import { shortName } from '#src/layout/agentTree.ts';
 /** Every kind of tab: its title and icon, shown alike in the tab bar, the + menu and an Empty tab's picker. */
 const kinds: Record<string, { label: string; icon: ReactNode }> = {
   chat: { label: 'Chat', icon: <MessageSquare size={14} /> },
-  shell: { label: 'Terminal', icon: <SquareTerminal size={14} /> },
+  shell: { label: 'Agent terminal', icon: <SquareTerminal size={14} /> },
+  newshell: { label: 'Terminal', icon: <SquareTerminal size={14} /> },
   diff: { label: 'Changes', icon: <FileDiff size={14} /> },
   tasks: { label: 'Tasks', icon: <ListTodo size={14} /> },
   markdown: { label: 'Markdown', icon: <FileText size={14} /> },
@@ -39,6 +40,10 @@ export const chatOf = (name: string) => `chat:${name}`;
 export const canonical = (opens: string, agent: string | null) => (agent && opens === chatOf(agent) ? 'chat' : opens);
 const chatName = (kind: string) => (kind.startsWith('chat:') ? kind.slice(5) : null);
 
+/** A plain shell shell.open opened (`shell:<handle>`); `newshell` is the menu's pick that opens one; `shell` alone is the agent's own terminal. */
+export const shellOf = (handle: string) => `shell:${handle}`;
+export const shellHandle = (kind: string) => (kind.startsWith('shell:') ? kind.slice(6) : null);
+
 /** A tab on one thing, opened from a link: a task (`task:8503`), a page (`web:<address>`), a repo file (`file:<path>`). */
 export const taskOf = (id: number) => `task:${id}`;
 export const webOf = (url: string) => `web:${url}`;
@@ -46,6 +51,7 @@ export const fileOf = (path: string) => `file:${path}`;
 export const opened = (kind: string, prefix: 'task' | 'web' | 'file') =>
   kind.startsWith(`${prefix}:`) ? kind.slice(prefix.length + 1) : null;
 const onThing = (kind: string): { label: string; icon: ReactNode } | null => {
+  if (shellHandle(kind)) return kinds.newshell;
   const task = opened(kind, 'task');
   if (task) return { label: `T${task}`, icon: <ListTodo size={14} /> };
   const web = opened(kind, 'web');
@@ -64,7 +70,7 @@ const onThing = (kind: string): { label: string; icon: ReactNode } | null => {
 };
 
 /** What a new tab can open (legacy CHOICES). Chat is not here: the first pane's Chat is the one chat. */
-export const choices = ['shell', 'diff', 'tasks', 'markdown', 'web', 'android', 'ios'].map((kind) => ({ kind, ...kinds[kind] }));
+export const choices = ['newshell', 'diff', 'tasks', 'markdown', 'web', 'android', 'ios'].map((kind) => ({ kind, ...kinds[kind] }));
 
 /** `within`: the agent whose workspace shows it, so its own agents' chats read short (see shortName). */
 export const labelOf = (kind: string, within: string | null = null) => {

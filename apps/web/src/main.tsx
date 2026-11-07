@@ -17,6 +17,7 @@ import { Settings } from '#src/settings/Settings.tsx';
 import { openSettings } from '#src/settings/open.ts';
 import '#src/styles.css';
 import { trackShellInsets } from '#src/shellInsets.ts';
+import { TerminalWindow, terminalWindowAgent } from '#src/tools/terminalWindow.tsx';
 
 const clampWidth = (px: number) => Math.min(sidebarWidth.max, Math.max(sidebarWidth.min, px));
 
@@ -103,6 +104,7 @@ for (const type of ['dragover', 'drop'] as const)
   window.addEventListener(type, (e) => e.dataTransfer?.types.includes('Files') && e.preventDefault());
 
 trackShellInsets();
+const terminalOf = terminalWindowAgent(location.hash);
 createRoot(document.getElementById('root')!).render(
   location.pathname === '/gallery' ? (
     <>
@@ -113,7 +115,7 @@ createRoot(document.getElementById('root')!).render(
   ) : (
     <Connect>
       <Boundary loading={null} failed={brokenView('Handline')}>
-        <App />
+        {terminalOf ? <TerminalWindow agent={terminalOf} /> : <App />}
       </Boundary>
       <ModalHost />
       <ToastHost />

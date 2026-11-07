@@ -1,7 +1,7 @@
 // An agent's terminal on the `bytes` channel: xterm.js draws the host's own escape codes, colour and cursor included. Moved from the
 // legacy web (BytesTab); see docs/terminal-pane.md.
 import { useEffect, useRef, useState } from 'react';
-import { type AgentDetail, type ByteListener, type ByteTerminalView, type ByteViewState } from '@handline/client';
+import { paneKey, type AgentDetail, type ByteListener, type ByteTerminalView, type ByteViewState } from '@handline/client';
 import { useStore } from '@handline/app-react';
 import { useAgentDetail, useWrite } from '@handline/app-data';
 import { RESIZE_MS } from '@handline/app-core';
@@ -55,7 +55,13 @@ export function TerminalTab({ agent }: { agent: string }) {
   return <BytesTab agent={agent} detail={q.data} />;
 }
 
-function BytesTab({ agent, detail }: { agent: string; detail: Pick<AgentDetail, 'terminal'> }) {
+/** A plain shell in the agent's worktree, by the handle shell.open gave when its tab was opened. */
+export function ShellTab({ agent, handle }: { agent: string; handle: string }) {
+  return <BytesTab agent={agent} shell={handle} detail={{ terminal: handle }} />;
+}
+
+/** `shell`: a shell's handle instead of the agent's own terminal. It has no input holder, so typing needs no take. */
+function BytesTab({ agent, shell, detail }: { agent: string; shell?: string; detail: Pick<AgentDetail, 'terminal'> }) {
   const store = useStore();
   const host = useRef<HTMLDivElement>(null);
   const takeInput = useWrite('input.take', agent);
@@ -72,7 +78,7 @@ function BytesTab({ agent, detail }: { agent: string; detail: Pick<AgentDetail, 
   const [heldBy, setHeldBy] = useState(''); // someone else holds the input: a click cannot take it
   const [attempt, setAttempt] = useState(0); // Retry runs the effect again
   const hasTerminal = !!detail.terminal;
-  const key = agent; // what the view and the kept screen are filed under
+  const key = shell ? paneKey(shell) : agent; // what the view and the kept screen are filed under
 
   useEffect(() => {
     if (!hasTerminal) return;
@@ -132,18 +138,18 @@ function BytesTab({ agent, detail }: { agent: string; detail: Pick<AgentDetail, 
       });
       const grab = () => {
         const v = live.current?.view;
-        if (!v || holding || v.state !== 'live' || v.holders.some((h) => h.kind !== 'daemon')) return;
+        if (shell || !v || holding || v.state !== 'live' || v.holders.some((h) => h.kind !== 'daemon')) return;
         take({ agent }); // a refusal is reported by the write
       };
       /** The one key the app keeps: the terminal lets go of the keyboard and the hold is released. */
       const leave = (e: KeyboardEvent) => {
         if (!isEscapeChord(e)) return;
         pane.blur?.();
-        if (holding) release({ agent });
+        if (holding && !shell) release({ agent });
       };
       /** Focus leaving the terminal (a click elsewhere) lets go of the hold. */
       const drop = (e: FocusEvent) => {
-        if (holding && !stage.contains(e.relatedTarget as Node | null)) release({ agent });
+        if (holding && !shell && !stage.contains(e.relatedTarget as Node | null)) release({ agent });
       };
       stage.addEventListener('mousedown', grab);
       stage.addEventListener('focusout', drop);
@@ -156,7 +162,7 @@ function BytesTab({ agent, detail }: { agent: string; detail: Pick<AgentDetail, 
       const settle = (v: ByteTerminalView) => {
         setState(v.state);
         setFailure(v.failure);
-        const now = v.state === 'live' && v.holders.some((h) => h.kind !== 'daemon' && h.name === store.me);
+        const now = v.state === 'live' && (!!shell || v.holders.some((h) => h.kind !== 'daemon' && h.name === store.me));
         const other = v.state === 'live' && v.holders.some((h) => h.kind !== 'daemon' && h.name !== store.me);
         setHeldBy(v.holders.find((h) => h.kind !== 'daemon' && h.name !== store.me)?.name ?? '');
         const wentLive = v.state === 'live' && !wasLive;
@@ -182,7 +188,7 @@ function BytesTab({ agent, detail }: { agent: string; detail: Pick<AgentDetail, 
         }
       };
       try {
-        const opened = await store.client.bytes.open(agent, onEvent);
+        const opened = shell ? await store.client.bytes.openPane(shell, onEvent) : await store.client.bytes.open(agent, onEvent);
         off = opened.off;
         live.current = { view: opened.view, pane };
         settle(opened.view);
@@ -213,7 +219,7 @@ function BytesTab({ agent, detail }: { agent: string; detail: Pick<AgentDetail, 
       cancelled = true;
       cleanup();
     };
-  }, [store, agent, key, hasTerminal, attempt, take, release]);
+  }, [store, agent, shell, key, hasTerminal, attempt, take, release]);
 
   const skeleton = useSkeleton(hasTerminal && state === 'attaching' && !everLive);
   const note = !hasTerminal ? '' : state === 'failed' ? failure : NOTE[state];
