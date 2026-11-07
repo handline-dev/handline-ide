@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowRight, Check, ChevronDown, Pencil, Plus, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, ChevronDown, Pencil, Plus, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { HistoryRow, Task } from '@handline/client';
 import { useFeed, useTaskChanges, useTasks } from '@handline/app-data';
@@ -9,7 +9,8 @@ import { clock } from '#src/format/time.ts';
 import { taskOf } from '#src/layout/kinds.tsx';
 import { openProps, useOpenTab } from '#src/layout/openTab.tsx';
 
-export type TaskEventKind = 'add' | 'edit' | 'done' | 'handoff' | 'discard';
+/** `start`: a task this agent was given, by its maker or handed on by its holder. */
+export type TaskEventKind = 'add' | 'edit' | 'done' | 'handoff' | 'discard' | 'start';
 export type TaskEvent = {
   key: string;
   kind: TaskEventKind;
@@ -23,7 +24,7 @@ export type TaskEvent = {
 };
 
 /** What was done to the task: a small grey mark before the words. The coloured square is the task's state, as everywhere. */
-const DID: Record<TaskEventKind, typeof Plus> = { add: Plus, edit: Pencil, done: Check, handoff: ArrowRight, discard: X };
+const DID: Record<TaskEventKind, typeof Plus> = { add: Plus, edit: Pencil, done: Check, handoff: ArrowRight, discard: X, start: ArrowLeft };
 
 /** The rows kept open; older ones fold into one line at the top. */
 const SHOWN = 2;

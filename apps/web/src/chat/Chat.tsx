@@ -1,4 +1,4 @@
-import { chatView, foldBash, isPerson, type TimelineEntry } from '@handline/app-core';
+import { chatView, foldBash, isPerson, turnMinutes, type TimelineEntry } from '@handline/app-core';
 import { useAgents, useChat, useChatActions, useChatReadMarks, useChatServed, useChatSuspense, useVerbRun } from '@handline/app-data';
 import { VERBS } from '@handline/app-core';
 import { useMe, useNearEnd } from '@handline/app-react';
@@ -31,6 +31,7 @@ import { FileDropArea } from '#src/ui/fileDrop.tsx';
 import { Page } from '#src/ui/Page.tsx';
 import { toast } from '#src/ui/toast.tsx';
 import { useScrollFade } from '#src/ui/ScrollFade.tsx';
+import { useNow } from '#src/format/time.ts';
 
 /** An agent's chat: its lines, and the box to write in. The box is there from the first moment; the lines wait, as a skeleton,
  * until the messages and the transcript are both read (a suspense boundary), so the chat appears whole. */
@@ -145,13 +146,12 @@ const markedFile = (m: MarkedPicture) => {
   return { kind: 'file' as const, name, files: [{ path: name, file: new File([m.image], name, { type: 'image/png' }) }] };
 };
 
-/** A task this agent gave or handed another agent, said as a message (kind task): drawn as the task, not as talk. */
+/** A task this agent gave or handed another agent, or one another agent gave or handed it, said as a message (kind task): drawn as the task, not as talk. */
 const taskNotice = (e: TimelineEntry, agent: string, me: string) =>
   e.kind === 'message' &&
   e.message.kind === 'task' &&
   e.message.tasks.length > 0 &&
-  e.message.from === agent &&
-  !isPerson(e.message.to, me);
+  (e.message.from === agent ? !isPerson(e.message.to, me) : e.message.to === agent && !isPerson(e.message.from, me));
 
 /** The entries, with each run of task notices gathered into one card's rows. */
 function runs(
@@ -194,12 +194,14 @@ function runs(
     const m = e.message;
     // A task handed on from another holder, or a new one made and given: said in words, its icon telling which.
     const handed = /^T\d+\s+handed\b/i.test(m.body);
+    // Given to this agent: where its work starts, from whom.
+    const got = m.to === agent;
     const rows = m.tasks.map((t) => ({
       key: `${m.id}:${t.id}`,
-      kind: handed ? ('handoff' as const) : ('add' as const),
+      kind: got ? ('start' as const) : handed ? ('handoff' as const) : ('add' as const),
       id: `T${t.id}`,
       title: t.title,
-      detail: handed ? `Handed to ${m.to}` : `Created and assigned to ${m.to}`,
+      detail: got ? `${handed ? 'Handed' : 'Assigned'} by ${m.from}` : handed ? `Handed to ${m.to}` : `Created and assigned to ${m.to}`,
       at: m.at,
     }));
     // Keyed by its newest notice: an older page that lands on top joins the card without changing its key, so the reader's line is found again.
@@ -227,7 +229,10 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
   // Opening the chat reads what the agent said: its newest message, and what it sent the Inbox about itself.
   useChatReadMarks(agent, chat);
   const { entries, bash } = foldBash(chatView(chat, 'mine', agent, me).entries);
-  const doing = useAgents().data?.agents.find((a) => a.name === agent)?.doing?.text;
+  const view = useAgents().data?.agents.find((a) => a.name === agent);
+  const doing = view?.doing?.text;
+  const held = view?.task;
+  const now = useNow();
   const stream = useRef<HTMLDivElement>(null);
   const content = useRef<HTMLDivElement>(null);
   const fade = useScrollFade(stream);
@@ -319,8 +324,16 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
           >
             <span className="flex items-center gap-2">
               <Dots />
-              {/* What the agent is doing right now: its newest tool call (AgentView.doing). */}
-              {doing && <span className="truncate text-xs text-muted">{doing}</span>}
+              {/* The held task, this turn's minutes, then its newest tool call (AgentView.task, .doing). */}
+              <span className="min-w-0 truncate text-xs text-muted">
+                {held && (
+                  <span className="font-medium text-fg">
+                    T{held.id} · {turnMinutes(chat.working.since, now)}
+                  </span>
+                )}
+                {held && doing && ' · '}
+                {doing}
+              </span>
             </span>
           </div>
           <PauseCard agent={agent} />
