@@ -1,7 +1,8 @@
-import { useWrite } from '@handline/app-data';
+import { useTask, useWrite } from '@handline/app-data';
 import type { PendingRequest, RequestRow } from '@handline/client';
 import {
   CircleCheck,
+  CircleX,
   CircleDashed,
   CircleSlash,
   HardDrive,
@@ -20,6 +21,7 @@ import { focusIn } from '#src/layout/focus.ts';
 import { chatOf, taskOf } from '#src/layout/kinds.tsx';
 import { openProps, useOpenTab } from '#src/layout/openTab.tsx';
 import { openSettings } from '#src/settings/open.ts';
+import { failedLine } from '#src/ui/taskLook.tsx';
 
 const WARN: Record<NonNullable<PendingRequest['warning']>['kind'], typeof HardDrive> = {
   disk: HardDrive,
@@ -169,8 +171,11 @@ export function RequestLine({ r, onOpened }: { r: RequestRow; onOpened?: () => v
   const openTab = useOpenTab();
   const seen = useWrite('task.seen', r.task === null ? undefined : String(r.task));
   const who = r.now ?? r.holders[0] ?? r.agent;
+  const closed = r.status === 'done' && r.task !== null;
+  const task = useTask(r.task ?? 0, { enabled: closed });
+  const failed = closed ? failedLine(task.data?.evidence, task.data?.title) : null;
   const ended = r.ended?.outcome === 'discarded' ? 'discarded' : STATUS[r.status];
-  const meta = r.status === 'done' || r.status === 'no_work' ? [ended, r.agent] : [who, r.progress || STATUS[r.status]];
+  const meta = r.status === 'done' || r.status === 'no_work' ? [failed ?? ended, r.agent] : [who, r.progress || STATUS[r.status]];
   return (
     <Line
       mark={isUnseen(r)}
@@ -178,6 +183,8 @@ export function RequestLine({ r, onOpened }: { r: RequestRow; onOpened?: () => v
       icon={
         r.ended?.outcome === 'discarded' ? (
           <CircleSlash size={16} className="text-muted" />
+        ) : failed ? (
+          <CircleX size={16} className="text-danger" />
         ) : r.status === 'done' ? (
           <CircleCheck size={16} className="text-success" />
         ) : r.status === 'no_work' ? (

@@ -8,7 +8,7 @@ import { taskOf } from '#src/layout/kinds.tsx';
 import { openProps, useOpenTab } from '#src/layout/openTab.tsx';
 import { Page } from '#src/ui/Page.tsx';
 import { ScrollFade } from '#src/ui/ScrollFade.tsx';
-import { look } from '#src/ui/taskLook.tsx';
+import { failedLine, look } from '#src/ui/taskLook.tsx';
 import { toast } from '#src/ui/toast.tsx';
 
 type Show = 'open' | 'draft' | 'closed';
@@ -112,6 +112,7 @@ function Row({ t, ruled, owner }: { t: Task; ruled: boolean; owner?: string }) {
     chain || (owner ? null : `Assigned to ${t.to}`),
     t.priority && `P${t.priority}`,
     why,
+    failedLine(t.evidence, t.title),
     t.done ? `Closed ${ago(t.done)}` : `Created ${ago(t.created)}`,
   ];
   return (

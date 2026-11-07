@@ -411,6 +411,14 @@ func (e *Env) worktreeDiff(_ *rpc.Conn, params map[string]any) (any, error) {
 		}
 		file, hasFile = s, true
 	}
+	against := "head"
+	if v, has := params["against"]; has && v != nil {
+		s, _ := v.(string)
+		if s != "head" && s != "base" {
+			return nil, badParam(`against is "head" or "base"`, "against")
+		}
+		against = s
+	}
 	kn, err := e.knownWorktrees()
 	if err != nil {
 		return nil, err
@@ -424,7 +432,15 @@ func (e *Env) worktreeDiff(_ *rpc.Conn, params map[string]any) (any, error) {
 	if hasFile && throughALink(root, file) {
 		return nil, badParam("file goes through a link: only what lies inside the worktree is read", "file")
 	}
-	args := []string{"diff", "--no-ext-diff", "--no-textconv", "--no-color", "HEAD"}
+	from, baseRef := "HEAD", any(nil)
+	if against == "base" {
+		if ref, mb := baseMergeBase(root); mb != "" {
+			from, baseRef = mb, ref
+		} else {
+			against = "head"
+		}
+	}
+	args := []string{"diff", "--no-ext-diff", "--no-textconv", "--no-color", from}
 	if hasFile {
 		args = append(args, "--", file)
 	}
@@ -450,5 +466,23 @@ func (e *Env) worktreeDiff(_ *rpc.Conn, params map[string]any) (any, error) {
 	if hasFile {
 		fileOut = file
 	}
-	return map[string]any{"path": path, "file": fileOut, "diff": shown, "truncated": truncated}, nil
+	return map[string]any{"path": path, "file": fileOut, "diff": shown, "truncated": truncated, "against": against, "base_ref": baseRef}, nil
+}
+
+// baseMergeBase is the ref the branch is measured against (origin/<default branch> when that exists, else the local branch, so a
+// stale local main still shows what has not reached the remote) and its merge-base with HEAD; "" when there is none.
+func baseMergeBase(root string) (ref, mergeBase string) {
+	def := defaultBranch(root)
+	if def == "" {
+		return "", ""
+	}
+	for _, r := range []string{"origin/" + def, def} {
+		if ok, _ := git(root, "rev-parse", "--verify", "--quiet", r+"^{commit}"); !ok {
+			continue
+		}
+		if ok, out := git(root, "merge-base", "HEAD", r); ok && strings.TrimSpace(out) != "" {
+			return r, strings.TrimSpace(out)
+		}
+	}
+	return "", ""
 }

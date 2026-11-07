@@ -64,12 +64,18 @@ export interface ReposMethods {
   "worktree.diff": { params: {
   path: string;
   file?: string;
+  /** head (absent): against HEAD. base: against the merge-base with the base branch, so the branch's commits show too; no base ref answers as head. */
+  against?: "head" | "base";
 }; result: {
     path: string;
     file: string | null;
     /** Unified diff. */
     diff: string;
     truncated: boolean;
+    /** What the diff was taken against: base falls back to head when the repo has no base ref. */
+    against: "head" | "base";
+    /** The ref `base` measured against, e.g. origin/main; null when against is head. */
+    base_ref: string | null;
   } };
   "files.list": { params: {
   agent: AgentName;

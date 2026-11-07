@@ -302,3 +302,55 @@ func TestABranchesPullRequestIsKeptAMinuteAndThenAskedAgain(t *testing.T) {
 		t.Fatal("kept past its minute")
 	}
 }
+
+func TestTheDiffAgainstBaseShowsTheBranchsCommitsAndTheUncommittedWork(t *testing.T) {
+	t.Parallel()
+	e := testEnv(t)
+	prAgent(t, e, "wb", "")
+	row, _ := queryOne(e.DB, "SELECT worktree FROM agent_state WHERE agent = 'wb'")
+	dir := row.str("worktree")
+	git := func(args ...string) string {
+		t.Helper()
+		out, err := exec.Command("git", append([]string{"-C", dir, "-c", "user.name=t", "-c", "user.email=t@t"}, args...)...).CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v %s", args, err, out)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	write := func(name string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(name+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("a.txt")
+	git("add", ".")
+	git("commit", "-q", "-m", "base")
+	base := git("rev-parse", "--abbrev-ref", "HEAD")
+	git("checkout", "-q", "-b", "feat")
+	write("committed.txt")
+	git("add", ".")
+	git("commit", "-q", "-m", "on the branch")
+	write("loose.txt")
+	diff := func(p map[string]any) map[string]any {
+		t.Helper()
+		p["path"] = dir
+		got, err := e.worktreeDiff(nil, p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got.(map[string]any)
+	}
+	head := diff(map[string]any{})
+	if d := head["diff"].(string); strings.Contains(d, "committed.txt") || !strings.Contains(d, "loose.txt") || head["against"] != "head" {
+		t.Fatalf("absent against is the uncommitted work only:\n%v", head)
+	}
+	got := diff(map[string]any{"against": "base"})
+	d := got["diff"].(string)
+	if !strings.Contains(d, "committed.txt") || !strings.Contains(d, "loose.txt") || got["against"] != "base" || got["base_ref"] != base {
+		t.Fatalf("against base: the branch's commits and the loose file, base_ref %q:\n%v", base, got)
+	}
+	if _, err := e.worktreeDiff(nil, map[string]any{"path": dir, "against": "main~1"}); err == nil {
+		t.Fatal("another value is bad_request")
+	}
+}

@@ -210,10 +210,20 @@ export class FakeWorktrees {
         if (typeof p.path !== 'string' || !p.path) throw invalidParams('worktree.diff needs a path', 'path');
         if (p.file !== undefined && (typeof p.file !== 'string' || p.file.startsWith('/') || p.file.split('/').includes('..')))
           throw invalidParams('the file must stay inside the worktree', 'file');
+        if (p.against !== undefined && p.against !== 'head' && p.against !== 'base')
+          throw invalidParams('against is "head" or "base"', 'against');
         if (!this.rows.some((w) => w.path === p.path)) throw new Failure('not_found', `no worktree ${p.path}`, { what: 'path' });
         const row = this.rows.find((w) => w.path === p.path)!;
         const files = row.changed.filter((c) => (p.file === undefined ? c.status !== '?' : c.path === p.file));
-        return { path: p.path, file: p.file ?? null, diff: files.map(unified).join(''), truncated: false };
+        const against = p.against === 'base' ? 'base' : 'head';
+        return {
+          path: p.path,
+          file: p.file ?? null,
+          diff: files.map(unified).join(''),
+          truncated: false,
+          against,
+          base_ref: against === 'base' ? `origin/${row.base}` : null,
+        };
       }
       case 'files.list':
         return this.list(p);
