@@ -25,6 +25,41 @@ export const agentNameOf = (folder: string): string =>
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '') || 'agent';
+type Card = { title: string; note: string; task: string };
+/** What the repo itself offers to do first: its tests, its newest open issues, its TODOs, its uncommitted changes. */
+export function factCards(
+  f: { test_command: string | null; issues: { number: number; title: string }[] | null; todos: number; uncommitted: number } | undefined,
+): Card[] {
+  if (!f) return [];
+  return [
+    ...(f.test_command
+      ? [{ title: 'Run the tests and fix what fails', note: f.test_command, task: `Run ${f.test_command} and fix what fails.` }]
+      : []),
+    ...(f.issues ?? []).map((i) => ({
+      title: `#${i.number} ${i.title}`,
+      note: 'Open issue',
+      task: `Work on issue #${i.number}: ${i.title}`,
+    })),
+    ...(f.todos
+      ? [
+          {
+            title: `Go through ${f.todos} TODOs`,
+            note: 'TODO and FIXME comments',
+            task: 'Go through the TODO and FIXME comments, and do the ones worth doing.',
+          },
+        ]
+      : []),
+    ...(f.uncommitted
+      ? [
+          {
+            title: `Tidy ${f.uncommitted} uncommitted changes`,
+            note: 'Review and commit them',
+            task: 'Review the uncommitted changes and commit them in sensible pieces.',
+          },
+        ]
+      : []),
+  ];
+}
 const LOOK_AROUND = 'Look around this project and propose 3 tasks worth doing next. Read only: change nothing.';
 
 function FirstRun({ onStarted }: { onStarted: () => void }) {
@@ -114,18 +149,24 @@ function WhatFirst({ folder, onBack, onStarted }: { folder: Folder; onBack: () =
     );
   };
   if (operation) return <Starting operation={operation} task={task} onStarted={onStarted} />;
+  const facts = hooks.useRepoFacts({ path: folder.path });
+  const cards = factCards(facts.data);
   return (
     <div className="flex flex-col gap-4">
       <h1 className="text-xl font-medium text-fg">What first, in {folder.name}?</h1>
-      <button
-        type="button"
-        disabled={create.isPending}
-        onClick={() => start(LOOK_AROUND)}
-        className="rounded-md border border-border p-3 text-left hover:bg-hover/30 disabled:opacity-60"
-      >
-        <div className="text-sm font-medium text-fg">Look around and propose 3 tasks</div>
-        <div className="text-xs text-muted">Reads only; nothing is changed.</div>
-      </button>
+      {facts.isError && <p className="text-sm text-danger">{sentence(classify(facts.error))}</p>}
+      {[{ title: 'Look around and propose 3 tasks', note: 'Reads only; nothing is changed.', task: LOOK_AROUND }, ...cards].map((c) => (
+        <button
+          key={c.title}
+          type="button"
+          disabled={create.isPending || facts.isError}
+          onClick={() => start(c.task)}
+          className="rounded-md border border-border p-3 text-left hover:bg-hover/30 disabled:opacity-60"
+        >
+          <div className="text-sm font-medium text-fg">{c.title}</div>
+          <div className="text-xs text-muted">{c.note}</div>
+        </button>
+      ))}
       <form
         className="flex items-end gap-2"
         onSubmit={(e) => {
@@ -136,7 +177,7 @@ function WhatFirst({ folder, onBack, onStarted }: { folder: Folder; onBack: () =
         <Field label="Or write it">
           <Input value={own} onChange={(e) => setOwn(e.target.value)} />
         </Field>
-        <Button type="submit" variant="primary" disabled={!own.trim() || create.isPending}>
+        <Button type="submit" variant="primary" disabled={!own.trim() || create.isPending || facts.isError}>
           Start
         </Button>
       </form>
