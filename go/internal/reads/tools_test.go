@@ -44,3 +44,24 @@ func TestDaemonStatusNamesTheMissingToolsOfTheAgentSide(t *testing.T) {
 		t.Fatalf("a claude path off PATH: %v", got)
 	}
 }
+
+// The Mac's /usr/bin/git only forwards to the command line tools: found without them, git is missing; with them, or any other git, it is not.
+func TestTheMacGitStubIsNoGitWithoutTheCommandLineTools(t *testing.T) {
+	bin := t.TempDir()
+	t.Setenv("PATH", bin)
+	claude, stub := tool(t, bin, "claude"), tool(t, bin, "git")
+	tool(t, bin, "tmux")
+	gitRow := []MissingTool{{"git", "xcode-select --install"}}
+	if got := missingTools(claude, stub, func() bool { return false }); !reflect.DeepEqual(got, gitRow) {
+		t.Fatalf("the stub without the tools: %v", got)
+	}
+	if got := missingTools(claude, stub, func() bool { return true }); got != nil {
+		t.Fatalf("the stub with the tools: %v", got)
+	}
+	if got := missingTools(claude, filepath.Join(t.TempDir(), "git"), func() bool { return false }); got != nil {
+		t.Fatalf("another git: %v", got)
+	}
+	if got := missingTools(claude, "", func() bool { t.Fatal("asked off a Mac"); return false }); got != nil {
+		t.Fatalf("no stub: %v", got)
+	}
+}
