@@ -65,10 +65,13 @@ function Line({
   mark,
   icon,
   row,
+  opens,
 }: {
   title: string;
   meta: string;
   onOpen: (how: 'here' | 'side') => void;
+  /** What a drag of the row opens where it is dropped; none for a row that opens no tab. */
+  opens?: () => string | null;
   mark?: boolean;
   icon: ReactNode;
   row: Picked;
@@ -76,7 +79,7 @@ function Line({
   const pick = usePick();
   const picked = !!pick?.picked.has(row.key);
   const busy = !!pick?.busy.has(row.key);
-  const open = openProps(onOpen);
+  const open = openProps(onOpen, opens);
   const line = (
     // The check box sits beside the row's button, over its icon, not inside it: a box in a button is no box to the keyboard.
     <div
@@ -120,16 +123,23 @@ function Line({
 function useOpenTurn(p: PendingRequest) {
   const openTab = useOpenTab();
   return (how: 'here' | 'side') => {
-    const w = p.warning;
-    if (p.task !== null) return openTab(taskOf(p.task), how);
-    if (w?.account && w.kind === 'login') {
-      focusIn('usage', '', w.account);
-      return openTab('usage', how);
-    }
-    if (w?.agent) return openTab(chatOf(w.agent), how);
-    if (w?.kind === 'disk') return openSettings();
-    openTab('requests', how);
+    const opens = turnOpens(p);
+    if (opens) openTab(opens, how);
+    else openSettings();
   };
+}
+
+/** The tab a row opens, or null for the disk warning, which opens Settings. */
+function turnOpens(p: PendingRequest): string | null {
+  const w = p.warning;
+  if (p.task !== null) return taskOf(p.task);
+  if (w?.account && w.kind === 'login') {
+    focusIn('usage', '', w.account);
+    return 'usage';
+  }
+  if (w?.agent) return chatOf(w.agent);
+  if (w?.kind === 'disk') return null;
+  return 'requests';
 }
 
 /** Something waiting on the founder: what is asked, who asks (an agent, or the daemon itself), how long ago. */
@@ -145,6 +155,7 @@ export function TurnLine({ p, onOpened, until }: { p: PendingRequest; onOpened?:
       meta={[until ? `back ${until}` : ASK[p.kind], daemon ? 'daemon' : p.agent, p.task !== null && `T${p.task}`, p.ask, ago(p.last_at)]
         .filter(Boolean)
         .join(' · ')}
+      opens={() => turnOpens(p)}
       onOpen={(how) => {
         open(how);
         onOpened?.();
@@ -195,6 +206,7 @@ export function RequestLine({ r, onOpened }: { r: RequestRow; onOpened?: () => v
       }
       title={r.title}
       meta={[...meta, ago(r.ended?.at ?? r.last_activity)].filter(Boolean).join(' · ')}
+      opens={() => (r.task !== null ? taskOf(r.task) : chatOf(r.agent))}
       onOpen={(how) => {
         if (r.task !== null && isUnseen(r)) seen.mutate({ task: r.task });
         openTab(r.task !== null ? taskOf(r.task) : chatOf(r.agent), how);

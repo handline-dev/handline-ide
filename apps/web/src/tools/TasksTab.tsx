@@ -119,7 +119,10 @@ function Row({ t, ruled, owner }: { t: Task; ruled: boolean; owner?: string }) {
     <div className={`flex items-center hover:bg-hover/30 ${ruled ? 'border-t border-border' : ''}`}>
       <button
         type="button"
-        {...openProps((how) => openTab(taskOf(t.id), how))}
+        {...openProps(
+          (how) => openTab(taskOf(t.id), how),
+          () => taskOf(t.id),
+        )}
         className="flex min-w-0 flex-1 gap-2.5 px-3 py-2 text-left text-sm"
       >
         <span className={`mt-0.5 grid size-5 shrink-0 place-items-center rounded-md text-accent-fg ${s.tone}`}>

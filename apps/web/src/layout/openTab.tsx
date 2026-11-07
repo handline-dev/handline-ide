@@ -1,7 +1,8 @@
 // How the app opens a tab, in one place. A click opens it here; Cmd+click (Ctrl+click off the Mac), a middle click or Cmd+Enter
 // opens it beside, in a split to the right (the pane next to it when there is a split already), as an editor's "open to the side".
 // Shift and Alt are kept free for later ways (split down, open without going there).
-import { createContext, useContext, type KeyboardEvent, type MouseEvent } from 'react';
+import { createContext, useContext, type DragEvent, type KeyboardEvent, type MouseEvent } from 'react';
+import { startTabDrag } from '#src/ui/dnd.tsx';
 
 export type How = 'here' | 'side';
 export type Open = (opens: string, how?: How) => void;
@@ -33,9 +34,18 @@ export function useOpenTab(): Open {
 }
 
 /** The props that make an element open something the app's way: click, Cmd/Ctrl+click, middle click, Enter and Cmd+Enter.
- * Plain Enter is left to the element's own click (a button's), so it does not open twice. */
-export function openProps(open: (how: How) => void) {
+ * Plain Enter is left to the element's own click (a button's), so it does not open twice. With `drag`, what it opens can also be
+ * dragged onto a tab bar or a pane's edge; it runs as the drag starts (null: no drag). */
+export function openProps(open: (how: How) => void, drag?: () => string | null) {
   return {
+    ...(drag && {
+      draggable: true,
+      onDragStart: (e: DragEvent) => {
+        const opens = drag();
+        if (opens) startTabDrag(e, { open: { opens, title: '' } });
+        else e.preventDefault();
+      },
+    }),
     onClick: (e: MouseEvent) => open(howOf(e)),
     onAuxClick: (e: MouseEvent) => {
       if (e.button === 1) open('side');

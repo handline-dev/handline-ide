@@ -121,7 +121,10 @@ function Row({ e, task, ruled }: { e: TaskEvent; task?: Task; ruled: boolean }) 
       {/* A click opens the task; Cmd+click beside. */}
       <button
         type="button"
-        {...openProps((how) => openTab(taskOf(Number(e.id.slice(1))), how))}
+        {...openProps(
+          (how) => openTab(taskOf(Number(e.id.slice(1))), how),
+          () => taskOf(Number(e.id.slice(1))),
+        )}
         className={`flex w-full gap-2.5 px-3 py-2 text-left hover:bg-hover/30 ${ruled ? 'border-t border-border' : ''}`}
       >
         <span className={`mt-0.5 grid size-5 shrink-0 place-items-center rounded-md text-accent-fg ${s?.tone ?? 'bg-surface'}`}>

@@ -176,7 +176,10 @@ function TaskLink({ id, title }: { id: number; title?: string }) {
   return (
     <button
       type="button"
-      {...openProps((how) => openTab(taskOf(id), how))}
+      {...openProps(
+        (how) => openTab(taskOf(id), how),
+        () => taskOf(id),
+      )}
       className="min-w-0 truncate rounded-sm text-left hover:bg-hover/30"
     >
       <span className="text-muted">T{id}</span>
