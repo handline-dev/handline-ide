@@ -14,6 +14,8 @@ export interface Cmd {
   args: string[];
   /** The PATH the daemon runs with; unset keeps the app's own. */
   path?: string;
+  /** The login shell did not answer in time, so path is the app's own. */
+  pathTimedOut?: boolean;
 }
 
 /** How the daemon is spawned: a session of its own, nothing on its stdin, its output in the log, so it outlives the app. */
@@ -272,6 +274,21 @@ export function commands(
     ],
   };
 }
+
+/** Beside the daemon's lock: present while the daemon runs on the app's own PATH because the login shell did not answer in time. It is
+ * written at each start, so it outlives the app as the daemon does and a relaunch that adopts the daemon still reads it. */
+const pathTimedOutFile = (home: string) => path.join(home, 'locks', 'daemon-path-timed-out');
+
+/** Records how the daemon about to start got its PATH. */
+export function markPathTimedOut(home: string, timedOut: boolean): void {
+  const f = pathTimedOutFile(home);
+  if (!timedOut) return fs.rmSync(f, { force: true });
+  fs.mkdirSync(path.dirname(f), { recursive: true });
+  fs.writeFileSync(f, '');
+}
+
+/** Whether the daemon of this home was started on the app's own PATH because the login shell timed out. */
+export const pathTimedOut = (home: string): boolean => fs.existsSync(pathTimedOutFile(home));
 
 /** The pid the daemon wrote in this home's locks/daemon.lock, or null. The file outlives its writer: the caller checks the pid is alive. */
 export function lockPid(home: string): number | null {
