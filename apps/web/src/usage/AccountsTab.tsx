@@ -167,7 +167,7 @@ function One({ account: a }: { account: Account }) {
 
 /** Log in by URL and code: account.login starts the vendor's login and gives its URL; the code goes back with account.login_code. The code
  * is never kept. A login another window started can be cancelled here. */
-function Login({ account: a }: { account: Account }) {
+export function Login({ account: a }: { account: Account }) {
   const login = useWrite('account.login', a.name);
   const sendCode = useWrite('account.login_code', a.name);
   const cancel = useWrite('account.login_cancel', a.name);
@@ -192,6 +192,7 @@ function Login({ account: a }: { account: Account }) {
         <div className="flex items-end gap-2">
           <Field label="Code" error={why(sendCode.error)}>
             <Input
+              autoFocus
               value={code}
               disabled={sendCode.isPending}
               onChange={(e) => setCode(e.target.value)}
