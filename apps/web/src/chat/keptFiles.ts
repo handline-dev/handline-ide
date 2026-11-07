@@ -4,6 +4,7 @@
 import { read, write } from '#src/persist/kv.ts';
 import { dropFile, fileKeys, getFile, putFile } from '#src/persist/files.ts';
 import type { Dropped } from '#src/ui/fileDrop.tsx';
+import { uuid } from '#src/ui/uuid.ts';
 
 type Entry = { id: string; kind: Dropped['kind']; name: string; files: { path: string; name: string; type: string }[] };
 
@@ -13,7 +14,7 @@ const blobKey = (agent: string, id: string, i: number) => `${prefix(agent, id)}:
 
 /** Keeps a dropped file or folder; answers its entry id. */
 export function keepEntry(agent: string, d: Dropped): string {
-  const id = crypto.randomUUID();
+  const id = uuid();
   d.files.forEach((f, i) => void putFile(blobKey(agent, id, i), f.file));
   const entry: Entry = {
     id,

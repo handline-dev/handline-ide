@@ -6,6 +6,7 @@ import { Popover } from '#src/ui/Popover.tsx';
 import { Button } from '#src/ui/Button.tsx';
 import { alert, confirm, ModalFrame, openModal, prompt } from '#src/ui/modal.tsx';
 import { Tab, TabBar, type TabItem } from '#src/ui/Tabs.tsx';
+import { uuid } from '#src/ui/uuid.ts';
 
 const roles = ['bg', 'surface', 'hover', 'selected', 'border', 'fg', 'muted', 'accent', 'accent-fg', 'danger', 'warning', 'success'];
 // Spelled out so Tailwind sees each class.
@@ -170,7 +171,7 @@ function Sheet() {
             { kind: 'task', label: 'Task' },
           ]}
           onAdd={(kind) => {
-            const id = crypto.randomUUID();
+            const id = uuid();
             setTabs((ts) => [...ts, { id, title: kind }]);
             setActive(id);
           }}

@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Connect } from '#src/connection/Connect.tsx';
+import { Boundary, brokenView } from '#src/ui/Boundary.tsx';
 import { Gallery } from '#src/Gallery.tsx';
 import { instant, spring } from '#src/motion.ts';
 import { Sidebar, SidebarControls, sidebarWidth } from '#src/Sidebar.tsx';
@@ -111,7 +112,9 @@ createRoot(document.getElementById('root')!).render(
     </>
   ) : (
     <Connect>
-      <App />
+      <Boundary loading={null} failed={brokenView('Handline')}>
+        <App />
+      </Boundary>
       <ModalHost />
       <ToastHost />
     </Connect>
