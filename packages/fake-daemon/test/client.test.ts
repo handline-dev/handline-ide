@@ -387,7 +387,7 @@ test('close settles a call waiting for the connection to come back', async () =>
   await assert.rejects(waiting, (e: RpcError) => e.code === 'transport');
 });
 
-test('repos.list and worktrees.list serve the repos and the worktrees, filtered by repo and owner, and refuse a repo that is not a string', async () => {
+test('repos.list, repos.recent and worktrees.list serve the repos, the recent git folders and the worktrees, filtered by repo and owner, and refuse a repo that is not a string', async () => {
   const { client } = setup();
   await client.start();
   const { repos } = await client.call('repos.list', {});
@@ -397,6 +397,10 @@ test('repos.list and worktrees.list serve the repos and the worktrees, filtered 
       ['handline', 'main'],
       ['docs-site', 'master'],
     ],
+  );
+  assert.deepEqual(
+    (await client.call('repos.recent', {})).folders.map((f) => f.name),
+    ['garden', 'notes-app'],
   );
   const all = (await client.call('worktrees.list', {})).worktrees;
   assert.equal(all.length, 5);
@@ -420,7 +424,7 @@ test('a daemon built without the admin surface lists neither repos nor worktrees
   const { client } = setup({ daemon: { admin: false } });
   const h = await client.start();
   assert.equal(
-    h.methods.some((m) => m.name === 'worktrees.list' || m.name === 'repos.list'),
+    h.methods.some((m) => m.name === 'worktrees.list' || m.name === 'repos.list' || m.name === 'repos.recent'),
     false,
   );
   client.close();

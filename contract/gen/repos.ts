@@ -51,9 +51,20 @@ export type DocUpdate = {
   by?: string;
 };
 
+export type RecentFolder = {
+  path: string;
+  /** The folder's own name. */
+  name: string;
+  /** The later mtime of its .git/HEAD and .git/index. */
+  touched_at: Timestamp;
+};
+
 export interface ReposMethods {
   "repos.list": { params: { [key: string]: unknown }; result: {
     repos: Repo[];
+  } };
+  "repos.recent": { params: { [key: string]: unknown }; result: {
+    folders: RecentFolder[];
   } };
   "worktrees.list": { params: {
   repo?: string;
@@ -179,6 +190,7 @@ export interface ReposMethods {
 
 export const REPOS_METHODS: { [K in keyof ReposMethods]: { role: Role; callers: Role[] | null; write: boolean; since: number } } = {
   "repos.list": { role: "member", callers: null, write: false, since: 1 },
+  "repos.recent": { role: "member", callers: null, write: false, since: 1 },
   "worktrees.list": { role: "member", callers: null, write: false, since: 1 },
   "worktree.diff": { role: "member", callers: null, write: false, since: 1 },
   "files.list": { role: "member", callers: null, write: false, since: 1 },
@@ -192,8 +204,9 @@ export const REPOS_METHODS: { [K in keyof ReposMethods]: { role: Role; callers: 
 };
 
 /** x-app-cache of each read (x-app in core.json). */
-export const REPOS_APP_CACHE: { [K in "repos.list" | "worktrees.list" | "worktree.diff" | "files.list" | "file.read" | "doc.open" | "doc.pull" | "doc.close"]: { resource: string; id?: string; feed: Topic | null } | false } = {
+export const REPOS_APP_CACHE: { [K in "repos.list" | "repos.recent" | "worktrees.list" | "worktree.diff" | "files.list" | "file.read" | "doc.open" | "doc.pull" | "doc.close"]: { resource: string; id?: string; feed: Topic | null } | false } = {
   "repos.list": {"resource": "repos", "feed": null},
+  "repos.recent": {"resource": "recent_repos", "feed": null},
   "worktrees.list": {"resource": "worktrees", "feed": null},
   "worktree.diff": {"resource": "worktree-diff", "feed": null},
   "files.list": {"resource": "files", "feed": null},

@@ -115,6 +115,7 @@ func Register(s *rpc.Server, env Env) {
 	s.Register("chat.search", rpc.Method{Handler: e.chatSearch, Read: true})
 	s.Register("proposal.list", rpc.Method{Handler: e.proposalList, Read: true})
 	s.Register("repos.list", rpc.Method{Handler: e.reposList, Read: true})
+	s.Register("repos.recent", rpc.Method{Handler: e.reposRecent, Read: true})
 	s.Register("worktrees.list", rpc.Method{Handler: e.worktreesList, Read: true})
 	s.Register("worktree.diff", rpc.Method{Handler: e.worktreeDiff, Read: true})
 	s.Register("agent.options", rpc.Method{Handler: e.agentOptions, Read: true})

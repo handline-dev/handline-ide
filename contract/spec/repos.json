@@ -201,6 +201,27 @@
      "client",
      "changes"
     ]
+   },
+   "RecentFolder": {
+    "type": "object",
+    "properties": {
+     "path": {
+      "type": "string"
+     },
+     "name": {
+      "type": "string",
+      "description": "The folder's own name."
+     },
+     "touched_at": {
+      "$ref": "#/components/schemas/Timestamp",
+      "description": "The later mtime of its .git/HEAD and .git/index."
+     }
+    },
+    "required": [
+     "path",
+     "name",
+     "touched_at"
+    ]
    }
   }
  },
@@ -231,6 +252,36 @@
    "x-write": false,
    "x-app-cache": {
     "resource": "repos",
+    "feed": null
+   },
+   "x-since": 1
+  },
+  {
+   "name": "repos.recent",
+   "summary": "Git folders under the person's home not in repos.list, for the first-run repo pick: at most 12, newest first. Found by folder stats alone within about 300 ms; no symlink, other volume, dot folder, ~/Documents, ~/Desktop, ~/Downloads or ~/Library is entered.",
+   "paramStructure": "by-name",
+   "params": [],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "properties": {
+      "folders": {
+       "type": "array",
+       "items": {
+        "$ref": "#/components/schemas/RecentFolder"
+       }
+      }
+     },
+     "required": [
+      "folders"
+     ]
+    }
+   },
+   "x-role": "member",
+   "x-write": false,
+   "x-app-cache": {
+    "resource": "recent_repos",
     "feed": null
    },
    "x-since": 1

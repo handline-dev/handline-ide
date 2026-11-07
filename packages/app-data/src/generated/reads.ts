@@ -40,6 +40,7 @@ export const reads = {
   "answers.list": { resource: "answers" },
   "devices.list": { resource: "devices", feed: "devices" },
   "repos.list": { resource: "repos" },
+  "repos.recent": { resource: "recent_repos" },
   "worktrees.list": { resource: "worktrees" },
   "worktree.diff": { resource: "worktree-diff" },
   "files.list": { resource: "files" },

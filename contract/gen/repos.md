@@ -6,6 +6,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | Method | Role | Write | Params | Result | Errors | Gates | App |
 |---|---|---|---|---|---|---|---|
 | `repos.list` | member |  | none | `{repos}` |  |  | `repos`, snapshot |
+| `repos.recent` | member |  | none | `{folders}` |  |  | `recent_repos`, snapshot |
 | `worktrees.list` | member |  | `repo?`, `owner?` | `{worktrees}` |  |  | `worktrees`, snapshot |
 | `worktree.diff` | member |  | `path`, `file?`, `against?` | `{path, file, diff, truncated, against, base_ref}` | `not_found` |  | `worktree-diff`, snapshot |
 | `files.list` | member |  | `agent`, `query?`, `limit?` | `{files, more}` | `bad_request`, `not_found` |  | `files`, snapshot |
@@ -20,6 +21,10 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 ### `repos.list`
 
 Repos.
+
+### `repos.recent`
+
+Git folders under the person's home not in repos.list, for the first-run repo pick: at most 12, newest first. Found by folder stats alone within about 300 ms; no symlink, other volume, dot folder, ~/Documents, ~/Desktop, ~/Downloads or ~/Library is entered.
 
 ### `worktrees.list`
 

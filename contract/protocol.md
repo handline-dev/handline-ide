@@ -87,7 +87,7 @@ One file per group, generated from `spec/<group>.json`; field types are in `prot
 - [agents](gen/agents.md): 36 methods
 - [chat](gen/chat.md): 26 methods
 - [devices](gen/devices.md): 6 methods
-- [repos](gen/repos.md): 11 methods
+- [repos](gen/repos.md): 12 methods
 - [tasks](gen/tasks.md): 43 methods
 - [team](gen/team.md): 14 methods
 - [terminal](gen/terminal.md): 9 methods
