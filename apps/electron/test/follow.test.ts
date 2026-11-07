@@ -74,7 +74,7 @@ test('prepare fetches, moves the checkout to that main and builds the page besid
     [
       'git fetch origin +refs/remotes/origin/main:refs/remotes/origin/main',
       'git diff --name-only aaa1111 bbb2222',
-      'git merge --ff-only bbb2222',
+      'git checkout -B main bbb2222',
       'pnpm --filter @handline/web build --outDir dist-next',
       'pnpm --filter @handline/electron build',
       'bash tools/build-go.sh',
@@ -85,7 +85,7 @@ test('prepare fetches, moves the checkout to that main and builds the page besid
   assert.deepEqual(r.calls, ['clear']);
   await r.f.look(); // the same main is not built again
   assert.equal(r.f.state, 'ready');
-  assert.equal(r.ran.filter((c) => c.startsWith('git merge')).length, 1);
+  assert.equal(r.ran.filter((c) => c.startsWith('git checkout -B main')).length, 1);
 });
 
 test('a ready update is built again when main moves past it, so Restart now lands on the newest main', async () => {
@@ -98,8 +98,8 @@ test('a ready update is built again when main moves past it, so Restart now land
   r.main.sha = 'ccc3333';
   await r.f.look();
   assert.equal(r.f.state, 'ready');
-  const merges = r.ran.filter((c) => c.startsWith('git merge'));
-  assert.deepEqual(merges, ['git merge --ff-only bbb2222', 'git merge --ff-only ccc3333']);
+  const moves = r.ran.filter((c) => c.startsWith('git checkout -B main'));
+  assert.deepEqual(moves, ['git checkout -B main bbb2222', 'git checkout -B main ccc3333']);
   assert.ok(r.ran.includes('git diff --name-only aaa1111 ccc3333'), 'the diff is from the commit the app runs');
   await r.f.restartNow();
   assert.equal(r.ran.filter((c) => c === 'bash tools/build-go.sh').length, 2, 'the daemon is built for the newest main too');
@@ -129,7 +129,7 @@ test('a retry after a failed web build builds the page again, from where the fir
       ran.push(`${file} ${args.join(' ')}`);
       if (args[0] === 'rev-parse') return `${head}\n`;
       if (args[0] === 'diff') return args.includes('aaa1111') ? 'apps/web/src/App.tsx' : ''; // from the moved HEAD there is nothing to see
-      if (args[0] === 'merge') head = 'bbb2222';
+      if (args[0] === 'checkout') head = 'bbb2222';
       if (file === 'pnpm' && args.includes('@handline/web') && broken) throw new Error('vite failed');
       return '';
     },

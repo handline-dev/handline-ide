@@ -33,6 +33,9 @@ export const SOURCE_MAIN = 'origin/main';
 /** Run in the app's checkout: takes the source repo's `origin/main` as its own `origin/main`. */
 export const FETCH_SOURCE = ['fetch', 'origin', `+refs/remotes/${SOURCE_MAIN}:refs/remotes/${SOURCE_MAIN}`];
 
+/** Run in the app's checkout: puts its `main` on `target`. The checkout only follows, so this also covers a history rewritten under it, where a fast-forward refuses unrelated histories. */
+export const moveTo = (target: string): string[] => ['checkout', '-B', 'main', target];
+
 /** Where GitHub's main is now. `git` runs in the source repo; a fetch that fails (offline) leaves the last one standing. */
 export async function peekMain(git: (...args: string[]) => Promise<string>): Promise<Main> {
   await git('fetch', 'origin', 'main').catch(() => '');
@@ -151,7 +154,7 @@ export class Follower {
       this.from ??= (await this.run('git', ['rev-parse', 'HEAD'])).trim();
       const head = this.from;
       const files = (await this.run('git', ['diff', '--name-only', head, target])).split('\n').filter(Boolean);
-      await this.run('git', ['merge', '--ff-only', target]);
+      await this.run('git', moveTo(target));
       this.d.clearWeb();
       const r = decide(files);
       // The electron build stamps the sha the daemon is compared with, the relaunched app starts the daemon built here, and hl must match it: all run every time.

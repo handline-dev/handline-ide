@@ -4,7 +4,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { FETCH_SOURCE, SOURCE_MAIN } from '#src/follow.ts';
+import { FETCH_SOURCE, moveTo, SOURCE_MAIN } from '#src/follow.ts';
 
 const run = (cwd: string, file: string, args: string[]): void => {
   const r = spawnSync(file, args, { cwd, stdio: 'inherit' });
@@ -24,7 +24,7 @@ if (!fs.existsSync(path.join(dir, '.git'))) {
 // PRs merge on GitHub, so this repo's own `main` branch stands still: the checkout follows its `origin/main`, brought up to date here.
 spawnSync('git', ['--git-dir', gitDir, 'fetch', 'origin', 'main'], { stdio: 'inherit' });
 run(dir, 'git', FETCH_SOURCE);
-run(dir, 'git', ['merge', '--ff-only', SOURCE_MAIN]);
+run(dir, 'git', moveTo(SOURCE_MAIN));
 run(dir, 'pnpm', ['install', '--frozen-lockfile']);
 if (fs.existsSync(path.join(dir, 'go')) && spawnSync('go', ['version']).status === 0)
   for (const script of ['tools/build-go.sh', 'tools/build-hl.sh']) run(dir, 'bash', [script]);
