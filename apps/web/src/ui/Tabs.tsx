@@ -2,7 +2,7 @@ import { howOf, type How } from '#src/layout/openTab.tsx';
 import { Plus, X } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { IconButton } from '#src/ui/IconButton.tsx';
-import { Menu, MenuItem } from '#src/ui/Menu.tsx';
+import { ContextMenu, Menu, MenuItem, MenuSeparator } from '#src/ui/Menu.tsx';
 
 /** `closable: false` pins a tab: no close button, and onClose is never called for it. */
 export type TabItem = { id: string; title: string; closable?: boolean; icon?: ReactNode };
@@ -59,6 +59,7 @@ export function TabBar({
   active,
   onSelect,
   onClose,
+  onCloseTabs,
   newTabKinds = [],
   onAdd,
   onTabDragStart,
@@ -67,6 +68,8 @@ export function TabBar({
   active: string | null;
   onSelect: (id: string) => void;
   onClose: (id: string) => void;
+  /** Right-click on a tab: Close others, Close tabs to the right, Close all (pinned tabs stay). */
+  onCloseTabs?: (ids: string[]) => void;
   /** What + can open: a menu of these; picking one calls onAdd with its kind. */
   newTabKinds?: { kind: string; label: string; icon?: ReactNode }[];
   onAdd?: (kind: string, how: How) => void;
@@ -74,16 +77,46 @@ export function TabBar({
 }) {
   return (
     <div role="tablist" className="flex h-10 items-center gap-1 border-b border-border bg-surface px-2">
-      {tabs.map((t) => (
-        <Tab
-          key={t.id}
-          tab={t}
-          active={t.id === active}
-          onSelect={() => onSelect(t.id)}
-          onClose={() => t.closable !== false && onClose(t.id)}
-          onDragStart={onTabDragStart && ((e) => onTabDragStart(t.id, e))}
-        />
-      ))}
+      {tabs.map((t, i) => {
+        const tab = (
+          <Tab
+            key={t.id}
+            tab={t}
+            active={t.id === active}
+            onSelect={() => onSelect(t.id)}
+            onClose={() => t.closable !== false && onClose(t.id)}
+            onDragStart={onTabDragStart && ((e) => onTabDragStart(t.id, e))}
+          />
+        );
+        if (!onCloseTabs) return tab;
+        const closable = (l: TabItem[]) => l.filter((x) => x.closable !== false).map((x) => x.id);
+        const others = closable(tabs.filter((x) => x.id !== t.id));
+        const right = closable(tabs.slice(i + 1));
+        return (
+          <ContextMenu
+            key={t.id}
+            items={
+              <>
+                <MenuItem disabled={t.closable === false} onClick={() => onClose(t.id)}>
+                  Close
+                </MenuItem>
+                <MenuItem disabled={!others.length} onClick={() => onCloseTabs(others)}>
+                  Close others
+                </MenuItem>
+                <MenuItem disabled={!right.length} onClick={() => onCloseTabs(right)}>
+                  Close tabs to the right
+                </MenuItem>
+                <MenuSeparator />
+                <MenuItem disabled={!closable(tabs).length} onClick={() => onCloseTabs(closable(tabs))}>
+                  Close all
+                </MenuItem>
+              </>
+            }
+          >
+            {tab}
+          </ContextMenu>
+        );
+      })}
       {onAdd && newTabKinds.length > 0 && (
         <Menu
           trigger={
