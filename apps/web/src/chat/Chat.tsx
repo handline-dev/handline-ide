@@ -1,4 +1,13 @@
-import { chatView, foldBash, foldTurns, isPerson, turnMinutes, type TimelineEntry, type TurnRecord as Turn } from '@handline/app-core';
+import {
+  chatView,
+  foldBash,
+  foldTurns,
+  unblockedStart,
+  isPerson,
+  turnMinutes,
+  type TimelineEntry,
+  type TurnRecord as Turn,
+} from '@handline/app-core';
 import { useAgents, useChat, useChatActions, useChatReadMarks, useChatServed, useChatSuspense, useVerbRun } from '@handline/app-data';
 import { VERBS } from '@handline/app-core';
 import { useMe, useNearEnd } from '@handline/app-react';
@@ -185,6 +194,15 @@ function runs(
   };
   for (const e of entries) {
     until(e.at);
+    const freed = e.kind === 'item' ? unblockedStart(e.item) : null;
+    if (freed) {
+      // The title is read with the task's state (TaskActivity).
+      add(
+        [{ key: `u${e.id}`, kind: 'start', id: `T${freed.task}`, title: '', detail: freed.detail, at: e.at, line: `item:${e.id}` }],
+        `tasks:u${e.id}`,
+      );
+      continue;
+    }
     if (!taskNotice(e, agent, me) || e.kind !== 'message') {
       // A line that draws nothing is kept out of the way: it goes before the card, so the run goes on.
       const last = out.at(-1);
@@ -257,7 +275,7 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
   const known = (all: ReturnType<typeof runs>) => {
     const at = all.map((r) =>
       'events' in r
-        ? r.events.map((e) => `message:${e.key.split(':')[0]}`)
+        ? r.events.map((e) => e.line ?? `message:${e.key.split(':')[0]}`)
         : r.kind === 'record'
           ? r.items.map((i) => `item:${i.id}`)
           : [`${r.kind}:${r.id}`],

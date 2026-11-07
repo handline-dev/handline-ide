@@ -79,6 +79,12 @@ export const CHAT_SEEDS: Record<string, Seed> = {
       at: iso(4),
       landing: 'delivered',
     });
+    d.tasks.seed({ id: 1685, from: 'handline', to: ARCH, title: 'Pause tests: wait past the until', state: 'queued' });
+    d.chat.seedItem(ARCH, {
+      at: iso(20),
+      kind: 'task_event',
+      task_event: { event: 'unblocked', task: 1685, closed_task: 1683, request: null, evidence: null, who: 'handline.auditor' },
+    });
     const steps: [number, Partial<TranscriptItem>][] = [
       [3.9, { kind: 'tool', tool: 'Read', text: 'go/internal/daemon/pause_test.go' }],
       [

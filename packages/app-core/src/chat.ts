@@ -359,6 +359,13 @@ export function taskRow(i: TranscriptItem, titles?: Map<number, string>): TaskRo
   };
 }
 
+/** A task its last blocker freed, as its start card says it: `Started: T8632, its last blocker, is done`. Null for any other item. */
+export function unblockedStart(i: TranscriptItem): { task: number; detail: string } | null {
+  const e = i.task_event;
+  if (e?.event !== 'unblocked') return null;
+  return { task: e.task, detail: `Started: ${e.closed_task ? `T${e.closed_task}, its last blocker,` : 'its last blocker'} is done` };
+}
+
 /** A run of task cards drawn as one line. `rows` are the cards that stay after a task's added card is merged into its done card. */
 export interface TaskFold {
   kind: 'fold';

@@ -19,6 +19,8 @@ export type TaskEvent = {
   detail: string;
   before?: string;
   after?: string;
+  /** The chat line it was drawn from (`item:<id>`), when it is not a message's. */
+  line?: string;
   /** When it happened: shown under the card on hover. */
   at?: string;
 };
@@ -128,7 +130,7 @@ function Row({ e, task, ruled }: { e: TaskEvent; task?: Task; ruled: boolean }) 
         <div className="min-w-0">
           <div className="truncate">
             <span className="mr-1 text-muted">{e.id}</span>
-            <span className={`font-medium ${e.kind === 'discard' ? 'text-muted line-through' : 'text-fg'}`}>{e.title}</span>
+            <span className={`font-medium ${e.kind === 'discard' ? 'text-muted line-through' : 'text-fg'}`}>{e.title || task?.title}</span>
           </div>
           <div className="flex items-center gap-1 text-xs text-muted">
             <Did size={11} className="shrink-0" />
