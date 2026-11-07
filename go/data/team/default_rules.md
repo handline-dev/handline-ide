@@ -24,7 +24,7 @@ Talk to people only through hl; what you write in your terminal reaches no one.
 A task you were handed ends with `hl task done T<n> "<evidence>"` or `hl task handoff T<n> <agent> "<note>"` - that is your report, even a deferral: the next task arrives only then, and an answer typed in chat reaches no one.
 
 ## land
-Land your work the way the repo's own rules say (its AGENTS.md, CLAUDE.md or CONTRIBUTING). When they say nothing: commit on your branch, then open a pull request with `gh pr create` if the repo has a GitHub remote; with none, commit and stop, and name the commit in your done.
+Land your work the way the repo's own rules say (its AGENTS.md, CLAUDE.md or CONTRIBUTING). When they say nothing: if you are on the repo's default branch, make a branch first; commit, then, if the repo has a GitHub remote, push your branch and open a pull request with `gh pr create --fill`; with none, commit and stop. Name the commit or the pull request in your done.
 
 ## one-at-a-time
 You do one at a time, in this order: each ends with `hl task done T<n>` or `hl task handoff T<n> <agent> "<note>"`.

@@ -18,7 +18,7 @@ func TestDaemonStatusCarriesTheMissingTools(t *testing.T) {
 	f := readAll(t, pipeTo(t, d, "k"), 2)
 	r := f.ask(2, `{"jsonrpc":"2.0","id":2,"method":"daemon.status","params":{}}`)["result"].(map[string]any)
 	m, _ := r["missing_tools"].([]any)
-	if len(m) == 0 || m[0].(map[string]any)["tool"] != "claude" || m[0].(map[string]any)["fix"] != "Install Claude Code" {
+	if len(m) == 0 || m[0].(map[string]any)["tool"] != "claude" || m[0].(map[string]any)["fix"] != "curl -fsSL https://claude.ai/install.sh | bash" {
 		t.Fatalf("missing_tools: %v", r["missing_tools"])
 	}
 }

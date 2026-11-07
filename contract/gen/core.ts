@@ -145,7 +145,7 @@ export type Event = {
 export type MissingTool = {
   /** The tool. */
   tool: "claude" | "git" | "tmux";
-  /** How to get it, in plain words or a command, for example "brew install tmux". */
+  /** A shell command that installs the tool, for a client to show and copy, for example "brew install tmux". */
   fix: string;
 };
 
