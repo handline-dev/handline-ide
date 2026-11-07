@@ -80,7 +80,9 @@ export function Chat({ agent }: { agent: string }) {
   };
   // A screenshot marked in a Web tab comes here too.
   const marked = useRef(addMarked);
-  marked.current = addMarked;
+  useEffect(() => {
+    marked.current = addMarked;
+  });
   useEffect(() => takeToChat(agent, (m) => marked.current(m)), [agent]);
   // The message the next one replies to, picked by Reference or Quote; for this chat only.
   const [picked, setPicked] = useState<(Reply & { agent: string }) | null>(null);
