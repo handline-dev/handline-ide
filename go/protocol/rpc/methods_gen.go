@@ -111,6 +111,7 @@ var specMethods = []SpecMethod{
 	{Name: "device.push_token", Role: "founder", Write: true, Since: 1, Callers: nil, Params: []SpecParam{{Name: "platform", Type: "string", Required: true}, {Name: "token", Type: "string", Required: true}, {Name: "sandbox", Type: "bool", Required: false}, {Name: "request_id", Type: "string", Required: true}}, Result: "Accepted"},
 	{Name: "repos.list", Role: "member", Write: false, Since: 1, Callers: nil, Params: []SpecParam{}, Result: ""},
 	{Name: "repos.recent", Role: "member", Write: false, Since: 1, Callers: nil, Params: []SpecParam{}, Result: ""},
+	{Name: "repo.facts", Role: "member", Write: false, Since: 1, Callers: nil, Params: []SpecParam{{Name: "path", Type: "string", Required: true}}, Result: "RepoFacts"},
 	{Name: "worktrees.list", Role: "member", Write: false, Since: 1, Callers: nil, Params: []SpecParam{{Name: "repo", Type: "string", Required: false}, {Name: "owner", Type: "string", Required: false}}, Result: ""},
 	{Name: "worktree.diff", Role: "member", Write: false, Since: 1, Callers: nil, Params: []SpecParam{{Name: "path", Type: "string", Required: true}, {Name: "file", Type: "string", Required: false}, {Name: "against", Type: "string", Required: false}}, Result: ""},
 	{Name: "files.list", Role: "member", Write: false, Since: 1, Callers: nil, Params: []SpecParam{{Name: "agent", Type: "string", Required: true}, {Name: "query", Type: "string", Required: false}, {Name: "limit", Type: "json.Number", Required: false}}, Result: ""},

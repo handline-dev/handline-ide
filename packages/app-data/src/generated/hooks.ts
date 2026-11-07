@@ -44,6 +44,7 @@ export const useAnswersList = (params: CallParams<"answers.list"> = {}, opts?: R
 export const useDevicesList = (params: CallParams<"devices.list"> = {}, opts?: ReadOpts) => useRead("devices.list", params, opts);
 export const useReposList = (params: CallParams<"repos.list"> = {}, opts?: ReadOpts) => useRead("repos.list", params, opts);
 export const useReposRecent = (params: CallParams<"repos.recent"> = {}, opts?: ReadOpts) => useRead("repos.recent", params, opts);
+export const useRepoFacts = (params: CallParams<"repo.facts">, opts?: ReadOpts) => useRead("repo.facts", params, opts);
 export const useWorktreesList = (params: CallParams<"worktrees.list"> = {}, opts?: ReadOpts) => useRead("worktrees.list", params, opts);
 export const useWorktreeDiff = (params: CallParams<"worktree.diff">, opts?: ReadOpts) => useRead("worktree.diff", params, opts);
 export const useFilesList = (params: CallParams<"files.list">, opts?: ReadOpts) => useRead("files.list", params, opts);

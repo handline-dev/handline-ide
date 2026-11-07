@@ -49,6 +49,8 @@ type Env struct {
 	LoginState func(account string) (loggedIn, known bool)
 	// PullRequests answers which of the numbers are pull requests of a GitHub repo; nil asks gh.
 	PullRequests func(ctx context.Context, repo string, numbers []int) ([]int, error)
+	// Issues is the two newest open issues of the GitHub repo of a git folder, as {number, title}; nil asks gh.
+	Issues func(ctx context.Context, dir string) ([]any, error)
 	// Resources is the latest measure of what the machine and each agent use (sysres.Sampler.Latest); nil serves none.
 	Resources func() map[string]any
 	// Load is the latest sample of every process and whose it is (procload.Tracker.View); LoadSeries is each agent's minutes since a time.
@@ -116,6 +118,7 @@ func Register(s *rpc.Server, env Env) {
 	s.Register("proposal.list", rpc.Method{Handler: e.proposalList, Read: true})
 	s.Register("repos.list", rpc.Method{Handler: e.reposList, Read: true})
 	s.Register("repos.recent", rpc.Method{Handler: e.reposRecent, Read: true})
+	s.Register("repo.facts", rpc.Method{Handler: e.repoFacts, Read: true})
 	s.Register("worktrees.list", rpc.Method{Handler: e.worktreesList, Read: true})
 	s.Register("worktree.diff", rpc.Method{Handler: e.worktreeDiff, Read: true})
 	s.Register("agent.options", rpc.Method{Handler: e.agentOptions, Read: true})

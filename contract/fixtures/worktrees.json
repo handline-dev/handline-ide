@@ -71,6 +71,81 @@
    ]
   },
   {
+   "name": "repo.facts.an_agent_session_is_refused_by_role",
+   "spec": "repo.facts",
+   "about": "A person's read: a call from an agent session is refused, gate role.",
+   "as": "agent",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "repo.facts",
+      "params": {
+       "path": "/"
+      }
+     },
+     "error": {
+      "code": -32002,
+      "data": {
+       "code": "refused",
+       "gate": "role"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "repo.facts.only_a_git_folder",
+   "spec": "repo.facts",
+   "about": "A path that holds no .git is not_found, what path.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "repo.facts",
+      "params": {
+       "path": "/nonexistent/handline-conformance"
+      }
+     },
+     "error": {
+      "code": -32001,
+      "data": {
+       "code": "not_found",
+       "what": "path"
+      }
+     }
+    }
+   ]
+  },
+  {
    "name": "worktrees.list.an_agent_session_is_refused_by_role",
    "spec": "worktrees.list",
    "about": "A person's read: a call from an agent session is refused, gate role.",

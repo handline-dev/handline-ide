@@ -222,6 +222,62 @@
      "name",
      "touched_at"
     ]
+   },
+   "RepoFacts": {
+    "type": "object",
+    "properties": {
+     "test_command": {
+      "oneOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "What runs its tests, by the files at its top: a package.json test script (pnpm, yarn or bun test by lockfile, bun.lock or bun.lockb for bun, else npm test), go.mod (go test ./...), a pytest or Python project file (pytest), a Makefile test target (make test), in that order; null for none."
+     },
+     "issues": {
+      "oneOf": [
+       {
+        "type": "array",
+        "items": {
+         "type": "object",
+         "properties": {
+          "number": {
+           "type": "integer"
+          },
+          "title": {
+           "type": "string"
+          }
+         },
+         "required": [
+          "number",
+          "title"
+         ]
+        }
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "The two newest open issues of its GitHub repo, by gh within 3 s; null when gh cannot tell."
+     },
+     "todos": {
+      "type": "integer",
+      "description": "Lines of tracked text files holding the word TODO or FIXME, at most 999."
+     },
+     "uncommitted": {
+      "type": "integer",
+      "description": "Files git status lists, untracked ones included."
+     }
+    },
+    "required": [
+     "test_command",
+     "issues",
+     "todos",
+     "uncommitted"
+    ]
    }
   }
  },
@@ -285,6 +341,39 @@
     "feed": null
    },
    "x-since": 1
+  },
+  {
+   "name": "repo.facts",
+   "summary": "Facts of a git folder for the first-run cards, within 4 s: a part not done by then is null or 0.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "path",
+     "required": true,
+     "schema": {
+      "type": "string"
+     },
+     "description": "An absolute path of a folder holding a .git; anything else is not_found, what path."
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/RepoFacts"
+    }
+   },
+   "x-role": "member",
+   "x-write": false,
+   "x-app-cache": {
+    "resource": "repo_facts",
+    "feed": null
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/not_found"
+    }
+   ]
   },
   {
    "name": "worktrees.list",
