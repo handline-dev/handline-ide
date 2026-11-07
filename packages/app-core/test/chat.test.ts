@@ -19,6 +19,7 @@ import {
   foldBash,
   foldTasks,
   foldTurns,
+  unblockedStart,
   maybeRanNote,
   chatEntries,
   activity,
@@ -517,4 +518,16 @@ test('a run of tool steps and session text is one record; a message or an answer
   );
   // Without steps the agent's own chat keeps no tool line, as before.
   assert.equal(timeline([], items, 'mine', A).filter((e) => e.kind === 'item' && e.item.kind === 'tool').length, 0);
+});
+
+test('a task freed by its last blocker is a start card naming that blocker', () => {
+  const ev = (over: object) =>
+    item({ kind: 'task_event', text: undefined, task_event: { task: 8685, request: null, evidence: null, who: 'x', ...over } as never });
+  assert.deepEqual(unblockedStart(ev({ event: 'unblocked', closed_task: 8632 })), {
+    task: 8685,
+    detail: 'Started: T8632, its last blocker, is done',
+  });
+  assert.equal(unblockedStart(ev({ event: 'unblocked' }))?.detail, 'Started: its last blocker is done');
+  assert.equal(unblockedStart(ev({ event: 'done' })), null);
+  assert.equal(unblockedStart(item({})), null);
 });
