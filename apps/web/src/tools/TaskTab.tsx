@@ -1,4 +1,4 @@
-import { activityOf, foundersTurn, isPerson, turnChain, isSystem, type ActivityItem } from '@handline/app-core';
+import { activityOf, foundersTurn, taskOutcome, isPerson, turnChain, isSystem, type ActivityItem } from '@handline/app-core';
 import { hooks, useWrite } from '@handline/app-data';
 import { useMe } from '@handline/app-react';
 import type { TaskDetail } from '@handline/client';
@@ -135,6 +135,7 @@ export function TaskTab({ id }: { id: number }) {
           )}
           {t.evidence && (
             <Section title="Result">
+              <ResultChips evidence={t.evidence} title={t.title} />
               <Flash text={t.evidence}>
                 <Markdown text={t.evidence} />
               </Flash>
@@ -393,3 +394,11 @@ function Activity({ items, onReply }: { items: ActivityItem[]; onReply: (memo: n
 }
 
 /** The chat's message box, writing a comment on the task; its draft and files are kept per task. */
+
+/** What the work came to: the pull request when the evidence names one, else the commit. */
+function ResultChips({ evidence, title }: { evidence: string; title: string }) {
+  const o = taskOutcome(evidence, title);
+  const chip = o.pr !== null ? `PR #${o.pr}` : o.sha;
+  if (!chip) return null;
+  return <span className="mb-2 inline-block w-fit rounded-md bg-surface px-2 py-0.5 font-mono text-xs text-fg">{chip}</span>;
+}
