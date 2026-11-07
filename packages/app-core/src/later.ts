@@ -20,17 +20,22 @@ export const laterHolds = (l: LaterAt | null | undefined, now: number, open: (ta
 const at = (d: Date, hour: number): Date => (d.setHours(hour, 0, 0, 0), d);
 
 /** The quick choices of the Later menu from `now`: this afternoon 15:00 (only before it), tomorrow 09:00, next Monday 09:00. */
+/** Tomorrow 09:00 from `now`, as an ISO time. */
+export function tomorrowAt9(now: number): string {
+  const t = at(new Date(now), 9);
+  t.setDate(new Date(now).getDate() + 1);
+  return t.toISOString();
+}
+
 export function laterChoices(now: number): { label: string; until: string }[] {
   const d = new Date(now);
   const afternoon = at(new Date(now), 15);
-  const tomorrow = at(new Date(now), 9);
-  tomorrow.setDate(d.getDate() + 1);
   const monday = at(new Date(now), 9);
   monday.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7));
   const iso = (x: Date) => x.toISOString();
   return [
     ...(afternoon.getTime() > now ? [{ label: 'This afternoon 15:00', until: iso(afternoon) }] : []),
-    { label: 'Tomorrow 09:00', until: iso(tomorrow) },
+    { label: 'Tomorrow 09:00', until: tomorrowAt9(now) },
     { label: 'Monday 09:00', until: iso(monday) },
   ];
 }

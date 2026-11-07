@@ -1,5 +1,6 @@
 import { useTask, useWrite } from '@handline/app-data';
 import type { PendingRequest, RequestRow } from '@handline/client';
+import { tomorrowAt9 } from '@handline/app-core';
 import {
   CircleCheck,
   CircleX,
@@ -13,9 +14,14 @@ import {
   MessageSquare,
   ShieldQuestion,
   Signpost,
+  X,
 } from 'lucide-react';
 import type { MouseEvent, ReactNode } from 'react';
-import { requestKey, RowMenu, turnKey, usePick, type Picked } from '#src/requests/RowMenu.tsx';
+import { requestKey, RowMenu, turnKey, usePick, useRowActions, type Picked } from '#src/requests/RowMenu.tsx';
+import { laterKey } from '#src/requests/data.ts';
+import { Button } from '#src/ui/Button.tsx';
+import { IconButton } from '#src/ui/IconButton.tsx';
+import { toast } from '#src/ui/toast.tsx';
 import { ago } from '#src/format/time.ts';
 import { focusIn } from '#src/layout/focus.ts';
 import { chatOf, taskOf } from '#src/layout/kinds.tsx';
@@ -66,12 +72,15 @@ function Line({
   icon,
   row,
   opens,
+  trailing,
 }: {
   title: string;
   meta: string;
   onOpen: (how: 'here' | 'side') => void;
   /** What a drag of the row opens where it is dropped; none for a row that opens no tab. */
   opens?: () => string | null;
+  /** Shown at the row's end while the pointer is on it: a dismiss, or a proposal's answer. */
+  trailing?: ReactNode;
   mark?: boolean;
   icon: ReactNode;
   row: Picked;
@@ -114,6 +123,11 @@ function Line({
           <span className="truncate text-xs text-muted">{meta}</span>
         </span>
       </button>
+      {trailing && (
+        <span className="absolute top-1.5 right-1.5 hidden items-center gap-1 rounded-md bg-surface group-hover/line:flex group-focus-within/line:flex">
+          {trailing}
+        </span>
+      )}
     </div>
   );
   return pick ? <RowMenu row={row}>{line}</RowMenu> : line;
@@ -156,6 +170,7 @@ export function TurnLine({ p, onOpened, until }: { p: PendingRequest; onOpened?:
         .filter(Boolean)
         .join(' · ')}
       opens={() => turnOpens(p)}
+      trailing={<TurnQuick p={p} />}
       onOpen={(how) => {
         open(how);
         onOpened?.();
@@ -213,5 +228,35 @@ export function RequestLine({ r, onOpened }: { r: RequestRow; onOpened?: () => v
         onOpened?.();
       }}
     />
+  );
+}
+
+/** A proposal's answer, Allow or Deny; else a dismiss until tomorrow 09:00 (Later). */
+function TurnQuick({ p }: { p: PendingRequest }) {
+  const act = useRowActions();
+  const decide = useWrite('proposal.decide');
+  if (p.source === 'proposal' && p.id) {
+    const answer = (decision: 'approve' | 'reject') =>
+      decide.mutate(
+        { proposal: Number(p.id), decision },
+        { onError: (e) => toast(`Did not answer: ${(e as Error).message}`, { tone: 'warning' }) },
+      );
+    return (
+      <>
+        <Button variant="primary" disabled={decide.isPending} onClick={() => answer('approve')}>
+          Allow
+        </Button>
+        <Button disabled={decide.isPending} onClick={() => answer('reject')}>
+          Deny
+        </Button>
+      </>
+    );
+  }
+  const later = laterKey(p);
+  if (!later) return null;
+  return (
+    <IconButton label="Dismiss until tomorrow 09:00" onClick={() => void act.later([{ key: turnKey(p), later }], tomorrowAt9(Date.now()))}>
+      <X size={14} />
+    </IconButton>
   );
 }
