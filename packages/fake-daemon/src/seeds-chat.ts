@@ -57,6 +57,33 @@ export const CHAT_SEEDS: Record<string, Seed> = {
     line(1, 'sleep 600', { done: false });
   },
 
+  /** Tasks given to the architect, one assigned and one handed on, and a turn running 4 minutes on the one it holds (T8705). */
+  'start-card': (d) => {
+    const iso = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
+    d.tasks.seed({ id: 1683, from: 'handline', to: ARCH, title: 'Chat plan, second pass', state: 'done' });
+    d.chat.seed(ARCH, {
+      from: 'handline',
+      to: ARCH,
+      kind: 'task',
+      tasks: [{ id: 1683, title: 'Chat plan, second pass' }],
+      body: 'T1683 Chat plan, second pass',
+      at: iso(40),
+      landing: 'delivered',
+    });
+    d.chat.seed(ARCH, {
+      from: 'handline.ui',
+      to: ARCH,
+      kind: 'task',
+      tasks: [{ id: 1684, title: 'Web UI design' }],
+      body: 'T1684 handed to you: Web UI design',
+      at: iso(4),
+      landing: 'delivered',
+    });
+    d.chat.setWorking(ARCH, true, 'Working');
+    const s = d.sessions.get(ARCH)!;
+    s.fx.view = { ...s.fx.view, doing: { text: 'Bash Run the two pause tests 30 times under load', at: iso(1) } };
+  },
+
   /** Chat messages with one-tap actions: OK / No on an open task the founder owns. */
   'chat-actions': (d) => {
     const at = Date.now();
