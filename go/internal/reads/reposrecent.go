@@ -16,10 +16,19 @@ import (
 const (
 	recentMax    = 12
 	recentBudget = 300 * time.Millisecond
+	recentDepth  = 3 // ~/code/org/repo
 )
 
-// recentNever are the home folders a scan never enters: macOS asks the person for each of them.
-var recentNever = []string{"Documents", "Desktop", "Downloads", "Library"}
+// recentNever are the home folders a scan never enters: macOS asks the person for the first four, the rest hold media and apps.
+var recentNever = []string{"Documents", "Desktop", "Downloads", "Library", "Pictures", "Music", "Movies", "Applications"}
+
+// recentBundles are folder name endings never entered: app bundles and media libraries.
+var recentBundles = []string{".app", ".photoslibrary", ".musiclibrary"}
+
+type recentDir struct {
+	path  string
+	depth int
+}
 
 type recentFolder struct {
 	path, name string
@@ -39,7 +48,7 @@ func (e *Env) reposRecent(_ *rpc.Conn, _ map[string]any) (any, error) {
 	return map[string]any{"folders": out}, nil
 }
 
-// recentRepos walks home breadth first, by stats alone, until the deadline, for the newest recentMax repos not in known.
+// recentRepos walks home breadth first to recentDepth levels, by stats alone, until the deadline, for the newest recentMax repos not in known.
 func recentRepos(home string, known map[string]bool, deadline time.Time) []recentFolder {
 	st, err := os.Stat(home)
 	if err != nil {
@@ -51,11 +60,11 @@ func recentRepos(home string, known map[string]bool, deadline time.Time) []recen
 		never[filepath.Join(home, n)] = true
 	}
 	var found []recentFolder
-	queue := []string{home}
+	queue := []recentDir{{home, 0}}
 	for len(queue) > 0 && time.Now().Before(deadline) {
 		dir := queue[0]
 		queue = queue[1:]
-		entries, err := os.ReadDir(dir)
+		entries, err := os.ReadDir(dir.path)
 		if err != nil {
 			continue
 		}
@@ -63,10 +72,10 @@ func recentRepos(home string, known map[string]bool, deadline time.Time) []recen
 			if !time.Now().Before(deadline) {
 				break
 			}
-			if !d.IsDir() || strings.HasPrefix(d.Name(), ".") || d.Name() == "node_modules" {
+			if !d.IsDir() || strings.HasPrefix(d.Name(), ".") || d.Name() == "node_modules" || isBundle(d.Name()) {
 				continue
 			}
-			p := filepath.Join(dir, d.Name())
+			p := filepath.Join(dir.path, d.Name())
 			if never[p] || known[p] {
 				continue
 			}
@@ -78,7 +87,9 @@ func recentRepos(home string, known map[string]bool, deadline time.Time) []recen
 			case gitRepo:
 				found = append(found, recentFolder{path: p, name: d.Name(), touched: touched})
 			case gitNone:
-				queue = append(queue, p)
+				if dir.depth+1 < recentDepth {
+					queue = append(queue, recentDir{p, dir.depth + 1})
+				}
 			}
 		}
 	}
@@ -87,6 +98,15 @@ func recentRepos(home string, known map[string]bool, deadline time.Time) []recen
 		found = found[:recentMax]
 	}
 	return found
+}
+
+func isBundle(name string) bool {
+	for _, ext := range recentBundles {
+		if strings.HasSuffix(name, ext) {
+			return true
+		}
+	}
+	return false
 }
 
 type gitKind int

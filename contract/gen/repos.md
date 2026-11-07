@@ -24,7 +24,7 @@ Repos.
 
 ### `repos.recent`
 
-Git folders under the person's home not in repos.list, for the first-run repo pick: at most 12, newest first. Found by folder stats alone within about 300 ms; no symlink, other volume, dot folder, ~/Documents, ~/Desktop, ~/Downloads or ~/Library is entered.
+Git folders under the person's home not in repos.list, for the first-run repo pick: at most 12, newest first. Found by folder stats alone, up to three levels below home, within about 300 ms; no symlink, other volume, dot folder, app bundle, media library, ~/Documents, ~/Desktop, ~/Downloads, ~/Library, ~/Pictures, ~/Music, ~/Movies or ~/Applications is entered.
 
 ### `worktrees.list`
 

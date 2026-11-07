@@ -39,11 +39,13 @@ func TestRecentReposFindsGitFoldersNewestFirstAndSkipsWhatItMustNotEnter(t *test
 	home, _ := filepath.EvalSymlinks(t.TempDir())
 	at := func(h int) time.Time { return time.Date(2026, 11, 7, h, 0, 0, 0, time.UTC) }
 	fakeRepo(t, filepath.Join(home, "code", "old"), at(1), at(2))
-	fakeRepo(t, filepath.Join(home, "code", "new"), at(3), at(1)) // HEAD is the later of the two
-	fakeRepo(t, filepath.Join(home, "deep", "a", "b", "mid"), at(1), at(2).Add(30*time.Minute))
+	fakeRepo(t, filepath.Join(home, "code", "new"), at(3), at(1))                          // HEAD is the later of the two
+	fakeRepo(t, filepath.Join(home, "deep", "a", "mid"), at(1), at(2).Add(30*time.Minute)) // three levels down: the deepest looked at
+	fakeRepo(t, filepath.Join(home, "deep", "a", "b", "far"), at(9), at(9))
 	fakeRepo(t, filepath.Join(home, "code", "old", "vendor", "inner"), at(9), at(9)) // inside a repo: never entered
 	fakeRepo(t, filepath.Join(home, "known"), at(9), at(9))
-	for _, n := range []string{"Documents", "Desktop", "Downloads", "Library", ".hidden", "node_modules"} {
+	for _, n := range []string{"Documents", "Desktop", "Downloads", "Library", "Pictures", "Music", "Movies", "Applications",
+		".hidden", "node_modules", "Tool.app", "Photos Library.photoslibrary", "Music Library.musiclibrary"} {
 		fakeRepo(t, filepath.Join(home, n, "x"), at(9), at(9))
 	}
 	// A linked worktree's .git is a file: neither listed nor entered.
