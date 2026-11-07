@@ -156,6 +156,12 @@ async function attach(remote: Remote, link: Link): Promise<{ address: string; to
   return { address: remote.host, token: remote.token, host: plainRemoteHost(remote) };
 }
 
+/** The login shell's PATH as a daemon start asked it; timedOut when the shell did not answer in time. */
+export interface LoginPath {
+  path: string | undefined;
+  timedOut: boolean;
+}
+
 /** The daemon's command with its claude resolved now, on the login shell's PATH: a Dock launch has no shell dirs. */
 async function daemonCmd(o: {
   env: (k: string) => string | undefined;
@@ -163,13 +169,14 @@ async function daemonCmd(o: {
   listen: string | undefined;
   advertise: string | null;
   web: string | null;
-  loginPath: () => Promise<string | undefined>;
+  loginPath: () => Promise<LoginPath>;
 }): Promise<Cmd> {
-  const login = await o.loginPath();
+  const { path: login, timedOut } = await o.loginPath();
   const claude = resolveClaude(o.env('CLAUDE'), [login, process.env.PATH], executable);
   return {
     ...commands(o.env, o.root, o.listen ?? '127.0.0.1:7443', o.advertise, claude, o.web),
     path: daemonPath(login, process.env.PATH),
+    pathTimedOut: timedOut,
   };
 }
 
@@ -238,7 +245,7 @@ export function ownDaemon(o: {
   current: Settings;
   /** Open at login, as the tray's checkbox changes it: kept in the settings and handed to the system. */
   setOpenAtLogin: (on: boolean) => void;
-  loginPath: () => Promise<string | undefined>;
+  loginPath: () => Promise<LoginPath>;
   /** Follow-main mode adds its items to the tray. */
   follow?: () => TrayFollow;
   /** The update flow, for the menu's update lines and the icon. */
@@ -323,7 +330,7 @@ export function ownDaemon(o: {
     link,
     remote,
     restartDaemon,
-    daemon: () => ({ state: owner.state, reason: owner.reason, canStart: !remote }),
+    daemon: () => ({ state: owner.state, reason: owner.reason, canStart: !remote, pathTimedOut: owner.spawned?.pathTimedOut ?? false }),
     onDaemon: (f) => owner.onChange(f),
     startDaemon: () => void owner.start(),
     running: () => mine && owner.state === 'running',

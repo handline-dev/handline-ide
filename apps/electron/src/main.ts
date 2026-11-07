@@ -9,7 +9,7 @@ import { drawsTray, inBackground } from '#src/background.ts';
 import { isDebugWindow } from '#src/debug-window.ts';
 import { setMenu } from '#src/menu.ts';
 import { Desk } from '#src/desk.ts';
-import { Composer, LOGIN_PROBE, parseLoginEnv, sweepTemp, type EditorEnv } from '#src/editor.ts';
+import { Composer, LOGIN_PROBE, loginAnswer, sweepTemp, type EditorEnv } from '#src/editor.ts';
 import { serveCapture } from '#src/capture.ts';
 import { gitView, scratch } from '#src/git-view.ts';
 import { Opener } from '#src/open.ts';
@@ -70,14 +70,22 @@ let win: BrowserWindow | null = null;
 /** Where an update is, for the notice, the tray and both sources of updates. */
 const flow = new UpdateFlow();
 
-/** VISUAL, EDITOR and PATH: the shell's own environment, else the login shell's, asked once (a Dock launch has neither). */
+/** The login shell's VISUAL, EDITOR and PATH, asked now; timedOut when it did not answer within 3 s (a Dock launch has neither). */
+function askLogin(): Promise<{ env: EditorEnv; timedOut: boolean }> {
+  return new Promise((resolve) => {
+    execFile(process.env.SHELL ?? '/bin/sh', ['-ilc', LOGIN_PROBE], { timeout: 3000, encoding: 'utf8' }, (err, out) =>
+      resolve(loginAnswer(err, out)),
+    );
+  });
+}
+
+/** VISUAL, EDITOR and PATH for the editor: the shell's own environment, else the login shell's, kept once it has answered. */
 let login: Promise<EditorEnv> | null = null;
 async function editorEnv(): Promise<EditorEnv> {
   if (process.env.VISUAL || process.env.EDITOR) return { VISUAL: process.env.VISUAL, EDITOR: process.env.EDITOR, PATH: process.env.PATH };
-  login ??= new Promise<EditorEnv>((resolve) => {
-    execFile(process.env.SHELL ?? '/bin/sh', ['-ilc', LOGIN_PROBE], { timeout: 3000, encoding: 'utf8' }, (err, out) =>
-      resolve(err && !out ? {} : parseLoginEnv(out)),
-    );
+  login ??= askLogin().then((r) => {
+    if (r.timedOut) login = null;
+    return r.env;
   });
   return login;
 }
@@ -359,7 +367,12 @@ if (!app.requestSingleInstanceLock({ background })) {
     const f = following?.follower;
     const own: Own = ownDaemon({
       env,
-      loginPath: async () => (await editorEnv()).PATH,
+      // Asked at each daemon start, so a restart picks up a tool installed since (its installer changes the shell's PATH).
+      loginPath: async () => {
+        if (process.env.VISUAL || process.env.EDITOR) return { path: process.env.PATH, timedOut: false };
+        const r = await askLogin();
+        return { path: r.env.PATH, timedOut: r.timedOut };
+      },
       home,
       root,
       tray: drawsTray(process.env, app.isPackaged),

@@ -53,6 +53,9 @@ export interface ShellDaemon {
   state: 'starting' | 'running' | 'stopped' | 'failed';
   reason: string;
   canStart: boolean;
+  /** True when the login shell did not answer in time at the daemon's last start, so it runs on the app's own PATH: its missing_tools
+   * may name tools that are installed. A restart asks the shell again. Absent from an app that does not say. */
+  pathTimedOut?: boolean;
 }
 
 export interface ShellApi {
