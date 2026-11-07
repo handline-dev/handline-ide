@@ -41,6 +41,7 @@ export const reads = {
   "devices.list": { resource: "devices", feed: "devices" },
   "repos.list": { resource: "repos" },
   "repos.recent": { resource: "recent_repos" },
+  "repo.facts": { resource: "repo_facts" },
   "worktrees.list": { resource: "worktrees" },
   "worktree.diff": { resource: "worktree-diff" },
   "files.list": { resource: "files" },

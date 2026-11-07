@@ -5,7 +5,7 @@ import { Failure, invalidParams, refused } from '#src/errors.ts';
 import { AGENTS } from '#src/fixtures.ts';
 
 /** The methods this answers. */
-const WORKTREES = /^(repos\.list|repos\.recent|worktrees\.list|worktree\.diff|worktree\.remove|files\.list|file\.read|file\.write)$/;
+const WORKTREES = /^(repos\.list|repos\.recent|repo\.facts|worktrees\.list|worktree\.diff|worktree\.remove|files\.list|file\.read|file\.write)$/;
 
 const REPOS: Repo[] = [
   { name: 'handline', path: '/work/handline', default_branch: 'main' },
@@ -207,6 +207,12 @@ export class FakeWorktrees {
         return { repos: this.repos.map((r) => ({ ...r })) };
       case 'repos.recent':
         return { folders: this.recent.map((f) => ({ ...f })) };
+      case 'repo.facts': {
+        if (typeof p.path !== 'string' || !p.path) throw invalidParams('path is a git folder', 'path');
+        if (![...this.repos, ...this.recent].some((r) => r.path === p.path))
+          throw new Failure('not_found', `${p.path} is not a git folder`, { what: 'path', path: p.path });
+        return { test_command: 'pnpm test', issues: [{ number: 42, title: 'Dark mode flickers on load' }], todos: 7, uncommitted: 2 };
+      }
       case 'worktrees.list': {
         if (p.repo !== undefined && typeof p.repo !== 'string') throw invalidParams('repo must be a string', 'repo');
         if (p.owner !== undefined && typeof p.owner !== 'string') throw invalidParams('owner must be a string', 'owner');

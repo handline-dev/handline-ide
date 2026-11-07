@@ -7,6 +7,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 |---|---|---|---|---|---|---|---|
 | `repos.list` | member |  | none | `{repos}` |  |  | `repos`, snapshot |
 | `repos.recent` | member |  | none | `{folders}` |  |  | `recent_repos`, snapshot |
+| `repo.facts` | member |  | `path` | `RepoFacts` | `not_found` |  | `repo_facts`, snapshot |
 | `worktrees.list` | member |  | `repo?`, `owner?` | `{worktrees}` |  |  | `worktrees`, snapshot |
 | `worktree.diff` | member |  | `path`, `file?`, `against?` | `{path, file, diff, truncated, against, base_ref}` | `not_found` |  | `worktree-diff`, snapshot |
 | `files.list` | member |  | `agent`, `query?`, `limit?` | `{files, more}` | `bad_request`, `not_found` |  | `files`, snapshot |
@@ -25,6 +26,10 @@ Repos.
 ### `repos.recent`
 
 Git folders under the person's home not in repos.list, for the first-run repo pick: at most 12, newest first. Found by folder stats alone, up to three levels below home, within about 300 ms; no symlink, other volume, dot folder, app bundle, media library, ~/Documents, ~/Desktop, ~/Downloads, ~/Library, ~/Pictures, ~/Music, ~/Movies or ~/Applications is entered.
+
+### `repo.facts`
+
+Facts of a git folder for the first-run cards, within 4 s: a part not done by then is null or 0.
 
 ### `worktrees.list`
 

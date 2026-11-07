@@ -59,6 +59,20 @@ export type RecentFolder = {
   touched_at: Timestamp;
 };
 
+export type RepoFacts = {
+  /** What runs its tests, by the files at its top: a package.json test script (pnpm, yarn or bun test by lockfile, bun.lock or bun.lockb for bun, else npm test), go.mod (go test ./...), a pytest or Python project file (pytest), a Makefile test target (make test), in that order; null for none. */
+  test_command: string | null;
+  /** The two newest open issues of its GitHub repo, by gh within 3 s; null when gh cannot tell. */
+  issues: {
+    number: number;
+    title: string;
+  }[] | null;
+  /** Lines of tracked text files holding the word TODO or FIXME, at most 999. */
+  todos: number;
+  /** Files git status lists, untracked ones included. */
+  uncommitted: number;
+};
+
 export interface ReposMethods {
   "repos.list": { params: { [key: string]: unknown }; result: {
     repos: Repo[];
@@ -66,6 +80,9 @@ export interface ReposMethods {
   "repos.recent": { params: { [key: string]: unknown }; result: {
     folders: RecentFolder[];
   } };
+  "repo.facts": { params: {
+  path: string;
+}; result: RepoFacts };
   "worktrees.list": { params: {
   repo?: string;
   owner?: AgentName;
@@ -191,6 +208,7 @@ export interface ReposMethods {
 export const REPOS_METHODS: { [K in keyof ReposMethods]: { role: Role; callers: Role[] | null; write: boolean; since: number } } = {
   "repos.list": { role: "member", callers: null, write: false, since: 1 },
   "repos.recent": { role: "member", callers: null, write: false, since: 1 },
+  "repo.facts": { role: "member", callers: null, write: false, since: 1 },
   "worktrees.list": { role: "member", callers: null, write: false, since: 1 },
   "worktree.diff": { role: "member", callers: null, write: false, since: 1 },
   "files.list": { role: "member", callers: null, write: false, since: 1 },
@@ -204,9 +222,10 @@ export const REPOS_METHODS: { [K in keyof ReposMethods]: { role: Role; callers: 
 };
 
 /** x-app-cache of each read (x-app in core.json). */
-export const REPOS_APP_CACHE: { [K in "repos.list" | "repos.recent" | "worktrees.list" | "worktree.diff" | "files.list" | "file.read" | "doc.open" | "doc.pull" | "doc.close"]: { resource: string; id?: string; feed: Topic | null } | false } = {
+export const REPOS_APP_CACHE: { [K in "repos.list" | "repos.recent" | "repo.facts" | "worktrees.list" | "worktree.diff" | "files.list" | "file.read" | "doc.open" | "doc.pull" | "doc.close"]: { resource: string; id?: string; feed: Topic | null } | false } = {
   "repos.list": {"resource": "repos", "feed": null},
   "repos.recent": {"resource": "recent_repos", "feed": null},
+  "repo.facts": {"resource": "repo_facts", "feed": null},
   "worktrees.list": {"resource": "worktrees", "feed": null},
   "worktree.diff": {"resource": "worktree-diff", "feed": null},
   "files.list": {"resource": "files", "feed": null},
