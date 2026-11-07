@@ -11,6 +11,7 @@ import {
   Owner,
   portHolder,
   resolveClaude,
+  daemonPath,
   RESTART_WINDOW_MS,
   STOP_LIMIT_MS,
   WATCH_MS,
@@ -206,13 +207,19 @@ test('commands: a checkout runs go/handlined with its listener; the home, the bi
   assert.deepEqual(commands(() => undefined, '/repo', ':1', null, 'claude', '/app/web').args.slice(-2), ['-web', '/app/web']);
 });
 
-test('resolveClaude: the override wins; else the first executable claude on the login PATH, then the app PATH; none is an error', () => {
+test('resolveClaude: the override wins; else the first executable claude on the login PATH, then the app PATH; none is a bare claude', () => {
   const have = new Set(['/home/u/.local/bin/claude', '/usr/bin/claude']);
   const isExec = (f: string) => have.has(f);
   assert.equal(resolveClaude('/x/claude', ['/usr/bin'], isExec), '/x/claude');
   assert.equal(resolveClaude(undefined, ['/home/u/.local/bin:/usr/bin', '/usr/bin'], isExec), '/home/u/.local/bin/claude');
   assert.equal(resolveClaude(undefined, [undefined, '/usr/bin'], isExec), '/usr/bin/claude');
-  assert.throws(() => resolveClaude(undefined, ['/nowhere', undefined], isExec), /claude was not found/);
+  assert.equal(resolveClaude(undefined, ['/nowhere', undefined], isExec), 'claude');
+});
+
+test('daemonPath: the login PATH first, then the app PATH, each only when there is one', () => {
+  assert.equal(daemonPath('/opt/homebrew/bin:/usr/bin', '/usr/bin:/bin'), '/opt/homebrew/bin:/usr/bin:/usr/bin:/bin');
+  assert.equal(daemonPath(undefined, '/usr/bin:/bin'), '/usr/bin:/bin');
+  assert.equal(daemonPath('/opt/homebrew/bin', undefined), '/opt/homebrew/bin');
 });
 
 test('lockPid reads the pid the daemon wrote in its lock file, and null when there is none', () => {
