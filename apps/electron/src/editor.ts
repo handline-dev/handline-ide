@@ -242,4 +242,9 @@ export function parseLoginEnv(out: string): EditorEnv {
   const get = (k: string) => lines.find((l) => l.startsWith(`${k}=`))?.slice(k.length + 1) || undefined;
   return { VISUAL: get('VISUAL'), EDITOR: get('EDITOR'), PATH: get('PATH') };
 }
+/** The login probe's answer: its environment (none when it failed with no output), and whether it was stopped for taking too long. */
+export function loginAnswer(err: { killed?: boolean } | null, out: string): { env: EditorEnv; timedOut: boolean } {
+  return { env: err && !out ? {} : parseLoginEnv(out), timedOut: !!err?.killed };
+}
+
 export const LOGIN_PROBE = 'printf "__HL_BEGIN__\\nVISUAL=%s\\nEDITOR=%s\\nPATH=%s\\n__HL_END__\\n" "$VISUAL" "$EDITOR" "$PATH"';

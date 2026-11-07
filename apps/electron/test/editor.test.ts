@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { Sender } from '#src/bridge.ts';
-import { Composer, parseLoginEnv, splitWords, sweepTemp, type EditorEnv } from '#src/editor.ts';
+import { Composer, loginAnswer, parseLoginEnv, splitWords, sweepTemp, type EditorEnv } from '#src/editor.ts';
 
 const ORIGIN = 'http://127.0.0.1:5000';
 const top: Sender = { senderFrame: { url: `${ORIGIN}/`, parent: null } };
@@ -145,4 +145,12 @@ test('a cancel while the compose is still being set up stops the editor from sta
   assert.equal(code(await first), 'cancelled');
   assert.equal(fs.existsSync(marker), false);
   assert.deepEqual(left(), []);
+});
+
+test('loginAnswer: a shell stopped for taking too long is a timeout, with what it printed; a failure with no output is no environment', () => {
+  const out = '__HL_BEGIN__\nVISUAL=\nEDITOR=\nPATH=/opt/homebrew/bin\n__HL_END__\n';
+  assert.deepEqual(loginAnswer(null, out), { env: { VISUAL: undefined, EDITOR: undefined, PATH: '/opt/homebrew/bin' }, timedOut: false });
+  assert.deepEqual(loginAnswer({ killed: true }, ''), { env: {}, timedOut: true });
+  assert.deepEqual(loginAnswer({ killed: false }, ''), { env: {}, timedOut: false });
+  assert.equal(loginAnswer({ killed: true }, out).env.PATH, '/opt/homebrew/bin');
 });

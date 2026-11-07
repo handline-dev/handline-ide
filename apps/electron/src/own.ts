@@ -11,7 +11,7 @@ import { PROTOCOL, webSocketTransport } from '@handline/client';
 import { pinnedWebSocketTransport, unixSocketTransport } from '@handline/client-node';
 import { CHANNELS, fromWindow } from '#src/bridge.ts';
 import { Link, pairRemote, plainRemoteHost, helloOf, type OfferInput, type Remote, type Settings, type SettingsFile } from '#src/mode.ts';
-import { commands, daemonPath, detachedSpawn, Owner, resolveClaude, type Cmd } from '#src/owner.ts';
+import { commands, daemonPath, detachedSpawn, markPathTimedOut, Owner, pathTimedOut, resolveClaude, type Cmd } from '#src/owner.ts';
 import { answers, lockHolder, stopLeftovers } from '#src/leftovers.ts';
 import { ensureToken, founderKeyFile, once, TokenFile, type PairDeps } from '#src/pair.ts';
 import { grant } from '#src/grant.ts';
@@ -69,7 +69,8 @@ const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 /** Starts the daemon on its own: a session of its own (detached), nothing on its stdin and its output in daemon.log, and not waited on,
  * so it keeps running when the app quits. */
-function spawnDetached(cmd: Cmd, log: number): void {
+function spawnDetached(cmd: Cmd, log: number, home: string): void {
+  markPathTimedOut(home, !!cmd.pathTimedOut);
   const p = spawn(cmd.file, cmd.args, { ...detachedSpawn(log), env: cmd.path ? { ...process.env, PATH: cmd.path } : process.env });
   p.on('error', (e) => fs.writeSync(log, `${new Date().toISOString()} app: the daemon did not start: ${e.message}\n`));
   p.unref();
@@ -156,6 +157,12 @@ async function attach(remote: Remote, link: Link): Promise<{ address: string; to
   return { address: remote.host, token: remote.token, host: plainRemoteHost(remote) };
 }
 
+/** The login shell's PATH as a daemon start asked it; timedOut when the shell did not answer in time. */
+export interface LoginPath {
+  path: string | undefined;
+  timedOut: boolean;
+}
+
 /** The daemon's command with its claude resolved now, on the login shell's PATH: a Dock launch has no shell dirs. */
 async function daemonCmd(o: {
   env: (k: string) => string | undefined;
@@ -163,13 +170,14 @@ async function daemonCmd(o: {
   listen: string | undefined;
   advertise: string | null;
   web: string | null;
-  loginPath: () => Promise<string | undefined>;
+  loginPath: () => Promise<LoginPath>;
 }): Promise<Cmd> {
-  const login = await o.loginPath();
+  const { path: login, timedOut } = await o.loginPath();
   const claude = resolveClaude(o.env('CLAUDE'), [login, process.env.PATH], executable);
   return {
     ...commands(o.env, o.root, o.listen ?? '127.0.0.1:7443', o.advertise, claude, o.web),
     path: daemonPath(login, process.env.PATH),
+    pathTimedOut: timedOut,
   };
 }
 
@@ -238,7 +246,7 @@ export function ownDaemon(o: {
   current: Settings;
   /** Open at login, as the tray's checkbox changes it: kept in the settings and handed to the system. */
   setOpenAtLogin: (on: boolean) => void;
-  loginPath: () => Promise<string | undefined>;
+  loginPath: () => Promise<LoginPath>;
   /** Follow-main mode adds its items to the tray. */
   follow?: () => TrayFollow;
   /** The update flow, for the menu's update lines and the icon. */
@@ -264,7 +272,7 @@ export function ownDaemon(o: {
     holder: () => lockHolder(o.home),
     stopPid: (pid) => process.kill(pid, 'SIGTERM'),
     stopLeftovers: () => stopLeftovers(o.home, o.listen),
-    spawn: (cmd) => spawnDetached(cmd, log),
+    spawn: (cmd) => spawnDetached(cmd, log, o.home),
     daemon: () => daemonCmd(o),
     wait: sleep,
     now: () => Date.now(),
@@ -323,7 +331,7 @@ export function ownDaemon(o: {
     link,
     remote,
     restartDaemon,
-    daemon: () => ({ state: owner.state, reason: owner.reason, canStart: !remote }),
+    daemon: () => ({ state: owner.state, reason: owner.reason, canStart: !remote, pathTimedOut: pathTimedOut(o.home) }),
     onDaemon: (f) => owner.onChange(f),
     startDaemon: () => void owner.start(),
     running: () => mine && owner.state === 'running',

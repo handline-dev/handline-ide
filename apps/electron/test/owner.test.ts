@@ -12,6 +12,8 @@ import {
   portHolder,
   resolveClaude,
   daemonPath,
+  markPathTimedOut,
+  pathTimedOut,
   RESTART_WINDOW_MS,
   STOP_LIMIT_MS,
   WATCH_MS,
@@ -220,6 +222,23 @@ test('daemonPath: the login PATH first, then the app PATH, each only when there 
   assert.equal(daemonPath('/opt/homebrew/bin:/usr/bin', '/usr/bin:/bin'), '/opt/homebrew/bin:/usr/bin:/usr/bin:/bin');
   assert.equal(daemonPath(undefined, '/usr/bin:/bin'), '/usr/bin:/bin');
   assert.equal(daemonPath('/opt/homebrew/bin', undefined), '/opt/homebrew/bin');
+});
+
+test('a timed-out PATH is kept with the daemon: a later read, as a relaunch that adopts it makes, sees it until a start on the login PATH', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'hl-owner-'));
+  try {
+    assert.equal(pathTimedOut(home), false);
+    markPathTimedOut(home, true);
+    assert.equal(pathTimedOut(home), true);
+    markPathTimedOut(home, true);
+    assert.equal(pathTimedOut(home), true);
+    markPathTimedOut(home, false);
+    assert.equal(pathTimedOut(home), false);
+    markPathTimedOut(home, false);
+    assert.equal(pathTimedOut(home), false);
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
+  }
 });
 
 test('lockPid reads the pid the daemon wrote in its lock file, and null when there is none', () => {
