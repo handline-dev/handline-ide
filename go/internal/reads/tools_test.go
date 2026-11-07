@@ -21,7 +21,7 @@ func TestDaemonStatusNamesTheMissingToolsOfTheAgentSide(t *testing.T) {
 	bin := t.TempDir()
 	t.Setenv("PATH", bin)
 	e := testEnv(t)
-	all := []MissingTool{{"claude", "Install Claude Code"}, {"git", "brew install git"}, {"tmux", "brew install tmux"}}
+	all := []MissingTool{{"claude", "curl -fsSL https://claude.ai/install.sh | bash"}, {"git", "xcode-select --install"}, {"tmux", "brew install tmux"}}
 	if got := e.missingTools(); got != nil {
 		t.Fatalf("no agent side: %v", got)
 	}

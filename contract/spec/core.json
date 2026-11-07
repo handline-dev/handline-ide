@@ -1262,7 +1262,7 @@
      },
      "fix": {
       "type": "string",
-      "description": "How to get it, in plain words or a command, for example \"brew install tmux\"."
+      "description": "A shell command that installs the tool, for a client to show and copy, for example \"brew install tmux\"."
      }
     },
     "required": [
