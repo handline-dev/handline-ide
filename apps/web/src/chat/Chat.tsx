@@ -23,6 +23,7 @@ import { ModelChip } from '#src/chat/agent/ModelChip.tsx';
 import { StatusLine } from '#src/chat/agent/StatusLine.tsx';
 import { PauseCard } from '#src/chat/PauseCard.tsx';
 import { PromptCard } from '#src/chat/PromptCard.tsx';
+import { takeToChat } from '#src/chat/toChat.ts';
 import { TaskActivity, useTaskActivity, type TaskEvent } from '#src/chat/TaskActivity.tsx';
 import { useAttachments } from '#src/chat/attachments.tsx';
 import { ChatLine, drawsNothing, type Reply } from '#src/chat/ChatLine.tsx';
@@ -77,6 +78,10 @@ export function Chat({ agent }: { agent: string }) {
     attach.add(marked.map((m) => markedFile(m)));
     setDraft((d) => [d.trimEnd(), ...marked.map((m) => m.text)].filter(Boolean).join('\n\n'));
   };
+  // A screenshot marked in a Web tab comes here too.
+  const marked = useRef(addMarked);
+  marked.current = addMarked;
+  useEffect(() => takeToChat(agent, (m) => marked.current(m)), [agent]);
   // The message the next one replies to, picked by Reference or Quote; for this chat only.
   const [picked, setPicked] = useState<(Reply & { agent: string }) | null>(null);
   const reply = picked?.agent === agent ? picked : null;
