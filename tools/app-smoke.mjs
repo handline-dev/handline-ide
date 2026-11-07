@@ -5,11 +5,11 @@
 // kill -9 the same daemon still runs, and the next start adopts it; the follow restart, a new build, starts it again once. A local gate on macOS, run for a change to
 // apps/electron owner, main or follow, because the fakes the unit tests use passed T8410 and T8439 and still broke live (T8426, T8429, T8438).
 //   tools/app-smoke.mjs [--keep]      tests the commit HEAD (commit first); about 3 minutes, most of it the follow restart's builds
-import { execFileSync, spawn, spawnSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
-import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
+import { daemonsOf, dispose, listening, scratch, sleep, startApp, until } from './app-instance.mjs';
 
 const top = path.resolve(import.meta.dirname, '..');
 const keep = process.argv.includes('--keep');
@@ -19,63 +19,14 @@ if (os.platform() !== 'darwin') {
 }
 const sh = (cwd, file, args, env = {}) =>
   execFileSync(file, args, { cwd, encoding: 'utf8', env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'inherit'] });
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const until = async (what, ms, f) => {
-  const end = Date.now() + ms;
-  let last = null;
-  while (Date.now() < end) {
-    try {
-      const v = await f();
-      if (v) return v;
-    } catch (e) {
-      last = e;
-    }
-    await sleep(500);
-  }
-  throw new Error(`timed out waiting for ${what}${last ? `: ${last.message}` : ''}`);
-};
-const freePort = () =>
-  new Promise((resolve) => {
-    const s = net.createServer().listen(0, '127.0.0.1', () => {
-      const { port } = s.address();
-      s.close(() => resolve(port));
-    });
-  });
-
-const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'hl-smoke-')));
-const [listenPort, webPort, debugPort] = [await freePort(), await freePort(), await freePort()];
-const home = path.join(root, 'home');
+const { root, home, env, listenPort, webPort, debugPort, log } = await scratch('hl-smoke-');
 const source = path.join(root, 'source');
 const checkout = path.join(root, 'checkout');
-const env = {
-  HANDLINE_HOME: home,
-  HANDLINE_TEST_ROOT: path.join(root, 'user'), // the daemon's stand-in for the user's home: its protected store is kept here, not in the real one
-  HANDLINE_DATA: path.join(root, 'data'),
-  HANDLINE_BUNDLE_DIR: path.join(root, 'bundles'),
-  HANDLINE_LISTEN: `127.0.0.1:${listenPort}`,
-  HANDLINE_WEB_PORT: String(webPort),
-  HANDLINE_DEBUG_PORT: String(debugPort),
-  HANDLINE_BACKGROUND: '1', // no window to the front, no dock icon
-  HANDLINE_FOLLOW: '1',
-  HANDLINE_AGENT: '',
-  TMPDIR: path.join(root, 'tmp') + '/',
-};
-fs.mkdirSync(env.TMPDIR, { recursive: true });
-const log = path.join(root, 'app.log');
+env.HANDLINE_FOLLOW = '1';
 let failure = null;
 const pids = new Set();
 
-/** The pids listening on a TCP port. */
-const listening = (port) => {
-  const r = spawnSync('lsof', ['-nP', `-iTCP:${port}`, '-sTCP:LISTEN', '-t'], { encoding: 'utf8' });
-  return [...new Set(r.stdout.split('\n').filter(Boolean))];
-};
-/** The handlined processes of this scratch home: those whose working directory or command line names it. */
-const daemons = () =>
-  spawnSync('ps', ['-axo', 'pid=,command='], { encoding: 'utf8' })
-    .stdout.split('\n')
-    .filter((l) => /\/handlined( |$)/.test(l) && l.includes(root))
-    .map((l) => l.trim().split(/\s+/)[0]);
+const daemons = () => daemonsOf(root);
 
 /** One call in the page, over the DevTools port: the app's own answer, as the window would get it. */
 async function inPage(expression) {
@@ -100,16 +51,7 @@ async function inPage(expression) {
   }
 }
 
-function start() {
-  const out = fs.openSync(log, 'a');
-  const child = spawn('node', ['launch.ts'], {
-    cwd: path.join(checkout, 'apps', 'electron'),
-    env: { ...process.env, ...env },
-    stdio: ['ignore', out, out],
-  });
-  child.unref();
-  return child;
-}
+const start = () => startApp(path.join(checkout, 'apps', 'electron'), env, log);
 const appPid = () => listening(debugPort)[0];
 
 /** The app is up and the daemon runs: one handlined, the tray's state running, the app answering, and no complaint in its output. */
@@ -200,15 +142,7 @@ try {
   failure = e;
   console.error(`FAIL app-smoke: ${e.message}\nthe app's output: ${log}`);
 } finally {
-  for (const p of [appPid(), ...pids, ...daemons()]) {
-    try {
-      if (p) process.kill(Number(p), 'SIGKILL');
-    } catch {
-      /* gone */
-    }
-  }
-  // The daemon keeps its protected store outside the home, named for it: the one of this scratch home goes with it.
-  fs.rmSync(path.join(os.homedir(), '.config', 'handline', 'protected', home.replaceAll('/', '-')), { recursive: true, force: true });
+  dispose({ root, home, debugPort, pids: [...pids] }, { keepFiles: true });
   if (!keep && !failure) fs.rmSync(root, { recursive: true, force: true });
   else console.error(`kept ${root}`);
 }

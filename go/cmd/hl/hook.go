@@ -196,6 +196,9 @@ func capture(c *hlclient.Client, agent, event string, raw map[string]any) int {
 		fmt.Println("{}")
 		return 0
 	}
+	if event == "Stop" || event == "SessionEnd" {
+		reapApps(c.Home, agent) // the test apps this agent started with hl app
+	}
 	// Before the record: the agent's view the daemon writes for this event reads the snapshot.
 	if collected[event] {
 		cwd, _ := raw["cwd"].(string)
