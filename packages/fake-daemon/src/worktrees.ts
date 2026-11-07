@@ -1,15 +1,20 @@
 // The fake daemon's repos and worktrees: read-only, as the Python and Go daemons serve them today.
 import { createHash } from 'node:crypto';
-import type { Repo, Worktree } from '@handline/contract';
+import type { RecentFolder, Repo, Worktree } from '@handline/contract';
 import { Failure, invalidParams, refused } from '#src/errors.ts';
 import { AGENTS } from '#src/fixtures.ts';
 
 /** The methods this answers. */
-const WORKTREES = /^(repos\.list|worktrees\.list|worktree\.diff|worktree\.remove|files\.list|file\.read|file\.write)$/;
+const WORKTREES = /^(repos\.list|repos\.recent|worktrees\.list|worktree\.diff|worktree\.remove|files\.list|file\.read|file\.write)$/;
 
 const REPOS: Repo[] = [
   { name: 'handline', path: '/work/handline', default_branch: 'main' },
   { name: 'docs-site', path: '/work/docs-site', default_branch: 'master' },
+];
+
+const RECENT: RecentFolder[] = [
+  { path: '/Users/me/code/garden', name: 'garden', touched_at: '2026-11-06T09:12:00Z' },
+  { path: '/Users/me/side/notes-app', name: 'notes-app', touched_at: '2026-10-28T17:40:00Z' },
 ];
 
 /** A unified diff for one changed file, made up from its counts: the fake has no repository to run git in. */
@@ -185,6 +190,7 @@ export class FakeWorktrees {
   /** What worktrees.list serves; a test replaces it. */
   rows: Worktree[] = seed();
   repos: Repo[] = REPOS.map((r) => ({ ...r }));
+  recent: RecentFolder[] = RECENT.map((f) => ({ ...f }));
 
   /** `on` false is a daemon that lists none of these methods. */
   constructor(on: boolean) {
@@ -199,6 +205,8 @@ export class FakeWorktrees {
     switch (method) {
       case 'repos.list':
         return { repos: this.repos.map((r) => ({ ...r })) };
+      case 'repos.recent':
+        return { folders: this.recent.map((f) => ({ ...f })) };
       case 'worktrees.list': {
         if (p.repo !== undefined && typeof p.repo !== 'string') throw invalidParams('repo must be a string', 'repo');
         if (p.owner !== undefined && typeof p.owner !== 'string') throw invalidParams('owner must be a string', 'owner');

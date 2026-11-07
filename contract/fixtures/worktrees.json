@@ -36,6 +36,41 @@
    ]
   },
   {
+   "name": "repos.recent.an_agent_session_is_refused_by_role",
+   "spec": "repos.recent",
+   "about": "A person's read: a call from an agent session is refused, gate role.",
+   "as": "agent",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "repos.recent",
+      "params": {}
+     },
+     "error": {
+      "code": -32002,
+      "data": {
+       "code": "refused",
+       "gate": "role"
+      }
+     }
+    }
+   ]
+  },
+  {
    "name": "worktrees.list.an_agent_session_is_refused_by_role",
    "spec": "worktrees.list",
    "about": "A person's read: a call from an agent session is refused, gate role.",
