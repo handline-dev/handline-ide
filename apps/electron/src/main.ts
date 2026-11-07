@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { app, BrowserWindow, desktopCapturer, ipcMain, Notification, session, shell, type WebContents } from 'electron';
+import { app, BrowserWindow, desktopCapturer, dialog, ipcMain, Notification, session, shell, type WebContents } from 'electron';
 import { DaemonClient } from '@handline/client';
 import { unixSocketTransport } from '@handline/client-node';
 import { drawsTray, inBackground } from '#src/background.ts';
@@ -11,6 +11,7 @@ import { setMenu } from '#src/menu.ts';
 import { Desk } from '#src/desk.ts';
 import { Composer, LOGIN_PROBE, loginAnswer, sweepTemp, type EditorEnv } from '#src/editor.ts';
 import { serveCapture } from '#src/capture.ts';
+import { chooseFolder, serveFolderPick } from '#src/folder-pick.ts';
 import { gitView, scratch } from '#src/git-view.ts';
 import { Opener } from '#src/open.ts';
 import { handleOpenIn } from '#src/open-in-serve.ts';
@@ -174,6 +175,11 @@ function handleConnection(origin: string, own: Own, remote: Remote | null, f?: F
   ipcMain.handle(CHANNELS.checkUpdate, (e) => c.checkUpdate(e));
   ipcMain.handle(CHANNELS.pairRemote, (e, arg) => c.pairRemote(e, arg));
   serveCapture(ipcMain, origin, { sources: (thumbnailSize) => desktopCapturer.getSources({ types: ['window'], thumbnailSize }) });
+  serveFolderPick(
+    ipcMain,
+    origin,
+    chooseFolder(dialog, () => win),
+  );
 }
 
 /** The Settings row that links `hl` into ~/.local/bin, to the one inside the bundle: when the app moves, the row shows it unlinked and links it again. */
