@@ -28,6 +28,7 @@ export function chatView(
   agent: string,
   me: string,
   decided: readonly Proposal[] = [],
+  steps = false,
 ): { entries: TimelineEntry[]; floor: string | null; older: boolean } {
   const floor = coverage(s);
   const drawn = (at: string) => floor === null || at >= floor;
@@ -38,6 +39,7 @@ export function chatView(
     agent,
     me,
     decided.filter((p) => p.settled && drawn(p.settled)),
+    steps,
   );
   return { entries, floor, older: s.moreMessages || s.moreItems };
 }

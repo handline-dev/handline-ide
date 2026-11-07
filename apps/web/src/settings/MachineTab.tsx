@@ -158,6 +158,22 @@ export function MachineTab() {
           {why('awake')}
         </Block>
 
+        <Block
+          title="Tool record in chat"
+          note="Each turn's tool calls, folded under one line in the agent's chat. One database write per call."
+        >
+          <div className={m.pending === 'record' ? 'opacity-50' : ''}>
+            <Switch
+              label="Tool record in chat"
+              value={m.record ? 'on' : 'off'}
+              options={['off', 'on'] as const}
+              word={(v) => (v === 'on' ? 'On' : 'Off')}
+              onChange={(v) => m.pending === null && run('record', () => m.setRecord(v === 'on'))}
+            />
+          </div>
+          {why('record')}
+        </Block>
+
         <Block title="Storage">
           {mc ? (
             <div className="flex flex-col gap-2 text-sm">

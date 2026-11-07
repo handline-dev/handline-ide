@@ -1,4 +1,4 @@
-import { chatView, foldBash, isPerson, turnMinutes, type TimelineEntry } from '@handline/app-core';
+import { chatView, foldBash, foldTurns, isPerson, turnMinutes, type TimelineEntry, type TurnRecord as Turn } from '@handline/app-core';
 import { useAgents, useChat, useChatActions, useChatReadMarks, useChatServed, useChatSuspense, useVerbRun } from '@handline/app-data';
 import { VERBS } from '@handline/app-core';
 import { useMe, useNearEnd } from '@handline/app-react';
@@ -18,6 +18,7 @@ import { useAttachments } from '#src/chat/attachments.tsx';
 import { ChatLine, drawsNothing, type Reply } from '#src/chat/ChatLine.tsx';
 import { CornerDownRight, FoldVertical, Square, SquareTerminal, X } from 'lucide-react';
 import { ChatSkeleton } from '#src/chat/ChatSkeleton.tsx';
+import { TurnRecord } from '#src/chat/TurnRecord.tsx';
 import { Composer } from '#src/chat/Composer.tsx';
 import { MarkReply } from '#src/chat/MessageImages.tsx';
 import type { MarkedPicture } from '#src/viewer/ImageViewer.tsx';
@@ -147,7 +148,7 @@ const markedFile = (m: MarkedPicture) => {
 };
 
 /** A task this agent gave or handed another agent, or one another agent gave or handed it, said as a message (kind task): drawn as the task, not as talk. */
-const taskNotice = (e: TimelineEntry, agent: string, me: string) =>
+const taskNotice = (e: TimelineEntry | Turn, agent: string, me: string) =>
   e.kind === 'message' &&
   e.message.kind === 'task' &&
   e.message.tasks.length > 0 &&
@@ -155,12 +156,12 @@ const taskNotice = (e: TimelineEntry, agent: string, me: string) =>
 
 /** The entries, with each run of task notices gathered into one card's rows. */
 function runs(
-  entries: TimelineEntry[],
+  entries: (TimelineEntry | Turn)[],
   agent: string,
   me: string,
   live: TaskEvent[] = [],
-): (TimelineEntry | { key: string; events: TaskEvent[] })[] {
-  const out: (TimelineEntry | { key: string; events: TaskEvent[] })[] = [];
+): (TimelineEntry | Turn | { key: string; events: TaskEvent[] })[] {
+  const out: (TimelineEntry | Turn | { key: string; events: TaskEvent[] })[] = [];
   // Task changes heard while the chat is open go in by their time, joining a card next to them, so they scroll up as talk goes on.
   // A task made and given arrives twice, live and as the notice message: the notice's row is the one kept.
   const noticed = new Set(
@@ -187,7 +188,7 @@ function runs(
     if (!taskNotice(e, agent, me) || e.kind !== 'message') {
       // A line that draws nothing is kept out of the way: it goes before the card, so the run goes on.
       const last = out.at(-1);
-      if (last && 'events' in last && drawsNothing(e, agent, me)) out.splice(out.length - 1, 0, e);
+      if (last && 'events' in last && e.kind !== 'record' && drawsNothing(e, agent, me)) out.splice(out.length - 1, 0, e);
       else out.push(e);
       continue;
     }
@@ -228,7 +229,7 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
   const me = useMe();
   // Opening the chat reads what the agent said: its newest message, and what it sent the Inbox about itself.
   useChatReadMarks(agent, chat);
-  const { entries, bash } = foldBash(chatView(chat, 'mine', agent, me).entries);
+  const { entries, bash } = foldBash(chatView(chat, 'mine', agent, me, [], true).entries);
   const view = useAgents().data?.agents.find((a) => a.name === agent);
   const doing = view?.doing?.text;
   const held = view?.task;
@@ -254,7 +255,13 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
   const [tail, setTail] = useState({ end: endKey, before: endKey });
   if (tail.end !== endKey) setTail({ end: endKey, before: tail.end });
   const known = (all: ReturnType<typeof runs>) => {
-    const at = all.map((r) => ('events' in r ? r.events.map((e) => `message:${e.key.split(':')[0]}`) : [`${r.kind}:${r.id}`]));
+    const at = all.map((r) =>
+      'events' in r
+        ? r.events.map((e) => `message:${e.key.split(':')[0]}`)
+        : r.kind === 'record'
+          ? r.items.map((i) => `item:${i.id}`)
+          : [`${r.kind}:${r.id}`],
+    );
     for (let i = at.length - 1; i >= 0; i--) if (at[i]!.includes(tail.before ?? '')) return i;
     return Infinity;
   };
@@ -291,7 +298,7 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
           <AnimatePresence initial={false}>
             {/* Task notices in a row are one card, as the live task card is (TaskActivity). Only lines after the last one known fade in:
                 an older page lands as one still block. */}
-            {runs(entries, agent, me, tasks).map((r, i, all) =>
+            {runs(foldTurns(entries), agent, me, tasks).map((r, i, all) =>
               'events' in r ? (
                 <motion.div
                   key={r.key}
@@ -303,6 +310,8 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
                 >
                   <TaskActivity events={r.events} />
                 </motion.div>
+              ) : r.kind === 'record' ? (
+                <TurnRecord key={`record:${r.id}`} r={r} fade={i > known(all)} />
               ) : (
                 <ChatLine
                   key={`${r.kind}:${r.id}`}
