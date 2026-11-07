@@ -34,7 +34,8 @@ export function Changes({ agent }: { agent: string }) {
   const detail = useAgentDetail(agent).data;
   const path = detail?.worktree?.path ?? '';
   const changed = useWorktrees({ owner: agent }).data?.worktrees.find((w) => w.path === path)?.changed ?? [];
-  const diff = useRead('worktree.diff', { path }, { enabled: path !== '' });
+  const [against, setAgainst] = useState<'head' | 'base'>('base');
+  const diff = useRead('worktree.diff', { path, against }, { enabled: path !== '' });
   const box = useRef<HTMLDivElement>(null);
   // A file asked for from the branch card comes to the top of the view, opened.
   const show = useCallback((file: string) => {
@@ -54,6 +55,15 @@ export function Changes({ agent }: { agent: string }) {
           <GitBranch size={14} />
           <span className="text-fg">{detail.worktree.branch}</span>
           <span>{`${changed.length} files changed`}</span>
+          <span className="flex-1" />
+          <Segmented
+            value={against}
+            onChange={setAgainst}
+            options={[
+              ['head', 'Uncommitted'],
+              ['base', `vs ${diff.data?.against === 'base' ? (diff.data.base_ref ?? 'main') : 'main'}`],
+            ]}
+          />
         </div>
         {diff.isPending && <p className="text-sm text-muted">Loading the diff…</p>}
         {diff.isError && <p className="text-sm text-danger">The diff did not load.</p>}
@@ -64,6 +74,24 @@ export function Changes({ agent }: { agent: string }) {
         {diff.data?.truncated && <p className="text-xs text-warning">The diff is longer than this; the rest is cut off.</p>}
       </div>
     </ScrollFade>
+  );
+}
+
+function Segmented<T extends string>({ value, onChange, options }: { value: T; onChange: (v: T) => void; options: [T, string][] }) {
+  return (
+    <div role="group" className="flex gap-0.5 rounded-md bg-surface p-0.5">
+      {options.map(([v, word]) => (
+        <button
+          key={v}
+          type="button"
+          aria-pressed={value === v}
+          onClick={() => onChange(v)}
+          className={`rounded px-2 py-0.5 text-xs ${value === v ? 'bg-selected text-fg' : 'text-muted hover:text-fg'}`}
+        >
+          {word}
+        </button>
+      ))}
+    </div>
   );
 }
 

@@ -1,4 +1,5 @@
 import { Check, Circle, CircleDot, Hand, Hourglass, X, type LucideProps } from 'lucide-react';
+import { taskOutcome } from '@handline/app-core';
 import type { ReactNode } from 'react';
 
 /** Doing: a filled dot, smaller than the square's other icons. */
@@ -15,9 +16,25 @@ export const STATE: Record<string, { icon: (p: LucideProps) => ReactNode; tone: 
   held: { icon: Hand, tone: 'bg-warning', word: 'Held' },
   done: { icon: Check, tone: 'bg-success', word: 'Done' },
   discarded: { icon: X, tone: 'bg-danger', word: 'Discarded' },
+  failed: { icon: X, tone: 'bg-danger', word: 'Failed' },
 };
-/** The look of what the task is doing now: an open task something holds reads as waiting, whatever its state says. */
-export const look = (t: { state: string; waiting?: unknown; block_reason: string | null; hold_reason: string | null }) => {
+/** "Failed: <the checker's one line>" for a done task whose evidence says FAIL, else null. */
+export const failedLine = (evidence: string | null | undefined, title?: string | null): string | null => {
+  const o = taskOutcome(evidence, title);
+  if (o.verdict !== 'FAIL') return null;
+  const line = o.rest.split('\n')[0]!.trim();
+  return line ? `Failed: ${line}` : 'Failed';
+};
+/** The look of what the task is doing now: an open task something holds reads as waiting, whatever its state says; a done one that failed its check reads as failed. */
+export const look = (t: {
+  state: string;
+  waiting?: unknown;
+  block_reason: string | null;
+  hold_reason: string | null;
+  evidence?: string | null;
+  title?: string;
+}) => {
   const held = !['done', 'discarded'].includes(t.state) && !!(t.waiting || t.block_reason || t.hold_reason);
-  return STATE[held ? 'waiting' : t.state] ?? { icon: CircleDot, tone: 'bg-muted', word: t.state };
+  const failed = t.state === 'done' && failedLine(t.evidence, t.title) !== null;
+  return STATE[held ? 'waiting' : failed ? 'failed' : t.state] ?? { icon: CircleDot, tone: 'bg-muted', word: t.state };
 };

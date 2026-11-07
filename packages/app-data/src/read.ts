@@ -237,7 +237,7 @@ export function useAgentTasks(agent: string) {
   return { query, items, more, loadOlder, loadingOlder: held.loadingOlder || opened.loadingOlder };
 }
 export const useAgentStrip = (agent: string) => useRead('agent.strip', { agent }, { enabled: agent !== '' });
-export const useTask = (task: number) => useRead('task.get', { task });
+export const useTask = (task: number, opts: { enabled?: boolean } = {}) => useRead('task.get', { task }, opts);
 /** The titles of these tasks, each read by its id (the same read, and cache, as `useTask`): for a task the list of the newest tasks no longer holds. */
 export const useTaskTitles = (ids: readonly number[]): Map<number, string> => useTaskTitleReads(ids).titles;
 /** The same, and whether any of the reads is still on its way. */

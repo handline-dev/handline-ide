@@ -283,7 +283,7 @@
   },
   {
    "name": "worktree.diff",
-   "summary": "Read-only git diff run by the daemon. Without `file`: the changes to tracked files against HEAD, then a new-file diff of each untracked file that .gitignore does not ignore (at most 200; one too big for what is left of the size cap is listed as `(new file, N bytes: not shown)`, not diffed). With `file`: that file alone, untracked or not.",
+   "summary": "Read-only git diff run by the daemon. Without `file`: the changes to tracked files against HEAD (`against` head, the default), then a new-file diff of each untracked file that .gitignore does not ignore (at most 200; one too big for what is left of the size cap is listed as `(new file, N bytes: not shown)`, not diffed). With `file`: that file alone, untracked or not.",
    "paramStructure": "by-name",
    "params": [
     {
@@ -298,6 +298,18 @@
      "required": false,
      "schema": {
       "type": "string"
+     }
+    },
+    {
+     "name": "against",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "enum": [
+       "head",
+       "base"
+      ],
+      "description": "head (absent): against HEAD. base: against the merge-base with the base branch, so the branch's commits show too; no base ref answers as head."
      }
     }
    ],
@@ -325,13 +337,34 @@
       },
       "truncated": {
        "type": "boolean"
+      },
+      "against": {
+       "type": "string",
+       "enum": [
+        "head",
+        "base"
+       ],
+       "description": "What the diff was taken against: base falls back to head when the repo has no base ref."
+      },
+      "base_ref": {
+       "oneOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "The ref `base` measured against, e.g. origin/main; null when against is head."
       }
      },
      "required": [
       "path",
       "file",
       "diff",
-      "truncated"
+      "truncated",
+      "against",
+      "base_ref"
      ]
     }
    },
