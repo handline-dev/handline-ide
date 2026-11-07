@@ -34,13 +34,15 @@ function dropTo(e: DragEvent, to: Target, { root, agent, dispatch }: Context) {
   e.preventDefault();
   if ('move' in drag) return dispatch({ type: 'move', from: drag.move.pane, tab: drag.move.tab, to });
   const opens = canonical(drag.open.opens, agent);
+  // A tab already open moves to where it was dropped; a pinned one stays and is shown.
+  for (const p of panes(root)) {
+    const tab = p.tabs.find((t) => t.opens === opens);
+    if (tab && tab.closable !== false) return dispatch({ type: 'move', from: p.id, tab: tab.id, to });
+  }
   if (isOpen(root, opens)) {
-    toast(
-      opens === 'chat'
-        ? "This is this agent's own chat, already open here."
-        : `${labelOf(opens, agent)} is already open here; an agent's chat cannot be open twice.`,
-      { tone: 'warning' },
-    );
+    toast(opens === 'chat' ? "This is this agent's own chat, already open here." : `${labelOf(opens, agent)} is already open here.`, {
+      tone: 'warning',
+    });
     return dispatch({ type: 'show', opens, title: labelOf(opens, agent) });
   }
   dispatch({ type: 'open', opens, title: labelOf(opens, agent), to });

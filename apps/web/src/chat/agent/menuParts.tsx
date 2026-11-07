@@ -1,3 +1,4 @@
+import { startTabDrag } from '#src/ui/dnd.tsx';
 import type { MouseEvent, ReactNode } from 'react';
 
 /** A muted heading over a group of menu items. */
@@ -24,12 +25,24 @@ export function MenuFact({ name, children }: { name: string; children: ReactNode
 export const chip =
   '-mx-2 flex min-w-0 items-center gap-1 rounded-md px-2 py-1 outline-none hover:bg-hover/30 hover:text-fg focus-visible:ring-2 focus-visible:ring-accent data-[popup-open]:text-fg';
 
-/** An action row at the foot of a hover card, nearest the pointer. */
-export function CardAction({ icon, onClick, children }: { icon: ReactNode; onClick: (e: MouseEvent) => void; children: ReactNode }) {
+/** An action row at the foot of a hover card, nearest the pointer; with `opens`, a drag places that tab where it is dropped. */
+export function CardAction({
+  icon,
+  onClick,
+  opens,
+  children,
+}: {
+  icon: ReactNode;
+  onClick: (e: MouseEvent) => void;
+  opens?: () => string;
+  children: ReactNode;
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
+      draggable={!!opens}
+      onDragStart={opens && ((e) => startTabDrag(e, { open: { opens: opens(), title: '' } }))}
       className="flex h-7 w-full items-center gap-2 rounded-sm px-2 text-sm text-fg outline-none hover:bg-hover focus-visible:bg-hover"
     >
       <span className="text-muted">{icon}</span>

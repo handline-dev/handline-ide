@@ -18,7 +18,14 @@ export function BranchItem({ agent, branch, path }: { agent: string; branch: str
   return (
     <HoverCard
       trigger={
-        <button type="button" {...openProps((how) => openTab('diff', how))} className={chip}>
+        <button
+          type="button"
+          {...openProps(
+            (how) => openTab('diff', how),
+            () => 'diff',
+          )}
+          className={chip}
+        >
           <GitBranch size={13} className="shrink-0" />
           <span className="truncate">{branch}</span>
           {changed.length > 0 && (
@@ -36,10 +43,13 @@ export function BranchItem({ agent, branch, path }: { agent: string; branch: str
             <button
               key={f.path}
               type="button"
-              {...openProps((how) => {
-                focusIn('diff', agent, f.path);
-                openTab('diff', how);
-              })}
+              {...openProps(
+                (how) => {
+                  focusIn('diff', agent, f.path);
+                  openTab('diff', how);
+                },
+                () => (focusIn('diff', agent, f.path), 'diff'),
+              )}
               className="flex h-6 w-full items-center justify-between gap-6 rounded-sm px-2 text-xs outline-none hover:bg-hover focus-visible:bg-hover"
             >
               <span className="truncate text-fg">{f.path}</span>

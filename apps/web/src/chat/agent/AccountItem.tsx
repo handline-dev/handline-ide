@@ -65,7 +65,7 @@ export function AccountItem({ agent, account, fire }: { agent: string; account: 
       )}
       <MenuRule />
       <MoveTo agent={agent} account={account} />
-      <CardAction icon={<Gauge size={14} />} onClick={(e) => usage(howOf(e))}>
+      <CardAction icon={<Gauge size={14} />} onClick={(e) => usage(howOf(e))} opens={() => (focusIn('usage', '', account), 'usage')}>
         Open usage
       </CardAction>
     </HoverCard>

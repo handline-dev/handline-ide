@@ -1,3 +1,4 @@
+import { startTabDrag } from '#src/ui/dnd.tsx';
 import { CopyButton } from '#src/chat/MessageActions.tsx';
 import { MessageImages } from '#src/chat/MessageImages.tsx';
 import { attachmentOf } from '@handline/app-core';
@@ -223,6 +224,8 @@ function Opens({ opens, children }: { opens: string; children: ReactNode }) {
       href={opens.startsWith('web:') ? opens.slice(4) : undefined}
       role="link"
       tabIndex={0}
+      draggable
+      onDragStart={(e) => startTabDrag(e, { open: { opens, title: '' } })}
       onClick={(e) => {
         e.preventDefault();
         open(opens, howOf(e));
