@@ -5,42 +5,43 @@ closing and restarting agents, settings, cancelling a queued message, HR decisio
 
 ## Work
 
-| | |
-|---|---|
-| `hl task new --assign <agent> -t <time> "<title>" "<body>"` | Give work, or ask something that needs an answer. `--assign` is who works it; `--owner` is who answers for it (you when not given). The last line printed is the new `T<n>`. |
-| `hl task list` / `board` | The tasks you hold or gave; the board. |
-| `hl task show T<n>` | One task in full: brief, memos, blockers, children, handoffs. |
-| `hl task done T<n> "<evidence>"` | Finish your task. A sha must be on `main`. |
-| `hl task handoff T<n> <agent> "<note>"` | Pass your task to someone else. |
-| `hl task edit T<n> --blocked-by T<m>` | Record what the task waits on (also its timeout and other fields). |
-| `hl task wait T<n> --pr <n>` | Block the task on a gate that watches a PR's CI (`--until closed`: its merge), or `--on <vendor>:<target>`; see [watch-vendors.md](watch-vendors.md). |
-| `hl task reopen T<n> "<why>"` | The asker says a result is wrong. |
-| `hl task release T<n> "<why>"` | Give a task back to its queue. |
-| `hl task discard T<n> "<why>"` | Throw away a task that is not done; `discard T1 T2 --why "<why>"` throws several away in one call. |
-| `hl task comment T<n> add "..."` / `list` / `edit` / `delete` | Correct or comment on a task (`hl task memo` is its old name). `--attach shot.png` adds an image. |
-| `hl progress "done: ... left: ..."` | Record what is done and what is left on your task. |
-| `hl say <target> "..."` | A message; `--parent <msg>` answers one, `--attach shot.png` sends an image the app shows. |
-| `hl inbox` / `hl inbox --all` | What is waiting for you, or the whole queue. |
-| `hl read <msg>` | One message in full, with its answer. |
-| `hl withdraw <msg>` | Take back a message you sent that has not been read. |
+|                                                               |                                                                                                                                                                              |
+| ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `hl task new --assign <agent> -t <time> "<title>" "<body>"`   | Give work, or ask something that needs an answer. `--assign` is who works it; `--owner` is who answers for it (you when not given). The last line printed is the new `T<n>`. |
+| `hl task list` / `board`                                      | The tasks you hold or gave; the board.                                                                                                                                       |
+| `hl task show T<n>`                                           | One task in full: brief, memos, blockers, children, handoffs.                                                                                                                |
+| `hl task done T<n> "<evidence>"`                              | Finish your task. A sha must be on `main`.                                                                                                                                   |
+| `hl task handoff T<n> <agent> "<note>"`                       | Pass your task to someone else.                                                                                                                                              |
+| `hl task edit T<n> --blocked-by T<m>`                         | Record what the task waits on (also its timeout and other fields).                                                                                                           |
+| `hl task wait T<n> --pr <n>`                                  | Block the task on a gate that watches a PR's CI (`--until closed`: its merge), or `--on <vendor>:<target>`; see [watch-vendors.md](watch-vendors.md).                        |
+| `hl task reopen T<n> "<why>"`                                 | The asker says a result is wrong.                                                                                                                                            |
+| `hl task release T<n> "<why>"`                                | Give a task back to its queue.                                                                                                                                               |
+| `hl task discard T<n> "<why>"`                                | Throw away a task that is not done; `discard T1 T2 --why "<why>"` throws several away in one call.                                                                           |
+| `hl task comment T<n> add "..."` / `list` / `edit` / `delete` | Correct or comment on a task (`hl task memo` is its old name). `--attach shot.png` adds an image.                                                                            |
+| `hl progress "done: ... left: ..."`                           | Record what is done and what is left on your task.                                                                                                                           |
+| `hl say <target> "..."`                                       | A message; `--parent <msg>` answers one, `--attach shot.png` sends an image the app shows.                                                                                   |
+| `hl inbox` / `hl inbox --all`                                 | What is waiting for you, or the whole queue.                                                                                                                                 |
+| `hl read <msg>`                                               | One message in full, with its answer.                                                                                                                                        |
+| `hl withdraw <msg>`                                           | Take back a message you sent that has not been read.                                                                                                                         |
 
 ## Team
 
-| | |
-|---|---|
-| `hl team` | Who you may reach, and what each is doing. |
+|                                                                                 |                                                                                                                       |
+| ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `hl team`                                                                       | Who you may reach, and what each is doing.                                                                            |
 | `hl propose add` / `retire` / `rename` / `link` / `unlink` / `team` / `context` | Propose a roster change; the founder decides it in the app's Proposals tab. A link's ends are agents, `*` or `human`. |
-| `hl propose list` / `withdraw <id>` | See proposals; take back one of yours. |
+| `hl propose list` / `withdraw <id>`                                             | See proposals; take back one of yours.                                                                                |
 
 ## Install and the daemon's own
 
-| | |
-|---|---|
-| `hl init` | Create the home and install the shared settings and hooks. |
-| `hl device pair [--name N]` | Founder, from your own terminal: a one-time code that pairs a first device when no paired app can make one. |
-| `hl hook <event>` | A Claude Code hook (the installed settings run it). |
-| `hl sandbox-repo <repo> [allowance ...]` | Founder: what a repo's sandboxed sessions may do beyond the sandbox. |
-| `hl load [--agent N]` | What every process uses and whose it is: CPU and memory per agent, its three heaviest processes, and the processes no agent owns (`load.get`). Read only. |
-| `hl use <simulator\|browser> -- <command>` / `--hold` / `--release` | Runs the command once a simulator or browser is free (first come first served, up to 30 min) and gives it back when it exits; `--hold` keeps one until `--release` or the turn ends. With `simulator_max` / `browser_max` 0 (the default) nothing waits. |
-| `hl idle-background` / `notice-digest` | Founder: the background-work and notice-digest timings. |
-| `hl dev on` / `off` / `rebuild <team>` | A team's dev instance beside the live daemon. |
+|                                                                                                                                                          |                                                                                                                                                                                                                                                                                                                                                            |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `hl init`                                                                                                                                                | Create the home and install the shared settings and hooks.                                                                                                                                                                                                                                                                                                 |
+| `hl device pair [--name N]`                                                                                                                              | Founder, from your own terminal: a one-time code that pairs a first device when no paired app can make one.                                                                                                                                                                                                                                                |
+| `hl hook <event>`                                                                                                                                        | A Claude Code hook (the installed settings run it).                                                                                                                                                                                                                                                                                                        |
+| `hl sandbox-repo <repo> [allowance ...]`                                                                                                                 | Founder: what a repo's sandboxed sessions may do beyond the sandbox.                                                                                                                                                                                                                                                                                       |
+| `hl load [--agent N]`                                                                                                                                    | What every process uses and whose it is: CPU and memory per agent, its three heaviest processes, and the processes no agent owns (`load.get`). Read only.                                                                                                                                                                                                  |
+| `hl use <simulator\|browser> -- <command>` / `--hold` / `--release`                                                                                      | Runs the command once a simulator or browser is free (first come first served, up to 30 min) and gives it back when it exits; `--hold` keeps one until `--release` or the turn ends. With `simulator_max` / `browser_max` 0 (the default) nothing waits.                                                                                                   |
+| `hl app start [--fake] [--no-build]` / `shot [--out FILE]` / `click <css\|x,y>` / `type "<text>"` / `text <css>` / `eval "<js>"` / `drag-check` / `stop` | A separate test instance of this worktree's desktop app (own scratch home and data folder, free ports; never the founder's window): start it, take a picture of the page, press and type, read it, and find the buttons a window-drag area (`-webkit-app-region`) has taken from the mouse. The page's own input, not the OS's. Ended when your turn ends. |
+| `hl idle-background` / `notice-digest`                                                                                                                   | Founder: the background-work and notice-digest timings.                                                                                                                                                                                                                                                                                                    |
+| `hl dev on` / `off` / `rebuild <team>`                                                                                                                   | A team's dev instance beside the live daemon.                                                                                                                                                                                                                                                                                                              |
