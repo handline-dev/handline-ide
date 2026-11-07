@@ -12,6 +12,8 @@ import { mismatch } from '@handline/app-core';
 export interface Cmd {
   file: string;
   args: string[];
+  /** The PATH the daemon runs with; unset keeps the app's own. */
+  path?: string;
 }
 
 /** How the daemon is spawned: a session of its own, nothing on its stdin, its output in the log, so it outlives the app. */
@@ -230,14 +232,18 @@ export class Owner {
 }
 
 /** The claude the daemon runs: the named one (CLAUDE), else the first executable `claude` on the login shell's PATH, then on the app's own.
- * Throws when there is none: a bare `claude` would resolve against the PATH of a Dock launch, which has no shell dirs. */
+ * With none it is a bare `claude`: the daemon still starts and names it in daemon.status missing_tools, for the first-run screen. */
 export function resolveClaude(named: string | undefined, paths: (string | undefined)[], isExec: (file: string) => boolean): string {
   if (named) return named;
   for (const dir of paths.flatMap((p) => (p ?? '').split(':')).filter(Boolean)) {
     if (isExec(`${dir}/claude`)) return `${dir}/claude`;
   }
-  throw new Error('claude was not found on the PATH; install it or set HANDLINE_CLAUDE to its full path');
+  return 'claude';
 }
+
+/** The PATH the daemon runs with: the login shell's, then the app's own. A Dock launch has no shell dirs, and the daemon runs git and
+ * tmux by name. */
+export const daemonPath = (login: string | undefined, app: string | undefined): string => [login, app].filter(Boolean).join(':');
 
 /** The daemon's command, from the environment: a checkout runs `go/handlined` (with the service's flags), a packaged app names its own
  * binary. `claude` is the one the daemon runs, resolved by the caller; `listen` and `advertise` are its network listener and the name a

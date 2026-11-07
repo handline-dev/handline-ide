@@ -11,7 +11,7 @@ import { PROTOCOL, webSocketTransport } from '@handline/client';
 import { pinnedWebSocketTransport, unixSocketTransport } from '@handline/client-node';
 import { CHANNELS, fromWindow } from '#src/bridge.ts';
 import { Link, pairRemote, plainRemoteHost, helloOf, type OfferInput, type Remote, type Settings, type SettingsFile } from '#src/mode.ts';
-import { commands, detachedSpawn, Owner, resolveClaude, type Cmd } from '#src/owner.ts';
+import { commands, daemonPath, detachedSpawn, Owner, resolveClaude, type Cmd } from '#src/owner.ts';
 import { answers, lockHolder, stopLeftovers } from '#src/leftovers.ts';
 import { ensureToken, founderKeyFile, once, TokenFile, type PairDeps } from '#src/pair.ts';
 import { grant } from '#src/grant.ts';
@@ -70,7 +70,7 @@ const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 /** Starts the daemon on its own: a session of its own (detached), nothing on its stdin and its output in daemon.log, and not waited on,
  * so it keeps running when the app quits. */
 function spawnDetached(cmd: Cmd, log: number): void {
-  const p = spawn(cmd.file, cmd.args, { ...detachedSpawn(log), env: process.env });
+  const p = spawn(cmd.file, cmd.args, { ...detachedSpawn(log), env: cmd.path ? { ...process.env, PATH: cmd.path } : process.env });
   p.on('error', (e) => fs.writeSync(log, `${new Date().toISOString()} app: the daemon did not start: ${e.message}\n`));
   p.unref();
 }
@@ -165,8 +165,12 @@ async function daemonCmd(o: {
   web: string | null;
   loginPath: () => Promise<string | undefined>;
 }): Promise<Cmd> {
-  const claude = resolveClaude(o.env('CLAUDE'), [await o.loginPath(), process.env.PATH], executable);
-  return commands(o.env, o.root, o.listen ?? '127.0.0.1:7443', o.advertise, claude, o.web);
+  const login = await o.loginPath();
+  const claude = resolveClaude(o.env('CLAUDE'), [login, process.env.PATH], executable);
+  return {
+    ...commands(o.env, o.root, o.listen ?? '127.0.0.1:7443', o.advertise, claude, o.web),
+    path: daemonPath(login, process.env.PATH),
+  };
 }
 
 /** Electron's message box, in front of the window when there is one. */
