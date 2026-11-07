@@ -35,7 +35,7 @@ function App() {
   return (
     <>
       {/* Fixed top-left; right of the Mac window buttons in the shell (shellInsets.ts). */}
-      <div className="fixed z-30" style={{ top: 'var(--controls-top, 6px)', left: 'calc(8px + var(--lights-w, 0px))' }}>
+      <div className="app-no-drag fixed z-30" style={{ top: 'var(--controls-top, 6px)', left: 'calc(8px + var(--lights-w, 0px))' }}>
         <SidebarControls onToggle={toggle} />
       </div>
       <div className="flex h-full flex-col">
