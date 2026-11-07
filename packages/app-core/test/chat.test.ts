@@ -18,6 +18,7 @@ import {
   timeline,
   foldBash,
   foldTasks,
+  foldTurns,
   maybeRanNote,
   chatEntries,
   activity,
@@ -498,4 +499,22 @@ test('foldBash folds an item into the message that sent it; an item with no load
 test('a ! line of unknown delivery is never advised to go again', () => {
   assert.doesNotMatch(maybeRanNote('!rm x'), /send it/i);
   assert.match(maybeRanNote('hello'), /send it again/);
+});
+
+test('a run of tool steps and session text is one record; a message or an answer to a request ends it', () => {
+  const at = (s: number) => `2026-01-01T00:00:${String(s).padStart(2, '0')}Z`;
+  const items = [
+    item({ id: 10, at: at(1), kind: 'tool', tool: 'Bash', text: 'ls' }),
+    item({ id: 12, at: at(2), kind: 'reply', text: 'Looking' }),
+    item({ id: 20, at: at(3), kind: 'tool', tool: 'Read', text: 'a.ts' }),
+    item({ id: 31, at: at(5), kind: 'reply', text: 'Answer to a request' }),
+    item({ id: 40, at: at(7), kind: 'tool', tool: 'Edit', text: 'a.ts' }),
+  ];
+  const out = foldTurns(timeline([msg({ id: 1, at: at(6), from: 'human', to: A })], items, 'mine', A, '', [], true));
+  assert.deepEqual(
+    out.map((e) => (e.kind === 'record' ? `record:${e.items.map((i) => i.id).join(',')}:${e.steps}` : `${e.kind}:${e.id}`)),
+    ['record:10,12,20:2', 'item:31', 'message:1', 'record:40:1'],
+  );
+  // Without steps the agent's own chat keeps no tool line, as before.
+  assert.equal(timeline([], items, 'mine', A).filter((e) => e.kind === 'item' && e.item.kind === 'tool').length, 0);
 });

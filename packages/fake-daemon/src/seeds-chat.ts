@@ -79,6 +79,21 @@ export const CHAT_SEEDS: Record<string, Seed> = {
       at: iso(4),
       landing: 'delivered',
     });
+    const steps: [number, Partial<TranscriptItem>][] = [
+      [3.9, { kind: 'tool', tool: 'Read', text: 'go/internal/daemon/pause_test.go' }],
+      [
+        3.5,
+        {
+          kind: 'reply',
+          id: 900_000 /* even: a session's own text, as the daemon numbers it */,
+          text: 'The check fires 1 ms before the until; running the two tests under load.',
+        },
+      ],
+      [3, { kind: 'tool', tool: 'Bash', text: 'Run the two pause tests 30 times under load' }],
+      [2, { kind: 'tool', tool: 'Edit', text: 'go/internal/daemon/pause.go' }],
+      [1, { kind: 'tool', tool: 'Bash', text: 'Run the two pause tests 30 times under load' }],
+    ];
+    for (const [min, it] of steps) d.chat.seedItem(ARCH, { at: iso(min), kind: 'tool', ...it });
     d.chat.setWorking(ARCH, true, 'Working');
     const s = d.sessions.get(ARCH)!;
     s.fx.view = { ...s.fx.view, doing: { text: 'Bash Run the two pause tests 30 times under load', at: iso(1) } };

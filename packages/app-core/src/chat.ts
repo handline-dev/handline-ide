@@ -45,6 +45,8 @@ export function timeline(
   agent?: string,
   me = '',
   decided: readonly Proposal[] = [],
+  /** Keep tool steps in the agent's own chat too, for foldTurns. */
+  steps = false,
 ): TimelineEntry[] {
   const out: TimelineEntry[] = [
     ...messages.flatMap((m): TimelineEntry[] => {
@@ -63,7 +65,7 @@ export function timeline(
         (i) =>
           !(
             scope === 'mine' &&
-            (isToolStep(i) ||
+            ((!steps && isToolStep(i)) ||
               (agent && i.task_event && i.task_event.event !== 'unblocked' && i.task_event.who !== agent && i.task_event.who !== 'human'))
           ),
       )
@@ -102,6 +104,39 @@ export function foldBash(entries: TimelineEntry[]): { entries: TimelineEntry[]; 
     return false;
   });
   return { entries: rest, bash };
+}
+
+/** One turn's record: a run of tool steps and the agent's own text between them, drawn as one folded line. */
+export interface TurnRecord {
+  kind: 'record';
+  /** The first item's id, so the line keeps its key while the run grows. */
+  id: number;
+  at: string;
+  until: string;
+  items: TranscriptItem[];
+  /** The commands run, not counting permission asks. */
+  steps: number;
+}
+
+/** A session's own text (an even reply id) goes in the record; an answer to a request (odd) stays in the chat. */
+const recorded = (e: TimelineEntry) => e.kind === 'item' && (isToolStep(e.item) || (e.item.kind === 'reply' && e.item.id % 2 === 0));
+
+/** The entries with each run of tool steps and agent text taken in as one TurnRecord: the chat keeps what the agent said to people. */
+export function foldTurns(entries: TimelineEntry[]): (TimelineEntry | TurnRecord)[] {
+  const out: (TimelineEntry | TurnRecord)[] = [];
+  for (const e of entries) {
+    if (!recorded(e) || e.kind !== 'item') {
+      out.push(e);
+      continue;
+    }
+    const last = out.at(-1);
+    const run: TurnRecord = last?.kind === 'record' ? last : { kind: 'record', id: e.id, at: e.at, until: e.at, items: [], steps: 0 };
+    if (run !== last) out.push(run);
+    run.items.push(e.item);
+    run.until = e.at;
+    if (e.item.kind === 'tool') run.steps++;
+  }
+  return out;
 }
 
 /** The daemon's bashWatch (go/internal/watcher/chat.go); after that an item with none is no longer running as far as anyone can tell. */
