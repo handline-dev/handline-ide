@@ -134,11 +134,12 @@ export function Chat({ agent }: { agent: string }) {
               </div>
             )
           }
-          onSend={(body, attachments) => {
+          onSend={(body, attachments, task) => {
             // A command goes as typed, so the reply is not put on it.
             const to = reply && !body.startsWith('!') ? reply : null;
             send(body, {
               attachments,
+              ...(task ? { task } : {}),
               ...(to?.kind === 'message' ? { parent: to.id, quote: to.quote } : to ? { parent_item: to.id } : {}),
             });
             setPicked(null);

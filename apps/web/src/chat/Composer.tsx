@@ -1,5 +1,5 @@
 import { useSuggest, type Command } from '#src/chat/Suggest.tsx';
-import { ArrowUp, CornerDownLeft, Paperclip, Square, SquareTerminal } from 'lucide-react';
+import { ArrowUp, CornerDownLeft, ListTodo, Paperclip, Square, SquareTerminal } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { ImageViewer, type MarkedPicture } from '#src/viewer/ImageViewer.tsx';
 import { FolderChip, UploadChip, type Attachments } from '#src/chat/attachments.tsx';
@@ -30,7 +30,8 @@ export function Composer({
   draft: string;
   setDraft: (v: string) => void;
   attach: Attachments;
-  onSend: (body: string, attachments: string[]) => void;
+  /** `task`: the message opens a task for the agent, its first line the title. */
+  onSend: (body: string, attachments: string[], task?: { title: string }) => void;
   leading?: ReactNode;
   trailing?: ReactNode;
   running?: boolean;
@@ -73,12 +74,17 @@ export function Composer({
     caret.current = null;
   }, [bash]);
   const body = draft.trim();
+  // A task is the text alone: an image, a reply or a command cannot be one.
+  const [asTask, setAsTask] = useState(false);
+  const canTask = !bash && !above && attach.ids.length === 0;
+  const task = asTask && canTask && body ? { title: [...(body.split('\n')[0] ?? '')].slice(0, 120).join('').trim() } : undefined;
   // A message goes once every image in it is up and nothing is held back; one with images may go without text. A command needs one.
   const ready = !locked && (bash ? body.slice(1).trim() : body || attach.ids.length > 0) && attach.sendable;
   const submit = () => {
     if (suggest.command(draft)) return;
     if (!ready) return;
-    onSend(body, attach.ids);
+    onSend(body, attach.ids, task);
+    setAsTask(false);
     setDraft('');
     attach.clear();
   };
@@ -188,8 +194,19 @@ export function Composer({
             attach.add(files.map((file) => ({ kind: 'file', name: file.name, files: [{ path: file.name, file }] })));
           }}
         />
+        <button
+          type="button"
+          aria-label="Send as a task"
+          aria-pressed={asTask && canTask}
+          title={canTask ? 'Send as a task: the first line is its title' : 'A task is text alone (no images, reply or command)'}
+          disabled={!canTask}
+          onClick={() => setAsTask((v) => !v)}
+          className={`grid size-7 shrink-0 place-items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-30 ${asTask && canTask ? 'bg-accent/15 text-accent' : 'text-muted hover:bg-hover/30 hover:text-fg'}`}
+        >
+          <ListTodo size={15} />
+        </button>
         {leading}
-        <span className="flex-1 truncate px-1 text-xs text-muted">{bash && 'Esc for a message'}</span>
+        <span className="flex-1 truncate px-1 text-xs text-muted">{bash ? 'Esc for a message' : asTask && canTask && 'As a task'}</span>
         {trailing}
         {running && onStop && !ready ? (
           <button

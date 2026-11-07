@@ -18,7 +18,7 @@ import { mapPages, type Pages } from '#src/cache.ts';
 import { NOT_WORKING, type MsgPage, type TrPage } from '#src/chat-events.ts';
 import { useData, useFeed, useServes } from '#src/provider.ts';
 import { qk } from '#src/reads.ts';
-import { forgetRow, newOperationId, operationOf, type Delivery } from '#src/send-ops.ts';
+import { forgetRow, newOperationId, operationOf, type Delivery, type SendTask } from '#src/send-ops.ts';
 import { useWrite } from '#src/write.ts';
 
 export type ChatScope = 'mine' | 'all';
@@ -194,6 +194,7 @@ export function useChatActions(agent: string) {
     attachments: string[] = [],
     parentItem?: number,
     quote?: string,
+    task?: SendTask,
   ) =>
     send.mutate({
       agent: to,
@@ -203,14 +204,35 @@ export function useChatActions(agent: string) {
       ...(quote ? { quote } : {}),
       ...(attachments.length ? { attachments } : {}),
       ...(delivery ? { delivery } : {}),
+      ...(task ? { task } : {}),
       request_id: op,
     });
   return {
     /** `parent` replies to a message, `parent_item` to one of the agent's own replies; `to` is another agent's chat. */
     send: (
       body: string,
-      opts?: { parent?: number; parent_item?: number; quote?: string; to?: string; delivery?: Delivery; attachments?: string[] },
-    ) => post(opts?.to ?? agent, body, opts?.parent ?? null, undefined, opts?.delivery, opts?.attachments, opts?.parent_item, opts?.quote),
+      opts?: {
+        parent?: number;
+        parent_item?: number;
+        quote?: string;
+        to?: string;
+        delivery?: Delivery;
+        attachments?: string[];
+        /** The message opens a task for the agent: it is the brief, and `title` the task's name. */
+        task?: SendTask;
+      },
+    ) =>
+      post(
+        opts?.to ?? agent,
+        body,
+        opts?.parent ?? null,
+        undefined,
+        opts?.delivery,
+        opts?.attachments,
+        opts?.parent_item,
+        opts?.quote,
+        opts?.task,
+      ),
     retry: (id: number) => {
       const m = failed(id);
       if (!m) return;
@@ -226,6 +248,7 @@ export function useChatActions(agent: string) {
         m.attachments?.map((a) => a.id),
         m.parent_item?.id,
         m.quote,
+        was?.task,
       );
     },
     discard: (id: number) => {

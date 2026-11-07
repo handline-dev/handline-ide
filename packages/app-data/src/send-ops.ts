@@ -6,9 +6,13 @@ export const newOperationId = () => `op-${Date.now().toString(36)}-${Math.random
 
 export type Delivery = 'now' | 'queue';
 
+/** A message that opens a task for the agent: the message is its brief. */
+export type SendTask = { title: string };
+
 /** The operation of each row a send put in the cache, by the row's provisional id. A retry repeats its params, delivery included. */
-const ops = new Map<number, { op: string; delivery?: Delivery }>();
-export const rememberOperation = (row: number, op: string, delivery?: Delivery) => void ops.set(row, { op, delivery });
+const ops = new Map<number, { op: string; delivery?: Delivery; task?: SendTask }>();
+export const rememberOperation = (row: number, op: string, delivery?: Delivery, task?: SendTask) =>
+  void ops.set(row, { op, delivery, task });
 export const operationOf = (row: number) => ops.get(row);
 export const forgetOperation = (op: string) => {
   for (const [row, x] of ops) if (x.op === op) ops.delete(row);
