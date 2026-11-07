@@ -44,7 +44,7 @@ export type AgentView = {
   state_detail: string;
   /** What a running agent is doing now, for the line under its name: while state is running and handoff is null, a client draws it in place of status.text. null when no turn runs or the turn has called no tool yet. Absent from a daemon that does not send it. A change of doing alone is pushed (agent.changed) at most once every 5 s, with the newest value. */
   doing?: {
-    /** From the running turn's newest tool item of chat.transcript: its `tool`, a space and the first line of its `text`, or the tool alone when that text is empty; cut to 60 characters (Unicode code points, no ellipsis). */
+    /** From the running turn's newest tool call: its `tool`, a space and the first line of the call's description (Bash says what the command does there), else of its chat.transcript tool item's `text`, or the tool alone when both are empty; cut to 60 characters (Unicode code points, no ellipsis). */
     text: string;
     /** When that call began. */
     at: Timestamp;
