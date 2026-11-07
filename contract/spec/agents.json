@@ -199,7 +199,7 @@
         "properties": {
          "text": {
           "type": "string",
-          "description": "From the running turn's newest tool item of chat.transcript: its `tool`, a space and the first line of its `text`, or the tool alone when that text is empty; cut to 60 characters (Unicode code points, no ellipsis)."
+          "description": "From the running turn's newest tool call: its `tool`, a space and the first line of the call's description (Bash says what the command does there), else of its chat.transcript tool item's `text`, or the tool alone when both are empty; cut to 60 characters (Unicode code points, no ellipsis)."
          },
          "at": {
           "$ref": "#/components/schemas/Timestamp",
