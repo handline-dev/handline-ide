@@ -6,7 +6,7 @@ import { ImageViewer } from '#src/viewer/ImageViewer.tsx';
 import { useEffect, useRef, useState } from 'react';
 import { usePersisted } from '#src/persist/kv.ts';
 import { shell } from '#src/shell.ts';
-import { ServerPicker } from '#src/tools/ServerPicker.tsx';
+import { ServerList, ServerPicker } from '#src/tools/ServerPicker.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { Input } from '#src/ui/Field.tsx';
 
@@ -115,7 +115,7 @@ export function WebTab({ tab, agent, start = '' }: { tab: string; agent: string 
       ) : url ? (
         <iframe key={`${url}#${reload}`} ref={frame} src={url} title={url} className="min-h-0 flex-1 border-0 bg-bg" />
       ) : (
-        <p className="m-auto text-sm text-muted">Type an address to open a page.</p>
+        <ServerList agent={agent} onPick={open} />
       )}
       {shot && agent && (
         <ImageViewer
