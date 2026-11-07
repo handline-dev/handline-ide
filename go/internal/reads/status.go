@@ -58,6 +58,9 @@ func (e *Env) StatusHealth(srv *rpc.Server) (map[string]any, Health, error) {
 		"machine":       e.machine(),
 		"keep_awake":    e.KeepAwakeView(),
 	}
+	if missing := e.missingTools(); len(missing) > 0 {
+		out["missing_tools"] = missing
+	}
 	// The machine's own needs-you items, none of an agent's: a disk too full for builds.
 	if needs := e.machineNeeds(); len(needs) > 0 {
 		out["needs_you"] = needs

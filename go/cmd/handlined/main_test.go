@@ -58,7 +58,7 @@ func TestEachMissingAgentToolIsOneLine(t *testing.T) {
 	t.Setenv("PATH", t.TempDir())
 	missingTools(filepath.Join(t.TempDir(), "claude"))
 	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
-	if len(lines) != 3 || !strings.Contains(lines[0], "claude not found") || !strings.Contains(lines[1], "git is not on PATH") || !strings.Contains(lines[2], "tmux is not on PATH") {
+	if len(lines) != 3 || !strings.Contains(lines[0], "claude not found") || !strings.Contains(lines[1], "git not found") || !strings.Contains(lines[2], "tmux not found") {
 		t.Errorf("%q", out.String())
 	}
 }

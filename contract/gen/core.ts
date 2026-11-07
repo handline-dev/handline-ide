@@ -142,6 +142,13 @@ export type Event = {
   data: { [key: string]: unknown };
 };
 
+export type MissingTool = {
+  /** The tool. */
+  tool: "claude" | "git" | "tmux";
+  /** A shell command that installs the tool, for a client to show and copy, for example "brew install tmux". */
+  fix: string;
+};
+
 export type DaemonStatus = {
   alive: boolean;
   /** The loaded build's identity: its git sha, or <version>+<sha>[-dirty] for a release build. */
@@ -167,6 +174,8 @@ export type DaemonStatus = {
   resources?: Resources | null;
   /** The machine's own needs-you items, oldest first; absent when there are none, and on a daemon that does not serve it. A client draws each beside the agents' needs-you cards, in the text given. */
   needs_you?: MachineNeed[];
+  /** The tools agents are run with (claude, git, tmux) that this machine lacks, read at each call; absent when none is missing, when the daemon runs no agent side, and on a daemon that does not serve it. No agent can start while one is missing: a client shows each with its fix. */
+  missing_tools?: MissingTool[];
   /** Null when new work is not paused; absent on a daemon that does not serve it. */
   paused?: DaemonPause | null;
   /** Absent on a daemon that does not serve it. */
