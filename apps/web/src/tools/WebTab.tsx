@@ -1,4 +1,8 @@
-import { ArrowLeft, ArrowRight, ExternalLink, RotateCw } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Camera, ExternalLink, RotateCw } from 'lucide-react';
+import { toChat } from '#src/chat/toChat.ts';
+import { useOpenTab } from '#src/layout/openTab.tsx';
+import { toast } from '#src/ui/toast.tsx';
+import { ImageViewer } from '#src/viewer/ImageViewer.tsx';
 import { useEffect, useRef, useState } from 'react';
 import { usePersisted } from '#src/persist/kv.ts';
 import { shell } from '#src/shell.ts';
@@ -36,6 +40,16 @@ export function WebTab({ tab, agent, start = '' }: { tab: string; agent: string 
     };
   }, [me]);
   const native = me !== null;
+  const openTab = useOpenTab();
+  // The page as it is on screen, to mark up and send to the agent's chat (the shell's view only: an iframe cannot be captured).
+  const [shot, setShot] = useState<string | null>(null);
+  const capture = async () => {
+    const r = await shell()?.capturePreview?.();
+    if (!r?.ok) return toast(`No screenshot: ${r?.message ?? 'the page is not showing'}`, { tone: 'warning' });
+    setShot(URL.createObjectURL(new Blob([Uint8Array.from(atob(r.png), (c) => c.charCodeAt(0))], { type: 'image/png' })));
+  };
+  useEffect(() => () => void (shot && URL.revokeObjectURL(shot)), [shot]);
+  const closeShot = () => setShot(null);
   const open = (a: string) => {
     setUrl(a);
     setTyped(a);
@@ -78,6 +92,11 @@ export function WebTab({ tab, agent, start = '' }: { tab: string; agent: string 
           onChange={(e) => setTyped(e.target.value)}
           onFocus={(e) => e.target.select()}
         />
+        {url && native && agent && (
+          <IconButton label="Screenshot to mark up and send to the chat" onClick={() => void capture()}>
+            <Camera size={14} />
+          </IconButton>
+        )}
         {url && (
           <a
             href={url}
@@ -97,6 +116,18 @@ export function WebTab({ tab, agent, start = '' }: { tab: string; agent: string 
         <iframe key={`${url}#${reload}`} ref={frame} src={url} title={url} className="min-h-0 flex-1 border-0 bg-bg" />
       ) : (
         <p className="m-auto text-sm text-muted">Type an address to open a page.</p>
+      )}
+      {shot && agent && (
+        <ImageViewer
+          pictures={[{ url: shot, name: 'page.png' }]}
+          onClose={closeShot}
+          doneLabel="Send to chat"
+          onMarked={(marked) => {
+            // The chat is brought up first, so a chat it mounts is the one that takes the picture.
+            openTab('chat', 'here');
+            setTimeout(() => toChat(agent, marked));
+          }}
+        />
       )}
     </div>
   );
