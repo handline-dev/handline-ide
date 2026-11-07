@@ -65,8 +65,6 @@ export class Owner {
   reason = '';
   /** How the daemon in use came: adopted (it was running), started by this app, or none yet. */
   came: 'adopted' | 'started' | null = null;
-  /** The command this app last started the daemon with; null before it has started one. */
-  spawned: Cmd | null = null;
   private busy: Promise<void> | null = null;
   private restartedAt = -Infinity;
   private watching = false;
@@ -148,8 +146,7 @@ export class Owner {
   }
 
   private async spawnUp(cmd: Cmd | (() => Promise<Cmd>) = this.d.daemon): Promise<void> {
-    this.spawned = typeof cmd === 'function' ? await cmd() : cmd;
-    this.d.spawn(this.spawned);
+    this.d.spawn(typeof cmd === 'function' ? await cmd() : cmd);
     for (let i = 0; i < (this.d.polls ?? 120); i++) {
       if (await this.d.socketUp()) {
         this.came = 'started';
@@ -277,6 +274,21 @@ export function commands(
     ],
   };
 }
+
+/** Beside the daemon's lock: present while the daemon runs on the app's own PATH because the login shell did not answer in time. It is
+ * written at each start, so it outlives the app as the daemon does and a relaunch that adopts the daemon still reads it. */
+const pathTimedOutFile = (home: string) => path.join(home, 'locks', 'daemon-path-timed-out');
+
+/** Records how the daemon about to start got its PATH. */
+export function markPathTimedOut(home: string, timedOut: boolean): void {
+  const f = pathTimedOutFile(home);
+  if (!timedOut) return fs.rmSync(f, { force: true });
+  fs.mkdirSync(path.dirname(f), { recursive: true });
+  fs.writeFileSync(f, '');
+}
+
+/** Whether the daemon of this home was started on the app's own PATH because the login shell timed out. */
+export const pathTimedOut = (home: string): boolean => fs.existsSync(pathTimedOutFile(home));
 
 /** The pid the daemon wrote in this home's locks/daemon.lock, or null. The file outlives its writer: the caller checks the pid is alive. */
 export function lockPid(home: string): number | null {
