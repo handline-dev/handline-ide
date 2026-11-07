@@ -68,7 +68,7 @@ function useMyTurns(): ReadonlySet<number> {
 }
 
 /** The writes behind the menu: each runs on every row given, dims those rows until all land, and says in a toast when one fails. */
-function useRowActions() {
+export function useRowActions() {
   const pick = usePick();
   const pop = useWrite('task.turn.pop');
   const seen = useWrite('task.seen');
