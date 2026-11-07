@@ -268,12 +268,12 @@ func (c *Chat) taskEvents(q *sql.DB, emit Emit) error {
 		return err
 	}
 	for _, id := range ids {
-		item, owner, ok, err := c.Reads.TaskEventItem(id)
+		item, agent, ok, err := c.Reads.TaskEventItem(id)
 		if err != nil {
 			return err
 		}
-		if ok && owner != "" && owner != db.Human {
-			if err := c.say(emit, "chat.transcript", owner, item); err != nil {
+		if ok && agent != "" && agent != db.Human {
+			if err := c.say(emit, "chat.transcript", agent, item); err != nil {
 				return err
 			}
 		}

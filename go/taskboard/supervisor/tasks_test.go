@@ -252,13 +252,20 @@ func TestAnOwnerBusyWithItsCurrentTaskIsStillToldTheUnblock(t *testing.T) {
 	blocker := r.newTask("alice", "alice", "blocker")
 	waiting := r.newTask("bob", "alice", "second")
 	db.AddBlock(r.DB, waiting, blocker)
-	db.DiscardTask(r.DB, blocker, "alice", "not needed")
+	db.DiscardTask(r.DB, blocker, "carol", "not needed") // not the blocker's owner, so the event's agent is the closer
 	r.term.typed = nil
 	if _, err := r.ReleaseEndedBlockers(); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(strings.Join(r.term.typed, "\n"), "task T3 is unblocked - T2, its last open blocker, discarded") {
 		t.Fatalf("%q", r.term.typed)
+	}
+	// chat.transcript draws this event as the freed task's card: the closer is its agent and closed_task the blocker.
+	var events int
+	r.DB.QueryRow("SELECT COUNT(*) FROM events WHERE kind = 'task_unblocked' AND agent = 'carol' AND json_extract(payload, '$.task_id') = ? AND json_extract(payload, '$.closed_task') = ?",
+		waiting, blocker).Scan(&events)
+	if events != 1 {
+		t.Fatalf("task_unblocked event: %d", events)
 	}
 	if cur, _, _ := db.CurrentTask(r.DB, "bob"); cur != busy {
 		t.Fatalf("current %d", cur)
