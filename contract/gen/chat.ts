@@ -105,12 +105,15 @@ export type TranscriptItem = {
     at: Timestamp;
   };
   task_event?: {
-    event: "opened" | "changed" | "done" | "withdrawn";
+    /** unblocked: its last open blocker (closed_task) closed; who closed it. In the chat of the agent acting on the task. */
+    event: "opened" | "changed" | "done" | "withdrawn" | "unblocked";
     task: number;
     request: number | null;
     evidence: string | null;
     /** Who did it: the agent (or human) that opened, changed, closed or withdrew the task, as ChatRequestItem.who. */
     who: string;
+    /** unblocked only: the blocker whose close freed the task. */
+    closed_task?: number;
     /** What a `changed` event changed, as chat.requests words it: `assigned to X, priority 2 -> 1`, `title changed`, `handed to X`. Absent when the event word says it all. An open set: a client draws a word it does not know as text. */
     change?: string;
   };

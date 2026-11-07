@@ -23,7 +23,7 @@ const (
 const chatTouchedNewest = "SELECT COALESCE(MAX(COALESCE(state_at, ts)), 0) FROM requests"
 
 // Chat is the chat topic: a request of a chat that appeared or changed (chat.message), a prompt an agent opened or closed, a task event
-// of a task it owns and a conversation it began (chat.transcript), and an agent's working state (chat.working).
+// of a task it acts on and a conversation it began (chat.transcript), and an agent's working state (chat.working).
 // Each is said once, to the chat of every agent it belongs to, and its data is what the chat reads return (reads.ChatRequest and the
 // other builders). The first look says nothing, and neither does a restart: the requests touched in the second the cursor is at are
 // taken as seen.
@@ -45,7 +45,7 @@ type Chat struct {
 func (*Chat) Name() string { return "chat" }
 
 func (*Chat) Tables() []string {
-	return []string{"agent_view", "cursors", "events", "meta", "operations", "prompt_blocks", "requests", "session_starts", "task_requests", "tasks"}
+	return []string{"agent_view", "cursors", "events", "meta", "operations", "prompt_blocks", "requests", "session_starts", "task_requests", "task_turns", "tasks"}
 }
 
 // Pending is whether a command run was still running at the last look and the terminal host is asked: its window ends without a write. So

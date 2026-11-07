@@ -57,10 +57,15 @@ export function timeline(
       return [{ kind: 'message', at: m.at, id: m.id, message: m }];
     }),
     // A task card sits in the chat of the agent that made the change, or of the founder acting for it (`human`); the *all* tab shows every one.
+    // An unblocked card is the exception: its `who` closed the blocker, and it belongs to the agent the task starts for.
     ...items
       .filter(
         (i) =>
-          !(scope === 'mine' && (isToolStep(i) || (agent && i.task_event && i.task_event.who !== agent && i.task_event.who !== 'human'))),
+          !(
+            scope === 'mine' &&
+            (isToolStep(i) ||
+              (agent && i.task_event && i.task_event.event !== 'unblocked' && i.task_event.who !== agent && i.task_event.who !== 'human'))
+          ),
       )
       .map((i): TimelineEntry => ({ kind: 'item', at: i.at, id: i.id, item: i })),
     ...decided.flatMap((p): TimelineEntry[] => (p.settled ? [{ kind: 'proposal', at: p.settled, id: p.id, proposal: p }] : [])),
@@ -274,7 +279,13 @@ export function restartCause(i: TranscriptItem): string | null {
   return cause ? (RESTART_WHY[cause] ?? cause) : null;
 }
 
-const TASK_LABEL: Record<string, string> = { opened: 'Task added', changed: 'Task changed', done: 'Task done', withdrawn: 'Task deleted' };
+const TASK_LABEL: Record<string, string> = {
+  opened: 'Task added',
+  changed: 'Task changed',
+  done: 'Task done',
+  withdrawn: 'Task deleted',
+  unblocked: 'Task unblocked',
+};
 /** What a task line in the chat shows: the label (added / edited / done / deleted), the task, and only what changed, briefly. */
 export interface TaskRow {
   label: string;
@@ -301,13 +312,15 @@ export function taskRow(i: TranscriptItem, titles?: Map<number, string>): TaskRo
   const e = i.task_event;
   const ev = e?.event ?? 'changed';
   const change = (e as { change?: string | null } | undefined)?.change;
+  const closed = (e as { closed_task?: number } | undefined)?.closed_task;
+  const detail = ev === 'unblocked' && closed ? `T${closed} closed` : change || e?.evidence || null;
   return {
     label: TASK_LABEL[ev] ?? 'Task changed',
     task: e?.task ?? NaN,
     title: titles?.get(e?.task ?? NaN) ?? null,
     who: e?.who ?? null,
-    detail: change || e?.evidence || null,
-    parts: changeParts(change || e?.evidence || null),
+    detail,
+    parts: changeParts(detail),
   };
 }
 
