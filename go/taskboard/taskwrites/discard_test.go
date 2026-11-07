@@ -71,6 +71,11 @@ func TestDiscardIsTheAskersAndTellsTheOwnerAndFreesWhatWaitedOnIt(t *testing.T) 
 	if n != 1 || blocks != 0 {
 		t.Fatalf("T2 is told it is unblocked once and the block is gone: %d %d", n, blocks)
 	}
+	// chat.transcript draws this event as T2's card: the closer is its agent and closed_task the blocker.
+	db.QueryRow("SELECT COUNT(*) FROM events WHERE kind = 'task_unblocked' AND agent = 'manager' AND json_extract(payload, '$.task_id') = 2 AND json_extract(payload, '$.closed_task') = 1").Scan(&n)
+	if n != 1 {
+		t.Fatalf("task_unblocked event: %d", n)
+	}
 	w := call(t, mk("worker"), `{"jsonrpc":"2.0","id":2,"method":"task.withdraw","params":{"task":2,"request_id":"w1"}}`)
 	if w[0]["error"] == nil {
 		t.Fatalf("only a task's opener or the founder withdraws it: %v", w[0])
