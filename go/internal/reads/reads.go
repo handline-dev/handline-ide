@@ -57,6 +57,8 @@ type Env struct {
 	LoadSeries func(from int64) (map[string][]procload.Point, error)
 	// Machine is the latest measure of the machine alone (sysres.Sampler.LatestMachine), for whether new starts are held; nil says none.
 	Machine func() *sysres.Machine
+	// Claude is the claude binary agents are run with, for DaemonStatus.missing_tools; empty when the daemon runs no agent side.
+	Claude string
 	// HealthClock keeps since when DaemonStatus.health has had its level, shared by every server of the daemon; nil is since the start.
 	HealthClock *HealthClock
 	// KeepAwake is whether the daemon holds the sleep lock now, and since when (DaemonStatus.keep_awake); nil reads as not held.

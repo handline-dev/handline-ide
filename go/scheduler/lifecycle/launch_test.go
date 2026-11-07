@@ -797,6 +797,9 @@ edges:
 		if !strings.Contains(text, team.Protocol("founder")) {
 			t.Errorf("%s: the founder line is missing:\n%s", who, text)
 		}
+		if !strings.Contains(text, team.Protocol("land")) || !strings.Contains(team.Protocol("land"), "gh pr create") {
+			t.Errorf("%s: the landing line (the repo's rules, else a pull request, else commit and stop) is missing:\n%s", who, text)
+		}
 	}
 	if !strings.HasPrefix(reportLine(dev), "You report to `manager`") || !strings.HasPrefix(reportLine(scout), "You report to `human`") {
 		t.Errorf("wrong boss:\n%s\n---\n%s", dev, scout)

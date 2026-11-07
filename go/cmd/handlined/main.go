@@ -10,7 +10,6 @@ import (
 	"io"
 	"log"
 	"os"
-	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"strconv"
@@ -22,6 +21,7 @@ import (
 	"github.com/handline/handline/go/internal/compose"
 	"github.com/handline/handline/go/internal/daemon"
 	"github.com/handline/handline/go/internal/housekeeping"
+	"github.com/handline/handline/go/internal/reads"
 	"github.com/handline/handline/go/internal/sessionrpc"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/version"
@@ -74,17 +74,10 @@ func isRealHome(p string) bool {
 	return p == real || strings.HasPrefix(p, real+string(filepath.Separator))
 }
 
-// missingTools says, one line each, which of the tools agents are run with this machine lacks: the daemon still starts, so the app can show it.
+// missingTools logs, one line each, which of the tools agents are run with this machine lacks; daemon.status serves the same list.
 func missingTools(claude string) {
-	if _, err := os.Stat(claude); err != nil {
-		if _, err := exec.LookPath(claude); err != nil {
-			log.Printf("handlined: claude not found at %s: no agent can start (install Claude Code, or pass -claude)", claude)
-		}
-	}
-	for _, t := range []string{"git", "tmux"} {
-		if _, err := exec.LookPath(t); err != nil {
-			log.Printf("handlined: %s is not on PATH: no agent can start (brew install %s)", t, t)
-		}
+	for _, m := range reads.MissingTools(claude) {
+		log.Printf("handlined: %s not found: no agent can start (%s)", m.Tool, m.Fix)
 	}
 }
 
@@ -145,6 +138,7 @@ func main() {
 	var startTick func(stop context.Context) <-chan struct{} // set when the policy tick is on: runs it until stop is done, answers when it has returned
 	if *claude != "" {
 		missingTools(*claude)
+		cfg.Claude = *claude
 		if *founderTyped && !*turnsFromHooks {
 			log.Printf("handlined: founder chat goes through the inbox: -founder-typed takes effect only with -turns-from-hooks")
 		}

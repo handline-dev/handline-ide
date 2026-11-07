@@ -921,7 +921,7 @@ func (l *Launcher) yourTeam(agent string) string {
 		talk = "The founder may type straight into your terminal. When the person types to you directly, answer with `hl say` too; your terminal " +
 			"text is not shown to them. " + talk
 	}
-	lines := []string{"# Your team", report, talk}
+	lines := []string{"# Your team", report, talk, team.Protocol("land")}
 	if len(reports) > 0 {
 		var quoted []string
 		for _, n := range reports {

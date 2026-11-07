@@ -61,6 +61,8 @@ type Config struct {
 	Home       string
 	DBFile     string
 	SocketFile string
+	// Claude is the claude binary agents are run with, for daemon.status missing_tools; empty: the daemon runs no agent side.
+	Claude string
 	// Listen is the address the network listener binds; empty leaves it off. With CertFile and KeyFile it is a TLS
 	// WebSocket. With neither it is in Tailscale mode: Listen is ":PORT" (the Tailscale address is found) or a Tailscale
 	// or loopback address, and it serves plain HTTP/ws.
@@ -543,7 +545,7 @@ func (d *Daemon) operationEvent(topic, typ string, data any, agent string) {
 // readsEnv is the env of the reads every server serves, and of the status the daemon tells the status topic.
 func (d *Daemon) readsEnv() reads.Env {
 	renv := reads.Env{DB: d.db, Home: d.cfg.Home, Started: d.started, Sha: version.Sha, Schema: store.LatestVersion(), Delivery: d.cfg.Delivery,
-		Context: d.cfg.Context, HealthClock: d.hclock, KeepAwake: d.cfg.KeepAwake}
+		Context: d.cfg.Context, Claude: d.cfg.Claude, HealthClock: d.hclock, KeepAwake: d.cfg.KeepAwake}
 	if d.res != nil {
 		renv.Resources = d.res.Latest
 		renv.Machine = d.res.LatestMachine
