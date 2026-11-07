@@ -21,3 +21,20 @@ func TestToolTextTakesTheFirstFieldInItsOrder(t *testing.T) {
 		t.Errorf("nothing it reads: %q", got)
 	}
 }
+
+// The doing line reads a call's description first, as Bash's says what the command does; without one it reads as ToolText.
+func TestTheDoingLineReadsTheDescriptionFirst(t *testing.T) {
+	line := func(input string) string {
+		d := toolCall([]byte(`{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":` + input + `}]}}`))
+		if d == nil {
+			t.Fatalf("no call in %s", input)
+		}
+		return d.Text
+	}
+	if got := line(`{"command":"cd /x && go test ./...","description":"Run the tests\nall of them"}`); got != "Bash Run the tests" {
+		t.Errorf("with a description: %q", got)
+	}
+	if got := line(`{"command":"go test ./...","description":""}`); got != "Bash go test ./..." {
+		t.Errorf("with an empty description: %q", got)
+	}
+}

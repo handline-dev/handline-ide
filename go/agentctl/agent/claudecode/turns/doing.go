@@ -6,8 +6,8 @@ import (
 	"time"
 )
 
-// Doing is the running turn's newest tool call, as the contract's AgentView.doing has it: the tool, a space and the first line of what
-// it was asked, cut to doingCap code points; At is when the call began, unix seconds.
+// Doing is the running turn's newest tool call, as the contract's AgentView.doing has it: the tool, a space and the first line of the
+// call's description, else of what it was asked (ToolText), cut to doingCap code points; At is when the call began, unix seconds.
 type Doing struct {
 	Text string
 	At   int64
@@ -39,7 +39,7 @@ func toolCall(line []byte) *Doing {
 	for i := len(parts) - 1; i >= 0; i-- {
 		if p := parts[i]; p.Type == "tool_use" && p.Name != "" {
 			text := p.Name
-			if first, _, _ := strings.Cut(ToolText(p.Input), "\n"); first != "" {
+			if first, _, _ := strings.Cut(doingText(p.Input), "\n"); first != "" {
 				text += " " + first
 			}
 			if r := []rune(text); len(r) > doingCap {
@@ -124,6 +124,14 @@ func (tr *turn) clearDoing() {
 		tr.release()
 		tr.release = nil
 	}
+}
+
+// doingText is the call's description when it has one, as Bash's says what a command does, else ToolText.
+func doingText(input map[string]any) string {
+	if v, ok := input["description"].(string); ok && v != "" {
+		return v
+	}
+	return ToolText(input)
 }
 
 // ToolText is what a tool call was asked to do, in one string: the command, else the path, pattern, address or description.
