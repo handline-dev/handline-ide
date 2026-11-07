@@ -22,6 +22,7 @@ import { useOpenTab } from '#src/layout/openTab.tsx';
 import { ModelChip } from '#src/chat/agent/ModelChip.tsx';
 import { StatusLine } from '#src/chat/agent/StatusLine.tsx';
 import { PauseCard } from '#src/chat/PauseCard.tsx';
+import { PromptCard } from '#src/chat/PromptCard.tsx';
 import { TaskActivity, useTaskActivity, type TaskEvent } from '#src/chat/TaskActivity.tsx';
 import { useAttachments } from '#src/chat/attachments.tsx';
 import { ChatLine, drawsNothing, type Reply } from '#src/chat/ChatLine.tsx';
@@ -364,6 +365,7 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
             </span>
           </div>
           <PauseCard agent={agent} />
+          <PromptCard agent={agent} />
         </Page>
       </div>
     </div>
