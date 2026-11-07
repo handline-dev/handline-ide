@@ -1048,7 +1048,7 @@ func itemID(at int64, source int64, n int64) int64 { return transcript.ItemID(at
 
 var transcriptEvents = map[string]string{"task_new": "opened", "task_begin": "changed", "task_start": "changed", "edit_task": "changed",
 	"task_handoff": "changed", "queue_task": "changed", "draft_task": "changed", "reopen_task": "changed", "release_task": "changed",
-	"merge_task": "changed", "mark_task_done": "done", "discard_task": "withdrawn", "close_task": "withdrawn"}
+	"merge_task": "changed", "mark_task_done": "done", "discard_task": "withdrawn", "close_task": "withdrawn", "task_unblocked": "unblocked"}
 
 // batchKind is a batch discard's one event: the task_batch card, apart from transcriptEvents since it names no one task.
 const batchKind = "discard_batch"
@@ -1101,6 +1101,9 @@ func taskItemOf(ev row) (item map[string]any, task int64, ok bool) {
 	body := map[string]any{"event": event, "task": tid, "request": p["request_id"], "evidence": evidence, "who": ev.str("agent")}
 	if change := changeOf(ev.str("kind"), p); change != "" {
 		body["change"] = change
+	}
+	if event == "unblocked" {
+		body["closed_task"], _ = rpc.AsInt(p["closed_task"])
 	}
 	return map[string]any{"id": id, "at": ts(ev["ts"]), "kind": "task_event", "task_event": body}, tid, true
 }

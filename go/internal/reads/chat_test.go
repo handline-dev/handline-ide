@@ -640,3 +640,44 @@ func TestTheChatLeavesOutAReturnThatToldAComment(t *testing.T) {
 		t.Fatalf("%v", ids)
 	}
 }
+
+func TestAnUnblockedTaskIsACardInTheChatOfTheAgentItStartsFor(t *testing.T) {
+	t.Parallel()
+	e := testEnv(t)
+	addAgent(t, e, "bob", "")
+	addAgent(t, e, "ann", "")
+	addAgent(t, e, "cid", "")
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(7, 'freed', 'bob', 'lead', 1), (8, 'blocker', 'ann', 'lead', 1), (9, 'turned', 'bob', 'lead', 1)")
+	run(t, e, "INSERT INTO task_turns(task_id, pos, agent, ask, pushed_by, since) VALUES(9, 1, 'cid', 'look', 'bob', 1)")
+	// As notifyUnblocked writes it: the closer is the event's agent.
+	run(t, e, `INSERT INTO events(id, ts, agent, kind, payload) VALUES(1, 5, 'ann', 'task_unblocked', '{"task_id": 7, "request_id": 3, "closed_task": 8, "after_request": 3}'),
+		(2, 6, 'ann', 'task_unblocked', '{"task_id": 9, "request_id": 4, "closed_task": 8, "after_request": 4}')`)
+	cards := func(agent string) []map[string]any {
+		got, err := e.chatTranscript(nil, map[string]any{"agent": agent})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out []map[string]any
+		for _, it := range got.(map[string]any)["items"].([]any) {
+			if ev, ok := it.(map[string]any)["task_event"].(map[string]any); ok {
+				out = append(out, ev)
+			}
+		}
+		return out
+	}
+	bob := cards("bob")
+	if len(bob) != 1 || bob[0]["event"] != "unblocked" || bob[0]["task"] != int64(7) || bob[0]["closed_task"] != int64(8) || bob[0]["who"] != "ann" {
+		t.Fatalf("bob: %v", bob)
+	}
+	if c := cards("cid"); len(c) != 1 || c[0]["task"] != int64(9) {
+		t.Fatalf("a turn moves the card to the agent acting: %v", c)
+	}
+	if a := cards("ann"); len(a) != 0 {
+		t.Fatalf("the closer's chat has no card: %v", a)
+	}
+	for id, want := range map[int64]string{1: "bob", 2: "cid"} {
+		if _, agent, ok, err := e.TaskEventItem(id); err != nil || !ok || agent != want {
+			t.Errorf("event %d is pushed to %q, not %q (%v)", id, agent, want, err)
+		}
+	}
+}

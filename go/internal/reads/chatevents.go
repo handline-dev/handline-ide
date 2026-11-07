@@ -3,6 +3,7 @@ package reads
 import (
 	"sort"
 
+	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/internal/cmdruns"
 	"github.com/handline/handline/go/internal/transcript"
 )
@@ -40,9 +41,9 @@ func (p *ChatRequests) Get(id int64) (*ChatRequest, error) {
 	return &ChatRequest{Message: m, Requester: r.str("requester"), Target: r.str("target")}, nil
 }
 
-// TaskEventItem is the task event with that id as a transcript item, and the owner of the task it names; ok is false when the chat does
-// not show the event or its task is gone.
-func (e *Env) TaskEventItem(id int64) (item map[string]any, owner string, ok bool, err error) {
+// TaskEventItem is the task event with that id as a transcript item, and the agent acting on the task it names, as chat.transcript gives
+// it; ok is false when the chat does not show the event or its task is gone.
+func (e *Env) TaskEventItem(id int64) (item map[string]any, agent string, ok bool, err error) {
 	ev, err := queryOne(e.DB, "SELECT id, ts, agent, kind, payload FROM events WHERE id = ?", id)
 	if err != nil || ev == nil {
 		return nil, "", false, err
@@ -54,11 +55,11 @@ func (e *Env) TaskEventItem(id int64) (item map[string]any, owner string, ok boo
 	if tid == 0 { // a batch: its author's chat
 		return item, ev.str("agent"), true, nil
 	}
-	t, err := queryOne(e.DB, "SELECT owner FROM tasks WHERE id = ?", tid)
-	if err != nil || t == nil || inBatchCard(ev, t.str("owner")) {
+	t, err := queryOne(e.DB, "SELECT "+db.ActingSQL("tasks")+" AS acting FROM tasks WHERE id = ?", tid)
+	if err != nil || t == nil || inBatchCard(ev, t.str("acting")) {
 		return nil, "", false, err
 	}
-	return item, t.str("owner"), true, nil
+	return item, t.str("acting"), true, nil
 }
 
 // ReplyItem is reply item id as a transcript item with its runs, and the agent it is of; ok is false when there is no such reply.

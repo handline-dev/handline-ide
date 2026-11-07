@@ -128,6 +128,10 @@ test('a task line says added, edited, done or deleted', () => {
   assert.equal(taskRow(taskItem('changed'), titles).label, 'Task changed');
   assert.equal(taskRow(taskItem('done'), titles).label, 'Task done');
   assert.equal(taskRow(taskItem('withdrawn'), titles).label, 'Task deleted');
+  assert.deepEqual(
+    [taskRow(taskItem('unblocked', { closed_task: 8 })).label, taskRow(taskItem('unblocked', { closed_task: 8 })).detail],
+    ['Task unblocked', 'T8 closed'],
+  );
 });
 
 test('a task line carries the task, its title and only the change or evidence', () => {
@@ -232,6 +236,11 @@ test('a task card is in the chat of the agent that made the change; the all tab 
     [1, 2, 3],
   );
   assert.equal(taskRow(card(2, 'bob')).who, 'bob');
+});
+
+test('an unblocked card is in the chat of the agent the task starts for, though another agent closed the blocker', () => {
+  const freed = taskItem('unblocked', { who: 'bob', closed_task: 8 });
+  assert.equal(timeline([], [freed], 'mine', 'alice').length, 1);
 });
 
 test('handoffLine says why and what for each phase', () => {

@@ -439,8 +439,10 @@
          "opened",
          "changed",
          "done",
-         "withdrawn"
-        ]
+         "withdrawn",
+         "unblocked"
+        ],
+        "description": "unblocked: its last open blocker (closed_task) closed; who closed it. In the chat of the agent acting on the task."
        },
        "task": {
         "type": "integer"
@@ -468,6 +470,10 @@
        "who": {
         "type": "string",
         "description": "Who did it: the agent (or human) that opened, changed, closed or withdrew the task, as ChatRequestItem.who."
+       },
+       "closed_task": {
+        "type": "integer",
+        "description": "unblocked only: the blocker whose close freed the task."
        },
        "change": {
         "type": "string",
@@ -1387,7 +1393,7 @@
      "$ref": "#/components/errors/bad_request"
     }
    ],
-   "description": "Oldest first, in pages: `before` reads the page just older than an item id, `since` reads the items from the second that id is in. Items are the agent's replies, its tool calls, the prompts it opened and the events of the tasks it owns. A tool item's id is the second of the call and its `output` is what the store held when the page was read: a result that lands in a later second than its call is not sent again by `since`, so a client that needs it reads the page again (without `since`). A page carries at most 2 MiB of tool output between its items; the newest items keep their output and an older one is cut to fit, with `dropped_lines` counting what was left out. Session items (kind session) are part of the list: each carries session.cause and session.handoff, and sorts among the others by its second."
+   "description": "Oldest first, in pages: `before` reads the page just older than an item id, `since` reads the items from the second that id is in. Items are the agent's replies, its tool calls, the prompts it opened and the events of the tasks it acts on (the agent the top turn is on, else the owner). A tool item's id is the second of the call and its `output` is what the store held when the page was read: a result that lands in a later second than its call is not sent again by `since`, so a client that needs it reads the page again (without `since`). A page carries at most 2 MiB of tool output between its items; the newest items keep their output and an older one is cut to fit, with `dropped_lines` counting what was left out. Session items (kind session) are part of the list: each carries session.cause and session.handoff, and sorts among the others by its second."
   },
   {
    "name": "chat.locate",
