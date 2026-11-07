@@ -36,6 +36,7 @@ export const CHANNELS = {
   updateAct: 'handline:updateAct',
   token: 'handline:token',
   captureWindows: 'handline:captureWindows',
+  pickFolder: 'handline:pickFolder',
   captureWindow: 'handline:captureWindow',
   settingsGet: 'handline:settingsGet',
   settingsSet: 'handline:settingsSet',

@@ -99,6 +99,8 @@ export interface ShellApi {
       >
   >;
   cancelCompose?(): Promise<{ ok: true } | Fail<'bad_request'>>;
+  /** The system's chooser for one folder: its path, or null when the person cancels. Absent in a shell that lacks it (a plain browser). */
+  pickFolder?(): Promise<{ ok: true; path: string | null } | Fail<'bad_request'>>;
   /** The windows open on this machine, each with a small picture (a data URL). Absent in a shell that cannot capture. */
   captureWindows?(): Promise<
     { ok: true; windows: { id: string; name: string; thumb: string }[] } | Fail<'bad_request' | 'unavailable' | 'no_permission'>
