@@ -113,6 +113,28 @@ export const SEEDS: Record<string, Seed> = {
     };
   },
 
+  /** handline.auditor waits on a question with several choices: its chat ends in the prompt card. */
+  question: (d) => {
+    const s = d.sessions.get(AUD)!;
+    s.prompt = {
+      id: 'q-seed',
+      agent: AUD,
+      kind: 'question',
+      tool: 'AskUserQuestion',
+      command: null,
+      reason: null,
+      lines: ['Which checks should run before the push?', '1. Lint', '2. Unit tests', '3. Contract tests'],
+      options: [
+        { key: '1', label: 'Lint' },
+        { key: '2', label: 'Unit tests', highlighted: true },
+        { key: '3', label: 'Contract tests' },
+        { key: 'esc', label: 'Cancel' },
+      ],
+      multi: true,
+      since: new Date().toISOString(),
+    };
+  },
+
   /** 200 tasks, so a list has to scroll and page. */
   'tasks-200': (d) => {
     const states = ['queued', 'doing', 'done', 'draft'];
