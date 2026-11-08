@@ -26,6 +26,15 @@ func (e *Env) MemoRecipients(tid int64, by, text string, now bool) ([]taskwrites
 	if err != nil || row == nil {
 		return nil, false
 	}
+	if by == db.Human && row.Acting == db.Human { // their comment passes their turn before it is told: it is told by who holds the task then
+		turns, err := db.Turns(e.DB, tid)
+		if err != nil {
+			return nil, false
+		}
+		if len(turns) > 0 {
+			row.Acting = taskwrites.Below(turns, row.Owner)
+		}
+	}
 	return e.memoRecipients(row, by, text, "", now), true
 }
 

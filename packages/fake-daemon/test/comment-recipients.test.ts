@@ -23,6 +23,15 @@ test('a founder comment is told to the assignee and the agent it names, an agent
   await other.start();
   assert.deepEqual(await who(other, 'no one named'), [`${ARCH}:assignee`]); // another agent's comment still reaches the holder
   other.close();
+  const held = (await owner.call('task.new', { owner: 'handline.auditor', title: 'held', body: 'build it', request_id: 'r3' }))
+    .task as number;
+  const founders = async (id: number) =>
+    (
+      (await s.client.call('task.comment.recipients', { task: id, text: 'no one named' })).recipients as { agent: string; why: string }[]
+    ).map((r) => `${r.agent}:${r.why}`);
+  assert.deepEqual(await founders(held), ['handline.auditor:assignee']); // the holder answers; the agent it reports to is not told
+  const theirs = (await owner.call('task.new', { owner: 'human', title: 'theirs', body: 'decide', request_id: 'r4' })).task as number;
+  assert.deepEqual(await founders(theirs), [`${ARCH}:owner`]); // no agent holds it: the agent it reports to is
   await s.client.call('task.comment.add', { task, text: `@${ARCH} look`, skip: [ARCH], request_id: 'r2' });
   assert.equal(((await s.client.call('task.comment.list', { task })).memos as unknown[]).length, 1);
   owner.close();

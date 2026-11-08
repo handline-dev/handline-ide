@@ -468,9 +468,7 @@ func (e *Env) queueSay(q db.Q, owner, body, why string) int64 {
 	return rid
 }
 
-// TellMemo tells a memo's change to each of its readers (memoReaders). The reader it was said to (to, "" for none), a reader the memo names
-// with @, every reader when now, and every reader of a memo the founder wrote, are typed it at once like a say; any other reader gets it in
-// its next digest (SweepDigests), and its lead hears of it if it waits an hour (SweepHeldMemos).
+// TellMemo types a memo's change, like a say, to each reader memoRecipients picks.
 func (e *Env) TellMemo(q db.Q, tid int64, by, what, text, to string, now bool) error {
 	return e.TellMemoOf(q, tid, 0, by, what, text, to, now)
 }
@@ -499,14 +497,15 @@ func (e *Env) TellMemoSkipping(q db.Q, tid, mid int64, by, what, text, to string
 }
 
 // memoRecipients is the one rule for whom a comment on row is told: an agent it names with @ or that was said it (to) is asked, and the
-// task's holder (its assignee) is always told; when the founder wrote it, or it is sent now, who the task answers to (owner) is told too. A
-// comment that aims at no one else is on the board and in no other agent's inbox.
+// task's holder (its assignee) is always told. Who the task answers to (owner) is told only when it is sent now, or when the founder wrote it
+// on a task no agent holds (the founder does, or the holder has retired): otherwise answering is the holder's.
 func (e *Env) memoRecipients(row *db.Task, by, text, to string, now bool) []taskwrites.Recipient {
 	named := e.mentioned(text)
+	unheld := by == db.Human && !e.registered(row.Acting)
 	var out []taskwrites.Recipient
 	for _, a := range e.memoReaders(row, by, named) {
 		asked := a == to || slices.Contains(named, a)
-		if delivery.ClassOf(delivery.Memo, now || by == db.Human || asked || a == row.Acting, false) != delivery.ClassNow {
+		if delivery.ClassOf(delivery.Memo, now || asked || a == row.Acting || unheld, false) != delivery.ClassNow {
 			continue
 		}
 		why := "owner"

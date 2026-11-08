@@ -67,7 +67,7 @@ export function CommentBox({
   // Someone to hand it to with this comment; none keeps the owner.
   const [to, setTo] = useState<string | null>(null);
   const known = useAgents().data?.agents.map((a) => a.name) ?? [];
-  // Who it reaches, as the daemon will tell it (the assignee, each @name, and for the founder who the task answers to); asked again
+  // Who it reaches, as the daemon will tell it (the assignee, each @name, and for the founder on a task no agent holds who it answers to); asked again
   // only when the @names change. A handover with it, or a daemon without the call, falls back to the assignee and the @names.
   const named = readers('', draft, known).filter(Boolean).join(' ');
   const served = useServes('task.comment.recipients').served;

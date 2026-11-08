@@ -30,12 +30,12 @@ export class TaskComments extends TaskStore {
 
   /**
    * task.comment.recipients: who the daemon tells of a comment, and why, by its one rule. An agent named with `@` is asked and the assignee (the
-   * holder) is always told; when the founder wrote it (or it is sent now) who the task answers to is told too. Never the writer.
+   * holder) is always told; who the task answers to is told when it is sent now, or when the founder wrote it on a task no agent holds. Never the writer.
    */
   recipients(p: Record<string, unknown>, person: string): { recipients: { agent: string; why: 'asked' | 'assignee' | 'owner' }[] } {
     const t = this.find(p.task);
     const named = [...String(p.text).matchAll(NAMED)].map((m) => m[1]!.replace(/[.-]+$/, '')).filter((n) => this.isAgent(n));
-    const aimed = p.now === true || !this.isAgent(person);
+    const aimed = p.now === true || (!this.isAgent(person) && !this.isAgent(t.to));
     const seen = new Set<string>(['', person, 'human']);
     const recipients: { agent: string; why: 'asked' | 'assignee' | 'owner' }[] = [];
     for (const agent of [t.from, t.to, ...named]) {
