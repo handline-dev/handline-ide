@@ -30,7 +30,7 @@ import { Reference } from '#src/chat/ChatLine.tsx';
 import { MessageImages } from '#src/chat/MessageImages.tsx';
 import { HoverCard } from '#src/ui/HoverCard.tsx';
 import { Fields } from '#src/tools/TaskFields.tsx';
-import { CommentBox } from '#src/tools/TaskComment.tsx';
+import { CommentBox, EditComment } from '#src/tools/TaskComment.tsx';
 import { useAttachments } from '#src/chat/attachments.tsx';
 import { FileDropArea } from '#src/ui/fileDrop.tsx';
 import { WaitingOnYou, YourTurn } from '#src/tools/TaskWaiting.tsx';
@@ -142,6 +142,7 @@ export function TaskTab({ id }: { id: number }) {
             </Section>
           )}
           <Activity
+            task={t.id}
             onReply={(id) => setReplyTo(t.memos.find((m) => m.id === id) ?? null)}
             items={activityOf(t.memos, t.timeline).filter((i) => !isSystem(i.who))}
           />
@@ -315,8 +316,10 @@ const keyOf = (i: ActivityItem) => (i.kind === 'comment' ? `c${i.memo}:${i.note}
 const SHOWN = 5;
 
 /** Comments and changes in one list, oldest first: the last five, and Earlier opens the rest above them. */
-function Activity({ items, onReply }: { items: ActivityItem[]; onReply: (memo: number) => void }) {
+function Activity({ task, items, onReply }: { task: number; items: ActivityItem[]; onReply: (memo: number) => void }) {
   const [all, setAll] = useState(false);
+  // The comment being rewritten. The web is the founder's, who may edit any comment; the daemon refuses what it does not allow.
+  const [editing, setEditing] = useState<number | null>(null);
   // What was there when the task opened just shows; a comment or event that comes later, or a comment's new words, flash.
   const [first] = useState(() => new Set(items.map(keyOf)));
   const fresh = (i: ActivityItem) => (first.has(keyOf(i)) ? '' : 'just-changed');
@@ -362,11 +365,20 @@ function Activity({ items, onReply }: { items: ActivityItem[]; onReply: (memo: n
                   {i.replyTo != null && (
                     <Reference text={items.find((r) => r.memo === i.replyTo)?.note} onClick={() => showMemo(i.replyTo!)} />
                   )}
-                  <Markdown text={i.note} />
+                  {editing != null && editing === i.memo ? (
+                    <EditComment task={task} memo={editing} text={i.note} onClose={() => setEditing(null)} />
+                  ) : (
+                    <Markdown text={i.note} />
+                  )}
                   {i.images && <MessageImages images={i.images} />}
                 </div>
                 <HoverRow at={i.at} edited={i.edited}>
                   <Actions text={i.note} onQuote={() => i.memo != null && onReply(i.memo)} />
+                  {i.memo != null && (
+                    <IconButton className="size-6!" label="Edit" onClick={() => setEditing(i.memo)}>
+                      <Pencil size={14} />
+                    </IconButton>
+                  )}
                   <ReadBy readers={i.readers} />
                 </HoverRow>
               </div>
