@@ -1,4 +1,5 @@
 import { QueryErrorResetBoundary } from '@handline/app-data';
+import { RefreshCw, RotateCw, TriangleAlert } from 'lucide-react';
 import { Component, Suspense, type ReactNode } from 'react';
 import { Button } from '#src/ui/Button.tsx';
 
@@ -32,12 +33,20 @@ export function Boundary({ loading, failed, children }: { loading: ReactNode; fa
   );
 }
 
-/** `failed` for a whole panel or the app: the part that broke says so and offers a retry, and the rest stays up. */
+/** `failed` for a whole panel or the app: the part that broke says so and offers a retry or a page reload, and the rest stays up. */
 export const brokenView =
   (what: string): Failed =>
   (retry) => (
-    <div className="flex min-h-0 flex-1 items-center justify-center gap-3 p-6 text-sm text-danger">
-      {what} stopped working.
-      <Button onClick={retry}>Retry</Button>
+    <div className="flex h-full min-h-0 flex-1 flex-col items-center justify-center gap-5 p-6 text-center">
+      <TriangleAlert size={40} className="text-danger" />
+      <p className="text-base text-fg">{what} stopped working.</p>
+      <div className="flex gap-3">
+        <Button size="lg" variant="primary" onClick={retry}>
+          <RotateCw /> Retry
+        </Button>
+        <Button size="lg" onClick={() => location.reload()}>
+          <RefreshCw /> Reload page
+        </Button>
+      </div>
     </div>
   );
