@@ -250,6 +250,27 @@ func TestNoTellingWhenThePortsAreNotAllSet(t *testing.T) {
 	}
 }
 
+// The founder's comment passes their turn before it is told: recipients names the holder it goes back to, not who the task answers to, as add does.
+func TestCommentRecipientsOnTheFoundersTurnNameTheHolderBelowIt(t *testing.T) {
+	d, agents := tellDaemon(t, true)
+	tid, err := db.NewTask(d.db, "job", "bob", "alice", 0, db.DefaultPriority, "", 0, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.PushTurn(d.db, tid, db.Turn{Agent: db.Human, By: "bob", Since: 1}); err != nil {
+		t.Fatal(err)
+	}
+	founder := pipeTo(t, d, "k")
+	list, _ := result(t, founder.ask(fmt.Sprintf(`{"jsonrpc":"2.0","id":5,"method":"task.comment.recipients","params":{"task":%d,"text":"mind the cache"}}`, tid)))["recipients"].([]any)
+	if len(list) != 1 || list[0].(map[string]any)["agent"] != "bob" {
+		t.Fatalf("recipients on the founder's turn: %v", list)
+	}
+	result(t, founder.ask(fmt.Sprintf(`{"jsonrpc":"2.0","id":6,"method":"task.comment.add","params":{"task":%d,"text":"mind the cache","request_id":"rt1"}}`, tid)))
+	if !strings.Contains(agents.said("bob"), "mind the cache") || strings.Contains(agents.said("alice"), "mind the cache") {
+		t.Fatalf("add told other than recipients said: alice %q bob %q", agents.said("alice"), agents.said("bob"))
+	}
+}
+
 // recipients answers who add then tells, by one rule: with and without skip, for the founder's comment and an agent's.
 func TestCommentRecipientsAreExactlyWhoAddThenTells(t *testing.T) {
 	d, agents := tellDaemon(t, true)
@@ -275,6 +296,9 @@ func TestCommentRecipientsAreExactlyWhoAddThenTells(t *testing.T) {
 	}
 	if got := recipients(founder, "@alice mind the cache"); got != "alice:asked,bob:assignee" {
 		t.Fatalf("the founder's comment is for who it names and the assignee: %q", got)
+	}
+	if got := recipients(founder, "no one named"); got != "bob:assignee" {
+		t.Fatalf("the founder's comment on a task an agent holds is that holder's alone: %q", got)
 	}
 	if got := recipients(agent, "@alice mind the cache"); got != "alice:asked,bob:assignee" {
 		t.Fatalf("an agent's comment is for who it names and the holder: %q", got)
