@@ -1,4 +1,4 @@
-import { dotOf, whyOf } from '@handline/app-core';
+import { dotOf, restartingLine, whyOf } from '@handline/app-core';
 /** The sidebar's agent tree: each agent under the agent it reports to (`parent`). Siblings stand in the
  * person's `order` (nav prefs); one not in it comes after, by name. */
 type DotFacts = Parameters<typeof dotOf>[0];
@@ -42,9 +42,14 @@ export function activityOf(a: Pick<AgentLike, keyof DotFacts>): Activity {
   return 'resting';
 }
 
-/** Why the agent's mark is not plain, in one line: the tasks it waits on, else the daemon's status line, else
+// The handoffs that are restarts; one for a full context or a move has its own line in the chat.
+const RESTARTS = new Set(['settings_applied', 'restart']);
+
+/** Why the agent's mark is not plain, in one line: a restart under way, else the tasks it waits on, else the daemon's status line, else
  * its block's words; null while it works or rests. */
 export function holdLine(a: Pick<AgentLike, keyof DotFacts> & Partial<Parameters<typeof whyOf>[0]>): string | null {
+  // A restart says so from the setting's change until the new session is up, while its mark shows it working.
+  if (a.handoff && RESTARTS.has(a.handoff.cause)) return restartingLine(a.handoff);
   const act = activityOf(a);
   if (act !== 'you' && act !== 'held' && act !== 'error') return null;
   const tasks = a.status?.reason === 'task' ? a.status.tasks : [];
