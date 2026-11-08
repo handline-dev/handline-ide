@@ -63,7 +63,7 @@ type Teller interface {
 	MemoTellSent(rid int64)
 }
 
-// Recipient is an agent a comment is told to, and why: asked (named with @), assignee or owner (the founder's comment).
+// Recipient is an agent a comment is told to, and why: asked (named with @), assignee or owner (sent now, or the founder's comment on a task no agent holds).
 type Recipient struct {
 	Agent string `json:"agent"`
 	Why   string `json:"why"`
