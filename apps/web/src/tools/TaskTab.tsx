@@ -75,7 +75,8 @@ export function TaskTab({ id }: { id: number }) {
   if (!t) return <p className="m-auto text-sm text-muted">Loading T{id}</p>;
   const open = !CLOSED.includes(t.state);
   const s = look(t);
-  const why = t.waiting?.text ?? t.block_reason ?? t.hold_reason;
+  // Blockers have their own rows: "blocked by T<n>" over them would name each twice.
+  const why = t.blockers.length ? null : (t.waiting?.text ?? t.block_reason ?? t.hold_reason);
   const mine = open && foundersTurn(t, me);
   const chain = turnChain(t, me);
   // Waiting on the founder: what was asked, in the words of the last comment that named them.
@@ -134,9 +135,11 @@ export function TaskTab({ id }: { id: number }) {
                     </p>
                   )
                 )}
-                {t.blockers.map((b) => (
-                  <p key={b.task} className="flex items-center gap-2 pl-6 text-muted">
-                    Waiting on <TaskLink id={b.task} title={b.title} />
+                {t.blockers.map((b, i) => (
+                  <p key={b.task} className={`flex min-w-0 items-center gap-2 ${i > 0 ? 'pl-6' : ''}`}>
+                    {i === 0 && <Hand size={14} className="shrink-0 text-warning" />}
+                    <span className="shrink-0 whitespace-nowrap text-muted">Waiting on</span>
+                    <TaskLink id={b.task} title={b.title} />
                   </p>
                 ))}
               </div>
