@@ -5,7 +5,7 @@ import type { TaskDetail } from '@handline/client';
 import { classify, sentence, useGiveBack, useWrite } from '@handline/app-data';
 import { Hand, X } from 'lucide-react';
 import { useState } from 'react';
-import { Changes } from '#src/tools/TaskDiff.tsx';
+import { showHistory } from '#src/tools/TaskDiff.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { toast } from '#src/ui/toast.tsx';
 import { ago, clock } from '#src/format/time.ts';
@@ -80,7 +80,6 @@ export function YourTurn({ t, onDone, onShow }: { t: TaskDetail; onDone: () => v
   const back = useGiveBack();
   const turn = t.turns?.at(-1);
   const earlier = turn?.earlier ?? [];
-  const [old, setOld] = useState(false);
   const give = () =>
     back.give(t.id, { onSuccess: onDone, onError: (e) => toast(`Give back did not work: ${sentence(classify(e))}`, { tone: 'warning' }) });
   return (
@@ -95,7 +94,17 @@ export function YourTurn({ t, onDone, onShow }: { t: TaskDetail; onDone: () => v
             <button
               type="button"
               disabled={!earlier.length}
-              onClick={() => setOld(!old)}
+              onClick={() =>
+                showHistory(
+                  'Edits to the question',
+                  earlier.map((e, k) => ({
+                    from: e.ask,
+                    to: earlier[k + 1]?.ask ?? turn?.ask ?? '',
+                    at: earlier[k + 1]?.at ?? turn?.edited ?? e.at,
+                    by: turn?.by ?? '',
+                  })),
+                )
+              }
               title={turn.edited}
               className="text-xs font-normal text-muted enabled:underline enabled:decoration-dotted enabled:hover:text-fg"
             >
@@ -104,15 +113,6 @@ export function YourTurn({ t, onDone, onShow }: { t: TaskDetail; onDone: () => v
           )}
         </span>
         {turn?.ask && <span className="whitespace-pre-wrap">{turn.ask}</span>}
-        {old && (
-          <Changes
-            changes={earlier.map((e, k) => ({
-              from: e.ask,
-              to: earlier[k + 1]?.ask ?? turn?.ask ?? '',
-              at: earlier[k + 1]?.at ?? turn?.edited ?? e.at,
-            }))}
-          />
-        )}
       </span>
       <button type="button" onClick={give} className="shrink-0 rounded-md px-2 py-1 text-sm font-medium hover:bg-hover/30">
         Give back

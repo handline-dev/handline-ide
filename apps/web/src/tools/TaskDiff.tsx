@@ -1,9 +1,11 @@
+import { ModalFrame, openModal } from '#src/ui/modal.tsx';
 import { ago } from '#src/format/time.ts';
 
 export interface Change {
   from: string;
   to: string;
   at: string;
+  by: string;
 }
 
 type Line = { text: string; kind: 'same' | 'del' | 'add' };
@@ -32,24 +34,29 @@ export function diffLines(a: string, b: string): Line[] {
 const MARK = { same: ' ', del: '-', add: '+' } as const;
 const TONE = { same: '', del: 'bg-danger/15 text-danger', add: 'bg-success/15 text-success' } as const;
 
-/** Each rewrite, oldest first: its lines, removed in red with a minus, added in green with a plus, unchanged plain; and when it was made. */
-export function Changes({ changes }: { changes: Change[] }) {
-  if (!changes.length) return null;
-  return (
-    <div className="mt-1 flex flex-col gap-2 border-l-2 border-border pl-3 text-xs text-muted">
-      {changes.map((c, n) => (
-        <div key={n} className="flex flex-col">
-          {diffLines(c.from, c.to).map((l, k) => (
-            <span key={k} className={`flex gap-2 whitespace-pre-wrap ${TONE[l.kind]}`}>
-              <span aria-hidden className="select-none">
-                {MARK[l.kind]}
-              </span>
-              <span className="min-w-0 flex-1">{l.text}</span>
+/** The history of an edited text in a window of its own: each rewrite, newest first, as its lines (removed in red with a minus, added in green
+ * with a plus, unchanged plain), with who made it and when. */
+export function showHistory(title: string, changes: Change[]) {
+  const newest = [...changes].sort((a, b) => b.at.localeCompare(a.at));
+  void openModal((close) => (
+    <ModalFrame title={title} onClose={() => close()}>
+      <div className="flex max-h-96 flex-col gap-4 overflow-y-auto pb-4 text-sm">
+        {newest.map((c, n) => (
+          <div key={n} className="flex flex-col">
+            <span className="mb-1 text-xs text-muted">
+              {c.by} · <time title={c.at}>{ago(c.at)}</time>
             </span>
-          ))}
-          <span className="mt-0.5">{ago(c.at)}</span>
-        </div>
-      ))}
-    </div>
-  );
+            {diffLines(c.from, c.to).map((l, k) => (
+              <span key={k} className={`flex gap-2 whitespace-pre-wrap ${TONE[l.kind]}`}>
+                <span aria-hidden className="select-none">
+                  {MARK[l.kind]}
+                </span>
+                <span className="min-w-0 flex-1">{l.text}</span>
+              </span>
+            ))}
+          </div>
+        ))}
+      </div>
+    </ModalFrame>
+  ));
 }
