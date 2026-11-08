@@ -154,6 +154,28 @@ func TestTurnsUnderAHandoffAReleaseADraftAndTheLimit(t *testing.T) {
 	}
 }
 
+// The founder ending their own turn tells the holder the question it answers: with the pass's note as the answer, or that they passed it.
+func TestTheFoundersPassTellsTheHolderTheQuestion(t *testing.T) {
+	r := newRig(t)
+	r.agentUp("bob")
+	tid := r.beginCurrent("bob", "alice", "ship it")
+	last := func() string {
+		var body string
+		r.must(r.DB.QueryRow("SELECT body FROM requests r JOIN task_requests l ON l.request_id = r.id WHERE l.task_id = ? AND r.target = 'bob' ORDER BY r.id DESC LIMIT 1", tid).Scan(&body))
+		return body
+	}
+	r.turnCall("bob", "task.turn.push", fmt.Sprintf(`{"task":%d,"to":"human","ask":"beta now?","request_id":"p1"}`, tid))
+	r.turnCall("human", "task.turn.pop", fmt.Sprintf(`{"task":%d,"outcome":"pass","note":"좋아 진행","request_id":"o1"}`, tid))
+	if got, want := last(), fmt.Sprintf("T%d 질문에 대표님 답: 좋아 진행 / 지금 질문 칸: beta now?", tid); got != want {
+		t.Fatalf("%q, want %q", got, want)
+	}
+	r.turnCall("bob", "task.turn.push", fmt.Sprintf(`{"task":%d,"to":"human","ask":"and the phone?","request_id":"p2"}`, tid))
+	r.turnCall("human", "task.turn.pop", fmt.Sprintf(`{"task":%d,"outcome":"pass","request_id":"o2"}`, tid))
+	if got, want := last(), fmt.Sprintf("T%d 대표님이 질문 칸을 넘김 / 지금 질문 칸: and the phone?", tid); got != want {
+		t.Fatalf("%q, want %q", got, want)
+	}
+}
+
 // Retiring an agent takes its turns off: the top one goes back to the agent below, a lower one just goes.
 func TestRetiringAnAgentTakesItsTurnsOff(t *testing.T) {
 	r := newRig(t)
