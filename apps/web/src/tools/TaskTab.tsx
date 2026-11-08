@@ -18,7 +18,7 @@ import {
   UserRound,
 } from 'lucide-react';
 import { look } from '#src/ui/taskLook.tsx';
-import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { ago, clock } from '#src/format/time.ts';
 import { taskOf } from '#src/layout/kinds.tsx';
 import { openProps, useOpenTab } from '#src/layout/openTab.tsx';
@@ -30,6 +30,7 @@ import { Reference } from '#src/chat/ChatLine.tsx';
 import { MessageImages } from '#src/chat/MessageImages.tsx';
 import { HoverCard } from '#src/ui/HoverCard.tsx';
 import { Fields } from '#src/tools/TaskFields.tsx';
+import { GO_TURN, goToTurn, showMemo } from '#src/tools/TaskTurn.ts';
 import { Changes } from '#src/tools/TaskDiff.tsx';
 import { CommentBox } from '#src/tools/TaskComment.tsx';
 import { useAttachments } from '#src/chat/attachments.tsx';
@@ -37,6 +38,7 @@ import { FileDropArea } from '#src/ui/fileDrop.tsx';
 import { WaitingOnYou, YourTurn } from '#src/tools/TaskWaiting.tsx';
 import { Page } from '#src/ui/Page.tsx';
 import { ScrollFade } from '#src/ui/ScrollFade.tsx';
+import { keptScroll } from '#src/ui/keptScroll.ts';
 import { toast } from '#src/ui/toast.tsx';
 
 const CLOSED = ['done', 'discarded'];
@@ -50,6 +52,24 @@ export function TaskTab({ id }: { id: number }) {
   const [replyTo, setReplyTo] = useState<TaskDetail['memos'][number] | null>(null);
   // Files dropped anywhere on the task go with the next comment, as in the chat.
   const attach = useAttachments(`task:${id}`);
+  // Going to the task's turn: the Your turn click, and a request-list click that left a mark (ui/keptScroll) before opening the task.
+  const goRef = useRef<() => void>(() => {});
+  const loaded = !!q.data;
+  useEffect(() => {
+    goRef.current = () => q.data && goToTurn(q.data);
+  });
+  useEffect(() => {
+    if (loaded && keptScroll.take(`turn:${id}`)) setTimeout(() => goRef.current(), 100);
+  }, [loaded, id]);
+  useEffect(() => {
+    const on = (e: Event) => {
+      if ((e as CustomEvent<number>).detail !== id) return;
+      keptScroll.take(`turn:${id}`);
+      goRef.current();
+    };
+    window.addEventListener(GO_TURN, on);
+    return () => window.removeEventListener(GO_TURN, on);
+  }, [id]);
   const t = q.data;
   if (q.isError) return <p className="m-auto text-sm text-danger">T{id} did not load.</p>;
   if (!t) return <p className="m-auto text-sm text-muted">Loading T{id}</p>;
@@ -101,16 +121,9 @@ export function TaskTab({ id }: { id: number }) {
             <Fields t={t} open={open} />
             {/* Shown only while something holds it: what it waits on, and why. */}
             {open && (mine || why || t.blockers.length > 0) && (
-              <div className="flex flex-col gap-1 rounded-lg bg-warning/10 px-3 py-2 text-sm">
+              <div data-turn-slot className="flex flex-col gap-1 rounded-lg bg-warning/10 px-3 py-2 text-sm transition-colors">
                 {mine ? (
-                  <YourTurn
-                    t={t}
-                    onDone={() => void q.refetch()}
-                    onShow={() => {
-                      const m = askingMemo(t);
-                      if (m) showMemo(m.id);
-                    }}
-                  />
+                  <YourTurn t={t} onDone={() => void q.refetch()} onShow={() => goToTurn(t)} />
                 ) : asked ? (
                   <WaitingOnYou t={t} me={me} asked={asked} onDone={() => void q.refetch()} onShow={() => showMemo(asked.id)} />
                 ) : (
@@ -242,23 +255,6 @@ function toBottom(id: number) {
     const el = document.querySelector(`[data-task-scroll="${id}"]`);
     el?.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
   }, 50);
-}
-
-/** The comment that made this the founder's turn: the last one by whoever asked, written by the time the turn began, else the newest. */
-function askingMemo(t: TaskDetail) {
-  const turn = t.turns?.at(-1);
-  const at = turn ? Date.parse(turn.since) : NaN;
-  const by = t.memos.filter((m) => m.author === turn?.by && Date.parse(m.at) <= at + 5000);
-  return by.at(-1) ?? t.memos.at(-1);
-}
-
-/** Brings a comment into view and marks it for a moment. */
-function showMemo(id: number) {
-  const el = document.querySelector(`[data-memo="${id}"]`);
-  if (!el) return;
-  el.scrollIntoView({ block: 'center', behavior: 'smooth' });
-  el.classList.add('bg-warning/10');
-  setTimeout(() => el.classList.remove('bg-warning/10'), 1500);
 }
 
 /** What a change was, from its sentence: assigned or handed, done, discarded, edited, sent back, a request, or another state. */

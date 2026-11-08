@@ -9,6 +9,12 @@ const kept = new Map<string, number | KeptLine | 'end'>();
 export const keptScroll = {
   get: (key: string) => kept.get(key),
   set: (key: string, v: number | KeptLine | 'end') => void kept.set(key, v),
+  /** A mark read once: what was kept under `key`, which is then gone. */
+  take: (key: string) => {
+    const v = kept.get(key);
+    kept.delete(key);
+    return v;
+  },
 };
 
 /** Keeps `ref`'s scroll offset under `key`: put back when it mounts, and again as its content grows in, until the person scrolls. */
