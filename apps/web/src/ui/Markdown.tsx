@@ -202,7 +202,7 @@ function linkOf(s: string): string | null {
   return null;
 }
 
-function Linked({ text }: { text: string }) {
+export function Linked({ text }: { text: string }) {
   const parts = text.split(LINKS);
   return parts.map((p, i) => {
     const target = i % 2 ? linkOf(p) : null;
