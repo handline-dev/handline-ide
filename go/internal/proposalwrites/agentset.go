@@ -36,6 +36,10 @@ func (e *Env) agentSetMethod(c *rpc.Conn, params map[string]any) (any, error) {
 		}
 		values[k] = s
 	}
+	restart, _ := params["restart"].(string)
+	if params["restart"] != nil && restart != "resume" && restart != "fresh" {
+		return nil, bad(`restart is "resume" (the same conversation) or "fresh" (a handoff, then a new one)`, "restart")
+	}
 	var ok bool
 	var said string
 	switch c.Caller.Role {
@@ -56,6 +60,12 @@ func (e *Env) agentSetMethod(c *rpc.Conn, params map[string]any) (any, error) {
 	}
 	return c.Effect(func(tx *sql.Tx) (map[string]any, error) {
 		if err := db.SetMeta(tx, db.SettingsByMeta(agent), by); err != nil {
+			return nil, err
+		}
+		if restart != "fresh" {
+			restart = ""
+		}
+		if err := db.SetMeta(tx, db.SettingsRestartMeta(agent), restart); err != nil {
 			return nil, err
 		}
 		return map[string]any{"accepted": true, "said": said}, nil
