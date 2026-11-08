@@ -95,15 +95,10 @@ export function YourTurn({ t, onDone, onShow }: { t: TaskDetail; onDone: () => v
               type="button"
               disabled={!earlier.length}
               onClick={() =>
-                showHistory(
-                  'Edits to the question',
-                  earlier.map((e, k) => ({
-                    from: e.ask,
-                    to: earlier[k + 1]?.ask ?? turn?.ask ?? '',
-                    at: earlier[k + 1]?.at ?? turn?.edited ?? e.at,
-                    by: turn?.by ?? '',
-                  })),
-                )
+                showHistory('Versions of the question', [
+                  ...earlier.map((e) => ({ text: e.ask, at: e.at, by: turn?.by ?? '' })),
+                  { text: turn?.ask ?? '', at: turn?.edited ?? '', by: turn?.by ?? '' },
+                ])
               }
               title={turn.edited}
               className="text-xs font-normal text-muted enabled:underline enabled:decoration-dotted enabled:hover:text-fg"

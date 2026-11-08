@@ -337,7 +337,8 @@ function Activity({ task, items, onReply }: { task: number; items: ActivityItem[
   const [all, setAll] = useState(false);
   // The texts an edited comment had: its history rows. Its 'edited' mark opens them in a window.
   const rows = useTaskHistory(task).data?.rows;
-  const earlierOf = (memo?: number | null) => (rows ?? []).filter((r) => r.field === 'memo' && r.memo === memo && r.was && r.now);
+  const earlierOf = (memo?: number | null) =>
+    (rows ?? []).filter((r) => r.field === 'memo' && r.memo === memo && r.was && r.now).sort((a, b) => a.at.localeCompare(b.at));
   // What was there when the task opened just shows; a comment or event that comes later, or a comment's new words, flash.
   const [first] = useState(() => new Set(items.map(keyOf)));
   const fresh = (i: ActivityItem) => (first.has(keyOf(i)) ? '' : 'just-changed');
@@ -392,10 +393,10 @@ function Activity({ task, items, onReply }: { task: number; items: ActivityItem[
                   onEdited={
                     i.memo != null && earlierOf(i.memo).length
                       ? () =>
-                          showHistory(
-                            'Edits to this comment',
-                            earlierOf(i.memo).map((r) => ({ from: r.was, to: r.now, at: r.at, by: r.by })),
-                          )
+                          showHistory('Versions of this comment', [
+                            { text: earlierOf(i.memo)[0]!.was, at: i.at, by: i.who },
+                            ...earlierOf(i.memo).map((r) => ({ text: r.now, at: r.at, by: r.by })),
+                          ])
                       : undefined
                   }
                 >
