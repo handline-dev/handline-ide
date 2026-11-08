@@ -4,7 +4,7 @@ import { second, setup } from '#src/helpers.ts';
 
 const AGENT = 'handline.architect';
 
-test('an agent comment naming `@human` opens an ask; edits, the reply and done close it', async () => {
+test('a comment asks nothing; the founder is asked by a turn, and asking again rewrites it', async () => {
   const s = setup({ client: 'boss' });
   s.daemon.tasks.verbs = true;
   await s.client.start();
@@ -12,29 +12,24 @@ test('an agent comment naming `@human` opens an ask; edits, the reply and done c
   await worker.start();
   const task = (await s.client.call('task.new', { owner: AGENT, title: 'a task', body: 'build it', request_id: 'a1' })).task as number;
   const asks = async () =>
-    ((await s.client.call('inbox.list', { unread: true })).items as { kind: string; task: number; memo?: number }[]).filter(
-      (i) => i.memo !== undefined,
-    );
-  const none = (await worker.call('task.comment.add', { task, text: 'no one named', request_id: 'a2' })).memo as number;
+    ((await s.client.call('inbox.list', { unread: true })).items as { kind: string; memo?: number }[]).filter((i) => i.memo !== undefined);
+  await worker.call('task.comment.add', { task, text: '@human which one?', request_id: 'a2' });
   assert.deepEqual(await asks(), []);
-  const memo = (await worker.call('task.comment.add', { task, text: '@human which one?', request_id: 'a3' })).memo as number;
-  const [ask] = await asks();
-  assert.deepEqual([ask?.kind, ask?.task, ask?.memo], ['ask', task, memo]);
-  await worker.call('task.comment.edit', { task, memo, text: '@human A or B?', request_id: 'a4' });
-  assert.equal((await asks()).length, 1);
-  await worker.call('task.comment.edit', { task, memo, text: 'never mind', request_id: 'a5' });
-  assert.deepEqual(await asks(), []);
-  await worker.call('task.comment.edit', { task, memo: none, text: '@human now', request_id: 'a6' });
-  assert.equal((await asks()).length, 1);
-  const reply = (await asks())[0] as unknown as { id: number };
-  await s.client.call('inbox.reply', { id: reply.id, text: 'A', request_id: 'a7' });
-  assert.deepEqual(await asks(), []);
-  const comments = (await s.client.call('task.comment.list', { task })).memos as { text: string; reply_to?: number }[];
-  assert.ok(comments.some((m) => m.text === 'A' && m.reply_to === none));
-  await worker.call('task.comment.add', { task, text: '@human again', request_id: 'a8' });
-  assert.equal((await asks()).length, 1);
-  await worker.call('task.done', { task, evidence: 'built and tested', request_id: 'a9' });
-  assert.deepEqual(await asks(), []);
+  const turn = async () =>
+    (
+      (await s.client.call('task.get', { task })).turns as {
+        agent: string;
+        ask: string;
+        edited: string | null;
+        earlier?: { ask: string }[];
+      }[]
+    ).at(-1);
+  await worker.call('task.turn.push', { task, to: 'human', ask: 'A or B?', request_id: 'a3' });
+  await worker.call('task.turn.push', { task, to: 'human', ask: 'A or B?', request_id: 'a4' });
+  assert.deepEqual([(await turn())?.agent, (await turn())?.ask, (await turn())?.edited], ['human', 'A or B?', null]);
+  await worker.call('task.turn.push', { task, to: 'human', ask: 'A, B or C?', request_id: 'a5' });
+  const t = await turn();
+  assert.deepEqual([t?.ask, t?.earlier?.map((e) => e.ask), !!t?.edited], ['A, B or C?', ['A or B?'], true]);
   worker.close();
   s.client.close();
 });

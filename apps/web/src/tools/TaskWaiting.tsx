@@ -74,8 +74,7 @@ export function WaitingOnYou({
   );
 }
 
-/** The founder holds the top turn, and its ask is the task's one question: how it reads now, an "edited" mark when it was rewritten (the
- * older texts fold under it), and Give back, which passes the turn to the one below. A comment passes it too. */
+/** The founder's turn is the task's one question: the ask, an "edited" mark with older texts folded under it, and Give back. */
 export function YourTurn({ t, onDone }: { t: TaskDetail; onDone: () => void }) {
   const back = useGiveBack();
   const turn = t.turns?.at(-1);
@@ -103,8 +102,8 @@ export function YourTurn({ t, onDone }: { t: TaskDetail; onDone: () => void }) {
               Earlier {earlier.length}
             </button>
             {old &&
-              [...earlier].reverse().map((e) => (
-                <span key={e.at} className="border-l-2 border-border pl-3 text-xs text-muted">
+              [...earlier].reverse().map((e, i) => (
+                <span key={i} className="border-l-2 border-border pl-3 text-xs text-muted">
                   <span className="whitespace-pre-wrap line-through">{e.ask}</span> · {ago(e.at)}
                 </span>
               ))}

@@ -168,7 +168,7 @@ export class TaskComments extends TaskStore {
   }
 
   /**
-   * The ask to the founder that comment `m` raised, kept as the comment reads now: an agent's comment that names `@human` has one open ask.
+   * The ask to the founder that comment `m` raised, kept as the comment reads now: an ask an agent's `@human` comment opened before comments stopped asking stays open.
    * The founder writing on the task answers it.
    */
   protected askFor(t: Row, m: Memo, adding: boolean, gone = false): void {
@@ -176,8 +176,7 @@ export class TaskComments extends TaskStore {
     if (!this.isAgent(m.author)) return adding ? inbox.closeAsks(t.id) : undefined;
     const open = inbox.askOf(t.id, m.id);
     const want = !gone && NAMES_HUMAN.test(m.text);
-    if (want && !open) inbox.add({ kind: 'ask', agent: m.author, title: m.text, body: m.text, task: t.id, memo: m.id });
-    else if (want && open) inbox.retext(open, m.text);
+    if (want && open) inbox.retext(open, m.text);
     else if (open) inbox.close(open);
   }
 
