@@ -31,7 +31,7 @@ import { MessageImages } from '#src/chat/MessageImages.tsx';
 import { HoverCard } from '#src/ui/HoverCard.tsx';
 import { Fields } from '#src/tools/TaskFields.tsx';
 import { GO_TURN, goToTurn, showMemo } from '#src/tools/TaskTurn.ts';
-import { Changes } from '#src/tools/TaskDiff.tsx';
+import { showHistory } from '#src/tools/TaskDiff.tsx';
 import { CommentBox } from '#src/tools/TaskComment.tsx';
 import { useAttachments } from '#src/chat/attachments.tsx';
 import { FileDropArea } from '#src/ui/fileDrop.tsx';
@@ -335,9 +335,8 @@ const SHOWN = 5;
 /** Comments and changes in one list, oldest first: the last five, and Earlier opens the rest above them. */
 function Activity({ task, items, onReply }: { task: number; items: ActivityItem[]; onReply: (memo: number) => void }) {
   const [all, setAll] = useState(false);
-  // The texts an edited comment had: its history rows, oldest first. The one open, if any, shows them under its words.
+  // The texts an edited comment had: its history rows. Its 'edited' mark opens them in a window.
   const rows = useTaskHistory(task).data?.rows;
-  const [open, setOpen] = useState<number | null>(null);
   const earlierOf = (memo?: number | null) => (rows ?? []).filter((r) => r.field === 'memo' && r.memo === memo && r.was && r.now);
   // What was there when the task opened just shows; a comment or event that comes later, or a comment's new words, flash.
   const [first] = useState(() => new Set(items.map(keyOf)));
@@ -385,19 +384,20 @@ function Activity({ task, items, onReply }: { task: number; items: ActivityItem[
                     <Reference text={items.find((r) => r.memo === i.replyTo)?.note} onClick={() => showMemo(i.replyTo!)} />
                   )}
                   <Markdown text={i.note} />
-                  {i.memo != null && i.edited && open === i.memo && (
-                    <Changes
-                      changes={earlierOf(i.memo)
-                        .sort((a, b) => a.at.localeCompare(b.at))
-                        .map((r) => ({ from: r.was, to: r.now, at: r.at }))}
-                    />
-                  )}
                   {i.images && <MessageImages images={i.images} />}
                 </div>
                 <HoverRow
                   at={i.at}
                   edited={i.edited}
-                  onEdited={i.memo != null && earlierOf(i.memo).length ? () => setOpen(open === i.memo ? null : i.memo!) : undefined}
+                  onEdited={
+                    i.memo != null && earlierOf(i.memo).length
+                      ? () =>
+                          showHistory(
+                            'Edits to this comment',
+                            earlierOf(i.memo).map((r) => ({ from: r.was, to: r.now, at: r.at, by: r.by })),
+                          )
+                      : undefined
+                  }
                 >
                   <Actions text={i.note} onQuote={() => i.memo != null && onReply(i.memo)} />
                   <ReadBy readers={i.readers} />
