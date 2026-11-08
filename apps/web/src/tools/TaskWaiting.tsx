@@ -5,6 +5,7 @@ import type { TaskDetail } from '@handline/client';
 import { classify, sentence, useGiveBack, useWrite } from '@handline/app-data';
 import { ChevronRight, Hand, X } from 'lucide-react';
 import { useState } from 'react';
+import { Changes } from '#src/tools/TaskDiff.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { toast } from '#src/ui/toast.tsx';
 import { ago, clock } from '#src/format/time.ts';
@@ -75,7 +76,7 @@ export function WaitingOnYou({
 }
 
 /** The founder's turn is the task's one question: the ask, an "edited" mark with older texts folded under it, and Give back. */
-export function YourTurn({ t, onDone }: { t: TaskDetail; onDone: () => void }) {
+export function YourTurn({ t, onDone, onShow }: { t: TaskDetail; onDone: () => void; onShow: () => void }) {
   const back = useGiveBack();
   const turn = t.turns?.at(-1);
   const earlier = turn?.earlier ?? [];
@@ -87,7 +88,9 @@ export function YourTurn({ t, onDone }: { t: TaskDetail; onDone: () => void }) {
       <Hand size={14} className="mt-1 shrink-0 text-warning" />
       <span className="flex min-w-0 flex-1 flex-col gap-1">
         <span className="flex items-center gap-2 font-medium">
-          Your turn
+          <button type="button" onClick={onShow} className="hover:underline">
+            Your turn
+          </button>
           {turn?.edited && (
             <span className="text-xs font-normal text-muted" title={turn.edited}>
               edited {ago(turn.edited)}
@@ -101,12 +104,15 @@ export function YourTurn({ t, onDone }: { t: TaskDetail; onDone: () => void }) {
               <ChevronRight size={12} className={old ? 'rotate-90' : ''} />
               Earlier {earlier.length}
             </button>
-            {old &&
-              [...earlier].reverse().map((e, i) => (
-                <span key={i} className="border-l-2 border-border pl-3 text-xs text-muted">
-                  <span className="whitespace-pre-wrap line-through">{e.ask}</span> · {ago(e.at)}
-                </span>
-              ))}
+            {old && (
+              <Changes
+                changes={earlier.map((e, k) => ({
+                  from: e.ask,
+                  to: earlier[k + 1]?.ask ?? turn?.ask ?? '',
+                  at: earlier[k + 1]?.at ?? turn?.edited ?? e.at,
+                }))}
+              />
+            )}
           </>
         )}
       </span>
