@@ -356,7 +356,7 @@ func MemoSummary(q Q, tid int64, cap int) (string, error) {
 	if err := rows.Err(); err != nil || len(parts) == 0 {
 		return "", err
 	}
-	text := "Memos - " + strings.Join(parts, " | ")
+	text := "Comments - " + strings.Join(parts, " | ")
 	if utf8.RuneCountInString(text) <= cap {
 		return text, nil
 	}

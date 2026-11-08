@@ -16,7 +16,7 @@ import (
 // MemoChanged tells whom a memo concerns that it was added, edited or deleted (what), now or in each reader's digest (TellMemo).
 func (e *Env) MemoChanged(tid, mid int64, by, what, text string, now bool, skip []string) {
 	if err := e.TellMemoSkipping(e.DB, tid, mid, by, what, text, "", now, skip); err != nil {
-		e.log("  telling about the memo on T%d failed: %v", tid, err)
+		e.log("  telling about the comment on T%d failed: %v", tid, err)
 	}
 }
 
@@ -32,7 +32,7 @@ func (e *Env) MemoRecipients(tid int64, by, text string, now bool) ([]taskwrites
 // MemoTellSent sends the held tell of a comment, request rid, to its reader at once as a digest of that one notice.
 func (e *Env) MemoTellSent(rid int64) {
 	var out string
-	defer e.guard("sending a held memo tell", &out)
+	defer e.guard("sending a held comment tell", &out)
 	q := db.Q(e.DB)
 	req := must(db.GetRequest(q, rid))
 	if req == nil || req.DeliveredAt.Valid {

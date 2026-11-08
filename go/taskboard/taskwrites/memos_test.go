@@ -81,7 +81,7 @@ func TestMemosAreAddedEditedAndDeletedByTheirAuthorOrTheFounder(t *testing.T) {
 		`{"jsonrpc":"2.0","id":4,"method":"task.memo.edit","params":{"task":1,"memo":1,"text":"second","request_id":"a2"}}`,
 		`{"jsonrpc":"2.0","id":5,"method":"task.memo.add","params":{"task":9,"text":"x","request_id":"a3"}}`)
 	res := r[0]["result"].(map[string]any)
-	if res["memo"].(float64) != 1 || res["said"] != "memo 1 added to T1" {
+	if res["memo"].(float64) != 1 || res["said"] != "comment 1 added to T1" {
 		t.Fatalf("%v", r[0])
 	}
 	if r[1]["result"].(map[string]any)["replayed"] != true {
@@ -197,7 +197,7 @@ func TestStartMakesATaskTheOwnersCurrentOneAndPutsItsRequestFirst(t *testing.T) 
 		t.Fatalf("a done task has nothing to start: %v", r[1])
 	}
 	said := r[2]["result"].(map[string]any)["said"].(string)
-	if !strings.HasPrefix(said, "T2 is now worker's current task; T1 goes back to queued (your `hl progress` note is kept)\nMemos - manager ") ||
+	if !strings.HasPrefix(said, "T2 is now worker's current task; T1 goes back to queued (your `hl progress` note is kept)\nComments - manager ") ||
 		!strings.HasSuffix(said, ": mind the lock") {
 		t.Fatalf("%q", said)
 	}

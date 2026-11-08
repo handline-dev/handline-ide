@@ -79,7 +79,7 @@ func TestTheFoundersTurnFreesTheAgentsSlotAndTheirCommentGivesItBack(t *testing.
 	}
 	var back string
 	r.must(r.DB.QueryRow("SELECT body FROM requests r JOIN task_requests l ON l.request_id = r.id WHERE l.task_id = ? AND r.target = 'bob' ORDER BY r.id DESC LIMIT 1", held).Scan(&back))
-	if !strings.Contains(back, "your turn again") || !strings.Contains(back, "now") {
+	if back != "T1 질문에 대표님 댓글 1: now / 지금 질문 칸: beta now or after the fix? I recommend now" {
 		t.Fatalf("%q", back)
 	}
 }

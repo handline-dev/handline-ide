@@ -124,7 +124,7 @@ func TestMemoSummaryAndHandoffRecord(t *testing.T) {
 	}
 	q.Exec("INSERT INTO task_memos(task_id, author, body, created_at) VALUES(?, 'a', 'first\nline', 1759900000.123)", tid)
 	s, _ := MemoSummary(q, tid, 500)
-	if s == "" || s[:8] != "Memos - " || len(s) < 20 {
+	if s == "" || s[:11] != "Comments - " || len(s) < 20 {
 		t.Fatal(s)
 	}
 	if cut, _ := MemoSummary(q, tid, 12); len([]rune(cut)) != 13 {
