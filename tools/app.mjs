@@ -42,11 +42,11 @@ function end(s, file) {
 
 // ---- over the DevTools port ----------------------------------------------------------------------------------------------------------
 
-/** One DevTools call on the app's page; returns its result. */
+/** One DevTools call on the app's page; returns its result. These helpers throw, never exit: start's catch must end the instance. */
 async function cdp(s, method, params = {}) {
   const pages = await (await fetch(`http://127.0.0.1:${s.debugPort}/json`)).json();
   const page = pages.find((p) => p.type === 'page' && p.url.startsWith(`http://127.0.0.1:${s.webPort}/`));
-  if (!page) die('the app has no page yet (still starting?)');
+  if (!page) throw new Error('the app has no page yet (still starting?)');
   const ws = new WebSocket(page.webSocketDebuggerUrl);
   await new Promise((res, rej) => ((ws.onopen = res), (ws.onerror = () => rej(new Error('devtools socket')))));
   try {
@@ -79,8 +79,8 @@ async function pointOf(s, target) {
     `(() => { const e = document.querySelector(${JSON.stringify(target)}); if (!e) return null; e.scrollIntoView({ block: 'center', inline: 'center' });
       const r = e.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height }; })()`,
   );
-  if (!p) die(`nothing matches ${target}`);
-  if (!p.w && !p.h) die(`${target} has no size on screen`);
+  if (!p) throw new Error(`nothing matches ${target}`);
+  if (!p.w && !p.h) throw new Error(`${target} has no size on screen`);
   return p;
 }
 
@@ -131,7 +131,8 @@ const DRAG_CHECK = `(() => {
 const [verb, ...rest] = process.argv.slice(2);
 const flag = (n) => rest.includes(n);
 const opt = (n) => (rest.includes(n) ? rest[rest.indexOf(n) + 1] : undefined);
-const positional = () => rest.filter((a, i) => !a.startsWith('--') && rest[i - 1] !== '--out');
+// Only the flags this tool knows are dropped, so an argument like "--foo" reaches click, type and eval.
+const positional = () => rest.filter((a, i) => !['--fake', '--no-build', '--all', '--out'].includes(a) && rest[i - 1] !== '--out');
 if (os.platform() !== 'darwin') die('the desktop app is run on a Mac');
 
 const commands = {
@@ -238,6 +239,7 @@ const commands = {
     );
   },
   stop() {
+    if (flag('--all') && !agent) die('stop --all needs HANDLINE_AGENT: without it every instance with no owner would match');
     const files = flag('--all')
       ? fs.existsSync(stateDir)
         ? fs.readdirSync(stateDir).map((f) => path.join(stateDir, f))
@@ -260,5 +262,9 @@ const commands = {
 };
 
 if (!commands[verb]) die(`usage: node tools/app.mjs <${Object.keys(commands).join('|')}> ...`);
-await commands[verb]();
+try {
+  await commands[verb]();
+} catch (e) {
+  die(e.message); // a helper's failure: say it and exit non-zero, after the command's own cleanup
+}
 process.exit(process.exitCode ?? 0);
