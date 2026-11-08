@@ -78,6 +78,21 @@ func PushTurn(q Q, tid int64, t Turn) error {
 	return err
 }
 
+// ReaskTopTurn replaces the ask of task tid's top turn with ask, by `by`; false when it has none or the ask is already that. The text it
+// replaced stays in a task_turn_ask event.
+func ReaskTopTurn(q Q, tid int64, by, ask string) (bool, error) {
+	turns, err := Turns(q, tid)
+	if err != nil || len(turns) == 0 || turns[len(turns)-1].Ask == ask {
+		return false, err
+	}
+	top := turns[len(turns)-1]
+	if _, err := q.Exec("UPDATE task_turns SET ask = ? WHERE task_id = ? AND pos = ?", ask, tid, len(turns)); err != nil {
+		return false, err
+	}
+	_, err = AddEvent(q, by, "task_turn_ask", KV{K: "task_id", V: tid}, KV{K: "agent", V: top.Agent}, KV{K: "from", V: top.Ask}, KV{K: "ask", V: ask})
+	return err == nil, err
+}
+
 // PopTurn takes the top turn off task tid by `by` with outcome and note, and answers it and the agent that acts now; ok false with no turn.
 func PopTurn(q Q, tid int64, by, outcome, note string) (top Turn, acting string, ok bool, err error) {
 	turns, err := Turns(q, tid)

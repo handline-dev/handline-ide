@@ -194,13 +194,13 @@
    ]
   },
   {
-   "name": "requests.pending.a_human_comment_stays_through_task_seen_and_leaves_when_answered",
-   "spec": "requests.pending",
+   "name": "task.turn.push.asking_the_founder_again_rewrites_their_question",
+   "spec": "task.turn.push",
    "as": "agent",
    "with": {
     "boss": "founder"
    },
-   "about": "An @human comment is one row with its first line as ask; reading it changes nothing; the founder's comment on the task answers it.",
+   "about": "While the founder is on top, the agent below pushing human again rewrites the ask: still one row, its ask the new text; task.get says edited and keeps the old text in earlier.",
    "steps": [
     {
      "send": {
@@ -262,10 +262,10 @@
       "method": "task.new",
       "params": {
        "owner": "{{me}}",
-       "title": "a memo task",
+       "title": "a turn task",
        "body": "build it; done is it built",
        "time_box": "1h",
-       "request_id": "conf-ft-memo task-new"
+       "request_id": "conf-ft-reask task-new"
       }
      },
      "result": {
@@ -280,11 +280,12 @@
      "send": {
       "jsonrpc": "2.0",
       "id": 3,
-      "method": "task.comment.add",
+      "method": "task.turn.push",
       "params": {
        "task": "{{tid}}",
-       "request_id": "conf-ft-memo-add",
-       "text": "@human which one?"
+       "to": "human",
+       "ask": "pick one",
+       "request_id": "conf-ft-reask-first"
       }
      },
      "result": {
@@ -295,6 +296,22 @@
      "send": {
       "jsonrpc": "2.0",
       "id": 4,
+      "method": "task.turn.push",
+      "params": {
+       "task": "{{tid}}",
+       "to": "human",
+       "ask": "pick one, A or B",
+       "request_id": "conf-ft-reask-push"
+      }
+     },
+     "result": {
+      "accepted": true
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 5,
       "method": "requests.pending",
       "params": {}
      },
@@ -302,12 +319,8 @@
       "answer": {
        "$contains": {
         "task": "{{tid}}",
-        "kind": "ask",
-        "source": "comment",
-        "agent": "{{me}}",
-        "ask": {
-         "$regex": "which one\\?"
-        }
+        "source": "task",
+        "ask": "pick one, A or B"
        }
       },
       "counts": {
@@ -321,29 +334,25 @@
     {
      "send": {
       "jsonrpc": "2.0",
-      "id": 5,
-      "method": "task.seen",
+      "id": 6,
+      "method": "task.get",
       "params": {
-       "task": "{{tid}}",
-       "request_id": "conf-ft-memo-seen"
+       "task": "{{tid}}"
       }
      },
      "result": {
-      "accepted": true
-     },
-     "on": "boss"
-    },
-    {
-     "send": {
-      "jsonrpc": "2.0",
-      "id": 6,
-      "method": "requests.pending",
-      "params": {}
-     },
-     "result": {
-      "counts": {
-       "answer": {
-        "$next": "c0"
+      "turns": {
+       "$contains": {
+        "agent": "human",
+        "ask": "pick one, A or B",
+        "edited": {
+         "$type": "string"
+        },
+        "earlier": {
+         "$contains": {
+          "ask": "pick one"
+         }
+        }
        }
       }
      },
@@ -353,29 +362,15 @@
      "send": {
       "jsonrpc": "2.0",
       "id": 7,
-      "method": "task.comment.add",
+      "method": "task.turn.pop",
       "params": {
        "task": "{{tid}}",
-       "request_id": "conf-ft-memo-answer",
-       "text": "the first"
+       "outcome": "pass",
+       "request_id": "conf-ft-reask-pop"
       }
      },
      "result": {
       "accepted": true
-     },
-     "on": "boss"
-    },
-    {
-     "send": {
-      "jsonrpc": "2.0",
-      "id": 8,
-      "method": "requests.pending",
-      "params": {}
-     },
-     "result": {
-      "counts": {
-       "answer": "{{c0}}"
-      }
      },
      "on": "boss"
     }

@@ -62,13 +62,16 @@ func turnPushMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (a
 			if !asked.OK {
 				return nil, &rpc.CommitThen{Err: refusal(asked.Msg)}
 			}
+			if asked.Reask {
+				return accepted(fmt.Sprintf("T%d: %s", tid, asked.Msg), nil), nil
+			}
 			return accepted(fmt.Sprintf("T%d is %s's turn now: %s", tid, to, asked.Msg), nil), nil
 		})
 		if asked != nil && !asked.OK && asked.After != nil {
 			asked.After()
 		}
-		if err != nil {
-			return nil, err
+		if err != nil || asked.Reask {
+			return out, err
 		}
 		h.After = asked.After
 		if tail := tell.HandedOver(h); tail != "" {
@@ -98,6 +101,18 @@ func pushTurn(tx *sql.Tx, tell Teller, tid int64, by, to, ask, onPass, evidence 
 	if err != nil {
 		return Handover{}, nil, err
 	}
+	turns, err := db.Turns(tx, tid)
+	if err != nil {
+		return Handover{}, nil, err
+	}
+	if to == human && ask != "" && turnRefusal(t, tid, human) == "" && t.Acting == human && len(turns) > 0 && by == below(turns, t.Owner) {
+		// the founder's turn is their one question slot on the task: asking again rewrites it
+		changed, err := db.ReaskTopTurn(tx, tid, by, ask)
+		if err != nil || !changed {
+			return Handover{}, &Asked{OK: true, Msg: "the founder's question is unchanged", Reask: true}, err
+		}
+		return Handover{}, &Asked{OK: true, Msg: "the founder's question now reads: " + ask, Reask: true}, nil
+	}
 	if why := turnRefusal(t, tid, by); why != "" {
 		return Handover{}, nil, refusal(why)
 	}
@@ -105,10 +120,6 @@ func pushTurn(tx *sql.Tx, tell Teller, tid int64, by, to, ask, onPass, evidence 
 		return Handover{}, nil, err
 	} else if in {
 		return Handover{}, nil, refusal(fmt.Sprintf("%s already acts on T%d or has a turn below", to, tid))
-	}
-	turns, err := db.Turns(tx, tid)
-	if err != nil {
-		return Handover{}, nil, err
 	}
 	if len(turns) >= db.MaxTurns {
 		return Handover{}, nil, refusal(fmt.Sprintf("T%d carries %d turns, the most it may: pop one first", tid, db.MaxTurns))
@@ -132,6 +143,37 @@ func pushTurn(tx *sql.Tx, tell Teller, tid int64, by, to, ask, onPass, evidence 
 		return shiftTask(tx, tell, &h, "turn to "+to, true, push)
 	}})
 	return h, asked, err
+}
+
+// Asker is who may put the founder's question on open task tid, or rewrite it: the agent acting on it, or the one under the founder's turn.
+// "" for none (no such task, or it is over).
+func Asker(tx *sql.Tx, tid int64) (string, error) {
+	t, err := getTask(tx, tid)
+	if err != nil || t == nil || t.done() || t.DiscardedBy.Valid && t.DiscardedBy.String != "" {
+		return "", err
+	}
+	if t.Acting != human {
+		return t.Acting, nil
+	}
+	turns, err := db.Turns(tx, tid)
+	if err != nil || len(turns) == 0 {
+		return "", err // the founder owns it: nobody asks them
+	}
+	return below(turns, t.Owner), nil
+}
+
+// PutQuestion is the founder's turn on task tid with ask, by its Asker: put on, or its question rewritten when it is already theirs. The
+// caller runs tell.HandedOver on the Handover after the commit unless Asked.Reask.
+func PutQuestion(tx *sql.Tx, tell Teller, tid int64, by, ask string) (Handover, *Asked, error) {
+	return pushTurn(tx, tell, tid, by, human, ask, "", "")
+}
+
+// below is who acts on a task once its top turn comes off: the turn under it, else its owner.
+func below(turns []db.Turn, owner string) string {
+	if len(turns) > 1 {
+		return turns[len(turns)-2].Agent
+	}
+	return owner
 }
 
 // turnRefusal is why by may not push or pop on task t now, or "": the task is open and by acts on it or is the founder.
@@ -241,10 +283,7 @@ func popTurn(tx *sql.Tx, home string, tell Teller, tid int64, by, outcome, note 
 		return Popped{}, refusal(fmt.Sprintf("T%d has no turn on it: %s acts on it as its owner", tid, t.Owner))
 	}
 	top := turns[len(turns)-1]
-	below := t.Owner
-	if len(turns) > 1 {
-		below = turns[len(turns)-2].Agent
-	}
+	below := below(turns, t.Owner)
 	h := Handover{Task: tid, By: by, From: top.Agent, To: below, Title: t.Title}
 	if outcome == db.TurnPass && top.OnPass == db.TurnOnPassDone {
 		res, err := MarkDone(tx, home, top.Agent, DoneIn{Task: tid, Words: top.Evidence, TurnPassed: true})

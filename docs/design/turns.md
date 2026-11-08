@@ -27,7 +27,7 @@ An agent below the top acts on nothing: its slot is free and its next queued tas
 - `task.release` by the top agent is a `send_back` with its reason; by the owner with turns open it is refused (pop first). `task.draft` and `task.discard` clear the stack. `task.done` by acting, the owner or the founder clears the stack and tells the agents in it. `task.reopen` goes to the owner with an empty stack.
 - `blocked_by` and `task.wait` block the task whoever acts; the acting agent's slot is the one freed.
 - Retiring an agent pops each turn it holds as `send_back`, note "retired".
-- `@human` in a comment stays a question that does not stop the work: it opens an ask, which `task.time` reads as waiting on the founder, and the slot stays taken. To wait on the answer, push `human`.
+- The founder's turn is the task's one question slot. Pushing `human` again while it is on top, by the agent below it, rewrites its `ask` (a `task_turn_ask` event keeps the old text; the founder is told only when the text changes), and `hl say human --task T<n>` from that agent is the same push. A comment asks the founder nothing, `@human` or not.
 
 ## Reads
 
@@ -38,7 +38,6 @@ An agent below the top acts on nothing: its slot is free and its next queued tas
 ## Rules for agents
 
 - Cannot go on without the founder's decision: push `human` with the decision and a recommendation in `ask`, then take the next task or stop.
-- A question that does not stop the work: an `@human` comment.
 - Finished work that needs review: push the reviewer with `on_pass: "done"` and the evidence. The reviewer passes or sends back; nobody opens a fix task for the same work.
 
 ## Phases

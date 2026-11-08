@@ -77,10 +77,10 @@ func TestNoNoticeOnceTheTaskIsTheFoundersOrWithNoDoingTask(t *testing.T) {
 	}
 }
 
-// The notice names a route the board accepts: a task cannot be handed to the founder, so it must not say to.
+// The notice names the one route to the founder the board has: their turn on the task, not a handoff or an @human comment.
 func TestTheSaidStopNoticeDoesNotTellAnAgentToHandTheTaskToTheFounder(t *testing.T) {
 	text := SaidStopText(7)
-	if strings.Contains(text, "handoff") || !strings.Contains(text, "@human") {
-		t.Fatalf("the notice must point at an @human memo, not a handoff: %s", text)
+	if strings.Contains(text, "handoff") || strings.Contains(text, "@human") || !strings.Contains(text, "hl task turn T7 human") {
+		t.Fatalf("the notice must point at the founder's turn: %s", text)
 	}
 }

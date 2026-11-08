@@ -913,7 +913,6 @@ func (l *Launcher) yourTeam(agent string) string {
 	typed := l.FounderTyped != nil && l.FounderTyped(agent)
 	report := "You report to `" + boss + "`. " + team.Protocol("ends")
 	if boss != db.Human {
-		// A decision for the human is an `@human` memo, named once, below.
 		report += " Being blocked, a decision only `" + boss + "` can make, or work nobody handed you is a task for it: `hl task new --assign " + boss + " -t <time> \"<title>\" \"<body>\"`."
 	}
 	talk := team.Protocol("terminal")
