@@ -169,6 +169,16 @@ describe('holdLine', () => {
     expect(holdLine(a)).toBe('Stalled until someone unstalls it');
     expect(holdLine({ state: 'running', has_dialog: false })).toBeNull();
   });
+  it('a restart for a changed model says so while the agent still works, then while it starts', async () => {
+    const { activityOf, holdLine } = await import('#src/layout/agentTree.ts');
+    const h = { cause: 'settings_applied', settings: ['model'], since: '2026-11-08T12:00:00Z' };
+    const waiting = { state: 'running', has_dialog: false, handoff: { ...h, phase: 'waiting' as const } };
+    expect(activityOf(waiting)).toBe('working');
+    expect(holdLine(waiting)).toBe('Restarting: model changed. Waiting for its turn to end…');
+    const starting = { state: 'idle', has_dialog: false, handoff: { ...h, phase: 'starting' as const } };
+    expect(holdLine(starting)).toBe('Restarting: model changed. Starting a new session…');
+    expect(holdLine({ ...starting, handoff: { ...starting.handoff, cause: 'context_full' } })).toBeNull();
+  });
 });
 
 describe('pathTo', () => {
