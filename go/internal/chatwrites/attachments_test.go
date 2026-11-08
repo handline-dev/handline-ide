@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/scheduler/access"
 	"github.com/handline/handline/go/taskboard/attachments"
@@ -315,5 +316,25 @@ func TestSendRefsNeedAGrantWithTheSettingOn(t *testing.T) {
 	access.Put(r.db, "alice", dir, "once", 1)
 	if m := send("on", own, dir); m["error"] != nil {
 		t.Fatalf("granted: %v", m)
+	}
+}
+
+// The holder's say to the founder with a file is refused, not made the question with the file left behind: the question holds text.
+func TestTheHoldersSayToTheFounderWithAFileIsRefused(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	dir := paths.AgentDir(r.home, "alice")
+	os.MkdirAll(dir, 0o755)
+	png := dir + "/shot.png"
+	os.WriteFile(png, []byte("\x89PNG\r\n\x1a\n"+strings.Repeat("x", 2000)), 0o644)
+	if _, err := r.db.Exec("INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(1, 't', 'alice', 'human', 1, 'human')"); err != nil {
+		t.Fatal(err)
+	}
+	out := r.one(r.server("alice"), "say", fmt.Sprintf(`{"target":"human","body":"this one?","task":1,"files":[%q],"request_id":"q1"}`, png))
+	if out["error"] == nil || !strings.Contains(fmt.Sprint(out["error"]), "hl task comment T1 add") {
+		t.Fatalf("%v", out)
+	}
+	if n := r.count("SELECT COUNT(*) FROM task_turns"); n != 0 {
+		t.Fatalf("the question was put on: %d", n)
 	}
 }
