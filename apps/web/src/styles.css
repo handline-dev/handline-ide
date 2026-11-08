@@ -102,10 +102,10 @@
   --shadow: oklch(0 0 0 / 0.5);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not(.light) {
-    color-scheme: dark;
-  }
+/* Native controls (check boxes, selects) follow the theme the app draws, not the system's: a light app on a dark Mac drew its
+   check boxes as dark squares. */
+.dark {
+  color-scheme: dark;
 }
 
 html,
