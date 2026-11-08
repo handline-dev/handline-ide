@@ -320,6 +320,7 @@ export interface AgentsMethods {
   agent: AgentName;
   values: AgentSettingValues;
   speaker?: string;
+  restart?: "resume" | "fresh";
   request_id: RequestId;
 }; result: Accepted };
   "agent.fold": { params: {

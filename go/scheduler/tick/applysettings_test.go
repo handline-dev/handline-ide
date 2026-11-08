@@ -51,6 +51,27 @@ func TestAChangedSettingRestartsTheIdleSessionOnceAndRemembersWhatItWasFor(t *te
 	}
 }
 
+// agent.set asking for a fresh restart makes the next one a new conversation, once: the mode goes with the restart it was for.
+func TestARestartAskedFreshStartsANewConversationOnce(t *testing.T) {
+	tk, w, a := settled(t)
+	if err := db.SetMeta(tk.Q, db.SettingsRestartMeta("a"), "fresh"); err != nil {
+		t.Fatal(err)
+	}
+	a.Sweep(tk, 10_000)
+	if !w.did("restart fresh a by the daemon for model (settings_applied)") || !w.logged("restarted to apply changed settings (model), as a new conversation") {
+		t.Fatalf("%v %v", w.calls, w.logs)
+	}
+	if v, _, _ := db.Meta(tk.Q, db.SettingsRestartMeta("a")); v != "" {
+		t.Fatalf("the mode outlived its restart: %q", v)
+	}
+	w.calls = nil
+	a.Ports = settingsPorts{parts: []Part{{"model", "opus"}, {"effort", float64(2)}}, account: "acct"}
+	a.Sweep(tk, 10_060)
+	if w.did("restart fresh") || !w.did("restart a") {
+		t.Fatalf("the next change resumes: %v", w.calls)
+	}
+}
+
 func TestAChangedSettingWaitsForAnIdleMomentAndAnOpenRunnableSession(t *testing.T) {
 	cases := map[string]func(tk *Tick, w *world){
 		"mid-turn or an open prompt": func(tk *Tick, w *world) { w.idle = false },
