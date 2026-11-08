@@ -418,3 +418,14 @@ func TestASayToTheFounderFromTheHolderIsTheTasksQuestion(t *testing.T) {
 		t.Fatalf("the opener's say is a linked message: %+v %d", out, says)
 	}
 }
+
+// A say with files is never the founder's question: the question holds text, so it is refused with the way to post the files first.
+func TestASayWithFilesToTheFounderIsNotTheQuestion(t *testing.T) {
+	r := newRig(t)
+	r.agentUp("bob")
+	held := r.beginCurrent("bob", "alice", "ship it")
+	out := r.say(SayVerbIn{Requester: "bob", Target: db.Human, Body: "this one?", Task: held, Attached: true})
+	if out.OK || !strings.Contains(out.Msg, fmt.Sprintf("hl task comment T%d add", held)) || r.acting(held) != "bob" {
+		t.Fatalf("%+v acting %s", out, r.acting(held))
+	}
+}

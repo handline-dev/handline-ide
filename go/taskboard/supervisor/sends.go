@@ -127,6 +127,8 @@ type SayVerbIn struct {
 	Effect func(q db.Q, message string, rid int64) error
 	// MemoEffect is the same for a say that became a memo of the task it names: mid is the memo.
 	MemoEffect func(q db.Q, mid int64) error
+	// Attached is a say that carries files.
+	Attached bool
 }
 
 // SayVerbOut is the verb's answer; After runs once the writes have committed (the telling, the memo holder's say).
@@ -249,7 +251,11 @@ func (e *Env) SayVerb(q *sql.Tx, in SayVerbIn) (out *SayVerbOut, err error) {
 			return fail(fmt.Sprintf("no task T%d. Try:\n  %s", task, e.workingSay(q, me, target, body, in.Parent, 0)))
 		}
 		if target == db.Human && in.Parent == 0 && me != db.Human && must(taskwrites.Asker(q, task)) == me {
-			// the task's one question slot: the founder's turn on it, put on or rewritten
+			// the task's one question slot: the founder's turn on it, put on or rewritten. It holds text only.
+			if in.Attached {
+				return fail(fmt.Sprintf("not sent: the founder's question on T%d holds no files. Put them on the task first, then ask without --attach:\n  "+
+					"hl task comment T%d add '<what they show>' --attach FILE\n  %s", task, task, sayCmd(q, target, body, 0, fmt.Sprintf("--task T%d", task))))
+			}
 			h, asked, err := taskwrites.PutQuestion(q, e, task, me, body)
 			var refused *rpc.Error
 			if errors.As(err, &refused) && refused.Code == "refused" {
