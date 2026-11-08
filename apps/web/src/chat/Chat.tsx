@@ -21,6 +21,7 @@ import type { Command } from '#src/chat/Suggest.tsx';
 import { useOpenTab } from '#src/layout/openTab.tsx';
 import { ModelChip } from '#src/chat/agent/ModelChip.tsx';
 import { StatusLine } from '#src/chat/agent/StatusLine.tsx';
+import { HoldBar } from '#src/chat/agent/HoldBar.tsx';
 import { PauseCard } from '#src/chat/PauseCard.tsx';
 import { PromptCard } from '#src/chat/PromptCard.tsx';
 import { takeToChat } from '#src/chat/toChat.ts';
@@ -98,6 +99,7 @@ export function Chat({ agent }: { agent: string }) {
   return (
     // Files dropped anywhere on the chat go with the next message.
     <FileDropArea take={attach.add} className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <HoldBar agent={agent} />
       {served ? (
         <Boundary
           loading={loading}

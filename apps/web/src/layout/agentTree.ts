@@ -1,4 +1,4 @@
-import { dotOf } from '@handline/app-core';
+import { dotOf, whyOf } from '@handline/app-core';
 /** The sidebar's agent tree: each agent under the agent it reports to (`parent`). Siblings stand in the
  * person's `order` (nav prefs); one not in it comes after, by name. */
 type DotFacts = Parameters<typeof dotOf>[0];
@@ -26,17 +26,31 @@ export function agentTree<A extends AgentLike>(agents: readonly A[], order: read
   return build(null);
 }
 
-/** Which of four the agent is in, from the wire `state` (x-state-words; an unknown word is resting):
- * working (running, or about to), asleep (parked for a time, or no terminal), in trouble (stalled, blocked,
- * or a person must answer), or resting (idle at its prompt). */
-export type Activity = 'working' | 'asleep' | 'error' | 'resting';
+/** Which the agent is in, from the daemon's status (else its wire state word; an unknown word is resting):
+ * working (running, or about to), asleep (parked for a time, or no terminal), you (a person must answer),
+ * held (waits by design: on a task, the load, the pace, the pause, a move, a usage wall), error (a real fault: stopped,
+ * stalled, at a wall), or resting (idle at its prompt). */
+export type Activity = 'working' | 'asleep' | 'you' | 'held' | 'error' | 'resting';
 export function activityOf(a: Pick<AgentLike, keyof DotFacts>): Activity {
   // From the rail dot, which reads AgentView.status first: an agent at its prompt with background work running is working.
   const dot = dotOf({ ...a, has_dialog: a.has_dialog ?? false });
   if (dot === 'running' || dot === 'waking') return 'working';
   if (dot === 'parked' || dot === 'none') return 'asleep';
-  if (dot === 'waiting' || dot === 'blocked') return 'error';
+  if (dot === 'waiting') return 'you';
+  // A usage wall or the account cap ends by itself, so it is a wait too.
+  if (dot === 'blocked') return a.status?.state === 'waiting' || ['wall', 'cap'].includes(a.status?.reason ?? '') ? 'held' : 'error';
   return 'resting';
+}
+
+/** Why the agent's mark is not plain, in one line: the tasks it waits on, else the daemon's status line, else
+ * its block's words; null while it works or rests. */
+export function holdLine(a: Pick<AgentLike, keyof DotFacts> & Partial<Parameters<typeof whyOf>[0]>): string | null {
+  const act = activityOf(a);
+  if (act !== 'you' && act !== 'held' && act !== 'error') return null;
+  const tasks = a.status?.reason === 'task' ? a.status.tasks : [];
+  if (tasks.length) return `Waiting on ${tasks.map((t) => `T${t}`).join(', ')}`;
+  const line = a.status?.text.trim() || whyOf({ blocker: a.blocker, wall_reason: a.wall_reason, state_detail: a.state_detail ?? '' });
+  return line ? line[0]!.toUpperCase() + line.slice(1) : null;
 }
 
 /** Splits the tree for the sidebar: the pinned agents in pin order, each with its own sub-agents, and the rest of the tree without them. */

@@ -7,19 +7,11 @@ import { spring } from '#src/motion.ts';
 import type { AgentView } from '@handline/client';
 import { JobList, type Job } from '#src/chat/agent/BackgroundItem.tsx';
 import { HoverCard } from '#src/ui/HoverCard.tsx';
+import { activityIcon } from '#src/ui/activityIcon.tsx';
 import { ago, useNow } from '#src/format/time.ts';
-import { ChevronLeft, ChevronRight, Circle, CircleAlert, ListChecks, LoaderCircle, Pin, Plus, PanelLeft } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ListChecks, LoaderCircle, Pin, Plus, PanelLeft } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import {
-  activityOf,
-  agentTree,
-  pathTo,
-  splitPinned,
-  shortName,
-  workingUnder,
-  type Activity,
-  type AgentNode,
-} from '#src/layout/agentTree.ts';
+import { activityOf, holdLine, agentTree, pathTo, splitPinned, shortName, workingUnder, type AgentNode } from '#src/layout/agentTree.ts';
 import { chatOf, footerPages, pages } from '#src/layout/kinds.tsx';
 import { useRequests } from '#src/requests/data.ts';
 import { Row } from '#src/sidebar/Row.tsx';
@@ -61,15 +53,6 @@ function AgentRowCard({ jobs, children }: { jobs: Job[]; children: ReactNode }) 
     </HoverCard>
   );
 }
-
-const activityIcon: Record<Activity, ReactNode> = {
-  // An arc turning at a steady size.
-  working: <LoaderCircle size={14} strokeWidth={3.5} className="animate-spin text-success" aria-label="working" />,
-  // Asleep is the hollow ring of the resting dot.
-  asleep: <Circle size={12} strokeWidth={3.5} className="text-muted" aria-label="asleep" />,
-  error: <CircleAlert size={16} className="text-danger" aria-label="needs attention" />,
-  resting: <Circle size={12} className="fill-muted text-muted" aria-label="resting" />,
-};
 
 type Pick = {
   agent: string | null;
@@ -187,7 +170,8 @@ function AgentRows({
                   {dotOf(agent) === 'running' ? 'now' : ago(agent.state_since, now)}
                 </span>
               }
-              note={unreadNote(agent)}
+              // A mark that is not plain says why first; else the unread message.
+              note={holdLine(agent) ?? unreadNote(agent)}
               unread={agent.founder_unread ?? 0}
             />
           </AgentRowCard>
