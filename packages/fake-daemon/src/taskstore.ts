@@ -1,7 +1,7 @@
 // The fake daemon's task rows: what tasks.list and task.get answer, and the one place a row changes and the tasks topic is told.
 import type { FakeInbox } from '#src/inbox.ts';
 import type { FakeRequests } from '#src/requests.ts';
-import type { HistoryRow, Memo, Task, TaskClock, TaskDetail, TimeSegment } from '@handline/contract';
+import type { HistoryRow, Memo, Proposal, Task, TaskClock, TaskDetail, TimeSegment } from '@handline/contract';
 import { seedTasks } from '#src/seedtasks.ts';
 import { changes } from '#src/history.ts';
 import { invalidParams } from '#src/errors.ts';
@@ -22,6 +22,7 @@ export interface Host {
   uploads: FakeAttachments;
   inbox: FakeInbox;
   requests: FakeRequests;
+  script: { proposals: { proposals: readonly Proposal[] } };
 }
 export type Row = Task & {
   body: string;
