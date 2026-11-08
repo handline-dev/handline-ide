@@ -391,15 +391,23 @@
         "properties": {
          "cause": {
           "type": "string",
-          "description": "Why the conversation is ending: the words of session.cause (`context_full`, `move`, and the trigger's own word for the rest, such as `usage` or `login`). An open set."
+          "description": "Why the conversation is ending: the words of session.cause (`context_full`, `move`, `settings_applied` for changed settings, `restart` for a person's Restart, and the trigger's own word for the rest, such as `usage` or `login`). An open set."
          },
          "phase": {
           "type": "string",
           "enum": [
+           "waiting",
            "writing",
            "starting"
           ],
-          "description": "`writing`: the agent writes its handoff note and the daemon takes the record. `starting`: the old session is closed and the new one is launching."
+          "description": "`waiting`: a restart for changed settings waits for the turn under way to end. `writing`: the agent writes its handoff note and the daemon takes the record. `starting`: the old session is closed and the new one is launching."
+         },
+         "settings": {
+          "type": "array",
+          "items": {
+           "type": "string"
+          },
+          "description": "The settings a restart for changed settings applies, in launch order (`model`, `effort`, ...). Absent for any other cause."
          },
          "since": {
           "$ref": "#/components/schemas/Timestamp"
@@ -415,7 +423,7 @@
         "type": "null"
        }
       ],
-      "description": "Set while a session hands off, so a chat that sits still can say why. Cleared when the new session's start item appears. Every change is an agent.changed. A handoff that waits for a usage window to reset shows `writing` only; it is not `starting` until a launch is due. null when none. Absent from a daemon that does not serve it."
+      "description": "Set while a session hands off or restarts, so a chat that sits still can say why. Cleared when the new session's start item appears. Every change is an agent.changed. A handoff that waits for a usage window to reset shows `writing` only; it is not `starting` until a launch is due. null when none. Absent from a daemon that does not serve it."
      },
      "last_to_founder": {
       "oneOf": [

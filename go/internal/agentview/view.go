@@ -578,6 +578,11 @@ func (e *Env) handoffView(agent string, row *db.AgentState, now int64) (any, err
 	} else if ok {
 		return view(kind, "writing", since), nil
 	}
+	if v, err := e.restartView(agent, row, now); err != nil {
+		return nil, err
+	} else if v != nil {
+		return v, nil
+	}
 	if h == nil || row == nil || (row.State != states.Parked && row.ClosedAt.Int64 == 0) || now-h.Updated > db.NoteWaitStaleS {
 		return nil, nil
 	}
@@ -589,4 +594,55 @@ func (e *Env) handoffView(agent string, row *db.AgentState, now int64) (any, err
 		return nil, err
 	}
 	return view(h.TriggerKind.String, "starting", h.Updated), nil
+}
+
+// restartView is a restart for changed settings, or one a person asked for, in the handoff's shape with the settings it applies: waiting
+// while a settings restart waits for the turn under way to end, then starting from the restart until the new session's start is
+// recorded (for NoteWaitStaleS at most). Nil for none.
+func (e *Env) restartView(agent string, row *db.AgentState, now int64) (map[string]any, error) {
+	if row == nil {
+		return nil, nil
+	}
+	_, p, ok, err := db.LastEvent(e.Q, agent, "restart_owed")
+	if err != nil {
+		return nil, err
+	}
+	if ok {
+		at, _, err := db.LastEventTS(e.Q, agent, "restart_owed")
+		if err != nil {
+			return nil, err
+		}
+		started, err := db.LastBoundSessionStart(e.Q, agent)
+		if err != nil {
+			return nil, err
+		}
+		if now-at <= db.NoteWaitStaleS && started < at {
+			cause, _ := p["cause"].(string)
+			var settings []string
+			if list, ok := p["applying"].([]any); ok {
+				for _, s := range list {
+					if s, ok := s.(string); ok {
+						settings = append(settings, s)
+					}
+				}
+			}
+			return restartPhase(cause, "starting", at, settings), nil
+		}
+	}
+	if row.State != states.Running || row.ClosedAt.Int64 != 0 {
+		return nil, nil
+	}
+	o, err := db.GetSettingsOwed(e.Q, agent)
+	if err != nil || o == nil {
+		return nil, err
+	}
+	return restartPhase("settings_applied", "waiting", o.Since, o.Settings), nil
+}
+
+func restartPhase(cause, phase string, since int64, settings []string) map[string]any {
+	v := map[string]any{"cause": cause, "phase": phase, "since": stamp(since)}
+	if len(settings) > 0 {
+		v["settings"] = settings
+	}
+	return v
 }
