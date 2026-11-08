@@ -26,7 +26,9 @@ export function taskCall(
         return timeOf(p.task, tasks);
       case 'tasks.list': {
         const list = tasks.list(p);
-        return agent ? { ...list, items: list.items.map((t) => ({ ...t, unread: 0, first_unread: null })) } : list;
+        // The texts a turn's ask replaced are in task.get only.
+        const lean = list.items.map((t) => ({ ...t, turns: t.turns?.map(({ earlier: _, ...x }) => x) }));
+        return { ...list, items: agent ? lean.map((t) => ({ ...t, unread: 0, first_unread: null })) : lean };
       }
       case 'task.get': {
         const t = tasks.get(p, agent);
@@ -74,6 +76,8 @@ export function taskCall(
         return (tasks.memo(p, 'edit', person, agent), ok('Comment changed.'));
       case 'task.comment.delete':
         return (tasks.memo(p, 'delete', person), ok('Comment deleted.'));
+      case 'task.turn.push':
+        return (tasks.turnPush(p, agent ? person : ''), ok('Turn pushed.'));
       case 'task.comment.send_now':
         return (tasks.sendNow(p), ok('Sent.'));
       default:

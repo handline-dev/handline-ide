@@ -12,6 +12,21 @@ export class TaskVerbs extends TaskComments {
     this.host.inbox.closeAsks(t.id);
     return `task T${t.id} done`;
   }
+  /** The founder goes on top with the ask; already on top, a new ask rewrites it (edited, old text in earlier) and the same text changes nothing. */
+  turnPush(p: Record<string, unknown>, agent: string): void {
+    const t = this.find(p.task);
+    if (p.to !== 'human') throw new TaskFailure('refused', 'the fake daemon pushes turns to human only');
+    const ask = String(p.ask ?? '').trim();
+    const top = t.turns?.at(-1);
+    if (top?.agent === 'human') {
+      if (top.ask === ask) return;
+      const turn = { ...top, ask, edited: this.now(), earlier: [...(top.earlier ?? []), { ask: top.ask, at: top.edited ?? top.since }] };
+      this.change(t, { turns: [...t.turns!.slice(0, -1), turn] });
+      return;
+    }
+    const turn = { agent: 'human', ask, by: agent || t.to, since: this.now(), on_pass: null, evidence: null, edited: null, earlier: [] };
+    this.change(t, { turns: [...(t.turns ?? []), turn], acting: 'human' });
+  }
   reopen(p: Record<string, unknown>, person: string): void {
     const t = this.find(p.task);
     if ((t.state !== 'done' && t.state !== 'discarded') || t.from !== person)
