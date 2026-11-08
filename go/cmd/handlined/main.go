@@ -160,14 +160,14 @@ func main() {
 		cfg.OnOpen = func(db *sql.DB, env *supervisor.Env) {
 			parts.Bind(db, env)
 			if n, err := dbpkg.WithdrawMemoAsksOfEndedTasks(db); err != nil {
-				log.Printf("withdrawing the memo asks of ended tasks: %v", err)
+				log.Printf("withdrawing the comment asks of ended tasks: %v", err)
 			} else if n > 0 {
-				log.Printf("withdrew %d memo asks of ended tasks", n)
+				log.Printf("withdrew %d comment asks of ended tasks", n)
 			}
 			if n, err := taskwrites.WithdrawUnaddressedMemoAsks(db); err != nil {
-				log.Printf("withdrawing the memo asks not addressed to the founder: %v", err)
+				log.Printf("withdrawing the comment asks not addressed to the founder: %v", err)
 			} else if n > 0 {
-				log.Printf("withdrew %d memo asks not addressed to the founder", n)
+				log.Printf("withdrew %d comment asks not addressed to the founder", n)
 			}
 			ccfg.DB = db
 			env.Ports = parts.SupervisorPorts(parts.Lifecycle(ccfg, compose.LifecycleConfig{Env: env}))

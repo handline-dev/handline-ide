@@ -110,7 +110,7 @@ func TestAStoryTellsTheFounderOneNoticeAndAgentsOnlyWhatTheyMustActOn(t *testing
 		}
 		return out
 	}
-	memo, result_, timeout := count("%memo added by%"), count("%done by%"), count("%past its%")
+	memo, result_, timeout := count("% comment % by %"), count("%done by%"), count("%past its%")
 	idle := count("%has nothing it can start now.")
 	for to, n := range idle { // the idle say carries the done; it is counted on its own
 		if result_[to] -= n; result_[to] == 0 {
