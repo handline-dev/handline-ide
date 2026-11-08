@@ -238,5 +238,10 @@
   "version": 48,
   "name": "task_turns",
   "additive": true
+ },
+ {
+  "version": 49,
+  "name": "session_start_changed",
+  "additive": true
  }
 ]

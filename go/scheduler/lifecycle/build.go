@@ -237,7 +237,11 @@ func (l *Launcher) keepWhatItStartsWith(site *Site, agent string, extra []string
 	if why == "" {
 		why = "launch"
 	}
-	if _, err := db.NoteSessionStart(l.Q, agent, why, resumed, sid, text, prompt, by); err != nil {
+	changed, err := l.whatChanged(agent)
+	if err != nil {
+		site.warn("hl launch: could not read what changed for %s: %v", agent, err)
+	}
+	if _, err := db.NoteSessionStart(l.Q, agent, why, resumed, sid, text, prompt, by, changed); err != nil {
 		site.warn("hl launch: could not keep how %s was started: %v", agent, err)
 	}
 	return nil

@@ -992,6 +992,9 @@ var SandboxOffPart = sha256Hex("off")[:8]
 // even when both resume the same transcript.
 const LaunchedAt = "launched_at"
 
+// LaunchedValues is beside the setting hashes too: the settings whose value a person can read, for saying what a later launch changed.
+const LaunchedValues = "values"
+
 // partOrder is the order the parts are written in, as the Python dict keeps it.
 var partOrder = []string{"model", "effort", "mcp config", "browser", "permissions", "sandbox", "ROLE.md", "base.md", "team"}
 
@@ -1054,9 +1057,73 @@ func (l *Launcher) LaunchRecord(agent string) (string, error) {
 		kk, _ := json.Marshal(k)
 		items = append(items, string(kk)+": "+string(v))
 	}
+	values, err := l.readableValues(agent)
+	if err != nil {
+		return "", err
+	}
+	v, _ := json.Marshal(values)
+	items = append(items, `"`+LaunchedValues+`": `+string(v))
 	stamp := float64(l.now().UnixNano()) / 1e9
 	items = append(items, `"`+LaunchedAt+`": `+strconv.FormatFloat(stamp, 'f', -1, 64))
 	return "{" + strings.Join(items, ", ") + "}", nil
+}
+
+// readableValues are the settings of the next launch whose value says something to a person.
+func (l *Launcher) readableValues(agent string) (map[string]string, error) {
+	cfg, err := l.Roster.Read(agent)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]string{"model": modelOf(cfg), "effort": l.effortOf(cfg)}, nil
+}
+
+// whatChanged says what this launch's settings change from the session recorded before it, in launch order and in the words a person
+// reads: "model changed (opus-5-5 -> sonnet-5-5), team changed". Nothing for no earlier record. A record from before the values were
+// kept names the setting alone.
+func (l *Launcher) whatChanged(agent string) (string, error) {
+	row, err := db.GetAgentState(l.Q, agent)
+	if err != nil || row == nil {
+		return "", err
+	}
+	var old map[string]json.RawMessage
+	if json.Unmarshal([]byte(row.LaunchParts.String), &old) != nil {
+		return "", nil
+	}
+	var was map[string]string
+	_ = json.Unmarshal(old[LaunchedValues], &was)
+	parts, err := l.FingerprintParts(agent)
+	if err != nil {
+		return "", err
+	}
+	now, err := l.readableValues(agent)
+	if err != nil {
+		return "", err
+	}
+	var changed []string
+	for _, k := range partOrder {
+		hash, ok := old[k]
+		if !ok {
+			continue
+		}
+		var h string
+		if json.Unmarshal(hash, &h) == nil && h == parts[k] {
+			continue
+		}
+		words := k + " changed"
+		if before, ok := was[k]; ok {
+			words += " (" + readable(before) + " -> " + readable(now[k]) + ")"
+		}
+		changed = append(changed, words)
+	}
+	return strings.Join(changed, ", "), nil
+}
+
+// readable is a setting's value as the line says it: a model without its vendor's prefix, no value as the default.
+func readable(v string) string {
+	if v == "" {
+		return "default"
+	}
+	return strings.TrimPrefix(v, "claude-")
 }
 
 // LaunchedAtOf is the stamp of the launch this agent_state row records, as written; "" when none.

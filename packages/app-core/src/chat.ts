@@ -87,7 +87,9 @@ export function timeline(
   out.sort((a, b) => (at(a) < at(b) ? -1 : at(a) > at(b) ? 1 : order(a) - order(b) || a.id - b.id));
   return out.reduce<TimelineEntry[]>((all, e) => {
     const prev = all.at(-1);
-    if (prev?.kind === 'item' && e.kind === 'item' && prev.item.kind === 'session' && e.item.kind === 'session')
+    // A restart after a new conversation is its own event; a resume that failed into a fresh start is one.
+    const restartAfterNew = prev?.kind === 'item' && e.kind === 'item' && !prev.item.session?.resumed && e.item.session?.resumed;
+    if (prev?.kind === 'item' && e.kind === 'item' && prev.item.kind === 'session' && e.item.kind === 'session' && !restartAfterNew)
       all[all.length - 1] = mergeSessions(prev, e);
     else all.push(e);
     return all;
@@ -153,7 +155,8 @@ const PLAIN_START = new Set(['launch', 'start']);
 function mergeSessions(a: Extract<TimelineEntry, { kind: 'item' }>, b: Extract<TimelineEntry, { kind: 'item' }>): TimelineEntry {
   const [x, y] = [a.item.session, b.item.session];
   const cause = [y?.cause, x?.cause].find((c) => c && !PLAIN_START.has(c)) ?? y?.cause ?? x?.cause;
-  const session = { ...y!, handoff: y?.handoff || x?.handoff || null, ...(cause ? { cause } : {}) };
+  const changed = [x?.changed, y?.changed].filter(Boolean).join(', ');
+  const session = { ...y!, handoff: y?.handoff || x?.handoff || null, ...(cause ? { cause } : {}), ...(changed ? { changed } : {}) };
   return { ...b, item: { ...b.item, session } };
 }
 
@@ -292,7 +295,7 @@ const SESSION_WHY: Record<string, string> = {
 export function sessionLine(i: TranscriptItem): { reason: string; handoff: string | null } {
   const cause = i.session?.cause?.trim();
   const reason = !cause ? 'New session' : (SESSION_WHY[cause] ?? `New session (${cause})`);
-  return { reason, handoff: i.session?.handoff || null };
+  return { reason: i.session?.changed ? `${reason}: ${i.session.changed}` : reason, handoff: i.session?.handoff || null };
 }
 
 const RESTART_WHY: Record<string, string> = {

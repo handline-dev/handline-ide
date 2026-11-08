@@ -1,12 +1,12 @@
 import { motion } from 'framer-motion';
-import { FoldVertical } from 'lucide-react';
+import { FoldVertical, RotateCw } from 'lucide-react';
 import { useState } from 'react';
 import { clock } from '#src/format/time.ts';
 import { spring } from '#src/motion.ts';
 import { Markdown } from '#src/ui/Markdown.tsx';
 import { ModalFrame, openModal } from '#src/ui/modal.tsx';
 
-/** Why a conversation began, as the line says it; a word the daemon adds later shows as it is. */
+/** Why a conversation began or restarted, as the line says it; a word the daemon adds later shows as it is. */
 const causes: Record<string, string> = {
   launch: 'first start',
   start: 'new work arrived',
@@ -20,10 +20,31 @@ const causes: Record<string, string> = {
   settings_applied: 'settings changed',
   crash_recovery: 'recovered from a crash',
 };
+const causeWords = (cause?: string) => (cause ? (causes[cause] ?? cause.replaceAll('_', ' ')) : null);
 
-/** Where a new conversation of the agent began: a centred line between rules, with its handoff note when it had one. */
-export function CompactionLine({ at, cause, handoff }: { at: string; cause?: string; handoff: string | null }) {
-  const why = cause ? (causes[cause] ?? cause.replaceAll('_', ' ')) : null;
+/** The line's words: a new conversation is Compacted and says why; a restart into the same one says what changed, else why (its own cause `restart` adds nothing). */
+export function compactionLabel(s: { cause?: string; resumed?: boolean; changed?: string }): string {
+  const why = causeWords(s.cause);
+  if (!s.resumed) return `Compacted${why ? `: ${why}` : ''}`;
+  const what = s.changed || (s.cause === 'restart' ? null : why);
+  return `Restarted${what ? `: ${what}` : ''}`;
+}
+
+/** Where a new conversation of the agent began, or it restarted into the same one: a centred line between rules, with its handoff note when it had one. */
+export function CompactionLine({
+  at,
+  cause,
+  handoff,
+  resumed,
+  changed,
+}: {
+  at: string;
+  cause?: string;
+  handoff: string | null;
+  resumed?: boolean;
+  changed?: string;
+}) {
+  const why = causeWords(cause);
   const [shown, setShown] = useState(false);
   const hover = {
     onPointerEnter: () => setShown(true),
@@ -32,12 +53,13 @@ export function CompactionLine({ at, cause, handoff }: { at: string; cause?: str
     onBlur: () => setShown(false),
   };
   const box = 'flex flex-col items-center rounded-md px-2 py-0.5 transition-colors outline-none';
-  const label = `Compacted${why ? `: ${why}` : ''}`;
+  const label = compactionLabel({ ...(cause ? { cause } : {}), ...(resumed ? { resumed } : {}), ...(changed ? { changed } : {}) });
+  const Icon = resumed ? RotateCw : FoldVertical;
   // The summary it was given is there for whoever wants it: the label opens it, nothing else points at it.
   const body = (
     <>
       <span className="flex items-center gap-1.5">
-        <FoldVertical size={14} />
+        <Icon size={14} />
         {label}
       </span>
       <motion.time

@@ -203,6 +203,31 @@ test("the task board's words are left out of the agent's own chat and shown in t
   assert.equal(sideOf(delivery, A, 'Handline desktop'), 'other');
 });
 
+test('back-to-back restarts are one line saying all that changed; a resume that failed into a fresh start is that fresh start; a restart after a new conversation is its own line', () => {
+  const at = '2026-01-01T00:00:00Z';
+  const start = (id: number, session: object) =>
+    item({ id, at, kind: 'session', session: { id: 's', started: at, handoff: null, ...session } });
+  const lines = (x: object, y: object) =>
+    timeline([], [start(1, x), start(2, y)]).map((e) => (e as Extract<ReturnType<typeof timeline>[0], { kind: 'item' }>).item.session);
+  const model = 'model changed (opus-5-5 -> sonnet-5-5)';
+  assert.deepEqual(
+    lines({ resumed: true, changed: model }, { resumed: true, changed: '' }).map((s) => [s?.resumed, s?.changed]),
+    [[true, model]],
+  );
+  assert.equal(lines({ resumed: true, changed: model }, { resumed: true, changed: 'team changed' })[0]?.changed, `${model}, team changed`);
+  const failed = lines({ resumed: true }, { resumed: false });
+  assert.deepEqual([failed.length, failed[0]?.resumed], [1, false]);
+  const after = lines({ resumed: false, cause: 'launch' }, { resumed: true, cause: 'settings_applied', changed: model });
+  assert.deepEqual(
+    after.map((s) => [s?.resumed, s?.changed]),
+    [
+      [false, undefined],
+      [true, model],
+    ],
+  );
+  assert.equal(lines({ cause: 'launch' }, { cause: 'context_full' }).length, 1);
+});
+
 test('a session line says why in plain words, and keeps an unknown cause as it came', () => {
   const at = '2026-01-01T00:00:00Z';
   const line = (cause?: string, handoff: string | null = null) =>
@@ -218,6 +243,15 @@ test('a session line says why in plain words, and keeps an unknown cause as it c
   assert.equal(line('idle_close').reason, 'Woke after closing when idle');
   assert.equal(line('crash').reason, 'New session (crash)');
   assert.deepEqual(line(), { reason: 'New session', handoff: null });
+  assert.equal(
+    sessionLine({
+      id: 1,
+      at,
+      kind: 'session',
+      session: { id: 's', started: at, handoff: null, cause: 'settings_applied', changed: 'team changed' },
+    }).reason,
+    'Restarted to apply settings: team changed',
+  );
 });
 
 test('a task card is in the chat of the agent that made the change; the all tab shows every one', () => {
