@@ -3,11 +3,11 @@
 import { isPerson } from '@handline/app-core';
 import type { TaskDetail } from '@handline/client';
 import { classify, sentence, useGiveBack, useWrite } from '@handline/app-data';
-import { Hand, X } from 'lucide-react';
+import { ChevronRight, Hand, X } from 'lucide-react';
 import { useState } from 'react';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { toast } from '#src/ui/toast.tsx';
-import { clock } from '#src/format/time.ts';
+import { ago, clock } from '#src/format/time.ts';
 
 type Memo = TaskDetail['memos'][number];
 
@@ -74,18 +74,42 @@ export function WaitingOnYou({
   );
 }
 
-/** The founder holds the top turn: what the turn asked, and Give back, which passes it to the turn below. A comment passes it too. */
+/** The founder holds the top turn, and its ask is the task's one question: how it reads now, an "edited" mark when it was rewritten (the
+ * older texts fold under it), and Give back, which passes the turn to the one below. A comment passes it too. */
 export function YourTurn({ t, onDone }: { t: TaskDetail; onDone: () => void }) {
   const back = useGiveBack();
-  const ask = t.turns?.at(-1)?.ask;
+  const turn = t.turns?.at(-1);
+  const earlier = turn?.earlier ?? [];
+  const [old, setOld] = useState(false);
   const give = () =>
     back.give(t.id, { onSuccess: onDone, onError: (e) => toast(`Give back did not work: ${sentence(classify(e))}`, { tone: 'warning' }) });
   return (
     <div aria-busy={back.pending} className={`flex items-start gap-2 ${back.pending ? 'pointer-events-none opacity-40' : ''}`}>
       <Hand size={14} className="mt-1 shrink-0 text-warning" />
       <span className="flex min-w-0 flex-1 flex-col gap-1">
-        <span className="font-medium">Your turn</span>
-        {ask && <span className="line-clamp-2">{ask}</span>}
+        <span className="flex items-center gap-2 font-medium">
+          Your turn
+          {turn?.edited && (
+            <span className="text-xs font-normal text-muted" title={turn.edited}>
+              edited {ago(turn.edited)}
+            </span>
+          )}
+        </span>
+        {turn?.ask && <span className="whitespace-pre-wrap">{turn.ask}</span>}
+        {earlier.length > 0 && (
+          <>
+            <button type="button" onClick={() => setOld(!old)} className="flex w-fit items-center gap-1 text-xs text-muted hover:text-fg">
+              <ChevronRight size={12} className={old ? 'rotate-90' : ''} />
+              Earlier {earlier.length}
+            </button>
+            {old &&
+              [...earlier].reverse().map((e) => (
+                <span key={e.at} className="border-l-2 border-border pl-3 text-xs text-muted">
+                  <span className="whitespace-pre-wrap line-through">{e.ask}</span> · {ago(e.at)}
+                </span>
+              ))}
+          </>
+        )}
       </span>
       <button type="button" onClick={give} className="shrink-0 rounded-md px-2 py-1 text-sm font-medium hover:bg-hover/30">
         Give back
