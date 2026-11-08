@@ -499,14 +499,14 @@ func (e *Env) TellMemoSkipping(q db.Q, tid, mid int64, by, what, text, to string
 }
 
 // memoRecipients is the one rule for whom a comment on row is told: an agent it names with @ or that was said it (to) is asked, and the
-// task's holder (its assignee) is always told; when the founder wrote it, or it is sent now, who the task answers to (owner) is told too. A
-// comment that aims at no one else is on the board and in no other agent's inbox.
+// task's holder (its assignee) is always told. Who the task answers to (owner) is told at once only when it is sent now, or when the founder
+// wrote it on a task no agent holds (none, or the founder); otherwise the owner is not typed to, since answering is the holder's.
 func (e *Env) memoRecipients(row *db.Task, by, text, to string, now bool) []taskwrites.Recipient {
 	named := e.mentioned(text)
 	var out []taskwrites.Recipient
 	for _, a := range e.memoReaders(row, by, named) {
 		asked := a == to || slices.Contains(named, a)
-		if delivery.ClassOf(delivery.Memo, now || by == db.Human || asked || a == row.Acting, false) != delivery.ClassNow {
+		if delivery.ClassOf(delivery.Memo, now || asked || a == row.Acting || (by == db.Human && (row.Acting == "" || row.Acting == db.Human)), false) != delivery.ClassNow {
 			continue
 		}
 		why := "owner"

@@ -596,6 +596,24 @@ func TestAMemoNoticeToTheNewOwnerDoesNotCountAsTheTaskDelivered(t *testing.T) {
 	}
 }
 
+// The founder's comment on a task an agent holds is that agent's to answer: the owner who opened it is not typed to as well, so two agents
+// do not both answer it.
+func TestTheFoundersMemoOnATaskAnAgentHoldsReachesOnlyTheHolder(t *testing.T) {
+	r := newRig(t)
+	r.agentUp("bob")
+	r.agentUp("alice")
+	tid := r.newTask("alice", "bob", "decide") // held by alice, opened by bob
+	r.AdvanceCurrentTask(r.DB, "alice")
+	r.term.typed = nil
+	r.must(r.TellMemo(r.DB, tid, db.Human, "added", "go with the first", "", false))
+	if got := r.saysTo("alice"); len(got) != 1 {
+		t.Fatalf("the holder was not told: %v", got)
+	}
+	if got := r.saysTo("bob"); len(got) != 0 {
+		t.Fatalf("the owner was typed to as well: %v", got)
+	}
+}
+
 // The founder's comment on a task they hold is an answer someone waits for: it is typed at once to the task's owner and its assignee, not held
 // for a digest as an agent's memo is (T6340, T6370).
 func TestTheFoundersMemoReachesTheTaskOwnerAtOnceWhileAnAgentsMemoWithNoAtIsNotTold(t *testing.T) {
