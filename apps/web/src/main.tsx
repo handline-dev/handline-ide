@@ -1,6 +1,6 @@
 import { setPageGo } from '#src/layout/openTab.tsx';
 import { AnimatePresence, motion } from 'framer-motion';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Connect } from '#src/connection/Connect.tsx';
 import { Boundary, brokenView } from '#src/ui/Boundary.tsx';
@@ -32,6 +32,17 @@ function App() {
   const goPage = (kind: string, title: string) => (kind === 'preferences' ? openSettings() : selectPage(kind, title));
   setPageGo(goPage);
   const toggle = () => setOpen((o) => !o);
+  // Cmd+B (Ctrl+B off a Mac) toggles the sidebar; captured so a terminal does not take it, but left to the editor's bold.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== 'b' || e.altKey || e.shiftKey || !(MAC ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey)) return;
+      if (e.target instanceof Element && e.target.closest('.cm-editor')) return;
+      e.preventDefault();
+      setOpen((o) => !o);
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, []);
 
   return (
     <>
@@ -105,6 +116,7 @@ function App() {
 for (const type of ['dragover', 'drop'] as const)
   window.addEventListener(type, (e) => e.dataTransfer?.types.includes('Files') && e.preventDefault());
 
+const MAC = /Mac|iPhone|iPad/.test(globalThis.navigator?.platform ?? '');
 trackShellInsets();
 const terminalOf = terminalWindowAgent(location.hash);
 createRoot(document.getElementById('root')!).render(
