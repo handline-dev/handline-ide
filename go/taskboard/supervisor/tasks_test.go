@@ -320,7 +320,7 @@ func TestAMemoWithNoAtTellsTheAssigneeWhateverTheTaskState(t *testing.T) {
 	r.agentUp("bob")
 	tid := r.newTask("bob", "alice", "job")
 	r.must(r.TellMemo(r.DB, tid, "alice", "added", "check the cache", "", false))
-	if says := r.saysTo("bob"); len(says) != 1 || !strings.Contains(says[0], "T1 memo added by alice: check the cache") {
+	if says := r.saysTo("bob"); len(says) != 1 || !strings.Contains(says[0], "T1 comment by alice: check the cache") {
 		t.Fatalf("the assignee of a task not yet doing was not told of a memo with no @: %q", says)
 	}
 	r.AdvanceCurrentTask(r.DB, "bob")
@@ -340,7 +340,7 @@ func TestTheFoundersMemoOnATaskItHoldsReachesTheReporter(t *testing.T) {
 	r := newRig(t)
 	tid := r.newTask(db.Human, "alice", "decide")
 	r.must(r.TellMemo(r.DB, tid, db.Human, "added", "go with the reassign model", "", false))
-	if says := r.saysTo("alice"); len(says) != 1 || says[0] != "T1 memo added by human: go with the reassign model" {
+	if says := r.saysTo("alice"); len(says) != 1 || says[0] != "T1 comment by human: go with the reassign model" {
 		t.Fatalf("the reporter was not told: %q", says)
 	}
 	if says := r.saysTo(db.Human); len(says) != 0 {
@@ -437,7 +437,7 @@ func TestAMemoReachesTheAgentsItNamesWhateverTheTaskState(t *testing.T) {
 	r.agentUp("bob")
 	tid := r.newTask("bob", "alice", "job")
 	r.must(r.TellMemo(r.DB, tid, "bob", "added", "@carol please discard T2, it duplicates this; mail x@dave.example and @nobody", "", false)) // local-ref-ok: an address names nobody
-	if says := r.saysTo("carol"); len(says) != 1 || !strings.Contains(says[0], "T1 memo added by bob: @carol please discard T2") {
+	if says := r.saysTo("carol"); len(says) != 1 || !strings.Contains(says[0], "T1 comment by bob: @carol please discard T2") {
 		t.Fatalf("the agent named was not told: %q", says)
 	}
 	for _, a := range []string{"alice", "dave", "nobody", db.Human} {
@@ -468,12 +468,12 @@ func TestAMemoIsToldAtOnceOnlyToWhomItIsAimedAt(t *testing.T) {
 	}
 	r.term.typed = nil
 	r.must(r.TellMemo(r.DB, tid, "alice", "added", "@carol look", "", false))
-	if len(r.term.typed) != 2 || !strings.Contains(r.term.last(), "T1 memo added by alice: @carol look") {
+	if len(r.term.typed) != 2 || !strings.Contains(r.term.last(), "T1 comment by alice: @carol look") {
 		t.Fatalf("the reader named with @ was not told at once: %q", r.term.typed)
 	}
 	r.term.typed = nil
 	r.must(r.TellMemo(r.DB, tid, "alice", "added", "said", "bob", false))
-	if len(r.term.typed) != 1 || !strings.Contains(r.term.last(), "T1 memo added by alice: said") {
+	if len(r.term.typed) != 1 || !strings.Contains(r.term.last(), "T1 comment by alice: said") {
 		t.Fatalf("the reader a say named was not told at once: %q", r.term.typed)
 	}
 	r.term.typed = nil
@@ -604,7 +604,7 @@ func TestTheFoundersMemoReachesTheTaskOwnerAtOnceWhileAnAgentsMemoWithNoAtIsNotT
 	r.agentUp("alice")
 	tid := r.newTask(db.Human, "bob", "decide") // assigned to the founder, answered to bob
 	r.must(r.TellMemo(r.DB, tid, db.Human, "added", "go with the first", "", false))
-	if got := r.saysTo("bob"); len(got) != 1 || got[0] != "T1 memo added by human: go with the first" {
+	if got := r.saysTo("bob"); len(got) != 1 || got[0] != "T1 comment by human: go with the first" {
 		t.Fatalf("the founder's memo did not reach its owner: %v", got)
 	}
 	if left, _ := db.PendingNotices(r.DB, "bob"); len(left) != 0 {

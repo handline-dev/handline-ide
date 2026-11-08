@@ -278,7 +278,7 @@ func TestDraftParksALandedTaskItsHolderIsWorking(t *testing.T) {
 	if r["error"] != nil || st != "draft" || len(memos) != 1 || memos[0] != want || len(f.released) != 1 || !f.released[0].Park {
 		t.Fatalf("a landed task with commits: %v, T2 %s memos %q, told %+v", r, st, memos, f.released)
 	}
-	if said := r["result"].(map[string]any)["said"]; said != "delivered T2, memo 1 keeps where v stopped - 1 stopped" {
+	if said := r["result"].(map[string]any)["said"]; said != "delivered T2, comment 1 keeps where v stopped - 1 stopped" {
 		t.Fatalf("the reply names the memo: %q", said)
 	}
 }

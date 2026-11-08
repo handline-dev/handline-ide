@@ -241,7 +241,7 @@ func (e *Env) SayVerb(q *sql.Tx, in SayVerbIn) (out *SayVerbOut, err error) {
 		return fail("--no-task is for replying to the founder (hl say human ...); to anyone else it means nothing. Try:\n  " + e.workingSay(q, me, target, body, in.Parent, task))
 	}
 	if task == 0 && in.Parent == 0 && e.isReportOf(me, target) {
-		return fail("work cannot reach a report by message: make it a task (`hl task new`), or say --task T<n> to memo one. Try:\n  " +
+		return fail("work cannot reach a report by message: make it a task (`hl task new`), or say --task T<n> to comment on one. Try:\n  " +
 			fmt.Sprintf("hl task new --assign %s -t 2h '<title>' %s", target, shellQuote(body)))
 	}
 	if task != 0 {
@@ -310,8 +310,8 @@ func (e *Env) SayVerb(q *sql.Tx, in SayVerbIn) (out *SayVerbOut, err error) {
 		}
 		return &SayVerbOut{OK: ok, Msg: msg, After: func() {
 			if ok {
-				if err := e.TellMemo(e.DB, task, me, "added", body, target, false); err != nil {
-					e.log("  telling about the memo on T%d failed: %v", task, err)
+				if err := e.TellMemoOf(e.DB, task, mid, me, "added", body, target, false); err != nil {
+					e.log("  telling about the comment on T%d failed: %v", task, err)
 				}
 			}
 		}}, nil

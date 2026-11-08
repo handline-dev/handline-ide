@@ -46,7 +46,7 @@ func TestSayToAReportWithoutATaskIsRefusedWithTheTaskThatWouldReachIt(t *testing
 	// bob reports to alice, the member its team is named after; written before the table is first read and sealed
 	os.WriteFile(filepath.Join(r.home, "team.yaml"), []byte(strings.Replace(teamYAML, "eng: [alice, bob]", "alice: [alice, bob]", 1)), 0o644)
 	out := r.say(SayVerbIn{Requester: "alice", Target: "bob", Body: "fix the bug"})
-	want := "work cannot reach a report by message: make it a task (`hl task new`), or say --task T<n> to memo one. Try:\n  hl task new --assign bob -t 2h '<title>' 'fix the bug'"
+	want := "work cannot reach a report by message: make it a task (`hl task new`), or say --task T<n> to comment on one. Try:\n  hl task new --assign bob -t 2h '<title>' 'fix the bug'"
 	if out.OK || out.Msg != want {
 		t.Fatalf("%q", out.Msg)
 	}
@@ -59,10 +59,10 @@ func TestSayWithATaskIsThatTasksMemoAndTellsTheHolder(t *testing.T) {
 	r.AdvanceCurrentTask(r.DB, "bob")
 	r.term.typed = nil
 	out := r.say(SayVerbIn{Requester: "alice", Target: "bob", Body: "check the cache", Task: tid})
-	if !out.OK || out.Msg != "memo 1 added to T1" {
+	if !out.OK || out.Msg != "comment 1 added to T1" {
 		t.Fatalf("%+v", out)
 	}
-	if !strings.Contains(r.term.last(), "T1 memo added by alice: check the cache") {
+	if !strings.Contains(r.term.last(), "T1 comment 1 by alice: check the cache") {
 		t.Fatalf("%q", r.term.last())
 	}
 	m, _ := db.GetMemo(r.DB, 1)
@@ -246,32 +246,32 @@ func TestMemoEditAndDeleteAreForTheAuthorOrTheFounder(t *testing.T) {
 	tid := r.newTask("bob", "alice", "job")
 	ok, msg, mid, err := r.MemoAdd(r.DB, tid, "alice", "first")
 	r.must(err)
-	if !ok || msg != "memo 1 added to T1" || mid != 1 {
+	if !ok || msg != "comment 1 added to T1" || mid != 1 {
 		t.Fatal(ok, msg)
 	}
 	if ok, msg, _, _ := r.MemoAdd(r.DB, 9, "alice", "x"); ok || msg != "no task T9" {
 		t.Fatal(msg)
 	}
-	if ok, msg, _, _ := r.MemoAdd(r.DB, tid, "alice", "  "); ok || msg != "a memo needs some text" {
+	if ok, msg, _, _ := r.MemoAdd(r.DB, tid, "alice", "  "); ok || msg != "a comment needs some text" {
 		t.Fatal(msg)
 	}
-	if ok, msg, _, _ := r.MemoEdit(r.DB, mid, "bob", "mine now"); ok || msg != "memo 1 is alice's: only its author or the founder edits or deletes it" {
+	if ok, msg, _, _ := r.MemoEdit(r.DB, mid, "bob", "mine now"); ok || msg != "comment 1 is alice's: only its author or the founder edits or deletes it" {
 		t.Fatal(msg)
 	}
-	if ok, msg, _, _ := r.MemoEdit(r.DB, mid, "alice", "first"); ok || msg != "memo 1 already reads that way - nothing to edit" {
+	if ok, msg, _, _ := r.MemoEdit(r.DB, mid, "alice", "first"); ok || msg != "comment 1 already reads that way - nothing to edit" {
 		t.Fatal(msg)
 	}
 	ok, msg, got, _ := r.MemoEdit(r.DB, mid, "human", "second")
-	if !ok || msg != "memo 1 on T1 edited" || got != tid {
+	if !ok || msg != "comment 1 on T1 edited" || got != tid {
 		t.Fatal(ok, msg)
 	}
 	if m, _ := db.GetMemo(r.DB, mid); m.Body != "second" || !m.EditedAt.Valid {
 		t.Fatalf("%+v", m)
 	}
-	if ok, msg, _, _ := r.MemoDelete(r.DB, 9, "alice"); ok || msg != "no memo 9" {
+	if ok, msg, _, _ := r.MemoDelete(r.DB, 9, "alice"); ok || msg != "no comment 9" {
 		t.Fatal(msg)
 	}
-	if ok, msg, _, _ := r.MemoDelete(r.DB, mid, "alice"); !ok || msg != "memo 1 deleted from T1" {
+	if ok, msg, _, _ := r.MemoDelete(r.DB, mid, "alice"); !ok || msg != "comment 1 deleted from T1" {
 		t.Fatal(msg)
 	}
 	if m, _ := db.GetMemo(r.DB, mid); m != nil {

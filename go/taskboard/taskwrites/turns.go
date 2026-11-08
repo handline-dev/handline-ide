@@ -323,7 +323,9 @@ func popTurn(tx *sql.Tx, home string, tell Teller, tid int64, by, outcome, note 
 		return Popped{}, fmt.Errorf("task.turn.pop needs the supervisor to route its ask")
 	}
 	body := fmt.Sprintf("T%d is your turn again: %s %s it: %s", tid, top.Agent, word, t.Title)
-	if note != "" {
+	if by == human && top.Agent == human && memo != 0 { // the founder's comment answers the task's open question
+		body = fmt.Sprintf("T%d 질문에 대표님 댓글 %d: %s / 지금 질문 칸: %s", tid, memo, textsafe.Oneline(note), textsafe.Oneline(top.Ask))
+	} else if note != "" {
 		body += "\n\n" + note
 	}
 	// System: the task goes back to an agent that already had it, so no team edge is asked for
