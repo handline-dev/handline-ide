@@ -6,7 +6,7 @@ import type { Account } from '@handline/client';
 import { loginRunning } from '@handline/app-core';
 import { classify, sentence, useAccounts, useWrite } from '@handline/app-data';
 import { ChevronRight, LoaderCircle, Plus, TriangleAlert } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '#src/ui/Button.tsx';
 import { Field, Input } from '#src/ui/Field.tsx';
 import { Page } from '#src/ui/Page.tsx';
@@ -14,10 +14,15 @@ import { ScrollFade } from '#src/ui/ScrollFade.tsx';
 
 const why = (e: unknown) => (e ? sentence(classify(e)) : null);
 
-export function AccountsTab() {
+/** `focus`: an account whose row opens and scrolls into view. */
+export function AccountsTab({ focus }: { focus?: string }) {
   const q = useAccounts();
   const accounts = q.data?.accounts ?? [];
-  const [open, setOpen] = useState<string | null>(null);
+  const [open, setOpen] = useState<string | null>(focus ?? null);
+  const found = focus !== undefined && accounts.some((a) => a.name === focus);
+  useEffect(() => {
+    if (found) document.querySelector(`[data-account="${CSS.escape(focus)}"]`)?.scrollIntoView({ block: 'center' });
+  }, [found, focus]);
   return (
     <ScrollFade keep="accounts" className="min-h-0 flex-1">
       <Page>
@@ -27,7 +32,7 @@ export function AccountsTab() {
           {q.isError && <p className="text-sm text-danger">Accounts did not load.</p>}
           <div className="flex flex-col">
             {accounts.map((a) => (
-              <div key={a.name} className="flex flex-col border-b border-border">
+              <div key={a.name} data-account={a.name} className="flex flex-col border-b border-border">
                 <button
                   type="button"
                   aria-expanded={open === a.name}

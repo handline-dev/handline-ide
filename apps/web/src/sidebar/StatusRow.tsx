@@ -4,7 +4,6 @@ import { BellButton } from '#src/requests/BellButton.tsx';
 import { useRef, useState, type RefObject } from 'react';
 import type { KeepAwake } from '#src/settings/data/machine.ts';
 import { Popover } from '#src/ui/Popover.tsx';
-import { usePersisted } from '#src/persist/kv.ts';
 import { openSettings } from '#src/settings/open.ts';
 import { useStatusRow, type Level } from '#src/sidebar/status.ts';
 
@@ -30,7 +29,6 @@ const DOT: Record<Level, string> = { ok: 'bg-muted', near: 'bg-warning', held: '
 
 export function StatusRow() {
   const s = useStatusRow();
-  const [, setSection] = usePersisted<string>('settings:section', 'accounts');
   const busy = s.pending !== null;
   const bar = useRef<HTMLDivElement>(null);
   return (
@@ -41,7 +39,7 @@ export function StatusRow() {
       <button
         type="button"
         title={s.text || undefined}
-        onClick={() => (setSection('machine'), openSettings())}
+        onClick={() => openSettings({ section: 'machine' })}
         className="flex min-w-0 flex-1 items-center gap-2 text-left hover:text-fg"
       >
         <span aria-label={s.level} className={`size-2 shrink-0 rounded-full ${s.paused ? 'bg-warning' : DOT[s.level]}`} />
