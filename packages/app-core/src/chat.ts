@@ -441,12 +441,20 @@ const HANDOFF_WHY: Record<string, string> = {
   move: 'Moving to another account',
   usage: 'Usage limit',
   login: 'Login needed',
+  restart: 'Restart asked',
 };
-/** The live line while a session hands off: why it ends (the cause is an open set, so an unknown one is shown as it came) and what is happening now. */
-export function handoffLine(h: { cause: string; phase: 'writing' | 'starting' }): { why: string; what: string } {
+type HandoffPhase = 'waiting' | 'writing' | 'starting';
+const HANDOFF_WHAT: Record<HandoffPhase, string> = {
+  waiting: 'Waiting for its turn to end',
+  writing: 'Writing the handoff',
+  starting: 'Starting a new session',
+};
+/** The live line while a session hands off or restarts: why it ends (the cause is an open set, so an unknown one is shown as it came; changed settings are named) and what is happening now. */
+export function handoffLine(h: { cause: string; phase: HandoffPhase; settings?: string[] }): { why: string; what: string } {
+  const changed = h.cause === 'settings_applied' ? `${h.settings?.length ? h.settings.join(', ') : 'settings'} changed` : '';
   return {
-    why: HANDOFF_WHY[h.cause] ?? h.cause,
-    what: h.phase === 'writing' ? 'Writing the handoff' : 'Starting a new session',
+    why: changed ? changed.charAt(0).toUpperCase() + changed.slice(1) : (HANDOFF_WHY[h.cause] ?? h.cause),
+    what: HANDOFF_WHAT[h.phase] ?? HANDOFF_WHAT.starting,
   };
 }
 
@@ -456,8 +464,8 @@ export function restartShown(h: { since: string }, items: TranscriptItem[]): boo
   return !items.some((i) => i.kind === 'session' && Date.parse(i.at) >= since);
 }
 
-/** The live restart line: `Restarting: context full. Writing the handoff…`. */
-export function restartingLine(h: { cause: string; phase: 'writing' | 'starting' }): string {
+/** The live restart line: `Restarting: context full. Writing the handoff…`, `Restarting: model changed. Waiting for its turn to end…`. */
+export function restartingLine(h: { cause: string; phase: HandoffPhase; settings?: string[] }): string {
   const { why, what } = handoffLine(h);
   return `Restarting: ${why.charAt(0).toLowerCase()}${why.slice(1)}. ${what}…`;
 }

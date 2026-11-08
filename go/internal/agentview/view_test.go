@@ -3,6 +3,7 @@ package agentview
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -439,6 +440,50 @@ func TestAHandoffShowsFromTheNoteWaitThroughTheLaunchUntilTheNewSessionBegins(t 
 	}
 	if h := handoff(); h != nil {
 		t.Fatalf("the new session is shown, got %v", h)
+	}
+}
+
+// A restart for changed settings shows in the handoff's place with what it applies: waiting while the turn under way ends, then starting
+// from the restart until the new session's start is recorded.
+func TestASettingsRestartShowsWaitingForTheTurnThenStartingUntilTheNewSession(t *testing.T) {
+	r := newRig(t, "a")
+	handoff := func() map[string]any {
+		t.Helper()
+		r.env.RefreshOne("a")
+		h, _ := r.stored(t, "a")["handoff"].(map[string]any)
+		return h
+	}
+	r.state(t, "a", states.Running, "")
+	if err := db.SetSettingsOwed(r.env.Q, "a", []string{"model"}, 4990); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SetSettingsOwed(r.env.Q, "a", []string{"model"}, 4995); err != nil { // the same change keeps its start
+		t.Fatal(err)
+	}
+	h := handoff()
+	if h["cause"] != "settings_applied" || h["phase"] != "waiting" || h["since"] != stamp(4990) || fmt.Sprint(h["settings"]) != "[model]" {
+		t.Fatalf("owed mid-turn: %v", h)
+	}
+	r.state(t, "a", states.Idle, "")
+	if h := handoff(); h != nil {
+		t.Fatalf("owed is only waiting while a turn runs: %v", h)
+	}
+	if _, err := db.AddEvent(r.env.Q, "a", "restart_owed", db.KV{K: "by", V: "the daemon"}, db.KV{K: "cause", V: "settings_applied"},
+		db.KV{K: "applying", V: []string{"model"}}); err != nil {
+		t.Fatal(err)
+	}
+	h = handoff()
+	if h["cause"] != "settings_applied" || h["phase"] != "starting" || fmt.Sprint(h["settings"]) != "[model]" {
+		t.Fatalf("restarting: %v", h)
+	}
+	if _, err := db.NoteSessionStart(r.env.Q, "a", "settings_applied", true, "", "", "", "", ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.env.Q.Exec("UPDATE session_starts SET session_id = 's2', ts = ts + 1 WHERE agent = 'a'"); err != nil {
+		t.Fatal(err)
+	}
+	if h := handoff(); h != nil {
+		t.Fatalf("the new session is up, got %v", h)
 	}
 }
 
