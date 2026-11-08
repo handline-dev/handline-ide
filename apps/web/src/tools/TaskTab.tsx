@@ -1,5 +1,5 @@
 import { activityOf, foundersTurn, taskOutcome, isPerson, turnChain, isSystem, type ActivityItem } from '@handline/app-core';
-import { hooks, useWrite } from '@handline/app-data';
+import { hooks, useTaskHistory, useWrite } from '@handline/app-data';
 import { useMe } from '@handline/app-react';
 import type { TaskDetail } from '@handline/client';
 import {
@@ -30,7 +30,8 @@ import { Reference } from '#src/chat/ChatLine.tsx';
 import { MessageImages } from '#src/chat/MessageImages.tsx';
 import { HoverCard } from '#src/ui/HoverCard.tsx';
 import { Fields } from '#src/tools/TaskFields.tsx';
-import { CommentBox, EditComment } from '#src/tools/TaskComment.tsx';
+import { Changes } from '#src/tools/TaskDiff.tsx';
+import { CommentBox } from '#src/tools/TaskComment.tsx';
 import { useAttachments } from '#src/chat/attachments.tsx';
 import { FileDropArea } from '#src/ui/fileDrop.tsx';
 import { WaitingOnYou, YourTurn } from '#src/tools/TaskWaiting.tsx';
@@ -102,7 +103,14 @@ export function TaskTab({ id }: { id: number }) {
             {open && (mine || why || t.blockers.length > 0) && (
               <div className="flex flex-col gap-1 rounded-lg bg-warning/10 px-3 py-2 text-sm">
                 {mine ? (
-                  <YourTurn t={t} onDone={() => void q.refetch()} />
+                  <YourTurn
+                    t={t}
+                    onDone={() => void q.refetch()}
+                    onShow={() => {
+                      const m = askingMemo(t);
+                      if (m) showMemo(m.id);
+                    }}
+                  />
                 ) : asked ? (
                   <WaitingOnYou t={t} me={me} asked={asked} onDone={() => void q.refetch()} onShow={() => showMemo(asked.id)} />
                 ) : (
@@ -236,6 +244,14 @@ function toBottom(id: number) {
   }, 50);
 }
 
+/** The comment that made this the founder's turn: the last one by whoever asked, written by the time the turn began, else the newest. */
+function askingMemo(t: TaskDetail) {
+  const turn = t.turns?.at(-1);
+  const at = turn ? Date.parse(turn.since) : NaN;
+  const by = t.memos.filter((m) => m.author === turn?.by && Date.parse(m.at) <= at + 5000);
+  return by.at(-1) ?? t.memos.at(-1);
+}
+
 /** Brings a comment into view and marks it for a moment. */
 function showMemo(id: number) {
   const el = document.querySelector(`[data-memo="${id}"]`);
@@ -257,14 +273,19 @@ function eventIcon(line: string): typeof Check {
 }
 
 /** Under a line, as under a chat message: its buttons and time on hover; the row keeps its height hidden, as the space between lines. */
-function HoverRow({ at, edited, children }: { at: string; edited?: boolean; children?: ReactNode }) {
+function HoverRow({ at, edited, onEdited, children }: { at: string; edited?: boolean; onEdited?: () => void; children?: ReactNode }) {
   return (
     <div className="mb-0.5 flex h-6 items-center gap-1.5 text-xs text-muted opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
       {children}
       <time dateTime={at} title={at}>
         {clock(at)}
-        {edited && ' · edited'}
+        {edited && !onEdited && ' · edited'}
       </time>
+      {edited && onEdited && (
+        <button type="button" onClick={onEdited} className="underline decoration-dotted hover:text-fg">
+          · edited
+        </button>
+      )}
     </div>
   );
 }
@@ -318,8 +339,10 @@ const SHOWN = 5;
 /** Comments and changes in one list, oldest first: the last five, and Earlier opens the rest above them. */
 function Activity({ task, items, onReply }: { task: number; items: ActivityItem[]; onReply: (memo: number) => void }) {
   const [all, setAll] = useState(false);
-  // The comment being rewritten. The web is the founder's, who may edit any comment; the daemon refuses what it does not allow.
-  const [editing, setEditing] = useState<number | null>(null);
+  // The texts an edited comment had: its history rows, oldest first. The one open, if any, shows them under its words.
+  const rows = useTaskHistory(task).data?.rows;
+  const [open, setOpen] = useState<number | null>(null);
+  const earlierOf = (memo?: number | null) => (rows ?? []).filter((r) => r.field === 'memo' && r.memo === memo && r.was && r.now);
   // What was there when the task opened just shows; a comment or event that comes later, or a comment's new words, flash.
   const [first] = useState(() => new Set(items.map(keyOf)));
   const fresh = (i: ActivityItem) => (first.has(keyOf(i)) ? '' : 'just-changed');
@@ -365,20 +388,22 @@ function Activity({ task, items, onReply }: { task: number; items: ActivityItem[
                   {i.replyTo != null && (
                     <Reference text={items.find((r) => r.memo === i.replyTo)?.note} onClick={() => showMemo(i.replyTo!)} />
                   )}
-                  {editing != null && editing === i.memo ? (
-                    <EditComment task={task} memo={editing} text={i.note} onClose={() => setEditing(null)} />
-                  ) : (
-                    <Markdown text={i.note} />
+                  <Markdown text={i.note} />
+                  {i.memo != null && i.edited && open === i.memo && (
+                    <Changes
+                      changes={earlierOf(i.memo)
+                        .sort((a, b) => a.at.localeCompare(b.at))
+                        .map((r) => ({ from: r.was, to: r.now, at: r.at }))}
+                    />
                   )}
                   {i.images && <MessageImages images={i.images} />}
                 </div>
-                <HoverRow at={i.at} edited={i.edited}>
+                <HoverRow
+                  at={i.at}
+                  edited={i.edited}
+                  onEdited={i.memo != null && earlierOf(i.memo).length ? () => setOpen(open === i.memo ? null : i.memo!) : undefined}
+                >
                   <Actions text={i.note} onQuote={() => i.memo != null && onReply(i.memo)} />
-                  {i.memo != null && (
-                    <IconButton className="size-6!" label="Edit" onClick={() => setEditing(i.memo)}>
-                      <Pencil size={14} />
-                    </IconButton>
-                  )}
                   <ReadBy readers={i.readers} />
                 </HoverRow>
               </div>
