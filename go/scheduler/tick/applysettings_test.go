@@ -51,6 +51,21 @@ func TestAChangedSettingRestartsTheIdleSessionOnceAndRemembersWhatItWasFor(t *te
 	}
 }
 
+// A change made mid-turn is kept as owed, for the agent view to say the restart waits for the turn; the restart clears it.
+func TestAChangeMadeMidTurnIsOwedUntilItsRestart(t *testing.T) {
+	tk, w, a := settled(t)
+	setState(t, tk, "a", states.Running, 0)
+	a.Sweep(tk, 10_000)
+	if o, _ := db.GetSettingsOwed(tk.Q, "a"); o == nil || o.Since != 10_000 || strings.Join(o.Settings, ",") != "model" || w.did("restart") {
+		t.Fatalf("%+v %v", o, w.calls)
+	}
+	setState(t, tk, "a", states.Idle, 0)
+	a.Sweep(tk, 10_030)
+	if o, _ := db.GetSettingsOwed(tk.Q, "a"); o != nil || !w.did("restart a") {
+		t.Fatalf("%+v %v", o, w.calls)
+	}
+}
+
 func TestAChangedSettingWaitsForAnIdleMomentAndAnOpenRunnableSession(t *testing.T) {
 	cases := map[string]func(tk *Tick, w *world){
 		"mid-turn or an open prompt": func(tk *Tick, w *world) { w.idle = false },
