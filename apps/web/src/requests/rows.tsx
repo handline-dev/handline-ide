@@ -1,4 +1,4 @@
-import { useTask, useWrite } from '@handline/app-data';
+import { classify, sentence, useProposals, useTask, useWrite } from '@handline/app-data';
 import type { PendingRequest, RequestRow } from '@handline/client';
 import { tomorrowAt9 } from '@handline/app-core';
 import {
@@ -16,7 +16,7 @@ import {
   Signpost,
   X,
 } from 'lucide-react';
-import type { MouseEvent, ReactNode } from 'react';
+import { useState, type MouseEvent, type ReactNode } from 'react';
 import { requestKey, RowMenu, turnKey, usePick, useRowActions, type Picked } from '#src/requests/RowMenu.tsx';
 import { laterKey } from '#src/requests/data.ts';
 import { Button } from '#src/ui/Button.tsx';
@@ -234,19 +234,35 @@ export function RequestLine({ r, onOpened }: { r: RequestRow; onOpened?: () => v
   );
 }
 
-/** A proposal's answer, Allow or Deny; else a dismiss until tomorrow 09:00 (Later). */
+/** A proposal's answer, Allow or Deny; else a dismiss until tomorrow 09:00 (Later). An Allow names the subject proposal.list showed; one the
+ *  daemon refuses as changed since stays off on this row, so a changed proposal is opened and read before it is allowed. */
 function TurnQuick({ p }: { p: PendingRequest }) {
   const act = useRowActions();
   const decide = useWrite('proposal.decide');
+  const listed = useProposals().data?.proposals.find((x) => String(x.id) === p.id);
+  const [changed, setChanged] = useState(false);
   if (p.source === 'proposal' && p.id) {
     const answer = (decision: 'approve' | 'reject') =>
       decide.mutate(
-        { proposal: Number(p.id), decision },
-        { onError: (e) => toast(`Did not answer: ${(e as Error).message}`, { tone: 'warning' }) },
+        { proposal: Number(p.id), decision, ...(decision === 'approve' && listed ? { subject: listed.subject } : {}) },
+        {
+          onError: (e) => {
+            const f = classify(e);
+            if (f.kind === 'refused' && f.gate === 'proposal_changed') {
+              setChanged(true);
+              toast('The proposal changed since it was listed: open it and read it before you allow it.', { tone: 'warning' });
+            } else if (sentence(f)) toast(`Did not answer: ${sentence(f)}`, { tone: 'warning' });
+          },
+        },
       );
     return (
       <>
-        <Button variant="primary" disabled={decide.isPending} onClick={() => answer('approve')}>
+        <Button
+          variant="primary"
+          disabled={decide.isPending || !listed || changed}
+          title={changed ? 'Changed since it was listed: open it to read it' : listed ? undefined : 'Reading the proposal'}
+          onClick={() => answer('approve')}
+        >
           Allow
         </Button>
         <Button disabled={decide.isPending} onClick={() => answer('reject')}>

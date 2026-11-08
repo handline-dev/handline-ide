@@ -96,6 +96,22 @@ export class TaskComments extends TaskStore {
         last_at: i.created,
       });
     }
+    // A proposal waiting for the founder is its own row to allow, as the daemon lists it (open or apply_failed, never applying).
+    for (const p of this.host.script.proposals.proposals.filter((x) => x.state === 'open' || x.state === 'apply_failed'))
+      answer.set(`proposal:${p.id}`, {
+        task: null,
+        title: p.title,
+        kind: 'allow',
+        source: 'proposal',
+        id: String(p.id),
+        agent: p.agent,
+        ask: null,
+        warning: null,
+        items: [],
+        unread: 0,
+        first_unread: null,
+        last_at: p.created,
+      });
     const comments: Pending[] = [];
     for (const t of this.rows) {
       const v = this.view(t);

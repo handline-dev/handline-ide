@@ -31,6 +31,7 @@ export class FakeProposals {
     full.subject ||= digest(full);
     this.proposals.push(full);
     this.host.emit('proposals', 'proposal.raised', { agent: full.agent, title: full.title, data: { proposal: full } });
+    this.host.emit('for_you', 'for_you.opened', { title: full.title, data: { kind: 'proposal', id: String(full.id) } });
     return full;
   }
   settle(p: Proposal, state: string, error: string | null = null, note?: string) {
@@ -39,6 +40,8 @@ export class FakeProposals {
     if (note) p.note = note;
     p.settled = this.host.iso();
     this.host.emit('proposals', 'proposal.settled', { agent: p.agent, title: p.title, data: { proposal: p } });
+    // Out of the founder's waiting rows, as the daemon's watcher tells it.
+    if (!WAITING.has(state)) this.host.emit('for_you', 'for_you.closed', { title: p.title, data: { kind: 'proposal', id: String(p.id) } });
   }
   /** The start an approved proposal's agent was waiting for went through: its follow_up goes. False when none waited on `agent`. */
   started(agent: string): boolean {
@@ -64,9 +67,11 @@ export const PROPOSAL_HANDLERS: Record<string, (h: Call) => unknown> = {
     const book = script.proposals;
     const prop = book.find(p.proposal);
     if (p.decision !== 'approve' && p.decision !== 'reject') throw badRequest('decision is approve or reject', 'decision');
-    if (p.decision === 'reject' && !(typeof p.note === 'string' && p.note.trim())) throw badRequest('a rejection needs a note', 'note');
+    // As the daemon: an approve names the subject the list showed (checked before the state), a reject needs nothing more.
+    if (p.subject != null && typeof p.subject !== 'string') throw badRequest('subject is the digest proposal.list showed', 'subject');
+    if (p.decision === 'approve' && !p.subject) throw badRequest('an approve names the subject proposal.list showed', 'subject');
     if (!WAITING.has(prop.state)) throw gate('proposal_settled', `the proposal is already ${prop.state}`, prop);
-    if (typeof p.subject === 'string' && p.subject !== prop.subject)
+    if (p.decision === 'approve' && p.subject !== prop.subject)
       throw gate('proposal_changed', 'the proposal changed after you read it', prop);
     const note = typeof p.note === 'string' && p.note.trim() ? p.note : undefined;
     if (p.decision === 'reject') book.settle(prop, 'rejected', null, note);
