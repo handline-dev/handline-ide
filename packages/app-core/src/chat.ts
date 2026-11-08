@@ -444,11 +444,7 @@ const HANDOFF_WHY: Record<string, string> = {
   restart: 'Restart asked',
 };
 type HandoffPhase = 'waiting' | 'writing' | 'starting';
-const HANDOFF_WHAT: Record<HandoffPhase, string> = {
-  waiting: 'Waiting for its turn to end',
-  writing: 'Writing the handoff',
-  starting: 'Starting a new session',
-};
+const HANDOFF_WHAT = { waiting: 'Waiting for its turn to end', writing: 'Writing the handoff', starting: 'Starting a new session' };
 /** The live line while a session hands off or restarts: why it ends (the cause is an open set, so an unknown one is shown as it came; changed settings are named) and what is happening now. */
 export function handoffLine(h: { cause: string; phase: HandoffPhase; settings?: string[] }): { why: string; what: string } {
   const changed = h.cause === 'settings_applied' ? `${h.settings?.length ? h.settings.join(', ') : 'settings'} changed` : '';
