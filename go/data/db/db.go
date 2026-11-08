@@ -231,3 +231,7 @@ func SetNotifiedSession(q Q, agent, session string) error {
 	_, err := q.Exec("UPDATE agent_state SET notified_session = ? WHERE agent = ?", s, agent)
 	return err
 }
+
+// SettingsRestartMeta is the meta name that keeps how agent's next restart for changed settings goes: "fresh" (a handoff, then a new
+// conversation), or "" for resumed, the default. agent.set writes it with each change.
+func SettingsRestartMeta(agent string) string { return "settings_applied:" + agent + ":restart" }

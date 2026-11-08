@@ -573,8 +573,8 @@ func (l tickLifecycle) CloseFresh(_ db.Q, agent string, st tick.Status) (bool, s
 	}
 	return ok, said
 }
-func (l tickLifecycle) RestartAgent(_ db.Q, agent string, st tick.Status, by string, applying []string, cause string) (bool, string) {
-	ok, said, err := l.m.RestartAgent(agent, sessionOf(st), lifecycle.RestartOpts{By: by, Applying: applying, Cause: cause})
+func (l tickLifecycle) RestartAgent(_ db.Q, agent string, st tick.Status, by string, applying []string, cause string, fresh bool) (bool, string) {
+	ok, said, err := l.m.RestartAgent(agent, sessionOf(st), lifecycle.RestartOpts{Fresh: fresh, By: by, Applying: applying, Cause: cause})
 	if err != nil {
 		return false, err.Error()
 	}

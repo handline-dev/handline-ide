@@ -80,7 +80,7 @@ type Lifecycle interface {
 	ShouldClose(q db.Q, agent, state string, row *db.AgentState, now int64, st Status) bool
 	CloseAgent(q db.Q, agent string, st Status) (bool, string)
 	CloseFresh(q db.Q, agent string, st Status) (bool, string)
-	RestartAgent(q db.Q, agent string, st Status, by string, applying []string, cause string) (bool, string)
+	RestartAgent(q db.Q, agent string, st Status, by string, applying []string, cause string, fresh bool) (bool, string)
 	TriggersApply(row *db.AgentState) bool
 }
 

@@ -13,8 +13,9 @@ import (
 // A session started with settings that have since changed is restarted, once, at an idle moment. What a launch reads from the settings a
 // person edits (the model, effort, mcp config, browser, permission switches, ROLE.md, base.md, the team line and rules) is read once, at
 // session start. The launch records each beside the session; this compares those with what the next launch would use and, when a named
-// setting differs, restarts the agent the way session.restart does (resumed, the same conversation), never mid-turn and never over an open
-// dialog. A level read each tick from the row, not an edge: a change made while the agent was busy is applied when it is not.
+// setting differs, restarts the agent the way session.restart does (resumed, the same conversation, unless agent.set asked for fresh: a
+// handoff, then a new one), never mid-turn and never over an open dialog. A level read each tick from the row, not an edge: a change made
+// while the agent was busy is applied when it is not.
 const (
 	// SettingsWho is who the restart says asked for it when no person's change is kept (db.SettingsByMeta).
 	SettingsWho = "the daemon"
@@ -130,12 +131,19 @@ func (a *ApplySettings) apply(t *Tick, agent string, now int64) {
 	if by == "" {
 		by = SettingsWho
 	}
-	ok, said := t.Lifecycle.RestartAgent(t.Q, agent, st, by, names, "settings_applied")
+	mode, _ := must2(db.Meta(t.Q, db.SettingsRestartMeta(agent)))
+	fresh := mode == "fresh"
+	ok, said := t.Lifecycle.RestartAgent(t.Q, agent, st, by, names, "settings_applied", fresh)
 	if ok {
 		check(db.SetMeta(t.Q, SettingsApplied+agent, text))
 		check(db.SetSettingsOwed(t.Q, agent, nil, 0))
 		check(db.SetMeta(t.Q, db.SettingsByMeta(agent), ""))
-		t.logf("  %s: restarted to apply changed settings (%s)", agent, strings.Join(names, ", "))
+		check(db.SetMeta(t.Q, db.SettingsRestartMeta(agent), ""))
+		how := ""
+		if fresh {
+			how = ", as a new conversation"
+		}
+		t.logf("  %s: restarted to apply changed settings (%s)%s", agent, strings.Join(names, ", "), how)
 	} else {
 		t.logf("  %s: changed settings (%s) not applied yet - %s", agent, strings.Join(names, ", "), said)
 	}

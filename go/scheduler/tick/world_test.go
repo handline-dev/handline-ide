@@ -160,8 +160,12 @@ func (l wLifecycle) CloseFresh(_ db.Q, a string, _ Status) (bool, string) {
 	l.w.call("closefresh %s", a)
 	return l.w.closeOK, l.w.closeWhy
 }
-func (l wLifecycle) RestartAgent(_ db.Q, a string, _ Status, by string, applying []string, cause string) (bool, string) {
-	l.w.call("restart %s by %s for %s (%s)", a, by, strings.Join(applying, ","), cause)
+func (l wLifecycle) RestartAgent(_ db.Q, a string, _ Status, by string, applying []string, cause string, fresh bool) (bool, string) {
+	how := ""
+	if fresh {
+		how = " fresh"
+	}
+	l.w.call("restart%s %s by %s for %s (%s)", how, a, by, strings.Join(applying, ","), cause)
 	return l.w.restartOK, l.w.restartSaid
 }
 func (l wLifecycle) TriggersApply(*db.AgentState) bool { return l.w.triggers }

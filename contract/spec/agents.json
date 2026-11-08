@@ -1501,6 +1501,15 @@
      }
     },
     {
+     "name": "restart",
+     "required": false,
+     "description": "How the restart that applies a changed setting to a live session goes: resume (the same conversation, the default) or fresh (a handoff note, then a new conversation).",
+     "schema": {
+      "type": "string",
+      "enum": ["resume", "fresh"]
+     }
+    },
+    {
      "name": "request_id",
      "required": true,
      "schema": {
