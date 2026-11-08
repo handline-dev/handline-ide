@@ -136,7 +136,7 @@ describe('activityOf', () => {
     const words = (l: string[]) => l.map((w) => activityOf(of(w)));
     expect(words(['running', 'starting', 'queued'])).toEqual(['working', 'working', 'working']);
     expect(words(['parked', 'no_terminal'])).toEqual(['asleep', 'asleep']);
-    expect(words(['stalled', 'blocked', 'waiting'])).toEqual(['error', 'error', 'error']);
+    expect(words(['stalled', 'blocked', 'waiting'])).toEqual(['error', 'error', 'you']);
     expect(words(['idle', 'something-new'])).toEqual(['resting', 'resting']);
   });
 
@@ -144,6 +144,30 @@ describe('activityOf', () => {
     const { activityOf } = await import('#src/layout/agentTree.ts');
     const status = { state: 'running', reason: 'background', text: '', until: null, since: null, tasks: [] };
     expect(activityOf({ ...of('idle'), status })).toBe('working');
+  });
+});
+
+describe('holdLine', () => {
+  const status = (state: string, reason: string, text: string, tasks: number[] = []) => ({
+    state,
+    reason,
+    text,
+    until: null,
+    since: null,
+    tasks,
+  });
+  it('names the tasks a held agent waits on, calm, not as a fault', async () => {
+    const { activityOf, holdLine } = await import('#src/layout/agentTree.ts');
+    const a = { state: 'idle', has_dialog: false, status: status('waiting', 'task', 'blocked by T8771 (human)', [8771, 8772]) };
+    expect(activityOf(a)).toBe('held');
+    expect(holdLine(a)).toBe('Waiting on T8771, T8772');
+  });
+  it('a stop is a fault and says its own line; a working agent has none', async () => {
+    const { activityOf, holdLine } = await import('#src/layout/agentTree.ts');
+    const a = { state: 'stalled', has_dialog: false, status: status('stopped', 'stalled', 'stalled until someone unstalls it') };
+    expect(activityOf(a)).toBe('error');
+    expect(holdLine(a)).toBe('Stalled until someone unstalls it');
+    expect(holdLine({ state: 'running', has_dialog: false })).toBeNull();
   });
 });
 
