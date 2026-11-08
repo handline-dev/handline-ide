@@ -18,6 +18,7 @@ import { useAttachmentUrl } from '@handline/app-data';
 import { ChevronLeft, ChevronRight, Copy, Download, Maximize, Minus, PenLine, Plus, Undo2, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { useWindowLayer } from '#src/layout/windowLayer.tsx';
 import { copy } from '#src/ui/copy.ts';
 import { toast } from '#src/ui/toast.tsx';
 import { Stage, type StageControls } from '#src/viewer/Stage.tsx';
@@ -140,6 +141,7 @@ export function ImageViewer({
     else toast('Could not copy the picture.', { tone: 'warning' });
   };
 
+  useWindowLayer(true);
   return createPortal(
     <div
       ref={root}

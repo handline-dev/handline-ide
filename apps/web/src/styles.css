@@ -238,3 +238,8 @@ body[data-dragging] .app-drag,
 .app-no-drag {
   -webkit-app-region: no-drag;
 }
+/* Under a full-screen layer (windowLayer.tsx) the page moves nothing; only the top layer's own strip drags. */
+body[data-layer] .app-drag:not(.layer-drag),
+body[data-layer='still'] .layer-drag {
+  -webkit-app-region: no-drag;
+}

@@ -7,6 +7,7 @@ import { DevicesTab } from '#src/settings/DevicesTab.tsx';
 import { MachineTab } from '#src/settings/MachineTab.tsx';
 import { AccountsTab } from '#src/usage/AccountsTab.tsx';
 import { usePersisted } from '#src/persist/kv.ts';
+import { LayerDragStrip, useWindowLayer } from '#src/layout/windowLayer.tsx';
 import { closeSettings, settingsTarget, useSettingsOpen } from '#src/settings/open.ts';
 
 const SECTIONS = ['accounts', 'machine', 'devices'] as const;
@@ -38,6 +39,7 @@ export function Settings() {
 }
 
 function Frame() {
+  useWindowLayer(true, { drag: true });
   const [to] = useState(settingsTarget);
   const [saved, save] = usePersisted<Section>('settings:section', 'accounts');
   // A link's section wins until the menu is used.
@@ -50,38 +52,41 @@ function Frame() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
   return (
-    <>
-      <nav aria-label="Settings" className="flex w-56 shrink-0 flex-col gap-0.5 bg-surface px-2 pt-1.5">
-        {/* Where the sidebar's top was, as Linear and Mattermost do it: out from the corner you came in by. */}
-        <button
-          type="button"
-          onClick={closeSettings}
-          className="mb-4 flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-muted hover:bg-hover/30 hover:text-fg"
-        >
-          <ArrowLeft size={14} />
-          Back
-        </button>
-        <div className="px-2 pb-2 text-xs text-muted">Settings</div>
-        {SECTIONS.map((s) => (
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <LayerDragStrip />
+      <div className="flex min-h-0 flex-1">
+        <nav aria-label="Settings" className="flex w-56 shrink-0 flex-col gap-0.5 bg-surface px-2 pt-1.5">
+          {/* Where the sidebar's top was, as Linear and Mattermost do it: out from the corner you came in by. */}
           <button
-            key={s}
             type="button"
-            aria-current={section === s ? 'page' : undefined}
-            onClick={() => setSection(s)}
-            className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm ${
-              section === s ? 'bg-selected text-fg' : 'text-muted hover:bg-hover/30 hover:text-fg'
-            }`}
+            onClick={closeSettings}
+            className="mb-4 flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-muted hover:bg-hover/30 hover:text-fg"
           >
-            {MENU[s].icon}
-            {MENU[s].word}
+            <ArrowLeft size={14} />
+            Back
           </button>
-        ))}
-      </nav>
-      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto pt-8">
-        {section === 'accounts' && <AccountsTab focus={to.account} />}
-        {section === 'machine' && <MachineTab />}
-        {section === 'devices' && <DevicesTab />}
-      </main>
-    </>
+          <div className="px-2 pb-2 text-xs text-muted">Settings</div>
+          {SECTIONS.map((s) => (
+            <button
+              key={s}
+              type="button"
+              aria-current={section === s ? 'page' : undefined}
+              onClick={() => setSection(s)}
+              className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm ${
+                section === s ? 'bg-selected text-fg' : 'text-muted hover:bg-hover/30 hover:text-fg'
+              }`}
+            >
+              {MENU[s].icon}
+              {MENU[s].word}
+            </button>
+          ))}
+        </nav>
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto pt-8">
+          {section === 'accounts' && <AccountsTab focus={to.account} />}
+          {section === 'machine' && <MachineTab />}
+          {section === 'devices' && <DevicesTab />}
+        </main>
+      </div>
+    </div>
   );
 }

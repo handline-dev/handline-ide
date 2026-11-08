@@ -3,6 +3,7 @@
 import { classify, hooks, sentence, useAgents, useCreateProgress, useWrite } from '@handline/app-data';
 import { FolderGit2, LoaderCircle } from 'lucide-react';
 import { useState } from 'react';
+import { LayerDragStrip, useWindowLayer } from '#src/layout/windowLayer.tsx';
 import { shell } from '#src/shell.ts';
 import { GetReady } from '#src/firstrun/GetReady.tsx';
 import { Button } from '#src/ui/Button.tsx';
@@ -66,8 +67,12 @@ const LOOK_AROUND = 'Look around this project and propose 3 tasks worth doing ne
 function FirstRun({ onStarted }: { onStarted: () => void }) {
   const [step, setStep] = useState<'ready' | 'repo' | 'first'>('ready');
   const [folder, setFolder] = useState<Folder | null>(null);
+  useWindowLayer(true, { drag: true });
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-bg">
+      <div className="sticky top-0 z-10 bg-bg">
+        <LayerDragStrip />
+      </div>
       <div className="mx-auto flex max-w-xl flex-col gap-6 px-6 py-16">
         {step === 'ready' && <GetReady onContinue={() => setStep('repo')} />}
         {step === 'repo' && (

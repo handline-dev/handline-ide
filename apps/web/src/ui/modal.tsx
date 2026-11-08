@@ -1,9 +1,16 @@
 import { Dialog } from '@base-ui/react/dialog';
 import { X } from 'lucide-react';
 import { useState, useSyncExternalStore, type ReactNode } from 'react';
+import { useWindowLayer } from '#src/layout/windowLayer.tsx';
 import { Button } from '#src/ui/Button.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { ScrollFade } from '#src/ui/ScrollFade.tsx';
+
+/** A modal is a full-screen layer: nothing under it moves the window. */
+function Layer({ open }: { open: boolean }) {
+  useWindowLayer(open);
+  return null;
+}
 
 /** Promise-based modals: `const ok = await confirm({ ... })`. openModal works from anywhere (a handler, a
  * plain function) - the store lives here, and one <ModalHost /> at the root draws it. */
@@ -95,6 +102,7 @@ export function ModalHost() {
       }}
     >
       <Dialog.Portal>
+        <Layer open={e.open} />
         <Dialog.Backdrop className="fixed inset-0 z-50 bg-fg/40 transition-opacity duration-150 data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />
         <Dialog.Viewport className="fixed inset-0 z-50 flex items-center justify-center p-4">{e.node}</Dialog.Viewport>
       </Dialog.Portal>

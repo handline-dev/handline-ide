@@ -116,6 +116,8 @@ const DRAG_CHECK = `(() => {
     const x = r.left + r.width / 2;
     const y = r.top + r.height / 2;
     if (x < 0 || y < 0 || x >= innerWidth || y >= innerHeight) continue;
+    const top = document.elementFromPoint(x, y);
+    if (top && top !== e && !e.contains(top)) continue; // covered by something else
     const d = dragAt(x, y);
     if (!d) continue;
     out.push({
