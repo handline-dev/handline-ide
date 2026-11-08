@@ -82,7 +82,7 @@ export function TaskTab({ id }: { id: number }) {
               <Verbs id={t.id} open={open} state={t.state} />
             </div>
             <p className="text-xs text-muted">
-              Asked by {t.from} · <span title={t.created}>created {ago(t.created)}</span>
+              Reports to {isPerson(t.asker, me) ? 'you' : t.asker} · <span title={t.created}>created {ago(t.created)}</span>
               {open && chain && <> · {chain}</>}
               {t.done && (
                 <>
