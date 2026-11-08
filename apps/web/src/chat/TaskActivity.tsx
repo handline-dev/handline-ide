@@ -166,7 +166,7 @@ function fromRow(task: number, title: string, rows: HistoryRow[]): TaskEvent | n
   const r = rows[0];
   if (r.field === 'blocked_by')
     return { key, at, kind: 'edit', id, title, detail: r.now ? `Waits on ${r.now}` : `No longer waits on ${r.was}` };
-  if (r.field === 'memo') return { key, at, kind: 'edit', id, title, detail: `Memo: ${r.now.replace(/\s+/g, ' ')}` };
+  if (r.field === 'memo') return { key, at, kind: 'edit', id, title, detail: `Comment: ${r.now.replace(/\s+/g, ' ')}` };
   if (r.field === 'body') return { key, at, kind: 'edit', id, title, detail: 'Brief edited' };
   return { key, at, kind: 'edit', id, title, detail: r.field === 'title' ? '' : r.field, before: r.was || '—', after: r.now || '—' };
 }

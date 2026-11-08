@@ -186,3 +186,41 @@ export function CommentBox({
     </Page>
   );
 }
+
+/** A comment's words in a box to rewrite: Save sends the edit, Cancel leaves it as it was. */
+export function EditComment({ task, memo, text, onClose }: { task: number; memo: number; text: string; onClose: () => void }) {
+  const edit = useWrite('task.comment.edit');
+  const [v, setV] = useState(text);
+  const save = () =>
+    edit.mutate(
+      { task, memo, text: v },
+      {
+        onSuccess: onClose,
+        onError: (e) => toast(`Edit did not work: ${e instanceof Error ? e.message : String(e)}`, { tone: 'warning' }),
+      },
+    );
+  return (
+    <div className="flex flex-col gap-2">
+      <textarea
+        autoFocus
+        value={v}
+        onChange={(e) => setV(e.target.value)}
+        rows={Math.min(12, v.split('\n').length + 1)}
+        className="w-full resize-y rounded-md border border-border bg-bg p-2 text-sm outline-none focus:border-accent"
+      />
+      <div className="flex gap-2 text-sm">
+        <button
+          type="button"
+          disabled={edit.isPending || !v.trim() || v === text}
+          onClick={save}
+          className="rounded-md bg-accent px-3 py-1 font-medium text-accent-fg disabled:opacity-40"
+        >
+          Save
+        </button>
+        <button type="button" onClick={onClose} className="rounded-md px-3 py-1 hover:bg-hover/30">
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
