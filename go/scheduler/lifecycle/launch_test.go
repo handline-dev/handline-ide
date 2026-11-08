@@ -2,6 +2,7 @@ package lifecycle
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -1000,5 +1001,77 @@ func TestALaunchAllowsSubagentsAndKeepsTheOtherToolsDisallowed(t *testing.T) {
 		if !slices.Contains(got, tool) {
 			t.Errorf("%s is allowed: %v", tool, got)
 		}
+	}
+}
+
+// A start says what its settings changed from the session recorded before it: a value a person can read as old -> new, the rest by name.
+func TestWhatChangedSaysOldAndNewValues(t *testing.T) {
+	r := newLaunchRig(t)
+	if got, err := r.l.whatChanged("ann"); got != "" || err != nil {
+		t.Fatalf("no record yet: %q %v", got, err)
+	}
+	record := func(parts string) {
+		t.Helper()
+		if err := db.SetLaunchFingerprint(r.l.Q, "ann", "fp", parts); err != nil {
+			t.Fatal(err)
+		}
+	}
+	rec, err := r.l.LaunchRecord("ann")
+	if err != nil {
+		t.Fatal(err)
+	}
+	record(rec)
+	if got, err := r.l.whatChanged("ann"); got != "" || err != nil {
+		t.Fatalf("nothing changed: %q %v", got, err)
+	}
+	set := func(model, effort string) {
+		t.Helper()
+		if err := r.l.Roster.SetKeys("ann", []yamlcompat.Pair{{Key: "model", Val: model}, {Key: "effort", Val: effort}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	set("claude-sonnet-5-5", "low")
+	os.WriteFile(filepath.Join(paths.AgentDir(r.l.Home, "ann"), "ROLE.md"), []byte("a new role"), 0o644)
+	if got, err := r.l.whatChanged("ann"); got != "model changed (m1 -> sonnet-5-5), effort changed (high -> low), ROLE.md changed" || err != nil {
+		t.Fatalf("%q %v", got, err)
+	}
+	// A session recorded before values were kept: the hash says it changed, not from what.
+	var old map[string]any
+	if err := json.Unmarshal([]byte(rec), &old); err != nil {
+		t.Fatal(err)
+	}
+	delete(old, LaunchedValues)
+	b, _ := json.Marshal(old)
+	record(string(b))
+	set("m1", "high")
+	if got, _ := r.l.whatChanged("ann"); got != "ROLE.md changed" {
+		t.Fatalf("back to the old model and effort, only the role differs: %q", got)
+	}
+	set("m2", "high")
+	if got, _ := r.l.whatChanged("ann"); got != "model changed, ROLE.md changed" {
+		t.Fatalf("%q", got)
+	}
+}
+
+// What a launch finds changed is kept on its session start.
+func TestAStartKeepsWhatItsSettingsChanged(t *testing.T) {
+	r := newLaunchRig(t)
+	rec, _ := r.l.LaunchRecord("ann")
+	if err := db.SetLaunchFingerprint(r.l.Q, "ann", "fp", rec); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.l.Roster.SetKeys("ann", []yamlcompat.Pair{{Key: "model", Val: "m2"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.l.keepWhatItStartsWith(&Site{}, "ann", []string{"--resume", "s1"}, "", "settings_applied", "the daemon"); err != nil {
+		t.Fatal(err)
+	}
+	var changed string
+	var resumed int
+	if err := r.l.Q.QueryRow("SELECT changed, resumed FROM session_starts WHERE agent = 'ann'").Scan(&changed, &resumed); err != nil {
+		t.Fatal(err)
+	}
+	if changed != "model changed (m1 -> m2)" || resumed != 1 {
+		t.Fatalf("%q %d", changed, resumed)
 	}
 }

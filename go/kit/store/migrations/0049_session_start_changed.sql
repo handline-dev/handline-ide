@@ -1,0 +1,1 @@
+-- session_starts.changed (added in store.go, addSessionStartChanged): what the settings a start was launched with changed from the session before, in words; empty when nothing did.

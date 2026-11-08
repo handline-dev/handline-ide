@@ -59,7 +59,7 @@ export function ChatLine({
   if (e.kind === 'item' && e.item.session)
     return (
       <motion.div data-id={key} {...fade}>
-        <CompactionLine at={e.at} cause={e.item.session.cause} handoff={e.item.session.handoff} />
+        <CompactionLine at={e.at} {...e.item.session} />
       </motion.div>
     );
   // A command with no message to fold into: typed at the terminal, or sent before messages recorded their landing.
