@@ -202,18 +202,22 @@ function linkOf(s: string): string | null {
   return null;
 }
 
-function Linked({ text }: { text: string }) {
-  const parts = text.split(LINKS);
-  return parts.map((p, i) => {
-    const target = i % 2 ? linkOf(p) : null;
-    return target ? (
-      <Opens key={i} opens={target}>
-        {p}
-      </Opens>
-    ) : (
-      p
-    );
-  });
+export function Linked({ text }: { text: string }) {
+  // One span, so it is one item in a flex row.
+  return (
+    <span>
+      {text.split(LINKS).map((p, i) => {
+        const target = i % 2 ? linkOf(p) : null;
+        return target ? (
+          <Opens key={i} opens={target}>
+            {p}
+          </Opens>
+        ) : (
+          p
+        );
+      })}
+    </span>
+  );
 }
 
 /** Text that opens a tab the app's way: a click here, Cmd+click (or a middle click) beside. */

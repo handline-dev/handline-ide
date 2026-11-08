@@ -61,9 +61,11 @@ export function Row({
         </span>
         {trail && <span className="shrink-0 text-xs text-muted tabular-nums">{trail}</span>}
       </span>
-      {/* Under the title, from the icon's column on. */}
+      {/* Under the title, from the name's left edge. */}
       {note && (
-        <span className="flex items-center gap-1.5 pl-6 text-xs text-muted">
+        <span className="flex items-center gap-1.5 text-xs text-muted">
+          {lead && <span className="w-3 shrink-0" />}
+          <span className="w-4 shrink-0" />
           <span className="flex-1 truncate">{note}</span>
           {unread > 0 && <span className="shrink-0 rounded-full bg-accent px-1.5 font-medium text-accent-fg tabular-nums">{unread}</span>}
         </span>
