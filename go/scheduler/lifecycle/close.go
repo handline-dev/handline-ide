@@ -534,7 +534,8 @@ func (m *Manager) RestartAgent(agent string, st SessionStatus, o RestartOpts) (o
 		after, _ := must2(db.LastEventID(m.Q, agent, "terminal_closed"))
 		byPane = after != paneBefore
 	}
-	must(db.AddEvent(m.Q, agent, RestartOwedKind, db.KV{K: "by", V: o.By}, db.KV{K: "fresh", V: o.Fresh}, db.KV{K: "cause", V: o.Cause}))
+	must(db.AddEvent(m.Q, agent, RestartOwedKind, db.KV{K: "by", V: o.By}, db.KV{K: "fresh", V: o.Fresh}, db.KV{K: "cause", V: o.Cause},
+		db.KV{K: "applying", V: o.Applying}))
 	ok, why, err := m.WakeAgent(agent, WakeOpts{Force: true, Warm: !o.Fresh, Cause: o.Cause, RestartedBy: o.By, Applying: o.Applying})
 	if err != nil {
 		return false, "", err

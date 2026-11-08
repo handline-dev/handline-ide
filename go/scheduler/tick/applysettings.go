@@ -85,20 +85,25 @@ func sameJSON(a, b []byte) bool {
 // Sweep applies changed settings to every agent; one agent's failure is not the tick's.
 func (a *ApplySettings) Sweep(t *Tick, now int64) error {
 	for _, agent := range t.Host.Agents() {
-		if err := guard(func() { a.apply(t, agent) }); err != nil {
+		if err := guard(func() { a.apply(t, agent, now) }); err != nil {
 			t.logf("  %s: applying changed settings failed: %v", agent, err)
 		}
 	}
 	return nil
 }
 
-func (a *ApplySettings) apply(t *Tick, agent string) {
+func (a *ApplySettings) apply(t *Tick, agent string, now int64) {
 	row := must(db.GetAgentState(t.Q, agent))
-	if row == nil || closedAt(row) || !t.Host.SessionAlive(agent) || (row.State != states.Idle && row.State != states.Queued) {
+	if row == nil || closedAt(row) || !t.Host.SessionAlive(agent) {
+		return
+	}
+	busy := row.State == states.Running
+	if !busy && row.State != states.Idle && row.State != states.Queued {
 		return
 	}
 	names := must(a.Changed(agent, row))
 	if len(names) == 0 {
+		check(db.SetSettingsOwed(t.Q, agent, nil, 0))
 		return
 	}
 	// What this restart is for, kept: a launch that still disagrees with the settings after it (it has happened with things a launch
@@ -110,9 +115,11 @@ func (a *ApplySettings) apply(t *Tick, agent string) {
 	}
 	text := pyjson.PyJSON(obj, true, true)
 	if applied, _ := must2(db.Meta(t.Q, SettingsApplied+agent)); applied == text {
+		check(db.SetSettingsOwed(t.Q, agent, nil, 0))
 		return
 	}
-	if !t.Delivery.SessionPresent(agent) || !t.Host.SessionIdle(agent) {
+	if busy || !t.Delivery.SessionPresent(agent) || !t.Host.SessionIdle(agent) {
+		check(db.SetSettingsOwed(t.Q, agent, names, now)) // the agent view says the restart waits for the turn to end
 		return // mid-turn or waiting on a permission: the next tick asks again
 	}
 	st := t.Usage.ReadForAgent(agent, a.Ports.CurrentAccount(t.Q, agent))
@@ -122,6 +129,7 @@ func (a *ApplySettings) apply(t *Tick, agent string) {
 	ok, said := t.Lifecycle.RestartAgent(t.Q, agent, st, SettingsWho, names, "settings_applied")
 	if ok {
 		check(db.SetMeta(t.Q, SettingsApplied+agent, text))
+		check(db.SetSettingsOwed(t.Q, agent, nil, 0))
 		t.logf("  %s: restarted to apply changed settings (%s)", agent, strings.Join(names, ", "))
 	} else {
 		t.logf("  %s: changed settings (%s) not applied yet - %s", agent, strings.Join(names, ", "), said)
