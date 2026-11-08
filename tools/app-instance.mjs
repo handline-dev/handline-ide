@@ -1,4 +1,4 @@
-// The pieces tools/app-smoke.mjs and tools/app.mjs (hl app) share to run a separate test instance of the desktop app: a scratch home, free
+// The pieces tools/app-smoke.mjs and tools/app.mjs share to run a separate test instance of the desktop app: a scratch home, free
 // ports (never a fixed one), the app started from a checkout on them, and the processes it leaves found and ended.
 import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';

@@ -14,7 +14,6 @@ import (
 type command func(c *hlclient.Client, args []string) (code int, ok bool)
 
 var commands = map[string]command{
-	"app":             appCmd,
 	"chat":            chat,
 	"dev":             dev,
 	"device":          device,

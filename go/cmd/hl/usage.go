@@ -10,7 +10,6 @@ var usages = map[string][2]string{
 	"load":     {`hl load [--agent <name>]`, `hl load`},
 	"team":     {`hl team [--agent <name>]`, `hl team`},
 	"use":      {`hl use <simulator|browser> -- <command...>   |   hl use <simulator|browser> --hold   |   hl use --release [<simulator|browser>]`, `hl use browser -- npx playwright test`},
-	"app":      {`hl app start|shot|click|type|text|eval|drag-check|status|stop [...] (start [--fake] [--no-build]; shot [--out FILE]; click <css|x,y>; type "<text>"; text <css>; eval "<js>"; stop [--all])`, `hl app drag-check`},
 	"version":  {`hl version`, `hl version`},
 	"handoff":  {`hl handoff slow [--since <span>] [--agent <name>]`, `hl handoff slow --since 7d`},
 	"chat":     {`hl chat search "<text>" [--with <name>] [--since <span>] [--limit N]`, `hl chat search "nav order" --with handline --since 2d`},
