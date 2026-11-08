@@ -27,6 +27,7 @@ import { focusIn } from '#src/layout/focus.ts';
 import { chatOf, taskOf } from '#src/layout/kinds.tsx';
 import { openProps, useOpenTab } from '#src/layout/openTab.tsx';
 import { openSettings } from '#src/settings/open.ts';
+import { goToTurnOf } from '#src/tools/TaskTurn.ts';
 import { failedLine } from '#src/ui/taskLook.tsx';
 
 const WARN: Record<NonNullable<PendingRequest['warning']>['kind'], typeof HardDrive> = {
@@ -173,6 +174,8 @@ export function TurnLine({ p, onOpened, until }: { p: PendingRequest; onOpened?:
       trailing={<TurnQuick p={p} />}
       onOpen={(how) => {
         open(how);
+        // The task opens at what it asks of the founder, as the Your turn click does.
+        if (p.task !== null && p.kind !== 'warning') goToTurnOf(p.task);
         onOpened?.();
       }}
     />
