@@ -27,9 +27,19 @@ func shlexQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'"'"'`) + "'"
 }
 
-// RestartNotice is the line a restarted agent opens with: who restarted it and how, and the settings it was restarted to apply. A
-// restart usually means something went wrong, so it is told to retry that.
-func RestartNotice(by string, resumed bool, settings []string) string {
+// RestartNotice is what a restarted agent opens with: a separator line the person at its terminal sees, with what changed (changed,
+// in the launch's words: "model changed (opus-5-5 -> sonnet-5-5)") and who asked, then who restarted it and how, and the settings it was
+// restarted to apply. A restart usually means something went wrong, so it is told to retry that.
+func RestartNotice(by string, resumed bool, settings []string, changed string) string {
+	who := by
+	if who == db.Human {
+		who = "the founder"
+	}
+	line := "---------- restarted"
+	if changed != "" {
+		line += ": " + changed + ","
+	}
+	line += " by " + who + " ----------"
 	applying := ""
 	if len(settings) > 0 {
 		applying = " to apply changed settings: " + strings.Join(settings, ", ")
@@ -38,7 +48,7 @@ func RestartNotice(by string, resumed bool, settings []string) string {
 	if resumed {
 		how = "resumed"
 	}
-	return fmt.Sprintf("Restarted by %s (%s)%s. If something was going wrong before this, retry it.", by, how, applying)
+	return fmt.Sprintf("%s\nRestarted by %s (%s)%s. If something was going wrong before this, retry it.", line, who, how, applying)
 }
 
 // WakePromptIn is what wake_prompt is given beyond the agent and whether it resumed.
@@ -753,7 +763,11 @@ func (m *Manager) launchClosed(agent string, row *db.AgentState, wt, session str
 		}
 		restartNote := ""
 		if c.restartedBy != "" {
-			restartNote = RestartNotice(c.restartedBy, resume, c.applying)
+			changed := ""
+			if m.WhatChanged != nil {
+				changed = m.WhatChanged(agent)
+			}
+			restartNote = RestartNotice(c.restartedBy, resume, c.applying, changed)
 		}
 		text, err := m.WakePrompt(agent, resume, WakePromptIn{WasClosed: closed, MovedTo: c.movedTo, Cold: cold, ContextFull: why0 == "context_full", Waiting: waiting.text,
 			RestartNote: restartNote})
