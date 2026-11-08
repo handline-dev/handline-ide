@@ -109,6 +109,7 @@ agent (ROLE.md, base.md); this file does not repeat them.
 - Tests: write unit tests for logic (Go, contract, app-core, app-data, electron main) in the same
   commit as the change. A screen change posts pictures and adds no render test; if it changes a kept
   test file, update that file (`apps/web/test/<name>.test.tsx`, `apps/mobile/test/<name>.test.tsx`).
+  To see or press a screen in the desktop app, `node tools/app.mjs start|shot|click|type|text|eval|drag-check|stop` runs a separate test instance (never the user's window); `stop` it when done.
   Kept test files, web: app, chat-markdown, terminal-xterm-wiring, terminal-copy-paste, route-leave, task-refs, spans,
   command-card, resolve-images, sendKey, by-team, team, chat-fold, screenKeys, solved-stall. Mobile: dev-pair,
   termspans, app-update, scan-pair, chat-scroll. Work is not done until the tests pass. While iterating, run only the

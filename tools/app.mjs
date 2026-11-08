@@ -1,16 +1,8 @@
 #!/usr/bin/env node
-// hl app: an agent runs, looks at and presses a separate test instance of this worktree's desktop app. Never the user's window: the
-// instance has its own scratch home and data folder and free ports (never 9333), and a DevTools port only it knows.
-//   app.mjs start [--fake] [--no-build]    build this worktree's app and web, start it; --fake uses the fake daemon, not a real one
-//   app.mjs shot [--out FILE]              a picture of the window's page (PNG); prints the path
-//   app.mjs click <css | x,y>              a mouse press and release at the middle of the first match, or at the point
-//   app.mjs type "<text>"                  text into the focused field
-//   app.mjs text <css>                     the text of the first match
-//   app.mjs eval "<js>"                    the value of an expression in the page
-//   app.mjs drag-check                     the clickable things whose middle is a window-drag area the click cannot reach
-//   app.mjs status | stop [--all]          the instance's state; end it (--all: every instance of this agent)
-// A click here is the page's own (DevTools input), so it does not go through the OS: drag-check is what finds a button an
-// `-webkit-app-region: drag` area has taken from the mouse.
+// An agent runs, looks at and presses a separate test instance of this worktree's desktop app, never the user's window: it has its own
+// scratch home, data folder, free ports (never 9333) and a DevTools port only it knows. Clicks are the page's own (DevTools input).
+// Usage: app.mjs start [--fake] [--no-build] | shot [--out FILE] | click <css | x,y> | type "<text>" | text <css> | eval "<js>"
+//   | drag-check (clickable things whose middle is an `-webkit-app-region: drag` area) | status | stop [--all]
 import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -20,12 +12,12 @@ import { dispose, freePort, listening, scratch, startApp, until } from './app-in
 const top = path.resolve(import.meta.dirname, '..');
 const home = process.env.HANDLINE_HOME ?? path.join(os.homedir(), '.handline');
 const agent = process.env.HANDLINE_AGENT ?? '';
-/** One state file per instance: where `hl hook Stop` finds an agent's instances to end. */
+/** One state file per instance: what `status` and `stop --all` read. */
 const stateDir = path.join(home, 'app-instances');
 const stateFile = path.join(stateDir, `${path.basename(top)}.json`);
 
 const die = (msg) => {
-  console.error(`hl app: ${msg}`);
+  console.error(`app.mjs: ${msg}`);
   process.exit(1);
 };
 const readState = () => {
@@ -38,7 +30,7 @@ const readState = () => {
 const alive = (s) => s && listening(s.debugPort).length > 0;
 const need = () => {
   const s = readState();
-  if (!alive(s)) die('no test app is running for this worktree: hl app start');
+  if (!alive(s)) die('no test app is running for this worktree: node tools/app.mjs start');
   return s;
 };
 
@@ -145,7 +137,7 @@ if (os.platform() !== 'darwin') die('the desktop app is run on a Mac');
 const commands = {
   async start() {
     const old = readState();
-    if (alive(old)) die(`already running (app ${listening(old.debugPort)[0]}); hl app stop first`);
+    if (alive(old)) die(`already running (app ${listening(old.debugPort)[0]}); node tools/app.mjs stop first`);
     if (old) end(old, stateFile); // what a crash left
     const sh = (file, args) => execFileSync(file, args, { cwd: top, stdio: ['ignore', 2, 2] });
     if (!flag('--no-build')) {
@@ -202,7 +194,7 @@ const commands = {
   async click() {
     const s = need();
     const [target] = positional();
-    if (!target) die('usage: hl app click <css | x,y>');
+    if (!target) die('usage: node tools/app.mjs click <css | x,y>');
     const { x, y } = await pointOf(s, target);
     for (const type of ['mouseMoved', 'mousePressed', 'mouseReleased'])
       await cdp(s, 'Input.dispatchMouseEvent', { type, x, y, button: 'left', clickCount: type === 'mouseMoved' ? 0 : 1 });
@@ -211,13 +203,13 @@ const commands = {
   async type() {
     const s = need();
     const [text] = positional();
-    if (text === undefined) die('usage: hl app type "<text>"');
+    if (text === undefined) die('usage: node tools/app.mjs type "<text>"');
     await cdp(s, 'Input.insertText', { text });
   },
   async text() {
     const s = need();
     const [css] = positional();
-    if (!css) die('usage: hl app text <css>');
+    if (!css) die('usage: node tools/app.mjs text <css>');
     const t = await evaluate(s, `document.querySelector(${JSON.stringify(css)})?.innerText ?? null`);
     if (t === null) die(`nothing matches ${css}`);
     console.log(t);
@@ -225,7 +217,7 @@ const commands = {
   async eval() {
     const s = need();
     const [js] = positional();
-    if (!js) die('usage: hl app eval "<js>"');
+    if (!js) die('usage: node tools/app.mjs eval "<js>"');
     const v = await evaluate(s, js);
     console.log(typeof v === 'string' ? v : JSON.stringify(v));
   },
@@ -267,6 +259,6 @@ const commands = {
   },
 };
 
-if (!commands[verb]) die(`usage: hl app <${Object.keys(commands).join('|')}> ...`);
+if (!commands[verb]) die(`usage: node tools/app.mjs <${Object.keys(commands).join('|')}> ...`);
 await commands[verb]();
 process.exit(process.exitCode ?? 0);
