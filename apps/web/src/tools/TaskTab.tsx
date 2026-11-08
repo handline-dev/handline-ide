@@ -23,7 +23,7 @@ import { ago, clock } from '#src/format/time.ts';
 import { taskOf } from '#src/layout/kinds.tsx';
 import { openProps, useOpenTab } from '#src/layout/openTab.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
-import { Markdown } from '#src/ui/Markdown.tsx';
+import { Linked, Markdown } from '#src/ui/Markdown.tsx';
 import { Menu, MenuItem } from '#src/ui/Menu.tsx';
 import { Actions, CopyButton } from '#src/chat/MessageActions.tsx';
 import { Reference } from '#src/chat/ChatLine.tsx';
@@ -131,7 +131,9 @@ export function TaskTab({ id }: { id: number }) {
                   why && (
                     <p className="flex items-start gap-2">
                       <Hand size={14} className="mt-1 shrink-0 text-warning" />
-                      <span>{why}</span>
+                      <span>
+                        <Linked text={why} />
+                      </span>
                     </p>
                   )
                 )}
@@ -208,7 +210,7 @@ function TaskLink({ id, title }: { id: number; title?: string }) {
       )}
       className="min-w-0 truncate rounded-sm text-left hover:bg-hover/30"
     >
-      <span className="text-muted">T{id}</span>
+      <span className="text-accent">T{id}</span>
       {title && <span className="ml-1 text-fg">{title}</span>}
     </button>
   );
