@@ -1,3 +1,4 @@
+import { ArrowRight } from 'lucide-react';
 import { useState } from 'react';
 import { Select } from '#src/ui/Field.tsx';
 import { ModalFrame, openModal } from '#src/ui/modal.tsx';
@@ -34,53 +35,55 @@ export function diffLines(a: string, b: string): Line[] {
 }
 
 const MARK = { same: ' ', del: '-', add: '+' } as const;
-const TONE = { same: '', del: 'bg-danger/15 text-danger', add: 'bg-success/15 text-success' } as const;
+const TONE = { same: 'text-muted', del: 'bg-danger/10 text-danger', add: 'bg-success/10 text-success' } as const;
 
-const labelOf = (v: Version) => `${v.by} · ${ago(v.at)}`;
+const labelOf = (v: Version) => `${ago(v.at)} · ${v.by}`;
 
 function History({ versions }: { versions: Version[] }) {
   // Oldest first; From and To start at the one before the latest and the latest.
   const [from, setFrom] = useState(Math.max(0, versions.length - 2));
   const [to, setTo] = useState(versions.length - 1);
   const pick = (v: number, set: (n: number) => void, name: string) => (
-    <label className="flex items-center gap-2">
-      {name}
-      <Select value={v} onChange={(e) => set(Number(e.target.value))}>
-        {versions.map((x, i) => (
-          <option key={i} value={i}>
-            {labelOf(x)}
-          </option>
-        ))}
-      </Select>
-    </label>
+    <Select aria-label={name} value={v} onChange={(e) => set(Number(e.target.value))} className="min-w-0 flex-1">
+      {versions.map((x, i) => (
+        <option key={i} value={i}>
+          {labelOf(x)}
+        </option>
+      ))}
+    </Select>
   );
   return (
-    <div className="flex max-h-96 flex-col gap-4 overflow-y-auto pb-4 text-sm">
-      <div className="flex flex-wrap gap-4">
+    <div className="flex max-h-96 flex-col gap-5 overflow-y-auto pr-1 pb-4 text-sm">
+      <div className="flex items-center gap-2">
+        <span className="text-xs font-medium text-muted">From</span>
         {pick(from, setFrom, 'From')}
+        <ArrowRight size={14} className="shrink-0 text-muted" />
+        <span className="text-xs font-medium text-muted">To</span>
         {pick(to, setTo, 'To')}
       </div>
-      <div className="flex flex-col">
+      <div className="flex flex-col overflow-hidden rounded-md border border-border font-mono text-xs leading-6">
         {from === to ? (
-          <span className="text-muted">Pick two different versions.</span>
+          <span className="px-3 py-2 font-sans text-sm text-muted">Pick two different versions.</span>
         ) : (
           diffLines(versions[from]!.text, versions[to]!.text).map((l, k) => (
-            <span key={k} className={`flex gap-2 whitespace-pre-wrap ${TONE[l.kind]}`}>
-              <span aria-hidden className="select-none">
+            <span key={k} className={`flex whitespace-pre-wrap ${TONE[l.kind]}`}>
+              <span aria-hidden className="w-7 shrink-0 text-center select-none">
                 {MARK[l.kind]}
               </span>
-              <span className="min-w-0 flex-1">{l.text}</span>
+              <span className="min-w-0 flex-1 pr-3">{l.text || ' '}</span>
             </span>
           ))
         )}
       </div>
-      <div className="flex flex-col gap-3 border-t border-border pt-3">
+      <div className="flex flex-col gap-3">
+        <span className="text-xs font-medium text-muted">All versions</span>
         {[...versions].reverse().map((v, k) => (
-          <div key={k} className="flex flex-col">
+          <div key={k} className="flex flex-col gap-0.5">
             <span className="text-xs text-muted">
               {v.by} · <time title={v.at}>{ago(v.at)}</time>
+              {k === 0 && ' · current'}
             </span>
-            <span className="whitespace-pre-wrap">{v.text}</span>
+            <span className="whitespace-pre-wrap text-fg/80">{v.text}</span>
           </div>
         ))}
       </div>
