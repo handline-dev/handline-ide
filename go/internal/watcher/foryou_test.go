@@ -100,3 +100,42 @@ func TestForYouTellsEachKindOpeningAndClosingWithTheCount(t *testing.T) {
 		t.Fatalf("told again: %v", got)
 	}
 }
+
+// A task whose question (the founder's turn) is rewritten opens again with the new question, the count unchanged; the same text tells nothing.
+func TestForYouTellsARewrittenQuestionAgainOnlyWhenItChanges(t *testing.T) {
+	d, l := rig(t)
+	w := &ForYou{Reads: &reads.Env{DB: d, Home: t.TempDir()}}
+	told := 0
+	scan := func() (out []string) {
+		t.Helper()
+		if err := w.Scan(d, l.Append); err != nil {
+			t.Fatal(err)
+		}
+		got, err := l.Since(0, []string{"for_you"}, "", 100)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, e := range got[told:] {
+			var data map[string]any
+			if err := json.Unmarshal(e.Data, &data); err != nil {
+				t.Fatal(err)
+			}
+			out = append(out, fmt.Sprintf("%s %s %v", e.Type, *e.Title, data["count"]))
+		}
+		told = len(got)
+		return out
+	}
+	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(1, 'pick', 'w', 'boss', 1, 'boss')")
+	scan()
+	exec(t, d, "INSERT INTO task_turns(task_id, pos, agent, ask, pushed_by, since) VALUES(1, 1, 'human', 'A or B?', 'w', 1)")
+	if got := scan(); len(got) != 1 || got[0] != "for_you.opened pick 1" {
+		t.Fatalf("pushed: %q", got)
+	}
+	exec(t, d, "UPDATE task_turns SET ask = 'A, B or C?' WHERE task_id = 1")
+	if got := scan(); len(got) != 1 || got[0] != "for_you.opened A, B or C? 1" {
+		t.Fatalf("rewritten: %q", got)
+	}
+	if got := scan(); len(got) != 0 {
+		t.Fatalf("unchanged told %q", got)
+	}
+}

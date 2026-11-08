@@ -10,36 +10,22 @@ import (
 // humanMention is a comment addressed to the founder: `@human` is its first word. A mention anywhere else (text to agents, a quote, code) asks nothing.
 var humanMention = regexp.MustCompile(`^\s*@human(?:[^A-Za-z0-9_-]|$)`)
 
-// syncMemoAsk makes the ask to the founder that comment mid on task tid raised match the comment as it reads now: an agent's comment that
-// starts with `@human` has one open ask (its body the comment), and one that does not has none. A done or discarded task raises none.
-func syncMemoAsk(tx *sql.Tx, tid, mid int64, author, body string) error {
+// syncMemoAsk keeps an old @human comment's open ask in step with its edit, or withdraws it; a comment raises no new ask.
+func syncMemoAsk(tx *sql.Tx, mid int64, body string) error {
 	var rid int64
 	err := tx.QueryRow("SELECT id FROM requests WHERE memo_id = ? AND state = 'queued'", mid).Scan(&rid)
-	if err != nil && err != sql.ErrNoRows {
+	if err == sql.ErrNoRows {
+		return nil
+	}
+	if err != nil {
 		return err
 	}
-	open := err == nil
-	switch want := author != human && humanMention.MatchString(body); {
-	case want && !open:
-		closed, err := taskEnded(tx, tid)
-		if err != nil || closed {
-			return err // a task that is over asks nothing
-		}
-		if rid, err = db.AddRequest(tx, db.NewRequest{Requester: author, Target: human, Body: body}); err != nil {
-			return err
-		}
-		if _, err = tx.Exec("UPDATE requests SET memo_id = ? WHERE id = ?", mid, rid); err != nil {
-			return err
-		}
-		return db.LinkRequest(tx, tid, rid)
-	case want:
+	if humanMention.MatchString(body) {
 		_, err = tx.Exec("UPDATE requests SET body = ? WHERE id = ?", body, rid)
 		return err
-	case open:
-		_, err = db.CloseMemoAsks(tx, "withdrawn", "memo_id = ?", mid)
-		return err
 	}
-	return nil
+	_, err = db.CloseMemoAsks(tx, "withdrawn", "memo_id = ?", mid)
+	return err
 }
 
 // answerMemoAsks closes the asks to the founder that comments on task tid raised: the founder has now written on the task.

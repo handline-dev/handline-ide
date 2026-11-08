@@ -531,7 +531,7 @@ func (e *Env) taskOf(t row, state string, b *board) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	turns, err := e.turnsOf(t.i("id"))
+	turns, err := e.turnsOf(t.i("id"), false)
 	if err != nil {
 		return nil, err
 	}
@@ -773,6 +773,9 @@ func (e *Env) taskGet(c *rpc.Conn, params map[string]any) (any, error) {
 		return nil, err
 	}
 	task["body"] = first.str("body")
+	if task["turns"], err = e.turnsOf(*tid, true); err != nil {
+		return nil, err
+	}
 	images, agent := attachments.New(e.Home), c != nil && c.Caller.Role == "agent"
 	if agent {
 		noUnread(task)
@@ -1077,16 +1080,40 @@ func actingOf(t row) string {
 	return t.str("owner")
 }
 
-// turnsOf is Task.turns: the turns on task tid, bottom first.
-func (e *Env) turnsOf(tid int64) ([]any, error) {
+// turnsOf is Task.turns: the turns on task tid, bottom first. Each says when its ask was last rewritten (edited); with history, also the
+// texts it replaced (earlier), which only task.get carries.
+func (e *Env) turnsOf(tid int64, history bool) ([]any, error) {
 	turns, err := db.Turns(e.DB, tid)
+	if err != nil || len(turns) == 0 {
+		return []any{}, err
+	}
+	// a turn's asks are its push, then each rewrite, in event order: the events since that agent's last push on the task
+	evs, err := query(e.DB, "SELECT id, ts, kind, payload FROM events WHERE kind IN ('task_turn_push', 'task_turn_ask') AND "+eventTask+" = ? ORDER BY id", tid)
+	if err != nil {
+		return nil, err
+	}
 	out := make([]any, len(turns))
 	for i, u := range turns {
-		var onPass, evidence any
+		var onPass, evidence, edited any
 		if u.OnPass != "" {
 			onPass, evidence = u.OnPass, u.Evidence
 		}
-		out[i] = map[string]any{"agent": u.Agent, "ask": u.Ask, "by": u.By, "since": ts(u.Since), "on_pass": onPass, "evidence": evidence}
+		earlier, at := []any{}, ts(u.Since)
+		for _, ev := range evs {
+			p := decodeObject(ev.str("payload"))
+			switch {
+			case ev.str("kind") == "task_turn_push" && p["to"] == u.Agent:
+				earlier, at, edited = []any{}, ts(ev["ts"]), nil
+			case ev.str("kind") == "task_turn_ask" && p["agent"] == u.Agent:
+				earlier = append(earlier, map[string]any{"ask": p["from"], "at": at})
+				at, edited = ts(ev["ts"]), ts(ev["ts"])
+			}
+		}
+		turn := map[string]any{"agent": u.Agent, "ask": u.Ask, "by": u.By, "since": ts(u.Since), "on_pass": onPass, "evidence": evidence, "edited": edited}
+		if history {
+			turn["earlier"] = earlier
+		}
+		out[i] = turn
 	}
-	return out, err
+	return out, nil
 }

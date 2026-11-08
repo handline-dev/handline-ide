@@ -1,6 +1,7 @@
 package taskwrites
 
 import (
+	"database/sql"
 	"fmt"
 	"path/filepath"
 	"testing"
@@ -10,7 +11,46 @@ import (
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
-func TestACommentNamingHumanOpensOneAskAndEachClosingEndsIt(t *testing.T) {
+// oldAsk is comment mid on task tid by worker with the ask to the founder it raised when comments still asked.
+func oldAsk(t *testing.T, db *sql.DB, tid, mid int64, body string) {
+	t.Helper()
+	for _, q := range []string{
+		fmt.Sprintf("INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(%d, %d, 'worker', %q, 1)", mid, tid, body),
+		fmt.Sprintf("INSERT INTO requests(id, requester, target, body, state, kind, memo_id, ts) VALUES(%d, 'worker', 'human', %q, 'queued', 'ask', %d, 1)", 100+mid, body, mid),
+		fmt.Sprintf("INSERT INTO task_requests(task_id, request_id) VALUES(%d, %d)", tid, 100+mid),
+	} {
+		if _, err := db.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// A comment asks the founder nothing, @human or not: their question is their turn on the task.
+func TestACommentRaisesNoAsk(t *testing.T) {
+	t.Parallel()
+	db, err := storetest.OpenAt(t, filepath.Join(t.TempDir(), "db.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	db.Exec("INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 't', 'worker', 'manager', 1)")
+	srv := serverFor(t, db, "worker")
+	for i, text := range []string{"@human which one?", "  \n@human which?", "thanks @human for the answer"} {
+		r := call(t, srv, fmt.Sprintf(`{"jsonrpc":"2.0","id":2,"method":"task.comment.add","params":{"task":1,"text":%q,"request_id":"q%d"}}`, text, i))
+		if r[0]["error"] != nil {
+			t.Fatalf("%q: %v", text, r[0])
+		}
+	}
+	var asks int
+	db.QueryRow("SELECT COUNT(*) FROM requests WHERE target = 'human'").Scan(&asks)
+	if asks != 0 {
+		t.Fatalf("comments asked the founder %d times", asks)
+	}
+}
+
+// An ask an older comment raised follows it: an edit that keeps `@human` first rewrites it, one that does not, or a delete, withdraws it,
+// and the founder writing on the task answers it.
+func TestAnOldCommentsAskFollowsItsComment(t *testing.T) {
 	t.Parallel()
 	db, err := storetest.OpenAt(t, filepath.Join(t.TempDir(), "db.sqlite"))
 	if err != nil {
@@ -23,57 +63,35 @@ func TestACommentNamingHumanOpensOneAskAndEachClosingEndsIt(t *testing.T) {
 	mk := func(agent string) *rpc.Server { return serverFor(t, db, agent) }
 	n := 0
 	rid := func() string { n++; return fmt.Sprintf("r%d", n) }
-	add := func(as, text string) int64 {
-		r := call(t, mk(as), fmt.Sprintf(`{"jsonrpc":"2.0","id":2,"method":"task.comment.add","params":{"task":1,"text":%q,"request_id":%q}}`, text, rid()))
-		res, _ := r[0]["result"].(map[string]any)
-		if res == nil {
-			t.Fatalf("%s: %v", text, r[0])
-		}
-		return int64(res["memo"].(float64))
-	}
-	state := func(mid int64) string { // the state of the ask comment mid raised, "" for none
-		var s string
-		db.QueryRow("SELECT state FROM requests WHERE memo_id = ?", mid).Scan(&s)
-		return s
-	}
-	if mid := add("worker", "no one named here, email a@human.com"); state(mid) != "" { // local-ref-ok: an address, not a mention
-		t.Fatalf("a comment that does not name `@human` opened an ask: %q", state(mid))
-	}
-	m1 := add("worker", "@human which one?")
-	var target, requester string
-	var linked int
-	db.QueryRow("SELECT target, requester, (SELECT COUNT(*) FROM task_requests WHERE request_id = requests.id) FROM requests WHERE memo_id = ?", m1).Scan(&target, &requester, &linked)
-	if state(m1) != "queued" || target != "human" || requester != "worker" || linked != 1 {
-		t.Fatalf("ask: %q %s %s %d", state(m1), target, requester, linked)
+	state := func(mid int64) (s, body string) {
+		db.QueryRow("SELECT state, body FROM requests WHERE memo_id = ?", mid).Scan(&s, &body)
+		return s, body
 	}
 	edit := func(mid int64, text string) {
 		call(t, mk("worker"), fmt.Sprintf(`{"jsonrpc":"2.0","id":2,"method":"task.comment.edit","params":{"task":1,"memo":%d,"text":%q,"request_id":%q}}`, mid, text, rid()))
 	}
-	edit(m1, "@human which one, A or B?")
-	var body string
-	var cnt int
-	db.QueryRow("SELECT body FROM requests WHERE memo_id = ?", m1).Scan(&body)
-	db.QueryRow("SELECT COUNT(*) FROM requests WHERE memo_id = ?", m1).Scan(&cnt)
-	if cnt != 1 || body != "@human which one, A or B?" {
-		t.Fatalf("an edit that keeps `@human` keeps the one ask: %d %q", cnt, body)
+	oldAsk(t, db, 1, 1, "@human which one?")
+	edit(1, "@human which one, A or B?")
+	if s, body := state(1); s != "queued" || body != "@human which one, A or B?" {
+		t.Fatalf("an edit that keeps `@human` keeps the one ask: %q %q", s, body)
 	}
-	edit(m1, "never mind")
-	if state(m1) != "withdrawn" {
-		t.Fatalf("an edit that drops `@human`: %q", state(m1))
+	edit(1, "which, @human?")
+	if s, _ := state(1); s != "withdrawn" {
+		t.Fatalf("an edit that moves `@human` off the start: %q", s)
 	}
-	m2 := add("worker", "@human again")
-	call(t, mk("worker"), fmt.Sprintf(`{"jsonrpc":"2.0","id":2,"method":"task.comment.delete","params":{"task":1,"memo":%d,"request_id":%q}}`, m2, rid()))
-	if state(m2) != "withdrawn" {
-		t.Fatalf("a deleted comment: %q", state(m2))
+	oldAsk(t, db, 1, 2, "@human again")
+	call(t, mk("worker"), fmt.Sprintf(`{"jsonrpc":"2.0","id":2,"method":"task.comment.delete","params":{"task":1,"memo":2,"request_id":%q}}`, rid()))
+	if s, _ := state(2); s != "withdrawn" {
+		t.Fatalf("a deleted comment: %q", s)
 	}
-	m3 := add("worker", "@human third")
-	add("", "my answer")
-	if state(m3) != "landed" {
-		t.Fatalf("a founder comment on the task closes it: %q", state(m3))
+	oldAsk(t, db, 1, 3, "@human third")
+	call(t, mk(""), fmt.Sprintf(`{"jsonrpc":"2.0","id":2,"method":"task.comment.add","params":{"task":1,"text":"my answer","request_id":%q}}`, rid()))
+	if s, _ := state(3); s != "landed" {
+		t.Fatalf("a founder comment on the task answers it: %q", s)
 	}
 }
 
-// An ask a comment raised does not outlive its task: done or discarded closes it (rule 5 of task.comment.add).
+// An ask an older comment raised does not outlive its task: done or discarded closes it.
 func TestTheAskOfACommentEndsWithItsTask(t *testing.T) {
 	t.Parallel()
 	db, err := storetest.OpenAt(t, filepath.Join(t.TempDir(), "db.sqlite"))
@@ -88,71 +106,22 @@ func TestTheAskOfACommentEndsWithItsTask(t *testing.T) {
 	srv.DB = db
 	Register(srv, t.TempDir(), &fakeTeller{}, nil)
 	for i, c := range []struct {
-		task           int
+		task           int64
 		method, params string
 	}{
 		{1, "task.done", `"evidence":"shipped"`},
 		{2, "task.discard", `"reason":"not needed"`},
 	} {
-		r := call(t, srv, fmt.Sprintf(`{"jsonrpc":"2.0","id":2,"method":"task.comment.add","params":{"task":%d,"text":"@human which?","request_id":"a%d"}}`, c.task, i))
-		mid := int64(r[0]["result"].(map[string]any)["memo"].(float64))
-		var state string
-		db.QueryRow("SELECT state FROM requests WHERE memo_id = ?", mid).Scan(&state)
-		if state != "queued" {
-			t.Fatalf("%s: the ask is %q before", c.method, state)
-		}
-		r = call(t, srv, fmt.Sprintf(`{"jsonrpc":"2.0","id":3,"method":"%s","params":{"task":%d,%s,"request_id":"e%d"}}`, c.method, c.task, c.params, i))
+		oldAsk(t, db, c.task, c.task, "@human which?")
+		r := call(t, srv, fmt.Sprintf(`{"jsonrpc":"2.0","id":3,"method":"%s","params":{"task":%d,%s,"request_id":"e%d"}}`, c.method, c.task, c.params, i))
 		if r[0]["error"] != nil {
 			t.Fatalf("%s: %v", c.method, r[0])
 		}
-		db.QueryRow("SELECT state FROM requests WHERE memo_id = ?", mid).Scan(&state)
+		var state string
+		db.QueryRow("SELECT state FROM requests WHERE memo_id = ?", c.task).Scan(&state)
 		if state != "withdrawn" {
 			t.Fatalf("%s left the ask %q, not withdrawn", c.method, state)
 		}
-		// a comment on the ended task raises no ask
-		r = call(t, srv, fmt.Sprintf(`{"jsonrpc":"2.0","id":4,"method":"task.comment.add","params":{"task":%d,"text":"@human still?","request_id":"b%d"}}`, c.task, i))
-		var asks int
-		db.QueryRow("SELECT COUNT(*) FROM requests WHERE memo_id IS NOT NULL AND state = 'queued'").Scan(&asks)
-		if r[0]["error"] != nil || asks != 0 {
-			t.Fatalf("%s: a comment naming @human on an ended task raised an ask: %d %v", c.method, asks, r[0])
-		}
-	}
-}
-
-// A comment asks the founder only when `@human` is its first word.
-func TestOnlyACommentThatStartsWithHumanAsksAndOneEditedOffTheStartWithdraws(t *testing.T) {
-	t.Parallel()
-	db, err := storetest.OpenAt(t, filepath.Join(t.TempDir(), "db.sqlite"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-	db.Exec("INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 't', 'worker', 'manager', 1)")
-	srv := serverFor(t, db, "worker")
-	n := 0
-	call1 := func(method, params string) map[string]any {
-		n++
-		return call(t, srv, fmt.Sprintf(`{"jsonrpc":"2.0","id":2,"method":"%s","params":{"task":1,%s,"request_id":"q%d"}}`, method, params, n))[0]
-	}
-	asks := func() int {
-		var c int
-		db.QueryRow("SELECT COUNT(*) FROM requests WHERE memo_id IS NOT NULL AND state = 'queued'").Scan(&c)
-		return c
-	}
-	for _, text := range []string{"thanks @human for the answer", "run `@human`", "@worker and @human, see this", "see\n@human"} {
-		call1("task.comment.add", fmt.Sprintf(`"text":%q`, text))
-		if asks() != 0 {
-			t.Fatalf("%q asked the founder", text)
-		}
-	}
-	made := call1("task.comment.add", `"text":"  \n@human which?"`)
-	if asks() != 1 {
-		t.Fatalf("a comment starting with @human (after whitespace) asks: %v", made)
-	}
-	mid := int64(made["result"].(map[string]any)["memo"].(float64))
-	call1("task.comment.edit", fmt.Sprintf(`"memo":%d,"text":"which, @human?"`, mid))
-	if asks() != 0 {
-		t.Fatal("an edit that moves @human off the start withdraws the ask")
 	}
 }
 

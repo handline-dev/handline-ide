@@ -19,6 +19,8 @@ type Asked struct {
 	Msg   string
 	RID   int64
 	After func() string
+	// Reask is a push that rewrote the founder's open question instead of putting a turn on: nothing moved.
+	Reask bool
 }
 
 // AskReq is a task's delivery to be routed. Kind "" is the routing edge's own; NoCard keeps a request to the founder from raising a decision

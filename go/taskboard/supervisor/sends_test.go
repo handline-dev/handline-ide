@@ -14,8 +14,14 @@ func init() { RunInline = true }
 
 func (r *rig) say(in SayVerbIn) *SayVerbOut {
 	r.t.Helper()
-	out, err := r.SayVerb(r.DB, in)
+	tx, err := r.DB.Begin()
 	r.must(err)
+	out, err := r.SayVerb(tx, in)
+	if err != nil {
+		tx.Rollback()
+		r.must(err)
+	}
+	r.must(tx.Commit())
 	out.After()
 	return out
 }

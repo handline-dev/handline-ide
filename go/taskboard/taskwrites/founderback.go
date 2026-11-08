@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/paths"
@@ -14,10 +15,10 @@ import (
 const founderBackKey = "founder_tasks_back"
 
 // ReturnFounderTasks runs at daemon start, once: a task answers to the founder, it is not handed to them, so each open task an agent handed
-// to them goes back to that agent (the last handoff to human, else its opener), with the note as a comment that names the founder, which asks
-// them as any comment does. A task opened by the founder or the daemon (AskFounder, a notice), or whose agent is gone, stays with the founder.
+// to them goes back to that agent (the last handoff to human, else its opener), with the founder's turn on top asking the note (else the
+// task's title). A task opened by the founder or the daemon (AskFounder, a notice), or whose agent is gone, stays with the founder.
 // It answers a line per task moved; one that cannot be moved is left, and the step runs again at the next start until none is left.
-func ReturnFounderTasks(d *sql.DB, home string, tell Teller) (said []string, err error) {
+func ReturnFounderTasks(d *sql.DB, home string) (said []string, err error) {
 	if done, _, _ := db.Meta(d, founderBackKey); done == "done" {
 		return nil, nil
 	}
@@ -63,31 +64,25 @@ func ReturnFounderTasks(d *sql.DB, home string, tell Teller) (said []string, err
 		if !contains(agents, b.to) {
 			continue // a daemon notice or a retired agent's: it stays the founder's
 		}
-		var h Handover
-		var asked *Asked
 		tx, err := d.Begin()
 		if err != nil {
 			return said, err
 		}
 		err = func() error {
-			var err error
-			h, asked, err = handOff(tx, tell, b.id, "daemon", b.to, "This task is yours. If only the founder can decide, put them on it: hl task turn T<n> human \"<the decision>\".", agents, true)
-			if err == nil && !asked.OK {
-				err = fmt.Errorf("handing it to %s was refused: %s", b.to, asked.Msg)
+			// it becomes the agent's under the founder's turn, which asks the agent's note, else the task's title: the founder still
+			// acts on it, so nobody is typed at
+			ask := strings.TrimSpace(b.note)
+			if ask == "" {
+				ask = b.title
 			}
-			if err != nil {
+			if err := db.EditTask(tx, b.id, "daemon", db.TaskEdit{Owner: &b.to}); err != nil {
 				return err
 			}
-			// with no note the ask is the task's title, and it is the daemon's words: the agent wrote none
-			author, body := b.to, strings.TrimSpace("@human "+b.note)
-			if strings.TrimSpace(b.note) == "" {
-				author, body = "daemon", "@human "+b.title
-			}
-			mid, err := db.AddMemo(tx, b.id, author, body)
-			if err != nil {
+			if err := db.PushTurn(tx, b.id, db.Turn{Agent: human, Ask: ask, By: b.to, Since: time.Now().Unix()}); err != nil {
 				return err
 			}
-			return syncMemoAsk(tx, b.id, mid, author, body)
+			_, err := db.SetTaskQueued(tx, b.id, "daemon")
+			return err
 		}()
 		if err == nil {
 			err = tx.Commit()
@@ -98,11 +93,7 @@ func ReturnFounderTasks(d *sql.DB, home string, tell Teller) (said []string, err
 			left = true
 			continue
 		}
-		if asked.After != nil {
-			h.After = asked.After
-		}
-		tell.HandedOver(h)
-		said = append(said, fmt.Sprintf("T%d goes back to %s", b.id, b.to))
+		said = append(said, fmt.Sprintf("T%d goes back to %s, the founder's turn on it", b.id, b.to))
 	}
 	if !left {
 		err = db.SetMeta(d, founderBackKey, "done")
