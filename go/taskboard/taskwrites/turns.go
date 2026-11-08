@@ -105,7 +105,7 @@ func pushTurn(tx *sql.Tx, tell Teller, tid int64, by, to, ask, onPass, evidence 
 	if err != nil {
 		return Handover{}, nil, err
 	}
-	if to == human && ask != "" && turnRefusal(t, tid, human) == "" && t.Acting == human && len(turns) > 0 && by == below(turns, t.Owner) {
+	if to == human && ask != "" && turnRefusal(t, tid, human) == "" && t.Acting == human && len(turns) > 0 && by == Below(turns, t.Owner) {
 		// the founder's turn is their one question slot on the task: asking again rewrites it
 		changed, err := db.ReaskTopTurn(tx, tid, by, ask)
 		if err != nil || !changed {
@@ -159,7 +159,7 @@ func Asker(tx *sql.Tx, tid int64) (string, error) {
 	if err != nil || len(turns) == 0 {
 		return "", err // the founder owns it: nobody asks them
 	}
-	return below(turns, t.Owner), nil
+	return Below(turns, t.Owner), nil
 }
 
 // PutQuestion is the founder's turn on task tid with ask, by its Asker: put on, or its question rewritten when it is already theirs. The
@@ -168,8 +168,8 @@ func PutQuestion(tx *sql.Tx, tell Teller, tid int64, by, ask string) (Handover, 
 	return pushTurn(tx, tell, tid, by, human, ask, "", "")
 }
 
-// below is who acts on a task once its top turn comes off: the turn under it, else its owner.
-func below(turns []db.Turn, owner string) string {
+// Below is who acts on a task once its top turn comes off: the turn under it, else its owner.
+func Below(turns []db.Turn, owner string) string {
 	if len(turns) > 1 {
 		return turns[len(turns)-2].Agent
 	}
@@ -283,7 +283,7 @@ func popTurn(tx *sql.Tx, home string, tell Teller, tid int64, by, outcome, note 
 		return Popped{}, refusal(fmt.Sprintf("T%d has no turn on it: %s acts on it as its owner", tid, t.Owner))
 	}
 	top := turns[len(turns)-1]
-	below := below(turns, t.Owner)
+	below := Below(turns, t.Owner)
 	h := Handover{Task: tid, By: by, From: top.Agent, To: below, Title: t.Title}
 	if outcome == db.TurnPass && top.OnPass == db.TurnOnPassDone {
 		res, err := MarkDone(tx, home, top.Agent, DoneIn{Task: tid, Words: top.Evidence, TurnPassed: true})
