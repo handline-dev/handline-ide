@@ -1673,3 +1673,22 @@ func refusalOf(m map[string]any) string {
 	msg, _ := e["message"].(string)
 	return msg
 }
+
+// agent.set keeps who made the change, for the restart that applies it: the founder, or the agent on itself.
+func TestAgentSetKeepsWhoMadeTheChange(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	by := func() string {
+		v, _, err := dbpkg.Meta(r.db, dbpkg.SettingsByMeta("alice"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return v
+	}
+	if res := r.call("agent.set", `{"agent":"alice","values":{"model":"opus"},"request_id":"b1"}`); res["result"] == nil || by() != dbpkg.Human {
+		t.Fatalf("%v %q", res, by())
+	}
+	if res := r.callAs("alice", "agent.set", `{"agent":"alice","values":{"effort":"high"},"request_id":"b2"}`); res["result"] == nil || by() != "alice" {
+		t.Fatalf("%v %q", res, by())
+	}
+}
