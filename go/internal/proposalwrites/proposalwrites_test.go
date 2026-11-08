@@ -1673,3 +1673,26 @@ func refusalOf(m map[string]any) string {
 	msg, _ := e["message"].(string)
 	return msg
 }
+
+// agent.set keeps how the restart for its change goes: fresh when asked, and resumed (empty) for any other set, so a later change made
+// without the mode does not inherit it.
+func TestAgentSetKeepsTheRestartModeOfItsChange(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	mode := func() string {
+		v, _, err := dbpkg.Meta(r.db, dbpkg.SettingsRestartMeta("alice"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return v
+	}
+	if res := r.call("agent.set", `{"agent":"alice","values":{"model":"opus"},"restart":"later","request_id":"m0"}`); res["error"] == nil || mode() != "" {
+		t.Fatalf("an unknown mode was taken: %v %q", res, mode())
+	}
+	if res := r.call("agent.set", `{"agent":"alice","values":{"model":"opus"},"restart":"fresh","request_id":"m1"}`); res["result"] == nil || mode() != "fresh" {
+		t.Fatalf("%v %q", res, mode())
+	}
+	if res := r.call("agent.set", `{"agent":"alice","values":{"model":"sonnet"},"request_id":"m2"}`); res["result"] == nil || mode() != "" {
+		t.Fatalf("a set with no mode resumes: %v %q", res, mode())
+	}
+}
