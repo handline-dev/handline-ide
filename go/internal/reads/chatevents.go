@@ -84,9 +84,9 @@ func (e *Env) PromptItem(id int64) (item map[string]any, agent string, ok bool, 
 	return promptItemOf(b.str("agent"), b), b.str("agent"), true, nil
 }
 
-// SessionItem is a session start as a chat.transcript item and its agent; false for a resume, and until the session id is known.
+// SessionItem is a session start as a chat.transcript item and its agent; false for a start the chat does not mark, and until the session id is known.
 func (e *Env) SessionItem(id int64) (item map[string]any, agent string, ok bool, err error) {
-	starts, err := freshStarts(e.DB, "id = ?", id)
+	starts, err := chatStarts(e.DB, "id = ?", id)
 	if err != nil || len(starts) == 0 {
 		return nil, "", false, err
 	}
