@@ -3,7 +3,7 @@
 import { isPerson } from '@handline/app-core';
 import type { TaskDetail } from '@handline/client';
 import { classify, sentence, useGiveBack, useWrite } from '@handline/app-data';
-import { ChevronRight, Hand, X } from 'lucide-react';
+import { Hand, X } from 'lucide-react';
 import { useState } from 'react';
 import { Changes } from '#src/tools/TaskDiff.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
@@ -92,28 +92,26 @@ export function YourTurn({ t, onDone, onShow }: { t: TaskDetail; onDone: () => v
             Your turn
           </button>
           {turn?.edited && (
-            <span className="text-xs font-normal text-muted" title={turn.edited}>
+            <button
+              type="button"
+              disabled={!earlier.length}
+              onClick={() => setOld(!old)}
+              title={turn.edited}
+              className="text-xs font-normal text-muted enabled:underline enabled:decoration-dotted enabled:hover:text-fg"
+            >
               edited {ago(turn.edited)}
-            </span>
+            </button>
           )}
         </span>
         {turn?.ask && <span className="whitespace-pre-wrap">{turn.ask}</span>}
-        {earlier.length > 0 && (
-          <>
-            <button type="button" onClick={() => setOld(!old)} className="flex w-fit items-center gap-1 text-xs text-muted hover:text-fg">
-              <ChevronRight size={12} className={old ? 'rotate-90' : ''} />
-              Earlier {earlier.length}
-            </button>
-            {old && (
-              <Changes
-                changes={earlier.map((e, k) => ({
-                  from: e.ask,
-                  to: earlier[k + 1]?.ask ?? turn?.ask ?? '',
-                  at: earlier[k + 1]?.at ?? turn?.edited ?? e.at,
-                }))}
-              />
-            )}
-          </>
+        {old && (
+          <Changes
+            changes={earlier.map((e, k) => ({
+              from: e.ask,
+              to: earlier[k + 1]?.ask ?? turn?.ask ?? '',
+              at: earlier[k + 1]?.at ?? turn?.edited ?? e.at,
+            }))}
+          />
         )}
       </span>
       <button type="button" onClick={give} className="shrink-0 rounded-md px-2 py-1 text-sm font-medium hover:bg-hover/30">
