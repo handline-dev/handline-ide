@@ -187,7 +187,7 @@ func setQueued(tx *sql.Tx, home string, tid int64, by string, queued bool, kept 
 			if err != nil {
 				return queuedSet{}, err
 			}
-			memo = fmt.Sprintf(", memo %d keeps where %s stopped", mid, parked)
+			memo = fmt.Sprintf(", comment %d keeps where %s stopped", mid, parked)
 		}
 	}
 	stack := []string{}

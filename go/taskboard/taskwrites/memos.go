@@ -166,7 +166,7 @@ func memoOf(tx *sql.Tx, tid, mid int64) (author, body string, err error) {
 	var of int64
 	switch err = tx.QueryRow("SELECT task_id, author, body FROM task_memos WHERE id = ?", mid).Scan(&of, &author, &body); {
 	case err == sql.ErrNoRows || (err == nil && of != tid):
-		e := rpc.NotFoundError(fmt.Sprintf("T%d has no memo %d", tid, mid))
+		e := rpc.NotFoundError(fmt.Sprintf("T%d has no comment %d", tid, mid))
 		e.Data = map[string]any{"what": "memo", "name": fmt.Sprint(mid)}
 		return "", "", e
 	}
@@ -178,7 +178,7 @@ func guard(by, author string, mid int64) error {
 	if by == human || by == author {
 		return nil
 	}
-	return refusal(fmt.Sprintf("memo %d is %s's: only its author or the founder edits or deletes it", mid, author))
+	return refusal(fmt.Sprintf("comment %d is %s's: only its author or the founder edits or deletes it", mid, author))
 }
 
 // The holder of a doing task is not told of a memo change here: the telling is a typed say, the delivery layer's.
@@ -261,7 +261,7 @@ func memoAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, err
 			if err := store.AttachMemo(tx, mid, files); err != nil {
 				return nil, err
 			}
-			return accepted(fmt.Sprintf("memo %d added to T%d", mid, tid), map[string]any{"memo": mid}), nil
+			return accepted(fmt.Sprintf("comment %d added to T%d", mid, tid), map[string]any{"memo": mid}), nil
 		})
 		if err == nil && tell != nil {
 			told := body
@@ -356,7 +356,7 @@ func memoEdit(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, er
 				return nil, err
 			}
 			if body == was {
-				return nil, refusal(fmt.Sprintf("memo %d already reads that way - nothing to edit", mid))
+				return nil, refusal(fmt.Sprintf("comment %d already reads that way - nothing to edit", mid))
 			}
 			if err := claimImages(tx, home, c.Caller.Actor(), body, was, "text"); err != nil {
 				return nil, err
@@ -367,7 +367,7 @@ func memoEdit(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, er
 			if err := syncMemoAsk(tx, mid, body); err != nil {
 				return nil, err
 			}
-			return accepted(fmt.Sprintf("memo %d on T%d edited", mid, tid), nil), nil
+			return accepted(fmt.Sprintf("comment %d on T%d edited", mid, tid), nil), nil
 		})
 		if err == nil && tell != nil {
 			tell.MemoChanged(tid, mid, c.Caller.Actor(), "edited", body, false, nil)
@@ -409,7 +409,7 @@ func memoDelete(tell Teller) func(*rpc.Conn, map[string]any) (any, error) {
 			if err := attachments.UnlinkMemo(tx, mid); err != nil {
 				return nil, err
 			}
-			return accepted(fmt.Sprintf("memo %d deleted from T%d", mid, tid), nil), nil
+			return accepted(fmt.Sprintf("comment %d deleted from T%d", mid, tid), nil), nil
 		})
 		if err == nil && tell != nil {
 			tell.MemoChanged(tid, mid, c.Caller.Actor(), "deleted", "", false, nil)
@@ -435,12 +435,12 @@ func memoSendNow(tell Teller) func(*rpc.Conn, map[string]any) (any, error) {
 				"WHERE t.memo_id = ? AND t.reader = ? AND "+db.Held("r."),
 				mid, agent).Scan(&rid)
 			if err == sql.ErrNoRows {
-				return nil, refusal(fmt.Sprintf("memo %d is not held for %s", mid, agent))
+				return nil, refusal(fmt.Sprintf("comment %d is not held for %s", mid, agent))
 			}
 			if err != nil {
 				return nil, err
 			}
-			return accepted(fmt.Sprintf("memo %d goes to %s now", mid, agent), nil), nil
+			return accepted(fmt.Sprintf("comment %d goes to %s now", mid, agent), nil), nil
 		})
 		if err == nil && tell != nil {
 			tell.MemoTellSent(rid)

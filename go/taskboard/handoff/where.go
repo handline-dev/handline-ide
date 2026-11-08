@@ -81,7 +81,7 @@ func taskLines(q db.Q, agent string) ([]string, error) {
 		var at float64
 		switch err := q.QueryRow("SELECT author, body, created_at FROM task_memos WHERE task_id = ? ORDER BY id DESC LIMIT 1", t.ID).Scan(&author, &body, &at); {
 		case err == nil:
-			lines = append(lines, fmt.Sprintf("    last memo, %s %s: %s", author, time.Unix(int64(at), 0).Format("01-02 15:04"), firstLine(body)))
+			lines = append(lines, fmt.Sprintf("    last comment, %s %s: %s", author, time.Unix(int64(at), 0).Format("01-02 15:04"), firstLine(body)))
 		case !isNoRows(err):
 			return nil, err
 		}

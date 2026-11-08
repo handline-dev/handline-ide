@@ -319,13 +319,13 @@ func TestLandingStateNamesWhereARequestIs(t *testing.T) {
 func TestAHeldMemoWaitsForTheSameWindowAsAnyNotice(t *testing.T) {
 	r := newRig(t)
 	r.agentUp("bob")
-	db.AddRequest(r.DB, db.NewRequest{Requester: db.NoticeRequester, Target: "bob", Body: "T4 memo added by alice: see the log", Kind: "say", Memo: true})
+	db.AddRequest(r.DB, db.NewRequest{Requester: db.NoticeRequester, Target: "bob", Body: "T4 comment by alice: see the log", Kind: "say", Memo: true})
 	r.must(r.SweepDigests(r.clock + 10))
 	if len(r.term.typed) != 0 {
 		t.Fatalf("a memo's tell skipped the window: %q", r.term.typed)
 	}
 	r.must(r.SweepDigests(r.clock + 900))
-	if !strings.Contains(r.term.last(), "T4 memo added by alice: see the log") {
+	if !strings.Contains(r.term.last(), "T4 comment by alice: see the log") {
 		t.Fatalf("%q", r.term.last())
 	}
 }

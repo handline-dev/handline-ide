@@ -60,7 +60,7 @@ func TestWhereListsTheTasksTheLastWordsWithTheFounderAndTheLeadAndTheProgress(t 
 		t.Errorf("the task in hand comes first, whatever its priority:\n%s", got)
 	}
 	for _, want := range []string{
-		"P1 - build the pace cap", "last memo, boss", ": start after the contract lands",
+		"P1 - build the pace cap", "last comment, boss", ": start after the contract lands",
 		fmt.Sprintf("P2 - rebuild the daemon (waits on T%d)", first),
 		"last messages with the founder and boss", "human -> you: do it right", "you -> boss: blocked on the contract",
 		"done: slice 1; left: slice 2", "hl inbox --all",

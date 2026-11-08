@@ -487,7 +487,7 @@ func (e *Env) TellMemoSkipping(q db.Q, tid, mid int64, by, what, text, to string
 	if row == nil {
 		return nil
 	}
-	body := memoLine(tid, what, by, text)
+	body := memoLine(tid, mid, what, by, text)
 	for _, r := range e.memoRecipients(row, by, text, to, now) {
 		if slices.Contains(skip, r.Agent) {
 			continue
@@ -527,7 +527,7 @@ func (e *Env) linkMemoTell(q db.Q, mid int64, reader string, rid int64) {
 		return
 	}
 	if err := db.LinkMemoTell(q, mid, reader, rid); err != nil {
-		e.log("  memo %d: its tell to %s was not kept: %v", mid, reader, err)
+		e.log("  comment %d: its tell to %s was not kept: %v", mid, reader, err)
 	}
 }
 
@@ -557,10 +557,17 @@ func (e *Env) mentioned(text string) []string {
 	return out
 }
 
-// memoLine is the line a memo's reader is told: `T<n> memo <what> by <who>: <text>`, the text on one line and cut at 400 runes, then its file
-// lines whole.
-func memoLine(tid int64, what, by, text string) string {
-	line := fmt.Sprintf("T%d memo %s by %s", tid, what, by)
+// memoLine is the line comment mid's reader is told: `T<n> comment <id> by <who>: <text>`, "edited by" or "deleted by" for those, the text
+// on one line and cut at 400 runes, then its file lines whole. Mid 0 leaves the id out.
+func memoLine(tid, mid int64, what, by, text string) string {
+	line := fmt.Sprintf("T%d comment", tid)
+	if mid != 0 {
+		line += fmt.Sprintf(" %d", mid)
+	}
+	if what != "added" {
+		line += " " + what
+	}
+	line += " by " + by
 	if text == "" {
 		return line
 	}
@@ -592,7 +599,7 @@ func (e *Env) SweepHeldMemos(now int64) (err error) {
 		}
 		check(db.SetCursor(q, key, 1))
 		if lead := t.SupervisorOf(r.Target); lead != "" && lead != db.Human && e.registered(lead) {
-			must(e.Notice(q, lead, fmt.Sprintf("%s has not read this memo in an hour, held for its next digest (%s): %s", r.Target, db.MsgName(q, r.ID), r.Body), "memo unread 1h"))
+			must(e.Notice(q, lead, fmt.Sprintf("%s has not read this comment in an hour, held for its next digest (%s): %s", r.Target, db.MsgName(q, r.ID), r.Body), "memo unread 1h"))
 		}
 	}
 	return nil
