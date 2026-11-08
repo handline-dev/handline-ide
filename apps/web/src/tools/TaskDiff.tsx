@@ -35,7 +35,7 @@ export function diffLines(a: string, b: string): Line[] {
 }
 
 const MARK = { same: ' ', del: '-', add: '+' } as const;
-const TONE = { same: 'text-muted', del: 'bg-danger/10 text-danger', add: 'bg-success/10 text-success' } as const;
+const TONE = { same: 'text-fg', del: 'bg-danger/10 text-danger', add: 'bg-success/10 text-success' } as const;
 
 const labelOf = (v: Version) => `${ago(v.at)} · ${v.by}`;
 
@@ -74,18 +74,6 @@ function History({ versions }: { versions: Version[] }) {
             </span>
           ))
         )}
-      </div>
-      <div className="flex flex-col gap-3">
-        <span className="text-xs font-medium text-muted">All versions</span>
-        {[...versions].reverse().map((v, k) => (
-          <div key={k} className="flex flex-col gap-0.5">
-            <span className="text-xs text-muted">
-              {v.by} · <time title={v.at}>{ago(v.at)}</time>
-              {k === 0 && ' · current'}
-            </span>
-            <span className="whitespace-pre-wrap text-fg/80">{v.text}</span>
-          </div>
-        ))}
       </div>
     </div>
   );
