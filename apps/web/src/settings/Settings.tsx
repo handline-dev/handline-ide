@@ -2,12 +2,12 @@
 // The rest of legacy's Settings (schedules, saved answers, appearance) joins the menu as it is built.
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowLeft, HardDrive, MonitorSmartphone, UserRound } from 'lucide-react';
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { DevicesTab } from '#src/settings/DevicesTab.tsx';
 import { MachineTab } from '#src/settings/MachineTab.tsx';
 import { AccountsTab } from '#src/usage/AccountsTab.tsx';
 import { usePersisted } from '#src/persist/kv.ts';
-import { closeSettings, useSettingsOpen } from '#src/settings/open.ts';
+import { closeSettings, settingsTarget, useSettingsOpen } from '#src/settings/open.ts';
 
 const SECTIONS = ['accounts', 'machine', 'devices'] as const;
 type Section = (typeof SECTIONS)[number];
@@ -38,7 +38,12 @@ export function Settings() {
 }
 
 function Frame() {
-  const [section, setSection] = usePersisted<Section>('settings:section', 'accounts');
+  const [to] = useState(settingsTarget);
+  const [saved, save] = usePersisted<Section>('settings:section', 'accounts');
+  // A link's section wins until the menu is used.
+  const [picked, pick] = useState(to.section);
+  const section = picked ?? saved;
+  const setSection = (s: Section) => (pick(s), save(s));
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !e.defaultPrevented && closeSettings();
     window.addEventListener('keydown', onKey);
@@ -73,7 +78,7 @@ function Frame() {
         ))}
       </nav>
       <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto pt-8">
-        {section === 'accounts' && <AccountsTab />}
+        {section === 'accounts' && <AccountsTab focus={to.account} />}
         {section === 'machine' && <MachineTab />}
         {section === 'devices' && <DevicesTab />}
       </main>

@@ -1,13 +1,14 @@
 import type { Account } from '@handline/client';
 import { RowsLoading } from '#src/usage/UsageViews.tsx';
 import { useAccountUsage, useAccounts } from '@handline/app-data';
-import { TriangleAlert } from 'lucide-react';
+import { Settings, TriangleAlert } from 'lucide-react';
 import { useCallback, useRef, useState } from 'react';
 import { useFocused } from '#src/layout/focus.ts';
-import { goPage } from '#src/layout/openTab.tsx';
 import { Button } from '#src/ui/Button.tsx';
+import { IconButton } from '#src/ui/IconButton.tsx';
 import { Page } from '#src/ui/Page.tsx';
 import { ScrollFade } from '#src/ui/ScrollFade.tsx';
+import { openSettings } from '#src/settings/open.ts';
 import { Outlook } from '#src/usage/Outlook.tsx';
 import {
   ByAgent,
@@ -98,12 +99,15 @@ export function Usage() {
                 <div className={`min-w-40 flex-1 ${a.login_state === 'needs_login' ? 'opacity-40' : ''}`}>
                   <UsageBar name="Week" span={WEEK} w={a.weekly} />
                 </div>
+                <IconButton label={`Settings for ${a.label}`} onClick={() => openSettings({ section: 'accounts', account: a.name })}>
+                  <Settings size={14} />
+                </IconButton>
               </section>
             ))}
           </div>
           {/* One way to manage them, at the end of the list. */}
           {view === 'accounts' && (
-            <Button variant="ghost" className="mx-auto" onClick={() => goPage('preferences', 'Settings')}>
+            <Button variant="ghost" className="mx-auto" onClick={() => openSettings({ section: 'accounts' })}>
               Manage accounts →
             </Button>
           )}
