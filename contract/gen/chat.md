@@ -38,7 +38,7 @@ Messages of an agent's chat, newest first. Page with before (older) or since (ne
 
 ### `chat.requests`
 
-A chat's threads for the screen that draws them: the requests of an agent's chat oldest first, with the task changes and the session starts among them, and one version that changes when anything in the chat does. items are oldest first, each with a `type`: `request` is a chat.messages ChatMessage plus `task_state`; `task_event` is a change of a task delivered in the page, since the first request in it (the state it reached, a handoff, an edit), with `request` naming the delivery a handoff belongs to so a client can draw both as one card; `session` is the start of a new conversation of the agent since that request (one that resumed the old conversation is not listed). Requests that no chat draws (withdrawn, never reached their target) are left out. HR cards are proposal.list's.
+A chat's threads for the screen that draws them: the requests of an agent's chat oldest first, with the task changes and the session starts among them, and one version that changes when anything in the chat does. items are oldest first, each with a `type`: `request` is a chat.messages ChatMessage plus `task_state`; `task_event` is a change of a task delivered in the page, since the first request in it (the state it reached, a handoff, an edit), with `request` naming the delivery a handoff belongs to so a client can draw both as one card; `session` is the start of a new conversation of the agent since that request, or a restart into the same one (a resume that only woke a closed session, changing no setting, is not listed). Requests that no chat draws (withdrawn, never reached their target) are left out. HR cards are proposal.list's.
 
 ### `chat.transcript`
 

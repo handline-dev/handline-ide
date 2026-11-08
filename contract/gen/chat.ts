@@ -117,13 +117,17 @@ export type TranscriptItem = {
     /** What a `changed` event changed, as chat.requests words it: `assigned to X, priority 2 -> 1`, `title changed`, `handed to X`. Absent when the event word says it all. An open set: a client draws a word it does not know as text. */
     change?: string;
   };
-  /** For kind session: a conversation of this agent began here. Listed for every session start that did not resume the old conversation, once its session id is known (a fresh launch has none for its first seconds). When one begins the daemon publishes the item as chat.transcript, as it does a reply. */
+  /** For kind session: a conversation of this agent began here, or it was restarted into the same one. Listed for every session start that did not resume the old conversation, and for a resume whose cause is `restart`, `settings_applied` or `move` or that changed a setting, once its session id is known (a fresh launch has none for its first seconds). When one begins the daemon publishes the item as chat.transcript, as it does a reply. */
   session?: {
     id: string;
     started: Timestamp;
     handoff: string | null;
     /** Why the conversation began. Words the daemon writes: `launch` (first start of a spawned agent), `start` (work arrived for a closed agent), `wake` (a closed agent woken), `restart`, `fresh close` (the old conversation was closed and not resumed; the one word with a space), `move` (to another account), `handoff` (folded into a handoff), and, where the daemon knows it, `context_full`, `settings_applied`, `crash_recovery`, `idle_close`. Open set: a client draws a word it does not know as text. Absent from a daemon that does not serve it. */
     cause?: string;
+    /** The session went on with the same conversation (a restart, not a new conversation). Absent means false. */
+    resumed?: boolean;
+    /** What the settings of this start changed from the session before, in words a person reads: `model changed (opus-5-5 -> sonnet-5-5), team changed`. Empty when nothing did. Absent means empty. */
+    changed?: string;
   };
   /** For kind bash: a person's ! line as it ran, without the !. */
   command?: string;
@@ -181,8 +185,12 @@ export type ChatRequestItem = {
   request?: number | null;
   /** task_event only: the ref of the delivery in request. */
   request_ref?: RequestRef | null;
-  /** session only: why a new conversation started (restart, wake, fresh close, move, handoff, launch). An open set. */
+  /** session only: why a new conversation started or the session restarted (restart, wake, fresh close, move, handoff, launch). An open set. */
   cause?: string;
+  /** session only: it went on with the same conversation. Absent means false. */
+  resumed?: boolean;
+  /** session only: what its settings changed, in words a person reads; empty when nothing did. Absent means empty. */
+  changed?: string;
   handoff?: string | null;
 };
 

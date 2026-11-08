@@ -108,6 +108,11 @@ func TestChatTranscriptListsTheConversationsAnAgentBeganAmongItsItems(t *testing
 		`INSERT INTO session_starts(id, agent, ts, session_id, cause, resumed, text, prompt) VALUES(3, 'bob', 1003, 's2', 'context_full', 0, 'the handoff', '')`,
 		`INSERT INTO session_starts(id, agent, ts, session_id, cause, resumed, text, prompt) VALUES(4, 'bob', 1004, NULL, 'start', 0, '', '')`,
 		`INSERT INTO session_starts(id, agent, ts, session_id, cause, resumed, text, prompt) VALUES(5, 'ann', 1000, 's9', 'launch', 0, '', '')`,
+		`INSERT INTO session_starts(id, agent, ts, session_id, cause, resumed, text, prompt, changed) VALUES(6, 'bob', 1005, 's2', 'settings_applied', 1, 'a record, not given to it', '', 'model changed (opus-5-5 -> sonnet-5-5)')`,
+		`INSERT INTO session_starts(id, agent, ts, session_id, cause, resumed, text, prompt) VALUES(7, 'bob', 1006, 's2', 'restart', 1, '', '')`,
+		`INSERT INTO session_starts(id, agent, ts, session_id, cause, resumed, text, prompt) VALUES(8, 'bob', 1007, 's2', 'move', 1, '', '')`,
+		`INSERT INTO session_starts(id, agent, ts, session_id, cause, resumed, text, prompt) VALUES(9, 'bob', 1008, 's2', 'idle_close', 1, '', '')`,
+		`INSERT INTO session_starts(id, agent, ts, session_id, cause, resumed, text, prompt, changed) VALUES(10, 'bob', 1009, 's2', 'wake', 1, '', '', 'effort changed (high -> low)')`,
 		`INSERT INTO transcript_events(agent, seq, session, turn, at, kind, item, body) VALUES('bob', 1, 's1', NULL, 1002, 'tool_use', NULL, '{"tool_use":{"id":"u1","tool":"Bash","input":{"command":"true"}}}')`,
 	} {
 		if _, err := e.DB.Exec(q); err != nil {
@@ -127,11 +132,19 @@ func TestChatTranscriptListsTheConversationsAnAgentBeganAmongItsItems(t *testing
 			sessions = append(sessions, m)
 		}
 	}
-	// A resume is not a new conversation, and one whose session id is not known yet is not listed.
-	if strings.Join(kinds, " ") != "session tool session" {
+	// A resume that only woke a closed session is not listed, nor one whose session id is not known yet; a restart into the same
+	// conversation is, and so is a wake that brought a settings change.
+	if strings.Join(kinds, " ") != "session tool session session session session session" {
 		t.Fatalf("%v", kinds)
 	}
+	restart := sessions[2]["session"].(map[string]any)
+	if restart["cause"] != "settings_applied" || restart["resumed"] != true || restart["handoff"] != nil || restart["changed"] != "model changed (opus-5-5 -> sonnet-5-5)" {
+		t.Fatalf("%v", restart)
+	}
 	first, second := sessions[0]["session"].(map[string]any), sessions[1]["session"].(map[string]any)
+	if second["resumed"] != false || second["changed"] != "" {
+		t.Fatalf("%v", second)
+	}
 	if sessions[0]["id"] != int64(1000_400_001) || first["id"] != "s1" || first["cause"] != "launch" || first["handoff"] != nil || first["started"] != "1970-01-01T00:16:40Z" {
 		t.Fatalf("%v", sessions[0])
 	}
@@ -144,6 +157,15 @@ func TestChatTranscriptListsTheConversationsAnAgentBeganAmongItsItems(t *testing
 	}
 	if n := len(before.(map[string]any)["items"].([]any)); n != 2 {
 		t.Fatalf("the page before a session item holds what is older: %d", n)
+	}
+	// chat.requests' session items say the same, from the first request on.
+	if _, err := e.DB.Exec(`DELETE FROM session_starts WHERE id <> 6`); err != nil {
+		t.Fatal(err)
+	}
+	ch := &chat{e: e}
+	starts, err := ch.sessions("bob", nil)
+	if err != nil || len(starts) != 1 || starts[0]["resumed"] != true || starts[0]["handoff"] != nil || starts[0]["changed"] != "model changed (opus-5-5 -> sonnet-5-5)" {
+		t.Fatalf("%v %v", starts, err)
 	}
 }
 

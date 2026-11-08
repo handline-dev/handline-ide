@@ -490,7 +490,7 @@
      },
      "session": {
       "type": "object",
-      "description": "For kind session: a conversation of this agent began here. Listed for every session start that did not resume the old conversation, once its session id is known (a fresh launch has none for its first seconds). When one begins the daemon publishes the item as chat.transcript, as it does a reply.",
+      "description": "For kind session: a conversation of this agent began here, or it was restarted into the same one. Listed for every session start that did not resume the old conversation, and for a resume whose cause is `restart`, `settings_applied` or `move` or that changed a setting, once its session id is known (a fresh launch has none for its first seconds). When one begins the daemon publishes the item as chat.transcript, as it does a reply.",
       "properties": {
        "id": {
         "type": "string"
@@ -512,6 +512,14 @@
        "cause": {
         "type": "string",
         "description": "Why the conversation began. Words the daemon writes: `launch` (first start of a spawned agent), `start` (work arrived for a closed agent), `wake` (a closed agent woken), `restart`, `fresh close` (the old conversation was closed and not resumed; the one word with a space), `move` (to another account), `handoff` (folded into a handoff), and, where the daemon knows it, `context_full`, `settings_applied`, `crash_recovery`, `idle_close`. Open set: a client draws a word it does not know as text. Absent from a daemon that does not serve it."
+       },
+       "resumed": {
+        "type": "boolean",
+        "description": "The session went on with the same conversation (a restart, not a new conversation). Absent means false."
+       },
+       "changed": {
+        "type": "string",
+        "description": "What the settings of this start changed from the session before, in words a person reads: `model changed (opus-5-5 -> sonnet-5-5), team changed`. Empty when nothing did. Absent means empty."
        }
       },
       "required": [
@@ -722,7 +730,15 @@
      },
      "cause": {
       "type": "string",
-      "description": "session only: why a new conversation started (restart, wake, fresh close, move, handoff, launch). An open set."
+      "description": "session only: why a new conversation started or the session restarted (restart, wake, fresh close, move, handoff, launch). An open set."
+     },
+     "resumed": {
+      "type": "boolean",
+      "description": "session only: it went on with the same conversation. Absent means false."
+     },
+     "changed": {
+      "type": "string",
+      "description": "session only: what its settings changed, in words a person reads; empty when nothing did. Absent means empty."
      },
      "handoff": {
       "oneOf": [
@@ -1309,7 +1325,7 @@
      "$ref": "#/components/errors/bad_request"
     }
    ],
-   "description": "items are oldest first, each with a `type`: `request` is a chat.messages ChatMessage plus `task_state`; `task_event` is a change of a task delivered in the page, since the first request in it (the state it reached, a handoff, an edit), with `request` naming the delivery a handoff belongs to so a client can draw both as one card; `session` is the start of a new conversation of the agent since that request (one that resumed the old conversation is not listed). Requests that no chat draws (withdrawn, never reached their target) are left out. HR cards are proposal.list's."
+   "description": "items are oldest first, each with a `type`: `request` is a chat.messages ChatMessage plus `task_state`; `task_event` is a change of a task delivered in the page, since the first request in it (the state it reached, a handoff, an edit), with `request` naming the delivery a handoff belongs to so a client can draw both as one card; `session` is the start of a new conversation of the agent since that request, or a restart into the same one (a resume that only woke a closed session, changing no setting, is not listed). Requests that no chat draws (withdrawn, never reached their target) are left out. HR cards are proposal.list's."
   },
   {
    "name": "chat.transcript",

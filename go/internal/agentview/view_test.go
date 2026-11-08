@@ -428,7 +428,7 @@ func TestAHandoffShowsFromTheNoteWaitThroughTheLaunchUntilTheNewSessionBegins(t 
 	}
 
 	// One restart is one state: the line stays until the chat can show the New session line, which needs the session's id.
-	if _, err := db.NoteSessionStart(r.env.Q, "a", "context_full", false, "", "", "", ""); err != nil {
+	if _, err := db.NoteSessionStart(r.env.Q, "a", "context_full", false, "", "", "", "", ""); err != nil {
 		t.Fatal(err)
 	}
 	if h := handoff(); h == nil {

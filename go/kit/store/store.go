@@ -148,29 +148,30 @@ func newerStepsOnlyAdd(db *sql.DB, latest int) (bool, error) {
 // byHand are the steps tools/go_schema.py cannot dump because they change a table an earlier step made: ported here,
 // run before the step's generated SQL, which may index a column they add.
 var byHand = map[int]func(*sql.Tx) error{
-	10: addExtraWorktrees,  // agent_extra_worktrees
-	13: addTaskReporter,    // task_reporter
-	16: addTaskReport,      // task_report
-	17: addTimeoutLeft,     // task_timeout_left
-	19: addRequestRef,      // requests_ref
-	21: addTaskReview,      // task_review
-	22: addTaskEstimate,    // task_estimate
-	23: addFounderAuth,     // requests_founder_auth
-	24: addTaskWatch,       // task_watch
-	26: addRequestThreads,  // request_threads
-	29: addRequestMemo,     // request_memo
-	30: addDevicePush,      // device_push
-	31: addPromptAnswer,    // prompt_answer
-	32: addRequestQuote,    // request_quote
-	36: addStallKind,       // stall_kind
-	38: addParkReason,      // park_reason
-	39: addStallArgs,       // stall_args
-	40: addTokenCallOwner,  // token_call_owner
-	42: addDeviceAddress,   // device_address
-	43: addTaskRequest,     // task_request
-	44: addTurnOrigin,      // task_turn_origin
-	45: addSampleLoggedOut, // usage_sample_logged_out
-	46: addDeviceClient,    // device_client
+	10: addExtraWorktrees,      // agent_extra_worktrees
+	13: addTaskReporter,        // task_reporter
+	16: addTaskReport,          // task_report
+	17: addTimeoutLeft,         // task_timeout_left
+	19: addRequestRef,          // requests_ref
+	21: addTaskReview,          // task_review
+	22: addTaskEstimate,        // task_estimate
+	23: addFounderAuth,         // requests_founder_auth
+	24: addTaskWatch,           // task_watch
+	26: addRequestThreads,      // request_threads
+	29: addRequestMemo,         // request_memo
+	30: addDevicePush,          // device_push
+	31: addPromptAnswer,        // prompt_answer
+	32: addRequestQuote,        // request_quote
+	36: addStallKind,           // stall_kind
+	38: addParkReason,          // park_reason
+	39: addStallArgs,           // stall_args
+	40: addTokenCallOwner,      // token_call_owner
+	42: addDeviceAddress,       // device_address
+	43: addTaskRequest,         // task_request
+	44: addTurnOrigin,          // task_turn_origin
+	45: addSampleLoggedOut,     // usage_sample_logged_out
+	46: addDeviceClient,        // device_client
+	49: addSessionStartChanged, // session_start_changed
 }
 
 // addExtraWorktrees is _agent_extra_worktrees in schema.py: a database made before the column has none.
@@ -238,6 +239,11 @@ func addTurnOrigin(tx *sql.Tx) error { return addColumn(tx, "tasks", "turn_origi
 // addSampleLoggedOut is whether an account could be used when its usage sample was taken (usage.RecordSample).
 func addSampleLoggedOut(tx *sql.Tx) error {
 	return addColumn(tx, "usage_samples", "logged_out", "INTEGER NOT NULL DEFAULT 0")
+}
+
+// addSessionStartChanged is what the settings a session start was launched with changed (session_starts.changed).
+func addSessionStartChanged(tx *sql.Tx) error {
+	return addColumn(tx, "session_starts", "changed", "TEXT NOT NULL DEFAULT ''")
 }
 
 // addDeviceClient is what a device is (devices.kind, from device.redeem) and the client its last hello named (devices.client).

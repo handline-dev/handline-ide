@@ -197,7 +197,7 @@ func TestAConversationIsToldOnceWhenItsSessionIdIsKnown(t *testing.T) {
 	c := r.chat()
 	r.scan(c)
 	exec(t, r.d, ins, "bob", now, "s1", "wake", 0)      // a structured start knows its session at once
-	exec(t, r.d, ins, "bob", now, "s1", "wake", 1)      // a resume begins nothing
+	exec(t, r.d, ins, "bob", now, "s1", "wake", 1)      // a resume that only woke it begins nothing
 	exec(t, r.d, ins, "cat", now, nil, "start", 0)      // a terminal launch waits for its hook
 	exec(t, r.d, ins, "dan", now-3600, nil, "start", 0) // past the bind window: never bound
 	r.scan(c)
@@ -210,6 +210,14 @@ func TestAConversationIsToldOnceWhenItsSessionIdIsKnown(t *testing.T) {
 	var it map[string]any
 	json.Unmarshal(r.rows()[2].Data, &it)
 	if it["kind"] != "session" || it["session"].(map[string]any)["id"] != "s2" || it["session"].(map[string]any)["cause"] != "start" {
+		t.Fatalf("%v", it)
+	}
+	exec(t, r.d, ins, "eve", now, "s4", "settings_applied", 1) // a restart into the same conversation is told as it happens
+	r.scan(c)
+	r.scan(c)
+	rows := r.rows()
+	json.Unmarshal(rows[len(rows)-1].Data, &it)
+	if rows[len(rows)-1].Type != "chat.transcript" || it["session"].(map[string]any)["resumed"] != true {
 		t.Fatalf("%v", it)
 	}
 }
