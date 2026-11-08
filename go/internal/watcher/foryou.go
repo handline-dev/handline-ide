@@ -12,11 +12,12 @@ import (
 )
 
 // ForYou is the for_you topic: an item that joins the count of what waits on the founder (opened, or back from Later) and one that leaves
-// it (answered anywhere, closed, withdrawn, deferred in the founder's prefs), each with the count after it. The first look says nothing: for_you.list shows what
-// is there.
+// it (answered anywhere, closed, withdrawn, deferred in the founder's prefs), each with the count after it; a rewritten question opens
+// again. The first look says nothing: for_you.list shows what is there.
 type ForYou struct {
 	Reads *reads.Env
 	seen  map[string]map[string]any
+	asked map[string]string // the founder's question on each task item seen
 }
 
 // ForYouSignature says how many deferrals have run out their time: the database does not change then, so the watch would not look.
@@ -51,8 +52,19 @@ func (w *ForYou) Scan(_ *sql.DB, emit Emit) error {
 			now[fmt.Sprint(it["kind"], "\x00", it["id"])] = it
 		}
 	}
-	before := w.seen
-	w.seen = now
+	asked := map[string]string{}
+	for k, it := range now {
+		if it["kind"] == "task" {
+			var q string
+			err := w.Reads.DB.QueryRow("SELECT ask FROM task_turns WHERE task_id = ? AND agent = 'human'", it["id"]).Scan(&q)
+			if err != nil && err != sql.ErrNoRows {
+				return err
+			}
+			asked[k] = q
+		}
+	}
+	before, askedBefore := w.seen, w.asked
+	w.seen, w.asked = now, asked
 	if before == nil {
 		return nil
 	}
@@ -83,6 +95,19 @@ func (w *ForYou) Scan(_ *sql.DB, emit Emit) error {
 		count++
 		if _, err := emit(stream.Entry{Topic: "for_you", Type: "for_you.opened", Title: it["title"].(string),
 			Data: map[string]any{"item": it, "count": count}}); err != nil {
+			return err
+		}
+	}
+	var reasked []string
+	for k, q := range asked {
+		if prev, ok := askedBefore[k]; ok && before[k] != nil && q != "" && q != prev {
+			reasked = append(reasked, k)
+		}
+	}
+	sort.Strings(reasked)
+	for _, k := range reasked {
+		if _, err := emit(stream.Entry{Topic: "for_you", Type: "for_you.opened", Title: asked[k],
+			Data: map[string]any{"item": now[k], "count": count}}); err != nil {
 			return err
 		}
 	}

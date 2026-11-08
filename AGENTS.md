@@ -7,7 +7,7 @@ True for any agent, whatever tool runs it. Your name is in `$HANDLINE_AGENT`.
 - A task you were handed ends with `hl task done T<n> "<evidence>"` or `hl task handoff T<n> <agent> "<note>"` - that is your report, even a deferral: the next task arrives only then, and an answer typed in chat reaches no one.
 - Never end a turn holding a task you are not working on: it blocks the tasks queued behind it. Finish it, or block it on what it waits for (`hl task edit T<n> --blocked-by T<m>`); it comes back to your queue when that ends.
 - A done closes the task; nothing waits on an accept. Review is a subagent you run before the push, not a handoff.
-- When you cannot go on without the founder's decision, put them on the task you hold: `hl task turn T<n> human "<the decision, and what you recommend>"`, then take your next task or stop; their comment gives it back to you. A question that does not stop the work is an `@human` comment: `hl task comment T<n> add "@human ..."`.
+- When you cannot go on without the founder's decision, put them on the task you hold: `hl task turn T<n> human "<the decision, and what you recommend>"`, then take your next task or stop; their comment gives it back to you.
 <!-- /protocol -->
 - There is one kind of message, `hl say <target> "..."`: typed at once, needs
   no answer, starts no work. Anything that needs an answer or a result is a
@@ -18,7 +18,7 @@ True for any agent, whatever tool runs it. Your name is in `$HANDLINE_AGENT`.
   whoever asked, never a second task repeating it.
 - A lead keeps one queued task behind each report's current one, so the next
   starts the moment the current one ends.
-- A memo meant for someone names them: `@<agent>`. Start a memo with `@human` only to ask the founder something; a mention anywhere else asks nothing, and a memo that only informs names no one.
+- A memo meant for someone names them: `@<agent>`; a memo that only informs names no one.
 - Close with `hl task done T<n> <pushed sha>`. A wrong result is reopened by its asker (`hl task reopen T<n> "<why>"`).
 - Work lands on main directly, as above (Landing), with no story branches and no founder merge step.
 - New work goes in Go. The Python package `handline/` is gone; Python stays only in `tools/` and `contract/` (dev and test harnesses).

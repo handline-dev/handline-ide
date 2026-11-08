@@ -1,6 +1,7 @@
 package reads
 
 import (
+	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -80,5 +81,37 @@ func TestAnOverdueClockFollowsWhoActsOnTheTask(t *testing.T) {
 	}
 	if task, c := clockOf(t, e, 2); task["state"] != "doing" || c["overdue_since"] != ts(now-100) {
 		t.Fatalf("amy on top: overdue: %v %v", task["state"], c)
+	}
+}
+
+// A turn's ask rewritten says when (edited) in every read of the task, and task.get alone lists the texts it replaced (earlier), oldest
+// first by event order, from that turn's push on: a rewrite of an earlier founder's turn on the task is not this one's.
+func TestARewrittenAskSaysEditedAndTaskGetListsWhatItReplaced(t *testing.T) {
+	t.Parallel()
+	e := testEnv(t)
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(1, 'pick', 'amy', 'amy', 1, 'amy'), (2, 'plain', 'amy', 'amy', 1, 'amy')")
+	run(t, e, "INSERT INTO task_turns(task_id, pos, agent, ask, pushed_by, since) VALUES(1, 1, 'human', 'C?', 'amy', 10), (2, 1, 'human', 'D?', 'amy', 10)")
+	run(t, e, `INSERT INTO events(id, ts, agent, kind, payload) VALUES`+
+		`(1, 5, 'amy', 'task_turn_push', '{"task_id":1,"to":"human","ask":"old"}'), `+
+		`(2, 6, 'amy', 'task_turn_ask', '{"task_id":1,"agent":"human","from":"old","ask":"old2"}'), `+
+		`(3, 10, 'amy', 'task_turn_push', '{"task_id":1,"to":"human","ask":"A?"}'), `+
+		`(4, 20, 'amy', 'task_turn_ask', '{"task_id":1,"agent":"human","from":"A?","ask":"B?"}'), `+
+		`(5, 15, 'amy', 'task_turn_ask', '{"task_id":1,"agent":"human","from":"B?","ask":"C?"}')`)
+	got, err := e.taskGet(nil, map[string]any{"task": json.Number("1")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	turn := got.(map[string]any)["turns"].([]any)[0].(map[string]any)
+	want := fmt.Sprint([]any{map[string]any{"ask": "A?", "at": ts(int64(10))}, map[string]any{"ask": "B?", "at": ts(int64(20))}})
+	if turn["ask"] != "C?" || turn["edited"] != ts(int64(15)) || fmt.Sprint(turn["earlier"]) != want {
+		t.Fatalf("%v", turn)
+	}
+	list, err := e.Tasks([]int64{1, 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	one, two := list[1]["turns"].([]any)[0].(map[string]any), list[2]["turns"].([]any)[0].(map[string]any)
+	if _, has := one["earlier"]; has || one["edited"] != ts(int64(15)) || two["edited"] != nil {
+		t.Fatalf("the list says edited only: %v / %v", one, two)
 	}
 }
