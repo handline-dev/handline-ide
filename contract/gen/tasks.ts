@@ -395,7 +395,7 @@ export type PendingRequest = {
 export type Turn = {
   /** Who acts while this turn is on top: an agent, or human. */
   agent: string;
-  /** What it was asked to do; empty when nothing was said. */
+  /** What it was asked to do, as it reads now; empty when nothing was said. The founder's turn is the task's one question: asking again rewrites it. */
   ask: string;
   /** Who put it there: the one acting below it, or the founder. */
   by: string;
@@ -404,6 +404,16 @@ export type Turn = {
   on_pass: "done" | null;
   /** The done evidence a pass closes the task with (on_pass done). */
   evidence: string | null;
+  /** When ask was last rewritten; null when it reads as pushed. */
+  edited: Timestamp | null;
+  /** The texts ask replaced, oldest first, each with when it was set; empty when never rewritten. In task.get only. */
+  earlier?: TurnAsk[];
+};
+
+/** A text a turn's ask once read. */
+export type TurnAsk = {
+  ask: string;
+  at: Timestamp;
 };
 
 /** What a warning row is about, so a client can draw it and open the right place. It is read from state each time and leaves by itself. */

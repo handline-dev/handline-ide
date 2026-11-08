@@ -1636,7 +1636,7 @@
      },
      "ask": {
       "type": "string",
-      "description": "What it was asked to do; empty when nothing was said."
+      "description": "What it was asked to do, as it reads now; empty when nothing was said. The founder's turn is the task's one question: asking again rewrites it."
      },
      "by": {
       "type": "string",
@@ -1669,6 +1669,24 @@
        }
       ],
       "description": "The done evidence a pass closes the task with (on_pass done)."
+     },
+     "edited": {
+      "oneOf": [
+       {
+        "$ref": "#/components/schemas/Timestamp"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "When ask was last rewritten; null when it reads as pushed."
+     },
+     "earlier": {
+      "type": "array",
+      "items": {
+       "$ref": "#/components/schemas/TurnAsk"
+      },
+      "description": "The texts ask replaced, oldest first, each with when it was set; empty when never rewritten. In task.get only."
      }
     },
     "required": [
@@ -1677,7 +1695,25 @@
      "by",
      "since",
      "on_pass",
-     "evidence"
+     "evidence",
+     "edited"
+    ],
+    "additionalProperties": false
+   },
+   "TurnAsk": {
+    "type": "object",
+    "description": "A text a turn's ask once read.",
+    "properties": {
+     "ask": {
+      "type": "string"
+     },
+     "at": {
+      "$ref": "#/components/schemas/Timestamp"
+     }
+    },
+    "required": [
+     "ask",
+     "at"
     ],
     "additionalProperties": false
    },
@@ -2530,7 +2566,7 @@
   },
   {
    "name": "task.turn.push",
-   "summary": "Put another agent, or the founder, on top of a task you act on.",
+   "summary": "Put another agent, or the founder, on top of a task you act on. While the founder is on top, the agent below asking them again rewrites their turn's ask (Turn.edited, Turn.earlier); the same text changes nothing.",
    "paramStructure": "by-name",
    "params": [
     {
@@ -3269,8 +3305,8 @@
   },
   {
    "name": "task.comment.add",
-   "summary": "Add a comment; anyone may. It is told only to an agent that has to act on it: the task's assignee (its holder), each agent it names as @name, and, when the founder wrote it, who the task answers to (its reporter, else its opener); with now every one of those readers, mid-turn too. It is never told to its writer, and a comment that names no one is told to the assignee only. task.comment.recipients says who will be told before posting; skip leaves some of them out. The founder is told by one inbox line per request (a task made from their message, task.request) while it stays unread, counting the agents' new comments. A reader at its prompt is told at once and a reader mid-turn at the end of its turn. comment.edit and comment.delete are told the same way. A comment by an agent that names `@human` asks the founder, as the description says. The wire still calls a comment a memo (Memo, `memo`, `memos`); task.memo.add is its old name.",
-   "description": "A comment by an agent that names `@human` asks the founder: it opens one ask to the founder, linked to the task (InboxItem kind ask, `task` and `memo` set), so the task reads waiting on the founder. The ask stays open until (1) the founder replies to it (inbox.reply), (2) the founder adds any comment to that task, (3) the founder marks it read (inbox.mark_read naming its id), (4) its comment is deleted or edited so it no longer names `@human`, or (5) the task is done or discarded. An edit that keeps `@human` keeps the one ask and updates its body; one that adds `@human` opens it. While human is the top turn (Task.acting), the founder's comment passes that turn, the comment its note (task.turn.pop). An @human comment by an agent asks without stopping the work: it does not free the agent's slot; to wait on the founder, task.turn.push human.",
+   "summary": "Add a comment; anyone may. It is told only to an agent that has to act on it: the task's assignee (its holder), each agent it names as @name, and, when the founder wrote it, who the task answers to (its reporter, else its opener); with now every one of those readers, mid-turn too. It is never told to its writer, and a comment that names no one is told to the assignee only. task.comment.recipients says who will be told before posting; skip leaves some of them out. The founder is told by one inbox line per request (a task made from their message, task.request) while it stays unread, counting the agents' new comments. A reader at its prompt is told at once and a reader mid-turn at the end of its turn. comment.edit and comment.delete are told the same way. A comment asks the founder nothing, `@human` or not: their question is their turn on the task (task.turn.push human). The wire still calls a comment a memo (Memo, `memo`, `memos`); task.memo.add is its old name.",
+   "description": "An ask an agent's `@human` comment opened before comments stopped asking (InboxItem kind ask, `task` and `memo` set) stays open until (1) the founder replies to it (inbox.reply), (2) the founder adds any comment to that task, (3) the founder marks it read (inbox.mark_read naming its id), (4) its comment is deleted or edited so it no longer names `@human`, or (5) the task is done or discarded. An edit that keeps `@human` first keeps that ask and updates its body. While human is the top turn (Task.acting), the founder's comment passes that turn, the comment its note (task.turn.pop).",
    "paramStructure": "by-name",
    "params": [
     {
@@ -3555,7 +3591,7 @@
   },
   {
    "name": "task.comment.edit",
-   "summary": "Edit a comment: its author or the founder. An edit that drops `@human` withdraws the ask it opened (task.comment.add); one that adds `@human` opens one. The wire still calls a comment a memo (Memo, `memo`, `memos`); task.memo.edit is its old name.",
+   "summary": "Edit a comment: its author or the founder. An edit that drops `@human` withdraws an ask the comment opened (task.comment.add). The wire still calls a comment a memo (Memo, `memo`, `memos`); task.memo.edit is its old name.",
    "paramStructure": "by-name",
    "params": [
     {

@@ -355,3 +355,77 @@ func TestARefusedDoneOnTheFoundersPassIsAComment(t *testing.T) {
 		t.Fatalf("the return #%d; the refusal's comment told bob by #%d", rid, told)
 	}
 }
+
+// The founder's turn is the task's one question: the agent under it asking again rewrites the ask, the old text kept in a task_turn_ask
+// event; the same text writes nothing; anyone else, or an empty ask, is refused as before. Nothing moves and nobody is typed at.
+func TestAskingTheFounderAgainRewritesTheirQuestion(t *testing.T) {
+	r := newRig(t)
+	r.agentUp("bob")
+	held := r.beginCurrent("bob", "alice", "ship it")
+	r.turnCall("bob", "task.turn.push", fmt.Sprintf(`{"task":%d,"to":"human","ask":"A or B?","request_id":"p1"}`, held))
+	typed := len(r.term.typed)
+	out := r.turnCall("bob", "task.turn.push", fmt.Sprintf(`{"task":%d,"to":"human","ask":"A, B or C? I recommend C","request_id":"p2"}`, held))
+	if said := out["result"].(map[string]any)["said"]; said != fmt.Sprintf("T%d: the founder's question now reads: A, B or C? I recommend C", held) {
+		t.Fatalf("%q", said)
+	}
+	turns, _ := db.Turns(r.DB, held)
+	if len(turns) != 1 || turns[0].Agent != db.Human || turns[0].Ask != "A, B or C? I recommend C" || turns[0].By != "bob" {
+		t.Fatalf("%+v", turns)
+	}
+	var from string
+	r.must(r.DB.QueryRow("SELECT json_extract(payload, '$.from') FROM events WHERE kind = 'task_turn_ask' AND json_extract(payload, '$.task_id') = ?", held).Scan(&from))
+	if from != "A or B?" {
+		t.Fatalf("the old text is kept: %q", from)
+	}
+	out = r.turnCall("bob", "task.turn.push", fmt.Sprintf(`{"task":%d,"to":"human","ask":"A, B or C? I recommend C","request_id":"p3"}`, held))
+	if said := out["result"].(map[string]any)["said"]; said != fmt.Sprintf("T%d: the founder's question is unchanged", held) {
+		t.Fatalf("%q", said)
+	}
+	var n int
+	r.must(r.DB.QueryRow("SELECT COUNT(*) FROM events WHERE kind = 'task_turn_ask'").Scan(&n))
+	if n != 1 || len(r.term.typed) != typed {
+		t.Fatalf("the same text writes nothing (%d events) and nobody is typed at (%d -> %d)", n, typed, len(r.term.typed))
+	}
+	r.refusedCall("alice", "task.turn.push", fmt.Sprintf(`{"task":%d,"to":"human","ask":"mine?","request_id":"p4"}`, held), "only it, or the founder")
+	r.refusedCall("bob", "task.turn.push", fmt.Sprintf(`{"task":%d,"to":"human","request_id":"p5"}`, held), "only it, or the founder")
+}
+
+// `hl say human --task T<n>` from the agent the task's question is for lands in that slot: it puts the founder's turn on, then rewrites it.
+// From the opener, who does not hold it, it is a message linked to the task as before.
+func TestASayToTheFounderFromTheHolderIsTheTasksQuestion(t *testing.T) {
+	r := newRig(t)
+	r.agentUp("bob")
+	held := r.beginCurrent("bob", "alice", "ship it")
+	out := r.say(SayVerbIn{Requester: "bob", Target: db.Human, Body: "A or B?", Task: held})
+	if !out.OK || out.Msg != fmt.Sprintf("T%d is the founder's turn now, asking: A or B?", held) || r.acting(held) != db.Human {
+		t.Fatalf("%+v acting %s", out, r.acting(held))
+	}
+	if cur, ok, _ := db.CurrentTask(r.DB, "bob"); ok && cur == held {
+		t.Fatal("bob's slot is freed as by a turn")
+	}
+	out = r.say(SayVerbIn{Requester: "bob", Target: db.Human, Body: "A, B or C?", Task: held})
+	if turns, _ := db.Turns(r.DB, held); !out.OK || len(turns) != 1 || turns[0].Ask != "A, B or C?" {
+		t.Fatalf("%+v %+v", out, turns)
+	}
+	var says int
+	r.must(r.DB.QueryRow("SELECT COUNT(*) FROM requests WHERE target = 'human'").Scan(&says))
+	if says != 0 {
+		t.Fatalf("no message to the founder: %d", says)
+	}
+	out = r.say(SayVerbIn{Requester: "alice", Target: db.Human, Body: "fyi", Task: held})
+	r.must(r.DB.QueryRow("SELECT COUNT(*) FROM requests r JOIN task_requests l ON l.request_id = r.id WHERE l.task_id = ? AND r.target = 'human' AND r.body = 'fyi'", held).Scan(&says))
+	if !out.OK || says != 1 {
+		t.Fatalf("the opener's say is a linked message: %+v %d", out, says)
+	}
+}
+
+// A say with files is never the founder's question: the question holds text, so it is refused with the way to post the files first.
+func TestASayWithFilesToTheFounderIsNotTheQuestion(t *testing.T) {
+	r := newRig(t)
+	r.agentUp("bob")
+	held := r.beginCurrent("bob", "alice", "ship it")
+	out := r.say(SayVerbIn{Requester: "bob", Target: db.Human, Body: "this one?", Task: held, Attached: true})
+	if out.OK || !strings.Contains(out.Msg, fmt.Sprintf("hl task comment T%d add", held)) || r.acting(held) != "bob" {
+		t.Fatalf("%+v acting %s", out, r.acting(held))
+	}
+}

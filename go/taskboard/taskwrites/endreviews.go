@@ -12,7 +12,7 @@ import (
 )
 
 // EndReviews runs at daemon start: a task has no review state any more, so each one an older daemon left in review is moved, once, to a
-// task that is queued or doing. Its answer is kept as a memo by "daemon". One not yet accepted is handed to whom it waited on (its owner's
+// task that is queued or doing. Its answer is kept as a memo by "daemon", or asked as the founder's turn when it waited on them. One not yet accepted is handed to whom it waited on (its owner's
 // lead, else its reporter, else its opener); an accepted one stays with its owner, the memo naming the PR it waits on. It answers a line per
 // task moved; a task that cannot be moved is left for the next start, and the others still move.
 func EndReviews(d *sql.DB, home string, tell Teller) (said []string, err error) {
@@ -62,7 +62,7 @@ func EndReviews(d *sql.DB, home string, tell Teller) (said []string, err error) 
 				}
 			}
 		}
-		founder := to == human // a task is not handed to the founder: it stays, and the memo asks them
+		founder := to == human && r.owner != human // a task is not handed to the founder: it stays, and their turn on it asks them
 		if to == r.owner || founder {
 			to = ""
 		}
@@ -76,14 +76,12 @@ func EndReviews(d *sql.DB, home string, tell Teller) (said []string, err error) 
 			if _, err := tx.Exec("UPDATE tasks SET reported_at = NULL, report = NULL, report_via = NULL, accepted_by = NULL, accepted_at = NULL WHERE id = ?", r.id); err != nil {
 				return err
 			}
-			if founder {
-				memo = "@human " + memo
-			}
-			mid, err := db.AddMemo(tx, r.id, "daemon", memo)
-			if err != nil {
+			if founder { // the answer is the founder's question, not a comment as well
+				var err error
+				h, asked, err = pushTurn(tx, tell, r.id, r.owner, human, memo, "", "")
 				return err
 			}
-			if err := syncMemoAsk(tx, r.id, mid, "daemon", memo); err != nil {
+			if _, err := db.AddMemo(tx, r.id, "daemon", memo); err != nil {
 				return err
 			}
 			if to == "" {
@@ -104,7 +102,7 @@ func EndReviews(d *sql.DB, home string, tell Teller) (said []string, err error) 
 			failed = errors.Join(failed, fmt.Errorf("T%d: %w", r.id, err))
 			continue
 		}
-		if to == "" {
+		if to == "" && !founder {
 			said = append(said, fmt.Sprintf("T%d left review: queued with %s", r.id, r.owner))
 			continue
 		}
@@ -112,6 +110,10 @@ func EndReviews(d *sql.DB, home string, tell Teller) (said []string, err error) 
 			h.After = asked.After
 		}
 		tell.HandedOver(h)
+		if founder {
+			said = append(said, fmt.Sprintf("T%d left review: the founder's turn, %s's below it", r.id, r.owner))
+			continue
+		}
 		said = append(said, fmt.Sprintf("T%d left review: handed to %s", r.id, to))
 	}
 	return said, failed

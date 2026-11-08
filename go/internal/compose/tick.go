@@ -189,7 +189,7 @@ func migrateAtStart(q *sql.DB, home string, env *supervisor.Env, logLine func(st
 	for _, m := range moved {
 		logLine("  " + m)
 	}
-	back, backErr := taskwrites.ReturnFounderTasks(q, home, env)
+	back, backErr := taskwrites.ReturnFounderTasks(q, home)
 	for _, m := range back {
 		logLine("  " + m)
 	}

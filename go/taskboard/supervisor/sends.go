@@ -1,11 +1,15 @@
 package supervisor
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/protocol/rpc"
+	"github.com/handline/handline/go/taskboard/taskwrites"
 )
 
 // `ask` and `say` as the daemon's own verbs (daemon/sends.py): the daemon runs the same checks and the same Ask/Say the CLI used to, writes the
@@ -123,6 +127,8 @@ type SayVerbIn struct {
 	Effect func(q db.Q, message string, rid int64) error
 	// MemoEffect is the same for a say that became a memo of the task it names: mid is the memo.
 	MemoEffect func(q db.Q, mid int64) error
+	// Attached is a say that carries files.
+	Attached bool
 }
 
 // SayVerbOut is the verb's answer; After runs once the writes have committed (the telling, the memo holder's say).
@@ -133,7 +139,7 @@ type SayVerbOut struct {
 }
 
 // SayVerb is `hl say TARGET BODY`: a message that needs no answer, typed at once.
-func (e *Env) SayVerb(q db.Q, in SayVerbIn) (out *SayVerbOut, err error) {
+func (e *Env) SayVerb(q *sql.Tx, in SayVerbIn) (out *SayVerbOut, err error) {
 	defer Catch(&err)
 	fail := func(msg string) (*SayVerbOut, error) { return &SayVerbOut{Msg: msg, After: func() {}}, nil }
 	if in.Requester == "" {
@@ -243,6 +249,32 @@ func (e *Env) SayVerb(q db.Q, in SayVerbIn) (out *SayVerbOut, err error) {
 		row := must(db.GetTask(q, task))
 		if row == nil {
 			return fail(fmt.Sprintf("no task T%d. Try:\n  %s", task, e.workingSay(q, me, target, body, in.Parent, 0)))
+		}
+		if target == db.Human && in.Parent == 0 && me != db.Human && must(taskwrites.Asker(q, task)) == me {
+			// the task's one question slot: the founder's turn on it, put on or rewritten. It holds text only.
+			if in.Attached {
+				return fail(fmt.Sprintf("not sent: the founder's question on T%d holds no files. Put them on the task first, then ask without --attach:\n  "+
+					"hl task comment T%d add '<what they show>' --attach FILE\n  %s", task, task, sayCmd(q, target, body, 0, fmt.Sprintf("--task T%d", task))))
+			}
+			h, asked, err := taskwrites.PutQuestion(q, e, task, me, body)
+			var refused *rpc.Error
+			if errors.As(err, &refused) && refused.Code == "refused" {
+				return fail(refused.Message)
+			}
+			if err != nil {
+				return nil, err
+			}
+			msg := fmt.Sprintf("T%d: %s", task, asked.Msg)
+			if !asked.Reask {
+				msg = fmt.Sprintf("T%d is the founder's turn now, asking: %s", task, body)
+			}
+			return &SayVerbOut{OK: asked.OK, Msg: msg, After: func() {
+				if asked.Reask {
+					return
+				}
+				h.After = asked.After
+				e.HandedOver(h)
+			}}, nil
 		}
 		if in.Parent != 0 || (target == db.Human && row.OpenedBy == me) {
 			// A reply lands in the thread it answers, and a say to the founder naming the task it became is theirs to read: a message linked
