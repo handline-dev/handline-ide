@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"slices"
 
+	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/protocol/rpc"
 )
@@ -49,7 +50,14 @@ func (e *Env) agentSetMethod(c *rpc.Conn, params map[string]any) (any, error) {
 	if !ok {
 		return nil, rpc.Refused(said, "", "")
 	}
-	return c.Effect(func(*sql.Tx) (map[string]any, error) {
+	by := agent
+	if c.Caller.Role == "founder" {
+		by = db.Human
+	}
+	return c.Effect(func(tx *sql.Tx) (map[string]any, error) {
+		if err := db.SetMeta(tx, db.SettingsByMeta(agent), by); err != nil {
+			return nil, err
+		}
 		return map[string]any{"accepted": true, "said": said}, nil
 	})
 }

@@ -1118,6 +1118,12 @@ func (l *Launcher) whatChanged(agent string) (string, error) {
 	return strings.Join(changed, ", "), nil
 }
 
+// WhatChanged is whatChanged for the restart notice, "" when it cannot be read.
+func (l *Launcher) WhatChanged(agent string) string {
+	s, _ := l.whatChanged(agent)
+	return s
+}
+
 // readable is a setting's value as the line says it: a model without its vendor's prefix, no value as the default.
 func readable(v string) string {
 	if v == "" {

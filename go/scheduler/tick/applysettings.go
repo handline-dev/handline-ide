@@ -16,7 +16,7 @@ import (
 // setting differs, restarts the agent the way session.restart does (resumed, the same conversation), never mid-turn and never over an open
 // dialog. A level read each tick from the row, not an edge: a change made while the agent was busy is applied when it is not.
 const (
-	// SettingsWho is who the restart says asked for it.
+	// SettingsWho is who the restart says asked for it when no person's change is kept (db.SettingsByMeta).
 	SettingsWho = "the daemon"
 	// SettingsApplied is the meta key prefix that keeps what a restart was for.
 	SettingsApplied = "settings_applied:"
@@ -119,9 +119,14 @@ func (a *ApplySettings) apply(t *Tick, agent string) {
 	if st.SessionID == "" {
 		return
 	}
-	ok, said := t.Lifecycle.RestartAgent(t.Q, agent, st, SettingsWho, names, "settings_applied")
+	by, _ := must2(db.Meta(t.Q, db.SettingsByMeta(agent)))
+	if by == "" {
+		by = SettingsWho
+	}
+	ok, said := t.Lifecycle.RestartAgent(t.Q, agent, st, by, names, "settings_applied")
 	if ok {
 		check(db.SetMeta(t.Q, SettingsApplied+agent, text))
+		check(db.SetMeta(t.Q, db.SettingsByMeta(agent), ""))
 		t.logf("  %s: restarted to apply changed settings (%s)", agent, strings.Join(names, ", "))
 	} else {
 		t.logf("  %s: changed settings (%s) not applied yet - %s", agent, strings.Join(names, ", "), said)

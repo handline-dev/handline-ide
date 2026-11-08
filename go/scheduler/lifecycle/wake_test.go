@@ -1231,3 +1231,16 @@ func TestATaskSendNowLetGoStartsItsAgentWhilePaused(t *testing.T) {
 		t.Fatalf("the task send_now let go was held: %q", said)
 	}
 }
+
+// A restart opens with a separator line the person at the terminal sees: what changed, with its values, and who asked; the founder by name.
+func TestARestartNoticeOpensWithASeparatorLineOfWhatChangedAndWho(t *testing.T) {
+	got := RestartNotice(db.Human, true, []string{"model"}, "model changed (opus-5-5 -> sonnet-5-5)")
+	want := "---------- restarted: model changed (opus-5-5 -> sonnet-5-5), by the founder ----------\n" +
+		"Restarted by the founder (resumed) to apply changed settings: model. If something was going wrong before this, retry it."
+	if got != want {
+		t.Fatalf("%q\nwant %q", got, want)
+	}
+	if got := RestartNotice("the daemon", false, nil, ""); !strings.HasPrefix(got, "---------- restarted by the daemon ----------\nRestarted by the daemon (fresh).") {
+		t.Fatalf("%q", got)
+	}
+}

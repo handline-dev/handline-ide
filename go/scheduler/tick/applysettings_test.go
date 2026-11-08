@@ -51,6 +51,21 @@ func TestAChangedSettingRestartsTheIdleSessionOnceAndRemembersWhatItWasFor(t *te
 	}
 }
 
+// A person's change is restarted in their name, once: the next change with no one kept is the daemon's.
+func TestAPersonsChangeIsRestartedInTheirName(t *testing.T) {
+	tk, w, a := settled(t)
+	if err := db.SetMeta(tk.Q, db.SettingsByMeta("a"), db.Human); err != nil {
+		t.Fatal(err)
+	}
+	a.Sweep(tk, 10_000)
+	if !w.did("restart a by human for model (settings_applied)") {
+		t.Fatalf("%v", w.calls)
+	}
+	if v, _, _ := db.Meta(tk.Q, db.SettingsByMeta("a")); v != "" {
+		t.Fatalf("who asked outlived the restart: %q", v)
+	}
+}
+
 func TestAChangedSettingWaitsForAnIdleMomentAndAnOpenRunnableSession(t *testing.T) {
 	cases := map[string]func(tk *Tick, w *world){
 		"mid-turn or an open prompt": func(tk *Tick, w *world) { w.idle = false },

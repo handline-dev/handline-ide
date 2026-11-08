@@ -191,6 +191,9 @@ type Manager struct {
 	OnLaunch func(agent string)
 	// OnStartStall is told once, when starts for waiting work have failed often enough to stall the agent, with the last one's reason.
 	OnStartStall func(q db.Q, agent, why string)
+	// WhatChanged is what the next launch's settings change from the session before, as a person reads it ("model changed (opus-5-5 ->
+	// sonnet-5-5)"), for a restart's first line; nil or "" says nothing.
+	WhatChanged func(agent string) string
 	// LoadHeld is why the machine's load holds the daemon's own start of an agent, "" when it does not (loadgate); nil holds nothing.
 	LoadHeld func(agent string) string
 

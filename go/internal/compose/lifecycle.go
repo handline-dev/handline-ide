@@ -159,7 +159,7 @@ func (p *Parts) Lifecycle(cfg Config, lc LifecycleConfig) *Lifecycle {
 		Delivery: lc.Env, Handoff: hp, Term: termPort{tm}, Blocked: noBlocked{}, Launch: launchPort, Spawn: spawns,
 		Agents: agentsPort{home: home, roster: roster, accounts: accounts, env: lc.Env, usage: uenv}, Status: &lifecycle.StatusAdapter{Env: uenv, Q: q},
 		Observe: observer{p: p}, Typing: terminalLock{home: p.home}, TermRun: termRun{p}, Locks: p.Locks, OnLaunch: onLaunch,
-		LoadHeld: forWork, OnStartStall: tellLeadOfStall(home, lc.Env, cfg.Log)}
+		LoadHeld: forWork, OnStartStall: tellLeadOfStall(home, lc.Env, cfg.Log), WhatChanged: launcher.WhatChanged}
 	p.LC = &Lifecycle{Manager: m, Spawns: spawns, Launch: launcher, Handoff: ho, Env: lc.Env, Gate: gate, usage: uenv, roster: roster, term: tm}
 	hp.limit = tickUsage{roster: roster}.ContextLimit
 	hp.mover = func() *lifecycle.Mover { return p.LC.Mover }
