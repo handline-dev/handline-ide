@@ -1,4 +1,6 @@
 import { after, test } from 'node:test';
+import type { spawn } from 'node:child_process';
+import { EventEmitter } from 'node:events';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -12,20 +14,31 @@ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'hl-ed-'));
 after(() => fs.rmSync(tmp, { recursive: true, force: true }));
 const bin = path.join(tmp, 'bin');
 fs.mkdirSync(bin);
-const script = (name: string, body: string) => {
+// Editors run in-process; the files exist only for the PATH lookup. The process-group cancel test spawns a real one.
+type Edit = (file: string) => Promise<number>;
+const editors = new Map<string, Edit>();
+const script = (name: string, edit: Edit) => {
   const p = path.join(bin, name);
-  fs.writeFileSync(p, `#!/bin/sh\n${body}\n`, { mode: 0o755 });
+  fs.writeFileSync(p, '#!/bin/sh\n', { mode: 0o755 });
+  editors.set(p, edit);
   return p;
 };
-const appends = script('appends', 'echo "added" >> "$1"; sleep 0.05');
-const quick = script('quick', 'exit 0');
-const fails = script('fails', 'exit 1');
-const slow = script('slow', 'sleep 30');
-const symlinks = script('symlinks', 'rm "$1"; ln -s /etc/hosts "$1"; sleep 0.05');
-const big = script('big', 'head -c 300000 /dev/zero | tr "\\0" a >> "$1"; sleep 0.05');
-const spaced = path.join(bin, 'my editor');
-fs.writeFileSync(spaced, '#!/bin/sh\necho spaced >> "$1"; sleep 0.05\n', { mode: 0o755 });
-const mk = (env: EditorEnv) => new Composer(ORIGIN, { env: async () => env, tmp });
+const appendLine = (line: string) => async (f: string) => (fs.appendFileSync(f, `${line}\n`), 0);
+const appends = script('appends', appendLine('added'));
+const quick = script('quick', async () => 0);
+const fails = script('fails', async () => 1);
+const slow = path.join(bin, 'slow');
+fs.writeFileSync(slow, '#!/bin/sh\nsleep 30\n', { mode: 0o755 });
+const symlinks = script('symlinks', async (f) => (fs.rmSync(f), fs.symlinkSync('/etc/hosts', f), 0));
+const big = script('big', async (f) => (fs.appendFileSync(f, 'a'.repeat(300000)), 0));
+const spaced = script('my editor', appendLine('spaced'));
+let pids = 1000;
+const fakeSpawn = ((file: string, args: string[]) => {
+  const child = Object.assign(new EventEmitter(), { pid: ++pids });
+  void editors.get(file)!(args.at(-1)!).then((c) => child.emit('exit', c));
+  return child;
+}) as unknown as typeof spawn;
+const mk = (env: EditorEnv) => new Composer(ORIGIN, { env: async () => env, tmp, spawn: fakeSpawn });
 const left = () => fs.readdirSync(tmp).filter((n) => n.startsWith('handline-'));
 const code = (r: { ok: boolean }) => (r.ok ? 'ok' : (r as unknown as { code: string }).code);
 
@@ -49,14 +62,22 @@ test('VISUAL wins over EDITOR; a quoted path with a space runs; arguments come b
 });
 
 test('the temp file is mode 0600 in a 0700 handline-* directory, named for the chosen extension, and holds only the text', async () => {
-  const out = path.join(tmp, 'probe.out');
-  const probe = script('probe', `ls -ld "$(dirname "$1")" "$1" > ${out}; cat "$1" >> ${out}; echo x >> "$1"; sleep 0.05`);
-  const r = await mk({ VISUAL: probe, PATH: '' }).compose(top, { text: 'secret', ext: 'txt' });
-  assert.equal(code(r), 'ok');
-  const [dir, file, ...body] = fs.readFileSync(out, 'utf8').split('\n');
-  assert.match(dir!, /^drwx------[@+]? .*\/handline-[^/]+$/);
-  assert.match(file!, /^-rw-------[@+]? .*\/compose\.txt$/);
-  assert.equal(body.join('\n').trim(), 'secret');
+  let seen = { dir: '', dirMode: 0, name: '', mode: 0, body: '' };
+  const probe = script('probe', async (f) => {
+    const d = path.dirname(f);
+    seen = {
+      dir: path.basename(d),
+      dirMode: fs.statSync(d).mode & 0o777,
+      name: path.basename(f),
+      mode: fs.statSync(f).mode & 0o777,
+      body: fs.readFileSync(f, 'utf8'),
+    };
+    fs.appendFileSync(f, 'x');
+    return 0;
+  });
+  assert.equal(code(await mk({ VISUAL: probe, PATH: '' }).compose(top, { text: 'secret', ext: 'txt' })), 'ok');
+  assert.match(seen.dir, /^handline-/);
+  assert.deepEqual([seen.dirMode, seen.name, seen.mode, seen.body], [0o700, 'compose.txt', 0o600, 'secret']);
 });
 
 test('an editor that returns at once with the file unchanged is not_waiting; one that exits 1 is editor_failed', async () => {
@@ -81,7 +102,7 @@ test('the first word is found on the PATH the shell was given, and not on anothe
 });
 
 test('a second compose while one runs is busy; cancelCompose kills the editor and the compose settles cancelled; the directory is removed', async () => {
-  const c = mk({ VISUAL: slow, PATH: '' });
+  const c = new Composer(ORIGIN, { env: async () => ({ VISUAL: slow, PATH: '' }), tmp });
   const first = c.compose(top, { text: 'a' });
   await new Promise((r) => setTimeout(r, 200));
   assert.equal(c.running, true);
@@ -133,17 +154,18 @@ test('a cancel with no editor open does nothing, so the next compose is not canc
 });
 
 test('a cancel while the compose is still being set up stops the editor from starting', async () => {
-  const marker = path.join(tmp, 'started');
-  const touch = script('touch-marker', `touch ${marker}; sleep 0.05`);
+  let started = false;
+  const touch = script('touch-marker', async () => ((started = true), 0));
   const c = new Composer(ORIGIN, {
     env: async () => (await new Promise((r) => setTimeout(r, 150)), { VISUAL: touch, PATH: '' }),
     tmp,
+    spawn: fakeSpawn,
   });
   const first = c.compose(top, { text: 'a' });
   await new Promise((r) => setTimeout(r, 30));
   assert.deepEqual(await c.cancel(top, undefined), { ok: true });
   assert.equal(code(await first), 'cancelled');
-  assert.equal(fs.existsSync(marker), false);
+  assert.equal(started, false);
   assert.deepEqual(left(), []);
 });
 
