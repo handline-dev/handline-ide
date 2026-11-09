@@ -7,8 +7,8 @@ import (
 	"strings"
 )
 
-// pyRepr is Python's repr of a plain string, for the messages that quote one.
-func pyRepr(s string) string {
+// PyRepr is Python's repr of a plain string, for the messages that quote one.
+func PyRepr(s string) string {
 	q := "'"
 	if strings.Contains(s, "'") && !strings.Contains(s, `"`) {
 		q = `"`
@@ -40,7 +40,7 @@ func pyRepr(s string) string {
 func pyList(keys []string) string {
 	parts := make([]string, len(keys))
 	for i, k := range keys {
-		parts[i] = pyRepr(k)
+		parts[i] = PyRepr(k)
 	}
 	return "[" + strings.Join(parts, ", ") + "]"
 }

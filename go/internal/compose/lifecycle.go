@@ -123,7 +123,13 @@ func (p *Parts) Lifecycle(cfg Config, lc LifecycleConfig) *Lifecycle {
 	// A launch a terminal's own `hl launch` asks for is built and recorded here (session.launch_prepare), so it joins the team's Run and
 	// is refused from a pane stamped for another agent the way the daemon's own starts are.
 	launcher.Ports.RegisterWorker = func(agent, handle string) error { _, err := spawns.RegisterWorker(agent, handle); return err }
-	launcher.Ports.PaneAgent = func(handle string) string { a, _ := agenthost.Tmux(home).PaneAgent(handle); return a }
+	launcher.Ports.PaneAgent = func(handle string) string {
+		if h, ok := agenthost.Tmux(home).(term.PaneAgenter); ok {
+			a, _ := h.PaneAgent(handle)
+			return a
+		}
+		return ""
+	}
 	waiting := func(q db.Q, agent string) bool {
 		head, err := lc.Env.EffectiveHead(q, agent)
 		if err != nil || head != nil {

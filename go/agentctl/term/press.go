@@ -1,6 +1,7 @@
 package term
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -267,7 +268,7 @@ func (t *Term) AnswerConfirmation(handle string, yes bool, seen []string, sameWa
 		switch {
 		case found == nil:
 			refused = "the screen is not a permission prompt the daemon recognizes"
-		case !equalRows(found.Lines, seen) || (sameWait != nil && !sameWait()):
+		case !slices.Equal(found.Lines, seen) || (sameWait != nil && !sameWait()):
 			refused = "the prompt is not the one that was answered"
 		default:
 			if yes {
@@ -421,7 +422,7 @@ func (t *Term) AnswerQuestion(handle string, seen []string, choices []int, text 
 	if found == nil {
 		return NotPressed, "", NoDialog
 	}
-	if !equalRows(found.Lines, seen) {
+	if !slices.Equal(found.Lines, seen) {
 		return NotPressed, found.Header, "the question is not the one that was answered"
 	}
 	if len(choices) > 0 && text != nil && found.MultiSelect {
