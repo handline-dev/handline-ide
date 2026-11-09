@@ -116,6 +116,11 @@ func (e *Env) shellOpen(_ *rpc.Conn, params map[string]any) (any, error) {
 		}
 		for _, r := range prev {
 			if h, ok := e.Backend().(term.Host); ok && r.Block == block.String() && ended[r.Terminal].Tag == r.Tag() {
+				if r.State == "running" { // ended first: a settle between the close and the new run would tell the agent it was stopped
+					if err := cmdruns.Replaced(e.DB, r, cmdruns.Now()); err != nil {
+						return nil, err
+					}
+				}
 				h.CloseTerminal(r.Terminal, true)
 			}
 		}

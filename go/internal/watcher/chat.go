@@ -196,12 +196,12 @@ func (c *Chat) tell(emit Emit, req *reads.ChatRequest) error {
 // look says nothing.
 func (c *Chat) runs(q *sql.DB, emit Emit) error {
 	if c.Panes != nil {
-		tell := func(tx db.Q, r cmdruns.Run) error {
+		tell := func(r cmdruns.Run) func(db.Q) error {
 			var tail []string
 			if r.Agent != "" && r.Exit != nil && c.Tail != nil {
 				tail = c.Tail(r.Terminal, cmdruns.TailRows)
 			}
-			return cmdruns.Tell(tx, r, tail)
+			return func(tx db.Q) error { return cmdruns.Tell(tx, r, tail) }
 		}
 		if err := cmdruns.Settle(q, c.Panes(), cmdruns.Now(), tell); err != nil {
 			return err
