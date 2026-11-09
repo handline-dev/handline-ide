@@ -2,7 +2,6 @@ import type { Task } from '@handline/client';
 import { foundersTurn, turnChain } from '@handline/app-core';
 import { classify, sentence, useGiveBack, useTasks } from '@handline/app-data';
 import { useMe } from '@handline/app-react';
-import { useState } from 'react';
 import { ago } from '#src/format/time.ts';
 import { taskOf } from '#src/layout/kinds.tsx';
 import { openProps, useOpenTab } from '#src/layout/openTab.tsx';
@@ -10,6 +9,7 @@ import { Page } from '#src/ui/Page.tsx';
 import { ScrollFade } from '#src/ui/ScrollFade.tsx';
 import { failedLine, look } from '#src/ui/taskLook.tsx';
 import { toast } from '#src/ui/toast.tsx';
+import { useTabState } from '#src/persist/tabState.ts';
 
 type Show = 'open' | 'draft' | 'closed';
 
@@ -23,8 +23,8 @@ const GROUPS: { title: string; has: (t: Task) => boolean }[] = [
 /** The tasks: open ones grouped by what they are doing, drafts, or the closed ones; in an agent's pane, that agent's by default.
  * A row opens the task in this pane, Cmd+click beside. */
 export function TasksTab({ agent }: { agent: string | null }) {
-  const [show, setShow] = useState<Show>('open');
-  const [only, setOnly] = useState(true);
+  const [show, setShow] = useTabState<Show>('show', 'open');
+  const [only, setOnly] = useTabState('only', true);
   const owner = agent && only ? agent : undefined;
   const q = useTasks(show === 'closed' ? { state: 'closed', order: 'closed', owner } : { state: show, owner });
   const items = q.data?.items ?? [];

@@ -45,6 +45,7 @@ import { Page } from '#src/ui/Page.tsx';
 import { toast } from '#src/ui/toast.tsx';
 import { useScrollFade } from '#src/ui/ScrollFade.tsx';
 import { useNow } from '#src/format/time.ts';
+import { useTabState } from '#src/persist/tabState.ts';
 
 /** An agent's chat: its lines, and the box to write in. The box is there from the first moment; the lines wait, as a skeleton,
  * until the messages and the transcript are both read (a suspense boundary), so the chat appears whole. */
@@ -85,9 +86,8 @@ export function Chat({ agent }: { agent: string }) {
     marked.current = addMarked;
   });
   useEffect(() => takeToChat(agent, (m) => marked.current(m)), [agent]);
-  // The message the next one replies to, picked by Reference or Quote; for this chat only.
-  const [picked, setPicked] = useState<(Reply & { agent: string }) | null>(null);
-  const reply = picked?.agent === agent ? picked : null;
+  // The message the next one replies to, picked by Reference or Quote.
+  const [reply, setReply] = useTabState<Reply | null>('reply', null);
   // The stream's scroll hears of a send through this, once the stream is drawn.
   const stream = useRef<{ sent: () => void }>(null);
   const loading = (
@@ -113,7 +113,7 @@ export function Chat({ agent }: { agent: string }) {
           )}
         >
           <MarkReply.Provider value={addMarked}>
-            <Stream ref={stream} agent={agent} onReply={(r) => setPicked({ ...r, agent })} />
+            <Stream ref={stream} agent={agent} onReply={(r) => setReply(r)} />
           </MarkReply.Provider>
         </Boundary>
       ) : (
@@ -137,7 +137,7 @@ export function Chat({ agent }: { agent: string }) {
               <div role="status" className="-ml-2 flex min-w-0 items-center gap-1.5 text-xs text-muted">
                 <CornerDownRight size={14} className="ml-1 shrink-0" />
                 <span className="min-w-0 flex-1 truncate">Replying to: {(reply.quote ?? reply.text).replace(/\s+/g, ' ')}</span>
-                <IconButton className="size-6!" label="Drop the reply" onClick={() => setPicked(null)}>
+                <IconButton className="size-6!" label="Drop the reply" onClick={() => setReply(null)}>
                   <X size={14} />
                 </IconButton>
               </div>
@@ -151,7 +151,7 @@ export function Chat({ agent }: { agent: string }) {
               ...(task ? { task } : {}),
               ...(to?.kind === 'message' ? { parent: to.id, quote: to.quote } : to ? { parent_item: to.id } : {}),
             });
-            setPicked(null);
+            setReply(null);
             stream.current?.sent();
           }}
         />
