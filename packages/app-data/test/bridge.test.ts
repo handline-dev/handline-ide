@@ -95,6 +95,14 @@ describe('tasks and inbox', () => {
     expect(ids(open)).toEqual([12, 9]);
     for (const k of [open, all, doing]) expect(stale(k)).toBe(false);
   });
+  it('a list read by number keeps its task when it closes, and takes in no other', () => {
+    const some = [...qk.tasks(D), { ids: [7] }];
+    qc.setQueryData(some, { items: [task(7)], more: false });
+    applyEvent(c, ev('task.changed', task(7, 'done'), { topic: 'tasks' }));
+    expect(qc.getQueryData<{ items: { state: string }[] }>(some)!.items.map((t) => t.state)).toEqual(['done']);
+    applyEvent(c, ev('task.changed', task(12), { topic: 'tasks' }));
+    expect(ids(some)).toEqual([7]);
+  });
   it("task.changed reads that task's detail again, for a body the row does not carry, and only that task's", () => {
     qc.setQueryData(qk.task(D, 7), { ...task(7), body: 'old' });
     qc.setQueryData(qk.task(D, 8), { ...task(8), body: 'b' });

@@ -123,13 +123,15 @@ type TaskFilter = {
   under?: number;
   before?: number;
   all?: boolean;
+  ids?: number[];
   limit?: number;
 };
 type TaskPage = { items: Task[]; more?: boolean };
 const isPage = (x: unknown): x is TaskPage => typeof x === 'object' && x !== null && Array.isArray((x as TaskPage).items);
 
-/** Whether a list read with `f` holds `t`: the default list is the open tasks, `all` adds the done and discarded. */
+/** Whether a list read with `f` holds `t`: the default list is the open tasks, `all` adds the done and discarded; a read by `ids` holds exactly those, closed or not. */
 function listHolds(f: TaskFilter, t: Task): boolean {
+  if (f.ids) return f.ids.includes(t.id);
   const closed = t.state === 'done' || t.state === 'discarded';
   return (
     (f.all || f.state !== undefined || !closed) &&

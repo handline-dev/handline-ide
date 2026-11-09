@@ -174,28 +174,34 @@ const taskNotice = (e: TimelineEntry | Turn, agent: string, me: string) =>
   e.message.tasks.length > 0 &&
   (e.message.from === agent ? !isPerson(e.message.to, me) : e.message.to === agent && !isPerson(e.message.from, me));
 
+/** Whether a notice says a task was handed on, or made and given. */
+const noticeKind = (body: string) => (/^T\d+\s+handed\b/i.test(body) ? 'handoff' : 'add');
+
+/** A run of task rows as one card. `id`, its React key, names the line before it, so the card changes in place as rows join or give way to
+    their notice; `key` names its newest notice, so the reader's line is found again when an older page lands. */
+type Card = { id: string; key: string; events: TaskEvent[] };
+
 /** The entries, with each run of task notices gathered into one card's rows. */
-function runs(
-  entries: (TimelineEntry | Turn)[],
-  agent: string,
-  me: string,
-  live: TaskEvent[] = [],
-): (TimelineEntry | Turn | { key: string; events: TaskEvent[] })[] {
-  const out: (TimelineEntry | Turn | { key: string; events: TaskEvent[] })[] = [];
+function runs(entries: (TimelineEntry | Turn)[], agent: string, me: string, live: TaskEvent[] = []): (TimelineEntry | Turn | Card)[] {
+  const out: (TimelineEntry | Turn | Card)[] = [];
   // Task changes heard while the chat is open go in by their time, joining a card next to them, so they scroll up as talk goes on.
-  // A task made and given arrives twice, live and as the notice message: the notice's row is the one kept.
+  // A task made and given, or handed on, arrives twice, live and as the notice message: the notice's row is the one kept.
   const noticed = new Set(
-    entries.flatMap((e) => (e.kind === 'message' && taskNotice(e, agent, me) ? e.message.tasks.map((t) => `T${t.id}`) : [])),
+    entries.flatMap((e) =>
+      e.kind === 'message' && taskNotice(e, agent, me)
+        ? e.message.tasks.map((t) => `${noticeKind(e.message.body)}:T${t.id}:${e.message.to}`)
+        : [],
+    ),
   );
   const heard = live
-    .filter((ev) => !(ev.kind === 'add' && noticed.has(ev.id)))
+    .filter((ev) => !noticed.has(`${ev.kind}:${ev.id}:${ev.to}`))
     .sort((a, b) => Date.parse(a.at ?? '') - Date.parse(b.at ?? ''));
   const add = (rows: TaskEvent[], key: string) => {
     const last = out.at(-1);
     if (last && 'events' in last) {
       last.events.push(...rows);
       last.key = key;
-    } else out.push({ key, events: rows });
+    } else out.push({ id: `tasks:after:${last ? `${last.kind}:${last.id}` : ''}`, key, events: rows });
   };
   const until = (at: string) => {
     while (heard.length && Date.parse(heard[0]!.at ?? '') <= Date.parse(at)) {
@@ -223,7 +229,7 @@ function runs(
     }
     const m = e.message;
     // A task handed on from another holder, or a new one made and given: said in words, its icon telling which.
-    const handed = /^T\d+\s+handed\b/i.test(m.body);
+    const handed = noticeKind(m.body) === 'handoff';
     // Given to this agent: where its work starts, from whom.
     const got = m.to === agent;
     const rows = m.tasks.map((t) => ({
@@ -234,7 +240,6 @@ function runs(
       detail: got ? `${handed ? 'Handed' : 'Assigned'} by ${m.from}` : handed ? `Handed to ${m.to}` : `Created and assigned to ${m.to}`,
       at: m.at,
     }));
-    // Keyed by its newest notice: an older page that lands on top joins the card without changing its key, so the reader's line is found again.
     add(rows, `tasks:${m.id}`);
   }
   until(new Date(8.64e15).toISOString());
@@ -330,7 +335,7 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
             {runs(foldTurns(entries), agent, me, tasks).map((r, i, all) =>
               'events' in r ? (
                 <motion.div
-                  key={r.key}
+                  key={r.id}
                   data-id={r.key}
                   initial={i <= known(all) ? false : { opacity: 0 }}
                   animate={{ opacity: 1 }}
