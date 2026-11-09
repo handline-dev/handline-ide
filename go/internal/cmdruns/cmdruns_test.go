@@ -30,7 +30,7 @@ func TestSettleEndsARunFromWhatItsWindowSays(t *testing.T) {
 	for i, c := range cases {
 		n := int64(i)
 		b := Block{Message: 7, N: n}
-		if _, err := Start(q, b, "%5", 1100); err != nil {
+		if _, err := Start(q, b, "%5", "", "", 1100); err != nil {
 			t.Fatal(err)
 		}
 		panes := map[string]term.PaneRun{}
@@ -41,7 +41,7 @@ func TestSettleEndsARunFromWhatItsWindowSays(t *testing.T) {
 			}
 			panes["%5"] = p
 		}
-		if err := Settle(q, panes, 2000); err != nil {
+		if _, err := Settle(q, panes, 2000); err != nil {
 			t.Fatal(err)
 		}
 		runs, err := Of(q, 7)
@@ -70,15 +70,15 @@ func TestACommandThatCannotBeAskedAboutKeepsItsRunAndARerunReplacesIt(t *testing
 	}
 	defer q.Close()
 	b := Block{Message: 3, N: 0}
-	Start(q, b, "%1", 100)
-	if err := Settle(q, nil, 500); err != nil { // tmux could not answer: nothing ended
+	Start(q, b, "%1", "", "", 100)
+	if _, err := Settle(q, nil, 500); err != nil { // tmux could not answer: nothing ended
 		t.Fatal(err)
 	}
 	if runs, _ := Of(q, 3); len(runs) != 1 || runs[0].State != "running" {
 		t.Fatalf("%+v", runs)
 	}
-	Start(q, b, "%2", 600)
-	Start(q, Block{Message: 3, N: 1}, "%3", 550)
+	Start(q, b, "%2", "", "", 600)
+	Start(q, Block{Message: 3, N: 1}, "%3", "", "", 550)
 	runs, _ := Of(q, 3)
 	if len(runs) != 2 || runs[0].Block != "3:1" || runs[1].Terminal != "%2" {
 		t.Fatalf("a rerun is the block's last run, oldest start first: %+v", runs)
@@ -97,8 +97,8 @@ func TestAnEndedRunIsDroppedAfterThirtyDays(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer q.Close()
-	Start(q, Block{Message: 5, N: 0}, "%1", 1000)
-	Start(q, Block{Message: 5, N: 1}, "%2", 1000)
+	Start(q, Block{Message: 5, N: 0}, "%1", "", "", 1000)
+	Start(q, Block{Message: 5, N: 1}, "%2", "", "", 1000)
 	Settle(q, map[string]term.PaneRun{"%1": {Tag: "5:0@1000", Dead: true, DeadTime: 1005}, "%2": {Tag: "5:1@1000"}}, 1010)
 	Settle(q, map[string]term.PaneRun{"%2": {Tag: "5:1@1000"}}, 1005+keep)
 	if runs, _ := Of(q, 5); len(runs) != 2 {
@@ -117,7 +117,7 @@ func TestADeadWindowWithNoEndTimeEndsNow(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer q.Close()
-	Start(q, Block{Message: 2, N: 0}, "%1", 1000)
+	Start(q, Block{Message: 2, N: 0}, "%1", "", "", 1000)
 	Settle(q, map[string]term.PaneRun{"%1": {Tag: "2:0@1000", Dead: true, Status: 2}}, 1007)
 	if runs, _ := Of(q, 2); len(runs) != 1 || runs[0].Ended != 1007 || runs[0].Seconds() != 7 || runs[0].State != "failed" {
 		t.Fatalf("%+v", runs)
@@ -155,10 +155,10 @@ func TestAReplyItemsBlockIsKeptApartFromAMessagesOfTheSameID(t *testing.T) {
 	if m, _ := ParseBlock("7:2"); m.Reply || m.String() != "7:2" {
 		t.Fatalf("a message's block: %+v", m)
 	}
-	if _, err := Start(q, b, "%1", 100); err != nil {
+	if _, err := Start(q, b, "%1", "", "", 100); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Start(q, Block{Message: 7, N: 2}, "%2", 200); err != nil {
+	if _, err := Start(q, Block{Message: 7, N: 2}, "%2", "", "", 200); err != nil {
 		t.Fatal(err)
 	}
 	var key string
@@ -175,7 +175,7 @@ func TestAReplyItemsBlockIsKeptApartFromAMessagesOfTheSameID(t *testing.T) {
 		t.Fatalf("the message's runs: %+v %v", msgs, err)
 	}
 	// Block 0 sorts first by name but started later: the runs go by start.
-	if _, err := Start(q, Block{Message: 7, N: 0, Reply: true}, "%3", 300); err != nil {
+	if _, err := Start(q, Block{Message: 7, N: 0, Reply: true}, "%3", "", "", 300); err != nil {
 		t.Fatal(err)
 	}
 	all, err := Replies(q)

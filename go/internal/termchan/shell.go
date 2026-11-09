@@ -38,6 +38,14 @@ func (e *Env) PaneRuns() map[string]term.PaneRun {
 	return nil
 }
 
+// Tail is the last rows a run window shows of its command's output (term.Runs.RunOutput); nil when the host cannot say.
+func (e *Env) Tail(handle string, rows int) []string {
+	if r, ok := e.Backend().(term.Runs); ok {
+		return r.RunOutput(handle, rows)
+	}
+	return nil
+}
+
 // shellOf is the agent a shell pane was opened beside, "" for any other pane.
 func (e *Env) shellOf(handle string) string {
 	if s, ok := e.shells(); ok {
@@ -130,7 +138,7 @@ func (e *Env) shellOpen(_ *rpc.Conn, params map[string]any) (any, error) {
 		started := cmdruns.Now()
 		handle, why = runner.CreateRun(cwd, name+"-run", name, cmdruns.Run{Block: block.String(), Started: started}.Tag(), command)
 		if handle != "" {
-			if _, err := cmdruns.Start(e.DB, block, handle, started); err != nil {
+			if _, err := cmdruns.Start(e.DB, block, handle, name, command, started); err != nil {
 				return nil, err
 			}
 		}

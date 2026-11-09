@@ -48,6 +48,8 @@ func (d dynamic) PaneShell(handle string) (string, bool) {
 type Runs interface {
 	CreateRun(cwd, title, agent, tag, command string) (handle, why string)
 	PaneRuns() map[string]PaneRun
+	// RunOutput is the last rows a run's window shows of what its command printed; nil when the host cannot say.
+	RunOutput(handle string, rows int) []string
 }
 
 func (d dynamic) CreateRun(cwd, title, agent, tag, command string) (string, string) {
@@ -60,6 +62,13 @@ func (d dynamic) CreateRun(cwd, title, agent, tag, command string) (string, stri
 func (d dynamic) PaneRuns() map[string]PaneRun {
 	if h, ok := d.cur().(Runs); ok {
 		return h.PaneRuns()
+	}
+	return nil
+}
+
+func (d dynamic) RunOutput(handle string, rows int) []string {
+	if h, ok := d.cur().(Runs); ok {
+		return h.RunOutput(handle, rows)
 	}
 	return nil
 }

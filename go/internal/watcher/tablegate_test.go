@@ -227,7 +227,7 @@ func TestChatIsPendingWhileACommandRunIsOpen(t *testing.T) {
 	if c.Pending() {
 		t.Fatal("pending with no run")
 	}
-	run, err := cmdruns.Start(r.d, cmdruns.Block{Message: 1, N: 0}, "%4", started)
+	run, err := cmdruns.Start(r.d, cmdruns.Block{Message: 1, N: 0}, "%4", "", "", started)
 	if err != nil {
 		t.Fatal(err)
 	}
