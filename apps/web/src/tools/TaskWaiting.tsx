@@ -75,8 +75,12 @@ export function WaitingOnYou({
   );
 }
 
-/** The founder's turn is the task's one question: the ask, an "edited" mark with older texts folded under it, and Give back. */
-export function YourTurn({ t, onDone, onShow }: { t: TaskDetail; onDone: () => void; onShow: () => void }) {
+/** The choices an ask lays out, one a line: "A) ...", "B. ...", "1: ...". */
+export const choices = (ask: string) => [...ask.matchAll(/^\s*([A-D1-4])[).:]\s+(.+)$/gm)].map((m) => ({ key: m[1]!, text: m[2]!.trim() }));
+
+/** The founder's turn is the task's one question: the ask, an "edited" mark with older texts folded under it, and Give back.
+ * A click on the question answers it in the comment box below (onReply). */
+export function YourTurn({ t, onDone, onShow, onReply }: { t: TaskDetail; onDone: () => void; onShow: () => void; onReply: () => void }) {
   const back = useGiveBack();
   const turn = t.turns?.at(-1);
   const earlier = turn?.earlier ?? [];
@@ -107,7 +111,16 @@ export function YourTurn({ t, onDone, onShow }: { t: TaskDetail; onDone: () => v
             </button>
           )}
         </span>
-        {turn?.ask && <span className="whitespace-pre-wrap">{turn.ask}</span>}
+        {turn?.ask && (
+          <button
+            type="button"
+            title="Answer it"
+            onClick={onReply}
+            className="-mx-2 rounded-md px-2 py-1 text-left whitespace-pre-wrap hover:bg-warning/10"
+          >
+            {turn.ask}
+          </button>
+        )}
       </span>
       <button type="button" onClick={give} className="shrink-0 rounded-md px-2 py-1 text-sm font-medium hover:bg-hover/30">
         Give back
