@@ -1,7 +1,6 @@
 import { activityOf, foundersTurn, taskOutcome, isPerson, turnChain, isSystem, type ActivityItem } from '@handline/app-core';
 import { hooks, useTaskHistory, useWrite } from '@handline/app-data';
 import { useMe } from '@handline/app-react';
-import type { TaskDetail } from '@handline/client';
 import {
   Check,
   Eye,
@@ -32,7 +31,7 @@ import { HoverCard } from '#src/ui/HoverCard.tsx';
 import { Fields } from '#src/tools/TaskFields.tsx';
 import { GO_TURN, goToTurn, showMemo } from '#src/tools/TaskTurn.ts';
 import { showHistory } from '#src/tools/TaskDiff.tsx';
-import { CommentBox } from '#src/tools/TaskComment.tsx';
+import { CommentBox, type Reply } from '#src/tools/TaskComment.tsx';
 import { useAttachments } from '#src/chat/attachments.tsx';
 import { FileDropArea } from '#src/ui/fileDrop.tsx';
 import { WaitingOnYou, YourTurn } from '#src/tools/TaskWaiting.tsx';
@@ -49,7 +48,7 @@ export function TaskTab({ id }: { id: number }) {
   const q = hooks.useTaskGet({ task: id });
   const me = useMe();
   // The comment the box below answers, picked by Reply or a comment's Reference.
-  const [replyTo, setReplyTo] = useState<TaskDetail['memos'][number] | null>(null);
+  const [replyTo, setReplyTo] = useState<Reply | null>(null);
   // Files dropped anywhere on the task go with the next comment, as in the chat.
   const attach = useAttachments(`task:${id}`);
   // Going to the task's turn: the Your turn click, and a request-list click that left a mark (ui/keptScroll) before opening the task.
@@ -124,7 +123,7 @@ export function TaskTab({ id }: { id: number }) {
             {open && (mine || why || t.blockers.length > 0) && (
               <div data-turn-slot className="flex flex-col gap-1 rounded-lg bg-warning/10 px-3 py-2 text-sm transition-colors">
                 {mine ? (
-                  <YourTurn t={t} onDone={() => void q.refetch()} onShow={() => goToTurn(t)} />
+                  <YourTurn t={t} reply={replyTo} onDone={() => void q.refetch()} onReply={setReplyTo} />
                 ) : asked ? (
                   <WaitingOnYou t={t} me={me} asked={asked} onDone={() => void q.refetch()} onShow={() => showMemo(asked.id)} />
                 ) : (
