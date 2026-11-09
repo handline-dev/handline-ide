@@ -86,7 +86,7 @@ export class TaskComments extends TaskStore {
         title: t?.title ?? i.title,
         kind,
         source: i.task === null ? (i.kind === 'prompt' ? 'prompt' : 'comment') : 'task',
-        id: String(i.task ?? i.id),
+        id: String(i.task ?? (i.kind === 'prompt' && i.prompt ? i.prompt.id : i.id)), // a prompt row is named by its prompt, as the daemon names it
         agent: i.agent,
         ask: null,
         warning: null,
