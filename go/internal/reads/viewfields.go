@@ -56,8 +56,9 @@ func (e *Env) viewFields() (*viewFields, error) {
 	for _, t := range open {
 		owner, id := t.str("owner"), t.i("id")
 		state := b.state(t)
-		// Same rule as open_task_counts: a draft counts only as the task its owner holds.
-		if id == b.current[owner] || state != "draft" {
+		// The task the owner holds always counts; another counts when it is the owner's to act on now: not a draft, not on
+		// someone else's turn, not blocked.
+		if id == b.current[owner] || (state != "draft" && t.str("acting") == owner && !blocked[id]) {
 			f.taskCount[owner]++
 		}
 		if id == b.current[owner] && state == "queued" && !blocked[id] {

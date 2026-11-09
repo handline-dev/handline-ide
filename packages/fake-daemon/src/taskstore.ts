@@ -106,6 +106,16 @@ export class TaskStore {
     if (!t) throw new TaskFailure('not_found', `no task ${String(id)}`);
     return t;
   }
+  /** As the daemon's task_count: the task the agent holds, and its other open tasks that are its to act on now (not a draft, not on
+   * someone else's turn, not behind an open blocker). */
+  taskCount(agent: string, current: number | null): number {
+    return this.rows.filter(
+      (t) =>
+        t.to === agent &&
+        this.open(t.id) &&
+        (t.id === current || (t.state !== 'draft' && (t.acting ?? t.to) === t.to && !t.blockers.some((b) => this.open(b.task)))),
+    ).length;
+  }
   protected open(id: number): boolean {
     const t = this.rows.find((r) => r.id === id);
     return !!t && t.state !== 'done' && t.state !== 'discarded';

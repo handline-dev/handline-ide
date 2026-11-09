@@ -49,7 +49,7 @@ export class FakeDaemon {
   }
   readonly unservedTopics = new Set<Topic>(); // topics `subscribe` refuses, as a daemon that lacks the list does
   readonly inbox: FakeInbox;
-  readonly tasks = new FakeTasks(this, () => this.iso());
+  readonly tasks: FakeTasks = new FakeTasks(this, () => this.iso());
   /** The founder's requests (requests.list) and task.request / task.none; `requests.add` puts a row in. */
   readonly requests = new FakeRequests(this, () => this.iso());
   readonly accounts: FakeAccounts;
@@ -67,7 +67,7 @@ export class FakeDaemon {
   private timer: ReturnType<typeof setInterval> | null = null;
   readonly now: () => Date;
   readonly pairing = new FakePairing();
-  readonly script = new Script(scriptHost(this));
+  readonly script: Script = new Script(scriptHost(this));
 
   constructor(opts: FakeDaemonOptions = {}) {
     this.log = new EventLog(opts.retention ?? 1000);

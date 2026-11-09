@@ -6,10 +6,11 @@ import { Timeline } from '#src/timeline.ts';
 import { BANNER, PROMPT_LINES } from '#src/fixtures.ts';
 import { badRequest, refused } from '#src/errors.ts';
 import { outputFor, snapshotOf } from '#src/bytes.ts';
-import { row, tid, view, visible, type Session } from '#src/session.ts';
+import { row, tid, view, visible, type Session, type TaskCounter } from '#src/session.ts';
 
 export interface Host {
   iso(): Timestamp;
+  tasks: TaskCounter;
   sessions(): Map<string, Session>;
   /** A session's state changed from `from` (it is `s.state` now). */
   moved(s: Session, from: string): void;
@@ -86,7 +87,11 @@ export class ScriptCore {
     s.state = state;
     s.since = this.host.iso();
     if (from !== state) this.host.moved(s, from);
-    this.host.emit('agents', 'agent.changed', { agent: s.fx.name, actor, data: view(s) as unknown as Record<string, unknown> });
+    this.host.emit('agents', 'agent.changed', {
+      agent: s.fx.name,
+      actor,
+      data: view(s, this.host.tasks) as unknown as Record<string, unknown>,
+    });
   }
   /** Tells the terminal's watchers who holds the input now; the holder notice is the truth a pane follows. */
   holderChanged(s: Session): void {
