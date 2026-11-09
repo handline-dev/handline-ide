@@ -1,9 +1,9 @@
+import { isUnseen, turnKey } from '@handline/app-core';
 import { Bell } from 'lucide-react';
 import { useState, type RefObject } from 'react';
 import { goPage } from '#src/layout/openTab.tsx';
 import { useRequests } from '#src/requests/data.ts';
-import { isUnseen, RequestLine, TurnLine } from '#src/requests/rows.tsx';
-import { turnKey } from '#src/requests/RowMenu.tsx';
+import { RequestLine, TurnLine } from '#src/requests/rows.tsx';
 import { Popover } from '#src/ui/Popover.tsx';
 
 const SHOWN = 5;

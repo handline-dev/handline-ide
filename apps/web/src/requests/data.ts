@@ -1,13 +1,9 @@
-import { laterHolds, navOf, type LaterAt } from '@handline/app-core';
+import { laterHolds, laterKey, navOf, type LaterAt } from '@handline/app-core';
 import { hooks, useFeed, usePrefs } from '@handline/app-data';
 import type { PendingRequest, RequestRow } from '@handline/client';
 import { useNow } from '#src/format/time.ts';
 
 const FINISHED = new Set<RequestRow['status']>(['done', 'no_work']);
-
-/** The For you key a row of the founder's turn is put off under (NavPrefs.later), or null for one that cannot be. */
-export const laterKey = (p: PendingRequest): string | null =>
-  p.source && p.id && p.source !== 'prompt' && p.source !== 'proposal' ? `${p.source}:${p.id}` : null;
 
 /** The founder's requests in the three sections of the Requests view and the bell: their turn, in progress, finished. `count` is the
  * one number the bell and the sidebar's Requests show (requests.pending's answer). */

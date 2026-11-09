@@ -1,4 +1,5 @@
 // Later: the person puts an item of Requests off until a time or until a task is done (NavPrefs.later, by `kind:id` of the For you item). Pure.
+import type { PendingRequest } from '@handline/client';
 import type { Card } from '#src/my-turn.ts';
 import { taskRef } from '#src/tasks.ts';
 
@@ -12,6 +13,10 @@ export function laterKeyOf(c: Pick<Card, 'kind' | 'task' | 'memo'>): string | nu
   if (c.memo != null) return `comment:${c.memo}`;
   return c.task != null ? `task:${c.task}` : null;
 }
+
+/** The same key of a row of the founder's turn (a row of requests.pending), or null for one that cannot be put off. */
+export const laterKey = (p: PendingRequest): string | null =>
+  p.source && p.id && p.source !== 'prompt' && p.source !== 'proposal' ? `${p.source}:${p.id}` : null;
 
 /** Whether the deferral still holds at `now`: its time is ahead, or its task is still open (`open` says which tasks are). */
 export const laterHolds = (l: LaterAt | null | undefined, now: number, open: (task: number) => boolean): boolean =>

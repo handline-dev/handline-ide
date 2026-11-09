@@ -1,9 +1,11 @@
 // Requests: the founder's turn, their requests in progress, and those finished. The bell's popover is a preview of this page.
 import { useEffect, type ReactNode } from 'react';
-import { laterWords } from '@handline/app-core';
+import { laterWords, listedRows, pickAllState, turnKey, unseenOf, type Picked } from '@handline/app-core';
+import { Eye } from 'lucide-react';
 import { useRequests } from '#src/requests/data.ts';
-import { BulkButtons, PickProvider, requestKey, turnKey, usePick } from '#src/requests/RowMenu.tsx';
+import { BulkButtons, PickProvider, usePick, useRowActions } from '#src/requests/RowMenu.tsx';
 import { RequestLine, TurnLine } from '#src/requests/rows.tsx';
+import { Button } from '#src/ui/Button.tsx';
 import { Page } from '#src/ui/Page.tsx';
 import { ScrollFade } from '#src/ui/ScrollFade.tsx';
 import { selectionRoom, WithSelectionBar } from '#src/ui/SelectionBar.tsx';
@@ -28,21 +30,51 @@ export function RequestsTab() {
   );
 }
 
+/** The list's head: a box that picks every row shown, and a way to clear away every finished row without picking. */
+function Head({ shown }: { shown: Picked[] }) {
+  const pick = usePick();
+  const act = useRowActions();
+  const unseen = unseenOf(shown);
+  const all = pick ? pickAllState(shown, pick.picked) : 'none';
+  return (
+    <div className="flex items-center gap-2.5 px-2">
+      {shown.length > 0 && (
+        <input
+          type="checkbox"
+          aria-label="Pick every row"
+          title="Pick every row"
+          checked={all === 'all'}
+          ref={(box) => {
+            if (box) box.indeterminate = all === 'some';
+          }}
+          onChange={() => (all === 'all' ? pick?.clear() : pick?.pickAll(shown))}
+          className="size-4 accent-accent"
+        />
+      )}
+      <h1 className="flex-1 text-lg font-semibold">Requests</h1>
+      {unseen.length > 0 && (
+        <Button variant="ghost" onClick={() => void act.seen(unseen)}>
+          <Eye size={14} />
+          Mark all finished seen
+        </Button>
+      )}
+    </div>
+  );
+}
+
 function Requests() {
   const r = useRequests();
   const pick = usePick();
   // A picked row that leaves the list (answered, or done elsewhere) is not picked any more.
-  const listed = [...r.turn, ...r.later.map((x) => x.p)]
-    .map(turnKey)
-    .concat([...r.doing, ...r.done].map(requestKey))
-    .join('|');
+  const shown = listedRows([...r.turn, ...r.later.map((x) => x.p)], [...r.doing, ...r.done]);
+  const listed = shown.map((x) => x.key).join('|');
   useEffect(() => pick?.keep(new Set(listed.split('|'))), [listed]); // eslint-disable-line react-hooks/exhaustive-deps
   const n = pick?.picked.size ?? 0;
   return (
     <WithSelectionBar count={n} onClear={() => pick?.clear()} actions={<BulkButtons />} className="flex-1">
       <ScrollFade keep="requests" className={`min-h-0 flex-1 ${selectionRoom(n)}`}>
         <Page className="flex flex-col gap-6 py-4 text-sm">
-          <h1 className="px-2 text-lg font-semibold">Requests</h1>
+          <Head shown={shown} />
           {r.failed && <p className="px-2 text-danger">Requests did not load.</p>}
           {r.loaded && (
             <>
