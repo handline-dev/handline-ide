@@ -11,11 +11,12 @@ import (
 	"github.com/handline/handline/go/agentctl/agent"
 	"github.com/handline/handline/go/agentctl/delivery"
 	"github.com/handline/handline/go/agentctl/term"
+	termfake "github.com/handline/handline/go/agentctl/term/fake"
 )
 
 type rig struct {
 	t         *testing.T
-	tm        term.Fake
+	tm        termfake.Fake
 	h         string
 	mu        sync.Mutex
 	delivered []string
@@ -29,7 +30,7 @@ func newRig(t *testing.T, prompt string) *rig {
 	for i, s := range argv {
 		quoted[i] = "'" + strings.ReplaceAll(s, "'", `'"'"'`) + "'"
 	}
-	r := &rig{t: t, tm: term.Fake{Place: term.Place{Key: t.TempDir()}}}
+	r := &rig{t: t, tm: termfake.Fake{Place: term.Place{Key: t.TempDir()}}}
 	h, why := r.tm.CreateTerminal("exec "+strings.Join(quoted, " "), t.TempDir(), "x", "f.one")
 	if h == "" {
 		t.Fatal(why)

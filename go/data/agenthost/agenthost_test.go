@@ -48,10 +48,10 @@ func TestAScratchDaemonNeverReachesTheLiveTmuxServer(t *testing.T) {
 	home := t.TempDir()
 	for _, sock := range []string{"", "handline"} {
 		t.Setenv("HANDLINE_TMUX_SOCKET", sock)
-		tm := agenthost.Current(home).(term.Tmux)
+		tm := agenthost.Current(home)
 		tm.ListTerminals()
-		tm.CreateTerminal("hl launch alice", home, "alice", "alice")
-		for _, argv := range [][]string{tm.ControlCommand(), tm.AttachCommand()} {
+		tm.(term.Host).CreateTerminal("hl launch alice", home, "alice", "alice")
+		for _, argv := range [][]string{tm.(term.ControlSpawner).ControlCommand(), tm.(term.Attacher).AttachCommand()} {
 			if argv[1] != "-L" || argv[2] == "handline" {
 				t.Errorf("socket %q: %q", sock, argv)
 			}
@@ -71,7 +71,7 @@ func TestATerminalNamesTheDaemonsHomeNotTheEnvironments(t *testing.T) {
 	live, home := filepath.Join(t.TempDir(), ".handline"), t.TempDir()
 	t.Setenv("HANDLINE_HOME", live)
 	t.Setenv("HANDLINE_TMUX_SOCKET", "")
-	if _, why := agenthost.Current(home).(term.Tmux).CreateTerminal("hl launch alice", home, "alice", "alice"); why != "" {
+	if _, why := agenthost.Current(home).(term.Host).CreateTerminal("hl launch alice", home, "alice", "alice"); why != "" {
 		t.Fatal(why)
 	}
 	made := calls(t, log)[1]

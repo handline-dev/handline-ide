@@ -1,6 +1,10 @@
-package term
+//go:build !windows
+
+package tmux
 
 import (
+	"github.com/handline/handline/go/agentctl/term"
+
 	"os/exec"
 	"path/filepath"
 	"testing"
@@ -11,7 +15,7 @@ func TestPaneRunsOfNoServerIsEmptyNotUnknown(t *testing.T) {
 	if _, err := exec.LookPath("tmux"); err != nil {
 		t.Skip("no tmux")
 	}
-	got := Tmux{Place{Socket: "agentctl-test-" + filepath.Base(t.TempDir())}}.PaneRuns()
+	got := Tmux{term.Place{Socket: "agentctl-test-" + filepath.Base(t.TempDir())}}.PaneRuns()
 	if got == nil || len(got) != 0 {
 		t.Fatalf("%v", got)
 	}

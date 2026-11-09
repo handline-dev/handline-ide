@@ -1,11 +1,14 @@
 //go:build fakes
 
-package term
+package fake
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/handline/handline/go/agentctl/term"
 )
 
 func waitScreen(t *testing.T, f Fake, h, want string) []string {
@@ -21,13 +24,13 @@ func waitScreen(t *testing.T, f Fake, h, want string) []string {
 
 func TestAFakePaneRunsTheCommandInAShellAndShowsWhatItPrints(t *testing.T) {
 	home := t.TempDir()
-	b := ForName("fake", Place{Key: home, Env: []string{"HANDLINE_HOME=" + home}})
+	b := term.Backend(Fake{term.Place{Key: home, Env: []string{"HANDLINE_HOME=" + home}}})
 	f, ok := b.(Fake)
 	if !ok || b.Name() != "fake" || !b.Available() {
 		t.Fatalf("fake: %#v", b)
 	}
 	h, why := f.CreateTerminal(`printf 'home %s\n' "$HANDLINE_HOME"; while read -r l; do printf 'got %s\n' "$l"; done`, home, "t", "a.one")
-	if !paneRE.MatchString(h) || why != "" {
+	if !regexp.MustCompile(`^%\d+$`).MatchString(h) || why != "" {
 		t.Fatalf("%q %q", h, why)
 	}
 	waitScreen(t, f, h, "home "+home)
@@ -55,7 +58,7 @@ func TestAFakePaneRunsTheCommandInAShellAndShowsWhatItPrints(t *testing.T) {
 	if ok, _ := f.Send(h, "x", true); ok {
 		t.Fatal("typing into a closed pane")
 	}
-	if ForName("fake", Place{Key: t.TempDir()}).ListTerminals()[h] {
+	if (Fake{term.Place{Key: t.TempDir()}}).ListTerminals()[h] {
 		t.Fatal("panes are per key")
 	}
 }

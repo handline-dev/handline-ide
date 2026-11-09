@@ -1,6 +1,7 @@
 //go:build fakes
 
-package term
+// Package fake is the terminal host of the fakes build.
+package fake
 
 import (
 	"io"
@@ -11,13 +12,13 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/handline/handline/go/agentctl/term"
 )
 
 // Fake is the terminal host of the fakes build (HANDLINE_TERMINAL=fake): each pane is a real sh, so what runs in it has a pid the
 // session checks can see, read from its pipes instead of a tmux screen. Its panes live in the program's process, keyed by Place.Key.
-type Fake struct{ Place }
-
-func init() { backends["fake"] = func(p Place) Backend { return Fake{p} } }
+type Fake struct{ term.Place }
 
 type fakePane struct {
 	mu          sync.Mutex
@@ -66,7 +67,7 @@ func (f Fake) ListTerminals() map[string]bool {
 }
 
 // ReadScreen is the bottom limit lines of what the pane printed; a last line with no newline yet (a prompt) is one of them.
-func (f Fake) ReadScreen(handle string, limit int) *Screen {
+func (f Fake) ReadScreen(handle string, limit int) *term.Screen {
 	p := f.pane(handle)
 	if p == nil {
 		return nil
@@ -78,13 +79,13 @@ func (f Fake) ReadScreen(handle string, limit int) *Screen {
 	if limit > 0 && len(lines) > limit {
 		lines = lines[len(lines)-limit:]
 	}
-	return &Screen{Tail: lines, Source: "screen"}
+	return &term.Screen{Tail: lines, Source: "screen"}
 }
 
 func (f Fake) Send(handle, text string, enter bool) (bool, string) {
 	p := f.pane(handle)
 	if p == nil {
-		return false, "no fake pane " + pyRepr(handle)
+		return false, "no fake pane " + term.PyRepr(handle)
 	}
 	if enter {
 		text += "\n"
@@ -179,7 +180,7 @@ func (f Fake) CloseTerminal(handle string, _ bool) (bool, string) {
 	delete(f.panes(), handle)
 	fakeMu.Unlock()
 	if p == nil {
-		return false, "no fake pane " + pyRepr(handle)
+		return false, "no fake pane " + term.PyRepr(handle)
 	}
 	p.kill()
 	return true, ""
@@ -195,7 +196,7 @@ func (p *fakePane) kill() {
 func (f Fake) RespawnTerminal(handle string) (bool, string) {
 	p := f.pane(handle)
 	if p == nil {
-		return false, "no fake pane " + pyRepr(handle)
+		return false, "no fake pane " + term.PyRepr(handle)
 	}
 	p.kill()
 	fresh, why := f.start(p.cwd, p.agent)

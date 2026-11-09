@@ -116,10 +116,6 @@ func TestAHostThatCannotListOrAnswerIsRefused(t *testing.T) {
 }
 
 func TestParsing(t *testing.T) {
-	got := term.ParsePanes("handline\t0\tmy win\t%7\t42\tzsh\t/a b\t99\t0\nbad line\nhandline\t1\tx\tnot-a-pane\t1\tzsh\t/\t1\t0\n")
-	if len(got) != 1 || got[0].WindowName != "my win" || got[0].Path != "/a b" || got[0].PID != 42 || got[0].Activity != 99 || got[0].Dead {
-		t.Fatalf("%+v", got)
-	}
 	p := ParseProcs("  1     0 /sbin/launchd\n 42 1 /Applications/Some App.app/x\nnope\n")
 	if len(p) != 2 || p[42].Comm != "/Applications/Some App.app/x" || p[42].PPID != 1 {
 		t.Fatalf("%v", p)
