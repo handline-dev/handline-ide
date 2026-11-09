@@ -21,7 +21,12 @@ import { InsertLine, isTabDrag, readTabDrag, slotAt, startTabDrag, zoneAt, ZoneH
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { ContextMenu, MenuItem, MenuSeparator } from '#src/ui/Menu.tsx';
 import { Splitter } from '#src/ui/Splitter.tsx';
+import { TabDot } from '#src/layout/TabDot.tsx';
 import { TabBar } from '#src/ui/Tabs.tsx';
+import { tabTarget, type TabTarget } from '@handline/app-core';
+
+/** The tab on screen is read as it shows, so only a background tab gets a dot. */
+const dotOf = (target: TabTarget) => (target ? <TabDot target={target} /> : null);
 
 export type Dispatch = (a: Action) => void;
 
@@ -195,7 +200,12 @@ function PaneView({
           }}
         >
           <TabBar
-            tabs={pane.tabs.map((t) => ({ ...t, title: t.opens ? labelOf(t.opens, agent) : t.title, icon: iconOf(t.opens) }))}
+            tabs={pane.tabs.map((t) => ({
+              ...t,
+              title: t.opens ? labelOf(t.opens, agent) : t.title,
+              icon: iconOf(t.opens),
+              dot: t.id === pane.active ? null : dotOf(tabTarget(t.opens, agent)),
+            }))}
             active={pane.active}
             onSelect={(tab) => dispatch({ type: 'select', pane: pane.id, tab })}
             onClose={(tab) => close([tab])}

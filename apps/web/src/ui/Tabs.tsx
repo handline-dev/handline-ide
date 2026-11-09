@@ -4,8 +4,8 @@ import type { ReactNode } from 'react';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { ContextMenu, Menu, MenuItem, MenuSeparator } from '#src/ui/Menu.tsx';
 
-/** `closable: false` pins a tab: no close button, and onClose is never called for it. */
-export type TabItem = { id: string; title: string; closable?: boolean; icon?: ReactNode };
+/** `closable: false` pins a tab: no close button, and onClose is never called for it. `dot`: what marks it right of its label. */
+export type TabItem = { id: string; title: string; closable?: boolean; icon?: ReactNode; dot?: ReactNode };
 
 export function Tab({
   tab,
@@ -36,6 +36,7 @@ export function Tab({
     >
       {tab.icon && <span className="grid shrink-0 place-items-center text-muted">{tab.icon}</span>}
       <span className="flex-1 truncate">{tab.title}</span>
+      {tab.dot}
       {closable && (
         <span className={active ? '' : 'invisible group-hover:visible'}>
           <IconButton

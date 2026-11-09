@@ -36,6 +36,7 @@ export * from '#src/images.ts';
 export * from '#src/my-turn.ts';
 export * from '#src/requests-text.ts';
 export * from '#src/later.ts';
+export * from '#src/tab-dot.ts';
 export * from '#src/annotation.ts';
 export * from '#src/annotation-raster.ts';
 export * from '#src/task-history.ts';
