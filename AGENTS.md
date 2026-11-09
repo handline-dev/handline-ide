@@ -22,12 +22,12 @@ True for any agent, whatever tool runs it. Your name is in `$HANDLINE_AGENT`.
 - Close with `hl task done T<n> <pushed sha>`. A wrong result is reopened by its asker (`hl task reopen T<n> "<why>"`).
 - Work lands on main directly, as above (Landing), with no story branches and no founder merge step.
 - New work goes in Go. The Python package `handline/` is gone; Python stays only in `tools/` and `contract/` (dev and test harnesses).
-- A screen change posts a before and after picture of each screen it adds or changes (PC and phone
-  where both change) on its task, for the founder to look at first. The commit message
-  carries no pictures.
-- To ask the founder to look at a change, post the before and after pictures, then put the founder on the task:
-  `hl task comment T<own> add --attach before.png --attach after.png "<one line>"`, then `hl task turn T<own> human "Look: <one line>"`.
-  Their comment gives the task back: "Approved" closes the look; "Change asked: <words>" is what to fix, then ask again the same way.
+- A screen change takes a before and after picture of each screen it adds or changes (PC and phone
+  where both change) and runs the `ui-fresh-eyes` subagent with only those pictures, the request line, and whether a test app is running.
+  When its answer matches the request, post the pictures and its answer verbatim on the task
+  (`hl task comment T<own> add --attach before.png --attach after.png "<its answer>"`) and land.
+  Put the founder on the task (`hl task turn T<own> human "Look: <one line>"`) only when it misreads the screen twice or a design choice (A/B) is needed.
+  Their comment gives the task back: "Approved" closes the look; "Change asked: <words>" is what to fix, then run it again.
 - A task or a say can be refused; the refusal says why, and the policy behind
   it is deliberate, not a fault to route around. A name that is not on
   `hl team` (a bare `auditor` for `<team>.auditor`) is refused with "unknown
