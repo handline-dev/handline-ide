@@ -74,7 +74,7 @@ export function AccountItem({ agent, account, fire }: { agent: string; account: 
 
 /** "Move to another account", unfolding the other accounts in place with the room each has left. */
 function MoveTo({ agent, account }: { agent: string; account: string }) {
-  const [open, setOpen] = useState(false); // not kept: unfolds inside a menu
+  const [open, setOpen] = useState(false);
   const accounts = useAccounts().data?.accounts ?? [];
   const move = useWrite('agent.move', agent);
   const served = useServes('agent.move').served;

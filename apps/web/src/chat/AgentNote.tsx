@@ -9,7 +9,7 @@ import { Markdown } from '#src/ui/Markdown.tsx';
 /** A message this agent sent another agent: one quiet line, set apart from the conversation, with to whom and the start of it.
  * A click opens it in place, whole (its height from none to its own), and closes it again. */
 export function AgentNote({ m }: { m: ChatMessage }) {
-  const [open, setOpen] = useState(false); // not kept: one line of the stream, which draws lines as they scroll in
+  const [open, setOpen] = useState(false);
 
   const first = m.body.replace(/\s+/g, ' ').trim();
   return (

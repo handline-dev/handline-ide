@@ -1,6 +1,5 @@
 // A tab's way of showing (a filter, a fold, what it compares against) is held in memory under `tab/<tab id>/<name>`: a pane draws only
-// its current tab, so plain state is lost on leaving it; a reload starts it fresh. What a tab shows (a Markdown tab's file, a Web tab's
-// address) stays in persist/kv.ts under the same names. Both are swept when no layout has the tab any more (sweepTabState).
+// its current tab, so plain state is lost on leaving it; a reload starts it fresh. Dropped when no layout has the tab any more.
 import { createContext, useContext, useState } from 'react';
 import { names, write } from '#src/persist/kv.ts';
 import { panes, type Node } from '#src/layout/tree.ts';
@@ -12,8 +11,7 @@ const held = new Map<string, unknown>();
 /** How many tab values are held: for a leak check. */
 export const heldCount = () => held.size;
 
-/** useState held with the tab it is drawn in, read when the view is drawn again; outside a tab, plain useState. No listener: one view
- * per tab is drawn at a time, so nothing else needs to hear of a change. */
+/** useState held with the tab it is drawn in, read when the view is drawn again; outside a tab, plain useState. */
 export function useTabState<T>(name: string, fallback: T) {
   const tab = useContext(TabId);
   const key = tab && `tab/${tab}/${name}`;
@@ -42,12 +40,12 @@ export const tabIds = (layouts: Node[]) =>
     .sort()
     .join(' ');
 
-/** What a tab keeps across a reload (persist/kv.ts); any other tab/ name there is left from a build that kept its view too. */
+/** What a Markdown or Web tab keeps in storage (persist/kv.ts), left there as on main: Back can bring a closed tab back with it. Any
+ * other tab/ name in storage is a view value an earlier build of this kept there. */
 const KEPT = /^tab\/[^/]+\/(path|mode|url)$/;
 
-/** Drops what is held and kept for tabs not among `tabs`. */
+/** Drops what is held for tabs not among `tabs`, and the view values an earlier build left in storage. */
 export function sweepTabState(tabs: ReadonlySet<string>) {
   for (const k of strayTabNames([...held.keys()], tabs)) held.delete(k);
-  const kept = names('tab/');
-  for (const n of new Set([...strayTabNames(kept, tabs), ...kept.filter((n) => !KEPT.test(n))])) write(n, undefined);
+  for (const n of names('tab/').filter((n) => !KEPT.test(n))) write(n, undefined);
 }

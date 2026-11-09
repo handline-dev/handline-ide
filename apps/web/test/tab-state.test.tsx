@@ -96,7 +96,7 @@ describe('tab state', () => {
     expect(heldCount()).toBe(before);
   });
 
-  it('what a tab shows stays across a reload; a dead tab, and a view value an earlier build kept, are swept from storage', () => {
+  it('what a tab shows stays in storage, as on main, for Back to bring it back; a view value an earlier build kept there goes', () => {
     const root = workspace();
     const live = tabOf(root, 'tasks').t.id;
     write(`tab/${live}/url`, 'https://example.com');
@@ -104,7 +104,7 @@ describe('tab state', () => {
     write('tab/gone-long-ago/path', 'notes.md');
     write('folded', ['x']);
     sweep(root);
-    expect(names('tab/')).toEqual([`tab/${live}/url`]);
+    expect(names('tab/').sort()).toEqual([`tab/${live}/url`, 'tab/gone-long-ago/path']);
     expect(read('folded', [])).toEqual(['x']);
   });
 });
