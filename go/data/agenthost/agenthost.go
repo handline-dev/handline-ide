@@ -8,6 +8,7 @@ import (
 
 	"github.com/handline/handline/go/agentctl/agent"
 	"github.com/handline/handline/go/agentctl/term"
+	"github.com/handline/handline/go/agentctl/term/hosts"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/yamlcompat"
 )
@@ -32,23 +33,23 @@ func Place(home string) term.Place {
 	return p
 }
 
-// Tmux is the tmux host of home.
-func Tmux(home string) term.Tmux { return term.Tmux{Place: Place(home)} }
+// Tmux is the tmux host of home, whatever host config.yaml names; on an OS without tmux it is never available.
+func Tmux(home string) term.Backend { return term.ForName("tmux", Place(home)) }
 
-// TerminalName is the host in force: HANDLINE_TERMINAL, else `terminal:` in config.yaml, else tmux.
+// TerminalName is the host in force: HANDLINE_TERMINAL, else `terminal:` in config.yaml, else the OS's default (hosts.Default).
 func TerminalName(home string) string {
 	if env, _ := paths.Getenv("TERMINAL"); strings.TrimSpace(env) != "" {
 		return strings.ToLower(strings.TrimSpace(env))
 	}
 	text, err := os.ReadFile(paths.ConfigFile(home))
 	if err != nil {
-		return "tmux"
+		return hosts.Default
 	}
 	data, err := yamlcompat.Parse(string(text))
 	m, _ := data.(map[string]any)
 	v, _ := m["terminal"].(string)
 	if err != nil || v == "" {
-		return "tmux"
+		return hosts.Default
 	}
 	return strings.ToLower(strings.TrimSpace(v))
 }

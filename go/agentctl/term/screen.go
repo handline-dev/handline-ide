@@ -215,7 +215,7 @@ func DecliningKey(d *Dialog) (string, string) {
 	}
 	for _, ln := range d.Body {
 		if escMarkRE.MatchString(ln) && !OptionLabelRE.MatchString(ln) {
-			return "", "the (esc) mark appears where it cannot be evaluated: " + pyRepr(ln)
+			return "", "the (esc) mark appears where it cannot be evaluated: " + PyRepr(ln)
 		}
 	}
 	var marked []string
@@ -229,7 +229,7 @@ func DecliningKey(d *Dialog) (string, string) {
 			return "", "more than one option is marked (esc)"
 		}
 		if !inert(marked[0]) {
-			return "", "the option marked (esc) is not one that only declines: " + pyRepr(marked[0])
+			return "", "the option marked (esc) is not one that only declines: " + PyRepr(marked[0])
 		}
 		return Escape, ""
 	}

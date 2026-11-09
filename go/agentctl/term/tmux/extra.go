@@ -1,4 +1,6 @@
-package term
+//go:build !windows
+
+package tmux
 
 import (
 	"fmt"
@@ -8,50 +10,8 @@ import (
 	"unicode"
 
 	"github.com/handline/handline/go/agentctl/ansi"
+	"github.com/handline/handline/go/agentctl/term"
 )
-
-// What the terminal channel asks of a host beyond Backend (handline/session/backends/tmux.py). A host that lacks one of these is
-// refused as `unsupported` by the method that needs it; tmux has them all.
-
-// Cursor is where the cursor is in the pane and how much of the pane's bottom is blank, from one tmux call so the two agree.
-type Cursor struct {
-	X, Y       int
-	Visible    bool
-	Height     int
-	BlankBelow int
-}
-
-// StyledReader reads rows with their SGR codes kept.
-type StyledReader interface {
-	ReadScreenANSI(handle string, limit int) []string
-}
-
-// HistoryReader reads the scrollback the host keeps itself; ok is false when it is unreadable. Row 0 is the oldest row held.
-type HistoryReader interface {
-	ReadHistory(handle string, before *int, limit int, styled bool) (first int, rows []string, ok bool)
-}
-
-// Sizer reads and changes a terminal's size.
-type Sizer interface {
-	Size(handle string) (cols, rows int, ok bool)
-	Resize(handle string, cols, rows int) (bool, string)
-}
-
-// CursorReader says where a terminal's cursor is; nil when the host does not say.
-type CursorReader interface {
-	Cursor(handle string) *Cursor
-}
-
-// BytesSender types raw bytes as keystrokes.
-type BytesSender interface {
-	SendBytes(handle string, data []byte) (bool, string)
-}
-
-// ControlSpawner starts the control-mode client the bytes format streams from.
-type ControlSpawner interface {
-	ServesBytes() bool
-	ControlCommand() []string
-}
 
 func (Tmux) ServesBytes() bool  { return true }
 func (Tmux) ServesStyled() bool { return true }
@@ -60,12 +20,6 @@ func (Tmux) ServesStyled() bool { return true }
 func (t Tmux) ControlCommand() []string {
 	return []string{"tmux", "-L", t.Socket, "-C", "attach-session", "-t", tmuxSession}
 }
-
-// Attacher is a host that has a command a person runs on the daemon's machine to see and answer its terminals.
-type Attacher interface{ AttachCommand() []string }
-
-// Focuser is a host that can bring a terminal to the front; false when it could not.
-type Focuser interface{ Focus(handle string) bool }
 
 // AttachCommand is the program a person runs to be in the tmux session the agents' windows are in.
 func (t Tmux) AttachCommand() []string {
@@ -87,7 +41,7 @@ const tmuxSession = "handline"
 // command.
 func (t Tmux) SendBytes(handle string, data []byte) (bool, string) {
 	if !paneRE.MatchString(handle) {
-		return false, "not a tmux pane: " + pyRepr(handle)
+		return false, "not a tmux pane: " + term.PyRepr(handle)
 	}
 	for i := 0; i < len(data); i += 256 {
 		end := min(i+256, len(data))
@@ -172,7 +126,7 @@ func (t Tmux) ReadHistory(handle string, before *int, limit int, styled bool) (i
 }
 
 // Cursor: one tmux call for the cursor and the visible rows, so the rows ReadScreen drops at the bottom are counted from the same moment.
-func (t Tmux) Cursor(handle string) *Cursor {
+func (t Tmux) Cursor(handle string) *term.Cursor {
 	if !paneRE.MatchString(handle) {
 		return nil
 	}
@@ -190,7 +144,7 @@ func (t Tmux) Cursor(handle string) *Cursor {
 	for blank < len(rows) && strings.TrimSpace(rows[len(rows)-1-blank]) == "" {
 		blank++
 	}
-	return &Cursor{X: n[0], Y: n[1], Visible: n[2] == 1, Height: n[3], BlankBelow: blank + max(n[3]-len(rows), 0)}
+	return &term.Cursor{X: n[0], Y: n[1], Visible: n[2] == 1, Height: n[3], BlankBelow: blank + max(n[3]-len(rows), 0)}
 }
 
 func (t Tmux) Size(handle string) (int, int, bool) {
@@ -206,7 +160,7 @@ func (t Tmux) Size(handle string) (int, int, bool) {
 
 func (t Tmux) Resize(handle string, cols, rows int) (bool, string) {
 	if !paneRE.MatchString(handle) {
-		return false, "not a tmux pane: " + pyRepr(handle)
+		return false, "not a tmux pane: " + term.PyRepr(handle)
 	}
 	code, _, err := t.tmux(tmuxTimeout, "", "resize-window", "-t", handle, "-x", strconv.Itoa(cols), "-y", strconv.Itoa(rows))
 	if code == 0 {
