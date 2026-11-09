@@ -38,30 +38,36 @@ function Choice({
   );
 }
 
-/** Asks how a live session takes a new model, at its next idle moment: the same conversation (its context written once into the new
- * model's cache), a handoff then a new conversation, or no change. Resolves the restart mode, or undefined for no change. */
-function askRestart(model: string, used: number | null) {
+type Change = { model?: string; effort?: string };
+
+/** The question's words for a change of model, effort or both. The cost is the context written once into the cache of the model the
+ * conversation goes on in (a new effort clears the cached messages too). */
+export function restartWords(c: Change, current: string, used: number | null) {
+  const on = c.model ?? current;
   const cost =
     used == null
-      ? "Its context is written into the new model's cache once."
-      : `${Math.round(used / 1000)}k tokens of context are written into the new model's cache once, about $${cacheRewriteUsd(used, model).toFixed(2)} at list price.`;
+      ? 'Its context is written into the cache once.'
+      : `${Math.round(used / 1000)}k tokens of context are written into the cache once, about $${cacheRewriteUsd(used, on).toFixed(2)} at list price.`;
+  const what = c.model && c.effort ? `${c.model} at ${c.effort} effort` : (c.model ?? `${c.effort} effort`);
+  return {
+    title: c.model ? `Switch to ${what}` : `Change effort to ${c.effort}`,
+    keep: `The same conversation on ${what}, from its next idle moment. ${cost}`,
+    compactTitle: c.model ? 'Compact, then switch' : 'Compact, then change',
+    compact: `The agent writes a handoff note, then starts a new conversation on ${what}.`,
+    cancel: c.model ? 'Keep the current model.' : 'Keep the current effort.',
+  };
+}
+
+/** Asks how a live session takes a new model or effort, at its next idle moment: the same conversation, a handoff then a new
+ * conversation, or no change. Resolves the restart mode, or undefined for no change. */
+function askRestart(c: Change, current: string, used: number | null) {
+  const w = restartWords(c, current, used);
   return openModal<Restart>((close) => (
-    <ModalFrame title={`Switch to ${model}`} onClose={() => close()}>
+    <ModalFrame title={w.title} onClose={() => close()}>
       <div className="flex flex-col gap-2 pb-1">
-        <Choice
-          primary
-          icon={<MessagesSquare size={16} />}
-          title="Keep conversation"
-          text={`The same conversation on ${model}, from its next idle moment. ${cost}`}
-          onClick={() => close('resume')}
-        />
-        <Choice
-          icon={<Shrink size={16} />}
-          title="Compact, then switch"
-          text={`The agent writes a handoff note, then starts a new conversation on ${model}.`}
-          onClick={() => close('fresh')}
-        />
-        <Choice icon={<X size={16} />} title={modalText.cancel} text="Keep the current model." onClick={() => close()} />
+        <Choice primary icon={<MessagesSquare size={16} />} title="Keep conversation" text={w.keep} onClick={() => close('resume')} />
+        <Choice icon={<Shrink size={16} />} title={w.compactTitle} text={w.compact} onClick={() => close('fresh')} />
+        <Choice icon={<X size={16} />} title={modalText.cancel} text={w.cancel} onClick={() => close()} />
       </div>
     </ModalFrame>
   ));
@@ -85,10 +91,11 @@ export function ModelChip({ agent }: { agent: string }) {
   const models = [...new Set([...MODELS, ...(model ? [model] : [])])];
   const change = (values: { model?: string; effort?: (typeof EFFORTS)[number] }, restart?: Restart) =>
     set.mutate({ agent, values, ...(restart && { restart }) });
-  const pickModel = async (m: string) => {
-    if (!detail.session_open) return change({ model: m });
-    const restart = await askRestart(m, used);
-    if (restart) change({ model: m }, restart);
+  // A live session takes a new model or effort by restarting: it asks how first.
+  const pick = async (values: { model?: string; effort?: (typeof EFFORTS)[number] }) => {
+    if (!detail.session_open) return change(values);
+    const restart = await askRestart(values, detail.model ?? model ?? '', used);
+    if (restart) change(values, restart);
   };
   return (
     <Menu
@@ -108,14 +115,14 @@ export function ModelChip({ agent }: { agent: string }) {
     >
       <MenuHeading>Model</MenuHeading>
       {models.map((m) => (
-        <MenuItem key={m} checked={m === model} onClick={() => m !== model && void pickModel(m)}>
+        <MenuItem key={m} checked={m === model} onClick={() => m !== model && void pick({ model: m })}>
           {m}
         </MenuItem>
       ))}
       <MenuRule />
       <MenuHeading>Effort</MenuHeading>
       {EFFORTS.map((e) => (
-        <MenuItem key={e} checked={e === effort} onClick={() => e !== effort && change({ effort: e })}>
+        <MenuItem key={e} checked={e === effort} onClick={() => e !== effort && void pick({ effort: e })}>
           {e}
         </MenuItem>
       ))}
