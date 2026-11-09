@@ -45,7 +45,10 @@ export function useFileDrop(take: (dropped: Dropped[]) => void) {
     over,
     handlers: {
       onDragEnter: (e: DragEvent) => {
-        if (carriesFiles(e) && depth.current++ === 0) setOver(true);
+        if (!carriesFiles(e)) return;
+        // Its own statement: React Compiler 1.0 turns a ref's `x.current++` inside a comparison into a pre-increment.
+        depth.current += 1;
+        if (depth.current === 1) setOver(true);
       },
       onDragOver: (e: DragEvent) => {
         if (!carriesFiles(e)) return;
@@ -53,7 +56,9 @@ export function useFileDrop(take: (dropped: Dropped[]) => void) {
         e.dataTransfer.dropEffect = 'copy';
       },
       onDragLeave: (e: DragEvent) => {
-        if (carriesFiles(e) && --depth.current === 0) setOver(false);
+        if (!carriesFiles(e)) return;
+        depth.current -= 1;
+        if (depth.current === 0) setOver(false);
       },
       onDrop: (e: DragEvent) => {
         if (!carriesFiles(e)) return;

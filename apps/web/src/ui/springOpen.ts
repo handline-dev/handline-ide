@@ -19,7 +19,10 @@ export function useSpringOpen(open: () => void) {
     hovering,
     handlers: {
       onDragEnter: (e: DragEvent) => {
-        if (!carriesFiles(e) || depth.current++ > 0) return;
+        if (!carriesFiles(e)) return;
+        // Its own statement: React Compiler 1.0 turns a ref's `x.current++` inside a comparison into a pre-increment.
+        depth.current += 1;
+        if (depth.current > 1) return;
         setHovering(true);
         timer.current = setTimeout(() => {
           stop();
@@ -27,7 +30,9 @@ export function useSpringOpen(open: () => void) {
         }, HOLD);
       },
       onDragLeave: (e: DragEvent) => {
-        if (carriesFiles(e) && --depth.current <= 0) stop();
+        if (!carriesFiles(e)) return;
+        depth.current -= 1;
+        if (depth.current <= 0) stop();
       },
       onDrop: stop,
     },
