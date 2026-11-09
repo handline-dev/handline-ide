@@ -95,3 +95,24 @@ func retroDeliveryLands(t *testing.T, landed int, want []int64) {
 		t.Fatalf("landed at %d: got %s", landed, b)
 	}
 }
+
+// A turn moves the doing window to the agent it is on, and a turn on the founder is no one's doing time.
+func TestRetroDoingWindowsFollowTurns(t *testing.T) {
+	t.Parallel()
+	e := testEnv(t)
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, reporter, created_at) VALUES(1, 't', 'bob', 'human', 'human', 100)")
+	run(t, e, `INSERT INTO events(ts, agent, kind, payload) VALUES
+		(100, 'bob', 'task_start', '{"task_id": 1}'),
+		(200, 'bob', 'task_turn_push', '{"task_id": 1, "to": "human"}'),
+		(500, 'human', 'task_turn_pop', '{"task_id": 1, "agent": "human"}'),
+		(600, 'bob', 'task_turn_push', '{"task_id": 1, "to": "rev"}'),
+		(650, 'rev', 'task_turn_pop', '{"task_id": 1, "agent": "rev"}')`)
+	got, err := e.doingWindows(1, 0, 700)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := json.Marshal(got)
+	if want := `[{"Agent":"bob","Lo":100,"Hi":200},{"Agent":"bob","Lo":500,"Hi":600},{"Agent":"rev","Lo":600,"Hi":650},{"Agent":"bob","Lo":650,"Hi":700}]`; string(b) != want {
+		t.Fatalf("got %s\nwant %s", b, want)
+	}
+}

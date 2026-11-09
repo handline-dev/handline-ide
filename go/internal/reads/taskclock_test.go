@@ -41,22 +41,33 @@ func TestATasksClockRunsOnlyWhileItIsDoing(t *testing.T) {
 	}
 }
 
-func TestAnOverdueTasksClockSaysSinceTheFirstMissedDeadline(t *testing.T) {
+func TestAnOverClockSaysSinceItsEndAndCountsTheNoticesOfItsBox(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	now := time.Now().Unix()
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by, timeout_s, timeout_at, sent_at) VALUES(1, 'd', 'bob', 'human', 1, 'human', 600, ?, 1)", now-100)
 	run(t, e, "INSERT INTO agent_state(agent, state, updated, current_task) VALUES('bob', 'RUNNING', 0, 1)")
 	if _, c := clockOf(t, e, 1); c["overdue_since"] != ts(now-100) || c["told"] != 0 {
-		t.Fatalf("no notice yet: the deadline is the first miss: %v", c)
+		t.Fatalf("no notice yet: over since its end: %v", c)
 	}
-	// Two notices moved the deadline twice: 1000 -> now-700 -> now-100. A third, from an earlier edit, is not in the chain.
+	// One notice before an edit of the timeout started a new box, two after it.
 	run(t, e, `INSERT INTO events(ts, agent, kind, payload) VALUES
-		(1, 'human', 'task_timeout_exceeded', '{"task_id": 1, "deadline": 5, "next": 7}'),
-		(2, 'human', 'task_timeout_exceeded', '{"task_id": 1, "deadline": 1000, "next": `+itoa(now-700)+`}'),
-		(3, 'human', 'task_timeout_exceeded', '{"task_id": 1, "deadline": `+itoa(now-700)+`, "next": `+itoa(now-100)+`}')`)
-	if _, c := clockOf(t, e, 1); c["overdue_since"] != ts(int64(1000)) || c["told"] != 2 {
-		t.Fatalf("the chain of notices leads back to the first miss: %v", c)
+		(1, 'bob', 'task_timeout_exceeded', '{"task_id": 1, "over_s": 0}'),
+		(2, 'human', 'edit_task', '{"task_id": 1, "timeout": {"old": "5m", "new": "10m"}}'),
+		(3, 'bob', 'task_timeout_exceeded', '{"task_id": 1, "over_s": 0}'),
+		(4, 'bob', 'task_timeout_exceeded', '{"task_id": 1, "over_s": 600}')`)
+	if _, c := clockOf(t, e, 1); c["overdue_since"] != ts(now-100) || c["told"] != 2 {
+		t.Fatalf("told counts the notices of this box: %v", c)
+	}
+}
+
+func TestAPausedClockOverItsLengthKeepsHowFarOver(t *testing.T) {
+	t.Parallel()
+	e := testEnv(t)
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by, timeout_s, timeout_left, sent_at) VALUES(1, 'd', 'bob', 'human', 1, 'human', 600, -120, 1)")
+	run(t, e, "INSERT INTO agent_state(agent, state, updated, current_task) VALUES('bob', 'RUNNING', 0, 1)")
+	if _, c := clockOf(t, e, 1); c["left_s"] != int64(-120) || c["end"] != nil {
+		t.Fatalf("%v", c)
 	}
 }
 

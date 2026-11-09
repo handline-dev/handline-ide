@@ -14,12 +14,13 @@ var doingStarts = map[string]bool{"task_begin": true, "task_start": true, "deliv
 var doingEnds = map[string]bool{"release_task": true, "queue_task": true, "draft_task": true, "reopen_task": true, "reject_task": true,
 	"task_report": true, "mark_task_done": true, "discard_task": true, "close_task": true, "edit_task": true, "task_handoff": true}
 
-// doingWindows is the spans in which holders held task tid in doing, from the events: a window opens at a begin or a landed delivery and
+// doingWindows is the spans in which agents worked task tid in doing, from the events: a window opens at a begin or a landed delivery and
 // closes at the first of a state change out of doing, a hand-off, the task's end, or its holder starting another task by a begin or a delivery.
+// A turn moves the work to the agent it is on while it lasts; a turn on the founder is no one's work.
 func (e *Env) doingWindows(tid, ended, now int64) ([]usage.DoingWindow, error) {
 	evs, err := query(e.DB, "SELECT ts, agent, kind, payload FROM events WHERE "+eventTask+" = ? AND kind IN "+
 		"('task_begin', 'task_start', 'release_task', 'queue_task', 'draft_task', 'reopen_task', 'reject_task', 'task_report', 'mark_task_done', "+
-		"'discard_task', 'close_task', 'edit_task', 'task_handoff') ORDER BY id", tid)
+		"'discard_task', 'close_task', 'edit_task', 'task_handoff', 'task_turn_push', 'task_turn_pop') ORDER BY id", tid)
 	if err != nil {
 		return nil, err
 	}
@@ -28,28 +29,56 @@ func (e *Env) doingWindows(tid, ended, now int64) ([]usage.DoingWindow, error) {
 		return nil, err
 	}
 	var out []usage.DoingWindow
-	var holder string
+	var base, holder string // who began the doing, and who the open window is of
+	var turns []string
 	var from int64
+	acting := func() string {
+		if n := len(turns); n > 0 {
+			return turns[n-1]
+		}
+		return base
+	}
 	closeAt := func(at int64) {
 		if holder != "" && at > from {
 			out = append(out, usage.DoingWindow{Agent: holder, Lo: from, Hi: at})
 		}
 		holder = ""
 	}
+	// the open window goes on under whoever acts now
+	move := func(at int64) {
+		if base == "" || acting() == holder {
+			return
+		}
+		closeAt(at)
+		if who := acting(); who != db.Human {
+			holder, from = who, at
+		}
+	}
 	for _, ev := range evs {
-		kind := ev.str("kind")
+		kind, p := ev.str("kind"), decodeObject(ev.str("payload"))
 		switch {
-		case doingStarts[kind]:
-			if holder == "" {
-				holder, from = ev.str("agent"), ev.i("ts")
-			}
-		case doingEnds[kind]:
-			if kind == "edit_task" {
-				if _, ok := decodeObject(ev.str("payload"))["owner"]; !ok {
-					continue
+		case kind == "task_turn_push":
+			turns = append(turns, text(p["to"]))
+			move(ev.i("ts"))
+		case kind == "task_turn_pop":
+			for i := len(turns) - 1; i >= 0; i-- {
+				if turns[i] == text(p["agent"]) {
+					turns = append(turns[:i], turns[i+1:]...)
+					break
 				}
 			}
+			move(ev.i("ts"))
+		case doingStarts[kind]:
+			if base == "" {
+				base = ev.str("agent")
+				move(ev.i("ts"))
+			}
+		case doingEnds[kind]:
+			if _, ok := p["owner"]; kind == "edit_task" && !ok {
+				continue
+			}
 			closeAt(ev.i("ts"))
+			base = ""
 		}
 	}
 	end := now

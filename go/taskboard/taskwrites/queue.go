@@ -178,10 +178,11 @@ func setQueued(tx *sql.Tx, home string, tid int64, by string, queued bool, kept 
 		return queuedSet{}, err
 	}
 	msg, memo := fmt.Sprintf("task T%d is %s (%s)", tid, word, by), ""
+	// back to queued or draft: its time box starts over
+	if _, err := tx.Exec("UPDATE tasks SET timeout_at = NULL, timeout_left = NULL WHERE id = ?", tid); err != nil {
+		return queuedSet{}, err
+	}
 	if parked != "" {
-		if _, err := tx.Exec("UPDATE tasks SET timeout_at = NULL, timeout_left = NULL WHERE id = ?", tid); err != nil {
-			return queuedSet{}, err
-		}
 		if kept != "" {
 			mid, err := db.AddMemo(tx, tid, by, kept)
 			if err != nil {
