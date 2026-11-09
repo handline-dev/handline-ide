@@ -2,7 +2,7 @@
 import type { Task } from '@handline/client';
 import { isPerson } from '#src/chat.ts';
 
-type Turns = Pick<Task, 'to' | 'state' | 'acting' | 'turns'>;
+export type Turns = Pick<Task, 'to' | 'state' | 'acting' | 'turns'>;
 
 /** The founder acts on the task now: the top turn is theirs, so Give back can pass it. */
 export const foundersTurn = (t: Turns, me: string): boolean =>

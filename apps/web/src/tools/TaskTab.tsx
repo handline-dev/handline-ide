@@ -1,9 +1,8 @@
 import { activityOf, foundersTurn, taskOutcome, isPerson, turnChain, isSystem, type ActivityItem } from '@handline/app-core';
-import { hooks, useTaskHistory, useWrite } from '@handline/app-data';
+import { hooks, useTaskHistory, useTaskSeen, useWrite } from '@handline/app-data';
 import { useMe } from '@handline/app-react';
 import {
   Check,
-  Eye,
   ChevronDown,
   CircleDot,
   Ellipsis,
@@ -27,7 +26,7 @@ import { Menu, MenuItem } from '#src/ui/Menu.tsx';
 import { Actions, CopyButton } from '#src/chat/MessageActions.tsx';
 import { Reference } from '#src/chat/ChatLine.tsx';
 import { MessageImages } from '#src/chat/MessageImages.tsx';
-import { HoverCard } from '#src/ui/HoverCard.tsx';
+import { ReadBy } from '#src/tools/ReadBy.tsx';
 import { Fields } from '#src/tools/TaskFields.tsx';
 import { GO_TURN, goToTurn, showMemo } from '#src/tools/TaskTurn.ts';
 import { showHistory } from '#src/tools/TaskDiff.tsx';
@@ -48,6 +47,7 @@ const CLOSED = ['done', 'discarded'];
 export function TaskTab({ id }: { id: number }) {
   const q = hooks.useTaskGet({ task: id });
   const me = useMe();
+  useTaskSeen(id);
   // The comment the box below answers, picked by Reply or a comment's Reference.
   const [replyTo, setReplyTo] = useTabState<Reply | null>('reply', null);
   // Files dropped anywhere on the task go with the next comment, as in the chat.
@@ -286,37 +286,6 @@ function HoverRow({ at, edited, onEdited, children }: { at: string; edited?: boo
         </button>
       )}
     </div>
-  );
-}
-
-/** How many of the agents a founder's comment was told to have read it (eye 1/2); on hover, who has and who has not. */
-function ReadBy({ readers }: { readers?: ActivityItem['readers'] }) {
-  if (!readers?.length) return null;
-  const read = readers.filter((r) => r.state === 'read');
-  const not = readers.filter((r) => r.state !== 'read');
-  return (
-    <HoverCard
-      trigger={
-        <span className={`flex items-center gap-1 font-normal ${not.length ? '' : 'text-fg'}`}>
-          <Eye size={12} />
-          {read.length}/{readers.length}
-        </span>
-      }
-    >
-      <div className="flex flex-col gap-1 p-2 text-sm">
-        {not.length > 0 && <span className="text-xs text-muted">Not read yet</span>}
-        {not.map((r) => (
-          <span key={r.agent}>
-            {r.agent}
-            {r.state === 'held' && <span className="text-muted"> · waits for its next digest</span>}
-          </span>
-        ))}
-        {read.length > 0 && <span className={`text-xs text-muted ${not.length ? 'pt-1' : ''}`}>Read</span>}
-        {read.map((r) => (
-          <span key={r.agent}>{r.agent}</span>
-        ))}
-      </div>
-    </HoverCard>
   );
 }
 
