@@ -3,11 +3,12 @@
 import { isPerson } from '@handline/app-core';
 import type { TaskDetail } from '@handline/client';
 import { classify, sentence, useGiveBack, useWrite } from '@handline/app-data';
-import { Hand, Undo2, X } from 'lucide-react';
+import { Hand, Reply as ReplyIcon, Undo2, X } from 'lucide-react';
 import { useState } from 'react';
 import type { Reply } from '#src/tools/TaskComment.tsx';
 import { showHistory } from '#src/tools/TaskDiff.tsx';
 import { goToTurn, turnReply } from '#src/tools/TaskTurn.ts';
+import { Button } from '#src/ui/Button.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { toast } from '#src/ui/toast.tsx';
 import { ago, clock } from '#src/format/time.ts';
@@ -81,8 +82,8 @@ export function WaitingOnYou({
 const CHOICE = /^\s*([A-D1-4])[).:]\s+(.+)$/gm;
 export const choices = (ask: string) => [...ask.matchAll(CHOICE)].map((m) => ({ key: m[1]!, text: m[2]!.trim() }));
 
-/** The founder's turn is the task's one question: the ask, an "edited" mark with older texts folded under it, and Give back.
- * A click on the question answers it in the comment box below (onReply); while it does, the choices are there, over the box, and not here. */
+/** The founder's turn is the task's one question: the ask, an "edited" mark with older texts folded under it, and on the last line Answer
+ * (in the comment box below, which then holds the choices, so they leave the question) and Give back. */
 export function YourTurn({
   t,
   answering,
@@ -124,25 +125,18 @@ export function YourTurn({
             </button>
           )}
         </span>
-        {turn?.ask && (
-          <button
-            type="button"
-            title="Answer it"
-            onClick={() => onReply(turnReply(t))}
-            className="-mx-2 rounded-md px-2 py-1 text-left whitespace-pre-wrap hover:bg-warning/10"
-          >
-            {answering ? turn.ask.replace(CHOICE, '').trim() : turn.ask}
-          </button>
-        )}
+        {turn?.ask && <span className="whitespace-pre-wrap">{answering ? turn.ask.replace(CHOICE, '').trim() : turn.ask}</span>}
+        <span className="mt-1 flex justify-end gap-2">
+          <Button onClick={give}>
+            <Undo2 size={14} />
+            Give back
+          </Button>
+          <Button variant="primary" disabled={answering || !turn?.ask} onClick={() => onReply(turnReply(t))}>
+            <ReplyIcon size={14} />
+            {answering ? 'Answering below' : 'Answer'}
+          </Button>
+        </span>
       </span>
-      <button
-        type="button"
-        onClick={give}
-        className="flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-sm font-medium hover:bg-hover/30"
-      >
-        <Undo2 size={14} />
-        Give back
-      </button>
     </div>
   );
 }
