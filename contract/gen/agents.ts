@@ -594,7 +594,7 @@ export const AGENTS_METHODS: { [K in keyof AgentsMethods]: { role: Role; callers
   "agent.set": { role: "agent", callers: ["agent", "founder"], write: true, since: 1 },
   "agent.fold": { role: "agent", callers: null, write: true, since: 1 },
   "agent.move": { role: "agent", callers: null, write: true, since: 1 },
-  "agent.switch_now": { role: "agent", callers: null, write: true, since: 1 },
+  "agent.switch_now": { role: "founder", callers: null, write: true, since: 1 },
   "agent.unstall": { role: "founder", callers: null, write: true, since: 1 },
   "agent.force_start": { role: "founder", callers: null, write: true, since: 1 },
   "agent.retire": { role: "founder", callers: null, write: true, since: 1 },
