@@ -14,6 +14,7 @@ import { useMe } from '@handline/app-react';
 import { HoverCard } from '#src/ui/HoverCard.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { Page } from '#src/ui/Page.tsx';
+import { ScrollFade } from '#src/ui/ScrollFade.tsx';
 
 import { toast } from '#src/ui/toast.tsx';
 
@@ -142,23 +143,29 @@ export function CommentBox({
   return (
     <Page className="relative">
       {options.length > 0 && (
-        <div role="group" aria-label="Choices" className="absolute inset-x-4 bottom-full flex flex-wrap justify-center gap-2">
-          {options.map((o) => (
-            <button
-              key={o.key}
-              type="button"
-              title={o.text}
-              onClick={() => {
-                // Words already typed go with the choice, under it.
-                send([`${o.key}) ${o.text}`, draft.trim()].filter(Boolean).join('\n\n'));
-                setDraft('');
-              }}
-              className="flex max-w-full min-w-0 items-center gap-2 rounded-full border border-border bg-bg py-1 pr-3 pl-1 text-sm shadow-popover hover:bg-hover"
-            >
-              <span className="grid size-5 shrink-0 place-items-center rounded-full bg-warning/15 text-xs font-semibold">{o.key}</span>
-              <span className="truncate">{o.text}</span>
-            </button>
-          ))}
+        // One panel of the choices, each written out whole; a long list scrolls inside it.
+        <div className="absolute inset-x-4 bottom-full">
+          <ScrollFade
+            role="group"
+            aria-label="Choices"
+            className="flex max-h-48 flex-col gap-0.5 rounded-lg border border-border bg-bg p-1 text-sm shadow-popover"
+          >
+            {options.map((o) => (
+              <button
+                key={o.key}
+                type="button"
+                onClick={() => {
+                  // Words already typed go with the choice, under it.
+                  send([`${o.key}) ${o.text}`, draft.trim()].filter(Boolean).join('\n\n'));
+                  setDraft('');
+                }}
+                className="flex shrink-0 items-start gap-2 rounded-md px-2 py-1.5 text-left hover:bg-hover"
+              >
+                <span className="grid size-5 shrink-0 place-items-center rounded-full bg-warning/15 text-xs font-semibold">{o.key}</span>
+                <span className="min-w-0 pt-px">{o.text}</span>
+              </button>
+            ))}
+          </ScrollFade>
         </div>
       )}
       <Composer
@@ -169,8 +176,9 @@ export function CommentBox({
             <div role="status" className="-ml-2 flex min-w-0 items-center gap-1.5 text-xs text-muted">
               <CornerDownRight size={14} className="ml-1 shrink-0" />
               <span className="min-w-0 flex-1 truncate">
-                {reply.turn ? `Answering ${reply.author}` : `Replying to ${reply.author}`}:{' '}
-                {reply.text.replace(/@human\s*/g, '').replace(/\s+/g, ' ')}
+                {reply.turn
+                  ? `Answering ${reply.author}'s question`
+                  : `Replying to ${reply.author}: ${reply.text.replace(/@human\s*/g, '').replace(/\s+/g, ' ')}`}
               </span>
               <IconButton className="size-6!" label="Drop the reply" onClick={onDrop}>
                 <X size={14} />

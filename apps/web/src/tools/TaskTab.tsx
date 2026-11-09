@@ -29,7 +29,7 @@ import { Reference } from '#src/chat/ChatLine.tsx';
 import { MessageImages } from '#src/chat/MessageImages.tsx';
 import { HoverCard } from '#src/ui/HoverCard.tsx';
 import { Fields } from '#src/tools/TaskFields.tsx';
-import { GO_TURN, goToTurn, showMemo, turnReply } from '#src/tools/TaskTurn.ts';
+import { GO_TURN, goToTurn, showMemo } from '#src/tools/TaskTurn.ts';
 import { showHistory } from '#src/tools/TaskDiff.tsx';
 import { CommentBox, type Reply } from '#src/tools/TaskComment.tsx';
 import { useAttachments } from '#src/chat/attachments.tsx';
@@ -122,7 +122,7 @@ export function TaskTab({ id }: { id: number }) {
             {open && (mine || why || t.blockers.length > 0) && (
               <div data-turn-slot className="flex flex-col gap-1 rounded-lg bg-warning/10 px-3 py-2 text-sm transition-colors">
                 {mine ? (
-                  <YourTurn t={t} onDone={() => void q.refetch()} onShow={() => goToTurn(t)} onReply={() => setReplyTo(turnReply(t))} />
+                  <YourTurn t={t} answering={!!replyTo?.turn} onDone={() => void q.refetch()} onReply={setReplyTo} />
                 ) : asked ? (
                   <WaitingOnYou t={t} me={me} asked={asked} onDone={() => void q.refetch()} onShow={() => showMemo(asked.id)} />
                 ) : (
