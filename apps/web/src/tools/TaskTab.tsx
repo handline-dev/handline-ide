@@ -15,7 +15,7 @@ import {
   Undo2,
   UserRound,
 } from 'lucide-react';
-import { look } from '#src/ui/taskLook.tsx';
+import { look, TaskState } from '#src/ui/taskLook.tsx';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { ago, clock } from '#src/format/time.ts';
 import { taskOf } from '#src/layout/kinds.tsx';
@@ -139,7 +139,7 @@ export function TaskTab({ id }: { id: number }) {
                   <p key={b.task} className={`flex min-w-0 items-center gap-2 ${i > 0 ? 'pl-6' : ''}`}>
                     {i === 0 && <Hand size={14} className="shrink-0 text-warning" />}
                     <span className="shrink-0 whitespace-nowrap text-muted">Waiting on</span>
-                    <TaskLink id={b.task} title={b.title} />
+                    <TaskLink id={b.task} title={b.title} state />
                   </p>
                 ))}
               </div>
@@ -153,7 +153,7 @@ export function TaskTab({ id }: { id: number }) {
           {t.subtasks.length > 0 && (
             <Section title="Sub-tasks">
               {t.subtasks.map((c) => (
-                <TaskLink key={c.id} id={c.id} title={c.title} />
+                <TaskLink key={c.id} id={c.id} title={c.title} state />
               ))}
             </Section>
           )}
@@ -196,10 +196,11 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-/** A task by its number and title; a click opens it, Cmd+click beside. */
-function TaskLink({ id, title }: { id: number; title?: string }) {
+/** A task by its number and title, its state first when asked; a click opens it, Cmd+click beside. */
+function TaskLink({ id, title, state }: { id: number; title?: string; state?: boolean }) {
   return (
     <button type="button" {...useOpenable(taskOf(id))} className="min-w-0 truncate rounded-sm text-left hover:bg-hover/30">
+      {state && <TaskState id={id} />}
       <span className="text-accent">T{id}</span>
       {title && <span className="ml-1 text-fg">{title}</span>}
     </button>
