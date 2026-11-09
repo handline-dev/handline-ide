@@ -7,10 +7,12 @@ import { floatingSurface } from '#src/ui/Popover.tsx';
 /** A list of actions on the popover surface; arrow keys and type-ahead come with it. */
 export function Menu({
   trigger,
+  side = 'bottom',
   align = 'start',
   children,
 }: {
   trigger: ReactElement;
+  side?: 'top' | 'bottom';
   align?: 'start' | 'center' | 'end';
   children: ReactNode;
 }) {
@@ -18,7 +20,7 @@ export function Menu({
     <M.Root>
       <M.Trigger render={trigger} />
       <M.Portal>
-        <M.Positioner side="bottom" align={align} sideOffset={4} collisionPadding={8} className="z-50">
+        <M.Positioner side={side} align={align} sideOffset={4} collisionPadding={8} className="z-50">
           <M.Popup className={`${floatingSurface} min-w-40 p-1`}>{children}</M.Popup>
         </M.Positioner>
       </M.Portal>
