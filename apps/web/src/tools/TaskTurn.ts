@@ -1,4 +1,5 @@
 import type { TaskDetail } from '@handline/client';
+import type { Reply } from '#src/tools/TaskComment.tsx';
 import { keptScroll } from '#src/ui/keptScroll.ts';
 
 export const GO_TURN = 'handline:go-turn';
@@ -16,6 +17,13 @@ function askingMemo(t: TaskDetail) {
   if (!turn) return undefined;
   const since = Date.parse(turn.since);
   return t.memos.filter((m) => m.author === turn.by && Date.parse(m.at) <= since && Date.parse(m.at) >= since - 10 * 60_000).at(-1);
+}
+
+/** The founder's turn as what the comment box answers: its question, tied to the asking comment when there is one. */
+export function turnReply(t: TaskDetail): Reply | null {
+  const turn = t.turns?.at(-1);
+  if (!turn?.ask) return null;
+  return { id: askingMemo(t)?.id, author: turn.by, text: turn.ask, turn: true };
 }
 
 /** The asking comment into view and marked; else the slot that holds the question, marked, with no scrolling to an unrelated comment. */

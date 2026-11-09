@@ -9,14 +9,16 @@ import { Composer } from '#src/chat/Composer.tsx';
 import { useDraft } from '#src/chat/drafts.ts';
 import type { Command } from '#src/chat/Suggest.tsx';
 import { AssignPicker } from '#src/tools/TaskFields.tsx';
-import { openAsks } from '#src/tools/TaskWaiting.tsx';
+import { choices, openAsks } from '#src/tools/TaskWaiting.tsx';
 import { useMe } from '@handline/app-react';
 import { HoverCard } from '#src/ui/HoverCard.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { Page } from '#src/ui/Page.tsx';
 
-type Memo = TaskDetail['memos'][number];
 import { toast } from '#src/ui/toast.tsx';
+
+/** What the box answers: a comment (Reply, or its Reference), or the founder's turn (a click on its question), tied to the comment that asked. */
+export type Reply = { id?: number; author: string; text: string; turn?: boolean };
 
 /** Who a comment reaches by its own words: the assignee and each agent it names with @. */
 const readers = (owner: string, text: string, known: string[]) => [
@@ -53,7 +55,7 @@ export function CommentBox({
   onSent,
 }: {
   t: TaskDetail;
-  reply: Memo | null;
+  reply: Reply | null;
   onDrop: () => void;
   attach: Attachments;
   onSent: () => void;
@@ -117,8 +119,48 @@ export function CommentBox({
     },
   ];
   const failed = (what: string) => (e: unknown) => toast(`${what}: ${e instanceof Error ? e.message : String(e)}`, { tone: 'warning' });
+  const send = (body: string, ids: string[] = []) => {
+    // The comment first, then the handover: the new owner finds it waiting.
+    // An answer to a comment that asked the founder ends the wait: the open asks are closed with it. One to the founder's turn gives it back.
+    const answers = reply && /@human\b/.test(reply.text) ? openAsks(t, me).map((r) => r.id) : [];
+    onSent();
+    add.mutate(
+      { task: t.id, text: withImages(body, ids), ...(reply?.id != null ? { reply: reply.id } : {}) },
+      {
+        onError: failed('Comment did not go'),
+        onSuccess: () => {
+          if (to) edit.mutate({ task: t.id, owner: to }, { onError: failed('Assignee did not change') });
+          if (answers.length) read.mutate({ ids: answers });
+        },
+      },
+    );
+    setTo(null);
+    onDrop();
+  };
+  // Answering the founder's turn: the choices its question laid out float over the box, each one click to send, with what is typed.
+  const options = reply?.turn ? choices(reply.text) : [];
   return (
-    <Page>
+    <Page className="relative">
+      {options.length > 0 && (
+        <div role="group" aria-label="Choices" className="absolute inset-x-4 bottom-full flex flex-wrap justify-center gap-2">
+          {options.map((o) => (
+            <button
+              key={o.key}
+              type="button"
+              title={o.text}
+              onClick={() => {
+                // Words already typed go with the choice, under it.
+                send([`${o.key}) ${o.text}`, draft.trim()].filter(Boolean).join('\n\n'));
+                setDraft('');
+              }}
+              className="flex max-w-full min-w-0 items-center gap-2 rounded-full border border-border bg-bg py-1 pr-3 pl-1 text-sm shadow-popover hover:bg-hover"
+            >
+              <span className="grid size-5 shrink-0 place-items-center rounded-full bg-warning/15 text-xs font-semibold">{o.key}</span>
+              <span className="truncate">{o.text}</span>
+            </button>
+          ))}
+        </div>
+      )}
       <Composer
         agent={box}
         commands={commands}
@@ -127,7 +169,8 @@ export function CommentBox({
             <div role="status" className="-ml-2 flex min-w-0 items-center gap-1.5 text-xs text-muted">
               <CornerDownRight size={14} className="ml-1 shrink-0" />
               <span className="min-w-0 flex-1 truncate">
-                Replying to {reply.author}: {reply.text.replace(/@human\s*/g, '').replace(/\s+/g, ' ')}
+                {reply.turn ? `Answering ${reply.author}` : `Replying to ${reply.author}`}:{' '}
+                {reply.text.replace(/@human\s*/g, '').replace(/\s+/g, ' ')}
               </span>
               <IconButton className="size-6!" label="Drop the reply" onClick={onDrop}>
                 <X size={14} />
@@ -164,24 +207,7 @@ export function CommentBox({
             )}
           </>
         }
-        onSend={(body, ids) => {
-          // The comment first, then the handover: the new owner finds it waiting.
-          // An answer to a comment that asked the founder ends the wait: the open asks are closed with it.
-          const answers = reply && /@human\b/.test(reply.text) ? openAsks(t, me).map((r) => r.id) : [];
-          onSent();
-          add.mutate(
-            { task: t.id, text: withImages(body, ids), ...(reply ? { reply: reply.id } : {}) },
-            {
-              onError: failed('Comment did not go'),
-              onSuccess: () => {
-                if (to) edit.mutate({ task: t.id, owner: to }, { onError: failed('Assignee did not change') });
-                if (answers.length) read.mutate({ ids: answers });
-              },
-            },
-          );
-          setTo(null);
-          onDrop();
-        }}
+        onSend={send}
       />
     </Page>
   );
