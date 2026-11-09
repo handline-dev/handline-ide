@@ -1,7 +1,7 @@
 // The picture on the viewer's scrim: fit to the room; the wheel, a trackpad pinch or two fingers zoom toward the pointer; a double
 // click goes between fit and twice fit; a drag pans once zoomed. While marking, a drag draws a numbered mark and a tap pins one
 // (app-core marks.ts); a drag with Space held, or with the middle button, still pans. Gestures come from @use-gesture.
-import { MARK_COLOR, marksToShapes, shapesToSvg, type Mark, type MarksAction, type MarksState } from '@handline/app-core';
+import { marksToShapes, shapesToSvg, type Mark, type MarksAction, type MarksState } from '@handline/app-core';
 import { useGesture } from '@use-gesture/react';
 import { X } from 'lucide-react';
 import {
@@ -20,6 +20,8 @@ type View = { s: number; x: number; y: number };
 const MAX_ZOOM = 8;
 /** A small picture is drawn at most this much larger to fit. */
 const FILL = 4;
+const LABEL_W = 224;
+const LABEL_GAP = 10;
 const NOTE_W = 256;
 
 export interface StageControls {
@@ -68,7 +70,7 @@ function useSpaceHeld() {
 }
 
 const Badge = ({ n }: { n: number }) => (
-  <span className="grid size-4 flex-none place-items-center rounded-full bg-danger text-xs leading-none font-semibold text-accent-fg">
+  <span className="grid size-4 flex-none place-items-center rounded-full bg-accent text-xs leading-none font-semibold text-accent-fg">
     {n}
   </span>
 );
@@ -78,7 +80,7 @@ function NoteBox({ n, mark, dispatch, style }: { n: number; mark: Mark; dispatch
   return (
     <div
       data-note
-      className="absolute z-10 flex w-64 items-start gap-2 rounded-md border border-danger bg-bg p-2 text-fg shadow-popover"
+      className="absolute z-10 flex w-64 items-start gap-2 rounded-lg border border-border bg-bg p-2 text-fg shadow-popover"
       style={style}
     >
       <Badge n={n} />
@@ -116,6 +118,7 @@ export function Stage({ url, name, marking, marks, from = 0, dispatch, image, on
   const [room, setRoom] = useState({ w: 1, h: 1 });
   const [nat, setNat] = useState({ w: 0, h: 0 });
   const [view, setView] = useState<View | null>(null); // null is fit
+  const [hover, setHover] = useState<number | null>(null); // the mark under the pointer, whose words show
   const space = useSpaceHeld();
   const drawing = useRef(false);
 
@@ -156,6 +159,12 @@ export function Stage({ url, name, marking, marks, from = 0, dispatch, image, on
   const onPhoto = (t: EventTarget | null) => t instanceof Element && !!t.closest('[data-photo]');
   const onNote = (t: EventTarget | null) => t instanceof Element && !!t.closest('[data-note]');
 
+  const begin = (cx: number, cy: number) => {
+    dispatch({ type: 'scale', slop: Math.max(4, 6 / at.s), radius: Math.max(12, 14 / at.s) });
+    dispatch({ type: 'open', id: null });
+    dispatch({ type: 'down', ...natural(cx, cy) });
+  };
+
   useGesture(
     {
       onDrag: ({ first, last, tap, delta: [dx, dy], xy: [cx, cy], event, cancel, pinching }) => {
@@ -163,19 +172,21 @@ export function Stage({ url, name, marking, marks, from = 0, dispatch, image, on
         const e = event as PointerEvent;
         if (first) {
           if (onNote(e.target)) return cancel();
-          drawing.current = marking && !space && e.button === 0 && onPhoto(e.target);
-          if (drawing.current) {
-            dispatch({ type: 'scale', slop: Math.max(4, 6 / at.s), radius: Math.max(12, 14 / at.s) });
-            dispatch({ type: 'open', id: null });
-            dispatch({ type: 'down', ...natural(cx, cy) });
-          }
+          // A middle-button drag pans.
+          drawing.current = marking && !space && !(e.buttons & 4) && onPhoto(e.target);
+          if (drawing.current) begin(cx, cy);
+        }
+        // A tap comes only as its last event, never as `first`: on the picture it pins a mark.
+        if (tap && last && marking && !space && e.button === 0 && onPhoto(e.target)) {
+          begin(cx, cy);
+          drawing.current = true;
         }
         if (drawing.current) {
           dispatch({ type: last ? 'up' : 'move', ...natural(cx, cy) });
           if (last) drawing.current = false;
           return;
         }
-        if (last && tap && !onPhoto(e.target)) return onScrim();
+        if (last && tap && !onPhoto(e.target) && !onNote(e.target)) return onScrim();
         if (zoomed) setView(keep({ ...at, x: at.x + dx, y: at.y + dy }));
       },
       onPinch: ({ origin: [ox, oy], offset: [s], first, memo }) => {
@@ -208,6 +219,8 @@ export function Stage({ url, name, marking, marks, from = 0, dispatch, image, on
   const path = marks.draft?.map((p) => `${p.x},${p.y}`).join(' ');
   const screen = (x: number, y: number) => ({ left: at.x + x * at.s, top: at.y + y * at.s });
   const current = marks.marks.find((m) => m.id === marks.open);
+  // A label goes right of its mark, or left of it when the room ends first.
+  const labelFits = (m: Mark) => screen(m.rect.x + m.rect.w, 0).left + LABEL_GAP + LABEL_W <= room.w;
   // The note sits beside the mark's far corner, flipped left when the room is there, and kept inside the stage.
   const corner = current ? screen(current.rect.x + current.rect.w, current.rect.y + current.rect.h) : { left: 0, top: 0 };
   const noteLeft = Math.max(
@@ -221,6 +234,12 @@ export function Stage({ url, name, marking, marks, from = 0, dispatch, image, on
     <div
       ref={stage}
       className={`relative min-h-0 flex-1 touch-none overflow-hidden select-none ${cursor}`}
+      onPointerMove={(e) => {
+        const p = natural(e.clientX, e.clientY);
+        const on = [...marks.marks].reverse().find(({ rect: r }) => p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h);
+        if (!onNote(e.target)) setHover(on?.id ?? null);
+      }}
+      onPointerLeave={() => setHover(null)}
       onDoubleClick={(e) => {
         if (marking || !onPhoto(e.target)) return;
         const p = local(e.clientX, e.clientY);
@@ -249,16 +268,23 @@ export function Stage({ url, name, marking, marks, from = 0, dispatch, image, on
                 <path
                   key={i}
                   d={el.d}
-                  fill="none"
-                  stroke={el.stroke}
-                  strokeWidth={el.strokeWidth}
+                  className="fill-accent/10 stroke-accent"
+                  strokeWidth={2}
+                  vectorEffect="non-scaling-stroke"
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
               ) : null,
             )}
             {path && (
-              <polyline points={path} fill="none" stroke={MARK_COLOR} strokeWidth={line} strokeDasharray={`${line * 2} ${line * 2}`} />
+              <polyline
+                points={path}
+                fill="none"
+                className="stroke-accent"
+                strokeWidth={2}
+                vectorEffect="non-scaling-stroke"
+                strokeDasharray="6 6"
+              />
             )}
           </svg>
         )}
@@ -269,29 +295,44 @@ export function Stage({ url, name, marking, marks, from = 0, dispatch, image, on
           type="button"
           data-note
           aria-label={`Mark ${from + i + 1}${m.text.trim() ? `: ${m.text.trim()}` : ''}`}
-          className="absolute grid size-6 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-danger text-xs font-semibold text-accent-fg outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          className="absolute grid size-5 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-accent text-xs font-semibold text-accent-fg shadow-popover ring-2 ring-bg outline-none focus-visible:ring-fg"
           style={screen(m.rect.x, m.rect.y)}
           onClick={() => dispatch({ type: 'open', id: m.id })}
+          onPointerEnter={() => setHover(m.id)}
         >
           {from + i + 1}
         </button>
       ))}
       {marks.marks.map((m, i) =>
-        m.text.trim() && m.id !== marks.open ? (
-          <button
-            key={m.id}
-            type="button"
-            data-note
-            tabIndex={-1}
-            aria-hidden
-            className="absolute flex max-w-56 items-center gap-1.5 truncate rounded-md bg-bg px-2 py-1 text-xs text-fg shadow-popover"
-            style={{ ...screen(m.rect.x + m.rect.w, m.rect.y), marginLeft: 10 }}
-            onClick={() => dispatch({ type: 'open', id: m.id })}
-          >
-            <Badge n={from + i + 1} />
-            <span className="truncate">{m.text.trim()}</span>
-          </button>
-        ) : null,
+        m.text.trim() && m.id !== marks.open && m.id === hover
+          ? (() => {
+              const right = labelFits(m);
+              // The gap is padding inside the button, so the pointer stays on it on the way from the mark.
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  data-note
+                  tabIndex={-1}
+                  aria-hidden
+                  className={`absolute ${right ? '' : '-translate-x-full'}`}
+                  style={{
+                    ...(right ? screen(m.rect.x + m.rect.w, m.rect.y) : screen(m.rect.x, m.rect.y)),
+                    [right ? 'paddingLeft' : 'paddingRight']: LABEL_GAP,
+                  }}
+                  onClick={() => dispatch({ type: 'open', id: m.id })}
+                >
+                  <span
+                    className="flex items-center gap-1.5 truncate rounded-md bg-bg px-2 py-1 text-xs text-fg shadow-popover"
+                    style={{ maxWidth: LABEL_W }}
+                  >
+                    <Badge n={from + i + 1} />
+                    <span className="truncate">{m.text.trim()}</span>
+                  </span>
+                </button>
+              );
+            })()
+          : null,
       )}
       {current && (
         <NoteBox

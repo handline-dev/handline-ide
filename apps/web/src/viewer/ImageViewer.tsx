@@ -247,7 +247,7 @@ export function ImageViewer({
           </>
         ) : canMark ? (
           marking ? (
-            'Click to pin, drag to box, circle to mark an area · Space-drag to pan'
+            'Drag to mark an area · Click to pin'
           ) : (
             'Scroll to zoom · Double-click to zoom · Drag to pan · M to mark'
           )
