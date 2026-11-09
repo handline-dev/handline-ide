@@ -8,12 +8,26 @@ import (
 	"testing"
 	"time"
 
+	"github.com/handline/handline/go/agentctl/term"
 	"github.com/handline/handline/go/data/agenthost"
 	"github.com/handline/handline/go/kit/testkill"
 )
 
 // A real tmux server, when one can be started here: the host methods and the control link against the program they are for. Once the
 // test ends, pass or fail, neither the server nor its socket file is left.
+// liveHost is what these tests ask of the tmux host.
+type liveHost interface {
+	term.Backend
+	term.Host
+	term.Shells
+	term.Runs
+	term.BytesSender
+	term.Sizer
+	term.CursorReader
+	term.StyledReader
+	term.ControlSpawner
+}
+
 func TestLiveTmux(t *testing.T) {
 	if _, err := exec.LookPath("tmux"); err != nil {
 		t.Skip("no tmux")
@@ -45,7 +59,7 @@ func liveTmux(t *testing.T, sock string, file *string) {
 		os.Remove(*file)
 	})
 	pane := run("list-panes", "-a", "-F", "#{pane_id}")
-	tm := agenthost.Tmux("")
+	tm := agenthost.Tmux("").(liveHost)
 	if ok, why := tm.SendBytes(pane, []byte("hello \x1b[1mworld\x1b[0m\r")); !ok {
 		t.Fatal(why)
 	}
