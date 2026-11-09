@@ -30,7 +30,9 @@ const chatTouchedNewest = "SELECT COALESCE(MAX(COALESCE(state_at, ts)), 0) FROM 
 type Chat struct {
 	Reads *reads.Env
 	// Panes is what the terminal host says of the windows that run commands; nil, or nil from it, ends no run.
-	Panes       func() map[string]term.PaneRun
+	Panes func() map[string]term.PaneRun
+	// Tail is the last rows of a run window, told to the run's agent when the run ends; nil tells no output.
+	Tail        func(handle string, rows int) []string
 	runSeen     map[string]string // run block -> the run as last said
 	done        map[int64]string  // request -> the message as last said, for the ones touched in the second the cursor is at
 	open        map[int64]bool    // the prompts told open and not yet told closed
@@ -194,8 +196,18 @@ func (c *Chat) tell(emit Emit, req *reads.ChatRequest) error {
 // look says nothing.
 func (c *Chat) runs(q *sql.DB, emit Emit) error {
 	if c.Panes != nil {
-		if err := cmdruns.Settle(q, c.Panes(), cmdruns.Now()); err != nil {
+		ended, err := cmdruns.Settle(q, c.Panes(), cmdruns.Now())
+		if err != nil {
 			return err
+		}
+		for _, r := range ended {
+			var tail []string
+			if r.Exit != nil && c.Tail != nil {
+				tail = c.Tail(r.Terminal, cmdruns.TailRows)
+			}
+			if err := cmdruns.Tell(q, r, tail); err != nil {
+				return err
+			}
 		}
 	}
 	all, err := cmdruns.All(q)
