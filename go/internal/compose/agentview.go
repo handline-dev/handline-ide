@@ -8,6 +8,7 @@ import (
 	"github.com/handline/handline/go/agentctl/term"
 	"github.com/handline/handline/go/agentctl/verdict"
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/states"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/internal/agentview"
 	"github.com/handline/handline/go/internal/prompts"
@@ -63,13 +64,14 @@ func (p *Parts) agentView(cfg Config, terminals bool, tu tickUsage) *agentview.E
 	return &agentview.Env{
 		PaneRuns: p.paneRuns,
 		Q:        q, Home: home,
-		Sessions:   rowSessions{p, terminals, cfg.Turns},
-		Background: lc.Env,
-		Wakes:      lc.Manager,
-		Prompts:    &prompts.Env{DB: p.db, Home: home, Now: nowOf(cfg.Now)},
-		NeedsYou:   p.needsYou(),
-		Agents:     func() []string { return p.tickAgents(terminals) },
-		Registered: func() []string { return paths.ListAgents(home) },
+		Sessions:    rowSessions{p, terminals, cfg.Turns},
+		Background:  lc.Env,
+		Wakes:       lc.Manager,
+		Prompts:     &prompts.Env{DB: p.db, Home: home, Now: nowOf(cfg.Now)},
+		NeedsYou:    p.needsYou(),
+		SwitchOffer: p.switchOffer,
+		Agents:      func() []string { return p.tickAgents(terminals) },
+		Registered:  func() []string { return paths.ListAgents(home) },
 		Config: func(agent string) (string, string, bool) {
 			c, err := lc.roster.Read(agent)
 			if err != nil {
@@ -118,7 +120,10 @@ func (p *Parts) agentView(cfg Config, terminals bool, tu tickUsage) *agentview.E
 			return d.Text, d.At, true
 		},
 		Servers: cfg.Servers,
-		Jobs:    func(agent string, now int64) []agentview.Job { return p.backgroundJobs(home, agent, now) },
+		LimitDialogOwned: func(agent string) bool {
+			return p.limitDialogOwned(agent, tu, nowOf(cfg.Now)().Unix())
+		},
+		Jobs: func(agent string, now int64) []agentview.Job { return p.backgroundJobs(home, agent, now) },
 		Walled: func(agent string, row *db.AgentState) *agentview.Wall {
 			if yes, err := lc.Manager.WouldWake(row); err != nil || !yes {
 				return nil
@@ -159,6 +164,40 @@ func (p *Parts) backgroundJobs(home, agent string, now int64) []agentview.Job {
 	}
 	sort.SliceStable(jobs, func(i, j int) bool { return jobs[i].Since < jobs[j].Since })
 	return jobs
+}
+
+// limitDialogOpen is whether the usage-limit dialog is on agent's screen.
+func (p *Parts) limitDialogOpen(agent string) bool {
+	if p.LC == nil || p.LC.term == nil {
+		return false
+	}
+	handle, err := db.Terminal(p.db, agent)
+	return err == nil && handle != "" && p.LC.term.UsageLimitOpen(handle)
+}
+
+// closeTriesBackS is how long after a close failed the limit dialog goes back to a person: the daemon cannot get past it just now.
+const closeTriesBackS = 2 * states.AssumedAccountRecheckS // past the retry a failed close parks for, so it does not flicker
+
+// limitHandled is whether the daemon is dealing with the limit dialog: the tick hands the agent off when its last turn ended on the limit
+// or its reading fires a wall, and PerformHandoff does not wait for a turn behind that dialog. Anything else leaves it a person's.
+func limitHandled(atLimit bool, t tick.Trigger, closeFailedAgoS int64, closeFailed bool) bool {
+	if closeFailed && closeFailedAgoS < closeTriesBackS {
+		return false
+	}
+	return atLimit || (t.Fired && (t.Kind == "usage" || t.Kind == "usage_7d"))
+}
+
+// limitDialogOwned is agentview.Env.LimitDialogOwned.
+func (p *Parts) limitDialogOwned(agent string, tu tickUsage, now int64) bool {
+	if !p.limitDialogOpen(agent) {
+		return false
+	}
+	_, atLimit := tu.limitAt(p.db, agent)
+	acct, _ := team.CurrentAccount(p.db, agent)
+	st := tu.ReadForAgent(agent, acct)
+	t := tick.Evaluate(st.ShortTrusted, st.TrustedCtxUsed, st.LongTrusted, tu.ContextLimit(agent, st.ModelID))
+	failedAt, failed, err := db.LastEventTS(p.db, agent, "close_failed")
+	return err == nil && limitHandled(atLimit, t, now-failedAt, failed)
 }
 
 // agentViewPass is the tick's pass that stores the views.

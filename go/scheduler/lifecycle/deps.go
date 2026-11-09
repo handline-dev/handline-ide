@@ -115,6 +115,10 @@ type Launch interface {
 	RoomElsewhere(q db.Q, agent string, row *db.AgentState, exclude map[string]string) (account, why string)
 	// RoomOn is why acct cannot take the agent, "" when it can.
 	RoomOn(q db.Q, agent string, row *db.AgentState, acct string) string
+	// ClosestRoom is, when no account has room, the account closest to it: no wall and a free slot, only short of the room test. "" for none.
+	ClosestRoom(q db.Q, agent string, row *db.AgentState, exclude map[string]string) string
+	// RoomPastFit is RoomOn for a person who chose acct knowing it has little room: it still refuses a wall, a full account and a pin.
+	RoomPastFit(q db.Q, agent string, row *db.AgentState, acct string) string
 	// WorthRepick is whether a closed agent's cold wake should land on to instead of its own account: to's unused week runs out faster by
 	// usage.RepickGain, or one of them cannot be read.
 	WorthRepick(own, to string) bool
@@ -189,6 +193,8 @@ type Manager struct {
 
 	// OnLaunch is told each time a wake's launch has begun (NoteLaunch); nil tells no one.
 	OnLaunch func(agent string)
+	// RefreshView stores the agent's view now, so a step that passes inside one tick is still seen; nil leaves it to the tick.
+	RefreshView func(agent string)
 	// OnStartStall is told once, when starts for waiting work have failed often enough to stall the agent, with the last one's reason.
 	OnStartStall func(q db.Q, agent, why string)
 	// WhatChanged is what the next launch's settings change from the session before, as a person reads it ("model changed (opus-5-5 ->

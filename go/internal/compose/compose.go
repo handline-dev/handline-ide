@@ -8,11 +8,13 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/handline/handline/go/agentctl/agent/claudecode/turns"
 	"github.com/handline/handline/go/agentctl/term"
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/internal/agentview"
 	"github.com/handline/handline/go/internal/heal"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/scheduler/keepawake"
@@ -63,7 +65,8 @@ type Parts struct {
 	turns    *turns.Tracker
 	tell     Telling
 	log      func(format string, args ...any)
-	healer   *heal.Healer // the tick's, once Tick has built it
+	healer   *heal.Healer                  // the tick's, once Tick has built it
+	view     atomic.Pointer[agentview.Env] // the tick's too; a move reached over RPC may ask for it first
 	awake    *keepawake.Holder
 }
 

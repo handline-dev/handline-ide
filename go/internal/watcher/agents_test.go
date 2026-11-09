@@ -106,3 +106,13 @@ func TestAStallNoticeIsTitledByTheDaemonsCard(t *testing.T) {
 		t.Fatal("a card that stays is told once")
 	}
 }
+
+func TestAnOfferToSwitchAccountIsNoStall(t *testing.T) {
+	offer := `{"name":"bob","state":"parked","needs_you":{"kind":"switch_offer","title":"No account has room to spare","source":"daemon"}}`
+	if stuck(offer) {
+		t.Fatal("nothing waits on the offer, so it tells no stall")
+	}
+	if !stuck(`{"name":"bob","state":"waiting","needs_you":{"kind":"dialog","title":"Stuck at a dialog","source":"daemon"}}`) {
+		t.Fatal("a daemon's own card still does")
+	}
+}

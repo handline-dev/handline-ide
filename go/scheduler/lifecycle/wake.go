@@ -244,9 +244,11 @@ func (m *Manager) writeWakePrompt(agent, text, suffix string) (string, error) {
 // "fresh close" or "move" when empty). RestartedBy names who asked for a restart: the session's first prompt says so. MovedTo names the
 // account this wake starts the agent on when it is not the one the last session was on. Person is a start a person pressed, not a restart
 // the daemon owes nor a tick's wake: it queues behind no older closed agent, and a full or walled account sends it to one with room at once.
+// PastFit is a person's choice of MovedTo, checked already (Launch.RoomPastFit): what the wake's own account looks like holds nothing back.
 type WakeOpts struct {
 	Force, Warm bool
 	Person      bool
+	PastFit     bool
 	Cause       string
 	RestartedBy string
 	Applying    []string
@@ -496,8 +498,8 @@ func (m *Manager) wakeClosed(agent string, row *db.AgentState, handle, wt string
 		}
 	}
 	wait := m.Launch.WakeWait(m.Q, agent, row)
-	if rehomed {
-		wait = nil // the account it moved to was picked for having room
+	if rehomed || o.PastFit {
+		wait = nil // the account it moved to was picked for having room, or by a person who was told it has little
 	}
 	if wait != nil && (wait.Pace != nil || wait.FiveHour) && (force || m.personWaiting(agent)) {
 		// The pace and the 5-hour limit hold only the daemon's own work: a person's start or message, and a restart, go.
@@ -558,6 +560,7 @@ func (m *Manager) wakeClosed(agent string, row *db.AgentState, handle, wt string
 			why := fmt.Sprintf("pinned to %s at %d%% (%s)", acct, pct, wait.Window)
 			if kept, moved := m.moveElsewhere(agent, session, acct, elsewhere, why); moved {
 				session, movedTo, moveFrom, rescued = kept, elsewhere, acct, true
+				m.noteSwitch(agent, kind, acct, elsewhere, db.SwitchStarting)
 			}
 		}
 		if !rescued {

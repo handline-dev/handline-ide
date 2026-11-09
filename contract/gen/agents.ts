@@ -94,7 +94,7 @@ export type AgentView = {
   cache_ignored?: boolean;
   /** Why the agent's configuration cannot be read, as one line; null when it can. When set, `kind` is absent (and the model, effort and the other fields that come from the configuration are null or absent). Absent from a daemon that does not serve it yet. */
   config_error?: string | null;
-  /** Set while the agent waits on a decision only a person at its terminal can make. Fed by hooks (PermissionRequest and the permission and question Notification kinds) and by the session file saying status `waiting` with `waitingFor` (`permission prompt` is the one measured; the file has no needs or tempo key), never by reading the screen; the tool and its target come from the PermissionRequest hook event; cleared by the hook that follows (PostToolUse, UserPromptSubmit, Stop, SessionEnd) or when the session file stops saying it. While set, `state` is `waiting`, `has_dialog` is true and `attention` is `alert`. null when none. */
+  /** Set while the agent waits on a decision only a person at its terminal can make. Fed by hooks (PermissionRequest and the permission and question Notification kinds) and by the session file saying status `waiting` with `waitingFor` (`permission prompt` is the one measured; the file has no needs or tempo key), never by reading the screen; the tool and its target come from the PermissionRequest hook event; cleared by the hook that follows (PostToolUse, UserPromptSubmit, Stop, SessionEnd) or when the session file stops saying it. While set, except for kind `switch_offer`, `state` is `waiting`, `has_dialog` is true and `attention` is `alert`. null when none. */
   needs_you?: NeedsYou | null;
   /** Set while a session hands off or restarts, so a chat that sits still can say why. Cleared when the new session's start item appears. Every change is an agent.changed. A handoff that waits for a usage window to reset shows `writing` only; it is not `starting` until a launch is due. null when none. Absent from a daemon that does not serve it. */
   handoff?: {
@@ -105,6 +105,21 @@ export type AgentView = {
     /** The settings a restart for changed settings applies, in launch order (`model`, `effort`, ...). Absent for any other cause. */
     settings?: string[];
     since: Timestamp;
+  } | null;
+  /** The account switch the agent is in, from the limit being reached until the new session has started, written as each step begins; every step is an agent.changed. null when none. Absent from a daemon that does not serve it. */
+  account_switch?: {
+    /** Why it is switching, in the words of handoff.cause: `usage`, `usage_7d`, `usage_early`, `move` for a person's order, `login`, `ended`, `pinned`. An open set. */
+    cause: string;
+    /** `saving`: the limit was reached and its progress is being saved; `to` is not decided. `switching`: the old session is closing for `to`. `starting`: the session on `to` is launching. `waiting`: it stays on `from` until `until`, because the account resets soon or no account has room. */
+    phase: "saving" | "switching" | "starting" | "waiting";
+    /** The account it is leaving, or waits on. */
+    from: string;
+    /** The account it goes to, null while saving or waiting. */
+    to: string | null;
+    /** When this phase began. */
+    since: Timestamp;
+    /** When a wait ends, null for any other phase. */
+    until: Timestamp | null;
   } | null;
   /** The agent's newest request to the founder; null when it never wrote to them. Absent from a daemon that does not serve it yet. */
   last_to_founder?: {
@@ -230,15 +245,17 @@ export type AgentSettingValues = {
 };
 
 export type NeedsYou = {
-  /** permission: a tool or a folder waits for a yes. question: the agent asked the person something. usage: the session limit's choice. dialog: any other (a start-up dialog the daemon will not answer included), and any the daemon does not know: unknown is a person. stuck: the daemon retried, restarted and relaunched the agent and it is still stuck: one card, gone when the trouble is. trust: the vendor waits at its folder-trust screen. start_failed: the last starts failed and the agent is stalled. no_session: wakes were made and no session started. The same event is never two cards, and a load hold is never stuck. */
-  kind: "permission" | "question" | "usage" | "dialog" | "stuck" | "trust" | "start_failed" | "no_session";
+  /** permission: a tool or a folder waits for a yes. question: the agent asked the person something. usage: the session limit's choice, only while the daemon is not handling that limit itself (x-dialogs usage_limit_choice). dialog: any other (a start-up dialog the daemon will not answer included), and any the daemon does not know: unknown is a person. stuck: the daemon retried, restarted and relaunched the agent and it is still stuck: one card, gone when the trouble is. trust: the vendor waits at its folder-trust screen. start_failed: the last starts failed and the agent is stalled. no_session: wakes were made and no session started. switch_offer: the agent is parked at its usage limit because no account has room to spare, and it may start on `account` now (agent.switch_now). Not answering keeps it waiting, so unlike every other kind it does not set `state` to `waiting` or `has_dialog`, and it tells no stall. The same event is never two cards, and a load hold is never stuck. */
+  kind: "permission" | "question" | "usage" | "dialog" | "stuck" | "trust" | "start_failed" | "no_session" | "switch_offer";
   since: Timestamp;
-  /** The card's title: plain, one line, at most 40 characters, chosen from the kind and where it came from. daemon: 'Waiting for folder trust' (trust), 'Stuck at a start-up dialog' (a start-up dialog it will not answer), 'Stuck at a dialog' (a dialog it cannot get past), 'Stuck after restarts' (stuck), 'Won't start' (start_failed), 'Woke but didn't start' (no_session). hook, session: 'Waiting for your OK' (permission), 'Asked you a question' (question), 'Usage limit: choose what to do' (usage), 'Waiting at a dialog' (dialog). */
+  /** The card's title: plain, one line, at most 40 characters, chosen from the kind and where it came from. daemon: 'Waiting for folder trust' (trust), 'Stuck at a start-up dialog' (a start-up dialog it will not answer), 'Stuck at a dialog' (a dialog it cannot get past), 'Stuck after restarts' (stuck), 'Won't start' (start_failed), 'Woke but didn't start' (no_session), 'No account has room to spare' (switch_offer). hook, session: 'Waiting for your OK' (permission), 'Asked you a question' (question), 'Usage limit: choose what to do' (usage), 'Waiting at a dialog' (dialog). */
   title: string;
   /** The card's description, a full sentence under the title, from the hook, the session file or the daemon's record; never read from the screen. It does not name the agent: the card is in that agent's chat. */
   text: string | null;
   /** hook: the PermissionRequest hook. notification: Claude Code's Notification hook, a prompt nobody answered. session: the session's own file (sessions/<pid>.json status waiting and waitingFor). daemon: the daemon's own record (a start-up dialog it will not answer, a dialog it cannot get past, an agent it could not heal); never a task. */
   source: "hook" | "notification" | "session" | "daemon";
+  /** The account a switch_offer offers, the one closest to having room, asked again at each change of the view. Absent for any other kind. */
+  account?: string;
 };
 
 /** A path the founder let an agent read (x-access). */
@@ -332,6 +349,11 @@ export interface AgentsMethods {
   "agent.move": { params: {
   agent: AgentName;
   account: string;
+  request_id: RequestId;
+}; result: Accepted };
+  "agent.switch_now": { params: {
+  agent: AgentName;
+  account?: string;
   request_id: RequestId;
 }; result: Accepted };
   "agent.unstall": { params: {
@@ -572,6 +594,7 @@ export const AGENTS_METHODS: { [K in keyof AgentsMethods]: { role: Role; callers
   "agent.set": { role: "agent", callers: ["agent", "founder"], write: true, since: 1 },
   "agent.fold": { role: "agent", callers: null, write: true, since: 1 },
   "agent.move": { role: "agent", callers: null, write: true, since: 1 },
+  "agent.switch_now": { role: "agent", callers: null, write: true, since: 1 },
   "agent.unstall": { role: "founder", callers: null, write: true, since: 1 },
   "agent.force_start": { role: "founder", callers: null, write: true, since: 1 },
   "agent.retire": { role: "founder", callers: null, write: true, since: 1 },
@@ -619,10 +642,11 @@ export const AGENTS_APP_CACHE: { [K in "agents.list" | "agent.get" | "subagents.
 };
 
 /** x-app-write of each write (x-app in core.json). */
-export const AGENTS_APP_WRITES: { [K in "agent.set" | "agent.fold" | "agent.move" | "agent.unstall" | "agent.force_start" | "agent.retire" | "agent.create" | "session.start" | "session.wake" | "session.stop" | "session.restart" | "session.compact" | "session.park" | "session.input" | "session.keys" | "session.type" | "session.interrupt" | "prompt.answer" | "input.take" | "input.release" | "say" | "access.grant" | "access.revoke"]: { kind: WriteKind; label: string } | false } = {
+export const AGENTS_APP_WRITES: { [K in "agent.set" | "agent.fold" | "agent.move" | "agent.switch_now" | "agent.unstall" | "agent.force_start" | "agent.retire" | "agent.create" | "session.start" | "session.wake" | "session.stop" | "session.restart" | "session.compact" | "session.park" | "session.input" | "session.keys" | "session.type" | "session.interrupt" | "prompt.answer" | "input.take" | "input.release" | "say" | "access.grant" | "access.revoke"]: { kind: WriteKind; label: string } | false } = {
   "agent.set": {"kind": "authored", "label": "set"},
   "agent.fold": {"kind": "decided", "label": "fold"},
   "agent.move": {"kind": "decided", "label": "move"},
+  "agent.switch_now": {"kind": "decided", "label": "switch"},
   "agent.unstall": {"kind": "decided", "label": "clear stall"},
   "agent.force_start": {"kind": "decided", "label": "force start"},
   "agent.retire": {"kind": "decided", "label": "retire"},

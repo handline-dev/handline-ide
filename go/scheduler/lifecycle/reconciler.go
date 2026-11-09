@@ -575,6 +575,9 @@ func (r *Reconciler) dropUnregistered(actions *[]string) error {
 			if _, err := r.Q.Exec("DELETE FROM agent_state WHERE agent = ?", row.Agent); err != nil {
 				return err
 			}
+			if err := db.ClearSwitch(r.Q, row.Agent); err != nil {
+				return err
+			}
 			*actions = append(*actions, row.Agent+": no such agent; its state row is dropped")
 		}
 	}

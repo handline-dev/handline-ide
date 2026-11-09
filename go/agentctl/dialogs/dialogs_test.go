@@ -13,3 +13,9 @@ func TestOnlyARoutineDialogIsAnsweredAndAnUnknownOneIsAPersons(t *testing.T) {
 		t.Errorf("%+v", e)
 	}
 }
+
+func TestTheUsageLimitDialogIsTheDaemonsAndStillNamesItsKind(t *testing.T) {
+	if e := Of("usage_limit_choice"); e.Class != Daemon || e.Kind != Usage {
+		t.Errorf("%+v", e)
+	}
+}
