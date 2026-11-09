@@ -18,8 +18,19 @@ type Run = NonNullable<TranscriptItem['runs']>[number];
 export type CommandsOfValue = { agent: string; owner: string; runs?: Run[] } | null;
 export const CommandsOf = createContext<CommandsOfValue>(null);
 
-/** n: the fence's 0-based place among its text's code fences; its block is `${owner}:${n}`. */
-export function CommandRunBar({ of, command, n }: { of: NonNullable<CommandsOfValue>; command: string; n: number }) {
+/** n: the fence's 0-based place among its text's code fences, or BANG_FROM and up for an inline `! ` span; its block is `${owner}:${n}`.
+ * `inline` sits beside an inline span instead of under a fence. */
+export function CommandRunBar({
+  of,
+  command,
+  n,
+  inline,
+}: {
+  of: NonNullable<CommandsOfValue>;
+  command: string;
+  n: number;
+  inline?: boolean;
+}) {
   const block = `${of.owner}:${n}`;
   const run = of.runs?.find((r) => r.block === block);
   const open = useWrite('shell.open', of.agent);
@@ -41,14 +52,15 @@ export function CommandRunBar({ of, command, n }: { of: NonNullable<CommandsOfVa
     }
     openTab(shellOf(terminal), 'side');
   };
+  const Wrap = inline ? 'span' : 'div';
   return (
-    <div className="flex items-center gap-2 px-2 pt-1 pb-0.5 text-xs text-muted">
+    <Wrap className={`${inline ? 'ml-1 inline-flex align-middle' : 'flex px-2 pt-1 pb-0.5'} items-center gap-2 text-xs text-muted`}>
       {run && (
         <span role="status" className={run.state === 'failed' ? 'text-danger' : run.state === 'done' ? 'text-success' : ''}>
           {runLine(run, now)}
         </span>
       )}
-      <span className="ml-auto flex gap-1">
+      <span className={`flex gap-1 ${inline ? '' : 'ml-auto'}`}>
         {run?.state === 'running' && !waiting ? (
           <Button variant="ghost" size="sm" onClick={() => openTab(shellOf(run.terminal), 'side')}>
             <SquareTerminal size={14} />
@@ -61,6 +73,6 @@ export function CommandRunBar({ of, command, n }: { of: NonNullable<CommandsOfVa
           </Button>
         )}
       </span>
-    </div>
+    </Wrap>
   );
 }

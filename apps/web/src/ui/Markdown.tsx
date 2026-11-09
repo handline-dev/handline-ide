@@ -1,7 +1,7 @@
 import { startTabDrag } from '#src/ui/dnd.tsx';
 import { CopyButton } from '#src/chat/MessageActions.tsx';
 import { MessageImages } from '#src/chat/MessageImages.tsx';
-import { attachmentOf, commandOf } from '@handline/app-core';
+import { attachmentOf, BANG_FROM, bangOf, commandOf } from '@handline/app-core';
 import { CommandRunBar, CommandsOf, type CommandsOfValue } from '#src/chat/CommandBlock.tsx';
 import { marked, type Token, type Tokens } from 'marked';
 import { createContext, Fragment, useContext, type ReactNode } from 'react';
@@ -13,13 +13,26 @@ import { fileOf, taskOf, webOf } from '#src/layout/kinds.tsx';
  * and a repo path (apps/web/src/main.tsx:12) open in a tab: a click here, Cmd+click beside. */
 export function Markdown({ text }: { text: string }) {
   const tokens = marked.lexer(text, { gfm: true, breaks: true });
-  // In a chat line, every code fence is numbered in order (app-core commandOf): a command one's run is named by that number.
+  // In a chat line, every code fence is numbered in order (app-core commandOf), and each inline `! ` span from BANG_FROM: a command's
+  // run is named by that number.
   const of = useContext(CommandsOf);
-  const fences = new Map<Token, number>();
-  if (of)
+  const fences = new Map<Token, { n: number; command: string | null }>();
+  if (of) {
+    // Link text is drawn as plain words, so a span in it is no command and takes no number.
+    const inLinks = new Set<Token>();
     void marked.walkTokens(tokens, (t) => {
-      if (t.type === 'code') fences.set(t, fences.size);
+      if (t.type === 'link') void marked.walkTokens((t as Tokens.Link).tokens, (x) => void inLinks.add(x));
     });
+    let code = 0;
+    let bangs = 0;
+    void marked.walkTokens(tokens, (t) => {
+      if (t.type === 'code') fences.set(t, { n: code++, command: commandOf(t.lang ?? '', t.text) });
+      else if (t.type === 'codespan' && !inLinks.has(t)) {
+        const command = bangOf(t.text);
+        if (command) fences.set(t, { n: BANG_FROM + bangs++, command });
+      }
+    });
+  }
   return (
     <Fences.Provider value={of && { of, n: fences }}>
       <div className="flex flex-col gap-2 wrap-break-word">{blocks(tokens)}</div>
@@ -27,13 +40,14 @@ export function Markdown({ text }: { text: string }) {
   );
 }
 
-const Fences = createContext<{ of: NonNullable<CommandsOfValue>; n: ReadonlyMap<Token, number> } | null>(null);
+const Fences = createContext<{ of: NonNullable<CommandsOfValue>; n: ReadonlyMap<Token, { n: number; command: string | null }> } | null>(
+  null,
+);
 
 /** A code block copies whole: its button at the top right, on hover. A command fence in a chat line also runs (chat/CommandBlock). */
 function Code({ t }: { t: Tokens.Code }) {
   const fences = useContext(Fences);
-  const n = fences?.n.get(t);
-  const command = n === undefined ? null : commandOf(t.lang ?? '', t.text);
+  const f = fences?.n.get(t);
   return (
     <div className="group/code relative rounded-md bg-surface">
       <pre className="p-2 pr-9 font-mono text-sm break-all whitespace-pre-wrap">
@@ -42,12 +56,28 @@ function Code({ t }: { t: Tokens.Code }) {
       <span className="absolute top-1 right-1 opacity-0 transition-opacity group-hover/code:opacity-100 focus-within:opacity-100">
         <CopyButton text={t.text} />
       </span>
-      {fences && command && <CommandRunBar of={fences.of} command={command} n={n!} />}
+      {fences && f?.command && <CommandRunBar of={fences.of} command={f.command} n={f.n} />}
     </div>
   );
 }
 
 const code = 'rounded-sm bg-surface px-1 font-mono text-sm';
+
+/** Inline code: a path or a task written as code still opens; an agent's `! <command>` in a chat line runs (chat/CommandBlock). */
+function CodeSpan({ t }: { t: Tokens.Codespan }) {
+  const fences = useContext(Fences);
+  const f = fences?.n.get(t);
+  const target = linkOf(t.text);
+  const c = <code className={code}>{t.text}</code>;
+  if (fences && f?.command)
+    return (
+      <>
+        {c}
+        <CommandRunBar inline of={fences.of} command={f.command} n={f.n} />
+      </>
+    );
+  return target ? <Opens opens={target}>{c}</Opens> : c;
+}
 const headings = ['text-lg', 'text-base', 'text-base', 'text-sm', 'text-sm', 'text-sm'];
 
 function blocks(tokens: Token[]): ReactNode {
@@ -193,12 +223,8 @@ function span(t: Token): ReactNode {
       return <em>{inline(t.tokens)}</em>;
     case 'del':
       return <del className="text-muted">{inline(t.tokens)}</del>;
-    case 'codespan': {
-      // A path or a task written as code still opens.
-      const target = linkOf(t.text);
-      const c = <code className={code}>{t.text}</code>;
-      return target ? <Opens opens={target}>{c}</Opens> : c;
-    }
+    case 'codespan':
+      return <CodeSpan t={t as Tokens.Codespan} />;
     case 'br':
       return <br />;
     case 'link':
