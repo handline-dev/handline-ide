@@ -1,5 +1,6 @@
 import { Check, Circle, CircleDot, Hand, Hourglass, X, type LucideProps } from 'lucide-react';
 import { taskOutcome } from '@handline/app-core';
+import { useTask } from '@handline/app-data';
 import type { ReactNode } from 'react';
 
 /** Doing: a filled dot, smaller than the square's other icons. */
@@ -38,3 +39,18 @@ export const look = (t: {
   const failed = t.state === 'done' && failedLine(t.evidence, t.title) !== null;
   return STATE[held ? 'waiting' : failed ? 'failed' : t.state] ?? { icon: CircleDot, tone: 'bg-muted', word: t.state };
 };
+
+/** Another task's state pill, read from that task so a held one reads as waiting. */
+export function TaskState({ id }: { id: number }) {
+  const t = useTask(id).data;
+  if (!t) return null;
+  const s = look(t);
+  return (
+    <span
+      className={`mr-1.5 inline-flex h-4 items-center gap-1 rounded-sm px-1.5 align-text-bottom text-xs leading-none font-medium text-accent-fg ${s.tone}`}
+    >
+      <s.icon size={10} strokeWidth={3} />
+      {s.word}
+    </span>
+  );
+}
