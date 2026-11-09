@@ -41,8 +41,8 @@ describe('a drag of files over an area', () => {
     vi.useFakeTimers();
     const open = vi.fn();
     const h = mount(() => useSpringOpen(open));
-    act(() => h.current.handlers.onDragEnter(files));
-    expect(h.current.hovering).toBe(true);
+    act(() => h.current.props.onDragEnter(files));
+    expect(h.current.props['data-spring']).toBe(true);
     act(() => {
       vi.advanceTimersByTime(1000);
     });

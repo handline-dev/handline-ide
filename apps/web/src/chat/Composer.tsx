@@ -1,6 +1,7 @@
 import { useSuggest, type Command } from '#src/chat/Suggest.tsx';
+import { DropHint, DropOver } from '#src/ui/fileDrop.tsx';
 import { ArrowUp, CornerDownLeft, Paperclip, Square, SquareTerminal } from 'lucide-react';
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { ImageViewer, type MarkedPicture } from '#src/viewer/ImageViewer.tsx';
 import { FolderChip, UploadChip, type Attachments } from '#src/chat/attachments.tsx';
 import { readDropped } from '#src/ui/fileDrop.tsx';
@@ -47,6 +48,7 @@ export function Composer({
   /** What `/` offers at the start of the line; `@` offers the agents always. */
   commands?: Command[];
 }) {
+  const dropOver = useContext(DropOver);
   const [viewing, setViewing] = useState<number | null>(null);
   const shown = attach.uploads.filter((d) => d.preview);
   const picker = useRef<HTMLInputElement>(null);
@@ -85,12 +87,13 @@ export function Composer({
   };
   return (
     <form
-      className={`relative my-3 flex flex-col gap-2 rounded-xl border bg-bg py-2 pr-2 pl-4 ${bash ? 'border-warning' : 'border-border focus-within:border-accent'}`}
+      className={`relative my-3 flex flex-col gap-2 rounded-xl border bg-bg py-2 pr-2 pl-4 ${bash ? 'border-warning' : 'border-border focus-within:border-accent'} ${dropOver ? 'ring-2 ring-accent' : ''}`}
       onSubmit={(e) => {
         e.preventDefault();
         submit();
       }}
     >
+      <DropHint shown={dropOver} />
       {!bash && suggest.menu}
       {/* Held to the box's width: a long line in it truncates instead of widening the page. */}
       {above && <div className="min-w-0 overflow-hidden">{above}</div>}

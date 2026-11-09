@@ -127,10 +127,11 @@ function AgentRows({
         {line?.at === agent.name && (
           <span className={`pointer-events-none absolute inset-x-1 h-0.5 rounded-full bg-accent ${line.after ? '-bottom-1' : '-top-1'}`} />
         )}
-        <AgentMenu agent={agent} onSettings={() => pick.onSettings(agent.name)}>
+        <AgentMenu agent={agent} opens={opens} onShow={() => pick.onSelect(agent.name)} onSettings={() => pick.onSettings(agent.name)}>
           <AgentRowCard jobs={agent.background ?? []}>
             <Row
               opens={opens}
+              menu={false}
               // At a section's top a sub-agent is a pin out of its team: its short name after the team's.
               title={under === null && agent.parent ? shortName(agent.name, agent.parent) : shortName(agent.name, under)}
               context={under === null && agent.parent ? agent.parent : undefined}

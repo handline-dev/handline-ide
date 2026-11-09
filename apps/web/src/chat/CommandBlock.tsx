@@ -7,6 +7,7 @@ import { createContext, useState } from 'react';
 import { useNow } from '#src/format/time.ts';
 import { shellOf } from '#src/layout/kinds.tsx';
 import { useOpenTab } from '#src/layout/openTab.tsx';
+import { useOpenable } from '#src/layout/openable.tsx';
 import { Button } from '#src/ui/Button.tsx';
 import { confirm } from '#src/ui/modal.tsx';
 import { toast } from '#src/ui/toast.tsx';
@@ -62,10 +63,7 @@ export function CommandRunBar({
       )}
       <span className={`flex gap-1 ${inline ? '' : 'ml-auto'}`}>
         {run?.state === 'running' && !waiting ? (
-          <Button variant="ghost" size="sm" onClick={() => openTab(shellOf(run.terminal), 'side')}>
-            <SquareTerminal size={14} />
-            Open terminal
-          </Button>
+          <OpenTerminal terminal={run.terminal} />
         ) : (
           <Button variant="ghost" size="sm" disabled={waiting} onClick={() => void start()}>
             {run ? <RotateCw size={14} /> : <Play size={14} />}
@@ -74,5 +72,15 @@ export function CommandRunBar({
         )}
       </span>
     </Wrap>
+  );
+}
+
+/** A running command's terminal, opened the app's way. */
+function OpenTerminal({ terminal }: { terminal: string }) {
+  return (
+    <Button variant="ghost" size="sm" {...useOpenable(shellOf(terminal))}>
+      <SquareTerminal size={14} />
+      Open terminal
+    </Button>
   );
 }

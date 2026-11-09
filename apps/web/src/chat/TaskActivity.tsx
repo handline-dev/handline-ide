@@ -7,7 +7,7 @@ import { look } from '#src/ui/taskLook.tsx';
 import { spring } from '#src/motion.ts';
 import { clock } from '#src/format/time.ts';
 import { taskOf } from '#src/layout/kinds.tsx';
-import { openProps, useOpenTab } from '#src/layout/openTab.tsx';
+import { useOpenable } from '#src/layout/openable.tsx';
 
 /** `start`: a task this agent was given, by its maker or handed on by its holder. */
 export type TaskEventKind = 'add' | 'edit' | 'done' | 'handoff' | 'discard' | 'start';
@@ -108,7 +108,6 @@ export function TaskActivity({ events }: { events: TaskEvent[] }) {
 function Row({ e, task, ruled }: { e: TaskEvent; task?: Task; ruled: boolean }) {
   const s = task ? look(task) : null;
   const Did = DID[e.kind];
-  const openTab = useOpenTab();
   return (
     <motion.div
       // A row that comes in only fades in.
@@ -121,10 +120,7 @@ function Row({ e, task, ruled }: { e: TaskEvent; task?: Task; ruled: boolean }) 
       {/* A click opens the task; Cmd+click beside. */}
       <button
         type="button"
-        {...openProps(
-          (how) => openTab(taskOf(Number(e.id.slice(1))), how),
-          () => taskOf(Number(e.id.slice(1))),
-        )}
+        {...useOpenable(taskOf(Number(e.id.slice(1))))}
         className={`flex w-full gap-2.5 px-3 py-2 text-left hover:bg-hover/30 ${ruled ? 'border-t border-border' : ''}`}
       >
         <span className={`mt-0.5 grid size-5 shrink-0 place-items-center rounded-md text-accent-fg ${s?.tone ?? 'bg-surface'}`}>

@@ -65,7 +65,7 @@ it('a block says how its last run went: running offers its terminal, an ended on
   expect([...el.querySelectorAll('[role=status]')].map((s) => s.textContent)).toEqual(['Running · 0s', 'Failed · exit 1 · 2s']);
   expect(buttons(el)).toEqual(expect.arrayContaining(['Open terminal', 'Run again']));
   await act(async () => [...el.querySelectorAll('button')].find((b) => b.textContent === 'Open terminal')!.click());
-  expect(openTab).toHaveBeenCalledWith('shell:%3', 'side');
+  expect(openTab).toHaveBeenCalledWith('shell:%3', 'here');
 });
 
 it('an inline `! <command>` runs too, numbered from 1000, and leaves the fences their own numbers', async () => {
