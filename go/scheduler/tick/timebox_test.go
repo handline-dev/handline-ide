@@ -100,7 +100,7 @@ func newTask(t *testing.T, tk *Tick, owner, opener string, timeoutS int64) int64
 	return tid
 }
 
-func TestATaskThatIsDoingStartsItsClockThenTellsItsHolderAndLeadNotItsOpenerPastTheDeadlineAndRearms(t *testing.T) {
+func TestATaskThatIsDoingStartsItsClockThenTellsItsHolderAndLeadNotItsOpenerPastTheDeadlineAndEachLengthOn(t *testing.T) {
 	tk, w, b, p := timebox(t)
 	p.boss = "lead"
 	tid := newTask(t, tk, "a", "boss", 100)
@@ -126,17 +126,26 @@ func TestATaskThatIsDoingStartsItsClockThenTellsItsHolderAndLeadNotItsOpenerPast
 		t.Fatalf("the notices wait in the digest: %v", p.sent)
 	}
 	task, _ = db.GetTask(tk.Q, tid)
-	if task.TimeoutAt.Int64 != 1300 {
-		t.Fatalf("the clock was not re-armed one stretch on: %+v", task)
+	if task.TimeoutAt.Int64 != 1100 {
+		t.Fatalf("an overrun clock runs on from its end: %+v", task)
 	}
-	if n := countEvents(t, tk, "a", "task_timeout_exceeded"); n != 1 || !w.logged("past its") {
+	b.SweepTaskTimeouts(tk, 1299)
+	if len(p.batched) != 2 {
+		t.Fatalf("told again before a further length: %v", p.batched)
+	}
+	b.SweepTaskTimeouts(tk, 1300)
+	if len(p.batched) != 4 {
+		t.Fatalf("not told again a length after the last notice: %v", p.batched)
+	}
+	p.batched = p.batched[:2]
+	if n := countEvents(t, tk, "a", "task_timeout_exceeded"); n != 2 || !w.logged("past its") {
 		t.Fatalf("the event is on the holder: events %d, log %v", n, w.logs)
 	}
 	if n := countEvents(t, tk, "boss", "task_timeout_exceeded"); n != 0 {
 		t.Fatalf("an opener that does not hold the task has %d timeout events", n)
 	}
 	var told string
-	if err := tk.Q.QueryRow("SELECT json_extract(payload, '$.notified') FROM events WHERE kind = 'task_timeout_exceeded'").Scan(&told); err != nil || told != `["a","lead"]` {
+	if err := tk.Q.QueryRow("SELECT json_extract(payload, '$.notified') FROM events WHERE kind = 'task_timeout_exceeded' LIMIT 1").Scan(&told); err != nil || told != `["a","lead"]` {
 		t.Fatalf("told %q %v", told, err)
 	}
 }
@@ -148,7 +157,7 @@ func TestEveryOwnersTaskIsClocked(t *testing.T) {
 	p.doing[mine], p.doing[terminal] = true, true
 	b.SweepTaskTimeouts(tk, 1000)
 	b.SweepTaskTimeouts(tk, 1200)
-	if task, _ := db.GetTask(tk.Q, terminal); !task.TimeoutAt.Valid || task.TimeoutAt.Int64 != 1300 {
+	if task, _ := db.GetTask(tk.Q, terminal); !task.TimeoutAt.Valid || task.TimeoutAt.Int64 != 1100 || countEvents(t, tk, "term", "task_timeout_exceeded") != 1 {
 		t.Fatalf("a terminal agent's task is clocked too: %+v", task)
 	}
 }
@@ -182,7 +191,7 @@ func TestATaskThatStopsBeingDoneHasItsClockPausedAndItsOverrunNoticeWaitsForTheD
 	}
 }
 
-func TestAWaitingTaskStopsItsClockAndStartsAgainFromZeroWhenTheWaitEnds(t *testing.T) {
+func TestAWaitingTaskStopsItsClockAndGoesOnFromWhatItHadLeftWhenTheWaitEnds(t *testing.T) {
 	tk, _, b, p := timebox(t)
 	tid := newTask(t, tk, "a", "boss", 100)
 	blocker := newTask(t, tk, "c", "boss", 0)
@@ -200,26 +209,28 @@ func TestAWaitingTaskStopsItsClockAndStartsAgainFromZeroWhenTheWaitEnds(t *testi
 		t.Fatal(err)
 	}
 	b.SweepTaskTimeouts(tk, 1500)
-	if task, _ := db.GetTask(tk.Q, tid); task.TimeoutAt.Int64 != 1600 {
-		t.Fatalf("the clock did not start again from zero: %+v", task)
+	if task, _ := db.GetTask(tk.Q, tid); task.TimeoutAt.Int64 != 1560 {
+		t.Fatalf("the clock did not go on from the 60s it had left: %+v", task)
 	}
-	b.SweepTaskTimeouts(tk, 1600)
+	b.SweepTaskTimeouts(tk, 1559)
+	b.SweepTaskTimeouts(tk, 1560)
 	if len(p.batched) != 1 || !strings.HasPrefix(p.batched[0], "a: T") {
-		t.Fatalf("the holder is told a full stretch after the wait: %v", p.batched)
+		t.Fatalf("the holder is told when what was left has run: %v", p.batched)
 	}
 
-	// overdue, then an open child of its own: no reminder while it is open, a full stretch once it closes
+	// over, then an open child of its own: the clock stands still, over by as much, while the child is open
 	child, err := db.NewTask(tk.Q, "part", "c", "a", tid, db.DefaultPriority, "report", 0, "")
 	if err != nil {
 		t.Fatal(err)
 	}
+	b.SweepTaskTimeouts(tk, 1570)
 	b.SweepTaskTimeouts(tk, 9000)
 	if _, err := tk.Q.Exec("UPDATE tasks SET done_evidence = 'x' WHERE id = ?", child); err != nil {
 		t.Fatal(err)
 	}
 	b.SweepTaskTimeouts(tk, 9000)
-	if task, _ := db.GetTask(tk.Q, tid); task.TimeoutAt.Int64 != 9100 || len(p.batched) != 1 {
-		t.Fatalf("a task waiting on its child starts again from zero: %+v %v", task, p.batched)
+	if task, _ := db.GetTask(tk.Q, tid); task.TimeoutAt.Int64 != 8990 || len(p.batched) != 1 {
+		t.Fatalf("a task waiting on its child goes on over by the 10s it was: %+v %v", task, p.batched)
 	}
 }
 
@@ -244,14 +255,14 @@ func TestAWaitAcrossADaemonRestartNeitherLosesNorRepeatsAReminder(t *testing.T) 
 	}
 	b2.SweepTaskTimeouts(tk, 5000)
 	b3 := &Timebox{Ports: p}
-	b3.SweepTaskTimeouts(tk, 5099)
+	b3.SweepTaskTimeouts(tk, 5049)
 	if len(p.batched) != 0 {
-		t.Fatalf("told before a full stretch: %v", p.batched)
+		t.Fatalf("told before the 50s it had left ran: %v", p.batched)
 	}
-	b3.SweepTaskTimeouts(tk, 5100)
-	b3.SweepTaskTimeouts(tk, 5100+NoticeRetryS)
+	b3.SweepTaskTimeouts(tk, 5050)
+	b3.SweepTaskTimeouts(tk, 5050+NoticeRetryS)
 	if len(p.batched) != 1 {
-		t.Fatalf("told once, a full stretch after the wait: %v", p.batched)
+		t.Fatalf("told once, when what it had left ran: %v", p.batched)
 	}
 }
 
@@ -265,7 +276,7 @@ func TestATaskOffDoingResumesWithWhatItHadLeft(t *testing.T) {
 	p.doing[tid] = true
 	b.SweepTaskTimeouts(tk, 2000)
 	if task, _ := db.GetTask(tk.Q, tid); task.TimeoutAt.Int64 != 2060 {
-		t.Fatalf("only a wait restarts the clock: %+v", task)
+		t.Fatalf("the clock goes on from what it had left: %+v", task)
 	}
 }
 
@@ -920,22 +931,23 @@ func TestADiscardedTaskDropsItsAlarmCursors(t *testing.T) {
 	}
 }
 
-// A task the founder's turn is on top of is the founder's to act on: its time box tells no agent and starts over when the turn ends.
+// A task the founder's turn is on top of is the founder's to act on: its time box tells no agent and stands still until the turn ends.
 func TestATaskUnderTheFoundersTurnRemindsNoAgent(t *testing.T) {
 	tk, _, b, p := timebox(t)
 	p.boss = "lead"
 	tid := newTask(t, tk, "a", "boss", 100)
 	p.doing[tid] = true
 	b.SweepTaskTimeouts(tk, 1000)
-	check(db.PushTurn(tk.Q, tid, db.Turn{Agent: db.Human, By: "a", Since: 1000}))
+	check(db.PushTurn(tk.Q, tid, db.Turn{Agent: db.Human, By: "a", Since: 1010}))
+	b.SweepTaskTimeouts(tk, 1010)
 	b.SweepTaskTimeouts(tk, 1200)
 	if len(p.batched) != 0 {
 		t.Fatalf("%v", p.batched)
 	}
 	var at, left sql.NullInt64
 	check(tk.Q.QueryRow("SELECT timeout_at, timeout_left FROM tasks WHERE id = ?", tid).Scan(&at, &left))
-	if at.Valid || left.Int64 != 100 {
-		t.Fatalf("its clock waits whole for the turn to end: %v %v", at, left)
+	if at.Valid || left.Int64 != 90 {
+		t.Fatalf("its clock keeps the 90s it had left for when the turn ends: %v %v", at, left)
 	}
 }
 
@@ -994,5 +1006,66 @@ func TestAClosedAgentHoldingATaskByATurnIsAsked(t *testing.T) {
 	b.SweepHeldTaskAfterClose(tk, 1000)
 	if len(p.said) != 1 || !strings.HasPrefix(p.said[0], fmt.Sprintf("a: You hold T%d", tid)) {
 		t.Fatalf("%v", p.said)
+	}
+}
+
+// An agent parked at its account's limit runs no clock of its tasks: it goes on from what it had left when the agent wakes.
+func TestAnAgentAtItsLimitStopsItsTasksClock(t *testing.T) {
+	tk, _, b, p := timebox(t)
+	tid := newTask(t, tk, "a", "boss", 100)
+	p.doing[tid] = true
+	b.SweepTaskTimeouts(tk, 1000)
+	setState(t, tk, "a", states.Parked, 9_000)
+	b.SweepTaskTimeouts(tk, 1030)
+	b.SweepTaskTimeouts(tk, 5000)
+	setState(t, tk, "a", states.Running, 0)
+	b.SweepTaskTimeouts(tk, 5000)
+	if task, _ := db.GetTask(tk.Q, tid); task.TimeoutAt.Int64 != 5070 || len(p.batched) != 0 {
+		t.Fatalf("the limit ran the clock: %+v %v", task, p.batched)
+	}
+}
+
+// A clock over its length that stops keeps how far over it was, and a new length (an edit of the timeout) is a new box, with no notice yet.
+func TestAnOverClockKeepsItsOverrunAcrossAWaitAndANewLengthStartsANewBox(t *testing.T) {
+	tk, _, b, p := timebox(t)
+	tid := newTask(t, tk, "a", "boss", 100)
+	p.doing[tid] = true
+	b.SweepTaskTimeouts(tk, 1000)
+	b.SweepTaskTimeouts(tk, 1120)
+	p.doing[tid] = false
+	b.SweepTaskTimeouts(tk, 1130)
+	var left sql.NullInt64
+	check(tk.Q.QueryRow("SELECT timeout_left FROM tasks WHERE id = ?", tid).Scan(&left))
+	if left.Int64 != -30 || len(p.batched) != 1 {
+		t.Fatalf("paused over by 30s: %v %v", left, p.batched)
+	}
+	p.doing[tid] = true
+	b.SweepTaskTimeouts(tk, 2000)
+	if task, _ := db.GetTask(tk.Q, tid); task.TimeoutAt.Int64 != 1970 || must(db.Overdue(tk.Q, task, 2000)) != true {
+		t.Fatalf("resumed over by 30s, told: %+v", task)
+	}
+	secs := int64(600)
+	check(db.EditTask(tk.Q, tid, "a", db.TaskEdit{TimeoutS: &secs, IsDoing: true}))
+	must(db.AddEvent(tk.Q, "a", "edit_task", db.KV{K: "task_id", V: tid}, db.KV{K: "timeout", V: map[string]any{"old": "100s", "new": "10m"}}))
+	task, _ := db.GetTask(tk.Q, tid)
+	if n, err := db.TimeoutNotices(tk.Q, tid); err != nil || n.N != 0 || must(db.Overdue(tk.Q, task, 2000)) {
+		t.Fatalf("a new length keeps the old box's notices: %d %v", n, err)
+	}
+}
+
+// An open ask of the founder holds the clock still, as the founder's turn does.
+func TestAnOpenAskOfTheFounderStopsTheClock(t *testing.T) {
+	tk, _, b, p := timebox(t)
+	tid := newTask(t, tk, "a", "boss", 100)
+	p.doing[tid] = true
+	b.SweepTaskTimeouts(tk, 1000)
+	must(tk.Q.Exec("INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(900, 1020, 'a', 'human', 'which?', 'queued', 'ask')"))
+	must(tk.Q.Exec("INSERT INTO task_requests(task_id, request_id) VALUES(?, 900)", tid))
+	b.SweepTaskTimeouts(tk, 1020)
+	b.SweepTaskTimeouts(tk, 5000)
+	var left sql.NullInt64
+	check(tk.Q.QueryRow("SELECT timeout_left FROM tasks WHERE id = ?", tid).Scan(&left))
+	if left.Int64 != 80 || len(p.batched) != 0 {
+		t.Fatalf("the ask ran the clock: %v %v", left, p.batched)
 	}
 }

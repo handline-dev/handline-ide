@@ -30,3 +30,14 @@ test('task.time carries the estimate task.new and task.edit set, and an open tas
   assert.equal(got.estimate, null);
   s.client.close();
 });
+
+test("task.time splits an open task's box so it adds up to its length", async () => {
+  const s = setup({ client: 'boss' });
+  await s.client.start();
+  const made = await s.client.call('task.new', { owner: 'handline.architect', title: 'boxed', request_id: 'b1' });
+  const got = await s.client.call('task.time', { task: made.task as number });
+  assert.ok(got.box);
+  const used = got.box.worked.reduce((n, w) => n + w.seconds, 0) + got.box.waking_s;
+  assert.equal(used + got.box.left_s, got.box.length_s);
+  s.client.close();
+});

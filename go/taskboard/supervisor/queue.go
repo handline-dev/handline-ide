@@ -42,7 +42,7 @@ func (e *Env) SweepTaskQueue(now int64) (err error) {
 				e.Push(q, agent, 0)
 				e.log("  %s: its current task waits on a task of its own behind it - delivered that one first", agent)
 			} else {
-				e.moveOffWaiting(q, agent)
+				e.moveOffWaiting(q, agent, now)
 			}
 			continue
 		}
@@ -67,8 +67,8 @@ func (e *Env) SweepTaskQueue(now int64) (err error) {
 	return nil
 }
 
-// moveOffWaiting gives an idle agent with an overdue, unanswered current task its next one, or pings the holder once per deadline.
-func (e *Env) moveOffWaiting(q db.Q, agent string) {
+// moveOffWaiting gives an idle agent with an overdue, unanswered current task its next one, or pings the holder once per overrun notice.
+func (e *Env) moveOffWaiting(q db.Q, agent string, now int64) {
 	tid, ok := ok2(db.CurrentTask(q, agent))
 	cur := must(db.GetTask(q, tid))
 	if !ok || cur == nil || cur.Ended() {
@@ -77,7 +77,7 @@ func (e *Env) moveOffWaiting(q db.Q, agent string) {
 	if row := stateOf(q, agent); row == nil || (row.State != states.Idle && row.State != states.Queued) {
 		return
 	}
-	if !must(db.Overdue(q, cur)) {
+	if !must(db.Overdue(q, cur, now)) {
 		return
 	}
 	why := "past its timeout, unanswered"
@@ -89,8 +89,8 @@ func (e *Env) moveOffWaiting(q db.Q, agent string) {
 			return
 		}
 	}
-	if key := fmt.Sprintf("overdue_ping:%d", cur.ID); must(db.Cursor(q, key)) != cur.TimeoutAt.Int64 {
-		check(db.SetCursor(q, key, cur.TimeoutAt.Int64))
+	if key, told := fmt.Sprintf("overdue_ping:%d", cur.ID), must(db.TimeoutNotices(q, cur.ID)).LastID; must(db.Cursor(q, key)) != told {
+		check(db.SetCursor(q, key, told))
 		e.typeSay(q, agent, fmt.Sprintf("T%d (%s) is %s. Do it, hand it on (`hl task handoff T%d <agent> \"<note>\"`), mark what blocks it (`hl task edit T%d --blocked-by T<n>`), "+
 			"or put the founder on it if only they can decide (`hl task turn T%d human \"<the decision, and what you recommend>\"`).", cur.ID, textsafe.Oneline(cur.Title), why, cur.ID, cur.ID, cur.ID), "overdue task, idle holder")
 	}

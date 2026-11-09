@@ -14,6 +14,7 @@ import (
 const (
 	waitFounder = "needs you"
 	waitTask    = "blocked by T%d"
+	waitChild   = "waiting on T%d"
 	waitAgent   = "waiting on %s"
 	waitWall    = "wall"
 	waitQueued  = "queued"
@@ -41,6 +42,7 @@ type stretch struct {
 	rank     int
 	text     string
 	task     int64
+	who      string // the agent acting on it, for working and starting
 }
 
 // taskTime is task.time: where a task's time went, from its opening to its end (or now), as segments that cover it with no gap or overlap.
@@ -92,7 +94,59 @@ func (e *Env) taskTimeAt(tid, now int64) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return map[string]any{"task": tid, "start": ts(start), "end": endAt, "segments": out, "estimate": t.intOrNil("estimate"), "expected": expected}, nil
+	box, err := e.box(t, segs)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"task": tid, "start": ts(start), "end": endAt, "segments": out, "estimate": t.intOrNil("estimate"), "expected": expected,
+		"box": box}, nil
+}
+
+// box is an open task's time box split as its clock ran since the box last started over (db.BoxStartedAt): each agent's working
+// seconds, the waking, and what is left, adding up to the length.
+func (e *Env) box(t row, segs []stretch) (any, error) {
+	if t.set("ended") {
+		return nil, nil
+	}
+	length := t.i("timeout_s")
+	if !t.set("timeout_s") || length == 0 {
+		length = db.DefaultTaskTimeoutS
+	}
+	since, err := db.BoxStartedAt(e.DB, t.i("id"))
+	if err != nil {
+		return nil, err
+	}
+	var first, waking, used int64
+	worked := map[string]int64{}
+	var order []string
+	for _, s := range segs {
+		from := max(s.from, since)
+		if s.to <= from || s.who == "" || s.who == db.Human || (s.rank != segWorking && s.rank != segStarting) {
+			continue
+		}
+		if first == 0 {
+			first = from
+		}
+		used += s.to - from
+		if s.rank == segStarting {
+			waking += s.to - from
+			continue
+		}
+		if _, ok := worked[s.who]; !ok {
+			order = append(order, s.who)
+		}
+		worked[s.who] += s.to - from
+	}
+	sort.SliceStable(order, func(i, j int) bool { return worked[order[i]] > worked[order[j]] })
+	parts := []map[string]any{}
+	for _, who := range order {
+		parts = append(parts, map[string]any{"agent": who, "seconds": worked[who]})
+	}
+	var began any
+	if first != 0 {
+		began = ts(first)
+	}
+	return map[string]any{"length_s": length, "start": began, "worked": parts, "waking_s": waking, "left_s": length - used}, nil
 }
 
 // segments is the task's time from its opening to its end (or now), covered with no gap or overlap.
@@ -108,13 +162,13 @@ func (e *Env) segments(t row, now int64) (start, end int64, segs []stretch, err 
 	return start, end, cover(spans, start, end), nil
 }
 
-// taskSpans is every stretch the db records for the task, overlapping as they happened: its state (queued, doing, reported), its blockers,
-// its asks of the founder, and its holder's parks and starts while it was doing.
+// taskSpans is every stretch the db records for the task, overlapping as they happened: its state (queued, doing, reported), its blockers
+// and open children, its asks of the founder and turns on them, and its acting agent's parks and starts while it was doing.
 func (e *Env) taskSpans(t row, start, end int64) ([]stretch, error) {
 	tid := t.i("id")
 	events, err := query(e.DB, "SELECT ts, agent, kind, payload FROM events WHERE "+eventTask+" = ? AND kind IN "+
 		"('queue_task', 'draft_task', 'task_begin', 'task_start', 'task_report', 'accept_task', 'reject_task', 'reopen_task', 'release_task', "+
-		"'task_handoff', 'edit_task', 'block_task', 'unblock_task') ORDER BY id", tid)
+		"'task_handoff', 'edit_task', 'block_task', 'unblock_task', 'task_turn_push', 'task_turn_pop') ORDER BY id", tid)
 	if err != nil {
 		return nil, err
 	}
@@ -124,62 +178,96 @@ func (e *Env) taskSpans(t row, start, end int64) ([]stretch, error) {
 		return nil, err
 	}
 	var spans []stretch
-	open := func(from int64, rank int, text string, task int64) int {
-		spans = append(spans, stretch{from: from, to: end, rank: rank, text: text, task: task})
+	open := func(from int64, rank int, text string, task int64, who string) int {
+		spans = append(spans, stretch{from: from, to: end, rank: rank, text: text, task: task, who: who})
 		return len(spans) - 1
 	}
-	// The state: queued until the holder has it, doing until it is reported, waiting on whoever accepts a report.
-	state := open(start, segQueued, waitQueued, 0)
-	var doing [][2]int64
-	holder := t.str("owner")
-	current := holder
-	holders := map[int64]string{}
+	// The state: queued until the holder has it, doing until it is reported, waiting on whoever accepts a report. Doing is worked by the
+	// agent acting on it: the top of its turns, else its owner.
+	owner := t.str("owner")
+	var turns []string
+	var founderTurn = -1
+	acting := func() string {
+		if n := len(turns); n > 0 {
+			return turns[n-1]
+		}
+		return owner
+	}
+	state := open(start, segQueued, waitQueued, 0, "")
+	var doing []stretch
 	blocks := map[int64]int{}
 	for _, ev := range events {
 		at, p := ev.i("ts"), decodeObject(ev.str("payload"))
 		cut := func() {
 			if spans[state].rank == segWorking {
-				doing = append(doing, [2]int64{spans[state].from, at})
+				doing = append(doing, stretch{from: spans[state].from, to: at, who: spans[state].who})
 			}
 			spans[state].to = at
+		}
+		// work goes on under whoever acts now
+		rework := func() {
+			if spans[state].rank == segWorking && spans[state].who != acting() {
+				cut()
+				state = open(at, segWorking, "", 0, acting())
+			}
+			switch top := acting(); {
+			case top == db.Human && founderTurn < 0:
+				founderTurn = open(at, segFounder, waitFounder, 0, "")
+			case top != db.Human && founderTurn >= 0:
+				spans[founderTurn].to, founderTurn = at, -1
+			}
 		}
 		switch ev.str("kind") {
 		case "queue_task", "draft_task", "reopen_task", "reject_task", "release_task":
 			cut()
-			state = open(at, segQueued, waitQueued, 0)
+			state = open(at, segQueued, waitQueued, 0, "")
 		case "delivered":
-			if spans[state].rank == segQueued && ev.str("target") == current {
+			if spans[state].rank == segQueued && ev.str("target") == owner {
 				cut()
-				state = open(at, segWorking, "", 0)
+				state = open(at, segWorking, "", 0, acting())
 			}
 		case "task_begin", "task_start":
 			if spans[state].rank != segWorking {
 				cut()
-				state = open(at, segWorking, "", 0)
+				state = open(at, segWorking, "", 0, acting())
 			}
 		case "task_report":
 			cut()
-			if by := text(p["to"]); by != "" && by != "human" {
-				state = open(at, segAgent, fmt.Sprintf(waitAgent, by), 0)
+			if by := text(p["to"]); by != "" && by != db.Human {
+				state = open(at, segAgent, fmt.Sprintf(waitAgent, by), 0, "")
 			} else {
-				state = open(at, segFounder, waitFounder, 0)
+				state = open(at, segFounder, waitFounder, 0, "")
 			}
 		case "accept_task":
 			cut()
 		case "task_handoff":
 			if to := text(p["to"]); to != "" {
-				holders[at], current = to, to
+				owner = to
+				rework()
 			}
 		case "edit_task":
 			if o, ok := p["owner"].(map[string]any); ok {
-				holders[at], current = text(o["new"]), text(o["new"])
+				owner = text(o["new"])
+				rework()
 			}
+		case "task_turn_push":
+			turns = append(turns, text(p["to"]))
+			rework()
+		case "task_turn_pop":
+			who := text(p["agent"])
+			for i := len(turns) - 1; i >= 0; i-- {
+				if turns[i] == who {
+					turns = append(turns[:i], turns[i+1:]...)
+					break
+				}
+			}
+			rework()
 		case "block_task":
 			on, _ := recInt(p["blocks_on"])
 			if i, ok := blocks[on]; ok {
 				spans[i].to = at // blocked again on the same task: the new span carries on from here
 			}
-			blocks[on] = open(at, segTask, fmt.Sprintf(waitTask, on), on)
+			blocks[on] = open(at, segTask, fmt.Sprintf(waitTask, on), on, "")
 		case "unblock_task":
 			on, _ := recInt(p["blocks_on"])
 			if i, ok := blocks[on]; ok {
@@ -189,7 +277,7 @@ func (e *Env) taskSpans(t row, start, end int64) ([]stretch, error) {
 		}
 	}
 	if spans[state].rank == segWorking {
-		doing = append(doing, [2]int64{spans[state].from, spans[state].to})
+		doing = append(doing, stretch{from: spans[state].from, to: spans[state].to, who: spans[state].who})
 	}
 	// A blocker ends when it is done or discarded, if no unblock said so first.
 	for on, i := range blocks {
@@ -201,13 +289,24 @@ func (e *Env) taskSpans(t row, start, end int64) ([]stretch, error) {
 			spans[i].to = b.i("ended")
 		}
 	}
+	// A child waits the task from its opening to its end, as a blocker does.
+	kids, err := query(e.DB, "SELECT id, created_at, COALESCE(done_at, discarded_at) AS ended FROM tasks WHERE parent_task = ?", tid)
+	if err != nil {
+		return nil, err
+	}
+	for _, k := range kids {
+		i := open(k.i("created_at"), segTask, fmt.Sprintf(waitChild, k.i("id")), k.i("id"), "")
+		if k.set("ended") && k.i("ended") < spans[i].to {
+			spans[i].to = k.i("ended")
+		}
+	}
 	asks, err := query(e.DB, "SELECT r.ts, r.state, r.state_at FROM requests r JOIN task_requests l ON l.request_id = r.id "+
 		"WHERE l.task_id = ? AND r.target = 'human' AND COALESCE(r.kind, '') != 'say'", tid)
 	if err != nil {
 		return nil, err
 	}
 	for _, a := range asks {
-		i := open(a.i("ts"), segFounder, waitFounder, 0)
+		i := open(a.i("ts"), segFounder, waitFounder, 0, "")
 		switch {
 		case a.str("state") == "queued":
 		case a.set("state_at"):
@@ -221,10 +320,12 @@ func (e *Env) taskSpans(t row, start, end int64) ([]stretch, error) {
 			}
 		}
 	}
-	// The holder's parks and starts count only while it held the task and was doing it.
+	// The acting agent's parks and starts count only while it acted on the task and was doing it.
 	for _, d := range doing {
-		who := holderAt(holder, holders, d[0])
-		more, err := e.holderSpans(who, d[0], d[1])
+		if d.who == db.Human || d.who == "" {
+			continue
+		}
+		more, err := e.holderSpans(d.who, d.from, d.to)
 		if err != nil {
 			return nil, err
 		}
@@ -233,43 +334,22 @@ func (e *Env) taskSpans(t row, start, end int64) ([]stretch, error) {
 	return spans, nil
 }
 
-// holderAt is who held the task at moment at: the last hand-off or reassignment before it, else the holder it was opened with.
-func holderAt(first string, changes map[int64]string, at int64) string {
-	var best int64 = -1
-	who := first
-	for when, to := range changes {
-		if when <= at && when > best {
-			best, who = when, to
-		}
-	}
-	return who
-}
+// WakeCapS is the longest a start reads as starting: a session that shows no sign of being up by then is counted as working.
+const WakeCapS = 120
 
-// holderSpans is agent's parks (at an account's wall until it woke) and starts (a launch, a wake or a session hand-off until the session
-// was up) within [from, to].
+// holderSpans is agent's parks (until a wake, launch or handoff ends them) and starts (from the daemon's launch, which every wake and
+// relaunch writes, until the session's first hook, at most WakeCapS) within [from, to].
 func (e *Env) holderSpans(agent string, from, to int64) ([]stretch, error) {
 	evs, err := query(e.DB, "SELECT ts, kind FROM events WHERE agent = ? AND kind IN ('park', 'wake', 'launching', 'handoff') AND ts <= ? ORDER BY id", agent, to)
 	if err != nil {
 		return nil, err
-	}
-	starts, err := query(e.DB, "SELECT ts FROM session_starts WHERE agent = ? AND ts >= ? ORDER BY ts", agent, from)
-	if err != nil {
-		return nil, err
-	}
-	upAfter := func(at int64) int64 {
-		for _, s := range starts {
-			if s.i("ts") >= at {
-				return s.i("ts")
-			}
-		}
-		return to
 	}
 	var out []stretch
 	parked := -1
 	for _, ev := range evs {
 		at := ev.i("ts")
 		if ev.str("kind") == "park" {
-			out = append(out, stretch{from: at, to: to, rank: segAccount, text: waitWall})
+			out = append(out, stretch{from: at, to: to, rank: segAccount, text: waitWall, who: agent})
 			parked = len(out) - 1
 			continue
 		}
@@ -277,9 +357,16 @@ func (e *Env) holderSpans(agent string, from, to int64) ([]stretch, error) {
 			out[parked].to = at
 			parked = -1
 		}
-		if at >= from {
-			out = append(out, stretch{from: at, to: upAfter(at), rank: segStarting, text: startText})
+		if ev.str("kind") != "launching" || at < from {
+			continue
 		}
+		up := at + WakeCapS
+		if over, ok, err := db.FirstEventOfTS(e.DB, agent, db.LaunchOver, at); err != nil {
+			return nil, err
+		} else if ok {
+			up = min(up, over)
+		}
+		out = append(out, stretch{from: at, to: up, rank: segStarting, text: startText, who: agent})
 	}
 	for i := range out {
 		out[i].from, out[i].to = max(out[i].from, from), min(out[i].to, to)
@@ -311,11 +398,11 @@ func cover(spans []stretch, start, end int64) []stretch {
 		if top.rank < 0 {
 			continue
 		}
-		if n := len(out); n > 0 && out[n-1].to == a && out[n-1].rank == top.rank && out[n-1].text == top.text {
+		if n := len(out); n > 0 && out[n-1].to == a && out[n-1].rank == top.rank && out[n-1].text == top.text && out[n-1].who == top.who {
 			out[n-1].to = b
 			continue
 		}
-		out = append(out, stretch{from: a, to: b, rank: top.rank, text: top.text, task: top.task})
+		out = append(out, stretch{from: a, to: b, rank: top.rank, text: top.text, task: top.task, who: top.who})
 	}
 	return out
 }

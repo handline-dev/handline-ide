@@ -10,18 +10,11 @@ import (
 	"github.com/handline/handline/go/kit/timefmt"
 )
 
-// Four notices about work that has run long, all read from the db every tick.
-//
-// A task's own timeout (`hl task new -t/--timeout`) only counts while it is doing and not waiting on a blocker or child, and starts again
-// from zero when the wait ends. A task the founder holds or must accept waits on the founder the same way. Past it, its opener is told, and again every
-// further timeout_s stretch, until the task answers with one of `hl task edit --timeout` (continue) or `hl task release` (back to queued) -
-// or is simply done. Background work about to outlive the agent's prompt cache tells its supervisor it may be stopped after a veto window.
-// An agent IDLE with its current task's own wait never recorded, the Stop-hook gate's own backstop, and an agent nudged to resolve a
-// forgotten head as many times as the schedule allows, still open, each tell the task's opener once (else the agent's supervisor) - nothing
-// more is sent to the agent about it past that.
-//
-// A notice to an agent is a line sent to its open session, so one that cannot be sent now is tried again; a notice to the human has no
-// session to type at and is an event.
+// Four notices about work that has run long, all read from the db every tick: a task past its time box (SweepTaskTimeouts), background
+// work about to outlive the agent's prompt cache (its supervisor is told it may be stopped after a veto window), and an agent IDLE with
+// its wait never recorded or nudged about a forgotten head as often as the schedule allows (the task's opener is told once, else the
+// agent's supervisor). A notice to an agent is a line sent to its open session, so one that cannot be sent now is tried again; a notice
+// to the human has no session to type at and is an event.
 const (
 	TitleShown = 60
 	// NoticeRetryS: a notice that could not be sent (mid-turn, awaiting a permission, no session) is not tried again for this long, per agent.
@@ -101,6 +94,12 @@ func (b *Timebox) boss(agent string) string {
 	return db.Human
 }
 
+// parked is whether agent is parked (at its account's limit, or until its next session), which no clock of its runs through.
+func (b *Timebox) parked(t *Tick, agent string) bool {
+	row := must(db.GetAgentState(t.Q, agent))
+	return row != nil && row.State == states.Parked
+}
+
 // answerer is who hears about an agent stuck on task tid: the task's opener, else the agent's supervisor - never the agent itself, and
 // the founder only when neither is an agent.
 func (b *Timebox) answerer(t *Tick, agent string, tid int64) string {
@@ -112,25 +111,19 @@ func (b *Timebox) answerer(t *Tick, agent string, tid int64) string {
 	return b.boss(agent)
 }
 
-// SweepTaskTimeouts is a task's timeout clock, read each tick: it runs only while the task is doing and waits on no blocker or child. Off
-// doing it resumes from what it had left; after a wait it starts again from zero. Past it the holder and its lead are told, and again
-// every stretch until it is done, extended or released. A task with no timeout_s takes the default where it becomes doing.
+// SweepTaskTimeouts runs each task's `hl task new -t/--timeout` clock: it counts only while the task is doing and nothing holds it (a
+// blocker, a child, the founder's turn or ask, its agent's park), and goes on from what it had left when the hold ends. Past its length it
+// runs on, over; its holder and lead are told then and each further length, until it is done, extended (`hl task edit --timeout`) or
+// released. A task with no timeout_s takes the default where it becomes doing.
 func (b *Timebox) SweepTaskTimeouts(t *Tick, now int64) {
 	for _, row := range must(db.TasksToClock(t.Q)) {
 		tid, holder := row.ID, db.HolderOf(row.Acting)
 		if holder == verdict.GateHolds {
 			continue // the gate sweep closes it at its deadline
 		}
-		// a wait on the founder, which nothing an agent does moves, or on a blocker or child: the clock starts over when it ends
 		waits := holder == verdict.AgentHolds && must(db.TaskWaits(t.Q, tid))
-		if holder == verdict.FounderHolds || waits {
-			check(db.RestartTaskTimeout(t.Q, tid, db.DefaultTaskTimeoutS))
-			continue
-		}
-		if !b.Ports.TaskDoing(t.Q, row) {
-			if row.TimeoutAt.Valid {
-				check(db.PauseTaskTimeout(t.Q, tid, now))
-			}
+		if holder == verdict.FounderHolds || waits || must(db.FounderAsked(t.Q, tid)) || b.parked(t, row.Acting) || !b.Ports.TaskDoing(t.Q, row) {
+			check(db.PauseTaskTimeout(t.Q, tid, now))
 			continue
 		}
 		if !row.TimeoutAt.Valid {
@@ -140,31 +133,31 @@ func (b *Timebox) SweepTaskTimeouts(t *Tick, now int64) {
 		if !verdict.Overdue("doing", holder, waits, row.TimeoutAt.Int64, now) {
 			continue
 		}
-		box := row.TimeoutS.Int64
+		// told at its end, then each further length it runs
+		box, over := row.TimeoutS.Int64, now-row.TimeoutAt.Int64
+		if box <= 0 {
+			box = db.DefaultTaskTimeoutS
+		}
+		if told := must(db.TimeoutNotices(t.Q, tid)); told.N > 0 && over < told.LastOver+box {
+			continue
+		}
 		title := shortTitle(row.Title)
 		text := fmt.Sprintf("T%d (%s), held by %s, has been doing past its %s timeout.%s Do it, hand it on (`hl task handoff T%d <agent> \"<note>\"`), "+
 			"mark what blocks it (`hl task edit T%d --blocked-by T<n>`), or put the founder on it if only they can decide (`hl task turn T%d human \"<the decision, and what you recommend>\"`). "+
 			"`hl task release T%d \"<reason>\"` takes it back.",
 			tid, title, row.Acting, timefmt.Ago(box), behindLine(t, row.Acting, tid), tid, tid, tid, tid)
 		// the holder can act on it, and its lead routes; the opener of a task another agent holds cannot
-		var told []string
+		var notified []string
 		for _, who := range []string{row.Acting, b.boss(row.Acting)} {
 			if who != db.Human { // never the founder; it waits in the next digest
 				check(b.Ports.SendBatch(t.Q, who, text))
-				told = append(told, who)
+				notified = append(notified, who)
 			}
 		}
-		check(db.AdvanceTaskTimeout(t.Q, tid, now, db.DefaultTaskTimeoutS))
-		// the deadline missed and the one that replaced it: a screen chains notices by them
-		next := must(db.GetTask(t.Q, tid))
-		var nextAt any
-		if next != nil && next.TimeoutAt.Valid {
-			nextAt = next.TimeoutAt.Int64
-		}
-		// on the holder, whom it is about; the opener is not told
-		must(db.AddEvent(t.Q, row.Acting, "task_timeout_exceeded", db.KV{K: "task_id", V: tid}, db.KV{K: "timeout_s", V: box}, db.KV{K: "notified", V: told},
-			db.KV{K: "text", V: text}, db.KV{K: "deadline", V: row.TimeoutAt.Int64}, db.KV{K: "next", V: nextAt}))
-		t.logf("  T%d: doing, past its %s timeout - %s told", tid, timefmt.Ago(box), strings.Join(told, ", "))
+		// on the holder, whom it is about; the opener is not told. deadline is the box's end, over_s how far past it the clock has run.
+		must(db.AddEvent(t.Q, row.Acting, "task_timeout_exceeded", db.KV{K: "task_id", V: tid}, db.KV{K: "timeout_s", V: box}, db.KV{K: "notified", V: notified},
+			db.KV{K: "text", V: text}, db.KV{K: "deadline", V: row.TimeoutAt.Int64}, db.KV{K: "over_s", V: over}))
+		t.logf("  T%d: doing, past its %s timeout - %s told", tid, timefmt.Ago(box), strings.Join(notified, ", "))
 	}
 }
 
