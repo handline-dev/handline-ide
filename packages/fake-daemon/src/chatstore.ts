@@ -123,9 +123,11 @@ export class ChatStore {
     this.messages.push(msg);
     return msg.id;
   }
-  seedItem(agent: string, item: Omit<TranscriptItem, 'id' | 'at'> & { at?: string }) {
+  seedItem(agent: string, item: Omit<TranscriptItem, 'id' | 'at'> & { at?: string }): number {
     const t = this.thread(agent);
-    t.items.push({ id: this.nextItem++, at: item.at ?? this.now(), ...item });
+    const id = this.nextItem++;
+    t.items.push({ id, at: item.at ?? this.now(), ...item });
+    return id;
   }
   /** A question from the agent to the person, waiting for the person. */
   ask(agent: string, body: string, person: string): number {
