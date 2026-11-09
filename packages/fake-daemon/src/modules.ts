@@ -44,7 +44,7 @@ function release(d: ModuleHost, task: number | null): void {
     if (st?.reason !== 'paused') continue;
     const tasks = task === null ? [] : st.tasks.filter((t) => t !== task);
     s.fx.view = { ...s.fx.view, status: tasks.length ? { ...st, tasks } : undefined };
-    d.emit('agents', 'agent.changed', { agent: s.fx.name, data: view(s) as unknown as Record<string, unknown> });
+    d.emit('agents', 'agent.changed', { agent: s.fx.name, data: view(s, d.tasks) as unknown as Record<string, unknown> });
   }
 }
 

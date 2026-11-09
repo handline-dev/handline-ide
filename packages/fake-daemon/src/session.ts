@@ -100,7 +100,13 @@ export function visible(s: Session): string[] {
 }
 export const scrolledOff = (s: Session): number => Math.max(0, s.lines.length - s.rows);
 
-export function view(s: Session): AgentView {
+/** What counts an agent's tasks for its view (FakeTasks). */
+export interface TaskCounter {
+  taskCount(agent: string, current: number | null): number;
+}
+
+/** The agent's view, with task_count as the daemon counts it unless the fixture pins one. */
+export function view(s: Session, tasks: TaskCounter): AgentView {
   return {
     name: s.fx.name,
     role: s.fx.role,
@@ -127,13 +133,14 @@ export function view(s: Session): AgentView {
     parent: s.fx.parent,
     background: [],
     ...(s.structured && { structured: true }),
+    task_count: tasks.taskCount(s.fx.name, s.fx.task?.id ?? null),
     ...s.fx.view,
   };
 }
 
-export function detail(s: Session): AgentDetail {
+export function detail(s: Session, tasks: TaskCounter): AgentDetail {
   return {
-    ...view(s),
+    ...view(s, tasks),
     worktree: { path: s.fx.worktree, branch: s.fx.branch, repo: s.fx.repo ?? null },
     cwd: s.fx.worktree,
     can: Object.fromEntries(
