@@ -28,9 +28,9 @@ import {
   type SharedSource,
   type SyncStatus,
 } from '#src/editor/MarkdownEditor.tsx';
+import { usePersisted } from '#src/persist/kv.ts';
 import { Input } from '#src/ui/Field.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
-import { useTabState } from '#src/persist/tabState.ts';
 
 type Mode = 'markdown' | 'rich';
 const HINT = 'Start writing. Markdown works: # heading, - list, **bold**.';
@@ -41,8 +41,8 @@ const clean = (p: string) => p.trim().replace(/^\.?\//, '');
  * Web tab: New, Open and the path on top, the file under it, and a toolbar at the bottom with undo and redo, formatting in the rich
  * look, what is saved, and the switch between the source and the rich look. With no file it is a new one, written once named. */
 export function MarkdownTab({ agent, tab, start = '' }: { agent: string; tab: string; start?: string }) {
-  const [path, setPath] = useTabState('path', start);
-  const [mode, setMode] = useTabState<Mode>('mode', 'markdown');
+  const [path, setPath] = usePersisted(`tab/${tab}/path`, start);
+  const [mode, setMode] = usePersisted<Mode>(`tab/${tab}/mode`, 'markdown');
   // The file the editor was opened on: a new file keeps its editor when it is named, so what was written stays.
   const [opened, setOpened] = useState(path);
   const [typed, setTyped] = useState(path);

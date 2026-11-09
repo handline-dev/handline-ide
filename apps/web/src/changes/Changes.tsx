@@ -36,7 +36,7 @@ export function Changes({ agent }: { agent: string }) {
   const path = detail?.worktree?.path ?? '';
   const changed = useWorktrees({ owner: agent }).data?.worktrees.find((w) => w.path === path)?.changed ?? [];
   const [against, setAgainst] = useTabState<'head' | 'base'>('against', 'base');
-  // The files folded shut; the rest are open.
+  // The files folded shut; the rest are open. A fold drops the paths no longer in the diff, so the list never outgrows it.
   const [shut, setShut] = useTabState<string[]>('shut', []);
   const diff = useRead('worktree.diff', { path, against }, { enabled: path !== '' });
   const box = useRef<HTMLDivElement>(null);
@@ -78,7 +78,9 @@ export function Changes({ agent }: { agent: string }) {
             added={counts.get(f.path)?.added}
             deleted={counts.get(f.path)?.deleted}
             open={!shut.includes(f.path)}
-            setOpen={(open) => setShut((s) => (open ? s.filter((p) => p !== f.path) : [...s, f.path]))}
+            setOpen={(open) =>
+              setShut((s) => [...s.filter((p) => p !== f.path && files.some((x) => x.path === p)), ...(open ? [] : [f.path])])
+            }
           />
         ))}
         {diff.data?.truncated && <p className="text-xs text-warning">The diff is longer than this; the rest is cut off.</p>}

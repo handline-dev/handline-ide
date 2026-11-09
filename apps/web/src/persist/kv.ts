@@ -35,13 +35,13 @@ export function names(prefix: string): string[] {
   }
 }
 
-/** useState kept under `name`: read once, written on each change. A null name keeps nothing: plain useState. */
-export function usePersisted<T>(name: string | null, fallback: T) {
-  const [value, setValue] = useState<T>(() => (name === null ? fallback : read(name, fallback)));
+/** useState kept under `name`: read once, written on each change. */
+export function usePersisted<T>(name: string, fallback: T) {
+  const [value, setValue] = useState<T>(() => read(name, fallback));
   const set = (next: T | ((v: T) => T)) =>
     setValue((v) => {
       const n = typeof next === 'function' ? (next as (v: T) => T)(v) : next;
-      if (name !== null) write(name, n);
+      write(name, n);
       return n;
     });
   return [value, set] as const;
