@@ -24,6 +24,17 @@ export function write<T>(name: string, value: T | undefined) {
   }
 }
 
+/** The names of the kept values that start with `prefix`. */
+export function names(prefix: string): string[] {
+  try {
+    return Object.keys(localStorage)
+      .filter((k) => k.startsWith(at(prefix)))
+      .map((k) => k.slice(at('').length));
+  } catch {
+    return [];
+  }
+}
+
 /** useState kept under `name`: read once, written on each change. */
 export function usePersisted<T>(name: string, fallback: T) {
   const [value, setValue] = useState<T>(() => read(name, fallback));
