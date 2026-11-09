@@ -15,10 +15,11 @@ export function ago(iso: string, now: number = Date.now()): string {
   return d.getFullYear() === new Date(now).getFullYear() ? md : `${d.getFullYear()}/${md}`;
 }
 
-/** The current time, updated every `ms` (a minute by default), so relative times stay true. */
-export function useNow(ms = 60_000): number {
+/** The current time, updated every `ms` (a minute by default; null: not updated), so relative times stay true. */
+export function useNow(ms: number | null = 60_000): number {
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
+    if (ms === null) return;
     const id = setInterval(() => setNow(Date.now()), ms);
     return () => clearInterval(id);
   }, [ms]);

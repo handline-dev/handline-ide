@@ -1,9 +1,10 @@
 import { startTabDrag } from '#src/ui/dnd.tsx';
 import { CopyButton } from '#src/chat/MessageActions.tsx';
 import { MessageImages } from '#src/chat/MessageImages.tsx';
-import { attachmentOf } from '@handline/app-core';
+import { attachmentOf, commandOf } from '@handline/app-core';
+import { CommandRunBar, CommandsOf, type CommandsOfValue } from '#src/chat/CommandBlock.tsx';
 import { marked, type Token, type Tokens } from 'marked';
-import { Fragment, type ReactNode } from 'react';
+import { createContext, Fragment, useContext, type ReactNode } from 'react';
 import { useOpenTab, howOf } from '#src/layout/openTab.tsx';
 import { fileOf, taskOf, webOf } from '#src/layout/kinds.tsx';
 
@@ -12,7 +13,38 @@ import { fileOf, taskOf, webOf } from '#src/layout/kinds.tsx';
  * and a repo path (apps/web/src/main.tsx:12) open in a tab: a click here, Cmd+click beside. */
 export function Markdown({ text }: { text: string }) {
   const tokens = marked.lexer(text, { gfm: true, breaks: true });
-  return <div className="flex flex-col gap-2 wrap-break-word">{blocks(tokens)}</div>;
+  // In a chat line, every code fence is numbered in order (app-core commandOf): a command one's run is named by that number.
+  const of = useContext(CommandsOf);
+  const fences = new Map<Token, number>();
+  if (of)
+    void marked.walkTokens(tokens, (t) => {
+      if (t.type === 'code') fences.set(t, fences.size);
+    });
+  return (
+    <Fences.Provider value={of && { of, n: fences }}>
+      <div className="flex flex-col gap-2 wrap-break-word">{blocks(tokens)}</div>
+    </Fences.Provider>
+  );
+}
+
+const Fences = createContext<{ of: NonNullable<CommandsOfValue>; n: ReadonlyMap<Token, number> } | null>(null);
+
+/** A code block copies whole: its button at the top right, on hover. A command fence in a chat line also runs (chat/CommandBlock). */
+function Code({ t }: { t: Tokens.Code }) {
+  const fences = useContext(Fences);
+  const n = fences?.n.get(t);
+  const command = n === undefined ? null : commandOf(t.lang ?? '', t.text);
+  return (
+    <div className="group/code relative rounded-md bg-surface">
+      <pre className="p-2 pr-9 font-mono text-sm break-all whitespace-pre-wrap">
+        <code>{t.text}</code>
+      </pre>
+      <span className="absolute top-1 right-1 opacity-0 transition-opacity group-hover/code:opacity-100 focus-within:opacity-100">
+        <CopyButton text={t.text} />
+      </span>
+      {fences && command && <CommandRunBar of={fences.of} command={command} n={n!} />}
+    </div>
+  );
 }
 
 const code = 'rounded-sm bg-surface px-1 font-mono text-sm';
@@ -65,17 +97,7 @@ function block(t: Token): ReactNode {
     case 'list':
       return <List list={t as Tokens.List} />;
     case 'code':
-      return (
-        // A code block copies whole: its button at the top right, on hover.
-        <div className="group/code relative">
-          <pre className="rounded-md bg-surface p-2 pr-9 font-mono text-sm break-all whitespace-pre-wrap">
-            <code>{t.text}</code>
-          </pre>
-          <span className="absolute top-1 right-1 opacity-0 transition-opacity group-hover/code:opacity-100 focus-within:opacity-100">
-            <CopyButton text={t.text} />
-          </span>
-        </div>
-      );
+      return <Code t={t as Tokens.Code} />;
     case 'blockquote':
       return <blockquote className="flex flex-col gap-2 border-l-2 border-border pl-3 text-muted">{blocks(t.tokens ?? [])}</blockquote>;
     case 'hr':
