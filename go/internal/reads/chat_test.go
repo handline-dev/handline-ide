@@ -612,10 +612,10 @@ func TestChatTranscriptServesAReplysRuns(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if _, err := cmdruns.Start(e.DB, cmdruns.Block{Message: 1000, N: 0, Reply: true}, "%4", 1000); err != nil {
+	if _, err := cmdruns.Start(e.DB, cmdruns.Block{Message: 1000, N: 0, Reply: true}, "%4", "", "", 1000); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := cmdruns.Start(e.DB, cmdruns.Block{Message: 1002, N: 0}, "%5", 1000); err != nil {
+	if _, err := cmdruns.Start(e.DB, cmdruns.Block{Message: 1002, N: 0}, "%5", "", "", 1000); err != nil {
 		t.Fatal(err)
 	}
 	got, err := e.chatTranscript(nil, map[string]any{"agent": "bob"})

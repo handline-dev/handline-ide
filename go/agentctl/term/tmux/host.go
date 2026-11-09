@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
+	"unicode"
 
 	"github.com/handline/handline/go/agentctl/term"
 	"golang.org/x/sys/unix"
@@ -130,6 +132,34 @@ func (t Tmux) PaneRuns() map[string]term.PaneRun {
 		runs[f[0]] = r
 	}
 	return runs
+}
+
+// RunOutput is the last rows of a run window above what tmux draws once its command ends ("Pane is dead (status 2, ...)" at the foot of
+// the screen): the output sits at the top of a screen taller than it, so the blank rows between are dropped too.
+func (t Tmux) RunOutput(handle string, rows int) []string {
+	if !paneRE.MatchString(handle) {
+		return nil
+	}
+	code, out, _ := t.tmux(30*time.Second, "", "capture-pane", "-p", "-t", handle, "-S", "-"+strconv.Itoa(max(rows, 1)))
+	if code != 0 {
+		return nil
+	}
+	lines := strings.Split(out, "\n")
+	for i := range lines {
+		lines[i] = strings.TrimRightFunc(lines[i], unicode.IsSpace)
+	}
+	lines = dropBlankFoot(lines)
+	if n := len(lines); n > 0 && strings.HasPrefix(lines[n-1], "Pane is dead") {
+		lines = dropBlankFoot(lines[:n-1])
+	}
+	return lines[max(len(lines)-rows, 0):]
+}
+
+func dropBlankFoot(lines []string) []string {
+	for len(lines) > 0 && lines[len(lines)-1] == "" {
+		lines = lines[:len(lines)-1]
+	}
+	return lines
 }
 
 // PaneShell is the agent a shell pane was opened beside; "" for any other pane, known false when tmux cannot say.

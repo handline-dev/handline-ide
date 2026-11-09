@@ -48,10 +48,13 @@ func (b Block) owner() string {
 	return strconv.FormatInt(b.Message, 10)
 }
 
-// Run is one run as kept: State is running, done, failed or stopped; Exit is set once it is done or failed.
+// Run is one run as kept: State is running, done, failed or stopped; Exit is set once it is done or failed. Agent is the agent whose chat
+// it ran from, the one told how it ended; a row kept before it was recorded has none.
 type Run struct {
 	Block    string `json:"block"`
 	Terminal string `json:"terminal"`
+	Agent    string `json:"agent,omitempty"`
+	Command  string `json:"command,omitempty"`
 	Started  int64  `json:"started"`
 	Ended    int64  `json:"ended,omitempty"`
 	State    string `json:"state"`
@@ -69,9 +72,9 @@ func (r Run) Seconds() int64 {
 	return max(r.Ended-r.Started, 0)
 }
 
-// Start records the run of block in terminal, replacing the one the block had.
-func Start(q db.Q, b Block, terminal string, started int64) (Run, error) {
-	r := Run{Block: b.String(), Terminal: terminal, Started: started, State: "running"}
+// Start records agent's run of command for block in terminal, replacing the one the block had.
+func Start(q db.Q, b Block, terminal, agent, command string, started int64) (Run, error) {
+	r := Run{Block: b.String(), Terminal: terminal, Agent: agent, Command: command, Started: started, State: "running"}
 	enc, _ := json.Marshal(r)
 	_, err := q.Exec("INSERT INTO meta(name, value, updated) VALUES(?, ?, ?) ON CONFLICT(name) DO UPDATE SET value=excluded.value, updated=excluded.updated",
 		prefix+r.Block, string(enc), started)
@@ -137,17 +140,17 @@ func Replies(q db.Q) (map[int64][]Run, error) {
 }
 
 // Settle ends every running run the host's answer shows over: its window is dead (exit status and end time are tmux's own), or gone, or is
-// another pane now (stopped). panes nil is "could not ask": nothing ends. Rows that ended long ago are dropped.
-func Settle(q db.Q, panes map[string]term.PaneRun, now int64) error {
+// another pane now (stopped). panes nil is "could not ask": nothing ends. Rows that ended long ago are dropped. ended is the runs it ended.
+func Settle(q db.Q, panes map[string]term.PaneRun, now int64) (ended []Run, err error) {
 	runs, err := All(q)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	for _, r := range runs {
 		if r.State != "running" {
 			if r.Ended > 0 && now-r.Ended > keep {
 				if _, err := q.Exec("DELETE FROM meta WHERE name = ?", prefix+r.Block); err != nil {
-					return err
+					return ended, err
 				}
 			}
 			continue
@@ -174,10 +177,11 @@ func Settle(q db.Q, panes map[string]term.PaneRun, now int64) error {
 		}
 		enc, _ := json.Marshal(r)
 		if _, err := q.Exec("UPDATE meta SET value = ?, updated = ? WHERE name = ?", string(enc), now, prefix+r.Block); err != nil {
-			return err
+			return ended, err
 		}
+		ended = append(ended, r)
 	}
-	return nil
+	return ended, nil
 }
 
 // Now is the clock the daemon stamps a run with.
