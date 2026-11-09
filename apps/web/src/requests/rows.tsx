@@ -1,5 +1,5 @@
-import { classify, sentence, useProposals, useTask, useWrite } from '@handline/app-data';
-import type { PendingRequest, RequestRow } from '@handline/client';
+import { classify, sentence, useAgentDetail, usePromptAnswer, useProposals, useTask, useWrite } from '@handline/app-data';
+import type { PendingRequest, Prompt, RequestRow } from '@handline/client';
 import { tomorrowAt9 } from '@handline/app-core';
 import {
   CircleCheck,
@@ -236,8 +236,32 @@ export function RequestLine({ r, onOpened }: { r: RequestRow; onOpened?: () => v
   );
 }
 
-/** A proposal's answer, Allow or Deny; else a dismiss until tomorrow 09:00 (Later). An Allow names the subject proposal.list showed; one the
- *  daemon refuses as changed since stays off on this row, so a changed proposal is opened and read before it is allowed. */
+/** A permission prompt's Allow/Deny, as on its chat card: running the command another way leaves the agent waiting. */
+function PromptQuick({ agent, id }: { agent: string; id: string }) {
+  const prompt = useAgentDetail(agent).data?.prompt;
+  if (!prompt || prompt.id !== id || prompt.kind !== 'permission') return null;
+  return <PermissionAnswer agent={agent} p={prompt} />;
+}
+
+function PermissionAnswer({ agent, p }: { agent: string; p: Prompt }) {
+  const a = usePromptAnswer(agent, p, () => toast('The prompt changed: open the chat to read it.', { tone: 'warning' }));
+  const yes = a.opts.find((o) => o.answer === 'yes');
+  const no = a.opts.find((o) => o.answer === 'no');
+  if (!yes || !no) return null;
+  return (
+    <>
+      <Button variant="primary" disabled={a.answering || a.changed} onClick={() => a.send(yes.key, yes.key)}>
+        {a.mark(yes.key, 'Allow')}
+      </Button>
+      <Button disabled={a.answering || a.changed} onClick={() => a.send(no.key, no.key)}>
+        {a.mark(no.key, 'Deny')}
+      </Button>
+    </>
+  );
+}
+
+/** A proposal's or a permission prompt's answer, Allow or Deny, and a dismiss until tomorrow 09:00 (Later). A proposal's Allow names the
+ *  subject proposal.list showed; one the daemon refuses as changed since stays off on this row, so it is opened and read before it is allowed. */
 function TurnQuick({ p }: { p: PendingRequest }) {
   const act = useRowActions();
   const decide = useWrite('proposal.decide');
@@ -274,10 +298,17 @@ function TurnQuick({ p }: { p: PendingRequest }) {
     );
   }
   const later = laterKey(p);
-  if (!later) return null;
   return (
-    <IconButton label="Dismiss until tomorrow 09:00" onClick={() => void act.later([{ key: turnKey(p), later }], tomorrowAt9(Date.now()))}>
-      <X size={14} />
-    </IconButton>
+    <>
+      {p.source === 'prompt' && p.agent && p.id && <PromptQuick agent={p.agent} id={p.id} />}
+      {later && (
+        <IconButton
+          label="Dismiss until tomorrow 09:00"
+          onClick={() => void act.later([{ key: turnKey(p), later }], tomorrowAt9(Date.now()))}
+        >
+          <X size={14} />
+        </IconButton>
+      )}
+    </>
   );
 }
