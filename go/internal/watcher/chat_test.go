@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -250,7 +251,7 @@ func TestARunStartingAndEndingIsTheMessageSaidAgainWithItsRuns(t *testing.T) {
 	c.Panes = func() map[string]term.PaneRun { return panes }
 	r.scan(c)
 	wantTypes(t, r.types())
-	run, err := cmdruns.Start(r.d, cmdruns.Block{Message: 1, N: 0}, "%4", started)
+	run, err := cmdruns.Start(r.d, cmdruns.Block{Message: 1, N: 0}, "%4", "", "", started)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -274,7 +275,7 @@ func TestARunStartingAndEndingIsTheMessageSaidAgainWithItsRuns(t *testing.T) {
 func TestARunKeptBeforeTheFirstLookIsNotNews(t *testing.T) {
 	r := newChatRig(t)
 	exec(t, r.d, "INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(1, 100, 'bob', 'human', 'run it', 'landed', 'say')")
-	cmdruns.Start(r.d, cmdruns.Block{Message: 1, N: 0}, "%4", cmdruns.Now())
+	cmdruns.Start(r.d, cmdruns.Block{Message: 1, N: 0}, "%4", "", "", cmdruns.Now())
 	c := r.chat()
 	r.scan(c)
 	r.scan(c)
@@ -293,7 +294,7 @@ func TestARunOfAReplysBlockIsTheItemSaidAgainWithItsRuns(t *testing.T) {
 	c.Panes = func() map[string]term.PaneRun { return panes }
 	r.scan(c)
 	wantTypes(t, r.types())
-	run, err := cmdruns.Start(r.d, cmdruns.Block{Message: 1000, N: 0, Reply: true}, "%4", started)
+	run, err := cmdruns.Start(r.d, cmdruns.Block{Message: 1000, N: 0, Reply: true}, "%4", "", "", started)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -457,5 +458,68 @@ func TestAWaitingBashLineDoesNotReadTheTranscript(t *testing.T) {
 	r.scan(r.c)
 	if got := r.said(); len(got) != 0 {
 		t.Fatalf("%v", got)
+	}
+}
+
+// toldAbout is the says the task board queued for agent, oldest first.
+func toldAbout(t *testing.T, d *sql.DB, agent string) []string {
+	t.Helper()
+	rows, err := d.Query("SELECT body FROM requests WHERE requester = 'task-board' AND target = ? AND kind = 'say' AND state = 'queued' ORDER BY id", agent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var b string
+		rows.Scan(&b)
+		out = append(out, b)
+	}
+	return out
+}
+
+// A run that ends is told to the agent it ran for, once, as a queued say: the command, its exit and the window's last rows. A stopped
+// run says its window closed and reads no rows; a run kept with no agent tells no one.
+func TestARunThatEndsIsToldToItsAgentWithItsExitAndLastRows(t *testing.T) {
+	r := newChatRig(t)
+	exec(t, r.d, "INSERT INTO requests(id, ts, requester, target, body, state, kind, ref) VALUES(1, 100, 'human', 'bob', 'run it', 'landed', 'say', 'abc1234')")
+	started := cmdruns.Now() - 10
+	panes := map[string]term.PaneRun{}
+	var read []string
+	c := r.chat()
+	c.Panes = func() map[string]term.PaneRun { return panes }
+	c.Tail = func(handle string, rows int) []string {
+		read = append(read, fmt.Sprintf("%s/%d", handle, rows))
+		return []string{"ok  \tpkg/a", "FAIL\tpkg/b"}
+	}
+	r.scan(c)
+	failed, _ := cmdruns.Start(r.d, cmdruns.Block{Message: 1, N: 0}, "%4", "bob", "go test ./...", started)
+	reply, _ := cmdruns.Start(r.d, cmdruns.Block{Message: 1000, N: 1, Reply: true}, "%5", "bob", "make", started)
+	unowned, _ := cmdruns.Start(r.d, cmdruns.Block{Message: 1, N: 1}, "%6", "", "true", started)
+	panes["%4"] = term.PaneRun{Tag: failed.Tag()}
+	panes["%5"] = term.PaneRun{Tag: reply.Tag()}
+	panes["%6"] = term.PaneRun{Tag: unowned.Tag()}
+	r.scan(c)
+	if told := toldAbout(t, r.d, "bob"); len(told) != 0 || len(read) != 0 {
+		t.Fatalf("a running run tells nothing: %q %v", told, read)
+	}
+	panes["%4"] = term.PaneRun{Tag: failed.Tag(), Dead: true, Status: 1, DeadTime: started + 3}
+	delete(panes, "%5") // its window was closed
+	panes["%6"] = term.PaneRun{Tag: unowned.Tag(), Dead: true}
+	r.scan(c)
+	r.scan(c)
+	told := toldAbout(t, r.d, "bob")
+	want := []string{
+		"The run of command block 1 of msg_abc1234 ended with exit 1 after 3s. Command: go test ./...\nLast rows of its window:\nok      pkg/a\nFAIL    pkg/b",
+		"The run of your reply's command block 2 was stopped: its window was closed before the command ended. Command: make",
+	}
+	if strings.Join(told, "\n--\n") != strings.Join(want, "\n--\n") {
+		t.Fatalf("told:\n%s", strings.Join(told, "\n--\n"))
+	}
+	if strings.Join(read, ",") != "%4/40,%6/40" {
+		t.Fatalf("the rows read: %v", read)
+	}
+	if n := len(toldAbout(t, r.d, "")); n != 0 {
+		t.Fatalf("a run with no agent told %d", n)
 	}
 }

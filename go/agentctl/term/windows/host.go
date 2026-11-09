@@ -28,6 +28,7 @@ func (Host) CreateRun(string, string, string, string, string) (string, string) {
 	return "", Unsupported
 }
 func (Host) PaneRuns() map[string]term.PaneRun { return nil }
+func (Host) RunOutput(string, int) []string    { return nil }
 
 var (
 	_ term.Host   = Host{}

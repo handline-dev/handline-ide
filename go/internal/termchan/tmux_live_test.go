@@ -124,7 +124,7 @@ func liveTmux(t *testing.T, sock string, file *string) {
 		command string
 		dead    bool
 		status  int
-	}{{"true", true, 0}, {"exit 3", true, 3}, {"sleep 60", false, 0}} {
+	}{{"true", true, 0}, {"echo one; echo two >&2; exit 3", true, 3}, {"sleep 60", false, 0}} {
 		run, why := tm.CreateRun(dir, "ann-run", "ann", "9:0@1", c.command)
 		if run == "" {
 			t.Fatalf("%s: %s", c.command, why)
@@ -142,6 +142,10 @@ func liveTmux(t *testing.T, sock string, file *string) {
 				t.Fatalf("%s: tmux says %+v", c.command, got)
 			}
 			time.Sleep(50 * time.Millisecond)
+		}
+		// What the command printed is the window's last rows, without the line tmux draws under a dead pane or the blank rows above it.
+		if out := strings.Join(tm.RunOutput(run, 40), "|"); c.status == 3 && out != "one|two" {
+			t.Fatalf("the run's output: %q", out)
 		}
 		if ok, why := tm.CloseTerminal(run, true); !ok {
 			t.Fatal(why)

@@ -323,7 +323,7 @@ func Start(cfg Config) (*Daemon, error) {
 			Detectors: []watcher.Detector{&watcher.Tasks{Reads: &reads.Env{DB: db, Home: cfg.Home}}, &watcher.Agents{}, &watcher.Notifications{Reads: &reads.Env{DB: db, Home: cfg.Home}}, &watcher.Inbox{Reads: &reads.Env{DB: db, Home: cfg.Home}},
 				&watcher.Proposals{Reads: &reads.Env{DB: db, Home: cfg.Home}},
 				&watcher.ForYou{Reads: &reads.Env{DB: db, Home: cfg.Home}}, &watcher.Prefs{}, &watcher.Requests{Reads: &reads.Env{DB: db, Home: cfg.Home}},
-				&watcher.Chat{Reads: &reads.Env{DB: db, Home: cfg.Home, Delivery: cfg.Delivery}, Panes: d.paneRuns}}}
+				&watcher.Chat{Reads: &reads.Env{DB: db, Home: cfg.Home, Delivery: cfg.Delivery}, Panes: d.paneRuns, Tail: d.paneTail}}}
 		d.wg.Add(1)
 		go func() {
 			defer d.wg.Done()
@@ -776,4 +776,12 @@ func (d *Daemon) paneRuns() map[string]term.PaneRun {
 		return nil
 	}
 	return d.tchan.PaneRuns()
+}
+
+// paneTail is the last rows of a terminal as the host keeps them (watcher.Chat.Tail); nil when it cannot say.
+func (d *Daemon) paneTail(handle string, rows int) []string {
+	if d.tchan == nil {
+		return nil
+	}
+	return d.tchan.Tail(handle, rows)
 }

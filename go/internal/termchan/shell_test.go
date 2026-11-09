@@ -146,6 +146,7 @@ func (h *shellHost) CreateRun(cwd, title, agent, tag, command string) (string, s
 }
 
 func (h *shellHost) PaneRuns() map[string]term.PaneRun { return h.ended }
+func (h *shellHost) RunOutput(string, int) []string    { return nil }
 
 func TestShellOpenWithACommandRunsItAndRecordsTheRunOfItsBlock(t *testing.T) {
 	r, h, wt := shellRig(t)
@@ -156,6 +157,7 @@ func TestShellOpenWithACommandRunsItAndRecordsTheRunOfItsBlock(t *testing.T) {
 	m := got.(map[string]any)
 	runs, _ := cmdruns.Of(r.e.DB, 12)
 	if len(runs) != 1 || runs[0].Block != "12:1" || runs[0].Terminal != m["terminal"] || runs[0].State != "running" ||
+		runs[0].Agent != "ann" || runs[0].Command != "go test ./..." || // the agent told how it ends, and what it ran
 		len(h.runs) != 1 || h.runs[0] != runs[0].Tag()+" go test ./..." || m["cwd"] != wt {
 		t.Fatalf("%v %+v %q", m, runs, h.runs)
 	}
@@ -247,7 +249,7 @@ func TestAFinishedRunsWindowIsNotAShellInUseAndARerunClosesItsOld(t *testing.T) 
 	}
 	shell, _ := r.e.shellOpen(person("casey"), map[string]any{"agent": "ann"})
 	plain := shell.(map[string]any)["terminal"].(string)
-	cmdruns.Start(r.e.DB, cmdruns.Block{Message: 7, N: 0}, plain, cmdruns.Now()) // after a tmux restart a run row names a handle a plain shell now has
+	cmdruns.Start(r.e.DB, cmdruns.Block{Message: 7, N: 0}, plain, "", "", cmdruns.Now()) // after a tmux restart a run row names a handle a plain shell now has
 	open("7:0")
 	for _, c := range h.closed {
 		if c == plain {
