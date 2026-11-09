@@ -3,6 +3,7 @@ package cmdruns
 import (
 	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/handline/handline/go/agentctl/term"
@@ -264,7 +265,7 @@ func TestARunReplacedByARerunIsNotToldAndTheTellReadsOutsideTheLock(t *testing.T
 	defer q.Close()
 	a, _ := Start(q, Block{Message: 4, N: 0}, "%1", "bob", "make", 1000)
 	b, _ := Start(q, Block{Message: 4, N: 1}, "%2", "bob", "make", 1000)
-	if err := Replaced(q, a, 1001); err != nil {
+	if err := Replaced(q, a, term.PaneRun{Tag: a.Tag()}, 1001, nil); err != nil {
 		t.Fatal(err)
 	}
 	var told []string
@@ -280,5 +281,26 @@ func TestARunReplacedByARerunIsNotToldAndTheTellReadsOutsideTheLock(t *testing.T
 	}
 	if runs, _ := Of(q, 4); runs[0].State != "stopped" || runs[1].State != "done" || len(told) != 1 || told[0] != b.Block {
 		t.Fatalf("%+v told %v", runs, told)
+	}
+}
+
+// A rerun of a block whose command has already ended tells that end, as Settle would have: its result is not lost as "stopped".
+func TestARunReplacedAfterItsCommandEndedIsToldItsResult(t *testing.T) {
+	q, err := storetest.OpenAt(t, filepath.Join(t.TempDir(), "db.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer q.Close()
+	r, _ := Start(q, Block{Message: 4, N: 0}, "%1", "bob", "make", 1000)
+	var rows []string
+	tell := Telling(func(handle string, n int) []string { rows = []string{handle}; return []string{"boom"} })
+	if err := Replaced(q, r, term.PaneRun{Tag: r.Tag(), Dead: true, Status: 2, DeadTime: 1002}, 1003, tell); err != nil {
+		t.Fatal(err)
+	}
+	runs, _ := Of(q, 4)
+	var said string
+	q.QueryRow("SELECT body FROM requests WHERE target = 'bob'").Scan(&said)
+	if runs[0].State != "failed" || runs[0].Exit == nil || *runs[0].Exit != 2 || len(rows) != 1 || !strings.Contains(said, "boom") {
+		t.Fatalf("%+v read %v said %q", runs[0], rows, said)
 	}
 }

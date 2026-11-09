@@ -141,9 +141,8 @@ func Replies(q db.Q) (map[int64][]Run, error) {
 }
 
 // Settle ends every running run the host's answer shows over: its window is dead (exit status and end time are tmux's own), or gone, or is
-// another pane now (stopped). panes nil is "could not ask": nothing ends. Rows that ended long ago are dropped. Each run it ends is handed
-// to ended before the transaction that ends it, so ended may read the host; the write ended returns runs in that transaction and stands or
-// falls with the run's end. A run started again since it was read is left alone.
+// another pane now (stopped). panes nil is "could not ask": nothing ends. Rows that ended long ago are dropped. The write ended returns for
+// each run it ends stands or falls with that end; a run started again since it was read is left alone.
 func Settle(d *sql.DB, panes map[string]term.PaneRun, now int64, ended func(r Run) func(db.Q) error) error {
 	runs, err := All(d)
 	if err != nil {
@@ -166,15 +165,7 @@ func Settle(d *sql.DB, panes map[string]term.PaneRun, now int64, ended func(r Ru
 		case !here || p.Tag != r.Tag():
 			r.State, r.Ended = "stopped", now
 		case p.Dead:
-			st := p.Status
-			r.Exit, r.Ended = &st, p.DeadTime
-			if r.Ended == 0 {
-				r.Ended = now
-			}
-			r.State = "done"
-			if st != 0 {
-				r.State = "failed"
-			}
+			r = over(r, p, now)
 		default:
 			continue
 		}
@@ -185,10 +176,39 @@ func Settle(d *sql.DB, panes map[string]term.PaneRun, now int64, ended func(r Ru
 	return nil
 }
 
-// Replaced ends running run r as stopped and tells no one, before its window is closed for a rerun the agent or the person asked for.
-func Replaced(d *sql.DB, r Run, now int64) error {
+// over is r ended by its dead window p: tmux's exit status and end time.
+func over(r Run, p term.PaneRun, now int64) Run {
+	st := p.Status
+	r.Exit, r.Ended = &st, p.DeadTime
+	if r.Ended == 0 {
+		r.Ended = now
+	}
+	r.State = "done"
+	if st != 0 {
+		r.State = "failed"
+	}
+	return r
+}
+
+// Replaced ends running run r before its window p is closed for a rerun: a command that has ended is told as Settle tells it, and one
+// still running is stopped by the rerun the agent or the person asked for, untold.
+func Replaced(d *sql.DB, r Run, p term.PaneRun, now int64, ended func(Run) func(db.Q) error) error {
+	if p.Dead {
+		return end(d, over(r, p, now), now, ended)
+	}
 	r.State, r.Ended = "stopped", now
 	return end(d, r, now, nil)
+}
+
+// Telling is the ended hook that tells a run's agent how it ended, with the last rows tail reads of its window; tail nil reads none.
+func Telling(tail func(handle string, rows int) []string) func(Run) func(db.Q) error {
+	return func(r Run) func(db.Q) error {
+		var rows []string
+		if r.Agent != "" && r.Exit != nil && tail != nil {
+			rows = tail(r.Terminal, TailRows)
+		}
+		return func(tx db.Q) error { return Tell(tx, r, rows) }
+	}
 }
 
 // end writes r's end, with what ended adds, if its row is still the running run r was read as. ended is called before Begin: the store
