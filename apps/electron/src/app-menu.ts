@@ -14,6 +14,8 @@ export interface MenuActions {
   go(screen: string): void;
   /** Closes the tab on show in the window (the page takes the key; this is the menu click). */
   closeTab(): void;
+  /** Opens the last closed tab again, by the page's key like closeTab. */
+  reopenTab(): void;
   /** Where the app is a Mac app: the name leads the menu bar. */
   mac: boolean;
   /** A dev run (not the packaged app): View has Toggle Developer Tools. */
@@ -78,6 +80,7 @@ export function appMenu(a: MenuActions): MenuItemConstructorOptions[] {
       submenu: [
         // The page owns the key (it also reaches a focused terminal); a click on the item sends the same key to it.
         { label: 'Close Tab', accelerator: 'CmdOrCtrl+W', registerAccelerator: false, click: () => a.closeTab() },
+        { label: 'Reopen Closed Tab', accelerator: 'CmdOrCtrl+Shift+T', registerAccelerator: false, click: () => a.reopenTab() },
         // Off a Mac Ctrl+Shift+W is the terminal's close-tab key; the window closes with Alt+F4 there (shown, left to the OS, so the role's own Ctrl+W is gone).
         {
           role: 'close',

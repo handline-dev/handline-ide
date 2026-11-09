@@ -141,6 +141,9 @@ function isCloseChord(e: KeyboardEvent): boolean {
   const inTerminal = e.target instanceof HTMLElement && !!e.target.closest('.xterm');
   return e.ctrlKey && !e.metaKey && e.shiftKey === inTerminal;
 }
+/** Cmd+Shift+T on a Mac, Ctrl+Shift+T elsewhere: Reopen Closed Tab. */
+const isReopenChord = (e: KeyboardEvent) =>
+  e.key.toLowerCase() === 't' && e.shiftKey && !e.altKey && (MAC ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey);
 
 /** One pane: its tab bar (a drop there inserts at the line) and its body (a drop at an edge splits there,
  * in the middle merges). */
@@ -318,7 +321,20 @@ function SplitView({ node, dispatch, children }: { node: Split; dispatch: Dispat
 
 /** The view of the layout tree (src/layout/tree.ts); every change is an Action through its reducer.
  * `lead` goes at the start of the top-left pane's tab bar (the sidebar controls' room when it is closed). */
-export function Workspace({ root, agent, dispatch, lead }: { root: Node; agent: string | null; dispatch: Dispatch; lead?: ReactNode }) {
+export function Workspace({
+  root,
+  agent,
+  dispatch,
+  reopenClosed,
+  lead,
+}: {
+  root: Node;
+  agent: string | null;
+  dispatch: Dispatch;
+  /** Opens the last closed tab again; a tab whose pane is gone goes to this pane. */
+  reopenClosed: (pane: string) => void;
+  lead?: ReactNode;
+}) {
   const render = (node: Node, topLeft: boolean): ReactNode =>
     node.kind === 'pane' ? (
       <PaneView
@@ -336,7 +352,8 @@ export function Workspace({ root, agent, dispatch, lead }: { root: Node; agent: 
       </SplitView>
     );
   const closeShells = useCloseShells(agent);
-  // Cmd+W (Ctrl+W elsewhere) closes the tab on screen in the pane last used; the desktop shell's Close Tab sends the same key.
+  // Cmd+W (Ctrl+W elsewhere) closes the tab on screen in the pane last used, Cmd+Shift+T opens the last closed again; the desktop
+  // shell's menu items send the same keys.
   useEffect(() => {
     const close = (e: KeyboardEvent) => {
       if (!isCloseChord(e) || document.querySelector('[role="dialog"], [role="alertdialog"]')) return; // nothing closes behind a modal
@@ -346,9 +363,18 @@ export function Workspace({ root, agent, dispatch, lead }: { root: Node; agent: 
       closeShells(p.tabs.filter((t) => t.id === p.active));
       dispatch({ type: 'closeTab', pane: p.id, tab: p.active });
     };
+    const reopen = (e: KeyboardEvent) => {
+      if (!isReopenChord(e) || document.querySelector('[role="dialog"], [role="alertdialog"]')) return;
+      e.preventDefault();
+      reopenClosed(lastPane ?? panes(root)[0]!.id);
+    };
+    addEventListener('keydown', reopen);
     addEventListener('keydown', close);
-    return () => removeEventListener('keydown', close);
-  }, [root, dispatch, closeShells]);
+    return () => {
+      removeEventListener('keydown', close);
+      removeEventListener('keydown', reopen);
+    };
+  }, [root, dispatch, closeShells, reopenClosed]);
   // A drag region takes no drop: while a tab is dragged it steps aside, so a drop on the tab bar's free space still lands.
   useEffect(() => {
     const on = () => (document.body.dataset.dragging = '');
