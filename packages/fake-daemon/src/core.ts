@@ -7,11 +7,12 @@ import type { EventLog } from '#src/eventlog.ts';
 import type { FakeInbox } from '#src/inbox.ts';
 import type { FakePairing } from '#src/pairing.ts';
 import { subscribeTopics } from '#src/resume.ts';
-import { detail, loadReply, statusReply, view, type Session } from '#src/session.ts';
+import { detail, loadReply, statusReply, view, type Session, type TaskCounter } from '#src/session.ts';
 
 /** What these methods need of the daemon that hosts them. */
 export interface CoreHost {
   readonly sessions: Map<string, Session>;
+  readonly tasks: TaskCounter;
   readonly inbox: FakeInbox;
   readonly admin: FakeAdmin;
   readonly replyItems: boolean;
@@ -84,9 +85,9 @@ export function coreCall(
     case 'load.get':
       return loadReply(d.sessions, d.iso(), p);
     case 'agents.list':
-      return { agents: [...d.sessions.values()].map((s) => view(s)) };
+      return { agents: [...d.sessions.values()].map((s) => view(s, d.tasks)) };
     case 'agent.get':
-      return detail(agent());
+      return detail(agent(), d.tasks);
     case 'pr.exists': {
       const repo = agent().fx.repo ?? null;
       const nums = p.numbers;
