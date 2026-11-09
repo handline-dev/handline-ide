@@ -6,39 +6,67 @@ import { laterKey } from '#src/later.ts';
 export type Picked = { key: string; p?: PendingRequest; r?: RequestRow };
 export const turnKey = (p: PendingRequest) => `turn:${p.source ?? ''}:${p.id ?? p.task ?? p.items[0]}`;
 export const requestKey = (r: RequestRow) => `request:${r.cursor}`;
+export const turnRow = (p: PendingRequest): Picked => ({ key: turnKey(p), p });
+export const requestRow = (r: RequestRow): Picked => ({ key: requestKey(r), r });
 
-/** Every row of the list, in the order it shows them. */
-export const listedRows = (turn: PendingRequest[], requests: RequestRow[]): Picked[] => [
-  ...turn.map((p) => ({ key: turnKey(p), p })),
-  ...requests.map((r) => ({ key: requestKey(r), r })),
-];
+const NOUN: Record<PendingRequest['kind'], string> = {
+  allow: 'permission',
+  decide: 'decision',
+  ask: 'question',
+  warning: 'warning',
+  comment: 'comment',
+};
+const counted = (n: number, noun: string) => `${n} ${noun}${n === 1 ? '' : 's'}`;
+/** Turns counted by their kind, "3 questions"; turns of several kinds are "items". */
+export function turnsCounted(ps: PendingRequest[]): string {
+  const kinds = new Set(ps.map((p) => NOUN[p.kind]));
+  const [only] = kinds;
+  return counted(ps.length, kinds.size === 1 && only ? only : 'item');
+}
 
 /** A finished request the founder has not opened since it ended. */
 export const isUnseen = (r: RequestRow): boolean => r.ended?.seen === false;
 
-/** Several rows can stand for one task: a task takes each write once, or the second would fail on what the first did. */
-function perTask<T extends { task: number }>(on: T[]): T[] {
-  const tasks = new Set<number>();
-  return on.filter((x) => !tasks.has(x.task) && !!tasks.add(x.task));
+/** Several rows can stand for one task: a task takes each write once, or the second would fail on what the first did. The write
+ * carries the keys of all its rows, as it acts on all of them. */
+function perTask<T extends { keys: string[]; task: number }>(on: T[]): T[] {
+  const byTask = new Map<number, T>();
+  for (const x of on) {
+    const first = byTask.get(x.task);
+    if (first) first.keys.push(...x.keys);
+    else byTask.set(x.task, x);
+  }
+  return [...byTask.values()];
 }
+const rowsIn = (on: { keys: string[] }[]) => on.reduce((n, x) => n + x.keys.length, 0);
 
 /** The finished rows not seen yet, each task once. */
 export const unseenOf = (rows: Picked[]) =>
-  perTask(rows.flatMap((x) => (x.r && x.r.task !== null && isUnseen(x.r) ? [{ key: x.key, task: x.r.task }] : [])));
+  perTask(rows.flatMap((x) => (x.r && x.r.task !== null && isUnseen(x.r) ? [{ keys: [x.key], task: x.r.task }] : [])));
 
 /** What several picked rows share: the turns to give back (`mine`: the tasks whose top turn the founder holds), the rows to put off,
  * the results to mark seen, the open requests to cancel. */
 export function bulkOf(rows: Picked[], mine: ReadonlySet<number>) {
   return {
-    giveBack: perTask(rows.flatMap((x) => (x.p?.task != null && mine.has(x.p.task) ? [{ key: x.key, task: x.p.task }] : []))),
-    later: rows.flatMap((x) => {
-      const later = x.p ? laterKey(x.p) : null;
-      return later ? [{ key: x.key, later }] : [];
+    giveBack: perTask(rows.flatMap((x) => (x.p?.task != null && mine.has(x.p.task) ? [{ keys: [x.key], task: x.p.task }] : []))),
+    later: rows.flatMap(({ key, p }) => {
+      const later = p ? laterKey(p) : null;
+      return p && later ? [{ keys: [key], later, p }] : [];
     }),
     seen: unseenOf(rows),
     cancel: perTask(
-      rows.flatMap((x) => (x.r && x.r.task !== null && !x.r.ended ? [{ key: x.key, task: x.r.task, title: x.r.title }] : [])),
+      rows.flatMap((x) => (x.r && x.r.task !== null && !x.r.ended ? [{ keys: [x.key], task: x.r.task, title: x.r.title }] : [])),
     ),
+  };
+}
+
+/** What each action of several rows is called, naming the rows it acts on: "Cancel 3 requests". */
+export function bulkNames(b: ReturnType<typeof bulkOf>) {
+  return {
+    seen: `Mark ${counted(rowsIn(b.seen), 'result')} seen`,
+    later: `Put ${turnsCounted(b.later.map((x) => x.p))} off`,
+    giveBack: `Give ${counted(rowsIn(b.giveBack), 'turn')} back`,
+    cancel: `Cancel ${counted(rowsIn(b.cancel), 'request')}`,
   };
 }
 

@@ -1,10 +1,10 @@
 // What a right-click on a row of Requests offers, and what can be done to several picked rows at once. Only what is easy to undo
 // goes at once (seen, later, give back); a cancel, of one row or several, is asked for one reason and confirmed.
-import { bulkOf, foundersTurn, laterChoices, laterKey, type Picked } from '@handline/app-core';
+import { bulkNames, bulkOf, foundersTurn, laterChoices, laterKey, type Picked } from '@handline/app-core';
 import { useTaskActions, useTasks, useWrite } from '@handline/app-data';
 import { useMe } from '@handline/app-react';
 import { Ban, Clock, Copy, Eye, FolderOpen, MessageSquare, Undo2 } from 'lucide-react';
-import { createContext, useContext, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { chatOf, taskOf } from '#src/layout/kinds.tsx';
 import { useOpenTab } from '#src/layout/openTab.tsx';
 import { copy } from '#src/ui/copy.ts';
@@ -16,7 +16,11 @@ import { toast } from '#src/ui/toast.tsx';
 type Pick = {
   picked: Map<string, Picked>;
   toggle: (x: Picked) => void;
-  pickAll: (rows: Picked[]) => void;
+  /** Picks, or with `on` false unpicks, every row given: a section's box. */
+  pickAll: (rows: Picked[], on: boolean) => void;
+  /** The rows an action of the bar would act on, while the pointer is on it: they stand out. */
+  hint: ReadonlySet<string> | null;
+  setHint: (keys: ReadonlySet<string> | null) => void;
   clear: () => void;
   /** Drops the picked rows that are no longer listed. */
   keep: (keys: ReadonlySet<string>) => void;
@@ -30,18 +34,28 @@ const PickCtx = createContext<Pick | null>(null);
 export function PickProvider({ children }: { children: ReactNode }) {
   const [picked, setPicked] = useState(new Map<string, Picked>()); // not kept: a selection lasts while it is acted on
   const [busy, setBusyKeys] = useState(new Set<string>());
+  const [hint, setHint] = useState<ReadonlySet<string> | null>(null);
   const value: Pick = {
     picked,
     busy,
+    hint,
     toggle: (x) =>
       setPicked((m) => {
         const n = new Map(m);
-        if (n.has(x.key)) n.delete(x.key);
-        else n.set(x.key, x);
+        if (!n.delete(x.key)) n.set(x.key, x);
         return n;
       }),
-    pickAll: (rows) => setPicked(new Map(rows.map((x) => [x.key, x]))),
+    pickAll: (rows, on) =>
+      setPicked((m) => {
+        const n = new Map(m);
+        for (const x of rows) {
+          if (on) n.set(x.key, x);
+          else n.delete(x.key);
+        }
+        return n;
+      }),
     clear: () => setPicked(new Map()),
+    setHint,
     keep: (keys) => setPicked((m) => ([...m.keys()].every((k) => keys.has(k)) ? m : new Map([...m].filter(([k]) => keys.has(k))))),
     setBusy: (keys, on) =>
       setBusyKeys((s) => {
@@ -70,37 +84,40 @@ export function useRowActions() {
   const seen = useWrite('task.seen');
   const prefs = useWrite('prefs.set');
   const { verbs } = useTaskActions();
-  const all = async (what: string, rows: { key: string; run: () => Promise<unknown> }[]) => {
-    const keys = rows.map((r) => r.key);
+  /** Says which rows failed: the picks keep them. */
+  const all = async (what: string, rows: { keys: string[]; run: () => Promise<unknown> }[]): Promise<string[]> => {
+    const keys = rows.flatMap((r) => r.keys);
     pick?.setBusy(keys, true);
-    const failed = (await Promise.allSettled(rows.map((r) => r.run()))).filter((r) => r.status === 'rejected').length;
+    const settled = await Promise.allSettled(rows.map((r) => r.run()));
     pick?.setBusy(keys, false);
-    if (failed) toast(`${failed} of ${rows.length} could not be ${what}.`, { tone: 'warning' });
+    const failed = rows.filter((_, i) => settled[i]?.status === 'rejected');
+    if (failed.length) toast(`${failed.length} of ${rows.length} could not be ${what}.`, { tone: 'warning' });
+    return failed.flatMap((r) => r.keys);
   };
-  type On = { key: string; task: number };
+  type On = { keys: string[]; task: number };
   return {
     giveBack: (on: On[]) =>
       all(
         'given back',
-        on.map((x) => ({ key: x.key, run: () => pop.mutateAsync({ task: x.task, outcome: 'pass' }) })),
+        on.map((x) => ({ keys: x.keys, run: () => pop.mutateAsync({ task: x.task, outcome: 'pass' }) })),
       ),
     seen: (on: On[]) =>
       all(
         'marked seen',
-        on.map((x) => ({ key: x.key, run: () => seen.mutateAsync({ task: x.task }) })),
+        on.map((x) => ({ keys: x.keys, run: () => seen.mutateAsync({ task: x.task }) })),
       ),
-    later: (on: { key: string; later: string }[], until: string) =>
+    later: (on: { keys: string[]; later: string }[], until: string) =>
       all(
         'put off',
-        on.map((x) => ({ key: x.key, run: () => prefs.mutateAsync({ changes: { nav: { later: { [x.later]: { until } } } } }) })),
+        on.map((x) => ({ keys: x.keys, run: () => prefs.mutateAsync({ changes: { nav: { later: { [x.later]: { until } } } } }) })),
       ),
-    /** One reason and one confirm for all the rows given; says whether they went. */
-    cancel: async (on: (On & { title: string })[]): Promise<boolean> => {
+    /** One reason and one confirm for all the rows given; null when the founder backs out, else the rows that failed. */
+    cancel: async (on: (On & { title: string })[]): Promise<string[] | null> => {
       const one = on.length === 1 ? on[0] : null;
       const reason = (
         await prompt({ title: one ? `Cancel T${one.task}?` : `Cancel ${on.length} requests?`, placeholder: 'Why, in one line' })
       )?.trim();
-      if (!reason) return false;
+      if (!reason) return null;
       const sure = await confirm({
         title: one ? `Cancel “${one.title}”?` : `Cancel these ${on.length} requests?`,
         message: one ? (
@@ -119,12 +136,11 @@ export function useRowActions() {
         cancelText: one ? 'Keep it' : 'Keep them',
         danger: true,
       });
-      if (!sure) return false;
-      await all(
+      if (!sure) return null;
+      return all(
         'cancelled',
-        on.map((x) => ({ key: x.key, run: () => verbs.cancel(x.task, reason) })),
+        on.map((x) => ({ keys: x.keys, run: () => verbs.cancel(x.task, reason) })),
       );
-      return true;
     },
   };
 }
@@ -142,15 +158,15 @@ function useBulk() {
   const pick = usePick();
   const act = useRowActions();
   const b = bulkOf([...(pick?.picked.values() ?? [])], useMyTurns());
-  const then = (run: Promise<unknown>) => void run.then(() => pick?.clear());
+  const name = bulkNames(b);
+  // Done, the picks keep only the rows that failed; backing out of a cancel's questions keeps them all.
+  const then = (run: Promise<string[] | null>) => void run.then((failed) => failed && pick?.keep(new Set(failed)));
+  const keys = (on: { keys: string[] }[]) => on.flatMap((x) => x.keys);
   return {
-    seen: b.seen.length ? { label: `Mark ${b.seen.length} seen`, run: () => then(act.seen(b.seen)) } : null,
-    later: b.later.length ? { label: `Put ${b.later.length} off`, run: (until: string) => then(act.later(b.later, until)) } : null,
-    giveBack: b.giveBack.length ? { label: `Give ${b.giveBack.length} back`, run: () => then(act.giveBack(b.giveBack)) } : null,
-    // Backing out of its questions keeps the selection.
-    cancel: b.cancel.length
-      ? { label: `Cancel ${b.cancel.length}`, run: () => void act.cancel(b.cancel).then((went) => went && pick?.clear()) }
-      : null,
+    seen: b.seen.length ? { label: name.seen, keys: keys(b.seen), run: () => then(act.seen(b.seen)) } : null,
+    later: b.later.length ? { label: name.later, keys: keys(b.later), run: (until: string) => then(act.later(b.later, until)) } : null,
+    giveBack: b.giveBack.length ? { label: name.giveBack, keys: keys(b.giveBack), run: () => then(act.giveBack(b.giveBack)) } : null,
+    cancel: b.cancel.length ? { label: name.cancel, keys: keys(b.cancel), run: () => then(act.cancel(b.cancel)) } : null,
   };
 }
 
@@ -187,13 +203,27 @@ export function BulkItems() {
 }
 
 export function BulkButtons() {
+  const pick = usePick();
   const b = useBulk();
+  const [pointed, setPointed] = useState<keyof typeof b | null>(null);
+  const hinted = (pointed && b[pointed]?.keys.join('|')) || null;
+  const setHint = pick?.setHint;
+  useEffect(() => {
+    setHint?.(hinted ? new Set(hinted.split('|')) : null);
+    return () => setHint?.(null);
+  }, [hinted, setHint]);
+  const hint = (on: keyof typeof b) => ({
+    onPointerEnter: () => setPointed(on),
+    onPointerLeave: () => setPointed(null),
+    onFocus: () => setPointed(on),
+    onBlur: () => setPointed(null),
+  });
   if (!b.seen && !b.later && !b.giveBack && !b.cancel)
     return <span className="px-2 whitespace-nowrap text-muted">Nothing to do to all of these</span>;
   return (
     <>
       {b.seen && (
-        <Button variant="ghost" onClick={b.seen.run}>
+        <Button variant="ghost" {...hint('seen')} onClick={b.seen.run}>
           <Eye size={14} />
           {b.seen.label}
         </Button>
@@ -202,7 +232,7 @@ export function BulkButtons() {
         <Menu
           side="top"
           trigger={
-            <Button variant="ghost">
+            <Button variant="ghost" {...hint('later')}>
               <Clock size={14} />
               {b.later.label}
             </Button>
@@ -212,13 +242,13 @@ export function BulkButtons() {
         </Menu>
       )}
       {b.giveBack && (
-        <Button variant="ghost" onClick={b.giveBack.run}>
+        <Button variant="ghost" {...hint('giveBack')} onClick={b.giveBack.run}>
           <Undo2 size={14} />
           {b.giveBack.label}
         </Button>
       )}
       {b.cancel && (
-        <Button variant="ghost" onClick={b.cancel.run}>
+        <Button variant="ghost" {...hint('cancel')} onClick={b.cancel.run}>
           <Ban size={14} />
           {`${b.cancel.label}…`}
         </Button>
@@ -253,22 +283,22 @@ export function RowMenu({ row, children }: { row: Picked; children: ReactNode })
         </MenuItem>
       )}
       {p && task !== null && mine.has(task) && (
-        <MenuItem icon={<Undo2 size={14} />} onClick={() => void act.giveBack([{ key, task }])}>
+        <MenuItem icon={<Undo2 size={14} />} onClick={() => void act.giveBack([{ keys: [key], task }])}>
           Give back
         </MenuItem>
       )}
       {later && (
         <SubMenu label="Later" icon={<Clock size={14} />}>
-          <LaterItems onPick={(until) => void act.later([{ key, later }], until)} />
+          <LaterItems onPick={(until) => void act.later([{ keys: [key], later }], until)} />
         </SubMenu>
       )}
       {r && task !== null && r.ended && !r.ended.seen && (
-        <MenuItem icon={<Eye size={14} />} onClick={() => void act.seen([{ key, task }])}>
+        <MenuItem icon={<Eye size={14} />} onClick={() => void act.seen([{ keys: [key], task }])}>
           Mark seen
         </MenuItem>
       )}
       {r && task !== null && !r.ended && (
-        <MenuItem icon={<Ban size={14} />} danger onClick={() => void act.cancel([{ key, task, title: r.title }])}>
+        <MenuItem icon={<Ban size={14} />} danger onClick={() => void act.cancel([{ keys: [key], task, title: r.title }])}>
           Cancel…
         </MenuItem>
       )}
