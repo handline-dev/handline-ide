@@ -134,7 +134,8 @@ function Line({
   return pick ? <RowMenu row={row}>{line}</RowMenu> : line;
 }
 
-/** Where a row opens: its task; for a daemon warning, the account, the chat or the settings it is about; else Requests. */
+/** Where a row opens: its task; for a daemon warning, the account, the chat or the settings it is about; for a prompt, its agent's
+ * chat; else Requests. */
 function useOpenTurn(p: PendingRequest) {
   const openTab = useOpenTab();
   return (how: 'here' | 'side') => {
@@ -154,6 +155,7 @@ function turnOpens(p: PendingRequest): string | null {
   }
   if (w?.agent) return chatOf(w.agent);
   if (w?.kind === 'disk') return null;
+  if (p.source === 'prompt' && p.agent) return chatOf(p.agent);
   return 'requests';
 }
 
