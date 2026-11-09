@@ -6,6 +6,7 @@ import { useAgents, useOutlook, useStats } from '@handline/app-data';
 import { Bot, ChartColumn, ChevronRight, Cpu, Info, UserRound } from 'lucide-react';
 import { HoverCard } from '#src/ui/HoverCard.tsx';
 import { useState, type ReactNode } from 'react';
+import { useTabState } from '#src/persist/tabState.ts';
 
 /** The colours that tell agents apart in a stack (the chart series). */
 const SERIES = ['bg-series-1', 'bg-series-2', 'bg-series-3', 'bg-series-4', 'bg-series-5', 'bg-series-6'];
@@ -120,7 +121,7 @@ const size = (u: Use) => u.week ?? u.cost;
  * and under it each agent with its total and, in one line, the accounts it ran on. A team opens and closes. */
 export function ByAgent({ win }: { win: Win }) {
   const s = useStats(win).data;
-  const [shut, setShut] = useState<Set<string>>(new Set());
+  const [shut, setShut] = useTabState<string[]>('shut', []);
   type Agent = Use & { name: string; accounts: { account: string; use: Use }[] };
   const agents = new Map<string, Agent>();
   for (const u of s?.use ?? []) {
@@ -151,13 +152,13 @@ export function ByAgent({ win }: { win: Win }) {
       {s && !ordered.length && <p className="text-sm text-muted">Nothing used in this window.</p>}
       <div className="flex flex-col">
         {ordered.map(([team, t]) => {
-          const open = !shut.has(team);
+          const open = !shut.includes(team);
           return (
             <div key={team} className="flex flex-col">
               <button
                 type="button"
                 aria-expanded={open}
-                onClick={() => setShut((x) => (x.has(team) ? new Set([...x].filter((n) => n !== team)) : new Set([...x, team])))}
+                onClick={() => setShut((x) => (x.includes(team) ? x.filter((n) => n !== team) : [...x, team]))}
                 className="flex items-center gap-1 text-left hover:bg-hover/30"
               >
                 <ChevronRight size={14} className={`shrink-0 text-muted transition-transform ${open ? 'rotate-90' : ''}`} />

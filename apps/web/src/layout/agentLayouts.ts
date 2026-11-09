@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { read, write } from '#src/persist/kv.ts';
+import { sweepTabState, tabIds } from '#src/persist/tabState.ts';
 import { labelOf } from '#src/layout/kinds.tsx';
 import { initial, reduce, type Action, type Node } from '#src/layout/tree.ts';
 
@@ -41,8 +42,13 @@ export function useAgentLayouts() {
   // so Back returns to where the person was with what was open then. Restoring an entry neither pushes nor rewrites.
   const step = useRef<'push' | 'replace' | 'restore'>('replace');
   const last = useRef<string | null>(null);
+  const swept = useRef<string | null>(null);
   useEffect(() => {
     write(KEY, saved);
+    // A tab no layout has any more takes what it kept with it (persist/tabState); the first run sweeps what earlier ones left.
+    const tabs = tabIds(Object.values(saved.layouts));
+    if (tabs !== swept.current) sweepTabState(new Set(tabs.split(' ')));
+    swept.current = tabs;
     const json = JSON.stringify(saved);
     const how = step.current;
     step.current = 'replace';
