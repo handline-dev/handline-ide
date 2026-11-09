@@ -19,7 +19,7 @@ func TestToldCutsALongCommandAndKeepsTheEndOfALongOutput(t *testing.T) {
 	r := Run{Block: "r9:0", Command: strings.Repeat("é", maxCommand+5), Started: 10, Ended: 12, State: "done", Exit: &exit}
 	got := Told(q, r, []string{strings.Repeat("x", maxTail), "last row"})
 	line, out, _ := strings.Cut(got, "\nLast rows of its window:\n")
-	if !strings.HasSuffix(line, "Command: "+strings.Repeat("é", maxCommand)+"…") || !strings.HasPrefix(line, "The run of your reply's command block 1 ended with exit 0 after 2s.") {
+	if !strings.HasSuffix(line, "Command: "+strings.Repeat("é", maxCommand)+"…") || !strings.HasPrefix(line, "The run of your reply's code block 1 ended with exit 0 after 2s.") {
 		t.Fatalf("line %q", line)
 	}
 	if len([]rune(out)) != maxTail+1 || !strings.HasPrefix(out, "…x") || !strings.HasSuffix(out, "\nlast row") {
