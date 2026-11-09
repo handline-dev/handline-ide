@@ -667,7 +667,7 @@
       "type": "string",
       "pattern": "^r?[0-9]+:[0-9]+$"
      },
-     "description": "Which command block this run is for: \"<message id>:<n>\", the nth block of a chat message, shown in that message's `runs` (chat.messages, chat.message); or \"r<item id>:<n>\", the nth block of the agent's reply item <item id> (a chat.transcript item of kind reply, the id chat.send takes as parent_item), shown in that item's `runs` (chat.transcript, the chat.transcript event). <n> is the block's place among all the code fences of that text, counted from 0. Needs command; opening the same block again replaces its run. When the run ends, the agent is told the command, its exit code and its window's last 40 rows (a stopped run: that its window closed)."
+     "description": "Which command block this run is for: \"<message id>:<n>\", the nth block of a chat message, shown in that message's `runs` (chat.messages, chat.message); or \"r<item id>:<n>\", the nth block of the agent's reply item <item id> (a chat.transcript item of kind reply, the id chat.send takes as parent_item), shown in that item's `runs` (chat.transcript, the chat.transcript event). <n> is the block's place among all the code fences of that text, counted from 0. Needs command; opening the same block again replaces its run. When the run ends its agent is told the command, exit code and last 40 rows."
     },
     {
      "name": "request_id",

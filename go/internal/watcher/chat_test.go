@@ -479,7 +479,7 @@ func toldAbout(t *testing.T, d *sql.DB, agent string) []string {
 }
 
 // A run that ends is told to the agent it ran for, once, as a queued say: the command, its exit and the window's last rows. A stopped
-// run says its window closed and reads no rows; a run kept with no agent tells no one.
+// run says its window closed; a run kept with no agent tells no one; neither reads rows.
 func TestARunThatEndsIsToldToItsAgentWithItsExitAndLastRows(t *testing.T) {
 	r := newChatRig(t)
 	exec(t, r.d, "INSERT INTO requests(id, ts, requester, target, body, state, kind, ref) VALUES(1, 100, 'human', 'bob', 'run it', 'landed', 'say', 'abc1234')")
@@ -510,13 +510,13 @@ func TestARunThatEndsIsToldToItsAgentWithItsExitAndLastRows(t *testing.T) {
 	r.scan(c)
 	told := toldAbout(t, r.d, "bob")
 	want := []string{
-		"The run of command block 1 of msg_abc1234 ended with exit 1 after 3s. Command: go test ./...\nLast rows of its window:\nok      pkg/a\nFAIL    pkg/b",
-		"The run of your reply's command block 2 was stopped: its window was closed before the command ended. Command: make",
+		"The run of code block 1 of msg_abc1234 ended with exit 1 after 3s. Command: go test ./...\nLast rows of its window:\nok      pkg/a\nFAIL    pkg/b",
+		"The run of your reply's code block 2 was stopped: its window was closed before the command ended. Command: make",
 	}
 	if strings.Join(told, "\n--\n") != strings.Join(want, "\n--\n") {
 		t.Fatalf("told:\n%s", strings.Join(told, "\n--\n"))
 	}
-	if strings.Join(read, ",") != "%4/40,%6/40" {
+	if strings.Join(read, ",") != "%4/40" {
 		t.Fatalf("the rows read: %v", read)
 	}
 	if n := len(toldAbout(t, r.d, "")); n != 0 {
