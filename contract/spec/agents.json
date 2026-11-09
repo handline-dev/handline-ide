@@ -1747,7 +1747,7 @@
      "$ref": "#/components/schemas/Accepted"
     }
    },
-   "x-role": "agent",
+   "x-role": "founder",
    "x-write": true,
    "x-app-write": {
     "kind": "decided",

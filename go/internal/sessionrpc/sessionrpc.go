@@ -317,11 +317,8 @@ func (e *Env) move(c *rpc.Conn, params map[string]any) (any, error) {
 	})
 }
 
-// switchNow is agent.switch_now: it ends a session the way a forced move does, so it is a person's too.
+// switchNow is agent.switch_now. It ends a session, so it is the founder's (x-role).
 func (e *Env) switchNow(c *rpc.Conn, params map[string]any) (any, error) {
-	if !c.Caller.Allows("member") {
-		return nil, rpc.Refused("a switch ends a session: it is the founder's, from a terminal or the screen, not an agent's", "role", "")
-	}
 	account, _ := params["account"].(string)
 	return e.run(c, "agent.switch_now", params, false, func(call Call, agent string) (map[string]any, error) {
 		return done(e.SwitchNow(call, agent, account))
