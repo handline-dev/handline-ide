@@ -3,13 +3,14 @@
 import type { AgentOptions, Operation, Repo, Timestamp } from '@handline/contract';
 import { AGENTS, type AgentFixture } from '#src/fixtures.ts';
 import { Failure, invalidParams, refused } from '#src/errors.ts';
-import { newSession, view, type Session } from '#src/session.ts';
+import { newSession, view, type Session, type TaskCounter } from '#src/session.ts';
 import type { FakeWorktrees } from '#src/worktrees.ts';
 
 /** What the workroom needs of the daemon that hosts it: its topics, its agents and the repos and worktrees of its admin surface. */
 interface Host {
   emit(topic: 'operations' | 'agents', type: string, f: { agent?: string; title?: string; data: Record<string, unknown> }): void;
   sessions: Map<string, Session>;
+  tasks: TaskCounter;
   admin: { worktrees: FakeWorktrees };
   accounts: { list(): { accounts: { name: string; login_state: string }[] } };
 }
@@ -149,7 +150,7 @@ export class FakeWork {
     await this.wait();
     const s = newSession(fx, this.now());
     this.host.sessions.set(fx.name, s);
-    this.host.emit('agents', 'agent.changed', { agent: fx.name, data: view(s) as unknown as Record<string, unknown> });
+    this.host.emit('agents', 'agent.changed', { agent: fx.name, data: view(s, this.host.tasks) as unknown as Record<string, unknown> });
     report({ steps_done: 1, step: STEPS[1] });
     await this.wait();
     if (base !== repo.default_branch)
@@ -159,7 +160,7 @@ export class FakeWork {
     await this.wait();
     const up = newSession({ ...fx, state: 'idle', session: `s-${fx.name}` }, this.now());
     this.host.sessions.set(fx.name, up);
-    this.host.emit('agents', 'agent.changed', { agent: fx.name, data: view(up) as unknown as Record<string, unknown> });
+    this.host.emit('agents', 'agent.changed', { agent: fx.name, data: view(up, this.host.tasks) as unknown as Record<string, unknown> });
     report({ state: 'done', steps_done: 3, step: null, message: null, result: { agent: fx.name, registered: true } });
   }
 

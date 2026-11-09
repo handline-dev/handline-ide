@@ -127,11 +127,22 @@ test('queued behind is the owned tasks less the current one, never negative, nul
 
 test('the waiting tasks are the ones the count adds up: not the current one, not a draft', () => {
   const a = agent('x', { task_count: 3, task: { id: 7, title: 't' } });
-  const open = [7, 8, 9, 10].map((id, i) => ({ id, state: i === 3 ? 'draft' : i === 1 ? 'queued' : 'doing' }));
+  const open = [7, 8, 9, 10].map((id, i) => ({ id, to: 'x', state: i === 3 ? 'draft' : i === 1 ? 'queued' : 'doing' }));
   assert.deepEqual(
     waitingTasks(a, open).map((t) => t.id),
     [8, 9],
   );
+});
+
+test("a waiting task on another's turn or behind an open blocker is not listed, and is again once it comes back", () => {
+  const a = agent('x', { task: { id: 7, title: 't' } });
+  const ids = (open: { id: number; state: string; to: string; acting?: string; blocked_by?: number[] }[]) =>
+    waitingTasks(a, open).map((t) => t.id);
+  assert.deepEqual(ids([{ id: 8, state: 'queued', to: 'x', acting: 'human' }]), [], "the founder's turn");
+  assert.deepEqual(ids([{ id: 8, state: 'queued', to: 'x', acting: 'y' }]), [], "another agent's turn");
+  assert.deepEqual(ids([{ id: 8, state: 'queued', to: 'x', acting: 'x' }]), [8], 'the turn back');
+  assert.deepEqual(ids([{ id: 8, state: 'queued', to: 'x', blocked_by: [4] }]), [], 'blocked');
+  assert.deepEqual(ids([{ id: 8, state: 'queued', to: 'x', blocked_by: [] }]), [8], 'unblocked');
 });
 
 test('keydown maps to named keys only; printable text and IME composition are left to the textarea', () => {

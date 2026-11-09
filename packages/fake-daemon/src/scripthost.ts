@@ -3,13 +3,14 @@ import type { Actor, Timestamp, Topic } from '@handline/contract';
 import type { FakeChat } from '#src/chat.ts';
 import type { Conn } from '#src/conn.ts';
 import type { Host } from '#src/scriptcore.ts';
-import { tid, type Session } from '#src/session.ts';
+import { tid, type Session, type TaskCounter } from '#src/session.ts';
 import { watcherNotice } from '#src/watchers.ts';
 
 interface Hub {
   readonly sessions: Map<string, Session>;
   readonly conns: Set<Conn>;
   readonly chat: FakeChat;
+  readonly tasks: TaskCounter;
   iso(): Timestamp;
   emit(topic: Topic, type: string, f?: { agent?: string; actor?: Actor; title?: string; data?: Record<string, unknown> }): void;
   notify(c: Conn, method: string, params: unknown): void;
@@ -17,6 +18,7 @@ interface Hub {
 
 export const scriptHost = (d: Hub): Host => ({
   iso: () => d.iso(),
+  tasks: d.tasks,
   emit: (topic, type, f) => d.emit(topic, type, f),
   sessions: () => d.sessions,
   moved: (s, from) => d.chat.stateMoved(s.fx.name, from, s.state),
