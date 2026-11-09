@@ -9,7 +9,7 @@ import { Markdown } from '#src/ui/Markdown.tsx';
 
 /** `12 steps · 4m`: a turn's tool calls and the agent's own text, folded; a click opens them in order. */
 export function TurnRecord({ r, fade }: { r: Turn; fade: boolean }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(false); // not kept: one line of the stream, which draws lines as they scroll in
   const notes = r.items.filter((i) => i.kind === 'reply').length;
   const what = r.steps ? `${r.steps} ${r.steps === 1 ? 'step' : 'steps'}` : `${notes} ${notes === 1 ? 'note' : 'notes'}`;
   const min = Math.floor((Date.parse(r.until) - Date.parse(r.at)) / 60_000);

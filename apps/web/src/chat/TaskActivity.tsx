@@ -34,7 +34,7 @@ const FOLD_FROM = 4;
 
 /** An agent's task changes in one card: one row per change, a new one growing in at the bottom, the oldest folding up as they pile. */
 export function TaskActivity({ events }: { events: TaskEvent[] }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(false); // not kept: one card of the stream, which draws lines as they scroll in
   // Each task's state now, read once for the card's numbers.
   const ids = [...new Set(events.map((e) => Number(e.id.slice(1))))];
   const tasks = useTasks({ ids }, { enabled: ids.length > 0 }).data?.items ?? [];
