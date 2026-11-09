@@ -31,9 +31,9 @@ func Tell(q db.Q, r Run, tail []string) error {
 // before the command ended, so it has no exit code and no output.
 func Told(q db.Q, r Run, tail []string) string {
 	b, _ := ParseBlock(r.Block)
-	from := "your reply's command block " + strconv.FormatInt(b.N+1, 10)
+	from := "your reply's code block " + strconv.FormatInt(b.N+1, 10)
 	if !b.Reply {
-		from = "command block " + strconv.FormatInt(b.N+1, 10) + " of " + db.MsgName(q, b.Message)
+		from = "code block " + strconv.FormatInt(b.N+1, 10) + " of " + db.MsgName(q, b.Message)
 	}
 	command := textsafe.Oneline(r.Command)
 	if rs := []rune(command); len(rs) > maxCommand {
