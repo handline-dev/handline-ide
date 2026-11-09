@@ -88,3 +88,25 @@ func TestAnIdleCloseWaitsForACompactAsk(t *testing.T) {
 		t.Fatalf("closed before the compact: %v", w.calls)
 	}
 }
+
+func TestSavingEndsWhenTheWallItSavedForIsGoneButNotWhileANoteIsAwaited(t *testing.T) {
+	saving := db.AccountSwitch{Agent: "a", Cause: "usage", From: "alpha", Phase: db.SwitchSaving, Since: 9_000}
+	tk, _ := newWorld(t)
+	if err := db.SetSwitch(tk.Q, saving); err != nil {
+		t.Fatal(err)
+	}
+	supervise(tk, "a")
+	if s, _ := db.GetSwitch(tk.Q, "a"); s != nil {
+		t.Fatalf("nothing fires now: %+v", s)
+	}
+	tk, w := newWorld(t)
+	w.hold = true
+	db.SetSwitch(tk.Q, saving)
+	if err := db.MarkNoteWait(tk.Q, "a", states.EarlyUsageTrigger, tk.Now()); err != nil {
+		t.Fatal(err)
+	}
+	supervise(tk, "a")
+	if s, _ := db.GetSwitch(tk.Q, "a"); s == nil {
+		t.Fatal("a note is awaited: the handoff is still on")
+	}
+}

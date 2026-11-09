@@ -462,3 +462,27 @@ func TestAgentMoveIsAPersonsCallAndPassesTheAccountAndWhoAsked(t *testing.T) {
 		t.Fatalf("an agent's session moved an agent: %v %v", m, got)
 	}
 }
+
+func TestAgentSwitchNowIsAPersonsCallAndPassesTheAccount(t *testing.T) {
+	r := newRig(t)
+	var got []string
+	r.e.SwitchNow = func(call Call, agent, account string) (bool, string, error) {
+		got = append(got, fmt.Sprint(agent, " ", account, " ", call.Person))
+		return account != "walled", "ann moved a -> " + account, nil
+	}
+	c := r.dial(false)
+	res := result(t, c.call("agent.switch_now", map[string]any{"agent": "ann", "account": "b", "request_id": rid("s1")}))
+	if res["said"] != "ann moved a -> b" || len(got) != 1 || got[0] != "ann b true" {
+		t.Fatalf("%v %v", res, got)
+	}
+	if m := c.call("agent.switch_now", map[string]any{"agent": "ann", "account": "walled", "request_id": rid("s2")}); refused(m) != "state" {
+		t.Fatalf("a refusal: %v", m)
+	}
+	result(t, c.call("agent.switch_now", map[string]any{"agent": "ann", "request_id": rid("s3")}))
+	if got[2] != "ann  true" {
+		t.Fatalf("no account leaves the choice to the daemon: %v", got)
+	}
+	if m := r.dial(true).call("agent.switch_now", map[string]any{"agent": "ann", "account": "b", "request_id": rid("s4")}); refused(m) != "role" || len(got) != 3 {
+		t.Fatalf("an agent's session switched an agent: %v %v", m, got)
+	}
+}

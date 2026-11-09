@@ -467,6 +467,9 @@ func TestADaemonWakeOnAWalledAccountAsksThePlanAsAStart(t *testing.T) {
 	if _, p, moved, _ := db.LastEvent(m.Q, "a", "moved_account"); !moved || p["to"] != "b" {
 		t.Fatalf("%v %v", moved, p)
 	}
+	if s, _ := db.GetSwitch(m.Q, "a"); s == nil || s.Phase != db.SwitchStarting || s.To != "b" {
+		t.Fatalf("a wake off the wall shows its start: %+v", s)
+	}
 }
 
 func TestAColdResumeOntoAFullAccountMovesToTheSlowestPacedOne(t *testing.T) {

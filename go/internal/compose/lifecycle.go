@@ -169,6 +169,11 @@ func (p *Parts) Lifecycle(cfg Config, lc LifecycleConfig) *Lifecycle {
 	p.LC = &Lifecycle{Manager: m, Spawns: spawns, Launch: launcher, Handoff: ho, Env: lc.Env, Gate: gate, usage: uenv, roster: roster, term: tm}
 	hp.limit = tickUsage{roster: roster}.ContextLimit
 	hp.mover = func() *lifecycle.Mover { return p.LC.Mover }
+	m.RefreshView = func(agent string) {
+		if v := p.view.Load(); v != nil {
+			v.RefreshOne(agent)
+		}
+	}
 	p.LC.Mover = p.newMover(m, uenv, lc.Env, func() int64 { return nowOf(cfg.Now)().Unix() })
 	return p.LC
 }

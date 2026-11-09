@@ -1,6 +1,7 @@
 package agentview
 
 import (
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,6 +10,8 @@ import (
 	"testing"
 	"unicode/utf8"
 
+	"github.com/handline/handline/go/agentctl/dialogs"
+	"github.com/handline/handline/go/agentctl/term"
 	"github.com/handline/handline/go/agentctl/verdict"
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
@@ -643,5 +646,126 @@ func TestAnAgentsViewListsTheServersItsProcessesListenOn(t *testing.T) {
 	}
 	if b, _ := json.Marshal(r.stored(t, "none")["servers"]); string(b) != "[]" {
 		t.Fatalf("no server is an empty list: %s", b)
+	}
+}
+
+func TestTheLimitDialogTheDaemonHandlesIsNobodysToAnswer(t *testing.T) {
+	session := &NeedsYou{Kind: "usage", Source: "session", Since: 4000, Title: "Usage limit: choose what to do"}
+	daemon := &NeedsYou{Kind: "stuck", Source: "daemon", Since: 4000, Title: "Stuck after restarts"}
+	modal := func(r *rig, a, kind string) {
+		if err := db.BlockOpen(r.env.Q, a, cmp.Or(kind, term.Modal), "Stop and wait", "", 1, 1, "close", "t"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, c := range []struct {
+		name          string
+		need          *NeedsYou
+		prompt, block bool
+		blockKind     string
+		state         string
+		owned         bool
+		quiet, asked  bool
+	}{
+		{name: "a session's need, handled", need: session, state: states.Running, owned: true, quiet: true, asked: true},
+		{name: "a prompt row, handled", prompt: true, state: states.Running, owned: true, quiet: true, asked: true},
+		{name: "a modal block, handled", block: true, state: states.Running, owned: true, quiet: true, asked: true},
+		{name: "a need the daemon does not handle", need: session, state: states.Running, asked: true},
+		{name: "a prompt row it does not handle", prompt: true, state: states.Running, asked: true},
+		{name: "a modal block it does not handle", block: true, state: states.Running, asked: true},
+		{name: "a stalled agent is out of its hands", need: session, state: states.Stalled, owned: true},
+		{name: "the daemon's own card stays", need: daemon, state: states.Running, owned: true},
+		{name: "the daemon's own card stays over a prompt it hides", need: daemon, prompt: true, state: states.Running, owned: true, asked: true},
+		{name: "a block no dialog makes, the screen is not read", block: true, blockKind: "login", state: states.Running, owned: true},
+		{name: "nothing raised, the screen is not read", state: states.Running, owned: true, quiet: true},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			r := newRig(t, "a")
+			r.sess.alive["a"] = true
+			r.state(t, "a", c.state, "")
+			if c.prompt {
+				r.pr.open["a"] = &prompts.Block{Kind: "dialog", Title: "Stop and wait"}
+			}
+			if c.block {
+				modal(r, "a", c.blockKind)
+			}
+			r.env.NeedsYou = func(string) *NeedsYou { return c.need }
+			asked := false
+			r.env.LimitDialogOwned = func(string) bool { asked = true; return c.owned }
+			r.env.RefreshOne("a")
+			v := r.stored(t, "a")
+			quiet := v["has_dialog"] == false && v["needs_you"] == nil && v["block"] == nil && v["blocker"] == nil && v["state"] != "waiting"
+			if quiet != c.quiet || asked != c.asked {
+				t.Fatalf("quiet %v asked %v: %v", quiet, asked, v)
+			}
+		})
+	}
+}
+
+func TestAnOfferToSwitchKeepsTheWaitsStateAndNamesItsAccount(t *testing.T) {
+	r := newRig(t, "a")
+	if err := db.SetParked(r.env.Q, "a", states.Parked, 9000, string(verdict.ParkWall), "usage"); err != nil {
+		t.Fatal(err)
+	}
+	r.env.NeedsYou = func(string) *NeedsYou {
+		return &NeedsYou{Kind: dialogs.SwitchOffer, Source: "daemon", Since: 4000, Title: "No account has room to spare", Text: "beta", Account: "beta"}
+	}
+	r.env.RefreshOne("a")
+	v := r.stored(t, "a")
+	n, _ := v["needs_you"].(map[string]any)
+	if v["has_dialog"] != false || v["state"] == "waiting" || n["account"] != "beta" || n["kind"] != "switch_offer" {
+		t.Fatalf("%v", v)
+	}
+	if st := v["status"].(map[string]any); st["reason"] == "you" {
+		t.Fatalf("nobody must answer it: %v", st)
+	}
+}
+
+func TestAnotherNeedHasNoAccountField(t *testing.T) {
+	if v := needsView(&NeedsYou{Kind: "usage", Since: 1}).(map[string]any); v["account"] != nil {
+		t.Fatalf("%v", v)
+	}
+}
+
+func TestTheViewCarriesTheAccountSwitchWhileItIsLive(t *testing.T) {
+	r := newRig(t, "a")
+	r.state(t, "a", states.Running, "")
+	r.env.RefreshOne("a")
+	if v := r.stored(t, "a"); v["account_switch"] != nil {
+		t.Fatalf("none yet: %v", v["account_switch"])
+	}
+	db.SetSwitch(r.env.Q, db.AccountSwitch{Agent: "a", Cause: "forced", From: "alpha", To: "beta", Phase: db.SwitchStarting, Since: 4990})
+	r.env.RefreshOne("a")
+	s := r.stored(t, "a")["account_switch"].(map[string]any)
+	if s["cause"] != "move" || s["phase"] != "starting" || s["from"] != "alpha" || s["to"] != "beta" || s["until"] != nil || s["since"] != "1970-01-01T01:23:10Z" {
+		t.Fatalf("%v", s)
+	}
+	db.SetParked(r.env.Q, "a", states.Parked, 9000, string(verdict.ParkWall), "usage")
+	db.SetSwitch(r.env.Q, db.AccountSwitch{Agent: "a", Cause: "usage", From: "alpha", Phase: db.SwitchWaiting, Since: 4990})
+	r.env.RefreshOne("a")
+	s = r.stored(t, "a")["account_switch"].(map[string]any)
+	if s["to"] != nil || s["until"] != "1970-01-01T02:30:00Z" || s["phase"] != "waiting" {
+		t.Fatalf("%v", s)
+	}
+	db.ClearSwitch(r.env.Q, "a")
+	r.env.RefreshOne("a")
+	if v := r.stored(t, "a"); v["account_switch"] != nil {
+		t.Fatalf("%v", v["account_switch"])
+	}
+}
+
+func TestAnOfferStandsOnlyWhenNoOtherNeedDoesButSurvivesTheDialogItsWaitHides(t *testing.T) {
+	offer := &NeedsYou{Kind: dialogs.SwitchOffer, Source: "daemon", Since: 4000, Title: "t", Account: "beta"}
+	r := newRig(t, "a")
+	r.state(t, "a", states.Running, "")
+	r.env.SwitchOffer = func(string) *NeedsYou { return offer }
+	r.env.NeedsYou = func(string) *NeedsYou { return &NeedsYou{Kind: "permission", Source: "hook", Since: 4000} }
+	r.env.RefreshOne("a")
+	if n := r.stored(t, "a")["needs_you"].(map[string]any); n["kind"] != "permission" {
+		t.Fatalf("%v", n)
+	}
+	r.env.LimitDialogOwned = func(string) bool { return true }
+	r.env.RefreshOne("a")
+	if n := r.stored(t, "a")["needs_you"].(map[string]any); n["kind"] != dialogs.SwitchOffer {
+		t.Fatalf("%v", n)
 	}
 }

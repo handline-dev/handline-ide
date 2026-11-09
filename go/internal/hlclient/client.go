@@ -69,7 +69,7 @@ type Client struct {
 // slow are the methods that start, wake or stop a session (or the daemon) before they answer; the rest are Quick.
 var slow = map[string]bool{
 	"session.start": true, "session.wake": true, "session.restart": true, "session.stop": true, "session.park": true,
-	"agent.create": true, "agent.retire": true, "agent.move": true, "agent.unstall": true, "agent.force_start": true,
+	"agent.create": true, "agent.retire": true, "agent.move": true, "agent.switch_now": true, "agent.unstall": true, "agent.force_start": true,
 	"account.wake": true, "say": true, "chat.send": true, "chat.send_now": true,
 }
 

@@ -411,6 +411,9 @@ func (t *Tick) supervise(agent string, now int64, actions *[]string, afterHandof
 		in.NoteHeld = t.Handoff.NoteHold(q, agent, now)
 		trig = chooseTrigger(in)
 	}
+	if !trig.Fired && !in.NoteKept {
+		check(db.ClearSavingSwitch(q, agent)) // the wall it was saving for is gone
+	}
 	if !trig.Fired && must(db.Cursor(q, "handoff_deferred:"+agent)) != 0 {
 		check(db.ClearDeferred(q, agent)) // a trigger deferred behind a turn that no longer fires holds nothing
 	}

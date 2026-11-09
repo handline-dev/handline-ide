@@ -243,5 +243,10 @@
   "version": 49,
   "name": "session_start_changed",
   "additive": true
+ },
+ {
+  "version": 50,
+  "name": "account_switch",
+  "additive": true
  }
 ]

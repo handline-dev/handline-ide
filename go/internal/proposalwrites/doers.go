@@ -203,6 +203,9 @@ func (e *Env) doRetire(p step) (bool, string, error) {
 	if _, err := p.tx.Exec("DELETE FROM agent_state WHERE agent = ?", name); err != nil {
 		return false, "", err
 	}
+	if _, err := p.tx.Exec("DELETE FROM account_switch WHERE agent = ?", name); err != nil {
+		return false, "", err
+	}
 	if err := prefs.Forget(p.tx, name); err != nil {
 		return false, "", err
 	}
@@ -324,7 +327,7 @@ func (e *Env) doRename(p step) (bool, string, error) {
 		}
 	}
 	for _, q := range []string{"UPDATE agent_state SET agent = ? WHERE agent = ?", "UPDATE requests SET requester = ? WHERE requester = ?",
-		"UPDATE requests SET target = ? WHERE target = ?", "UPDATE events SET agent = ? WHERE agent = ?", "UPDATE handoff SET agent = ? WHERE agent = ?"} {
+		"UPDATE requests SET target = ? WHERE target = ?", "UPDATE events SET agent = ? WHERE agent = ?", "UPDATE handoff SET agent = ? WHERE agent = ?", "UPDATE account_switch SET agent = ? WHERE agent = ?"} {
 		if _, err := p.tx.Exec(q, new, old); err != nil {
 			return false, "", err
 		}
