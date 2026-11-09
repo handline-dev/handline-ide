@@ -62,8 +62,11 @@ const ASK: Record<PendingRequest['kind'], string> = {
   comment: 'New comments',
 };
 
-/** One row. In Requests (not the bell) it can be picked: Shift+click, or the check box that takes the icon's place on hover; then
- * a click picks more. A right-click opens its menu. A row dims while a write on it is on its way. */
+const BOX_BESIDE = 'mt-2 ml-2';
+const BOX_OVER = 'absolute top-2 left-2 z-10 opacity-0 group-hover/line:opacity-100 focus-visible:opacity-100';
+
+/** One row. In Requests (not the bell) it can be picked: Shift+click, or its check box, over the icon on hover and left of it while
+ * any row is picked, when a click picks more. A right-click opens its menu. A row dims while a write on it is on its way. */
 function Line({
   title,
   meta,
@@ -91,9 +94,10 @@ function Line({
   if (pick?.hint?.has(row.key)) hinted = 'ring-2 ring-accent ring-inset';
   else if (pick?.hint && picked) hinted = 'opacity-50';
   const busy = !!pick?.busy.has(row.key);
+  const picking = !!pick?.picked.size;
   const open = openProps(onOpen, opens);
   const line = (
-    // The check box sits beside the row's button, over its icon, not inside it: a box in a button is no box to the keyboard.
+    // The check box sits beside the row's button, not inside it: a box in a button is no box to the keyboard.
     <div
       className={`group/line relative flex rounded-md ${picked ? 'bg-selected' : 'hover:bg-hover/30'} ${hinted} ${busy ? 'pointer-events-none opacity-50' : ''}`}
     >
@@ -103,21 +107,19 @@ function Line({
           aria-label={`Pick ${title}`}
           checked={picked}
           onChange={() => pick.toggle(row)}
-          className={`absolute top-2.5 left-2 z-10 size-4 accent-accent ${picked ? '' : 'opacity-0 group-hover/line:opacity-100 focus-visible:opacity-100'}`}
+          className={`size-4 shrink-0 accent-accent ${picking ? BOX_BESIDE : BOX_OVER}`}
         />
       )}
       <button
         type="button"
         {...open}
         onClick={(e: MouseEvent<HTMLButtonElement>) => {
-          if (pick && (e.shiftKey || pick.picked.size > 0)) return pick.toggle(row);
+          if (pick && (e.shiftKey || picking)) return pick.toggle(row);
           open.onClick?.(e);
         }}
         className="flex w-full gap-2.5 px-2 py-1.5 text-left"
       >
-        <span
-          className={`relative mt-0.5 grid size-4 shrink-0 place-items-center ${pick ? 'group-hover/line:invisible' : ''} ${picked ? 'invisible' : ''}`}
-        >
+        <span className={`relative mt-0.5 grid size-4 shrink-0 place-items-center ${pick && !picking ? 'group-hover/line:invisible' : ''}`}>
           {icon}
           {mark && <span className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-accent" />}
         </span>
