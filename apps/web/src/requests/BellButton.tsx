@@ -12,7 +12,7 @@ const SHOWN = 5;
  * first of the founder's turn and the finished ones not yet seen (else the latest), with a way to the whole page. A dot marks unseen results. */
 export function BellButton({ bar }: { bar: RefObject<HTMLElement | null> }) {
   const r = useRequests();
-  const [open, setOpen] = useState(false); // not kept: the popover
+  const [open, setOpen] = useState(false);
   const close = () => setOpen(false);
   const unseen = r.done.filter(isUnseen);
   const done = (unseen.length ? unseen : r.done).slice(0, Math.max(2, SHOWN - r.turn.length));

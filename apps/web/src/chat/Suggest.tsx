@@ -14,7 +14,7 @@ const SLASH = /^\/(\w*)$/;
 const LINE = /^\/(\w+)(?:\s+(.*))?$/;
 
 export function useSuggest(draft: string, setDraft: (v: string) => void, commands: Command[]) {
-  const [shut, setShut] = useState<string | null>(null); // not kept: closed until the text changes
+  const [shut, setShut] = useState<string | null>(null); // not kept: the text Escape closed it on, closed until the text changes
   const [at, setAt] = useState(0);
   // Said for the text it was sent with; gone once the text changes.
   const [refused, setRefused] = useState<{ text: string; why: string } | null>(null);

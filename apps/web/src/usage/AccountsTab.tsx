@@ -18,7 +18,7 @@ const why = (e: unknown) => (e ? sentence(classify(e)) : null);
 export function AccountsTab({ focus }: { focus?: string }) {
   const q = useAccounts();
   const accounts = q.data?.accounts ?? [];
-  const [open, setOpen] = useState<string | null>(focus ?? null); // not kept: Settings, not a tab
+  const [open, setOpen] = useState<string | null>(focus ?? null);
   const found = focus !== undefined && accounts.some((a) => a.name === focus);
   useEffect(() => {
     if (found) document.querySelector(`[data-account="${CSS.escape(focus)}"]`)?.scrollIntoView({ block: 'center' });

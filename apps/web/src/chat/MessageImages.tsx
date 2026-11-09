@@ -7,7 +7,7 @@ export const MarkReply = createContext<((marked: MarkedPicture[]) => void) | nul
 
 /** A message's pictures as thumbnails; a click opens them in the viewer, where they can be marked up into a reply. */
 export function MessageImages({ images }: { images: { id: string; name: string }[] }) {
-  const [open, setOpen] = useState<number | null>(null); // not kept: the picture viewer, a window over the page
+  const [open, setOpen] = useState<number | null>(null);
   const reply = useContext(MarkReply);
   if (!images.length) return null;
   const pictures: Picture[] = images.map((a) => ({ id: a.id, name: a.name }));
