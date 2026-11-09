@@ -67,3 +67,39 @@ it('a block says how its last run went: running offers its terminal, an ended on
   await act(async () => [...el.querySelectorAll('button')].find((b) => b.textContent === 'Open terminal')!.click());
   expect(openTab).toHaveBeenCalledWith('shell:%3', 'side');
 });
+
+it('an inline `! <command>` runs too, numbered from 1000, and leaves the fences their own numbers', async () => {
+  const el = document.createElement('div');
+  document.body.append(el);
+  await act(async () =>
+    createRoot(el).render(
+      <CommandsOf.Provider value={{ agent: 'a', owner: 'r9' }}>
+        <Markdown text={'Run `! gh auth login` yourself, then:\n```sh\nmake\n```\nand `! npm login`.'} />
+      </CommandsOf.Provider>,
+    ),
+  );
+  const runs = [...el.querySelectorAll('button')].filter((b) => b.textContent === 'Run in terminal');
+  expect(runs).toHaveLength(3);
+  for (const b of runs) await act(async () => b.click());
+  expect(mutateAsync.mock.calls.map((c) => c[0])).toEqual([
+    { agent: 'a', command: 'gh auth login', block: 'r9:1000' },
+    { agent: 'a', command: 'make', block: 'r9:0' },
+    { agent: 'a', command: 'npm login', block: 'r9:1001' },
+  ]);
+});
+
+it('a `! ` span inside link text is plain words and takes no number', async () => {
+  const el = document.createElement('div');
+  document.body.append(el);
+  await act(async () =>
+    createRoot(el).render(
+      <CommandsOf.Provider value={{ agent: 'a', owner: '5' }}>
+        <Markdown text={'See [`! a`](https://example.com), then `! b`.'} />
+      </CommandsOf.Provider>,
+    ),
+  );
+  const runs = [...el.querySelectorAll('button')].filter((b) => b.textContent === 'Run in terminal');
+  expect(runs).toHaveLength(1);
+  await act(async () => runs[0]!.click());
+  expect(mutateAsync).toHaveBeenLastCalledWith({ agent: 'a', command: 'b', block: '5:1000' });
+});

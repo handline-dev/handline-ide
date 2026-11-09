@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { commandOf, commandRisk, isCommandLang, runLine } from '#src/command.ts';
+import { bangOf, commandOf, commandRisk, isCommandLang, runLine } from '#src/command.ts';
 
 test('sh, bash, zsh and shell fences are commands, in any case; other languages and plain fences are not', () => {
   assert.deepEqual(['sh', 'Bash', 'zsh', ' shell '].map(isCommandLang), [true, true, true, true]);
@@ -49,4 +49,17 @@ test('commandOf: a command fence whole, a console or $-led fence by its prompt l
   assert.equal(commandOf('bash', '$ npm i\n$ npm test'), 'npm i\nnpm test');
   assert.equal(commandOf('bash', '$ npm i\nadded 3'), '$ npm i\nadded 3');
   assert.equal(commandOf('console', '$ docker run \\\n>   -it x\nhello\n> not a continuation'), 'docker run \\\n-it x');
+});
+
+test('bangOf: the command after `! `, as Claude Code asks agents to write one for the person; a fence of one such line is that command', () => {
+  assert.equal(bangOf('! gh auth login'), 'gh auth login');
+  assert.equal(bangOf('  !   npm login  '), 'npm login');
+  assert.equal(bangOf('!gh auth login'), null);
+  assert.equal(bangOf('! '), null);
+  assert.equal(bangOf('echo !'), null);
+  assert.equal(commandOf('', '! gh auth login\n'), 'gh auth login');
+  assert.equal(commandOf('sh', '! false'), '! false');
+  assert.equal(commandOf('diff', '! changed line'), null);
+  assert.equal(commandOf('python', '! pip install x'), null);
+  assert.equal(commandOf('', '! one\n! two'), null);
 });
