@@ -2,12 +2,12 @@ import { useAgentDetail, useAgents } from '@handline/app-data';
 import { AccountItem } from '#src/chat/agent/AccountItem.tsx';
 import { BackgroundItem } from '#src/chat/agent/BackgroundItem.tsx';
 import { BranchItem } from '#src/chat/agent/BranchItem.tsx';
-import { openTerminalWindow } from '#src/tools/terminalWindow.tsx';
+import { useOpenable } from '#src/layout/openable.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { SquareTerminal } from 'lucide-react';
 
 /** Under the message box, quiet: the branch the agent works on, the account it runs on, and what runs behind its prompt. Resting on
- * one shows more. At its right end, the agent's terminal in a new window. Its row is kept while the agent loads, so the box above it does not move. */
+ * one shows more. At its right end, the agent's terminal, opened as a tab. Its row is kept while the agent loads, so the box above it does not move. */
 export function StatusLine({ agent }: { agent: string }) {
   const detail = useAgentDetail(agent).data;
   // From the list, which the agents feed keeps current.
@@ -17,11 +17,16 @@ export function StatusLine({ agent }: { agent: string }) {
       {detail?.worktree && <BranchItem agent={agent} branch={detail.worktree.branch} path={detail.worktree.path} />}
       {detail?.account && <AccountItem agent={agent} account={detail.account} fire={detail.fire ?? null} />}
       <BackgroundItem jobs={jobs} />
-      {detail?.terminal && (
-        <IconButton className="ml-auto" label="Open the terminal in a new window" onClick={() => openTerminalWindow(agent)}>
-          <SquareTerminal size={14} />
-        </IconButton>
-      )}
+      {detail?.terminal && <TerminalButton />}
     </div>
+  );
+}
+
+/** The agent's own terminal, opened as a tab the app's way (a click: in the chat's pane); one already open comes up. */
+function TerminalButton() {
+  return (
+    <IconButton className="ml-auto" label="Open the agent's terminal" {...useOpenable('shell')}>
+      <SquareTerminal size={14} />
+    </IconButton>
   );
 }

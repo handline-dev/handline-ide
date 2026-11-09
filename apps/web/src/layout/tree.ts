@@ -97,6 +97,16 @@ function onPane(root: Node, id: string, f: (p: Pane) => Node | null): Node {
   return edit(root, id, (n) => (n.kind === 'pane' ? f(n) : n)) ?? initial();
 }
 
+/** Where a tab opened from pane `from` goes: here, a tab in that pane; beside, a tab in the pane after it, or a new split to its
+ * right when it is the last; below, a new split under it. */
+export function whereTo(root: Node, from: string, how: 'here' | 'side' | 'below'): Target {
+  if (how === 'here') return { pane: from };
+  if (how === 'below') return { pane: from, edge: 'down' };
+  const all = panes(root);
+  const next = all[all.findIndex((p) => p.id === from) + 1];
+  return next ? { pane: next.id } : { pane: from, edge: 'right' };
+}
+
 export function reduce(root: Node, action: Action): Node {
   switch (action.type) {
     case 'select':

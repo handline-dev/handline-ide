@@ -1,11 +1,10 @@
-import { startTabDrag } from '#src/ui/dnd.tsx';
 import { CopyButton } from '#src/chat/MessageActions.tsx';
 import { MessageImages } from '#src/chat/MessageImages.tsx';
 import { attachmentOf, BANG_FROM, bangOf, commandOf } from '@handline/app-core';
 import { CommandRunBar, CommandsOf, type CommandsOfValue } from '#src/chat/CommandBlock.tsx';
 import { marked, type Token, type Tokens } from 'marked';
 import { createContext, Fragment, useContext, type ReactNode } from 'react';
-import { useOpenTab, howOf } from '#src/layout/openTab.tsx';
+import { useOpenable } from '#src/layout/openable.tsx';
 import { fileOf, taskOf, webOf } from '#src/layout/kinds.tsx';
 
 /** Markdown as the chat and notes show it: marked reads it (GFM), and each token is drawn as a React element, so no HTML in the
@@ -268,27 +267,19 @@ export function Linked({ text }: { text: string }) {
   );
 }
 
-/** Text that opens a tab the app's way: a click here, Cmd+click (or a middle click) beside. */
+/** Text that opens a tab the app's way (openable.tsx). */
 function Opens({ opens, children }: { opens: string; children: ReactNode }) {
-  const open = useOpenTab();
+  const open = useOpenable(opens);
   return (
     <a
       href={opens.startsWith('web:') ? opens.slice(4) : undefined}
       role="link"
       tabIndex={0}
-      draggable
-      onDragStart={(e) => startTabDrag(e, { open: { opens, title: '' } })}
+      {...open}
       onClick={(e) => {
+        // The href is for the browser's own link look and Copy; the app opens it.
         e.preventDefault();
-        open(opens, howOf(e));
-      }}
-      onAuxClick={(e) => {
-        if (e.button !== 1) return;
-        e.preventDefault();
-        open(opens, 'side');
-      }}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') open(opens, howOf(e));
+        open.onClick(e);
       }}
       className="cursor-pointer text-accent hover:underline"
     >

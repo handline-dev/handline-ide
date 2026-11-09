@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { ImagePlus } from 'lucide-react';
-import { useRef, useState, type DragEvent, type ReactNode } from 'react';
+import { createContext, useRef, useState, type DragEvent, type ReactNode } from 'react';
 
 /** Whether a drag carries files from outside the app (not a tab or a row dragged within it). */
 export const carriesFiles = (e: DragEvent) => e.dataTransfer.types.includes('Files');
@@ -71,7 +71,10 @@ export function useFileDrop(take: (dropped: Dropped[]) => void) {
   };
 }
 
-/** Covers the drop area while files are held over it. */
+/** True while files are held over the enclosing FileDropArea: its message box lights up and says so. */
+export const DropOver = createContext(false);
+
+/** Covers the box that takes the drop while files are held over its area. */
 export function DropHint({ shown, label = 'Drop files to attach' }: { shown: boolean; label?: string }) {
   return (
     <AnimatePresence>
@@ -80,7 +83,7 @@ export function DropHint({ shown, label = 'Drop files to attach' }: { shown: boo
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="pointer-events-none absolute inset-2 z-10 grid place-items-center rounded-xl border-2 border-dashed border-accent bg-bg/80"
+          className="pointer-events-none absolute inset-0 z-10 grid place-items-center rounded-xl border-2 border-dashed border-accent bg-bg/85"
         >
           <span className="flex items-center gap-2 text-sm text-fg">
             <ImagePlus size={16} />
@@ -92,7 +95,8 @@ export function DropHint({ shown, label = 'Drop files to attach' }: { shown: boo
   );
 }
 
-/** An area that takes files dropped anywhere on it, covered by the hint while they are held over it: the chat and a task's page. */
+/** An area that takes files dropped anywhere on it, the chat and a task's page; its message box shows the hint while they are held
+ * over it. */
 export function FileDropArea({
   take,
   className,
@@ -105,8 +109,7 @@ export function FileDropArea({
   const drop = useFileDrop(take);
   return (
     <div {...drop.handlers} className={`relative ${className}`}>
-      <DropHint shown={drop.over} />
-      {children}
+      <DropOver.Provider value={drop.over}>{children}</DropOver.Provider>
     </div>
   );
 }

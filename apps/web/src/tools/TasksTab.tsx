@@ -4,7 +4,7 @@ import { classify, sentence, useGiveBack, useTasks } from '@handline/app-data';
 import { useMe } from '@handline/app-react';
 import { ago } from '#src/format/time.ts';
 import { taskOf } from '#src/layout/kinds.tsx';
-import { openProps, useOpenTab } from '#src/layout/openTab.tsx';
+import { useOpenable } from '#src/layout/openable.tsx';
 import { Page } from '#src/ui/Page.tsx';
 import { ScrollFade } from '#src/ui/ScrollFade.tsx';
 import { failedLine, look } from '#src/ui/taskLook.tsx';
@@ -101,7 +101,6 @@ function waitWords(t: Task): string | null {
 }
 
 function Row({ t, ruled, owner }: { t: Task; ruled: boolean; owner?: string }) {
-  const openTab = useOpenTab();
   const me = useMe();
   const back = useGiveBack();
   const s = look(t);
@@ -117,14 +116,7 @@ function Row({ t, ruled, owner }: { t: Task; ruled: boolean; owner?: string }) {
   ];
   return (
     <div className={`flex items-center hover:bg-hover/30 ${ruled ? 'border-t border-border' : ''}`}>
-      <button
-        type="button"
-        {...openProps(
-          (how) => openTab(taskOf(t.id), how),
-          () => taskOf(t.id),
-        )}
-        className="flex min-w-0 flex-1 gap-2.5 px-3 py-2 text-left text-sm"
-      >
+      <button type="button" {...useOpenable(taskOf(t.id))} className="flex min-w-0 flex-1 gap-2.5 px-3 py-2 text-left text-sm">
         <span className={`mt-0.5 grid size-5 shrink-0 place-items-center rounded-md text-accent-fg ${s.tone}`}>
           <s.icon size={12} strokeWidth={3} />
         </span>

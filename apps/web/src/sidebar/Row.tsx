@@ -1,7 +1,5 @@
 import type { ReactNode } from 'react';
-import { labelOf } from '#src/layout/kinds.tsx';
-import { openProps, useOpenTab } from '#src/layout/openTab.tsx';
-import { startTabDrag } from '#src/ui/dnd.tsx';
+import { useOpenable } from '#src/layout/openable.tsx';
 import { useSpringOpen } from '#src/ui/springOpen.ts';
 
 /** A sidebar row: click shows it in the workspace, drag drops it on a tab bar or a pane's edge. */
@@ -15,6 +13,7 @@ export function Row({
   note,
   context,
   unread = 0,
+  menu = true,
   onShow,
 }: {
   opens: string;
@@ -30,26 +29,18 @@ export function Row({
   context?: string;
   /** How many messages the note stands for, shown beside it when more than none. */
   unread?: number;
+  /** False when the row sits in a menu of its own (an agent's), which has the open items at its top. */
+  menu?: boolean;
   onShow: () => void;
 }) {
   const spring = useSpringOpen(onShow);
-  const openTab = useOpenTab();
   return (
     <div
-      {...spring.handlers}
-      data-spring={spring.hovering || undefined}
+      {...spring.props}
       role="button"
       aria-current={selected || undefined}
       tabIndex={0}
-      draggable
-      onDragStart={(e) => startTabDrag(e, { open: { opens, title: labelOf(opens) } })}
-      {...openProps((how) => (how === 'here' ? onShow() : openTab(opens, 'side')))}
-      onKeyDown={(e) => {
-        if (e.key !== 'Enter') return;
-        e.preventDefault();
-        if (e.metaKey || e.ctrlKey) openTab(opens, 'side');
-        else onShow();
-      }}
+      {...useOpenable(opens, { here: onShow, menu })}
       className="group flex cursor-default flex-col rounded-md px-2 py-1 text-base text-fg outline-none select-none focus-visible:bg-hover aria-[current]:bg-selected data-[spring]:bg-hover"
     >
       <span className="flex h-5 items-center gap-1.5 group-aria-[current]:font-medium">

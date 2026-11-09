@@ -3,11 +3,10 @@
 import { bulkNames, bulkOf, foundersTurn, laterChoices, laterKey, type Picked } from '@handline/app-core';
 import { useTaskActions, useTasks, useWrite } from '@handline/app-data';
 import { useMe } from '@handline/app-react';
-import { Ban, Clock, Copy, Eye, FolderOpen, MessageSquare, Undo2 } from 'lucide-react';
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { chatOf, taskOf } from '#src/layout/kinds.tsx';
-import { useOpenTab } from '#src/layout/openTab.tsx';
-import { copy } from '#src/ui/copy.ts';
+import { Ban, Clock, Eye, MessageSquare, Undo2 } from 'lucide-react';
+import { createContext, useContext, useEffect, useState, type ComponentProps, type ReactNode } from 'react';
+import { chatOf } from '#src/layout/kinds.tsx';
+import { OpenItems } from '#src/layout/openable.tsx';
 import { Button } from '#src/ui/Button.tsx';
 import { ContextMenu, Menu, MenuItem, MenuSeparator, SubMenu } from '#src/ui/Menu.tsx';
 import { confirm, prompt } from '#src/ui/modal.tsx';
@@ -257,10 +256,20 @@ export function BulkButtons() {
   );
 }
 
+type RowOpens = { opens: string | null } & Omit<ComponentProps<typeof OpenItems>, 'opens'>;
+
 /** A right-click on a row: its own actions, or, on a row among several picked, what can be done to all of them. */
-export function RowMenu({ row, children }: { row: Picked; children: ReactNode }) {
+export function RowMenu({
+  row,
+  open,
+  children,
+}: {
+  row: Picked;
+  /** What the row itself opens, as its click does. */
+  open: RowOpens;
+  children: ReactNode;
+}) {
   const pick = usePick();
-  const openTab = useOpenTab();
   const act = useRowActions();
   const mine = useMyTurns();
   const many = !!pick && pick.picked.size > 1 && pick.picked.has(row.key);
@@ -268,21 +277,22 @@ export function RowMenu({ row, children }: { row: Picked; children: ReactNode })
   const task = p?.task ?? r?.task ?? null;
   const later = p ? laterKey(p) : null;
   const who = p?.agent ?? r?.now ?? r?.agent;
+  const giveBack = !!p && task !== null && mine.has(task);
+  const seen = !!r && task !== null && !!r.ended && !r.ended.seen;
+  const cancel = !!r && task !== null && !r.ended;
+  const acts = giveBack || !!later || seen || cancel;
   const items = many ? (
     <BulkItems />
   ) : (
     <>
-      {task !== null && (
-        <MenuItem icon={<FolderOpen size={14} />} onClick={() => openTab(taskOf(task), 'here')}>
-          {`Open T${task}`}
-        </MenuItem>
+      {open.opens && <OpenItems {...open} opens={open.opens} />}
+      {who && open.opens !== chatOf(who) && (
+        <SubMenu label={`${who}'s chat`} icon={<MessageSquare size={14} />}>
+          <OpenItems opens={chatOf(who)} />
+        </SubMenu>
       )}
-      {who && (
-        <MenuItem icon={<MessageSquare size={14} />} onClick={() => openTab(chatOf(who), 'here')}>
-          {`Open ${who}'s chat`}
-        </MenuItem>
-      )}
-      {p && task !== null && mine.has(task) && (
+      {(open.opens || who) && acts && <MenuSeparator />}
+      {giveBack && task !== null && (
         <MenuItem icon={<Undo2 size={14} />} onClick={() => void act.giveBack([{ keys: [key], task }])}>
           Give back
         </MenuItem>
@@ -292,23 +302,15 @@ export function RowMenu({ row, children }: { row: Picked; children: ReactNode })
           <LaterItems onPick={(until) => void act.later([{ keys: [key], later }], until)} />
         </SubMenu>
       )}
-      {r && task !== null && r.ended && !r.ended.seen && (
+      {seen && task !== null && (
         <MenuItem icon={<Eye size={14} />} onClick={() => void act.seen([{ keys: [key], task }])}>
           Mark seen
         </MenuItem>
       )}
-      {r && task !== null && !r.ended && (
+      {cancel && r && task !== null && (
         <MenuItem icon={<Ban size={14} />} danger onClick={() => void act.cancel([{ keys: [key], task, title: r.title }])}>
           Cancel…
         </MenuItem>
-      )}
-      {task !== null && (
-        <>
-          <MenuSeparator />
-          <MenuItem icon={<Copy size={14} />} onClick={() => void copy(`T${task}`, 'the task number', { say: true })}>
-            {`Copy T${task}`}
-          </MenuItem>
-        </>
       )}
     </>
   );

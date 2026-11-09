@@ -3,7 +3,7 @@ import { ArrowLeftRight, ChevronDown, ChevronRight, Gauge, TriangleAlert, UserRo
 import { useState } from 'react';
 import { CardAction, chip, MenuFact, MenuHeading, MenuRule } from '#src/chat/agent/menuParts.tsx';
 import { focusIn } from '#src/layout/focus.ts';
-import { howOf, useOpenTab } from '#src/layout/openTab.tsx';
+import { useOpenable } from '#src/layout/openable.tsx';
 import { HoverCard } from '#src/ui/HoverCard.tsx';
 import { FIVE_HOURS, HIGH, UsageBar, WEEK } from '#src/usage/UsageBar.tsx';
 
@@ -12,12 +12,8 @@ import { FIVE_HOURS, HIGH, UsageBar, WEEK } from '#src/usage/UsageBar.tsx';
  * move to another account and a way to the Usage tab. A click keeps that card open. */
 export function AccountItem({ agent, account, fire }: { agent: string; account: string; fire: string | null }) {
   const accounts = useAccounts().data?.accounts ?? [];
-  const openTab = useOpenTab();
   const mine = accounts.find((a) => a.name === account);
-  const usage = (how: 'here' | 'side') => {
-    focusIn('usage', '', account);
-    openTab('usage', how);
-  };
+  const usage = useOpenable('usage', { focus: () => focusIn('usage', '', account) });
   const high = (mine?.five_hour?.used_pct ?? 0) >= HIGH;
   const login = mine?.login_state === 'needs_login';
   const moving = fire === 'usage' || fire === 'usage_7d';
@@ -65,7 +61,7 @@ export function AccountItem({ agent, account, fire }: { agent: string; account: 
       )}
       <MenuRule />
       <MoveTo agent={agent} account={account} />
-      <CardAction icon={<Gauge size={14} />} onClick={(e) => usage(howOf(e))} opens={() => (focusIn('usage', '', account), 'usage')}>
+      <CardAction icon={<Gauge size={14} />} {...usage}>
         Open usage
       </CardAction>
     </HoverCard>
