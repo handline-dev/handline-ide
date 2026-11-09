@@ -13,6 +13,7 @@ import { Ticks } from '#src/chat/Ticks.tsx';
 import { Markdown } from '#src/ui/Markdown.tsx';
 import { clock, useNow } from '#src/format/time.ts';
 import { spring } from '#src/motion.ts';
+import { CommandsOf } from '#src/chat/CommandBlock.tsx';
 
 /** Whether a line draws nothing (what others said to the agent, an empty item): the rules ChatLine follows, so a run of task
  * cards is not cut by a line nobody sees. */
@@ -106,6 +107,13 @@ export function ChatLine({
       ? onReply({ kind: e.kind, id: e.kind === 'item' ? e.item.id : e.message.id, text, quote })
       : undefined;
   const m = e.kind === 'message' ? e.message : null;
+  // Its command fences run in the agent's terminal: an agent's reply item, or a message in this chat.
+  const commands =
+    e.kind === 'item' && e.item.kind === 'reply'
+      ? { agent, owner: `r${e.item.id}`, runs: e.item.runs }
+      : m
+        ? { agent, owner: String(m.id), runs: m.runs }
+        : null;
   return (
     // The hover row keeps its height when hidden: that row is the space between lines. Mine sit on the right, on the selection colour.
     <motion.div data-id={key} {...fade} className={`group flex flex-col ${mine ? 'items-end' : 'items-start'}`}>
@@ -121,7 +129,9 @@ export function ChatLine({
             <div
               className={`max-w-150 min-w-0 text-base text-fg ${images.length ? 'mt-2' : ''} ${mine ? 'rounded-xl bg-selected px-4 py-2' : ''}`}
             >
-              <Markdown text={text} />
+              <CommandsOf.Provider value={commands}>
+                <Markdown text={text} />
+              </CommandsOf.Provider>
             </div>
           )}
         </Quotable>

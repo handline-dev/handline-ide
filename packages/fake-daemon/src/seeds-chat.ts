@@ -186,4 +186,24 @@ export const CHAT_SEEDS: Record<string, Seed> = {
       });
     }
   },
+  /** Command fences to run in the terminal (T8770): a reply with one never run and one that failed, and the person's own console lines. */
+  commands: (d) => {
+    const at = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
+    d.chat.seed(ARCH, {
+      from: ME,
+      to: ARCH,
+      body: 'This is what I ran:\n```console\n$ gh auth status\nYou are not logged in\n```',
+      at: at(6),
+      landing: 'delivered',
+    });
+    const id = d.chat.seedItem(ARCH, {
+      at: at(5),
+      kind: 'reply',
+      text: 'Log in needs your password, so run it yourself:\n```bash\ngh auth login --web\n```\nThen check the push again:\n```sh\ngit push origin t8770\n```',
+    });
+    const item = d.chat.agentReply(ARCH, id)!;
+    d.chat.changeItem(ARCH, item, {
+      runs: [{ block: `r${id}:1`, terminal: '%91', started_at: at(4), state: 'failed', exit: 128, seconds: 2 }],
+    });
+  },
 };

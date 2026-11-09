@@ -175,6 +175,8 @@ function BytesTab({ agent, shell, detail }: { agent: string; shell?: string; det
           layout();
         }
         if (v.state === 'live') setEverLive(true);
+        // A shell is opened to be typed in (a command run from the chat may ask for input at once): it takes the keys as it goes live.
+        if (wentLive && shell) pane.focus();
       };
       const onEvent: ByteListener = (e, v) => {
         if (e.type === 'marker') return pane.mark(markerLabel(e.marker));

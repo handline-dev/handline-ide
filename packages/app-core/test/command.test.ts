@@ -1,10 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { commandRisk, isCommandLang, runLine } from '#src/command.ts';
+import { commandOf, commandRisk, isCommandLang, runLine } from '#src/command.ts';
 
-test('sh, bash and shell fences are commands, in any case; other languages and plain fences are not', () => {
-  assert.deepEqual(['sh', 'Bash', ' shell '].map(isCommandLang), [true, true, true]);
-  assert.deepEqual(['', 'json', 'zsh', 'python'].map(isCommandLang), [false, false, false, false]);
+test('sh, bash, zsh and shell fences are commands, in any case; other languages and plain fences are not', () => {
+  assert.deepEqual(['sh', 'Bash', 'zsh', ' shell '].map(isCommandLang), [true, true, true, true]);
+  assert.deepEqual(['', 'json', 'console', 'python'].map(isCommandLang), [false, false, false, false]);
 });
 
 test('a command that deletes, runs with sudo, force-pushes or pipes a download into a shell says why it is risky', () => {
@@ -36,4 +36,17 @@ test('the line under a card: running counts up, an end says its exit and seconds
   assert.equal(runLine({ state: 'done', exit: 0, seconds: 3, started_at: at }, now), 'Done · exit 0 · 3s');
   assert.equal(runLine({ state: 'failed', exit: 1, seconds: 3, started_at: at }, now), 'Failed · exit 1 · 3s');
   assert.equal(runLine({ state: 'stopped', started_at: at }, now), 'Stopped');
+});
+
+test('commandOf: a command fence whole, a console or $-led fence by its prompt lines, else none', () => {
+  assert.equal(commandOf('bash', '  npm test\n'), 'npm test');
+  assert.equal(commandOf('console', '$ gh auth login\n? What account\n$ gh auth status'), 'gh auth login\ngh auth status');
+  assert.equal(commandOf('', '$ make\nok'), 'make');
+  assert.equal(commandOf('', 'plain text'), null);
+  assert.equal(commandOf('console', 'no prompt here'), null);
+  assert.equal(commandOf('json', '$ {}'), null);
+  assert.equal(commandOf('sh', '   '), null);
+  assert.equal(commandOf('bash', '$ npm i\n$ npm test'), 'npm i\nnpm test');
+  assert.equal(commandOf('bash', '$ npm i\nadded 3'), '$ npm i\nadded 3');
+  assert.equal(commandOf('console', '$ docker run \\\n>   -it x\nhello\n> not a continuation'), 'docker run \\\n-it x');
 });
