@@ -3,9 +3,11 @@
 import { isPerson } from '@handline/app-core';
 import type { TaskDetail } from '@handline/client';
 import { classify, sentence, useGiveBack, useWrite } from '@handline/app-data';
-import { Hand, X } from 'lucide-react';
+import { Hand, Undo2, X } from 'lucide-react';
 import { useState } from 'react';
+import type { Reply } from '#src/tools/TaskComment.tsx';
 import { showHistory } from '#src/tools/TaskDiff.tsx';
+import { goToTurn, turnReply } from '#src/tools/TaskTurn.ts';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { toast } from '#src/ui/toast.tsx';
 import { ago, clock } from '#src/format/time.ts';
@@ -76,11 +78,22 @@ export function WaitingOnYou({
 }
 
 /** The choices an ask lays out, one a line: "A) ...", "B. ...", "1: ...". */
-export const choices = (ask: string) => [...ask.matchAll(/^\s*([A-D1-4])[).:]\s+(.+)$/gm)].map((m) => ({ key: m[1]!, text: m[2]!.trim() }));
+const CHOICE = /^\s*([A-D1-4])[).:]\s+(.+)$/gm;
+export const choices = (ask: string) => [...ask.matchAll(CHOICE)].map((m) => ({ key: m[1]!, text: m[2]!.trim() }));
 
 /** The founder's turn is the task's one question: the ask, an "edited" mark with older texts folded under it, and Give back.
- * A click on the question answers it in the comment box below (onReply). */
-export function YourTurn({ t, onDone, onShow, onReply }: { t: TaskDetail; onDone: () => void; onShow: () => void; onReply: () => void }) {
+ * A click on the question answers it in the comment box below (onReply); while it does, the choices are there, over the box, and not here. */
+export function YourTurn({
+  t,
+  answering,
+  onDone,
+  onReply,
+}: {
+  t: TaskDetail;
+  answering: boolean;
+  onDone: () => void;
+  onReply: (r: Reply | null) => void;
+}) {
   const back = useGiveBack();
   const turn = t.turns?.at(-1);
   const earlier = turn?.earlier ?? [];
@@ -91,7 +104,7 @@ export function YourTurn({ t, onDone, onShow, onReply }: { t: TaskDetail; onDone
       <Hand size={14} className="mt-1 shrink-0 text-warning" />
       <span className="flex min-w-0 flex-1 flex-col gap-1">
         <span className="flex items-center gap-2 font-medium">
-          <button type="button" onClick={onShow} className="hover:underline">
+          <button type="button" onClick={() => goToTurn(t)} className="hover:underline">
             Your turn
           </button>
           {turn?.edited && (
@@ -115,14 +128,19 @@ export function YourTurn({ t, onDone, onShow, onReply }: { t: TaskDetail; onDone
           <button
             type="button"
             title="Answer it"
-            onClick={onReply}
+            onClick={() => onReply(turnReply(t))}
             className="-mx-2 rounded-md px-2 py-1 text-left whitespace-pre-wrap hover:bg-warning/10"
           >
-            {turn.ask}
+            {answering ? turn.ask.replace(CHOICE, '').trim() : turn.ask}
           </button>
         )}
       </span>
-      <button type="button" onClick={give} className="shrink-0 rounded-md px-2 py-1 text-sm font-medium hover:bg-hover/30">
+      <button
+        type="button"
+        onClick={give}
+        className="flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-sm font-medium hover:bg-hover/30"
+      >
+        <Undo2 size={14} />
         Give back
       </button>
     </div>
