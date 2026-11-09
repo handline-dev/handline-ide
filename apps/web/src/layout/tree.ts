@@ -172,3 +172,30 @@ function move(root: Node, from: string, tabId: string, to: Target): Node {
   const placed = onPane(root, to.pane, (p) => (edge ? attach(p, edge, pane([tab])) : insert(p, tab, to.index)));
   return onPane(placed, from, (p) => withoutTab(p, tabId));
 }
+
+/** How many closes Cmd+Shift+T can bring back, per workspace. */
+export const CLOSED_KEPT = 20;
+/** One close: the tabs it took (one, or a whole pane's) and where they stood. */
+export type Closed = { pane: string; tabs: { tab: Tab; index: number }[] };
+
+/** What `action` closed, taking `root` to `after`, or null. Empty tabs and terminals are not kept: a closed terminal's shell is gone. */
+export function closedBy(root: Node, after: Node, action: Action): Closed | null {
+  if (action.type !== 'closeTab' && action.type !== 'closePane') return null;
+  const p = findPane(root, action.pane);
+  if (!p || after === root) return null;
+  const tabs = p.tabs
+    .map((tab, index) => ({ tab, index }))
+    .filter(({ tab }) => (action.type === 'closePane' || tab.id === action.tab) && tab.opens && !tab.opens.startsWith('shell:'));
+  return tabs.length ? { pane: p.id, tabs } : null;
+}
+
+/** Opens a close again: each tab where it stood when its pane is still there, else in pane `fallback`; one already open is shown. */
+export function reopen(root: Node, c: Closed, fallback: string): Node {
+  const there = !!findPane(root, c.pane);
+  return c.tabs.reduce((n, { tab, index }) => {
+    const opens = tab.opens!;
+    if (isOpen(n, opens)) return reduce(n, { type: 'show', opens, title: tab.title });
+    const to = there ? { pane: c.pane, index } : { pane: findPane(n, fallback) ? fallback : panes(n)[0].id };
+    return reduce(n, { type: 'open', opens, title: tab.title, to });
+  }, root);
+}

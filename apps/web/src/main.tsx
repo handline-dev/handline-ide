@@ -26,7 +26,7 @@ function App() {
   const [open, setOpen] = useState(true);
   const [width, setWidth] = useState(sidebarWidth.initial);
   const [dragging, setDragging] = useState(false);
-  const { agent, page, layout, select, selectPage, dispatch } = useAgentLayouts();
+  const { agent, page, layout, select, selectPage, dispatch, reopenClosed } = useAgentLayouts();
   const root = useRef<HTMLDivElement>(null);
   // Settings covers the app instead of taking a tab.
   const goPage = (kind: string, title: string) => (kind === 'preferences' ? openSettings() : selectPage(kind, title));
@@ -82,6 +82,7 @@ function App() {
             root={layout}
             agent={agent}
             dispatch={dispatch}
+            reopenClosed={reopenClosed}
             lead={
               <AnimatePresence initial={false}>
                 {!open && (

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findPane, initial, panes, reduce, type Action, type Node, type Pane } from '#src/layout/tree.ts';
+import { closedBy, findPane, initial, panes, reduce, reopen, type Action, type Node, type Pane } from '#src/layout/tree.ts';
 
 const run = (root: Node, ...actions: Action[]) => actions.reduce(reduce, root);
 const only = (root: Node) => root as Pane;
@@ -229,5 +229,56 @@ describe('fixed tab', () => {
     const start = only(initial());
     const split = reduce(start, { type: 'split', pane: start.id, edge: 'right' });
     expect(reduce(split, { type: 'closePane', pane: start.id })).toBe(split);
+  });
+});
+
+describe('reopen closed', () => {
+  const opened = () => {
+    let r = initial();
+    const p = panes(r)[0].id;
+    r = reduce(r, { type: 'open', opens: 'task:1', title: 'T1', to: { pane: p } });
+    r = reduce(r, { type: 'open', opens: 'task:2', title: 'T2', to: { pane: p } });
+    return r;
+  };
+  const opens = (r: Node) => panes(r).map((p) => p.tabs.map((t) => t.opens));
+
+  it('a closed tab comes back where it stood', () => {
+    const r = opened();
+    const p = panes(r)[0];
+    const close: Action = { type: 'closeTab', pane: p.id, tab: p.tabs[1].id };
+    const c = closedBy(r, reduce(r, close), close)!;
+    expect(opens(reopen(reduce(r, close), c, p.id))).toEqual([['chat', 'task:1', 'task:2']]);
+  });
+
+  it('a fixed tab, a terminal or a refused close is not kept', () => {
+    let r = opened();
+    const p = panes(r)[0];
+    expect(
+      closedBy(r, reduce(r, { type: 'closeTab', pane: p.id, tab: p.tabs[0].id }), { type: 'closeTab', pane: p.id, tab: p.tabs[0].id }),
+    ).toBeNull();
+    r = reduce(r, { type: 'open', opens: 'shell:abc', title: 'Terminal', to: { pane: p.id } });
+    expect(
+      closedBy(r, reduce(r, { type: 'closeTab', pane: p.id, tab: panes(r)[0].tabs[3].id }), {
+        type: 'closeTab',
+        pane: p.id,
+        tab: panes(r)[0].tabs[3].id,
+      }),
+    ).toBeNull();
+    expect(closedBy(r, reduce(r, { type: 'closePane', pane: p.id }), { type: 'closePane', pane: p.id })).toBeNull();
+  });
+
+  it('a closed pane brings all its tabs back into the fallback pane; one already open is only shown', () => {
+    let r = initial();
+    const first = panes(r)[0].id;
+    r = reduce(r, { type: 'open', opens: 'task:1', title: 'T1', to: { pane: first, edge: 'right' } });
+    const side = panes(r)[1];
+    r = reduce(r, { type: 'open', opens: 'task:2', title: 'T2', to: { pane: side.id } });
+    const close: Action = { type: 'closePane', pane: side.id };
+    const c = closedBy(r, reduce(r, close), close)!;
+    expect(c.tabs.map((t) => t.tab.opens)).toEqual(['task:1', 'task:2']);
+    let after = reduce(r, close);
+    after = reduce(after, { type: 'open', opens: 'task:2', title: 'T2', to: { pane: first } });
+    const back = reopen(after, c, first);
+    expect(opens(back)).toEqual([['chat', 'task:2', 'task:1']]);
   });
 });
