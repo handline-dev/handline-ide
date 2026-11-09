@@ -27,13 +27,21 @@ func Tell(q db.Q, r Run, tail []string) error {
 	return err
 }
 
+// bangFrom is where an inline `! <command>` span's block number starts (shell.open's block, contract terminal.json).
+const bangFrom = 1000
+
 // Told is what Tell says: one line with the command and how it ended, then the window's last rows. A stopped run's window was closed
 // before the command ended, so it has no exit code and no output.
 func Told(q db.Q, r Run, tail []string) string {
 	b, _ := ParseBlock(r.Block)
-	from := "your reply's code block " + strconv.FormatInt(b.N+1, 10)
-	if !b.Reply {
-		from = "code block " + strconv.FormatInt(b.N+1, 10) + " of " + db.MsgName(q, b.Message)
+	from := "code block " + strconv.FormatInt(b.N+1, 10)
+	if b.N >= bangFrom {
+		from = "! command " + strconv.FormatInt(b.N-bangFrom+1, 10)
+	}
+	if b.Reply {
+		from = "your reply's " + from
+	} else {
+		from += " of " + db.MsgName(q, b.Message)
 	}
 	command := textsafe.Oneline(r.Command)
 	if rs := []rune(command); len(rs) > maxCommand {

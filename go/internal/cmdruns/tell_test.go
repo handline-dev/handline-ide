@@ -29,3 +29,12 @@ func TestToldCutsALongCommandAndKeepsTheEndOfALongOutput(t *testing.T) {
 		t.Fatalf("%q", got)
 	}
 }
+
+// An inline `! <command>` span is named as one, not as a code block numbered past a thousand.
+func TestABangSpanRunIsNamedAsOne(t *testing.T) {
+	st := 0
+	r := Run{Block: Block{Message: 7, Reply: true, N: bangFrom + 1}.String(), Command: "gh auth login", Started: 1, Ended: 2, Exit: &st}
+	if line := Told(nil, r, nil); !strings.HasPrefix(line, "The run of your reply's ! command 2 ended") {
+		t.Fatal(line)
+	}
+}
