@@ -39,6 +39,7 @@ import { Page } from '#src/ui/Page.tsx';
 import { ScrollFade } from '#src/ui/ScrollFade.tsx';
 import { keptScroll } from '#src/ui/keptScroll.ts';
 import { toast } from '#src/ui/toast.tsx';
+import { useTabState } from '#src/persist/tabState.ts';
 
 const CLOSED = ['done', 'discarded'];
 
@@ -48,7 +49,7 @@ export function TaskTab({ id }: { id: number }) {
   const q = hooks.useTaskGet({ task: id });
   const me = useMe();
   // The comment the box below answers, picked by Reply or a comment's Reference.
-  const [replyTo, setReplyTo] = useState<Reply | null>(null);
+  const [replyTo, setReplyTo] = useTabState<Reply | null>('reply', null);
   // Files dropped anywhere on the task go with the next comment, as in the chat.
   const attach = useAttachments(`task:${id}`);
   // Going to the task's turn: the Your turn click, and a request-list click that left a mark (ui/keptScroll) before opening the task.
@@ -336,7 +337,7 @@ const SHOWN = 5;
 
 /** Comments and changes in one list, oldest first: the last five, and Earlier opens the rest above them. */
 function Activity({ task, items, onReply }: { task: number; items: ActivityItem[]; onReply: (memo: number) => void }) {
-  const [all, setAll] = useState(false);
+  const [all, setAll] = useTabState('earlier', false);
   // The texts an edited comment had: its history rows. Its 'edited' mark opens them in a window.
   const rows = useTaskHistory(task).data?.rows;
   const earlierOf = (memo?: number | null) =>

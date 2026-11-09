@@ -1,8 +1,9 @@
 import { useAgentDetail, useRead, useWorktrees } from '@handline/app-data';
 import { ChevronDown, ChevronRight, GitBranch } from 'lucide-react';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef } from 'react';
 import { useFocused } from '#src/layout/focus.ts';
 import { ScrollFade } from '#src/ui/ScrollFade.tsx';
+import { useTabState } from '#src/persist/tabState.ts';
 
 /** One file's part of a unified diff: its path and its lines, the file headers left out. */
 type FileDiff = { path: string; lines: string[] };
@@ -34,7 +35,9 @@ export function Changes({ agent }: { agent: string }) {
   const detail = useAgentDetail(agent).data;
   const path = detail?.worktree?.path ?? '';
   const changed = useWorktrees({ owner: agent }).data?.worktrees.find((w) => w.path === path)?.changed ?? [];
-  const [against, setAgainst] = useState<'head' | 'base'>('base');
+  const [against, setAgainst] = useTabState<'head' | 'base'>('against', 'base');
+  // The files folded shut; the rest are open.
+  const [shut, setShut] = useTabState<string[]>('shut', []);
   const diff = useRead('worktree.diff', { path, against }, { enabled: path !== '' });
   const box = useRef<HTMLDivElement>(null);
   // A file asked for from the branch card comes to the top of the view, opened.
@@ -69,7 +72,14 @@ export function Changes({ agent }: { agent: string }) {
         {diff.isError && <p className="text-sm text-danger">The diff did not load.</p>}
         {diff.data && !files.length && <p className="text-sm text-muted">No changes.</p>}
         {files.map((f) => (
-          <File key={f.path} file={f} added={counts.get(f.path)?.added} deleted={counts.get(f.path)?.deleted} />
+          <File
+            key={f.path}
+            file={f}
+            added={counts.get(f.path)?.added}
+            deleted={counts.get(f.path)?.deleted}
+            open={!shut.includes(f.path)}
+            setOpen={(open) => setShut((s) => (open ? s.filter((p) => p !== f.path) : [...s, f.path]))}
+          />
         ))}
         {diff.data?.truncated && <p className="text-xs text-warning">The diff is longer than this; the rest is cut off.</p>}
       </div>
@@ -95,8 +105,19 @@ function Segmented<T extends string>({ value, onChange, options }: { value: T; o
   );
 }
 
-function File({ file, added, deleted }: { file: FileDiff; added?: number; deleted?: number }) {
-  const [open, setOpen] = useState(true);
+function File({
+  file,
+  added,
+  deleted,
+  open,
+  setOpen,
+}: {
+  file: FileDiff;
+  added?: number;
+  deleted?: number;
+  open: boolean;
+  setOpen: (open: boolean) => void;
+}) {
   return (
     <section
       data-file={file.path}
