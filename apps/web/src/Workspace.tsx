@@ -1,3 +1,4 @@
+import { TabId } from '#src/persist/tabState.ts';
 import { Chat } from '#src/chat/Chat.tsx';
 import { Changes } from '#src/changes/Changes.tsx';
 import { MarkdownTab } from '#src/tools/MarkdownTab.tsx';
@@ -237,27 +238,27 @@ function PaneView({
         }}
       >
         <Boundary key={`${current?.id}:${current?.opens}`} loading={null} failed={brokenView('This tab')}>
-          <PaneOpen.Provider value={(opens, how) => openFrom({ root, agent, dispatch }, pane.id, opens, how)}>
-            {current?.opens === 'chat' && agent && <Chat key={agent} agent={agent} />}
-            {current?.opens?.startsWith('chat:') && <Chat key={current.opens} agent={current.opens.slice(5)} />}
-            {current?.opens === 'diff' && agent && <Changes key={agent} agent={agent} />}
-            {current?.opens === 'shell' && agent && <TerminalTab key={agent} agent={agent} />}
-            {shellHandle(current?.opens ?? '') && agent && (
-              <ShellTab key={current!.id} agent={agent} handle={shellHandle(current!.opens!)!} />
-            )}
-            {current?.opens === 'markdown' && agent && <MarkdownTab key={current.id} agent={agent} tab={current.id} />}
-            {current?.opens === 'web' && <WebTab key={current.id} tab={current.id} agent={agent} />}
-            {current?.opens?.startsWith('web:') && (
-              <WebTab key={current.id} tab={current.id} agent={agent} start={current.opens.slice(4)} />
-            )}
-            {current?.opens?.startsWith('task:') && <TaskTab key={current.opens} id={Number(current.opens.slice(5))} />}
-            {current?.opens?.startsWith('file:') && agent && (
-              <MarkdownTab key={current.id} agent={agent} tab={current.id} start={current.opens.slice(5)} />
-            )}
-            {current?.opens === 'usage' && <Usage />}
-            {current?.opens === 'requests' && <RequestsTab />}
-            {current?.opens === 'tasks' && <TasksTab agent={agent ?? null} />}
-          </PaneOpen.Provider>
+          <TabId.Provider value={current?.id ?? null}>
+            <PaneOpen.Provider value={(opens, how) => openFrom({ root, agent, dispatch }, pane.id, opens, how)}>
+              {current?.opens === 'chat' && agent && <Chat key={agent} agent={agent} />}
+              {current?.opens?.startsWith('chat:') && <Chat key={current.opens} agent={current.opens.slice(5)} />}
+              {current?.opens === 'diff' && agent && <Changes key={agent} agent={agent} />}
+              {current?.opens === 'shell' && agent && <TerminalTab key={agent} agent={agent} />}
+              {shellHandle(current?.opens ?? '') && agent && (
+                <ShellTab key={current!.id} agent={agent} handle={shellHandle(current!.opens!)!} />
+              )}
+              {current?.opens === 'markdown' && agent && <MarkdownTab key={current.id} agent={agent} tab={current.id} />}
+              {current?.opens === 'web' && <WebTab key={current.id} agent={agent} />}
+              {current?.opens?.startsWith('web:') && <WebTab key={current.id} agent={agent} start={current.opens.slice(4)} />}
+              {current?.opens?.startsWith('task:') && <TaskTab key={current.opens} id={Number(current.opens.slice(5))} />}
+              {current?.opens?.startsWith('file:') && agent && (
+                <MarkdownTab key={current.id} agent={agent} tab={current.id} start={current.opens.slice(5)} />
+              )}
+              {current?.opens === 'usage' && <Usage />}
+              {current?.opens === 'requests' && <RequestsTab />}
+              {current?.opens === 'tasks' && <TasksTab agent={agent ?? null} />}
+            </PaneOpen.Provider>
+          </TabId.Provider>
         </Boundary>
         {current && !current.opens && (
           <EmptyTab

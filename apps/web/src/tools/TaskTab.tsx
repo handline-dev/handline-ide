@@ -1,7 +1,6 @@
 import { activityOf, foundersTurn, taskOutcome, isPerson, turnChain, isSystem, type ActivityItem } from '@handline/app-core';
 import { hooks, useTaskHistory, useWrite } from '@handline/app-data';
 import { useMe } from '@handline/app-react';
-import type { TaskDetail } from '@handline/client';
 import {
   Check,
   Eye,
@@ -40,6 +39,7 @@ import { Page } from '#src/ui/Page.tsx';
 import { ScrollFade } from '#src/ui/ScrollFade.tsx';
 import { keptScroll } from '#src/ui/keptScroll.ts';
 import { toast } from '#src/ui/toast.tsx';
+import { useTabState } from '#src/persist/tabState.ts';
 
 const CLOSED = ['done', 'discarded'];
 
@@ -49,7 +49,7 @@ export function TaskTab({ id }: { id: number }) {
   const q = hooks.useTaskGet({ task: id });
   const me = useMe();
   // The comment the box below answers, picked by Reply or a comment's Reference.
-  const [replyTo, setReplyTo] = useState<TaskDetail['memos'][number] | null>(null);
+  const [replyId, setReplyId] = useTabState<number | null>('reply', null);
   // Files dropped anywhere on the task go with the next comment, as in the chat.
   const attach = useAttachments(`task:${id}`);
   // Going to the task's turn: the Your turn click, and a request-list click that left a mark (ui/keptScroll) before opening the task.
@@ -162,14 +162,16 @@ export function TaskTab({ id }: { id: number }) {
               </Flash>
             </Section>
           )}
-          <Activity
-            task={t.id}
-            onReply={(id) => setReplyTo(t.memos.find((m) => m.id === id) ?? null)}
-            items={activityOf(t.memos, t.timeline).filter((i) => !isSystem(i.who))}
-          />
+          <Activity task={t.id} onReply={setReplyId} items={activityOf(t.memos, t.timeline).filter((i) => !isSystem(i.who))} />
         </Page>
       </ScrollFade>
-      <CommentBox t={t} reply={replyTo} onDrop={() => setReplyTo(null)} attach={attach} onSent={() => toBottom(id)} />
+      <CommentBox
+        t={t}
+        reply={t.memos.find((m) => m.id === replyId) ?? null}
+        onDrop={() => setReplyId(null)}
+        attach={attach}
+        onSent={() => toBottom(id)}
+      />
     </FileDropArea>
   );
 }
@@ -334,7 +336,7 @@ const SHOWN = 5;
 
 /** Comments and changes in one list, oldest first: the last five, and Earlier opens the rest above them. */
 function Activity({ task, items, onReply }: { task: number; items: ActivityItem[]; onReply: (memo: number) => void }) {
-  const [all, setAll] = useState(false);
+  const [all, setAll] = useTabState('earlier', false);
   // The texts an edited comment had: its history rows. Its 'edited' mark opens them in a window.
   const rows = useTaskHistory(task).data?.rows;
   const earlierOf = (memo?: number | null) =>
