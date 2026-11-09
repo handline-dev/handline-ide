@@ -248,8 +248,10 @@ function PaneView({
                 <ShellTab key={current!.id} agent={agent} handle={shellHandle(current!.opens!)!} />
               )}
               {current?.opens === 'markdown' && agent && <MarkdownTab key={current.id} agent={agent} tab={current.id} />}
-              {current?.opens === 'web' && <WebTab key={current.id} agent={agent} />}
-              {current?.opens?.startsWith('web:') && <WebTab key={current.id} agent={agent} start={current.opens.slice(4)} />}
+              {current?.opens === 'web' && <WebTab key={current.id} tab={current.id} agent={agent} />}
+              {current?.opens?.startsWith('web:') && (
+                <WebTab key={current.id} tab={current.id} agent={agent} start={current.opens.slice(4)} />
+              )}
               {current?.opens?.startsWith('task:') && <TaskTab key={current.opens} id={Number(current.opens.slice(5))} />}
               {current?.opens?.startsWith('file:') && agent && (
                 <MarkdownTab key={current.id} agent={agent} tab={current.id} start={current.opens.slice(5)} />

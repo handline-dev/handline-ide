@@ -4,11 +4,11 @@ import { useOpenTab } from '#src/layout/openTab.tsx';
 import { toast } from '#src/ui/toast.tsx';
 import { ImageViewer } from '#src/viewer/ImageViewer.tsx';
 import { useEffect, useRef, useState } from 'react';
+import { usePersisted } from '#src/persist/kv.ts';
 import { shell } from '#src/shell.ts';
 import { ServerPicker } from '#src/tools/ServerPicker.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { Input } from '#src/ui/Field.tsx';
-import { useTabState } from '#src/persist/tabState.ts';
 
 /** What was typed as an address: `localhost:5173` is a page too. Null when it cannot be one. */
 export function addressOf(typed: string): string | null {
@@ -26,8 +26,8 @@ export function addressOf(typed: string): string | null {
 let owner: object | null = null;
 
 /** A web page beside the chat, its address kept per tab: the shell's native view (every site shows), or an iframe in a browser. */
-export function WebTab({ agent, start = '' }: { agent: string | null; start?: string }) {
-  const [url, setUrl] = useTabState('url', start);
+export function WebTab({ tab, agent, start = '' }: { tab: string; agent: string | null; start?: string }) {
+  const [url, setUrl] = usePersisted(`tab/${tab}/url`, start);
   const [typed, setTyped] = useState(url);
   const [reload, setReload] = useState(0);
   const frame = useRef<HTMLIFrameElement>(null);
