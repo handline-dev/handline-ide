@@ -10,7 +10,8 @@ import { chatOf, taskOf } from '#src/layout/kinds.tsx';
 import { useOpenTab } from '#src/layout/openTab.tsx';
 import { laterKey } from '#src/requests/data.ts';
 import { copy } from '#src/ui/copy.ts';
-import { ContextMenu, MenuItem, MenuSeparator, SubMenu } from '#src/ui/Menu.tsx';
+import { Button } from '#src/ui/Button.tsx';
+import { ContextMenu, Menu, MenuItem, MenuSeparator, SubMenu } from '#src/ui/Menu.tsx';
 import { confirm, prompt } from '#src/ui/modal.tsx';
 import { toast } from '#src/ui/toast.tsx';
 
@@ -128,33 +129,76 @@ function LaterItems({ onPick }: { onPick: (until: string) => void }) {
   ));
 }
 
-/** The actions on several picked rows, for the menu of a picked row and the bar over the list. */
-export function BulkItems() {
+/** What can be done to all the picked rows, the same in the floating bar (as buttons) and a picked row's right-click (as items). */
+function useBulk() {
   const pick = usePick();
   const act = useRowActions();
-  const mine = useMyTurns();
+  const b = bulkOf([...(pick?.picked.values() ?? [])], useMyTurns());
+  const then = (run: Promise<unknown>) => void run.then(() => pick?.clear());
+  return {
+    seen: b.seen.length ? { label: `Mark ${b.seen.length} seen`, run: () => then(act.seen(b.seen)) } : null,
+    later: b.later.length ? { label: `Put ${b.later.length} off`, run: (until: string) => then(act.later(b.later, until)) } : null,
+    giveBack: b.giveBack.length ? { label: `Give ${b.giveBack.length} back`, run: () => then(act.giveBack(b.giveBack)) } : null,
+  };
+}
+
+export function BulkItems() {
+  const pick = usePick();
+  const b = useBulk();
   if (!pick) return null;
-  const b = bulkOf([...pick.picked.values()], mine);
-  const then = (run: Promise<unknown>) => void run.then(() => pick.clear());
   return (
     <>
-      {b.seen.length > 0 && (
-        <MenuItem icon={<Eye size={14} />} onClick={() => then(act.seen(b.seen))}>
-          {`Mark ${b.seen.length} seen`}
+      {b.seen && (
+        <MenuItem icon={<Eye size={14} />} onClick={b.seen.run}>
+          {b.seen.label}
         </MenuItem>
       )}
-      {b.later.length > 0 && (
-        <SubMenu label={`Put ${b.later.length} off`} icon={<Clock size={14} />}>
-          <LaterItems onPick={(until) => then(act.later(b.later, until))} />
+      {b.later && (
+        <SubMenu label={b.later.label} icon={<Clock size={14} />}>
+          <LaterItems onPick={b.later.run} />
         </SubMenu>
       )}
-      {b.giveBack.length > 0 && (
-        <MenuItem icon={<Undo2 size={14} />} onClick={() => then(act.giveBack(b.giveBack))}>
-          {`Give ${b.giveBack.length} back`}
+      {b.giveBack && (
+        <MenuItem icon={<Undo2 size={14} />} onClick={b.giveBack.run}>
+          {b.giveBack.label}
         </MenuItem>
       )}
       <MenuSeparator />
       <MenuItem onClick={() => pick.clear()}>Clear the selection</MenuItem>
+    </>
+  );
+}
+
+export function BulkButtons() {
+  const b = useBulk();
+  if (!b.seen && !b.later && !b.giveBack) return <span className="px-2 whitespace-nowrap text-muted">Nothing to do to all of these</span>;
+  return (
+    <>
+      {b.seen && (
+        <Button variant="ghost" onClick={b.seen.run}>
+          <Eye size={14} />
+          {b.seen.label}
+        </Button>
+      )}
+      {b.later && (
+        <Menu
+          side="top"
+          trigger={
+            <Button variant="ghost">
+              <Clock size={14} />
+              {b.later.label}
+            </Button>
+          }
+        >
+          <LaterItems onPick={b.later.run} />
+        </Menu>
+      )}
+      {b.giveBack && (
+        <Button variant="ghost" onClick={b.giveBack.run}>
+          <Undo2 size={14} />
+          {b.giveBack.label}
+        </Button>
+      )}
     </>
   );
 }
