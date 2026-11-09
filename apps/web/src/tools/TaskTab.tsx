@@ -19,7 +19,7 @@ import { look } from '#src/ui/taskLook.tsx';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { ago, clock } from '#src/format/time.ts';
 import { taskOf } from '#src/layout/kinds.tsx';
-import { openProps, useOpenTab } from '#src/layout/openTab.tsx';
+import { useOpenable } from '#src/layout/openable.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { Linked, Markdown } from '#src/ui/Markdown.tsx';
 import { Menu, MenuItem } from '#src/ui/Menu.tsx';
@@ -198,16 +198,8 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 
 /** A task by its number and title; a click opens it, Cmd+click beside. */
 function TaskLink({ id, title }: { id: number; title?: string }) {
-  const openTab = useOpenTab();
   return (
-    <button
-      type="button"
-      {...openProps(
-        (how) => openTab(taskOf(id), how),
-        () => taskOf(id),
-      )}
-      className="min-w-0 truncate rounded-sm text-left hover:bg-hover/30"
-    >
+    <button type="button" {...useOpenable(taskOf(id))} className="min-w-0 truncate rounded-sm text-left hover:bg-hover/30">
       <span className="text-accent">T{id}</span>
       {title && <span className="ml-1 text-fg">{title}</span>}
     </button>

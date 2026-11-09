@@ -8,6 +8,7 @@ import { Gallery } from '#src/Gallery.tsx';
 import { instant, spring } from '#src/motion.ts';
 import { Sidebar, SidebarControls, sidebarWidth } from '#src/Sidebar.tsx';
 import { ModalHost } from '#src/ui/modal.tsx';
+import { OpenMenuHost } from '#src/layout/openable.tsx';
 import { ToastHost } from '#src/ui/toast.tsx';
 import { Splitter } from '#src/ui/Splitter.tsx';
 import { useAgentLayouts } from '#src/layout/agentLayouts.ts';
@@ -18,7 +19,6 @@ import { Settings } from '#src/settings/Settings.tsx';
 import { openSettings } from '#src/settings/open.ts';
 import '#src/styles.css';
 import { trackShellInsets } from '#src/shellInsets.ts';
-import { TerminalWindow, terminalWindowAgent } from '#src/tools/terminalWindow.tsx';
 
 const clampWidth = (px: number) => Math.min(sidebarWidth.max, Math.max(sidebarWidth.min, px));
 
@@ -118,7 +118,6 @@ for (const type of ['dragover', 'drop'] as const)
 
 const MAC = /Mac|iPhone|iPad/.test(globalThis.navigator?.platform ?? '');
 trackShellInsets();
-const terminalOf = terminalWindowAgent(location.hash);
 createRoot(document.getElementById('root')!).render(
   location.pathname === '/gallery' ? (
     <>
@@ -129,14 +128,11 @@ createRoot(document.getElementById('root')!).render(
   ) : (
     <Connect>
       <Boundary loading={null} failed={brokenView('Handline')}>
-        {terminalOf ? (
-          <TerminalWindow agent={terminalOf} />
-        ) : (
-          <FirstRunGate>
-            <App />
-          </FirstRunGate>
-        )}
+        <FirstRunGate>
+          <App />
+        </FirstRunGate>
       </Boundary>
+      <OpenMenuHost />
       <ModalHost />
       <ToastHost />
     </Connect>

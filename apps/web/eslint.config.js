@@ -8,12 +8,21 @@ const paletteClass = String.raw`\b(bg|text|border|ring|outline|fill|stroke|from|
 // (data-[open]:, aria-[...]:) select, they set no value, so they stay allowed.
 const arbitraryValue = String.raw`(^|\s|:)-?(?!(group-|peer-)?(data|aria|has|supports|not|in)-\[)[a-z][\w-]*-\[`;
 const message = 'Use a design token from src/styles.css (color role, text-*, rounded-*) or a component in src/ui.';
+// An element that opens a tab takes its click, drag and right-click from useOpenable (src/layout/openable.tsx), so every one of them
+// opens the same ways. This catches the usual slip, openTab or startTabDrag called in an element's own handler.
+const openable = 'Spread useOpenable(opens) from src/layout/openable.tsx on it instead.';
+const onHandler = 'JSXAttribute[name.name=/^on(Click|AuxClick|KeyDown|DragStart|ContextMenu)$/]';
+const openOutsideOpenable = [
+  { selector: `${onHandler} CallExpression[callee.name='openTab']`, message: openable },
+  { selector: `${onHandler} CallExpression[callee.name='startTabDrag']`, message: openable },
+];
 const noHardcodedColor = {
   files: ['src/**/*.{ts,tsx}'],
   rules: {
     'no-restricted-syntax': [
       'error',
       RELATIVE_CALL,
+      ...openOutsideOpenable,
       ...[colorLiteral, paletteClass, arbitraryValue].flatMap((re) => [
         { selector: `Literal[value=/${re}/]`, message },
         { selector: `TemplateElement[value.raw=/${re}/]`, message },

@@ -243,3 +243,31 @@ body[data-layer] .app-drag:not(.layer-drag),
 body[data-layer='still'] .layer-drag {
   -webkit-app-region: no-drag;
 }
+
+/* Files held over a row or a tab that opens on a hold (springOpen.ts): an outline fills around it while the hold runs. */
+@property --spring {
+  syntax: '<percentage>';
+  inherits: false;
+  initial-value: 0%;
+}
+@keyframes spring-fill {
+  to {
+    --spring: 100%;
+  }
+}
+[data-spring] {
+  position: relative;
+}
+[data-spring]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  padding: 2px;
+  border-radius: inherit;
+  pointer-events: none;
+  background: conic-gradient(var(--color-accent) var(--spring), transparent 0);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  animation: spring-fill var(--spring-hold) linear forwards;
+}
