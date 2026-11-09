@@ -1,28 +1,22 @@
 // What a right-click on a row of Requests offers, and what can be done to several picked rows at once. Only what is easy to undo
-// goes at once (seen, later, give back); a cancel is one row at a time, asked for its reason and confirmed (T8635, memo 6025).
-import { foundersTurn, laterChoices } from '@handline/app-core';
+// goes at once (seen, later, give back); a cancel, of one row or several, is asked for one reason and confirmed.
+import { bulkOf, foundersTurn, laterChoices, laterKey, type Picked } from '@handline/app-core';
 import { useTaskActions, useTasks, useWrite } from '@handline/app-data';
 import { useMe } from '@handline/app-react';
-import type { PendingRequest, RequestRow } from '@handline/client';
 import { Ban, Clock, Copy, Eye, FolderOpen, MessageSquare, Undo2 } from 'lucide-react';
 import { createContext, useContext, useState, type ReactNode } from 'react';
 import { chatOf, taskOf } from '#src/layout/kinds.tsx';
 import { useOpenTab } from '#src/layout/openTab.tsx';
-import { laterKey } from '#src/requests/data.ts';
 import { copy } from '#src/ui/copy.ts';
 import { Button } from '#src/ui/Button.tsx';
 import { ContextMenu, Menu, MenuItem, MenuSeparator, SubMenu } from '#src/ui/Menu.tsx';
 import { confirm, prompt } from '#src/ui/modal.tsx';
 import { toast } from '#src/ui/toast.tsx';
 
-/** A row the person picked (Shift+click or its check box): one of their turn, or one of their requests. */
-export type Picked = { key: string; p?: PendingRequest; r?: RequestRow };
-export const turnKey = (p: PendingRequest) => `turn:${p.source ?? ''}:${p.id ?? p.task ?? p.items[0]}`;
-export const requestKey = (r: RequestRow) => `request:${r.cursor}`;
-
 type Pick = {
   picked: Map<string, Picked>;
   toggle: (x: Picked) => void;
+  pickAll: (rows: Picked[]) => void;
   clear: () => void;
   /** Drops the picked rows that are no longer listed. */
   keep: (keys: ReadonlySet<string>) => void;
@@ -46,6 +40,7 @@ export function PickProvider({ children }: { children: ReactNode }) {
         else n.set(x.key, x);
         return n;
       }),
+    pickAll: (rows) => setPicked(new Map(rows.map((x) => [x.key, x]))),
     clear: () => setPicked(new Map()),
     keep: (keys) => setPicked((m) => ([...m.keys()].every((k) => keys.has(k)) ? m : new Map([...m].filter(([k]) => keys.has(k))))),
     setBusy: (keys, on) =>
@@ -99,25 +94,38 @@ export function useRowActions() {
         'put off',
         on.map((x) => ({ key: x.key, run: () => prefs.mutateAsync({ changes: { nav: { later: { [x.later]: { until } } } } }) })),
       ),
-    cancel: async (key: string, task: number, title: string) => {
-      const reason = (await prompt({ title: `Cancel T${task}?`, placeholder: 'Why, in one line' }))?.trim();
-      if (!reason) return;
-      if (!(await confirm({ title: `Cancel “${title}”?`, message: reason, confirmText: 'Cancel it', cancelText: 'Keep it', danger: true })))
-        return;
-      await all('cancelled', [{ key, run: () => verbs.cancel(task, reason) }]);
+    /** One reason and one confirm for all the rows given; says whether they went. */
+    cancel: async (on: (On & { title: string })[]): Promise<boolean> => {
+      const one = on.length === 1 ? on[0] : null;
+      const reason = (
+        await prompt({ title: one ? `Cancel T${one.task}?` : `Cancel ${on.length} requests?`, placeholder: 'Why, in one line' })
+      )?.trim();
+      if (!reason) return false;
+      const sure = await confirm({
+        title: one ? `Cancel “${one.title}”?` : `Cancel these ${on.length} requests?`,
+        message: one ? (
+          reason
+        ) : (
+          <>
+            {reason}
+            <ul className="mt-2 max-h-40 list-disc overflow-y-auto pl-4">
+              {on.map((x) => (
+                <li key={x.task}>{x.title}</li>
+              ))}
+            </ul>
+          </>
+        ),
+        confirmText: one ? 'Cancel it' : 'Cancel them',
+        cancelText: one ? 'Keep it' : 'Keep them',
+        danger: true,
+      });
+      if (!sure) return false;
+      await all(
+        'cancelled',
+        on.map((x) => ({ key: x.key, run: () => verbs.cancel(x.task, reason) })),
+      );
+      return true;
     },
-  };
-}
-
-/** What several picked rows share: the turns to give back, the rows to put off, the results to mark seen. */
-function bulkOf(rows: Picked[], mine: ReadonlySet<number>) {
-  return {
-    giveBack: rows.flatMap((x) => (x.p?.task != null && mine.has(x.p.task) ? [{ key: x.key, task: x.p.task }] : [])),
-    later: rows.flatMap((x) => {
-      const later = x.p ? laterKey(x.p) : null;
-      return later ? [{ key: x.key, later }] : [];
-    }),
-    seen: rows.flatMap((x) => (x.r?.task != null && x.r.ended && !x.r.ended.seen ? [{ key: x.key, task: x.r.task }] : [])),
   };
 }
 
@@ -139,6 +147,10 @@ function useBulk() {
     seen: b.seen.length ? { label: `Mark ${b.seen.length} seen`, run: () => then(act.seen(b.seen)) } : null,
     later: b.later.length ? { label: `Put ${b.later.length} off`, run: (until: string) => then(act.later(b.later, until)) } : null,
     giveBack: b.giveBack.length ? { label: `Give ${b.giveBack.length} back`, run: () => then(act.giveBack(b.giveBack)) } : null,
+    // Backing out of its questions keeps the selection.
+    cancel: b.cancel.length
+      ? { label: `Cancel ${b.cancel.length}`, run: () => void act.cancel(b.cancel).then((went) => went && pick?.clear()) }
+      : null,
   };
 }
 
@@ -163,6 +175,11 @@ export function BulkItems() {
           {b.giveBack.label}
         </MenuItem>
       )}
+      {b.cancel && (
+        <MenuItem icon={<Ban size={14} />} danger onClick={b.cancel.run}>
+          {`${b.cancel.label}…`}
+        </MenuItem>
+      )}
       <MenuSeparator />
       <MenuItem onClick={() => pick.clear()}>Clear the selection</MenuItem>
     </>
@@ -171,7 +188,8 @@ export function BulkItems() {
 
 export function BulkButtons() {
   const b = useBulk();
-  if (!b.seen && !b.later && !b.giveBack) return <span className="px-2 whitespace-nowrap text-muted">Nothing to do to all of these</span>;
+  if (!b.seen && !b.later && !b.giveBack && !b.cancel)
+    return <span className="px-2 whitespace-nowrap text-muted">Nothing to do to all of these</span>;
   return (
     <>
       {b.seen && (
@@ -197,6 +215,12 @@ export function BulkButtons() {
         <Button variant="ghost" onClick={b.giveBack.run}>
           <Undo2 size={14} />
           {b.giveBack.label}
+        </Button>
+      )}
+      {b.cancel && (
+        <Button variant="ghost" onClick={b.cancel.run}>
+          <Ban size={14} />
+          {`${b.cancel.label}…`}
         </Button>
       )}
     </>
@@ -244,7 +268,7 @@ export function RowMenu({ row, children }: { row: Picked; children: ReactNode })
         </MenuItem>
       )}
       {r && task !== null && !r.ended && (
-        <MenuItem icon={<Ban size={14} />} danger onClick={() => void act.cancel(key, task, r.title)}>
+        <MenuItem icon={<Ban size={14} />} danger onClick={() => void act.cancel([{ key, task, title: r.title }])}>
           Cancel…
         </MenuItem>
       )}

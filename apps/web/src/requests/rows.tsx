@@ -1,6 +1,6 @@
 import { classify, sentence, useProposals, useTask, useWrite } from '@handline/app-data';
 import type { PendingRequest, RequestRow } from '@handline/client';
-import { tomorrowAt9 } from '@handline/app-core';
+import { isUnseen, laterKey, requestKey, tomorrowAt9, turnKey, type Picked } from '@handline/app-core';
 import {
   CircleCheck,
   CircleX,
@@ -17,8 +17,7 @@ import {
   X,
 } from 'lucide-react';
 import { useState, type MouseEvent, type ReactNode } from 'react';
-import { requestKey, RowMenu, turnKey, usePick, useRowActions, type Picked } from '#src/requests/RowMenu.tsx';
-import { laterKey } from '#src/requests/data.ts';
+import { RowMenu, usePick, useRowActions } from '#src/requests/RowMenu.tsx';
 import { Button } from '#src/ui/Button.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { toast } from '#src/ui/toast.tsx';
@@ -190,9 +189,6 @@ const STATUS: Record<RequestRow['status'], string> = {
   no_work: 'no work needed',
   not_yet: 'not started',
 };
-
-/** A finished request the founder has not opened since it ended. */
-export const isUnseen = (r: RequestRow): boolean => r.ended?.seen === false;
 
 /** One of the founder's requests: its title, who works on it now (or how it ended), when it last moved. A click opens its task, else
  * the chat it was said in; a result not seen yet is marked, and opening it marks it seen. */
