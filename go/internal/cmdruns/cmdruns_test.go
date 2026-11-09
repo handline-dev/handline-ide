@@ -196,16 +196,18 @@ func TestARunWhoseTellFailedIsStillRunningAndToldNextTime(t *testing.T) {
 	r, _ := Start(q, Block{Message: 4, N: 0}, "%1", "bob", "make", 1000)
 	panes := map[string]term.PaneRun{"%1": {Tag: r.Tag(), Dead: true, Status: 0, DeadTime: 1002}}
 	var told []string
-	tell := func(tx db.Q, r Run) error {
-		if _, err := tx.Exec("INSERT INTO meta(name, value, updated) VALUES('told', ?, 0)", r.State); err != nil {
-			return err
+	tell := func(r Run) func(db.Q) error {
+		return func(tx db.Q) error {
+			if _, err := tx.Exec("INSERT INTO meta(name, value, updated) VALUES('told', ?, 0)", r.State); err != nil {
+				return err
+			}
+			if len(told) == 0 {
+				told = append(told, "failed")
+				return errors.New("no")
+			}
+			told = append(told, r.State)
+			return nil
 		}
-		if len(told) == 0 {
-			told = append(told, "failed")
-			return errors.New("no")
-		}
-		told = append(told, r.State)
-		return nil
 	}
 	if err := Settle(q, panes, 1003, tell); err == nil {
 		t.Fatal("the failed tell is the settle's error")
@@ -236,9 +238,11 @@ func TestTheEndOfARunStartedAgainSinceItWasReadIsDropped(t *testing.T) {
 	old, _ := Start(q, Block{Message: 4, N: 0}, "%1", "bob", "make", 1000)
 	Start(q, Block{Message: 4, N: 0}, "%2", "bob", "make", 1001)
 	old.State, old.Ended = "stopped", 1002
-	tell := func(tx db.Q, _ Run) error {
-		_, err := tx.Exec("INSERT INTO meta(name, value, updated) VALUES('told', '', 0)")
-		return err
+	tell := func(Run) func(db.Q) error {
+		return func(tx db.Q) error {
+			_, err := tx.Exec("INSERT INTO meta(name, value, updated) VALUES('told', '', 0)")
+			return err
+		}
 	}
 	if err := end(q, old, 1002, tell); err != nil {
 		t.Fatal(err)
@@ -247,5 +251,34 @@ func TestTheEndOfARunStartedAgainSinceItWasReadIsDropped(t *testing.T) {
 	q.QueryRow("SELECT COUNT(*) FROM meta WHERE name = 'told'").Scan(&told)
 	if runs, _ := Of(q, 4); len(runs) != 1 || runs[0].State != "running" || runs[0].Terminal != "%2" || told != 0 {
 		t.Fatalf("%+v told %d", runs, told)
+	}
+}
+
+// A run replaced by a rerun ends stopped untold, so a settle before the new run starts has nothing to tell. The tell's read runs before the
+// store's write lock is taken: a write from outside the transaction there does not wait on it.
+func TestARunReplacedByARerunIsNotToldAndTheTellReadsOutsideTheLock(t *testing.T) {
+	q, err := storetest.OpenAt(t, filepath.Join(t.TempDir(), "db.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer q.Close()
+	a, _ := Start(q, Block{Message: 4, N: 0}, "%1", "bob", "make", 1000)
+	b, _ := Start(q, Block{Message: 4, N: 1}, "%2", "bob", "make", 1000)
+	if err := Replaced(q, a, 1001); err != nil {
+		t.Fatal(err)
+	}
+	var told []string
+	tell := func(r Run) func(db.Q) error {
+		if _, err := q.Exec("INSERT INTO meta(name, value, updated) VALUES('read', '', 0)"); err != nil {
+			t.Errorf("the read waited on the write lock: %v", err)
+		}
+		return func(db.Q) error { told = append(told, r.Block); return nil }
+	}
+	panes := map[string]term.PaneRun{"%2": {Tag: b.Tag(), Dead: true, DeadTime: 1002}}
+	if err := Settle(q, panes, 1003, tell); err != nil {
+		t.Fatal(err)
+	}
+	if runs, _ := Of(q, 4); runs[0].State != "stopped" || runs[1].State != "done" || len(told) != 1 || told[0] != b.Block {
+		t.Fatalf("%+v told %v", runs, told)
 	}
 }

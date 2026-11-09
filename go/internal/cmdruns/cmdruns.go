@@ -142,9 +142,9 @@ func Replies(q db.Q) (map[int64][]Run, error) {
 
 // Settle ends every running run the host's answer shows over: its window is dead (exit status and end time are tmux's own), or gone, or is
 // another pane now (stopped). panes nil is "could not ask": nothing ends. Rows that ended long ago are dropped. Each run it ends is handed
-// to ended in the transaction that ends it, so what ended writes stands or falls with the run's end; a run started again since it was
-// read is left alone.
-func Settle(d *sql.DB, panes map[string]term.PaneRun, now int64, ended func(q db.Q, r Run) error) error {
+// to ended before the transaction that ends it, so ended may read the host; the write ended returns runs in that transaction and stands or
+// falls with the run's end. A run started again since it was read is left alone.
+func Settle(d *sql.DB, panes map[string]term.PaneRun, now int64, ended func(r Run) func(db.Q) error) error {
 	runs, err := All(d)
 	if err != nil {
 		return err
@@ -185,16 +185,26 @@ func Settle(d *sql.DB, panes map[string]term.PaneRun, now int64, ended func(q db
 	return nil
 }
 
-// end writes r's end, with what ended adds, if its row is still the running run r was read as. ended goes first, so a host it reads
-// (a window's last rows) is read before the transaction holds the write lock.
-func end(d *sql.DB, r Run, now int64, ended func(db.Q, Run) error) error {
+// Replaced ends running run r as stopped and tells no one, before its window is closed for a rerun the agent or the person asked for.
+func Replaced(d *sql.DB, r Run, now int64) error {
+	r.State, r.Ended = "stopped", now
+	return end(d, r, now, nil)
+}
+
+// end writes r's end, with what ended adds, if its row is still the running run r was read as. ended is called before Begin: the store
+// takes the write lock at Begin, and ended may read the host (a window's last rows).
+func end(d *sql.DB, r Run, now int64, ended func(Run) func(db.Q) error) error {
+	var write func(db.Q) error
+	if ended != nil {
+		write = ended(r)
+	}
 	tx, err := d.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
-	if ended != nil {
-		if err := ended(tx, r); err != nil {
+	if write != nil {
+		if err := write(tx); err != nil {
 			return err
 		}
 	}
