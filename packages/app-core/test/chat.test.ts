@@ -69,6 +69,20 @@ test('a message sent during a restart and delivered to the new session reads bel
   );
 });
 
+test('a message that wakes an agent reads below the new session line: it is typed after the start, though marked delivered before', () => {
+  const wake = msg({ id: 2, at: '2026-01-01T00:01:58Z', delivered_at: '2026-01-01T00:01:58Z', typed_at: '2026-01-01T00:02:01Z' });
+  const session = item({
+    id: 7,
+    at: '2026-01-01T00:02:00Z',
+    kind: 'session',
+    session: { id: 's', started: '2026-01-01T00:02:00Z', handoff: null },
+  });
+  assert.deepEqual(
+    timeline([wake], [session]).map((e) => `${e.kind}${e.id}`),
+    ['item7', 'message2'],
+  );
+});
+
 test('the timeline puts messages and transcript items in time order, a message first at the same time', () => {
   const out = timeline(
     [msg({ id: 2, at: '2026-01-01T00:02:00Z' }), msg({ id: 1, at: '2026-01-01T00:00:00Z' })],

@@ -74,10 +74,11 @@ export function timeline(
   ];
   const rank = (e: TimelineEntry) => (e.kind === 'item' ? 1 : e.kind === 'proposal' ? 2 : 0); // at one instant: messages, then the transcript, then a decision
   const starts = items.filter((i) => i.kind === 'session').map((i) => i.at);
-  // A message that waited through a restart and was delivered to the new session reads below that session's line, not above it.
+  // A message that waited through a restart and reached the new session reads below that session's line, not above it.
+  // Typed is when it entered the terminal: a message that wakes an agent is marked delivered before its new session starts.
   const waited = new Map(
     out.flatMap((e): [TimelineEntry, string][] => {
-      const sent = e.kind === 'message' ? e.message.delivered_at : null;
+      const sent = e.kind === 'message' ? (e.message.typed_at ?? e.message.delivered_at) : null;
       const start = sent ? starts.filter((at) => at > e.at && at <= sent).at(-1) : undefined;
       return start ? [[e, start]] : [];
     }),
