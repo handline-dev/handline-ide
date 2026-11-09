@@ -2,7 +2,7 @@
 /* eslint-disable */
 import type { Accepted, Actor, AgentName, AttachmentId, Duration, ImagePart, ReadCursor, RequestId, RequestName, RequestRef, Role, Status, TextPart, Timestamp, Topic, WriteKind } from './core.ts';
 
-/** The task's clock. */
+/** The task's clock: it counts while the task is doing and nothing holds it, stands still keeping what is left while anything does, and runs on past its length. */
 export type TaskClock = {
   /** The time box in seconds. */
   length_s: number;
@@ -11,7 +11,7 @@ export type TaskClock = {
   start: Timestamp | null;
   end: Timestamp | null;
   overdue_since: Timestamp | null;
-  /** How many overrun notices the opener has had. */
+  /** How many overrun notices the holder has had in this box: the first at `end`, then one each further length the clock runs. An edit of the timeout, or the task going back to queued or draft, starts a new box. */
   told: number;
   left_s: number | null;
 };
@@ -319,10 +319,10 @@ export type TaskView = {
 
 /** One stretch of a task's time: one block of the bar under its title, sized by seconds. */
 export type TimeSegment = {
-  /** queued: not yet with its holder. waiting: held up, on says by what. starting: its holder's session is being launched, woken or handed off. working: from when the task delivery landed in its holder session (or task_start, if earlier) until reported, released or done. */
+  /** queued: not yet with its holder. waiting: held up, on says by what. starting: the session of the agent acting on it is starting, from the daemon's launch until the session's first hook, at most 2 minutes. working: from when the task delivery landed in its holder session (or task_start, if earlier) until reported, released or done. */
   kind: "queued" | "waiting" | "starting" | "working";
   on: ("founder" | "task" | "agent" | "account") | null;
-  /** The reason as shown: `needs you`, `blocked by T<n>`, `waiting on <agent>`, `wall`, `queued`, `agent starting`; empty for working. */
+  /** The reason as shown: `needs you`, `blocked by T<n>`, `waiting on T<n>` (an open child), `waiting on <agent>`, `wall`, `queued`, `agent starting`; empty for working. */
   text: string;
   task: number | null;
   from: Timestamp;
@@ -509,6 +509,20 @@ export interface TasksMethods {
       ahead: number[];
       /** The reset of the account limit that holds it back; null when none does. */
       wall_until: Timestamp | null;
+    } | null;
+    box: {
+      /** The time box in seconds, as TaskClock.length_s. */
+      length_s: number;
+      start: Timestamp | null;
+      /** Who worked on it in this box, most seconds first: the agent acting on it (its owner, or the agent of its top turn) while it was working. */
+      worked: {
+        agent: string;
+        seconds: number;
+      }[];
+      /** The seconds of this box its acting agent's session spent starting. */
+      waking_s: number;
+      /** `length_s` less what the clock ran; below zero once it is over. */
+      left_s: number;
     } | null;
   } & ReadCursor };
   "task.shot": { params: {

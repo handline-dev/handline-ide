@@ -474,18 +474,44 @@ func AdvanceTaskTimeout(q Q, tid, now, defaultS int64) error {
 	return err
 }
 
-// PauseTaskTimeout is db.pause_task_timeout: no deadline runs while a task is not doing; what was left is kept for the resume.
+// PauseTaskTimeout is db.pause_task_timeout: no deadline runs while a task is not doing or waits; what was left is kept for the resume,
+// below zero once the box is over.
 func PauseTaskTimeout(q Q, tid, now int64) error {
-	_, err := q.Exec("UPDATE tasks SET timeout_left = MAX(timeout_at - ?, 0), timeout_at = NULL WHERE id = ? AND timeout_at IS NOT NULL", now, tid)
+	_, err := q.Exec("UPDATE tasks SET timeout_left = timeout_at - ?, timeout_at = NULL WHERE id = ? AND timeout_at IS NOT NULL", now, tid)
 	return err
 }
 
-// RestartTaskTimeout: a task that waits gets its whole length back for when the wait ends. Set again on each tick it waits, so nothing
-// is lost or repeated across a restart. A clock that never started is left unstarted.
-func RestartTaskTimeout(q Q, tid, defaultS int64) error {
-	_, err := q.Exec("UPDATE tasks SET timeout_left = COALESCE(timeout_s, ?), timeout_at = NULL WHERE id = ? AND (timeout_at IS NOT NULL OR timeout_left IS NOT NULL)",
-		defaultS, tid)
-	return err
+// boxStarts is the events that start task ?1's time box over: an edit of its timeout, and every way back to queued or draft.
+const boxStarts = "FROM events WHERE " + eventTask + " = ?1 AND (kind IN ('release_task', 'reopen_task', 'queue_task', 'draft_task') " +
+	"OR kind = 'edit_task' AND json_valid(payload) AND json_extract(payload, '$.timeout') IS NOT NULL)"
+
+// BoxStartedAt is when task tid's time box last started over, 0 for never: the box counts from here.
+func BoxStartedAt(q Q, tid int64) (int64, error) {
+	var at int64
+	err := q.QueryRow("SELECT COALESCE(MAX(ts), 0) "+boxStarts, tid).Scan(&at)
+	return at, err
+}
+
+// Notices are the overrun notices of a task's current box: how many, how far over it was at the last, and that one's event id.
+type Notices struct{ N, LastOver, LastID int64 }
+
+// TimeoutNotices is the overrun notices task tid has had in its current box.
+func TimeoutNotices(q Q, tid int64) (Notices, error) {
+	var n Notices
+	err := q.QueryRow("SELECT COUNT(*), COALESCE(MAX(json_extract(payload, '$.over_s')), 0), COALESCE(MAX(id), 0) FROM events WHERE kind = 'task_timeout_exceeded' AND "+
+		eventTask+" = ?1 AND id > (SELECT COALESCE(MAX(id), 0) "+boxStarts+")", tid).Scan(&n.N, &n.LastOver, &n.LastID)
+	return n, err
+}
+
+// FounderAsked is whether task tid has an ask of the founder still open.
+func FounderAsked(q Q, tid int64) (bool, error) {
+	var one int
+	err := q.QueryRow("SELECT 1 FROM requests r JOIN task_requests l ON l.request_id = r.id WHERE l.task_id = ? AND r.target = ? "+
+		"AND COALESCE(r.kind, '') != 'say' AND r.state = 'queued' LIMIT 1", tid, Human).Scan(&one)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	return err == nil, err
 }
 
 // Waiter is an open task that waits on another, and since when: its block's creation, or its child's.
@@ -534,19 +560,14 @@ func TaskWaits(q Q, tid int64) (bool, error) {
 	return len(kids) > 0, err
 }
 
-// Overdue is whether a task's holder was told it ran past its timeout and nobody has answered since: the deadline in force is the one that
-// notice set (an edit or a release replaces it).
-func Overdue(q Q, t *Task) (bool, error) {
-	if !t.TimeoutAt.Valid {
+// Overdue is whether a task's holder was told it ran past its timeout and nobody has answered since: its clock runs over, and the box it
+// was told about is the one in force (an edit of the timeout or a release starts a new one).
+func Overdue(q Q, t *Task, now int64) (bool, error) {
+	if !t.TimeoutAt.Valid || t.TimeoutAt.Int64 > now {
 		return false, nil
 	}
-	var one int
-	err := q.QueryRow("SELECT 1 FROM events WHERE kind = 'task_timeout_exceeded' AND "+eventTask+" = ? AND json_extract(payload, '$.next') = ? LIMIT 1",
-		t.ID, t.TimeoutAt.Int64).Scan(&one)
-	if err == sql.ErrNoRows {
-		return false, nil
-	}
-	return err == nil, err
+	n, err := TimeoutNotices(q, t.ID)
+	return n.N > 0, err
 }
 
 // AllTasks is db.all_tasks.
