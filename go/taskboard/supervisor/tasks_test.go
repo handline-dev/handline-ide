@@ -518,8 +518,8 @@ func TestSweepGivesAnAgentItsNextTaskWhileItsBegunTaskWaits(t *testing.T) {
 	}
 }
 
-// A begun task past its timeout that nobody answered pings its idle holder once per deadline when nothing else is queued for it.
-func TestSweepPingsTheIdleHolderOfAnOverdueTaskOncePerDeadline(t *testing.T) {
+// A begun task past its timeout that nobody answered pings its idle holder once per overrun notice when nothing else is queued for it.
+func TestSweepPingsTheIdleHolderOfAnOverdueTaskOncePerNotice(t *testing.T) {
 	r := newRig(t)
 	r.agentUp("bob")
 	tid := r.beginCurrent("bob", "alice", "the long one")
@@ -532,7 +532,10 @@ func TestSweepPingsTheIdleHolderOfAnOverdueTaskOncePerDeadline(t *testing.T) {
 	if says := r.saysTo("bob"); len(says) != 0 {
 		t.Fatalf("a task within its timeout pinged its holder: %q", says)
 	}
-	_, err = db.AddEvent(r.DB, "alice", "task_timeout_exceeded", db.KV{K: "task_id", V: tid}, db.KV{K: "next", V: row.TimeoutAt.Int64})
+	// the clock runs past its end, and its holder was told
+	_, err = r.DB.Exec("UPDATE tasks SET timeout_at = ? WHERE id = ?", row.TimeoutAt.Int64-db.DefaultTaskTimeoutS-60, tid)
+	r.must(err)
+	_, err = db.AddEvent(r.DB, "bob", "task_timeout_exceeded", db.KV{K: "task_id", V: tid}, db.KV{K: "over_s", V: 60})
 	r.must(err)
 	r.must(r.SweepTaskQueue(r.clock))
 	r.must(r.SweepTaskQueue(r.clock + 1))

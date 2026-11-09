@@ -27,7 +27,7 @@
       "oneOf": [
        {
         "$ref": "#/components/schemas/Timestamp",
-        "description": "Its deadline; null until the task is doing and while the clock is paused."
+        "description": "Where the clock reaches its length; null until the task is doing and while the clock is paused. Past it the clock runs on, over."
        },
        {
         "type": "null"
@@ -38,7 +38,7 @@
       "oneOf": [
        {
         "$ref": "#/components/schemas/Timestamp",
-        "description": "The first deadline that was missed, which is not `end` once notices moved it; null while in time. A client derives time left and time over from `end`, `overdue_since` and its own clock."
+        "description": "`end`, once the running clock is past it; null while in time or paused. A client derives time left and time over from `end` and its own clock."
        },
        {
         "type": "null"
@@ -47,13 +47,13 @@
      },
      "told": {
       "type": "integer",
-      "description": "How many overrun notices the opener has had."
+      "description": "How many overrun notices the holder has had in this box: the first at `end`, then one each further length the clock runs. An edit of the timeout, or the task going back to queued or draft, starts a new box."
      },
      "left_s": {
       "oneOf": [
        {
         "type": "integer",
-        "description": "The seconds the clock had left when it paused: the task waits on a blocker or an open child, or is no longer doing. It resumes from this. Null while the clock runs or never ran."
+        "description": "The seconds the clock had left when it paused, below zero when it was over: the task waits on the founder, a blocker or an open child, its agent is at its account's limit, or it is no longer doing. It goes on from this. Null while the clock runs or never ran."
        },
        {
         "type": "null"
@@ -70,7 +70,7 @@
      "told",
      "left_s"
     ],
-    "description": "The task's clock."
+    "description": "The task's clock: it counts while the task is doing and nothing holds it, stands still keeping what is left while anything does, and runs on past its length."
    },
    "Task": {
     "type": "object",
@@ -1341,7 +1341,7 @@
        "starting",
        "working"
       ],
-      "description": "queued: not yet with its holder. waiting: held up, on says by what. starting: its holder's session is being launched, woken or handed off. working: from when the task delivery landed in its holder session (or task_start, if earlier) until reported, released or done."
+      "description": "queued: not yet with its holder. waiting: held up, on says by what. starting: the session of the agent acting on it is starting, from the daemon's launch until the session's first hook, at most 2 minutes. working: from when the task delivery landed in its holder session (or task_start, if earlier) until reported, released or done."
      },
      "on": {
       "oneOf": [
@@ -1353,7 +1353,7 @@
          "agent",
          "account"
         ],
-        "description": "What a waiting segment waits on: the founder's answer or acceptance, another task, another agent's acceptance of a report (on a task answered before done always closed), an account's plan or usage limit."
+        "description": "What a waiting segment waits on: the founder's answer, acceptance or turn, another task (a blocker or an open child), another agent's acceptance of a report (on a task answered before done always closed), an account's plan or usage limit."
        },
        {
         "type": "null"
@@ -1362,13 +1362,13 @@
      },
      "text": {
       "type": "string",
-      "description": "The reason as shown: `needs you`, `blocked by T<n>`, `waiting on <agent>`, `wall`, `queued`, `agent starting`; empty for working."
+      "description": "The reason as shown: `needs you`, `blocked by T<n>`, `waiting on T<n>` (an open child), `waiting on <agent>`, `wall`, `queued`, `agent starting`; empty for working."
      },
      "task": {
       "oneOf": [
        {
         "type": "integer",
-        "description": "The task it is blocked by."
+        "description": "The task it is blocked by, or the open child it waits on."
        },
        {
         "type": "null"
@@ -2071,7 +2071,7 @@
   },
   {
    "name": "task.time",
-   "summary": "Where a task's time went, from its opening to its end (or now): segments in order that cover it with no gap or overlap. Read from what the daemon already records (the task's state events, its blockers, its asks of the founder, its holder's parks and starts); nothing is timed twice. Where two causes overlap, the stretch shows one, in this order: waiting on the founder, blocked by a task, waiting on another agent, queued, at an account's wall, starting, working.",
+   "summary": "Where a task's time went, from its opening to its end (or now): segments in order that cover it with no gap or overlap, and the split of its time box. Read from what the daemon already records (the task's state events, its turns, its blockers and children, its asks of the founder, its acting agent's parks and starts); nothing is timed twice. Where two causes overlap, the stretch shows one, in this order: waiting on the founder, blocked by a task, waiting on another agent, queued, at an account's wall, starting, working.",
    "paramStructure": "by-name",
    "params": [
     {
@@ -2212,6 +2212,70 @@
           }
          ],
          "description": "When it is expected to start and end, deterministic from its queue, its owner's account and the history of done tasks by estimate; computed on each read, so it moves as they do."
+        },
+        "box": {
+         "oneOf": [
+          {
+           "type": "object",
+           "description": "The time box split as its clock ran, since it last started over (an edit of the timeout, or the task back to queued or draft): the seconds each agent worked on it, the waking, and what is left. They add up to `length_s`, as the clock counts: the founder, a blocker, a child, an account's limit and not being doing hold it still.",
+           "properties": {
+            "length_s": {
+             "type": "integer",
+             "description": "The time box in seconds, as TaskClock.length_s."
+            },
+            "start": {
+             "oneOf": [
+              {
+               "$ref": "#/components/schemas/Timestamp",
+               "description": "When its clock first ran in this box."
+              },
+              {
+               "type": "null",
+               "description": "It has not run in this box."
+              }
+             ]
+            },
+            "worked": {
+             "type": "array",
+             "description": "Who worked on it in this box, most seconds first: the agent acting on it (its owner, or the agent of its top turn) while it was working.",
+             "items": {
+              "type": "object",
+              "properties": {
+               "agent": {
+                "type": "string"
+               },
+               "seconds": {
+                "type": "integer"
+               }
+              },
+              "required": [
+               "agent",
+               "seconds"
+              ]
+             }
+            },
+            "waking_s": {
+             "type": "integer",
+             "description": "The seconds of this box its acting agent's session spent starting."
+            },
+            "left_s": {
+             "type": "integer",
+             "description": "`length_s` less what the clock ran; below zero once it is over."
+            }
+           },
+           "required": [
+            "length_s",
+            "start",
+            "worked",
+            "waking_s",
+            "left_s"
+           ]
+          },
+          {
+           "type": "null",
+           "description": "An ended task: done, discarded or closed."
+          }
+         ]
         }
        },
        "required": [
@@ -2220,7 +2284,8 @@
         "end",
         "segments",
         "estimate",
-        "expected"
+        "expected",
+        "box"
        ]
       },
       {

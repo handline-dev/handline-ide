@@ -396,6 +396,15 @@ func LastEventOfTS(q Q, agent string, kinds []string) (int64, bool, error) {
 	return maxInt(q, "SELECT MAX(ts) FROM events WHERE agent = ? AND kind IN (?"+strings.Repeat(", ?", len(kinds)-1)+")", args...)
 }
 
+// LaunchOver are the events that say a launch is no longer starting: a hook of its session (it is up), its end, or the wake that failed.
+var LaunchOver = []string{"SessionStart", "UserPromptSubmit", "Stop", "StopFailure", "PostCompact", "SessionEnd", "wake_failed"}
+
+// FirstEventOfTS is when the agent's first event of any of kinds at or after since was.
+func FirstEventOfTS(q Q, agent string, kinds []string, since int64) (int64, bool, error) {
+	return maxInt(q, "SELECT MIN(ts) FROM events WHERE agent = ? AND kind IN (?"+strings.Repeat(", ?", len(kinds)-1)+") AND ts >= ?",
+		append(kindArgs([]any{agent}, kinds), since)...)
+}
+
 // LastSessionStartTS is when the agent's latest kept session start (hl launch, just before it becomes claude) was.
 func LastSessionStartTS(q Q, agent string) (int64, bool, error) {
 	return maxInt(q, "SELECT MAX(ts) FROM session_starts WHERE agent = ?", agent)

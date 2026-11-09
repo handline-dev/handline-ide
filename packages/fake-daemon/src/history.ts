@@ -1,5 +1,5 @@
-// A task's past: the history rows a patch to it makes (one per field it changes, as the daemon keeps them), and task.time's segments.
-import type { HistoryRow, Methods, Task, TimeSegment } from '@handline/contract';
+// A task's past: the history rows a patch to it makes (one per field it changes, as the daemon keeps them), and task.time's segments and box.
+import type { HistoryRow, Methods, Task, TaskClock, TimeSegment } from '@handline/contract';
 import { invalidParams } from '#src/errors.ts';
 
 type Fields = Task & { body: string; evidence?: string | null; blockers: { task: number }[]; estimate?: number | null };
@@ -39,12 +39,17 @@ export function fieldsOf(
 // task.time: queued until the task was delivered, then working, to its done or now. Its expectation is what the fake knows without
 // history or accounts: an open task starts when it was delivered (now when not yet), with no duration to end it by.
 interface Tasks {
-  find(id: unknown): Pick<Task, 'id' | 'created' | 'delivered' | 'done'> & { estimate?: number | null; segments?: TimeSegment[] };
+  find(id: unknown): Pick<Task, 'id' | 'to' | 'created' | 'delivered' | 'done'> & {
+    estimate?: number | null;
+    segments?: TimeSegment[];
+    clock?: TaskClock | null;
+  };
   now(): string;
 }
 
 // The daemon adds the cursor.
 type TaskTime = Omit<Methods['task.time']['result'], 'cursor'>;
+type TaskBox = NonNullable<TaskTime['box']>;
 
 export function timeOf(id: unknown, tasks: Tasks): TaskTime {
   if (!Number.isInteger(id)) throw invalidParams('task is a task number', 'task');
@@ -65,5 +70,29 @@ export function timeOf(id: unknown, tasks: Tasks): TaskTime {
   const expected = t.done
     ? null
     : { start: t.delivered ?? tasks.now(), end: null, duration_s: null, basis: null, ahead: [], wall_until: null };
-  return { task: t.id, start: t.created, end: t.done, segments: made.filter((s) => s.seconds > 0), estimate: t.estimate ?? null, expected };
+  const segments = made.filter((s) => s.seconds > 0);
+  return {
+    task: t.id,
+    start: t.created,
+    end: t.done,
+    segments,
+    estimate: t.estimate ?? null,
+    expected,
+    box: t.done ? null : boxOf(t, segments),
+  };
+}
+
+/** The box split as the daemon makes it, from the fake's one box: its working time is its holder's, its starting time the waking. */
+function boxOf(t: Pick<Task, 'to'> & { clock?: TaskClock | null }, segments: TimeSegment[]): TaskBox {
+  const length = t.clock?.length_s ?? 4 * 3600;
+  const ran = segments.filter((s) => s.kind === 'working' || s.kind === 'starting');
+  const worked = ran.filter((s) => s.kind === 'working').reduce((n, s) => n + s.seconds, 0);
+  const waking = ran.filter((s) => s.kind === 'starting').reduce((n, s) => n + s.seconds, 0);
+  return {
+    length_s: length,
+    start: ran[0]?.from ?? null,
+    worked: worked > 0 ? [{ agent: t.to, seconds: worked }] : [],
+    waking_s: waking,
+    left_s: length - worked - waking,
+  };
 }
