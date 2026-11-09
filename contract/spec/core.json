@@ -320,7 +320,7 @@
   }
  },
  "x-dialogs": {
-  "rule": "A dialog in an agent's terminal is routine, a human's or unknown. The daemon answers only the routine ones, and only at launch, once, from what the founder already decided; it never answers any other (no key into a pane after launch). A human's dialog and an unknown one are `needs_you` on the agent (AgentView), and the person answers them at the terminal terminal.open points to. Unknown is a person: a dialog the table does not name is class human, kind dialog. The class is decided from the hook or session file that reported it, never from the screen, except the launch's folder-trust screen, which the launch reads once.",
+  "rule": "A dialog in an agent's terminal is routine, the daemon's, a human's or unknown. The daemon answers the routine ones only at launch, once, from what the founder already decided, and closes the usage-limit one (class daemon) while it handles that limit; it never answers any other (no key into a pane after launch). A human's dialog and an unknown one are `needs_you` on the agent (AgentView), and the person answers them at the terminal terminal.open points to. Unknown is a person: a dialog the table does not name is class human, kind dialog. The class is decided from the hook or session file that reported it, never from the screen, except the launch's folder-trust screen, which the launch reads once, and whether the dialog up is the usage-limit one, which is read only when a hook or the session file already says a dialog is up.",
   "dialogs": {
    "folder_trust": {
     "class": "routine",
@@ -339,9 +339,11 @@
     "reported_by": "Notification elicitation_dialog; the session file status waiting with a waitingFor that names a question (any other waitingFor is kind dialog)"
    },
    "usage_limit_choice": {
-    "class": "human",
+    "class": "daemon",
     "kind": "usage",
-    "reported_by": "Stop with a limit"
+    "reported_by": "Stop with a limit",
+    "answered_by": "the daemon closes it and moves the agent to another account or parks it until the limit resets, whenever the tick's reading fires usage or usage_7d or the last turn ended on the limit; meanwhile no state word, has_dialog, block or needs_you says it",
+    "else": "human, kind usage"
    },
    "exit_confirm": {
     "class": "not raised",

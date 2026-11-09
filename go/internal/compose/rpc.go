@@ -18,7 +18,7 @@ import (
 func (p *Parts) SessionRPC(cfg Config) *sessionrpc.Env {
 	c := controls{p: p, lc: p.LC}
 	f := &fold.Env{Home: cfg.Home, DB: p.db, InTx: func(fn func(db.Q) error) error { return inTx(p.db, fn) }, Usage: p.LC.usage, Accounts: team.Accounts{Home: cfg.Home}, Today: today(cfg)}
-	return &sessionrpc.Env{DB: p.db, Home: cfg.Home, Controls: c, Move: c.Move, Now: cfg.Now, Fold: f.Fold, Roster: p.LC.roster,
+	return &sessionrpc.Env{DB: p.db, Home: cfg.Home, Controls: c, Move: c.viaMover((*lifecycle.Mover).ForceMove), SwitchNow: c.viaMover((*lifecycle.Mover).SwitchNow), Now: cfg.Now, Fold: f.Fold, Roster: p.LC.roster,
 		ForceStart: c.ForceStart, Unpass: c.Unpass, Launch: p.LC.prepareLaunch}
 }
 
@@ -150,12 +150,14 @@ func (c controls) Park(_ sessionrpc.Call, agent string) (bool, string, error) {
 	return false, agent + ": parking is the policy tick's handoff, which this daemon does not run yet", nil
 }
 
-// Move is handoff.force_move over the lifecycle's mover.
-func (c controls) Move(call sessionrpc.Call, agent, account string) (bool, string, error) {
-	if c.lc.Mover == nil {
-		return false, agent + ": the move is the handoff's, which this daemon has not built", nil
+// viaMover is a call of the lifecycle's mover: handoff.force_move for agent.move, the answer to a switch_offer for agent.switch_now.
+func (c controls) viaMover(do func(m *lifecycle.Mover, agent, account, by string) (bool, string, error)) func(sessionrpc.Call, string, string) (bool, string, error) {
+	return func(call sessionrpc.Call, agent, account string) (bool, string, error) {
+		if c.lc.Mover == nil {
+			return false, agent + ": the move is the handoff's, which this daemon has not built", nil
+		}
+		return do(c.lc.Mover, agent, account, call.By)
 	}
-	return c.lc.Mover.ForceMove(agent, account, call.By)
 }
 
 // Context is the model id and context figures of an agent on an account (agent.strip). The percent is the status file's own, nil when

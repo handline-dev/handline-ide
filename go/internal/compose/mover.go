@@ -46,6 +46,7 @@ func (p *Parts) newMover(m *lifecycle.Manager, uenv *usage.Env, env *supervisor.
 			hold, _ := ho().Hold(agent, at)
 			return hold
 		},
+		LimitDialogOpen: p.limitDialogOpen,
 		BackgroundWork: func(q db.Q, agent string) string {
 			if ok, _ := env.HasBackgroundWork(q, agent); ok {
 				return "background work"

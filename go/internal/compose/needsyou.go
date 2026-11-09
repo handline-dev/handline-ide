@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/handline/handline/go/agentctl/dialogs"
 	"github.com/handline/handline/go/agentctl/peerinbox"
 	"github.com/handline/handline/go/agentctl/verdict"
 	"github.com/handline/handline/go/data/db"
@@ -35,6 +36,20 @@ func (p *Parts) liveTerminals() map[string]bool {
 		return nil
 	}
 	return p.LC.term.LiveTerminals()
+}
+
+// switchOffer is the card for an agent parked at its wall because no account has room: it goes to the closest one if a person says so, and
+// goes on waiting if nobody does. Asked live, so the account offered is one that can take it now.
+func (p *Parts) switchOffer(agent string) *agentview.NeedsYou {
+	if p.LC == nil || p.LC.Mover == nil {
+		return nil
+	}
+	to, since, err := p.LC.Mover.SwitchOffer(agent)
+	if err != nil || to == "" {
+		return nil
+	}
+	return &agentview.NeedsYou{Kind: dialogs.SwitchOffer, Source: "daemon", Since: since, Account: to, Title: "No account has room to spare",
+		Text: to + " is the closest, and may reach its limit again soon."}
 }
 
 // needsYou is where an agent's need of a person comes from, never the screen: the session's own file saying status waiting (read through

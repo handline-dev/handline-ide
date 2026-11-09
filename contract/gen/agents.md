@@ -14,6 +14,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `agent.set` | agent (only agent, founder) | yes | `agent`, `values`, `speaker?`, `restart?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | not_self | authored: set |
 | `agent.fold` | agent | yes | `agent`, `request_id` | `Accepted` | `refused`, `not_found` |  | decided: fold |
 | `agent.move` | agent | yes | `agent`, `account`, `request_id` | `Accepted` | `refused`, `not_found` |  | decided: move |
+| `agent.switch_now` | agent | yes | `agent`, `account?`, `request_id` | `Accepted` | `refused`, `not_found` |  | decided: switch |
 | `agent.unstall` | founder | yes | `agent`, `request_id` | `Accepted` | `refused`, `not_found` | terminal_lock, state | decided: clear stall |
 | `agent.force_start` | founder | yes | `agent`, `request_id` | `Accepted` | `refused`, `not_found` | state | decided: force start |
 | `agent.retire` | founder | yes | `agent`, `worktree?`, `request_id` | `Accepted` | `refused`, `not_found` | state, dirty, worktree | decided: retire |
@@ -77,6 +78,10 @@ Run hl fold for an agent.
 ### `agent.move`
 
 Move an agent to another account.
+
+### `agent.switch_now`
+
+Start an agent waiting at its usage limit on the account a person chose, or the one with the most room, now: the answer to a needs_you of kind switch_offer. Only the room test is skipped: an account at a limit, one with no free slot and a pin still refuse.
 
 ### `agent.unstall`
 

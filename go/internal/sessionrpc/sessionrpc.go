@@ -80,6 +80,8 @@ type Env struct {
 	Emit   func(topic, typ string, data any, agent string)
 	// Move is handoff.force_move: the agent's session to another account now, a closed agent's next wake there; nil serves no agent.move.
 	Move func(call Call, agent, account string) (ok bool, said string, err error)
+	// SwitchNow moves an agent waiting at its wall to the account a person chose past the room test, "" for the closest (a switch_offer); nil serves no agent.switch_now.
+	SwitchNow func(call Call, agent, account string) (ok bool, said string, err error)
 	// ForceStart lets an agent's work the machine's load holds go past the limits once; nil serves no agent.force_start.
 	ForceStart func(agent string) (ok bool, said string, err error)
 	// Unpass takes back what ForceStart let past, when its start did not come in time; nil takes nothing back.
@@ -108,6 +110,9 @@ func Register(s *rpc.Server, e *Env) {
 	}
 	if e.Move != nil {
 		s.Register("agent.move", rpc.Method{Handler: e.move})
+	}
+	if e.SwitchNow != nil {
+		s.Register("agent.switch_now", rpc.Method{Handler: e.switchNow})
 	}
 	if e.DB != nil {
 		s.Register("agent.unstall", rpc.Method{Handler: e.unstall})
@@ -309,6 +314,17 @@ func (e *Env) move(c *rpc.Conn, params map[string]any) (any, error) {
 	}
 	return e.run(c, "agent.move", params, false, func(call Call, agent string) (map[string]any, error) {
 		return done(e.Move(call, agent, account))
+	})
+}
+
+// switchNow is agent.switch_now: it ends a session the way a forced move does, so it is a person's too.
+func (e *Env) switchNow(c *rpc.Conn, params map[string]any) (any, error) {
+	if !c.Caller.Allows("member") {
+		return nil, rpc.Refused("a switch ends a session: it is the founder's, from a terminal or the screen, not an agent's", "role", "")
+	}
+	account, _ := params["account"].(string)
+	return e.run(c, "agent.switch_now", params, false, func(call Call, agent string) (map[string]any, error) {
+		return done(e.SwitchNow(call, agent, account))
 	})
 }
 

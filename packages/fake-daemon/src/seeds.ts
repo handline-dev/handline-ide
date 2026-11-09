@@ -275,12 +275,45 @@ export const SEEDS: Record<string, Seed> = {
     s.fx.view = { ...s.fx.view, needs_you: { kind: 'usage', since, title: 'Usage limit: choose what to do', text: null, source: 'hook' } };
   },
 
+  /** The architect's account switch at each phase: what the working line draws from limit to the new session. */
+  'switch-saving': (d) => switching(d, { phase: 'saving', to: null }),
+  'switch-switching': (d) => switching(d, { phase: 'switching', to: 'beta' }),
+  'switch-starting': (d) => switching(d, { phase: 'starting', to: 'beta' }),
+  'switch-waiting': (d) => switching(d, { phase: 'waiting', to: null, until: inTwoHours() }),
+  /** The same wait with no account to spare: the card offers beta, and agent.switch_now takes it. */
+  'switch-offer': (d) => {
+    switching(d, { phase: 'waiting', to: null, until: inTwoHours() });
+    const s = d.sessions.get(ARCH)!;
+    const since = new Date(Date.now() - 60_000).toISOString();
+    s.fx.view = {
+      ...s.fx.view,
+      needs_you: {
+        kind: 'switch_offer',
+        since,
+        title: 'No account has room to spare',
+        text: 'beta is the closest, and may reach its limit again soon.',
+        source: 'daemon',
+        account: 'beta',
+      },
+    };
+  },
+
   /** The account beta stalled on a billing error: its row shows STALLED and a founder can Wake it. */
   'account-stalled': (d) =>
     void d.accounts.stall('beta', { reason: 'billing_error', detail: 'The turn ended: the organization has a billing problem.' }),
   ...PROPOSAL_SEEDS,
   ...CHAT_SEEDS,
 };
+
+const inTwoHours = () => new Date(Date.now() + 2 * 3_600_000).toISOString();
+
+/** Puts the architect, on alpha at its 5-hour limit, in an account switch. */
+function switching(d: FakeDaemon, sw: { phase: 'saving' | 'switching' | 'starting' | 'waiting'; to: string | null; until?: string }): void {
+  const s = d.sessions.get(ARCH)!;
+  const since = new Date(Date.now() - 20_000).toISOString();
+  s.fx.account = sw.to === 'beta' && sw.phase === 'starting' ? 'beta' : 'alpha';
+  s.fx.view = { ...s.fx.view, account_switch: { cause: 'usage', from: 'alpha', since, until: null, ...sw } };
+}
 
 /** Switches the named seeds on: a comma-separated list, or `all`. An unknown name is an error, not a silent no-op. */
 export function applySeeds(d: FakeDaemon, names: string | string[]): string[] {

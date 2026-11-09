@@ -22,7 +22,9 @@ type Account struct {
 // against it, in the order the rules ask; empty when every tier admits it.
 type Admission struct {
 	Best, NeverRun, Fits bool
-	Reasons              []string
+	// OnlyNoRoomFit: all that keeps it from Fits is NoRoomFit, so a person may still choose it. No wall and nothing outright stands against it.
+	OnlyNoRoomFit bool
+	Reasons       []string
 }
 
 // Outright is whether the account is refused before any reading is looked at: being removed, set aside, or not for this vendor.
@@ -61,6 +63,7 @@ func Admit(a Account) Admission {
 		out.Reasons = appendNew(out.Reasons, a.Wall)
 	case a.NoRoomFit != "":
 		out.Reasons = appendNew(out.Reasons, a.NoRoomFit)
+		out.OnlyNoRoomFit = true
 	default:
 		out.Fits = true
 	}

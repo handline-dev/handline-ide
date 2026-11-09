@@ -77,6 +77,7 @@ func (p *Parts) Tick(cfg Config, tc TickConfig) *Tick {
 	logLine := func(s string) { cfg.Log("%s", s) }
 	tu := tickUsage{p: p, u: uenv, roster: lc.roster}
 	view := p.agentView(cfg, tc.Terminals, tu)
+	p.view.Store(view)
 	wake := make(chan struct{}, 1)
 	if cfg.Turns != nil && tc.Terminals {
 		cfg.Turns.OnChange(view.RefreshOne)

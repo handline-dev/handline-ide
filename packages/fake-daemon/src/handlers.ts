@@ -79,6 +79,20 @@ const BASE: Record<string, (h: Call) => unknown> = {
     script.setState(s, s.state, actor);
     return script.accepted('Moved.');
   },
+  'agent.switch_now': (h) => {
+    const { p, actor, script, agent } = h;
+    const s = agent();
+    const sw = s.fx.view?.account_switch;
+    if (sw?.phase !== 'waiting') throw refused('state', `${s.fx.name} is not waiting for an account`);
+    const offer = s.fx.view?.needs_you;
+    const to = typeof p.account === 'string' && p.account ? p.account : (offer?.account ?? 'beta');
+    s.fx.account = to;
+    const { needs_you: _offer, ...view } = s.fx.view ?? {};
+    s.fx.view = { ...view, account_switch: { ...sw, phase: 'switching', to, until: null, since: new Date().toISOString() } };
+    script.control(s, actor, 'agent.switch_now', `${actor.name} switched the agent to ${to}`);
+    script.setState(s, s.state, actor);
+    return script.accepted('Switched.');
+  },
   'agent.unstall': (h) => {
     const { actor, script, agent } = h;
     const s = agent();
