@@ -1,10 +1,12 @@
 package cmdruns
 
 import (
+	"errors"
 	"path/filepath"
 	"testing"
 
 	"github.com/handline/handline/go/agentctl/term"
+	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/storetest"
 )
 
@@ -41,7 +43,7 @@ func TestSettleEndsARunFromWhatItsWindowSays(t *testing.T) {
 			}
 			panes["%5"] = p
 		}
-		if _, err := Settle(q, panes, 2000); err != nil {
+		if err := Settle(q, panes, 2000, nil); err != nil {
 			t.Fatal(err)
 		}
 		runs, err := Of(q, 7)
@@ -71,7 +73,7 @@ func TestACommandThatCannotBeAskedAboutKeepsItsRunAndARerunReplacesIt(t *testing
 	defer q.Close()
 	b := Block{Message: 3, N: 0}
 	Start(q, b, "%1", "", "", 100)
-	if _, err := Settle(q, nil, 500); err != nil { // tmux could not answer: nothing ended
+	if err := Settle(q, nil, 500, nil); err != nil { // tmux could not answer: nothing ended
 		t.Fatal(err)
 	}
 	if runs, _ := Of(q, 3); len(runs) != 1 || runs[0].State != "running" {
@@ -99,12 +101,12 @@ func TestAnEndedRunIsDroppedAfterThirtyDays(t *testing.T) {
 	defer q.Close()
 	Start(q, Block{Message: 5, N: 0}, "%1", "", "", 1000)
 	Start(q, Block{Message: 5, N: 1}, "%2", "", "", 1000)
-	Settle(q, map[string]term.PaneRun{"%1": {Tag: "5:0@1000", Dead: true, DeadTime: 1005}, "%2": {Tag: "5:1@1000"}}, 1010)
-	Settle(q, map[string]term.PaneRun{"%2": {Tag: "5:1@1000"}}, 1005+keep)
+	Settle(q, map[string]term.PaneRun{"%1": {Tag: "5:0@1000", Dead: true, DeadTime: 1005}, "%2": {Tag: "5:1@1000"}}, 1010, nil)
+	Settle(q, map[string]term.PaneRun{"%2": {Tag: "5:1@1000"}}, 1005+keep, nil)
 	if runs, _ := Of(q, 5); len(runs) != 2 {
 		t.Fatalf("a run that ended just now stays: %+v", runs)
 	}
-	Settle(q, map[string]term.PaneRun{"%2": {Tag: "5:1@1000"}}, 1006+keep)
+	Settle(q, map[string]term.PaneRun{"%2": {Tag: "5:1@1000"}}, 1006+keep, nil)
 	runs, _ := Of(q, 5)
 	if len(runs) != 1 || runs[0].Block != "5:1" {
 		t.Fatalf("the ended one is gone, the running one stays: %+v", runs)
@@ -118,7 +120,7 @@ func TestADeadWindowWithNoEndTimeEndsNow(t *testing.T) {
 	}
 	defer q.Close()
 	Start(q, Block{Message: 2, N: 0}, "%1", "", "", 1000)
-	Settle(q, map[string]term.PaneRun{"%1": {Tag: "2:0@1000", Dead: true, Status: 2}}, 1007)
+	Settle(q, map[string]term.PaneRun{"%1": {Tag: "2:0@1000", Dead: true, Status: 2}}, 1007, nil)
 	if runs, _ := Of(q, 2); len(runs) != 1 || runs[0].Ended != 1007 || runs[0].Seconds() != 7 || runs[0].State != "failed" {
 		t.Fatalf("%+v", runs)
 	}
@@ -181,5 +183,69 @@ func TestAReplyItemsBlockIsKeptApartFromAMessagesOfTheSameID(t *testing.T) {
 	all, err := Replies(q)
 	if err != nil || len(all) != 1 || len(all[7]) != 2 || all[7][0].Block != "r7:2" || all[7][1].Block != "r7:0" {
 		t.Fatalf("every reply's runs, oldest start first: %+v %v", all, err)
+	}
+}
+
+// A run's end and what is told of it are one write: a tell that fails leaves the run running, so the next look ends and tells it again.
+func TestARunWhoseTellFailedIsStillRunningAndToldNextTime(t *testing.T) {
+	q, err := storetest.OpenAt(t, filepath.Join(t.TempDir(), "db.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer q.Close()
+	r, _ := Start(q, Block{Message: 4, N: 0}, "%1", "bob", "make", 1000)
+	panes := map[string]term.PaneRun{"%1": {Tag: r.Tag(), Dead: true, Status: 0, DeadTime: 1002}}
+	var told []string
+	tell := func(tx db.Q, r Run) error {
+		if _, err := tx.Exec("INSERT INTO meta(name, value, updated) VALUES('told', ?, 0)", r.State); err != nil {
+			return err
+		}
+		if len(told) == 0 {
+			told = append(told, "failed")
+			return errors.New("no")
+		}
+		told = append(told, r.State)
+		return nil
+	}
+	if err := Settle(q, panes, 1003, tell); err == nil {
+		t.Fatal("the failed tell is the settle's error")
+	}
+	if runs, _ := Of(q, 4); runs[0].State != "running" {
+		t.Fatalf("a run whose tell failed ended: %+v", runs[0])
+	}
+	if err := Settle(q, panes, 1004, tell); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	q.QueryRow("SELECT COUNT(*) FROM meta WHERE name = 'told'").Scan(&n)
+	if runs, _ := Of(q, 4); runs[0].State != "done" || n != 1 || len(told) != 2 {
+		t.Fatalf("%+v told %v, %d rows", runs[0], told, n)
+	}
+	if err := Settle(q, panes, 1005, tell); err != nil || len(told) != 2 {
+		t.Fatalf("an ended run is told once: %v %v", err, told)
+	}
+}
+
+// A block started again after Settle read its old run keeps the new run: the old one's end is not written over it, nor told.
+func TestTheEndOfARunStartedAgainSinceItWasReadIsDropped(t *testing.T) {
+	q, err := storetest.OpenAt(t, filepath.Join(t.TempDir(), "db.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer q.Close()
+	old, _ := Start(q, Block{Message: 4, N: 0}, "%1", "bob", "make", 1000)
+	Start(q, Block{Message: 4, N: 0}, "%2", "bob", "make", 1001)
+	old.State, old.Ended = "stopped", 1002
+	tell := func(tx db.Q, _ Run) error {
+		_, err := tx.Exec("INSERT INTO meta(name, value, updated) VALUES('told', '', 0)")
+		return err
+	}
+	if err := end(q, old, 1002, tell); err != nil {
+		t.Fatal(err)
+	}
+	var told int
+	q.QueryRow("SELECT COUNT(*) FROM meta WHERE name = 'told'").Scan(&told)
+	if runs, _ := Of(q, 4); len(runs) != 1 || runs[0].State != "running" || runs[0].Terminal != "%2" || told != 0 {
+		t.Fatalf("%+v told %d", runs, told)
 	}
 }

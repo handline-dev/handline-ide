@@ -3,6 +3,7 @@
 package cmdruns
 
 import (
+	"database/sql"
 	"encoding/json"
 	"regexp"
 	"sort"
@@ -140,17 +141,19 @@ func Replies(q db.Q) (map[int64][]Run, error) {
 }
 
 // Settle ends every running run the host's answer shows over: its window is dead (exit status and end time are tmux's own), or gone, or is
-// another pane now (stopped). panes nil is "could not ask": nothing ends. Rows that ended long ago are dropped. ended is the runs it ended.
-func Settle(q db.Q, panes map[string]term.PaneRun, now int64) (ended []Run, err error) {
-	runs, err := All(q)
+// another pane now (stopped). panes nil is "could not ask": nothing ends. Rows that ended long ago are dropped. Each run it ends is handed
+// to ended in the transaction that ends it, so what ended writes stands or falls with the run's end; a run started again since it was
+// read is left alone.
+func Settle(d *sql.DB, panes map[string]term.PaneRun, now int64, ended func(q db.Q, r Run) error) error {
+	runs, err := All(d)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	for _, r := range runs {
 		if r.State != "running" {
 			if r.Ended > 0 && now-r.Ended > keep {
-				if _, err := q.Exec("DELETE FROM meta WHERE name = ?", prefix+r.Block); err != nil {
-					return ended, err
+				if _, err := d.Exec("DELETE FROM meta WHERE name = ?", prefix+r.Block); err != nil {
+					return err
 				}
 			}
 			continue
@@ -175,13 +178,36 @@ func Settle(q db.Q, panes map[string]term.PaneRun, now int64) (ended []Run, err 
 		default:
 			continue
 		}
-		enc, _ := json.Marshal(r)
-		if _, err := q.Exec("UPDATE meta SET value = ?, updated = ? WHERE name = ?", string(enc), now, prefix+r.Block); err != nil {
-			return ended, err
+		if err := end(d, r, now, ended); err != nil {
+			return err
 		}
-		ended = append(ended, r)
 	}
-	return ended, nil
+	return nil
+}
+
+// end writes r's end, with what ended adds, if its row is still the running run r was read as. ended goes first, so a host it reads
+// (a window's last rows) is read before the transaction holds the write lock.
+func end(d *sql.DB, r Run, now int64, ended func(db.Q, Run) error) error {
+	tx, err := d.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if ended != nil {
+		if err := ended(tx, r); err != nil {
+			return err
+		}
+	}
+	enc, _ := json.Marshal(r)
+	res, err := tx.Exec("UPDATE meta SET value = ?, updated = ? WHERE name = ? AND json_extract(value, '$.state') = 'running' AND json_extract(value, '$.started') = ?",
+		string(enc), now, prefix+r.Block, r.Started)
+	if err != nil {
+		return err
+	}
+	if n, err := res.RowsAffected(); err != nil || n == 0 {
+		return err // started again since it was read: that run is not over, and nothing is told
+	}
+	return tx.Commit()
 }
 
 // Now is the clock the daemon stamps a run with.

@@ -13,8 +13,6 @@ import (
 	"github.com/handline/handline/go/kit/testkill"
 )
 
-// A real tmux server, when one can be started here: the host methods and the control link against the program they are for. Once the
-// test ends, pass or fail, neither the server nor its socket file is left.
 // liveHost is what these tests ask of the tmux host.
 type liveHost interface {
 	term.Backend
@@ -28,6 +26,8 @@ type liveHost interface {
 	term.ControlSpawner
 }
 
+// A real tmux server, when one can be started here: the host methods and the control link against the program they are for. Once the
+// test ends, pass or fail, neither the server nor its socket file is left.
 func TestLiveTmux(t *testing.T) {
 	if _, err := exec.LookPath("tmux"); err != nil {
 		t.Skip("no tmux")
