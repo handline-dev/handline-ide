@@ -8,15 +8,18 @@ import type { Attachments } from '#src/chat/attachments.tsx';
 import { Composer } from '#src/chat/Composer.tsx';
 import { useDraft } from '#src/chat/drafts.ts';
 import type { Command } from '#src/chat/Suggest.tsx';
+import { ChoicePicker } from '#src/tools/TaskChoices.tsx';
 import { AssignPicker } from '#src/tools/TaskFields.tsx';
-import { openAsks } from '#src/tools/TaskWaiting.tsx';
+import { choices, openAsks } from '#src/tools/TaskWaiting.tsx';
 import { useMe } from '@handline/app-react';
 import { HoverCard } from '#src/ui/HoverCard.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { Page } from '#src/ui/Page.tsx';
 
-type Memo = TaskDetail['memos'][number];
 import { toast } from '#src/ui/toast.tsx';
+
+/** What the box answers: a comment, or the founder's turn (tied to the comment that asked). */
+export type Reply = { id?: number; author: string; text: string; turn?: boolean };
 
 /** Who a comment reaches by its own words: the assignee and each agent it names with @. */
 const readers = (owner: string, text: string, known: string[]) => [
@@ -47,17 +50,19 @@ function Readers({ names }: { names: string[] }) {
 
 export function CommentBox({
   t,
-  reply,
+  reply: asked,
   onDrop,
   attach,
   onSent,
 }: {
   t: TaskDetail;
-  reply: Memo | null;
+  reply: Reply | null;
   onDrop: () => void;
   attach: Attachments;
   onSent: () => void;
 }) {
+  // An answer to a turn that has ended or been asked anew since is dropped: it would answer a question no longer there.
+  const reply = asked?.turn && asked.text !== t.turns?.at(-1)?.ask ? null : asked;
   const me = useMe();
   const read = useWrite('inbox.mark_read');
   const box = `task:${t.id}`;
@@ -117,6 +122,41 @@ export function CommentBox({
     },
   ];
   const failed = (what: string) => (e: unknown) => toast(`${what}: ${e instanceof Error ? e.message : String(e)}`, { tone: 'warning' });
+  const send = (body: string, ids: string[] = []) => {
+    // The comment first, then the handover: the new owner finds it waiting.
+    // An answer to a comment that asked the founder ends the wait: the open asks are closed with it.
+    const answers = reply && /@human\b/.test(reply.text) ? openAsks(t, me).map((r) => r.id) : [];
+    onSent();
+    add.mutate(
+      { task: t.id, text: withImages(body, ids), ...(reply?.id != null ? { reply: reply.id } : {}) },
+      {
+        onError: failed('Comment did not go'),
+        onSuccess: () => {
+          if (to) edit.mutate({ task: t.id, owner: to }, { onError: failed('Assignee did not change') });
+          if (answers.length) read.mutate({ ids: answers });
+        },
+      },
+    );
+    setTo(null);
+    onDrop();
+  };
+  // Answering the founder's turn whose question lays out choices: they are picked as in Claude Code, and "Something else" brings the box.
+  const options = reply?.turn ? choices(reply.text) : [];
+  // The answer "Something else" was picked in; Answer again starts on the choices again.
+  const [otherFor, setOtherFor] = useState<Reply | null>(null);
+  const other = otherFor === reply;
+  if (reply && options.length > 0 && !other)
+    return (
+      <Page>
+        <ChoicePicker
+          by={reply.author}
+          options={options}
+          onPick={(o) => send(`${o.key}) ${o.text}`)}
+          onOther={() => setOtherFor(reply)}
+          onCancel={onDrop}
+        />
+      </Page>
+    );
   return (
     <Page>
       <Composer
@@ -127,7 +167,9 @@ export function CommentBox({
             <div role="status" className="-ml-2 flex min-w-0 items-center gap-1.5 text-xs text-muted">
               <CornerDownRight size={14} className="ml-1 shrink-0" />
               <span className="min-w-0 flex-1 truncate">
-                Replying to {reply.author}: {reply.text.replace(/@human\s*/g, '').replace(/\s+/g, ' ')}
+                {reply.turn
+                  ? `Answering ${reply.author}'s question`
+                  : `Replying to ${reply.author}: ${reply.text.replace(/@human\s*/g, '').replace(/\s+/g, ' ')}`}
               </span>
               <IconButton className="size-6!" label="Drop the reply" onClick={onDrop}>
                 <X size={14} />
@@ -164,24 +206,7 @@ export function CommentBox({
             )}
           </>
         }
-        onSend={(body, ids) => {
-          // The comment first, then the handover: the new owner finds it waiting.
-          // An answer to a comment that asked the founder ends the wait: the open asks are closed with it.
-          const answers = reply && /@human\b/.test(reply.text) ? openAsks(t, me).map((r) => r.id) : [];
-          onSent();
-          add.mutate(
-            { task: t.id, text: withImages(body, ids), ...(reply ? { reply: reply.id } : {}) },
-            {
-              onError: failed('Comment did not go'),
-              onSuccess: () => {
-                if (to) edit.mutate({ task: t.id, owner: to }, { onError: failed('Assignee did not change') });
-                if (answers.length) read.mutate({ ids: answers });
-              },
-            },
-          );
-          setTo(null);
-          onDrop();
-        }}
+        onSend={send}
       />
     </Page>
   );

@@ -3,9 +3,12 @@
 import { isPerson } from '@handline/app-core';
 import type { TaskDetail } from '@handline/client';
 import { classify, sentence, useGiveBack, useWrite } from '@handline/app-data';
-import { Hand, X } from 'lucide-react';
+import { Hand, Reply as ReplyIcon, Undo2, X } from 'lucide-react';
 import { useState } from 'react';
+import type { Reply } from '#src/tools/TaskComment.tsx';
 import { showHistory } from '#src/tools/TaskDiff.tsx';
+import { goToTurn, turnReply } from '#src/tools/TaskTurn.ts';
+import { Button } from '#src/ui/Button.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { toast } from '#src/ui/toast.tsx';
 import { ago, clock } from '#src/format/time.ts';
@@ -75,10 +78,30 @@ export function WaitingOnYou({
   );
 }
 
-/** The founder's turn is the task's one question: the ask, an "edited" mark with older texts folded under it, and Give back. */
-export function YourTurn({ t, onDone, onShow }: { t: TaskDetail; onDone: () => void; onShow: () => void }) {
+/** The choices an ask lays out, one a line: "A) ...", "B. ...", "1: ..."; fewer than two is no choice. */
+const CHOICE = /^[ \t]*([A-D1-4])[).:][ \t]+(.+)$/gm;
+export function choices(ask: string) {
+  const found = [...ask.matchAll(CHOICE)].map((m) => ({ key: m[1]!, text: m[2]!.trim() }));
+  return found.length >= 2 ? found : [];
+}
+
+/** The founder's turn is the task's one question: the ask, an "edited" mark with older texts folded under it, and on the last line Answer
+ * (in the comment box below) and Give back. */
+export function YourTurn({
+  t,
+  reply,
+  onDone,
+  onReply,
+}: {
+  t: TaskDetail;
+  /** What the comment box answers: this turn's question, while it answers it. */
+  reply: Reply | null;
+  onDone: () => void;
+  onReply: (r: Reply | null) => void;
+}) {
   const back = useGiveBack();
   const turn = t.turns?.at(-1);
+  const answering = !!reply?.turn && reply.text === turn?.ask;
   const earlier = turn?.earlier ?? [];
   const give = () =>
     back.give(t.id, { onSuccess: onDone, onError: (e) => toast(`Give back did not work: ${sentence(classify(e))}`, { tone: 'warning' }) });
@@ -87,7 +110,7 @@ export function YourTurn({ t, onDone, onShow }: { t: TaskDetail; onDone: () => v
       <Hand size={14} className="mt-1 shrink-0 text-warning" />
       <span className="flex min-w-0 flex-1 flex-col gap-1">
         <span className="flex items-center gap-2 font-medium">
-          <button type="button" onClick={onShow} className="hover:underline">
+          <button type="button" onClick={() => goToTurn(t)} className="hover:underline">
             Your turn
           </button>
           {turn?.edited && (
@@ -107,11 +130,18 @@ export function YourTurn({ t, onDone, onShow }: { t: TaskDetail; onDone: () => v
             </button>
           )}
         </span>
-        {turn?.ask && <span className="whitespace-pre-wrap">{turn.ask}</span>}
+        {turn?.ask && <span className="whitespace-pre-wrap">{answering ? turn.ask.replace(CHOICE, '').trim() : turn.ask}</span>}
+        <span className="mt-1 flex justify-end gap-2">
+          <Button onClick={give}>
+            <Undo2 size={14} />
+            Give back
+          </Button>
+          <Button variant="primary" disabled={answering || !turn?.ask} onClick={() => onReply(turnReply(t))}>
+            <ReplyIcon size={14} />
+            {answering ? 'Answering below' : 'Answer'}
+          </Button>
+        </span>
       </span>
-      <button type="button" onClick={give} className="shrink-0 rounded-md px-2 py-1 text-sm font-medium hover:bg-hover/30">
-        Give back
-      </button>
     </div>
   );
 }
