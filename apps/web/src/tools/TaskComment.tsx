@@ -8,13 +8,13 @@ import type { Attachments } from '#src/chat/attachments.tsx';
 import { Composer } from '#src/chat/Composer.tsx';
 import { useDraft } from '#src/chat/drafts.ts';
 import type { Command } from '#src/chat/Suggest.tsx';
+import { ChoicePicker } from '#src/tools/TaskChoices.tsx';
 import { AssignPicker } from '#src/tools/TaskFields.tsx';
 import { choices, openAsks } from '#src/tools/TaskWaiting.tsx';
 import { useMe } from '@handline/app-react';
 import { HoverCard } from '#src/ui/HoverCard.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { Page } from '#src/ui/Page.tsx';
-import { ScrollFade } from '#src/ui/ScrollFade.tsx';
 
 import { toast } from '#src/ui/toast.tsx';
 
@@ -138,8 +138,23 @@ export function CommentBox({
     setTo(null);
     onDrop();
   };
-  // Answering the founder's turn: the choices its question laid out, in the box under what it answers, each one click to send with what is typed.
+  // Answering the founder's turn whose question lays out choices: they are picked as in Claude Code, and "Something else" brings the box.
   const options = reply?.turn ? choices(reply.text) : [];
+  // The question "Something else" was picked for; another question starts on its choices again.
+  const [otherFor, setOtherFor] = useState<string | null>(null);
+  const other = otherFor === reply?.text;
+  if (reply && options.length > 0 && !other)
+    return (
+      <Page>
+        <ChoicePicker
+          by={reply.author}
+          options={options}
+          onPick={(o) => send(`${o.key}) ${o.text}`)}
+          onOther={() => setOtherFor(reply.text)}
+          onCancel={onDrop}
+        />
+      </Page>
+    );
   return (
     <Page>
       <Composer
@@ -147,41 +162,17 @@ export function CommentBox({
         commands={commands}
         above={
           reply && (
-            <>
-              <div role="status" className="-ml-2 flex min-w-0 items-center gap-1.5 text-xs text-muted">
-                <CornerDownRight size={14} className="ml-1 shrink-0" />
-                <span className="min-w-0 flex-1 truncate">
-                  {reply.turn
-                    ? `Answering ${reply.author}'s question`
-                    : `Replying to ${reply.author}: ${reply.text.replace(/@human\s*/g, '').replace(/\s+/g, ' ')}`}
-                </span>
-                <IconButton className="size-6!" label="Drop the reply" onClick={onDrop}>
-                  <X size={14} />
-                </IconButton>
-              </div>
-              {options.length > 0 && (
-                // Each written out whole; a long list scrolls in its place.
-                <ScrollFade role="group" aria-label="Choices" className="-ml-2 flex max-h-40 flex-col gap-0.5 pt-1 text-sm">
-                  {options.map((o) => (
-                    <button
-                      key={o.key}
-                      type="button"
-                      onClick={() => {
-                        // Words already typed go with the choice, under it.
-                        send([`${o.key}) ${o.text}`, draft.trim()].filter(Boolean).join('\n\n'));
-                        setDraft('');
-                      }}
-                      className="flex shrink-0 items-start gap-2 rounded-md px-2 py-1 text-left hover:bg-hover"
-                    >
-                      <span className="grid size-5 shrink-0 place-items-center rounded-full bg-warning/15 text-xs font-semibold">
-                        {o.key}
-                      </span>
-                      <span className="min-w-0 pt-px">{o.text}</span>
-                    </button>
-                  ))}
-                </ScrollFade>
-              )}
-            </>
+            <div role="status" className="-ml-2 flex min-w-0 items-center gap-1.5 text-xs text-muted">
+              <CornerDownRight size={14} className="ml-1 shrink-0" />
+              <span className="min-w-0 flex-1 truncate">
+                {reply.turn
+                  ? `Answering ${reply.author}'s question`
+                  : `Replying to ${reply.author}: ${reply.text.replace(/@human\s*/g, '').replace(/\s+/g, ' ')}`}
+              </span>
+              <IconButton className="size-6!" label="Drop the reply" onClick={onDrop}>
+                <X size={14} />
+              </IconButton>
+            </div>
           )
         }
         placeholder={to ? `Comment and assign to ${to}` : `Comment on T${t.id}`}
