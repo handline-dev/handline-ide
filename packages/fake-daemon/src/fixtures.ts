@@ -35,6 +35,7 @@ export interface AgentFixture {
       | 'founder_seen'
       | 'state_detail'
       | 'handoff'
+      | 'account_switch'
       | 'status'
       | 'doing'
       | 'background'

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"slices"
 
+	"github.com/handline/handline/go/agentctl/dialogs"
 	"github.com/handline/handline/go/data/stream"
 )
 
@@ -28,18 +29,18 @@ func stateOf(view string) string {
 	return v.State
 }
 
-type needs struct{ Title, Text, Source string }
+type needs struct{ Kind, Title, Text, Source string }
 
 // needsOf is the view's needs_you title, text and source, empty when it has none.
 func needsOf(view string) (n needs) {
 	var v struct {
 		NeedsYou *struct {
-			Title, Source string
-			Text          *string
+			Kind, Title, Source string
+			Text                *string
 		} `json:"needs_you"`
 	}
 	if json.Unmarshal([]byte(view), &v) == nil && v.NeedsYou != nil {
-		n.Title, n.Source = v.NeedsYou.Title, v.NeedsYou.Source
+		n.Kind, n.Title, n.Source = v.NeedsYou.Kind, v.NeedsYou.Title, v.NeedsYou.Source
 		if v.NeedsYou.Text != nil {
 			n.Text = *v.NeedsYou.Text
 		}
@@ -48,8 +49,11 @@ func needsOf(view string) (n needs) {
 }
 
 // stuck is whether a view is a stall the founder is told of: stalled, or waiting on a card the daemon raised (a dialog it will not or
-// cannot get past, an agent it could not heal), which the view shows as waiting.
-func stuck(view string) bool { return stateOf(view) == "stalled" || needsOf(view).Source == "daemon" }
+// cannot get past, an agent it could not heal), which the view shows as waiting. An offer to switch account is no stall: nothing waits on it.
+func stuck(view string) bool {
+	n := needsOf(view)
+	return stateOf(view) == "stalled" || (n.Source == "daemon" && n.Kind != dialogs.SwitchOffer)
+}
 
 func (a *Agents) Scan(q *sql.DB, emit Emit) error {
 	rows, err := q.Query(cmp.Or(a.query, "SELECT agent, view FROM agent_view"))

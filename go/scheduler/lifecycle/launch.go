@@ -397,6 +397,53 @@ func (l *Launcher) RoomElsewhere(q db.Q, agent string, row *db.AgentState, exclu
 	return l.roomElsewhere(q, agent, row, exclude, true)
 }
 
+// ClosestRoom is the account with the most headroom of those short only of the room test, with no older closed agent counted ahead: what a
+// person is offered when no account has room. "" when a wall, a full account or a pin rules them all out.
+func (l *Launcher) ClosestRoom(q db.Q, agent string, row *db.AgentState, exclude map[string]string) string {
+	if l.PinOf(agent) != "" {
+		return ""
+	}
+	row = asWaiter(row)
+	best, most := "", math.Inf(-1)
+	for _, a := range l.mayStartAccounts() {
+		if _, skip := exclude[a]; skip || !l.pastFit(q, agent, row, a) {
+			continue
+		}
+		h, ok := l.Ports.Usage.Headroom(a)
+		if !ok {
+			h = 0
+		}
+		if h > most {
+			best, most = a, h
+		}
+	}
+	return best
+}
+
+// pastFit is whether a person may put agent on acct though it may not last: no wall, nothing outright against it, and a free slot.
+func (l *Launcher) pastFit(q db.Q, agent string, row *db.AgentState, acct string) bool {
+	adm := l.Ports.Usage.Admit(acct, agent, l.Ports.Vendors.AgentVendor(agent))
+	if !adm.Fits && !adm.OnlyNoRoomFit {
+		return false
+	}
+	w, err := l.full(q, agent, row, acct, false, false)
+	return err == nil && w == nil
+}
+
+// RoomPastFit is why agent cannot go on acct by a person's choice past the room test, "" when it can.
+func (l *Launcher) RoomPastFit(q db.Q, agent string, row *db.AgentState, acct string) string {
+	if pin := l.PinOf(agent); pin != "" && acct != pin {
+		return "is not " + pin + ", the account it is pinned to"
+	}
+	if !slices.Contains(l.mayStartAccounts(), acct) {
+		return "is not logged in or may not start"
+	}
+	if !l.pastFit(q, agent, asWaiter(row), acct) {
+		return "is at a limit or has no free slot"
+	}
+	return ""
+}
+
 // WorthRepick is whether a cold wake on own is better put on to: the week that runs out faster, by usage.RepickGain points per hour; with
 // either week unreadable the pick stands, as it did before the weekly ranking.
 func (l *Launcher) WorthRepick(own, to string) bool {
@@ -1218,6 +1265,14 @@ func (p LaunchPort) SlowestPaced(q db.Q, agent string, row *db.AgentState, skip 
 
 func (p LaunchPort) RoomElsewhere(q db.Q, agent string, row *db.AgentState, exclude map[string]string) (string, string) {
 	return p.L.RoomElsewhere(q, agent, row, exclude)
+}
+
+func (p LaunchPort) ClosestRoom(q db.Q, agent string, row *db.AgentState, exclude map[string]string) string {
+	return p.L.ClosestRoom(q, agent, row, exclude)
+}
+
+func (p LaunchPort) RoomPastFit(q db.Q, agent string, row *db.AgentState, acct string) string {
+	return p.L.RoomPastFit(q, agent, row, acct)
 }
 
 func (p LaunchPort) RoomOn(q db.Q, agent string, row *db.AgentState, acct string) string {

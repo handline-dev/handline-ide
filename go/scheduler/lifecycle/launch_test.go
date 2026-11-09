@@ -60,7 +60,8 @@ type fakeUsage struct {
 	unpaced int // 0: cap
 	pace    *usage.Pace
 	others  int
-	exclude *string // the agent ActiveOn was asked to leave out
+	exclude *string        // the agent ActiveOn was asked to leave out
+	active  map[string]int // agents mid-turn by account, over others
 	head    map[string]float64
 	share   map[string]float64 // FiveHourShare by account; unlisted is unknown
 	urgent  map[string]float64 // Urgency by account; unlisted is unknown
@@ -87,11 +88,11 @@ func (u fakeUsage) Headroom(acct string) (float64, bool) {
 	h, ok := u.head[acct]
 	return h, ok
 }
-func (u fakeUsage) ActiveOn(_ db.Q, _, agent string) int {
+func (u fakeUsage) ActiveOn(_ db.Q, acct, agent string) int {
 	if u.exclude != nil {
 		*u.exclude = agent
 	}
-	return u.others
+	return u.others + u.active[acct]
 }
 
 func (u fakeUsage) Read(acct string) AccountStatus {
@@ -1073,5 +1074,59 @@ func TestAStartKeepsWhatItsSettingsChanged(t *testing.T) {
 	}
 	if changed != "model changed (m1 -> m2)" || resumed != 1 {
 		t.Fatalf("%q %d", changed, resumed)
+	}
+}
+
+// pastFitRig has five accounts: c short only of the room test with the most headroom of those; d short too with less; walled at its wall, short
+// with the most headroom of all; full with no slot; own, the one left out.
+func pastFitRig(t *testing.T) (*launchRig, *db.AgentState) {
+	t.Helper()
+	r := newLaunchRig(t)
+	hot := AccountStatus{Exists: true, ShortTrusted: func() *int { n := 99; return &n }()}
+	r.l.Ports.Accounts = fakeAccounts{true}
+	r.l.Ports.CurrentAccount = func(db.Q, string) string { return "full" }
+	r.l.Ports.WaitingFor = func(db.Q, string) bool { return false }
+	pct := 10
+	r.l.Ports.Usage = fakeUsage{st: AccountStatus{Exists: true, ShortTrusted: &pct}, cap: 1, by: map[string]AccountStatus{"walled": hot},
+		head:  map[string]float64{"c": 0.5, "d": 0.2, "walled": 0.9, "full": 0.8, "own": 0.95},
+		share: map[string]float64{"c": 0.5, "d": 0.5, "walled": 0.5, "own": 0.5}, active: map[string]int{"full": 1}}
+	for _, a := range []string{"c", "d", "walled", "full", "own"} {
+		os.MkdirAll(filepath.Join(paths.AccountsDir(r.l.Home), a), 0o755)
+	}
+	db.SetAgentState(r.l.Q, "ann", states.Idle, 0, "")
+	row, _ := db.GetAgentState(r.l.Q, "ann")
+	return r, row
+}
+
+func TestTheClosestAccountIsShortOnlyOfTheRoomTest(t *testing.T) {
+	r, row := pastFitRig(t)
+	if got := r.l.ClosestRoom(r.l.Q, "ann", row, map[string]string{"own": ""}); got != "c" {
+		t.Fatalf("most headroom past a wall, a full account and the one left out: %q", got)
+	}
+	if got := r.l.ClosestRoom(r.l.Q, "ann", row, map[string]string{"own": "", "c": "", "d": ""}); got != "" {
+		t.Fatalf("nothing past a wall or a full account: %q", got)
+	}
+}
+
+func TestAPinOffersNothingAndRefusesAnotherAccount(t *testing.T) {
+	r, row := pastFitRig(t)
+	yaml := "vendor: claude\nmodel: m1\neffort: high\naccount: own\n"
+	if err := os.WriteFile(r.l.Roster.AgentFile("ann"), []byte(yaml), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := r.l.ClosestRoom(r.l.Q, "ann", row, nil); got != "" {
+		t.Fatalf("a pinned agent goes nowhere: %q", got)
+	}
+	if why := r.l.RoomPastFit(r.l.Q, "ann", row, "c"); !strings.Contains(why, "pinned") {
+		t.Fatalf("%q", why)
+	}
+}
+
+func TestAPersonsChoicePastTheFitStillMeetsTheWallAndTheSlot(t *testing.T) {
+	r, row := pastFitRig(t)
+	for acct, ok := range map[string]bool{"c": true, "walled": false, "full": false, "nowhere": false} {
+		if why := r.l.RoomPastFit(r.l.Q, "ann", row, acct); (why == "") != ok {
+			t.Errorf("%s: %q", acct, why)
+		}
 	}
 }

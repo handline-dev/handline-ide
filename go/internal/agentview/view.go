@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/handline/handline/go/agentctl/dialogs"
+	"github.com/handline/handline/go/agentctl/term"
 	"github.com/handline/handline/go/agentctl/verdict"
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
@@ -63,6 +65,8 @@ type Prompts interface {
 type NeedsYou struct {
 	Kind, Source, Title, Text string
 	Since                     int64
+	// Account is the account a switch_offer offers.
+	Account string
 }
 
 // Env is everything a view is made from. The function fields are the facts that live outside the database.
@@ -98,6 +102,11 @@ type Env struct {
 	Jobs func(agent string, now int64) []Job
 	// Servers is the TCP servers agent's processes listen on, lowest port first (AgentView.servers). Nil is none.
 	Servers func(agent string) []procload.Server
+	// SwitchOffer is the card offering a waiting agent the closest account, nil for none. It stands only when no other need does. Nil is never.
+	SwitchOffer func(agent string) *NeedsYou
+	// LimitDialogOwned is whether the dialog on agent's screen is the usage-limit one and the daemon is handling that wall, so it is no
+	// person's to answer. Nil is never.
+	LimitDialogOwned func(agent string) bool
 }
 
 // Job is one BackgroundJob: kind shell, monitor or subagent, its label, when it started, and for a subagent whether the turn waits on it.
@@ -242,14 +251,14 @@ func (e *Env) needs(agent string) *NeedsYou {
 }
 
 // word is the state word the screens draw (RUNNING, IDLE, PENDING, MOVING, DIALOG, FATAL) and its detail.
-func (e *Env) word(agent string, row *db.AgentState, now int64, needs *NeedsYou) (string, string) {
+func (e *Env) word(agent string, row *db.AgentState, now int64, needs *NeedsYou, prompt *prompts.Block) (string, string) {
 	if row == nil {
 		return "IDLE", ""
 	}
-	if b := must(e.OpenBlockOf(agent)); b != nil {
-		return "DIALOG", clip(textsafe.Oneline(promptHeadline(b)), DetailCap)
+	if prompt != nil {
+		return "DIALOG", clip(textsafe.Oneline(promptHeadline(prompt)), DetailCap)
 	}
-	if needs != nil {
+	if needs != nil && needs.Kind != dialogs.SwitchOffer { // the wait goes on by itself, so its state stays the wait's
 		return "DIALOG", clip(textsafe.Oneline(needs.Text), DetailCap)
 	}
 	state, detail := row.State, row.Detail.String
@@ -369,7 +378,18 @@ func (e *Env) Compute(agent string) (view map[string]any, err error) {
 	if row != nil {
 		needs = e.needs(agent)
 	}
-	word, detail := e.word(agent, row, now, needs)
+	prompt := must(e.OpenBlockOf(agent))
+	blockRow := must(db.BlockGet(e.Q, agent))
+	if e.ownsLimitDialog(agent, row, needs, prompt, blockRow) {
+		prompt, blockRow = nil, nil
+		if needs != nil && needs.Source != "daemon" {
+			needs = nil
+		}
+	}
+	if needs == nil && row != nil && e.SwitchOffer != nil {
+		needs = e.SwitchOffer(agent)
+	}
+	word, detail := e.word(agent, row, now, needs, prompt)
 	if word == "IDLE" && detail == "" && row != nil {
 		wait := must(db.ChildWait(e.Q, agent))
 		if wait == "" {
@@ -394,7 +414,7 @@ func (e *Env) Compute(agent string) (view map[string]any, err error) {
 		}
 	}
 	var block, blocker any
-	if b := must(db.BlockGet(e.Q, agent)); b != nil && now >= b.ShowAt {
+	if b := blockRow; b != nil && now >= b.ShowAt {
 		block = map[string]any{"kind": b.Kind, "since": stamp(b.Since)}
 		blocker = clip(textsafe.Oneline(session.Headline(b.Kind, b.Detail)), DetailCap)
 	}
@@ -460,8 +480,45 @@ func (e *Env) Compute(agent string) (view map[string]any, err error) {
 		"would_wake": row != nil && must(e.WouldWake(row)),
 		"blocker":    blocker, "account": account, "task": task, "cache_until": cache, "ctx_pct": ctx,
 		"has_dialog": word == "DIALOG", "parent": parent, "needs_you": needsView(needs), "handoff": handoff, "doing": doing,
-		"status": st.Map(), "background": jobsView(jobs), "servers": e.servers(agent),
+		"account_switch": must(e.switchView(row, now)), "status": st.Map(), "background": jobsView(jobs), "servers": e.servers(agent),
 	}, nil
+}
+
+// ownsLimitDialog is whether what would say a person must answer is only the usage-limit dialog the daemon is handling. The screen is read
+// only when something says a dialog is up. A stalled agent is out of the daemon's hands, and a modal is the one block a dialog makes.
+func (e *Env) ownsLimitDialog(agent string, row *db.AgentState, needs *NeedsYou, prompt *prompts.Block, b *db.Block) bool {
+	if e.LimitDialogOwned == nil || row == nil || row.State == states.Stalled {
+		return false
+	}
+	raised := prompt != nil || (needs != nil && needs.Source != "daemon") || (b != nil && b.Kind == term.Modal)
+	return raised && e.LimitDialogOwned(agent)
+}
+
+// causeWord is a trigger's word as the wire says it (handoffView's and AgentView.account_switch's cause).
+func causeWord(kind string) string {
+	switch kind {
+	case "context":
+		return "context_full"
+	case "forced":
+		return "move"
+	}
+	return kind
+}
+
+// switchView is AgentView.account_switch, nil when the agent is in none. until is the wake of a wait.
+func (e *Env) switchView(row *db.AgentState, now int64) (any, error) {
+	s, err := db.LiveSwitch(e.Q, row, now)
+	if err != nil || s == nil {
+		return nil, err
+	}
+	var to, until any
+	if s.To != "" {
+		to = s.To
+	}
+	if s.Phase == db.SwitchWaiting {
+		until = stamp(row.WakeAt.Int64)
+	}
+	return map[string]any{"cause": causeWord(s.Cause), "phase": s.Phase, "from": s.From, "to": to, "since": stamp(s.Since), "until": until}, nil
 }
 
 // wallBanner is the chat's limit banner: the wait the agent's wake is in, nil while it moves to another account or the limit holds nothing
@@ -486,7 +543,11 @@ func needsView(n *NeedsYou) any {
 	if t := clip(textsafe.Oneline(n.Text), needsTextCap); t != "" {
 		text = t
 	}
-	return map[string]any{"kind": n.Kind, "since": stamp(n.Since), "title": clip(textsafe.Oneline(n.Title), titleCap), "text": text, "source": n.Source}
+	v := map[string]any{"kind": n.Kind, "since": stamp(n.Since), "title": clip(textsafe.Oneline(n.Title), titleCap), "text": text, "source": n.Source}
+	if n.Account != "" {
+		v["account"] = n.Account
+	}
+	return v
 }
 
 const upsert = "INSERT INTO agent_view(agent, view, updated) VALUES(?, ?, ?) " +
@@ -555,13 +616,7 @@ func (e *Env) handoffView(agent string, row *db.AgentState, now int64) (any, err
 		return nil, err
 	}
 	view := func(kind, phase string, since int64) any {
-		switch kind {
-		case "context":
-			kind = "context_full"
-		case "forced":
-			kind = "move"
-		}
-		return map[string]any{"cause": kind, "phase": phase, "since": stamp(since)}
+		return map[string]any{"cause": causeWord(kind), "phase": phase, "since": stamp(since)}
 	}
 	if h != nil && h.State == "in_flight" {
 		since := h.Updated

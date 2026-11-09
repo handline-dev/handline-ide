@@ -2,6 +2,7 @@ package compose
 
 import (
 	"encoding/json"
+	"github.com/handline/handline/go/scheduler/tick"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -321,6 +322,30 @@ func TestEveryKindASessionSaysHasAShortTitle(t *testing.T) {
 		kind := peerinbox.Session{Status: "waiting", WaitingFor: waiting}.NeedsKind()
 		if title := titles[kind]; title == "" || utf8.RuneCountInString(title) > 40 {
 			t.Errorf("%s (%s): %q", waiting, kind, title)
+		}
+	}
+}
+
+func TestTheLimitDialogIsTheDaemonsOnlyWhileItCanActOnIt(t *testing.T) {
+	wall := tick.Trigger{Fired: true, Kind: "usage"}
+	for _, c := range []struct {
+		name    string
+		atLimit bool
+		t       tick.Trigger
+		ago     int64
+		failed  bool
+		want    bool
+	}{
+		{"its last turn ended on the limit", true, tick.Trigger{}, 0, false, true},
+		{"the 5-hour reading fires", false, wall, 0, false, true},
+		{"the weekly reading fires", false, tick.Trigger{Fired: true, Kind: "usage_7d"}, 0, false, true},
+		{"another trigger fires", false, tick.Trigger{Fired: true, Kind: "context"}, 0, false, false},
+		{"nothing fires", false, tick.Trigger{}, 0, false, false},
+		{"a close just failed", true, wall, closeTriesBackS - 1, true, false},
+		{"a close failed a while ago", true, wall, closeTriesBackS, true, true},
+	} {
+		if got := limitHandled(c.atLimit, c.t, c.ago, c.failed); got != c.want {
+			t.Errorf("%s: %v", c.name, got)
 		}
 	}
 }

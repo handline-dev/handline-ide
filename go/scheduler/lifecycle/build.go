@@ -261,6 +261,12 @@ func (l *Launcher) Prepare(site *Site, agent string, extra []string, force bool,
 	}
 	argv, env, err := l.Build(site, agent, append([]string(nil), extra...), force, account)
 	if err != nil {
+		var refused *Refusal
+		if errors.As(err, &refused) {
+			if _, aerr := db.AddEvent(l.Q, agent, LaunchRefusedKind, db.KV{K: "why", V: refused.Msg}); aerr != nil {
+				return nil, aerr
+			}
+		}
 		return nil, err
 	}
 	prompt := TakePrompt(promptFile)

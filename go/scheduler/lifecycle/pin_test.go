@@ -72,6 +72,16 @@ func TestAPinnedAgentWhoseAccountCannotTakeItWaitsWithThatAccountsReason(t *test
 	}
 }
 
+func TestARefusedLaunchIsRecorded(t *testing.T) {
+	r := pinRig(t, "account: nowhere\n")
+	if _, err := r.l.Prepare(&Site{Cwd: t.TempDir()}, "ann", nil, false, "", "", "", ""); err == nil {
+		t.Fatal("it was not refused")
+	}
+	if _, ok, _ := db.LastEventID(r.l.Q, "ann", LaunchRefusedKind); !ok {
+		t.Fatal("the refusal left no event")
+	}
+}
+
 func TestAPinToAnotherVendorsAccountIsRefusedNamingBoth(t *testing.T) {
 	r := pinRig(t, "account: a\n")
 	r.l.Ports.Vendors = pinVendors{of: map[string]string{"a": "opencode", "b": "claude"}}

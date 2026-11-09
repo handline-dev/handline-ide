@@ -3,6 +3,7 @@ package lifecycle
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"strings"
 
 	"github.com/handline/handline/go/agentctl/verdict"
@@ -61,6 +62,8 @@ type MoveEnv struct {
 	AtLimit func(q db.Q, agent string) (at int64, ok bool)
 	// NoteHold is handoff_note.hold: the ask is out and the note not yet in.
 	NoteHold func(q db.Q, agent string, now int64) bool
+	// LimitDialogOpen is whether the usage-limit dialog is on the agent's screen: the turn behind it is over, whatever the session says.
+	LimitDialogOpen func(agent string) bool
 	// BackgroundWork is what the agent's session still runs behind its prompt, "" for nothing.
 	BackgroundWork func(q db.Q, agent string) string
 	// ContextUse is the context used and its limit, used < 0 when unknown.
@@ -117,10 +120,16 @@ func lastLeft(q db.Q, agent string) string {
 // never back to the account it just left before that resets, so one wall is one move.
 func (v *Mover) MovePlan(agent, kind string, starting bool) (dest, why string, err error) {
 	defer catch(&err)
+	dest, why, _ = v.plan(agent, kind, starting)
+	return dest, why, nil
+}
+
+// plan is MovePlan; roomless says the policy wanted a move and no account has room for it.
+func (v *Mover) plan(agent, kind string, starting bool) (dest, why string, roomless bool) {
 	m := v.M
 	here, _, ok := v.E.Reading(m.Q, agent)
 	if !ok || here == "" {
-		return "", "no account is recorded for it", nil
+		return "", "no account is recorded for it", false
 	}
 	now := m.now()
 	w := v.E.Windows(here)
@@ -142,21 +151,27 @@ func (v *Mover) MovePlan(agent, kind string, starting bool) (dest, why string, e
 			s.TurnEndedS = &ago
 		}
 		if move, why := v.E.StayOrMove(s); !move {
-			return "", why, nil
-		}
-	}
-	exclude := map[string]string{here: "the account it is at the wall on"}
-	if left := lastLeft(m.Q, agent); left != "" && left != here {
-		if r := v.E.Windows(left).ShortReset; r > now {
-			exclude[left] = "the account it just left, until it resets"
+			return "", why, false
 		}
 	}
 	row := must(db.GetAgentState(m.Q, agent))
-	dest, why = m.Launch.RoomElsewhere(m.Q, agent, row, exclude)
+	dest, why = m.Launch.RoomElsewhere(m.Q, agent, row, v.moveExclude(agent, here))
 	if dest == "" {
-		return "", why, nil
+		return "", why, true
 	}
-	return dest, "it has room", nil
+	return dest, "it has room", false
+}
+
+// moveExclude is the accounts a move never goes to: the one at the wall, and the one it just left until that resets.
+func (v *Mover) moveExclude(agent, here string) map[string]string {
+	m := v.M
+	exclude := map[string]string{here: "the account it is at the wall on"}
+	if left := lastLeft(m.Q, agent); left != "" && left != here {
+		if r := v.E.Windows(left).ShortReset; r > m.now() {
+			exclude[left] = "the account it just left, until it resets"
+		}
+	}
+	return exclude
 }
 
 // forcedPlan holds a person's chosen destination to the same room test.
@@ -183,7 +198,9 @@ func (v *Mover) closeFresh(agent string) (bool, string) {
 }
 
 // moveToRoom puts the agent's next session on an account that has room. (moved, retrySoon); retrySoon is meaningful only when not moved:
-// a destination existed, so what stopped the move is about this session now and not about the accounts.
+// a destination existed, so what stopped the move is about this session now and not about the accounts. An account whose launch was refused
+// is left out and the next tried at once. Any other failed start says nothing against the account, and may yet come up: another launch now
+// could make a second session, so it waits for the retry. A person's chosen dest has no next.
 func (v *Mover) moveToRoom(agent string, t HandoffTrigger, dest string) (moved, retrySoon bool) {
 	m := v.M
 	if !MovableTrigger(t.Kind) {
@@ -205,20 +222,50 @@ func (v *Mover) moveToRoom(agent string, t HandoffTrigger, dest string) (moved, 
 	if !m.sessionAlive(agent) {
 		return false, true
 	}
+	waited := must(db.GetSwitch(m.Q, agent))
+	m.noteSwitch(agent, t.Kind, here, there, db.SwitchSwitching)
 	if ok, why := v.closeFresh(agent); !ok {
 		v.log("  %s: staying on %s - %s", agent, here, why)
+		if waited != nil && waited.Phase == db.SwitchWaiting { // the tick's try off a parked account: the wait goes on
+			check(db.SetSwitch(m.Q, *waited))
+			m.refreshView(agent)
+		}
 		return false, true
 	}
+	failed := map[string]string{}
+	for {
+		refusedBefore, _ := must2(db.LastEventID(m.Q, agent, LaunchRefusedKind))
+		ok, wakeWhy := v.land(agent, t, here, there, why, false)
+		if ok {
+			return true, false
+		}
+		v.log("  %s: closed on %s but could not start on %s: %s", agent, here, there, clip(wakeWhy, 120))
+		refused, _ := must2(db.LastEventID(m.Q, agent, LaunchRefusedKind))
+		if dest != "" || refused <= refusedBefore || must(db.GetAgentState(m.Q, agent)).State == states.Stalled {
+			return false, true
+		}
+		failed[there] = wakeWhy
+		exclude := v.moveExclude(agent, here)
+		maps.Copy(exclude, failed)
+		if there, _ = m.Launch.RoomElsewhere(m.Q, agent, must(db.GetAgentState(m.Q, agent)), exclude); there == "" {
+			return false, true
+		}
+	}
+}
+
+// land starts the next session of an agent whose last one has closed on there, and records the move. False when nothing started: the row
+// still says closed, and parking it with a deadline is what brings a closed agent back. pastFit is a person's choice past the room test.
+func (v *Mover) land(agent string, t HandoffTrigger, here, there, why string, pastFit bool) (bool, string) {
+	m := v.M
+	m.noteSwitch(agent, t.Kind, here, there, db.SwitchStarting)
 	// HANDOFF protects the session that just ended; it comes off before the wake so the new session's own first turn can set RUNNING.
 	check(db.SetParked(m.Q, agent, states.Queued, 0, string(verdict.ParkMoving), fmt.Sprintf("%s %s -> %s", states.MovingMark, here, there)))
 	m.Agents.MeasureBegin(m.Q, agent, there)
-	woke, wakeWhy := m.wakeAgent(agent, WakeOpts{MovedTo: there})
+	woke, wakeWhy := m.wakeAgent(agent, WakeOpts{MovedTo: there, PastFit: pastFit, Person: pastFit})
 	landed := must(db.GetAgentState(m.Q, agent))
 	if !woke && landed != nil && landed.State != states.Running && isClosed(landed) {
-		// Nothing started: the row still says closed, and parking it with a deadline is what brings a closed agent back.
 		v.E.MeasureForget(m.Q, agent)
-		v.log("  %s: closed on %s but could not start on %s: %s", agent, here, there, clip(wakeWhy, 120))
-		return false, true
+		return false, wakeWhy
 	}
 	check(db.SetAccount(m.Q, agent, there, ""))
 	hookRunning := !must(db.SetStateUnlessRunning(m.Q, agent, states.Queued, fmt.Sprintf("moved %s -> %s (%s)", here, there, t.Kind)))
@@ -233,7 +280,7 @@ func (v *Mover) moveToRoom(agent string, t HandoffTrigger, dest string) (moved, 
 	}
 	must(db.AddEvent(m.Q, agent, "moved_account", db.KV{K: "from", V: here}, db.KV{K: "to", V: there}, db.KV{K: "trigger", V: t.Kind}))
 	v.log("  %s: moved %s -> %s (%s) - %s%s", agent, here, there, t.Kind, why, ifTrue(!woke && !hookRunning, " - but it was not handed its handoff: "+clip(wakeWhy, 80)))
-	return true, false
+	return true, ""
 }
 
 func clip(s string, n int) string {
@@ -270,6 +317,9 @@ func (v *Mover) PerformHandoff(agent string, t HandoffTrigger, dest string) (ok 
 	_ = m.Q.QueryRow("SELECT MAX(updated) FROM handoff WHERE agent = ?", agent).Scan(&last)
 	if last != nil && t.Kind != "forced" && t.Kind != LoginTrigger && t.Kind != EndedTrigger && now-*last < states.MinHandoffIntervalS {
 		v.log("  %s: %s fired again %ds after the last handoff - too soon, skipping", agent, t.Kind, now-*last)
+		if usageTrigger(t.Kind) && m.sessionAlive(agent) {
+			v.saving(agent, t.Kind)
+		}
 		return true, nil
 	}
 	if !m.sessionAlive(agent) {
@@ -279,7 +329,7 @@ func (v *Mover) PerformHandoff(agent string, t HandoffTrigger, dest string) (ok 
 	// A turn that ended on the usage limit and has stayed quiet is over, whatever else says; one that ended on an expired login is over at
 	// once. Sooner than that a person or the agent may be mid-turn.
 	stoppedAt, stopped := v.E.AtLimit(m.Q, agent)
-	settled := t.Kind == LoginTrigger || (stopped && now-stoppedAt >= states.LimitSettleS)
+	settled := t.Kind == LoginTrigger || (stopped && now-stoppedAt >= states.LimitSettleS) || (usageTrigger(t.Kind) && v.E.LimitDialogOpen(agent))
 	busy := m.sessionBusy
 	if t.Kind == "context" {
 		busy = m.turnBusy // only a context clear has its own wait for background work (reclaim)
@@ -288,6 +338,7 @@ func (v *Mover) PerformHandoff(agent string, t HandoffTrigger, dest string) (ok 
 		if t.Kind != "forced" {
 			v.log("  %s: %s fired but the agent is mid-turn - deferring", agent, t.Kind)
 			check(db.MarkDeferred(m.Q, agent, now))
+			v.saving(agent, t.Kind)
 			return true, nil
 		}
 		return false, fmt.Errorf("%s: the forced move did not happen: a terminal's turn cannot be interrupted without typing", agent)
@@ -297,6 +348,7 @@ func (v *Mover) PerformHandoff(agent string, t HandoffTrigger, dest string) (ok 
 	if t.Kind != "forced" && t.Kind != LoginTrigger && !settled && v.E.NoteHold(m.Q, agent, now) {
 		v.log("  %s: %s fired - waiting for its handoff note", agent, t.Kind)
 		check(db.MarkNoteWait(m.Q, agent, t.Kind, now))
+		v.saving(agent, t.Kind)
 		return true, nil
 	}
 	return v.perform(agent, t, dest), nil
@@ -307,6 +359,7 @@ func (v *Mover) perform(agent string, t HandoffTrigger, dest string) bool {
 	hid := newHandoffID()
 	check(db.ClearNoteWait(m.Q, agent))
 	check(db.ClearDeferred(m.Q, agent))
+	v.saving(agent, t.Kind)
 	acct := m.Agents.CurrentAccount(m.Q, agent)
 	st := m.Status.ReadForAgent(agent, acct)
 	check(db.StartHandoff(m.Q, hid, agent, st.SessionID, t.Kind, m.now()+states.HandoffDeadlineS))
@@ -329,6 +382,10 @@ func (v *Mover) perform(agent string, t HandoffTrigger, dest string) bool {
 		}
 		return ok
 	}
+	if landed := must(db.GetAgentState(m.Q, agent)); landed != nil && landed.State == states.Stalled {
+		released("stalled on the move") // a park would overwrite what the founder has to see
+		return false
+	}
 	if landed := must(db.GetAgentState(m.Q, agent)); t.Kind == "forced" && landed != nil && !isClosed(landed) {
 		// Nothing was ended, so there is nothing to park. The record this attempt took would be injected at the next start as
 		// "you were interrupted"; the row goes back as it was.
@@ -338,6 +395,7 @@ func (v *Mover) perform(agent string, t HandoffTrigger, dest string) bool {
 			check(db.SetHandoff(m.Q, agent, prior))
 		}
 		check(db.AdvanceHandoff(m.Q, hid, "released", "degraded", "forced move did not happen"))
+		check(db.ClearSwitch(m.Q, agent))
 		check(db.SetAgentState(m.Q, agent, states.Idle, 0, "forced move did not happen"))
 		return false
 	}
@@ -515,6 +573,7 @@ func (v *Mover) park(agent string, t HandoffTrigger, hid string, ok, cleared, re
 		check(db.AdvanceHandoff(m.Q, hid, "released", ifTrue(ok, "done")+ifTrue(!ok, "degraded"), ""))
 	}
 	check(db.SetParked(m.Q, agent, states.Parked, wake, string(reason), fmt.Sprintf("%s; wakes at %s", label, timefmt.Stamp(wake, timefmt.Clock))))
+	v.parkedSwitch(agent, t.Kind, acct, reason, wake)
 	var acctV, srcV any
 	if have {
 		acctV, srcV = acct, source
@@ -564,6 +623,7 @@ func (v *Mover) ResumeHandoff(row db.HandoffRow) (err error) {
 		label = states.MovingMark
 	}
 	check(db.SetParked(m.Q, agent, states.Parked, wake, string(reason), fmt.Sprintf("%s; wakes at %s", label, timefmt.Stamp(wake, timefmt.Clock))))
+	v.parkedSwitch(agent, kind, acct, reason, wake)
 	var acctV, srcV any
 	if have {
 		acctV, srcV = acct, source

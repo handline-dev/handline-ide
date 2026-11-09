@@ -18,11 +18,34 @@ type moveLaunch struct {
 	dest, why string
 	excluded  map[string]string
 	roomOn    string
+	// next is the room test once a start has failed, closest and pastFit the answers past the room test, wait what holds a wake back.
+	next            func(exclude map[string]string) string
+	closest         string
+	excludedClosest map[string]string
+	pastFit         string
+	wait            *WakeWait
+	lastAccount     string
+	q               db.Q
+	asked           int
 }
 
 func (l *moveLaunch) RoomElsewhere(_ db.Q, _ string, _ *db.AgentState, ex map[string]string) (string, string) {
 	l.excluded = ex
+	if l.asked++; l.asked > 1 && l.next != nil {
+		return l.next(ex), l.why
+	}
 	return l.dest, l.why
+}
+func (l *moveLaunch) ClosestRoom(_ db.Q, _ string, _ *db.AgentState, ex map[string]string) string {
+	l.excludedClosest = ex
+	return l.closest
+}
+func (l *moveLaunch) RoomPastFit(db.Q, string, *db.AgentState, string) string { return l.pastFit }
+func (l *moveLaunch) WakeWait(db.Q, string, *db.AgentState) *WakeWait         { return l.wait }
+func (l *moveLaunch) DescribeWakeWait(*WakeWait) string                       { return "held back" }
+func (l *moveLaunch) CommandFor(agent, account, why, by string) (string, error) {
+	l.lastAccount = account
+	return l.fakeLaunch.CommandFor(agent, account, why, by)
 }
 func (l *moveLaunch) RoomOn(db.Q, string, *db.AgentState, string) string { return l.roomOn }
 
@@ -38,16 +61,17 @@ type moveRig struct {
 func newMoveRigOn(m *Manager, l *moveLaunch) *moveRig {
 	rig := &moveRig{m: m, l: l}
 	rig.v = &Mover{M: m, E: MoveEnv{
-		Reading:        func(db.Q, string) (string, string, bool) { return "acct", "recorded", true },
-		Windows:        func(string) Windows { return Windows{} },
-		ColdStartPct:   func(db.Q) *float64 { return nil },
-		AtLimit:        func(db.Q, string) (int64, bool) { return 0, false },
-		NoteHold:       func(db.Q, string, int64) bool { return false },
-		BackgroundWork: func(db.Q, string) string { return rig.bg },
-		ContextUse:     func(db.Q, string) (int, int) { return 190000, 200000 },
-		MeasureForget:  func(db.Q, string) {},
-		StayOrMove:     func(staymove.Situation) (bool, string) { return true, "" },
-		WakeAfter:      func(_ string, short, _, now int64) int64 { return now + 1000 },
+		Reading:         func(db.Q, string) (string, string, bool) { return "acct", "recorded", true },
+		Windows:         func(string) Windows { return Windows{} },
+		ColdStartPct:    func(db.Q) *float64 { return nil },
+		AtLimit:         func(db.Q, string) (int64, bool) { return 0, false },
+		NoteHold:        func(db.Q, string, int64) bool { return false },
+		BackgroundWork:  func(db.Q, string) string { return rig.bg },
+		LimitDialogOpen: func(string) bool { return false },
+		ContextUse:      func(db.Q, string) (int, int) { return 190000, 200000 },
+		MeasureForget:   func(db.Q, string) {},
+		StayOrMove:      func(staymove.Situation) (bool, string) { return true, "" },
+		WakeAfter:       func(_ string, short, _, now int64) int64 { return now + 1000 },
 	}}
 	return rig
 }

@@ -382,7 +382,7 @@
         "type": "null"
        }
       ],
-      "description": "Set while the agent waits on a decision only a person at its terminal can make. Fed by hooks (PermissionRequest and the permission and question Notification kinds) and by the session file saying status `waiting` with `waitingFor` (`permission prompt` is the one measured; the file has no needs or tempo key), never by reading the screen; the tool and its target come from the PermissionRequest hook event; cleared by the hook that follows (PostToolUse, UserPromptSubmit, Stop, SessionEnd) or when the session file stops saying it. While set, `state` is `waiting`, `has_dialog` is true and `attention` is `alert`. null when none."
+      "description": "Set while the agent waits on a decision only a person at its terminal can make. Fed by hooks (PermissionRequest and the permission and question Notification kinds) and by the session file saying status `waiting` with `waitingFor` (`permission prompt` is the one measured; the file has no needs or tempo key), never by reading the screen; the tool and its target come from the PermissionRequest hook event; cleared by the hook that follows (PostToolUse, UserPromptSubmit, Stop, SessionEnd) or when the session file stops saying it. While set, except for kind `switch_offer`, `state` is `waiting`, `has_dialog` is true and `attention` is `alert`. null when none."
      },
      "handoff": {
       "oneOf": [
@@ -424,6 +424,71 @@
        }
       ],
       "description": "Set while a session hands off or restarts, so a chat that sits still can say why. Cleared when the new session's start item appears. Every change is an agent.changed. A handoff that waits for a usage window to reset shows `writing` only; it is not `starting` until a launch is due. null when none. Absent from a daemon that does not serve it."
+     },
+     "account_switch": {
+      "oneOf": [
+       {
+        "type": "object",
+        "properties": {
+         "cause": {
+          "type": "string",
+          "description": "Why it is switching, in the words of handoff.cause: `usage`, `usage_7d`, `usage_early`, `move` for a person's order, `login`, `ended`, `pinned`. An open set."
+         },
+         "phase": {
+          "type": "string",
+          "enum": [
+           "saving",
+           "switching",
+           "starting",
+           "waiting"
+          ],
+          "description": "`saving`: the limit was reached and its progress is being saved; `to` is not decided. `switching`: the old session is closing for `to`. `starting`: the session on `to` is launching. `waiting`: it stays on `from` until `until`, because the account resets soon or no account has room."
+         },
+         "from": {
+          "type": "string",
+          "description": "The account it is leaving, or waits on."
+         },
+         "to": {
+          "oneOf": [
+           {
+            "type": "string"
+           },
+           {
+            "type": "null"
+           }
+          ],
+          "description": "The account it goes to, null while saving or waiting."
+         },
+         "since": {
+          "$ref": "#/components/schemas/Timestamp",
+          "description": "When this phase began."
+         },
+         "until": {
+          "oneOf": [
+           {
+            "$ref": "#/components/schemas/Timestamp"
+           },
+           {
+            "type": "null"
+           }
+          ],
+          "description": "When a wait ends, null for any other phase."
+         }
+        },
+        "required": [
+         "cause",
+         "phase",
+         "from",
+         "to",
+         "since",
+         "until"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "The account switch the agent is in, from the limit being reached until the new session has started, written as each step begins; every step is an agent.changed. null when none. Absent from a daemon that does not serve it."
      },
      "last_to_founder": {
       "oneOf": [
@@ -998,9 +1063,10 @@
        "stuck",
        "trust",
        "start_failed",
-       "no_session"
+       "no_session",
+       "switch_offer"
       ],
-      "description": "permission: a tool or a folder waits for a yes. question: the agent asked the person something. usage: the session limit's choice. dialog: any other (a start-up dialog the daemon will not answer included), and any the daemon does not know: unknown is a person. stuck: the daemon retried, restarted and relaunched the agent and it is still stuck: one card, gone when the trouble is. trust: the vendor waits at its folder-trust screen. start_failed: the last starts failed and the agent is stalled. no_session: wakes were made and no session started. The same event is never two cards, and a load hold is never stuck."
+      "description": "permission: a tool or a folder waits for a yes. question: the agent asked the person something. usage: the session limit's choice, only while the daemon is not handling that limit itself (x-dialogs usage_limit_choice). dialog: any other (a start-up dialog the daemon will not answer included), and any the daemon does not know: unknown is a person. stuck: the daemon retried, restarted and relaunched the agent and it is still stuck: one card, gone when the trouble is. trust: the vendor waits at its folder-trust screen. start_failed: the last starts failed and the agent is stalled. no_session: wakes were made and no session started. switch_offer: the agent is parked at its usage limit because no account has room to spare, and it may start on `account` now (agent.switch_now). Not answering keeps it waiting, so unlike every other kind it does not set `state` to `waiting` or `has_dialog`, and it tells no stall. The same event is never two cards, and a load hold is never stuck."
      },
      "since": {
       "$ref": "#/components/schemas/Timestamp"
@@ -1008,7 +1074,7 @@
      "title": {
       "type": "string",
       "maxLength": 40,
-      "description": "The card's title: plain, one line, at most 40 characters, chosen from the kind and where it came from. daemon: 'Waiting for folder trust' (trust), 'Stuck at a start-up dialog' (a start-up dialog it will not answer), 'Stuck at a dialog' (a dialog it cannot get past), 'Stuck after restarts' (stuck), 'Won't start' (start_failed), 'Woke but didn't start' (no_session). hook, session: 'Waiting for your OK' (permission), 'Asked you a question' (question), 'Usage limit: choose what to do' (usage), 'Waiting at a dialog' (dialog)."
+      "description": "The card's title: plain, one line, at most 40 characters, chosen from the kind and where it came from. daemon: 'Waiting for folder trust' (trust), 'Stuck at a start-up dialog' (a start-up dialog it will not answer), 'Stuck at a dialog' (a dialog it cannot get past), 'Stuck after restarts' (stuck), 'Won't start' (start_failed), 'Woke but didn't start' (no_session), 'No account has room to spare' (switch_offer). hook, session: 'Waiting for your OK' (permission), 'Asked you a question' (question), 'Usage limit: choose what to do' (usage), 'Waiting at a dialog' (dialog)."
      },
      "text": {
       "oneOf": [
@@ -1030,6 +1096,10 @@
        "daemon"
       ],
       "description": "hook: the PermissionRequest hook. notification: Claude Code's Notification hook, a prompt nobody answered. session: the session's own file (sessions/<pid>.json status waiting and waitingFor). daemon: the daemon's own record (a start-up dialog it will not answer, a dialog it cannot get past, an agent it could not heal); never a task."
+     },
+     "account": {
+      "type": "string",
+      "description": "The account a switch_offer offers, the one closest to having room, asked again at each change of the view. Absent for any other kind."
      }
     },
     "required": [
@@ -1506,7 +1576,10 @@
      "description": "How the restart that applies a changed setting to a live session goes: resume (the same conversation, the default) or fresh (a handoff note, then a new conversation).",
      "schema": {
       "type": "string",
-      "enum": ["resume", "fresh"]
+      "enum": [
+       "resume",
+       "fresh"
+      ]
      }
     },
     {
@@ -1629,6 +1702,56 @@
    "x-app-write": {
     "kind": "decided",
     "label": "move"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    }
+   ]
+  },
+  {
+   "name": "agent.switch_now",
+   "summary": "Start an agent waiting at its usage limit on the account a person chose, or the one with the most room, now: the answer to a needs_you of kind switch_offer. Only the room test is skipped: an account at a limit, one with no free slot and a pin still refuse.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "agent",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/AgentName"
+     }
+    },
+    {
+     "name": "account",
+     "required": false,
+     "schema": {
+      "type": "string"
+     },
+     "description": "The account to start on; absent, the one with the most room."
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Accepted"
+    }
+   },
+   "x-role": "agent",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "switch"
    },
    "x-since": 1,
    "errors": [
