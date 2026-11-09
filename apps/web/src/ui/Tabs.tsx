@@ -2,6 +2,7 @@ import { howOf, type How } from '#src/layout/openTab.tsx';
 import { Plus, X } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { IconButton } from '#src/ui/IconButton.tsx';
+import { useSpringOpen } from '#src/ui/springOpen.ts';
 import { ContextMenu, Menu, MenuItem, MenuSeparator } from '#src/ui/Menu.tsx';
 
 /** `closable: false` pins a tab: no close button, and onClose is never called for it. `dot`: what marks it right of its label. */
@@ -23,8 +24,11 @@ export function Tab({
 }) {
   const closable = tab.closable !== false;
   const draggable = closable && !!onDragStart;
+  // Files held over a tab bring it up, so they can be dropped in it.
+  const spring = useSpringOpen(onSelect);
   return (
     <div
+      {...spring.props}
       role="tab"
       draggable={draggable}
       onDragStart={draggable ? onDragStart : undefined}

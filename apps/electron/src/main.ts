@@ -6,7 +6,7 @@ import { app, BrowserWindow, desktopCapturer, dialog, ipcMain, Notification, ses
 import { DaemonClient } from '@handline/client';
 import { unixSocketTransport } from '@handline/client-node';
 import { drawsTray, inBackground } from '#src/background.ts';
-import { isDebugWindow, isTerminalWindow } from '#src/debug-window.ts';
+import { isDebugWindow } from '#src/debug-window.ts';
 import { setMenu } from '#src/menu.ts';
 import { Desk } from '#src/desk.ts';
 import { Composer, LOGIN_PROBE, loginAnswer, sweepTemp, type EditorEnv } from '#src/editor.ts';
@@ -318,14 +318,13 @@ function createWindow(origin: string, onReady: () => void, frame: Frame | null):
 
 /**
  * The window shows the app and nothing else: a link goes to the browser (http/https only), and the window never leaves the loopback
- * origin. The windows the page may open are the debug window and an agent's terminal window, on the same origin and with the
- * same preferences, and they are confined the same way.
+ * origin. The one window the page may open is the debug window, on the same origin and with the same preferences, and it is
+ * confined the same way.
  */
 function confine(contents: WebContents, origin: string): void {
   contents.setWindowOpenHandler(({ url }) => {
     if (isDebugWindow(url, origin))
       return { action: 'allow', overrideBrowserWindowOptions: { width: 1280, height: 820, title: 'Terminals (debug)' } };
-    if (isTerminalWindow(url, origin)) return { action: 'allow', overrideBrowserWindowOptions: { width: 960, height: 640 } };
     if (/^https?:\/\//.test(url)) void shell.openExternal(url);
     return { action: 'deny' };
   });

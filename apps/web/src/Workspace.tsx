@@ -15,7 +15,18 @@ import { useCallback, useEffect, useRef, useState, type DragEvent, type ReactNod
 import { Boundary, brokenView } from '#src/ui/Boundary.tsx';
 import { canonical, choices, iconOf, labelOf, shellHandle, shellOf } from '#src/layout/kinds.tsx';
 import { toast } from '#src/ui/toast.tsx';
-import { hasFixed, isOpen, panes, type Action, type Edge, type Node, type Pane, type Split, type Target } from '#src/layout/tree.ts';
+import {
+  hasFixed,
+  isOpen,
+  panes,
+  whereTo,
+  type Action,
+  type Edge,
+  type Node,
+  type Pane,
+  type Split,
+  type Target,
+} from '#src/layout/tree.ts';
 import { Button } from '#src/ui/Button.tsx';
 import { InsertLine, isTabDrag, readTabDrag, slotAt, startTabDrag, zoneAt, ZoneHighlight, type Zone } from '#src/ui/dnd.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
@@ -54,16 +65,12 @@ function dropTo(e: DragEvent, to: Target, { root, agent, dispatch }: Context) {
   dispatch({ type: 'open', opens, title: labelOf(opens, agent), to });
 }
 
-/** Opens `opens` from pane `from`: here, a tab in that pane; beside, a tab in the pane after it, or a new split to its right when
- * it is the last. Something already open is brought up where it is, not opened twice. */
+/** Opens `opens` from pane `from`, where `how` asks (whereTo). Something already open is brought up where it is, not opened twice. */
 function openFrom({ root, agent, dispatch }: Context, from: string, kind: string, how: How = 'here') {
   const opens = canonical(kind, agent);
   const title = labelOf(opens, agent);
   if (isOpen(root, opens)) return dispatch({ type: 'show', opens, title });
-  if (how === 'here') return dispatch({ type: 'open', opens, title, to: { pane: from } });
-  const all = panes(root);
-  const next = all[all.findIndex((p) => p.id === from) + 1];
-  dispatch({ type: 'open', opens, title, to: next ? { pane: next.id } : { pane: from, edge: 'right' } });
+  dispatch({ type: 'open', opens, title, to: whereTo(root, from, how) });
 }
 
 /** An Empty tab's body: pick what it shows, from the same list as the tab bar's +. */
