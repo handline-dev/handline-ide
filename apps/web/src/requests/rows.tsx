@@ -1,6 +1,6 @@
 import { classify, sentence, useProposals, useTask, useWrite } from '@handline/app-data';
 import type { PendingRequest, RequestRow } from '@handline/client';
-import { isUnseen, laterKey, requestKey, tomorrowAt9, turnKey, type Picked } from '@handline/app-core';
+import { isUnseen, laterKey, requestRow, tomorrowAt9, turnKey, turnRow, type Picked } from '@handline/app-core';
 import {
   CircleCheck,
   CircleX,
@@ -87,12 +87,15 @@ function Line({
 }) {
   const pick = usePick();
   const picked = !!pick?.picked.has(row.key);
+  let hinted = '';
+  if (pick?.hint?.has(row.key)) hinted = 'ring-2 ring-accent ring-inset';
+  else if (pick?.hint && picked) hinted = 'opacity-50';
   const busy = !!pick?.busy.has(row.key);
   const open = openProps(onOpen, opens);
   const line = (
     // The check box sits beside the row's button, over its icon, not inside it: a box in a button is no box to the keyboard.
     <div
-      className={`group/line relative flex rounded-md ${picked ? 'bg-selected' : 'hover:bg-hover/30'} ${busy ? 'pointer-events-none opacity-50' : ''}`}
+      className={`group/line relative flex rounded-md ${picked ? 'bg-selected' : 'hover:bg-hover/30'} ${hinted} ${busy ? 'pointer-events-none opacity-50' : ''}`}
     >
       {pick && (
         <input
@@ -163,7 +166,7 @@ export function TurnLine({ p, onOpened, until }: { p: PendingRequest; onOpened?:
   return (
     <Line
       mark
-      row={{ key: turnKey(p), p }}
+      row={turnRow(p)}
       title={p.title}
       icon={turnIcon(p)}
       meta={[until ? `back ${until}` : ASK[p.kind], daemon ? 'daemon' : p.agent, p.task !== null && `T${p.task}`, p.ask, ago(p.last_at)]
@@ -204,7 +207,7 @@ export function RequestLine({ r, onOpened }: { r: RequestRow; onOpened?: () => v
   return (
     <Line
       mark={isUnseen(r)}
-      row={{ key: requestKey(r), r }}
+      row={requestRow(r)}
       icon={
         r.ended?.outcome === 'discarded' ? (
           <CircleSlash size={16} className="text-muted" />
@@ -270,7 +273,10 @@ function TurnQuick({ p }: { p: PendingRequest }) {
   const later = laterKey(p);
   if (!later) return null;
   return (
-    <IconButton label="Dismiss until tomorrow 09:00" onClick={() => void act.later([{ key: turnKey(p), later }], tomorrowAt9(Date.now()))}>
+    <IconButton
+      label="Dismiss until tomorrow 09:00"
+      onClick={() => void act.later([{ keys: [turnKey(p)], later }], tomorrowAt9(Date.now()))}
+    >
       <X size={14} />
     </IconButton>
   );
