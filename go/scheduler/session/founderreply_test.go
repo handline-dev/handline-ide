@@ -89,12 +89,11 @@ func TestAFoundersUnansweredMessageHoldsTheStopOncePerMessage(t *testing.T) {
 		t.Fatalf("an answered message is not nudged: %s", out)
 	}
 	stopped(106)
-	exec("UPDATE requests SET no_work = 'thanks' WHERE id = ?", typed(107))
 	exec("INSERT INTO tasks(id, title, owner, opened_by, created_at, from_request) VALUES(8, 'asked', 'a.one', 'human', 1, ?)", typed(108))
 	exec("INSERT INTO task_requests(task_id, request_id) VALUES(8, ?)", typed(109))
 	exec("UPDATE requests SET founder_auth = 0 WHERE id = ?", typed(109))
 	if out := stop(false); out != "" {
-		t.Fatalf("a no-work mark, a task made from it or linked to it, or a message not typed by the founder is no nudge: %s", out)
+		t.Fatalf("a task made from it or linked to it, or a message not typed by the founder is no nudge: %s", out)
 	}
 	third := typed(110)
 	if out := stop(true); out != "" {

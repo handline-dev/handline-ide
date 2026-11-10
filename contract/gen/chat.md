@@ -122,7 +122,7 @@ Reply to an item. From a person to a terminal agent it answers once the reply is
 
 ### `requests.list`
 
-The founder's requests, newest activity first: the tasks they opened or that an agent opened in the turn of their message, and the messages of theirs that are not a task yet, each with a status read from its tree of tasks: the tasks under it and the tasks that serve it (Task.request). Done requests stay listed 30 days.
+The founder's requests, newest activity first: the tasks they opened or that an agent opened in the turn of their message, each with a status read from its tree of tasks: the tasks under it and the tasks that serve it (Task.request). Done requests stay listed 30 days.
 
 ### `answers.list`
 
