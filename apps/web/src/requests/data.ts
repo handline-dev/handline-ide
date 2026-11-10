@@ -5,6 +5,9 @@ import { useNow } from '#src/format/time.ts';
 
 const FINISHED = new Set<RequestRow['status']>(['done']);
 
+/** A request is a task; a row without one is a chat message from a daemon that still lists them, and is the chat's. */
+export type TaskRequest = RequestRow & { task: number };
+
 /** The founder's requests in the three sections of the Requests view and the bell: their turn, in progress, finished. `count` is the
  * one number the bell and the sidebar's Requests show (requests.pending's answer). */
 export function useRequests() {
@@ -12,7 +15,7 @@ export function useRequests() {
   // The daemon's warnings reach requests.pending only through the for_you topic's events.
   useFeed('for_you', true);
   const list = hooks.useRequestsList({ limit: 100 });
-  const rows = list.data?.items ?? [];
+  const rows = (list.data?.items ?? []).filter((r): r is TaskRequest => r.task !== null);
   // A row put off for later leaves the founder's turn until its time comes; the count still counts it, as the daemon does.
   const later = (navOf(usePrefs().data).later ?? {}) as Record<string, LaterAt>;
   const now = useNow(); // a row put off comes back by itself when its time comes

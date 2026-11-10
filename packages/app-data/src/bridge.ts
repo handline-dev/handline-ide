@@ -100,15 +100,16 @@ const rules: Record<string, Rule> = {
   'device.revoked': ({ qc, d }) => void qc.invalidateQueries({ queryKey: qk.resource(d, 'devices.list') }),
   'device.renamed': ({ qc, d }) => void qc.invalidateQueries({ queryKey: qk.resource(d, 'devices.list') }),
   'prefs.changed': ({ qc, d }, e) => put<Prefs>(qc, qk.prefs(d), data<Prefs>(e), e.cursor),
-  // The row takes its place in every cached requests list (a message that became a request keeps its ref); a list is newest first, so a new one goes on top.
+  // A row replaces its task's row in every cached requests list; a new one goes on top (newest first). One without a task is a chat message.
   'request.changed': ({ qc, d }, e) => {
     const row = data<RequestRow>(e);
-    const same = (x: RequestRow) => (row.ref !== null && x.ref === row.ref) || (row.task !== null && x.task === row.task);
-    for (const [key, page] of qc.getQueriesData<{ items: RequestRow[]; more: boolean }>({ queryKey: qk.resource(d, 'requests.list') })) {
-      if (!page || inRead(page, e.cursor)) continue;
-      const items = page.items.some(same) ? page.items.map((x) => (same(x) ? row : x)) : [row, ...page.items];
-      qc.setQueryData(key, { ...page, items });
-    }
+    const same = (x: RequestRow) => x.task === row.task;
+    if (row.task !== null)
+      for (const [key, page] of qc.getQueriesData<{ items: RequestRow[]; more: boolean }>({ queryKey: qk.resource(d, 'requests.list') })) {
+        if (!page || inRead(page, e.cursor)) continue;
+        const items = page.items.some(same) ? page.items.map((x) => (same(x) ? row : x)) : [row, ...page.items];
+        qc.setQueryData(key, { ...page, items });
+      }
     // A result seen or newly finished changes the bell's count of unseen results.
     void qc.invalidateQueries({ queryKey: qk.resource(d, 'requests.pending') });
   },

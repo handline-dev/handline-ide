@@ -23,6 +23,7 @@ import { IconButton } from '#src/ui/IconButton.tsx';
 import { toast } from '#src/ui/toast.tsx';
 import { ago } from '#src/format/time.ts';
 import { focusIn } from '#src/layout/focus.ts';
+import type { TaskRequest } from '#src/requests/data.ts';
 import { chatOf, taskOf } from '#src/layout/kinds.tsx';
 import { useOpenable } from '#src/layout/openable.tsx';
 import type { How } from '#src/layout/openTab.tsx';
@@ -199,13 +200,13 @@ const STATUS: Record<RequestRow['status'], string> = {
   done: 'done',
 };
 
-/** One of the founder's requests: its title, who works on it now (or how it ended), when it last moved. A click opens its task, else
- * the chat it was said in; a result not seen yet is marked, and opening it marks it seen. */
-export function RequestLine({ r, onOpened }: { r: RequestRow; onOpened?: () => void }) {
-  const seen = useWrite('task.seen', r.task === null ? undefined : String(r.task));
+/** One of the founder's requests: its title, who works on it now (or how it ended), when it last moved. A click opens its task; a
+ * result not seen yet is marked, and opening it marks it seen. */
+export function RequestLine({ r, onOpened }: { r: TaskRequest; onOpened?: () => void }) {
+  const seen = useWrite('task.seen', String(r.task));
   const who = r.now ?? r.holders[0] ?? r.agent;
-  const closed = r.status === 'done' && r.task !== null;
-  const task = useTask(r.task ?? 0, { enabled: closed });
+  const closed = r.status === 'done';
+  const task = useTask(r.task, { enabled: closed });
   const failed = closed ? failedLine(task.data?.evidence, task.data?.title) : null;
   const ended = r.ended?.outcome === 'discarded' ? 'discarded' : STATUS[r.status];
   const meta = r.status === 'done' ? [failed ?? ended, r.agent] : [who, r.progress || STATUS[r.status]];
@@ -226,9 +227,9 @@ export function RequestLine({ r, onOpened }: { r: RequestRow; onOpened?: () => v
       }
       title={r.title}
       meta={[...meta, ago(r.ended?.at ?? r.last_activity)].filter(Boolean).join(' · ')}
-      opens={r.task !== null ? taskOf(r.task) : chatOf(r.agent)}
+      opens={taskOf(r.task)}
       onOpen={() => {
-        if (r.task !== null && isUnseen(r)) seen.mutate({ task: r.task });
+        if (isUnseen(r)) seen.mutate({ task: r.task });
         onOpened?.();
       }}
     />
