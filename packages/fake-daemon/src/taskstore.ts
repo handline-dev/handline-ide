@@ -28,6 +28,7 @@ export type Row = Task & {
   body: string;
   memos?: Memo[];
   notes?: { at: string; who: string; text: string }[]; // the notes it was sent back with
+  turnLog?: { at: string; who: string; text: string; turn: 'push' | 'pop' }[]; // turns pushed (`by → to`, the ask) and given back (`from → to`)
   blockers: { task: number; reason: string; at?: string }[];
   clock?: TaskClock | null;
   /** What task.time answers for it when it is not the plain queued-then-working of its delivery. */
@@ -266,6 +267,7 @@ export class TaskStore {
         ...(t.notes ?? []).map((n) =>
           withParts({ at: n.at, who: n.who, kind: 'reject' as const, text: n.text, memo: null, edited_at: null }, n.text),
         ),
+        ...(t.turnLog ?? []).map((n) => ({ ...n, kind: 'turn' as const, memo: null, edited_at: null })),
       ].sort((a, b) => a.at.localeCompare(b.at)),
       people: { recent: [], team: [], others: [] },
     };

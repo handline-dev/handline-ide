@@ -6,7 +6,7 @@ import { useWrite } from '@handline/app-data';
 import { Hand, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { showHistory } from '#src/tools/TaskDiff.tsx';
-import { askingMemo, goToTurn, hintMemo } from '#src/tools/TaskTurn.ts';
+import { askedAt, goToTurn, hintLine } from '#src/tools/TaskTurn.ts';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { toast } from '#src/ui/toast.tsx';
 import { ago, clock } from '#src/format/time.ts';
@@ -83,16 +83,16 @@ export function choices(ask: string) {
   return found.length >= 2 ? found : [];
 }
 
-/** The founder's turn: its question, a button to the asking comment in Activity (marked faintly while pointed at), and an "edited"
+/** The founder's turn: its question, a button to where it was asked in Activity (marked faintly while pointed at), and an "edited"
  * mark with the older texts. It is answered, or given back, from the comment box below. */
-export function YourTurn({ t }: { t: TaskDetail }) {
+export function YourTurn({ t, me }: { t: TaskDetail; me: string }) {
   const turn = t.turns?.at(-1);
   const earlier = turn?.earlier ?? [];
-  const asking = askingMemo(t);
-  const id = asking?.id;
+  const asking = askedAt(t, me);
+  const line = asking?.line;
   // The mark comes off when the box goes or points elsewhere, as well as when the pointer leaves.
-  useEffect(() => () => void (id != null && hintMemo(id, false)), [id]);
-  const mark = (on: boolean) => id != null && hintMemo(id, on);
+  useEffect(() => () => void (line && hintLine(line, false)), [line]);
+  const mark = (on: boolean) => line && hintLine(line, on);
   const head = (
     <>
       <span className="flex items-center gap-2 font-medium">
@@ -100,7 +100,7 @@ export function YourTurn({ t }: { t: TaskDetail }) {
         Your turn
         {asking && (
           <span className="invisible ml-auto truncate text-xs font-normal text-muted group-hover/turn:visible group-focus-visible/turn:visible">
-            Click to go to this question in Activity: {asking.author} · {clock(asking.at)}
+            Click to go to this question in Activity: {asking.who} · {clock(asking.at)}
           </span>
         )}
       </span>
@@ -112,7 +112,7 @@ export function YourTurn({ t }: { t: TaskDetail }) {
       {asking ? (
         <button
           type="button"
-          onClick={() => goToTurn(t)}
+          onClick={() => goToTurn(t, me)}
           onMouseEnter={() => mark(true)}
           onMouseLeave={() => mark(false)}
           onFocus={() => mark(true)}

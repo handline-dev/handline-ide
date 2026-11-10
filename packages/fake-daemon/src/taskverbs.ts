@@ -25,7 +25,16 @@ export class TaskVerbs extends TaskComments {
       return;
     }
     const turn = { agent: 'human', ask, by: agent || t.to, since: this.now(), on_pass: null, evidence: null, edited: null, earlier: [] };
-    this.change(t, { turns: [...(t.turns ?? []), turn], acting: 'human' });
+    const log = [...(t.turnLog ?? []), { at: turn.since, who: `${turn.by} → human`, text: ask, turn: 'push' as const }];
+    this.change(t, { turns: [...(t.turns ?? []), turn], acting: 'human', turnLog: log });
+  }
+  /** The founder gives their turn back to whoever pushed it. */
+  turnPop(p: Record<string, unknown>): void {
+    const t = this.find(p.task);
+    const top = t.turns?.at(-1);
+    if (top?.agent !== 'human') throw new TaskFailure('refused', `task ${t.id} is not the founder's turn`);
+    const log = [...(t.turnLog ?? []), { at: this.now(), who: `human → ${top.by}`, text: '', turn: 'pop' as const }];
+    this.change(t, { turns: t.turns!.slice(0, -1), acting: top.by, turnLog: log });
   }
   reopen(p: Record<string, unknown>, person: string): void {
     const t = this.find(p.task);

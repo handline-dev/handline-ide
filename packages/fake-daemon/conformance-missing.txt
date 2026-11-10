@@ -2,7 +2,6 @@
 task.begin
 task.board
 task.handoff
-task.turn.pop
 task.memo.add
 task.memo.delete
 task.memo.edit

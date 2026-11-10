@@ -314,6 +314,34 @@ export const SEEDS: Record<string, Seed> = {
     d.inbox.add({ kind: 'decision', agent: ARCH, title: 'Bell redesign: how a pause is counted', body: ask, task: 8809 });
   },
 
+  /** A turn passed back and forth: the architect asked, the founder answered and gave it back, and it was asked again. */
+  'turn-history': (d) => {
+    const iso = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
+    const first = 'Should the bell count each pause, or each agent?';
+    const again = 'Which way should the bell count a pause?\nA) One line for each pause, newest first\nB) One line for each agent';
+    d.tasks.seed({
+      id: 8830,
+      from: ME,
+      to: ARCH,
+      title: 'Bell: how a pause is counted',
+      state: 'doing',
+      created: iso(60),
+      body: 'The bell counts every pause as its own line.',
+      memos: [
+        { id: 11, at: iso(50), author: ARCH, text: 'Reading how pauses are counted today.' },
+        { id: 12, at: iso(30), author: ME, text: 'Each agent, but show me both first.' },
+        { id: 13, at: iso(10), author: ARCH, text: 'Both are drawn in the attached shots.' },
+      ].map((m) => ({ ...m, task: 8830 })),
+      turnLog: [
+        { at: iso(40), who: `${ARCH} → ${ME}`, text: first, turn: 'push' },
+        { at: iso(30), who: `${ME} → ${ARCH}`, text: '', turn: 'pop' },
+        { at: iso(3), who: `${ARCH} → ${ME}`, text: again, turn: 'push' },
+      ],
+      turns: [{ agent: ME, ask: again, by: ARCH, since: iso(3), on_pass: null, evidence: null, edited: null, earlier: [] }],
+      acting: ME,
+    });
+  },
+
   ...PROPOSAL_SEEDS,
   ...CHAT_SEEDS,
 };

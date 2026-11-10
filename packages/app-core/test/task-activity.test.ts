@@ -66,3 +66,30 @@ test('a comment lists the image files its text does not name; one it names is dr
   } as unknown as Parameters<typeof activityOf>[0][number];
   assert.deepEqual(activityOf([memo], [])[0]!.images, [{ id: 'bbb', name: 'other.png' }]);
 });
+
+test('a turn passed reads by who it went to, the person as you; a delivery the daemon made says why', () => {
+  const turn = (who: string, text: string, at: string) => ({ ...e('turn', who, text, at), turn: text ? 'push' : 'pop' }) as const;
+  const a = activityOf(
+    [],
+    [
+      turn('handline.ui → human', 'Which one?', '2026-01-01T00:00:01Z'),
+      turn('human → handline.ui', '', '2026-01-01T00:00:02Z'),
+      turn('handline.ui → handline.pc', 'Look at this', '2026-01-01T00:00:03Z'),
+      { ...e('turn', 'handline.pc → human', '', '2026-01-01T00:00:03Z'), turn: 'push' },
+      { ...e('request', 'handline.pc → handline.ui', 'landed  T1', '2026-01-01T00:00:04Z'), forwards: 'queue' },
+      { ...e('request', 'handline.pc → handline.ux', 'landed  T1', '2026-01-01T00:00:05Z'), forwards: 'resend' },
+    ],
+    'human',
+  );
+  assert.deepEqual(
+    a.map((i) => [i.line, i.note, i.turnTo]),
+    [
+      ['handline.ui asked you', 'Which one?', 'human'],
+      ['You gave the turn back to handline.ui', '', 'handline.ui'],
+      ['handline.ui gave the turn to handline.pc', 'Look at this', 'handline.pc'],
+      ['handline.pc asked you', '', 'human'],
+      ['It reached handline.ui from the queue', 'landed  T1', undefined],
+      ['It went again to handline.ux, its new holder', 'landed  T1', undefined],
+    ],
+  );
+});

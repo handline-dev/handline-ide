@@ -1,3 +1,4 @@
+import { isPerson } from '@handline/app-core';
 import type { TaskDetail } from '@handline/client';
 import type { Reply } from '#src/tools/TaskComment.tsx';
 import { keptScroll } from '#src/ui/keptScroll.ts';
@@ -26,10 +27,20 @@ export function turnReply(t: TaskDetail): Reply | null {
   return { id: askingMemo(t)?.id, author: turn.by, text: turn.ask, turn: true };
 }
 
-/** The asking comment into view and marked; else the slot that holds the question, marked, with no scrolling to an unrelated comment. */
-export function goToTurn(t: TaskDetail) {
+/** Where the founder's turn now was asked in Activity: its push row, or from a daemon that sends none, the comment that asked. */
+export function askedAt(t: TaskDetail, me: string): { line: string; who: string; at: string } | undefined {
+  const turn = t.turns?.at(-1);
+  if (!turn || !isPerson(turn.agent, me)) return undefined;
+  const row = t.timeline.filter((e) => e.kind === 'turn' && e.turn === 'push' && e.who === `${turn.by} → ${turn.agent}`).at(-1);
+  if (row) return { line: `[data-turn-at="${row.at}"]`, who: turn.by, at: row.at };
   const m = askingMemo(t);
-  if (m && showMemo(m.id)) return;
+  return m && { line: `[data-memo="${m.id}"]`, who: m.author, at: m.at };
+}
+
+/** The line that asked into view and marked; else the slot that holds the question, marked, with no scrolling to an unrelated line. */
+export function goToTurn(t: TaskDetail, me: string) {
+  const at = askedAt(t, me);
+  if (at && showLine(at.line)) return;
   flash(document.querySelector('[data-turn-slot]'));
 }
 
@@ -39,14 +50,16 @@ function flash(el: Element | null | undefined) {
   setTimeout(() => el.classList.remove('ring-2', 'ring-warning'), 1500);
 }
 
-/** Marks a comment faintly while the pointer rests on what goes to it; `on` false takes the mark off. */
-export function hintMemo(id: number, on: boolean) {
-  document.querySelector(`[data-memo="${id}"]`)?.classList.toggle('bg-warning/5', on);
+/** Marks a line faintly while the pointer rests on what goes to it; `on` false takes the mark off. */
+export function hintLine(line: string, on: boolean) {
+  document.querySelector(line)?.classList.toggle('bg-warning/5', on);
 }
 
 /** Brings a comment into view and marks it for a moment; false when it is not on the page. */
-export function showMemo(id: number) {
-  const el = document.querySelector(`[data-memo="${id}"]`);
+export const showMemo = (id: number) => showLine(`[data-memo="${id}"]`);
+
+function showLine(line: string) {
+  const el = document.querySelector(line);
   if (!el) return false;
   el.scrollIntoView({ block: 'center', behavior: 'smooth' });
   el.classList.add('bg-warning/10');
