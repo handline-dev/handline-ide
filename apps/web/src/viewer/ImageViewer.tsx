@@ -69,7 +69,9 @@ export function ImageViewer({
   const full = useAttachmentUrl(pic.id ?? '', false);
   const url = pic.url ?? full.url;
   const canMark = !!onMarked;
-  const [marking, setMarking] = useState(false);
+  const [pen, setMarking] = useState(false);
+  // The pen waits for the picture: stepping to one still loading lays it down until it is here.
+  const marking = pen && !!url;
   const [states, setStates] = useState<Record<number, MarksState>>({});
   const marks = states[at] ?? initialMarks();
   const dispatch = useCallback(
@@ -120,6 +122,7 @@ export function ImageViewer({
       } else if (e.key === 'ArrowLeft') step(-1);
       else if (e.key === 'ArrowRight') step(1);
       else if (e.key === 'm' && canMark && url) setMarking((v) => !v);
+      else if (!url) return;
       else if (e.key === '0') controls.current?.fit();
       else if (e.key === '=' || e.key === '+') controls.current?.zoomBy(1.25);
       else if (e.key === '-') controls.current?.zoomBy(0.8);
@@ -155,25 +158,26 @@ export function ImageViewer({
         <span className="min-w-0 truncate px-2 text-muted">{pic.name}</span>
         {pictures.length > 1 && <span className="text-muted tabular-nums">{`${at + 1} / ${pictures.length}`}</span>}
         <span className="flex-1" />
-        <Tool label="Zoom out (-)" onClick={() => controls.current?.zoomBy(0.8)}>
+        {/* The tools stay in their places while the picture loads, dimmed until it is here. */}
+        <Tool label="Zoom out (-)" disabled={!url} onClick={() => controls.current?.zoomBy(0.8)}>
           <Minus size={16} />
         </Tool>
         <button
           type="button"
           title="Fit (0)"
+          disabled={!url}
           onClick={() => controls.current?.fit()}
-          className="h-8 w-14 rounded-md text-xs text-muted tabular-nums outline-none hover:bg-hover focus-visible:ring-2 focus-visible:ring-accent"
+          className="h-8 w-14 rounded-md text-xs text-muted tabular-nums outline-none hover:bg-hover focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-20"
         >
           {`${Math.round(zoom * 100)}%`}
         </button>
-        <Tool label="Zoom in (+)" onClick={() => controls.current?.zoomBy(1.25)}>
+        <Tool label="Zoom in (+)" disabled={!url} onClick={() => controls.current?.zoomBy(1.25)}>
           <Plus size={16} />
         </Tool>
-        <Tool label="Fit (0)" onClick={() => controls.current?.fit()}>
+        <Tool label="Fit (0)" disabled={!url} onClick={() => controls.current?.fit()}>
           <Maximize size={15} />
         </Tool>
         <span className="mx-1 h-5 w-px bg-border" />
-        {/* The tools stay in their places while the picture loads, dimmed until it is here. */}
         {canMark && (
           <>
             <Tool label="Mark (M)" on={marking} disabled={!url} onClick={() => setMarking((v) => !v)}>
@@ -198,7 +202,7 @@ export function ImageViewer({
             <Download size={15} />
           </a>
         ) : (
-          <Tool label="Save" disabled onClick={() => {}}>
+          <Tool label="Save" disabled>
             <Download size={15} />
           </Tool>
         )}
@@ -273,7 +277,7 @@ function Tool({
   label: string;
   on?: boolean;
   disabled?: boolean;
-  onClick: () => void;
+  onClick?: () => void;
   children: ReactNode;
 }) {
   return (
@@ -284,7 +288,7 @@ function Tool({
       aria-pressed={on}
       disabled={disabled}
       onClick={onClick}
-      className="grid size-8 place-items-center rounded-md text-muted outline-none hover:bg-hover hover:text-fg focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-30 aria-pressed:bg-selected aria-pressed:text-fg"
+      className="grid size-8 place-items-center rounded-md text-muted outline-none hover:bg-hover hover:text-fg focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-20 aria-pressed:bg-selected aria-pressed:text-fg"
     >
       {children}
     </button>
