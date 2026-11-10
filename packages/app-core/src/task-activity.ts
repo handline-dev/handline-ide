@@ -62,6 +62,7 @@ export function activityOf(memos: TaskDetail['memos'], timeline: readonly Entry[
     const base = { kind: 'event' as const, at: e.at, who: e.who, memo: e.memo, edited: false };
     switch (e.kind) {
       case 'memo':
+      case 'turn':
         return [];
       case 'handoff': {
         const [from = e.who, to = ''] = e.who.split('→').map((x) => x.trim());

@@ -33,7 +33,9 @@ func TestAskRefusesAnImpersonatedFounderAndAnUnknownAsker(t *testing.T) {
 	if out.OK || !strings.Contains(out.Message, "alice may not ask as human") {
 		t.Fatalf("%+v", out)
 	}
-	if out, _ := r.Ask(r.DB, AskIn{Target: "bob", Body: "x", Requester: "human", Speaker: &agent, OnBehalfOf: true}); !out.OK {
+	tid := r.newTask("bob", "human", "x")
+	if out, _ := r.Ask(r.DB, AskIn{Target: "bob", Body: "x", Requester: "human", Speaker: &agent, OnBehalfOf: true,
+		Forward: Forward{Task: tid, Carries: db.ForwardQueue}}); !out.OK {
 		t.Fatalf("a system delivery on behalf of the founder: %+v", out)
 	}
 	if out, _ := r.Ask(r.DB, AskIn{Target: "bob", Body: "x"}); out.OK || !strings.Contains(out.Message, "cannot tell who is asking") {
@@ -140,5 +142,22 @@ func TestASayReplyLinksIntoTheThreadAndClosesNothing(t *testing.T) {
 	}
 	if reply, _ := db.GetRequest(r.DB, out.RID); reply.ParentID.Int64 != q.RID || reply.Kind.String != "say" {
 		t.Fatalf("the reply is a say in the question's thread: %+v", reply)
+	}
+}
+
+// A request the daemon sends on someone's behalf must say what it forwards, so a screen can draw that and not a request nobody sent.
+func TestARequestSentOnBehalfOfSomeoneNamesWhatItForwards(t *testing.T) {
+	r := newRig(t)
+	tid := r.newTask("bob", "human", "x")
+	if _, err := r.Ask(r.DB, AskIn{Target: "bob", Body: "x", Requester: "human", Kind: "task", OnBehalfOf: true}); err == nil {
+		t.Fatal("sent on the founder's behalf with nothing it forwards")
+	}
+	out, err := r.Ask(r.DB, AskIn{Target: "bob", Body: "x", Requester: "human", Kind: "task", OnBehalfOf: true, Forward: Forward{Task: tid, Carries: db.ForwardQueue}})
+	if err != nil || !out.OK {
+		t.Fatalf("%+v %v", out, err)
+	}
+	var carries string
+	if err := r.DB.QueryRow("SELECT json_extract(payload, '$.carries') FROM events WHERE kind = 'task_forward' AND json_extract(payload, '$.request_id') = ?", out.RID).Scan(&carries); err != nil || carries != db.ForwardQueue {
+		t.Fatalf("forward %q %v", carries, err)
 	}
 }

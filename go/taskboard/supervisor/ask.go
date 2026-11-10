@@ -114,10 +114,12 @@ type AskIn struct {
 	ParentID                       int64
 	Kind                           string
 	SendNow, OnBehalfOf            bool
-	System                         bool // the daemon's own step (taskwrites.AskReq.System): no team edge is checked
-	Speaker                        *string
-	Notify                         bool
-	NoCard                         bool
+	// Forward is what a request sent OnBehalfOf forwards for its Task (db.RecordForward), which it must name.
+	Forward Forward
+	System  bool // the daemon's own step (taskwrites.AskReq.System): no team edge is checked
+	Speaker *string
+	Notify  bool
+	NoCard  bool
 	// Within is more to write in the transaction that writes the row: the row and what Within writes stand or fall together.
 	Within func(q db.Q, rid int64, message string) error
 }
@@ -144,9 +146,19 @@ func (o *AskOut) Finish() string {
 
 func refuse(msg string) *AskOut { return &AskOut{Message: msg, After: &After{}} }
 
+// Forward is what a request the daemon sends on someone's behalf forwards: for Task, Carries (db.ForwardQueue, db.ForwardResend) and
+// for a resend From, the request it replaces.
+type Forward struct {
+	Task, From int64
+	Carries    string
+}
+
 // Ask routes and, if allowed, enqueues. Returns (allowed, message, request id) in AskOut.
 func (e *Env) Ask(q db.Q, in AskIn) (out *AskOut, err error) {
 	defer Catch(&err)
+	if in.OnBehalfOf && (in.Forward.Task == 0 || in.Forward.Carries == "") {
+		return nil, fmt.Errorf("a request sent on %s's behalf names what it forwards", in.Requester)
+	}
 	requester := in.Requester
 	// Nobody may send as the human: that name carries the routing table's reach to every agent and exempts a chain from the loop guards.
 	if requester == db.Human && in.Speaker != nil && *in.Speaker != db.Human && !in.OnBehalfOf {
@@ -220,6 +232,9 @@ func (e *Env) Ask(q db.Q, in AskIn) (out *AskOut, err error) {
 		check(db.LinkRequest(q, tid, rid))
 	}
 	must(db.AddEvent(q, requester, "ask", db.KV{K: "request_id", V: rid}, db.KV{K: "target", V: in.Target}, db.KV{K: "chain_depth", V: depth}))
+	if in.OnBehalfOf {
+		check(db.RecordForward(q, in.Forward.Task, rid, in.Forward.Carries, in.Forward.From, in.Target))
+	}
 	msg := fmt.Sprintf("queued as %s for %s", db.MsgName(q, rid), in.Target)
 	if in.Within != nil {
 		if err := in.Within(q, rid, msg); err != nil {

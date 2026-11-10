@@ -51,21 +51,27 @@ func (e *Env) taskTimeline(tid int64, memos, reqs []row, parts func(string) []an
 		add(seconds(m["created_at"]), m.str("author"), "memo", m.str("body"), m.i("id"), edited, true)
 	}
 	events, err := query(e.DB, "SELECT ts, agent, kind, payload FROM events WHERE kind IN ('task_handoff', 'edit_task', 'mark_task_done', "+
-		"'reject_task') AND "+eventTask+" = ? ORDER BY id", tid)
+		"'reject_task', 'task_turn_push', 'task_turn_pop', 'task_forward') AND "+eventTask+" = ? ORDER BY id", tid)
 	if err != nil {
 		return nil, err
 	}
-	told, err := db.IDs(e.DB, memoReturnsSQL+" AND m.task_id = ?", tid)
+	// A request that forwards a comment or a turn's return is that comment's or turn's row, and one that carried a handoff the handoff's.
+	hidden, err := db.IDs(e.DB, "SELECT l.request_id FROM task_requests l WHERE l.task_id = ? AND l.request_id IN ("+db.ForwardedSQL+")", tid)
 	if err != nil {
 		return nil, err
 	}
-	carried := map[int64]bool{} // a request that carried a handoff is that handoff's row, and a return that told a comment is the comment's
-	for _, rid := range told {
+	carried := map[int64]bool{}
+	for _, rid := range hidden {
 		carried[rid] = true
 	}
+	forwards := map[int64]string{} // what the daemon delivered on someone's behalf: the queued task, or the task sent again
 	for _, ev := range events {
-		if ev.str("kind") == "task_handoff" {
-			carried[int64(seconds(decodeObject(ev.str("payload"))["request_id"]))] = true
+		p := decodeObject(ev.str("payload"))
+		switch ev.str("kind") {
+		case "task_handoff":
+			carried[int64(seconds(p["request_id"]))] = true
+		case "task_forward":
+			forwards[int64(seconds(p["request_id"]))] = text(p["carries"])
 		}
 	}
 	for _, r := range reqs {
@@ -78,6 +84,9 @@ func (e *Env) taskTimeline(tid int64, memos, reqs []row, parts func(string) []an
 		}
 		add(seconds(r["ts"]), r.str("requester")+" → "+r.str("target"), "request", fmt.Sprintf("%s  %s", r.str("state"), first),
 			nil, nil, false)
+		if f, ok := forwards[r.i("id")]; ok {
+			out[len(out)-1].row["forwards"] = f
+		}
 	}
 	for _, ev := range events {
 		p := decodeObject(ev.str("payload"))
@@ -101,6 +110,14 @@ func (e *Env) taskTimeline(tid int64, memos, reqs []row, parts func(string) []an
 		case "reject_task":
 			note, _ := p["note"].(string)
 			add(at, ev.str("agent"), "reject", note, nil, nil, true)
+		case "task_turn_push":
+			add(at, fmt.Sprintf("%s → %s", ev.str("agent"), text(p["to"])), "turn", text(p["ask"]), nil, nil, false)
+			out[len(out)-1].row["turn"] = "push"
+		case "task_turn_pop":
+			if to := text(p["to"]); to != "" { // a stack cleared by an end or a draft gives the task to no one; a note is a comment's row
+				add(at, fmt.Sprintf("%s → %s", text(p["agent"]), to), "turn", "", nil, nil, false)
+				out[len(out)-1].row["turn"] = "pop"
+			}
 		}
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].at < out[j].at })
