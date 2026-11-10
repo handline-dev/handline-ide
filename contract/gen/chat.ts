@@ -72,8 +72,6 @@ export type ChatMessage = {
   actions?: ChatAction[];
   /** On a message of the founder's to an agent: the request task made from it (task.request); null for none. */
   request_task?: number | null;
-  /** On a message of the founder's to an agent: why it needs no work (task.none); null for none. */
-  no_work?: string | null;
   /** The runs of this message's command blocks, one per block, oldest start first. Absent when none was started. Phone and PC draw 'Running · 4s', 'Done · exit 0 · 3s', 'Failed · exit 1 · 3s' or 'Stopped' from it. */
   runs?: CommandRun[];
 };
@@ -234,16 +232,16 @@ export type ChatAction = {
 
 /** One row of the founder's requests. A request is a task whose reporter is the founder (a task opened by them or made from their message), top of its tree. */
 export type RequestRow = {
-  /** task: a request the founder opened (task.request, or a task of their own for a lead). message: a message of theirs that is not a task yet. */
-  kind: "task" | "message";
-  /** The request's task; null for a message. */
+  /** task: a request the founder opened (task.request, or a task of their own for a lead). A message of theirs that is not a task is the chat's, not a request. */
+  kind: "task";
+  /** The request's task; always set (null only from a daemon that still lists messages). */
   task: number | null;
-  /** The founder's message it was made from, or is; null for a task opened without one. */
+  /** The founder's message it was made from; null for a task opened without one. */
   ref: RequestRef | null;
   title: string;
-  /** Read from the request's tree of tasks, never stored; the first that holds. waiting_on_you: a task assigned to the founder or a decision card waiting on them, anywhere in the tree. review: an open task has a PR. doing: some task in the tree is open. done: the request's own task has ended, done or discarded (ended says which; the agent that holds it judges and closes it; the founder does not). no_work: a message marked with task.none. not_yet: a message with neither a task nor a mark. */
-  status: "waiting_on_you" | "review" | "doing" | "done" | "no_work" | "not_yet";
-  /** Who holds the request, or the agent the message was sent to. */
+  /** Read from the request's tree of tasks, never stored; the first that holds. waiting_on_you: a task assigned to the founder or a decision card waiting on them, anywhere in the tree. review: an open task has a PR. doing: some task in the tree is open. done: the request's own task has ended, done or discarded (ended says which; the agent that holds it judges and closes it; the founder does not). */
+  status: "waiting_on_you" | "review" | "doing" | "done";
+  /** Who holds the request. */
   agent: string;
   /** The agent the message it was made from was sent to. Only on a task made from a message. */
   origin?: string;
@@ -255,16 +253,14 @@ export type RequestRow = {
   done: number;
   /** PRs of the open tasks in the tree. */
   prs: number[];
-  /** The agent holding the open task with the latest activity under the request (the one at work now); null once done, when the founder holds the open one, or for a message. */
+  /** The agent holding the open task with the latest activity under the request (the one at work now); null once done or when the founder holds the open one. */
   now: string | null;
   /** The open task named by `now` waits on another open task (task_blocks, not dormant). */
   blocked: boolean;
-  /** The request's state in one line for the list, from the same facts as the fields: `sub 3/5 done, now daemon-core, in review` (subtasks done of all under the request's own task; the agent at work now; `in review` with a PR, `waiting on you`, `blocked`). Without subtasks `now daemon-core, in review`; empty for a message; `done` once done. */
+  /** The request's state in one line for the list, from the same facts as the fields: `sub 3/5 done, now daemon-core, in review` (subtasks done of all under the request's own task; the agent at work now; `in review` with a PR, `waiting on you`, `blocked`). Without subtasks `now daemon-core, in review`; `done` once done. */
   progress: string;
-  /** Why the request needs the founder's eye; null when nothing calls for it, once done, and for a message. Absent from a daemon that does not send it. */
+  /** Why the request needs the founder's eye; null when nothing calls for it and once done. Absent from a daemon that does not send it. */
   attention?: RequestAttention | null;
-  /** Why a message needs no work (status no_work). */
-  reason: string | null;
   /** Agents' comments on the request that the founder has not read (Task.unread). */
   unread_comments: number;
   created: Timestamp;
@@ -649,7 +645,7 @@ export interface ChatMethods {
   request_id: RequestId;
 }; result: Accepted };
   "requests.list": { params: {
-  state?: "waiting_on_you" | "review" | "doing" | "done" | "no_work" | "not_yet";
+  state?: "waiting_on_you" | "review" | "doing" | "done";
   /** true: only finished requests the founder has not seen. The bell's list. */
   unseen?: boolean;
   /** A row's cursor: the rows after it. */

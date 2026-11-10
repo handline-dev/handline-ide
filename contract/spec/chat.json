@@ -299,17 +299,6 @@
       ],
       "description": "On a message of the founder's to an agent: the request task made from it (task.request); null for none."
      },
-     "no_work": {
-      "oneOf": [
-       {
-        "type": "string"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "description": "On a message of the founder's to an agent: why it needs no work (task.none); null for none."
-     },
      "runs": {
       "type": "array",
       "items": {
@@ -876,10 +865,9 @@
      "kind": {
       "type": "string",
       "enum": [
-       "task",
-       "message"
+       "task"
       ],
-      "description": "task: a request the founder opened (task.request, or a task of their own for a lead). message: a message of theirs that is not a task yet."
+      "description": "task: a request the founder opened (task.request, or a task of their own for a lead). A message of theirs that is not a task is the chat's, not a request."
      },
      "task": {
       "oneOf": [
@@ -890,7 +878,7 @@
         "type": "null"
        }
       ],
-      "description": "The request's task; null for a message."
+      "description": "The request's task; always set (null only from a daemon that still lists messages)."
      },
      "ref": {
       "oneOf": [
@@ -901,7 +889,7 @@
         "type": "null"
        }
       ],
-      "description": "The founder's message it was made from, or is; null for a task opened without one."
+      "description": "The founder's message it was made from; null for a task opened without one."
      },
      "title": {
       "type": "string"
@@ -912,15 +900,13 @@
        "waiting_on_you",
        "review",
        "doing",
-       "done",
-       "no_work",
-       "not_yet"
+       "done"
       ],
-      "description": "Read from the request's tree of tasks, never stored; the first that holds. waiting_on_you: a task assigned to the founder or a decision card waiting on them, anywhere in the tree. review: an open task has a PR. doing: some task in the tree is open. done: the request's own task has ended, done or discarded (ended says which; the agent that holds it judges and closes it; the founder does not). no_work: a message marked with task.none. not_yet: a message with neither a task nor a mark."
+      "description": "Read from the request's tree of tasks, never stored; the first that holds. waiting_on_you: a task assigned to the founder or a decision card waiting on them, anywhere in the tree. review: an open task has a PR. doing: some task in the tree is open. done: the request's own task has ended, done or discarded (ended says which; the agent that holds it judges and closes it; the founder does not)."
      },
      "agent": {
       "type": "string",
-      "description": "Who holds the request, or the agent the message was sent to."
+      "description": "Who holds the request."
      },
      "origin": {
       "type": "string",
@@ -957,7 +943,7 @@
         "type": "null"
        }
       ],
-      "description": "The agent holding the open task with the latest activity under the request (the one at work now); null once done, when the founder holds the open one, or for a message."
+      "description": "The agent holding the open task with the latest activity under the request (the one at work now); null once done or when the founder holds the open one."
      },
      "blocked": {
       "type": "boolean",
@@ -965,7 +951,7 @@
      },
      "progress": {
       "type": "string",
-      "description": "The request's state in one line for the list, from the same facts as the fields: `sub 3/5 done, now daemon-core, in review` (subtasks done of all under the request's own task; the agent at work now; `in review` with a PR, `waiting on you`, `blocked`). Without subtasks `now daemon-core, in review`; empty for a message; `done` once done."
+      "description": "The request's state in one line for the list, from the same facts as the fields: `sub 3/5 done, now daemon-core, in review` (subtasks done of all under the request's own task; the agent at work now; `in review` with a PR, `waiting on you`, `blocked`). Without subtasks `now daemon-core, in review`; `done` once done."
      },
      "attention": {
       "oneOf": [
@@ -976,18 +962,7 @@
         "type": "null"
        }
       ],
-      "description": "Why the request needs the founder's eye; null when nothing calls for it, once done, and for a message. Absent from a daemon that does not send it."
-     },
-     "reason": {
-      "oneOf": [
-       {
-        "type": "string"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "description": "Why a message needs no work (status no_work)."
+      "description": "Why the request needs the founder's eye; null when nothing calls for it and once done. Absent from a daemon that does not send it."
      },
      "unread_comments": {
       "type": "integer",
@@ -1029,7 +1004,6 @@
      "now",
      "blocked",
      "progress",
-     "reason",
      "unread_comments",
      "created",
      "last_activity",
@@ -3141,7 +3115,7 @@
   },
   {
    "name": "requests.list",
-   "summary": "The founder's requests, newest activity first: the tasks they opened or that an agent opened in the turn of their message, and the messages of theirs that are not a task yet, each with a status read from its tree of tasks: the tasks under it and the tasks that serve it (Task.request). Done requests stay listed 30 days.",
+   "summary": "The founder's requests, newest activity first: the tasks they opened or that an agent opened in the turn of their message, each with a status read from its tree of tasks: the tasks under it and the tasks that serve it (Task.request). Done requests stay listed 30 days.",
    "paramStructure": "by-name",
    "params": [
     {
@@ -3153,9 +3127,7 @@
        "waiting_on_you",
        "review",
        "doing",
-       "done",
-       "no_work",
-       "not_yet"
+       "done"
       ]
      }
     },
