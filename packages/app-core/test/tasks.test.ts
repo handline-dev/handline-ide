@@ -36,7 +36,7 @@ test('an edit changes only the fields it names', () => {
 });
 
 test('a verb whose result depends on the daemon changes nothing', () => {
-  for (const verb of ['reopen', 'release', 'withdraw', 'cancel'] as const) assert.equal(taskAfter(verb, task('doing'), 'now'), undefined);
+  for (const verb of ['reopen', 'release', 'withdraw'] as const) assert.equal(taskAfter(verb, task('doing'), 'now'), undefined);
 });
 
 const row = (id: number, over: Partial<Task> = {}): Task =>

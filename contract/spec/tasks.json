@@ -4514,7 +4514,7 @@
   },
   {
    "name": "task.discard",
-   "summary": "Throw away a task that is not done: anyone may, with a reason the opener, assignee and asker are told. A request still open on it refuses, unless the caller leads a team whose tree holds the task (its owner or opener is the lead or reports to it): then each open request is withdrawn and its target told. tasks in place of task discards a batch in one call, all or none, with one discard_batch event: the one task_batch card in the caller's chat.",
+   "summary": "Throw away a task that is not done: anyone may, with a reason the opener, assignee and asker are told. A request still open on it refuses an agent, unless the caller leads a team whose tree holds the task (its owner or opener is the lead or reports to it); the founder's discard and such a lead's withdraw each open request and tell its target. tasks in place of task discards a batch in one call, all or none, with one discard_batch event: the one task_batch card in the caller's chat.",
    "paramStructure": "by-name",
    "params": [
     {
@@ -4666,55 +4666,6 @@
    "x-app-write": {
     "kind": "authored",
     "label": "withdraw"
-   },
-   "x-since": 1,
-   "errors": [
-    {
-     "$ref": "#/components/errors/refused"
-    },
-    {
-     "$ref": "#/components/errors/not_found"
-    }
-   ]
-  },
-  {
-   "name": "task.cancel",
-   "summary": "Cancel a task.",
-   "paramStructure": "by-name",
-   "params": [
-    {
-     "name": "task",
-     "required": true,
-     "schema": {
-      "type": "integer"
-     }
-    },
-    {
-     "name": "reason",
-     "required": false,
-     "schema": {
-      "type": "string"
-     }
-    },
-    {
-     "name": "request_id",
-     "required": true,
-     "schema": {
-      "$ref": "#/components/schemas/RequestId"
-     }
-    }
-   ],
-   "result": {
-    "name": "result",
-    "schema": {
-     "$ref": "#/components/schemas/Accepted"
-    }
-   },
-   "x-role": "member",
-   "x-write": true,
-   "x-app-write": {
-    "kind": "authored",
-    "label": "cancel"
    },
    "x-since": 1,
    "errors": [

@@ -138,7 +138,7 @@ export function useRowActions() {
       if (!sure) return null;
       return all(
         'cancelled',
-        on.map((x) => ({ keys: x.keys, run: () => verbs.cancel(x.task, reason) })),
+        on.map((x) => ({ keys: x.keys, run: () => verbs.discard(x.task, reason) })),
       );
     },
   };

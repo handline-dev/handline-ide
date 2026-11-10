@@ -45,7 +45,6 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `task.discard` | agent | yes | `task?`, `tasks?`, `reason?`, `reasons?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | decided: discard |
 | `task.board` | agent |  | `everyone?` | `{mine, reports}` |  |  | `board`, fed by tasks |
 | `task.withdraw` | agent | yes | `task`, `request_id` | `Accepted` | `refused`, `not_found` |  | authored: withdraw |
-| `task.cancel` | member | yes | `task`, `reason?`, `request_id` | `Accepted` | `refused`, `not_found` |  | authored: cancel |
 | `task.edit` | agent | yes | `task`, `owner?`, `reporter?`, `title?`, `body?`, `evidence?`, `time_box?`, `priority?`, `estimate?`, `blocked_by?`, `unblock?`, `add_tags?`, `remove_tags?`, `request_id`, `pr?` | `Accepted` | `refused`, `not_found` |  | authored: edit |
 | `task.ask` | member | yes | `task`, `to`, `text`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | decided: ask |
 
@@ -199,7 +198,7 @@ Make a task wait on outside state: a gate on watch (as task.new with owner gate)
 
 ### `task.discard`
 
-Throw away a task that is not done: anyone may, with a reason the opener, assignee and asker are told. A request still open on it refuses, unless the caller leads a team whose tree holds the task (its owner or opener is the lead or reports to it): then each open request is withdrawn and its target told. tasks in place of task discards a batch in one call, all or none, with one discard_batch event: the one task_batch card in the caller's chat. A request that already landed in its agent's session does not refuse the task's asker or the founder: the task is discarded, that request closes with it and its holder is told why; anyone else is refused. A discard clears the task's turns and tells the agents that held them.
+Throw away a task that is not done: anyone may, with a reason the opener, assignee and asker are told. A request still open on it refuses an agent, unless the caller leads a team whose tree holds the task (its owner or opener is the lead or reports to it); the founder's discard and such a lead's withdraw each open request and tell its target. tasks in place of task discards a batch in one call, all or none, with one discard_batch event: the one task_batch card in the caller's chat. A request that already landed in its agent's session does not refuse the task's asker or the founder: the task is discarded, that request closes with it and its holder is told why; anyone else is refused. A discard clears the task's turns and tells the agents that held them.
 
 ### `task.board`
 
@@ -208,10 +207,6 @@ The caller's open tasks and its reports', and who holds each now. The founder's 
 ### `task.withdraw`
 
 Withdraw a task the caller asked for; anyone else discards it with a reason.
-
-### `task.cancel`
-
-Cancel a task.
 
 ### `task.edit`
 

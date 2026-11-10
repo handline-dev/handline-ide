@@ -111,7 +111,6 @@ const tasks: Record<string, Patch> = {
   'task.draft': verb('draft'),
   'task.release': verb('release'),
   'task.withdraw': verb('withdraw'),
-  'task.cancel': verb('cancel'),
   'task.edit': verb('edit'),
   'task.merge': {
     touches: (d) => [qk.tasks(d)],

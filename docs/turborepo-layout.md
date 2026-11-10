@@ -196,7 +196,7 @@ Rules for both: the write is idempotent through the `request_id` the client adds
 |---|---|---|---|
 | `chat.send` | authored | a message row with `state: sending`, keyed by its `request_id`, at the top of *mine* | the row turns `failed` with **Retry** and **Discard**; the text is never lost |
 | `task.new` | authored | a provisional row (negative id, `pending`) | row removed, form refilled |
-| `task.done` `task.reopen` `task.queue` `task.draft` `task.release` `task.withdraw` `task.cancel` `task.edit` | authored | the state change from `taskAfter(verb, task)` (pure, in `app-core`; it returns nothing for a transition it does not know, and then the write is **Decided**) | restore the row and the detail |
+| `task.done` `task.reopen` `task.queue` `task.draft` `task.release` `task.withdraw` `task.edit` | authored | the state change from `taskAfter(verb, task)` (pure, in `app-core`; it returns nothing for a transition it does not know, and then the write is **Decided**) | restore the row and the detail |
 | `task.merge` | authored | merged rows leave the list | restore the list |
 | `task.memo.add` `task.memo.edit` `task.memo.delete` | authored | the memo in the list | restore |
 | `inbox.mark_read` `inbox.reply` | authored | the read mark and the bell count | restore the item |

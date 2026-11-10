@@ -47,9 +47,7 @@ export function taskCall(
       case 'task.edit':
         return (tasks.edit(p, agent), ok('Task changed.'));
       case 'task.withdraw':
-        return (tasks.close(p, 'withdraw'), ok('Task withdrawn.'));
-      case 'task.cancel':
-        return (tasks.close(p, 'cancel'), ok('Task cancelled.'));
+        return (tasks.withdraw(p), ok('Task withdrawn.'));
       case 'task.ask': {
         if (!Number.isInteger(p.task)) throw invalidParams('task is a task number', 'task');
         if (typeof p.to !== 'string' || !p.to) throw invalidParams("to is an agent's name", 'to');
