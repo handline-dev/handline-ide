@@ -114,7 +114,8 @@ func (e *Env) makeCurrent(q db.Q, agent string, w db.WaitingTask, refused map[in
 		e.Push(q, agent, rid)
 		return true
 	}
-	out, aerr := e.Ask(q, AskIn{Target: agent, Body: w.Task.Title, Requester: w.Task.QueuedBy.String, Kind: "task", OnBehalfOf: true, Notify: true})
+	out, aerr := e.Ask(q, AskIn{Target: agent, Body: w.Task.Title, Requester: w.Task.QueuedBy.String, Kind: "task", OnBehalfOf: true, Notify: true,
+		Forward: Forward{Task: w.Task.ID, Carries: db.ForwardQueue}})
 	check(aerr)
 	msg := out.Finish()
 	if !out.OK {
@@ -156,7 +157,8 @@ func (e *Env) QueueDeliver(q db.Q, tid int64, by string, queued bool, row *db.Ta
 	defer Catch(&err)
 	if queued && row.Acting == db.Human {
 		// The founder holds no current task, so nothing advances it: queuing is putting the card back on their board.
-		out, aerr := e.Ask(q, AskIn{Target: db.Human, Body: row.Title, Requester: row.OpenedBy, Kind: "task", OnBehalfOf: true, Notify: true})
+		out, aerr := e.Ask(q, AskIn{Target: db.Human, Body: row.Title, Requester: row.OpenedBy, Kind: "task", OnBehalfOf: true, Notify: true,
+			Forward: Forward{Task: tid, Carries: db.ForwardQueue}})
 		if aerr != nil {
 			return "", aerr
 		}

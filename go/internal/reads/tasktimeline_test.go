@@ -44,6 +44,7 @@ func TestATasksTimelineIsEverythingThatHappenedOnItInOrder(t *testing.T) {
 	}
 }
 
+// A comment's tell, its @human ask and a return that forwards it (one withdrawn too) are the comment's row; the other requests stay.
 func TestATasksTimelineLeavesOutAMemosTellAndAskButKeepsTheOtherRequests(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
@@ -57,7 +58,7 @@ func TestATasksTimelineLeavesOutAMemosTellAndAskButKeepsTheOtherRequests(t *test
 	run(t, e, "INSERT INTO task_requests(task_id, request_id) VALUES(1, 1), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6)")
 	// the founder's comment that passed bob's turn back, told bob by that return
 	run(t, e, "INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(7, 1, 'human', 'now', 50)")
-	run(t, e, "INSERT INTO memo_tells(memo_id, reader, request_id) VALUES(7, 'bob', 5), (7, 'cy', 6)") // 6 was withdrawn before it reached cy: no tell
+	run(t, e, "INSERT INTO memo_tells(memo_id, reader, request_id) VALUES(7, 'bob', 5), (7, 'cy', 6)") // 6 was withdrawn before it reached cy
 	got, err := e.taskGet(nil, map[string]any{"task": json.Number("1")})
 	if err != nil {
 		t.Fatal(err)
@@ -66,7 +67,7 @@ func TestATasksTimelineLeavesOutAMemosTellAndAskButKeepsTheOtherRequests(t *test
 	for _, r := range got.(map[string]any)["timeline"].([]any) {
 		rows = append(rows, fmt.Sprint(r.(map[string]any)["text"]))
 	}
-	want := []string{"landed  the brief", "landed  a child result", "now", "withdrawn  T1 is your turn again: b"}
+	want := []string{"landed  the brief", "landed  a child result", "now"}
 	if fmt.Sprint(rows) != fmt.Sprint(want) {
 		t.Fatalf("got  %q\nwant %q", rows, want)
 	}
@@ -154,5 +155,34 @@ func TestThePauseHoldsNeitherASelfStartedTaskNorTheFoundersNorAGatesOnTheirPages
 		if got := state(i + 1); got != want {
 			t.Errorf("task %d: %v paused, %v unpaused", i+1, got, want)
 		}
+	}
+}
+
+// A turn's push and pop are rows of their own, a turn's return is the turn's, and a task the daemon delivered on someone's behalf says so.
+func TestATasksTimelineHasItsTurnsAndSaysWhatTheDaemonDelivered(t *testing.T) {
+	t.Parallel()
+	e := testEnv(t)
+	addAgent(t, e, "bob", "")
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'a', 'bob', 'amy', 10)")
+	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, notice, edge_ok) VALUES(1, 10, 'human', 'bob', 'a', 'landed', 'task', 0, 1), "+
+		"(2, 30, 'human', 'bob', 'T1 is your turn again', 'landed', 'task', 0, 1)")
+	run(t, e, "INSERT INTO task_requests(task_id, request_id) VALUES(1, 1), (1, 2)")
+	run(t, e, `INSERT INTO events(ts, agent, kind, payload) VALUES
+		(10, '', 'task_forward', '{"task_id": 1, "request_id": 1, "carries": "queue", "from": 0}'),
+		(20, 'bob', 'task_turn_push', '{"task_id": 1, "to": "human", "ask": "now?"}'),
+		(30, 'human', 'task_turn_pop', '{"task_id": 1, "agent": "human", "outcome": "pass", "note": "", "to": "bob", "request_id": 2}'),
+		(40, 'bob', 'task_turn_pop', '{"task_id": 1, "agent": "bob", "outcome": "cleared"}')`)
+	got, err := e.taskGet(nil, map[string]any{"task": json.Number("1")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rows []string
+	for _, r := range got.(map[string]any)["timeline"].([]any) {
+		m := r.(map[string]any)
+		rows = append(rows, fmt.Sprintf("%v|%v|%v|%v|%v", m["kind"], m["who"], m["text"], m["forwards"], m["turn"]))
+	}
+	want := []string{"request|human → bob|landed  a|queue|<nil>", "turn|bob → human|now?|<nil>|push", "turn|human → bob||<nil>|pop"}
+	if fmt.Sprint(rows) != fmt.Sprint(want) {
+		t.Fatalf("got  %q\nwant %q", rows, want)
 	}
 }

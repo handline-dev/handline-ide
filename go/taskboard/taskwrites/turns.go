@@ -299,7 +299,7 @@ func popTurn(tx *sql.Tx, home string, tell Teller, tid int64, by, outcome, note 
 		}
 	}
 	pop := func() error {
-		if _, _, _, err := db.PopTurn(tx, tid, by, outcome, note); err != nil {
+		if _, _, _, err := db.PopTurn(tx, tid, by, outcome, note, h.RID); err != nil {
 			return err
 		}
 		if note != "" && memo == 0 {
