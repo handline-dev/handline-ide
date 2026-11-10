@@ -2,13 +2,11 @@
 // (its Reference in Activity, then the comment box below), or with Dismiss when there is nothing to answer; seeing it does not end it.
 import { isPerson } from '@handline/app-core';
 import type { TaskDetail } from '@handline/client';
-import { classify, sentence, useGiveBack, useWrite } from '@handline/app-data';
-import { Hand, Reply as ReplyIcon, Undo2, X } from 'lucide-react';
-import { useState } from 'react';
-import type { Reply } from '#src/tools/TaskComment.tsx';
+import { useWrite } from '@handline/app-data';
+import { Hand, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { showHistory } from '#src/tools/TaskDiff.tsx';
-import { goToTurn, turnReply } from '#src/tools/TaskTurn.ts';
-import { Button } from '#src/ui/Button.tsx';
+import { askingMemo, goToTurn, hintMemo } from '#src/tools/TaskTurn.ts';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { toast } from '#src/ui/toast.tsx';
 import { ago, clock } from '#src/format/time.ts';
@@ -85,63 +83,63 @@ export function choices(ask: string) {
   return found.length >= 2 ? found : [];
 }
 
-/** The founder's turn is the task's one question: the ask, an "edited" mark with older texts folded under it, and on the last line Answer
- * (in the comment box below) and Give back. */
-export function YourTurn({
-  t,
-  reply,
-  onDone,
-  onReply,
-}: {
-  t: TaskDetail;
-  /** What the comment box answers: this turn's question, while it answers it. */
-  reply: Reply | null;
-  onDone: () => void;
-  onReply: (r: Reply | null) => void;
-}) {
-  const back = useGiveBack();
+/** The founder's turn: its question, a button to the asking comment in Activity (marked faintly while pointed at), and an "edited"
+ * mark with the older texts. It is answered, or given back, from the comment box below. */
+export function YourTurn({ t }: { t: TaskDetail }) {
   const turn = t.turns?.at(-1);
-  const answering = !!reply?.turn && reply.text === turn?.ask;
   const earlier = turn?.earlier ?? [];
-  const give = () =>
-    back.give(t.id, { onSuccess: onDone, onError: (e) => toast(`Give back did not work: ${sentence(classify(e))}`, { tone: 'warning' }) });
-  return (
-    <div aria-busy={back.pending} className={`flex items-start gap-2 ${back.pending ? 'pointer-events-none opacity-40' : ''}`}>
-      <Hand size={14} className="mt-1 shrink-0 text-warning" />
-      <span className="flex min-w-0 flex-1 flex-col gap-1">
-        <span className="flex items-center gap-2 font-medium">
-          <button type="button" onClick={() => goToTurn(t)} className="hover:underline">
-            Your turn
-          </button>
-          {turn?.edited && (
-            <button
-              type="button"
-              disabled={!earlier.length}
-              onClick={() =>
-                showHistory('Versions of the question', [
-                  ...earlier.map((e) => ({ text: e.ask, at: e.at, by: turn?.by ?? '' })),
-                  { text: turn?.ask ?? '', at: turn?.edited ?? '', by: turn?.by ?? '' },
-                ])
-              }
-              title={turn.edited}
-              className="text-xs font-normal text-muted enabled:underline enabled:decoration-dotted enabled:hover:text-fg"
-            >
-              edited {ago(turn.edited)}
-            </button>
-          )}
-        </span>
-        {turn?.ask && <span className="whitespace-pre-wrap">{answering ? turn.ask.replace(CHOICE, '').trim() : turn.ask}</span>}
-        <span className="mt-1 flex justify-end gap-2">
-          <Button onClick={give}>
-            <Undo2 size={14} />
-            Give back
-          </Button>
-          <Button variant="primary" disabled={answering || !turn?.ask} onClick={() => onReply(turnReply(t))}>
-            <ReplyIcon size={14} />
-            {answering ? 'Answering below' : 'Answer'}
-          </Button>
-        </span>
+  const asking = askingMemo(t);
+  const id = asking?.id;
+  // The mark comes off when the box goes or points elsewhere, as well as when the pointer leaves.
+  useEffect(() => () => void (id != null && hintMemo(id, false)), [id]);
+  const mark = (on: boolean) => id != null && hintMemo(id, on);
+  const head = (
+    <>
+      <span className="flex items-center gap-2 font-medium">
+        <Hand size={14} className="shrink-0 text-warning" />
+        Your turn
+        {asking && (
+          <span className="invisible ml-auto truncate text-xs font-normal text-muted group-hover/turn:visible group-focus-visible/turn:visible">
+            Click to go to this question in Activity: {asking.author} · {clock(asking.at)}
+          </span>
+        )}
       </span>
+      {turn?.ask && <span className="pl-6 whitespace-pre-wrap">{turn.ask}</span>}
+    </>
+  );
+  return (
+    <div className="flex flex-col gap-1">
+      {asking ? (
+        <button
+          type="button"
+          onClick={() => goToTurn(t)}
+          onMouseEnter={() => mark(true)}
+          onMouseLeave={() => mark(false)}
+          onFocus={() => mark(true)}
+          onBlur={() => mark(false)}
+          className="group/turn -mx-3 -my-2 flex flex-col gap-1 rounded-lg px-3 py-2 text-left transition-colors outline-none hover:bg-warning/15 focus-visible:ring-2 focus-visible:ring-accent"
+        >
+          {head}
+        </button>
+      ) : (
+        <div className="flex flex-col gap-1">{head}</div>
+      )}
+      {turn?.edited && (
+        <button
+          type="button"
+          disabled={!earlier.length}
+          onClick={() =>
+            showHistory('Versions of the question', [
+              ...earlier.map((e) => ({ text: e.ask, at: e.at, by: turn.by })),
+              { text: turn.ask ?? '', at: turn.edited ?? '', by: turn.by },
+            ])
+          }
+          title={turn.edited}
+          className="mt-2 w-fit pl-6 text-xs text-muted enabled:underline enabled:decoration-dotted enabled:hover:text-fg"
+        >
+          edited {ago(turn.edited)}
+        </button>
+      )}
     </div>
   );
 }

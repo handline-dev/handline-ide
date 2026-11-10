@@ -26,6 +26,9 @@ export function Composer({
   above,
   placeholder,
   commands = [],
+  sendLabel,
+  onEmpty,
+  focusOn,
 }: {
   agent: string;
   draft: string;
@@ -47,6 +50,12 @@ export function Composer({
   placeholder?: string;
   /** What `/` offers at the start of the line; `@` offers the agents always. */
   commands?: Command[];
+  /** A word on the send button beside its arrow (Answer while the box answers the founder's turn). */
+  sendLabel?: string;
+  /** Send with nothing written or going up runs this, with its label on the button, instead of staying disabled. */
+  onEmpty?: { label: string; run: () => void };
+  /** The box takes the focus each time this changes to something: a reply picked. */
+  focusOn?: unknown;
 }) {
   const dropOver = useContext(DropOver);
   const [viewing, setViewing] = useState<number | null>(null);
@@ -60,10 +69,9 @@ export function Composer({
     el.style.height = '0';
     el.style.height = `${el.scrollHeight}px`;
   }, [draft]);
-  const replying = !!above;
   useEffect(() => {
-    if (replying) box.current?.focus();
-  }, [replying, above]);
+    if (focusOn) box.current?.focus();
+  }, [focusOn]);
   const suggest = useSuggest(draft, setDraft, commands);
   // A command keeps its `!` in the draft, first, whatever came before it; the box shows it as the chip.
   const bash = draft.startsWith('!');
@@ -78,8 +86,11 @@ export function Composer({
   const body = draft.trim();
   // A message goes once every image in it is up and nothing is held back; one with images may go without text. A command needs one.
   const ready = !locked && (bash ? body.slice(1).trim() : body || attach.ids.length > 0) && attach.sendable;
+  const empty = !bash && !locked && !body && !attach.ids.length && attach.sendable ? onEmpty : undefined;
+  const label = bash ? undefined : (empty?.label ?? sendLabel);
   const submit = () => {
     if (suggest.command(draft)) return;
+    if (empty) return empty.run();
     if (!ready) return;
     onSend(body, attach.ids);
     setDraft('');
@@ -208,12 +219,13 @@ export function Composer({
         ) : (
           <button
             type="submit"
-            aria-label={bash ? 'Run' : 'Send'}
-            title={bash ? 'Run (Enter)' : 'Send'}
-            disabled={!ready}
-            className={`grid size-7 shrink-0 place-items-center rounded-md transition-opacity outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-30 ${bash ? 'bg-warning text-bg' : 'bg-accent text-accent-fg'}`}
+            aria-label={bash ? 'Run' : (label ?? 'Send')}
+            title={bash ? 'Run (Enter)' : (label ?? 'Send')}
+            disabled={!ready && !empty}
+            className={`flex h-7 shrink-0 items-center justify-center gap-1 rounded-md transition-opacity outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-30 ${label ? 'px-2.5 text-sm font-medium' : 'w-7'} ${bash ? 'bg-warning text-bg' : 'bg-accent text-accent-fg'}`}
           >
             {bash ? <CornerDownLeft size={15} /> : <ArrowUp size={16} />}
+            {label}
           </button>
         )}
       </div>

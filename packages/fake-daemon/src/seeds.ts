@@ -278,6 +278,42 @@ export const SEEDS: Record<string, Seed> = {
   /** The account beta stalled on a billing error: its row shows STALLED and a founder can Wake it. */
   'account-stalled': (d) =>
     void d.accounts.stall('beta', { reason: 'billing_error', detail: 'The turn ended: the organization has a billing problem.' }),
+  /** The founder's turn on a task the architect holds, pushed by it with an A)/B) question, after a few comments. */
+  'answer-turn': (d) => {
+    const iso = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
+    const ask =
+      'Which way should the bell count a pause?\nA) One line for each pause, newest first\nB) One line for each agent, its pauses folded under it';
+    const memos = [
+      { id: 1, at: iso(48), author: ARCH, text: 'Started on the bell redesign. Reading how pauses are counted today.' },
+      {
+        id: 2,
+        at: iso(31),
+        author: 'handline.ui',
+        text: 'The bell now shows 14 for one agent that paused 14 times. That reads as 14 problems.',
+      },
+      {
+        id: 3,
+        at: iso(12),
+        author: ARCH,
+        text: 'Two ways to fix it, both drawn in the attached shots. They differ only in how a repeat pause is counted.',
+      },
+      { id: 4, at: iso(3), author: ARCH, text: `@human ${ask}` },
+    ].map((m) => ({ ...m, task: 8809 }));
+    d.tasks.seed({
+      id: 8809,
+      from: ME,
+      to: ARCH,
+      title: 'Bell redesign: how a pause is counted',
+      state: 'doing',
+      created: iso(55),
+      body: 'The bell counts every pause as its own line. Pick how repeats are shown.',
+      memos,
+      turns: [{ agent: ME, ask, by: ARCH, since: iso(3), on_pass: null, evidence: null, edited: null, earlier: [] }],
+      acting: ME,
+    });
+    d.inbox.add({ kind: 'decision', agent: ARCH, title: 'Bell redesign: how a pause is counted', body: ask, task: 8809 });
+  },
+
   ...PROPOSAL_SEEDS,
   ...CHAT_SEEDS,
 };

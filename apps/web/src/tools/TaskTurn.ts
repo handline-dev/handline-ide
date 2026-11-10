@@ -12,7 +12,7 @@ export function goToTurnOf(task: number) {
 
 /** The comment that made this the founder's turn: the last one by whoever asked, written by the time the turn began and within ten
  * minutes before it; none when there is no such comment (the slot is then all that shows). */
-function askingMemo(t: TaskDetail) {
+export function askingMemo(t: TaskDetail) {
   const turn = t.turns?.at(-1);
   if (!turn) return undefined;
   const since = Date.parse(turn.since);
@@ -37,6 +37,11 @@ function flash(el: Element | null | undefined) {
   if (!el) return;
   el.classList.add('ring-2', 'ring-warning');
   setTimeout(() => el.classList.remove('ring-2', 'ring-warning'), 1500);
+}
+
+/** Marks a comment faintly while the pointer rests on what goes to it; `on` false takes the mark off. */
+export function hintMemo(id: number, on: boolean) {
+  document.querySelector(`[data-memo="${id}"]`)?.classList.toggle('bg-warning/5', on);
 }
 
 /** Brings a comment into view and marks it for a moment; false when it is not on the page. */
