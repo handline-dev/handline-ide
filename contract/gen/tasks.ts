@@ -850,11 +850,6 @@ export interface TasksMethods {
   task: number;
   request_id: RequestId;
 }; result: Accepted };
-  "task.cancel": { params: {
-  task: number;
-  reason?: string;
-  request_id: RequestId;
-}; result: Accepted };
   "task.edit": { params: {
   task: number;
   owner?: string;
@@ -932,7 +927,6 @@ export const TASKS_METHODS: { [K in keyof TasksMethods]: { role: Role; callers: 
   "task.discard": { role: "agent", callers: null, write: true, since: 1 },
   "task.board": { role: "agent", callers: null, write: false, since: 1 },
   "task.withdraw": { role: "agent", callers: null, write: true, since: 1 },
-  "task.cancel": { role: "member", callers: null, write: true, since: 1 },
   "task.edit": { role: "agent", callers: null, write: true, since: 1 },
   "task.ask": { role: "member", callers: null, write: true, since: 1 },
 };
@@ -953,7 +947,7 @@ export const TASKS_APP_CACHE: { [K in "tasks.list" | "task.get" | "task.history"
 };
 
 /** x-app-write of each write (x-app in core.json). */
-export const TASKS_APP_WRITES: { [K in "task.new" | "task.handoff" | "task.turn.push" | "task.turn.pop" | "task.done" | "task.reopen" | "task.progress" | "task.begin" | "task.start" | "task.seen" | "task.comment.add" | "task.memo.add" | "task.comment.edit" | "task.memo.edit" | "task.comment.delete" | "task.comment.send_now" | "task.send_now" | "task.memo.delete" | "task.view.save" | "task.view.delete" | "task.queue" | "task.draft" | "task.merge" | "task.release" | "task.request" | "task.none" | "task.wait" | "task.discard" | "task.withdraw" | "task.cancel" | "task.edit" | "task.ask"]: { kind: WriteKind; label: string } | false } = {
+export const TASKS_APP_WRITES: { [K in "task.new" | "task.handoff" | "task.turn.push" | "task.turn.pop" | "task.done" | "task.reopen" | "task.progress" | "task.begin" | "task.start" | "task.seen" | "task.comment.add" | "task.memo.add" | "task.comment.edit" | "task.memo.edit" | "task.comment.delete" | "task.comment.send_now" | "task.send_now" | "task.memo.delete" | "task.view.save" | "task.view.delete" | "task.queue" | "task.draft" | "task.merge" | "task.release" | "task.request" | "task.none" | "task.wait" | "task.discard" | "task.withdraw" | "task.edit" | "task.ask"]: { kind: WriteKind; label: string } | false } = {
   "task.new": {"kind": "authored", "label": "new task"},
   "task.handoff": false,
   "task.turn.push": false,
@@ -983,7 +977,6 @@ export const TASKS_APP_WRITES: { [K in "task.new" | "task.handoff" | "task.turn.
   "task.wait": false,
   "task.discard": {"kind": "decided", "label": "discard"},
   "task.withdraw": {"kind": "authored", "label": "withdraw"},
-  "task.cancel": {"kind": "authored", "label": "cancel"},
   "task.edit": {"kind": "authored", "label": "edit"},
   "task.ask": {"kind": "decided", "label": "ask"},
 };

@@ -260,9 +260,9 @@
    ]
   },
   {
-   "name": "task.cancel.no_such_task",
-   "spec": "task.cancel",
-   "about": "Cancelling a task that does not exist is not_found.",
+   "name": "task.discard.no_such_task",
+   "spec": "task.discard",
+   "about": "Discarding a task that does not exist is not_found.",
    "as": "founder",
    "steps": [
     {
@@ -282,10 +282,10 @@
      "send": {
       "jsonrpc": "2.0",
       "id": 2,
-      "method": "task.cancel",
+      "method": "task.discard",
       "params": {
        "task": 999999,
-       "request_id": "conf-1"
+       "request_id": "conf-discard-1"
       }
      },
      "error": {
@@ -298,47 +298,9 @@
    ]
   },
   {
-   "name": "task.cancel.an_agent_is_below_the_role",
-   "spec": "task.cancel",
-   "about": "Cancel is the founder's: an agent is refused at the role gate.",
-   "as": "agent",
-   "steps": [
-    {
-     "send": {
-      "jsonrpc": "2.0",
-      "id": 1,
-      "method": "hello",
-      "params": {
-       "client": "conformance/1",
-       "protocol": 1
-      }
-     },
-     "result": {}
-    },
-    {
-     "send": {
-      "jsonrpc": "2.0",
-      "id": 2,
-      "method": "task.cancel",
-      "params": {
-       "task": 1,
-       "request_id": "conf-1"
-      }
-     },
-     "error": {
-      "code": -32002,
-      "data": {
-       "code": "refused",
-       "gate": "role"
-      }
-     }
-    }
-   ]
-  },
-  {
-   "name": "task.cancel.the_founders_own_task",
-   "spec": "task.cancel",
-   "about": "The founder cancels a task of their own: its request to the founder goes with it, and the task is discarded, not refused as ended by someone else.",
+   "name": "task.discard.the_founders_own_task",
+   "spec": "task.discard",
+   "about": "The founder discards a task of their own: its request to the founder goes with it, and the task is discarded, not refused as ended by someone else.",
    "as": "founder",
    "steps": [
     {
@@ -363,7 +325,7 @@
        "owner": "human",
        "title": "mine",
        "body": "b",
-       "request_id": "conf-cancel-own-1"
+       "request_id": "conf-discard-own-1"
       }
      },
      "result": {
@@ -377,10 +339,10 @@
      "send": {
       "jsonrpc": "2.0",
       "id": 3,
-      "method": "task.cancel",
+      "method": "task.discard",
       "params": {
        "task": "{{t}}",
-       "request_id": "conf-cancel-own-2"
+       "request_id": "conf-discard-own-2"
       }
      },
      "result": {

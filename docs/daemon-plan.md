@@ -213,7 +213,7 @@ pushed on a topic; `topics` are `status`, `accounts`, `agents`, `inbox`, `tasks`
 | Session, terminal | `terminal.attach`, `terminal.history`, `terminal.resize`. |
 | Session, actions | `session.*`, `input.*`, `prompt.answer` above; each replies accepted or `refused {reason}` and takes `request_id`. |
 | Inbox | `inbox.list` (kind, agent, title, body, evidence, task, times, read, prompt payload), `inbox.mark_read`, `inbox.reply`; a decision closes with `task.done` on its task. Live. |
-| Tasks | `tasks.list`, `task.get` (state, time box, times, evidence, hold or block reason, delivery history, linked events), `task.new`, `task.withdraw`, `task.cancel`, `task.edit`. Live. |
+| Tasks | `tasks.list`, `task.get` (state, time box, times, evidence, hold or block reason, delivery history, linked events), `task.new`, `task.withdraw`,, `task.edit`. Live. |
 | Team | `team.get` (agents, roles, allowed edges, role and base file metadata), `proposal.list` (proposals with their diff), `proposal.decide`. |
 | Accounts | `accounts.list` (login state, 5-hour and weekly use with reset and source mark, cap, agents on it, recent moves), `account.login`, which returns a terminal to `terminal.attach`. Live. |
 | Worktrees | `repos.list`, `worktrees.list` (path, branch, owner, parent and child, status, changed files), `worktree.diff {path, file}`. The diff is read-only git run by the daemon; new. |

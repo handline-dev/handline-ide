@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	dbpkg "github.com/handline/handline/go/data/db"
@@ -261,9 +262,17 @@ func TestTheAskerOrTheFounderDiscardsATaskWhoseRequestLandedAndTheHolderIsTold(t
 	if !toldWorker {
 		t.Fatalf("the holder is told in one line: %+v", f.told)
 	}
-	if r := call(t, mk("", &fakeTeller{}), discardLine(2, 8, "folded into T7", "h1")); r[0]["error"] != nil ||
+	f = &fakeTeller{}
+	if r := call(t, mk("", f), discardLine(2, 8, "folded into T7", "h1")); r[0]["error"] != nil ||
 		count(t, db, "SELECT COUNT(*) FROM tasks WHERE id = 8 AND discarded_by = 'human'") != 1 {
 		t.Fatalf("the founder discards: %v", r[0])
+	}
+	toldWorker = false
+	for _, n := range f.told {
+		toldWorker = toldWorker || n.To == "worker" && strings.HasPrefix(n.Text, "T8 discarded by")
+	}
+	if !toldWorker {
+		t.Fatalf("the holder is told of the founder's discard too: %+v", f.told)
 	}
 	if r := call(t, mk("manager"), discardLine(2, 9, "x", "m2")); r[0]["error"] == nil {
 		t.Fatalf("a request still waiting to be typed refuses as before: %v", r[0])

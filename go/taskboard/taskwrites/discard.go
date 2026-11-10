@@ -31,31 +31,14 @@ func discardMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (an
 			_, err := text(p, "reason")
 			return nil, err
 		}
-		return discard(c, p, home, tell, reason, false, false)
-	}
-}
-
-// cancelMethod is task.cancel: the founder's discard, which stops the requests out on a doing task instead of refusing them.
-func cancelMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, error) {
-	return func(c *rpc.Conn, p map[string]any) (any, error) {
-		reason := "cancelled by the founder"
-		if v := p["reason"]; v != nil {
-			s, ok := v.(string)
-			if !ok {
-				return nil, badParam("reason is text", "reason")
-			}
-			if strings.TrimSpace(s) != "" {
-				reason = s
-			}
-		}
-		return discard(c, p, home, tell, reason, true, false)
+		return discard(c, p, home, tell, reason, false)
 	}
 }
 
 // withdrawMethod is task.withdraw: an opener throwing its own task away, so with no reason of its own.
 func withdrawMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, error) {
 	return func(c *rpc.Conn, p map[string]any) (any, error) {
-		return discard(c, p, home, tell, "withdrawn by whoever opened it", false, true)
+		return discard(c, p, home, tell, "withdrawn by whoever opened it", true)
 	}
 }
 
@@ -81,7 +64,7 @@ func optionalReason(p map[string]any) (string, error) {
 }
 
 // discard throws one task away (discardOne) and does its telling once that commits.
-func discard(c *rpc.Conn, p map[string]any, home string, tell Teller, reason string, stop, own bool) (any, error) {
+func discard(c *rpc.Conn, p map[string]any, home string, tell Teller, reason string, own bool) (any, error) {
 	tid, err := taskID(p)
 	if err != nil {
 		return nil, err
@@ -90,7 +73,7 @@ func discard(c *rpc.Conn, p map[string]any, home string, tell Teller, reason str
 	var d *discarded
 	out, err := c.Effect(func(tx *sql.Tx) (map[string]any, error) {
 		var err error
-		if d, err = discardOne(tx, home, by, tid, reason, "", stop, own); err != nil {
+		if d, err = discardOne(tx, home, by, tid, reason, "", own); err != nil {
 			return nil, err
 		}
 		return accepted(d.said, nil), nil
@@ -144,7 +127,7 @@ func discardBatch(c *rpc.Conn, p map[string]any, home string, tell Teller) (any,
 			if r, ok := each[tid]; ok {
 				why = r
 			}
-			d, err := discardOne(tx, home, by, tid, why, batch, false, false)
+			d, err := discardOne(tx, home, by, tid, why, batch, false)
 			if err != nil {
 				return nil, err
 			}
@@ -191,11 +174,11 @@ func (d *discarded) tell(tell Teller, by string) {
 }
 
 // discardOne throws a task away before it is done (actions.discard_task): refused while a child is open, while it waits on an open
-// blocker, or while a request is still out on it - unless stop (the founder's cancel) or a lead discards in its own team tree, which
-// withdraws the open requests instead. What follows the commit - the says typed, the owner's next task
+// blocker, or while a request is still out on it - unless the founder or a lead in its own team tree discards it, which withdraws the
+// open requests instead. What follows the commit - the says typed, the owner's next task
 // - is the Teller's (discarded.tell). own is a withdraw: only the asker may, since anyone else must say why. batch names the batch this
 // discard is one of, "" for none.
-func discardOne(tx *sql.Tx, home, by string, tid int64, reason, batch string, stop, own bool) (*discarded, error) {
+func discardOne(tx *sql.Tx, home, by string, tid int64, reason, batch string, own bool) (*discarded, error) {
 	d := &discarded{tid: tid}
 	t, err := getTask(tx, tid)
 	if err != nil {
@@ -262,8 +245,8 @@ func discardOne(tx *sql.Tx, home, by string, tid int64, reason, batch string, st
 	if by != human {
 		verdict = fmt.Sprintf("withdrawn by %s: %s", by, said)
 	}
-	stops := stop && by == human
-	if !stops && by != human && len(live) > 0 {
+	stops := by == human
+	if !stops && len(live) > 0 {
 		if stops, err = leadsTreeOf(home, by, t); err != nil {
 			return nil, err
 		}
@@ -271,7 +254,7 @@ func discardOne(tx *sql.Tx, home, by string, tid int64, reason, batch string, st
 	// A request that already landed is held by its agent and no cancel can take it back: the asker or the founder discards the task
 	// all the same, the hold ends with it and the holder is told.
 	var holders []string
-	if !stops && (by == who || by == human) && allLanded(live) {
+	if (by == human || !stops && by == who) && allLanded(live) {
 		for _, r := range live {
 			holders = append(holders, r.Target)
 		}
@@ -315,7 +298,7 @@ func discardOne(tx *sql.Tx, home, by string, tid int64, reason, batch string, st
 			return nil, refusal(fmt.Sprintf("task T%d is in its holder's hands (%s) - only %s, who it answers to, or the founder can discard it now",
 				tid, strings.Join(open, ", "), who))
 		}
-		return nil, refusal(fmt.Sprintf("task T%d still has a request open: %s - withdraw or cancel it first (the founder cancels it in the app), "+
+		return nil, refusal(fmt.Sprintf("task T%d still has a request open: %s - withdraw it first (the founder's discard withdraws it), "+
 			"or its target keeps working on thrown-away work", tid, strings.Join(open, ", ")))
 	}
 	res, err := tx.Exec("UPDATE tasks SET discarded_by = ?, discarded_at = ?, discard_reason = ? WHERE id = ? AND "+openSQL, by, time.Now().Unix(), said, tid)

@@ -128,7 +128,6 @@ export const useTaskRequest = (target?: string) => useWrite("task.request", targ
 export const useTaskNone = (target?: string) => useWrite("task.none", target);
 export const useTaskDiscard = (target?: string) => useWrite("task.discard", target);
 export const useTaskWithdraw = (target?: string) => useWrite("task.withdraw", target);
-export const useTaskCancel = (target?: string) => useWrite("task.cancel", target);
 export const useTaskEdit = (target?: string) => useWrite("task.edit", target);
 export const useTaskAsk = (target?: string) => useWrite("task.ask", target);
 export const useTeamSeal = (target?: string) => useWrite("team.seal", target);

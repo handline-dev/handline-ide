@@ -44,7 +44,7 @@ export class TaskStore {
   protected nextId = 2000;
   protected host: Host;
   readonly now: () => string;
-  /** Serve the verbs of the daemon's plan (D3: done, reopen, queue, draft, discard, merge) too; off, as the real daemon is today. */
+  /** Serve the verbs of the daemon's plan (D3: done, reopen, queue, draft, merge) too; off, as the real daemon is today. */
   verbs = false;
   /** The founder's read marker per task (task.seen): the highest comment number in view. */
   protected seenUpto = new Map<number, number>();
