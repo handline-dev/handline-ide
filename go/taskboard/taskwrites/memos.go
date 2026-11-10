@@ -86,7 +86,6 @@ func Register(s *rpc.Server, home string, tell Teller, decide CardDecider) {
 	s.Register("task.start", rpc.Method{Handler: start})
 	s.Register("task.reopen", rpc.Method{Handler: reopenMethod(home, tell)})
 	s.Register("task.done", rpc.Method{Handler: doneMethod(home, tell, decide)})
-	s.Register("task.cancel", rpc.Method{Handler: cancelMethod(home, tell)})
 	s.Register("task.request", rpc.Method{Handler: requestMethod(home)})
 	s.Register("task.none", rpc.Method{Handler: noneMethod(home)})
 	s.Register("task.release", rpc.Method{Handler: releaseMethod(home, tell)})
