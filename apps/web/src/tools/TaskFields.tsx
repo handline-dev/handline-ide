@@ -7,7 +7,7 @@ import { ChevronDown, Flag, Timer, User } from 'lucide-react';
 import { useState, type ComponentProps, type ReactElement, type ReactNode } from 'react';
 import { Input } from '#src/ui/Field.tsx';
 import { Menu, MenuItem } from '#src/ui/Menu.tsx';
-import { ClockBar, LeftWords, useLeft } from '#src/tools/TaskClock.tsx';
+import { ClockBar, LeftWords, WholeTime, useLeft } from '#src/tools/TaskClock.tsx';
 import { Popover } from '#src/ui/Popover.tsx';
 import { toast } from '#src/ui/toast.tsx';
 
@@ -217,7 +217,7 @@ function TimeBox({ t, open }: { t: TaskDetail; open: boolean }) {
             <span className="text-fg">{value ?? 'None'}</span>
           )}
         </span>
-        {clockNow && <ClockBar t={t} left={clockNow.left} total={clockNow.total} />}
+        {clockNow ? <ClockBar t={t} left={clockNow.left} total={clockNow.total} /> : <WholeTime task={id} />}
       </dd>
     </>
   );
