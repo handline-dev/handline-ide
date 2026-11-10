@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/handline/handline/go/kit/store"
@@ -11,7 +12,7 @@ import (
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
-func TestCancelIsTheFoundersDiscardThatStopsTheRequestsOutOnTheTask(t *testing.T) {
+func TestTheFoundersDiscardWithdrawsTheRequestsOutOnTheTask(t *testing.T) {
 	db, err := storetest.OpenAt(t, filepath.Join(t.TempDir(), "db.sqlite"))
 	if err != nil {
 		t.Fatal(err)
@@ -40,24 +41,29 @@ func TestCancelIsTheFoundersDiscardThatStopsTheRequestsOutOnTheTask(t *testing.T
 		Register(s, home, f, nil)
 		return s
 	}
-	cancel := func(rid string, task int) map[string]any {
-		return call(t, mk(""), fmt.Sprintf(`{"jsonrpc":"2.0","id":2,"method":"task.cancel","params":{"task":%d,"request_id":%q}}`, task, rid))[0]
+	discard := func(rid string, task int) map[string]any {
+		return call(t, mk(""), fmt.Sprintf(`{"jsonrpc":"2.0","id":2,"method":"task.discard","params":{"task":%d,"request_id":%q}}`, task, rid))[0]
 	}
 	count := func(q string) (n int) { db.QueryRow(q).Scan(&n); return }
 
-	r := cancel("c1", 1)
-	if r["error"] != nil || r["result"].(map[string]any)["said"] != "task T1 discarded by human: cancelled by the founder" {
-		t.Fatalf("cancel: %v", r)
+	// An agent's discard is still refused while a request is out on the task.
+	r := call(t, mk("boss"), `{"jsonrpc":"2.0","id":2,"method":"task.discard","params":{"task":1,"reason":"moot","request_id":"a1"}}`)[0]
+	if e, _ := r["error"].(map[string]any); e == nil || !strings.Contains(fmt.Sprint(e["message"]), "still has a request open") {
+		t.Fatalf("an agent's discard of a task with a request out: %v", r)
+	}
+	r = discard("c1", 1)
+	if r["error"] != nil || r["result"].(map[string]any)["said"] != "task T1 discarded by human: Discarded" {
+		t.Fatalf("discard: %v", r)
 	}
 	if count("SELECT COUNT(*) FROM requests WHERE id = 10 AND state = 'landed' AND queue_order IS NULL") != 1 ||
 		count("SELECT COUNT(*) FROM events WHERE kind = 'cancel' AND payload LIKE '%\"request_id\": 10%'") != 1 {
-		t.Fatal("the delivered request is closed and the cancel recorded")
+		t.Fatal("the delivered request is closed and its cancel recorded")
 	}
 	if len(f.cancelled) != 1 || f.cancelled[0].RID != 10 || !f.cancelled[0].Delivered || f.stopped {
 		t.Fatalf("the target of a delivered request is stopped by the cancel itself: %+v %v", f.cancelled, f.stopped)
 	}
 
-	r = cancel("c2", 2)
+	r = discard("c2", 2)
 	if r["error"] != nil {
 		t.Fatalf("the founder's own undelivered request: %v", r)
 	}
@@ -66,12 +72,12 @@ func TestCancelIsTheFoundersDiscardThatStopsTheRequestsOutOnTheTask(t *testing.T
 	}
 
 	// The founder's own task: its request is its card, and withdrawing the card is part of this discard, not someone else's.
-	r = cancel("c3", 3)
-	if r["error"] != nil || r["result"].(map[string]any)["said"] != "task T3 discarded by human: cancelled by the founder" {
+	r = discard("c3", 3)
+	if r["error"] != nil || r["result"].(map[string]any)["said"] != "task T3 discarded by human: Discarded" {
 		t.Fatalf("a founder-owned task: %v", r)
 	}
-	if count("SELECT COUNT(*) FROM tasks WHERE id = 3 AND discard_reason = 'cancelled by the founder'") != 1 ||
+	if count("SELECT COUNT(*) FROM tasks WHERE id = 3 AND discard_reason = 'Discarded'") != 1 ||
 		count("SELECT COUNT(*) FROM requests WHERE id = 30 AND state = 'withdrawn'") != 1 {
-		t.Fatal("the task is discarded by the cancel and its card withdrawn")
+		t.Fatal("the task is discarded and its card withdrawn")
 	}
 }

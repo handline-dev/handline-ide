@@ -105,7 +105,6 @@ const AUTHORED: [string, object, [Key, unknown][], boolean][] = [
   ['task.reopen', { task: 7 }, taskSeed, false],
   ['task.release', { task: 7 }, taskSeed, false],
   ['task.withdraw', { task: 7 }, taskSeed, false],
-  ['task.cancel', { task: 7 }, taskSeed, false],
   ['task.merge', { into: 7, tasks: [8, 9] }, taskSeed, true],
   ['task.comment.add', { task: 7, text: 'new' }, memoSeed, true],
   ['task.comment.edit', { task: 7, memo: 1, text: 'changed' }, memoSeed, true],

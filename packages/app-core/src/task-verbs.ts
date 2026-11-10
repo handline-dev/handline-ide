@@ -4,8 +4,7 @@ import type { Task } from '@handline/client';
 import { taskRef } from '#src/tasks.ts';
 import { CLOSED } from '#src/task-table.ts';
 
-export type RowVerb =
-  'done' | 'reopen' | 'queue' | 'draft' | 'release' | 'withdraw' | 'cancel' | 'discard' | 'owner' | 'priority' | 'timebox';
+export type RowVerb = 'done' | 'reopen' | 'queue' | 'draft' | 'release' | 'withdraw' | 'discard' | 'owner' | 'priority' | 'timebox';
 
 /** Each verb as its menu word and the daemon method that serves it (owner, priority and time box are all `task.edit`). */
 export const TASK_VERBS: readonly { verb: RowVerb; label: string; method: string }[] = [
@@ -18,7 +17,6 @@ export const TASK_VERBS: readonly { verb: RowVerb; label: string; method: string
   { verb: 'priority', label: 'Set priority', method: 'task.edit' },
   { verb: 'timebox', label: 'Set time box', method: 'task.edit' },
   { verb: 'withdraw', label: 'Withdraw', method: 'task.withdraw' },
-  { verb: 'cancel', label: 'Cancel', method: 'task.cancel' },
   { verb: 'discard', label: 'Discard', method: 'task.discard' },
 ];
 
@@ -31,7 +29,6 @@ export function whyNot(verb: RowVerb, t: Task, me: string): string | null {
   switch (verb) {
     case 'done':
       return t.state === 'draft' ? `${taskRef(t.id)} is a draft, queue it first` : open(t) ? null : closed;
-    case 'cancel':
     case 'discard':
     case 'owner':
     case 'priority':

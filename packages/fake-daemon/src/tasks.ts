@@ -62,13 +62,12 @@ export class FakeTasks extends TaskVerbs {
     });
   }
 
-  /** Withdraw takes back a task nobody has started; cancel stops one that is running. */
-  close(p: Record<string, unknown>, verb: 'withdraw' | 'cancel'): void {
+  /** Withdraw takes back a task nobody has started. */
+  withdraw(p: Record<string, unknown>): void {
     const t = this.find(p.task);
-    if (verb === 'withdraw' && t.state !== 'queued' && t.state !== 'draft' && t.state !== 'pending')
-      throw new TaskFailure('refused', `task ${t.id} has started; cancel it instead`);
-    if (verb === 'cancel' && t.state === 'done') throw new TaskFailure('refused', `task ${t.id} is done`);
     if (t.state === 'discarded') throw new TaskFailure('refused', `task ${t.id} is already discarded`);
+    if (t.state !== 'queued' && t.state !== 'draft' && t.state !== 'pending')
+      throw new TaskFailure('refused', `task ${t.id} has started; discard it instead`);
     this.change(t, { state: 'discarded', done: this.now() });
   }
 }
@@ -86,7 +85,7 @@ const BASIC = new Set([
   'task.new',
   'task.edit',
   'task.withdraw',
-  'task.cancel',
+  'task.discard',
   'task.ask',
 ]);
 const VERBS = new Set([
@@ -94,7 +93,6 @@ const VERBS = new Set([
   'task.reopen',
   'task.queue',
   'task.draft',
-  'task.discard',
   'task.release',
   'task.merge',
   'task.comment.add',

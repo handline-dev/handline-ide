@@ -2,7 +2,7 @@
 import type { Task } from '@handline/client';
 import { shortSpan } from '#src/time.ts';
 
-export type TaskVerb = 'done' | 'queue' | 'draft' | 'edit' | 'reopen' | 'release' | 'withdraw' | 'cancel';
+export type TaskVerb = 'done' | 'queue' | 'draft' | 'edit' | 'reopen' | 'release' | 'withdraw';
 export interface TaskEdit {
   owner?: string;
   title?: string;
@@ -31,7 +31,7 @@ export function taskAfter(verb: TaskVerb, task: Task, now: string, edit: TaskEdi
         ...(edit.priority ? { priority: edit.priority } : {}),
       };
     default:
-      return undefined; // reopen, release, withdraw and cancel: where the daemon puts the task depends on more than this knows
+      return undefined; // reopen, release and withdraw: where the daemon puts the task depends on more than this knows
   }
 }
 
