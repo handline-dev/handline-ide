@@ -1,6 +1,5 @@
 import { Check, Circle, CircleDot, Hand, Hourglass, X, type LucideProps } from 'lucide-react';
 import { taskOutcome } from '@handline/app-core';
-import { useTask } from '@handline/app-data';
 import type { ReactNode } from 'react';
 
 /** Doing: a filled dot, smaller than the square's other icons. */
@@ -26,24 +25,23 @@ export const failedLine = (evidence: string | null | undefined, title?: string |
   const line = o.rest.split('\n')[0]!.trim();
   return line ? `Failed: ${line}` : 'Failed';
 };
-/** The look of what the task is doing now: an open task something holds reads as waiting, whatever its state says; a done one that failed its check reads as failed. */
-export const look = (t: {
+export type Lookable = {
   state: string;
   waiting?: unknown;
   block_reason: string | null;
   hold_reason: string | null;
   evidence?: string | null;
   title?: string;
-}) => {
+};
+/** The look of what the task is doing now: an open task something holds reads as waiting, whatever its state says; a done one that failed its check reads as failed. */
+export const look = (t: Lookable) => {
   const held = !['done', 'discarded'].includes(t.state) && !!(t.waiting || t.block_reason || t.hold_reason);
   const failed = t.state === 'done' && failedLine(t.evidence, t.title) !== null;
   return STATE[held ? 'waiting' : failed ? 'failed' : t.state] ?? { icon: CircleDot, tone: 'bg-muted', word: t.state };
 };
 
-/** Another task's state pill, read from that task so a held one reads as waiting. */
-export function TaskState({ id }: { id: number }) {
-  const t = useTask(id).data;
-  if (!t) return null;
+/** Another task's state pill, from the TaskLook its row carries. */
+export function TaskState({ t }: { t: Lookable }) {
   const s = look(t);
   return (
     <span
