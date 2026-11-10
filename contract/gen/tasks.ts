@@ -162,12 +162,16 @@ export type TaskDetail = Task & {
   /** What happened on the task as one list, oldest first: its memos, its handoffs (a handoff's note is its entry, not a second one), the requests linked to it, the edits of its brief, its marks done and each time it was sent back. Overlaps `events`, `memos`, `handoffs` and `deliveries`, which stay. */
   timeline: {
     at: Timestamp;
-    /** The author, or `from → to` for a handoff. */
+    /** The author, or `from → to` for a handoff or a turn. */
     who: string;
-    /** memo; handoff; a request linked to the task, except a memo's tell and the ask to the founder an @human memo opens, which repeat their memo; edit, the brief changed (text is the new brief); state, a change of state (text is `from -> done`); reject, the task sent back (text is the note), from before a review was a handoff. */
-    kind: "memo" | "handoff" | "request" | "edit" | "state" | "reject";
+    /** memo; handoff; a request linked to the task, except a memo's tell, the ask to the founder an @human memo opens, and a request that forwards a comment or a turn's return (any of them withdrawn too), which repeat their memo or turn; edit, the brief changed (text is the new brief); state, a change of state (text is `from -> done`); reject, the task sent back (text is the note), from before a review was a handoff; turn, a turn pushed (who is `by → to`, text its ask) or given back (who is `from → to`, text empty: a note is its comment). */
+    kind: "memo" | "handoff" | "request" | "edit" | "state" | "reject" | "turn";
     /** Already stripped of control characters: a client draws it as it is. */
     text: string;
+    /** On a turn row: push, the turn handed to `to` (text its ask, which may be empty); pop, given back to `to`. */
+    turn?: "push" | "pop";
+    /** On a request the daemon delivered on someone's behalf: queue, the queued task sent to its free holder (or raised on the founder's board); resend, the delivery sent again to the task's new holder. Absent on a request someone sent. */
+    forwards?: "queue" | "resend";
     memo: number | null;
     edited_at: Timestamp | null;
     /** `text` cut at the images it names, for a memo, a handoff, an edit or a reject; present only when it names one. */

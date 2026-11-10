@@ -332,7 +332,8 @@ func (e *Env) sendMovedTask(q db.Q, tid int64, old, by string) {
 	if len(taken) > 0 && owner != db.Human {
 		asker := taken[0].Requester
 		if asker != owner { // given to the one who asked: advance starts it as its own below
-			out, err := e.Ask(q, AskIn{Target: owner, Body: taken[0].Body, Requester: asker, Kind: "task", OnBehalfOf: true})
+			out, err := e.Ask(q, AskIn{Target: owner, Body: taken[0].Body, Requester: asker, Kind: "task", OnBehalfOf: true,
+				Forward: Forward{Task: tid, Carries: db.ForwardResend, From: taken[0].ID}})
 			if err != nil {
 				panic(dbFailure{err})
 			}

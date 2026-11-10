@@ -88,11 +88,13 @@ func MemoTexts(q Q, tid int64) ([]string, error) {
 // LinkMemoTell keeps that request rid told reader of memo mid. A task's return that carried the comment stays its tell: an edit's later
 // tell does not replace it, or the return would show again as a request of its own; one closed before it reached the reader is none.
 func LinkMemoTell(q Q, mid int64, reader string, rid int64) error {
-	_, err := q.Exec("INSERT INTO memo_tells(memo_id, reader, request_id) VALUES (?, ?, ?) ON CONFLICT(memo_id, reader) DO UPDATE SET "+
-		"request_id = excluded.request_id WHERE (SELECT kind != 'task' OR "+NeverReached("")+" FROM requests WHERE id = memo_tells.request_id) IS NOT 0",
-		mid, reader, rid)
+	_, err := q.Exec("INSERT INTO memo_tells(memo_id, reader, request_id) VALUES (?, ?, ?)"+keepReturnTell, mid, reader, rid)
 	return err
 }
+
+// keepReturnTell is LinkMemoTell's rule for a reader already told: a return that reached it stays its tell.
+var keepReturnTell = " ON CONFLICT(memo_id, reader) DO UPDATE SET request_id = excluded.request_id WHERE (SELECT kind != 'task' OR " +
+	NeverReached("") + " FROM requests WHERE id = memo_tells.request_id) IS NOT 0"
 
 // MemoCountBy is how many memos author has written on the task since the stamp, inclusive (seconds, as a memo's created_at).
 func MemoCountBy(q Q, tid int64, author string, since float64) (n int64, err error) {
