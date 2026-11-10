@@ -28,13 +28,13 @@ func TestARequestThatAppearedOrChangedIsToldAsItsRow(t *testing.T) {
 		return out
 	}
 	now := time.Now().Unix()
-	exec(t, d, fmt.Sprintf("INSERT INTO requests(id, ref, ts, requester, target, body, state, kind, edge_ok) VALUES(1, 'aaaaaaaaaaa1', %d, 'human', 'lead', 'hello', 'landed', 'say', 1)", now-10))
+	exec(t, d, fmt.Sprintf("INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'hello', 'lead', 'human', %d)", now-10))
 	if n := told(); len(n) != 0 {
 		t.Fatalf("a first look told %v", n)
 	}
-	exec(t, d, "UPDATE requests SET no_work = 'thanks' WHERE id = 1")
+	exec(t, d, fmt.Sprintf("UPDATE tasks SET done_evidence = 'ok', done_at = %d WHERE id = 1", now-5))
 	got := told()
-	if len(got) != 1 || !strings.HasPrefix(got[0], "request.changed ") || !strings.Contains(got[0], `"status":"no_work"`) {
+	if len(got) != 1 || !strings.HasPrefix(got[0], "request.changed ") || !strings.Contains(got[0], `"status":"done"`) {
 		t.Fatalf("%v", got)
 	}
 	if n := told(); len(n) != 1 {

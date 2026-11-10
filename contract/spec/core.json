@@ -121,8 +121,7 @@
   "hl triggers": "agent.triggers",
   "hl account list": "accounts.list",
   "hl memory status": "memory.status",
-  "hl task request": "task.request",
-  "hl task none": "task.none"
+  "hl task request": "task.request"
  },
  "x-dropped-from-agents": {
   "note": "Agent commands the spec does not keep at agent role, for the founder to decide. Each is founder-only or a person's act today, or is not a daemon call.",

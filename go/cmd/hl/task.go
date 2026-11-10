@@ -21,7 +21,7 @@ var taskCmds = map[string]taskCmd{
 	"new": taskNew, "begin": taskBegin, "handoff": taskHandoff, "start": taskStart, "note": taskNote,
 	"comment": taskMemo, "memo": taskMemo, "show": taskShow, "list": taskList, "queue": taskQueue(true), "draft": taskQueue(false),
 	"edit": taskEdit, "merge": taskMerge, "done": taskDone, "reopen": taskReopen, "release": taskRelease,
-	"discard": taskDiscard, "board": taskBoard, "wait": taskWait, "request": taskRequest, "none": taskNone,
+	"discard": taskDiscard, "board": taskBoard, "wait": taskWait, "request": taskRequest,
 	"turn": taskTurn, "pass": taskPop("pass"), "back": taskPop("send_back"),
 }
 
@@ -741,24 +741,4 @@ func taskRequest(c *hlclient.Client, args []string) (int, bool) {
 		params["owner"] = owner
 	}
 	return said(c.Write("task.request", params)), true
-}
-
-// taskNone is `hl task none <msg> "<why>"`: a founder's message that needs no work.
-func taskNone(c *hlclient.Client, args []string) (int, bool) {
-	p, ok := parse(args, nil, nil, nil)
-	if !ok {
-		return 0, false
-	}
-	if len(p.pos) != 2 {
-		return wrongArgs("it takes the founder's message and the reason in quotes, and got %d word(s)", len(p.pos))
-	}
-	msg, ok := requestArg(p.pos[0])
-	if !ok {
-		return wrongArgs("%q is not a message: msg_<hash>", p.pos[0])
-	}
-	mutating(c, "none")
-	if !asking(c, "mark a message as needing no work") {
-		return 1, true
-	}
-	return said(c.Write("task.none", map[string]any{"request": msg, "reason": p.pos[1]})), true
 }

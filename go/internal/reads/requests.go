@@ -12,8 +12,8 @@ import (
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
-// The founder's requests: the tasks they opened (a message made a request, or a task of their own for a lead) and the messages they sent that
-// are not a task yet. Each request's status is read from its tree of tasks and stored nowhere.
+// The founder's requests: the tasks they opened (a message made a request, or a task of their own for a lead). A message that is not a task
+// is the chat's, not a request. Each request's status is read from its tree of tasks and stored nowhere.
 
 // Request statuses, in the order the first that holds is the status.
 const (
@@ -21,12 +21,10 @@ const (
 	reqReview       = "review"         // an open task has a PR
 	reqDoing        = "doing"          // some task in the tree is open
 	reqDone         = "done"           // the request's own task is done
-	reqNoWork       = "no_work"        // a message marked as needing no work
-	reqNotYet       = "not_yet"        // a message with neither a task nor a no-work mark
 )
 
 const (
-	// requestWindowS is how far back a message, or a request done, is listed.
+	// requestWindowS is how far back a request done is listed.
 	requestWindowS = 30 * 24 * 3600
 )
 
@@ -122,7 +120,7 @@ func (e *Env) RequestRows(clock int64) ([]map[string]any, error) {
 		}
 		row := map[string]any{"kind": "task", "task": id, "ref": nil, "title": r.str("title"), "status": status, "agent": agent,
 			"holders": sortedKeys(holders), "open": open, "done": done, "prs": sortedNums(prs), "now": nowAgent, "blocked": blocked,
-			"progress": progressLine(status, open, done, nowAgent, blocked), "reason": nil, "unread_comments": unread[id].n,
+			"progress": progressLine(status, open, done, nowAgent, blocked), "unread_comments": unread[id].n,
 			"created": ts(r["created_at"]), "last_activity": ts(last), "cursor": cursorOf(last, "t", id), "attention": nil, "ended": endedOf(r, seen)}
 		if r.set("discarded_by") {
 			row["progress"] = "discarded"
@@ -141,19 +139,6 @@ func (e *Env) RequestRows(clock int64) ([]map[string]any, error) {
 			row["origin"] = origins[rid].agent
 		}
 		out = append(out, row)
-	}
-	msgs, err := query(e.DB, plainMessagesSQL, human, human, since)
-	if err != nil {
-		return nil, err
-	}
-	for _, m := range msgs {
-		status, reason := reqNotYet, any(nil)
-		if m.set("no_work") {
-			status, reason = reqNoWork, m.str("no_work")
-		}
-		out = append(out, map[string]any{"kind": "message", "task": nil, "ref": db.MsgPrefix + m.str("ref"), "title": head(firstLine(m.str("body")), 80),
-			"status": status, "agent": m.str("target"), "holders": []string{}, "open": 0, "done": 0, "prs": []int64{}, "now": nil, "blocked": false, "progress": "", "reason": reason, "unread_comments": 0,
-			"created": ts(m["ts"]), "last_activity": ts(m["ts"]), "cursor": cursorOf(m.i("ts"), "m", m.i("id")), "attention": nil, "ended": nil})
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i]["cursor"].(string) > out[j]["cursor"].(string) })
 	return out, nil
@@ -182,17 +167,10 @@ func progressLine(status string, open, done int, now any, blocked bool) string {
 	return strings.Join(parts, ", ")
 }
 
-// cursorOf orders rows by last activity, then kind and number; text of one width sorts as it reads.
+// cursorOf orders rows by last activity, then number (kind is "t", kept so a saved cursor still reads); text of one width sorts as it reads.
 func cursorOf(last int64, kind string, id int64) string {
 	return fmt.Sprintf("%012d:%s%012d", last, kind, id)
 }
-
-// plainMessagesSQL is the founder's messages that opened no task, are linked to none and gave none its turn_origin. Each NOT EXISTS probe
-// needs an index (tasks_from_request, task_requests_request, tasks_turn_origin): without one each ran a scan per message, seconds of CPU at every change.
-const plainMessagesSQL = "SELECT id, ref, ts, target, body, no_work FROM requests r WHERE requester = ? AND target != ? AND parent_id IS NULL " +
-	"AND state NOT IN ('denied', 'withdrawn') AND ts >= ? " +
-	"AND NOT EXISTS (SELECT 1 FROM task_requests l WHERE l.request_id = r.id) AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.from_request = r.id) " +
-	"AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.turn_origin = r.id) ORDER BY id"
 
 // requestRootSQL is a request's own task: one with no parent that answers to the founder (its reporter, else its opener), or one whose
 // request is itself. Two args: human, human.
@@ -330,8 +308,8 @@ func (e *Env) requestsList(_ *rpc.Conn, params map[string]any) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	if state != nil && !slices.Contains([]string{reqWaitingOnYou, reqReview, reqDoing, reqDone, reqNoWork, reqNotYet}, *state) {
-		return nil, badParam("state is waiting_on_you, review, doing, done, no_work or not_yet", "state")
+	if state != nil && !slices.Contains([]string{reqWaitingOnYou, reqReview, reqDoing, reqDone}, *state) {
+		return nil, badParam("state is waiting_on_you, review, doing or done", "state")
 	}
 	unseen, ok := params["unseen"].(bool)
 	if !ok && params["unseen"] != nil {

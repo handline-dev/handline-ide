@@ -18,13 +18,12 @@ const FounderNudgeKind = "founder_nudged"
 const FounderDeferKind = "founder_nudge_deferred"
 
 // UnansweredFounder is the founder's typed message to agent that landed since agent's last recorded Stop or was deferred, was never nudged, and has no
-// answer: no say or other request from agent to the founder since it landed, and no task or no-work mark made from it. 0 when none.
+// answer: no say or other request from agent to the founder since it landed, and no task made from it. 0 when none.
 func (e *Env) UnansweredFounder(agent string) (int64, error) {
 	var rid int64
 	err := e.DB.QueryRow("SELECT r.id FROM requests r WHERE r.requester = ? AND r.target = ? AND r.kind = 'say' AND r.founder_auth = 1 "+
 		"AND (r.landed_at >= (SELECT COALESCE(MAX(ts), 0) FROM events WHERE agent = ? AND kind IN ('Stop', 'StopFailure')) "+
 		"OR EXISTS (SELECT 1 FROM events d WHERE d.dedup_key = ?||r.id)) "+
-		"AND r.no_work IS NULL "+
 		"AND NOT EXISTS (SELECT 1 FROM task_requests l WHERE l.request_id = r.id) "+
 		"AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.from_request = r.id) "+
 		"AND NOT EXISTS (SELECT 1 FROM requests a WHERE a.requester = r.target AND a.target = ? AND a.ts >= r.landed_at) "+
