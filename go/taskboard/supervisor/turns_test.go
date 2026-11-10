@@ -451,3 +451,44 @@ func TestASayWithFilesToTheFounderIsNotTheQuestion(t *testing.T) {
 		t.Fatalf("%+v acting %s", out, r.acting(held))
 	}
 }
+
+// forwarded is whether request rid forwards a comment or a turn's return (db.ForwardedSQL): the task's page and the chat draw that instead.
+func (r *rig) forwarded(rid int64) bool {
+	r.t.Helper()
+	var n int
+	r.must(r.DB.QueryRow("SELECT COUNT(*) FROM ("+db.ForwardedSQL+") WHERE id = ?", rid).Scan(&n))
+	return n == 1
+}
+
+// The founder's comment that gives a turn back is forwarded to the holder, and when the task then moves to a new holder the delivery sent
+// again carries the comment on: both are the comment's, the withdrawn one too, and the new holder is one of its readers. A pass with no
+// comment is forwarded as the turn's return.
+func TestAForwardedCommentStaysTheCommentsWhenTheTaskMovesAndAPassIsTheTurns(t *testing.T) {
+	r := newRig(t)
+	r.agentUp("bob")
+	r.agentUp("alice")
+	tid := r.beginCurrent("bob", "alice", "ship it")
+	r.turnCall("bob", "task.turn.push", fmt.Sprintf(`{"task":%d,"to":"human","ask":"now?","request_id":"p1"}`, tid))
+	r.turnCall("human", "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"now","request_id":"c1"}`, tid))
+	var back int64
+	r.must(r.DB.QueryRow("SELECT r.id FROM requests r JOIN task_requests l ON l.request_id = r.id WHERE l.task_id = ? AND r.target = 'bob' ORDER BY r.id DESC LIMIT 1", tid).Scan(&back))
+	r.turnCall("human", "task.edit", fmt.Sprintf(`{"task":%d,"owner":"alice","request_id":"e1"}`, tid))
+	var again int64
+	r.must(r.DB.QueryRow("SELECT r.id FROM requests r JOIN task_requests l ON l.request_id = r.id WHERE l.task_id = ? AND r.target = 'alice' ORDER BY r.id DESC LIMIT 1", tid).Scan(&again))
+	if !r.forwarded(back) || !r.forwarded(again) {
+		t.Fatalf("the return %d and its resend %d are the comment's: %v %v", back, again, r.forwarded(back), r.forwarded(again))
+	}
+	var reader string
+	r.must(r.DB.QueryRow("SELECT reader FROM memo_tells WHERE request_id = ?", again).Scan(&reader))
+	if reader != "alice" {
+		t.Fatalf("the resend tells %q", reader)
+	}
+
+	r.turnCall("alice", "task.turn.push", fmt.Sprintf(`{"task":%d,"to":"human","ask":"ok?","request_id":"p2"}`, tid))
+	r.turnCall("human", "task.turn.pop", fmt.Sprintf(`{"task":%d,"outcome":"pass","request_id":"x1"}`, tid))
+	var passed int64
+	r.must(r.DB.QueryRow("SELECT r.id FROM requests r JOIN task_requests l ON l.request_id = r.id WHERE l.task_id = ? AND r.target = 'alice' ORDER BY r.id DESC LIMIT 1", tid).Scan(&passed))
+	if passed == again || !r.forwarded(passed) {
+		t.Fatalf("the pass's return %d is the turn's", passed)
+	}
+}
