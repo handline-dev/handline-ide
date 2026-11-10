@@ -2,7 +2,6 @@ package taskwrites
 
 import (
 	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/handline/handline/go/taskboard/attachments"
@@ -53,31 +52,6 @@ func TestARequestIsATaskTheFounderOpenedFromTheirMessage(t *testing.T) {
 	r = call(t, mk(""), requestLine("task.request", 2, `"request":2,"title":"Named","owner":"worker",`, "f1"))
 	if r[0]["error"] != nil || count(t, db, "SELECT COUNT(*) FROM tasks WHERE id = 2 AND title = 'Named' AND owner = 'worker' AND opened_by = 'human' AND from_request = 2") != 1 {
 		t.Fatalf("%v", r[0])
-	}
-}
-
-func TestNoWorkMarksAMessageUntilItIsMadeARequest(t *testing.T) {
-	db, mk := discardEnv(t)
-	exec(t, db, "INSERT INTO requests(id, requester, target, body, state, kind, ts) VALUES"+
-		"(1, 'human', 'manager', 'thanks', 'landed', 'say', 1), (2, 'human', 'manager', 'do this', 'landed', 'say', 1), (3, 'human', 'worker', 'other', 'landed', 'say', 1)")
-	code := func(r map[string]any) any { return r["error"].(map[string]any)["data"].(map[string]any)["code"] }
-	r := call(t, mk("manager"),
-		requestLine("task.none", 2, `"request":1,"reason":"just thanks",`, "n1"),
-		requestLine("task.none", 3, `"request":3,"reason":"x",`, "n2"),
-		requestLine("task.none", 4, `"request":1,"reason":"  ",`, "n3"),
-		requestLine("task.request", 5, `"request":2,`, "n4"),
-		requestLine("task.none", 6, `"request":2,"reason":"changed my mind",`, "n5"),
-		requestLine("task.none", 7, `"request":1,"reason":"just thanks",`, "n6"))
-	if r[0]["error"] != nil || count(t, db, "SELECT COUNT(*) FROM requests WHERE id = 1 AND no_work = 'just thanks' AND no_work_by = 'manager'") != 1 {
-		t.Fatalf("%v", r[0])
-	}
-	if code(r[1]) != "refused" || code(r[2]) != "bad_request" || code(r[4]) != "refused" ||
-		!strings.Contains(r[4]["error"].(map[string]any)["message"].(string), "already T") {
-		t.Fatalf("a message sent to another agent, a blank reason, a message already a request: %v %v %v", r[1], r[2], r[4])
-	}
-	r = call(t, mk("manager"), requestLine("task.request", 2, `"request":1,`, "n7"))
-	if r[0]["error"] != nil || count(t, db, "SELECT COUNT(*) FROM requests WHERE id = 1 AND no_work IS NULL AND no_work_by IS NULL") != 1 {
-		t.Fatalf("making it a request clears the mark: %v", r[0])
 	}
 }
 

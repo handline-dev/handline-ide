@@ -1,5 +1,5 @@
-// The fake daemon's requests: the founder's requests.list rows, and task.request and task.none, which turn a message of theirs into a request or
-// mark it as needing no work. A test or a seed puts rows in with `add`; the requests topic says when one changed.
+// The fake daemon's requests: the founder's requests.list rows, all tasks, and task.request, which turns a message of theirs into one. A test
+// or a seed puts rows in with `add`; the requests topic says when one changed.
 import type { RequestRow, Timestamp } from '@handline/contract';
 import { Failure, invalidParams } from '#src/errors.ts';
 
@@ -8,12 +8,12 @@ interface Host {
   /** The chat, for a request named by the number of a message of the founder's. */
   chat: {
     find(id: unknown): { id: number; to: string; body: string; agent: string };
-    change(m: never, patch: { request_task?: number | null; no_work?: string | null }): void;
+    change(m: never, patch: { request_task?: number | null }): void;
   };
 }
 type Accepted = (said: string, extra?: object) => unknown;
 
-const METHODS = /^(requests.list|task.request|task.none)$/;
+const METHODS = /^(requests.list|task.request)$/;
 const PAGE = 50;
 
 export class FakeRequests {
@@ -32,12 +32,11 @@ export class FakeRequests {
 
   /** A request row as the daemon reads it; what a test does not say is the plainest value. */
   add(row: Partial<RequestRow> & Pick<RequestRow, 'title'>): RequestRow {
-    const message = row.kind === 'message' || (row.kind === undefined && row.task === undefined);
     const full: RequestRow = {
-      kind: message ? 'message' : 'task',
-      task: message ? null : (row.task ?? this.next++),
-      ref: message ? `#${this.next++}` : null,
-      status: message ? 'not_yet' : 'doing',
+      kind: 'task',
+      task: row.task ?? this.next++,
+      ref: null,
+      status: 'doing',
       agent: 'handline.architect',
       holders: [],
       open: 0,
@@ -46,7 +45,6 @@ export class FakeRequests {
       now: null,
       blocked: false,
       progress: '',
-      reason: null,
       unread_comments: 0,
       created: this.now(),
       last_activity: this.now(),
@@ -62,27 +60,15 @@ export class FakeRequests {
 
   call(method: string, p: Record<string, unknown>, accepted: Accepted): unknown {
     if (method === 'requests.list') return this.list(p);
-    const row = this.rows.find((r) => r.ref !== null && r.ref === String(p.request)) ?? this.fromChat(p.request);
-    if (!row) throw new Failure('not_found', `no message ${String(p.request)} of the founder's`, { field: 'request' });
-    const mark = (patch: { request_task?: number | null; no_work?: string | null }) => {
-      const m = typeof row.ref === 'string' && row.ref.startsWith('msg:') ? this.host.chat.find(Number(row.ref.slice(4))) : null;
-      if (m) this.host.chat.change(m as never, patch);
-    };
-    if (method === 'task.none') {
-      if (typeof p.reason !== 'string' || !p.reason.trim()) throw invalidParams('reason says why no work is needed', 'reason');
-      Object.assign(row, { status: 'no_work', reason: p.reason.trim() });
-      mark({ no_work: p.reason.trim() });
-      this.host.emit('requests', 'request.changed', { agent: row.agent, data: { ...row } });
-      return accepted('Marked: no work.');
-    }
-    const existing = row.kind === 'task';
-    if (!existing) {
-      Object.assign(row, { kind: 'task', task: this.next++, status: 'doing', holders: [row.agent], origin: row.agent });
-      if (typeof p.title === 'string' && p.title.trim()) row.title = p.title.trim();
-      mark({ request_task: row.task });
-      this.host.emit('requests', 'request.changed', { agent: row.agent, data: { ...row } });
-    }
-    return accepted(existing ? 'Already a request.' : 'Request made.', { task: row.task, ...(existing ? { existing: true } : {}) });
+    const m = this.message(p.request);
+    if (!m) throw new Failure('not_found', `no message ${String(p.request)} of the founder's`, { field: 'request' });
+    const ref = `msg:${m.id}`;
+    const made = this.rows.find((r) => r.ref === ref);
+    if (made) return accepted('Already a request.', { task: made.task, existing: true });
+    const title = typeof p.title === 'string' && p.title.trim() ? p.title.trim() : m.body.split('\n')[0]!.slice(0, 80);
+    const row = this.add({ title, ref, agent: m.to, holders: [m.to], origin: m.to });
+    this.host.chat.change(m as never, { request_task: row.task });
+    return accepted('Request made.', { task: row.task });
   }
 
   /** requests.pending's unseen_results: the finished rows the founder has not seen. */
@@ -96,12 +82,11 @@ export class FakeRequests {
     this.host.emit('requests', 'request.changed', { agent: row.agent, data: { ...row } });
   }
 
-  /** A request named by a chat message's number: its row is made on the first call. */
-  private fromChat(name: unknown): RequestRow | undefined {
+  /** The founder's chat message a request names by its number. */
+  private message(name: unknown): { id: number; to: string; body: string } | undefined {
     if (typeof name !== 'number' && !/^\d+$/.test(String(name))) return undefined;
     try {
-      const m = this.host.chat.find(Number(name));
-      return this.add({ title: m.body.split('\n')[0]!.slice(0, 80), kind: 'message', agent: m.to, ref: `msg:${m.id}` });
+      return this.host.chat.find(Number(name));
     } catch {
       return undefined;
     }
@@ -117,8 +102,7 @@ export class FakeRequests {
 }
 
 /** The one-line progress of a request: the same rule as the daemon's progressLine (go/internal/reads/requests.go). */
-export function progressLine(r: Pick<RequestRow, 'kind' | 'status' | 'open' | 'done' | 'now' | 'blocked'>): string {
-  if (r.kind === 'message') return '';
+export function progressLine(r: Pick<RequestRow, 'status' | 'open' | 'done' | 'now' | 'blocked'>): string {
   if (r.status === 'done') return 'done';
   const parts: string[] = [];
   if (r.open + r.done > 0) parts.push(`sub ${r.done}/${r.open + r.done} done`);

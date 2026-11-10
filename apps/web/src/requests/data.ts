@@ -3,7 +3,7 @@ import { hooks, useFeed, usePrefs } from '@handline/app-data';
 import type { PendingRequest, RequestRow } from '@handline/client';
 import { useNow } from '#src/format/time.ts';
 
-const FINISHED = new Set<RequestRow['status']>(['done', 'no_work']);
+const FINISHED = new Set<RequestRow['status']>(['done']);
 
 /** The founder's requests in the three sections of the Requests view and the bell: their turn, in progress, finished. `count` is the
  * one number the bell and the sidebar's Requests show (requests.pending's answer). */

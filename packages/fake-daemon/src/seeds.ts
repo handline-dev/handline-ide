@@ -150,7 +150,7 @@ export const SEEDS: Record<string, Seed> = {
     }
   },
 
-  /** The founder's requests: one waiting on them, one in review, one doing, a done one, a message that is not a task yet. */
+  /** The founder's requests: one waiting on them, one in review, one doing, a done one. */
   requests: (d) => {
     d.requests.add({
       title: 'Show the usage graph first',
@@ -197,7 +197,6 @@ export const SEEDS: Record<string, Seed> = {
       done: 2,
       ended: ended(20, false),
     });
-    d.requests.add({ title: 'Why is the build so slow today?', kind: 'message', agent: 'handline' });
   },
 
   /** The founder's open requests for the Tasks page's My requests chip: one waiting on them, one blocked, two being worked, one not taken yet. */
