@@ -86,7 +86,9 @@ func (e *Env) ForYou() ([]map[string]any, int, error) {
 	if err != nil {
 		return nil, 0, err
 	}
-	owned, err := query(e.DB, "SELECT *, "+taskActing+" FROM tasks WHERE "+db.ActingSQL("tasks")+" = ? AND "+openTask+" ORDER BY id", human)
+	owned, err := query(e.DB, "SELECT *, "+taskActing+", "+
+		"COALESCE((SELECT since FROM task_turns WHERE task_id = tasks.id ORDER BY pos DESC LIMIT 1), created_at) AS turn_since "+
+		"FROM tasks WHERE "+db.ActingSQL("tasks")+" = ? AND "+openTask+" ORDER BY id", human)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -102,7 +104,7 @@ func (e *Env) ForYou() ([]map[string]any, int, error) {
 		if from == "" {
 			from = t.str("opened_by")
 		}
-		add(forYouItem("task", strconv.FormatInt(t.i("id"), 10), from, t.str("title"), ask, ts(t["created_at"])))
+		add(forYouItem("task", strconv.FormatInt(t.i("id"), 10), from, t.str("title"), ask, ts(t["turn_since"])))
 	}
 
 	// The prompts agents wait on, while the screen watch still sees them.

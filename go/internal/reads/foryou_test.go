@@ -145,3 +145,20 @@ func TestADeferralThatIsOverLeavesItsItemInTheCount(t *testing.T) {
 		t.Fatalf("count %d: a time past, a task done, a task that is none: %v", count, got)
 	}
 }
+
+// A task row in Requests is dated when the founder's turn came on it, not when the task was made; a task the founder owns with no turn
+// on it is dated when it was made.
+func TestAFoundersTurnRowIsDatedWhenTheTurnCame(t *testing.T) {
+	t.Parallel()
+	e := testEnv(t)
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(1, 'ship it?', 'w', 'boss', 10, 'boss'), "+
+		"(2, 'pick one', 'human', 'boss', 20, 'boss')")
+	run(t, e, "INSERT INTO task_turns(task_id, pos, agent, ask, pushed_by, since) VALUES(1, 1, 'cy', 'look', 'w', 300), (1, 2, 'human', 'decide', 'cy', 500)")
+	got, _ := forYou(t, e)
+	if it := got["task\x001"]; it == nil || it["since"] != stamp(500) {
+		t.Errorf("the top turn's time: %v", it)
+	}
+	if it := got["task\x002"]; it == nil || it["since"] != stamp(20) {
+		t.Errorf("no turn, the task's own time: %v", it)
+	}
+}

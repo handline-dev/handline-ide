@@ -117,6 +117,14 @@ func (b *board) holds(t row) bool {
 	return actingOf(t) == human || actingOf(t) == db.Gate || has && held == t.i("id")
 }
 
+// busy says which other task t's acting agent holds now, as "<agent> is on T<n>"; empty when it holds none or holds t.
+func (b *board) busy(t row) string {
+	if cur, has := b.current[actingOf(t)]; has && cur != t.i("id") {
+		return fmt.Sprintf("%s is on T%d", actingOf(t), cur)
+	}
+	return ""
+}
+
 // state is one of draft, queued, doing, done, discarded: verdict.TaskState of the board's facts for t.
 func (b *board) state(t row) string {
 	id := t.i("id")
@@ -501,7 +509,7 @@ func (e *Env) taskOf(t row, state string, b *board) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	hold := waitLine(rec, state)
+	hold := waitLine(rec, state, b.busy(t))
 	clock, err := e.taskClock(t, state)
 	if err != nil {
 		return nil, err
@@ -621,7 +629,7 @@ func blockReason(blockedBy []int64) any {
 
 // lookOf is what the web's look() reads of a task another one lists (a sub-task, a blocker), so the list draws each row's state without
 // reading that task: the fields taskOf gives them, from the same reads.
-func (e *Env) lookOf(t row, state string) (map[string]any, error) {
+func (e *Env) lookOf(t row, state string, b *board) (map[string]any, error) {
 	waits, err := e.waitsOf(t.i("id"))
 	if err != nil {
 		return nil, err
@@ -634,7 +642,7 @@ func (e *Env) lookOf(t row, state string) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return map[string]any{"state": state, "waiting": mapOrNil(waiting), "hold_reason": waitLine(rec, state), "block_reason": blockReason(openWaits(waits)),
+	return map[string]any{"state": state, "waiting": mapOrNil(waiting), "hold_reason": waitLine(rec, state, b.busy(t)), "block_reason": blockReason(openWaits(waits)),
 		"evidence": t.strOrNil("done_evidence")}, nil
 }
 
@@ -726,14 +734,17 @@ func (e *Env) holdRec(tid int64) (map[string]any, error) {
 }
 
 // waitLine is what shows beside a waiting task: the reason the sweep recorded for it and how long it has stood. A queued task nothing has
-// recorded a reason for says it is not looked at yet.
-func waitLine(rec map[string]any, state string) any {
+// recorded a reason for names the other task its acting agent is on, or says it is not looked at yet when there is none.
+func waitLine(rec map[string]any, state, busy string) any {
 	if state != "queued" && state != "doing" {
 		return nil
 	}
 	if len(rec) == 0 {
-		if state != "queued" {
+		switch {
+		case state != "queued":
 			return nil
+		case busy != "":
+			return "waiting: " + busy + "; starts when it finishes"
 		}
 		return "waiting: the daemon has not looked at it yet - it does on its next tick"
 	}
@@ -891,7 +902,7 @@ func (e *Env) taskGet(c *rpc.Conn, params map[string]any) (any, error) {
 	}
 	bs := []any{}
 	for _, bl := range blockers {
-		item, err := e.lookOf(bl, b.state(bl))
+		item, err := e.lookOf(bl, b.state(bl), b)
 		if err != nil {
 			return nil, err
 		}
@@ -907,7 +918,7 @@ func (e *Env) taskGet(c *rpc.Conn, params map[string]any) (any, error) {
 	cs, subs := []any{}, []any{}
 	for _, k := range kids {
 		cs = append(cs, k.i("id"))
-		item, err := e.lookOf(k, b.state(k))
+		item, err := e.lookOf(k, b.state(k), b)
 		if err != nil {
 			return nil, err
 		}
