@@ -1,7 +1,7 @@
 // The fake daemon's task rows: what tasks.list and task.get answer, and the one place a row changes and the tasks topic is told.
 import type { FakeInbox } from '#src/inbox.ts';
 import type { FakeRequests } from '#src/requests.ts';
-import type { HistoryRow, Memo, Proposal, Task, TaskClock, TaskDetail, TimeSegment } from '@handline/contract';
+import type { HistoryRow, Memo, Proposal, Task, TaskClock, TaskDetail, TaskLook, TimeSegment } from '@handline/contract';
 import { seedTasks } from '#src/seedtasks.ts';
 import { changes } from '#src/history.ts';
 import { invalidParams } from '#src/errors.ts';
@@ -144,6 +144,13 @@ export class TaskStore {
       time: ended ? null : (clock ?? null),
     };
   }
+  /** As the daemon: what a client reads to draw the state of a task another one lists. */
+  protected look(id: number): TaskLook {
+    const r = this.rows.find((x) => x.id === id);
+    if (!r) return { state: 'unknown', waiting: null, hold_reason: null, block_reason: null, evidence: null };
+    const v = this.view(r);
+    return { state: v.state, waiting: v.waiting ?? null, hold_reason: v.hold_reason, block_reason: v.block_reason, evidence: v.evidence };
+  }
   protected change(t: Row, patch: Partial<Row>): void {
     (t.history ??= []).push(...changes(t, patch, this.now(), this.by));
     Object.assign(t, patch);
@@ -248,7 +255,7 @@ export class TaskStore {
       memos,
       blockers: t.blockers.map((b) => {
         const held = this.rows.find((r) => r.id === b.task);
-        return { ...b, owner: held?.to ?? '', title: held?.title ?? '' };
+        return { ...b, owner: held?.to ?? '', title: held?.title ?? '', ...this.look(b.task) };
       }),
       children: this.rows.filter((r) => r.parent === t.id).map((r) => r.id),
       handoffs: [],
@@ -258,7 +265,7 @@ export class TaskStore {
       merged_into: null,
       time: t.state === 'done' || t.state === 'discarded' ? null : (t.clock ?? null),
       parent_title: this.rows.find((r) => r.id === t.parent)?.title ?? null,
-      subtasks: this.rows.filter((r) => r.parent === t.id).map((r) => ({ id: r.id, title: r.title, owner: r.to, state: r.state })),
+      subtasks: this.rows.filter((r) => r.parent === t.id).map((r) => ({ id: r.id, title: r.title, owner: r.to, ...this.look(r.id) })),
       timeline: [
         ...(t.memos ?? []).map((m) =>
           withParts({ at: m.at, who: m.author, kind: 'memo' as const, text: m.text, memo: m.id, edited_at: m.edited_at ?? null }, m.text),

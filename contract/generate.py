@@ -98,7 +98,10 @@ def ts(schema: dict, indent: int = 0) -> str:
     if t == "null":
         return "null"
     if t == "array":
-        return _wrap(ts(schema["items"], indent)) + "[]"
+        items = ts(schema["items"], indent)
+        # _wrap skips a type that starts with "{"; a composite one still needs parentheses.
+        composite = any(k in schema["items"] for k in ("oneOf", "anyOf", "allOf"))
+        return (f"({items})" if composite else _wrap(items)) + "[]"
     if t == "object":
         props = schema.get("properties")
         extra = schema.get("additionalProperties")
