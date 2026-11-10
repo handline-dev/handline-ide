@@ -197,8 +197,6 @@ const STATUS: Record<RequestRow['status'], string> = {
   review: 'in review',
   doing: 'in progress',
   done: 'done',
-  no_work: 'no work needed',
-  not_yet: 'not started',
 };
 
 /** One of the founder's requests: its title, who works on it now (or how it ended), when it last moved. A click opens its task, else
@@ -210,7 +208,7 @@ export function RequestLine({ r, onOpened }: { r: RequestRow; onOpened?: () => v
   const task = useTask(r.task ?? 0, { enabled: closed });
   const failed = closed ? failedLine(task.data?.evidence, task.data?.title) : null;
   const ended = r.ended?.outcome === 'discarded' ? 'discarded' : STATUS[r.status];
-  const meta = r.status === 'done' || r.status === 'no_work' ? [failed ?? ended, r.agent] : [who, r.progress || STATUS[r.status]];
+  const meta = r.status === 'done' ? [failed ?? ended, r.agent] : [who, r.progress || STATUS[r.status]];
   return (
     <Line
       mark={isUnseen(r)}
@@ -222,8 +220,6 @@ export function RequestLine({ r, onOpened }: { r: RequestRow; onOpened?: () => v
           <CircleX size={16} className="text-danger" />
         ) : r.status === 'done' ? (
           <CircleCheck size={16} className="text-success" />
-        ) : r.status === 'no_work' ? (
-          <CircleCheck size={16} className="text-muted" />
         ) : (
           <CircleDashed size={16} className="text-muted" />
         )

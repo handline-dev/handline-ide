@@ -40,7 +40,6 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `task.merge` | agent | yes | `into`, `tasks`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | authored: merge |
 | `task.release` | agent | yes | `task`, `to?`, `reason?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | authored: release |
 | `task.request` | agent | yes | `request`, `title?`, `owner?`, `request_id` | `Accepted & {task, existing}` | `refused`, `not_found`, `bad_request` |  | decided: make a request |
-| `task.none` | agent | yes | `request`, `reason`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | decided: mark no work |
 | `task.wait` | agent | yes | `task`, `watch`, `time_box?`, `request_id` | `Accepted & {gate}` | `refused`, `not_found`, `bad_request` |  | not from the app |
 | `task.discard` | agent | yes | `task?`, `tasks?`, `reason?`, `reasons?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | decided: discard |
 | `task.board` | agent |  | `everyone?` | `{mine, reports}` |  |  | `board`, fed by tasks |
@@ -187,11 +186,7 @@ Take a doing task back to queued or draft: anyone may, with a reason the opener 
 
 ### `task.request`
 
-Make a founder's chat message a request: a task the founder opened (opened_by human), owned by the lead the message was sent to. The message becomes its first comment, images included. A message converts once; a second call returns the task already made from it. The founder, or the agent the message was sent to, may call it. Clears a no-work mark on the message.
-
-### `task.none`
-
-Mark a founder's chat message as needing no work, with a reason in one line, so it is not chased as unanswered. Refused for a message already made a request. The founder, or the agent the message was sent to, may call it.
+Make a founder's chat message a request: a task the founder opened (opened_by human), owned by the lead the message was sent to. The message becomes its first comment, images included. A message converts once; a second call returns the task already made from it. The founder, or the agent the message was sent to, may call it.
 
 ### `task.wait`
 

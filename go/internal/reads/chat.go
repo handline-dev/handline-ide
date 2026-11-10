@@ -280,11 +280,11 @@ func (c *chat) messageOf(r row) (map[string]any, error) {
 		m["actions"] = actions
 	}
 	if r.str("requester") == human && r.str("target") != human {
-		x, err := queryOne(c.e.DB, "SELECT (SELECT id FROM tasks WHERE from_request = ? ORDER BY id LIMIT 1) AS task, no_work FROM requests WHERE id = ?", r.i("id"), r.i("id"))
+		x, err := queryOne(c.e.DB, "SELECT (SELECT id FROM tasks WHERE from_request = ? ORDER BY id LIMIT 1) AS task", r.i("id"))
 		if err != nil {
 			return nil, err
 		}
-		m["request_task"], m["no_work"] = x.intOrNil("task"), x.strOrNil("no_work")
+		m["request_task"] = x.intOrNil("task")
 	}
 	if receipt != nil {
 		m["receipt"] = receipt

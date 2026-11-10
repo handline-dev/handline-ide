@@ -159,8 +159,6 @@ func (p *Parts) Tick(cfg Config, tc TickConfig) *Tick {
 		{Name: "attachment sweep", Run: func(q db.Q, _ int64) error { return attachments.New(home).Sweep(q) }},
 		{Name: "handoff archive", Run: func(_ db.Q, now int64) error { return handoff.SweepArchive(home, time.Unix(now, 0)) }},
 		{Name: "worktree locks", Run: func(q db.Q, _ int64) error { return releaseWorktreeLocks(q, home) }},
-		{Name: "unanswered founder messages", Run: (&housekeeping.Unanswered{Lead: leadCheck(home), Log: logLine,
-			Notice: func(q db.Q, to, text, reason string) error { _, err := env.Notice(q, to, text, reason); return err }}).Check},
 		{Name: "disk watch", Run: (&housekeeping.DiskWatch{Home: home, Log: logLine, Free: cfg.DiskFree,
 			Floor: func() int64 { return diskWarnFloor(loadgate.LimitsOf(usage.LoadConfig(home)).DiskFreeGB) }}).Check},
 		{Name: "login watch", Run: (&housekeeping.LoginWatch{Home: home}).Check},
@@ -194,14 +192,6 @@ func migrateAtStart(q *sql.DB, home string, env *supervisor.Env, logLine func(st
 		logLine("  " + m)
 	}
 	return errors.Join(err, backErr, taskwrites.SetSeenFloor(q), taskwrites.SetResultSeenFloor(q), env.MigrateOldMessages(q))
-}
-
-// leadCheck is whether an agent answers to no one in the team as it stands now.
-func leadCheck(home string) func(string) bool {
-	return func(agent string) bool {
-		tm, err := team.LoadTeam(home)
-		return err == nil && tm.LeadOf(agent) == ""
-	}
 }
 
 // startPorts are the steps of the daemon's start.

@@ -16,7 +16,7 @@ import (
 // titleMax is the longest title task.request takes from a message's first line.
 const titleMax = 80
 
-// founderMessage is the founder's message to an agent that task.request and task.none act on: the one who may act on it is the founder or
+// founderMessage is the founder's message to an agent that task.request acts on: the one who may act on it is the founder or
 // that agent. A message that is not so is refused, naming why.
 func founderMessage(tx *sql.Tx, home string, c *rpc.Conn, p map[string]any) (int64, *db.Request, error) {
 	me := c.Caller.Actor()
@@ -96,7 +96,7 @@ func requestMethod(home string) func(*rpc.Conn, map[string]any) (any, error) {
 			if err := db.LinkRequest(tx, tid, rid); err != nil {
 				return nil, err
 			}
-			if _, err := tx.Exec("UPDATE requests SET no_work = NULL, no_work_by = NULL, state_at = ? WHERE id = ?", db.Now(), rid); err != nil {
+			if _, err := tx.Exec("UPDATE requests SET state_at = ? WHERE id = ?", db.Now(), rid); err != nil {
 				return nil, err
 			}
 			if _, err := db.SetTaskQueued(tx, tid, human); err != nil { // the founder's own task needs no one's approval
@@ -140,34 +140,4 @@ func headline(body string) string {
 		return "(a message without words)"
 	}
 	return line
-}
-
-// noneMethod is task.none: a founder's message marked as needing no work, with the reason.
-func noneMethod(home string) func(*rpc.Conn, map[string]any) (any, error) {
-	return func(c *rpc.Conn, p map[string]any) (any, error) {
-		reason, err := text(p, "reason")
-		if err != nil {
-			return nil, err
-		}
-		reason = strings.TrimSpace(textsafe.Oneline(reason))
-		return c.Effect(func(tx *sql.Tx) (map[string]any, error) {
-			rid, _, err := founderMessage(tx, home, c, p)
-			if err != nil {
-				return nil, err
-			}
-			name := db.MsgName(tx, rid)
-			if tid, err := requestTask(tx, rid); err != nil {
-				return nil, err
-			} else if tid != 0 {
-				return nil, refusal(fmt.Sprintf("%s is already T%d: it is work", name, tid))
-			}
-			if _, err := tx.Exec("UPDATE requests SET no_work = ?, no_work_by = ?, state_at = ? WHERE id = ?", reason, c.Caller.Actor(), db.Now(), rid); err != nil {
-				return nil, err
-			}
-			if err := addEvent(tx, c.Caller.Actor(), "request_no_work", kv{"chat_request", rid}, kv{"reason", reason}); err != nil {
-				return nil, err
-			}
-			return accepted(fmt.Sprintf("%s marked as needing no work: %s", name, reason), nil), nil
-		})
-	}
 }

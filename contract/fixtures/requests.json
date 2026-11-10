@@ -66,20 +66,13 @@
      "result": {
       "items": {
        "$each": {
-        "kind": {
-         "$oneOf": [
-          "task",
-          "message"
-         ]
-        },
+        "kind": "task",
         "status": {
          "$oneOf": [
           "waiting_on_you",
           "review",
           "doing",
-          "done",
-          "no_work",
-          "not_yet"
+          "done"
          ]
         },
         "cursor": {
