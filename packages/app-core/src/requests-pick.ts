@@ -45,7 +45,7 @@ export const unseenOf = (rows: Picked[]) =>
   perTask(rows.flatMap((x) => (x.r && x.r.task !== null && isUnseen(x.r) ? [{ keys: [x.key], task: x.r.task }] : [])));
 
 /** What several picked rows share: the turns to give back (`mine`: the tasks whose top turn the founder holds), the rows to put off,
- * the results to mark seen, the open requests to cancel. */
+ * the results to mark seen, and the founder's open tasks, to mark done or discard. */
 export function bulkOf(rows: Picked[], mine: ReadonlySet<number>) {
   return {
     giveBack: perTask(rows.flatMap((x) => (x.p?.task != null && mine.has(x.p.task) ? [{ keys: [x.key], task: x.p.task }] : []))),
@@ -54,19 +54,20 @@ export function bulkOf(rows: Picked[], mine: ReadonlySet<number>) {
       return p && later ? [{ keys: [key], later, p }] : [];
     }),
     seen: unseenOf(rows),
-    cancel: perTask(
+    close: perTask(
       rows.flatMap((x) => (x.r && x.r.task !== null && !x.r.ended ? [{ keys: [x.key], task: x.r.task, title: x.r.title }] : [])),
     ),
   };
 }
 
-/** What each action of several rows is called, naming the rows it acts on: "Cancel 3 requests". */
+/** What each action of several rows is called, naming the rows it acts on: "Discard 3 tasks". */
 export function bulkNames(b: ReturnType<typeof bulkOf>) {
   return {
     seen: `Mark ${counted(rowsIn(b.seen), 'result')} seen`,
     later: `Put ${turnsCounted(b.later.map((x) => x.p))} off`,
     giveBack: `Give ${counted(rowsIn(b.giveBack), 'turn')} back`,
-    cancel: `Cancel ${counted(rowsIn(b.cancel), 'request')}`,
+    done: `Mark ${counted(b.close.length, 'task')} done`,
+    discard: `Discard ${counted(b.close.length, 'task')}`,
   };
 }
 
@@ -74,4 +75,14 @@ export function bulkNames(b: ReturnType<typeof bulkOf>) {
 export function pickAllState(shown: Picked[], picked: ReadonlyMap<string, Picked>): 'none' | 'some' | 'all' {
   const n = shown.filter((x) => picked.has(x.key)).length;
   return n === 0 ? 'none' : n === shown.length ? 'all' : 'some';
+}
+
+/** A close refusal as one plain line plus the task to open; other messages pass through. */
+export function refusalLine(message: string): { text: string; open: number | null } {
+  const kids = /task T(\d+) still has open child tasks \(([^)]*)\)/.exec(message);
+  if (kids) {
+    const first = /T(\d+)/.exec(kids[2]!);
+    return { text: `T${kids[1]} has sub-tasks still open (${kids[2]})`, open: first ? Number(first[1]) : null };
+  }
+  return { text: message, open: null };
 }

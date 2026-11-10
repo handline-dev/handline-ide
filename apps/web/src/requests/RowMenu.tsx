@@ -1,12 +1,13 @@
 // What a right-click on a row of Requests offers, and what can be done to several picked rows at once. Only what is easy to undo
-// goes at once (seen, later, give back); a cancel, of one row or several, is asked for one reason and confirmed.
+// goes at once (seen, later, give back, done); a discard, of one row or several, is asked for one reason and confirmed.
 import { bulkNames, bulkOf, foundersTurn, laterChoices, laterKey, type Picked } from '@handline/app-core';
 import { useTaskActions, useTasks, useWrite } from '@handline/app-data';
 import { useMe } from '@handline/app-react';
-import { Ban, Clock, Eye, MessageSquare, Undo2 } from 'lucide-react';
+import { Ban, Check, Clock, Eye, MessageSquare, Undo2 } from 'lucide-react';
 import { createContext, useContext, useEffect, useState, type ComponentProps, type ReactNode } from 'react';
 import { chatOf } from '#src/layout/kinds.tsx';
 import { OpenItems } from '#src/layout/openable.tsx';
+import { sayRefusal } from '#src/ui/refusal.tsx';
 import { Button } from '#src/ui/Button.tsx';
 import { ContextMenu, Menu, MenuItem, MenuSeparator, SubMenu } from '#src/ui/Menu.tsx';
 import { confirm, prompt } from '#src/ui/modal.tsx';
@@ -83,15 +84,25 @@ export function useRowActions() {
   const seen = useWrite('task.seen');
   const prefs = useWrite('prefs.set');
   const { verbs } = useTaskActions();
-  /** Says which rows failed: the picks keep them. */
-  const all = async (what: string, rows: { keys: string[]; run: () => Promise<unknown> }[]): Promise<string[]> => {
+  /** Says which rows failed: the picks keep them. With `again`, the refused are tried again while some still go through, so a parent
+   * picked with its sub-tasks closes after them. */
+  const all = async (what: string, rows: { keys: string[]; run: () => Promise<unknown> }[], again = false): Promise<string[]> => {
     const keys = rows.flatMap((r) => r.keys);
     pick?.setBusy(keys, true);
-    const settled = await Promise.allSettled(rows.map((r) => r.run()));
+    let settled = await Promise.allSettled(rows.map((r) => r.run()));
+    const refused = () => settled.filter((s) => s.status === 'rejected').length;
+    for (let left = refused(), before = rows.length; again && left > 0 && left < before; before = left, left = refused()) {
+      const retried = await Promise.allSettled(rows.map((r, i) => (settled[i]?.status === 'rejected' ? r.run() : undefined)));
+      settled = settled.map((s, i) => (s.status === 'rejected' ? retried[i]! : s));
+    }
     pick?.setBusy(keys, false);
-    const failed = rows.filter((_, i) => settled[i]?.status === 'rejected');
-    if (failed.length) toast(`${failed.length} of ${rows.length} could not be ${what}.`, { tone: 'warning' });
-    return failed.flatMap((r) => r.keys);
+    const failed = rows.flatMap((r, i) => {
+      const s = settled[i];
+      return s?.status === 'rejected' ? [{ r, why: s.reason as unknown }] : [];
+    });
+    if (failed.length === 1) sayRefusal(failed[0]!.why);
+    else if (failed.length) toast(`${failed.length} of ${rows.length} could not be ${what}.`, { tone: 'warning' });
+    return failed.flatMap((f) => f.r.keys);
   };
   type On = { keys: string[]; task: number };
   return {
@@ -110,15 +121,21 @@ export function useRowActions() {
         'put off',
         on.map((x) => ({ keys: x.keys, run: () => prefs.mutateAsync({ changes: { nav: { later: { [x.later]: { until } } } } }) })),
       ),
+    done: (on: On[]) =>
+      all(
+        'marked done',
+        on.map((x) => ({ keys: x.keys, run: () => verbs.done(x.task, '') })),
+        true,
+      ),
     /** One reason and one confirm for all the rows given; null when the founder backs out, else the rows that failed. */
-    cancel: async (on: (On & { title: string })[]): Promise<string[] | null> => {
+    discard: async (on: (On & { title: string })[]): Promise<string[] | null> => {
       const one = on.length === 1 ? on[0] : null;
       const reason = (
-        await prompt({ title: one ? `Cancel T${one.task}?` : `Cancel ${on.length} requests?`, placeholder: 'Why, in one line' })
+        await prompt({ title: one ? `Discard T${one.task}?` : `Discard ${on.length} tasks?`, placeholder: 'Why, in one line' })
       )?.trim();
       if (!reason) return null;
       const sure = await confirm({
-        title: one ? `Cancel “${one.title}”?` : `Cancel these ${on.length} requests?`,
+        title: one ? `Discard “${one.title}”?` : `Discard these ${on.length} tasks?`,
         message: one ? (
           reason
         ) : (
@@ -131,14 +148,15 @@ export function useRowActions() {
             </ul>
           </>
         ),
-        confirmText: one ? 'Cancel it' : 'Cancel them',
+        confirmText: one ? 'Discard it' : 'Discard them',
         cancelText: one ? 'Keep it' : 'Keep them',
         danger: true,
       });
       if (!sure) return null;
       return all(
-        'cancelled',
+        'discarded',
         on.map((x) => ({ keys: x.keys, run: () => verbs.discard(x.task, reason) })),
+        true,
       );
     },
   };
@@ -165,7 +183,8 @@ function useBulk() {
     seen: b.seen.length ? { label: name.seen, keys: keys(b.seen), run: () => then(act.seen(b.seen)) } : null,
     later: b.later.length ? { label: name.later, keys: keys(b.later), run: (until: string) => then(act.later(b.later, until)) } : null,
     giveBack: b.giveBack.length ? { label: name.giveBack, keys: keys(b.giveBack), run: () => then(act.giveBack(b.giveBack)) } : null,
-    cancel: b.cancel.length ? { label: name.cancel, keys: keys(b.cancel), run: () => then(act.cancel(b.cancel)) } : null,
+    done: b.close.length ? { label: name.done, keys: keys(b.close), run: () => then(act.done(b.close)) } : null,
+    discard: b.close.length ? { label: name.discard, keys: keys(b.close), run: () => then(act.discard(b.close)) } : null,
   };
 }
 
@@ -190,9 +209,14 @@ export function BulkItems() {
           {b.giveBack.label}
         </MenuItem>
       )}
-      {b.cancel && (
-        <MenuItem icon={<Ban size={14} />} danger onClick={b.cancel.run}>
-          {`${b.cancel.label}…`}
+      {b.done && (
+        <MenuItem icon={<Check size={14} />} onClick={b.done.run}>
+          {b.done.label}
+        </MenuItem>
+      )}
+      {b.discard && (
+        <MenuItem icon={<Ban size={14} />} danger onClick={b.discard.run}>
+          {`${b.discard.label}…`}
         </MenuItem>
       )}
       <MenuSeparator />
@@ -217,7 +241,7 @@ export function BulkButtons() {
     onFocus: () => setPointed(on),
     onBlur: () => setPointed(null),
   });
-  if (!b.seen && !b.later && !b.giveBack && !b.cancel)
+  if (!b.seen && !b.later && !b.giveBack && !b.done && !b.discard)
     return <span className="px-2 whitespace-nowrap text-muted">Nothing to do to all of these</span>;
   return (
     <>
@@ -246,10 +270,16 @@ export function BulkButtons() {
           {b.giveBack.label}
         </Button>
       )}
-      {b.cancel && (
-        <Button variant="ghost" {...hint('cancel')} onClick={b.cancel.run}>
+      {b.done && (
+        <Button variant="ghost" {...hint('done')} onClick={b.done.run}>
+          <Check size={14} />
+          {b.done.label}
+        </Button>
+      )}
+      {b.discard && (
+        <Button variant="ghost" {...hint('discard')} onClick={b.discard.run}>
           <Ban size={14} />
-          {`${b.cancel.label}…`}
+          {`${b.discard.label}…`}
         </Button>
       )}
     </>
@@ -279,8 +309,8 @@ export function RowMenu({
   const who = p?.agent ?? r?.now ?? r?.agent;
   const giveBack = !!p && task !== null && mine.has(task);
   const seen = !!r && task !== null && !!r.ended && !r.ended.seen;
-  const cancel = !!r && task !== null && !r.ended;
-  const acts = giveBack || !!later || seen || cancel;
+  const close = !!r && task !== null && !r.ended;
+  const acts = giveBack || !!later || seen || close;
   const items = many ? (
     <BulkItems />
   ) : (
@@ -307,10 +337,15 @@ export function RowMenu({
           Mark seen
         </MenuItem>
       )}
-      {cancel && r && task !== null && (
-        <MenuItem icon={<Ban size={14} />} danger onClick={() => void act.cancel([{ keys: [key], task, title: r.title }])}>
-          Cancel…
-        </MenuItem>
+      {close && r && task !== null && (
+        <>
+          <MenuItem icon={<Check size={14} />} onClick={() => void act.done([{ keys: [key], task }])}>
+            Done
+          </MenuItem>
+          <MenuItem icon={<Ban size={14} />} danger onClick={() => void act.discard([{ keys: [key], task, title: r.title }])}>
+            Discard…
+          </MenuItem>
+        </>
       )}
     </>
   );
