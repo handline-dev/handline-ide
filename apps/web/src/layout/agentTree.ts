@@ -26,13 +26,14 @@ export function agentTree<A extends AgentLike>(agents: readonly A[], order: read
   return build(null);
 }
 
-/** Which mark the agent shows, from the daemon's status: working, asleep, you (a person must answer),
+/** Which mark the agent shows, from the daemon's status: working, waking (starting or restarting), asleep, you (a person must answer),
  * held (a wait by design), error (a real fault), or resting. */
-export type Activity = 'working' | 'asleep' | 'you' | 'held' | 'error' | 'resting';
+export type Activity = 'working' | 'waking' | 'asleep' | 'you' | 'held' | 'error' | 'resting';
 export function activityOf(a: Pick<AgentLike, keyof DotFacts>): Activity {
   // From the rail dot, which reads AgentView.status first: an agent at its prompt with background work running is working.
   const dot = dotOf({ ...a, has_dialog: a.has_dialog ?? false });
-  if (dot === 'running' || dot === 'waking') return 'working';
+  if (dot === 'running') return 'working';
+  if (dot === 'waking') return 'waking';
   if (dot === 'parked' || dot === 'none') return 'asleep';
   if (dot === 'waiting') return 'you';
   // A usage wall or the account cap ends by itself, so it is a wait too.
@@ -89,7 +90,9 @@ export function shortName(name: string, parent: string | null): string {
   return parent && name.startsWith(`${parent}.`) ? name.slice(parent.length + 1) : name;
 }
 
-/** How many agents under these nodes, at any depth, are working. */
+const isBusy = (a: Activity) => a === 'working' || a === 'waking';
+
+/** How many agents under these nodes, at any depth, are working or starting. */
 export function workingUnder(nodes: AgentNode[]): number {
-  return nodes.reduce((n, c) => n + (activityOf(c.agent) === 'working' ? 1 : 0) + workingUnder(c.children), 0);
+  return nodes.reduce((n, c) => n + (isBusy(activityOf(c.agent)) ? 1 : 0) + workingUnder(c.children), 0);
 }

@@ -131,10 +131,10 @@ describe('shortName', () => {
 
 describe('activityOf', () => {
   const of = (state: string) => ({ state, has_dialog: false });
-  it('sorts the state words into four, unknown as resting', async () => {
+  it('sorts the state words, unknown as resting', async () => {
     const { activityOf } = await import('#src/layout/agentTree.ts');
     const words = (l: string[]) => l.map((w) => activityOf(of(w)));
-    expect(words(['running', 'starting', 'queued'])).toEqual(['working', 'working', 'working']);
+    expect(words(['running', 'starting', 'queued'])).toEqual(['working', 'waking', 'waking']);
     expect(words(['parked', 'no_terminal'])).toEqual(['asleep', 'asleep']);
     expect(words(['stalled', 'blocked', 'waiting'])).toEqual(['error', 'error', 'you']);
     expect(words(['idle', 'something-new'])).toEqual(['resting', 'resting']);
@@ -280,5 +280,14 @@ describe('reopen closed', () => {
     after = reduce(after, { type: 'open', opens: 'task:2', title: 'T2', to: { pane: first } });
     const back = reopen(after, c, first);
     expect(opens(back)).toEqual([['chat', 'task:2', 'task:1']]);
+  });
+});
+
+describe('workingUnder', () => {
+  it('counts the working and the starting at any depth', async () => {
+    const { workingUnder } = await import('#src/layout/agentTree.ts');
+    const node = (state: string, children: unknown[] = []) => ({ agent: { name: state, state, has_dialog: false }, children });
+    const tree = [node('running', [node('starting'), node('idle')]), node('parked')];
+    expect(workingUnder(tree as never)).toBe(2);
   });
 });
