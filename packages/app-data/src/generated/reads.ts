@@ -266,7 +266,6 @@ export const EVENT_REQUIRED: Record<string, readonly string[]> = {
     "now",
     "blocked",
     "progress",
-    "reason",
     "unread_comments",
     "created",
     "last_activity",

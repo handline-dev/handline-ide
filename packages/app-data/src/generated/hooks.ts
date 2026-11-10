@@ -125,7 +125,6 @@ export const useTaskDraft = (target?: string) => useWrite("task.draft", target);
 export const useTaskMerge = (target?: string) => useWrite("task.merge", target);
 export const useTaskRelease = (target?: string) => useWrite("task.release", target);
 export const useTaskRequest = (target?: string) => useWrite("task.request", target);
-export const useTaskNone = (target?: string) => useWrite("task.none", target);
 export const useTaskDiscard = (target?: string) => useWrite("task.discard", target);
 export const useTaskWithdraw = (target?: string) => useWrite("task.withdraw", target);
 export const useTaskCancel = (target?: string) => useWrite("task.cancel", target);
