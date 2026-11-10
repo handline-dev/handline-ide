@@ -124,7 +124,7 @@ export function TaskTab({ id }: { id: number }) {
             {open && (mine || why || t.blockers.length > 0) && (
               <div data-turn-slot className="flex flex-col gap-1 rounded-lg bg-warning/10 px-3 py-2 text-sm transition-colors">
                 {mine ? (
-                  <YourTurn t={t} reply={replyTo} onDone={() => void q.refetch()} onReply={setReplyTo} />
+                  <YourTurn t={t} />
                 ) : asked ? (
                   <WaitingOnYou t={t} me={me} asked={asked} onDone={() => void q.refetch()} onShow={() => showMemo(asked.id)} />
                 ) : (

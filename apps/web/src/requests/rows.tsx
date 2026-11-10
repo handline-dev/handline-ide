@@ -79,8 +79,11 @@ function Line({
   icon,
   row,
   trailing,
+  hint,
 }: {
   title: string;
+  /** Where a click lands, shown while the pointer rests on the row. */
+  hint?: string;
   meta: string;
   /** The tab the row opens; null for a row that opens no tab, only `here`. */
   opens: string | null;
@@ -126,6 +129,7 @@ function Line({
         }}
         onAuxClick={picking ? undefined : open.onAuxClick}
         onKeyDown={picking ? undefined : open.onKeyDown}
+        title={hint}
         className="flex w-full gap-2.5 px-2 py-1.5 text-left"
       >
         <span className={`relative mt-0.5 grid size-4 shrink-0 place-items-center ${pick && !picking ? 'group-hover/line:invisible' : ''}`}>
@@ -182,6 +186,11 @@ export function TurnLine({ p, onOpened, until }: { p: PendingRequest; onOpened?:
       opens={opens}
       here={opens ? undefined : openSettings}
       trailing={<TurnQuick p={p} />}
+      hint={
+        p.task !== null && (p.kind === 'ask' || p.kind === 'decide')
+          ? `Opens T${p.task} at ${p.agent ? `${p.agent}'s` : 'its'} question in Activity`
+          : undefined
+      }
       focus={login ? () => focusIn('usage', '', login) : undefined}
       onOpen={() => {
         // The task opens at what it asks of the founder, as the Your turn click does.

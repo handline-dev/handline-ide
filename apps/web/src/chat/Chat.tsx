@@ -132,6 +132,7 @@ export function Chat({ agent }: { agent: string }) {
           locked={compacting ? COMPACTING_WORDS[compacting] : undefined}
           onStop={stop}
           commands={commands}
+          focusOn={reply}
           above={
             reply && (
               <div role="status" className="-ml-2 flex min-w-0 items-center gap-1.5 text-xs text-muted">
