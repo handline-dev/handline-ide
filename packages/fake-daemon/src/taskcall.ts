@@ -78,6 +78,8 @@ export function taskCall(
         return (tasks.memo(p, 'delete', person), ok('Comment deleted.'));
       case 'task.turn.push':
         return (tasks.turnPush(p, agent ? person : ''), ok('Turn pushed.'));
+      case 'task.turn.pop':
+        return (tasks.turnPop(p), ok('Turn given back.'));
       case 'task.comment.send_now':
         return (tasks.sendNow(p), ok('Sent.'));
       default:

@@ -102,4 +102,5 @@ const VERBS = new Set([
   'task.comment.delete',
   'task.comment.send_now',
   'task.turn.push',
+  'task.turn.pop',
 ]);

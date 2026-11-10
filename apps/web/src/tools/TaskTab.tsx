@@ -56,7 +56,7 @@ export function TaskTab({ id }: { id: number }) {
   const goRef = useRef<() => void>(() => {});
   const loaded = !!q.data;
   useEffect(() => {
-    goRef.current = () => q.data && goToTurn(q.data);
+    goRef.current = () => q.data && goToTurn(q.data, me);
   });
   useEffect(() => {
     if (loaded && keptScroll.take(`turn:${id}`)) setTimeout(() => goRef.current(), 100);
@@ -124,7 +124,7 @@ export function TaskTab({ id }: { id: number }) {
             {open && (mine || why || t.blockers.length > 0) && (
               <div data-turn-slot className="flex flex-col gap-1 rounded-lg bg-warning/10 px-3 py-2 text-sm transition-colors">
                 {mine ? (
-                  <YourTurn t={t} />
+                  <YourTurn t={t} me={me} />
                 ) : asked ? (
                   <WaitingOnYou t={t} me={me} asked={asked} onDone={() => void q.refetch()} onShow={() => showMemo(asked.id)} />
                 ) : (
@@ -168,7 +168,7 @@ export function TaskTab({ id }: { id: number }) {
           <Activity
             task={t.id}
             onReply={(id) => setReplyTo(t.memos.find((m) => m.id === id) ?? null)}
-            items={activityOf(t.memos, t.timeline).filter((i) => !isSystem(i.who))}
+            items={activityOf(t.memos, t.timeline, me).filter((i) => !isSystem(i.who))}
           />
         </Page>
       </ScrollFade>
@@ -253,14 +253,15 @@ function toBottom(id: number) {
   }, 50);
 }
 
-/** What a change was, from its sentence: assigned or handed, done, discarded, edited, sent back, a request, or another state. */
-function eventIcon(line: string): typeof Check {
+/** What a change was: a turn passed, or from its sentence assigned or handed, done, discarded, edited, sent back, a request, or another state. */
+function eventIcon({ line, turn }: ActivityItem): typeof Check {
+  if (turn) return Hand;
   if (/handed it|assigned/.test(line)) return UserRound;
   if (/marked it done/.test(line)) return Check;
   if (/discarded/.test(line)) return Trash2;
   if (/changed the brief/.test(line)) return Pencil;
   if (/sent it back/.test(line)) return Undo2;
-  if (/sent a request/.test(line)) return Send;
+  if (/sent a request|from the queue|went again/.test(line)) return Send;
   return CircleDot;
 }
 
@@ -299,6 +300,7 @@ const SHOWN = 5;
 
 /** Comments and changes in one list, oldest first: the last five, and Earlier opens the rest above them. */
 function Activity({ task, items, onReply }: { task: number; items: ActivityItem[]; onReply: (memo: number) => void }) {
+  const me = useMe();
   const [all, setAll] = useTabState('earlier', false);
   // The texts an edited comment had: its history rows. Its 'edited' mark opens them in a window.
   const rows = useTaskHistory(task).data?.rows;
@@ -371,8 +373,12 @@ function Activity({ task, items, onReply }: { task: number; items: ActivityItem[
               </div>
             </div>
           ) : (
-            <div key={keyOf(i)} className="group flex gap-2.5 text-xs text-muted">
-              <Mark icon={eventIcon(i.line)} />
+            <div
+              key={keyOf(i)}
+              data-turn-at={i.turn === 'push' && isPerson(i.turnTo ?? '', me) ? i.at : undefined}
+              className="group flex gap-2.5 rounded-md text-xs text-muted transition-colors"
+            >
+              <Mark icon={eventIcon(i)} />
               <div className="flex min-w-0 flex-1 flex-col pt-0.5">
                 <div className={`flex flex-col rounded-md ${fresh(i)}`}>
                   <span>{i.line}</span>
