@@ -7,7 +7,7 @@ import { spring } from '#src/motion.ts';
 import type { AgentView } from '@handline/client';
 import { JobList, type Job } from '#src/chat/agent/BackgroundItem.tsx';
 import { HoverCard } from '#src/ui/HoverCard.tsx';
-import { activityIcon } from '#src/ui/activityIcon.tsx';
+import { ActivityIcon } from '#src/ui/activityIcon.tsx';
 import { ago, useNow } from '#src/format/time.ts';
 import { ChevronLeft, ChevronRight, ListChecks, LoaderCircle, Pin, Plus, PanelLeft } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
@@ -151,13 +151,13 @@ function AgentRows({
                   </span>
                 )
               }
-              icon={activityIcon[activityOf(agent)]}
+              icon={<ActivityIcon act={activityOf(agent)} />}
               // When it last worked: now while running, else since it stopped (state_since).
               // how many below it are working (spinner and count), and its queued tasks.
               trail={
                 <span className="flex items-center gap-1.5">
                   {workingUnder(children) > 0 && (
-                    <span className="flex items-center gap-0.5 text-success" title="sub-agents working">
+                    <span className="flex items-center gap-0.5 text-success" title="sub-agents working or starting">
                       <LoaderCircle size={11} strokeWidth={3.5} className="animate-spin" />
                       {workingUnder(children)}
                     </span>

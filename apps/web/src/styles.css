@@ -215,6 +215,16 @@ body {
   transition: background 1s;
 }
 
+/* The starting mark: the asleep ring, turning slowly. */
+.spin-slow {
+  animation: ring-turn 3s linear infinite;
+}
+@keyframes ring-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* Just added or changed: the background lights up at once and fades slowly (a task's new comment or event, its brief or result). */
 @keyframes just-changed {
   from {
