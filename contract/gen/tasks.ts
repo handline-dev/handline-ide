@@ -107,6 +107,15 @@ export type TaskWaiting = {
   since: Timestamp;
 };
 
+/** The fields of Task a client reads to draw a listed task's state. */
+export type TaskLook = {
+  state: string;
+  waiting: TaskWaiting | null;
+  hold_reason: string | null;
+  block_reason: string | null;
+  evidence: string | null;
+};
+
 export type TaskDetail = Task & {
   body: string;
   /** `body` cut at the images it names, in order; present only when it names one. The text parts joined give `body` with each reference left out. */
@@ -118,12 +127,12 @@ export type TaskDetail = Task & {
   }[];
   events: TaskEvent[];
   memos: Memo[];
-  blockers: {
+  blockers: ({
     task: number;
     reason: string;
     owner: string;
     title: string;
-  }[];
+  } & TaskLook)[];
   children: number[];
   handoffs: {
     at: Timestamp;
@@ -153,12 +162,12 @@ export type TaskDetail = Task & {
   time: TaskClock | null;
   parent_title: string | null;
   /** The sub-tasks by number: `children` with their titles, owners and states. */
-  subtasks: {
+  subtasks: ({
     id: number;
     title: string;
     owner: string;
     state: string;
-  }[];
+  } & TaskLook)[];
   /** What happened on the task as one list, oldest first: its memos, its handoffs (a handoff's note is its entry, not a second one), the requests linked to it, the edits of its brief, its marks done and each time it was sent back. Overlaps `events`, `memos`, `handoffs` and `deliveries`, which stay. */
   timeline: {
     at: Timestamp;
