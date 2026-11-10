@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"math"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -492,8 +493,7 @@ func (e *Env) blockers(tid int64) ([]row, error) {
 
 // taskOf is the spec's Task: the row as the board shows it, without its body.
 func (e *Env) taskOf(t row, state string, b *board) (map[string]any, error) {
-	waits, err := query(e.DB, "SELECT b.blocks_on AS task, b.created_at, t.discarded_by IS NULL AND t.done_evidence IS NULL AS open "+
-		"FROM task_blocks b JOIN tasks t ON t.id = b.blocks_on WHERE b.task_id = ? AND b.dormant = 0 ORDER BY b.created_at, b.blocks_on", t.i("id"))
+	waits, err := e.waitsOf(t.i("id"))
 	if err != nil {
 		return nil, err
 	}
@@ -515,14 +515,10 @@ func (e *Env) taskOf(t row, state string, b *board) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	blockedBy, waitList := []int64{}, make([]any, len(waits))
+	blockedBy, waitList := openWaits(waits), make([]any, len(waits))
 	for i, w := range waits {
 		waitList[i] = map[string]any{"task": w.i("task"), "open": w.i("open") == 1}
-		if w.i("open") == 1 {
-			blockedBy = append(blockedBy, w.i("task"))
-		}
 	}
-	sort.Slice(blockedBy, func(i, j int) bool { return blockedBy[i] < blockedBy[j] })
 	waiting, waitSince, err := e.waitingOf(t, state, waits, rec)
 	if err != nil {
 		return nil, err
@@ -535,15 +531,11 @@ func (e *Env) taskOf(t row, state string, b *board) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	var waitingOut any // a nil map would not read as nil
-	if waiting != nil {
-		waitingOut = waiting
-	}
 	task := map[string]any{
-		"blocked_by": blockedBy, "waits": waitList, "waiting": waitingOut, "time": clock, "status": st.Map(),
+		"blocked_by": blockedBy, "waits": waitList, "waiting": mapOrNil(waiting), "time": clock, "status": st.Map(),
 		"asker": asker, "id": t.i("id"), "from": t.str("opened_by"), "to": t.str("owner"), "acting": actingOf(t), "title": t.str("title"), "state": state, "time_box": nil,
 		"parent": t.intOrNil("parent_task"), "request": t.intOrNil("request"), "role": b.teamOf(e.Home).TaskRole(t.str("owner")), "created": ts(t["created_at"]), "delivered": ts(t["delivered_at"]),
-		"turns": turns, "done": ts(t["done_at"]), "priority": t.i("priority"), "hold_reason": hold, "block_reason": nil, "evidence": t.strOrNil("done_evidence"), "spent_usd": nil,
+		"turns": turns, "done": ts(t["done_at"]), "priority": t.i("priority"), "hold_reason": hold, "block_reason": blockReason(blockedBy), "evidence": t.strOrNil("done_evidence"), "spent_usd": nil,
 	}
 	active := max(t.i("created_at"), t.i("edited_at"), t.i("done_at"), t.i("discarded_at"))
 	linked := make([]map[string]any, len(reqs))
@@ -590,10 +582,60 @@ func (e *Env) taskOf(t row, state string, b *board) (map[string]any, error) {
 	if t.i("timeout_s") != 0 {
 		task["time_box"] = duration(t.i("timeout_s"))
 	}
-	if len(blockedBy) > 0 {
-		task["block_reason"] = "waiting on " + tids(blockedBy)
-	}
 	return task, nil
+}
+
+// mapOrNil is m, or an untyped nil for a nil map, which would not read as nil.
+func mapOrNil(m map[string]any) any {
+	if m == nil {
+		return nil
+	}
+	return m
+}
+
+// waitsOf is the tasks tid waits on through a live block, open or not.
+func (e *Env) waitsOf(tid int64) ([]row, error) {
+	return query(e.DB, "SELECT b.blocks_on AS task, b.created_at, t.discarded_by IS NULL AND t.done_evidence IS NULL AS open "+
+		"FROM task_blocks b JOIN tasks t ON t.id = b.blocks_on WHERE b.task_id = ? AND b.dormant = 0 ORDER BY b.created_at, b.blocks_on", tid)
+}
+
+// openWaits is the open tasks of waits, in number order.
+func openWaits(waits []row) []int64 {
+	on := []int64{}
+	for _, w := range waits {
+		if w.i("open") == 1 {
+			on = append(on, w.i("task"))
+		}
+	}
+	slices.Sort(on)
+	return on
+}
+
+// blockReason is the block_reason of a task blockedBy holds, nil when nothing does.
+func blockReason(blockedBy []int64) any {
+	if len(blockedBy) == 0 {
+		return nil
+	}
+	return "waiting on " + tids(blockedBy)
+}
+
+// lookOf is what the web's look() reads of a task another one lists (a sub-task, a blocker), so the list draws each row's state without
+// reading that task: the fields taskOf gives them, from the same reads.
+func (e *Env) lookOf(t row, state string) (map[string]any, error) {
+	waits, err := e.waitsOf(t.i("id"))
+	if err != nil {
+		return nil, err
+	}
+	rec, err := e.holdRec(t.i("id"))
+	if err != nil {
+		return nil, err
+	}
+	waiting, _, err := e.waitingOf(t, state, waits, rec)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"state": state, "waiting": mapOrNil(waiting), "hold_reason": waitLine(rec, state), "block_reason": blockReason(openWaits(waits)),
+		"evidence": t.strOrNil("done_evidence")}, nil
 }
 
 func tids(ids []int64) string {
@@ -849,8 +891,13 @@ func (e *Env) taskGet(c *rpc.Conn, params map[string]any) (any, error) {
 	}
 	bs := []any{}
 	for _, bl := range blockers {
-		bs = append(bs, map[string]any{"task": bl.i("id"), "owner": bl.str("owner"), "title": bl.str("title"),
-			"reason": fmt.Sprintf("T%d (%s) %s", bl.i("id"), actingOf(bl), bl.str("title"))})
+		item, err := e.lookOf(bl, b.state(bl))
+		if err != nil {
+			return nil, err
+		}
+		item["task"], item["owner"], item["title"] = bl.i("id"), bl.str("owner"), bl.str("title")
+		item["reason"] = fmt.Sprintf("T%d (%s) %s", bl.i("id"), actingOf(bl), bl.str("title"))
+		bs = append(bs, item)
 	}
 	task["blockers"] = bs
 	kids, err := query(e.DB, "SELECT *, "+taskActing+" FROM tasks WHERE parent_task = ? ORDER BY id", *tid)
@@ -860,7 +907,12 @@ func (e *Env) taskGet(c *rpc.Conn, params map[string]any) (any, error) {
 	cs, subs := []any{}, []any{}
 	for _, k := range kids {
 		cs = append(cs, k.i("id"))
-		subs = append(subs, map[string]any{"id": k.i("id"), "title": k.str("title"), "owner": k.str("owner"), "state": b.state(k)})
+		item, err := e.lookOf(k, b.state(k))
+		if err != nil {
+			return nil, err
+		}
+		item["id"], item["title"], item["owner"] = k.i("id"), k.str("title"), k.str("owner")
+		subs = append(subs, item)
 	}
 	task["children"], task["subtasks"] = cs, subs
 	task["merged_into"], task["parent_title"] = t.intOrNil("merged_into"), nil

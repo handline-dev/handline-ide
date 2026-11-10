@@ -468,6 +468,62 @@
     ],
     "description": "Why a task waits (Task.waiting)."
    },
+   "TaskLook": {
+    "type": "object",
+    "properties": {
+     "state": {
+      "type": "string"
+     },
+     "waiting": {
+      "oneOf": [
+       {
+        "$ref": "#/components/schemas/TaskWaiting"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "hold_reason": {
+      "oneOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "block_reason": {
+      "oneOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "evidence": {
+      "oneOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     }
+    },
+    "required": [
+     "state",
+     "waiting",
+     "hold_reason",
+     "block_reason",
+     "evidence"
+    ],
+    "description": "The fields of Task a client reads to draw a listed task's state."
+   },
    "TaskDetail": {
     "allOf": [
      {
@@ -530,26 +586,33 @@
        "blockers": {
         "type": "array",
         "items": {
-         "type": "object",
-         "properties": {
-          "task": {
-           "type": "integer"
+         "allOf": [
+          {
+           "type": "object",
+           "properties": {
+            "task": {
+             "type": "integer"
+            },
+            "reason": {
+             "type": "string"
+            },
+            "owner": {
+             "type": "string"
+            },
+            "title": {
+             "type": "string"
+            }
+           },
+           "required": [
+            "task",
+            "reason",
+            "owner",
+            "title"
+           ]
           },
-          "reason": {
-           "type": "string"
-          },
-          "owner": {
-           "type": "string"
-          },
-          "title": {
-           "type": "string"
+          {
+           "$ref": "#/components/schemas/TaskLook"
           }
-         },
-         "required": [
-          "task",
-          "reason",
-          "owner",
-          "title"
          ]
         }
        },
@@ -689,26 +752,33 @@
        "subtasks": {
         "type": "array",
         "items": {
-         "type": "object",
-         "properties": {
-          "id": {
-           "type": "integer"
+         "allOf": [
+          {
+           "type": "object",
+           "properties": {
+            "id": {
+             "type": "integer"
+            },
+            "title": {
+             "type": "string"
+            },
+            "owner": {
+             "type": "string"
+            },
+            "state": {
+             "type": "string"
+            }
+           },
+           "required": [
+            "id",
+            "title",
+            "owner",
+            "state"
+           ]
           },
-          "title": {
-           "type": "string"
-          },
-          "owner": {
-           "type": "string"
-          },
-          "state": {
-           "type": "string"
+          {
+           "$ref": "#/components/schemas/TaskLook"
           }
-         },
-         "required": [
-          "id",
-          "title",
-          "owner",
-          "state"
          ]
         },
         "description": "The sub-tasks by number: `children` with their titles, owners and states."
