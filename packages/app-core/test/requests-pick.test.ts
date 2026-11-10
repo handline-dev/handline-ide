@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { PendingRequest, RequestRow } from '@handline/client';
-import { bulkNames, bulkOf, pickAllState, requestRow, turnRow, turnsCounted, unseenOf, type Picked } from '#src/index.ts';
+import { bulkNames, bulkOf, refusalLine, pickAllState, requestRow, turnRow, turnsCounted, unseenOf, type Picked } from '#src/index.ts';
 
 const req = (cursor: string, over: Partial<RequestRow> = {}): RequestRow =>
   ({ cursor, task: 1, title: `title ${cursor}`, ended: null, ...over }) as unknown as RequestRow;
@@ -18,7 +18,8 @@ test('an action names the rows it acts on by their kind', () => {
     turnRow(turn({ id: 'q', task: 8, kind: 'ask' })),
   ];
   const name = bulkNames(bulkOf(rows, new Set([8])));
-  assert.equal(name.cancel, 'Cancel 2 requests');
+  assert.equal(name.discard, 'Discard 2 tasks');
+  assert.equal(name.done, 'Mark 2 tasks done');
   assert.equal(name.seen, 'Mark 1 result seen');
   assert.equal(name.giveBack, 'Give 1 turn back');
   assert.equal(turnsCounted([turn({ kind: 'ask' }), turn({ kind: 'ask' })]), '2 questions');
@@ -35,12 +36,12 @@ test('only a finished row not seen yet is to mark seen, and only with a task', (
   assert.deepEqual(unseenOf(rows), [{ keys: ['request:new'], task: 3 }]);
 });
 
-test('only an open request with a task is to cancel: a finished one and a turn are not', () => {
+test('only an open request with a task is to close: a finished one and a turn are not', () => {
   const rows = [
     ...rowsOf(req('open', { task: 5 }), req('done', { ...ended(false), task: 6 }), req('none', { task: null })),
     turnRow(turn({ task: 7 })),
   ];
-  assert.deepEqual(bulkOf(rows, new Set()).cancel, [{ keys: ['request:open'], task: 5, title: 'title open' }]);
+  assert.deepEqual(bulkOf(rows, new Set()).close, [{ keys: ['request:open'], task: 5, title: 'title open' }]);
 });
 
 test('two rows of one task write once, for both rows', () => {
@@ -49,14 +50,14 @@ test('two rows of one task write once, for both rows', () => {
     new Set(),
   );
   assert.deepEqual(
-    b.cancel.map((x) => x.keys),
+    b.close.map((x) => x.keys),
     [['request:a', 'request:b']],
   );
   assert.deepEqual(
     b.seen.map((x) => x.keys),
     [['request:c', 'request:d']],
   );
-  assert.equal(bulkNames(b).cancel, 'Cancel 2 requests');
+  assert.equal(bulkNames(b).discard, 'Discard 1 task');
   const turns: Picked[] = [
     { key: 'x', p: turn({ id: '1', task: 9 }) },
     { key: 'y', p: turn({ source: 'comment', id: '2', task: 9 }) },
@@ -77,4 +78,12 @@ test('the select-all box follows the rows shown, not rows picked and gone', () =
   assert.equal(pickAllState([a, b], picked(a)), 'some');
   assert.equal(pickAllState([a, b], picked(a, b)), 'all');
   assert.equal(pickAllState([a], picked(b)), 'none');
+});
+
+test('a refusal for open sub-tasks reads as one line naming the first to open; any other is kept as it came', () => {
+  assert.deepEqual(refusalLine('task T3890 still has open child tasks (T4071, T4072) - deal with them first'), {
+    text: 'T3890 has sub-tasks still open (T4071, T4072)',
+    open: 4071,
+  });
+  assert.deepEqual(refusalLine('not found'), { text: 'not found', open: null });
 });

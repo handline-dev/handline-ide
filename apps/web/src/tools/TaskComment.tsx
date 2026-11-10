@@ -16,6 +16,7 @@ import { HoverCard } from '#src/ui/HoverCard.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { Page } from '#src/ui/Page.tsx';
 
+import { sayRefusal } from '#src/ui/refusal.tsx';
 import { toast } from '#src/ui/toast.tsx';
 
 /** What the box answers: a comment, or the founder's turn (tied to the comment that asked). */
@@ -92,7 +93,7 @@ export function CommentBox({
       name: 'done',
       hint: 'Mark it done',
       icon: <Check size={14} />,
-      run: () => done.mutate({ task: t.id }, { onError: failed('Done did not work') }),
+      run: () => done.mutate({ task: t.id }, { onError: sayRefusal }),
     },
     {
       name: 'assign',
@@ -123,7 +124,7 @@ export function CommentBox({
       name: 'discard',
       hint: 'Discard it',
       icon: <Trash2 size={14} />,
-      run: () => discard.mutate({ task: t.id }, { onError: failed('Discard did not work') }),
+      run: () => discard.mutate({ task: t.id }, { onError: sayRefusal }),
     },
   ];
   const failed = (what: string) => (e: unknown) => toast(`${what}: ${e instanceof Error ? e.message : String(e)}`, { tone: 'warning' });

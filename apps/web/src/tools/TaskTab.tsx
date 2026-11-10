@@ -38,6 +38,7 @@ import { WaitingOnYou, YourTurn } from '#src/tools/TaskWaiting.tsx';
 import { Page } from '#src/ui/Page.tsx';
 import { ScrollFade } from '#src/ui/ScrollFade.tsx';
 import { keptScroll } from '#src/ui/keptScroll.ts';
+import { sayRefusal } from '#src/ui/refusal.tsx';
 import { toast } from '#src/ui/toast.tsx';
 import { useTabState } from '#src/persist/tabState.ts';
 
@@ -241,7 +242,7 @@ function Verbs({ id, open, state }: { id: number; open: boolean; state: string }
         }
       >
         {open && (
-          <MenuItem icon={<Check size={14} />} onClick={() => done.mutate({ task: id }, { onError: failed('Done') })}>
+          <MenuItem icon={<Check size={14} />} onClick={() => done.mutate({ task: id }, { onError: sayRefusal })}>
             Done
           </MenuItem>
         )}
@@ -251,7 +252,7 @@ function Verbs({ id, open, state }: { id: number; open: boolean; state: string }
           </MenuItem>
         )}
         {open && (
-          <MenuItem danger icon={<Trash2 size={14} />} onClick={() => discard.mutate({ task: id }, { onError: failed('Discard') })}>
+          <MenuItem danger icon={<Trash2 size={14} />} onClick={() => discard.mutate({ task: id }, { onError: sayRefusal })}>
             Discard
           </MenuItem>
         )}
