@@ -73,7 +73,7 @@ export function Chat({ agent }: { agent: string }) {
   ];
   const [draft, setDraft] = useDraft(agent);
   const attach = useAttachments(agent);
-  // A picture marked up in the chat or the box goes with the next message: its marked copy, and its comments after the draft.
+  // A picture marked up in the chat or the box goes with the next message.
   const addMarked = markInto(attach, setDraft);
   // A screenshot marked in a Web tab comes here too.
   const marked = useRef(addMarked);

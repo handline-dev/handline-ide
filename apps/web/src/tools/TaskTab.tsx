@@ -53,7 +53,7 @@ export function TaskTab({ id }: { id: number }) {
   const [replyTo, setReplyTo] = useTabState<Reply | null>('reply', null);
   // Files dropped anywhere on the task go with the next comment, as in the chat.
   const attach = useAttachments(`task:${id}`);
-  // The box's draft is held here so a picture marked up in the task's viewer lands in it, as in the chat.
+  // The box's draft is held here so a picture marked up in the task's viewer lands in it.
   const [draft, setDraft] = useDraft(`task:${id}`);
   const addMarked = markInto(attach, setDraft);
   // Going to the task's turn: the Your turn click, and a request-list click that left a mark (ui/keptScroll) before opening the task.
