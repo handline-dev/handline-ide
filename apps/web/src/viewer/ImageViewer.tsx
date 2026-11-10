@@ -103,13 +103,13 @@ export function ImageViewer({
   };
 
   const step = (by: number) => setAt((a) => Math.min(pictures.length - 1, Math.max(0, a + by)));
-  const live = useRef({ step, onClose, dispatch, canMark, marks });
-  useEffect(() => void (live.current = { step, onClose, dispatch, canMark, marks }));
+  const live = useRef({ step, onClose, dispatch, canMark, marks, url });
+  useEffect(() => void (live.current = { step, onClose, dispatch, canMark, marks, url }));
   useEffect(() => {
     const before = document.activeElement as HTMLElement | null;
     root.current?.focus();
     const key = (e: KeyboardEvent) => {
-      const { step, onClose, dispatch, canMark, marks } = live.current;
+      const { step, onClose, dispatch, canMark, marks, url } = live.current;
       if (e.target instanceof Element && e.target.closest('input, textarea')) return;
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
@@ -119,7 +119,7 @@ export function ImageViewer({
         else onClose();
       } else if (e.key === 'ArrowLeft') step(-1);
       else if (e.key === 'ArrowRight') step(1);
-      else if (e.key === 'm' && canMark) setMarking((v) => !v);
+      else if (e.key === 'm' && canMark && url) setMarking((v) => !v);
       else if (e.key === '0') controls.current?.fit();
       else if (e.key === '=' || e.key === '+') controls.current?.zoomBy(1.25);
       else if (e.key === '-') controls.current?.zoomBy(0.8);
@@ -173,9 +173,10 @@ export function ImageViewer({
           <Maximize size={15} />
         </Tool>
         <span className="mx-1 h-5 w-px bg-border" />
+        {/* The tools stay in their places while the picture loads, dimmed until it is here. */}
         {canMark && (
           <>
-            <Tool label="Mark (M)" on={marking} onClick={() => setMarking((v) => !v)}>
+            <Tool label="Mark (M)" on={marking} disabled={!url} onClick={() => setMarking((v) => !v)}>
               <PenLine size={16} />
             </Tool>
             <Tool label="Undo (⌘Z)" disabled={!marks.past.length} onClick={() => dispatch({ type: 'undo' })}>
@@ -183,21 +184,23 @@ export function ImageViewer({
             </Tool>
           </>
         )}
-        {url && (
-          <>
-            <Tool label="Copy" onClick={() => void copyPicture()}>
-              <Copy size={15} />
-            </Tool>
-            <a
-              href={url}
-              download={pic.name}
-              title="Save"
-              aria-label="Save"
-              className="grid size-8 place-items-center rounded-md text-muted outline-none hover:bg-hover hover:text-fg focus-visible:ring-2 focus-visible:ring-accent"
-            >
-              <Download size={15} />
-            </a>
-          </>
+        <Tool label="Copy" disabled={!url} onClick={() => void copyPicture()}>
+          <Copy size={15} />
+        </Tool>
+        {url ? (
+          <a
+            href={url}
+            download={pic.name}
+            title="Save"
+            aria-label="Save"
+            className="grid size-8 place-items-center rounded-md text-muted outline-none hover:bg-hover hover:text-fg focus-visible:ring-2 focus-visible:ring-accent"
+          >
+            <Download size={15} />
+          </a>
+        ) : (
+          <Tool label="Save" disabled onClick={() => {}}>
+            <Download size={15} />
+          </Tool>
         )}
         <span className="mx-1 h-5 w-px bg-border" />
         <Tool label="Close (Esc)" onClick={onClose}>

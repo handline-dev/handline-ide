@@ -25,7 +25,8 @@ import { Linked, Markdown } from '#src/ui/Markdown.tsx';
 import { Menu, MenuItem } from '#src/ui/Menu.tsx';
 import { Actions, CopyButton } from '#src/chat/MessageActions.tsx';
 import { Reference } from '#src/chat/ChatLine.tsx';
-import { MessageImages } from '#src/chat/MessageImages.tsx';
+import { MarkReply, markInto, MessageImages } from '#src/chat/MessageImages.tsx';
+import { useDraft } from '#src/chat/drafts.ts';
 import { ReadBy } from '#src/tools/ReadBy.tsx';
 import { Fields } from '#src/tools/TaskFields.tsx';
 import { GO_TURN, goToTurn, showMemo } from '#src/tools/TaskTurn.ts';
@@ -52,6 +53,9 @@ export function TaskTab({ id }: { id: number }) {
   const [replyTo, setReplyTo] = useTabState<Reply | null>('reply', null);
   // Files dropped anywhere on the task go with the next comment, as in the chat.
   const attach = useAttachments(`task:${id}`);
+  // The box's draft is held here so a picture marked up in the task's viewer lands in it, as in the chat.
+  const [draft, setDraft] = useDraft(`task:${id}`);
+  const addMarked = markInto(attach, setDraft);
   // Going to the task's turn: the Your turn click, and a request-list click that left a mark (ui/keptScroll) before opening the task.
   const goRef = useRef<() => void>(() => {});
   const loaded = !!q.data;
@@ -86,93 +90,104 @@ export function TaskTab({ id }: { id: number }) {
       : undefined;
   return (
     <FileDropArea take={attach.add} className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <ScrollFade keep={`task:${id}`} data-task-scroll={id} className="min-h-0 flex-1">
-        <Page className="flex flex-col gap-6 py-4 text-base text-fg">
-          <header className="flex flex-col gap-3">
-            <div className="flex items-start gap-3">
-              <h1 className="min-w-0 flex-1 text-lg font-semibold">
-                {/* The state said once, in the title's first line: its mark and its word on its colour; the title wraps after it. */}
-                <span
-                  className={`mr-2 inline-flex h-6 items-center gap-1 rounded-md px-2 align-middle text-xs font-medium text-accent-fg ${s.tone}`}
-                >
-                  <s.icon size={12} strokeWidth={3} />
-                  {s.word}
-                </span>
-                <span className="mr-1.5 font-normal text-muted">T{t.id}</span>
-                <span className={t.state === 'discarded' ? 'text-muted line-through' : ''}>{t.title}</span>
-              </h1>
-              <Verbs id={t.id} open={open} state={t.state} />
-            </div>
-            <p className="text-xs text-muted">
-              Reports to {isPerson(t.asker, me) ? 'you' : t.asker} · <span title={t.created}>created {ago(t.created)}</span>
-              {open && chain && <> · {chain}</>}
-              {t.done && (
-                <>
-                  {' '}
-                  · <span title={t.done}>closed {ago(t.done)}</span>
-                </>
-              )}
-              {t.parent && (
-                <>
-                  {' '}
-                  · under <TaskLink id={t.parent} title={t.parent_title ?? undefined} />
-                </>
-              )}
-            </p>
-            <Fields t={t} open={open} />
-            {/* Shown only while something holds it: what it waits on, and why. */}
-            {open && (mine || why || t.blockers.length > 0) && (
-              <div data-turn-slot className="flex flex-col gap-1 rounded-lg bg-warning/10 px-3 py-2 text-sm transition-colors">
-                {mine ? (
-                  <YourTurn t={t} reply={replyTo} onDone={() => void q.refetch()} onReply={setReplyTo} />
-                ) : asked ? (
-                  <WaitingOnYou t={t} me={me} asked={asked} onDone={() => void q.refetch()} onShow={() => showMemo(asked.id)} />
-                ) : (
-                  why && (
-                    <p className="flex items-start gap-2">
-                      <Hand size={14} className="mt-1 shrink-0 text-warning" />
-                      <Linked text={why} />
-                    </p>
-                  )
-                )}
-                {t.blockers.map((b, i) => (
-                  <p key={b.task} className={`flex min-w-0 items-center gap-2 ${i > 0 ? 'pl-6' : ''}`}>
-                    {i === 0 && <Hand size={14} className="shrink-0 text-warning" />}
-                    <span className="shrink-0 whitespace-nowrap text-muted">Waiting on</span>
-                    <TaskLink id={b.task} title={b.title} state={b} />
-                  </p>
-                ))}
+      <MarkReply.Provider value={{ add: addMarked, label: 'Add to comment' }}>
+        <ScrollFade keep={`task:${id}`} data-task-scroll={id} className="min-h-0 flex-1">
+          <Page className="flex flex-col gap-6 py-4 text-base text-fg">
+            <header className="flex flex-col gap-3">
+              <div className="flex items-start gap-3">
+                <h1 className="min-w-0 flex-1 text-lg font-semibold">
+                  {/* The state said once, in the title's first line: its mark and its word on its colour; the title wraps after it. */}
+                  <span
+                    className={`mr-2 inline-flex h-6 items-center gap-1 rounded-md px-2 align-middle text-xs font-medium text-accent-fg ${s.tone}`}
+                  >
+                    <s.icon size={12} strokeWidth={3} />
+                    {s.word}
+                  </span>
+                  <span className="mr-1.5 font-normal text-muted">T{t.id}</span>
+                  <span className={t.state === 'discarded' ? 'text-muted line-through' : ''}>{t.title}</span>
+                </h1>
+                <Verbs id={t.id} open={open} state={t.state} />
               </div>
-            )}
-          </header>
-          {t.body && (
-            <Flash text={t.body}>
-              <Markdown text={t.body} />
-            </Flash>
-          )}
-          {t.subtasks.length > 0 && (
-            <Section title="Sub-tasks">
-              {t.subtasks.map((c) => (
-                <TaskLink key={c.id} id={c.id} title={c.title} state={c} />
-              ))}
-            </Section>
-          )}
-          {t.evidence && (
-            <Section title="Result">
-              <ResultChips evidence={t.evidence} title={t.title} />
-              <Flash text={t.evidence}>
-                <Markdown text={t.evidence} />
+              <p className="text-xs text-muted">
+                Reports to {isPerson(t.asker, me) ? 'you' : t.asker} · <span title={t.created}>created {ago(t.created)}</span>
+                {open && chain && <> · {chain}</>}
+                {t.done && (
+                  <>
+                    {' '}
+                    · <span title={t.done}>closed {ago(t.done)}</span>
+                  </>
+                )}
+                {t.parent && (
+                  <>
+                    {' '}
+                    · under <TaskLink id={t.parent} title={t.parent_title ?? undefined} />
+                  </>
+                )}
+              </p>
+              <Fields t={t} open={open} />
+              {/* Shown only while something holds it: what it waits on, and why. */}
+              {open && (mine || why || t.blockers.length > 0) && (
+                <div data-turn-slot className="flex flex-col gap-1 rounded-lg bg-warning/10 px-3 py-2 text-sm transition-colors">
+                  {mine ? (
+                    <YourTurn t={t} reply={replyTo} onDone={() => void q.refetch()} onReply={setReplyTo} />
+                  ) : asked ? (
+                    <WaitingOnYou t={t} me={me} asked={asked} onDone={() => void q.refetch()} onShow={() => showMemo(asked.id)} />
+                  ) : (
+                    why && (
+                      <p className="flex items-start gap-2">
+                        <Hand size={14} className="mt-1 shrink-0 text-warning" />
+                        <Linked text={why} />
+                      </p>
+                    )
+                  )}
+                  {t.blockers.map((b, i) => (
+                    <p key={b.task} className={`flex min-w-0 items-center gap-2 ${i > 0 ? 'pl-6' : ''}`}>
+                      {i === 0 && <Hand size={14} className="shrink-0 text-warning" />}
+                      <span className="shrink-0 whitespace-nowrap text-muted">Waiting on</span>
+                      <TaskLink id={b.task} title={b.title} state={b} />
+                    </p>
+                  ))}
+                </div>
+              )}
+            </header>
+            {t.body && (
+              <Flash text={t.body}>
+                <Markdown text={t.body} />
               </Flash>
-            </Section>
-          )}
-          <Activity
-            task={t.id}
-            onReply={(id) => setReplyTo(t.memos.find((m) => m.id === id) ?? null)}
-            items={activityOf(t.memos, t.timeline).filter((i) => !isSystem(i.who))}
-          />
-        </Page>
-      </ScrollFade>
-      <CommentBox t={t} reply={replyTo} onDrop={() => setReplyTo(null)} attach={attach} onSent={() => toBottom(id)} />
+            )}
+            {t.subtasks.length > 0 && (
+              <Section title="Sub-tasks">
+                {t.subtasks.map((c) => (
+                  <TaskLink key={c.id} id={c.id} title={c.title} state={c} />
+                ))}
+              </Section>
+            )}
+            {t.evidence && (
+              <Section title="Result">
+                <ResultChips evidence={t.evidence} title={t.title} />
+                <Flash text={t.evidence}>
+                  <Markdown text={t.evidence} />
+                </Flash>
+              </Section>
+            )}
+            <Activity
+              task={t.id}
+              onReply={(id) => setReplyTo(t.memos.find((m) => m.id === id) ?? null)}
+              items={activityOf(t.memos, t.timeline).filter((i) => !isSystem(i.who))}
+            />
+          </Page>
+        </ScrollFade>
+        <CommentBox
+          t={t}
+          reply={replyTo}
+          onDrop={() => setReplyTo(null)}
+          attach={attach}
+          draft={draft}
+          setDraft={setDraft}
+          onMarked={addMarked}
+          onSent={() => toBottom(id)}
+        />
+      </MarkReply.Provider>
     </FileDropArea>
   );
 }
