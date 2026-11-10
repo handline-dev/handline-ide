@@ -6,7 +6,7 @@ import { Check, CornerDownRight, Eye, Flag, Timer, Trash2, UserRound, X } from '
 import { useState } from 'react';
 import type { Attachments } from '#src/chat/attachments.tsx';
 import { Composer } from '#src/chat/Composer.tsx';
-import { useDraft } from '#src/chat/drafts.ts';
+import type { MarkedPicture } from '#src/viewer/ImageViewer.tsx';
 import type { Command } from '#src/chat/Suggest.tsx';
 import { ChoicePicker } from '#src/tools/TaskChoices.tsx';
 import { AssignPicker } from '#src/tools/TaskFields.tsx';
@@ -53,12 +53,18 @@ export function CommentBox({
   reply: asked,
   onDrop,
   attach,
+  draft,
+  setDraft,
+  onMarked,
   onSent,
 }: {
   t: TaskDetail;
   reply: Reply | null;
   onDrop: () => void;
   attach: Attachments;
+  draft: string;
+  setDraft: (next: string | ((d: string) => string)) => void;
+  onMarked: (marked: MarkedPicture[]) => void;
   onSent: () => void;
 }) {
   // An answer to a turn that has ended or been asked anew since is dropped: it would answer a question no longer there.
@@ -66,7 +72,6 @@ export function CommentBox({
   const me = useMe();
   const read = useWrite('inbox.mark_read');
   const box = `task:${t.id}`;
-  const [draft, setDraft] = useDraft(box);
   const add = useWrite('task.comment.add', String(t.id));
   const edit = useWrite('task.edit');
   // Someone to hand it to with this comment; none keeps the owner.
@@ -181,6 +186,7 @@ export function CommentBox({
         draft={draft}
         setDraft={setDraft}
         attach={attach}
+        onMarked={onMarked}
         leading={
           <AssignPicker
             t={t}

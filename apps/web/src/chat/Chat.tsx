@@ -32,8 +32,7 @@ import { CornerDownRight, FoldVertical, Square, SquareTerminal, X } from 'lucide
 import { ChatSkeleton } from '#src/chat/ChatSkeleton.tsx';
 import { TurnRecord } from '#src/chat/TurnRecord.tsx';
 import { Composer } from '#src/chat/Composer.tsx';
-import { MarkReply } from '#src/chat/MessageImages.tsx';
-import type { MarkedPicture } from '#src/viewer/ImageViewer.tsx';
+import { MarkReply, markInto } from '#src/chat/MessageImages.tsx';
 import { Dots } from '#src/chat/Dots.tsx';
 import { useDraft } from '#src/chat/drafts.ts';
 import { useChatScroll } from '#src/chat/useChatScroll.ts';
@@ -75,11 +74,7 @@ export function Chat({ agent }: { agent: string }) {
   const [draft, setDraft] = useDraft(agent);
   const attach = useAttachments(agent);
   // A picture marked up in the chat or the box goes with the next message: its marked copy, and its comments after the draft.
-  const addMarked = (marked: MarkedPicture[]) => {
-    if (!marked.length) return;
-    attach.add(marked.map((m) => markedFile(m)));
-    setDraft((d) => [d.trimEnd(), ...marked.map((m) => m.text)].filter(Boolean).join('\n\n'));
-  };
+  const addMarked = markInto(attach, setDraft);
   // A screenshot marked in a Web tab comes here too.
   const marked = useRef(addMarked);
   useEffect(() => {
@@ -112,7 +107,7 @@ export function Chat({ agent }: { agent: string }) {
             </Shell>
           )}
         >
-          <MarkReply.Provider value={addMarked}>
+          <MarkReply.Provider value={{ add: addMarked, label: 'Add to reply' }}>
             <Stream ref={stream} agent={agent} onReply={(r) => setReply(r)} />
           </MarkReply.Provider>
         </Boundary>
@@ -160,12 +155,6 @@ export function Chat({ agent }: { agent: string }) {
     </FileDropArea>
   );
 }
-
-/** A marked picture as a dropped file: `name-marked.png`. */
-const markedFile = (m: MarkedPicture) => {
-  const name = `${m.picture.name.replace(/\.[^.]+$/, '')}-marked.png`;
-  return { kind: 'file' as const, name, files: [{ path: name, file: new File([m.image], name, { type: 'image/png' }) }] };
-};
 
 /** A task this agent gave or handed another agent, or one another agent gave or handed it, said as a message (kind task): drawn as the task, not as talk. */
 const taskNotice = (e: TimelineEntry | Turn, agent: string, me: string) =>
