@@ -153,6 +153,15 @@ describe('tasks and inbox', () => {
     applyEvent(c, ev('inbox.changed', item(1), { topic: 'inbox' }));
     expect(stale(qk.agents(D))).toBe(true);
   });
+  it("request.changed replaces its task's row, puts a new task's on top, and leaves out a row with no task", () => {
+    const key = [...qk.resource(D, 'requests.list'), { limit: 100 }];
+    const row = (task: number | null, title: string) => ({ task, title, ref: null });
+    qc.setQueryData(key, { items: [row(1, 'a'), row(2, 'b')], more: false });
+    applyEvent(c, ev('request.changed', row(2, 'b2'), { topic: 'requests' }));
+    applyEvent(c, ev('request.changed', row(3, 'c'), { topic: 'requests' }));
+    applyEvent(c, ev('request.changed', row(null, 'a message'), { topic: 'requests' }));
+    expect(qc.getQueryData<{ items: { title: string }[] }>(key)!.items.map((r) => r.title)).toEqual(['c', 'a', 'b2']);
+  });
   it('inbox.changed replaces the item in place', () => {
     qc.setQueryData(qk.inbox(D), { items: [item(1), item(2)], more: false });
     applyEvent(c, ev('inbox.changed', item(1, true), { topic: 'inbox' }));
