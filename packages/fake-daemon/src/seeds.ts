@@ -10,6 +10,17 @@ const ME = 'human';
 
 type Seed = (d: FakeDaemon) => void;
 
+const stall = (d: FakeDaemon, kind: 'start_failed' | 'no_session' | 'trust', title: string, text: string) => {
+  const s = d.sessions.get(ARCH)!;
+  s.state = 'stalled';
+  const since = new Date(Date.now() - 5 * 60_000).toISOString();
+  s.fx.view = {
+    ...s.fx.view,
+    status: { state: 'blocked', reason: 'stalled', text: `${title}: ${text}`, until: null, since, tasks: [] },
+    needs_you: { kind, since, title, text, source: 'daemon' },
+  };
+};
+
 export const SEEDS: Record<string, Seed> = {
   /** An inbox card the daemon raised after its recovery failed, with an agent, so it offers Open terminal. */
   'inbox-terminal': (d) =>
@@ -256,6 +267,24 @@ export const SEEDS: Record<string, Seed> = {
       },
     };
   },
+
+  /** The architect stalled by the daemon: start_failed (long reason), no_session, trust. */
+  'stall-start': (d) =>
+    stall(
+      d,
+      'start_failed',
+      "Won't start",
+      'The last 3 starts failed: the claude binary exited with status 1 before it printed its prompt, after the vendor folder-trust screen timed out while the account was switching to beta, and the retry found the worktree locked by another process.',
+    ),
+  'stall-wake': (d) =>
+    stall(d, 'no_session', "Woke but didn't start", 'It was woken 3 times and no session started: the terminal never came up.'),
+  'stall-trust': (d) =>
+    stall(
+      d,
+      'trust',
+      'Waiting for folder trust',
+      'Claude Code is asking whether to trust the files in /Users/ron/work/app. Only you can answer it, in the terminal.',
+    ),
 
   /** The architect waits on another task (status reason task): its chat shows the blocked-by card with the task as a link. */
   'agent-blocked': (d) => {
