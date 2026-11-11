@@ -105,15 +105,20 @@ func AccountKey(home, who string) string { return keyOf(home, who, actor.Account
 
 // AccountKeyIn is the key of the account named name, read through q: "" and no error when none is.
 func AccountKeyIn(q rowQ, name string) (string, error) {
+	return keyIn(q, "SELECT id FROM accounts WHERE name = ?", actor.Account, name)
+}
+
+// keyIn is the kind's key of the row query finds for name: "" and no error when none is.
+func keyIn(q rowQ, query string, kind actor.Kind, name string) (string, error) {
 	var id int64
-	err := q.QueryRow("SELECT id FROM accounts WHERE name = ?", name).Scan(&id)
+	err := q.QueryRow(query, name).Scan(&id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", nil
 	}
 	if err != nil {
 		return "", err
 	}
-	return actor.Key(actor.Account, id), nil
+	return actor.Key(kind, id), nil
 }
 
 // AccountName is the name of the account whose key is key, "" when none is.
@@ -156,15 +161,7 @@ func WorkspaceKey(home, who string) string { return keyOf(home, who, actor.Works
 
 // WorkspaceKeyIn is the key of the workspace named name, read through q: "" and no error when none is.
 func WorkspaceKeyIn(q rowQ, name string) (string, error) {
-	var id int64
-	err := q.QueryRow("SELECT id FROM workspaces WHERE name = ?", name).Scan(&id)
-	if errors.Is(err, sql.ErrNoRows) {
-		return "", nil
-	}
-	if err != nil {
-		return "", err
-	}
-	return actor.Key(actor.Workspace, id), nil
+	return keyIn(q, "SELECT id FROM workspaces WHERE name = ?", actor.Workspace, name)
 }
 
 // WorkspaceDir is the workspace's folder, workspaces/<key>; who is its key or its name. A name not
