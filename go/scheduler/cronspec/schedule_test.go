@@ -1,19 +1,14 @@
 package cronspec
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
 
-	"github.com/handline/handline/go/data/team"
-	"github.com/handline/handline/go/kit/sealed"
+	"github.com/handline/handline/go/data/team/teamtest"
 )
 
 func TestScheduleValueErrors(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()
-	dir := filepath.Join(home, "agents", "a")
-	os.MkdirAll(dir, 0o755)
 	for _, c := range []struct{ value, want string }{
 		{"not json", "schedules is not JSON: Expecting value: line 1 column 1 (char 0)"},
 		{`{"cron": "* * * * *"}`, "schedules is a list of {cron, message}"},
@@ -24,9 +19,7 @@ func TestScheduleValueErrors(t *testing.T) {
 		{`[{"cron": "* * * *", "message": "m"}]`, "a cron expression has five fields: minute hour day-of-month month day-of-week"},
 		{`[{"cron": "* * * * *", "message": "  "}]`, "schedule 1 has no message"},
 	} {
-		text := "role: x\nschedules: '" + c.value + "'\n"
-		os.WriteFile(filepath.Join(dir, "agent.yaml"), []byte(text), 0o644)
-		team.NewRoster(home).Seals.Seal(sealed.AgentKey("a"), text)
+		teamtest.Set(t, home, "a", "schedules", c.value)
 		_, err := load(home, "a")
 		if bv, ok := err.(badValue); !ok || string(bv) != c.want {
 			t.Errorf("%s: got %v, want %q", c.value, err, c.want)

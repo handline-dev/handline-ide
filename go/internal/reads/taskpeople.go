@@ -10,7 +10,7 @@ import (
 const recentChats = 3
 
 // askable is TaskDetail.people: whom the founder can ask about a task held by holder, each agent once. Who the founder last chatted with
-// comes first, then the rest of the holder's team in team.yaml order, then everyone else. A team.yaml that cannot be read is no team.
+// comes first, then the rest of the holder's team in roster order, then everyone else. A roster that cannot be read is no team.
 func (e *Env) askable(holder string) (map[string]any, error) {
 	agents := e.listAgents()
 	rows, err := query(e.DB, "SELECT requester, target FROM requests WHERE requester = ? OR target = ? ORDER BY id DESC LIMIT 200", human, human)

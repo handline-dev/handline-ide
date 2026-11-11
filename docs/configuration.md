@@ -5,75 +5,35 @@ what changed and when.
 
 ```
 ~/.handline/
-  config.yaml  team.yaml  db.sqlite  locks/
+  config.yaml  db.sqlite  locks/
   logs/                       daemon logs
   shared/.claude/             settings, CLAUDE.md, skills, agents, commands, plugins
   shared/mcp.json             optional MCP servers for every launch
   accounts/<name>/.claude/    one Claude config directory per account; credentials stay here
   accounts/<name>/status.json
-  agents/<name>/              agent.yaml  ROLE.md  base.md  inbox/  journal/
+  agents/<name>/              ROLE.md  base.md  inbox/  journal/
 ```
 
 `accounts/` and `logs/` are not tracked by git.
 
-## team.yaml
+## Workspaces and agents
 
-Says who may send work to whom. A request that no rule allows is refused, and the refusal says why.
+Workspaces and agents are rows in `db.sqlite`, written when you create them in the app. A workspace
+has one folder; each of its agents works there in its own worktree. Change an agent's settings in the
+app: `vendor`, `model`, `effort`, `weight` (`light` or `heavy`), `chrome`, `mcp_config`, and the
+founder-only `mode` (`default`, `auto`, `acceptEdits` or `plan`; bypass is not supported) and sandbox.
+Which account an agent is on is recorded by the daemon and changed in the app's agent settings.
 
-```yaml
-teams:
-  eng: [backend]
-
-agents:
-  backend: {}
-  reviewer: {}
-
-edges:
-  - { from: '*', to: 'reviewer' }
-  - { from: '*', to: 'human', kind: task }
-
-deny: []
-
-limits:
-  max_chain_depth: 4
-```
-
-- `teams` groups agents. A team's manager is the member named like the team.
-- `edges` allow one direction of contact. `from` and `to` are agent names or `*`.
-- `deny` removes an allowed contact and always wins over an edge.
-- `limits` stop runaway chains: how deep one request can chain, and how many requests an agent may
-  send per hour.
-- `human` is you. It is not an agent, but agents can send you a decision as a task.
-
-The name gives the links, with no edge written: an agent may ask its parent (the name up to the
-last dot, so `shop.sea` is under `shop`), its children and its siblings. A grandparent, a nephew and
-another team are not reachable; a link between teams is an edge you write on purpose. A manager may
-ask you. Siblings open and hand on tasks to each other directly, and their manager is told of each
-move as a notice that asks nothing of it. To add or remove one link or agent without editing the file, use `hl propose`:
+Until names carry keys, an agent is named `workspace.agent` and a workspace's lead by the workspace
+alone. An agent may ask you, anyone in its own workspace and the lead of another. To add, retire or rename an
+agent, or add a workspace with its agents, an agent uses `hl propose`:
 
 ```bash
-hl propose team shop --member sea=/Users/you/code/sea --member shore --why "split the storefront work"
-hl propose link reviewer backend --why "backend may ask the reviewer for a second look"
+hl propose team shop --member sea --member shore --repo /Users/you/code/shop --why "split the storefront work"
 ```
-
-A link's ends are agents, `*` or `human`. `hl propose unlink` removes any edge that is in `team.yaml`,
-so an edge to a retired agent can go.
 
 `hl propose` files a proposal for you to decide in the app's Proposals tab: an approve applies it at
 once and tells the agent that asked. `hl propose list` shows proposals and what became of them.
-
-## agent.yaml
-
-Written when you create the agent in the app. Change it there, not by hand,
-unless you also seal it on the Team page. The fields you will use: `vendor`, `model`, `effort`, `weight`
-(`light` or `heavy`), `repo`, `chrome`, and `mcp_config`. Which account an
-agent is on is not in this file. The daemon records it, and the app's agent settings change it.
-
-Two more are the founder's to change in the app's agent settings: `mode` and the sandbox
-(an agent that asks goes through `hl propose`). `mode` is Claude's permission mode: `default`, `auto` (the
-default), `acceptEdits` or `plan`. Bypass mode is not supported. The sandbox is off
-unless `sandbox: true` is in the file: `sandbox=on` starts the agent's next session inside
-Claude's sandbox, and every session after it, until `sandbox=off`.
 
 ## ROLE.md and base.md
 
@@ -87,15 +47,6 @@ Both are plain Markdown, and both have a size limit because they are sent with e
 The app warns when one is over its limit. If you are over, the content belongs in the repo's
 own docs, where the agent can read it when it needs it. Both files are loaded into every session,
 so everything in them costs usage every time.
-
-## Sealed files
-
-`team.yaml` and each `agent.yaml` are sealed. The hash of what you last wrote is kept in a protected
-store at `~/.config/handline/protected`. If a file no longer matches, `hl` refuses to act on it
-and the Team page names it. This stops an agent from editing its own permissions, because every
-agent can write to `~/.handline`.
-
-If you edit one of these files yourself, read it over and press Seal on the Team page of the app.
 
 ## Accounts and limits
 
@@ -111,7 +62,7 @@ an unrecognized error four times with no successful turn between. See [how it wo
 ## config.yaml settings
 
 Set these in the app's Settings page, or with `settings.set`. A time is in seconds. The ones marked "per agent" can also
-be put in one agent's `agent.yaml`, which then wins over `config.yaml` for that agent.
+be set on one agent's row (the app's agent settings), which then wins over `config.yaml` for that agent.
 
 | Key                                                                     | Default          | What it does                                                                                                                                   |
 | ----------------------------------------------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |

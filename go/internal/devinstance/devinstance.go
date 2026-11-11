@@ -315,24 +315,9 @@ func (e *Env) build(in *Instance) error {
 	return nil
 }
 
-// seed copies the live roster into home and, when home has no database yet or fresh is asked, a snapshot of the live database: VACUUM
+// seed copies into home, when it has no database yet or fresh is asked, a snapshot of the live database (the roster with it): VACUUM
 // INTO over a read-only connection, so the live file is only read.
 func (e *Env) seed(home string, fresh bool) error {
-	for _, rel := range []string{"team.yaml"} {
-		if err := copyIfThere(filepath.Join(e.LiveHome, rel), filepath.Join(home, rel)); err != nil {
-			return err
-		}
-	}
-	yamls, _ := filepath.Glob(filepath.Join(e.LiveHome, "agents", "*", "agent.yaml"))
-	for _, y := range yamls {
-		agent := filepath.Base(filepath.Dir(y))
-		if err := os.MkdirAll(filepath.Join(home, "agents", agent), 0o755); err != nil {
-			return err
-		}
-		if err := copyIfThere(y, filepath.Join(home, "agents", agent, "agent.yaml")); err != nil {
-			return err
-		}
-	}
 	dbFile := filepath.Join(home, "db.sqlite")
 	if _, err := os.Stat(dbFile); err == nil && !fresh {
 		return nil
@@ -351,17 +336,6 @@ func (e *Env) seed(home string, fresh bool) error {
 		return fmt.Errorf("snapshot of the live database: %v", err)
 	}
 	return nil
-}
-
-func copyIfThere(from, to string) error {
-	b, err := os.ReadFile(from)
-	if os.IsNotExist(err) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(to, b, 0o644)
 }
 
 // managerWorktree is the worktree the snapshot records for the team's manager, the agent named like the team.

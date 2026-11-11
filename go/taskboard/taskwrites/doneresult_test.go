@@ -3,11 +3,13 @@ package taskwrites
 import (
 	"encoding/base64"
 	"fmt"
-	"github.com/handline/handline/go/kit/paths"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/handline/handline/go/data/team/teamtest"
+	"github.com/handline/handline/go/kit/paths"
 
 	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/kit/storetest"
@@ -34,10 +36,7 @@ func newResultRig(t *testing.T) (home, repo, onMain, offMain string, done func(a
 	}
 	t.Cleanup(func() { d.Close() })
 	home = t.TempDir()
-	for _, a := range []string{"w", "boss"} {
-		os.MkdirAll(filepath.Join(home, "agents", a), 0o755)
-		os.WriteFile(filepath.Join(home, "agents", a, "agent.yaml"), nil, 0o644)
-	}
+	teamtest.Seed(t, home, "w", "boss")
 	repo = t.TempDir()
 	git := gitIn(t, repo)
 	git("init", "-q", "-b", "main")

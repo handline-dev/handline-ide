@@ -8,7 +8,6 @@ that home's store, so the daemon tells their peer to be that agent. The network 
 `-serve-net-fds` serves a second set of socketpairs as its connections: the role `unpaired`. A fixture of a role with no
 connection here (member) is reported SKIP and fails the run."""
 import fcntl
-import hashlib
 import os
 import re
 import json
@@ -56,15 +55,14 @@ STATES = ["running", "idle", "queued", "parked", "waiting", "stalled", "no_termi
 
 
 def seed_states(home: Path, daemon: subprocess.Popen) -> dict[str, str]:
-    """An agent per state word: its agent.yaml and a stored view, which the daemon serves as it is. The schema is the daemon's,
+    """An agent per state word: its row and a stored view, which the daemon serves as it is. The schema is the daemon's,
     so the views go in once it has made the database. Returns the --var for each."""
     names = {w: f"s.{w}" for w in STATES}
     output_agent = "s.output"
     ask_agent = ASK_AGENT
     order = {"order_a": names["idle"], "order_b": names["running"], **ORDER}
     for n in [*names.values(), output_agent, ask_agent, DOING_AGENT, AGENT, LEAD, *RETIRE, *ORDER.values(), *TURNS]:
-        (home / "agents" / n).mkdir(parents=True)
-        (home / "agents" / n / "agent.yaml").write_text("role: seeded by conformance_fds\n")
+        agent_dir(home, n)
     for _ in range(200):
         try:
             con = sqlite3.connect(home / "db.sqlite", timeout=5)
@@ -82,7 +80,8 @@ def seed_states(home: Path, daemon: subprocess.Popen) -> dict[str, str]:
             seed_files(home, con)
             seed_open_question(con, ask_agent)
             typing = seed_typing_gates(home, con)
-            write_team(home, [*names.values(), output_agent, ask_agent, DOING_AGENT, AGENT, LEAD, *RETIRE, *ORDER.values(), *typing.values(), *TURNS])
+            seed_agents(con, [*names.values(), output_agent, ask_agent, DOING_AGENT, AGENT, LEAD, *RETIRE, *ORDER.values(), *typing.values(), *TURNS,
+                              WORKROOM["create_parent"]], {"w": WORKROOM["create_repo"]})
             con.commit()
             con.close()
             return {**{f"state_{w}": n for w, n in names.items()}, "output_agent": output_agent, "session_agent": output_agent,
@@ -99,7 +98,7 @@ def seed_states(home: Path, daemon: subprocess.Popen) -> dict[str, str]:
 # What agent_create.json and worktree_status.json need: a repo (a git directory with a commit), an agent that works in it, and the
 # repo's path as that agent's worktree. create_name is not seeded: a new agent is started in a terminal, which this run has none of, so
 # the done, failed and retry fixtures are named in go/conformance-needvar.txt and the Go tests play them over a fake host.
-WORKROOM = {"create_repo": "", "create_parent": "c.parent", "status_worktree": ""}
+WORKROOM = {"create_repo": "", "create_parent": "w.parent", "status_worktree": ""}
 
 
 def seed_workroom(home: Path, con: sqlite3.Connection) -> None:
@@ -108,9 +107,7 @@ def seed_workroom(home: Path, con: sqlite3.Connection) -> None:
     env = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.com", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.com"}
     for args in (["init", "-q", "-b", "main"], ["commit", "-q", "--allow-empty", "-m", "first"]):
         subprocess.run(["git", *args], cwd=repo, env=env, check=True)
-    agent = home / "agents" / WORKROOM["create_parent"]
-    agent.mkdir(parents=True)
-    (agent / "agent.yaml").write_text(f"role: seeded by conformance_fds\nrepo: {repo}\n")
+    agent_dir(home, WORKROOM["create_parent"])
     subprocess.run(["git", "remote", "add", "origin", "git@github.com:conf/workroom.git"], cwd=repo, check=True)
     extra = []
     for branch, commits, dirty in (("facts/clean", 0, 0), ("facts/dirty", 2, 2), ("facts/failing", 1, 0), ("facts/ready", 1, 0)):
@@ -165,7 +162,7 @@ esac
 """
 
 
-ASK_AGENT = "s.ask"
+ASK_AGENT = "c.ask"  # in the agent role's workspace, so it may write to it
 # task_turns.json: three agents only its fixtures put on a task, so the turns they take touch no other fixture's agent.
 TURNS = ("t.one", "t.two", "t.three")
 # agent.get.doing_names_the_tool_call: a running agent whose turn's newest tool call is Bash `sleep 30`, as the tick stores it.
@@ -194,18 +191,33 @@ def seed_doing(con: sqlite3.Connection) -> None:
             "account": None, "task": None, "cache_until": None, "has_dialog": False, "parent": None, "needs_you": None,
             "doing": {"text": "Bash sleep 30", "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}}
     con.execute("INSERT OR REPLACE INTO agent_view(agent, view, updated) VALUES(?, ?, 0)", (DOING_AGENT, json.dumps(view)))
-# agent_retire.json: an agent nothing depends on, which it retires, and one with an agent under its name, which it may not.
-RETIRE = ["r.gone", "r.boss", "r.boss.kid"]
+# agent_retire.json: an agent nothing depends on, which it retires, and a workspace lead with an agent under it, which it may not.
+RETIRE = ["r.gone", "r", "r.kid"]
 # prefs.json's nav order fixtures: an agent they retire and one a proposal renames (to o.new); neither has a session.
 ORDER = {"order_retire_agent": "o.gone", "order_rename_agent": "o.old"}
 
 
-def write_team(home: Path, agents: list[str]) -> None:
-    """A team where the person may say to any agent, which chat.send needs, and AGENT has LEAD for its lead."""
-    (home / "team.yaml").write_text(f"teams:\n  {LEAD}: [{LEAD}, {AGENT}]\nagents:\n" + "".join(f"  {n}: {{}}\n" for n in agents) + """edges:
-  - { from: "*", to: "*", relation: peer, response: async }
-  - { from: "human", to: "*", relation: supervisor, response: fire_and_forget }
-""")
+def agent_dir(home: Path, name: str) -> None:
+    """The agent's folder, with the role text its view shows."""
+    (home / "agents" / name).mkdir(parents=True, exist_ok=True)
+    (home / "agents" / name / "ROLE.md").write_text("seeded by conformance_fds\n")
+
+
+def seed_agents(con: sqlite3.Connection, names: list[str], folders: dict[str, str]) -> None:
+    """Each agent as a row, named by its old dotted name as the daemon reads it until names change: a bare name is the lead of the
+    workspace it names, ws.agent an agent of workspace ws, reporting to that lead. The owner (p1) has every one; folders sets a
+    workspace's folder. AGENT is in LEAD's workspace, so LEAD is its lead."""
+    for n in sorted(set(names), key=lambda n: "." in n):
+        ws, _, agent = n.partition(".")
+        con.execute("INSERT OR IGNORE INTO workspaces(name, folder, created_at) VALUES(?, ?, 0)", (ws, folders.get(ws, "")))
+        ws_id, lead = con.execute("SELECT id, lead FROM workspaces WHERE name = ?", (ws,)).fetchone()
+        if not agent and lead:
+            continue
+        reports_to = f"a{lead}" if agent and lead else "p1"
+        cur = con.execute("INSERT INTO agents(workspace, name, owner, reports_to, created_at) VALUES(?, ?, 'p1', ?, 0)",
+                          (ws_id, agent or "lead", reports_to))
+        if not agent:
+            con.execute("UPDATE workspaces SET lead = ? WHERE id = ?", (cur.lastrowid, ws_id))
 
 
 def seed_tool_items(con: sqlite3.Connection, agent: str) -> None:
@@ -230,8 +242,7 @@ def seed_typing_gates(home: Path, con: sqlite3.Connection) -> dict[str, str]:
     whose input another person holds. Returns the --var for each."""
     locked, held = "s.locked", "s.held"
     for n in (locked, held):
-        (home / "agents" / n).mkdir(parents=True, exist_ok=True)
-        (home / "agents" / n / "agent.yaml").write_text("role: seeded by conformance_fds\n")
+        agent_dir(home, n)
         con.execute("INSERT OR REPLACE INTO agent_state(agent, state, updated, terminal) VALUES(?, 'idle', 0, '%9')", (n,))
     (home / "locks").mkdir(exist_ok=True)
     f = open(home / "locks" / f"{locked}.terminal", "a")
@@ -250,17 +261,6 @@ def seed_session_start(con: sqlite3.Connection, agent: str) -> None:
     """A conversation the agent began, bound to its session, for transcript_session.json."""
     con.execute("INSERT INTO session_starts(agent, ts, session_id, cause, resumed, text, prompt, actor) VALUES(?, ?, 'seed', 'launch', 0, '', '', '')",
                 (agent, int(time.time())))
-
-
-def seal_seeded(home: Path, store: Path) -> None:
-    """Seal team.yaml and each agent.yaml as the founder's Team page would (package sealed: the text's sha256 in the protected store).
-    The daemon seals what is there on its first read, before this run writes them; with the tick on, a delivery reads them."""
-    seals = store / "seal"
-    seals.mkdir(exist_ok=True)
-    files = {"team": home / "team.yaml"} | {"agent-" + re.sub(r"[^A-Za-z0-9._-]", "_", d.name): d / "agent.yaml"
-                                           for d in (home / "agents").iterdir() if (d / "agent.yaml").exists()}
-    for key, f in files.items():
-        (seals / key).write_text(hashlib.sha256(f.read_bytes()).hexdigest())
 
 
 def tick_settled(home: Path) -> None:
@@ -371,7 +371,6 @@ def main(argv: list[str]) -> int:
         try:
             seeded = seed_states(home, daemon)
             if fakes:
-                seal_seeded(home, store)
                 tick_settled(home)
             seeded |= {"add_account": "conf-added", "add_used_account": "conf-used", "add_retry_account": "conf-retried"}  # names no account has
             (home / "accounts" / "main" / ".claude").mkdir(parents=True)  # a logged-in account: it has a credential file

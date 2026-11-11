@@ -3,12 +3,12 @@ package taskwrites
 import (
 	"database/sql"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	dbpkg "github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/kit/storetest"
 	"github.com/handline/handline/go/protocol/rpc"
@@ -22,10 +22,7 @@ func TestDiscardIsTheAskersAndTellsTheOwnerAndFreesWhatWaitedOnIt(t *testing.T) 
 	}
 	defer db.Close()
 	home := t.TempDir()
-	for _, a := range []string{"worker", "manager", "other"} {
-		os.MkdirAll(filepath.Join(home, "agents", a), 0o755)
-		os.WriteFile(filepath.Join(home, "agents", a, "agent.yaml"), nil, 0o644)
-	}
+	teamtest.Seed(t, home, "worker", "manager", "other")
 	for _, q := range []string{
 		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 't', 'worker', 'manager', 1), (2, 'u', 'other', 'other', 1), (3, 'child', 'worker', 'worker', 1)",
 		"UPDATE tasks SET parent_task = 1 WHERE id = 3",
@@ -98,12 +95,13 @@ func discardEnvHome(t *testing.T) (*sql.DB, string, func(agent string, tell ...T
 	}
 	t.Cleanup(func() { db.Close() })
 	home := t.TempDir()
-	for _, a := range []string{"gp", "worker", "other", "manager"} {
-		os.MkdirAll(filepath.Join(home, "agents", a), 0o755)
-		os.WriteFile(filepath.Join(home, "agents", a, "agent.yaml"), nil, 0o644)
-	}
-	os.WriteFile(filepath.Join(home, "team.yaml"), []byte("teams:\n  crew: [worker, other]\nagents:\n  gp: {}\n  worker: {}\n  other: {}\n  manager: {}\n"+
-		"edges:\n  - {from: manager, to: worker}\n  - {from: manager, to: other}\n"), 0o644)
+	teamtest.Seed(t, home, "gp", "worker", "other", "manager")
+	teamtest.Set(t, home, "worker", "reports_to", "manager")
+	teamtest.Set(t, home, "other", "reports_to", "manager")
+	// crew.asker and crew.mate share a workspace and lead none; ops.hand is an agent of another workspace, not its lead.
+	teamtest.Seed(t, home, "crew.asker", "crew.mate", "ops.hand")
+	teamtest.Set(t, home, "crew.asker", "reports_to", "manager")
+	teamtest.Set(t, home, "crew.mate", "reports_to", "manager")
 	return db, home, func(agent string, tell ...Teller) *rpc.Server {
 		s := rpc.NewServer(auth{agent}, "x", store.LatestVersion(), "local", func(string, ...any) {})
 		s.DB = db
@@ -184,14 +182,14 @@ func TestADiscardedChildUnblocksItsParentsOwnerWithoutAResultNotice(t *testing.T
 func TestAnOpenRequestRefusesTheDiscardAndWithdrawGoesThrough(t *testing.T) {
 	db, mk := discardEnv(t)
 	exec(t, db,
-		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(30, 'a', 'worker', 'manager', 1), (31, 'b', 'worker', 'manager', 1)",
-		"INSERT INTO requests(id, requester, target, body, state, kind, queue_order, ts) VALUES(40, 'manager', 'worker', 'do a', 'queued', 'task', 40, 1)",
+		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(30, 'a', 'worker', 'crew.asker', 1), (31, 'b', 'worker', 'crew.asker', 1)",
+		"INSERT INTO requests(id, requester, target, body, state, kind, queue_order, ts) VALUES(40, 'crew.asker', 'worker', 'do a', 'queued', 'task', 40, 1)",
 		"INSERT INTO task_requests(task_id, request_id) VALUES(30, 40)")
-	r := call(t, mk("manager"), discardLine(2, 30, "x", "m1"))
+	r := call(t, mk("crew.asker"), discardLine(2, 30, "x", "m1"))
 	if r[0]["error"] == nil || count(t, db, "SELECT COUNT(*) FROM tasks WHERE id = 30 AND discarded_by IS NULL") != 1 {
 		t.Fatalf("a request still out refuses: %v", r[0])
 	}
-	w := call(t, mk("manager"), `{"jsonrpc":"2.0","id":2,"method":"task.withdraw","params":{"task":31,"request_id":"w1"}}`)
+	w := call(t, mk("crew.asker"), `{"jsonrpc":"2.0","id":2,"method":"task.withdraw","params":{"task":31,"request_id":"w1"}}`)
 	if w[0]["result"] == nil || count(t, db, "SELECT COUNT(*) FROM tasks WHERE id = 31 AND discard_reason = 'withdrawn by whoever opened it'") != 1 {
 		t.Fatalf("the opener withdraws: %v", w[0])
 	}
@@ -236,28 +234,28 @@ func TestTheAskerOrTheFounderDiscardsATaskWhoseRequestLandedAndTheHolderIsTold(t
 	t.Parallel()
 	db, mk := discardEnv(t)
 	exec(t, db,
-		"INSERT INTO tasks(id, title, owner, opened_by, created_at, sent_at) VALUES(7, 'a', 'worker', 'manager', 1, 1), (8, 'b', 'worker', 'manager', 1, 1), "+
-			"(9, 'c', 'worker', 'manager', 1, NULL)",
+		"INSERT INTO tasks(id, title, owner, opened_by, created_at, sent_at) VALUES(7, 'a', 'worker', 'crew.asker', 1, 1), (8, 'b', 'worker', 'crew.asker', 1, 1), "+
+			"(9, 'c', 'worker', 'crew.asker', 1, NULL)",
 		"INSERT INTO requests(id, requester, target, body, state, kind, queue_order, ts, landed_at, delivered_at) VALUES"+
-			"(17, 'manager', 'worker', 'do a', 'queued', 'task', 17, 1, 5, 5), (18, 'manager', 'worker', 'do b', 'queued', 'task', 18, 1, 5, 5), "+
-			"(19, 'manager', 'worker', 'do c', 'queued', 'task', 19, 1, NULL, NULL)",
+			"(17, 'crew.asker', 'worker', 'do a', 'queued', 'task', 17, 1, 5, 5), (18, 'crew.asker', 'worker', 'do b', 'queued', 'task', 18, 1, 5, 5), "+
+			"(19, 'crew.asker', 'worker', 'do c', 'queued', 'task', 19, 1, NULL, NULL)",
 		"INSERT INTO task_requests(task_id, request_id) VALUES(7, 17), (8, 18), (9, 19)")
 	r := call(t, mk("other"), discardLine(2, 7, "x", "o1"))
-	if msg := errText(r[0]); msg != "task T7 is in its holder's hands ("+dbpkg.MsgName(db, 17)+" (with worker)) - only manager, who it answers to, or the founder can discard it now" ||
+	if msg := errText(r[0]); msg != "task T7 is in its holder's hands ("+dbpkg.MsgName(db, 17)+" (with worker)) - only crew.asker, who it answers to, or the founder can discard it now" ||
 		count(t, db, "SELECT COUNT(*) FROM tasks WHERE id = 7 AND discarded_by IS NULL") != 1 {
 		t.Fatalf("neither its asker nor the founder: %v", r[0])
 	}
 	f := &fakeTeller{}
-	if r := call(t, mk("manager", f), discardLine(2, 7, "not needed", "m1")); r[0]["error"] != nil {
+	if r := call(t, mk("crew.asker", f), discardLine(2, 7, "not needed", "m1")); r[0]["error"] != nil {
 		t.Fatalf("the asker discards: %v", r[0])
 	}
-	if count(t, db, "SELECT COUNT(*) FROM tasks WHERE id = 7 AND discarded_by = 'manager'") != 1 ||
+	if count(t, db, "SELECT COUNT(*) FROM tasks WHERE id = 7 AND discarded_by = 'crew.asker'") != 1 ||
 		count(t, db, "SELECT COUNT(*) FROM requests WHERE id = 17 AND state != 'queued' AND queue_order IS NULL") != 1 {
 		t.Fatal("the task is discarded and its landed request closed")
 	}
 	toldWorker := false
 	for _, n := range f.told {
-		toldWorker = toldWorker || n.To == "worker" && n.Text == "T7 discarded by manager: not needed"
+		toldWorker = toldWorker || n.To == "worker" && n.Text == "T7 discarded by crew.asker: not needed"
 	}
 	if !toldWorker {
 		t.Fatalf("the holder is told in one line: %+v", f.told)
@@ -274,7 +272,7 @@ func TestTheAskerOrTheFounderDiscardsATaskWhoseRequestLandedAndTheHolderIsTold(t
 	if !toldWorker {
 		t.Fatalf("the holder is told of the founder's discard too: %+v", f.told)
 	}
-	if r := call(t, mk("manager"), discardLine(2, 9, "x", "m2")); r[0]["error"] == nil {
+	if r := call(t, mk("crew.asker"), discardLine(2, 9, "x", "m2")); r[0]["error"] == nil {
 		t.Fatalf("a request still waiting to be typed refuses as before: %v", r[0])
 	}
 }

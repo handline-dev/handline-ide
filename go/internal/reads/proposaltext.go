@@ -207,7 +207,7 @@ func (f flat) sets() ([]string, map[string]string) {
 	return keys, vals
 }
 
-var stepOrder = []string{"team", "add", "rename", "settings", "schedule", "link", "unlink", "retire", "context", "global"}
+var stepOrder = []string{"team", "add", "rename", "settings", "schedule", "retire", "context", "global"}
 
 func stepIndex(kind string) int {
 	for i, k := range stepOrder {
@@ -235,28 +235,18 @@ func members(p flat) []string {
 	return out
 }
 
-func isEdge(kind string) bool { return kind == "link" || kind == "unlink" }
-
-// title is the card's head: `link a -> b`, `retire a`, `bundle 3 changes`.
+// title is the card's head: `retire a`, `bundle 3 changes`.
 func (f flat) title() string {
 	if f.text("kind") == "bundle" {
 		return fmt.Sprintf("bundle %d changes", len(f.items()))
 	}
-	t := f.text("kind") + " " + f.text("agent")
-	if isEdge(f.text("kind")) {
-		t += " -> " + f.text("to")
-	}
-	return t
+	return f.text("kind") + " " + f.text("agent")
 }
 
 // changeLines is what approving one change does, in words, a line for each thing it changes.
 func changeLines(it flat) []string {
 	kind, agent, to := it.text("kind"), it.text("agent"), it.text("to")
 	switch kind {
-	case "link":
-		return []string{fmt.Sprintf("allow %s to ask %s", agent, to)}
-	case "unlink":
-		return []string{fmt.Sprintf("remove the edge %s -> %s", agent, to)}
 	case "add":
 		line := "register " + agent
 		for _, k := range []string{"team", "repo", "model", "effort", "vendor"} {

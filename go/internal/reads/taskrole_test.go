@@ -3,24 +3,18 @@ package reads
 import (
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"testing"
+
+	"github.com/handline/handline/go/data/team/teamtest"
 )
 
-// Task.role and AgentView.task_role are check for an agent whose team.yaml entry says role: check, and work for any other: one with
-// another role, none, or no entry. The name does not decide it.
+// Task.role and AgentView.task_role are check for an agent whose row says role check, and work for any other, or for a name that is no
+// agent. The name does not decide it.
 func TestATaskOfACheckAgentIsACheck(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	team := "agents:\n  auditor: {role: check}\n  dev: {}\n  dev.auditor: {}\n  odd: {role: review}\n"
-	if err := os.WriteFile(filepath.Join(e.Home, "team.yaml"), []byte(team), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	names := []string{"auditor", "dev", "dev.auditor", "nobody", "odd"}
-	for _, n := range names {
-		addAgent(t, e, n, "")
-	}
+	teamtest.Seed(t, e.Home, "auditor", "dev", "dev.auditor", "odd")
+	teamtest.Set(t, e.Home, "auditor", "role", "check")
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'a', 'auditor', 'dev', 1), (2, 'b', 'dev', 'dev', 1), "+
 		"(3, 'c', 'dev.auditor', 'dev', 1), (4, 'd', 'nobody', 'dev', 1), (5, 'e', 'odd', 'dev', 1)")
 	got, err := e.tasksList(asFounder, map[string]any{"all": true})
@@ -46,6 +40,7 @@ func TestATaskOfACheckAgentIsACheck(t *testing.T) {
 	for _, a := range out.Agents {
 		views[fmt.Sprint(a["name"])] = a["task_role"]
 	}
+	delete(roles, "nobody")
 	if fmt.Sprint(views) != fmt.Sprint(roles) {
 		t.Errorf("AgentView.task_role %v, want %v", views, roles)
 	}

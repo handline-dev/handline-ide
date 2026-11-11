@@ -73,7 +73,7 @@ export type AgentView = {
   structured?: boolean;
   /** What the agent is, for a column (agents.kind): the model and its effort as `<model> <effort>`, effort one of low, mid, high, xhi, max (any other effort is shown whole), with the vendor in front as `<vendor> <model> <effort>` only when it is not claude. Absent from a daemon that does not serve it yet. */
   kind?: string;
-  /** The role of the tasks it owns (Task.role): check when its team.yaml entry says role: check, else work. Absent from a daemon that does not send it. */
+  /** The role of the tasks it owns (Task.role): check when its row says role: check, else work. Absent from a daemon that does not send it. */
   task_role?: "work" | "check";
   /** The tasks the agent owns that are not done: the current one and those waiting (queued or doing). A draft that is not the current task is not counted, as it is not approved yet; one the agent picked up and made current is. Absent from a daemon that does not serve it yet. */
   task_count?: number;

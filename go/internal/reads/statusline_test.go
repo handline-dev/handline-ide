@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
@@ -27,8 +28,7 @@ func TestAgentsListWithStatusAddsWhatHlTeamDraws(t *testing.T) {
 	for _, a := range []string{"ann", "bob", "cat", "dan"} {
 		addAgent(t, e, a, "")
 	}
-	writeAgentYAML(t, e, "ann", "role: r\nrepo: handline\n")
-	writeAgentYAML(t, e, "dan", "- not a map\n")
+	teamtest.Set(t, e.Home, "ann", "repo", "handline")
 	run(t, e, "INSERT INTO agent_state(agent, state, updated, terminal, closed_at) VALUES"+
 		"('ann', 'IDLE', 0, 'h1', NULL), ('bob', 'PARKED', 0, NULL, 5), ('dan', 'IDLE', 0, 'h4', NULL)")
 	run(t, e, `INSERT INTO agent_view(agent, view, updated) VALUES('ann', '{"name": "ann", "state": "waiting", "state_detail": "a question"}', 0)`)

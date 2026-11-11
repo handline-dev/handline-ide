@@ -302,7 +302,7 @@ func (s *Spawns) wantedExtras(agent string) int {
 	return int(team.ExtraWorktrees(cfg))
 }
 
-// EnsureExtras makes the worktrees agent.yaml `extra_worktrees` asks for and the agent has not got, beside its first, and records them:
+// EnsureExtras makes the worktrees its row's extra_worktrees asks for and the agent has not got, beside its first, and records them:
 // its further worktrees, and what to tell. Each is `<agent>-2`, `<agent>-3` on a branch of that name from main, which is the host's own
 // way of making a worktree; the agent checks out what it wants there. One it has is kept as it is and never made twice, so a restart, a
 // wake or the reconciler's recovery cannot make a third or strand the first. Failing to make one is told, not fatal: the agent starts
@@ -545,7 +545,7 @@ func (s *Spawns) EnsureRun() (string, error) {
 
 // RegisterWorker makes this agent's terminal a worker in the Run, under its supervisor. Without it an agent is one more tab: the host
 // has no idea it belongs to a team, which is why an agent asked to get work done reached for a subagent - the only child it knew how to
-// make. The tree comes from team.yaml, so the card and the routing cannot disagree about who reports to whom. "" when nothing was
+// make. The tree comes from the roster, so the card and the routing cannot disagree about who reports to whom. "" when nothing was
 // registered.
 func (s *Spawns) RegisterWorker(agent, handle string) (string, error) {
 	if !s.Host.HasRuns() {

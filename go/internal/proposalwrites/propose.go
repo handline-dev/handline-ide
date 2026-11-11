@@ -20,7 +20,7 @@ import (
 )
 
 // proposable are the kinds `hl propose` raises from a session: the roster changes, and an agent's schedule, that need no settings or global checks.
-var proposable = []string{"add", "retire", "rename", "link", "unlink", "team", "context", "schedule"}
+var proposable = []string{"add", "retire", "rename", "team", "context", "schedule"}
 
 // maxSteps bounds a team diff (MAX_STEPS in handline/team/proposals.py).
 const maxSteps = 40
@@ -51,7 +51,7 @@ func argList(v any) []string {
 	return out
 }
 
-// teamNames are a team's members' full names, or why not (_team_names in hr.py): nothing may exist yet, in the roster or in team.yaml.
+// teamNames are a team's members' full names, or why not (_team_names in hr.py): nothing may exist yet in the roster.
 func (e *Env) teamNames(name string, members []string, repos map[string]string, registered []string) ([]string, string) {
 	if len(members) == 0 {
 		return nil, "a team needs at least one member (--member); one agent is `hl propose add`"
@@ -97,10 +97,10 @@ func (e *Env) teamNames(name string, members []string, repos map[string]string, 
 	}
 	t, err := team.LoadTeam(e.Home)
 	if err != nil {
-		return nil, fmt.Sprintf("team.yaml cannot be read (%v)", err)
+		return nil, fmt.Sprintf("the team cannot be read (%v)", err)
 	}
 	if _, ok := t.Teams[name]; ok {
-		return nil, fmt.Sprintf("team %s is already in team.yaml", name)
+		return nil, fmt.Sprintf("workspace %s already exists", name)
 	}
 	var listed []string
 	for _, n := range append([]string{name}, full...) {
@@ -109,14 +109,13 @@ func (e *Env) teamNames(name string, members []string, repos map[string]string, 
 		}
 	}
 	if len(listed) > 0 {
-		return nil, strings.Join(listed, ", ") + " already in team.yaml agents"
+		return nil, strings.Join(listed, ", ") + " already an agent"
 	}
 	return full, ""
 }
 
-// draft checks one change against the roster `registered` (and the agents an earlier step makes, `coming`, and the edges an earlier step
-// unlinks, `unlinked`) and returns it as a proposal, or why not (_draft in hr.py).
-func (e *Env) draft(actor, kind string, args map[string]any, why string, registered []string, coming map[string]bool, unlinked map[[2]string]bool) (*Prop, string) {
+// draft checks one change against the roster `registered` and returns it as a proposal, or why not.
+func (e *Env) draft(actor, kind string, args map[string]any, why string, registered []string) (*Prop, string) {
 	name := argStr(args, "name")
 	str := func(k string) string { return argStr(args, k) }
 	why = strings.TrimSpace(why)
@@ -147,15 +146,9 @@ func (e *Env) draft(actor, kind string, args map[string]any, why string, registe
 		if slices.Contains(registered, name) {
 			return nil, fmt.Sprintf("%s is already an agent", name)
 		}
-	case "unlink": // edgeRefusal checks the edge is in team.yaml, whatever its ends
 	default:
-		if !slices.Contains(registered, name) && !(kind == "link" && patternEnd(name)) {
+		if !slices.Contains(registered, name) {
 			return nil, fmt.Sprintf("%s is not an agent", name)
-		}
-	}
-	if kind == "link" || kind == "unlink" {
-		if msg := e.edgeRefusal(kind, name, to, registered, coming, unlinked); msg != "" {
-			return nil, msg
 		}
 	}
 	if kind == "rename" {
@@ -209,7 +202,7 @@ func (e *Env) draft(actor, kind string, args map[string]any, why string, registe
 		return nil, fmt.Sprintf("%s needs a repo: --repo <path> (or --team of a manager that has one). Its worktree is made there; without one it never starts.", name)
 	}
 	if kind == "team" && repo == "" {
-		return nil, fmt.Sprintf("team %s needs --repo <path> for its manager; a member without its own --member SUFFIX=REPO works there too. Each worktree is made in it.", name)
+		return nil, fmt.Sprintf("team %s needs --repo <path> for its workspace: every member works in that one folder, each in its own worktree.", name)
 	}
 	if kind == "add" || kind == "team" {
 		var why string
@@ -219,6 +212,14 @@ func (e *Env) draft(actor, kind string, args map[string]any, why string, registe
 		for n, r := range repos {
 			if repos[n], why = e.checkout(actor, r); why != "" {
 				return nil, why
+			}
+			if repos[n] != "" && repos[n] != repo {
+				return nil, fmt.Sprintf("%s would work in %s, but a workspace has one folder: its lead's, %s", n, repos[n], repo)
+			}
+		}
+		if ws, agent := team.SplitLegacy(name); kind == "add" && agent != "" {
+			if folder := team.NewRoster(e.Home).RepoOf(ws); folder != "" && folder != repo {
+				return nil, fmt.Sprintf("%s would work in %s, but workspace %s has one folder: %s", name, repo, ws, folder)
 			}
 		}
 	}
@@ -260,7 +261,7 @@ func (e *Env) draft(actor, kind string, args map[string]any, why string, registe
 		for _, n := range full {
 			r := repos[n]
 			if r == "" {
-				r = repo // written into every agent.yaml
+				r = repo // the workspace's folder
 			}
 			prop.set("repo."+n, r)
 		}
@@ -345,7 +346,7 @@ func (e *Env) proposeMethod(c *rpc.Conn, params map[string]any) (any, error) {
 		changes, _ := args["changes"].([]any)
 		return e.proposeBundle(c, changes, argStr(params, "why"))
 	}
-	prop, why := e.draft(c.Caller.Actor(), argStr(params, "kind"), args, argStr(params, "why"), paths.ListAgents(e.Home), nil, nil)
+	prop, why := e.draft(c.Caller.Actor(), argStr(params, "kind"), args, argStr(params, "why"), paths.ListAgents(e.Home))
 	if why != "" {
 		return refuse("%s", why)
 	}
@@ -395,16 +396,11 @@ func (e *Env) proposeBundle(c *rpc.Conn, raw []any, why string) (any, error) {
 	slices.SortStableFunc(steps, func(a, b step) int { return stepIndex(a.kind) - stepIndex(b.kind) })
 	now := paths.ListAgents(e.Home)
 	registered := now
-	coming := map[string]bool{}
-	unlinked := map[[2]string]bool{} // so a link after its unlink rewrites the edge
 	var flat []yamlcompat.Pair
 	for n, s := range steps {
-		d, msg := e.draft(c.Caller.Actor(), s.kind, s.args, why, registered, coming, unlinked)
+		d, msg := e.draft(c.Caller.Actor(), s.kind, s.args, why, registered)
 		if msg != "" {
 			return refuse("change %d (%s %s): %s", s.n, s.kind, argStr(s.args, "name"), msg)
-		}
-		if s.kind == "unlink" {
-			unlinked[[2]string{d.str("agent"), d.str("to")}] = true
 		}
 		for _, kv := range d.pairs {
 			switch kv.Key {
@@ -414,11 +410,6 @@ func (e *Env) proposeBundle(c *rpc.Conn, raw []any, why string) (any, error) {
 			}
 		}
 		registered = rosterAfter(registered, d)
-		for _, a := range registered {
-			if !slices.Contains(now, a) {
-				coming[a] = true
-			}
-		}
 	}
 	out, err := newProp(bundle, fmt.Sprintf("%d changes", len(steps)), c.Caller.Actor(), why)
 	if err != nil {

@@ -200,7 +200,7 @@ type IdleClose interface {
 	Set(text, agent string) (bool, string)
 }
 
-// SaveSettings writes changes to the agent's file through Register, which keeps every other field as it is. A running session is
+// SaveSettings writes changes to the agent's row through Register, which keeps every other field as it is. A running session is
 // not restarted.
 func (r *Roster) SaveSettings(agent string, changes []Change, idle IdleClose) (bool, string) {
 	next := map[string]string{}
@@ -262,16 +262,11 @@ func (r *Roster) SaveSettings(agent string, changes []Change, idle IdleClose) (b
 		}
 	}
 	if hasNote {
-		_, pairs, err := r.readOrdered(agent)
-		if err == nil {
-			if note == "default" {
-				pairs = pairsPop(pairs, "handoff_note")
-			} else {
-				pairs = pairsSet(pairs, "handoff_note", note == "on")
-			}
-			err = r.Write(agent, pairs)
+		var v any // default: no setting of its own
+		if note != "default" {
+			v = note == "on"
 		}
-		if err != nil {
+		if err := r.SetKeys(agent, []yamlcompat.Pair{{Key: "handoff_note", Val: v}}); err != nil {
 			return false, "handoff note not saved: " + err.Error()
 		}
 	}

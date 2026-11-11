@@ -1,26 +1,23 @@
 package reads
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
+
+	"github.com/handline/handline/go/data/team/teamtest"
 )
 
 func TestABoardReadsTheTeamOnce(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	team := filepath.Join(e.Home, "team.yaml")
-	if err := os.WriteFile(team, []byte("teams:\n  lead: [lead, w]\nagents:\n  lead: {}\n  w: {}\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	d := teamtest.Seed(t, e.Home, "lead", "lead.w")
 	b := &board{}
-	if got := b.leadOf(e.Home, "w"); got != "lead" {
+	if got := b.leadOf(e.Home, "lead.w"); got != "lead" {
 		t.Fatalf("lead %q", got)
 	}
-	if err := os.Remove(team); err != nil {
+	if _, err := d.Exec("UPDATE agents SET reports_to = 'p1'"); err != nil {
 		t.Fatal(err)
 	}
-	if got := b.leadOf(e.Home, "w"); got != "lead" {
+	if got := b.leadOf(e.Home, "lead.w"); got != "lead" {
 		t.Fatalf("the team was read again: %q", got)
 	}
 }

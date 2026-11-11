@@ -1,10 +1,10 @@
 package daemon
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/kit/storetest"
 )
 
@@ -16,8 +16,7 @@ func startTranscript(t *testing.T, transcripts bool) *Daemon {
 		t.Fatal(err)
 	}
 	pre.Close()
-	os.MkdirAll(filepath.Join(dir, "agents", "bob"), 0o755)
-	os.WriteFile(filepath.Join(dir, "agents", "bob", "agent.yaml"), nil, 0o644)
+	teamtest.Seed(t, dir, "bob")
 	d, err := Start(Config{Home: dir, DBFile: filepath.Join(dir, "db.sqlite"), Auth: pidAuth{}, Transcripts: transcripts})
 	if err != nil {
 		t.Fatal(err)

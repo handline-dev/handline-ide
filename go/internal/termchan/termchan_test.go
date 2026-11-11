@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/agentctl/term"
-	"github.com/handline/handline/go/kit/paths"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/kit/storetest"
 	"github.com/handline/handline/go/protocol/rpc"
 )
@@ -373,13 +373,7 @@ func newRig(t *testing.T) rig {
 
 func (r rig) agent(t *testing.T) {
 	t.Helper()
-	dir := filepath.Join(paths.AgentsDir(r.e.Home), "ann")
-	if err := mkdir(dir); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "agent.yaml"), []byte("name: ann\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	teamtest.Seed(t, r.e.Home, "ann")
 }
 
 func person(name string) *rpc.Conn {

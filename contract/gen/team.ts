@@ -20,7 +20,7 @@ export type Proposal = {
   id: number;
   /** The agent the proposal is about, as the card heads it `<kind> <agent>`. For a bundle: `<N> changes`, not an agent's name. */
   agent: string;
-  /** One line, the card's head: `<kind> <agent>`, with ` -> <to>` after it for link and unlink; a bundle's is `bundle <N> changes`. Text from agents' names; draw as text. */
+  /** One line, the card's head: `<kind> <agent>`; a bundle's is `bundle <N> changes`. Text from agents' names; draw as text. */
   title: string;
   /** What approving does, in words, one change per line. Not a unified diff. */
   diff: string;
@@ -53,7 +53,7 @@ export type Proposal = {
     model?: string;
     team?: string;
     repo?: string;
-    /** rename: the new name; link, unlink: the other end. */
+    /** rename: the new name. */
     to?: string;
     /** `set <key>`: each agent setting asked for, key to value. */
     sets?: { [key: string]: string };
@@ -61,7 +61,7 @@ export type Proposal = {
   };
   error?: string | null;
   settled?: Timestamp | null;
-  /** What the proposal does: add, retire, rename, link, unlink, team, settings, context, schedule or bundle (several changes decided once). An open set: a client draws a word it does not know as text. */
+  /** What the proposal does: add, retire, rename, team, settings, context, schedule or bundle (several changes decided once). An open set: a client draws a word it does not know as text. */
   kind?: string;
 };
 
@@ -84,7 +84,7 @@ export type ProposalArgs = {
   model?: string;
   effort?: string;
   vendor?: string;
-  /** rename: the new name; link, unlink: the other end. */
+  /** rename: the new name. */
   to?: string;
   /** team: each a suffix (`sea` is `name.sea`) or a full name. */
   members?: string[];
@@ -113,20 +113,8 @@ export type ScheduleError = {
 };
 
 export interface TeamMethods {
-  "team.seal": { params: {
-  /** Change nothing: answer `plan`. */
-  dry_run?: boolean;
-  request_id: RequestId;
-}; result: {
-    /** Always true: a refusal is an error. */
-    ok: boolean;
-    /** Dry run only: one line per file that would be sealed (its label, why, its digest), or that nothing needs sealing. */
-    plan?: string;
-    /** Without dry_run: one line per file sealed, or that nothing needed sealing. */
-    said?: string;
-  } };
   "proposal.propose": { params: {
-  kind: "add" | "retire" | "rename" | "link" | "unlink" | "team" | "settings" | "context" | "schedule" | "bundle";
+  kind: "add" | "retire" | "rename" | "team" | "settings" | "context" | "schedule" | "bundle";
   args: ProposalArgs;
   why?: string;
   request_id: RequestId;
@@ -220,7 +208,6 @@ export interface TeamMethods {
 }
 
 export const TEAM_METHODS: { [K in keyof TeamMethods]: { role: Role; callers: Role[] | null; write: boolean; since: number } } = {
-  "team.seal": { role: "founder", callers: null, write: true, since: 1 },
   "proposal.propose": { role: "agent", callers: null, write: true, since: 1 },
   "proposal.withdraw": { role: "agent", callers: null, write: true, since: 1 },
   "trust.propose": { role: "agent", callers: null, write: true, since: 1 },
@@ -245,8 +232,7 @@ export const TEAM_APP_CACHE: { [K in "trust.list" | "team.get" | "proposal.list"
 };
 
 /** x-app-write of each write (x-app in core.json). */
-export const TEAM_APP_WRITES: { [K in "team.seal" | "proposal.propose" | "proposal.withdraw" | "trust.propose" | "trust.remove" | "proposal.decide" | "proposal.apply_now" | "schedule.add" | "schedule.edit" | "schedule.remove"]: { kind: WriteKind; label: string } | false } = {
-  "team.seal": {"kind": "decided", "label": "seal"},
+export const TEAM_APP_WRITES: { [K in "proposal.propose" | "proposal.withdraw" | "trust.propose" | "trust.remove" | "proposal.decide" | "proposal.apply_now" | "schedule.add" | "schedule.edit" | "schedule.remove"]: { kind: WriteKind; label: string } | false } = {
   "proposal.propose": false,
   "proposal.withdraw": {"kind": "decided", "label": "withdraw"},
   "trust.propose": false,

@@ -4,13 +4,12 @@ import (
 	"bufio"
 	"encoding/json"
 	"net"
-	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/handline/handline/go/agentctl/delivery"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/internal/fixtureplay"
 	"github.com/handline/handline/go/internal/reads"
 	"github.com/handline/handline/go/protocol/rpc"
@@ -29,12 +28,7 @@ func TestTheDeliveryFixturesPassAgainstTheChatWritesAndReads(t *testing.T) {
 	for _, fx := range fixtures {
 		t.Run(fx.Name, func(t *testing.T) {
 			r := newRig(t)
-			team, _ := os.ReadFile(filepath.Join(r.home, "team.yaml"))
-			os.WriteFile(filepath.Join(r.home, "team.yaml"), []byte(strings.Replace(string(team), "agents:\n", "agents:\n  carol: {}\n  dave: {}\n", 1)), 0o644)
-			for _, a := range []string{"carol", "dave"} {
-				os.MkdirAll(filepath.Join(r.home, "agents", a), 0o755)
-				os.WriteFile(filepath.Join(r.home, "agents", a, "agent.yaml"), []byte("vendor: claude\n"), 0o644)
-			}
+			teamtest.Seed(t, r.home, "carol", "dave")
 			f := &fakeSessions{r: r, busyFor: map[string]bool{"carol": true}}
 			r.env.Agents = f
 			srv := r.server("")

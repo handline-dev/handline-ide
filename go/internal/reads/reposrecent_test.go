@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/handline/handline/go/data/team/teamtest"
 )
 
 // fakeRepo makes dir a repo as the scan sees one: a .git folder with HEAD and index stamped at head and index.
@@ -94,7 +96,7 @@ func TestReposRecentServesTheUsersHomeLessTheKnownRepos(t *testing.T) {
 	known := filepath.Join(home, "taken")
 	fakeRepo(t, known, at, at)
 	addAgent(t, e, "alice", "")
-	os.WriteFile(filepath.Join(e.Home, "agents", "alice", "agent.yaml"), []byte("repo: "+filepath.Join(raw, "taken")+"/\n"), 0o644)
+	teamtest.Set(t, e.Home, "alice", "repo", filepath.Join(raw, "taken")+"/")
 
 	res, err := e.reposRecent(nil, map[string]any{})
 	if err != nil {

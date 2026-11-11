@@ -10,6 +10,7 @@ import (
 
 	"github.com/handline/handline/go/accounts/usage"
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/kit/storetest"
 )
 
@@ -94,9 +95,7 @@ func (w *world) account(name string) {
 
 func (w *world) agent(name, account string) {
 	w.t.Helper()
-	dir := filepath.Join(w.Home, "agents", name)
-	os.MkdirAll(dir, 0o755)
-	os.WriteFile(filepath.Join(dir, "agent.yaml"), []byte("name: "+name+"\n"), 0o644)
+	teamtest.Seed(w.t, w.Home, name)
 	if account != "" {
 		if _, err := w.DB.Exec("INSERT INTO agent_state(agent, state, updated, account) VALUES(?, 'IDLE', 1, ?)", name, account); err != nil {
 			w.t.Fatal(err)

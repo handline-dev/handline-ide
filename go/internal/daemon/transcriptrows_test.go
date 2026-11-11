@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/agentctl/agent/claudecode/turns"
-	"github.com/handline/handline/go/kit/paths"
+	"github.com/handline/handline/go/data/team/teamtest"
 )
 
 // With chat_transcript_rows on, what a running turn writes to its transcript reaches chat.transcript as reply and tool items; off, none.
@@ -33,9 +33,7 @@ func TestARunningTurnsTranscriptFillsTheChatOnlyWithTheSetting(t *testing.T) {
 		if on {
 			config = "chat_transcript_rows: true\n"
 		}
-		os.WriteFile(filepath.Join(dir, "team.yaml"), []byte(tellTeam), 0o644)
-		os.MkdirAll(paths.AgentDir(dir, "bob"), 0o755)
-		os.WriteFile(filepath.Join(paths.AgentDir(dir, "bob"), "agent.yaml"), []byte("{}\n"), 0o644)
+		teamtest.Seed(t, dir, "alice", "bob")
 		os.WriteFile(filepath.Join(dir, "config.yaml"), []byte(config), 0o644)
 		path := filepath.Join(dir, "s1.jsonl")
 		os.WriteFile(path, nil, 0o644)

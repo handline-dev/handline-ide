@@ -10,8 +10,6 @@ import (
 
 	"github.com/handline/handline/go/data/agenthost"
 	"github.com/handline/handline/go/kit/paths"
-	"github.com/handline/handline/go/kit/protected"
-	"github.com/handline/handline/go/kit/sealed"
 )
 
 // Carrying out a proposal: one change, or every step of a team diff, in order. A step that is refused or raises puts back everything the steps
@@ -27,8 +25,6 @@ type snapshot struct {
 	names    []string
 	folders  map[string]string
 	archived map[string]bool
-	kept     map[[2]string]*string
-	store    *protected.Store
 }
 
 func takeSnapshot(home string, names map[string]bool) (*snapshot, error) {
@@ -36,9 +32,8 @@ func takeSnapshot(home string, names map[string]bool) (*snapshot, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &snapshot{home: home, dir: dir, files: map[string][]byte{}, folders: map[string]string{}, archived: map[string]bool{}, kept: map[[2]string]*string{},
-		store: protected.New(home)}
-	for _, p := range []string{paths.TeamFile(home), paths.TeamFile(home) + ".bak", paths.ConfigFile(home)} {
+	s := &snapshot{home: home, dir: dir, files: map[string][]byte{}, folders: map[string]string{}, archived: map[string]bool{}}
+	for _, p := range []string{paths.ConfigFile(home)} {
 		if b, err := os.ReadFile(p); err == nil {
 			s.files[p] = b
 		} else {
@@ -63,17 +58,6 @@ func takeSnapshot(home string, names map[string]bool) (*snapshot, error) {
 	if entries, err := os.ReadDir(filepath.Join(home, "agents", "archive")); err == nil {
 		for _, c := range entries {
 			s.archived[c.Name()] = true
-		}
-	}
-	keys := [][2]string{{sealed.NS, sealed.Team}}
-	for _, n := range s.names {
-		keys = append(keys, [2]string{sealed.NS, sealed.AgentKey(n)})
-	}
-	for _, k := range keys {
-		if v, ok := s.store.Get(k[0], k[1]); ok {
-			s.kept[k] = &v
-		} else {
-			s.kept[k] = nil
 		}
 	}
 	return s, nil
@@ -143,13 +127,6 @@ func (s *snapshot) restore() {
 			copyTree(from, d)
 		}
 	}
-	for k, v := range s.kept {
-		if v == nil {
-			s.store.Delete(k[0], k[1])
-		} else {
-			s.store.Put(k[0], k[1], *v)
-		}
-	}
 }
 
 func (s *snapshot) drop() { os.RemoveAll(s.dir) }
@@ -203,7 +180,7 @@ func (e *Env) hostServed(items []*Prop) string {
 func (e *Env) doer(kind string) func(*Env, step) (bool, string, error) {
 	return map[string]func(*Env, step) (bool, string, error){
 		"add": (*Env).doAdd, "settings": (*Env).doSettings, "context": (*Env).doContext, "retire": (*Env).doRetire,
-		"rename": (*Env).doRename, "link": (*Env).doLink, "unlink": (*Env).doUnlink, "team": (*Env).doTeam,
+		"rename": (*Env).doRename, "team": (*Env).doTeam,
 		"schedule": (*Env).doSchedule, "global": (*Env).doGlobal,
 	}[kind]
 }

@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -50,20 +48,19 @@ func (r *rig) callAs(agent, call string) map[string]any {
 	return out
 }
 
+// founderOnlyTeam registers eng.alice and ops.bob: agents of two workspaces, neither a lead, so neither may reach the other.
 func (r *rig) founderOnlyTeam() {
 	r.t.Helper()
-	if err := os.WriteFile(filepath.Join(r.home, "team.yaml"), []byte(founderOnlyTeam), 0o644); err != nil {
-		r.t.Fatal(err)
-	}
+	r.register("eng.alice", "ops.bob")
 }
 
-// An agent's handoff through task.handoff is no system step: on a team with no edge alice -> bob it is refused and the task stays.
+// An agent's handoff through task.handoff is no system step: to an agent it may not reach it is refused and the task stays.
 func TestAnAgentsHandoffStillNeedsItsEdge(t *testing.T) {
 	r := newRig(t)
 	r.founderOnlyTeam()
-	tid := r.newTask("alice", "human", "job")
-	got := r.callAs("alice", fmt.Sprintf(`{"jsonrpc":"2.0","id":2,"method":"task.handoff","params":{"task":%d,"to":"bob","note":"yours","request_id":"h1"}}`, tid))
-	if task, _ := db.GetTask(r.DB, tid); task == nil || task.Owner != "alice" || !strings.Contains(fmt.Sprint(got), "no edge declares alice -> bob") {
+	tid := r.newTask("eng.alice", "human", "job")
+	got := r.callAs("eng.alice", fmt.Sprintf(`{"jsonrpc":"2.0","id":2,"method":"task.handoff","params":{"task":%d,"to":"ops.bob","note":"yours","request_id":"h1"}}`, tid))
+	if task, _ := db.GetTask(r.DB, tid); task == nil || task.Owner != "eng.alice" || !strings.Contains(fmt.Sprint(got), "ops.bob is in another workspace") {
 		t.Fatalf("refused, and the task stays: %v %+v", got, task)
 	}
 }
@@ -85,15 +82,15 @@ func TestASystemAskToAnUnknownTargetIsRefused(t *testing.T) {
 func TestEndReviewsMovesATaskWithNoTeamEdgeFromTheDaemon(t *testing.T) {
 	r := newRig(t)
 	r.founderOnlyTeam()
-	tid := r.newTask("bob", "alice", "reviewed")
+	tid := r.newTask("ops.bob", "eng.alice", "reviewed")
 	if _, err := r.DB.Exec("UPDATE tasks SET reported_at = 5, report = 'built it' WHERE id = ?", tid); err != nil {
 		t.Fatal(err)
 	}
 	said, err := taskwrites.EndReviews(r.DB, r.home, r.Env)
-	if err != nil || fmt.Sprint(said) != fmt.Sprintf("[T%d left review: handed to alice]", tid) {
+	if err != nil || fmt.Sprint(said) != fmt.Sprintf("[T%d left review: handed to eng.alice]", tid) {
 		t.Fatalf("%q %v", said, err)
 	}
-	if task, _ := db.GetTask(r.DB, tid); task == nil || task.Owner != "alice" {
+	if task, _ := db.GetTask(r.DB, tid); task == nil || task.Owner != "eng.alice" {
 		t.Fatalf("%+v", task)
 	}
 }

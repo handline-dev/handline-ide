@@ -5,7 +5,6 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 
 | Method | Role | Write | Params | Result | Errors | Gates | App |
 |---|---|---|---|---|---|---|---|
-| `team.seal` | founder | yes | `dry_run?`, `request_id` | `{ok, plan, said}` | `refused`, `bad_request` |  | decided: seal |
 | `proposal.propose` | agent | yes | `kind`, `args`, `why?`, `request_id` | `Accepted & {proposal}` | `refused`, `bad_request` |  | not from the app |
 | `proposal.withdraw` | agent | yes | `proposal`, `request_id` | `Accepted` | `refused`, `not_found` | proposal_settled | decided: withdraw |
 | `trust.propose` | agent | yes | `root`, `why?`, `request_id` | `Accepted & {proposal}` | `refused` |  | not from the app |
@@ -20,13 +19,9 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `schedule.edit` | founder | yes | `schedule`, `target?`, `cron?`, `message?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | authored: edit schedule |
 | `schedule.remove` | founder | yes | `schedule`, `request_id` | `Accepted` | `refused`, `not_found` |  | authored: remove schedule |
 
-### `team.seal`
-
-The founder seals team.yaml and every agent.yaml as they are now (the Team page of the app); dry_run names what would be sealed. Seals are what lets the daemon tell a file the founder approved from one changed behind their back. The call without `dry_run` is the go-ahead and seals every file that is not sealed as it is, and marks the seals as begun; a file already matching its seal is left. A dry run lists each file it would take on, `new` (no seal before) or `changed` (it did not match its seal), with the digest it would be sealed with, and writes nothing and records nothing. Nothing to seal is `ok` true with that said. An agent's session is refused by role.
-
 ### `proposal.propose`
 
-Propose a roster change; the founder decides (hl propose add, retire, rename, link, unlink, team, settings, context, schedule, and diff, which is kind bundle: args.changes lists several changes decided once and applied together or not at all).
+Propose a roster change; the founder decides (hl propose add, retire, rename, team, settings, context, schedule, and diff, which is kind bundle: args.changes lists several changes decided once and applied together or not at all).
 
 ### `proposal.withdraw`
 

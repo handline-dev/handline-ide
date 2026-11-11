@@ -121,7 +121,7 @@ func (e *Env) refuseHeldWork(agent string) error {
 	return r
 }
 
-// dependents are the other agents that report to agent (team.yaml's supervisor) or hang under its name (agent.x).
+// dependents are the other agents that report to agent (its row's reports_to) or hang under its name (agent.x).
 func (e *Env) dependents(agent string, everyone []string) []string {
 	t, _ := team.LoadTeam(e.Home)
 	var out []string

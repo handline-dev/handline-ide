@@ -20,7 +20,7 @@ func answered(t *testing.T, e *Env, fingerprint string) (label, note, by string)
 func TestAnAnswerIsKeptWithItsWordsAndWhoGaveIt(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	register(e)
+	register(t, e)
 	_, b := ask(t, e, "go vet ./...")
 	if _, err := answers(e, b.Fingerprint, "allow"); err != nil {
 		t.Fatal(err)
@@ -41,7 +41,7 @@ func TestAnAnswerIsKeptWithItsWordsAndWhoGaveIt(t *testing.T) {
 func TestARefusedAnswerKeepsNothing(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	register(e)
+	register(t, e)
 	call, b := ask(t, e, "go vet ./...")
 	if _, err := answers(e, "not-the-open-one", "allow"); err == nil {
 		t.Fatal("a stale answer was accepted")

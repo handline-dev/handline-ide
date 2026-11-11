@@ -1,13 +1,11 @@
 package compose
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
 
 	cli "github.com/handline/handline/go/agentctl/agent"
 	"github.com/handline/handline/go/agentctl/delivery"
-	"github.com/handline/handline/go/kit/paths"
+	"github.com/handline/handline/go/data/team/teamtest"
 )
 
 // namedPort answers its name as every receipt's op, so a test sees which port a call went to.
@@ -32,13 +30,7 @@ func (portAgent) Deliver(cli.DeliverEnv) cli.Port { return namedPort{"portvendor
 
 func writeVendor(t *testing.T, home, agent, vendor string) {
 	t.Helper()
-	dir := paths.AgentDir(home, agent)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "agent.yaml"), []byte("name: "+agent+"\nvendor: "+vendor+"\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	teamtest.Set(t, home, agent, "vendor", vendor)
 }
 
 func TestADeliveryGoesThroughThePortOfTheAgentsVendor(t *testing.T) {

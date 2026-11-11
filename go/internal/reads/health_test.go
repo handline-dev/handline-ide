@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/scheduler/loadgate"
 	"github.com/handline/handline/go/scheduler/sysres"
 )
@@ -78,7 +79,7 @@ func TestHealthCountsAnAgentWaitingOnEachAccountReason(t *testing.T) {
 	for reason, line := range map[string]string{"cap": "no free slot", "wall": "a usage limit", "pace": "the weekly pace", "load": ""} {
 		e := testEnv(t)
 		os.MkdirAll(filepath.Join(e.Home, "agents", "bob"), 0o755)
-		os.WriteFile(filepath.Join(e.Home, "agents", "bob", "agent.yaml"), []byte("name: bob\n"), 0o644)
+		teamtest.Seed(t, e.Home, "bob")
 		run(t, e, `INSERT INTO agent_view(agent, view, updated) VALUES('bob', ?, 1)`,
 			`{"status":{"state":"stopped","reason":"`+reason+`","text":"ahead of pace by 12%"}}`)
 		h, err := e.Health()

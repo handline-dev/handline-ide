@@ -9,6 +9,8 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/handline/handline/go/data/team/teamtest"
 )
 
 func TestGithubRepoReadsHttpsAndSshRemotesAndNothingElse(t *testing.T) {
@@ -209,7 +211,7 @@ func TestAgentGetCarriesTheSettingsOfItsAgentFile(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	addAgent(t, e, "w", "")
-	writeAgentYAML(t, e, "w", "role: r\nmodel: opus\neffort: low\nweight: light\nrepo: handline\n")
+	teamtest.Set(t, e.Home, "w", "model", "opus", "effort", "low", "weight", "light", "repo", "handline")
 	got, err := e.agentGet(nil, map[string]any{"agent": "w"})
 	if err != nil {
 		t.Fatal(err)

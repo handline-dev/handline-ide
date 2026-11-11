@@ -25,7 +25,7 @@ func TestStartForWorkNeedsARepoARoomAndCountsFailuresUntilItStalls(t *testing.T)
 	m, _, _ := newManager(t)
 	sp := m.Spawn.(*fakeSpawn)
 	db.AddPending(m.Q, "a", "x", 1)
-	if said, _ := m.StartForWork("a"); !strings.Contains(said, "set `repo:` in its agent.yaml") {
+	if said, _ := m.StartForWork("a"); !strings.Contains(said, "give its workspace a folder") {
 		t.Fatal(said)
 	}
 	m.Agents = fakeAgents{repo: "/repo"}

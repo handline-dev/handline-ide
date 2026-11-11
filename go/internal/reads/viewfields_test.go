@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/team/teamtest"
 )
 
 type wallDelivery struct{ fakeDelivery }
@@ -121,22 +121,14 @@ func TestAgentViewServesCacheIgnoredAndConfigError(t *testing.T) {
 	if v["cache_ignored"] != false || v["config_error"] != nil || v["kind"] == nil {
 		t.Fatalf("%v", v)
 	}
-	// The agent's own switch wins over the global one; a configuration that cannot be read is a finding and takes the kind with it.
+	// The agent's own switch wins over the global one;
 	os.WriteFile(filepath.Join(e.Home, "config.yaml"), []byte("ignore_cache_expiry: true\n"), 0o644)
 	if v = viewOfAgent(t, e, "bob"); v["cache_ignored"] != true {
 		t.Fatalf("global switch: %v", v)
 	}
-	writeAgentYAML(t, e, "bob", "ignore_cache_expiry: false\n")
+	teamtest.Set(t, e.Home, "bob", "ignore_cache_expiry", false)
 	if v = viewOfAgent(t, e, "bob"); v["cache_ignored"] != false {
 		t.Fatalf("own switch: %v", v)
-	}
-	writeAgentYAML(t, e, "bob", "- not a map\n")
-	v = viewOfAgent(t, e, "bob")
-	if msg, _ := v["config_error"].(string); msg == "" || strings.Contains(msg, "\n") {
-		t.Fatalf("config_error %v", v["config_error"])
-	}
-	if _, has := v["kind"]; has {
-		t.Fatalf("kind with an unreadable configuration: %v", v)
 	}
 }
 
@@ -144,7 +136,7 @@ func TestAgentViewFireIsWhatTheLifecycleSaysForTheAgentsAccount(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	addAgent(t, e, "bob", "")
-	os.WriteFile(filepath.Join(e.Home, "agents", "bob", "agent.yaml"), []byte("vendor: claude\n"), 0o644)
+	teamtest.Set(t, e.Home, "bob", "vendor", "claude")
 	run(t, e, `INSERT INTO agent_view(agent, view, updated) VALUES('bob', '{"name":"bob","state":"idle","account":"zeta"}', 0)`)
 	run(t, e, "INSERT INTO agent_state(agent, state, updated, terminal) VALUES('bob', 'IDLE', 0, 't')")
 	e.Delivery = fakeDelivery{fire: "usage_7d"}
@@ -160,19 +152,6 @@ func TestAgentViewFireIsWhatTheLifecycleSaysForTheAgentsAccount(t *testing.T) {
 	run(t, e, `UPDATE agent_view SET view = '{"name":"bob","state":"idle","fire":"context"}'`)
 	if v := viewOfAgent(t, e, "bob"); v["fire"] != "context" {
 		t.Fatalf("%v", v)
-	}
-}
-
-// Python's _fire is None when agent.yaml reads as an empty map.
-func TestAgentViewFireIsNullWhenTheAgentConfigIsEmpty(t *testing.T) {
-	t.Parallel()
-	e := testEnv(t)
-	addAgent(t, e, "bob", "")
-	run(t, e, `INSERT INTO agent_view(agent, view, updated) VALUES('bob', '{"name":"bob","state":"idle","account":"zeta"}', 0)`)
-	run(t, e, "INSERT INTO agent_state(agent, state, updated, terminal) VALUES('bob', 'IDLE', 0, 't')")
-	e.Delivery = fakeDelivery{fire: "usage_7d"}
-	if got := viewOfAgent(t, e, "bob")["fire"]; got != nil { // addAgent writes an empty agent.yaml
-		t.Fatalf("%v", got)
 	}
 }
 

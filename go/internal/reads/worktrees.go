@@ -202,7 +202,7 @@ func changed(path string) ([]any, int) {
 	return rows, total
 }
 
-// bosses is each agent's supervisor from team.yaml; empty when it cannot be read.
+// bosses is each agent's supervisor from the roster; empty when it cannot be read.
 func (e *Env) bosses() map[string]string {
 	t, err := team.LoadTeam(e.Home)
 	if err != nil {

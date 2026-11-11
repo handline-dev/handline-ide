@@ -3,14 +3,15 @@ package reads
 import (
 	"context"
 	"encoding/json"
-	"github.com/handline/handline/go/data/db"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/handline/handline/go/data/db"
+
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/internal/contracttest"
-	"github.com/handline/handline/go/kit/sealed"
 	"github.com/handline/handline/go/kit/storetest"
 )
 
@@ -33,26 +34,11 @@ func testEnv(t *testing.T) *Env {
 	return &Env{DB: db, Home: home, Started: time.Now(), LoginState: login, BranchPR: none, branchPRs: newBranchPRs()}
 }
 
-// writeAgentYAML is the founder's edit of an agent's file: written and sealed, so the roster trusts it.
-func writeAgentYAML(t *testing.T, e *Env, name, text string) {
-	t.Helper()
-	if err := os.WriteFile(filepath.Join(e.Home, "agents", name, "agent.yaml"), []byte(text), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := sealed.New(e.Home).Seal(sealed.AgentKey(name), text); err != nil {
-		t.Fatal(err)
-	}
-}
-
 func addAgent(t *testing.T, e *Env, name, role string) {
 	t.Helper()
-	dir := filepath.Join(e.Home, "agents", name)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	os.WriteFile(filepath.Join(dir, "agent.yaml"), nil, 0o644)
+	teamtest.Seed(t, e.Home, name)
 	if role != "" {
-		os.WriteFile(filepath.Join(dir, "ROLE.md"), []byte(role), 0o644)
+		os.WriteFile(filepath.Join(e.Home, "agents", name, "ROLE.md"), []byte(role), 0o644)
 	}
 }
 

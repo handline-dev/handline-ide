@@ -6,32 +6,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	dbpkg "github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/kit/storetest"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/taskboard/supervisor"
 )
-
-const teamYAML = `teams:
-  eng: [alice, bob]
-agents:
-  alice: {}
-  bob: {}
-edges:
-  - { from: "*", to: "human", kind: task }
-  - { from: "*", to: "*", relation: peer, response: async }
-  - { from: "human", to: "*", relation: supervisor, response: fire_and_forget }
-limits:
-  max_chain_depth: 4
-  ask_rate_per_hour: 5
-`
 
 type auth struct{ agent string }
 
@@ -59,16 +45,12 @@ type rig struct {
 func newRig(t *testing.T) *rig {
 	t.Helper()
 	home := t.TempDir()
-	os.WriteFile(filepath.Join(home, "team.yaml"), []byte(teamYAML), 0o644)
-	for _, a := range []string{"alice", "bob"} {
-		os.MkdirAll(filepath.Join(home, "agents", a), 0o755)
-		os.WriteFile(filepath.Join(home, "agents", a, "agent.yaml"), []byte("vendor: claude\n"), 0o644)
-	}
 	d, err := storetest.OpenAt(t, filepath.Join(home, "db.sqlite"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { d.Close() })
+	teamtest.Seed(t, home, "alice", "bob")
 	env := &supervisor.Env{DB: d, Home: home, Log: func(string, ...any) {}, Ports: supervisor.Ports{Proposals: fakeProposals{}, Evaluate: fakeEval{}}}
 	return &rig{t, d, home, env}
 }
@@ -435,27 +417,6 @@ func TestSendNowMarksTheMessageAndRefusesOneThatIsNoLongerWaiting(t *testing.T) 
 	e := r.one(s, "chat.send_now", fmt.Sprintf(`{"request":%d,"request_id":"j3"}`, r.request("alice", "bob", "x")))["error"].(map[string]any)
 	if e["data"].(map[string]any)["code"] != "not_found" {
 		t.Fatal(e)
-	}
-}
-
-func TestADeniedSendKeepsItsRowAndAnswersRefused(t *testing.T) {
-	t.Parallel()
-	r := newRig(t)
-	os.WriteFile(filepath.Join(r.home, "team.yaml"), []byte(teamYAML+"# no edge from the person\n"), 0o644)
-	// the person's edge is removed: the routing denies, and the denied row is kept
-	y := `teams:
-  eng: [alice]
-agents:
-  alice: {}
-edges:
-  - { from: alice, to: human, kind: task }
-limits: { max_chain_depth: 4, ask_rate_per_hour: 5 }
-`
-	os.WriteFile(filepath.Join(r.home, "team.yaml"), []byte(y), 0o644)
-	e := r.one(r.server(""), "chat.send", `{"agent":"alice","body":"hi","request_id":"k1"}`)
-	r.refusedWith(e, "")
-	if r.count("SELECT COUNT(*) FROM requests WHERE state = 'denied'") != 1 {
-		t.Fatal("the denied message stays as a row")
 	}
 }
 

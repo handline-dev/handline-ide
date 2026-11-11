@@ -13,7 +13,7 @@ func TestFounderHeldTaskIsClosedByItsParentOwnerOrALead(t *testing.T) {
 		"INSERT INTO tasks(id, title, owner, opened_by, reporter, created_at, expects) VALUES(1, 'parent', 'mgr', 'boss', 'lead.auditor', 1, 'report')",
 		"INSERT INTO tasks(id, title, owner, opened_by, created_at, expects) VALUES(2, 'parent no reporter', 'mgr', 'boss', 1, 'report')",
 		"INSERT INTO tasks(id, title, owner, opened_by, parent_task, created_at, expects) VALUES(3, 'k', 'human', 'w', 1, 1, 'report'), (4, 'k', 'human', 'w', 1, 1, 'report'), "+
-			"(5, 'k', 'human', 'w', 2, 1, 'report'), (6, 'k', 'human', 'w', NULL, 1, 'report'), (7, 'k', 'human', 'w', 1, 1, 'report')")
+			"(5, 'k', 'human', 'w', 2, 1, 'report'), (6, 'k', 'human', 'lead.auditor', NULL, 1, 'report'), (7, 'k', 'human', 'w', 1, 1, 'report')")
 	n := func(q string) (c int) { sdb.QueryRow(q).Scan(&c); return }
 	if r := call("boss", "task.done", "r0", `,"task":7,"evidence":"taken back"`); r["error"] == nil {
 		t.Fatalf("a stranger closed a founder-held task: %v", r)

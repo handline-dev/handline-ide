@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/taskboard/handoff"
 )
@@ -69,8 +70,7 @@ func TestHooksInstalledNeedsOneOfOursForEveryWantedEvent(t *testing.T) {
 func TestSettingsShowTheHandoffPromptAsSetOrTheBuiltInAndAnAgentsOwn(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	os.MkdirAll(filepath.Join(e.Home, "agents", "ann"), 0o755)
-	writeAgentYAML(t, e, "ann", "role: r\nhandoff_prompt: \"ann: {path}\"\n")
+	teamtest.Set(t, e.Home, "ann", "handoff_prompt", "ann: {path}")
 	get := func(agent string) map[string]any {
 		t.Helper()
 		params := map[string]any{}

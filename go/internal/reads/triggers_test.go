@@ -31,10 +31,9 @@ func triggers(t *testing.T, e *Env, params map[string]any) []map[string]any {
 func TestAgentTriggersSaysWhatTheTickWouldDecideForEachAgent(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	for _, a := range []string{"ann", "bob", "cat", "dan", "eve", "fay"} {
+	for _, a := range []string{"ann", "bob", "cat", "dan", "eve"} {
 		addAgent(t, e, a, "")
 	}
-	writeAgentYAML(t, e, "fay", "- not a map\n")
 	run(t, e, "INSERT INTO agent_state(agent, state, updated, terminal, closed_at) VALUES"+
 		"('ann', 'IDLE', 0, 'h1', NULL), ('bob', 'IDLE', 0, 'h2', NULL), ('cat', 'PARKED', 0, 'h3', NULL), ('dan', 'IDLE', 0, 'h4', 5)")
 	e.Delivery = triggerDelivery{by: map[string]Trigger{
@@ -50,11 +49,8 @@ func TestAgentTriggersSaysWhatTheTickWouldDecideForEachAgent(t *testing.T) {
 		{"agent": "dan", "fired": false, "reason": "waiting for alpha's window at 14:00"},
 		{"agent": "eve", "fired": false, "reason": "session closed; nothing to hand off"},
 	}
-	if !reflect.DeepEqual(got[:5], want) {
+	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("%v", got)
-	}
-	if r, _ := got[5]["reason"].(string); got[5]["agent"] != "fay" || got[5]["fired"] != false || len(r) < 14 || r[:14] != "config error: " {
-		t.Fatalf("an unreadable configuration is said, not fired: %v", got[5])
 	}
 }
 

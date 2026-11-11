@@ -26,7 +26,7 @@ type Env struct {
 	LoginState func(acct string) (loggedIn, known bool)
 	// PlanKey is the plan weekly figures are pooled by. nil: the recorded subscription type.
 	PlanKey func(acct string) string
-	// AgentConfig is an agent's agent.yaml. nil: the roster of Home.
+	// AgentConfig is an agent's settings. nil: the roster of Home.
 	AgentConfig func(agent string) (team.Config, error)
 	// Refresh asks the account fresh and records the answer, reporting whether it did (usage_api.read + record). nil: never asks.
 	Refresh func(acct string) bool

@@ -10,7 +10,6 @@ agent.get.state_queued
 agent.get.state_running
 agent.get.state_stalled
 agent.get.state_waiting
-agents.list.status_adds_the_status_line
 # The doc fixtures open notes/todo.md in the files_agent worktree that the tick-off run seeds; the fakes run has no such worktree.
 doc.open.the_text_at_version_0
 doc.push.behind_is_refused_and_pull_catches_up

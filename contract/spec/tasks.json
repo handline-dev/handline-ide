@@ -139,7 +139,7 @@
        "work",
        "check"
       ],
-      "description": "work or check: check when the owner's team.yaml entry says role: check (an audit or landing agent, whose tasks gate other work), else work. Read from team.yaml when the task is read, not stored. Absent from a daemon that does not send it."
+      "description": "work or check: check when the owner's row says role: check (an audit or landing agent, whose tasks gate other work), else work. Read from the owner's row when the task is read, not stored. Absent from a daemon that does not send it."
      },
      "created": {
       "$ref": "#/components/schemas/Timestamp"
@@ -890,7 +890,7 @@
           "items": {
            "type": "string"
           },
-          "description": "The rest of the holder's team, in team.yaml order."
+          "description": "The rest of the holder's team, in the order its agents were added."
          },
          "others": {
           "type": "array",

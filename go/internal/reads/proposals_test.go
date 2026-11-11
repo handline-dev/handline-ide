@@ -148,8 +148,6 @@ func TestProposalDiffIsOneChangePerLineInTheSpecsWords(t *testing.T) {
 		{"add", "kind: add\nagent: new\nteam: eng\nmodel: opus\nvendor: codex\n", "register new, team eng, model opus, vendor codex"},
 		{"settings", "kind: settings\nagent: w\nset.model: opus\nset.effort: \"\"\n", "set model of w to opus\nset effort of w to (none)"},
 		{"settings with nothing set", "kind: settings\nagent: w\n", "change the settings of w"},
-		{"link", "kind: link\nagent: a\nto: b\nrelation: peer\n", "allow a to ask b"},
-		{"unlink", "kind: unlink\nagent: a\nto: b\n", "remove the edge a -> b"},
 		{"team", "kind: team\nagent: eng\nrepo: r\nmembers: \"a,b\"\n", "create team eng (working in r) with members a, b"},
 		{"context", "kind: context\nagent: w\nset.ROLE.md: \"\\\"x\\\"\"\n", "replace ROLE.md of w"},
 		{"rename", "kind: rename\nagent: a\nto: b\n", "rename a to b"},
@@ -244,7 +242,7 @@ func TestHrListServesAScheduleAndAGlobalProposalWithTheirWords(t *testing.T) {
 func TestAProposalWhoseIdLooksLikeAnExponentIsListed(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	putProposal(t, e, "149628e2", "id: 149628e2\nkind: unlink\nagent: handline.daemon\nrequested_by: handline.architect\ncreated: 1792426073\nstate: proposed\nto: handline.pr\n")
+	putProposal(t, e, "149628e2", "id: 149628e2\nkind: retire\nagent: handline.daemon\nrequested_by: handline.architect\ncreated: 1792426073\nstate: proposed\n")
 	if ids := proposalIDs(t, e, map[string]any{}); len(ids) != 1 || ids[0] != 0x149628e2 {
 		t.Fatalf("%v", ids)
 	}

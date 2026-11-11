@@ -5,9 +5,6 @@ package compose
 
 import (
 	"database/sql"
-	"os"
-	"path/filepath"
-	"strings"
 	"sync/atomic"
 	"time"
 
@@ -16,7 +13,6 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/internal/agentview"
 	"github.com/handline/handline/go/internal/heal"
-	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/scheduler/keepawake"
 	"github.com/handline/handline/go/scheduler/lifecycle"
 	"github.com/handline/handline/go/scheduler/procload"
@@ -33,7 +29,7 @@ type Config struct {
 	CLI string
 	// Env are NAME=value pairs set on every claude the daemon runs.
 	Env []string
-	// Peer says whether a terminal agent's messages go through its session's peer inbox; nil reads agent.yaml's peer_inbox (PeerFromYAML).
+	// Peer says whether a terminal agent's messages go through its session's peer inbox; nil reads the agent row's peer_inbox (PeerFromRows).
 	Peer func(agent string) bool
 	// Term is the terminal host agents run in; nil is the one config.yaml names (tmux by default). Tests give a fake one.
 	Term *term.Term
@@ -89,7 +85,7 @@ type Telling interface {
 func New(cfg Config) *Parts {
 	peer := cfg.Peer
 	if peer == nil {
-		peer = PeerFromYAML(cfg.Home)
+		peer = PeerFromRows(cfg.Home)
 	}
 	p := &Parts{Locks: &lifecycle.AgentLocks{}, Peer: peer, log: cfg.Log, home: cfg.Home, notified: cfg.NotifiedNeedsYou, turns: cfg.Turns,
 		awake: &keepawake.Holder{Log: func(s string) { cfg.Log("%s", s) }}}
@@ -106,21 +102,4 @@ func (p *Parts) KeepAwake() (bool, time.Time) { return p.awake.State() }
 // nothing.
 func (p *Parts) Bind(db *sql.DB, tell Telling) {
 	p.db, p.tell = db, tell
-}
-
-// yamlFlag reads a top-level `key: true` of an agent's agent.yaml; no such line, or no file, is def, and any other value is false.
-func yamlFlag(home, key string, def bool) func(agent string) bool {
-	return func(agent string) bool {
-		b, err := os.ReadFile(filepath.Join(paths.AgentsDir(home), agent, "agent.yaml"))
-		if err != nil {
-			return def
-		}
-		for _, line := range strings.Split(string(b), "\n") {
-			if v, ok := strings.CutPrefix(line, key+":"); ok {
-				v, _, _ = strings.Cut(v, "#")
-				return strings.EqualFold(strings.Trim(strings.TrimSpace(v), `"'`), "true")
-			}
-		}
-		return def
-	}
 }

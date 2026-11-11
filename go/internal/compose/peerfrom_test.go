@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/handline/handline/go/data/db"
-	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/kit/storetest"
 	"github.com/handline/handline/go/taskboard/supervisor"
 )
@@ -20,12 +20,7 @@ func TestADeliveryNamesWhoWroteItAndNeverTheSessionsOwnPerson(t *testing.T) {
 	if err := os.MkdirAll(home, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	r := team.NewRoster(home)
-	for _, name := range []string{"free", "asks", "other"} {
-		if _, err := r.Register(name, team.RegisterOpts{}); err != nil {
-			t.Fatal(err)
-		}
-	}
+	teamtest.Seed(t, home, "free", "asks", "other")
 	d, err := storetest.OpenAt(t, filepath.Join(home, "db.sqlite"))
 	if err != nil {
 		t.Fatal(err)

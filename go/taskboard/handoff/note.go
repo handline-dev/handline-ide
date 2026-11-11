@@ -12,27 +12,11 @@ import (
 	"github.com/handline/handline/go/kit/textsafe"
 )
 
-// The agent's own part of its handoff (handline/daemon/handoff_note.py): a file it is asked to write while its prompt cache is still
-// warm (a turn then reads the context at the cached price), which the mechanical record carries into the next session if that one
-// starts fresh.
-//
-// It is asked at two moments. Just before a close or a move, once per stretch. And, for a session that stays open and idle, at 90%
-// of its cache's real life (an hour for a subscription, read off its last response): the cache is about to be paid for in full, so
-// the turn that writes the note is the cheap moment to write it. A cache whose life is five minutes gets no ask at all; the record is
-// then the facts alone. An agent turns it off for itself with `handoff_note: false` in its agent.yaml (config.yaml's `handoff_note`
-// is the global switch).
-//
-// It writes the note file and stops. The ask is never waited on past AskWaitS, and an agent that wrote nothing, or could not (the
-// wall, an error), is handed the mechanical record alone.
-//
-// The ask is remembered in one cursor: its row id is the newest event when the ask was typed, and its time is when. The turn that
-// answers it is the one UserPromptSubmit after that event; a second one is someone else typing, and a SessionStart is a new
-// session: either ends the stretch, and the note no longer counts. A record that carries the note ends it too. The file is removed
-// before every ask, so one that exists was written after it.
-//
-// No repeats: the stretch is also what keeps a second note from being asked for. While no one has typed since the ask's own turn,
-// the stretch stands, so an idle session is asked once however long it sits; a delivered message or a working turn ends it, and the
-// next idle stretch asks again.
+// The agent's own part of its handoff: a note file it is asked to write while its prompt cache is warm, carried into a fresh session.
+// It is asked once per stretch, just before a close or a move, or at 90% of an idle session's cache life (none for a five-minute
+// cache). handoff_note in an agent's row turns it off for that agent; config.yaml's is the global switch. The ask is never waited on
+// past AskWaitS. One cursor remembers the ask (the newest event id and the time); the next UserPromptSubmit answers it, and a second
+// one, a SessionStart or a record carrying the note ends the stretch. The file is removed before every ask, so one that exists is new.
 const (
 	// AskAt is the share of its cache's life an open idle session is asked at, and AskMarginS how close to the end the ask is still
 	// worth making (the turn has to reach its first request before the cache is gone).
@@ -52,7 +36,7 @@ const (
 	ResumeWarmS  = PromptCacheS - 300
 )
 
-// PromptKey is the setting that replaces AskTemplate, globally (config.yaml) or for one agent (its agent.yaml).
+// PromptKey is the setting that replaces AskTemplate, globally (config.yaml) or for one agent (its row).
 const PromptKey = "handoff_prompt"
 
 // AskTemplate is the built-in ask, and what an empty or unset handoff_prompt falls back to. {path} is the note's file and {max} its limit
@@ -89,7 +73,7 @@ type Telling interface {
 	TypeNotice(q db.Q, agent, text string) (bool, error)
 }
 
-// Settings is config.yaml's global flags and agent.yaml's own booleans.
+// Settings is config.yaml's global flags and its row's own booleans.
 type Settings interface {
 	Flag(key string, def bool) bool
 	SetFlag(key string, on bool) error
@@ -124,7 +108,7 @@ func (e *Env) DefaultEnabled() bool { return e.Note.Flag(NoteKey, true) }
 // SetDefaultEnabled turns the global switch on or off.
 func (e *Env) SetDefaultEnabled(on bool) error { return e.Note.SetFlag(NoteKey, on) }
 
-// Enabled is whether this agent writes a handoff note at all: its own `handoff_note` in agent.yaml, else the global switch.
+// Enabled is whether this agent writes a handoff note at all: its own handoff_note column, else the global switch.
 func (e *Env) Enabled(agent string) bool {
 	if mine, ok := e.Note.AgentFlag(agent, NoteKey); ok {
 		return mine

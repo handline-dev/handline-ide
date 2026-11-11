@@ -12,8 +12,6 @@ export class FakeProposals {
   readonly proposals: Proposal[] = [];
   /** Approving a proposal in this set fails to apply: it comes back apply_failed with this error. */
   readonly failApply = new Map<number, string>();
-  /** Files edited by hand and not yet sealed: team.seal lists them in a dry run and seals them. */
-  readonly unsealed = ['team.yaml: changed (it did not match its seal)', 'handline.new-builder/agent.yaml: new (no seal before)'];
   private host: Host;
   constructor(host: Host) {
     this.host = host;
@@ -78,13 +76,6 @@ export const PROPOSAL_HANDLERS: Record<string, (h: Call) => unknown> = {
     else if (book.failApply.has(prop.id)) book.settle(prop, 'apply_failed', book.failApply.get(prop.id), note);
     else book.settle(prop, 'approved', null, note);
     return script.accepted('Decided.');
-  },
-  'team.seal': ({ p, script }) => {
-    const { unsealed } = script.proposals;
-    if (p.dry_run) return { ok: true, plan: unsealed.length ? unsealed.join('\n') : 'nothing needs sealing' };
-    const said = unsealed.length ? `sealed ${unsealed.length} files` : 'nothing needed sealing';
-    unsealed.length = 0;
-    return { ok: true, said };
   },
   // An applying proposal is applied at once: the turn it waited on is ended, so it settles approved and the wait is gone.
   'proposal.apply_now': (h) => {

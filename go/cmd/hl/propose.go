@@ -21,7 +21,7 @@ func propose(c *hlclient.Client, args []string) (int, bool) {
 		return 0, false
 	}
 	switch sub, rest := args[0], args[1:]; sub {
-	case "add", "retire", "rename", "link", "unlink", "team", "context":
+	case "add", "retire", "rename", "team", "context":
 		return proposalPropose(c, sub, rest)
 	case "schedule":
 		return proposalSchedule(c, rest)
@@ -62,9 +62,6 @@ func proposalPropose(c *hlclient.Client, kind string, args []string) (int, bool)
 	}
 	p, ok := parse(args, valued, nil, nil)
 	want := 1
-	if kind == "link" || kind == "unlink" {
-		want = 2
-	}
 	if !ok {
 		return 0, false
 	}

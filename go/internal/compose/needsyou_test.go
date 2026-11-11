@@ -2,13 +2,14 @@ package compose
 
 import (
 	"encoding/json"
-	"github.com/handline/handline/go/scheduler/tick"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
 	"unicode/utf8"
+
+	"github.com/handline/handline/go/scheduler/tick"
 
 	"github.com/handline/handline/go/agentctl/peerinbox"
 	"github.com/handline/handline/go/data/db"

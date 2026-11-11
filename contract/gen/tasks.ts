@@ -32,7 +32,7 @@ export type Task = {
   parent: number | null;
   /** The founder request the task serves, as the number of that request's own task; null for an agent's own work. Set when the task is made (db.SetTaskRequest). Absent from a daemon that does not send it. */
   request?: number | null;
-  /** work or check: check when the owner's team.yaml entry says role: check (an audit or landing agent, whose tasks gate other work), else work. Read from team.yaml when the task is read, not stored. Absent from a daemon that does not send it. */
+  /** work or check: check when the owner's row says role: check (an audit or landing agent, whose tasks gate other work), else work. Read from the owner's row when the task is read, not stored. Absent from a daemon that does not send it. */
   role?: "work" | "check";
   created: Timestamp;
   delivered: Timestamp | null;
@@ -190,7 +190,7 @@ export type TaskDetail = Task & {
   people: {
     /** Who the founder last chatted with, latest first. */
     recent: string[];
-    /** The rest of the holder's team, in team.yaml order. */
+    /** The rest of the holder's team, in the order its agents were added. */
     team: string[];
     others: string[];
   };

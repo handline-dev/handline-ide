@@ -14,7 +14,7 @@ import (
 
 	dbpkg "github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
-	"github.com/handline/handline/go/kit/sealed"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/kit/storetest"
 	"github.com/handline/handline/go/kit/testkill"
 	"github.com/handline/handline/go/taskboard/supervisor"
@@ -92,17 +92,15 @@ func rigWith(t *testing.T, edit func(*Config)) (*Parts, string) {
 		t.Setenv(k, "")
 	}
 	home := t.TempDir()
-	os.MkdirAll(filepath.Join(home, "agents", "alice"), 0o755)
-	os.WriteFile(filepath.Join(home, "agents", "alice", "agent.yaml"), []byte("vendor: claude\n"), 0o644)
 	os.MkdirAll(filepath.Join(home, "shared", ".claude"), 0o755)
 	os.WriteFile(filepath.Join(home, "shared", ".claude", "settings.json"), []byte(sharedSettings), 0o644)
-	os.MkdirAll(filepath.Join(home, "agents", "bob"), 0o755)
-	os.WriteFile(filepath.Join(home, "agents", "bob", "agent.yaml"), []byte("vendor: claude\nrepo: "+t.TempDir()+"\n"), 0o644) // a folder that is no repository: a spawn here makes nothing
 	d, err := storetest.OpenAt(t, filepath.Join(home, "db.sqlite"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { d.Close() })
+	teamtest.Set(t, home, "alice", "vendor", "claude")
+	teamtest.Set(t, home, "bob", "vendor", "claude", "repo", t.TempDir()) // a folder that is no repository: a spawn here makes nothing
 	exe, _ := os.Executable()
 	cfg := Config{DB: d, Home: home, CLI: exe, Env: []string{"FAKE_CLAUDE=1"}, Log: func(string, ...any) {}}
 	edit(&cfg)
@@ -256,11 +254,7 @@ func TestSettlingPeerSendsAtStartTellsTheSenderThroughTheWiredPorts(t *testing.T
 // A stall from failed starts is told to the agent's lead as a notice; an agent with no lead is told to no one.
 func TestAStartStallIsToldToTheLead(t *testing.T) {
 	p, home := rig(t)
-	yml := "teams:\n  alice: [alice, bob]\nagents:\n  alice: {}\n  bob: {}\nedges: []\n"
-	os.WriteFile(filepath.Join(home, "team.yaml"), []byte(yml), 0o644)
-	if err := sealed.New(home).Seal(sealed.Team, yml); err != nil {
-		t.Fatal(err)
-	}
+	teamtest.Set(t, home, "bob", "reports_to", "alice")
 	env := &supervisor.Env{DB: p.db, Home: home, Log: func(string, ...any) {}}
 	t.Cleanup(env.Wait)
 	tell := tellLeadOfStall(home, env, func(string, ...any) {})
@@ -278,11 +272,7 @@ func TestAStartStallIsToldToTheLead(t *testing.T) {
 // second break.
 func TestARosterRepoThatIsNoCheckoutIsToldToTheLeadOnce(t *testing.T) {
 	p, home := rig(t)
-	yml := "teams:\n  alice: [alice, bob]\nagents:\n  alice: {}\n  bob: {}\nedges: []\n"
-	os.WriteFile(filepath.Join(home, "team.yaml"), []byte(yml), 0o644)
-	if err := sealed.New(home).Seal(sealed.Team, yml); err != nil {
-		t.Fatal(err)
-	}
+	teamtest.Set(t, home, "bob", "reports_to", "alice")
 	env := &supervisor.Env{DB: p.db, Home: home, Log: func(string, ...any) {}}
 	t.Cleanup(env.Wait)
 	told := func() (n int) {

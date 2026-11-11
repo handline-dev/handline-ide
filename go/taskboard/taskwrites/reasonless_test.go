@@ -2,10 +2,10 @@ package taskwrites
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/kit/storetest"
 	"github.com/handline/handline/go/protocol/rpc"
@@ -19,10 +19,7 @@ func TestTheFoundersDoneAndDiscardNeedNoReasonAnAgentsDo(t *testing.T) {
 	}
 	defer db.Close()
 	home := t.TempDir()
-	for _, a := range []string{"w", "boss"} {
-		os.MkdirAll(filepath.Join(home, "agents", a), 0o755)
-		os.WriteFile(filepath.Join(home, "agents", a, "agent.yaml"), nil, 0o644)
-	}
+	teamtest.Seed(t, home, "w", "boss")
 	for i := 1; i <= 14; i++ {
 		if _, err := db.Exec("INSERT INTO tasks(id, title, owner, opened_by, created_at, expects) VALUES(?, 't', 'w', 'boss', 1, 'report')", i); err != nil {
 			t.Fatal(err)

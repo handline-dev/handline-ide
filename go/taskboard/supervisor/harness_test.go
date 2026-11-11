@@ -13,22 +13,10 @@ import (
 	"github.com/handline/handline/go/agentctl/delivery"
 	"github.com/handline/handline/go/agentctl/term"
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/kit/storetest"
 	"github.com/handline/handline/go/taskboard/msgtest"
 )
-
-const teamYAML = `teams:
-  eng: [alice, bob]
-agents:
-  alice: {}
-  bob: {}
-edges:
-  - { from: "*", to: "human" }
-  - { from: "*", to: "*" }
-  - { from: "human", to: "*" }
-limits:
-  max_chain_depth: 4
-`
 
 // fakeTerm is a terminal host: every handle shows a session, and what is typed is kept.
 type fakeTerm struct {
@@ -184,19 +172,12 @@ func newRig(t *testing.T) *rig {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { os.RemoveAll(home) })
-	if err := os.WriteFile(filepath.Join(home, "team.yaml"), []byte(teamYAML), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	for _, a := range []string{"alice", "bob"} {
-		dir := filepath.Join(home, "agents", a)
-		os.MkdirAll(dir, 0o755)
-		os.WriteFile(filepath.Join(dir, "agent.yaml"), []byte("vendor: claude\n"), 0o644)
-	}
 	d, err := storetest.OpenAt(t, filepath.Join(home, "db.sqlite"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { d.Close() })
+	teamtest.Seed(t, home, "alice", "bob")
 	r := &rig{t: t, home: home, term: newFakeTerm(), sessions: &fakeSessions{live: "s1"}, life: &fakeLife{}, eval: &fakeEval{}, clock: 100000}
 	db.Now = func() int64 { return r.clock }
 	t.Cleanup(func() { db.Now = func() int64 { return time.Now().Unix() } })

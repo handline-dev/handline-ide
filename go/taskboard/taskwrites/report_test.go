@@ -3,17 +3,14 @@ package taskwrites
 import (
 	"database/sql"
 	"fmt"
-	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/kit/storetest"
 	"github.com/handline/handline/go/protocol/rpc"
 )
-
-// reviewTeam is the team reportEnv's home has: w works in lead's team, whose auditor is lead.auditor; boss and mgr are in none.
-const reviewTeam = "teams:\n  lead: [lead, w, lead.auditor]\nagents:\n  lead: {}\n  w: {}\n  lead.auditor: {}\n  boss: {}\n  mgr: {}\n"
 
 // reportEnv is a database with the agents w (who works the tasks), boss (who opens them), mgr, lead (w's lead) and lead.auditor, and a
 // caller of any method as any of them.
@@ -22,7 +19,8 @@ func reportEnv(t *testing.T, rows ...string) (*sql.DB, *fakeTeller, func(agent, 
 	return reportEnvIn(t, t.TempDir(), rows...)
 }
 
-// reportEnvIn is reportEnv with the daemon's home at home: it has reviewTeam unless it has a team.yaml already.
+// reportEnvIn is reportEnv with the daemon's home at home: w reports to lead, lead.auditor is in lead's workspace, boss and mgr lead
+// their own.
 func reportEnvIn(t *testing.T, home string, rows ...string) (*sql.DB, *fakeTeller, func(agent, method, rid, params string) map[string]any) {
 	t.Helper()
 	sdb, err := storetest.OpenAt(t, filepath.Join(t.TempDir(), "db.sqlite"))
@@ -30,15 +28,8 @@ func reportEnvIn(t *testing.T, home string, rows ...string) (*sql.DB, *fakeTelle
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { sdb.Close() })
-	if _, err := os.Stat(filepath.Join(home, "team.yaml")); os.IsNotExist(err) {
-		if err := os.WriteFile(filepath.Join(home, "team.yaml"), []byte(reviewTeam), 0o644); err != nil {
-			t.Fatal(err)
-		}
-	}
-	for _, a := range []string{"w", "boss", "mgr", "lead", "lead.auditor"} {
-		os.MkdirAll(filepath.Join(home, "agents", a), 0o755)
-		os.WriteFile(filepath.Join(home, "agents", a, "agent.yaml"), nil, 0o644)
-	}
+	teamtest.Seed(t, home, "w", "boss", "mgr", "lead", "lead.auditor")
+	teamtest.Set(t, home, "w", "reports_to", "lead")
 	for _, q := range rows {
 		if _, err := sdb.Exec(q); err != nil {
 			t.Fatalf("%s: %v", q, err)

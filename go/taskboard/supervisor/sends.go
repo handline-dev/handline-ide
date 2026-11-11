@@ -82,7 +82,7 @@ func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'"'"'`) + "'"
 }
 
-// isReportOf: is target one of me's reports, by the supervisor edge in team.yaml? An unreadable table refuses nothing here.
+// isReportOf: is target one of me's reports, by reports_to in the roster? An unreadable roster refuses nothing here.
 func (e *Env) isReportOf(me, target string) bool {
 	t, err := team.LoadTeam(e.Home)
 	return err == nil && t.SupervisorOf(target) == me

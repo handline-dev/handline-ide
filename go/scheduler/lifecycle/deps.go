@@ -141,7 +141,7 @@ type Spawner interface {
 // AgentsPort is team/agents.py, trust.py and measure as the lifecycle reads them.
 type AgentsPort interface {
 	RepoOf(agent string) string
-	// ReadConfig fails for an agent.yaml that will not read.
+	// ReadConfig fails for an agent row that will not read.
 	ReadConfig(agent string) error
 	CurrentAccount(q db.Q, agent string) string
 	MeasureBegin(q db.Q, agent, account string)

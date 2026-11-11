@@ -10,7 +10,6 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/handline/handline/go/internal/hlclient"
-	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/textsafe"
 )
 
@@ -194,12 +193,6 @@ func taskNew(c *hlclient.Client, args []string) (int, bool) {
 		}
 		fmt.Printf("a task needs --assign: who works it (--owner is who answers for it, you when not given). Try:\n  %s\n", typed(p.pos[0]))
 		return 1, true
-	}
-	for _, who := range []string{assignee, accountable} {
-		if who != "" && who != hlclient.Human && !slices.Contains(paths.ListAgents(c.Home), who) {
-			fmt.Printf("no agent named %s\n", who)
-			return 1, true
-		}
 	}
 	title := textsafe.Strip(textsafe.Oneline(p.pos[0]))
 	if title == "" {

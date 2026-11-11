@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/kit/storetest"
@@ -35,9 +36,7 @@ func newRig(t *testing.T) *rig {
 	if _, err := db.Exec("INSERT INTO agent_state(agent, state, updated, worktree) VALUES('handline.daemon', 'idle', 1, ?)", wt); err != nil {
 		t.Fatal(err)
 	}
-	os.WriteFile(filepath.Join(live, "team.yaml"), []byte("agents: {}\n"), 0o644)
-	os.MkdirAll(filepath.Join(live, "agents", "handline.daemon"), 0o755)
-	os.WriteFile(filepath.Join(live, "agents", "handline.daemon", "agent.yaml"), []byte("name: handline.daemon\n"), 0o644)
+	teamtest.Seed(t, live, "handline.daemon")
 	r := &rig{loaded: map[string]bool{}, sha: "abc1234"}
 	r.Env = &Env{UserHome: user, LiveHome: live, UID: 501, Path: "/usr/bin",
 		Launchctl: func(args ...string) (string, error) {
@@ -116,10 +115,12 @@ func TestOnSeedsBuildsAndStartsTheTeamsOwnInstance(t *testing.T) {
 	if err := dev.QueryRow("SELECT worktree FROM agent_state WHERE agent = 'handline.daemon'").Scan(&wt); err != nil || wt != want.Worktree {
 		t.Fatalf("the snapshot carries the live rows, even ones not checkpointed yet: %q %v", wt, err)
 	}
-	for _, f := range []string{"team.yaml", "agents/handline.daemon/agent.yaml", "bin/handlined"} {
-		if _, err := os.Stat(filepath.Join(home, f)); err != nil {
-			t.Errorf("%s: %v", f, err)
-		}
+	var agents int
+	if err := dev.QueryRow("SELECT count(*) FROM agents WHERE name = 'daemon'").Scan(&agents); err != nil || agents != 1 {
+		t.Fatalf("the snapshot carries the roster: %d %v", agents, err)
+	}
+	if _, err := os.Stat(filepath.Join(home, "bin", "handlined")); err != nil {
+		t.Error(err)
 	}
 	daemon, _ := os.ReadFile(filepath.Join(r.UserHome, "Library", "LaunchAgents", "dev.handline.dev.handline.daemon.plist"))
 	bin := filepath.Join(home, "bin", "handlined")

@@ -2,13 +2,12 @@ package supervisor
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/taskboard/taskwrites"
 )
 
@@ -52,13 +51,12 @@ func TestAdvanceDeliversTheNextQueuedTaskAndMakesItCurrent(t *testing.T) {
 	}
 }
 
-// newUnroutableTask queues a task for bob that its opener carol may not ask of him; alice leads the team.
+// newUnroutableTask queues a task for eng.bob that its opener ops.carol, an agent of another workspace, may not ask of it; eng leads its
+// workspace.
 func (r *rig) newUnroutableTask() int64 {
 	r.t.Helper()
-	r.must(os.WriteFile(filepath.Join(r.home, "team.yaml"), []byte(strings.Replace(teamYAML, "  eng: [alice, bob]\n",
-		"  eng: [alice, bob]\n  alice: [alice, bob]\n", 1)+"deny:\n  - { from: carol, to: bob, reason: no }\n"), 0o644))
-	r.register("carol")
-	return r.newTask("bob", "carol", "unroutable")
+	r.register("eng", "eng.bob", "ops.carol")
+	return r.newTask("eng.bob", "ops.carol", "unroutable")
 }
 
 func TestAdvanceDeliversATaskHandedBackToItsOpenerAsItsOwnWork(t *testing.T) {
@@ -97,8 +95,8 @@ func TestSelfDeliveryCarriesWhatItsRequestsClosedWith(t *testing.T) {
 func TestAdvanceRecordsARefusedDeliveryOnceAndTellsTheManager(t *testing.T) {
 	r := newRig(t)
 	tid := r.newUnroutableTask()
-	other := r.newTask("bob", "alice", "fine")
-	changed, refused, err := r.AdvanceCurrentTask(r.DB, "bob")
+	other := r.newTask("eng.bob", "eng", "fine")
+	changed, refused, err := r.AdvanceCurrentTask(r.DB, "eng.bob")
 	r.must(err)
 	if !changed {
 		t.Fatal("the second task was not delivered")
@@ -106,19 +104,19 @@ func TestAdvanceRecordsARefusedDeliveryOnceAndTellsTheManager(t *testing.T) {
 	if refused[tid] == "" {
 		t.Fatalf("%v", refused)
 	}
-	if cur, _, _ := db.CurrentTask(r.DB, "bob"); cur != other {
+	if cur, _, _ := db.CurrentTask(r.DB, "eng.bob"); cur != other {
 		t.Fatal(cur)
 	}
 	var n int
 	r.DB.QueryRow("SELECT COUNT(*) FROM events WHERE kind = 'task_deliver_refused'").Scan(&n)
-	r.AdvanceCurrentTask(r.DB, "bob")
+	r.AdvanceCurrentTask(r.DB, "eng.bob")
 	var m int
 	r.DB.QueryRow("SELECT COUNT(*) FROM events WHERE kind = 'task_deliver_refused'").Scan(&m)
 	if n != 1 || m != 1 {
 		t.Fatalf("a permanent refusal fills the log: %d %d", n, m)
 	}
 	var told int
-	r.DB.QueryRow("SELECT COUNT(*) FROM requests WHERE requester = ? AND target = 'alice' AND body LIKE ?", db.NoticeRequester, fmt.Sprintf("T%d could not be delivered%%", tid)).Scan(&told)
+	r.DB.QueryRow("SELECT COUNT(*) FROM requests WHERE requester = ? AND target = 'eng' AND body LIKE ?", db.NoticeRequester, fmt.Sprintf("T%d could not be delivered%%", tid)).Scan(&told)
 	if told != 1 {
 		t.Fatalf("the refusal was told %d times", told)
 	}
@@ -363,7 +361,7 @@ func TestSweepTaskQueueDeliversAWaitingTaskToAFreeOwnerAndBacksOffWhenNothingLan
 	r2 := newRig(t)
 	r2.newUnroutableTask()
 	r2.must(r2.SweepTaskQueue(r2.clock))
-	if n, _ := db.Cursor(r2.DB, "taskqueue:bob"); n != r2.clock {
+	if n, _ := db.Cursor(r2.DB, "taskqueue:eng.bob"); n != r2.clock {
 		t.Fatalf("retry clock %d", n)
 	}
 	r2.logs = nil
@@ -406,13 +404,8 @@ func TestSweepDeliversTheDormantBlockerOfABegunTaskBeforeTheRestOfTheQueue(t *te
 	}
 }
 
-// register gives each name an agent directory, so the daemon knows it.
-func (r *rig) register(names ...string) {
-	for _, a := range names {
-		r.must(os.MkdirAll(filepath.Join(r.home, "agents", a), 0o755))
-		r.must(os.WriteFile(filepath.Join(r.home, "agents", a, "agent.yaml"), []byte("vendor: claude\n"), 0o644))
-	}
-}
+// register gives each name an agent row, so the daemon knows it.
+func (r *rig) register(names ...string) { teamtest.Seed(r.t, r.home, names...) }
 
 // saysTo is the bodies of the says written to agent's inbox.
 func (r *rig) saysTo(agent string) []string {

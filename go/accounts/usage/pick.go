@@ -509,10 +509,10 @@ func (e *Env) Pick(q db.Q, o PickOpts) (string, []Reason, error) {
 	}
 	if o.Agent != "" {
 		cfg, err := e.agentConfig(o.Agent)
-		if err != nil { // an unreadable agent.yaml picks nowhere
+		if err != nil { // unreadable settings pick nowhere
 			var out []Reason
 			for _, n := range names {
-				out = append(out, Reason{n, fmt.Sprintf("agent.yaml unreadable (%v)", err), KindOther})
+				out = append(out, Reason{n, fmt.Sprintf("agent settings unreadable (%v)", err), KindOther})
 			}
 			return "", out, nil
 		}

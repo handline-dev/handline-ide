@@ -70,9 +70,8 @@ cost lever. See [Configuration](configuration.md) for the files an agent keeps.
 
 ## The team file
 
-`~/.handline/team.yaml` names the agents and who reports to whom. `hl team` lists them. After you
-edit `team.yaml` or any `agent.yaml` by hand, seal your change on the Team page of the app (see
-[Configuration](configuration.md#sealed-files)).
+The agents and who reports to whom are rows in `~/.handline/db.sqlite`, changed in the app (see
+[Configuration](configuration.md#workspaces-and-agents)). `hl team` lists them.
 
 ## Run the daemon
 

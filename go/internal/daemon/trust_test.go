@@ -3,10 +3,11 @@ package daemon
 import (
 	"database/sql"
 	"fmt"
-	"github.com/handline/handline/go/taskboard/msgtest"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/handline/handline/go/taskboard/msgtest"
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"

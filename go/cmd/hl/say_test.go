@@ -9,7 +9,7 @@ import (
 )
 
 func TestSaySendsItsParamsAndPrintsWhatTheDaemonSaid(t *testing.T) {
-	r := agentsRig(t)
+	r := newRig(t)
 	calls := r.daemon(map[string]string{"say": `{"accepted":true,"said":"queued as #9 for b.two"}`})
 	cases := []struct {
 		stdin string
@@ -39,7 +39,7 @@ func TestSaySendsItsParamsAndPrintsWhatTheDaemonSaid(t *testing.T) {
 }
 
 func TestSayRefusedSaysWhyAndFails(t *testing.T) {
-	r := agentsRig(t)
+	r := newRig(t)
 	r.daemon(map[string]string{"say": "error:no agent named z.z"})
 	if out, _, code := r.run(asAgent, "say", "z.z", "hi"); code != 1 || out != "no agent named z.z\n" {
 		t.Errorf("%q %d", out, code)
@@ -47,7 +47,7 @@ func TestSayRefusedSaysWhyAndFails(t *testing.T) {
 }
 
 func TestSayWarnsOfAGapAShellLeft(t *testing.T) {
-	r := agentsRig(t)
+	r := newRig(t)
 	r.daemon(map[string]string{"say": `{"accepted":true,"said":"sent"}`})
 	warn := "warning: the body has a gap"
 	for body, want := range map[string]bool{"ran  then": true, "naïve  café": true, "a_  _b": true, "end.  Next": false,
@@ -63,7 +63,7 @@ func TestSayWarnsOfAGapAShellLeft(t *testing.T) {
 }
 
 func TestSayRefusalsBeforeAnyCall(t *testing.T) {
-	r := agentsRig(t)
+	r := newRig(t)
 	calls := r.daemon(nil)
 	cases := []struct {
 		env  []string
@@ -87,7 +87,7 @@ func TestSayRefusalsBeforeAnyCall(t *testing.T) {
 }
 
 func TestWhatTheSayPortDoesNotParseIsRefused(t *testing.T) {
-	r := agentsRig(t)
+	r := newRig(t)
 	calls := r.daemon(nil)
 	for _, args := range [][]string{
 		{"say", "a", "b", "c"}, {"say", "a", "b", "--parent", "x"}, {"say", "a", "b", "--task", "3"}, {"say", "a", " "},
@@ -104,7 +104,7 @@ func TestWhatTheSayPortDoesNotParseIsRefused(t *testing.T) {
 }
 
 func TestSayHelpShowsTheHeredoc(t *testing.T) {
-	r := agentsRig(t)
+	r := newRig(t)
 	calls := r.daemon(nil)
 	for _, args := range [][]string{{"say", "--help"}, {"say", "a", "b", "-h"}} {
 		if out, _, code := r.run(asAgent, args...); code != 0 || out != sayUsage+"\n" || !strings.Contains(out, "--file - <<'EOF'") {
@@ -117,7 +117,7 @@ func TestSayHelpShowsTheHeredoc(t *testing.T) {
 }
 
 func TestALongOneLineBodyGetsAHintAndStillGoes(t *testing.T) {
-	r := agentsRig(t)
+	r := newRig(t)
 	calls := r.daemon(map[string]string{"say": `{"accepted":true,"said":"sent"}`})
 	long := strings.Repeat("word ", 61)
 	hint := "hint: this body is 305 characters on one line. The receiver sees its lines: next time put each point on " +
@@ -142,7 +142,7 @@ func TestALongOneLineBodyGetsAHintAndStillGoes(t *testing.T) {
 }
 
 func TestSayToHumanThatAsksIsRefusedToATask(t *testing.T) {
-	r := agentsRig(t)
+	r := newRig(t)
 	calls := r.daemon(map[string]string{"say": `{"accepted":true,"said":"sent"}`})
 	for body, refused := range map[string]bool{"답장 한 번 주세요": true, "ok to merge?": true, "please reply": true,
 		"merged and deployed": false, "deployed, confirmed working": false, "he replied already": false, "which one? picked A": false} {

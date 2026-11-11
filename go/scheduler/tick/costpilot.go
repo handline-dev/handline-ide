@@ -7,25 +7,16 @@ import (
 	"github.com/handline/handline/go/data/states"
 )
 
-// The cost pilot: two ways to spend fewer cache tokens on an idle agent, each off until an agent's own agent.yaml turns it on, so every
-// other agent is the control.
-//
-// Renewal (cache_renewal: true). An open idle session whose cache lives an hour is asked for its handoff note a minute or two before the
-// cache lapses. That turn reads the context at the cached price and writes a response, which restarts the hour. At most MaxRenewals per
-// idle stretch, and never over RenewCtxMax tokens of context: past that a lapse is cheaper to take than a read, and the fold is the answer.
-// It replaces the single ask at 90% for this agent. A stretch ends at a message someone typed; the ask's own turn does not end it.
-//
-// Fold (idle_fold: true). An open idle session that holds no task, has nothing queued, and has a context of idle_fold_tokens (150k) or
-// more is closed fresh after idle_fold_after_s (10 minutes) of silence: its next wake is a new conversation that starts from the handoff
-// record, with the note the agent wrote while its cache was warm. The model fold is not run here: the daemon tick must not wait on it.
-//
-// Every renewal and fold is an event carrying the figures it was decided on. Decisions are levels read from the record, never edges: a
-// renewal count is read back from the events.
+// The cost pilot spends fewer cache tokens on an idle agent; each half is off until the agent's own setting turns it on. Renewal
+// (cache_renewal) asks an idle session with an hour-long cache for its note just before the cache lapses, at most MaxRenewals per idle
+// stretch and never past RenewCtxMax tokens; it replaces the 90% ask. Fold (idle_fold) closes fresh an idle session that holds no task,
+// has nothing queued and a context of idle_fold_tokens or more, after idle_fold_after_s of silence; the model fold is not run here.
+// Every renewal and fold is an event with the figures it was decided on, and decisions are levels read back from the record.
 const (
 	RenewalKey = "cache_renewal"
 	FoldKey    = states.FoldKind
 	// FreshKey (fresh_after_task: true) starts a new session after each finished task: the context handoff, once the agent holds no
-	// other task. Off until an agent's own agent.yaml turns it on; the auditors, whose every review is a fresh look, are who it is for.
+	// other task. Off until an agent's own setting turns it on; the auditors, whose every review is a fresh look, are who it is for.
 	FreshKey = "fresh_after_task"
 	// FreshKind is the kind a handoff for it carries: not a wall and not a full context, so it parks for no time and wakes at once.
 	FreshKind = "task_done"

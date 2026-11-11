@@ -3,11 +3,11 @@ package usage
 import (
 	"math"
 	"os"
-	"path/filepath"
 	"reflect"
 	"testing"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/kit/paths"
 )
 
@@ -90,13 +90,7 @@ func ownerEnv(t *testing.T) (*Env, db.Q, *int64) {
 	t.Helper()
 	e, q, now := burnEnv(t)
 	for _, a := range []string{"a", "b"} {
-		dir := paths.AgentDir(e.Home, a)
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(filepath.Join(dir, "agent.yaml"), []byte("model: opus\n"), 0o644); err != nil {
-			t.Fatal(err)
-		}
+		teamtest.Set(t, e.Home, a, "model", "opus")
 	}
 	status := `{
   "account": "gamma",

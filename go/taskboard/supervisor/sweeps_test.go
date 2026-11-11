@@ -8,12 +8,13 @@ import (
 	"testing"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/team/teamtest"
 )
 
 // carolLeadsBob makes carol the lead of bob's team.
 func (r *rig) carolLeadsBob() {
 	r.register("carol")
-	r.must(os.WriteFile(filepath.Join(r.home, "team.yaml"), []byte(strings.Replace(strings.Replace(teamYAML, "teams:\n", "teams:\n  carol: [carol, bob]\n", 1), "agents:\n", "agents:\n  carol: {}\n", 1)), 0o644))
+	teamtest.Set(r.t, r.home, "bob", "reports_to", "carol")
 }
 
 func TestSweepHoldsRecordsWhyEachTaskWaitsAndWarnsOnceWhenNothingIsInTheWay(t *testing.T) {

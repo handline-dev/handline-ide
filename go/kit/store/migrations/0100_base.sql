@@ -18,8 +18,9 @@ CREATE TABLE workspaces (
   lead INTEGER REFERENCES agents(id),
   created_at INTEGER NOT NULL
 );
--- agents: a<id>. owner is a person key, reports_to an agent or person key. A NULL setting means the default. schedules is a JSON
--- list of {cron, message}; role is work or check (a check agent's tasks gate other work).
+-- agents: a<id>. owner is a person key, reports_to an agent or person key. A NULL setting means the default (the daemon's own, for
+-- those that override a daemon setting). schedules is a JSON list of {cron, message}; role is work or check (a check agent's tasks
+-- gate other work); account is the account it is pinned to.
 CREATE TABLE agents (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   workspace INTEGER NOT NULL REFERENCES workspaces(id),
@@ -42,6 +43,19 @@ CREATE TABLE agents (
   chrome INTEGER,
   mcp_config TEXT,
   schedules TEXT,
+  peer_inbox INTEGER,
+  account TEXT,
+  ignore_cache_expiry INTEGER,
+  bg_notice_s INTEGER,
+  bg_grace_s INTEGER,
+  bg_check_s INTEGER,
+  notice_digest_s INTEGER,
+  handoff_prompt TEXT,
+  cache_renewal INTEGER,
+  idle_fold INTEGER,
+  idle_fold_tokens INTEGER,
+  idle_fold_after_s INTEGER,
+  fresh_after_task INTEGER,
   created_at INTEGER NOT NULL,
   UNIQUE (workspace, name)
 );

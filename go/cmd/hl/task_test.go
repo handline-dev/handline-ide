@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -23,20 +22,8 @@ func sent(calls []map[string]any) []string {
 	return out
 }
 
-func agentsRig(t *testing.T) *rig {
-	r := newRig(t)
-	dir := filepath.Join(r.home, "agents", "b.two")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "agent.yaml"), []byte("name: b.two\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	return r
-}
-
 func TestEachTaskWriteSendsItsMethodAndParams(t *testing.T) {
-	r := agentsRig(t)
+	r := newRig(t)
 	calls := r.daemon(map[string]string{"task.new": `{"said":"opened","task":42}`})
 	real, _ := filepath.EvalSymlinks(r.root)
 	cases := []struct {
@@ -129,7 +116,7 @@ func TestEachTaskWriteSendsItsMethodAndParams(t *testing.T) {
 }
 
 func TestTaskWritesSayWhatTheDaemonSaid(t *testing.T) {
-	r := agentsRig(t)
+	r := newRig(t)
 	r.daemon(map[string]string{"task.new": `{"said":"task T42 opened","task":42}`, "task.start": "error:T3 is not yours", // local-ref-ok
 		"task.queue": `{"said":"queued"}`})
 	if out, _, code := r.run(asAgent, "task", "new", "--assign", "b.two", "-t", "1h", "x", "y"); code != 0 || out != "task T42 opened\nT42\n" { // local-ref-ok
@@ -144,15 +131,13 @@ func TestTaskWritesSayWhatTheDaemonSaid(t *testing.T) {
 }
 
 func TestTaskRefusalsBeforeAnyCall(t *testing.T) {
-	r := agentsRig(t)
+	r := newRig(t)
 	calls := r.daemon(nil)
 	cases := []struct {
 		env  []string
 		args []string
 		want string
 	}{
-		{asAgent, []string{"task", "new", "--assign", "z.z", "-t", "1h", "x", "y"}, "no agent named z.z\n"},
-		{asAgent, []string{"task", "new", "--assign", "b.two", "--owner", "z.z", "-t", "1h", "x", "y"}, "no agent named z.z\n"},
 		{asAgent, []string{"task", "new", "--owner", "b.two", "-t", "1h", "x"},
 			"a task needs --assign: who works it (--owner is who answers for it, you when not given). Try:\n  hl task new --assign b.two -t 60m x\n"},
 		{asAgent, []string{"task", "new", "-t", "1h", "x"},
@@ -181,7 +166,7 @@ func TestTaskRefusalsBeforeAnyCall(t *testing.T) {
 }
 
 func TestWhatTheTaskPortDoesNotParseIsRefused(t *testing.T) {
-	r := agentsRig(t)
+	r := newRig(t)
 	calls := r.daemon(nil)
 	for _, args := range [][]string{
 		{"task"}, {"task", "frob"}, {"task", "show", "12"}, {"task", "show", "T1", "x"}, {"task", "show", "T1", "-h"},
@@ -226,7 +211,7 @@ func TestTaskShowReadsAPausedClock(t *testing.T) {
 }
 
 func TestTaskShowListAndBoardRead(t *testing.T) {
-	r := agentsRig(t)
+	r := newRig(t)
 	calls := r.daemon(map[string]string{
 		"task.get": `{"id":7,"title":"Fix it","state":"done","to":"b.two","from":"a.one","priority":1,"parent":3,"tags":["be","fe"],
 			"created":"2026-10-01T10:00:00Z","time":{"length_s":3600,"default":false,"start":null,"end":null,"overdue_since":null,"told":0},

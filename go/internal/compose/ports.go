@@ -152,7 +152,7 @@ type stuck struct{}
 
 func (stuck) DeliveryBlock(db.Q, string) (string, bool) { return "", false }
 
-// agentsPort is the supervisor's Agents. A Claude Code agent goes through the peer inbox when its agent.yaml does not turn peer_inbox off,
+// agentsPort is the supervisor's Agents. A Claude Code agent goes through the peer inbox when its row does not turn peer_inbox off,
 // else through no session port; an agent of another launchable vendor goes through that vendor's own port. The outcomes go to whatever
 // Bind gave as the telling.
 func (p *Parts) agentsPort() supervisor.Agents {

@@ -2,11 +2,9 @@ package prompts
 
 import (
 	"errors"
-	"os"
-	"path/filepath"
 	"testing"
 
-	"github.com/handline/handline/go/kit/paths"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
@@ -14,10 +12,9 @@ func asRon() *rpc.Conn {
 	return &rpc.Conn{Caller: rpc.Caller{Role: "member", Info: map[string]any{"kind": "person", "name": "casey"}}}
 }
 
-func register(e *Env) {
-	dir := paths.AgentsDir(e.Home)
-	os.MkdirAll(filepath.Join(dir, "backend"), 0o755)
-	os.WriteFile(filepath.Join(dir, "backend", "agent.yaml"), []byte("vendor: claude\n"), 0o644)
+func register(t *testing.T, e *Env) {
+	t.Helper()
+	teamtest.Set(t, e.Home, "backend", "vendor", "claude")
 }
 
 func answers(e *Env, prompt string, choice any) (any, error) {
@@ -38,7 +35,7 @@ func mustErr(_ any, err error) error { return err }
 func TestAStalePromptGetsTheCurrentOneAndNothingIsDone(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	register(e)
+	register(t, e)
 	call, b := ask(t, e, "go vet ./...")
 	re := refusal(t, mustErr(answers(e, "not-the-open-one", "allow")), "stale_prompt")
 	if re.Data["current"] == nil {
@@ -57,7 +54,7 @@ func TestAStalePromptGetsTheCurrentOneAndNothingIsDone(t *testing.T) {
 func TestAKeyAHookQuestionDoesNotOfferIsABadRequest(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	register(e)
+	register(t, e)
 	call, b := ask(t, e, "go vet ./...")
 	for _, choice := range []any{"yes", "no", "esc", "1", "", []any{"allow"}, map[string]any{"text": "x"}, 7} {
 		refusal(t, mustErr(answers(e, b.Fingerprint, choice)), "bad_request")

@@ -1,10 +1,10 @@
 package taskwrites
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/kit/storetest"
 )
 
@@ -16,11 +16,7 @@ func TestAnyoneMayEditOrReassignATask(t *testing.T) {
 	}
 	defer db.Close()
 	home := t.TempDir()
-	for _, a := range []string{"shop", "shop.a", "shop.b", "other", "other.c"} {
-		os.MkdirAll(filepath.Join(home, "agents", a), 0o755)
-		os.WriteFile(filepath.Join(home, "agents", a, "agent.yaml"), nil, 0o644)
-	}
-	os.WriteFile(filepath.Join(home, "team.yaml"), []byte("agents:\n  shop: {}\n  shop.a: {}\n  shop.b: {}\n  other: {}\n  other.c: {}\n"), 0o644)
+	teamtest.Seed(t, home, "shop", "shop.a", "shop.b", "other", "other.c")
 	if _, err := db.Exec("INSERT INTO tasks(id, title, owner, opened_by, created_at, reporter) VALUES(1, 'for other', 'shop.b', 'other.c', 1, 'other')"); err != nil {
 		t.Fatal(err)
 	}

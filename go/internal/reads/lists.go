@@ -18,7 +18,7 @@ func fileInfo(path string) map[string]any {
 	return map[string]any{"path": path, "updated": updated}
 }
 
-// teamGet is team.get: every agent with its parent and files, and the allowed edges. A team.yaml that cannot be read is no parents and no edges.
+// teamGet is team.get: every agent with its parent and files. Rows that cannot be read are no parents.
 func (e *Env) teamGet(c *rpc.Conn, params map[string]any) (any, error) {
 	table, err := team.LoadTeam(e.Home)
 	if err != nil {
@@ -36,11 +36,6 @@ func (e *Env) teamGet(c *rpc.Conn, params map[string]any) (any, error) {
 		agents = append(agents, map[string]any{"name": name, "role": e.roleLine(name), "parent": parent,
 			"role_file": fileInfo(filepath.Join(dir, "ROLE.md")), "base_file": fileInfo(filepath.Join(dir, "base.md"))})
 	}
-	edges := []any{}
-	if table != nil {
-		for _, ed := range table.Edges {
-			edges = append(edges, map[string]any{"from": pyText(ed.From), "to": pyText(ed.To)})
-		}
-	}
-	return map[string]any{"agents": agents, "edges": edges}, nil
+	// Routing follows workspaces now, with no edges: the field stays empty until the contract drops it (base-v2 1e).
+	return map[string]any{"agents": agents, "edges": []any{}}, nil
 }

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/taskboard/supervisor"
 )
 
@@ -16,9 +17,7 @@ func TestATypedTurnsTerminalTextStaysOutOfTheChat(t *testing.T) {
 	supervisor.RunInline = true
 	t.Cleanup(func() { supervisor.RunInline = false })
 	d := start(t, fakeAuth{agent: "bob"}, "")
-	if err := os.WriteFile(filepath.Join(d.cfg.Home, "team.yaml"), []byte(tellTeam), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	teamtest.Seed(t, d.cfg.Home, "alice", "bob")
 	d.env().FounderTyped = func(a string) bool { return a == "bob" }
 	now := time.Now().Unix()
 	if _, err := d.db.Exec("INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok, landed_at, typed_at, founder_auth) "+
