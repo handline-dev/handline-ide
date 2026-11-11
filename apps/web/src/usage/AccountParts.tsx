@@ -1,10 +1,11 @@
 // The pieces of an opened account card: its name, its agents at once, its subscription end, and Remove.
 import type { Account } from '@handline/client';
 import { classify, sentence, useWrite } from '@handline/app-data';
-import { Minus, Pencil, Plus, Trash2 } from 'lucide-react';
-import { useState, type ReactNode } from 'react';
+import { Minus, Pencil, Plus } from 'lucide-react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Button } from '#src/ui/Button.tsx';
 import { Input } from '#src/ui/Field.tsx';
+import { ModalFrame, openModal, type Close } from '#src/ui/modal.tsx';
 import { capSet, MAX_CAP } from '#src/usage/AccountFacts.tsx';
 
 const why = (e: unknown) => (e ? sentence(classify(e)) : null);
@@ -156,53 +157,53 @@ export function SubscriptionEnd({ account: a }: { account: Account }) {
   );
 }
 
-/** Remove: a dry run says what would happen and who sits on it; the name typed confirms. Its directory is moved aside, not deleted. */
-export function Remove({
-  account: a,
-  plan,
-  done,
-}: {
-  account: Account;
-  plan: ReturnType<typeof useWrite<'account.remove'>>;
-  done: () => void;
-}) {
+/** Remove, in a modal: a dry run says what would happen and who sits on it; the name typed confirms. Its directory is moved aside, not deleted. */
+export function removeAccount(a: Account) {
+  return openModal<boolean>((close) => <RemoveModal account={a} close={close} />);
+}
+
+function RemoveModal({ account: a, close }: { account: Account; close: Close<boolean> }) {
+  const plan = useWrite('account.remove', a.name);
   const remove = useWrite('account.remove', a.name);
   const [typed, setTyped] = useState('');
+  const { mutate: dryRun } = plan;
+  useEffect(() => dryRun({ account: a.name, dry_run: true }), [dryRun, a.name]);
   const would = plan.data?.would_remove === true;
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-danger/30 bg-danger/5 p-3 text-sm">
-      <div className="flex flex-wrap items-center gap-3">
-        <Trash2 size={16} className="text-danger" />
-        <div className="flex min-w-0 flex-1 flex-col">
-          <span className="font-medium text-fg">{`Remove ${a.label}?`}</span>
-          <span className="text-xs text-muted">
-            Type <b className="text-fg">{a.name}</b> to confirm. Its directory is moved aside, not deleted.
-          </span>
-        </div>
-        <div className="w-44">
-          <Input
-            autoFocus
-            autoComplete="off"
-            aria-label="Type the account name to confirm"
-            value={typed}
-            onChange={(e) => setTyped(e.target.value)}
-          />
-        </div>
-        <Button variant="ghost" onClick={done}>
-          Cancel
-        </Button>
-        <Button
-          variant="danger"
-          disabled={!would || typed !== a.name || remove.isPending}
-          onClick={() => remove.mutate({ account: a.name, confirm: typed })}
-        >
-          {remove.isPending ? 'Removing…' : 'Remove'}
-        </Button>
+    <ModalFrame
+      title={`Remove ${a.label}?`}
+      description={
+        <>
+          Type <b className="text-fg">{a.name}</b> to confirm. Its directory is moved aside, not deleted.
+        </>
+      }
+      size="sm"
+      footer={
+        <>
+          <Button onClick={() => close(false)}>Cancel</Button>
+          <Button
+            variant="danger"
+            disabled={!would || typed !== a.name || remove.isPending}
+            onClick={() => remove.mutate({ account: a.name, confirm: typed }, { onSuccess: () => close(true) })}
+          >
+            {remove.isPending ? 'Removing…' : 'Remove'}
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-2">
+        <Input
+          autoFocus
+          autoComplete="off"
+          aria-label="Type the account name to confirm"
+          value={typed}
+          onChange={(e) => setTyped(e.target.value)}
+        />
+        {plan.isPending && <p className="text-muted">Checking what removing it would do…</p>}
+        {a.agents.length > 0 && <p className="text-warning">On it now: {a.agents.join(', ')}. Move them off first.</p>}
+        {!a.agents.length && !!plan.data?.plan?.length && <p className="text-xs text-muted">{plan.data.plan.join(' · ')}</p>}
+        {!!(remove.error || (plan.error && !a.agents.length)) && <p className="text-danger">{why(remove.error ?? plan.error)}</p>}
       </div>
-      {plan.isPending && <p className="text-muted">Checking what removing it would do…</p>}
-      {a.agents.length > 0 && <p className="text-warning">On it now: {a.agents.join(', ')}. Move them off first.</p>}
-      {!a.agents.length && !!plan.data?.plan?.length && <p className="text-xs text-muted">{plan.data.plan.join(' · ')}</p>}
-      {!!(remove.error || (plan.error && !a.agents.length)) && <p className="text-danger">{why(remove.error ?? plan.error)}</p>}
-    </div>
+    </ModalFrame>
   );
 }
