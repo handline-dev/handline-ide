@@ -69,6 +69,7 @@ export const usePrefsSet = (target?: string) => useWrite("prefs.set", target);
 export const useSettingsSet = (target?: string) => useWrite("settings.set", target);
 export const useAccountSet = (target?: string) => useWrite("account.set", target);
 export const useAccountWake = (target?: string) => useWrite("account.wake", target);
+export const useAccountReadUsage = (target?: string) => useWrite("account.read_usage", target);
 export const useAccountAdd = (target?: string) => useWrite("account.add", target);
 export const useAccountLogin = (target?: string) => useWrite("account.login", target);
 export const useAccountLoginCancel = (target?: string) => useWrite("account.login_cancel", target);

@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/handline/handline/go/accounts/usage"
+	"github.com/handline/handline/go/accounts/usagepoll"
 	"github.com/handline/handline/go/accounts/weblogin"
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
@@ -147,6 +149,24 @@ func (e *Env) accountWake(c *rpc.Conn, p map[string]any) (any, error) {
 		return nil, refused(err.Error(), "")
 	}
 	return wrote(c, acct+": STALLED -> usable", nil)
+}
+
+// account.read_usage asks the poller to read the account at its next tick (usagepoll.AskRead), so the one read per tick holds.
+func (e *Env) accountReadUsage(c *rpc.Conn, p map[string]any) (any, error) {
+	acct, err := e.accountNamed(p)
+	if err != nil {
+		return nil, err
+	}
+	if !usage.Metered(e.Home, acct) {
+		return nil, refused(acct+": its vendor has no limits to read", "state")
+	}
+	if !(team.Accounts{Home: e.Home}).LoggedIn(acct) {
+		return nil, refused(acct+": not logged in, or STALLED (account.wake)", "state")
+	}
+	if err := usagepoll.AskRead(e.DB, acct, time.Now().Unix()); err != nil {
+		return nil, refused(err.Error(), "")
+	}
+	return wrote(c, acct+": usage is read at the next tick", nil)
 }
 
 // currentLabel is the alias shown for the account, "" when it is shown under its own name.
