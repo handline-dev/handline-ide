@@ -14,11 +14,11 @@ func TestTellUndeliveredTypesWhatReachedAnAgentWhileItHadNoSession(t *testing.T)
 	msg := r.ask(r.k("alice"), r.k(("bob")), "while you slept", "ask")
 	task := r.task(r.k("bob"), r.k(("alice")), "a task")
 	r.must(r.TellUndelivered(r.DB, r.k(("bob"))))
-	if got := r.term.last(); !strings.Contains(got, "#"+itoa(msg)+" from alice") {
+	if got := r.term.last(); !strings.Contains(r.named(got), "#"+itoa(msg)+" from alice") {
 		t.Fatalf("%q", got)
 	}
 	for _, typed := range r.term.typed {
-		if strings.Contains(typed, "a task") {
+		if strings.Contains(r.named(typed), "a task") {
 			t.Fatalf("a task was told out of its turn: %q (#%d)", typed, task)
 		}
 	}
@@ -58,7 +58,7 @@ func TestStartupSettlesOnlyTheSaysNothingTracksAndTypesPendingRows(t *testing.T)
 	}
 	// what is owed is told by the tick
 	r.must(r.TellUndelivered(r.DB, r.k(("bob"))))
-	if got := r.term.last(); !strings.Contains(got, "sent minutes before the restart") {
+	if got := r.term.last(); !strings.Contains(r.named(got), "sent minutes before the restart") {
 		t.Fatalf("an undelivered say was not told after the restart: %q", got)
 	}
 	if row, _ := db.GetRequest(r.DB, asked); row.State != "queued" || !row.TypedAt.Valid {
@@ -90,19 +90,19 @@ func TestTheTextsOfAReply(t *testing.T) {
 	if got := r.ids(inReplyTo(r.DB, head)); got != "in reply to #"+itoa(q)+": first line of the question" {
 		t.Fatalf("%q", got)
 	}
-	if got := r.ids(tellText(r.DB, head, 1, nil, false, nil, "")); !strings.HasPrefix(got, "#2 from bob (in reply to #1: first line of the question), waiting for you:\nthe answer\n") {
+	if got := r.ids(tellText(r.DB, head, 1, nil, false, nil, "")); !strings.HasPrefix(r.named(got), "#2 from bob (in reply to #1: first line of the question), waiting for you:\nthe answer\n") {
 		t.Fatalf("%q", got)
 	}
 	r.must(db.SetQuote(r.DB, out.RID, "first line"))
-	if got := r.ids(tellText(r.DB, mustReq(r, out.RID), 1, nil, false, nil, "")); !strings.HasPrefix(got, "#2 from bob (in reply to #1: first line of the question), waiting for you:\n> first line\n\nthe answer\n") {
+	if got := r.ids(tellText(r.DB, mustReq(r, out.RID), 1, nil, false, nil, "")); !strings.HasPrefix(r.named(got), "#2 from bob (in reply to #1: first line of the question), waiting for you:\n> first line\n\nthe answer\n") {
 		t.Fatalf("the quote goes above the words: %q", got)
 	}
 	// parked and send-now tails
 	other := mustReq(r, r.ask(r.k("alice"), r.k(("bob")), "x", "ask"))
-	if got := r.ids(tellText(r.DB, other, 2, head, true, nil, "")); !strings.Contains(got, "[Queued behind #2, which is still open: the next task comes when you hand it on or finish it.]") {
+	if got := r.ids(tellText(r.DB, other, 2, head, true, nil, "")); !strings.Contains(r.named(got), "[Queued behind #2, which is still open: the next task comes when you hand it on or finish it.]") {
 		t.Fatalf("%q", got)
 	}
-	if got := r.ids(tellText(r.DB, other, 1, head, false, nil, "")); !strings.Contains(got, "[Sent now, ahead of #2, which is still open.]") {
+	if got := r.ids(tellText(r.DB, other, 1, head, false, nil, "")); !strings.Contains(r.named(got), "[Sent now, ahead of #2, which is still open.]") {
 		t.Fatalf("%q", got)
 	}
 	if states.MoreWaiting("ask", 2) != "2 more waiting - the next comes when you answer this one." || states.MoreWaiting("say", 3) != "" || states.MoreWaiting("task", 0) != "" {
@@ -125,21 +125,21 @@ func TestTheImagesFollowTheBodyAfterTheCut(t *testing.T) {
 	if !strings.Contains(got, strings.Repeat("w", 400)+"…\n"+lines+"\n") {
 		t.Fatalf("%q", got)
 	}
-	if got := tellText(r.DB, head, 1, nil, false, nil, ""); strings.Contains(got, "[image") {
+	if got := tellText(r.DB, head, 1, nil, false, nil, ""); strings.Contains(r.named(got), "[image") {
 		t.Fatalf("%q", got)
 	}
 	tid, err := db.NewTask(r.DB, "write the docs", r.k(("bob")), r.k(("alice")), 0, db.DefaultPriority, "", 0, "")
 	r.must(err)
 	bare := r.ask(r.k("alice"), r.k(("bob")), "", "task")
 	r.must(db.LinkRequest(r.DB, tid, bare))
-	if got := tellText(r.DB, mustReq(r, bare), 1, nil, false, nil, ""); strings.Contains(got, "(empty)") || !strings.Contains(got, "Title: write the docs") {
+	if got := tellText(r.DB, mustReq(r, bare), 1, nil, false, nil, ""); strings.Contains(r.named(got), "(empty)") || !strings.Contains(r.named(got), "Title: write the docs") {
 		t.Fatalf("a task with no body shows its title: %q", got)
 	}
-	if got := batchText(r.DB, []*db.Request{mustReq(r, bare)}, nil, nil); strings.Contains(got, "(empty)") || !strings.Contains(got, "Title: write the docs") {
+	if got := batchText(r.DB, []*db.Request{mustReq(r, bare)}, nil, nil); strings.Contains(r.named(got), "(empty)") || !strings.Contains(r.named(got), "Title: write the docs") {
 		t.Fatalf("%q", got)
 	}
 	empty := mustReq(r, r.ask(r.k("alice"), r.k(("bob")), "", "say"))
-	if got := tellText(r.DB, empty, 1, nil, false, nil, lines); strings.Contains(got, "(empty)") || !strings.Contains(got, "waiting for you:\n"+lines) {
+	if got := tellText(r.DB, empty, 1, nil, false, nil, lines); strings.Contains(r.named(got), "(empty)") || !strings.Contains(r.named(got), "waiting for you:\n"+lines) {
 		t.Fatalf("%q", got)
 	}
 }

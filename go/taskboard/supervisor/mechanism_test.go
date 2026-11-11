@@ -89,7 +89,7 @@ func TestAFailedStatementAfterTheCommitIsLoggedAndSaidNotRaised(t *testing.T) {
 		"Push":     r.Push(r.DB, r.k(("bob")), rid),
 		"PushHere": r.PushHere(r.DB, r.k(("bob")), 0),
 	} {
-		if !strings.Contains(said, "failed") {
+		if !strings.Contains(r.named(said), "failed") {
 			t.Errorf("%s said %q", name, said)
 		}
 	}

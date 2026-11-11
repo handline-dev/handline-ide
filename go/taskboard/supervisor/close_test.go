@@ -11,7 +11,7 @@ func TestWithdrawTakesBackAnUndeliveredRequestOnlyForItsRequester(t *testing.T) 
 	r := newRig(t)
 	rid := r.ask("alice", r.k("bob"), "oops", "ask")
 	after := &After{}
-	if ok, msg, _ := r.WithdrawWrite(r.DB, after, rid, r.k("bob"), "", nil); ok || !strings.Contains(msg, "not yours to withdraw") {
+	if ok, msg, _ := r.WithdrawWrite(r.DB, after, rid, r.k("bob"), "", nil); ok || !strings.Contains(r.named(msg), "not yours to withdraw") {
 		t.Fatalf("%v %s", ok, msg)
 	}
 	ok, msg, err := r.WithdrawWrite(r.DB, after, rid, r.k("alice"), "wrong target", nil)
@@ -23,7 +23,7 @@ func TestWithdrawTakesBackAnUndeliveredRequestOnlyForItsRequester(t *testing.T) 
 	if row.State != "withdrawn" || row.Reason.String != "withdrawn: wrong target" {
 		t.Fatalf("%+v", row)
 	}
-	if ok, msg, _ := r.WithdrawWrite(r.DB, after, rid, r.k("alice"), "", nil); ok || !strings.Contains(msg, "already withdrawn") {
+	if ok, msg, _ := r.WithdrawWrite(r.DB, after, rid, r.k("alice"), "", nil); ok || !strings.Contains(r.named(msg), "already withdrawn") {
 		t.Fatalf("%s", msg)
 	}
 	// once delivered it is too late
@@ -64,7 +64,7 @@ func TestCancelClosesADeliveredRequestAndTellsItsAgentToStop(t *testing.T) {
 	if yes, _ := db.ClosedUnder(r.DB, rid); !yes {
 		t.Fatal("no closed_under event")
 	}
-	if _, ok, msg, _ := r.CancelWrite(r.DB, after, rid, nil, nil); ok || !strings.Contains(msg, "already landed - nothing to cancel") {
+	if _, ok, msg, _ := r.CancelWrite(r.DB, after, rid, nil, nil); ok || !strings.Contains(r.named(msg), "already landed - nothing to cancel") {
 		t.Fatalf("%s", msg)
 	}
 }
@@ -217,14 +217,14 @@ func TestNothingIsTypedAtASessionWritingItsHandoffNote(t *testing.T) {
 	r.agentUp("bob")
 	r.must(db.MarkNoteWait(r.DB, r.k("bob"), "context", r.now()))
 	rid := r.ask("alice", r.k("bob"), "a new ask", "ask")
-	if got, _ := r.TellNow(r.DB, rid); !strings.Contains(got, "restarts") {
+	if got, _ := r.TellNow(r.DB, rid); !strings.Contains(r.named(got), "restarts") {
 		t.Fatalf("told at once: %q", got)
 	}
 	r.task("bob", r.k("alice"), "a task")
 	if sent, _ := r.DeliverQueued(r.DB, r.k("bob")); sent {
 		t.Fatal("the queue was told")
 	}
-	if ok, msg, _ := r.SendMessage(r.DB, r.k("bob"), "a bare line"); !ok || strings.Contains(msg, "sent") {
+	if ok, msg, _ := r.SendMessage(r.DB, r.k("bob"), "a bare line"); !ok || strings.Contains(r.named(msg), "sent") {
 		t.Fatalf("a pending line: %v %q", ok, msg)
 	}
 	if last := r.term.last(); last != "" {

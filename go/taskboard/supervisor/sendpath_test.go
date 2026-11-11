@@ -314,7 +314,7 @@ func TestAnUnknownPendingOrNoticeOpIsRecordedAndNotWrittenAgain(t *testing.T) {
 func TestPushHereTellsALiveStructuredAgentThroughItsSessionAndStartsNothing(t *testing.T) {
 	r, fa := structuredRig(t)
 	rid := r.ask(r.k("alice"), r.k(("bob")), "psst", "say")
-	if got := r.PushHere(r.DB, r.k(("bob")), rid); !strings.Contains(got, "delivered to bob") || len(fa.sent) != 1 {
+	if got := r.PushHere(r.DB, r.k(("bob")), rid); !strings.Contains(r.named(got), "delivered to bob") || len(fa.sent) != 1 {
 		t.Fatalf("%q %+v", got, fa.sent)
 	}
 	// A request that is not marked to go now is delivered from the queue, not by starting the agent that has a live session.
