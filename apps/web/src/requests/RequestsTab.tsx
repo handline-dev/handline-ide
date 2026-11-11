@@ -1,4 +1,4 @@
-// Requests: the founder's turn, their requests in progress, and those finished. The bell's popover is a preview of this page.
+// Requests: the founder's turn, notes to them, their requests in progress, and those finished. The bell's popover previews the turn and the finished.
 import { useEffect, type ReactNode } from 'react';
 import { laterWords, pickAllState, requestRow, turnKey, turnRow, unseenOf, type Picked } from '@handline/app-core';
 import { Eye } from 'lucide-react';
@@ -65,6 +65,7 @@ function Requests() {
   const act = useRowActions();
   const rows = {
     turn: r.turn.map((p) => turnRow(p)),
+    notes: r.notes.map((p) => turnRow(p)),
     later: r.later.map((x) => turnRow(x.p)),
     doing: r.doing.map(requestRow),
     done: r.done.map(requestRow),
@@ -90,6 +91,13 @@ function Requests() {
                   <TurnLine key={turnKey(p)} p={p} />
                 ))}
               </Section>
+              {r.notes.length > 0 && (
+                <Section title="Notes" rows={rows.notes} empty="">
+                  {r.notes.map((p) => (
+                    <TurnLine key={turnKey(p)} p={p} />
+                  ))}
+                </Section>
+              )}
               {r.later.length > 0 && (
                 <Section title="Later" rows={rows.later} empty="">
                   {r.later.map(({ p, at }) => (

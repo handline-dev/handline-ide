@@ -104,6 +104,21 @@ func TestRequestsPendingGroupsByTaskAndNeverReadsAQuestionAway(t *testing.T) {
 	}
 }
 
+// A task the founder handed to themself asks them nothing: it is the Tasks page's Needs you, not their turn.
+func TestRequestsPendingLeavesOutATaskTheFounderQueuedToThemself(t *testing.T) {
+	t.Parallel()
+	e := testEnv(t)
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(1, 'my story', 'human', 'human', 1, 'human'), "+
+		"(2, 'handed', 'human', 'bob', 1, 'bob')")
+	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(20, 10, 'human', 'human', 'story', 'queued', 'task', 1), "+
+		"(21, 11, 'bob', 'human', 'T2 handed to you', 'queued', 'task', 1)")
+	run(t, e, "INSERT INTO task_requests(task_id, request_id) VALUES(1, 20), (2, 21)")
+	got := pending(t, e)
+	if taskIDs(got["answer"]) != "[2]" || got["counts"].(map[string]any)["answer"] != 1 {
+		t.Fatalf("only the agent's handoff is the founder's turn: %v", got["answer"])
+	}
+}
+
 // Comment rows sort newest first, and the higher task id first when two tasks last heard at the same second.
 func TestRequestsPendingCommentsTieOnLastAtBreakByTaskIDDescending(t *testing.T) {
 	t.Parallel()
