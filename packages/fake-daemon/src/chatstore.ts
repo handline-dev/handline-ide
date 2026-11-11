@@ -175,6 +175,11 @@ export class ChatStore {
     if (typeof p.agent !== 'string' || typeof p.up_to !== 'number') throw new ChatFailure('bad_request', 'agent and up_to are needed');
     this.seenUpTo.set(p.agent, Math.max(this.seenUpTo.get(p.agent) ?? 0, p.up_to));
   }
+  /** When the newest message the person has seen in an agent's chat was sent; null for a chat not seen. */
+  seenAt(agent: string): string | null {
+    const id = this.seenUpTo.get(agent);
+    return this.messages.find((m) => m.id === id)?.at ?? null;
+  }
   /** The page of messages around a message, newest first, in the chat that shows it, and the agent's transcript items of the same span. */
   locate(p: Record<string, unknown>) {
     const m = this.find(p.request);
