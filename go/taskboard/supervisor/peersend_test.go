@@ -57,7 +57,7 @@ func peerRig(t *testing.T, outcome peerinbox.Result) (*rig, *fakeInbox) {
 	r := newRig(t)
 	// The agent_state row a running agent has: without it the session a request was told to is not kept, every tick reads the live
 	// session as a new one, and the head is told again once its first telling has landed.
-	if err := db.SetTerminal(r.DB, "bob", "%bob", "/w/bob"); err != nil {
+	if err := db.SetTerminal(r.DB, r.k("bob"), "%bob", "/w/bob"); err != nil {
 		t.Fatal(err)
 	}
 	in := &fakeInbox{outcome: outcome}
@@ -70,7 +70,7 @@ func peerRig(t *testing.T, outcome peerinbox.Result) (*rig, *fakeInbox) {
 		}
 	})
 	r.Agents = &peerport.Port{
-		Peer:   func(a string) bool { return a == "bob" },
+		Peer:   func(a string) bool { return a == r.k("bob") },
 		Find:   func(string) (peerinbox.Session, error) { return peerinbox.Session{PID: 7}, nil },
 		Sender: in,
 		OnDelivered: func(a, op string) {
