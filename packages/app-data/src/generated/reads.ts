@@ -99,7 +99,6 @@ export const EVENT_REQUIRED: Record<string, readonly string[]> = {
     "key",
     "name",
     "workspace",
-    "lead",
     "owner",
     "role",
     "model",
