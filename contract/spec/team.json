@@ -671,7 +671,7 @@
      "$ref": "#/components/schemas/Accepted"
     }
    },
-   "x-role": "founder",
+   "x-role": "owner",
    "x-write": true,
    "x-app-write": {
     "kind": "authored",
@@ -999,7 +999,7 @@
      ]
     }
    },
-   "x-role": "founder",
+   "x-role": "owner",
    "x-write": true,
    "x-app-write": {
     "kind": "authored",
@@ -1065,7 +1065,7 @@
      "$ref": "#/components/schemas/Accepted"
     }
    },
-   "x-role": "founder",
+   "x-role": "owner",
    "x-write": true,
    "x-app-write": {
     "kind": "authored",
@@ -1110,7 +1110,7 @@
      "$ref": "#/components/schemas/Accepted"
     }
    },
-   "x-role": "founder",
+   "x-role": "owner",
    "x-write": true,
    "x-app-write": {
     "kind": "authored",

@@ -128,7 +128,7 @@ export class DaemonClient {
         { reason: 'Open the Handline app.' },
       );
     }
-    if (this.opts.founder && hello.role !== 'founder')
+    if (this.opts.founder && hello.role !== 'owner')
       throw new RpcError('transport', `the daemon took this app as ${hello.role}: no founder key accepted`);
     this.hello = hello;
     // Pending writes go first with their old ids and request_ids: a daemon that already did one

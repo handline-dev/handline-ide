@@ -74,11 +74,11 @@ func TestTheBoardSaysWhoHoldsEachTask(t *testing.T) {
 	if h := amyBoard["mine"][9]["holder"]; h != nil {
 		t.Errorf("T9 holder %v", h)
 	}
-	founder := board(rpc.Caller{Role: "founder"})
+	founder := board(rpc.Caller{Role: "owner"})
 	if len(founder["mine"]) != 1 || founder["mine"][1] == nil || len(founder["reports"]) != 0 {
 		t.Errorf("the founder's board: %v", founder)
 	}
-	if _, err := e.taskBoard(&rpc.Conn{Caller: rpc.Caller{Role: "founder"}}, map[string]any{"everyone": "yes"}); err == nil {
+	if _, err := e.taskBoard(&rpc.Conn{Caller: rpc.Caller{Role: "owner"}}, map[string]any{"everyone": "yes"}); err == nil {
 		t.Error("everyone yes was accepted")
 	}
 }

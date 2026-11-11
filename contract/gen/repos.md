@@ -11,13 +11,13 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `worktrees.list` | member |  | `repo?`, `owner?` | `{worktrees}` |  |  | `worktrees`, snapshot |
 | `worktree.diff` | member |  | `path`, `file?`, `against?` | `{path, file, diff, truncated, against, base_ref}` | `not_found` |  | `worktree-diff`, snapshot |
 | `files.list` | member |  | `agent`, `query?`, `limit?` | `{files, more}` | `bad_request`, `not_found` |  | `files`, snapshot |
-| `file.read` | founder |  | `agent`, `path` | `{text, size, truncated, mtime, etag}` | `bad_request`, `not_found`, `refused` |  | `file`, snapshot |
-| `file.write` | founder | yes | `agent`, `path`, `text`, `etag`, `request_id` | `{size, mtime, etag}` | `bad_request`, `not_found`, `refused` | denied, stale, too_big | decided: save file |
+| `file.read` | owner |  | `agent`, `path` | `{text, size, truncated, mtime, etag}` | `bad_request`, `not_found`, `refused` |  | `file`, snapshot |
+| `file.write` | owner | yes | `agent`, `path`, `text`, `etag`, `request_id` | `{size, mtime, etag}` | `bad_request`, `not_found`, `refused` | denied, stale, too_big | decided: save file |
 | `worktree.set_status` | member | yes | `path`, `status`, `request_id` | `Accepted` | `not_found`, `bad_request` |  | decided: set status |
-| `doc.open` | founder |  | `agent`, `path` | `{doc, version, text}` | `bad_request`, `not_found`, `refused` | too_big | not cached |
-| `doc.push` | founder | yes | `agent`, `path`, `doc`, `version`, `updates`, `request_id` | `{version}` | `bad_request`, `not_found`, `refused` | behind, reopen, too_big | uncached: edit |
-| `doc.pull` | founder |  | `agent`, `path`, `doc`, `version` | `{version, updates}` | `bad_request`, `not_found`, `refused` | reopen | not cached |
-| `doc.close` | founder |  | `agent`, `path` | `object` | `bad_request` |  | not cached |
+| `doc.open` | owner |  | `agent`, `path` | `{doc, version, text}` | `bad_request`, `not_found`, `refused` | too_big | not cached |
+| `doc.push` | owner | yes | `agent`, `path`, `doc`, `version`, `updates`, `request_id` | `{version}` | `bad_request`, `not_found`, `refused` | behind, reopen, too_big | uncached: edit |
+| `doc.pull` | owner |  | `agent`, `path`, `doc`, `version` | `{version, updates}` | `bad_request`, `not_found`, `refused` | reopen | not cached |
+| `doc.close` | owner |  | `agent`, `path` | `object` | `bad_request` |  | not cached |
 
 ### `repos.list`
 

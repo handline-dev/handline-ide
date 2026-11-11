@@ -36,7 +36,7 @@ export class FakeDaemon {
   readonly knobs = new Knobs();
   readonly chat: FakeChat;
   /** The role a paired device gets: the founder's, as the real daemon gives it; a test that wants a restricted device sets 'member'. */
-  deviceRole: Role = 'founder';
+  deviceRole: Role = 'owner';
   /** The numbers pr.exists reports as pull requests, for every agent. */
   readonly pullRequests = new Set<number>();
   /** Puts a proposal in as an agent raised it (the proposals topic announces it); a demo or test uses this instead of reaching into the script. */
@@ -93,7 +93,7 @@ export class FakeDaemon {
   // ---- hosting ----
 
   /** Serves one connection; `dropConnections` cuts them. */
-  accept(transport: Transport, role: Role = 'founder', name = 'unknown', network = false): void {
+  accept(transport: Transport, role: Role = 'owner', name = 'unknown', network = false): void {
     const kind = role === 'agent' ? 'agent' : role === 'member' ? 'device' : 'person';
     const conn: Conn = {
       transport,

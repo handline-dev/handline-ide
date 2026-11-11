@@ -121,7 +121,7 @@ func TestPairingMakesAFounderDeviceWhoseRevocationClosesTheConnection(t *testing
 	token, id := pair(t, d, "phone")
 	c := dialNet(t, d)
 	r := c.ask(`{"jsonrpc":"2.0","id":1,"method":"hello","params":{"client":"t","protocol":1,"token":"` + token + `","key":"k"}}`)["result"].(map[string]any)
-	if r["role"] != "founder" || r["transport"] != "network" || r["caller"].(map[string]any)["device"] != id {
+	if r["role"] != "owner" || r["transport"] != "network" || r["caller"].(map[string]any)["device"] != id {
 		t.Fatalf("%v", r)
 	}
 	// a paired device is the founder: what is the founder's is its own. No push credentials: push is off.
@@ -268,7 +268,7 @@ func TestPairedDevicesSurviveARestartAndARevokedOneStaysRefused(t *testing.T) {
 	if d, err = Start(cfg); err != nil {
 		t.Fatal(err)
 	}
-	if r, _ := hello(d, keep)["result"].(map[string]any); r["role"] != "founder" {
+	if r, _ := hello(d, keep)["result"].(map[string]any); r["role"] != "owner" {
 		t.Fatalf("a paired device was forgotten by a restart: %v", r)
 	}
 	if ds, _ := d.dev.List(""); len(ds) != 2 {
@@ -285,7 +285,7 @@ func TestPairedDevicesSurviveARestartAndARevokedOneStaysRefused(t *testing.T) {
 	if !reflect.DeepEqual(hello(d, gone)["error"], unpaired) {
 		t.Fatal("a revoked device was paired again by a restart")
 	}
-	if r, _ := hello(d, keep)["result"].(map[string]any); r["role"] != "founder" {
+	if r, _ := hello(d, keep)["result"].(map[string]any); r["role"] != "owner" {
 		t.Fatalf("%v", r)
 	}
 	var stored int

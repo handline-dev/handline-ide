@@ -47,7 +47,7 @@
         "allowed": true
        }
       },
-      "role": "founder",
+      "role": "owner",
       "caller": {
        "kind": "person",
        "name": {

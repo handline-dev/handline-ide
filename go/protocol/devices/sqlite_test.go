@@ -93,7 +93,7 @@ func TestAPushTokenFromADeviceNotPairedIsNotFound(t *testing.T) {
 		call = next
 		return next
 	})
-	c := &rpc.Conn{Caller: rpc.Caller{Role: "founder", Kind: "device", Info: map[string]any{"kind": "device", "device": "dev_gone"}}}
+	c := &rpc.Conn{Caller: rpc.Caller{Role: "owner", Kind: "device", Info: map[string]any{"kind": "device", "device": "dev_gone"}}}
 	_, err := call(c, map[string]any{"platform": "fcm", "token": "x"})
 	if e, ok := err.(*rpc.Error); !ok || e.Code != "not_found" {
 		t.Fatalf("got %v", err)

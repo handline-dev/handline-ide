@@ -28,7 +28,7 @@ func TestADeviceActsAsItsPersonWithThatPersonsRole(t *testing.T) {
 	member := actor.Key(actor.Person, id)
 	s := NewServer(nil, "x", 1, "network", t.Logf)
 	s.DB = db
-	for _, c := range []struct{ person, key, role string }{{"", owner, "founder"}, {owner, owner, "founder"}} {
+	for _, c := range []struct{ person, key, role string }{{"", owner, "owner"}, {owner, owner, "owner"}} {
 		got, err := s.deviceCaller("d1", "phone", c.person)
 		if err != nil || got.Kind != "device" || got.Key != c.key || got.Person != c.key || got.Role != c.role || got.Actor() != c.key {
 			t.Errorf("person %q: %+v %v", c.person, got, err)

@@ -212,15 +212,15 @@ export const TEAM_METHODS: { [K in keyof TeamMethods]: { role: Role; callers: Ro
   "proposal.withdraw": { role: "agent", callers: null, write: true, since: 1 },
   "trust.propose": { role: "agent", callers: null, write: true, since: 1 },
   "trust.list": { role: "agent", callers: null, write: false, since: 1 },
-  "trust.remove": { role: "founder", callers: null, write: true, since: 1 },
+  "trust.remove": { role: "owner", callers: null, write: true, since: 1 },
   "team.get": { role: "agent", callers: null, write: false, since: 1 },
   "proposal.list": { role: "agent", callers: null, write: false, since: 1 },
   "proposal.decide": { role: "member", callers: null, write: true, since: 1 },
   "proposal.apply_now": { role: "member", callers: null, write: true, since: 1 },
   "schedules.list": { role: "agent", callers: null, write: false, since: 1 },
-  "schedule.add": { role: "founder", callers: null, write: true, since: 1 },
-  "schedule.edit": { role: "founder", callers: null, write: true, since: 1 },
-  "schedule.remove": { role: "founder", callers: null, write: true, since: 1 },
+  "schedule.add": { role: "owner", callers: null, write: true, since: 1 },
+  "schedule.edit": { role: "owner", callers: null, write: true, since: 1 },
+  "schedule.remove": { role: "owner", callers: null, write: true, since: 1 },
 };
 
 /** x-app-cache of each read (x-app in core.json). */

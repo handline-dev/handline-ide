@@ -21,7 +21,7 @@ function daemon(key: string) {
       const no = (reason: string) => server.send(JSON.stringify({ jsonrpc: '2.0', id, error: { message: 'refused', data: { reason } } }));
       if (method === 'hello') {
         founder = params.key === key;
-        return founder ? ok({ role: 'founder' }) : no('bad key');
+        return founder ? ok({ role: 'owner' }) : no('bad key');
       }
       if (method === 'device.pair')
         return founder ? ok({ code: 'C0DE', uri: 'handline://pair?host=h&code=C0DE', expires_at: '2026-01-01T00:00:00Z' }) : no('role');

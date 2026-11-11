@@ -27,9 +27,9 @@
    "anonymous",
    "agent",
    "member",
-   "founder"
+   "owner"
   ],
-  "rule": "x-role on a method is the lowest role that may call it. Roles are proven, not assumed. founder: the connection said hello with the founder key and it matches (a Unix-socket peer being the same user proves nothing, because agents run as that user). agent: the peer pid verifies against a recorded session. member: a level methods name; no caller is given it (a paired device is founder). The founder's own local and paired callers are founder. Anything else is anonymous: on the Unix socket it may call only hello and device.redeem; on the network listener it is unpaired and may call only device.redeem (see Framing, network). A call below its role is refused, gate `role`. session.type and session.keys act at a shell prompt as they do anywhere in the pane: only a paired device can connect to the network listener and an unpaired caller gets no data, so a shell is within what a paired device may reach."
+  "rule": "x-role on a method is the lowest role that may call it. Roles are proven, not assumed. owner: the connection said hello with the founder key and it matches (a Unix-socket peer being the same user proves nothing, because agents run as that user). agent: the peer pid verifies against a recorded session. member: a person of team mode; no caller is given it before then. A paired device acts with its person's role, so the owner's local and paired callers are owner. Anything else is anonymous: on the Unix socket it may call only hello and device.redeem; on the network listener it is unpaired and may call only device.redeem (see Framing, network). A call below its role is refused, gate `role`. session.type and session.keys act at a shell prompt as they do anywhere in the pane: only a paired device can connect to the network listener and an unpaired caller gets no data, so a shell is within what a paired device may reach."
  },
  "x-gates": {
   "role": "Caller's role is agent: a person-at-the-terminal method.",
@@ -782,7 +782,7 @@
      "anonymous",
      "agent",
      "member",
-     "founder"
+     "owner"
     ],
     "description": "Ordered lowest to highest. A method's role is the lowest that may call it; every higher role may too."
    },
@@ -3936,7 +3936,7 @@
      "$ref": "#/components/schemas/Accepted"
     }
    },
-   "x-role": "founder",
+   "x-role": "owner",
    "x-write": true,
    "x-app-write": {
     "kind": "decided",
@@ -3972,7 +3972,7 @@
      "$ref": "#/components/schemas/Accepted"
     }
    },
-   "x-role": "founder",
+   "x-role": "owner",
    "x-write": true,
    "x-app-write": {
     "kind": "decided",
@@ -4962,7 +4962,7 @@
    "x-role": "member",
    "x-callers": [
     "member",
-    "founder"
+    "owner"
    ],
    "x-write": false,
    "x-app-cache": {
@@ -5014,7 +5014,7 @@
    "x-role": "member",
    "x-callers": [
     "member",
-    "founder"
+    "owner"
    ],
    "x-write": true,
    "x-app-write": {
@@ -5261,7 +5261,7 @@
      "$ref": "#/components/schemas/ConnectionInfo"
     }
    },
-   "x-role": "founder",
+   "x-role": "owner",
    "x-write": false,
    "x-app-cache": {
     "resource": "connection",
@@ -5280,7 +5280,7 @@
      "$ref": "#/components/schemas/ConnectionAddresses"
     }
    },
-   "x-role": "founder",
+   "x-role": "owner",
    "x-write": false,
    "x-app-cache": {
     "resource": "addresses",
@@ -5309,7 +5309,7 @@
      "$ref": "#/components/schemas/Settings"
     }
    },
-   "x-role": "founder",
+   "x-role": "owner",
    "x-write": false,
    "x-app-cache": {
     "resource": "settings",
@@ -5359,7 +5359,7 @@
      "$ref": "#/components/schemas/Accepted"
     }
    },
-   "x-role": "founder",
+   "x-role": "owner",
    "x-write": true,
    "x-app-write": {
     "kind": "authored",

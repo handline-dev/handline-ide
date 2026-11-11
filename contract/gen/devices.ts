@@ -5,8 +5,8 @@ import type { Accepted, RequestId, Role, Timestamp, Topic, WriteKind } from './c
 export type Device = {
   id: string;
   name: string;
-  /** A paired device is the founder. */
-  role: "founder";
+  /** A paired device acts with its person's role: the owner's, before team mode. */
+  role: "owner";
   created: Timestamp;
   last_seen: Timestamp | null;
   connected: boolean;
@@ -73,12 +73,12 @@ export interface DevicesMethods {
 }
 
 export const DEVICES_METHODS: { [K in keyof DevicesMethods]: { role: Role; callers: Role[] | null; write: boolean; since: number } } = {
-  "devices.list": { role: "founder", callers: null, write: false, since: 1 },
-  "device.pair": { role: "founder", callers: null, write: true, since: 1 },
+  "devices.list": { role: "owner", callers: null, write: false, since: 1 },
+  "device.pair": { role: "owner", callers: null, write: true, since: 1 },
   "device.redeem": { role: "anonymous", callers: null, write: true, since: 1 },
-  "device.revoke": { role: "founder", callers: null, write: true, since: 1 },
-  "device.rename": { role: "founder", callers: null, write: true, since: 1 },
-  "device.push_token": { role: "founder", callers: null, write: true, since: 1 },
+  "device.revoke": { role: "owner", callers: null, write: true, since: 1 },
+  "device.rename": { role: "owner", callers: null, write: true, since: 1 },
+  "device.push_token": { role: "owner", callers: null, write: true, since: 1 },
 };
 
 /** x-app-cache of each read (x-app in core.json). */

@@ -5,12 +5,12 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 
 | Method | Role | Write | Params | Result | Errors | Gates | App |
 |---|---|---|---|---|---|---|---|
-| `devices.list` | founder |  | none | `{devices, push_platforms}` |  |  | `devices`, fed by devices |
-| `device.pair` | founder | yes | `name?`, `ttl_s?`, `address?`, `request_id` | `Accepted & {code, expires_at, fingerprint, uri, web_link}` | `refused` |  | decided: pair |
+| `devices.list` | owner |  | none | `{devices, push_platforms}` |  |  | `devices`, fed by devices |
+| `device.pair` | owner | yes | `name?`, `ttl_s?`, `address?`, `request_id` | `Accepted & {code, expires_at, fingerprint, uri, web_link}` | `refused` |  | decided: pair |
 | `device.redeem` | anonymous | yes | `code`, `name`, `kind?`, `request_id` | `Accepted & {token, device}` | `refused` | pairing_code, attempt_limit | not from the app |
-| `device.revoke` | founder | yes | `device`, `request_id` | `Accepted` | `refused`, `not_found` |  | decided: revoke |
-| `device.rename` | founder | yes | `device`, `name`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | decided: rename device |
-| `device.push_token` | founder | yes | `platform`, `token`, `sandbox?`, `request_id` | `Accepted` | `refused`, `not_found` | device | not from the app |
+| `device.revoke` | owner | yes | `device`, `request_id` | `Accepted` | `refused`, `not_found` |  | decided: revoke |
+| `device.rename` | owner | yes | `device`, `name`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | decided: rename device |
+| `device.push_token` | owner | yes | `platform`, `token`, `sandbox?`, `request_id` | `Accepted` | `refused`, `not_found` | device | not from the app |
 
 ### `devices.list`
 

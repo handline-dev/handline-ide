@@ -297,7 +297,7 @@ func (m *Manager) row(d Device) map[string]any {
 	if d.LastSeen != nil {
 		seen = time.Unix(*d.LastSeen, 0).UTC().Format("2006-01-02T15:04:05Z")
 	}
-	return map[string]any{"id": d.ID, "name": d.Name, "role": "founder",
+	return map[string]any{"id": d.ID, "name": d.Name, "role": "owner",
 		"created": time.Unix(d.Created, 0).UTC().Format("2006-01-02T15:04:05Z"), "last_seen": seen, "connected": len(m.conns[d.ID]) > 0,
 		"push": d.Push != nil, "kind": orNil(d.Kind), "client": orNil(d.Client), "current": false}
 }

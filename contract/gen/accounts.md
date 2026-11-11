@@ -7,14 +7,14 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 |---|---|---|---|---|---|---|---|
 | `accounts.list` | agent |  | `roster?`, `usage?` | `{accounts} & ReadCursor` | `bad_request` |  | `accounts`, fed by accounts |
 | `status.pick` | agent |  | none | `{picked, candidates, agent_costs, agent_pace_usd}` |  |  | not cached |
-| `account.set` | founder | yes | `account`, `label?`, `cap?`, `recover?`, `paused?`, `cycle?`, `cycle_end?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | authored: save account |
-| `account.wake` | founder | yes | `account`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | state | authored: wake |
-| `account.read_usage` | founder | yes | `account`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | state | decided: read usage |
-| `account.add` | founder | yes | `account`, `vendor?`, `request_id` | `Accepted & {account}` | `refused`, `bad_request` | role, state | decided: add account |
-| `account.login` | founder | yes | `account`, `request_id` | `Accepted & {login_id, state, url}` | `refused`, `not_found` | role, state | decided: log in |
-| `account.login_cancel` | founder | yes | `login_id`, `request_id` | `Accepted` | `refused`, `not_found` | role | decided: cancel login |
-| `account.login_code` | founder | yes | `login_id`, `code`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | role, state | decided: send code |
-| `account.remove` | founder | yes | `account`, `dry_run?`, `confirm?`, `request_id` | `Accepted & {would_remove, plan}` | `refused`, `not_found`, `bad_request` |  | decided: remove |
+| `account.set` | owner | yes | `account`, `label?`, `cap?`, `recover?`, `paused?`, `cycle?`, `cycle_end?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | authored: save account |
+| `account.wake` | owner | yes | `account`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | state | authored: wake |
+| `account.read_usage` | owner | yes | `account`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | state | decided: read usage |
+| `account.add` | owner | yes | `account`, `vendor?`, `request_id` | `Accepted & {account}` | `refused`, `bad_request` | role, state | decided: add account |
+| `account.login` | owner | yes | `account`, `request_id` | `Accepted & {login_id, state, url}` | `refused`, `not_found` | role, state | decided: log in |
+| `account.login_cancel` | owner | yes | `login_id`, `request_id` | `Accepted` | `refused`, `not_found` | role | decided: cancel login |
+| `account.login_code` | owner | yes | `login_id`, `code`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | role, state | decided: send code |
+| `account.remove` | owner | yes | `account`, `dry_run?`, `confirm?`, `request_id` | `Accepted & {would_remove, plan}` | `refused`, `not_found`, `bad_request` |  | decided: remove |
 | `stats.get` | member |  | `window` | `Stats` | `bad_request` |  | `stats`, snapshot |
 | `stats.outlook` | member |  | `range`, `agent?` | `Outlook` | `bad_request` |  | `outlook`, snapshot |
 | `stats.cost` | member |  | `range` | `CostPerDay` | `bad_request` |  | `cost`, snapshot |

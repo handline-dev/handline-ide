@@ -74,7 +74,7 @@
       }
      },
      "result": {
-      "role": "founder"
+      "role": "owner"
      },
      "on": "admin"
     },
@@ -164,7 +164,7 @@
       }
      },
      "result": {
-      "role": "founder",
+      "role": "owner",
       "caller": {
        "kind": "device",
        "device": "{{device}}"
@@ -179,7 +179,7 @@
       "params": {}
      },
      "result": {
-      "role": "founder"
+      "role": "owner"
      }
     },
     {
@@ -193,7 +193,7 @@
       "devices": {
        "$contains": {
         "name": "conformance phone",
-        "role": "founder"
+        "role": "owner"
        }
       }
      },
@@ -270,7 +270,7 @@
       }
      },
      "result": {
-      "role": "founder"
+      "role": "owner"
      },
      "on": "admin"
     },
@@ -351,7 +351,7 @@
       }
      },
      "result": {
-      "role": "founder"
+      "role": "owner"
      },
      "on": "admin"
     },
@@ -416,7 +416,7 @@
       }
      },
      "result": {
-      "role": "founder",
+      "role": "owner",
       "caller": {
        "kind": "device",
        "device": "{{device}}"
@@ -434,7 +434,7 @@
       "devices": {
        "$contains": {
         "name": "conformance phone",
-        "role": "founder"
+        "role": "owner"
        }
       }
      }
@@ -519,7 +519,7 @@
       }
      },
      "result": {
-      "role": "founder"
+      "role": "owner"
      },
      "on": "admin"
     },
@@ -584,7 +584,7 @@
       }
      },
      "result": {
-      "role": "founder",
+      "role": "owner",
       "caller": {
        "kind": "device",
        "device": "{{device}}"
@@ -599,7 +599,7 @@
       "params": {}
      },
      "result": {
-      "role": "founder"
+      "role": "owner"
      }
     },
     {
@@ -666,7 +666,7 @@
       }
      },
      "result": {
-      "role": "founder"
+      "role": "owner"
      },
      "on": "admin"
     },
@@ -731,7 +731,7 @@
       }
      },
      "result": {
-      "role": "founder",
+      "role": "owner",
       "caller": {
        "kind": "device",
        "device": "{{device}}"
@@ -787,7 +787,7 @@
       }
      },
      "result": {
-      "role": "founder"
+      "role": "owner"
      }
     },
     {
@@ -827,7 +827,7 @@
       }
      },
      "result": {
-      "role": "founder"
+      "role": "owner"
      }
     },
     {
@@ -878,7 +878,7 @@
       }
      },
      "result": {
-      "role": "founder"
+      "role": "owner"
      },
      "on": "admin"
     },
@@ -943,7 +943,7 @@
       }
      },
      "result": {
-      "role": "founder",
+      "role": "owner",
       "caller": {
        "kind": "device",
        "device": "{{device}}"
@@ -1107,7 +1107,7 @@
       }
      },
      "result": {
-      "role": "founder"
+      "role": "owner"
      },
      "on": "admin"
     },
@@ -1185,7 +1185,7 @@
       "params": {}
      },
      "result": {
-      "role": "founder"
+      "role": "owner"
      },
      "on": "admin",
      "notices": [
@@ -1201,7 +1201,7 @@
           "$type": "string"
          },
          "name": "conformance tablet",
-         "role": "founder",
+         "role": "owner",
          "connected": false,
          "last_seen": null
         }
@@ -1263,7 +1263,7 @@
       }
      },
      "result": {
-      "role": "founder"
+      "role": "owner"
      },
      "on": "admin"
     },
@@ -1327,7 +1327,7 @@
       }
      },
      "result": {
-      "role": "founder"
+      "role": "owner"
      }
     },
     {

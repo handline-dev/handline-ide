@@ -69,7 +69,7 @@ class Daemon:
         self.file = self.sock.makefile("rb")
         self.next_id = 0
         self.hello = self.call("hello", {"client": "live-e2e", "protocol": 1, "key": key})
-        if self.hello.get("role") != "founder":
+        if self.hello.get("role") != "owner":
             raise Refused(f"the daemon took this connection as {self.hello.get('caller')}, not the founder")
 
     def read(self) -> dict | None:

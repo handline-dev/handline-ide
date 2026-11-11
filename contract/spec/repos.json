@@ -664,7 +664,7 @@
      ]
     }
    },
-   "x-role": "founder",
+   "x-role": "owner",
    "x-write": false,
    "x-app-cache": {
     "resource": "file",
@@ -751,7 +751,7 @@
      ]
     }
    },
-   "x-role": "founder",
+   "x-role": "owner",
    "x-write": true,
    "x-app-write": {
     "kind": "decided",
@@ -873,7 +873,7 @@
      ]
     }
    },
-   "x-role": "founder",
+   "x-role": "owner",
    "x-write": false,
    "x-app-cache": false,
    "x-since": 1,
@@ -980,7 +980,7 @@
      ]
     }
    },
-   "x-role": "founder",
+   "x-role": "owner",
    "x-write": true,
    "x-app-write": {
     "kind": "uncached",
@@ -1065,7 +1065,7 @@
      ]
     }
    },
-   "x-role": "founder",
+   "x-role": "owner",
    "x-write": false,
    "x-app-cache": false,
    "x-since": 1,
@@ -1113,7 +1113,7 @@
      "properties": {}
     }
    },
-   "x-role": "founder",
+   "x-role": "owner",
    "x-write": false,
    "x-app-cache": false,
    "x-since": 1,

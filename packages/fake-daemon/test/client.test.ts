@@ -12,7 +12,7 @@ test('hello reports protocol, role, caller and the methods the role may call', a
   const { client } = setup();
   const h = await client.start();
   assert.equal(h.protocol, 1);
-  assert.equal(h.role, 'founder');
+  assert.equal(h.role, 'owner');
   assert.equal(h.caller.name, 'web-test');
   assert.equal(h.methods.find((m) => m.name === 'session.keys')?.allowed, true);
   client.close();

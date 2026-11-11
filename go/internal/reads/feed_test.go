@@ -48,7 +48,7 @@ func TestAnAgentIsSentOnlyWhatItsOwnReadsWouldReturn(t *testing.T) {
 	if want := "notifications stall,inbox inbox.added,tasks task.changed,proposals proposal.changed"; strings.Join(seen, ",") != want {
 		t.Fatalf("%v", seen)
 	}
-	member := &rpc.Conn{Caller: rpc.Caller{Role: "founder", Kind: "person", Info: map[string]any{"kind": "person"}}}
+	member := &rpc.Conn{Caller: rpc.Caller{Role: "owner", Kind: "person", Info: map[string]any{"kind": "person"}}}
 	all, top := feed(member)
 	if len(all) != 8 || cursor != top {
 		t.Fatalf("a member gets all %d, and the cursor is where the log was read to (%v, %v)", len(all), cursor, top)

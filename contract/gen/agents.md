@@ -11,14 +11,14 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `pr.exists` | member |  | `agent`, `numbers` | `{repo, found}` | `not_found`, `bad_request` |  | `pr-exists`, snapshot |
 | `agent.timeline` | member |  | `agent`, `before?`, `limit?` | `{items, more} & ReadCursor` | `not_found` |  | `timeline`, fed by agents |
 | `agent.options` | member |  | none | `AgentOptions` |  |  | `agent-options`, snapshot |
-| `agent.set` | agent (only agent, founder) | yes | `agent`, `values`, `speaker?`, `restart?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | not_self | authored: set |
+| `agent.set` | agent (only agent, owner) | yes | `agent`, `values`, `speaker?`, `restart?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | not_self | authored: set |
 | `agent.fold` | agent | yes | `agent`, `request_id` | `Accepted` | `refused`, `not_found` |  | decided: fold |
 | `agent.move` | agent | yes | `agent`, `account`, `request_id` | `Accepted` | `refused`, `not_found` |  | decided: move |
-| `agent.switch_now` | founder | yes | `agent`, `account?`, `request_id` | `Accepted` | `refused`, `not_found` |  | decided: switch |
-| `agent.unstall` | founder | yes | `agent`, `request_id` | `Accepted` | `refused`, `not_found` | terminal_lock, state | decided: clear stall |
-| `agent.force_start` | founder | yes | `agent`, `request_id` | `Accepted` | `refused`, `not_found` | state | decided: force start |
-| `agent.retire` | founder | yes | `agent`, `worktree?`, `request_id` | `Accepted` | `refused`, `not_found` | state, dirty, worktree | decided: retire |
-| `agent.create` | founder | yes | `name`, `role`, `repo`, `base?`, `model?`, `effort?`, `parent?`, `account?`, `request_id` | `OperationStarted` | `refused`, `not_found`, `bad_request` | state | decided: create |
+| `agent.switch_now` | owner | yes | `agent`, `account?`, `request_id` | `Accepted` | `refused`, `not_found` |  | decided: switch |
+| `agent.unstall` | owner | yes | `agent`, `request_id` | `Accepted` | `refused`, `not_found` | terminal_lock, state | decided: clear stall |
+| `agent.force_start` | owner | yes | `agent`, `request_id` | `Accepted` | `refused`, `not_found` | state | decided: force start |
+| `agent.retire` | owner | yes | `agent`, `worktree?`, `request_id` | `Accepted` | `refused`, `not_found` | state, dirty, worktree | decided: retire |
+| `agent.create` | owner | yes | `name`, `role`, `repo`, `base?`, `model?`, `effort?`, `parent?`, `account?`, `request_id` | `OperationStarted` | `refused`, `not_found`, `bad_request` | state | decided: create |
 | `session.start` | agent | yes | `agent`, `account?`, `repo?`, `base?`, `request_id` | `Accepted` | `refused`, `not_found` | terminal_lock, state | decided: start |
 | `session.wake` | agent | yes | `agent`, `request_id` | `Accepted` | `refused`, `not_found` | terminal_lock, state | not from the app |
 | `session.stop` | agent | yes | `agent`, `mode`, `fresh?`, `request_id` | `Accepted` | `refused`, `not_found` | role, terminal_lock, state | decided: stop |
@@ -39,9 +39,9 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `progress.get` | agent (only agent) |  | none | `{note}` |  |  | not cached |
 | `say` | agent | yes | `target`, `body`, `parent?`, `files?`, `request_id` | `Accepted` | `refused`, `bad_request` |  | not from the app |
 | `agent.triggers` | agent |  | `agent?` | `{agents}` |  |  | `triggers`, snapshot |
-| `access.grant` | founder | yes | `agent`, `path`, `scope`, `request_id` | `Accepted & {grant, applies_from}` | `refused`, `not_found`, `bad_request` | role | decided: allow access |
-| `access.revoke` | founder | yes | `agent`, `path`, `request_id` | `Accepted & {removed}` | `refused`, `not_found`, `bad_request` | role | decided: remove access |
-| `access.list` | founder |  | `agent` | `{grants}` | `refused`, `not_found` | role | `access` by agent, fed by agents |
+| `access.grant` | owner | yes | `agent`, `path`, `scope`, `request_id` | `Accepted & {grant, applies_from}` | `refused`, `not_found`, `bad_request` | role | decided: allow access |
+| `access.revoke` | owner | yes | `agent`, `path`, `request_id` | `Accepted & {removed}` | `refused`, `not_found`, `bad_request` | role | decided: remove access |
+| `access.list` | owner |  | `agent` | `{grants}` | `refused`, `not_found` | role | `access` by agent, fed by agents |
 
 ### `agents.list`
 

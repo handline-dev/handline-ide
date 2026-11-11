@@ -10,7 +10,7 @@ export type Timestamp = string;
 export type AgentName = string;
 
 /** Ordered lowest to highest. A method's role is the lowest that may call it; every higher role may too. */
-export type Role = "anonymous" | "agent" | "member" | "founder";
+export type Role = "anonymous" | "agent" | "member" | "owner";
 
 /** chat is added for the chat view (the UI design update): messages, landing state, transcript items and working state of one agent; events carry `agent`. devices (founder, which includes a paired device; subscribed on its own, live only): pairing and revocation of devices. proposals: proposals, so a client's tab dot is live; any proven caller, as proposal.list. transcript: the per-agent event stream of a structured session (transcript.event), served only for an agent the daemon runs as a structured session; see the Transcript stream section. prefs (member, which includes the founder): the person's view preferences, so a pin made on one device shows on the others. requests (member, which includes the founder): the founder's requests (RequestRow), so a Requests page is live. for_you (member, which includes the founder): the set of open items waiting on the founder, as for_you.list; an event whenever the count's set changes, with the new count. A client that misses events reads for_you.list again. */
 export type Topic = "status" | "accounts" | "agents" | "inbox" | "tasks" | "notifications" | "operations" | "chat" | "devices" | "proposals" | "transcript" | "prefs" | "requests" | "for_you";
@@ -1088,8 +1088,8 @@ export const CORE_METHODS: { [K in keyof CoreMethods]: { role: Role; callers: Ro
   "subscribe": { role: "agent", callers: null, write: false, since: 1 },
   "unsubscribe": { role: "agent", callers: null, write: false, since: 1 },
   "daemon.status": { role: "agent", callers: null, write: false, since: 1 },
-  "daemon.pause": { role: "founder", callers: null, write: true, since: 1 },
-  "daemon.resume": { role: "founder", callers: null, write: true, since: 1 },
+  "daemon.pause": { role: "owner", callers: null, write: true, since: 1 },
+  "daemon.resume": { role: "owner", callers: null, write: true, since: 1 },
   "lease.take": { role: "agent", callers: null, write: false, since: 1 },
   "lease.release": { role: "agent", callers: null, write: false, since: 1 },
   "lease.get": { role: "agent", callers: null, write: false, since: 1 },
@@ -1097,15 +1097,15 @@ export const CORE_METHODS: { [K in keyof CoreMethods]: { role: Role; callers: Ro
   "events.feed": { role: "agent", callers: null, write: false, since: 1 },
   "operation.get": { role: "member", callers: null, write: false, since: 1 },
   "debug.terminals": { role: "member", callers: null, write: false, since: 1 },
-  "prefs.get": { role: "member", callers: ["member", "founder"], write: false, since: 1 },
-  "prefs.set": { role: "member", callers: ["member", "founder"], write: true, since: 1 },
+  "prefs.get": { role: "member", callers: ["member", "owner"], write: false, since: 1 },
+  "prefs.set": { role: "member", callers: ["member", "owner"], write: true, since: 1 },
   "hook.record": { role: "agent", callers: ["agent"], write: true, since: 1 },
   "subagent.start": { role: "agent", callers: ["agent"], write: true, since: 1 },
   "memory.status": { role: "agent", callers: null, write: false, since: 1 },
-  "connection.get": { role: "founder", callers: null, write: false, since: 1 },
-  "connection.addresses": { role: "founder", callers: null, write: false, since: 1 },
-  "settings.get": { role: "founder", callers: null, write: false, since: 1 },
-  "settings.set": { role: "founder", callers: null, write: true, since: 1 },
+  "connection.get": { role: "owner", callers: null, write: false, since: 1 },
+  "connection.addresses": { role: "owner", callers: null, write: false, since: 1 },
+  "settings.get": { role: "owner", callers: null, write: false, since: 1 },
+  "settings.set": { role: "owner", callers: null, write: true, since: 1 },
   "for_you.list": { role: "member", callers: null, write: false, since: 1 },
 };
 
@@ -1241,6 +1241,6 @@ export const STATE_WORDS = ["running", "idle", "queued", "starting", "parked", "
 export const STATUS_STATES = ["preparing", "starting", "running", "waiting", "stopped", "idle", "off", "done"] as const;
 export const STATUS_REASONS = ["work", "restart", "retry", "launch", "turn", "watch", "handoff", "background", "you", "opener", "task", "owner", "clock", "move", "load", "pace", "paused", "wall", "cap", "stalled", "none", "done", "discarded"] as const;
 
-export const ROLE_ORDER: Role[] = ["anonymous", "agent", "member", "founder"];
+export const ROLE_ORDER: Role[] = ["anonymous", "agent", "member", "owner"];
 
 export type WriteKind = "authored" | "decided" | "uncached";

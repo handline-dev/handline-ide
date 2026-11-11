@@ -1619,7 +1619,7 @@
    ],
    "x-callers": [
     "agent",
-    "founder"
+    "owner"
    ]
   },
   {
@@ -1747,7 +1747,7 @@
      "$ref": "#/components/schemas/Accepted"
     }
    },
-   "x-role": "founder",
+   "x-role": "owner",
    "x-write": true,
    "x-app-write": {
     "kind": "decided",
@@ -1789,7 +1789,7 @@
      "$ref": "#/components/schemas/Accepted"
     }
    },
-   "x-role": "founder",
+   "x-role": "owner",
    "x-write": true,
    "x-app-write": {
     "kind": "decided",
@@ -1835,7 +1835,7 @@
      "$ref": "#/components/schemas/Accepted"
     }
    },
-   "x-role": "founder",
+   "x-role": "owner",
    "x-write": true,
    "x-app-write": {
     "kind": "decided",
@@ -1893,7 +1893,7 @@
      "$ref": "#/components/schemas/Accepted"
     }
    },
-   "x-role": "founder",
+   "x-role": "owner",
    "x-write": true,
    "x-app-write": {
     "kind": "decided",
@@ -2002,7 +2002,7 @@
      "$ref": "#/components/schemas/OperationStarted"
     }
    },
-   "x-role": "founder",
+   "x-role": "owner",
    "x-write": true,
    "x-app-write": {
     "kind": "decided",
@@ -3464,7 +3464,7 @@
      ]
     }
    },
-   "x-role": "founder",
+   "x-role": "owner",
    "x-write": true,
    "x-app-write": {
     "kind": "decided",
@@ -3538,7 +3538,7 @@
      ]
     }
    },
-   "x-role": "founder",
+   "x-role": "owner",
    "x-write": true,
    "x-app-write": {
     "kind": "decided",
@@ -3591,7 +3591,7 @@
      ]
     }
    },
-   "x-role": "founder",
+   "x-role": "owner",
    "x-write": false,
    "x-app-cache": {
     "resource": "access",

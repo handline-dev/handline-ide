@@ -93,10 +93,10 @@ func TestRolesComeFromProofOnly(t *testing.T) {
 	a := fakeAuth{key: "k"}
 	c := dial(t, a)
 	r := c.raw(t, `{"jsonrpc":"2.0","id":1,"method":"hello","params":{"client":"t","protocol":1,"key":"k"}}`)["result"].(map[string]any)
-	if r["role"] != "founder" {
+	if r["role"] != "owner" {
 		t.Fatalf("%v", r)
 	}
-	if w := c.raw(t, `{"jsonrpc":"2.0","id":2,"method":"whoami"}`)["result"].(map[string]any); w["role"] != "founder" {
+	if w := c.raw(t, `{"jsonrpc":"2.0","id":2,"method":"whoami"}`)["result"].(map[string]any); w["role"] != "owner" {
 		t.Fatalf("%v", w)
 	}
 	c = dial(t, fakeAuth{key: "k"})
@@ -379,7 +379,7 @@ func TestARefusedFoundersCallIsLoggedWithWhatItsHelloSaid(t *testing.T) {
 		want  []string // the log lines, by a part of each
 	}{
 		{"no key", fakeAuth{key: "k"}, `{"client":"electron","protocol":1}`, []string{"only.founder"},
-			[]string{`refused only.founder: needs founder, caller is anonymous; hello from "electron" with no key`}},
+			[]string{`refused only.founder: needs owner, caller is anonymous; hello from "electron" with no key`}},
 		{"a wrong key", fakeAuth{key: "k"}, `{"client":"electron","protocol":1,"key":"old"}`, []string{"only.founder"},
 			[]string{`hello from "electron" with a key that is not the founder's`}},
 		{"no hello", fakeAuth{key: "k"}, "", []string{"only.founder"}, nil}, // bad_request: the first call is hello
@@ -395,8 +395,8 @@ func TestARefusedFoundersCallIsLoggedWithWhatItsHelloSaid(t *testing.T) {
 			}
 		})
 		ok := func(*Conn, map[string]any) (any, error) { return map[string]any{}, nil }
-		srv.Register("only.founder", Method{Role: "founder", Handler: ok})
-		srv.Register("also.founder", Method{Role: "founder", Handler: ok})
+		srv.Register("only.founder", Method{Role: "owner", Handler: ok})
+		srv.Register("also.founder", Method{Role: "owner", Handler: ok})
 		srv.Register("only.member", Method{Role: "member", Handler: ok})
 		cl, sv := net.Pipe()
 		done := make(chan struct{})

@@ -212,13 +212,13 @@ export const REPOS_METHODS: { [K in keyof ReposMethods]: { role: Role; callers: 
   "worktrees.list": { role: "member", callers: null, write: false, since: 1 },
   "worktree.diff": { role: "member", callers: null, write: false, since: 1 },
   "files.list": { role: "member", callers: null, write: false, since: 1 },
-  "file.read": { role: "founder", callers: null, write: false, since: 1 },
-  "file.write": { role: "founder", callers: null, write: true, since: 1 },
+  "file.read": { role: "owner", callers: null, write: false, since: 1 },
+  "file.write": { role: "owner", callers: null, write: true, since: 1 },
   "worktree.set_status": { role: "member", callers: null, write: true, since: 1 },
-  "doc.open": { role: "founder", callers: null, write: false, since: 1 },
-  "doc.push": { role: "founder", callers: null, write: true, since: 1 },
-  "doc.pull": { role: "founder", callers: null, write: false, since: 1 },
-  "doc.close": { role: "founder", callers: null, write: false, since: 1 },
+  "doc.open": { role: "owner", callers: null, write: false, since: 1 },
+  "doc.push": { role: "owner", callers: null, write: true, since: 1 },
+  "doc.pull": { role: "owner", callers: null, write: false, since: 1 },
+  "doc.close": { role: "owner", callers: null, write: false, since: 1 },
 };
 
 /** x-app-cache of each read (x-app in core.json). */

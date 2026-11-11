@@ -116,7 +116,7 @@ func TestAllWithBeforePagesThroughEveryTaskNewestFirst(t *testing.T) {
 		run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(?, 't', 'bob', 'p1', 1)", i)
 	}
 	run(t, e, "UPDATE tasks SET done_evidence = 'x' WHERE id IN (2, 4)")
-	c := &rpc.Conn{Caller: rpc.Caller{Role: "founder"}}
+	c := &rpc.Conn{Caller: rpc.Caller{Role: "owner"}}
 	var seen []int64
 	params := map[string]any{"all": true, "limit": json.Number("2")}
 	for {

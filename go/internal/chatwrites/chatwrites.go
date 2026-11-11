@@ -183,7 +183,7 @@ func refPaths(c *rpc.Conn, p map[string]any, ids int) ([]string, error) {
 	if v == nil {
 		return nil, nil
 	}
-	if c.Caller.Role != "founder" {
+	if c.Caller.Role != "owner" {
 		return nil, rpc.Refused("refs name paths on the daemon's machine: the founder's only", "role", "")
 	}
 	list, ok := v.([]any)
@@ -307,7 +307,7 @@ func (w *writes) send(c *rpc.Conn, p map[string]any) (any, error) {
 				err = attachments.RecordPathRefs(tx, res.Request, refs)
 			}
 			// The connection proved the founder (the founder key, or a paired device): these are the founder's own words.
-			if err == nil && res.OK && res.Request != 0 && c.Caller.Role == "founder" {
+			if err == nil && res.OK && res.Request != 0 && c.Caller.Role == "owner" {
 				err = db.MarkFounderAuthored(tx, res.Request)
 			}
 			return res, map[string]any{"request": res.Request}, err
