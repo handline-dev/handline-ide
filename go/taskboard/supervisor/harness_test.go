@@ -29,7 +29,8 @@ type fakeTerm struct {
 	boxKnown   bool
 	sendFails  bool
 	ctrlC      int
-	db         db.Q // set: last reads each message name back as #<id> (msgtest.IDs)
+	db         db.Q                // set: last reads each message name back as #<id> (msgtest.IDs)
+	name       func(string) string // set: what is typed is kept with its keys read back as names (keys_test.go)
 }
 
 // ids is text with each message name read back as #<id>.
@@ -49,7 +50,12 @@ func (f *fakeTerm) IsTextTyped(box, text string) bool {
 }
 func (f *fakeTerm) BackgroundWork(string) (string, bool) { return f.background, true }
 func (f *fakeTerm) LastTail(string) []string             { return []string{"tail"} }
-func (f *fakeTerm) record(text string)                   { f.typed = append(f.typed, text) }
+func (f *fakeTerm) record(text string) {
+	if f.name != nil {
+		text = f.name(text)
+	}
+	f.typed = append(f.typed, text)
+}
 
 func (f *fakeTerm) Send(_, text string, _ bool) (bool, string) {
 	f.mu.Lock()
@@ -181,10 +187,10 @@ func newRig(t *testing.T) *rig {
 	r := &rig{t: t, home: home, term: newFakeTerm(), sessions: &fakeSessions{live: "s1"}, life: &fakeLife{}, eval: &fakeEval{}, clock: 100000}
 	db.Now = func() int64 { return r.clock }
 	t.Cleanup(func() { db.Now = func() int64 { return time.Now().Unix() } })
-	r.term.db = d
+	r.term.db, r.term.name = d, namer(home)
 	r.Env = &Env{DB: d, Home: home, Now: func() time.Time { return time.Unix(r.clock, 0) }, Sleep: func(d time.Duration) { r.clock += int64(d / time.Second) }}
 	r.Env.Log = func(f string, a ...any) { r.logs = append(r.logs, fmt.Sprintf(f, a...)) }
-	r.Env.Ports = Ports{Agents: &sessionAgents{r: r, live: map[string]bool{}, noPeer: map[string]bool{}}, Terminal: r.term, Observer: fakeObserver{map[string]bool{"alice": true, "bob": true}}, Dialogs: fakeDialogs{}, Waits: fakeWaits{limit: map[string]bool{}},
+	r.Env.Ports = Ports{Agents: &sessionAgents{r: r, live: map[string]bool{}, noPeer: map[string]bool{}}, Terminal: r.term, Observer: fakeObserver{map[string]bool{keyOf(t, home, "alice"): true, keyOf(t, home, "bob"): true}}, Dialogs: fakeDialogs{}, Waits: fakeWaits{limit: map[string]bool{}},
 		Idle: fakeIdle{}, Sessions: r.sessions, Lifecycle: r.life, Evaluate: r.eval, Stuck: fakeStuck{}, Proposals: fakeProposals{}}
 	return r
 }
@@ -202,7 +208,7 @@ func (a *sessionAgents) Live(agent string) bool       { return a.live[agent] }
 func (a *sessionAgents) Send(_, _, text string, _ delivery.Delivery) (delivery.Receipt, error) {
 	a.r.term.mu.Lock()
 	defer a.r.term.mu.Unlock()
-	a.r.term.typed = append(a.r.term.typed, text)
+	a.r.term.record(text)
 	return delivery.Receipt{State: delivery.Sent}, nil
 }
 func (a *sessionAgents) Withdraw(string, string) (delivery.Receipt, bool, error) {
@@ -215,8 +221,8 @@ func (a *sessionAgents) Promote(string, string) (delivery.Receipt, error) {
 // agentUp gives an agent a terminal and an open session that takes what it is told.
 func (r *rig) agentUp(name string) {
 	r.t.Helper()
-	r.Agents.(*sessionAgents).live[name] = true
-	if err := db.SetTerminal(r.DB, name, "%"+name, "/w/"+name); err != nil {
+	r.Agents.(*sessionAgents).live[r.k(name)] = true
+	if err := db.SetTerminal(r.DB, r.k(name), "%"+name, "/w/"+name); err != nil {
 		r.t.Fatal(err)
 	}
 }
