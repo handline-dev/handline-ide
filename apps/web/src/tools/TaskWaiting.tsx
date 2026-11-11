@@ -2,16 +2,12 @@
 // (its Reference in Activity, then the comment box below), or with Dismiss when there is nothing to answer; seeing it does not end it.
 import { isPerson } from '@handline/app-core';
 import type { TaskDetail } from '@handline/client';
-import { classify, sentence, useGiveBack, useWrite } from '@handline/app-data';
-import { Hand, Reply as ReplyIcon, Undo2, X } from 'lucide-react';
+import { useWrite } from '@handline/app-data';
+import { Hand, X } from 'lucide-react';
 import { useState } from 'react';
-import type { Reply } from '#src/tools/TaskComment.tsx';
-import { showHistory } from '#src/tools/TaskDiff.tsx';
-import { goToTurn, turnReply } from '#src/tools/TaskTurn.ts';
-import { Button } from '#src/ui/Button.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { toast } from '#src/ui/toast.tsx';
-import { ago, clock } from '#src/format/time.ts';
+import { clock } from '#src/format/time.ts';
 
 type Memo = TaskDetail['memos'][number];
 
@@ -83,65 +79,4 @@ const CHOICE = /^[ \t]*([A-D1-4])[).:][ \t]+(.+)$/gm;
 export function choices(ask: string) {
   const found = [...ask.matchAll(CHOICE)].map((m) => ({ key: m[1]!, text: m[2]!.trim() }));
   return found.length >= 2 ? found : [];
-}
-
-/** The founder's turn is the task's one question: the ask, an "edited" mark with older texts folded under it, and on the last line Answer
- * (in the comment box below) and Give back. */
-export function YourTurn({
-  t,
-  reply,
-  onDone,
-  onReply,
-}: {
-  t: TaskDetail;
-  /** What the comment box answers: this turn's question, while it answers it. */
-  reply: Reply | null;
-  onDone: () => void;
-  onReply: (r: Reply | null) => void;
-}) {
-  const back = useGiveBack();
-  const turn = t.turns?.at(-1);
-  const answering = !!reply?.turn && reply.text === turn?.ask;
-  const earlier = turn?.earlier ?? [];
-  const give = () =>
-    back.give(t.id, { onSuccess: onDone, onError: (e) => toast(`Give back did not work: ${sentence(classify(e))}`, { tone: 'warning' }) });
-  return (
-    <div aria-busy={back.pending} className={`flex items-start gap-2 ${back.pending ? 'pointer-events-none opacity-40' : ''}`}>
-      <Hand size={14} className="mt-1 shrink-0 text-warning" />
-      <span className="flex min-w-0 flex-1 flex-col gap-1">
-        <span className="flex items-center gap-2 font-medium">
-          <button type="button" onClick={() => goToTurn(t)} className="hover:underline">
-            Your turn
-          </button>
-          {turn?.edited && (
-            <button
-              type="button"
-              disabled={!earlier.length}
-              onClick={() =>
-                showHistory('Versions of the question', [
-                  ...earlier.map((e) => ({ text: e.ask, at: e.at, by: turn?.by ?? '' })),
-                  { text: turn?.ask ?? '', at: turn?.edited ?? '', by: turn?.by ?? '' },
-                ])
-              }
-              title={turn.edited}
-              className="text-xs font-normal text-muted enabled:underline enabled:decoration-dotted enabled:hover:text-fg"
-            >
-              edited {ago(turn.edited)}
-            </button>
-          )}
-        </span>
-        {turn?.ask && <span className="whitespace-pre-wrap">{answering ? turn.ask.replace(CHOICE, '').trim() : turn.ask}</span>}
-        <span className="mt-1 flex justify-end gap-2">
-          <Button onClick={give}>
-            <Undo2 size={14} />
-            Give back
-          </Button>
-          <Button variant="primary" disabled={answering || !turn?.ask} onClick={() => onReply(turnReply(t))}>
-            <ReplyIcon size={14} />
-            {answering ? 'Answering below' : 'Answer'}
-          </Button>
-        </span>
-      </span>
-    </div>
-  );
 }
