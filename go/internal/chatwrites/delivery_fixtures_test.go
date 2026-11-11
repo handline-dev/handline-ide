@@ -36,7 +36,7 @@ func TestTheDeliveryFixturesPassAgainstTheChatWritesAndReads(t *testing.T) {
 			// dave's operation was written, and the session ended before it was echoed
 			r.one(srv, "chat.send", `{"agent":"dave","body":"in flight when it died","request_id":"crashed-op"}`)
 			f.setState(r.k("dave"), supervisor.RequestOp(1), delivery.Unknown)
-			vars := map[string]any{"founder_key": "founder", "transcript_agent": r.k("bob"), "working_agent": r.k("carol"), "crashed_agent": r.k("dave"), "terminal_agent": r.k("alice")}
+			vars := map[string]any{"founder_key": "founder", "transcript_agent": "bob", "working_agent": "carol", "crashed_agent": "dave", "terminal_agent": "alice"}
 			saved := map[string]any{}
 			cl, sv := net.Pipe()
 			done := make(chan struct{})
