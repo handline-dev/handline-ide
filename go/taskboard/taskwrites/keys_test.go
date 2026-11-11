@@ -109,7 +109,7 @@ func toldTo(t *testing.T, db *sql.DB, prefix string) string {
 func rigServer(t testing.TB, d *sql.DB, home, agent string, tell Teller) *rpc.Server {
 	s := rpc.NewServer(auth{as(t, home, agent)}, "x", store.LatestVersion(), "local", func(string, ...any) {})
 	s.DB = d
-	s.Who = func(w string) string { return paths.WhoKey(home, w) }
+	s.Names = teamtest.DB(t, home)
 	if f, ok := tell.(*fakeTeller); ok {
 		f.db = d
 	}

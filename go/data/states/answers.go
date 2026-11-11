@@ -5,6 +5,8 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/handline/handline/go/kit/addr"
+
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/actor"
 )
@@ -60,7 +62,7 @@ func AnswerVerb(q db.Q, head *db.Request) (string, error) {
 	if head.Kind.String == "say" {
 		return "it asks nothing", nil
 	}
-	return fmt.Sprintf("answer with `hl say %s --parent %s \"<answer>\"`", head.Requester, head.Name(q)), nil
+	return fmt.Sprintf("answer with `hl say %s --parent %s \"<answer>\"`", addr.Address(q, head.Target, head.Requester), head.Name(q)), nil
 }
 
 // MoreWaiting is what an agent is told about the queue behind the request it reads, "" for nothing.

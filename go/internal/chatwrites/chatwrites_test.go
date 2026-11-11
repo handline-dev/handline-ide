@@ -14,7 +14,6 @@ import (
 	dbpkg "github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/kit/actor"
-	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/kit/storetest"
 	"github.com/handline/handline/go/protocol/rpc"
@@ -63,7 +62,7 @@ func (r *rig) server(agent string) *rpc.Server {
 		agent = teamtest.Key(r.t, r.home, agent)
 	}
 	s := rpc.NewServer(auth{agent}, "x", store.LatestVersion(), "local", func(string, ...any) {})
-	s.DB, s.Who = r.db, func(w string) string { return paths.WhoKey(r.home, w) }
+	s.DB, s.Names = r.db, teamtest.DB(r.t, r.home)
 	Register(s, r.env, r.env)
 	return s
 }

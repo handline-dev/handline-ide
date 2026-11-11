@@ -9,9 +9,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/handline/handline/go/data/team/teamtest"
+
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/actor"
-	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/taskboard/taskwrites"
@@ -36,7 +37,7 @@ func (r *rig) callAs(agent, call string) map[string]any {
 	}
 	srv := rpc.NewServer(agentAuth{agent}, "x", store.LatestVersion(), "local", func(string, ...any) {})
 	srv.DB = r.DB
-	srv.Who = func(w string) string { return paths.WhoKey(r.home, w) }
+	srv.Names = teamtest.DB(r.t, r.home)
 	taskwrites.Register(srv, r.home, r.Env, nil)
 	cl, sv := net.Pipe()
 	done := make(chan struct{})

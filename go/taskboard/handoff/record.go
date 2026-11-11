@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/handline/handline/go/kit/addr"
+
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/gitrun"
@@ -106,7 +108,7 @@ func (e *Env) RequestLine(agent string) (string, error) {
 	if lines := textsafe.SplitLines(head.Body); len(lines) > 0 {
 		first = cutRunes(lines[0], 120)
 	}
-	return fmt.Sprintf("request: %s from %s - %s", head.Name(e.DB), head.Requester, first), nil
+	return fmt.Sprintf("request: %s from %s - %s", head.Name(e.DB), addr.For(e.DB, agent, head.Requester), first), nil
 }
 
 func progressKey(requestID int64) string { return fmt.Sprintf("progress:%d", requestID) }

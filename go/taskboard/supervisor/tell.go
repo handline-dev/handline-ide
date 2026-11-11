@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/handline/handline/go/kit/addr"
+
 	"github.com/handline/handline/go/agentctl/delivery"
 	"github.com/handline/handline/go/data/db"
 )
@@ -174,7 +176,7 @@ func cancelledText(q db.Q, row *db.Request, verdict string) string {
 		}
 	}
 	return fmt.Sprintf("%s from %s was cancelled: %s. Stop work on it; it is closed and needs no resolve%s. `hl read %s` shows it.",
-		row.Name(q), row.Requester, verdict, held, row.Name(q))
+		row.Name(q), addr.For(q, row.Target, row.Requester), verdict, held, row.Name(q))
 }
 
 func idList(ids []int64) string {

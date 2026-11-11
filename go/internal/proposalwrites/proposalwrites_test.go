@@ -101,7 +101,7 @@ func newRig(t *testing.T) *rig {
 	}
 	t.Cleanup(func() { store.ForgetShared(filepath.Join(home, "db.sqlite")) })
 	s := rpc.NewServer(auth{}, "x", store.LatestVersion(), "local", func(string, ...any) {})
-	s.DB, s.Who = d, r.who
+	s.DB, s.Names = d, teamtest.DB(r.t, r.home)
 	Register(s, r.e)
 	r.srv = s
 	return r
@@ -126,7 +126,7 @@ func (r *rig) callAs(agent, method, params string) map[string]any {
 	was := r.srv
 	defer func() { r.srv = was }()
 	s := rpc.NewServer(agentAuth{r.who(agent)}, "x", store.LatestVersion(), "local", func(string, ...any) {})
-	s.DB, s.Who = r.db, r.who
+	s.DB, s.Names = r.db, teamtest.DB(r.t, r.home)
 	Register(s, r.e)
 	r.srv = s
 	return r.callHello(`{"client":"t","protocol":1}`, method, params)
@@ -148,7 +148,7 @@ func (r *rig) callHello(hello, method, params string) map[string]any {
 	go func() {
 		if r.device != "" {
 			s := rpc.NewServer(auth{}, "x", store.LatestVersion(), "network", func(string, ...any) {})
-			s.DB, s.Net, s.Who = r.db, phone{r.device}, r.who
+			s.DB, s.Net, s.Names = r.db, phone{r.device}, teamtest.DB(r.t, r.home)
 			Register(s, r.e)
 			s.ServeNet(rpc.NewLineTransport(sv), "127.0.0.1", func() { sv.Close() })
 		} else {

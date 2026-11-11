@@ -3650,6 +3650,14 @@
      }
     },
     {
+     "name": "cwd",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "description": "The directory the client runs in. A person's agent names resolve in the workspace whose project folder holds it; elsewhere only workspace names and handles resolve. An agent's resolve in its own workspace whatever this says."
+     }
+    },
+    {
      "name": "note",
      "required": false,
      "schema": {

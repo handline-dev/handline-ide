@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/handline/handline/go/kit/addr"
+
 	"github.com/handline/handline/go/agentctl/delivery"
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/actor"
@@ -108,7 +110,7 @@ func (e *Env) sendOnce(q db.Q, agent, op, text string, d delivery.Delivery) (Sen
 		return NotSent, agent + " has no live session"
 	}
 	check(db.SetCursor(q, key, sendWritten)) // recorded before the write: a crash after it must find it
-	rcpt, err := e.Agents.Send(agent, op, text, d)
+	rcpt, err := e.Agents.Send(agent, op, forReader(q, agent, text), d)
 	if err != nil {
 		check(db.ClearCursor(q, key))
 		return NotSent, err.Error()
@@ -386,4 +388,13 @@ func singleOps(op string) []string {
 		ops = append(ops, requestOp(rid))
 	}
 	return ops
+}
+
+// forReader is text as agent reads it: each <@key> written out as the name agent would use (addr.Render).
+func forReader(q db.Q, agent, text string) string {
+	r, err := addr.Of(q, agent, "")
+	if err != nil {
+		return text
+	}
+	return addr.Render(q, r, text)
 }

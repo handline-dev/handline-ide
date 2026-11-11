@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/user"
@@ -13,6 +14,8 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/kit/actor"
+	"github.com/handline/handline/go/kit/addr"
+	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/protocol/authority"
 )
 
@@ -69,9 +72,8 @@ type Server struct {
 	Net       NetGate // the paired devices of a network server; nil on the local one
 	// Note, when set on the local server, records what a hello's note says: a command's verb and the programs above it.
 	Note func(agent, kind string, argv []string, chain string)
-	// Who, when set, turns a who param's word (human, an agent's name) into its key; a word it does not know comes back as it was, for
-	// the handler to refuse.
-	Who          func(word string) string
+	// Names, when set, is the database who words resolve in (addr.Resolve): the home's. With none, they reach the handler as sent.
+	Names        *sql.DB
 	capabilities []func() map[string]any
 	methods      map[string]Method
 	order        []string
@@ -177,7 +179,9 @@ type Conn struct {
 	// helloClient and helloKey are what the last hello said: its client name, and whether it carried the founder key, another key or none
 	// (or came as a device). refusalNoted is the methods whose refusal was logged on this connection, once each.
 	helloClient, helloKey string
-	refusalNoted          map[string]bool
+	// cwd is the directory the last hello was sent from: where a person's agent names resolve (addr.Of).
+	cwd          string
+	refusalNoted map[string]bool
 	// Remote is the peer's host on the network listener, "" elsewhere.
 	Remote     string
 	closeFn    func()
@@ -484,13 +488,16 @@ func (c *Conn) route(msg any, raw []byte) (routed, error) {
 	if m.Write {
 		sentKey = paramsKey(params)
 	}
-	c.srv.resolveWho(name, params)
+	if err := c.resolveWho(name, params); err != nil {
+		return routed{}, err
+	}
 	// A call that waits runs on its own goroutine while a later hello may replace c.Caller: it gets the caller as
 	// it was when routed, on a Conn of its own that shares only what stays fixed.
 	beside := m.Waits || m.Read
 	at := c
 	if beside {
-		at = &Conn{srv: c.srv, tr: c.tr, Pid: c.Pid, Remote: c.Remote, Caller: c.Caller, saidHello: c.saidHello, done: c.done}
+		at = &Conn{srv: c.srv, tr: c.tr, Pid: c.Pid, Remote: c.Remote, Caller: c.Caller, saidHello: c.saidHello, done: c.done,
+			helloClient: c.helloClient, cwd: c.cwd}
 	}
 	return routed{waits: beside, read: m.Read && !m.Waits, run: func() (any, error) {
 		var result any
@@ -499,6 +506,9 @@ func (c *Conn) route(msg any, raw []byte) (routed, error) {
 			result, err = at.runWrite(name, m, params, sentKey)
 		} else {
 			result, err = m.Handler(at, params)
+		}
+		if at.Typed() && at.srv.Names != nil && name != "hello" {
+			result, err = at.writeOut(result, err)
 		}
 		if err != nil {
 			return nil, err
@@ -512,8 +522,10 @@ func (c *Conn) route(msg any, raw []byte) (routed, error) {
 
 // keyed is c with an agent caller named by its key: a session recorded under its old name still acts as the agent's key.
 func (s *Server) keyed(c Caller) Caller {
-	if c.Kind == "agent" && s.Who != nil {
-		c.Key = s.Who(c.Key)
+	if c.Kind == "agent" && s.Names != nil {
+		if k, err := paths.AgentKeyIn(s.Names, c.Key); err == nil && k != "" {
+			c.Key = k
+		}
 		c.Info["name"] = c.Key
 	}
 	return c
@@ -551,17 +563,55 @@ func (s *Server) deviceCaller(id, name, person string) (Caller, error) {
 	return Caller{Kind: "device", Key: person, Person: person, Role: role, Info: map[string]any{"kind": "device", "device": id, "name": name}}, nil
 }
 
+// Typed is whether the caller is hl (not its hooks, which send their agent back), whose who words are typed and whose replies are read as text, by an agent or a person. A word that
+// names no one is refused with the names to use, and the reply is written out for the reader (writeOut). Every other client gets
+// keys, as the contract says, and writes names out itself.
+func (c *Conn) Typed() bool { return c.helloClient == "hl" }
+
+// Reader is the caller as addr resolves its words and writes text out for it.
+func (c *Conn) Reader() (addr.Who, error) {
+	if c.srv.Names == nil {
+		return addr.Who{Key: c.Caller.Key}, nil
+	}
+	return addr.Of(c.srv.Names, c.Caller.Key, c.cwd)
+}
+
 // resolveWho puts the key in place of each who param's word (SpecParam.Who, and WhoIn inside an object), so a handler sees keys only.
-func (s *Server) resolveWho(method string, params map[string]any) {
+// A word addr.Resolve refuses is refused here for a Typed caller; for another it goes on as sent, for the handler to refuse.
+func (c *Conn) resolveWho(method string, params map[string]any) error {
+	names := c.srv.Names
 	sp, ok := Spec(method)
-	if !ok || s.Who == nil {
-		return
+	if !ok || names == nil {
+		return nil
+	}
+	r, err := c.Reader()
+	if err != nil {
+		return err
+	}
+	var failed error
+	key := func(param, w string) string {
+		if failed != nil || w == "" || w == c.Caller.Key { // the caller naming itself, whether or not it has a row
+			return w
+		}
+		k, err := addr.Resolve(names, r, w)
+		var refused *addr.Refusal
+		switch {
+		case err == nil:
+			return k
+		case !errors.As(err, &refused):
+			failed = err
+		case c.Typed():
+			e := NotFoundError(refused.Msg)
+			e.Data = map[string]any{"what": "who", "name": w, "field": param}
+			failed = e
+		}
+		return w
 	}
 	for _, p := range sp.Params {
 		if m, ok := params[p.Name].(map[string]any); ok {
 			for _, k := range p.WhoIn {
 				if w, ok := m[k].(string); ok {
-					m[k] = s.Who(w)
+					m[k] = key(p.Name+"."+k, w)
 				}
 			}
 		}
@@ -570,15 +620,95 @@ func (s *Server) resolveWho(method string, params map[string]any) {
 		}
 		switch v := params[p.Name].(type) {
 		case string:
-			params[p.Name] = s.Who(v)
+			params[p.Name] = key(p.Name, v)
 		case []any:
 			for i, w := range v {
 				if w, ok := w.(string); ok {
-					v[i] = s.Who(w)
+					v[i] = key(p.Name, w)
 				}
 			}
 		}
 	}
+	return failed
+}
+
+// Mentions is text as it is stored for this caller: each @word that resolves for it as <@key> (addr.Mentions).
+func (c *Conn) Mentions(text string) (string, error) {
+	if c.srv.Names == nil {
+		return text, nil
+	}
+	r, err := c.Reader()
+	if err != nil {
+		return text, err
+	}
+	return addr.Mentions(c.srv.Names, r, text)
+}
+
+// writeOut is a reply as a Typed caller reads it: each <@key> in its text written out as @ and the name the caller would use
+// (addr.Render), and a key held by a who field (whoFields) as that name. Other values, a field named key among them, stay as they are.
+func (c *Conn) writeOut(result any, err error) (any, error) {
+	r, rerr := c.Reader()
+	if rerr != nil {
+		return result, err
+	}
+	names := map[string]string{} // one lookup per key in a reply
+	name := func(k string) string {
+		n, ok := names[k]
+		if !ok {
+			n = addr.Name(c.srv.Names, r, k)
+			names[k] = n
+		}
+		return n
+	}
+	var walk func(v any, who bool) any
+	walk = func(v any, who bool) any {
+		switch v := v.(type) {
+		case string:
+			if _, _, ok := actor.Parse(v); ok && who {
+				return name(v)
+			}
+			return addr.Render(c.srv.Names, r, v)
+		case map[string]any:
+			for k, x := range v {
+				v[k] = walk(x, whoFields[k])
+			}
+		case []any:
+			for i, x := range v {
+				v[i] = walk(x, who)
+			}
+		}
+		return v
+	}
+	if e := (*Error)(nil); errors.As(err, &e) {
+		out := *e
+		out.Message = addr.Render(c.srv.Names, r, e.Message)
+		out.Data, _ = walk(generic(e.Data), false).(map[string]any)
+		err = &out
+	}
+	return walk(generic(result), false), err
+}
+
+// whoFields are the reply fields that hold a who's key, as the contract names them.
+var whoFields = map[string]bool{"acting": true, "agent": true, "agents": true, "assignee": true, "author": true, "by": true,
+	"discarded_by": true, "from": true, "opened_by": true, "owner": true, "pushed_by": true, "reporter": true, "requested_by": true,
+	"requester": true, "target": true, "to": true, "who": true}
+
+// generic is v as JSON decodes it: a copy in maps and slices, so writing out a reply changes no value a handler keeps.
+func generic(v any) any {
+	if v == nil {
+		return nil
+	}
+	b, err := json.Marshal(v)
+	if err != nil {
+		return v
+	}
+	d := json.NewDecoder(bytes.NewReader(b))
+	d.UseNumber()
+	var out any
+	if d.Decode(&out) != nil {
+		return v
+	}
+	return out
 }
 
 // RequireSelf is for the methods that act as the caller's own session: an agent that is not the caller is refused.
@@ -624,6 +754,7 @@ func hello(c *Conn, params map[string]any) (any, error) {
 	}
 	key, _ := params["key"].(string)
 	c.helloClient, _ = params["client"].(string)
+	c.cwd, _ = params["cwd"].(string)
 	c.helloKey = "a device token" // the network listener's; a local hello says below
 	if c.srv.Net != nil {
 		tok, _ := params["token"].(string)

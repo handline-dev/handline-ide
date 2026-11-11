@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/handline/handline/go/data/team/teamtest"
-	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/kit/storetest"
 	"github.com/handline/handline/go/protocol/rpc"
@@ -30,7 +29,7 @@ func TestTheFoundersDoneAndDiscardNeedNoReasonAnAgentsDo(t *testing.T) {
 	mk := func(agent string) *rpc.Server {
 		s := rpc.NewServer(auth{as(t, home, agent)}, "x", store.LatestVersion(), "local", func(string, ...any) {})
 		s.DB = db
-		s.Who = func(w string) string { return paths.WhoKey(home, w) }
+		s.Names = teamtest.DB(t, home)
 		Register(s, home, &fakeTeller{db: db}, nil)
 		return s
 	}

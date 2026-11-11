@@ -100,7 +100,7 @@ type conn struct {
 // dial is one connection to a server with the methods registered, as the founder, or as ann's own session.
 func (r *rig) dial(agent bool) *conn {
 	srv := rpc.NewServer(auth{agent: map[bool]string{true: r.ann}[agent]}, "sha", 1, "local", func(string, ...any) {})
-	srv.DB, srv.Who = r.e.DB, r.who
+	srv.DB, srv.Names = r.e.DB, teamtest.DB(r.t, r.e.Home)
 	Register(srv, r.e)
 	RegisterTyping(srv, r.e)
 	cl, sv := net.Pipe()

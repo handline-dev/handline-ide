@@ -3,7 +3,6 @@ package supervisor
 import (
 	"database/sql"
 	"fmt"
-	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -12,7 +11,7 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/actor"
-	"github.com/handline/handline/go/kit/paths"
+	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/taskboard/attachments"
 	"github.com/handline/handline/go/taskboard/taskwrites"
@@ -489,12 +488,11 @@ func (e *Env) TellMemoSkipping(q db.Q, tid, mid int64, by, what, text, to string
 	if row == nil {
 		return nil
 	}
-	body := memoLine(tid, mid, what, by, text)
 	for _, r := range e.memoRecipients(row, by, text, to, now) {
 		if slices.Contains(skip, r.Agent) {
 			continue
 		}
-		rid := e.typeSay(q, r.Agent, body, "task memo")
+		rid := e.typeSay(q, r.Agent, memoLine(tid, mid, what, addr.For(q, r.Agent, by), text), "task memo")
 		e.linkMemoTell(q, mid, r.Agent, rid)
 	}
 	return nil
@@ -504,7 +502,7 @@ func (e *Env) TellMemoSkipping(q db.Q, tid, mid int64, by, what, text, to string
 // task's holder (its assignee) is always told. Who the task answers to (owner) is told only when it is sent now, or when the founder wrote it
 // on a task no agent holds (the founder does, or the holder has retired): otherwise answering is the holder's.
 func (e *Env) memoRecipients(row *db.Task, by, text, to string, now bool) []taskwrites.Recipient {
-	named := e.mentioned(text)
+	named := e.mentioned(by, text)
 	unheld := actor.IsPerson(by) && !e.registered(row.Acting)
 	var out []taskwrites.Recipient
 	for _, a := range e.memoReaders(row, by, named) {
@@ -549,12 +547,18 @@ func (e *Env) memoReaders(row *db.Task, by string, mentioned []string) []string 
 	return out
 }
 
-// mentioned is the key of every registered agent text names with @.
-func (e *Env) mentioned(text string) []string {
+// mentioned is the key of every registered agent text names with <@key>. A memo writer that tells before it stores (a handoff note, a
+// turn's) hands the text as typed, so by's @words are resolved here too.
+func (e *Env) mentioned(by, text string) []string {
+	if w, err := addr.Of(e.DB, by, ""); err == nil {
+		if t, err := addr.Mentions(e.DB, w, text); err == nil {
+			text = t
+		}
+	}
 	var out []string
-	for _, m := range mentionRe.FindAllStringSubmatch(text, -1) {
-		if who := paths.WhoKey(e.Home, strings.TrimRight(m[1], ".-")); e.registered(who) { // until mentions are written as <@key> (1c)
-			out = append(out, who)
+	for _, k := range addr.Refs(text) {
+		if e.registered(k) {
+			out = append(out, k)
 		}
 	}
 	return out
@@ -607,6 +611,3 @@ func (e *Env) SweepHeldMemos(now int64) (err error) {
 	}
 	return nil
 }
-
-// mentionRe is an @name in a memo: at the start or after a character that is not part of a name, so an email address names nobody.
-var mentionRe = regexp.MustCompile(`(?:^|[^A-Za-z0-9._@-])@([A-Za-z0-9][A-Za-z0-9._-]*)`)

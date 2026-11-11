@@ -4,6 +4,9 @@ import (
 	"database/sql"
 	"regexp"
 	"time"
+
+	"github.com/handline/handline/go/kit/actor"
+	"github.com/handline/handline/go/kit/addr"
 )
 
 // Memo is one task_memos row.
@@ -19,6 +22,10 @@ type Memo struct {
 
 // AddMemo is db.add_memo. The stamp is a float, as Python's time.time() writes it.
 func AddMemo(q Q, tid int64, author, body string) (int64, error) {
+	body, err := storedMentions(q, author, body)
+	if err != nil {
+		return 0, err
+	}
 	res, err := q.Exec("INSERT INTO task_memos(task_id, author, body, created_at) VALUES (?, ?, ?, ?)", tid, author, body, float64(time.Now().UnixNano())/1e9)
 	if err != nil {
 		return 0, err
@@ -46,6 +53,9 @@ func GetMemo(q Q, mid int64) (*Memo, error) {
 func EditMemo(q Q, mid int64, by, body string) error {
 	m, err := GetMemo(q, mid)
 	if err != nil || m == nil {
+		return err
+	}
+	if body, err = storedMentions(q, by, body); err != nil {
 		return err
 	}
 	if _, err := q.Exec("UPDATE task_memos SET body = ?, edited_at = ? WHERE id = ?", body, Now(), mid); err != nil {
@@ -112,9 +122,21 @@ func ActedSince(q Q, agent string, ts int64) (bool, error) {
 	return other > 0 || prompts > 1 || stops > 1, err
 }
 
-// founderMention is `@human` as a comment's first word.
+// storedMentions is body as a memo keeps it: each @word that resolves for the author as <@key> (addr.Mentions), so a rename changes no
+// stored text. A typed caller's handler may have done it already with the caller's folder; doing it again changes nothing.
+func storedMentions(q Q, author, body string) (string, error) {
+	w, err := addr.Of(q, author, "")
+	if err != nil {
+		return body, err
+	}
+	return addr.Mentions(q, w, body)
+}
+
+// founderMention is `@human` as a comment's first word, in a body written before mentions were stored as keys.
 var founderMention = regexp.MustCompile(`^\s*@human(?:[^A-Za-z0-9_-]|$)`)
 
-// ToFounder is whether a comment is addressed to the founder: `@human` is its first word. It is news for them and moves no turn; a mention
-// anywhere else (text to agents, a quote, code) is not.
-func ToFounder(body string) bool { return founderMention.MatchString(body) }
+// ToFounder is whether a comment is a note to a person: a person's <@key> is its first token. It is news for them and moves no turn; a
+// mention anywhere else (text to agents, a quote, code) is not.
+func ToFounder(body string) bool {
+	return actor.IsPerson(addr.Lead(body)) || founderMention.MatchString(body)
+}

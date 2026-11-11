@@ -379,7 +379,7 @@
      "result": {
       "memos": {
        "$contains": {
-        "text": "@{{task_owner}} please look"
+        "text": "<@{{task_owner}}> please look"
        }
       }
      }
