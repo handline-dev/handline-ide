@@ -29,6 +29,16 @@ func newHome(t *testing.T) string {
 	return home
 }
 
+// keyer turns an agent's old dotted name into its key in home; a word no agent has (human, nobody) stays as it is.
+func keyer(home string) func(string) string {
+	return func(n string) string {
+		if k := paths.AgentKey(home, n); k != "" {
+			return k
+		}
+		return n
+	}
+}
+
 func register(t *testing.T, r *Roster, names ...string) {
 	t.Helper()
 	for _, n := range names {
@@ -78,7 +88,8 @@ func TestRegisterMakesTheWorkspaceAndItsLeadAndReadsBack(t *testing.T) {
 		t.Fatalf("%v", cfg)
 	}
 	tm, _ := LoadTeam(home)
-	if tm.SupervisorOf("shop.ui") != "shop" || tm.SupervisorOf("shop") != "" {
+	k := keyer(home)
+	if tm.SupervisorOf(k("shop.ui")) != k("shop") || tm.SupervisorOf(k("shop")) != "" {
 		t.Fatalf("shop.ui reports to %q, shop to %q", tm.SupervisorOf("shop.ui"), tm.SupervisorOf("shop"))
 	}
 	for _, f := range []string{"ROLE.md", "base.md", "memory"} {
@@ -86,7 +97,7 @@ func TestRegisterMakesTheWorkspaceAndItsLeadAndReadsBack(t *testing.T) {
 			t.Error(err)
 		}
 	}
-	if got := paths.ListAgents(home); strings.Join(got, ",") != "shop,shop.ui" {
+	if got := paths.ListAgents(home); strings.Join(got, ",") != k("shop")+","+k("shop.ui") {
 		t.Fatalf("listed %v", got)
 	}
 }
@@ -168,7 +179,7 @@ func TestRouteFollowsWorkspaces(t *testing.T) {
 		{"shop.ui", "nobody", 0, false, "unknown target"},
 		{"shop.ui", "shop.api", DefaultMaxChainDepth, false, "chain depth"},
 	} {
-		d := tm.Route(c.from, c.to, c.depth)
+		d := tm.Route(keyer(home)(c.from), keyer(home)(c.to), c.depth)
 		if d.Allowed != c.ok || !strings.Contains(d.Reason, c.why) {
 			t.Errorf("%s -> %s: %v %q, want %v %q", c.from, c.to, d.Allowed, d.Reason, c.ok, c.why)
 		}
@@ -184,6 +195,7 @@ func TestLeadAuditorAndRoleOfAnAgent(t *testing.T) {
 	d.Exec("UPDATE agents SET reports_to = (SELECT 'a' || id FROM agents WHERE name = 'dev' AND workspace = 1) WHERE name = 'review'")
 	d.Exec("UPDATE agents SET role = 'check' WHERE name = 'auditor'")
 	tm, _ := LoadTeam(home)
+	k := keyer(home)
 	for _, c := range []struct{ agent, lead, auditor, role string }{
 		{"web.dev", "web", "web.auditor", RoleWork},
 		{"web.review", "web.dev", "web.auditor", RoleWork},
@@ -191,11 +203,11 @@ func TestLeadAuditorAndRoleOfAnAgent(t *testing.T) {
 		{"ops.dev", "ops", "", RoleWork},
 		{"web", "", "web.auditor", RoleWork},
 	} {
-		if l, a, ro := tm.LeadOf(c.agent), tm.AuditorOf(c.agent), tm.TaskRole(c.agent); l != c.lead || a != c.auditor || ro != c.role {
+		if l, a, ro := tm.LeadOf(k(c.agent)), tm.AuditorOf(k(c.agent)), tm.TaskRole(k(c.agent)); l != k(c.lead) || a != k(c.auditor) || ro != c.role {
 			t.Errorf("%s: lead %q auditor %q role %s, want %q %q %s", c.agent, l, a, ro, c.lead, c.auditor, c.role)
 		}
 	}
-	if tm.ManagerOf("web.review") != "web" || tm.TeamOf("ops.dev") != "ops" || strings.Join(tm.Members("ops"), ",") != "ops,ops.dev" {
+	if tm.ManagerOf(k("web.review")) != k("web") || tm.TeamOf(k("ops.dev")) != "ops" || strings.Join(tm.Members("ops"), ",") != k("ops")+","+k("ops.dev") {
 		t.Error("manager, workspace or members")
 	}
 	var none *Team
@@ -212,6 +224,7 @@ func TestRemoveAndRename(t *testing.T) {
 	home := newHome(t)
 	r := NewRoster(home)
 	register(t, r, "shop", "shop.ui", "solo")
+	solo := keyer(home)("solo")
 	if err := r.Remove("shop"); err == nil || !strings.Contains(err.Error(), "retire them first") || !IsRefusal(err) {
 		t.Fatalf("a lead with agents went: %v", err)
 	}
@@ -243,7 +256,7 @@ func TestRemoveAndRename(t *testing.T) {
 	if err := r.Remove("shop"); err != nil {
 		t.Fatal(err)
 	}
-	if got := strings.Join(paths.ListAgents(home), ","); got != "alone" {
+	if got := strings.Join(paths.ListAgents(home), ","); got != solo {
 		t.Fatalf("left %s", got)
 	}
 	d, _ := store.Shared(paths.DBFile(home))

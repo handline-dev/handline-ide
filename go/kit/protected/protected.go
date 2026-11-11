@@ -25,8 +25,8 @@ var (
 // ErrNotTheFounder is what a write from an agent's session gets.
 var ErrNotTheFounder = errors.New("this is the founder's to set, from a terminal or the screen, not an agent's")
 
-// Human is the founder as a caller: the owner's key, p1 (db.Human). Goes in base-v2 1b-4.
-const Human = "p1"
+// Human is the founder's own name as a caller: not an agent.
+const Human = "human"
 
 // Store is the protected store kept for one home.
 type Store struct{ Root string }

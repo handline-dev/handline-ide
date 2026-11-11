@@ -137,7 +137,7 @@ func TestWritesAreKeptPerWriterSoTwoDevicesAndTheFounderMayUseOneRequestID(t *te
 		rows.Scan(&c)
 		got = append(got, c)
 	}
-	if len(got) != 3 || got[0] != "device:d1" || got[1] != "device:d2" || got[2] != "human" {
+	if len(got) != 3 || got[0] != "device:d1" || got[1] != "device:d2" || got[2] != Human {
 		t.Fatalf("kept under the writer: %v", got)
 	}
 }
