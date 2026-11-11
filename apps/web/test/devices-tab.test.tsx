@@ -53,12 +53,19 @@ describe('Devices', () => {
   it('lists this device first, then connected, then the rest', () => {
     expect(sortDevices(list as never).map((d) => d.id)).toEqual(['this-browser', 'laptop', 'old-phone']);
     const rows = [...document.querySelectorAll('[data-device]')].map((r) => r.getAttribute('data-device'));
-    expect(rows).toEqual(['this-browser', 'laptop', 'old-phone']);
+    expect(rows).toEqual(['this-browser', 'laptop']);
   });
 
-  it('marks this device and a device not seen for over 30 days', () => {
+  it('folds devices not seen for over 30 days until opened, and revokes them together', async () => {
+    expect(document.querySelector('[data-device="old-phone"]')).toBeNull();
+    const fold = [...document.querySelectorAll('button')].find((b) => b.textContent?.includes('not seen for over 30 days'))!;
+    await act(async () => fold.click());
+    expect(document.querySelector('[data-device="old-phone"]')!.textContent).toContain('Seen 40d ago');
+    expect([...document.querySelectorAll('button')].some((b) => b.textContent === 'Revoke all 1')).toBe(true);
+  });
+
+  it('marks this device and who is connected', () => {
     expect(document.querySelector('[data-device="this-browser"]')!.textContent).toContain('This device');
-    expect(document.querySelector('[data-device="old-phone"]')!.textContent).toContain('stale');
     expect(document.querySelector('[data-device="laptop"]')!.textContent).toContain('Connected');
   });
 

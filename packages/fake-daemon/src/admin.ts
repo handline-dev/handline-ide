@@ -86,6 +86,15 @@ export class FakeAdmin {
       connected: false,
       push: true,
     },
+    ...Array.from({ length: 12 }, (_, i) => ({
+      id: `d${i + 3}`,
+      name: `phone-${(0x3c10 + i * 37).toString(16)}`,
+      role: 'founder' as const,
+      created: '2026-08-01T09:00:00Z',
+      last_seen: `2026-09-${String(1 + i).padStart(2, '0')}T08:00:00Z`,
+      connected: false,
+      push: i % 2 === 0,
+    })),
   ];
   private answers: StandingAnswer[] = [
     { kind: 'trust', key: ['/work/handline.architect'], text: 'trust folder /work/handline.architect' },

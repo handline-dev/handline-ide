@@ -1,15 +1,14 @@
 // Settings > Devices: every device that connects to this computer in one table - this one first, who is connected, when the others were last
 // seen (stale after 30 days), and Revoke behind a confirm that waits for the daemon.
-import { MonitorSmartphone, Plus } from 'lucide-react';
+import { ChevronRight, MonitorSmartphone, Plus } from 'lucide-react';
 import { useState } from 'react';
 import { ago } from '@handline/app-core';
 import type { Device } from '@handline/client';
+import { SettingsPage } from '#src/settings/SettingsPage.tsx';
 import { openPairSheet } from '#src/settings/PairSheet.tsx';
 import { useDevices } from '#src/settings/data/devices.ts';
 import { Button } from '#src/ui/Button.tsx';
 import { ModalFrame, openModal } from '#src/ui/modal.tsx';
-import { Page } from '#src/ui/Page.tsx';
-import { ScrollFade } from '#src/ui/ScrollFade.tsx';
 
 const KIND_WORD = { ios: 'iPhone / iPad', android: 'Android', web: 'Browser', desktop: 'Desktop' } as const;
 
@@ -29,18 +28,28 @@ function seen(d: Row) {
   if (!d.last_seen) return <span className="text-muted">Never seen</span>;
   return (
     <span className={d.stale ? 'text-warning' : 'text-muted'}>
-      Seen {ago(d.last_seen)} ago{d.stale ? ' · stale' : ''}
+      Seen {ago(d.last_seen)} ago
     </span>
   );
 }
 
 /** The confirm waits for the daemon: it stays, dimmed, until the answer, and a refusal says why in it. */
-function Revoke({ d, close, revoke }: { d: Row; close: () => void; revoke: (id: string) => Promise<unknown> }) {
+function RevokeConfirm({
+  title,
+  text,
+  go,
+  close,
+}: {
+  title: string;
+  text: string;
+  go: () => Promise<unknown>;
+  close: () => void;
+}) {
   const [busy, setBusy] = useState(false);
   const [why, setWhy] = useState('');
   return (
     <ModalFrame
-      title={`Revoke ${d.name}?`}
+      title={title}
       size="sm"
       onClose={busy ? undefined : close}
       footer={
@@ -54,7 +63,7 @@ function Revoke({ d, close, revoke }: { d: Row; close: () => void; revoke: (id: 
             onClick={() => {
               setBusy(true);
               setWhy('');
-              revoke(d.id).then(close, (e: unknown) => (setWhy(String(e)), setBusy(false)));
+              go().then(close, (e: unknown) => (setWhy(String(e)), setBusy(false)));
             }}
           >
             {busy ? 'Revoking…' : 'Revoke'}
@@ -62,10 +71,7 @@ function Revoke({ d, close, revoke }: { d: Row; close: () => void; revoke: (id: 
         </>
       }
     >
-      <p>
-        {d.current ? 'This is the device you are using: it loses its access at once. ' : `${d.name} loses its access at once. `}
-        To use it again it has to be paired anew.
-      </p>
+      <p>{text}</p>
       {why && (
         <p className="pt-2 text-xs text-danger" role="alert">
           {why}
@@ -75,63 +81,103 @@ function Revoke({ d, close, revoke }: { d: Row; close: () => void; revoke: (id: 
   );
 }
 
+const again = 'To use it again it has to be paired anew.';
+
+function DeviceRow({ d, pending, revoke }: { d: Row; pending: boolean; revoke: (id: string) => Promise<unknown> }) {
+  return (
+    <div data-device={d.id} className={`flex items-center gap-3 px-4 py-3 text-sm ${pending ? 'opacity-50' : ''}`}>
+      <MonitorSmartphone size={16} className="shrink-0 text-muted" />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span className="[overflow-wrap:anywhere]">{d.name}</span>
+          {d.current && <span className="rounded-full border border-border px-2 text-xs text-muted">This device</span>}
+        </div>
+        {(d.kind || d.client) && <div className="text-xs text-muted">{[d.kind && KIND_WORD[d.kind], d.client].filter(Boolean).join(' · ')}</div>}
+      </div>
+      <span className="shrink-0">{seen(d)}</span>
+      <Button
+        disabled={pending}
+        aria-label={`Revoke ${d.name}`}
+        title="Takes this device's access away"
+        onClick={() =>
+          void openModal<void>((close) => (
+            <RevokeConfirm
+              title={`Revoke ${d.name}?`}
+              text={`${d.current ? 'This is the device you are using: it loses its access at once.' : `${d.name} loses its access at once.`} ${again}`}
+              go={() => revoke(d.id)}
+              close={() => close()}
+            />
+          ))
+        }
+      >
+        Revoke
+      </Button>
+    </div>
+  );
+}
+
 export function DevicesTab() {
   const q = useDevices();
   const rows = sortDevices(q.devices);
+  const [showOld, setShowOld] = useState(false);
+  const recent = rows.filter((d) => !d.stale);
+  const old = rows.filter((d) => d.stale);
+  const list = (items: Row[]) => (
+    <div className="divide-y divide-border rounded-lg border border-border">
+      {items.map((d) => (
+        <DeviceRow key={d.id} d={d} pending={q.pending !== null} revoke={q.revoke} />
+      ))}
+    </div>
+  );
   return (
-    <ScrollFade keep="settings-devices" className="min-h-0 flex-1">
-      <Page>
-        <div className="flex items-center justify-between gap-3 py-4">
-          <p className="text-sm text-muted">Browsers and phones that connect to this computer. They run no agents.</p>
-          <Button variant="primary" onClick={() => void openPairSheet()}>
-            <Plus size={14} />
-            Connect a device
-          </Button>
+    <SettingsPage
+      keep="settings-devices"
+      title="Devices"
+      note="Browsers and phones that connect to this computer. They run no agents."
+      action={
+        <Button variant="primary" onClick={() => void openPairSheet()}>
+          <Plus size={14} />
+          Connect a device
+        </Button>
+      }
+    >
+      {q.loading && <p className="text-sm text-muted">Loading devices…</p>}
+      {q.error && <p className="text-sm text-danger">Devices did not load.</p>}
+      {!q.loading && !q.error && rows.length === 0 && <p className="text-sm text-muted">No devices yet.</p>}
+      {recent.length > 0 && list(recent)}
+      {old.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-3 text-sm">
+            <button
+              type="button"
+              aria-expanded={showOld}
+              onClick={() => setShowOld((v) => !v)}
+              className="flex flex-1 items-center gap-2 text-left text-muted hover:text-fg"
+            >
+              <ChevronRight size={14} className={showOld ? 'rotate-90' : ''} />
+              {old.length} not seen for over 30 days
+            </button>
+            <Button
+              disabled={q.pending !== null}
+              onClick={() =>
+                void openModal<void>((close) => (
+                  <RevokeConfirm
+                    title={`Revoke ${old.length} devices?`}
+                    text={`The ${old.length} devices not seen for over 30 days lose their access at once. ${again}`}
+                    go={async () => {
+                      for (const d of old) await q.revoke(d.id);
+                    }}
+                    close={() => close()}
+                  />
+                ))
+              }
+            >
+              Revoke all {old.length}
+            </Button>
+          </div>
+          {showOld && list(old)}
         </div>
-        {q.loading && <p className="text-sm text-muted">Loading devices…</p>}
-        {q.error && <p className="text-sm text-danger">Devices did not load.</p>}
-        {!q.loading && !q.error && rows.length === 0 && <p className="text-sm text-muted">No devices yet.</p>}
-        {rows.length > 0 && (
-          <table className="w-full text-sm">
-            <thead className="text-left text-xs text-muted">
-              <tr>
-                <th className="py-2 font-medium">Device</th>
-                <th className="py-2 font-medium">Status</th>
-                <th className="py-2" />
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((d) => (
-                <tr key={d.id} data-device={d.id} className={`border-t border-border ${q.pending === d.id ? 'opacity-50' : ''}`}>
-                  <td className="py-2.5 pr-3">
-                    <span className="flex items-center gap-2">
-                      <MonitorSmartphone size={16} className="shrink-0 text-muted" />
-                      <span className="[overflow-wrap:anywhere]">{d.name}</span>
-                      {d.current && <span className="rounded-full border border-border px-2 text-xs text-muted">This device</span>}
-                    </span>
-                    {(d.kind || d.client) && (
-                      <span className="block pl-6 text-xs text-muted">
-                        {[d.kind && KIND_WORD[d.kind], d.client].filter(Boolean).join(' · ')}
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-2.5 pr-3">{seen(d)}</td>
-                  <td className="py-2.5 text-right">
-                    <Button
-                      variant="ghost"
-                      disabled={q.pending !== null}
-                      aria-label={`Revoke ${d.name}`}
-                      onClick={() => void openModal<void>((close) => <Revoke d={d} close={() => close()} revoke={q.revoke} />)}
-                    >
-                      Revoke
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </Page>
-    </ScrollFade>
+      )}
+    </SettingsPage>
   );
 }

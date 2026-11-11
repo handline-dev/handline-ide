@@ -81,7 +81,7 @@ function Frame() {
             </button>
           ))}
         </nav>
-        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto pt-8">
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto ">
           {section === 'accounts' && <AccountsTab focus={to.account} />}
           {section === 'machine' && <MachineTab />}
           {section === 'devices' && <DevicesTab />}
