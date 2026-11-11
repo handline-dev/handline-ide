@@ -1078,15 +1078,16 @@ func promptItemOf(agent string, b row) map[string]any {
 // gave it back, an @human comment.
 var commentCardKinds = []string{"memo_add", "task_turn_ask", "task_turn_pop", "task_turn_push"}
 
-// commentBodySQL is, on an events row, the text of the comment its payload names (memo_body), and whether a turn on the founder was handed
-// over with that comment after it (turned): its turn card shows it, so an @human comment draws no note card too.
+// commentBodySQL is, on an events row, the text of the comment its payload names (memo_body), and for a comment whether a turn on the
+// founder hangs on it (turned). The turn lookup seeks events_kind_task by the comment's task.
 const commentBodySQL = "(SELECT body FROM task_memos WHERE id = json_extract(payload, '$.memo')) AS memo_body, " +
-	"(kind = 'memo_add' AND EXISTS (SELECT 1 FROM events t WHERE t.id > events.id AND t.kind IN ('task_turn_push', 'task_turn_ask') " +
-	"AND json_extract(t.payload, '$.memo') = json_extract(events.payload, '$.memo') " +
-	"AND 'human' IN (json_extract(t.payload, '$.to'), json_extract(t.payload, '$.agent')))) AS turned"
+	"CASE WHEN kind = 'memo_add' THEN EXISTS (SELECT 1 FROM events t WHERE t.kind IN ('task_turn_push', 'task_turn_ask') " +
+	"AND CASE WHEN json_valid(t.payload) THEN json_extract(t.payload, '$.task_id') END = json_extract(events.payload, '$.task_id') " +
+	"AND t.id > events.id AND json_extract(t.payload, '$.memo') = json_extract(events.payload, '$.memo') " +
+	"AND 'human' IN (json_extract(t.payload, '$.to'), json_extract(t.payload, '$.agent'))) ELSE 0 END AS turned"
 
 // commentCardOf is an event as a task_comment item and the agent whose chat shows it; false for an event that is none. A turn put on the
-// founder (or asked again) is in the chat of the agent below it, the founder's comment that gives it back in the chat of the agent it returns to, an @human
+// founder is in the chat of the agent below it, the founder's comment that gives it back in the chat of the agent it returns to, an @human
 // comment in its author's chat. The text is the comment's as it reads now.
 func commentCardOf(ev row) (item map[string]any, agent string, ok bool) {
 	p := decodeObject(ev.str("payload"))
@@ -1094,13 +1095,8 @@ func commentCardOf(ev row) (item map[string]any, agent string, ok bool) {
 	memo, _ := rpc.AsInt(p["memo"])
 	var kind, words string
 	switch ev.str("kind") {
-	case "task_turn_push":
-		if text(p["to"]) != human {
-			return nil, "", false
-		}
-		kind, agent, words = "turn", ev.str("agent"), text(p["ask"])
-	case "task_turn_ask":
-		if text(p["agent"]) != human {
+	case "task_turn_push", "task_turn_ask": // a push names who it puts on in to, a reask in agent
+		if text(p["to"]) != human && text(p["agent"]) != human {
 			return nil, "", false
 		}
 		kind, agent, words = "turn", ev.str("agent"), text(p["ask"])

@@ -280,7 +280,7 @@ func memoAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, err
 				if pushed, asked, err = pushTurn(tx, tell, tid, c.Caller.Actor(), to, body, mid, onPass, evidence); err != nil {
 					return nil, err
 				}
-				if !asked.OK {
+				if !asked.OK { // the comment and the denied ask roll back together: a refused comment is not left on the task
 					return nil, refusal(asked.Msg)
 				}
 				if asked.Reask {
@@ -461,7 +461,7 @@ func memoDelete(tell Teller) func(*rpc.Conn, map[string]any) (any, error) {
 				return nil, err
 			}
 			if hung > 0 {
-				return nil, refusal(fmt.Sprintf("comment %d is what a turn on T%d asks: edit it, or take the turn off first", mid, tid))
+				return nil, refusal(fmt.Sprintf("comment %d is what a turn on T%d asks: edit it instead; the turn comes off with its answer", mid, tid))
 			}
 			if err := db.DeleteMemo(tx, mid, c.Caller.Actor()); err != nil {
 				return nil, err
