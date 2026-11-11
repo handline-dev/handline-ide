@@ -149,3 +149,29 @@ func AccountKeyReadOnly(home, name string) (string, error) {
 	defer d.Close()
 	return AccountKeyIn(d, name)
 }
+
+// WorkspaceKey is who's key: who itself when it is a workspace's key, else the key of the workspace named who; "" when none is, or
+// the workspaces table cannot be read.
+func WorkspaceKey(home, who string) string { return keyOf(home, who, actor.Workspace, WorkspaceKeyIn) }
+
+// WorkspaceKeyIn is the key of the workspace named name, read through q: "" and no error when none is.
+func WorkspaceKeyIn(q rowQ, name string) (string, error) {
+	var id int64
+	err := q.QueryRow("SELECT id FROM workspaces WHERE name = ?", name).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return actor.Key(actor.Workspace, id), nil
+}
+
+// WorkspaceDir is the workspace's folder, workspaces/<key>; who is its key or its name. A name not
+// looked up gets workspaces/.unregistered/<name>.
+func WorkspaceDir(home, who string) string {
+	if k := WorkspaceKey(home, who); k != "" {
+		return filepath.Join(home, "workspaces", k)
+	}
+	return filepath.Join(home, "workspaces", Unregistered, who)
+}

@@ -746,7 +746,7 @@ func TestAnAgentIsToldItsTeamFromTheRoster(t *testing.T) {
 		"Check main before you assign", "founder's own words", "Finding the bottleneck is your job"}
 	// A team that empties its rules file is not seeded again: it gets only the facts.
 	context("lone")
-	if err := os.Remove(filepath.Join(home, "shared", "team", "lone.md")); err != nil {
+	if err := os.Remove(team.RulesFile(home, "lone")); err != nil {
 		t.Fatal(err)
 	}
 	mgr, dev, scout := context("manager"), context("manager.marina"), context("lone")
