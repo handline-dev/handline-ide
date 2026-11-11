@@ -4,7 +4,7 @@
     python3 tools/go_schema.py --check  exit 1 if manifest.json and the .sql files disagree
 
 The migrations are the schema's source. manifest.json lists (version, name, additive) for the Go store, which learns its steps
-from it alone: versions run 1, 2, 3, ... and every step has its <version>_<name>.sql file, with no other .sql file beside them."""
+from it alone: versions run 100, 101, 102, ... and every step has its <version>_<name>.sql file, with no other .sql file beside them."""
 import json
 import sys
 from pathlib import Path
@@ -15,7 +15,7 @@ OUT = Path(__file__).resolve().parent.parent / "go" / "kit" / "store" / "migrati
 def problems() -> list[str]:
     steps = json.loads((OUT / "manifest.json").read_text())
     out = []
-    for i, s in enumerate(steps, 1):
+    for i, s in enumerate(steps, 100):
         if s["version"] != i:
             out.append(f"step {i} is numbered {s['version']}")
         if not (OUT / f"{s['version']:04d}_{s['name']}.sql").is_file():

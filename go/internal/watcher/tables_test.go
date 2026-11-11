@@ -226,7 +226,7 @@ func TestEachDetectorTouchesOnlyTheTablesItNames(t *testing.T) {
 var noisyEvents = []string{"verb_chain", "rpc_write", "UserPromptSubmit", "Stop", "SubagentStop", "notified", "SessionStart", "SessionEnd"}
 
 func TestNoDetectorReadsAnEventKindTheMigrationLeavesUncounted(t *testing.T) {
-	migration, err := os.ReadFile("../../kit/store/migrations/0034_table_changes.sql")
+	migration, err := os.ReadFile("../../kit/store/migrations/0100_base.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

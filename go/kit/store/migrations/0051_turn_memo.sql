@@ -1,1 +1,0 @@
--- task_turns.memo (added in store.go, addTurnMemo): the comment a turn was handed over with, its message; NULL on a turn pushed before.

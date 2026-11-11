@@ -7,7 +7,8 @@ module of this repo; the daemon at `go/` requires it with a `replace` to this fo
 |---|---|
 | `paths` | The Handline home's layout, the live-home guard, the tmux server name and the scratch root |
 | `protected`, `sealed` | What only the founder may say, kept where no agent can write it; team.yaml and agent.yaml sealed |
-| `store` | Opens the daemon's sqlite database and brings its schema up (migrations and their manifest) |
+| `store` | Opens the daemon's sqlite database and brings its schema up (the base and later steps, with their manifest) |
+| `actor`, `names` | The keys that name a who (`p1`, `a17`) and the owner at first start; the rules for workspace names, agent names and handles |
 | `yamlcompat`, `textsafe`, `timefmt` | YAML as Python wrote it, text with no terminal controls, times as shown |
 | `policy`, `pyjson` | How long things are kept or wait, in one place; JSON written as Python's json.dumps writes it |
 | `storetest` | A migrated database for a test, the schema built once per test binary |

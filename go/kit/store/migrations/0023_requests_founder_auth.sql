@@ -1,1 +1,0 @@
--- Step 23 (requests_founder_auth) is by hand: addFounderAuth in store.go.

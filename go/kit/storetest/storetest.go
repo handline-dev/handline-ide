@@ -9,6 +9,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/store"
 )
 
@@ -18,7 +19,11 @@ var (
 	templErr error
 )
 
-// migrated is the file store.Open leaves for a new database: schema at the latest version, WAL checkpointed away by the close.
+// Owner is the display name of the owner every test database has, p1.
+const Owner = "Owner"
+
+// migrated is a new database as the daemon's first start leaves it: schema at the latest version and the owner, p1, made; WAL
+// checkpointed away by the close.
 func migrated() ([]byte, error) {
 	once.Do(func() {
 		dir, err := os.MkdirTemp("", "storetest")
@@ -31,6 +36,10 @@ func migrated() ([]byte, error) {
 		d, err := store.Open(path)
 		if err != nil {
 			templErr = err
+			return
+		}
+		if _, templErr = actor.EnsureOwner(d, func() string { return Owner }); templErr != nil {
+			d.Close()
 			return
 		}
 		if templErr = d.Close(); templErr == nil {
