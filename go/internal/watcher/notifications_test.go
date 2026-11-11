@@ -49,7 +49,7 @@ func TestNotificationsAreSaidOnceFromTheCursorsAndHistoryIsNotNews(t *testing.T)
 	if len(got) != 4 {
 		t.Fatalf("%d rows: %+v", len(got), got)
 	}
-	if got[0].Type != "task_done" || string(got[0].Data) != `{"from_founder":true,"reporter":"human","task":7,"task_title":"t"}` || *got[0].Title != "task 7 done" || string(got[0].Target) != `{"id":"7","screen":"task"}` || *got[0].Agent != "bob" {
+	if got[0].Type != "task_done" || string(got[0].Data) != `{"from_founder":true,"reporter":"p1","task":7,"task_title":"t"}` || *got[0].Title != "task 7 done" || string(got[0].Target) != `{"id":"7","screen":"task"}` || *got[0].Agent != "bob" {
 		t.Fatalf("%+v %s", got[0], got[0].Data)
 	}
 	if got[1].Type != "account_out" || string(got[1].Data) != `{"account":"main"}` || *got[1].Title != "main needs logging in" || string(got[1].Target) != `{"id":"main","screen":"account"}` {
@@ -86,7 +86,7 @@ func TestARestartResumesFromTheCursorsNothingRepeatedNothingLostWhileDown(t *tes
 		t.Fatal(err)
 	}
 	got := notes(t, l)
-	if len(got) != 3 || string(got[1].Data) != `{"from_founder":true,"reporter":"human","task":2,"task_title":"t"}` || got[2].Type != "prompt_asked" {
+	if len(got) != 3 || string(got[1].Data) != `{"from_founder":true,"reporter":"p1","task":2,"task_title":"t"}` || got[2].Type != "prompt_asked" {
 		t.Fatalf("%d rows: %+v", len(got), got)
 	}
 	if err := second.Scan(d, emit); err != nil || len(notes(t, l)) != 3 {
@@ -117,7 +117,7 @@ func TestAFailedEmitDoesNotRepeatTheRowsBeforeIt(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := notes(t, l)
-	if len(got) != 3 || string(got[0].Data) != `{"from_founder":true,"reporter":"human","task":1,"task_title":"t"}` || string(got[1].Data) != `{"from_founder":true,"reporter":"human","task":2,"task_title":"t"}` || string(got[2].Data) != `{"from_founder":true,"reporter":"human","task":3,"task_title":"t"}` {
+	if len(got) != 3 || string(got[0].Data) != `{"from_founder":true,"reporter":"p1","task":1,"task_title":"t"}` || string(got[1].Data) != `{"from_founder":true,"reporter":"p1","task":2,"task_title":"t"}` || string(got[2].Data) != `{"from_founder":true,"reporter":"p1","task":3,"task_title":"t"}` {
 		t.Fatalf("%d rows", len(got))
 	}
 }
@@ -185,10 +185,10 @@ func TestATaskDoneCarriesTheTasksTitleAndTheFirstLineOfItsEvidence(t *testing.T)
 		t.Fatal(err)
 	}
 	want := []string{
-		`{"from_founder":true,"reporter":"human","result":"built and tested","task":7,"task_title":"task 7"}`,
-		`{"from_founder":true,"reporter":"human","task":8,"task_title":"task 8"}`,
-		`{"from_founder":true,"reporter":"human","result":"` + long[:2*resultCap] + `","task":9,"task_title":"task 9"}`,
-		`{"from_founder":true,"reporter":"human","result":"first","task":10}`,
+		`{"from_founder":true,"reporter":"p1","result":"built and tested","task":7,"task_title":"task 7"}`,
+		`{"from_founder":true,"reporter":"p1","task":8,"task_title":"task 8"}`,
+		`{"from_founder":true,"reporter":"p1","result":"` + long[:2*resultCap] + `","task":9,"task_title":"task 9"}`,
+		`{"from_founder":true,"reporter":"p1","result":"first","task":10}`,
 	}
 	got := notes(t, l)
 	if len(got) != len(want) {
@@ -240,8 +240,8 @@ func TestATaskDoneSaysWhoTheTaskAnswersToAndWhetherTheFounderGaveIt(t *testing.T
 		t.Fatal(err)
 	}
 	want := []string{
-		`{"from_founder":true,"reporter":"human","task":2,"task_title":"t"}`,
-		`{"from_founder":true,"reporter":"human","task":4,"task_title":"t"}`,
+		`{"from_founder":true,"reporter":"p1","task":2,"task_title":"t"}`,
+		`{"from_founder":true,"reporter":"p1","task":4,"task_title":"t"}`,
 	}
 	got := notes(t, l)
 	if len(got) != len(want) {

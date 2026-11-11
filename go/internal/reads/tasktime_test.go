@@ -130,7 +130,7 @@ func TestTheFoundersTurnAndAnOpenChildAreWaits(t *testing.T) {
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'a', 'bob', 'amy', 100)")
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, parent_task, done_at) VALUES(2, 'part', 'cy', 'bob', 300, 1, 350)")
 	run(t, e, `INSERT INTO events(ts, agent, kind, payload) VALUES(100, 'bob', 'task_start', '{"task_id": 1}'),
-		(150, 'bob', 'task_turn_push', '{"task_id": 1, "to": "human"}'), (250, 'p1', 'task_turn_pop', '{"task_id": 1, "agent": "human"}')`)
+		(150, 'bob', 'task_turn_push', '{"task_id": 1, "to": "p1"}'), (250, 'p1', 'task_turn_pop', '{"task_id": 1, "agent": "p1"}')`)
 	wantSegments(t, e, 1, 400, "working  100-150", "waiting needs you 150-250", "working  250-300", "waiting waiting on T2 300-350", "working  350-400")
 }
 
@@ -153,8 +153,8 @@ func TestTheBoxSplitsWhatItsClockRanSinceItLastStartedOver(t *testing.T) {
 		(150, 'amy', 'release_task', '{"task_id": 1}'),
 		(200, 'bob', 'task_start', '{"task_id": 1}'),
 		(300, 'bob', 'launching', '{}'), (310, 'bob', 'SessionStart', '{}'),
-		(400, 'bob', 'task_turn_push', '{"task_id": 1, "to": "human"}'),
-		(900, 'p1', 'task_turn_pop', '{"task_id": 1, "agent": "human"}'),
+		(400, 'bob', 'task_turn_push', '{"task_id": 1, "to": "p1"}'),
+		(900, 'p1', 'task_turn_pop', '{"task_id": 1, "agent": "p1"}'),
 		(950, 'bob', 'task_turn_push', '{"task_id": 1, "to": "rev"}')`)
 	got, err := e.taskTimeAt(1, 1000)
 	if err != nil {

@@ -52,7 +52,7 @@ func TestTasksListFiltersOnTagsAndTheOtherFieldsTogether(t *testing.T) {
 		{map[string]any{"tags": tags("ops")}, "[]"},
 		{map[string]any{"tags": tags("fe"), "owner": "bob"}, "[2 1]"},
 		{map[string]any{"reporter": "cy"}, "[2]"},
-		{map[string]any{"reporter": "human"}, "[4]"},
+		{map[string]any{"reporter": "p1"}, "[4]"},
 		{map[string]any{"from": "cat"}, "[5]"},
 		{map[string]any{"state": "done", "tags": tags("fe")}, "[3]"},
 		{map[string]any{"under": json.Number("1")}, "[4 1]"},
@@ -111,8 +111,8 @@ func TestSavedViewsAreListedByNameWithTheirFilters(t *testing.T) {
 		t.Fatal(err)
 	}
 	b, _ := json.Marshal(got)
-	want := `{"views":[{"at":"1970-01-01T00:00:06Z","by":"human","filter":{"state":"doing","tags":["fe"]},"name":"fe work"},` +
-		`{"at":"1970-01-01T00:00:05Z","by":"human","filter":{},"name":"z"}]}`
+	want := `{"views":[{"at":"1970-01-01T00:00:06Z","by":"p1","filter":{"state":"doing","tags":["fe"]},"name":"fe work"},` +
+		`{"at":"1970-01-01T00:00:05Z","by":"p1","filter":{},"name":"z"}]}`
 	if string(b) != want {
 		t.Fatalf("%s", b)
 	}

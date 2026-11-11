@@ -77,7 +77,7 @@ func TestHealthCountsAnAgentWaitingOnEachAccountReason(t *testing.T) {
 	for reason, line := range map[string]string{"cap": "no free slot", "wall": "a usage limit", "pace": "the weekly pace", "load": ""} {
 		e := testEnv(t)
 		teamtest.Seed(t, e.Home, "bob")
-		run(t, e, `INSERT INTO agent_view(agent, view, updated) VALUES('bob', ?, 1)`,
+		run(t, e, `INSERT INTO agent_view(agent, view, updated) VALUES(?, ?, 1)`, teamtest.Key(t, e.Home, "bob"),
 			`{"status":{"state":"stopped","reason":"`+reason+`","text":"ahead of pace by 12%"}}`)
 		h, err := e.Health()
 		if err != nil {
