@@ -3,7 +3,7 @@
   {
    "name": "task.comment.add.turn_and_pop_refusals",
    "spec": "task.comment.add",
-   "about": "On a task the founder opened for one agent: a push to its owner is refused, a push of an agent already on it is refused, a fourth turn is refused, and an agent that is neither the top turn's nor the founder may not pop it. The discard at the end clears the turns.",
+   "about": "On a task the founder opened for one agent: a push to its owner is refused, a push of an agent already on it is refused, the founder's comment with a turn is refused while their own turn is on top, and an agent that is neither the top turn's nor the founder may not pop it. The discard at the end clears the turns.",
    "as": "agent",
    "with": {
     "founder": "founder"
@@ -19,13 +19,7 @@
        "protocol": 1
       }
      },
-     "result": {
-      "caller": {
-       "name": {
-        "$save": "me"
-       }
-      }
-     }
+     "result": {}
     },
     {
      "send": {
@@ -126,7 +120,7 @@
       "params": {
        "task": "{{tid}}",
        "text": "over to you",
-       "turn": "{{ask_agent}}",
+       "turn": "human",
        "request_id": "conf-turn-6"
       }
      },
@@ -143,7 +137,7 @@
       "params": {
        "task": "{{tid}}",
        "text": "over to you",
-       "turn": "{{me}}",
+       "turn": "{{ask_agent}}",
        "request_id": "conf-turn-7"
       }
      },
