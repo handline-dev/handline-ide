@@ -38,9 +38,13 @@ export function Popover({
           sideOffset={corner ? 0 : 4}
           collisionPadding={corner ? 0 : 8}
           anchor={corner}
+          // In the corner it never flips: at page zoom the bar ends a fraction of a pixel past the window, which would flip it to the left.
+          collisionAvoidance={corner ? { side: 'none', align: 'shift', fallbackAxisSide: 'none' } : undefined}
           className="z-50"
         >
-          <P.Popup className={`${floatingSurface} p-3 text-sm ${corner ? 'rounded-b-none rounded-tr-none border-r-0 border-b-0' : ''}`}>
+          <P.Popup
+            className={`${floatingSurface} p-3 text-sm ${corner ? 'max-h-(--available-height) overflow-y-auto rounded-b-none rounded-tr-none border-r-0 border-b-0' : ''}`}
+          >
             {children}
           </P.Popup>
         </P.Positioner>
