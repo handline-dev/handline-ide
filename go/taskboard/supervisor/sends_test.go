@@ -59,7 +59,7 @@ func TestAReplyToTheFoundersRequestNeedsNoTask(t *testing.T) {
 		t.Fatalf("%+v", out)
 	}
 	var n int
-	r.must(r.DB.QueryRow("SELECT COUNT(*) FROM requests WHERE requester = 'alice' AND parent_id = ?", ask).Scan(&n))
+	r.must(r.DB.QueryRow(r.sql("SELECT COUNT(*) FROM requests WHERE requester = 'alice' AND parent_id = ?"), ask).Scan(&n))
 	if n != 1 {
 		t.Fatalf("the reply is in the thread: %d", n)
 	}
@@ -164,7 +164,7 @@ func TestASayToTheFounderThatNamesAMessageIsRefusedAndAsksForWords(t *testing.T)
 	r.agentUp(r.k("bob"))
 	r.say(SayVerbIn{Requester: r.k(("alice")), Target: r.k(("bob")), Body: "first"})
 	var ref string
-	r.DB.QueryRow("SELECT ref FROM requests WHERE id = 1").Scan(&ref)
+	r.DB.QueryRow(r.sql("SELECT ref FROM requests WHERE id = 1")).Scan(&ref)
 	for _, body := range []string{"done, see msg_0123456", "as in " + ref[:8] + " earlier", "re " + strings.ToUpper(ref)} {
 		out := r.say(SayVerbIn{Requester: r.k(("alice")), Target: db.Human, Body: body})
 		if out.OK || !strings.Contains(out.Msg, "say in words what that message was about") {

@@ -108,15 +108,15 @@ func TestAdvanceRecordsARefusedDeliveryOnceAndTellsTheManager(t *testing.T) {
 		t.Fatal(cur)
 	}
 	var n int
-	r.DB.QueryRow("SELECT COUNT(*) FROM events WHERE kind = 'task_deliver_refused'").Scan(&n)
+	r.DB.QueryRow(r.sql("SELECT COUNT(*) FROM events WHERE kind = 'task_deliver_refused'")).Scan(&n)
 	r.AdvanceCurrentTask(r.DB, "eng.bob")
 	var m int
-	r.DB.QueryRow("SELECT COUNT(*) FROM events WHERE kind = 'task_deliver_refused'").Scan(&m)
+	r.DB.QueryRow(r.sql("SELECT COUNT(*) FROM events WHERE kind = 'task_deliver_refused'")).Scan(&m)
 	if n != 1 || m != 1 {
 		t.Fatalf("a permanent refusal fills the log: %d %d", n, m)
 	}
 	var told int
-	r.DB.QueryRow("SELECT COUNT(*) FROM requests WHERE requester = ? AND target = 'eng' AND body LIKE ?", db.NoticeRequester, fmt.Sprintf("T%d could not be delivered%%", tid)).Scan(&told)
+	r.DB.QueryRow(r.sql("SELECT COUNT(*) FROM requests WHERE requester = ? AND target = 'eng' AND body LIKE ?"), db.NoticeRequester, fmt.Sprintf("T%d could not be delivered%%", tid)).Scan(&told)
 	if told != 1 {
 		t.Fatalf("the refusal was told %d times", told)
 	}
@@ -222,7 +222,7 @@ func TestADoneBlockerReleasesOncePerFinishAndAChildsResultIsNotTold(t *testing.T
 		t.Fatalf("%v", freed)
 	}
 	var results int
-	r.DB.QueryRow("SELECT COUNT(*) FROM events WHERE kind = 'child_result_told'").Scan(&results)
+	r.DB.QueryRow(r.sql("SELECT COUNT(*) FROM events WHERE kind = 'child_result_told'")).Scan(&results)
 	if results != 0 || strings.Contains(strings.Join(r.term.typed, "\n"), "done by alice") {
 		t.Fatalf("a child's result that did not fail is not told to the parent's owner: %d %q", results, r.term.typed)
 	}
@@ -236,7 +236,7 @@ func TestADoneBlockerReleasesOncePerFinishAndAChildsResultIsNotTold(t *testing.T
 	// the block row stays for a reopen: no second release for the same finish
 	r.ReleaseEndedBlockers()
 	var released int
-	r.DB.QueryRow("SELECT COUNT(*) FROM events WHERE kind = 'released_at_done'").Scan(&released)
+	r.DB.QueryRow(r.sql("SELECT COUNT(*) FROM events WHERE kind = 'released_at_done'")).Scan(&released)
 	if released != 1 {
 		t.Fatalf("released again for the same finish: %d", released)
 	}
@@ -260,7 +260,7 @@ func TestAnOwnerBusyWithItsCurrentTaskIsStillToldTheUnblock(t *testing.T) {
 	}
 	// chat.transcript draws this event as the freed task's card: the closer is its agent and closed_task the blocker.
 	var events int
-	r.DB.QueryRow("SELECT COUNT(*) FROM events WHERE kind = 'task_unblocked' AND agent = 'carol' AND json_extract(payload, '$.task_id') = ? AND json_extract(payload, '$.closed_task') = ?",
+	r.DB.QueryRow(r.sql("SELECT COUNT(*) FROM events WHERE kind = 'task_unblocked' AND agent = 'carol' AND json_extract(payload, '$.task_id') = ? AND json_extract(payload, '$.closed_task') = ?"),
 		waiting, blocker).Scan(&events)
 	if events != 1 {
 		t.Fatalf("task_unblocked event: %d", events)
@@ -304,7 +304,7 @@ func TestTheUnblockIsStillTypedWhenTheAdvanceSendsSomethingElseOrNothing(t *test
 				t.Fatalf("current %d, want %d", cur, other)
 			}
 			var refusals int
-			r.must(r.DB.QueryRow("SELECT COUNT(*) FROM events WHERE kind = 'task_deliver_refused'").Scan(&refusals))
+			r.must(r.DB.QueryRow(r.sql("SELECT COUNT(*) FROM events WHERE kind = 'task_deliver_refused'")).Scan(&refusals))
 			if refusals != 0 {
 				t.Fatal("the unblock notice made the draft look sent, and its delivery on nobody's behalf was refused")
 			}
@@ -385,7 +385,7 @@ func TestSweepDeliversTheDormantBlockerOfABegunTaskBeforeTheRestOfTheQueue(t *te
 	r.must(err)
 	blocker := r.newTask(r.k("bob"), r.k(("alice")), "the frame the graph follows")
 	other := r.newTask(r.k("bob"), r.k(("alice")), "something else")
-	_, err = r.DB.Exec("INSERT INTO task_blocks(task_id, blocks_on, dormant, created_at) VALUES(?, ?, 1, 1)", held, blocker)
+	_, err = r.DB.Exec(r.sql("INSERT INTO task_blocks(task_id, blocks_on, dormant, created_at) VALUES(?, ?, 1, 1)"), held, blocker)
 	r.must(err)
 	r.must(r.SweepTaskQueue(r.clock))
 	if cur, _, _ := db.CurrentTask(r.DB, r.k(("bob"))); cur != blocker {
@@ -410,7 +410,7 @@ func (r *rig) register(names ...string) { teamtest.Seed(r.t, r.home, names...) }
 // saysTo is the bodies of the says written to agent's inbox.
 func (r *rig) saysTo(agent string) []string {
 	r.t.Helper()
-	rows, err := r.DB.Query("SELECT body FROM requests WHERE target=? AND kind='say' ORDER BY id", r.k(agent))
+	rows, err := r.DB.Query(r.sql("SELECT body FROM requests WHERE target=? AND kind='say' ORDER BY id"), r.k(agent))
 	r.must(err)
 	defer rows.Close()
 	var out []string
@@ -494,7 +494,7 @@ func TestSweepGivesAnAgentItsNextTaskWhileItsBegunTaskWaits(t *testing.T) {
 	r.agentUp(r.k("bob"))
 	held := r.beginCurrent(r.k("bob"), r.k(("alice")), "the review")
 	blocker := r.newTask(r.k("carol"), r.k(("bob")), "the list to review")
-	_, err := r.DB.Exec("INSERT INTO task_blocks(task_id, blocks_on, dormant, created_at) VALUES(?, ?, 0, 1)", held, blocker)
+	_, err := r.DB.Exec(r.sql("INSERT INTO task_blocks(task_id, blocks_on, dormant, created_at) VALUES(?, ?, 0, 1)"), held, blocker)
 	r.must(err)
 	next := r.newTask(r.k("bob"), r.k(("alice")), "the next one")
 	r.newTask(r.k("bob"), r.k(("alice")), "the one after")
@@ -527,7 +527,7 @@ func TestSweepPingsTheIdleHolderOfAnOverdueTaskOncePerNotice(t *testing.T) {
 		t.Fatalf("a task within its timeout pinged its holder: %q", says)
 	}
 	// the clock runs past its end, and its holder was told
-	_, err = r.DB.Exec("UPDATE tasks SET timeout_at = ? WHERE id = ?", row.TimeoutAt.Int64-db.DefaultTaskTimeoutS-60, tid)
+	_, err = r.DB.Exec(r.sql("UPDATE tasks SET timeout_at = ? WHERE id = ?"), row.TimeoutAt.Int64-db.DefaultTaskTimeoutS-60, tid)
 	r.must(err)
 	_, err = db.AddEvent(r.DB, r.k(("bob")), "task_timeout_exceeded", db.KV{K: "task_id", V: tid}, db.KV{K: "over_s", V: 60})
 	r.must(err)
@@ -658,7 +658,7 @@ func TestAMemoKeepsTheTellItSentToEachReader(t *testing.T) {
 	r.must(r.TellMemoOf(r.DB, tid, 8, r.k(("dave")), "added", "@bob look", "", false))
 	count := func(mid int64) int {
 		var n int
-		r.must(r.DB.QueryRow("SELECT COUNT(*) FROM memo_tells WHERE memo_id = ?", mid).Scan(&n))
+		r.must(r.DB.QueryRow(r.sql("SELECT COUNT(*) FROM memo_tells WHERE memo_id = ?"), mid).Scan(&n))
 		return n
 	}
 	if count(8) == 0 {
@@ -666,7 +666,7 @@ func TestAMemoKeepsTheTellItSentToEachReader(t *testing.T) {
 	}
 	r.must(r.TellMemoOf(r.DB, tid, 0, r.k(("dave")), "added", "unlinked", "", false))
 	var n int
-	r.must(r.DB.QueryRow("SELECT COUNT(*) FROM memo_tells WHERE memo_id = 0").Scan(&n))
+	r.must(r.DB.QueryRow(r.sql("SELECT COUNT(*) FROM memo_tells WHERE memo_id = 0")).Scan(&n))
 	if n != 0 {
 		t.Fatal("memo 0 keeps nothing")
 	}
@@ -677,7 +677,7 @@ func TestSayNowWithNoticesCarriesTheWaitingNoticesAndMarksThemDigested(t *testin
 	db.AddRequest(r.DB, db.NewRequest{Requester: db.NoticeRequester, Target: r.k(("bob")), Body: "T9 done by alice: ok", Kind: "say", Notice: true})
 	r.Env.SayNowWithNotices(r.DB, r.k(("bob")), "You hold T1.", "held")
 	var body string
-	if err := r.DB.QueryRow("SELECT body FROM requests WHERE target = 'bob' AND body LIKE 'You hold T1.%'").Scan(&body); err != nil {
+	if err := r.DB.QueryRow(r.sql("SELECT body FROM requests WHERE target = 'bob' AND body LIKE 'You hold T1.%'")).Scan(&body); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(body, "T9 · alice · ok") {

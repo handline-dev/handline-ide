@@ -2,6 +2,8 @@ package supervisor
 
 import (
 	"regexp"
+	"sort"
+	"strings"
 	"testing"
 
 	"github.com/handline/handline/go/data/team/teamtest"
@@ -33,3 +35,21 @@ func namer(home string) func(string) string {
 func (r *rig) k(name string) string                { return keyOf(r.t, r.home, name) }
 func (r *rig) named(s string) string               { return namer(r.home)(s) }
 func keyOf(t testing.TB, home, name string) string { return teamtest.Key(t, home, name) }
+
+// namedQ is QueueDelivered read by name.
+func (r *rig) namedQ(tid int64, by string, queued bool) string { return r.named(r.QueueDelivered(tid, by, queued)) }
+
+// sql is q with each agent named in quotes ('bob', or "bob" in a JSON payload) by its key, longest names first, and 'human' by p1.
+func (r *rig) sql(q string) string {
+	m, _ := paths.AgentKeys(r.home)
+	names := make([]string, 0, len(m))
+	for n := range m {
+		names = append(names, n)
+	}
+	sort.Slice(names, func(i, j int) bool { return len(names[i]) > len(names[j]) })
+	for _, n := range names {
+		q = strings.ReplaceAll(q, "'"+n+"'", "'"+m[n]+"'")
+		q = strings.ReplaceAll(q, `"`+n+`"`, `"`+m[n]+`"`)
+	}
+	return strings.ReplaceAll(strings.ReplaceAll(q, "'human'", "'p1'"), `"human"`, `"p1"`)
+}
