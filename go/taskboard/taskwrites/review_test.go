@@ -23,8 +23,8 @@ func gitIn(t *testing.T, repo string) func(args ...string) string {
 // The tasks reportEnv's w works: T1 the founder asked, T2 boss asked, T3 the founder asked of lead.auditor, T4 the founder asked of mgr
 // (who has no lead).
 var reviewRows = []string{
-	"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'a', 'w', 'human', 1), (2, 'b', 'w', 'boss', 1), " +
-		"(3, 'c', 'lead.auditor', 'human', 1), (4, 'd', 'mgr', 'human', 1)",
+	"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'a', 'w', 'p1', 1), (2, 'b', 'w', 'boss', 1), " +
+		"(3, 'c', 'lead.auditor', 'p1', 1), (4, 'd', 'mgr', 'p1', 1)",
 }
 
 func TestTheAuditorsOwnDoneAndADoneWithNoLeadCloseAtOnce(t *testing.T) {

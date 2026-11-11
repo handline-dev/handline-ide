@@ -73,7 +73,7 @@ func TestASavedViewIsKeptReplacedAndDeletedByName(t *testing.T) {
 			t.Errorf("call %d: %v, want %s", 4+i, got, want)
 		}
 	}
-	if got := count(t, db, `SELECT COUNT(*) FROM task_views WHERE name = 'fe work' AND filter = '{"owner":"worker","tags":["fe"]}' AND updated_by = 'human'`); got != 1 {
+	if got := count(t, db, `SELECT COUNT(*) FROM task_views WHERE name = 'fe work' AND filter = '{"owner":"worker","tags":["fe"]}' AND updated_by = 'p1'`); got != 1 {
 		t.Fatalf("the second save replaces the first under the trimmed name: %d", got)
 	}
 	if got := count(t, db, "SELECT COUNT(*) FROM task_views"); got != 1 {

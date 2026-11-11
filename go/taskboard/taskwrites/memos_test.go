@@ -221,8 +221,8 @@ func TestSendNowTypesAHeldCommentTellOnlyWhileItIsHeld(t *testing.T) {
 	}
 	defer db.Close()
 	for _, q := range []string{
-		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 't', 'worker', 'human', 1)",
-		"INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(1, 1, 'human', 'hi', 1)",
+		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 't', 'worker', 'p1', 1)",
+		"INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(1, 1, 'p1', 'hi', 1)",
 		"INSERT INTO requests(id, ts, requester, target, body, state, kind, notice, landed_at) VALUES(5, 1, 'notices', 'worker', 'b', 'landed', 'say', 2, 1)",
 		"INSERT INTO requests(id, ts, requester, target, body, state, kind, notice, landed_at, read_at) VALUES(6, 1, 'notices', 'amy', 'b', 'landed', 'say', 2, 1, 2)",
 		"INSERT INTO memo_tells(memo_id, reader, request_id) VALUES(1, 'worker', 5), (1, 'amy', 6)",

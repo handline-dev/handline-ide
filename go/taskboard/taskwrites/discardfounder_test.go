@@ -21,9 +21,9 @@ func TestTheFoundersDiscardWithdrawsTheRequestsOutOnTheTask(t *testing.T) {
 	home := t.TempDir()
 	teamtest.Seed(t, home, "w", "w2")
 	for _, q := range []string{
-		"INSERT INTO tasks(id, title, owner, opened_by, created_at, sent_at) VALUES(1, 'a', 'w', 'boss', 1, 5), (2, 'b', 'w2', 'human', 1, 5), (3, 'c', 'human', 'human', 1, 5)",
-		"INSERT INTO requests(id, requester, target, kind, state, ts, body, delivered_at) VALUES(10, 'boss', 'w', 'task', 'queued', 1, 'x', 6), (20, 'human', 'w2', 'task', 'queued', 1, 'x', NULL), " +
-			"(30, 'human', 'human', 'task', 'queued', 1, 'x', NULL)",
+		"INSERT INTO tasks(id, title, owner, opened_by, created_at, sent_at) VALUES(1, 'a', 'w', 'boss', 1, 5), (2, 'b', 'w2', 'p1', 1, 5), (3, 'c', 'p1', 'p1', 1, 5)",
+		"INSERT INTO requests(id, requester, target, kind, state, ts, body, delivered_at) VALUES(10, 'boss', 'w', 'task', 'queued', 1, 'x', 6), (20, 'p1', 'w2', 'task', 'queued', 1, 'x', NULL), " +
+			"(30, 'p1', 'p1', 'task', 'queued', 1, 'x', NULL)",
 		"INSERT INTO task_requests(task_id, request_id) VALUES(1, 10), (2, 20), (3, 30)",
 		"INSERT INTO agent_state(agent, state, updated, current_task) VALUES('w2', 'IDLE', 1, 2)",
 	} {
@@ -49,7 +49,7 @@ func TestTheFoundersDiscardWithdrawsTheRequestsOutOnTheTask(t *testing.T) {
 		t.Fatalf("an agent's discard of a task with a request out: %v", r)
 	}
 	r = discard("c1", 1)
-	if r["error"] != nil || r["result"].(map[string]any)["said"] != "task T1 discarded by human: Discarded" {
+	if r["error"] != nil || r["result"].(map[string]any)["said"] != "task T1 discarded by "+rpc.Human+": Discarded" {
 		t.Fatalf("discard: %v", r)
 	}
 	if count("SELECT COUNT(*) FROM requests WHERE id = 10 AND state = 'landed' AND queue_order IS NULL") != 1 ||
@@ -70,7 +70,7 @@ func TestTheFoundersDiscardWithdrawsTheRequestsOutOnTheTask(t *testing.T) {
 
 	// The founder's own task: its request is its card, and withdrawing the card is part of this discard, not someone else's.
 	r = discard("c3", 3)
-	if r["error"] != nil || r["result"].(map[string]any)["said"] != "task T3 discarded by human: Discarded" {
+	if r["error"] != nil || r["result"].(map[string]any)["said"] != "task T3 discarded by "+rpc.Human+": Discarded" {
 		t.Fatalf("a founder-owned task: %v", r)
 	}
 	if count("SELECT COUNT(*) FROM tasks WHERE id = 3 AND discard_reason = 'Discarded'") != 1 ||

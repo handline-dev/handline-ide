@@ -16,7 +16,7 @@ func oldAsk(t *testing.T, db *sql.DB, tid, mid int64, body string) {
 	t.Helper()
 	for _, q := range []string{
 		fmt.Sprintf("INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(%d, %d, 'worker', %q, 1)", mid, tid, body),
-		fmt.Sprintf("INSERT INTO requests(id, requester, target, body, state, kind, memo_id, ts) VALUES(%d, 'worker', 'human', %q, 'queued', 'ask', %d, 1)", 100+mid, body, mid),
+		fmt.Sprintf("INSERT INTO requests(id, requester, target, body, state, kind, memo_id, ts) VALUES(%d, 'worker', 'p1', %q, 'queued', 'ask', %d, 1)", 100+mid, body, mid),
 		fmt.Sprintf("INSERT INTO task_requests(task_id, request_id) VALUES(%d, %d)", tid, 100+mid),
 	} {
 		if _, err := db.Exec(q); err != nil {
@@ -42,7 +42,7 @@ func TestACommentRaisesNoAsk(t *testing.T) {
 		}
 	}
 	var asks int
-	db.QueryRow("SELECT COUNT(*) FROM requests WHERE target = 'human'").Scan(&asks)
+	db.QueryRow("SELECT COUNT(*) FROM requests WHERE target = 'p1'").Scan(&asks)
 	if asks != 0 {
 		t.Fatalf("comments asked the founder %d times", asks)
 	}
@@ -132,7 +132,7 @@ func TestWithdrawUnaddressedMemoAsksTakesBackOnlyThoseNotStartingWithHumanOnce(t
 		t.Fatal(err)
 	}
 	defer db.Close()
-	db.Exec("INSERT INTO requests(id, requester, target, body, state, kind, memo_id, ts) VALUES(1, 'a', 'human', '@human which?', 'queued', 'ask', 1, 1), (2, 'a', 'human', 'thanks @human', 'queued', 'ask', 2, 1)")
+	db.Exec("INSERT INTO requests(id, requester, target, body, state, kind, memo_id, ts) VALUES(1, 'a', 'p1', '@human which?', 'queued', 'ask', 1, 1), (2, 'a', 'p1', 'thanks @human', 'queued', 'ask', 2, 1)")
 	if n, err := WithdrawUnaddressedMemoAsks(db); err != nil || n != 1 {
 		t.Fatalf("one stale ask: %d %v", n, err)
 	}

@@ -28,8 +28,8 @@ func TestAnyoneChangesTheAssignee(t *testing.T) {
 func TestTheFoundersDoneClosesTheirOwnTaskAndOneSomeoneElseAsked(t *testing.T) {
 	t.Parallel()
 	sdb, _, run := reportEnv(t,
-		"INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(1, 'mine', 'human', 'human', 1, 'human')",
-		"INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(2, 'theirs', 'human', 'boss', 1, 'boss')",
+		"INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(1, 'mine', 'p1', 'p1', 1, 'p1')",
+		"INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(2, 'theirs', 'p1', 'boss', 1, 'boss')",
 	)
 	for _, tid := range []string{"1", "2"} {
 		if got := said(t, run("", "task.done", "d"+tid, `,"task":`+tid+`,"evidence":"closed"`)); got != "task T"+tid+" done (closed)" {

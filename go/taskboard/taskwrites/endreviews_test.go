@@ -50,14 +50,14 @@ func TestEndReviewsFallsBackToTheReporterThenTheOpener(t *testing.T) {
 	home := t.TempDir()
 	sdb, f, _ := reportEnvIn(t, home,
 		"INSERT INTO tasks(id, title, owner, opened_by, reporter, created_at, queued_by, reported_at, report) "+
-			"VALUES(1, 'to the founder', 'boss', 'w', 'human', 1, 'w', 5, 'a'), (2, 'its own', 'boss', 'boss', NULL, 1, 'boss', 5, 'b')",
+			"VALUES(1, 'to the founder', 'boss', 'w', 'p1', 1, 'w', 5, 'a'), (2, 'its own', 'boss', 'boss', NULL, 1, 'boss', 5, 'b')",
 	)
 	said, err := EndReviews(sdb, home, f)
 	if err != nil || fmt.Sprint(said) != "[T1 left review: the founder's turn, boss's below it T2 left review: queued with boss]" {
 		t.Fatalf("%q %v", said, err)
 	}
-	if len(f.handed) != 1 || f.handed[0].To != "human" || count(t, sdb, "SELECT COUNT(*) FROM task_turns WHERE task_id = 1 AND agent = 'human' AND pushed_by = 'boss' AND ask LIKE '%: a'") != 1 ||
-		count(t, sdb, "SELECT COUNT(*) FROM requests WHERE target = 'human'") != 0 || count(t, sdb, "SELECT COUNT(*) FROM task_memos WHERE task_id = 1") != 0 {
+	if len(f.handed) != 1 || f.handed[0].To != "human" || count(t, sdb, "SELECT COUNT(*) FROM task_turns WHERE task_id = 1 AND agent = 'p1' AND pushed_by = 'boss' AND ask LIKE '%: a'") != 1 ||
+		count(t, sdb, "SELECT COUNT(*) FROM requests WHERE target = 'p1'") != 0 || count(t, sdb, "SELECT COUNT(*) FROM task_memos WHERE task_id = 1") != 0 {
 		t.Fatalf("a task whose reporter is the founder stays and their turn on it asks them: %+v", f.handed)
 	}
 	sdb, f, _ = reportEnvIn(t, t.TempDir(),

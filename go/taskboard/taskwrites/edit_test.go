@@ -75,7 +75,7 @@ func TestAWaitChangeIsToldToTheLeadOnlyWhenTheBlockerIsHeldOutsideTheTeam(t *tes
 	db, mk := discardEnv(t)
 	exec(t, db,
 		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'one', 'crew.asker', 'manager', 1), (2, 'mate', 'crew.mate', 'manager', 1), "+
-			"(3, 'outside', 'gp', 'manager', 1), (4, 'founder', 'human', 'manager', 1)")
+			"(3, 'outside', 'gp', 'manager', 1), (4, 'founder', 'p1', 'manager', 1)")
 	f := &fakeTeller{}
 	line := func(id int, params string) string {
 		return fmt.Sprintf(`{"jsonrpc":"2.0","id":%d,"method":"task.edit","params":{"task":1,%s,"request_id":"r%d"}}`, id, params, id)
