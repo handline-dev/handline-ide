@@ -10,6 +10,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/handline/handline/go/kit/addr"
+
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/textsafe"
@@ -471,7 +473,7 @@ func (w *writes) seen(c *rpc.Conn, p map[string]any) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	said := fmt.Sprintf("%s's messages are marked seen", agent)
+	said := fmt.Sprintf("%s's messages are marked seen", addr.Ref(agent))
 	return c.Effect(func(tx *sql.Tx) (map[string]any, error) {
 		if err := ForYouSeen(tx, agent, upto); err != nil {
 			return nil, err
@@ -510,7 +512,7 @@ func (w *writes) sendNow(c *rpc.Conn, p map[string]any) (any, error) {
 			return nil, rpc.Refused(fmt.Sprintf("message %d is no longer waiting: it was sent or closed", rid), "", "")
 		}
 		target = row.Target
-		return map[string]any{"accepted": true, "said": fmt.Sprintf("message %d is told to %s now", rid, target)}, nil
+		return map[string]any{"accepted": true, "said": fmt.Sprintf("message %d is told to %s now", rid, addr.Ref(target))}, nil
 	})
 	if err != nil {
 		return nil, err
@@ -553,7 +555,7 @@ func (w *writes) sendTask(c *rpc.Conn, agent, body string, task any) (any, error
 		if !asked.OK {
 			return nil, &rpc.CommitThen{Err: rpc.Refused(asked.Msg, "", "")}
 		}
-		return map[string]any{"accepted": true, "said": fmt.Sprintf("task T%d opened for %s", tid, agent), "request": asked.RID}, nil
+		return map[string]any{"accepted": true, "said": fmt.Sprintf("task T%d opened for %s", tid, addr.Ref(agent)), "request": asked.RID}, nil
 	})
 	if asked != nil && !asked.OK && asked.After != nil {
 		guarded(w.e, "telling after a refused task", func() (string, error) { return asked.After(), nil }) // the refusal's writes stood

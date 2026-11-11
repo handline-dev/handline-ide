@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -397,4 +399,41 @@ func TestTheBoardAgreesWithTheOneRule(t *testing.T) {
 // TestMain sets the process environment once (storetest.Main), so the tests can run in parallel.
 func TestMain(m *testing.M) {
 	storetest.Main(m, []string{"HANDLINE_AGENT"}, nil)
+}
+
+// team.get is the caller's team: an agent sees its own workspace's agents by name, the people and the other workspaces; a person
+// outside every workspace folder (the app) sees every agent.
+func TestTeamGetIsTheCallersWorkspace(t *testing.T) {
+	e := testEnv(t)
+	teamtest.Seed(t, e.Home, "shop", "shop.designer", "blog")
+	designer := teamtest.Key(t, e.Home, "shop.designer")
+	keys := func(got any, field string) (out []string) {
+		for _, x := range got.(map[string]any)[field].([]any) {
+			m := x.(map[string]any)
+			out = append(out, m["key"].(string)+"="+m["name"].(string))
+		}
+		return out
+	}
+	got, err := e.teamGet(asAgent(designer), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	shop, blog := teamtest.Key(t, e.Home, "shop"), teamtest.Key(t, e.Home, "blog")
+	agents := keys(got, "agents")
+	if len(agents) != 2 || !slices.Contains(agents, designer+"=designer") || slices.ContainsFunc(agents, func(s string) bool { return strings.HasPrefix(s, blog+"=") }) {
+		t.Fatalf("the designer's agents: %v", agents)
+	}
+	if p := keys(got, "people"); len(p) != 1 || p[0] != "p1=human" {
+		t.Fatalf("people: %v", p)
+	}
+	if w := keys(got, "workspaces"); len(w) != 1 || !strings.HasSuffix(w[0], "=blog") {
+		t.Fatalf("the other workspaces: %v", w)
+	}
+	got, err = e.teamGet(asFounder, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a := keys(got, "agents"); len(a) != 3 || !slices.Contains(a, shop+"=shop") {
+		t.Fatalf("the app's agents: %v", a)
+	}
 }

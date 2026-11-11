@@ -96,22 +96,16 @@ export const PROPOSAL_HANDLERS: Record<string, (h: Call) => unknown> = {
   },
 };
 
-/** team.get: every agent with its role and files, and the edges: a parent and its child may ask each other. */
+/** team.get as the app reads it: every agent with who it reports to and its files, the owner, and no other workspaces. The fake names
+ * agents by their name, so an agent's key is its name. */
 export function teamOf(sessions: Session[], at: string) {
   const agents = sessions.map((s) => ({
+    key: s.fx.name,
     name: s.fx.name,
     role: s.fx.role,
-    parent: s.fx.parent,
+    reports_to: s.fx.parent,
     role_file: { path: `${s.fx.worktree}/ROLE.md`, updated: at },
     base_file: { path: `${s.fx.worktree}/base.md`, updated: null },
   }));
-  const edges = sessions.flatMap((s) =>
-    s.fx.parent
-      ? [
-          { from: s.fx.parent, to: s.fx.name },
-          { from: s.fx.name, to: s.fx.parent },
-        ]
-      : [],
-  );
-  return { agents, edges };
+  return { agents, people: [{ key: 'p1', name: 'human' }], workspaces: [] };
 }

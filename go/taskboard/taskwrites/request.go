@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/handline/handline/go/kit/addr"
+
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/paths"
@@ -126,7 +128,7 @@ func requestMethod(home string) func(*rpc.Conn, map[string]any) (any, error) {
 			if err := addEvent(tx, c.Caller.Actor(), "task_request", kv{"task_id", tid}, kv{"chat_request", rid}, kv{"owner", owner}); err != nil {
 				return nil, err
 			}
-			return accepted(fmt.Sprintf("%s is now request T%d, held by %s", name, tid, owner), map[string]any{"task": tid}), nil
+			return accepted(fmt.Sprintf("%s is now request T%d, held by %s", name, tid, addr.Ref(owner)), map[string]any{"task": tid}), nil
 		})
 	}
 }

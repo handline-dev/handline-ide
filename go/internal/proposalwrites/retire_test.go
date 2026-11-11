@@ -10,6 +10,7 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/kit/gitrun"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/yamlcompat"
@@ -33,7 +34,7 @@ func TestAgentRetireRefusesADependedOnAgentAndRetiresOneThatIsNot(t *testing.T) 
 		t.Fatal(err)
 	}
 	bob, kid := r.who("bob"), r.who("bob.kid")
-	if msg := refusal(t, r.call("agent.retire", `{"agent":"bob","request_id":"r2"}`)); !strings.Contains(msg, bob+" has agents under it ("+kid+")") {
+	if msg := refusal(t, r.call("agent.retire", `{"agent":"bob","request_id":"r2"}`)); !strings.Contains(msg, addr.Ref(bob)+" has agents under it ("+kid+")") {
 		t.Fatal(msg)
 	}
 	if !slices.Contains(paths.ListAgents(r.home), bob) {
@@ -232,7 +233,7 @@ func TestTheFoundersAnswerIsCarriedOutForAWorktreeThatHoldsWork(t *testing.T) {
 		bob := r.who("bob")
 		_, wt, _ := bobsWorktrees(t, r)
 		m := r.call("agent.retire", `{"agent":"bob","worktree":"keep","request_id":"w1"}`)
-		if e, _ := m["error"].(map[string]any); e == nil || !strings.Contains(e["message"].(string), wt["ahead"]+" holds work (ahead is not merged into main) and is kept, as asked, so "+bob+" is not deleted") {
+		if e, _ := m["error"].(map[string]any); e == nil || !strings.Contains(e["message"].(string), wt["ahead"]+" holds work (ahead is not merged into main) and is kept, as asked, so "+addr.Ref(bob)+" is not deleted") {
 			t.Fatalf("%v", m)
 		}
 		assertNotRetired(t, r, wt)
@@ -286,7 +287,7 @@ func TestAnAgentWhoseWorktreeCannotBeRemovedIsNotDeleted(t *testing.T) {
 	m = r.call("agent.retire", `{"agent":"bob","worktree":"save","request_id":"l2"}`)
 	e, _ = m["error"].(map[string]any)
 	if d, _ := e["data"].(map[string]any); d["gate"] != "state" || !strings.Contains(e["message"].(string), wt["done"]+" could not be removed (") ||
-		!strings.Contains(e["message"].(string), "so "+bob+" is not deleted") {
+		!strings.Contains(e["message"].(string), "so "+addr.Ref(bob)+" is not deleted") {
 		t.Fatalf("git failing: %v", m)
 	}
 	os.Chmod(root, 0o755)
@@ -305,7 +306,7 @@ func TestAnApprovedRetireIsRefusedWhileAWorktreeHoldsWork(t *testing.T) {
 		return 0, nil
 	}
 	prop := &Prop{pairs: []yamlcompat.Pair{{Key: "kind", Val: "retire"}, {Key: "agent", Val: bob}, {Key: "id", Val: "hr1"}}}
-	if ok, said, err := r.e.run(prop); err != nil || ok || !strings.Contains(said, wt["ahead"]+" holds work (") || !strings.Contains(said, "so "+bob+" is not deleted") {
+	if ok, said, err := r.e.run(prop); err != nil || ok || !strings.Contains(said, wt["ahead"]+" holds work (") || !strings.Contains(said, "so "+addr.Ref(bob)+" is not deleted") {
 		t.Fatalf("an approved retire with held work: %v %q %v", ok, said, err)
 	}
 	assertNotRetired(t, r, wt)
@@ -322,7 +323,7 @@ func TestAHeldRetireThatFindsHeldWorkAtItsTurnsEndIsRefused(t *testing.T) {
 		_, wt, _ = bobsWorktrees(t, r) // the work appears while the turn runs
 		sweep(true)
 	})
-	if msg := refusal(t, m); !strings.Contains(msg, wt["ahead"]+" holds work (") || !strings.Contains(msg, "so "+bob+" is not deleted") {
+	if msg := refusal(t, m); !strings.Contains(msg, wt["ahead"]+" holds work (") || !strings.Contains(msg, "so "+addr.Ref(bob)+" is not deleted") {
 		t.Fatalf("refused through the waiting call: %v", m)
 	}
 	if held := r.e.listing(); len(held) != 1 || held[0].str("state") != "approved" || !strings.Contains(held[0].str("error"), wt["ahead"]+" holds work (") {

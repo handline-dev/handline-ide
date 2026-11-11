@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/handline/handline/go/kit/addr"
+
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/textsafe"
@@ -115,7 +117,7 @@ func releaseTask(tx *sql.Tx, home, by string, tid int64, reason string) (release
 		return r, refusal(fmt.Sprintf("no task T%d", tid))
 	}
 	said := strings.TrimSpace(textsafe.Oneline(reason))
-	r.why = fmt.Sprintf("T%d released by %s", tid, by)
+	r.why = fmt.Sprintf("T%d released by %s", tid, addr.Ref(by))
 	if said != "" {
 		r.why += ": " + said
 	}

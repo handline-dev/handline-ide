@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/handline/handline/go/kit/addr"
+
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/paths"
@@ -274,7 +276,7 @@ func (e *Env) decide(pid, call, by, note, subject string, tell bool) (bool, stri
 		return false, "decide `approved` or `rejected`", nil
 	}
 	if by != actor.OwnerKey {
-		return false, fmt.Sprintf("proposal %s is the founder's to decide, not %s's", pid, by), nil
+		return false, fmt.Sprintf("proposal %s is the founder's to decide, not %s's", pid, addr.Ref(by)), nil
 	}
 	if call == "approved" && subject == "" {
 		return false, "approve what was read: pass the card's `subject`", nil

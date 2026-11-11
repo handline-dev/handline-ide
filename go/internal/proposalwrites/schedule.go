@@ -6,6 +6,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/handline/handline/go/kit/addr"
+
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/scheduler/cronspec"
 )
@@ -43,7 +45,7 @@ func (e *Env) scheduleChange(agent string, args map[string]any) (map[string]stri
 	}
 	have, err := cronspec.Load(e.Home, agent)
 	if err != nil {
-		return nil, fmt.Sprintf("%s's schedules cannot be read: %v", agent, err)
+		return nil, fmt.Sprintf("%s's schedules cannot be read: %v", addr.Ref(agent), err)
 	}
 	cron, message := strings.Join(strings.Fields(argStr(args, "cron")), " "), strings.Join(strings.Fields(argStr(args, "message")), " ")
 	sets := map[string]string{"action": action}
@@ -61,11 +63,11 @@ func (e *Env) scheduleChange(agent string, args map[string]any) (map[string]stri
 		}
 		switch len(hits) {
 		case 0:
-			return nil, fmt.Sprintf("%s has no schedule with cron %q%s", agent, wc, map[bool]string{true: " and that message", false: ""}[wm != ""])
+			return nil, fmt.Sprintf("%s has no schedule with cron %q%s", addr.Ref(agent), wc, map[bool]string{true: " and that message", false: ""}[wm != ""])
 		case 1:
 			was = &hits[0]
 		default:
-			return nil, fmt.Sprintf("%s has %d schedules with cron %q: say which with --was-message", agent, len(hits), wc)
+			return nil, fmt.Sprintf("%s has %d schedules with cron %q: say which with --was-message", addr.Ref(agent), len(hits), wc)
 		}
 		sets["sid"], sets["message_was"] = cronspec.SID(*was), was.Message
 		sets["cron_was"] = was.Cron

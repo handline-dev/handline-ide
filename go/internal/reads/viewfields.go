@@ -1,11 +1,12 @@
 package reads
 
 import (
+	"strings"
+
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/scheduler/settings"
-	"strings"
 )
 
 // Wall is what holds back a wake that is due: the account that would wake the agent.

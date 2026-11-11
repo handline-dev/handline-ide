@@ -3,9 +3,11 @@ package taskwrites
 import (
 	"database/sql"
 	"fmt"
-	"github.com/handline/handline/go/data/db"
 	"strings"
 	"time"
+
+	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/addr"
 
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/protocol/rpc"
@@ -44,7 +46,7 @@ func reopenMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any
 			if discarded {
 				how = " as a draft"
 			}
-			msg := fmt.Sprintf("task T%d reopened%s by %s", tid, how, by)
+			msg := fmt.Sprintf("task T%d reopened%s by %s", tid, how, addr.Ref(by))
 			if said != "" {
 				msg += ": " + said
 			}

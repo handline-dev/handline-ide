@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/handline/handline/go/kit/addr"
+
 	"github.com/handline/handline/go/internal/worktreeprune"
 )
 
@@ -44,19 +46,19 @@ func (e *Env) leaving(agent string, mine []string, choice string) (plans []leave
 			plans = append(plans, leave{wt, all[0].Path, ""})
 		case why == "not a checkout" || why == "an agent works in it":
 		case worktreeprune.HoldsWork(why) && choice == worktreeprune.Keep:
-			return nil, fmt.Sprintf("%s holds work (%s) and is kept, as asked, so %s is not deleted.", path, why, agent), nil
+			return nil, fmt.Sprintf("%s holds work (%s) and is kept, as asked, so %s is not deleted.", path, why, addr.Ref(agent)), nil
 		case worktreeprune.HoldsWork(why) && choice == worktreeprune.Force:
 			plans = append(plans, leave{wt, all[0].Path, choice})
 		case worktreeprune.HoldsWork(why) && choice == worktreeprune.Save:
 			plans = append(plans, leave{wt, all[0].Path, choice})
 		case worktreeprune.HoldsWork(why):
-			return nil, fmt.Sprintf("%s holds work (%s), so %s is not deleted; answer save or force for it.", path, why, agent), nil
+			return nil, fmt.Sprintf("%s holds work (%s), so %s is not deleted; answer save or force for it.", path, why, addr.Ref(agent)), nil
 		case why == "locked":
-			return nil, fmt.Sprintf("%s cannot be removed (locked), so %s is not deleted; unlock it first.", path, agent), nil
+			return nil, fmt.Sprintf("%s cannot be removed (locked), so %s is not deleted; unlock it first.", path, addr.Ref(agent)), nil
 		case choice == worktreeprune.Force:
 			plans = append(plans, leave{wt, all[0].Path, choice})
 		default:
-			return nil, fmt.Sprintf("%s cannot be removed (%s), so %s is not deleted; force removes it.", path, why, agent), nil
+			return nil, fmt.Sprintf("%s cannot be removed (%s), so %s is not deleted; force removes it.", path, why, addr.Ref(agent)), nil
 		}
 	}
 	return plans, "", nil
@@ -98,7 +100,7 @@ func (e *Env) clear(agent string, plans []leave) (said, refused string) {
 }
 
 func (e *Env) notCleared(agent, path, why string, done []string) string {
-	s := fmt.Sprintf("%s could not be removed (%s), so %s is not deleted.", path, why, agent)
+	s := fmt.Sprintf("%s could not be removed (%s), so %s is not deleted.", path, why, addr.Ref(agent))
 	if len(done) > 0 {
 		s += " Removed before it: " + strings.Join(done, "; ") + "."
 	}

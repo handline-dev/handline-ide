@@ -8,7 +8,7 @@ export interface PeopleTask {
   memos?: readonly { at: string; author: string }[];
 }
 export interface PeopleTeam {
-  agents: readonly { name: string; parent: string | null }[];
+  agents: readonly { key: string; reports_to: string | null }[];
 }
 export interface AssignGroup {
   key: 'acted' | 'near' | 'rest';
@@ -33,7 +33,7 @@ export function involved(t: PeopleTask): string[] {
 
 /** Steps between two agents along the reports-to tree; Infinity when they are in different trees. */
 export function treeDistance(team: PeopleTeam, a: string, b: string): number {
-  const parent = new Map(team.agents.map((x) => [x.name, x.parent]));
+  const parent = new Map(team.agents.map((x) => [x.key, x.reports_to]));
   const up = (n: string) => {
     const path = [n];
     for (let p = parent.get(n); p && !path.includes(p); p = parent.get(p)) path.push(p);
@@ -50,7 +50,7 @@ export const NEAR_SHOWN = 6;
 
 /** The assign picker: who acted on the task (latest first), then the few agents nearest the holder in the tree, then the rest by name as the other teams. */
 export function assignGroups(t: PeopleTask, team: PeopleTeam, known: readonly string[], me: string): AssignGroup[] {
-  const all = [...new Set([...known, ...team.agents.map((a) => a.name)])].filter((n) => n !== me && !SYSTEM.has(n));
+  const all = [...new Set([...known, ...team.agents.map((a) => a.key)])].filter((n) => n !== me && !SYSTEM.has(n));
   const acted = involved(t).filter((n) => all.includes(n) && n !== t.to);
   const left = all.filter((n) => !acted.includes(n) && n !== t.to);
   const dist = new Map(left.map((n) => [n, Math.min(treeDistance(team, t.to, n), treeDistance(team, t.from, n))]));

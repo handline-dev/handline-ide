@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/handline/handline/go/kit/addr"
+
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
 	"github.com/handline/handline/go/data/team"
@@ -147,7 +149,7 @@ func (e *Env) taskReason(q db.Q, t *db.Task, now int64) (why, cause string, able
 			why = "still open"
 		}
 		cur, _ := ok2(db.CurrentTask(q, agent))
-		return fmt.Sprintf("behind T%d, which %s holds (%s)", cur, agent, why), "owner", false, true
+		return fmt.Sprintf("behind T%d, which %s holds (%s)", cur, addr.Ref(agent), why), "owner", false, true
 	}
 	if req == nil {
 		var kind, payload string
@@ -165,7 +167,7 @@ func (e *Env) taskReason(q db.Q, t *db.Task, now int64) (why, cause string, able
 		return "", "", false, false
 	}
 	if head := e.effectiveHead(q, agent); head != nil && head.ID != req.ID {
-		return fmt.Sprintf("behind an earlier message, which %s has not resolved", agent), "owner", false, true
+		return fmt.Sprintf("behind an earlier message, which %s has not resolved", addr.Ref(agent)), "owner", false, true
 	}
 	if why, able := e.agentReason(q, agent, now); why != "" {
 		return why, e.ownerCause(q, agent), able, true

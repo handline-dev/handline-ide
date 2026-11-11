@@ -7,6 +7,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/handline/handline/go/kit/addr"
+
 	"github.com/handline/handline/go/agentctl/verdict"
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
@@ -250,7 +252,7 @@ func (e *Env) SweepStopped(now int64) (err error) {
 			} else if kind == "fatal" && verdict.ParseStuckKind(stalled[agent].StallKind.String) == verdict.StuckSendDialog {
 				what = "stalled"
 			}
-			e.tellWaiting(q, agent, fmt.Sprintf("%s is %s: %s", agent, what, detail), "is "+what)
+			e.tellWaiting(q, agent, fmt.Sprintf("%s is %s: %s", addr.Ref(agent), what, detail), "is "+what)
 		}
 	}
 	return nil

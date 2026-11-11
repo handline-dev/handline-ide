@@ -10,7 +10,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `trust.propose` | agent | yes | `root`, `why?`, `request_id` | `Accepted & {proposal}` | `refused` |  | not from the app |
 | `trust.list` | agent |  | `proposals?` | `{roots, proposals, declared}` |  |  | `trust`, snapshot |
 | `trust.remove` | owner | yes | `root`, `request_id` | `Accepted` | `not_found` |  | authored: remove folder |
-| `team.get` | agent |  | none | `{agents, edges}` |  |  | `team`, snapshot |
+| `team.get` | agent |  | none | `{agents, people, workspaces}` |  |  | `team`, snapshot |
 | `proposal.list` | agent |  | `state?` | `{proposals} & ReadCursor` | `bad_request` |  | `proposals`, fed by proposals |
 | `proposal.decide` | member | yes | `proposal`, `decision`, `note?`, `subject?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | proposal_changed, proposal_settled | decided: decide |
 | `proposal.apply_now` | member | yes | `proposal`, `request_id` | `Accepted` | `refused`, `not_found` | proposal_settled | decided: apply now |
@@ -41,7 +41,7 @@ Drop a declared root (hl trust remove); needs no approval. The founder's: the de
 
 ### `team.get`
 
-Agents, roles, allowed edges, role and base file metadata.
+The caller's team: the agents of its workspace (all of them for a person outside every workspace folder, as the app is), the people, and the other workspaces. Each name is the word the caller uses for that key.
 
 ### `proposal.list`
 

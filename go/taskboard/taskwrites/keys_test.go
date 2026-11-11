@@ -45,6 +45,8 @@ func as(t testing.TB, home, agent string) string {
 	return teamtest.Key(t, home, agent)
 }
 
+var tokenWord = regexp.MustCompile(`<@([^>]+)>`)
+
 var keyWord = regexp.MustCompile(`\b(a[0-9]+|p1)\b`)
 
 // named is s with each key of db's home written as the name it stands for (p1 as human), so a test reads replies by name. Writing
@@ -59,6 +61,7 @@ func named(db *sql.DB, s string) string {
 	for n, k := range m {
 		byKey[k] = n
 	}
+	s = tokenWord.ReplaceAllString(s, "$1") // <@key>, as a sentence names a who
 	return keyWord.ReplaceAllStringFunc(s, func(k string) string {
 		if n, ok := byKey[k]; ok {
 			return n

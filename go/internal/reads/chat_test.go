@@ -3,10 +3,11 @@ package reads
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/handline/handline/go/data/team/teamtest"
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/handline/handline/go/data/team/teamtest"
 
 	"github.com/handline/handline/go/internal/cmdruns"
 	"github.com/handline/handline/go/protocol/rpc"

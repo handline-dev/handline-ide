@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/handline/handline/go/kit/addr"
+
 	"github.com/handline/handline/go/agentctl/delivery"
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/actor"
@@ -365,9 +367,9 @@ func childResultNotice(tx *sql.Tx, dep *task, by string, child int64) (*told, er
 	var text string
 	switch {
 	case evidence.String != "":
-		text = fmt.Sprintf("T%d done by %s: %s", child, owner, strings.Join(strings.Fields(evidence.String), " "))
+		text = fmt.Sprintf("T%d done by %s: %s", child, addr.Ref(owner), strings.Join(strings.Fields(evidence.String), " "))
 	case discardedBy.String != "":
-		text = fmt.Sprintf("T%d discarded by %s: %s", child, discardedBy.String, strings.Join(strings.Fields(reason.String), " "))
+		text = fmt.Sprintf("T%d discarded by %s: %s", child, addr.Ref(discardedBy.String), strings.Join(strings.Fields(reason.String), " "))
 	default:
 		return nil, nil
 	}

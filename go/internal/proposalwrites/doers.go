@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/handline/handline/go/kit/addr"
+
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/internal/adminwrites"
 	"github.com/handline/handline/go/internal/prefs"
@@ -389,7 +391,7 @@ func (e *Env) doContext(p step) (bool, string, error) {
 		}
 		names[i] = t[0]
 	}
-	return true, fmt.Sprintf("%s: %s replaced, from its next launch", agent, strings.Join(names, ", ")), nil
+	return true, fmt.Sprintf("%s: %s replaced, from its next launch", addr.Ref(agent), strings.Join(names, ", ")), nil
 }
 
 // doSchedule makes exactly the schedule change that was proposed.
@@ -410,7 +412,7 @@ func (e *Env) doSchedule(p step) (bool, string, error) {
 		if err := adminwrites.WriteSchedules(e.rosterIn(p), agent, next); err != nil {
 			return false, "", err
 		}
-		return true, fmt.Sprintf("%s's schedules: %s done", agent, st["action"]), nil
+		return true, fmt.Sprintf("%s's schedules: %s done", addr.Ref(agent), st["action"]), nil
 	}
 	if st["action"] == "add" {
 		return write(append(have, cronspec.Schedule{Cron: st["cron"], Message: st["message"]}))
@@ -423,7 +425,7 @@ func (e *Env) doSchedule(p step) (bool, string, error) {
 		}
 	}
 	if index < 0 {
-		return false, fmt.Sprintf("%s's schedule '%s' is no longer there as it was shown; nothing changed", agent, st["message_was"]), nil
+		return false, fmt.Sprintf("%s's schedule '%s' is no longer there as it was shown; nothing changed", addr.Ref(agent), st["message_was"]), nil
 	}
 	if st["action"] == "edit" {
 		have[index] = cronspec.Schedule{Cron: st["cron"], Message: st["message"]}
@@ -437,7 +439,7 @@ func (e *Env) doSchedule(p step) (bool, string, error) {
 	} else if err := adminwrites.WriteSchedules(e.rosterIn(p), agent, nil); err != nil {
 		return false, "", err
 	}
-	return true, fmt.Sprintf("%s's schedules: %s done", agent, st["action"]), nil
+	return true, fmt.Sprintf("%s's schedules: %s done", addr.Ref(agent), st["action"]), nil
 }
 
 // doGlobal sets one global switch.

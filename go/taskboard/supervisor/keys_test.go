@@ -15,6 +15,8 @@ import (
 
 var keyWord = regexp.MustCompile(`\b(a[0-9]+|p1)\b`)
 
+var tokenWord = regexp.MustCompile(`<@([^>]+)>`)
+
 // namer is named over home's agents.
 func namer(home string) func(string) string {
 	return func(s string) string {
@@ -23,6 +25,7 @@ func namer(home string) func(string) string {
 		for n, k := range m {
 			byKey[k] = n
 		}
+		s = tokenWord.ReplaceAllString(s, "$1") // <@key>, as a sentence names a who
 		return keyWord.ReplaceAllStringFunc(s, func(k string) string {
 			if n, ok := byKey[k]; ok {
 				return n

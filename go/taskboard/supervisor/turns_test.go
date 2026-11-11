@@ -225,7 +225,7 @@ func TestAPassingReviewMovesTheReviewerOnAndTellsTheBuilder(t *testing.T) {
 	}
 	told := false
 	for _, s := range r.saysTo(r.k("bob")) {
-		told = told || strings.Contains(s, fmt.Sprintf("T%d done by alice", tid))
+		told = told || strings.Contains(r.named(s), fmt.Sprintf("T%d done by alice", tid))
 	}
 	if !told {
 		t.Fatalf("bob is told it closed: %v", r.saysTo(r.k("bob")))
@@ -301,7 +301,7 @@ func TestAnEditAnUnblockAndADoneUnderATurn(t *testing.T) {
 	for _, who := range []string{r.k(("bob"))} {
 		told := false
 		for _, s := range r.saysTo(who) {
-			told = told || strings.Contains(s, "done by carol")
+			told = told || strings.Contains(r.named(s), "done by carol")
 		}
 		if !told {
 			t.Fatalf("%s, below the turn, is told: %v", who, r.saysTo(who))

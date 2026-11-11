@@ -4,14 +4,14 @@ import { assignGroups, involved, replyTargets, treeDistance } from '#src/index.t
 
 const team = {
   agents: [
-    { name: 'boss', parent: null },
-    { name: 'pc', parent: 'boss' },
-    { name: 'mobile', parent: 'boss' },
-    { name: 'rev', parent: 'boss' },
-    { name: 'pc-sub', parent: 'pc' },
-    { name: 'pc-sub2', parent: 'pc-sub' },
-    { name: 'pc-sub3', parent: 'pc-sub2' },
-    { name: 'far', parent: null },
+    { key: 'boss', reports_to: null },
+    { key: 'pc', reports_to: 'boss' },
+    { key: 'mobile', reports_to: 'boss' },
+    { key: 'rev', reports_to: 'boss' },
+    { key: 'pc-sub', reports_to: 'pc' },
+    { key: 'pc-sub2', reports_to: 'pc-sub' },
+    { key: 'pc-sub3', reports_to: 'pc-sub2' },
+    { key: 'far', reports_to: null },
   ],
 };
 const task = {
@@ -61,8 +61,8 @@ test('reply chips are the people the task names, latest first, without the viewe
 test('the close list is short: only the nearest few, the rest wait with the other teams', () => {
   const many = {
     agents: [
-      { name: 'boss', parent: null },
-      ...Array.from({ length: 10 }, (_, i) => ({ name: `k${String(i).padStart(2, '0')}`, parent: 'boss' })),
+      { key: 'boss', reports_to: null },
+      ...Array.from({ length: 10 }, (_, i) => ({ key: `k${String(i).padStart(2, '0')}`, reports_to: 'boss' })),
     ],
   };
   const t = { from: 'boss', to: 'boss', events: [] };

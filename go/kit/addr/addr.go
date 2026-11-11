@@ -262,6 +262,15 @@ func Address(q Q, reader, key string) string {
 	return key
 }
 
+// Ref is key as a token in text the daemon writes for more than one reader: each reader's copy writes it out as @ and its name
+// (Render), and a rename changes no stored text. A command a reader types names the who with Address instead.
+func Ref(key string) string {
+	if _, _, ok := actor.Parse(key); !ok {
+		return key // a word that is no key (an old name, a phrase) stays as it is
+	}
+	return "<@" + key + ">"
+}
+
 // For is Name for the reader whose key is reader, in its own workspace: for a sentence the daemon writes to one reader.
 func For(q Q, reader, key string) string {
 	r, err := Of(q, reader, "")
@@ -306,7 +315,7 @@ func Mentions(q Q, writer Who, text string) (string, error) {
 			failed = err
 			return m
 		}
-		return s[1] + "<@" + key + ">" + s[2][len(word):]
+		return s[1] + Ref(key) + s[2][len(word):]
 	})
 	return out, failed
 }
@@ -332,51 +341,4 @@ func Lead(text string) string {
 		return ""
 	}
 	return t[m[2]:m[3]]
-}
-
-// Team is what `hl team` lists for r: the agents of r's workspace, the people, and the names of the other workspaces. It never lists
-// another workspace's agents.
-type Team struct {
-	Agents     []string // keys, in name order
-	People     []string // keys
-	Workspaces []string // names, sorted
-}
-
-// TeamOf is r's Team.
-func TeamOf(q Q, r Who) (Team, error) {
-	var t Team
-	keys := func(into *[]string, kind actor.Kind, query string, args ...any) error {
-		rows, err := q.Query(query, args...)
-		if err != nil {
-			return err
-		}
-		defer rows.Close()
-		for rows.Next() {
-			var id int64
-			if err := rows.Scan(&id); err != nil {
-				return err
-			}
-			*into = append(*into, actor.Key(kind, id))
-		}
-		return rows.Err()
-	}
-	if err := errors.Join(
-		keys(&t.Agents, actor.Agent, "SELECT id FROM agents WHERE workspace = ? ORDER BY name", r.Workspace),
-		keys(&t.People, actor.Person, "SELECT id FROM people ORDER BY id"),
-	); err != nil {
-		return t, err
-	}
-	rows, err := q.Query("SELECT name FROM workspaces WHERE id != ? ORDER BY name", r.Workspace)
-	if err != nil {
-		return t, err
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var n string
-		if err := rows.Scan(&n); err != nil {
-			return t, err
-		}
-		t.Workspaces = append(t.Workspaces, n)
-	}
-	return t, rows.Err()
 }

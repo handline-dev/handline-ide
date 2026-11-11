@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/handline/handline/go/kit/addr"
+
 	"github.com/handline/handline/go/kit/yamlcompat"
 )
 
@@ -271,7 +273,7 @@ func changeLines(it flat) []string {
 		}
 		out := make([]string, len(keys))
 		for i, k := range keys {
-			out[i] = fmt.Sprintf("set %s of %s to %s", k, agent, orStr(vals[k], "(none)"))
+			out[i] = fmt.Sprintf("set %s of %s to %s", k, addr.Ref(agent), orStr(vals[k], "(none)"))
 		}
 		return out
 	case "context":
@@ -281,22 +283,22 @@ func changeLines(it flat) []string {
 		}
 		out := make([]string, len(keys))
 		for i, k := range keys {
-			out[i] = fmt.Sprintf("replace %s of %s", k, agent)
+			out[i] = fmt.Sprintf("replace %s of %s", k, addr.Ref(agent))
 		}
 		return out
 	case "schedule":
 		_, v := it.sets()
 		switch v["action"] {
 		case "remove":
-			return []string{fmt.Sprintf("stop %s's schedule %s: %s", agent, v["cron_was"], v["message_was"])}
+			return []string{fmt.Sprintf("stop %s's schedule %s: %s", addr.Ref(agent), v["cron_was"], v["message_was"])}
 		case "edit":
-			return []string{fmt.Sprintf("change %s's schedule %s: %s\n  to %s: %s", agent, v["cron_was"], v["message_was"], v["cron"], v["message"])}
+			return []string{fmt.Sprintf("change %s's schedule %s: %s\n  to %s: %s", addr.Ref(agent), v["cron_was"], v["message_was"], v["cron"], v["message"])}
 		}
-		return []string{fmt.Sprintf("schedule %s: %s for %s", v["cron"], v["message"], agent)}
+		return []string{fmt.Sprintf("schedule %s: %s for %s", v["cron"], v["message"], addr.Ref(agent))}
 	case "rename":
-		return []string{fmt.Sprintf("rename %s to %s", agent, to)}
+		return []string{fmt.Sprintf("rename %s to %s", addr.Ref(agent), to)}
 	case "retire":
-		return []string{"retire " + agent}
+		return []string{"retire " + addr.Ref(agent)}
 	}
 	return []string{kind + " " + agent}
 }

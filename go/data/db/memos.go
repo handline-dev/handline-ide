@@ -135,8 +135,8 @@ func storedMentions(q Q, author, body string) (string, error) {
 // founderMention is `@human` as a comment's first word, in a body written before mentions were stored as keys.
 var founderMention = regexp.MustCompile(`^\s*@human(?:[^A-Za-z0-9_-]|$)`)
 
-// ToFounder is whether a comment is a note to a person: a person's <@key> is its first token. It is news for them and moves no turn; a
+// ToPerson is whether a comment is a note to a person: a person's <@key> is its first token. It is news for them and moves no turn; a
 // mention anywhere else (text to agents, a quote, code) is not.
-func ToFounder(body string) bool {
+func ToPerson(body string) bool {
 	return actor.IsPerson(addr.Lead(body)) || founderMention.MatchString(body)
 }

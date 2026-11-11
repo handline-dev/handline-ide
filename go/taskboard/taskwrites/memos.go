@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/handline/handline/go/kit/addr"
+
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/paths"
@@ -288,7 +290,7 @@ func memoAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, err
 				if asked.Reask {
 					said += ": " + asked.Msg
 				} else {
-					said += fmt.Sprintf(", and T%d is %s's turn now: %s", tid, to, asked.Msg)
+					said += fmt.Sprintf(", and T%d is %s's turn now: %s", tid, addr.Ref(to), asked.Msg)
 				}
 			}
 			return accepted(said, map[string]any{"memo": mid}), nil
@@ -506,12 +508,12 @@ func memoSendNow(tell Teller) func(*rpc.Conn, map[string]any) (any, error) {
 				"WHERE t.memo_id = ? AND t.reader = ? AND "+db.Held("r."),
 				mid, agent).Scan(&rid)
 			if err == sql.ErrNoRows {
-				return nil, refusal(fmt.Sprintf("comment %d is not held for %s", mid, agent))
+				return nil, refusal(fmt.Sprintf("comment %d is not held for %s", mid, addr.Ref(agent)))
 			}
 			if err != nil {
 				return nil, err
 			}
-			return accepted(fmt.Sprintf("comment %d goes to %s now", mid, agent), nil), nil
+			return accepted(fmt.Sprintf("comment %d goes to %s now", mid, addr.Ref(agent)), nil), nil
 		})
 		if err == nil && tell != nil {
 			tell.MemoTellSent(rid)

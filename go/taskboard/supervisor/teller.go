@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/handline/handline/go/kit/addr"
+
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/textsafe"
@@ -61,7 +63,7 @@ func (e *Env) QueueDelivered(tid int64, by string, queued bool) (msg string) {
 	if queued {
 		word = "queued"
 	}
-	msg = fmt.Sprintf("task T%d is %s (%s)", tid, word, by)
+	msg = fmt.Sprintf("task T%d is %s (%s)", tid, word, addr.Ref(by))
 	row, err := db.GetTask(e.DB, tid)
 	if err != nil || row == nil {
 		e.log("  delivering T%d after it was queued failed: %v", tid, err)
@@ -155,7 +157,7 @@ func (e *Env) Cancelled(tid int64, by, owner string, stop bool, closed []taskwri
 		}
 	}
 	if stop {
-		e.typeSay(e.DB, owner, fmt.Sprintf("T%d discarded by %s - stop work on it", tid, by), "task discarded")
+		e.typeSay(e.DB, owner, fmt.Sprintf("T%d discarded by %s - stop work on it", tid, addr.Ref(by)), "task discarded")
 	}
 }
 
@@ -293,7 +295,7 @@ func (e *Env) tellBodyEdited(q db.Q, tid int64, by string) {
 		return
 	}
 	check(err)
-	e.typeSay(q, row.Acting, fmt.Sprintf("T%d body edited by %s: %s", tid, by, firstRunes(textsafe.Oneline(latest.String), 400)), "task body edited")
+	e.typeSay(q, row.Acting, fmt.Sprintf("T%d body edited by %s: %s", tid, addr.Ref(by), firstRunes(textsafe.Oneline(latest.String), 400)), "task body edited")
 }
 
 // sendMovedTask (actions.send_moved_task): after an edit gave the task to a new owner, the old owner's request for it is taken back and the
@@ -328,7 +330,7 @@ func (e *Env) sendMovedTask(q db.Q, tid int64, old, by string) {
 		}
 	}
 	if inHand && !actor.IsPerson(old) {
-		e.typeSay(q, old, fmt.Sprintf("T%d moved to %s by %s - stop work on it", tid, owner, by), "task moved")
+		e.typeSay(q, old, fmt.Sprintf("T%d moved to %s by %s - stop work on it", tid, addr.Ref(owner), addr.Ref(by)), "task moved")
 	}
 	if len(taken) > 0 && !actor.IsPerson(owner) {
 		asker := taken[0].Requester

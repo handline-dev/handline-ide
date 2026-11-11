@@ -16,7 +16,7 @@ func syncMemoAsk(tx *sql.Tx, mid int64, body string) error {
 	if err != nil {
 		return err
 	}
-	if db.ToFounder(body) {
+	if db.ToPerson(body) {
 		_, err = tx.Exec("UPDATE requests SET body = ? WHERE id = ?", body, rid)
 		return err
 	}
@@ -55,7 +55,7 @@ func WithdrawUnaddressedMemoAsks(q db.Q) (int64, error) {
 			rows.Close()
 			return 0, err
 		}
-		if !db.ToFounder(body) {
+		if !db.ToPerson(body) {
 			stale = append(stale, mid)
 		}
 	}

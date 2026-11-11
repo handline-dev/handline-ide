@@ -45,7 +45,7 @@ func TestADoneThatLeavesItsAssigneeIdleIsToldToTheReporterAtOnce(t *testing.T) {
 	if says := idleSays(r, r.k(("alice"))); len(says) != 1 || says[0] != want {
 		t.Fatalf("alice is told once: %q", says)
 	}
-	if !strings.Contains(strings.Join(r.term.typed, "\n"), want) {
+	if !strings.Contains(strings.Join(r.term.typed, "\n"), "T2 done by @bob: built it - @bob has nothing it can start now.") { // as typed
 		t.Fatalf("typed at once, not held for a digest: %q", r.term.typed)
 	}
 }

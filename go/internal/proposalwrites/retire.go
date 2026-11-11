@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/handline/handline/go/kit/addr"
+
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/internal/worktreeprune"
 	"github.com/handline/handline/go/kit/paths"
@@ -36,7 +38,7 @@ func (e *Env) retireMethod(c *rpc.Conn, params map[string]any) (any, error) {
 		return nil, rpc.Refused("could not confirm whether "+agent+" has a session running just now - try again in a moment.", "state", "")
 	}
 	if deps := e.dependents(agent, everyone); len(deps) > 0 {
-		return nil, rpc.Refused(fmt.Sprintf("%s has agents under it (%s): retire or move them first.", agent, strings.Join(deps, ", ")), "state", "")
+		return nil, rpc.Refused(fmt.Sprintf("%s has agents under it (%s): retire or move them first.", addr.Ref(agent), strings.Join(deps, ", ")), "state", "")
 	}
 	choice, _ := params["worktree"].(string)
 	if v, has := params["worktree"]; has && choice != worktreeprune.Keep && choice != worktreeprune.Save && choice != worktreeprune.Force {

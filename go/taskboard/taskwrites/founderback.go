@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/handline/handline/go/kit/addr"
+
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/paths"
@@ -94,7 +96,7 @@ func ReturnFounderTasks(d *sql.DB, home string) (said []string, err error) {
 			left = true
 			continue
 		}
-		said = append(said, fmt.Sprintf("T%d goes back to %s, the founder's turn on it", b.id, b.to))
+		said = append(said, fmt.Sprintf("T%d goes back to %s, the founder's turn on it", b.id, addr.Ref(b.to)))
 	}
 	if !left {
 		err = db.SetMeta(d, founderBackKey, "done")

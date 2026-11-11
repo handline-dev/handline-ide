@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/handline/handline/go/kit/addr"
+
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/actor"
@@ -189,7 +191,7 @@ func discardOne(tx *sql.Tx, home, by string, tid int64, reason, batch string, ow
 	case t == nil:
 		return nil, refusal(fmt.Sprintf("no task T%d", tid))
 	case t.DiscardedBy.Valid && t.DiscardedBy.String != "":
-		return nil, refusal(fmt.Sprintf("task T%d is already discarded (%s)", tid, t.DiscardedBy.String))
+		return nil, refusal(fmt.Sprintf("task T%d is already discarded (%s)", tid, addr.Ref(t.DiscardedBy.String)))
 	case t.done():
 		return nil, refusal(fmt.Sprintf("task T%d is done - `hl task reopen T%d` if the result was wrong", tid, tid))
 	}
@@ -198,7 +200,7 @@ func discardOne(tx *sql.Tx, home, by string, tid int64, reason, batch string, ow
 		return nil, err
 	}
 	if own && by != who {
-		return nil, refusal(fmt.Sprintf("task T%d was asked for by %s, so only they withdraw it - discard it with a reason instead", tid, who))
+		return nil, refusal(fmt.Sprintf("task T%d was asked for by %s, so only they withdraw it - discard it with a reason instead", tid, addr.Ref(who)))
 	}
 	said := strings.TrimSpace(textsafe.Oneline(reason))
 	if said == "" && by == actor.OwnerKey {
@@ -244,7 +246,7 @@ func discardOne(tx *sql.Tx, home, by string, tid int64, reason, batch string, ow
 	}
 	verdict := CancelVerdict
 	if by != actor.OwnerKey {
-		verdict = fmt.Sprintf("withdrawn by %s: %s", by, said)
+		verdict = fmt.Sprintf("withdrawn by %s: %s", addr.Ref(by), said)
 	}
 	stops := by == actor.OwnerKey
 	if !stops && len(live) > 0 {
@@ -325,7 +327,7 @@ func discardOne(tx *sql.Tx, home, by string, tid int64, reason, batch string, ow
 	if err := addEvent(tx, by, "discard_task", payload...); err != nil {
 		return nil, err
 	}
-	byWord := by
+	byWord := addr.Ref(by)
 	if by == actor.OwnerKey {
 		byWord = "the founder"
 	}
@@ -358,7 +360,7 @@ func discardOne(tx *sql.Tx, home, by string, tid int64, reason, batch string, ow
 		return nil, err
 	}
 	d.notes, d.freed, d.owner = append(d.notes, cleared...), owners, t.Acting
-	d.title, d.reason, d.said = t.Title, said, fmt.Sprintf("task T%d discarded by %s: %s", tid, by, said)
+	d.title, d.reason, d.said = t.Title, said, fmt.Sprintf("task T%d discarded by %s: %s", tid, addr.Ref(by), said)
 	return d, nil
 }
 
