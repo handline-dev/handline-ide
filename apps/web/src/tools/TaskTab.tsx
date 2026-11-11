@@ -1,40 +1,28 @@
 import { activityOf, foundersTurn, taskOutcome, isPerson, turnChain, isSystem, type ActivityItem } from '@handline/app-core';
 import { hooks, useTaskHistory, useTaskSeen, useWrite } from '@handline/app-data';
+import { EventRow, HoverRow, Mark, type Turn } from '#src/tools/TaskEvents.tsx';
 import { useMe } from '@handline/app-react';
-import {
-  Check,
-  ChevronDown,
-  CircleDot,
-  Ellipsis,
-  Hand,
-  MessageSquare,
-  Pencil,
-  RotateCcw,
-  Send,
-  Trash2,
-  Undo2,
-  UserRound,
-} from 'lucide-react';
+import { Check, ChevronDown, Ellipsis, Hourglass, MessageSquare, RotateCcw, Trash2 } from 'lucide-react';
 import { look, TaskState, type Lookable } from '#src/ui/taskLook.tsx';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import { ago, clock } from '#src/format/time.ts';
+import { ago } from '#src/format/time.ts';
 import { taskOf } from '#src/layout/kinds.tsx';
 import { useOpenable } from '#src/layout/openable.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { Linked, Markdown } from '#src/ui/Markdown.tsx';
 import { Menu, MenuItem } from '#src/ui/Menu.tsx';
-import { Actions, CopyButton } from '#src/chat/MessageActions.tsx';
+import { Actions } from '#src/chat/MessageActions.tsx';
 import { Reference } from '#src/chat/ChatLine.tsx';
 import { MarkReply, markInto, MessageImages } from '#src/chat/MessageImages.tsx';
 import { useDraft } from '#src/chat/drafts.ts';
 import { ReadBy } from '#src/tools/ReadBy.tsx';
 import { Fields } from '#src/tools/TaskFields.tsx';
-import { GO_TURN, goToTurn, showMemo } from '#src/tools/TaskTurn.ts';
+import { GO_TURN, goToTurn, openTurnAt, showMemo } from '#src/tools/TaskTurn.ts';
 import { showHistory } from '#src/tools/TaskDiff.tsx';
 import { CommentBox, type Reply } from '#src/tools/TaskComment.tsx';
 import { useAttachments } from '#src/chat/attachments.tsx';
 import { FileDropArea } from '#src/ui/fileDrop.tsx';
-import { WaitingOnYou, YourTurn } from '#src/tools/TaskWaiting.tsx';
+import { WaitingOnYou } from '#src/tools/TaskWaiting.tsx';
 import { Page } from '#src/ui/Page.tsx';
 import { ScrollFade } from '#src/ui/ScrollFade.tsx';
 import { keptScroll } from '#src/ui/keptScroll.ts';
@@ -57,20 +45,21 @@ export function TaskTab({ id }: { id: number }) {
   // The box's draft is held here so a picture marked up in the task's viewer lands in it.
   const [draft, setDraft] = useDraft(`task:${id}`);
   const addMarked = markInto(attach, setDraft);
-  // Going to the task's turn: the Your turn click, and a request-list click that left a mark (ui/keptScroll) before opening the task.
-  const goRef = useRef<() => void>(() => {});
+  // Opens at the founder's turn (a first open, or a request-list click's mark); a GO_TURN to an open tab goes there again.
   const loaded = !!q.data;
+  const onTurn = !!q.data && !CLOSED.includes(q.data.state) && foundersTurn(q.data, me);
   useEffect(() => {
-    goRef.current = () => q.data && goToTurn(q.data);
-  });
-  useEffect(() => {
-    if (loaded && keptScroll.take(`turn:${id}`)) setTimeout(() => goRef.current(), 100);
-  }, [loaded, id]);
+    if (!loaded) return;
+    const marked = keptScroll.take(`turn:${id}`);
+    if (!marked && !(onTurn && keptScroll.get(`task:${id}`) === undefined)) return;
+    const at = setTimeout(() => goToTurn(id), 100);
+    return () => clearTimeout(at);
+  }, [loaded, onTurn, id]);
   useEffect(() => {
     const on = (e: Event) => {
       if ((e as CustomEvent<number>).detail !== id) return;
       keptScroll.take(`turn:${id}`);
-      goRef.current();
+      goToTurn(id);
     };
     window.addEventListener(GO_TURN, on);
     return () => window.removeEventListener(GO_TURN, on);
@@ -126,30 +115,26 @@ export function TaskTab({ id }: { id: number }) {
                 )}
               </p>
               <Fields t={t} open={open} />
-              {/* Shown only while something holds it: what it waits on, and why. */}
-              {open && (mine || why || t.blockers.length > 0) && (
-                <div data-turn-slot className="flex flex-col gap-1 rounded-lg bg-warning/10 px-3 py-2 text-sm transition-colors">
-                  {mine ? (
-                    <YourTurn t={t} reply={replyTo} onDone={() => void q.refetch()} onReply={setReplyTo} />
-                  ) : asked ? (
-                    <WaitingOnYou t={t} me={me} asked={asked} onDone={() => void q.refetch()} onShow={() => showMemo(asked.id)} />
-                  ) : (
-                    why && (
-                      <p className="flex items-start gap-2">
-                        <Hand size={14} className="mt-1 shrink-0 text-warning" />
-                        <Linked text={why} />
-                      </p>
-                    )
-                  )}
-                  {t.blockers.map((b, i) => (
-                    <p key={b.task} className={`flex min-w-0 items-center gap-2 ${i > 0 ? 'pl-6' : ''}`}>
-                      {i === 0 && <Hand size={14} className="shrink-0 text-warning" />}
-                      <span className="shrink-0 whitespace-nowrap text-muted">Waiting on</span>
-                      <TaskLink id={b.task} title={b.title} state={b} />
-                    </p>
-                  ))}
+              {/* The founder's turn is its row in Activity; up here a wait on them with no turn (an @human comment), then plain lines. */}
+              {open && !mine && asked && (
+                <div className="flex flex-col gap-1 rounded-lg border border-warning px-3 py-2 text-sm">
+                  <WaitingOnYou t={t} me={me} asked={asked} onDone={() => void q.refetch()} onShow={() => showMemo(asked.id)} />
                 </div>
               )}
+              {open && !mine && !asked && why && (
+                <p className="flex items-start gap-2 text-sm text-muted">
+                  <Hourglass size={14} className="mt-0.5 shrink-0" />
+                  <Linked text={why} />
+                </p>
+              )}
+              {open &&
+                t.blockers.map((b, i) => (
+                  <p key={b.task} className={`flex min-w-0 items-center gap-2 text-sm ${i > 0 ? 'pl-6' : ''}`}>
+                    {i === 0 && <Hourglass size={14} className="shrink-0 text-muted" />}
+                    <span className="shrink-0 whitespace-nowrap text-muted">Waiting on</span>
+                    <TaskLink id={b.task} title={b.title} state={b} />
+                  </p>
+                ))}
             </header>
             {t.body && (
               <Flash text={t.body}>
@@ -173,8 +158,10 @@ export function TaskTab({ id }: { id: number }) {
             )}
             <Activity
               task={t.id}
+              open={mine ? openTurnAt(t, me) : undefined}
+              turn={t.turns?.at(-1)}
               onReply={(id) => setReplyTo(t.memos.find((m) => m.id === id) ?? null)}
-              items={activityOf(t.memos, t.timeline).filter((i) => !isSystem(i.who))}
+              items={activityOf(t.memos, t.timeline, me).filter((i) => !isSystem(i.who))}
             />
           </Page>
         </ScrollFade>
@@ -269,52 +256,27 @@ function toBottom(id: number) {
   }, 50);
 }
 
-/** What a change was, from its sentence: assigned or handed, done, discarded, edited, sent back, a request, or another state. */
-function eventIcon(line: string): typeof Check {
-  if (/handed it|assigned/.test(line)) return UserRound;
-  if (/marked it done/.test(line)) return Check;
-  if (/discarded/.test(line)) return Trash2;
-  if (/changed the brief/.test(line)) return Pencil;
-  if (/sent it back/.test(line)) return Undo2;
-  if (/sent a request/.test(line)) return Send;
-  return CircleDot;
-}
-
-/** Under a line, as under a chat message: its buttons and time on hover; the row keeps its height hidden, as the space between lines. */
-function HoverRow({ at, edited, onEdited, children }: { at: string; edited?: boolean; onEdited?: () => void; children?: ReactNode }) {
-  return (
-    <div className="mb-0.5 flex h-6 items-center gap-1.5 text-xs text-muted opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
-      {children}
-      <time dateTime={at} title={at}>
-        {clock(at)}
-        {edited && !onEdited && ' · edited'}
-      </time>
-      {edited && onEdited && (
-        <button type="button" onClick={onEdited} className="underline decoration-dotted hover:text-fg">
-          · edited
-        </button>
-      )}
-    </div>
-  );
-}
-
-/** The small round mark before each line of the activity. */
-function Mark({ icon: Icon }: { icon: typeof Check }) {
-  return (
-    <span className="grid size-6 shrink-0 place-items-center rounded-full bg-surface text-muted">
-      <Icon size={12} />
-    </span>
-  );
-}
-
 /** A line's key: a comment by its number and words, so an edit draws it again; an event by its time and words. */
 const keyOf = (i: ActivityItem) => (i.kind === 'comment' ? `c${i.memo}:${i.note}` : `e${i.at}${i.line}`);
 
 /** How many of the latest lines show before Earlier is opened. */
 const SHOWN = 5;
 
-/** Comments and changes in one list, oldest first: the last five, and Earlier opens the rest above them. */
-function Activity({ task, items, onReply }: { task: number; items: ActivityItem[]; onReply: (memo: number) => void }) {
+/** Comments and changes in one list, oldest first: the last five, and Earlier opens the rest above them; the founder's open turn
+ * (`open`, its row's time) shows however old. */
+function Activity({
+  task,
+  items,
+  open,
+  turn,
+  onReply,
+}: {
+  task: number;
+  items: ActivityItem[];
+  open?: string;
+  turn?: Turn;
+  onReply: (memo: number) => void;
+}) {
   const [all, setAll] = useTabState('earlier', false);
   // The texts an edited comment had: its history rows. Its 'edited' mark opens them in a window.
   const rows = useTaskHistory(task).data?.rows;
@@ -323,7 +285,10 @@ function Activity({ task, items, onReply }: { task: number; items: ActivityItem[
   // What was there when the task opened just shows; a comment or event that comes later, or a comment's new words, flash.
   const [first] = useState(() => new Set(items.map(keyOf)));
   const fresh = (i: ActivityItem) => (first.has(keyOf(i)) ? '' : 'just-changed');
-  const shown = all ? items : items.slice(-SHOWN);
+  const me = useMe();
+  const isOpen = (i: ActivityItem) => !!open && i.turn === 'push' && i.at === open && isPerson(i.turnTo ?? '', me);
+  const at = items.findIndex(isOpen);
+  const shown = all ? items : items.slice(Math.min(Math.max(0, items.length - SHOWN), at < 0 ? Infinity : at));
   const hidden = items.length - shown.length;
   // The line that was first when Earlier was clicked, and where it stood: the older ones come in above it, and it stays put.
   const list = useRef<HTMLDivElement>(null);
@@ -357,7 +322,11 @@ function Activity({ task, items, onReply }: { task: number; items: ActivityItem[
         {shown.map((i) =>
           i.kind === 'comment' ? (
             // A comment as a chat line: who, the words, and under them the chat's hover row (copy, reference, time).
-            <div key={keyOf(i)} data-memo={i.memo} className="group flex gap-2.5 rounded-md transition-colors">
+            <div
+              key={keyOf(i)}
+              data-memo={i.memo}
+              className="group flex gap-2.5 rounded-md ring-warning ring-offset-4 ring-offset-bg transition-shadow duration-500"
+            >
               <Mark icon={MessageSquare} />
               <div className="flex min-w-0 flex-1 flex-col">
                 <div className={`flex flex-col rounded-md ${fresh(i)}`}>
@@ -387,28 +356,13 @@ function Activity({ task, items, onReply }: { task: number; items: ActivityItem[
               </div>
             </div>
           ) : (
-            <div key={keyOf(i)} className="group flex gap-2.5 text-xs text-muted">
-              <Mark icon={eventIcon(i.line)} />
-              <div className="flex min-w-0 flex-1 flex-col pt-0.5">
-                <div className={`flex flex-col rounded-md ${fresh(i)}`}>
-                  <span>{i.line}</span>
-                  {i.note && (
-                    <div className="mt-1 border-l-2 border-border pl-3 text-sm text-fg">
-                      <Markdown text={i.note} />
-                    </div>
-                  )}
-                </div>
-                <HoverRow at={i.at}>{i.note && <CopyButton text={i.note} />}</HoverRow>
-              </div>
-            </div>
+            <EventRow key={keyOf(i)} i={i} fresh={fresh(i)} turn={isOpen(i) ? turn : undefined} />
           ),
         )}
       </div>
     </Section>
   );
 }
-
-/** The chat's message box, writing a comment on the task; its draft and files are kept per task. */
 
 /** What the work came to: the pull request when the evidence names one, else the commit. */
 function ResultChips({ evidence, title }: { evidence: string; title: string }) {

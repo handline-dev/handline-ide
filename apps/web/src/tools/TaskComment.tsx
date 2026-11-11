@@ -1,16 +1,17 @@
 // The box under a task: a comment (the chat's own box, with @ and / and files), who it will reach, and someone to hand the task to with it.
-import { withImages } from '@handline/app-core';
+import { foundersTurn, withImages } from '@handline/app-core';
 import type { TaskDetail } from '@handline/client';
-import { hooks, useAgents, useServes, useWrite } from '@handline/app-data';
+import { classify, hooks, sentence, useAgents, useGiveBack, useServes, useWrite } from '@handline/app-data';
 import { Check, CornerDownRight, Eye, Flag, Timer, Trash2, UserRound, X } from 'lucide-react';
 import { useState } from 'react';
 import type { Attachments } from '#src/chat/attachments.tsx';
 import { Composer } from '#src/chat/Composer.tsx';
 import type { MarkedPicture } from '#src/viewer/ImageViewer.tsx';
 import type { Command } from '#src/chat/Suggest.tsx';
-import { ChoicePicker } from '#src/tools/TaskChoices.tsx';
 import { AssignPicker } from '#src/tools/TaskFields.tsx';
 import { choices, openAsks } from '#src/tools/TaskWaiting.tsx';
+import { turnReply } from '#src/tools/TaskTurn.ts';
+import { confirm } from '#src/ui/modal.tsx';
 import { useMe } from '@handline/app-react';
 import { HoverCard } from '#src/ui/HoverCard.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
@@ -68,9 +69,17 @@ export function CommentBox({
   onMarked: (marked: MarkedPicture[]) => void;
   onSent: () => void;
 }) {
-  // An answer to a turn that has ended or been asked anew since is dropped: it would answer a question no longer there.
-  const reply = asked?.turn && asked.text !== t.turns?.at(-1)?.ask ? null : asked;
   const me = useMe();
+  // On the founder's turn the box answers it, unless a comment was picked to reply to.
+  const turn = foundersTurn(t, me) ? t.turns?.at(-1) : undefined;
+  const picked = asked?.turn ? null : asked;
+  const reply = picked ?? (turn ? turnReply(t) : null);
+  const back = useGiveBack();
+  const giveBack = async () => {
+    if (!(await confirm({ title: 'Give it back with no answer?', message: `${turn?.by} goes on without one.`, confirmText: 'Give back' })))
+      return;
+    back.give(t.id, { onError: (e) => toast(`Give back did not work: ${sentence(classify(e))}`, { tone: 'warning' }) });
+  };
   const read = useWrite('inbox.mark_read');
   const box = `task:${t.id}`;
   const add = useWrite('task.comment.add', String(t.id));
@@ -146,44 +155,57 @@ export function CommentBox({
     setTo(null);
     onDrop();
   };
-  // Answering the founder's turn whose question lays out choices: they are picked as in Claude Code, and "Something else" brings the box.
-  const options = reply?.turn ? choices(reply.text) : [];
-  // The answer "Something else" was picked in; Answer again starts on the choices again.
-  const [otherFor, setOtherFor] = useState<Reply | null>(null);
-  const other = otherFor === reply;
-  if (reply && options.length > 0 && !other)
-    return (
-      <Page>
-        <ChoicePicker
-          by={reply.author}
-          options={options}
-          onPick={(o) => send(`${o.key}) ${o.text}`)}
-          onOther={() => setOtherFor(reply)}
-          onCancel={onDrop}
-        />
-      </Page>
-    );
+  // Answering the founder's turn, not handing the task on: the box ends the turn, and empty it gives the turn back with no words.
+  const answering = !!turn && !picked && !to;
+  const options = answering ? choices(turn.ask ?? '') : [];
+  // A choice fills the box, or goes in front of what is written there.
+  const pick = (o: string) => setDraft(!draft.trim() || options.some((c) => draft.trim() === `${c.key}) ${c.text}`) ? o : `${o}\n${draft}`);
   return (
     <Page>
       <Composer
         agent={box}
         commands={commands}
+        sendLabel={answering ? 'Answer' : undefined}
+        onEmpty={answering ? { label: 'Give back', run: () => void giveBack() } : undefined}
+        locked={back.pending ? 'Giving it back' : undefined}
+        focusOn={picked}
         above={
-          reply && (
-            <div role="status" className="-ml-2 flex min-w-0 items-center gap-1.5 text-xs text-muted">
-              <CornerDownRight size={14} className="ml-1 shrink-0" />
-              <span className="min-w-0 flex-1 truncate">
-                {reply.turn
-                  ? `Answering ${reply.author}'s question`
-                  : `Replying to ${reply.author}: ${reply.text.replace(/@human\s*/g, '').replace(/\s+/g, ' ')}`}
+          answering ? (
+            <div className="flex flex-col gap-2 text-xs text-muted">
+              <span className="flex items-center gap-1.5">
+                <CornerDownRight size={14} className="shrink-0" />
+                Sending answers {turn.by} and gives the turn back · Send it empty to give it back with no answer
               </span>
-              <IconButton className="size-6!" label="Drop the reply" onClick={onDrop}>
-                <X size={14} />
-              </IconButton>
+              {options.length > 0 && (
+                <span className="flex flex-wrap gap-1.5">
+                  {options.map((o) => (
+                    <button
+                      key={o.key}
+                      type="button"
+                      onClick={() => pick(`${o.key}) ${o.text}`)}
+                      className="max-w-full truncate rounded-md border border-border px-2 py-0.5 text-xs text-fg hover:bg-hover/30"
+                    >
+                      {o.key}) {o.text}
+                    </button>
+                  ))}
+                </span>
+              )}
             </div>
+          ) : (
+            picked && (
+              <div role="status" className="-ml-2 flex min-w-0 items-center gap-1.5 text-xs text-muted">
+                <CornerDownRight size={14} className="ml-1 shrink-0" />
+                <span className="min-w-0 flex-1 truncate">
+                  {`Replying to ${picked.author}: ${picked.text.replace(/@human\s*/g, '').replace(/\s+/g, ' ')}`}
+                </span>
+                <IconButton className="size-6!" label="Drop the reply" onClick={onDrop}>
+                  <X size={14} />
+                </IconButton>
+              </div>
+            )
           )
         }
-        placeholder={to ? `Comment and assign to ${to}` : `Comment on T${t.id}`}
+        placeholder={to ? `Comment and assign to ${to}` : answering ? `Your answer to ${turn.by}` : `Comment on T${t.id}`}
         draft={draft}
         setDraft={setDraft}
         attach={attach}

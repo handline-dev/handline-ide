@@ -1,6 +1,7 @@
 // The Activity of a task as one list: its comments, and its events in words (a handoff is one line, its note opens on "Read note").
 // Comments come from the memos, which a write patches at once; the other entries from the daemon's timeline.
 import type { TaskDetail } from '@handline/client';
+import { isPerson } from '#src/chat.ts';
 import { findImageRefs } from '#src/images.ts';
 
 type Entry = TaskDetail['timeline'][number];
@@ -21,6 +22,9 @@ export interface ActivityItem {
   /** A comment's pictures, still kept. */
   images?: { id: string; name: string }[];
   edited: boolean;
+  /** For a turn passed: handed on (push) or given back (pop), and to whom. */
+  turn?: 'push' | 'pop';
+  turnTo?: string;
 }
 
 const STATE_WORD: Record<string, string> = {
@@ -40,8 +44,26 @@ const stateLine = (who: string, text: string): string => {
   return `${who} ${STATE_WORD[to] ?? `moved it to ${to || 'another state'}`}`;
 };
 
-/** The memos as comments and the rest of the timeline as events in words, oldest first. */
-export function activityOf(memos: TaskDetail['memos'], timeline: readonly Entry[]): ActivityItem[] {
+/** The person as "you", anyone else by name. */
+const named = (who: string, me: string, you = 'you') => (isPerson(who, me) ? you : who);
+
+/** A turn passed, in words: "handline.ui asked you" with its ask, "You gave the turn back to handline.ui". */
+function turnLine(e: Entry, me: string): { line: string; to: string } {
+  const [from = e.who, to = ''] = e.who.split('→').map((x) => x.trim());
+  if (e.turn === 'pop') return { line: `${named(from, me, 'You')} gave the turn back to ${named(to, me)}`, to };
+  return { line: isPerson(to, me) ? `${from} asked you` : `${named(from, me, 'You')} gave the turn to ${to}`, to };
+}
+
+/** A request in words: one the daemon delivered on someone's behalf says why (the queue reached it, or a new holder). */
+function requestLine(e: Entry): string {
+  const to = e.who.split('→').pop()?.trim() ?? '';
+  if (e.forwards === 'queue') return `It reached ${to} from the queue`;
+  if (e.forwards === 'resend') return `It went again to ${to}, its new holder`;
+  return `${e.who} sent a request`;
+}
+
+/** The memos as comments and the rest of the timeline as events in words, oldest first; `me` is the person, written "you". */
+export function activityOf(memos: TaskDetail['memos'], timeline: readonly Entry[], me = ''): ActivityItem[] {
   const comments: ActivityItem[] = memos.map((m) => {
     const named = new Set(findImageRefs(m.text).map((r) => r.id));
     return {
@@ -62,11 +84,16 @@ export function activityOf(memos: TaskDetail['memos'], timeline: readonly Entry[
     const base = { kind: 'event' as const, at: e.at, who: e.who, memo: e.memo, edited: false };
     switch (e.kind) {
       case 'memo':
-      case 'turn':
         return [];
+      case 'turn': {
+        const { line, to } = turnLine(e, me);
+        return [{ ...base, line, note: e.text, turn: e.turn === 'pop' ? 'pop' : 'push', turnTo: to }];
+      }
       case 'handoff': {
         const [from = e.who, to = ''] = e.who.split('→').map((x) => x.trim());
-        return [{ ...base, who: from, line: to ? `${from} handed it to ${to}` : `${from} handed it over`, note: e.text }];
+        const by = named(from, me, 'You');
+        const line = !to ? `${by} handed it over` : isPerson(to, me) ? `${by} assigned you` : `${by} handed it to ${to}`;
+        return [{ ...base, who: from, line, note: e.text }];
       }
       case 'state':
         return [{ ...base, line: stateLine(e.who, e.text), note: '' }];
@@ -75,7 +102,7 @@ export function activityOf(memos: TaskDetail['memos'], timeline: readonly Entry[
       case 'reject':
         return [{ ...base, line: `${e.who} sent it back`, note: e.text }];
       case 'request':
-        return [{ ...base, line: `${e.who} sent a request`, note: e.text }];
+        return [{ ...base, line: requestLine(e), note: e.text }];
     }
   });
   return [...comments, ...events].sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
