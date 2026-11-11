@@ -371,7 +371,7 @@ export interface AgentsMethods {
   request_id: RequestId;
 }; result: Accepted };
   "agent.create": { params: {
-  name: AgentName;
+  name: string;
   /** A free string today. */
   role: string;
   /** A directory, as repos.list gives it in path. An unknown one is not_found, what repo. */
