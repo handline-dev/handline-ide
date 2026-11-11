@@ -29,7 +29,7 @@ func TestAMessageBetweenTheHandoffDecisionAndTheCloseGoesToTheNewSession(t *test
 		t.Fatalf("typed at the old session: %q", last)
 	}
 	// The handoff is released; the same message is now told, and only the held one has the line.
-	r.must(db.AdvanceHandoff(r.DB, "h-bob", "released", "done", ""))
+	r.must(db.AdvanceHandoff(r.DB, "h-"+r.k("bob"), "released", "done", ""))
 	if got, _ := r.TellNow(r.DB, rid); got != "sent" {
 		t.Fatal(got)
 	}
@@ -56,7 +56,7 @@ func TestAHeldBatchAndAPendingLineAreToldWithTheArrivalLine(t *testing.T) {
 	if sent, _ := r.DeliverQueued(r.DB, r.k(("bob"))); sent {
 		t.Fatal("the queue was told")
 	}
-	r.must(db.AdvanceHandoff(r.DB, "h-bob", "released", "done", ""))
+	r.must(db.AdvanceHandoff(r.DB, "h-"+r.k("bob"), "released", "done", ""))
 	if sent, _ := r.DeliverQueued(r.DB, r.k(("bob"))); !sent {
 		t.Fatal("the queue was not told once the handoff ended")
 	}
@@ -65,7 +65,7 @@ func TestAHeldBatchAndAPendingLineAreToldWithTheArrivalLine(t *testing.T) {
 	}
 	r.decideHandoff(r.k("bob"))
 	r.SendMessage(r.DB, r.k(("bob")), "a bare line")
-	r.must(db.AdvanceHandoff(r.DB, "h-bob", "released", "done", ""))
+	r.must(db.AdvanceHandoff(r.DB, "h-"+r.k("bob"), "released", "done", ""))
 	if sent, err := r.DeliverPending(r.DB, r.k(("bob"))); err != nil || !sent {
 		t.Fatalf("%v %v", sent, err)
 	}
@@ -146,7 +146,7 @@ func TestABatchClearsTheMarksOfEachRequestItTold(t *testing.T) {
 	if sent, _ := r.DeliverQueued(r.DB, r.k(("bob"))); sent {
 		t.Fatal("the queue was told")
 	}
-	r.must(db.AdvanceHandoff(r.DB, "h-bob", "released", "done", ""))
+	r.must(db.AdvanceHandoff(r.DB, "h-"+r.k("bob"), "released", "done", ""))
 	if sent, _ := r.DeliverQueued(r.DB, r.k(("bob"))); !sent {
 		t.Fatal("the queue was not told")
 	}
