@@ -17,6 +17,7 @@ import { LoaderCircle } from 'lucide-react';
 import { useEffect, useImperativeHandle, useRef, useState, type ReactNode, type Ref } from 'react';
 import { ContextRing } from '#src/chat/agent/ContextRing.tsx';
 import { COMPACTING_WORDS, useCompacting, useCompactNow } from '#src/chat/agent/compaction.ts';
+import { SwitchWait, useSwitchLock } from '#src/chat/agent/AccountSwitch.tsx';
 import type { Command } from '#src/chat/Suggest.tsx';
 import { useOpenTab } from '#src/layout/openTab.tsx';
 import { ModelChip } from '#src/chat/agent/ModelChip.tsx';
@@ -55,6 +56,7 @@ export function Chat({ agent }: { agent: string }) {
   const running = useChat(agent, 'all').working.turn_running;
   const run = useVerbRun(agent);
   const compacting = useCompacting(agent);
+  const switchLock = useSwitchLock(agent);
   const compactNow = useCompactNow(agent);
   const openTab = useOpenTab();
   const stop = () =>
@@ -115,6 +117,7 @@ export function Chat({ agent }: { agent: string }) {
         loading
       )}
       <Page>
+        <SwitchWait agent={agent} />
         <Composer
           agent={agent}
           draft={draft}
@@ -124,7 +127,7 @@ export function Chat({ agent }: { agent: string }) {
           leading={<ModelChip agent={agent} />}
           trailing={<ContextRing agent={agent} />}
           running={running}
-          locked={compacting ? COMPACTING_WORDS[compacting] : undefined}
+          locked={compacting ? COMPACTING_WORDS[compacting] : (switchLock ?? undefined)}
           onStop={stop}
           commands={commands}
           above={
