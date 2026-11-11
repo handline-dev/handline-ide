@@ -32,8 +32,8 @@ function rig(files: string[]) {
       return '';
     },
     peek: async () => main,
-    clearWeb: () => calls.push('clear'),
-    swapWeb: () => calls.push('swap'),
+    clearNext: () => calls.push('clear'),
+    swapNext: () => calls.push('swap'),
     relaunch: () => calls.push('relaunch'),
   });
   const fresh: boolean[] = [];
@@ -60,7 +60,7 @@ test('main moving is news once; a main that moved again is news again, and one t
   assert.equal(r.f.next, null);
 });
 
-test('prepare fetches, moves the checkout to that main and builds the page beside the running one, then waits; nothing restarts', async () => {
+test('prepare fetches, moves the checkout to that main and builds the page, the daemon and hl beside the running ones, then waits; nothing is swapped', async () => {
   const r = rig(['apps/web/src/App.tsx']);
   await r.f.init();
   r.main.sha = 'bbb2222';
@@ -77,8 +77,8 @@ test('prepare fetches, moves the checkout to that main and builds the page besid
       'git checkout -B main bbb2222',
       'pnpm --filter @handline/web build --outDir dist-next',
       'pnpm --filter @handline/electron build',
-      'bash tools/build-go.sh',
-      'bash tools/build-hl.sh',
+      'bash tools/build-go.sh handlined.next',
+      'bash tools/build-hl.sh hl.next',
     ],
   );
   assert.deepEqual(steps, ['Preparing 0', 'Building (1 of 4) 0', 'Building (2 of 4) 25', 'Building (3 of 4) 50', 'Building (4 of 4) 75']);
@@ -102,12 +102,12 @@ test('a ready update is built again when main moves past it, so Restart now land
   assert.deepEqual(moves, ['git checkout -B main bbb2222', 'git checkout -B main ccc3333']);
   assert.ok(r.ran.includes('git diff --name-only aaa1111 ccc3333'), 'the diff is from the commit the app runs');
   await r.f.restartNow();
-  assert.equal(r.ran.filter((c) => c === 'bash tools/build-go.sh').length, 2, 'the daemon is built for the newest main too');
-  assert.equal(r.ran.filter((c) => c === 'bash tools/build-hl.sh').length, 2, 'and hl beside it');
+  assert.equal(r.ran.filter((c) => c === 'bash tools/build-go.sh handlined.next').length, 2, 'the daemon is built for the newest main too');
+  assert.equal(r.ran.filter((c) => c === 'bash tools/build-hl.sh hl.next').length, 2, 'and hl beside it');
   assert.deepEqual(r.calls.slice(-2), ['swap', 'relaunch']);
 });
 
-test('Restart now puts the built page in place and relaunches; it calls nothing on the running daemon', async () => {
+test('Restart now puts the built page and binaries in place and relaunches; it calls nothing on the running daemon', async () => {
   const r = rig(['apps/electron/src/main.ts']);
   await r.f.init();
   r.main.sha = 'ddd4444';
@@ -134,8 +134,8 @@ test('a retry after a failed web build builds the page again, from where the fir
       return '';
     },
     peek: async () => ({ sha: 'bbb2222', title: 't' }),
-    clearWeb: () => calls.push('clear'),
-    swapWeb: () => calls.push('swap'),
+    clearNext: () => calls.push('clear'),
+    swapNext: () => calls.push('swap'),
     relaunch: () => undefined,
   });
   await f.init();
@@ -169,8 +169,8 @@ for (const step of ['swap', 'relaunch'] as const) {
     const f = new Follower({
       run: async (file, args) => (ran.push(`${file} ${args[0]}`), args[0] === 'diff' ? 'go/x.go' : 'aaa1111'),
       peek: async () => ({ sha: 'bbb2222', title: 't' }),
-      clearWeb: () => calls.push('clear'),
-      swapWeb: at('swap'),
+      clearNext: () => calls.push('clear'),
+      swapNext: at('swap'),
       relaunch: at('relaunch'),
     });
     await f.init();
@@ -195,8 +195,8 @@ test('a failed daemon build ends Preparing in failed with the build-go.sh output
       return args[0] === 'diff' ? 'go/x.go' : 'aaa1111';
     },
     peek: async () => ({ sha: 'bbb2222', title: 't' }),
-    clearWeb: () => undefined,
-    swapWeb: () => calls.push('swap'),
+    clearNext: () => undefined,
+    swapNext: () => calls.push('swap'),
     relaunch: () => calls.push('relaunch'),
   });
   await f.init();
@@ -216,8 +216,8 @@ test('a failed build is shown with the command output behind it, nothing relaunc
       return args[0] === 'diff' ? 'apps/web/a.ts' : 'aaa1111';
     },
     peek: async () => ({ sha: 'bbb2222', title: 't' }),
-    clearWeb: () => undefined,
-    swapWeb: () => undefined,
+    clearNext: () => undefined,
+    swapNext: () => undefined,
     relaunch: () => calls.push('relaunch'),
   });
   await f.init();
@@ -357,8 +357,8 @@ test('a watch that cannot start or breaks is reported, not thrown', async () => 
   const f = new Follower({
     run: async () => '',
     peek: async () => ({ sha: 'x', title: '' }),
-    clearWeb: () => undefined,
-    swapWeb: () => undefined,
+    clearNext: () => undefined,
+    swapNext: () => undefined,
     relaunch: () => undefined,
   });
   f.watchFailed(new Error('EMFILE'));

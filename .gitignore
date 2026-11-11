@@ -10,6 +10,8 @@ docs/vendor-extension-board.md
 
 # built Go daemon
 /go/handlined
+/go/handlined.next
+/go/hl.next
 /go/cmd/handlined/handlined
 /go/hl
 /go/hl.src

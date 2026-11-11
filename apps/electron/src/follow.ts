@@ -27,6 +27,11 @@ export function decide(files: string[]): Rebuild {
 
 /** The page is built here beside the running one (apps/web/dist-next) and swapped in at the restart. */
 export const WEB_NEXT = 'dist-next';
+/** The daemon and hl in go/, built beside the running ones and renamed in with the page: the daemon restarts on its own when its file changes. */
+export const BINS_NEXT = [
+  ['handlined.next', 'handlined'],
+  ['hl.next', 'hl'],
+] as const;
 
 /** The main that counts: the source repo's `origin/main`, which is GitHub's main as of its last fetch. */
 export const SOURCE_MAIN = 'origin/main';
@@ -55,10 +60,10 @@ export interface FollowDeps {
   run(file: string, args: string[]): Promise<string>;
   /** Where GitHub's main is now, read through the repo the checkout was cloned from (`peekMain`). */
   peek(): Promise<Main>;
-  /** Removes a page built beside the running one that was left half done by a failed build. */
-  clearWeb(): void;
-  /** Puts the page built beside the running one in its place, just before the relaunch (the running page keeps its files until then). */
-  swapWeb(): void;
+  /** Removes a page and binaries built beside the running ones that a failed build left half done. */
+  clearNext(): void;
+  /** Puts the page, the daemon and hl built beside the running ones in their place, just before the relaunch (what runs keeps its files until then). */
+  swapNext(): void;
   relaunch(): void;
 }
 
@@ -155,15 +160,15 @@ export class Follower {
       const head = this.from;
       const files = (await this.run('git', ['diff', '--name-only', head, target])).split('\n').filter(Boolean);
       await this.run('git', moveTo(target));
-      this.d.clearWeb();
+      this.d.clearNext();
       const r = decide(files);
       // The electron build stamps the sha the daemon is compared with, the relaunched app starts the daemon built here, and hl must match it: all run every time.
       const steps: [string, string[]][] = [
         ...(r.install ? [['pnpm', ['install', '--frozen-lockfile']] as [string, string[]]] : []),
         ...(r.web ? [['pnpm', ['--filter', '@handline/web', 'build', '--outDir', WEB_NEXT]] as [string, string[]]] : []),
         ['pnpm', ['--filter', '@handline/electron', 'build']],
-        ['bash', ['tools/build-go.sh']],
-        ['bash', ['tools/build-hl.sh']],
+        ['bash', ['tools/build-go.sh', BINS_NEXT[0][0]]],
+        ['bash', ['tools/build-hl.sh', BINS_NEXT[1][0]]],
       ];
       for (const [i, [file, args]] of steps.entries()) {
         this.progress(`Building (${i + 1} of ${steps.length})`, i / steps.length);
@@ -184,7 +189,7 @@ export class Follower {
     if (this.state === 'updating' || !this.built) return;
     this.progress('Restarting', 1);
     try {
-      this.d.swapWeb();
+      this.d.swapNext();
       this.d.relaunch();
     } catch (e) {
       this.fail(e);

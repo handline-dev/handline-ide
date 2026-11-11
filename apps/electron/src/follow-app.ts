@@ -6,7 +6,7 @@ import path from 'node:path';
 import { app, type BrowserWindow } from 'electron';
 import { relaunchCommand } from '#src/relaunch.ts';
 import { quitQuietly } from '#src/ask.ts';
-import { Follower, peekMain, watchMain, WEB_NEXT } from '#src/follow.ts';
+import { BINS_NEXT, Follower, peekMain, watchMain, WEB_NEXT } from '#src/follow.ts';
 import type { UpdateFlow } from '#src/update-flow.ts';
 
 const sh = (file: string, args: string[], cwd: string): Promise<string> =>
@@ -25,11 +25,18 @@ export function followMain(o: { dir: string; window: () => BrowserWindow | null;
   const follower = new Follower({
     run: (file, args) => sh(file, args, o.dir),
     peek: () => peekMain((...a) => sh('git', ['-C', source, ...a], o.dir).then((s) => s.trim())),
-    clearWeb: () => fs.rmSync(path.join(web, WEB_NEXT), { recursive: true, force: true }),
-    swapWeb: () => {
-      if (!fs.existsSync(path.join(web, WEB_NEXT))) return;
-      fs.rmSync(path.join(web, 'dist'), { recursive: true, force: true });
-      fs.renameSync(path.join(web, WEB_NEXT), path.join(web, 'dist'));
+    clearNext: () => {
+      fs.rmSync(path.join(web, WEB_NEXT), { recursive: true, force: true });
+      for (const [next] of BINS_NEXT) fs.rmSync(path.join(o.dir, 'go', next), { force: true });
+    },
+    // The page first, then the binaries: the daemon restarts itself on the rename, and by then the page it serves is the new one.
+    swapNext: () => {
+      if (fs.existsSync(path.join(web, WEB_NEXT))) {
+        fs.rmSync(path.join(web, 'dist'), { recursive: true, force: true });
+        fs.renameSync(path.join(web, WEB_NEXT), path.join(web, 'dist'));
+      }
+      for (const [next, live] of BINS_NEXT)
+        if (fs.existsSync(path.join(o.dir, 'go', next))) fs.renameSync(path.join(o.dir, 'go', next), path.join(o.dir, 'go', live));
     },
     // Through launch.ts, not app.relaunch: that would run this same Electron bundle again, and an update that moved Electron's version needs the new one.
     relaunch: () => {
