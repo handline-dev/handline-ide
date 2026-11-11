@@ -76,19 +76,15 @@ func (e *Env) create(c *rpc.Conn, params map[string]any) (any, error) {
 	if st, serr := os.Stat(repo); serr != nil || !st.IsDir() {
 		return nil, notFound("repo", repo, "no repo "+repo)
 	}
-	known := map[string]bool{}
-	for _, a := range paths.ListAgents(e.Home) {
-		known[a] = true
-	}
-	if parent != "" {
-		if !known[parent] {
+	if parent != "" { // parent is a key (a who param); name is the new agent's dotted name
+		if paths.AgentKey(e.Home, parent) != parent {
 			return nil, notFound("agent", parent, "no agent "+parent)
 		}
-		if team.ParentName(name) != parent {
-			return nil, bad("name is "+parent+".<something> under that parent", "name")
+		if paths.AgentKey(e.Home, team.ParentName(name)) != parent {
+			return nil, bad("name is <parent>.<something> under that parent", "name")
 		}
 	}
-	if known[name] {
+	if paths.AgentKey(e.Home, name) != "" {
 		return nil, rpc.Refused(name+" is already an agent", "state", "")
 	}
 	if abs, aerr := filepath.Abs(repo); aerr == nil {
