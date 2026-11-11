@@ -368,7 +368,7 @@ export const SEEDS: Record<string, Seed> = {
       created: iso(55),
       body: 'The bell counts every pause as its own line. Pick how repeats are shown.',
       memos,
-      turns: [{ agent: ME, ask, by: ARCH, since: iso(3), on_pass: null, evidence: null, edited: null, earlier: [] }],
+      turns: [{ agent: ME, ask, by: ARCH, since: iso(3), on_pass: null, evidence: null, edited: null, earlier: [], memo: null }],
       acting: ME,
     });
     d.inbox.add({ kind: 'decision', agent: ARCH, title: 'Bell redesign: how a pause is counted', body: ask, task: 8809 });
@@ -400,7 +400,7 @@ export const SEEDS: Record<string, Seed> = {
         { at: iso(30), who: `${ME} → ${ARCH}`, text: '', turn: 'pop' },
         { at: iso(3), who: `${ARCH} → ${ME}`, text: again, turn: 'push' },
       ],
-      turns: [{ agent: ME, ask: again, by: ARCH, since: iso(3), on_pass: null, evidence: null, edited: null, earlier: [] }],
+      turns: [{ agent: ME, ask: again, by: ARCH, since: iso(3), on_pass: null, evidence: null, edited: null, earlier: [], memo: null }],
       acting: ME,
     });
     d.tasks.seed({

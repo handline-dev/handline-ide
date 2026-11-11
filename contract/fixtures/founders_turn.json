@@ -87,11 +87,11 @@
      "send": {
       "jsonrpc": "2.0",
       "id": 3,
-      "method": "task.turn.push",
+      "method": "task.comment.add",
       "params": {
        "task": "{{tid}}",
-       "to": "human",
-       "ask": "pick one",
+       "text": "pick one",
+       "turn": "human",
        "request_id": "conf-ft-turn-push"
       }
      },
@@ -194,8 +194,8 @@
    ]
   },
   {
-   "name": "task.turn.push.asking_the_founder_again_rewrites_their_question",
-   "spec": "task.turn.push",
+   "name": "task.comment.add.turn_asking_the_founder_again_rewrites_their_question",
+   "spec": "task.comment.add",
    "as": "agent",
    "with": {
     "boss": "founder"
@@ -280,11 +280,11 @@
      "send": {
       "jsonrpc": "2.0",
       "id": 3,
-      "method": "task.turn.push",
+      "method": "task.comment.add",
       "params": {
        "task": "{{tid}}",
-       "to": "human",
-       "ask": "pick one",
+       "text": "pick one",
+       "turn": "human",
        "request_id": "conf-ft-reask-first"
       }
      },
@@ -296,11 +296,11 @@
      "send": {
       "jsonrpc": "2.0",
       "id": 4,
-      "method": "task.turn.push",
+      "method": "task.comment.add",
       "params": {
        "task": "{{tid}}",
-       "to": "human",
-       "ask": "pick one, A or B",
+       "text": "pick one, A or B",
+       "turn": "human",
        "request_id": "conf-ft-reask-push"
       }
      },

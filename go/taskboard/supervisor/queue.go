@@ -92,6 +92,6 @@ func (e *Env) moveOffWaiting(q db.Q, agent string, now int64) {
 	if key, told := fmt.Sprintf("overdue_ping:%d", cur.ID), must(db.TimeoutNotices(q, cur.ID)).LastID; must(db.Cursor(q, key)) != told {
 		check(db.SetCursor(q, key, told))
 		e.typeSay(q, agent, fmt.Sprintf("T%d (%s) is %s. Do it, hand it on (`hl task handoff T%d <agent> \"<note>\"`), mark what blocks it (`hl task edit T%d --blocked-by T<n>`), "+
-			"or put the founder on it if only they can decide (`hl task turn T%d human \"<the decision, and what you recommend>\"`).", cur.ID, textsafe.Oneline(cur.Title), why, cur.ID, cur.ID, cur.ID), "overdue task, idle holder")
+			"or put the founder on it if only they can decide (`hl task comment T%d add \"<the decision, and what you recommend>\" --turn human`).", cur.ID, textsafe.Oneline(cur.Title), why, cur.ID, cur.ID, cur.ID), "overdue task, idle holder")
 	}
 }

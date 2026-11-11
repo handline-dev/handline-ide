@@ -44,9 +44,12 @@ func (p *ChatRequests) Get(id int64) (*ChatRequest, error) {
 // TaskEventItem is the task event with that id as a transcript item, and the agent acting on the task it names, as chat.transcript gives
 // it; ok is false when the chat does not show the event or its task is gone.
 func (e *Env) TaskEventItem(id int64) (item map[string]any, agent string, ok bool, err error) {
-	ev, err := queryOne(e.DB, "SELECT id, ts, agent, kind, payload FROM events WHERE id = ?", id)
+	ev, err := queryOne(e.DB, "SELECT id, ts, agent, kind, payload, "+commentBodySQL+" FROM events WHERE id = ?", id)
 	if err != nil || ev == nil {
 		return nil, "", false, err
+	}
+	if item, agent, ok := commentCardOf(ev); ok {
+		return item, agent, true, nil
 	}
 	item, tid, shown := taskItemOf(ev)
 	if !shown {
@@ -97,8 +100,15 @@ func (e *Env) SessionItem(id int64) (item map[string]any, agent string, ok bool,
 // WorkingOf is a stored agent view (the agent_view row's JSON) as the spec's Working.
 func WorkingOf(view string) map[string]any { return workingFrom(decodeObject(view)) }
 
-// ChatTaskKinds are the kinds of task event the chat shows, a batch discard's among them, sorted.
+// ChatTaskKinds are the kinds of task event the chat shows, a batch discard's and a task_comment item's among them, sorted.
 func ChatTaskKinds() []string {
+	kinds := append(taskCardKinds(), commentCardKinds...)
+	sort.Strings(kinds)
+	return kinds
+}
+
+// taskCardKinds are the kinds of event shown in the chat of the agent acting on the task, and a batch discard's.
+func taskCardKinds() []string {
 	kinds := []string{batchKind}
 	for k := range transcriptEvents {
 		kinds = append(kinds, k)

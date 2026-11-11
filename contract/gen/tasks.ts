@@ -173,7 +173,7 @@ export type TaskDetail = Task & {
     at: Timestamp;
     /** The author, or `from → to` for a handoff or a turn. */
     who: string;
-    /** memo; handoff; a request linked to the task, except a memo's tell, the ask to the founder an @human memo opens, and a request that forwards a comment or a turn's return (any of them withdrawn too), which repeat their memo or turn; edit, the brief changed (text is the new brief); state, a change of state (text is `from -> done`); reject, the task sent back (text is the note), from before a review was a handoff; turn, a turn pushed (who is `by → to`, text its ask) or given back (who is `from → to`, text empty: a note is its comment). */
+    /** memo; handoff; a request linked to the task, except a memo's tell, the ask to the founder an @human memo opens, and a request that forwards a comment or a turn's return (any of them withdrawn too), which repeat their memo or turn; edit, the brief changed (text is the new brief); state, a change of state (text is `from -> done`); reject, the task sent back (text is the note), from before a review was a handoff; turn, a turn pushed (who is `by → to`, text its ask, empty when it was handed over with a comment: memo names that comment) or given back (who is `from → to`, text empty: a note is its comment). */
     kind: "memo" | "handoff" | "request" | "edit" | "state" | "reject" | "turn";
     /** Already stripped of control characters: a client draws it as it is. */
     text: string;
@@ -383,8 +383,8 @@ export type PendingRequest = {
   task: number | null;
   /** The task's title; for an item with no task, its own line (a prompt's command or tool, a proposal's title, a warning in plain words). */
   title: string;
-  /** The strongest item the row holds: allow (a permission request), decide (a decision, or a turn on the task), ask (a question to the founder), warning (the daemon needs the founder to act: see warning), or comment (unread comments only). */
-  kind: "allow" | "decide" | "ask" | "warning" | "comment";
+  /** The strongest item the row holds: allow (a permission request), decide (a decision, or a turn on the task), ask (a question to the founder), warning (the daemon needs the founder to act: see warning), or comment (unread comments only). note: an `@human` comment the founder has not read, on a task no other row stands for (news, no turn): source comment, id the comment, ask its first line, agent its author; it leaves when the founder reads the task (task.seen). */
+  kind: "allow" | "decide" | "ask" | "warning" | "comment" | "note";
   /** The inbox ids of the answer-needed items; empty for a comment row. */
   items: number[];
   /** The task's unread comments (Task.unread); 0 for a row without a task. */
@@ -408,7 +408,7 @@ export type PendingRequest = {
 export type Turn = {
   /** Who acts while this turn is on top: an agent, or human. */
   agent: string;
-  /** What it was asked to do, as it reads now; empty when nothing was said. The founder's turn is the task's one question: asking again rewrites it. */
+  /** What it was asked to do, as it reads now: the text of its comment (memo) when it has one; empty when nothing was said. */
   ask: string;
   /** Who put it there: the one acting below it, or the founder. */
   by: string;
@@ -421,6 +421,8 @@ export type Turn = {
   edited: Timestamp | null;
   /** The texts ask replaced, oldest first, each with when it was set; empty when never rewritten. In task.get only. */
   earlier?: TurnAsk[];
+  /** The comment the turn was handed over with (task.comment.add with turn), its message; null for a turn the daemon put on (a handoff to human, a review's end). */
+  memo: number | null;
 };
 
 /** A text a turn's ask once read. */
@@ -591,18 +593,6 @@ export interface TasksMethods {
   note?: string;
   request_id: RequestId;
 }; result: Accepted };
-  "task.turn.push": { params: {
-  task: number;
-  /** An agent, or human. */
-  to: string;
-  /** What `to` is asked to do, in one or a few lines; for human, the decision and what you recommend. */
-  ask?: string;
-  /** done: a pass of this turn closes the task with evidence (a review of finished work). */
-  on_pass?: "done";
-  /** The done evidence; given with on_pass done, and only with it. */
-  evidence?: string;
-  request_id: RequestId;
-}; result: Accepted };
   "task.turn.pop": { params: {
   task: number;
   outcome: "pass" | "send_back";
@@ -660,13 +650,13 @@ export interface TasksMethods {
   request_id: RequestId;
 }; result: Accepted };
   "requests.pending": { params: { [key: string]: unknown }; result: {
-    /** The founder's turn: one row per task with something only they can act on (a turn on it, a comment asking them, a decision), newest first, and an item with no task (a permission request, a proposal, a daemon warning) as its own row. A row leaves when it is resolved (answered, passed, delivered, logged in, its time gone) or put off (NavPrefs.later) and never by being read. */
+    /** The founder's turn: one row per task with something only they can act on (a turn on it, a comment asking them, a decision), newest first, and an item with no task (a permission request, a proposal, a daemon warning) as its own row. A row leaves when it is resolved (answered, passed, delivered, logged in, its time gone) or put off (NavPrefs.later) and never by being read. A note row (an unread `@human` comment) is listed here too, but is not the founder's turn: counts.answer leaves it out. */
     answer: PendingRequest[];
     /** Not the founder's turn: tasks the founder answers for (its reporter is the founder, or its opener when it has none, or it is the founder's own) with unread comments and no row in answer, newest first. task.seen removes a row. No badge counts it. */
     comments: PendingRequest[];
     /** Every badge comes only from here, so the page and the badge cannot disagree: bell and Requests are answer, Tasks is needs_you. */
     counts: {
-      /** The founder's turn: the length of answer. The bell and the sidebar Requests badge both show this. */
+      /** The founder's turn: the rows of answer that are not notes. The bell and the sidebar Requests badge both show this. */
       answer: number;
       /** The length of comments. */
       comments: number;
@@ -676,6 +666,8 @@ export interface TasksMethods {
       drafts: number;
       /** Finished requests the founder has not seen (requests.list unseen): the bell's dot, not a number on it. Absent from a daemon that does not send it. */
       unseen_results?: number;
+      /** The note rows of answer: unread `@human` comments. The bell's dot, not a number on it. */
+      notes: number;
     };
   } & ReadCursor };
   "task.comment.list": { params: {
@@ -710,6 +702,10 @@ export interface TasksMethods {
   skip?: string[];
   /** The comment on the same task this one answers (Memo.reply_to). Refused (not_found memo) when the task has no such comment. */
   reply?: number;
+  /** Hand the task to this agent, or human, with this comment: it goes on top and acts now; the one below keeps its turn but acts on nothing, so its doing slot frees. For human, the comment is the decision and what you recommend. */
+  turn?: string;
+  /** With turn naming an agent: the done evidence a pass of that turn closes the task with (a review of finished work). */
+  done?: string;
   /** Absolute paths of files the memo carries (Memo.files): PNG, JPEG, GIF or WebP images and .md Markdown, at most 10 MiB each. The daemon reads each and keeps a copy under its home. An agent may name only files under its worktree, its folder or the scratch folder; the founder any. A path outside those, a file of another type, an image whose first bytes do not match its ending, or a .md that is not text is bad_request (field files). */
   files?: string[];
   request_id: RequestId;
@@ -892,7 +888,6 @@ export const TASKS_METHODS: { [K in keyof TasksMethods]: { role: Role; callers: 
   "task.shot": { role: "member", callers: null, write: false, since: 1 },
   "task.new": { role: "agent", callers: null, write: true, since: 1 },
   "task.handoff": { role: "agent", callers: null, write: true, since: 1 },
-  "task.turn.push": { role: "agent", callers: null, write: true, since: 1 },
   "task.turn.pop": { role: "agent", callers: null, write: true, since: 1 },
   "task.done": { role: "agent", callers: null, write: true, since: 1 },
   "task.reopen": { role: "agent", callers: null, write: true, since: 1 },
@@ -944,10 +939,9 @@ export const TASKS_APP_CACHE: { [K in "tasks.list" | "task.get" | "task.history"
 };
 
 /** x-app-write of each write (x-app in core.json). */
-export const TASKS_APP_WRITES: { [K in "task.new" | "task.handoff" | "task.turn.push" | "task.turn.pop" | "task.done" | "task.reopen" | "task.progress" | "task.begin" | "task.start" | "task.seen" | "task.comment.add" | "task.memo.add" | "task.comment.edit" | "task.memo.edit" | "task.comment.delete" | "task.comment.send_now" | "task.send_now" | "task.memo.delete" | "task.view.save" | "task.view.delete" | "task.queue" | "task.draft" | "task.merge" | "task.release" | "task.request" | "task.wait" | "task.discard" | "task.withdraw" | "task.edit" | "task.ask"]: { kind: WriteKind; label: string } | false } = {
+export const TASKS_APP_WRITES: { [K in "task.new" | "task.handoff" | "task.turn.pop" | "task.done" | "task.reopen" | "task.progress" | "task.begin" | "task.start" | "task.seen" | "task.comment.add" | "task.memo.add" | "task.comment.edit" | "task.memo.edit" | "task.comment.delete" | "task.comment.send_now" | "task.send_now" | "task.memo.delete" | "task.view.save" | "task.view.delete" | "task.queue" | "task.draft" | "task.merge" | "task.release" | "task.request" | "task.wait" | "task.discard" | "task.withdraw" | "task.edit" | "task.ask"]: { kind: WriteKind; label: string } | false } = {
   "task.new": {"kind": "authored", "label": "new task"},
   "task.handoff": false,
-  "task.turn.push": false,
   "task.turn.pop": {"kind": "decided", "label": "give back"},
   "task.done": {"kind": "authored", "label": "done"},
   "task.reopen": {"kind": "authored", "label": "reopen"},

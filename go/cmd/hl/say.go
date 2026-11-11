@@ -18,7 +18,8 @@ const sayUsage = `usage: hl say <target> '<one sentence>'
        hl say <target> --file - <<'EOF'
        <the body, in Markdown: as many lines as it needs>
        EOF
-options: --parent <id> (a reply, in its thread), --task T<n>, --no-task '<why>', --file PATH, --attach IMAGE (repeatable)`
+options: --parent <id> (a reply, in its thread), --file PATH, --attach IMAGE (repeatable)
+A say is chat. What is written about a task is a comment on it: hl task comment T<n> add ...`
 
 // oneLineMax is the longest body hl say takes on one line without a hint to break it into lines.
 const oneLineMax = 300
@@ -90,7 +91,7 @@ func say(c *hlclient.Client, args []string) (int, bool) {
 	if hasParent {
 		params["parent"] = parentN
 	}
-	if hasTask {
+	if hasTask { // refused by the daemon, with the comment that says it instead
 		params["task"] = taskN
 	}
 	if hasNoTask {

@@ -22,7 +22,7 @@ var taskCmds = map[string]taskCmd{
 	"comment": taskMemo, "memo": taskMemo, "show": taskShow, "list": taskList, "queue": taskQueue(true), "draft": taskQueue(false),
 	"edit": taskEdit, "merge": taskMerge, "done": taskDone, "reopen": taskReopen, "release": taskRelease,
 	"discard": taskDiscard, "board": taskBoard, "wait": taskWait, "request": taskRequest,
-	"turn": taskTurn, "pass": taskPop("pass"), "back": taskPop("send_back"),
+	"turn": taskTurnGone, "pass": taskPop("pass"), "back": taskPop("send_back"),
 }
 
 // taskReads are the subcommands that change nothing, so no verb_chain is recorded for them (parser._TASK_READS).
@@ -362,7 +362,7 @@ func taskNote(c *hlclient.Client, args []string) (int, bool) {
 }
 
 func taskMemo(c *hlclient.Client, args []string) (int, bool) {
-	p, ok := parse(args, []string{"--file", "--attach", "--reply"}, []string{"--now"}, nil)
+	p, ok := parse(args, []string{"--file", "--attach", "--reply", "--turn", "--done"}, []string{"--now"}, nil)
 	if !ok || len(p.pos) < 2 {
 		return 0, false
 	}
@@ -404,6 +404,16 @@ func taskMemo(c *hlclient.Client, args []string) (int, bool) {
 		fmt.Println("--attach goes with add")
 		return 1, true
 	}
+	turn, hasTurn := p.opt("--turn")
+	evidence, hasDone := p.opt("--done")
+	if (hasTurn || hasDone) && verb != "add" {
+		fmt.Println("--turn and --done go with add")
+		return 1, true
+	}
+	if hasDone && (!hasTurn || strings.TrimSpace(turn) == "human") {
+		fmt.Println("--done goes with --turn <agent>: a review whose pass closes the task")
+		return 1, true
+	}
 	file, _ := p.opt("--file")
 	dash := len(rest) > 0 && rest[len(rest)-1] == "-"
 	if (verb == "add" || verb == "edit") && (file != "" || dash) {
@@ -434,6 +444,12 @@ func taskMemo(c *hlclient.Client, args []string) (int, bool) {
 		}
 		if hasReply {
 			params["reply"] = reply
+		}
+		if hasTurn {
+			params["turn"] = turn
+		}
+		if hasDone {
+			params["done"] = evidence
 		}
 		if len(attach) > 0 {
 			files := make([]string, len(attach))

@@ -248,5 +248,10 @@
   "version": 50,
   "name": "account_switch",
   "additive": true
+ },
+ {
+  "version": 51,
+  "name": "turn_memo",
+  "additive": true
  }
 ]

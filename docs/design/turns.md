@@ -11,7 +11,7 @@ A task keeps its owner and carries a stack of turns on top: the top acts now, an
 ## Model
 
 - `owner` (the `tasks.owner` column): the agent the task is assigned to, accountable for its cost and history.
-- `turns`: a stack above it, bottom first, rows `{agent, ask, by, since, on_pass, evidence}` in a `task_turns` table, the truth; `task_turn_push` and `task_turn_pop` events are written in the same transaction as history. Empty for most tasks. At most three turns.
+- `turns`: a stack above it, bottom first, rows `{agent, ask, by, since, on_pass, evidence, memo}` in a `task_turns` table, the truth; `task_turn_push` and `task_turn_pop` events are written in the same transaction as history. Empty for most tasks. At most three turns.
 - **acting**: the top turn's agent, or the owner when there is none. One agent appears once in the stack and the owner.
 
 Every rule that asks who works the task now reads acting instead of `owner`: delivery and `isCurrent`, `HoldsCurrent`/`wayFree`/`HeldByHolder` (the doing slot), `HolderOf` and the time box with who it tells, `SweepHeldTaskAfterClose` and its hand-on to `answerer`, the idle nudge, `my_turn` and `requests.pending`, task.board's "who holds it now", the assignee that task.comment.add and task.comment.recipients tell, task.draft's "holder working the task", task.wait's return to the holder's queue. `AnswersTo` (reporter, else opener) does not change.
@@ -20,14 +20,14 @@ An agent below the top acts on nothing: its slot is free and its next queued tas
 
 ## Writes
 
-- `task.turn.push {task, to, ask, on_pass?, evidence?}`: acting (or the founder) puts `to` on top. `on_pass: "done"` with `evidence` closes the task when the turn passes, for review of finished work. Refused: `to` already in the stack or the owner, a fourth turn, an ended task.
+- `task.comment.add {task, text, turn, done?}` (`hl task comment T<n> add "<text>" --turn <to> [--done "<evidence>"]`): acting (or the founder) adds the comment and puts `to` on top in one transaction. The comment is the turn's message: the turn keeps its id in `memo` and stores no ask of its own (`ask` reads as the comment's text). `done` closes the task when the turn passes, for review of finished work. Refused: `to` already in the stack or the owner, a fourth turn, an ended task. `hl task turn` and `task.turn.push` are gone.
 - `task.turn.pop {task, outcome, note?}`: by acting or the founder. `pass`, or `send_back` with a note. The agent below gets the task at the front of its queue with the note as a comment. With `on_pass: "done"` a pass closes the task through the usual done gates; if a gate refuses (open children), the turn still comes off and the refusal is the note.
 - **The founder's turn** ends when acting is `human` and the founder comments on the task (a pass, the comment its note) or presses Return (a pass, no note). Reading it ends nothing. A founder comment while an agent is on top is a comment only.
 - `task.handoff` and `task.edit owner` replace acting: the top turn if there is one, else the owner. An agent's handoff or edit to `human` is a push of `human`, no longer refused; `task.new` with owner `human` stays refused for agents.
 - `task.release` by the top agent is a `send_back` with its reason; by the owner with turns open it is refused (pop first). `task.draft` and `task.discard` clear the stack. `task.done` by acting, the owner or the founder clears the stack and tells the agents in it. `task.reopen` goes to the owner with an empty stack.
 - `blocked_by` and `task.wait` block the task whoever acts; the acting agent's slot is the one freed.
 - Retiring an agent pops each turn it holds as `send_back`, note "retired".
-- The founder's turn is the task's one question slot. Pushing `human` again while it is on top, by the agent below it, rewrites its `ask` (a `task_turn_ask` event keeps the old text; the founder is told only when the text changes), and `hl say human --task T<n>` from that agent is the same push. A comment asks the founder nothing, `@human` or not.
+- The founder's turn is the task's one question slot. A new comment with `--turn human` while it is on top, by the agent below it, moves the turn to that comment (a `task_turn_ask` event keeps the old text). A comment without `--turn` asks the founder nothing. One whose first word is `@human` is news for them: it moves no turn, and `requests.pending` lists it as a `note` until they read the task. `hl say` carries no task.
 
 ## Reads
 
@@ -37,8 +37,8 @@ An agent below the top acts on nothing: its slot is free and its next queued tas
 
 ## Rules for agents
 
-- Cannot go on without the founder's decision: push `human` with the decision and a recommendation in `ask`, then take the next task or stop.
-- Finished work that needs review: push the reviewer with `on_pass: "done"` and the evidence. The reviewer passes or sends back; nobody opens a fix task for the same work.
+- Cannot go on without the founder's decision: a comment with the decision and a recommendation, `--turn human`, then take the next task or stop.
+- Finished work that needs review: a comment `--turn <reviewer> --done "<evidence>"`. The reviewer passes or sends back; nobody opens a fix task for the same work.
 
 ## Phases
 

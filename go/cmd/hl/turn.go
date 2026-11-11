@@ -1,34 +1,24 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/handline/handline/go/internal/hlclient"
 )
 
-// The turns on a task (docs/design/turns.md): hl task turn puts an agent, or the founder, on top of a task you act on; hl task pass and hl task
-// back take your turn off, and the task goes back to the one below.
+// The turns on a task (docs/design/turns.md): hl task comment ... --turn puts an agent, or the founder, on top of a task you act on; hl task
+// pass and hl task back take your turn off, and the task goes back to the one below.
 
-// taskTurn is `hl task turn T<n> <agent|human> "<ask>" [--done "<evidence>"]`: task.turn.push. --done makes a pass of that turn close the task.
-func taskTurn(c *hlclient.Client, args []string) (int, bool) {
-	p, ok := parse(args, []string{"--done"}, nil, nil)
-	if !ok || len(p.pos) < 2 || len(p.pos) > 3 {
-		return 0, false
+// taskTurnGone is `hl task turn`, which is gone: a turn is handed over with the comment that says why.
+func taskTurnGone(_ *hlclient.Client, args []string) (int, bool) {
+	t := "T<n>"
+	if len(args) > 0 {
+		t = args[0]
 	}
-	tid, ok := taskRef(p.pos[0])
-	if !ok {
-		return 0, false
-	}
-	mutating(c, "turn")
-	if !asking(c, "put a turn on a task") {
-		return 1, true
-	}
-	params := map[string]any{"task": tid, "to": p.pos[1]}
-	if len(p.pos) == 3 {
-		params["ask"] = p.pos[2]
-	}
-	if evidence, given := p.opt("--done"); given {
-		params["on_pass"], params["evidence"] = "done", evidence
-	}
-	return said(c.Write("task.turn.push", params)), true
+	fmt.Println("hl task turn is gone: hand the turn over with the comment that says why, in one step:\n" +
+		"  hl task comment " + t + " add '<the decision and what you recommend>' --turn human\n" +
+		"  hl task comment " + t + " add '<what to review>' --turn <agent> [--done '<evidence>']")
+	return 1, true
 }
 
 // taskPop is `hl task pass T<n> ["<note>"]` and `hl task back T<n> "<note>"`: task.turn.pop with that outcome.

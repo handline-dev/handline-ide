@@ -37,7 +37,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `input.release` | member | yes | `agent`, `request_id` | `Accepted` | `refused`, `not_found` | role, unsupported | decided: release |
 | `agent.strip` | member |  | `agent` | `{agent, model, account, ctx_pct, ctx_used, ctx_limit, cache_left_s, screen_word, screen_detail} & ReadCursor` | `not_found`, `bad_request` |  | `strip` by agent, fed by agents |
 | `progress.get` | agent (only agent) |  | none | `{note}` |  |  | not cached |
-| `say` | agent | yes | `target`, `body`, `task?`, `no_task?`, `parent?`, `files?`, `request_id` | `Accepted` | `refused`, `bad_request` |  | not from the app |
+| `say` | agent | yes | `target`, `body`, `parent?`, `files?`, `request_id` | `Accepted` | `refused`, `bad_request` |  | not from the app |
 | `agent.triggers` | agent |  | `agent?` | `{agents}` |  |  | `triggers`, snapshot |
 | `access.grant` | founder | yes | `agent`, `path`, `scope`, `request_id` | `Accepted & {grant, applies_from}` | `refused`, `not_found`, `bad_request` | role | decided: allow access |
 | `access.revoke` | founder | yes | `agent`, `path`, `request_id` | `Accepted & {removed}` | `refused`, `not_found`, `bad_request` | role | decided: remove access |
@@ -173,7 +173,7 @@ The caller's progress note: the one on its request in progress, else on the task
 
 ### `say`
 
-A message typed at once; needs no answer, starts no work.
+A message typed at once; needs no answer, starts no work, and carries no task: what is written on a task is a comment (task.comment.add).
 
 ### `agent.triggers`
 

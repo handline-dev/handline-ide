@@ -69,13 +69,13 @@ export function taskCall(
       case 'task.merge':
         return (tasks.merge(p), ok('Tasks folded.'));
       case 'task.comment.add':
+        if (typeof p.done === 'string' && p.done.trim() && (p.turn === undefined || p.turn === 'human'))
+          throw invalidParams('done goes with a turn to an agent: a review whose pass closes the task', 'done');
         return ok('Comment added.', { memo: tasks.memo(p, 'add', person, agent) });
       case 'task.comment.edit':
         return (tasks.memo(p, 'edit', person, agent), ok('Comment changed.'));
       case 'task.comment.delete':
         return (tasks.memo(p, 'delete', person), ok('Comment deleted.'));
-      case 'task.turn.push':
-        return (tasks.turnPush(p, agent ? person : ''), ok('Turn pushed.'));
       case 'task.turn.pop':
         return (tasks.turnPop(p), ok('Turn given back.'));
       case 'task.comment.send_now':

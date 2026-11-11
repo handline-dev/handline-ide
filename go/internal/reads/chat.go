@@ -13,6 +13,7 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/internal/cmdruns"
 	"github.com/handline/handline/go/internal/transcript"
+	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/taskboard/attachments"
 	"github.com/handline/handline/go/taskboard/requestref"
@@ -1073,6 +1074,59 @@ func promptItemOf(agent string, b row) map[string]any {
 	return item
 }
 
+// commentCardKinds are the events a task_comment item is read from: a turn put on the founder or asked again, the founder's comment that
+// gave it back, an @human comment.
+var commentCardKinds = []string{"memo_add", "task_turn_ask", "task_turn_pop", "task_turn_push"}
+
+// commentBodySQL is, on an events row, the text of the comment its payload names (memo_body), and for a comment whether a turn on the
+// founder hangs on it (turned). The turn lookup seeks events_kind_task by the comment's task.
+const commentBodySQL = "(SELECT body FROM task_memos WHERE id = json_extract(payload, '$.memo')) AS memo_body, " +
+	"CASE WHEN kind = 'memo_add' THEN EXISTS (SELECT 1 FROM events t WHERE t.kind IN ('task_turn_push', 'task_turn_ask') " +
+	"AND CASE WHEN json_valid(t.payload) THEN json_extract(t.payload, '$.task_id') END = json_extract(events.payload, '$.task_id') " +
+	"AND t.id > events.id AND json_extract(t.payload, '$.memo') = json_extract(events.payload, '$.memo') " +
+	"AND 'human' IN (json_extract(t.payload, '$.to'), json_extract(t.payload, '$.agent'))) ELSE 0 END AS turned"
+
+// commentCardOf is an event as a task_comment item and the agent whose chat shows it; false for an event that is none. A turn put on the
+// founder is in the chat of the agent below it, the founder's comment that gives it back in the chat of the agent it returns to, an @human
+// comment in its author's chat. The text is the comment's as it reads now.
+func commentCardOf(ev row) (item map[string]any, agent string, ok bool) {
+	p := decodeObject(ev.str("payload"))
+	tid, isInt := rpc.AsInt(p["task_id"])
+	memo, _ := rpc.AsInt(p["memo"])
+	var kind, words string
+	switch ev.str("kind") {
+	case "task_turn_push", "task_turn_ask": // a push names who it puts on in to, a reask in agent
+		if text(p["to"]) != human && text(p["agent"]) != human {
+			return nil, "", false
+		}
+		kind, agent, words = "turn", ev.str("agent"), text(p["ask"])
+	case "task_turn_pop":
+		if ev.str("agent") != human || memo == 0 || text(p["to"]) == "" || text(p["to"]) == human {
+			return nil, "", false
+		}
+		kind, agent = "answer", text(p["to"])
+	case "memo_add":
+		if ev.str("agent") == human || ev.i("turned") != 0 || !db.ToFounder(text(p["now"])) {
+			return nil, "", false
+		}
+		kind, agent, words = "note", ev.str("agent"), text(p["now"])
+	default:
+		return nil, "", false
+	}
+	if !isInt {
+		return nil, "", false
+	}
+	if ev.set("memo_body") {
+		words = ev.str("memo_body")
+	}
+	var memoID any
+	if memo != 0 {
+		memoID = memo
+	}
+	return map[string]any{"id": itemID(ev.i("ts"), itemTask, ev.i("id")), "at": ts(ev["ts"]), "kind": "task_comment",
+		"task_comment": map[string]any{"task": tid, "memo": memoID, "kind": kind, "who": ev.str("agent"), "text": textsafe.Text(words)}}, agent, true
+}
+
 // taskItemOf is one task event of the events table as a transcript item and the task it names; false when the chat does not show it. A
 // batch discard is one task_batch item naming no one task, shown in its author's chat.
 func taskItemOf(ev row) (item map[string]any, task int64, ok bool) {
@@ -1169,15 +1223,25 @@ func (e *Env) transcriptItems(agent string, tools []transcript.Tool) ([]map[stri
 			items = append(items, item)
 		}
 	}
-	kinds := ChatTaskKinds()
-	// Two halves, not one OR, so the task half is read from events_kind_task alone instead of every task event's payload.
-	evs, err := query(e.DB, "SELECT id, ts, agent, kind, payload FROM events WHERE id IN (SELECT id FROM events WHERE kind IN ("+placeholders(len(kinds))+
-		") AND "+eventTask+" IN (SELECT id FROM tasks WHERE "+db.ActingSQL("tasks")+" = ?) UNION ALL SELECT id FROM events WHERE kind = '"+batchKind+"' AND agent = ?)"+
-		" ORDER BY id DESC LIMIT ?", append(anySlice(kinds), agent, agent, perSource)...)
+	kinds := taskCardKinds()
+	// Parts joined by UNION, not one OR, so each is read from an index instead of every task event's payload: the task cards, the batch
+	// cards, the comment cards this agent wrote and the founder's answers that return a turn to it.
+	evs, err := query(e.DB, "SELECT id, ts, agent, kind, payload, "+commentBodySQL+" FROM events WHERE id IN (SELECT id FROM events WHERE kind IN ("+
+		placeholders(len(kinds))+") AND "+eventTask+" IN (SELECT id FROM tasks WHERE "+db.ActingSQL("tasks")+" = ?) UNION ALL SELECT id FROM events WHERE kind = '"+
+		batchKind+"' AND agent = ? UNION ALL SELECT id FROM events WHERE kind IN ('task_turn_push', 'task_turn_ask', 'memo_add') AND agent = ? "+
+		"AND (kind != 'memo_add' OR json_extract(payload, '$.now') LIKE '%@human%') UNION ALL SELECT id FROM events WHERE kind = 'task_turn_pop' "+
+		"AND agent = 'human' AND json_extract(payload, '$.to') = ?)"+
+		" ORDER BY id DESC LIMIT ?", append(anySlice(kinds), agent, agent, agent, agent, perSource)...)
 	if err != nil {
 		return nil, err
 	}
 	for _, ev := range evs {
+		if item, of, ok := commentCardOf(ev); ok {
+			if of == agent {
+				items = append(items, item)
+			}
+			continue
+		}
 		if inBatchCard(ev, agent) {
 			continue
 		}
