@@ -47,14 +47,15 @@ func prAgent(t *testing.T, e *Env, name, origin string) {
 	if origin != "" {
 		run("remote", "add", "origin", origin)
 	}
-	if _, err := e.DB.Exec("INSERT INTO agent_state(agent, state, updated, worktree) VALUES(?, 'idle', 1, ?)", name, dir); err != nil {
+	if _, err := e.DB.Exec("INSERT INTO agent_state(agent, state, updated, worktree) VALUES(?, 'idle', 1, ?)", teamtest.Key(t, e.Home, name), dir); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func askPRs(t *testing.T, e *Env, agent string, numbers ...any) (map[string]any, error) {
 	t.Helper()
-	b, _ := json.Marshal(map[string]any{"agent": agent, "numbers": numbers})
+	// the word to its key, as the server's Who does
+	b, _ := json.Marshal(map[string]any{"agent": teamtest.Key(t, e.Home, agent), "numbers": numbers})
 	dec := json.NewDecoder(bytes.NewReader(b))
 	dec.UseNumber() // as the server decodes params
 	var params map[string]any
@@ -177,7 +178,7 @@ func TestAgentGetNamesTheRepoOfItsWorktree(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	prAgent(t, e, "w", "git@github.com:o/r.git")
-	got, err := e.agentGet(nil, map[string]any{"agent": "w"})
+	got, err := e.agentGet(nil, map[string]any{"agent": teamtest.Key(t, e.Home, "w")})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -198,7 +199,7 @@ func TestAWorktreeRecordedAsRepoIdAndPathStillNamesItsRepo(t *testing.T) {
 	if got, err := askPRs(t, e, "w", 5.0); err != nil || got["repo"] != "o/r" || !reflect.DeepEqual(got["found"], []int{5}) {
 		t.Fatalf("%v %v", got, err)
 	}
-	got, err := e.agentGet(nil, map[string]any{"agent": "w"})
+	got, err := e.agentGet(nil, map[string]any{"agent": teamtest.Key(t, e.Home, "w")})
 	if err != nil {
 		t.Fatal(err)
 	}
