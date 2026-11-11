@@ -7,6 +7,7 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team/teamtest"
+	"github.com/handline/handline/go/kit/actor"
 )
 
 func init() { RunInline = true }
@@ -166,13 +167,13 @@ func TestASayToTheFounderThatNamesAMessageIsRefusedAndAsksForWords(t *testing.T)
 	var ref string
 	r.DB.QueryRow(r.sql("SELECT ref FROM requests WHERE id = 1")).Scan(&ref)
 	for _, body := range []string{"done, see msg_0123456", "as in " + ref[:8] + " earlier", "re " + strings.ToUpper(ref)} {
-		out := r.say(SayVerbIn{Requester: r.k(("alice")), Target: db.Human, Body: body})
+		out := r.say(SayVerbIn{Requester: r.k(("alice")), Target: actor.OwnerKey, Body: body})
 		if out.OK || !strings.Contains(out.Msg, "say in words what that message was about") {
 			t.Fatalf("%q: %+v", body, out)
 		}
 	}
 	for _, body := range []string{"merged as 0123456789abcdef0123456789abcdef01234567", "PR #3 is up", "all green"} {
-		if out := r.say(SayVerbIn{Requester: r.k(("alice")), Target: db.Human, Body: body}); strings.Contains(out.Msg, "names a message") {
+		if out := r.say(SayVerbIn{Requester: r.k(("alice")), Target: actor.OwnerKey, Body: body}); strings.Contains(out.Msg, "names a message") {
 			t.Fatalf("%q is no message id: %+v", body, out)
 		}
 	}

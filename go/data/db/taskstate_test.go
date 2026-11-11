@@ -1,6 +1,10 @@
 package db
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/handline/handline/go/kit/actor"
+)
 
 func TestTaskStateLadder(t *testing.T) {
 	q := open(t)
@@ -302,7 +306,7 @@ func TestThePauseHoldsNeitherASelfStartedTaskNorTheFoundersNorAGates(t *testing.
 	if _, err := q.Exec(`INSERT INTO events(ts, agent, kind, payload) VALUES(1, 'b', 'task_self_start', json_object('task_id', ?))`, self); err != nil {
 		t.Fatal(err)
 	}
-	tasks := map[string]int64{"self-started": self, "the founder's": sent(Human), "a gate's": sent(Gate)}
+	tasks := map[string]int64{"self-started": self, "the founder's": sent(actor.OwnerKey), "a gate's": sent(Gate)}
 	unpaused := map[string]string{}
 	for name, tid := range tasks {
 		unpaused[name] = state(tid)

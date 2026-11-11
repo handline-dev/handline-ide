@@ -11,6 +11,7 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/taskboard/supervisor"
@@ -44,7 +45,7 @@ func (c founderCloser) MarkDoneByFounder(_ db.Q, tid int64, reason string) (bool
 	if err != nil {
 		return false, "", err
 	}
-	res, err := taskwrites.MarkDone(tx, c.home, db.Human, taskwrites.DoneIn{Task: tid, Words: reason})
+	res, err := taskwrites.MarkDone(tx, c.home, actor.OwnerKey, taskwrites.DoneIn{Task: tid, Words: reason})
 	if err != nil {
 		tx.Rollback()
 		var re *rpc.Error
@@ -56,7 +57,7 @@ func (c founderCloser) MarkDoneByFounder(_ db.Q, tid int64, reason string) (bool
 	if err := tx.Commit(); err != nil {
 		return false, "", err
 	}
-	c.env.Done(tid, db.Human, res.Owner, res.Told, res.Finished)
+	c.env.Done(tid, actor.OwnerKey, res.Owner, res.Told, res.Finished)
 	return true, res.Said, nil
 }
 

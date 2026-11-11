@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
 )
 
 // SaidStopText is the notice for an agent that wrote to the founder and stopped with tid in doing: a say is not a wait the board knows
@@ -24,7 +25,7 @@ func (e *Env) SweepSaidAndStopped() (err error) {
 		tid   int64
 	}
 	var all []held
-	rows, err := q.Query("SELECT agent, current_task FROM agent_state WHERE current_task IS NOT NULL AND agent != ?", db.Human)
+	rows, err := q.Query("SELECT agent, current_task FROM agent_state WHERE current_task IS NOT NULL AND agent != ?", actor.OwnerKey)
 	check(err)
 	for rows.Next() {
 		var h held
@@ -44,7 +45,7 @@ func (e *Env) SweepSaidAndStopped() (err error) {
 		}
 		var asking bool // the task already waits on the founder in a memo: the say is part of that, nothing to hand over
 		check(q.QueryRow("SELECT EXISTS(SELECT 1 FROM requests r JOIN task_requests tr ON tr.request_id = r.id WHERE tr.task_id = ? AND r.requester = ? "+
-			"AND r.target = ? AND r.memo_id IS NOT NULL AND r.state = 'queued')", h.tid, h.agent, db.Human).Scan(&asking))
+			"AND r.target = ? AND r.memo_id IS NOT NULL AND r.state = 'queued')", h.tid, h.agent, actor.OwnerKey).Scan(&asking))
 		if asking {
 			continue
 		}
@@ -75,6 +76,6 @@ func (e *Env) saidThenStopped(q db.Q, agent string) (int64, bool) {
 	check(q.QueryRow("SELECT COALESCE(MAX(ts), 0) FROM events WHERE agent = ? AND kind = 'UserPromptSubmit' AND id < ?", agent, id).Scan(&from))
 	var said bool
 	check(q.QueryRow("SELECT EXISTS(SELECT 1 FROM requests WHERE requester = ? AND target = ? AND kind = 'say' AND ts BETWEEN ? AND ?)",
-		agent, db.Human, from, at).Scan(&said))
+		agent, actor.OwnerKey, from, at).Scan(&said))
 	return id, said
 }

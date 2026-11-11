@@ -276,7 +276,7 @@ func (w *WaitFor) Sweep(q db.Q, now int64) error {
 		if err != nil {
 			return err
 		}
-		who := db.Human
+		who := actor.OwnerKey
 		for _, o := range []string{task.Acting, task.OpenedBy} {
 			if !actor.IsPerson(o) {
 				who = o

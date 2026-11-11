@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/gitrun"
 	"github.com/handline/handline/go/taskboard/attachments"
 	"github.com/handline/handline/go/taskboard/taskresult"
@@ -60,7 +61,7 @@ func doneResult(tx db.Q, home, by string, t *task, in DoneIn, via, mark string) 
 	}
 	if len(in.Shots) > 0 {
 		var roots []string
-		if roots, err = attachments.Roots(tx, home, by, by == human); err != nil {
+		if roots, err = attachments.Roots(tx, home, by, by == actor.OwnerKey); err != nil {
 			return res, nil, err
 		}
 		if res.Shots, finalize, err = taskresult.Stage(home, t.ID, in.Shots, roots); err != nil {

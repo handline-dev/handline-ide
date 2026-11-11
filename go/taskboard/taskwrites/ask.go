@@ -58,7 +58,7 @@ func askMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, e
 				if err := db.LinkRequest(tx, tid, rid); err != nil {
 					return err
 				}
-				_, err := db.AddEventDeduped(tx, human, "task_question", fmt.Sprintf("task_question:%d", rid), db.KV{K: "task", V: tid}, db.KV{K: "request", V: rid})
+				_, err := db.AddEventDeduped(tx, c.Caller.Actor(), "task_question", fmt.Sprintf("task_question:%d", rid), db.KV{K: "task", V: tid}, db.KV{K: "request", V: rid})
 				return err
 			})
 			if err != nil {

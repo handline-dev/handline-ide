@@ -57,7 +57,7 @@ func (e *Env) agentSetMethod(c *rpc.Conn, params map[string]any) (any, error) {
 	}
 	by := agent
 	if c.Caller.Role == "owner" {
-		by = db.Human
+		by = c.Caller.Actor()
 	}
 	return c.Effect(func(tx *sql.Tx) (map[string]any, error) {
 		if err := db.SetMeta(tx, db.SettingsByMeta(agent), by); err != nil {

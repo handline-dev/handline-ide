@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/storetest"
 	"github.com/handline/handline/go/protocol/rpc"
 )
@@ -48,7 +49,7 @@ func TestResolveTakesAnIdOrARefOnlyForAViewerWhoMayReadIt(t *testing.T) {
 		{"a stranger's ref", "3f9a0cffff00", "alice", 0, "not_found"},
 		{"a stranger's integer", json.Number("3"), "alice", 0, "not_found"},
 		{"a missing integer", json.Number("99"), "alice", 0, "not_found"},
-		{"the founder reads any", "3f9a0cffff00", db.Human, 3, ""},
+		{"the founder reads any", "3f9a0cffff00", actor.OwnerKey, 3, ""},
 		{"too short a prefix", "3f9a0", "alice", 0, "bad_request"},
 		{"not hex", "zzzzzz", "alice", 0, "bad_request"},
 		{"a boolean", true, "alice", 0, "bad_request"},

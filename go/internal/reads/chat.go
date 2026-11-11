@@ -74,7 +74,7 @@ func chatScope(agent string, everyone bool) (string, []any) {
 	if everyone {
 		return "((requester = ? OR target = ?)" + undigested + ")", []any{agent, agent}
 	}
-	return "(((requester = ? AND target = ?) OR (requester = ? AND target = ?))" + undigested + ")", []any{human, agent, agent, human}
+	return "(((requester = ? AND target = ?) OR (requester = ? AND target = ?))" + undigested + ")", []any{actor.OwnerKey, agent, agent, actor.OwnerKey}
 }
 
 // rows adds the live state of the task a task delivery carries (the only row drawn as a card).
@@ -1085,7 +1085,7 @@ const commentBodySQL = "(SELECT body FROM task_memos WHERE id = json_extract(pay
 	"CASE WHEN kind = 'memo_add' THEN EXISTS (SELECT 1 FROM events t WHERE t.kind IN ('task_turn_push', 'task_turn_ask') " +
 	"AND CASE WHEN json_valid(t.payload) THEN json_extract(t.payload, '$.task_id') END = json_extract(events.payload, '$.task_id') " +
 	"AND t.id > events.id AND json_extract(t.payload, '$.memo') = json_extract(events.payload, '$.memo') " +
-	"AND '" + db.Human + "' IN (json_extract(t.payload, '$.to'), json_extract(t.payload, '$.agent'))) ELSE 0 END AS turned"
+	"AND '" + actor.OwnerKey + "' IN (json_extract(t.payload, '$.to'), json_extract(t.payload, '$.agent'))) ELSE 0 END AS turned"
 
 // commentCardOf is an event as a task_comment item and the agent whose chat shows it; false for an event that is none. A turn put on the
 // founder is in the chat of the agent below it, the founder's comment that gives it back in the chat of the agent it returns to, an @human
@@ -1231,7 +1231,7 @@ func (e *Env) transcriptItems(agent string, tools []transcript.Tool) ([]map[stri
 		placeholders(len(kinds))+") AND "+eventTask+" IN (SELECT id FROM tasks WHERE "+db.ActingSQL("tasks")+" = ?) UNION ALL SELECT id FROM events WHERE kind = '"+
 		batchKind+"' AND agent = ? UNION ALL SELECT id FROM events WHERE kind IN ('task_turn_push', 'task_turn_ask', 'memo_add') AND agent = ? "+
 		"AND (kind != 'memo_add' OR json_extract(payload, '$.now') LIKE '%@human%') UNION ALL SELECT id FROM events WHERE kind = 'task_turn_pop' "+
-		"AND agent = '"+db.Human+"' AND json_extract(payload, '$.to') = ?)"+
+		"AND agent = '"+actor.OwnerKey+"' AND json_extract(payload, '$.to') = ?)"+
 		" ORDER BY id DESC LIMIT ?", append(anySlice(kinds), agent, agent, agent, agent, perSource)...)
 	if err != nil {
 		return nil, err

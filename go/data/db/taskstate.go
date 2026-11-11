@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/handline/handline/go/agentctl/verdict"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/textsafe"
 )
 
@@ -46,7 +47,7 @@ func ReadsDoing(q Q, tid int64) (bool, error) {
 
 // HoldsCurrent is actions.holds_current: the task may be delivered (wayFree).
 func HoldsCurrent(q Q, t *Task) (bool, error) {
-	if t.Acting == Human || t.Acting == Gate {
+	if t.Acting == actor.OwnerKey || t.Acting == Gate {
 		return true, nil
 	}
 	if held, ok, err := CurrentTask(q, t.Acting); err != nil || ok && held == t.ID {
@@ -70,7 +71,7 @@ func wayFree(q Q, agent string) (bool, error) {
 }
 
 func isCurrent(q Q, t *Task) (bool, error) {
-	if t.Acting == Human || t.Acting == Gate {
+	if t.Acting == actor.OwnerKey || t.Acting == Gate {
 		return true, nil
 	}
 	held, ok, err := CurrentTask(q, t.Acting)
@@ -136,7 +137,7 @@ func TaskState(q Q, t *Task) (string, error) {
 // pauseHolds: new work is paused and the task has not reached the agent that acts on it, nor did that agent begin it itself. The founder
 // and the gates act on theirs with no delivery, so the pause holds none of theirs.
 func pauseHolds(q Q, t *Task, begun bool) (bool, error) {
-	if begun || t.DeliveredAt.Valid || t.Acting == Human || t.Acting == Gate {
+	if begun || t.DeliveredAt.Valid || t.Acting == actor.OwnerKey || t.Acting == Gate {
 		return false, nil
 	}
 	p, err := GetPause(q, time.Now())

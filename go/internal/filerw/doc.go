@@ -13,7 +13,6 @@ import (
 	"time"
 	"unicode/utf16"
 
-	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
@@ -286,7 +285,7 @@ func (e *Env) pushDoc(c *rpc.Conn, p map[string]any) (any, error) {
 		if text, err = cs.apply(text); err != nil {
 			return nil, bad("a ChangeSet does not fit the text it applies to", "updates")
 		}
-		taken, sets = append(taken, update{Client: client, Changes: m["changes"], By: db.Human}), append(sets, cs)
+		taken, sets = append(taken, update{Client: client, Changes: m["changes"], By: c.Caller.Actor()}), append(sets, cs)
 	}
 	if !whole(text) {
 		return nil, bad("the updates cut a character in two", "updates")

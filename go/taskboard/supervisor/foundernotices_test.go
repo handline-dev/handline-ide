@@ -9,12 +9,13 @@ import (
 	"github.com/handline/handline/go/agentctl/peerinbox"
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team/teamtest"
+	"github.com/handline/handline/go/kit/actor"
 )
 
 func (r *rig) toFounder() int {
 	r.t.Helper()
 	var n int
-	r.must(r.DB.QueryRow("SELECT COUNT(*) FROM requests WHERE target = ? AND requester = ?", db.Human, db.NoticeRequester).Scan(&n))
+	r.must(r.DB.QueryRow("SELECT COUNT(*) FROM requests WHERE target = ? AND requester = ?", actor.OwnerKey, db.NoticeRequester).Scan(&n))
 	return n
 }
 
@@ -22,7 +23,7 @@ func (r *rig) toFounder() int {
 func TestAFoundersLostMessageIsKeptAsAWarningAndSaysNothing(t *testing.T) {
 	for _, written := range []bool{false, true} {
 		r, in := peerRigHeld(t, peerinbox.Result{Kind: peerinbox.Delivered})
-		rid := r.ask(db.Human, r.k((r.k("bob"))), "psst", "say")
+		rid := r.ask(actor.OwnerKey, r.k((r.k("bob"))), "psst", "say")
 		op := requestOp(rid)
 		if state, _ := r.sendOnce(r.DB, r.k((r.k("bob"))), op, "psst", "now"); state != Written {
 			t.Fatal(state)
@@ -45,7 +46,7 @@ func TestAFoundersLostMessageIsKeptAsAWarningAndSaysNothing(t *testing.T) {
 // Two of the founder's messages lost in one delivery each warn.
 func TestEachOfTheFoundersMessagesLostInOneOpWarns(t *testing.T) {
 	r := newRig(t)
-	one, two := r.ask(db.Human, r.k((r.k("bob"))), "one", "say"), r.ask(db.Human, r.k((r.k("bob"))), "two", "say")
+	one, two := r.ask(actor.OwnerKey, r.k((r.k("bob"))), "one", "say"), r.ask(actor.OwnerKey, r.k((r.k("bob"))), "two", "say")
 	r.deliveryUnknown(r.DB, r.k((r.k("bob"))), requestOp(one, two), "was not read", "send it again")
 	for _, rid := range []int64{one, two} {
 		if _, ok, _ := db.Meta(r.DB, fmt.Sprintf("%s%d", db.LostMessagePrefix, rid)); !ok {
@@ -77,13 +78,13 @@ func TestARefusalWithNoLeadIsKeptAsAWarningAndSaysNothing(t *testing.T) {
 // When the last blocker of the founder's task is done, and its child failed, the board tells them neither; the task still comes free.
 func TestADoneTellsAFounderHoldingTheNextTaskNothing(t *testing.T) {
 	r := newRig(t)
-	waiting := r.newTask(db.Human, r.k((r.k("alice"))), "the founder's")
+	waiting := r.newTask(actor.OwnerKey, r.k((r.k("alice"))), "the founder's")
 	child := r.newTask(r.k(("alice")), r.k((r.k("alice"))), "child")
 	r.must(db.AddBlock(r.DB, waiting, child))
 	_, err := r.DB.Exec("UPDATE tasks SET parent_task = ?, done_evidence = 'FAILED: it does not build', done_at = 1 WHERE id = ?", waiting, child)
 	r.must(err)
 	notices, freed := r.freeBlockedBy(r.DB, child, r.k((r.k("alice"))))
-	if len(notices) != 0 || len(freed) != 1 || freed[0] != db.Human {
+	if len(notices) != 0 || len(freed) != 1 || freed[0] != actor.OwnerKey {
 		t.Fatalf("%v %v", notices, freed)
 	}
 	if n := r.toFounder(); n != 0 {
@@ -94,15 +95,15 @@ func TestADoneTellsAFounderHoldingTheNextTaskNothing(t *testing.T) {
 // Whatever the board writes for a holder, a founder holding the task gets none of it, and the task still comes free.
 func TestTheBoardWritesNothingToTheFounder(t *testing.T) {
 	r := newRig(t)
-	if rid, err := r.Notice(r.DB, db.Human, "a notice", "test"); err != nil || rid != 0 {
+	if rid, err := r.Notice(r.DB, actor.OwnerKey, "a notice", "test"); err != nil || rid != 0 {
 		t.Fatal(rid, err)
 	}
-	if rid := r.typeSay(r.DB, db.Human, "a say", "test"); rid != 0 {
+	if rid := r.typeSay(r.DB, actor.OwnerKey, "a say", "test"); rid != 0 {
 		t.Fatal(rid)
 	}
 	blocker := r.newTask(r.k(("alice")), r.k((r.k("alice"))), "blocker")
 	child := r.newTask(r.k(("alice")), r.k((r.k("alice"))), "child")
-	waiting := r.newTask(db.Human, r.k((r.k("alice"))), "the founder's")
+	waiting := r.newTask(actor.OwnerKey, r.k((r.k("alice"))), "the founder's")
 	r.must(db.AddBlock(r.DB, waiting, blocker))
 	r.must(db.AddBlock(r.DB, waiting, child))
 	_, err := r.DB.Exec("UPDATE tasks SET parent_task = ? WHERE id = ?", waiting, child)

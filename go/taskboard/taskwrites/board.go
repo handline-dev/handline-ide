@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/pyjson"
 )
 
@@ -54,12 +55,12 @@ func asker(tx *sql.Tx, t *task) (string, error) {
 		return t.Reporter.String, nil
 	}
 	var n int
-	err := tx.QueryRow("SELECT COUNT(*) FROM requests r JOIN task_requests l ON l.request_id = r.id WHERE l.task_id = ? AND r.requester = ?", t.ID, human).Scan(&n)
+	err := tx.QueryRow("SELECT COUNT(*) FROM requests r JOIN task_requests l ON l.request_id = r.id WHERE l.task_id = ? AND r.requester = ?", t.ID, actor.OwnerKey).Scan(&n)
 	if err != nil {
 		return "", err
 	}
 	if n > 0 {
-		return human, nil
+		return actor.OwnerKey, nil
 	}
 	return t.OpenedBy, nil
 }

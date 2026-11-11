@@ -71,10 +71,10 @@ func (e *Env) raiseDecision(q db.Q, after *After, agent, text, reason, files str
 	if same := must(db.OpenDecisionCardIDs(q, agent, "", &body)); len(same) > 0 {
 		return same[0]
 	}
-	rid := must(db.AddRequest(q, db.NewRequest{Requester: agent, Target: db.Human, Body: text, Files: files, Kind: "task",
+	rid := must(db.AddRequest(q, db.NewRequest{Requester: agent, Target: actor.OwnerKey, Body: text, Files: files, Kind: "task",
 		ChainDepth: depth, ParentID: parentID, ChainID: chainID}))
-	tid := must(db.NewTask(q, title, db.Human, agent, 0, db.DefaultPriority, "decision", 0, ""))
-	must(db.SetTaskQueued(q, tid, db.Human))
+	tid := must(db.NewTask(q, title, actor.OwnerKey, agent, 0, db.DefaultPriority, "decision", 0, ""))
+	must(db.SetTaskQueued(q, tid, actor.OwnerKey))
 	check(db.LinkRequest(q, tid, rid))
 	payload := append([]db.KV{{K: "request_id", V: rid}, {K: "task_id", V: tid}, {K: "reason", V: reason}}, extra...)
 	must(db.AddEvent(q, agent, "raise_decision", payload...))
@@ -83,7 +83,7 @@ func (e *Env) raiseDecision(q db.Q, after *After, agent, text, reason, files str
 
 // Report tells the human something that asks nothing: a say, so nothing is typed back at agent and nothing waits on the human.
 func (e *Env) report(q db.Q, after *After, agent, text, reason string) int64 {
-	rid := must(db.AddRequest(q, db.NewRequest{Requester: agent, Target: db.Human, Body: text, Kind: "say"}))
+	rid := must(db.AddRequest(q, db.NewRequest{Requester: agent, Target: actor.OwnerKey, Body: text, Kind: "say"}))
 	must(db.AddEvent(q, agent, "report", db.KV{K: "request_id", V: rid}, db.KV{K: "reason", V: reason}))
 	return rid
 }
@@ -228,8 +228,8 @@ func (e *Env) Ask(q db.Q, in AskIn) (out *AskOut, err error) {
 	}
 	if !in.NoCard && actor.IsPerson(in.Target) && in.Kind == "" {
 		// What is asked of the founder is a decision task, and this row its card; `task new` opens its own task and says NoCard.
-		tid := must(db.NewTask(q, firstLineTitle(in.Body), db.Human, requester, 0, db.DefaultPriority, "decision", 0, ""))
-		must(db.SetTaskQueued(q, tid, db.Human))
+		tid := must(db.NewTask(q, firstLineTitle(in.Body), actor.OwnerKey, requester, 0, db.DefaultPriority, "decision", 0, ""))
+		must(db.SetTaskQueued(q, tid, actor.OwnerKey))
 		check(db.LinkRequest(q, tid, rid))
 	}
 	must(db.AddEvent(q, requester, "ask", db.KV{K: "request_id", V: rid}, db.KV{K: "target", V: in.Target}, db.KV{K: "chain_depth", V: depth}))

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
@@ -52,7 +53,7 @@ func mergeMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any,
 				if n, _ := res.RowsAffected(); n == 0 {
 					return nil, refusal(fmt.Sprintf("task T%d was done or discarded by someone else just now", r.ID))
 				}
-				if by == human {
+				if by == actor.OwnerKey {
 					if err := markResultSeen(tx, r.ID); err != nil {
 						return nil, err
 					}

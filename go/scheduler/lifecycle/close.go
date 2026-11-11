@@ -8,6 +8,7 @@ import (
 	"github.com/handline/handline/go/agentctl/term"
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/timefmt"
 	"github.com/handline/handline/go/scheduler/settings"
 	"github.com/handline/handline/go/taskboard/supervisor"
@@ -469,7 +470,7 @@ func (m *Manager) RestartRetryNote(agent string, row *db.AgentState) (note strin
 func (m *Manager) Compact(agent string, st SessionStatus, by string) (ok bool, said string, err error) {
 	defer catch(&err)
 	if by == "" {
-		by = db.Human
+		by = actor.OwnerKey
 	}
 	row := must(db.GetAgentState(m.Q, agent))
 	if row == nil {
@@ -501,7 +502,7 @@ type RestartOpts struct {
 func (m *Manager) RestartAgent(agent string, st SessionStatus, o RestartOpts) (ok bool, said string, err error) {
 	defer catch(&err)
 	if o.By == "" {
-		o.By = db.Human
+		o.By = actor.OwnerKey
 	}
 	if o.Cause == "" {
 		o.Cause = "restart"

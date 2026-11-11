@@ -20,7 +20,7 @@ const (
 // agent's is the head of its queue, with its whole history under all; the founder's is the mailbox folded to a line per agent, with
 // what was already dealt with under all. With wait_s the call holds until something newer than since waits there.
 func (e *Env) inboxQueue(c *rpc.Conn, params map[string]any) (any, error) {
-	caller := human
+	caller := c.Caller.Actor()
 	if c.Caller.Role == "agent" {
 		caller = c.Caller.Key
 	}
@@ -75,7 +75,7 @@ func (e *Env) inboxQueue(c *rpc.Conn, params map[string]any) (any, error) {
 // listingRefusal is actions.listing_refusal: why caller may not list whose messages, "" when it may. The founder, the agent itself
 // and its supervisor may.
 func (e *Env) listingRefusal(caller, whose string) string {
-	if caller == human || caller == whose { // owner-only: the owner may list anyone's
+	if caller == actor.OwnerKey || caller == whose { // owner-only: the owner may list anyone's
 		return ""
 	}
 	if t, _ := team.LoadTeam(e.Home); t.SupervisorOf(whose) == caller {
@@ -194,12 +194,12 @@ func (e *Env) founderQueue(all bool) (any, error) {
 		shown = append(shown, map[string]any{"id": l.id, "name": db.MsgNameOf(e.DB, l.ref), "from": l.from, "kind": kind, "decision": l.gate, "answer": false,
 			"line": head(oneline(firstLine(l.body)), lineShown), "unread": l.unread})
 	}
-	out := map[string]any{"whose": human, "newest": newest, "head": nil, "waiting": len(rows), "lines": shown}
+	out := map[string]any{"whose": actor.OwnerKey, "newest": newest, "head": nil, "waiting": len(rows), "lines": shown}
 	if !all {
 		return out, nil
 	}
 	done, err := query(e.DB, "SELECT id, ref, requester, target, state, body, "+reasonSQL+" FROM requests "+
-		"WHERE (target = ? OR requester = ?) AND state != 'queued' AND "+notBoard+" ORDER BY id DESC LIMIT ?", human, human, dealtShown)
+		"WHERE (target = ? OR requester = ?) AND state != 'queued' AND "+notBoard+" ORDER BY id DESC LIMIT ?", actor.OwnerKey, actor.OwnerKey, dealtShown)
 	if err != nil {
 		return nil, err
 	}

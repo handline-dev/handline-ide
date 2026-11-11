@@ -2,6 +2,8 @@ package db
 
 import (
 	"testing"
+
+	"github.com/handline/handline/go/kit/actor"
 )
 
 func seedTask(t *testing.T, q Q, owner, opener string) int64 {
@@ -66,7 +68,7 @@ func TestEveryRowReaderScansItsColumnsAgainstTheSchema(t *testing.T) {
 	if rows, err := UndeliveredFor(q, "b"); err != nil || len(rows) != 1 || rows[0].ID != rid {
 		t.Fatal(rows, err)
 	}
-	founder := ask(t, q, Human, "b", "go", "ask")
+	founder := ask(t, q, actor.OwnerKey, "b", "go", "ask")
 	if rows, err := FounderPending(q, "b"); err != nil || len(rows) != 1 || rows[0].ID != founder {
 		t.Fatal(rows, err)
 	}
@@ -134,7 +136,7 @@ func TestEveryWriterChangesItsRow(t *testing.T) {
 	}
 
 	// requests
-	read := ask(t, q, "a", Human, "hello", "say")
+	read := ask(t, q, "a", actor.OwnerKey, "hello", "say")
 	if err := MarkRead(q, []int64{read}); err != nil {
 		t.Fatal(err)
 	}

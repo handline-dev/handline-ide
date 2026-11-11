@@ -7,6 +7,7 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team/teamtest"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/storetest"
 	"github.com/handline/handline/go/taskboard/supervisor"
 )
@@ -36,7 +37,7 @@ func TestADeliveryNamesWhoWroteItAndNeverTheSessionsOwnPerson(t *testing.T) {
 	from := peerFrom(d)
 	for _, c := range []struct{ op, name string }{
 		{op("asks"), "asks"},
-		{op(db.Human), "founder"},
+		{op(actor.OwnerKey), "founder"},
 		{supervisor.DaemonOp, ""},
 		{"notice:1", ""},
 	} {

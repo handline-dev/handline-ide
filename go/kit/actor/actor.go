@@ -30,6 +30,11 @@ const (
 	Gate = "gate"
 )
 
+// OwnerKey is the owner's key where the daemon names the person with no caller in hand: a request to them, their card, an event they
+// cause. Personal mode has one person, whom the first start makes p1 (EnsureOwner); phase 4 replaces each use with the agent's owner or
+// the task's person.
+const OwnerKey = "p1"
+
 // Key is the key of row id of kind k.
 func Key(k Kind, id int64) string { return string(rune(k)) + strconv.FormatInt(id, 10) }
 

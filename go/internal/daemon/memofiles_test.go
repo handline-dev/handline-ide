@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/taskboard/attachments"
 )
 
@@ -121,7 +121,7 @@ func TestTheFoundersMemoKeepsALinePerFileWhenTypedToTheHolder(t *testing.T) {
 	if err := d.db.QueryRow("SELECT body FROM requests WHERE target = ? AND body LIKE 'T1 comment 1 by%'", key(t, d, "bob")).Scan(&said); err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"T1 comment 1 by " + db.Human + ": the proposal xx", "\n[file 1: ", "\n[file 2: "} {
+	for _, want := range []string{"T1 comment 1 by " + actor.OwnerKey + ": the proposal xx", "\n[file 1: ", "\n[file 2: "} {
 		if !strings.Contains(said, want) {
 			t.Fatalf("no %q in the told memo: %q", want, said)
 		}

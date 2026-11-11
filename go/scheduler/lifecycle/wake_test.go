@@ -17,6 +17,7 @@ import (
 	"github.com/handline/handline/go/agentctl/term"
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/scheduler/pause"
 )
@@ -394,7 +395,7 @@ func theDaemonsWakeWaits(t *testing.T, launch Launch, holds string) {
 	if ok, said, err := m.WakeAgentLocked("a", WakeOpts{}); err != nil || ok || !strings.Contains(said, holds) {
 		t.Fatalf("the daemon's wake for a peer's work waits for the hold: %v %q %v", ok, said, err)
 	}
-	d.head.Requester = db.Human
+	d.head.Requester = actor.OwnerKey
 	if ok, said, err := m.WakeAgentLocked("a", WakeOpts{}); err != nil || !ok {
 		t.Fatalf("a person's message does not: %v %q %v", ok, said, err)
 	}
@@ -994,7 +995,7 @@ func TestTheLoadNeverHoldsAPersonsMessage(t *testing.T) {
 	if said, _ := m.StartForWork("harbor"); !strings.Contains(said, "not started - held: machine load") || passes("harbor") != 0 {
 		t.Fatalf("an agent's message went past the load: %q", said)
 	}
-	d.head = &db.Request{ID: 8, TS: m.now(), Requester: db.Human, Target: "harbor"}
+	d.head = &db.Request{ID: 8, TS: m.now(), Requester: actor.OwnerKey, Target: "harbor"}
 	for range 2 {
 		if said, _ := m.StartForWork("harbor"); strings.Contains(said, "held: machine load") {
 			t.Fatalf("the founder's message was held: %q", said)
@@ -1003,14 +1004,14 @@ func TestTheLoadNeverHoldsAPersonsMessage(t *testing.T) {
 	if passes("harbor") != 1 || len(sp.spawned)+len(sp.startedIn) == 0 {
 		t.Fatalf("one pass for one message, and a start: %d %v %v", passes("harbor"), sp.spawned, sp.startedIn)
 	}
-	d.head = &db.Request{ID: 10, TS: m.now(), Requester: db.Human, Target: "harbor"}
+	d.head = &db.Request{ID: 10, TS: m.now(), Requester: actor.OwnerKey, Target: "harbor"}
 	if m.StartForWork("harbor"); passes("harbor") != 2 {
 		t.Fatalf("the next message is a pass of its own: %d", passes("harbor"))
 	}
 	db.SetTerminal(m.Q, "b", "t1", "/wt")
 	db.SetClosed(m.Q, "b", "sess-1")
 	db.SetAgentState(m.Q, "b", states.Idle, 0, "")
-	d.head = &db.Request{ID: 9, TS: m.now(), Requester: db.Human, Target: "b"}
+	d.head = &db.Request{ID: 9, TS: m.now(), Requester: actor.OwnerKey, Target: "b"}
 	if _, said, _ := m.WakeAgent("b", WakeOpts{}); strings.Contains(said, "held: machine load") || passes("b") != 1 {
 		t.Fatalf("the daemon's wake for the founder's message was held: %q", said)
 	}
@@ -1030,7 +1031,7 @@ func TestTheLoadNeverHoldsTheFoundersSay(t *testing.T) {
 	if _, said, _ := m.WakeAgent("harbor", WakeOpts{}); !strings.Contains(said, "held: machine load") {
 		t.Fatalf("an agent's say went past the load: %q", said)
 	}
-	if _, err := db.AddRequest(m.Q, db.NewRequest{Requester: db.Human, Target: "harbor", Body: "can the corners be rounder?", Kind: "say"}); err != nil {
+	if _, err := db.AddRequest(m.Q, db.NewRequest{Requester: actor.OwnerKey, Target: "harbor", Body: "can the corners be rounder?", Kind: "say"}); err != nil {
 		t.Fatal(err)
 	}
 	if _, said, _ := m.WakeAgent("harbor", WakeOpts{}); strings.Contains(said, "held: machine load") {
@@ -1205,7 +1206,7 @@ func TestThePauseHoldsAnAgentsMessageButNotAPersonsAndRecordsNoLoadPass(t *testi
 	if said, _ := m.StartForWork("harbor"); !strings.Contains(said, "new work is paused") || len(sp.spawned)+len(sp.startedIn) != 0 {
 		t.Fatalf("an agent's message went past the pause: %q", said)
 	}
-	d.head = &db.Request{ID: 8, TS: m.now(), Requester: db.Human, Target: "harbor"}
+	d.head = &db.Request{ID: 8, TS: m.now(), Requester: actor.OwnerKey, Target: "harbor"}
 	if said, _ := m.StartForWork("harbor"); strings.Contains(said, "paused") || len(sp.spawned)+len(sp.startedIn) == 0 {
 		t.Fatalf("the founder's message was held: %q", said)
 	}
@@ -1237,7 +1238,7 @@ func TestATaskSendNowLetGoStartsItsAgentWhilePaused(t *testing.T) {
 
 // A restart opens with a separator line the person at the terminal sees: what changed, with its values, and who asked; the founder by name.
 func TestARestartNoticeOpensWithASeparatorLineOfWhatChangedAndWho(t *testing.T) {
-	got := RestartNotice(db.Human, true, []string{"model"}, "model changed (opus-5-5 -> sonnet-5-5)")
+	got := RestartNotice(actor.OwnerKey, true, []string{"model"}, "model changed (opus-5-5 -> sonnet-5-5)")
 	want := "---------- restarted: model changed (opus-5-5 -> sonnet-5-5), by the founder ----------\n" +
 		"Restarted by the founder (resumed) to apply changed settings: model. If something was going wrong before this, retry it."
 	if got != want {

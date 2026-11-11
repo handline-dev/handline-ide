@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
 )
 
 // turn records one turn of agent: a prompt, a say to the founder when said, and the Stop.
@@ -16,7 +17,7 @@ func (r *rig) turn(agent string, said bool) {
 	r.must(err)
 	if said {
 		r.clock++
-		_, err = db.AddRequest(r.DB, db.NewRequest{Requester: agent, Target: db.Human, Body: "may I open the PR?", Kind: "say"})
+		_, err = db.AddRequest(r.DB, db.NewRequest{Requester: agent, Target: actor.OwnerKey, Body: "may I open the PR?", Kind: "say"})
 		r.must(err)
 	}
 	r.clock++
@@ -60,7 +61,7 @@ func TestNoNoticeOnceTheTaskIsTheFoundersOrWithNoDoingTask(t *testing.T) {
 	r.turn(r.k("bob"), true)
 	mid, err := db.AddMemo(r.DB, tid, r.k(("bob")), "`@human` may I open the PR?") // the task waits on the founder in a memo ask
 	r.must(err)
-	ask, err := db.AddRequest(r.DB, db.NewRequest{Requester: r.k(("bob")), Target: db.Human, Body: "may I open the PR?", Kind: "ask"})
+	ask, err := db.AddRequest(r.DB, db.NewRequest{Requester: r.k(("bob")), Target: actor.OwnerKey, Body: "may I open the PR?", Kind: "ask"})
 	r.must(err)
 	r.must(db.LinkRequest(r.DB, tid, ask))
 	_, err = r.DB.Exec("UPDATE requests SET memo_id = ? WHERE id = ?", mid, ask)

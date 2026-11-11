@@ -52,7 +52,7 @@ func begin(c *rpc.Conn, p map[string]any, home string) (any, error) {
 		return nil, badParam("a task needs a title", "title")
 	}
 	return c.Effect(func(tx *sql.Tx) (map[string]any, error) {
-		if me == human {
+		if actor.IsPerson(me) {
 			return nil, refusal("a task is begun by an agent, never in the founder's name")
 		}
 		chat, err := requestref.Resolve(tx, home, p["message"], me, "message")
@@ -76,7 +76,7 @@ func begin(c *rpc.Conn, p map[string]any, home string) (any, error) {
 		if len(used) > 0 {
 			return nil, refusal(fmt.Sprintf("request %s already opened T%d", db.MsgName(tx, chat), used[0].ID))
 		}
-		tid, err := db.NewTask(tx, clean, me, me, 0, prio, "report", 0, human)
+		tid, err := db.NewTask(tx, clean, me, me, 0, prio, "report", 0, req.Requester)
 		if err != nil {
 			return nil, err
 		}

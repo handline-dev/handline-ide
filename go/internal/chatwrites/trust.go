@@ -8,6 +8,7 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/taskboard/taskwrites"
 )
@@ -79,7 +80,7 @@ func (w *writes) trustPropose(c *rpc.Conn, p map[string]any) (any, error) {
 		raise := func(title, text string) (bool, string, int64, int64, error) {
 			var tid int64
 			var err error
-			tid, asked, err = taskwrites.OpenTask(tx, w.tell, me, taskwrites.NewIn{Owner: db.Human, Title: title, Body: text,
+			tid, asked, err = taskwrites.OpenTask(tx, w.tell, me, taskwrites.NewIn{Owner: actor.OwnerKey, Title: title, Body: text,
 				Prio: db.DefaultPriority, Expects: "decision"})
 			if err != nil {
 				return false, "", 0, 0, err

@@ -6,6 +6,7 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
+	"github.com/handline/handline/go/kit/actor"
 )
 
 func (r *rig) ask(from, to, body, kind string) int64 {
@@ -287,7 +288,7 @@ func TestThePauseHoldsAnAgentsMessageToAnAgentAtItsPromptButNotAPersonsOrOneMidT
 	if got, _ := r.TellNow(r.DB, rid); !strings.Contains(got, paused) || len(r.term.typed) != 0 {
 		t.Fatalf("an agent's message started a turn while paused: %q %v", got, r.term.typed)
 	}
-	if got, _ := r.TellNow(r.DB, r.ask(db.Human, r.k(("bob")), "from the founder", "ask")); got != "sent" {
+	if got, _ := r.TellNow(r.DB, r.ask(actor.OwnerKey, r.k(("bob")), "from the founder", "ask")); got != "sent" {
 		t.Fatalf("the founder's message was held: %q", got)
 	}
 	r.must(db.SetAgentState(r.DB, r.k(("bob")), states.Running, 0, ""))
@@ -319,7 +320,7 @@ func TestThePauseHoldsATaskMidTurnTooButNotOneTheFounderSent(t *testing.T) {
 	r2 := newRig(t)
 	r2.agentUp(r.k("bob"))
 	r2.Paused = func() string { return "Waiting: new work is paused." }
-	r2.task(r.k("bob"), db.Human, "the founder's own")
+	r2.task(r.k("bob"), actor.OwnerKey, "the founder's own")
 	if sent, _ := r2.DeliverQueued(r2.DB, r.k(("bob"))); !sent {
 		t.Fatal("a task the founder sent was held by the pause")
 	}
@@ -353,7 +354,7 @@ func TestWhilePausedOnlyAPassedTaskIsToldAndThePausesLoadWordDoesNotHoldIt(t *te
 	r3.agentUp(r.k("bob"))
 	r3.Paused = func() string { return paused }
 	r3.LoadHeld = func(string) string { return paused }
-	r3.task(r.k("bob"), db.Human, "the founder's own")
+	r3.task(r.k("bob"), actor.OwnerKey, "the founder's own")
 	if sent, _ := r3.DeliverQueued(r3.DB, r.k(("bob"))); !sent {
 		t.Fatal("the founder's task at the prompt was held by the pause")
 	}
@@ -362,7 +363,7 @@ func TestWhilePausedOnlyAPassedTaskIsToldAndThePausesLoadWordDoesNotHoldIt(t *te
 	r2.agentUp(r.k("bob"))
 	r2.Paused = func() string { return paused }
 	r2.LoadHeld = func(string) string { return load }
-	r2.task(r.k("bob"), db.Human, "the founder's own")
+	r2.task(r.k("bob"), actor.OwnerKey, "the founder's own")
 	if sent, _ := r2.DeliverQueued(r2.DB, r.k(("bob"))); sent {
 		t.Fatal("the load's own hold let the founder's task through at the prompt")
 	}
@@ -372,7 +373,7 @@ func TestAnyPersonsMessageIsUrgentNotOnlyTheOwners(t *testing.T) {
 	for _, c := range []struct {
 		requester string
 		want      bool
-	}{{db.Human, true}, {"p2", true}, {"a3", false}, {"sys", false}} {
+	}{{actor.OwnerKey, true}, {"p2", true}, {"a3", false}, {"sys", false}} {
 		if got := urgent(&db.Request{Requester: c.requester}); got != c.want {
 			t.Errorf("urgent(requester %s) = %v, want %v", c.requester, got, c.want)
 		}

@@ -4,6 +4,8 @@ import (
 	"slices"
 	"testing"
 	"time"
+
+	"github.com/handline/handline/go/kit/actor"
 )
 
 // The tasks the pause keeps from an agent: queued for it, not told, passing neither as the founder's nor by task.send_now, and held by
@@ -25,7 +27,7 @@ func TestThePauseHoldsOnlyTheAgentsUntoldTasksThatNothingElseHolds(t *testing.T)
 	merged := seedTask(t, q, "b", "a") // a second task of b's on the same delivery
 	SetTaskQueued(q, merged, "a")
 	LinkRequest(q, merged, heldRid)
-	founders, _ := queued(Human)
+	founders, _ := queued(actor.OwnerKey)
 	told, toldRid := queued("a")
 	StampTaskDelivered(q, toldRid)
 	typed, typedRid := queued("a") // typed, its showing not yet confirmed
@@ -33,7 +35,7 @@ func TestThePauseHoldsOnlyTheAgentsUntoldTasksThatNothingElseHolds(t *testing.T)
 	blocked, _ := queued("a")
 	AddBlock(q, blocked, held)
 	turned, _ := queued("a")
-	PushTurn(q, turned, Turn{Agent: Human, By: "a", Since: 1})
+	PushTurn(q, turned, Turn{Agent: actor.OwnerKey, By: "a", Since: 1})
 	gated, _ := queued("a")
 	PushTurn(q, gated, Turn{Agent: Gate, By: "a", Since: 1})
 	passed, passedRid := queued("a")

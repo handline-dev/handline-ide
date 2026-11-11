@@ -12,6 +12,7 @@ import (
 	"github.com/handline/handline/go/agentctl/term"
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team/teamtest"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/taskboard/supervisor"
 )
 
@@ -159,7 +160,7 @@ func doing(t *testing.T, d *Daemon, agent string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.SetTaskQueued(d.db, tid, db.Human); err != nil {
+	if _, err := db.SetTaskQueued(d.db, tid, actor.OwnerKey); err != nil {
 		t.Fatal(err)
 	}
 	if !d.env().Ports.Wired() { // nothing to tell it with: only make the task the one in hand
@@ -191,7 +192,7 @@ func TestAQueuedTaskGoesToAFreeOwnerAndTheReplySaysSo(t *testing.T) {
 	tid, _ := db.NewTask(d.db, "job", key(t, d, "bob"), key(t, d, "alice"), 0, db.DefaultPriority, "", 0, "")
 	f := pipeTo(t, d, "k")
 	said := result(t, f.ask(`{"jsonrpc":"2.0","id":2,"method":"task.queue","params":{"tasks":[1],"request_id":"q1"}}`))["said"]
-	if want := "task T1 is queued (" + db.Human + ") - " + key(t, d, "bob") + " was free, so it went out now"; said != want {
+	if want := "task T1 is queued (" + actor.OwnerKey + ") - " + key(t, d, "bob") + " was free, so it went out now"; said != want {
 		t.Fatalf("%v", said)
 	}
 	if got := agents.said(key(t, d, "bob")); !strings.Contains(got, "job") {
@@ -201,7 +202,7 @@ func TestAQueuedTaskGoesToAFreeOwnerAndTheReplySaysSo(t *testing.T) {
 	// the owner is busy now: the second is queued behind the first and the reply says only that
 	db.NewTask(d.db, "second", key(t, d, "bob"), key(t, d, "alice"), 0, db.DefaultPriority, "", 0, "")
 	said = result(t, f.ask(`{"jsonrpc":"2.0","id":3,"method":"task.queue","params":{"tasks":[2],"request_id":"q2"}}`))["said"]
-	if !strings.HasPrefix(said.(string), "task T2 is queued ("+db.Human+")") || strings.Contains(said.(string), "went out") {
+	if !strings.HasPrefix(said.(string), "task T2 is queued ("+actor.OwnerKey+")") || strings.Contains(said.(string), "went out") {
 		t.Fatalf("%v", said)
 	}
 }
@@ -210,7 +211,7 @@ func TestADiscardTypesItsSaysAndMovesTheOwnerOn(t *testing.T) {
 	d, agents := tellDaemon(t, true)
 	doing(t, d, "bob")
 	second, _ := db.NewTask(d.db, "the next one", key(t, d, "bob"), key(t, d, "alice"), 0, db.DefaultPriority, "", 0, "")
-	db.SetTaskQueued(d.db, second, db.Human)
+	db.SetTaskQueued(d.db, second, actor.OwnerKey)
 	reqs, _ := db.TaskRequests(d.db, 1)
 	for _, q := range reqs {
 		db.CloseIfQueued(d.db, q.ID, "dismissed", "")
@@ -247,7 +248,7 @@ func TestCommentRecipientsOnTheFoundersTurnNameTheHolderBelowIt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.PushTurn(d.db, tid, db.Turn{Agent: db.Human, By: key(t, d, "bob"), Since: 1}); err != nil {
+	if err := db.PushTurn(d.db, tid, db.Turn{Agent: actor.OwnerKey, By: key(t, d, "bob"), Since: 1}); err != nil {
 		t.Fatal(err)
 	}
 	founder := pipeTo(t, d, "k")

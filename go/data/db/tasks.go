@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/handline/handline/go/agentctl/verdict"
+	"github.com/handline/handline/go/kit/actor"
 )
 
 // OpenSQL is a task that is neither done nor discarded.
@@ -238,7 +239,7 @@ func DiscardTask(q Q, tid int64, by, reason string) (bool, error) {
 func StampTaskDelivered(q Q, rid int64) error {
 	_, err := q.Exec("UPDATE tasks SET delivered_at = ? WHERE delivered_at IS NULL AND owner = "+
 		"(SELECT target FROM requests WHERE id = ? AND (kind = 'task' OR (target = ? AND COALESCE(kind, '') NOT IN ('say', 'report')))) AND id IN "+
-		"(SELECT task_id FROM task_requests WHERE request_id = ?)", Now(), rid, Human, rid)
+		"(SELECT task_id FROM task_requests WHERE request_id = ?)", Now(), rid, actor.OwnerKey, rid)
 	return err
 }
 
@@ -313,7 +314,7 @@ func TaskOfCard(q Q, rid int64) (int64, error) {
 // FounderClosed is decisions.answer_of's reading of a decision task marked done: its evidence is the founder's answer only when the
 // founder owns it and the last of its settle, done and reopen events is the founder's own settle or done.
 func FounderClosed(q Q, t *Task) (bool, error) {
-	if t.Owner != Human {
+	if t.Owner != actor.OwnerKey {
 		return false, nil
 	}
 	var kind, agent string
@@ -325,14 +326,14 @@ func FounderClosed(q Q, t *Task) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return kind == "settle_decision_task" || kind == "mark_task_done" && agent == Human, nil
+	return kind == "settle_decision_task" || kind == "mark_task_done" && agent == actor.OwnerKey, nil
 }
 
 // OpenDecisionCardIDs is db.open_decision_card_ids: the queued cards of the founder's open decision tasks, oldest first; about
 // agent (its requester) when given, whose body starts with prefix when given, and is exactly body when hasBody.
 func OpenDecisionCardIDs(q Q, agent, prefix string, body *string) ([]int64, error) {
 	query := "SELECT id FROM requests WHERE target = ? AND state = 'queued' AND id IN " + openDecisionCardsSQL
-	args := []any{Human, Human}
+	args := []any{actor.OwnerKey, actor.OwnerKey}
 	if agent != "" {
 		query += " AND requester = ?"
 		args = append(args, agent)
@@ -507,7 +508,7 @@ func TimeoutNotices(q Q, tid int64) (Notices, error) {
 func FounderAsked(q Q, tid int64) (bool, error) {
 	var one int
 	err := q.QueryRow("SELECT 1 FROM requests r JOIN task_requests l ON l.request_id = r.id WHERE l.task_id = ? AND r.target = ? "+
-		"AND COALESCE(r.kind, '') != 'say' AND r.state = 'queued' LIMIT 1", tid, Human).Scan(&one)
+		"AND COALESCE(r.kind, '') != 'say' AND r.state = 'queued' LIMIT 1", tid, actor.OwnerKey).Scan(&one)
 	if err == sql.ErrNoRows {
 		return false, nil
 	}
@@ -578,7 +579,7 @@ func AllTasks(q Q) ([]*Task, error) {
 // HolderOf is what kind of holder a task's owner is, for verdict.Overdue.
 func HolderOf(owner string) verdict.Holder {
 	switch owner {
-	case Human:
+	case actor.OwnerKey:
 		return verdict.FounderHolds
 	case Gate:
 		return verdict.GateHolds

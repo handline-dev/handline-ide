@@ -3,6 +3,8 @@ package db
 import (
 	"encoding/json"
 	"strconv"
+
+	"github.com/handline/handline/go/kit/actor"
 )
 
 // SeenFloorMeta holds the comment number at or below which a task with no marker of its own counts as read.
@@ -16,7 +18,9 @@ const ResultSeenPrefix = "result_seen:"
 
 func ResultSeenKey(tid int64) string { return ResultSeenPrefix + strconv.FormatInt(tid, 10) }
 
-func SeenKey(tid int64) string { return "task_seen:" + Human + ":" + strconv.FormatInt(tid, 10) }
+func SeenKey(tid int64) string {
+	return "task_seen:" + actor.OwnerKey + ":" + strconv.FormatInt(tid, 10)
+}
 
 // LoginNeedPrefix is the meta rows holding a LoginNeed for each account that wants a login or stands stalled.
 const LoginNeedPrefix = "founder_login_need:"

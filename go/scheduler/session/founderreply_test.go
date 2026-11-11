@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/storetest"
 )
 
@@ -34,7 +35,7 @@ func (f *founderStops) exec(q string, args ...any) {
 
 func (f *founderStops) typed(landed int64) int64 {
 	f.t.Helper()
-	rid, err := db.AddRequest(f.d, db.NewRequest{Requester: db.Human, Target: "a.one", Kind: "say", Body: "how is it going?"})
+	rid, err := db.AddRequest(f.d, db.NewRequest{Requester: actor.OwnerKey, Target: "a.one", Kind: "say", Body: "how is it going?"})
 	if err != nil {
 		f.t.Fatal(err)
 	}
@@ -80,7 +81,7 @@ func TestAFoundersUnansweredMessageHoldsTheStopOncePerMessage(t *testing.T) {
 	}
 	stopped(103)
 	typed(104)
-	answer, err := db.AddRequest(d, db.NewRequest{Requester: "a.one", Target: db.Human, Kind: "say", Body: "going well"})
+	answer, err := db.AddRequest(d, db.NewRequest{Requester: "a.one", Target: actor.OwnerKey, Kind: "say", Body: "going well"})
 	if err != nil {
 		t.Fatal(err)
 	}

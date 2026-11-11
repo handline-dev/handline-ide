@@ -980,7 +980,7 @@ func (l *Launcher) yourTeam(agent string) string {
 	}
 	boss := t.SupervisorOf(agent)
 	if boss == "" {
-		boss = db.Human
+		boss = actor.OwnerKey
 	}
 	var reports []string
 	for _, n := range paths.ListAgents(l.Home) {

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/taskboard/taskwrites"
 )
 
@@ -50,7 +51,7 @@ func TestTheFoundersTurnFreesTheAgentsSlotAndTheirCommentGivesItBack(t *testing.
 	held := r.beginCurrent(r.k("bob"), r.k(("alice")), "ship it")
 	next := r.newTask(r.k("bob"), r.k(("alice")), "the next one")
 	r.turnCall(r.k("bob"), "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"beta now or after the fix? I recommend now","turn":"human","request_id":"p1"}`, held))
-	if r.acting(held) != db.Human {
+	if r.acting(held) != actor.OwnerKey {
 		t.Fatalf("acting %q", r.acting(held))
 	}
 	if task, _ := db.GetTask(r.DB, held); task.Owner != r.k(("bob")) {
@@ -203,7 +204,7 @@ func TestRetiringAnAgentTakesItsTurnsOff(t *testing.T) {
 	if r.acting(top) != r.k(("bob")) {
 		t.Fatalf("top: %q", r.acting(top))
 	}
-	if turns, _ := db.Turns(r.DB, under); len(turns) != 1 || turns[0].Agent != db.Human {
+	if turns, _ := db.Turns(r.DB, under); len(turns) != 1 || turns[0].Agent != actor.OwnerKey {
 		t.Fatalf("under: %+v", turns)
 	}
 }
@@ -326,7 +327,7 @@ func TestTheFoundersPassIsTheirCommentsTellAndTheTaskStillMoves(t *testing.T) {
 	}
 	var comments int
 	r.must(r.DB.QueryRow(r.sql("SELECT COUNT(*) FROM task_memos WHERE task_id = ? AND author = 'human'"), held).Scan(&comments))
-	if toldBob() != rid || from != db.Human || comments != 1 {
+	if toldBob() != rid || from != actor.OwnerKey || comments != 1 {
 		t.Fatalf("the pass #%d from %q; the comment's tell to ops.bob #%d; %d comments", rid, from, told, comments)
 	}
 	// an edit tells bob again, and the return stays the comment's tell
@@ -378,7 +379,7 @@ func TestANewCommentMovesTheFoundersTurnToIt(t *testing.T) {
 		t.Fatalf("%q", said)
 	}
 	turns, _ := db.Turns(r.DB, held)
-	if len(turns) != 1 || turns[0].Agent != db.Human || turns[0].Ask != "A, B or C? I recommend C" || turns[0].Memo != int64(mid) || turns[0].By != r.k(("bob")) {
+	if len(turns) != 1 || turns[0].Agent != actor.OwnerKey || turns[0].Ask != "A, B or C? I recommend C" || turns[0].Memo != int64(mid) || turns[0].By != r.k(("bob")) {
 		t.Fatalf("%+v", turns)
 	}
 	var from, stored string

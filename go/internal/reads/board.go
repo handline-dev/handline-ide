@@ -23,7 +23,7 @@ func (e *Env) taskBoard(c *rpc.Conn, params map[string]any) (any, error) {
 	switch {
 	case everyone:
 	case actor.IsPerson(me):
-		owners = map[string]bool{human: true}
+		owners = map[string]bool{actor.OwnerKey: true}
 	default:
 		if owners, err = e.reach(me); err != nil {
 			return nil, err

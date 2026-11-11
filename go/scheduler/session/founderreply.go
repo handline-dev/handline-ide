@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
 )
 
 // A founder's message is typed into the agent's terminal as a bare prompt, so an answer typed back in the terminal looks natural, and
@@ -28,7 +29,7 @@ func (e *Env) UnansweredFounder(agent string) (int64, error) {
 		"AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.from_request = r.id) "+
 		"AND NOT EXISTS (SELECT 1 FROM requests a WHERE a.requester = r.target AND a.target = ? AND a.ts >= r.landed_at) "+
 		"AND NOT EXISTS (SELECT 1 FROM events e WHERE e.dedup_key = ?||r.id) "+
-		"ORDER BY r.id DESC LIMIT 1", db.Human, agent, agent, founderDeferKey, db.Human, founderNudgeKey).Scan(&rid)
+		"ORDER BY r.id DESC LIMIT 1", actor.OwnerKey, agent, agent, founderDeferKey, actor.OwnerKey, founderNudgeKey).Scan(&rid)
 	if err == sql.ErrNoRows {
 		return 0, nil
 	}

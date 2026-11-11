@@ -148,7 +148,7 @@ func editTask(tx *sql.Tx, tid int64, by string, home string, owner, reporter, ti
 		return fmt.Sprintf("no task T%d", tid), "", nil
 	}
 	reshape := title != nil || priority != nil || estimate != nil || timeoutS != nil || body != nil || evidence != nil
-	if owner != nil && *owner != t.Owner && *owner != human {
+	if owner != nil && *owner != t.Owner && *owner != actor.OwnerKey {
 		if why, err := undeliverable(tx, t, *owner, home); err != nil || why != "" {
 			return why, "", err
 		}
@@ -188,7 +188,7 @@ func editTask(tx *sql.Tx, tid int64, by string, home string, owner, reporter, ti
 		if text == "" {
 			return fmt.Sprintf("a done task keeps a result - an empty one would reopen T%d", tid), "", nil
 		}
-		if by != human { // merge tooling lands a PR on this text: an agent adds a comment, it does not rewrite the result
+		if by != actor.OwnerKey { // merge tooling lands a PR on this text: an agent adds a comment, it does not rewrite the result
 			return fmt.Sprintf("only the founder can change the result of a done task; add a comment to T%d instead", tid), "", nil
 		}
 		if text != strings.TrimSpace(t.DoneEvidence.String) {
@@ -206,7 +206,7 @@ func editTask(tx *sql.Tx, tid int64, by string, home string, owner, reporter, ti
 	}
 	var newReporter *string
 	if reporter != nil && *reporter != t.reporter() {
-		if *reporter != human && !contains(paths.ListAgents(home), *reporter) {
+		if *reporter != actor.OwnerKey && !contains(paths.ListAgents(home), *reporter) {
 			return "no agent named " + *reporter, "", nil
 		}
 		newReporter = reporter
@@ -429,7 +429,7 @@ func editMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, 
 			return nil, badParam("edit needs an owner, a reporter, a title, a priority, an estimate, a body, an evidence, a time_box, blocked_by, unblock, add_tags, remove_tags or pr", "")
 		}
 		for _, who := range []*string{owner, reporter} {
-			if who != nil && *who != human && !contains(paths.ListAgents(home), *who) {
+			if who != nil && *who != actor.OwnerKey && !contains(paths.ListAgents(home), *who) {
 				return nil, agentNotFound(*who)
 			}
 		}
@@ -455,11 +455,11 @@ func editMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, 
 				if err != nil {
 					return nil, err
 				}
-				if len(turns) > 0 || actor.IsPerson(*owner) && me != human {
+				if len(turns) > 0 || actor.IsPerson(*owner) && me != actor.OwnerKey {
 					var h Handover
 					var asked *Asked
-					if actor.IsPerson(*owner) && me != human {
-						h, asked, err = pushTurn(tx, tell, tid, me, human, "", 0, "", "")
+					if actor.IsPerson(*owner) && me != actor.OwnerKey {
+						h, asked, err = pushTurn(tx, tell, tid, me, actor.OwnerKey, "", 0, "", "")
 					} else {
 						h, asked, err = handOff(tx, tell, tid, me, *owner, "", paths.ListAgents(home), false)
 					}

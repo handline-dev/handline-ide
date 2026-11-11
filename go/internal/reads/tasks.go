@@ -20,8 +20,6 @@ import (
 	"github.com/handline/handline/go/taskboard/taskresult"
 )
 
-const human = db.Human
-
 const eventTask = "CASE WHEN json_valid(payload) THEN json_extract(payload, '$.task_id') END"
 
 // everyKind is every event kind, found by one index seek per kind: a query on eventTask that names no kind puts "kind IN everyKind"
@@ -476,7 +474,7 @@ func (e *Env) firstRequest(tid int64) (row, error) {
 // askerSQL is askerOf as a column of a tasks row. The + keeps the planner off requests_requester, which would read every request
 // of the founder's for each task.
 const askerSQL = "COALESCE(NULLIF(reporter, ''), CASE WHEN EXISTS (SELECT 1 FROM task_requests l JOIN requests r ON r.id = l.request_id " +
-	"WHERE l.task_id = tasks.id AND +r.requester = '" + db.Human + "') THEN '" + db.Human + "' ELSE opened_by END)"
+	"WHERE l.task_id = tasks.id AND +r.requester = '" + actor.OwnerKey + "') THEN '" + actor.OwnerKey + "' ELSE opened_by END)"
 
 // askerOf is actions.task_asker: who a task answers to when it closes. Its reporter when one was set; else the founder, if any request
 // linked to it came from the founder; else whoever opened it.
@@ -485,12 +483,12 @@ func (e *Env) askerOf(t row) (string, error) {
 		return r, nil
 	}
 	r, err := queryOne(e.DB, "SELECT 1 AS yes FROM task_requests l JOIN requests r ON r.id = l.request_id "+
-		"WHERE l.task_id = ? AND +r.requester = ? LIMIT 1", t.i("id"), human) // + as in askerSQL
+		"WHERE l.task_id = ? AND +r.requester = ? LIMIT 1", t.i("id"), actor.OwnerKey) // + as in askerSQL
 	if err != nil {
 		return "", err
 	}
 	if r != nil {
-		return human, nil
+		return actor.OwnerKey, nil
 	}
 	return t.str("opened_by"), nil
 }
@@ -676,7 +674,7 @@ func (e *Env) waitingOf(t row, state string, waits []row, rec map[string]any) (m
 		return map[string]any{"on": "task", "text": "blocked by " + tids(on), "tasks": on, "since": ts(since)}, since, nil
 	}
 	asked, err := queryOne(e.DB, "SELECT MIN(r.ts) AS since FROM requests r JOIN task_requests l ON l.request_id = r.id "+
-		"WHERE l.task_id = ? AND r.target = ? AND "+notBoard+" AND "+founderOpen, t.i("id"), human)
+		"WHERE l.task_id = ? AND r.target = ? AND "+notBoard+" AND "+founderOpen, t.i("id"), actor.OwnerKey)
 	if err != nil {
 		return nil, 0, err
 	}

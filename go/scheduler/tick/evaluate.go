@@ -9,6 +9,7 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
+	"github.com/handline/handline/go/kit/actor"
 )
 
 // Result is one tick: when it ran and what it did.
@@ -450,7 +451,7 @@ func compactAsked(q db.Q, agent string) string {
 		return ""
 	}
 	by, _ := payload["by"].(string)
-	return cmp.Or(by, db.Human)
+	return cmp.Or(by, actor.OwnerKey)
 }
 
 // handOff performs the handoff trig fired, to dest when it is set, stalls an agent whose recovery keeps failing, and starts the next
@@ -608,8 +609,8 @@ func (t *Tick) Run() (Result, error) {
 	t.rolloverDay = day
 
 	// The human is no agent, so no per-agent delivery checks the edges of what agents wrote to them.
-	t.guarded(db.Human, func() error {
-		if err := t.Delivery.EnforceEdges(q, db.Human); err != nil {
+	t.guarded(actor.OwnerKey, func() error {
+		if err := t.Delivery.EnforceEdges(q, actor.OwnerKey); err != nil {
 			return fmt.Errorf("edge check failed: %w", err)
 		}
 		return nil

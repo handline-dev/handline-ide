@@ -19,6 +19,7 @@ import (
 	"github.com/handline/handline/go/data/states"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/data/team/teamtest"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/yamlcompat"
 	"github.com/handline/handline/go/protocol/sessiontoken"
@@ -771,7 +772,7 @@ func TestAnAgentIsToldItsTeamFromTheRoster(t *testing.T) {
 	}
 	for who, text := range map[string]string{"manager": mgr, "manager.marina": dev, "lone": scout} {
 		line := reportLine(text)
-		bossIsHuman := strings.HasPrefix(line, "You report to `"+db.Human+"`")
+		bossIsHuman := strings.HasPrefix(line, "You report to `"+actor.OwnerKey+"`")
 		if !strings.Contains(line, "`hl task done T<n>") || !strings.Contains(line, "that is your report") {
 			t.Errorf("%s: the report-to line does not say task done is the report: %s", who, line)
 		}
@@ -785,7 +786,7 @@ func TestAnAgentIsToldItsTeamFromTheRoster(t *testing.T) {
 			t.Errorf("%s: the landing line (the repo's rules, else a pull request, else commit and stop) is missing:\n%s", who, text)
 		}
 	}
-	if !strings.HasPrefix(reportLine(dev), "You report to `"+mgrK+"`") || !strings.HasPrefix(reportLine(scout), "You report to `"+db.Human+"`") {
+	if !strings.HasPrefix(reportLine(dev), "You report to `"+mgrK+"`") || !strings.HasPrefix(reportLine(scout), "You report to `"+actor.OwnerKey+"`") {
 		t.Errorf("wrong boss:\n%s\n---\n%s", dev, scout)
 	}
 	// The founder's words typed at an agent: it is told to answer them with hl say, and the others are not told of typing.

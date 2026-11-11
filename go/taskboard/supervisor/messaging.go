@@ -162,14 +162,14 @@ func (e *Env) MigrateOldMessages(q db.Q) (err error) {
 	defer Catch(&err)
 	ids := must(db.IDs(q, "SELECT r.id FROM requests r WHERE r.state = 'queued' AND r.kind = 'say' AND r.target != ? AND r.delivered_at IS NOT NULL "+
 		"AND NOT EXISTS (SELECT 1 FROM operations o WHERE o.kind = 'send' AND o.agent = r.target AND o.id LIKE 'send:' || r.target || ':request:%' "+
-		"AND ',' || substr(o.id, length('send:' || r.target || ':request:') + 1) || ',' LIKE '%,' || r.id || ',%')", db.Human))
+		"AND ',' || substr(o.id, length('send:' || r.target || ':request:') + 1) || ',' LIKE '%,' || r.id || ',%')", actor.OwnerKey))
 	for _, id := range ids {
 		if _, _, err := e.Resolve(q, ResolveIn{RID: id}); err != nil {
 			return err
 		}
 		e.log("  request %d: an old say, settled", id)
 	}
-	_, err = q.Exec("UPDATE requests SET typed_at = delivered_at WHERE state = 'queued' AND target != ? AND "+db.Unreached(""), db.Human)
+	_, err = q.Exec("UPDATE requests SET typed_at = delivered_at WHERE state = 'queued' AND target != ? AND "+db.Unreached(""), actor.OwnerKey)
 	return err
 }
 

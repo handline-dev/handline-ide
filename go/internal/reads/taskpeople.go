@@ -14,7 +14,7 @@ const recentChats = 3
 // comes first, then the rest of the holder's team in roster order, then everyone else. A roster that cannot be read is no team.
 func (e *Env) askable(holder string) (map[string]any, error) {
 	agents := e.listAgents()
-	rows, err := query(e.DB, "SELECT requester, target FROM requests WHERE requester = ? OR target = ? ORDER BY id DESC LIMIT 200", human, human)
+	rows, err := query(e.DB, "SELECT requester, target FROM requests WHERE requester = ? OR target = ? ORDER BY id DESC LIMIT 200", actor.OwnerKey, actor.OwnerKey)
 	if err != nil {
 		return nil, err
 	}

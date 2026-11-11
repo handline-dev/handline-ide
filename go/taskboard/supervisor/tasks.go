@@ -168,7 +168,7 @@ func (e *Env) QueueDeliver(q db.Q, tid int64, by string, queued bool, row *db.Ta
 		if !out.OK {
 			return fmt.Sprintf("task T%d is queued (%s) but its card was not raised: %s", tid, by, text), nil
 		}
-		e.linkDelivery(q, tid, db.Human, out.RID)
+		e.linkDelivery(q, tid, actor.OwnerKey, out.RID)
 		return fmt.Sprintf("task T%d is queued (%s) - its card is on the founder's board", tid, by), nil
 	}
 	word := "draft"
@@ -538,7 +538,7 @@ func (e *Env) linkMemoTell(q db.Q, mid int64, reader string, rid int64) {
 // every registered agent the memo names with @. Never the writer, or the founder, who reads the board.
 func (e *Env) memoReaders(row *db.Task, by string, mentioned []string) []string {
 	named := append([]string{row.AnswersTo(), row.Acting}, mentioned...)
-	skip := map[string]bool{"": true, by: true, db.Human: true}
+	skip := map[string]bool{"": true, by: true, actor.OwnerKey: true}
 	var out []string
 	for _, a := range named {
 		if !skip[a] {

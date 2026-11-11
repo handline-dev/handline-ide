@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/scheduler/cronspec"
 )
@@ -53,7 +53,7 @@ func (e *Env) schedulesList(c *rpc.Conn, params map[string]any) (any, error) {
 				lastRun = ts(last)
 			}
 			out = append(out, map[string]any{"id": cronspec.ID(agent, s), "target": agent, "cron": s.Cron, "message": s.Message,
-				"next_run": next, "last_run": lastRun, "set_by": db.Human})
+				"next_run": next, "last_run": lastRun, "set_by": actor.OwnerKey})
 		}
 	}
 	res := map[string]any{"schedules": out}

@@ -6,6 +6,7 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
+	"github.com/handline/handline/go/kit/actor"
 )
 
 func TestCloseFreshEndsTheSessionAndForgetsTheOneItWouldResume(t *testing.T) {
@@ -179,7 +180,7 @@ func TestCompactWritesTheAskForAnOpenAgentMidTurnAndRestartsAClosedOneFresh(t *t
 	if _, _, asked, _ := db.LastEvent(m.Q, "c", states.CompactAskedKind); asked {
 		t.Fatal("a closed agent has no turn to wait for")
 	}
-	if _, p, ok, _ := db.LastEvent(m.Q, "c", RestartOwedKind); !ok || p["fresh"] != true || p["by"] != db.Human {
+	if _, p, ok, _ := db.LastEvent(m.Q, "c", RestartOwedKind); !ok || p["fresh"] != true || p["by"] != actor.OwnerKey {
 		t.Fatalf("restarted fresh: %v %v", ok, p)
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
 	"github.com/handline/handline/go/data/team/teamtest"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/taskboard/taskwrites"
 )
 
@@ -336,12 +337,12 @@ func TestAMemoWithNoAtTellsTheAssigneeWhateverTheTaskState(t *testing.T) {
 // board, gets no inbox row.
 func TestTheFoundersMemoOnATaskItHoldsReachesTheReporter(t *testing.T) {
 	r := newRig(t)
-	tid := r.newTask(db.Human, r.k(("alice")), "decide")
-	r.must(r.TellMemo(r.DB, tid, db.Human, "added", "go with the reassign model", "", false))
+	tid := r.newTask(actor.OwnerKey, r.k(("alice")), "decide")
+	r.must(r.TellMemo(r.DB, tid, actor.OwnerKey, "added", "go with the reassign model", "", false))
 	if says := r.saysTo(r.k("alice")); len(says) != 1 || says[0] != "T1 comment by human: go with the reassign model" {
 		t.Fatalf("the reporter was not told: %q", says)
 	}
-	if says := r.saysTo(db.Human); len(says) != 0 {
+	if says := r.saysTo(actor.OwnerKey); len(says) != 0 {
 		t.Fatalf("the founder was told: %q", says)
 	}
 }
@@ -433,7 +434,7 @@ func TestAMemoReachesTheAgentsItNamesWhateverTheTaskState(t *testing.T) {
 	if says := r.saysTo(r.k("carol")); len(says) != 1 || !strings.Contains(says[0], "T1 comment by bob: @carol please discard T2") {
 		t.Fatalf("the agent named was not told: %q", says)
 	}
-	for _, a := range []string{r.k(("alice")), r.k(("dave")), "nobody", db.Human} {
+	for _, a := range []string{r.k(("alice")), r.k(("dave")), "nobody", actor.OwnerKey} {
 		if says := r.saysTo(a); len(says) != 0 {
 			t.Fatalf("%s was told: %q", a, says)
 		}
@@ -602,7 +603,7 @@ func TestTheFoundersMemoOnATaskAnAgentHoldsReachesOnlyTheHolder(t *testing.T) {
 	tid := r.newTask(r.k("alice"), r.k(("bob")), "decide") // held by alice, opened by bob
 	r.AdvanceCurrentTask(r.DB, r.k(("alice")))
 	r.term.typed = nil
-	r.must(r.TellMemo(r.DB, tid, db.Human, "added", "go with the first", "", false))
+	r.must(r.TellMemo(r.DB, tid, actor.OwnerKey, "added", "go with the first", "", false))
 	if got := r.saysTo(r.k("alice")); len(got) != 1 {
 		t.Fatalf("the holder was not told: %v", got)
 	}
@@ -617,7 +618,7 @@ func TestTheFoundersMemoOnARetiredHoldersTaskReachesTheOwner(t *testing.T) {
 	r.agentUp(r.k("bob"))
 	tid := r.newTask("gone", r.k(("bob")), "decide")
 	r.term.typed = nil
-	r.must(r.TellMemo(r.DB, tid, db.Human, "added", "who picks this up?", "", false))
+	r.must(r.TellMemo(r.DB, tid, actor.OwnerKey, "added", "who picks this up?", "", false))
 	if got := r.saysTo(r.k("bob")); len(got) != 1 {
 		t.Fatalf("the owner was not told: %v", got)
 	}
@@ -629,8 +630,8 @@ func TestTheFoundersMemoReachesTheTaskOwnerAtOnceWhileAnAgentsMemoWithNoAtIsNotT
 	r := newRig(t)
 	r.agentUp(r.k("bob"))
 	r.agentUp(r.k("alice"))
-	tid := r.newTask(db.Human, r.k(("bob")), "decide") // assigned to the founder, answered to bob
-	r.must(r.TellMemo(r.DB, tid, db.Human, "added", "go with the first", "", false))
+	tid := r.newTask(actor.OwnerKey, r.k(("bob")), "decide") // assigned to the founder, answered to bob
+	r.must(r.TellMemo(r.DB, tid, actor.OwnerKey, "added", "go with the first", "", false))
 	if got := r.saysTo(r.k("bob")); len(got) != 1 || got[0] != "T1 comment by human: go with the first" {
 		t.Fatalf("the founder's memo did not reach its owner: %v", got)
 	}

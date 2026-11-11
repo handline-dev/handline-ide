@@ -21,6 +21,7 @@ import (
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/internal/reads"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/kit/storetest"
@@ -1566,7 +1567,7 @@ func TestAgentSetKeepsWhoMadeTheChange(t *testing.T) {
 		}
 		return v
 	}
-	if res := r.call("agent.set", `{"agent":"alice","values":{"model":"opus"},"request_id":"b1"}`); res["result"] == nil || by() != dbpkg.Human {
+	if res := r.call("agent.set", `{"agent":"alice","values":{"model":"opus"},"request_id":"b1"}`); res["result"] == nil || by() != actor.OwnerKey {
 		t.Fatalf("%v %q", res, by())
 	}
 	if res := r.callAs("alice", "agent.set", `{"agent":"alice","values":{"effort":"high"},"request_id":"b2"}`); res["result"] == nil || by() != r.who("alice") {

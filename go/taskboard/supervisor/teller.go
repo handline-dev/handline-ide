@@ -206,7 +206,7 @@ func askedOf(out *AskOut, notify bool) *taskwrites.Asked {
 
 // TaskSay sends the founder's question about a task as a say, typed at once; within links it to the task in the transaction that writes it.
 func (e *Env) TaskSay(tx *sql.Tx, to, body string, within func(rid int64, note string) error) (*taskwrites.Asked, error) {
-	out, err := e.Say(tx, SayIn{Target: to, Body: body, Requester: db.Human, Notify: true,
+	out, err := e.Say(tx, SayIn{Target: to, Body: body, Requester: actor.OwnerKey, Notify: true,
 		Within: func(_ db.Q, note string, rid int64) error { return within(rid, note) }})
 	if err != nil {
 		return nil, err

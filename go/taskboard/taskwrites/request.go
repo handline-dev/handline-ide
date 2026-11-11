@@ -36,7 +36,7 @@ func founderMessage(tx *sql.Tx, home string, c *rpc.Conn, p map[string]any) (int
 	switch {
 	case !actor.IsPerson(req.Requester) || actor.IsPerson(req.Target):
 		return 0, nil, refusal(fmt.Sprintf("%s is not a message from the founder to an agent", name))
-	case me != human && me != req.Target:
+	case me != actor.OwnerKey && me != req.Target:
 		return 0, nil, refusal(fmt.Sprintf("%s was sent to %s: only it, or the founder, may act on it", name, req.Target))
 	}
 	return rid, req, nil
@@ -87,7 +87,7 @@ func requestMethod(home string) func(*rpc.Conn, map[string]any) (any, error) {
 			if clean == "" {
 				clean = headline(req.Body)
 			}
-			tid, err := db.NewTask(tx, clean, owner, human, 0, db.DefaultPriority, "report", 0, "")
+			tid, err := db.NewTask(tx, clean, owner, req.Requester, 0, db.DefaultPriority, "report", 0, "")
 			if err != nil {
 				return nil, err
 			}
@@ -100,7 +100,7 @@ func requestMethod(home string) func(*rpc.Conn, map[string]any) (any, error) {
 			if _, err := tx.Exec("UPDATE requests SET state_at = ? WHERE id = ?", db.Now(), rid); err != nil {
 				return nil, err
 			}
-			if _, err := db.SetTaskQueued(tx, tid, human); err != nil { // the founder's own task needs no one's approval
+			if _, err := db.SetTaskQueued(tx, tid, req.Requester); err != nil { // the founder's own task needs no one's approval
 				return nil, err
 			}
 			if _, held, err := db.CurrentTask(tx, owner); err != nil {
@@ -116,7 +116,7 @@ func requestMethod(home string) func(*rpc.Conn, map[string]any) (any, error) {
 			}
 			// A ref is a path, not a kept file: the memo says it in words, numbered after the files.
 			memo := strings.Join(append([]string{req.Body}, attachments.PathRefLines(attachments.PathRefsOf(tx, rid), len(files))...), "\n")
-			mid, err := db.AddMemo(tx, tid, human, strings.TrimSpace(memo))
+			mid, err := db.AddMemo(tx, tid, req.Requester, strings.TrimSpace(memo))
 			if err != nil {
 				return nil, err
 			}

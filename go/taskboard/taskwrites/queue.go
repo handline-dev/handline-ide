@@ -321,7 +321,7 @@ func AskFounder(d *sql.DB, tell Teller, title, body string, tags ...string) (int
 		return 0, err
 	}
 	defer tx.Rollback()
-	tid, asked, err := OpenTask(tx, tell, db.Human, NewIn{Owner: db.Human, Title: title, Body: body, Tags: tags, Prio: db.DefaultPriority, Expects: "decision"})
+	tid, asked, err := OpenTask(tx, tell, actor.OwnerKey, NewIn{Owner: actor.OwnerKey, Title: title, Body: body, Tags: tags, Prio: db.DefaultPriority, Expects: "decision"})
 	if err != nil {
 		return 0, err
 	}

@@ -9,6 +9,7 @@ import (
 	"github.com/handline/handline/go/agentctl/delivery"
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/gitrun"
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/protocol/rpc"
@@ -29,13 +30,13 @@ func doneMethod(home string, tell Teller, decide CardDecider) func(*rpc.Conn, ma
 		var evidence *string
 		if v := p["evidence"]; v != nil {
 			s, ok := v.(string)
-			if ok && strings.TrimSpace(s) == "" && c.Caller.Actor() == human && p["request"] == nil {
+			if ok && strings.TrimSpace(s) == "" && c.Caller.Role == "owner" && p["request"] == nil {
 				s = "Done" // the founder needs no evidence
 			} else if !ok || strings.TrimSpace(s) == "" {
 				return nil, badParam("evidence is text and not empty", "evidence")
 			}
 			evidence = &s
-		} else if p["request"] == nil && c.Caller.Actor() == human {
+		} else if p["request"] == nil && c.Caller.Role == "owner" {
 			evidence = new(string)
 			*evidence = "Done"
 		}
@@ -91,7 +92,7 @@ func doneMethod(home string, tell Teller, decide CardDecider) func(*rpc.Conn, ma
 				}
 			}
 			in.Sha, in.Words, in.Request, in.Repo = sha, words, request, repo
-			if decide != nil && by == db.Human && words != "" && in.Commit == "" && len(in.Shots) == 0 {
+			if decide != nil && by == actor.OwnerKey && words != "" && in.Commit == "" && len(in.Shots) == 0 {
 				handled, said, then, err := decide(tx, tid, words)
 				if err != nil {
 					return nil, err
@@ -172,7 +173,7 @@ func MarkDone(tx *sql.Tx, home, by string, in DoneIn) (*DoneResult, error) {
 			return nil, err
 		}
 		for _, r := range reqs {
-			if r.State == "queued" && (by == t.Owner || by == t.Acting || by == t.reporter() || by == human) {
+			if r.State == "queued" && (by == t.Owner || by == t.Acting || by == t.reporter() || by == actor.OwnerKey) {
 				notes, err := endTask(tx, home, tid, by, t, doneText(tid, by, t.DoneEvidence.String), delivery.Failed(t.DoneEvidence.String), nil)
 				if err != nil {
 					return nil, err
@@ -225,7 +226,7 @@ func MarkDone(tx *sql.Tx, home, by string, in DoneIn) (*DoneResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(blockers) > 0 && by != human {
+	if len(blockers) > 0 && by != actor.OwnerKey {
 		var waits []int64
 		for _, b := range blockers {
 			waits = append(waits, b.ID)
@@ -277,7 +278,7 @@ func MarkDone(tx *sql.Tx, home, by string, in DoneIn) (*DoneResult, error) {
 // doneText is what a task's end says to whoever it tells: "T<n> done by <by>: <evidence on one line>".
 func doneText(tid int64, by, evidence string) string {
 	who := by
-	if by == human {
+	if by == actor.OwnerKey {
 		who = "the founder"
 	}
 	return strings.TrimRight(fmt.Sprintf("T%d done by %s: %s", tid, who, strings.Join(strings.Fields(evidence), " ")), ": ")
@@ -285,7 +286,7 @@ func doneText(tid int64, by, evidence string) string {
 
 // mayClose is whether by may mark t done: its assignee, owner, the founder, the owner of its parent task, or a lead of its team.
 func mayClose(tx *sql.Tx, home, by string, t *task) (bool, error) {
-	if by == t.Owner || by == t.Acting || by == t.reporter() || by == human {
+	if by == t.Owner || by == t.Acting || by == t.reporter() || by == actor.OwnerKey {
 		return true, nil
 	}
 	if t.Parent.Valid {

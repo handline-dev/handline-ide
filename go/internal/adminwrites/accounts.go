@@ -166,7 +166,7 @@ func (e *Env) accountWake(c *rpc.Conn, p map[string]any) (any, error) {
 	}
 	accounts.ClearStall(acct)
 	// The failures before it say nothing of the account now (handoff.LastFailure).
-	if _, err := db.AddEventFor(e.DB, db.Human, acct, "account_woken", db.KV{K: "account", V: acct}); err != nil {
+	if _, err := db.AddEventFor(e.DB, c.Caller.Actor(), acct, "account_woken", db.KV{K: "account", V: acct}); err != nil {
 		return nil, refused(err.Error(), "")
 	}
 	return wrote(c, acct+": STALLED -> usable", nil)

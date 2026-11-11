@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
 )
 
 // ann holds two tasks sent to it (one waiting on the other) and a draft not yet sent; it talked with the founder and its lead boss, and
@@ -41,7 +42,7 @@ func TestWhereListsTheTasksTheLastWordsWithTheFounderAndTheLeadAndTheProgress(t 
 	}
 	db.AddMemo(q, first, "boss", "an older memo")
 	db.AddMemo(q, first, "boss", "start after the contract lands\nsecond line")
-	for _, m := range []db.NewRequest{{Requester: db.Human, Target: "ann", Body: "do it right"}, {Requester: "ann", Target: "boss", Body: "blocked on the contract"},
+	for _, m := range []db.NewRequest{{Requester: actor.OwnerKey, Target: "ann", Body: "do it right"}, {Requester: "ann", Target: "boss", Body: "blocked on the contract"},
 		{Requester: "zed", Target: "ann", Body: "an aside"}} {
 		if _, err := db.AddRequest(q, m); err != nil {
 			t.Fatal(err)
@@ -62,7 +63,7 @@ func TestWhereListsTheTasksTheLastWordsWithTheFounderAndTheLeadAndTheProgress(t 
 	for _, want := range []string{
 		"P1 - build the pace cap", "last comment, boss", ": start after the contract lands",
 		fmt.Sprintf("P2 - rebuild the daemon (waits on T%d)", first),
-		"last messages with the founder and boss", db.Human + " -> you: do it right", "you -> boss: blocked on the contract",
+		"last messages with the founder and boss", actor.OwnerKey + " -> you: do it right", "you -> boss: blocked on the contract",
 		"done: slice 1; left: slice 2", "hl inbox --all",
 	} {
 		if !strings.Contains(got, want) {
@@ -97,7 +98,7 @@ func TestWhereForAnAgentTheFounderLeads(t *testing.T) {
 	if !strings.Contains(got, "your open tasks: none") || strings.Contains(got, "last messages") {
 		t.Errorf("%s", got)
 	}
-	if _, err := db.AddRequest(w.DB, db.NewRequest{Requester: db.Human, Target: "ann", Body: "hello"}); err != nil {
+	if _, err := db.AddRequest(w.DB, db.NewRequest{Requester: actor.OwnerKey, Target: "ann", Body: "hello"}); err != nil {
 		t.Fatal(err)
 	}
 	if got, _ = WhereText(w.DB, "ann", "", "", time.Unix(w.now, 0)); !strings.Contains(got, "last messages with the founder, newest first:\n  ") {
@@ -119,7 +120,7 @@ func TestWhereKeepsToItsLimits(t *testing.T) {
 		}
 	}
 	for i := range 7 {
-		if _, err := db.AddRequest(q, db.NewRequest{Requester: db.Human, Target: "ann", Body: fmt.Sprintf("message %d", i)}); err != nil {
+		if _, err := db.AddRequest(q, db.NewRequest{Requester: actor.OwnerKey, Target: "ann", Body: fmt.Sprintf("message %d", i)}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -130,7 +131,7 @@ func TestWhereKeepsToItsLimits(t *testing.T) {
 	if n := strings.Count(got, " queued P2 - task "); n != WhereTasks || !strings.Contains(got, "task 07\n  ... more: hl task list") {
 		t.Errorf("%d tasks listed, want %d then the more line:\n%s", n, WhereTasks, got)
 	}
-	if n := strings.Count(got, db.Human+" -> you: message"); n != WhereMessages || strings.Contains(got, "message 1\n") {
+	if n := strings.Count(got, actor.OwnerKey+" -> you: message"); n != WhereMessages || strings.Contains(got, "message 1\n") {
 		t.Errorf("%d messages listed, want the newest %d:\n%s", n, WhereMessages, got)
 	}
 }

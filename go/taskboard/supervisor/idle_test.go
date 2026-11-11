@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
 )
 
 // idleRig: alice runs a parent task waiting on a child it gave bob. The child's ordinary result is not told to the parent's owner (it is on
@@ -113,7 +114,7 @@ func TestALeftoverSettledOnADoneTaskSaysNothingAboutIdleness(t *testing.T) {
 }
 
 func TestNoIdleSayToTheFounderOrToAnAssigneeAboutItself(t *testing.T) {
-	for _, reporter := range []string{db.Human, "bob"} {
+	for _, reporter := range []string{actor.OwnerKey, "bob"} {
 		r := newRig(t)
 		reporter = r.k(reporter)
 		r.agentUp(r.k("bob"))
@@ -128,7 +129,7 @@ func TestNoIdleSayToTheFounderOrToAnAssigneeAboutItself(t *testing.T) {
 }
 
 func TestNoIdleSayAboutTheFounderOrAnAgentNotOnTheTeam(t *testing.T) {
-	for _, assignee := range []string{db.Human, "carol"} {
+	for _, assignee := range []string{actor.OwnerKey, "carol"} {
 		r := newRig(t)
 		assignee = r.k(assignee)
 		r.agentUp(r.k("alice"))
