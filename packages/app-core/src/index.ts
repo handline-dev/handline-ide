@@ -20,6 +20,7 @@ export * from '#src/verbs.ts';
 export * from '#src/settings.ts';
 export * from '#src/handoff-prompt.ts';
 export * from '#src/accounts.ts';
+export * from '#src/account-switch.ts';
 export * from '#src/proposals.ts';
 export * from '#src/answers.ts';
 export * from '#src/stats.ts';

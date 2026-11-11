@@ -1,7 +1,7 @@
 import { ContextMenu as CM } from '@base-ui/react/context-menu';
 import { Menu as M } from '@base-ui/react/menu';
 import { Check, ChevronRight } from 'lucide-react';
-import type { MouseEvent, ReactElement, ReactNode } from 'react';
+import type { MouseEvent, ReactElement, ReactNode, RefObject } from 'react';
 import { floatingSurface } from '#src/ui/Popover.tsx';
 
 /** A list of actions on the popover surface; arrow keys and type-ahead come with it. */
@@ -9,18 +9,21 @@ export function Menu({
   trigger,
   side = 'bottom',
   align = 'start',
+  anchor,
   children,
 }: {
   trigger: ReactElement;
   side?: 'top' | 'bottom';
   align?: 'start' | 'center' | 'end';
+  /** What the menu lines up with, when not its trigger: a split button's whole width. */
+  anchor?: RefObject<Element | null>;
   children: ReactNode;
 }) {
   return (
     <M.Root>
       <M.Trigger render={trigger} />
       <M.Portal>
-        <M.Positioner side={side} align={align} sideOffset={4} collisionPadding={8} className="z-50">
+        <M.Positioner side={side} align={align} anchor={anchor} sideOffset={4} collisionPadding={8} className="z-50">
           <M.Popup className={`${floatingSurface} min-w-40 p-1`}>{children}</M.Popup>
         </M.Positioner>
       </M.Portal>
