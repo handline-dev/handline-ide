@@ -2,12 +2,13 @@ package weblogin
 
 import (
 	"errors"
-	"github.com/handline/handline/go/data/team/teamtest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/handline/handline/go/data/team/teamtest"
 )
 
 // takesACode prints its URL, reads one line from stdin into a file, then leaves its credential: a login that is finished by the code.

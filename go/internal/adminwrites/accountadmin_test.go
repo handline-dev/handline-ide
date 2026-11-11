@@ -2,14 +2,15 @@ package adminwrites
 
 import (
 	"fmt"
-	"github.com/handline/handline/go/data/team/teamtest"
-	"github.com/handline/handline/go/kit/paths"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/handline/handline/go/data/team/teamtest"
+	"github.com/handline/handline/go/kit/paths"
 )
 
 func TestAccountAddMakesAndLinksTheDirectoryAndLogsNothingIn(t *testing.T) {

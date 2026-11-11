@@ -71,9 +71,13 @@ func (l *Launcher) Build(site *Site, agent string, extra []string, force bool, a
 	}
 	// Its config dir is by key: one not looked up would point the session at an empty folder that is no account.
 	if key, err := paths.AccountKeyIn(l.Q, acct); err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("account %s: %w", acct, err)
 	} else if key == "" {
 		return nil, nil, refuse("account '%s' is not registered: no account row has it", acct)
+	}
+	// Without its config dir the session would run on whatever account the environment names, the user's own at worst.
+	if _, err := team.AccountConfigDir(l.Home, acct); err != nil {
+		return nil, nil, refuse("account '%s': %v", acct, err)
 	}
 	// The last line before an exec: whatever chose this account, a session is this vendor's binary pointed at that account's credentials.
 	if theirs := p.Vendors.AccountVendor(acct); theirs != drv.Name() {

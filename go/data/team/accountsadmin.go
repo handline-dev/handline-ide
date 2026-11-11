@@ -60,11 +60,11 @@ func (a Accounts) Add(acct, vendor string) (string, error) {
 	}
 	res, err := d.Exec("INSERT INTO accounts(name, owner, created_at) VALUES(?, ?, ?) ON CONFLICT(name) DO NOTHING", acct, owner, time.Now().Unix())
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("account %s: %w", acct, err)
 	}
 	madeRow, err := res.RowsAffected()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("account %s: %w", acct, err)
 	}
 	dir := paths.AccountDir(a.Home, acct)
 	dropRow := func() {
@@ -76,12 +76,11 @@ func (a Accounts) Add(acct, vendor string) (string, error) {
 		dropRow()
 		return "", err
 	}
-	// Made alone, so of two adds of one name at once the second finds it there.
-	if err := os.Mkdir(dir, 0o755); err != nil {
+	// Made alone, so of two adds of one name at once the second finds it there, and leaves the row the first one uses.
+	if err := os.Mkdir(dir, 0o755); os.IsExist(err) {
+		return "", fmt.Errorf("%w: account '%s' already exists", ErrAccountExists, acct)
+	} else if err != nil {
 		dropRow()
-		if os.IsExist(err) {
-			return "", fmt.Errorf("%w: account '%s' already exists", ErrAccountExists, acct)
-		}
 		return "", err
 	}
 	cdir := filepath.Join(dir, ConfigDirName(vendor))
@@ -166,6 +165,11 @@ func (a Accounts) Remove(q *sql.DB, acct string, now time.Time, run func(argv []
 	if !ok {
 		return "", &RemoveRefused{why}
 	}
+	if CheckVendor(AccountVendor(a.Home, acct)) == nil { // a live run's account the real home lacks: its logout would run elsewhere
+		if _, err := AccountConfigDir(a.Home, acct); err != nil {
+			return "", &RemoveRefused{err.Error()}
+		}
+	}
 	marker := filepath.Join(paths.AccountDir(a.Home, acct), ".removing") // nothing starts on an account about to go
 	if err := os.WriteFile(marker, nil, 0o644); err != nil {
 		return "", err
@@ -203,7 +207,7 @@ func (a Accounts) Remove(q *sql.DB, acct string, now time.Time, run func(argv []
 	}
 	dest, err := a.retire(dir, acct, now)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("account '%s' is off the roster, but its folder %s was not moved aside: %w", acct, dir, err)
 	}
 	return fmt.Sprintf("removed account '%s' (logged out; directory kept at %s)", acct, dest), nil
 }

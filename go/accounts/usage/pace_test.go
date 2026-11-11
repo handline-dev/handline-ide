@@ -1,9 +1,10 @@
 package usage
 
 import (
-	"github.com/handline/handline/go/data/team/teamtest"
 	"os"
 	"testing"
+
+	"github.com/handline/handline/go/data/team/teamtest"
 )
 
 // accountAt writes account "a" with its 5h window at shortUsed percent resetting in shortMin minutes and its week at longUsed resetting in
