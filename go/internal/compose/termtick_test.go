@@ -243,7 +243,7 @@ func loginRig(t *testing.T) (*Parts, *Tick, string) {
 	os.MkdirAll(dir, 0o755)
 	os.WriteFile(filepath.Join(dir, ".credentials.json"), []byte("{}"), 0o600)
 	writeSession(t, p, "a1", os.Getpid(), `{"cwd":"`+wt+`","sessionId":"s1","status":"idle"}`)
-	if err := dbpkg.SetAgentState(p.db, "bob", "IDLE", 0, ""); err != nil {
+	if err := dbpkg.SetAgentState(p.db, teamtest.Key(t, p.home, "bob"), "IDLE", 0, ""); err != nil {
 		t.Fatal(err)
 	}
 	return p, p.Tick(cfgOf(p), TickConfig{Terminals: true}), wt
@@ -252,7 +252,7 @@ func loginRig(t *testing.T) (*Parts, *Tick, string) {
 func TestARefusedLoginOnATerminalAgentsAccountMarksItAndMovesTheAgent(t *testing.T) {
 	p, tk, _ := loginRig(t)
 	d := p.db
-	if _, err := dbpkg.AddEventFor(d, "bob", "a1", "StopFailure", dbpkg.KV{K: "error", V: "authentication_failed"}, dbpkg.KV{K: "error_details", V: "401"}); err != nil {
+	if _, err := dbpkg.AddEventFor(d, teamtest.Key(t, p.home, "bob"), "a1", "StopFailure", dbpkg.KV{K: "error", V: "authentication_failed"}, dbpkg.KV{K: "error_details", V: "401"}); err != nil {
 		t.Fatal(err)
 	}
 	res, err := tk.Tick.Run()
@@ -265,12 +265,12 @@ func TestARefusedLoginOnATerminalAgentsAccountMarksItAndMovesTheAgent(t *testing
 	}
 	found := false
 	for _, a := range res.Actions {
-		found = found || strings.Contains(a, "bob: handoff (login)")
+		found = found || strings.Contains(a, teamtest.Key(t, p.home, "bob")+": handoff (login)")
 	}
 	if !found {
 		t.Fatalf("the agent is handed off: %v", res.Actions)
 	}
-	if _, _, ok, _ := dbpkg.LastEvent(d, "bob", "login_expired"); !ok {
+	if _, _, ok, _ := dbpkg.LastEvent(d, teamtest.Key(t, p.home, "bob"), "login_expired"); !ok {
 		t.Fatal("the stall is on record")
 	}
 }
@@ -278,7 +278,7 @@ func TestARefusedLoginOnATerminalAgentsAccountMarksItAndMovesTheAgent(t *testing
 // authFailed is the StopFailure the CLI's hook leaves when its login is refused.
 func authFailed(t *testing.T, p *Parts, acct string) {
 	t.Helper()
-	if _, err := dbpkg.AddEventFor(p.db, "bob", acct, "StopFailure", dbpkg.KV{K: "error", V: "authentication_failed"}); err != nil {
+	if _, err := dbpkg.AddEventFor(p.db, teamtest.Key(t, p.home, "bob"), acct, "StopFailure", dbpkg.KV{K: "error", V: "authentication_failed"}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -286,7 +286,7 @@ func authFailed(t *testing.T, p *Parts, acct string) {
 func TestARefusalLeftOnTheAccountATerminalAgentWasMovedFromMarksNothing(t *testing.T) {
 	p, tk, wt := loginRig(t)
 	authFailed(t, p, "a1") // the last event of the agent, which now runs on a2
-	dbpkg.SetAccount(p.db, "bob", "a2", "recorded")
+	dbpkg.SetAccount(p.db, teamtest.Key(t, p.home, "bob"), "a2", "recorded")
 	writeSession(t, p, "a2", os.Getpid(), `{"cwd":"`+wt+`","sessionId":"s2","status":"idle"}`)
 	os.Remove(filepath.Join(teamtest.AccountDir(t, p.home, "a1"), ".claude", "sessions", strconv.Itoa(os.Getpid())+".json"))
 	if _, err := tk.Tick.Run(); err != nil {
@@ -301,7 +301,7 @@ func TestARefusalLeftOnTheAccountATerminalAgentWasMovedFromMarksNothing(t *testi
 func TestAPromptAfterARefusalClearsItForATerminalAgent(t *testing.T) {
 	p, tk, _ := loginRig(t)
 	authFailed(t, p, "a1")
-	if _, err := dbpkg.AddEventFor(p.db, "bob", "a1", "UserPromptSubmit"); err != nil {
+	if _, err := dbpkg.AddEventFor(p.db, teamtest.Key(t, p.home, "bob"), "a1", "UserPromptSubmit"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := tk.Tick.Run(); err != nil {
@@ -333,7 +333,8 @@ func TestARefusalThePythonDaemonAlreadyLiftedIsNotStalledAgain(t *testing.T) {
 	d := p.db
 	authFailed(t, p, "a1")
 	// Python's lift keeps a session row id under this name and sets it when it lifts: only the time it was written can be compared here.
-	if err := dbpkg.SetCursor(d, "login_lifted:bob", 77); err != nil {
+	lifted := "login_lifted:" + teamtest.Key(t, p.home, "bob")
+	if err := dbpkg.SetCursor(d, lifted, 77); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := tk.Tick.Run(); err != nil {
@@ -343,7 +344,7 @@ func TestARefusalThePythonDaemonAlreadyLiftedIsNotStalledAgain(t *testing.T) {
 	if acc.Stalled("a1") != nil {
 		t.Fatal("the refusal that daemon lifted stalled the account")
 	}
-	if _, err := d.Exec("UPDATE cursors SET updated = updated - 100 WHERE name = 'login_lifted:bob'"); err != nil { // a lift from before the refusal
+	if _, err := d.Exec("UPDATE cursors SET updated = updated - 100 WHERE name = ?", lifted); err != nil { // a lift from before the refusal
 		t.Fatal(err)
 	}
 	if _, err := tk.Tick.Run(); err != nil {
