@@ -3,6 +3,7 @@ package reads
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/handline/handline/go/accounts/usage"
 	"os"
 	"path/filepath"
 	"strings"
@@ -215,7 +216,9 @@ func TestAccountsListSaysWhyAnAccountIsNotPickedAndNothingForACandidate(t *testi
 			os.WriteFile(filepath.Join(dir, ".credentials.json"), []byte("{}"), 0o600)
 		}
 	}
-	os.WriteFile(filepath.Join(e.Home, "config.yaml"), []byte("month_cycle_ended: true\nsub_end_ended: \"2020-01-01\"\n"), 0o644)
+	if err := usage.SetAccount(e.DB, "ended", map[string]any{"month_cycle": true, "sub_end": "2020-01-01"}); err != nil {
+		t.Fatal(err)
+	}
 	os.WriteFile(filepath.Join(e.Home, "accounts", "oc", "vendor"), []byte("opencode\n"), 0o644)
 	login := e.LoginState
 	e.LoginState = func(a string) (bool, bool) {
@@ -339,7 +342,9 @@ func TestAccountsListSaysAPausedAccountIsPausedAndTakesNoAgent(t *testing.T) {
 		os.WriteFile(filepath.Join(dir, "status.json"), []byte(status), 0o644)
 		os.WriteFile(filepath.Join(dir, ".credentials.json"), []byte("{}"), 0o600)
 	}
-	os.WriteFile(filepath.Join(e.Home, "config.yaml"), []byte("paused_rest: true\n"), 0o644)
+	if err := usage.SetAccount(e.DB, "rest", map[string]any{"paused": true}); err != nil {
+		t.Fatal(err)
+	}
 	got, err := e.accountsList(nil, map[string]any{"usage": true})
 	if err != nil {
 		t.Fatal(err)

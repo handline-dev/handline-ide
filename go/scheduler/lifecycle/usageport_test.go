@@ -2,6 +2,7 @@ package lifecycle
 
 import (
 	"encoding/json"
+	"github.com/handline/handline/go/kit/storetest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -108,8 +109,15 @@ func TestAnAccountIsNotFitWhenItsLoadCannotBeRead(t *testing.T) {
 
 func TestTheUsageAdapterReadsWhichAccountIsPaused(t *testing.T) {
 	env := usageHome(t, map[string]map[string]any{"rest": liveAccount(5, 5, 90000), "on": liveAccount(5, 5, 90000)})
-	os.WriteFile(filepath.Join(env.Home, "config.yaml"), []byte("paused_rest: true\n"), 0o644)
-	u := &UsageAdapter{Env: env, Q: openDB(t)}
+	q, err := storetest.OpenAt(t, filepath.Join(env.Home, "db.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { q.Close() })
+	if err := usage.SetAccount(q, "rest", map[string]any{"paused": true}); err != nil {
+		t.Fatal(err)
+	}
+	u := &UsageAdapter{Env: env, Q: q}
 	if !u.Read("rest").Paused || u.Read("on").Paused {
 		t.Fatalf("rest %+v, on %+v", u.Read("rest"), u.Read("on"))
 	}

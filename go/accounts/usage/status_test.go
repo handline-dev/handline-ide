@@ -94,17 +94,49 @@ func writeStatus(t *testing.T, home, acct string, raw any) {
 	}
 }
 
+// writeConfig is cfg as LoadConfig reads it: an account's settings (AccountKeys) in its row, the rest in config.yaml.
 func writeConfig(t *testing.T, home string, cfg map[string]any) {
 	t.Helper()
+	d, err := storetest.OpenAt(t, filepath.Join(home, "db.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	if _, err := d.Exec("DELETE FROM accounts"); err != nil {
+		t.Fatal(err)
+	}
 	var lines []string
+	rows := map[string]map[string]any{}
 	for k, v := range cfg {
+		if acct, col := accountSetting(k); acct != "" {
+			if rows[acct] == nil {
+				rows[acct] = map[string]any{}
+			}
+			rows[acct][col] = v
+			continue
+		}
 		val, _ := json.Marshal(v) // a JSON scalar is a YAML one
 		lines = append(lines, k+": "+string(val))
+	}
+	for acct, set := range rows {
+		if err := SetAccount(d, acct, set); err != nil {
+			t.Fatal(err)
+		}
 	}
 	sort.Strings(lines)
 	if err := os.WriteFile(filepath.Join(home, "config.yaml"), []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// accountSetting is the account and column a per-account Config key is held in, "" for any other key.
+func accountSetting(k string) (acct, col string) {
+	for _, a := range AccountKeys {
+		if strings.HasPrefix(k, a.Prefix) {
+			return strings.TrimPrefix(k, a.Prefix), a.Column
+		}
+	}
+	return "", ""
 }
 
 func testEnv(home string, now int64) *Env {
