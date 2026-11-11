@@ -136,7 +136,7 @@
      },
      "paused": {
       "type": "boolean",
-      "description": "The founder paused it: no new agent goes to it and the ones on it move at their next turn. Absent: not paused."
+      "description": "Paused by the founder (account.set paused): no agent starts on it (cap_effective 0), and its agents move off at their next turn when another account has room. Absent: not paused."
      },
      "email": {
       "oneOf": [
@@ -340,8 +340,8 @@
         "properties": {
          "kind": {
           "type": "string",
-          "enum": ["subscription_ended", "week_cap", "five_hour_cap", "login", "held", "other"],
-          "description": "What keeps new work off it: its subscription end day has passed, its weekly or 5-hour window is at the wall, it is not logged in (which wins over the rest), the agent cap or the launch pace hold, or something else (a stale, lost or unreadable reading)."
+          "enum": ["subscription_ended", "paused", "week_cap", "five_hour_cap", "login", "held", "other"],
+          "description": "What keeps new work off it: its subscription end day has passed, the founder paused it, its weekly or 5-hour window is at the wall, it is not logged in (which wins over the rest), the agent cap or the launch pace hold, or something else (a stale, lost or unreadable reading)."
          },
          "text": {
           "type": "string",
@@ -1272,7 +1272,7 @@
   },
   {
    "name": "account.set",
-   "summary": "The account Settings form in one call: alias, cap, usage recovery and the month cycle; nothing is written if any is refused.",
+   "summary": "The account Settings form in one call: alias, cap, usage recovery, the month cycle and pause; nothing is written if any is refused.",
    "paramStructure": "by-name",
    "params": [
     {

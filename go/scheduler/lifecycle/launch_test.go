@@ -1130,3 +1130,23 @@ func TestAPersonsChoicePastTheFitStillMeetsTheWallAndTheSlot(t *testing.T) {
 		}
 	}
 }
+
+func TestAResumeOntoAPausedAccountWaitsAndSaysItIsPaused(t *testing.T) {
+	r := newLaunchRig(t)
+	r.l.Ports.AccountReading = func(db.Q, string) (string, string, bool) { return "a", "recorded", true }
+	r.l.Ports.CurrentAccount = func(db.Q, string) string { return "a" }
+	q := r.l.Q
+	db.SetAgentState(q, "ann", states.Idle, 0, "")
+	db.SetClosed(q, "ann", "s-ann")
+	row, _ := db.GetAgentState(q, "ann")
+	// The pace's five-hour share would otherwise answer first, and a person's start clears that wait.
+	r.l.Ports.Usage = fakeUsage{st: AccountStatus{Exists: true, Paused: true}, cap: 4, share: map[string]float64{"a": 0.5}}
+	w := r.l.WakeWait(q, "ann", row)
+	if w == nil || !w.Paused || w.FiveHour || DescribeWakeWait(w) != "waiting for a: it is paused; resume it in the app's settings" {
+		t.Fatalf("%+v", w)
+	}
+	r.l.Ports.Usage = fakeUsage{st: AccountStatus{Exists: true}, cap: 4}
+	if w := r.l.WakeWait(q, "ann", row); w != nil {
+		t.Fatalf("resumed, the account takes it: %+v", w)
+	}
+}

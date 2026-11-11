@@ -573,3 +573,12 @@ func TestTheLoginWatchEntryKeepsAStalledAccount(t *testing.T) {
 		t.Fatalf("the loop's login watch kept %q", v)
 	}
 }
+
+func TestTheTickMovesAgentsOffAPausedAccount(t *testing.T) {
+	p, _, _, _ := wired(t)
+	os.WriteFile(filepath.Join(p.home, "config.yaml"), []byte("paused_rest: true\n"), 0o644)
+	tk := p.Tick(cfgOf(p), TickConfig{})
+	if tk.Tick.Login.Paused == nil || tk.Tick.Login.Paused("rest") == "" || tk.Tick.Login.Paused("other") != "" {
+		t.Fatal("the tick does not see which account is paused")
+	}
+}

@@ -73,6 +73,7 @@ export class FakeAccounts {
       cap: null,
       cap_effective: 4,
       recover: false,
+      paused: false,
       cycle: { on: false, end: null, end_is_default: true },
       ...a,
     };
@@ -272,6 +273,14 @@ export class FakeAccounts {
     return {
       ...r,
       agents,
+      // A paused account takes no new agent, as the daemon's cap in force says.
+      ...(r.paused
+        ? {
+            cap_effective: 0,
+            assignable: false,
+            not_picked: { kind: 'paused', text: `paused - not picked; resume it in the app's settings for ${r.name}` },
+          }
+        : {}),
       agents_assigned: r.agents_assigned ?? agents.length,
       agents_running: r.agents_running ?? running.length,
       cycle: { ...r.cycle },

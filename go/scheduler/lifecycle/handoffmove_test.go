@@ -313,3 +313,9 @@ func TestAParkIsByHandFirstThenMovingThenAWall(t *testing.T) {
 		}
 	}
 }
+
+func TestAPauseIsAMoveOffAnAccountThatCannotBeUsed(t *testing.T) {
+	if !MovableTrigger(PausedTrigger) || !outTrigger(PausedTrigger) || outTrigger("usage") {
+		t.Fatal("a pause moves its agents at once, with no stay-or-move weighing and no handoff interval")
+	}
+}

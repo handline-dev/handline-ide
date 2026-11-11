@@ -121,6 +121,9 @@ func (e *Env) capWith(acct string, costs *Costs, burn *float64) int {
 }
 
 func (e *Env) cutoffCap(cfg Config, acct string, st *AccountStatus, costs *Costs, burn *float64) int {
+	if cfg.Paused(acct) {
+		return 0
+	}
 	base := cfg.CapOf(acct)
 	if burn == nil || costs == nil || !LaunchHoldOn(cfg) {
 		return base

@@ -46,6 +46,8 @@ type AccountStatus struct {
 	ShortReset, LongReset     int64 // 0: none
 	// Unmetered: its vendor reports no usage, so no room can be read; it takes only the agents pinned to it.
 	Unmetered bool
+	// Paused: the founder paused it; it takes no agent, pinned or not.
+	Paused bool
 }
 
 // UsagePort is usage/status.py and usage/load.py as launch reads them.
@@ -206,6 +208,8 @@ func (l *Launcher) pinnedWhy(agent, pin string) string {
 		return fmt.Sprintf("it is pinned to %s, a %s account, but it runs %s", pin, theirs, vendor)
 	case !slices.Contains(l.mayStartAccounts(), pin):
 		return fmt.Sprintf("it is pinned to %s, which is not logged in or may not start", pin)
+	case l.Ports.Usage.Read(pin).Paused:
+		return fmt.Sprintf("it is pinned to %s, which is paused", pin)
 	case l.Ports.Usage.Read(pin).Unmetered:
 		return ""
 	}
@@ -283,6 +287,8 @@ type WakeWait struct {
 	// FiveHour: a slot is free but no account the agent may run on would last to its 5-hour reset with it. Reset is the earliest of
 	// those resets. The daemon's own starts wait for it; a person's and a force start go.
 	FiveHour bool
+	// Paused: the account is paused, so nothing starts on it until it is resumed.
+	Paused bool
 }
 
 // wall is the window this account is walled behind, the shortest first: an account walled on both reports the shortest one's rollover,
@@ -302,6 +308,9 @@ func (l *Launcher) wall(acct string, assumed bool) *WakeWait {
 // fill the cap, or older closed agents waiting for the same account would take what is free. Oldest waiter first; queue false (a person's
 // start) counts no waiter and is not held by the pace.
 func (l *Launcher) full(q db.Q, agent string, row *db.AgentState, acct string, assumed, queue bool) (*WakeWait, error) {
+	if l.Ports.Usage.Read(acct).Paused {
+		return &WakeWait{Account: acct, Assumed: assumed, Window: "slot", Slot: true, Paused: true}, nil
+	}
 	cap, unpaced, others := l.Ports.Usage.CapOf(acct), l.Ports.Usage.CapUnpaced(acct), l.Ports.Usage.ActiveOn(q, acct, agent)
 	if !queue || l.pacePassedFor(agent) {
 		cap = unpaced
@@ -625,6 +634,9 @@ func WaitClock(w *WakeWait, unknown string) string {
 
 // DescribeWakeWait is the wording for a wait already computed, so a caller that holds one does not recompute it.
 func DescribeWakeWait(w *WakeWait) string {
+	if w.Paused {
+		return fmt.Sprintf("waiting for %s: it is paused; resume it in the app's settings", w.Account)
+	}
 	if w.FiveHour {
 		return fmt.Sprintf("Held so Claude's 5-hour limit lasts until it starts over at %s. This starts then.", WaitClock(w, "a later time"))
 	}

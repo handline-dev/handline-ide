@@ -21,7 +21,8 @@ func (u *UsageAdapter) LongBlock() int  { return usage.LongBlock }
 func (u *UsageAdapter) Read(acct string) AccountStatus {
 	st := u.Env.Read(acct)
 	out := AccountStatus{Exists: st.Exists, Stale: st.Stale(), AgeS: st.AgeS(), ShortTrusted: st.ShortTrusted(), LongTrusted: st.LongTrusted(),
-		ShortLabel: st.Short.Label(), LongLabel: st.Long.Label(), ShortReset: st.Short.Reset, LongReset: st.Long.Reset, Unmetered: st.Unmetered}
+		ShortLabel: st.Short.Label(), LongLabel: st.Long.Label(), ShortReset: st.Short.Reset, LongReset: st.Long.Reset, Unmetered: st.Unmetered,
+		Paused: u.Env.PausedWhy(acct) != ""}
 	return out
 }
 
@@ -39,7 +40,7 @@ func (u *UsageAdapter) PickAccount(candidates []string, agent string) string {
 	return picked
 }
 
-// NotFor is whether no agent of vendor is ever placed on the account (another vendor's, unreadable, or its cycle ended).
+// NotFor is whether no agent of vendor is ever placed on the account (another vendor's, its cycle ended, paused, or unreadable).
 func (u *UsageAdapter) NotFor(acct, vendor string) bool { return u.Env.NotFor(acct, vendor) != "" }
 
 // PickReasons is the pick's reasons with no live refresh: a display must not cost a network call. A load that cannot be read gives none.
