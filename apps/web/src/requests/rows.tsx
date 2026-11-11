@@ -184,7 +184,13 @@ export function TurnLine({ p, onOpened, until }: { p: PendingRequest; onOpened?:
       row={turnRow(p)}
       title={p.title}
       icon={turnIcon(p)}
-      meta={[until ? `back ${until}` : ASK[p.kind], daemon ? 'daemon' : p.agent, p.task !== null && `T${p.task}`, p.ask, ago(p.last_at)]
+      meta={[
+        until ? `back ${until}` : ASK[p.kind],
+        daemon ? 'daemon' : nameOf(p.agent!),
+        p.task !== null && `T${p.task}`,
+        p.ask,
+        ago(p.last_at),
+      ]
         .filter(Boolean)
         .join(' · ')}
       opens={opens}
@@ -216,12 +222,13 @@ const STATUS: Record<RequestRow['status'], string> = {
  * result not seen yet is marked, and opening it marks it seen. */
 export function RequestLine({ r, onOpened }: { r: TaskRequest; onOpened?: () => void }) {
   const seen = useWrite('task.seen', String(r.task));
-  const who = r.now ?? r.holders[0] ?? r.agent;
+  const nameOf = useNameOf();
+  const who = nameOf(r.now ?? r.holders[0] ?? r.agent);
   const closed = r.status === 'done';
   const task = useTask(r.task, { enabled: closed });
   const failed = closed ? failedLine(task.data?.evidence, task.data?.title) : null;
   const ended = r.ended?.outcome === 'discarded' ? 'discarded' : STATUS[r.status];
-  const meta = r.status === 'done' ? [failed ?? ended, r.agent] : [who, r.progress || STATUS[r.status]];
+  const meta = r.status === 'done' ? [failed ?? ended, nameOf(r.agent)] : [who, r.progress || STATUS[r.status]];
   return (
     <Line
       mark={isUnseen(r)}

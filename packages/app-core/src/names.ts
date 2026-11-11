@@ -39,16 +39,20 @@ export function nameOf(d: Directory, key: string): string {
 
 const REF = /<@([a-z]+[0-9]*)>/g;
 
+/** The keys text names with `<@key>`, in order. */
+export const refsIn = (text: string): string[] => [...text.matchAll(REF)].map((m) => m[1]!);
+
 /** Text as the screens show it: each stored `<@key>` is `@` and its name. */
 export const renderRefs = (d: Directory, text: string): string =>
   text.includes('<@') ? text.replace(REF, (_, k: string) => `@${nameOf(d, k)}`) : text;
 
-/** Text as the app sends it: each `@word` that is an agent's word, a workspace's name or a person's handle becomes `<@key>`; any other
- * `@word` stays text. The app sends keys because a person has no workspace of their own for the daemon to read a bare name in. */
+/** Text as the app sends it: each `@word` that is an agent's word (a lead's is its workspace's name) or a person's becomes `<@key>`;
+ * any other `@word` stays text. */
 export function toRefs(d: Directory, text: string): string {
+  // A person by handle, or by a one-word display name as renderRefs writes them; an agent's word wins over either.
   const keys = new Map<string, string>();
+  for (const p of d.people) for (const w of [p.display_name, p.handle]) if (w && /^[A-Za-z0-9][\w.-]*$/.test(w)) keys.set(w, p.key);
   for (const a of d.agents) keys.set(agentWord(d, a), a.key);
-  for (const p of d.people) if (p.handle) keys.set(p.handle, p.key);
   return text.replace(/(^|[^A-Za-z0-9_.@<-])@([A-Za-z0-9][A-Za-z0-9_.-]*)/g, (m, pre: string, word: string) => {
     const w = word.replace(/[.-]+$/, ''); // a sentence's full stop is not part of the name
     const k = keys.get(w);

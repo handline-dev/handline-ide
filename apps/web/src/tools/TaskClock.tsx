@@ -3,7 +3,7 @@
 // count. A click shows the box in parts.
 import { span, timeView, type TimeLabel } from '@handline/app-core';
 import type { TaskDetail, TimeSegment } from '@handline/client';
-import { useTaskTime } from '@handline/app-data';
+import { useNameOf, useTaskTime } from '@handline/app-data';
 import { useNow } from '#src/format/time.ts';
 import { Popover } from '#src/ui/Popover.tsx';
 import { useState } from 'react';
@@ -67,6 +67,7 @@ export function WholeTime({ task }: { task: number }) {
 /** The bar of the box used, and the time the clock stood still. A click opens task.time's box in parts: each agent's time in its colour,
  * waking up, and what is left; hovering a part lights it in the gauge. Under it, the whole task's time in one line. */
 export function ClockBar({ t, left, total }: { t: TaskDetail; left: number; total: number }) {
+  const nameOf = useNameOf();
   const read = useTaskTime(t.id);
   const time = read.data;
   const segments = time?.segments ?? [];
@@ -80,7 +81,7 @@ export function ClockBar({ t, left, total }: { t: TaskDetail; left: number; tota
     ...(box ? [] : [{ key: 'used', word: 'Used', seconds: Math.max(0, total - left), tone: SERIES[0]! }]),
     ...(box?.worked ?? []).map((w, i) => ({
       key: `agent:${w.agent}`,
-      word: w.agent,
+      word: nameOf(w.agent),
       seconds: w.seconds,
       tone: SERIES[i % SERIES.length]!,
     })),

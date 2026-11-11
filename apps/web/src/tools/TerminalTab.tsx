@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { paneKey, type AgentDetail, type ByteListener, type ByteTerminalView, type ByteViewState } from '@handline/client';
 import { useStore } from '@handline/app-react';
-import { useAgentDetail, useWrite } from '@handline/app-data';
+import { useAgentDetail, useNameOf, useWrite } from '@handline/app-data';
 import { RESIZE_MS } from '@handline/app-core';
 import { keep, reclaim } from '#src/terminal/keep.ts';
 import {
@@ -62,6 +62,7 @@ export function ShellTab({ agent, handle }: { agent: string; handle: string }) {
 
 /** `shell`: a shell's handle instead of the agent's own terminal. It has no input holder, so typing needs no take. */
 function BytesTab({ agent, shell, detail }: { agent: string; shell?: string; detail: Pick<AgentDetail, 'terminal'> }) {
+  const word = useNameOf()(agent);
   const store = useStore();
   const host = useRef<HTMLDivElement>(null);
   const takeInput = useWrite('input.take', agent);
@@ -235,7 +236,7 @@ function BytesTab({ agent, shell, detail }: { agent: string; shell?: string; det
         <div
           className="xterm-host min-h-0 flex-1 overflow-hidden px-2.5 py-2 [&>div]:h-full"
           ref={host}
-          aria-label={`Terminal of ${agent}`}
+          aria-label={`Terminal of ${word}`}
         />
         {!hasTerminal && <StartTerminal agent={agent} />}
         {state === 'live' && heldBy && !holds ? (

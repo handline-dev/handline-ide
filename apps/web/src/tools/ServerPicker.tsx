@@ -1,4 +1,4 @@
-import { useAgents } from '@handline/app-data';
+import { useAgents, useNameOf } from '@handline/app-data';
 import type { AgentView } from '@handline/client';
 import { Server } from 'lucide-react';
 import { ago, useNow } from '#src/format/time.ts';
@@ -27,6 +27,7 @@ const origin = (url: string): string | null => {
 
 /** Beside the address bar: the servers the agent's processes listen on, lowest port first; picking one opens it here. */
 export function ServerPicker({ agent, current, onPick }: { agent: string; current: string; onPick: (url: string) => void }) {
+  const word = useNameOf()(agent);
   // One on a scoped link-local address (fe80::1%en0) has no URL a browser opens.
   const servers = (useAgents().data?.agents.find((a) => a.key === agent)?.servers ?? []).filter((s) => !s.address.includes('%'));
   const now = useNow();
@@ -35,7 +36,7 @@ export function ServerPicker({ agent, current, onPick }: { agent: string; curren
     <Menu
       trigger={
         // Kept when there is none, so the address bar does not move as servers come and go.
-        <IconButton label={servers.length ? `${agent}'s servers` : `${agent} runs no server`} disabled={!servers.length}>
+        <IconButton label={servers.length ? `${word}'s servers` : `${word} runs no server`} disabled={!servers.length}>
           <Server size={14} />
         </IconButton>
       }

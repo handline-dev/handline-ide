@@ -1,7 +1,7 @@
 // What a right-click on a row of Requests offers, and what can be done to several picked rows at once. Only what is easy to undo
 // goes at once (seen, later, give back, done); a discard, of one row or several, is asked for one reason and confirmed.
 import { bulkNames, bulkOf, foundersTurn, laterChoices, laterKey, type Picked } from '@handline/app-core';
-import { useTaskActions, useTasks, useWrite } from '@handline/app-data';
+import { useNameOf, useTaskActions, useTasks, useWrite } from '@handline/app-data';
 import { useMe } from '@handline/app-react';
 import { Ban, Check, Clock, Eye, MessageSquare, Undo2 } from 'lucide-react';
 import { createContext, useContext, useEffect, useState, type ComponentProps, type ReactNode } from 'react';
@@ -299,6 +299,7 @@ export function RowMenu({
   open: RowOpens;
   children: ReactNode;
 }) {
+  const nameOf = useNameOf();
   const pick = usePick();
   const act = useRowActions();
   const mine = useMyTurns();
@@ -317,7 +318,7 @@ export function RowMenu({
     <>
       {open.opens && <OpenItems {...open} opens={open.opens} />}
       {who && open.opens !== chatOf(who) && (
-        <SubMenu label={`${who}'s chat`} icon={<MessageSquare size={14} />}>
+        <SubMenu label={`${nameOf(who)}'s chat`} icon={<MessageSquare size={14} />}>
           <OpenItems opens={chatOf(who)} />
         </SubMenu>
       )}
