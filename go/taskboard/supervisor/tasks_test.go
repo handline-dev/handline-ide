@@ -154,25 +154,25 @@ func TestQueueDeliverSaysWhetherTheTaskWentOut(t *testing.T) {
 	row, _ := db.GetTask(r.DB, tid)
 	msg, err := r.QueueDeliver(r.DB, tid, r.k(("human")), true, row)
 	r.must(err)
-	if msg != "task T1 is queued (human) - bob was free, so it went out now" {
+	if r.named(msg) != "task T1 is queued (human) - bob was free, so it went out now" {
 		t.Fatal(msg)
 	}
 	// a busy owner: queued behind the one it holds
 	busy := r.newTask(r.k("bob"), r.k(("alice")), "second")
 	row, _ = db.GetTask(r.DB, busy)
 	msg, _ = r.QueueDeliver(r.DB, busy, r.k(("human")), true, row)
-	if msg != "task T2 is queued (human)" {
+	if r.named(msg) != "task T2 is queued (human)" {
 		t.Fatal(msg)
 	}
 	// back to draft
-	if msg, _ := r.QueueDeliver(r.DB, busy, r.k(("human")), false, row); msg != "task T2 is draft (human)" {
+	if msg, _ := r.QueueDeliver(r.DB, busy, r.k(("human")), false, row); r.named(msg) != "task T2 is draft (human)" {
 		t.Fatal(msg)
 	}
 	// the founder's task: the card goes back on their board
 	ft, _ := db.NewTask(r.DB, "decide", r.k(("human")), r.k(("alice")), 0, db.DefaultPriority, "decision", 0, "")
 	row, _ = db.GetTask(r.DB, ft)
 	msg, _ = r.QueueDeliver(r.DB, ft, r.k(("human")), true, row)
-	if msg != "task T3 is queued (human) - its card is on the founder's board" {
+	if r.named(msg) != "task T3 is queued (human) - its card is on the founder's board" {
 		t.Fatal(msg)
 	}
 }

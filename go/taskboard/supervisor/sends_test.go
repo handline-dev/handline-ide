@@ -35,7 +35,7 @@ func TestSayVerbQueuesAndTypesAtOnce(t *testing.T) {
 	if !strings.Contains(r.term.last(), "#1 from alice, waiting for you:\npsst") {
 		t.Fatalf("%q", r.term.last())
 	}
-	if out := r.say(SayVerbIn{Target: r.k(("bob")), Body: "x"}); out.OK || out.Msg != noWho {
+	if out := r.say(SayVerbIn{Target: r.k(("bob")), Body: "x"}); out.OK || r.named(out.Msg) != noWho {
 		t.Fatalf("%+v", out)
 	}
 }
@@ -45,7 +45,7 @@ func TestSayToAReportWithoutATaskIsRefusedWithTheTaskThatWouldReachIt(t *testing
 	teamtest.Set(t, r.home, r.k(("bob")), "reports_to", r.k(("alice")))
 	out := r.say(SayVerbIn{Requester: r.k(("alice")), Target: r.k(("bob")), Body: "fix the bug"})
 	want := "work cannot reach a report by message: make it a task, or comment on the task it has. Try:\n  hl task new --assign bob -t 2h '<title>' 'fix the bug'\n  hl task comment T<n> add '@bob fix the bug'"
-	if out.OK || out.Msg != want {
+	if out.OK || r.named(out.Msg) != want {
 		t.Fatalf("%q", out.Msg)
 	}
 }
@@ -68,10 +68,10 @@ func TestAReplyToTheFoundersRequestNeedsNoTask(t *testing.T) {
 func TestPushVerbsCheckTheirTargetsAndHandOver(t *testing.T) {
 	r := newRig(t)
 	r.agentUp(r.k("bob"))
-	if ok, msg := r.PushVerb(r.k("human"), 0); ok || msg != "human is not an agent" {
+	if ok, msg := r.PushVerb(r.k("human"), 0); ok || r.named(msg) != "human is not an agent" {
 		t.Fatal(msg)
 	}
-	if ok, msg := r.PushVerb("nobody", 0); ok || msg != "nobody is not an agent" {
+	if ok, msg := r.PushVerb("nobody", 0); ok || r.named(msg) != "nobody is not an agent" {
 		t.Fatal(msg)
 	}
 	rid := r.ask(r.k("alice"), r.k(("bob")), "x", "ask")
@@ -95,7 +95,7 @@ func TestNotifyCancelledVerbOnlyForADeliveredRequestClosedUnderIt(t *testing.T) 
 	if ok, msg, _ := r.NotifyCancelledVerb(r.DB, rid); ok || r.ids(msg) != "#1 was not cancelled after it was delivered" {
 		t.Fatal(msg)
 	}
-	if ok, msg, _ := r.NotifyCancelledVerb(r.DB, 99); ok || msg != "no such message" {
+	if ok, msg, _ := r.NotifyCancelledVerb(r.DB, 99); ok || r.named(msg) != "no such message" {
 		t.Fatal(msg)
 	}
 	r.TellNow(r.DB, rid)
@@ -126,32 +126,32 @@ func TestMemoEditAndDeleteAreForTheAuthorOrTheFounder(t *testing.T) {
 	tid := r.newTask(r.k("bob"), r.k(("alice")), "job")
 	ok, msg, mid, err := r.MemoAdd(r.DB, tid, r.k(("alice")), "first")
 	r.must(err)
-	if !ok || msg != "comment 1 added to T1" || mid != 1 {
+	if !ok || r.named(msg) != "comment 1 added to T1" || mid != 1 {
 		t.Fatal(ok, msg)
 	}
-	if ok, msg, _, _ := r.MemoAdd(r.DB, 9, r.k(("alice")), "x"); ok || msg != "no task T9" {
+	if ok, msg, _, _ := r.MemoAdd(r.DB, 9, r.k(("alice")), "x"); ok || r.named(msg) != "no task T9" {
 		t.Fatal(msg)
 	}
-	if ok, msg, _, _ := r.MemoAdd(r.DB, tid, r.k(("alice")), "  "); ok || msg != "a comment needs some text" {
+	if ok, msg, _, _ := r.MemoAdd(r.DB, tid, r.k(("alice")), "  "); ok || r.named(msg) != "a comment needs some text" {
 		t.Fatal(msg)
 	}
-	if ok, msg, _, _ := r.MemoEdit(r.DB, mid, r.k(("bob")), "mine now"); ok || msg != "comment 1 is alice's: only its author or the founder edits or deletes it" {
+	if ok, msg, _, _ := r.MemoEdit(r.DB, mid, r.k(("bob")), "mine now"); ok || r.named(msg) != "comment 1 is alice's: only its author or the founder edits or deletes it" {
 		t.Fatal(msg)
 	}
-	if ok, msg, _, _ := r.MemoEdit(r.DB, mid, r.k(("alice")), "first"); ok || msg != "comment 1 already reads that way - nothing to edit" {
+	if ok, msg, _, _ := r.MemoEdit(r.DB, mid, r.k(("alice")), "first"); ok || r.named(msg) != "comment 1 already reads that way - nothing to edit" {
 		t.Fatal(msg)
 	}
 	ok, msg, got, _ := r.MemoEdit(r.DB, mid, r.k(("human")), "second")
-	if !ok || msg != "comment 1 on T1 edited" || got != tid {
+	if !ok || r.named(msg) != "comment 1 on T1 edited" || got != tid {
 		t.Fatal(ok, msg)
 	}
 	if m, _ := db.GetMemo(r.DB, mid); m.Body != "second" || !m.EditedAt.Valid {
 		t.Fatalf("%+v", m)
 	}
-	if ok, msg, _, _ := r.MemoDelete(r.DB, 9, r.k(("alice"))); ok || msg != "no comment 9" {
+	if ok, msg, _, _ := r.MemoDelete(r.DB, 9, r.k(("alice"))); ok || r.named(msg) != "no comment 9" {
 		t.Fatal(msg)
 	}
-	if ok, msg, _, _ := r.MemoDelete(r.DB, mid, r.k(("alice"))); !ok || msg != "comment 1 deleted from T1" {
+	if ok, msg, _, _ := r.MemoDelete(r.DB, mid, r.k(("alice"))); !ok || r.named(msg) != "comment 1 deleted from T1" {
 		t.Fatal(msg)
 	}
 	if m, _ := db.GetMemo(r.DB, mid); m != nil {

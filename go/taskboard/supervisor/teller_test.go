@@ -17,7 +17,7 @@ func TestTheTellerTypesTheMemoSayAndSendsAQueuedTaskToAFreeOwner(t *testing.T) {
 	tid, _ := db.NewTask(r.DB, "job", r.k(("bob")), r.k(("alice")), 0, db.DefaultPriority, "", 0, "")
 	db.SetTaskQueued(r.DB, tid, r.k(("human")))
 	msg := r.namedQ(tid, r.k(("human")), true)
-	if msg != "task T1 is queued (human) - bob was free, so it went out now" {
+	if r.named(msg) != "task T1 is queued (human) - bob was free, so it went out now" {
 		t.Fatal(msg)
 	}
 	r.term.typed = nil
@@ -25,7 +25,7 @@ func TestTheTellerTypesTheMemoSayAndSendsAQueuedTaskToAFreeOwner(t *testing.T) {
 	if !strings.Contains(r.term.last(), "T1 comment by alice: mind the cache") {
 		t.Fatalf("%q", r.term.last())
 	}
-	if msg := r.namedQ(9, r.k(("human")), true); msg != "task T9 is queued (human)" {
+	if msg := r.namedQ(9, r.k(("human")), true); r.named(msg) != "task T9 is queued (human)" {
 		t.Fatalf("a missing task: %q", msg)
 	}
 }
@@ -81,7 +81,7 @@ func TestAFailedStatementAfterTheCommitIsLoggedByTheTeller(t *testing.T) {
 	if !r.logged("moving bob on after a discard failed") {
 		t.Fatalf("%v", r.logs)
 	}
-	if msg := r.namedQ(1, r.k(("human")), true); msg != "task T1 is queued (human)" || !r.logged("delivering T1 after it was queued failed") {
+	if msg := r.namedQ(1, r.k(("human")), true); r.named(msg) != "task T1 is queued (human)" || !r.logged("delivering T1 after it was queued failed") {
 		t.Fatalf("%q %v", msg, r.logs)
 	}
 	r.MemoChanged(1, 0, r.k(("alice")), "added", "x", false, nil)
@@ -251,7 +251,7 @@ func TestFounderTasksGoBackWithNoTeamEdgeFromTheDaemon(t *testing.T) {
 	r.must(err)
 
 	said, err := taskwrites.ReturnFounderTasks(r.DB, r.home)
-	if err != nil || fmt.Sprint(said) != fmt.Sprintf("[T%d goes back to ops.bob, the founder's turn on it T%d goes back to eng.alice, the founder's turn on it]", handed, opened) {
+	if err != nil || r.named(fmt.Sprint(said)) != fmt.Sprintf("[T%d goes back to ops.bob, the founder's turn on it T%d goes back to eng.alice, the founder's turn on it]", handed, opened) {
 		t.Fatalf("%q %v", said, err)
 	}
 	for tid, want := range map[int64]string{handed: "ops.bob", opened: "eng.alice", asked: r.k(("human")), gone: r.k(("human"))} {

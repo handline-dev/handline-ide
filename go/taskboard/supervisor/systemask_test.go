@@ -92,7 +92,7 @@ func TestEndReviewsMovesATaskWithNoTeamEdgeFromTheDaemon(t *testing.T) {
 		t.Fatal(err)
 	}
 	said, err := taskwrites.EndReviews(r.DB, r.home, r.Env)
-	if err != nil || fmt.Sprint(said) != fmt.Sprintf("[T%d left review: handed to eng.alice]", tid) {
+	if err != nil || r.named(fmt.Sprint(said)) != fmt.Sprintf("[T%d left review: handed to eng.alice]", tid) {
 		t.Fatalf("%q %v", said, err)
 	}
 	if task, _ := db.GetTask(r.DB, tid); task == nil || task.Owner != "eng.alice" {
