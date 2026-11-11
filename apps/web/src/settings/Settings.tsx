@@ -29,7 +29,7 @@ export function Settings() {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.12 }}
-          className="fixed inset-0 z-40 flex bg-bg"
+          className="fixed inset-x-0 top-0 bottom-7 z-40 flex bg-bg"
         >
           <Frame />
         </motion.div>
@@ -52,10 +52,17 @@ function Frame() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <LayerDragStrip />
+    <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+      {/* Over the page, not above it: the menu's grey runs up to the window's top edge. */}
+      <div className="absolute inset-x-0 top-0">
+        <LayerDragStrip />
+      </div>
       <div className="flex min-h-0 flex-1">
-        <nav aria-label="Settings" className="flex w-56 shrink-0 flex-col gap-0.5 bg-surface px-2 pt-1.5">
+        <nav
+          aria-label="Settings"
+          className="flex w-56 shrink-0 flex-col gap-0.5 bg-surface px-2"
+          style={{ paddingTop: 'calc(max(40px, calc(var(--controls-top, 6px) + 34px)) + 6px)' }}
+        >
           {/* Where the sidebar's top was, as Linear and Mattermost do it: out from the corner you came in by. */}
           <button
             type="button"
@@ -81,7 +88,10 @@ function Frame() {
             </button>
           ))}
         </nav>
-        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto ">
+        <main
+          className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto"
+          style={{ paddingTop: 'max(40px, calc(var(--controls-top, 6px) + 34px))' }}
+        >
           {section === 'accounts' && <AccountsTab focus={to.account} />}
           {section === 'machine' && <MachineTab />}
           {section === 'devices' && <DevicesTab />}
