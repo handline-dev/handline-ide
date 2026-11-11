@@ -5,7 +5,7 @@ import { setup } from '#src/helpers.ts';
 test("task_count leaves out a task on someone else's turn or behind an open blocker, as the daemon counts it", async () => {
   const { daemon, client } = setup();
   await client.start();
-  const count = async () => (await client.call('agents.list', {})).agents.find((a) => a.name === 'cnt.agent')!.task_count;
+  const count = async () => (await client.call('agents.list', {})).agents.find((a) => a.key === 'cnt.agent')!.task_count;
   const base = daemon.sessions.get('handline.architect')!;
   daemon.sessions.set('cnt.agent', { ...base, fx: { ...base.fx, name: 'cnt.agent', task: { id: 9001, title: 'held' }, view: {} } });
   daemon.tasks.seed({ id: 9001, from: 'human', to: 'cnt.agent', title: 'held', state: 'doing', acting: 'human' });

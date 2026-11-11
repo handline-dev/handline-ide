@@ -211,7 +211,7 @@ export class ScriptCore {
     const held = this.held.get(name);
     if (held && !worktree) throw refused('dirty', `${name} has work in its worktree.`, undefined, { worktrees: held });
     this.sessions.delete(name);
-    this.host.emit('agents', 'agent.removed', { agent: name, actor, data: { name } });
+    this.host.emit('agents', 'agent.removed', { agent: name, actor, data: { key: name } });
     return this.accepted(`${name} is retired.`);
   }
 

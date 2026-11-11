@@ -39,7 +39,7 @@ test('refuse answers with the gate, reason and hint given, until cleared', async
         e.code === 'refused' && e.gate === 'wall' && e.reason === 'the usage limit is hit' && e.hint === 'wait for the reset',
     );
   daemon.knobs.clear();
-  assert.equal((await client.call('agent.get', { agent: ARCH })).name, ARCH);
+  assert.equal((await client.call('agent.get', { agent: ARCH })).key, ARCH);
   client.close();
 });
 
@@ -50,7 +50,7 @@ test('refuse with a count lets the next call through, and only the named method 
   await assert.rejects(client.call('agents.list', {}), (e: RpcError) => e.gate === 'state');
   assert.equal((await client.call('agents.list', {})).agents.length, 3);
   daemon.knobs.refuse('agents.list', 'state', 'no');
-  assert.equal((await client.call('agent.get', { agent: ARCH })).name, ARCH);
+  assert.equal((await client.call('agent.get', { agent: ARCH })).key, ARCH);
   client.close();
 });
 

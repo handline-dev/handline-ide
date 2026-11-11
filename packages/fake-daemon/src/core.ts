@@ -6,6 +6,7 @@ import { badRequest, refused } from '#src/errors.ts';
 import type { EventLog } from '#src/eventlog.ts';
 import type { FakeInbox } from '#src/inbox.ts';
 import type { FakePairing } from '#src/pairing.ts';
+import { PEOPLE, workspacesOf } from '#src/names.ts';
 import { subscribeTopics } from '#src/resume.ts';
 import { detail, loadReply, statusReply, view, type Session, type TaskCounter } from '#src/session.ts';
 
@@ -86,6 +87,10 @@ export function coreCall(
       return loadReply(d.sessions, d.iso(), p);
     case 'agents.list':
       return { agents: [...d.sessions.values()].map((s) => view(s, d.tasks)) };
+    case 'people.list':
+      return { people: PEOPLE };
+    case 'workspaces.list':
+      return { workspaces: workspacesOf([...d.sessions.keys()]) };
     case 'agent.get':
       return detail(agent(), d.tasks);
     case 'pr.exists': {

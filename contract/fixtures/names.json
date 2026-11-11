@@ -1,0 +1,176 @@
+{
+ "fixtures": [
+  {
+   "name": "people.list.the_owner_is_listed",
+   "spec": "people.list",
+   "about": "In personal mode the one person is the owner, with no handle.",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "people.list",
+      "params": {}
+     },
+     "result": {
+      "people": {
+       "$contains": {
+        "key": {
+         "$regex": "^p[1-9][0-9]*$"
+        },
+        "display_name": {
+         "$type": "string"
+        },
+        "handle": null,
+        "role": "owner"
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "people.list.refused_to_anonymous",
+   "spec": "people.list",
+   "about": "An anonymous caller is refused, gate role.",
+   "as": "anonymous",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "people.list",
+      "params": {}
+     },
+     "error": {
+      "code": -32002,
+      "data": {
+       "code": "refused",
+       "gate": "role",
+       "reason": {
+        "$type": "string"
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "workspaces.list.rows_carry_key_name_folders_and_lead",
+   "spec": "workspaces.list",
+   "about": "Each workspace has its key, name, folder, added folders and its lead's key or null.",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "workspaces.list",
+      "params": {}
+     },
+     "result": {
+      "workspaces": {
+       "$each": {
+        "key": {
+         "$type": "string"
+        },
+        "name": {
+         "$type": "string"
+        },
+        "folder": {
+         "$type": "string"
+        },
+        "added_folders": {
+         "$type": "array"
+        },
+        "lead": {
+         "$oneOf": [
+          {
+           "$type": "string"
+          },
+          null
+         ]
+        }
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "workspaces.list.refused_to_anonymous",
+   "spec": "workspaces.list",
+   "about": "An anonymous caller is refused, gate role.",
+   "as": "anonymous",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "workspaces.list",
+      "params": {}
+     },
+     "error": {
+      "code": -32002,
+      "data": {
+       "code": "refused",
+       "gate": "role",
+       "reason": {
+        "$type": "string"
+       }
+      }
+     }
+    }
+   ]
+  }
+ ]
+}

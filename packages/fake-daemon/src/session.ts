@@ -1,6 +1,7 @@
 import { PROTOCOL } from '@handline/contract';
 import type { AgentDetail, AgentView, InputHolder, MachineNeed, Methods, Notifications, Prompt, Row, Timestamp } from '@handline/contract';
 import { BANNER, type AgentFixture } from '#src/fixtures.ts';
+import { identOf } from '#src/names.ts';
 import { Failure, badRequest, refused } from '#src/errors.ts';
 import { defaultSettings } from '#src/settings.ts';
 
@@ -108,7 +109,7 @@ export interface TaskCounter {
 /** The agent's view, with task_count as the daemon counts it unless the fixture pins one. */
 export function view(s: Session, tasks: TaskCounter): AgentView {
   return {
-    name: s.fx.name,
+    ...identOf(s.fx.name),
     role: s.fx.role,
     model: s.fx.model,
     effort: s.fx.effort,
