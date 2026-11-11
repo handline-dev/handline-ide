@@ -240,7 +240,7 @@ func TestSettlingPeerSendsAtStartTellsTheSenderThroughTheWiredPorts(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	key := fmt.Sprintf("send:bob:request:%d", rid)
+	key := fmt.Sprintf("send:%s:request:%d", bob, rid)
 	if err := dbpkg.SetCursor(d, key, 1); err != nil { // written to bob's session, not yet seen
 		t.Fatal(err)
 	}
@@ -266,7 +266,7 @@ func TestAStartStallIsToldToTheLead(t *testing.T) {
 	var to, body string
 	var n int
 	p.db.QueryRow("SELECT COUNT(*), MAX(target), MAX(body) FROM requests").Scan(&n, &to, &body)
-	if n != 1 || to != alice || !strings.Contains(body, "bob is STALLED") || !strings.Contains(body, "no git checkout") {
+	if n != 1 || to != alice || !strings.Contains(body, bob+" is STALLED") || !strings.Contains(body, "no git checkout") {
 		t.Fatalf("%d %s %q", n, to, body)
 	}
 }

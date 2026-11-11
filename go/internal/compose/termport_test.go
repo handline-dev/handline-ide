@@ -154,7 +154,7 @@ func TestATerminalAgentIsStartedInANewWorktreeThroughTheHostAndItsHandleKept(t *
 	if !ok || strings.Contains(said, "WARNING") {
 		t.Fatalf("a session runs in it: %v %q", ok, said)
 	}
-	if len(ft.opened) != 1 || !strings.HasSuffix(ft.opened[0], "|bob|"+lifecycle.CommandFor("", "", "", bob)) ||
+	if len(ft.opened) != 1 || !strings.HasSuffix(ft.opened[0], "|"+bob+"|"+lifecycle.CommandFor("", "", "", bob)) ||
 		!strings.HasPrefix(ft.opened[0], repo+".worktrees.noindex/"+paths.AgentKey(p.home, bob)+"|") {
 		t.Fatalf("%v %q opened %q", ok, said, ft.opened)
 	}
@@ -245,7 +245,7 @@ func TestAClosedTerminalAgentIsWokenInANewTerminalResumingItsSession(t *testing.
 	if err != nil || !ok {
 		t.Fatalf("%v %q %v (opened %q)", ok, said, err, ft.opened)
 	}
-	if len(ft.opened) != 1 || !strings.HasPrefix(ft.opened[0], wt+"|bob|") || !strings.Contains(ft.opened[0], "--resume 11111111-1111-4111-8111-111111111111") {
+	if len(ft.opened) != 1 || !strings.HasPrefix(ft.opened[0], wt+"|"+bob+"|") || !strings.Contains(ft.opened[0], "--resume 11111111-1111-4111-8111-111111111111") {
 		t.Fatalf("opened %q", ft.opened)
 	}
 	if h, _ := dbpkg.Terminal(d, bob); h != "%1" {
