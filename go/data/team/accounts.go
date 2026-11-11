@@ -291,8 +291,8 @@ func (a Accounts) RecordedEmail(acct string) string {
 	return data.Email
 }
 
-// Email is the email of the Anthropic account this account was set up with: the recorded one, else the one Claude Code says it is
-// logged in to, recorded then. "" when neither is known.
+// Email is the email of the Anthropic account this account was set up with: the one recorded at its login, else the one Claude Code
+// says it is logged in to now. "" when neither is known. It records nothing: only a login does (WrongLogin).
 func (a Accounts) Email(acct string) string {
 	if want := a.RecordedEmail(acct); want != "" {
 		return want
@@ -301,11 +301,7 @@ func (a Accounts) Email(acct string) string {
 	if err != nil || AccountVendor(a.Home, acct) != DefaultVendor {
 		return ""
 	}
-	got := readOAuthAccount(dir).Email
-	if got != "" {
-		a.recordEmail(acct, got)
-	}
-	return got
+	return readOAuthAccount(dir).Email
 }
 
 // recordEmail writes email into the account's identity.json, keeping the record's other fields as they are. A record that does not

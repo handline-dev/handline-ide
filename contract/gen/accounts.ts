@@ -25,7 +25,7 @@ export type Account = {
   }[];
   /** The name screens show; the account's own name until an alias is set. */
   label: string;
-  /** The email of the Anthropic account this account was set up with, kept after its login drops; null when none is known. accounts.list gives it to the founder only. */
+  /** The email of the Anthropic account this account was set up with, as recorded at its login, else the one it is logged in to now; null when none is known. accounts.list gives it to the founder only. */
   email?: string | null;
   /** The tool the account is for (`claude`, `opencode`, ...), as account.add set it. */
   vendor: string;
