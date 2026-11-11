@@ -187,7 +187,7 @@
      "parent": {
       "oneOf": [
        {
-        "$ref": "#/components/schemas/AgentName"
+        "$ref": "#/components/schemas/Who"
        },
        {
         "type": "null"
@@ -1156,7 +1156,7 @@
     "description": "access.changed: an agent's grants after a change (x-access).",
     "properties": {
      "agent": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      },
      "grants": {
       "type": "array",
@@ -1303,7 +1303,7 @@
      "name": "agent",
      "required": true,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     }
    ],
@@ -1411,7 +1411,7 @@
      "name": "agent",
      "required": true,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     },
     {
@@ -1479,7 +1479,7 @@
      "name": "agent",
      "required": true,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     },
     {
@@ -1569,7 +1569,7 @@
      "name": "agent",
      "required": true,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     },
     {
@@ -1647,7 +1647,7 @@
      "name": "agent",
      "required": true,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     },
     {
@@ -1689,7 +1689,7 @@
      "name": "agent",
      "required": true,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     },
     {
@@ -1738,7 +1738,7 @@
      "name": "agent",
      "required": true,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     },
     {
@@ -1788,7 +1788,7 @@
      "name": "agent",
      "required": true,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     },
     {
@@ -1834,7 +1834,7 @@
      "name": "agent",
      "required": true,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     },
     {
@@ -1879,7 +1879,7 @@
      "name": "agent",
      "required": true,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     },
     {
@@ -1993,7 +1993,7 @@
      "name": "parent",
      "required": false,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     },
     {
@@ -2049,7 +2049,7 @@
      "name": "agent",
      "required": true,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     },
     {
@@ -2117,7 +2117,7 @@
      "name": "agent",
      "required": true,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     },
     {
@@ -2161,7 +2161,7 @@
      "name": "agent",
      "required": true,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     },
     {
@@ -2228,7 +2228,7 @@
      "name": "agent",
      "required": true,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     },
     {
@@ -2289,7 +2289,7 @@
      "name": "agent",
      "required": true,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     },
     {
@@ -2334,7 +2334,7 @@
      "name": "agent",
      "required": true,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     },
     {
@@ -2380,7 +2380,7 @@
      "name": "agent",
      "required": true,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     },
     {
@@ -2446,7 +2446,7 @@
      "name": "agent",
      "required": true,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     },
     {
@@ -2509,7 +2509,7 @@
      "name": "agent",
      "required": true,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     },
     {
@@ -2569,7 +2569,7 @@
      "name": "agent",
      "required": true,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     },
     {
@@ -2617,7 +2617,7 @@
      "name": "agent",
      "required": true,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     },
     {
@@ -2784,7 +2784,7 @@
      "name": "agent",
      "required": true,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     }
    ],
@@ -2835,7 +2835,7 @@
      "name": "agent",
      "required": true,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     },
     {
@@ -2997,7 +2997,7 @@
      "name": "agent",
      "required": true,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     },
     {
@@ -3068,7 +3068,7 @@
      "name": "agent",
      "required": true,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     },
     {
@@ -3115,7 +3115,7 @@
      "name": "agent",
      "required": true,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     }
    ],
@@ -3138,7 +3138,7 @@
        ],
        "properties": {
         "agent": {
-         "$ref": "#/components/schemas/AgentName"
+         "$ref": "#/components/schemas/Who"
         },
         "model": {
          "oneOf": [
@@ -3297,7 +3297,7 @@
      "name": "target",
      "required": true,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     },
     {
@@ -3364,7 +3364,7 @@
      "name": "agent",
      "required": false,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     }
    ],
@@ -3379,7 +3379,7 @@
         "type": "object",
         "properties": {
          "agent": {
-          "$ref": "#/components/schemas/AgentName"
+          "$ref": "#/components/schemas/Who"
          },
          "fired": {
           "type": "boolean"
@@ -3418,7 +3418,7 @@
      "name": "agent",
      "required": true,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     },
     {
@@ -3512,7 +3512,7 @@
      "name": "agent",
      "required": true,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     },
     {
@@ -3586,7 +3586,7 @@
      "name": "agent",
      "required": true,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     }
    ],

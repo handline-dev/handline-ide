@@ -1,6 +1,6 @@
 // Generated from contract/spec/ by contract/generate.py; do not edit.
 /* eslint-disable */
-import type { Accepted, Actor, AgentName, InputHolder, Prompt, ReadCursor, Repo, RequestId, RequestName, Role, Status, Timestamp, Topic, WriteKind } from './core.ts';
+import type { Accepted, Actor, InputHolder, Prompt, ReadCursor, Repo, RequestId, RequestName, Role, Status, Timestamp, Topic, Who, WriteKind } from './core.ts';
 
 export type Block = {
   kind: string;
@@ -44,7 +44,7 @@ export type AgentView = {
   /** Whole percent of the context window the agent's own session has used; null when it has no account, no session of its own, or a usage snapshot too old to trust. A view without the field is the same as null. */
   ctx_pct?: number | null;
   has_dialog: boolean;
-  parent: AgentName | null;
+  parent: Who | null;
   /** Who holds the input; one in v1, a list so more can later. A structured agent has no input to hold: []. */
   input_holders?: InputHolder[];
   /** The text drawn beside the state word (a clock, what a wait is for), at most 40 characters; empty when there is none. The state column is drawn from state and state_detail alone. */
@@ -275,7 +275,7 @@ export type Grant = {
 
 /** access.changed: an agent's grants after a change (x-access). */
 export type AccessChanged = {
-  agent: AgentName;
+  agent: Who;
   grants: Grant[];
 };
 
@@ -312,7 +312,7 @@ export interface AgentsMethods {
     agents: AgentView[];
   } & ReadCursor };
   "agent.get": { params: {
-  agent: AgentName;
+  agent: Who;
 }; result: AgentDetail & ReadCursor };
   "subagents.counts": { params: { [key: string]: unknown }; result: {
     agents: { [key: string]: {
@@ -325,14 +325,14 @@ export interface AgentsMethods {
     } };
   } };
   "pr.exists": { params: {
-  agent: AgentName;
+  agent: Who;
   numbers: number[];
 }; result: {
     repo: string | null;
     found: number[];
   } };
   "agent.timeline": { params: {
-  agent: AgentName;
+  agent: Who;
   /** Return rows older than this id. */
   before?: number;
   /** Default 50, at most 200. */
@@ -343,36 +343,36 @@ export interface AgentsMethods {
   } & ReadCursor };
   "agent.options": { params: { [key: string]: unknown }; result: AgentOptions };
   "agent.set": { params: {
-  agent: AgentName;
+  agent: Who;
   values: AgentSettingValues;
   speaker?: string;
   restart?: "resume" | "fresh";
   request_id: RequestId;
 }; result: Accepted };
   "agent.fold": { params: {
-  agent: AgentName;
+  agent: Who;
   request_id: RequestId;
 }; result: Accepted };
   "agent.move": { params: {
-  agent: AgentName;
+  agent: Who;
   account: string;
   request_id: RequestId;
 }; result: Accepted };
   "agent.switch_now": { params: {
-  agent: AgentName;
+  agent: Who;
   account?: string;
   request_id: RequestId;
 }; result: Accepted };
   "agent.unstall": { params: {
-  agent: AgentName;
+  agent: Who;
   request_id: RequestId;
 }; result: Accepted };
   "agent.force_start": { params: {
-  agent: AgentName;
+  agent: Who;
   request_id: RequestId;
 }; result: Accepted };
   "agent.retire": { params: {
-  agent: AgentName;
+  agent: Who;
   /** The founder's answer for a worktree of the agent that holds work: save (what is left is committed to a new branch rescue/<agent>-<date>, then it is removed) or force (removed with whatever it holds; its branch stays; it also removes one that is on no branch or on main, never a locked one). keep keeps the worktree, so the agent is not retired (gate worktree). Another word is bad_request, field worktree. */
   worktree?: "keep" | "save" | "force";
   request_id: RequestId;
@@ -387,13 +387,13 @@ export interface AgentsMethods {
   base?: string;
   model?: string;
   effort?: "low" | "medium" | "high" | "xhigh" | "max";
-  parent?: AgentName;
+  parent?: Who;
   /** Not served: bad_request, field account, never dropped. A new agent's account is chosen when it starts; a client offers no account picker until a daemon serves this. */
   account?: string;
   request_id: RequestId;
 }; result: OperationStarted };
   "session.start": { params: {
-  agent: AgentName;
+  agent: Who;
   /** The Go daemon does not place sessions on a named account yet: it answers bad_request, field account, never drops it. A client offers no account picker until then. */
   account?: string;
   repo?: string;
@@ -401,55 +401,55 @@ export interface AgentsMethods {
   request_id: RequestId;
 }; result: Accepted };
   "session.wake": { params: {
-  agent: AgentName;
+  agent: Who;
   request_id: RequestId;
 }; result: Accepted };
   "session.stop": { params: {
-  agent: AgentName;
+  agent: Who;
   mode: "exit" | "close" | "kill";
   /** close only: the next start is a fresh session. */
   fresh?: boolean;
   request_id: RequestId;
 }; result: Accepted };
   "session.restart": { params: {
-  agent: AgentName;
+  agent: Who;
   fresh?: boolean;
   force?: boolean;
   request_id: RequestId;
 }; result: Accepted };
   "session.compact": { params: {
-  agent: AgentName;
+  agent: Who;
   request_id: RequestId;
 }; result: Accepted };
   "session.park": { params: {
-  agent: AgentName;
+  agent: Who;
   request_id: RequestId;
 }; result: Accepted };
   "session.input": { params: {
-  agent: AgentName;
+  agent: Who;
   text: string;
   /** Default true. */
   enter?: boolean;
   request_id: RequestId;
 }; result: Accepted };
   "session.keys": { params: {
-  agent: AgentName;
+  agent: Who;
   /** esc, enter, up, down, tab, shift-tab, ctrl-c, 0-9. */
   keys: string[];
   request_id: RequestId;
 }; result: Accepted };
   "session.type": { params: {
-  agent: AgentName;
+  agent: Who;
   /** Printable characters and tab; no other control characters (those are session.keys). */
   text: string;
   request_id: RequestId;
 }; result: Accepted };
   "session.interrupt": { params: {
-  agent: AgentName;
+  agent: Who;
   request_id: RequestId;
 }; result: Accepted };
   "session.launch_prepare": { params: {
-  agent: AgentName;
+  agent: Who;
   /** The absolute folder the launch runs in; the session's working directory. */
   cwd: string;
   /** The caller's own arguments for the vendor (what follows -- in hl launch), e.g. --resume <id>. */
@@ -483,12 +483,12 @@ export interface AgentsMethods {
     warnings: string[];
   } };
   "prompt.list": { params: {
-  agent: AgentName;
+  agent: Who;
 }; result: {
     prompts: Prompt[];
   } & ReadCursor };
   "prompt.answer": { params: {
-  agent: AgentName;
+  agent: Who;
   prompt: string;
   /** A PromptOption.key, or {text} for the free-text answer to a dialog that asks for one; a text answer passes the same gates and the prompt check. An array only answers a `multi` prompt. */
   choice: string | string[] | {
@@ -510,7 +510,7 @@ export interface AgentsMethods {
     message?: string;
   } };
   "input.take": { params: {
-  agent: AgentName;
+  agent: Who;
   /** Take the input from the person or device that holds it instead of being refused; the holder notice tells them. It never types into the agent's own turn: typing still waits for it. */
   force?: boolean;
   request_id: RequestId;
@@ -518,13 +518,13 @@ export interface AgentsMethods {
     holder: InputHolder;
   } };
   "input.release": { params: {
-  agent: AgentName;
+  agent: Who;
   request_id: RequestId;
 }; result: Accepted };
   "agent.strip": { params: {
-  agent: AgentName;
+  agent: Who;
 }; result: {
-    agent: AgentName;
+    agent: Who;
     model: string | null;
     account: string | null;
     /** Percent of the context window used, as far as the session's own report is trusted. */
@@ -545,7 +545,7 @@ export interface AgentsMethods {
     note: string | null;
   } };
   "say": { params: {
-  target: AgentName;
+  target: Who;
   /** Markdown. It may name images (x-attachments, texts). */
   body: string;
   parent?: RequestName;
@@ -554,16 +554,16 @@ export interface AgentsMethods {
   request_id: RequestId;
 }; result: Accepted };
   "agent.triggers": { params: {
-  agent?: AgentName;
+  agent?: Who;
 }; result: {
     agents: {
-      agent: AgentName;
+      agent: Who;
       fired: boolean;
       reason: string;
     }[];
   } };
   "access.grant": { params: {
-  agent: AgentName;
+  agent: Who;
   /** An absolute path to a file or folder. */
   path: string;
   scope: "once" | "always";
@@ -574,7 +574,7 @@ export interface AgentsMethods {
     applies_from: "now" | "next_session";
   } };
   "access.revoke": { params: {
-  agent: AgentName;
+  agent: Who;
   path: string;
   request_id: RequestId;
 }; result: Accepted & {
@@ -582,7 +582,7 @@ export interface AgentsMethods {
     removed: boolean;
   } };
   "access.list": { params: {
-  agent: AgentName;
+  agent: Who;
 }; result: {
     grants: Grant[];
   } };

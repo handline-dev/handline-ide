@@ -7,7 +7,7 @@ import type { Proposal } from './team.ts';
 export type Timestamp = string;
 
 /** Who: an agent's or person's key, or a word the daemon resolves to one (human, an agent's name as hl team lists it). */
-export type AgentName = string;
+export type Who = string;
 
 /** Ordered lowest to highest. A method's role is the lowest that may call it; every higher role may too. */
 export type Role = "anonymous" | "agent" | "member" | "owner";
@@ -92,7 +92,7 @@ export type PromptOption = {
 export type Prompt = {
   /** Opaque; changes whenever the open prompt changes (the daemon uses the screen block's fingerprint). */
   id: string;
-  agent: AgentName;
+  agent: Who;
   /** permission, question, dialog or exit_confirm today; open set. */
   kind: string;
   tool?: string | null;
@@ -134,11 +134,11 @@ export type Event = {
   type: string;
   at: Timestamp;
   actor: Actor | null;
-  agent: AgentName | null;
+  agent: Who | null;
   title: string | null;
   target: {
     screen: string;
-    /** Agent name, task or item id. */
+    /** Agent key, task or item id. */
     id: string;
   } | null;
   data: { [key: string]: unknown };
@@ -232,7 +232,7 @@ export type Operation = {
   steps_total: number | null;
   message: string | null;
   result: { [key: string]: unknown } | null;
-  agent: AgentName | null;
+  agent: Who | null;
 };
 
 export type Settings = {
@@ -245,7 +245,7 @@ export type Settings = {
   listener: Listener;
   trust_folders: {
     account: string;
-    agent: AgentName | null;
+    agent: Who | null;
     path: string;
   }[];
   hooks: {
@@ -261,7 +261,7 @@ export type Settings = {
   /** Without settings.get `agent`: the built-in handoff prompt, what `values.handoff_prompt` shows while none is set, so a client can tell the two apart. */
   handoff_prompt_default?: string;
   /** Without settings.get `agent`: the agents whose row sets a handoff prompt of their own, which the global one does not reach. */
-  handoff_prompt_own?: AgentName[];
+  handoff_prompt_own?: Who[];
 };
 
 /** One terminal row: plain text, no escapes; in format `styled` also its style runs. */
@@ -523,13 +523,13 @@ export type DebugTerminalPane = {
     name: string;
   } | null;
   /** The agent whose current terminal this pane is. */
-  agent: AgentName | null;
+  agent: Who | null;
   /** No agent has this pane as its terminal. */
   orphan: boolean;
   /** The agent is closed; it keeps the handle of the pane it had. */
   closed: boolean;
   /** For an orphan: the agent the daemon opened the pane for. */
-  recorded_agent: AgentName | null;
+  recorded_agent: Who | null;
   state: string | null;
   account: string | null;
   session_id: string | null;
@@ -656,7 +656,7 @@ export type Resources = {
 /** How the person's agent list and dock show agents, the same on every device. */
 export type NavPrefs = {
   /** Pinned agents in the person's order: the dock shows them first and the list on top. No name twice. */
-  pins: AgentName[];
+  pins: Who[];
   /** The list shows only agents with something unread or waiting on the person. */
   unread_only: boolean;
   /** State groups the list hides: needs (waiting, blocked), working, waking, idle, sleeping (parked, none). */
@@ -664,7 +664,7 @@ export type NavPrefs = {
   /** tree: team, lead, members by parent. flat: urgency first, then by name. */
   layout: "tree" | "flat";
   /** The person's order for the tree layout: agents under one parent, and the top-level agents, stand in this order; one not listed (a new agent) comes after the listed ones, by name. The flat layout ignores it. No name twice. */
-  order: AgentName[];
+  order: Who[];
   /** For you items the founder put off, by `kind:id` (ForYouItem.kind and id, such as `task:42`). prefs.set merges this key entry by entry: an entry sets or replaces one item, null clears it; the other entries stay, so two devices deferring different items lose nothing. An entry whose time passed or whose task ended is dead and the daemon drops it at the next prefs.set that changes later. Absent entries mean not deferred. */
   later?: { [key: string]: Later | null };
 };
@@ -672,7 +672,7 @@ export type NavPrefs = {
 /** Any keys of NavPrefs; each given key replaces the stored value whole, except `later`, which merges entry by entry. */
 export type NavPrefsChanges = {
   /** Pinned agents in the person's order: the dock shows them first and the list on top. No name twice. */
-  pins?: AgentName[];
+  pins?: Who[];
   /** The list shows only agents with something unread or waiting on the person. */
   unread_only?: boolean;
   /** State groups the list hides: needs (waiting, blocked), working, waking, idle, sleeping (parked, none). */
@@ -680,7 +680,7 @@ export type NavPrefsChanges = {
   /** tree: team, lead, members by parent. flat: urgency first, then by name. */
   layout?: "tree" | "flat";
   /** The person's order for the tree layout: agents under one parent, and the top-level agents, stand in this order; one not listed (a new agent) comes after the listed ones, by name. The flat layout ignores it. No name twice. */
-  order?: AgentName[];
+  order?: Who[];
   /** Entries to set or clear in NavPrefs.later: an entry sets or replaces one item's deferral, null clears it; the other items stay. A key is `kind:id` of a For you item (kind task, comment or machine: a prompt or a proposal cannot be put off); an entry has exactly one of until and after_task. */
   later?: { [key: string]: Later | null };
 };
@@ -718,7 +718,7 @@ export type ForYouItem = {
   /** task: the task number. comment: the comment's number (InboxItem.memo), or the request's ref for an ask that is on no task. prompt: Prompt.id. proposal: the proposal's id (Proposal.id). machine: the warning, `disk`, `login:<account>`, `delivery:<ref>` or `undelivered:<task>`. The pair (kind, id) names the item, as in the keys of NavPrefs.later. */
   id: string;
   /** Who asks; null for the machine. */
-  agent: AgentName | null;
+  agent: Who | null;
   /** One line: a task's title, a comment's first line, a prompt's command or tool, a proposal's title, the warning in plain words. */
   title: string;
   /** What the item wants of the founder. A task or comment: `review` when the task is tagged review, else `decide`. A prompt: `allow` for a permission, else `decide`. An proposal: `allow`. The machine: `do`. */
@@ -807,7 +807,7 @@ export interface CoreMethods {
   /** replay (the default): what was missed after `since` is sent first, as `since` says. latest: nothing missed is sent, neither a replay nor a gap; the reply's cursor is the newest and only later events follow. A client that resumes at the latest reads again what it shows: each read a stream event keeps current says its `cursor`, and an event at or below it is in that answer already. */
   resume?: "replay" | "latest";
   /** Only events of this agent, plus events that carry no agent. Meant for the chat topic. */
-  agent?: AgentName;
+  agent?: Who;
 }; result: {
     /** The newest cursor at subscribe time. */
     cursor: number;
@@ -825,7 +825,7 @@ export interface CoreMethods {
   request_id: RequestId;
 }; result: Accepted };
   "lease.take": { params: {
-  agent: AgentName;
+  agent: Who;
   kind: "simulator" | "browser";
   /** A lease kept across commands (hl use <kind> --hold) rather than one for the calling process. */
   hold?: boolean;
@@ -836,7 +836,7 @@ export interface CoreMethods {
     waited_s: number;
   } };
   "lease.release": { params: {
-  agent: AgentName;
+  agent: Who;
   lease?: number;
   kind?: ("simulator" | "browser") | "";
 }; result: {
@@ -871,7 +871,7 @@ export interface CoreMethods {
   /** Also give `series` for that many minutes back (0 or absent: none). */
   minutes?: number;
   /** Only this agent's rows (and series). */
-  agent?: AgentName;
+  agent?: Who;
 }; result: {
     /** The sample these figures are from. */
     at: string;
@@ -1041,7 +1041,7 @@ export interface CoreMethods {
   request_id: RequestId;
 }; result: Accepted };
   "hook.record": { params: {
-  agent: AgentName;
+  agent: Who;
   kind: string;
   at: Timestamp;
   data: { [key: string]: unknown };
@@ -1051,7 +1051,7 @@ export interface CoreMethods {
     nudge?: string;
   } };
   "subagent.start": { params: {
-  agent: AgentName;
+  agent: Who;
   session_id?: string;
   description?: string;
   subagent_type?: string;
@@ -1061,10 +1061,10 @@ export interface CoreMethods {
     deny?: string;
   } };
   "memory.status": { params: {
-  agent?: AgentName;
+  agent?: Who;
 }; result: {
     agents: {
-      agent: AgentName;
+      agent: Who;
       bytes: number;
       budget: number;
       entries: number;
@@ -1075,12 +1075,12 @@ export interface CoreMethods {
   "connection.addresses": { params: { [key: string]: unknown }; result: ConnectionAddresses };
   "settings.get": { params: {
   /** Return that agent's own overrides in `overrides`. */
-  agent?: AgentName;
+  agent?: Who;
 }; result: Settings };
   "settings.set": { params: {
   changes: SettingsChanges;
   /** Write the per-agent override of: park_timeout_s, ignore_cache_expiry, bg_notice_s, bg_grace_s, bg_check_s, notice_digest_s, handoff_prompt. Any other key with `agent` is bad_request. */
-  agent?: AgentName;
+  agent?: Who;
   request_id: RequestId;
 }; result: Accepted };
   "for_you.list": { params: { [key: string]: unknown }; result: ForYouList & ReadCursor };

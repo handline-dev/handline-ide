@@ -1,6 +1,6 @@
 // Generated from contract/spec/ by contract/generate.py; do not edit.
 /* eslint-disable */
-import type { Accepted, Actor, AgentName, AttachmentId, Duration, ImagePart, ReadCursor, RequestId, RequestName, RequestRef, Role, Status, TextPart, Timestamp, Topic, WriteKind } from './core.ts';
+import type { Accepted, Actor, AttachmentId, Duration, ImagePart, ReadCursor, RequestId, RequestName, RequestRef, Role, Status, TextPart, Timestamp, Topic, Who, WriteKind } from './core.ts';
 
 /** The task's clock: it counts while the task is doing and nothing holds it, stands still keeping what is left while anything does, and runs on past its length. */
 export type TaskClock = {
@@ -21,7 +21,7 @@ export type Task = {
   id: number;
   from: string;
   to: string;
-  /** Who acts on the task now: the agent of its top turn, or human, else its owner (to). Every rule that asks who works the task now (delivery, the doing slot, the time box and whom it tells, my_turn, requests.pending, the board's holder, whom a comment tells) reads this. Absent from a daemon that does not send it. */
+  /** Who acts on the task now: the key of the agent or person of its top turn, else its owner (to). Every rule that asks who works the task now (delivery, the doing slot, the time box and whom it tells, my_turn, requests.pending, the board's holder, whom a comment tells) reads this. Absent from a daemon that does not send it. */
   acting?: string;
   /** The turns above the owner, bottom first; empty for most tasks, at most 3. The top acts now (acting); an agent below it acts on nothing, so its next task starts. Absent from a daemon that does not send it. */
   turns?: Turn[];
@@ -48,7 +48,7 @@ export type Task = {
   last_activity?: Timestamp;
   /** Who last changed the task's owner, title, priority or brief; null when never. */
   edited_by?: string | null;
-  /** Who the task answers to when it closes: its reporter when one was set; else the founder (`human`) if any request linked to it came from the founder, else whoever opened it. */
+  /** Who the task answers to when it closes: its reporter when one was set; else the founder (their key) if any request linked to it came from the founder, else whoever opened it. */
   asker?: string;
   /** Null when the task was not discarded. */
   discarded?: {
@@ -150,7 +150,7 @@ export type TaskDetail = Task & {
     from: string;
     to: string;
   }[];
-  /** Who the task answers to when it closes: its reporter when one was set; else the founder (`human`) if any request linked to it came from the founder, else whoever opened it. A client lets the founder reopen a done task only when this is the founder. */
+  /** Who the task answers to when it closes: its reporter when one was set; else the founder (their key) if any request linked to it came from the founder, else whoever opened it. A client lets the founder reopen a done task only when this is the founder. */
   asker: string;
   discarded: {
     by: string;
@@ -228,11 +228,11 @@ export type TaskEvent = {
   type: string;
   at: Timestamp;
   actor: Actor | null;
-  agent: AgentName | null;
+  agent: Who | null;
   title: string | null;
   target: {
     screen: string;
-    /** Agent name, task or item id. */
+    /** Agent key, task or item id. */
     id: string;
   } | null;
   data: { [key: string]: unknown };
@@ -258,7 +258,7 @@ export type Memo = {
 
 export type TaskBoardRow = {
   task: Task;
-  holder: AgentName | null;
+  holder: Who | null;
   /** Who has the task now, read from its linked requests: `waiting` on open blocker tasks (`tasks`); `held` by the agents a request is with (`agents`); `sub_task` when an open child task's request is with them (`agents`); `held_as_sub_task` while an open child shares a request with it (`tasks`, `agents` their owners); `result_in` when the last request came back done from someone other than the caller or the founder; else `nobody`. */
   now?: {
     kind: "waiting" | "held" | "sub_task" | "held_as_sub_task" | "result_in" | "nobody";
@@ -267,7 +267,7 @@ export type TaskBoardRow = {
   };
 };
 
-/** What task.done must be given: sha, verdict, decision or report (default; decision when the owner is human). */
+/** What task.done must be given: sha, verdict, decision or report (default; decision when the owner is a person). */
 export type Expects = "sha" | "verdict" | "decision" | "report";
 
 /** A file a memo carries (task.memo.add files): an image or a Markdown text, kept on the daemon's machine like an attached image and read with attachment.get by its id. */
@@ -289,7 +289,7 @@ export type MemoFile = {
 /** One change to a task: who changed which field from what to what, and when. A field's change is one row; an edit of several fields is several rows with the same at. */
 export type HistoryRow = {
   at: Timestamp;
-  /** Who made the change: an agent, or human. */
+  /** Who made the change: an agent's key, or a person's. */
   by: string;
   /** evidence is a done task's result. assignee is who works the task, owner who it answers to. state is opened, draft, queued, doing, done, discarded, closed, released or merged. blocked_by is a task it waits on, as T<n>. tag is a tag added (was empty) or removed (now empty). */
   field: "title" | "assignee" | "owner" | "body" | "evidence" | "priority" | "estimate" | "timeout" | "state" | "tag" | "blocked_by" | "merged_into" | "memo";
@@ -314,11 +314,11 @@ export type TaskFilter = {
   tags?: Tag[];
   state?: "draft" | "queued" | "doing" | "done" | "discarded";
   /** Who works the task (its assignee). */
-  owner?: AgentName;
+  owner?: Who;
   /** Who the task answers to (its asker: hl's --owner). */
-  reporter?: AgentName;
+  reporter?: Who;
   /** Who opened it. */
-  from?: AgentName;
+  from?: Who;
 };
 
 /** A saved view: a filter kept under a name, so it is picked, not typed again. One set for the founder's devices. */
@@ -397,16 +397,16 @@ export type PendingRequest = {
   /** ForYouItem.id of that item. Absent from a daemon that does not send it. */
   id?: string;
   /** Who asks; null for the daemon's own warnings. Absent from a daemon that does not send it. */
-  agent?: AgentName | null;
+  agent?: Who | null;
   /** What is asked, one line: the turn's ask or the first line of the comment asking them; null when there is nothing beyond the title. Absent from a daemon that does not send it. */
   ask?: string | null;
   /** The daemon's warning on the row: set on a warning row, and on a task row where a stronger item (an ask, a decision, a permission) outranks a warning the task also has; null otherwise. Absent from a daemon that does not send it. */
   warning?: PendingWarning | null;
 };
 
-/** One turn on a task (docs/design/turns.md): the agent who acts on the task while it is on top, or human. */
+/** One turn on a task (docs/design/turns.md): the agent or person who acts on the task while it is on top. */
 export type Turn = {
-  /** Who acts while this turn is on top: an agent, or human. */
+  /** Who acts while this turn is on top: an agent's key, or a person's. */
   agent: string;
   /** What it was asked to do, as it reads now: the text of its comment (memo) when it has one; empty when nothing was said. */
   ask: string;
@@ -445,12 +445,12 @@ export type PendingWarning = {
 
 export interface TasksMethods {
   "tasks.list": { params: {
-  owner?: AgentName;
+  owner?: Who;
   /** Only the tasks this agent, or human, acts on now (Task.acting). */
-  acting?: AgentName;
+  acting?: Who;
   /** Who the task answers to (Task.asker). */
-  reporter?: AgentName;
-  from?: AgentName;
+  reporter?: Who;
+  from?: Who;
   /** draft, queued, doing, done or discarded, or one of three groups: open (queued or doing), draft, and closed (done and discarded together). open and draft return every row of the caller's scope: no limit, `more` false, no cursor. closed needs order closed and pages by its cursor. */
   state?: string;
   /** Tasks that carry every one of these tags (lowercased first). With the other filters, every one given must hold. */
@@ -474,7 +474,7 @@ export interface TasksMethods {
   all?: boolean;
   /** Every team's tasks, not only the caller's and its reports'. */
   everyone?: boolean;
-  /** Only the tasks the caller acts on (acting) that wait on it: queued or doing, never draft or ended; the founder's are the ones acting is human. One row per task. It takes no acting. */
+  /** Only the tasks the caller acts on (acting) that wait on it: queued or doing, never draft or ended; the founder's are the ones whose acting is their key. One row per task. It takes no acting. */
   my_turn?: boolean;
   /** Also count, over the last 30 days, the requests that ended with no reason and how tasks were closed (the `reason_gaps` of the result). It costs seconds on a large database: a screen that polls never asks. */
   reason_gaps?: boolean;
@@ -556,9 +556,9 @@ export interface TasksMethods {
   } };
   "task.new": { params: {
   /** An agent, human, or gate: a task the daemon holds that watches outside state (watch) and closes when it changes. */
-  owner: AgentName;
+  owner: Who;
   /** Who the task answers to: told when it ends, and may edit or reassign it. Default: the caller. */
-  reporter?: AgentName;
+  reporter?: Who;
   title: string;
   /** The brief, Markdown. It may name images (x-attachments, texts). */
   body?: string;
@@ -588,7 +588,7 @@ export interface TasksMethods {
   } };
   "task.handoff": { params: {
   task: number;
-  to: AgentName;
+  to: Who;
   /** Markdown. It may name images (x-attachments, texts); they are the task's while it is open. */
   note?: string;
   request_id: RequestId;
@@ -699,11 +699,11 @@ export interface TasksMethods {
   /** Tell every reader at once, even mid-turn. */
   now?: boolean;
   /** Agents not to tell of this comment, from the ones task.comment.recipients names. Skipping the assignee is allowed; the comment stays on the task either way. A name that would not have been told is ignored. */
-  skip?: AgentName[];
+  skip?: Who[];
   /** The comment on the same task this one answers (Memo.reply_to). Refused (not_found memo) when the task has no such comment. */
   reply?: number;
   /** Hand the task to this agent, or human, with this comment: it goes on top and acts now; the one below keeps its turn but acts on nothing, so its doing slot frees. For human, the comment is the decision and what you recommend. */
-  turn?: AgentName;
+  turn?: Who;
   /** With turn naming an agent: the done evidence a pass of that turn closes the task with (a review of finished work). */
   done?: string;
   /** Absolute paths of files the memo carries (Memo.files): PNG, JPEG, GIF or WebP images and .md Markdown, at most 10 MiB each. The daemon reads each and keeps a copy under its home. An agent may name only files under its worktree, its folder or the scratch folder; the founder any. A path outside those, a file of another type, an image whose first bytes do not match its ending, or a .md that is not text is bad_request (field files). */
@@ -731,7 +731,7 @@ export interface TasksMethods {
   /** Tell every reader at once, even mid-turn. */
   now?: boolean;
   /** Agents not to tell of this comment, from the ones task.comment.recipients names. Skipping the assignee is allowed; the comment stays on the task either way. A name that would not have been told is ignored. */
-  skip?: AgentName[];
+  skip?: Who[];
   /** Absolute paths of files the memo carries (Memo.files): PNG, JPEG, GIF or WebP images and .md Markdown, at most 10 MiB each. The daemon reads each and keeps a copy under its home. An agent may name only files under its worktree, its folder or the scratch folder; the founder any. A path outside those, a file of another type, an image whose first bytes do not match its ending, or a .md that is not text is bad_request (field files). */
   files?: string[];
   request_id: RequestId;
@@ -759,7 +759,7 @@ export interface TasksMethods {
 }; result: Accepted };
   "task.comment.send_now": { params: {
   memo: number;
-  agent: AgentName;
+  agent: Who;
   request_id: RequestId;
 }; result: Accepted };
   "task.send_now": { params: {
@@ -809,7 +809,7 @@ export interface TasksMethods {
   /** Default: the message's first line. */
   title?: string;
   /** The agent who holds the request. Default: the agent the message was sent to. */
-  owner?: AgentName;
+  owner?: Who;
   request_id: RequestId;
 }; result: Accepted & {
     task: number;
@@ -846,9 +846,9 @@ export interface TasksMethods {
 }; result: Accepted };
   "task.edit": { params: {
   task: number;
-  owner?: AgentName;
+  owner?: Who;
   /** A new reporter (who the task answers to); by its opener, its reporter or the founder. */
-  reporter?: AgentName;
+  reporter?: Who;
   title?: string;
   /** The new brief, Markdown. It may name images (x-attachments, texts). */
   body?: string;
@@ -873,7 +873,7 @@ export interface TasksMethods {
 }; result: Accepted };
   "task.ask": { params: {
   task: number;
-  to: AgentName;
+  to: Who;
   /** The question; not empty. */
   text: string;
   request_id: RequestId;

@@ -16,7 +16,7 @@
      "agent": {
       "oneOf": [
        {
-        "$ref": "#/components/schemas/AgentName"
+        "$ref": "#/components/schemas/Who"
        },
        {
         "type": "null"
@@ -459,7 +459,7 @@
        },
        "who": {
         "type": "string",
-        "description": "Who did it: the agent (or human) that opened, changed, closed or withdrew the task, as ChatRequestItem.who."
+        "description": "Who did it: the key of the agent or person that opened, changed, closed or withdrew the task, as ChatRequestItem.who."
        },
        "closed_task": {
         "type": "integer",
@@ -605,7 +605,7 @@
        },
        "who": {
         "type": "string",
-        "description": "Who wrote it: the agent, or human for an answer."
+        "description": "Who wrote it: the agent's key, or the person's for an answer."
        },
        "text": {
         "type": "string",
@@ -1164,7 +1164,7 @@
      "name": "agent",
      "required": true,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     },
     {
@@ -1254,7 +1254,7 @@
      "name": "agent",
      "required": true,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     },
     {
@@ -1354,7 +1354,7 @@
      "name": "agent",
      "required": true,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     },
     {
@@ -1445,7 +1445,7 @@
      "name": "agent",
      "required": false,
      "schema": {
-      "$ref": "#/components/schemas/AgentName",
+      "$ref": "#/components/schemas/Who",
       "description": "Optional: the daemon finds the conversation from the message itself."
      }
     },
@@ -1475,7 +1475,7 @@
      ],
      "properties": {
       "agent": {
-       "$ref": "#/components/schemas/AgentName",
+       "$ref": "#/components/schemas/Who",
        "description": "The agent whose chat shows it."
       },
       "scope": {
@@ -1546,7 +1546,7 @@
      "name": "agent",
      "required": true,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     }
    ],
@@ -1616,7 +1616,7 @@
      "name": "agent",
      "required": false,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     },
     {
@@ -1642,7 +1642,7 @@
      "name": "with",
      "required": false,
      "schema": {
-      "$ref": "#/components/schemas/AgentName",
+      "$ref": "#/components/schemas/Who",
       "description": "Only messages whose other party is this name: an agent, or `human` for the person. When one agent's messages are searched (`agent`, or the caller for an agent), the party other than that agent; when the person searches every agent (no `agent`), messages from or to the name. A name no message has finds nothing."
      }
     },
@@ -1710,7 +1710,7 @@
      "name": "agent",
      "required": true,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     },
     {
@@ -1983,7 +1983,7 @@
      "name": "agent",
      "required": true,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     },
     {
@@ -2415,7 +2415,7 @@
      "name": "agent",
      "required": false,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     },
     {
@@ -2492,7 +2492,7 @@
      "name": "whose",
      "required": false,
      "schema": {
-      "$ref": "#/components/schemas/AgentName",
+      "$ref": "#/components/schemas/Who",
       "description": "An agent's name, or `human` for the founder's mailbox. Default: the caller's own."
      }
     },

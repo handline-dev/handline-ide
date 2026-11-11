@@ -105,7 +105,7 @@
      "waiting_on": {
       "type": "array",
       "items": {
-       "$ref": "#/components/schemas/AgentName"
+       "$ref": "#/components/schemas/Who"
       },
       "description": "Set only while state is applying: the agents whose running turn the change waits on, by their names before the change. A card names them."
      },
@@ -117,7 +117,7 @@
       "type": "object",
       "properties": {
        "agent": {
-        "$ref": "#/components/schemas/AgentName"
+        "$ref": "#/components/schemas/Who"
        },
        "state": {
         "type": "string",
@@ -144,7 +144,7 @@
      },
      "requested_by": {
       "type": "string",
-      "description": "Who asked: an agent's name, or `human` for the founder's own change (a retire held for a running session, say); a client draws `human` as the founder, never as an agent. Text from the daemon's record; optional."
+      "description": "Who asked: an agent's key, or the person's for the founder's own change (a retire held for a running session, say); a client draws a person key as the person, never as an agent. Text from the daemon's record; optional."
      },
      "reason": {
       "type": "string",
@@ -230,7 +230,7 @@
       "type": "integer"
      },
      "target": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      },
      "cron": {
       "type": "string"
@@ -363,7 +363,7 @@
     "type": "object",
     "properties": {
      "target": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      },
      "error": {
       "type": "string",
@@ -708,7 +708,7 @@
          },
          "added_by": {
           "type": "string",
-          "description": "An agent's name, or human."
+          "description": "An agent's key, or a person's."
          }
         }
        },
@@ -1141,7 +1141,7 @@
      "name": "target",
      "required": true,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     },
     {
@@ -1222,7 +1222,7 @@
      "name": "target",
      "required": false,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     },
     {

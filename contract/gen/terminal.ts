@@ -1,6 +1,6 @@
 // Generated from contract/spec/ by contract/generate.py; do not edit.
 /* eslint-disable */
-import type { Accepted, AgentName, Cursor, InputHolder, RequestId, Role, Row, Topic, WriteKind } from './core.ts';
+import type { Accepted, Cursor, InputHolder, RequestId, Role, Row, Topic, Who, WriteKind } from './core.ts';
 
 export type TerminalSnapshot = {
   terminal: string;
@@ -61,7 +61,7 @@ export type HistoryBytesPage = {
 };
 
 export type TerminalOpening = {
-  agent: AgentName;
+  agent: Who;
   /** The terminal handle, as terminal.attach takes it. */
   terminal: string;
   /** tmux; open set. */
@@ -74,7 +74,7 @@ export type TerminalOpening = {
 };
 
 export type ShellOpening = {
-  agent: AgentName;
+  agent: Who;
   /** The shell's handle, as terminal.attach takes it. */
   terminal: string;
   /** The directory the shell started in. */
@@ -84,7 +84,7 @@ export type ShellOpening = {
 
 export interface TerminalMethods {
   "terminal.attach": { params: {
-  agent?: AgentName;
+  agent?: Who;
   /** Handle; give agent or terminal, not both. */
   terminal?: string;
   /** History lines to include; default 100. */
@@ -112,14 +112,14 @@ export interface TerminalMethods {
   request_id: RequestId;
 }; result: Accepted };
   "terminal.close": { params: {
-  agent: AgentName;
+  agent: Who;
   request_id: RequestId;
 }; result: Accepted };
   "terminal.open": { params: {
-  agent: AgentName;
+  agent: Who;
 }; result: TerminalOpening };
   "shell.open": { params: {
-  agent: AgentName;
+  agent: Who;
   command?: string;
   block?: string;
   request_id: RequestId;

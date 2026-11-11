@@ -1,6 +1,6 @@
 // Generated from contract/spec/ by contract/generate.py; do not edit.
 /* eslint-disable */
-import type { Accepted, AgentName, ReadCursor, RequestId, Role, Timestamp, Topic, WriteKind } from './core.ts';
+import type { Accepted, ReadCursor, RequestId, Role, Timestamp, Topic, Who, WriteKind } from './core.ts';
 
 export type TeamAgent = {
   /** The agent's key (a17). */
@@ -31,12 +31,12 @@ export type Proposal = {
   /** open: waits for the founder. applying: approved by the founder and held until each agent in `waiting_on` ends its turn; the daemon then closes those sessions, applies the change and restarts each agent that stays; it turns approved once the change is applied (an agent that stays and does not start at once is `follow_up`, not a failure), or apply_failed when the change itself fails; `settled` stays null and the founder is offered no action meanwhile. approved: decided and applied. rejected. apply_failed: approved by the founder but not applied (the apply failed, or never ran): still the founder's move, and proposal.decide approve again applies it. withdrawn: taken back by its author or the founder. An open set: a client draws a word it does not know as text, offers no action on it and does not count it. See proposal.list for the proposal file's own states. */
   state: string;
   /** Set only while state is applying: the agents whose running turn the change waits on, by their names before the change. A card names them. */
-  waiting_on?: AgentName[];
+  waiting_on?: Who[];
   /** Set only while state is applying: when the proposal turned applying. With `waiting_on` it tells the card since when and why it waits (those agents' turns are running); proposal.apply_now ends the wait. */
   waiting_since?: Timestamp;
   /** Set on an approved proposal whose change is applied but an agent it renamed is not running yet. Absent when the change needs no start or the start went through; it is removed when the start succeeds. The change is applied either way: a client never draws it as not applied or offers approve again. */
   follow_up?: {
-    agent: AgentName;
+    agent: Who;
     /** waiting: the start is put off for machine load and the daemon makes it by itself when the load drops; the card shows no retry. failed: the start failed for another reason and only the founder's Start now (agent.force_start) retries it. An open set: draw a word you do not know as text. */
     state: string;
     /** Why, from the daemon (the held limit or the failure), one line. */
@@ -45,7 +45,7 @@ export type Proposal = {
   created: Timestamp;
   /** Digest of what the proposal changes as drawn; proposal.decide's approve hands it back. */
   subject: string;
-  /** Who asked: an agent's name, or `human` for the founder's own change (a retire held for a running session, say); a client draws `human` as the founder, never as an agent. Text from the daemon's record; optional. */
+  /** Who asked: an agent's key, or the person's for the founder's own change (a retire held for a running session, say); a client draws a person key as the person, never as an agent. Text from the daemon's record; optional. */
   requested_by?: string;
   /** Why it asks, as the agent wrote it. Text only, from an agent: a client draws it as plain text, never as markup, and drops control characters. Optional. */
   reason?: string;
@@ -71,7 +71,7 @@ export type Proposal = {
 
 export type Schedule = {
   id: number;
-  target: AgentName;
+  target: Who;
   cron: string;
   message: string;
   next_run: Timestamp | null;
@@ -111,7 +111,7 @@ export type ProposalArgs = {
 };
 
 export type ScheduleError = {
-  target: AgentName;
+  target: Who;
   /** Why the agent's `schedules` value cannot be read. */
   error: string;
 };
@@ -175,7 +175,7 @@ export interface TeamMethods {
     declared: {
       root: string;
       why: string;
-      /** An agent's name, or human. */
+      /** An agent's key, or a person's. */
       added_by: string;
     }[];
   } };
@@ -227,7 +227,7 @@ export interface TeamMethods {
     errors?: ScheduleError[];
   } };
   "schedule.add": { params: {
-  target: AgentName;
+  target: Who;
   cron: string;
   message: string;
   request_id: RequestId;
@@ -236,7 +236,7 @@ export interface TeamMethods {
   } };
   "schedule.edit": { params: {
   schedule: number;
-  target?: AgentName;
+  target?: Who;
   cron?: string;
   message?: string;
   request_id: RequestId;
