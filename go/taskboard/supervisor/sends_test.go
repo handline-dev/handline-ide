@@ -42,7 +42,7 @@ func TestSayVerbQueuesAndTypesAtOnce(t *testing.T) {
 
 func TestSayToAReportWithoutATaskIsRefusedWithTheTaskThatWouldReachIt(t *testing.T) {
 	r := newRig(t)
-	teamtest.Set(t, r.home, r.k(("bob")), "reports_to", r.k(("alice")))
+	teamtest.Set(t, r.home, "bob", "reports_to", "alice")
 	out := r.say(SayVerbIn{Requester: r.k(("alice")), Target: r.k(("bob")), Body: "fix the bug"})
 	want := "work cannot reach a report by message: make it a task, or comment on the task it has. Try:\n  hl task new --assign bob -t 2h '<title>' 'fix the bug'\n  hl task comment T<n> add '@bob fix the bug'"
 	if out.OK || r.named(out.Msg) != want {

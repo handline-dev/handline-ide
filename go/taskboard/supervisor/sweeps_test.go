@@ -13,8 +13,8 @@ import (
 
 // carolLeadsBob makes carol the lead of bob's team.
 func (r *rig) carolLeadsBob() {
-	r.register(r.k("carol"))
-	teamtest.Set(r.t, r.home, r.k(("bob")), "reports_to", r.k(("carol")))
+	r.register("carol")
+	teamtest.Set(r.t, r.home, "bob", "reports_to", "carol")
 }
 
 func TestSweepHoldsRecordsWhyEachTaskWaitsAndWarnsOnceWhenNothingIsInTheWay(t *testing.T) {
@@ -47,13 +47,13 @@ func TestSweepHoldsRecordsWhyEachTaskWaitsAndWarnsOnceWhenNothingIsInTheWay(t *t
 	r.must(r.SweepHolds(r.clock))
 	r.must(r.SweepHolds(r.clock + 1))
 	var warned, toFounder int
-	r.DB.QueryRow("SELECT COUNT(*) FROM requests WHERE target = 'carol' AND body LIKE '%missed delivery%'").Scan(&warned)
-	r.DB.QueryRow("SELECT COUNT(*) FROM requests WHERE target = 'human' AND body LIKE '%missed delivery%'").Scan(&toFounder)
+	r.DB.QueryRow(r.sql("SELECT COUNT(*) FROM requests WHERE target = 'carol' AND body LIKE '%missed delivery%'")).Scan(&warned)
+	r.DB.QueryRow(r.sql("SELECT COUNT(*) FROM requests WHERE target = 'human' AND body LIKE '%missed delivery%'")).Scan(&toFounder)
 	if warned != 1 || toFounder != 0 || !r.logged("T1: waited 5 min for an owner that looks able - its lead told") { // T1 and T3 are both able, only bob has a lead
 		t.Fatalf("%d %v", warned, r.logs)
 	}
 	var body string
-	r.DB.QueryRow("SELECT body FROM requests WHERE target = 'carol' AND kind = 'say' AND notice >= 1").Scan(&body)
+	r.DB.QueryRow(r.sql("SELECT body FROM requests WHERE target = 'carol' AND kind = 'say' AND notice >= 1")).Scan(&body)
 	if !strings.HasPrefix(body, "T1 has waited 5 min for bob, which looks able to take it (nothing is in the way") {
 		t.Fatalf("%q", body)
 	}
@@ -101,7 +101,7 @@ func TestTheMissedDeliveryAlarmSkipsTasksThatWaitOnPurpose(t *testing.T) {
 			r.must(r.SweepHolds(r.clock))
 			r.must(r.SweepHolds(r.clock + AbleWarnS))
 			var warned int
-			r.DB.QueryRow("SELECT COUNT(*) FROM requests WHERE target = 'carol' AND body LIKE ?", fmt.Sprintf("T%d has waited %%", tid)).Scan(&warned)
+			r.DB.QueryRow(r.sql("SELECT COUNT(*) FROM requests WHERE target = 'carol' AND body LIKE ?"), fmt.Sprintf("T%d has waited %%", tid)).Scan(&warned)
 			if (warned == 1) != c.alarm || warned > 1 {
 				t.Fatalf("alarm %v, %d told", c.alarm, warned)
 			}
@@ -334,7 +334,7 @@ func TestAHeldMemoWaitsForTheSameWindowAsAnyNotice(t *testing.T) {
 // A gate is held by the daemon, not waiting for an agent: the hold sweep keeps no reason for it, so it reads as watching.
 func TestTheHoldSweepLeavesAGateAlone(t *testing.T) {
 	r := newRig(t)
-	_, err := r.DB.Exec("INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by, sent_at, watch_vendor, watch_target, watch_until, " +
+	_, err := r.DB.Exec(r.sql("INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by, sent_at, watch_vendor, watch_target, watch_until, ") +
 		"watch_label) VALUES(1, 'wait for CI', 'gate', 'bob', 1, 'bob', 1, 'github', 'o/r#7', 'ci', 'PR #7 CI')")
 	r.must(err)
 	r.must(r.SweepHolds(r.clock))

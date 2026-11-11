@@ -32,7 +32,7 @@ func (r *rig) refusedCall(agent, method, params, want string) {
 // bigTeam is the rig's team with carol, dave and erin beside alice and bob, any of whom may ask any other.
 func (r *rig) bigTeam() {
 	r.t.Helper()
-	r.register(r.k("carol"), r.k(("dave")), r.k(("erin")))
+	r.register("carol", "dave", "erin")
 }
 
 func (r *rig) acting(tid int64) string {

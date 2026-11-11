@@ -37,7 +37,9 @@ func (r *rig) named(s string) string               { return namer(r.home)(s) }
 func keyOf(t testing.TB, home, name string) string { return teamtest.Key(t, home, name) }
 
 // namedQ is QueueDelivered read by name.
-func (r *rig) namedQ(tid int64, by string, queued bool) string { return r.named(r.QueueDelivered(tid, by, queued)) }
+func (r *rig) namedQ(tid int64, by string, queued bool) string {
+	return r.named(r.QueueDelivered(tid, by, queued))
+}
 
 // sql is q with each agent named in quotes ('bob', or "bob" in a JSON payload) by its key, longest names first, and 'human' by p1.
 func (r *rig) sql(q string) string {
