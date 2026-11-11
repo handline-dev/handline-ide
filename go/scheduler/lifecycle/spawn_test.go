@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/team/teamtest"
 )
 
 func gitIn(t *testing.T, dir string, args ...string) {
@@ -171,7 +172,8 @@ func spawnRig(t *testing.T) (*Spawns, *runHost, string) {
 	t.Helper()
 	repo, _ := repoWithOrigin(t)
 	h := &runHost{fakeHost: fakeHost{handle: "t7"}, wtMade: t.TempDir(), created: "run-1"}
-	s := &Spawns{Q: openDB(t), Host: h, Launch: fakeLaunch{}, Delivery: upDelivery{up: true}, Sleep: func(time.Duration) {}}
+	q := teamtest.Seed(t, t.TempDir(), "a") // a spawn names the worktree by the agent's key
+	s := &Spawns{Q: q, Host: h, Launch: fakeLaunch{}, Delivery: upDelivery{up: true}, Sleep: func(time.Duration) {}}
 	return s, h, repo
 }
 

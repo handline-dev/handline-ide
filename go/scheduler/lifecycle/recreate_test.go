@@ -8,11 +8,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/handline/handline/go/scheduler/worktreepaths"
-
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/kit/gitrun"
+	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/peer"
 	"github.com/handline/handline/go/scheduler/worktreelock"
+	"github.com/handline/handline/go/scheduler/worktreepaths"
 )
 
 // A spawn's worktree that is gone is added again at its path on its branch, the lock its gone session left let go first; one with its
@@ -29,14 +30,17 @@ func TestRecreateMakesAGoneWorktreeAgainFromItsBranch(t *testing.T) {
 			t.Fatal(r.Stderr)
 		}
 	}
-	wt := filepath.Join(root, "proj.worktrees", "shop.sea")
-	gitrun.Run(repo, "worktree", "add", "-q", "-b", "shop.sea", wt)
+	home := t.TempDir()
+	d := teamtest.Seed(t, home, "shop", "shop.sea", "shop.air", "shop.se")
+	sea, air := paths.AgentKey(home, "shop.sea"), paths.AgentKey(home, "shop.air") // a spawn names the folder and branch by key
+	wt := filepath.Join(root, "proj.worktrees", sea)
+	gitrun.Run(repo, "worktree", "add", "-q", "-b", sea, wt)
 	// Deleted while its session held it: the lock stays in the repository.
 	if err := worktreelock.Hold(wt, "shop.sea", 999999, 1, func(int, int64) bool { return false }); err != nil {
 		t.Fatal(err)
 	}
 	os.RemoveAll(wt)
-	s := &Spawns{}
+	s := &Spawns{Q: d}
 	// While the session that locked it still runs, it is not made again under it.
 	lockAs := func(pid int, started int64) {
 		gitrun.Run(repo, "worktree", "unlock", wt)
@@ -51,12 +55,12 @@ func TestRecreateMakesAGoneWorktreeAgainFromItsBranch(t *testing.T) {
 	if path, why := s.Recreate("shop.sea", repo, "repo-id::"+wt); path != wt || why != "" || worktreepaths.WorktreePath(wt) != wt {
 		t.Fatalf("not made again: %q %q", path, why)
 	}
-	gone := filepath.Join(root, "proj.worktrees", "shop.air")
-	if path, why := s.Recreate("shop.air", repo, gone); path != "" || !strings.Contains(why, "its branch shop.air is not in") {
+	gone := filepath.Join(root, "proj.worktrees", air)
+	if path, why := s.Recreate("shop.air", repo, gone); path != "" || !strings.Contains(why, "its branch "+air+" is not in") {
 		t.Fatalf("a worktree whose branch is gone: %q %q", path, why)
 	}
 	os.RemoveAll(wt)
-	for _, agent := range []string{"shop", "shop.se"} { // shop.sea is no spawn branch of either
+	for _, agent := range []string{"shop", "shop.se"} { // shop.sea's key is no spawn branch of either
 		if path, why := s.Recreate(agent, repo, wt); path != "" || !strings.Contains(why, "not one a spawn made for it") {
 			t.Fatalf("%s took another agent's worktree and branch: %q %q", agent, path, why)
 		}
@@ -64,7 +68,7 @@ func TestRecreateMakesAGoneWorktreeAgainFromItsBranch(t *testing.T) {
 	if !spawnBranch("needsyou", "needsyou-2") || spawnBranch("needsyou", "needsyou-probe") || spawnBranch("needsyou", "needsyou-") {
 		t.Fatal("a spawn branch is the name or <name>-<digits>")
 	}
-	if path, why := s.Recreate("x", repo, "handline/handline"); path != "" || !strings.Contains(why, "not an absolute path") || worktreepaths.WorktreePath(".") != "" {
+	if path, why := s.Recreate("shop", repo, "handline/handline"); path != "" || !strings.Contains(why, "not an absolute path") || worktreepaths.WorktreePath(".") != "" {
 		t.Fatalf("a relative path: %q %q", path, why)
 	}
 }
