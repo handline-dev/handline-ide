@@ -2,7 +2,6 @@ package compose
 
 import (
 	"os"
-	"path/filepath"
 	"testing"
 
 	dbpkg "github.com/handline/handline/go/data/db"
@@ -20,7 +19,6 @@ func ownersRig(t *testing.T) (p *Parts, bobRow string, count func(table string) 
 			t.Fatal(err)
 		}
 	}
-	os.MkdirAll(filepath.Join(p.home, "agents", "bob"), 0o755)
 	count = func(table string) int {
 		var n int
 		if err := d.QueryRow("SELECT COUNT(*) FROM " + table).Scan(&n); err != nil {

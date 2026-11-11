@@ -64,3 +64,17 @@ func TestAnAgentsFolderIsNamedByItsKeyWhateverItIsCalled(t *testing.T) {
 		t.Errorf("a name no agent has: %s", got)
 	}
 }
+
+func TestAgentKeyInTakesAKeyOrAName(t *testing.T) {
+	home := t.TempDir()
+	seedAgents(t, home)
+	d, err := store.Shared(DBFile(home))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for who, want := range map[string]string{"a1": "a1", "a9": "", "w.x": "a1", "w": "a2", "w.nobody": ""} {
+		if got, err := AgentKeyIn(d, who); err != nil || got != want {
+			t.Errorf("AgentKeyIn(%s) = %q %v, want %q", who, got, err, want)
+		}
+	}
+}

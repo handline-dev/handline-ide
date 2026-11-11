@@ -194,10 +194,7 @@ func (e *Env) doRetire(p step) (bool, string, error) {
 	if err := prefs.Forget(p.tx, name); err != nil {
 		return false, "", err
 	}
-	src := paths.AgentDir(e.Home, name)
-	if key != "" {
-		src = paths.AgentDir(e.Home, key)
-	}
+	src := paths.AgentDir(e.Home, key) // Remove refused a name with no row, so key is set
 	dest := filepath.Join(e.Home, "agents", "archive", time.Now().Format("2006-01-02")+"-"+name)
 	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 		return false, "", err
@@ -210,7 +207,7 @@ func (e *Env) doRetire(p step) (bool, string, error) {
 			return false, "", err
 		}
 	}
-	if err := paths.RemoveCacheDir(e.Home, filepath.Base(src)); err != nil { // the folder is archived already: a cache left behind does not undo that
+	if err := paths.RemoveCacheDir(e.Home, key); err != nil { // the folder is archived already: a cache left behind does not undo that
 		e.logf("  %s: its build caches were not removed: %v", name, err)
 	}
 	return true, fmt.Sprintf("%s is retired; its folder is at %s. %s", name, dest, cleared), nil
@@ -262,7 +259,7 @@ func (e *Env) doRename(p step) (bool, string, error) {
 		return false, "", err
 	}
 	// The terminal host's worktree label is the host's to set; tmux keeps none.
-	return true, fmt.Sprintf("%s is now %s: its row, folder, and every row that named it.", old, new), nil
+	return true, fmt.Sprintf("%s is now %s: its row and every row that named it.", old, new), nil
 }
 
 func pyStr(v any) string {

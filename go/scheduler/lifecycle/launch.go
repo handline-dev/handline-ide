@@ -721,31 +721,42 @@ func (l *Launcher) MainRefFiles(worktree string) []string {
 }
 
 // RosterFiles are the files that say what each agent is told, which only the founder's path writes: every agent's ROLE.md and base.md.
-// Home is writable to a session, so these are denied by name, plus one glob each so an agent made after this launch is covered too.
-func (l *Launcher) RosterFiles() []string {
+// Home is writable to a session, so these are denied by folder, plus globs so an agent made after this launch, and a name with no
+// agent (paths.Unregistered), are covered too.
+func (l *Launcher) RosterFiles() ([]string, error) {
+	keys, err := paths.AgentKeys(l.Home)
+	if err != nil {
+		return nil, err
+	}
 	dir := paths.AgentsDir(l.Home)
 	per := []string{"ROLE.md", "base.md"}
 	var out []string
-	for _, n := range paths.ListAgents(l.Home) {
+	for _, k := range keys {
 		for _, f := range per {
-			out = append(out, filepath.Join(paths.AgentDir(l.Home, n), f))
+			out = append(out, filepath.Join(dir, k, f))
 		}
 	}
 	for _, f := range per {
-		out = append(out, filepath.Join(dir, "*", f))
+		out = append(out, filepath.Join(dir, "*", f), filepath.Join(dir, paths.Unregistered, "*", f))
 	}
-	return out
+	sort.Strings(out)
+	return out, nil
 }
 
 // HiddenMemories are the memory folders agent may not read: every other agent's, with no exception for its reports.
-func (l *Launcher) HiddenMemories(agent string) []string {
+func (l *Launcher) HiddenMemories(agent string) ([]string, error) {
+	keys, err := paths.AgentKeys(l.Home)
+	if err != nil {
+		return nil, err
+	}
 	var out []string
-	for _, a := range paths.ListAgents(l.Home) {
-		if a != agent {
-			out = append(out, filepath.Join(paths.AgentDir(l.Home, a), "memory"))
+	for name, k := range keys {
+		if name != agent {
+			out = append(out, filepath.Join(paths.AgentsDir(l.Home), k, "memory"))
 		}
 	}
-	return out
+	sort.Strings(out)
+	return out, nil
 }
 
 var githubRemote = regexp.MustCompile(`github\.com[:/]([\w.-]+/[\w.-]+?)(?:\.git)?\s`)
@@ -794,8 +805,16 @@ func (l *Launcher) Confinement(agent, worktree string, tr Transcripts) (hide, no
 	if err != nil {
 		return nil, nil, err
 	}
-	hide = append(append(hide, l.HiddenMemories(agent)...), l.Tokens.HiddenFolders()...)
-	return hide, append(l.MainRefFiles(worktree), l.RosterFiles()...), nil
+	memories, err := l.HiddenMemories(agent)
+	if err != nil {
+		return nil, nil, err
+	}
+	roster, err := l.RosterFiles()
+	if err != nil {
+		return nil, nil, err
+	}
+	hide = append(append(hide, memories...), l.Tokens.HiddenFolders()...)
+	return hide, append(l.MainRefFiles(worktree), roster...), nil
 }
 
 // HiddenTranscripts are the transcript folders agent may not read: every other agent's except its own and its reports', in every
