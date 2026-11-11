@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/handline/handline/go/data/agenthost"
@@ -44,7 +45,7 @@ func takeSnapshot(home string, names map[string]bool) (*snapshot, error) {
 	for n := range names {
 		s.dirs = append(s.dirs, paths.AgentDir(home, n))
 	}
-	sortStrings(s.dirs)
+	slices.Sort(s.dirs)
 	for i, d := range s.dirs {
 		if st, err := os.Stat(d); err == nil && st.IsDir() {
 			to := filepath.Join(dir, fmt.Sprint(i))
@@ -61,14 +62,6 @@ func takeSnapshot(home string, names map[string]bool) (*snapshot, error) {
 		}
 	}
 	return s, nil
-}
-
-func sortStrings(xs []string) {
-	for i := 1; i < len(xs); i++ {
-		for j := i; j > 0 && xs[j] < xs[j-1]; j-- {
-			xs[j], xs[j-1] = xs[j-1], xs[j]
-		}
-	}
 }
 
 // copyTree copies a folder with its links as links.

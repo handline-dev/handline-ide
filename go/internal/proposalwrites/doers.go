@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -144,7 +145,7 @@ func (e *Env) doTeam(p step) (bool, string, error) {
 			repos = append(repos, repo)
 		}
 	}
-	sortStrings(repos)
+	slices.Sort(repos)
 	for _, r := range repos {
 		r := r
 		p.later(func() string { return registerRepo(r) })
