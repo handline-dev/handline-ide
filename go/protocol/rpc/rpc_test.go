@@ -452,3 +452,17 @@ func TestAHelloNoteIsHandedToTheServerOnTheLocalSocketOnly(t *testing.T) {
 		t.Fatalf("noted %q, want only %q", got, want)
 	}
 }
+
+// A who param's word, and a who inside an object param, reach the handler as the key Server.Who gives; anything else is left as sent.
+func TestWhoParamsAreResolvedBeforeTheHandler(t *testing.T) {
+	srv := NewServer(fakeAuth{}, "abc1234", 7, "local", func(string, ...any) {})
+	srv.Who = func(w string) string { return map[string]string{"human": "p1", "bob": "a2"}[w] + "|" + w }
+	p := map[string]any{"agent": "bob", "minutes": json.Number("5")}
+	srv.resolveWho("load.get", p)
+	f := map[string]any{"owner": "bob", "reporter": "human", "state": "doing"}
+	v := map[string]any{"name": "bob", "filter": f}
+	srv.resolveWho("task.view.save", v)
+	if p["agent"] != "a2|bob" || p["minutes"] != json.Number("5") || f["owner"] != "a2|bob" || f["reporter"] != "p1|human" || f["state"] != "doing" || v["name"] != "bob" {
+		t.Fatalf("%v %v", p, v)
+	}
+}
