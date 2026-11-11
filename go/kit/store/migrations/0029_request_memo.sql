@@ -1,1 +1,0 @@
--- Step 29 (request_memo) is by hand: addRequestMemo in store.go.

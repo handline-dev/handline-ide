@@ -2,14 +2,21 @@ package devices
 
 import (
 	"database/sql"
+
+	"github.com/handline/handline/go/kit/actor"
 )
 
 // SQLStore keeps devices in the daemon's database, in the devices table. Revoking a device deletes its row, and its push token with it.
 type SQLStore struct{ DB *sql.DB }
 
+// Add stores a paired device as the owner's: in personal mode the owner is the only person who pairs one.
 func (s SQLStore) Add(d Device, tokenHash string) error {
-	_, err := s.DB.Exec("INSERT INTO devices(id, name, token_hash, created, last_seen, address, kind) VALUES(?,?,?,?,NULL,NULLIF(?,''),NULLIF(?,''))",
-		d.ID, d.Name, tokenHash, d.Created, d.Address, d.Kind)
+	person, err := actor.Owner(s.DB)
+	if err != nil {
+		return err
+	}
+	_, err = s.DB.Exec("INSERT INTO devices(id, person, name, token_hash, created, last_seen, address, kind) VALUES(?,?,?,?,?,NULL,NULLIF(?,''),NULLIF(?,''))",
+		d.ID, person, d.Name, tokenHash, d.Created, d.Address, d.Kind)
 	return err
 }
 

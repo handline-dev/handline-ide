@@ -35,6 +35,7 @@ import (
 	"github.com/handline/handline/go/internal/termchan"
 	"github.com/handline/handline/go/internal/transcript"
 	"github.com/handline/handline/go/internal/watcher"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/lock"
 	"github.com/handline/handline/go/kit/peer"
 	"github.com/handline/handline/go/kit/store"
@@ -176,6 +177,10 @@ func Start(cfg Config) (*Daemon, error) {
 	}
 	db, err := store.Open(cfg.DBFile)
 	if err != nil {
+		return nil, err
+	}
+	if _, err := actor.EnsureOwner(db, ownerName); err != nil {
+		db.Close()
 		return nil, err
 	}
 	d := &Daemon{cfg: cfg, db: db, started: time.Now(), conns: map[net.Conn]struct{}{}, stop: make(chan struct{})}

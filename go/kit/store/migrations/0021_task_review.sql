@@ -1,1 +1,0 @@
--- tasks.pr, accepted_by and accepted_at: added by addTaskReview in store.go, which skips a column already there.
