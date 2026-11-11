@@ -122,6 +122,7 @@ type SpecParam struct {
 	Name, Type string
 	Required   bool
 	Who        bool
+	WhoIn      []string // the properties of an object param that name a who
 }
 
 var specByName = func() map[string]SpecMethod {
@@ -503,13 +504,20 @@ func (c *Conn) route(msg any, raw []byte) (routed, error) {
 	}}, nil
 }
 
-// resolveWho puts the key in place of each who param's word (SpecParam.Who), so a handler sees keys only.
+// resolveWho puts the key in place of each who param's word (SpecParam.Who, and WhoIn inside an object), so a handler sees keys only.
 func (s *Server) resolveWho(method string, params map[string]any) {
 	sp, ok := Spec(method)
 	if !ok || s.Who == nil {
 		return
 	}
 	for _, p := range sp.Params {
+		if m, ok := params[p.Name].(map[string]any); ok {
+			for _, k := range p.WhoIn {
+				if w, ok := m[k].(string); ok {
+					m[k] = s.Who(w)
+				}
+			}
+		}
 		if !p.Who {
 			continue
 		}

@@ -1377,15 +1377,15 @@
       ]
      },
      "owner": {
-      "type": "string",
+      "$ref": "#/components/schemas/AgentName",
       "description": "Who works the task (its assignee)."
      },
      "reporter": {
-      "type": "string",
+      "$ref": "#/components/schemas/AgentName",
       "description": "Who the task answers to (its asker: hl's --owner)."
      },
      "from": {
-      "type": "string",
+      "$ref": "#/components/schemas/AgentName",
       "description": "Who opened it."
      }
     },

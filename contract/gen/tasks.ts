@@ -314,11 +314,11 @@ export type TaskFilter = {
   tags?: Tag[];
   state?: "draft" | "queued" | "doing" | "done" | "discarded";
   /** Who works the task (its assignee). */
-  owner?: string;
+  owner?: AgentName;
   /** Who the task answers to (its asker: hl's --owner). */
-  reporter?: string;
+  reporter?: AgentName;
   /** Who opened it. */
-  from?: string;
+  from?: AgentName;
 };
 
 /** A saved view: a filter kept under a name, so it is picked, not typed again. One set for the founder's devices. */
