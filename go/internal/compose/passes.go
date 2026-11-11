@@ -103,16 +103,29 @@ func (s settingsPorts) RulesNote(agent string, row *db.AgentState) (string, stri
 	return s.launcher.RulesNote(agent, row)
 }
 
-func (s settingsPorts) KeepRulesTold(q db.Q, agent, was, record string) error {
-	return s.launcher.KeepRulesTold(q, agent, was, record)
-}
-
-func (s settingsPorts) Tell(q db.Q, agent, text string) error {
-	rid, err := s.env.BoardSay(q, agent, text, "team rules")
-	if err == nil {
-		s.env.Push(q, agent, rid) // one held is told by the tick (TellUndelivered)
+// TellRules writes the say and the record in one transaction, then tells the say; one held is told by the tick (TellUndelivered).
+func (s settingsPorts) TellRules(agent, note, was, record string) error {
+	tx, err := s.env.DB.Begin()
+	if err != nil {
+		return err
 	}
-	return err
+	defer tx.Rollback()
+	var rid int64
+	if note != "" {
+		if rid, err = s.env.BoardSay(tx, agent, note, "team rules"); err != nil {
+			return err
+		}
+	}
+	if record != "" {
+		if err := s.launcher.KeepRulesTold(tx, agent, was, record); err != nil {
+			return err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	s.env.After(rid, agent)
+	return nil
 }
 
 func (s settingsPorts) FingerprintParts(agent string) ([]tick.Part, error) {
