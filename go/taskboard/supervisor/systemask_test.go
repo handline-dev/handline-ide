@@ -10,23 +10,29 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/taskboard/taskwrites"
 )
 
+// agentAuth proves agent's session, or, for a person's key, the founder key the person's hello carries.
 type agentAuth struct{ agent string }
 
-func (a agentAuth) AgentOf(int) string       { return a.agent }
-func (a agentAuth) SessionsReadable() error  { return nil }
-func (a agentAuth) FounderKeyOK(string) bool { return false }
+func (a agentAuth) AgentOf(int) string           { return a.agent }
+func (a agentAuth) SessionsReadable() error      { return nil }
+func (a agentAuth) FounderKeyOK(key string) bool { return key == "founder-key" }
 
 // callAs serves one connection as agent over the task methods with the rig's Env as the teller, and returns the reply to call.
 func (r *rig) callAs(agent, call string) map[string]any {
 	r.t.Helper()
 	if agent != "" {
 		agent = r.k(agent)
+	}
+	key := ""
+	if actor.IsPerson(agent) { // the person is the founder key's caller, not a session
+		agent, key = "", "founder-key"
 	}
 	srv := rpc.NewServer(agentAuth{agent}, "x", store.LatestVersion(), "local", func(string, ...any) {})
 	srv.DB = r.DB
@@ -39,7 +45,7 @@ func (r *rig) callAs(agent, call string) map[string]any {
 	in := bufio.NewReader(cl)
 	cl.SetDeadline(time.Now().Add(10 * time.Second))
 	var out map[string]any
-	for _, line := range []string{`{"jsonrpc":"2.0","id":1,"method":"hello","params":{"client":"t","protocol":1}}`, call} {
+	for _, line := range []string{fmt.Sprintf(`{"jsonrpc":"2.0","id":1,"method":"hello","params":{"client":"t","protocol":1,"key":%q}}`, key), call} {
 		if _, err := cl.Write([]byte(line + "\n")); err != nil {
 			r.t.Fatal(err)
 		}

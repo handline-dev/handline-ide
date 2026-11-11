@@ -159,7 +159,7 @@ func TestTheFoundersReadMarkerIsAChangeOfTheTask(t *testing.T) {
 	if err := tk.Scan(d, emit); err != nil {
 		t.Fatal(err)
 	}
-	exec(t, d, "INSERT INTO cursors(name, row_id, updated) VALUES('task_seen:human:1', 4, 6)")
+	exec(t, d, "INSERT INTO cursors(name, row_id, updated) VALUES('task_seen:p1:1', 4, 6)")
 	if err := tk.Scan(d, emit); err != nil {
 		t.Fatal(err)
 	}

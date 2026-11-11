@@ -21,9 +21,6 @@ const (
 // what was already dealt with under all. With wait_s the call holds until something newer than since waits there.
 func (e *Env) inboxQueue(c *rpc.Conn, params map[string]any) (any, error) {
 	caller := c.Caller.Actor()
-	if c.Caller.Role == "agent" {
-		caller = c.Caller.Key
-	}
 	whose := caller
 	if w, err := optStr(params, "whose"); err != nil {
 		return nil, err
@@ -64,7 +61,7 @@ func (e *Env) inboxQueue(c *rpc.Conn, params map[string]any) (any, error) {
 			case <-time.After(pollEvery):
 			}
 		}
-		if !held && actor.IsPerson(whose) {
+		if !held && whose == actor.OwnerKey {
 			return e.founderQueue(all)
 		} else if !held {
 			return e.agentQueue(whose, newest, all)
@@ -88,7 +85,7 @@ func (e *Env) listingRefusal(caller, whose string) string {
 // newestWaiting is the number of the newest thing that waits in whose inbox, 0 for nothing: for the founder a mailbox row, for an agent a
 // request no state has settled.
 func (e *Env) newestWaiting(whose string) (int64, error) {
-	if !actor.IsPerson(whose) {
+	if whose != actor.OwnerKey {
 		r, err := queryOne(e.DB, "SELECT COALESCE(MAX(id), 0) AS newest FROM requests WHERE target = ? AND edge_ok AND state NOT IN "+
 			"('landed', 'denied', 'withdrawn', 'replaced')", whose)
 		return r.i("newest"), err

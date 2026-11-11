@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/stream"
 	"github.com/handline/handline/go/internal/reads"
 )
@@ -32,7 +33,7 @@ var taskExtras = []struct {
 	{"SELECT task_id, COUNT(*) FROM task_blocks WHERE dormant = 0 GROUP BY task_id", false},
 	{"SELECT task_id, COUNT(*), group_concat(agent), MAX(since) FROM task_turns GROUP BY task_id", false},
 	// the founder's read marker of a task: reading its comments changes its unread count
-	{"SELECT CAST(substr(name, length('task_seen:human:') + 1) AS INTEGER), row_id FROM cursors WHERE name LIKE 'task_seen:human:%'", false},
+	{"SELECT CAST(substr(name, length('" + db.SeenPrefix + "') + 1) AS INTEGER), row_id FROM cursors WHERE name LIKE '" + db.SeenPrefix + "%'", false},
 }
 
 // Tasks is the tasks topic: a task that appeared or changed (its fields, a memo, a request linked to it), as the spec's Task. Its

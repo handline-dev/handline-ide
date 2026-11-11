@@ -1,6 +1,7 @@
 package supervisor
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -202,7 +203,7 @@ func TestResolvingAnAskTypesNothingAtItsAsker(t *testing.T) {
 	q := r.ask(r.k("alice"), r.k(("bob")), "what time is it", "ask")
 	ok, msg, err := r.Resolve(r.DB, ResolveIn{RID: q, Verdict: "noon"})
 	r.must(err)
-	if !ok || strings.Contains(msg, r.k(("alice"))) {
+	if !ok || slices.Contains(strings.Fields(msg), r.k("alice")) { // by word: a message id like msg_a1ce8f7 holds the key's letters
 		t.Fatal(ok, msg)
 	}
 	if last := r.term.last(); last != "" {
