@@ -124,7 +124,7 @@ func (e *Env) requestsPending(_ *rpc.Conn, _ map[string]any) (any, error) {
 		var items []int64
 		if tid != 0 {
 			// a request the founder queued to themself asks them nothing
-			open, err := query(e.DB, "SELECT r.id FROM requests r JOIN task_requests l ON l.request_id = r.id WHERE l.task_id = ? AND r.target = ? "+
+			open, err := query(e.DB, "SELECT r.id FROM task_requests l CROSS JOIN requests r ON l.request_id = r.id WHERE l.task_id = ? AND r.target = ? "+
 				"AND r.requester != ? AND r.state = 'queued' AND r.kind != 'say' ORDER BY r.id", tid, human, human)
 			if err != nil {
 				return nil, err

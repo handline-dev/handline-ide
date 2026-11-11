@@ -674,7 +674,8 @@ func (e *Env) waitingOf(t row, state string, waits []row, rec map[string]any) (m
 		sort.Slice(on, func(i, j int) bool { return on[i] < on[j] })
 		return map[string]any{"on": "task", "text": "blocked by " + tids(on), "tasks": on, "since": ts(since)}, since, nil
 	}
-	asked, err := queryOne(e.DB, "SELECT MIN(r.ts) AS since FROM requests r JOIN task_requests l ON l.request_id = r.id "+
+	// CROSS JOIN reads the task's few links first; left to plan, sqlite walks every request to the founder for each task.
+	asked, err := queryOne(e.DB, "SELECT MIN(r.ts) AS since FROM task_requests l CROSS JOIN requests r ON l.request_id = r.id "+
 		"WHERE l.task_id = ? AND r.target = ? AND "+notBoard+" AND "+founderOpen, t.i("id"), human)
 	if err != nil {
 		return nil, 0, err
