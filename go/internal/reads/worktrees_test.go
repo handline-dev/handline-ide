@@ -130,7 +130,8 @@ func TestEveryWorktreeCarriesItsFactsAndItsPullRequest(t *testing.T) {
 	os.WriteFile(filepath.Join(mine, "new.txt"), []byte("x"), 0o644)
 	addAgent(t, e, "alice", "")
 	teamtest.Set(t, e.Home, "alice", "repo", repo)
-	if _, err := e.DB.Exec("INSERT INTO agent_state(agent, state, updated, worktree) VALUES('alice', 'idle', 0, ?)", mine); err != nil {
+	alice := teamtest.Key(t, e.Home, "alice")
+	if _, err := e.DB.Exec("INSERT INTO agent_state(agent, state, updated, worktree) VALUES('"+alice+"', 'idle', 0, ?)", mine); err != nil {
 		t.Fatal(err)
 	}
 	e.DB.Exec("INSERT INTO meta(name, value, updated) VALUES(?, '2048', 0)", "worktree_size:"+mine)
@@ -146,7 +147,7 @@ func TestEveryWorktreeCarriesItsFactsAndItsPullRequest(t *testing.T) {
 	}
 	mineRow := func() map[string]any {
 		t.Helper()
-		got, err := e.worktreesList(nil, map[string]any{"owner": "alice"})
+		got, err := e.worktreesList(nil, map[string]any{"owner": alice})
 		if err != nil {
 			t.Fatal(err)
 		}

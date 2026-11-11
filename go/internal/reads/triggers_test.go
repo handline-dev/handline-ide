@@ -2,6 +2,7 @@ package reads
 
 import (
 	"errors"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"reflect"
 	"testing"
 
@@ -34,20 +35,21 @@ func TestAgentTriggersSaysWhatTheTickWouldDecideForEachAgent(t *testing.T) {
 	for _, a := range []string{"ann", "bob", "cat", "dan", "eve"} {
 		addAgent(t, e, a, "")
 	}
+	ann, bob, cat, dan, eve := teamtest.Key(t, e.Home, "ann"), teamtest.Key(t, e.Home, "bob"), teamtest.Key(t, e.Home, "cat"), teamtest.Key(t, e.Home, "dan"), teamtest.Key(t, e.Home, "eve")
 	run(t, e, "INSERT INTO agent_state(agent, state, updated, terminal, closed_at) VALUES"+
-		"('ann', 'IDLE', 0, 'h1', NULL), ('bob', 'IDLE', 0, 'h2', NULL), ('cat', 'PARKED', 0, 'h3', NULL), ('dan', 'IDLE', 0, 'h4', 5)")
+		"('"+ann+"', 'IDLE', 0, 'h1', NULL), ('"+bob+"', 'IDLE', 0, 'h2', NULL), ('"+cat+"', 'PARKED', 0, 'h3', NULL), ('"+dan+"', 'IDLE', 0, 'h4', 5)")
 	e.Delivery = triggerDelivery{by: map[string]Trigger{
-		"ann": {Applies: true, Fired: true, Kind: "usage", Reason: "shortest window 100% - at the wall"},
-		"bob": {Applies: true, Reason: "shortest window 10% below the wall, context ? < 150,000"},
-		"dan": {Reason: "waiting for alpha's window at 14:00"},
+		ann: {Applies: true, Fired: true, Kind: "usage", Reason: "shortest window 100% - at the wall"},
+		bob: {Applies: true, Reason: "shortest window 10% below the wall, context ? < 150,000"},
+		dan: {Reason: "waiting for alpha's window at 14:00"},
 	}}
 	got := triggers(t, e, nil)
 	want := []map[string]any{
-		{"agent": "ann", "fired": true, "reason": "shortest window 100% - at the wall"},
-		{"agent": "bob", "fired": false, "reason": "shortest window 10% below the wall, context ? < 150,000"},
-		{"agent": "cat", "fired": false, "reason": "parked; judged again at its wake"},
-		{"agent": "dan", "fired": false, "reason": "waiting for alpha's window at 14:00"},
-		{"agent": "eve", "fired": false, "reason": "session closed; nothing to hand off"},
+		{"agent": ann, "fired": true, "reason": "shortest window 100% - at the wall"},
+		{"agent": bob, "fired": false, "reason": "shortest window 10% below the wall, context ? < 150,000"},
+		{"agent": cat, "fired": false, "reason": "parked; judged again at its wake"},
+		{"agent": dan, "fired": false, "reason": "waiting for alpha's window at 14:00"},
+		{"agent": eve, "fired": false, "reason": "session closed; nothing to hand off"},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("%v", got)
@@ -59,7 +61,8 @@ func TestAgentTriggersForOneAgentAndForANameItDoesNotKnow(t *testing.T) {
 	e := testEnv(t)
 	addAgent(t, e, "ann", "")
 	addAgent(t, e, "bob", "")
-	if got := triggers(t, e, map[string]any{"agent": "bob"}); len(got) != 1 || got[0]["agent"] != "bob" {
+	bob := teamtest.Key(t, e.Home, "bob")
+	if got := triggers(t, e, map[string]any{"agent": bob}); len(got) != 1 || got[0]["agent"] != bob {
 		t.Fatalf("%v", got)
 	}
 	var re *rpc.Error

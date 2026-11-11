@@ -3,6 +3,7 @@ package reads
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"strconv"
 	"strings"
 	"testing"
@@ -16,24 +17,25 @@ func TestAMessageToAStructuredAgentCarriesItsReceiptAndLandsAsItSays(t *testing.
 	t.Parallel()
 	e := testEnv(t)
 	addAgent(t, e, "bob", "")
+	bob := teamtest.Key(t, e.Home, "bob")
 	for _, q := range []string{
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(1, 1, 'p1', 'bob', 'held', 'queued', 'say')",
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(2, 2, 'p1', 'bob', 'written', 'queued', 'say')",
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(3, 3, 'p1', 'bob', 'echoed', 'queued', 'say')",
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(4, 4, 'p1', 'bob', 'lost', 'queued', 'say')",
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(5, 5, 'p1', 'bob', 'taken back', 'withdrawn', 'say')",
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(6, 6, 'p1', 'bob', 'to a terminal', 'queued', 'say')",
-		"INSERT INTO operations(id, kind, state, result_json, agent, created_at, updated_at) VALUES('send:bob:request:1', 'send', 'queued', '{\"uuid\":\"u1\"}', 'bob', 1, 1)",
-		"INSERT INTO operations(id, kind, state, result_json, agent, created_at, updated_at) VALUES('send:bob:request:2', 'send', 'sent', '{\"uuid\":\"u2\"}', 'bob', 1, 1)",
-		"INSERT INTO operations(id, kind, state, result_json, agent, created_at, updated_at) VALUES('send:bob:request:3', 'send', 'confirmed', '{\"uuid\":\"u3\"}', 'bob', 1, 1)",
-		"INSERT INTO operations(id, kind, state, result_json, agent, created_at, updated_at) VALUES('send:bob:request:4', 'send', 'unknown', '{\"uuid\":\"u4\"}', 'bob', 1, 1)",
-		"INSERT INTO operations(id, kind, state, result_json, agent, created_at, updated_at) VALUES('send:bob:request:5', 'send', 'withdrawn', '{\"uuid\":\"u5\"}', 'bob', 1, 1)",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(1, 1, 'p1', '" + bob + "', 'held', 'queued', 'say')",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(2, 2, 'p1', '" + bob + "', 'written', 'queued', 'say')",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(3, 3, 'p1', '" + bob + "', 'echoed', 'queued', 'say')",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(4, 4, 'p1', '" + bob + "', 'lost', 'queued', 'say')",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(5, 5, 'p1', '" + bob + "', 'taken back', 'withdrawn', 'say')",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(6, 6, 'p1', '" + bob + "', 'to a terminal', 'queued', 'say')",
+		"INSERT INTO operations(id, kind, state, result_json, agent, created_at, updated_at) VALUES('send:bob:request:1', 'send', 'queued', '{\"uuid\":\"u1\"}', '" + bob + "', 1, 1)",
+		"INSERT INTO operations(id, kind, state, result_json, agent, created_at, updated_at) VALUES('send:bob:request:2', 'send', 'sent', '{\"uuid\":\"u2\"}', '" + bob + "', 1, 1)",
+		"INSERT INTO operations(id, kind, state, result_json, agent, created_at, updated_at) VALUES('send:bob:request:3', 'send', 'confirmed', '{\"uuid\":\"u3\"}', '" + bob + "', 1, 1)",
+		"INSERT INTO operations(id, kind, state, result_json, agent, created_at, updated_at) VALUES('send:bob:request:4', 'send', 'unknown', '{\"uuid\":\"u4\"}', '" + bob + "', 1, 1)",
+		"INSERT INTO operations(id, kind, state, result_json, agent, created_at, updated_at) VALUES('send:bob:request:5', 'send', 'withdrawn', '{\"uuid\":\"u5\"}', '" + bob + "', 1, 1)",
 	} {
 		if _, err := e.DB.Exec(q); err != nil {
 			t.Fatal(err)
 		}
 	}
-	got, err := e.chatMessages(nil, map[string]any{"agent": "bob", "scope": "mine"})
+	got, err := e.chatMessages(nil, map[string]any{"agent": bob, "scope": "mine"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,16 +70,17 @@ func TestChatTranscriptServesAToolCallWithItsOutput(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	addAgent(t, e, "bob", "")
+	bob := teamtest.Key(t, e.Home, "bob")
 	for i, ev := range []struct{ kind, body string }{
 		{"tool_use", `{"tool_use":{"id":"u1","tool":"Bash","input":{"command":"seq 1 10"}}}`},
 		{"tool_result", `{"tool_result":{"tool_use_id":"u1","ok":true,"text":"1\n2\n","truncated":true,"dropped_lines":8}}`},
 		{"tool_use", `{"tool_use":{"id":"u2","tool":"Bash","input":{"command":"true"}}}`},
 	} {
-		if _, err := e.DB.Exec(`INSERT INTO transcript_events(agent, seq, session, turn, at, kind, item, body) VALUES('bob', ?, 's', NULL, 1000, ?, NULL, ?)`, i+1, ev.kind, ev.body); err != nil {
+		if _, err := e.DB.Exec(`INSERT INTO transcript_events(agent, seq, session, turn, at, kind, item, body) VALUES('`+bob+`', ?, 's', NULL, 1000, ?, NULL, ?)`, i+1, ev.kind, ev.body); err != nil {
 			t.Fatal(err)
 		}
 	}
-	got, err := e.chatTranscript(nil, map[string]any{"agent": "bob"})
+	got, err := e.chatTranscript(nil, map[string]any{"agent": bob})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,24 +105,25 @@ func TestChatTranscriptListsTheConversationsAnAgentBeganAmongItsItems(t *testing
 	t.Parallel()
 	e := testEnv(t)
 	addAgent(t, e, "bob", "")
+	bob := teamtest.Key(t, e.Home, "bob")
 	for _, q := range []string{
-		`INSERT INTO session_starts(id, agent, ts, session_id, cause, resumed, text, prompt) VALUES(1, 'bob', 1000, 's1', 'launch', 0, '', '')`,
-		`INSERT INTO session_starts(id, agent, ts, session_id, cause, resumed, text, prompt) VALUES(2, 'bob', 1001, 's1', 'wake', 1, 'kept', '')`,
-		`INSERT INTO session_starts(id, agent, ts, session_id, cause, resumed, text, prompt) VALUES(3, 'bob', 1003, 's2', 'context_full', 0, 'the handoff', '')`,
-		`INSERT INTO session_starts(id, agent, ts, session_id, cause, resumed, text, prompt) VALUES(4, 'bob', 1004, NULL, 'start', 0, '', '')`,
+		`INSERT INTO session_starts(id, agent, ts, session_id, cause, resumed, text, prompt) VALUES(1, '` + bob + `', 1000, 's1', 'launch', 0, '', '')`,
+		`INSERT INTO session_starts(id, agent, ts, session_id, cause, resumed, text, prompt) VALUES(2, '` + bob + `', 1001, 's1', 'wake', 1, 'kept', '')`,
+		`INSERT INTO session_starts(id, agent, ts, session_id, cause, resumed, text, prompt) VALUES(3, '` + bob + `', 1003, 's2', 'context_full', 0, 'the handoff', '')`,
+		`INSERT INTO session_starts(id, agent, ts, session_id, cause, resumed, text, prompt) VALUES(4, '` + bob + `', 1004, NULL, 'start', 0, '', '')`,
 		`INSERT INTO session_starts(id, agent, ts, session_id, cause, resumed, text, prompt) VALUES(5, 'ann', 1000, 's9', 'launch', 0, '', '')`,
-		`INSERT INTO session_starts(id, agent, ts, session_id, cause, resumed, text, prompt, changed) VALUES(6, 'bob', 1005, 's2', 'settings_applied', 1, 'a record, not given to it', '', 'model changed (opus-5-5 -> sonnet-5-5)')`,
-		`INSERT INTO session_starts(id, agent, ts, session_id, cause, resumed, text, prompt) VALUES(7, 'bob', 1006, 's2', 'restart', 1, '', '')`,
-		`INSERT INTO session_starts(id, agent, ts, session_id, cause, resumed, text, prompt) VALUES(8, 'bob', 1007, 's2', 'move', 1, '', '')`,
-		`INSERT INTO session_starts(id, agent, ts, session_id, cause, resumed, text, prompt) VALUES(9, 'bob', 1008, 's2', 'idle_close', 1, '', '')`,
-		`INSERT INTO session_starts(id, agent, ts, session_id, cause, resumed, text, prompt, changed) VALUES(10, 'bob', 1009, 's2', 'wake', 1, '', '', 'effort changed (high -> low)')`,
-		`INSERT INTO transcript_events(agent, seq, session, turn, at, kind, item, body) VALUES('bob', 1, 's1', NULL, 1002, 'tool_use', NULL, '{"tool_use":{"id":"u1","tool":"Bash","input":{"command":"true"}}}')`,
+		`INSERT INTO session_starts(id, agent, ts, session_id, cause, resumed, text, prompt, changed) VALUES(6, '` + bob + `', 1005, 's2', 'settings_applied', 1, 'a record, not given to it', '', 'model changed (opus-5-5 -> sonnet-5-5)')`,
+		`INSERT INTO session_starts(id, agent, ts, session_id, cause, resumed, text, prompt) VALUES(7, '` + bob + `', 1006, 's2', 'restart', 1, '', '')`,
+		`INSERT INTO session_starts(id, agent, ts, session_id, cause, resumed, text, prompt) VALUES(8, '` + bob + `', 1007, 's2', 'move', 1, '', '')`,
+		`INSERT INTO session_starts(id, agent, ts, session_id, cause, resumed, text, prompt) VALUES(9, '` + bob + `', 1008, 's2', 'idle_close', 1, '', '')`,
+		`INSERT INTO session_starts(id, agent, ts, session_id, cause, resumed, text, prompt, changed) VALUES(10, '` + bob + `', 1009, 's2', 'wake', 1, '', '', 'effort changed (high -> low)')`,
+		`INSERT INTO transcript_events(agent, seq, session, turn, at, kind, item, body) VALUES('` + bob + `', 1, 's1', NULL, 1002, 'tool_use', NULL, '{"tool_use":{"id":"u1","tool":"Bash","input":{"command":"true"}}}')`,
 	} {
 		if _, err := e.DB.Exec(q); err != nil {
 			t.Fatal(err)
 		}
 	}
-	got, err := e.chatTranscript(nil, map[string]any{"agent": "bob"})
+	got, err := e.chatTranscript(nil, map[string]any{"agent": bob})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,7 +155,7 @@ func TestChatTranscriptListsTheConversationsAnAgentBeganAmongItsItems(t *testing
 	if sessions[1]["id"] != int64(1003_400_003) || second["cause"] != "context_full" || second["handoff"] != "the handoff" {
 		t.Fatalf("%v", sessions[1])
 	}
-	before, err := e.chatTranscript(nil, map[string]any{"agent": "bob", "before": json.Number(strconv.FormatInt(sessions[1]["id"].(int64), 10))})
+	before, err := e.chatTranscript(nil, map[string]any{"agent": bob, "before": json.Number(strconv.FormatInt(sessions[1]["id"].(int64), 10))})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -163,7 +167,7 @@ func TestChatTranscriptListsTheConversationsAnAgentBeganAmongItsItems(t *testing
 		t.Fatal(err)
 	}
 	ch := &chat{e: e}
-	starts, err := ch.sessions("bob", nil)
+	starts, err := ch.sessions(bob, nil)
 	if err != nil || len(starts) != 1 || starts[0]["resumed"] != true || starts[0]["handoff"] != nil || starts[0]["changed"] != "model changed (opus-5-5 -> sonnet-5-5)" {
 		t.Fatalf("%v %v", starts, err)
 	}
@@ -200,14 +204,15 @@ func TestPagingBackThroughToolCallsThatShareASecondServesEachOnce(t *testing.T) 
 	t.Parallel()
 	e := testEnv(t)
 	addAgent(t, e, "bob", "")
+	bob := teamtest.Key(t, e.Home, "bob")
 	for i, at := range []int{101, 102, 103, 104, 105, 105} { // parallel calls share a second
 		body := fmt.Sprintf(`{"tool_use":{"id":"u%d","tool":"Bash","input":{"command":"c%d"}}}`, i, i)
-		if _, err := e.DB.Exec(`INSERT INTO transcript_events(agent, seq, session, turn, at, kind, item, body) VALUES('bob', ?, 's', NULL, ?, 'tool_use', NULL, ?)`, i+1, at, body); err != nil {
+		if _, err := e.DB.Exec(`INSERT INTO transcript_events(agent, seq, session, turn, at, kind, item, body) VALUES('`+bob+`', ?, 's', NULL, ?, 'tool_use', NULL, ?)`, i+1, at, body); err != nil {
 			t.Fatal(err)
 		}
 	}
 	var seen []string
-	params := map[string]any{"agent": "bob", "limit": json.Number("2")}
+	params := map[string]any{"agent": bob, "limit": json.Number("2")}
 	for pages := 0; pages < 5; pages++ {
 		got, err := e.chatTranscript(nil, params)
 		if err != nil {
@@ -223,7 +228,7 @@ func TestPagingBackThroughToolCallsThatShareASecondServesEachOnce(t *testing.T) 
 		if page["more"] != true {
 			break
 		}
-		params = map[string]any{"agent": "bob", "limit": json.Number("2"), "before": json.Number(strconv.FormatInt(items[0].(map[string]any)["id"].(int64), 10))}
+		params = map[string]any{"agent": bob, "limit": json.Number("2"), "before": json.Number(strconv.FormatInt(items[0].(map[string]any)["id"].(int64), 10))}
 	}
 	if strings.Join(seen, " ") != "c0 c1 c2 c3 c4 c5" {
 		t.Fatalf("%v", seen)
@@ -234,13 +239,14 @@ func TestSinceServesEveryToolCallFromItsSecondUpToWhatAPageKeeps(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	addAgent(t, e, "bob", "")
+	bob := teamtest.Key(t, e.Home, "bob")
 	for i := 0; i < 60; i++ { // more than a default page of 50 calls in one second
 		body := fmt.Sprintf(`{"tool_use":{"id":"u%d","tool":"Bash","input":{"command":"c%d"}}}`, i, i)
-		if _, err := e.DB.Exec(`INSERT INTO transcript_events(agent, seq, session, turn, at, kind, item, body) VALUES('bob', ?, 's', NULL, 500, 'tool_use', NULL, ?)`, i+1, body); err != nil {
+		if _, err := e.DB.Exec(`INSERT INTO transcript_events(agent, seq, session, turn, at, kind, item, body) VALUES('`+bob+`', ?, 's', NULL, 500, 'tool_use', NULL, ?)`, i+1, body); err != nil {
 			t.Fatal(err)
 		}
 	}
-	got, err := e.chatTranscript(nil, map[string]any{"agent": "bob", "since": json.Number("500000000")})
+	got, err := e.chatTranscript(nil, map[string]any{"agent": bob, "since": json.Number("500000000")})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -253,9 +259,10 @@ func TestAMessageCarriesItsImages(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	addAgent(t, e, "bob", "")
+	bob := teamtest.Key(t, e.Home, "bob")
 	for _, q := range []string{
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(1, 1, 'p1', 'bob', 'look', 'queued', 'say')",
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(2, 2, 'p1', 'bob', 'plain', 'queued', 'say')",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(1, 1, 'p1', '" + bob + "', 'look', 'queued', 'say')",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(2, 2, 'p1', '" + bob + "', 'plain', 'queued', 'say')",
 	} {
 		if _, err := e.DB.Exec(q); err != nil {
 			t.Fatal(err)
@@ -265,7 +272,7 @@ func TestAMessageCarriesItsImages(t *testing.T) {
 	if err := attachments.Record(e.DB, 1, []attachments.Info{img}); err != nil {
 		t.Fatal(err)
 	}
-	got, err := e.chatMessages(nil, map[string]any{"agent": "bob", "scope": "mine"})
+	got, err := e.chatMessages(nil, map[string]any{"agent": bob, "scope": "mine"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -291,16 +298,17 @@ func TestAnHROutcomeMessageCarriesItsProposalAndNoOtherDoes(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	addAgent(t, e, "bob", "")
+	bob := teamtest.Key(t, e.Home, "bob")
 	for _, q := range []string{
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(1, 1, 'p1', 'bob', 'proposal aaaa0007 applied: ...', 'queued', 'say')",
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(2, 2, 'p1', 'bob', 'plain', 'queued', 'say')",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(1, 1, 'p1', '" + bob + "', 'proposal aaaa0007 applied: ...', 'queued', 'say')",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(2, 2, 'p1', '" + bob + "', 'plain', 'queued', 'say')",
 		`INSERT INTO events(ts, agent, kind, payload, dedup_key) VALUES(1, 'p1', 'proposal_outcome', '{"proposal": 2684354567, "request": 1}', 'proposal_outcome:1')`,
 	} {
 		if _, err := e.DB.Exec(q); err != nil {
 			t.Fatal(err)
 		}
 	}
-	got, err := e.chatMessages(nil, map[string]any{"agent": "bob", "scope": "mine"})
+	got, err := e.chatMessages(nil, map[string]any{"agent": bob, "scope": "mine"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -367,16 +375,17 @@ func TestANoticeTheDigestListedIsNotDrawnAgainBesideTheDigest(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	addAgent(t, e, "bob", "")
+	bob := teamtest.Key(t, e.Home, "bob")
 	for _, q := range []string{
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind, notice, landed_at) VALUES(1, 1, 'sys', 'bob', 'task T1 now waits on T2', 'landed', 'say', 1, 1)",
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind, notice, landed_at, delivered_at) VALUES(2, 2, 'sys', 'bob', 'T3 done by x: ok', 'landed', 'say', 1, 2, 3)",
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind, landed_at) VALUES(3, 4, 'sys', 'bob', 'Result digest - 1 result since 00:00', 'landed', 'say', 4)",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind, notice, landed_at) VALUES(1, 1, 'sys', '" + bob + "', 'task T1 now waits on T2', 'landed', 'say', 1, 1)",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind, notice, landed_at, delivered_at) VALUES(2, 2, 'sys', '" + bob + "', 'T3 done by x: ok', 'landed', 'say', 1, 2, 3)",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind, landed_at) VALUES(3, 4, 'sys', '" + bob + "', 'Result digest - 1 result since 00:00', 'landed', 'say', 4)",
 	} {
 		if _, err := e.DB.Exec(q); err != nil {
 			t.Fatal(err)
 		}
 	}
-	got, err := e.chatMessages(nil, map[string]any{"agent": "bob", "scope": "all"})
+	got, err := e.chatMessages(nil, map[string]any{"agent": bob, "scope": "all"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -392,16 +401,17 @@ func TestARequestDeliveredButNotYetTypedIsStillDrawn(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	addAgent(t, e, "bob", "")
+	bob := teamtest.Key(t, e.Home, "bob")
 	for _, q := range []string{
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind, landed_at, delivered_at) VALUES(1, 1, 'p1', 'bob', 'hello bob', 'landed', 'say', 1, 2)",
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind, notice, landed_at, delivered_at) VALUES(2, 3, 'sys', 'bob', 'T3 done by x: ok', 'landed', 'say', 1, 3, 4)",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind, landed_at, delivered_at) VALUES(1, 1, 'p1', '" + bob + "', 'hello bob', 'landed', 'say', 1, 2)",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind, notice, landed_at, delivered_at) VALUES(2, 3, 'sys', '" + bob + "', 'T3 done by x: ok', 'landed', 'say', 1, 3, 4)",
 	} {
 		if _, err := e.DB.Exec(q); err != nil {
 			t.Fatal(err)
 		}
 	}
 	for _, call := range []func(*rpc.Conn, map[string]any) (any, error){e.chatMessages, e.chatRequests} {
-		got, err := call(nil, map[string]any{"agent": "bob", "scope": "all"})
+		got, err := call(nil, map[string]any{"agent": bob, "scope": "all"})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -439,19 +449,20 @@ func TestAMessageToTheFounderCarriesTheButtonsItsTaskStateAsksFor(t *testing.T) 
 	t.Parallel()
 	e := testEnv(t)
 	addAgent(t, e, "bob", "")
+	bob := teamtest.Key(t, e.Home, "bob")
 	for _, q := range []string{
-		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'bobs', 'bob', 'p1', 1)",
-		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(2, 'decide', 'p1', 'bob', 1)",
-		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(3, 'not theirs', 'bob', 'bob', 1)",
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(1, 1, 'bob', 'p1', 'T1 reported', 'queued', 'say'), (2, 2, 'bob', 'p1', 'T2 please decide', 'queued', 'task'), " +
-			"(3, 3, 'bob', 'p1', 'a question with no task', 'queued', 'say'), (4, 4, 'bob', 'p1', 'T3 reported', 'queued', 'say')",
+		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'bobs', '" + bob + "', 'p1', 1)",
+		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(2, 'decide', 'p1', '" + bob + "', 1)",
+		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(3, 'not theirs', '" + bob + "', '" + bob + "', 1)",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(1, 1, '" + bob + "', 'p1', 'T1 reported', 'queued', 'say'), (2, 2, '" + bob + "', 'p1', 'T2 please decide', 'queued', 'task'), " +
+			"(3, 3, '" + bob + "', 'p1', 'a question with no task', 'queued', 'say'), (4, 4, '" + bob + "', 'p1', 'T3 reported', 'queued', 'say')",
 		"INSERT INTO task_requests(task_id, request_id) VALUES(1, 1), (2, 2), (3, 4)",
 	} {
 		if _, err := e.DB.Exec(q); err != nil {
 			t.Fatal(err)
 		}
 	}
-	got, err := e.chatMessages(nil, map[string]any{"agent": "bob", "scope": "mine"})
+	got, err := e.chatMessages(nil, map[string]any{"agent": bob, "scope": "mine"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -474,7 +485,7 @@ func TestAMessageToTheFounderCarriesTheButtonsItsTaskStateAsksFor(t *testing.T) 
 	if _, err := e.DB.Exec("UPDATE tasks SET done_evidence = 'ok' WHERE id = 2"); err != nil {
 		t.Fatal(err)
 	}
-	got, _ = e.chatMessages(nil, map[string]any{"agent": "bob", "scope": "mine"})
+	got, _ = e.chatMessages(nil, map[string]any{"agent": bob, "scope": "mine"})
 	if b, _ = json.Marshal(got); strings.Contains(string(b), `"actions"`) {
 		t.Fatalf("a closed task keeps its buttons: %s", b)
 	}
@@ -607,8 +618,9 @@ func TestChatTranscriptServesAReplysRuns(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	addAgent(t, e, "bob", "")
+	bob := teamtest.Key(t, e.Home, "bob")
 	for i, item := range []int64{1000, 1002} {
-		if _, err := e.DB.Exec(`INSERT INTO transcript_events(agent, seq, session, turn, at, kind, item, body) VALUES('bob', ?, 's', NULL, 1000, 'text', ?, '{"text":"run it"}')`, i+1, item); err != nil {
+		if _, err := e.DB.Exec(`INSERT INTO transcript_events(agent, seq, session, turn, at, kind, item, body) VALUES('`+bob+`', ?, 's', NULL, 1000, 'text', ?, '{"text":"run it"}')`, i+1, item); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -618,7 +630,7 @@ func TestChatTranscriptServesAReplysRuns(t *testing.T) {
 	if _, err := cmdruns.Start(e.DB, cmdruns.Block{Message: 1002, N: 0}, "%5", "", "", 1000); err != nil {
 		t.Fatal(err)
 	}
-	got, err := e.chatTranscript(nil, map[string]any{"agent": "bob"})
+	got, err := e.chatTranscript(nil, map[string]any{"agent": bob})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -643,14 +655,15 @@ func TestTheChatLeavesOutAReturnThatToldAComment(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	addAgent(t, e, "bob", "")
-	runAll(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(1, 1, 'p1', 'bob', 'T1 is your turn again: human passed it: a', 'landed', 'task'), "+
-		"(2, 2, 'p1', 'bob', 'T2 is your turn again: human passed it: b', 'landed', 'task'), (3, 3, 'p1', 'bob', 'plain', 'landed', 'say'), "+
-		"(4, 4, 'p1', 'bob', 'T3 is your turn again: human passed it: c', 'landed', 'task'), (5, 5, 'sys', 'bob', 'T1 comment by the founder', 'landed', 'say')",
-		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'a', 'bob', 'p1', 1)",
+	bob := teamtest.Key(t, e.Home, "bob")
+	runAll(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(1, 1, 'p1', '"+bob+"', 'T1 is your turn again: human passed it: a', 'landed', 'task'), "+
+		"(2, 2, 'p1', '"+bob+"', 'T2 is your turn again: human passed it: b', 'landed', 'task'), (3, 3, 'p1', '"+bob+"', 'plain', 'landed', 'say'), "+
+		"(4, 4, 'p1', '"+bob+"', 'T3 is your turn again: human passed it: c', 'landed', 'task'), (5, 5, 'sys', '"+bob+"', 'T1 comment by the founder', 'landed', 'say')",
+		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'a', '"+bob+"', 'p1', 1)",
 		"INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(7, 1, 'p1', 'now', 1), (9, 1, 'p1', 'also', 5)",
 		// 8 is a comment since deleted: its return shows again; 9's tell is a board line, which stays
-		"INSERT INTO memo_tells(memo_id, reader, request_id) VALUES(7, 'bob', 1), (8, 'bob', 4), (9, 'bob', 5)")
-	got, err := e.chatMessages(nil, map[string]any{"agent": "bob", "scope": "all"})
+		"INSERT INTO memo_tells(memo_id, reader, request_id) VALUES(7, '"+bob+"', 1), (8, '"+bob+"', 4), (9, '"+bob+"', 5)")
+	got, err := e.chatMessages(nil, map[string]any{"agent": bob, "scope": "all"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -669,11 +682,12 @@ func TestAnUnblockedTaskIsACardInTheChatOfTheAgentItStartsFor(t *testing.T) {
 	addAgent(t, e, "bob", "")
 	addAgent(t, e, "ann", "")
 	addAgent(t, e, "cid", "")
-	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(7, 'freed', 'bob', 'lead', 1), (8, 'blocker', 'ann', 'lead', 1), (9, 'turned', 'bob', 'lead', 1)")
-	run(t, e, "INSERT INTO task_turns(task_id, pos, agent, ask, pushed_by, since) VALUES(9, 1, 'cid', 'look', 'bob', 1)")
+	bob, ann, cid := teamtest.Key(t, e.Home, "bob"), teamtest.Key(t, e.Home, "ann"), teamtest.Key(t, e.Home, "cid")
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(7, 'freed', '"+bob+"', 'lead', 1), (8, 'blocker', '"+ann+"', 'lead', 1), (9, 'turned', '"+bob+"', 'lead', 1)")
+	run(t, e, "INSERT INTO task_turns(task_id, pos, agent, ask, pushed_by, since) VALUES(9, 1, '"+cid+"', 'look', '"+bob+"', 1)")
 	// As notifyUnblocked writes it: the closer is the event's agent.
-	run(t, e, `INSERT INTO events(id, ts, agent, kind, payload) VALUES(1, 5, 'ann', 'task_unblocked', '{"task_id": 7, "request_id": 3, "closed_task": 8, "after_request": 3}'),
-		(2, 6, 'ann', 'task_unblocked', '{"task_id": 9, "request_id": 4, "closed_task": 8, "after_request": 4}')`)
+	run(t, e, `INSERT INTO events(id, ts, agent, kind, payload) VALUES(1, 5, '`+ann+`', 'task_unblocked', '{"task_id": 7, "request_id": 3, "closed_task": 8, "after_request": 3}'),
+		(2, 6, '`+ann+`', 'task_unblocked', '{"task_id": 9, "request_id": 4, "closed_task": 8, "after_request": 4}')`)
 	cards := func(agent string) []map[string]any {
 		got, err := e.chatTranscript(nil, map[string]any{"agent": agent})
 		if err != nil {
@@ -687,17 +701,17 @@ func TestAnUnblockedTaskIsACardInTheChatOfTheAgentItStartsFor(t *testing.T) {
 		}
 		return out
 	}
-	bob := cards("bob")
-	if len(bob) != 1 || bob[0]["event"] != "unblocked" || bob[0]["task"] != int64(7) || bob[0]["closed_task"] != int64(8) || bob[0]["who"] != "ann" {
-		t.Fatalf("bob: %v", bob)
+	got := cards(bob)
+	if len(got) != 1 || got[0]["event"] != "unblocked" || got[0]["task"] != int64(7) || got[0]["closed_task"] != int64(8) || got[0]["who"] != ann {
+		t.Fatalf("bob: %v", got)
 	}
-	if c := cards("cid"); len(c) != 1 || c[0]["task"] != int64(9) {
+	if c := cards(cid); len(c) != 1 || c[0]["task"] != int64(9) {
 		t.Fatalf("a turn moves the card to the agent acting: %v", c)
 	}
-	if a := cards("ann"); len(a) != 0 {
+	if a := cards(ann); len(a) != 0 {
 		t.Fatalf("the closer's chat has no card: %v", a)
 	}
-	for id, want := range map[int64]string{1: "bob", 2: "cid"} {
+	for id, want := range map[int64]string{1: bob, 2: cid} {
 		if _, agent, ok, err := e.TaskEventItem(id); err != nil || !ok || agent != want {
 			t.Errorf("event %d is pushed to %q, not %q (%v)", id, agent, want, err)
 		}

@@ -29,16 +29,17 @@ func TestAgentsListWithStatusAddsWhatHlTeamDraws(t *testing.T) {
 		addAgent(t, e, a, "")
 	}
 	teamtest.Set(t, e.Home, "ann", "repo", "handline")
+	ann, bob, cat, dan := teamtest.Key(t, e.Home, "ann"), teamtest.Key(t, e.Home, "bob"), teamtest.Key(t, e.Home, "cat"), teamtest.Key(t, e.Home, "dan")
 	run(t, e, "INSERT INTO agent_state(agent, state, updated, terminal, closed_at) VALUES"+
-		"('ann', 'IDLE', 0, 'h1', NULL), ('bob', 'PARKED', 0, NULL, 5), ('dan', 'IDLE', 0, 'h4', NULL)")
-	run(t, e, `INSERT INTO agent_view(agent, view, updated) VALUES('ann', '{"name": "ann", "state": "waiting", "state_detail": "a question"}', 0)`)
-	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(1, 1, 'p1', 'ann', 'b', 'queued', 'say', 1)")
+		"('"+ann+"', 'IDLE', 0, 'h1', NULL), ('"+bob+"', 'PARKED', 0, NULL, 5), ('"+dan+"', 'IDLE', 0, 'h4', NULL)")
+	run(t, e, `INSERT INTO agent_view(agent, view, updated) VALUES('`+ann+`', '{"name": "`+ann+`", "state": "waiting", "state_detail": "a question"}', 0)`)
+	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(1, 1, 'p1', '"+ann+"', 'b', 'queued', 'say', 1)")
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, priority, done_evidence) VALUES"+
-		"(3, 'late', 'ann', 'p1', 1, 1, NULL), (2, 'early', 'ann', 'p1', 1, 2, NULL), (4, 'done', 'ann', 'p1', 1, 2, 'sha'), "+
-		"(5, 'no hold', 'ann', 'p1', 1, 2, NULL), (6, 'another owner', 'bob', 'p1', 1, 2, NULL)")
+		"(3, 'late', '"+ann+"', 'p1', 1, 1, NULL), (2, 'early', '"+ann+"', 'p1', 1, 2, NULL), (4, 'done', '"+ann+"', 'p1', 1, 2, 'sha'), "+
+		"(5, 'no hold', '"+ann+"', 'p1', 1, 2, NULL), (6, 'another owner', '"+bob+"', 'p1', 1, 2, NULL)")
 	run(t, e, `INSERT INTO meta(name, value, updated) VALUES('taskhold:2', '{"why": "blocked by T9 (cat)", "able": false}', 0), ('taskhold:3', '{"why": "behind T2"}', 0), `+
 		`('taskhold:4', '{"why": "ended"}', 0), ('taskhold:6', '{"why": "bob is closed"}', 0)`)
-	e.Delivery = fakeDelivery{wakeWait: map[string]string{"bob": "waiting for alpha's window at 14:00"}}
+	e.Delivery = fakeDelivery{wakeWait: map[string]string{bob: "waiting for alpha's window at 14:00"}}
 	got := listed(t, e, map[string]any{"status": true})
 	status := func(name string) map[string]any {
 		out := map[string]any{}
@@ -48,14 +49,14 @@ func TestAgentsListWithStatusAddsWhatHlTeamDraws(t *testing.T) {
 		return out
 	}
 	for name, want := range map[string]map[string]any{
-		"ann": {"started": true, "has_repo": true, "has_terminal": true, "screen_word": "DIALOG", "screen_detail": "a question", "unreached": 1,
+		ann: {"started": true, "has_repo": true, "has_terminal": true, "screen_word": "DIALOG", "screen_detail": "a question", "unreached": 1,
 			"task_waits":       []any{map[string]any{"task": int64(2), "words": "blocked by T9 (cat)"}, map[string]any{"task": int64(3), "words": "behind T2"}},
 			"wake_wait_reason": nil},
-		"bob": {"started": true, "has_repo": false, "has_terminal": false, "screen_word": "IDLE", "screen_detail": "", "unreached": 0,
+		bob: {"started": true, "has_repo": false, "has_terminal": false, "screen_word": "IDLE", "screen_detail": "", "unreached": 0,
 			"task_waits": []any{map[string]any{"task": int64(6), "words": "bob is closed"}}, "wake_wait_reason": "waiting for alpha's window at 14:00"},
-		"cat": {"started": false, "has_repo": false, "has_terminal": false, "screen_word": nil, "screen_detail": "", "unreached": 0,
+		cat: {"started": false, "has_repo": false, "has_terminal": false, "screen_word": nil, "screen_detail": "", "unreached": 0,
 			"task_waits": []any{}, "wake_wait_reason": nil},
-		"dan": {"started": true, "has_repo": false, "has_terminal": true, "screen_word": "IDLE", "screen_detail": "", "unreached": 0,
+		dan: {"started": true, "has_repo": false, "has_terminal": true, "screen_word": "IDLE", "screen_detail": "", "unreached": 0,
 			"task_waits": []any{}, "wake_wait_reason": nil},
 	} {
 		if !reflect.DeepEqual(status(name), want) {

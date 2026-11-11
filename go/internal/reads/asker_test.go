@@ -3,6 +3,7 @@ package reads
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"slices"
 	"strconv"
 	"strings"
@@ -16,14 +17,15 @@ func TestATaskAnswersToTheFounderWhenARequestOfItsCameFromThem(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	addAgent(t, e, "bob", "")
+	bob := teamtest.Key(t, e.Home, "bob")
 	for id, requester := range map[int64]string{1: "human", 2: "amy", 3: "amy", 4: "human"} {
-		run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(?, ?, ?, 'bob', 'b', 'queued', 'task', 1)", id, id, requester)
+		run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(?, ?, ?, '"+bob+"', 'b', 'queued', 'task', 1)", id, id, requester)
 	}
-	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'a', 'bob', 'amy', 1), (2, 'b', 'bob', 'amy', 1), (3, 'c', 'bob', 'cy', 1), (4, 'd', 'bob', 'cy', 1)")
-	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, reporter, created_at) VALUES(5, 'e', 'bob', 'amy', 'dee', 1)")
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'a', '"+bob+"', 'amy', 1), (2, 'b', '"+bob+"', 'amy', 1), (3, 'c', '"+bob+"', 'cy', 1), (4, 'd', '"+bob+"', 'cy', 1)")
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, reporter, created_at) VALUES(5, 'e', '"+bob+"', 'amy', 'dee', 1)")
 	// task 1 has a founder's request among others; 2 only the opener's; 3 a request of amy's but is opened by cy; 4 has no request at all;
 	// 5 has a founder's request too, but its reporter comes first
-	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(9, 9, 'amy', 'bob', 'b', 'queued', 'task', 1)")
+	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(9, 9, 'amy', '"+bob+"', 'b', 'queued', 'task', 1)")
 	run(t, e, "INSERT INTO task_requests(task_id, request_id) VALUES(1, 9), (1, 1), (2, 2), (3, 3), (5, 4)")
 	want := map[int64]string{1: "human", 2: "amy", 3: "cy", 4: "cy", 5: "dee"}
 	for id, who := range want {
