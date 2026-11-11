@@ -92,18 +92,32 @@ func handoffMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (an
 		}
 		me := c.Caller.Actor()
 		said := strings.TrimSpace(textsafe.Text(note))
+		toFounder := to == human && me != human // an agent's handoff to the founder is the founder's turn, hung on the note as a comment
+		if toFounder && said == "" {
+			return nil, badParam("a handoff to the founder says what they decide, and what you recommend", "note")
+		}
 		var (
 			h     Handover
 			asked *Asked
 			msg   string
+			memo  int64
 		)
 		out, err := c.Effect(func(tx *sql.Tx) (map[string]any, error) {
 			if err := claimImages(tx, home, me, said, "", "note"); err != nil {
 				return nil, err
 			}
 			var err error
-			if to == human && me != human { // an agent's handoff to the founder is the founder's turn: the task stays the agent's
-				h, asked, err = pushTurn(tx, tell, tid, me, human, said, 0, "", "")
+			if toFounder { // the task stays the agent's
+				if ok, err := hasTask(tx, tid); err != nil || !ok {
+					if err != nil {
+						return nil, err
+					}
+					return nil, refusal(fmt.Sprintf("no task T%d", tid))
+				}
+				if memo, err = db.AddMemo(tx, tid, me, said); err != nil {
+					return nil, err
+				}
+				h, asked, err = pushTurn(tx, tell, tid, me, human, said, memo, "", "")
 			} else {
 				h, asked, err = handOff(tx, tell, tid, me, to, said, agents, false)
 			}
@@ -114,6 +128,9 @@ func handoffMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (an
 				return nil, &rpc.CommitThen{Err: refusal(asked.Msg)}
 			}
 			msg = asked.Msg
+			if asked.Reask { // already on the founder's turn: it moved to this note, nothing is handed over
+				return accepted(fmt.Sprintf("T%d: %s", tid, msg), nil), nil
+			}
 			return accepted(fmt.Sprintf("T%d handed to %s: %s", tid, to, msg), nil), nil
 		})
 		if asked != nil && !asked.OK && asked.After != nil {
@@ -122,9 +139,14 @@ func handoffMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (an
 		if err != nil {
 			return nil, err
 		}
-		h.After = asked.After
-		if tail := tell.HandedOver(h); tail != "" {
-			out["said"] = fmt.Sprintf("T%d handed to %s: %s\n%s", tid, to, msg, tail)
+		if !asked.Reask {
+			h.After = asked.After
+			if tail := tell.HandedOver(h); tail != "" {
+				out["said"] = fmt.Sprintf("T%d handed to %s: %s\n%s", tid, to, msg, tail)
+			}
+		}
+		if memo != 0 {
+			tell.MemoChanged(tid, memo, me, "added", said, false, nil)
 		}
 		return out, nil
 	}

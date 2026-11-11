@@ -421,7 +421,7 @@ export type Turn = {
   edited: Timestamp | null;
   /** The texts ask replaced, oldest first, each with when it was set; empty when never rewritten. In task.get only. */
   earlier?: TurnAsk[];
-  /** The comment the turn was handed over with (task.comment.add with turn), its message; null for a turn the daemon put on (a handoff to human, a review's end). */
+  /** The comment the turn was handed over with (task.comment.add with turn), its message; null for a turn put on with no comment: the daemon's at a review's end, an agent's owner edit to human (task.edit), and turns from before. */
   memo: number | null;
 };
 
