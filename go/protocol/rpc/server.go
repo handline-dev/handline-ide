@@ -254,6 +254,7 @@ func (s *Server) serve(tr Transport, pid int, remote string, closeConn func()) {
 		}
 	}()
 	c.Caller = identify(s.Auth, s.Transport == "local", pid, "", s.founder)
+	c.Caller = s.keyed(c.Caller)
 	for {
 		timeout := RecvTimeout
 		if c.saidHello && !tr.Pending() {
@@ -508,6 +509,16 @@ func (c *Conn) route(msg any, raw []byte) (routed, error) {
 	}}, nil
 }
 
+// keyed is c with an agent caller named by its key: a session recorded under its old name still acts as the agent's key.
+func (s *Server) keyed(c Caller) Caller {
+	if c.Role == "agent" && s.Who != nil {
+		if n, ok := c.Info["name"].(string); ok {
+			c.Info["name"] = s.Who(n)
+		}
+	}
+	return c
+}
+
 // resolveWho puts the key in place of each who param's word (SpecParam.Who, and WhoIn inside an object), so a handler sees keys only.
 func (s *Server) resolveWho(method string, params map[string]any) {
 	sp, ok := Spec(method)
@@ -598,6 +609,7 @@ func hello(c *Conn, params map[string]any) (any, error) {
 		c.Caller = Caller{"founder", map[string]any{"kind": "device", "device": id, "name": name}}
 	} else {
 		c.Caller = identify(c.srv.Auth, c.srv.Transport == "local", c.Pid, key, c.srv.founder)
+		c.Caller = c.srv.keyed(c.Caller)
 		switch {
 		case key == "":
 			c.helloKey = "no key"

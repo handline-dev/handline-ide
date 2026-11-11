@@ -82,12 +82,15 @@ def seed_states(home: Path, daemon: subprocess.Popen, fakes: bool) -> dict[str, 
             typing = seed_typing_gates(home, con)
             seed_agents(con, [*names.values(), *([] if fakes else [NEVER_STARTED]), output_agent, ask_agent, DOING_AGENT, AGENT, LEAD, *RETIRE, *ORDER.values(), *typing.values(), *TURNS,
                               WORKROOM["create_parent"]], {"w": WORKROOM["create_repo"]})
+            keys = rekey(home, con)
             con.commit()
             con.close()
-            return {**{f"state_{w}": n for w, n in names.items()}, "output_agent": output_agent, "session_agent": output_agent,
+            seeded = {**{f"state_{w}": n for w, n in names.items()}, "output_agent": output_agent, "session_agent": output_agent,
                     "ask_agent": ask_agent, "never_started_agent": NEVER_STARTED, "triggers_agent": names["idle"], "doing_agent": DOING_AGENT, "view_plain_agent": names["idle"], "retire_agent": RETIRE[0],
                     "retire_parent": RETIRE[1], "files_agent": FILES_AGENT, **WORKROOM, **typing, **order, "order_rename_to": "o.new",
                     **{f"turn_{k}": n for k, n in zip("abc", TURNS)}}
+            # an agent's var is its key, as the daemon names it in what it answers; a name it has yet to take stays a name
+            return {k: v if k == "order_rename_to" else keys.get(v, v) for k, v in seeded.items()}
         except sqlite3.Error:
             if daemon.poll() is not None:
                 break
@@ -234,6 +237,41 @@ def seed_agents(con: sqlite3.Connection, names: list[str], folders: dict[str, st
             con.execute("UPDATE workspaces SET lead = ? WHERE id = ?", (cur.lastrowid, ws_id))
 
 
+# The columns that name a who: the seeds write old dotted names and human, and rekey puts each agent's key and p1 in their place.
+WHO_COLUMNS = {"agent", "requester", "target", "owner", "opened_by", "reporter", "discarded_by", "author", "pushed_by", "queued_by",
+               "accepted_by", "updated_by"}
+
+
+def agent_keys(con: sqlite3.Connection) -> dict[str, str]:
+    """Each agent's key by its old dotted name."""
+    return dict(con.execute("SELECT CASE WHEN w.lead = a.id THEN w.name ELSE w.name || '.' || a.name END, 'a' || a.id "
+                            "FROM agents a JOIN workspaces w ON w.id = a.workspace").fetchall())
+
+
+def rekey(home: Path, con: sqlite3.Connection) -> dict[str, str]:
+    """Every seeded row and folder that names an agent by its old name named by its key instead, as the daemon writes them (base-v2 1b),
+    and the founder by p1. Returns the keys by old name."""
+    keys = agent_keys(con)
+    tables = [t for (t,) in con.execute("SELECT name FROM sqlite_master WHERE type = 'table'")]
+    for t in tables:
+        for col in [c[1] for c in con.execute(f"PRAGMA table_info({t})")]:
+            if col in WHO_COLUMNS:
+                con.execute(f"UPDATE OR REPLACE {t} SET {col} = 'p1' WHERE {col} = 'human'")
+                for name, key in keys.items():
+                    con.execute(f"UPDATE OR REPLACE {t} SET {col} = ? WHERE {col} = ?", (key, name))
+    for agent, view in con.execute("SELECT agent, view FROM agent_view").fetchall():
+        v = json.loads(view)
+        if v.get("name") in keys:
+            v["name"] = keys[v["name"]]
+            con.execute("UPDATE agent_view SET view = ? WHERE agent = ?", (json.dumps(v), agent))
+    for name, key in keys.items():
+        for old, new in ((home / "agents" / name, home / "agents" / key), (home / "locks" / f"{name}.terminal", home / "locks" / f"{key}.terminal")):
+            if old.exists() and not new.exists():
+                new.parent.mkdir(parents=True, exist_ok=True)
+                old.rename(new)  # a lock's flock stays with its file
+    return keys
+
+
 def seed_tool_items(con: sqlite3.Connection, agent: str) -> None:
     """Three Bash calls as the store holds them, for transcript_output.json: output only, output with eight lines cut, no result."""
     now = int(time.time())
@@ -283,6 +321,7 @@ def seed_never_started(home: Path) -> None:
     con = sqlite3.connect(home / "db.sqlite", timeout=5)
     try:
         seed_agents(con, [NEVER_STARTED], {})
+        rekey(home, con)
         con.commit()
     finally:
         con.close()
@@ -295,8 +334,9 @@ def tick_settled(home: Path) -> None:
     for _ in range(600):
         con = sqlite3.connect(home / "db.sqlite", timeout=5)
         try:
-            view = con.execute("SELECT view FROM agent_view WHERE agent = 's.running'").fetchone()
-            wt = con.execute("SELECT worktree FROM agent_state WHERE agent = ?", (FILES_AGENT,)).fetchone()
+            keys = agent_keys(con)
+            view = con.execute("SELECT view FROM agent_view WHERE agent = ?", (keys["s.running"],)).fetchone()
+            wt = con.execute("SELECT worktree FROM agent_state WHERE agent = ?", (keys[FILES_AGENT],)).fetchone()
         finally:
             con.close()
         if view and json.loads(view[0]).get("state") != "running" and not (wt and wt[0]):
@@ -402,7 +442,7 @@ def main(argv: list[str]) -> int:
             main_dir = seed_account(home, "main") / ".claude"  # a logged-in account: it has a credential file
             main_dir.mkdir()
             (main_dir / ".credentials.json").write_text("{}")
-            seeded |= {"account": "main", "schedule_agent": ASK_AGENT, "task_owner": ASK_AGENT}
+            seeded |= {"account": "main", "schedule_agent": seeded["ask_agent"], "task_owner": seeded["ask_agent"]}
             rc = conformance.main(["--var", f"founder_key={key}", "--var", "dialogs_retired=1",
                                    *(a for k, v in seeded.items() for a in ("--var", f"{k}={v}")), *rest],
                                   connectors={"founder": local, "anonymous": local, "agent": taker(mine), "unpaired": taker(net_pairs)})

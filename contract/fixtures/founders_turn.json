@@ -343,7 +343,7 @@
      "result": {
       "turns": {
        "$contains": {
-        "agent": "human",
+        "agent": "p1",
         "ask": "pick one, A or B",
         "edited": {
          "$type": "string"

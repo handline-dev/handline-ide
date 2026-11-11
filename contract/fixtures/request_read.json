@@ -32,7 +32,7 @@
      "result": {
       "messages": {
        "$contains": {
-        "to": "human",
+        "to": "p1",
         "id": {
          "$type": "integer",
          "$save": "ask"
@@ -79,7 +79,7 @@
       "ref": {
        "$regex": "^[0-9a-f]{12}$"
       },
-      "requester": "human",
+      "requester": "p1",
       "target": "{{ask_agent}}",
       "kind": {
        "$type": "string"
@@ -115,7 +115,7 @@
       "id": "{{ask}}",
       "ref": "{{ask_ref}}",
       "requester": "{{ask_agent}}",
-      "target": "human",
+      "target": "p1",
       "parent": null,
       "body": "which one?"
      }

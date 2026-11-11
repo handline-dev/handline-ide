@@ -299,7 +299,7 @@
         "name": "conf view",
         "filter": {
          "$exact": true,
-         "owner": "human"
+         "owner": "p1"
         }
        }
       }
