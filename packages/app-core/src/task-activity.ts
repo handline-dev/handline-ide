@@ -44,26 +44,34 @@ const stateLine = (who: string, text: string): string => {
   return `${who} ${STATE_WORD[to] ?? `moved it to ${to || 'another state'}`}`;
 };
 
+/** Writes a key out (useNameOf); the identity when none is given. */
+type NameOf = (key: string) => string;
+const asIs: NameOf = (k) => k;
+
 /** The person as "you", anyone else by name. */
-const named = (who: string, me: string, you = 'you') => (isPerson(who, me) ? you : who);
+const named = (who: string, me: string, nameOf: NameOf, you = 'you') => (isPerson(who, me) ? you : nameOf(who));
 
 /** A turn passed, in words: "handline.ui asked you" with its ask, "You gave the turn back to handline.ui". */
-function turnLine(e: Entry, me: string): { line: string; to: string } {
+function turnLine(e: Entry, me: string, nameOf: NameOf): { line: string; to: string } {
   const [from = e.who, to = ''] = e.who.split('→').map((x) => x.trim());
-  if (e.turn === 'pop') return { line: `${named(from, me, 'You')} gave the turn back to ${named(to, me)}`, to };
-  return { line: isPerson(to, me) ? `${from} asked you` : `${named(from, me, 'You')} gave the turn to ${to}`, to };
+  if (e.turn === 'pop') return { line: `${named(from, me, nameOf, 'You')} gave the turn back to ${named(to, me, nameOf)}`, to };
+  return { line: isPerson(to, me) ? `${nameOf(from)} asked you` : `${named(from, me, nameOf, 'You')} gave the turn to ${nameOf(to)}`, to };
 }
 
 /** A request in words: one the daemon delivered on someone's behalf says why (the queue reached it, or a new holder). */
-function requestLine(e: Entry): string {
-  const to = e.who.split('→').pop()?.trim() ?? '';
+function requestLine(e: Entry, nameOf: NameOf): string {
+  const to = nameOf(e.who.split('→').pop()?.trim() ?? '');
   if (e.forwards === 'queue') return `It reached ${to} from the queue`;
   if (e.forwards === 'resend') return `It went again to ${to}, its new holder`;
-  return `${e.who} sent a request`;
+  return `${e.who
+    .split('→')
+    .map((x) => nameOf(x.trim()))
+    .join(' → ')} sent a request`;
 }
 
-/** The memos as comments and the rest of the timeline as events in words, oldest first; `me` is the person, written "you". */
-export function activityOf(memos: TaskDetail['memos'], timeline: readonly Entry[], me = ''): ActivityItem[] {
+/** The memos as comments and the rest of the timeline as events in words, oldest first; `me` is the person, written "you", and every
+ * other who in a line is written out by `nameOf`. */
+export function activityOf(memos: TaskDetail['memos'], timeline: readonly Entry[], me = '', nameOf: NameOf = asIs): ActivityItem[] {
   const comments: ActivityItem[] = memos.map((m) => {
     const named = new Set(findImageRefs(m.text).map((r) => r.id));
     return {
@@ -86,23 +94,23 @@ export function activityOf(memos: TaskDetail['memos'], timeline: readonly Entry[
       case 'memo':
         return [];
       case 'turn': {
-        const { line, to } = turnLine(e, me);
+        const { line, to } = turnLine(e, me, nameOf);
         return [{ ...base, line, note: e.text, turn: e.turn === 'pop' ? 'pop' : 'push', turnTo: to }];
       }
       case 'handoff': {
         const [from = e.who, to = ''] = e.who.split('→').map((x) => x.trim());
-        const by = named(from, me, 'You');
-        const line = !to ? `${by} handed it over` : isPerson(to, me) ? `${by} assigned you` : `${by} handed it to ${to}`;
+        const by = named(from, me, nameOf, 'You');
+        const line = !to ? `${by} handed it over` : isPerson(to, me) ? `${by} assigned you` : `${by} handed it to ${nameOf(to)}`;
         return [{ ...base, who: from, line, note: e.text }];
       }
       case 'state':
-        return [{ ...base, line: stateLine(e.who, e.text), note: '' }];
+        return [{ ...base, line: stateLine(nameOf(e.who), e.text), note: '' }];
       case 'edit':
-        return [{ ...base, line: `${e.who} changed the brief`, note: e.text }];
+        return [{ ...base, line: `${nameOf(e.who)} changed the brief`, note: e.text }];
       case 'reject':
-        return [{ ...base, line: `${e.who} sent it back`, note: e.text }];
+        return [{ ...base, line: `${nameOf(e.who)} sent it back`, note: e.text }];
       case 'request':
-        return [{ ...base, line: requestLine(e), note: e.text }];
+        return [{ ...base, line: requestLine(e, nameOf), note: e.text }];
     }
   });
   return [...comments, ...events].sort((a, b) => Date.parse(a.at) - Date.parse(b.at));

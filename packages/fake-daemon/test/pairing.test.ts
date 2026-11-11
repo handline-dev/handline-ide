@@ -117,7 +117,7 @@ test('a code is redeemed once for a token; with it hello makes the caller a devi
   const hello = await paired.start();
   assert.equal(hello.role, 'owner');
   assert.equal(hello.transport, 'network');
-  assert.deepEqual(hello.caller, { kind: 'device', device, name: 'phone' });
+  assert.deepEqual(hello.caller, { kind: 'device', key: 'human', device, name: 'phone' });
   assert.ok((await paired.call('agents.list', {})).agents.length > 0);
   paired.close();
 });

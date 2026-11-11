@@ -1,8 +1,9 @@
 // What a task waiting on the founder asks, in the words of the comment that asked. The wait ends with an answer to that comment
 // (its Reference in Activity, then the comment box below), or with Dismiss when there is nothing to answer; seeing it does not end it.
-import { isPerson } from '@handline/app-core';
+import { isPerson, renderRefs } from '@handline/app-core';
 import type { TaskDetail } from '@handline/client';
-import { useWrite } from '@handline/app-data';
+import { useDirectory, useWrite } from '@handline/app-data';
+import { Who } from '#src/ui/Who.tsx';
 import { Hand, X } from 'lucide-react';
 import { useState } from 'react';
 import { IconButton } from '#src/ui/IconButton.tsx';
@@ -29,6 +30,7 @@ export function WaitingOnYou({
   /** Reads the task again once the asks are closed: the wait is worked out from them, and no task notice comes for it. */
   onDone: () => void;
 }) {
+  const dir = useDirectory();
   const read = useWrite('inbox.mark_read');
   const open = openAsks(t, me);
   // Dismiss: the asks are marked read and the wait ends; the agent is told nothing more.
@@ -66,9 +68,9 @@ export function WaitingOnYou({
           Waiting on you
         </span>
         <span className="pl-6 text-xs text-muted">
-          {asked.author} · {clock(asked.at)}
+          <Who k={asked.author} /> · {clock(asked.at)}
         </span>
-        <span className="line-clamp-2 pl-6">{asked.text.replace(/@human\s*/g, '')}</span>
+        <span className="line-clamp-2 pl-6">{renderRefs(dir, asked.text).replace(/@human\s*/g, '')}</span>
       </button>
     </div>
   );

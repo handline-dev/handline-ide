@@ -1,6 +1,6 @@
 import type { Task } from '@handline/client';
 import { foundersTurn, turnChain } from '@handline/app-core';
-import { classify, sentence, useGiveBack, useTasks } from '@handline/app-data';
+import { classify, sentence, useGiveBack, useNameOf, useTasks } from '@handline/app-data';
 import { useMe } from '@handline/app-react';
 import { ago } from '#src/format/time.ts';
 import { taskOf } from '#src/layout/kinds.tsx';
@@ -101,14 +101,15 @@ function waitWords(t: Task): string | null {
 }
 
 function Row({ t, ruled, owner }: { t: Task; ruled: boolean; owner?: string }) {
+  const nameOf = useNameOf();
   const me = useMe();
   const back = useGiveBack();
   const s = look(t);
   const why = waitWords(t);
   // The assignee is left out while the list is already that agent's.
-  const chain = turnChain(t, me);
+  const chain = turnChain(t, me, nameOf);
   const detail = [
-    chain || (owner ? null : `Assigned to ${t.to}`),
+    chain || (owner ? null : `Assigned to ${nameOf(t.to)}`),
     t.priority && `P${t.priority}`,
     why,
     failedLine(t.evidence, t.title),

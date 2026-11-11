@@ -832,6 +832,10 @@
        "anonymous"
       ]
      },
+     "key": {
+      "type": "string",
+      "description": "The key the caller's writes are stored under: the agent's (a<n>), or the person's (p<n>) for a person or their device; empty for anonymous."
+     },
      "name": {
       "type": "string",
       "description": "The user, the device's name, or the agent's name."
@@ -843,6 +847,7 @@
     },
     "required": [
      "kind",
+     "key",
      "name"
     ]
    },

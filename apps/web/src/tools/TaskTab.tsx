@@ -1,5 +1,5 @@
 import { activityOf, foundersTurn, taskOutcome, isPerson, turnChain, isSystem, type ActivityItem } from '@handline/app-core';
-import { hooks, useTaskHistory, useTaskSeen, useWrite } from '@handline/app-data';
+import { hooks, useNameOf, useTaskHistory, useTaskSeen, useWrite } from '@handline/app-data';
 import { EventRow, HoverRow, Mark, type Turn } from '#src/tools/TaskEvents.tsx';
 import { useMe } from '@handline/app-react';
 import { Check, ChevronDown, Ellipsis, Hourglass, MessageSquare, RotateCcw, Trash2 } from 'lucide-react';
@@ -29,6 +29,7 @@ import { keptScroll } from '#src/ui/keptScroll.ts';
 import { sayRefusal } from '#src/ui/refusal.tsx';
 import { toast } from '#src/ui/toast.tsx';
 import { useTabState } from '#src/persist/tabState.ts';
+import { Who } from '#src/ui/Who.tsx';
 
 const CLOSED = ['done', 'discarded'];
 
@@ -37,6 +38,7 @@ const CLOSED = ['done', 'discarded'];
 export function TaskTab({ id }: { id: number }) {
   const q = hooks.useTaskGet({ task: id });
   const me = useMe();
+  const nameOf = useNameOf();
   useTaskSeen(id);
   // The comment the box below answers, picked by Reply or a comment's Reference.
   const [replyTo, setReplyTo] = useTabState<Reply | null>('reply', null);
@@ -72,7 +74,7 @@ export function TaskTab({ id }: { id: number }) {
   // Blockers have their own rows: "blocked by T<n>" over them would name each twice.
   const why = t.blockers.length ? null : (t.waiting?.text ?? t.block_reason ?? t.hold_reason);
   const mine = open && foundersTurn(t, me);
-  const chain = turnChain(t, me);
+  const chain = turnChain(t, me, nameOf);
   // Waiting on the founder: what was asked, in the words of the last comment that named them.
   const asked =
     t.waiting && (t.waiting.on === 'founder' || isPerson(t.waiting.on, me))
@@ -161,7 +163,7 @@ export function TaskTab({ id }: { id: number }) {
               open={mine ? openTurnAt(t, me) : undefined}
               turn={t.turns?.at(-1)}
               onReply={(id) => setReplyTo(t.memos.find((m) => m.id === id) ?? null)}
-              items={activityOf(t.memos, t.timeline, me).filter((i) => !isSystem(i.who))}
+              items={activityOf(t.memos, t.timeline, me, nameOf).filter((i) => !isSystem(i.who))}
             />
           </Page>
         </ScrollFade>
@@ -330,7 +332,9 @@ function Activity({
               <Mark icon={MessageSquare} />
               <div className="flex min-w-0 flex-1 flex-col">
                 <div className={`flex flex-col rounded-md ${fresh(i)}`}>
-                  <span className="text-xs font-medium text-muted">{i.who}</span>
+                  <span className="text-xs font-medium text-muted">
+                    <Who k={i.who} />
+                  </span>
                   {i.replyTo != null && (
                     <Reference text={items.find((r) => r.memo === i.replyTo)?.note} onClick={() => showMemo(i.replyTo!)} />
                   )}
