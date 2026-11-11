@@ -27,7 +27,7 @@ func TestReleaseTakesADoingTaskBackAndRetiresTheRequestsOutOnIt(t *testing.T) {
 		"INSERT INTO task_requests(task_id, request_id) VALUES(1, 10), (2, 11), (4, 12)",
 		"INSERT INTO agent_state(agent, state, updated, current_task) VALUES('w', 'IDLE', 1, 1), ('w2', 'IDLE', 1, 2), ('w3', 'IDLE', 1, 4)",
 	} {
-		if _, err := db.Exec(q); err != nil {
+		if _, err := db.Exec(keyed(db, q)); err != nil {
 			t.Fatalf("%s: %v", q, err)
 		}
 	}
@@ -63,15 +63,15 @@ func TestReleaseTakesADoingTaskBackAndRetiresTheRequestsOutOnIt(t *testing.T) {
 		t.Fatalf("release: %v", r)
 	}
 	var state string
-	db.QueryRow("SELECT state FROM requests WHERE id = 10").Scan(&state)
-	count := func(q string) (n int) { db.QueryRow(q).Scan(&n); return }
+	db.QueryRow(keyed(db, "SELECT state FROM requests WHERE id = 10")).Scan(&state)
+	count := func(q string) (n int) { db.QueryRow(keyed(db, q)).Scan(&n); return }
 	if state != "landed" || count("SELECT COUNT(*) FROM tasks WHERE id = 1 AND sent_at IS NULL AND timeout_at IS NULL") != 1 {
 		t.Fatalf("the delivered request closes as landed and the task is unsent with its clock paused: %q", state)
 	}
 	if count("SELECT COUNT(*) FROM events WHERE kind = 'release_task' AND payload = '{\"task_id\": 1, \"retired\": [10], \"reason\": \"stuck\"}'") != 1 ||
 		count("SELECT COUNT(*) FROM events WHERE kind = 'closed_under'") != 1 {
 		var kinds, payloads string
-		db.QueryRow("SELECT group_concat(kind), group_concat(payload, ' | ') FROM events").Scan(&kinds, &payloads)
+		db.QueryRow(keyed(db, "SELECT group_concat(kind), group_concat(payload, ' | ') FROM events")).Scan(&kinds, &payloads)
 		t.Fatalf("the release and the close are on the event log: %s %s", kinds, payloads)
 	}
 	if len(f.released) != 1 || f.released[0].RID != 10 || f.released[0].Held || !f.released[0].Delivered {

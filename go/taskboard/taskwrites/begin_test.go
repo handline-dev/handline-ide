@@ -66,13 +66,13 @@ func TestBeginOpensATaskOnTheFoundersMessageAndStartsIt(t *testing.T) {
 	var prio int
 	var expects, ev string
 	var cur sql.NullInt64
-	db.QueryRow("SELECT priority, expects FROM tasks WHERE id = 1").Scan(&prio, &expects)
-	db.QueryRow("SELECT current_task FROM agent_state WHERE agent = 'worker'").Scan(&cur)
-	db.QueryRow("SELECT payload FROM events WHERE kind = 'task_begin' ORDER BY id LIMIT 1").Scan(&ev)
+	db.QueryRow(keyed(db, "SELECT priority, expects FROM tasks WHERE id = 1")).Scan(&prio, &expects)
+	db.QueryRow(keyed(db, "SELECT current_task FROM agent_state WHERE agent = 'worker'")).Scan(&cur)
+	db.QueryRow(keyed(db, "SELECT payload FROM events WHERE kind = 'task_begin' ORDER BY id LIMIT 1")).Scan(&ev)
 	if prio != 1 || expects != "report" || cur.Int64 != 1 || ev != `{"task_id": 1, "chat_request": 1, "why": "asked"}` {
 		t.Fatalf("%d %q %v %q", prio, expects, cur, ev)
 	}
-	db.QueryRow("SELECT payload FROM events WHERE kind = 'task_begin' ORDER BY id DESC LIMIT 1").Scan(&ev)
+	db.QueryRow(keyed(db, "SELECT payload FROM events WHERE kind = 'task_begin' ORDER BY id DESC LIMIT 1")).Scan(&ev)
 	if ev != `{"task_id": 3, "chat_request": 4}` {
 		t.Fatalf("no why, none on the event: %q", ev)
 	}

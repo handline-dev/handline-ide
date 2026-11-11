@@ -140,7 +140,7 @@ func TestAHandoffNoteNamesImagesAsAMemoDoes(t *testing.T) {
 	}
 	said(t, run("", "task.memo.add", "m1", params(1, "text", "the founder's "+ref(img))))
 	said(t, run("w", "task.handoff", "h2", `,"task":1,"to":"boss","note":"see `+ref(img)+`"`))
-	sdb.Exec("DELETE FROM task_memos")
+	sdb.Exec(keyed(sdb, "DELETE FROM task_memos"))
 	if held, _ := attachments.Held(sdb, 5); held[img] != 5 {
 		t.Fatalf("the note holds the image while the task is open: %v", held)
 	}

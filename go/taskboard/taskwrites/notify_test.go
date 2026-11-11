@@ -35,15 +35,17 @@ func TestAnyoneChangesATaskAndItsOpenerAndAssigneeAreTold(t *testing.T) {
 	}
 	toldOf := func(text string) string {
 		var to []string
-		rows, err := db.Query("SELECT target FROM requests WHERE requester = 'sys' AND body = ?", text)
+		rows, err := db.Query("SELECT target, body FROM requests WHERE requester = 'sys'")
 		if err != nil {
 			t.Fatal(err)
 		}
 		defer rows.Close()
 		for rows.Next() {
-			var s string
-			rows.Scan(&s)
-			to = append(to, s)
+			var s, body string
+			rows.Scan(&s, &body)
+			if named(db, body) == text {
+				to = append(to, named(db, s))
+			}
 		}
 		sort.Strings(to)
 		return strings.Join(to, " ")
@@ -84,14 +86,10 @@ func TestADiscardTellsTheAskerBesideTheOpenerAndAMoveLeavesTheNewOwnerToItsBrief
 	if r[0]["result"] == nil || r[1]["result"] == nil {
 		t.Fatalf("%v %v", r[0], r[1])
 	}
-	targets := func(like string) (to string) {
-		db.QueryRow("SELECT group_concat(target, ' ') FROM (SELECT target FROM requests WHERE body LIKE ? ORDER BY target)", like).Scan(&to)
-		return
-	}
-	if got := targets("T1 discarded by gp: dup%"); got != "manager other worker" {
+	if got := toldTo(t, db, "T1 discarded by gp: dup"); got != "manager other worker" {
 		t.Errorf("a discard tells the asker, the opener and the assignee: %q", got)
 	}
-	if got := targets("task T2 edited by gp%"); got != "manager worker" {
+	if got := toldTo(t, db, "task T2 edited by gp"); got != "manager worker" {
 		t.Errorf("a move tells the opener and the old owner; the new one is sent the brief itself: %q", got)
 	}
 }

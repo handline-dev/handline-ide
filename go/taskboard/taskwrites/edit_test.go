@@ -64,7 +64,7 @@ func TestEditChangesATaskInOneTransactionAndLeavesTheTellingToTheTeller(t *testi
 		}
 	}
 	var ev string
-	db.QueryRow("SELECT payload FROM events WHERE kind = 'edit_task' ORDER BY id LIMIT 1").Scan(&ev)
+	db.QueryRow(keyed(db, "SELECT payload FROM events WHERE kind = 'edit_task' ORDER BY id LIMIT 1")).Scan(&ev)
 	if ev[:60] != `{"task_id": 1, "body": {"old": "the brief", "new": "the new ` {
 		t.Fatalf("keys go out in the order Python wrote them: %s", ev)
 	}

@@ -19,7 +19,7 @@ func oldAsk(t *testing.T, db *sql.DB, tid, mid int64, body string) {
 		fmt.Sprintf("INSERT INTO requests(id, requester, target, body, state, kind, memo_id, ts) VALUES(%d, 'worker', 'p1', %q, 'queued', 'ask', %d, 1)", 100+mid, body, mid),
 		fmt.Sprintf("INSERT INTO task_requests(task_id, request_id) VALUES(%d, %d)", tid, 100+mid),
 	} {
-		if _, err := db.Exec(q); err != nil {
+		if _, err := db.Exec(keyed(db, q)); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -33,7 +33,7 @@ func TestACommentRaisesNoAsk(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	db.Exec("INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 't', 'worker', 'manager', 1)")
+	db.Exec(keyed(db, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 't', 'worker', 'manager', 1)"))
 	srv := serverFor(t, db, "worker")
 	for i, text := range []string{"@human which one?", "  \n@human which?", "thanks @human for the answer"} {
 		r := call(t, srv, fmt.Sprintf(`{"jsonrpc":"2.0","id":2,"method":"task.comment.add","params":{"task":1,"text":%q,"request_id":"q%d"}}`, text, i))
@@ -42,7 +42,7 @@ func TestACommentRaisesNoAsk(t *testing.T) {
 		}
 	}
 	var asks int
-	db.QueryRow("SELECT COUNT(*) FROM requests WHERE target = 'p1'").Scan(&asks)
+	db.QueryRow(keyed(db, "SELECT COUNT(*) FROM requests WHERE target = 'p1'")).Scan(&asks)
 	if asks != 0 {
 		t.Fatalf("comments asked the founder %d times", asks)
 	}
@@ -57,7 +57,7 @@ func TestAnOldCommentsAskFollowsItsComment(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	if _, err := db.Exec("INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 't', 'worker', 'manager', 1)"); err != nil {
+	if _, err := db.Exec(keyed(db, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 't', 'worker', 'manager', 1)")); err != nil {
 		t.Fatal(err)
 	}
 	mk := func(agent string) *rpc.Server { return serverFor(t, db, agent) }
@@ -99,7 +99,7 @@ func TestTheAskOfACommentEndsWithItsTask(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	if _, err := db.Exec("INSERT INTO tasks(id, title, owner, opened_by, created_at, expects) VALUES(1, 'a', 'worker', 'manager', 1, 'report'), (2, 'b', 'worker', 'manager', 1, 'report')"); err != nil {
+	if _, err := db.Exec(keyed(db, "INSERT INTO tasks(id, title, owner, opened_by, created_at, expects) VALUES(1, 'a', 'worker', 'manager', 1, 'report'), (2, 'b', 'worker', 'manager', 1, 'report')")); err != nil {
 		t.Fatal(err)
 	}
 	srv := rpc.NewServer(auth{"worker"}, "x", store.LatestVersion(), "local", t.Logf)
@@ -132,17 +132,17 @@ func TestWithdrawUnaddressedMemoAsksTakesBackOnlyThoseNotStartingWithHumanOnce(t
 		t.Fatal(err)
 	}
 	defer db.Close()
-	db.Exec("INSERT INTO requests(id, requester, target, body, state, kind, memo_id, ts) VALUES(1, 'a', 'p1', '@human which?', 'queued', 'ask', 1, 1), (2, 'a', 'p1', 'thanks @human', 'queued', 'ask', 2, 1)")
+	db.Exec(keyed(db, "INSERT INTO requests(id, requester, target, body, state, kind, memo_id, ts) VALUES(1, 'a', 'p1', '@human which?', 'queued', 'ask', 1, 1), (2, 'a', 'p1', 'thanks @human', 'queued', 'ask', 2, 1)"))
 	if n, err := WithdrawUnaddressedMemoAsks(db); err != nil || n != 1 {
 		t.Fatalf("one stale ask: %d %v", n, err)
 	}
 	var st1, st2 string
-	db.QueryRow("SELECT state FROM requests WHERE id = 1").Scan(&st1)
-	db.QueryRow("SELECT state FROM requests WHERE id = 2").Scan(&st2)
+	db.QueryRow(keyed(db, "SELECT state FROM requests WHERE id = 1")).Scan(&st1)
+	db.QueryRow(keyed(db, "SELECT state FROM requests WHERE id = 2")).Scan(&st2)
 	if st1 != "queued" || st2 != "withdrawn" {
 		t.Fatalf("%s %s", st1, st2)
 	}
-	db.Exec("UPDATE requests SET state = 'queued' WHERE id = 2")
+	db.Exec(keyed(db, "UPDATE requests SET state = 'queued' WHERE id = 2"))
 	if n, _ := WithdrawUnaddressedMemoAsks(db); n != 0 {
 		t.Fatalf("once: %d", n)
 	}

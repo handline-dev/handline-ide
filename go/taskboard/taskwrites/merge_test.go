@@ -30,7 +30,7 @@ func TestMergeFoldsTasksIntoOneAndRefusesWhatWouldLoop(t *testing.T) {
 		"INSERT INTO task_blocks(task_id, blocks_on, created_at) VALUES(4, 2, 1), (1, 2, 1), (2, 6, 1)", // 4 waits on 2; keep waits on 2; 2 waits on its child
 		"INSERT INTO task_blocks(task_id, blocks_on, created_at) VALUES(7, 8, 1)",
 	} {
-		if _, err := db.Exec(q); err != nil {
+		if _, err := db.Exec(keyed(db, q)); err != nil {
 			t.Fatalf("%s: %v", q, err)
 		}
 	}
@@ -55,16 +55,16 @@ func TestMergeFoldsTasksIntoOneAndRefusesWhatWouldLoop(t *testing.T) {
 	refused("unknown", merge("boss", "a4", 1, 99), fmt.Sprintf("no task T%d", 99))
 	refused("a real blocker", merge("boss", "a6", 1, 7), "task T7 is waiting on T8 - it cannot be merged until they are done")
 	refused("under it", merge("boss", "a7", 6, 2), "task T6 is under T2 - folding T2 into it would loop them")
-	db.Exec("INSERT INTO task_blocks(task_id, blocks_on, created_at) VALUES(1, 4, 1)") // keep waits on 4, 4 waits on 2: folding 2 into 1 would have 4 wait on 1, which waits on 4
+	db.Exec(keyed(db, "INSERT INTO task_blocks(task_id, blocks_on, created_at) VALUES(1, 4, 1)")) // keep waits on 4, 4 waits on 2: folding 2 into 1 would have 4 wait on 1, which waits on 4
 	refused("a wait cycle", merge("boss", "a8", 1, 2), "T4 waits on T2; waiting on T1 instead would be a cycle")
-	db.Exec("DELETE FROM task_blocks WHERE task_id = 1 AND blocks_on = 4")
+	db.Exec(keyed(db, "DELETE FROM task_blocks WHERE task_id = 1 AND blocks_on = 4"))
 	refused("an unknown kept task", merge("boss", "b1", 98, 2), fmt.Sprintf("no task T%d", 98))
 	refused("a discarded kept task", merge("boss", "b2", 10, 2), fmt.Sprintf("task T%d is discarded - nothing can merge into it", 10))
 	refused("a done folded task", merge("boss", "b3", 1, 9), "task T9 is done - it is not merged")
 	refused("a discarded folded task", merge("boss", "b4", 1, 10), fmt.Sprintf("task T%d is already discarded", 10))
 	refused("no tasks", call(t, mk("boss"), `{"jsonrpc":"2.0","id":2,"method":"task.merge","params":{"into":1,"tasks":[],"request_id":"b5"}}`)[0], "tasks is a list of task numbers")
 	var n int
-	db.QueryRow("SELECT COUNT(*) FROM tasks WHERE discarded_by IS NOT NULL").Scan(&n)
+	db.QueryRow(keyed(db, "SELECT COUNT(*) FROM tasks WHERE discarded_by IS NOT NULL")).Scan(&n)
 	if n != 1 { // only the one the test seeded
 		t.Fatalf("refusals change nothing: %d discarded", n)
 	}
@@ -75,15 +75,15 @@ func TestMergeFoldsTasksIntoOneAndRefusesWhatWouldLoop(t *testing.T) {
 	}
 	var title, by, reason string
 	var into int
-	db.QueryRow("SELECT title FROM tasks WHERE id = 1").Scan(&title)
+	db.QueryRow(keyed(db, "SELECT title FROM tasks WHERE id = 1")).Scan(&title)
 	if title != "keep (+ T2: two) (+ T3: three)" {
 		t.Fatalf("the titles are added: %q", title)
 	}
-	db.QueryRow("SELECT discarded_by, discard_reason, merged_into FROM tasks WHERE id = 2").Scan(&by, &reason, &into)
+	db.QueryRow(keyed(db, "SELECT discarded_by, discard_reason, merged_into FROM tasks WHERE id = 2")).Scan(&by, &reason, &into)
 	if by != "boss" || reason != "merged into T1" || into != 1 {
 		t.Fatalf("T2 closes as merged: %q %q %d", by, reason, into)
 	}
-	count := func(q string) (n int) { db.QueryRow(q).Scan(&n); return }
+	count := func(q string) (n int) { db.QueryRow(keyed(db, q)).Scan(&n); return }
 	if count("SELECT COUNT(*) FROM task_requests WHERE task_id = 1 AND request_id = 10") != 1 || count("SELECT COUNT(*) FROM task_requests WHERE task_id = 2") != 0 {
 		t.Fatal("the request moves")
 	}
@@ -103,7 +103,7 @@ func TestMergeFoldsTasksIntoOneAndRefusesWhatWouldLoop(t *testing.T) {
 		t.Fatal("the dropped wait is on the event")
 	}
 	refused("again", merge("boss", "again", 1, 2), "task T2 is already discarded")
-	db.Exec("UPDATE tasks SET done_evidence = 'x', done_at = 2 WHERE id = 1")
+	db.Exec(keyed(db, "UPDATE tasks SET done_evidence = 'x', done_at = 2 WHERE id = 1"))
 	refused("into a done task", merge("boss", "a9", 1, 4), "task T1 is done - nothing can merge into it")
 }
 
@@ -131,7 +131,7 @@ func TestMergeRefreshesSentFromTheRequestsThatMoved(t *testing.T) {
 		"INSERT INTO requests(id, requester, target, kind, state, ts, body) VALUES(10, 'boss', 'w', 'task', 'queued', 1, 'x'), (11, 'boss', 'w', 'task', 'done', 1, 'x')",
 		"INSERT INTO task_requests(task_id, request_id) VALUES(2, 10), (3, 11)",
 	} {
-		if _, err := db.Exec(q); err != nil {
+		if _, err := db.Exec(keyed(db, q)); err != nil {
 			t.Fatalf("%s: %v", q, err)
 		}
 	}

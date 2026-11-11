@@ -31,7 +31,7 @@ func TestFounderTasksGoBackToWhoHandedThemOver(t *testing.T) {
 	if count(t, sdb, "SELECT COUNT(*) FROM task_turns WHERE task_id = 2 AND agent = 'p1' AND ask = 'opened'") != 1 {
 		t.Errorf("a task handed over with no note asks with its title")
 	}
-	sdb.Exec("UPDATE tasks SET owner = 'p1' WHERE id = 2") // the founder may take a task, and it stays theirs after a restart
+	sdb.Exec(keyed(sdb, "UPDATE tasks SET owner = 'p1' WHERE id = 2")) // the founder may take a task, and it stays theirs after a restart
 	if again, err := ReturnFounderTasks(sdb, home); err != nil || len(again) != 0 {
 		t.Fatalf("it runs once: %q %v", again, err)
 	}

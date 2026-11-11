@@ -10,6 +10,8 @@ import (
 
 	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/kit/paths"
+	"github.com/handline/handline/go/kit/store"
+	"github.com/handline/handline/go/protocol/rpc"
 )
 
 // homes is the home each rig's task database names its agents in, so exec and count write and read them by key.
@@ -80,4 +82,37 @@ func namedAll(db *sql.DB, v any) any {
 		}
 	}
 	return v
+}
+
+// toldTo is who the requests whose body, read by name, starts with prefix went to: their names, sorted, space-separated.
+func toldTo(t *testing.T, db *sql.DB, prefix string) string {
+	t.Helper()
+	rows, err := db.Query("SELECT target, body FROM requests")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var to []string
+	for rows.Next() {
+		var target, body string
+		rows.Scan(&target, &body)
+		if strings.HasPrefix(named(db, body), prefix) {
+			to = append(to, named(db, target))
+		}
+	}
+	sort.Strings(to)
+	return strings.Join(to, " ")
+}
+
+// rigServer serves the task methods over d to agent (the founder for "") as the daemon would: who params resolved to keys, the
+// caller by its key, and a fake teller's records read by name. d must be registered in homes.
+func rigServer(t testing.TB, d *sql.DB, home, agent string, tell Teller) *rpc.Server {
+	s := rpc.NewServer(auth{as(t, home, agent)}, "x", store.LatestVersion(), "local", func(string, ...any) {})
+	s.DB = d
+	s.Who = func(w string) string { return paths.WhoKey(home, w) }
+	if f, ok := tell.(*fakeTeller); ok {
+		f.db = d
+	}
+	Register(s, home, tell, nil)
+	return s
 }

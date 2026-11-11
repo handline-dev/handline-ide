@@ -17,7 +17,15 @@ func TestAnyoneMayEditOrReassignATask(t *testing.T) {
 	defer db.Close()
 	home := t.TempDir()
 	teamtest.Seed(t, home, "shop", "shop.a", "shop.b", "other", "other.c")
-	if _, err := db.Exec("INSERT INTO tasks(id, title, owner, opened_by, created_at, reporter) VALUES(1, 'for other', 'shop.b', 'other.c', 1, 'other')"); err != nil {
+	homes.Store(db, home)
+	k := func(p *string) *string { // an edit's who, by key as a handler gets it
+		if p == nil {
+			return nil
+		}
+		v := teamtest.Key(t, home, *p)
+		return &v
+	}
+	if _, err := db.Exec(keyed(db, "INSERT INTO tasks(id, title, owner, opened_by, created_at, reporter) VALUES(1, 'for other', 'shop.b', 'other.c', 1, 'other')")); err != nil {
 		t.Fatal(err)
 	}
 	s := func(v string) *string { return &v }
@@ -27,7 +35,7 @@ func TestAnyoneMayEditOrReassignATask(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer tx.Commit()
-		why, _, err := editTask(tx, 1, by, home, owner, reporter, title, nil, nil, nil, nil, nil)
+		why, _, err := editTask(tx, 1, teamtest.Key(t, home, by), home, k(owner), k(reporter), title, nil, nil, nil, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -38,7 +46,7 @@ func TestAnyoneMayEditOrReassignATask(t *testing.T) {
 		defer tx.Rollback()
 		tk, _ := getTask(tx, 1)
 		answers, _ = asker(tx, tk)
-		return tk.Owner, tk.reporter(), answers
+		return named(db, tk.Owner), named(db, tk.reporter()), named(db, answers)
 	}
 	if _, _, a := read(); a != "other" {
 		t.Fatalf("a set reporter is who the task answers to: %q", a)

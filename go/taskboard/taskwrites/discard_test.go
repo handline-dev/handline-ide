@@ -29,7 +29,7 @@ func TestDiscardIsTheAskersAndTellsTheOwnerAndFreesWhatWaitedOnIt(t *testing.T) 
 		"UPDATE tasks SET parent_task = 1 WHERE id = 3",
 		"INSERT INTO task_blocks(task_id, blocks_on, created_at) VALUES(2, 1, 1)",
 	} {
-		if _, err := db.Exec(q); err != nil {
+		if _, err := db.Exec(keyed(db, q)); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -48,30 +48,30 @@ func TestDiscardIsTheAskersAndTellsTheOwnerAndFreesWhatWaitedOnIt(t *testing.T) 
 	if r := call(t, mk("manager"), line(2, 1, "x", "m1")); r[0]["error"] == nil {
 		t.Fatalf("an open child refuses: %v", r[0])
 	}
-	db.Exec("UPDATE tasks SET done_evidence = 'x', done_at = 2 WHERE id = 3")
+	db.Exec(keyed(db, "UPDATE tasks SET done_evidence = 'x', done_at = 2 WHERE id = 3"))
 	r := call(t, mk("manager"), line(2, 1, "not needed", "m2"), line(3, 1, "again", "m3"))
 	if r[0]["result"].(map[string]any)["said"] != "task T1 discarded by manager: not needed" || r[1]["error"] == nil {
 		t.Fatalf("%v %v", r[0], r[1])
 	}
 	var n int
-	db.QueryRow("SELECT COUNT(*) FROM tasks WHERE id = 1 AND discarded_by = 'manager' AND discard_reason = 'not needed'").Scan(&n)
+	db.QueryRow(keyed(db, "SELECT COUNT(*) FROM tasks WHERE id = 1 AND discarded_by = 'manager' AND discard_reason = 'not needed'")).Scan(&n)
 	if n != 1 {
 		t.Fatal("task 1 is not recorded as discarded")
 	}
 	var body, target string
 	var notice int
-	db.QueryRow("SELECT body, target, COALESCE(notice, 0) FROM requests WHERE requester = 'sys' AND body LIKE 'T1 discarded%'").Scan(&body, &target, &notice)
+	db.QueryRow(keyed(db, "SELECT body, target, COALESCE(notice, 0) FROM requests WHERE requester = 'sys' AND body LIKE 'T1 discarded%'")).Scan(&body, &target, &notice)
 	if body != "T1 discarded by manager: not needed" || target != "worker" || notice != 1 {
 		t.Fatalf("the owner is told: %q %q %d", body, target, notice)
 	}
-	db.QueryRow("SELECT COUNT(*) FROM requests WHERE requester = 'sys' AND target = 'other' AND body LIKE 'task T2 is unblocked - T1%'").Scan(&n)
+	db.QueryRow(keyed(db, "SELECT COUNT(*) FROM requests WHERE requester = 'sys' AND target = 'other' AND body LIKE 'task T2 is unblocked - T1%'")).Scan(&n)
 	var blocks int
-	db.QueryRow("SELECT COUNT(*) FROM task_blocks").Scan(&blocks)
+	db.QueryRow(keyed(db, "SELECT COUNT(*) FROM task_blocks")).Scan(&blocks)
 	if n != 1 || blocks != 0 {
 		t.Fatalf("T2 is told it is unblocked once and the block is gone: %d %d", n, blocks)
 	}
 	// chat.transcript draws this event as T2's card: the closer is its agent and closed_task the blocker.
-	db.QueryRow("SELECT COUNT(*) FROM events WHERE kind = 'task_unblocked' AND agent = 'manager' AND json_extract(payload, '$.task_id') = 2 AND json_extract(payload, '$.closed_task') = 1").Scan(&n)
+	db.QueryRow(keyed(db, "SELECT COUNT(*) FROM events WHERE kind = 'task_unblocked' AND agent = 'manager' AND json_extract(payload, '$.task_id') = 2 AND json_extract(payload, '$.closed_task') = 1")).Scan(&n)
 	if n != 1 {
 		t.Fatalf("task_unblocked event: %d", n)
 	}
