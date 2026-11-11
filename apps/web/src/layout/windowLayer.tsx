@@ -21,7 +21,10 @@ export function useWindowLayer(open: boolean, { drag = false }: { drag?: boolean
   }, [open, drag]);
 }
 
+/** The height of the strip that clears the window buttons. */
+export const CONTROLS_STRIP = 'max(40px, calc(var(--controls-top, 6px) + 34px))';
+
 /** The top of a layer that moves the window: where the page's own strip is. Put it first in the layer. */
-export function LayerDragStrip() {
-  return <div className="app-drag layer-drag shrink-0" style={{ height: 'max(40px, calc(var(--controls-top, 6px) + 34px))' }} />;
+export function LayerDragStrip({ height = CONTROLS_STRIP, className = 'shrink-0' }: { height?: string; className?: string }) {
+  return <div className={`app-drag layer-drag ${className}`} style={{ height }} />;
 }
