@@ -281,3 +281,8 @@ body[data-layer='still'] .layer-drag {
     linear-gradient(#000 0 0);
   animation: spring-fill var(--spring-hold) linear forwards;
 }
+
+/* A usage bar whose reading is not current: its track is striped. */
+.bar-stale {
+  background-image: repeating-linear-gradient(135deg, transparent 0 3px, var(--color-bg) 3px 5px);
+}
