@@ -10,7 +10,7 @@ import (
 
 func (r *rig) ask(from, to, body, kind string) int64 {
 	r.t.Helper()
-	out, err := r.Ask(r.DB, AskIn{Target: to, Body: body, Requester: from, Kind: kind})
+	out, err := r.Ask(r.DB, AskIn{Target: r.k(to), Body: body, Requester: r.k(from), Kind: kind})
 	r.must(err)
 	if !out.OK {
 		r.t.Fatalf("ask refused: %s", out.Message)
@@ -270,9 +270,9 @@ func TestWaitingPromptPassesOverAHeldTaskToTheSayBehindIt(t *testing.T) {
 // task opens a queued task for owner with the delivery request, as task new does.
 func (r *rig) task(owner, opener, title string) int64 {
 	r.t.Helper()
-	tid, err := db.NewTask(r.DB, title, owner, opener, 0, db.DefaultPriority, "", 0, "")
+	tid, err := db.NewTask(r.DB, title, r.k(owner), r.k(opener), 0, db.DefaultPriority, "", 0, "")
 	r.must(err)
-	db.SetTaskQueued(r.DB, tid, opener)
+	db.SetTaskQueued(r.DB, tid, r.k(opener))
 	rid := r.ask(opener, owner, title, "task")
 	r.must(db.LinkRequest(r.DB, tid, rid))
 	return rid

@@ -243,7 +243,7 @@ func TestSendNowTypesAHeldCommentTellOnlyWhileItIsHeld(t *testing.T) {
 		t.Fatalf("a held tell goes now: %v %v", r, tell.sentMemo)
 	}
 	db.Exec(keyed(db, "UPDATE requests SET delivered_at = 9 WHERE id = 5")) // what the digest does
-	for i, agent := range []string{"worker", "amy", "nobody"} {  // already sent, already read, never told
+	for i, agent := range []string{"worker", "amy", "nobody"} {             // already sent, already read, never told
 		if r := send(fmt.Sprintf("s%d", i+2), agent); r["error"] == nil {
 			t.Errorf("%s: only a held tell is sent now: %v", agent, r)
 		}
