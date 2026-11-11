@@ -23,11 +23,12 @@ func TestAnAgentWithTheRenewalSwitchOnIsNotStalledForWantingACacheClock(t *testi
 	p, _, _, wt := wired(t)
 	d := p.db
 	teamtest.Set(t, p.home, "alice", "cache_renewal", true, "idle_fold", true)
+	alice := teamtest.Key(t, p.home, "alice")
 	// A session that is open and idle, with a status naming a transcript that is not there: the clock is unreadable, so no renewal is due.
-	if err := dbpkg.SetResumeSession(d, "alice", "s1"); err != nil {
+	if err := dbpkg.SetResumeSession(d, alice, "s1"); err != nil {
 		t.Fatal(err)
 	}
-	d.Exec("UPDATE agent_state SET closed_at = NULL, state = 'IDLE' WHERE agent = 'alice'")
+	d.Exec("UPDATE agent_state SET closed_at = NULL, state = 'IDLE' WHERE agent = '" + alice + "'")
 	_ = wt
 	tk := p.Tick(cfgOf(p), TickConfig{})
 	if tk.Tick.Cost == nil || tk.Tick.Cost.Ports == nil {
@@ -38,7 +39,7 @@ func TestAnAgentWithTheRenewalSwitchOnIsNotStalledForWantingACacheClock(t *testi
 			t.Fatal(err)
 		}
 	}
-	row, _ := dbpkg.GetAgentState(d, "alice")
+	row, _ := dbpkg.GetAgentState(d, alice)
 	if row.State == "STALLED" || row.FailedAttempts != 0 {
 		t.Fatalf("the agent was stalled by the pilot: %+v", row)
 	}

@@ -138,29 +138,30 @@ func TestATerminalAgentIsStartedInANewWorktreeThroughTheHostAndItsHandleKept(t *
 	ft := newFakeTerminals()
 	p, lc, _, _ := wiredWith(t, ft)
 	d := p.db
+	bob := teamtest.Key(t, p.home, "bob")
 	repo, _ := filepath.EvalSymlinks(gitRepo(t))
 	// the session `hl launch` would start: its record under the account's config directory, for a process that is running
 	dir, _ := team.AccountConfigDir(p.home, teamtest.Account(t, p.home, "a1"))
-	if err := dbpkg.SetAccount(d, "bob", "a1", "recorded"); err != nil {
+	if err := dbpkg.SetAccount(d, bob, "a1", "recorded"); err != nil {
 		t.Fatal(err)
 	}
 	ft.started = sessionRecordIn(dir)
 	teamtest.Set(t, p.home, "bob", "repo", repo)
-	ok, said, err := lc.Spawns.SpawnWith("bob", repo, lifecycle.SpawnOpts{})
+	ok, said, err := lc.Spawns.SpawnWith(bob, repo, lifecycle.SpawnOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !ok || strings.Contains(said, "WARNING") {
 		t.Fatalf("a session runs in it: %v %q", ok, said)
 	}
-	if len(ft.opened) != 1 || !strings.HasSuffix(ft.opened[0], "|bob|"+lifecycle.CommandFor("", "", "", "bob")) ||
-		!strings.HasPrefix(ft.opened[0], repo+".worktrees.noindex/"+paths.AgentKey(p.home, "bob")+"|") {
+	if len(ft.opened) != 1 || !strings.HasSuffix(ft.opened[0], "|bob|"+lifecycle.CommandFor("", "", "", bob)) ||
+		!strings.HasPrefix(ft.opened[0], repo+".worktrees.noindex/"+paths.AgentKey(p.home, bob)+"|") {
 		t.Fatalf("%v %q opened %q", ok, said, ft.opened)
 	}
-	if h, _ := dbpkg.Terminal(d, "bob"); h != "%1" {
+	if h, _ := dbpkg.Terminal(d, bob); h != "%1" {
 		t.Fatalf("the handle of the terminal is kept: %q", h)
 	}
-	if _, err := os.Stat(repo + ".worktrees.noindex/" + paths.AgentKey(p.home, "bob")); err != nil {
+	if _, err := os.Stat(repo + ".worktrees.noindex/" + paths.AgentKey(p.home, bob)); err != nil {
 		t.Fatal("the worktree was made beside the repo, named by the agent's key")
 	}
 }
@@ -183,6 +184,7 @@ func TestAWakesLaunchIsShownStartingAtOnceAndUntilItsSessionsFirstHook(t *testin
 	ft := newFakeTerminals()
 	ft.running = "claude"
 	p, _, env, _ := wiredWith(t, ft)
+	bob := teamtest.Key(t, p.home, "bob")
 	d := p.db
 	tracker := &turns.Tracker{Agent: func(h string) string { a, _ := dbpkg.AgentOfTerminal(d, h); return a }}
 	cfg := cfgOf(p)
@@ -191,15 +193,15 @@ func TestAWakesLaunchIsShownStartingAtOnceAndUntilItsSessionsFirstHook(t *testin
 	p.Tick(cfg, TickConfig{Terminals: true}) // wires the tracker's changes to the view; it never ticks here
 	wt, _ := filepath.EvalSymlinks(t.TempDir())
 	dir, _ := team.AccountConfigDir(p.home, teamtest.Account(t, p.home, "a1"))
-	dbpkg.SetAccount(d, "bob", "a1", "recorded")
+	dbpkg.SetAccount(d, bob, "a1", "recorded")
 	ft.started = sessionRecordIn(dir)
-	dbpkg.SetTerminal(d, "bob", "", wt)
-	dbpkg.SetClosed(d, "bob", "11111111-1111-4111-8111-111111111111")
-	dbpkg.AddRequest(d, dbpkg.NewRequest{Requester: "p1", Target: "bob", Body: "begin", Kind: "ask"})
+	dbpkg.SetTerminal(d, bob, "", wt)
+	dbpkg.SetClosed(d, bob, "11111111-1111-4111-8111-111111111111")
+	dbpkg.AddRequest(d, dbpkg.NewRequest{Requester: "p1", Target: bob, Body: "begin", Kind: "ask"})
 	state := func() string {
 		t.Helper()
 		var raw string
-		if err := d.QueryRow("SELECT view FROM agent_view WHERE agent = 'bob'").Scan(&raw); err != nil {
+		if err := d.QueryRow("SELECT view FROM agent_view WHERE agent = '" + bob + "'").Scan(&raw); err != nil {
 			t.Fatalf("no row: %v", err)
 		}
 		var v map[string]any
@@ -207,15 +209,15 @@ func TestAWakesLaunchIsShownStartingAtOnceAndUntilItsSessionsFirstHook(t *testin
 		s, _ := v["state"].(string)
 		return s
 	}
-	if ok, said, err := lc.Manager.WakeAgent("bob", lifecycle.WakeOpts{Warm: true}); err != nil || !ok {
+	if ok, said, err := lc.Manager.WakeAgent(bob, lifecycle.WakeOpts{Warm: true}); err != nil || !ok {
 		t.Fatalf("%v %q %v", ok, said, err)
 	}
 	// hl launch has kept no start of its own here, and nothing ticked: the daemon's own launch said so
 	if s := state(); s != "starting" {
 		t.Fatalf("after the launch: %s, want starting", s)
 	}
-	dbpkg.AddEvent(d, "bob", "SessionStart") // what the hook recorder writes, then tells the tracker
-	tracker.Hook("bob", "SessionStart", map[string]any{}, time.Now().Unix())
+	dbpkg.AddEvent(d, bob, "SessionStart") // what the hook recorder writes, then tells the tracker
+	tracker.Hook(bob, "SessionStart", map[string]any{}, time.Now().Unix())
 	if s := state(); s == "starting" {
 		t.Fatal("the session's first hook ends starting")
 	}
@@ -224,28 +226,29 @@ func TestAWakesLaunchIsShownStartingAtOnceAndUntilItsSessionsFirstHook(t *testin
 func TestAClosedTerminalAgentIsWokenInANewTerminalResumingItsSession(t *testing.T) {
 	ft := newFakeTerminals()
 	p, lc, _, _ := wiredWith(t, ft)
+	bob := teamtest.Key(t, p.home, "bob")
 	d := p.db
 	wt, _ := filepath.EvalSymlinks(t.TempDir())
 	dir, _ := team.AccountConfigDir(p.home, teamtest.Account(t, p.home, "a1"))
-	if err := dbpkg.SetAccount(d, "bob", "a1", "recorded"); err != nil {
+	if err := dbpkg.SetAccount(d, bob, "a1", "recorded"); err != nil {
 		t.Fatal(err)
 	}
 	ft.started = sessionRecordIn(dir)
-	dbpkg.SetTerminal(d, "bob", "", wt) // its pane was closed with its session
-	if err := dbpkg.SetClosed(d, "bob", "11111111-1111-4111-8111-111111111111"); err != nil {
+	dbpkg.SetTerminal(d, bob, "", wt) // its pane was closed with its session
+	if err := dbpkg.SetClosed(d, bob, "11111111-1111-4111-8111-111111111111"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := dbpkg.AddRequest(d, dbpkg.NewRequest{Requester: "p1", Target: "bob", Body: "begin", Kind: "ask"}); err != nil {
+	if _, err := dbpkg.AddRequest(d, dbpkg.NewRequest{Requester: "p1", Target: bob, Body: "begin", Kind: "ask"}); err != nil {
 		t.Fatal(err)
 	}
-	ok, said, err := lc.Manager.WakeAgent("bob", lifecycle.WakeOpts{Warm: true})
+	ok, said, err := lc.Manager.WakeAgent(bob, lifecycle.WakeOpts{Warm: true})
 	if err != nil || !ok {
 		t.Fatalf("%v %q %v (opened %q)", ok, said, err, ft.opened)
 	}
 	if len(ft.opened) != 1 || !strings.HasPrefix(ft.opened[0], wt+"|bob|") || !strings.Contains(ft.opened[0], "--resume 11111111-1111-4111-8111-111111111111") {
 		t.Fatalf("opened %q", ft.opened)
 	}
-	if h, _ := dbpkg.Terminal(d, "bob"); h != "%1" {
+	if h, _ := dbpkg.Terminal(d, bob); h != "%1" {
 		t.Fatalf("the new terminal's handle: %q", h)
 	}
 }

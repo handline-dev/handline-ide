@@ -13,6 +13,7 @@ import (
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/internal/reads"
+	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/protocol/rpc"
 )
@@ -21,7 +22,7 @@ import (
 func sendingReasons(t *testing.T, p *Parts, home string) []any {
 	t.Helper()
 	srv := rpc.NewServer(founder{}, "x", store.LatestVersion(), "local", func(string, ...any) {})
-	srv.DB = p.db
+	srv.DB, srv.Who = p.db, func(w string) string { return paths.WhoKey(home, w) }
 	reads.Register(srv, reads.Env{DB: p.db, Home: home, Delivery: p.Delivery()})
 	r := call(t, srv, `{"jsonrpc":"2.0","id":2,"method":"chat.messages","params":{"agent":"alice","scope":"all"}}`)[0]
 	b, _ := json.Marshal(r)
@@ -46,8 +47,9 @@ func sendingReasons(t *testing.T, p *Parts, home string) []any {
 
 func TestAClosedAgentsQueuedLineSaysWhyThroughTheRealComposition(t *testing.T) {
 	p, _, _, _ := wired(t) // alice is closed, with one request from the person that nothing has delivered
+	alice := teamtest.Key(t, p.home, "alice")
 	d, home := p.db, p.home
-	if err := dbpkg.SetAccount(d, "alice", "a1", "test"); err != nil {
+	if err := dbpkg.SetAccount(d, alice, "a1", "test"); err != nil {
 		t.Fatal(err)
 	}
 	// work is waiting: the next tick wakes it
@@ -65,16 +67,16 @@ func TestAClosedAgentsQueuedLineSaysWhyThroughTheRealComposition(t *testing.T) {
 	}
 	// nothing is left to wake it for: the one request is settled
 	os.Remove(filepath.Join(teamtest.AccountDir(t, home, "a1"), "status.json"))
-	if _, err := d.Exec("UPDATE requests SET state = 'answered' WHERE target = 'alice'"); err != nil {
+	if _, err := d.Exec("UPDATE requests SET state = 'answered' WHERE target = '" + alice + "'"); err != nil {
 		t.Fatal(err)
 	}
 	e := reads.Env{DB: d, Home: home, Delivery: p.Delivery()}
-	if got, err := e.QueueReason("alice", 1); err != nil || got != "closed, nothing to wake it" {
+	if got, err := e.QueueReason(alice, 1); err != nil || got != "closed, nothing to wake it" {
 		t.Fatalf("a closed agent with nothing to wake it: %q %v", got, err)
 	}
 	// the composition's answers are the lifecycle's own
-	row, _ := dbpkg.GetAgentState(d, "alice")
-	if cause, err := p.Delivery().ClosedWakeCause("alice", row); err != nil || cause != "" {
+	row, _ := dbpkg.GetAgentState(d, alice)
+	if cause, err := p.Delivery().ClosedWakeCause(alice, row); err != nil || cause != "" {
 		t.Fatalf("no cause once settled: %q %v", cause, err)
 	}
 }
@@ -101,8 +103,9 @@ func TestTheDeliveryKnowsNothingBeforeTheLifecycleIsBuilt(t *testing.T) {
 
 func TestTheTriggerOfAClosedAgentWhoseWakeIsWalledIsTheWaitTheDaemonPrints(t *testing.T) {
 	p, lc, _, _ := wired(t) // alice is closed, with one request from the person that nothing has delivered
+	alice := teamtest.Key(t, p.home, "alice")
 	d, home := p.db, p.home
-	if err := dbpkg.SetAccount(d, "alice", "a1", "test"); err != nil {
+	if err := dbpkg.SetAccount(d, alice, "a1", "test"); err != nil {
 		t.Fatal(err)
 	}
 	now := time.Now().Unix()
@@ -110,21 +113,21 @@ func TestTheTriggerOfAClosedAgentWhoseWakeIsWalledIsTheWaitTheDaemonPrints(t *te
 		map[string]any{"minutes": 300, "observed_at": now, "resets_at": now + 3600, "used_percent": 100},
 		map[string]any{"minutes": 10080, "observed_at": now, "resets_at": now + 86400, "used_percent": 10}}})
 	os.WriteFile(filepath.Join(teamtest.AccountDir(t, home, "a1"), "status.json"), status, 0o644)
-	row, _ := dbpkg.GetAgentState(d, "alice")
-	want := lc.Launch.WakeWaitReason(d, "alice", row)
-	got, err := p.Delivery().Trigger(d, "alice", row, "a1")
+	row, _ := dbpkg.GetAgentState(d, alice)
+	want := lc.Launch.WakeWaitReason(d, alice, row)
+	got, err := p.Delivery().Trigger(d, alice, row, "a1")
 	if err != nil || want == "" || got != (reads.Trigger{Reason: want}) {
 		t.Fatalf("%+v %v, want the reason %q", got, err, want)
 	}
 	// agents.list says the same sentence in its status line, and nothing once the request is settled
 	srv := rpc.NewServer(founder{}, "x", store.LatestVersion(), "local", func(string, ...any) {})
-	srv.DB = d
+	srv.DB, srv.Who = d, func(w string) string { return paths.WhoKey(home, w) }
 	reads.Register(srv, reads.Env{DB: d, Home: home, Delivery: p.Delivery()})
 	said := func() any {
 		t.Helper()
 		r := call(t, srv, `{"jsonrpc":"2.0","id":2,"method":"agents.list","params":{"status":true}}`)[0]
 		for _, a := range r["result"].(map[string]any)["agents"].([]any) {
-			if a := a.(map[string]any); a["name"] == "alice" {
+			if a := a.(map[string]any); a["name"] == alice {
 				return a["wake_wait_reason"]
 			}
 		}
@@ -134,7 +137,7 @@ func TestTheTriggerOfAClosedAgentWhoseWakeIsWalledIsTheWaitTheDaemonPrints(t *te
 	if got := said(); got != want {
 		t.Fatalf("agents.list: %v, want %q", got, want)
 	}
-	if _, err := d.Exec("UPDATE requests SET state = 'answered' WHERE target = 'alice'"); err != nil {
+	if _, err := d.Exec("UPDATE requests SET state = 'answered' WHERE target = '" + alice + "'"); err != nil {
 		t.Fatal(err)
 	}
 	if got := said(); got != nil {

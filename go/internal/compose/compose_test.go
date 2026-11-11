@@ -161,6 +161,7 @@ func (c *virtualClock) sleep(d time.Duration) { c.skew.Add(int64(d)) }
 func wiredWith(t *testing.T, ft *fakeTerminals) (*Parts, *Lifecycle, *supervisor.Env, string) {
 	t.Helper()
 	p, home := rig(t)
+	alice := teamtest.Key(t, home, "alice")
 	dir, err := team.AccountConfigDir(home, teamtest.Account(t, home, "a1"))
 	if err != nil {
 		t.Fatal(err)
@@ -169,13 +170,13 @@ func wiredWith(t *testing.T, ft *fakeTerminals) (*Parts, *Lifecycle, *supervisor
 	os.WriteFile(filepath.Join(dir, ".credentials.json"), []byte("{}"), 0o600) // only its presence is read
 	wt := t.TempDir()
 	d := p.db
-	if err := dbpkg.SetTerminal(d, "alice", "", wt); err != nil {
+	if err := dbpkg.SetTerminal(d, alice, "", wt); err != nil {
 		t.Fatal(err)
 	}
-	if err := dbpkg.SetClosed(d, "alice", ""); err != nil {
+	if err := dbpkg.SetClosed(d, alice, ""); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := dbpkg.AddRequest(d, dbpkg.NewRequest{Requester: "p1", Target: "alice", Body: "begin", Kind: "ask"}); err != nil {
+	if _, err := dbpkg.AddRequest(d, dbpkg.NewRequest{Requester: "p1", Target: alice, Body: "begin", Kind: "ask"}); err != nil {
 		t.Fatal(err) // what a closed agent is woken for
 	}
 	env := &supervisor.Env{DB: d, Home: home, Log: func(string, ...any) {}}
@@ -233,8 +234,9 @@ func TestADecisionAndAColdStartMeasurementAreReallyMade(t *testing.T) {
 // settle runs once the Env has its ports: run before them it took the lifecycle port as nil and the daemon panicked on every start.
 func TestSettlingPeerSendsAtStartTellsTheSenderThroughTheWiredPorts(t *testing.T) {
 	p, _, env, _ := wired(t)
+	alice, bob := teamtest.Key(t, p.home, "alice"), teamtest.Key(t, p.home, "bob")
 	d := p.db
-	rid, err := dbpkg.AddRequest(d, dbpkg.NewRequest{Requester: "alice", Target: "bob", Body: "hello", Kind: "say"})
+	rid, err := dbpkg.AddRequest(d, dbpkg.NewRequest{Requester: alice, Target: bob, Body: "hello", Kind: "say"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -255,15 +257,16 @@ func TestSettlingPeerSendsAtStartTellsTheSenderThroughTheWiredPorts(t *testing.T
 func TestAStartStallIsToldToTheLead(t *testing.T) {
 	p, home := rig(t)
 	teamtest.Set(t, home, "bob", "reports_to", "alice")
+	alice, bob := teamtest.Key(t, home, "alice"), teamtest.Key(t, home, "bob")
 	env := &supervisor.Env{DB: p.db, Home: home, Log: func(string, ...any) {}}
 	t.Cleanup(env.Wait)
 	tell := tellLeadOfStall(home, env, func(string, ...any) {})
-	tell(p.db, "bob", "spawn said: no git checkout")
-	tell(p.db, "alice", "spawn said: no git checkout")
+	tell(p.db, bob, "spawn said: no git checkout")
+	tell(p.db, alice, "spawn said: no git checkout")
 	var to, body string
 	var n int
 	p.db.QueryRow("SELECT COUNT(*), MAX(target), MAX(body) FROM requests").Scan(&n, &to, &body)
-	if n != 1 || to != "alice" || !strings.Contains(body, "bob is STALLED") || !strings.Contains(body, "no git checkout") {
+	if n != 1 || to != alice || !strings.Contains(body, "bob is STALLED") || !strings.Contains(body, "no git checkout") {
 		t.Fatalf("%d %s %q", n, to, body)
 	}
 }
@@ -273,10 +276,11 @@ func TestAStartStallIsToldToTheLead(t *testing.T) {
 func TestARosterRepoThatIsNoCheckoutIsToldToTheLeadOnce(t *testing.T) {
 	p, home := rig(t)
 	teamtest.Set(t, home, "bob", "reports_to", "alice")
+	alice, bob := teamtest.Key(t, home, "alice"), teamtest.Key(t, home, "bob")
 	env := &supervisor.Env{DB: p.db, Home: home, Log: func(string, ...any) {}}
 	t.Cleanup(env.Wait)
 	told := func() (n int) {
-		p.db.QueryRow("SELECT COUNT(*) FROM requests WHERE target = 'alice' AND body LIKE 'bob''s repo % is not a git checkout%'").Scan(&n)
+		p.db.QueryRow("SELECT COUNT(*) FROM requests WHERE target = '" + alice + "' AND body LIKE '" + bob + "''s repo % is not a git checkout%'").Scan(&n)
 		return n
 	}
 	check := func() { CheckRepos(p.db, home, env, func(string, ...any) {}) }
@@ -285,7 +289,7 @@ func TestARosterRepoThatIsNoCheckoutIsToldToTheLeadOnce(t *testing.T) {
 	if n := told(); n != 1 {
 		t.Fatalf("told %d times", n)
 	}
-	repo := team.NewRoster(home).RepoOf("bob")
+	repo := team.NewRoster(home).RepoOf(bob)
 	os.Mkdir(filepath.Join(repo, ".git"), 0o755)
 	check()
 	os.Remove(filepath.Join(repo, ".git"))

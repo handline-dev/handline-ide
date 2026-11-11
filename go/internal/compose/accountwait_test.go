@@ -31,22 +31,23 @@ func atPct(t *testing.T, home, acct string, pct int) {
 // agent is filed under (Task.waiting.on).
 func TestAWaitOnAClosedAgentIsFiledUnderCapWhenItsAccountIsFullAndWallAtItsLimit(t *testing.T) {
 	p, lc, env, _ := wired(t)
+	alice := teamtest.Key(t, p.home, "alice")
 	d, home := p.db, p.home
 	d.Exec("UPDATE requests SET state = 'closed'") // wired's begin, ahead of the task
-	dbpkg.SetClosed(d, "alice", "s-alice")
-	dbpkg.SetAccount(d, "alice", "a1", "")
+	dbpkg.SetClosed(d, alice, "s-alice")
+	dbpkg.SetAccount(d, alice, "a1", "")
 	now := time.Now().Unix()
-	dbpkg.BlockOpen(d, "alice", "dialog", "a prompt", "", now, now, "", "") // the task waits on alice itself
-	tid, err := dbpkg.NewTask(d, "fix it", "alice", "p1", 0, dbpkg.DefaultPriority, "", 0, "")
+	dbpkg.BlockOpen(d, alice, "dialog", "a prompt", "", now, now, "", "") // the task waits on alice itself
+	tid, err := dbpkg.NewTask(d, "fix it", alice, "p1", 0, dbpkg.DefaultPriority, "", 0, "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	dbpkg.SetTaskQueued(d, tid, "p1")
-	rid, _ := dbpkg.AddRequest(d, dbpkg.NewRequest{Requester: "p1", Target: "alice", Body: "fix it", Kind: "task"})
+	rid, _ := dbpkg.AddRequest(d, dbpkg.NewRequest{Requester: "p1", Target: alice, Body: "fix it", Kind: "task"})
 	dbpkg.LinkRequest(d, tid, rid)
 	check := func(wait, on string) {
 		t.Helper()
-		if w, err := (lifecycleStarter{m: lc.Manager}).AccountWait(d, "alice"); err != nil || w != wait {
+		if w, err := (lifecycleStarter{m: lc.Manager}).AccountWait(d, alice); err != nil || w != wait {
 			t.Fatalf("AccountWait %q %v, want %q", w, err, wait)
 		}
 		if err := env.SweepHolds(time.Now().Unix()); err != nil {

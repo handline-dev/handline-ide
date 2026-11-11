@@ -13,9 +13,10 @@ import (
 func ownersRig(t *testing.T) (p *Parts, bobRow string, count func(table string) int) {
 	t.Helper()
 	p, _, _, _ = wired(t)
+	bob := teamtest.Key(t, p.home, "bob")
 	d := p.db
-	bobRow = `{"name":"bob","state":"idle","python":"wrote this"}`
-	for agent, view := range map[string]string{"bob": bobRow, "ghost": `{"name":"ghost"}`} {
+	bobRow = `{"name":"` + bob + `","state":"idle","python":"wrote this"}`
+	for agent, view := range map[string]string{bob: bobRow, "ghost": `{"name":"ghost"}`} {
 		if _, err := d.Exec("INSERT INTO agent_view(agent, view, updated) VALUES(?, ?, 7)", agent, view); err != nil {
 			t.Fatal(err)
 		}
@@ -38,6 +39,7 @@ func storedView(t *testing.T, d dbpkg.Q, agent string) (view string, found bool)
 
 func TestTheGoTickOwnsTheUsagePollAndDropsTheRowOfAGoneAgent(t *testing.T) {
 	p, bobRow, count := ownersRig(t)
+	bob := teamtest.Key(t, p.home, "bob")
 	d := p.db
 	samples := count("usage_samples")
 	tk := p.Tick(cfgOf(p), TickConfig{})
@@ -47,7 +49,7 @@ func TestTheGoTickOwnsTheUsagePollAndDropsTheRowOfAGoneAgent(t *testing.T) {
 	if _, ok := storedView(t, d, "ghost"); ok {
 		t.Fatal("the row of a gone agent stays")
 	}
-	if v, ok := storedView(t, d, "bob"); !ok || v != bobRow {
+	if v, ok := storedView(t, d, bob); !ok || v != bobRow {
 		t.Fatalf("a registered terminal agent's row is not the Go side's to drop or rewrite: %q %v", v, ok)
 	}
 	if got := count("usage_samples"); got <= samples {
