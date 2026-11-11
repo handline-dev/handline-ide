@@ -10,6 +10,8 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `trust.propose` | agent | yes | `root`, `why?`, `request_id` | `Accepted & {proposal}` | `refused` |  | not from the app |
 | `trust.list` | agent |  | `proposals?` | `{roots, proposals, declared}` |  |  | `trust`, snapshot |
 | `trust.remove` | owner | yes | `root`, `request_id` | `Accepted` | `not_found` |  | authored: remove folder |
+| `people.list` | agent |  | none | `{people}` | `bad_request` |  | `people`, fed by people |
+| `workspaces.list` | agent |  | none | `{workspaces}` | `bad_request` |  | `workspaces`, fed by workspaces |
 | `team.get` | agent |  | none | `{agents, people, workspaces}` |  |  | `team`, snapshot |
 | `proposal.list` | agent |  | `state?` | `{proposals} & ReadCursor` | `bad_request` |  | `proposals`, fed by proposals |
 | `proposal.decide` | member | yes | `proposal`, `decision`, `note?`, `subject?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | proposal_changed, proposal_settled | decided: decide |
@@ -38,6 +40,14 @@ Declared trust roots, and with proposals the proposals (hl trust list, hl trust 
 ### `trust.remove`
 
 Drop a declared root (hl trust remove); needs no approval. The founder's: the declared roots live in the protected store, which an agent session cannot write, so an agent calling `hl trust remove` is refused today and by this method (gate role). A root that is not declared is not_found. `root` must be an absolute path, as for trust.propose (bad_request, field `root`).
+
+### `people.list`
+
+Every person, so a client writes out a person key by name.
+
+### `workspaces.list`
+
+Every workspace, so a client writes out a workspace key by name and groups agents by it.
 
 ### `team.get`
 

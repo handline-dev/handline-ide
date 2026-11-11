@@ -116,6 +116,28 @@ export type ScheduleError = {
   error: string;
 };
 
+export type Person = {
+  /** p<n>. */
+  key: string;
+  /** What the app shows for the person. */
+  display_name: string;
+  /** The word other people address them by in team mode; null in personal mode. */
+  handle: string | null;
+  role: "owner" | "member";
+};
+
+export type Workspace = {
+  /** w<n>. */
+  key: string;
+  name: string;
+  /** The project folder its agents' worktrees are made from. */
+  folder: string;
+  /** Further folders its agents may read and write. */
+  added_folders: string[];
+  /** The key of its lead agent; null before it has one. */
+  lead: string | null;
+};
+
 export interface TeamMethods {
   "proposal.propose": { params: {
   kind: "add" | "retire" | "rename" | "team" | "settings" | "context" | "schedule" | "bundle";
@@ -161,6 +183,12 @@ export interface TeamMethods {
   root: string;
   request_id: RequestId;
 }; result: Accepted };
+  "people.list": { params: { [key: string]: unknown }; result: {
+    people: Person[];
+  } };
+  "workspaces.list": { params: { [key: string]: unknown }; result: {
+    workspaces: Workspace[];
+  } };
   "team.get": { params: { [key: string]: unknown }; result: {
     agents: TeamAgent[];
     people: {
@@ -225,6 +253,8 @@ export const TEAM_METHODS: { [K in keyof TeamMethods]: { role: Role; callers: Ro
   "trust.propose": { role: "agent", callers: null, write: true, since: 1 },
   "trust.list": { role: "agent", callers: null, write: false, since: 1 },
   "trust.remove": { role: "owner", callers: null, write: true, since: 1 },
+  "people.list": { role: "agent", callers: null, write: false, since: 1 },
+  "workspaces.list": { role: "agent", callers: null, write: false, since: 1 },
   "team.get": { role: "agent", callers: null, write: false, since: 1 },
   "proposal.list": { role: "agent", callers: null, write: false, since: 1 },
   "proposal.decide": { role: "member", callers: null, write: true, since: 1 },
@@ -236,8 +266,10 @@ export const TEAM_METHODS: { [K in keyof TeamMethods]: { role: Role; callers: Ro
 };
 
 /** x-app-cache of each read (x-app in core.json). */
-export const TEAM_APP_CACHE: { [K in "trust.list" | "team.get" | "proposal.list" | "schedules.list"]: { resource: string; id?: string; feed: Topic | null } | false } = {
+export const TEAM_APP_CACHE: { [K in "trust.list" | "people.list" | "workspaces.list" | "team.get" | "proposal.list" | "schedules.list"]: { resource: string; id?: string; feed: Topic | null } | false } = {
   "trust.list": {"resource": "trust", "feed": null},
+  "people.list": {"resource": "people", "feed": "people"},
+  "workspaces.list": {"resource": "workspaces", "feed": "workspaces"},
   "team.get": {"resource": "team", "feed": null},
   "proposal.list": {"resource": "proposals", "feed": "proposals"},
   "schedules.list": {"resource": "schedules", "feed": null},

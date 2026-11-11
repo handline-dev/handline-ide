@@ -176,9 +176,21 @@
    "snapshot": "agents.list",
    "data": {
     "agent.changed": "AgentView",
-    "agent.removed": "{name}",
+    "agent.removed": "{key}",
     "agent.control": "TimelineEntry",
     "access.changed": "AccessChanged"
+   }
+  },
+  "people": {
+   "snapshot": "people.list",
+   "data": {
+    "people.changed": "{}"
+   }
+  },
+  "workspaces": {
+   "snapshot": "workspaces.list",
+   "data": {
+    "workspaces.changed": "{}"
    }
   },
   "inbox": {
@@ -792,6 +804,8 @@
      "status",
      "accounts",
      "agents",
+     "people",
+     "workspaces",
      "inbox",
      "tasks",
      "notifications",
