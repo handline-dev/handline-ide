@@ -41,7 +41,7 @@ func newRig(t *testing.T) *rig {
 		t.Setenv(k, "")
 	}
 	home := t.TempDir()
-	os.MkdirAll(filepath.Join(home, "accounts", "main"), 0o755)
+	os.MkdirAll(filepath.Join(teamtest.AccountDir(t, home, "main")), 0o755)
 	d, err := storetest.OpenAt(t, filepath.Join(home, "db.sqlite"))
 	if err != nil {
 		t.Fatal(err)
@@ -300,7 +300,7 @@ func (auth) SessionsReadable() error { return nil }
 
 func TestAccountWakeEndsTheStallAndSaysTheFailuresBeforeItAreOld(t *testing.T) {
 	r := newRig(t)
-	dir := filepath.Join(r.home, "accounts", "main", ".claude")
+	dir := filepath.Join(teamtest.AccountDir(t, r.home, "main"), ".claude")
 	os.MkdirAll(dir, 0o755)
 	cred := filepath.Join(dir, ".credentials.json")
 	os.WriteFile(cred, []byte("c"), 0o600)
@@ -325,7 +325,7 @@ func TestAccountWakeEndsTheStallAndSaysTheFailuresBeforeItAreOld(t *testing.T) {
 
 func TestAccountReadUsageAsksThePollAndNeedsALogin(t *testing.T) {
 	r := newRig(t)
-	dir := filepath.Join(r.home, "accounts", "main", ".claude")
+	dir := filepath.Join(teamtest.AccountDir(t, r.home, "main"), ".claude")
 	os.MkdirAll(dir, 0o755)
 	if r.code(r.one("account.read_usage", `{"account":"main","request_id":"r1"}`)) != "refused" {
 		t.Fatal("an account with no login has no usage to read")
@@ -345,7 +345,7 @@ func TestAccountReadUsageAsksThePollAndNeedsALogin(t *testing.T) {
 
 func TestAccountSetPausesAndResumesAnAccount(t *testing.T) {
 	r := newRig(t)
-	os.MkdirAll(filepath.Join(r.home, "accounts", "main"), 0o755)
+	os.MkdirAll(filepath.Join(teamtest.AccountDir(t, r.home, "main")), 0o755)
 	if res := r.result(r.one("account.set", `{"account":"main","paused":true,"request_id":"p1"}`)); r.account("main")["paused"] != true {
 		t.Fatalf("%v %v", res, r.account("main"))
 	}

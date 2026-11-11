@@ -2,6 +2,7 @@ package team
 
 import (
 	"database/sql"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -9,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/handline/handline/go/kit/paths"
 	_ "modernc.org/sqlite"
 )
 
@@ -135,7 +137,7 @@ func TestProposalsKeepTheirOrderAndMootOnesAreWithdrawn(t *testing.T) {
 }
 
 func account(t *testing.T, home, name string) string {
-	dir := filepath.Join(home, "accounts", name, ".claude")
+	dir := filepath.Join(accountDir(t, home, name), ".claude")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -156,7 +158,7 @@ func TestLoginStateIsAPresenceNeverAReadOfTheCredential(t *testing.T) {
 	if got := LoginWord(true, true, false) + LoginWord(false, true, true) + LoginWord(false, false, true); got != "logged in"+"no"+"?" {
 		t.Fatalf("%q", got)
 	}
-	os.WriteFile(filepath.Join(home, "accounts", "alpha", "vendor"), []byte("nope\n"), 0o644)
+	os.WriteFile(filepath.Join(accountDir(t, home, "alpha"), "vendor"), []byte("nope\n"), 0o644)
 	if in, known := a.LoginState("alpha"); !known || in {
 		t.Fatal("a vendor with no driver cannot be driven")
 	}
@@ -195,7 +197,7 @@ func TestAnExpiredLoginIsMarkedAndGoesWithANewerCredential(t *testing.T) {
 	if a.Stalled("alpha") != nil {
 		t.Fatal("a login after the mark clears it")
 	}
-	if _, err := os.Stat(filepath.Join(home, "accounts", "alpha", "login_expired.json")); err == nil {
+	if _, err := os.Stat(filepath.Join(accountDir(t, home, "alpha"), "login_expired.json")); err == nil {
 		t.Fatal("the mark file stayed")
 	}
 }
@@ -205,11 +207,11 @@ func TestEnvForSetsTheAccountAndDropsAnotherAccountsConfigDir(t *testing.T) {
 	a := Accounts{Home: home}
 	account(t, home, "alpha")
 	account(t, home, "beta")
-	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(home, "accounts", "beta", ".claude"))
+	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(accountDir(t, home, "beta"), ".claude"))
 	t.Setenv("XDG_DATA_HOME", "/somewhere/users/own")
 	t.Setenv("OPENCODE_CONFIG_CONTENT", "{}")
 	env := a.EnvFor("alpha", "worker")
-	if env["CLAUDE_CONFIG_DIR"] != filepath.Join(home, "accounts", "alpha", ".claude") || env["XDG_DATA_HOME"] != "/somewhere/users/own" {
+	if env["CLAUDE_CONFIG_DIR"] != filepath.Join(accountDir(t, home, "alpha"), ".claude") || env["XDG_DATA_HOME"] != "/somewhere/users/own" {
 		t.Fatalf("%v", env)
 	}
 	if _, has := env["OPENCODE_CONFIG_CONTENT"]; has {
@@ -223,7 +225,7 @@ func TestEnvForSetsTheAccountAndDropsAnotherAccountsConfigDir(t *testing.T) {
 	if env["HANDLINE_ACCOUNT"] != "alpha" || env["HANDLINE_AGENT"] != "worker" {
 		t.Fatalf("%v", env)
 	}
-	if a.AccountNamedBy(filepath.Join(home, "accounts", "beta", ".claude")) != "beta" || a.AccountNamedBy("/elsewhere") != "" {
+	if a.AccountNamedBy(filepath.Join(accountDir(t, home, "beta"), ".claude")) != "beta" || a.AccountNamedBy("/elsewhere") != "" {
 		t.Fatal("AccountNamedBy")
 	}
 }
@@ -374,5 +376,28 @@ func TestSaveSettingsWritesThroughRegisterAndTheRest(t *testing.T) {
 	}
 	if ok, said := r.SetByAgent(nil, "worker", map[string]string{"model": "x"}, "other", "", nil, idle); ok || !strings.Contains(said, "other may not change worker's settings") {
 		t.Fatalf("%v %s", ok, said)
+	}
+}
+
+// An account's folder is named by its row's key: a name shaped like a key is refused, and an add that fails takes its row away.
+func TestAddMakesTheRowFirstAndAFailedAddLeavesNone(t *testing.T) {
+	home := newHome(t)
+	a := Accounts{Home: home}
+	if _, err := a.Add("c4", ""); !errors.Is(err, ErrBadAccountName) {
+		t.Fatalf("a key-shaped name: %v", err)
+	}
+	if _, err := a.Add("main", ""); err != nil {
+		t.Fatal(err)
+	}
+	if paths.AccountDir(home, "main") != filepath.Join(home, "accounts", paths.AccountKey(home, "main")) || paths.AccountKey(home, "main") == "" {
+		t.Fatal("the folder by key")
+	}
+	os.Chmod(paths.AccountsDir(home), 0o555)
+	defer os.Chmod(paths.AccountsDir(home), 0o755)
+	if _, err := a.Add("spare", ""); err == nil {
+		t.Fatal("no folder could be made")
+	}
+	if paths.AccountKey(home, "spare") != "" {
+		t.Fatal("a failed add left its row")
 	}
 }

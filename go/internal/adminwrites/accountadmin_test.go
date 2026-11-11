@@ -2,6 +2,8 @@ package adminwrites
 
 import (
 	"fmt"
+	"github.com/handline/handline/go/data/team/teamtest"
+	"github.com/handline/handline/go/kit/paths"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,7 +23,7 @@ func TestAccountAddMakesAndLinksTheDirectoryAndLogsNothingIn(t *testing.T) {
 	if res["account"] != "spare" || res["accepted"] != true {
 		t.Fatalf("%v", res)
 	}
-	cdir := filepath.Join(r.home, "accounts", "spare", ".claude")
+	cdir := filepath.Join(teamtest.AccountDir(t, r.home, "spare"), ".claude")
 	for item, want := range map[string]string{"settings.json": filepath.Join(shared, "settings.json"), "skills": filepath.Join(shared, "skills")} {
 		if got, err := os.Readlink(filepath.Join(cdir, item)); err != nil || got != want {
 			t.Errorf("%s -> %q (%v), want %q", item, got, err, want)
@@ -38,14 +40,14 @@ func TestAccountAddMakesAndLinksTheDirectoryAndLogsNothingIn(t *testing.T) {
 	}
 	// another vendor records itself; one with no driver is refused and leaves nothing
 	r.result(r.one("account.add", `{"account":"oc","vendor":"opencode","request_id":"ad2"}`))
-	if got := r.file("accounts", "oc", "vendor"); got != "opencode\n" {
-		t.Fatalf("vendor file %q", got)
+	if b, _ := os.ReadFile(filepath.Join(paths.AccountDir(r.home, "oc"), "vendor")); string(b) != "opencode\n" {
+		t.Fatalf("vendor file %q", b)
 	}
 	m := r.one("account.add", `{"account":"x","vendor":"nope","request_id":"ad3"}`)
 	if r.code(m) != "bad_request" || m["error"].(map[string]any)["data"].(map[string]any)["field"] != "vendor" {
 		t.Fatalf("%v", m)
 	}
-	if _, err := os.Stat(filepath.Join(r.home, "accounts", "x")); err == nil {
+	if _, err := os.Stat(filepath.Join(teamtest.AccountDir(t, r.home, "x"))); err == nil {
 		t.Fatal("a refusal left an account behind")
 	}
 }
@@ -65,7 +67,7 @@ func TestAccountAddRefusesABadNameAndANameInUse(t *testing.T) {
 }
 
 func (r *rig) loggedIn(acct string) {
-	cdir := filepath.Join(r.home, "accounts", acct, ".claude")
+	cdir := filepath.Join(teamtest.AccountDir(r.t, r.home, acct), ".claude")
 	os.MkdirAll(cdir, 0o755)
 	os.WriteFile(filepath.Join(cdir, ".credentials.json"), []byte("{}"), 0o600)
 }
@@ -78,7 +80,7 @@ func TestAccountRemoveDryRunChangesAndRecordsNothing(t *testing.T) {
 	if res["would_remove"] != true || len(plan) < 5 || !strings.Contains(plan[1].(string), "claude auth logout") {
 		t.Fatalf("%v", res)
 	}
-	if _, err := os.Stat(filepath.Join(r.home, "accounts", "main")); err != nil {
+	if _, err := os.Stat(filepath.Join(teamtest.AccountDir(t, r.home, "main"))); err != nil {
 		t.Fatal("a dry run moved the account")
 	}
 	var events, replies int
@@ -102,7 +104,7 @@ func TestAccountRemoveLogsOutMovesTheDirectoryAsideAndForgetsItOnTheAgents(t *te
 	var ran []string
 	r.e.Run = func(argv []string, env map[string]string) int {
 		ran = append(ran, strings.Join(argv, " "))
-		os.Remove(filepath.Join(r.home, "accounts", "main", ".claude", ".credentials.json")) // claude removes its own credential
+		os.Remove(filepath.Join(teamtest.AccountDir(t, r.home, "main"), ".claude", ".credentials.json")) // claude removes its own credential
 		return 0
 	}
 	if m := r.one("account.remove", `{"account":"main","request_id":"rm0"}`); r.code(m) != "bad_request" {
@@ -115,7 +117,7 @@ func TestAccountRemoveLogsOutMovesTheDirectoryAsideAndForgetsItOnTheAgents(t *te
 	if len(ran) != 1 || ran[0] != "claude auth logout" || res["accepted"] != true || !strings.HasPrefix(res["said"].(string), "removed account 'main' (logged out; directory kept at ") {
 		t.Fatalf("%v %v", ran, res)
 	}
-	if _, err := os.Stat(filepath.Join(r.home, "accounts", "main")); err == nil {
+	if _, err := os.Stat(filepath.Join(teamtest.AccountDir(t, r.home, "main"))); err == nil {
 		t.Fatal("the account is still on the roster")
 	}
 	kept, _ := filepath.Glob(filepath.Join(r.home, "accounts", ".retired", "main-*", ".claude"))
@@ -158,10 +160,10 @@ func TestAccountRemoveIsRefusedWhileAnAgentIsOnItAndWhenTheLogoutFails(t *testin
 	if got := refusal(rm("g3")); !strings.Contains(got, "logout failed - 'main' is still logged in, so it stays") {
 		t.Fatalf("%q", got)
 	}
-	if _, err := os.Stat(filepath.Join(r.home, "accounts", "main", ".claude", ".credentials.json")); err != nil {
+	if _, err := os.Stat(filepath.Join(teamtest.AccountDir(t, r.home, "main"), ".claude", ".credentials.json")); err != nil {
 		t.Fatal("a refused removal touched the account")
 	}
-	if _, err := os.Stat(filepath.Join(r.home, "accounts", "main", ".removing")); err == nil {
+	if _, err := os.Stat(filepath.Join(teamtest.AccountDir(t, r.home, "main"), ".removing")); err == nil {
 		t.Fatal("the removal marker was left behind")
 	}
 }

@@ -3,6 +3,7 @@ package weblogin
 import (
 	"errors"
 	"fmt"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -67,7 +68,7 @@ func newRig(t *testing.T, script string) *rig {
 	t.Setenv("SANDBOX_RUNTIME", "") // a sandboxed process cannot tell if a credential is there, and an exit it cannot check is taken as done
 	home := t.TempDir()
 	for _, a := range []string{"main", "other"} {
-		if err := os.MkdirAll(filepath.Join(home, "accounts", a), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Join(teamtest.AccountDir(t, home, a)), 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -120,7 +121,7 @@ func (r *rig) state(account string) string {
 // grandchild is the pid the login script's background process wrote, once it has: the script is then past its forks.
 func (r *rig) grandchild(account string) int {
 	for i := 0; i < 300; i++ {
-		b, _ := os.ReadFile(filepath.Join(r.home, "accounts", account, ".claude", "grandchild"))
+		b, _ := os.ReadFile(filepath.Join(teamtest.AccountDir(r.t, r.home, account), ".claude", "grandchild"))
 		if pid, _ := strconv.Atoi(strings.TrimSpace(string(b))); pid > 0 {
 			return pid
 		}
@@ -162,7 +163,7 @@ func TestStartAnswersTheURLAndOnlyThat(t *testing.T) {
 	if got := r.m.Of("main"); got == nil || got.URL != fakeURL || got.ID != l.ID {
 		t.Fatalf("Of = %+v", got)
 	}
-	dir := filepath.Join(r.home, "accounts", "main", ".claude")
+	dir := filepath.Join(teamtest.AccountDir(t, r.home, "main"), ".claude")
 	var names string
 	for i := 0; i < 200 && !strings.Contains(names, "CLAUDE_CONFIG_DIR"); i++ {
 		b, _ := os.ReadFile(filepath.Join(dir, "env"))
@@ -253,7 +254,7 @@ func TestNoURLWithinTwentySecondsKillsTheChild(t *testing.T) {
 	if err := <-errc; !errors.As(err, &no) || !strings.Contains(no.Reason, "20 seconds") {
 		t.Fatalf("got %v", err)
 	}
-	b, _ := os.ReadFile(filepath.Join(r.home, "accounts", "main", ".claude", "pid"))
+	b, _ := os.ReadFile(filepath.Join(teamtest.AccountDir(t, r.home, "main"), ".claude", "pid"))
 	pid, _ := strconv.Atoi(strings.TrimSpace(string(b)))
 	for i := 0; i < 300 && pid > 0 && alive(pid); i++ {
 		time.Sleep(10 * time.Millisecond)
@@ -377,7 +378,7 @@ func TestALoginToAnotherAnthropicAccountFails(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			r := newRig(t, loginAs(tc.email))
 			for acct, email := range map[string]string{"main": "main@example.com", "other": "other@example.com"} {
-				if err := os.WriteFile(filepath.Join(r.home, "accounts", acct, "identity.json"), []byte(`{"id": "x", "email": "`+email+`"}`), 0o644); err != nil {
+				if err := os.WriteFile(filepath.Join(teamtest.AccountDir(t, r.home, acct), "identity.json"), []byte(`{"id": "x", "email": "`+email+`"}`), 0o644); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -405,7 +406,7 @@ func TestNoURLAtAllEndsTheStart(t *testing.T) {
 
 func TestUnavailableVendorAndMissingCLI(t *testing.T) {
 	r := newRig(t, "exit 0\n")
-	if err := os.WriteFile(filepath.Join(r.home, "accounts", "other", "vendor"), []byte("opencode\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(teamtest.AccountDir(t, r.home, "other"), "vendor"), []byte("opencode\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	var no *Refusal
@@ -521,7 +522,7 @@ func TestAGoodLoginRecordsTheAnthropicAccountWhenNoneIs(t *testing.T) {
 	if got := lines(); got[0] != "  login: main ended done" {
 		t.Fatalf("logged %q", got)
 	}
-	b, err := os.ReadFile(filepath.Join(r.home, "accounts", "main", "identity.json"))
+	b, err := os.ReadFile(filepath.Join(teamtest.AccountDir(t, r.home, "main"), "identity.json"))
 	if err != nil || string(b) != `{"email":"main@example.com"}` {
 		t.Fatalf("identity.json %q %v", b, err)
 	}
@@ -530,7 +531,7 @@ func TestAGoodLoginRecordsTheAnthropicAccountWhenNoneIs(t *testing.T) {
 // A stalled account whose credential a tick has just read ends its login done: the end reads the new credential, not the cached stamp.
 func TestALoginEndsAStallTheCacheHasJustSeen(t *testing.T) {
 	r := newRig(t, "echo "+fakeURL+"\nsleep 0.2\ntouch \"$CLAUDE_CONFIG_DIR/.credentials.json\"\n")
-	cred := filepath.Join(r.home, "accounts", "main", ".claude", ".credentials.json")
+	cred := filepath.Join(teamtest.AccountDir(t, r.home, "main"), ".claude", ".credentials.json")
 	if err := os.MkdirAll(filepath.Dir(cred), 0o700); err != nil {
 		t.Fatal(err)
 	}

@@ -1,6 +1,7 @@
 package usage
 
 import (
+	"github.com/handline/handline/go/data/team/teamtest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -8,7 +9,6 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/data/db"
-	"github.com/handline/handline/go/kit/paths"
 )
 
 const callLine = `{"type":"assistant","requestId":"r1","sessionId":"s1","cwd":"/w","timestamp":"2026-10-08T12:00:00.250Z","message":` +
@@ -45,7 +45,7 @@ func TestParseCallReadsOnlyAssistantLinesWithAUsage(t *testing.T) {
 func tokenEnv(t *testing.T) (*Env, db.Q, string) {
 	e, q, _ := burnEnv(t)
 	e.Now = func() float64 { return float64(time.Now().Unix()) } // the files carry the real modification time
-	dir := filepath.Join(paths.AccountDir(e.Home, "a"), ".claude", "projects", "p")
+	dir := filepath.Join(teamtest.AccountDir(t, e.Home, "a"), ".claude", "projects", "p")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -112,7 +112,7 @@ func TestIngestSkipsOldUnknownFilesLinksAndOtherVendors(t *testing.T) {
 	if n, _ := e.IngestTokens(q, "nobody", BytesPerTick); n != 0 {
 		t.Fatal("an account that is not there")
 	}
-	os.WriteFile(filepath.Join(paths.AccountDir(e.Home, "a"), "vendor"), []byte("opencode"), 0o644)
+	os.WriteFile(filepath.Join(teamtest.AccountDir(t, e.Home, "a"), "vendor"), []byte("opencode"), 0o644)
 	os.WriteFile(filepath.Join(dir, "new.jsonl"), []byte(callLine+"\n"), 0o644)
 	if n, _ := e.IngestTokens(q, "a", BytesPerTick); n != 0 {
 		t.Fatal("another vendor has no transcripts here")

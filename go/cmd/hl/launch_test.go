@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/handline/handline/go/data/team/teamtest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,7 +15,7 @@ func launchRig(t *testing.T) *rig {
 	r := hookRig(t, false)
 	for p, text := range map[string]string{
 		paths.ConfigFile(r.home): "terminal: tmux\n",
-		filepath.Join(r.home, "accounts", "alpha", ".claude", "settings.json"): "{}\n",
+		filepath.Join(teamtest.AccountDir(t, r.home, "alpha"), ".claude", "settings.json"): "{}\n",
 	} {
 		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 			t.Fatal(err)

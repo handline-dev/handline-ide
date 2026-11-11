@@ -1,13 +1,13 @@
 package lifecycle
 
 import (
+	"github.com/handline/handline/go/data/team/teamtest"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/handline/handline/go/data/team"
-	"github.com/handline/handline/go/kit/paths"
 )
 
 // A resume on an account that does not hold the session gets the conversation copied over from the one that does, its subagent
@@ -16,10 +16,10 @@ func TestAResumeOnAnotherAccountCarriesTheSessionOver(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HANDLINE_TEST_ROOT", "")
 	for _, a := range []string{"gamma", "beta"} {
-		os.MkdirAll(paths.AccountDir(home, a), 0o755)
+		os.MkdirAll(teamtest.AccountDir(t, home, a), 0o755)
 	}
-	gamma, _ := team.AccountConfigDir(home, "gamma")
-	beta, _ := team.AccountConfigDir(home, "beta")
+	gamma, _ := team.AccountConfigDir(home, teamtest.Account(t, home, "gamma"))
+	beta, _ := team.AccountConfigDir(home, teamtest.Account(t, home, "beta"))
 	project := filepath.Join(gamma, "projects", "-wt-x")
 	os.MkdirAll(filepath.Join(project, "s1", "subagents"), 0o755)
 	os.WriteFile(filepath.Join(project, "s1.jsonl"), []byte("{\"turn\":1}\n"), 0o600)
@@ -53,8 +53,8 @@ func TestAResumeOnAnotherAccountCarriesTheSessionOver(t *testing.T) {
 	if err := carrySession(home, "beta", []string{"--resume", "nowhere"}); err != nil || sessionIn(beta, "nowhere") != "" {
 		t.Fatalf("a session saved nowhere is left to claude: %v", err)
 	}
-	os.MkdirAll(paths.AccountDir(home, "delta"), 0o755)
-	delta, _ := team.AccountConfigDir(home, "delta")
+	os.MkdirAll(teamtest.AccountDir(t, home, "delta"), 0o755)
+	delta, _ := team.AccountConfigDir(home, teamtest.Account(t, home, "delta"))
 	if err := carrySession(home, "delta", []string{"--resume", "s*"}); err != nil || isDir(filepath.Join(delta, "projects")) {
 		t.Fatalf("an id that is a pattern is not looked for: %v", err)
 	}

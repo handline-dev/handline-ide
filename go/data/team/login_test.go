@@ -13,6 +13,7 @@ func loginHome(t *testing.T) Accounts {
 	t.Setenv("HANDLINE_"+LiveAccounts, "")
 	a := Accounts{Home: t.TempDir()}
 	for acct, email := range map[string]string{"main": "main@example.com", "other": "Other@Example.com"} {
+		accountDir(t, a.Home, acct)
 		writeFile(t, a.identityFile(acct), `{"id": "x", "email": "`+email+`"}`)
 	}
 	return a
@@ -30,6 +31,7 @@ func writeFile(t *testing.T, path, text string) {
 
 func loggedInAs(t *testing.T, a Accounts, acct, oauth string) {
 	t.Helper()
+	accountDir(t, a.Home, acct)
 	dir, err := AccountConfigDir(a.Home, acct)
 	if err != nil {
 		t.Fatal(err)
@@ -78,7 +80,7 @@ func TestWrongLogin(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			a := loginHome(t)
 			if tc.vendor != "" {
-				writeFile(t, filepath.Join(a.Home, "accounts", "main", "vendor"), tc.vendor)
+				writeFile(t, filepath.Join(accountDir(t, a.Home, "main"), "vendor"), tc.vendor)
 			}
 			loggedInAs(t, a, "main", tc.oauth)
 			if got := a.WrongLogin("main"); got != tc.want {
@@ -124,7 +126,7 @@ func TestEmail(t *testing.T) {
 		t.Fatalf("a read recorded it: identity.json %s", b)
 	}
 	writeFile(t, a.identityFile("main"), `{}`)
-	writeFile(t, filepath.Join(a.Home, "accounts", "main", "vendor"), "opencode")
+	writeFile(t, filepath.Join(accountDir(t, a.Home, "main"), "vendor"), "opencode")
 	if got := a.Email("main"); got != "" {
 		t.Fatalf("not a claude account: got %q", got)
 	}
@@ -133,6 +135,7 @@ func TestEmail(t *testing.T) {
 // An empty user tier falls to the organization's.
 func TestRateLimitTier(t *testing.T) {
 	a := loginHome(t)
+	accountDir(t, a.Home, "main")
 	dir, _ := AccountConfigDir(a.Home, "main")
 	for oauth, want := range map[string]string{
 		`{"userRateLimitTier":"u","organizationRateLimitTier":"o"}`: "u",

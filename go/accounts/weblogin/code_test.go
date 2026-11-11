@@ -2,6 +2,7 @@ package weblogin
 
 import (
 	"errors"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -29,7 +30,7 @@ func TestACodeReachesTheChildOnceAndTheLoginEndsDone(t *testing.T) {
 		t.Fatalf("a login that has its code has no URL to hand out: %+v", got)
 	}
 	r.settles("main", Done)
-	b, _ := os.ReadFile(filepath.Join(r.home, "accounts", "main", ".claude", "got"))
+	b, _ := os.ReadFile(filepath.Join(teamtest.AccountDir(t, r.home, "main"), ".claude", "got"))
 	if strings.TrimSpace(string(b)) != "abc-123#xyz" {
 		t.Fatalf("the child read %q", b)
 	}

@@ -1,6 +1,7 @@
 package usage
 
 import (
+	"github.com/handline/handline/go/data/team/teamtest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -46,7 +47,7 @@ func TestWithTheLaunchHoldOffByDefaultAFastPaceKeepsTheFullCap(t *testing.T) {
 	home := t.TempDir()
 	e := testEnv(home, clock)
 	writeConfig(t, home, map[string]any{"active_cap": 4})
-	os.MkdirAll(filepath.Join(home, "accounts", "ahead"), 0o755)
+	os.MkdirAll(filepath.Join(teamtest.AccountDir(t, home, "ahead")), 0o755)
 	weekAt(t, home, "ahead", 80) // far ahead of its week: 80% spent half way through
 	loads, err := e.ReadAll(q, "")
 	if err != nil {
@@ -65,7 +66,7 @@ func TestAHighFiveHourBurnDoesNotLowerTheCap(t *testing.T) {
 	home := t.TempDir()
 	e := testEnv(home, clock)
 	writeConfig(t, home, map[string]any{"active_cap": 4, LaunchHoldKey: true})
-	os.MkdirAll(filepath.Join(home, "accounts", "hot"), 0o755)
+	os.MkdirAll(filepath.Join(teamtest.AccountDir(t, home, "hot")), 0o755)
 	weekAt(t, home, "hot", 20) // behind its week
 	// 5h at 10%: 90 points left, the reset an hour off. An agent at $3/min on $1 a point fills 3%/min, the block in 30 minutes: a start
 	// is held for it (Predict), the cap is not shrunk.
@@ -145,7 +146,7 @@ func TestThePaceLineShrinksTheCapInStepWithTheBurstAndStopsItPastIt(t *testing.T
 	home := t.TempDir()
 	e := testEnv(home, clock)
 	writeConfig(t, home, map[string]any{"active_cap": 4, LaunchHoldKey: true})
-	os.MkdirAll(filepath.Join(home, "accounts", "a"), 0o755)
+	os.MkdirAll(filepath.Join(teamtest.AccountDir(t, home, "a")), 0o755)
 	// Half the week gone: the line is at 49 (98 x 1/2).
 	for _, c := range []struct {
 		used  int
@@ -170,7 +171,7 @@ func TestAnAccountOverItsLineIsBackWhenTheLineCatchesUpAndItsRateEndsAtTheTarget
 	home := t.TempDir()
 	e := testEnv(home, clock)
 	writeConfig(t, home, map[string]any{LaunchHoldKey: true})
-	os.MkdirAll(filepath.Join(home, "accounts", "a"), 0o755)
+	os.MkdirAll(filepath.Join(teamtest.AccountDir(t, home, "a")), 0o755)
 	weekAt(t, home, "a", 79)
 	p := e.PaceNow("a")
 	if p == nil || p.State != PaceOver {
@@ -225,7 +226,7 @@ func TestThePaceCapIsFiguredOnTheFoundersCapAndTheSmallestCapIsInForce(t *testin
 	home := t.TempDir()
 	e := testEnv(home, clock)
 	writeConfig(t, home, map[string]any{"active_cap": 4, LaunchHoldKey: true})
-	os.MkdirAll(filepath.Join(home, "accounts", "a"), 0o755)
+	os.MkdirAll(filepath.Join(teamtest.AccountDir(t, home, "a")), 0o755)
 	weekAt(t, home, "a", 56) // 7 points ahead of a line at 49: ceil(4 x 3/10) = 2
 	if got := e.CapUnpaced(q, "a"); got != 4 {
 		t.Fatalf("the unpaced cap: %d, want the founder's 4", got)
@@ -285,7 +286,7 @@ func TestPredictReadsTheAgentsMidTurnAndTheNewcomersMeasuredCostAndHoldsNothingO
 	q := openDB(t)
 	home := t.TempDir()
 	e := testEnv(home, clock)
-	os.MkdirAll(filepath.Join(home, "accounts", "a"), 0o755)
+	os.MkdirAll(filepath.Join(teamtest.AccountDir(t, home, "a")), 0o755)
 	accountAt(t, home, 0, 280, 5, WeekS/2)
 	for _, x := range []string{"x", "y", "z"} {
 		setAgent(t, q, x, "RUNNING", "a")

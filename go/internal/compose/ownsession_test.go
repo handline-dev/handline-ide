@@ -2,6 +2,7 @@ package compose
 
 import (
 	"fmt"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -24,7 +25,7 @@ func TestAnAgentFindsOnlyTheSessionInItsOwnPane(t *testing.T) {
 	mine, theirs := child.Process.Pid, os.Getpid() // theirs is the test process, the parent of mine
 	ft.panePid = map[string]int{"%1": mine, "%2": os.Getppid()}
 	wt := t.TempDir()
-	config, _ := team.AccountConfigDir(home, "acct")
+	config, _ := team.AccountConfigDir(home, teamtest.Account(t, home, "acct"))
 	dir := filepath.Join(config, "sessions")
 	os.MkdirAll(dir, 0o755)
 	for _, s := range []struct {

@@ -7,7 +7,6 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team/teamtest"
-	"github.com/handline/handline/go/kit/paths"
 )
 
 // pinVendors is fakeVendors with a vendor per account.
@@ -22,7 +21,7 @@ func (v pinVendors) AccountVendor(acct string) string { return v.of[acct] }
 func pinRig(t *testing.T, pin string) *launchRig {
 	r := newLaunchRig(t)
 	for _, a := range []string{"a", "b"} {
-		if err := os.MkdirAll(paths.AccountDir(r.l.Home, a), 0o755); err != nil {
+		if err := os.MkdirAll(teamtest.AccountDir(t, r.l.Home, a), 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}

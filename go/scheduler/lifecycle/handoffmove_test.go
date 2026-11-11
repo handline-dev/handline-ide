@@ -1,6 +1,7 @@
 package lifecycle
 
 import (
+	"github.com/handline/handline/go/data/team/teamtest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -205,7 +206,7 @@ func TestAnOwedClearIsForcedThroughWhenItsTimeIsUpAndTheRecordSaysWhatWasCutOff(
 
 func (g *moveRig) account(t *testing.T, name string, loggedIn bool) {
 	t.Helper()
-	dir := filepath.Join(g.m.Home, "accounts", name, ".claude")
+	dir := filepath.Join(teamtest.AccountDir(t, g.m.Home, name), ".claude")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}

@@ -1,6 +1,7 @@
 package compose
 
 import (
+	"github.com/handline/handline/go/data/team/teamtest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -12,7 +13,7 @@ import (
 // limit at all is never full.
 func TestAClosedSessionIsFullAtTheAgentsContextLimit(t *testing.T) {
 	home := t.TempDir()
-	dir := filepath.Join(home, "accounts", "alpha", ".claude", "projects", "-proj")
+	dir := filepath.Join(teamtest.AccountDir(t, home, "alpha"), ".claude", "projects", "-proj")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}

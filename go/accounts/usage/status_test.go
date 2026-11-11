@@ -2,6 +2,7 @@ package usage
 
 import (
 	"encoding/json"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"math"
 	"os"
 	"path/filepath"
@@ -78,7 +79,7 @@ func loadFixture(t *testing.T) fixture {
 
 func writeStatus(t *testing.T, home, acct string, raw any) {
 	t.Helper()
-	dir := filepath.Join(home, "accounts", acct)
+	dir := filepath.Join(teamtest.AccountDir(t, home, acct))
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -102,7 +103,7 @@ func writeConfig(t *testing.T, home string, cfg map[string]any) {
 		t.Fatal(err)
 	}
 	defer d.Close()
-	if _, err := d.Exec("DELETE FROM accounts"); err != nil {
+	if _, err := d.Exec("UPDATE accounts SET label = NULL, active_cap = NULL, paused = 0, usage_recover = NULL, month_cycle = NULL, sub_end = NULL"); err != nil {
 		t.Fatal(err)
 	}
 	var lines []string
@@ -317,12 +318,12 @@ func TestPickMatchesPython(t *testing.T) {
 				a := p.Accounts[n]
 				writeStatus(t, home, n, a.Status)
 				if a.Vendor != "" {
-					os.WriteFile(filepath.Join(home, "accounts", n, "vendor"), []byte(a.Vendor+"\n"), 0o644)
+					os.WriteFile(filepath.Join(teamtest.AccountDir(t, home, n), "vendor"), []byte(a.Vendor+"\n"), 0o644)
 				}
 				loads[n] = a.Load.load(n, e)
 			}
 			for _, n := range p.Removing {
-				os.WriteFile(filepath.Join(home, "accounts", n, ".removing"), nil, 0o644)
+				os.WriteFile(filepath.Join(teamtest.AccountDir(t, home, n), ".removing"), nil, 0o644)
 			}
 			cands := p.Candidates
 			picked, reasons, err := e.Pick(openDB(t), PickOpts{Candidates: cands, Bootstrap: p.Opts.Bootstrap, Exclude: p.Opts.Exclude, Load: loads,

@@ -3,6 +3,7 @@ package compose
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -11,7 +12,6 @@ import (
 	"github.com/handline/handline/go/accounts/usage"
 	dbpkg "github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
-	"github.com/handline/handline/go/kit/paths"
 )
 
 // atPct writes acct's status at pct of its 5h window, as a session's statusline leaves it.
@@ -22,7 +22,7 @@ func atPct(t *testing.T, home, acct string, pct int) {
 		return map[string]any{"minutes": minutes, "used_percent": pct, "resets_at": now + 3600, "observed_at": now, "carried": false, "lost": false}
 	}
 	b, _ := json.Marshal(map[string]any{"collected_at": now, "windows": []any{win(300, pct), win(10080, 10)}})
-	if err := os.WriteFile(filepath.Join(paths.AccountDir(home, acct), "status.json"), b, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(teamtest.AccountDir(t, home, acct), "status.json"), b, 0o644); err != nil {
 		t.Fatal(err)
 	}
 }

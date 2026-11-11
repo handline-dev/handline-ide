@@ -259,3 +259,18 @@ func TestFromNamesRoutesAsTheRowsDo(t *testing.T) {
 		t.Fatal("FromNames")
 	}
 }
+
+// accountDir gives the account named name a row in home's database, when it has none, and is its folder, which the caller makes.
+func accountDir(t *testing.T, home, name string) string {
+	t.Helper()
+	d, err := storetest.OpenAt(t, paths.DBFile(home))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	if _, err := d.Exec("INSERT INTO accounts(name, owner, created_at) VALUES(?, 'p1', 0) ON CONFLICT(name) DO NOTHING", name); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { store.ForgetShared(paths.DBFile(home)) })
+	return paths.AccountDir(home, name)
+}

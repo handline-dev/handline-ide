@@ -1,6 +1,7 @@
 package usage
 
 import (
+	"github.com/handline/handline/go/data/team/teamtest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -9,7 +10,7 @@ import (
 func TestStatusReadsBothShapes(t *testing.T) {
 	home := t.TempDir()
 	write := func(acct, body string) {
-		dir := filepath.Join(home, "accounts", acct)
+		dir := filepath.Join(teamtest.AccountDir(t, home, acct))
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatal(err)
 		}

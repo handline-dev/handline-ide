@@ -326,7 +326,7 @@ func TestARefusedLaunchLeavesThePromptFileAndExecsNothing(t *testing.T) {
 func addAccounts(t *testing.T, r *launchRig, names ...string) {
 	t.Helper()
 	for _, n := range names {
-		if err := os.MkdirAll(filepath.Join(paths.AccountsDir(r.l.Home), n), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Join(teamtest.AccountDir(t, r.l.Home, n)), 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -617,7 +617,7 @@ func TestAColdWakeMovesToTheSlowestPacedAccountWithRoomNotItsOwnNorOneWithOlderW
 		head: map[string]float64{"a": 0.99, "b": 0.9, "c": 0.5, "ahead": 0.02, "walled": 0.95}}
 	home, q := r.l.Home, r.l.Q
 	for _, a := range []string{"a", "b", "c", "ahead", "walled"} {
-		os.MkdirAll(filepath.Join(paths.AccountsDir(home), a), 0o755)
+		os.MkdirAll(filepath.Join(teamtest.AccountDir(t, home, a)), 0o755)
 	}
 	db.SetAgentState(q, "ann", states.Idle, 0, "")
 	db.SetClosed(q, "ann", "s-ann")
@@ -632,7 +632,7 @@ func TestAColdWakeMovesToTheSlowestPacedAccountWithRoomNotItsOwnNorOneWithOlderW
 	}
 	r.l.Ports.Usage = fakeUsage{st: ok, cap: 1, by: map[string]AccountStatus{"walled": hot}, head: map[string]float64{"a": 0.99, "b": 0.9}}
 	for _, a := range []string{"c", "ahead", "walled"} {
-		os.RemoveAll(filepath.Join(paths.AccountsDir(home), a))
+		os.RemoveAll(filepath.Join(teamtest.AccountDir(t, home, a)))
 	}
 	if got := r.l.SlowestPaced(q, "ann", row, "a"); got != "" {
 		t.Fatalf("an account an older waiter holds the slot of is not room, and the agent's own is left out: %q", got)
@@ -655,7 +655,7 @@ func TestAPersonsStartGoesToTheAccountItWasLastOnElseTheMostHeadroomAndQueuesBeh
 		head: map[string]float64{"a": 0.99, "b": 0.9, "c": 0.5, "walled": 0.95}}
 	home, q := r.l.Home, r.l.Q
 	for _, a := range []string{"a", "b", "c", "walled"} {
-		os.MkdirAll(filepath.Join(paths.AccountsDir(home), a), 0o755)
+		os.MkdirAll(filepath.Join(teamtest.AccountDir(t, home, a)), 0o755)
 	}
 	db.SetAgentState(q, "ann", states.Idle, 0, "")
 	db.SetClosed(q, "ann", "s-ann")
@@ -694,7 +694,7 @@ func TestAnOpenAgentsMoveDoesNotTakeTheSlotAnOlderClosedWaiterHolds(t *testing.T
 	r.l.Ports.WaitingFor = func(db.Q, string) bool { return true }
 	r.l.Ports.Usage = fakeUsage{st: AccountStatus{Exists: true, ShortTrusted: &pct}, cap: 1, head: map[string]float64{"a": 0.9, "b": 0.9}}
 	for _, a := range []string{"a", "b"} {
-		os.MkdirAll(filepath.Join(paths.AccountsDir(r.l.Home), a), 0o755)
+		os.MkdirAll(filepath.Join(teamtest.AccountDir(t, r.l.Home, a)), 0o755)
 	}
 	q := r.l.Q
 	db.SetAgentState(q, "ann", states.Idle, 0, "") // open: never closed
@@ -856,13 +856,13 @@ func TestBuildHandsTheDriverTheGrants(t *testing.T) {
 func TestAResumeBuildCarriesTheSessionToItsAccount(t *testing.T) {
 	r := newLaunchRig(t)
 	r.l.Ports.CurrentAccount = func(db.Q, string) string { return "main" }
-	old, _ := team.AccountConfigDir(r.l.Home, "old")
+	main, _ := team.AccountConfigDir(r.l.Home, teamtest.Account(t, r.l.Home, "main"))
+	old, _ := team.AccountConfigDir(r.l.Home, teamtest.Account(t, r.l.Home, "old"))
 	os.MkdirAll(filepath.Join(old, "projects", "-wt"), 0o755)
 	os.WriteFile(filepath.Join(old, "projects", "-wt", "s1.jsonl"), []byte("{}\n"), 0o600)
 	if _, _, err := r.build("ann", []string{"--resume", "s1"}, false, ""); err != nil {
 		t.Fatal(err)
 	}
-	main, _ := team.AccountConfigDir(r.l.Home, "main")
 	if sessionIn(main, "s1") == "" {
 		t.Fatal("the session was not carried to the account the resume runs on")
 	}
@@ -890,7 +890,7 @@ func TestAFreshStartIsToldWhereItWas(t *testing.T) {
 func TestAStartIsHeldOnlyWhenNoAccountLastsToItsFiveHourReset(t *testing.T) {
 	r := newLaunchRig(t)
 	for _, a := range []string{"a", "b"} {
-		if err := os.MkdirAll(filepath.Join(r.l.Home, "accounts", a), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Join(teamtest.AccountDir(t, r.l.Home, a)), 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -943,7 +943,7 @@ func TestAStartIsHeldOnlyWhenNoAccountLastsToItsFiveHourReset(t *testing.T) {
 func TestAMoveGoesWhereTheWeekRunsOutFirstAndAColdRepickNeedsAClearGain(t *testing.T) {
 	r := newLaunchRig(t)
 	for _, a := range []string{"a", "b", "c"} {
-		if err := os.MkdirAll(filepath.Join(r.l.Home, "accounts", a), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Join(teamtest.AccountDir(t, r.l.Home, a)), 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -1070,7 +1070,7 @@ func pastFitRig(t *testing.T) (*launchRig, *db.AgentState) {
 		head:  map[string]float64{"c": 0.5, "d": 0.2, "walled": 0.9, "full": 0.8, "own": 0.95},
 		share: map[string]float64{"c": 0.5, "d": 0.5, "walled": 0.5, "own": 0.5}, active: map[string]int{"full": 1}}
 	for _, a := range []string{"c", "d", "walled", "full", "own"} {
-		os.MkdirAll(filepath.Join(paths.AccountsDir(r.l.Home), a), 0o755)
+		os.MkdirAll(filepath.Join(teamtest.AccountDir(t, r.l.Home, a)), 0o755)
 	}
 	db.SetAgentState(r.l.Q, "ann", states.Idle, 0, "")
 	row, _ := db.GetAgentState(r.l.Q, "ann")

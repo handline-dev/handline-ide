@@ -9,7 +9,7 @@ import (
 
 func TestRelinkLinksOnlyWhatGainedATargetAndLeavesWhatIsThere(t *testing.T) {
 	home := t.TempDir()
-	cdir := filepath.Join(home, "accounts", "a1", ".claude")
+	cdir := filepath.Join(accountDir(t, home, "a1"), ".claude")
 	os.MkdirAll(cdir, 0o755)
 	os.MkdirAll(filepath.Join(home, "shared", ".claude", "skills"), 0o755)
 	os.WriteFile(filepath.Join(home, "shared", ".claude", "CLAUDE.md"), []byte("x"), 0o644)
@@ -28,7 +28,7 @@ func TestRelinkLinksOnlyWhatGainedATargetAndLeavesWhatIsThere(t *testing.T) {
 	if again := RelinkAll(home, func(string) {}); len(again) != 0 {
 		t.Fatalf("a second pass has nothing to do: %v", again)
 	}
-	os.MkdirAll(filepath.Join(home, "accounts", "bare"), 0o755) // no config dir: register never ran on it
+	os.MkdirAll(filepath.Join(accountDir(t, home, "bare")), 0o755) // no config dir: register never ran on it
 	if got := RelinkAll(home, func(string) {}); len(got) != 0 {
 		t.Fatal(got)
 	}

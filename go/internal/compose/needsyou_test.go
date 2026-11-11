@@ -2,6 +2,7 @@ package compose
 
 import (
 	"encoding/json"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -65,7 +66,7 @@ func TestASessionFileSayingWaitingNeedsAPersonAndOneSayingBusyDoesNot(t *testing
 		t.Fatal(err)
 	}
 	defer d.Close()
-	config, err := team.AccountConfigDir(home, "acct")
+	config, err := team.AccountConfigDir(home, teamtest.Account(t, home, "acct"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,7 +136,7 @@ func TestALiveSessionThatIsBusyEndsTheNeedTheWaitFileStillSays(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer d.Close()
-	config, err := team.AccountConfigDir(home, "acct")
+	config, err := team.AccountConfigDir(home, teamtest.Account(t, home, "acct"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -171,7 +172,7 @@ func TestNeedsYouFindsTheSessionOfAWorktreeRecordedAsRepoAndPath(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer d.Close()
-	config, err := team.AccountConfigDir(home, "acct")
+	config, err := team.AccountConfigDir(home, teamtest.Account(t, home, "acct"))
 	if err != nil {
 		t.Fatal(err)
 	}

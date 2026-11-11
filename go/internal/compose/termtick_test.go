@@ -2,6 +2,7 @@ package compose
 
 import (
 	"encoding/json"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -36,7 +37,7 @@ func termTickRig(t *testing.T) (*Parts, *fakeTerminals, string) {
 // writeSession is the file a running claude keeps for its process under an account's config directory.
 func writeSession(t *testing.T, p *Parts, acct string, pid int, body string) {
 	t.Helper()
-	dir, _ := team.AccountConfigDir(p.home, acct)
+	dir, _ := team.AccountConfigDir(p.home, teamtest.Account(t, p.home, acct))
 	os.MkdirAll(filepath.Join(dir, "sessions"), 0o755)
 	if err := os.WriteFile(filepath.Join(dir, "sessions", strconv.Itoa(pid)+".json"), []byte(body), 0o644); err != nil {
 		t.Fatal(err)
@@ -70,7 +71,7 @@ func TestTheTickReadsATerminalAgentsSessionFromItsSessionFile(t *testing.T) {
 	}
 	ft.live["%1"] = true
 	writeSession(t, p, "a2", 1<<30, `{"cwd":"`+wt+`","sessionId":"s1","status":"idle"}`)
-	os.Remove(filepath.Join(p.home, "accounts", "a2", ".claude", "sessions", strconv.Itoa(os.Getpid())+".json"))
+	os.Remove(filepath.Join(teamtest.AccountDir(t, p.home, "a2"), ".claude", "sessions", strconv.Itoa(os.Getpid())+".json"))
 	if host.SessionAlive("bob") {
 		t.Fatal("a file left by a process that died is not a session")
 	}
@@ -113,7 +114,7 @@ func TestATerminalAgentWithNoStatuslineHasItsSessionAndContextFromItsFileAndTran
 	p, _, wt := termTickRig(t)
 	sid := "33333333-3333-4333-8333-333333333333"
 	writeSession(t, p, "a1", os.Getpid(), `{"cwd":"`+wt+`","sessionId":"`+sid+`","status":"idle"}`)
-	dir, _ := team.AccountConfigDir(p.home, "a1")
+	dir, _ := team.AccountConfigDir(p.home, teamtest.Account(t, p.home, "a1"))
 	os.MkdirAll(filepath.Join(dir, "projects", "x"), 0o755)
 	os.WriteFile(filepath.Join(dir, "projects", "x", sid+".jsonl"), []byte(
 		`{"type":"assistant","message":{"model":"claude-opus-5-1","usage":{"input_tokens":10,"cache_read_input_tokens":150000,"cache_creation_input_tokens":5}}}`+"\n"), 0o644)
@@ -229,7 +230,7 @@ func TestATerminalAgentsViewRowSaysWhatItsSessionFileSays(t *testing.T) {
 func loginRig(t *testing.T) (*Parts, *Tick, string) {
 	t.Helper()
 	p, _, wt := termTickRig(t)
-	dir, _ := team.AccountConfigDir(p.home, "a2")
+	dir, _ := team.AccountConfigDir(p.home, teamtest.Account(t, p.home, "a2"))
 	os.MkdirAll(dir, 0o755)
 	os.WriteFile(filepath.Join(dir, ".credentials.json"), []byte("{}"), 0o600)
 	writeSession(t, p, "a1", os.Getpid(), `{"cwd":"`+wt+`","sessionId":"s1","status":"idle"}`)
@@ -278,7 +279,7 @@ func TestARefusalLeftOnTheAccountATerminalAgentWasMovedFromMarksNothing(t *testi
 	authFailed(t, p, "a1") // the last event of the agent, which now runs on a2
 	dbpkg.SetAccount(p.db, "bob", "a2", "recorded")
 	writeSession(t, p, "a2", os.Getpid(), `{"cwd":"`+wt+`","sessionId":"s2","status":"idle"}`)
-	os.Remove(filepath.Join(p.home, "accounts", "a1", ".claude", "sessions", strconv.Itoa(os.Getpid())+".json"))
+	os.Remove(filepath.Join(teamtest.AccountDir(t, p.home, "a1"), ".claude", "sessions", strconv.Itoa(os.Getpid())+".json"))
 	if _, err := tk.Tick.Run(); err != nil {
 		t.Fatal(err)
 	}
@@ -305,7 +306,7 @@ func TestAPromptAfterARefusalClearsItForATerminalAgent(t *testing.T) {
 func TestARefusalOlderThanTheAccountsLastLoginMarksNothing(t *testing.T) {
 	p, tk, _ := loginRig(t)
 	authFailed(t, p, "a1")
-	cred := filepath.Join(p.home, "accounts", "a1", ".claude", ".credentials.json")
+	cred := filepath.Join(teamtest.AccountDir(t, p.home, "a1"), ".claude", ".credentials.json")
 	later := time.Now().Add(time.Hour)
 	if err := os.Chtimes(cred, later, later); err != nil { // logged in again since the refusal, which no prompt has followed
 		t.Fatal(err)

@@ -2,6 +2,7 @@ package compose
 
 import (
 	"database/sql"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -18,7 +19,7 @@ import (
 func stallWorld(t *testing.T) (*sql.DB, team.Accounts, string) {
 	t.Helper()
 	home := t.TempDir()
-	dir := filepath.Join(home, "accounts", "acct", ".claude")
+	dir := filepath.Join(teamtest.AccountDir(t, home, "acct"), ".claude")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}

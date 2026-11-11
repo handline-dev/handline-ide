@@ -3,6 +3,7 @@ package reads
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"math"
 	"os"
 	"path/filepath"
@@ -18,7 +19,7 @@ func TestOutlookStatesTheRunwayTheCostAndKeepsTheFutureApart(t *testing.T) {
 	clock := time.Date(2026, 10, 8, 15, 0, 0, 0, time.Local)
 	now := clock.Unix()
 	for acct, pct := range map[string]int{"full": 100, "quiet": 20} {
-		p := paths.StatusFile(e.Home, acct)
+		p := paths.StatusFile(e.Home, teamtest.Account(t, e.Home, acct))
 		os.MkdirAll(filepath.Dir(p), 0o755)
 		body := fmt.Sprintf(`{"collected_at": %d, "windows": [{"minutes": 300, "used_percent": %d, "resets_at": %d, "observed_at": %d, "carried": false, "lost": false},`+
 			`{"minutes": 10080, "used_percent": 40, "resets_at": %d, "observed_at": %d, "carried": false, "lost": false}]}`,
@@ -172,7 +173,7 @@ func TestAccountsListShowsTheCapShrunkByThePaceOnlyWithTheLaunchHoldOn(t *testin
 	e := testEnv(t)
 	now := time.Now().Unix()
 	for acct, used := range map[string]int{"fast": 95, "slow": 5} {
-		p := paths.StatusFile(e.Home, acct)
+		p := paths.StatusFile(e.Home, teamtest.Account(t, e.Home, acct))
 		os.MkdirAll(filepath.Dir(p), 0o755)
 		body := fmt.Sprintf(`{"collected_at": %d, "windows": [{"minutes": 300, "used_percent": 1, "resets_at": %d, "observed_at": %d, "carried": false, "lost": false},`+
 			`{"minutes": 10080, "used_percent": %d, "resets_at": %d, "observed_at": %d, "carried": false, "lost": false}]}`,

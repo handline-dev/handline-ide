@@ -27,7 +27,7 @@ func testEnv(t *testing.T) *Env {
 	t.Cleanup(func() { db.Close() })
 	// The login check never asks the machine's keychain: an account is logged in when its directory has a .credentials.json.
 	login := func(acct string) (bool, bool) {
-		_, err := os.Stat(filepath.Join(home, "accounts", acct, ".credentials.json"))
+		_, err := os.Stat(filepath.Join(teamtest.AccountDir(t, home, acct), ".credentials.json"))
 		return err == nil, true
 	}
 	// No test asks GitHub for a branch's pull request: none unless it sets BranchPR.

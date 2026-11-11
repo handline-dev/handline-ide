@@ -3,6 +3,7 @@ package handoff
 import (
 	"database/sql"
 	"fmt"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -134,7 +135,7 @@ func gitRepo(t *testing.T) string {
 
 func (w *world) transcript(account, project, session string) string {
 	w.t.Helper()
-	dir := filepath.Join(w.Home, "accounts", account, ".claude", "projects", project)
+	dir := filepath.Join(teamtest.AccountDir(w.t, w.Home, account), ".claude", "projects", project)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		w.t.Fatal(err)
 	}

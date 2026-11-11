@@ -19,6 +19,7 @@ import (
 
 	"github.com/handline/handline/go/agentctl/agent"
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/textsafe"
 )
 
@@ -106,6 +107,9 @@ func childEnv(vendor, configDir string) []string {
 
 // Start begins a login on the account and answers it once the child has printed its URL.
 func (m *Manager) Start(account string) (Login, error) {
+	if paths.AccountKey(m.Home, account) == "" { // its folder is by key: a login cannot make one
+		return Login{}, &Refusal{"no account " + account + ": add it first"}
+	}
 	vendor := team.AccountVendor(m.Home, account)
 	argv, ok := team.WebLoginArgv(vendor)
 	if !ok {
@@ -254,6 +258,12 @@ func firstURL(r io.Reader, urls chan<- string) {
 
 // exited ends the login with what the child's exit, the credential and the logged-in account say.
 func (m *Manager) exited(r *run, werr error) {
+	m.mu.Lock()
+	settled := !r.active()
+	m.mu.Unlock()
+	if settled { // ended already (no URL, cancelled, timed out): the exit says nothing more
+		return
+	}
 	if werr != nil {
 		m.end(r, Failed, "the login command exited with an error")
 		return

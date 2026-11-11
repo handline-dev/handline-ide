@@ -91,3 +91,55 @@ func AgentKeys(home string) (map[string]string, error) {
 	}
 	return out, rows.Err()
 }
+
+// AccountKey is who's key: who itself when it is an account's key, else the key of the account named who; "" when none is, or the
+// accounts table cannot be read.
+func AccountKey(home, who string) string {
+	if actor.KindOf(who) == actor.Account {
+		return who
+	}
+	d, err := store.SharedIfThere(DBFile(home))
+	if d == nil || err != nil {
+		return ""
+	}
+	k, _ := AccountKeyIn(d, who)
+	return k
+}
+
+// AccountKeyIn is the key of the account named name, read through q: "" and no error when none is.
+func AccountKeyIn(q interface {
+	QueryRow(string, ...any) *sql.Row
+}, name string) (string, error) {
+	var id int64
+	err := q.QueryRow("SELECT id FROM accounts WHERE name = ?", name).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return actor.Key(actor.Account, id), nil
+}
+
+// AccountName is the name of the account whose key is key, "" when none is.
+func AccountName(home, key string) string {
+	_, id, ok := actor.Parse(key)
+	d, err := store.SharedIfThere(DBFile(home))
+	if !ok || actor.KindOf(key) != actor.Account || d == nil || err != nil {
+		return ""
+	}
+	var name string
+	if d.QueryRow("SELECT name FROM accounts WHERE id = ?", id).Scan(&name) != nil {
+		return ""
+	}
+	return name
+}
+
+// AccountDir is the account's folder, accounts/<key>; who is its key or its name. A name not looked up gets
+// accounts/.unregistered/<name>.
+func AccountDir(home, who string) string {
+	if k := AccountKey(home, who); k != "" {
+		return filepath.Join(home, "accounts", k)
+	}
+	return filepath.Join(home, "accounts", Unregistered, who)
+}

@@ -6,11 +6,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/paths"
+	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/kit/yamlcompat"
 )
 
@@ -31,23 +34,43 @@ func (a Accounts) Add(acct, vendor string) (string, error) {
 	if !yamlcompat.IsPlainText(acct) {
 		return "", fmt.Errorf("%w: %q. It would not be read back as text from the YAML files it is written into; choose another", ErrBadAccountName, acct)
 	}
+	if actor.KindOf(acct) != actor.None {
+		return "", fmt.Errorf("%w: %q reads as a key; choose another", ErrBadAccountName, acct)
+	}
 	if vendor == "" {
 		vendor = DefaultVendor
 	}
 	if err := CheckVendor(vendor); err != nil {
 		return "", err
 	}
-	dir := paths.AccountDir(a.Home, acct)
-	if _, err := os.Lstat(dir); err == nil {
+	if slices.Contains(paths.ListAccounts(a.Home), acct) {
 		return "", fmt.Errorf("%w: account '%s' already exists", ErrAccountExists, acct)
 	}
-	cdir := filepath.Join(dir, ConfigDirName(vendor))
-	if err := os.MkdirAll(cdir, 0o755); err != nil {
+	// Its row first: the folder is named by the row's key.
+	d, err := store.SharedIfThere(paths.DBFile(a.Home))
+	if d == nil {
+		return "", fmt.Errorf("no database at %s: %v", a.Home, err)
+	}
+	owner, err := actor.Owner(d)
+	if err != nil {
 		return "", err
 	}
+	res, err := d.Exec("INSERT INTO accounts(name, owner, created_at) VALUES(?, ?, ?) ON CONFLICT(name) DO NOTHING", acct, owner, time.Now().Unix())
+	if err != nil {
+		return "", err
+	}
+	madeRow, _ := res.RowsAffected()
+	dir := paths.AccountDir(a.Home, acct)
+	cdir := filepath.Join(dir, ConfigDirName(vendor))
 	fail := func(err error) (string, error) {
 		os.RemoveAll(dir)
+		if madeRow > 0 {
+			d.Exec("DELETE FROM accounts WHERE name = ?", acct)
+		}
 		return "", err
+	}
+	if err := os.MkdirAll(cdir, 0o755); err != nil {
+		return fail(err)
 	}
 	if vendor != DefaultVendor {
 		if err := os.WriteFile(filepath.Join(dir, "vendor"), []byte(vendor+"\n"), 0o644); err != nil {

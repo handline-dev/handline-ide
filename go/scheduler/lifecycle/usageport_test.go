@@ -2,6 +2,7 @@ package lifecycle
 
 import (
 	"encoding/json"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -19,7 +20,7 @@ func usageHome(t *testing.T, accounts map[string]map[string]any) *usage.Env {
 	t.Helper()
 	home := t.TempDir()
 	for name, raw := range accounts {
-		dir := filepath.Join(home, "accounts", name)
+		dir := filepath.Join(teamtest.AccountDir(t, home, name))
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatal(err)
 		}

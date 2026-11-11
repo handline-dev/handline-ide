@@ -2,6 +2,7 @@ package usage
 
 import (
 	"encoding/json"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -12,7 +13,7 @@ import (
 
 func writeTranscript(t *testing.T, home, acct, cwd, sid string, lines ...string) string {
 	t.Helper()
-	dir := filepath.Join(paths.AccountDir(home, acct), ".claude", "projects", notAlnum.ReplaceAllString(cwd, "-"))
+	dir := filepath.Join(teamtest.AccountDir(t, home, acct), ".claude", "projects", notAlnum.ReplaceAllString(cwd, "-"))
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}

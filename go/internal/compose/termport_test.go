@@ -139,7 +139,7 @@ func TestATerminalAgentIsStartedInANewWorktreeThroughTheHostAndItsHandleKept(t *
 	d := p.db
 	repo, _ := filepath.EvalSymlinks(gitRepo(t))
 	// the session `hl launch` would start: its record under the account's config directory, for a process that is running
-	dir, _ := team.AccountConfigDir(p.home, "a1")
+	dir, _ := team.AccountConfigDir(p.home, teamtest.Account(t, p.home, "a1"))
 	if err := dbpkg.SetAccount(d, "bob", "a1", "recorded"); err != nil {
 		t.Fatal(err)
 	}
@@ -189,7 +189,7 @@ func TestAWakesLaunchIsShownStartingAtOnceAndUntilItsSessionsFirstHook(t *testin
 	lc := p.Lifecycle(cfg, LifecycleConfig{Env: env})
 	p.Tick(cfg, TickConfig{Terminals: true}) // wires the tracker's changes to the view; it never ticks here
 	wt, _ := filepath.EvalSymlinks(t.TempDir())
-	dir, _ := team.AccountConfigDir(p.home, "a1")
+	dir, _ := team.AccountConfigDir(p.home, teamtest.Account(t, p.home, "a1"))
 	dbpkg.SetAccount(d, "bob", "a1", "recorded")
 	ft.started = sessionRecordIn(dir)
 	dbpkg.SetTerminal(d, "bob", "", wt)
@@ -225,7 +225,7 @@ func TestAClosedTerminalAgentIsWokenInANewTerminalResumingItsSession(t *testing.
 	p, lc, _, _ := wiredWith(t, ft)
 	d := p.db
 	wt, _ := filepath.EvalSymlinks(t.TempDir())
-	dir, _ := team.AccountConfigDir(p.home, "a1")
+	dir, _ := team.AccountConfigDir(p.home, teamtest.Account(t, p.home, "a1"))
 	if err := dbpkg.SetAccount(d, "bob", "a1", "recorded"); err != nil {
 		t.Fatal(err)
 	}
