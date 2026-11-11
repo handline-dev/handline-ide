@@ -207,6 +207,15 @@ func (r *Roster) set(q db.Q, at row, set []yamlcompat.Pair) error {
 	return nil
 }
 
+// Setting is v as the agents column key holds it, refused when key is no agent setting or v is not of its kind.
+func Setting(key string, v any) (any, error) {
+	kind, ok := settingKinds[key]
+	if !ok {
+		return nil, refuse("%s is not an agent setting", key)
+	}
+	return column(key, kind, v)
+}
+
 // column is v as the column of kind holds it; nil stays nil (the default).
 func column(key string, kind byte, v any) (any, error) {
 	if v == nil {

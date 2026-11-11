@@ -282,8 +282,8 @@ func For(q Q, reader, key string) string {
 
 var (
 	refRe = regexp.MustCompile(`<@([a-z]+[0-9]*)>`)
-	// mentionRe is an @word where a mention may start: not inside a word or an address like a@b.
-	mentionRe = regexp.MustCompile(`(^|[^A-Za-z0-9_.@<-])@([A-Za-z0-9][A-Za-z0-9_.-]*)`)
+	// MentionRe is an @word where a mention may start: not inside a word or an address like a@b.
+	MentionRe = regexp.MustCompile(`(^|[^A-Za-z0-9_.@<-])@([A-Za-z0-9][A-Za-z0-9_.-]*)`)
 )
 
 // Render is text for r: each <@key> becomes @ and the name r would use for that key.
@@ -303,8 +303,8 @@ func Render(q Q, r Who, text string) string {
 // Mentions is text as it is stored: each @word that resolves for writer becomes <@key>. An @word that does not resolve stays text.
 func Mentions(q Q, writer Who, text string) (string, error) {
 	var failed error
-	out := mentionRe.ReplaceAllStringFunc(text, func(m string) string {
-		s := mentionRe.FindStringSubmatch(m)
+	out := MentionRe.ReplaceAllStringFunc(text, func(m string) string {
+		s := MentionRe.FindStringSubmatch(m)
 		word := strings.TrimRight(s[2], ".-") // a sentence's full stop is not part of the name
 		key, err := Resolve(q, writer, word)
 		var refused *Refusal
