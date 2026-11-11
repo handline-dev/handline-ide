@@ -367,3 +367,14 @@ func TestWhilePausedOnlyAPassedTaskIsToldAndThePausesLoadWordDoesNotHoldIt(t *te
 		t.Fatal("the load's own hold let the founder's task through at the prompt")
 	}
 }
+
+func TestAnyPersonsMessageIsUrgentNotOnlyTheOwners(t *testing.T) {
+	for _, c := range []struct {
+		requester string
+		want      bool
+	}{{db.Human, true}, {"p2", true}, {"a3", false}, {"sys", false}} {
+		if got := urgent(&db.Request{Requester: c.requester}); got != c.want {
+			t.Errorf("urgent(requester %s) = %v, want %v", c.requester, got, c.want)
+		}
+	}
+}

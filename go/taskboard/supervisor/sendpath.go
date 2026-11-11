@@ -2,6 +2,7 @@ package supervisor
 
 import (
 	"fmt"
+	"github.com/handline/handline/go/kit/actor"
 	"strconv"
 	"strings"
 	"sync"
@@ -294,7 +295,7 @@ func (e *Env) deliveryUnknown(q db.Q, agent, op, outcome, advice string) {
 	told := map[string]bool{}
 	for _, rid := range ridsOfOp(op) {
 		row := must(db.GetRequest(q, rid))
-		if row != nil && row.Requester == db.Human { // each a warning on the founder's turn, until it is seen to arrive or a later one is written
+		if row != nil && actor.IsPerson(row.Requester) { // each a warning on the founder's turn, until it is seen to arrive or a later one is written
 			check(db.NoteUndelivered(q, db.LostMessagePrefix, rid, time.Now().Unix(), agent, outcome))
 			continue
 		}

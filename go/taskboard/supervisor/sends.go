@@ -3,6 +3,7 @@ package supervisor
 import (
 	"database/sql"
 	"fmt"
+	"github.com/handline/handline/go/kit/actor"
 	"strings"
 
 	"github.com/handline/handline/go/data/db"
@@ -58,7 +59,7 @@ func (e *Env) background(name string, fn func()) {
 func (e *Env) Wait() { e.bg.Wait() }
 
 func (e *Env) after(rid int64, target string) {
-	if rid == 0 || target == db.Human {
+	if rid == 0 || actor.IsPerson(target) {
 		return
 	}
 	e.background(fmt.Sprintf("telling %s about request %d", target, rid), func() { e.tell(rid, target) })
@@ -132,7 +133,7 @@ func (e *Env) SayVerb(q *sql.Tx, in SayVerbIn) (out *SayVerbOut, err error) {
 		return fail(noWho)
 	}
 	me, target, body := in.Requester, in.Target, in.Body
-	if target == db.Human && me != db.Human {
+	if actor.IsPerson(target) && !actor.IsPerson(me) {
 		if named := db.MessageNamedIn(q, body); named != "" {
 			return fail(fmt.Sprintf("not sent: this names a message (%s), and the founder sees no message ids - say in words what that message was about", named))
 		}
@@ -146,8 +147,8 @@ func (e *Env) SayVerb(q *sql.Tx, in SayVerbIn) (out *SayVerbOut, err error) {
 	if in.Parent != 0 {
 		parent = must(db.GetRequest(q, in.Parent))
 	}
-	if parent != nil && parent.Requester == db.Human && parent.State == "queued" && parent.Target == me &&
-		target == db.Human && parent.Kind.String == "say" {
+	if parent != nil && actor.IsPerson(parent.Requester) && parent.State == "queued" && parent.Target == me &&
+		actor.IsPerson(target) && parent.Kind.String == "say" {
 		// an answer to the founder's question on a task joins that task
 		asked := must(db.TasksForRequest(q, parent.ID))
 		within = func(c db.Q, note string, rid int64) error {
@@ -178,7 +179,7 @@ func (e *Env) SayVerb(q *sql.Tx, in SayVerbIn) (out *SayVerbOut, err error) {
 
 // PushCheck is why target cannot be pushed to, "" for none.
 func (e *Env) PushCheck(target string) string {
-	if target == db.Human || !e.registered(target) {
+	if actor.IsPerson(target) || !e.registered(target) {
 		return target + " is not an agent"
 	}
 	return ""
@@ -210,7 +211,7 @@ func (e *Env) NotifyCancelledCheck(q db.Q, rid int64) (row *db.Request, why stri
 	if row == nil {
 		return nil, "no such message", nil
 	}
-	if row.Target == db.Human || !e.registered(row.Target) {
+	if actor.IsPerson(row.Target) || !e.registered(row.Target) {
 		return nil, row.Target + " is not an agent", nil
 	}
 	if row.State != "landed" || !row.DeliveredAt.Valid || !must(db.ClosedUnder(q, row.ID)) {

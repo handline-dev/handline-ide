@@ -2,6 +2,7 @@ package supervisor
 
 import (
 	"fmt"
+	"github.com/handline/handline/go/kit/actor"
 	"strings"
 
 	"github.com/handline/handline/go/data/db"
@@ -23,7 +24,7 @@ func (e *Env) MemoAdd(q db.Q, tid int64, by, body string) (ok bool, msg string, 
 
 // memoGuard: a memo is anyone's to add; only its author or the founder edits or deletes it.
 func memoGuard(m *db.Memo, by string) string {
-	if by == db.Human || by == m.Author {
+	if actor.IsPerson(by) || by == m.Author {
 		return ""
 	}
 	return fmt.Sprintf("comment %d is %s's: only its author or the founder edits or deletes it", m.ID, m.Author)

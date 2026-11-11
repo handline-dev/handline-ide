@@ -1,6 +1,7 @@
 package supervisor
 
 import (
+	"github.com/handline/handline/go/kit/actor"
 	"strings"
 
 	"github.com/handline/handline/go/data/db"
@@ -14,7 +15,7 @@ import (
 // typedRow is whether row is a founder's message to an agent that takes them typed: one the founder's own connection sent
 // (db.FounderAuthored), never one that only names the founder as its requester.
 func (e *Env) typedRow(q db.Q, row *db.Request) bool {
-	return e.FounderTyped != nil && row.Requester == db.Human && row.Kind.String == sayKind && row.Target != db.Human && e.FounderTyped(row.Target) &&
+	return e.FounderTyped != nil && actor.IsPerson(row.Requester) && row.Kind.String == sayKind && !actor.IsPerson(row.Target) && e.FounderTyped(row.Target) &&
 		must(db.FounderAuthored(q, row.ID))
 }
 

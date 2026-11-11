@@ -4,6 +4,7 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/kit/actor"
 )
 
 // Delivering queued requests (daemon/delivery.py): checking the routing edge, picking the head, telling the agent.
@@ -113,7 +114,7 @@ func (e *Env) untoldBehind(q db.Q, agent string, head *db.Request) []*db.Request
 // batch:<agent> in the db, so a restart neither sends early nor forgets what is still owed.
 const BatchEveryS = 60
 
-func urgent(r *db.Request) bool { return r.Requester == db.Human || r.TellsNow() }
+func urgent(r *db.Request) bool { return actor.IsPerson(r.Requester) || r.TellsNow() }
 
 func (e *Env) batchDue(q db.Q, agent string, rows []*db.Request, freshSession bool) bool {
 	if freshSession {

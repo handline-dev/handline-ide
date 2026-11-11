@@ -2,6 +2,7 @@ package supervisor
 
 import (
 	"fmt"
+	"github.com/handline/handline/go/kit/actor"
 	"strings"
 	"unicode/utf8"
 
@@ -178,7 +179,7 @@ func tellText(q db.Q, head *db.Request, depth int, aheadOf *db.Request, parked b
 		reply = " (" + r + ")"
 	}
 	end := ", or `hl inbox` any time."
-	if head.Requester == db.Human || head.Kind.String == "say" {
+	if actor.IsPerson(head.Requester) || head.Kind.String == "say" {
 		end = "."
 	}
 	return fmt.Sprintf("%s from %s%s, waiting for you:\n%s%s\n`hl read %s` shows it whole; %s%s",
