@@ -336,7 +336,7 @@ def tick_settled(home: Path) -> None:
         try:
             keys = agent_keys(con)
             view = con.execute("SELECT view FROM agent_view WHERE agent = ?", (keys["s.running"],)).fetchone()
-            wt = con.execute("SELECT worktree FROM agent_state WHERE agent = ?", (keys[FILES_AGENT],)).fetchone()
+            wt = con.execute("SELECT worktree FROM agent_state WHERE agent = ?", (keys.get(FILES_AGENT, FILES_AGENT),)).fetchone()
         finally:
             con.close()
         if view and json.loads(view[0]).get("state") != "running" and not (wt and wt[0]):
