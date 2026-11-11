@@ -12,6 +12,7 @@ import (
 	"github.com/handline/handline/go/accounts/weblogin"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/paths"
+	"github.com/handline/handline/go/protocol/rpc"
 )
 
 func TestTheAccountsViewNeverCarriesTheAuthorizeURL(t *testing.T) {
@@ -250,5 +251,78 @@ func TestAccountsListSaysWhyAnAccountIsNotPickedAndNothingForACandidate(t *testi
 	// a candidate.
 	if v := np["oc"]; v != nil {
 		t.Errorf("oc: %v", v)
+	}
+}
+
+// The email is the founder's: an agent's, a member's or an in-process call's accounts.list has no email key at all.
+func TestAccountsListGivesTheEmailToTheFounderOnly(t *testing.T) {
+	t.Parallel()
+	e := testEnv(t)
+	for acct, identity := range map[string]string{"main": `{"email": "main@example.com"}`, "bare": `{}`} {
+		dir := filepath.Join(e.Home, "accounts", acct)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "identity.json"), []byte(identity), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	emails := func(c *rpc.Conn) map[string]any {
+		t.Helper()
+		got, err := e.accountsList(c, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		out := map[string]any{}
+		for _, a := range got.(map[string]any)["accounts"].([]any) {
+			a := a.(map[string]any)
+			if email, has := a["email"]; has {
+				out[a["name"].(string)] = email
+			}
+		}
+		return out
+	}
+	if acct, ok := e.Account("main"); !ok {
+		t.Fatal("no account")
+	} else if _, has := acct["email"]; has {
+		t.Fatalf("the accounts topic's Account, which agents hear, has the email: %v", acct)
+	}
+	if got := emails(&rpc.Conn{Caller: rpc.Caller{Role: "founder"}}); got["main"] != "main@example.com" || got["bare"] != nil || len(got) != 2 {
+		t.Fatalf("founder: %v", got)
+	}
+	for name, c := range map[string]*rpc.Conn{
+		"agent":      {Caller: rpc.Caller{Role: "agent", Info: map[string]any{"kind": "agent", "name": "amy"}}},
+		"member":     {Caller: rpc.Caller{Role: "member"}},
+		"in-process": nil,
+	} {
+		if got := emails(c); len(got) != 0 {
+			t.Fatalf("%s: %v", name, got)
+		}
+	}
+}
+
+// An account with no record shows the email Claude Code is logged in to now, and the read records nothing.
+func TestAccountsListShowsTheLoggedInEmailOfAnUnrecordedAccountAndWritesNothing(t *testing.T) {
+	t.Parallel()
+	e := testEnv(t)
+	dir, err := team.AccountConfigDir(e.Home, "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, ".claude.json"), []byte(`{"oauthAccount":{"emailAddress":"now@example.com"}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got, err := e.accountsList(&rpc.Conn{Caller: rpc.Caller{Role: "founder"}}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a := got.(map[string]any)["accounts"].([]any)[0].(map[string]any); a["email"] != "now@example.com" {
+		t.Fatalf("%v", a)
+	}
+	if _, err := os.Stat(filepath.Join(e.Home, "accounts", "main", "identity.json")); !os.IsNotExist(err) {
+		t.Fatalf("the read wrote identity.json: %v", err)
 	}
 }

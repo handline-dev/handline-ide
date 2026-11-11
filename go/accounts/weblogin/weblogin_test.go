@@ -371,8 +371,8 @@ func loginAs(email string) string {
 func TestALoginToAnotherAnthropicAccountFails(t *testing.T) {
 	for name, tc := range map[string]struct{ email, state, reason string }{
 		"the recorded one": {"Main@example.com", Done, ""},
-		"another's":        {"other@example.com", Failed, "logged in as other@example.com, not main@example.com: the same Anthropic account as other"},
-		"an unknown one":   {"new@example.com", Failed, "logged in as new@example.com, not main@example.com"},
+		"another's":        {"other@example.com", Failed, "logged in to a different Anthropic account than the one this account was set up with: the same Anthropic account as other"},
+		"an unknown one":   {"new@example.com", Failed, "logged in to a different Anthropic account than the one this account was set up with"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			r := newRig(t, loginAs(tc.email))
