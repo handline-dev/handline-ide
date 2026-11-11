@@ -7,7 +7,7 @@ import { DevicesTab } from '#src/settings/DevicesTab.tsx';
 import { MachineTab } from '#src/settings/MachineTab.tsx';
 import { AccountsTab } from '#src/usage/AccountsTab.tsx';
 import { usePersisted } from '#src/persist/kv.ts';
-import { LayerDragStrip, useWindowLayer } from '#src/layout/windowLayer.tsx';
+import { CONTROLS_STRIP, LayerDragStrip, useWindowLayer } from '#src/layout/windowLayer.tsx';
 import { closeSettings, settingsTarget, useSettingsOpen } from '#src/settings/open.ts';
 
 const SECTIONS = ['accounts', 'machine', 'devices'] as const;
@@ -53,15 +53,15 @@ function Frame() {
   }, []);
   return (
     <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-      {/* Over the page, not above it: the menu's grey runs up to the window's top edge. */}
-      <div className="absolute inset-x-0 top-0">
-        <LayerDragStrip />
-      </div>
+      {/* Over the page, not above it: the menu's grey runs up to the window's top edge. The window buttons sit over the menu only, so the
+          page keeps a thin strip and starts close to the top. */}
+      <LayerDragStrip height="16px" className="absolute inset-x-0 top-0" />
+      <LayerDragStrip className="absolute left-0 top-0 w-56" />
       <div className="flex min-h-0 flex-1">
         <nav
           aria-label="Settings"
           className="flex w-56 shrink-0 flex-col gap-0.5 bg-surface px-2"
-          style={{ paddingTop: 'calc(max(40px, calc(var(--controls-top, 6px) + 34px)) + 6px)' }}
+          style={{ paddingTop: `calc(${CONTROLS_STRIP} + 6px)` }}
         >
           {/* Where the sidebar's top was, as Linear and Mattermost do it: out from the corner you came in by. */}
           <button
@@ -88,10 +88,7 @@ function Frame() {
             </button>
           ))}
         </nav>
-        <main
-          className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto"
-          style={{ paddingTop: 'max(40px, calc(var(--controls-top, 6px) + 34px))' }}
-        >
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto" style={{ paddingTop: '16px' }}>
           {section === 'accounts' && <AccountsTab focus={to.account} />}
           {section === 'machine' && <MachineTab />}
           {section === 'devices' && <DevicesTab />}
