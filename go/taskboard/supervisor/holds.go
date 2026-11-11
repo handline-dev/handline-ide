@@ -3,6 +3,7 @@ package supervisor
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/handline/handline/go/kit/actor"
 	"strings"
 
 	"github.com/handline/handline/go/data/db"
@@ -124,7 +125,7 @@ func (e *Env) taskReason(q db.Q, t *db.Task, now int64) (why, cause string, able
 			break
 		}
 	}
-	if agent == db.Human || agent == db.Gate || t.Ended() || (!(t.QueuedBy.Valid && t.QueuedBy.String != "") && req == nil) {
+	if actor.IsPerson(agent) || agent == db.Gate || t.Ended() || (!(t.QueuedBy.Valid && t.QueuedBy.String != "") && req == nil) {
 		return "", "", false, false
 	}
 	if blockers := must(db.TaskBlockers(q, tid)); len(blockers) > 0 {
@@ -232,7 +233,7 @@ func (e *Env) SweepHolds(now int64) (err error) {
 			ableSince = *rec.AbleSince
 		}
 		if able && rec.Warned == nil && now-ableSince >= AbleWarnS {
-			if lead := must(team.LoadTeam(e.Home)).LeadOf(t.Acting); lead != "" && lead != db.Human && e.registered(lead) {
+			if lead := must(team.LoadTeam(e.Home)).LeadOf(t.Acting); lead != "" && !actor.IsPerson(lead) && e.registered(lead) {
 				must(e.Notice(q, lead, fmt.Sprintf("T%d has waited %d min for %s, which looks able to take it (%s). Delivery should have landed it - this is a missed delivery, not a queue.",
 					tid, (now-ableSince)/60, t.Acting, why), "queued task not landing"))
 			}

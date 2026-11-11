@@ -3,6 +3,7 @@ package supervisor
 import (
 	"database/sql"
 	"fmt"
+	"github.com/handline/handline/go/kit/actor"
 	"strings"
 
 	"github.com/handline/handline/go/data/db"
@@ -26,7 +27,7 @@ func (e *Env) MemoRecipients(tid int64, by, text string, now bool) ([]taskwrites
 	if err != nil || row == nil {
 		return nil, false
 	}
-	if by == db.Human && row.Acting == db.Human { // their comment passes their turn before it is told: it is told by who holds the task then
+	if actor.IsPerson(by) && actor.IsPerson(row.Acting) { // their comment passes their turn before it is told: it is told by who holds the task then
 		turns, err := db.Turns(e.DB, tid)
 		if err != nil {
 			return nil, false
@@ -249,7 +250,7 @@ func (e *Env) HandedOver(h taskwrites.Handover) (out string) {
 			e.Push(e.DB, h.From, 0)
 		}
 	}
-	if h.To != db.Human { // the founder holds no current task and is not typed at
+	if !actor.IsPerson(h.To) { // the founder holds no current task and is not typed at
 		add(e.Push(e.DB, h.To, h.RID))
 	}
 	return strings.Join(lines, "\n")
@@ -288,7 +289,7 @@ func (e *Env) tellBodyEdited(q db.Q, tid int64, by string) {
 	var latest sql.NullString
 	err := q.QueryRow("SELECT json_extract(payload, '$.body.new') FROM events WHERE kind = 'edit_task' AND json_valid(payload) AND "+
 		"json_extract(payload, '$.task_id') = ? AND json_type(payload, '$.body') = 'object' ORDER BY id DESC LIMIT 1", tid).Scan(&latest)
-	if err == sql.ErrNoRows || row == nil || row.Acting == db.Human || row.Acting == db.Gate || row.Acting == by || must(db.TaskState(q, row)) != "doing" {
+	if err == sql.ErrNoRows || row == nil || actor.IsPerson(row.Acting) || row.Acting == db.Gate || row.Acting == by || must(db.TaskState(q, row)) != "doing" {
 		return
 	}
 	check(err)
@@ -326,10 +327,10 @@ func (e *Env) sendMovedTask(q db.Q, tid int64, old, by string) {
 			e.Push(q, old, 0)
 		}
 	}
-	if inHand && old != db.Human {
+	if inHand && !actor.IsPerson(old) {
 		e.typeSay(q, old, fmt.Sprintf("T%d moved to %s by %s - stop work on it", tid, owner, by), "task moved")
 	}
-	if len(taken) > 0 && owner != db.Human {
+	if len(taken) > 0 && !actor.IsPerson(owner) {
 		asker := taken[0].Requester
 		if asker != owner { // given to the one who asked: advance starts it as its own below
 			out, err := e.Ask(q, AskIn{Target: owner, Body: taken[0].Body, Requester: asker, Kind: "task", OnBehalfOf: true,

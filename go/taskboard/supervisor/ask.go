@@ -3,6 +3,7 @@ package supervisor
 import (
 	"errors"
 	"fmt"
+	"github.com/handline/handline/go/kit/actor"
 	"strings"
 
 	"github.com/handline/handline/go/data/db"
@@ -94,7 +95,7 @@ func (e *Env) stopRunaway(q db.Q, after *After, requester, target, body, files, 
 
 // cycleInChain detects A->B->A inside one chain (team model section 6). A chain with the human at one end is exempt, and so is a say.
 func cycleInChain(q db.Q, chainID, requester, target, kind string) string {
-	if chainID == "" || requester == db.Human || target == db.Human || kind == sayKind {
+	if chainID == "" || actor.IsPerson(requester) || actor.IsPerson(target) || kind == sayKind {
 		return ""
 	}
 	for _, r := range must(db.ChainMembers(q, chainID)) {
@@ -161,7 +162,7 @@ func (e *Env) Ask(q db.Q, in AskIn) (out *AskOut, err error) {
 	}
 	requester := in.Requester
 	// Nobody may send as the human: that name carries the routing table's reach to every agent and exempts a chain from the loop guards.
-	if requester == db.Human && in.Speaker != nil && *in.Speaker != db.Human && !in.OnBehalfOf {
+	if actor.IsPerson(requester) && in.Speaker != nil && !actor.IsPerson(*in.Speaker) && !in.OnBehalfOf {
 		return refuse(fmt.Sprintf("%s may not ask as %s: that name is the human's, and it is exempt from the loop guards.", *in.Speaker, db.Human)), nil
 	}
 	if requester == "" {
@@ -181,7 +182,7 @@ func (e *Env) Ask(q db.Q, in AskIn) (out *AskOut, err error) {
 		}
 		depth = parent.ChainDepth + 1
 		chainID = parent.ChainID.String
-		if requester == db.Human { // the human's turn starts the count again, and keeps the thread
+		if actor.IsPerson(requester) { // the human's turn starts the count again, and keeps the thread
 			depth = 0
 		}
 	}
@@ -207,7 +208,7 @@ func (e *Env) Ask(q db.Q, in AskIn) (out *AskOut, err error) {
 				ParentID: in.ParentID, State: "denied", Verdict: d.Reason, ChainID: chainID}))
 		}
 		// Hitting the depth limit is a runaway, not an ordinary refusal.
-		if strings.Contains(d.Reason, "chain depth") && in.Target != db.Human {
+		if strings.Contains(d.Reason, "chain depth") && !actor.IsPerson(in.Target) {
 			eid := e.stopRunaway(q, after, requester, in.Target, in.Body, in.Files, chainID, depth, in.ParentID, d.Reason)
 			o := refuse(fmt.Sprintf("%s\nRaised to the founder as %s.", d.Reason, db.MsgName(q, eid)))
 			o.After = after
@@ -218,14 +219,14 @@ func (e *Env) Ask(q db.Q, in AskIn) (out *AskOut, err error) {
 		return o, nil
 	}
 	kind := in.Kind
-	if kind == "" && in.Target == db.Human {
+	if kind == "" && actor.IsPerson(in.Target) {
 		kind = "task" // what is asked of the founder is a task of theirs, whatever the edge says
 	}
 	rid := must(db.AddRequest(q, db.NewRequest{Requester: requester, Target: in.Target, Body: in.Body, Files: in.Files, Kind: kind, ChainDepth: depth, ParentID: in.ParentID, ChainID: chainID}))
 	if in.SendNow {
 		must(db.MarkSendNow(q, rid))
 	}
-	if !in.NoCard && in.Target == db.Human && in.Kind == "" {
+	if !in.NoCard && actor.IsPerson(in.Target) && in.Kind == "" {
 		// What is asked of the founder is a decision task, and this row its card; `task new` opens its own task and says NoCard.
 		tid := must(db.NewTask(q, firstLineTitle(in.Body), db.Human, requester, 0, db.DefaultPriority, "decision", 0, ""))
 		must(db.SetTaskQueued(q, tid, db.Human))

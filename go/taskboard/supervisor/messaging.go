@@ -2,6 +2,7 @@ package supervisor
 
 import (
 	"fmt"
+	"github.com/handline/handline/go/kit/actor"
 
 	"github.com/handline/handline/go/agentctl/delivery"
 	"github.com/handline/handline/go/data/db"
@@ -76,7 +77,7 @@ func (e *Env) TellNow(q db.Q, rid int64) (what string, err error) {
 		return "no longer queued", nil
 	}
 	agent := row.Target
-	if agent == db.Human || !e.registered(agent) {
+	if actor.IsPerson(agent) || !e.registered(agent) {
 		return "not an agent", nil
 	}
 	if ok, err := e.EnforceEdges(q, agent); err != nil {
@@ -106,7 +107,7 @@ func (e *Env) TellNow(q db.Q, rid int64) (what string, err error) {
 	if row.DeliveredAt.Valid {
 		return "already told", nil
 	}
-	if e.Paused != nil && row.Requester != db.Human {
+	if e.Paused != nil && !actor.IsPerson(row.Requester) {
 		if st := stateOf(q, agent); st == nil || st.State != states.Running {
 			if why := e.Paused(); why != "" {
 				return "held: " + why, nil // stays undelivered; TellUndelivered tells it after the pause

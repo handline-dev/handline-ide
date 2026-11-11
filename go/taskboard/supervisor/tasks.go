@@ -3,6 +3,7 @@ package supervisor
 import (
 	"database/sql"
 	"fmt"
+	"github.com/handline/handline/go/kit/actor"
 	"regexp"
 	"slices"
 	"strings"
@@ -23,7 +24,7 @@ import (
 // LinkDelivery links a task to the request that delivers it, and makes it the owner's current task if it holds none yet.
 func (e *Env) linkDelivery(q db.Q, tid int64, owner string, rid int64) {
 	check(db.LinkRequest(q, tid, rid))
-	if owner != db.Human {
+	if !actor.IsPerson(owner) {
 		if _, held := ok2(db.CurrentTask(q, owner)); !held {
 			check(db.SetCurrentTask(q, owner, tid, true))
 		}
@@ -87,7 +88,7 @@ func (e *Env) selfDelivery(q db.Q, agent string, task *db.Task) int64 {
 func (e *Env) AdvanceCurrentTask(q db.Q, agent string) (changed bool, refused map[int64]string, err error) {
 	defer Catch(&err)
 	refused = map[int64]string{}
-	if agent == db.Human || must(db.CurrentTaskStillAsking(q, agent)) {
+	if actor.IsPerson(agent) || must(db.CurrentTaskStillAsking(q, agent)) {
 		return false, refused, nil
 	}
 	_, hadBefore := ok2(db.CurrentTask(q, agent))
@@ -156,7 +157,7 @@ func (e *Env) AdvanceToDormantBlocker(q db.Q, agent string) (changed bool, err e
 // QueueDeliver is what queuing does after its write commits: the task goes out now if its owner is free. row is the task as it was before.
 func (e *Env) QueueDeliver(q db.Q, tid int64, by string, queued bool, row *db.Task) (msg string, err error) {
 	defer Catch(&err)
-	if queued && row.Acting == db.Human {
+	if queued && actor.IsPerson(row.Acting) {
 		// The founder holds no current task, so nothing advances it: queuing is putting the card back on their board.
 		out, aerr := e.Ask(q, AskIn{Target: db.Human, Body: row.Title, Requester: row.OpenedBy, Kind: "task", OnBehalfOf: true, Notify: true,
 			Forward: Forward{Task: tid, Carries: db.ForwardQueue}})
@@ -220,7 +221,7 @@ func (e *Env) tellAssigneeIdle(q db.Q, tid int64, by, assignee string, told []db
 		return
 	}
 	reporter := t.AnswersTo()
-	if reporter == by || reporter == assignee || reporter == db.Human {
+	if reporter == by || reporter == assignee || actor.IsPerson(reporter) {
 		return
 	}
 	for _, n := range told {
@@ -235,7 +236,7 @@ func (e *Env) tellAssigneeIdle(q db.Q, tid int64, by, assignee string, told []db
 		}
 	}
 	who := by
-	if by == db.Human {
+	if actor.IsPerson(by) {
 		who = "the founder"
 	}
 	text := strings.TrimRight(fmt.Sprintf("T%d done by %s: %s", tid, who, oneSpace(t.DoneEvidence.String)), ": ") +
@@ -247,7 +248,7 @@ func (e *Env) tellAssigneeIdle(q db.Q, tid int64, by, assignee string, told []db
 // reopen voids it).
 func (e *Env) childResultNotice(q db.Q, dep *db.Task, by string, tid int64) *db.Notice {
 	child := must(db.GetTask(q, tid))
-	if child == nil || !child.ParentTask.Valid || child.ParentTask.Int64 != dep.ID || dep.Acting == by || dep.Acting == db.Human {
+	if child == nil || !child.ParentTask.Valid || child.ParentTask.Int64 != dep.ID || dep.Acting == by || actor.IsPerson(dep.Acting) {
 		return nil
 	}
 	var since sql.NullInt64
@@ -308,7 +309,7 @@ func (e *Env) clearBlocksOn(q db.Q, tid int64, closer, how string) ([]db.Notice,
 			must(db.AddEvent(q, closer, "unblock_task", db.KV{K: "task_id", V: depID}, db.KV{K: "blocks_on", V: tid}, db.KV{K: "after_request", V: must(db.NewestRequest(q))}))
 			continue
 		}
-		if dep.Acting != db.Human {
+		if !actor.IsPerson(dep.Acting) {
 			notices = append(notices, e.notifyUnblocked(q, depID, dep.Acting, closer, tid, how))
 		}
 	}
@@ -343,7 +344,7 @@ func (e *Env) freeBlockedBy(q db.Q, tid int64, by string) ([]db.Notice, []string
 			notices = append(notices, *n)
 		}
 		free := len(must(db.TaskBlockers(q, depID))) == 0
-		told := free && dep.Acting != by && dep.Acting != db.Human // the one who finished it does not need telling, and the board tells the founder nothing
+		told := free && dep.Acting != by && !actor.IsPerson(dep.Acting) // the one who finished it does not need telling, and the board tells the founder nothing
 		must(db.AddEvent(q, by, "released_at_done", db.KV{K: "task_id", V: depID}, db.KV{K: "blocks_on", V: tid}, db.KV{K: "freed", V: free}, db.KV{K: "told", V: told}))
 		if free && !seen[dep.Acting] {
 			seen[dep.Acting] = true
@@ -444,7 +445,7 @@ func (e *Env) releaseOne(tid int64, how string) (waiting []int64, err error) {
 
 // TypeSay writes a say from the task board to owner, typed at once.
 func (e *Env) typeSay(q db.Q, owner, body, why string) int64 {
-	if owner == db.Human {
+	if actor.IsPerson(owner) {
 		return 0
 	}
 	rid := e.queueSay(q, owner, body, why)
@@ -504,7 +505,7 @@ func (e *Env) TellMemoSkipping(q db.Q, tid, mid int64, by, what, text, to string
 // on a task no agent holds (the founder does, or the holder has retired): otherwise answering is the holder's.
 func (e *Env) memoRecipients(row *db.Task, by, text, to string, now bool) []taskwrites.Recipient {
 	named := e.mentioned(text)
-	unheld := by == db.Human && !e.registered(row.Acting)
+	unheld := actor.IsPerson(by) && !e.registered(row.Acting)
 	var out []taskwrites.Recipient
 	for _, a := range e.memoReaders(row, by, named) {
 		asked := a == to || slices.Contains(named, a)
@@ -600,7 +601,7 @@ func (e *Env) SweepHeldMemos(now int64) (err error) {
 			continue
 		}
 		check(db.SetCursor(q, key, 1))
-		if lead := t.SupervisorOf(r.Target); lead != "" && lead != db.Human && e.registered(lead) {
+		if lead := t.SupervisorOf(r.Target); lead != "" && !actor.IsPerson(lead) && e.registered(lead) {
 			must(e.Notice(q, lead, fmt.Sprintf("%s has not read this comment in an hour, held for its next digest (%s): %s", r.Target, db.MsgName(q, r.ID), r.Body), "memo unread 1h"))
 		}
 	}

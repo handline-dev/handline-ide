@@ -2,6 +2,7 @@ package supervisor
 
 import (
 	"fmt"
+	"github.com/handline/handline/go/kit/actor"
 	"sort"
 
 	"github.com/handline/handline/go/data/db"
@@ -27,7 +28,7 @@ func (e *Env) SweepTaskQueue(now int64) (err error) {
 	}
 	set := map[string]bool{}
 	for _, t := range must(db.OpenTasks(q)) {
-		if t.QueuedBy.Valid && t.QueuedBy.String != "" && t.DoneEvidence.String == "" && t.Acting != db.Human {
+		if t.QueuedBy.Valid && t.QueuedBy.String != "" && t.DoneEvidence.String == "" && !actor.IsPerson(t.Acting) {
 			set[t.Acting] = true
 		}
 	}

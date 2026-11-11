@@ -2,6 +2,7 @@ package supervisor
 
 import (
 	"fmt"
+	"github.com/handline/handline/go/kit/actor"
 	"strings"
 
 	"github.com/handline/handline/go/data/db"
@@ -119,7 +120,7 @@ func (e *Env) CancelWrite(q db.Q, after *After, rid int64, effect func(q db.Q, m
 		}
 		return nil, false, fmt.Sprintf("%s is already %s - nothing to cancel%s", db.MsgName(q, rid), row.State, stop), nil
 	}
-	if row.Requester == db.Human && !row.DeliveredAt.Valid {
+	if actor.IsPerson(row.Requester) && !row.DeliveredAt.Valid {
 		ok, msg, err := e.WithdrawWrite(q, after, rid, db.Human, "", effect)
 		return nil, ok, msg, err
 	}

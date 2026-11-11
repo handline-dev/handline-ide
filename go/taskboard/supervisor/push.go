@@ -2,6 +2,7 @@ package supervisor
 
 import (
 	"fmt"
+	"github.com/handline/handline/go/kit/actor"
 	"strings"
 
 	"github.com/handline/handline/go/data/db"
@@ -14,7 +15,7 @@ import (
 // delivered by the sender and one delivered by the tick are the same delivery; the daemon stays the safety net.
 func (e *Env) Push(q db.Q, target string, rid int64) (out string) {
 	defer e.guard("telling "+target, &out)
-	if target == db.Human {
+	if actor.IsPerson(target) {
 		return "it is on the founder's screen (`hl`)"
 	}
 	if !e.registered(target) {

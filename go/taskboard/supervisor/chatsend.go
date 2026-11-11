@@ -1,6 +1,7 @@
 package supervisor
 
 import (
+	"github.com/handline/handline/go/kit/actor"
 	"strconv"
 	"strings"
 
@@ -137,7 +138,7 @@ func (e *Env) markWritten(q db.Q, row *db.Request) {
 // already cancelled included, is left alone. The caller's transaction decides whether the cancel goes ahead.
 func (e *Env) ReopenConfirmed(q db.Q, row *db.Request) (reopened bool, err error) {
 	defer Catch(&err)
-	if row.State != "landed" || row.Kind.String != "say" || row.Requester != db.Human || !e.structuredAgent(row.Target) || must(db.ClosedUnder(q, row.ID)) {
+	if row.State != "landed" || row.Kind.String != "say" || !actor.IsPerson(row.Requester) || !e.structuredAgent(row.Target) || must(db.ClosedUnder(q, row.ID)) {
 		return false, nil
 	}
 	state, _, found, err := db.SendOp(q, row.Target, requestOp(row.ID))
