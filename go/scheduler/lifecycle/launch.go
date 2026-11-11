@@ -1055,7 +1055,8 @@ const LaunchedAt = "launched_at"
 const LaunchedValues = "values"
 
 // partOrder is the order the parts are written in, as the Python dict keeps it.
-var partOrder = []string{"model", "effort", "mcp config", "browser", "permissions", "sandbox", "ROLE.md", "base.md", "team"}
+// Renaming a part restarts no one: a name the earlier record lacks is skipped.
+var partOrder = []string{"model", "effort", "mcp config", "browser", "permissions", "sandbox", "ROLE.md", "base.md", "team instructions", "team rules"}
 
 // FingerprintParts is what a launch reads from the settings a person edits, one short hash each, named for the person. Recorded at
 // launch beside Fingerprint, and compared by the daemon to name what a running session has not picked up. Not here: what Build reads
@@ -1092,15 +1093,16 @@ func (l *Launcher) FingerprintParts(agent string) (map[string]string, error) {
 		sandbox = SandboxOffPart
 	}
 	return map[string]string{
-		"model":       h(modelOf(cfg)),
-		"effort":      h(l.effortOf(cfg)),
-		"mcp config":  h(l.mcpConfigMaterial() + "\x1e" + mcpTail),
-		"browser":     h(browser),
-		"permissions": h(perm),
-		"sandbox":     sandbox,
-		"ROLE.md":     h(file("ROLE.md")),
-		"base.md":     h(file("base.md")),
-		"team":        h(l.yourTeam(agent) + "\x1e" + strings.Join(l.Ports.TeamRules(agent), "\x1e")),
+		"model":             h(modelOf(cfg)),
+		"effort":            h(l.effortOf(cfg)),
+		"mcp config":        h(l.mcpConfigMaterial() + "\x1e" + mcpTail),
+		"browser":           h(browser),
+		"permissions":       h(perm),
+		"sandbox":           sandbox,
+		"ROLE.md":           h(file("ROLE.md")),
+		"base.md":           h(file("base.md")),
+		"team instructions": h(l.yourTeam(agent)),
+		"team rules":        h(strings.Join(l.Ports.TeamRules(agent), "\x1e")),
 	}, nil
 }
 
@@ -1137,8 +1139,8 @@ func (l *Launcher) readableValues(agent string) (map[string]string, error) {
 }
 
 // whatChanged says what this launch's settings change from the session recorded before it, in launch order and in the words a person
-// reads: "model changed (opus-5-5 -> sonnet-5-5), team changed". Nothing for no earlier record. A record from before the values were
-// kept names the setting alone.
+// reads: "model changed (opus-5-5 -> sonnet-5-5), team rules changed (shared/team/handline.md)". Nothing for no earlier record.
+// A record from before the values were kept names the setting alone.
 func (l *Launcher) whatChanged(agent string) (string, error) {
 	row, err := db.GetAgentState(l.Q, agent)
 	if err != nil || row == nil {
@@ -1171,10 +1173,25 @@ func (l *Launcher) whatChanged(agent string) (string, error) {
 		words := k + " changed"
 		if before, ok := was[k]; ok {
 			words += " (" + readable(before) + " -> " + readable(now[k]) + ")"
+		} else if where := l.sourceOf(agent, k); where != "" {
+			words += " (" + where + ")"
 		}
 		changed = append(changed, words)
 	}
 	return strings.Join(changed, ", "), nil
+}
+
+// sourceOf names where a person edits a part that has no value to show.
+func (l *Launcher) sourceOf(agent, part string) string {
+	switch part {
+	case "team instructions":
+		return "team.yaml, the agent list or a Handline update"
+	case "team rules":
+		if l.Ports.Routing != nil {
+			return strings.Join(team.RuleFiles(l.Home, agent, l.Ports.Routing()), ", ")
+		}
+	}
+	return ""
 }
 
 // WhatChanged is whatChanged for the restart notice, "" when it cannot be read.

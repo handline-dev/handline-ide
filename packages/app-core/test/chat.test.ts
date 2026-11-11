@@ -229,6 +229,8 @@ test('back-to-back restarts are one line saying all that changed; a resume that 
     [[true, model]],
   );
   assert.equal(lines({ resumed: true, changed: model }, { resumed: true, changed: 'team changed' })[0]?.changed, `${model}, team changed`);
+  const rules = 'team rules changed (shared/team/a.md, shared/team/b.md)';
+  assert.equal(lines({ resumed: true, changed: rules }, { resumed: true, changed: rules })[0]?.changed, rules);
   const failed = lines({ resumed: true }, { resumed: false });
   assert.deepEqual([failed.length, failed[0]?.resumed], [1, false]);
   const after = lines({ resumed: false, cause: 'launch' }, { resumed: true, cause: 'settings_applied', changed: model });

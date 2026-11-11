@@ -51,25 +51,29 @@ func ProtocolBlock(keys []string) string {
 
 func rulesDir(home string) string { return filepath.Join(home, "shared", "team") }
 
-// Rules is the shared/team/<team>.md of each team the agent is in, as "# Rules for team X\n<text>" (launch._team_rules).
-func Rules(home, agent string, t *Team) []string {
+// RuleFiles is the shared/team/<team>.md of each team the agent is in that has rules, by team name, as paths under home.
+func RuleFiles(home, agent string, t *Team) []string {
 	if t == nil {
 		return nil
 	}
-	names := make([]string, 0, len(t.Teams))
-	for name := range t.Teams {
-		names = append(names, name)
-	}
-	slices.Sort(names)
 	var out []string
-	for _, name := range names {
+	for name, members := range t.Teams {
 		b, err := os.ReadFile(filepath.Join(rulesDir(home), name+".md"))
-		if !slices.Contains(t.Teams[name], agent) || err != nil {
-			continue
+		if slices.Contains(members, agent) && err == nil && textsafe.Strip(string(b)) != "" {
+			out = append(out, filepath.Join("shared", "team", name+".md"))
 		}
-		if text := textsafe.Strip(string(b)); text != "" {
-			out = append(out, fmt.Sprintf("# Rules for team %s\n%s", name, text))
-		}
+	}
+	slices.Sort(out)
+	return out
+}
+
+// Rules is the text of each of the agent's RuleFiles, as "# Rules for team X\n<text>" (launch._team_rules).
+func Rules(home, agent string, t *Team) []string {
+	var out []string
+	for _, f := range RuleFiles(home, agent, t) {
+		b, _ := os.ReadFile(filepath.Join(home, f))
+		name := strings.TrimSuffix(filepath.Base(f), ".md")
+		out = append(out, fmt.Sprintf("# Rules for team %s\n%s", name, textsafe.Strip(string(b))))
 	}
 	return out
 }
