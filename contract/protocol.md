@@ -89,7 +89,7 @@ One file per group, generated from `spec/<group>.json`; field types are in `prot
 - [devices](gen/devices.md): 6 methods
 - [repos](gen/repos.md): 13 methods
 - [tasks](gen/tasks.md): 40 methods
-- [team](gen/team.md): 13 methods
+- [team](gen/team.md): 15 methods
 - [terminal](gen/terminal.md): 9 methods
 
 ## Who the caller is
@@ -167,7 +167,9 @@ The `proposals` topic: proposal.raised: a proposal was raised (state open); one 
 |---|---|---|
 | `status` | `status.changed` (DaemonStatus) | `daemon.status` |
 | `accounts` | `account.changed` (Account) | `accounts.list` |
-| `agents` | `agent.changed` (AgentView), `agent.removed` ({name}), `agent.control` (TimelineEntry), `access.changed` (AccessChanged) | `agents.list` |
+| `agents` | `agent.changed` (AgentView), `agent.removed` ({key}), `agent.control` (TimelineEntry), `access.changed` (AccessChanged) | `agents.list` |
+| `people` | `people.changed` ({}) | `people.list` |
+| `workspaces` | `workspaces.changed` ({}) | `workspaces.list` |
 | `inbox` | `inbox.added` (InboxItem), `inbox.changed` (InboxItem) | `inbox.list` |
 | `tasks` | `task.changed` (Task), `attachment.removed` (AttachmentRemoved) | `tasks.list` |
 | `notifications` | `task_done` ({task, task_title?, result?, reporter?, from_founder?}), `prompt_asked` (Prompt), `stall` ({agent, title?, text?}), `account_out` ({account}), `disk_low` ({free_bytes, total_bytes}) | `events.feed` |

@@ -13,7 +13,7 @@ export type AgentName = string;
 export type Role = "anonymous" | "agent" | "member" | "owner";
 
 /** chat is added for the chat view (the UI design update): messages, landing state, transcript items and working state of one agent; events carry `agent`. devices (founder, which includes a paired device; subscribed on its own, live only): pairing and revocation of devices. proposals: proposals, so a client's tab dot is live; any proven caller, as proposal.list. transcript: the per-agent event stream of a structured session (transcript.event), served only for an agent the daemon runs as a structured session; see the Transcript stream section. prefs (member, which includes the founder): the person's view preferences, so a pin made on one device shows on the others. requests (member, which includes the founder): the founder's requests (RequestRow), so a Requests page is live. for_you (member, which includes the founder): the set of open items waiting on the founder, as for_you.list; an event whenever the count's set changes, with the new count. A client that misses events reads for_you.list again. */
-export type Topic = "status" | "accounts" | "agents" | "inbox" | "tasks" | "notifications" | "operations" | "chat" | "devices" | "proposals" | "transcript" | "prefs" | "requests" | "for_you";
+export type Topic = "status" | "accounts" | "agents" | "people" | "workspaces" | "inbox" | "tasks" | "notifications" | "operations" | "chat" | "devices" | "proposals" | "transcript" | "prefs" | "requests" | "for_you";
 
 export type Caller = {
   kind: "person" | "device" | "agent" | "anonymous";
