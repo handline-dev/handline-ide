@@ -167,7 +167,8 @@ export class TaskComments extends TaskStore {
     };
   }
 
-  /** As the daemon: the newest unread `@human` comment by anyone but the founder, on a task no row stands for, is a note. */
+  /** As the daemon: the newest `@human` comment by anyone but the founder, unread on its task and in its author's chat, on a task no row
+   * stands for, is a note. */
   private notes(answer: Map<string, Pending>): Pending[] {
     const notes: Pending[] = [];
     for (const t of this.rows) {
@@ -176,7 +177,8 @@ export class TaskComments extends TaskStore {
       const m = (t.memos ?? [])
         .filter((x) => x.author !== 'human' && x.id > (this.seenUpto.get(t.id) ?? 0) && NAMES_HUMAN.test(x.text))
         .at(-1);
-      if (!m) continue;
+      const seen = m && this.host.chat.seenAt(m.author);
+      if (!m || (seen && seen >= m.at)) continue; // seen as a card in its author's chat
       notes.push({
         task: t.id,
         title: t.title,

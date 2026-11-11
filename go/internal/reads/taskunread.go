@@ -184,10 +184,13 @@ func (e *Env) requestsPending(_ *rpc.Conn, _ map[string]any) (any, error) {
 		}
 		answer = append(answer, out)
 	}
-	// News for the founder: an @human comment they have not read, on a task no row above stands for; the bell's dot, not its count.
+	// News for the founder: an @human comment they have read neither on its task nor in its author's chat (the chat seen past it, or the
+	// ask it once raised read), on a task no row above stands for; the bell's dot, not its count.
 	notes, err := query(e.DB, "SELECT m.id, m.task_id, m.author, m.body, m.created_at, t.title FROM task_memos m JOIN tasks t ON t.id = m.task_id "+
 		"LEFT JOIN cursors c ON c.name = 'task_seen:human:' || m.task_id WHERE m.author != 'human' AND m.body LIKE '%@human%' AND m.id > MAX(?, COALESCE(c.row_id, 0)) "+
-		"AND COALESCE(t.discarded_by, '') = '' ORDER BY m.id DESC", e.seenFloor())
+		"AND COALESCE(t.discarded_by, '') = '' AND NOT EXISTS (SELECT 1 FROM requests r WHERE r.memo_id = m.id AND r.target = ? AND r.read_at IS NOT NULL) "+
+		"AND COALESCE((SELECT r.ts FROM requests r JOIN cursors s ON r.id = s.row_id WHERE s.name = 'for_you_seen:' || m.author), 0) < m.created_at "+
+		"ORDER BY m.id DESC", e.seenFloor(), human)
 	if err != nil {
 		return nil, err
 	}
