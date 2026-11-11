@@ -1,6 +1,10 @@
 package db
 
-import "database/sql"
+import (
+	"database/sql"
+
+	"github.com/handline/handline/go/kit/actor"
+)
 
 // A task's request (tasks.request) is the founder request it serves: the number of that request's own task, NULL for an agent's own work.
 // It is set when the task is made and when a task of the request is made to wait on it. tasks.turn_origin is the founder's message a task
@@ -18,18 +22,18 @@ func SetTaskRequest(q Q, tid int64) error {
 	}
 	var req sql.NullInt64
 	switch {
-	case !parent.Valid && (reporter.String == Human || (!reporter.Valid && openedBy == Human)):
+	case !parent.Valid && (reporter.String == actor.OwnerKey || (!reporter.Valid && openedBy == actor.OwnerKey)):
 		req = sql.NullInt64{Int64: tid, Valid: true}
 	case parent.Valid:
 		if err := q.QueryRow("SELECT request FROM tasks WHERE id = ?", parent.Int64).Scan(&req); err != nil {
 			return err
 		}
-	case openedBy != Human:
+	case openedBy != actor.OwnerKey:
 		var err error
 		if req, err = heldRequest(q, openedBy); err != nil {
 			return err
 		}
-		if !req.Valid && owner != Human && owner != Gate {
+		if !req.Valid && owner != actor.OwnerKey && owner != Gate {
 			if req, err = turnRequest(q, tid, openedBy); err != nil {
 				return err
 			}
@@ -64,7 +68,7 @@ func turnRequest(q Q, tid int64, agent string) (sql.NullInt64, error) {
 	var rid, top int64
 	err := q.QueryRow("SELECT id FROM requests WHERE requester = ? AND target = ? AND kind = 'say' AND founder_auth >= 1 "+
 		"AND landed_at >= COALESCE((SELECT MAX(ts) FROM events WHERE agent = ? AND kind IN ('Stop', 'StopFailure')), 0) "+
-		"ORDER BY id DESC LIMIT 1", Human, agent, agent).Scan(&rid)
+		"ORDER BY id DESC LIMIT 1", actor.OwnerKey, agent, agent).Scan(&rid)
 	if err == sql.ErrNoRows {
 		return req, nil
 	} else if err != nil {

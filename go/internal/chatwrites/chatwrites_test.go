@@ -13,6 +13,7 @@ import (
 
 	dbpkg "github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team/teamtest"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/kit/storetest"
@@ -152,7 +153,7 @@ func TestSendWritesTheMessageOnceAndRefusesWhatIsNotASend(t *testing.T) {
 	}
 	var requester, target, body, state string
 	r.db.QueryRow("SELECT requester, target, body, state FROM requests").Scan(&requester, &target, &body, &state)
-	if r.count("SELECT COUNT(*) FROM requests") != 1 || requester != dbpkg.Human || target != r.k("alice") || body != "hello" || state != "queued" {
+	if r.count("SELECT COUNT(*) FROM requests") != 1 || requester != actor.OwnerKey || target != r.k("alice") || body != "hello" || state != "queued" {
 		t.Fatalf("one message from the person to alice: %s %s %q %s", requester, target, body, state)
 	}
 	if r.count("SELECT COUNT(*) FROM write_effects WHERE method = 'chat.send'") != 1 {
@@ -189,7 +190,7 @@ func TestSendWithATaskOpensItWithItsBriefOnceAndALostAnswerIsReplayed(t *testing
 	if err := r.db.QueryRow("SELECT id, title, owner, opened_by, COALESCE(timeout_s, 0) FROM tasks").Scan(&tid, &title, &owner, &opener, &timeout); err != nil {
 		t.Fatal(err)
 	}
-	if title != "the thing" || owner != r.k("alice") || opener != dbpkg.Human || timeout != 7200 {
+	if title != "the thing" || owner != r.k("alice") || opener != actor.OwnerKey || timeout != 7200 {
 		t.Fatalf("the task: %q %s %s %d", title, owner, opener, timeout)
 	}
 	if r.count("SELECT COUNT(*) FROM task_requests WHERE task_id = ? AND request_id = ?", tid, int64(first["request"].(float64))) != 1 {
@@ -254,7 +255,7 @@ func TestDecisionOnACardAnswersItsTask(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
 	card := r.request("alice", "human", "which one?")
-	tid, err := dbpkg.NewTask(r.db, "which one?", dbpkg.Human, r.k("alice"), 0, dbpkg.DefaultPriority, "decision", 0, "")
+	tid, err := dbpkg.NewTask(r.db, "which one?", actor.OwnerKey, r.k("alice"), 0, dbpkg.DefaultPriority, "decision", 0, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -278,7 +279,7 @@ func TestDecisionOnTheFoundersOwnCardClosesItsTask(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
 	card := r.request("human", "human", "remember the milk")
-	tid, err := dbpkg.NewTask(r.db, "remember the milk", dbpkg.Human, dbpkg.Human, 0, dbpkg.DefaultPriority, "", 0, "")
+	tid, err := dbpkg.NewTask(r.db, "remember the milk", actor.OwnerKey, actor.OwnerKey, 0, dbpkg.DefaultPriority, "", 0, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -315,7 +316,7 @@ func TestDecideAnswersATaskWhenItsCardWasClosedSomeOtherWay(t *testing.T) {
 	gone := r.request("alice", "human", "which one?")
 	dbpkg.MarkDelivered(r.db, gone)
 	r.db.Exec("UPDATE requests SET state = 'landed' WHERE id = ?", gone)
-	tid, err := dbpkg.NewTask(r.db, "which one?", dbpkg.Human, r.k("alice"), 0, dbpkg.DefaultPriority, "decision", 0, "")
+	tid, err := dbpkg.NewTask(r.db, "which one?", actor.OwnerKey, r.k("alice"), 0, dbpkg.DefaultPriority, "decision", 0, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -344,7 +345,7 @@ func TestDecideRefusesWhileTheTaskHasAnOpenChild(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
 	card := r.request("alice", "human", "which one?")
-	tid, _ := dbpkg.NewTask(r.db, "which one?", dbpkg.Human, r.k("alice"), 0, dbpkg.DefaultPriority, "decision", 0, "")
+	tid, _ := dbpkg.NewTask(r.db, "which one?", actor.OwnerKey, r.k("alice"), 0, dbpkg.DefaultPriority, "decision", 0, "")
 	dbpkg.LinkRequest(r.db, tid, card)
 	dbpkg.NewTask(r.db, "first this", r.k("alice"), r.k("alice"), tid, dbpkg.DefaultPriority, "report", 0, "")
 	tx, err := r.db.Begin()

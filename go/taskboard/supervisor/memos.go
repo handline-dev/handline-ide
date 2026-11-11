@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
 )
 
 // MemoAdd adds by's memo to a task (actions.memo_add): (ok, message, memo id). Whom it concerns is told by the caller, once its transaction has
@@ -23,7 +24,7 @@ func (e *Env) MemoAdd(q db.Q, tid int64, by, body string) (ok bool, msg string, 
 
 // memoGuard: a memo is anyone's to add; only its author or the founder edits or deletes it.
 func memoGuard(m *db.Memo, by string) string {
-	if by == db.Human || by == m.Author {
+	if by == actor.OwnerKey || by == m.Author {
 		return ""
 	}
 	return fmt.Sprintf("comment %d is %s's: only its author or the founder edits or deletes it", m.ID, m.Author)

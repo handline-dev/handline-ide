@@ -228,7 +228,7 @@ func TestATaskDoneSaysWhoTheTaskAnswersToAndWhetherTheFounderGaveIt(t *testing.T
 		t.Fatal(err)
 	}
 	for i, q := range []string{
-		"(1, 't', 'bob', 'amy', NULL)",    // an agent's task: it answers to its opener
+		"(1, 't', 'bob', 'amy', NULL)", // an agent's task: it answers to its opener
 		"(2, 't', 'bob', 'amy', 'p1')", // an agent opened it for the founder, who answers for it
 		"(3, 't', 'bob', 'p1', 'amy')", // the founder opened it and an agent answers for it
 		"(4, 't', 'bob', 'p1', NULL)",

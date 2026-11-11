@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	dbpkg "github.com/handline/handline/go/data/db"
+
+	"github.com/handline/handline/go/kit/actor"
 )
 
 func (r *rig) errData(m map[string]any) map[string]any {
@@ -45,12 +47,12 @@ func TestInboxMarkReadReadsAReportButNeverADecision(t *testing.T) {
 	r := newRig(t)
 	s := r.server("")
 	card := r.request("alice", "human", "may I?")
-	tid, err := dbpkg.NewTask(r.db, "may I?", dbpkg.Human, r.k("alice"), 0, dbpkg.DefaultPriority, "", 0, "")
+	tid, err := dbpkg.NewTask(r.db, "may I?", actor.OwnerKey, r.k("alice"), 0, dbpkg.DefaultPriority, "", 0, "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	dbpkg.LinkRequest(r.db, tid, card)
-	report, err := dbpkg.AddRequest(r.db, dbpkg.NewRequest{Requester: r.k("alice"), Target: dbpkg.Human, Body: "done", Kind: "say"})
+	report, err := dbpkg.AddRequest(r.db, dbpkg.NewRequest{Requester: r.k("alice"), Target: actor.OwnerKey, Body: "done", Kind: "say"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -193,7 +195,7 @@ func TestOnlyTheFoundersChatSendIsFounderAuthored(t *testing.T) {
 func TestTheCancelConfirmSaysYouForTheFoundersOwnMessage(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
-	mine, _ := dbpkg.AddRequest(r.db, dbpkg.NewRequest{Requester: dbpkg.Human, Target: r.k("bob"), Body: "x", Kind: "say"})
+	mine, _ := dbpkg.AddRequest(r.db, dbpkg.NewRequest{Requester: actor.OwnerKey, Target: r.k("bob"), Body: "x", Kind: "say"})
 	theirs, _ := dbpkg.AddRequest(r.db, dbpkg.NewRequest{Requester: r.k("alice"), Target: r.k("bob"), Body: "y", Kind: "say"})
 	r.db.Exec("UPDATE requests SET delivered_at = 1")
 	if _, said, err := CancelPlan(r.db, mine); err != nil || !strings.Contains(said, r.k("bob")+" is told to stop, you are not told") {
@@ -238,7 +240,7 @@ func TestAnAskFromACommentIsReadAwayOnlyByNamingItAndAReplyIsTheFoundersComment(
 	}
 	a2, m2 := ask("@human other?")
 	r.result(r.one(s, "inbox.reply", fmt.Sprintf(`{"id":%d,"text":"B","request_id":"s4"}`, a2)))
-	if r.count("SELECT COUNT(*) FROM task_memos WHERE task_id = ? AND author = ? AND body = 'B' AND reply_to = ?", tid, dbpkg.Human, m2) != 1 ||
+	if r.count("SELECT COUNT(*) FROM task_memos WHERE task_id = ? AND author = ? AND body = 'B' AND reply_to = ?", tid, actor.OwnerKey, m2) != 1 ||
 		r.count("SELECT COUNT(*) FROM requests WHERE id = ? AND state = 'landed'", a2) != 1 {
 		t.Fatal("the reply is the founder's comment on the task, and closes the ask")
 	}
@@ -278,7 +280,7 @@ func TestAFounderMessageToAnAgentClosesAMemoAskOnlyAsAReplyToIt(t *testing.T) {
 	if open(first) || r.count("SELECT COUNT(*) FROM requests WHERE id = ? AND state = 'landed'", first) != 1 {
 		t.Fatal("a reply to the ask answers it")
 	}
-	if r.count("SELECT COUNT(*) FROM task_memos WHERE task_id = ? AND author = ? AND body = 'yes' AND reply_to = ?", tid, dbpkg.Human, firstMemo) != 1 {
+	if r.count("SELECT COUNT(*) FROM task_memos WHERE task_id = ? AND author = ? AND body = 'yes' AND reply_to = ?", tid, actor.OwnerKey, firstMemo) != 1 {
 		t.Fatal("a chat reply under the ask is the founder's comment on the task, as inbox.reply writes it")
 	}
 	if !open(second) || !open(other) {

@@ -3,6 +3,7 @@ package reads
 import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/scheduler/settings"
 	"strings"
 )
@@ -71,7 +72,7 @@ func (e *Env) viewFields() (*viewFields, error) {
 // founderFields reads what each agent last said to the founder and how much of its mailbox they have not seen.
 func (e *Env) founderFields(f *viewFields) error {
 	last, err := query(e.DB, "SELECT requester, ts, body FROM requests WHERE target = ? AND id IN "+
-		"(SELECT MAX(id) FROM requests WHERE target = ? GROUP BY requester)", human, human)
+		"(SELECT MAX(id) FROM requests WHERE target = ? GROUP BY requester)", actor.OwnerKey, actor.OwnerKey)
 	if err != nil {
 		return err
 	}

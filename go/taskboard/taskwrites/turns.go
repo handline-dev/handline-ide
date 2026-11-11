@@ -41,7 +41,7 @@ func pushTurn(tx *sql.Tx, tell Teller, tid int64, by, to, ask string, memo int64
 	if err != nil {
 		return Handover{}, nil, err
 	}
-	if actor.IsPerson(to) && ask != "" && turnRefusal(t, tid, human) == "" && actor.IsPerson(t.Acting) && len(turns) > 0 && by == Below(turns, t.Owner) {
+	if actor.IsPerson(to) && ask != "" && turnRefusal(t, tid, actor.OwnerKey) == "" && actor.IsPerson(t.Acting) && len(turns) > 0 && by == Below(turns, t.Owner) {
 		// the founder's turn is their one question slot on the task: asking again rewrites it
 		changed, err := db.ReaskTopTurn(tx, tid, by, ask, memo)
 		if err != nil || !changed {
@@ -96,7 +96,7 @@ func turnRefusal(t *task, tid int64, by string) string {
 		return fmt.Sprintf("no task T%d", tid)
 	case t.done() || t.DiscardedBy.Valid && t.DiscardedBy.String != "":
 		return fmt.Sprintf("task T%d is already finished", tid)
-	case by != human && by != t.Acting:
+	case by != actor.OwnerKey && by != t.Acting:
 		return fmt.Sprintf("T%d is %s's turn: only it, or the founder, moves its turns", tid, t.Acting)
 	}
 	return ""
@@ -128,7 +128,7 @@ func turnPopMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (an
 			return nil, badParam(`outcome is "pass" or "send_back"`, "outcome")
 		}
 		me := c.Caller.Actor()
-		if outcome == db.TurnSendBack && note == "" && me != human {
+		if outcome == db.TurnSendBack && note == "" && me != actor.OwnerKey {
 			return nil, badParam("a send-back says why in note", "note")
 		}
 		var popped Popped
@@ -238,11 +238,11 @@ func popTurn(tx *sql.Tx, home string, tell Teller, tid int64, by, outcome, note 
 	body := fmt.Sprintf("T%d is your turn again: %s %s it: %s", tid, top.Agent, word, t.Title)
 	ask := textsafe.Oneline(top.Ask)
 	switch { // the founder ending their own turn answers the task's open question
-	case by == human && actor.IsPerson(top.Agent) && memo != 0:
+	case by == actor.OwnerKey && actor.IsPerson(top.Agent) && memo != 0:
 		body = fmt.Sprintf("T%d 질문에 대표님 댓글 %d: %s / 지금 질문 칸: %s", tid, memo, textsafe.Oneline(note), ask)
-	case by == human && actor.IsPerson(top.Agent) && note != "":
+	case by == actor.OwnerKey && actor.IsPerson(top.Agent) && note != "":
 		body = fmt.Sprintf("T%d 질문에 대표님 답: %s / 지금 질문 칸: %s", tid, textsafe.Oneline(note), ask)
-	case by == human && actor.IsPerson(top.Agent):
+	case by == actor.OwnerKey && actor.IsPerson(top.Agent):
 		body = fmt.Sprintf("T%d 대표님이 질문 칸을 넘김 / 지금 질문 칸: %s", tid, ask)
 	case note != "":
 		body += "\n\n" + note

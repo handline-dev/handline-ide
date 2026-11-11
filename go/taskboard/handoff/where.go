@@ -95,7 +95,7 @@ func taskLines(q db.Q, agent string) ([]string, error) {
 
 func messageLines(q db.Q, agent, lead string) ([]string, error) {
 	rows, err := q.Query("SELECT id, ts, requester, target, body FROM requests WHERE (requester = ? AND target IN (?, ?)) OR (target = ? AND requester IN (?, ?)) "+
-		"ORDER BY id DESC LIMIT ?", agent, db.Human, lead, agent, db.Human, lead, WhereMessages)
+		"ORDER BY id DESC LIMIT ?", agent, actor.OwnerKey, lead, agent, actor.OwnerKey, lead, WhereMessages)
 	if err != nil {
 		return nil, err
 	}
@@ -139,7 +139,7 @@ func messageLines(q db.Q, agent, lead string) ([]string, error) {
 // the last session ended.
 func WhereText(q db.Q, agent, lead, record string, now time.Time) (string, error) {
 	if lead == "" {
-		lead = db.Human
+		lead = actor.OwnerKey
 	}
 	lines := []string{"# Where you were (the daemon's record)"}
 	if age, ok := recordAge(record, now); ok && age > StaleRecordS*time.Second {

@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
@@ -248,7 +249,7 @@ func TestEveryEditorIsToldEachUpdateInVersionOrder(t *testing.T) {
 		}
 		ups := got[0]["updates"].([]any)
 		first := ups[0].(map[string]any)
-		if len(ups) != 2 || first["client"] != "c1" || first["by"] != rpc.Human || fmt.Sprint(first["changes"]) != "[1 [0 y]]" {
+		if len(ups) != 2 || first["client"] != "c1" || first["by"] != actor.OwnerKey || fmt.Sprint(first["changes"]) != "[1 [0 y]]" {
 			t.Fatalf("updates %v", ups)
 		}
 	}

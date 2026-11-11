@@ -182,7 +182,7 @@ func Start(cfg Config) (*Daemon, error) {
 	if err != nil {
 		return nil, err
 	}
-	if _, err := actor.EnsureOwner(db, ownerName); err != nil {
+	if err := ensureOwner(db, ownerName); err != nil {
 		db.Close()
 		return nil, err
 	}
@@ -802,4 +802,17 @@ func (d *Daemon) paneTail(handle string, rows int) []string {
 		return nil
 	}
 	return d.tchan.Tail(handle, rows)
+}
+
+// ensureOwner is the first start's owner, and the check that it is actor.OwnerKey, the key phase 1 writes for the person: a home whose
+// owner is another key would have writes go to no one, so the daemon does not start on it.
+func ensureOwner(db *sql.DB, ownerName func() string) error {
+	k, err := actor.EnsureOwner(db, ownerName)
+	if err != nil {
+		return err
+	}
+	if k != actor.OwnerKey {
+		return fmt.Errorf("the owner of this home is %s, not %s: this daemon writes the person as %s, so it does not start here", k, actor.OwnerKey, actor.OwnerKey)
+	}
+	return nil
 }

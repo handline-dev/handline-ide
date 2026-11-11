@@ -42,7 +42,7 @@ type requestNode struct {
 func (e *Env) RequestRows(clock int64) ([]map[string]any, error) {
 	since := clock - requestWindowS
 	roots, err := query(e.DB, "SELECT id, title, owner, COALESCE(from_request, turn_origin) AS origin, created_at, done_evidence, done_at, discarded_by, discarded_at FROM tasks WHERE "+requestRootSQL+
-		" AND (discarded_by IS NOT NULL AND discarded_at >= ? OR discarded_by IS NULL AND (done_evidence IS NULL OR done_at >= ?)) ORDER BY id", human, human, since, since)
+		" AND (discarded_by IS NOT NULL AND discarded_at >= ? OR discarded_by IS NULL AND (done_evidence IS NULL OR done_at >= ?)) ORDER BY id", actor.OwnerKey, actor.OwnerKey, since, since)
 	if err != nil {
 		return nil, err
 	}
@@ -191,7 +191,7 @@ func (e *Env) requestNodes(since int64) (map[int64][]requestNode, error) {
 		"EXISTS(SELECT 1 FROM task_blocks b JOIN tasks w ON w.id = b.blocks_on WHERE b.task_id = t.id AND b.dormant = 0 AND w.done_evidence IS NULL AND w.discarded_by IS NULL) AS blocked, "+
 		"COALESCE(t.timeout_at, 0) AS due, MAX(t.created_at, COALESCE(t.done_at, 0), COALESCE(t.edited_at, 0), COALESCE(t.discarded_at, 0), "+
 		"COALESCE((SELECT MAX(m.created_at) FROM task_memos m WHERE m.task_id = t.id), 0)) AS at "+
-		"FROM sub s JOIN tasks t ON t.id = s.id WHERE t.discarded_by IS NULL OR t.discarded_at >= ? ORDER BY t.id", human, human, since)
+		"FROM sub s JOIN tasks t ON t.id = s.id WHERE t.discarded_by IS NULL OR t.discarded_at >= ? ORDER BY t.id", actor.OwnerKey, actor.OwnerKey, since)
 	if err != nil {
 		return nil, err
 	}
@@ -204,7 +204,7 @@ func (e *Env) requestNodes(since int64) (map[int64][]requestNode, error) {
 
 // cardTasks is the tasks with a decision card waiting on the founder: a queued request to them, not a board line.
 func (e *Env) cardTasks() (map[int64]bool, error) {
-	rows, err := query(e.DB, "SELECT DISTINCT l.task_id FROM task_requests l JOIN requests r ON r.id = l.request_id WHERE r.target = ? AND r.state = 'queued' AND "+notBoard, human)
+	rows, err := query(e.DB, "SELECT DISTINCT l.task_id FROM task_requests l JOIN requests r ON r.id = l.request_id WHERE r.target = ? AND r.state = 'queued' AND "+notBoard, actor.OwnerKey)
 	if err != nil {
 		return nil, err
 	}
@@ -256,7 +256,7 @@ func (e *Env) unseenResults(clock int64) (int, error) {
 		return 0, err
 	}
 	rows, err := query(e.DB, "SELECT id, done_evidence, done_at, discarded_by, discarded_at FROM tasks WHERE "+requestRootSQL+
-		" AND (discarded_by IS NOT NULL AND discarded_at >= ? OR discarded_by IS NULL AND done_evidence IS NOT NULL AND done_at >= ?)", human, human, since, since)
+		" AND (discarded_by IS NOT NULL AND discarded_at >= ? OR discarded_by IS NULL AND done_evidence IS NOT NULL AND done_at >= ?)", actor.OwnerKey, actor.OwnerKey, since, since)
 	if err != nil {
 		return 0, err
 	}

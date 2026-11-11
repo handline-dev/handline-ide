@@ -9,6 +9,7 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/internal/prefs"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
@@ -88,7 +89,7 @@ func (e *Env) ForYou() ([]map[string]any, int, error) {
 	}
 	owned, err := query(e.DB, "SELECT *, "+taskActing+", "+
 		"COALESCE((SELECT since FROM task_turns WHERE task_id = tasks.id ORDER BY pos DESC LIMIT 1), created_at) AS turn_since "+
-		"FROM tasks WHERE "+db.ActingSQL("tasks")+" = ? AND "+openTask+" ORDER BY id", human)
+		"FROM tasks WHERE "+db.ActingSQL("tasks")+" = ? AND "+openTask+" ORDER BY id", actor.OwnerKey)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -145,7 +146,7 @@ func (e *Env) ForYou() ([]map[string]any, int, error) {
 		add(forYouItem("machine", w.id, nil, w.title, "do", w.since))
 	}
 
-	deferred, err := prefs.LaterOf(e.DB, human)
+	deferred, err := prefs.LaterOf(e.DB, actor.OwnerKey)
 	if err != nil {
 		return nil, 0, err
 	}

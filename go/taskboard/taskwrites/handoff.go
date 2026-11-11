@@ -50,7 +50,7 @@ func handoffRefusal(t *task, to string, agents []string) string {
 	switch {
 	case t.done() || t.DiscardedBy.Valid && t.DiscardedBy.String != "":
 		return fmt.Sprintf("task T%d is already finished - nothing to hand over", t.ID)
-	case to != human && !contains(agents, to):
+	case to != actor.OwnerKey && !contains(agents, to):
 		return "no agent named " + to
 	case to == t.Acting:
 		return fmt.Sprintf("T%d is already %s's", t.ID, to)
@@ -86,14 +86,14 @@ func handoffMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (an
 			return nil, err
 		}
 		agents := paths.ListAgents(home)
-		if to != human && !contains(agents, to) {
+		if to != actor.OwnerKey && !contains(agents, to) {
 			e := rpc.NotFoundError("no agent named " + to)
 			e.Data = map[string]any{"what": "agent", "name": to}
 			return nil, e
 		}
 		me := c.Caller.Actor()
 		said := strings.TrimSpace(textsafe.Text(note))
-		toFounder := actor.IsPerson(to) && me != human // an agent's handoff to the founder is the founder's turn, hung on the note as a comment
+		toFounder := actor.IsPerson(to) && me != actor.OwnerKey // an agent's handoff to the founder is the founder's turn, hung on the note as a comment
 		if toFounder && said == "" {
 			return nil, badParam("a handoff to the founder says what they decide, and what you recommend", "note")
 		}
@@ -118,7 +118,7 @@ func handoffMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (an
 				if memo, err = db.AddMemo(tx, tid, me, said); err != nil {
 					return nil, err
 				}
-				h, asked, err = pushTurn(tx, tell, tid, me, human, said, memo, "", "")
+				h, asked, err = pushTurn(tx, tell, tid, me, actor.OwnerKey, said, memo, "", "")
 			} else {
 				h, asked, err = handOff(tx, tell, tid, me, to, said, agents, false)
 			}

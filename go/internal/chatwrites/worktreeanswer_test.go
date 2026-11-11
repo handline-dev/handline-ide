@@ -9,6 +9,7 @@ import (
 
 	dbpkg "github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/internal/worktreeprune"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/gitrun"
 )
 
@@ -26,7 +27,7 @@ func askedAbout(t *testing.T, r *rig) (tid int64, path string, main string) {
 	}
 	os.WriteFile(filepath.Join(path, "left.txt"), []byte("work"), 0o644)
 	card := r.request("human", "human", "Remove bob's worktree?\n\nPath: "+path+"\nBranch: bobs\n\nMember: bob\n\nReply with the number")
-	tid, err := dbpkg.NewTask(r.db, "Remove bob's worktree?", dbpkg.Human, dbpkg.Human, 0, dbpkg.DefaultPriority, "decision", 0, "")
+	tid, err := dbpkg.NewTask(r.db, "Remove bob's worktree?", actor.OwnerKey, actor.OwnerKey, 0, dbpkg.DefaultPriority, "decision", 0, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +95,7 @@ func TestAnswerIsNotHandledForAnyOtherTask(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
 	card := r.request("alice", "human", "which one?")
-	tid, _ := dbpkg.NewTask(r.db, "which one?", dbpkg.Human, r.k("alice"), 0, dbpkg.DefaultPriority, "decision", 0, "")
+	tid, _ := dbpkg.NewTask(r.db, "which one?", actor.OwnerKey, r.k("alice"), 0, dbpkg.DefaultPriority, "decision", 0, "")
 	dbpkg.LinkRequest(r.db, tid, card)
 	if handled, _, err := answer(t, r, tid, "1"); handled || err != nil {
 		t.Fatal(handled, err)

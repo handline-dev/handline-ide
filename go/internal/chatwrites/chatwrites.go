@@ -11,6 +11,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/kit/timefmt"
@@ -297,7 +298,7 @@ func (w *writes) send(c *rpc.Conn, p map[string]any) (any, error) {
 		if parent != 0 {
 			res, err = w.sendUnder(tx, agent, parent, quote, body, act)
 		} else {
-			res, err = sayWrite(w.e, tx, db.Human, agent, body, 0, nil, act)
+			res, err = sayWrite(w.e, tx, c.Caller.Actor(), agent, body, 0, nil, act)
 		}
 		if res != nil {
 			if err == nil && res.OK && len(images) > 0 {
@@ -376,7 +377,7 @@ func (w *writes) sendUnder(tx *sql.Tx, agent string, parent int64, quote, body s
 	if quote != "" && !strings.Contains(collapsed(row.Body), quote) {
 		return nil, badParam("quote is not in the parent message", "quote")
 	}
-	res, err := sayWrite(w.e, tx, db.Human, agent, body, parent, nil, act)
+	res, err := sayWrite(w.e, tx, actor.OwnerKey, agent, body, parent, nil, act)
 	if err != nil || res == nil || !res.OK || res.Request == 0 {
 		return res, err
 	}
@@ -385,7 +386,7 @@ func (w *writes) sendUnder(tx *sql.Tx, agent string, parent int64, quote, body s
 			return nil, err
 		}
 	}
-	return w.answerAsk(tx, res, db.Human, parent, body)
+	return w.answerAsk(tx, res, actor.OwnerKey, parent, body)
 }
 
 func (w *writes) cancel(c *rpc.Conn, p map[string]any) (any, error) {

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/data/team/teamtest"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
@@ -26,7 +27,7 @@ func queueOf(t *testing.T, e *Env, c *rpc.Conn, params map[string]any) map[strin
 // drawn is the reply as cmd_inbox prints it: only layout is added here, every word of a request and every sentence is the daemon's.
 func drawn(q map[string]any, all bool) string {
 	var b strings.Builder
-	if q["whose"] == human {
+	if q["whose"] == actor.OwnerKey {
 		lines := q["lines"].([]any)
 		if len(lines) == 0 && !all {
 			return "nothing needs you\n"
@@ -129,7 +130,7 @@ func TestInboxQueueOfAnAgentPrintsAsHlInboxDid(t *testing.T) {
 func TestInboxQueueOfTheFounderPrintsAsHlInboxDid(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	printsAs(t, e, human, "founder-empty") // nothing waiting
+	printsAs(t, e, actor.OwnerKey, "founder-empty") // nothing waiting
 	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok, response, landed_at) VALUES"+
 		"(1, 10, 'amy', 'p1', 'seen before', 'landed', 'say', 1, NULL, 10), (2, 20, 'amy', 'p1', 'report one', 'landed', 'say', 1, NULL, 20), "+
 		"(3, 30, 'amy', 'p1', 'report two\nmore', 'landed', 'say', 1, NULL, 30), (4, 40, 'bob', 'p1', 'which one?', 'queued', 'ask', 1, 'async', NULL), "+
@@ -141,7 +142,7 @@ func TestInboxQueueOfTheFounderPrintsAsHlInboxDid(t *testing.T) {
 	run(t, e, "INSERT INTO task_requests(task_id, request_id) VALUES(1, 5)")
 	run(t, e, "INSERT INTO cursors(name, row_id, updated) VALUES('for_you_seen:amy', 1, 1)")
 	run(t, e, `INSERT INTO events(ts, agent, kind, payload) VALUES(91, 'p1', 'dismissed', '{"request_id": 9, "by": "p1", "reason": "stale"}')`)
-	printsAs(t, e, human, "founder-mailbox")
+	printsAs(t, e, actor.OwnerKey, "founder-mailbox")
 	got := queueOf(t, e, asFounder, nil)
 	if got["waiting"] != 7 || got["newest"] != int64(10) || got["head"] != nil || got["dealt"] != nil {
 		t.Fatalf("%v", got)
@@ -161,7 +162,7 @@ func TestInboxQueueListsOnlyForTheAgentItsSupervisorAndTheFounder(t *testing.T) 
 	e := testEnv(t)
 	teamtest.Seed(t, e.Home, "bob", "bob.kid", "amy")
 	bob, kid, amy := teamtest.Key(t, e.Home, "bob"), teamtest.Key(t, e.Home, "bob.kid"), teamtest.Key(t, e.Home, "amy")
-	for whose, ok := range map[string]bool{bob: true, kid: true, amy: false, human: false} {
+	for whose, ok := range map[string]bool{bob: true, kid: true, amy: false, actor.OwnerKey: false} {
 		_, err := e.inboxQueue(asAgent(bob), map[string]any{"whose": whose})
 		var refused *rpc.Error
 		if ok && err != nil {

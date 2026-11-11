@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/protocol/rpc"
 )
@@ -44,7 +45,7 @@ func releaseMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (an
 				return nil, err
 			}
 			if len(turns) > 0 {
-				if top := turns[len(turns)-1].Agent; me != top && me != human {
+				if top := turns[len(turns)-1].Agent; me != top && me != actor.OwnerKey {
 					return nil, refusal(fmt.Sprintf("T%d has turns on it, and %s's is on top: it releases by sending the task back (hl task back), "+
 						"or you take your turn back once it is passed", tid, top))
 				}

@@ -15,7 +15,6 @@ import (
 // its workspace, its owner and any workspace's lead; the founder may reach anyone. Decided here, with no model involved.
 
 const (
-	Human                = db.Human
 	DefaultMaxChainDepth = 4
 	// AskWindowS is how long a refused message sent again unchanged is the same refusal, not a new denied row.
 	AskWindowS = 3600
@@ -122,7 +121,7 @@ func (t *Team) TeamOf(agent string) string { return t.Agents[agent].Workspace }
 // Known is whether the target is routable: an agent, or the founder.
 func (t *Team) Known(agent string) bool {
 	_, ok := t.Agents[agent]
-	return ok || agent == Human
+	return ok || agent == actor.OwnerKey
 }
 
 // Managers is workspace name -> its lead.
@@ -198,9 +197,9 @@ func (t *Team) Route(requester, target string, chainDepth int) Decision {
 	allow := func(why string) Decision { return Decision{Allowed: true, Reason: why, ChainDepth: chainDepth} }
 	to := t.Agents[target]
 	switch {
-	case requester == Human:
+	case requester == actor.OwnerKey:
 		return allow("the founder reaches anyone")
-	case target == Human:
+	case target == actor.OwnerKey:
 		return allow(requester + " may ask its owner")
 	case to.Workspace == t.TeamOf(requester):
 		return allow(requester + " and " + target + " are in workspace " + to.Workspace)

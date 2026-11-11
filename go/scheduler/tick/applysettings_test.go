@@ -6,6 +6,7 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
+	"github.com/handline/handline/go/kit/actor"
 )
 
 type settingsPorts struct {
@@ -69,11 +70,11 @@ func TestAChangeMadeMidTurnIsOwedUntilItsRestart(t *testing.T) {
 // A person's change is restarted in their name, once: the next change with no one kept is the daemon's.
 func TestAPersonsChangeIsRestartedInTheirName(t *testing.T) {
 	tk, w, a := settled(t)
-	if err := db.SetMeta(tk.Q, db.SettingsByMeta("a"), db.Human); err != nil {
+	if err := db.SetMeta(tk.Q, db.SettingsByMeta("a"), actor.OwnerKey); err != nil {
 		t.Fatal(err)
 	}
 	a.Sweep(tk, 10_000)
-	if !w.did("restart a by "+db.Human+" for model (settings_applied)") {
+	if !w.did("restart a by " + actor.OwnerKey + " for model (settings_applied)") {
 		t.Fatalf("%v", w.calls)
 	}
 	if v, _, _ := db.Meta(tk.Q, db.SettingsByMeta("a")); v != "" {

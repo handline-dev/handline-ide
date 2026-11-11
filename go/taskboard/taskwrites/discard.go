@@ -28,7 +28,7 @@ func discardMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (an
 		if err != nil {
 			return nil, err
 		}
-		if strings.TrimSpace(reason) == "" && c.Caller.Actor() != human {
+		if strings.TrimSpace(reason) == "" && c.Caller.Role != "owner" {
 			_, err := text(p, "reason")
 			return nil, err
 		}
@@ -201,13 +201,13 @@ func discardOne(tx *sql.Tx, home, by string, tid int64, reason, batch string, ow
 		return nil, refusal(fmt.Sprintf("task T%d was asked for by %s, so only they withdraw it - discard it with a reason instead", tid, who))
 	}
 	said := strings.TrimSpace(textsafe.Oneline(reason))
-	if said == "" && by == human {
+	if said == "" && by == actor.OwnerKey {
 		said = "Discarded" // the founder needs no reason
 	}
 	if said == "" {
 		return nil, refusal("discarding needs a one-line reason")
 	}
-	fromAbove := by == human // live children outlive a parent the founder clears: they move up
+	fromAbove := by == actor.OwnerKey // live children outlive a parent the founder clears: they move up
 	kids, err := openChildren(tx, tid)
 	if err != nil {
 		return nil, err
@@ -225,7 +225,7 @@ func discardOne(tx *sql.Tx, home, by string, tid int64, reason, batch string, ow
 			waits = append(waits, b.ID)
 		}
 	}
-	if len(waits) > 0 && by != human {
+	if len(waits) > 0 && by != actor.OwnerKey {
 		return nil, refusal(fmt.Sprintf("task T%d is waiting on %s - it cannot be discarded until they close", tid, taskList(waits)))
 	}
 	// The asks its comments raised end with it, and are no request left open.
@@ -243,10 +243,10 @@ func discardOne(tx *sql.Tx, home, by string, tid int64, reason, batch string, ow
 		}
 	}
 	verdict := CancelVerdict
-	if by != human {
+	if by != actor.OwnerKey {
 		verdict = fmt.Sprintf("withdrawn by %s: %s", by, said)
 	}
-	stops := by == human
+	stops := by == actor.OwnerKey
 	if !stops && len(live) > 0 {
 		if stops, err = leadsTreeOf(home, by, t); err != nil {
 			return nil, err
@@ -255,7 +255,7 @@ func discardOne(tx *sql.Tx, home, by string, tid int64, reason, batch string, ow
 	// A request that already landed is held by its agent and no cancel can take it back: the asker or the founder discards the task
 	// all the same, the hold ends with it and the holder is told.
 	var holders []string
-	if (by == human || !stops && by == who) && allLanded(live) {
+	if (by == actor.OwnerKey || !stops && by == who) && allLanded(live) {
 		for _, r := range live {
 			holders = append(holders, r.Target)
 		}
@@ -326,7 +326,7 @@ func discardOne(tx *sql.Tx, home, by string, tid int64, reason, batch string, ow
 		return nil, err
 	}
 	byWord := by
-	if by == human {
+	if by == actor.OwnerKey {
 		byWord = "the founder"
 	}
 	var also []string

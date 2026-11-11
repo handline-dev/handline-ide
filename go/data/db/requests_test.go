@@ -1,6 +1,10 @@
 package db
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/handline/handline/go/kit/actor"
+)
 
 func ask(t *testing.T, q Q, from, to, body, kind string) int64 {
 	t.Helper()
@@ -101,8 +105,8 @@ func TestClosingARequestKeepsItsVerdictAsTheReasonOnceAndWritesNoAnswerRow(t *te
 
 func TestADecisionTaskStaysOpenWhenItsCardLeavesTheQueue(t *testing.T) {
 	q := open(t)
-	tid, _ := NewTask(q, "decide", Human, "a", 0, DefaultPriority, "", 0, "")
-	card := ask(t, q, "a", Human, "which?", "ask")
+	tid, _ := NewTask(q, "decide", actor.OwnerKey, "a", 0, DefaultPriority, "", 0, "")
+	card := ask(t, q, "a", actor.OwnerKey, "which?", "ask")
 	LinkRequest(q, tid, card)
 	if ids, _ := OpenDecisionCardIDs(q, "a", "", nil); len(ids) != 1 || ids[0] != card {
 		t.Fatal(ids)

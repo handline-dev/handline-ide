@@ -9,6 +9,7 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team/teamtest"
+	"github.com/handline/handline/go/kit/actor"
 )
 
 // carolLeadsBob makes carol the lead of bob's team.
@@ -83,7 +84,7 @@ func TestTheMissedDeliveryAlarmSkipsTasksThatWaitOnPurpose(t *testing.T) {
 			r.must(err)
 		}, false},
 		{"paused, waiting on a human", func(r *rig, tid int64) {
-			db.AddBlock(r.DB, tid, r.newTask(db.Human, r.k(("bob")), "decide"))
+			db.AddBlock(r.DB, tid, r.newTask(actor.OwnerKey, r.k(("bob")), "decide"))
 			db.AdvanceTaskTimeout(r.DB, tid, r.clock, 600)
 			db.PauseTaskTimeout(r.DB, tid, r.clock)
 		}, false},

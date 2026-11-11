@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/paths"
 )
 
@@ -24,8 +25,8 @@ func ReturnFounderTasks(d *sql.DB, home string) (said []string, err error) {
 	}
 	rows, err := d.Query("SELECT t.id, t.opened_by, t.title, " +
 		"COALESCE((SELECT e.payload FROM events e WHERE e.kind = 'task_handoff' AND json_valid(e.payload) AND json_extract(e.payload, '$.task_id') = t.id " +
-		"AND json_extract(e.payload, '$.to') = '" + db.Human + "' AND json_extract(e.payload, '$.from') NOT IN ('" + db.Human + "', 'gate', 'daemon') ORDER BY e.id DESC LIMIT 1), '') " +
-		"FROM tasks t WHERE t.owner = '" + db.Human + "' AND t.done_evidence IS NULL AND t.discarded_by IS NULL")
+		"AND json_extract(e.payload, '$.to') = '" + actor.OwnerKey + "' AND json_extract(e.payload, '$.from') NOT IN ('" + actor.OwnerKey + "', 'gate', 'daemon') ORDER BY e.id DESC LIMIT 1), '') " +
+		"FROM tasks t WHERE t.owner = '" + actor.OwnerKey + "' AND t.done_evidence IS NULL AND t.discarded_by IS NULL")
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +79,7 @@ func ReturnFounderTasks(d *sql.DB, home string) (said []string, err error) {
 			if err := db.EditTask(tx, b.id, "daemon", db.TaskEdit{Owner: &b.to}); err != nil {
 				return err
 			}
-			if err := db.PushTurn(tx, b.id, db.Turn{Agent: human, Ask: ask, By: b.to, Since: time.Now().Unix()}); err != nil {
+			if err := db.PushTurn(tx, b.id, db.Turn{Agent: actor.OwnerKey, Ask: ask, By: b.to, Since: time.Now().Unix()}); err != nil {
 				return err
 			}
 			_, err := db.SetTaskQueued(tx, b.id, "daemon")

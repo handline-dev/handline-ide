@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/taskboard/requestref"
 )
@@ -32,7 +33,7 @@ func mailbox(q db.Q) ([]mailRow, error) {
 	for _, g := range gates {
 		isGate[g] = true
 	}
-	rows, err := q.Query("SELECT id, requester, memo_id IS NOT NULL FROM requests WHERE target = ? AND "+db.FounderOpen("")+" ORDER BY id", db.Human)
+	rows, err := q.Query("SELECT id, requester, memo_id IS NOT NULL FROM requests WHERE target = ? AND "+db.FounderOpen("")+" ORDER BY id", actor.OwnerKey)
 	if err != nil {
 		return nil, err
 	}
@@ -136,7 +137,7 @@ func (w *writes) markRead(c *rpc.Conn, p map[string]any) (any, error) {
 				if err != nil {
 					return nil, err
 				}
-				if row == nil || row.Target != db.Human {
+				if row == nil || row.Target != actor.OwnerKey {
 					return nil, noItem(i) // one the person already read has left the mailbox: reading it again is nothing to do
 				}
 			}

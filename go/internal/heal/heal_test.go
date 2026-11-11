@@ -8,6 +8,7 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/storetest"
 )
 
@@ -276,7 +277,7 @@ func TestAMessageTheLoadHoldsIsNotStuck(t *testing.T) {
 	if len(f.did) != 0 {
 		t.Fatalf("a held agent was healed: %v", f.did)
 	}
-	founder, err := db.AddRequest(q, db.NewRequest{Requester: db.Human, Target: "a", Body: "are you there?", Kind: "say"})
+	founder, err := db.AddRequest(q, db.NewRequest{Requester: actor.OwnerKey, Target: "a", Body: "are you there?", Kind: "say"})
 	must(t, err)
 	_, err = q.Exec("UPDATE requests SET ts = ? WHERE id = ?", now-UndeliveredS, founder)
 	must(t, err)

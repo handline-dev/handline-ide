@@ -14,8 +14,6 @@ import (
 	"github.com/handline/handline/go/taskboard/attachments"
 )
 
-const human = db.Human
-
 // CancelVerdict is what a request the founder cancels says it was closed under.
 const CancelVerdict = "withdrawn by the founder"
 
@@ -105,7 +103,7 @@ func Register(s *rpc.Server, home string, tell Teller, decide CardDecider) {
 }
 
 func claimImages(tx *sql.Tx, home, by, text, was, field string) error {
-	return attachments.New(home).ClaimText(tx, text, was, field, by != human)
+	return attachments.New(home).ClaimText(tx, text, was, field, by != actor.OwnerKey)
 }
 
 func badParam(message, field string) *rpc.Error {
@@ -174,7 +172,7 @@ func memoOf(tx *sql.Tx, tid, mid int64) (author, body string, err error) {
 
 // guard: a memo is anyone's to add; only its author or the founder edits or deletes it.
 func guard(by, author string, mid int64) error {
-	if by == human || by == author {
+	if by == actor.OwnerKey || by == author {
 		return nil
 	}
 	return refusal(fmt.Sprintf("comment %d is %s's: only its author or the founder edits or deletes it", mid, author))
@@ -243,7 +241,7 @@ func memoAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, err
 					return nil, err
 				}
 			}
-			if c.Caller.Actor() == human {
+			if c.Caller.Role == "owner" {
 				if actor.IsPerson(to) {
 					return nil, refusal("you do not hand a turn to yourself: name an agent")
 				}
@@ -259,14 +257,14 @@ func memoAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, err
 					if to != "" {
 						return nil, refusal(fmt.Sprintf("T%d waits on you: answer with a comment and no turn, and it goes back to the agent that asked", tid))
 					}
-					p, err := popTurn(tx, home, tell, tid, human, db.TurnPass, body, mid)
+					p, err := popTurn(tx, home, tell, tid, c.Caller.Actor(), db.TurnPass, body, mid)
 					if err != nil {
 						return nil, err
 					}
 					popped = &p
 				}
 			}
-			if files, err = store.AddFiles(tx, home, c.Caller.Actor(), c.Caller.Actor() == human, paths); err != nil {
+			if files, err = store.AddFiles(tx, home, c.Caller.Actor(), c.Caller.Role == "owner", paths); err != nil {
 				return nil, err
 			}
 			if err := store.AttachMemo(tx, mid, files); err != nil {
@@ -329,7 +327,7 @@ func turnParams(p map[string]any, home string) (to, evidence string, err error) 
 	switch {
 	case evidence != "" && (to == "" || actor.IsPerson(to)):
 		return "", "", badParam("done goes with a turn to an agent: a review whose pass closes the task", "done")
-	case to != "" && to != human && !contains(paths.ListAgents(home), to):
+	case to != "" && to != actor.OwnerKey && !contains(paths.ListAgents(home), to):
 		e := rpc.NotFoundError("no agent named " + to)
 		e.Data = map[string]any{"what": "agent", "name": to}
 		return "", "", e

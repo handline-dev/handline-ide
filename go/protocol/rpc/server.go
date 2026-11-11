@@ -522,12 +522,12 @@ func (s *Server) keyed(c Caller) Caller {
 // owner is the owner's key: p1 when there is no database to ask, or it cannot say (logged).
 func (s *Server) owner() string {
 	if s.DB == nil {
-		return Human
+		return actor.OwnerKey
 	}
 	k, err := actor.Owner(s.DB)
 	if err != nil {
 		s.Log("  the owner's key could not be read, so p1 is taken: %v", err)
-		return Human
+		return actor.OwnerKey
 	}
 	return k
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/handline/handline/go/data/states"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/data/team/teamtest"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/scheduler/keepawake"
 	"github.com/handline/handline/go/scheduler/tick"
@@ -441,8 +442,8 @@ func TestTheDiskWatchEntryRaisesOneCardFromTheTaskBoard(t *testing.T) {
 		t.Fatalf("one disk_low event after a low volume: %d", told())
 	}
 	var inbox, tasks int
-	p.db.QueryRow("SELECT COUNT(*) FROM requests WHERE target = ?", dbpkg.Human).Scan(&inbox)
-	p.db.QueryRow("SELECT COUNT(*) FROM tasks WHERE owner = ?", dbpkg.Human).Scan(&tasks)
+	p.db.QueryRow("SELECT COUNT(*) FROM requests WHERE target = ?", actor.OwnerKey).Scan(&inbox)
+	p.db.QueryRow("SELECT COUNT(*) FROM tasks WHERE owner = ?", actor.OwnerKey).Scan(&tasks)
 	if inbox != 0 || tasks != 0 {
 		t.Fatalf("a low volume is a notification, not a message (%d) or a task (%d)", inbox, tasks)
 	}

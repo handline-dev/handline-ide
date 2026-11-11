@@ -10,6 +10,7 @@ import (
 	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/internal/reads"
 	"github.com/handline/handline/go/internal/watcher"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/scheduler/tick"
 )
 
@@ -56,7 +57,7 @@ func TestAStoryTellsTheFounderOneNoticeAndAgentsOnlyWhatTheyMustActOn(t *testing
 	if err := notes.Scan(d.db, emit); err != nil { // primes the cursors: what came before is history
 		t.Fatal(err)
 	}
-	parent, err := db.NewTask(d.db, "the founder's job", alice, db.Human, 0, db.DefaultPriority, "", 0, "")
+	parent, err := db.NewTask(d.db, "the founder's job", alice, actor.OwnerKey, 0, db.DefaultPriority, "", 0, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,7 +84,7 @@ func TestAStoryTellsTheFounderOneNoticeAndAgentsOnlyWhatTheyMustActOn(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.SetTaskQueued(d.db, slow, db.Human); err != nil {
+	if _, err := db.SetTaskQueued(d.db, slow, actor.OwnerKey); err != nil {
 		t.Fatal(err)
 	}
 	if _, _, err := d.env().AdvanceCurrentTask(d.db, bob); err != nil {

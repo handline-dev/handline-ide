@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/internal/worktreeprune"
 	"github.com/handline/handline/go/kit/paths"
@@ -60,7 +59,7 @@ func (e *Env) retireMethod(c *rpc.Conn, params map[string]any) (any, error) {
 	}
 	if live[agent] {
 		// Held as the founder's own approved proposal, so SweepHeld retires it when its turn ends.
-		prop, err := newProp("retire", agent, db.Human, "retired by the founder")
+		prop, err := newProp("retire", agent, c.Caller.Actor(), "retired by the founder")
 		if err == nil && choice != "" {
 			prop.set("worktree", choice)
 		}

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
 )
 
 // fakeTeller records what the writes leave for the telling layer.
@@ -211,7 +212,7 @@ func (f *fakeTeller) TaskSay(tx *sql.Tx, to, body string, within func(rid int64,
 	if f.deny != "" {
 		return &Asked{Msg: f.deny}, nil
 	}
-	rid, err := db.AddRequest(tx, db.NewRequest{Requester: human, Target: to, Body: body, Kind: "say"})
+	rid, err := db.AddRequest(tx, db.NewRequest{Requester: actor.OwnerKey, Target: to, Body: body, Kind: "say"})
 	if err != nil {
 		return nil, err
 	}

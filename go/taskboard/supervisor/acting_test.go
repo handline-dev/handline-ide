@@ -8,6 +8,7 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team/teamtest"
+	"github.com/handline/handline/go/kit/actor"
 )
 
 // turnRig is a task bob owns and carol opened, queued, with alice's turn on top: every rule that asks who works it now must answer alice.
@@ -39,8 +40,8 @@ func (r *rig) beginOnTop(tid int64) {
 func TestTheQueueDeliversATaskToTheAgentOnTop(t *testing.T) {
 	r, tid := turnRig(t)
 	r.agentUp("erin")
-	founders := r.newTask(db.Human, r.k("carol"), "the founder's")
-	r.must(db.PushTurn(r.DB, founders, db.Turn{Agent: r.k("erin"), By: db.Human, Since: r.clock}))
+	founders := r.newTask(actor.OwnerKey, r.k("carol"), "the founder's")
+	r.must(db.PushTurn(r.DB, founders, db.Turn{Agent: r.k("erin"), By: actor.OwnerKey, Since: r.clock}))
 	r.must(r.SweepTaskQueue(r.clock))
 	for agent, want := range map[string]int64{r.k("alice"): tid, r.k("erin"): founders} {
 		if cur, ok, _ := db.CurrentTask(r.DB, agent); !ok || cur != want {
@@ -83,8 +84,8 @@ func TestABodyEditIsToldToTheAgentOnTop(t *testing.T) {
 		t.Fatalf("alice is not told: %v", r.term.typed)
 	}
 	r.agentUp("erin")
-	founders := r.newTask(db.Human, r.k("carol"), "the founder's")
-	r.must(db.PushTurn(r.DB, founders, db.Turn{Agent: r.k("erin"), By: db.Human, Since: r.clock}))
+	founders := r.newTask(actor.OwnerKey, r.k("carol"), "the founder's")
+	r.must(db.PushTurn(r.DB, founders, db.Turn{Agent: r.k("erin"), By: actor.OwnerKey, Since: r.clock}))
 	r.beginOnTop(founders)
 	r.term.typed = nil
 	r.turnCall("human", "task.edit", fmt.Sprintf(`{"task":%d,"body":"and the docs","request_id":"e2"}`, founders))
@@ -130,8 +131,8 @@ func TestABlockFreesTheAgentOnTop(t *testing.T) {
 		t.Fatalf("bob keeps his own: %d %v", cur, ok)
 	}
 	r.agentUp("erin")
-	founders := r.newTask(db.Human, r.k("carol"), "the founder's")
-	r.must(db.PushTurn(r.DB, founders, db.Turn{Agent: r.k("erin"), By: db.Human, Since: r.clock}))
+	founders := r.newTask(actor.OwnerKey, r.k("carol"), "the founder's")
+	r.must(db.PushTurn(r.DB, founders, db.Turn{Agent: r.k("erin"), By: actor.OwnerKey, Since: r.clock}))
 	r.beginOnTop(founders)
 	erins := r.newTask("erin", r.k("carol"), "erin's next")
 	r.turnCall("erin", "task.edit", fmt.Sprintf(`{"task":%d,"blocked_by":%d,"request_id":"e2"}`, founders, blocker))
@@ -150,8 +151,8 @@ func TestADiscardStopsTheAgentOnTopAndMovesItOn(t *testing.T) {
 	}
 	// carol leads a workspace, so her discard stops the requests out on the task instead of refusing
 	teamtest.Set(t, r.home, "alice", "reports_to", "carol")
-	tid := r.newTask(db.Human, r.k("carol"), "the founder's")
-	r.must(db.PushTurn(r.DB, tid, db.Turn{Agent: r.k("alice"), By: db.Human, Since: r.clock}))
+	tid := r.newTask(actor.OwnerKey, r.k("carol"), "the founder's")
+	r.must(db.PushTurn(r.DB, tid, db.Turn{Agent: r.k("alice"), By: actor.OwnerKey, Since: r.clock}))
 	r.beginOnTop(tid)
 	// held, its delivery still queued: the stop is typed to alice, as no delivery will reach her
 	_, err := r.DB.Exec("UPDATE requests SET delivered_at = NULL, state = 'queued' WHERE id IN (SELECT request_id FROM task_requests WHERE task_id = ?)", tid)

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/taskboard/msgtest"
 
 	"github.com/handline/handline/go/data/db"
@@ -30,11 +31,11 @@ func trustDaemon(t *testing.T) (d *Daemon, id string, card int64, root string) {
 	}
 	alice := key(t, d, "alice")
 	raise := func(title, text string) (bool, string, int64, int64, error) {
-		rid, err := db.AddRequest(d.db, db.NewRequest{Requester: alice, Target: db.Human, Body: text, Kind: "task"})
+		rid, err := db.AddRequest(d.db, db.NewRequest{Requester: alice, Target: actor.OwnerKey, Body: text, Kind: "task"})
 		if err != nil {
 			return false, "", 0, 0, err
 		}
-		tid, err := db.NewTask(d.db, title, db.Human, alice, 0, db.DefaultPriority, "decision", 0, "")
+		tid, err := db.NewTask(d.db, title, actor.OwnerKey, alice, 0, db.DefaultPriority, "decision", 0, "")
 		if err != nil {
 			return false, "", 0, 0, err
 		}
@@ -74,7 +75,7 @@ func reply(t *testing.T, d *Daemon, card int64) string {
 func reportsToFounder(t *testing.T, d *Daemon, body string) int {
 	t.Helper()
 	var n int
-	if err := d.db.QueryRow("SELECT COUNT(*) FROM requests WHERE kind = 'say' AND requester = ? AND target = ? AND body = ?", key(t, d, "alice"), db.Human, body).Scan(&n); err != nil {
+	if err := d.db.QueryRow("SELECT COUNT(*) FROM requests WHERE kind = 'say' AND requester = ? AND target = ? AND body = ?", key(t, d, "alice"), actor.OwnerKey, body).Scan(&n); err != nil {
 		t.Fatal(err)
 	}
 	return n
@@ -163,7 +164,7 @@ func foundersApproval(t *testing.T, d *Daemon, id string, card int64, root strin
 	}
 	tr = team.NewTrust(d.cfg.Home)
 	recordAnswer(t, tr, id, tid, root)
-	closeDecision(t, d, tid, db.Human, "settle_decision_task")
+	closeDecision(t, d, tid, actor.OwnerKey, "settle_decision_task")
 	return tr, tid
 }
 

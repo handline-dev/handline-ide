@@ -3,6 +3,8 @@ package db
 import (
 	"database/sql"
 	"strings"
+
+	"github.com/handline/handline/go/kit/actor"
 )
 
 // Notice and digest names (db.requests).
@@ -128,7 +130,7 @@ func AddRequest(q Q, n NewRequest) (int64, error) {
 	case n.Notice:
 		notice = 1
 	}
-	landed := (notice != nil || n.Target == Human && n.Kind == "say") && state == "queued"
+	landed := (notice != nil || n.Target == actor.OwnerKey && n.Kind == "say") && state == "queued"
 	if landed || state == "done" {
 		state = Landed
 	}
@@ -348,7 +350,7 @@ func IDs(q Q, query string, args ...any) ([]int64, error) {
 // MarkRead is db.mark_read: the founder has these in front of him, once.
 func MarkRead(q Q, rids []int64) error {
 	for _, id := range rids {
-		if _, err := q.Exec("UPDATE requests SET read_at = COALESCE(read_at, ?) WHERE id = ? AND target = ?", Now(), id, Human); err != nil {
+		if _, err := q.Exec("UPDATE requests SET read_at = COALESCE(read_at, ?) WHERE id = ? AND target = ?", Now(), id, actor.OwnerKey); err != nil {
 			return err
 		}
 	}
@@ -374,7 +376,7 @@ type NoticeWaiting struct {
 
 // AgentsWithNotices is db.agents_with_notices.
 func AgentsWithNotices(q Q) ([]NoticeWaiting, error) {
-	rows, err := q.Query("SELECT target, MIN(landed_at) FROM requests WHERE notice >= 1 AND state = 'landed' AND delivered_at IS NULL AND target != ? GROUP BY target ORDER BY target", Human)
+	rows, err := q.Query("SELECT target, MIN(landed_at) FROM requests WHERE notice >= 1 AND state = 'landed' AND delivered_at IS NULL AND target != ? GROUP BY target ORDER BY target", actor.OwnerKey)
 	if err != nil {
 		return nil, err
 	}
@@ -471,7 +473,7 @@ func MarkDelivered(q Q, rid int64) (bool, error) {
 			return false, err
 		}
 	}
-	if target == Human { // the founder has no transcript to land in: drawn is delivered
+	if target == actor.OwnerKey { // the founder has no transcript to land in: drawn is delivered
 		return true, StampTaskDelivered(q, rid)
 	}
 	return true, holdDelivered(q, rid, target)
@@ -516,7 +518,7 @@ func MarkLanded(q Q, rid int64) error {
 	if err := StampTaskDelivered(q, rid); err != nil {
 		return err
 	}
-	if _, err := q.Exec("UPDATE requests SET state = 'landed', state_at = ? WHERE id = ? AND state = 'queued' AND target != ?", now, rid, Human); err != nil {
+	if _, err := q.Exec("UPDATE requests SET state = 'landed', state_at = ? WHERE id = ? AND state = 'queued' AND target != ?", now, rid, actor.OwnerKey); err != nil {
 		return err
 	}
 	return settleSendLedger(q, rid)
@@ -589,7 +591,7 @@ func SendNowPending(q Q, target string) ([]*Request, error) {
 // FounderPending is db.founder_pending: the founder's requests to target not yet shown to it, oldest first.
 func FounderPending(q Q, target string) ([]*Request, error) {
 	return requestRows(q, "SELECT "+requestCols+" FROM requests WHERE target = ? AND requester = ? AND NOT "+leftoverDelivery+
-		" AND state = 'queued' AND delivered_at IS NULL ORDER BY queue_order, id", target, Human)
+		" AND state = 'queued' AND delivered_at IS NULL ORDER BY queue_order, id", target, actor.OwnerKey)
 }
 
 // FollowupsPending is db.followups_pending: requests to target that reply in the thread of its open head.

@@ -4,12 +4,12 @@ import (
 	"database/sql"
 	"sort"
 
-	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/internal/transcript"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/taskboard/handoff"
 )
 
-const bashRowsSQL = "requester = '" + db.Human + "' AND kind = 'say' AND body LIKE '!%' AND typed_at IS NOT NULL"
+const bashRowsSQL = "requester = '" + actor.OwnerKey + "' AND kind = 'say' AND body LIKE '!%' AND typed_at IS NOT NULL"
 
 // BashLine is a founder's ! line: who it went to, and whether it has landed.
 type BashLine struct {

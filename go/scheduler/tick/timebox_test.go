@@ -3,6 +3,7 @@ package tick
 import (
 	"database/sql"
 	"fmt"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/taskboard/msgtest"
 	"strings"
 	"testing"
@@ -282,11 +283,11 @@ func TestATaskOffDoingResumesWithWhatItHadLeft(t *testing.T) {
 
 func TestATaskOpenedByTheFounderTellsOnlyItsHolderAndLogsAnEvent(t *testing.T) {
 	tk, _, b, p := timebox(t)
-	tid := newTask(t, tk, "a", db.Human, 100)
+	tid := newTask(t, tk, "a", actor.OwnerKey, 100)
 	p.doing[tid] = true
 	b.SweepTaskTimeouts(tk, 1000)
 	b.SweepTaskTimeouts(tk, 1200)
-	if len(p.batched) != 1 || countEvents(t, tk, "a", "task_timeout_exceeded") != 1 || countEvents(t, tk, db.Human, "task_timeout_exceeded") != 0 {
+	if len(p.batched) != 1 || countEvents(t, tk, "a", "task_timeout_exceeded") != 1 || countEvents(t, tk, actor.OwnerKey, "task_timeout_exceeded") != 0 {
 		t.Fatalf("only the holder is told, and the event is on it: %v", p.batched)
 	}
 }
@@ -425,11 +426,11 @@ func TestATaskGivenNoTimeoutRunsFourHoursBeforeItsOpenerIsTold(t *testing.T) {
 
 func TestATaskTheFounderHoldsRemindsNoAgentAndItsClockStartsFreshWhenItLeavesThem(t *testing.T) {
 	tk, _, b, p := timebox(t)
-	tid := newTask(t, tk, db.Human, "boss", 100)
+	tid := newTask(t, tk, actor.OwnerKey, "boss", 100)
 	p.doing[tid] = true
 	b.SweepTaskTimeouts(tk, 1000)
 	(&Timebox{Ports: p}).SweepTaskTimeouts(tk, 9000) // a restart in between
-	if task, _ := db.GetTask(tk.Q, tid); task.TimeoutAt.Valid || len(p.batched) != 0 || countEvents(t, tk, db.Human, "task_timeout_exceeded")+countEvents(t, tk, "boss", "task_timeout_exceeded") != 0 {
+	if task, _ := db.GetTask(tk.Q, tid); task.TimeoutAt.Valid || len(p.batched) != 0 || countEvents(t, tk, actor.OwnerKey, "task_timeout_exceeded")+countEvents(t, tk, "boss", "task_timeout_exceeded") != 0 {
 		t.Fatalf("the founder's task reminded its opener: %+v %v", task, p.batched)
 	}
 	if _, err := tk.Q.Exec("UPDATE tasks SET owner = 'a' WHERE id = ?", tid); err != nil {
@@ -446,7 +447,7 @@ func TestATaskWaitingOnTheFounderThroughAChainOrACycleIsNotReminded(t *testing.T
 	tk, _, b, p := timebox(t)
 	top := newTask(t, tk, "a", "boss", 100)
 	mid := newTask(t, tk, "c", "boss", 100)
-	founders, err := db.NewTask(tk.Q, "decide", db.Human, "c", mid, db.DefaultPriority, "report", 100, "")
+	founders, err := db.NewTask(tk.Q, "decide", actor.OwnerKey, "c", mid, db.DefaultPriority, "report", 100, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -602,7 +603,7 @@ func TestAHeldTaskGoesToTheBossWhenItAnswersToTheHolderAndIsNeverHandedToTheFoun
 	if len(p.handed) != 1 || !strings.HasPrefix(p.handed[0], "T1 to lead:") {
 		t.Fatalf("a task answering to its holder goes to the boss: %v", p.handed)
 	}
-	for _, opener := range []string{db.Human, "a"} {
+	for _, opener := range []string{actor.OwnerKey, "a"} {
 		tk, b, p, _ := heldAfterAsk(t, opener, "")
 		check(b.Sweep(tk, 2000))
 		if len(p.handed) != 0 || p.handTries != 0 {
@@ -763,7 +764,7 @@ func TestOnlyAQueuedAgentTaskThatSomethingWaitsOnAlarms(t *testing.T) {
 		}},
 		{"a draft", func(tk *Tick, _ *tbPorts, blocker, _ int64) { db.SetTaskQueued(tk.Q, blocker, "") }},
 		{"the founder's", func(tk *Tick, _ *tbPorts, blocker, _ int64) {
-			tk.Q.Exec("UPDATE tasks SET owner = ? WHERE id = ?", db.Human, blocker)
+			tk.Q.Exec("UPDATE tasks SET owner = ? WHERE id = ?", actor.OwnerKey, blocker)
 		}},
 		{"the gate's", func(tk *Tick, _ *tbPorts, blocker, _ int64) {
 			tk.Q.Exec("UPDATE tasks SET owner = ? WHERE id = ?", db.Gate, blocker)
@@ -938,7 +939,7 @@ func TestATaskUnderTheFoundersTurnRemindsNoAgent(t *testing.T) {
 	tid := newTask(t, tk, "a", "boss", 100)
 	p.doing[tid] = true
 	b.SweepTaskTimeouts(tk, 1000)
-	check(db.PushTurn(tk.Q, tid, db.Turn{Agent: db.Human, By: "a", Since: 1010}))
+	check(db.PushTurn(tk.Q, tid, db.Turn{Agent: actor.OwnerKey, By: "a", Since: 1010}))
 	b.SweepTaskTimeouts(tk, 1010)
 	b.SweepTaskTimeouts(tk, 1200)
 	if len(p.batched) != 0 {
@@ -985,9 +986,9 @@ func TestTheBlockerAlarmTellsTheAgentOnTop(t *testing.T) {
 	tk2, _, b2, p2 := timebox(t)
 	p2.alarmOn = true
 	blocker2, _ := queuedBlocker(t, tk2)
-	_, err := tk2.Q.Exec("UPDATE tasks SET owner = ? WHERE id = ?", db.Human, blocker2)
+	_, err := tk2.Q.Exec("UPDATE tasks SET owner = ? WHERE id = ?", actor.OwnerKey, blocker2)
 	check(err)
-	check(db.PushTurn(tk2.Q, blocker2, db.Turn{Agent: "c", By: db.Human, Since: 900}))
+	check(db.PushTurn(tk2.Q, blocker2, db.Turn{Agent: "c", By: actor.OwnerKey, Since: 900}))
 	b2.SweepQueuedBlockers(tk2, 1100)
 	if len(p2.batched) != 1 || !strings.HasPrefix(p2.batched[0], "c: ") {
 		t.Fatalf("%v", p2.batched)

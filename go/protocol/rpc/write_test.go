@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/kit/storetest"
 )
@@ -137,7 +138,7 @@ func TestWritesAreKeptPerWriterSoTwoDevicesAndTheFounderMayUseOneRequestID(t *te
 		rows.Scan(&c)
 		got = append(got, c)
 	}
-	if len(got) != 3 || got[0] != "device:d1" || got[1] != "device:d2" || got[2] != Human {
+	if len(got) != 3 || got[0] != "device:d1" || got[1] != "device:d2" || got[2] != actor.OwnerKey {
 		t.Fatalf("kept under the writer: %v", got)
 	}
 }
@@ -245,7 +246,7 @@ func TestEveryHelloTheFounderKeyIsTakenOnLeavesARecordOfWhoPresentedIt(t *testin
 		rows.Scan(&agent, &payload)
 		var p map[string]any
 		json.Unmarshal([]byte(payload), &p)
-		if agent != Human {
+		if agent != actor.OwnerKey {
 			t.Fatalf("recorded under %q", agent)
 		}
 		got = append(got, p)

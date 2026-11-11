@@ -79,7 +79,7 @@ func EndReviews(d *sql.DB, home string, tell Teller) (said []string, err error) 
 			}
 			if founder { // the answer is the founder's question, not a comment as well
 				var err error
-				h, asked, err = pushTurn(tx, tell, r.id, r.owner, human, memo, 0, "", "")
+				h, asked, err = pushTurn(tx, tell, r.id, r.owner, actor.OwnerKey, memo, 0, "", "")
 				return err
 			}
 			if _, err := db.AddMemo(tx, r.id, "daemon", memo); err != nil {

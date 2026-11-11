@@ -92,7 +92,7 @@ func (b *Timebox) boss(agent string) string {
 	if s := b.Ports.SupervisorOf(agent); s != "" {
 		return s
 	}
-	return db.Human
+	return actor.OwnerKey
 }
 
 // parked is whether agent is parked (at its account's limit, or until its next session), which no clock of its runs through.

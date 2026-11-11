@@ -1,6 +1,10 @@
 package db
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/handline/handline/go/kit/actor"
+)
 
 func ok(t *testing.T, err error) {
 	t.Helper()
@@ -82,7 +86,7 @@ func TestTheFoundersTurnHoldsNoSlot(t *testing.T) {
 	_, err := SetTaskQueued(q, tid, "x")
 	ok(t, err)
 	ok(t, LinkRequest(q, tid, ask(t, q, "x", "a", "work", "task")))
-	turnOn(t, q, tid, Human)
+	turnOn(t, q, tid, actor.OwnerKey)
 	other := seedTask(t, q, "a", "x")
 	ok(t, SetCurrentTask(q, "a", other, true))
 	task, _ := GetTask(q, tid)
@@ -97,7 +101,7 @@ func TestTheFoundersTurnHoldsNoSlot(t *testing.T) {
 // A task the founder owns with an agent on top waits on that agent's slot: busy with another task, it may not go out to it.
 func TestAFoundersTaskWaitsOnTheSlotOfTheAgentOnTop(t *testing.T) {
 	q := open(t)
-	tid := seedTask(t, q, Human, "x")
+	tid := seedTask(t, q, actor.OwnerKey, "x")
 	turnOn(t, q, tid, "e")
 	busy := seedTask(t, q, "e", "x")
 	ok(t, SetCurrentTask(q, "e", busy, true))

@@ -183,7 +183,7 @@ func endTask(tx *sql.Tx, home string, tid int64, by string, t *task, text string
 	if err != nil {
 		return nil, err
 	}
-	if by == human {
+	if by == actor.OwnerKey {
 		if err := markResultSeen(tx, tid); err != nil {
 			return nil, err
 		}

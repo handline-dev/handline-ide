@@ -11,6 +11,7 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
@@ -24,13 +25,13 @@ func Viewer(c *rpc.Conn) string {
 	if c != nil {
 		return c.Caller.Actor()
 	}
-	return db.Human
+	return actor.OwnerKey
 }
 
 // MayRead is whether viewer may read request id: the founder, its requester or target, either one's supervisor, the assignee, owner or
 // opener of a task linked to it, and the target of a message the founder sent under one of the founder's own (a quote).
 func MayRead(q db.Q, home, viewer string, id int64, requester, target string) bool {
-	if viewer == db.Human || viewer == requester || viewer == target {
+	if viewer == actor.OwnerKey || viewer == requester || viewer == target {
 		return true
 	}
 	t, _ := team.LoadTeam(home)
@@ -40,7 +41,7 @@ func MayRead(q db.Q, home, viewer string, id int64, requester, target string) bo
 	var linked int
 	q.QueryRow("SELECT (SELECT COUNT(*) FROM task_requests l JOIN tasks t ON t.id = l.task_id WHERE l.request_id = ?1 AND "+
 		"(t.owner = ?2 OR t.opened_by = ?2 OR t.reporter = ?2)) + (SELECT COUNT(*) FROM requests q WHERE q.parent_id = ?1 AND q.target = ?2 AND "+
-		"q.requester = ?3)", id, viewer, db.Human).Scan(&linked)
+		"q.requester = ?3)", id, viewer, actor.OwnerKey).Scan(&linked)
 	return linked > 0
 }
 

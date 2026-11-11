@@ -3,6 +3,8 @@ package db
 import (
 	"encoding/json"
 	"time"
+
+	"github.com/handline/handline/go/kit/actor"
 )
 
 // PauseKey is the meta row the founder's pause of new work is kept in (package pause writes it).
@@ -35,7 +37,7 @@ const PausePassed = "pause_passed"
 
 // PassesPause is whether r goes while new work is paused: the founder sent it, or task.send_now let it go.
 func PassesPause(q Q, r *Request) (bool, error) {
-	if r.Requester == Human {
+	if r.Requester == actor.OwnerKey {
 		return true, nil
 	}
 	return RequestHasEvent(q, PausePassed, r.ID)
@@ -68,7 +70,7 @@ func PauseHeldTasks(q Q, agent string, now time.Time) ([]int64, error) {
 			return nil, err
 		}
 		for _, t := range ts {
-			if t.Owner != agent || t.DeliveredAt.Valid || t.Acting == Human || t.Acting == Gate {
+			if t.Owner != agent || t.DeliveredAt.Valid || t.Acting == actor.OwnerKey || t.Acting == Gate {
 				continue
 			}
 			if bs, err := TaskBlockers(q, t.ID); err != nil || len(bs) > 0 {

@@ -26,7 +26,7 @@ Decided by the founder on 2026-11-11. This doc is the spec for phase 1, the new 
 
 - A key is the kind letter plus the row id (`a17`). It never changes and is never reused.
 - Every column that names a who holds a key, and stays `TEXT`: `tasks.owner`, `opened_by`, `reporter`, `discarded_by`, `requests.requester`, `target`, `task_memos.author`, `task_turns.agent`, `pushed_by`, `events.agent`, `agent_state.agent` and the rest. Account columns hold `c` keys.
-- Code compares keys, never names. `db.Human` goes away. `actor.IsPerson(k)`, `actor.Owner(q)` and `actor.Kind(k)` replace the 327 comparisons.
+- Code compares keys, never names. `db.Human` goes away: `actor.IsPerson(k)`, `actor.Kind(k)` and the caller's role replace the comparisons. Where the daemon names the person with no caller in hand (a request to them, their card, an event they cause), phase 1 writes `actor.OwnerKey`, which is `p1`.
 - Words exist only at the edges: an address read from `hl` or a comment, and a name written out to an agent or the app.
 
 ## Names
@@ -128,7 +128,7 @@ Work happens on a branch, `base-v2`. It cannot land in parts, because the team r
 
 - **2 - personal mode and the first run.** The screens are designed and shown to the founder before they are built: first run, new workspace, the sidebar by workspace, settings. The first-run fixes already agreed are part of it: installing the tools on a bare Mac, the account and folder steps, the lead proposing the team, the settings cut, resource leases, the one device tab, signing. Signing needs the founder's Apple developer account.
 - **3 - between workspaces.** Delivery to a workspace's lead, its hand-on or send-back, and both sides seeing the task.
-- **4 - team mode.** Invite links, handles, roles, what a member sees, turns and the bell per person, and agents running only on their owner's accounts. A legal check of the plan terms comes first.
+- **4 - team mode.** Invite links, handles, roles, what a member sees, turns and the bell per person, agents running only on their owner's accounts, and each `actor.OwnerKey` becoming the agent's owner or the task's person. A legal check of the plan terms comes first.
 
 ## Not now
 

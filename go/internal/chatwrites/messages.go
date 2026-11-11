@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/taskboard/attachments"
@@ -77,7 +78,7 @@ func (w *writes) say(c *rpc.Conn, p map[string]any) (any, error) {
 				return nil, err
 			}
 		}
-		files, err := w.images.AddImages(tx, w.e.Home, me, me == db.Human, paths)
+		files, err := w.images.AddImages(tx, w.e.Home, me, me == actor.OwnerKey, paths)
 		if err != nil {
 			return nil, err
 		}

@@ -13,6 +13,7 @@ import (
 	"github.com/handline/handline/go/agentctl/term"
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/storetest"
 	"github.com/handline/handline/go/scheduler/session"
 )
@@ -412,7 +413,7 @@ func TestAStaleDialogStallCardIsResolved(t *testing.T) {
 	} {
 		var args []any
 		if strings.Contains(stmt, "?") {
-			args = append(args, db.Human)
+			args = append(args, actor.OwnerKey)
 		}
 		if _, err := r.Q.Exec(stmt, args...); err != nil {
 			t.Fatal(err)

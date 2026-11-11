@@ -17,9 +17,6 @@ type Q interface {
 	QueryRow(query string, args ...any) *sql.Row
 }
 
-// Human is the owner's key: p1, the first person, whom the first start makes (actor.EnsureOwner). Goes in base-v2 1b-4.
-const Human = "p1"
-
 // Gate owns a task that watches outside state (a PR's CI or its close); the daemon closes it when that state changes. Not an agent.
 const Gate = "gate"
 

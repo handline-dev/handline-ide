@@ -67,7 +67,7 @@ func decide(e *supervisor.Env, tell taskwrites.Teller, q db.Q, tid int64, text s
 	switch {
 	case t == nil:
 		return refusal(fmt.Sprintf("no task T%d", tid)), nil
-	case t.Owner != db.Human:
+	case t.Owner != actor.OwnerKey:
 		return refusal(fmt.Sprintf("task T%d is not the founder's to decide", tid)), nil
 	case t.Ended():
 		return refusal(fmt.Sprintf("task T%d is already decided", tid)), nil
@@ -97,7 +97,7 @@ func decide(e *supervisor.Env, tell taskwrites.Teller, q db.Q, tid int64, text s
 		return nil, err
 	}
 	var resolved *supervisor.Resolved
-	if card != nil && card.State == "queued" && card.Target == db.Human {
+	if card != nil && card.State == "queued" && card.Target == actor.OwnerKey {
 		r, ok, msg, err := e.ResolveWrite(q, supervisor.ResolveIn{RID: card.ID, Verdict: text, Effect: effect})
 		if err != nil {
 			return nil, err
@@ -112,7 +112,7 @@ func decide(e *supervisor.Env, tell taskwrites.Teller, q db.Q, tid int64, text s
 	if !ok || tell == nil {
 		return nil, fmt.Errorf("deciding T%d needs the call's transaction and the task teller", tid)
 	}
-	done, err := taskwrites.MarkDone(tx, e.Home, db.Human, taskwrites.DoneIn{Task: tid, Words: text})
+	done, err := taskwrites.MarkDone(tx, e.Home, actor.OwnerKey, taskwrites.DoneIn{Task: tid, Words: text})
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +127,7 @@ func decide(e *supervisor.Env, tell taskwrites.Teller, q db.Q, tid int64, text s
 			guarded(e, fmt.Sprintf("telling after the decision on T%d", tid), func() (string, error) { return e.ResolveTell(e.DB, resolved) })
 		}
 		guarded(e, fmt.Sprintf("telling after T%d was decided", tid), func() (string, error) {
-			tell.Done(tid, db.Human, done.Owner, done.Told, done.Finished)
+			tell.Done(tid, actor.OwnerKey, done.Owner, done.Told, done.Finished)
 			return "", nil
 		})
 		return decided
@@ -151,11 +151,11 @@ func DecideCard(e *supervisor.Env, tell taskwrites.Teller) taskwrites.CardDecide
 			return false, "", nil, nil
 		}
 		t, err := db.GetTask(tx, tid)
-		if err != nil || t == nil || t.Owner != db.Human || t.Ended() {
+		if err != nil || t == nil || t.Owner != actor.OwnerKey || t.Ended() {
 			return false, "", nil, err
 		}
 		card, err := cardOf(tx, tid)
-		if err != nil || card == nil || card.State != "queued" || card.Target != db.Human {
+		if err != nil || card == nil || card.State != "queued" || card.Target != actor.OwnerKey {
 			return false, "", nil, err
 		}
 		res, err := decide(e, tell, tx, tid, words, nil)
@@ -234,7 +234,7 @@ func CancelPlan(q db.Q, rid int64) (bool, string, error) {
 		}
 	}
 	told := requester + " is not told"
-	if requester == db.Human { // the confirm is the founder's to read
+	if requester == actor.OwnerKey { // the confirm is the founder's to read
 		told = "you are not told"
 	}
 	if row.DeliveredAt.Valid {
@@ -265,7 +265,7 @@ func ForYouSeen(q db.Q, agent string, upto int64) error {
 	if err := db.SetCursor(q, key, upto); err != nil {
 		return err
 	}
-	ids, err := db.IDs(q, "SELECT id FROM requests WHERE target = ? AND requester = ? AND id <= ? AND read_at IS NULL AND memo_id IS NULL", db.Human, agent, upto)
+	ids, err := db.IDs(q, "SELECT id FROM requests WHERE target = ? AND requester = ? AND id <= ? AND read_at IS NULL AND memo_id IS NULL", actor.OwnerKey, agent, upto)
 	if err != nil {
 		return err
 	}

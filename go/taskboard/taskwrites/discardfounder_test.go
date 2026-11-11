@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/handline/handline/go/data/team/teamtest"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/kit/storetest"
 	"github.com/handline/handline/go/protocol/rpc"
@@ -49,7 +50,7 @@ func TestTheFoundersDiscardWithdrawsTheRequestsOutOnTheTask(t *testing.T) {
 		t.Fatalf("an agent's discard of a task with a request out: %v", r)
 	}
 	r = discard("c1", 1)
-	if r["error"] != nil || r["result"].(map[string]any)["said"] != "task T1 discarded by "+rpc.Human+": Discarded" {
+	if r["error"] != nil || r["result"].(map[string]any)["said"] != "task T1 discarded by "+actor.OwnerKey+": Discarded" {
 		t.Fatalf("discard: %v", r)
 	}
 	if count("SELECT COUNT(*) FROM requests WHERE id = 10 AND state = 'landed' AND queue_order IS NULL") != 1 ||
@@ -70,7 +71,7 @@ func TestTheFoundersDiscardWithdrawsTheRequestsOutOnTheTask(t *testing.T) {
 
 	// The founder's own task: its request is its card, and withdrawing the card is part of this discard, not someone else's.
 	r = discard("c3", 3)
-	if r["error"] != nil || r["result"].(map[string]any)["said"] != "task T3 discarded by "+rpc.Human+": Discarded" {
+	if r["error"] != nil || r["result"].(map[string]any)["said"] != "task T3 discarded by "+actor.OwnerKey+": Discarded" {
 		t.Fatalf("a founder-owned task: %v", r)
 	}
 	if count("SELECT COUNT(*) FROM tasks WHERE id = 3 AND discard_reason = 'Discarded'") != 1 ||

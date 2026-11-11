@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/peer"
 	"github.com/handline/handline/go/kit/pyjson"
 	"github.com/handline/handline/go/protocol/authority"
@@ -39,9 +40,6 @@ func anonymous() Caller {
 	return Caller{Kind: "anonymous", Role: "anonymous", Info: map[string]any{"kind": "anonymous", "name": "anonymous"}}
 }
 
-// Human is the key a write is made under for the founder and any device: the owner, p1 (db.Human).
-const Human = "p1"
-
 // identify is the local caller: owner gives the owner's key, whom the founder key proves.
 func identify(a authority.Authority, local bool, pid int, key string, owner func() string, founderName string) Caller {
 	if local {
@@ -58,7 +56,7 @@ func identify(a authority.Authority, local bool, pid int, key string, owner func
 // Actor is the key a write is made under: the caller's own, the owner's for an anonymous one (which no write method admits).
 func (c Caller) Actor() string {
 	if c.Key == "" {
-		return Human
+		return actor.OwnerKey
 	}
 	return c.Key
 }
@@ -124,7 +122,7 @@ func (s *Server) noteFounderKey(pid int, client string) {
 	}
 	chain, terminal := processChain(pid)
 	payload := pyjson.PyJSON(map[string]any{"pid": pid, "chain": chain, "terminal": terminal, "client": client}, false, false)
-	if _, err := s.DB.Exec("INSERT INTO events(ts, agent, kind, payload) VALUES(?, ?, 'founder_key', ?)", time.Now().Unix(), Human, payload); err != nil && s.Log != nil {
+	if _, err := s.DB.Exec("INSERT INTO events(ts, agent, kind, payload) VALUES(?, ?, 'founder_key', ?)", time.Now().Unix(), actor.OwnerKey, payload); err != nil && s.Log != nil {
 		s.Log("  founder key: the record of pid %d was not written: %v", pid, err)
 	}
 }

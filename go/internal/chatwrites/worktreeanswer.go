@@ -8,6 +8,7 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/internal/worktreeprune"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
@@ -28,7 +29,7 @@ func answerWorktree(tx db.Q, tid int64, words string, now time.Time) (handled bo
 	if err != nil || t == nil || t.Ended() {
 		return false, "", err
 	}
-	if t.OpenedBy != db.Human { // tags are free text: only the daemon's own question, opened as the founder's, is one
+	if t.OpenedBy != actor.OwnerKey { // tags are free text: only the daemon's own question, opened as the founder's, is one
 		return false, "", nil
 	}
 	card, err := cardOf(tx, tid)

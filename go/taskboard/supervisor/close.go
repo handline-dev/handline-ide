@@ -135,7 +135,7 @@ func (e *Env) CancelWrite(q db.Q, after *After, rid int64, effect func(q db.Q, m
 	if !e.closeWrite(q, rid, row, CancelVerdict) {
 		return nil, false, lostClose(q, rid, "cancelled", "cancel"), nil
 	}
-	must(db.AddEvent(q, db.Human, "cancel", db.KV{K: "request_id", V: rid}, db.KV{K: "target", V: row.Target}, db.KV{K: "requester", V: row.Requester},
+	must(db.AddEvent(q, actor.OwnerKey, "cancel", db.KV{K: "request_id", V: rid}, db.KV{K: "target", V: row.Target}, db.KV{K: "requester", V: row.Requester},
 		db.KV{K: "delivered", V: row.DeliveredAt.Valid && row.DeliveredAt.Int64 != 0}))
 	if effect != nil {
 		if err := effect(q, fmt.Sprintf("%s to %s cancelled", db.MsgName(q, rid), row.Target)); err != nil {

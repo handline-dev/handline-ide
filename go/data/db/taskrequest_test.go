@@ -3,6 +3,8 @@ package db
 import (
 	"fmt"
 	"testing"
+
+	"github.com/handline/handline/go/kit/actor"
 )
 
 // The turn rule (turnRequest), case by case: manager's last Stop was at 10, and T1 holds founder message 1 (a top-level one) by from_request.
@@ -17,24 +19,24 @@ func TestTheTurnRuleTakesTheNewestFounderMessageOfTheTurn(t *testing.T) {
 		name, owner, want string
 		setup             []string
 	}{
-		{"a top-level founder message in the turn", "", "own", []string{msg(5, Human, "say", 11, 1, "NULL")}},
-		{"one that landed in the second of the Stop", "", "own", []string{msg(5, Human, "say", 10, 1, "NULL")}},
-		{"one to another agent", "", "", []string{msg(5, Human, "say", 11, 1, "NULL"), "UPDATE requests SET target = 'other' WHERE id = 5"}},
-		{"only one from before the last Stop", "", "", []string{msg(5, Human, "say", 9, 1, "NULL")}},
-		{"a StopFailure ends a turn too", "", "", []string{msg(5, Human, "say", 11, 1, "NULL"), "INSERT INTO events(ts, agent, kind) VALUES(12, 'manager', 'StopFailure')"}},
-		{"the newest of two: a free one after one T1 holds", "", "own", []string{msg(5, Human, "say", 11, 1, "1"), msg(6, Human, "say", 12, 1, "NULL")}},
-		{"the newest of two: one T1 holds after a free one", "", "T1", []string{msg(5, Human, "say", 11, 1, "NULL"), msg(6, Human, "say", 12, 1, "1")}},
+		{"a top-level founder message in the turn", "", "own", []string{msg(5, actor.OwnerKey, "say", 11, 1, "NULL")}},
+		{"one that landed in the second of the Stop", "", "own", []string{msg(5, actor.OwnerKey, "say", 10, 1, "NULL")}},
+		{"one to another agent", "", "", []string{msg(5, actor.OwnerKey, "say", 11, 1, "NULL"), "UPDATE requests SET target = 'other' WHERE id = 5"}},
+		{"only one from before the last Stop", "", "", []string{msg(5, actor.OwnerKey, "say", 9, 1, "NULL")}},
+		{"a StopFailure ends a turn too", "", "", []string{msg(5, actor.OwnerKey, "say", 11, 1, "NULL"), "INSERT INTO events(ts, agent, kind) VALUES(12, 'manager', 'StopFailure')"}},
+		{"the newest of two: a free one after one T1 holds", "", "own", []string{msg(5, actor.OwnerKey, "say", 11, 1, "1"), msg(6, actor.OwnerKey, "say", 12, 1, "NULL")}},
+		{"the newest of two: one T1 holds after a free one", "", "T1", []string{msg(5, actor.OwnerKey, "say", 11, 1, "NULL"), msg(6, actor.OwnerKey, "say", 12, 1, "1")}},
 		{"an agent's message", "", "", []string{msg(5, "gp", "say", 11, 1, "NULL")}},
-		{"a founder's task ask, not a say", "", "", []string{msg(5, Human, "task", 11, 1, "NULL")}},
-		{"words the founder's connection did not send", "", "", []string{msg(5, Human, "say", 11, 0, "NULL")}},
-		{"a reply in a thread linked to T1", "", "T1", []string{msg(5, Human, "say", 3, 1, "NULL"), "INSERT INTO task_requests(task_id, request_id) VALUES(1, 5)", msg(6, Human, "say", 11, 1, "5")}},
-		{"a task for the founder", Human, "", []string{msg(5, Human, "say", 11, 1, "NULL")}},
-		{"a gate", Gate, "", []string{msg(5, Human, "say", 11, 1, "NULL")}},
+		{"a founder's task ask, not a say", "", "", []string{msg(5, actor.OwnerKey, "task", 11, 1, "NULL")}},
+		{"words the founder's connection did not send", "", "", []string{msg(5, actor.OwnerKey, "say", 11, 0, "NULL")}},
+		{"a reply in a thread linked to T1", "", "T1", []string{msg(5, actor.OwnerKey, "say", 3, 1, "NULL"), "INSERT INTO task_requests(task_id, request_id) VALUES(1, 5)", msg(6, actor.OwnerKey, "say", 11, 1, "5")}},
+		{"a task for the founder", actor.OwnerKey, "", []string{msg(5, actor.OwnerKey, "say", 11, 1, "NULL")}},
+		{"a gate", Gate, "", []string{msg(5, actor.OwnerKey, "say", 11, 1, "NULL")}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			q := open(t)
 			for _, s := range append([]string{
-				msg(1, Human, "say", 2, 1, "NULL"),
+				msg(1, actor.OwnerKey, "say", 2, 1, "NULL"),
 				"INSERT INTO tasks(id, title, owner, opened_by, created_at, request, from_request) VALUES(1, 'held', 'manager', 'human', 1, 1, 1)",
 				"INSERT INTO events(ts, agent, kind) VALUES(10, 'manager', 'Stop')",
 			}, c.setup...) {

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/protected"
 	"github.com/handline/handline/go/kit/pyjson"
@@ -136,7 +137,7 @@ func (e *Env) notify(p *Prop, who, text string) {
 		}
 		// The notice names its proposal (chat's `proposal`), so an app that draws the decided proposal can leave this line out.
 		if pid, ok := hexNum(p.id()); ok && isAlnum(p.id()) {
-			if _, err := db.AddEventDeduped(tx, db.Human, "proposal_outcome", fmt.Sprintf("proposal_outcome:%d", rid), db.KV{K: "proposal", V: pid}, db.KV{K: "request", V: rid}); err != nil {
+			if _, err := db.AddEventDeduped(tx, actor.OwnerKey, "proposal_outcome", fmt.Sprintf("proposal_outcome:%d", rid), db.KV{K: "proposal", V: pid}, db.KV{K: "request", V: rid}); err != nil {
 				return err
 			}
 		}
@@ -229,7 +230,7 @@ func (e *Env) withdrawMethod(c *rpc.Conn, params map[string]any) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	if me := c.Caller.Actor(); me != db.Human && me != prop.str("requested_by") {
+	if me := c.Caller.Actor(); c.Caller.Role != "owner" && me != prop.str("requested_by") {
 		return nil, rpc.Refused(fmt.Sprintf("proposal %s is %s's to withdraw, not yours", prop.id(), prop.str("requested_by")), "role", "")
 	}
 	ctx := context.Background()
@@ -272,7 +273,7 @@ func (e *Env) decide(pid, call, by, note, subject string, tell bool) (bool, stri
 	if call != "approved" && call != "rejected" {
 		return false, "decide `approved` or `rejected`", nil
 	}
-	if by != db.Human {
+	if by != actor.OwnerKey {
 		return false, fmt.Sprintf("proposal %s is the founder's to decide, not %s's", pid, by), nil
 	}
 	if call == "approved" && subject == "" {
@@ -504,7 +505,7 @@ func (e *Env) decideMethod(c *rpc.Conn, params map[string]any) (any, error) {
 	}
 	got, stop := e.await(prop.id())
 	defer stop()
-	done, said, err := e.decide(prop.id(), call, db.Human, note, subject, true)
+	done, said, err := e.decide(prop.id(), call, c.Caller.Actor(), note, subject, true)
 	if err != nil {
 		return nil, err
 	}

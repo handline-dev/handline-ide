@@ -106,7 +106,7 @@ func newMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, e
 		if err != nil {
 			return nil, err
 		}
-		if owner != human && owner != db.Gate && !contains(paths.ListAgents(home), owner) {
+		if owner != actor.OwnerKey && owner != db.Gate && !contains(paths.ListAgents(home), owner) {
 			return nil, agentNotFound(owner)
 		}
 		watched, err := watchParam(p, owner)
@@ -121,7 +121,7 @@ func newMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, e
 			if reporter, err = text(p, "reporter"); err != nil {
 				return nil, err
 			}
-			if reporter != human && !contains(paths.ListAgents(home), reporter) {
+			if reporter != actor.OwnerKey && !contains(paths.ListAgents(home), reporter) {
 				return nil, agentNotFound(reporter)
 			}
 		}
@@ -158,7 +158,7 @@ func newMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, e
 		if noParent && hasParent {
 			return nil, badParam("no_parent and parent together: choose one", "no_parent")
 		}
-		if actor.IsPerson(owner) && c.Caller.Actor() != human {
+		if actor.IsPerson(owner) && c.Caller.Role != "owner" {
 			return nil, refusal(newForFounder)
 		}
 		tags, err := TagList(p, "tags")
@@ -174,7 +174,7 @@ func newMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, e
 		}
 		me := c.Caller.Actor()
 		expects := "report"
-		if actor.IsPerson(owner) && me != human { // a task given to the founder is a decision
+		if actor.IsPerson(owner) && me != actor.OwnerKey { // a task given to the founder is a decision
 			expects = "decision"
 		}
 		clean := strings.TrimSpace(textsafe.Oneline(title))
@@ -380,8 +380,8 @@ func OpenTask(tx *sql.Tx, tell Teller, me string, in NewIn) (tid int64, asked *A
 				return err
 			}
 		}
-		if me == human { // the founder's own task needs no one's approval
-			if _, err := db.SetTaskQueued(tx, tid, human); err != nil {
+		if me == actor.OwnerKey { // the founder's own task needs no one's approval
+			if _, err := db.SetTaskQueued(tx, tid, actor.OwnerKey); err != nil {
 				return err
 			}
 		}
@@ -436,10 +436,10 @@ func OpenTask(tx *sql.Tx, tell Teller, me string, in NewIn) (tid int64, asked *A
 		}
 		return tid, &Asked{OK: true, Msg: "watching " + in.Watch.Label}, nil
 	}
-	if me == human && actor.IsPerson(owner) {
+	if me == actor.OwnerKey && actor.IsPerson(owner) {
 		// A todo of the founder's own: routing has no founder-to-founder edge, so its brief is written as the request any task to the
 		// founder carries, queued on their screen, without being routed or told.
-		rid, err := db.AddRequest(tx, db.NewRequest{Requester: human, Target: human, Body: body, Kind: "task"})
+		rid, err := db.AddRequest(tx, db.NewRequest{Requester: actor.OwnerKey, Target: actor.OwnerKey, Body: body, Kind: "task"})
 		if err != nil {
 			return 0, nil, err
 		}
