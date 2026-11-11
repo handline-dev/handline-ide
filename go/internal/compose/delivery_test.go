@@ -126,7 +126,7 @@ func TestTheTriggerOfAClosedAgentWhoseWakeIsWalledIsTheWaitTheDaemonPrints(t *te
 		t.Helper()
 		r := call(t, srv, `{"jsonrpc":"2.0","id":2,"method":"agents.list","params":{"status":true}}`)[0]
 		for _, a := range r["result"].(map[string]any)["agents"].([]any) {
-			if a := a.(map[string]any); a["name"] == alice {
+			if a := a.(map[string]any); a["key"] == alice {
 				return a["wake_wait_reason"]
 			}
 		}

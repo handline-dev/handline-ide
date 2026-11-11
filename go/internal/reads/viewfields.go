@@ -1,6 +1,7 @@
 package reads
 
 import (
+	"errors"
 	"strings"
 
 	"github.com/handline/handline/go/data/db"
@@ -114,12 +115,14 @@ type viewCtx struct {
 	*viewFields
 	roster *team.Roster
 	team   *team.Team // nil when the team cannot be read: every agent then does work
+	ids    map[string]Ident
 }
 
 func (e *Env) viewCtx() (*viewCtx, error) {
 	f, err := e.viewFields()
 	t, _ := team.LoadTeam(e.Home)
-	return &viewCtx{f, team.NewRoster(e.Home), t}, err
+	ids, idErr := Idents(e.DB)
+	return &viewCtx{f, team.NewRoster(e.Home), t, ids}, errors.Join(err, idErr)
 }
 
 // addFields puts the fields on a decoded view.

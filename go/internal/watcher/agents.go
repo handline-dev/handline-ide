@@ -4,14 +4,18 @@ import (
 	"cmp"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/handline/handline/go/agentctl/dialogs"
 	"github.com/handline/handline/go/data/stream"
+	"github.com/handline/handline/go/internal/reads"
 )
 
 // Agents is the agents topic: a changed agent_view row is agent.changed (the view as data), one that turned stalled also says so on the
-// notifications topic, and a row gone is agent.removed. It reads the table whoever wrote the row. Its first look says nothing.
+// notifications topic, and a row gone is agent.removed. It reads the table whoever wrote the row; a view carries the agent's name,
+// workspace and owner, so a rename is agent.changed too. Its first look says nothing.
 type Agents struct {
 	seen  map[string]string
 	query string // tests: a read that fails part way
@@ -19,7 +23,7 @@ type Agents struct {
 
 func (*Agents) Name() string { return "agents" }
 
-func (*Agents) Tables() []string { return []string{"agent_view"} }
+func (*Agents) Tables() []string { return []string{"agent_view", "agents"} }
 
 func stateOf(view string) string {
 	var v struct {
@@ -56,6 +60,10 @@ func stuck(view string) bool {
 }
 
 func (a *Agents) Scan(q *sql.DB, emit Emit) error {
+	ids, err := reads.Idents(q)
+	if err != nil {
+		return err
+	}
 	rows, err := q.Query(cmp.Or(a.query, "SELECT agent, view FROM agent_view"))
 	if err != nil {
 		return err
@@ -67,7 +75,11 @@ func (a *Agents) Scan(q *sql.DB, emit Emit) error {
 		if err := rows.Scan(&name, &view); err != nil {
 			return err
 		}
-		now[name] = view
+		wire, err := withIdent(name, view, ids)
+		if err != nil {
+			return fmt.Errorf("agent %s: view: %w", name, err) // as agents.list refuses it
+		}
+		now[name] = wire
 	}
 	if err := rows.Err(); err != nil { // a read that stopped short is not a list with agents gone
 		return err
@@ -112,9 +124,22 @@ func (a *Agents) Scan(q *sql.DB, emit Emit) error {
 	}
 	slices.Sort(gone)
 	for _, name := range gone {
-		if _, err := emit(stream.Entry{Topic: "agents", Type: "agent.removed", Data: map[string]any{"name": name}, Agent: name}); err != nil {
+		if _, err := emit(stream.Entry{Topic: "agents", Type: "agent.removed", Data: map[string]any{"key": name}, Agent: name}); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// withIdent is the stored view of the agent whose key is key as the wire has it (reads.WithIdent).
+func withIdent(key, view string, ids map[string]reads.Ident) (string, error) {
+	var v map[string]any
+	dec := json.NewDecoder(strings.NewReader(view))
+	dec.UseNumber()
+	if err := dec.Decode(&v); err != nil {
+		return "", err
+	}
+	reads.WithIdent(v, key, ids)
+	b, err := json.Marshal(v)
+	return string(b), err
 }

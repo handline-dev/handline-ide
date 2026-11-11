@@ -17,7 +17,7 @@ func listed(t *testing.T, e *Env, params map[string]any) map[string]map[string]a
 	}
 	out := map[string]map[string]any{}
 	for _, a := range got.(map[string]any)["agents"].([]map[string]any) {
-		out[a["name"].(string)] = a
+		out[a["key"].(string)] = a
 	}
 	return out
 }
