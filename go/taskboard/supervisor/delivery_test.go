@@ -25,7 +25,7 @@ func TestASayIsTypedWithItsLines(t *testing.T) {
 	out, err := r.Say(r.DB, SayIn{Target: r.k(("bob")), Body: "Done:\n\n- one\x07\n- two\n", Requester: r.k(("alice"))})
 	r.must(err)
 	head := mustReq(r, out.RID)
-	if got := r.ids(tellText(r.DB, head, 1, nil, false, nil, "")); !strings.HasPrefix(got, "#1 from alice, waiting for you:\nDone:\n\n- one\n- two\n`hl read #1`") {
+	if got := r.ids(tellText(r.DB, head, 1, nil, false, nil, "")); !strings.HasPrefix(r.named(got), "#1 from alice, waiting for you:\nDone:\n\n- one\n- two\n`hl read #1`") {
 		t.Fatalf("%q", got)
 	}
 }
@@ -38,7 +38,7 @@ func TestAHandoffNoteIsTypedWithItsLinesAndTheTitleOnItsOwn(t *testing.T) {
 		"check it":              "T1 handed to you. Note: check it Title: write the docs\n",
 	} {
 		head := mustReq(r, r.ask(r.k("alice"), r.k(("bob")), "T1 handed to you by alice: write the docs\n\n"+note, "task"))
-		if got := tellText(r.DB, head, 1, nil, false, nil, ""); !strings.Contains(got, "waiting for you:\n"+want) {
+		if got := tellText(r.DB, head, 1, nil, false, nil, ""); !strings.Contains(r.named(got), "waiting for you:\n"+want) {
 			t.Errorf("%q", got)
 		}
 	}
@@ -56,7 +56,7 @@ func TestDeliverQueuedTellsTheHeadTaskThenBatchesWhatArrivesBehindIt(t *testing.
 	if n, _ := db.Cursor(r.DB, "notify:"+r.k("bob")); n != head {
 		t.Fatalf("notify cursor %d", n)
 	}
-	if got := r.term.last(); !strings.HasPrefix(got, "#1 from alice, waiting for you:\nfirst job\n`hl read #1` shows it whole; you own T1 now: hand it on with ") {
+	if got := r.term.last(); !strings.HasPrefix(r.named(got), "#1 from alice, waiting for you:\nfirst job\n`hl read #1` shows it whole; you own T1 now: hand it on with ") {
 		t.Fatalf("%q", got)
 	}
 	// two more arrive behind the open head: told as a batch, once a minute
@@ -346,7 +346,7 @@ func TestWhilePausedOnlyAPassedTaskIsToldAndThePausesLoadWordDoesNotHoldIt(t *te
 		t.Fatal("the passed task was held")
 	}
 	typed := strings.Join(r.term.typed, "\n")
-	if !strings.Contains(typed, "the second job") || strings.Contains(typed, "the first job") {
+	if !strings.Contains(r.named(typed), "the second job") || strings.Contains(r.named(typed), "the first job") {
 		t.Fatalf("told: %q", typed)
 	}
 	r3 := newRig(t)

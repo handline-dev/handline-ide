@@ -26,11 +26,11 @@ func TestSweepHoldsRecordsWhyEachTaskWaitsAndWarnsOnceWhenNothingIsInTheWay(t *t
 	db.SetCurrentTask(r.DB, r.k(("bob")), a, true)
 	r.must(r.SweepHolds(r.clock))
 	raw, _, _ := db.Meta(r.DB, "taskhold:1")
-	if raw != `{"why": "nothing is in the way - the daemon sends it on its next tick", "on": "owner", "able": true, "since": 100000, "able_since": 100000}` {
+	if r.named(raw) != `{"why": "nothing is in the way - the daemon sends it on its next tick", "on": "owner", "able": true, "since": 100000, "able_since": 100000}` {
 		t.Fatalf("%s", raw)
 	}
 	raw, _, _ = db.Meta(r.DB, "taskhold:2")
-	if raw != `{"why": "behind T1, which bob holds (still open)", "on": "owner", "able": false, "since": 100000}` {
+	if r.named(raw) != `{"why": "behind T1, which bob holds (still open)", "on": "owner", "able": false, "since": 100000}` {
 		t.Fatalf("%s", raw)
 	}
 	// blocked
@@ -39,7 +39,7 @@ func TestSweepHoldsRecordsWhyEachTaskWaitsAndWarnsOnceWhenNothingIsInTheWay(t *t
 	r.clock += 10
 	r.must(r.SweepHolds(r.clock))
 	raw, _, _ = db.Meta(r.DB, "taskhold:2")
-	if raw != `{"why": "blocked by T3 (alice)", "on": "task", "able": false, "since": 100010}` {
+	if r.named(raw) != `{"why": "blocked by T3 (alice)", "on": "task", "able": false, "since": 100010}` {
 		t.Fatalf("%s", raw)
 	}
 	// able for five minutes: the owner's lead is told once, the founder never
@@ -140,11 +140,11 @@ func TestAgentReasonNamesTheFirstGateInTheOrderItIsMet(t *testing.T) {
 		t.Fatal("a contestable screen reading is contested only when the state says idle")
 	}
 	db.SetCursor(r.DB, "clear_owed:"+r.k("bob"), 5)
-	if why, _ := r.agentReason(r.DB, r.k(("bob")), r.clock); !strings.Contains(why, "owes a context clear first") {
+	if why, _ := r.agentReason(r.DB, r.k(("bob")), r.clock); !strings.Contains(r.named(why), "owes a context clear first") {
 		t.Fatal(why)
 	}
 	r.Stuck = fakeStuck{why: "bob is mid-turn - nothing is typed at a working agent"}
-	if why, _ := r.agentReason(r.DB, r.k(("bob")), r.clock); !strings.Contains(why, "mid-turn") {
+	if why, _ := r.agentReason(r.DB, r.k(("bob")), r.clock); !strings.Contains(r.named(why), "mid-turn") {
 		t.Fatal(why)
 	}
 	db.BlockOpen(r.DB, r.k(("bob")), "dialog", "trust?", "w", 1, 1, "tick", "t")
@@ -181,7 +181,7 @@ func TestABusyAgentPastTheWindowGetsNoDigestUntilItsTurnEndsThenOne(t *testing.T
 	}
 	want := "Result digest - 3 results since "
 	got := r.term.last()
-	if !strings.Contains(got, want) || !strings.Contains(got, "shows one whole:\nT5 · alice · it works (#1)\nT6 · alice · discarded: not needed (#2)\nsomething else (#3)\n") {
+	if !strings.Contains(got, want) || !strings.Contains(r.named(got), "shows one whole:\nT5 · alice · it works (#1)\nT6 · alice · discarded: not needed (#2)\nsomething else (#3)\n") {
 		t.Fatalf("%q", got)
 	}
 	if left, _ := db.PendingNotices(r.DB, r.k(("bob"))); len(left) != 0 {
@@ -237,7 +237,7 @@ func TestStoppedAgentsAreToldToWhoeverWaitsOnThemOncePerSpell(t *testing.T) {
 	r.newTask(r.k("bob"), r.k(("alice")), "bob's job")
 	db.SetStalled(r.DB, r.k(("bob")), "send_dialog", "cannot get past a dialog: Trust?", nil)
 	r.must(r.SweepStopped(r.clock))
-	if got := r.term.last(); !strings.Contains(got, "bob is stalled: cannot get past a dialog: Trust?") {
+	if got := r.term.last(); !strings.Contains(r.named(got), "bob is stalled: cannot get past a dialog: Trust?") {
 		t.Fatalf("%q", got)
 	}
 	r.term.typed = nil
@@ -249,7 +249,7 @@ func TestStoppedAgentsAreToldToWhoeverWaitsOnThemOncePerSpell(t *testing.T) {
 	r.must(r.SweepStopped(r.clock + 2))
 	db.SetAgentState(r.DB, r.k(("bob")), "STALLED", 0, "gone wrong")
 	r.must(r.SweepStopped(r.clock + 3))
-	if got := r.term.last(); !strings.Contains(got, "bob is FATAL: gone wrong") {
+	if got := r.term.last(); !strings.Contains(r.named(got), "bob is FATAL: gone wrong") {
 		t.Fatalf("a new spell is told afresh: %q", got)
 	}
 }

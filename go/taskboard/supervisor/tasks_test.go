@@ -193,7 +193,7 @@ func TestADiscardedBlockerReleasesWhatItBlockedOnce(t *testing.T) {
 		t.Fatal("still blocked")
 	}
 	typed := strings.Join(r.term.typed, "\n")
-	if !strings.Contains(typed, "second") || strings.Contains(typed, "is unblocked") {
+	if !strings.Contains(r.named(typed), "second") || strings.Contains(r.named(typed), "is unblocked") {
 		t.Fatalf("%q", r.term.typed)
 	}
 	if req, _ := db.GetRequest(r.DB, 1); req.State != "withdrawn" {
@@ -230,7 +230,7 @@ func TestADoneBlockerReleasesOncePerFinishAndAChildsResultIsNotTold(t *testing.T
 	if left, _ := db.PendingNotices(r.DB, r.k(("bob"))); len(left) != 0 {
 		t.Fatalf("a shown notice stays pending: %+v", left)
 	}
-	if strings.Contains(typed, "is unblocked") {
+	if strings.Contains(r.named(typed), "is unblocked") {
 		t.Fatalf("the task went out, the unblocked say is extra: %q", r.term.typed)
 	}
 	// the block row stays for a reopen: no second release for the same finish

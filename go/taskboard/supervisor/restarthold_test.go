@@ -19,10 +19,10 @@ func TestAMessageBetweenTheHandoffDecisionAndTheCloseGoesToTheNewSession(t *test
 	r.agentUp(r.k("bob"))
 	r.decideHandoff(r.k("bob"))
 	rid := r.founderSays(r.k("bob"), "are you there?")
-	if got, _ := r.TellNow(r.DB, rid); !strings.Contains(got, "held while it restarts") {
+	if got, _ := r.TellNow(r.DB, rid); !strings.Contains(r.named(got), "held while it restarts") {
 		t.Fatalf("told at once: %q", got)
 	}
-	if ok, msg, _ := r.SendMessage(r.DB, r.k(("bob")), "a bare line"); !ok || strings.Contains(msg, "typed") {
+	if ok, msg, _ := r.SendMessage(r.DB, r.k(("bob")), "a bare line"); !ok || strings.Contains(r.named(msg), "typed") {
 		t.Fatalf("a pending line: %v %q", ok, msg)
 	}
 	if last := r.term.last(); last != "" {
@@ -80,7 +80,7 @@ func TestAHandoffRowLeftOpenHoldsNoLongerThanTheCeiling(t *testing.T) {
 	r.agentUp(r.k("bob"))
 	r.decideHandoff(r.k("bob"))
 	r.clock += db.NoteWaitStaleS - 1
-	if got, _ := r.TellNow(r.DB, r.ask(r.k("alice"), r.k(("bob")), "inside", "ask")); !strings.Contains(got, "held while it restarts") {
+	if got, _ := r.TellNow(r.DB, r.ask(r.k("alice"), r.k(("bob")), "inside", "ask")); !strings.Contains(r.named(got), "held while it restarts") {
 		t.Fatalf("not held inside the ceiling: %q", got)
 	}
 	r.clock += 2
@@ -95,7 +95,7 @@ func TestAMessageWhileAClearIsOwedGoesToTheNewSession(t *testing.T) {
 	r.agentUp(r.k("bob"))
 	r.must(db.SetCursor(r.DB, "clear_owed:"+r.k("bob"), r.now()))
 	rid := r.founderSays(r.k("bob"), "are you there?")
-	if got, _ := r.TellNow(r.DB, rid); !strings.Contains(got, "held while it restarts") {
+	if got, _ := r.TellNow(r.DB, rid); !strings.Contains(r.named(got), "held while it restarts") {
 		t.Fatalf("told at once: %q", got)
 	}
 	if last := r.term.last(); last != "" {
@@ -121,7 +121,7 @@ func TestAMessageWhileTheTriggerIsDeferredGoesToTheNewSession(t *testing.T) {
 	r.agentUp(r.k("bob"))
 	r.must(db.MarkDeferred(r.DB, r.k(("bob")), r.now()))
 	rid := r.founderSays(r.k("bob"), "are you there?")
-	if got, _ := r.TellNow(r.DB, rid); !strings.Contains(got, "held while it restarts") {
+	if got, _ := r.TellNow(r.DB, rid); !strings.Contains(r.named(got), "held while it restarts") {
 		t.Fatalf("told at once: %q", got)
 	}
 	if last := r.term.last(); last != "" {

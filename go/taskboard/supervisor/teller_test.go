@@ -45,7 +45,7 @@ func TestTheTellerAfterADiscardAdvancesTheOwnerAndTypesTheSays(t *testing.T) {
 		t.Fatalf("the owner was not moved on: %d", cur)
 	}
 	typed := strings.Join(r.term.typed, "\n")
-	if !strings.Contains(typed, "T1 discarded by alice: not needed") {
+	if !strings.Contains(r.named(typed), "T1 discarded by alice: not needed") {
 		t.Fatalf("%q", typed)
 	}
 }
@@ -68,7 +68,7 @@ func TestTheTellerTypesTheNextTaskAtTheOwnerAfterADiscard(t *testing.T) {
 	r.clock += BatchEveryS
 	r.term.typed = nil
 	r.Discarded(r.k("bob"), nil, nil)
-	if typed := strings.Join(r.term.typed, "\n"); !strings.Contains(typed, "the next one") {
+	if typed := strings.Join(r.term.typed, "\n"); !strings.Contains(r.named(typed), "the next one") {
 		t.Fatalf("the next task was not typed at the owner: %q", typed)
 	}
 }
@@ -126,7 +126,7 @@ func TestTheTellerAfterADraftParksTheHolderAndMovesItOnToItsNextTask(t *testing.
 	if len(said) != 1 || r.ids(said[0]) != fmt.Sprintf("#%d ended; bob told to stop and moved on", reqs[0].ID) {
 		t.Fatalf("%q", said)
 	}
-	if typed := strings.Join(r.term.typed, "\n"); !strings.Contains(typed, "it is parked: stop work on it and move on to your next task") {
+	if typed := strings.Join(r.term.typed, "\n"); !strings.Contains(r.named(typed), "it is parked: stop work on it and move on to your next task") {
 		t.Fatalf("%q", typed)
 	}
 	if cur, _, _ := db.CurrentTask(r.DB, r.k(("bob"))); cur != second {
@@ -141,7 +141,7 @@ func TestTheTellerAfterACancelClosesTheTellsAndTypesTheStopToAnOwnerWithNoDelive
 	db.CloseIfQueued(r.DB, rid, "rejected", CancelVerdict)
 	r.term.typed = nil
 	r.Cancelled(1, r.k(("human")), r.k(("bob")), true, []taskwrites.Retired{{RID: rid, Requester: r.k(("alice")), Target: r.k(("bob")), Delivered: true}})
-	if typed := strings.Join(r.term.typed, "\n"); !strings.Contains(typed, "T1 discarded by human - stop work on it") {
+	if typed := strings.Join(r.term.typed, "\n"); !strings.Contains(r.named(typed), "T1 discarded by human - stop work on it") {
 		t.Fatalf("%q", typed)
 	}
 }
