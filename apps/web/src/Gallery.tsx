@@ -7,6 +7,7 @@ import { Button } from '#src/ui/Button.tsx';
 import { alert, confirm, ModalFrame, openModal, prompt } from '#src/ui/modal.tsx';
 import { Tab, TabBar, type TabItem } from '#src/ui/Tabs.tsx';
 import { uuid } from '#src/ui/uuid.ts';
+import { LinesLoading, ListLoading } from '#src/ui/Loading.tsx';
 
 const roles = ['bg', 'surface', 'hover', 'selected', 'border', 'fg', 'muted', 'accent', 'accent-fg', 'danger', 'warning', 'success'];
 // Spelled out so Tailwind sees each class.
@@ -158,6 +159,12 @@ function Sheet() {
             custom + guard + stack
           </Button>
           <span className="text-sm text-muted">result: {result}</span>
+        </div>
+      </Section>
+      <Section title="Loading">
+        <div className="grid grid-cols-2 gap-6">
+          <ListLoading rows={3} />
+          <LinesLoading />
         </div>
       </Section>
       <Section title="TabBar (live)">

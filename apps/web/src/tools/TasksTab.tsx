@@ -1,3 +1,4 @@
+import { ListLoading } from '#src/ui/Loading.tsx';
 import type { Task } from '@handline/client';
 import { foundersTurn, turnChain } from '@handline/app-core';
 import { classify, sentence, useGiveBack, useNameOf, useTasks } from '@handline/app-data';
@@ -52,7 +53,7 @@ export function TasksTab({ agent }: { agent: string | null }) {
               </Chip>
             )}
           </div>
-          {q.isPending && <p className="text-sm text-muted">Loading…</p>}
+          {q.isPending && <ListLoading label="Loading tasks" />}
           {q.isError && <p className="text-sm text-danger">Tasks did not load.</p>}
           {q.data && !items.length && <p className="text-sm text-muted">No tasks here.</p>}
           {groups
