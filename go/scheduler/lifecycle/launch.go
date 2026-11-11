@@ -728,7 +728,7 @@ func (l *Launcher) RosterFiles() []string {
 	var out []string
 	for _, n := range paths.ListAgents(l.Home) {
 		for _, f := range per {
-			out = append(out, filepath.Join(dir, n, f))
+			out = append(out, filepath.Join(paths.AgentDir(l.Home, n), f))
 		}
 	}
 	for _, f := range per {

@@ -48,3 +48,19 @@ func TestReadAgentsTellsAnUnreadableListingFromAnEmptyOne(t *testing.T) {
 		t.Fatal("a database that cannot be read is an error")
 	}
 }
+
+func TestAnAgentsFolderIsNamedByItsKeyWhateverItIsCalled(t *testing.T) {
+	home := t.TempDir()
+	seedAgents(t, home)
+	for who, want := range map[string]string{"w.x": "a1", "w": "a2", "a1": "a1", "w.nobody": ""} {
+		if got := AgentKey(home, who); got != want {
+			t.Errorf("AgentKey(%s) = %q, want %q", who, got, want)
+		}
+	}
+	if AgentDir(home, "w.x") != filepath.Join(home, "agents", "a1") || CacheDir(home, "w") != filepath.Join(home, "caches", "a2") {
+		t.Error("a folder by key")
+	}
+	if got := AgentDir(home, "w.nobody"); got != filepath.Join(home, "agents", ".unregistered", "w.nobody") {
+		t.Errorf("a name no agent has: %s", got)
+	}
+}

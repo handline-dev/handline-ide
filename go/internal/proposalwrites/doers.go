@@ -171,6 +171,10 @@ func (e *Env) doRetire(p step) (bool, string, error) {
 	if e.Say != nil {
 		tell = e.Say
 	}
+	key, err := paths.AgentKeyIn(p.tx, name) // before its row goes, which names the folder
+	if err != nil {
+		return false, "", err
+	}
 	if _, err := taskwrites.RetireTurns(p.tx, e.Home, tell, name); err != nil {
 		return false, "", err
 	}
@@ -191,6 +195,9 @@ func (e *Env) doRetire(p step) (bool, string, error) {
 		return false, "", err
 	}
 	src := paths.AgentDir(e.Home, name)
+	if key != "" {
+		src = paths.AgentDir(e.Home, key)
+	}
 	dest := filepath.Join(e.Home, "agents", "archive", time.Now().Format("2006-01-02")+"-"+name)
 	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 		return false, "", err
@@ -203,20 +210,25 @@ func (e *Env) doRetire(p step) (bool, string, error) {
 			return false, "", err
 		}
 	}
-	if err := paths.RemoveCacheDir(e.Home, name); err != nil { // the folder is archived already: a cache left behind does not undo that
+	if err := paths.RemoveCacheDir(e.Home, filepath.Base(src)); err != nil { // the folder is archived already: a cache left behind does not undo that
 		e.logf("  %s: its build caches were not removed: %v", name, err)
 	}
 	return true, fmt.Sprintf("%s is retired; its folder is at %s. %s", name, dest, cleared), nil
 }
 
-// doRename makes one identity another, taking its whole history with it: its folder and its rows. Not while it is running.
+// doRename gives an identity another name. Its folder and rows are by key, so they stay as they are. Not while it is running.
 func (e *Env) doRename(p step) (bool, string, error) {
 	old, new := p.str("agent"), p.str("to")
-	src, dest := paths.AgentDir(e.Home, old), paths.AgentDir(e.Home, new)
-	if _, err := os.Stat(src); os.IsNotExist(err) {
-		if _, err := os.Stat(dest); err == nil {
-			return true, fmt.Sprintf("%s was renamed to %s already", old, new), nil // approved again after it took effect: settled, not a failure
-		}
+	was, err := paths.AgentKeyIn(p.tx, old)
+	if err != nil {
+		return false, "", err
+	}
+	now, err := paths.AgentKeyIn(p.tx, new)
+	if err != nil {
+		return false, "", err
+	}
+	if was == "" && now != "" {
+		return true, fmt.Sprintf("%s was renamed to %s already", old, new), nil // approved again after it took effect: settled, not a failure
 	}
 	if e.Live == nil {
 		return false, fmt.Sprintf("could not confirm whether %s has a session running just now - try again in a moment.", old), nil
@@ -228,7 +240,7 @@ func (e *Env) doRename(p step) (bool, string, error) {
 	if live[old] {
 		return false, fmt.Sprintf("%s has a session running. Close it first (Close in its menu in the app) - an identity cannot change under a running session.", old), nil
 	}
-	if _, err := os.Stat(dest); err == nil {
+	if now != "" {
 		return false, fmt.Sprintf("There is already an agent named %s; choose another name.", new), nil
 	}
 	if err := e.rosterIn(p).Rename(old, new); err != nil {
@@ -236,14 +248,6 @@ func (e *Env) doRename(p step) (bool, string, error) {
 			return false, err.Error(), nil
 		}
 		return false, "", err
-	}
-	if _, err := os.Stat(src); err == nil {
-		if err := os.Rename(src, dest); err != nil {
-			return false, "", err
-		}
-	}
-	if err := paths.RemoveCacheDir(e.Home, old); err != nil { // rebuilt under the new name at its next launch; the folder has moved already
-		e.logf("  %s: its build caches were not removed: %v", old, err)
 	}
 	for _, q := range []string{"UPDATE agent_state SET agent = ? WHERE agent = ?", "UPDATE requests SET requester = ? WHERE requester = ?",
 		"UPDATE requests SET target = ? WHERE target = ?", "UPDATE events SET agent = ? WHERE agent = ?", "UPDATE handoff SET agent = ? WHERE agent = ?", "UPDATE account_switch SET agent = ? WHERE agent = ?"} {
@@ -371,8 +375,12 @@ func (e *Env) doContext(p step) (bool, string, error) {
 		return false, problem, nil
 	}
 	agent := p.str("agent")
-	dir := paths.AgentDir(e.Home, agent)
-	if st, err := os.Stat(dir); err != nil || !st.IsDir() {
+	key, err := paths.AgentKeyIn(p.tx, agent) // through the proposal's transaction, which may have added it
+	if err != nil {
+		return false, "", err
+	}
+	dir := paths.AgentDir(e.Home, key)
+	if st, err := os.Stat(dir); key == "" || err != nil || !st.IsDir() {
 		return false, agent + " is not an agent", nil
 	}
 	names := make([]string, len(texts))

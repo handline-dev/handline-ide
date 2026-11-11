@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/scheduler/access"
 	"github.com/handline/handline/go/taskboard/attachments"
@@ -274,7 +275,7 @@ func TestSendRefsNeedAGrantWithTheSettingOn(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
 	s := r.server("")
-	dir, own := t.TempDir(), filepath.Join(r.home, "agents", "alice")
+	dir, own := t.TempDir(), paths.AgentDir(r.home, "alice")
 	send := func(rid string, refs ...string) map[string]any {
 		b, _ := json.Marshal(refs)
 		return r.one(s, "chat.send", fmt.Sprintf(`{"agent":"alice","body":"see","refs":%s,"request_id":%q}`, b, rid))

@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
@@ -86,7 +87,7 @@ func TestMemoryStatusReadsTheIndexAndTheUnusedFiles(t *testing.T) {
 	e := testEnv(t)
 	addAgent(t, e, "amy", "")
 	addAgent(t, e, "bob", "")
-	dir := filepath.Join(e.Home, "agents", "amy", "memory")
+	dir := filepath.Join(paths.AgentDir(e.Home, "amy"), "memory")
 	os.MkdirAll(filepath.Join(dir, "deep"), 0o755)
 	index := "# memory\n- [one](one.md) - a\n- [two](two.md) - b\n"
 	os.WriteFile(filepath.Join(dir, "MEMORY.md"), []byte(index), 0o644)
@@ -99,7 +100,7 @@ func TestMemoryStatusReadsTheIndexAndTheUnusedFiles(t *testing.T) {
 	os.Chtimes(filepath.Join(dir, "one.md"), old, old)      // recorded as read yesterday
 	os.Chtimes(filepath.Join(dir, "two.md"), now, now)      // recorded as read six weeks ago
 	use := `{"one.md": ` + itoa(now.Unix()-86400) + `, "two.md": ` + itoa(now.Unix()-42*86400) + `}`
-	os.WriteFile(filepath.Join(e.Home, "agents", "amy", "memory-use.json"), []byte(use), 0o644)
+	os.WriteFile(filepath.Join(paths.AgentDir(e.Home, "amy"), "memory-use.json"), []byte(use), 0o644)
 	got := memoryOf(e.Home, "amy", now)
 	want := map[string]any{"agent": "amy", "bytes": len(index), "budget": memoryBudget, "entries": 2, "unused": []string{"deep/old.md", "two.md"}}
 	if !reflect.DeepEqual(got, want) {

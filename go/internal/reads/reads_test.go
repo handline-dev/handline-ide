@@ -12,6 +12,7 @@ import (
 
 	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/internal/contracttest"
+	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/storetest"
 )
 
@@ -38,7 +39,7 @@ func addAgent(t *testing.T, e *Env, name, role string) {
 	t.Helper()
 	teamtest.Seed(t, e.Home, name)
 	if role != "" {
-		os.WriteFile(filepath.Join(e.Home, "agents", name, "ROLE.md"), []byte(role), 0o644)
+		os.WriteFile(filepath.Join(paths.AgentDir(e.Home, name), "ROLE.md"), []byte(role), 0o644)
 	}
 }
 

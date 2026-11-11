@@ -16,13 +16,14 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/internal/status"
+	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/scheduler/settings"
 )
 
 // roleLine is the first line of the agent's ROLE.md that is not blank and not a heading, as one line.
 func (e *Env) roleLine(name string) string {
-	b, err := os.ReadFile(filepath.Join(e.Home, "agents", name, "ROLE.md"))
+	b, err := os.ReadFile(filepath.Join(paths.AgentDir(e.Home, name), "ROLE.md"))
 	if err != nil {
 		return ""
 	}
