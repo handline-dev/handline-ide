@@ -89,7 +89,7 @@ func newWorld(t *testing.T) *world {
 
 func (w *world) account(name string) {
 	w.t.Helper()
-	if err := os.MkdirAll(filepath.Join(w.Home, "accounts", name), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(teamtest.AccountDir(w.t, w.Home, name)), 0o755); err != nil {
 		w.t.Fatal(err)
 	}
 }
@@ -108,7 +108,7 @@ func (w *world) agent(name, account string) {
 // a mapping is written as it is.
 func (w *world) config(text string) {
 	w.t.Helper()
-	if _, err := w.DB.Exec("DELETE FROM accounts"); err != nil {
+	if _, err := w.DB.Exec("UPDATE accounts SET label = NULL, active_cap = NULL, paused = 0, usage_recover = NULL, month_cycle = NULL, sub_end = NULL"); err != nil {
 		w.t.Fatal(err)
 	}
 	v, err := yamlcompat.Parse(text)
@@ -362,7 +362,7 @@ func TestNoAccountsMeansNothingToAsk(t *testing.T) {
 // started gives the account a claude profile whose subscription began at start.
 func (w *world) started(acct string, start time.Time) {
 	w.t.Helper()
-	dir := filepath.Join(w.Home, "accounts", acct, ".claude")
+	dir := filepath.Join(teamtest.AccountDir(w.t, w.Home, acct), ".claude")
 	os.MkdirAll(dir, 0o755)
 	doc := fmt.Sprintf(`{"oauthAccount": {"subscriptionCreatedAt": %q}}`, start.Format(time.RFC3339))
 	if err := os.WriteFile(filepath.Join(dir, ".claude.json"), []byte(doc), 0o644); err != nil {

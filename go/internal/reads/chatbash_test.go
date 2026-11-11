@@ -3,6 +3,7 @@ package reads
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -24,7 +25,7 @@ func newBashRig(t *testing.T) *bashRig {
 	t.Helper()
 	e := testEnv(t)
 	e.Home = t.TempDir()
-	dir := filepath.Join(e.Home, "accounts", "alpha", ".claude", "projects", "p")
+	dir := filepath.Join(teamtest.AccountDir(t, e.Home, "alpha"), ".claude", "projects", "p")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}

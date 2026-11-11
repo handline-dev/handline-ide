@@ -1,6 +1,7 @@
 package handoff
 
 import (
+	"github.com/handline/handline/go/data/team/teamtest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -92,11 +93,11 @@ func TestATranscriptIsFoundByItsIdUnderTheAccountThenTheOthers(t *testing.T) {
 			t.Errorf("%q found %q", bad, got)
 		}
 	}
-	os.WriteFile(filepath.Join(w.Home, "accounts", "alpha", "vendor"), []byte("opencode"), 0o644)
+	os.WriteFile(filepath.Join(teamtest.AccountDir(t, w.Home, "alpha"), "vendor"), []byte("opencode"), 0o644)
 	if got := w.FindTranscript("sess-1", "alpha"); got != other {
 		t.Errorf("opencode has no transcript files: %q", got)
 	}
-	os.WriteFile(filepath.Join(w.Home, "accounts", "alpha", "vendor"), []byte("nonesuch"), 0o644)
+	os.WriteFile(filepath.Join(teamtest.AccountDir(t, w.Home, "alpha"), "vendor"), []byte("nonesuch"), 0o644)
 	if got := w.FindTranscript("sess-1", "alpha"); got != other {
 		t.Errorf("an unknown vendor is skipped: %q", got)
 	}

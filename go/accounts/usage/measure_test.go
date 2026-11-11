@@ -1,6 +1,7 @@
 package usage
 
 import (
+	"github.com/handline/handline/go/data/team/teamtest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -18,7 +19,7 @@ func coldEnv(t *testing.T, pct int) (*Env, db.Q, *int64) {
 
 func writeColdStatus(t *testing.T, e *Env, acct string, pct int) {
 	t.Helper()
-	p := paths.StatusFile(e.Home, acct)
+	p := paths.StatusFile(e.Home, teamtest.Account(t, e.Home, acct))
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 		t.Fatal(err)
 	}

@@ -9,8 +9,22 @@ from __future__ import annotations
 
 import json
 import os
+import sqlite3
 import sys
 from pathlib import Path
+
+
+def account_key(home: str, name: str) -> str:
+    """The account's key (c<id>), which names its folder under accounts/; SystemExit when the home has no such account."""
+    db = Path(home) / "db.sqlite"
+    try:
+        with sqlite3.connect(f"file:{db}?mode=ro", uri=True) as c:
+            row = c.execute("SELECT id FROM accounts WHERE name = ?", (name,)).fetchone()
+    except sqlite3.Error as e:
+        raise SystemExit(f"live-account: cannot read {db}: {e}")
+    if not row:
+        raise SystemExit(f"live-account: no account {name!r} in {home}")
+    return f"c{row[0]}"
 
 
 def pick_live() -> dict:
@@ -19,7 +33,7 @@ def pick_live() -> dict:
     if not name:
         raise SystemExit("live-account: name the account to spend in HANDLINE_LIVE_ACCOUNT")
     home = os.environ.get("HANDLINE_HOME") or str(Path.home() / ".handline")
-    return {"account": name, "home": home, "config_dir": str(Path(home) / "accounts" / name / ".claude"), "why": "named by HANDLINE_LIVE_ACCOUNT"}
+    return {"account": name, "home": home, "config_dir": str(Path(home) / "accounts" / account_key(home, name) / ".claude"), "why": "named by HANDLINE_LIVE_ACCOUNT"}
 
 
 def main() -> int:

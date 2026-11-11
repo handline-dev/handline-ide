@@ -1,12 +1,12 @@
 package compose
 
 import (
+	"github.com/handline/handline/go/data/team/teamtest"
 	"os"
 	"path/filepath"
 	"testing"
 
 	dbpkg "github.com/handline/handline/go/data/db"
-	"github.com/handline/handline/go/kit/paths"
 )
 
 func TestTheFounderCloserMarksTheCardDoneAsTheFounder(t *testing.T) {
@@ -31,7 +31,7 @@ func TestTheFounderCloserMarksTheCardDoneAsTheFounder(t *testing.T) {
 
 func TestAPlanThatCannotBeReadLeavesTheRecordedOne(t *testing.T) {
 	_, _, _, home := wired(t)
-	f := filepath.Join(paths.AccountDir(home, "a1"), "subscription.json")
+	f := filepath.Join(teamtest.AccountDir(t, home, "a1"), "subscription.json")
 	os.MkdirAll(filepath.Dir(f), 0o755)
 	if err := os.WriteFile(f, []byte(`{"subscriptionType":"pro"}`), 0o644); err != nil {
 		t.Fatal(err)
@@ -47,7 +47,7 @@ func TestAPlanThatCannotBeReadLeavesTheRecordedOne(t *testing.T) {
 func TestAPlanIsAskedOfTheConfiguredClaude(t *testing.T) {
 	_, _, _, home := wired(t)
 	t.Setenv("PATH", t.TempDir()) // no claude on PATH
-	dir := filepath.Join(home, "accounts", "a1", ".claude")
+	dir := filepath.Join(teamtest.AccountDir(t, home, "a1"), ".claude")
 	os.MkdirAll(dir, 0o755)
 	os.WriteFile(filepath.Join(dir, ".credentials.json"), []byte("{}"), 0o600) // logged in: only its presence is read
 	cli := filepath.Join(t.TempDir(), "claude")

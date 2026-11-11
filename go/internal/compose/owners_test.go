@@ -1,6 +1,7 @@
 package compose
 
 import (
+	"github.com/handline/handline/go/data/team/teamtest"
 	"os"
 	"testing"
 
@@ -62,7 +63,7 @@ func TestTheGoTickAsksADueAccountForItsUsage(t *testing.T) {
 	if _, err := tk.Tick.Run(); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(paths.StatusFile(p.home, "a1")); err != nil {
+	if _, err := os.Stat(paths.StatusFile(p.home, teamtest.Account(t, p.home, "a1"))); err != nil {
 		t.Fatalf("account a1 was not read: %v", err)
 	}
 }

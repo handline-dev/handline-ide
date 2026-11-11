@@ -256,7 +256,7 @@ func TestTheLoopEndsForARestartWhenDevModeFindsAChangedExecutableThatStarts(t *t
 
 func TestTheTickRelinksAccountsToSharedItemsAddedAfterTheyWereRegistered(t *testing.T) {
 	p, _, _, _ := wired(t)
-	cdir, _ := team.AccountConfigDir(p.home, "a1")
+	cdir, _ := team.AccountConfigDir(p.home, teamtest.Account(t, p.home, "a1"))
 	os.MkdirAll(filepath.Join(p.home, "shared", ".claude"), 0o755)
 	os.WriteFile(filepath.Join(p.home, "shared", ".claude", "CLAUDE.md"), []byte("x"), 0o644)
 	tk := p.Tick(cfgOf(p), TickConfig{})
@@ -554,7 +554,7 @@ func TestTheKeepAwakePassHoldsTheLockTheStatusReads(t *testing.T) {
 func TestTheLoginWatchEntryKeepsAStalledAccount(t *testing.T) {
 	p, _, _, _ := wired(t)
 	at := time.Now().Unix() + 1000 // after any credential the rig has, so the stall stands
-	dir := filepath.Join(paths.AccountsDir(p.home), "stalled")
+	dir := teamtest.AccountDir(t, p.home, "stalled")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}

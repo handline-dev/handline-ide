@@ -7,11 +7,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sort"
-	"strings"
 	"sync"
 	"testing"
 
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/store"
 )
 
@@ -78,8 +77,7 @@ func QuietDir() string {
 	return dir
 }
 
-func AccountsDir(home string) string      { return filepath.Join(home, "accounts") }
-func AccountDir(home, acct string) string { return filepath.Join(home, "accounts", acct) }
+func AccountsDir(home string) string { return filepath.Join(home, "accounts") }
 func StatusFile(home, acct string) string {
 	return filepath.Join(AccountDir(home, acct), "status.json")
 }
@@ -113,19 +111,28 @@ func StrayHandoffFile(home, agent string, pid int) string {
 	return filepath.Join(AgentDir(home, agent), fmt.Sprintf("handoff-%d.md", pid))
 }
 
-// ListAccounts is the account folders, by name, not hidden ones.
+// ListAccounts is the accounts, by name: each row whose folder is there. A table that cannot be read lists none.
 func ListAccounts(home string) []string {
-	entries, err := os.ReadDir(AccountsDir(home))
+	d, err := store.SharedIfThere(DBFile(home))
+	if d == nil || err != nil {
+		return []string{}
+	}
+	rows, err := d.Query("SELECT name, id FROM accounts ORDER BY name")
 	if err != nil {
 		return []string{}
 	}
+	defer rows.Close()
 	out := []string{}
-	for _, e := range entries {
-		if st, err := os.Stat(filepath.Join(AccountsDir(home), e.Name())); err == nil && st.IsDir() && !strings.HasPrefix(e.Name(), ".") {
-			out = append(out, e.Name())
+	for rows.Next() {
+		var name string
+		var id int64
+		if rows.Scan(&name, &id) != nil {
+			return []string{}
+		}
+		if st, err := os.Stat(filepath.Join(home, "accounts", actor.Key(actor.Account, id))); err == nil && st.IsDir() {
+			out = append(out, name)
 		}
 	}
-	sort.Strings(out)
 	return out
 }
 

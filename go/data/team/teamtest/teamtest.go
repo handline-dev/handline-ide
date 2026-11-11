@@ -130,3 +130,20 @@ func Set(t testing.TB, home, agent string, kv ...any) {
 		}
 	}
 }
+
+// AccountDir gives the account named name a row in home's database, when it has none, and is its folder (paths.AccountDir), which
+// the caller makes.
+func AccountDir(t testing.TB, home, name string) string {
+	t.Helper()
+	if _, err := DB(t, home).Exec("INSERT INTO accounts(name, owner, created_at) VALUES(?, 'p1', 0) ON CONFLICT(name) DO NOTHING", name); err != nil {
+		t.Fatal(err)
+	}
+	return paths.AccountDir(home, name)
+}
+
+// Account gives the account named name a row in home's database, when it has none, and is name: its folder is then by key.
+func Account(t testing.TB, home, name string) string {
+	t.Helper()
+	AccountDir(t, home, name)
+	return name
+}

@@ -3,6 +3,7 @@ package daemon
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -42,7 +43,7 @@ func loginDaemon(t *testing.T, script string) *Daemon {
 	t.Helper()
 	t.Setenv("HANDLINE_TEST_ROOT", t.TempDir())
 	home := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(home, "accounts", "main"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(teamtest.AccountDir(t, home, "main")), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	bin := filepath.Join(t.TempDir(), "claude")
@@ -207,7 +208,7 @@ func TestAnAnnouncementOlderThanThePublishedOneIsDropped(t *testing.T) {
 func TestAFailedLoginsReasonIsAnnouncedAndLogged(t *testing.T) {
 	t.Setenv("HANDLINE_TEST_ROOT", t.TempDir())
 	home := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(home, "accounts", "main"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(teamtest.AccountDir(t, home, "main")), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	bin := filepath.Join(t.TempDir(), "claude")

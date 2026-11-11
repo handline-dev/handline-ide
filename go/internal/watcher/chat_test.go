@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -330,7 +331,7 @@ func newBashRig(t *testing.T) *bashRig {
 	t.Helper()
 	r := newChatRig(t)
 	home := t.TempDir()
-	dir := filepath.Join(home, "accounts", "alpha", ".claude", "projects", "p")
+	dir := filepath.Join(teamtest.AccountDir(t, home, "alpha"), ".claude", "projects", "p")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}

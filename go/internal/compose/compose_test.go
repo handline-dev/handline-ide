@@ -161,7 +161,7 @@ func (c *virtualClock) sleep(d time.Duration) { c.skew.Add(int64(d)) }
 func wiredWith(t *testing.T, ft *fakeTerminals) (*Parts, *Lifecycle, *supervisor.Env, string) {
 	t.Helper()
 	p, home := rig(t)
-	dir, err := team.AccountConfigDir(home, "a1")
+	dir, err := team.AccountConfigDir(home, teamtest.Account(t, home, "a1"))
 	if err != nil {
 		t.Fatal(err)
 	}

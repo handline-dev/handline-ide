@@ -1,6 +1,7 @@
 package usage
 
 import (
+	"github.com/handline/handline/go/data/team/teamtest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -36,9 +37,9 @@ func TestPickGivesEachRefusalItsKindAndACandidateNone(t *testing.T) {
 	writeStatus(t, home, "unmetered", at(fresh, 10, 10, false))
 	e.Metered = func(a string) bool { return a != "unmetered" }
 	for _, n := range []string{"endednofile", "blank"} {
-		os.MkdirAll(filepath.Join(home, "accounts", n), 0o755)
+		os.MkdirAll(filepath.Join(teamtest.AccountDir(t, home, n)), 0o755)
 	}
-	os.WriteFile(filepath.Join(home, "accounts", "removing", ".removing"), nil, 0o644)
+	os.WriteFile(filepath.Join(teamtest.AccountDir(t, home, "removing"), ".removing"), nil, 0o644)
 	cfg := map[string]any{}
 	for _, n := range []string{"ended", "endedstale", "endedout", "endednofile"} {
 		cfg["month_cycle_"+n], cfg["sub_end_"+n] = true, "2020-01-01"

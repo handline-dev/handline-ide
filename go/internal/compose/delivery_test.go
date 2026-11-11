@@ -59,12 +59,12 @@ func TestAClosedAgentsQueuedLineSaysWhyThroughTheRealComposition(t *testing.T) {
 	status, _ := json.Marshal(map[string]any{"collected_at": now, "windows": []any{
 		map[string]any{"minutes": 300, "observed_at": now, "resets_at": now + 3600, "used_percent": 100},
 		map[string]any{"minutes": 10080, "observed_at": now, "resets_at": now + 86400, "used_percent": 10}}})
-	os.WriteFile(filepath.Join(home, "accounts", "a1", "status.json"), status, 0o644)
+	os.WriteFile(filepath.Join(teamtest.AccountDir(t, home, "a1"), "status.json"), status, 0o644)
 	if got := sendingReasons(t, p, home); got[0] != "closed, account full" {
 		t.Fatalf("a closed agent whose account is full: %v", got)
 	}
 	// nothing is left to wake it for: the one request is settled
-	os.Remove(filepath.Join(home, "accounts", "a1", "status.json"))
+	os.Remove(filepath.Join(teamtest.AccountDir(t, home, "a1"), "status.json"))
 	if _, err := d.Exec("UPDATE requests SET state = 'answered' WHERE target = 'alice'"); err != nil {
 		t.Fatal(err)
 	}
@@ -109,7 +109,7 @@ func TestTheTriggerOfAClosedAgentWhoseWakeIsWalledIsTheWaitTheDaemonPrints(t *te
 	status, _ := json.Marshal(map[string]any{"collected_at": now, "windows": []any{
 		map[string]any{"minutes": 300, "observed_at": now, "resets_at": now + 3600, "used_percent": 100},
 		map[string]any{"minutes": 10080, "observed_at": now, "resets_at": now + 86400, "used_percent": 10}}})
-	os.WriteFile(filepath.Join(home, "accounts", "a1", "status.json"), status, 0o644)
+	os.WriteFile(filepath.Join(teamtest.AccountDir(t, home, "a1"), "status.json"), status, 0o644)
 	row, _ := dbpkg.GetAgentState(d, "alice")
 	want := lc.Launch.WakeWaitReason(d, "alice", row)
 	got, err := p.Delivery().Trigger(d, "alice", row, "a1")
@@ -153,7 +153,7 @@ func TestTheTriggerIsWhatTheTickWouldHandTheAgentOffFor(t *testing.T) {
 		status, _ := json.Marshal(map[string]any{"collected_at": now, "windows": []any{
 			map[string]any{"minutes": 300, "observed_at": now, "resets_at": now + 3600, "used_percent": pct},
 			map[string]any{"minutes": 10080, "observed_at": now, "resets_at": now + 86400, "used_percent": 10}}})
-		os.WriteFile(filepath.Join(home, "accounts", "a1", "status.json"), status, 0o644)
+		os.WriteFile(filepath.Join(teamtest.AccountDir(t, home, "a1"), "status.json"), status, 0o644)
 	}
 	fire := func() string {
 		t.Helper()
@@ -197,7 +197,7 @@ func TestTheTriggerJudgesContextByTheAgentsOwnLimit(t *testing.T) {
 	teamtest.Set(t, p.home, "bob", "context_tokens", 50000)
 	sid := "44444444-4444-4444-8444-444444444444"
 	writeSession(t, p, "a1", os.Getpid(), `{"cwd":"`+wt+`","sessionId":"`+sid+`","status":"idle"}`)
-	dir, _ := team.AccountConfigDir(p.home, "a1")
+	dir, _ := team.AccountConfigDir(p.home, teamtest.Account(t, p.home, "a1"))
 	os.MkdirAll(filepath.Join(dir, "projects", "x"), 0o755)
 	row, _ := dbpkg.GetAgentState(d, "bob")
 	// trigger is what the delivery says once the newest reply of his session holds used tokens

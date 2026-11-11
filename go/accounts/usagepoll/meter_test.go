@@ -3,6 +3,7 @@ package usagepoll
 import (
 	"context"
 	"errors"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,7 +12,6 @@ import (
 
 	"github.com/handline/handline/go/accounts/claudecli"
 	"github.com/handline/handline/go/accounts/livetest"
-	"github.com/handline/handline/go/kit/paths"
 )
 
 type fakeCLI struct {
@@ -36,7 +36,7 @@ func (f *fakeCLI) Send(text string) error {
 func meterWith(t *testing.T, f *fakeCLI, openErr error) (*Meter, claudecli.Launch) {
 	t.Helper()
 	home := t.TempDir()
-	if err := os.MkdirAll(paths.AccountDir(home, "a"), 0o755); err != nil {
+	if err := os.MkdirAll(teamtest.AccountDir(t, home, "a"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	var got claudecli.Launch
@@ -164,10 +164,10 @@ func liveMeter(t *testing.T, cfg string) *Meter {
 		t.Fatal(err)
 	}
 	home := t.TempDir()
-	if err := os.MkdirAll(paths.AccountDir(home, "live"), 0o755); err != nil {
+	if err := os.MkdirAll(teamtest.AccountDir(t, home, "live"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Symlink(cfg, filepath.Join(paths.AccountDir(home, "live"), ".claude")); err != nil {
+	if err := os.Symlink(cfg, filepath.Join(teamtest.AccountDir(t, home, "live"), ".claude")); err != nil {
 		t.Fatal(err)
 	}
 	return &Meter{Home: home, Claude: path}

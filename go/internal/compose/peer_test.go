@@ -45,7 +45,7 @@ func peerHome(t *testing.T, worktree, cwd string) (home string, d *sql.DB) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { d.Close() })
-	config, err := team.AccountConfigDir(home, "acct")
+	config, err := team.AccountConfigDir(home, teamtest.Account(t, home, "acct"))
 	if err != nil {
 		t.Fatal(err)
 	}

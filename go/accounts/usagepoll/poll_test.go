@@ -2,6 +2,7 @@ package usagepoll
 
 import (
 	"context"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -9,7 +10,6 @@ import (
 	"github.com/handline/handline/go/accounts/usage"
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
-	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/storetest"
 )
 
@@ -45,7 +45,7 @@ func newRig(t *testing.T, accts ...string) *rig {
 	t.Helper()
 	home := t.TempDir()
 	for _, a := range accts {
-		if err := os.MkdirAll(paths.AccountDir(home, a), 0o755); err != nil {
+		if err := os.MkdirAll(teamtest.AccountDir(t, home, a), 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}

@@ -416,7 +416,7 @@ func (a Accounts) Retire(acct string, now time.Time) (string, error) {
 		return "", err
 	}
 	dest := filepath.Join(dir, acct+"-"+now.Format("20060102-150405"))
-	return dest, os.Rename(filepath.Join(paths.AccountsDir(a.Home), acct), dest)
+	return dest, os.Rename(paths.AccountDir(a.Home, acct), dest)
 }
 
 // AccountNamedBy is the account a config-dir variable's value points into, or "" for a directory that is not one of ours.
@@ -430,7 +430,7 @@ func (a Accounts) AccountNamedBy(value string) string {
 		return ""
 	}
 	first, _, _ := strings.Cut(strings.TrimPrefix(v, root+"/"), "/")
-	return first
+	return paths.AccountName(a.Home, first) // the folder is the account's key
 }
 
 // EnvFor is the environment for launching this account's vendor as this account (and as agent, when one is named): a config-dir

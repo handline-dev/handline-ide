@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -17,7 +18,7 @@ func danglingRig(t *testing.T) (danglingPorts, *fakeTerminals) {
 	t.Helper()
 	ft := newFakeTerminals()
 	p, _, _, wt := wiredWith(t, ft)
-	config, err := team.AccountConfigDir(p.home, "a1")
+	config, err := team.AccountConfigDir(p.home, teamtest.Account(t, p.home, "a1"))
 	if err != nil {
 		t.Fatal(err)
 	}

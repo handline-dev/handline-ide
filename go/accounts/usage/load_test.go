@@ -172,7 +172,7 @@ func TestReadAllGivesEveryAccountItsCapAndTheBurnOfItsAgents(t *testing.T) {
 	home := t.TempDir()
 	e := testEnv(home, clock)
 	for _, a := range []string{"a", "b"} {
-		os.MkdirAll(filepath.Join(home, "accounts", a), 0o755)
+		os.MkdirAll(filepath.Join(teamtest.AccountDir(t, home, a)), 0o755)
 	}
 	writeConfig(t, home, map[string]any{"active_cap": 3, "active_cap_b": 1})
 	seedCosts(t, q, 0.6, 5, map[string]AccountFactors{"b": {Short: Factor{USDPerPct: 0.4, Source: FactorOwn}}})
@@ -253,7 +253,7 @@ func TestAccountVerdictSaysWhyAnAccountCannotTakeWork(t *testing.T) {
 	if ok, why := e.AccountVerdict("a", st, &Load{Account: "a", Active: 2, Cap: 2}, nil, true); ok || why != "5h 10%" {
 		t.Fatalf("an account at its cap is allowed by usage and unfit: %v %q", ok, why)
 	}
-	os.WriteFile(filepath.Join(home, "accounts", "a", "vendor"), []byte("nonesuch\n"), 0o644)
+	os.WriteFile(filepath.Join(teamtest.AccountDir(t, home, "a"), "vendor"), []byte("nonesuch\n"), 0o644)
 	if ok, why := e.AccountVerdict("a", st, ld, nil, true); ok || why == "" {
 		t.Fatalf("a vendor with no driver takes nothing: %v %q", ok, why)
 	}
