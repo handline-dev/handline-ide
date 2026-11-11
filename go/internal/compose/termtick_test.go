@@ -47,33 +47,34 @@ func writeSession(t *testing.T, p *Parts, acct string, pid int, body string) {
 
 func TestTheTickReadsATerminalAgentsSessionFromItsSessionFile(t *testing.T) {
 	p, ft, wt := termTickRig(t)
+	bob := teamtest.Key(t, p.home, "bob")
 	host := tickHost{p: p, terminals: true}
-	if host.SessionAlive("bob") {
+	if host.SessionAlive(bob) {
 		t.Fatal("no session file, no session")
 	}
 	writeSession(t, p, "a2", os.Getpid(), `{"cwd":"`+wt+`","sessionId":"s1","status":"busy"}`)
-	if !host.SessionAlive("bob") || host.SessionIdle("bob") {
+	if !host.SessionAlive(bob) || host.SessionIdle(bob) {
 		t.Fatal("a session mid-turn is alive and not idle")
 	}
-	if got := host.RunningAccount("bob"); got != "a2" {
+	if got := host.RunningAccount(bob); got != "a2" {
 		t.Fatalf("the account is the one whose directory holds the file, not the recorded one: %q", got)
 	}
 	writeSession(t, p, "a2", os.Getpid(), `{"cwd":"`+wt+`","sessionId":"s1","status":"waiting","waitingFor":"permission prompt"}`)
-	if host.SessionIdle("bob") {
+	if host.SessionIdle(bob) {
 		t.Fatal("a session at a permission prompt is not idle: a restart would cut it short")
 	}
 	writeSession(t, p, "a2", os.Getpid(), `{"cwd":"`+wt+`","sessionId":"s1","status":"idle"}`)
-	if !host.SessionIdle("bob") {
+	if !host.SessionIdle(bob) {
 		t.Fatal("idle")
 	}
 	delete(ft.live, "%1")
-	if host.SessionAlive("bob") {
+	if host.SessionAlive(bob) {
 		t.Fatal("a file whose pane is not listed is a stranger's")
 	}
 	ft.live["%1"] = true
 	writeSession(t, p, "a2", 1<<30, `{"cwd":"`+wt+`","sessionId":"s1","status":"idle"}`)
 	os.Remove(filepath.Join(teamtest.AccountDir(t, p.home, "a2"), ".claude", "sessions", strconv.Itoa(os.Getpid())+".json"))
-	if host.SessionAlive("bob") {
+	if host.SessionAlive(bob) {
 		t.Fatal("a file left by a process that died is not a session")
 	}
 }
@@ -115,6 +116,7 @@ func TestTheReconcilerRecordsATerminalAgentWhoseSessionEndedAsClosedWithItsSessi
 
 func TestATerminalAgentWithNoStatuslineHasItsSessionAndContextFromItsFileAndTranscript(t *testing.T) {
 	p, _, wt := termTickRig(t)
+	bob := teamtest.Key(t, p.home, "bob")
 	sid := "33333333-3333-4333-8333-333333333333"
 	writeSession(t, p, "a1", os.Getpid(), `{"cwd":"`+wt+`","sessionId":"`+sid+`","status":"idle"}`)
 	dir, _ := team.AccountConfigDir(p.home, teamtest.Account(t, p.home, "a1"))
@@ -122,7 +124,7 @@ func TestATerminalAgentWithNoStatuslineHasItsSessionAndContextFromItsFileAndTran
 	os.WriteFile(filepath.Join(dir, "projects", "x", sid+".jsonl"), []byte(
 		`{"type":"assistant","message":{"model":"claude-opus-5-1","usage":{"input_tokens":10,"cache_read_input_tokens":150000,"cache_creation_input_tokens":5}}}`+"\n"), 0o644)
 	tk := p.Tick(cfgOf(p), TickConfig{Terminals: true})
-	st := tk.Tick.Usage.ReadForAgent("bob", "a1")
+	st := tk.Tick.Usage.ReadForAgent(bob, "a1")
 	if st.SessionID != sid || st.TrustedCtxUsed == nil || *st.TrustedCtxUsed != 150015 {
 		t.Fatalf("%+v", st)
 	}
@@ -132,16 +134,17 @@ func TestASessionFileThatCannotBeReadUnderALivePidIsUnknownNotAbsent(t *testing.
 	for name, body := range map[string]string{"empty": "", "invalid json": `{"cwd": "`} {
 		t.Run(name, func(t *testing.T) {
 			p, _, _ := termTickRig(t)
+			bob := teamtest.Key(t, p.home, "bob")
 			d := p.db
 			writeSession(t, p, "a1", os.Getpid(), body) // being written as the tick looks
 			host := tickHost{p: p, terminals: true}
-			if !host.SessionAlive("bob") || host.SessionIdle("bob") {
+			if !host.SessionAlive(bob) || host.SessionIdle(bob) {
 				t.Fatal("a process runs and what it says cannot be read: alive, not idle")
 			}
 			tk := p.Tick(cfgOf(p), TickConfig{Terminals: true})
 			actions := []string{}
 			tk.Tick.Reconcile.Sweep(d, &actions)
-			if row, _ := dbpkg.GetAgentState(d, "bob"); row.ClosedAt.Valid && row.ClosedAt.Int64 != 0 {
+			if row, _ := dbpkg.GetAgentState(d, bob); row.ClosedAt.Valid && row.ClosedAt.Int64 != 0 {
 				t.Fatalf("a live agent was recorded closed: %v", actions)
 			}
 		})
@@ -150,9 +153,10 @@ func TestASessionFileThatCannotBeReadUnderALivePidIsUnknownNotAbsent(t *testing.
 
 func TestOfSeveralSessionFilesInTheWorktreeTheNewestByUpdatedAtIsTheSession(t *testing.T) {
 	p, _, wt := termTickRig(t)
+	bob := teamtest.Key(t, p.home, "bob")
 	writeSession(t, p, "a1", os.Getpid(), `{"cwd":"`+wt+`","sessionId":"old","status":"idle","updatedAt":100}`)
 	writeSession(t, p, "a1", os.Getppid(), `{"cwd":"`+wt+`","sessionId":"new","status":"busy","updatedAt":200}`)
-	rec, _, found := p.terminalSession("bob", map[string]bool{"%1": true})
+	rec, _, found := p.terminalSession(bob, map[string]bool{"%1": true})
 	if found != sessionFound || rec.SessionID != "new" {
 		t.Fatalf("%v %+v", found, rec)
 	}
@@ -160,16 +164,17 @@ func TestOfSeveralSessionFilesInTheWorktreeTheNewestByUpdatedAtIsTheSession(t *t
 
 func TestAHandoffReadsATerminalAgentsSessionAndItsPidFromTheSessionFile(t *testing.T) {
 	p, _, wt := termTickRig(t)
+	bob := teamtest.Key(t, p.home, "bob")
 	run := termRun{p}
-	if pid, status := run.Session("bob"); pid != 0 || status != "" {
+	if pid, status := run.Session(bob); pid != 0 || status != "" {
 		t.Fatalf("no file, no session: %d %q", pid, status)
 	}
 	writeSession(t, p, "a1", os.Getpid(), `{"cwd":"`+wt+`","sessionId":"s1","status":"idle"}`)
-	if pid, status := run.Session("bob"); pid != os.Getpid() || status != "idle" {
+	if pid, status := run.Session(bob); pid != os.Getpid() || status != "idle" {
 		t.Fatalf("%d %q", pid, status)
 	}
 	writeSession(t, p, "a1", os.Getpid(), `{"cwd": "`)
-	if pid, status := run.Session("bob"); pid != 0 || status != "unknown" {
+	if pid, status := run.Session(bob); pid != 0 || status != "unknown" {
 		t.Fatalf("a file that cannot be read has no pid to prove an end by: %d %q", pid, status)
 	}
 	if run.PidGone(os.Getpid()) || !run.PidGone(1<<30) {
@@ -181,15 +186,16 @@ func TestAHandoffReadsATerminalAgentsSessionAndItsPidFromTheSessionFile(t *testi
 // at a prompt shows needs_you.
 func TestATerminalAgentsViewRowSaysWhatItsSessionFileSays(t *testing.T) {
 	p, _, wt := termTickRig(t)
-	if err := dbpkg.SetAgentState(p.db, "bob", "IDLE", 0, ""); err != nil { // a row that has not caught up with a turn that began
+	bob := teamtest.Key(t, p.home, "bob")
+	if err := dbpkg.SetAgentState(p.db, bob, "IDLE", 0, ""); err != nil { // a row that has not caught up with a turn that began
 		t.Fatal(err)
 	}
 	tu := tickUsage{p: p, u: p.LC.usage, roster: p.LC.roster}
 	stored := func(av interface{ RefreshOne(string) }, want string) map[string]any {
 		t.Helper()
-		av.RefreshOne("bob")
+		av.RefreshOne(bob)
 		var raw string
-		if err := p.db.QueryRow("SELECT view FROM agent_view WHERE agent = 'bob'").Scan(&raw); err != nil {
+		if err := p.db.QueryRow("SELECT view FROM agent_view WHERE agent = '" + bob + "'").Scan(&raw); err != nil {
 			t.Fatalf("no row: %v", err)
 		}
 		var v map[string]any
@@ -200,9 +206,9 @@ func TestATerminalAgentsViewRowSaysWhatItsSessionFileSays(t *testing.T) {
 		return v
 	}
 	// Not ticking terminals: the Python daemon's row stands, nothing is written.
-	p.agentView(cfgOf(p), false, tu).RefreshOne("bob")
+	p.agentView(cfgOf(p), false, tu).RefreshOne(bob)
 	var n int
-	p.db.QueryRow("SELECT COUNT(*) FROM agent_view WHERE agent = 'bob'").Scan(&n)
+	p.db.QueryRow("SELECT COUNT(*) FROM agent_view WHERE agent = '" + bob + "'").Scan(&n)
 	if n != 0 {
 		t.Fatal("a terminal agent's row was written by a daemon that does not tick terminals")
 	}
@@ -211,7 +217,7 @@ func TestATerminalAgentsViewRowSaysWhatItsSessionFileSays(t *testing.T) {
 	if v := stored(av, "running"); v["needs_you"] != nil { // busy session: the turn is running whatever the row says
 		t.Fatal(v)
 	}
-	if err := dbpkg.SetAgentState(p.db, "bob", "RUNNING", 0, ""); err != nil { // the prompt arrives mid-turn: the row stays running
+	if err := dbpkg.SetAgentState(p.db, bob, "RUNNING", 0, ""); err != nil { // the prompt arrives mid-turn: the row stays running
 		t.Fatal(err)
 	}
 	writeSession(t, p, "a1", os.Getpid(), `{"cwd":"`+wt+`","sessionId":"s1","status":"waiting","waitingFor":"permission prompt","updatedAt":5000000}`)
@@ -221,7 +227,7 @@ func TestATerminalAgentsViewRowSaysWhatItsSessionFileSays(t *testing.T) {
 		t.Fatal(v)
 	}
 	writeSession(t, p, "a1", os.Getpid(), `{"cwd":"`+wt+`","sessionId":"s1","status":"idle"}`)
-	if err := dbpkg.SetAgentState(p.db, "bob", "IDLE", 0, ""); err != nil { // the turn ended: the Stop hook moved the row
+	if err := dbpkg.SetAgentState(p.db, bob, "IDLE", 0, ""); err != nil { // the turn ended: the Stop hook moved the row
 		t.Fatal(err)
 	}
 	if v := stored(av, "idle"); v["needs_you"] != nil || v["has_dialog"] != false {
@@ -350,6 +356,7 @@ func TestARefusalThePythonDaemonAlreadyLiftedIsNotStalledAgain(t *testing.T) {
 
 func TestAStopHookWritesATerminalAgentsViewIdleAtOnceThoughItsSessionFileStillSaysBusy(t *testing.T) {
 	p, _, wt := termTickRig(t)
+	bob := teamtest.Key(t, p.home, "bob")
 	tracker := &turns.Tracker{}
 	cfg := cfgOf(p)
 	cfg.Turns = tracker
@@ -357,7 +364,7 @@ func TestAStopHookWritesATerminalAgentsViewIdleAtOnceThoughItsSessionFileStillSa
 	state := func() string {
 		t.Helper()
 		var raw string
-		if err := p.db.QueryRow("SELECT view FROM agent_view WHERE agent = 'bob'").Scan(&raw); err != nil {
+		if err := p.db.QueryRow("SELECT view FROM agent_view WHERE agent = '" + bob + "'").Scan(&raw); err != nil {
 			t.Fatalf("no row: %v", err)
 		}
 		var v map[string]any
@@ -367,17 +374,17 @@ func TestAStopHookWritesATerminalAgentsViewIdleAtOnceThoughItsSessionFileStillSa
 	}
 	// claude marks its session file idle only after the Stop hook has run
 	writeSession(t, p, "a1", os.Getpid(), `{"cwd":"`+wt+`","sessionId":"s1","status":"busy"}`)
-	if err := dbpkg.SetAgentState(p.db, "bob", "RUNNING", 0, ""); err != nil {
+	if err := dbpkg.SetAgentState(p.db, bob, "RUNNING", 0, ""); err != nil {
 		t.Fatal(err)
 	}
-	tracker.Hook("bob", "UserPromptSubmit", map[string]any{}, 100)
+	tracker.Hook(bob, "UserPromptSubmit", map[string]any{}, 100)
 	if s := state(); s != "running" {
 		t.Fatalf("after the prompt: %s", s)
 	}
-	if err := dbpkg.SetAgentState(p.db, "bob", "IDLE", 0, ""); err != nil { // what the Stop hook does to the row
+	if err := dbpkg.SetAgentState(p.db, bob, "IDLE", 0, ""); err != nil { // what the Stop hook does to the row
 		t.Fatal(err)
 	}
-	tracker.Hook("bob", "Stop", map[string]any{}, 101)
+	tracker.Hook(bob, "Stop", map[string]any{}, 101)
 	if s := state(); s != "idle" {
 		t.Fatalf("after the Stop, with the session file still busy: %s, want idle", s)
 	}

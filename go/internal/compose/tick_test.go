@@ -343,15 +343,16 @@ func TestTheSubscriptionsPassRuns(t *testing.T) {
 
 func TestTheTickRunsTheNoticeSweepAsALevelOfPersistedState(t *testing.T) {
 	p, _, _, _ := wired(t)
+	alice := teamtest.Key(t, p.home, "alice")
 	d := p.db
-	key := "stopped_told:fatal:alice"
+	key := "stopped_told:fatal:" + alice
 	tick := func() {
 		t.Helper()
 		if _, err := p.Tick(cfgOf(p), TickConfig{}).Tick.Run(); err != nil { // a new tick each time: nothing is remembered in memory
 			t.Fatal(err)
 		}
 	}
-	if err := dbpkg.SetAgentState(d, "alice", states.Stalled, 0, "boom"); err != nil {
+	if err := dbpkg.SetAgentState(d, alice, states.Stalled, 0, "boom"); err != nil {
 		t.Fatal(err)
 	}
 	tick()
@@ -368,7 +369,7 @@ func TestTheTickRunsTheNoticeSweepAsALevelOfPersistedState(t *testing.T) {
 	if count(); said != before {
 		t.Fatal("the same spell is told once, however many ticks follow")
 	}
-	if err := dbpkg.SetAgentState(d, "alice", states.Idle, 0, ""); err != nil {
+	if err := dbpkg.SetAgentState(d, alice, states.Idle, 0, ""); err != nil {
 		t.Fatal(err)
 	}
 	tick()
@@ -455,9 +456,10 @@ func TestTheDiskWatchEntryRaisesOneCardFromTheTaskBoard(t *testing.T) {
 
 func TestTheNoticeSweepsRunInTheGoTick(t *testing.T) {
 	p, _, _, _ := wired(t)
+	alice := teamtest.Key(t, p.home, "alice")
 	d := p.db
 	// alice is closed, so no digest is typed to her: the stopped sweep's mark says whether the sweeps ran
-	if err := dbpkg.SetAgentState(d, "alice", "STALLED", 0, "gone wrong"); err != nil {
+	if err := dbpkg.SetAgentState(d, alice, "STALLED", 0, "gone wrong"); err != nil {
 		t.Fatal(err)
 	}
 	tk := p.Tick(cfgOf(p), TickConfig{})
@@ -468,7 +470,7 @@ func TestTheNoticeSweepsRunInTheGoTick(t *testing.T) {
 			}
 		}
 	}
-	marked, err := dbpkg.Cursor(d, "stopped_told:fatal:alice")
+	marked, err := dbpkg.Cursor(d, "stopped_told:fatal:"+alice)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -479,21 +481,22 @@ func TestTheNoticeSweepsRunInTheGoTick(t *testing.T) {
 
 func TestTheStartupBringsUpWaitingWorkAndSettlesAnOldToldSayButNotAnOwedOneBeforeAnyTick(t *testing.T) {
 	p, _, _, _ := wired(t)
+	alice, bob := teamtest.Key(t, p.home, "alice"), teamtest.Key(t, p.home, "bob")
 	d := p.db
-	say, err := dbpkg.AddRequest(d, dbpkg.NewRequest{Requester: "carol", Target: "bob", Body: "old", Kind: "say"})
+	say, err := dbpkg.AddRequest(d, dbpkg.NewRequest{Requester: "carol", Target: bob, Body: "old", Kind: "say"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := dbpkg.MarkDelivered(d, say); err != nil { // told by the daemon before
 		t.Fatal(err)
 	}
-	owed, err := dbpkg.AddRequest(d, dbpkg.NewRequest{Requester: "carol", Target: "bob", Body: "sent just before the restart", Kind: "say"})
+	owed, err := dbpkg.AddRequest(d, dbpkg.NewRequest{Requester: "carol", Target: bob, Body: "sent just before the restart", Kind: "say"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	tk := p.Tick(cfgOf(p), TickConfig{Terminals: true})
 	tk.Startup()
-	if row, _ := dbpkg.GetAgentState(d, "alice"); row == nil || row.Terminal.String == "" {
+	if row, _ := dbpkg.GetAgentState(d, alice); row == nil || row.Terminal.String == "" {
 		t.Fatalf("alice has work waiting and no session: startup wakes her in a terminal without waiting for a tick: %+v", row)
 	}
 	if r, _ := dbpkg.GetRequest(d, say); r == nil || r.State == "queued" {
@@ -508,6 +511,7 @@ func TestTheTickTypesAnAgentsScheduledMessageWhenItIsDue(t *testing.T) {
 	p, _, _, _ := wired(t)
 	d := p.db
 	teamtest.Set(t, p.home, "alice", "schedules", `[{"cron": "* * * * *", "message": "check the queue"}]`)
+	alice := teamtest.Key(t, p.home, "alice")
 	tk := p.Tick(cfgOf(p), TickConfig{})
 	var run func(q dbpkg.Q, now int64) error
 	for _, s := range tk.Tick.Passes {
@@ -527,7 +531,7 @@ func TestTheTickTypesAnAgentsScheduledMessageWhenItIsDue(t *testing.T) {
 		t.Fatal(err)
 	}
 	var body string
-	if err := d.QueryRow("SELECT body FROM requests WHERE requester = 'schedule' AND target = 'alice'").Scan(&body); err != nil || body != "[schedule * * * * *] check the queue" {
+	if err := d.QueryRow("SELECT body FROM requests WHERE requester = 'schedule' AND target = '" + alice + "'").Scan(&body); err != nil || body != "[schedule * * * * *] check the queue" {
 		t.Fatalf("%q %v", body, err)
 	}
 }

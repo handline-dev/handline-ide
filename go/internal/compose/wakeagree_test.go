@@ -1,6 +1,7 @@
 package compose
 
 import (
+	"github.com/handline/handline/go/data/team/teamtest"
 	"testing"
 
 	dbpkg "github.com/handline/handline/go/data/db"
@@ -10,6 +11,7 @@ import (
 // down, and work the prompt could carry with no wake waits unseen.
 func TestWhatWakesAClosedAgentIsWhatItsWakePromptCarries(t *testing.T) {
 	type q = dbpkg.Q
+	var alice string // the rig's alice, by key: each case sets it before its shape runs
 	must := func(t *testing.T, err error) {
 		t.Helper()
 		if err != nil {
@@ -18,11 +20,11 @@ func TestWhatWakesAClosedAgentIsWhatItsWakePromptCarries(t *testing.T) {
 	}
 	// task queues a task for alice from the founder; its request id.
 	task := func(t *testing.T, d q, title string) (int64, int64) {
-		tid, err := dbpkg.NewTask(d, title, "alice", "p1", 0, dbpkg.DefaultPriority, "", 0, "")
+		tid, err := dbpkg.NewTask(d, title, alice, "p1", 0, dbpkg.DefaultPriority, "", 0, "")
 		must(t, err)
 		_, err = dbpkg.SetTaskQueued(d, tid, "p1")
 		must(t, err)
-		rid, err := dbpkg.AddRequest(d, dbpkg.NewRequest{Requester: "p1", Target: "alice", Body: title, Kind: "task"})
+		rid, err := dbpkg.AddRequest(d, dbpkg.NewRequest{Requester: "p1", Target: alice, Body: title, Kind: "task"})
 		must(t, err)
 		must(t, dbpkg.LinkRequest(d, tid, rid))
 		return tid, rid
@@ -42,7 +44,7 @@ func TestWhatWakesAClosedAgentIsWhatItsWakePromptCarries(t *testing.T) {
 		must(t, err)
 	}
 	say := func(t *testing.T, d q, body string) {
-		_, err := dbpkg.AddRequest(d, dbpkg.NewRequest{Requester: "sys", Target: "alice", Body: body, Kind: "say"})
+		_, err := dbpkg.AddRequest(d, dbpkg.NewRequest{Requester: "sys", Target: alice, Body: body, Kind: "say"})
 		must(t, err)
 	}
 	for name, shape := range map[string]func(*testing.T, q){
@@ -71,15 +73,16 @@ func TestWhatWakesAClosedAgentIsWhatItsWakePromptCarries(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			p, _, env, _ := wired(t)
+			alice = teamtest.Key(t, p.home, "alice")
 			d := p.db
-			_, err := d.Exec("UPDATE requests SET state = 'answered' WHERE target = 'alice'") // wired's own request
+			_, err := d.Exec("UPDATE requests SET state = 'answered' WHERE target = '" + alice + "'") // wired's own request
 			must(t, err)
 			shape(t, d)
-			row, err := dbpkg.GetAgentState(d, "alice")
+			row, err := dbpkg.GetAgentState(d, alice)
 			must(t, err)
-			cause, err := p.Delivery().ClosedWakeCause("alice", row)
+			cause, err := p.Delivery().ClosedWakeCause(alice, row)
 			must(t, err)
-			_, _, ok, err := env.WaitingPrompt(d, "alice")
+			_, _, ok, err := env.WaitingPrompt(d, alice)
 			must(t, err)
 			if (cause != "") != ok {
 				t.Fatalf("the tick's cause %q, the prompt has something: %v", cause, ok)
