@@ -166,8 +166,8 @@ func TestTrustParamsAreChecked(t *testing.T) {
 type phone struct{}
 
 func (phone) Know(string) bool { return true }
-func (phone) Login(string, string, func()) (string, string, func(), bool) {
-	return "d1", "phone", func() {}, true
+func (phone) Login(string, string, func()) (string, string, string, func(), bool) {
+	return "d1", "phone", "", func() {}, true
 }
 func (phone) Live(string) bool { return true }
 

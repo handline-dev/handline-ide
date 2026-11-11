@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/protocol/authority"
 )
 
@@ -201,7 +202,7 @@ type NetGate interface {
 	Know(token string) bool
 	// Login binds a connection to the device token belongs to; client is what its hello named, kept on the device. closeConn is what
 	// revoking the device calls; release unbinds it when the connection ends.
-	Login(token, client string, closeConn func()) (id, name string, release func(), ok bool)
+	Login(token, client string, closeConn func()) (id, name, person string, release func(), ok bool)
 	// Live says whether the device still has its token.
 	Live(id string) bool
 }
@@ -253,7 +254,7 @@ func (s *Server) serve(tr Transport, pid int, remote string, closeConn func()) {
 			c.release()
 		}
 	}()
-	c.Caller = identify(s.Auth, s.Transport == "local", pid, "", s.founder)
+	c.Caller = identify(s.Auth, s.Transport == "local", pid, "", s.owner(), s.founder)
 	c.Caller = s.keyed(c.Caller)
 	for {
 		timeout := RecvTimeout
@@ -511,12 +512,41 @@ func (c *Conn) route(msg any, raw []byte) (routed, error) {
 
 // keyed is c with an agent caller named by its key: a session recorded under its old name still acts as the agent's key.
 func (s *Server) keyed(c Caller) Caller {
-	if c.Role == "agent" && s.Who != nil {
-		if n, ok := c.Info["name"].(string); ok {
-			c.Info["name"] = s.Who(n)
-		}
+	if c.Kind == "agent" && s.Who != nil {
+		c.Key = s.Who(c.Key)
+		c.Info["name"] = c.Key
 	}
 	return c
+}
+
+// owner is the owner's key: p1 when there is no database to ask.
+func (s *Server) owner() string {
+	if s.DB != nil {
+		if k, err := actor.Owner(s.DB); err == nil {
+			return k
+		}
+	}
+	return Human
+}
+
+// deviceCaller is the paired device id acting as its person, with that person's role. A device with no person is the owner's.
+func (s *Server) deviceCaller(id, name, person string) (Caller, error) {
+	role := "owner"
+	if person == "" {
+		person = s.owner()
+	} else {
+		k, n, ok := actor.Parse(person)
+		if !ok || k != actor.Person || s.DB == nil {
+			return Caller{}, fmt.Errorf("device %s: no role for its person %q", id, person)
+		}
+		if err := s.DB.QueryRow("SELECT role FROM people WHERE id = ?", n).Scan(&role); err != nil {
+			return Caller{}, fmt.Errorf("device %s: the role of %s: %w", id, person, err)
+		}
+	}
+	if role == "owner" {
+		role = "founder" // the method role's wire name, until the contract calls it owner
+	}
+	return Caller{Kind: "device", Key: person, Person: person, Role: role, Info: map[string]any{"kind": "device", "device": id, "name": name}}, nil
 }
 
 // resolveWho puts the key in place of each who param's word (SpecParam.Who, and WhoIn inside an object), so a handler sees keys only.
@@ -551,7 +581,7 @@ func (s *Server) resolveWho(method string, params map[string]any) {
 
 // RequireSelf is for the methods that act as the caller's own session: an agent that is not the caller is refused.
 func (c *Conn) RequireSelf(agent string) error {
-	if c.Caller.Role == "agent" && agent != c.Caller.Info["name"] {
+	if c.Caller.Kind == "agent" && agent != c.Caller.Key {
 		return Refused(fmt.Sprintf("%q is not this session's agent", agent), "not_self", "")
 	}
 	return nil
@@ -599,16 +629,20 @@ func hello(c *Conn, params map[string]any) (any, error) {
 		if c.release != nil {
 			c.release()
 			c.device, c.deviceName, c.release = "", "", nil
-			c.Caller = Caller{"anonymous", map[string]any{"kind": "anonymous", "name": "anonymous"}}
+			c.Caller = anonymous()
 		}
-		id, name, release, ok := c.srv.Net.Login(tok, c.helloClient, c.closeFn)
+		id, name, person, release, ok := c.srv.Net.Login(tok, c.helloClient, c.closeFn)
 		if !ok {
 			return nil, UnpairedError()
 		}
 		c.device, c.deviceName, c.release = id, name, release
-		c.Caller = Caller{"founder", map[string]any{"kind": "device", "device": id, "name": name}}
+		caller, err := c.srv.deviceCaller(id, name, person)
+		if err != nil {
+			return nil, err
+		}
+		c.Caller = caller
 	} else {
-		c.Caller = identify(c.srv.Auth, c.srv.Transport == "local", c.Pid, key, c.srv.founder)
+		c.Caller = identify(c.srv.Auth, c.srv.Transport == "local", c.Pid, key, c.srv.owner(), c.srv.founder)
 		c.Caller = c.srv.keyed(c.Caller)
 		switch {
 		case key == "":

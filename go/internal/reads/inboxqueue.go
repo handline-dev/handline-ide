@@ -21,7 +21,7 @@ const (
 func (e *Env) inboxQueue(c *rpc.Conn, params map[string]any) (any, error) {
 	caller := human
 	if c.Caller.Role == "agent" {
-		caller = c.Caller.Info["name"].(string)
+		caller = c.Caller.Key
 	}
 	whose := caller
 	if w, err := optStr(params, "whose"); err != nil {

@@ -10,7 +10,7 @@ import (
 )
 
 func asRon() *rpc.Conn {
-	return &rpc.Conn{Caller: rpc.Caller{Role: "member", Info: map[string]any{"kind": "person", "name": "casey"}}}
+	return &rpc.Conn{Caller: rpc.Caller{Role: "member", Kind: "person", Info: map[string]any{"kind": "person", "name": "casey"}}}
 }
 
 func register(t *testing.T, e *Env) {

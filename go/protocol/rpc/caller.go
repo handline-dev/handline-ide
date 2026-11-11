@@ -25,39 +25,47 @@ func roleIndex(r string) int {
 }
 
 // Caller is who is on the other end, and only on positive proof: an agent when the peer process descends
-// from a session `hl launch` recorded, the founder when hello carried the founder key, anyone else anonymous.
+// from a session `hl launch` recorded, the owner when hello carried the founder key, a device by its pairing, anyone else anonymous.
 // A peer nothing can be traced for proves nothing.
 type Caller struct {
-	Role string
-	Info map[string]any
+	Kind   string         // person, agent, device or anonymous
+	Key    string         // who it acts as: the agent's key, or the person's (a device's person)
+	Person string         // the person a device belongs to
+	Role   string         // the method role it has: a device has its person's
+	Info   map[string]any // the spec's Actor, as hello and whoami show it
+}
+
+func anonymous() Caller {
+	return Caller{Kind: "anonymous", Role: "anonymous", Info: map[string]any{"kind": "anonymous", "name": "anonymous"}}
 }
 
 // Human is the key a write is made under for the founder and any device: the owner, p1 (db.Human).
 const Human = "p1"
 
-func identify(a authority.Authority, local bool, pid int, key, founderName string) Caller {
+// identify is the local caller: owner is the owner's key, whom the founder key proves.
+func identify(a authority.Authority, local bool, pid int, key, owner, founderName string) Caller {
 	if local {
 		if agent := a.AgentOf(pid); agent != "" { // wins over a key: a session that held the founder key would be a leak
-			return Caller{"agent", map[string]any{"kind": "agent", "name": agent}}
+			return Caller{Kind: "agent", Key: agent, Role: "agent", Info: map[string]any{"kind": "agent", "name": agent}}
 		}
 		if a.FounderKeyOK(key) {
-			return Caller{"founder", map[string]any{"kind": "person", "name": founderName}}
+			return Caller{Kind: "person", Key: owner, Role: "founder", Info: map[string]any{"kind": "person", "name": founderName}}
 		}
 	}
-	return Caller{"anonymous", map[string]any{"kind": "anonymous", "name": "anonymous"}}
+	return anonymous()
 }
 
-// Actor is the name a write is made under: an agent's own, else human.
+// Actor is the key a write is made under: the caller's own, the owner's for an anonymous one (which no write method admits).
 func (c Caller) Actor() string {
-	if c.Role == "agent" {
-		return c.Info["name"].(string)
+	if c.Key == "" {
+		return Human
 	}
-	return Human
+	return c.Key
 }
 
 // Writer is whose request_ids a write is kept under, as Python's Caller.writer: the actor, except a paired device, which has its own.
 func (c Caller) Writer() string {
-	if c.Info["kind"] == "device" {
+	if c.Kind == "device" {
 		return "device:" + c.Info["device"].(string)
 	}
 	return c.Actor()

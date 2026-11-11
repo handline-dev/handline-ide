@@ -12,7 +12,7 @@ import (
 )
 
 func asBackend(e *Env) *rpc.Conn {
-	return &rpc.Conn{Caller: rpc.Caller{Role: "agent", Info: map[string]any{"kind": "agent", "name": backendKey(e)}}}
+	return &rpc.Conn{Caller: rpc.Caller{Role: "agent", Kind: "agent", Key: backendKey(e), Info: map[string]any{"kind": "agent", "name": backendKey(e)}}}
 }
 
 type asked struct {

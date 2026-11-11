@@ -50,7 +50,7 @@ func TestTheBoardSaysWhoHoldsEachTask(t *testing.T) {
 		}
 		return out
 	}
-	amyBoard := board(rpc.Caller{Role: "agent", Info: map[string]any{"kind": "agent", "name": amy}})
+	amyBoard := board(rpc.Caller{Role: "agent", Kind: "agent", Key: amy, Info: map[string]any{"kind": "agent", "name": amy}})
 	want := map[string]map[int64]map[string]any{
 		"mine": {3: now("sub_task", []any{bob}, []any{}), 5: now("waiting", []any{}, []any{int64(6)}),
 			7: now("held_as_sub_task", []any{carol}, []any{int64(8)}), 9: now("result_in", []any{}, []any{}),

@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/kit/storetest"
 	"github.com/handline/handline/go/protocol/rpc"
@@ -92,7 +93,7 @@ func TestAPushTokenFromADeviceNotPairedIsNotFound(t *testing.T) {
 		call = next
 		return next
 	})
-	c := &rpc.Conn{Caller: rpc.Caller{Role: "founder", Info: map[string]any{"kind": "device", "device": "dev_gone"}}}
+	c := &rpc.Conn{Caller: rpc.Caller{Role: "founder", Kind: "device", Info: map[string]any{"kind": "device", "device": "dev_gone"}}}
 	_, err := call(c, map[string]any{"platform": "fcm", "token": "x"})
 	if e, ok := err.(*rpc.Error); !ok || e.Code != "not_found" {
 		t.Fatalf("got %v", err)
@@ -166,15 +167,15 @@ func TestADeviceKeepsItsKindClientAndNewName(t *testing.T) {
 		t.Fatalf("%v", r)
 	}
 	at := strings.Repeat("x", 200) // the longest kept
-	_, _, release, _ := m.Login(token, at, nil)
+	_, _, _, release, _ := m.Login(token, at, nil)
 	release()
 	if r := row(d.ID); r["client"] != at {
 		t.Fatal("a client of 200 bytes was not kept")
 	}
-	_, _, release, _ = m.Login(token, "app/1.4.0", nil)
+	_, _, _, release, _ = m.Login(token, "app/1.4.0", nil)
 	release()
 	m.Login(token, strings.Repeat("x", 201), nil) // too long to be a name/version: the last good one stays
-	m.Login(token, "", nil) // a hello that names none keeps the last
+	m.Login(token, "", nil)                       // a hello that names none keeps the last
 	if r := row(d.ID); r["client"] != "app/1.4.0" {
 		t.Fatalf("client %v", r["client"])
 	}
@@ -190,5 +191,24 @@ func TestADeviceKeepsItsKindClientAndNewName(t *testing.T) {
 	}
 	if _, found, _ := m.Rename("dev_none", "x"); found {
 		t.Fatal("renamed a device that is not paired")
+	}
+}
+
+// A device paired on this Mac is the owner's, and its login says so.
+func TestALoginNamesTheDevicesPerson(t *testing.T) {
+	db, err := storetest.OpenAt(t, filepath.Join(t.TempDir(), "db.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	m := New(SQLStore{DB: db})
+	code, _, _, _ := m.Pair(DefaultTTL)
+	token, _, err := m.Redeem(code, "phone", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	owner, err := actor.Owner(db)
+	if _, _, person, _, ok := m.Login(token, "", nil); err != nil || !ok || person != owner {
+		t.Fatalf("person %q, owner %q: %v", person, owner, err)
 	}
 }

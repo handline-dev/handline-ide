@@ -9,7 +9,7 @@ import (
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
-var asAgentConn = &rpc.Conn{Caller: rpc.Caller{Role: "agent", Info: map[string]any{"name": "bob"}}}
+var asAgentConn = &rpc.Conn{Caller: rpc.Caller{Role: "agent", Kind: "agent", Key: "bob", Info: map[string]any{"name": "bob"}}}
 
 func pending(t *testing.T, e *Env) map[string]any {
 	t.Helper()

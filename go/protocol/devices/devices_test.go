@@ -103,7 +103,7 @@ func TestRevokeClosesOnlyThatDevicesConnectionsAndTheTokenDies(t *testing.T) {
 	code, _, _, _ = m.Pair(time.Minute)
 	otherToken, other, _ := m.Redeem(code, "b", "", "h")
 	var closed []string
-	id, _, release, ok := m.Login(token, "", func() { closed = append(closed, "a1") })
+	id, _, _, release, ok := m.Login(token, "", func() { closed = append(closed, "a1") })
 	if !ok || id != d.ID {
 		t.Fatal(id, ok)
 	}
@@ -119,7 +119,7 @@ func TestRevokeClosesOnlyThatDevicesConnectionsAndTheTokenDies(t *testing.T) {
 	if m.Know(token) || m.Live(d.ID) || !m.Live(other.ID) {
 		t.Fatal("state after revoke")
 	}
-	if _, _, _, ok := m.Login(token, "", nil); ok {
+	if _, _, _, _, ok := m.Login(token, "", nil); ok {
 		t.Fatal("a revoked token logged in")
 	}
 	if found, _ := m.Revoke(d.ID); found {
@@ -156,7 +156,7 @@ func TestADeviceAtItsCapLosesItsOldestConnectionsForTheNewOne(t *testing.T) {
 	var closed []int
 	for i := 1; i <= 5; i++ {
 		i := i
-		if _, _, _, ok := m.Login(token, "", func() { closed = append(closed, i) }); !ok {
+		if _, _, _, _, ok := m.Login(token, "", func() { closed = append(closed, i) }); !ok {
 			t.Fatal("refused", i)
 		}
 	}
@@ -170,7 +170,7 @@ func TestADeviceAtItsCapLosesItsOldestConnectionsForTheNewOne(t *testing.T) {
 		t.Fatalf("each eviction is logged with the device's name: %q", logged)
 	}
 	// another device is not counted against it
-	if _, _, _, ok := m.Login(otherToken, "", nil); !ok || len(m.conns[other.ID]) != 1 || len(closed) != 2 {
+	if _, _, _, _, ok := m.Login(otherToken, "", nil); !ok || len(m.conns[other.ID]) != 1 || len(closed) != 2 {
 		t.Fatal("the cap is per device")
 	}
 }
@@ -180,10 +180,10 @@ func TestAClosedConnectionsReleaseDoesNotFreeAnotherOnesPlace(t *testing.T) {
 	m.maxConns = 2
 	code, _, _, _ := m.Pair(time.Minute)
 	token, d, _ := m.Redeem(code, "a", "", "h")
-	_, _, release1, _ := m.Login(token, "", nil)
+	_, _, _, release1, _ := m.Login(token, "", nil)
 	m.Login(token, "", nil)
 	m.Login(token, "", nil) // the first is evicted
-	release1()          // its connection ends and releases late
+	release1()              // its connection ends and releases late
 	if n := len(m.conns[d.ID]); n != 2 {
 		t.Fatalf("%d open after a late release of an evicted one, want 2", n)
 	}

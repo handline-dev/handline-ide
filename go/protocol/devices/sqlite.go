@@ -20,7 +20,7 @@ func (s SQLStore) Add(d Device, tokenHash string) error {
 	return err
 }
 
-const columns = "id, name, created, last_seen, push_platform, push_token, push_sandbox, COALESCE(address, ''), COALESCE(kind, ''), COALESCE(client, '')"
+const columns = "id, name, created, last_seen, push_platform, push_token, push_sandbox, COALESCE(address, ''), COALESCE(kind, ''), COALESCE(client, ''), person"
 
 type scanner interface{ Scan(dest ...any) error }
 
@@ -28,7 +28,7 @@ func scan(r scanner) (Device, error) {
 	var d Device
 	var seen, sandbox sql.NullInt64
 	var platform, token sql.NullString
-	if err := r.Scan(&d.ID, &d.Name, &d.Created, &seen, &platform, &token, &sandbox, &d.Address, &d.Kind, &d.Client); err != nil {
+	if err := r.Scan(&d.ID, &d.Name, &d.Created, &seen, &platform, &token, &sandbox, &d.Address, &d.Kind, &d.Client, &d.Person); err != nil {
 		return Device{}, err
 	}
 	if seen.Valid {

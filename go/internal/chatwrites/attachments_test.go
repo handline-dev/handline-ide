@@ -220,7 +220,7 @@ func TestSendKeepsPathRefsAndTellsThemAfterTheAttachments(t *testing.T) {
 	if got := attachments.PathRefsOf(r.db, rid); len(got) != 2 || got[0].Path != file || got[1].Path != dir {
 		t.Fatalf("%v", got)
 	}
-	member := &rpc.Conn{Caller: rpc.Caller{Role: "member", Info: map[string]any{"kind": "device", "name": "phone"}}}
+	member := &rpc.Conn{Caller: rpc.Caller{Role: "member", Kind: "device", Info: map[string]any{"kind": "device", "name": "phone"}}}
 	if _, err := refPaths(member, map[string]any{"refs": []any{dir}}, 0); err == nil || err.(*rpc.Error).Data["gate"] != "role" {
 		t.Fatalf("a caller not proved the founder: %v", err)
 	}

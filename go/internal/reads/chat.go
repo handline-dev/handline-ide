@@ -972,7 +972,7 @@ func (e *Env) chatSearch(c *rpc.Conn, params map[string]any) (any, error) {
 	}
 	if isAgent(c) {
 		// An agent searches its own messages only, every one it sent or received unless it asks for mine.
-		me, _ := c.Caller.Info["name"].(string)
+		me := c.Caller.Key
 		if agent != "" && agent != me {
 			return nil, rpc.Refused("an agent searches only its own messages", "role", "leave out agent")
 		}

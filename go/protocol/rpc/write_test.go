@@ -22,11 +22,11 @@ import (
 type fakeNet struct{}
 
 func (fakeNet) Know(token string) bool { return token == "t1" || token == "t2" }
-func (fakeNet) Login(token, _ string, _ func()) (string, string, func(), bool) {
+func (fakeNet) Login(token, _ string, _ func()) (string, string, string, func(), bool) {
 	if !(fakeNet{}).Know(token) {
-		return "", "", nil, false
+		return "", "", "", nil, false
 	}
-	return "d" + token[1:], "phone" + token[1:], func() {}, true
+	return "d" + token[1:], "phone" + token[1:], "", func() {}, true
 }
 func (fakeNet) Live(string) bool { return true }
 
@@ -176,9 +176,9 @@ type capNet struct {
 	closed int
 }
 
-func (g *capNet) Login(token, _ string, closeConn func()) (string, string, func(), bool) {
+func (g *capNet) Login(token, _ string, closeConn func()) (string, string, string, func(), bool) {
 	if token != "t1" {
-		return "", "", nil, false
+		return "", "", "", nil, false
 	}
 	if g.open == nil {
 		g.open = map[int]func(){}
@@ -196,7 +196,7 @@ func (g *capNet) Login(token, _ string, closeConn func()) (string, string, func(
 	g.next++
 	n := g.next
 	g.open[n] = closeConn
-	return "d1", "phone1", func() { delete(g.open, n) }, true
+	return "d1", "phone1", "", func() { delete(g.open, n) }, true
 }
 
 func TestARehelloAtTheCapDoesNotEvictItsOwnConnection(t *testing.T) {

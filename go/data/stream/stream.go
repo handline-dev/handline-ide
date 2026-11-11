@@ -393,8 +393,7 @@ func Register(srv *rpc.Server, h *Hub) {
 		live := names[devicesTopic]
 		var visible func(*Event) bool
 		if c.Caller.Role == "agent" {
-			name, _ := c.Caller.Info["name"].(string)
-			visible = newAgentView(name, h.Reach).may
+			visible = newAgentView(c.Caller.Key, h.Reach).may
 		}
 		mu.Lock()
 		defer mu.Unlock()

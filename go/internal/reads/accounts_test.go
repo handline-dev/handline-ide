@@ -296,7 +296,7 @@ func TestAccountsListGivesTheEmailToTheFounderOnly(t *testing.T) {
 		t.Fatalf("founder: %v", got)
 	}
 	for name, c := range map[string]*rpc.Conn{
-		"agent":      {Caller: rpc.Caller{Role: "agent", Info: map[string]any{"kind": "agent", "name": "amy"}}},
+		"agent":      {Caller: rpc.Caller{Role: "agent", Kind: "agent", Key: "amy", Info: map[string]any{"kind": "agent", "name": "amy"}}},
 		"member":     {Caller: rpc.Caller{Role: "member"}},
 		"in-process": nil,
 	} {

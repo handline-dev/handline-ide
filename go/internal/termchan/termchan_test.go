@@ -375,11 +375,11 @@ func newRig(t *testing.T) rig {
 }
 
 func person(name string) *rpc.Conn {
-	return &rpc.Conn{Caller: rpc.Caller{Role: "member", Info: map[string]any{"kind": "person", "name": name}}}
+	return &rpc.Conn{Caller: rpc.Caller{Role: "member", Kind: "person", Info: map[string]any{"kind": "person", "name": name}}}
 }
 
 func device(name string) *rpc.Conn {
-	return &rpc.Conn{Caller: rpc.Caller{Role: "member", Info: map[string]any{"kind": "device", "name": name, "device": "d1"}}}
+	return &rpc.Conn{Caller: rpc.Caller{Role: "member", Kind: "device", Info: map[string]any{"kind": "device", "name": name, "device": "d1"}}}
 }
 
 func gate(t *testing.T, err error) string {
