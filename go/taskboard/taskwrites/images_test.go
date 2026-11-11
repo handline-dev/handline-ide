@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/taskboard/attachments"
 )
 
@@ -150,7 +151,7 @@ func TestAnAgentAttachesToAMemoOnlyFilesFromItsOwnPlaces(t *testing.T) {
 	home := t.TempDir()
 	_, _, run := reportEnvIn(t, home, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'a', 'w', 'boss', 1)")
 	outside := filepath.Join(t.TempDir(), "plan.md")
-	inside := filepath.Join(home, "agents", "w", "plan.md")
+	inside := filepath.Join(paths.AgentDir(home, "w"), "plan.md")
 	for _, p := range []string{outside, inside} {
 		os.WriteFile(p, []byte("# plan"), 0o644)
 	}

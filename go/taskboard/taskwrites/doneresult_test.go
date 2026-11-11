@@ -136,7 +136,7 @@ func TestAUITaskIsDoneWithOrWithoutAScreenshot(t *testing.T) {
 	if r := done("w", "u1", 3, `,"evidence":"built"`); r["result"] == nil || !resultOf(3).Empty() {
 		t.Fatalf("a ui task was refused without a shot: %v", r)
 	}
-	shot := pngFile(t, filepath.Join(home, "agents", "w"), "s.png", 1000)
+	shot := pngFile(t, paths.AgentDir(home, "w"), "s.png", 1000)
 	if r := done("w", "u2", 2, fmt.Sprintf(`,"evidence":"built","shots":[%q]`, shot)); r["result"] == nil {
 		t.Fatalf("%v", r)
 	}
@@ -165,7 +165,7 @@ func TestAUITaskIsDoneWithOrWithoutAScreenshot(t *testing.T) {
 func TestADoneTasksScreenshotIsServedByTaskAndNumber(t *testing.T) {
 	home, _, _, _, done, ui := newResultRig(t)
 	ui(2)
-	shot := pngFile(t, filepath.Join(home, "agents", "w"), "s.png", 5000)
+	shot := pngFile(t, paths.AgentDir(home, "w"), "s.png", 5000)
 	want, _ := os.ReadFile(shot)
 	done("w", "s1", 2, fmt.Sprintf(`,"evidence":"built","shots":[%q]`, shot))
 	r, _ := shotCall("", 2, 1)["result"].(map[string]any)
@@ -198,7 +198,7 @@ func TestAnAgentsScreenshotsAreReadOnlyFromItsOwnPlaces(t *testing.T) {
 	if got := errText(done("w", "p1", 2, fmt.Sprintf(`,"evidence":"built","shots":[%q]`, elsewhere))); !strings.Contains(got, "outside the places a screenshot may be taken from") {
 		t.Fatalf("%q", got)
 	}
-	link := filepath.Join(home, "agents", "w", "link.png")
+	link := filepath.Join(paths.AgentDir(home, "w"), "link.png")
 	if err := os.Symlink(elsewhere, link); err != nil {
 		t.Fatal(err)
 	}
