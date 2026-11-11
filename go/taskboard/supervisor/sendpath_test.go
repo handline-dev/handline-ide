@@ -62,14 +62,14 @@ func (f *fakeAgents) Promote(string, string) (delivery.Receipt, error) {
 
 func structuredRig(t *testing.T) (*rig, *fakeAgents) {
 	r := newRig(t)
-	fa := &fakeAgents{live: map[string]bool{"bob": true}, state: delivery.Sent}
+	fa := &fakeAgents{live: map[string]bool{r.k(("bob")): true}, state: delivery.Sent}
 	r.Agents = fa
 	return r, fa
 }
 
 func TestTellNowWritesOnceToAStructuredSession(t *testing.T) {
 	r, fa := structuredRig(t)
-	rid := r.ask("alice", "bob", "psst", "say")
+	rid := r.ask(r.k("alice"), r.k(("bob")), "psst", "say")
 	got, err := r.TellNow(r.DB, rid)
 	r.must(err)
 	if got != "sent" || len(fa.sent) != 1 || fa.sent[0].d != delivery.Now || !strings.Contains(fa.sent[0].text, "psst") {
@@ -86,7 +86,7 @@ func TestTellNowWritesOnceToAStructuredSession(t *testing.T) {
 func TestSendOnceNeverWritesAnOperationTwice(t *testing.T) {
 	r, fa := structuredRig(t)
 	for i := 0; i < 3; i++ {
-		state, _ := r.sendOnce(r.DB, "bob", "op1", "hi", delivery.Now)
+		state, _ := r.sendOnce(r.DB, r.k(("bob")), "op1", "hi", delivery.Now)
 		if state != Written {
 			t.Fatal(state)
 		}
@@ -98,31 +98,31 @@ func TestSendOnceNeverWritesAnOperationTwice(t *testing.T) {
 
 func TestSendOnceNotSentWhenNoSessionOrWriteFails(t *testing.T) {
 	r, fa := structuredRig(t)
-	fa.live["bob"] = false
-	if state, _ := r.sendOnce(r.DB, "bob", "op1", "hi", delivery.Now); state != NotSent {
+	fa.live[r.k(("bob"))] = false
+	if state, _ := r.sendOnce(r.DB, r.k(("bob")), "op1", "hi", delivery.Now); state != NotSent {
 		t.Fatal(state)
 	}
-	fa.live["bob"] = true
+	fa.live[r.k(("bob"))] = true
 	fa.fail = errors.New("session closed")
-	if state, why := r.sendOnce(r.DB, "bob", "op1", "hi", delivery.Now); state != NotSent || why != "session closed" {
+	if state, why := r.sendOnce(r.DB, r.k(("bob")), "op1", "hi", delivery.Now); state != NotSent || why != "session closed" {
 		t.Fatal(state, why)
 	}
 	fa.fail = nil // a failed write left no ledger row: the same op may go out now
-	if state, _ := r.sendOnce(r.DB, "bob", "op1", "hi", delivery.Now); state != Written {
+	if state, _ := r.sendOnce(r.DB, r.k(("bob")), "op1", "hi", delivery.Now); state != Written {
 		t.Fatal(state)
 	}
 }
 
 func TestAWrittenMessageThatLosesItsSessionIsUnknownAndTold(t *testing.T) {
 	r, fa := structuredRig(t)
-	rid := r.ask("alice", "bob", "psst", "say")
+	rid := r.ask(r.k("alice"), r.k(("bob")), "psst", "say")
 	_, err := r.TellNow(r.DB, rid)
 	r.must(err)
-	r.must(r.SessionLost(r.DB, "bob"))
-	if v, _ := db.Cursor(r.DB, ledgerKey("bob", requestOp(rid))); v != sendUnknown {
+	r.must(r.SessionLost(r.DB, r.k(("bob"))))
+	if v, _ := db.Cursor(r.DB, ledgerKey(r.k("bob"), requestOp(rid))); v != sendUnknown {
 		t.Fatalf("ledger %d", v)
 	}
-	if state, _ := r.sendOnce(r.DB, "bob", requestOp(rid), "psst", delivery.Now); state != Unknown || len(fa.sent) != 1 {
+	if state, _ := r.sendOnce(r.DB, r.k(("bob")), requestOp(rid), "psst", delivery.Now); state != Unknown || len(fa.sent) != 1 {
 		t.Fatalf("an unknown message was written again: %v %+v", state, fa.sent)
 	}
 	var n int
@@ -135,54 +135,54 @@ func TestAWrittenMessageThatLosesItsSessionIsUnknownAndTold(t *testing.T) {
 func TestAHeldMessageThatLosesItsSessionIsOwedAgain(t *testing.T) {
 	r, fa := structuredRig(t)
 	fa.state = delivery.Queued
-	if state, _ := r.sendOnce(r.DB, "bob", "request:7", "hi", delivery.Queue); state != Held {
+	if state, _ := r.sendOnce(r.DB, r.k(("bob")), "request:7", "hi", delivery.Queue); state != Held {
 		t.Fatal(state)
 	}
-	r.must(r.SessionLost(r.DB, "bob"))
+	r.must(r.SessionLost(r.DB, r.k(("bob"))))
 	fa.state, fa.seen = delivery.Sent, nil // a new session knows nothing of the old one's operations
-	if state, _ := r.sendOnce(r.DB, "bob", "request:7", "hi", delivery.Queue); state != Written {
+	if state, _ := r.sendOnce(r.DB, r.k(("bob")), "request:7", "hi", delivery.Queue); state != Written {
 		t.Fatalf("never written, so it goes out again: %v", state)
 	}
 }
 
 func TestSessionConfirmedLandsTheRequests(t *testing.T) {
 	r, fa := structuredRig(t)
-	rid := r.ask("alice", "bob", "do this", "ask")
+	rid := r.ask(r.k("alice"), r.k(("bob")), "do this", "ask")
 	op := requestOp(rid)
-	if state, _ := r.sendOnce(r.DB, "bob", op, "do this", delivery.Queue); state != Written {
+	if state, _ := r.sendOnce(r.DB, r.k(("bob")), op, "do this", delivery.Queue); state != Written {
 		t.Fatal(state)
 	}
-	r.must(r.SessionConfirmed(r.DB, "bob", op))
+	r.must(r.SessionConfirmed(r.DB, r.k(("bob")), op))
 	row, _ := db.GetRequest(r.DB, rid)
 	if !row.LandedAt.Valid {
 		t.Fatalf("%+v", row)
 	}
-	if v, _ := db.Cursor(r.DB, ledgerKey("bob", op)); v != 0 {
+	if v, _ := db.Cursor(r.DB, ledgerKey(r.k("bob"), op)); v != 0 {
 		t.Fatalf("a landed message stays on the ledger: %d", v)
 	}
-	if sent, _ := r.DeliverQueued(r.DB, "bob"); sent || len(fa.sent) != 1 {
+	if sent, _ := r.DeliverQueued(r.DB, r.k(("bob"))); sent || len(fa.sent) != 1 {
 		t.Fatalf("a landed message was written again: %+v", fa.sent)
 	}
 }
 
 func TestAMessageLeavesTheLedgerWhenEveryRequestItCarriedLandsOrIsClosed(t *testing.T) {
 	r, _ := structuredRig(t)
-	a, b := r.ask("alice", "bob", "one", "say"), r.ask("carol", "bob", "two", "say")
+	a, b := r.ask(r.k("alice"), r.k(("bob")), "one", "say"), r.ask(r.k("carol"), r.k(("bob")), "two", "say")
 	op := requestOp(a, b)
-	if state, _ := r.sendOnce(r.DB, "bob", op, "one, two", delivery.Now); state != Written {
+	if state, _ := r.sendOnce(r.DB, r.k(("bob")), op, "one, two", delivery.Now); state != Written {
 		t.Fatal(state)
 	}
 	r.must(db.MarkLanded(r.DB, a))
-	if v, _ := db.Cursor(r.DB, ledgerKey("bob", op)); v != sendWritten {
+	if v, _ := db.Cursor(r.DB, ledgerKey(r.k("bob"), op)); v != sendWritten {
 		t.Fatalf("one of two landed: the message is still out (%d)", v)
 	}
 	if ok, err := db.CloseIfQueued(r.DB, b, "withdrawn", ""); !ok || err != nil {
 		t.Fatal(ok, err)
 	}
-	if v, _ := db.Cursor(r.DB, ledgerKey("bob", op)); v != 0 {
+	if v, _ := db.Cursor(r.DB, ledgerKey(r.k("bob"), op)); v != 0 {
 		t.Fatalf("both settled: the entry goes (%d)", v)
 	}
-	r.must(r.SessionLost(r.DB, "bob"))
+	r.must(r.SessionLost(r.DB, r.k(("bob"))))
 	var n int
 	r.must(r.DB.QueryRow("SELECT count(*) FROM requests WHERE body LIKE '%may or may not%'").Scan(&n))
 	if n != 0 {
@@ -192,50 +192,50 @@ func TestAMessageLeavesTheLedgerWhenEveryRequestItCarriedLandsOrIsClosed(t *test
 
 func TestDeliverQueuedHoldsATaskBehindTheRunningTurn(t *testing.T) {
 	r, fa := structuredRig(t)
-	rid := r.ask("human", "bob", "ship it", "task")
-	sent, err := r.DeliverQueued(r.DB, "bob")
+	rid := r.ask(r.k("human"), r.k(("bob")), "ship it", "task")
+	sent, err := r.DeliverQueued(r.DB, r.k(("bob")))
 	r.must(err)
 	if !sent || len(fa.sent) != 1 || fa.sent[0].d != delivery.Queue || fa.sent[0].op != requestOp(rid) {
 		t.Fatalf("%v %+v", sent, fa.sent)
 	}
-	if sent, _ := r.DeliverQueued(r.DB, "bob"); sent && len(fa.sent) != 1 {
+	if sent, _ := r.DeliverQueued(r.DB, r.k(("bob"))); sent && len(fa.sent) != 1 {
 		t.Fatalf("a second tick wrote again: %+v", fa.sent)
 	}
 }
 
 func TestNoticesAndCancelsGoThroughTheSendPath(t *testing.T) {
 	r, fa := structuredRig(t)
-	if ok, _ := r.TypeNotice(r.DB, "bob", "a line"); !ok {
+	if ok, _ := r.TypeNotice(r.DB, r.k(("bob")), "a line"); !ok {
 		t.Fatal("notice not sent")
 	}
-	if ok, _ := r.TypeNotice(r.DB, "bob", "a line"); !ok || len(fa.sent) != 2 {
+	if ok, _ := r.TypeNotice(r.DB, r.k(("bob")), "a line"); !ok || len(fa.sent) != 2 {
 		t.Fatalf("each notice is its own operation: %+v", fa.sent)
 	}
-	fa.live["bob"] = false
-	if ok, _ := r.TypeNotice(r.DB, "bob", "later"); ok {
+	fa.live[r.k(("bob"))] = false
+	if ok, _ := r.TypeNotice(r.DB, r.k(("bob")), "later"); ok {
 		t.Fatal("sent with no session")
 	}
 }
 
 func TestAnEchoThatLandsTheRequestDuringTheWriteIsStillSent(t *testing.T) {
 	r, fa := structuredRig(t)
-	rid := r.ask("alice", "bob", "hi", "say")
-	fa.onSend = func() { r.must(r.SessionConfirmed(r.DB, "bob", requestOp(rid))) } // landing it takes it off the ledger
+	rid := r.ask(r.k("alice"), r.k(("bob")), "hi", "say")
+	fa.onSend = func() { r.must(r.SessionConfirmed(r.DB, r.k(("bob")), requestOp(rid))) } // landing it takes it off the ledger
 	what, err := r.TellNow(r.DB, rid)
 	r.must(err)
 	if !strings.HasPrefix(what, "sent") {
 		t.Fatalf("a delivered message read as not sent: %q", what)
 	}
-	if v, _ := db.Cursor(r.DB, ledgerKey("bob", requestOp(rid))); v != 0 {
+	if v, _ := db.Cursor(r.DB, ledgerKey(r.k("bob"), requestOp(rid))); v != 0 {
 		t.Fatalf("ledger %d", v)
 	}
 }
 
 func TestABatchWhoseEchoLandsItDuringTheWriteIsStillDelivered(t *testing.T) {
 	r, fa := structuredRig(t)
-	a, b := r.ask("human", "bob", "one", "task"), r.ask("human", "bob", "two", "task")
-	fa.onSend = func() { r.must(r.SessionConfirmed(r.DB, "bob", requestOp(a, b))) }
-	sent, err := r.DeliverQueued(r.DB, "bob")
+	a, b := r.ask(r.k("human"), r.k(("bob")), "one", "task"), r.ask(r.k("human"), r.k(("bob")), "two", "task")
+	fa.onSend = func() { r.must(r.SessionConfirmed(r.DB, r.k(("bob")), requestOp(a, b))) }
+	sent, err := r.DeliverQueued(r.DB, r.k(("bob")))
 	r.must(err)
 	if !sent {
 		t.Fatal("a delivered batch read as not sent")
@@ -250,23 +250,23 @@ func TestABatchWhoseEchoLandsItDuringTheWriteIsStillDelivered(t *testing.T) {
 func TestAnEchoDuringTheWriteIsNotOverwrittenToHeld(t *testing.T) {
 	r, fa := structuredRig(t)
 	fa.state = delivery.Queued
-	fa.onSend = func() { r.must(r.SessionConfirmed(r.DB, "bob", "request:7")) }
-	state, _ := r.sendOnce(r.DB, "bob", "request:7", "hi", delivery.Queue)
+	fa.onSend = func() { r.must(r.SessionConfirmed(r.DB, r.k(("bob")), "request:7")) }
+	state, _ := r.sendOnce(r.DB, r.k(("bob")), "request:7", "hi", delivery.Queue)
 	if state != Confirmed {
 		t.Fatalf("answered %v", state)
 	}
-	if v, _ := db.Cursor(r.DB, ledgerKey("bob", "request:7")); v != sendConfirmed {
+	if v, _ := db.Cursor(r.DB, ledgerKey(r.k("bob"), "request:7")); v != sendConfirmed {
 		t.Fatalf("ledger %d", v)
 	}
-	r.must(r.SessionLost(r.DB, "bob"))
-	if v, _ := db.Cursor(r.DB, ledgerKey("bob", "request:7")); v != sendConfirmed {
+	r.must(r.SessionLost(r.DB, r.k(("bob"))))
+	if v, _ := db.Cursor(r.DB, ledgerKey(r.k("bob"), "request:7")); v != sendConfirmed {
 		t.Fatalf("a lost session unsettled a confirmed message: %d", v)
 	}
 }
 
 func TestOneStuckSessionDoesNotBlockAnotherAgentsSend(t *testing.T) {
 	r, fa := structuredRig(t)
-	fa.live["alice"] = true
+	fa.live[r.k(("alice"))] = true
 	// entered is buffered: an unbuffered send behind a default is dropped whenever the write gets there before this test waits, and the
 	// wait below then never ends.
 	release, entered := make(chan struct{}), make(chan struct{}, 1)
@@ -278,14 +278,14 @@ func TestOneStuckSessionDoesNotBlockAnotherAgentsSend(t *testing.T) {
 		}
 	}
 	stuck := make(chan struct{})
-	go func() { r.sendOnce(r.DB, "bob", "op1", "stuck", delivery.Now); close(stuck) }()
+	go func() { r.sendOnce(r.DB, r.k(("bob")), "op1", "stuck", delivery.Now); close(stuck) }()
 	select {
 	case <-entered:
 	case <-time.After(10 * time.Second):
 		t.Fatal("bob's write never started")
 	}
 	done := make(chan struct{})
-	go func() { r.sendOnce(r.DB, "alice", "op2", "free", delivery.Now); close(done) }()
+	go func() { r.sendOnce(r.DB, r.k(("alice")), "op2", "free", delivery.Now); close(done) }()
 	select {
 	case <-done:
 	case <-time.After(3 * time.Second):
@@ -298,11 +298,11 @@ func TestOneStuckSessionDoesNotBlockAnotherAgentsSend(t *testing.T) {
 func TestAnUnknownPendingOrNoticeOpIsRecordedAndNotWrittenAgain(t *testing.T) {
 	r, fa := structuredRig(t)
 	for _, op := range []string{"pending:3", "notice:4"} {
-		r.sendOnce(r.DB, "bob", op, "x", delivery.Now)
+		r.sendOnce(r.DB, r.k(("bob")), op, "x", delivery.Now)
 	}
-	r.must(r.SessionLost(r.DB, "bob"))
+	r.must(r.SessionLost(r.DB, r.k(("bob"))))
 	for _, op := range []string{"pending:3", "notice:4"} {
-		if state, _ := r.sendOnce(r.DB, "bob", op, "x", delivery.Now); state != Unknown {
+		if state, _ := r.sendOnce(r.DB, r.k(("bob")), op, "x", delivery.Now); state != Unknown {
 			t.Fatalf("%s: %v", op, state)
 		}
 	}
@@ -313,18 +313,18 @@ func TestAnUnknownPendingOrNoticeOpIsRecordedAndNotWrittenAgain(t *testing.T) {
 
 func TestPushHereTellsALiveStructuredAgentThroughItsSessionAndStartsNothing(t *testing.T) {
 	r, fa := structuredRig(t)
-	rid := r.ask("alice", "bob", "psst", "say")
-	if got := r.PushHere(r.DB, "bob", rid); !strings.Contains(got, "delivered to bob") || len(fa.sent) != 1 {
+	rid := r.ask(r.k("alice"), r.k(("bob")), "psst", "say")
+	if got := r.PushHere(r.DB, r.k(("bob")), rid); !strings.Contains(got, "delivered to bob") || len(fa.sent) != 1 {
 		t.Fatalf("%q %+v", got, fa.sent)
 	}
 	// A request that is not marked to go now is delivered from the queue, not by starting the agent that has a live session.
-	r.ask("alice", "bob", "do the thing", "ask")
-	r.PushHere(r.DB, "bob", 0)
+	r.ask(r.k("alice"), r.k(("bob")), "do the thing", "ask")
+	r.PushHere(r.DB, r.k(("bob")), 0)
 	if len(r.life.started) != 0 {
 		t.Fatalf("started a live structured agent: %v", r.life.started)
 	}
-	fa.live["bob"] = false
-	r.PushHere(r.DB, "bob", 0)
+	fa.live[r.k(("bob"))] = false
+	r.PushHere(r.DB, r.k(("bob")), 0)
 	if len(r.life.started) != 1 {
 		t.Fatalf("a structured agent with no session is started for the work: %v", r.life.started)
 	}
@@ -333,44 +333,44 @@ func TestPushHereTellsALiveStructuredAgentThroughItsSessionAndStartsNothing(t *t
 func TestTheTickTellsAStructuredAgentWhatNobodyToldItAndFindsItsForgottenHead(t *testing.T) {
 	r, fa := structuredRig(t)
 	// bob is structured, live, and has no terminal: the gates that looked for one found nothing and told it nothing.
-	r.must(db.SetAgentState(r.DB, "bob", "IDLE", 0, ""))
-	rid := r.ask("alice", "bob", "psst", "say")
+	r.must(db.SetAgentState(r.DB, r.k(("bob")), "IDLE", 0, ""))
+	rid := r.ask(r.k("alice"), r.k(("bob")), "psst", "say")
 	if n := len(fa.sent); n != 0 {
 		t.Fatalf("sent at once: %d", n)
 	}
-	r.must(r.TellUndelivered(r.DB, "bob"))
+	r.must(r.TellUndelivered(r.DB, r.k(("bob"))))
 	if len(fa.sent) != 1 || !strings.Contains(fa.sent[0].text, "psst") {
 		t.Fatalf("a message nobody told a live structured agent was not told: %+v (request %d)", fa.sent, rid)
 	}
 	// With no live session it is the supervisor's own step to start it, not this one's.
-	fa.live["bob"] = false
-	r.ask("alice", "bob", "again", "say")
-	r.must(r.TellUndelivered(r.DB, "bob"))
+	fa.live[r.k(("bob"))] = false
+	r.ask(r.k("alice"), r.k(("bob")), "again", "say")
+	r.must(r.TellUndelivered(r.DB, r.k(("bob"))))
 	if len(fa.sent) != 1 {
 		t.Fatalf("told a structured agent that has no session: %+v", fa.sent)
 	}
 	// A told task nobody answered is a forgotten head for a structured agent too.
-	fa.live["bob"] = true
-	head := r.task("bob", "alice", "the job")
-	r.DeliverQueued(r.DB, "bob")
-	row, _ := db.GetAgentState(r.DB, "bob")
-	if f := r.forgottenResolve(r.DB, "bob", row, r.clock); f == nil || f.Head.ID != head {
+	fa.live[r.k(("bob"))] = true
+	head := r.task(r.k("bob"), r.k(("alice")), "the job")
+	r.DeliverQueued(r.DB, r.k(("bob")))
+	row, _ := db.GetAgentState(r.DB, r.k(("bob")))
+	if f := r.forgottenResolve(r.DB, r.k(("bob")), row, r.clock); f == nil || f.Head.ID != head {
 		t.Fatalf("%+v", f)
 	}
 }
 
 func TestADeliveryActedOnSinceIsNotReportedWhenItsSessionEnds(t *testing.T) {
 	r, _ := structuredRig(t)
-	read := r.ask("alice", "bob", "read it", "say")
-	settled := r.ask("carol", "bob", "settled since", "say")
-	open := r.ask("dave", "bob", "never seen", "say")
+	read := r.ask(r.k("alice"), r.k(("bob")), "read it", "say")
+	settled := r.ask(r.k("carol"), r.k(("bob")), "settled since", "say")
+	open := r.ask(r.k("dave"), r.k(("bob")), "never seen", "say")
 	for _, rid := range []int64{read, settled, open} {
 		_, err := r.TellNow(r.DB, rid)
 		r.must(err)
 	}
 	r.DB.Exec("UPDATE requests SET read_at = 1 WHERE id = ?", read)       // the agent ran hl read on it
 	r.DB.Exec("UPDATE requests SET state = 'done' WHERE id = ?", settled) // what a daemon start does to an old say
-	r.must(r.SessionLost(r.DB, "bob"))
+	r.must(r.SessionLost(r.DB, r.k(("bob"))))
 	var told []string
 	rows, _ := r.DB.Query("SELECT target FROM requests WHERE body LIKE '%may or may not%' ORDER BY target")
 	for rows.Next() {
@@ -379,11 +379,11 @@ func TestADeliveryActedOnSinceIsNotReportedWhenItsSessionEnds(t *testing.T) {
 		told = append(told, to)
 	}
 	rows.Close()
-	if strings.Join(told, ",") != "dave" {
+	if strings.Join(told, ",") != r.k(("dave")) {
 		t.Fatalf("told %v: only the sender of the one nothing says arrived", told)
 	}
 	for _, rid := range []int64{read, settled} {
-		if v, _ := db.Cursor(r.DB, ledgerKey("bob", requestOp(rid))); v != 0 {
+		if v, _ := db.Cursor(r.DB, ledgerKey(r.k("bob"), requestOp(rid))); v != 0 {
 			t.Fatalf("#%d still on the ledger: %d", rid, v)
 		}
 	}
