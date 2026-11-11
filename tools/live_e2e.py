@@ -5,7 +5,7 @@
 
 Spends real tokens: run it only on purpose, never from check.sh or CI. Any agent may run it. It spends the
 account tools/live_account.py picks (the most usage headroom now). It never touches the live daemon: it starts its own
-on a scratch home under a temp test root, with one haiku agent in permission mode `default` (the permission step needs a
+on a scratch home under a temp test root, with one haiku agent, added to its database once it runs, in permission mode `default` (the permission step needs a
 real prompt), the real shared settings, and the picked account's real config dir (HANDLINE_LIVE_ACCOUNTS: the keychain
 keeps the login under that path). Its hooks are that config dir's, so they run the installed hl: a change to `hl hook` shows here
 only once it is installed. The agent's own hl and hooks reach the test daemon. --daemon is the handlined to run;
@@ -352,35 +352,50 @@ def terminal_turns(r: Run, sock: str, config_dir: str, root: Path, group: int) -
 
 
 def scratch(root: Path, account: dict) -> tuple[Path, str]:
-    """The test daemon's home under root, with its founder key where the daemon looks for one under a test root: one account
-    (the picked one, with the reading the live daemon last took of it), the real shared settings, and the agent in a git
-    checkout of its own (a worktree of this repository: see the module doc)."""
+    """The test daemon's home under root, with its founder key where the daemon looks for one under a test root, the real shared
+    settings, and a git checkout for the agent (a worktree of this repository: see the module doc). The account and the agent are
+    rows the daemon's database does not have until it runs: seed() adds them."""
     home, real = root / "state", Path(account["home"])
     store = root / ".config" / "handline" / "protected" / re.sub(r"[^A-Za-z0-9]", "-", str(home)) / "founder-keys"
     store.mkdir(parents=True, mode=0o700)
     key = secrets.token_urlsafe(32)
     (store / "key").write_text(key)
     (store / "key").chmod(0o600)
-    acct = home / "accounts" / account["account"]
-    acct.mkdir(parents=True)
-    for f in ("status.json", "subscription.json"):
-        if (real / "accounts" / account["account"] / f).exists():
-            shutil.copy(real / "accounts" / account["account"] / f, acct / f)
     (home / "shared" / ".claude").mkdir(parents=True)
     shutil.copy(real / "shared" / ".claude" / "settings.json", home / "shared" / ".claude" / "settings.json")
     work = root / "work"
     subprocess.run(["git", "worktree", "add", "-q", "--detach", str(work), "HEAD"], cwd=REPO, check=True)
-    (home / "agents" / AGENT).mkdir(parents=True)
-    (home / "agents" / AGENT / "agent.yaml").write_text(f"model: haiku\nmode: default\nrepo: {work}\n")
-    (home / "team.yaml").write_text(f"agents:\n  {AGENT}: {{}}\nedges:\n"
-                                    '  - { from: "human", to: "*", relation: supervisor, response: fire_and_forget }\n')
     return home, key
+
+
+def seed(d: Daemon, home: Path, account: dict, work: Path) -> None:
+    """The picked account (registered through account.add, with the reading the live daemon last took of it) and the agent: its
+    workspace and agent rows, at haiku in permission mode `default`, and its folder. No RPC registers an agent without starting it,
+    in the daemon's default mode, so these rows are inserted."""
+    d.write("account.add", {"account": account["account"]})
+    acct, real = home / "accounts" / account["account"], Path(account["home"]) / "accounts" / account["account"]
+    for f in ("status.json", "subscription.json"):
+        if (real / f).exists():
+            shutil.copy(real / f, acct / f)
+    workspace, name = AGENT.split(".")
+    con = sqlite3.connect(home / "db.sqlite", timeout=10)
+    owner = con.execute("SELECT 'p' || id FROM people WHERE role = 'owner' ORDER BY id LIMIT 1").fetchone()[0]
+    ws = con.execute("INSERT INTO workspaces(name, folder, created_at) VALUES(?, ?, 0)", (workspace, str(work))).lastrowid
+    lead = con.execute("INSERT INTO agents(workspace, name, owner, reports_to, model, effort, weight, mode, created_at) "
+                       "VALUES(?, 'lead', ?, ?, 'haiku', 'medium', 'light', 'default', 0)", (ws, owner, owner)).lastrowid
+    con.execute("UPDATE workspaces SET lead = ? WHERE id = ?", (lead, ws))
+    agent_id = con.execute("INSERT INTO agents(workspace, name, owner, reports_to, model, effort, weight, mode, created_at) "
+                      "VALUES(?, ?, ?, ?, 'haiku', 'medium', 'light', 'default', 0)", (ws, name, owner, f"a{lead}")).lastrowid
+    con.execute("INSERT OR REPLACE INTO agent_state(agent, state, updated, worktree) VALUES(?, 'IDLE', 0, ?)", (AGENT, str(work)))
+    con.commit()
+    con.close()
+    (home / "agents" / f"a{agent_id}").mkdir(parents=True)
 
 
 def start_daemon(binary: str, root: Path, home: Path, account: dict, tmux: str) -> int:
     """The test daemon as production runs it (terminal agents, the tick, hook-driven turns), in a process group of its own so its
     sessions go with it; returns that group. Like launchd's daemon it has no parent: an agent's hl counts the Claude Codes
-    above it, and the one running this run must not be one. The agent's row names its checkout: the daemon makes no worktrees yet."""
+    above it, and the one running this run must not be one."""
     # OCP_* is the old name of HANDLINE_*, still in the environment of a session started before the rename: its OCP_HOME names the real home,
     # the agent's hooks refuse the two homes, and the agent never reports idle.
     env = {k: v for k, v in os.environ.items() if k not in ("HANDLINE_AGENT", "HANDLINE_HOME") and not k.startswith("OCP_")}
@@ -406,10 +421,6 @@ def start_daemon(binary: str, root: Path, home: Path, account: dict, tmux: str) 
             stop_daemon(sh.pid)
             raise Refused(f"the test daemon did not come up; its log: {root / 'daemon.log'}")
         time.sleep(0.1)
-    con = sqlite3.connect(home / "db.sqlite", timeout=10)
-    con.execute("INSERT OR REPLACE INTO agent_state(agent, state, updated, worktree) VALUES(?, 'IDLE', 0, ?)", (AGENT, str(root / "work")))
-    con.commit()
-    con.close()
     return sh.pid
 
 
@@ -473,6 +484,7 @@ def main() -> int:
         home, key = scratch(root, account)
         daemon = start_daemon(binary, root, home, account, tmux)
         d = Daemon(home / "daemon.sock", key)
+        seed(d, home, account, root / "work")
         s = Stream(home / "daemon.sock", key)
         r = Run(d, s, Answerer(home / "daemon.sock", key, s, AGENT), AGENT)
         print(f"live-e2e: {AGENT} on a test daemon {d.hello.get('daemon')}, home {home}", flush=True)
