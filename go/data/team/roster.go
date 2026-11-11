@@ -543,7 +543,7 @@ func (r *Roster) Rename(old, new string) error {
 		if at.id == 0 {
 			return &NotRegistered{old}
 		}
-		oldWs, _ := SplitLegacy(old)
+		oldWs := at.wsName // old may be the agent's key
 		newWs, newAgent := SplitLegacy(new)
 		if at.lead != (newAgent == "") {
 			return refuse("a workspace's lead is named by the workspace (%s), any other agent as workspace.agent: %s cannot become %s", oldWs, old, new)

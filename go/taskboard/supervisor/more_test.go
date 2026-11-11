@@ -45,7 +45,7 @@ func TestStartupSettlesOnlyTheSaysNothingTracksAndTypesPendingRows(t *testing.T)
 	db.MarkDelivered(r.DB, tracked)
 	db.MarkDelivered(r.DB, batched)
 	for id, op := range map[int64]string{tracked: "request:" + itoa(tracked), batched: "request:" + itoa(batched-1) + "," + itoa(batched) + ",9"} {
-		if _, err := r.DB.Exec("INSERT INTO operations(id, kind, state, agent, created_at, updated_at) VALUES(?, 'send', 'sent', 'bob', 1, 1)", "send:bob:"+op); err != nil {
+		if _, err := r.DB.Exec("INSERT INTO operations(id, kind, state, agent, created_at, updated_at) VALUES(?, 'send', 'sent', ?, 1, 1)", r.k("bob"), "send:"+r.k("bob")+":"+op); err != nil {
 			t.Fatalf("%d: %v", id, err)
 		}
 	}
