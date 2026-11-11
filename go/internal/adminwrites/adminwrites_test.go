@@ -131,8 +131,9 @@ func TestSchedulesAreAddedEditedMovedAndRemovedByTheirId(t *testing.T) {
 	r := newRig(t)
 	add := `{"target":"alice","cron":"0  9 * * *","message":"morning   check","request_id":"s1"}`
 	res := r.result(r.one("schedule.add", add))
-	id := cronspec.ID("alice", cronspec.Schedule{Cron: "0 9 * * *", Message: "morning check"})
-	if res["schedule"] != float64(id) || res["said"] != "alice: scheduled 0 9 * * *" {
+	alice, bob := teamtest.Key(t, r.home, "alice"), teamtest.Key(t, r.home, "bob")
+	id := cronspec.ID(alice, cronspec.Schedule{Cron: "0 9 * * *", Message: "morning check"})
+	if res["schedule"] != float64(id) || res["said"] != alice+": scheduled 0 9 * * *" {
 		t.Fatalf("%v", res)
 	}
 	if r.result(r.one("schedule.add", add))["replayed"] != true || strings.Count(r.setting("alice", "schedules"), "morning check") != 1 {
@@ -145,7 +146,7 @@ func TestSchedulesAreAddedEditedMovedAndRemovedByTheirId(t *testing.T) {
 		t.Fatal("a bad cron is bad_request")
 	}
 	moved := r.result(r.one("schedule.edit", fmt.Sprintf(`{"schedule":%d,"target":"bob","cron":"30 9 * * 1-5","request_id":"s4"}`, id)))
-	idBob := cronspec.ID("bob", cronspec.Schedule{Cron: "30 9 * * 1-5", Message: "morning check"})
+	idBob := cronspec.ID(bob, cronspec.Schedule{Cron: "30 9 * * 1-5", Message: "morning check"})
 	if moved["schedule"] != float64(idBob) || r.setting("alice", "schedules") != "" || !strings.Contains(r.setting("bob", "schedules"), "30 9 * * 1-5") {
 		t.Fatalf("edited and moved to bob: %v\n%s", moved, r.setting("bob", "schedules"))
 	}
