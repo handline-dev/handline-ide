@@ -152,6 +152,7 @@ func TestAMessagesImagesReadBackInPartsWithAPathOnlyForAnAgent(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	addAgent(t, e, "bob", "")
+	bob := teamtest.Key(t, e.Home, "bob")
 	s := attachments.New(e.Home)
 	var ids []string
 	for range 2 {
@@ -162,11 +163,11 @@ func TestAMessagesImagesReadBackInPartsWithAPathOnlyForAnAgent(t *testing.T) {
 		}
 		ids = append(ids, out.Attachment.ID)
 	}
-	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(1, 10, 'p1', 'bob', ?, 'landed', 'say', 1)",
+	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(1, 10, 'p1', '"+bob+"', ?, 'landed', 'say', 1)",
 		"see ![it](attachment:"+ids[0]+") here")
 	listed, _ := s.Lookup(ids[1])
 	attachments.Record(e.DB, 1, []attachments.Info{listed})
-	got, err := e.chatMessages(nil, map[string]any{"agent": "bob", "scope": "mine"})
+	got, err := e.chatMessages(nil, map[string]any{"agent": bob, "scope": "mine"})
 	if err != nil {
 		t.Fatal(err)
 	}

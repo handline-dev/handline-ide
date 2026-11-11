@@ -163,13 +163,14 @@ func TestAnAccountListsTheAgentsItsViewsPutOnIt(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	for n, view := range map[string]string{"cold": `{"account": null}`, "warm": `{"account": "main"}`} {
+	cold, fresh, warm := teamtest.Key(t, e.Home, "cold"), teamtest.Key(t, e.Home, "fresh"), teamtest.Key(t, e.Home, "warm")
+	for n, view := range map[string]string{cold: `{"account": null}`, warm: `{"account": "main"}`} {
 		if _, err := e.DB.Exec("INSERT INTO agent_view(agent, view, updated) VALUES(?, ?, 1)", n, view); err != nil {
 			t.Fatal(err)
 		}
 	}
 	acct, _ := e.Account("main")
-	if got, _ := json.Marshal(acct["agents"]); string(got) != `["fresh","warm"]` {
+	if got, _ := json.Marshal(acct["agents"]); string(got) != `["`+fresh+`","`+warm+`"]` {
 		t.Fatalf("agents %s", got)
 	}
 }

@@ -71,6 +71,7 @@ func TestSettingsShowTheHandoffPromptAsSetOrTheBuiltInAndAnAgentsOwn(t *testing.
 	t.Parallel()
 	e := testEnv(t)
 	teamtest.Set(t, e.Home, "ann", "handoff_prompt", "ann: {path}")
+	ann := teamtest.Key(t, e.Home, "ann")
 	get := func(agent string) map[string]any {
 		t.Helper()
 		params := map[string]any{}
@@ -90,15 +91,15 @@ func TestSettingsShowTheHandoffPromptAsSetOrTheBuiltInAndAnAgentsOwn(t *testing.
 	if got := get("")["values"].(map[string]any)[handoff.PromptKey]; got != "Mine: {path}" {
 		t.Fatalf("set: %q", got)
 	}
-	if got := get("ann")["overrides"].(map[string]any)[handoff.PromptKey]; got != "ann: {path}" {
+	if got := get(ann)["overrides"].(map[string]any)[handoff.PromptKey]; got != "ann: {path}" {
 		t.Fatalf("ann's own: %q", got)
 	}
 	// the built-in text stays beside the value once one is set, and the agents with their own are named; neither is part of one agent's view
 	all := get("")
-	if all["handoff_prompt_default"] != handoff.AskTemplate || !reflect.DeepEqual(all["handoff_prompt_own"], []string{"ann"}) {
+	if all["handoff_prompt_default"] != handoff.AskTemplate || !reflect.DeepEqual(all["handoff_prompt_own"], []string{ann}) {
 		t.Fatalf("%v %v", all["handoff_prompt_default"], all["handoff_prompt_own"])
 	}
-	if _, ok := get("ann")["handoff_prompt_own"]; ok {
+	if _, ok := get(ann)["handoff_prompt_own"]; ok {
 		t.Fatal("an agent's view carries the roster")
 	}
 }

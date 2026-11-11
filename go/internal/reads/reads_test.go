@@ -48,7 +48,8 @@ func TestAnAgentWithNoStoredViewIsListedWithItsRoleAndTheNoTerminalState(t *test
 	e := testEnv(t)
 	addAgent(t, e, "worker", "# worker\n\n  Does   the work.\nSecond.\n")
 	addAgent(t, e, "manager", "")
-	if _, err := e.DB.Exec(`INSERT INTO agent_view(agent, view, updated) VALUES('manager', '{"name":"manager","state":"idle"}', 0)`); err != nil {
+	worker, manager := teamtest.Key(t, e.Home, "worker"), teamtest.Key(t, e.Home, "manager")
+	if _, err := e.DB.Exec(`INSERT INTO agent_view(agent, view, updated) VALUES('` + manager + `', '{"name":"` + manager + `","state":"idle"}', 0)`); err != nil {
 		t.Fatal(err)
 	}
 	got, err := e.agentsList(nil, nil)
@@ -58,7 +59,7 @@ func TestAnAgentWithNoStoredViewIsListedWithItsRoleAndTheNoTerminalState(t *test
 	b, _ := json.Marshal(got)
 	var out struct{ Agents []map[string]any }
 	json.Unmarshal(b, &out)
-	if len(out.Agents) != 2 || out.Agents[0]["state"] != "idle" || out.Agents[1]["name"] != "worker" ||
+	if len(out.Agents) != 2 || out.Agents[0]["state"] != "idle" || out.Agents[1]["name"] != worker ||
 		out.Agents[1]["state"] != "no_terminal" || out.Agents[1]["role"] != "Does   the work." {
 		t.Fatalf("%s", b)
 	}
@@ -168,23 +169,24 @@ func TestChatRefsAreTheAgentsNewestRequestsAndLeaveOutWhatNeverReached(t *testin
 	t.Parallel()
 	e := testEnv(t)
 	addAgent(t, e, "alice", "")
+	alice := teamtest.Key(t, e.Home, "alice")
 	for _, q := range []string{
-		"INSERT INTO requests(id, ts, requester, target, body, state) VALUES(1, 1, 'p1', 'alice', '  ', 'queued')",
-		"INSERT INTO requests(id, ts, requester, target, body, state) VALUES(2, 2, 'alice', 'bob', 'first line' || char(10) || 'second', 'queued')",
-		"INSERT INTO requests(id, ts, requester, target, body, state) VALUES(3, 3, 'p1', 'alice', 'taken back', 'withdrawn')",
+		"INSERT INTO requests(id, ts, requester, target, body, state) VALUES(1, 1, 'p1', '" + alice + "', '  ', 'queued')",
+		"INSERT INTO requests(id, ts, requester, target, body, state) VALUES(2, 2, '" + alice + "', 'bob', 'first line' || char(10) || 'second', 'queued')",
+		"INSERT INTO requests(id, ts, requester, target, body, state) VALUES(3, 3, 'p1', '" + alice + "', 'taken back', 'withdrawn')",
 		"INSERT INTO requests(id, ts, requester, target, body, state) VALUES(4, 4, 'bob', 'carol', 'not alice''s', 'queued')",
 	} {
 		if _, err := e.DB.Exec(q); err != nil {
 			t.Fatal(err)
 		}
 	}
-	got, err := e.chatRefs(nil, map[string]any{"agent": "alice"})
+	got, err := e.chatRefs(nil, map[string]any{"agent": alice})
 	if err != nil {
 		t.Fatal(err)
 	}
 	reqs := got.(map[string]any)["requests"].([]any)
 	first := reqs[0].(map[string]any)
-	if len(reqs) != 2 || first["request"] != int64(2) || first["line"] != "first line" || first["from"] != "alice" || first["to"] != "bob" {
+	if len(reqs) != 2 || first["request"] != int64(2) || first["line"] != "first line" || first["from"] != alice || first["to"] != "bob" {
 		t.Fatalf("%v", reqs)
 	}
 	if _, err := e.chatRefs(nil, map[string]any{"agent": "nobody"}); err == nil {
@@ -196,11 +198,12 @@ func TestAgentStripReadsTheStoredViewAndTheContextHook(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	addAgent(t, e, "alice", "")
+	alice := teamtest.Key(t, e.Home, "alice")
 	until := time.Now().Add(90 * time.Second).UTC().Format("2006-01-02T15:04:05Z")
-	view := `{"name":"alice","state":"waiting","state_detail":"allow Bash?","account":"theta","cache_until":"` + until + `"}`
+	view := `{"name":"` + alice + `","state":"waiting","state_detail":"allow Bash?","account":"theta","cache_until":"` + until + `"}`
 	for _, q := range []string{
-		"INSERT INTO agent_state(agent, state, updated, account) VALUES('alice', 'running', 1, 'theta')",
-		"INSERT INTO agent_view(agent, view, updated) VALUES('alice', '" + view + "', 1)",
+		"INSERT INTO agent_state(agent, state, updated, account) VALUES('" + alice + "', 'running', 1, 'theta')",
+		"INSERT INTO agent_view(agent, view, updated) VALUES('" + alice + "', '" + view + "', 1)",
 	} {
 		if _, err := e.DB.Exec(q); err != nil {
 			t.Fatal(err)
@@ -208,12 +211,12 @@ func TestAgentStripReadsTheStoredViewAndTheContextHook(t *testing.T) {
 	}
 	used, pct := int64(250), 31
 	e.Context = func(agent, account string) (string, *int, *int64, int) {
-		if agent != "alice" || account != "theta" {
+		if agent != alice || account != "theta" {
 			t.Fatalf("asked for %s on %s", agent, account)
 		}
 		return "claude-opus-5-5", &pct, &used, 1000
 	}
-	got, err := e.agentStrip(nil, map[string]any{"agent": "alice"})
+	got, err := e.agentStrip(nil, map[string]any{"agent": alice})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -229,11 +232,12 @@ func TestAgentStripOfAnAgentWithNoStateOrAccountIsNulls(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	addAgent(t, e, "bob", "")
+	bob := teamtest.Key(t, e.Home, "bob")
 	e.Context = func(string, string) (string, *int, *int64, int) {
 		t.Fatal("no account, nothing to read")
 		return "", nil, nil, 0
 	}
-	got, err := e.agentStrip(nil, map[string]any{"agent": "bob"})
+	got, err := e.agentStrip(nil, map[string]any{"agent": bob})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -270,14 +274,15 @@ func TestAgentStripCtxPctIsTheStatusFilesAndNullWhenStale(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	addAgent(t, e, "alice", "")
-	if _, err := e.DB.Exec("INSERT INTO agent_state(agent, state, updated, account) VALUES('alice', 'idle', 1, 'theta')"); err != nil {
+	alice := teamtest.Key(t, e.Home, "alice")
+	if _, err := e.DB.Exec("INSERT INTO agent_state(agent, state, updated, account) VALUES('" + alice + "', 'idle', 1, 'theta')"); err != nil {
 		t.Fatal(err)
 	}
 	used := int64(900)
 	var pct *int
 	e.Context = func(string, string) (string, *int, *int64, int) { return "m", pct, &used, 1000 }
 	ask := func() map[string]any {
-		got, err := e.agentStrip(nil, map[string]any{"agent": "alice"})
+		got, err := e.agentStrip(nil, map[string]any{"agent": alice})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -297,15 +302,16 @@ func TestAgentStripAccountIsTheRowsNotAStoredViewsThatLags(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	addAgent(t, e, "alice", "")
+	alice := teamtest.Key(t, e.Home, "alice")
 	for _, q := range []string{
-		"INSERT INTO agent_state(agent, state, updated, account) VALUES('alice', 'idle', 1, 'sigma')",
-		`INSERT INTO agent_view(agent, view, updated) VALUES('alice', '{"state":"idle","account":"theta"}', 1)`,
+		"INSERT INTO agent_state(agent, state, updated, account) VALUES('" + alice + "', 'idle', 1, 'sigma')",
+		`INSERT INTO agent_view(agent, view, updated) VALUES('` + alice + `', '{"state":"idle","account":"theta"}', 1)`,
 	} {
 		if _, err := e.DB.Exec(q); err != nil {
 			t.Fatal(err)
 		}
 	}
-	got, err := e.agentStrip(nil, map[string]any{"agent": "alice"})
+	got, err := e.agentStrip(nil, map[string]any{"agent": alice})
 	if err != nil || got.(map[string]any)["account"] != "sigma" {
 		t.Fatalf("%v %v", got, err)
 	}

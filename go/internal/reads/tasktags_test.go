@@ -3,6 +3,7 @@ package reads
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"reflect"
 	"strings"
 	"testing"
@@ -15,14 +16,15 @@ var asAmy = &rpc.Conn{Caller: rpc.Caller{Role: "agent", Info: map[string]any{"ki
 func TestTasksListFiltersOnTagsAndTheOtherFieldsTogether(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, reporter, parent_task, done_evidence) VALUES"+
-		"(1, 'a', 'bob', 'amy', 1, NULL, NULL, NULL), (2, 'b', 'bob', 'amy', 1, 'cy', NULL, NULL), (3, 'c', 'cy', 'amy', 1, NULL, NULL, 'abc'), "+
-		"(4, 'd', 'bob', 'p1', 1, NULL, 1, NULL), (5, 'e', 'cat', 'cat', 1, NULL, NULL, NULL)")
-	run(t, e, "INSERT INTO task_tags(task_id, tag) VALUES(1, 'fe'), (1, 'be'), (2, 'fe'), (3, 'fe')")
 	for _, a := range []string{"amy", "bob", "cy", "cat"} {
 		addAgent(t, e, a, "")
 	}
-	run(t, e, `INSERT INTO agent_view(agent, view, updated) VALUES('bob', '{"parent": "amy"}', 1)`)
+	amy, bob, cy, cat := teamtest.Key(t, e.Home, "amy"), teamtest.Key(t, e.Home, "bob"), teamtest.Key(t, e.Home, "cy"), teamtest.Key(t, e.Home, "cat")
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, reporter, parent_task, done_evidence) VALUES"+
+		"(1, 'a', '"+bob+"', '"+amy+"', 1, NULL, NULL, NULL), (2, 'b', '"+bob+"', '"+amy+"', 1, '"+cy+"', NULL, NULL), (3, 'c', '"+cy+"', '"+amy+"', 1, NULL, NULL, 'abc'), "+
+		"(4, 'd', '"+bob+"', 'p1', 1, NULL, 1, NULL), (5, 'e', '"+cat+"', '"+cat+"', 1, NULL, NULL, NULL)")
+	run(t, e, "INSERT INTO task_tags(task_id, tag) VALUES(1, 'fe'), (1, 'be'), (2, 'fe'), (3, 'fe')")
+	run(t, e, `INSERT INTO agent_view(agent, view, updated) VALUES('`+bob+`', '{"parent": "`+amy+`"}', 1)`)
 	ids := func(c *rpc.Conn, params map[string]any) string {
 		t.Helper()
 		got, err := e.tasksList(c, params)
@@ -50,10 +52,10 @@ func TestTasksListFiltersOnTagsAndTheOtherFieldsTogether(t *testing.T) {
 		{map[string]any{"tags": tags("FE"), "all": true}, "[3 2 1]"},
 		{map[string]any{"tags": tags("fe", "be")}, "[1]"},
 		{map[string]any{"tags": tags("ops")}, "[]"},
-		{map[string]any{"tags": tags("fe"), "owner": "bob"}, "[2 1]"},
-		{map[string]any{"reporter": "cy"}, "[2]"},
+		{map[string]any{"tags": tags("fe"), "owner": bob}, "[2 1]"},
+		{map[string]any{"reporter": cy}, "[2]"},
 		{map[string]any{"reporter": "p1"}, "[4]"},
-		{map[string]any{"from": "cat"}, "[5]"},
+		{map[string]any{"from": cat}, "[5]"},
 		{map[string]any{"state": "done", "tags": tags("fe")}, "[3]"},
 		{map[string]any{"under": json.Number("1")}, "[4 1]"},
 		{map[string]any{"parent": json.Number("1")}, "[4]"},

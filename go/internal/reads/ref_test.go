@@ -2,6 +2,7 @@ package reads
 
 import (
 	"encoding/json"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"testing"
 )
 
@@ -9,12 +10,13 @@ func TestEachReadOfARequestCarriesItsRef(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	addAgent(t, e, "bob", "")
-	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'a', 'bob', 'p1', 10)")
+	bob := teamtest.Key(t, e.Home, "bob")
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'a', '"+bob+"', 'p1', 10)")
 	run(t, e, "INSERT INTO requests(id, ref, ts, requester, target, body, state, kind, edge_ok, delivered_at, typed_at, landed_at) VALUES"+
-		"(1, 'aaaaaaaaaaa1', 10, 'p1', 'bob', 'do it', 'landed', 'task', 1, 11, 11, 11), "+
-		"(2, 'aaaaaaaaaaa2', 20, 'bob', 'p1', 'which one?', 'queued', 'ask', 1, NULL, NULL, NULL)")
+		"(1, 'aaaaaaaaaaa1', 10, 'p1', '"+bob+"', 'do it', 'landed', 'task', 1, 11, 11, 11), "+
+		"(2, 'aaaaaaaaaaa2', 20, '"+bob+"', 'p1', 'which one?', 'queued', 'ask', 1, NULL, NULL, NULL)")
 	run(t, e, "INSERT INTO task_requests(task_id, request_id) VALUES(1, 1)")
-	run(t, e, `INSERT INTO events(ts, agent, kind, payload) VALUES(30, 'p1', 'task_handoff', '{"task_id": 1, "to": "bob", "note": "n", "request_id": 1}')`)
+	run(t, e, `INSERT INTO events(ts, agent, kind, payload) VALUES(30, 'p1', 'task_handoff', '{"task_id": 1, "to": "`+bob+`", "note": "n", "request_id": 1}')`)
 	asJSON := func(v any) map[string]any {
 		b, _ := json.Marshal(v)
 		var out map[string]any
@@ -30,7 +32,7 @@ func TestEachReadOfARequestCarriesItsRef(t *testing.T) {
 		t.Errorf("task.get requests: %v", r)
 	}
 
-	msgs, err := e.chatMessages(nil, map[string]any{"agent": "bob", "scope": "mine"})
+	msgs, err := e.chatMessages(nil, map[string]any{"agent": bob, "scope": "mine"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +44,7 @@ func TestEachReadOfARequestCarriesItsRef(t *testing.T) {
 		t.Errorf("chat.messages: %v", refs)
 	}
 
-	items, err := e.chatRequests(nil, map[string]any{"agent": "bob", "scope": "mine"})
+	items, err := e.chatRequests(nil, map[string]any{"agent": bob, "scope": "mine"})
 	if err != nil {
 		t.Fatal(err)
 	}

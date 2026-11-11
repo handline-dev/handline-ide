@@ -212,7 +212,8 @@ func TestAgentGetCarriesTheSettingsOfItsAgentFile(t *testing.T) {
 	e := testEnv(t)
 	addAgent(t, e, "w", "")
 	teamtest.Set(t, e.Home, "w", "model", "opus", "effort", "low", "weight", "light", "repo", "handline")
-	got, err := e.agentGet(nil, map[string]any{"agent": "w"})
+	w := teamtest.Key(t, e.Home, "w")
+	got, err := e.agentGet(nil, map[string]any{"agent": w})
 	if err != nil {
 		t.Fatal(err)
 	}
