@@ -4,6 +4,7 @@ import { task } from '#src/seedkit.ts';
 import { CHAT_SEEDS } from '#src/seeds-chat.ts';
 import { PROPOSAL_SEEDS } from '#src/seeds-proposals.ts';
 import { REQUEST_SEEDS } from '#src/seeds-requests.ts';
+import { TURN_SEEDS } from '#src/seeds-turns.ts';
 
 const ARCH = 'handline.architect';
 const AUD = 'handline.auditor';
@@ -339,84 +340,7 @@ export const SEEDS: Record<string, Seed> = {
   /** The account beta stalled on a billing error: its row shows STALLED and a founder can Wake it. */
   'account-stalled': (d) =>
     void d.accounts.stall('beta', { reason: 'billing_error', detail: 'The turn ended: the organization has a billing problem.' }),
-  /** The founder's turn on a task the architect holds, pushed by it with an A)/B) question, after a few comments. */
-  'answer-turn': (d) => {
-    const iso = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
-    const ask =
-      'Which way should the bell count a pause?\nA) One line for each pause, newest first\nB) One line for each agent, its pauses folded under it';
-    const memos = [
-      { id: 1, at: iso(48), author: ARCH, text: 'Started on the bell redesign. Reading how pauses are counted today.' },
-      {
-        id: 2,
-        at: iso(31),
-        author: 'handline.ui',
-        text: 'The bell now shows 14 for one agent that paused 14 times. That reads as 14 problems.',
-      },
-      {
-        id: 3,
-        at: iso(12),
-        author: ARCH,
-        text: 'Two ways to fix it, both drawn in the attached shots. They differ only in how a repeat pause is counted.',
-      },
-      { id: 4, at: iso(3), author: ARCH, text: `@human ${ask}` },
-    ].map((m) => ({ ...m, task: 8809 }));
-    d.tasks.seed({
-      id: 8809,
-      from: ME,
-      to: ARCH,
-      title: 'Bell redesign: how a pause is counted',
-      state: 'doing',
-      created: iso(55),
-      body: 'The bell counts every pause as its own line. Pick how repeats are shown.',
-      memos,
-      turns: [{ agent: ME, ask, by: ARCH, since: iso(3), on_pass: null, evidence: null, edited: null, earlier: [], memo: null }],
-      acting: ME,
-    });
-    d.inbox.add({ kind: 'decision', agent: ARCH, title: 'Bell redesign: how a pause is counted', body: ask, task: 8809 });
-  },
-
-  /** A turn passed back and forth: the architect asked, the founder answered and gave it back, it was asked again and a comment
-   * came after; and a task the architect assigned the founder with a note. */
-  'turn-history': (d) => {
-    const iso = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
-    const first = 'Should the bell count each pause, or each agent?';
-    const again = 'Which way should the bell count a pause?\nA) One line for each pause, newest first\nB) One line for each agent';
-    d.tasks.verbs = true; // the founder can answer or give the turn back
-    d.tasks.seed({
-      id: 8830,
-      from: ME,
-      to: ARCH,
-      title: 'Bell: how a pause is counted',
-      state: 'doing',
-      created: iso(60),
-      body: 'The bell counts every pause as its own line.',
-      memos: [
-        { id: 11, at: iso(50), author: ARCH, text: 'Reading how pauses are counted today.' },
-        { id: 12, at: iso(30), author: ME, text: 'Each agent, but show me both first.' },
-        { id: 13, at: iso(10), author: ARCH, text: 'Both are drawn in the attached shots.' },
-        { id: 14, at: iso(1), author: 'handline.ui', text: 'B is the one the bell mock-up uses.' },
-      ].map((m) => ({ ...m, task: 8830 })),
-      turnLog: [
-        { at: iso(40), who: `${ARCH} → ${ME}`, text: first, turn: 'push' },
-        { at: iso(30), who: `${ME} → ${ARCH}`, text: '', turn: 'pop' },
-        { at: iso(3), who: `${ARCH} → ${ME}`, text: again, turn: 'push' },
-      ],
-      turns: [{ agent: ME, ask: again, by: ARCH, since: iso(3), on_pass: null, evidence: null, edited: null, earlier: [], memo: null }],
-      acting: ME,
-    });
-    d.tasks.seed({
-      id: 8831,
-      from: ARCH,
-      to: ME,
-      title: 'Pick the bell sound',
-      state: 'doing',
-      created: iso(20),
-      body: 'The bell needs a sound for a pause.',
-      memos: [{ id: 15, at: iso(5), author: ME, text: 'The soft one.', task: 8831 }],
-      handoffLog: [{ at: iso(15), who: `${ARCH} → ${ME}`, text: 'Three sounds are in the attached file. Pick the one the bell plays.' }],
-    });
-  },
-
+  ...TURN_SEEDS,
   ...PROPOSAL_SEEDS,
   ...REQUEST_SEEDS,
   ...CHAT_SEEDS,

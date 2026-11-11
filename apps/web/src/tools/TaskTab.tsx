@@ -1,8 +1,8 @@
 import { activityOf, foundersTurn, taskOutcome, isPerson, turnChain, isSystem, type ActivityItem } from '@handline/app-core';
 import { hooks, useTaskHistory, useTaskSeen, useWrite } from '@handline/app-data';
-import { EventRow, HoverRow, Mark, type Turn } from '#src/tools/TaskEvents.tsx';
+import { CommentRow, EventRow, type Turn } from '#src/tools/TaskEvents.tsx';
 import { useMe } from '@handline/app-react';
-import { Check, ChevronDown, Ellipsis, Hourglass, MessageSquare, RotateCcw, Trash2 } from 'lucide-react';
+import { Check, ChevronDown, Ellipsis, Hourglass, RotateCcw, Trash2 } from 'lucide-react';
 import { look, TaskState, type Lookable } from '#src/ui/taskLook.tsx';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { ago } from '#src/format/time.ts';
@@ -11,18 +11,14 @@ import { useOpenable } from '#src/layout/openable.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { Linked, Markdown } from '#src/ui/Markdown.tsx';
 import { Menu, MenuItem } from '#src/ui/Menu.tsx';
-import { Actions } from '#src/chat/MessageActions.tsx';
-import { Reference } from '#src/chat/ChatLine.tsx';
-import { MarkReply, markInto, MessageImages } from '#src/chat/MessageImages.tsx';
+import { MarkReply, markInto } from '#src/chat/MessageImages.tsx';
 import { useDraft } from '#src/chat/drafts.ts';
-import { ReadBy } from '#src/tools/ReadBy.tsx';
 import { Fields } from '#src/tools/TaskFields.tsx';
-import { GO_TURN, goToTurn, openTurnAt, showMemo } from '#src/tools/TaskTurn.ts';
+import { GO_TURN, goToTurn, openTurnRow, takeTyping, type OpenTurn } from '#src/tools/TaskTurn.ts';
 import { showHistory } from '#src/tools/TaskDiff.tsx';
 import { CommentBox, type Reply } from '#src/tools/TaskComment.tsx';
 import { useAttachments } from '#src/chat/attachments.tsx';
 import { FileDropArea } from '#src/ui/fileDrop.tsx';
-import { WaitingOnYou } from '#src/tools/TaskWaiting.tsx';
 import { Page } from '#src/ui/Page.tsx';
 import { ScrollFade } from '#src/ui/ScrollFade.tsx';
 import { keptScroll } from '#src/ui/keptScroll.ts';
@@ -48,6 +44,8 @@ export function TaskTab({ id }: { id: number }) {
   // Opens at the founder's turn (a first open, or a request-list click's mark); a GO_TURN to an open tab goes there again.
   const loaded = !!q.data;
   const onTurn = !!q.data && !CLOSED.includes(q.data.state) && foundersTurn(q.data, me);
+  // Bumped when Answer in task asks the comment box to take the keys: as the tab opens, or later through GO_TURN.
+  const [typing, setTyping] = useState(() => (takeTyping(id) ? 1 : 0));
   useEffect(() => {
     if (!loaded) return;
     const marked = keptScroll.take(`turn:${id}`);
@@ -59,6 +57,7 @@ export function TaskTab({ id }: { id: number }) {
     const on = (e: Event) => {
       if ((e as CustomEvent<number>).detail !== id) return;
       keptScroll.take(`turn:${id}`);
+      if (takeTyping(id)) setTyping((n) => n + 1);
       goToTurn(id);
     };
     window.addEventListener(GO_TURN, on);
@@ -73,11 +72,7 @@ export function TaskTab({ id }: { id: number }) {
   const why = t.blockers.length ? null : (t.waiting?.text ?? t.block_reason ?? t.hold_reason);
   const mine = open && foundersTurn(t, me);
   const chain = turnChain(t, me);
-  // Waiting on the founder: what was asked, in the words of the last comment that named them.
-  const asked =
-    t.waiting && (t.waiting.on === 'founder' || isPerson(t.waiting.on, me))
-      ? [...t.memos].reverse().find((m) => /@human\b/.test(m.text))
-      : undefined;
+  const turn = t.turns?.at(-1);
   return (
     <FileDropArea take={attach.add} className="flex min-h-0 min-w-0 flex-1 flex-col">
       <MarkReply.Provider value={{ add: addMarked, label: 'Add to comment' }}>
@@ -115,13 +110,8 @@ export function TaskTab({ id }: { id: number }) {
                 )}
               </p>
               <Fields t={t} open={open} />
-              {/* The founder's turn is its row in Activity; up here a wait on them with no turn (an @human comment), then plain lines. */}
-              {open && !mine && asked && (
-                <div className="flex flex-col gap-1 rounded-lg border border-warning px-3 py-2 text-sm">
-                  <WaitingOnYou t={t} me={me} asked={asked} onDone={() => void q.refetch()} onShow={() => showMemo(asked.id)} />
-                </div>
-              )}
-              {open && !mine && !asked && why && (
+              {/* The founder's turn is its row in Activity; up here only why the task waits on someone else. */}
+              {open && !mine && why && (
                 <p className="flex items-start gap-2 text-sm text-muted">
                   <Hourglass size={14} className="mt-0.5 shrink-0" />
                   <Linked text={why} />
@@ -158,8 +148,8 @@ export function TaskTab({ id }: { id: number }) {
             )}
             <Activity
               task={t.id}
-              open={mine ? openTurnAt(t, me) : undefined}
-              turn={t.turns?.at(-1)}
+              open={mine ? openTurnRow(t, me) : undefined}
+              turn={turn}
               onReply={(id) => setReplyTo(t.memos.find((m) => m.id === id) ?? null)}
               items={activityOf(t.memos, t.timeline, me).filter((i) => !isSystem(i.who))}
             />
@@ -168,6 +158,7 @@ export function TaskTab({ id }: { id: number }) {
         <CommentBox
           t={t}
           reply={replyTo}
+          typing={typing}
           onDrop={() => setReplyTo(null)}
           attach={attach}
           draft={draft}
@@ -263,7 +254,7 @@ const keyOf = (i: ActivityItem) => (i.kind === 'comment' ? `c${i.memo}:${i.note}
 const SHOWN = 5;
 
 /** Comments and changes in one list, oldest first: the last five, and Earlier opens the rest above them; the founder's open turn
- * (`open`, its row's time) shows however old. */
+ * (`open`) shows however old. */
 function Activity({
   task,
   items,
@@ -273,7 +264,7 @@ function Activity({
 }: {
   task: number;
   items: ActivityItem[];
-  open?: string;
+  open?: OpenTurn;
   turn?: Turn;
   onReply: (memo: number) => void;
 }) {
@@ -286,7 +277,8 @@ function Activity({
   const [first] = useState(() => new Set(items.map(keyOf)));
   const fresh = (i: ActivityItem) => (first.has(keyOf(i)) ? '' : 'just-changed');
   const me = useMe();
-  const isOpen = (i: ActivityItem) => !!open && i.turn === 'push' && i.at === open && isPerson(i.turnTo ?? '', me);
+  const isOpen = (i: ActivityItem) =>
+    !!open && i.turn === 'push' && ('memo' in open ? i.memo === open.memo : i.at === open.at) && isPerson(i.turnTo ?? '', me);
   const at = items.findIndex(isOpen);
   const shown = all ? items : items.slice(Math.min(Math.max(0, items.length - SHOWN), at < 0 ? Infinity : at));
   const hidden = items.length - shown.length;
@@ -321,40 +313,23 @@ function Activity({
       <div ref={list} className="flex flex-col">
         {shown.map((i) =>
           i.kind === 'comment' ? (
-            // A comment as a chat line: who, the words, and under them the chat's hover row (copy, reference, time).
-            <div
+            <CommentRow
               key={keyOf(i)}
-              data-memo={i.memo}
-              className="group flex gap-2.5 rounded-md ring-warning ring-offset-4 ring-offset-bg transition-shadow duration-500"
-            >
-              <Mark icon={MessageSquare} />
-              <div className="flex min-w-0 flex-1 flex-col">
-                <div className={`flex flex-col rounded-md ${fresh(i)}`}>
-                  <span className="text-xs font-medium text-muted">{i.who}</span>
-                  {i.replyTo != null && (
-                    <Reference text={items.find((r) => r.memo === i.replyTo)?.note} onClick={() => showMemo(i.replyTo!)} />
-                  )}
-                  <Markdown text={i.note} />
-                  {i.images && <MessageImages images={i.images} />}
-                </div>
-                <HoverRow
-                  at={i.at}
-                  edited={i.edited}
-                  onEdited={
-                    i.memo != null && earlierOf(i.memo).length
-                      ? () =>
-                          showHistory('Versions of this comment', [
-                            { text: earlierOf(i.memo)[0]!.was, at: i.at, by: i.who },
-                            ...earlierOf(i.memo).map((r) => ({ text: r.now, at: r.at, by: r.by })),
-                          ])
-                      : undefined
-                  }
-                >
-                  <Actions text={i.note} onQuote={() => i.memo != null && onReply(i.memo)} />
-                  <ReadBy readers={i.readers} />
-                </HoverRow>
-              </div>
-            </div>
+              i={i}
+              fresh={fresh(i)}
+              turn={isOpen(i)}
+              quoted={i.replyTo != null ? items.find((r) => r.memo === i.replyTo)?.note : undefined}
+              onReply={onReply}
+              onEdited={
+                i.memo != null && earlierOf(i.memo).length
+                  ? () =>
+                      showHistory('Versions of this comment', [
+                        { text: earlierOf(i.memo)[0]!.was, at: i.at, by: i.who },
+                        ...earlierOf(i.memo).map((r) => ({ text: r.now, at: r.at, by: r.by })),
+                      ])
+                  : undefined
+              }
+            />
           ) : (
             <EventRow key={keyOf(i)} i={i} fresh={fresh(i)} turn={isOpen(i) ? turn : undefined} />
           ),
