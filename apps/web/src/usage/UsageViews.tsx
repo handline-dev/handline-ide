@@ -1,8 +1,8 @@
 // Under the Usage graph, one of four views at a time: the accounts, who used it (by agent), which models used it (each agent's use under
 // the model it runs on now), and the cost per day stacked by agent. The figures are the daemon's (stats.get, stats.outlook).
-import { costByAgent, spentText } from '@handline/app-core';
+import { costByAgent, nameOf, spentText } from '@handline/app-core';
 import type { Stats } from '@handline/client';
-import { useAgents, useOutlook, useStats } from '@handline/app-data';
+import { useAgents, useDirectory, useOutlook, useStats } from '@handline/app-data';
 import { Bot, ChartColumn, ChevronRight, Cpu, Info, UserRound } from 'lucide-react';
 import { HoverCard } from '#src/ui/HoverCard.tsx';
 import { useState, type ReactNode } from 'react';
@@ -124,6 +124,7 @@ const size = (u: Use) => u.week ?? u.cost;
 export function ByAgent({ win }: { win: Win }) {
   const s = useStats(win).data;
   const [shut, setShut] = useTabState<string[]>('shut', []);
+  const dir = useDirectory();
   type Agent = Use & { name: string; accounts: { account: string; use: Use }[] };
   const agents = new Map<string, Agent>();
   for (const u of s?.use ?? []) {
@@ -133,9 +134,14 @@ export function ByAgent({ win }: { win: Win }) {
     a.accounts.push({ account: u.account, use: add({ cost: 0, week: null }, u) });
     agents.set(name, a);
   }
+  // A team is the agent's workspace, by name; an agent the lists do not hold yet stands as its own.
+  const workspaceOf = (key: string) => {
+    const ws = dir.agents.find((x) => x.key === key)?.workspace;
+    return dir.workspaces.find((w) => w.key === ws)?.name ?? nameOf(dir, key);
+  };
   const teams = new Map<string, Use & { agents: Agent[] }>();
   for (const a of agents.values()) {
-    const team = a.name === NO_AGENT ? NO_AGENT : a.name.split('.')[0]!;
+    const team = a.name === NO_AGENT ? NO_AGENT : workspaceOf(a.name);
     const t = teams.get(team) ?? { cost: 0, week: null, agents: [] };
     t.cost += a.cost;
     if (a.week !== null) t.week = (t.week ?? 0) + a.week;
@@ -174,7 +180,7 @@ export function ByAgent({ win }: { win: Win }) {
                   .map((a) => (
                     <div key={a.name} className="pl-5">
                       <Ranked
-                        name={a.name === team ? `${a.name} (itself)` : a.name}
+                        name={nameOf(dir, a.name) === team ? `${team} (itself)` : nameOf(dir, a.name)}
                         sub={a.accounts
                           .sort((x, y) => size(y.use) - size(x.use))
                           .map((c) => `${c.account} ${figures(c.use)}`)

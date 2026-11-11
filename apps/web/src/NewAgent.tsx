@@ -1,14 +1,17 @@
-import { classify, sentence, useNameOf, useNewAgentForm, useOperation } from '@handline/app-data';
+import { classify, dottedName, sentence, useDirectory, useNameOf, useNewAgentForm, useOperation } from '@handline/app-data';
 import { useEffect, useState } from 'react';
 import { Button } from '#src/ui/Button.tsx';
 import { Field, Input, Select } from '#src/ui/Field.tsx';
 import { ModalFrame, openModal, type Close } from '#src/ui/modal.tsx';
 
-/** Watches the create the daemon started: its step while it runs, then done (closing with the new name) or failed. */
+/** Watches the create the daemon started: its step while it runs, then done (closing with the new agent's key, once the list holds
+ * the agent of that dotted name) or failed. */
 function Progress({ operation, name, close }: { operation: string; name: string; close: Close<string> }) {
   const op = useOperation(operation).data;
-  if (op?.state === 'done') {
-    queueMicrotask(() => close(name));
+  const dir = useDirectory();
+  const key = dir.agents.find((a) => dottedName(dir, a.key) === name)?.key;
+  if (op?.state === 'done' && key) {
+    queueMicrotask(() => close(key));
     return null;
   }
   return (
@@ -32,7 +35,7 @@ function Progress({ operation, name, close }: { operation: string; name: string;
 
 function Form({ parent, close }: { parent?: string; close: Close<string> }) {
   const [started, setStarted] = useState<{ operation: string; name: string } | null>(null);
-  const form = useNewAgentForm((operation, f) => setStarted({ operation, name: (f.parent ? `${f.parent}.` : '') + f.name.trim() }));
+  const form = useNewAgentForm((operation, name) => setStarted({ operation, name }));
   const { f, set, list, prefix, ready, send, create, agents } = form;
   const nameOf = useNameOf();
   // A sub-agent's dialog starts with its parent picked.
@@ -90,7 +93,7 @@ function Form({ parent, close }: { parent?: string; close: Close<string> }) {
   );
 }
 
-/** The new-agent dialog; resolves the new agent's name once it is created, or undefined. */
+/** The new-agent dialog; resolves the new agent's key once it is created, or undefined. */
 export function newAgent(parent?: string) {
   return openModal<string>((close) => (
     <ModalFrame title={parent ? `New agent under ${parent}` : 'New agent'} onClose={() => close()}>

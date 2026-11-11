@@ -27,7 +27,7 @@ test('a key reads as a lead by its workspace, an agent by its name or workspace.
 test('a stored mention reads as @name, and a typed @word that names someone is sent as its key', () => {
   assert.equal(renderRefs(dir, 'ask <@a5> and <@p1>, not <@zz>'), 'ask @auditor and @Sam, not @zz');
   assert.equal(toRefs(dir, '@auditor and @site.designer. Mail a@b, @nobody'), '<@a5> and <@a4>. Mail a@b, @nobody');
-  assert.equal(toRefs(dir, renderRefs(dir, 'ping <@a3>')), 'ping <@a3>');
+  assert.equal(toRefs(dir, renderRefs(dir, 'ping <@a3> and <@p1>')), 'ping <@a3> and <@p1>');
 });
 
 test('agents group by workspace in its order, lead first, and an agent of an unknown workspace comes last', () => {

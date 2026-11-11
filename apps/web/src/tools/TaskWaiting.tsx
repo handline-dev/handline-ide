@@ -70,7 +70,7 @@ export function WaitingOnYou({
         <span className="pl-6 text-xs text-muted">
           <Who k={asked.author} /> · {clock(asked.at)}
         </span>
-        <span className="line-clamp-2 pl-6">{renderRefs(dir, asked.text).replace(/@human\s*/g, '')}</span>
+        <span className="line-clamp-2 pl-6">{renderRefs(dir, asked.text.replaceAll(`<@${me}>`, '')).trim()}</span>
       </button>
     </div>
   );

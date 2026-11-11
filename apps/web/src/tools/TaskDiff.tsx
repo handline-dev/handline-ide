@@ -1,3 +1,4 @@
+import { useNameOf } from '@handline/app-data';
 import { ArrowRight } from 'lucide-react';
 import { useState } from 'react';
 import { Select } from '#src/ui/Field.tsx';
@@ -37,9 +38,10 @@ export function diffLines(a: string, b: string): Line[] {
 const MARK = { same: ' ', del: '-', add: '+' } as const;
 const TONE = { same: 'text-fg', del: 'bg-danger/10 text-danger', add: 'bg-success/10 text-success' } as const;
 
-const labelOf = (v: Version) => `${ago(v.at)} · ${v.by}`;
+const labelOf = (v: Version, nameOf: (key: string) => string) => `${ago(v.at)} · ${nameOf(v.by)}`;
 
 function History({ versions }: { versions: Version[] }) {
+  const nameOf = useNameOf();
   // Oldest first; From and To start at the one before the latest and the latest.
   const [from, setFrom] = useState(Math.max(0, versions.length - 2));
   const [to, setTo] = useState(versions.length - 1);
@@ -47,7 +49,7 @@ function History({ versions }: { versions: Version[] }) {
     <Select aria-label={name} value={v} onChange={(e) => set(Number(e.target.value))} className="min-w-0 flex-1">
       {versions.map((x, i) => (
         <option key={i} value={i}>
-          {labelOf(x)}
+          {labelOf(x, nameOf)}
         </option>
       ))}
     </Select>

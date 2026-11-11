@@ -132,8 +132,8 @@ function AgentRows({
             <Row
               opens={opens}
               menu={false}
-              // At a section's top a sub-agent is a pin out of its team: its name after its parent's.
-              title={agent.name}
+              // At a section's top its word (a lead is its workspace, a shared name says its workspace); under a parent its name.
+              title={under === null ? nameOf(agent.key) : agent.name}
               context={under === null && agent.parent ? nameOf(agent.parent) : undefined}
               selected={pick.agent === agent.key}
               onShow={() => pick.onSelect(agent.key)}
@@ -261,14 +261,14 @@ function Agents({ pick, page, onNew }: { pick: Pick; page: string | null; onNew:
   // A sibling group's new order goes first in nav.order; the rest of the order stays as it was.
   const reorder = (names: string[]) => change({ order: [...names, ...nav.order.filter((n) => !names.includes(n))] });
   const { pinned, rest } = list.data ? splitPinned(agentTree(list.data.agents, nav.order), nav.pins) : { pinned: [], rest: [] };
-  // The rest of the tree, a section per workspace: each top-level agent with the agents under it.
+  // The rest of the tree, a section per workspace: each top-level agent with the agents under it. With none, one Agents section still
+  // holds New agent, the loading rows and a dropped pin.
+  const nodeOf = new Map(rest.map((n) => [n.agent, n]));
   const groups = byWorkspace(
     useDirectory(),
     rest.map((n) => n.agent),
-  ).map(({ workspace, agents }) => ({
-    workspace,
-    nodes: agents.map((a) => rest.find((n) => n.agent === a)!),
-  }));
+  ).map(({ workspace, agents }) => ({ workspace, nodes: agents.map((a) => nodeOf.get(a)!) }));
+  const sections = groups.length ? groups : [{ workspace: null, nodes: [] }];
   return (
     <>
       {pinned.length > 0 && (
@@ -285,7 +285,7 @@ function Agents({ pick, page, onNew }: { pick: Pick; page: string | null; onNew:
           />
         </Section>
       )}
-      {groups.map(({ workspace, nodes }, i) => (
+      {sections.map(({ workspace, nodes }, i) => (
         <Section
           key={workspace?.key ?? ''}
           title={workspace?.name ?? 'Agents'}
@@ -300,12 +300,7 @@ function Agents({ pick, page, onNew }: { pick: Pick; page: string | null; onNew:
             )
           }
         >
-          <AgentRows nodes={nodes} pick={pick} onMove={reorder} />
-        </Section>
-      ))}
-      {(list.isPending || list.isError) && (
-        <Section title="Agents">
-          {list.isPending && (
+          {i === 0 && list.isPending && (
             // Shaped like the rows to come: status dot, name, time; some indented as sub-agents.
             <div aria-busy className="flex animate-pulse flex-col gap-1">
               {[
@@ -314,8 +309,8 @@ function Agents({ pick, page, onNew }: { pick: Pick; page: string | null; onNew:
                 [1, 60],
                 [0, 50],
                 [0, 40],
-              ].map(([indent, w], i) => (
-                <div key={i} className={`flex h-7 items-center gap-1.5 px-2 ${indent ? 'ml-3.5' : ''}`}>
+              ].map(([indent, w], j) => (
+                <div key={j} className={`flex h-7 items-center gap-1.5 px-2 ${indent ? 'ml-3.5' : ''}`}>
                   <span className="size-3 shrink-0 rounded-full bg-border" />
                   <span style={{ width: `${w}%` }} className="h-3 rounded bg-border" />
                   <span className="flex-1" />
@@ -324,9 +319,10 @@ function Agents({ pick, page, onNew }: { pick: Pick; page: string | null; onNew:
               ))}
             </div>
           )}
-          {list.isError && <p className="px-2 text-sm text-danger">Agents did not load.</p>}
+          {i === 0 && list.isError && <p className="px-2 text-sm text-danger">Agents did not load.</p>}
+          <AgentRows nodes={nodes} pick={pick} onMove={reorder} />
         </Section>
-      )}
+      ))}
     </>
   );
 }
