@@ -4,13 +4,10 @@ import (
 	"fmt"
 	"strings"
 	"testing"
-
-	"github.com/handline/handline/go/data/team/teamtest"
 )
 
 func TestAskPutsTheFoundersQuestionToAnAgentOnTheTaskWithoutMovingIt(t *testing.T) {
-	db, home, mk := discardEnvHome(t)
-	other := teamtest.Key(t, home, "other")
+	db, mk := discardEnv(t)
 	exec(t, db, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 't', 'worker', 'manager', 1)")
 	line := func(id int, params, rid string) string {
 		return fmt.Sprintf(`{"jsonrpc":"2.0","id":%d,"method":"task.ask","params":{%s"request_id":%q}}`, id, params, rid)
@@ -26,7 +23,7 @@ func TestAskPutsTheFoundersQuestionToAnAgentOnTheTaskWithoutMovingIt(t *testing.
 		line(7, `"task":"1","to":"other","text":"x",`, "a5"),
 		line(8, `"task":1,"to":"","text":"x",`, "a6"))
 	res := r[0]["result"].(map[string]any)
-	if res["request"].(float64) != 1 || res["said"] != "queued as #1 for "+other {
+	if res["request"].(float64) != 1 || res["said"] != "queued as #1 for other" {
 		t.Fatalf("%v", r[0])
 	}
 	if r[1]["result"].(map[string]any)["replayed"] != true {

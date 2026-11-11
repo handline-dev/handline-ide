@@ -103,8 +103,9 @@ func discardEnvHome(t *testing.T) (*sql.DB, string, func(agent string, tell ...T
 	teamtest.Seed(t, home, "crew.asker", "crew.mate", "ops.hand")
 	teamtest.Set(t, home, "crew.asker", "reports_to", "manager")
 	teamtest.Set(t, home, "crew.mate", "reports_to", "manager")
+	homes.Store(db, home)
 	return db, home, func(agent string, tell ...Teller) *rpc.Server {
-		s := rpc.NewServer(auth{agent}, "x", store.LatestVersion(), "local", func(string, ...any) {})
+		s := rpc.NewServer(auth{as(t, home, agent)}, "x", store.LatestVersion(), "local", func(string, ...any) {})
 		s.DB = db
 		s.Who = func(w string) string { return paths.WhoKey(home, w) }
 		var teller Teller
@@ -119,7 +120,7 @@ func discardEnvHome(t *testing.T) (*sql.DB, string, func(agent string, tell ...T
 func exec(t *testing.T, db *sql.DB, qs ...string) {
 	t.Helper()
 	for _, q := range qs {
-		if _, err := db.Exec(q); err != nil {
+		if _, err := db.Exec(keyed(db, q)); err != nil {
 			t.Fatalf("%s: %v", q, err)
 		}
 	}
@@ -128,7 +129,7 @@ func exec(t *testing.T, db *sql.DB, qs ...string) {
 func count(t *testing.T, db *sql.DB, q string) int {
 	t.Helper()
 	var n int
-	if err := db.QueryRow(q).Scan(&n); err != nil {
+	if err := db.QueryRow(keyed(db, q)).Scan(&n); err != nil {
 		t.Fatal(err)
 	}
 	return n
