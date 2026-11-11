@@ -703,7 +703,7 @@ export interface TasksMethods {
   /** The comment on the same task this one answers (Memo.reply_to). Refused (not_found memo) when the task has no such comment. */
   reply?: number;
   /** Hand the task to this agent, or human, with this comment: it goes on top and acts now; the one below keeps its turn but acts on nothing, so its doing slot frees. For human, the comment is the decision and what you recommend. */
-  turn?: string;
+  turn?: AgentName;
   /** With turn naming an agent: the done evidence a pass of that turn closes the task with (a review of finished work). */
   done?: string;
   /** Absolute paths of files the memo carries (Memo.files): PNG, JPEG, GIF or WebP images and .md Markdown, at most 10 MiB each. The daemon reads each and keeps a copy under its home. An agent may name only files under its worktree, its folder or the scratch folder; the founder any. A path outside those, a file of another type, an image whose first bytes do not match its ending, or a .md that is not text is bad_request (field files). */
