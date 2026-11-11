@@ -37,6 +37,7 @@ type Device struct {
 	Push     *Push  // nil until the device gives a push token
 	Kind     string // what the client said it is at device.redeem (ios, android, web, desktop); "" when it did not say
 	Client   string // the client its last hello named; "" before one
+	Person   string // the person's key it belongs to; "" in a store that keeps none, which is the owner's
 }
 
 // Push is where a notification for a device goes: the token its OS gave, for APNs or FCM.
@@ -318,7 +319,7 @@ func (m *Manager) Know(token string) bool {
 // maxClient bounds the client a hello names that is kept on its device: it is a name/version, so this is room, not a format.
 const maxClient = 200
 
-func (m *Manager) Login(token, client string, closeConn func()) (id, name string, release func(), ok bool) {
+func (m *Manager) Login(token, client string, closeConn func()) (id, name, person string, release func(), ok bool) {
 	m.mu.Lock()
 	var evict []func()
 	defer func() {
@@ -329,7 +330,7 @@ func (m *Manager) Login(token, client string, closeConn func()) (id, name string
 	}()
 	d, found, err := m.store.ByTokenHash(hashOf(token))
 	if !found || err != nil {
-		return "", "", nil, false
+		return "", "", "", nil, false
 	}
 	for len(m.conns[d.ID]) >= m.maxConns {
 		oldest := -1
@@ -357,7 +358,7 @@ func (m *Manager) Login(token, client string, closeConn func()) (id, name string
 	if client != "" && len(client) <= maxClient {
 		m.store.SetClient(d.ID, client)
 	}
-	return d.ID, d.Name, func() {
+	return d.ID, d.Name, d.Person, func() {
 		m.mu.Lock()
 		defer m.mu.Unlock()
 		delete(m.conns[d.ID], n)

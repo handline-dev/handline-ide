@@ -47,7 +47,7 @@ func RegisterTyping(s *rpc.Server, e *Env) {
 }
 
 func holderKind(c *rpc.Conn) string {
-	if k, _ := c.Caller.Info["kind"].(string); k == "device" {
+	if c.Caller.Kind == "device" {
 		return "device"
 	}
 	return "person"

@@ -19,10 +19,10 @@ const MinPrefix = 6
 
 var refShape = regexp.MustCompile(`^[0-9a-f]{6,12}$`)
 
-// Viewer is who reads as the caller: an agent its own name, the founder and a device the person.
+// Viewer is who reads as the caller: its own key, a device's its person's.
 func Viewer(c *rpc.Conn) string {
-	if c != nil && c.Caller.Role == "agent" {
-		return c.Caller.Info["name"].(string)
+	if c != nil {
+		return c.Caller.Actor()
 	}
 	return db.Human
 }

@@ -135,8 +135,8 @@ func (r *rig) callAs(agent, method, params string) map[string]any {
 type phone struct{ id string }
 
 func (p phone) Know(string) bool { return true }
-func (p phone) Login(string, string, func()) (string, string, func(), bool) {
-	return p.id, "phone", func() {}, true
+func (p phone) Login(string, string, func()) (string, string, string, func(), bool) {
+	return p.id, "phone", "", func() {}, true
 }
 func (phone) Live(string) bool { return true }
 
@@ -663,7 +663,7 @@ func TestAgentSetLeavesTheCustomBrowserToATerminal(t *testing.T) {
 func TestAgentSetIsRefusedToAPairedDevice(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
-	c := &rpc.Conn{Caller: rpc.Caller{Role: "member", Info: map[string]any{"kind": "device", "name": "phone", "device": "d1"}}}
+	c := &rpc.Conn{Caller: rpc.Caller{Role: "member", Kind: "device", Info: map[string]any{"kind": "device", "name": "phone", "device": "d1"}}}
 	before := r.settingsText("alice")
 	_, err := r.e.agentSetMethod(c, map[string]any{"agent": "alice", "values": map[string]any{"sandbox": "off"}})
 	var re *rpc.Error

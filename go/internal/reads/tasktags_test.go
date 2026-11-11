@@ -11,7 +11,7 @@ import (
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
-var asAmy = &rpc.Conn{Caller: rpc.Caller{Role: "agent", Info: map[string]any{"kind": "agent", "name": "amy"}}}
+var asAmy = &rpc.Conn{Caller: rpc.Caller{Role: "agent", Kind: "agent", Key: "amy", Info: map[string]any{"kind": "agent", "name": "amy"}}}
 
 func TestTasksListFiltersOnTagsAndTheOtherFieldsTogether(t *testing.T) {
 	t.Parallel()

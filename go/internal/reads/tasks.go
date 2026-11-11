@@ -259,7 +259,7 @@ func (e *Env) tasksList(c *rpc.Conn, params map[string]any) (any, error) {
 	}
 	var owners map[string]bool
 	if !everyone && c.Caller.Role == "agent" {
-		if owners, err = e.reach(c.Caller.Info["name"].(string)); err != nil {
+		if owners, err = e.reach(c.Caller.Key); err != nil {
 			return nil, err
 		}
 	}

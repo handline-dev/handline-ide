@@ -107,7 +107,7 @@ func (e *Env) eventsFeed(c *rpc.Conn, params map[string]any) (any, error) {
 	agent := c != nil && c.Caller.Role == "agent"
 	name := ""
 	if agent {
-		name, _ = c.Caller.Info["name"].(string)
+		name = c.Caller.Key
 	}
 	if agent {
 		if reach, err = e.reach(name); err != nil {

@@ -18,7 +18,7 @@ func TestInboxListFiltersAndPagesBeforeBuildingItems(t *testing.T) {
 		"(3, 'aaaaaaaaaaa3', 30, 'bob', 'p1', 'three', 'queued', 'task', 1), "+
 		"(4, 'aaaaaaaaaaa4', 40, 'bob', 'p1', 'four', 'queued', 'ask', 1)")
 	run(t, e, `INSERT INTO events(ts, agent, kind, payload) VALUES(30, 'bob', 'raise_decision', '{"request_id": 3, "task_id": 1, "reason": "heal", "fix": "open_terminal"}')`)
-	founder := &rpc.Conn{Caller: rpc.Caller{Role: "founder", Info: map[string]any{"kind": "person"}}}
+	founder := &rpc.Conn{Caller: rpc.Caller{Role: "founder", Kind: "person", Info: map[string]any{"kind": "person"}}}
 
 	ids := func(params map[string]any) ([]int64, bool) {
 		t.Helper()

@@ -75,7 +75,7 @@ func TestAnAgentsMessageIsNotHeldUntilTyped(t *testing.T) {
 	}
 	w := &writes{e: r.env}
 	start := time.Now()
-	got, err := w.awaitTyped(&rpc.Conn{Caller: rpc.Caller{Role: "agent"}}, map[string]any{"request": rid}, nil)
+	got, err := w.awaitTyped(&rpc.Conn{Caller: rpc.Caller{Role: "agent", Kind: "agent"}}, map[string]any{"request": rid}, nil)
 	if err != nil || got.(map[string]any)["request"] != rid || time.Since(start) > time.Second {
 		t.Fatalf("answered at once: %v %v", got, err)
 	}

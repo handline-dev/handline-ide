@@ -239,7 +239,7 @@ func (e *Env) inboxPage(c *rpc.Conn, params map[string]any) (map[string]any, err
 	}
 	var heads []itemHead
 	if c.Caller.Role == "agent" {
-		heads, err = e.agentHeads(c.Caller.Info["name"].(string), 0)
+		heads, err = e.agentHeads(c.Caller.Key, 0)
 	} else {
 		heads, err = e.founderHeads(0, true)
 	}

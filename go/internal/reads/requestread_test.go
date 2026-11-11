@@ -14,14 +14,14 @@ import (
 )
 
 var (
-	asFounder = &rpc.Conn{Caller: rpc.Caller{Role: "founder", Info: map[string]any{"kind": "person"}}}
-	asBob     = &rpc.Conn{Caller: rpc.Caller{Role: "agent", Info: map[string]any{"kind": "agent", "name": "bob"}}}
-	asCat     = &rpc.Conn{Caller: rpc.Caller{Role: "agent", Info: map[string]any{"kind": "agent", "name": "cat"}}}
+	asFounder = &rpc.Conn{Caller: rpc.Caller{Role: "founder", Kind: "person", Info: map[string]any{"kind": "person"}}}
+	asBob     = &rpc.Conn{Caller: rpc.Caller{Role: "agent", Kind: "agent", Key: "bob", Info: map[string]any{"kind": "agent", "name": "bob"}}}
+	asCat     = &rpc.Conn{Caller: rpc.Caller{Role: "agent", Kind: "agent", Key: "cat", Info: map[string]any{"kind": "agent", "name": "cat"}}}
 )
 
 // asAgent is a connection of the agent whose key is key.
 func asAgent(key string) *rpc.Conn {
-	return &rpc.Conn{Caller: rpc.Caller{Role: "agent", Info: map[string]any{"kind": "agent", "name": key}}}
+	return &rpc.Conn{Caller: rpc.Caller{Role: "agent", Kind: "agent", Key: key, Info: map[string]any{"kind": "agent", "name": key}}}
 }
 
 func num64(n int64) json.Number { return json.Number(fmt.Sprint(n)) }
@@ -96,7 +96,7 @@ func TestOnlyTheFounderReadingARequestOpensIt(t *testing.T) {
 		}
 		return report.set("read_at")
 	}
-	asMember := &rpc.Conn{Caller: rpc.Caller{Role: "founder", Info: map[string]any{"kind": "device", "device": "d1", "name": "phone"}}}
+	asMember := &rpc.Conn{Caller: rpc.Caller{Role: "founder", Kind: "device", Info: map[string]any{"kind": "device", "device": "d1", "name": "phone"}}}
 	for _, c := range []*rpc.Conn{asBob, asMember} {
 		read(t, e, c, 1)
 		if isRead() {
@@ -260,7 +260,7 @@ func TestRequestReadTakesARefOrPrefixUnderTheSameRule(t *testing.T) {
 	teamtest.Seed(t, e.Home, "amy", "bob", "cat")
 	run(t, e, "INSERT INTO requests(id, ref, ts, requester, target, body, state, kind, edge_ok) VALUES(1, 'c0ffee000001', 10, 'amy', 'bob', 'private', 'landed', 'ask', 1)")
 	agent := func(name string) *rpc.Conn {
-		return &rpc.Conn{Caller: rpc.Caller{Role: "agent", Info: map[string]any{"kind": "agent", "name": name}}}
+		return &rpc.Conn{Caller: rpc.Caller{Role: "agent", Kind: "agent", Key: name, Info: map[string]any{"kind": "agent", "name": name}}}
 	}
 	for _, ref := range []string{"c0ffee000001", "msg_c0ffee000001", "c0ffee", "MSG_C0FFEE"} { // local-ref-ok: made-up refs
 		if got, err := e.requestRead(agent("bob"), map[string]any{"id": ref}); err != nil || got.(map[string]any)["id"] != int64(1) {
