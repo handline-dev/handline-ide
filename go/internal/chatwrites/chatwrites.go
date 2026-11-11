@@ -413,7 +413,7 @@ func (w *writes) cancel(c *rpc.Conn, p map[string]any) (any, error) {
 		if err != nil {
 			return nil, nil, err
 		}
-		if row.Requester != db.Human {
+		if row.Requester != c.Caller.Actor() {
 			return nil, nil, rpc.Refused("that message is not one the person sent", "state", "")
 		}
 		if _, err := w.e.ReopenConfirmed(tx, row); err != nil { // rolled back with the transaction when the confirm is missing
@@ -499,7 +499,7 @@ func (w *writes) sendNow(c *rpc.Conn, p map[string]any) (any, error) {
 		if err != nil {
 			return nil, err
 		}
-		if row == nil || row.Requester != db.Human {
+		if row == nil || row.Requester != c.Caller.Actor() {
 			return nil, notFound("request", strconv.FormatInt(rid, 10), fmt.Sprintf("no message %d of yours", rid))
 		}
 		marked, err := db.MarkSendNow(tx, rid)

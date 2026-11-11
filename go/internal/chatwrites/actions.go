@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/taskboard/supervisor"
 	"github.com/handline/handline/go/taskboard/taskwrites"
@@ -218,7 +219,7 @@ func CancelPlan(q db.Q, rid int64) (bool, string, error) {
 		return false, fmt.Sprintf("%s is already %s", db.MsgName(q, rid), row.State), nil
 	}
 	target, requester := row.Target, row.Requester
-	if requester == db.Human && !row.DeliveredAt.Valid {
+	if actor.IsPerson(requester) && !row.DeliveredAt.Valid {
 		return true, fmt.Sprintf("withdraw %s to %s: not delivered yet, so nobody is told", db.MsgName(q, rid), target), nil
 	}
 	queued, err := db.QueuedFor(q, target)
@@ -233,7 +234,7 @@ func CancelPlan(q db.Q, rid int64) (bool, string, error) {
 		}
 	}
 	told := requester + " is not told"
-	if requester == db.Human { // the confirm is the founder's to read
+	if actor.IsPerson(requester) { // the confirm is the founder's to read
 		told = "you are not told"
 	}
 	if row.DeliveredAt.Valid {

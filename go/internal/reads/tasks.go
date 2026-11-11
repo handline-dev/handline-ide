@@ -13,6 +13,7 @@ import (
 	"github.com/handline/handline/go/agentctl/verdict"
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/scheduler/settings"
 	"github.com/handline/handline/go/taskboard/attachments"
@@ -1009,7 +1010,7 @@ func memoJSON(q db.Q, m row, parts func(string) []any, store *attachments.Store,
 	if p := parts(m.str("body")); p != nil {
 		memo["parts"] = p
 	}
-	if m.str("author") == db.Human {
+	if actor.IsPerson(m.str("author")) {
 		readers, err := memoReaders(q, m.i("id"))
 		if err != nil {
 			return nil, err

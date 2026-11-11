@@ -6,6 +6,7 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/internal/outcome"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/taskboard/supervisor"
 )
@@ -38,7 +39,7 @@ func (w *writes) awaitTyped(c *rpc.Conn, out any, err error) (any, error) {
 	typed := func() (bool, error) {
 		var err error
 		row, err = db.GetRequest(w.e.DB, rid)
-		return err != nil || row == nil || row.DeliveredAt.Valid || row.State != "queued" || row.Target == db.Human, err
+		return err != nil || row == nil || row.DeliveredAt.Valid || row.State != "queued" || actor.IsPerson(row.Target), err
 	}
 	ended, err := outcome.Wait(typeWait, c.Done(), typed)
 	if err != nil {
@@ -62,7 +63,7 @@ func (w *writes) awaitTyped(c *rpc.Conn, out any, err error) (any, error) {
 	if row == nil {
 		return out, nil
 	}
-	if !row.DeliveredAt.Valid && row.Target != db.Human {
+	if !row.DeliveredAt.Valid && !actor.IsPerson(row.Target) {
 		return nil, rpc.Refused(fmt.Sprintf("message %d was closed (%s) before it was typed", rid, row.State), "state", "")
 	}
 	return m, nil
