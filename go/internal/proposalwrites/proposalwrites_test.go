@@ -307,8 +307,15 @@ func (r *rig) strayFolders() []string {
 
 // rosterText is the agents, one "  <name>: {}" line each, so a check reads who is registered.
 func (r *rig) rosterText() string {
+	rows, err := r.db.Query("SELECT " + paths.LegacyNameSQL + " FROM agents a JOIN workspaces w ON w.id = a.workspace ORDER BY a.id")
+	if err != nil {
+		r.t.Fatal(err)
+	}
+	defer rows.Close()
 	var b strings.Builder
-	for _, n := range paths.ListAgents(r.home) {
+	for rows.Next() {
+		var n string
+		rows.Scan(&n)
 		b.WriteString("  " + n + ": {}\n")
 	}
 	return b.String()
