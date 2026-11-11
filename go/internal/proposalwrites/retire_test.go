@@ -195,7 +195,7 @@ func TestTheFoundersRetireIsRefusedWhileAWorktreeHoldsWorkWithNoAnswer(t *testin
 func TestTheFoundersAnswerIsCarriedOutForAWorktreeThatHoldsWork(t *testing.T) {
 	t.Parallel()
 	for _, c := range []struct{ choice, said string }{
-		{"save", " is removed; what it held is on rescue/bob-"}, {"force", " is removed with what it held"},
+		{"save", " is removed; what it held is on rescue/{bob}-"}, {"force", " is removed with what it held"},
 	} {
 		t.Run(c.choice, func(t *testing.T) {
 			r := newRig(t)
@@ -204,13 +204,15 @@ func TestTheFoundersAnswerIsCarriedOutForAWorktreeThatHoldsWork(t *testing.T) {
 				t.Fatal("asked the founder: " + title)
 				return 0, nil
 			}
+			bob := r.who("bob") // before the retire, which ends the key's name
 			m := r.call("agent.retire", `{"agent":"bob","worktree":"`+c.choice+`","request_id":"w1"}`)
 			res, _ := m["result"].(map[string]any)
 			if res == nil {
 				t.Fatalf("%v", m)
 			}
 			said, _ := res["said"].(string)
-			for _, want := range []string{wt["done"] + " is removed with its branch done", wt["ahead"] + c.said} {
+			rescue := strings.ReplaceAll(c.said, "{bob}", bob) // the rescue branch is named by the agent's key
+			for _, want := range []string{wt["done"] + " is removed with its branch done", wt["ahead"] + rescue} {
 				if !strings.Contains(said, want) {
 					t.Errorf("%q lacks %q", said, want)
 				}
@@ -349,7 +351,7 @@ func TestAWorktreeOnNoBranchIsJudgedByItsHeadAndOneThatIsNoCheckoutIsLeft(t *tes
 	if !strings.Contains(said, detached+" is removed;") && !strings.HasSuffix(said, detached+" is removed.") {
 		t.Fatalf("a clean worktree on no branch: %v", m)
 	}
-	if !strings.Contains(said, held+" is removed; what it held is on rescue/bob-") {
+	if !strings.Contains(said, held+" is removed; what it held is on rescue/"+bob+"-") {
 		t.Fatalf("a worktree on no branch holding a commit: %v", m)
 	}
 	for _, p := range []string{detached, held} {

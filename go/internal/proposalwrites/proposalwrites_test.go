@@ -481,7 +481,7 @@ func TestRetireArchivesTheFolderAndRenameMovesTheNameAndItsRows(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
 	r.db.Exec("INSERT INTO agent_state(agent, state, updated) VALUES(?, 'idle', 1)", r.who("bob"))
-	if _, err := dbpkg.AddRequest(r.db, dbpkg.NewRequest{Requester: "alice", Target: "bob", Body: "hi", Kind: "ask"}); err != nil {
+	if _, err := dbpkg.AddRequest(r.db, dbpkg.NewRequest{Requester: r.who("alice"), Target: r.who("bob"), Body: "hi", Kind: "ask"}); err != nil {
 		t.Fatal(err)
 	}
 	p, id := r.propose("aaaa0005", "kind", "rename", "agent", "bob", "to", "robert")
@@ -526,7 +526,7 @@ func TestRetireArchivesTheFolderAndRenameMovesTheNameAndItsRows(t *testing.T) {
 	r.db.QueryRow("SELECT target FROM requests WHERE body = 'hi'").Scan(&target)
 	r.db.QueryRow("SELECT agent FROM agent_state").Scan(&agent)
 	yml := r.rosterText()
-	if target != "robert" || agent != "robert" || !strings.Contains(yml, "  robert: {}") || strings.Contains(yml, "bob") {
+	if target != r.who("robert") || agent != r.who("robert") || !strings.Contains(yml, "  robert: {}") || strings.Contains(yml, "bob") {
 		t.Fatalf("%s %s\n%s", target, agent, yml)
 	}
 	pairs, _, _ := yamlcompat.ParsePairs(r.settingsText("robert"))
@@ -949,9 +949,10 @@ func TestACacheThatCannotBeRemovedDoesNotUndoARetire(t *testing.T) {
 	os.MkdirAll(filepath.Join(paths.CacheDir(r.home, "bob"), "go-build"), 0o755)
 	os.Chmod(caches, 0o555) // bob's folder cannot leave it
 	defer os.Chmod(caches, 0o755)
+	bob := r.who("bob")
 	p, id := r.propose("aaaa0009", "kind", "retire", "agent", "bob")
 	res := r.decide(id, "approve", p.subject(), "g1")["result"].(map[string]any)
-	if !strings.Contains(res["said"].(string), "bob is retired") || strings.Contains(r.rosterText(), "bob:") {
+	if !strings.Contains(res["said"].(string), bob+" is retired") || strings.Contains(r.rosterText(), "bob:") {
 		t.Fatalf("the retire stopped half done: %v", res)
 	}
 }
@@ -968,7 +969,7 @@ func TestProposeWritesTheProposalFileAndRefusesWhatTheOldCLIRefused(t *testing.T
 		t.Fatalf("%v", res)
 	}
 	p, err := r.e.load(fmt.Sprintf("%08x", int64(n)))
-	if err != nil || p == nil || p.str("kind") != "retire" || p.str("agent") != "bob" || p.str("requested_by") != "alice" ||
+	if err != nil || p == nil || p.str("kind") != "retire" || p.str("agent") != r.who("bob") || p.str("requested_by") != r.who("alice") ||
 		p.str("state") != "proposed" || p.str("why") != "idle" {
 		t.Fatalf("%v %+v", err, p)
 	}
@@ -1029,7 +1030,7 @@ func TestProposeRenameTeamAndBundleAreDraftedAsTheOldCLIDraftsThem(t *testing.T)
 		return p
 	}
 	rn := loaded(call("r1", `"kind":"rename","args":{"name":"bob","to":"robert"},"why":"w"`))
-	if rn.kind() != "rename" || rn.str("agent") != "bob" || rn.str("to") != "robert" {
+	if rn.kind() != "rename" || rn.str("agent") != r.who("bob") || rn.str("to") != "robert" {
 		t.Fatalf("%+v", rn)
 	}
 	tm := loaded(call("t1", `"kind":"team","args":{"name":"zed","repo":"/r","members":["sea","zed.air"],"repos":{"zed.sea":"/r"}},"why":"w"`))
@@ -1049,7 +1050,7 @@ func TestProposeRenameTeamAndBundleAreDraftedAsTheOldCLIDraftsThem(t *testing.T)
 		{`"kind":"rename","args":{"name":"bob","to":"alice"},"why":"w"`, "alice is already an agent"},
 		{`"kind":"team","args":{"name":"zed","repo":"/r"},"why":"w"`, "a team needs at least one member"},
 		{`"kind":"team","args":{"name":"zed","members":["sea"]},"why":"w"`, "needs --repo"},
-		{`"kind":"team","args":{"name":"alice","repo":"/r","members":["sea"]},"why":"w"`, "alice already an agent"},
+		{`"kind":"team","args":{"name":"alice","repo":"/r","members":["sea"]},"why":"w"`, "workspace alice already exists"},
 		{`"kind":"bundle","args":{"name":"0 changes","changes":[]},"why":"w"`, "needs at least one change"},
 		{`"kind":"bundle","args":{"name":"1 changes","changes":[{"kind":"retire","name":"ghost"}]},"why":"w"`, "change 1 (retire ghost): ghost is not an agent"},
 		{`"kind":"bundle","args":{"name":"1 changes","changes":[{"kind":"retire","name":"bob","bogus":1}]},"why":"w"`, "not an argument: bogus"},
@@ -1189,7 +1190,7 @@ func TestAHeldRenameWhoseStartIsHeldIsAppliedAndStartsByItself(t *testing.T) {
 		t.Fatalf("applied, no error: %v", v)
 	}
 	f := r.followUp("aaaa000b")
-	if f["agent"] != "robert" || f["state"] != "waiting" || !strings.Contains(f["text"].(string), "the computer is busy right now") {
+	if f["agent"] != r.who("robert") || f["state"] != "waiting" || !strings.Contains(f["text"].(string), "the computer is busy right now") {
 		t.Fatalf("follow-up waits: %v", f)
 	}
 	if !strings.Contains(r.rosterText(), "  robert: {}") {
@@ -1327,7 +1328,7 @@ func TestAProposedRepoIsKeptAbsoluteAndMustBeAGitCheckout(t *testing.T) {
 		{"alice", `"kind":"add","args":{"name":"dan","repo":"handline/handline"},"why":"w"`, "repo handline/handline is not a folder"},
 		{"alice", `"kind":"team","args":{"name":"zed","repo":"app","members":["sea"],"repos":{"zed.sea":"plain"}},"why":"w"`, "repo plain is not a git checkout"},
 		{"alice", `"kind":"team","args":{"name":"zed","repo":"app","members":["sea"],"repos":{"zed.sea":"lib"}},"why":"w"`, "zed.sea would work in " + filepath.Join(base, "lib") + ", but a workspace has one folder"},
-		{"", `"kind":"add","args":{"name":"dan","repo":"app"},"why":"w"`, "repo app is a relative path and human has no repo to take it from"},
+		{"", `"kind":"add","args":{"name":"dan","repo":"app"},"why":"w"`, "repo app is a relative path and p1 has no repo to take it from"},
 	} {
 		m := propose(c.as, "e"+c.want[:12], c.params)
 		msg, _ := m["error"].(map[string]any)["message"].(string)
@@ -1345,6 +1346,7 @@ func TestAProposedRepoIsKeptAbsoluteAndMustBeAGitCheckout(t *testing.T) {
 func TestApplyNowInterruptsTheBusyTurnAndAppliesTheChange(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
+	bob := r.who("bob")
 	p, id := r.propose("aaaa000e", "kind", "retire", "agent", "bob")
 	if m := r.call("proposal.apply_now", fmt.Sprintf(`{"proposal":%d,"request_id":"an0"}`, id)); gate(m) != "proposal_settled" {
 		t.Fatalf("an open proposal is refused: %v", m)
@@ -1372,7 +1374,7 @@ func TestApplyNowInterruptsTheBusyTurnAndAppliesTheChange(t *testing.T) {
 		t.Fatalf("interrupted once, then applied: %d %s", interrupted, r.state("aaaa000e"))
 	}
 	for _, m := range []map[string]any{applied(), decided()} {
-		if res, _ := m["result"].(map[string]any); res == nil || !strings.Contains(res["said"].(string), "bob is retired") {
+		if res, _ := m["result"].(map[string]any); res == nil || !strings.Contains(res["said"].(string), bob+" is retired") {
 			t.Fatalf("apply_now and the approve both answer once it is applied: %v", m)
 		}
 	}
@@ -1445,7 +1447,7 @@ func TestAnAgentProposesAScheduleAndItIsAppliedOnlyOnApproval(t *testing.T) {
 	res := propose("s1", `{"name":"bob","action":"add","cron":"0 9 * * 1","message":"review   the open PRs"}`)["result"].(map[string]any)
 	pid := fmt.Sprintf("%08x", int64(res["proposal"].(float64)))
 	p, err := r.e.load(pid)
-	if err != nil || p == nil || p.str("kind") != "schedule" || p.str("state") != "proposed" || p.str("requested_by") != "alice" ||
+	if err != nil || p == nil || p.str("kind") != "schedule" || p.str("state") != "proposed" || p.str("requested_by") != r.who("alice") ||
 		p.sets()["cron"] != "0 9 * * 1" || p.sets()["message"] != "review the open PRs" {
 		t.Fatalf("%v %+v", err, p)
 	}
@@ -1536,7 +1538,7 @@ func TestAHeldChangeWhoseTurnOutlastsTheLimitIsRefusedAndDropped(t *testing.T) {
 	p, id := r.propose("aaaa0012", "kind", "rename", "agent", "bob", "to", "robert")
 	r.setLive("bob", true)
 	decided := r.decideHeld(id, p.subject(), "lim1")
-	if msg := refusalOf(decided()); !strings.Contains(msg, "proposal aaaa0012 was not applied: bob did not end the turn in time") {
+	if msg := refusalOf(decided()); !strings.Contains(msg, "proposal aaaa0012 was not applied: "+r.who("bob")+" did not end the turn in time") {
 		t.Fatalf("the approve is refused at the limit: %q", msg)
 	}
 	if st := r.state("aaaa0012"); st != "withdrawn" {
