@@ -749,9 +749,10 @@ func (l *Launcher) HiddenMemories(agent string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	own := paths.AgentKey(l.Home, agent)
 	var out []string
-	for name, k := range keys {
-		if name != agent {
+	for _, k := range keys {
+		if k != own {
 			out = append(out, filepath.Join(paths.AgentsDir(l.Home), k, "memory"))
 		}
 	}

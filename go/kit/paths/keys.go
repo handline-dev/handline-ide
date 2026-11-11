@@ -51,8 +51,8 @@ func AgentKeyIn(q interface {
 	return actor.Key(actor.Agent, id), nil
 }
 
-// AgentDir is the agent's folder, agents/<key>; who is its key or its old dotted name. A name no agent has, or one that cannot be
-// looked up, gets agents/.unregistered/<name>, which the launch refuses (Launcher.Build) and denies writing to (RosterFiles).
+// AgentDir is the agent's folder, agents/<key>; who is its key or its old dotted name. A name not looked up gets
+// agents/.unregistered/<name>.
 func AgentDir(home, who string) string {
 	if k := AgentKey(home, who); k != "" {
 		return filepath.Join(home, "agents", k)

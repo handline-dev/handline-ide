@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/handline/handline/go/data/agenthost"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/paths"
 )
 
@@ -129,8 +130,12 @@ func (s *snapshot) restore() {
 
 // undo rolls tx back and puts the files back. The agents tx added are gone with it, and the next agent made would be given one of
 // their ids, so their folders go first, while tx still holds the write lock and no other add can take the id.
-func (s *snapshot) undo(tx *sql.Tx, committed *sql.DB) {
-	added, _ := addedAgents(tx, committed)
+// committed is a second connection of the pool: one capped at a single connection would wait on tx here for good.
+func (s *snapshot) undo(tx *sql.Tx, committed *sql.DB, logf func(string, ...any)) {
+	added, err := addedAgents(tx, committed)
+	if err != nil {
+		logf("  proposal undo: the agents it added could not be read, so their folders may stay: %v", err)
+	}
 	s.removeFolders(added)
 	tx.Rollback()
 	s.restore()
@@ -141,18 +146,18 @@ func addedAgents(tx *sql.Tx, committed *sql.DB) ([]string, error) {
 	ids := func(q interface {
 		Query(string, ...any) (*sql.Rows, error)
 	}) (map[string]bool, error) {
-		rows, err := q.Query("SELECT 'a' || id FROM agents")
+		rows, err := q.Query("SELECT id FROM agents")
 		if err != nil {
 			return nil, err
 		}
 		defer rows.Close()
 		out := map[string]bool{}
 		for rows.Next() {
-			var k string
-			if err := rows.Scan(&k); err != nil {
+			var id int64
+			if err := rows.Scan(&id); err != nil {
 				return nil, err
 			}
-			out[k] = true
+			out[actor.Key(actor.Agent, id)] = true
 		}
 		return out, rows.Err()
 	}
@@ -263,7 +268,7 @@ func (e *Env) run(prop *Prop) (bool, string, error) {
 	var after []func() string
 	var said []string
 	fail := func(err error) (bool, string, error) {
-		snap.undo(tx, e.DB)
+		snap.undo(tx, e.DB, e.logf)
 		return false, "", err
 	}
 	for n, item := range items {
@@ -283,7 +288,7 @@ func (e *Env) run(prop *Prop) (bool, string, error) {
 			return fail(err)
 		}
 		if !ok {
-			snap.undo(tx, e.DB)
+			snap.undo(tx, e.DB, e.logf)
 			if !isBundle {
 				return false, text, nil
 			}
@@ -297,7 +302,8 @@ func (e *Env) run(prop *Prop) (bool, string, error) {
 		return fail(err)
 	}
 	if err := tx.Commit(); err != nil {
-		snap.removeFolders(added)
+		snap.removeFolders(added) // after the lock is gone: an add in between could lose its folder, a rare case kept
+
 		snap.restore()
 		return false, "", err
 	}
