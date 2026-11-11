@@ -15,7 +15,7 @@ import (
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
-// account.set: an account's cap, alias, usage recovery, month cycle and pause, in config.yaml; account.wake ends its stall. account.set
+// account.set: an account's cap, alias, usage recovery, month cycle and pause, in its row; account.wake ends its stall. account.set
 // writes what a retry writes again. settings.trust stays with the Python daemon; account.add and account.remove are in accountadmin.go.
 
 const labelMax = 40
@@ -80,9 +80,9 @@ func (e *Env) accountSet(c *rpc.Conn, p map[string]any) (any, error) {
 			end = s
 		}
 	}
-	cfg, err := e.readConfig()
+	cfg, err := e.readAccount(acct)
 	if err != nil {
-		return nil, refused(err.Error(), "")
+		return nil, err
 	}
 	var said []string
 	if hasLabel && label != currentLabel(cfg, acct) {
@@ -135,8 +135,8 @@ func (e *Env) accountSet(c *rpc.Conn, p map[string]any) (any, error) {
 		}
 	}
 	if len(said) > 0 {
-		if err := cfg.save(); err != nil {
-			return nil, refused(err.Error(), "")
+		if err := usage.SetAccount(e.DB, acct, cfg.changed); err != nil {
+			return nil, err
 		}
 	}
 	if newPause {
@@ -187,8 +187,50 @@ func (e *Env) accountReadUsage(c *rpc.Conn, p map[string]any) (any, error) {
 	return wrote(c, acct+": usage is read at the next tick", nil)
 }
 
+// accountRow is account.set's view of one account's row: get and set by Config's key (usage.AccountKeys), changed by column.
+type accountRow struct {
+	acct    string
+	cur     usage.Config
+	changed map[string]any
+}
+
+func (e *Env) readAccount(acct string) (*accountRow, error) {
+	rows, err := usage.ReadAccountRows(e.DB)
+	if err != nil {
+		return nil, err
+	}
+	r := &accountRow{acct: acct, cur: usage.Config{}, changed: map[string]any{}}
+	for col, v := range rows[acct] {
+		r.set(col, v)
+	}
+	clear(r.changed)
+	return r, nil
+}
+
+// column is the accounts column a Config key (prefix + account, or the bare column) is held in.
+func (r *accountRow) column(k string) string {
+	for _, a := range usage.AccountKeys {
+		if k == a.Prefix+r.acct || k == a.Column {
+			return a.Column
+		}
+	}
+	panic("not an account setting: " + k)
+}
+
+func (r *accountRow) get(k string) any { return r.cur[r.column(k)] }
+
+func (r *accountRow) set(k string, v any) {
+	col := r.column(k)
+	if v == nil {
+		delete(r.cur, col)
+	} else {
+		r.cur[col] = v
+	}
+	r.changed[col] = v
+}
+
 // currentLabel is the alias shown for the account, "" when it is shown under its own name.
-func currentLabel(cfg *config, acct string) string {
+func currentLabel(cfg *accountRow, acct string) string {
 	if s, ok := cfg.get("label_" + acct).(string); ok && strings.TrimSpace(s) != "" {
 		if s != acct {
 			return s
@@ -197,7 +239,7 @@ func currentLabel(cfg *config, acct string) string {
 	return ""
 }
 
-func ownCapIs(cfg *config, acct string, n int64) bool {
+func ownCapIs(cfg *accountRow, acct string, n int64) bool {
 	switch v := cfg.get("active_cap_" + acct).(type) {
 	case int64:
 		return v == n
