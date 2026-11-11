@@ -119,16 +119,17 @@ func (w *world) config(text string) {
 	}
 	var rest []string
 	rows := map[string]map[string]any{}
-	for k, v := range m {
+	for _, line := range strings.Split(strings.TrimSpace(text), "\n") {
+		k, _, _ := strings.Cut(line, ":")
 		acct, col := usage.AccountSetting(k)
 		if acct == "" {
-			rest = append(rest, fmt.Sprintf("%s: %v", k, v))
+			rest = append(rest, line)
 			continue
 		}
 		if rows[acct] == nil {
 			rows[acct] = map[string]any{}
 		}
-		rows[acct][col] = v
+		rows[acct][col] = m[k]
 	}
 	for acct, set := range rows {
 		if err := usage.SetAccount(w.DB, acct, set); err != nil {

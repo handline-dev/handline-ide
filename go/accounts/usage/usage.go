@@ -33,12 +33,21 @@ func LoadConfig(home string) Config {
 			}
 		}
 	}
-	m, _ = withAccountRows(home, m) // rows that cannot be read leave each account at its defaults, as an unreadable config.yaml does
+	m, err := withAccountRows(home, m)
+	if err != nil {
+		m[rowsUnreadableKey] = true
+	}
 	return m
 }
 
-// LoadConfigOrNil is LoadConfig, or ok false when config.yaml exists and cannot be read as a mapping (a parse error, a write caught
-// half done) or the account rows cannot be read: a caller that would act on what the file does not say must tell that from a file that says nothing. A missing file is empty.
+// rowsUnreadableKey marks a Config whose account rows could not be read; no YAML key can be it.
+const rowsUnreadableKey = "\x00account rows unreadable"
+
+// RowsUnreadable is whether the account rows could not be read, so each account's settings are its defaults only for want of them.
+func (c Config) RowsUnreadable() bool { return c[rowsUnreadableKey] == true }
+
+// LoadConfigOrNil is LoadConfig, or ok false when config.yaml exists but is not a mapping (a parse error, a write caught half done)
+// or the account rows cannot be read. A missing file is empty.
 func LoadConfigOrNil(home string) (Config, bool) {
 	b, err := os.ReadFile(paths.ConfigFile(home))
 	if os.IsNotExist(err) {

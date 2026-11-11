@@ -153,7 +153,7 @@ func columnValue(col string, v any) (any, error) {
 			return s, nil
 		}
 	case "active_cap":
-		if f, ok := v.(float64); ok && f == math.Trunc(f) { // a number read from JSON
+		if f, ok := v.(float64); ok && f == math.Trunc(f) && f >= 1 && f <= math.MaxInt32 { // a number read from JSON
 			v = int64(f)
 		}
 		if n, ok := posInt(v); ok {
