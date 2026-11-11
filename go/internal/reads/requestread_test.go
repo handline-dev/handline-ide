@@ -68,7 +68,7 @@ func TestRequestReadAnswersWhyItClosed(t *testing.T) {
 	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES"+
 		"(1, 1, 'amy', 'bob', 'a', 'landed', 'ask', 1), (3, 3, 'amy', 'bob', 'c', 'withdrawn', 'ask', 1), (4, 4, 'amy', 'bob', 'd', 'landed', 'ask', 1)")
 	run(t, e, `INSERT INTO events(ts, agent, kind, payload) VALUES(5, 'bob', 'request_reason', '{"request_id": 1, "reason": "read - no reply: not needed"}'), `+
-		`(5, 'amy', 'request_reason', '{"request_id": 3, "reason": "taken back"}'), (5, 'bob', 'dismissed', '{"request_id": 4, "by": "human", "reason": "stale"}')`)
+		`(5, 'amy', 'request_reason', '{"request_id": 3, "reason": "taken back"}'), (5, 'bob', 'dismissed', '{"request_id": 4, "by": "p1", "reason": "stale"}')`)
 	for id, want := range map[int64]any{1: "read - no reply: not needed", 3: "taken back", 4: nil} {
 		if got := read(t, e, asBob, id); got["answer"] != want {
 			t.Errorf("#%d: %v", id, got["answer"])

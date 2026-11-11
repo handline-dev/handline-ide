@@ -19,7 +19,7 @@ func TestAWorktreeLabelStandsInForTheDaemonsWord(t *testing.T) {
 	e := testEnv(t)
 	addAgent(t, e, "alice", "")
 	wt, _ := filepath.EvalSymlinks(t.TempDir())
-	if _, err := e.DB.Exec("INSERT INTO agent_state(agent, state, updated, worktree) VALUES('alice', 'idle', 0, ?)", wt); err != nil {
+	if _, err := e.DB.Exec("INSERT INTO agent_state(agent, state, updated, worktree) VALUES(?, 'idle', 0, ?)", teamtest.Key(t, e.Home, "alice"), wt); err != nil {
 		t.Fatal(err)
 	}
 	status := func() string {

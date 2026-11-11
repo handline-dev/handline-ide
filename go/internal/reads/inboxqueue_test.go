@@ -140,7 +140,7 @@ func TestInboxQueueOfTheFounderPrintsAsHlInboxDid(t *testing.T) {
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'decide', 'p1', 'bob', 1)")
 	run(t, e, "INSERT INTO task_requests(task_id, request_id) VALUES(1, 5)")
 	run(t, e, "INSERT INTO cursors(name, row_id, updated) VALUES('for_you_seen:amy', 1, 1)")
-	run(t, e, `INSERT INTO events(ts, agent, kind, payload) VALUES(91, 'p1', 'dismissed', '{"request_id": 9, "by": "human", "reason": "stale"}')`)
+	run(t, e, `INSERT INTO events(ts, agent, kind, payload) VALUES(91, 'p1', 'dismissed', '{"request_id": 9, "by": "p1", "reason": "stale"}')`)
 	printsAs(t, e, human, "founder-mailbox")
 	got := queueOf(t, e, asFounder, nil)
 	if got["waiting"] != 7 || got["newest"] != int64(10) || got["head"] != nil || got["dealt"] != nil {

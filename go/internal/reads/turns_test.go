@@ -92,11 +92,11 @@ func TestARewrittenAskSaysEditedAndTaskGetListsWhatItReplaced(t *testing.T) {
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(1, 'pick', 'amy', 'amy', 1, 'amy'), (2, 'plain', 'amy', 'amy', 1, 'amy')")
 	run(t, e, "INSERT INTO task_turns(task_id, pos, agent, ask, pushed_by, since) VALUES(1, 1, 'p1', 'C?', 'amy', 10), (2, 1, 'p1', 'D?', 'amy', 10)")
 	run(t, e, `INSERT INTO events(id, ts, agent, kind, payload) VALUES`+
-		`(1, 5, 'amy', 'task_turn_push', '{"task_id":1,"to":"human","ask":"old"}'), `+
-		`(2, 6, 'amy', 'task_turn_ask', '{"task_id":1,"agent":"human","from":"old","ask":"old2"}'), `+
-		`(3, 10, 'amy', 'task_turn_push', '{"task_id":1,"to":"human","ask":"A?"}'), `+
-		`(4, 20, 'amy', 'task_turn_ask', '{"task_id":1,"agent":"human","from":"A?","ask":"B?"}'), `+
-		`(5, 15, 'amy', 'task_turn_ask', '{"task_id":1,"agent":"human","from":"B?","ask":"C?"}')`)
+		`(1, 5, 'amy', 'task_turn_push', '{"task_id":1,"to":"p1","ask":"old"}'), `+
+		`(2, 6, 'amy', 'task_turn_ask', '{"task_id":1,"agent":"p1","from":"old","ask":"old2"}'), `+
+		`(3, 10, 'amy', 'task_turn_push', '{"task_id":1,"to":"p1","ask":"A?"}'), `+
+		`(4, 20, 'amy', 'task_turn_ask', '{"task_id":1,"agent":"p1","from":"A?","ask":"B?"}'), `+
+		`(5, 15, 'amy', 'task_turn_ask', '{"task_id":1,"agent":"p1","from":"B?","ask":"C?"}')`)
 	got, err := e.taskGet(nil, map[string]any{"task": json.Number("1")})
 	if err != nil {
 		t.Fatal(err)

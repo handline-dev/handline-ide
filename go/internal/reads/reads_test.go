@@ -112,7 +112,7 @@ func TestTheTaskLadderMatchesTheBoard(t *testing.T) {
 		{mk(1, "w", nil), "draft"},
 		{mk(1, "w", row{"queued_by": "m"}), "queued"},
 		{mk(2, "w", nil), "doing"},                       // a request is out and its owner holds it
-		{mk(3, "human", nil), "doing"},                   // begun on a founder's message
+		{mk(3, db.Human, nil), "doing"},                  // begun on a founder's message
 		{mk(4, "x", nil), "queued"},                      // held, but an open blocker
 		{mk(5, "w", nil), "queued"},                      // a request is out, but its owner holds another
 		{mk(5, "y", nil), "queued"},                      // a request is out, but its owner holds none

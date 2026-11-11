@@ -103,8 +103,8 @@ func TestRetroDoingWindowsFollowTurns(t *testing.T) {
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, reporter, created_at) VALUES(1, 't', 'bob', 'p1', 'p1', 100)")
 	run(t, e, `INSERT INTO events(ts, agent, kind, payload) VALUES
 		(100, 'bob', 'task_start', '{"task_id": 1}'),
-		(200, 'bob', 'task_turn_push', '{"task_id": 1, "to": "human"}'),
-		(500, 'p1', 'task_turn_pop', '{"task_id": 1, "agent": "human"}'),
+		(200, 'bob', 'task_turn_push', '{"task_id": 1, "to": "p1"}'),
+		(500, 'p1', 'task_turn_pop', '{"task_id": 1, "agent": "p1"}'),
 		(600, 'bob', 'task_turn_push', '{"task_id": 1, "to": "rev"}'),
 		(650, 'rev', 'task_turn_pop', '{"task_id": 1, "agent": "rev"}')`)
 	got, err := e.doingWindows(1, 0, 700)
