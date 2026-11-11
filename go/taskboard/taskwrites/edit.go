@@ -7,6 +7,7 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/pyjson"
 	"github.com/handline/handline/go/kit/textsafe"
@@ -122,7 +123,7 @@ func waitIsOwnBookkeeping(tx *sql.Tx, home string, tid, other int64) (bool, erro
 	if err != nil || b == nil {
 		return false, err
 	}
-	if b.Owner == "" || b.Owner == human {
+	if b.Owner == "" || actor.IsPerson(b.Owner) {
 		return false, nil
 	}
 	if b.Owner == t.Owner || b.Owner == db.Gate { // a wait on its own PR is its owner's own
@@ -454,10 +455,10 @@ func editMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, 
 				if err != nil {
 					return nil, err
 				}
-				if len(turns) > 0 || *owner == human && me != human {
+				if len(turns) > 0 || actor.IsPerson(*owner) && me != human {
 					var h Handover
 					var asked *Asked
-					if *owner == human && me != human {
+					if actor.IsPerson(*owner) && me != human {
 						h, asked, err = pushTurn(tx, tell, tid, me, human, "", 0, "", "")
 					} else {
 						h, asked, err = handOff(tx, tell, tid, me, *owner, "", paths.ListAgents(home), false)

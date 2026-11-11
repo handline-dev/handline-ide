@@ -115,7 +115,7 @@ func (e *Env) loadBoard() (*board, error) {
 // holds is whether the task is the one its owner holds: the founder and the gates hold none, and every task of theirs reads as held.
 func (b *board) holds(t row) bool {
 	held, has := b.current[actingOf(t)]
-	return actingOf(t) == human || actingOf(t) == db.Gate || has && held == t.i("id")
+	return actor.IsPerson(actingOf(t)) || actingOf(t) == db.Gate || has && held == t.i("id")
 }
 
 // busy says which other task t's acting agent holds now, as "<agent> is on T<n>"; empty when it holds none or holds t.
@@ -130,7 +130,7 @@ func (b *board) busy(t row) string {
 func (b *board) state(t row) string {
 	id := t.i("id")
 	// as db.pauseHolds: the pause holds a task its acting agent was not told and did not begin
-	pauseHolds := b.paused && !b.begun[id] && !t.set("delivered_at") && actingOf(t) != human && actingOf(t) != db.Gate
+	pauseHolds := b.paused && !b.begun[id] && !t.set("delivered_at") && !actor.IsPerson(actingOf(t)) && actingOf(t) != db.Gate
 	return verdict.TaskState(verdict.TaskFacts{Discarded: t.str("discarded_by") != "", Done: t.str("done_evidence") != "",
 		Begun: b.begun[id], Sent: b.sent[id], Held: b.holds(t), Blocked: b.blocked[id], Queued: t.str("queued_by") != "", PauseHolds: pauseHolds})
 }
@@ -719,7 +719,7 @@ func taskMismatch(t row, state string, reqs []row) any {
 	if t.str("queued_by") == "" && sent {
 		return "draft with work out - its opener has not queued it"
 	}
-	if state == "queued" && !sent && actingOf(t) != human {
+	if state == "queued" && !sent && !actor.IsPerson(actingOf(t)) {
 		return "approved, but no request is out"
 	}
 	return nil
@@ -874,7 +874,7 @@ func (e *Env) taskGet(c *rpc.Conn, params map[string]any) (any, error) {
 	evs := []any{}
 	for _, ev := range events {
 		kind := "agent"
-		if ev.str("agent") == human {
+		if actor.IsPerson(ev.str("agent")) {
 			kind = "user"
 		}
 		evs = append(evs, map[string]any{

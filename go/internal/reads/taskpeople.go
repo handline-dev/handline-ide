@@ -4,6 +4,7 @@ import (
 	"slices"
 
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/kit/actor"
 )
 
 // recentChats is how many agents TaskDetail.people.recent names.
@@ -20,7 +21,7 @@ func (e *Env) askable(holder string) (map[string]any, error) {
 	recent := []string{}
 	for _, r := range rows {
 		other := r.str("target")
-		if other == human {
+		if actor.IsPerson(other) {
 			other = r.str("requester")
 		}
 		if slices.Contains(agents, other) && !slices.Contains(recent, other) {

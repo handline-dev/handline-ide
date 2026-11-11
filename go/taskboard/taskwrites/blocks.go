@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
 )
 
 // blockerRefusal is _blocker_refusal: why blocksOn cannot be waited on, or "".
@@ -105,7 +106,7 @@ func recordBlock(tx *sql.Tx, tid, blocksOn int64, by string) (string, error) {
 // freeHolder lets go of tid when it is its owner's current task and now blocked. It answers that owner, "" for none.
 func freeHolder(tx *sql.Tx, tid int64) (string, error) {
 	t, err := getTask(tx, tid)
-	if err != nil || t == nil || t.Acting == human || t.Acting == db.Gate {
+	if err != nil || t == nil || actor.IsPerson(t.Acting) || t.Acting == db.Gate {
 		return "", err
 	}
 	if cur, ok, err := db.CurrentTask(tx, t.Acting); err != nil || !ok || cur != tid {

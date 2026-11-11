@@ -8,6 +8,7 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/paths"
 )
 
@@ -62,7 +63,7 @@ func EndReviews(d *sql.DB, home string, tell Teller) (said []string, err error) 
 				}
 			}
 		}
-		founder := to == human && r.owner != human // a task is not handed to the founder: it stays, and their turn on it asks them
+		founder := actor.IsPerson(to) && !actor.IsPerson(r.owner) // a task is not handed to the founder: it stays, and their turn on it asks them
 		if to == r.owner || founder {
 			to = ""
 		}

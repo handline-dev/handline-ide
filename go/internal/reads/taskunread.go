@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
@@ -135,7 +136,7 @@ func (e *Env) requestsPending(_ *rpc.Conn, _ map[string]any) (any, error) {
 			if err != nil {
 				return nil, err
 			}
-			onTop := turn != nil && turn.str("agent") == human
+			onTop := turn != nil && actor.IsPerson(turn.str("agent"))
 			// a task the founder owns with no turn and no request open on it is the Tasks page's Needs you, not their turn
 			if len(items) == 0 && kind == "task" && !onTop {
 				continue
@@ -219,7 +220,7 @@ func (e *Env) requestsPending(_ *rpc.Conn, _ map[string]any) (any, error) {
 		}
 		if who, err := e.askerOf(t); err != nil {
 			return nil, err
-		} else if who != human && actingOf(t) != human {
+		} else if !actor.IsPerson(who) && !actor.IsPerson(actingOf(t)) {
 			continue
 		}
 		comments = append(comments, row(tid, t.str("title"), "comment", []int64{}, u, ts(u.last)))
@@ -258,7 +259,7 @@ func (e *Env) needsYouAndDrafts() (needs, drafts int, err error) {
 		case "draft":
 			drafts++
 		case "queued", "doing":
-			if actingOf(t) == human {
+			if actor.IsPerson(actingOf(t)) {
 				needs++
 				continue
 			}

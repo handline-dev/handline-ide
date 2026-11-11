@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
@@ -88,7 +89,7 @@ func (e *Env) RequestRows(clock int64) ([]map[string]any, error) {
 			if !n.open {
 				continue
 			}
-			if n.acting == human || cards[n.id] {
+			if actor.IsPerson(n.acting) || cards[n.id] {
 				waiting = true
 			} else if n.acting != db.Gate {
 				holders[n.acting] = true

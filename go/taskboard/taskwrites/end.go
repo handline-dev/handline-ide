@@ -9,6 +9,7 @@ import (
 
 	"github.com/handline/handline/go/agentctl/delivery"
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/paths"
 )
 
@@ -288,7 +289,7 @@ func clearBlocksOn(tx *sql.Tx, tid int64, closer, how string) ([]told, []string,
 			seen[d.Acting] = true
 			freed = append(freed, d.Acting)
 		}
-		if d.Acting == closer || d.Acting == human { // no notice for the closer or the founder, but the task still comes due again
+		if d.Acting == closer || actor.IsPerson(d.Acting) { // no notice for the closer or the founder, but the task still comes due again
 			after, err := newestRequest(tx)
 			if err != nil {
 				return nil, nil, err

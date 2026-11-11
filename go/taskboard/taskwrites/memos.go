@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/taskboard/attachments"
@@ -243,7 +244,7 @@ func memoAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, err
 				}
 			}
 			if c.Caller.Actor() == human {
-				if to == human {
+				if actor.IsPerson(to) {
 					return nil, refusal("you do not hand a turn to yourself: name an agent")
 				}
 				if err = answerMemoAsks(tx, tid); err != nil {
@@ -254,7 +255,7 @@ func memoAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, err
 					return nil, err
 				} else if turns, err := db.Turns(tx, tid); err != nil {
 					return nil, err
-				} else if acting == human && len(turns) > 0 {
+				} else if actor.IsPerson(acting) && len(turns) > 0 {
 					if to != "" {
 						return nil, refusal(fmt.Sprintf("T%d waits on you: answer with a comment and no turn, and it goes back to the agent that asked", tid))
 					}
@@ -296,7 +297,7 @@ func memoAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, err
 			if tail := tell.HandedOver(pushed); tail != "" {
 				out["said"] = out["said"].(string) + "\n" + tail
 			}
-			if to != human {
+			if !actor.IsPerson(to) {
 				skip = append(skip, to) // the turn's delivery carries the comment
 			}
 		}
@@ -326,7 +327,7 @@ func turnParams(p map[string]any, home string) (to, evidence string, err error) 
 		return "", "", err
 	}
 	switch {
-	case evidence != "" && (to == "" || to == human):
+	case evidence != "" && (to == "" || actor.IsPerson(to)):
 		return "", "", badParam("done goes with a turn to an agent: a review whose pass closes the task", "done")
 	case to != "" && to != human && !contains(paths.ListAgents(home), to):
 		e := rpc.NotFoundError("no agent named " + to)

@@ -7,6 +7,7 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
@@ -63,7 +64,7 @@ func (e *Env) inboxQueue(c *rpc.Conn, params map[string]any) (any, error) {
 			case <-time.After(pollEvery):
 			}
 		}
-		if !held && whose == human {
+		if !held && actor.IsPerson(whose) {
 			return e.founderQueue(all)
 		} else if !held {
 			return e.agentQueue(whose, newest, all)
@@ -74,7 +75,7 @@ func (e *Env) inboxQueue(c *rpc.Conn, params map[string]any) (any, error) {
 // listingRefusal is actions.listing_refusal: why caller may not list whose messages, "" when it may. The founder, the agent itself
 // and its supervisor may.
 func (e *Env) listingRefusal(caller, whose string) string {
-	if caller == human || caller == whose {
+	if caller == human || caller == whose { // owner-only: the owner may list anyone's
 		return ""
 	}
 	if t, _ := team.LoadTeam(e.Home); t.SupervisorOf(whose) == caller {
@@ -87,7 +88,7 @@ func (e *Env) listingRefusal(caller, whose string) string {
 // newestWaiting is the number of the newest thing that waits in whose inbox, 0 for nothing: for the founder a mailbox row, for an agent a
 // request no state has settled.
 func (e *Env) newestWaiting(whose string) (int64, error) {
-	if whose != human {
+	if !actor.IsPerson(whose) {
 		r, err := queryOne(e.DB, "SELECT COALESCE(MAX(id), 0) AS newest FROM requests WHERE target = ? AND edge_ok AND state NOT IN "+
 			"('landed', 'denied', 'withdrawn', 'replaced')", whose)
 		return r.i("newest"), err
@@ -207,7 +208,7 @@ func (e *Env) founderQueue(all bool) (any, error) {
 		if listed[r.i("id")] {
 			continue // still on the list above, so not dealt with
 		}
-		outgoing := r.str("requester") == human
+		outgoing := actor.IsPerson(r.str("requester"))
 		other, text := r.str("requester"), r.str("body")
 		if outgoing {
 			other = r.str("target")
