@@ -46,7 +46,7 @@ func TestAnAgentViewThatChangesTurnsStalledOrGoesIsToldOnceEach(t *testing.T) {
 	exec(t, d, "DELETE FROM agent_view WHERE agent = 'amy'")
 	a.Scan(d, emit)
 	got = all()
-	if last := got[len(got)-1]; len(got) != 5 || last.Type != "agent.removed" || *last.Agent != "amy" || string(last.Data) != `{"name":"amy"}` {
+	if last := got[len(got)-1]; len(got) != 5 || last.Type != "agent.removed" || *last.Agent != "amy" || string(last.Data) != `{"key":"amy"}` {
 		t.Fatalf("%+v", got)
 	}
 }

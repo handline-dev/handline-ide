@@ -324,7 +324,7 @@ func teamCmd(c *hlclient.Client, args []string) (int, bool) {
 		fmt.Fprintf(os.Stderr, "could not read what they are doing: %v\n", err)
 	} else {
 		for _, a := range list(got, "agents") {
-			lines[str(a, "name")] = a
+			lines[str(a, "key")] = a
 		}
 	}
 	type row struct{ name, rel, doing string }

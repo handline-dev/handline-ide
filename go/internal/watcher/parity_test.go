@@ -215,10 +215,25 @@ func TestGoAndPythonWriteTheSameRowsForTheSameAgentChanges(t *testing.T) {
 	}
 	for i, e := range events {
 		sameRow(t, i, py[i], e)
-		if !same(py[i]["data"], e.Data) {
-			t.Errorf("row %d data: python %v, go %s", i, py[i]["data"], e.Data)
+		if want := identified(py[i]); !same(want, e.Data) {
+			t.Errorf("row %d data: python %v, go %s", i, want, e.Data)
 		}
 	}
+}
+
+// identified is a recorded agents row's data with what Python never sent: an agent view's key, workspace and owner (an agent with no
+// row: its name is its key, the rest empty) and agent.removed's key in place of its name.
+func identified(row map[string]any) any {
+	s, _ := row["data"].(string)
+	var v map[string]any
+	if row["topic"] != "agents" || json.Unmarshal([]byte(s), &v) != nil {
+		return row["data"]
+	}
+	if row["type"] == "agent.removed" {
+		return map[string]any{"key": v["name"]}
+	}
+	v["key"], v["workspace"], v["owner"] = v["name"], "", ""
+	return v
 }
 
 func TestGoAndPythonWriteTheSameRowsForTheSameChatChanges(t *testing.T) {

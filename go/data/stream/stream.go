@@ -25,7 +25,7 @@ const (
 
 var topics = map[string]bool{"status": true, "accounts": true, "agents": true, "inbox": true, "tasks": true,
 	"notifications": true, "operations": true, "chat": true, devicesTopic: true, "proposals": true, "prefs": true, "requests": true,
-	"for_you": true}
+	"for_you": true, "people": true, "workspaces": true}
 
 // Hub fans events out to the connections subscribed to them.
 type Hub struct {

@@ -64,6 +64,7 @@ func (e *Env) viewMap(name string, stored map[string]json.RawMessage, x *viewCtx
 		if err := e.addFields(name, view, x); err != nil {
 			return nil, err
 		}
+		WithIdent(view, name, x.ids)
 	}
 	return view, nil
 }

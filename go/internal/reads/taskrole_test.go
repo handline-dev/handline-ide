@@ -42,7 +42,7 @@ func TestATaskOfACheckAgentIsACheck(t *testing.T) {
 	json.Unmarshal(b, &out)
 	views := map[string]any{}
 	for _, a := range out.Agents {
-		views[nameOf[fmt.Sprint(a["name"])]] = a["task_role"]
+		views[nameOf[fmt.Sprint(a["key"])]] = a["task_role"]
 	}
 	delete(roles, "nobody")
 	if fmt.Sprint(views) != fmt.Sprint(roles) {

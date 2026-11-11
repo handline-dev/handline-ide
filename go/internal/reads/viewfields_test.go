@@ -26,7 +26,7 @@ func viewOfAgent(t *testing.T, e *Env, name string) map[string]any {
 	var out struct{ Agents []map[string]any }
 	json.Unmarshal(b, &out)
 	for _, a := range out.Agents {
-		if a["name"] == name {
+		if a["key"] == name {
 			return a
 		}
 	}

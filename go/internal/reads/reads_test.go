@@ -62,7 +62,7 @@ func TestAnAgentWithNoStoredViewIsListedWithItsRoleAndTheNoTerminalState(t *test
 	b, _ := json.Marshal(got)
 	var out struct{ Agents []map[string]any }
 	json.Unmarshal(b, &out)
-	if len(out.Agents) != 2 || out.Agents[0]["state"] != "idle" || out.Agents[1]["name"] != worker ||
+	if len(out.Agents) != 2 || out.Agents[0]["state"] != "idle" || out.Agents[1]["key"] != worker ||
 		out.Agents[1]["state"] != "no_terminal" || out.Agents[1]["role"] != "Does   the work." {
 		t.Fatalf("%s", b)
 	}
