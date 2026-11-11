@@ -128,6 +128,9 @@ func handoffMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (an
 				return nil, &rpc.CommitThen{Err: refusal(asked.Msg)}
 			}
 			msg = asked.Msg
+			if asked.Reask { // already on the founder's turn: it moved to this note, nothing is handed over
+				return accepted(fmt.Sprintf("T%d: %s", tid, msg), nil), nil
+			}
 			return accepted(fmt.Sprintf("T%d handed to %s: %s", tid, to, msg), nil), nil
 		})
 		if asked != nil && !asked.OK && asked.After != nil {
@@ -136,11 +139,13 @@ func handoffMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (an
 		if err != nil {
 			return nil, err
 		}
-		h.After = asked.After
-		if tail := tell.HandedOver(h); tail != "" {
-			out["said"] = fmt.Sprintf("T%d handed to %s: %s\n%s", tid, to, msg, tail)
+		if !asked.Reask {
+			h.After = asked.After
+			if tail := tell.HandedOver(h); tail != "" {
+				out["said"] = fmt.Sprintf("T%d handed to %s: %s\n%s", tid, to, msg, tail)
+			}
 		}
-		if memo != 0 && tell != nil {
+		if memo != 0 {
 			tell.MemoChanged(tid, memo, me, "added", said, false, nil)
 		}
 		return out, nil
