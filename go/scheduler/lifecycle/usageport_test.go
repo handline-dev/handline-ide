@@ -105,3 +105,12 @@ func TestAnAccountIsNotFitWhenItsLoadCannotBeRead(t *testing.T) {
 		t.Fatalf("an unreadable count is the cap: %d", n)
 	}
 }
+
+func TestTheUsageAdapterReadsWhichAccountIsPaused(t *testing.T) {
+	env := usageHome(t, map[string]map[string]any{"rest": liveAccount(5, 5, 90000), "on": liveAccount(5, 5, 90000)})
+	os.WriteFile(filepath.Join(env.Home, "config.yaml"), []byte("paused_rest: true\n"), 0o644)
+	u := &UsageAdapter{Env: env, Q: openDB(t)}
+	if !u.Read("rest").Paused || u.Read("on").Paused {
+		t.Fatalf("rest %+v, on %+v", u.Read("rest"), u.Read("on"))
+	}
+}

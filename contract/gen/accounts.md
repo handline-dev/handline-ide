@@ -30,7 +30,7 @@ Which account the next agent would be placed on, each account's reason, and what
 
 ### `account.set`
 
-The account Settings form in one call: alias, cap, usage recovery and the month cycle; nothing is written if any is refused. Fields not given are left alone. Chosen over set_cycle_on/set_cycle_end methods because the UI saves these together and the CLI twins (cap, cycle, recover, alias) each write one of these fields.
+The account Settings form in one call: alias, cap, usage recovery, the month cycle and pause; nothing is written if any is refused. Fields not given are left alone. Chosen over set_cycle_on/set_cycle_end methods because the UI saves these together and the CLI twins (cap, cycle, recover, alias) each write one of these fields.
 
 ### `account.wake`
 
