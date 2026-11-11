@@ -19,8 +19,25 @@
    "AgentView": {
     "type": "object",
     "properties": {
+     "key": {
+      "$ref": "#/components/schemas/AgentName",
+      "description": "The agent's key (a17): what every other field and call names it by."
+     },
      "name": {
-      "$ref": "#/components/schemas/AgentName"
+      "type": "string",
+      "description": "Its name within its workspace (designer). A rename changes it and nothing else."
+     },
+     "workspace": {
+      "type": "string",
+      "description": "The key of its workspace (w2); workspaces.list gives the workspace's name."
+     },
+     "lead": {
+      "type": "boolean",
+      "description": "Whether it is its workspace's lead: what is sent to the workspace reaches it."
+     },
+     "owner": {
+      "type": "string",
+      "description": "The key of the person who owns it (p1); people.list gives the person's name."
      },
      "role": {
       "type": "string",
@@ -530,7 +547,11 @@
      }
     },
     "required": [
+     "key",
      "name",
+     "workspace",
+     "lead",
+     "owner",
      "role",
      "model",
      "effort",

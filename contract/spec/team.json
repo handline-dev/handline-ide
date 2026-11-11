@@ -374,6 +374,84 @@
      "target",
      "error"
     ]
+   },
+   "Person": {
+    "type": "object",
+    "properties": {
+     "key": {
+      "type": "string",
+      "description": "p<n>."
+     },
+     "display_name": {
+      "type": "string",
+      "description": "What the app shows for the person."
+     },
+     "handle": {
+      "oneOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "The word other people address them by in team mode; null in personal mode."
+     },
+     "role": {
+      "type": "string",
+      "enum": [
+       "owner",
+       "member"
+      ]
+     }
+    },
+    "required": [
+     "key",
+     "display_name",
+     "handle",
+     "role"
+    ]
+   },
+   "Workspace": {
+    "type": "object",
+    "properties": {
+     "key": {
+      "type": "string",
+      "description": "w<n>."
+     },
+     "name": {
+      "type": "string"
+     },
+     "folder": {
+      "type": "string",
+      "description": "The project folder its agents' worktrees are made from."
+     },
+     "added_folders": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      },
+      "description": "Further folders its agents may read and write."
+     },
+     "lead": {
+      "oneOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "The key of its lead agent; null before it has one."
+     }
+    },
+    "required": [
+     "key",
+     "name",
+     "folder",
+     "added_folders",
+     "lead"
+    ]
    }
   }
  },
@@ -691,6 +769,76 @@
     }
    ],
    "description": "The founder's: the declared roots live in the protected store, which an agent session cannot write, so an agent calling `hl trust remove` is refused today and by this method (gate role). A root that is not declared is not_found. `root` must be an absolute path, as for trust.propose (bad_request, field `root`)."
+  },
+  {
+   "name": "people.list",
+   "summary": "Every person, so a client writes out a person key by name.",
+   "paramStructure": "by-name",
+   "params": [],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "properties": {
+      "people": {
+       "type": "array",
+       "items": {
+        "$ref": "#/components/schemas/Person"
+       }
+      }
+     },
+     "required": [
+      "people"
+     ]
+    }
+   },
+   "x-role": "agent",
+   "x-write": false,
+   "x-app-cache": {
+    "resource": "people",
+    "feed": "people"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ]
+  },
+  {
+   "name": "workspaces.list",
+   "summary": "Every workspace, so a client writes out a workspace key by name and groups agents by it.",
+   "paramStructure": "by-name",
+   "params": [],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "properties": {
+      "workspaces": {
+       "type": "array",
+       "items": {
+        "$ref": "#/components/schemas/Workspace"
+       }
+      }
+     },
+     "required": [
+      "workspaces"
+     ]
+    }
+   },
+   "x-role": "agent",
+   "x-write": false,
+   "x-app-cache": {
+    "resource": "workspaces",
+    "feed": "workspaces"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ]
   },
   {
    "name": "team.get",

@@ -56,6 +56,8 @@ export const reads = {
   "task.view.list": { resource: "task-views" },
   "task.board": { resource: "board", feed: "tasks" },
   "trust.list": { resource: "trust" },
+  "people.list": { resource: "people", feed: "people" },
+  "workspaces.list": { resource: "workspaces", feed: "workspaces" },
   "team.get": { resource: "team" },
   "proposal.list": { resource: "proposals", feed: "proposals" },
   "schedules.list": { resource: "schedules" },
@@ -94,7 +96,11 @@ export const EVENT_REQUIRED: Record<string, readonly string[]> = {
     "cycle"
   ],
   "agent.changed": [
+    "key",
     "name",
+    "workspace",
+    "lead",
+    "owner",
     "role",
     "model",
     "effort",
@@ -108,7 +114,7 @@ export const EVENT_REQUIRED: Record<string, readonly string[]> = {
     "parent"
   ],
   "agent.removed": [
-    "name"
+    "key"
   ],
   "agent.control": [
     "id",
