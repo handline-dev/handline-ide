@@ -19,9 +19,21 @@ export const HIGH = 80;
 export const FIVE_HOURS = 5 * 3600_000;
 export const WEEK = 7 * 86400_000;
 
-/** One usage window as a bar: its name, how much is used, and when it resets. A thin mark on it is where now stands in the
+/** One usage window as a bar: its name, how much is used, and when it resets (under the bar when `stacked`). A thin mark on it is where now stands in the
  * window (`span` long, ending at its reset): use left of the mark is ahead of time, right of it is room. */
-export function UsageBar({ name, w, span, age }: { name: string; w: Window | null; span: number; age?: number | null }) {
+export function UsageBar({
+  name,
+  w,
+  span,
+  age,
+  stacked,
+}: {
+  name: string;
+  w: Window | null;
+  span: number;
+  age?: number | null;
+  stacked?: boolean;
+}) {
   const clock = useNow();
   const read = windowRead(w, age, clock);
   // No window open since the last one ended: nothing used yet, a known 0%.
@@ -48,7 +60,7 @@ export function UsageBar({ name, w, span, age }: { name: string; w: Window | nul
             </span>
           )}
           {pct != null ? `${pct}%` : read.kind === 'ended' ? '–' : 'no reading'}
-          {pct != null && resets && <span className="text-muted">{` · resets in ${resets}`}</span>}
+          {!stacked && pct != null && resets && <span className="text-muted">{` · resets in ${resets}`}</span>}
         </span>
       </div>
       <div className={`relative h-1.5 rounded-full bg-border ${stale ? 'bar-stale' : ''}`}>
@@ -64,6 +76,11 @@ export function UsageBar({ name, w, span, age }: { name: string; w: Window | nul
           />
         )}
       </div>
+      {stacked && (
+        <span className={`min-h-4 text-xs ${high ? 'text-warning' : 'text-muted'}`}>
+          {pct != null && resets ? `resets in ${resets}` : ''}
+        </span>
+      )}
     </div>
   );
 }

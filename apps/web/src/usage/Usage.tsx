@@ -1,5 +1,5 @@
 import type { Account } from '@handline/client';
-import { AccountEmail } from '#src/usage/AccountEmail.tsx';
+import { AccountFacts } from '#src/usage/AccountFacts.tsx';
 import { RowsLoading } from '#src/usage/UsageViews.tsx';
 import { useAccountUsage, useAccounts, useWrite } from '@handline/app-data';
 import { RefreshCw, Settings, TriangleAlert } from 'lucide-react';
@@ -28,7 +28,6 @@ import {
   type Win,
 } from '#src/usage/UsageViews.tsx';
 import { usePersisted } from '#src/persist/kv.ts';
-import { FIVE_HOURS, UsageBar, WEEK } from '#src/usage/UsageBar.tsx';
 
 /** The week left of all the accounts as a graph, then every account on one row: its windows, the agents on it, its login. An account asked for from
  * elsewhere (an agent's account line) comes into view, marked for a moment. */
@@ -78,32 +77,12 @@ export function Usage() {
                 data-account={a.name}
                 className={`relative flex scroll-mt-4 flex-col gap-2 border-b @md:flex-row @md:items-center @md:gap-x-6 border-border py-3 transition-colors ${marked === a.name ? 'bg-selected' : ''}`}
               >
-                <div className="flex min-w-0 shrink-0 flex-col pr-8 @md:w-48 @md:pr-0">
-                  <span className="flex items-baseline gap-1.5 truncate text-sm font-medium text-fg">
-                    {a.label}
-                    {plans.get(a.name) && <span className="text-xs font-normal text-muted capitalize">{plans.get(a.name)}</span>}
-                  </span>
-                  <AccountEmail account={a} />
-                  {a.login_state === 'needs_login' ? (
-                    <span className="flex items-center gap-1 text-xs text-danger">
-                      <TriangleAlert size={12} />
-                      Needs login
-                    </span>
-                  ) : (
-                    <span className="truncate text-xs text-muted" title={a.agents.join(', ')}>
-                      {a.agents.length ? `${a.agents.length} agents · up to ${a.cap_effective}` : 'No agents'}
-                    </span>
-                  )}
-                  <NotPicked why={notPicked.get(a.name)} needsLogin={a.login_state === 'needs_login'} />
-                </div>
-                {/* An account that needs login cannot be used: its windows read dimmed. Narrow, the two bars stack. */}
-                <div className={`flex min-w-0 flex-1 flex-wrap gap-x-6 gap-y-2 ${a.login_state === 'needs_login' ? 'opacity-40' : ''}`}>
-                  <div className="min-w-40 flex-1">
-                    <UsageBar name="5-hour" span={FIVE_HOURS} w={a.five_hour} age={a.age_s} />
-                  </div>
-                  <div className="min-w-40 flex-1">
-                    <UsageBar name="Week" span={WEEK} w={a.weekly} age={a.age_s} />
-                  </div>
+                <div className="@container min-w-0 flex-1 pr-16 @md:pr-0">
+                  <AccountFacts
+                    account={a}
+                    plan={plans.get(a.name)}
+                    note={<NotPicked why={notPicked.get(a.name)} needsLogin={a.login_state === 'needs_login'} />}
+                  />
                 </div>
                 <div className="absolute top-3 right-0 flex @md:static">
                   <ReadAgain account={a} />
