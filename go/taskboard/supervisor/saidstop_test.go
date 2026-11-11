@@ -36,44 +36,44 @@ func (r *rig) saidStopNotices(agent string, tid int64) int {
 
 func TestAnAgentThatWroteToTheFounderAndStoppedWithADoingTaskIsToldOncePerTurn(t *testing.T) {
 	r := newRig(t)
-	r.agentUp("bob")
-	tid := r.beginCurrent("bob", "alice", "the PR")
-	r.turn("bob", true)
+	r.agentUp(r.k("bob"))
+	tid := r.beginCurrent(r.k("bob"), r.k(("alice")), "the PR")
+	r.turn(r.k("bob"), true)
 	r.must(r.SweepSaidAndStopped())
 	r.must(r.SweepSaidAndStopped())
-	if n := r.saidStopNotices("bob", tid); n != 1 {
-		t.Fatalf("told %d times, want once: %v", n, r.saysTo("bob"))
+	if n := r.saidStopNotices(r.k("bob"), tid); n != 1 {
+		t.Fatalf("told %d times, want once: %v", n, r.saysTo(r.k("bob")))
 	}
-	r.turn("bob", false) // a turn with no say: nothing new
+	r.turn(r.k("bob"), false) // a turn with no say: nothing new
 	r.must(r.SweepSaidAndStopped())
-	r.turn("bob", true) // it asks again in a later turn: told again
+	r.turn(r.k("bob"), true) // it asks again in a later turn: told again
 	r.must(r.SweepSaidAndStopped())
-	if n := r.saidStopNotices("bob", tid); n != 2 {
+	if n := r.saidStopNotices(r.k("bob"), tid); n != 2 {
 		t.Fatalf("told %d times over three turns, want 2", n)
 	}
 }
 
 func TestNoNoticeOnceTheTaskIsTheFoundersOrWithNoDoingTask(t *testing.T) {
 	r := newRig(t)
-	r.agentUp("bob")
-	tid := r.beginCurrent("bob", "alice", "the PR")
-	r.turn("bob", true)
-	mid, err := db.AddMemo(r.DB, tid, "bob", "`@human` may I open the PR?") // the task waits on the founder in a memo ask
+	r.agentUp(r.k("bob"))
+	tid := r.beginCurrent(r.k("bob"), r.k(("alice")), "the PR")
+	r.turn(r.k("bob"), true)
+	mid, err := db.AddMemo(r.DB, tid, r.k(("bob")), "`@human` may I open the PR?") // the task waits on the founder in a memo ask
 	r.must(err)
-	ask, err := db.AddRequest(r.DB, db.NewRequest{Requester: "bob", Target: db.Human, Body: "may I open the PR?", Kind: "ask"})
+	ask, err := db.AddRequest(r.DB, db.NewRequest{Requester: r.k(("bob")), Target: db.Human, Body: "may I open the PR?", Kind: "ask"})
 	r.must(err)
 	r.must(db.LinkRequest(r.DB, tid, ask))
 	_, err = r.DB.Exec("UPDATE requests SET memo_id = ? WHERE id = ?", mid, ask)
 	r.must(err)
 	r.must(r.SweepSaidAndStopped())
-	if n := r.saidStopNotices("bob", tid); n != 0 {
-		t.Fatalf("told about a task that waits on the founder in a memo ask: %v", r.saysTo("bob"))
+	if n := r.saidStopNotices(r.k("bob"), tid); n != 0 {
+		t.Fatalf("told about a task that waits on the founder in a memo ask: %v", r.saysTo(r.k("bob")))
 	}
 
-	r.agentUp("alice")
-	r.turn("alice", true) // a say with no task held
+	r.agentUp(r.k("alice"))
+	r.turn(r.k("alice"), true) // a say with no task held
 	r.must(r.SweepSaidAndStopped())
-	if says := r.saysTo("alice"); len(says) != 0 {
+	if says := r.saysTo(r.k("alice")); len(says) != 0 {
 		t.Fatalf("told with no doing task: %v", says)
 	}
 }

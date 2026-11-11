@@ -57,7 +57,7 @@ func peerRig(t *testing.T, outcome peerinbox.Result) (*rig, *fakeInbox) {
 	r := newRig(t)
 	// The agent_state row a running agent has: without it the session a request was told to is not kept, every tick reads the live
 	// session as a new one, and the head is told again once its first telling has landed.
-	if err := db.SetTerminal(r.DB, r.k("bob"), "%bob", "/w/bob"); err != nil {
+	if err := db.SetTerminal(r.DB, r.k(("bob")), "%bob", "/w/bob"); err != nil {
 		t.Fatal(err)
 	}
 	in := &fakeInbox{outcome: outcome}
@@ -70,7 +70,7 @@ func peerRig(t *testing.T, outcome peerinbox.Result) (*rig, *fakeInbox) {
 		}
 	})
 	r.Agents = &peerport.Port{
-		Peer:   func(a string) bool { return a == r.k("bob") },
+		Peer:   func(a string) bool { return a == r.k(("bob")) },
 		Find:   func(string) (peerinbox.Session, error) { return peerinbox.Session{PID: 7}, nil },
 		Sender: in,
 		OnDelivered: func(a, op string) {
@@ -125,7 +125,7 @@ func eventually(t *testing.T, ok func() bool) {
 
 func TestATerminalAgentIsToldThroughItsInboxAndTheTranscriptLandsIt(t *testing.T) {
 	r, in := peerRig(t, peerinbox.Result{Kind: peerinbox.Delivered})
-	rid := r.ask("alice", "bob", "psst", "say")
+	rid := r.ask(r.k("alice"), r.k(("bob")), "psst", "say")
 	if got, err := r.TellNow(r.DB, rid); err != nil || got != "sent" {
 		t.Fatalf("%q %v", got, err)
 	}
@@ -140,9 +140,9 @@ func TestATerminalAgentIsToldThroughItsInboxAndTheTranscriptLandsIt(t *testing.T
 
 func TestATaskQueuedForATerminalAgentGoesThroughTheInboxOnce(t *testing.T) {
 	r, in := peerRig(t, peerinbox.Result{Kind: peerinbox.Delivered})
-	rid := r.ask("human", "bob", "ship it", "task")
+	rid := r.ask(r.k("human"), r.k(("bob")), "ship it", "task")
 	for i := 0; i < 2; i++ {
-		if _, err := r.DeliverQueued(r.DB, "bob"); err != nil {
+		if _, err := r.DeliverQueued(r.DB, r.k(("bob"))); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -154,7 +154,7 @@ func TestATaskQueuedForATerminalAgentGoesThroughTheInboxOnce(t *testing.T) {
 
 func TestAMessageTheTranscriptNeverShowsNeedsAPersonAndIsNotWrittenAgain(t *testing.T) {
 	r, in := peerRig(t, peerinbox.Result{Kind: peerinbox.NotDelivered, Why: "not in the receiver's transcript", Attempts: 2})
-	rid := r.ask("alice", "bob", "psst", "say")
+	rid := r.ask(r.k("alice"), r.k(("bob")), "psst", "say")
 	if _, err := r.TellNow(r.DB, rid); err != nil {
 		t.Fatal(err)
 	}
@@ -168,7 +168,7 @@ func TestAMessageTheTranscriptNeverShowsNeedsAPersonAndIsNotWrittenAgain(t *test
 	if told != 1 || needs != 1 {
 		t.Fatalf("sender told %d, needs-you events %d", told, needs)
 	}
-	if state, _ := r.sendOnce(r.DB, "bob", op, "psst", delivery.Now); state != Unknown || in.count() != 1 {
+	if state, _ := r.sendOnce(r.DB, r.k(("bob")), op, "psst", delivery.Now); state != Unknown || in.count() != 1 {
 		t.Fatalf("written again: %v %d", state, in.count())
 	}
 }
@@ -176,7 +176,7 @@ func TestAMessageTheTranscriptNeverShowsNeedsAPersonAndIsNotWrittenAgain(t *test
 func TestATerminalAgentWithNoInboxIsQueuedNotTold(t *testing.T) {
 	r, in := peerRig(t, peerinbox.Result{Kind: peerinbox.Delivered})
 	r.Agents.(*peerport.Port).Find = func(string) (peerinbox.Session, error) { return peerinbox.Session{}, peerinbox.ErrNoSession }
-	rid := r.ask("alice", "bob", "psst", "say")
+	rid := r.ask(r.k("alice"), r.k(("bob")), "psst", "say")
 	got, err := r.TellNow(r.DB, rid)
 	if err != nil || got == "sent" || in.count() != 0 {
 		t.Fatalf("%q %v %d", got, err, in.count())
@@ -186,12 +186,12 @@ func TestATerminalAgentWithNoInboxIsQueuedNotTold(t *testing.T) {
 func TestAClosedTerminalAgentIsWokenForAMessageAtOnce(t *testing.T) {
 	r, in := peerRig(t, peerinbox.Result{Kind: peerinbox.Delivered})
 	r.Agents.(*peerport.Port).Find = func(string) (peerinbox.Session, error) { return peerinbox.Session{}, peerinbox.ErrNoSession }
-	r.must(db.SetClosed(r.DB, "bob", ""))
-	rid := r.ask("alice", "bob", "psst", "say")
+	r.must(db.SetClosed(r.DB, r.k(("bob")), ""))
+	rid := r.ask(r.k("alice"), r.k(("bob")), "psst", "say")
 	if _, err := r.TellNow(r.DB, rid); err != nil || in.count() != 0 {
 		t.Fatalf("%v %d", err, in.count())
 	}
-	if len(r.life.woke) != 1 || r.life.woke[0] != "bob" {
+	if len(r.life.woke) != 1 || r.life.woke[0] != r.k(("bob")) {
 		t.Fatalf("not left for the next tick: %q", r.life.woke)
 	}
 }
@@ -199,13 +199,13 @@ func TestAClosedTerminalAgentIsWokenForAMessageAtOnce(t *testing.T) {
 func TestAMessageNeverWrittenSaysSoAndOneWrittenAndUnseenSaysItMayHaveBeenRead(t *testing.T) {
 	for _, written := range []bool{false, true} {
 		r, in := peerRigHeld(t, peerinbox.Result{Kind: peerinbox.Delivered})
-		rid := r.ask("alice", "bob", "psst", "say")
+		rid := r.ask(r.k("alice"), r.k(("bob")), "psst", "say")
 		op := requestOp(rid)
-		if state, _ := r.sendOnce(r.DB, "bob", op, "psst", delivery.Now); state != Written {
+		if state, _ := r.sendOnce(r.DB, r.k(("bob")), op, "psst", delivery.Now); state != Written {
 			t.Fatal(state)
 		}
 		eventually(t, func() bool { return in.enteredCount() == 1 })
-		r.must(r.SessionNotDelivered("bob", op, "no inbox", written))
+		r.must(r.SessionNotDelivered(r.k("bob"), op, "no inbox", written))
 		var n int
 		pattern := "%was not written to its session (no inbox): it was not read. It is not sent again; send it again.%"
 		if written {
@@ -215,10 +215,10 @@ func TestAMessageNeverWrittenSaysSoAndOneWrittenAndUnseenSaysItMayHaveBeenRead(t
 		if n != 1 {
 			t.Fatalf("written=%v: the sender was told %d times", written, n)
 		}
-		if left, _ := db.PendingNotices(r.DB, "alice"); len(left) != 1 || left[0].SendNow.Valid {
+		if left, _ := db.PendingNotices(r.DB, r.k(("alice"))); len(left) != 1 || left[0].SendNow.Valid {
 			t.Fatalf("written=%v: the sender's note waits in its digest, not typed at once: %+v", written, left)
 		}
-		r.must(r.SessionNotDelivered("bob", op, "no inbox", written)) // settled once
+		r.must(r.SessionNotDelivered(r.k("bob"), op, "no inbox", written)) // settled once
 		r.must(r.DB.QueryRow("SELECT count(*) FROM events WHERE agent = 'bob' AND kind = 'needs_you'").Scan(&n))
 		if n != 1 {
 			t.Fatalf("needs-you events: %d", n)
@@ -228,14 +228,14 @@ func TestAMessageNeverWrittenSaysSoAndOneWrittenAndUnseenSaysItMayHaveBeenRead(t
 
 func TestAMessageTheLastDaemonLeftWrittenIsUnknownWhenTheNextSettlesIt(t *testing.T) {
 	r, in := peerRigHeld(t, peerinbox.Result{Kind: peerinbox.Delivered})
-	rid := r.ask("alice", "bob", "psst", "say")
+	rid := r.ask(r.k("alice"), r.k(("bob")), "psst", "say")
 	op := requestOp(rid)
-	if state, _ := r.sendOnce(r.DB, "bob", op, "psst", delivery.Now); state != Written {
+	if state, _ := r.sendOnce(r.DB, r.k(("bob")), op, "psst", delivery.Now); state != Written {
 		t.Fatal(state)
 	}
 	eventually(t, func() bool { return in.enteredCount() == 1 })
-	r.must(r.SessionLost(r.DB, "bob")) // what the daemon does at its start for each peer agent
-	if v, _ := db.Cursor(r.DB, ledgerKey("bob", op)); v != sendUnknown {
+	r.must(r.SessionLost(r.DB, r.k(("bob")))) // what the daemon does at its start for each peer agent
+	if v, _ := db.Cursor(r.DB, ledgerKey(r.k("bob"), op)); v != sendUnknown {
 		t.Fatalf("ledger %d", v)
 	}
 }
