@@ -5,6 +5,7 @@ import { useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNod
 import { ImageViewer, type MarkedPicture } from '#src/viewer/ImageViewer.tsx';
 import { FolderChip, UploadChip, type Attachments } from '#src/chat/attachments.tsx';
 import { readDropped } from '#src/ui/fileDrop.tsx';
+import { useNameOf } from '@handline/app-data';
 
 /** The box a message is written in: it grows with the text up to a cap, then scrolls; Enter sends, Shift+Enter breaks a line.
  * Under the text, a row: attach and `leading` on the left (the model), `trailing` and send on the right (the context). While the
@@ -73,6 +74,7 @@ export function Composer({
     if (focusOn) box.current?.focus();
   }, [focusOn]);
   const suggest = useSuggest(draft, setDraft, commands);
+  const word = useNameOf()(agent);
   // A command keeps its `!` in the draft, first, whatever came before it; the box shows it as the chip.
   const bash = draft.startsWith('!');
   const write = (v: string) => setDraft(/^\s+!/.test(v) ? v.trimStart() : v);
@@ -178,7 +180,7 @@ export function Composer({
           }}
           rows={1}
           disabled={!!locked}
-          placeholder={locked ?? (bash ? `A command for ${agent}'s terminal` : (placeholder ?? `Message ${agent}`))}
+          placeholder={locked ?? (bash ? `A command for ${word}'s terminal` : (placeholder ?? `Message ${word}`))}
           className={`scrollbar-auto disabled:placeholder:animate-pulse max-h-60 min-h-7 flex-1 resize-none bg-transparent py-0.5 pr-2 text-fg outline-none placeholder:text-muted ${bash ? 'font-mono text-sm' : 'text-base'}`}
         />
       </div>
