@@ -2,12 +2,15 @@ package team
 
 import (
 	_ "embed"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 
+	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/textsafe"
 )
 
@@ -49,9 +52,10 @@ func ProtocolBlock(keys []string) string {
 	return strings.Join(lines, "\n")
 }
 
-func rulesDir(home string) string { return filepath.Join(home, "shared", "team") }
+// RulesFile is the team's rules, its workspace's base.md (docs/design/people-workspaces.md, Disk); ws is its name or key.
+func RulesFile(home, ws string) string { return filepath.Join(paths.WorkspaceDir(home, ws), "base.md") }
 
-// Rules is the shared/team/<team>.md of each team the agent is in, as "# Rules for team X\n<text>" (launch._team_rules).
+// Rules is the rules file of each team the agent is in, as "# Rules for team X\n<text>" (launch._team_rules).
 func Rules(home, agent string, t *Team) []string {
 	if t == nil {
 		return nil
@@ -63,7 +67,7 @@ func Rules(home, agent string, t *Team) []string {
 	slices.Sort(names)
 	var out []string
 	for _, name := range names {
-		b, err := os.ReadFile(filepath.Join(rulesDir(home), name+".md"))
+		b, err := os.ReadFile(RulesFile(home, name))
 		if !slices.Contains(t.Teams[name], agent) || err != nil {
 			continue
 		}
@@ -74,54 +78,47 @@ func Rules(home, agent string, t *Team) []string {
 	return out
 }
 
-// SeedRules writes DefaultRules as the rules file of each team never seeded before, and names it in shared/team/.seeded, so a new
-// team starts with the house rules while a file its team emptied or deleted stays that way.
+// SeedRules writes DefaultRules as the rules file of each team never seeded before, and marks its workspace folder seeded, so a
+// new team starts with the house rules while a file its team emptied or deleted stays that way.
 func SeedRules(home string, t *Team) error {
 	if t == nil {
 		return nil
 	}
-	marker := filepath.Join(rulesDir(home), ".seeded")
-	b, err := os.ReadFile(marker)
-	if err != nil && !os.IsNotExist(err) {
-		return err
-	}
-	seeded := strings.Fields(string(b))
-	var fresh []string
+	names := make([]string, 0, len(t.Teams))
 	for name := range t.Teams {
-		if !slices.Contains(seeded, name) {
-			fresh = append(fresh, name)
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	for _, name := range names {
+		k := paths.WorkspaceKey(home, name)
+		if k == "" {
+			continue // no workspace row: nothing is written under .unregistered
 		}
-	}
-	if len(fresh) == 0 {
-		return nil
-	}
-	slices.Sort(fresh)
-	if err := os.MkdirAll(rulesDir(home), 0o755); err != nil {
-		return err
-	}
-	for _, name := range fresh {
-		f, err := os.OpenFile(filepath.Join(rulesDir(home), name+".md"), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
-		if os.IsExist(err) {
-			continue // a team that already wrote its own rules keeps them
+		dir := filepath.Join(home, "workspaces", k)
+		marker := filepath.Join(dir, ".seeded")
+		if _, err := os.Stat(marker); err == nil {
+			continue
+		} else if !errors.Is(err, fs.ErrNotExist) {
+			return err
+		}
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return err
+		}
+		f, err := os.OpenFile(filepath.Join(dir, "base.md"), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+		if err == nil {
+			_, err = f.WriteString(DefaultRules)
+			if cerr := f.Close(); err == nil {
+				err = cerr
+			}
+		} else if os.IsExist(err) {
+			err = nil // a team that already wrote its own rules keeps them
 		}
 		if err != nil {
 			return err
 		}
-		_, err = f.WriteString(DefaultRules)
-		if cerr := f.Close(); err == nil {
-			err = cerr
-		}
-		if err != nil {
+		if err := os.WriteFile(marker, nil, 0o644); err != nil {
 			return err
 		}
 	}
-	m, err := os.OpenFile(marker, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o644)
-	if err != nil {
-		return err
-	}
-	_, err = m.WriteString(strings.Join(fresh, "\n") + "\n")
-	if cerr := m.Close(); err == nil {
-		err = cerr
-	}
-	return err
+	return nil
 }

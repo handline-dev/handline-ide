@@ -23,8 +23,8 @@ than none").
 | Layer | Where | Loaded into | Holds |
 |---|---|---|---|
 | Repo rules | `AGENTS.md` (PR-reviewed) | every agent in that repo | rules true for all |
-| Team | `~/.handline/shared/team/<team>.md` | every agent of the team, in the appendix beside `base.md` | at most 10 rules, 2KB |
-| Agent | `~/.handline/agents/<name>/memory/` | that agent only | its `MEMORY.md` index + topic files |
+| Team | `~/.handline/workspaces/<key>/base.md` | every agent of the team, in the appendix beside `base.md` | at most 10 rules, 2KB |
+| Agent | `~/.handline/agents/<key>/memory/` | that agent only | its `MEMORY.md` index + topic files |
 
 The team layer is one injected file, not a shared memory folder: Claude loads a
 single memory dir per session, and once the agent dir is set the repo dir is no
@@ -127,11 +127,11 @@ until each agent has confirmed its own entries once; then the links are removed.
 
 ## Open for the founder - decided (#1287)
 
-1. **Team layer: a separate file** in the appendix, `shared/team/<team>.md`,
+1. **Team layer: a separate file** in the appendix, `workspaces/<key>/base.md`,
    injected beside `base.md` for each team the agent is in. `hl doctor` warns
    past 10 rules or 2KB. The launcher seeds each new team's file once from
    `go/data/team/default_rules.md` (the house culture; the prompt's own
-   team part holds only hl facts) and lists it in `shared/team/.seeded`.
+   team part holds only hl facts) and marks it with `workspaces/<key>/.seeded`.
 2. **Pruning candidates: 28 days** (`memory.STALE_DAYS`).
 3. **Over budget, the write is not refused** (T230's PreToolUse hook is gone;
    #30066). `hl memory status` still reports it.
