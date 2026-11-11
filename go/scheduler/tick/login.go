@@ -39,12 +39,14 @@ type Login struct {
 	Stall func(q db.Q, agent, acct, errType, why string, at int64) bool
 	// Ended is why the account's month cycle is over, "" while it is not: its agents leave it as they leave a stalled one.
 	Ended func(acct string) string
-	// NoRoom puts text in front of the founder: no other account can take acct's agents. Once per account and key (the stall or the
-	// end), whatever the text: the reason no account has room changes as their windows move.
+	// Paused is why the founder paused the account, "" while it is not: its agents leave it as they leave an ended one.
+	Paused func(acct string) string
+	// NoRoom puts text in front of the founder: no other account can take acct's agents. Once per account and key (the stall, the
+	// end or the pause), whatever the text: the reason no account has room changes as their windows move.
 	NoRoom func(q db.Q, agent, acct, key, text string)
 }
 
-// loginExpired is login_expired.check: an agent with a live session on a stalled or ended account leaves it, level-triggered on the
+// loginExpired is login_expired.check: an agent with a live session on a stalled, ended or paused account leaves it, level-triggered on the
 // account's stall or end. True when the agent was dealt with and the tick has nothing more to do for it.
 func (t *Tick) loginExpired(agent string, row *db.AgentState, acct string, actions *[]string) bool {
 	l := t.Login
@@ -53,11 +55,14 @@ func (t *Tick) loginExpired(agent string, row *db.AgentState, acct string, actio
 		return false
 	}
 	why, errType, stalled := l.Stalled(t.Q, acct)
-	ended := ""
+	ended, paused := "", ""
 	if !stalled && l.Ended != nil {
 		ended = l.Ended(acct)
 	}
-	if !stalled && ended == "" {
+	if !stalled && ended == "" && l.Paused != nil {
+		paused = l.Paused(acct)
+	}
+	if !stalled && ended == "" && paused == "" {
 		var details string
 		var at int64
 		var failed bool
@@ -84,7 +89,15 @@ func (t *Tick) loginExpired(agent string, row *db.AgentState, acct string, actio
 	if ended != "" {
 		word, why, kind = "subscription ended", ended, "ended"
 	}
+	if paused != "" {
+		word, why, kind = "paused", paused, "paused"
+	}
 	dest, noMove := t.Handoff.MovePlan(t.Q, agent, kind)
+	if dest == "" && paused != "" {
+		t.noRoom(agent, acct, why, fmt.Sprintf("%s is paused and no other account can take its agents (%s), so they stay on it for now; "+
+			"one that closes waits. Resume %s, free room on another account, or add one.", acct, noMove, acct))
+		return false
+	}
 	if dest == "" && ended != "" {
 		// An ended account that still answers is better than none: the agent stays on it until another has room.
 		t.noRoom(agent, acct, why, fmt.Sprintf("%s's subscription has ended and no other account can take its agents (%s), so they stay on it "+

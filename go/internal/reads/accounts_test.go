@@ -326,3 +326,34 @@ func TestAccountsListShowsTheLoggedInEmailOfAnUnrecordedAccountAndWritesNothing(
 		t.Fatalf("the read wrote identity.json: %v", err)
 	}
 }
+
+func TestAccountsListSaysAPausedAccountIsPausedAndTakesNoAgent(t *testing.T) {
+	t.Parallel()
+	e := testEnv(t)
+	now := time.Now().Unix()
+	status := fmt.Sprintf(`{"collected_at": %d, "windows": [{"minutes": 300, "used_percent": 10, "resets_at": %d, "observed_at": %d},
+		{"minutes": 10080, "used_percent": 10, "resets_at": %d, "observed_at": %d}]}`, now-5, now+3600, now-5, now+90000, now-5)
+	for _, a := range []string{"rest", "good"} {
+		dir := filepath.Join(e.Home, "accounts", a)
+		os.MkdirAll(dir, 0o755)
+		os.WriteFile(filepath.Join(dir, "status.json"), []byte(status), 0o644)
+		os.WriteFile(filepath.Join(dir, ".credentials.json"), []byte("{}"), 0o600)
+	}
+	os.WriteFile(filepath.Join(e.Home, "config.yaml"), []byte("paused_rest: true\n"), 0o644)
+	got, err := e.accountsList(nil, map[string]any{"usage": true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows := map[string]map[string]any{}
+	for _, a := range got.(map[string]any)["accounts"].([]any) {
+		rows[a.(map[string]any)["name"].(string)] = a.(map[string]any)
+	}
+	rest, good := rows["rest"], rows["good"]
+	np, _ := rest["not_picked"].(map[string]any)
+	if rest["paused"] != true || rest["cap_effective"] != 0 || np["kind"] != "paused" {
+		t.Errorf("rest: paused %v, cap_effective %v, not_picked %v", rest["paused"], rest["cap_effective"], rest["not_picked"])
+	}
+	if good["paused"] != false || good["not_picked"] != nil {
+		t.Errorf("good: paused %v, not_picked %v", good["paused"], good["not_picked"])
+	}
+}

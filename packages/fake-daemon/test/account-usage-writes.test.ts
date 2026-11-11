@@ -18,3 +18,17 @@ test('account.read_usage accepts a logged-in account, refuses one that needs a l
   assert.equal((missing.data as { code?: string }).code, 'not_found');
   client.close();
 });
+
+test('account.set paused lists the account paused, with no new agent and not picked, and resuming lists it again', async () => {
+  const { client, daemon } = setup();
+  await client.start();
+  const row = () => daemon.accounts.list().accounts.find((a) => a.name === 'alpha')!;
+  await client.call('account.set', { account: 'alpha', paused: true, request_id: 'p1' });
+  assert.equal(row().paused, true);
+  assert.equal(row().cap_effective, 0);
+  assert.equal(row().not_picked?.kind, 'paused');
+  await client.call('account.set', { account: 'alpha', paused: false, request_id: 'p2' });
+  assert.equal(row().paused, false);
+  assert.notEqual(row().cap_effective, 0);
+  client.close();
+});

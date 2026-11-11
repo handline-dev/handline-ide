@@ -128,6 +128,9 @@ func ClearMeta(q Q, name string) error {
 	return err
 }
 
+// NoRoomToldKey is the meta holding the stall, end or pause the founder was last told acct's agents have no other account for.
+func NoRoomToldKey(acct string) string { return "noroom_told:" + acct }
+
 // AgentProgressKey is the meta name of an agent's progress note when it has no request or task in hand.
 func AgentProgressKey(agent string) string { return "progress-agent:" + agent }
 

@@ -199,3 +199,31 @@ func TestWithNoRoomARefusingAccountStallsItsAgentsAndTheFounderIsTold(t *testing
 		t.Fatalf("%v %q", actions, *told)
 	}
 }
+
+func pausedWorld(t *testing.T) (*Tick, *world, *[]string) {
+	tk, w, told := endedWorld(t, false)
+	tk.Login.Paused = func(string) string { return "paused - not picked" }
+	return tk, w, told
+}
+
+func TestAnAgentLeavesAPausedAccount(t *testing.T) {
+	tk, w, told := pausedWorld(t)
+	w.movePlan, w.performOK = "other", true
+	actions := supervise(tk, "a")
+	if !w.did("handoff a paused") || !has(actions, "a: handoff (paused)") || len(*told) != 0 {
+		t.Fatalf("%v %v %v", w.calls, actions, *told)
+	}
+}
+
+func TestWithNoRoomAPausedAccountKeepsItsAgentsAndTheFounderIsTold(t *testing.T) {
+	tk, w, told := pausedWorld(t)
+	w.movePlan = ""
+	actions := supervise(tk, "a")
+	row, _ := db.GetAgentState(tk.Q, "a")
+	if w.did("handoff a paused") || has(actions, "STALLED") || row.State == states.Stalled {
+		t.Fatalf("%v %v %+v", w.calls, actions, row)
+	}
+	if len(*told) != 1 || !strings.HasPrefix((*told)[0], "acct | paused - not picked | acct is paused and no other account can take its agents") {
+		t.Fatalf("%q", *told)
+	}
+}

@@ -131,7 +131,7 @@ func (p *Parts) Tick(cfg Config, tc TickConfig) *Tick {
 		Messaging: tickMessaging{env: env},
 		Lifecycle: tickLifecycle{m: lc.Manager, gate: lc.Gate},
 		Handoff:   tickHandoff{ho: lc.Handoff, mv: lc.Mover},
-		Login:     loginPorts(team.Accounts{Home: home}, uenv.EndedWhy, founderAsker{env}),
+		Login:     loginPorts(team.Accounts{Home: home}, uenv.EndedWhy, uenv.PausedWhy, founderAsker{env}),
 		Reconcile: tickReconciler{r: reconciler},
 		Sweeps: tick.Sweeps{
 			BlockedSweep:    func(db.Q, int64) {},            // dialogs on a screen: this tick reads none

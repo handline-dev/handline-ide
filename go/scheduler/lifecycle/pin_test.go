@@ -111,3 +111,14 @@ func TestAPinWithSpacesIsTheAccountItNames(t *testing.T) {
 		t.Fatalf("%q", got)
 	}
 }
+
+func TestAPausedPinTakesNoAgentEvenUnmetered(t *testing.T) {
+	r := pinRig(t, "account: a\n")
+	r.l.Ports.Usage = fakeUsage{st: AccountStatus{Exists: true}, pick: "b", by: map[string]AccountStatus{"a": {Unmetered: true, Paused: true}}}
+	if got := r.l.FindRoom("ann"); got != "" {
+		t.Fatalf("a paused pin took its agent: %q", got)
+	}
+	if why := r.l.NoRoom("ann"); why != "it is pinned to a, which is paused" {
+		t.Fatalf("%q", why)
+	}
+}
