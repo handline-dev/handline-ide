@@ -101,6 +101,20 @@ def seed_states(home: Path, daemon: subprocess.Popen) -> dict[str, str]:
 WORKROOM = {"create_repo": "", "create_parent": "w.parent", "status_worktree": ""}
 
 
+def seed_account(home: Path, name: str) -> Path:
+    """The account name's row, owned by the owner, and its folder, accounts/<key>: the folder is named by the row's key."""
+    con = sqlite3.connect(home / "db.sqlite", timeout=5)
+    try:
+        with con:
+            cur = con.execute("INSERT INTO accounts(name, owner, created_at) SELECT ?, 'p' || id, 0 FROM people WHERE role = 'owner' "
+                              "ORDER BY id LIMIT 1", (name,))
+        folder = home / "accounts" / f"c{cur.lastrowid}"
+    finally:
+        con.close()
+    folder.mkdir(parents=True)
+    return folder
+
+
 def seed_workroom(home: Path, con: sqlite3.Connection) -> None:
     repo = home.parent / "workroom"
     repo.mkdir()
@@ -373,8 +387,9 @@ def main(argv: list[str]) -> int:
             if fakes:
                 tick_settled(home)
             seeded |= {"add_account": "conf-added", "add_used_account": "conf-used", "add_retry_account": "conf-retried"}  # names no account has
-            (home / "accounts" / "main" / ".claude").mkdir(parents=True)  # a logged-in account: it has a credential file
-            (home / "accounts" / "main" / ".claude" / ".credentials.json").write_text("{}")
+            main_dir = seed_account(home, "main") / ".claude"  # a logged-in account: it has a credential file
+            main_dir.mkdir()
+            (main_dir / ".credentials.json").write_text("{}")
             seeded |= {"account": "main", "schedule_agent": ASK_AGENT, "task_owner": ASK_AGENT}
             rc = conformance.main(["--var", f"founder_key={key}", "--var", "dialogs_retired=1",
                                    *(a for k, v in seeded.items() for a in ("--var", f"{k}={v}")), *rest],

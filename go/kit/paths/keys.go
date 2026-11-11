@@ -17,23 +17,30 @@ const Unregistered = ".unregistered"
 
 // AgentKey is who's key: who itself when it is an agent's key, else the key of the agent whose old dotted name it is. "" when no
 // agent is who, or the agents table cannot be read: a caller that must tell the two apart uses AgentKeyIn.
-func AgentKey(home, who string) string {
-	if actor.KindOf(who) == actor.Agent {
+func AgentKey(home, who string) string { return keyOf(home, who, actor.Agent, AgentKeyIn) }
+
+// rowQ is a database or a transaction, as the key lookups read them.
+type rowQ interface {
+	QueryRow(string, ...any) *sql.Row
+}
+
+// keyOf is who itself when it is a key of kind, else the key lookup finds for it in home's database; "" when none is, or the
+// database cannot be read.
+func keyOf(home, who string, kind actor.Kind, lookup func(rowQ, string) (string, error)) string {
+	if actor.KindOf(who) == kind {
 		return who
 	}
 	d, err := store.SharedIfThere(DBFile(home))
 	if d == nil || err != nil {
 		return ""
 	}
-	k, _ := AgentKeyIn(d, who)
+	k, _ := lookup(d, who)
 	return k
 }
 
 // AgentKeyIn is AgentKey read through q, which may be the transaction that changed the agent's row: "" and no error when no agent
 // is who.
-func AgentKeyIn(q interface {
-	QueryRow(string, ...any) *sql.Row
-}, who string) (string, error) {
+func AgentKeyIn(q rowQ, who string) (string, error) {
 	var id int64
 	var err error
 	if k, n, ok := actor.Parse(who); ok && k == actor.Agent {
@@ -94,22 +101,10 @@ func AgentKeys(home string) (map[string]string, error) {
 
 // AccountKey is who's key: who itself when it is an account's key, else the key of the account named who; "" when none is, or the
 // accounts table cannot be read.
-func AccountKey(home, who string) string {
-	if actor.KindOf(who) == actor.Account {
-		return who
-	}
-	d, err := store.SharedIfThere(DBFile(home))
-	if d == nil || err != nil {
-		return ""
-	}
-	k, _ := AccountKeyIn(d, who)
-	return k
-}
+func AccountKey(home, who string) string { return keyOf(home, who, actor.Account, AccountKeyIn) }
 
 // AccountKeyIn is the key of the account named name, read through q: "" and no error when none is.
-func AccountKeyIn(q interface {
-	QueryRow(string, ...any) *sql.Row
-}, name string) (string, error) {
+func AccountKeyIn(q rowQ, name string) (string, error) {
 	var id int64
 	err := q.QueryRow("SELECT id FROM accounts WHERE name = ?", name).Scan(&id)
 	if errors.Is(err, sql.ErrNoRows) {
