@@ -38,7 +38,7 @@ func TestUndoRemovesOnlyTheFoldersOfTheAgentsItsOwnAddsMade(t *testing.T) {
 		os.MkdirAll(paths.AgentDir(home, k), 0o755)
 		os.MkdirAll(paths.CacheDir(home, k), 0o755)
 	}
-	snap.undo(tx, d)
+	snap.undo(tx, d, t.Logf)
 	if _, err := os.Stat(paths.AgentDir(home, "a6")); err != nil {
 		t.Fatal("the agent committed meanwhile lost its folder")
 	}

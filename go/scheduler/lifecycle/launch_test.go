@@ -143,7 +143,7 @@ func newLaunchRig(t *testing.T) *launchRig {
 	r := &launchRig{}
 	teamtest.Set(t, home, "ann", "vendor", "claude", "model", "m1", "effort", "high")
 	roster := team.NewRoster(home)
-	r.l = &Launcher{Q: openDB(t), Home: home, Roster: roster, Tokens: sessiontoken.New(home), Ports: LaunchPorts{
+	r.l = &Launcher{Q: teamtest.DB(t, home), Home: home, Roster: roster, Tokens: sessiontoken.New(home), Ports: LaunchPorts{
 		Usage:          fakeUsage{st: AccountStatus{Exists: true}},
 		Accounts:       fakeAccounts{true},
 		Vendors:        fakeVendors{"claude"},
@@ -1124,5 +1124,16 @@ func TestAResumeOntoAPausedAccountWaitsAndSaysItIsPaused(t *testing.T) {
 	r.l.Ports.Usage = fakeUsage{st: AccountStatus{Exists: true}, cap: 4}
 	if w := r.l.WakeWait(q, "ann", row); w != nil {
 		t.Fatalf("resumed, the account takes it: %+v", w)
+	}
+}
+
+// An agent's folder is by key, so a launch for no agent row (an unknown name or key) would read a folder sessions may write.
+func TestBuildRefusesAnAgentWithNoRow(t *testing.T) {
+	r := newLaunchRig(t)
+	for _, who := range []string{"nobody", "a99"} {
+		_, _, err := r.build(who, nil, false, "main")
+		if ref, ok := err.(*Refusal); !ok || !strings.Contains(ref.Msg, "no agent row has it") {
+			t.Errorf("%s: %v", who, err)
+		}
 	}
 }
