@@ -482,7 +482,7 @@
      },
      "error": {
       "code": -32002,
-      "message": "An agent opens no task for the founder. Open it as yours, and when only the founder can decide, put them on it: hl task turn T<n> human \"<the decision, and what you recommend>\".",
+      "message": "An agent opens no task for the founder. Open it as yours, and when only the founder can decide, put them on it: hl task comment T<n> add \"<the decision, and what you recommend>\" --turn human.",
       "data": {
        "code": "refused"
       }

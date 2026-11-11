@@ -67,8 +67,10 @@ func TestTheFoundersTurnFreesTheAgentsSlotAndTheirCommentGivesItBack(t *testing.
 	if len(turns) != 1 || turns[0].Ask != "beta now or after the fix? I recommend now" || turns[0].By != "bob" {
 		t.Fatalf("%+v", turns)
 	}
-	// a second founder turn, or the owner, is refused
-	r.refusedCall("human", "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"over to you","turn":"bob","request_id":"p2"}`, held), "already acts")
+	// while it waits on the founder they answer, not hand it on; nobody hands a turn to themself; the comment it hangs on stays
+	r.refusedCall("human", "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"over to you","turn":"alice","request_id":"p2"}`, held), "waits on you")
+	r.refusedCall("human", "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"mine","turn":"human","request_id":"p3"}`, held), "to yourself")
+	r.refusedCall("bob", "task.comment.delete", fmt.Sprintf(`{"task":%d,"memo":%d,"request_id":"d1"}`, held, turns[0].Memo), "what a turn")
 	// the founder's comment passes it: bob acts again, told with the comment
 	r.turnCall("human", "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"now","request_id":"c1"}`, held))
 	if r.acting(held) != "bob" {

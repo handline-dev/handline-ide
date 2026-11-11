@@ -185,7 +185,7 @@ func (e *Env) requestsPending(_ *rpc.Conn, _ map[string]any) (any, error) {
 	}
 	// News for the founder: an @human comment they have not read, on a task no row above stands for; the bell's dot, not its count.
 	notes, err := query(e.DB, "SELECT m.id, m.task_id, m.author, m.body, m.created_at, t.title FROM task_memos m JOIN tasks t ON t.id = m.task_id "+
-		"LEFT JOIN cursors c ON c.name = 'task_seen:human:' || m.task_id WHERE m.author != 'human' AND m.id > MAX(?, COALESCE(c.row_id, 0)) "+
+		"LEFT JOIN cursors c ON c.name = 'task_seen:human:' || m.task_id WHERE m.author != 'human' AND m.body LIKE '%@human%' AND m.id > MAX(?, COALESCE(c.row_id, 0)) "+
 		"AND COALESCE(t.discarded_by, '') = '' ORDER BY m.id DESC", e.seenFloor())
 	if err != nil {
 		return nil, err
