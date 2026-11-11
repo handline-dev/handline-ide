@@ -39,7 +39,7 @@ func (r *rig) acting(tid int64) string {
 	r.t.Helper()
 	a, err := db.Acting(r.DB, tid)
 	r.must(err)
-	return a
+	return r.named(a)
 }
 
 // An agent that pushes the founder's turn frees its slot: its next queued task starts, the time box waits on the founder, and the

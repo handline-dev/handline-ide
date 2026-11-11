@@ -14,9 +14,9 @@ import (
 // newTask opens an approved task with no request out: queued, never delivered.
 func (r *rig) newTask(owner, opener, title string) int64 {
 	r.t.Helper()
-	tid, err := db.NewTask(r.DB, title, owner, opener, 0, db.DefaultPriority, "", 0, "")
+	tid, err := db.NewTask(r.DB, title, r.k(owner), r.k(opener), 0, db.DefaultPriority, "", 0, "")
 	r.must(err)
-	_, err = db.SetTaskQueued(r.DB, tid, opener)
+	_, err = db.SetTaskQueued(r.DB, tid, r.k(opener))
 	r.must(err)
 	return tid
 }
@@ -410,14 +410,14 @@ func (r *rig) register(names ...string) { teamtest.Seed(r.t, r.home, names...) }
 // saysTo is the bodies of the says written to agent's inbox.
 func (r *rig) saysTo(agent string) []string {
 	r.t.Helper()
-	rows, err := r.DB.Query("SELECT body FROM requests WHERE target=? AND kind='say' ORDER BY id", agent)
+	rows, err := r.DB.Query("SELECT body FROM requests WHERE target=? AND kind='say' ORDER BY id", r.k(agent))
 	r.must(err)
 	defer rows.Close()
 	var out []string
 	for rows.Next() {
 		var b string
 		r.must(rows.Scan(&b))
-		out = append(out, b)
+		out = append(out, r.named(b))
 	}
 	return out
 }

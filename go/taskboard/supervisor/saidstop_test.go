@@ -10,6 +10,7 @@ import (
 // turn records one turn of agent: a prompt, a say to the founder when said, and the Stop.
 func (r *rig) turn(agent string, said bool) {
 	r.t.Helper()
+	agent = r.k(agent)
 	r.clock++
 	_, err := db.AddEvent(r.DB, agent, "UserPromptSubmit")
 	r.must(err)
