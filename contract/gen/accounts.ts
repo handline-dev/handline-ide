@@ -33,6 +33,8 @@ export type Account = {
   cap_effective: number;
   /** Whether a dead usage read may spend one real turn to fix itself (hl account recover). */
   recover: boolean;
+  /** The Anthropic account's email, kept from its last login so it shows after the login drops; null when none was kept. Given to the founder's app only, never to an agent. */
+  email?: string | null;
   cycle: {
     /** One-month subscription; off is renewing. */
     on: boolean;
