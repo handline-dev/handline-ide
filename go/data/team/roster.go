@@ -27,12 +27,15 @@ type Roster struct {
 	err   error // why the database could not be opened: every read and write says it
 }
 
-// NewRoster is the roster of home, on its database's shared handle (made, empty, when home has none yet).
+// NewRoster is the roster of home, on its database's shared handle. A home with no database has no roster: every call says so.
 func NewRoster(home string) *Roster {
 	r := &Roster{Home: home, Store: protected.New(home)}
-	if d, err := store.Shared(paths.DBFile(home)); err != nil {
+	switch d, err := store.SharedIfThere(paths.DBFile(home)); {
+	case err != nil:
 		r.err = err
-	} else {
+	case d == nil:
+		r.err = fmt.Errorf("%s has no database", home)
+	default:
 		r.DB = d
 	}
 	return r
@@ -344,6 +347,11 @@ func (r *Roster) register(q db.Q, name string, o RegisterOpts, mcp string) error
 		}
 		if isLead {
 			if _, err := q.Exec("UPDATE workspaces SET lead = ? WHERE id = ?", at.id, at.ws); err != nil {
+				return err
+			}
+			// the workspace's agents registered before it reported to the owner, having no lead to report to
+			lead := actor.Key(actor.Agent, at.id)
+			if _, err := q.Exec("UPDATE agents SET reports_to = ? WHERE workspace = ? AND id != ? AND reports_to = ?", lead, at.ws, at.id, owner); err != nil {
 				return err
 			}
 			at.lead = true

@@ -274,3 +274,35 @@ func accountDir(t *testing.T, home, name string) string {
 	t.Cleanup(func() { store.ForgetShared(paths.DBFile(home)) })
 	return paths.AccountDir(home, name)
 }
+
+func TestAnAgentRegisteredBeforeItsLeadReportsToTheLeadOnceItComes(t *testing.T) {
+	home := newHome(t)
+	r := NewRoster(home)
+	register(t, r, "shop.ui", "shop")
+	d, _ := store.Shared(paths.DBFile(home))
+	var reports, lead string
+	d.QueryRow("SELECT a.reports_to, 'a' || w.lead FROM agents a JOIN workspaces w ON w.id = a.workspace WHERE a.name = 'ui'").Scan(&reports, &lead)
+	if reports != lead || lead == "a" {
+		t.Fatalf("shop.ui reports to %q, its lead is %q", reports, lead)
+	}
+}
+
+func TestTheAuditorOfATeamFromNames(t *testing.T) {
+	tm := FromNames(map[string]string{"shop": "", "shop.ui": "shop", "shop.auditor": "shop"})
+	if a := tm.AuditorOf("shop.ui"); a != "shop.auditor" {
+		t.Fatalf("auditor of shop.ui: %q", a)
+	}
+	if a := tm.AuditorOf("shop.auditor"); a != "" {
+		t.Fatalf("the auditor audits itself: %q", a)
+	}
+}
+
+func TestARosterOfAHomeWithNoDatabaseMakesNone(t *testing.T) {
+	home := filepath.Join(t.TempDir(), "home")
+	if _, err := NewRoster(home).Read("shop"); err == nil {
+		t.Fatal("read a roster with no database")
+	}
+	if _, err := os.Stat(paths.DBFile(home)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("a database was made: %v", err)
+	}
+}

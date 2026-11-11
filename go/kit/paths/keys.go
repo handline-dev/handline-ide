@@ -47,7 +47,7 @@ func AgentKeyIn(q rowQ, who string) (string, error) {
 		err = q.QueryRow("SELECT id FROM agents WHERE id = ?", n).Scan(&id)
 	} else {
 		err = q.QueryRow(`SELECT a.id FROM agents a JOIN workspaces w ON w.id = a.workspace
-			WHERE CASE WHEN w.lead = a.id THEN w.name ELSE w.name || '.' || a.name END = ?`, who).Scan(&id)
+			WHERE `+LegacyNameSQL+` = ?`, who).Scan(&id)
 	}
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", nil
@@ -81,7 +81,7 @@ func AgentKeys(home string) (map[string]string, error) {
 	if d == nil {
 		return map[string]string{}, err
 	}
-	rows, err := d.Query(`SELECT CASE WHEN w.lead = a.id THEN w.name ELSE w.name || '.' || a.name END, a.id
+	rows, err := d.Query(`SELECT ` + LegacyNameSQL + `, a.id
 		FROM agents a JOIN workspaces w ON w.id = a.workspace`)
 	if err != nil {
 		return nil, err
