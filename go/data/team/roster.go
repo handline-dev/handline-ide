@@ -74,15 +74,27 @@ func IsRefusal(err error) bool {
 
 func refuse(format string, a ...any) error { return &names.Refusal{Msg: fmt.Sprintf(format, a...)} }
 
-// row is where an old name's agent is: its id (0 when there is none yet) and its workspace's id (0 when there is none), name and folder.
+// row is where an agent is: its id (0 when there is none yet) and its workspace's id (0 when there is none), name and folder.
 type row struct {
 	id, ws         int64
 	wsName, folder string
 	lead           bool
 }
 
-func find(q db.Q, legacy string) (row, error) {
-	wsName, agent := SplitLegacy(legacy)
+// find is where who's agent is: who is its key or its old dotted name.
+func find(q db.Q, who string) (row, error) {
+	if k, id, ok := actor.Parse(who); ok && k == actor.Agent {
+		var r row
+		var lead sql.NullInt64
+		err := q.QueryRow(`SELECT a.id, w.id, w.name, w.folder, w.lead FROM agents a JOIN workspaces w ON w.id = a.workspace WHERE a.id = ?`, id).
+			Scan(&r.id, &r.ws, &r.wsName, &r.folder, &lead)
+		if errors.Is(err, sql.ErrNoRows) {
+			return row{}, nil
+		}
+		r.lead = lead.Valid && lead.Int64 == r.id
+		return r, err
+	}
+	wsName, agent := SplitLegacy(who)
 	r := row{wsName: wsName}
 	var lead sql.NullInt64
 	err := q.QueryRow("SELECT id, folder, lead FROM workspaces WHERE name = ?", wsName).Scan(&r.ws, &r.folder, &lead)

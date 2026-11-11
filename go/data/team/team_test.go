@@ -12,6 +12,7 @@ import (
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/kit/storetest"
+	"github.com/handline/handline/go/kit/yamlcompat"
 )
 
 // newHome is a home as the daemon's first start leaves it: a database with the owner, p1, and no agents. The caller is the founder.
@@ -320,5 +321,21 @@ func TestARosterOfAHomeWithNoDatabaseMakesNone(t *testing.T) {
 	}
 	if _, err := os.Stat(paths.DBFile(home)); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("a database was made: %v", err)
+	}
+}
+
+func TestTheRosterFindsAnAgentByItsKey(t *testing.T) {
+	home := newHome(t)
+	r := NewRoster(home)
+	register(t, r, "shop", "shop.ui")
+	ui := keyer(home)("shop.ui")
+	if err := r.SetKeys(ui, []yamlcompat.Pair{{Key: "model", Val: "opus"}}); err != nil {
+		t.Fatal(err)
+	}
+	if cfg, err := r.Read(ui); err != nil || cfg["model"] != "opus" {
+		t.Fatalf("%v %v", cfg, err)
+	}
+	if _, err := r.Read("a999"); err == nil {
+		t.Fatal("read a key no agent has")
 	}
 }
