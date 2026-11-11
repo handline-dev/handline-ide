@@ -254,7 +254,7 @@ func (s *Server) serve(tr Transport, pid int, remote string, closeConn func()) {
 			c.release()
 		}
 	}()
-	c.Caller = identify(s.Auth, s.Transport == "local", pid, "", s.owner(), s.founder)
+	c.Caller = identify(s.Auth, s.Transport == "local", pid, "", s.owner, s.founder)
 	c.Caller = s.keyed(c.Caller)
 	for {
 		timeout := RecvTimeout
@@ -519,34 +519,36 @@ func (s *Server) keyed(c Caller) Caller {
 	return c
 }
 
-// owner is the owner's key: p1 when there is no database to ask.
+// owner is the owner's key: p1 when there is no database to ask, or it cannot say (logged).
 func (s *Server) owner() string {
-	if s.DB != nil {
-		if k, err := actor.Owner(s.DB); err == nil {
-			return k
-		}
+	if s.DB == nil {
+		return Human
 	}
-	return Human
+	k, err := actor.Owner(s.DB)
+	if err != nil {
+		s.Log("  the owner's key could not be read, so p1 is taken: %v", err)
+		return Human
+	}
+	return k
 }
 
-// deviceCaller is the paired device id acting as its person, with that person's role. A device with no person is the owner's.
+// deviceCaller is the paired device id acting as its person, with that person's role. A device with no person is the owner's. A member's
+// device is refused until the reads it would reach are scoped to its person (team mode).
 func (s *Server) deviceCaller(id, name, person string) (Caller, error) {
 	role := "owner"
 	if person == "" {
 		person = s.owner()
 	} else {
 		k, n, ok := actor.Parse(person)
-		if !ok || k != actor.Person || s.DB == nil {
-			return Caller{}, fmt.Errorf("device %s: no role for its person %q", id, person)
-		}
-		if err := s.DB.QueryRow("SELECT role FROM people WHERE id = ?", n).Scan(&role); err != nil {
-			return Caller{}, fmt.Errorf("device %s: the role of %s: %w", id, person, err)
+		if !ok || k != actor.Person || s.DB == nil || s.DB.QueryRow("SELECT role FROM people WHERE id = ?", n).Scan(&role) != nil {
+			s.Log("  device %s (%s): its person %q is no one: refused as unpaired", name, id, person)
+			return Caller{}, UnpairedError()
 		}
 	}
-	if role == "owner" {
-		role = "founder" // the method role's wire name, until the contract calls it owner
+	if role != "owner" {
+		return Caller{}, Refused("a member's device is not served before team mode", "role", "")
 	}
-	return Caller{Kind: "device", Key: person, Person: person, Role: role, Info: map[string]any{"kind": "device", "device": id, "name": name}}, nil
+	return Caller{Kind: "device", Key: person, Person: person, Role: methodRole(role), Info: map[string]any{"kind": "device", "device": id, "name": name}}, nil
 }
 
 // resolveWho puts the key in place of each who param's word (SpecParam.Who, and WhoIn inside an object), so a handler sees keys only.
@@ -638,11 +640,13 @@ func hello(c *Conn, params map[string]any) (any, error) {
 		c.device, c.deviceName, c.release = id, name, release
 		caller, err := c.srv.deviceCaller(id, name, person)
 		if err != nil {
+			release()
+			c.device, c.deviceName, c.release = "", "", nil
 			return nil, err
 		}
 		c.Caller = caller
 	} else {
-		c.Caller = identify(c.srv.Auth, c.srv.Transport == "local", c.Pid, key, c.srv.owner(), c.srv.founder)
+		c.Caller = identify(c.srv.Auth, c.srv.Transport == "local", c.Pid, key, c.srv.owner, c.srv.founder)
 		c.Caller = c.srv.keyed(c.Caller)
 		switch {
 		case key == "":
