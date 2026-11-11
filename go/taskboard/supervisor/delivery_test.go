@@ -1,8 +1,6 @@
 package supervisor
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -149,7 +147,7 @@ func TestDeliverQueuedToATerminalAgentSaysWhyItHolds(t *testing.T) {
 			t.Fatal("told an agent nothing reaches")
 		}
 		why, _, ok := r.HeldReason("bob", r.clock)
-		if !ok || why != "peer_inbox is off in agent.yaml; nothing types any more" {
+		if !ok || why != "peer_inbox is off for this agent; nothing types any more" {
 			t.Fatalf("%q %v", why, ok)
 		}
 	})
@@ -194,14 +192,6 @@ func TestEnforceEdgesDeniesWhatTheTableDoesNotAllow(t *testing.T) {
 	r.EnforceEdges(r.DB, "bob")
 	if row, _ := db.GetRequest(r.DB, sys); !row.EdgeOK.Valid || row.State != "queued" {
 		t.Fatalf("%+v", row)
-	}
-	// a changed team.yaml holds everything
-	os.WriteFile(filepath.Join(r.home, "team.yaml"), []byte(teamYAML+"# an agent wrote this\n"), 0o644)
-	if ok, _ := r.EnforceEdges(r.DB, "bob"); ok {
-		t.Fatal("trusted a changed table")
-	}
-	if !r.logged("nothing delivered - team.yaml is not trusted") {
-		t.Fatal(r.logs)
 	}
 }
 

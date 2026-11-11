@@ -3,11 +3,10 @@ package reads
 import (
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
@@ -126,7 +125,7 @@ func TestTasksListIdsReturnsOnlyThoseTasksInScopeNewestFirstAndLeavesOutTheRest(
 	if got := ids(asFounderConn, map[string]any{"ids": nums()}); got != "[]" {
 		t.Errorf("no ids, no rows: %s", got)
 	}
-	os.WriteFile(filepath.Join(e.Home, "team.yaml"), []byte("agents:\n  amy: {}\n  bob: {}\n  cat: {}\n"), 0o644)
+	teamtest.Seed(t, e.Home, "amy", "bob", "cat")
 	if got := ids(asBob, map[string]any{"ids": nums(2, 4)}); got != "[2]" {
 		t.Errorf("a task out of the caller's scope is left out: %s", got)
 	}

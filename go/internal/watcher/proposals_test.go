@@ -124,21 +124,20 @@ func TestGoAndPythonWriteTheSameProposalEvents(t *testing.T) {
 			decided("0000000a", "rejected", now-100, now-5, "")
 			decided("0000000c", "approved", now-90, now-4, "error: no room\n")
 			// one of each kind, raised: the diff and what is asked are the same words as Python's
-			for i, f := range []string{
-				"kind: add\nagent: new\nteam: eng\nmodel: opus\nvendor: codex\n",
-				"kind: settings\nagent: w\nset.model: opus\nset.effort: high\n",
-				"kind: link\nagent: a\nto: b\nrelation: peer\n",
-				"kind: unlink\nagent: a\nto: b\n",
-				"kind: team\nagent: eng\nrepo: r\nmembers: \"a,b\"\n",
-				"kind: context\nagent: w\nset.ROLE.md: \"\\\"x\\\"\"\n",
-				"kind: rename\nagent: a\nto: b\n",
-				"kind: bundle\nagent: x\ni1.kind: retire\ni1.agent: old\ni2.kind: add\ni2.agent: new\n",
+			for i, f := range []string{ // 0x22 and 0x23 were link and unlink, which are gone
+				0x20: "kind: add\nagent: new\nteam: eng\nmodel: opus\nvendor: codex\n",
+				0x21: "kind: settings\nagent: w\nset.model: opus\nset.effort: high\n",
+				0x24: "kind: team\nagent: eng\nrepo: r\nmembers: \"a,b\"\n",
+				0x25: "kind: context\nagent: w\nset.ROLE.md: \"\\\"x\\\"\"\n",
+				0x26: "kind: rename\nagent: a\nto: b\n",
+				0x27: "kind: bundle\nagent: x\ni1.kind: retire\ni1.agent: old\ni2.kind: add\ni2.agent: new\n",
 			} {
-				id := fmt.Sprintf("000000%02x", 0x20+i)
-				putProposal(t, home, id, "proposed", now-int64(i), 0, f)
+				if f != "" {
+					putProposal(t, home, fmt.Sprintf("000000%02x", i), "proposed", now-int64(i-0x20), 0, f)
+				}
 			}
 		})
-	if len(py) != len(events) || len(py) != 11 {
+	if len(py) != len(events) || len(py) != 9 {
 		t.Fatalf("python wrote %d rows, go %d", len(py), len(events))
 	}
 	for i, e := range events {

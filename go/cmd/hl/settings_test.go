@@ -11,7 +11,7 @@ import (
 
 // founderRig is a rig whose terminal holds the founder key.
 func founderRig(t *testing.T) *rig {
-	r := agentsRig(t)
+	r := newRig(t)
 	t.Setenv("HANDLINE_TEST_ROOT", r.root)
 	dir := filepath.Join(protected.RootFor(r.home), "founder-keys")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -79,7 +79,7 @@ func TestIdleBackgroundSaysNeverToldWhenIdleNeverCloses(t *testing.T) {
 }
 
 func TestSettingsAnAgentOrAKeylessTerminalAndWhatIsNotParsedAreRefused(t *testing.T) {
-	keyless := agentsRig(t)
+	keyless := newRig(t)
 	keyless.daemon(nil)
 	r := founderRig(t)
 	calls := r.daemon(nil)

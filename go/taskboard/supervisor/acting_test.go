@@ -2,13 +2,12 @@ package supervisor
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/team/teamtest"
 )
 
 // turnRig is a task bob owns and carol opened, queued, with alice's turn on top: every rule that asks who works it now must answer alice.
@@ -149,15 +148,13 @@ func TestADiscardStopsTheAgentOnTopAndMovesItOn(t *testing.T) {
 	for _, a := range []string{"alice", "carol"} {
 		r.agentUp(a)
 	}
-	yaml, err := os.ReadFile(filepath.Join(r.home, "team.yaml"))
-	r.must(err)
-	// carol leads the team, so her discard stops the requests out on the task instead of refusing
-	r.must(os.WriteFile(filepath.Join(r.home, "team.yaml"), []byte(strings.Replace(string(yaml), "eng: [", "carol: [", 1)), 0o644))
+	// carol leads a workspace, so her discard stops the requests out on the task instead of refusing
+	teamtest.Set(t, r.home, "alice", "reports_to", "carol")
 	tid := r.newTask(db.Human, "carol", "the founder's")
 	r.must(db.PushTurn(r.DB, tid, db.Turn{Agent: "alice", By: db.Human, Since: r.clock}))
 	r.beginOnTop(tid)
 	// held, its delivery still queued: the stop is typed to alice, as no delivery will reach her
-	_, err = r.DB.Exec("UPDATE requests SET delivered_at = NULL, state = 'queued' WHERE id IN (SELECT request_id FROM task_requests WHERE task_id = ?)", tid)
+	_, err := r.DB.Exec("UPDATE requests SET delivered_at = NULL, state = 'queued' WHERE id IN (SELECT request_id FROM task_requests WHERE task_id = ?)", tid)
 	r.must(err)
 	next := r.newTask("alice", "carol", "next")
 	r.turnCall("carol", "task.discard", fmt.Sprintf(`{"task":%d,"reason":"not needed","request_id":"d1"}`, tid))

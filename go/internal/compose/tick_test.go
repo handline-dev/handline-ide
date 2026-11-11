@@ -12,6 +12,7 @@ import (
 	dbpkg "github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/scheduler/keepawake"
 	"github.com/handline/handline/go/scheduler/tick"
@@ -20,7 +21,7 @@ import (
 func TestAnAgentWithTheRenewalSwitchOnIsNotStalledForWantingACacheClock(t *testing.T) {
 	p, _, _, wt := wired(t)
 	d := p.db
-	os.WriteFile(filepath.Join(p.home, "agents", "alice", "agent.yaml"), []byte("vendor: claude\nstructured: true\ncache_renewal: true\nidle_fold: true\n"), 0o644)
+	teamtest.Set(t, p.home, "alice", "cache_renewal", true, "idle_fold", true)
 	// A session that is open and idle, with a status naming a transcript that is not there: the clock is unreadable, so no renewal is due.
 	if err := dbpkg.SetResumeSession(d, "alice", "s1"); err != nil {
 		t.Fatal(err)
@@ -500,8 +501,7 @@ func TestTheStartupBringsUpWaitingWorkAndSettlesAnOldToldSayButNotAnOwedOneBefor
 func TestTheTickTypesAnAgentsScheduledMessageWhenItIsDue(t *testing.T) {
 	p, _, _, _ := wired(t)
 	d := p.db
-	os.WriteFile(filepath.Join(p.home, "agents", "alice", "agent.yaml"),
-		[]byte("vendor: claude\nschedules: '[{\"cron\": \"* * * * *\", \"message\": \"check the queue\"}]'\n"), 0o644)
+	teamtest.Set(t, p.home, "alice", "schedules", `[{"cron": "* * * * *", "message": "check the queue"}]`)
 	tk := p.Tick(cfgOf(p), TickConfig{})
 	var run func(q dbpkg.Q, now int64) error
 	for _, s := range tk.Tick.Passes {

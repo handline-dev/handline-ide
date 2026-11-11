@@ -9,10 +9,8 @@ import (
 	"strings"
 	"syscall"
 
-	vendoragent "github.com/handline/handline/go/agentctl/agent"
 	_ "github.com/handline/handline/go/agentctl/agent/vendors"
 	"github.com/handline/handline/go/data/agenthost"
-	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/internal/hlclient"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/peer"
@@ -46,25 +44,14 @@ func launch(c *hlclient.Client, args []string) (int, bool) {
 		fmt.Fprintln(os.Stderr, "hl launch: agents are started by the daemon; start one from the app or with hl say <agent>")
 		return 1, true
 	}
-	roster := team.NewRoster(c.Home)
-	cfg, err := roster.Read(agent)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "hl launch: %v\n", err)
-		return 1, true
-	}
-	vendor, _, _ := team.Parts(cfg)
 	cwd, _ := os.Getwd()
-	binary := ""
-	if drv, ok := vendoragent.New(vendor, agenthost.Host(c.Home)); ok {
-		binary = drv.Binary()
-	}
 	opt := func(k string) string { v, _ := p.opt(k); return v }
 	promptFile := opt("--prompt-file")
 	if abs, err := filepath.Abs(promptFile); err == nil && promptFile != "" {
 		promptFile = abs
 	}
 	params := map[string]any{"agent": agent, "extra": extra, "force": p.flags["--force"], "prompt_file": promptFile,
-		"account": opt("--account"), "why": opt("--why"), "by": opt("--by"), "cwd": cwd, "env": environ(), "binary": binary,
+		"account": opt("--account"), "why": opt("--why"), "by": opt("--by"), "cwd": cwd, "env": environ(),
 		"hl_exe": paths.HlExe(), "handle": handle, "worktree_id": worktree}
 	slow := *c
 	slow.Deadline = hlclient.Timeout // it installs hooks, reads git and the usage reading before it answers

@@ -22,7 +22,7 @@ const (
 	maxError      = 400
 )
 
-var proposalKinds = map[string]bool{"add": true, "retire": true, "rename": true, "link": true, "unlink": true,
+var proposalKinds = map[string]bool{"add": true, "retire": true, "rename": true,
 	"team": true, "settings": true, "context": true, "schedule": true, "global": true, "bundle": true}
 
 // proposalState is the wire word for a proposal file's state, as handline/team/proposals.py card() draws them: "proposed" waits for the

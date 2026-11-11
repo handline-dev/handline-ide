@@ -4,12 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/internal/hlclient"
-	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/kit/timefmt"
 	"github.com/handline/handline/go/taskboard/attachments"
@@ -64,17 +64,6 @@ func withdraw(c *hlclient.Client, args []string) (int, bool) {
 	return said(c.Write("request.withdraw", params)), true
 }
 
-// listingRefusal is why caller may not list target's messages, or "" (actions.listing_refusal).
-func listingRefusal(c *hlclient.Client, caller, target string) string {
-	if caller == "" || caller == hlclient.Human || caller == target {
-		return ""
-	}
-	if t, err := team.LoadTeam(c.Home); err == nil && t.SupervisorOf(target) == caller {
-		return ""
-	}
-	return fmt.Sprintf("%s may not list %s's messages: only %s, its supervisor and the human may. `hl read <id>` shows one request by number.", caller, target, target)
-}
-
 // inbox shows an agent's queue head, or with --all its history; the founder's is the mailbox (cli/ask.cmd_inbox).
 func inbox(c *hlclient.Client, args []string) (int, bool) {
 	p, ok := parse(args, []string{"--timeout"}, []string{"--all", "--wait"}, nil)
@@ -104,10 +93,6 @@ func inbox(c *hlclient.Client, args []string) (int, bool) {
 	caller := c.AskingAgent()
 	if caller == "" {
 		fmt.Println(refusedListing())
-		return 1, true
-	}
-	if why := listingRefusal(c, caller, agent); why != "" {
-		fmt.Println(why)
 		return 1, true
 	}
 	all, wait := p.flags["--all"], p.flags["--wait"]
@@ -320,11 +305,16 @@ func teamCmd(c *hlclient.Client, args []string) (int, bool) {
 		fmt.Println(hlclient.WhoRefusal("ask"))
 		return 1, true
 	}
-	t, err := team.LoadTeam(c.Home)
+	got, err := c.Call("team.get", nil)
 	if err != nil {
-		fmt.Printf("team.yaml is invalid: %v\n", err)
+		fmt.Printf("could not read the team: %v\n", err)
 		return 1, true
 	}
+	parents := map[string]string{}
+	for _, a := range list(got, "agents") {
+		parents[str(a, "name")] = str(a, "parent")
+	}
+	t := team.FromNames(parents)
 	lines := map[string]map[string]any{}
 	if got, err := c.Call("agents.list", map[string]any{"status": true}); err != nil {
 		fmt.Fprintf(os.Stderr, "could not read what they are doing: %v\n", err)
@@ -338,7 +328,7 @@ func teamCmd(c *hlclient.Client, args []string) (int, bool) {
 	var outs []mine
 	var ins []theirs
 	var names []string
-	for _, other := range paths.ListAgents(c.Home) {
+	for _, other := range sortedKeys(parents) {
 		if other == me {
 			continue
 		}
@@ -418,4 +408,13 @@ func doing(agent string, line map[string]any) string {
 		state += " · no terminal yet"
 	}
 	return state
+}
+
+func sortedKeys(m map[string]string) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
 }

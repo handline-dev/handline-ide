@@ -9,13 +9,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"github.com/handline/handline/go/accounts/weblogin"
-	"os"
-	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 	"unicode"
+
+	"github.com/handline/handline/go/accounts/weblogin"
+	"github.com/handline/handline/go/kit/paths"
 
 	"github.com/handline/handline/go/accounts/usage"
 	"github.com/handline/handline/go/data/db"
@@ -303,21 +302,8 @@ func pageLimit(params map[string]any) (int, error) {
 	return int(*n), nil
 }
 
-// listAgents is the registered agents, as paths.list_agents has them: a directory holding agent.yaml, by name.
-func (e *Env) listAgents() []string {
-	entries, err := os.ReadDir(filepath.Join(e.Home, "agents"))
-	if err != nil {
-		return []string{}
-	}
-	out := []string{}
-	for _, d := range entries {
-		if _, err := os.Stat(filepath.Join(e.Home, "agents", d.Name(), "agent.yaml")); err == nil {
-			out = append(out, d.Name())
-		}
-	}
-	sort.Strings(out)
-	return out
-}
+// listAgents is the registered agents.
+func (e *Env) listAgents() []string { return paths.ListAgents(e.Home) }
 
 // oneline is a value as one line of printable text.
 func oneline(s string) string {

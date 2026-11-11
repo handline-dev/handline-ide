@@ -11,6 +11,7 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/data/team/teamtest"
 )
 
 const clock = int64(1_800_000_000)
@@ -197,7 +198,7 @@ func TestReadForAgentTakesContextFromTheAgentsOwnFreshSnapshotOnly(t *testing.T)
 		os.MkdirAll(filepath.Join(home, "agents", agent), 0o755)
 		b, _ := json.Marshal(v)
 		os.WriteFile(filepath.Join(home, "agents", agent, "status.json"), b, 0o644)
-		os.WriteFile(filepath.Join(home, "agents", agent, "agent.yaml"), nil, 0o644) // ListAgents lists folders that hold one
+		teamtest.Seed(t, home, agent)
 	}
 	if st := e.ReadForAgent("none", ""); st.Account != "" || st.Exists {
 		t.Fatalf("an agent on no account knows nothing: %+v", st)

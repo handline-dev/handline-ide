@@ -18,12 +18,17 @@ import (
 	"github.com/handline/handline/go/taskboard/supervisor"
 )
 
-// PeerKey is the top-level agent.yaml key that has a terminal agent's messages delivered through its session's peer inbox. On unless the
-// agent's agent.yaml says `peer_inbox: false`: nothing types at a terminal any more, so the inbox is the only way in.
+// PeerKey is the agent setting that has a terminal agent's messages delivered through its session's peer inbox. On unless the agent's
+// row says false: nothing types at a terminal any more, so the inbox is the only way in.
 const PeerKey = "peer_inbox"
 
-// PeerFromYAML reads PeerKey from an agent's agent.yaml.
-func PeerFromYAML(home string) func(agent string) bool { return yamlFlag(home, PeerKey, true) }
+// PeerFromRows reads PeerKey from an agent's row.
+func PeerFromRows(home string) func(agent string) bool {
+	return func(agent string) bool {
+		cfg, err := team.NewRoster(home).Read(agent)
+		return err != nil || cfg[PeerKey] != false
+	}
+}
 
 // SettlePeerSends is the start of a daemon, run once the Env has its ports (telling a sender can start an agent): the peer port's queue is in memory, so what it had taken for a terminal agent and not seen in the
 // transcript when the last daemon stopped is unknown now, as a message lost with its session is, and its sender is told.

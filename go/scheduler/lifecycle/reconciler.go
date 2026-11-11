@@ -67,7 +67,7 @@ type Reconciler struct {
 	saidDrawn      map[string]string
 }
 
-// ownFailure is an error that belongs to one agent - its unreadable agent.yaml or a file it needs - as against the daemon's own fault,
+// ownFailure is an error that belongs to one agent - its unreadable row or a file it needs - as against the daemon's own fault,
 // which the pass keeps propagating: the class Python's reconcile catches (ConfigError, UnicodeDecodeError, OSError).
 func ownFailure(err error) bool {
 	var cfg *ConfigError
@@ -178,7 +178,7 @@ func (r *Reconciler) Reconcile() ([]string, error) {
 			if !ownFailure(err) {
 				return actions, err
 			}
-			// One agent's unreadable agent.yaml must not leave every other handoff, and every due wake below, unresolved.
+			// One agent's unreadable row must not leave every other handoff, and every due wake below, unresolved.
 			if e := r.stallAgent(h.Agent, &actions, err, fmt.Sprintf("could not resume handoff from step '%s'", h.Step)); e != nil {
 				return actions, e
 			}

@@ -724,7 +724,7 @@ func (costPorts) ReadCache(transcriptPath string) *tick.CacheClock {
 	return out
 }
 
-// tickConfig is tick.Config over agent.yaml and config.yaml.
+// tickConfig is tick.Config over the agent rows and config.yaml.
 type tickConfig struct {
 	roster *team.Roster
 	set    *settings.Settings
@@ -753,7 +753,7 @@ func releaseWorktreeLocks(q db.Q, home string) error {
 		repos = append(repos, lifecycle.ExpandRepo(roster.RepoOf(a)))
 	}
 	for _, r := range rows {
-		repos = append(repos, worktreepaths.WorktreePath(r.Worktree.String)) // a repo agent.yaml does not name is reached through a worktree
+		repos = append(repos, worktreepaths.WorktreePath(r.Worktree.String)) // a repo its row does not name is reached through a worktree
 	}
 	seen := map[string]bool{}
 	for _, repo := range repos {

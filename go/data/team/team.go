@@ -1,57 +1,42 @@
 package team
 
 import (
-	"errors"
 	"fmt"
-	"os"
-	"regexp"
 	"sort"
-	"strconv"
 	"strings"
-	"sync"
 
+	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/paths"
-	"github.com/handline/handline/go/kit/sealed"
-	"github.com/handline/handline/go/kit/yamlcompat"
+	"github.com/handline/handline/go/kit/store"
 )
 
-// The routing policy of team.yaml (handline/team/team.py). An agent only ever knows a target and a message; whether the edge is
-// allowed is decided here, deterministically, with no model involved. Unlisted edges are denied. Routing reads no edge's relation,
-// response or kind: an edge only allows.
+// Routing reads the workspaces and agents tables (docs/design/people-workspaces.md, Addresses). An agent may reach every agent of
+// its workspace, its owner and any workspace's lead; the founder may reach anyone. Decided here, with no model involved.
 
 const (
-	// DefaultLinks are the links an agent has without any edge written for them: it may ask its parent (its name up to the last
-	// dot), its children and its siblings, and a manager may ask the founder (a decision task).
 	Human                = "human"
 	DefaultMaxChainDepth = 4
 	// AskWindowS is how long a refused message sent again unchanged is the same refusal, not a new denied row.
-	AskWindowS  = 3600
-	StarterTeam = `# team.yaml - routing policy. Unlisted edges are denied.
-teams:
-  eng: [backend]
-  ops: [archivist]
-
-agents:
-  backend:   {}
-  reviewer:  {}
-  archivist: {}
-
-edges:
-  - { from: "*", to: "reviewer" }
-  - { from: "reviewer", to: "*" }
-  - { from: "*", to: "archivist" }
-  # The founder. Not an agent - no account, no session, no terminal - but a
-  # routable name, so an agent has somewhere to send a decision only a person
-  # can make, and the person has a way back down.
-  - { from: "*", to: "human" }
-  - { from: "human", to: "*" }
-
-deny: []
-
-limits:
-  max_chain_depth: 4
-`
+	AskWindowS = 3600
 )
+
+// Until the who columns hold keys (base-v2 1b), the rest of the code names an agent by its old dotted name: its workspace's name for
+// the lead, else workspace.agent. LegacyName and SplitLegacy are the only places that know that form.
+
+// LegacyName is the old dotted name of agent name in workspace ws; lead is whether it is the workspace's lead.
+func LegacyName(ws, name string, lead bool) string {
+	if lead {
+		return ws
+	}
+	return ws + "." + name
+}
+
+// SplitLegacy is the workspace and agent name an old dotted name stands for; agent is "" for a bare workspace name, the lead.
+func SplitLegacy(legacy string) (ws, agent string) {
+	ws, agent, _ = strings.Cut(legacy, ".")
+	return ws, agent
+}
 
 // ParentName is the agent a name hangs under: harbor.sea -> harbor; "" for a name with no dot.
 func ParentName(agent string) string {
@@ -69,411 +54,141 @@ type Decision struct {
 	ChainDepth int
 }
 
-// Edge is one edge or deny entry of team.yaml, its values as read.
-type Edge struct {
-	From, To, Reason any
-	has              map[string]bool
+// Member is one agent row as routing reads it.
+type Member struct {
+	Key, Workspace, Name string
+	Lead                 bool
+	ReportsTo            string // the old name of the agent it reports to; "" when it reports to a person or to no one
+	Role                 string
 }
 
-// Team is team.yaml read.
+// Team is the workspaces and their agents, read from the rows.
 type Team struct {
-	Teams         map[string][]string
-	teamOrder     []string
-	Agents        map[string]map[string]any
-	Edges, Deny   []Edge
+	Agents        map[string]Member   // by old name
+	Teams         map[string][]string // workspace name -> its agents' old names, oldest first
+	leads         map[string]string   // workspace name -> its lead's old name
+	order         []string            // every agent's old name, oldest first
 	MaxChainDepth int
 }
 
-func omap(v any) (*yamlcompat.OMap, bool) { o, ok := v.(*yamlcompat.OMap); return o, ok }
-
-func cerr(format string, a ...any) error {
-	return &yamlcompat.ConfigError{Msg: fmt.Sprintf(format, a...)}
-}
-
-// pyInt is int(v) of a decoded value: an int, a float (truncated), a bool, or text that is one whole number.
-func pyInt(v any) (int, error) {
-	switch x := v.(type) {
-	case int64:
-		return int(x), nil
-	case float64:
-		return int(x), nil
-	case bool:
-		if x {
-			return 1, nil
-		}
-		return 0, nil
-	case string:
-		n, err := strconv.Atoi(strings.TrimSpace(x))
+// LoadTeam is ReadTeam of home's database; a home with none yet has no agents.
+func LoadTeam(home string) (*Team, error) {
+	d, err := store.SharedIfThere(paths.DBFile(home))
+	if d == nil {
 		if err != nil {
-			return 0, fmt.Errorf("invalid literal for int(): %s", pyQuote(x))
+			return nil, err
 		}
-		return n, nil
+		return &Team{Agents: map[string]Member{}, Teams: map[string][]string{}, leads: map[string]string{}, MaxChainDepth: DefaultMaxChainDepth}, nil
 	}
-	return 0, fmt.Errorf("int() argument must be a string or a number, not %s", pyTypeName(v))
+	return ReadTeam(d)
 }
 
-func pyTypeName(v any) string {
-	switch v.(type) {
-	case nil:
-		return "NoneType"
-	case []any:
-		return "list"
-	case *yamlcompat.OMap:
-		return "dict"
+// ReadTeam reads the workspaces and agents tables.
+func ReadTeam(q db.Q) (*Team, error) {
+	rows, err := q.Query(`SELECT a.id, a.name, w.name, COALESCE(w.lead = a.id, 0), COALESCE(a.reports_to, ''), a.role
+		FROM agents a JOIN workspaces w ON w.id = a.workspace ORDER BY a.id`)
+	if err != nil {
+		return nil, err
 	}
-	return "object"
-}
-
-// pyRepr is repr() of a decoded value, for the cases a message shows.
-func pyRepr(v any) string {
-	switch x := v.(type) {
-	case string:
-		return pyQuote(x)
-	case []any:
-		parts := make([]string, len(x))
-		for i, e := range x {
-			parts[i] = pyRepr(e)
-		}
-		return "[" + strings.Join(parts, ", ") + "]"
-	case *yamlcompat.OMap:
-		parts := make([]string, len(x.Keys))
-		for i, k := range x.Keys {
-			parts[i] = pyQuote(k) + ": " + pyRepr(x.M[k])
-		}
-		return "{" + strings.Join(parts, ", ") + "}"
-	}
-	return pyStr(v)
-}
-
-// NewTeam builds the policy from a parsed document (ordered maps), refusing what could silently allow.
-func NewTeam(doc *yamlcompat.OMap) (*Team, error) {
-	t := &Team{Teams: map[string][]string{}, Agents: map[string]map[string]any{},
-		MaxChainDepth: DefaultMaxChainDepth}
-	if o, ok := omap(doc.M["teams"]); ok && truthy(o) {
-		for _, name := range o.Keys {
-			t.teamOrder = append(t.teamOrder, name)
-			var members []string
-			if list, ok := o.M[name].([]any); ok {
-				for _, m := range list {
-					members = append(members, pyStr(m))
-				}
-			}
-			t.Teams[name] = members
-		}
-	}
-	if o, ok := omap(doc.M["agents"]); ok {
-		for _, name := range o.Keys {
-			sub, ok := omap(o.M[name])
-			if !ok {
-				return nil, cerr("agents.%s is not a map", name)
-			}
-			m := map[string]any{}
-			for k, v := range sub.M {
-				m[k] = v
-			}
-			t.Agents[name] = m
-		}
-	}
-	rawEdges, _ := doc.M["edges"].([]any)
-	rawDeny, _ := doc.M["deny"].([]any)
-	for i, item := range rawEdges {
-		o, ok := omap(item)
-		if !ok {
-			return nil, cerr("edges[%d] is not a map", i)
-		}
-		if _, has := o.M["from"]; !has {
-			return nil, cerr("edges[%d] needs both 'from' and 'to'", i)
-		}
-		if _, has := o.M["to"]; !has {
-			return nil, cerr("edges[%d] needs both 'from' and 'to'", i)
-		}
-		if err := t.checkPattern(fmt.Sprintf("edges[%d].from", i), pyStr(o.M["from"])); err != nil {
+	defer rows.Close()
+	t := &Team{Agents: map[string]Member{}, Teams: map[string][]string{}, leads: map[string]string{}, MaxChainDepth: DefaultMaxChainDepth}
+	byKey := map[string]string{}
+	for rows.Next() {
+		var id int64
+		var m Member
+		if err := rows.Scan(&id, &m.Name, &m.Workspace, &m.Lead, &m.ReportsTo, &m.Role); err != nil {
 			return nil, err
 		}
-		if err := t.checkPattern(fmt.Sprintf("edges[%d].to", i), pyStr(o.M["to"])); err != nil {
-			return nil, err
+		m.Key = actor.Key(actor.Agent, id)
+		n := LegacyName(m.Workspace, m.Name, m.Lead)
+		t.Agents[n] = m
+		t.Teams[m.Workspace] = append(t.Teams[m.Workspace], n)
+		if m.Lead {
+			t.leads[m.Workspace] = n
 		}
-		t.Edges = append(t.Edges, edgeOf(o))
+		byKey[m.Key] = n
+		t.order = append(t.order, n)
 	}
-	// deny needs the same scrutiny as edges, and more: an edge that fails to parse denies by default, but a deny that fails to
-	// parse silently allows.
-	for i, item := range rawDeny {
-		o, ok := omap(item)
-		if !ok {
-			return nil, cerr("deny[%d] is not a map: %s. An unquoted value like 'bug#42' can do this.", i, pyRepr(item))
-		}
-		var missing []string
-		for _, k := range []string{"from", "to"} {
-			if _, has := o.M[k]; !has {
-				missing = append(missing, k)
-			}
-		}
-		if len(missing) > 0 {
-			keys := make([]string, 0, len(o.M))
-			for k := range o.M {
-				keys = append(keys, k)
-			}
-			sort.Strings(keys)
-			present := strings.Join(keys, ", ")
-			if present == "" {
-				present = "none"
-			}
-			return nil, cerr("deny[%d] is missing %s (keys present: %s). A deny without both matches nothing and would silently allow.", i, strings.Join(missing, ", "), present)
-		}
-		if err := t.checkPattern(fmt.Sprintf("deny[%d].from", i), pyStr(o.M["from"])); err != nil {
-			return nil, err
-		}
-		if err := t.checkPattern(fmt.Sprintf("deny[%d].to", i), pyStr(o.M["to"])); err != nil {
-			return nil, err
-		}
-		t.Deny = append(t.Deny, edgeOf(o))
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
-	if limits, ok := omap(doc.M["limits"]); ok {
-		var err error
-		if v, has := limits.M["max_chain_depth"]; has {
-			if t.MaxChainDepth, err = pyInt(v); err != nil {
-				return nil, err
-			}
-		}
+	// reports_to holds a key: written out as the old name it stands for, "" for a person.
+	for _, n := range t.order {
+		m := t.Agents[n]
+		m.ReportsTo = byKey[m.ReportsTo]
+		t.Agents[n] = m
 	}
 	return t, nil
 }
 
-func edgeOf(o *yamlcompat.OMap) Edge {
-	e := Edge{From: o.M["from"], To: o.M["to"], Reason: o.M["reason"], has: map[string]bool{}}
-	for k := range o.M {
-		e.has[k] = true
-	}
-	return e
-}
-
-// checkPattern: a '<team>.*' pattern naming a team that does not exist matches nothing, so it would silently allow.
-func (t *Team) checkPattern(where, pattern string) error {
-	if strings.HasSuffix(pattern, ".*") && pattern != "*" {
-		group := strings.TrimSuffix(pattern, ".*")
-		if _, ok := t.Teams[group]; !ok {
-			names := make([]string, 0, len(t.Teams))
-			for n := range t.Teams {
-				names = append(names, n)
-			}
-			sort.Strings(names)
-			list := strings.Join(names, ", ")
-			if list == "" {
-				list = "none"
-			}
-			return cerr("%s=%s refers to team %s, which is not in teams (%s)", where, pyQuote(pattern), pyQuote(group), list)
-		}
-	}
-	return nil
-}
-
-// LoadTeam reads team.yaml of home: sealed, one map.
-func LoadTeam(home string) (*Team, error) {
-	p := paths.TeamFile(home)
-	b, err := os.ReadFile(p)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil, fmt.Errorf("%s not found - run `hl team init`: %w", p, os.ErrNotExist)
-	}
-	if err != nil {
-		return nil, err
-	}
-	text := string(b)
-	if err := sealed.New(home).Check(sealed.Team, text, p); err != nil {
-		return nil, err
-	}
-	v, err := yamlcompat.ParseOrdered(text)
-	if err != nil {
-		return nil, err
-	}
-	doc, ok := omap(v)
-	if !ok {
-		return nil, cerr("%s: top level is not a map", p)
-	}
-	return NewTeam(doc)
-}
-
-// Members is the members of a group.
+// Members is the agents of a workspace.
 func (t *Team) Members(group string) []string { return append([]string(nil), t.Teams[group]...) }
 
-// TeamOf is the first team (in file order) that has the agent as a member; "" when none does.
-func (t *Team) TeamOf(agent string) string {
-	for _, name := range t.teamOrder {
-		if contains(t.Teams[name], agent) {
-			return name
-		}
-	}
-	return ""
-}
+// TeamOf is the workspace an agent is in; "" when it is not an agent.
+func (t *Team) TeamOf(agent string) string { return t.Agents[agent].Workspace }
 
-// Matches: '*' matches anything, 'eng.*' matches members of team eng, otherwise the pattern is an agent name (glob allowed).
-func (t *Team) Matches(pattern, agent string) bool {
-	if pattern == "*" {
-		return true
-	}
-	if strings.HasSuffix(pattern, ".*") {
-		return contains(t.Members(strings.TrimSuffix(pattern, ".*")), agent)
-	}
-	if pattern == agent {
-		return true
-	}
-	return fnmatchCase(agent, pattern)
-}
-
-// globCache is each pattern's compiled form; calls served side by side route at once, so it is guarded.
-var (
-	globMu    sync.Mutex
-	globCache = map[string]*regexp.Regexp{}
-)
-
-// fnmatchCase is fnmatch.fnmatchcase: * any run, ? one character, [seq] and [!seq] one of a set.
-func fnmatchCase(name, pattern string) bool {
-	globMu.Lock()
-	re, ok := globCache[pattern]
-	if !ok {
-		re = regexp.MustCompile(globToRegexp(pattern))
-		globCache[pattern] = re
-	}
-	globMu.Unlock()
-	return re.MatchString(name)
-}
-
-func globToRegexp(pat string) string {
-	var b strings.Builder
-	b.WriteString(`(?s)^`)
-	rs := []rune(pat)
-	for i := 0; i < len(rs); i++ {
-		c := rs[i]
-		switch c {
-		case '*':
-			b.WriteString(`.*`)
-		case '?':
-			b.WriteString(`.`)
-		case '[':
-			j := i + 1
-			if j < len(rs) && rs[j] == '!' {
-				j++
-			}
-			if j < len(rs) && rs[j] == ']' {
-				j++
-			}
-			for j < len(rs) && rs[j] != ']' {
-				j++
-			}
-			if j >= len(rs) {
-				b.WriteString(`\[`)
-				continue
-			}
-			set := string(rs[i+1 : j])
-			set = strings.ReplaceAll(set, `\`, `\\`)
-			neg := strings.HasPrefix(set, "!")
-			if neg {
-				set = "^" + set[1:]
-			} else if strings.HasPrefix(set, "^") {
-				set = `\` + set
-			}
-			b.WriteString("[" + set + "]")
-			i = j
-		default:
-			b.WriteString(regexp.QuoteMeta(string(c)))
-		}
-	}
-	b.WriteString(`$`)
-	return b.String()
-}
-
-// Known is whether the target is routable: a declared agent, a team member, or a literal (non-wildcard) 'to' in an edge, which is
-// how the founder's name human exists.
+// Known is whether the target is routable: an agent, or the founder.
 func (t *Team) Known(agent string) bool {
-	if _, ok := t.Agents[agent]; ok || t.TeamOf(agent) != "" {
-		return true
-	}
-	for _, e := range t.Edges {
-		to := ""
-		if e.has["to"] {
-			to = pyStr(e.To)
-		}
-		if !strings.Contains(to, "*") && to == agent {
-			return true
-		}
-	}
-	return false
+	_, ok := t.Agents[agent]
+	return ok || agent == Human
 }
 
-// Managers is team name -> its manager, the member named like the team.
+// Managers is workspace name -> its lead.
 func (t *Team) Managers() map[string]string {
-	out := map[string]string{}
-	for name, members := range t.Teams {
-		if contains(members, name) {
-			out[name] = name
-		}
+	out := make(map[string]string, len(t.leads))
+	for ws, n := range t.leads {
+		out[ws] = n
 	}
 	return out
 }
 
-// ManagerOf is the manager of the team agent belongs to, or "" when it is in none or is that manager itself.
+// ManagerOf is the lead of agent's workspace, or "" when it is in none or is that lead itself.
 func (t *Team) ManagerOf(agent string) string {
-	for name := range t.Managers() {
-		if name != agent && contains(t.Teams[name], agent) {
-			return name
-		}
+	if lead := t.leads[t.TeamOf(agent)]; lead != agent {
+		return lead
 	}
 	return ""
 }
 
-// LeadOf is who agent answers to: its team's manager, else its supervisor; "" for none.
-func (t *Team) LeadOf(agent string) string {
+// SupervisorOf is the agent this one reports to: the one its row names, else its workspace's lead; "" for a lead that reports to a
+// person.
+func (t *Team) SupervisorOf(agent string) string {
 	if t == nil {
 		return ""
 	}
-	if m := t.ManagerOf(agent); m != "" {
-		return m
+	if m := t.Agents[agent]; m.ReportsTo != "" {
+		return m.ReportsTo
 	}
-	return t.SupervisorOf(agent)
+	return t.ManagerOf(agent)
 }
 
-// AuditorOf is the auditor of agent's team, the member named like the team plus ".auditor"; "" when it has none.
+// LeadOf is who agent answers to; "" for none.
+func (t *Team) LeadOf(agent string) string { return t.SupervisorOf(agent) }
+
+// AuditorOf is the agent named auditor in agent's workspace; "" when it has none.
 func (t *Team) AuditorOf(agent string) string {
 	if t == nil {
 		return ""
 	}
-	for _, name := range t.teamOrder {
-		if a := name + ".auditor"; contains(t.Teams[name], agent) && contains(t.Teams[name], a) {
-			return a
-		}
+	ws := t.TeamOf(agent)
+	if a := LegacyName(ws, "auditor", false); ws != "" && a != agent && t.Agents[a].Key != "" {
+		return a
 	}
 	return ""
 }
 
-// Task roles (team.yaml agents.<name>.role): a check agent's tasks gate other work (audits, landings); every other agent does work.
+// Task roles (agents.role): a check agent's tasks gate other work (audits, landings); every other agent does work.
 const (
 	RoleWork  = "work"
 	RoleCheck = "check"
 )
 
-// TaskRole is the role of the tasks agent owns: check when its team.yaml entry says role: check, else work.
+// TaskRole is the role of the tasks agent owns.
 func (t *Team) TaskRole(agent string) string {
-	if t != nil && pyStr(t.Agents[agent]["role"]) == RoleCheck {
+	if t != nil && t.Agents[agent].Role == RoleCheck {
 		return RoleCheck
 	}
 	return RoleWork
-}
-
-// DefaultLink is the link the default links give this pair, or nil.
-func (t *Team) DefaultLink(requester, target string) *Decision {
-	hit := func(why string) *Decision { return &Decision{Allowed: true, Reason: "default link: " + why} }
-	mine, theirs := ParentName(requester), ParentName(target)
-	switch {
-	case theirs == requester:
-		return hit(requester + " is " + target + "'s parent")
-	case mine == target:
-		return hit(requester + " is " + target + "'s child")
-	case mine != "" && mine == theirs:
-		return hit(requester + " and " + target + " are siblings under " + mine)
-	}
-	if _, isManager := t.Managers()[requester]; target == Human && isManager {
-		return hit(requester + " may ask the founder")
-	}
-	return nil
 }
 
 // Route decides a request.
@@ -481,38 +196,44 @@ func (t *Team) Route(requester, target string, chainDepth int) Decision {
 	if requester == target {
 		return Decision{Reason: "an agent cannot ask itself"}
 	}
-	if !t.Known(target) && !(target == Human && t.DefaultLink(requester, target) != nil) {
+	if !t.Known(target) {
 		return Decision{Reason: fmt.Sprintf("unknown target '%s'", target)}
 	}
 	if chainDepth >= t.MaxChainDepth {
 		return Decision{Reason: fmt.Sprintf("chain depth %d reached the limit %d (loop guard)", chainDepth, t.MaxChainDepth)}
 	}
-	// Explicit denies win over any allow, so a deny cannot be shadowed by an earlier wildcard edge.
-	for _, d := range t.Deny {
-		if t.Matches(pyStrOr(d.From, d.has["from"]), requester) && t.Matches(pyStrOr(d.To, d.has["to"]), target) {
-			why := "denied by policy"
-			if truthy(d.Reason) {
-				why = pyStr(d.Reason)
-			}
-			return Decision{Reason: fmt.Sprintf("denied: %s -> %s: %s", requester, target, why)}
-		}
+	allow := func(why string) Decision { return Decision{Allowed: true, Reason: why, ChainDepth: chainDepth} }
+	to := t.Agents[target]
+	switch {
+	case requester == Human:
+		return allow("the founder reaches anyone")
+	case target == Human:
+		return allow(requester + " may ask its owner")
+	case to.Workspace == t.TeamOf(requester):
+		return allow(requester + " and " + target + " are in workspace " + to.Workspace)
+	case to.Lead:
+		return allow(target + " leads workspace " + to.Workspace)
 	}
-	// First match wins, like firewall rules: order in team.yaml is significant.
-	for _, e := range t.Edges {
-		if t.Matches(pyStr(e.From), requester) && t.Matches(pyStr(e.To), target) {
-			return Decision{Allowed: true, Reason: fmt.Sprintf("edge %s -> %s", pyStr(e.From), pyStr(e.To)), ChainDepth: chainDepth}
-		}
-	}
-	if d := t.DefaultLink(requester, target); d != nil {
-		d.ChainDepth = chainDepth
-		return *d
-	}
-	return Decision{Reason: fmt.Sprintf("denied: no edge declares %s -> %s (unlisted edges are denied by default)", requester, target)}
+	return Decision{Reason: fmt.Sprintf("denied: %s is in another workspace (%s): send it to that workspace, whose lead hands it on", target, to.Workspace)}
 }
 
-func pyStrOr(v any, has bool) string {
-	if !has {
-		return ""
+// FromNames is the Team of agents known only by their old names and whom each reports to (an agent's old name, "" for a person), as
+// team.get gives them to hl, which does not open the database.
+func FromNames(parents map[string]string) *Team {
+	t := &Team{Agents: map[string]Member{}, Teams: map[string][]string{}, leads: map[string]string{}, MaxChainDepth: DefaultMaxChainDepth}
+	for n, parent := range parents {
+		ws, agent := SplitLegacy(n)
+		m := Member{Workspace: ws, Name: agent, Lead: agent == "", ReportsTo: parent}
+		t.Agents[n] = m
+		t.Teams[ws] = append(t.Teams[ws], n)
+		t.order = append(t.order, n)
+		if m.Lead {
+			t.leads[ws] = n
+		}
 	}
-	return pyStr(v)
+	sort.Strings(t.order)
+	for ws := range t.Teams {
+		sort.Strings(t.Teams[ws])
+	}
+	return t
 }

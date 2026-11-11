@@ -142,7 +142,7 @@ type Observe interface {
 
 // Config is the agent's own settings as the policies read them (idle_close._agent_cfg and the daemon's config.yaml).
 type Config interface {
-	// AgentConfig is the agent.yaml mapping, empty when unreadable.
+	// AgentConfig is the agent's settings, empty when unreadable.
 	AgentConfig(agent string) map[string]any
 	// Seconds is idle_close.config_seconds: the setting's value in seconds or the default.
 	Seconds(key string, def int64) int64

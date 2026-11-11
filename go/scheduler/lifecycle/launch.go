@@ -115,7 +115,7 @@ type LaunchPorts struct {
 	WaitingFor func(q db.Q, agent string) bool
 	// TeamRules is the shared/team/<team>.md of each team the agent is in, as "# Rules for team X\n<text>".
 	TeamRules func(agent string) []string
-	// Routing is team.yaml; nil when there is none.
+	// Routing is the roster; nil when there is none.
 	Routing func() *team.Team
 	// McpApproved is trust.mcp_approved for the launch's working directory.
 	McpApproved func(cwd string) []string
@@ -188,7 +188,7 @@ func (l *Launcher) mayStartAccounts() []string {
 	return out
 }
 
-// PinOf is the account agent.yaml pins the agent to (`account:`), "" for none. A pinned agent runs only there: nothing that picks or moves
+// PinOf is the account its row pins the agent to, "" for none. A pinned agent runs only there: nothing that picks or moves
 // accounts puts it elsewhere, and while the account cannot take it, it waits with that account's reason.
 func (l *Launcher) PinOf(agent string) string {
 	cfg, err := l.Roster.Read(agent)
@@ -720,14 +720,12 @@ func (l *Launcher) MainRefFiles(worktree string) []string {
 	return []string{ref, ref + ".lock", packed, packed + ".lock"}
 }
 
-// RosterFiles are the files that say who the agents are, who may ask whom and what each is told, which only the founder's path writes:
-// team.yaml and its backup, and every agent's agent.yaml, ROLE.md and base.md. Home is writable to a session, so these are denied by
-// name, plus one glob each so an agent made after this launch is covered too.
+// RosterFiles are the files that say what each agent is told, which only the founder's path writes: every agent's ROLE.md and base.md.
+// Home is writable to a session, so these are denied by name, plus one glob each so an agent made after this launch is covered too.
 func (l *Launcher) RosterFiles() []string {
 	dir := paths.AgentsDir(l.Home)
-	per := []string{"agent.yaml", "ROLE.md", "base.md"}
-	tf := paths.TeamFile(l.Home)
-	out := []string{tf, tf + ".bak"}
+	per := []string{"ROLE.md", "base.md"}
+	var out []string
 	for _, n := range paths.ListAgents(l.Home) {
 		for _, f := range per {
 			out = append(out, filepath.Join(dir, n, f))
@@ -837,7 +835,7 @@ func (l *Launcher) HiddenTranscripts(agent string, drv Transcripts) ([]string, e
 	return out, nil
 }
 
-// ExtraWorktreesOf are the agent's further worktrees a session may work in: as many as agent.yaml asks for, and only ones that are there.
+// ExtraWorktreesOf are the agent's further worktrees a session may work in: as many as its row asks for, and only ones that are there.
 func (l *Launcher) ExtraWorktreesOf(agent string, cfg team.Config) ([]string, error) {
 	n := int(team.ExtraWorktrees(cfg))
 	if n == 0 {
@@ -948,7 +946,7 @@ func (l *Launcher) ContextFor(agent string) (string, error) {
 	return strings.Join(out, "\n\n"), nil
 }
 
-// yourTeam is who this agent answers to and who answers to it, read from team.yaml, and the hl commands that reach them. Generated
+// yourTeam is who this agent answers to and who answers to it, read from the roster, and the hl commands that reach them. Generated
 // rather than written into each ROLE.md: a role that named its colleagues by hand kept naming them after they were retired and renamed.
 // How a team works together is its rules file (team.Rules), not this.
 func (l *Launcher) yourTeam(agent string) string {

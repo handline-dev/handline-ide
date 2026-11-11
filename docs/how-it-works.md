@@ -89,7 +89,7 @@ your process stayed alive.
 
 - **Rules run on stored state, every tick.** If a threshold was crossed while the daemon was down,
   the daemon still acts on it when it comes back.
-- **Contacts not listed in `team.yaml` are denied.** The refusal says why, so an agent does not
+- **An agent asks another workspace only through its lead.** The refusal says why, so an agent does not
   try to route around it.
 - **A result goes back the way the work came.** `hl task done` records the evidence on the task.
   The daemon tells the agent that asked, and you see it in `hl inbox` and on the bridge. If only

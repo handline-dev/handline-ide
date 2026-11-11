@@ -108,7 +108,7 @@
   "hl restart": "session.restart",
   "hl resume": "session.wake",
   "hl wake": "session.wake",
-  "hl propose add|retire|rename|link|unlink|team|context": "proposal.propose",
+  "hl propose add|retire|rename|team|context": "proposal.propose",
   "hl propose diff": "proposal.propose",
   "hl propose withdraw": "proposal.withdraw",
   "hl propose list": "proposal.list",
@@ -1708,7 +1708,7 @@
       "items": {
        "$ref": "#/components/schemas/AgentName"
       },
-      "description": "Without settings.get `agent`: the agents whose agent.yaml sets a handoff prompt of their own, which the global one does not reach."
+      "description": "Without settings.get `agent`: the agents whose row sets a handoff prompt of their own, which the global one does not reach."
      }
     },
     "required": [
@@ -1818,7 +1818,7 @@
      },
      "founder_typed": {
       "type": "boolean",
-      "description": "The founder's own messages to a terminal agent are typed into its terminal (unless its agent.yaml turns peer_inbox off), so hl launch tells the agent so. Absent means false."
+      "description": "The founder's own messages to a terminal agent are typed into its terminal (unless its row turns peer_inbox off), so hl launch tells the agent so. Absent means false."
      }
     },
     "required": [

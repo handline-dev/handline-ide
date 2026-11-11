@@ -2,14 +2,12 @@ package daemon
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/stream"
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/internal/reads"
 	"github.com/handline/handline/go/internal/watcher"
 	"github.com/handline/handline/go/scheduler/tick"
@@ -46,9 +44,7 @@ func (storyHost) Agents() []string { return []string{"alice", "bob"} }
 // counts what each recipient is told.
 func TestAStoryTellsTheFounderOneNoticeAndAgentsOnlyWhatTheyMustActOn(t *testing.T) {
 	d, _ := tellDaemon(t, true)
-	if err := os.WriteFile(filepath.Join(d.cfg.Home, "team.yaml"), []byte(strings.Replace(tellTeam, "eng:", "alice:", 1)), 0o644); err != nil { // alice leads bob
-		t.Fatal(err)
-	}
+	teamtest.Set(t, d.cfg.Home, "bob", "reports_to", "alice")
 	var entries []stream.Entry
 	notes := &watcher.Notifications{Reads: &reads.Env{DB: d.db, Home: d.cfg.Home}}
 	emit := func(e stream.Entry) (*stream.Event, error) { entries = append(entries, e); return &stream.Event{}, nil }

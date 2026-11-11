@@ -48,7 +48,7 @@ func TestTrustRootsStandingConsent(t *testing.T) {
 	if b, _ := tr.Store.Get("trust", "roots.json"); b != "[]" {
 		t.Fatalf("%q", b)
 	}
-	asAgent(t, "worker")
+	t.Setenv("HANDLINE_AGENT", "worker")
 	if ok, said := tr.Enact(repo, "x"); ok || !strings.Contains(said, "founder's to set") {
 		t.Fatalf("an agent declared a root: %v %s", ok, said)
 	}
@@ -257,39 +257,38 @@ func TestUsersOfAndRemovePlan(t *testing.T) {
 	a := Accounts{Home: home}
 	account(t, home, "alpha")
 	r := NewRoster(home)
-	r.Register("w1", RegisterOpts{})
-	r.Register("w2", RegisterOpts{})
+	register(t, r, "wa", "wb")
 	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "db.sqlite"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer db.Close()
 	db.Exec("CREATE TABLE agent_state (agent TEXT PRIMARY KEY, account TEXT, account_source TEXT, closed_at INTEGER)")
-	db.Exec("INSERT INTO agent_state VALUES ('w1', 'alpha', 'recorded', NULL), ('w2', 'alpha', 'assumed', 99)")
+	db.Exec("INSERT INTO agent_state VALUES ('wa', 'alpha', 'recorded', NULL), ('wb', 'alpha', 'assumed', 99)")
 	users, err := a.UsersOf(db, "alpha")
-	if err != nil || !reflect.DeepEqual(users, []string{"w1"}) {
+	if err != nil || !reflect.DeepEqual(users, []string{"wa"}) {
 		t.Fatalf("%v %v", users, err)
 	}
-	if ok, why, _ := a.RemovePlan(db, "alpha"); ok || !strings.Contains(why, "session open for w1 - close it on the screen (c) first") {
+	if ok, why, _ := a.RemovePlan(db, "alpha"); ok || !strings.Contains(why, "session open for wa - close it on the screen (c) first") {
 		t.Fatalf("%v %s", ok, why)
 	}
 	if ok, why, _ := a.RemovePlan(db, "nope"); ok || why != "no account 'nope'" {
 		t.Fatalf("%v %s", ok, why)
 	}
-	db.Exec("UPDATE agent_state SET closed_at = 5 WHERE agent = 'w1'")
+	db.Exec("UPDATE agent_state SET closed_at = 5 WHERE agent = 'wa'")
 	if ok, _, _ := a.RemovePlan(db, "alpha"); !ok {
 		t.Fatal("a closed agent strands nothing")
 	}
-	if acct, _ := CurrentAccount(db, "w1"); acct != "alpha" {
+	if acct, _ := CurrentAccount(db, "wa"); acct != "alpha" {
 		t.Fatal(acct)
 	}
-	if rd, ok, _ := ReadAccount(db, "w1", nil); !ok || rd.Source != "recorded" {
+	if rd, ok, _ := ReadAccount(db, "wa", nil); !ok || rd.Source != "recorded" {
 		t.Fatalf("%+v", rd)
 	}
-	if rd, ok, _ := ReadAccount(db, "w2", func() string { return "beta" }); !ok || rd != (AccountReading{"beta", "reported"}) {
+	if rd, ok, _ := ReadAccount(db, "wb", func() string { return "beta" }); !ok || rd != (AccountReading{"beta", "reported"}) {
 		t.Fatalf("%+v", rd)
 	}
-	if rd, ok, _ := ReadAccount(db, "w2", nil); !ok || rd.Source != "assumed" {
+	if rd, ok, _ := ReadAccount(db, "wb", nil); !ok || rd.Source != "assumed" {
 		t.Fatalf("%+v", rd)
 	}
 	if _, ok, _ := ReadAccount(db, "nobody", nil); ok {
@@ -363,11 +362,11 @@ func TestSaveSettingsWritesThroughRegisterAndTheRest(t *testing.T) {
 	if !ok || said != "saved: model opus, context_k 100, handoff_note on, idle_close 30, browser chrome" || idle.set != "30@worker" {
 		t.Fatalf("%v %s %s", ok, said, idle.set)
 	}
-	b, _ := os.ReadFile(r.AgentFile("worker"))
-	if string(b) != "name: worker\nmodel: opus\neffort: medium\nweight: light\nenabled: true\ncontext_tokens: 100000\nchrome: true\nhandoff_note: true\n" {
-		t.Fatalf("%q", b)
+	cfg, _ := r.Read("worker")
+	if cfg["model"] != "opus" || cfg["effort"] != "medium" || cfg["context_tokens"] != int64(100000) || cfg["chrome"] != true || cfg["handoff_note"] != true {
+		t.Fatalf("%v", cfg)
 	}
-	if ok, said := (&Roster{Home: home, Store: r.Store, Seals: r.Seals}).SaveSettings("worker", []Change{{"effort", "medium", "huge"}}, idle); ok || !strings.HasPrefix(said, "not saved: effort must be one of") {
+	if ok, said := r.SaveSettings("worker", []Change{{"effort", "medium", "huge"}}, idle); ok || !strings.HasPrefix(said, "not saved: effort must be one of") {
 		t.Fatalf("%v %s", ok, said)
 	}
 	if ok, said := r.SetByAgent(nil, "worker", map[string]string{"repo": "/x"}, "worker", "", nil, idle); ok || !strings.Contains(said, "repo needs the founder's approval") {

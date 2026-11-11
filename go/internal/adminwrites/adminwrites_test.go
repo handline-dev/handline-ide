@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/internal/reads"
 	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/kit/storetest"
@@ -39,16 +40,15 @@ func newRig(t *testing.T) *rig {
 		t.Setenv(k, "")
 	}
 	home := t.TempDir()
-	for _, a := range []string{"alice", "bob"} {
-		os.MkdirAll(filepath.Join(home, "agents", a), 0o755)
-		os.WriteFile(filepath.Join(home, "agents", a, "agent.yaml"), []byte("vendor: claude\n"), 0o644)
-	}
 	os.MkdirAll(filepath.Join(home, "accounts", "main"), 0o755)
 	d, err := storetest.OpenAt(t, filepath.Join(home, "db.sqlite"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { d.Close() })
+	for _, a := range []string{"alice", "bob"} {
+		teamtest.Set(t, home, a, "vendor", "claude")
+	}
 	e := &Env{DB: d, Home: home, LabelKey: (&reads.Env{DB: d, Home: home}).LabelKey}
 	s := rpc.NewServer(auth{}, "x", store.LatestVersion(), "local", func(string, ...any) {})
 	s.DB = d
@@ -101,6 +101,19 @@ func (r *rig) file(parts ...string) string {
 	return string(b)
 }
 
+// setting is one of agent's settings as text, "" when unset.
+func (r *rig) setting(agent, key string) string {
+	r.t.Helper()
+	cfg, err := team.NewRoster(r.home).Read(agent)
+	if err != nil {
+		r.t.Fatal(err)
+	}
+	if v, ok := cfg[key]; ok && v != nil {
+		return fmt.Sprint(v)
+	}
+	return ""
+}
+
 func TestSchedulesAreAddedEditedMovedAndRemovedByTheirId(t *testing.T) {
 	r := newRig(t)
 	add := `{"target":"alice","cron":"0  9 * * *","message":"morning   check","request_id":"s1"}`
@@ -109,7 +122,7 @@ func TestSchedulesAreAddedEditedMovedAndRemovedByTheirId(t *testing.T) {
 	if res["schedule"] != float64(id) || res["said"] != "alice: scheduled 0 9 * * *" {
 		t.Fatalf("%v", res)
 	}
-	if r.result(r.one("schedule.add", add))["replayed"] != true || strings.Count(r.file("agents", "alice", "agent.yaml"), "morning check") != 1 {
+	if r.result(r.one("schedule.add", add))["replayed"] != true || strings.Count(r.setting("alice", "schedules"), "morning check") != 1 {
 		t.Fatal("a retry adds no second schedule")
 	}
 	if r.code(r.one("schedule.add", `{"target":"alice","cron":"0 9 * * *","message":"morning check","request_id":"s2"}`)) != "refused" {
@@ -120,11 +133,11 @@ func TestSchedulesAreAddedEditedMovedAndRemovedByTheirId(t *testing.T) {
 	}
 	moved := r.result(r.one("schedule.edit", fmt.Sprintf(`{"schedule":%d,"target":"bob","cron":"30 9 * * 1-5","request_id":"s4"}`, id)))
 	idBob := cronspec.ID("bob", cronspec.Schedule{Cron: "30 9 * * 1-5", Message: "morning check"})
-	if moved["schedule"] != float64(idBob) || strings.Contains(r.file("agents", "alice", "agent.yaml"), "schedules") || !strings.Contains(r.file("agents", "bob", "agent.yaml"), "30 9 * * 1-5") {
-		t.Fatalf("edited and moved to bob: %v\n%s", moved, r.file("agents", "bob", "agent.yaml"))
+	if moved["schedule"] != float64(idBob) || r.setting("alice", "schedules") != "" || !strings.Contains(r.setting("bob", "schedules"), "30 9 * * 1-5") {
+		t.Fatalf("edited and moved to bob: %v\n%s", moved, r.setting("bob", "schedules"))
 	}
 	r.result(r.one("schedule.remove", fmt.Sprintf(`{"schedule":%d,"request_id":"s5"}`, idBob)))
-	if strings.Contains(r.file("agents", "bob", "agent.yaml"), "schedules") {
+	if r.setting("bob", "schedules") != "" {
 		t.Fatal("removed")
 	}
 	if r.code(r.one("schedule.remove", fmt.Sprintf(`{"schedule":%d,"request_id":"s6"}`, idBob))) != "not_found" {
@@ -150,8 +163,8 @@ func TestSettingsSetWritesEveryKeyOrNoneAndClearsOnNull(t *testing.T) {
 		t.Fatal("active_cap has no per-agent value")
 	}
 	r.result(r.one("settings.set", `{"changes":{"park_timeout_s":60},"agent":"alice","request_id":"t4"}`))
-	if !strings.Contains(r.file("agents", "alice", "agent.yaml"), "park_timeout_s: 60") {
-		t.Fatal("the agent's own file")
+	if r.setting("alice", "park_timeout_s") != "60" {
+		t.Fatal("the agent's own setting")
 	}
 }
 
@@ -234,8 +247,8 @@ func TestTheHandoffPromptIsOneLineOfTextGloballyOrForOneAgent(t *testing.T) {
 		t.Fatalf("%q", got)
 	}
 	r.result(r.one("settings.set", `{"changes":{"handoff_prompt":"alice: {path}, what is next"},"agent":"alice","request_id":"h2"}`))
-	if !strings.Contains(r.file("agents", "alice", "agent.yaml"), "handoff_prompt:") {
-		t.Fatal("the agent's own file")
+	if r.setting("alice", "handoff_prompt") != "alice: {path}, what is next" {
+		t.Fatal("the agent's own setting")
 	}
 	for i, bad := range []string{`"two\nlines"`, `"` + strings.Repeat("x", LineMax+1) + `"`, `7`} {
 		if r.code(r.one("settings.set", `{"changes":{"handoff_prompt":`+bad+`},"request_id":"hb`+strconv.Itoa(i)+`"}`)) != "bad_request" {

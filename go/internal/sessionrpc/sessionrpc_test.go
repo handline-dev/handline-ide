@@ -6,15 +6,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/kit/lock"
-	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/storetest"
 	"github.com/handline/handline/go/protocol/rpc"
 )
@@ -77,9 +76,7 @@ func newRig(t *testing.T) *rig {
 	r.e = &Env{DB: d, Home: home, Controls: r.ctl, Now: func() time.Time { return time.Unix(1_000_000, 0) },
 		CloseTerminal:  func(h string) (bool, string) { r.closed = append(r.closed, h); return true, "" },
 		SessionPresent: func(string) (bool, error) { return r.present, nil }}
-	dir := filepath.Join(paths.AgentsDir(home), "ann")
-	os.MkdirAll(dir, 0o755)
-	os.WriteFile(filepath.Join(dir, "agent.yaml"), []byte("name: ann\n"), 0o644)
+	teamtest.Seed(t, home, "ann")
 	if _, err := d.Exec("INSERT INTO agent_state(agent, state, updated, terminal, worktree) VALUES('ann', 'IDLE', 0, '%1', '/w')"); err != nil {
 		t.Fatal(err)
 	}

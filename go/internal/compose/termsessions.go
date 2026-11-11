@@ -62,7 +62,7 @@ func (p *Parts) terminalSessions() map[string]int {
 }
 
 // terminalSession is the running session of a terminal agent and the account whose config directory holds its file (the account it
-// spends, whatever agent.yaml says). live is the terminals the host lists, nil when it could not say.
+// spends, whatever its row says). live is the terminals the host lists, nil when it could not say.
 func (p *Parts) terminalSession(agent string, live map[string]bool) (sessionRec, string, lookup) {
 	row, err := db.GetAgentState(p.db, agent)
 	if err != nil || row == nil || row.Terminal.String == "" || (live != nil && !live[row.Terminal.String]) {

@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/protocol/operations"
 )
 
@@ -128,7 +129,7 @@ func TestEveryWorktreeCarriesItsFactsAndItsPullRequest(t *testing.T) {
 	git(mine, "commit", "-q", "--allow-empty", "-m", "one")
 	os.WriteFile(filepath.Join(mine, "new.txt"), []byte("x"), 0o644)
 	addAgent(t, e, "alice", "")
-	os.WriteFile(filepath.Join(e.Home, "agents", "alice", "agent.yaml"), []byte("repo: "+repo+"\n"), 0o644)
+	teamtest.Set(t, e.Home, "alice", "repo", repo)
 	if _, err := e.DB.Exec("INSERT INTO agent_state(agent, state, updated, worktree) VALUES('alice', 'idle', 0, ?)", mine); err != nil {
 		t.Fatal(err)
 	}

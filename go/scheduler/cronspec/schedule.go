@@ -113,7 +113,7 @@ func jsonError(text string, err error) string {
 }
 
 // load is an agent's `schedules` value validated as schedules.load does: a badValue says what is wrong with it, any other
-// error is an agent.yaml that cannot be read.
+// error is an agent row that cannot be read.
 func load(home, agent string) ([]Schedule, error) {
 	cfg, err := team.NewRoster(home).Read(agent)
 	if err != nil {
@@ -164,7 +164,7 @@ func load(home, agent string) ([]Schedule, error) {
 	return out, nil
 }
 
-// Load is an agent's schedules; a *ScheduleError says what is wrong with its value, any other error is an agent.yaml that cannot be read.
+// Load is an agent's schedules; a *ScheduleError says what is wrong with its value, any other error is an agent row that cannot be read.
 func Load(home, agent string) ([]Schedule, error) {
 	items, err := load(home, agent)
 	var bad badValue
@@ -174,7 +174,7 @@ func Load(home, agent string) ([]Schedule, error) {
 	return items, err
 }
 
-// Of is Load, and none for an agent whose agent.yaml or value cannot be read: the sweep's view.
+// Of is Load, and none for an agent whose row or value cannot be read: the sweep's view.
 func Of(home, agent string) []Schedule {
 	items, err := Load(home, agent)
 	if err != nil {

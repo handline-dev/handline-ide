@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/scheduler/pause"
 )
 
@@ -42,8 +43,7 @@ func TestTheHealthCheckTellsAChangeOnceAndNothingElse(t *testing.T) {
 		t.Fatal("told twice")
 	}
 	pause.Clear(d.db)
-	os.MkdirAll(filepath.Join(d.cfg.Home, "agents", "bob"), 0o755)
-	os.WriteFile(filepath.Join(d.cfg.Home, "agents", "bob", "agent.yaml"), []byte("name: bob\n"), 0o644)
+	teamtest.Seed(t, d.cfg.Home, "bob")
 	if _, err := d.db.Exec(`INSERT INTO agent_view(agent, view, updated) VALUES('bob', '{"state":"queued","status":{"state":"stopped","reason":"cap","text":"waiting for a slot"}}', 1)`); err != nil {
 		t.Fatal(err)
 	}

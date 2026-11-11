@@ -1,13 +1,12 @@
 package supervisor
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/team/teamtest"
 )
 
 func init() { RunInline = true }
@@ -43,8 +42,7 @@ func TestSayVerbQueuesAndTypesAtOnce(t *testing.T) {
 
 func TestSayToAReportWithoutATaskIsRefusedWithTheTaskThatWouldReachIt(t *testing.T) {
 	r := newRig(t)
-	// bob reports to alice, the member its team is named after; written before the table is first read and sealed
-	os.WriteFile(filepath.Join(r.home, "team.yaml"), []byte(strings.Replace(teamYAML, "eng: [alice, bob]", "alice: [alice, bob]", 1)), 0o644)
+	teamtest.Set(t, r.home, "bob", "reports_to", "alice")
 	out := r.say(SayVerbIn{Requester: "alice", Target: "bob", Body: "fix the bug"})
 	want := "work cannot reach a report by message: make it a task, or comment on the task it has. Try:\n  hl task new --assign bob -t 2h '<title>' 'fix the bug'\n  hl task comment T<n> add '@bob fix the bug'"
 	if out.OK || out.Msg != want {

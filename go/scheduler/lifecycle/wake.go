@@ -150,7 +150,7 @@ func (m *Manager) StartForWork(agent string) (said string, err error) {
 		if asked := len(must(db.QueuedFor(m.Q, agent))); asked > 0 {
 			w = fmt.Sprintf("%d request(s)", asked)
 		}
-		return fmt.Sprintf("%s: %s waiting and it has no terminal - set `repo:` in its agent.yaml, or start it by hand (t)", agent, w), nil
+		return fmt.Sprintf("%s: %s waiting and it has no terminal - give its workspace a folder, or start it by hand (t)", agent, w), nil
 	}
 	if why := m.loadHeld(agent); why != "" {
 		return fmt.Sprintf("%s: not started - %s", agent, why), nil
@@ -434,7 +434,7 @@ func (m *Manager) wakeClosed(agent string, row *db.AgentState, handle, wt string
 		}
 		row = must(db.GetAgentState(m.Q, agent))
 	}
-	// Before anything is typed: an agent.yaml that will not read is this agent's config error, which the callers stall by name.
+	// Before anything is typed: an agent row that will not read is this agent's config error, which the callers stall by name.
 	if err := m.Agents.ReadConfig(agent); err != nil {
 		panic(&ConfigError{err})
 	}

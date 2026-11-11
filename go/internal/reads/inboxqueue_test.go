@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
@@ -158,7 +159,7 @@ func TestInboxQueueOfTheFounderPrintsAsHlInboxDid(t *testing.T) {
 func TestInboxQueueListsOnlyForTheAgentItsSupervisorAndTheFounder(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	os.WriteFile(filepath.Join(e.Home, "team.yaml"), []byte("agents:\n  bob: {}\n  bob.kid: {}\n  amy: {}\n"), 0o644)
+	teamtest.Seed(t, e.Home, "bob", "bob.kid", "amy")
 	for whose, ok := range map[string]bool{"bob": true, "bob.kid": true, "amy": false, human: false} {
 		_, err := e.inboxQueue(asBob, map[string]any{"whose": whose})
 		var refused *rpc.Error

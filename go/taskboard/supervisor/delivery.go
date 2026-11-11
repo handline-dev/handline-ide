@@ -1,9 +1,6 @@
 package supervisor
 
 import (
-	"errors"
-	"os"
-
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
 	"github.com/handline/handline/go/data/team"
@@ -14,27 +11,18 @@ import (
 const sayKind = "say"
 
 // EnforceEdges checks every request still waiting for the agent against the founder's routing table. A request whose edge the table does
-// not allow is denied before anyone is told of it. False when the table cannot be trusted (changed, unsealed or unreadable): nothing is
-// delivered until the founder has looked. A request from a name that is not a registered agent (the system's own) is not an
+// not allow is denied before anyone is told of it. False when the team cannot be read: nothing is delivered until it can be. A request from a name that is not a registered agent (the system's own) is not an
 // agent's edge.
 func (e *Env) EnforceEdges(q db.Q, agent string) (ok bool, err error) {
 	defer Catch(&err)
 	hold := "edgehold:" + agent
 	t, lerr := team.LoadTeam(e.Home)
 	if lerr != nil {
-		switch {
-		case errors.Is(lerr, os.ErrNotExist):
-			for _, r := range must(db.QueuedFor(q, agent)) {
-				check(db.ClearEdge(q, r.ID))
-			}
-			return true, nil
-		default:
-			if must(db.Cursor(q, hold)) == 0 {
-				check(db.SetCursor(q, hold, 1))
-				e.log("  %s: nothing delivered - team.yaml is not trusted (%v)", agent, lerr)
-			}
-			return false, nil
+		if must(db.Cursor(q, hold)) == 0 {
+			check(db.SetCursor(q, hold, 1))
+			e.log("  %s: nothing delivered - the team cannot be read (%v)", agent, lerr)
 		}
+		return false, nil
 	}
 	if must(db.Cursor(q, hold)) != 0 {
 		check(db.SetCursor(q, hold, 0))
@@ -184,7 +172,7 @@ func (e *Env) DeliverQueued(q db.Q, agent string) (sent bool, err error) {
 	if !e.structuredAgent(agent) || !e.Agents.Live(agent) {
 		why := "no live session"
 		if !e.structuredAgent(agent) && e.openSession(agent, stateOf(q, agent)) {
-			why = "peer_inbox is off in agent.yaml; nothing types any more" // a terminal is up, but nothing here reaches it
+			why = "peer_inbox is off for this agent; nothing types any more" // a terminal is up, but nothing here reaches it
 		}
 		return e.holdBack(agent, head, why, false), nil
 	}

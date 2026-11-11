@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/kit/paths"
 )
 
@@ -17,7 +18,7 @@ type pinVendors struct {
 
 func (v pinVendors) AccountVendor(acct string) string { return v.of[acct] }
 
-// pinRig is ann on two claude accounts, a and b, where the pick would take b; pin is what ann's agent.yaml says after vendor and model.
+// pinRig is ann on two claude accounts, a and b, where the pick would take b; pin is the account ann's row pins it to, "" for none.
 func pinRig(t *testing.T, pin string) *launchRig {
 	r := newLaunchRig(t)
 	for _, a := range []string{"a", "b"} {
@@ -25,9 +26,8 @@ func pinRig(t *testing.T, pin string) *launchRig {
 			t.Fatal(err)
 		}
 	}
-	yaml := "vendor: claude\nmodel: m1\neffort: high\n" + pin
-	if err := os.WriteFile(r.l.Roster.AgentFile("ann"), []byte(yaml), 0o644); err != nil {
-		t.Fatal(err)
+	if pin != "" {
+		teamtest.Set(t, r.l.Home, "ann", "account", pin)
 	}
 	r.l.Ports.Vendors = pinVendors{of: map[string]string{"a": "claude", "b": "claude"}}
 	r.l.Ports.Usage = fakeUsage{st: AccountStatus{Exists: true}, pick: "b"}
@@ -35,7 +35,7 @@ func pinRig(t *testing.T, pin string) *launchRig {
 }
 
 func TestAPinnedAgentRunsOnlyOnItsAccountAndNothingMovesIt(t *testing.T) {
-	r := pinRig(t, "account: a\n")
+	r := pinRig(t, "a")
 	if got := r.l.FindRoom("ann"); got != "a" {
 		t.Fatalf("the pin, not the pick: %q", got)
 	}
@@ -61,7 +61,7 @@ func TestAPinnedAgentRunsOnlyOnItsAccountAndNothingMovesIt(t *testing.T) {
 }
 
 func TestAPinnedAgentWhoseAccountCannotTakeItWaitsWithThatAccountsReason(t *testing.T) {
-	r := pinRig(t, "account: a\n")
+	r := pinRig(t, "a")
 	pct := 96
 	r.l.Ports.Usage = fakeUsage{st: AccountStatus{Exists: true}, pick: "b", by: map[string]AccountStatus{"a": {Exists: true, ShortTrusted: &pct}}}
 	if got := r.l.FindRoom("ann"); got != "" {
@@ -73,7 +73,7 @@ func TestAPinnedAgentWhoseAccountCannotTakeItWaitsWithThatAccountsReason(t *test
 }
 
 func TestARefusedLaunchIsRecorded(t *testing.T) {
-	r := pinRig(t, "account: nowhere\n")
+	r := pinRig(t, "nowhere")
 	if _, err := r.l.Prepare(&Site{Cwd: t.TempDir()}, "ann", nil, false, "", "", "", ""); err == nil {
 		t.Fatal("it was not refused")
 	}
@@ -83,7 +83,7 @@ func TestARefusedLaunchIsRecorded(t *testing.T) {
 }
 
 func TestAPinToAnotherVendorsAccountIsRefusedNamingBoth(t *testing.T) {
-	r := pinRig(t, "account: a\n")
+	r := pinRig(t, "a")
 	r.l.Ports.Vendors = pinVendors{of: map[string]string{"a": "opencode", "b": "claude"}}
 	if got := r.l.FindRoom("ann"); got != "" {
 		t.Fatalf("%q", got)
@@ -94,7 +94,7 @@ func TestAPinToAnotherVendorsAccountIsRefusedNamingBoth(t *testing.T) {
 }
 
 func TestAnUnmeteredPinTakesItsAgentWithNoRoomTestButStillNeedsALogin(t *testing.T) {
-	r := pinRig(t, "account: a\n")
+	r := pinRig(t, "a")
 	pct := 99 // a reading at the wall would refuse a metered account; an unmetered one has no room to test
 	r.l.Ports.Usage = fakeUsage{st: AccountStatus{Exists: true}, pick: "b", by: map[string]AccountStatus{"a": {Unmetered: true, ShortTrusted: &pct}}}
 	if got := r.l.FindRoom("ann"); got != "a" {
@@ -107,13 +107,13 @@ func TestAnUnmeteredPinTakesItsAgentWithNoRoomTestButStillNeedsALogin(t *testing
 }
 
 func TestAPinWithSpacesIsTheAccountItNames(t *testing.T) {
-	if got := pinRig(t, "account: '  a '\n").l.PinOf("ann"); got != "a" {
+	if got := pinRig(t, "  a ").l.PinOf("ann"); got != "a" {
 		t.Fatalf("%q", got)
 	}
 }
 
 func TestAPausedPinTakesNoAgentEvenUnmetered(t *testing.T) {
-	r := pinRig(t, "account: a\n")
+	r := pinRig(t, "a")
 	r.l.Ports.Usage = fakeUsage{st: AccountStatus{Exists: true}, pick: "b", by: map[string]AccountStatus{"a": {Unmetered: true, Paused: true}}}
 	if got := r.l.FindRoom("ann"); got != "" {
 		t.Fatalf("a paused pin took its agent: %q", got)

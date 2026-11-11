@@ -3,13 +3,12 @@ package supervisor
 import (
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/handline/handline/go/agentctl/peerinbox"
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/team/teamtest"
 )
 
 func (r *rig) toFounder() int {
@@ -59,15 +58,15 @@ func TestEachOfTheFoundersMessagesLostInOneOpWarns(t *testing.T) {
 func TestARefusalWithNoLeadIsKeptAsAWarningAndSaysNothing(t *testing.T) {
 	r := newRig(t)
 	tid := r.newUnroutableTask()
-	r.must(os.WriteFile(filepath.Join(r.home, "team.yaml"), []byte(strings.Replace(strings.Replace(teamYAML, "  eng: [alice, bob]\n", "  eng: [bob]\n", 1),
-		"bob", "bob", 1)+"deny:\n  - { from: carol, to: bob, reason: no }\n"), 0o644))
-	if _, _, err := r.AdvanceCurrentTask(r.DB, "bob"); err != nil {
+	teamtest.Set(t, r.home, "eng.bob", "reports_to", nil) // no lead to tell: it reports to no agent
+	r.DB.Exec("UPDATE workspaces SET lead = NULL WHERE name = 'eng'")
+	if _, _, err := r.AdvanceCurrentTask(r.DB, "eng.bob"); err != nil {
 		t.Fatal(err)
 	}
 	raw, ok, err := db.Meta(r.DB, fmt.Sprintf("%s%d", db.RefusedTaskPrefix, tid))
 	r.must(err)
 	var u db.Undelivered
-	if !ok || json.Unmarshal([]byte(raw), &u) != nil || u.Agent != "bob" || u.Why == "" {
+	if !ok || json.Unmarshal([]byte(raw), &u) != nil || u.Agent != "eng.bob" || u.Why == "" {
 		t.Fatalf("%q", raw)
 	}
 	if n := r.toFounder(); n != 0 {

@@ -60,7 +60,7 @@ func (s *Settings) BlockerAlarm() (on bool, holderS, leadS int64) {
 }
 
 // Settings is how long an idle agent's session may sit before it is closed, the background times and the cache-expiry switch: config.yaml's
-// global values, and agent.yaml's own override for the one agent that should behave differently.
+// global values, and its row's own override for the one agent that should behave differently.
 type Settings struct {
 	Home   string
 	Roster *team.Roster
@@ -103,7 +103,7 @@ func (s *Settings) config() map[string]any {
 	return m
 }
 
-// agentConfig is the agent's own config, {} for one that cannot be read: closing must not stall on a bad agent.yaml.
+// agentConfig is the agent's own config, {} for one that cannot be read: closing must not stall on a bad agent row.
 func (s *Settings) agentConfig(agent string) map[string]any {
 	if s.Roster == nil {
 		return map[string]any{}
@@ -208,7 +208,7 @@ func (s *Settings) CloseTimeoutS(agent string) int64 {
 // Never is Never, for a port that cannot name the constant.
 func (s *Settings) Never() int64 { return Never }
 
-// SecondsSetting is a positive number of seconds: the agent's own key in agent.yaml wins, then config.yaml's, then def.
+// SecondsSetting is a positive number of seconds: the agent's own column wins, then config.yaml's, then def.
 func (s *Settings) SecondsSetting(agent, key string, def int64) int64 {
 	if n, ok := positive(s.agentConfig(agent)[key]); ok {
 		return n

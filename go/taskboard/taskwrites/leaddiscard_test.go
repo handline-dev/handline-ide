@@ -3,10 +3,10 @@ package taskwrites
 import (
 	"database/sql"
 	"encoding/json"
-	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/kit/storetest"
 	"github.com/handline/handline/go/protocol/rpc"
@@ -22,11 +22,9 @@ func leadEnv(t *testing.T) (*sql.DB, func(agent string, tell Teller) *rpc.Server
 	}
 	t.Cleanup(func() { d.Close() })
 	home := t.TempDir()
-	for _, a := range []string{"lead", "w1", "w2", "ops"} {
-		os.MkdirAll(filepath.Join(home, "agents", a), 0o755)
-		os.WriteFile(filepath.Join(home, "agents", a, "agent.yaml"), nil, 0o644)
-	}
-	os.WriteFile(filepath.Join(home, "team.yaml"), []byte("teams:\n  lead: [lead, w1, w2]\n  ops: [ops]\nagents:\n  lead: {}\n  w1: {}\n  w2: {}\n  ops: {}\n"), 0o644)
+	teamtest.Seed(t, home, "lead", "w1", "w2", "ops")
+	teamtest.Set(t, home, "w1", "reports_to", "lead")
+	teamtest.Set(t, home, "w2", "reports_to", "lead")
 	exec(t, d,
 		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'first', 'w1', 'lead', 1), (2, 'second', 'w1', 'lead', 1), (3, 'theirs', 'ops', 'ops', 1)",
 		"INSERT INTO requests(id, ts, requester, target, body, kind, state, edge_ok) VALUES(5, 1, 'w2', 'w1', 'look at t', 'ask', 'queued', 1), "+

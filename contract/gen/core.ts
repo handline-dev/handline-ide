@@ -258,7 +258,7 @@ export type Settings = {
   overrides?: { [key: string]: unknown };
   /** Without settings.get `agent`: the built-in handoff prompt, what `values.handoff_prompt` shows while none is set, so a client can tell the two apart. */
   handoff_prompt_default?: string;
-  /** Without settings.get `agent`: the agents whose agent.yaml sets a handoff prompt of their own, which the global one does not reach. */
+  /** Without settings.get `agent`: the agents whose row sets a handoff prompt of their own, which the global one does not reach. */
   handoff_prompt_own?: AgentName[];
 };
 
@@ -291,7 +291,7 @@ export type Capabilities = {
   terminal_hosts?: { [key: string]: string[] };
   /** chat.send takes parent_item, a reply to one chat.transcript item. Absent means false. */
   transcript?: boolean;
-  /** The founder's own messages to a terminal agent are typed into its terminal (unless its agent.yaml turns peer_inbox off), so hl launch tells the agent so. Absent means false. */
+  /** The founder's own messages to a terminal agent are typed into its terminal (unless its row turns peer_inbox off), so hl launch tells the agent so. Absent means false. */
   founder_typed?: boolean;
 };
 

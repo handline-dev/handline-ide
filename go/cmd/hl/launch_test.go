@@ -13,8 +13,7 @@ import (
 func launchRig(t *testing.T) *rig {
 	r := hookRig(t, false)
 	for p, text := range map[string]string{
-		paths.ConfigFile(r.home):                                               "terminal: tmux\n",
-		filepath.Join(paths.AgentDir(r.home, "a.one"), "agent.yaml"):           "name: a.one\nrepo: " + r.root + "\naccount: alpha\n",
+		paths.ConfigFile(r.home): "terminal: tmux\n",
 		filepath.Join(r.home, "accounts", "alpha", ".claude", "settings.json"): "{}\n",
 	} {
 		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
@@ -63,9 +62,6 @@ func TestLaunchRefusesWhatItDoesNotLaunch(t *testing.T) {
 		if out != c.out || errs != c.errs || code != c.code {
 			t.Errorf("%s: out %q err %q exit %d", name, out, errs, code)
 		}
-	}
-	if _, errs, code := r.run(nil, "launch", "z.z"); code != 1 || !strings.HasPrefix(errs, "hl launch: agent 'z.z' is not registered (") {
-		t.Errorf("no config: err %q exit %d", errs, code)
 	}
 }
 

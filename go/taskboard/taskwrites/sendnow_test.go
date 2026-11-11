@@ -2,7 +2,6 @@ package taskwrites
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -10,6 +9,7 @@ import (
 	"time"
 
 	hdb "github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/kit/storetest"
 	"github.com/handline/handline/go/protocol/rpc"
@@ -23,8 +23,7 @@ func TestSendNowLetsOneTaskThePauseHoldsGoFirst(t *testing.T) {
 	}
 	defer db.Close()
 	home := t.TempDir()
-	os.MkdirAll(filepath.Join(home, "agents", "w"), 0o755)
-	os.WriteFile(filepath.Join(home, "agents", "w", "agent.yaml"), nil, 0o644)
+	teamtest.Seed(t, home, "w")
 	for _, q := range []string{
 		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'a', 'w', 'boss', 1), (2, 'b', 'w', 'boss', 1), (3, 'c', 'w', 'boss', 1)",
 		"INSERT INTO requests(id, requester, target, kind, state, ts, body, queue_order, delivered_at) VALUES(10, 'boss', 'w', 'task', 'queued', 1, 'x', 10, NULL), " +

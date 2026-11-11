@@ -8,7 +8,7 @@ import (
 )
 
 func TestWithdrawReadAndInboxAnswerWithoutPython(t *testing.T) {
-	r := agentsRig(t)
+	r := newRig(t)
 	calls := r.daemon(map[string]string{
 		"request.withdraw": `{"accepted":true,"said":"#7 withdrawn"}`,
 		"request.read": `{"id":7,"name":"msg_0102030","requester":"a.one","target":"b.two","kind":"say","state":"landed","created":"2026-10-16T00:00:00Z","parent":null,
@@ -35,7 +35,7 @@ func TestWithdrawReadAndInboxAnswerWithoutPython(t *testing.T) {
 }
 
 func TestReadTakesAMessageByNameOrHashAndPassesAHashMarkOnToBeRefused(t *testing.T) {
-	r := agentsRig(t)
+	r := newRig(t)
 	calls := r.daemon(map[string]string{"request.read": "error:#7 is PR 7; a message is named msg_<hash>"})
 	// a hash may be all digits: only digits shorter than a printed name are an id
 	for _, arg := range []string{"MSG_0102030", "0a1b2c3", "3412789", "39568", "#7"} {
@@ -49,7 +49,7 @@ func TestReadTakesAMessageByNameOrHashAndPassesAHashMarkOnToBeRefused(t *testing
 }
 
 func TestHrProposesThroughTheDaemonAndTakesOneBack(t *testing.T) {
-	r := agentsRig(t)
+	r := newRig(t)
 	calls := r.daemon(map[string]string{"proposal.propose": `{"accepted":true,"proposal":3,"said":"proposal 00000003 raised."}`,
 		"proposal.withdraw": `{"accepted":true,"said":"proposal 0000000a withdrawn"}`})
 	file := r.home + "/role.md"
@@ -59,7 +59,6 @@ func TestHrProposesThroughTheDaemonAndTakesOneBack(t *testing.T) {
 	for _, args := range [][]string{
 		{"propose", "add", "c.three", "--why", "w", "--repo", "/r", "--effort", "high"},
 		{"propose", "retire", "c.three", "--why", "w"},
-		{"propose", "link", "a.one", "b.two", "--why", "w"},
 		{"propose", "context", "b.two", "--role-file", file, "--why", "w"},
 		{"propose", "withdraw", "a"},
 	} {
@@ -70,7 +69,6 @@ func TestHrProposesThroughTheDaemonAndTakesOneBack(t *testing.T) {
 	want := []string{
 		`proposal.propose {"args":{"effort":"high","name":"c.three","repo":"/r"},"kind":"add","why":"w"}`,
 		`proposal.propose {"args":{"name":"c.three"},"kind":"retire","why":"w"}`,
-		`proposal.propose {"args":{"name":"a.one","to":"b.two"},"kind":"link","why":"w"}`,
 		`proposal.propose {"args":{"name":"b.two","sets":{"ROLE.md":"the role"}},"kind":"context","why":"w"}`,
 		`proposal.withdraw {"proposal":10}`,
 	}
@@ -80,7 +78,7 @@ func TestHrProposesThroughTheDaemonAndTakesOneBack(t *testing.T) {
 }
 
 func TestHrBundleSendsTheChangesAsOneProposalAndAWhyWithAMessageNumberIsRefused(t *testing.T) {
-	r := agentsRig(t)
+	r := newRig(t)
 	calls := r.daemon(map[string]string{"proposal.propose": `{"accepted":true,"proposal":3,"said":"proposal 00000003 raised."}`})
 	file := r.home + "/changes.json"
 	if err := os.WriteFile(file, []byte(`[{"kind":"retire","name":"a.one"},{"kind":"rename","name":"b.two","to":"b.dos"}]`), 0o644); err != nil {
@@ -109,7 +107,7 @@ func TestHrBundleSendsTheChangesAsOneProposalAndAWhyWithAMessageNumberIsRefused(
 }
 
 func TestReadWithdrawAndSayParentSendARefAsTextAndANumberAsANumber(t *testing.T) {
-	r := agentsRig(t)
+	r := newRig(t)
 	calls := r.daemon(map[string]string{
 		"request.withdraw": `{"accepted":true,"said":"withdrawn"}`,
 		"request.read": `{"id":7,"name":"msg_0102030","requester":"a.one","target":"b.two","kind":"say","state":"landed","created":"2026-10-16T00:00:00Z","parent":null,
@@ -133,7 +131,7 @@ func TestReadWithdrawAndSayParentSendARefAsTextAndANumberAsANumber(t *testing.T)
 }
 
 func TestAPortedVerbRefusesWhatItDoesNotParseInsteadOfRunningPython(t *testing.T) {
-	r := agentsRig(t)
+	r := newRig(t)
 	r.daemon(nil)
 	for _, args := range [][]string{{"say", "--bogus"}, {"task"}, {"task", "new", "--bogus"}, {"read"}, {"propose", "approve"}, {"team", "extra"}} {
 		out, errs, code := r.run(asAgent, args...)
@@ -144,7 +142,7 @@ func TestAPortedVerbRefusesWhatItDoesNotParseInsteadOfRunningPython(t *testing.T
 }
 
 func TestHrRenameAndTeamGoThroughTheDaemon(t *testing.T) {
-	r := agentsRig(t)
+	r := newRig(t)
 	calls := r.daemon(map[string]string{"proposal.propose": `{"accepted":true,"proposal":3,"said":"proposal 00000003 raised."}`})
 	for _, args := range [][]string{
 		{"propose", "rename", "a.one", "--to", "a.uno", "--why", "w"},
@@ -172,14 +170,14 @@ func TestProposeUsageNamesScheduleAndTopLevelHelpSaysWhatProposeIs(t *testing.T)
 	if u, _ := usageOf("propose", nil); !strings.Contains(u[0], "schedule") {
 		t.Errorf("propose usage omits schedule: %q", u[0])
 	}
-	_, errs, _ := agentsRig(t).run(nil)
+	_, errs, _ := newRig(t).run(nil)
 	if !strings.Contains(errs, "propose a change the founder approves") {
 		t.Errorf("top-level help does not say what propose is: %q", errs)
 	}
 }
 
 func TestProposeListPadsTheKindColumnForTheLongestKind(t *testing.T) {
-	r := agentsRig(t)
+	r := newRig(t)
 	r.daemon(map[string]string{"proposal.list": `{"proposals":[
 		{"id":1,"kind":"schedule","agent":"a.one","state":"open","requested_by":"x"},
 		{"id":2,"kind":"add","agent":"b.two","state":"open","requested_by":"x"}]}`})

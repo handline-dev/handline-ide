@@ -9,13 +9,12 @@ import (
 
 func TestListsAreSortedAndNeedTheirMarker(t *testing.T) {
 	home := t.TempDir()
-	for _, d := range []string{"agents/b", "agents/a", "agents/nofile", "accounts/z", "accounts/.hidden", "accounts/m"} {
+	for _, d := range []string{"accounts/z", "accounts/.hidden", "accounts/m"} {
 		os.MkdirAll(filepath.Join(home, d), 0o755)
 	}
-	os.WriteFile(filepath.Join(home, "agents/a/agent.yaml"), nil, 0o644)
-	os.WriteFile(filepath.Join(home, "agents/b/agent.yaml"), nil, 0o644)
 	os.WriteFile(filepath.Join(home, "accounts/file"), nil, 0o644)
-	if got := ListAgents(home); !reflect.DeepEqual(got, []string{"a", "b"}) {
+	seedAgents(t, home)
+	if got := ListAgents(home); !reflect.DeepEqual(got, []string{"w", "w.x"}) {
 		t.Errorf("%v", got)
 	}
 	if got := ListAccounts(home); !reflect.DeepEqual(got, []string{"m", "z"}) {

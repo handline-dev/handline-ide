@@ -3,7 +3,6 @@ package daemon
 import (
 	"database/sql"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -12,21 +11,9 @@ import (
 	"github.com/handline/handline/go/agentctl/delivery"
 	"github.com/handline/handline/go/agentctl/term"
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/taskboard/supervisor"
 )
-
-const tellTeam = `teams:
-  eng: [alice, bob]
-agents:
-  alice: {}
-  bob: {}
-edges:
-  - { from: "*", to: "human", kind: task }
-  - { from: "*", to: "*" }
-  - { from: "human", to: "*" }
-limits:
-  max_chain_depth: 4
-`
 
 // typedAt is a structured agent port that keeps what was typed at each agent.
 type typedAt struct {
@@ -118,13 +105,8 @@ func wiredDaemon(t *testing.T, ports bool, proposals func(*sql.DB, string) super
 	t.Helper()
 	t.Setenv("HANDLINE_TEST_ROOT", t.TempDir())
 	home := t.TempDir()
-	if err := os.WriteFile(filepath.Join(home, "team.yaml"), []byte(tellTeam), 0o644); err != nil {
-		t.Fatal(err)
-	}
 	for _, a := range []string{"alice", "bob"} {
-		dir := filepath.Join(home, "agents", a)
-		os.MkdirAll(dir, 0o755)
-		os.WriteFile(filepath.Join(dir, "agent.yaml"), []byte("vendor: claude\n"), 0o644)
+		teamtest.Set(t, home, a, "vendor", "claude")
 	}
 	agents := &typedAt{typed: map[string][]string{}}
 	cfg := Config{Home: home, DBFile: filepath.Join(home, "db.sqlite"), Auth: pidAuth{}, Log: t.Logf}

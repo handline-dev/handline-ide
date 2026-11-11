@@ -253,7 +253,7 @@ func Remove(path string) (ok bool, why string) {
 	return true, ""
 }
 
-// Repos are the repositories the agents were told to work in (team.yaml repo), each once, sorted.
+// Repos are the repositories the agents were told to work in (their workspace folders), each once, sorted.
 func Repos(home string) []string {
 	seen := map[string]bool{}
 	var out []string

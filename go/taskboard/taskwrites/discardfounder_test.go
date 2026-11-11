@@ -2,11 +2,11 @@ package taskwrites
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/kit/storetest"
 	"github.com/handline/handline/go/protocol/rpc"
@@ -19,10 +19,7 @@ func TestTheFoundersDiscardWithdrawsTheRequestsOutOnTheTask(t *testing.T) {
 	}
 	defer db.Close()
 	home := t.TempDir()
-	for _, a := range []string{"w", "w2"} {
-		os.MkdirAll(filepath.Join(home, "agents", a), 0o755)
-		os.WriteFile(filepath.Join(home, "agents", a, "agent.yaml"), nil, 0o644)
-	}
+	teamtest.Seed(t, home, "w", "w2")
 	for _, q := range []string{
 		"INSERT INTO tasks(id, title, owner, opened_by, created_at, sent_at) VALUES(1, 'a', 'w', 'boss', 1, 5), (2, 'b', 'w2', 'human', 1, 5), (3, 'c', 'human', 'human', 1, 5)",
 		"INSERT INTO requests(id, requester, target, kind, state, ts, body, delivered_at) VALUES(10, 'boss', 'w', 'task', 'queued', 1, 'x', 6), (20, 'human', 'w2', 'task', 'queued', 1, 'x', NULL), " +

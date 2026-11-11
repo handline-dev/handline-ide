@@ -136,7 +136,7 @@ func (e *Env) addStatusLine(roster *team.Roster, name string, view map[string]an
 	if err != nil {
 		return err
 	}
-	cfg, _ := roster.Read(name) // an unreadable agent.yaml is doctor's to report
+	cfg, _ := roster.Read(name) // unreadable settings are doctor's to report
 	view["started"], view["has_repo"], view["has_terminal"] = row != nil, truthy(cfg["repo"]), row != nil && row.Terminal.String != ""
 	view["screen_word"], view["screen_detail"], view["unreached"], view["task_waits"], view["wake_wait_reason"] = nil, "", 0, []any{}, nil
 	if row == nil {
@@ -235,7 +235,7 @@ func (e *Env) agentGet(c *rpc.Conn, params map[string]any) (any, error) {
 	if out["prompt"], err = e.openPrompt(name); err != nil {
 		return nil, err
 	}
-	if vals, err := e.agentSettings(name); err == nil { // an unreadable agent.yaml is doctor's to report; the detail still answers
+	if vals, err := e.agentSettings(name); err == nil { // unreadable settings are doctor's to report; the detail still answers
 		out["settings"] = vals
 	}
 	return out, nil

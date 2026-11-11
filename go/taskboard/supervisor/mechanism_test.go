@@ -1,8 +1,6 @@
 package supervisor
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -128,21 +126,6 @@ func TestWithoutTheProposalsPortNothingIsResolved(t *testing.T) {
 	}
 	if row, _ := db.GetRequest(r.DB, rid2); row.State != "queued" {
 		t.Fatalf("%+v", row)
-	}
-}
-
-// There is no hourly cap on asks: a team.yaml that still names the old ask_rate_per_hour, even 0, loads and the ask goes out.
-func TestAnOldAskRateInTeamYamlCapsNothing(t *testing.T) {
-	r := newRig(t)
-	old := strings.Replace(teamYAML, "  max_chain_depth: 4\n", "  max_chain_depth: 4\n  ask_rate_per_hour: 0\n", 1)
-	os.WriteFile(filepath.Join(r.home, "team.yaml"), []byte(old), 0o644)
-	out, err := r.Ask(r.DB, AskIn{Target: "bob", Body: "hello", Requester: "alice"})
-	r.must(err)
-	if !out.OK || strings.Contains(out.Message, "this hour") {
-		t.Fatalf("%+v", out)
-	}
-	if s, _ := db.GetAgentState(r.DB, "alice"); s != nil && s.State == "THROTTLED" {
-		t.Fatalf("%+v", s)
 	}
 }
 

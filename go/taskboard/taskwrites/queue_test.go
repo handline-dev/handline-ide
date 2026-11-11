@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/kit/gitrun"
 	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/kit/storetest"
@@ -22,12 +23,8 @@ func TestQueueAndDraftAreAllOrNone(t *testing.T) {
 	}
 	defer db.Close()
 	home := t.TempDir()
-	for _, a := range []string{"worker", "manager", "other"} {
-		os.MkdirAll(filepath.Join(home, "agents", a), 0o755)
-		os.WriteFile(filepath.Join(home, "agents", a, "agent.yaml"), nil, 0o644)
-	}
-	os.MkdirAll(filepath.Join(home, "agents"), 0o755)
-	os.WriteFile(filepath.Join(home, "team.yaml"), []byte("agents:\n  manager: {}\n  worker: {}\n  other: {}\nedges:\n  - {from: manager, to: worker}\n"), 0o644)
+	teamtest.Seed(t, home, "worker", "manager", "other")
+	teamtest.Set(t, home, "worker", "reports_to", "manager")
 	for _, q := range []string{
 		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'a', 'worker', 'manager', 1), (2, 'b', 'worker', 'manager', 1), (3, 'c', 'worker', 'manager', 1)",
 		"UPDATE tasks SET done_evidence = 'x', done_at = 2 WHERE id = 3",
@@ -223,10 +220,7 @@ func TestDraftParksALandedTaskItsHolderIsWorking(t *testing.T) {
 		t.Fatal(err)
 	}
 	home := t.TempDir() // w and v are agents, so a notice to either is written
-	for _, a := range []string{"w", "v"} {
-		os.MkdirAll(filepath.Join(home, "agents", a), 0o755)
-		os.WriteFile(filepath.Join(home, "agents", a, "agent.yaml"), nil, 0o644)
-	}
+	teamtest.Seed(t, home, "w", "v")
 	f := &fakeTeller{}
 	s := rpc.NewServer(auth{"boss"}, "x", store.LatestVersion(), "local", func(string, ...any) {})
 	s.DB = sdb

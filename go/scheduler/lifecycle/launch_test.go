@@ -18,6 +18,7 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/yamlcompat"
 	"github.com/handline/handline/go/protocol/sessiontoken"
@@ -140,13 +141,8 @@ func newLaunchRig(t *testing.T) *launchRig {
 	t.Setenv("HANDLINE_AGENT", "")
 	t.Setenv("HANDLINE_HOME", home)
 	r := &launchRig{}
+	teamtest.Set(t, home, "ann", "vendor", "claude", "model", "m1", "effort", "high")
 	roster := team.NewRoster(home)
-	if err := os.MkdirAll(filepath.Dir(roster.AgentFile("ann")), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(roster.AgentFile("ann"), []byte("vendor: claude\nmodel: m1\neffort: high\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
 	r.l = &Launcher{Q: openDB(t), Home: home, Roster: roster, Tokens: sessiontoken.New(home), Ports: LaunchPorts{
 		Usage:          fakeUsage{st: AccountStatus{Exists: true}},
 		Accounts:       fakeAccounts{true},
@@ -713,39 +709,22 @@ func TestAnOpenAgentsMoveDoesNotTakeTheSlotAnOlderClosedWaiterHolds(t *testing.T
 	}
 }
 
-func TestAnAgentIsToldItsTeamFromTeamYAML(t *testing.T) {
+func TestAnAgentIsToldItsTeamFromTheRoster(t *testing.T) {
 	r := newLaunchRig(t)
-	v, err := yamlcompat.ParseOrdered(`
-teams:
-  manager: [manager, marina, keeper]
-  lone: [scout]
-agents:
-  manager: {}
-  marina: {}
-  keeper: {}
-  scout: {}
-edges:
-  - { from: "human", to: "*" }
-  - { from: "*", to: "human" }
-`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	tm, err := team.NewTeam(v.(*yamlcompat.OMap))
-	if err != nil {
-		t.Fatal(err)
-	}
 	home := r.l.Home
+	for _, n := range []string{"manager", "manager.marina", "manager.keeper", "lone"} {
+		teamtest.Set(t, home, n, "vendor", "claude")
+	}
+	tm, err := team.LoadTeam(home)
+	if err != nil {
+		t.Fatal(err)
+	}
 	r.l.Ports.Routing = func() *team.Team { return tm }
 	r.l.Ports.TeamRules = func(agent string) []string {
 		if err := team.SeedRules(home, tm); err != nil {
 			t.Fatal(err)
 		}
 		return team.Rules(home, agent, tm)
-	}
-	for _, n := range []string{"manager", "marina", "keeper", "scout"} {
-		os.MkdirAll(filepath.Dir(r.l.Roster.AgentFile(n)), 0o755)
-		os.WriteFile(r.l.Roster.AgentFile(n), []byte("vendor: claude\n"), 0o644)
 	}
 	reportLine := func(text string) string {
 		for _, ln := range strings.Split(text, "\n") {
@@ -765,13 +744,13 @@ edges:
 	culture := []string{"Keep messages short", "no progress or FYI messages", "Never schedule your own wakeup", "You do not implement",
 		"Check main before you assign", "founder's own words", "Finding the bottleneck is your job"}
 	// A team that empties its rules file is not seeded again: it gets only the facts.
-	context("scout")
+	context("lone")
 	if err := os.Remove(filepath.Join(home, "shared", "team", "lone.md")); err != nil {
 		t.Fatal(err)
 	}
-	mgr, dev, scout := context("manager"), context("marina"), context("scout")
+	mgr, dev, scout := context("manager"), context("manager.marina"), context("lone")
 	rules := "# Rules for team manager\n" + strings.TrimSpace(team.DefaultRules)
-	for who, text := range map[string]string{"manager": mgr, "marina": dev} {
+	for who, text := range map[string]string{"manager": mgr, "manager.marina": dev} {
 		if !strings.Contains(text, rules) {
 			t.Errorf("%s: the seeded team file is not in the prompt:\n%s", who, text)
 		}
@@ -781,13 +760,13 @@ edges:
 			t.Errorf("%q is written by code, not read from the team file:\n%s", w, scout)
 		}
 	}
-	if !strings.Contains(mgr, "Your reports: `keeper`, `marina`.") || !strings.Contains(mgr, "--blocked-by T<n>") {
+	if !strings.Contains(mgr, "Your reports: `manager.keeper`, `manager.marina`.") || !strings.Contains(mgr, "--blocked-by T<n>") {
 		t.Errorf("a supervisor is not told its reports and how to give them work:\n%s", mgr)
 	}
 	if strings.Contains(dev, "Your reports") {
 		t.Errorf("a report is told it has reports:\n%s", dev)
 	}
-	for who, text := range map[string]string{"manager": mgr, "marina": dev, "scout": scout} {
+	for who, text := range map[string]string{"manager": mgr, "manager.marina": dev, "lone": scout} {
 		line := reportLine(text)
 		bossIsHuman := strings.HasPrefix(line, "You report to `human`")
 		if !strings.Contains(line, "`hl task done T<n>") || !strings.Contains(line, "that is your report") {
@@ -807,8 +786,8 @@ edges:
 		t.Errorf("wrong boss:\n%s\n---\n%s", dev, scout)
 	}
 	// The founder's words typed at an agent: it is told to answer them with hl say, and the others are not told of typing.
-	r.l.FounderTyped = func(a string) bool { return a == "marina" }
-	if typed, other := r.l.yourTeam("marina"), r.l.yourTeam("manager"); !strings.Contains(typed, "answer with `hl say` too; your terminal text is not shown") ||
+	r.l.FounderTyped = func(a string) bool { return a == "manager.marina" }
+	if typed, other := r.l.yourTeam("manager.marina"), r.l.yourTeam("manager"); !strings.Contains(typed, "answer with `hl say` too; your terminal text is not shown") ||
 		!strings.Contains(typed, "what you write in your terminal reaches no one") || strings.Contains(other, "type straight into your terminal") {
 		t.Errorf("typed:\n%s\n---\nnot typed:\n%s", typed, other)
 	}
@@ -1110,10 +1089,7 @@ func TestTheClosestAccountIsShortOnlyOfTheRoomTest(t *testing.T) {
 
 func TestAPinOffersNothingAndRefusesAnotherAccount(t *testing.T) {
 	r, row := pastFitRig(t)
-	yaml := "vendor: claude\nmodel: m1\neffort: high\naccount: own\n"
-	if err := os.WriteFile(r.l.Roster.AgentFile("ann"), []byte(yaml), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	teamtest.Set(t, r.l.Home, "ann", "account", "own")
 	if got := r.l.ClosestRoom(r.l.Q, "ann", row, nil); got != "" {
 		t.Fatalf("a pinned agent goes nowhere: %q", got)
 	}

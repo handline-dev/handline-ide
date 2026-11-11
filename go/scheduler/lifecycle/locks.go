@@ -99,7 +99,7 @@ func expandUser(p string) string {
 	return p
 }
 
-// ExpandRepo is an agent.yaml repo as a path git can run in: ~ taken to the home, links resolved; "" stays "".
+// ExpandRepo is a workspace folder as a path git can run in: ~ taken to the home, links resolved; "" stays "".
 func ExpandRepo(p string) string {
 	if p == "" {
 		return ""

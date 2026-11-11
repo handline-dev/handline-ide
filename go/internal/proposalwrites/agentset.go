@@ -49,7 +49,8 @@ func (e *Env) agentSetMethod(c *rpc.Conn, params map[string]any) (any, error) {
 		}
 		ok, said = e.SetByAgent(agent, values, agent)
 	default:
-		ok, said = e.roster().SetValues(e.DB, agent, values, "", idleMinutes, idleClose{e})
+		r := e.roster()
+		ok, said = r.SetValues(e.DB, agent, values, "", idleMinutes, idleClose{e, r})
 	}
 	if !ok {
 		return nil, rpc.Refused(said, "", "")

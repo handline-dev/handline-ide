@@ -16,6 +16,7 @@ import (
 	"github.com/handline/handline/go/agentctl/term"
 	dbpkg "github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/scheduler/lifecycle"
 )
 
@@ -143,7 +144,7 @@ func TestATerminalAgentIsStartedInANewWorktreeThroughTheHostAndItsHandleKept(t *
 		t.Fatal(err)
 	}
 	ft.started = sessionRecordIn(dir)
-	os.WriteFile(filepath.Join(p.home, "agents", "bob", "agent.yaml"), []byte("vendor: claude\nrepo: "+repo+"\n"), 0o644)
+	teamtest.Set(t, p.home, "bob", "repo", repo)
 	ok, said, err := lc.Spawns.SpawnWith("bob", repo, lifecycle.SpawnOpts{})
 	if err != nil {
 		t.Fatal(err)

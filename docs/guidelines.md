@@ -99,4 +99,3 @@ terminal; the stall lifts by itself once the screen is clear.
 - Check `hl inbox` before you check on an agent. The answer is usually there.
 - Have long tasks keep a progress note with `hl progress "done: ... left: ..."`. If the session
   is replaced, the next one starts from that note instead of the transcript.
-- After you change `team.yaml` or an `agent.yaml`, seal the change on the Team page.

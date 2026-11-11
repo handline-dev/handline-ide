@@ -38,13 +38,13 @@ func has(items []cronspec.Schedule, s cronspec.Schedule) bool {
 	return false
 }
 
-// write keeps the agent's schedules in its agent.yaml, validated; none removes the key.
+// write keeps the agent's schedules in its row, validated; none removes them.
 func (e *Env) writeSchedules(agent string, items []cronspec.Schedule) error {
-	return WriteSchedules(e.Home, agent, items)
+	return WriteSchedules(team.NewRoster(e.Home), agent, items)
 }
 
-// WriteSchedules keeps the agent's schedules in its agent.yaml; none removes the key.
-func WriteSchedules(home, agent string, items []cronspec.Schedule) error {
+// WriteSchedules keeps the agent's schedules in its row through r; none removes them.
+func WriteSchedules(r *team.Roster, agent string, items []cronspec.Schedule) error {
 	var value any
 	if len(items) > 0 {
 		list := make([]any, len(items))
@@ -53,7 +53,7 @@ func WriteSchedules(home, agent string, items []cronspec.Schedule) error {
 		}
 		value = pyjson.PyJSON(list, true, true)
 	}
-	return team.NewRoster(home).SetKeys(agent, []yamlcompat.Pair{{Key: "schedules", Val: value}})
+	return r.SetKeys(agent, []yamlcompat.Pair{{Key: "schedules", Val: value}})
 }
 
 func (e *Env) scheduleList(agent string, add *cronspec.Schedule) ([]cronspec.Schedule, error) {

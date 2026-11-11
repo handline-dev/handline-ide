@@ -131,7 +131,6 @@ export const useTaskDiscard = (target?: string) => useWrite("task.discard", targ
 export const useTaskWithdraw = (target?: string) => useWrite("task.withdraw", target);
 export const useTaskEdit = (target?: string) => useWrite("task.edit", target);
 export const useTaskAsk = (target?: string) => useWrite("task.ask", target);
-export const useTeamSeal = (target?: string) => useWrite("team.seal", target);
 export const useProposalWithdraw = (target?: string) => useWrite("proposal.withdraw", target);
 export const useTrustRemove = (target?: string) => useWrite("trust.remove", target);
 export const useProposalDecide = (target?: string) => useWrite("proposal.decide", target);

@@ -2,12 +2,13 @@ package lifecycle
 
 import (
 	"fmt"
-	"github.com/handline/handline/go/scheduler/worktreepaths"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/handline/handline/go/scheduler/worktreepaths"
 
 	"github.com/handline/handline/go/kit/gitrun"
 	"github.com/handline/handline/go/kit/peer"

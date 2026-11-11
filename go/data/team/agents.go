@@ -10,13 +10,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"unicode/utf8"
 
-	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/paths"
-	"github.com/handline/handline/go/kit/protected"
-	"github.com/handline/handline/go/kit/sealed"
-	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/kit/yamlcompat"
 )
 
@@ -39,12 +34,9 @@ var (
 	EffortShort = map[string]string{"low": "low", "medium": "mid", "high": "high", "xhigh": "xhi", "max": "max"}
 	// Modes are Claude's permission modes.
 	Modes = []string{"default", "auto", "acceptEdits", "plan"}
-
-	// NotText is said wherever a name is refused for what YAML would make of it.
-	NotText = "It would not be read back as text from the YAML files it is written into (no, on, null, numbers and dates are not); choose another."
 )
 
-// Config is an agent.yaml read: its top-level map.
+// Config is an agent's settings, by agents column (repo its workspace's folder).
 type Config = map[string]any
 
 func truthy(v any) bool {
@@ -138,7 +130,7 @@ func MCPConfigText(text string) (string, error) {
 	return encodeCompact(o), nil
 }
 
-// MCPConfigArgs is this agent's own MCP servers as --mcp-config <json>. They come from agent.yaml, which is sealed, not from a
+// MCPConfigArgs is this agent's own MCP servers as --mcp-config <json>. They come from its row, which the founder sets, not from a
 // project .mcp.json. A value that is not a valid config adds nothing.
 func MCPConfigArgs(cfg Config) []string {
 	v, ok := cfg["mcp_config"].(string)
@@ -333,20 +325,7 @@ func Kind(cfg Config) string {
 	return vendor + " " + out
 }
 
-// Roster is the agents of one home: their files, the seals on them and the founder's grants.
-type Roster struct {
-	Home  string
-	Store *protected.Store
-	Seals *sealed.Seals
-}
-
-// NewRoster is the roster of home.
-func NewRoster(home string) *Roster {
-	s := sealed.New(home)
-	return &Roster{Home: home, Store: s.Store, Seals: s}
-}
-
-// ModeOf is the permission mode a launch will use: the agent.yaml mode when it names one, else auto. Anything else reads as the
+// ModeOf is the permission mode a launch will use: its row's mode when it names one, else auto. Anything else reads as the
 // default, never as more than was asked.
 func (r *Roster) ModeOf(agent string, cfg Config) string {
 	if v, ok := cfg["mode"].(string); ok && contains(Modes, v) {
@@ -364,7 +343,7 @@ func contains(xs []string, x string) bool {
 	return false
 }
 
-// SandboxOn is whether the sandbox is on: what agent.yaml says when it has `sandbox: true` or `sandbox: false`, else the founder's
+// SandboxOn is whether the sandbox is on: what its row's sandbox says when it is set, else the founder's
 // default, which is on once the protected switch sandbox_default reads "on" (an agent cannot write the store, and the roster files are in
 // every session's denyWrite) and off before.
 func (r *Roster) SandboxOn(agent string, cfg Config) bool {
@@ -378,7 +357,7 @@ func (r *Roster) SandboxOn(agent string, cfg Config) bool {
 	return strings.TrimSpace(v) == "on"
 }
 
-// SandboxDomains are the hosts a sandboxed session may reach: the package registries every repo builds from, and those agent.yaml
+// SandboxDomains are the hosts a sandboxed session may reach: the package registries every repo builds from, and those its row
 // adds under sandbox_domains, comma separated.
 func SandboxDomains(cfg Config) []string {
 	out := []string{"registry.npmjs.org", "proxy.golang.org", "sum.golang.org"}
@@ -411,7 +390,7 @@ var RepoAllowanceNames = map[string]func(*RepoAllowances){
 	},
 }
 
-// RepoAllowancesOf are the allowances of the repo agent.yaml names. A repo has none until the founder gives them (`hl sandbox-repo`),
+// RepoAllowancesOf are the allowances of the repo its row names. A repo has none until the founder gives them (`hl sandbox-repo`),
 // and a line that names no allowance grants nothing.
 func (r *Roster) RepoAllowancesOf(cfg Config) RepoAllowances {
 	var out RepoAllowances
@@ -426,11 +405,6 @@ func (r *Roster) RepoAllowancesOf(cfg Config) RepoAllowances {
 		}
 	}
 	return out
-}
-
-// AgentFile is the path of an agent's agent.yaml.
-func (r *Roster) AgentFile(name string) string {
-	return filepath.Join(paths.AgentDir(r.Home, name), "agent.yaml")
 }
 
 func pairsGet(p []yamlcompat.Pair, k string) (any, bool) {
@@ -452,225 +426,6 @@ func pairsSet(p []yamlcompat.Pair, k string, v any) []yamlcompat.Pair {
 	return append(p, yamlcompat.Pair{Key: k, Val: v})
 }
 
-func pairsPop(p []yamlcompat.Pair, k string) []yamlcompat.Pair {
-	for i := range p {
-		if p[i].Key == k {
-			return append(p[:i:i], p[i+1:]...)
-		}
-	}
-	return p
-}
-
-// Write replaces agent.yaml with pairs and seals it. The founder's session only.
-func (r *Roster) Write(name string, pairs []yamlcompat.Pair) error {
-	if err := r.Seals.RequireFounder(); err != nil {
-		return err
-	}
-	text, err := yamlcompat.Dump(pairs)
-	if err != nil {
-		return err
-	}
-	if err := os.WriteFile(r.AgentFile(name), []byte(text), 0o644); err != nil {
-		return err
-	}
-	return r.Seals.Seal(sealed.AgentKey(name), text)
-}
-
-// SetKeys sets keys of the agent's agent.yaml (a nil value removes the key) in one write, and seals the file.
-func (r *Roster) SetKeys(name string, set []yamlcompat.Pair) error {
-	_, pairs, err := r.readOrdered(name)
-	if err != nil {
-		return err
-	}
-	for _, kv := range set {
-		if kv.Val == nil {
-			pairs = pairsPop(pairs, kv.Key)
-		} else {
-			pairs = pairsSet(pairs, kv.Key, kv.Val)
-		}
-	}
-	return r.Write(name, pairs)
-}
-
-// Read is the agent's agent.yaml, refused when it is not what was sealed, is not a map, or holds a control character.
-func (r *Roster) Read(name string) (Config, error) {
-	cfg, _, err := r.readOrdered(name)
-	return cfg, err
-}
-
-// NotRegistered is the error for an agent with no agent.yaml.
-type NotRegistered struct{ Name, Path string }
-
-func (e *NotRegistered) Error() string {
-	return fmt.Sprintf("agent '%s' is not registered (%s)", e.Name, e.Path)
-}
-
-func (r *Roster) readOrdered(name string) (Config, []yamlcompat.Pair, error) {
-	p := r.AgentFile(name)
-	b, err := os.ReadFile(p)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil, nil, &NotRegistered{name, p}
-	}
-	if err != nil {
-		return nil, nil, err
-	}
-	if !utf8.Valid(b) {
-		return nil, nil, &yamlcompat.ConfigError{Msg: p + ": not valid UTF-8"}
-	}
-	text := string(b)
-	if err := r.Seals.Check(sealed.AgentKey(name), text, p); err != nil {
-		return nil, nil, err
-	}
-	pairs, isMap, err := yamlcompat.ParsePairs(text)
-	if err != nil {
-		return nil, nil, err
-	}
-	if !isMap {
-		return nil, nil, &yamlcompat.ConfigError{Msg: p + ": top level is not a map"}
-	}
-	cfg := Config{}
-	for _, x := range pairs {
-		cfg[x.Key] = x.Val
-	}
-	// REFUSE, not strip: a value Dump would not have written must not silently run as something other than what the file says.
-	if err := yamlcompat.RefuseUnsafeValues(cfg, p); err != nil {
-		return nil, nil, err
-	}
-	return cfg, pairs, nil
-}
-
-// RegisterOpts is what Register is asked to set; a nil field is left as it is.
-type RegisterOpts struct {
-	Role, Weight, RoleFile, Repo           string
-	Model, Effort, Vendor, Mode, MCPConfig *string
-	ContextTokens, ExtraWorktrees          *int64
-	Chrome, Sandbox                        *bool
-}
-
-func strp(s string) *string { return &s }
-
-func present(p *string) bool { return p != nil && *p != "" }
-
-// Register creates or updates an agent: its folders, its agent.yaml (sealed) and the founder's grants. A name is stored, drawn
-// on every screen and typed into terminals, so a control byte in it is refused here.
-func (r *Roster) Register(name string, o RegisterOpts) (string, error) {
-	if name == "" || strings.Contains(name, "/") || strings.HasPrefix(name, ".") || textsafe.HasUnsafe(name) {
-		return "", fmt.Errorf("bad agent name: %s", pyQuote(name))
-	}
-	if name == db.Human || name == db.Gate {
-		return "", fmt.Errorf("bad agent name: %s is the board's own name for the founder or a gate", pyQuote(name))
-	}
-	if !yamlcompat.IsPlainText(name) {
-		return "", fmt.Errorf("bad agent name: %s. %s", pyQuote(name), NotText)
-	}
-	if present(o.Effort) && !contains(ValidEffort, *o.Effort) {
-		return "", fmt.Errorf("effort must be one of %s, not %s", strings.Join(ValidEffort, ", "), pyQuote(*o.Effort))
-	}
-	if present(o.Vendor) {
-		if err := CheckVendor(*o.Vendor); err != nil {
-			return "", err
-		}
-	}
-	// First, so an agent's refusal leaves nothing half-written: the grant is the founder's alone.
-	if err := r.Seals.RequireFounder(); err != nil {
-		return "", err
-	}
-	if o.Mode != nil && !contains(Modes, *o.Mode) {
-		return "", fmt.Errorf("mode must be one of %s, not %s", strings.Join(Modes, ", "), pyQuote(*o.Mode))
-	}
-	d := paths.AgentDir(r.Home, name)
-	f := r.AgentFile(name)
-	var text string
-	_, statErr := os.Stat(f)
-	isNew := statErr != nil
-	if isNew {
-		// Built as a map and written by Dump, which reads every line back; built before the folder exists, so a value it refuses leaves nothing.
-		weight := o.Weight
-		if weight == "" {
-			weight = "light"
-		}
-		pairs := []yamlcompat.Pair{{Key: "name", Val: name}, {Key: "model", Val: orStr(o.Model, DefaultModel)},
-			{Key: "effort", Val: orStr(o.Effort, DefaultEffort)}, {Key: "weight", Val: weight}, {Key: "enabled", Val: true}}
-		if o.Repo != "" {
-			pairs = append(pairs, yamlcompat.Pair{Key: "repo", Val: o.Repo})
-		}
-		if present(o.Vendor) && *o.Vendor != DefaultVendor {
-			pairs = append(pairs, yamlcompat.Pair{Key: "vendor", Val: *o.Vendor})
-		}
-		if o.Mode != nil && *o.Mode != DefaultMode {
-			pairs = append(pairs, yamlcompat.Pair{Key: "mode", Val: *o.Mode})
-		}
-		if o.Sandbox != nil { // said either way: a file without the key follows the founder's default
-			pairs = append(pairs, yamlcompat.Pair{Key: "sandbox", Val: *o.Sandbox})
-		}
-		if o.Chrome != nil && *o.Chrome {
-			pairs = append(pairs, yamlcompat.Pair{Key: "chrome", Val: true})
-		}
-		if o.ExtraWorktrees != nil && *o.ExtraWorktrees > 0 {
-			pairs = append(pairs, yamlcompat.Pair{Key: "extra_worktrees", Val: min(*o.ExtraWorktrees, MaxExtraWorktrees)})
-		}
-		if present(o.MCPConfig) {
-			t, err := MCPConfigText(*o.MCPConfig)
-			if err != nil {
-				return "", err
-			}
-			pairs = append(pairs, yamlcompat.Pair{Key: "mcp_config", Val: t})
-		}
-		var err error
-		if text, err = yamlcompat.Dump(pairs); err != nil {
-			return "", err
-		}
-	}
-	for _, sub := range []string{"inbox", "journal", "memory"} {
-		if err := os.MkdirAll(filepath.Join(d, sub), 0o755); err != nil {
-			return "", err
-		}
-	}
-	if isNew {
-		if err := os.WriteFile(f, []byte(text), 0o644); err != nil {
-			return "", err
-		}
-		if err := r.Seals.Seal(sealed.AgentKey(name), text); err != nil {
-			return "", err
-		}
-	} else if err := r.update(name, f, o); err != nil {
-		return "", err
-	}
-	rolePath := filepath.Join(d, "ROLE.md")
-	if o.RoleFile != "" {
-		b, err := os.ReadFile(expandUser(o.RoleFile))
-		if err != nil {
-			return "", fmt.Errorf("--role-file not found: %s", expandUser(o.RoleFile))
-		}
-		if err := os.WriteFile(rolePath, b, 0o644); err != nil {
-			return "", err
-		}
-	} else if _, err := os.Stat(rolePath); err != nil {
-		role := o.Role
-		if role == "" {
-			role = "(describe the role)"
-		}
-		if err := os.WriteFile(rolePath, []byte("# "+name+"\n\n"+role+"\n"), 0o644); err != nil {
-			return "", err
-		}
-	}
-	base := filepath.Join(d, "base.md")
-	if _, err := os.Stat(base); err != nil {
-		body := "# base - " + name + "\n\n(injected into every session, so it is fixed overhead.)\n"
-		if err := os.WriteFile(base, []byte(body), 0o644); err != nil {
-			return "", err
-		}
-	}
-	return d, nil
-}
-
-func orStr(p *string, def string) string {
-	if present(p) {
-		return *p
-	}
-	return def
-}
-
 func expandUser(p string) string {
 	if p == "~" || strings.HasPrefix(p, "~/") {
 		return filepath.Join(paths.UserHome(), strings.TrimPrefix(p, "~"))
@@ -678,84 +433,7 @@ func expandUser(p string) string {
 	return p
 }
 
-// update changes what was asked for in an agent.yaml that exists and leaves the rest of the map alone: re-serialized from the
-// parsed document rather than spliced.
-func (r *Roster) update(name, f string, o RegisterOpts) error {
-	b, err := os.ReadFile(f)
-	if err != nil {
-		return err
-	}
-	cfg, isMap, err := yamlcompat.ParsePairs(string(b))
-	if err != nil {
-		return err
-	}
-	if !isMap {
-		return &yamlcompat.ConfigError{Msg: f + ": top level is not a map"}
-	}
-	if present(o.Model) {
-		cfg = pairsSet(cfg, "model", *o.Model)
-	}
-	if present(o.Effort) {
-		cfg = pairsSet(cfg, "effort", *o.Effort)
-	}
-	if o.Weight != "" {
-		cfg = pairsSet(cfg, "weight", o.Weight)
-	}
-	if o.Repo != "" {
-		cfg = pairsSet(cfg, "repo", o.Repo)
-	}
-	if o.ContextTokens != nil && *o.ContextTokens != 0 {
-		cfg = pairsSet(cfg, "context_tokens", *o.ContextTokens)
-	}
-	if o.ExtraWorktrees != nil {
-		n := *o.ExtraWorktrees
-		if n < 0 || n > MaxExtraWorktrees {
-			return fmt.Errorf("extra_worktrees is 0 to %d, not %d", MaxExtraWorktrees, n)
-		}
-		if n != 0 {
-			cfg = pairsSet(cfg, "extra_worktrees", n)
-		} else {
-			cfg = pairsPop(cfg, "extra_worktrees")
-		}
-	}
-	if o.Mode != nil {
-		if *o.Mode == DefaultMode {
-			cfg = pairsPop(cfg, "mode")
-		} else {
-			cfg = pairsSet(cfg, "mode", *o.Mode)
-		}
-	}
-	if o.Sandbox != nil {
-		cfg = pairsSet(cfg, "sandbox", *o.Sandbox) // said either way: a file without the key follows the founder's default
-	}
-	if o.Chrome != nil {
-		if *o.Chrome {
-			cfg = pairsSet(cfg, "chrome", true)
-		} else {
-			cfg = pairsPop(cfg, "chrome")
-		}
-	}
-	if o.MCPConfig != nil {
-		if *o.MCPConfig != "" {
-			t, err := MCPConfigText(*o.MCPConfig)
-			if err != nil {
-				return err
-			}
-			cfg = pairsSet(cfg, "mcp_config", t)
-		} else {
-			cfg = pairsPop(cfg, "mcp_config")
-		}
-	}
-	if present(o.Vendor) && *o.Vendor != DefaultVendor {
-		cfg = pairsSet(cfg, "vendor", *o.Vendor)
-	}
-	if _, has := pairsGet(cfg, "effort"); !has {
-		cfg = pairsSet(cfg, "effort", DefaultEffort)
-	}
-	return r.Write(name, cfg)
-}
-
-// CheckoutProblem is why repo (as agent.yaml keeps it, ~ allowed) is no place to make a worktree: "is not an absolute path", "is not a
+// CheckoutProblem is why repo (its workspace's folder, ~ allowed) is no place to make a worktree: "is not an absolute path", "is not a
 // folder" or "is not a git checkout"; "" when it is one.
 func CheckoutProblem(repo string) string {
 	path := expandUser(repo)
@@ -767,18 +445,6 @@ func CheckoutProblem(repo string) string {
 	}
 	if _, err := os.Stat(filepath.Join(path, ".git")); err != nil {
 		return "is not a git checkout"
-	}
-	return ""
-}
-
-// RepoOf is where this agent works, when it has been told.
-func (r *Roster) RepoOf(name string) string {
-	cfg, err := r.Read(name)
-	if err != nil {
-		return ""
-	}
-	if v := cfg["repo"]; truthy(v) {
-		return pyStr(v)
 	}
 	return ""
 }

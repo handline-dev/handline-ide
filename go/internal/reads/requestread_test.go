@@ -4,12 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/taskboard/attachments"
 )
@@ -196,7 +195,7 @@ func TestAMessagesImagesReadBackInPartsWithAPathOnlyForAnAgent(t *testing.T) {
 func TestRequestReadIsForTheEndsTheirSupervisorsTheTaskAndTheFounder(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	os.WriteFile(filepath.Join(e.Home, "team.yaml"), []byte("agents:\n  amy: {}\n  amy.kid: {}\n  bob: {}\n  cat: {}\n  dan: {}\n  eve: {}\n"), 0o644)
+	teamtest.Seed(t, e.Home, "amy", "amy.kid", "bob", "cat", "dan", "eve")
 	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(1, 10, 'amy.kid', 'bob', 'private', 'landed', 'ask', 1)")
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 't', 'dan', 'eve', 1)")
 	run(t, e, "INSERT INTO task_requests(task_id, request_id) VALUES(1, 1)")
@@ -253,7 +252,7 @@ func TestRequestReadLetsTheTargetOfTheFoundersQuoteReadWhatWasQuoted(t *testing.
 func TestRequestReadTakesARefOrPrefixUnderTheSameRule(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	os.WriteFile(filepath.Join(e.Home, "team.yaml"), []byte("agents:\n  amy: {}\n  bob: {}\n  cat: {}\n"), 0o644)
+	teamtest.Seed(t, e.Home, "amy", "bob", "cat")
 	run(t, e, "INSERT INTO requests(id, ref, ts, requester, target, body, state, kind, edge_ok) VALUES(1, 'c0ffee000001', 10, 'amy', 'bob', 'private', 'landed', 'ask', 1)")
 	agent := func(name string) *rpc.Conn {
 		return &rpc.Conn{Caller: rpc.Caller{Role: "agent", Info: map[string]any{"kind": "agent", "name": name}}}

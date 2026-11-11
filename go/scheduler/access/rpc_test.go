@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/kit/storetest"
 	"github.com/handline/handline/go/protocol/rpc"
@@ -53,8 +54,7 @@ func call(t *testing.T, srv *rpc.Server, calls ...[2]string) []map[string]any {
 func TestGrantPathsAndRetry(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()
-	os.MkdirAll(filepath.Join(home, "agents", "a"), 0o755)
-	os.WriteFile(filepath.Join(home, "agents", "a", "agent.yaml"), []byte("vendor: claude\n"), 0o644)
+	teamtest.Set(t, home, "a", "vendor", "claude")
 	srv := rpc.NewServer(founder{}, "x", store.LatestVersion(), "local", func(string, ...any) {})
 	srv.DB = storetest.Open(t)
 	var events []map[string]any

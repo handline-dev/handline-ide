@@ -16,7 +16,7 @@ import (
 
 // hookRig is a rig with a migrated database, the Go hook switched on unless off, and the test process as the founder.
 func hookRig(t *testing.T, on bool) *rig {
-	r := agentsRig(t)
+	r := newRig(t)
 	t.Setenv("HANDLINE_TEST_ROOT", r.root)
 	t.Setenv("HANDLINE_AGENT", "")
 	d, err := storetest.OpenAt(t, paths.DBFile(r.home))

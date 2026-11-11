@@ -3,6 +3,7 @@ package proposalwrites
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -10,7 +11,7 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/gitrun"
-	"github.com/handline/handline/go/kit/sealed"
+	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/yamlcompat"
 )
 
@@ -27,22 +28,14 @@ func refusal(t *testing.T, m map[string]any) string {
 func TestAgentRetireRefusesADependedOnAgentAndRetiresOneThatIsNot(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
-	// bob.kid hangs under bob's name; a supervisor edge from bob no longer makes alice its report
-	withEdge := strings.NewReplacer("  bob: {}\n", "  bob: {}\n  bob.kid: {}\n",
-		"edges:\n", "edges:\n  - { from: \"bob\", to: \"alice\", relation: supervisor }\n").Replace(teamYAML)
-	if err := os.WriteFile(filepath.Join(r.home, "team.yaml"), []byte(withEdge), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := sealed.New(r.home).Seal(sealed.Team, withEdge); err != nil {
-		t.Fatal(err)
-	}
+	// bob.kid is an agent of bob's workspace, reporting to bob
 	if _, err := team.NewRoster(r.home).Register("bob.kid", team.RegisterOpts{Role: "r"}); err != nil {
 		t.Fatal(err)
 	}
 	if msg := refusal(t, r.call("agent.retire", `{"agent":"bob","request_id":"r2"}`)); !strings.Contains(msg, "bob has agents under it (bob.kid)") {
 		t.Fatal(msg)
 	}
-	if !strings.Contains(r.file("team.yaml"), "  bob: {}") {
+	if !slices.Contains(paths.ListAgents(r.home), "bob") {
 		t.Fatal("a refusal retired nothing")
 	}
 	// bob.kid is retired: nothing depends on it
@@ -53,13 +46,13 @@ func TestAgentRetireRefusesADependedOnAgentAndRetiresOneThatIsNot(t *testing.T) 
 	if res == nil || !strings.HasPrefix(res["said"].(string), "bob.kid is retired; its folder is at "+archive) {
 		t.Fatalf("%v", m)
 	}
-	if _, err := os.Stat(filepath.Join(archive, "agent.yaml")); err != nil {
+	if _, err := os.Stat(filepath.Join(archive, "ROLE.md")); err != nil {
 		t.Fatal("the folder is archived:", err)
 	}
 	var rows int
 	r.db.QueryRow("SELECT COUNT(*) FROM agent_state WHERE agent = 'bob.kid'").Scan(&rows)
-	if rows != 0 || strings.Contains(r.file("team.yaml"), "bob.kid") || r.file("team.yaml.bak") == "" {
-		t.Fatalf("rows %d\n%s", rows, r.file("team.yaml"))
+	if rows != 0 || strings.Contains(r.rosterText(), "bob.kid") {
+		t.Fatalf("rows %d\n%s", rows, r.rosterText())
 	}
 	again, _ := r.call("agent.retire", `{"agent":"bob.kid","request_id":"r3"}`)["result"].(map[string]any)
 	if again == nil || again["replayed"] != true {
@@ -111,7 +104,7 @@ func TestTheFoundersRetireOfARunningAgentAnswersOnceItIsRetired(t *testing.T) {
 	r := newRig(t)
 	m := r.retireHeld(`{"agent":"bob","request_id":"h1"}`, func(sweep func(bool)) {
 		sweep(false)
-		if !strings.Contains(r.file("team.yaml"), "  bob: {}") {
+		if !slices.Contains(paths.ListAgents(r.home), "bob") {
 			t.Error("bob stays while its turn runs")
 		}
 		sweep(true)
@@ -119,8 +112,8 @@ func TestTheFoundersRetireOfARunningAgentAnswersOnceItIsRetired(t *testing.T) {
 	if res, _ := m["result"].(map[string]any); res == nil || !strings.HasPrefix(res["said"].(string), "bob is retired; its folder is at ") {
 		t.Fatalf("the outcome, not an acceptance: %v", m)
 	}
-	if strings.Contains(r.file("team.yaml"), "bob") || r.state(r.e.listing()[0].id()) != "applied" {
-		t.Fatalf("retired: %s\n%s", r.state(r.e.listing()[0].id()), r.file("team.yaml"))
+	if strings.Contains(r.rosterText(), "bob") || r.state(r.e.listing()[0].id()) != "applied" {
+		t.Fatalf("retired: %s\n%s", r.state(r.e.listing()[0].id()), r.rosterText())
 	}
 }
 
@@ -139,8 +132,8 @@ func TestARetireWhoseTurnOutlastsTheLimitIsRefusedAndDropped(t *testing.T) {
 	}
 	r.e.SweepHeld(HeldPorts{Alive: func(string) bool { return false }, Idle: func(string) bool { return true },
 		Close: func(string) (bool, string) { return true, "" }, Start: func(string) (bool, string) { return true, "" }})
-	if !strings.Contains(r.file("team.yaml"), "  bob: {}") || r.state(pid) != "withdrawn" {
-		t.Fatalf("a later sweep retired bob: %s\n%s", r.state(pid), r.file("team.yaml"))
+	if !strings.Contains(r.rosterText(), "  bob: {}") || r.state(pid) != "withdrawn" {
+		t.Fatalf("a later sweep retired bob: %s\n%s", r.state(pid), r.rosterText())
 	}
 }
 
@@ -183,7 +176,7 @@ func TestTheFoundersRetireIsRefusedWhileAWorktreeHoldsWorkWithNoAnswer(t *testin
 	if h := list[0].(map[string]any); h["path"] != wt["ahead"] || h["commits_ahead"] != float64(1) || h["files_changed"] != float64(0) {
 		t.Fatalf("%v", h)
 	}
-	if !strings.Contains(r.file("team.yaml"), "  bob: {}") {
+	if !slices.Contains(paths.ListAgents(r.home), "bob") {
 		t.Fatal("bob was retired")
 	}
 	if m := r.call("agent.retire", `{"agent":"bob","worktree":"maybe","request_id":"w0b"}`); m["error"] == nil {
@@ -241,7 +234,7 @@ func TestTheFoundersAnswerIsCarriedOutForAWorktreeThatHoldsWork(t *testing.T) {
 // assertNotRetired is bob still on the team with each of its worktrees where it was.
 func assertNotRetired(t *testing.T, r *rig, wt map[string]string) {
 	t.Helper()
-	if !strings.Contains(r.file("team.yaml"), "  bob: {}") {
+	if !slices.Contains(paths.ListAgents(r.home), "bob") {
 		t.Fatal("bob was retired")
 	}
 	for name, path := range wt {
@@ -374,8 +367,8 @@ func TestARunningAgentsRetireKeepsTheFoundersAnswerForItsTurnsEnd(t *testing.T) 
 	if res, _ := m["result"].(map[string]any); res == nil || !strings.Contains(res["said"].(string), wt["ahead"]+" is removed with what it held") {
 		t.Fatalf("%v", m)
 	}
-	if _, err := os.Stat(wt["ahead"]); err == nil || strings.Contains(r.file("team.yaml"), "  bob: {}") {
-		t.Fatalf("bob retired and its worktree forced away (stat err %v)\n%s", err, r.file("team.yaml"))
+	if _, err := os.Stat(wt["ahead"]); err == nil || strings.Contains(r.rosterText(), "  bob: {}") {
+		t.Fatalf("bob retired and its worktree forced away (stat err %v)\n%s", err, r.rosterText())
 	}
 }
 
@@ -441,7 +434,7 @@ func TestAnAgentInTheRepositorysOwnCheckoutIsDeletedAndTheCheckoutStays(t *testi
 	if m := r.call("agent.retire", `{"agent":"bob","request_id":"c1"}`); m["result"] == nil {
 		t.Fatalf("%v", m)
 	}
-	if _, err := os.Stat(filepath.Join(main, ".git")); err != nil || strings.Contains(r.file("team.yaml"), "  bob: {}") {
+	if _, err := os.Stat(filepath.Join(main, ".git")); err != nil || strings.Contains(r.rosterText(), "  bob: {}") {
 		t.Fatalf("bob retired and its checkout kept (stat err %v)", err)
 	}
 }

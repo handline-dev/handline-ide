@@ -232,7 +232,7 @@ func (t *Tick) supervise(agent string, now int64, actions *[]string, afterHandof
 	}
 
 	// An agent with nowhere to run cannot be given work by anyone but a human, which is what sends an agent looking for a subagent that
-	// dies with its session. The one fact the daemon needs is which repository: `repo:` in agent.yaml. An answer counts as work here.
+	// dies with its session. The one fact the daemon needs is which repository: its workspace's folder. An answer counts as work here.
 	need := t.Lifecycle.StartOrWakeNeeded(q, agent, row)
 	if need == nil && !t.Lifecycle.WaitingFor(q, agent) {
 		t.Lifecycle.ForgetLoadHold(agent) // the work a load hold was timing went away

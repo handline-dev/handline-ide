@@ -63,7 +63,7 @@ func reply(t *testing.T, ch <-chan asked) map[string]any {
 func TestAHookQuestionIsAnsweredThroughItsCall(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	register(e)
+	register(t, e)
 	call, b := ask(t, e, "rm -rf node_modules")
 	if p := openPrompt(t, e, "backend"); p["source"] != "hook" || p["command"] != "rm -rf node_modules" || p["reason"] != "clean up" {
 		t.Fatalf("%v", p)
@@ -93,7 +93,7 @@ func TestAHookQuestionIsAnsweredThroughItsCall(t *testing.T) {
 func TestASecondQuestionWaitsAndAnEndedCallClosesItsOwn(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	register(e)
+	register(t, e)
 	first, b := ask(t, e, "one")
 	ctx, cancel := context.WithCancel(context.Background())
 	second := make(chan bool, 1)
@@ -124,7 +124,7 @@ func TestASecondQuestionWaitsAndAnEndedCallClosesItsOwn(t *testing.T) {
 func TestAQuestionClosedUnderItsCallEndsTheCallUnanswered(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	register(e)
+	register(t, e)
 	call, b := ask(t, e, "rm -rf build")
 	if err := e.closeRow(b.ID, time.Now().Unix()); err != nil {
 		t.Fatal(err)
@@ -148,7 +148,7 @@ func TestAQuestionTheAgentMovedOnFromIsClosed(t *testing.T) {
 		ends bool
 	}{{"Stop", true}, {"UserPromptSubmit", true}, {"Notification", false}, {"PostToolUse", false}} {
 		e := testEnv(t)
-		register(e)
+		register(t, e)
 		call, b := ask(t, e, "cd /x && make")
 		wait := 5 * time.Second
 		if !c.ends {
@@ -190,7 +190,7 @@ func (s sessionOf) FounderKeyOK(string) bool { return false }
 func TestAQuestionWhoseHookClientIsGoneIsClosed(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	register(e)
+	register(t, e)
 	cl, sv := net.Pipe()
 	srv := rpc.NewServer(sessionOf{"backend"}, "abc1234", 7, "local", func(string, ...any) {})
 	Register(srv, e)
@@ -224,7 +224,7 @@ func TestAQuestionWhoseHookClientIsGoneIsClosed(t *testing.T) {
 func TestALateReplayedEventFromBeforeTheQuestionLeavesItOpen(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	register(e)
+	register(t, e)
 	call, b := ask(t, e, "cd /x && make")
 	if _, err := db.AddEventAt(e.DB, time.Now().Unix()-3600, "backend", "Stop"); err != nil {
 		t.Fatal(err)

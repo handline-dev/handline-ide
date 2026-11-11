@@ -3,9 +3,10 @@ package taskwrites
 import (
 	"database/sql"
 	"fmt"
-	"github.com/handline/handline/go/taskboard/msgtest"
 	"path/filepath"
 	"testing"
+
+	"github.com/handline/handline/go/taskboard/msgtest"
 
 	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/kit/storetest"

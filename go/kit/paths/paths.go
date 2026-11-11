@@ -2,7 +2,6 @@
 package paths
 
 import (
-	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -11,8 +10,9 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"syscall"
 	"testing"
+
+	"github.com/handline/handline/go/kit/store"
 )
 
 // Getenv reads HANDLINE_<suffix>.
@@ -65,7 +65,6 @@ func Setenv(env map[string]string, suffix, value string) {
 }
 
 func ConfigFile(home string) string { return filepath.Join(home, "config.yaml") }
-func TeamFile(home string) string   { return filepath.Join(home, "team.yaml") }
 func MCPConfig(home string) string  { return filepath.Join(home, "shared", "mcp.json") }
 
 // QuietDir is the folder a claude the daemon starts outside any worktree runs in: empty and its own, under the daemon's home, so a claude
@@ -142,7 +141,7 @@ func Removing(home, acct string) bool {
 	return err == nil
 }
 
-// ListAgents is the registered agents: a folder holding agent.yaml, by name. A listing that cannot be read is an empty one; a caller
+// ListAgents is the registered agents: a row of the agents table, by name. A listing that cannot be read is an empty one; a caller
 // that must tell the two apart uses ReadAgents.
 func ListAgents(home string) []string {
 	out, _ := ReadAgents(home)
@@ -152,27 +151,28 @@ func ListAgents(home string) []string {
 	return out
 }
 
-// ReadAgents is ListAgents with the read errors: the agents directory, or an entry's agent.yaml, that cannot be read for a reason other
-// than not being there (no agents directory is no agents).
+// ReadAgents is ListAgents with the read errors. A home with no database yet has no agents. Each is named by its old dotted name, as
+// team.LegacyName writes it, until the who columns hold keys (base-v2 1b).
 func ReadAgents(home string) ([]string, error) {
-	entries, err := os.ReadDir(AgentsDir(home))
-	if errors.Is(err, fs.ErrNotExist) {
-		return []string{}, nil
+	d, err := store.SharedIfThere(DBFile(home))
+	if d == nil {
+		return []string{}, err
 	}
+	rows, err := d.Query(`SELECT CASE WHEN w.lead = a.id THEN w.name ELSE w.name || '.' || a.name END AS n
+		FROM agents a JOIN workspaces w ON w.id = a.workspace ORDER BY n`)
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 	out := []string{}
-	for _, e := range entries {
-		_, err := os.Stat(filepath.Join(AgentsDir(home), e.Name(), "agent.yaml"))
-		if err == nil {
-			out = append(out, e.Name())
-		} else if !errors.Is(err, fs.ErrNotExist) && !errors.Is(err, syscall.ENOTDIR) {
+	for rows.Next() {
+		var n string
+		if err := rows.Scan(&n); err != nil {
 			return nil, err
 		}
+		out = append(out, n)
 	}
-	sort.Strings(out)
-	return out, nil
+	return out, rows.Err()
 }
 
 // HlExe is the command a hook or launch line should call hl with: HANDLINE_BIN, else the first of Commands on PATH.

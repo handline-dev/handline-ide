@@ -11,6 +11,7 @@ import (
 
 	dbpkg "github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/internal/reads"
 	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/protocol/rpc"
@@ -193,7 +194,7 @@ func TestTheTriggerIsWhatTheTickWouldHandTheAgentOffFor(t *testing.T) {
 func TestTheTriggerJudgesContextByTheAgentsOwnLimit(t *testing.T) {
 	p, _, wt := termTickRig(t)
 	d := p.db
-	os.WriteFile(filepath.Join(p.home, "agents", "bob", "agent.yaml"), []byte("vendor: claude\ncontext_tokens: 50000\n"), 0o644)
+	teamtest.Set(t, p.home, "bob", "context_tokens", 50000)
 	sid := "44444444-4444-4444-8444-444444444444"
 	writeSession(t, p, "a1", os.Getpid(), `{"cwd":"`+wt+`","sessionId":"`+sid+`","status":"idle"}`)
 	dir, _ := team.AccountConfigDir(p.home, "a1")

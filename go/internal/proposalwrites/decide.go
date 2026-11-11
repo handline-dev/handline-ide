@@ -5,13 +5,13 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"os"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/protected"
 	"github.com/handline/handline/go/kit/pyjson"
 	"github.com/handline/handline/go/kit/textsafe"
@@ -49,7 +49,6 @@ func Register(s *rpc.Server, e *Env) {
 	s.Register("proposal.propose", rpc.Method{Handler: e.proposeMethod})
 	s.Register("proposal.apply_now", rpc.Method{Waits: true, Handler: e.applyNowMethod})
 	s.Register("proposal.withdraw", rpc.Method{Handler: e.withdrawMethod})
-	s.Register("team.seal", rpc.Method{Unkept: true, OwnEvent: true, Handler: e.teamSealMethod})
 	s.Register("agent.retire", rpc.Method{Waits: true, Handler: e.retireMethod})
 }
 
@@ -106,7 +105,7 @@ func (e *Env) concerned(p *Prop) []string {
 		if name == "" || name == db.Human || slices.Contains(out, name) {
 			return
 		}
-		if _, err := os.Stat(e.roster().AgentFile(name)); err == nil {
+		if slices.Contains(paths.ListAgents(e.Home), name) {
 			out = append(out, name)
 		}
 	}

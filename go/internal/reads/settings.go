@@ -21,7 +21,7 @@ import (
 	"github.com/handline/handline/go/taskboard/handoff"
 )
 
-// perAgent is rpc_settings.PER_AGENT: the settings an agent.yaml may override.
+// perAgent is rpc_settings.PER_AGENT: the settings an agent's row may override.
 var perAgent = []string{"park_timeout_s", "ignore_cache_expiry", "bg_notice_s", "bg_grace_s", "bg_check_s", "notice_digest_s", handoff.PromptKey}
 
 // hooksWanted is the events our hook is installed for: claudecode.Wanted, which a test keeps equal.
@@ -167,7 +167,7 @@ func handoffPrompt(set string) string {
 	return set
 }
 
-// ownHandoffPrompts is the agents whose agent.yaml sets a handoff prompt of their own, which the global one does not reach.
+// ownHandoffPrompts is the agents whose row sets a handoff prompt of their own, which the global one does not reach.
 func (e *Env) ownHandoffPrompts() []string {
 	roster := team.NewRoster(e.Home)
 	own := []string{}

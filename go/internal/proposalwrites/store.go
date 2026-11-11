@@ -18,10 +18,10 @@ import (
 )
 
 // ItemKinds are the changes one proposal can ask for; a bundle holds several. StepOrder is the order a team diff is applied in: agents exist
-// before anything names them, links come before an agent is retired, and the standing context of what is left is last.
+// before anything names them, and the standing context of what is left is last.
 var (
-	itemKinds = []string{"add", "retire", "rename", "link", "unlink", "team", "settings", "context", "schedule", "global"}
-	stepOrder = []string{"team", "add", "rename", "settings", "schedule", "unlink", "link", "retire", "context", "global"}
+	itemKinds = []string{"add", "retire", "rename", "team", "settings", "context", "schedule", "global"}
+	stepOrder = []string{"team", "add", "rename", "settings", "schedule", "retire", "context", "global"}
 )
 
 const bundle = "bundle"

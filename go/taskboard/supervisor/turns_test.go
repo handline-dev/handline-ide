@@ -3,8 +3,6 @@ package supervisor
 import (
 	"database/sql"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -35,8 +33,6 @@ func (r *rig) refusedCall(agent, method, params, want string) {
 func (r *rig) bigTeam() {
 	r.t.Helper()
 	r.register("carol", "dave", "erin")
-	team := strings.NewReplacer("eng: [alice, bob]", "eng: [alice, bob, carol, dave, erin]", "  bob: {}\n", "  bob: {}\n  carol: {}\n  dave: {}\n  erin: {}\n").Replace(teamYAML)
-	r.must(os.WriteFile(filepath.Join(r.home, "team.yaml"), []byte(team), 0o644))
 }
 
 func (r *rig) acting(tid int64) string {
@@ -317,21 +313,21 @@ func TestAnEditAnUnblockAndADoneUnderATurn(t *testing.T) {
 func TestTheFoundersPassIsTheirCommentsTellAndTheTaskStillMoves(t *testing.T) {
 	r := newRig(t)
 	r.founderOnlyTeam()
-	r.agentUp("bob")
-	held := r.beginCurrent("bob", "alice", "ship it")
-	r.turnCall("bob", "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"now?","turn":"human","request_id":"p1"}`, held))
+	r.agentUp("ops.bob")
+	held := r.beginCurrent("ops.bob", "eng.alice", "ship it")
+	r.turnCall("ops.bob", "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"now?","turn":"human","request_id":"p1"}`, held))
 	r.turnCall("human", "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"now","request_id":"c1"}`, held))
 	var rid, told int64
 	var from string
-	r.must(r.DB.QueryRow("SELECT r.id, r.requester FROM requests r JOIN task_requests l ON l.request_id = r.id WHERE l.task_id = ? AND r.target = 'bob' ORDER BY r.id DESC LIMIT 1", held).Scan(&rid, &from))
+	r.must(r.DB.QueryRow("SELECT r.id, r.requester FROM requests r JOIN task_requests l ON l.request_id = r.id WHERE l.task_id = ? AND r.target = 'ops.bob' ORDER BY r.id DESC LIMIT 1", held).Scan(&rid, &from))
 	toldBob := func() int64 {
-		r.must(r.DB.QueryRow("SELECT COALESCE(MAX(t.request_id), 0) FROM memo_tells t JOIN task_memos m ON m.id = t.memo_id WHERE m.task_id = ? AND m.author = 'human' AND t.reader = 'bob'", held).Scan(&told))
+		r.must(r.DB.QueryRow("SELECT COALESCE(MAX(t.request_id), 0) FROM memo_tells t JOIN task_memos m ON m.id = t.memo_id WHERE m.task_id = ? AND m.author = 'human' AND t.reader = 'ops.bob'", held).Scan(&told))
 		return told
 	}
 	var comments int
 	r.must(r.DB.QueryRow("SELECT COUNT(*) FROM task_memos WHERE task_id = ? AND author = 'human'", held).Scan(&comments))
 	if toldBob() != rid || from != db.Human || comments != 1 {
-		t.Fatalf("the pass #%d from %q; the comment's tell to bob #%d; %d comments", rid, from, told, comments)
+		t.Fatalf("the pass #%d from %q; the comment's tell to ops.bob #%d; %d comments", rid, from, told, comments)
 	}
 	// an edit tells bob again, and the return stays the comment's tell
 	var mid int64
@@ -345,8 +341,8 @@ func TestTheFoundersPassIsTheirCommentsTellAndTheTaskStillMoves(t *testing.T) {
 	if passes, err := db.PassesPause(r.DB, req); err != nil || !passes {
 		t.Fatalf("the founder's pass is held by a pause: %v %v", passes, err)
 	}
-	r.turnCall("human", "task.edit", fmt.Sprintf(`{"task":%d,"owner":"alice","request_id":"e1"}`, held))
-	if task, _ := db.GetTask(r.DB, held); task.Owner != "alice" {
+	r.turnCall("human", "task.edit", fmt.Sprintf(`{"task":%d,"owner":"eng.alice","request_id":"e1"}`, held))
+	if task, _ := db.GetTask(r.DB, held); task.Owner != "eng.alice" {
 		t.Fatalf("the task did not move: %+v", task)
 	}
 }

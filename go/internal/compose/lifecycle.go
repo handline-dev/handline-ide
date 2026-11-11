@@ -194,11 +194,11 @@ func tellLead(home string, env *supervisor.Env, log func(string, ...any), q db.Q
 func tellLeadOfStall(home string, env *supervisor.Env, log func(string, ...any)) func(db.Q, string, string) {
 	return func(q db.Q, agent, why string) {
 		tellLead(home, env, log, q, agent, fmt.Sprintf("%s is STALLED: %d starts for the work waiting for it failed. The last said: %s. "+
-			"Fix that (often its repo: in agent.yaml), then clear the stall in the app.", agent, states.MaxFailedAttempts, why), "start_stall")
+			"Fix that (often its workspace folder), then clear the stall in the app.", agent, states.MaxFailedAttempts, why), "start_stall")
 	}
 }
 
-// CheckRepos tells each agent's lead when the repo its agent.yaml names is no git checkout, since a start there fails. Once per break: a
+// CheckRepos tells each agent's lead when the repo its row names is no git checkout, since a start there fails. Once per break: a
 // daemon restart does not tell it again, and a repo fixed and broken again is told again.
 func CheckRepos(q db.Q, home string, env *supervisor.Env, log func(string, ...any)) {
 	roster := team.NewRoster(home)
@@ -224,7 +224,7 @@ func CheckRepos(q db.Q, home string, env *supervisor.Env, log func(string, ...an
 		if why != "" {
 			log("  %s: repo %s %s", agent, repo, why)
 			tellLead(home, env, log, q, agent, fmt.Sprintf("%s's repo %s %s, so it cannot be started there. Give it the absolute path of a "+
-				"git checkout (repo: in its agent.yaml).", agent, repo, why), "bad_repo")
+				"git checkout (its workspace folder).", agent, repo, why), "bad_repo")
 		}
 	}
 }
@@ -488,7 +488,7 @@ func (noBlocked) NoteCloseFailure(db.Q, string)          {}
 func (noBlocked) PastDialog(db.Q, string) (bool, string) { return false, notServed }
 func (noBlocked) StopWorkAndExit(db.Q, string) bool      { return false }
 
-// noteSettings is handoff.Settings: config.yaml's flags, and an agent.yaml's own boolean under a key.
+// noteSettings is handoff.Settings: config.yaml's flags, and an agent's own boolean column.
 type noteSettings struct {
 	*settings.Settings
 	roster *team.Roster

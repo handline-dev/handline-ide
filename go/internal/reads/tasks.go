@@ -140,7 +140,7 @@ func (e *Env) openTasks() ([]row, error) {
 }
 
 // reach is the agents whose tasks agent sees: itself and everyone under it, walked down the supervisor edges the
-// stored views record (the Python daemon reads the same from team.yaml and writes them into agent_view each tick).
+// stored views record (the Python daemon wrote them into agent_view each tick).
 // Reach is the agent and the agents under it that are registered: what an agent session may read of tasks and notifications.
 func (e *Env) Reach(agent string) (map[string]bool, error) { return e.reach(agent) }
 

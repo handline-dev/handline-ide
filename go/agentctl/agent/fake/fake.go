@@ -15,7 +15,7 @@ import (
 	"github.com/handline/handline/go/agentctl/term"
 )
 
-// Vendor is the name an agent.yaml gives to run on the fake.
+// Vendor is the vendor an agent's row names to run on the fake.
 const Vendor = "fake"
 
 // Prompt is the line the fake shows when no turn runs; Working starts the line of a turn in progress.

@@ -111,7 +111,7 @@ func (e *Env) founderFields(f *viewFields) error {
 type viewCtx struct {
 	*viewFields
 	roster *team.Roster
-	team   *team.Team // nil when team.yaml cannot be read: every agent then does work
+	team   *team.Team // nil when the team cannot be read: every agent then does work
 }
 
 func (e *Env) viewCtx() (*viewCtx, error) {

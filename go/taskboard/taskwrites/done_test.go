@@ -2,11 +2,12 @@ package taskwrites
 
 import (
 	"fmt"
-	"github.com/handline/handline/go/taskboard/msgtest"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/handline/handline/go/data/team/teamtest"
+	"github.com/handline/handline/go/taskboard/msgtest"
 
 	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/kit/storetest"
@@ -21,10 +22,7 @@ func TestDoneIsTheOwnersWithOneKindOfEvidenceAndTellsWhoWaited(t *testing.T) {
 	}
 	defer db.Close()
 	home := t.TempDir()
-	for _, a := range []string{"w", "boss"} {
-		os.MkdirAll(filepath.Join(home, "agents", a), 0o755)
-		os.WriteFile(filepath.Join(home, "agents", a, "agent.yaml"), nil, 0o644)
-	}
+	teamtest.Seed(t, home, "w", "boss")
 	repo := t.TempDir()
 	git := gitIn(t, repo)
 	git("init", "-q", "-b", "main")

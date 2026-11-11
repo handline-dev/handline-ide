@@ -82,7 +82,7 @@ func (e *Env) TellNow(q db.Q, rid int64) (what string, err error) {
 	if ok, err := e.EnforceEdges(q, agent); err != nil {
 		return "", err
 	} else if !ok {
-		return "held: team.yaml is not trusted", nil
+		return "held: the team cannot be read", nil
 	}
 	row = must(db.GetRequest(q, rid))
 	if row.State != "queued" {
