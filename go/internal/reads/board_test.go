@@ -21,7 +21,7 @@ func TestTheBoardSaysWhoHoldsEachTask(t *testing.T) {
 	}
 	run(t, e, `INSERT INTO agent_view(agent, view, updated) VALUES('bob', '{"parent": "amy"}', 1)`)
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, parent_task) VALUES"+
-		"(1, 'todo', 'human', 'human', 1, NULL), (2, 'asked', 'bob', 'amy', 1, NULL), (3, 'parent', 'amy', 'amy', 1, NULL),"+
+		"(1, 'todo', 'p1', 'p1', 1, NULL), (2, 'asked', 'bob', 'amy', 1, NULL), (3, 'parent', 'amy', 'amy', 1, NULL),"+
 		"(4, 'child', 'bob', 'amy', 1, 3), (5, 'blocked', 'amy', 'amy', 1, NULL), (6, 'blocker', 'carol', 'amy', 1, NULL),"+
 		"(7, 'shares', 'amy', 'amy', 1, NULL), (8, 'sharer', 'carol', 'amy', 1, 7), (9, 'back', 'amy', 'amy', 1, NULL),"+
 		"(10, 'elsewhere', 'carol', 'carol', 1, NULL)")

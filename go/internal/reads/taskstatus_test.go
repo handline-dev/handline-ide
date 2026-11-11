@@ -18,7 +18,7 @@ func TestEachTaskIsServedWithItsStateAndReason(t *testing.T) {
 		"(1, 'draft', 'bob', 'amy', 1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)",
 		"(2, 'queued', 'bob', 'amy', 1, 'amy', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)",
 		"(3, 'doing', 'bob', 'amy', 1, 'amy', 2, NULL, NULL, NULL, NULL, NULL, NULL, NULL)",
-		"(4, 'mine', 'human', 'amy', 1, 'amy', 2, NULL, NULL, NULL, NULL, NULL, NULL, NULL)",
+		"(4, 'mine', 'p1', 'amy', 1, 'amy', 2, NULL, NULL, NULL, NULL, NULL, NULL, NULL)",
 		"(6, 'done', 'bob', 'amy', 1, 'amy', 2, NULL, NULL, 'x', 4, NULL, NULL, NULL)",
 		"(7, 'discarded', 'bob', 'amy', 1, 'amy', NULL, NULL, NULL, NULL, NULL, 'amy', 'dup', 4)",
 		"(8, 'blocked', 'bob', 'amy', 1, 'amy', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)",
@@ -33,7 +33,7 @@ func TestEachTaskIsServedWithItsStateAndReason(t *testing.T) {
 	run(t, e, "UPDATE tasks SET sent_at = 2 WHERE id IN (3, 4, 9)")
 	run(t, e, "INSERT INTO agent_state(agent, state, updated, current_task) VALUES('bob', 'IDLE', 1, 3)")
 	run(t, e, "INSERT INTO task_blocks(task_id, blocks_on, created_at) VALUES(8, 3, 1792000000)")
-	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(1, 1792000000, 'bob', 'human', 'ok?', 'queued', 'ask', 1)")
+	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(1, 1792000000, 'bob', 'p1', 'ok?', 'queued', 'ask', 1)")
 	run(t, e, "INSERT INTO task_requests(task_id, request_id) VALUES(9, 1)")
 	for tid, rec := range map[int]string{
 		10: `{"why": "waiting for a slot on a (2 of 2 mid-turn)", "on": "cap", "able": false, "since": 1792000000}`,

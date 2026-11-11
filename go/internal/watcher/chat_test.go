@@ -70,7 +70,7 @@ func wantTypes(t *testing.T, got []string, want ...string) {
 
 func TestAChangedRequestIsOneChatMessageToEachAgentOfItAndNotToTheFounder(t *testing.T) {
 	r := newChatRig(t)
-	exec(t, r.d, "INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(1, 100, 'human', 'bob', 'old', 'queued', 'say')")
+	exec(t, r.d, "INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(1, 100, 'p1', 'bob', 'old', 'queued', 'say')")
 	c := r.chat()
 	r.scan(c)
 	wantTypes(t, r.types()) // the first look says nothing, not even for the newest second
@@ -92,10 +92,10 @@ func TestAReplyToTheFoundersMessageIsAMessageOfItsOwn(t *testing.T) {
 	r := newChatRig(t)
 	c := r.chat()
 	r.scan(c)
-	exec(t, r.d, "INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(1, 100, 'human', 'bob', 'q', 'landed', 'say')")
+	exec(t, r.d, "INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(1, 100, 'p1', 'bob', 'q', 'landed', 'say')")
 	r.scan(c)
 	wantTypes(t, r.types(), "chat.message:bob")
-	exec(t, r.d, "INSERT INTO requests(id, ts, requester, target, body, state, kind, parent_id) VALUES(2, 150, 'bob', 'human', 'the answer', 'landed', 'say', 1)")
+	exec(t, r.d, "INSERT INTO requests(id, ts, requester, target, body, state, kind, parent_id) VALUES(2, 150, 'bob', 'p1', 'the answer', 'landed', 'say', 1)")
 	r.scan(c)
 	wantTypes(t, r.types(), "chat.message:bob", "chat.message:bob")
 	var m map[string]any
@@ -106,24 +106,24 @@ func TestAReplyToTheFoundersMessageIsAMessageOfItsOwn(t *testing.T) {
 
 func TestARestartSaysNothingAgainButAChangeWhileDownIsSaid(t *testing.T) {
 	r := newChatRig(t)
-	exec(t, r.d, "INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(1, 100, 'human', 'bob', 'a', 'queued', 'say')")
+	exec(t, r.d, "INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(1, 100, 'p1', 'bob', 'a', 'queued', 'say')")
 	c := r.chat()
 	r.scan(c)
-	exec(t, r.d, "INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(2, 200, 'human', 'bob', 'b', 'queued', 'say')")
+	exec(t, r.d, "INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(2, 200, 'p1', 'bob', 'b', 'queued', 'say')")
 	r.scan(c)
 	wantTypes(t, r.types(), "chat.message:bob")
 	again := r.chat() // the daemon restarted: its memory is gone, the cursor is not
 	r.scan(again)
 	r.scan(again)
 	wantTypes(t, r.types(), "chat.message:bob")
-	exec(t, r.d, "INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(3, 300, 'human', 'bob', 'c', 'queued', 'say')")
+	exec(t, r.d, "INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(3, 300, 'p1', 'bob', 'c', 'queued', 'say')")
 	r.scan(again)
 	wantTypes(t, r.types(), "chat.message:bob", "chat.message:bob")
 }
 
 func TestATaskEventOfAnOwnedTaskIsOneTranscriptItemAndTheFoundersIsNone(t *testing.T) {
 	r := newChatRig(t)
-	exec(t, r.d, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 't', 'bob', 'human', 1), (2, 'u', 'human', 'bob', 1)")
+	exec(t, r.d, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 't', 'bob', 'p1', 1), (2, 'u', 'p1', 'bob', 1)")
 	c := r.chat()
 	r.scan(c)
 	for _, id := range []int{1, 2} {
@@ -245,7 +245,7 @@ func TestAnAgentsWorkingFlagIsToldWhenItFlipsAndNotWhenItDoesNot(t *testing.T) {
 
 func TestARunStartingAndEndingIsTheMessageSaidAgainWithItsRuns(t *testing.T) {
 	r := newChatRig(t)
-	exec(t, r.d, "INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(1, 100, 'bob', 'human', 'run it', 'landed', 'say')")
+	exec(t, r.d, "INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(1, 100, 'bob', 'p1', 'run it', 'landed', 'say')")
 	started := cmdruns.Now() - 10
 	panes := map[string]term.PaneRun{}
 	c := r.chat()
@@ -275,7 +275,7 @@ func TestARunStartingAndEndingIsTheMessageSaidAgainWithItsRuns(t *testing.T) {
 
 func TestARunKeptBeforeTheFirstLookIsNotNews(t *testing.T) {
 	r := newChatRig(t)
-	exec(t, r.d, "INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(1, 100, 'bob', 'human', 'run it', 'landed', 'say')")
+	exec(t, r.d, "INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(1, 100, 'bob', 'p1', 'run it', 'landed', 'say')")
 	cmdruns.Start(r.d, cmdruns.Block{Message: 1, N: 0}, "%4", "", "", cmdruns.Now())
 	c := r.chat()
 	r.scan(c)
@@ -288,7 +288,7 @@ func TestARunOfAReplysBlockIsTheItemSaidAgainWithItsRuns(t *testing.T) {
 	r := newChatRig(t)
 	exec(t, r.d, `INSERT INTO transcript_events(agent, seq, session, turn, at, kind, item, body) VALUES('bob', 1, 's', NULL, 100, 'text', 1000, '{"text":"run make"}')`)
 	// A message with the same id as the item: the reply's run is not its news.
-	exec(t, r.d, "INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(1000, 100, 'bob', 'human', 'same id', 'landed', 'say')")
+	exec(t, r.d, "INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(1000, 100, 'bob', 'p1', 'same id', 'landed', 'say')")
 	started := cmdruns.Now() - 10
 	panes := map[string]term.PaneRun{}
 	c := r.chat()
@@ -361,7 +361,7 @@ func (r *bashRig) sent(id int64, landed bool) {
 		at = now + 1
 	}
 	if _, err := r.d.Exec("INSERT INTO requests(id, ts, requester, target, body, state, kind, ref, typed_at, typed_session, landed_at, edge_ok) "+
-		"VALUES(?, ?, 'human', 'bob', '!x', 'landed', 'say', ?, ?, ?, ?, 1)", id, now, fmt.Sprintf("r%d", id), now, bashTestSession, at); err != nil {
+		"VALUES(?, ?, 'p1', 'bob', '!x', 'landed', 'say', ?, ?, ?, ?, 1)", id, now, fmt.Sprintf("r%d", id), now, bashTestSession, at); err != nil {
 		r.t.Fatal(err)
 	}
 }
@@ -483,7 +483,7 @@ func toldAbout(t *testing.T, d *sql.DB, agent string) []string {
 // run says its window closed; a run kept with no agent tells no one; neither reads rows.
 func TestARunThatEndsIsToldToItsAgentWithItsExitAndLastRows(t *testing.T) {
 	r := newChatRig(t)
-	exec(t, r.d, "INSERT INTO requests(id, ts, requester, target, body, state, kind, ref) VALUES(1, 100, 'human', 'bob', 'run it', 'landed', 'say', 'abc1234')")
+	exec(t, r.d, "INSERT INTO requests(id, ts, requester, target, body, state, kind, ref) VALUES(1, 100, 'p1', 'bob', 'run it', 'landed', 'say', 'abc1234')")
 	started := cmdruns.Now() - 10
 	panes := map[string]term.PaneRun{}
 	var read []string

@@ -34,7 +34,7 @@ func TestNotificationsAreSaidOnceFromTheCursorsAndHistoryIsNotNews(t *testing.T)
 	if err := n.Scan(d, emit); err != nil || len(notes(t, l)) != 0 {
 		t.Fatalf("history was news: %v %v", err, notes(t, l))
 	}
-	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(7, 't', 'bob', 'human', 1)")
+	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(7, 't', 'bob', 'p1', 1)")
 	exec(t, d, "INSERT INTO events(ts, agent, kind, payload) VALUES(2, 'bob', 'mark_task_done', '{\"task_id\": 7, \"done\": true}')")
 	exec(t, d, "INSERT INTO events(ts, agent, kind, payload) VALUES(3, 'bob', 'mark_task_done', '{\"task_id\": 8, \"done\": false}')") // a reopening says nothing
 	exec(t, d, "INSERT INTO events(ts, agent, kind, payload) VALUES(4, 'bob', 'mark_task_done', '{\"done\": true}')")                  // no task named
@@ -71,8 +71,8 @@ func TestARestartResumesFromTheCursorsNothingRepeatedNothingLostWhileDown(t *tes
 	emit := func(e stream.Entry) (*stream.Event, error) { return l.Append(e) }
 	first := &Notifications{Reads: &reads.Env{DB: d}}
 	first.Scan(d, emit) // primes the cursors on an empty database
-	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 't', 'bob', 'human', 1)")
-	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(2, 't', 'bob', 'human', 1)")
+	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 't', 'bob', 'p1', 1)")
+	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(2, 't', 'bob', 'p1', 1)")
 	exec(t, d, "INSERT INTO events(ts, agent, kind, payload) VALUES(1, 'bob', 'mark_task_done', '{\"task_id\": 1}')")
 	first.Scan(d, emit)
 	if len(notes(t, l)) != 1 {
@@ -99,7 +99,7 @@ func TestAFailedEmitDoesNotRepeatTheRowsBeforeIt(t *testing.T) {
 	n := &Notifications{Reads: &reads.Env{DB: d}}
 	n.Scan(d, func(e stream.Entry) (*stream.Event, error) { return l.Append(e) })
 	for i := 1; i <= 3; i++ {
-		exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(?, 't', 'bob', 'human', 1)", i)
+		exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(?, 't', 'bob', 'p1', 1)", i)
 		exec(t, d, "INSERT INTO events(ts, agent, kind, payload) VALUES(?, 'bob', 'mark_task_done', ?)", i, `{"task_id": `+string(rune('0'+i))+`}`)
 	}
 	calls := 0
@@ -177,7 +177,7 @@ func TestATaskDoneCarriesTheTasksTitleAndTheFirstLineOfItsEvidence(t *testing.T)
 	}{{"task 7", "built and tested\nPR 12, check green"}, {"task 8", nil}, {"task 9", long}, {"", "\n\n  first  \r\nsecond"}}
 	for i, task := range tasks {
 		id := 7 + i
-		exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, done_evidence, created_at) VALUES(?, ?, 'bob', 'human', ?, 1)", id, task.title, task.evidence)
+		exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, done_evidence, created_at) VALUES(?, ?, 'bob', 'p1', ?, 1)", id, task.title, task.evidence)
 		exec(t, d, "INSERT INTO events(ts, agent, kind, payload) VALUES(?, 'bob', 'mark_task_done', ?)", id, fmt.Sprintf(`{"task_id": %d}`, id))
 	}
 	exec(t, d, "INSERT INTO events(ts, agent, kind, payload) VALUES(20, 'bob', 'mark_task_done', '{\"task_id\": 99}')") // no such task: not the founder's
@@ -229,9 +229,9 @@ func TestATaskDoneSaysWhoTheTaskAnswersToAndWhetherTheFounderGaveIt(t *testing.T
 	}
 	for i, q := range []string{
 		"(1, 't', 'bob', 'amy', NULL)",    // an agent's task: it answers to its opener
-		"(2, 't', 'bob', 'amy', 'human')", // an agent opened it for the founder, who answers for it
-		"(3, 't', 'bob', 'human', 'amy')", // the founder opened it and an agent answers for it
-		"(4, 't', 'bob', 'human', NULL)",
+		"(2, 't', 'bob', 'amy', 'p1')", // an agent opened it for the founder, who answers for it
+		"(3, 't', 'bob', 'p1', 'amy')", // the founder opened it and an agent answers for it
+		"(4, 't', 'bob', 'p1', NULL)",
 	} {
 		exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, reporter, created_at) VALUES"+q[:len(q)-1]+", 1)")
 		exec(t, d, "INSERT INTO events(ts, agent, kind, payload) VALUES(?, 'bob', 'mark_task_done', ?)", 10+i, fmt.Sprintf(`{"task_id": %d}`, i+1))

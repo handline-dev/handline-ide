@@ -50,12 +50,12 @@ func TestATasksTimelineLeavesOutAMemosTellAndAskButKeepsTheOtherRequests(t *test
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'a', 'bob', 'amy', 10)")
 	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, notice, edge_ok) VALUES(1, 10, 'amy', 'bob', 'the brief', 'landed', 'task', 0, 1), "+
 		"(2, 20, 'amy', 'bob', 'a memo tell', 'landed', 'say', 2, 1), (3, 30, 'cy', 'bob', 'a child result', 'landed', 'say', 1, 1), "+
-		"(4, 40, 'bob', 'human', '@human ship it?', 'queued', NULL, 0, 1), (5, 50, 'human', 'bob', 'T1 is your turn again: human passed it: a', 'landed', 'task', 0, 1)")
+		"(4, 40, 'bob', 'p1', '@human ship it?', 'queued', NULL, 0, 1), (5, 50, 'p1', 'bob', 'T1 is your turn again: human passed it: a', 'landed', 'task', 0, 1)")
 	run(t, e, "UPDATE requests SET memo_id = 9 WHERE id = 4") // the ask bob's @human comment opened
-	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, notice, edge_ok) VALUES(6, 60, 'human', 'cy', 'T1 is your turn again: b', 'withdrawn', 'task', 0, 1)")
+	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, notice, edge_ok) VALUES(6, 60, 'p1', 'cy', 'T1 is your turn again: b', 'withdrawn', 'task', 0, 1)")
 	run(t, e, "INSERT INTO task_requests(task_id, request_id) VALUES(1, 1), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6)")
 	// the founder's comment that passed bob's turn back, told bob by that return
-	run(t, e, "INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(7, 1, 'human', 'now', 50)")
+	run(t, e, "INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(7, 1, 'p1', 'now', 50)")
 	run(t, e, "INSERT INTO memo_tells(memo_id, reader, request_id) VALUES(7, 'bob', 5), (7, 'cy', 6)") // 6 was withdrawn before it reached cy
 	got, err := e.taskGet(nil, map[string]any{"task": json.Number("1")})
 	if err != nil {
@@ -83,8 +83,8 @@ func TestATasksPageNamesItsSubtasksParentMergeAndWhomToAsk(t *testing.T) {
 	run(t, e, "UPDATE tasks SET parent_task = 2 WHERE id IN (3, 4)")
 	run(t, e, "UPDATE tasks SET done_evidence = 'sha', done_at = 20 WHERE id = 3")
 	run(t, e, "UPDATE tasks SET discarded_by = 'eng.bob', discarded_at = 20, merged_into = 3 WHERE id = 4")
-	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, edge_ok) VALUES(1, 1, 'human', 'eng.cy', 'x', 'landed', 1), "+
-		"(2, 2, 'dee', 'human', 'y', 'landed', 1), (3, 3, 'human', 'eng.cy', 'z', 'landed', 1)")
+	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, edge_ok) VALUES(1, 1, 'p1', 'eng.cy', 'x', 'landed', 1), "+
+		"(2, 2, 'dee', 'p1', 'y', 'landed', 1), (3, 3, 'p1', 'eng.cy', 'z', 'landed', 1)")
 	got, err := e.taskGet(nil, map[string]any{"task": json.Number("2")})
 	if err != nil {
 		t.Fatal(err)
@@ -134,7 +134,7 @@ func TestThePauseHoldsNeitherASelfStartedTaskNorTheFoundersNorAGatesOnTheirPages
 	e := testEnv(t)
 	addAgent(t, e, "bob", "")
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by, sent_at) VALUES(1, 'a', 'bob', 'amy', 1, 'amy', 2), "+
-		"(2, 'b', 'human', 'amy', 1, 'amy', 2), (3, 'c', 'gate', 'amy', 1, 'amy', 2)")
+		"(2, 'b', 'p1', 'amy', 1, 'amy', 2), (3, 'c', 'gate', 'amy', 1, 'amy', 2)")
 	run(t, e, "INSERT INTO agent_state(agent, state, current_task, updated) VALUES('bob', 'IDLE', 1, 1)")
 	run(t, e, `INSERT INTO events(ts, agent, kind, payload) VALUES(1, 'bob', 'task_self_start', '{"task_id": 1}')`)
 	state := func(id int) any {
@@ -162,13 +162,13 @@ func TestATasksTimelineHasItsTurnsAndSaysWhatTheDaemonDelivered(t *testing.T) {
 	e := testEnv(t)
 	addAgent(t, e, "bob", "")
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'a', 'bob', 'amy', 10)")
-	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, notice, edge_ok) VALUES(1, 10, 'human', 'bob', 'a', 'landed', 'task', 0, 1), "+
-		"(2, 30, 'human', 'bob', 'T1 is your turn again', 'landed', 'task', 0, 1)")
+	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, notice, edge_ok) VALUES(1, 10, 'p1', 'bob', 'a', 'landed', 'task', 0, 1), "+
+		"(2, 30, 'p1', 'bob', 'T1 is your turn again', 'landed', 'task', 0, 1)")
 	run(t, e, "INSERT INTO task_requests(task_id, request_id) VALUES(1, 1), (1, 2)")
 	run(t, e, `INSERT INTO events(ts, agent, kind, payload) VALUES
 		(10, '', 'task_forward', '{"task_id": 1, "request_id": 1, "carries": "queue", "from": 0}'),
 		(20, 'bob', 'task_turn_push', '{"task_id": 1, "to": "human", "ask": "now?"}'),
-		(30, 'human', 'task_turn_pop', '{"task_id": 1, "agent": "human", "outcome": "pass", "note": "", "to": "bob", "request_id": 2}'),
+		(30, 'p1', 'task_turn_pop', '{"task_id": 1, "agent": "human", "outcome": "pass", "note": "", "to": "bob", "request_id": 2}'),
 		(40, 'bob', 'task_turn_pop', '{"task_id": 1, "agent": "bob", "outcome": "cleared"}')`)
 	got, err := e.taskGet(nil, map[string]any{"task": json.Number("1")})
 	if err != nil {

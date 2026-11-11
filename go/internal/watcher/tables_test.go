@@ -267,9 +267,9 @@ func TestEveryNamedTableIsCountedWithItsThreeTriggers(t *testing.T) {
 func seedWatched(t *testing.T, d *sql.DB) {
 	t.Helper()
 	for _, q := range []string{
-		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'a', 'bob', 'human', 1), (2, 'b', 'human', 'bob', 1)",
+		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'a', 'bob', 'p1', 1), (2, 'b', 'p1', 'bob', 1)",
 		"INSERT INTO task_memos(task_id, author, body, created_at) VALUES(1, 'bob', 'note', 5)",
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(1, 100, 'bob', 'human', 'hi', 'queued', 'say'), (2, 100, 'human', 'bob', 'yo', 'landed', 'say')",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(1, 100, 'bob', 'p1', 'hi', 'queued', 'say'), (2, 100, 'p1', 'bob', 'yo', 'landed', 'say')",
 		"INSERT INTO events(ts, agent, kind, payload) VALUES(5, 'bob', 'task_new', '{\"task_id\":1}'), (6, 'bob', 'task_begin', '{\"task_id\":1}')",
 	} {
 		if _, err := d.Exec(q); err != nil {
@@ -281,16 +281,16 @@ func seedWatched(t *testing.T, d *sql.DB) {
 func mutateWatched(t *testing.T, d *sql.DB) {
 	t.Helper()
 	for _, q := range []string{
-		"UPDATE tasks SET title = 'a2', sent_at = 9, queued_by = 'human' WHERE id = 1",
+		"UPDATE tasks SET title = 'a2', sent_at = 9, queued_by = 'p1' WHERE id = 1",
 		"INSERT INTO task_memos(task_id, author, body, created_at) VALUES(2, 'bob', 'n', 7)",
 		"UPDATE requests SET state = 'landed', state_at = 300, landed_at = 300 WHERE id = 1",
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind, memo_id) VALUES(3, 300, 'bob', 'human', 'ask', 'queued', 'ask', NULL)",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind, memo_id) VALUES(3, 300, 'bob', 'p1', 'ask', 'queued', 'ask', NULL)",
 		"INSERT INTO task_requests(task_id, request_id) VALUES(2, 3)",
 		"INSERT INTO events(ts, agent, kind, payload) VALUES(8, 'bob', 'mark_task_done', '{\"task_id\":1}'), (9, 'bob', 'close_task', '{\"task_id\":1}'), (9, 'bob', 'login_expired', '{}')",
 		"INSERT INTO agent_view(agent, view, updated) VALUES('bob', '{\"state\":\"stalled\"}', 1)",
 		"INSERT INTO agent_state(agent, state, updated) VALUES('bob', 'idle', 1)",
 		"INSERT INTO prompt_blocks(agent, kind, fingerprint, title, panel, detail, first_seen, last_seen) VALUES('bob', 'dialog', 'f', 't', '{}', 'd', 1, 1)",
-		"INSERT INTO prefs(person, nav, updated_at) VALUES('human', '{}', 1)",
+		"INSERT INTO prefs(person, nav, updated_at) VALUES('p1', '{}', 1)",
 		"INSERT INTO cursors(name, row_id, updated) VALUES('for_you_seen:bob', 1, 1)",
 		"INSERT INTO session_starts(agent, ts, session_id, cause, resumed, text, prompt) VALUES('bob', 1, 's', 'startup', 0, 't', 'p')",
 	} {

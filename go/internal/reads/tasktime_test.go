@@ -37,7 +37,7 @@ func TestATasksTimeIsItsWaitsAndItsWorkInOrderWithNoGap(t *testing.T) {
 	e := testEnv(t)
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, done_at) VALUES(1, 'a', 'bob', 'amy', 100, 400)")
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, done_at) VALUES(2, 'b', 'cy', 'bob', 200, 300)")
-	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, state_at, kind) VALUES(1, 110, 'bob', 'human', 'which one?', 'answered', 200, 'ask')")
+	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, state_at, kind) VALUES(1, 110, 'bob', 'p1', 'which one?', 'answered', 200, 'ask')")
 	run(t, e, "INSERT INTO task_requests(task_id, request_id) VALUES(1, 1)")
 	for _, ev := range []struct {
 		ts        int
@@ -71,7 +71,7 @@ func TestAFounderAskOverABlockerShowsAsTheFounderWait(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'a', 'bob', 'amy', 100), (2, 'b', 'cy', 'bob', 100)")
-	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, state_at, kind) VALUES(1, 160, 'bob', 'human', 'which one?', 'answered', 200, 'ask')")
+	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, state_at, kind) VALUES(1, 160, 'bob', 'p1', 'which one?', 'answered', 200, 'ask')")
 	run(t, e, "INSERT INTO task_requests(task_id, request_id) VALUES(1, 1)")
 	run(t, e, `INSERT INTO events(ts, agent, kind, payload) VALUES(100, 'bob', 'task_start', '{"task_id": 1}'), (150, 'bob', 'block_task', '{"task_id": 1, "blocks_on": 2}')`)
 	wantSegments(t, e, 1, 300, "working  100-150", "waiting blocked by T2 150-160", "waiting needs you 160-200", "waiting blocked by T2 200-300")
@@ -82,8 +82,8 @@ func TestTouchingStretchesThatReadTheSameAreOneSegment(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'a', 'bob', 'amy', 100)")
-	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, state_at, kind) VALUES(1, 110, 'bob', 'human', 'one?', 'answered', 150, 'ask'), "+
-		"(2, 150, 'bob', 'human', 'two?', 'answered', 200, 'ask')")
+	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, state_at, kind) VALUES(1, 110, 'bob', 'p1', 'one?', 'answered', 150, 'ask'), "+
+		"(2, 150, 'bob', 'p1', 'two?', 'answered', 200, 'ask')")
 	run(t, e, "INSERT INTO task_requests(task_id, request_id) VALUES(1, 1), (1, 2)")
 	run(t, e, `INSERT INTO events(ts, agent, kind, payload) VALUES(100, 'bob', 'task_start', '{"task_id": 1}')`)
 	wantSegments(t, e, 1, 250, "working  100-110", "waiting needs you 110-200", "working  200-250")
@@ -105,7 +105,7 @@ func TestAClosedFounderAskWithNoTimeEndsByTheNextEvent(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, done_at) VALUES(1, 'a', 'bob', 'amy', 100, 400)")
-	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(1, 120, 'bob', 'human', 'which one?', 'answered', 'ask')")
+	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(1, 120, 'bob', 'p1', 'which one?', 'answered', 'ask')")
 	run(t, e, "INSERT INTO task_requests(task_id, request_id) VALUES(1, 1)")
 	run(t, e, `INSERT INTO events(ts, agent, kind, payload) VALUES(100, 'bob', 'task_start', '{"task_id": 1}'), (180, 'bob', 'edit_task', '{"task_id": 1}')`)
 	wantSegments(t, e, 1, 1000, "working  100-120", "waiting needs you 120-180", "working  180-400")
@@ -130,7 +130,7 @@ func TestTheFoundersTurnAndAnOpenChildAreWaits(t *testing.T) {
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'a', 'bob', 'amy', 100)")
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, parent_task, done_at) VALUES(2, 'part', 'cy', 'bob', 300, 1, 350)")
 	run(t, e, `INSERT INTO events(ts, agent, kind, payload) VALUES(100, 'bob', 'task_start', '{"task_id": 1}'),
-		(150, 'bob', 'task_turn_push', '{"task_id": 1, "to": "human"}'), (250, 'human', 'task_turn_pop', '{"task_id": 1, "agent": "human"}')`)
+		(150, 'bob', 'task_turn_push', '{"task_id": 1, "to": "human"}'), (250, 'p1', 'task_turn_pop', '{"task_id": 1, "agent": "human"}')`)
 	wantSegments(t, e, 1, 400, "working  100-150", "waiting needs you 150-250", "working  250-300", "waiting waiting on T2 300-350", "working  350-400")
 }
 
@@ -154,7 +154,7 @@ func TestTheBoxSplitsWhatItsClockRanSinceItLastStartedOver(t *testing.T) {
 		(200, 'bob', 'task_start', '{"task_id": 1}'),
 		(300, 'bob', 'launching', '{}'), (310, 'bob', 'SessionStart', '{}'),
 		(400, 'bob', 'task_turn_push', '{"task_id": 1, "to": "human"}'),
-		(900, 'human', 'task_turn_pop', '{"task_id": 1, "agent": "human"}'),
+		(900, 'p1', 'task_turn_pop', '{"task_id": 1, "agent": "human"}'),
 		(950, 'bob', 'task_turn_push', '{"task_id": 1, "to": "rev"}')`)
 	got, err := e.taskTimeAt(1, 1000)
 	if err != nil {

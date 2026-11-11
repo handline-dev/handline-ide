@@ -17,12 +17,12 @@ func TestAMessageToAStructuredAgentCarriesItsReceiptAndLandsAsItSays(t *testing.
 	e := testEnv(t)
 	addAgent(t, e, "bob", "")
 	for _, q := range []string{
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(1, 1, 'human', 'bob', 'held', 'queued', 'say')",
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(2, 2, 'human', 'bob', 'written', 'queued', 'say')",
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(3, 3, 'human', 'bob', 'echoed', 'queued', 'say')",
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(4, 4, 'human', 'bob', 'lost', 'queued', 'say')",
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(5, 5, 'human', 'bob', 'taken back', 'withdrawn', 'say')",
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(6, 6, 'human', 'bob', 'to a terminal', 'queued', 'say')",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(1, 1, 'p1', 'bob', 'held', 'queued', 'say')",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(2, 2, 'p1', 'bob', 'written', 'queued', 'say')",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(3, 3, 'p1', 'bob', 'echoed', 'queued', 'say')",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(4, 4, 'p1', 'bob', 'lost', 'queued', 'say')",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(5, 5, 'p1', 'bob', 'taken back', 'withdrawn', 'say')",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(6, 6, 'p1', 'bob', 'to a terminal', 'queued', 'say')",
 		"INSERT INTO operations(id, kind, state, result_json, agent, created_at, updated_at) VALUES('send:bob:request:1', 'send', 'queued', '{\"uuid\":\"u1\"}', 'bob', 1, 1)",
 		"INSERT INTO operations(id, kind, state, result_json, agent, created_at, updated_at) VALUES('send:bob:request:2', 'send', 'sent', '{\"uuid\":\"u2\"}', 'bob', 1, 1)",
 		"INSERT INTO operations(id, kind, state, result_json, agent, created_at, updated_at) VALUES('send:bob:request:3', 'send', 'confirmed', '{\"uuid\":\"u3\"}', 'bob', 1, 1)",
@@ -254,8 +254,8 @@ func TestAMessageCarriesItsImages(t *testing.T) {
 	e := testEnv(t)
 	addAgent(t, e, "bob", "")
 	for _, q := range []string{
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(1, 1, 'human', 'bob', 'look', 'queued', 'say')",
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(2, 2, 'human', 'bob', 'plain', 'queued', 'say')",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(1, 1, 'p1', 'bob', 'look', 'queued', 'say')",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(2, 2, 'p1', 'bob', 'plain', 'queued', 'say')",
 	} {
 		if _, err := e.DB.Exec(q); err != nil {
 			t.Fatal(err)
@@ -292,9 +292,9 @@ func TestAnHROutcomeMessageCarriesItsProposalAndNoOtherDoes(t *testing.T) {
 	e := testEnv(t)
 	addAgent(t, e, "bob", "")
 	for _, q := range []string{
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(1, 1, 'human', 'bob', 'proposal aaaa0007 applied: ...', 'queued', 'say')",
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(2, 2, 'human', 'bob', 'plain', 'queued', 'say')",
-		`INSERT INTO events(ts, agent, kind, payload, dedup_key) VALUES(1, 'human', 'proposal_outcome', '{"proposal": 2684354567, "request": 1}', 'proposal_outcome:1')`,
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(1, 1, 'p1', 'bob', 'proposal aaaa0007 applied: ...', 'queued', 'say')",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(2, 2, 'p1', 'bob', 'plain', 'queued', 'say')",
+		`INSERT INTO events(ts, agent, kind, payload, dedup_key) VALUES(1, 'p1', 'proposal_outcome', '{"proposal": 2684354567, "request": 1}', 'proposal_outcome:1')`,
 	} {
 		if _, err := e.DB.Exec(q); err != nil {
 			t.Fatal(err)
@@ -347,8 +347,8 @@ func TestAPassOverManyTaskDeliveriesLoadsTheBoardOnce(t *testing.T) {
 	addAgent(t, e, "bob", "")
 	const n = 5
 	for i := 1; i <= n; i++ {
-		run(t, e, fmt.Sprintf("INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(%d, 't%d', 'bob', 'human', 1)", i, i))
-		run(t, e, fmt.Sprintf("INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(%d, %d, 'human', 'bob', 'do it', 'queued', 'task')", i, i))
+		run(t, e, fmt.Sprintf("INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(%d, 't%d', 'bob', 'p1', 1)", i, i))
+		run(t, e, fmt.Sprintf("INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(%d, %d, 'p1', 'bob', 'do it', 'queued', 'task')", i, i))
 		run(t, e, fmt.Sprintf("INSERT INTO task_requests(task_id, request_id) VALUES(%d, %d)", i, i))
 	}
 	pass := e.ChatRequests()
@@ -393,7 +393,7 @@ func TestARequestDeliveredButNotYetTypedIsStillDrawn(t *testing.T) {
 	e := testEnv(t)
 	addAgent(t, e, "bob", "")
 	for _, q := range []string{
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind, landed_at, delivered_at) VALUES(1, 1, 'human', 'bob', 'hello bob', 'landed', 'say', 1, 2)",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind, landed_at, delivered_at) VALUES(1, 1, 'p1', 'bob', 'hello bob', 'landed', 'say', 1, 2)",
 		"INSERT INTO requests(id, ts, requester, target, body, state, kind, notice, landed_at, delivered_at) VALUES(2, 3, 'sys', 'bob', 'T3 done by x: ok', 'landed', 'say', 1, 3, 4)",
 	} {
 		if _, err := e.DB.Exec(q); err != nil {
@@ -440,11 +440,11 @@ func TestAMessageToTheFounderCarriesTheButtonsItsTaskStateAsksFor(t *testing.T) 
 	e := testEnv(t)
 	addAgent(t, e, "bob", "")
 	for _, q := range []string{
-		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'bobs', 'bob', 'human', 1)",
-		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(2, 'decide', 'human', 'bob', 1)",
+		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'bobs', 'bob', 'p1', 1)",
+		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(2, 'decide', 'p1', 'bob', 1)",
 		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(3, 'not theirs', 'bob', 'bob', 1)",
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(1, 1, 'bob', 'human', 'T1 reported', 'queued', 'say'), (2, 2, 'bob', 'human', 'T2 please decide', 'queued', 'task'), " +
-			"(3, 3, 'bob', 'human', 'a question with no task', 'queued', 'say'), (4, 4, 'bob', 'human', 'T3 reported', 'queued', 'say')",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(1, 1, 'bob', 'p1', 'T1 reported', 'queued', 'say'), (2, 2, 'bob', 'p1', 'T2 please decide', 'queued', 'task'), " +
+			"(3, 3, 'bob', 'p1', 'a question with no task', 'queued', 'say'), (4, 4, 'bob', 'p1', 'T3 reported', 'queued', 'say')",
 		"INSERT INTO task_requests(task_id, request_id) VALUES(1, 1), (2, 2), (3, 4)",
 	} {
 		if _, err := e.DB.Exec(q); err != nil {
@@ -488,9 +488,9 @@ func TestChatLocateTakesAMessageNameAndReturnsTheTranscriptOfItsWindow(t *testin
 	e := testEnv(t)
 	addAgent(t, e, "bob", "")
 	for _, q := range []string{
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind, ref) VALUES(1, 1000, 'human', 'bob', 'first', 'queued', 'say', 'aaaa11112222')",
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind, ref) VALUES(2, 2000, 'human', 'bob', 'second', 'queued', 'say', 'bbbb33334444')",
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind, ref) VALUES(3, 3000, 'human', 'bob', 'third', 'queued', 'say', 'cccc55556666')",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind, ref) VALUES(1, 1000, 'p1', 'bob', 'first', 'queued', 'say', 'aaaa11112222')",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind, ref) VALUES(2, 2000, 'p1', 'bob', 'second', 'queued', 'say', 'bbbb33334444')",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind, ref) VALUES(3, 3000, 'p1', 'bob', 'third', 'queued', 'say', 'cccc55556666')",
 	} {
 		if _, err := e.DB.Exec(q); err != nil {
 			t.Fatal(err)
@@ -537,8 +537,8 @@ func TestChatLocateKeepsAPageOfTheTranscriptAroundTheMessage(t *testing.T) {
 	e := testEnv(t)
 	addAgent(t, e, "bob", "")
 	for _, q := range []string{
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind, ref) VALUES(1, 1000, 'human', 'bob', 'first', 'queued', 'say', 'aaaa11112222')",
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind, ref) VALUES(2, 1200, 'human', 'bob', 'second', 'queued', 'say', 'bbbb33334444')",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind, ref) VALUES(1, 1000, 'p1', 'bob', 'first', 'queued', 'say', 'aaaa11112222')",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind, ref) VALUES(2, 1200, 'p1', 'bob', 'second', 'queued', 'say', 'bbbb33334444')",
 	} {
 		if _, err := e.DB.Exec(q); err != nil {
 			t.Fatal(err)
@@ -576,8 +576,8 @@ func TestChatLocateReadsTheToolsAroundTheMessage(t *testing.T) {
 	e := testEnv(t)
 	addAgent(t, e, "bob", "")
 	for _, q := range []string{
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind, ref) VALUES(1, 1000, 'human', 'bob', 'first', 'queued', 'say', 'aaaa11112222')",
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind, ref) VALUES(2, 1700, 'human', 'bob', 'second', 'queued', 'say', 'bbbb33334444')",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind, ref) VALUES(1, 1000, 'p1', 'bob', 'first', 'queued', 'say', 'aaaa11112222')",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind, ref) VALUES(2, 1700, 'p1', 'bob', 'second', 'queued', 'say', 'bbbb33334444')",
 	} {
 		if _, err := e.DB.Exec(q); err != nil {
 			t.Fatal(err)
@@ -643,11 +643,11 @@ func TestTheChatLeavesOutAReturnThatToldAComment(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	addAgent(t, e, "bob", "")
-	runAll(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(1, 1, 'human', 'bob', 'T1 is your turn again: human passed it: a', 'landed', 'task'), "+
-		"(2, 2, 'human', 'bob', 'T2 is your turn again: human passed it: b', 'landed', 'task'), (3, 3, 'human', 'bob', 'plain', 'landed', 'say'), "+
-		"(4, 4, 'human', 'bob', 'T3 is your turn again: human passed it: c', 'landed', 'task'), (5, 5, 'sys', 'bob', 'T1 comment by the founder', 'landed', 'say')",
-		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'a', 'bob', 'human', 1)",
-		"INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(7, 1, 'human', 'now', 1), (9, 1, 'human', 'also', 5)",
+	runAll(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(1, 1, 'p1', 'bob', 'T1 is your turn again: human passed it: a', 'landed', 'task'), "+
+		"(2, 2, 'p1', 'bob', 'T2 is your turn again: human passed it: b', 'landed', 'task'), (3, 3, 'p1', 'bob', 'plain', 'landed', 'say'), "+
+		"(4, 4, 'p1', 'bob', 'T3 is your turn again: human passed it: c', 'landed', 'task'), (5, 5, 'sys', 'bob', 'T1 comment by the founder', 'landed', 'say')",
+		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'a', 'bob', 'p1', 1)",
+		"INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(7, 1, 'p1', 'now', 1), (9, 1, 'p1', 'also', 5)",
 		// 8 is a comment since deleted: its return shows again; 9's tell is a board line, which stays
 		"INSERT INTO memo_tells(memo_id, reader, request_id) VALUES(7, 'bob', 1), (8, 'bob', 4), (9, 'bob', 5)")
 	got, err := e.chatMessages(nil, map[string]any{"agent": "bob", "scope": "all"})

@@ -11,9 +11,9 @@ func TestRetroCountsTokensInsideTheDoingWindowsOfTheSubtreeOnly(t *testing.T) {
 	e := testEnv(t)
 	run(t, e, "INSERT INTO agent_state(agent, state, account, worktree, updated) VALUES('grp.one','IDLE','a','/w/one',1), ('grp.two','IDLE','a','/w/two',1)")
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, reporter, created_at, done_at, done_evidence) VALUES"+
-		"(10, 'root', 'grp.two', 'human', 'human', 1000, 4600, 'ok'),"+
+		"(10, 'root', 'grp.two', 'p1', 'p1', 1000, 4600, 'ok'),"+
 		"(11, 'child', 'grp.one', 'grp.two', 'grp.two', 1000, 2800, 'ok'),"+
-		"(12, 'other', 'grp.one', 'human', 'grp.two', 1000, 4600, 'ok')")
+		"(12, 'other', 'grp.one', 'p1', 'grp.two', 1000, 4600, 'ok')")
 	run(t, e, "UPDATE tasks SET parent_task = 10 WHERE id = 11")
 	ev := func(ts int64, agent, kind string, task int) {
 		run(t, e, "INSERT INTO events(ts, agent, kind, payload) VALUES(?,?,?,?)", ts, agent, kind, `{"task_id":`+itoa(int64(task))+`}`)
@@ -72,7 +72,7 @@ func TestRetroCountsACallOnceWhenADeliveryLandsOnABusyHolder(t *testing.T) {
 func retroDeliveryLands(t *testing.T, landed int, want []int64) {
 	e := testEnv(t)
 	run(t, e, "INSERT INTO agent_state(agent, state, account, worktree, updated) VALUES('w','IDLE','a','/w/w',1)")
-	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, reporter, created_at) VALUES(20,'root','w','human','human',0), (21,'a','w','w','w',0), (22,'b','w','w','w',0)")
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, reporter, created_at) VALUES(20,'root','w','p1','p1',0), (21,'a','w','w','w',0), (22,'b','w','w','w',0)")
 	run(t, e, "UPDATE tasks SET parent_task = 20 WHERE id IN (21, 22)")
 	run(t, e, "INSERT INTO events(ts, agent, kind, payload) VALUES(100,'w','task_start','{\"task_id\":21}')")
 	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, landed_at) VALUES(1,?,'w','w','b','landed','task',?)", landed, landed)
@@ -100,11 +100,11 @@ func retroDeliveryLands(t *testing.T, landed int, want []int64) {
 func TestRetroDoingWindowsFollowTurns(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, reporter, created_at) VALUES(1, 't', 'bob', 'human', 'human', 100)")
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, reporter, created_at) VALUES(1, 't', 'bob', 'p1', 'p1', 100)")
 	run(t, e, `INSERT INTO events(ts, agent, kind, payload) VALUES
 		(100, 'bob', 'task_start', '{"task_id": 1}'),
 		(200, 'bob', 'task_turn_push', '{"task_id": 1, "to": "human"}'),
-		(500, 'human', 'task_turn_pop', '{"task_id": 1, "agent": "human"}'),
+		(500, 'p1', 'task_turn_pop', '{"task_id": 1, "agent": "human"}'),
 		(600, 'bob', 'task_turn_push', '{"task_id": 1, "to": "rev"}'),
 		(650, 'rev', 'task_turn_pop', '{"task_id": 1, "agent": "rev"}')`)
 	got, err := e.doingWindows(1, 0, 700)

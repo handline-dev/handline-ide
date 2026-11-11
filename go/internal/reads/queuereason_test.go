@@ -121,7 +121,7 @@ func TestQueueReasonSaysTheHeadsOwnTaskIsBlocked(t *testing.T) {
 	state(t, e, "IDLE", nil)
 	queue(t, e, 1, "task")
 	queue(t, e, 2, "task")
-	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 't', 'bob', 'human', 1), (2, 'u', 'bob', 'human', 1)")
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 't', 'bob', 'p1', 1), (2, 'u', 'bob', 'p1', 1)")
 	run(t, e, "INSERT INTO task_requests(task_id, request_id) VALUES(1, 1)")
 	run(t, e, "INSERT INTO task_blocks(task_id, blocks_on, created_at) VALUES(1, 2, 1)")
 	if got, _ := e.QueueReason("bob", 1); got != "its own task is blocked" {

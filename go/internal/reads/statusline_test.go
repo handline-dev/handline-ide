@@ -32,10 +32,10 @@ func TestAgentsListWithStatusAddsWhatHlTeamDraws(t *testing.T) {
 	run(t, e, "INSERT INTO agent_state(agent, state, updated, terminal, closed_at) VALUES"+
 		"('ann', 'IDLE', 0, 'h1', NULL), ('bob', 'PARKED', 0, NULL, 5), ('dan', 'IDLE', 0, 'h4', NULL)")
 	run(t, e, `INSERT INTO agent_view(agent, view, updated) VALUES('ann', '{"name": "ann", "state": "waiting", "state_detail": "a question"}', 0)`)
-	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(1, 1, 'human', 'ann', 'b', 'queued', 'say', 1)")
+	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(1, 1, 'p1', 'ann', 'b', 'queued', 'say', 1)")
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, priority, done_evidence) VALUES"+
-		"(3, 'late', 'ann', 'human', 1, 1, NULL), (2, 'early', 'ann', 'human', 1, 2, NULL), (4, 'done', 'ann', 'human', 1, 2, 'sha'), "+
-		"(5, 'no hold', 'ann', 'human', 1, 2, NULL), (6, 'another owner', 'bob', 'human', 1, 2, NULL)")
+		"(3, 'late', 'ann', 'p1', 1, 1, NULL), (2, 'early', 'ann', 'p1', 1, 2, NULL), (4, 'done', 'ann', 'p1', 1, 2, 'sha'), "+
+		"(5, 'no hold', 'ann', 'p1', 1, 2, NULL), (6, 'another owner', 'bob', 'p1', 1, 2, NULL)")
 	run(t, e, `INSERT INTO meta(name, value, updated) VALUES('taskhold:2', '{"why": "blocked by T9 (cat)", "able": false}', 0), ('taskhold:3', '{"why": "behind T2"}', 0), `+
 		`('taskhold:4', '{"why": "ended"}', 0), ('taskhold:6', '{"why": "bob is closed"}', 0)`)
 	e.Delivery = fakeDelivery{wakeWait: map[string]string{"bob": "waiting for alpha's window at 14:00"}}

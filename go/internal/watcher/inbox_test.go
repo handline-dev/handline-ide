@@ -121,11 +121,11 @@ func TestGoAndPythonWriteTheSameInboxEvents(t *testing.T) {
 	py, events := parity(t, func(d *sql.DB) Detector { return &Inbox{Reads: &reads.Env{DB: d}} },
 		func(run func(string, ...any)) {
 			run("INSERT INTO requests(id, ts, requester, target, body, state, edge_ok) VALUES(1, ?, 'amy', 'bob', 'old', 'queued', 1)", now-100)
-			run("INSERT INTO requests(id, ts, requester, target, body, state, edge_ok) VALUES(2, ?, 'amy', 'human', 'old for you', 'queued', 1)", now-100)
+			run("INSERT INTO requests(id, ts, requester, target, body, state, edge_ok) VALUES(2, ?, 'amy', 'p1', 'old for you', 'queued', 1)", now-100)
 		},
 		func(run func(string, ...any)) {
 			run("INSERT INTO requests(id, ts, requester, target, body, kind, state, edge_ok) VALUES(3, ?, 'amy', 'bob', 'do x', 'task', 'queued', 1)", now+100)
-			run("INSERT INTO requests(id, ts, requester, target, body, state, edge_ok) VALUES(4, ?, 'cat', 'human', 'decide?', 'queued', 1)", now+100)
+			run("INSERT INTO requests(id, ts, requester, target, body, state, edge_ok) VALUES(4, ?, 'cat', 'p1', 'decide?', 'queued', 1)", now+100)
 			run("UPDATE requests SET read_at = ?, state_at = ? WHERE id = 1", now+101, now+101)
 			run("INSERT INTO cursors(name, row_id, updated) VALUES('for_you_seen:amy', 99, 0)")
 			run("UPDATE requests SET state = 'answered', state_at = ? WHERE id = 4", now+102)

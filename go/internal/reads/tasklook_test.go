@@ -13,9 +13,9 @@ func TestATaskGetsSubtasksAndBlockersCarryWhatTheirLookReads(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by, parent_task, done_evidence) VALUES"+
-		"(1, 'parent', 'bob', 'human', 1, 'human', NULL, NULL), (2, 'held', 'bob', 'human', 1, 'human', 1, NULL), "+
-		"(3, 'failed', 'bob', 'human', 1, 'human', 1, 'FAIL @abcdef1: broke'), (4, 'blocked', 'bob', 'human', 1, 'human', 1, NULL), "+
-		"(5, 'blocker', 'bob', 'human', 1, 'human', NULL, NULL)")
+		"(1, 'parent', 'bob', 'p1', 1, 'p1', NULL, NULL), (2, 'held', 'bob', 'p1', 1, 'p1', 1, NULL), "+
+		"(3, 'failed', 'bob', 'p1', 1, 'p1', 1, 'FAIL @abcdef1: broke'), (4, 'blocked', 'bob', 'p1', 1, 'p1', 1, NULL), "+
+		"(5, 'blocker', 'bob', 'p1', 1, 'p1', NULL, NULL)")
 	run(t, e, `INSERT INTO meta(name, value, updated) VALUES('taskhold:2', '{"why": "bob is mid-turn", "on": "owner", "able": false, "since": 1792000000}', 0)`)
 	run(t, e, "INSERT INTO task_blocks(task_id, blocks_on, created_at) VALUES(4, 5, 1), (1, 4, 1)")
 	got, err := e.taskGet(nil, map[string]any{"task": json.Number("1")})

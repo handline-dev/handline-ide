@@ -21,7 +21,7 @@ func TestARequestNeedsAttentionByTheFirstFactOfItsTree(t *testing.T) {
 			v += ", " + x
 		}
 		return []string{
-			"INSERT INTO tasks(id, title, owner, opened_by, created_at, request) VALUES(1, 'ask', 'lead', 'human', " + at(age) + ", 1), (3, 'ops', 'ops', 'ops', " + at(10) + ", NULL)",
+			"INSERT INTO tasks(id, title, owner, opened_by, created_at, request) VALUES(1, 'ask', 'lead', 'p1', " + at(age) + ", 1), (3, 'ops', 'ops', 'ops', " + at(10) + ", NULL)",
 			"INSERT INTO tasks(id, title, owner, opened_by, parent_task, created_at, request" + cols + ") VALUES(2, 'build', 'dev', 'lead', 1, " + at(age) + ", 1" + v + ")",
 		}
 	}
@@ -81,9 +81,9 @@ func TestARequestNeedsAttentionByTheFirstFactOfItsTree(t *testing.T) {
 		{"a host wait does not count", join(plain, []string{hold("host", 9000)}), "", "<nil>"},
 		{"behind an open blocker", join(plain, []string{hold("cap", 9000), "INSERT INTO task_blocks(task_id, blocks_on, created_at) VALUES(2, 3, 1)"}), "", "<nil>"},
 		{"a card out", join(plain, []string{hold("cap", 9000),
-			"INSERT INTO requests(id, ref, ts, requester, target, body, state, kind) VALUES(9, 'aaaaaaaaaaa9', 1, 'dev', 'human', 'ok?', 'queued', 'say')",
+			"INSERT INTO requests(id, ref, ts, requester, target, body, state, kind) VALUES(9, 'aaaaaaaaaaa9', 1, 'dev', 'p1', 'ok?', 'queued', 'say')",
 			"INSERT INTO task_requests(task_id, request_id) VALUES(2, 9)"}), "", "<nil>"},
-		{"a done request", []string{"INSERT INTO tasks(id, title, owner, opened_by, created_at, request, done_evidence, done_at) VALUES(1, 'ask', 'lead', 'human', " + at(9000) + ", 1, 'ok', " + at(9000) + ")"}, "", "<nil>"},
+		{"a done request", []string{"INSERT INTO tasks(id, title, owner, opened_by, created_at, request, done_evidence, done_at) VALUES(1, 'ask', 'lead', 'p1', " + at(9000) + ", 1, 'ok', " + at(9000) + ")"}, "", "<nil>"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()

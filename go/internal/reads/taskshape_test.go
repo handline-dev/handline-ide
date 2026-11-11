@@ -27,7 +27,7 @@ func TestATaskRowCarriesEveryKeyOfTheContractTask(t *testing.T) {
 	}
 	e := testEnv(t)
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by, discarded_by, discard_reason, discarded_at, edited_by, edited_at) "+
-		"VALUES(1, 'x', 'bob', 'human', 1, 'human', 'mgr', 'stale', 50, 'mgr', 20)")
+		"VALUES(1, 'x', 'bob', 'p1', 1, 'p1', 'mgr', 'stale', 50, 'mgr', 20)")
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(2, 'y', 'bob', 'mgr', 1)")
 	got, err := e.Tasks([]int64{1, 2})
 	if err != nil {

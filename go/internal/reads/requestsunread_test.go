@@ -16,10 +16,10 @@ func runAll(t *testing.T, e *Env, qs ...string) {
 func TestARequestsRowTakesTheStrongestKindOfWhatWaitsOnTheTask(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(1, 'both', 'bob', 'human', 1, 'human')")
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(1, 'both', 'bob', 'p1', 1, 'p1')")
 	run(t, e, "INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(1, 1, 'bob', 'q @human?', 10)")
-	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, memo_id, edge_ok) VALUES(20, 10, 'bob', 'human', 'q @human?', 'queued', 'ask', 1, 1)")
-	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(21, 20, 'bob', 'human', 'decide this', 'queued', 'ask', 1)")
+	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, memo_id, edge_ok) VALUES(20, 10, 'bob', 'p1', 'q @human?', 'queued', 'ask', 1, 1)")
+	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(21, 20, 'bob', 'p1', 'decide this', 'queued', 'ask', 1)")
 	run(t, e, "INSERT INTO task_requests(task_id, request_id) VALUES(1, 20), (1, 21)")
 	answer := pending(t, e)["answer"].([]map[string]any)
 	if len(answer) != 1 || answer[0]["kind"] != "decide" {
@@ -29,8 +29,8 @@ func TestARequestsRowTakesTheStrongestKindOfWhatWaitsOnTheTask(t *testing.T) {
 
 func TestTheAnswerRowsAreNewestFirst(t *testing.T) {
 	e := testEnv(t)
-	runAll(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(1, 'old', 'bob', 'human', 1, 'human'), (2, 'new', 'bob', 'human', 1, 'human')",
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(20, 10, 'bob', 'human', 'a', 'queued', 'ask', 1), (21, 500, 'bob', 'human', 'b', 'queued', 'ask', 1)",
+	runAll(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(1, 'old', 'bob', 'p1', 1, 'p1'), (2, 'new', 'bob', 'p1', 1, 'p1')",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(20, 10, 'bob', 'p1', 'a', 'queued', 'ask', 1), (21, 500, 'bob', 'p1', 'b', 'queued', 'ask', 1)",
 		"INSERT INTO task_requests(task_id, request_id) VALUES(1, 20), (2, 21)")
 	if got := taskIDs(pending(t, e)["answer"]); got != "[2 1]" {
 		t.Fatalf("newest first: %s", got)
@@ -41,8 +41,8 @@ func TestTheAnswerRowsAreNewestFirst(t *testing.T) {
 func TestTheCommentRowsCoverATaskTheFounderOwnsAndSkipADiscardedOne(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	runAll(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(1, 'mine', 'human', 'amy', 1, 'amy')",
-		"INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by, discarded_by, discarded_at) VALUES(2, 'gone', 'bob', 'human', 1, 'human', 'human', 5)",
+	runAll(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(1, 'mine', 'p1', 'amy', 1, 'amy')",
+		"INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by, discarded_by, discarded_at) VALUES(2, 'gone', 'bob', 'p1', 1, 'p1', 'p1', 5)",
 		"INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(1, 1, 'bob', 'fyi', 10), (2, 2, 'bob', 'late', 11)")
 	if got := taskIDs(pending(t, e)["comments"]); got != "[1]" {
 		t.Fatalf("the founder's own task is listed and the discarded one is not: %s", got)
@@ -53,7 +53,7 @@ func TestTheCommentRowsCoverATaskTheFounderOwnsAndSkipADiscardedOne(t *testing.T
 func TestTaskGetGivesAnAgentNoUnread(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(1, 'one', 'bob', 'human', 1, 'human')")
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(1, 'one', 'bob', 'p1', 1, 'p1')")
 	run(t, e, "INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(1, 1, 'bob', 'fyi', 10)")
 	for _, tc := range []struct {
 		name string

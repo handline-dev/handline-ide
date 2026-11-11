@@ -856,7 +856,7 @@ func TestABatchOfDecisionsWaitsForTheProposersDigestAndNothingIsFromTheFounder(t
 		t.Fatalf("bob: five outcomes wait for one digest: %d %v", len(pending), err)
 	}
 	var fromFounder int
-	r.db.QueryRow("SELECT COUNT(*) FROM requests WHERE target = 'alice' AND requester = 'human'").Scan(&fromFounder)
+	r.db.QueryRow("SELECT COUNT(*) FROM requests WHERE target = 'alice' AND requester = 'p1'").Scan(&fromFounder)
 	if fromFounder != 0 {
 		t.Fatalf("%d outcomes were said as the founder", fromFounder)
 	}

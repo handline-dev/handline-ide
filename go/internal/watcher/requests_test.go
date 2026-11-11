@@ -28,7 +28,7 @@ func TestARequestThatAppearedOrChangedIsToldAsItsRow(t *testing.T) {
 		return out
 	}
 	now := time.Now().Unix()
-	exec(t, d, fmt.Sprintf("INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'hello', 'lead', 'human', %d)", now-10))
+	exec(t, d, fmt.Sprintf("INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'hello', 'lead', 'p1', %d)", now-10))
 	if n := told(); len(n) != 0 {
 		t.Fatalf("a first look told %v", n)
 	}

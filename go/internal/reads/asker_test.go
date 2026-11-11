@@ -56,8 +56,8 @@ func TestATaskGetCarriesWhatItsEndKeptAndWhetherItIsAUITask(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	addAgent(t, e, "bob", "")
-	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(1, 1, 'human', 'bob', 'b', 'queued', 'task', 1)")
-	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'a', 'bob', 'human', 1), (2, 'plain', 'bob', 'human', 1)")
+	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(1, 1, 'p1', 'bob', 'b', 'queued', 'task', 1)")
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'a', 'bob', 'p1', 1), (2, 'plain', 'bob', 'p1', 1)")
 	run(t, e, "INSERT INTO task_requests(task_id, request_id) VALUES(1, 1)")
 	if err := taskresult.MarkUI(e.DB, 1); err != nil {
 		t.Fatal(err)
@@ -87,11 +87,11 @@ func TestATaskGetListsEachAssigneeAndOwnerChange(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	addAgent(t, e, "bob", "")
-	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'a', 'bob', 'human', 1)")
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'a', 'bob', 'p1', 1)")
 	run(t, e, `INSERT INTO events(ts, agent, kind, payload) VALUES
 		(10, 'carol', 'edit_task', '{"task_id": 1, "owner": {"old": "al", "new": "bob"}, "reporter": {"old": "human", "new": "carol"}}'),
-		(11, 'human', 'edit_task', '{"task_id": 1, "title": {"old": "x", "new": "a"}}'),
-		(12, 'human', 'edit_task', '{"task_id": 2, "owner": {"old": "bob", "new": "al"}}')`)
+		(11, 'p1', 'edit_task', '{"task_id": 1, "title": {"old": "x", "new": "a"}}'),
+		(12, 'p1', 'edit_task', '{"task_id": 2, "owner": {"old": "bob", "new": "al"}}')`)
 	got, err := e.taskGet(nil, map[string]any{"task": json.Number("1")})
 	if err != nil {
 		t.Fatal(err)
@@ -113,10 +113,10 @@ func TestMyTurnListsTheOpenTasksAssignedToTheFounder(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by, done_evidence) VALUES"+
-		"(1, 'waits', 'human', 'amy', 1, 'amy', NULL), (3, 'draft', 'human', 'amy', 1, NULL, NULL), (4, 'amys', 'amy', 'human', 1, 'human', NULL), "+
-		"(5, 'ended', 'human', 'amy', 1, 'amy', 'done')")
+		"(1, 'waits', 'p1', 'amy', 1, 'amy', NULL), (3, 'draft', 'p1', 'amy', 1, NULL, NULL), (4, 'amys', 'amy', 'p1', 1, 'p1', NULL), "+
+		"(5, 'ended', 'p1', 'amy', 1, 'amy', 'done')")
 	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES"+
-		"(1, 1, 'amy', 'human', 'waits', 'landed', 'task', 1), (2, 2, 'amy', 'human', 'more', 'landed', 'say', 1), (3, 3, 'amy', 'human', 'and more', 'landed', 'say', 1)")
+		"(1, 1, 'amy', 'p1', 'waits', 'landed', 'task', 1), (2, 2, 'amy', 'p1', 'more', 'landed', 'say', 1), (3, 3, 'amy', 'p1', 'and more', 'landed', 'say', 1)")
 	run(t, e, "INSERT INTO task_requests(task_id, request_id) VALUES(1, 1), (1, 2), (1, 3)")
 	founder := &rpc.Conn{Caller: rpc.Caller{Role: "founder"}}
 	list, err := e.tasksList(founder, map[string]any{"my_turn": true})
@@ -141,7 +141,7 @@ func TestATaskGetHasEveryEventOfTheTaskWhateverItsKind(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	addAgent(t, e, "bob", "")
-	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'a', 'bob', 'human', 1)")
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'a', 'bob', 'p1', 1)")
 	run(t, e, `INSERT INTO events(ts, agent, kind, payload) VALUES
 		(10, 'bob', 'zzz_last', '{"task_id": 1}'),
 		(11, 'bob', 'aaa_first', '{"task_id": 1}'),
@@ -183,7 +183,7 @@ func TestATaskGetAndTheTaskListSayWhatTheTaskSpent(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	addAgent(t, e, "bob", "")
-	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'a', 'bob', 'human', 1), (2, 'b', 'bob', 'human', 1)")
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'a', 'bob', 'p1', 1), (2, 'b', 'bob', 'p1', 1)")
 	// A million haiku input tokens is a dollar.
 	run(t, e, "INSERT INTO token_calls(account, session, req, ts, model, cwd, inp, cc, cr, out, thinking, agent, task_id) "+
 		"VALUES('g', 's', 'r1', 100, 'claude-haiku-5-5', '/w', 1000000, 0, 0, 0, 0, 'bob', 1), ('g', 's', 'r2', 160, 'claude-haiku-5-5', '/w', 2000000, 0, 0, 0, 0, 'bob', 1)")

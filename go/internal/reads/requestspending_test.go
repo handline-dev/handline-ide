@@ -33,8 +33,8 @@ func taskIDs(rows any) string {
 func TestATaskCountsTheCommentsAboveTheFoundersMarkerAndNamesTheFirst(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(1, 'one', 'human', 'bob', 1, 'bob'), (2, 'two', 'bob', 'human', 1, 'human')")
-	run(t, e, "INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(5, 1, 'bob', 'a', 10), (6, 1, 'human', 'mine', 11), (7, 1, 'bob', 'b', 12), (8, 2, 'bob', 'c', 13)")
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(1, 'one', 'p1', 'bob', 1, 'bob'), (2, 'two', 'bob', 'p1', 1, 'p1')")
+	run(t, e, "INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(5, 1, 'bob', 'a', 10), (6, 1, 'p1', 'mine', 11), (7, 1, 'bob', 'b', 12), (8, 2, 'bob', 'c', 13)")
 	got, err := e.Tasks([]int64{1, 2})
 	if err != nil {
 		t.Fatal(err)
@@ -70,11 +70,11 @@ func TestRequestsPendingGroupsByTaskAndNeverReadsAQuestionAway(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES"+
-		"(1, 'asks', 'bob', 'human', 1, 'human'), (2, 'comments', 'bob', 'human', 1, 'human'), (3, 'not mine', 'bob', 'amy', 1, 'amy'), "+
-		"(4, 'owned', 'human', 'amy', 1, 'amy'), (5, 'a draft', 'bob', 'amy', 1, NULL)")
+		"(1, 'asks', 'bob', 'p1', 1, 'p1'), (2, 'comments', 'bob', 'p1', 1, 'p1'), (3, 'not mine', 'bob', 'amy', 1, 'amy'), "+
+		"(4, 'owned', 'p1', 'amy', 1, 'amy'), (5, 'a draft', 'bob', 'amy', 1, NULL)")
 	run(t, e, "INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(1, 1, 'bob', 'q @human?', 10), (2, 1, 'bob', 'more', 11), "+
 		"(3, 2, 'bob', 'fyi', 12), (4, 3, 'bob', 'not for the founder', 13)")
-	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, memo_id, edge_ok) VALUES(20, 10, 'bob', 'human', 'q @human?', 'queued', 'ask', 1, 1)")
+	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, memo_id, edge_ok) VALUES(20, 10, 'bob', 'p1', 'q @human?', 'queued', 'ask', 1, 1)")
 	run(t, e, "INSERT INTO task_requests(task_id, request_id) VALUES(1, 20)")
 	got := pending(t, e)
 	answer, comments, counts := got["answer"].([]map[string]any), got["comments"].([]map[string]any), got["counts"].(map[string]any)
@@ -109,7 +109,7 @@ func TestRequestsPendingCommentsTieOnLastAtBreakByTaskIDDescending(t *testing.T)
 	t.Parallel()
 	e := testEnv(t)
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES"+
-		"(1, 'a', 'bob', 'human', 1, 'human'), (2, 'b', 'bob', 'human', 1, 'human'), (3, 'c', 'bob', 'human', 1, 'human')")
+		"(1, 'a', 'bob', 'p1', 1, 'p1'), (2, 'b', 'bob', 'p1', 1, 'p1'), (3, 'c', 'bob', 'p1', 1, 'p1')")
 	run(t, e, "INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(1, 1, 'bob', 'x', 10), (2, 2, 'bob', 'y', 10), (3, 3, 'bob', 'z', 5)")
 	if got := taskIDs(pending(t, e)["comments"]); got != "[2 1 3]" {
 		t.Fatalf("newest first, equal times by task id descending: %s", got)

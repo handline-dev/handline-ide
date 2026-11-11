@@ -50,7 +50,7 @@ func TestADetectorRunsOnlyWhenATableItNamesChanged(t *testing.T) {
 	tasks := &counted{tables: []string{"tasks", "task_memos"}}
 	reqs := &counted{tables: []string{"requests"}}
 	w.Detectors = []Detector{tabledCounted{tasks}, tabledCounted{reqs}}
-	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 't', 'bob', 'human', 1)")
+	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 't', 'bob', 'p1', 1)")
 	look(true)
 	look(false)
 	if tasks.runs != 1 || reqs.runs != 1 {
@@ -164,8 +164,8 @@ func TestAScanThatFailedIsRunAgainAtTheNextLook(t *testing.T) {
 // Each counted table moves its own count on an insert, an update and a delete, whoever writes.
 func TestEveryCountedTableMovesItsOwnCountOnInsertUpdateAndDelete(t *testing.T) {
 	d, _ := rig(t)
-	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'a', 'bob', 'human', 1), (2, 'b', 'bob', 'human', 1)")
-	exec(t, d, "INSERT INTO requests(id, ts, requester, target, body) VALUES(1, 1, 'bob', 'human', 'x')")
+	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'a', 'bob', 'p1', 1), (2, 'b', 'bob', 'p1', 1)")
+	exec(t, d, "INSERT INTO requests(id, ts, requester, target, body) VALUES(1, 1, 'bob', 'p1', 'x')")
 	count := func(table string) (n int64) {
 		if err := d.QueryRow("SELECT n FROM table_changes WHERE name = ?", table).Scan(&n); err != nil {
 			t.Fatal(err)
@@ -185,14 +185,14 @@ func TestEveryCountedTableMovesItsOwnCountOnInsertUpdateAndDelete(t *testing.T) 
 		{"prefs", "INSERT INTO prefs(person, nav, updated_at) VALUES('p', '{}', 1)", "UPDATE prefs SET nav = '[]'", "DELETE FROM prefs"},
 		{"prompt_blocks", "INSERT INTO prompt_blocks(agent, kind, fingerprint, title, panel, detail, first_seen, last_seen) VALUES('a', 'dialog', 'f', 't', '{}', 'd', 1, 1)",
 			"UPDATE prompt_blocks SET title = 'u'", "DELETE FROM prompt_blocks"},
-		{"requests", "INSERT INTO requests(id, ts, requester, target, body) VALUES(2, 1, 'bob', 'human', 'y')", "UPDATE requests SET body = 'z' WHERE id = 2", "DELETE FROM requests WHERE id = 2"},
+		{"requests", "INSERT INTO requests(id, ts, requester, target, body) VALUES(2, 1, 'bob', 'p1', 'y')", "UPDATE requests SET body = 'z' WHERE id = 2", "DELETE FROM requests WHERE id = 2"},
 		{"session_starts", "INSERT INTO session_starts(agent, ts, session_id, cause, resumed, text, prompt) VALUES('a', 1, 's', 'c', 0, 't', 'p')",
 			"UPDATE session_starts SET ts = 2", "DELETE FROM session_starts"},
 		{"task_blocks", "INSERT INTO task_blocks(task_id, blocks_on, created_at) VALUES(1, 2, 1)", "UPDATE task_blocks SET dormant = 1", "DELETE FROM task_blocks"},
 		{"task_memos", "INSERT INTO task_memos(task_id, author, body, created_at) VALUES(1, 'a', 'n', 1)", "UPDATE task_memos SET body = 'o'", "DELETE FROM task_memos"},
 		{"task_requests", "INSERT INTO task_requests(task_id, request_id) VALUES(1, 1)", "UPDATE task_requests SET request_id = 2", "DELETE FROM task_requests"},
 		{"task_tags", "INSERT INTO task_tags(task_id, tag) VALUES(1, 'a')", "UPDATE task_tags SET tag = 'b'", "DELETE FROM task_tags"},
-		{"tasks", "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(3, 'c', 'bob', 'human', 1)", "UPDATE tasks SET title = 'd' WHERE id = 3", "DELETE FROM tasks WHERE id = 3"},
+		{"tasks", "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(3, 'c', 'bob', 'p1', 1)", "UPDATE tasks SET title = 'd' WHERE id = 3", "DELETE FROM tasks WHERE id = 3"},
 	} {
 		for _, q := range []string{c.insert, c.update, c.drop} {
 			before := count(c.table)
@@ -218,7 +218,7 @@ func TestEveryCountedTableMovesItsOwnCountOnInsertUpdateAndDelete(t *testing.T) 
 // The detector says it is pending while a command run is open and the terminal host is asked, and not otherwise.
 func TestChatIsPendingWhileACommandRunIsOpen(t *testing.T) {
 	r := newChatRig(t)
-	exec(t, r.d, "INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(1, 100, 'bob', 'human', 'run it', 'landed', 'say')")
+	exec(t, r.d, "INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(1, 100, 'bob', 'p1', 'run it', 'landed', 'say')")
 	started := cmdruns.Now() - 10
 	panes := map[string]term.PaneRun{}
 	c := r.chat()

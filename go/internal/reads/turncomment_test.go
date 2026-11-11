@@ -13,7 +13,7 @@ func TestATurnReadsTheCommentItWasHandedOverWith(t *testing.T) {
 	e := testEnv(t)
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(1, 'pick', 'amy', 'amy', 1, 'amy')")
 	run(t, e, "INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(7, 1, 'amy', 'A or B? I recommend A', 10)")
-	run(t, e, "INSERT INTO task_turns(task_id, pos, agent, ask, pushed_by, since, memo) VALUES(1, 1, 'human', '', 'amy', 10, 7)")
+	run(t, e, "INSERT INTO task_turns(task_id, pos, agent, ask, pushed_by, since, memo) VALUES(1, 1, 'p1', '', 'amy', 10, 7)")
 	run(t, e, `INSERT INTO events(id, ts, agent, kind, payload) VALUES(1, 10, 'amy', 'task_turn_push', '{"task_id":1,"to":"human","ask":"","memo":7}')`)
 	got, err := e.taskGet(nil, map[string]any{"task": json.Number("1")})
 	if err != nil {
@@ -74,10 +74,10 @@ func TestTheFoundersTurnTheirAnswerAndANoteAreCardsInTheAgentsChat(t *testing.T)
 	e := testEnv(t)
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(1, 'pick', 'amy', 'amy', 1, 'amy')")
 	run(t, e, "INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES"+
-		"(7, 1, 'amy', 'A or B?', 10), (8, 1, 'human', 'A', 20), (9, 1, 'amy', '@human A is in', 30), (10, 1, 'amy', 'plain', 40), (11, 1, 'amy', '@human C or D?', 50)")
+		"(7, 1, 'amy', 'A or B?', 10), (8, 1, 'p1', 'A', 20), (9, 1, 'amy', '@human A is in', 30), (10, 1, 'amy', 'plain', 40), (11, 1, 'amy', '@human C or D?', 50)")
 	run(t, e, `INSERT INTO events(id, ts, agent, kind, payload) VALUES`+
 		`(1, 10, 'amy', 'task_turn_push', '{"task_id":1,"to":"human","ask":"","memo":7}'), `+
-		`(2, 20, 'human', 'task_turn_pop', '{"task_id":1,"agent":"human","outcome":"pass","note":"A","to":"amy","memo":8}'), `+
+		`(2, 20, 'p1', 'task_turn_pop', '{"task_id":1,"agent":"human","outcome":"pass","note":"A","to":"amy","memo":8}'), `+
 		`(3, 30, 'amy', 'memo_add', '{"task_id":1,"memo":9,"now":"@human A is in"}'), `+
 		`(4, 40, 'amy', 'memo_add', '{"task_id":1,"memo":10,"now":"plain"}'), `+
 		`(5, 50, 'amy', 'memo_add', '{"task_id":1,"memo":11,"now":"@human C or D?"}'), `+

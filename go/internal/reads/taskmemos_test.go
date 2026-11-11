@@ -24,7 +24,7 @@ func TestTaskMemoListPagesBackFromTheNewest(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	addAgent(t, e, "bob", "")
-	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'a', 'bob', 'human', 1), (2, 'b', 'bob', 'human', 1)")
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'a', 'bob', 'p1', 1), (2, 'b', 'bob', 'p1', 1)")
 	for i := 1; i <= 5; i++ {
 		run(t, e, "INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(?, 1, 'amy', 'm', ?)", i, i)
 	}
@@ -64,14 +64,14 @@ func TestAFounderCommentShowsWhereItsTellStandsForEachReader(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	addAgent(t, e, "bob", "")
-	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'a', 'bob', 'human', 1)")
-	run(t, e, "INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(1, 1, 'human', 'hi', 1), (2, 1, 'amy', 'mine', 2)")
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'a', 'bob', 'p1', 1)")
+	run(t, e, "INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(1, 1, 'p1', 'hi', 1), (2, 1, 'amy', 'mine', 2)")
 	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, notice, landed_at, delivered_at, read_at) VALUES"+
 		"(1, 1, 'n', 'a', 'b', 'landed', 'say', 2, 100, NULL, NULL),"+ // held for a digest
 		"(2, 1, 'n', 'b', 'b', 'landed', 'say', 2, 100, 200, NULL),"+ // sent in a digest
 		"(3, 1, 'n', 'c', 'b', 'landed', 'say', 2, 100, 200, 300),"+ // opened
 		"(4, 1, 'n', 'd', 'b', 'landed', 'say', 0, 400, NULL, NULL),"+ // typed at once
-		"(5, 1, 'human', 'e', 'T1 is your turn again', 'withdrawn', 'task', 0, NULL, NULL, NULL)") // a return withdrawn before it reached e
+		"(5, 1, 'p1', 'e', 'T1 is your turn again', 'withdrawn', 'task', 0, NULL, NULL, NULL)") // a return withdrawn before it reached e
 	run(t, e, "INSERT INTO memo_tells(memo_id, reader, request_id) VALUES(1, 'a', 1), (1, 'b', 2), (1, 'c', 3), (1, 'd', 4), (1, 'e', 5), (2, 'a', 1)")
 	got, err := e.taskMemoList(nil, nums(map[string]any{"task": 1}))
 	if err != nil {

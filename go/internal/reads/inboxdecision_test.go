@@ -7,11 +7,11 @@ func TestADecisionInboxItemAlwaysCarriesItsTask(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	run(t, e, "INSERT INTO requests(id, ref, ts, requester, target, body, state, kind, edge_ok) VALUES"+
-		"(1, 'aaaaaaaaaaa1', 10, 'bob', 'human', 'approve the plan', 'queued', 'task', 1), "+
-		"(2, 'aaaaaaaaaaa2', 20, 'bob', 'human', 'which one?', 'queued', 'ask', 1), "+
-		"(3, 'aaaaaaaaaaa3', 30, 'amy', 'human', 'second card', 'queued', 'task', 1), "+
-		"(4, 'aaaaaaaaaaa4', 40, 'cy', 'human', 'a task of bob''s', 'queued', 'task', 1)")
-	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(7, 'decide', 'human', 'bob', 1), (8, 'decide too', 'human', 'amy', 1), "+
+		"(1, 'aaaaaaaaaaa1', 10, 'bob', 'p1', 'approve the plan', 'queued', 'task', 1), "+
+		"(2, 'aaaaaaaaaaa2', 20, 'bob', 'p1', 'which one?', 'queued', 'ask', 1), "+
+		"(3, 'aaaaaaaaaaa3', 30, 'amy', 'p1', 'second card', 'queued', 'task', 1), "+
+		"(4, 'aaaaaaaaaaa4', 40, 'cy', 'p1', 'a task of bob''s', 'queued', 'task', 1)")
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(7, 'decide', 'p1', 'bob', 1), (8, 'decide too', 'p1', 'amy', 1), "+
 		"(9, 'not the founder''s', 'bob', 'cy', 1)")
 	run(t, e, "INSERT INTO task_requests(task_id, request_id) VALUES(7, 1), (8, 3), (9, 4)")
 	items, err := e.FounderItems(0)

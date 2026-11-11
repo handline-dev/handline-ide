@@ -11,10 +11,10 @@ func TestReadSaysStayInTheInboxListForSevenDays(t *testing.T) {
 	e := testEnv(t)
 	now := time.Now().Unix()
 	run(t, e, "INSERT INTO requests(id, ref, ts, requester, target, body, state, kind, edge_ok, landed_at, read_at) VALUES"+
-		"(1, 'aaaaaaaaaaa1', 10, 'bob', 'human', 'fresh read', 'landed', 'say', 1, 10, "+itoa(now-3600)+"), "+
-		"(2, 'aaaaaaaaaaa2', 20, 'bob', 'human', 'old read', 'landed', 'say', 1, 20, "+itoa(now-8*24*3600)+"), "+
-		"(3, 'aaaaaaaaaaa3', 30, 'bob', 'human', 'unread', 'landed', 'say', 1, 30, NULL), "+
-		"(4, 'aaaaaaaaaaa4', 40, 'bob', 'human', 'queued ask marked read', 'queued', 'ask', 1, NULL, "+itoa(now-60)+")")
+		"(1, 'aaaaaaaaaaa1', 10, 'bob', 'p1', 'fresh read', 'landed', 'say', 1, 10, "+itoa(now-3600)+"), "+
+		"(2, 'aaaaaaaaaaa2', 20, 'bob', 'p1', 'old read', 'landed', 'say', 1, 20, "+itoa(now-8*24*3600)+"), "+
+		"(3, 'aaaaaaaaaaa3', 30, 'bob', 'p1', 'unread', 'landed', 'say', 1, 30, NULL), "+
+		"(4, 'aaaaaaaaaaa4', 40, 'bob', 'p1', 'queued ask marked read', 'queued', 'ask', 1, NULL, "+itoa(now-60)+")")
 	listed, err := e.founderItemsKept(0, true)
 	if err != nil {
 		t.Fatal(err)
