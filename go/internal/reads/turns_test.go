@@ -61,7 +61,7 @@ func TestMyTurnListsTheTasksTheFoundersTurnIsOn(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got[1]["acting"] != "human" || got[1]["to"] != "amy" || got[2]["acting"] != "amy" {
+	if got[1]["acting"] != "p1" || got[1]["to"] != "amy" || got[2]["acting"] != "amy" {
 		t.Fatalf("acting: %v %v / %v", got[1]["acting"], got[1]["to"], got[2]["acting"])
 	}
 }

@@ -227,8 +227,8 @@ func TestGoAndPythonWriteTheSameRowsForTheSameChatChanges(t *testing.T) {
 			run(pb, "amy", 1, 1)
 		},
 		func(run func(string, ...any)) {
-			run(ins, 1, 100, "human", "bob", "question", "landed")
-			run(ins, 2, 150, "bob", "human", "the answer", "landed")
+			run(ins, 1, 100, "p1", "bob", "question", "landed")
+			run(ins, 2, 150, "bob", "p1", "the answer", "landed")
 			run(ins, 3, 200, "amy", "bob", "hello", "landed")
 			run("INSERT INTO events(ts, agent, kind, payload) VALUES(5, 'bob', 'task_begin', '{\"task_id\":1}')")
 			run(pb, "bob", 6, 6)

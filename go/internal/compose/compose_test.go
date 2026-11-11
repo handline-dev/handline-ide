@@ -175,7 +175,7 @@ func wiredWith(t *testing.T, ft *fakeTerminals) (*Parts, *Lifecycle, *supervisor
 	if err := dbpkg.SetClosed(d, "alice", ""); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := dbpkg.AddRequest(d, dbpkg.NewRequest{Requester: "human", Target: "alice", Body: "begin", Kind: "ask"}); err != nil {
+	if _, err := dbpkg.AddRequest(d, dbpkg.NewRequest{Requester: "p1", Target: "alice", Body: "begin", Kind: "ask"}); err != nil {
 		t.Fatal(err) // what a closed agent is woken for
 	}
 	env := &supervisor.Env{DB: d, Home: home, Log: func(string, ...any) {}}

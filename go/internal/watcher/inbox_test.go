@@ -31,7 +31,7 @@ func request(t *testing.T, d *sql.DB, id, ts int64, requester, target, body stri
 func TestTheInboxIsToldWhenAnItemArrivesChangesOrLeavesAndTheFirstLookSaysNothing(t *testing.T) {
 	d, l := rig(t)
 	request(t, d, 1, t0-100, "amy", "bob", "old for bob")
-	request(t, d, 2, t0-100, "amy", "human", "old for you")
+	request(t, d, 2, t0-100, "amy", "p1", "old for you")
 	in := &Inbox{Reads: &reads.Env{DB: d}, Now: func() time.Time { return time.Unix(t0, 0) }}
 	emit := func(e stream.Entry) (*stream.Event, error) { return l.Append(e) }
 	if err := in.Scan(d, emit); err != nil || len(inboxRows(t, l)) != 0 {
@@ -55,7 +55,7 @@ func TestTheInboxIsToldWhenAnItemArrivesChangesOrLeavesAndTheFirstLookSaysNothin
 		t.Fatalf("%+v", got)
 	}
 	// the founder's inbox: an item arrives for them
-	request(t, d, 4, t0+10, "amy", "human", "decide?")
+	request(t, d, 4, t0+10, "amy", "p1", "decide?")
 	in.Scan(d, emit)
 	if got = inboxRows(t, l); len(got) != 3 || got[2].Type != "inbox.added" || *got[2].Agent != "amy" {
 		t.Fatalf("%+v", got)
@@ -78,7 +78,7 @@ func TestTheInboxIsToldWhenAnItemArrivesChangesOrLeavesAndTheFirstLookSaysNothin
 	if len(inboxRows(t, l)) != 6 {
 		t.Fatalf("the founder's inbox was rebuilt with nothing of theirs touched")
 	}
-	request(t, d, 5, t0+13, "amy", "human", "another")
+	request(t, d, 5, t0+13, "amy", "p1", "another")
 	in.Scan(d, emit)
 	if got = inboxRows(t, l); len(got) != 8 { // item 5 arrives and the quiet edit of item 4 is told with it
 		t.Fatalf("%d rows", len(got))
@@ -100,7 +100,7 @@ func TestAFirstLookThatFailsIsTakenAgainAndStillSaysNothing(t *testing.T) {
 	for i := int64(1); i <= 50; i++ {
 		request(t, d, i, t0-100, "amy", "bob", "old")
 	}
-	request(t, d, 51, t0-100, "amy", "human", "old for you")
+	request(t, d, 51, t0-100, "amy", "p1", "old for you")
 	in := &Inbox{Reads: &reads.Env{DB: d}, Now: func() time.Time { return time.Unix(t0, 0) }}
 	emit := func(e stream.Entry) (*stream.Event, error) { return l.Append(e) }
 	dead, err := storetest.OpenAt(t, filepath.Join(t.TempDir(), "dead.sqlite"))

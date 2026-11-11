@@ -44,7 +44,7 @@ func TestATaskRowCarriesEveryKeyOfTheContractTask(t *testing.T) {
 	if d["by"] != "mgr" || d["reason"] != "stale" || d["at"] != ts(int64(50)) {
 		t.Fatalf("a discarded task says who, why and when: %v", got[1]["discarded"])
 	}
-	if got[1]["last_activity"] != ts(int64(50)) || got[1]["edited_by"] != "mgr" || got[1]["asker"] != "human" {
+	if got[1]["last_activity"] != ts(int64(50)) || got[1]["edited_by"] != "mgr" || got[1]["asker"] != "p1" {
 		t.Fatalf("%v", got[1])
 	}
 	if got[2]["discarded"] != nil || got[2]["edited_by"] != nil || got[2]["asker"] != "mgr" {

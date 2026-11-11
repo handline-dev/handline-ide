@@ -18,11 +18,11 @@ func TestWhatWakesAClosedAgentIsWhatItsWakePromptCarries(t *testing.T) {
 	}
 	// task queues a task for alice from the founder; its request id.
 	task := func(t *testing.T, d q, title string) (int64, int64) {
-		tid, err := dbpkg.NewTask(d, title, "alice", "human", 0, dbpkg.DefaultPriority, "", 0, "")
+		tid, err := dbpkg.NewTask(d, title, "alice", "p1", 0, dbpkg.DefaultPriority, "", 0, "")
 		must(t, err)
-		_, err = dbpkg.SetTaskQueued(d, tid, "human")
+		_, err = dbpkg.SetTaskQueued(d, tid, "p1")
 		must(t, err)
-		rid, err := dbpkg.AddRequest(d, dbpkg.NewRequest{Requester: "human", Target: "alice", Body: title, Kind: "task"})
+		rid, err := dbpkg.AddRequest(d, dbpkg.NewRequest{Requester: "p1", Target: "alice", Body: title, Kind: "task"})
 		must(t, err)
 		must(t, dbpkg.LinkRequest(d, tid, rid))
 		return tid, rid
@@ -36,7 +36,7 @@ func TestWhatWakesAClosedAgentIsWhatItsWakePromptCarries(t *testing.T) {
 		return tid
 	}
 	blockOn := func(t *testing.T, d q, tid int64) {
-		other, err := dbpkg.NewTask(d, "the founder's", "human", "human", 0, dbpkg.DefaultPriority, "", 0, "")
+		other, err := dbpkg.NewTask(d, "the founder's", "p1", "p1", 0, dbpkg.DefaultPriority, "", 0, "")
 		must(t, err)
 		_, err = d.Exec("INSERT INTO task_blocks(task_id, blocks_on, created_at) VALUES(?, ?, 1)", tid, other)
 		must(t, err)
