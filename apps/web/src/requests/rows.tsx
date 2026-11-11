@@ -44,6 +44,7 @@ const KIND: Record<PendingRequest['kind'], typeof HardDrive> = {
   ask: MessageCircleQuestion,
   warning: MailWarning,
   comment: MessageSquare,
+  note: MessageSquare,
 };
 
 /** What kind of thing waits on the founder, at a glance; the word in the grey line says it too. */
@@ -62,6 +63,7 @@ const ASK: Record<PendingRequest['kind'], string> = {
   ask: 'Question',
   warning: 'Warning',
   comment: 'New comments',
+  note: 'Note',
 };
 
 const BOX_BESIDE = 'mt-2 ml-2';
