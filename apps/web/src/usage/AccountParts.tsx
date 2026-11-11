@@ -78,11 +78,33 @@ export function Rename({ account: a }: { account: Account }) {
   );
 }
 
-/** The most agents at once, 1 to 8, one step at a time; "now N" and a line say when the daemon has lowered it for a while. */
+/**
+ * The most agents at once, 1 to 8: − and + step it and the number can be typed (Enter or leaving the box saves it). Steps start from
+ * what the founder last chose, not from a row that may not have caught up yet; "now N" and a line say when the daemon has lowered it.
+ */
 export function Stepper({ account: a }: { account: Account }) {
   const save = useWrite('account.set', a.name);
-  const set = capSet(a);
-  const go = (n: number) => save.mutate({ account: a.name, cap: n });
+  const [want, setWant] = useState<number | null>(null);
+  const [typed, setTyped] = useState<string | null>(null);
+  // A row that changes (the daemon's own news) is the truth again.
+  const [seen, setSeen] = useState(capSet(a));
+  if (seen !== capSet(a)) {
+    setSeen(capSet(a));
+    setWant(null);
+  }
+  const set = want ?? capSet(a);
+  const go = (n: number) => {
+    const next = Math.min(MAX_CAP, Math.max(1, n));
+    setTyped(null);
+    if (next === set) return;
+    setWant(next);
+    save.mutate({ account: a.name, cap: next }, { onError: () => setWant(null) });
+  };
+  const commit = () => {
+    const n = Number(typed);
+    if (typed !== null && typed.trim() !== '' && Number.isInteger(n)) go(n);
+    else setTyped(null);
+  };
   const lowered = !a.paused && a.cap_effective < set;
   return (
     <>
@@ -90,19 +112,28 @@ export function Stepper({ account: a }: { account: Account }) {
         <button
           type="button"
           aria-label="Fewer agents"
-          disabled={set <= 1 || save.isPending}
+          disabled={set <= 1}
           onClick={() => go(set - 1)}
           className="grid h-full w-8 place-items-center text-muted hover:text-fg disabled:opacity-40"
         >
           <Minus size={14} />
         </button>
-        <span className="w-9 border-x border-border text-center leading-8 tabular-nums" aria-live="polite">
-          {set}
-        </span>
+        <input
+          aria-label="Agents at once"
+          inputMode="numeric"
+          value={typed ?? String(set)}
+          onChange={(e) => setTyped(e.target.value.replace(/\D/g, '').slice(0, 2))}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') commit();
+            if (e.key === 'Escape') setTyped(null);
+          }}
+          className="h-full w-9 border-x border-border bg-transparent text-center tabular-nums outline-none focus:bg-surface"
+        />
         <button
           type="button"
           aria-label="More agents"
-          disabled={set >= MAX_CAP || save.isPending}
+          disabled={set >= MAX_CAP}
           onClick={() => go(set + 1)}
           className="grid h-full w-8 place-items-center text-muted hover:text-fg disabled:opacity-40"
         >
