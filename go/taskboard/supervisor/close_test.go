@@ -102,7 +102,7 @@ func TestCancelGuardRefusesInsideTheTransaction(t *testing.T) {
 	rid := r.ask("alice", r.k("bob"), "job", "ask")
 	db.MarkDelivered(r.DB, rid)
 	_, ok, msg, _ := r.CancelWrite(r.DB, &After{}, rid, nil, func(db.Q, *db.Request) string { return "it landed meanwhile" })
-	if ok || msg != "it landed meanwhile" {
+	if ok || r.named(msg) != "it landed meanwhile" {
 		t.Fatalf("%v %q", ok, msg)
 	}
 	if row, _ := db.GetRequest(r.DB, rid); row.State != "queued" {
@@ -125,7 +125,7 @@ func TestResolveRefusesToOverwriteAnAnswerAndWakesNobody(t *testing.T) {
 	if ok, msg, _ := r.Resolve(r.DB, ResolveIn{RID: rid, Verdict: "no"}); ok || r.ids(msg) != "#1 is already landed - nothing to resolve" {
 		t.Fatalf("%v %q", ok, msg)
 	}
-	if ok, msg, _ := r.Resolve(r.DB, ResolveIn{RID: 99}); ok || msg != "request 99 does not exist" {
+	if ok, msg, _ := r.Resolve(r.DB, ResolveIn{RID: 99}); ok || r.named(msg) != "request 99 does not exist" {
 		t.Fatal(msg)
 	}
 	// not while the asker still has another async ask out
