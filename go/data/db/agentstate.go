@@ -140,6 +140,24 @@ func SetStalled(q Q, agent, kind, detail string, args map[string]string) error {
 	return err
 }
 
+// ClearStall puts an agent back in the queue with detail as its word, its failure counters at 0 and its dialog marks gone.
+func ClearStall(q Q, agent, detail string) error {
+	if err := SetAgentState(q, agent, "QUEUED", 0, detail); err != nil {
+		return err
+	}
+	for _, col := range []string{"failed_attempts", "throttle_count", "wake_failures"} {
+		if err := ResetCounter(q, agent, col); err != nil {
+			return err
+		}
+	}
+	for _, key := range []string{"dialog_since:", "dialog_title:"} {
+		if err := ClearCursor(q, key+agent); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // StallFacts are the facts the stall was raised with, empty when it was raised without any (or before they were kept).
 func (s *AgentState) StallFacts() map[string]string {
 	out := map[string]string{}
