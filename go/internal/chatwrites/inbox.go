@@ -136,7 +136,7 @@ func (w *writes) markRead(c *rpc.Conn, p map[string]any) (any, error) {
 				if err != nil {
 					return nil, err
 				}
-				if row == nil || row.Target != db.Human {
+				if row == nil || row.Target != c.Caller.Actor() {
 					return nil, noItem(i) // one the person already read has left the mailbox: reading it again is nothing to do
 				}
 			}

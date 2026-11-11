@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
@@ -121,7 +122,7 @@ func (e *Env) box(t row, segs []stretch) (any, error) {
 	var order []string
 	for _, s := range segs {
 		from := max(s.from, since)
-		if s.to <= from || s.who == "" || s.who == db.Human || (s.rank != segWorking && s.rank != segStarting) {
+		if s.to <= from || s.who == "" || actor.IsPerson(s.who) || (s.rank != segWorking && s.rank != segStarting) {
 			continue
 		}
 		if first == 0 {
@@ -211,9 +212,9 @@ func (e *Env) taskSpans(t row, start, end int64) ([]stretch, error) {
 				state = open(at, segWorking, "", 0, acting())
 			}
 			switch top := acting(); {
-			case top == db.Human && founderTurn < 0:
+			case actor.IsPerson(top) && founderTurn < 0:
 				founderTurn = open(at, segFounder, waitFounder, 0, "")
-			case top != db.Human && founderTurn >= 0:
+			case !actor.IsPerson(top) && founderTurn >= 0:
 				spans[founderTurn].to, founderTurn = at, -1
 			}
 		}
@@ -233,7 +234,7 @@ func (e *Env) taskSpans(t row, start, end int64) ([]stretch, error) {
 			}
 		case "task_report":
 			cut()
-			if by := text(p["to"]); by != "" && by != db.Human {
+			if by := text(p["to"]); by != "" && !actor.IsPerson(by) {
 				state = open(at, segAgent, fmt.Sprintf(waitAgent, by), 0, "")
 			} else {
 				state = open(at, segFounder, waitFounder, 0, "")
@@ -322,7 +323,7 @@ func (e *Env) taskSpans(t row, start, end int64) ([]stretch, error) {
 	}
 	// The acting agent's parks and starts count only while it acted on the task and was doing it.
 	for _, d := range doing {
-		if d.who == db.Human || d.who == "" {
+		if actor.IsPerson(d.who) || d.who == "" {
 			continue
 		}
 		more, err := e.holderSpans(d.who, d.from, d.to)

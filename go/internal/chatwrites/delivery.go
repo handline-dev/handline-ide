@@ -6,6 +6,7 @@ import (
 
 	"github.com/handline/handline/go/agentctl/delivery"
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/taskboard/supervisor"
 )
@@ -79,7 +80,7 @@ func (w *writes) refreshSend(c *rpc.Conn, reply map[string]any) error {
 // heldMessage is the person's message rid when it is to a structured agent, else nil.
 func (w *writes) heldMessage(rid int64) (*db.Request, error) {
 	row, err := db.GetRequest(w.e.DB, rid)
-	if err != nil || row == nil || row.Requester != db.Human || !w.e.StructuredAgent(row.Target) {
+	if err != nil || row == nil || !actor.IsPerson(row.Requester) || !w.e.StructuredAgent(row.Target) {
 		return nil, err
 	}
 	return row, nil

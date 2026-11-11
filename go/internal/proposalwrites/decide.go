@@ -102,7 +102,7 @@ func (e *Env) tell(p *Prop, text string) {
 func (e *Env) concerned(p *Prop) []string {
 	var out []string
 	add := func(name string) {
-		if name == "" || name == db.Human || slices.Contains(out, name) {
+		if name == "" || slices.Contains(out, name) {
 			return
 		}
 		if slices.Contains(paths.ListAgents(e.Home), name) {

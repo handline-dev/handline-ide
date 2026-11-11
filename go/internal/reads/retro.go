@@ -6,6 +6,7 @@ import (
 
 	"github.com/handline/handline/go/accounts/usage"
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
@@ -50,7 +51,7 @@ func (e *Env) doingWindows(tid, ended, now int64) ([]usage.DoingWindow, error) {
 			return
 		}
 		closeAt(at)
-		if who := acting(); who != db.Human {
+		if who := acting(); !actor.IsPerson(who) {
 			holder, from = who, at
 		}
 	}
@@ -124,7 +125,7 @@ func (e *Env) retroAt(tid, now int64) (any, error) {
 	if t == nil {
 		return nil, noTask(tid)
 	}
-	if t.AnswersTo() != db.Human {
+	if !actor.IsPerson(t.AnswersTo()) {
 		return nil, badParam(fmt.Sprintf("T%d does not answer to the founder", tid), "task")
 	}
 	subtree, err := query(e.DB, "WITH RECURSIVE sub(id) AS (SELECT ? UNION SELECT t.id FROM tasks t JOIN sub ON t.parent_task = sub.id) "+
