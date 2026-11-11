@@ -465,7 +465,7 @@ func TestAWaitingBashLineDoesNotReadTheTranscript(t *testing.T) {
 // toldAbout is the says the task board queued for agent, oldest first.
 func toldAbout(t *testing.T, d *sql.DB, agent string) []string {
 	t.Helper()
-	rows, err := d.Query("SELECT body FROM requests WHERE requester = 'task-board' AND target = ? AND kind = 'say' AND state = 'queued' ORDER BY id", agent)
+	rows, err := d.Query("SELECT body FROM requests WHERE requester = 'sys' AND target = ? AND kind = 'say' AND state = 'queued' ORDER BY id", agent)
 	if err != nil {
 		t.Fatal(err)
 	}

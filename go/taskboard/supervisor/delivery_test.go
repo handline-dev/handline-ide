@@ -256,7 +256,7 @@ func TestWaitingPromptPassesOverAHeldTaskToTheSayBehindIt(t *testing.T) {
 		t.Fatal(err)
 	}
 	r.must(db.MarkLanded(r.DB, held))
-	say := r.ask("task-board", "bob", "T9 is unblocked", "say")
+	say := r.ask("sys", "bob", "T9 is unblocked", "say")
 	text, _, ok, err := r.WaitingPrompt(r.DB, "bob")
 	r.must(err)
 	if !ok || !strings.Contains(text, "T9 is unblocked") {

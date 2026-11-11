@@ -25,8 +25,8 @@ export const decidedProposals = (all: readonly Proposal[] | undefined, agent: st
   );
 
 /** The sender of the daemon's own notices; its words are never the person's. */
-export const NOTICE_SENDER = 'task-board';
-/** What a task-board message is: a task's news (`T<N> done by ...`), or a delivery notice (`#<N> to x was written ...`) that only concerns the sender. */
+export const NOTICE_SENDER = 'sys';
+/** What a sys message is: a task's news (`T<N> done by ...`), or a delivery notice (`#<N> to x was written ...`) that only concerns the sender. */
 export function noticeOf(m: ChatMessage): { kind: 'task'; task: number } | { kind: 'delivery' } | null {
   if (m.from !== NOTICE_SENDER) return null;
   const task = /^T(\d+)\s/.exec(m.body);

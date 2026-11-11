@@ -176,7 +176,7 @@ test("only the person's own words are on their side: the CLI, this device, to wh
   assert.equal(sideOf(pm({}), A, 'Handline desktop'), 'person');
   assert.equal(sideOf(pm({ from: 'human' }), A, 'Handline desktop'), 'person');
   assert.equal(sideOf(pm({ from: 'handline.y' }), A, 'Handline desktop'), 'other');
-  assert.equal(sideOf(pm({ from: 'task-board', to: A }), A, 'Handline desktop'), 'other');
+  assert.equal(sideOf(pm({ from: 'sys', to: A }), A, 'Handline desktop'), 'other');
   assert.equal(sideOf(pm({ from: 'schedule', to: A }), A, ''), 'other');
 });
 
@@ -201,13 +201,13 @@ test('a message can be taken back until it is withdrawn, and the agent is asked 
 });
 
 test("the task board's words are left out of the agent's own chat and shown in the All view", () => {
-  const news = pm({ id: 7, from: 'task-board', to: A, body: 'T3492 done by handline.pair: -' }); // local-ref-ok
-  const delivery = pm({ id: 8, from: 'task-board', to: A, body: '#28387 to handline.pair was written to its session' }); // local-ref-ok
+  const news = pm({ id: 7, from: 'sys', to: A, body: 'T3492 done by handline.pair: -' }); // local-ref-ok
+  const delivery = pm({ id: 8, from: 'sys', to: A, body: '#28387 to handline.pair was written to its session' }); // local-ref-ok
   assert.deepEqual(noticeOf(news), { kind: 'task', task: 3492 });
   assert.deepEqual(noticeOf(delivery), { kind: 'delivery' });
   assert.equal(noticeOf(pm({ from: 'human', body: 'T1 done by me' })), null);
   const kinds = (scope: 'mine' | 'all') => timeline([news, delivery], [], scope).map((e) => `${e.kind}${e.id}`);
-  const waits = pm({ id: 9, from: 'task-board', to: A, body: 'task T4136 now waits on T4148' }); // local-ref-ok
+  const waits = pm({ id: 9, from: 'sys', to: A, body: 'task T4136 now waits on T4148' }); // local-ref-ok
   assert.deepEqual(
     timeline([news, delivery, waits, pm({ id: 10, from: 'human', to: A })], [], 'mine').map((e) => `${e.kind}${e.id}`),
     ['message10'],
@@ -302,7 +302,7 @@ test('handoffLine says why and what for each phase', () => {
 test('the Chat holds the person and the agent; Activity holds the rest, and only session marks and task cards are in both', () => {
   const talk = msg({ id: 1 });
   const peers = msg({ id: 2, from: 'handline.auditor', to: A, body: 'Review is done' });
-  const news = msg({ id: 3, from: 'task-board', to: A, body: 'T9 done by x: ok' });
+  const news = msg({ id: 3, from: 'sys', to: A, body: 'T9 done by x: ok' });
   const items = [item({ id: 10, kind: 'reply' }), item({ id: 11, kind: 'tool', tool: 'Bash' }), item({ id: 12, kind: 'session' })];
   const key = (es: { kind: string; id: number }[]) => es.map((e) => `${e.kind}${e.id}`);
   const task = item({ id: 13, kind: 'task_event' });

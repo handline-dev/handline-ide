@@ -26,7 +26,7 @@ func TestFounderHeldTaskIsClosedByItsParentOwnerOrALead(t *testing.T) {
 		if n(fmt.Sprintf("SELECT COUNT(*) FROM tasks WHERE id = %d AND done_evidence = 'taken back'", c.task)) != 1 {
 			t.Fatalf("%s did not close T%d", c.agent, c.task)
 		}
-		if n("SELECT COUNT(*) FROM requests WHERE target = 'human' AND requester = 'task-board'") != 0 {
+		if n("SELECT COUNT(*) FROM requests WHERE target = 'human' AND requester = 'sys'") != 0 {
 			t.Fatalf("the board told the founder that %s closed T%d", c.agent, c.task)
 		}
 	}

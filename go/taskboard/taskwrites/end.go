@@ -16,7 +16,7 @@ import (
 // _child_result_notice; handline/db/tasks.py and requests.py under them). The says it writes are rows; typing them at their
 // target is the Teller's, once the write has committed.
 
-const noticeFrom = "task-board"
+const noticeFrom = "sys"
 
 // told is a say written for its target, to be delivered after the commit.
 type told = db.Notice

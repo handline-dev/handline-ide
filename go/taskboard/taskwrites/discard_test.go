@@ -59,11 +59,11 @@ func TestDiscardIsTheAskersAndTellsTheOwnerAndFreesWhatWaitedOnIt(t *testing.T) 
 	}
 	var body, target string
 	var notice int
-	db.QueryRow("SELECT body, target, COALESCE(notice, 0) FROM requests WHERE requester = 'task-board' AND body LIKE 'T1 discarded%'").Scan(&body, &target, &notice)
+	db.QueryRow("SELECT body, target, COALESCE(notice, 0) FROM requests WHERE requester = 'sys' AND body LIKE 'T1 discarded%'").Scan(&body, &target, &notice)
 	if body != "T1 discarded by manager: not needed" || target != "worker" || notice != 1 {
 		t.Fatalf("the owner is told: %q %q %d", body, target, notice)
 	}
-	db.QueryRow("SELECT COUNT(*) FROM requests WHERE requester = 'task-board' AND target = 'other' AND body LIKE 'task T2 is unblocked - T1%'").Scan(&n)
+	db.QueryRow("SELECT COUNT(*) FROM requests WHERE requester = 'sys' AND target = 'other' AND body LIKE 'task T2 is unblocked - T1%'").Scan(&n)
 	var blocks int
 	db.QueryRow("SELECT COUNT(*) FROM task_blocks").Scan(&blocks)
 	if n != 1 || blocks != 0 {
@@ -157,7 +157,7 @@ func TestTheFoundersDiscardMovesChildrenUpAndDropsItsOwnWaits(t *testing.T) {
 		t.Fatal("the child moves up with the wait, and the task's own waits are dropped")
 	}
 	if count(t, db, "SELECT COUNT(*) FROM tasks WHERE id = 11 AND discarded_by = 'human'") != 1 ||
-		count(t, db, "SELECT COUNT(*) FROM requests WHERE requester = 'task-board' AND target = 'worker' AND body = 'T11 discarded by the founder: gone'") != 1 { // local-ref-ok
+		count(t, db, "SELECT COUNT(*) FROM requests WHERE requester = 'sys' AND target = 'worker' AND body = 'T11 discarded by the founder: gone'") != 1 { // local-ref-ok
 		t.Fatal("recorded as the founder's, and the owner is told")
 	}
 }

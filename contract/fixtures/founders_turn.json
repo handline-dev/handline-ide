@@ -601,7 +601,7 @@
       "items": {
        "$each": {
         "agent": {
-         "$regex": "^(?!task-board$)"
+         "$regex": "^(?!sys$)"
         }
        }
       }

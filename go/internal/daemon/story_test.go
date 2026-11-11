@@ -94,7 +94,7 @@ func TestAStoryTellsTheFounderOneNoticeAndAgentsOnlyWhatTheyMustActOn(t *testing
 	}
 	count := func(pattern string) map[string]int {
 		out := map[string]int{}
-		rows, err := d.db.Query("SELECT target FROM requests WHERE requester = 'task-board' AND body LIKE ?", pattern)
+		rows, err := d.db.Query("SELECT target FROM requests WHERE requester = 'sys' AND body LIKE ?", pattern)
 		if err != nil {
 			t.Fatal(err)
 		}
