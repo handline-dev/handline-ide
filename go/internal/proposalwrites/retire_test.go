@@ -43,8 +43,8 @@ func TestAgentRetireRefusesADependedOnAgentAndRetiresOneThatIsNot(t *testing.T) 
 	r.db.Exec("INSERT INTO agent_state(agent, state, updated) VALUES(?, 'idle', 1)", kid)
 	m := r.call("agent.retire", `{"agent":"bob.kid","request_id":"r3"}`)
 	res, _ := m["result"].(map[string]any)
-	archive := filepath.Join(r.home, "agents", "archive", time.Now().Format("2006-01-02")+"-"+kid)
-	if res == nil || !strings.HasPrefix(res["said"].(string), kid+" is retired; its folder is at "+archive) {
+	archive := filepath.Join(r.home, "agents", "archive", time.Now().Format("2006-01-02")+"-bob.kid")
+	if res == nil || !strings.HasPrefix(res["said"].(string), "bob.kid is retired; its folder is at "+archive) {
 		t.Fatalf("%v", m)
 	}
 	if _, err := os.Stat(filepath.Join(archive, "ROLE.md")); err != nil {
@@ -111,7 +111,7 @@ func TestTheFoundersRetireOfARunningAgentAnswersOnceItIsRetired(t *testing.T) {
 		}
 		sweep(true)
 	})
-	if res, _ := m["result"].(map[string]any); res == nil || !strings.HasPrefix(res["said"].(string), bob+" is retired; its folder is at ") {
+	if res, _ := m["result"].(map[string]any); res == nil || !strings.HasPrefix(res["said"].(string), "bob is retired; its folder is at ") {
 		t.Fatalf("the outcome, not an acceptance: %v", m)
 	}
 	if strings.Contains(r.rosterText(), "bob") || r.state(r.e.listing()[0].id()) != "applied" {

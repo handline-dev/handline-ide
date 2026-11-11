@@ -949,10 +949,9 @@ func TestACacheThatCannotBeRemovedDoesNotUndoARetire(t *testing.T) {
 	os.MkdirAll(filepath.Join(paths.CacheDir(r.home, "bob"), "go-build"), 0o755)
 	os.Chmod(caches, 0o555) // bob's folder cannot leave it
 	defer os.Chmod(caches, 0o755)
-	bob := r.who("bob")
 	p, id := r.propose("aaaa0009", "kind", "retire", "agent", "bob")
 	res := r.decide(id, "approve", p.subject(), "g1")["result"].(map[string]any)
-	if !strings.Contains(res["said"].(string), bob+" is retired") || strings.Contains(r.rosterText(), "bob:") {
+	if !strings.Contains(res["said"].(string), "bob is retired") || strings.Contains(r.rosterText(), "bob:") {
 		t.Fatalf("the retire stopped half done: %v", res)
 	}
 }
@@ -1346,7 +1345,6 @@ func TestAProposedRepoIsKeptAbsoluteAndMustBeAGitCheckout(t *testing.T) {
 func TestApplyNowInterruptsTheBusyTurnAndAppliesTheChange(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
-	bob := r.who("bob")
 	p, id := r.propose("aaaa000e", "kind", "retire", "agent", "bob")
 	if m := r.call("proposal.apply_now", fmt.Sprintf(`{"proposal":%d,"request_id":"an0"}`, id)); gate(m) != "proposal_settled" {
 		t.Fatalf("an open proposal is refused: %v", m)
@@ -1374,7 +1372,7 @@ func TestApplyNowInterruptsTheBusyTurnAndAppliesTheChange(t *testing.T) {
 		t.Fatalf("interrupted once, then applied: %d %s", interrupted, r.state("aaaa000e"))
 	}
 	for _, m := range []map[string]any{applied(), decided()} {
-		if res, _ := m["result"].(map[string]any); res == nil || !strings.Contains(res["said"].(string), bob+" is retired") {
+		if res, _ := m["result"].(map[string]any); res == nil || !strings.Contains(res["said"].(string), "bob is retired") {
 			t.Fatalf("apply_now and the approve both answer once it is applied: %v", m)
 		}
 	}
