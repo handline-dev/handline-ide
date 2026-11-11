@@ -2,6 +2,7 @@ package housekeeping
 
 import (
 	"fmt"
+	"github.com/handline/handline/go/accounts/usage"
 	"os"
 	"path/filepath"
 	"testing"
@@ -70,7 +71,7 @@ func TestTheLoginWatchHoldsANeedUntilTheLoginOrTheLastDay(t *testing.T) {
 	known = true
 	endOn := func(day string) {
 		t.Helper()
-		if err := os.WriteFile(filepath.Join(home, "config.yaml"), []byte("sub_end_alpha: \""+day+"\"\nmonth_cycle_alpha: true\n"), 0o644); err != nil {
+		if err := usage.SetAccount(q, "alpha", map[string]any{"sub_end": day, "month_cycle": true}); err != nil {
 			t.Fatal(err)
 		}
 	}

@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/handline/handline/go/accounts/usage"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/internal/reads"
@@ -112,6 +113,16 @@ func (r *rig) setting(agent, key string) string {
 		return fmt.Sprint(v)
 	}
 	return ""
+}
+
+// account is acct's settings in its row that are not the default, by column.
+func (r *rig) account(acct string) map[string]any {
+	r.t.Helper()
+	rows, err := usage.ReadAccountRows(r.e.DB)
+	if err != nil {
+		r.t.Fatal(err)
+	}
+	return rows[acct]
 }
 
 func TestSchedulesAreAddedEditedMovedAndRemovedByTheirId(t *testing.T) {
@@ -266,18 +277,22 @@ func TestAccountSetWritesConfigAndRefusesWhatNeedsTheProfile(t *testing.T) {
 	if res["said"] != "alias Work; main: at most 4 agents mid-turn; usage recovery off; main: last day 2030-01-31" {
 		t.Fatalf("%v", res)
 	}
-	got := r.file("config.yaml")
-	for _, want := range []string{"label_main: Work", "active_cap_main: 4", "usage_recover_main: false", "month_cycle_main: true", "sub_end_main"} {
-		if !strings.Contains(got, want) {
-			t.Fatalf("%s missing from %q", want, got)
-		}
+	want := map[string]any{"label": "Work", "active_cap": int64(4), "usage_recover": false, "month_cycle": true, "sub_end": "2030-01-31"}
+	if got := r.account("main"); fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("row %v, want %v", got, want)
+	}
+	if r.file("config.yaml") != "" {
+		t.Fatal("an account's settings are not written to config.yaml")
 	}
 	if r.result(r.one("account.set", `{"account":"main","cap":4,"request_id":"a4"}`))["said"] != "nothing changed" {
 		t.Fatal("what is already so changes nothing")
 	}
-	os.Remove(filepath.Join(r.home, "config.yaml"))
-	if r.code(r.one("account.set", `{"account":"main","cycle":true,"request_id":"a5"}`)) != "refused" || r.file("config.yaml") != "" {
-		t.Fatal("the cycle on with no end needs the profile: refused, nothing written")
+	r.result(r.one("account.set", `{"account":"main","label":"","recover":true,"cycle_end":null,"request_id":"a5"}`))
+	if got := r.account("main"); fmt.Sprint(got) != fmt.Sprint(map[string]any{"active_cap": int64(4), "month_cycle": true}) {
+		t.Fatalf("a cleared alias, end day and recovery go back to the default: %v", got)
+	}
+	if r.code(r.one("account.set", `{"account":"main","cycle":true,"request_id":"a6"}`)) != "refused" || r.account("main")["month_cycle"] != true {
+		t.Fatal("the cycle on with no end day: refused, nothing written")
 	}
 }
 
@@ -331,8 +346,8 @@ func TestAccountReadUsageAsksThePollAndNeedsALogin(t *testing.T) {
 func TestAccountSetPausesAndResumesAnAccount(t *testing.T) {
 	r := newRig(t)
 	os.MkdirAll(filepath.Join(r.home, "accounts", "main"), 0o755)
-	if res := r.result(r.one("account.set", `{"account":"main","paused":true,"request_id":"p1"}`)); !strings.Contains(r.file("config.yaml"), "paused_main: true") {
-		t.Fatalf("%v %q", res, r.file("config.yaml"))
+	if res := r.result(r.one("account.set", `{"account":"main","paused":true,"request_id":"p1"}`)); r.account("main")["paused"] != true {
+		t.Fatalf("%v %v", res, r.account("main"))
 	}
 	r.e.DB.Exec("INSERT INTO meta(name, value, updated) VALUES('noroom_told:main', 'paused', 0)")
 	var told int
@@ -342,8 +357,8 @@ func TestAccountSetPausesAndResumesAnAccount(t *testing.T) {
 	if r.e.DB.QueryRow("SELECT COUNT(*) FROM meta WHERE name = 'noroom_told:main'").Scan(&told); told != 1 {
 		t.Fatal("a pause that changed nothing forgot what the founder was told")
 	}
-	if r.result(r.one("account.set", `{"account":"main","paused":false,"request_id":"p3"}`)); strings.Contains(r.file("config.yaml"), "paused_main") {
-		t.Fatalf("a resume leaves %q", r.file("config.yaml"))
+	if r.result(r.one("account.set", `{"account":"main","paused":false,"request_id":"p3"}`)); r.account("main")["paused"] != nil {
+		t.Fatalf("a resume leaves %v", r.account("main"))
 	}
 	r.result(r.one("account.set", `{"account":"main","paused":true,"request_id":"p5"}`))
 	if r.e.DB.QueryRow("SELECT COUNT(*) FROM meta WHERE name = 'noroom_told:main'").Scan(&told); told != 0 {

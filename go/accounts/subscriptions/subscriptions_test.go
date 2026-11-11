@@ -12,6 +12,7 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/kit/storetest"
+	"github.com/handline/handline/go/kit/yamlcompat"
 )
 
 type fakeAsker struct {
@@ -103,7 +104,47 @@ func (w *world) agent(name, account string) {
 	}
 }
 
+// config is the settings as YAML text: each account's (usage.AccountKeys) go to its row, the rest to config.yaml. Text that is not
+// a mapping is written as it is.
 func (w *world) config(text string) {
+	w.t.Helper()
+	if _, err := w.DB.Exec("DELETE FROM accounts"); err != nil {
+		w.t.Fatal(err)
+	}
+	v, _ := yamlcompat.Parse(text)
+	m, isMap := v.(map[string]any)
+	if !isMap {
+		w.writeConfigFile(text)
+		return
+	}
+	var rest []string
+	rows := map[string]map[string]any{}
+	for _, line := range strings.Split(strings.TrimSpace(text), "\n") {
+		k, _, _ := strings.Cut(line, ":")
+		acct, col := "", ""
+		for _, a := range usage.AccountKeys {
+			if strings.HasPrefix(k, a.Prefix) {
+				acct, col = strings.TrimPrefix(k, a.Prefix), a.Column
+			}
+		}
+		if acct == "" {
+			rest = append(rest, line)
+			continue
+		}
+		if rows[acct] == nil {
+			rows[acct] = map[string]any{}
+		}
+		rows[acct][col] = m[k]
+	}
+	for acct, set := range rows {
+		if err := usage.SetAccount(w.DB, acct, set); err != nil {
+			w.t.Fatal(err)
+		}
+	}
+	w.writeConfigFile(strings.Join(rest, "\n") + "\n")
+}
+
+func (w *world) writeConfigFile(text string) {
 	w.t.Helper()
 	if err := os.WriteFile(filepath.Join(w.Home, "config.yaml"), []byte(text), 0o644); err != nil {
 		w.t.Fatal(err)
