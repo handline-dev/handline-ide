@@ -160,6 +160,7 @@ export class FakeAccounts {
       r.cap_effective = p.cap;
     }
     if (typeof p.recover === 'boolean') r.recover = p.recover;
+    if (typeof p.paused === 'boolean') r.paused = p.paused;
     if (typeof p.cycle === 'boolean') r.cycle = { ...r.cycle, on: p.cycle };
     if (p.cycle_end !== undefined)
       r.cycle = {

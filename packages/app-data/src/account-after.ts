@@ -5,6 +5,7 @@ export interface AccountChange {
   label?: string;
   cap?: number;
   recover?: boolean;
+  paused?: boolean;
   cycle?: boolean;
   cycle_end?: string | null;
 }
@@ -15,6 +16,7 @@ export function accountAfter(a: Account, c: AccountChange): Account {
     ...(c.label !== undefined ? { label: c.label || a.name } : {}),
     ...(c.cap !== undefined ? { cap: c.cap, cap_effective: c.cap } : {}),
     ...(c.recover !== undefined ? { recover: c.recover } : {}),
+    ...(c.paused !== undefined ? { paused: c.paused } : {}),
   };
   if (c.cycle === undefined && c.cycle_end === undefined) return next;
   // A date alone turns the cycle on, as the daemon does; null clears it, so the account ends only when its login drops.
