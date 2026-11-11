@@ -19,24 +19,21 @@ import (
 // DefaultActiveCap is session/triggers.DEFAULT_ACTIVE_CAP.
 const DefaultActiveCap = 2
 
-// Config is config.yaml as the readers see it; one that cannot be read is empty.
+// Config is config.yaml as the readers see it, with each account's settings from its row (AccountKeys); one that cannot be read
+// is empty but for the rows.
 type Config map[string]any
 
-// LoadConfig reads <home>/config.yaml.
+// LoadConfig reads <home>/config.yaml and the account rows.
 func LoadConfig(home string) Config {
-	b, err := os.ReadFile(paths.ConfigFile(home))
-	if err != nil {
-		return Config{}
+	m := Config{}
+	if b, err := os.ReadFile(paths.ConfigFile(home)); err == nil {
+		if v, err := yamlcompat.Parse(string(b)); err == nil {
+			if read, ok := v.(map[string]any); ok {
+				m = read
+			}
+		}
 	}
-	v, err := yamlcompat.Parse(string(b))
-	if err != nil {
-		return Config{}
-	}
-	m, _ := v.(map[string]any)
-	if m == nil {
-		return Config{}
-	}
-	return m
+	return withAccountRows(home, m)
 }
 
 // LoadConfigOrNil is config.yaml, or ok false when it exists and cannot be read as a mapping (a parse error, a write caught half
@@ -44,7 +41,7 @@ func LoadConfig(home string) Config {
 func LoadConfigOrNil(home string) (Config, bool) {
 	b, err := os.ReadFile(paths.ConfigFile(home))
 	if os.IsNotExist(err) {
-		return Config{}, true
+		return withAccountRows(home, Config{}), true
 	}
 	if err != nil {
 		return nil, false
@@ -54,7 +51,7 @@ func LoadConfigOrNil(home string) (Config, bool) {
 	if err != nil || !isMap {
 		return nil, false
 	}
-	return m, true
+	return withAccountRows(home, m), true
 }
 
 func posInt(v any) (int, bool) {

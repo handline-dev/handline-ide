@@ -60,6 +60,20 @@ CREATE TABLE agents (
   UNIQUE (workspace, name)
 );
 CREATE INDEX agents_owner ON agents(owner);
+-- accounts: c<id>. name is its folder under accounts/ until disk goes by key; owner is a person key. A NULL setting is the default
+-- (label: the name, active_cap: the daemon's, usage_recover: on); a NULL month_cycle was never set, which is not the same as off.
+CREATE TABLE accounts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL UNIQUE,
+  owner TEXT NOT NULL,
+  label TEXT,
+  active_cap INTEGER,
+  paused INTEGER NOT NULL DEFAULT 0,
+  usage_recover INTEGER,
+  month_cycle INTEGER,
+  sub_end TEXT,
+  created_at INTEGER NOT NULL
+);
 
 CREATE TABLE events (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
