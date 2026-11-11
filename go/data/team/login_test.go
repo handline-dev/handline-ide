@@ -70,10 +70,10 @@ func TestWrongLogin(t *testing.T) {
 	for name, tc := range map[string]struct{ vendor, oauth, want string }{
 		"the recorded one, in other case": {"", `{"emailAddress":"MAIN@example.com"}`, ""},
 		"another account's, in other case": {"", `{"emailAddress":"other@example.com"}`,
-			"logged in as other@example.com, not main@example.com: the same Anthropic account as other"},
+			"logged in to a different Anthropic account than the one this account was set up with: the same Anthropic account as other"},
 		"no email in the config":   {"", `{"userRateLimitTier":"x"}`, ""},
 		"not a claude account":     {"opencode", `{"emailAddress":"new@example.com"}`, ""},
-		"an unknown Anthropic one": {"", `{"emailAddress":"new@example.com"}`, "logged in as new@example.com, not main@example.com"},
+		"an unknown Anthropic one": {"", `{"emailAddress":"new@example.com"}`, "logged in to a different Anthropic account than the one this account was set up with"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			a := loginHome(t)
@@ -106,6 +106,27 @@ func TestWrongLoginRecordsTheEmailAndKeepsTheRest(t *testing.T) {
 		if b, _ := os.ReadFile(a.identityFile("main")); string(b) != want {
 			t.Fatalf("%s: identity.json %s", record, b)
 		}
+	}
+}
+
+// Email is the recorded one, else the logged-in one, recorded then; a non-claude account has none from its config.
+func TestEmail(t *testing.T) {
+	a := loginHome(t)
+	loggedInAs(t, a, "main", `{"emailAddress":"new@example.com"}`)
+	if got := a.Email("main"); got != "main@example.com" {
+		t.Fatalf("recorded: got %q", got)
+	}
+	writeFile(t, a.identityFile("main"), `{"id": "x"}`)
+	if got := a.Email("main"); got != "new@example.com" {
+		t.Fatalf("from the config: got %q", got)
+	}
+	if b, _ := os.ReadFile(a.identityFile("main")); string(b) != `{"email":"new@example.com","id":"x"}` {
+		t.Fatalf("not recorded: identity.json %s", b)
+	}
+	writeFile(t, a.identityFile("main"), `{}`)
+	writeFile(t, filepath.Join(a.Home, "accounts", "main", "vendor"), "opencode")
+	if got := a.Email("main"); got != "" {
+		t.Fatalf("not a claude account: got %q", got)
 	}
 }
 

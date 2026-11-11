@@ -99,7 +99,7 @@ func loginWord(in, known bool) string {
 }
 
 // accountsList is accounts.list: every account with its login, usage windows, agents, recent moves, label, caps and cycle.
-func (e *Env) accountsList(_ *rpc.Conn, params map[string]any) (any, error) {
+func (e *Env) accountsList(c *rpc.Conn, params map[string]any) (any, error) {
 	withUsage := false
 	if u, given := params["usage"]; given {
 		b, ok := u.(bool)
@@ -108,6 +108,9 @@ func (e *Env) accountsList(_ *rpc.Conn, params map[string]any) (any, error) {
 		}
 		withUsage = b
 	}
+	// The email is the founder's to see, never an agent's: it would reach their transcripts and what they send.
+	founder := c != nil && c.Caller.Role == "founder"
+	recorded := team.Accounts{Home: e.Home}
 	v := e.accountView()
 	var loads map[string]*usage.Load
 	var notPicked map[string]any
@@ -126,6 +129,12 @@ func (e *Env) accountsList(_ *rpc.Conn, params map[string]any) (any, error) {
 	var accts []any
 	for _, a := range paths.ListAccounts(e.Home) {
 		acct := v.of(a)
+		if founder {
+			acct["email"] = nil
+			if email := recorded.Email(a); email != "" {
+				acct["email"] = email
+			}
+		}
 		if withUsage {
 			v.addUsage(acct, a, loads[a])
 			acct["not_picked"] = notPicked[a]

@@ -291,9 +291,45 @@ func (a Accounts) RecordedEmail(acct string) string {
 	return data.Email
 }
 
+// Email is the email of the Anthropic account this account was set up with: the recorded one, else the one Claude Code says it is
+// logged in to, recorded then. "" when neither is known.
+func (a Accounts) Email(acct string) string {
+	if want := a.RecordedEmail(acct); want != "" {
+		return want
+	}
+	dir, err := AccountConfigDir(a.Home, acct)
+	if err != nil || AccountVendor(a.Home, acct) != DefaultVendor {
+		return ""
+	}
+	got := readOAuthAccount(dir).Email
+	if got != "" {
+		a.recordEmail(acct, got)
+	}
+	return got
+}
+
+// recordEmail writes email into the account's identity.json, keeping the record's other fields as they are. A record that does not
+// read is begun anew.
+func (a Accounts) recordEmail(acct, email string) {
+	var rec map[string]json.RawMessage
+	if b, err := os.ReadFile(a.identityFile(acct)); err == nil {
+		_ = json.Unmarshal(b, &rec)
+	}
+	if rec == nil {
+		rec = map[string]json.RawMessage{}
+	}
+	rec["email"], _ = json.Marshal(email)
+	text, _ := json.Marshal(rec)
+	// Written aside and renamed in, so a reader at the same time sees the old record or the new, never a truncated one.
+	tmp := a.identityFile(acct) + ".tmp"
+	if os.WriteFile(tmp, text, 0o644) == nil {
+		_ = os.Rename(tmp, a.identityFile(acct))
+	}
+}
+
 // WrongLogin is, in one line, how a claude account is logged in to an Anthropic account other than the one recorded for it, naming
 // the other accounts recorded with that one; "" when it is the recorded one or either is unknown. With none recorded, it records the
-// logged-in one.
+// logged-in one. The line names no email: it goes to the log and the accounts topic.
 func (a Accounts) WrongLogin(acct string) string {
 	dir, err := AccountConfigDir(a.Home, acct)
 	if err != nil || AccountVendor(a.Home, acct) != DefaultVendor {
@@ -305,16 +341,7 @@ func (a Accounts) WrongLogin(acct string) string {
 		return ""
 	}
 	if want == "" {
-		var rec map[string]json.RawMessage // a record's other fields are kept as they are
-		if b, err := os.ReadFile(a.identityFile(acct)); err == nil {
-			_ = json.Unmarshal(b, &rec)
-		}
-		if rec == nil {
-			rec = map[string]json.RawMessage{}
-		}
-		rec["email"], _ = json.Marshal(got)
-		text, _ := json.Marshal(rec)
-		_ = os.WriteFile(a.identityFile(acct), text, 0o644)
+		a.recordEmail(acct, got)
 		return ""
 	}
 	if strings.EqualFold(got, want) {
@@ -326,7 +353,7 @@ func (a Accounts) WrongLogin(acct string) string {
 			same = append(same, other)
 		}
 	}
-	why := fmt.Sprintf("logged in as %s, not %s", got, want)
+	why := "logged in to a different Anthropic account than the one this account was set up with"
 	if len(same) > 0 {
 		why += ": the same Anthropic account as " + strings.Join(same, ", ")
 	}
