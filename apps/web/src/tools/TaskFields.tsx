@@ -10,6 +10,7 @@ import { Menu, MenuItem } from '#src/ui/Menu.tsx';
 import { ClockBar, LeftWords, WholeTime, useLeft } from '#src/tools/TaskClock.tsx';
 import { Popover } from '#src/ui/Popover.tsx';
 import { toast } from '#src/ui/toast.tsx';
+import { Who } from '#src/ui/Who.tsx';
 
 const PRIORITIES = [1, 2, 3] as const;
 const TIME_BOXES = ['30m', '1h', '2h', '4h', '8h'];
@@ -54,9 +55,19 @@ function Assignee({ t, open }: { t: TaskDetail; open: boolean }) {
       <Label icon={<User size={14} />}>Assignee</Label>
       <dd>
         {open ? (
-          <AssignPicker t={t} trigger={<ValueButton>{t.to}</ValueButton>} onPick={choose} />
+          <AssignPicker
+            t={t}
+            trigger={
+              <ValueButton>
+                <Who k={t.to} />
+              </ValueButton>
+            }
+            onPick={choose}
+          />
         ) : (
-          <span className="text-fg">{t.to}</span>
+          <span className="text-fg">
+            <Who k={t.to} />
+          </span>
         )}
       </dd>
     </>

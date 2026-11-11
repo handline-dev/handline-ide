@@ -563,7 +563,7 @@ func (s *Server) deviceCaller(id, name, person string) (Caller, error) {
 	if role != "owner" {
 		return Caller{}, Refused("a member's device is not served before team mode", "role", "")
 	}
-	return Caller{Kind: "device", Key: person, Person: person, Role: role, Info: map[string]any{"kind": "device", "device": id, "name": name}}, nil
+	return Caller{Kind: "device", Key: person, Person: person, Role: role, Info: map[string]any{"kind": "device", "key": person, "device": id, "name": name}}, nil
 }
 
 // Typed is whether the caller is hl (not its hooks, which send their agent back), whose who words are typed and whose replies are read as text, by an agent or a person. A word that

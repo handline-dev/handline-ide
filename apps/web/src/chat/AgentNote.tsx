@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { clock } from '#src/format/time.ts';
 import { spring } from '#src/motion.ts';
 import { Markdown } from '#src/ui/Markdown.tsx';
+import { Who } from '#src/ui/Who.tsx';
 
 /** A message this agent sent another agent: one quiet line, set apart from the conversation, with to whom and the start of it.
  * A click opens it in place, whole (its height from none to its own), and closes it again. */
@@ -23,7 +24,9 @@ export function AgentNote({ m }: { m: ChatMessage }) {
           className="flex min-w-0 items-center gap-2 rounded-md px-2 py-1 text-left outline-none hover:bg-hover/30 hover:text-fg focus-visible:ring-2 focus-visible:ring-accent"
         >
           <ArrowRight size={12} className="shrink-0" />
-          <span className="shrink-0 font-medium">{m.to}</span>
+          <span className="shrink-0 font-medium">
+            <Who k={m.to} />
+          </span>
           {!open && <span className="min-w-0 truncate">{first}</span>}
         </button>
         <motion.div

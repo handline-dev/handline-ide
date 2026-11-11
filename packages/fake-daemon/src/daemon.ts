@@ -1,6 +1,7 @@
 // A fake daemon that answers the generated contract (contract/protocol.ts) from fixtures, with one
 // scripted fake session per agent. The UI cannot tell it from the real socket; the real daemon is a swap.
 // It serves the methods the UI's session screen needs; every other method is refused as `unsupported`.
+import { OWNER } from '#src/names.ts';
 import { METHODS, type Actor, type MethodName, type Notifications, type Role, type Timestamp, type Topic } from '@handline/contract';
 import type { Transport } from '@handline/client';
 import { AGENTS, seedChat } from '#src/fixtures.ts';
@@ -98,7 +99,7 @@ export class FakeDaemon {
     const conn: Conn = {
       transport,
       role,
-      caller: { kind, name },
+      caller: { kind, key: kind === 'agent' ? name : OWNER, name },
       helloed: false,
       topics: null,
       attached: new Map(),

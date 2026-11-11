@@ -37,17 +37,18 @@ type Caller struct {
 }
 
 func anonymous() Caller {
-	return Caller{Kind: "anonymous", Role: "anonymous", Info: map[string]any{"kind": "anonymous", "name": "anonymous"}}
+	return Caller{Kind: "anonymous", Role: "anonymous", Info: map[string]any{"kind": "anonymous", "key": "", "name": "anonymous"}}
 }
 
 // identify is the local caller: owner gives the owner's key, whom the founder key proves.
 func identify(a authority.Authority, local bool, pid int, key string, owner func() string, founderName string) Caller {
 	if local {
 		if agent := a.AgentOf(pid); agent != "" { // wins over a key: a session that held the founder key would be a leak
-			return Caller{Kind: "agent", Key: agent, Role: "agent", Info: map[string]any{"kind": "agent", "name": agent}}
+			return Caller{Kind: "agent", Key: agent, Role: "agent", Info: map[string]any{"kind": "agent", "key": agent, "name": agent}}
 		}
 		if a.FounderKeyOK(key) {
-			return Caller{Kind: "person", Key: owner(), Role: "owner", Info: map[string]any{"kind": "person", "name": founderName}}
+			k := owner()
+			return Caller{Kind: "person", Key: k, Role: "owner", Info: map[string]any{"kind": "person", "key": k, "name": founderName}}
 		}
 	}
 	return anonymous()

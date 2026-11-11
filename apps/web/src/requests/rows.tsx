@@ -1,4 +1,4 @@
-import { classify, sentence, useProposals, useTask, useWrite } from '@handline/app-data';
+import { classify, sentence, useNameOf, useProposals, useTask, useWrite } from '@handline/app-data';
 import type { PendingRequest, RequestRow } from '@handline/client';
 import { isUnseen, laterKey, requestRow, tomorrowAt9, turnKey, turnRow, type Picked } from '@handline/app-core';
 import {
@@ -174,6 +174,7 @@ function turnOpens(p: PendingRequest): string | null {
 
 /** Something waiting on the founder: what is asked, who asks (an agent, or the daemon itself), how long ago. */
 export function TurnLine({ p, onOpened, until }: { p: PendingRequest; onOpened?: () => void; until?: string }) {
+  const nameOf = useNameOf();
   const daemon = p.kind === 'warning' || p.agent === null;
   const opens = turnOpens(p);
   const login = p.warning?.kind === 'login' ? p.warning.account : undefined;
@@ -191,7 +192,7 @@ export function TurnLine({ p, onOpened, until }: { p: PendingRequest; onOpened?:
       trailing={<TurnQuick p={p} />}
       hint={
         p.task !== null && (p.kind === 'ask' || p.kind === 'decide')
-          ? `Opens T${p.task} at ${p.agent ? `${p.agent}'s` : 'its'} question in Activity`
+          ? `Opens T${p.task} at ${p.agent ? `${nameOf(p.agent)}'s` : 'its'} question in Activity`
           : undefined
       }
       focus={login ? () => focusIn('usage', '', login) : undefined}

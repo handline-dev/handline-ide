@@ -8,7 +8,16 @@ import {
   type TimelineEntry,
   type TurnRecord as Turn,
 } from '@handline/app-core';
-import { useAgents, useChat, useChatActions, useChatReadMarks, useChatServed, useChatSuspense, useVerbRun } from '@handline/app-data';
+import {
+  useAgents,
+  useChat,
+  useChatActions,
+  useChatReadMarks,
+  useChatServed,
+  useChatSuspense,
+  useNameOf,
+  useVerbRun,
+} from '@handline/app-data';
 import { VERBS } from '@handline/app-core';
 import { useMe, useNearEnd } from '@handline/app-react';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -175,7 +184,13 @@ const noticeKind = (body: string) => (/^T\d+\s+handed\b/i.test(body) ? 'handoff'
 type Card = { id: string; key: string; events: TaskEvent[] };
 
 /** The entries, with each run of task notices gathered into one card's rows. */
-function runs(entries: (TimelineEntry | Turn)[], agent: string, me: string, live: TaskEvent[] = []): (TimelineEntry | Turn | Card)[] {
+function runs(
+  entries: (TimelineEntry | Turn)[],
+  agent: string,
+  me: string,
+  nameOf: (key: string) => string,
+  live: TaskEvent[] = [],
+): (TimelineEntry | Turn | Card)[] {
   const out: (TimelineEntry | Turn | Card)[] = [];
   // Task changes heard while the chat is open go in by their time, joining a card next to them, so they scroll up as talk goes on.
   // A task made and given, or handed on, arrives twice, live and as the notice message: the notice's row is the one kept.
@@ -230,7 +245,11 @@ function runs(entries: (TimelineEntry | Turn)[], agent: string, me: string, live
       kind: got ? ('start' as const) : handed ? ('handoff' as const) : ('add' as const),
       id: `T${t.id}`,
       title: t.title,
-      detail: got ? `${handed ? 'Handed' : 'Assigned'} by ${m.from}` : handed ? `Handed to ${m.to}` : `Created and assigned to ${m.to}`,
+      detail: got
+        ? `${handed ? 'Handed' : 'Assigned'} by ${nameOf(m.from)}`
+        : handed
+          ? `Handed to ${nameOf(m.to)}`
+          : `Created and assigned to ${nameOf(m.to)}`,
       at: m.at,
     }));
     add(rows, `tasks:${m.id}`);
@@ -250,6 +269,7 @@ function Shell({ children }: { children: ReactNode }) {
 
 /** The chat's lines, oldest first. Suspends until the first pages are in; an older page is read near the top without suspending. */
 function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) => void; ref: Ref<{ sent: () => void }> }) {
+  const nameOf = useNameOf();
   // Every message the agent sent or received (the all scope), drawn by the chat's own rules (mine): app-core's all view leaves out
   // what the agent says to other agents, which this chat shows as quiet lines (ChatLine drops what others say to it).
   const chat = useChatSuspense(agent, 'all');
@@ -325,7 +345,7 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
           <AnimatePresence initial={false}>
             {/* Task notices in a row are one card, as the live task card is (TaskActivity). Only lines after the last one known fade in:
                 an older page lands as one still block. */}
-            {runs(foldTurns(entries), agent, me, tasks).map((r, i, all) =>
+            {runs(foldTurns(entries), agent, me, nameOf, tasks).map((r, i, all) =>
               'events' in r ? (
                 <motion.div
                   key={r.id}

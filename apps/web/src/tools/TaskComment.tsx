@@ -1,7 +1,8 @@
 // The box under a task: a comment (the chat's own box, with @ and / and files), who it will reach, and someone to hand the task to with it.
-import { foundersTurn, withImages } from '@handline/app-core';
+import { foundersTurn, renderRefs, toRefs, withImages } from '@handline/app-core';
 import type { TaskDetail } from '@handline/client';
-import { classify, hooks, sentence, useAgents, useGiveBack, useServes, useWrite } from '@handline/app-data';
+import { classify, hooks, sentence, useAgents, useDirectory, useGiveBack, useNameOf, useServes, useWrite } from '@handline/app-data';
+import { Who } from '#src/ui/Who.tsx';
 import { Check, CornerDownRight, Eye, Flag, Timer, Trash2, UserRound, X } from 'lucide-react';
 import { useState } from 'react';
 import type { Attachments } from '#src/chat/attachments.tsx';
@@ -23,9 +24,9 @@ import { toast } from '#src/ui/toast.tsx';
 /** What the box answers: a comment, or the founder's turn (tied to the comment that asked). */
 export type Reply = { id?: number; author: string; text: string; turn?: boolean };
 
-/** Who a comment reaches by its own words: the assignee and each agent it names with @. */
+/** Who a comment reaches by its own words: the assignee and each agent it names, `text` as it is sent (toRefs). */
 const readers = (owner: string, text: string, known: string[]) => [
-  ...new Set([owner, ...[...text.matchAll(/@([\w.-]+)/g)].map((m) => m[1]!).filter((n) => known.includes(n))]),
+  ...new Set([owner, ...[...text.matchAll(/<@([a-z]+[0-9]*)>/g)].map((m) => m[1]!).filter((n) => known.includes(n))]),
 ];
 
 /** How many a comment will reach; hovering names them. */
@@ -43,7 +44,9 @@ function Readers({ names }: { names: string[] }) {
       <div className="flex flex-col gap-1 p-2 text-sm">
         <span className="text-xs text-muted">This comment reaches</span>
         {names.map((n) => (
-          <span key={n}>{n}</span>
+          <span key={n}>
+            <Who k={n} />
+          </span>
         ))}
       </div>
     </HoverCard>
@@ -76,7 +79,13 @@ export function CommentBox({
   const reply = picked ?? (turn ? turnReply(t) : null);
   const back = useGiveBack();
   const giveBack = async () => {
-    if (!(await confirm({ title: 'Give it back with no answer?', message: `${turn?.by} goes on without one.`, confirmText: 'Give back' })))
+    if (
+      !(await confirm({
+        title: 'Give it back with no answer?',
+        message: `${nameOf(turn?.by ?? '')} goes on without one.`,
+        confirmText: 'Give back',
+      }))
+    )
       return;
     back.give(t.id, { onError: (e) => toast(`Give back did not work: ${sentence(classify(e))}`, { tone: 'warning' }) });
   };
@@ -87,12 +96,18 @@ export function CommentBox({
   // Someone to hand it to with this comment; none keeps the owner.
   const [to, setTo] = useState<string | null>(null);
   const known = useAgents().data?.agents.map((a) => a.key) ?? [];
+  const dir = useDirectory();
+  const nameOf = useNameOf();
+  const sent = toRefs(dir, draft);
   // Who it reaches, as the daemon will tell it (the assignee, each @name, and for the founder on a task no agent holds who it answers to); asked again
   // only when the @names change. A handover with it, or a daemon without the call, falls back to the assignee and the @names.
-  const named = readers('', draft, known).filter(Boolean).join(' ');
+  const named = readers('', sent, known)
+    .filter(Boolean)
+    .map((k) => `<@${k}>`)
+    .join(' ');
   const served = useServes('task.comment.recipients').served;
   const told = hooks.useTaskCommentRecipients({ task: t.id, text: named }, { enabled: served && !to }).data?.recipients;
-  const reach = !to && told ? told.map((r) => r.agent) : readers(to ?? t.to, draft, known);
+  const reach = !to && told ? told.map((r) => r.agent) : readers(to ?? t.to, sent, known);
   const done = useWrite('task.done');
   const discard = useWrite('task.discard');
   const change = (what: string, p: { owner?: string; priority?: 1 | 2 | 3; time_box?: string }) =>
@@ -143,7 +158,7 @@ export function CommentBox({
     const answers = reply && /@human\b/.test(reply.text) ? openAsks(t, me).map((r) => r.id) : [];
     onSent();
     add.mutate(
-      { task: t.id, text: withImages(body, ids), ...(reply?.id != null ? { reply: reply.id } : {}) },
+      { task: t.id, text: withImages(toRefs(dir, body), ids), ...(reply?.id != null ? { reply: reply.id } : {}) },
       {
         onError: failed('Comment did not go'),
         onSuccess: () => {
@@ -174,7 +189,7 @@ export function CommentBox({
             <div className="flex flex-col gap-2 text-xs text-muted">
               <span className="flex items-center gap-1.5">
                 <CornerDownRight size={14} className="shrink-0" />
-                Sending answers {turn.by} and gives the turn back · Send it empty to give it back with no answer
+                Sending answers <Who k={turn.by} /> and gives the turn back · Send it empty to give it back with no answer
               </span>
               {options.length > 0 && (
                 <span className="flex flex-wrap gap-1.5">
@@ -196,7 +211,9 @@ export function CommentBox({
               <div role="status" className="-ml-2 flex min-w-0 items-center gap-1.5 text-xs text-muted">
                 <CornerDownRight size={14} className="ml-1 shrink-0" />
                 <span className="min-w-0 flex-1 truncate">
-                  {`Replying to ${picked.author}: ${picked.text.replace(/@human\s*/g, '').replace(/\s+/g, ' ')}`}
+                  {`Replying to ${nameOf(picked.author)}: ${renderRefs(dir, picked.text)
+                    .replace(/@human\s*/g, '')
+                    .replace(/\s+/g, ' ')}`}
                 </span>
                 <IconButton className="size-6!" label="Drop the reply" onClick={onDrop}>
                   <X size={14} />
@@ -205,7 +222,7 @@ export function CommentBox({
             )
           )
         }
-        placeholder={to ? `Comment and assign to ${to}` : answering ? `Your answer to ${turn.by}` : `Comment on T${t.id}`}
+        placeholder={to ? `Comment and assign to ${nameOf(to)}` : answering ? `Your answer to ${nameOf(turn.by)}` : `Comment on T${t.id}`}
         draft={draft}
         setDraft={setDraft}
         attach={attach}

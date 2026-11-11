@@ -1,6 +1,7 @@
 import type { ActivityItem } from '@handline/app-core';
 import { Eye } from 'lucide-react';
 import { HoverCard } from '#src/ui/HoverCard.tsx';
+import { Who } from '#src/ui/Who.tsx';
 
 /** How many of the agents a founder's comment was told to have read it (eye 1/2); on hover, who has and who has not. */
 export function ReadBy({ readers }: { readers?: ActivityItem['readers'] }) {
@@ -20,13 +21,15 @@ export function ReadBy({ readers }: { readers?: ActivityItem['readers'] }) {
         {not.length > 0 && <span className="text-xs text-muted">Not read yet</span>}
         {not.map((r) => (
           <span key={r.agent}>
-            {r.agent}
+            <Who k={r.agent} />
             {r.state === 'held' && <span className="text-muted"> · waits for its next digest</span>}
           </span>
         ))}
         {read.length > 0 && <span className={`text-xs text-muted ${not.length ? 'pt-1' : ''}`}>Read</span>}
         {read.map((r) => (
-          <span key={r.agent}>{r.agent}</span>
+          <span key={r.agent}>
+            <Who k={r.agent} />
+          </span>
         ))}
       </div>
     </HoverCard>

@@ -2,7 +2,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { ChevronDown } from 'lucide-react';
 import { useState, useSyncExternalStore, type ReactNode } from 'react';
 import type { HistoryRow, Task } from '@handline/client';
-import { useFeed, useTaskChanges, useTasks } from '@handline/app-data';
+import { useFeed, useNameOf, useTaskChanges, useTasks } from '@handline/app-data';
 import { look } from '#src/ui/taskLook.tsx';
 import { spring } from '#src/motion.ts';
 import { clock } from '#src/format/time.ts';
@@ -31,8 +31,8 @@ export type TaskEvent = {
 const VERB: Record<TaskEventKind, string> = { add: 'created', edit: 'edited', done: '', handoff: 'handed', discard: '', start: 'given' };
 
 /** Where the task stands now and who holds it: "With web-data", "Queued for daemon-core", "Done". */
-function holder(t: Task): string {
-  const to = t.to === 'human' ? 'you' : t.to;
+function holder(t: Task, nameOf: (key: string) => string): string {
+  const to = t.to === 'human' ? 'you' : nameOf(t.to);
   const word = look(t).word;
   if (t.state === 'done' || t.state === 'discarded' || word === 'Failed') return word;
   if (t.state === 'queued') return `Queued for ${to}`;
@@ -130,10 +130,13 @@ export function TaskActivity({ events }: { events: TaskEvent[] }) {
 
 function Row({ t, task, ruled }: { t: Touched; task?: Task; ruled: boolean }) {
   const s = task ? look(task) : null;
+  const nameOf = useNameOf();
   const last = t.events.at(-1)!;
   // Where it stands now, then the last thing done and when: "With web-data · handed 21:28 · 2 changes".
   const did = [VERB[last.kind], last.at && clock(last.at)].filter(Boolean).join(' ');
-  const line = [task ? holder(task) : last.detail, did, t.events.length > 1 && `${t.events.length} changes`].filter(Boolean).join(' · ');
+  const line = [task ? holder(task, nameOf) : last.detail, did, t.events.length > 1 && `${t.events.length} changes`]
+    .filter(Boolean)
+    .join(' · ');
   return (
     <motion.div
       // A row that comes in only fades in.

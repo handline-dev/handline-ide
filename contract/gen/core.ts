@@ -17,6 +17,8 @@ export type Topic = "status" | "accounts" | "agents" | "people" | "workspaces" |
 
 export type Caller = {
   kind: "person" | "device" | "agent" | "anonymous";
+  /** The key the caller's writes are stored under: the agent's (a<n>), or the person's (p<n>) for a person or their device; empty for anonymous. */
+  key: string;
   /** The user, the device's name, or the agent's name. */
   name: string;
   /** Device id, when kind is device. */

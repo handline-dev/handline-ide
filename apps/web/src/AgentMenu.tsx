@@ -1,5 +1,5 @@
 import { deleteSaid, heldWords, type HeldWorktree, type WorktreeAnswer } from '@handline/app-core';
-import { classify, sentence, useAgentDetail, useNav, useRetireAgent } from '@handline/app-data';
+import { classify, sentence, useAgentDetail, useNameOf, useNav, useRetireAgent } from '@handline/app-data';
 import type { AgentView } from '@handline/client';
 import { Copy, FolderOpen, Pin, PinOff, Settings, Trash2 } from 'lucide-react';
 import type { ReactNode } from 'react';
@@ -50,6 +50,8 @@ export function AgentMenu({
   children: ReactNode;
 }) {
   const name = agent.key;
+  // What the dialogs and toasts call it.
+  const word = useNameOf()(name);
   const { nav, togglePin } = useNav();
   const pinned = nav.pins.includes(name);
   const detail = useAgentDetail(name).data;
@@ -58,7 +60,7 @@ export function AgentMenu({
   const remove = async () => {
     if (
       !(await confirm({
-        title: `Delete ${name}?`,
+        title: `Delete ${word}?`,
         message: 'Its terminal closes and it leaves the team.',
         confirmText: 'Delete',
         danger: true,
@@ -68,10 +70,10 @@ export function AgentMenu({
     const attempt = (worktree?: WorktreeAnswer) =>
       retire(
         {
-          onSuccess: () => toast(worktree ? deleteSaid(worktree, name) : `${name} deleted.`),
+          onSuccess: () => toast(worktree ? deleteSaid(worktree, word) : `${word} deleted.`),
           onError: (e) => {
             const f = classify(e);
-            if (f.kind === 'refused' && f.held?.length) void askWorktree(name, f.held).then((a) => a && attempt(a));
+            if (f.kind === 'refused' && f.held?.length) void askWorktree(word, f.held).then((a) => a && attempt(a));
             else toast(sentence(f), { tone: 'warning' });
           },
         },
@@ -109,7 +111,7 @@ export function AgentMenu({
           </SubMenu>
           <MenuSeparator />
           <MenuItem icon={<Trash2 size={14} />} danger onClick={() => void remove()}>
-            Delete {name}
+            Delete {word}
           </MenuItem>
         </>
       }

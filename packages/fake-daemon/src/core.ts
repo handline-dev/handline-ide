@@ -6,7 +6,7 @@ import { badRequest, refused } from '#src/errors.ts';
 import type { EventLog } from '#src/eventlog.ts';
 import type { FakeInbox } from '#src/inbox.ts';
 import type { FakePairing } from '#src/pairing.ts';
-import { PEOPLE, workspacesOf } from '#src/names.ts';
+import { OWNER, PEOPLE, workspacesOf } from '#src/names.ts';
 import { subscribeTopics } from '#src/resume.ts';
 import { detail, loadReply, statusReply, view, type Session, type TaskCounter } from '#src/session.ts';
 
@@ -39,7 +39,7 @@ export function hello(d: CoreHost, c: Conn, p: Record<string, unknown>): unknown
   if (device) {
     c.role = d.deviceRole;
     c.paired = true;
-    c.caller = { kind: 'device', device: device.id, name: device.name };
+    c.caller = { kind: 'device', key: OWNER, device: device.id, name: device.name };
   }
   c.helloed = true;
   if (c.caller.name === 'unknown') c.caller = { ...c.caller, name: p.client };

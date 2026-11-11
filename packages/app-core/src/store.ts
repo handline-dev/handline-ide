@@ -83,8 +83,8 @@ export class Store {
     }
     const hello = await this.client.start();
     this.conn = this.client.state;
-    this.me = hello.caller.name;
-    this.author = hello.caller.kind === 'agent' ? hello.caller.name : 'human';
+    this.me = hello.caller.key;
+    this.author = hello.caller.key;
     this.device = hello.caller.device;
     this.served = new Set([...hello.methods.filter((m) => m.allowed).map((m) => m.name), ...this.client.relayed]);
     this.emit();

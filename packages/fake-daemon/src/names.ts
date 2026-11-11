@@ -3,8 +3,8 @@
 // and the agent named just the segment is its lead.
 import type { Person, Workspace } from '@handline/contract';
 
-/** The one person: personal mode. */
-export const OWNER = 'p1';
+/** The one person: personal mode. The fake writes the person as human, as the daemon did before keys, so that is their key here. */
+export const OWNER = 'human';
 export const PEOPLE: Person[] = [{ key: OWNER, display_name: 'Founder', handle: null, role: 'owner' }];
 
 const segment = (key: string) => key.split('.')[0]!;
@@ -27,6 +27,12 @@ export function identOf(key: string): { key: string; name: string; workspace: st
 export function workspacesOf(agents: readonly string[]): Workspace[] {
   const segs = [...new Set(agents.map(segment))];
   return segs
-    .map((seg) => ({ key: workspaceKey(seg), name: seg, folder: `/fake/${seg}`, added_folders: [], lead: agents.includes(seg) ? seg : null }))
+    .map((seg) => ({
+      key: workspaceKey(seg),
+      name: seg,
+      folder: `/fake/${seg}`,
+      added_folders: [],
+      lead: agents.includes(seg) ? seg : null,
+    }))
     .sort((a, b) => Number(a.key.slice(1)) - Number(b.key.slice(1)));
 }

@@ -9,8 +9,8 @@ export const foundersTurn = (t: Turns, me: string): boolean =>
   t.state !== 'done' && t.state !== 'discarded' && !!t.turns?.length && isPerson(t.acting ?? '', me);
 
 /** `founder ← handline.ui`: the top turn first, then each one below down to the owner; empty when no turn is open. */
-export function turnChain(t: Turns, me: string): string {
+export function turnChain(t: Turns, me: string, nameOf: (key: string) => string = (k) => k): string {
   if (!t.turns?.length) return '';
-  const who = (n: string) => (isPerson(n, me) ? 'founder' : n);
+  const who = (n: string) => (isPerson(n, me) ? 'founder' : nameOf(n));
   return [...t.turns.map((x) => x.agent).reverse(), t.to].map(who).join(' ← ');
 }
