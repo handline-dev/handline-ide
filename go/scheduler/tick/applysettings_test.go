@@ -73,7 +73,7 @@ func TestAPersonsChangeIsRestartedInTheirName(t *testing.T) {
 		t.Fatal(err)
 	}
 	a.Sweep(tk, 10_000)
-	if !w.did("restart a by human for model (settings_applied)") {
+	if !w.did("restart a by "+db.Human+" for model (settings_applied)") {
 		t.Fatalf("%v", w.calls)
 	}
 	if v, _, _ := db.Meta(tk.Q, db.SettingsByMeta("a")); v != "" {

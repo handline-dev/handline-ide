@@ -716,6 +716,8 @@ func TestAnAgentIsToldItsTeamFromTheRoster(t *testing.T) {
 	for _, n := range []string{"manager", "manager.marina", "manager.keeper", "lone"} {
 		teamtest.Set(t, home, n, "vendor", "claude")
 	}
+	k := func(n string) string { return teamtest.Key(t, home, n) }
+	mgrK, devK, keeperK, loneK := k("manager"), k("manager.marina"), k("manager.keeper"), k("lone")
 	tm, err := team.LoadTeam(home)
 	if err != nil {
 		t.Fatal(err)
@@ -745,11 +747,11 @@ func TestAnAgentIsToldItsTeamFromTheRoster(t *testing.T) {
 	culture := []string{"Keep messages short", "no progress or FYI messages", "Never schedule your own wakeup", "You do not implement",
 		"Check main before you assign", "founder's own words", "Finding the bottleneck is your job"}
 	// A team that empties its rules file is not seeded again: it gets only the facts.
-	context("lone")
+	context(loneK)
 	if err := os.Remove(team.RulesFile(home, "lone")); err != nil {
 		t.Fatal(err)
 	}
-	mgr, dev, scout := context("manager"), context("manager.marina"), context("lone")
+	mgr, dev, scout := context(mgrK), context(devK), context(loneK)
 	rules := "# Rules for team manager\n" + strings.TrimSpace(team.DefaultRules)
 	for who, text := range map[string]string{"manager": mgr, "manager.marina": dev} {
 		if !strings.Contains(text, rules) {
@@ -757,11 +759,11 @@ func TestAnAgentIsToldItsTeamFromTheRoster(t *testing.T) {
 		}
 	}
 	for _, w := range culture {
-		if strings.Contains(r.l.yourTeam("manager"), w) || strings.Contains(scout, w) {
+		if strings.Contains(r.l.yourTeam(mgrK), w) || strings.Contains(scout, w) {
 			t.Errorf("%q is written by code, not read from the team file:\n%s", w, scout)
 		}
 	}
-	if !strings.Contains(mgr, "Your reports: `manager.keeper`, `manager.marina`.") || !strings.Contains(mgr, "--blocked-by T<n>") {
+	if !strings.Contains(mgr, "Your reports: `"+keeperK+"`, `"+devK+"`.") || !strings.Contains(mgr, "--blocked-by T<n>") {
 		t.Errorf("a supervisor is not told its reports and how to give them work:\n%s", mgr)
 	}
 	if strings.Contains(dev, "Your reports") {
@@ -769,7 +771,7 @@ func TestAnAgentIsToldItsTeamFromTheRoster(t *testing.T) {
 	}
 	for who, text := range map[string]string{"manager": mgr, "manager.marina": dev, "lone": scout} {
 		line := reportLine(text)
-		bossIsHuman := strings.HasPrefix(line, "You report to `human`")
+		bossIsHuman := strings.HasPrefix(line, "You report to `"+db.Human+"`")
 		if !strings.Contains(line, "`hl task done T<n>") || !strings.Contains(line, "that is your report") {
 			t.Errorf("%s: the report-to line does not say task done is the report: %s", who, line)
 		}
@@ -783,12 +785,12 @@ func TestAnAgentIsToldItsTeamFromTheRoster(t *testing.T) {
 			t.Errorf("%s: the landing line (the repo's rules, else a pull request, else commit and stop) is missing:\n%s", who, text)
 		}
 	}
-	if !strings.HasPrefix(reportLine(dev), "You report to `manager`") || !strings.HasPrefix(reportLine(scout), "You report to `human`") {
+	if !strings.HasPrefix(reportLine(dev), "You report to `"+mgrK+"`") || !strings.HasPrefix(reportLine(scout), "You report to `"+db.Human+"`") {
 		t.Errorf("wrong boss:\n%s\n---\n%s", dev, scout)
 	}
 	// The founder's words typed at an agent: it is told to answer them with hl say, and the others are not told of typing.
-	r.l.FounderTyped = func(a string) bool { return a == "manager.marina" }
-	if typed, other := r.l.yourTeam("manager.marina"), r.l.yourTeam("manager"); !strings.Contains(typed, "answer with `hl say` too; your terminal text is not shown") ||
+	r.l.FounderTyped = func(a string) bool { return a == devK }
+	if typed, other := r.l.yourTeam(devK), r.l.yourTeam(mgrK); !strings.Contains(typed, "answer with `hl say` too; your terminal text is not shown") ||
 		!strings.Contains(typed, "what you write in your terminal reaches no one") || strings.Contains(other, "type straight into your terminal") {
 		t.Errorf("typed:\n%s\n---\nnot typed:\n%s", typed, other)
 	}
