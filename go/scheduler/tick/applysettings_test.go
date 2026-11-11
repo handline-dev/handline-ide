@@ -1,6 +1,7 @@
 package tick
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -11,10 +12,27 @@ import (
 type settingsPorts struct {
 	parts   []Part
 	account string
+	note    string
+	told    *[]string
+	kept    *[]string
+	tellErr error
 }
 
 func (s settingsPorts) FingerprintParts(string) ([]Part, error) { return s.parts, nil }
 func (s settingsPorts) CurrentAccount(db.Q, string) string      { return s.account }
+func (s settingsPorts) RulesNote(string, *db.AgentState) (string, string, error) {
+	return s.note, "record", nil
+}
+func (s settingsPorts) TellRules(agent, note, _, record string) error {
+	if s.tellErr != nil {
+		return s.tellErr
+	}
+	if note != "" {
+		*s.told = append(*s.told, agent+": "+note)
+	}
+	*s.kept = append(*s.kept, agent+": "+record)
+	return nil
+}
 
 // settled is a world whose agent "a" is open and idle, launched with the model "sonnet" and now configured for "opus".
 func settled(t *testing.T) (*Tick, *world, *ApplySettings) {
@@ -166,4 +184,33 @@ func (f failingFor) FingerprintParts(agent string) ([]Part, error) {
 		panic("agent.yaml unreadable")
 	}
 	return f.settingsPorts.FingerprintParts(agent)
+}
+
+// A change of the team rules alone is told to the session at its next turn, not restarted for; with anything else it restarts as before.
+func TestATeamRulesChangeAloneIsToldNotRestarted(t *testing.T) {
+	tk, w, a := settled(t)
+	if _, err := tk.Q.Exec(`UPDATE agent_state SET launch_parts = '{"model": "opus", "team rules": "r1"}' WHERE agent = 'a'`); err != nil {
+		t.Fatal(err)
+	}
+	var told, kept []string
+	// A tell that fails keeps nothing, so the next tick tells again.
+	a.Ports = settingsPorts{parts: []Part{{"model", "opus"}, {RulesPart, "r2"}}, note: "Added:\n+ be brief", told: &told, kept: &kept,
+		tellErr: errors.New("no room")}
+	a.Sweep(tk, 9_990)
+	if len(kept) != 0 {
+		t.Fatalf("kept as told when the tell failed: %v", kept)
+	}
+	a.Ports = settingsPorts{parts: []Part{{"model", "opus"}, {RulesPart, "r2"}}, note: "Added:\n+ be brief", told: &told, kept: &kept}
+	a.Sweep(tk, 10_000)
+	if w.did("restart") || len(told) != 1 || told[0] != "a: Added:\n+ be brief" || len(kept) != 1 {
+		t.Fatalf("%v %v %v", w.calls, told, kept)
+	}
+	if o, _ := db.GetSettingsOwed(tk.Q, "a"); o != nil {
+		t.Fatalf("a told change is owed: %+v", o)
+	}
+	a.Ports = settingsPorts{parts: []Part{{"model", "sonnet"}, {RulesPart, "r2"}}, told: &told, kept: &kept}
+	a.Sweep(tk, 10_030)
+	if !w.did("restart a by the daemon for model,team rules (settings_applied)") || len(told) != 1 {
+		t.Fatalf("%v %v", w.calls, told)
+	}
 }
