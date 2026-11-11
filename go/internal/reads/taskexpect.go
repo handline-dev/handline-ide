@@ -5,6 +5,7 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/kit/actor"
 )
 
 // A task's estimate and its expected start and end: deterministic, from the queue ahead of it, its
@@ -24,7 +25,7 @@ type expectation struct {
 // gate.
 func (x *expectation) of(t row, segs []stretch) (map[string]any, error) {
 	owner := t.str("owner")
-	if t.set("ended") || owner == human || owner == db.Gate {
+	if t.set("ended") || actor.IsPerson(owner) || owner == db.Gate {
 		return nil, nil
 	}
 	dur, basis, err := x.duration(t)

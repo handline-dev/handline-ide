@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/gitrun"
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/protocol/rpc"
@@ -255,7 +256,7 @@ func withdrawDelivery(tx *sql.Tx, t *task, by string) ([]Retired, error) {
 
 // worksOn is whether agent's current task is tid (the founder holds no current task).
 func worksOn(tx *sql.Tx, agent string, tid int64) (bool, error) {
-	if agent == human {
+	if actor.IsPerson(agent) {
 		return false, nil
 	}
 	var cur sql.NullInt64

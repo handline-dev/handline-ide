@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/taskboard/requestref"
@@ -65,7 +66,7 @@ func begin(c *rpc.Conn, p map[string]any, home string) (any, error) {
 		if err != nil {
 			return nil, err
 		}
-		if req.Requester != human || req.Target != me {
+		if !actor.IsPerson(req.Requester) || req.Target != me {
 			return nil, refusal(fmt.Sprintf("request %s is not a message from the founder to %s: only that lets you start a task without approval", db.MsgName(tx, chat), me))
 		}
 		used, err := db.TasksForRequest(tx, chat)

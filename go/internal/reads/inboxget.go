@@ -49,7 +49,7 @@ func (e *Env) settledRequest(c *rpc.Conn, params map[string]any) (row, string, e
 		if err != nil {
 			return nil, "", err
 		}
-		if r == nil || (viewer == r.str("target") && viewer != human && r.i("edge_ok") == 0) {
+		if r == nil || (viewer == r.str("target") && !actor.IsPerson(viewer) && r.i("edge_ok") == 0) {
 			err := rpc.NotFoundError("no request " + strconv.FormatInt(id, 10))
 			err.Data = map[string]any{"what": "request", "name": strconv.FormatInt(id, 10)}
 			return nil, "", err

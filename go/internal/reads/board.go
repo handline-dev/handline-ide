@@ -3,6 +3,7 @@ package reads
 import (
 	"sort"
 
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
@@ -21,7 +22,7 @@ func (e *Env) taskBoard(c *rpc.Conn, params map[string]any) (any, error) {
 	var owners map[string]bool
 	switch {
 	case everyone:
-	case me == human:
+	case actor.IsPerson(me):
 		owners = map[string]bool{human: true}
 	default:
 		if owners, err = e.reach(me); err != nil {
@@ -35,7 +36,7 @@ func (e *Env) taskBoard(c *rpc.Conn, params map[string]any) (any, error) {
 			args = append(args, n)
 		}
 		in := "(" + placeholders(len(args)) + ")"
-		if me == human {
+		if actor.IsPerson(me) {
 			q += " AND " + actingSQL + " IN " + in
 		} else {
 			q += " AND (" + actingSQL + " IN " + in + " OR " + askerSQL + " IN " + in + ")"
@@ -142,7 +143,7 @@ func (e *Env) heldBy(tid int64, me string, blocked bool) (map[string]any, error)
 	if err != nil {
 		return nil, err
 	}
-	if len(last) == 1 && last[0].str("state") == "landed" && last[0].str("target") != me && last[0].str("target") != human {
+	if len(last) == 1 && last[0].str("state") == "landed" && last[0].str("target") != me && !actor.IsPerson(last[0].str("target")) {
 		return now("result_in", nil, nil), nil
 	}
 	return now("nobody", nil, nil), nil

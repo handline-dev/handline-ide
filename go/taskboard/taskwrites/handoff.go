@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/protocol/rpc"
@@ -92,7 +93,7 @@ func handoffMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (an
 		}
 		me := c.Caller.Actor()
 		said := strings.TrimSpace(textsafe.Text(note))
-		toFounder := to == human && me != human // an agent's handoff to the founder is the founder's turn, hung on the note as a comment
+		toFounder := actor.IsPerson(to) && me != human // an agent's handoff to the founder is the founder's turn, hung on the note as a comment
 		if toFounder && said == "" {
 			return nil, badParam("a handoff to the founder says what they decide, and what you recommend", "note")
 		}
@@ -253,7 +254,7 @@ func shiftTask(tx *sql.Tx, tell Teller, h *Handover, why string, now bool, chang
 			return err
 		}
 	}
-	if h.To == human { // a task the founder acts on is asked of them, so it is queued: a draft is outside "for you"
+	if actor.IsPerson(h.To) { // a task the founder acts on is asked of them, so it is queued: a draft is outside "for you"
 		_, err := db.SetTaskQueued(tx, h.Task, h.By)
 		return err
 	}

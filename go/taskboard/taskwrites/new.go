@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/kit/timefmt"
@@ -157,7 +158,7 @@ func newMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, e
 		if noParent && hasParent {
 			return nil, badParam("no_parent and parent together: choose one", "no_parent")
 		}
-		if owner == human && c.Caller.Actor() != human {
+		if actor.IsPerson(owner) && c.Caller.Actor() != human {
 			return nil, refusal(newForFounder)
 		}
 		tags, err := TagList(p, "tags")
@@ -173,7 +174,7 @@ func newMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, e
 		}
 		me := c.Caller.Actor()
 		expects := "report"
-		if owner == human && me != human { // a task given to the founder is a decision
+		if actor.IsPerson(owner) && me != human { // a task given to the founder is a decision
 			expects = "decision"
 		}
 		clean := strings.TrimSpace(textsafe.Oneline(title))
@@ -229,7 +230,7 @@ func newMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, e
 			limit = ", timeout " + timefmt.Span(secs, false)
 		}
 		msg := asked.Msg
-		if owner == human { // the one line the telling gives a founder's task needs no session
+		if actor.IsPerson(owner) { // the one line the telling gives a founder's task needs no session
 			msg += "\nit is on the founder's screen (`hl`)"
 		}
 		if asked.After != nil {
@@ -244,7 +245,7 @@ func newMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, e
 // requestHeld is the request task an agent is working on, which a task it opens hangs under unless it says otherwise: its current task, when
 // that is the root of a request (made from a founder's message). 0 for none.
 func requestHeld(tx *sql.Tx, agent string) (int64, error) {
-	if agent == human {
+	if actor.IsPerson(agent) {
 		return 0, nil
 	}
 	tid, held, err := db.CurrentTask(tx, agent)
@@ -391,7 +392,7 @@ func OpenTask(tx *sql.Tx, tell Teller, me string, in NewIn) (tid int64, asked *A
 		}
 		if _, held, err := db.CurrentTask(tx, owner); err != nil {
 			return err
-		} else if owner != human && owner != db.Gate && !held {
+		} else if !actor.IsPerson(owner) && owner != db.Gate && !held {
 			if err := db.SetCurrentTask(tx, owner, tid, true); err != nil {
 				return err
 			}
@@ -435,7 +436,7 @@ func OpenTask(tx *sql.Tx, tell Teller, me string, in NewIn) (tid int64, asked *A
 		}
 		return tid, &Asked{OK: true, Msg: "watching " + in.Watch.Label}, nil
 	}
-	if me == human && owner == human {
+	if me == human && actor.IsPerson(owner) {
 		// A todo of the founder's own: routing has no founder-to-founder edge, so its brief is written as the request any task to the
 		// founder carries, queued on their screen, without being routed or told.
 		rid, err := db.AddRequest(tx, db.NewRequest{Requester: human, Target: human, Body: body, Kind: "task"})

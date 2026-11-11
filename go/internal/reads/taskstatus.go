@@ -4,6 +4,7 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
 	"github.com/handline/handline/go/internal/status"
+	"github.com/handline/handline/go/kit/actor"
 )
 
 // statusOf is the spec's Task.status: its state on the board, and for an open task the cause waitingOf found.
@@ -28,7 +29,7 @@ func (e *Env) statusOf(t row, state string, waiting map[string]any, since int64)
 				text += " - last read failed: " + why
 			}
 			return at(status.Running, status.Watch, text, t.i("sent_at")), nil
-		case owner == human:
+		case actor.IsPerson(owner):
 			return at(status.Waiting, status.You, "yours to do", t.i("created_at")), nil
 		case state == "queued":
 			return at(status.Preparing, status.Work, owner+" gets it at the next tick", t.i("created_at")), nil

@@ -11,6 +11,7 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/pyjson"
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/protocol/rpc"
@@ -272,7 +273,7 @@ func discardOne(tx *sql.Tx, home, by string, tid int64, reason, batch string, ow
 			delivered = delivered || r.DeliveredAt.Valid
 		}
 		inHand = cur == tid || delivered
-		d.sayStop = inHand && t.Acting != human && !delivered
+		d.sayStop = inHand && !actor.IsPerson(t.Acting) && !delivered
 		for _, r := range live {
 			if r.State != "queued" {
 				continue // landed: held by its agent, told to stop below; nothing to cancel
@@ -371,7 +372,7 @@ func leadsTreeOf(home, by string, t *task) (bool, error) {
 		return false, nil
 	}
 	for _, x := range []string{t.Owner, t.OpenedBy} {
-		for seen := map[string]bool{}; x != "" && x != human && !seen[x]; x = tm.ManagerOf(x) {
+		for seen := map[string]bool{}; x != "" && !actor.IsPerson(x) && !seen[x]; x = tm.ManagerOf(x) {
 			if x == by {
 				return true, nil
 			}

@@ -13,6 +13,7 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/internal/cmdruns"
 	"github.com/handline/handline/go/internal/transcript"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/taskboard/attachments"
@@ -216,11 +217,11 @@ func decisionActions(id int64, t row) []any {
 	if t.str("done_evidence") != "" || t.str("discarded_by") != "" {
 		return nil
 	}
-	if t.str("owner") != human {
+	if !actor.IsPerson(t.str("owner")) {
 		return nil
 	}
 	out := []any{act("ok", "OK", "task.done", map[string]any{"evidence": "OK"}, "")}
-	if opener := t.str("opened_by"); opener != human {
+	if opener := t.str("opened_by"); !actor.IsPerson(opener) {
 		out = append(out, act("no", "No", "task.handoff", map[string]any{"to": opener, "note": "No"}, ""))
 	}
 	return out
@@ -247,12 +248,12 @@ func (c *chat) messageOf(r row) (map[string]any, error) {
 			return nil, err
 		}
 		tasks = append(tasks, map[string]any{"id": id, "title": t.str("title")})
-		if r.str("target") == human {
+		if actor.IsPerson(r.str("target")) {
 			actions = append(actions, decisionActions(id, t)...)
 		}
 	}
 	var why any
-	if (state == "queued" || state == "typed") && r.str("target") != human {
+	if (state == "queued" || state == "typed") && !actor.IsPerson(r.str("target")) {
 		var err error
 		if why, err = c.e.QueueReason(r.str("target"), r.i("id")); err != nil {
 			return nil, err
@@ -275,7 +276,7 @@ func (c *chat) messageOf(r row) (map[string]any, error) {
 	if len(actions) > 0 {
 		m["actions"] = actions
 	}
-	if r.str("requester") == human && r.str("target") != human {
+	if actor.IsPerson(r.str("requester")) && !actor.IsPerson(r.str("target")) {
 		x, err := queryOne(c.e.DB, "SELECT (SELECT id FROM tasks WHERE from_request = ? ORDER BY id LIMIT 1) AS task", r.i("id"))
 		if err != nil {
 			return nil, err
@@ -777,7 +778,7 @@ func (e *Env) chatRequests(c *rpc.Conn, params map[string]any) (any, error) {
 // ownerOfChat is the agent whose chat a request is part of when none is named: its non-person end, the target first.
 func ownerOfChat(r row) string {
 	for _, k := range []string{"target", "requester"} {
-		if n := r.str(k); n != human {
+		if n := r.str(k); !actor.IsPerson(n) {
 			return n
 		}
 	}
@@ -803,7 +804,7 @@ func (e *Env) locateMessage(mid int64, agent string, everyone bool) (located, er
 		return located{kind: "alone", request: req}, nil
 	}
 	ends := []string{r.str("requester"), r.str("target")}
-	founders := ends[0] == human || ends[1] == human
+	founders := actor.IsPerson(ends[0]) || actor.IsPerson(ends[1])
 	if ends[0] == agent || ends[1] == agent {
 		tab := "mine"
 		if everyone || !founders {
@@ -813,7 +814,7 @@ func (e *Env) locateMessage(mid int64, agent string, everyone bool) (located, er
 	}
 	var elsewhere []string
 	for _, n := range ends {
-		if n != human {
+		if !actor.IsPerson(n) {
 			elsewhere = append(elsewhere, n)
 		}
 	}
@@ -1096,17 +1097,17 @@ func commentCardOf(ev row) (item map[string]any, agent string, ok bool) {
 	var kind, words string
 	switch ev.str("kind") {
 	case "task_turn_push", "task_turn_ask": // a push names who it puts on in to, a reask in agent
-		if text(p["to"]) != human && text(p["agent"]) != human {
+		if !actor.IsPerson(text(p["to"])) && !actor.IsPerson(text(p["agent"])) {
 			return nil, "", false
 		}
 		kind, agent, words = "turn", ev.str("agent"), text(p["ask"])
 	case "task_turn_pop":
-		if ev.str("agent") != human || memo == 0 || text(p["to"]) == "" || text(p["to"]) == human {
+		if !actor.IsPerson(ev.str("agent")) || memo == 0 || text(p["to"]) == "" || actor.IsPerson(text(p["to"])) {
 			return nil, "", false
 		}
 		kind, agent = "answer", text(p["to"])
 	case "memo_add":
-		if ev.str("agent") == human || ev.i("turned") != 0 || !db.ToFounder(text(p["now"])) {
+		if actor.IsPerson(ev.str("agent")) || ev.i("turned") != 0 || !db.ToFounder(text(p["now"])) {
 			return nil, "", false
 		}
 		kind, agent, words = "note", ev.str("agent"), text(p["now"])

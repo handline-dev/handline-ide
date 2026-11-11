@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/protocol/rpc"
 )
@@ -40,7 +41,7 @@ func pushTurn(tx *sql.Tx, tell Teller, tid int64, by, to, ask string, memo int64
 	if err != nil {
 		return Handover{}, nil, err
 	}
-	if to == human && ask != "" && turnRefusal(t, tid, human) == "" && t.Acting == human && len(turns) > 0 && by == Below(turns, t.Owner) {
+	if actor.IsPerson(to) && ask != "" && turnRefusal(t, tid, human) == "" && actor.IsPerson(t.Acting) && len(turns) > 0 && by == Below(turns, t.Owner) {
 		// the founder's turn is their one question slot on the task: asking again rewrites it
 		changed, err := db.ReaskTopTurn(tx, tid, by, ask, memo)
 		if err != nil || !changed {
@@ -63,7 +64,7 @@ func pushTurn(tx *sql.Tx, tell Teller, tid int64, by, to, ask string, memo int64
 	push := func() error {
 		return db.PushTurn(tx, tid, db.Turn{Agent: to, Ask: ask, By: by, Since: time.Now().Unix(), OnPass: onPass, Evidence: evidence, Memo: memo})
 	}
-	if to == human {
+	if actor.IsPerson(to) {
 		return h, &Asked{OK: true, Msg: "it waits on the founder"}, shiftTask(tx, tell, &h, "the founder's turn", true, push)
 	}
 	if tell == nil {
@@ -228,7 +229,7 @@ func popTurn(tx *sql.Tx, home string, tell Teller, tid int64, by, outcome, note 
 	if outcome == db.TurnSendBack {
 		word = "sent back"
 	}
-	if below == human {
+	if actor.IsPerson(below) {
 		return Popped{Handover: h, Asked: &Asked{OK: true}}, shiftTask(tx, tell, &h, "turn "+word, false, pop)
 	}
 	if tell == nil {
@@ -237,11 +238,11 @@ func popTurn(tx *sql.Tx, home string, tell Teller, tid int64, by, outcome, note 
 	body := fmt.Sprintf("T%d is your turn again: %s %s it: %s", tid, top.Agent, word, t.Title)
 	ask := textsafe.Oneline(top.Ask)
 	switch { // the founder ending their own turn answers the task's open question
-	case by == human && top.Agent == human && memo != 0:
+	case by == human && actor.IsPerson(top.Agent) && memo != 0:
 		body = fmt.Sprintf("T%d 질문에 대표님 댓글 %d: %s / 지금 질문 칸: %s", tid, memo, textsafe.Oneline(note), ask)
-	case by == human && top.Agent == human && note != "":
+	case by == human && actor.IsPerson(top.Agent) && note != "":
 		body = fmt.Sprintf("T%d 질문에 대표님 답: %s / 지금 질문 칸: %s", tid, textsafe.Oneline(note), ask)
-	case by == human && top.Agent == human:
+	case by == human && actor.IsPerson(top.Agent):
 		body = fmt.Sprintf("T%d 대표님이 질문 칸을 넘김 / 지금 질문 칸: %s", tid, ask)
 	case note != "":
 		body += "\n\n" + note

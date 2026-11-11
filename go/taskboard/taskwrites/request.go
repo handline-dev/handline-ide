@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/protocol/rpc"
@@ -33,7 +34,7 @@ func founderMessage(tx *sql.Tx, home string, c *rpc.Conn, p map[string]any) (int
 	}
 	name := db.MsgName(tx, rid)
 	switch {
-	case req.Requester != human || req.Target == human:
+	case !actor.IsPerson(req.Requester) || actor.IsPerson(req.Target):
 		return 0, nil, refusal(fmt.Sprintf("%s is not a message from the founder to an agent", name))
 	case me != human && me != req.Target:
 		return 0, nil, refusal(fmt.Sprintf("%s was sent to %s: only it, or the founder, may act on it", name, req.Target))
