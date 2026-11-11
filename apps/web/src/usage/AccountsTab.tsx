@@ -1,6 +1,7 @@
 // Managing the accounts, as legacy's Settings > Accounts did: add one by name; each opens in place to log in (the vendor's URL, then the
 // code back), set its alias, cap, recovery and month end, or be removed (a dry run first, then its name typed). Every write shows its
 // pending state in place; a refusal says why under it.
+import { AccountEmail } from '#src/usage/AccountEmail.tsx';
 import { RowsLoading } from '#src/usage/UsageViews.tsx';
 import type { Account } from '@handline/client';
 import { loginRunning } from '@handline/app-core';
@@ -42,6 +43,7 @@ export function AccountsTab({ focus }: { focus?: string }) {
                   <ChevronRight size={14} className={`shrink-0 text-muted transition-transform ${open === a.name ? 'rotate-90' : ''}`} />
                   <span className="text-sm font-medium text-fg">{a.label}</span>
                   {a.label !== a.name && <span className="text-xs text-muted">{a.name}</span>}
+                  <AccountEmail account={a} className="min-w-0" />
                   <span className="flex-1" />
                   {a.login_state === 'needs_login' ? (
                     <span className="flex items-center gap-1 text-xs text-danger">
@@ -228,6 +230,7 @@ export function Login({ account: a }: { account: Account }) {
       <Button disabled={login.isPending} onClick={() => login.mutate({ account: a.name })}>
         {login.isPending ? 'Starting…' : a.login_state === 'ok' ? 'Log in again' : 'Log in'}
       </Button>
+      <AccountEmail account={a} as />
       {a.login?.state === 'failed' && <span className="text-danger">Login failed: {a.login.reason}</span>}
       {!!login.error && <span className="text-danger">{why(login.error)}</span>}
     </div>

@@ -134,6 +134,17 @@
       "type": "boolean",
       "description": "Whether a dead usage read may spend one real turn to fix itself (hl account recover)."
      },
+     "email": {
+      "oneOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "The Anthropic account's email, kept from its last login so it shows after the login drops; null when none was kept. Given to the founder's app only, never to an agent."
+     },
      "cycle": {
       "type": "object",
       "required": [

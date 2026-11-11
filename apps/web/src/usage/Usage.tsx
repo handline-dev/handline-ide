@@ -1,4 +1,5 @@
 import type { Account } from '@handline/client';
+import { AccountEmail } from '#src/usage/AccountEmail.tsx';
 import { RowsLoading } from '#src/usage/UsageViews.tsx';
 import { useAccountUsage, useAccounts } from '@handline/app-data';
 import { Settings, TriangleAlert } from 'lucide-react';
@@ -75,11 +76,12 @@ export function Usage() {
                 data-account={a.name}
                 className={`flex scroll-mt-4 flex-wrap items-center gap-x-6 gap-y-2 border-b border-border py-3 transition-colors ${marked === a.name ? 'bg-selected' : ''}`}
               >
-                <div className="flex w-36 min-w-0 flex-col">
+                <div className="flex w-48 min-w-0 flex-col">
                   <span className="flex items-baseline gap-1.5 truncate text-sm font-medium text-fg">
                     {a.label}
                     {plans.get(a.name) && <span className="text-xs font-normal text-muted capitalize">{plans.get(a.name)}</span>}
                   </span>
+                  <AccountEmail account={a} />
                   {a.login_state === 'needs_login' ? (
                     <span className="flex items-center gap-1 text-xs text-danger">
                       <TriangleAlert size={12} />

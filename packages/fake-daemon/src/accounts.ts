@@ -86,6 +86,7 @@ export class FakeAccounts {
     const at = (h: number): Timestamp => new Date(now + h * HOUR).toISOString();
     this.add({
       name: 'alpha',
+      email: 'alpha@example.com',
       five_hour: { used_pct: 41, resets_at: at(2.2), source: 'measured' },
       weekly: { used_pct: 62, resets_at: at(70), source: 'measured' },
       pace: paceOf(62, 70, now),
@@ -99,6 +100,7 @@ export class FakeAccounts {
     this.add({
       name: 'beta',
       label: 'review',
+      email: 'review.team@example.com',
       five_hour: { used_pct: 88, resets_at: at(1), source: 'measured' },
       weekly: { used_pct: 30, resets_at: at(100), source: 'estimated' },
       pace: paceOf(30, 100, now),
@@ -112,6 +114,7 @@ export class FakeAccounts {
     this.add({
       name: 'gamma',
       login_state: 'needs_login',
+      email: 'gamma.work@example.com',
       five_hour: null,
       weekly: null,
       pace: paceOf(97, 50, now),
