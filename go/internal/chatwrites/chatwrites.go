@@ -405,7 +405,7 @@ func (w *writes) cancel(c *rpc.Conn, p map[string]any) (any, error) {
 		return e
 	}
 	after := &supervisor.After{}
-	if err := w.withdrawHeld(rid); err != nil {
+	if err := w.withdrawHeld(rid, c.Caller.Actor()); err != nil {
 		return nil, err
 	}
 	res, err := w.writeResult(c, refuse, func(tx *sql.Tx) (*Result, map[string]any, error) {

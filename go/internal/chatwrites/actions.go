@@ -234,7 +234,7 @@ func CancelPlan(q db.Q, rid int64) (bool, string, error) {
 		}
 	}
 	told := requester + " is not told"
-	if actor.IsPerson(requester) { // the confirm is the founder's to read
+	if requester == db.Human { // the confirm is the founder's to read
 		told = "you are not told"
 	}
 	if row.DeliveredAt.Valid {

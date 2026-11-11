@@ -77,10 +77,10 @@ func (w *writes) refreshSend(c *rpc.Conn, reply map[string]any) error {
 	return nil
 }
 
-// heldMessage is the person's message rid when it is to a structured agent, else nil.
-func (w *writes) heldMessage(rid int64) (*db.Request, error) {
+// heldMessage is from's message rid when it is to a structured agent, else nil; from "" takes any person's.
+func (w *writes) heldMessage(rid int64, from string) (*db.Request, error) {
 	row, err := db.GetRequest(w.e.DB, rid)
-	if err != nil || row == nil || !actor.IsPerson(row.Requester) || !w.e.StructuredAgent(row.Target) {
+	if err != nil || row == nil || !actor.IsPerson(row.Requester) || (from != "" && row.Requester != from) || !w.e.StructuredAgent(row.Target) {
 		return nil, err
 	}
 	return row, nil
@@ -88,8 +88,8 @@ func (w *writes) heldMessage(rid int64) (*db.Request, error) {
 
 // withdrawHeld takes rid's message back from the session's queue before chat.cancel closes it. One the session has written is marked
 // delivered, so the cancel asks for its confirm.
-func (w *writes) withdrawHeld(rid int64) error {
-	row, err := w.heldMessage(rid)
+func (w *writes) withdrawHeld(rid int64, from string) error {
+	row, err := w.heldMessage(rid, from)
 	if err != nil || row == nil {
 		return err
 	}
@@ -100,7 +100,7 @@ func (w *writes) withdrawHeld(rid int64) error {
 // promoteHeld is chat.send_now for a message to a structured agent that the session has recorded: only a queued one is written now, and
 // the receipt says it. handled is false for a message the session has not taken, which the usual send_now serves.
 func (w *writes) promoteHeld(c *rpc.Conn, rid int64) (out map[string]any, handled bool, err error) {
-	row, err := w.heldMessage(rid)
+	row, err := w.heldMessage(rid, c.Caller.Actor())
 	if err != nil || row == nil {
 		return nil, false, err
 	}
