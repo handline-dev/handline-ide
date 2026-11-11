@@ -3,7 +3,7 @@
   {
    "name": "task.comment.add.turn_and_pop_refusals",
    "spec": "task.comment.add",
-   "about": "On a task the founder opened for one agent: a push to its owner is refused, a push of an agent already on it is refused, the founder's comment with a turn is refused while their own turn is on top, and an agent that is neither the top turn's nor the founder may not pop it. The discard at the end clears the turns.",
+   "about": "On a task the founder opened for one agent: a push to its owner is refused, a push of an agent already on it is refused, the founder hands no turn to themself, and an agent that is neither the top turn's nor the founder may not pop it. The discard at the end clears the turns.",
    "as": "agent",
    "with": {
     "founder": "founder"
@@ -124,47 +124,13 @@
        "request_id": "conf-turn-6"
       }
      },
-     "result": {
-      "accepted": true
-     },
-     "on": "founder"
-    },
-    {
-     "send": {
-      "jsonrpc": "2.0",
-      "id": 7,
-      "method": "task.comment.add",
-      "params": {
-       "task": "{{tid}}",
-       "text": "over to you",
-       "turn": "{{ask_agent}}",
-       "request_id": "conf-turn-7"
-      }
-     },
-     "result": {
-      "accepted": true
-     },
-     "on": "founder"
-    },
-    {
-     "send": {
-      "jsonrpc": "2.0",
-      "id": 8,
-      "method": "task.comment.add",
-      "params": {
-       "task": "{{tid}}",
-       "text": "over to you",
-       "turn": "{{ask_agent}}",
-       "request_id": "conf-turn-8"
-      }
-     },
+     "on": "founder",
      "error": {
       "code": -32002,
       "data": {
        "code": "refused"
       }
-     },
-     "on": "founder"
+     }
     },
     {
      "send": {
