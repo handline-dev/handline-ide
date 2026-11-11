@@ -35,7 +35,7 @@ export function AccountsTab({ focus }: { focus?: string }) {
   return (
     <ScrollFade keep="accounts" className="min-h-0 flex-1">
       <Page>
-        <div className="flex flex-col gap-4 py-6">
+        <div className="flex flex-col gap-4 pb-8 pt-3">
           <div className="flex items-end justify-between gap-4">
             <div>
               <h1 className="text-xl font-semibold text-fg">Accounts</h1>
