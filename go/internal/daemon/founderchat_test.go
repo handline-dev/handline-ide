@@ -52,7 +52,7 @@ func TestATypedTurnsTerminalTextStaysOutOfTheChat(t *testing.T) {
 	if n := toFounder(); n != 0 {
 		t.Fatalf("%d messages to the founder from bob's terminal text", n)
 	}
-	if r := c.raw(t, `{"jsonrpc":"2.0","id":3,"method":"say","params":{"target":"human","body":"ACK123","no_task":"answer","request_id":"s2"}}`); r["error"] != nil {
+	if r := c.raw(t, `{"jsonrpc":"2.0","id":3,"method":"say","params":{"target":"human","body":"ACK123","request_id":"s2"}}`); r["error"] != nil {
 		t.Fatal(r["error"])
 	}
 	if n := toFounder(); n != 1 {

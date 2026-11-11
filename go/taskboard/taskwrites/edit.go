@@ -458,7 +458,7 @@ func editMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, 
 					var h Handover
 					var asked *Asked
 					if *owner == human && me != human {
-						h, asked, err = pushTurn(tx, tell, tid, me, human, "", "", "")
+						h, asked, err = pushTurn(tx, tell, tid, me, human, "", 0, "", "")
 					} else {
 						h, asked, err = handOff(tx, tell, tid, me, *owner, "", paths.ListAgents(home), false)
 					}

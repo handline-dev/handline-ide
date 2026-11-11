@@ -3,7 +3,6 @@ package chatwrites
 import (
 	"database/sql"
 	"fmt"
-	"strings"
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/textsafe"
@@ -53,18 +52,12 @@ func (w *writes) say(c *rpc.Conn, p map[string]any) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	task, err := numberParam(p, "task")
-	if err != nil {
-		return nil, err
-	}
-
-	var noTask *string
-	if v := p["no_task"]; v != nil {
-		s, ok := v.(string)
-		if !ok || strings.TrimSpace(s) == "" {
-			return nil, badParam("no_task is the reason, as text", "no_task")
+	if p["task"] != nil || p["no_task"] != nil {
+		task := "T<n>"
+		if n, ok := rpc.AsInt(p["task"]); ok {
+			task = fmt.Sprintf("T%d", n)
 		}
-		noTask = &s
+		return nil, rpc.Refused(supervisor.TaskSayRefusal(task), "", "")
 	}
 	paths, err := attachments.FilePaths(p)
 	if err != nil {
@@ -88,9 +81,8 @@ func (w *writes) say(c *rpc.Conn, p map[string]any) (any, error) {
 		if err != nil {
 			return nil, err
 		}
-		out, err = w.e.SayVerb(tx, supervisor.SayVerbIn{Requester: me, Speaker: speaker, Target: target, Body: body, Task: task, NoTask: noTask,
-			Parent: parent, Attached: len(files) > 0, Effect: func(q db.Q, _ string, rid int64) error { return w.images.Carry(q, rid, files) },
-			MemoEffect: func(q db.Q, mid int64) error { return w.images.AttachMemo(q, mid, files) }})
+		out, err = w.e.SayVerb(tx, supervisor.SayVerbIn{Requester: me, Speaker: speaker, Target: target, Body: body, Parent: parent,
+			Effect: func(q db.Q, _ string, rid int64) error { return w.images.Carry(q, rid, files) }})
 		if err != nil {
 			return nil, err
 		}

@@ -973,7 +973,7 @@ func (l *Launcher) yourTeam(agent string) string {
 		for _, n := range reports {
 			quoted = append(quoted, "`"+n+"`")
 		}
-		lines = append(lines, "Your reports: "+strings.Join(quoted, ", ")+". Give one work with `hl task new --assign <name> -t <time> \"<title>\" \"<what to do, and what done looks like>\"`. A message to a report is `hl say <name> ... --task T<n>` (a comment on that task). Correct a task with `hl task comment T<n> add \"...\"`, throw a stale one away with `hl task discard T<n> \"<why>\"`, and record a wait with `--blocked-by T<n>`.")
+		lines = append(lines, "Your reports: "+strings.Join(quoted, ", ")+". Give one work with `hl task new --assign <name> -t <time> \"<title>\" \"<what to do, and what done looks like>\"`. Write to a report about its task with `hl task comment T<n> add \"@<name> ...\"`; correct a task the same way, throw a stale one away with `hl task discard T<n> \"<why>\"`, and record a wait with `--blocked-by T<n>`.")
 	}
 	lines = append(lines, "`hl team` shows who you may reach and what each is doing now. "+team.Protocol("founder"))
 	return strings.Join(lines, "\n")

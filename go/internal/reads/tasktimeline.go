@@ -8,6 +8,7 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/textsafe"
+	"github.com/handline/handline/go/protocol/rpc"
 )
 
 // seconds is a stamp to the fraction of a second: a column, or a number in an event's payload.
@@ -111,7 +112,11 @@ func (e *Env) taskTimeline(tid int64, memos, reqs []row, parts func(string) []an
 			note, _ := p["note"].(string)
 			add(at, ev.str("agent"), "reject", note, nil, nil, true)
 		case "task_turn_push":
-			add(at, fmt.Sprintf("%s → %s", ev.str("agent"), text(p["to"])), "turn", text(p["ask"]), nil, nil, false)
+			var memo any // the comment the turn was handed over with
+			if m, _ := rpc.AsInt(p["memo"]); m != 0 {
+				memo = m
+			}
+			add(at, fmt.Sprintf("%s → %s", ev.str("agent"), text(p["to"])), "turn", text(p["ask"]), memo, nil, false)
 			out[len(out)-1].row["turn"] = "push"
 		case "task_turn_pop":
 			if to := text(p["to"]); to != "" { // a stack cleared by an end or a draft gives the task to no one; a note is a comment's row

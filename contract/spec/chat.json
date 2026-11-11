@@ -345,7 +345,8 @@
        "task_event",
        "session",
        "task_batch",
-       "bash"
+       "bash",
+       "task_comment"
       ]
      },
      "text": {
@@ -574,6 +575,49 @@
        "batch",
        "who",
        "tasks"
+      ]
+     },
+     "task_comment": {
+      "type": "object",
+      "description": "For kind task_comment: a task comment the founder is part of, as a card in an agent's chat. turn: the founder's turn put on the task, in the chat of the agent below it; answer: the founder's comment that gave the turn back, in the chat of the agent it went back to; note: an `@human` comment (news, no turn), in its author's chat. The card opens the task; the answer is written there.",
+      "properties": {
+       "task": {
+        "type": "integer"
+       },
+       "memo": {
+        "oneOf": [
+         {
+          "type": "integer"
+         },
+         {
+          "type": "null"
+         }
+        ],
+        "description": "The comment (Memo.id); null for a turn the daemon put on without one (a handoff to human), whose text is the turn's ask."
+       },
+       "kind": {
+        "type": "string",
+        "enum": [
+         "turn",
+         "answer",
+         "note"
+        ]
+       },
+       "who": {
+        "type": "string",
+        "description": "Who wrote it: the agent, or human for an answer."
+       },
+       "text": {
+        "type": "string",
+        "description": "The comment's text as it reads now (edited or not); empty when it was deleted."
+       }
+      },
+      "required": [
+       "task",
+       "memo",
+       "kind",
+       "who",
+       "text"
       ]
      }
     },

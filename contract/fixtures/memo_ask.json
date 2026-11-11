@@ -3,7 +3,7 @@
   {
    "name": "task.comment.add.naming_human_opens_no_ask",
    "spec": "task.comment.add",
-   "about": "A comment asks the founder nothing, even one that starts with `@human`: their question is their turn on the task (task.turn.push human).",
+   "about": "A comment asks the founder nothing, even one that starts with `@human`: their question is their turn on the task (task.comment.add with turn human).",
    "as": "agent",
    "with": {
     "boss": "founder"

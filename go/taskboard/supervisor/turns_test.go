@@ -53,7 +53,7 @@ func TestTheFoundersTurnFreesTheAgentsSlotAndTheirCommentGivesItBack(t *testing.
 	r.agentUp("bob")
 	held := r.beginCurrent("bob", "alice", "ship it")
 	next := r.newTask("bob", "alice", "the next one")
-	r.turnCall("bob", "task.turn.push", fmt.Sprintf(`{"task":%d,"to":"human","ask":"beta now or after the fix? I recommend now","request_id":"p1"}`, held))
+	r.turnCall("bob", "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"beta now or after the fix? I recommend now","turn":"human","request_id":"p1"}`, held))
 	if r.acting(held) != db.Human {
 		t.Fatalf("acting %q", r.acting(held))
 	}
@@ -68,7 +68,7 @@ func TestTheFoundersTurnFreesTheAgentsSlotAndTheirCommentGivesItBack(t *testing.
 		t.Fatalf("%+v", turns)
 	}
 	// a second founder turn, or the owner, is refused
-	r.refusedCall("human", "task.turn.push", fmt.Sprintf(`{"task":%d,"to":"bob","request_id":"p2"}`, held), "already acts")
+	r.refusedCall("human", "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"over to you","turn":"bob","request_id":"p2"}`, held), "already acts")
 	// the founder's comment passes it: bob acts again, told with the comment
 	r.turnCall("human", "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"now","request_id":"c1"}`, held))
 	if r.acting(held) != "bob" {
@@ -79,7 +79,7 @@ func TestTheFoundersTurnFreesTheAgentsSlotAndTheirCommentGivesItBack(t *testing.
 	}
 	var back string
 	r.must(r.DB.QueryRow("SELECT body FROM requests r JOIN task_requests l ON l.request_id = r.id WHERE l.task_id = ? AND r.target = 'bob' ORDER BY r.id DESC LIMIT 1", held).Scan(&back))
-	if back != "T1 질문에 대표님 댓글 1: now / 지금 질문 칸: beta now or after the fix? I recommend now" {
+	if back != "T1 질문에 대표님 댓글 2: now / 지금 질문 칸: beta now or after the fix? I recommend now" {
 		t.Fatalf("%q", back)
 	}
 }
@@ -90,10 +90,17 @@ func TestAReviewTurnClosesTheTaskOnAPassAndASendBackReturnsItWithTheNote(t *test
 	r.agentUp("bob")
 	r.agentUp("alice")
 	tid := r.beginCurrent("bob", "alice", "the parser")
-	push := fmt.Sprintf(`{"task":%d,"to":"alice","ask":"review the parser","on_pass":"done","evidence":"PR #9, tests green","request_id":"%%s"}`, tid)
-	r.turnCall("bob", "task.turn.push", fmt.Sprintf(push, "p1"))
+	push := fmt.Sprintf(`{"task":%d,"text":"review the parser","turn":"alice","done":"PR #9, tests green","request_id":"%%s"}`, tid)
+	r.turnCall("bob", "task.comment.add", fmt.Sprintf(push, "p1"))
 	if r.acting(tid) != "alice" {
 		t.Fatalf("acting %q", r.acting(tid))
+	}
+	// the turn's delivery carries the comment: alice is not told it a second time
+	var delivered, told int
+	r.must(r.DB.QueryRow("SELECT COUNT(*) FROM requests WHERE target = 'alice' AND kind = 'task' AND body LIKE '%review the parser%'").Scan(&delivered))
+	r.must(r.DB.QueryRow("SELECT COUNT(*) FROM memo_tells WHERE reader = 'alice'").Scan(&told))
+	if turns, _ := db.Turns(r.DB, tid); delivered != 1 || told != 0 || len(turns) != 1 || turns[0].Memo == 0 || turns[0].OnPass != db.TurnOnPassDone {
+		t.Fatalf("delivered %d, told %d, %+v", delivered, told, turns)
 	}
 	r.refusedCall("bob", "task.turn.pop", fmt.Sprintf(`{"task":%d,"outcome":"pass","request_id":"x1"}`, tid), "alice's turn")
 	r.refusedCall("alice", "task.turn.pop", fmt.Sprintf(`{"task":%d,"outcome":"send_back","request_id":"x2"}`, tid), "says why")
@@ -106,7 +113,7 @@ func TestAReviewTurnClosesTheTaskOnAPassAndASendBackReturnsItWithTheNote(t *test
 	if memo != "the empty list fails" {
 		t.Fatalf("%q", memo)
 	}
-	r.turnCall("bob", "task.turn.push", fmt.Sprintf(push, "p2"))
+	r.turnCall("bob", "task.comment.add", fmt.Sprintf(push, "p2"))
 	r.turnCall("alice", "task.turn.pop", fmt.Sprintf(`{"task":%d,"outcome":"pass","request_id":"a1"}`, tid))
 	task, _ := db.GetTask(r.DB, tid)
 	if task.DoneEvidence.String != "PR #9, tests green" {
@@ -127,27 +134,27 @@ func TestAReviewTurnClosesTheTaskOnAPassAndASendBackReturnsItWithTheNote(t *test
 func TestTurnsUnderAHandoffAReleaseADraftAndTheLimit(t *testing.T) {
 	r := newRig(t)
 	r.bigTeam()
-	for _, a := range []string{"alice", "bob", "carol", "dave"} {
+	for _, a := range []string{"alice", "bob", "carol", "dave", "erin"} {
 		r.agentUp(a)
 	}
 	tid := r.beginCurrent("bob", "alice", "the job")
-	r.turnCall("bob", "task.turn.push", fmt.Sprintf(`{"task":%d,"to":"alice","request_id":"p1"}`, tid))
+	r.turnCall("bob", "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"over to you","turn":"alice","request_id":"p1"}`, tid))
 	r.turnCall("alice", "task.handoff", fmt.Sprintf(`{"task":%d,"to":"carol","note":"yours to review","request_id":"h1"}`, tid))
 	if task, _ := db.GetTask(r.DB, tid); task.Owner != "bob" || task.Acting != "carol" {
 		t.Fatalf("the handoff replaced the top turn: %+v", task)
 	}
 	r.refusedCall("carol", "task.handoff", fmt.Sprintf(`{"task":%d,"to":"bob","request_id":"h2"}`, tid), "under its turns")
 	r.refusedCall("bob", "task.release", fmt.Sprintf(`{"task":%d,"reason":"mine","request_id":"r0"}`, tid), "carol's is on top")
-	r.turnCall("carol", "task.turn.push", fmt.Sprintf(`{"task":%d,"to":"dave","request_id":"p2"}`, tid))
-	r.turnCall("dave", "task.turn.push", fmt.Sprintf(`{"task":%d,"to":"human","request_id":"p3"}`, tid))
-	r.refusedCall("human", "task.turn.push", fmt.Sprintf(`{"task":%d,"to":"erin","request_id":"p4"}`, tid), "the most it may")
-	r.turnCall("human", "task.turn.pop", fmt.Sprintf(`{"task":%d,"outcome":"pass","request_id":"o1"}`, tid))
+	r.turnCall("carol", "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"over to you","turn":"dave","request_id":"p2"}`, tid))
+	r.turnCall("dave", "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"over to you","turn":"erin","request_id":"p3"}`, tid))
+	r.refusedCall("erin", "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"over to you","turn":"human","request_id":"p4"}`, tid), "the most it may")
+	r.turnCall("erin", "task.turn.pop", fmt.Sprintf(`{"task":%d,"outcome":"pass","request_id":"o1"}`, tid))
 	r.turnCall("dave", "task.release", fmt.Sprintf(`{"task":%d,"reason":"not mine to do","request_id":"r1"}`, tid))
 	if r.acting(tid) != "carol" {
 		t.Fatalf("dave's release sent it back to carol: %q", r.acting(tid))
 	}
 	later := r.newTask("bob", "alice", "later")
-	r.turnCall("bob", "task.turn.push", fmt.Sprintf(`{"task":%d,"to":"erin","request_id":"p5"}`, later))
+	r.turnCall("bob", "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"over to you","turn":"erin","request_id":"p5"}`, later))
 	r.turnCall("alice", "task.draft", fmt.Sprintf(`{"tasks":[%d],"request_id":"d1"}`, later))
 	if turns, _ := db.Turns(r.DB, later); len(turns) != 0 || r.acting(later) != "bob" {
 		t.Fatalf("a draft goes back to its owner with no turns: %+v %q", turns, r.acting(later))
@@ -164,12 +171,12 @@ func TestTheFoundersPassTellsTheHolderTheQuestion(t *testing.T) {
 		r.must(r.DB.QueryRow("SELECT body FROM requests r JOIN task_requests l ON l.request_id = r.id WHERE l.task_id = ? AND r.target = 'bob' ORDER BY r.id DESC LIMIT 1", tid).Scan(&body))
 		return body
 	}
-	r.turnCall("bob", "task.turn.push", fmt.Sprintf(`{"task":%d,"to":"human","ask":"beta now?","request_id":"p1"}`, tid))
+	r.turnCall("bob", "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"beta now?","turn":"human","request_id":"p1"}`, tid))
 	r.turnCall("human", "task.turn.pop", fmt.Sprintf(`{"task":%d,"outcome":"pass","note":"좋아 진행","request_id":"o1"}`, tid))
 	if got, want := last(), fmt.Sprintf("T%d 질문에 대표님 답: 좋아 진행 / 지금 질문 칸: beta now?", tid); got != want {
 		t.Fatalf("%q, want %q", got, want)
 	}
-	r.turnCall("bob", "task.turn.push", fmt.Sprintf(`{"task":%d,"to":"human","ask":"and the phone?","request_id":"p2"}`, tid))
+	r.turnCall("bob", "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"and the phone?","turn":"human","request_id":"p2"}`, tid))
 	r.turnCall("human", "task.turn.pop", fmt.Sprintf(`{"task":%d,"outcome":"pass","request_id":"o2"}`, tid))
 	if got, want := last(), fmt.Sprintf("T%d 대표님이 질문 칸을 넘김 / 지금 질문 칸: and the phone?", tid); got != want {
 		t.Fatalf("%q, want %q", got, want)
@@ -184,10 +191,10 @@ func TestRetiringAnAgentTakesItsTurnsOff(t *testing.T) {
 		r.agentUp(a)
 	}
 	top := r.beginCurrent("bob", "alice", "on top")
-	r.turnCall("bob", "task.turn.push", fmt.Sprintf(`{"task":%d,"to":"carol","request_id":"p1"}`, top))
+	r.turnCall("bob", "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"over to you","turn":"carol","request_id":"p1"}`, top))
 	under := r.newTask("alice", "bob", "under")
-	r.turnCall("alice", "task.turn.push", fmt.Sprintf(`{"task":%d,"to":"carol","request_id":"p2"}`, under))
-	r.turnCall("carol", "task.turn.push", fmt.Sprintf(`{"task":%d,"to":"human","request_id":"p3"}`, under))
+	r.turnCall("alice", "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"over to you","turn":"carol","request_id":"p2"}`, under))
+	r.turnCall("carol", "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"over to you","turn":"human","request_id":"p3"}`, under))
 	tx, err := r.DB.Begin()
 	r.must(err)
 	if _, err := taskwrites.RetireTurns(tx, r.home, r.Env, "carol"); err != nil {
@@ -209,7 +216,7 @@ func TestAPassingReviewMovesTheReviewerOnAndTellsTheBuilder(t *testing.T) {
 	r.agentUp("bob")
 	r.agentUp("alice")
 	tid := r.beginCurrent("bob", "alice", "the parser")
-	r.turnCall("bob", "task.turn.push", fmt.Sprintf(`{"task":%d,"to":"alice","on_pass":"done","evidence":"PR #9","request_id":"p1"}`, tid))
+	r.turnCall("bob", "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"over to you","turn":"alice","done":"PR #9","request_id":"p1"}`, tid))
 	if cur, ok, _ := db.CurrentTask(r.DB, "alice"); !ok || cur != tid {
 		t.Fatalf("alice holds the review: %d %v", cur, ok)
 	}
@@ -238,7 +245,7 @@ func TestASendBackWaitsAtTheFrontAndTheFoundersNoteIsAComment(t *testing.T) {
 	r.agentUp("bob")
 	r.agentUp("alice")
 	tid := r.beginCurrent("bob", "alice", "the parser")
-	r.turnCall("bob", "task.turn.push", fmt.Sprintf(`{"task":%d,"to":"alice","request_id":"p1"}`, tid))
+	r.turnCall("bob", "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"over to you","turn":"alice","request_id":"p1"}`, tid))
 	other := r.newTask("bob", "alice", "meanwhile")
 	_, _, err := r.AdvanceCurrentTask(r.DB, "bob")
 	r.must(err)
@@ -274,7 +281,7 @@ func TestAnEditAnUnblockAndADoneUnderATurn(t *testing.T) {
 		r.agentUp(a)
 	}
 	tid := r.beginCurrent("bob", "alice", "the job")
-	r.turnCall("bob", "task.turn.push", fmt.Sprintf(`{"task":%d,"to":"alice","request_id":"p1"}`, tid))
+	r.turnCall("bob", "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"over to you","turn":"alice","request_id":"p1"}`, tid))
 	r.turnCall("alice", "task.edit", fmt.Sprintf(`{"task":%d,"owner":"carol","request_id":"e1"}`, tid))
 	if task, _ := db.GetTask(r.DB, tid); task.Owner != "bob" || task.Acting != "carol" {
 		t.Fatalf("the edit moved the turn: %+v", task)
@@ -310,7 +317,7 @@ func TestTheFoundersPassIsTheirCommentsTellAndTheTaskStillMoves(t *testing.T) {
 	r.founderOnlyTeam()
 	r.agentUp("bob")
 	held := r.beginCurrent("bob", "alice", "ship it")
-	r.turnCall("bob", "task.turn.push", fmt.Sprintf(`{"task":%d,"to":"human","ask":"now?","request_id":"p1"}`, held))
+	r.turnCall("bob", "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"now?","turn":"human","request_id":"p1"}`, held))
 	r.turnCall("human", "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"now","request_id":"c1"}`, held))
 	var rid, told int64
 	var from string
@@ -348,7 +355,7 @@ func TestAnAgentsNotedPassIsToldByTheTasksReturn(t *testing.T) {
 	r.agentUp("bob")
 	r.agentUp("alice")
 	tid := r.beginCurrent("bob", "amy", "ship it")
-	r.turnCall("bob", "task.turn.push", fmt.Sprintf(`{"task":%d,"to":"alice","request_id":"p1"}`, tid))
+	r.turnCall("bob", "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"over to you","turn":"alice","request_id":"p1"}`, tid))
 	r.turnCall("alice", "task.turn.pop", fmt.Sprintf(`{"task":%d,"outcome":"send_back","note":"the test fails","request_id":"p2"}`, tid))
 	var rid, told int64
 	r.must(r.DB.QueryRow("SELECT MAX(r.id) FROM requests r JOIN task_requests l ON l.request_id = r.id WHERE l.task_id = ? AND r.target = 'bob'", tid).Scan(&rid))
@@ -358,97 +365,38 @@ func TestAnAgentsNotedPassIsToldByTheTasksReturn(t *testing.T) {
 	}
 }
 
-// When the founder's comment passes a review turn whose done is refused, the refusal is news to the one below: the pop writes it as a
-// comment of its own, and the task's return tells that one.
-func TestARefusedDoneOnTheFoundersPassIsAComment(t *testing.T) {
+// The founder's turn is the task's one question: the agent under it handing it over again with a new comment moves the turn to that comment,
+// the old text kept in a task_turn_ask event; anyone else is refused. Nothing moves and nobody is typed at.
+func TestANewCommentMovesTheFoundersTurnToIt(t *testing.T) {
 	r := newRig(t)
 	r.agentUp("bob")
 	held := r.beginCurrent("bob", "alice", "ship it")
-	child := r.newTask("alice", "alice", "first this")
-	_, err := r.DB.Exec("UPDATE tasks SET parent_task = ? WHERE id = ?", held, child) // an open child refuses the done
-	r.must(err)
-	r.turnCall("bob", "task.turn.push", fmt.Sprintf(`{"task":%d,"to":"human","ask":"review","on_pass":"done","evidence":"PR #9","request_id":"p1"}`, held))
-	r.turnCall("human", "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"looks good","request_id":"c1"}`, held))
-	var rid, told int64
-	r.must(r.DB.QueryRow("SELECT MAX(r.id) FROM requests r JOIN task_requests l ON l.request_id = r.id WHERE l.task_id = ? AND r.target = 'bob'", held).Scan(&rid))
-	r.must(r.DB.QueryRow("SELECT COALESCE(MAX(t.request_id), 0) FROM memo_tells t JOIN task_memos m ON m.id = t.memo_id WHERE m.task_id = ? AND m.author = 'human' "+
-		"AND m.body LIKE 'looks good (not closed: %' AND t.reader = 'bob'", held).Scan(&told))
-	if told == 0 || told != rid {
-		t.Fatalf("the return #%d; the refusal's comment told bob by #%d", rid, told)
-	}
-}
-
-// The founder's turn is the task's one question: the agent under it asking again rewrites the ask, the old text kept in a task_turn_ask
-// event; the same text writes nothing; anyone else, or an empty ask, is refused as before. Nothing moves and nobody is typed at.
-func TestAskingTheFounderAgainRewritesTheirQuestion(t *testing.T) {
-	r := newRig(t)
-	r.agentUp("bob")
-	held := r.beginCurrent("bob", "alice", "ship it")
-	r.turnCall("bob", "task.turn.push", fmt.Sprintf(`{"task":%d,"to":"human","ask":"A or B?","request_id":"p1"}`, held))
+	r.turnCall("bob", "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"A or B?","turn":"human","request_id":"p1"}`, held))
 	typed := len(r.term.typed)
-	out := r.turnCall("bob", "task.turn.push", fmt.Sprintf(`{"task":%d,"to":"human","ask":"A, B or C? I recommend C","request_id":"p2"}`, held))
-	if said := out["result"].(map[string]any)["said"]; said != fmt.Sprintf("T%d: the founder's question now reads: A, B or C? I recommend C", held) {
+	out := r.turnCall("bob", "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"A, B or C? I recommend C","turn":"human","request_id":"p2"}`, held))
+	res := out["result"].(map[string]any)
+	mid, _ := res["memo"].(float64)
+	if said := res["said"]; said != fmt.Sprintf("comment %d added to T%d: the founder's turn now hangs on this comment", int64(mid), held) {
 		t.Fatalf("%q", said)
 	}
 	turns, _ := db.Turns(r.DB, held)
-	if len(turns) != 1 || turns[0].Agent != db.Human || turns[0].Ask != "A, B or C? I recommend C" || turns[0].By != "bob" {
+	if len(turns) != 1 || turns[0].Agent != db.Human || turns[0].Ask != "A, B or C? I recommend C" || turns[0].Memo != int64(mid) || turns[0].By != "bob" {
 		t.Fatalf("%+v", turns)
 	}
-	var from string
+	var from, stored string
 	r.must(r.DB.QueryRow("SELECT json_extract(payload, '$.from') FROM events WHERE kind = 'task_turn_ask' AND json_extract(payload, '$.task_id') = ?", held).Scan(&from))
-	if from != "A or B?" {
-		t.Fatalf("the old text is kept: %q", from)
+	r.must(r.DB.QueryRow("SELECT ask FROM task_turns WHERE task_id = ?", held).Scan(&stored))
+	if from != "A or B?" || stored != "" {
+		t.Fatalf("the old text is kept (%q) and the turn stores no ask of its own (%q)", from, stored)
 	}
-	out = r.turnCall("bob", "task.turn.push", fmt.Sprintf(`{"task":%d,"to":"human","ask":"A, B or C? I recommend C","request_id":"p3"}`, held))
-	if said := out["result"].(map[string]any)["said"]; said != fmt.Sprintf("T%d: the founder's question is unchanged", held) {
-		t.Fatalf("%q", said)
+	if len(r.term.typed) != typed {
+		t.Fatalf("nobody is typed at (%d -> %d)", typed, len(r.term.typed))
 	}
+	r.refusedCall("alice", "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"mine?","turn":"human","request_id":"p4"}`, held), "only it, or the founder")
 	var n int
-	r.must(r.DB.QueryRow("SELECT COUNT(*) FROM events WHERE kind = 'task_turn_ask'").Scan(&n))
-	if n != 1 || len(r.term.typed) != typed {
-		t.Fatalf("the same text writes nothing (%d events) and nobody is typed at (%d -> %d)", n, typed, len(r.term.typed))
-	}
-	r.refusedCall("alice", "task.turn.push", fmt.Sprintf(`{"task":%d,"to":"human","ask":"mine?","request_id":"p4"}`, held), "only it, or the founder")
-	r.refusedCall("bob", "task.turn.push", fmt.Sprintf(`{"task":%d,"to":"human","request_id":"p5"}`, held), "only it, or the founder")
-}
-
-// `hl say human --task T<n>` from the agent the task's question is for lands in that slot: it puts the founder's turn on, then rewrites it.
-// From the opener, who does not hold it, it is a message linked to the task as before.
-func TestASayToTheFounderFromTheHolderIsTheTasksQuestion(t *testing.T) {
-	r := newRig(t)
-	r.agentUp("bob")
-	held := r.beginCurrent("bob", "alice", "ship it")
-	out := r.say(SayVerbIn{Requester: "bob", Target: db.Human, Body: "A or B?", Task: held})
-	if !out.OK || out.Msg != fmt.Sprintf("T%d is the founder's turn now, asking: A or B?", held) || r.acting(held) != db.Human {
-		t.Fatalf("%+v acting %s", out, r.acting(held))
-	}
-	if cur, ok, _ := db.CurrentTask(r.DB, "bob"); ok && cur == held {
-		t.Fatal("bob's slot is freed as by a turn")
-	}
-	out = r.say(SayVerbIn{Requester: "bob", Target: db.Human, Body: "A, B or C?", Task: held})
-	if turns, _ := db.Turns(r.DB, held); !out.OK || len(turns) != 1 || turns[0].Ask != "A, B or C?" {
-		t.Fatalf("%+v %+v", out, turns)
-	}
-	var says int
-	r.must(r.DB.QueryRow("SELECT COUNT(*) FROM requests WHERE target = 'human'").Scan(&says))
-	if says != 0 {
-		t.Fatalf("no message to the founder: %d", says)
-	}
-	out = r.say(SayVerbIn{Requester: "alice", Target: db.Human, Body: "fyi", Task: held})
-	r.must(r.DB.QueryRow("SELECT COUNT(*) FROM requests r JOIN task_requests l ON l.request_id = r.id WHERE l.task_id = ? AND r.target = 'human' AND r.body = 'fyi'", held).Scan(&says))
-	if !out.OK || says != 1 {
-		t.Fatalf("the opener's say is a linked message: %+v %d", out, says)
-	}
-}
-
-// A say with files is never the founder's question: the question holds text, so it is refused with the way to post the files first.
-func TestASayWithFilesToTheFounderIsNotTheQuestion(t *testing.T) {
-	r := newRig(t)
-	r.agentUp("bob")
-	held := r.beginCurrent("bob", "alice", "ship it")
-	out := r.say(SayVerbIn{Requester: "bob", Target: db.Human, Body: "this one?", Task: held, Attached: true})
-	if out.OK || !strings.Contains(out.Msg, fmt.Sprintf("hl task comment T%d add", held)) || r.acting(held) != "bob" {
-		t.Fatalf("%+v acting %s", out, r.acting(held))
+	r.must(r.DB.QueryRow("SELECT COUNT(*) FROM task_memos WHERE task_id = ? AND body = 'mine?'", held).Scan(&n))
+	if n != 0 {
+		t.Fatal("a refused turn leaves no comment: the two are one write")
 	}
 }
 
@@ -468,7 +416,7 @@ func TestAForwardedCommentStaysTheCommentsWhenTheTaskMovesAndAPassIsTheTurns(t *
 	r.agentUp("bob")
 	r.agentUp("alice")
 	tid := r.beginCurrent("bob", "alice", "ship it")
-	r.turnCall("bob", "task.turn.push", fmt.Sprintf(`{"task":%d,"to":"human","ask":"now?","request_id":"p1"}`, tid))
+	r.turnCall("bob", "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"now?","turn":"human","request_id":"p1"}`, tid))
 	r.turnCall("human", "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"now","request_id":"c1"}`, tid))
 	var back int64
 	r.must(r.DB.QueryRow("SELECT r.id FROM requests r JOIN task_requests l ON l.request_id = r.id WHERE l.task_id = ? AND r.target = 'bob' ORDER BY r.id DESC LIMIT 1", tid).Scan(&back))
@@ -484,7 +432,7 @@ func TestAForwardedCommentStaysTheCommentsWhenTheTaskMovesAndAPassIsTheTurns(t *
 		t.Fatalf("the resend tells %q", reader)
 	}
 
-	r.turnCall("alice", "task.turn.push", fmt.Sprintf(`{"task":%d,"to":"human","ask":"ok?","request_id":"p2"}`, tid))
+	r.turnCall("alice", "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"ok?","turn":"human","request_id":"p2"}`, tid))
 	r.turnCall("human", "task.turn.pop", fmt.Sprintf(`{"task":%d,"outcome":"pass","request_id":"x1"}`, tid))
 	var passed int64
 	r.must(r.DB.QueryRow("SELECT r.id FROM requests r JOIN task_requests l ON l.request_id = r.id WHERE l.task_id = ? AND r.target = 'alice' ORDER BY r.id DESC LIMIT 1", tid).Scan(&passed))

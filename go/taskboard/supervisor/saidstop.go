@@ -11,7 +11,7 @@ import (
 // about, the founder's turn on the task is.
 func SaidStopText(tid int64) string {
 	return fmt.Sprintf("You wrote to the founder and stopped with T%d in doing. If you cannot go on without their decision, put them on "+
-		"the task: `hl task turn T%d human \"<the decision, and what you recommend>\"`, and your next task starts. Otherwise go on.", tid, tid)
+		"the task: `hl task comment T%d add \"<the decision, and what you recommend>\" --turn human`, and your next task starts. Otherwise go on.", tid, tid)
 }
 
 // SweepSaidAndStopped tells, once per turn and task, each agent whose last turn ended (Stop) after it wrote a say to the founder and

@@ -200,20 +200,6 @@ func (e *Env) SessionChanged(q db.Q, agent string) (r0 bool, err error) {
 	return r0, nil
 }
 
-// CheckHumanResolve is checkHumanResolve with a failed statement returned as the error.
-func (e *Env) CheckHumanResolve(q db.Q, row *db.Request, tasks []int64, noTask *string, me string, oneTask bool) (r0 string, err error) {
-	defer Catch(&err)
-	r0 = e.checkHumanResolve(q, row, tasks, noTask, me, oneTask)
-	return r0, nil
-}
-
-// RecordHumanResolve is recordHumanResolve with a failed statement returned as the error.
-func (e *Env) RecordHumanResolve(q db.Q, rid int64, tasks []int64, noTask *string, me string) (err error) {
-	defer Catch(&err)
-	e.recordHumanResolve(q, rid, tasks, noTask, me)
-	return nil
-}
-
 // LinkDelivery is linkDelivery with a failed statement returned as the error.
 func (e *Env) LinkDelivery(q db.Q, tid int64, owner string, rid int64) (err error) {
 	defer Catch(&err)

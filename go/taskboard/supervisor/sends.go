@@ -2,14 +2,11 @@ package supervisor
 
 import (
 	"database/sql"
-	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
-	"github.com/handline/handline/go/protocol/rpc"
-	"github.com/handline/handline/go/taskboard/taskwrites"
 )
 
 // `ask` and `say` as the daemon's own verbs (daemon/sends.py): the daemon runs the same checks and the same Ask/Say the CLI used to, writes the
@@ -100,225 +97,68 @@ func sayCmd(q db.Q, target, body string, parent int64, flags ...string) string {
 	return strings.Join(append(parts, flags...), " ")
 }
 
-// workingSay is the line to suggest for a say to target the checks refused: keep a --task the target holds; to a report with no task, the task
-// that would reach it; else the plain say.
-func (e *Env) workingSay(q db.Q, me, target, body string, parent, task int64) string {
-	if task != 0 {
-		if row := must(db.GetTask(q, task)); row != nil && row.Acting == target {
-			return sayCmd(q, target, body, parent, fmt.Sprintf("--task T%d", task))
-		}
-	}
-	if parent == 0 && e.isReportOf(me, target) {
-		return fmt.Sprintf("hl task new --assign %s -t 2h '<title>' %s", target, shellQuote(body))
-	}
-	return sayCmd(q, target, body, parent)
-}
-
-// SayVerbIn is the `say` verb's arguments. Task 0 is none; NoTask nil is not given.
+// SayVerbIn is the `say` verb's arguments.
 type SayVerbIn struct {
 	Requester string
 	Speaker   *string
 	Target    string
 	Body      string
-	Task      int64
-	NoTask    *string
 	Parent    int64
 	// Effect is the daemon's record of the write, made in the transaction that writes the message and what is written with it.
 	Effect func(q db.Q, message string, rid int64) error
-	// MemoEffect is the same for a say that became a memo of the task it names: mid is the memo.
-	MemoEffect func(q db.Q, mid int64) error
-	// Attached is a say that carries files.
-	Attached bool
 }
 
-// SayVerbOut is the verb's answer; After runs once the writes have committed (the telling, the memo holder's say).
+// SayVerbOut is the verb's answer; After runs once the writes have committed (the telling).
 type SayVerbOut struct {
 	OK    bool
 	Msg   string
 	After func()
 }
 
-// SayVerb is `hl say TARGET BODY`: a message that needs no answer, typed at once.
+// TaskSayRefusal is the answer to a say that names a task: a say is chat, and what is written about a task is a comment on it.
+func TaskSayRefusal(task string) string {
+	return "not sent: a say is chat and carries no task. On a task, write a comment:\n" +
+		"  news for the founder: hl task comment " + task + " add '@human <the news>'\n" +
+		"  the founder decides:  hl task comment " + task + " add '<the decision and what you recommend>' --turn human\n" +
+		"  to an agent:          hl task comment " + task + " add '@<agent> <text>'\n" +
+		"A reply to the founder's message needs no task: take the work with hl task begin '<title>' --chat <msg>, or give it with hl task request <msg>."
+}
+
+// SayVerb is `hl say TARGET BODY`: a message that needs no answer, typed at once. It is chat only: what is written on a task is a comment.
 func (e *Env) SayVerb(q *sql.Tx, in SayVerbIn) (out *SayVerbOut, err error) {
 	defer Catch(&err)
 	fail := func(msg string) (*SayVerbOut, error) { return &SayVerbOut{Msg: msg, After: func() {}}, nil }
 	if in.Requester == "" {
 		return fail(noWho)
 	}
-	me, target, task, body := in.Requester, in.Target, in.Task, in.Body
+	me, target, body := in.Requester, in.Target, in.Body
 	if target == db.Human && me != db.Human {
 		if named := db.MessageNamedIn(q, body); named != "" {
 			return fail(fmt.Sprintf("not sent: this names a message (%s), and the founder sees no message ids - say in words what that message was about", named))
 		}
 	}
-	var parent *db.Request
-	if in.Parent != 0 {
-		parent = must(db.GetRequest(q, in.Parent))
+	if in.Parent == 0 && e.isReportOf(me, target) {
+		return fail("work cannot reach a report by message: make it a task, or comment on the task it has. Try:\n  " +
+			fmt.Sprintf("hl task new --assign %s -t 2h '<title>' %s\n  hl task comment T<n> add %s", target, shellQuote(body), shellQuote("@"+target+" "+body)))
 	}
-	effect := func(c db.Q, note string, rid int64) error {
-		if in.Effect != nil {
-			return in.Effect(c, note, rid)
-		}
-		return nil
-	}
-	// A reply to the founder's own open request says what it becomes, as resolve did.
-	founders := parent != nil && parent.Requester == db.Human && parent.State == "queued" && parent.Target == me && target == db.Human && parent.Kind.String != "task"
-	if founders {
-		var askedOn []int64
-		if parent.Kind.String == "say" { // an answer to the founder's question on a task is no work to name: it joins that task
-			for _, t := range must(db.TasksForRequest(q, parent.ID)) {
-				askedOn = append(askedOn, t.ID)
-			}
-		}
-		plain := len(askedOn) > 0 && task == 0 && in.NoTask == nil
-		defaulted := false
-		mine := func() []int64 {
-			var ids []int64
-			for _, t := range must(db.OpenTasks(q)) {
-				if t.Acting == me {
-					ids = append(ids, t.ID)
-				}
-			}
-			return ids
-		}
-		if !plain && task == 0 && in.NoTask == nil {
-			// Exactly one open task of the sender's is what the reply is about; with none or several the choice is theirs.
-			if m := mine(); len(m) == 1 {
-				task, defaulted = m[0], true
-			}
-		}
-		var tasks []int64
-		if task != 0 {
-			tasks = []int64{task}
-		}
-		if !plain {
-			if refusal := e.checkHumanResolve(q, parent, tasks, in.NoTask, me, true); refusal != "" {
-				m := mine()
-				if len(m) > 3 {
-					m = m[:3]
-				}
-				var tries []string
-				for _, t := range m {
-					tries = append(tries, sayCmd(q, target, body, in.Parent, fmt.Sprintf("--task T%d", t)))
-				}
-				tries = append(tries, sayCmd(q, target, body, in.Parent, "--no-task '<why>'"))
-				return fail(refusal + "\nTry:\n  " + strings.Join(tries, "\n  "))
-			}
-		}
-		within := func(c db.Q, note string, rid int64) error {
-			var err error
-			func() {
-				defer Catch(&err)
-				if plain && rid != 0 {
-					for _, tid := range askedOn {
-						check(db.LinkRequest(c, tid, rid))
+	within := in.Effect
+	if parent := must(db.GetRequest(q, in.Parent)); parent != nil && parent.Requester == db.Human && parent.State == "queued" && parent.Target == me &&
+		target == db.Human && parent.Kind.String == "say" {
+		// an answer to the founder's question on a task joins that task
+		asked := must(db.TasksForRequest(q, parent.ID))
+		within = func(c db.Q, note string, rid int64) error {
+			for _, t := range asked {
+				if rid != 0 {
+					if err := db.LinkRequest(c, t.ID, rid); err != nil {
+						return err
 					}
-				} else {
-					e.recordHumanResolve(c, in.Parent, tasks, in.NoTask, me)
-				}
-			}()
-			if err != nil {
-				return err
-			}
-			return effect(c, note, rid)
-		}
-		res, serr := e.Say(q, SayIn{Target: target, Body: body, Requester: me, ParentID: in.Parent, Speaker: in.Speaker, Within: within})
-		if serr != nil {
-			return nil, serr
-		}
-		msg := res.Message
-		if res.OK && defaulted {
-			msg += fmt.Sprintf("\nattached to T%d, your only open task", task)
-		}
-		return &SayVerbOut{OK: res.OK, Msg: msg, After: func() {
-			res.After.Run()
-			if res.OK {
-				e.after(res.RID, target)
-			}
-		}}, nil
-	}
-	if in.NoTask != nil && target != db.Human {
-		return fail("--no-task is for replying to the founder (hl say human ...); to anyone else it means nothing. Try:\n  " + e.workingSay(q, me, target, body, in.Parent, task))
-	}
-	if task == 0 && in.Parent == 0 && e.isReportOf(me, target) {
-		return fail("work cannot reach a report by message: make it a task (`hl task new`), or say --task T<n> to comment on one. Try:\n  " +
-			fmt.Sprintf("hl task new --assign %s -t 2h '<title>' %s", target, shellQuote(body)))
-	}
-	if task != 0 {
-		// Structural, not read from the text: a say to a report about a task is that task's memo, delivered as one.
-		row := must(db.GetTask(q, task))
-		if row == nil {
-			return fail(fmt.Sprintf("no task T%d. Try:\n  %s", task, e.workingSay(q, me, target, body, in.Parent, 0)))
-		}
-		if target == db.Human && in.Parent == 0 && me != db.Human && must(taskwrites.Asker(q, task)) == me {
-			// the task's one question slot: the founder's turn on it, put on or rewritten. It holds text only.
-			if in.Attached {
-				return fail(fmt.Sprintf("not sent: the founder's question on T%d holds no files. Put them on the task first, then ask without --attach:\n  "+
-					"hl task comment T%d add '<what they show>' --attach FILE\n  %s", task, task, sayCmd(q, target, body, 0, fmt.Sprintf("--task T%d", task))))
-			}
-			h, asked, err := taskwrites.PutQuestion(q, e, task, me, body)
-			var refused *rpc.Error
-			if errors.As(err, &refused) && refused.Code == "refused" {
-				return fail(refused.Message)
-			}
-			if err != nil {
-				return nil, err
-			}
-			msg := fmt.Sprintf("T%d: %s", task, asked.Msg)
-			if !asked.Reask {
-				msg = fmt.Sprintf("T%d is the founder's turn now, asking: %s", task, body)
-			}
-			return &SayVerbOut{OK: asked.OK, Msg: msg, After: func() {
-				if asked.Reask {
-					return
-				}
-				h.After = asked.After
-				e.HandedOver(h)
-			}}, nil
-		}
-		if in.Parent != 0 || (target == db.Human && row.OpenedBy == me) {
-			// A reply lands in the thread it answers, and a say to the founder naming the task it became is theirs to read: a message linked
-			// to the task, not a memo, whoever holds the task now.
-			within := func(c db.Q, note string, rid int64) error {
-				if err := db.LinkRequest(c, task, rid); err != nil {
-					return err
-				}
-				return effect(c, note, rid)
-			}
-			res, serr := e.Say(q, SayIn{Target: target, Body: body, Requester: me, ParentID: in.Parent, Speaker: in.Speaker, Within: within})
-			if serr != nil {
-				return nil, serr
-			}
-			return &SayVerbOut{OK: res.OK, Msg: res.Message, After: func() {
-				res.After.Run()
-				if res.OK && res.RID != 0 {
-					e.after(res.RID, target)
-				}
-			}}, nil
-		}
-		if row.Acting != target {
-			return fail(fmt.Sprintf("T%d is with %s, not %s. Try:\n  %s", task, row.Acting, target, sayCmd(q, row.Acting, body, in.Parent, fmt.Sprintf("--task T%d", task))))
-		}
-		ok, msg, mid, merr := e.MemoAdd(q, task, me, body)
-		if merr != nil {
-			return nil, merr
-		}
-		if ok && in.MemoEffect != nil {
-			if err := in.MemoEffect(q, mid); err != nil {
-				return nil, err
-			}
-		}
-		return &SayVerbOut{OK: ok, Msg: msg, After: func() {
-			if ok {
-				if err := e.TellMemoOf(e.DB, task, mid, me, "added", body, target, false); err != nil {
-					e.log("  telling about the comment on T%d failed: %v", task, err)
 				}
 			}
-		}}, nil
-	}
-	var within func(db.Q, string, int64) error
-	if in.Effect != nil {
-		within = in.Effect
+			if in.Effect != nil {
+				return in.Effect(c, note, rid)
+			}
+			return nil
+		}
 	}
 	res, serr := e.Say(q, SayIn{Target: target, Body: body, Requester: me, ParentID: in.Parent, Speaker: in.Speaker, Within: within})
 	if serr != nil {
@@ -393,49 +233,4 @@ func (e *Env) NotifyCancelledVerb(q db.Q, rid int64) (bool, string, error) {
 		return false, why, err
 	}
 	return true, e.NotifyCancelledAct(row), nil
-}
-
-// CheckHumanResolve is the refusal for resolving a request the human made without saying what it becomes; "" when it may go ahead. Any --task
-// id is checked on every row, before anything is written. The guard is on the answer, not on the ask: agent-to-agent rows are conversation and
-// never reach it. The founder's own hands pass.
-func (e *Env) checkHumanResolve(q db.Q, row *db.Request, tasks []int64, noTask *string, me string, oneTask bool) string {
-	for _, tid := range tasks {
-		t := must(db.GetTask(q, tid))
-		if t == nil {
-			return fmt.Sprintf("no task T%d", tid)
-		}
-		if t.Ended() {
-			word := "done"
-			if t.DiscardedBy.String != "" {
-				word = "discarded"
-			}
-			return fmt.Sprintf("task T%d is already %s", tid, word)
-		}
-		if me != "" && me != db.Human && me != t.Acting && me != t.Owner && me != t.OpenedBy {
-			return fmt.Sprintf("T%d is not yours: only a task you hold, or opened, can be named here (it is %s's)", tid, t.Acting)
-		}
-	}
-	if row.Requester != db.Human || me == db.Human {
-		return ""
-	}
-	given := noTask != nil && *noTask != ""
-	if (len(tasks) > 0) == given {
-		names := "--task T<n> [T<n> ...]"
-		if oneTask {
-			names = "--task T<n>"
-		}
-		return fmt.Sprintf("%s is the founder's: say whether work follows it. %s names the tasks it opened (one per deliverable promised), "+
-			"--no-task 'reason' says nothing needs building. `hl task new --assign NAME 'title' -t 2h` makes a task.", row.Name(q), names)
-	}
-	return ""
-}
-
-// RecordHumanResolve is what a guarded close leaves behind: the links (--task), or the reason nothing was built (--no-task).
-func (e *Env) recordHumanResolve(q db.Q, rid int64, tasks []int64, noTask *string, me string) {
-	for _, tid := range tasks {
-		check(db.LinkRequest(q, tid, rid))
-	}
-	if noTask != nil && *noTask != "" {
-		must(db.AddEvent(q, me, "no_task", db.KV{K: "request_id", V: rid}, db.KV{K: "reason", V: *noTask}))
-	}
 }
