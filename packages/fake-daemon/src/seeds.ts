@@ -3,6 +3,7 @@ import type { FakeDaemon } from '#src/daemon.ts';
 import { task } from '#src/seedkit.ts';
 import { CHAT_SEEDS } from '#src/seeds-chat.ts';
 import { PROPOSAL_SEEDS } from '#src/seeds-proposals.ts';
+import { REQUEST_SEEDS } from '#src/seeds-requests.ts';
 
 const ARCH = 'handline.architect';
 const AUD = 'handline.auditor';
@@ -417,6 +418,7 @@ export const SEEDS: Record<string, Seed> = {
   },
 
   ...PROPOSAL_SEEDS,
+  ...REQUEST_SEEDS,
   ...CHAT_SEEDS,
 };
 
