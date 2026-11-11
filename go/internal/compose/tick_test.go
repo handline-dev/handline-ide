@@ -2,7 +2,6 @@ package compose
 
 import (
 	"fmt"
-	"github.com/handline/handline/go/accounts/usage"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/handline/handline/go/accounts/usage"
 	dbpkg "github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
 	"github.com/handline/handline/go/data/team"

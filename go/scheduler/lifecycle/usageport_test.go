@@ -2,7 +2,6 @@ package lifecycle
 
 import (
 	"encoding/json"
-	"github.com/handline/handline/go/kit/storetest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -11,6 +10,7 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/kit/storetest"
 )
 
 const usageNow = int64(1_800_000_000)

@@ -108,7 +108,7 @@ func writeConfig(t *testing.T, home string, cfg map[string]any) {
 	var lines []string
 	rows := map[string]map[string]any{}
 	for k, v := range cfg {
-		if acct, col := accountSetting(k); acct != "" {
+		if acct, col := AccountSetting(k); acct != "" {
 			if rows[acct] == nil {
 				rows[acct] = map[string]any{}
 			}
@@ -127,16 +127,6 @@ func writeConfig(t *testing.T, home string, cfg map[string]any) {
 	if err := os.WriteFile(filepath.Join(home, "config.yaml"), []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-}
-
-// accountSetting is the account and column a per-account Config key is held in, "" for any other key.
-func accountSetting(k string) (acct, col string) {
-	for _, a := range AccountKeys {
-		if strings.HasPrefix(k, a.Prefix) {
-			return strings.TrimPrefix(k, a.Prefix), a.Column
-		}
-	}
-	return "", ""
 }
 
 func testEnv(home string, now int64) *Env {

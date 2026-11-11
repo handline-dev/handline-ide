@@ -111,30 +111,24 @@ func (w *world) config(text string) {
 	if _, err := w.DB.Exec("DELETE FROM accounts"); err != nil {
 		w.t.Fatal(err)
 	}
-	v, _ := yamlcompat.Parse(text)
+	v, err := yamlcompat.Parse(text)
 	m, isMap := v.(map[string]any)
-	if !isMap {
+	if err != nil || !isMap {
 		w.writeConfigFile(text)
 		return
 	}
 	var rest []string
 	rows := map[string]map[string]any{}
-	for _, line := range strings.Split(strings.TrimSpace(text), "\n") {
-		k, _, _ := strings.Cut(line, ":")
-		acct, col := "", ""
-		for _, a := range usage.AccountKeys {
-			if strings.HasPrefix(k, a.Prefix) {
-				acct, col = strings.TrimPrefix(k, a.Prefix), a.Column
-			}
-		}
+	for k, v := range m {
+		acct, col := usage.AccountSetting(k)
 		if acct == "" {
-			rest = append(rest, line)
+			rest = append(rest, fmt.Sprintf("%s: %v", k, v))
 			continue
 		}
 		if rows[acct] == nil {
 			rows[acct] = map[string]any{}
 		}
-		rows[acct][col] = m[k]
+		rows[acct][col] = v
 	}
 	for acct, set := range rows {
 		if err := usage.SetAccount(w.DB, acct, set); err != nil {

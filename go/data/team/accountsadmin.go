@@ -153,7 +153,7 @@ func (a Accounts) Remove(q *sql.DB, acct string, now time.Time, run func(argv []
 	if _, err := q.Exec("UPDATE agent_state SET account = NULL, account_source = NULL, resume_session = NULL WHERE account = ?", acct); err != nil {
 		return "", err
 	}
-	if _, err := q.Exec("DELETE FROM accounts WHERE name = ?", acct); err != nil { // its settings do not wait for a new one of the name
+	if _, err := q.Exec("DELETE FROM accounts WHERE name = ?", acct); err != nil { // a new account of the name starts at the defaults
 		return "", err
 	}
 	return fmt.Sprintf("removed account '%s' (logged out; directory kept at %s)", acct, dest), nil

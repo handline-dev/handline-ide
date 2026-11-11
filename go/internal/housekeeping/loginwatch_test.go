@@ -2,12 +2,12 @@ package housekeeping
 
 import (
 	"fmt"
-	"github.com/handline/handline/go/accounts/usage"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/handline/handline/go/accounts/usage"
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/storetest"
 )

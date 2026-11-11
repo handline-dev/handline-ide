@@ -11,6 +11,7 @@ import (
 	"github.com/handline/handline/go/accounts/weblogin"
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/protocol/rpc"
 )
@@ -82,7 +83,7 @@ func (e *Env) accountSet(c *rpc.Conn, p map[string]any) (any, error) {
 	}
 	cfg, err := e.readAccount(acct)
 	if err != nil {
-		return nil, err
+		return nil, refused(err.Error(), "")
 	}
 	var said []string
 	if hasLabel && label != currentLabel(cfg, acct) {
@@ -135,8 +136,10 @@ func (e *Env) accountSet(c *rpc.Conn, p map[string]any) (any, error) {
 		}
 	}
 	if len(said) > 0 {
-		if err := usage.SetAccount(e.DB, acct, cfg.changed); err != nil {
-			return nil, err
+		if err := usage.SetAccount(e.DB, acct, cfg.changed); errors.Is(err, actor.ErrNoOwner) {
+			return nil, refused("this install has no owner yet: start the daemon once", "state")
+		} else if err != nil {
+			return nil, refused(err.Error(), "")
 		}
 	}
 	if newPause {
@@ -187,7 +190,7 @@ func (e *Env) accountReadUsage(c *rpc.Conn, p map[string]any) (any, error) {
 	return wrote(c, acct+": usage is read at the next tick", nil)
 }
 
-// accountRow is account.set's view of one account's row: get and set by Config's key (usage.AccountKeys), changed by column.
+// accountRow is account.set's view of one account's row: get and set by Config's key (usage.AccountKeys), cur and changed by column.
 type accountRow struct {
 	acct    string
 	cur     usage.Config
@@ -199,22 +202,20 @@ func (e *Env) readAccount(acct string) (*accountRow, error) {
 	if err != nil {
 		return nil, err
 	}
-	r := &accountRow{acct: acct, cur: usage.Config{}, changed: map[string]any{}}
-	for col, v := range rows[acct] {
-		r.set(col, v)
+	cur := rows[acct]
+	if cur == nil {
+		cur = map[string]any{}
 	}
-	clear(r.changed)
-	return r, nil
+	return &accountRow{acct: acct, cur: cur, changed: map[string]any{}}, nil
 }
 
-// column is the accounts column a Config key (prefix + account, or the bare column) is held in.
+// column is the accounts column a Config key of this account is held in.
 func (r *accountRow) column(k string) string {
-	for _, a := range usage.AccountKeys {
-		if k == a.Prefix+r.acct || k == a.Column {
-			return a.Column
-		}
+	acct, col := usage.AccountSetting(k)
+	if acct != r.acct {
+		panic("not a setting of " + r.acct + ": " + k)
 	}
-	panic("not an account setting: " + k)
+	return col
 }
 
 func (r *accountRow) get(k string) any { return r.cur[r.column(k)] }
