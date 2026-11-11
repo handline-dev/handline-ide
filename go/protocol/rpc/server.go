@@ -478,6 +478,10 @@ func (c *Conn) route(msg any, raw []byte) (routed, error) {
 		c.logRefusal(name, m.Role)
 		return routed{}, Refused(fmt.Sprintf("%s is for a %s or above; this caller is %s", name, m.Role, c.Caller.Role), "role", "")
 	}
+	sentKey := ""
+	if m.Write {
+		sentKey = paramsKey(params)
+	}
 	c.srv.resolveWho(name, params)
 	// A call that waits runs on its own goroutine while a later hello may replace c.Caller: it gets the caller as
 	// it was when routed, on a Conn of its own that shares only what stays fixed.
@@ -490,7 +494,7 @@ func (c *Conn) route(msg any, raw []byte) (routed, error) {
 		var result any
 		var err error
 		if m.Write {
-			result, err = at.runWrite(name, m, params)
+			result, err = at.runWrite(name, m, params, sentKey)
 		} else {
 			result, err = m.Handler(at, params)
 		}
