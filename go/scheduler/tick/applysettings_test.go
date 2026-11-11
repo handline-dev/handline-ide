@@ -23,15 +23,14 @@ func (s settingsPorts) CurrentAccount(db.Q, string) string      { return s.accou
 func (s settingsPorts) RulesNote(string, *db.AgentState) (string, string, error) {
 	return s.note, "record", nil
 }
-func (s settingsPorts) KeepRulesTold(_ db.Q, agent, _, record string) error {
-	*s.kept = append(*s.kept, agent+": "+record)
-	return nil
-}
-func (s settingsPorts) Tell(_ db.Q, agent, text string) error {
+func (s settingsPorts) TellRules(agent, note, _, record string) error {
 	if s.tellErr != nil {
 		return s.tellErr
 	}
-	*s.told = append(*s.told, agent+": "+text)
+	if note != "" {
+		*s.told = append(*s.told, agent+": "+note)
+	}
+	*s.kept = append(*s.kept, agent+": "+record)
 	return nil
 }
 

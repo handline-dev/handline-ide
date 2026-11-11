@@ -33,11 +33,10 @@ type SettingsPorts interface {
 	FingerprintParts(agent string) ([]Part, error)
 	// CurrentAccount is agents.current_account.
 	CurrentAccount(q db.Q, agent string) string
-	// RulesNote is the note of a session's changed team rules and the record to keep once it is told; KeepRulesTold keeps it.
+	// RulesNote is the note of a session's changed team rules and the record to keep once it is told.
 	RulesNote(agent string, row *db.AgentState) (note, record string, err error)
-	KeepRulesTold(q db.Q, agent, was, record string) error
-	// Tell sends the agent a message at once, the tick retrying one held (not a notice: those wait for a digest and lose their lines).
-	Tell(q db.Q, agent, text string) error
+	// TellRules sends the note as a message and puts record in place of was, both or neither, so a note is sent once.
+	TellRules(agent, note, was, record string) error
 }
 
 // RulesPart is the one setting a running session is told of rather than restarted for: its team rules (lifecycle's part name).
@@ -111,12 +110,11 @@ func (a *ApplySettings) apply(t *Tick, agent string, now int64) {
 	names := must(a.Changed(agent, row))
 	if len(names) == 1 && names[0] == RulesPart {
 		note, record := must2(a.Ports.RulesNote(agent, row))
-		if note != "" { // told before it is kept: a failed tell is tried again next tick, a failed keep only tells twice
-			check(a.Ports.Tell(t.Q, agent, note))
-			t.logf("  %s: told of its changed team rules, not restarted", agent)
+		if note != "" || record != "" {
+			check(a.Ports.TellRules(agent, note, row.LaunchParts.String, record))
 		}
-		if record != "" {
-			check(a.Ports.KeepRulesTold(t.Q, agent, row.LaunchParts.String, record))
+		if note != "" {
+			t.logf("  %s: told of its changed team rules, not restarted", agent)
 		}
 		names = nil
 	}
