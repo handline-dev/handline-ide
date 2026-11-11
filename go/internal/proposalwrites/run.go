@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/handline/handline/go/data/agenthost"
-	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/paths"
 )
 
@@ -18,8 +17,7 @@ import (
 
 // snapshot is what a change to the roster can touch, kept so a step that fails puts all of it back: the routing table and its backup, the
 // config, the folder of each agent a step names (and what lands in the archive), the seals kept for them in the protected store.
-// The database is put back by the transaction the steps run in. A rolled-back add gives its id to the next agent, so the folders of
-// ids past lastID are removed.
+// The database is put back by the transaction the steps run in (undo).
 type snapshot struct {
 	home     string
 	dir      string
@@ -27,10 +25,9 @@ type snapshot struct {
 	dirs     []string          // each named agent's folder
 	folders  map[string]string // folder -> its copy
 	archived map[string]bool
-	lastID   int64
 }
 
-func takeSnapshot(q *sql.DB, home string, names map[string]bool) (*snapshot, error) {
+func takeSnapshot(home string, names map[string]bool) (*snapshot, error) {
 	dir, err := os.MkdirTemp(home, "proposal-snapshot-")
 	if err != nil {
 		return nil, err
@@ -42,10 +39,6 @@ func takeSnapshot(q *sql.DB, home string, names map[string]bool) (*snapshot, err
 		} else {
 			s.files[p] = nil
 		}
-	}
-	if err := q.QueryRow("SELECT COALESCE(MAX(id), 0) FROM agents").Scan(&s.lastID); err != nil {
-		s.drop()
-		return nil, err
 	}
 	for n := range names {
 		s.dirs = append(s.dirs, paths.AgentDir(home, n))
@@ -132,12 +125,58 @@ func (s *snapshot) restore() {
 			copyTree(from, d)
 		}
 	}
-	if entries, err := os.ReadDir(paths.AgentsDir(s.home)); err == nil {
-		for _, c := range entries {
-			if k, id, ok := actor.Parse(c.Name()); ok && k == actor.Agent && id > s.lastID {
-				os.RemoveAll(filepath.Join(paths.AgentsDir(s.home), c.Name()))
-			}
+}
+
+// undo rolls tx back and puts the files back. The agents tx added are gone with it, and the next agent made would be given one of
+// their ids, so their folders go first, while tx still holds the write lock and no other add can take the id.
+func (s *snapshot) undo(tx *sql.Tx, committed *sql.DB) {
+	added, _ := addedAgents(tx, committed)
+	s.removeFolders(added)
+	tx.Rollback()
+	s.restore()
+}
+
+// addedAgents are the keys of the agent rows tx has that committed has not.
+func addedAgents(tx *sql.Tx, committed *sql.DB) ([]string, error) {
+	ids := func(q interface {
+		Query(string, ...any) (*sql.Rows, error)
+	}) (map[string]bool, error) {
+		rows, err := q.Query("SELECT 'a' || id FROM agents")
+		if err != nil {
+			return nil, err
 		}
+		defer rows.Close()
+		out := map[string]bool{}
+		for rows.Next() {
+			var k string
+			if err := rows.Scan(&k); err != nil {
+				return nil, err
+			}
+			out[k] = true
+		}
+		return out, rows.Err()
+	}
+	mine, err := ids(tx)
+	if err != nil {
+		return nil, err
+	}
+	theirs, err := ids(committed)
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	for k := range mine {
+		if !theirs[k] {
+			out = append(out, k)
+		}
+	}
+	return out, nil
+}
+
+func (s *snapshot) removeFolders(keys []string) {
+	for _, k := range keys {
+		os.RemoveAll(paths.AgentDir(s.home, k))
+		paths.RemoveCacheDir(s.home, k)
 	}
 }
 
@@ -212,7 +251,7 @@ func (e *Env) run(prop *Prop) (bool, string, error) {
 	if why := e.hostServed(items); why != "" {
 		return false, why, nil
 	}
-	snap, err := takeSnapshot(e.DB, e.Home, namesOf(items))
+	snap, err := takeSnapshot(e.Home, namesOf(items))
 	if err != nil {
 		return false, "", err
 	}
@@ -224,8 +263,7 @@ func (e *Env) run(prop *Prop) (bool, string, error) {
 	var after []func() string
 	var said []string
 	fail := func(err error) (bool, string, error) {
-		tx.Rollback()
-		snap.restore()
+		snap.undo(tx, e.DB)
 		return false, "", err
 	}
 	for n, item := range items {
@@ -245,8 +283,7 @@ func (e *Env) run(prop *Prop) (bool, string, error) {
 			return fail(err)
 		}
 		if !ok {
-			tx.Rollback()
-			snap.restore()
+			snap.undo(tx, e.DB)
 			if !isBundle {
 				return false, text, nil
 			}
@@ -255,7 +292,12 @@ func (e *Env) run(prop *Prop) (bool, string, error) {
 		}
 		said = append(said, text)
 	}
+	added, err := addedAgents(tx, e.DB)
+	if err != nil {
+		return fail(err)
+	}
 	if err := tx.Commit(); err != nil {
+		snap.removeFolders(added)
 		snap.restore()
 		return false, "", err
 	}

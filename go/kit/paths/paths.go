@@ -85,11 +85,6 @@ func StatusFile(home, acct string) string {
 }
 func AgentsDir(home string) string { return filepath.Join(home, "agents") }
 
-// CacheDir is a sandboxed agent's own build caches (claude.CacheEnv), caches/<key>, beside its folder.
-func CacheDir(home, who string) string {
-	return filepath.Join(home, "caches", filepath.Base(AgentDir(home, who)))
-}
-
 // RemoveCacheDir removes an agent's build caches. Go keeps its module cache read-only, so folders are made writable first.
 func RemoveCacheDir(home, name string) error {
 	d := CacheDir(home, name)

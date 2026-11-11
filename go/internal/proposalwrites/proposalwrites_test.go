@@ -930,8 +930,8 @@ func TestEachOutcomeMessageNamesTheProposalItIsAbout(t *testing.T) {
 func TestACacheThatCannotBeRemovedDoesNotUndoARetire(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
-	caches := filepath.Join(r.home, "caches")
-	os.MkdirAll(filepath.Join(caches, "bob", "go-build"), 0o755)
+	caches := filepath.Dir(paths.CacheDir(r.home, "bob"))
+	os.MkdirAll(filepath.Join(paths.CacheDir(r.home, "bob"), "go-build"), 0o755)
 	os.Chmod(caches, 0o555) // bob's folder cannot leave it
 	defer os.Chmod(caches, 0o755)
 	p, id := r.propose("aaaa0009", "kind", "retire", "agent", "bob")
