@@ -32,7 +32,7 @@ type Caller struct {
 	Info map[string]any
 }
 
-// Human is the key a write is made under for the founder and any device: the owner, p1 (db.Human). Goes in base-v2 1b-4.
+// Human is the key a write is made under for the founder and any device: the owner, p1 (db.Human).
 const Human = "p1"
 
 func identify(a authority.Authority, local bool, pid int, key, founderName string) Caller {

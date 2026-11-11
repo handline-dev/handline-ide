@@ -155,6 +155,17 @@ func (e *Env) doTeam(p step) (bool, string, error) {
 
 func (e *Env) doRetire(p step) (bool, string, error) {
 	name := p.str("agent")
+	key, err := paths.AgentKeyIn(p.tx, name)
+	if err != nil {
+		return false, "", err
+	}
+	label := name // what the answer and the archive folder call it: its name, read before its row goes
+	if key != "" {
+		if label, err = paths.AgentNameIn(p.tx, key); err != nil {
+			return false, "", err
+		}
+		name = key
+	}
 	// Its worktrees go first: one that cannot go keeps the agent, so no worktree is left behind with nobody's name on it.
 	mine, err := worktreeprune.Of(p.tx, name)
 	if err != nil {
@@ -171,17 +182,6 @@ func (e *Env) doRetire(p step) (bool, string, error) {
 	var tell taskwrites.Teller // its turns go back to the agents below them; with nobody to tell they just go
 	if e.Say != nil {
 		tell = e.Say
-	}
-	key, err := paths.AgentKeyIn(p.tx, name) // before its row goes, which names the folder
-	if err != nil {
-		return false, "", err
-	}
-	label := name // what the answer and the archive folder call it: its name, read before its row goes
-	if key != "" {
-		var n string
-		if err := p.tx.QueryRow("SELECT "+paths.LegacyNameSQL+" FROM agents a JOIN workspaces w ON w.id = a.workspace WHERE 'a' || a.id = ?", key).Scan(&n); err == nil {
-			label = n
-		}
 	}
 	if _, err := taskwrites.RetireTurns(p.tx, e.Home, tell, name); err != nil {
 		return false, "", err
@@ -232,18 +232,24 @@ func (e *Env) doRename(p step) (bool, string, error) {
 	if err != nil {
 		return false, "", err
 	}
+	label := old // what the answers call it: its name before the rename
+	if was != "" {
+		if label, err = paths.AgentNameIn(p.tx, was); err != nil {
+			return false, "", err
+		}
+	}
 	if now != "" && (was == "" || was == now) {
 		return true, fmt.Sprintf("%s was renamed to %s already", old, new), nil // approved again after it took effect: settled, not a failure
 	}
 	if e.Live == nil {
-		return false, fmt.Sprintf("could not confirm whether %s has a session running just now - try again in a moment.", old), nil
+		return false, fmt.Sprintf("could not confirm whether %s has a session running just now - try again in a moment.", label), nil
 	}
 	live, ok := e.Live()
 	if !ok {
-		return false, fmt.Sprintf("could not confirm whether %s has a session running just now - try again in a moment.", old), nil
+		return false, fmt.Sprintf("could not confirm whether %s has a session running just now - try again in a moment.", label), nil
 	}
 	if live[was] {
-		return false, fmt.Sprintf("%s has a session running. Close it first (Close in its menu in the app) - an identity cannot change under a running session.", old), nil
+		return false, fmt.Sprintf("%s has a session running. Close it first (Close in its menu in the app) - an identity cannot change under a running session.", label), nil
 	}
 	if now != "" {
 		return false, fmt.Sprintf("There is already an agent named %s; choose another name.", new), nil
@@ -255,7 +261,7 @@ func (e *Env) doRename(p step) (bool, string, error) {
 		return false, "", err
 	}
 	// Every row names the agent by its key, which a rename keeps: only its own row changes.
-	return true, fmt.Sprintf("%s is now %s.", old, new), nil
+	return true, fmt.Sprintf("%s is now %s.", label, new), nil
 }
 
 func pyStr(v any) string {

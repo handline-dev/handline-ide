@@ -28,6 +28,11 @@ func (e *Env) optionsRole(name string) string {
 			lines = append(lines, strings.TrimSpace(strings.TrimLeft(strings.TrimSpace(ln), "#")))
 		}
 	}
+	if e.DB != nil {
+		if n, err := paths.AgentNameIn(e.DB, name); err == nil && n != "" {
+			name = n // the title names the agent, not its key
+		}
+	}
 	pick := ""
 	if len(lines) > 1 && strings.HasPrefix(strings.ToLower(lines[0]), strings.ToLower(name)) {
 		pick = lines[1]

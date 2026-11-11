@@ -52,7 +52,7 @@ func argList(v any) []string {
 }
 
 // teamNames are a team's members' full names, or why not (_team_names in hr.py): nothing may exist yet in the roster.
-func (e *Env) teamNames(name string, members []string, repos map[string]string, registered []string) ([]string, string) {
+func (e *Env) teamNames(name string, members []string, repos map[string]string, exists func(string) bool) ([]string, string) {
 	if len(members) == 0 {
 		return nil, "a team needs at least one member (--member); one agent is `hl propose add`"
 	}
@@ -78,7 +78,7 @@ func (e *Env) teamNames(name string, members []string, repos map[string]string, 
 	}
 	var taken []string
 	for _, n := range append([]string{name}, full...) {
-		if slices.Contains(registered, n) {
+		if exists(n) {
 			taken = append(taken, n)
 		}
 	}
@@ -144,7 +144,7 @@ func (e *Env) draft(actor, kind string, args map[string]any, why string, registe
 	switch kind {
 	case "team":
 		var msg string
-		if full, msg = e.teamNames(name, argList(args["members"]), repos, registered); msg != "" {
+		if full, msg = e.teamNames(name, argList(args["members"]), repos, exists); msg != "" {
 			return nil, msg
 		}
 	case "add":
