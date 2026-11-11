@@ -9,7 +9,6 @@ import (
 	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/taskboard/msgtest"
 
-	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/kit/storetest"
 	"github.com/handline/handline/go/protocol/rpc"
 )
@@ -23,6 +22,7 @@ func TestDoneIsTheOwnersWithOneKindOfEvidenceAndTellsWhoWaited(t *testing.T) {
 	defer db.Close()
 	home := t.TempDir()
 	teamtest.Seed(t, home, "w", "boss")
+	homes.Store(db, home)
 	repo := t.TempDir()
 	git := gitIn(t, repo)
 	git("init", "-q", "-b", "main")
@@ -45,12 +45,7 @@ func TestDoneIsTheOwnersWithOneKindOfEvidenceAndTellsWhoWaited(t *testing.T) {
 		}
 	}
 	f := &fakeTeller{}
-	mk := func(agent string) *rpc.Server {
-		s := rpc.NewServer(auth{agent}, "x", store.LatestVersion(), "local", func(string, ...any) {})
-		s.DB = db
-		Register(s, home, f, nil)
-		return s
-	}
+	mk := func(agent string) *rpc.Server { return rigServer(t, db, home, agent, f) }
 	done := func(agent, rid string, task int, params string) map[string]any {
 		return call(t, mk(agent), fmt.Sprintf(`{"jsonrpc":"2.0","id":2,"method":"task.done","params":{"task":%d,"request_id":%q%s}}`, task, rid, params))[0]
 	}

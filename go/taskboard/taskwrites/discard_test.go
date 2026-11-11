@@ -24,6 +24,7 @@ func TestDiscardIsTheAskersAndTellsTheOwnerAndFreesWhatWaitedOnIt(t *testing.T) 
 	defer db.Close()
 	home := t.TempDir()
 	teamtest.Seed(t, home, "worker", "manager", "other")
+	homes.Store(db, home)
 	for _, q := range []string{
 		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 't', 'worker', 'manager', 1), (2, 'u', 'other', 'other', 1), (3, 'child', 'worker', 'worker', 1)",
 		"UPDATE tasks SET parent_task = 1 WHERE id = 3",
@@ -33,12 +34,7 @@ func TestDiscardIsTheAskersAndTellsTheOwnerAndFreesWhatWaitedOnIt(t *testing.T) 
 			t.Fatal(err)
 		}
 	}
-	mk := func(agent string) *rpc.Server {
-		s := rpc.NewServer(auth{agent}, "x", store.LatestVersion(), "local", func(string, ...any) {})
-		s.DB = db
-		Register(s, home, nil, nil)
-		return s
-	}
+	mk := func(agent string) *rpc.Server { return rigServer(t, db, home, agent, nil) }
 	line := func(id int, task int, reason, rid string) string {
 		return fmt.Sprintf(`{"jsonrpc":"2.0","id":%d,"method":"task.discard","params":{"task":%d,"reason":%q,"request_id":%q}}`, id, task, reason, rid)
 	}
@@ -61,7 +57,7 @@ func TestDiscardIsTheAskersAndTellsTheOwnerAndFreesWhatWaitedOnIt(t *testing.T) 
 	var body, target string
 	var notice int
 	db.QueryRow(keyed(db, "SELECT body, target, COALESCE(notice, 0) FROM requests WHERE requester = 'sys' AND body LIKE 'T1 discarded%'")).Scan(&body, &target, &notice)
-	if body != "T1 discarded by manager: not needed" || target != "worker" || notice != 1 {
+	if named(db, body) != "T1 discarded by manager: not needed" || named(db, target) != "worker" || notice != 1 {
 		t.Fatalf("the owner is told: %q %q %d", body, target, notice)
 	}
 	db.QueryRow(keyed(db, "SELECT COUNT(*) FROM requests WHERE requester = 'sys' AND target = 'other' AND body LIKE 'task T2 is unblocked - T1%'")).Scan(&n)
