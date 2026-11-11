@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/handline/handline/go/kit/storetest"
 	"io"
 	"net"
 	"strings"
@@ -453,16 +454,75 @@ func TestAHelloNoteIsHandedToTheServerOnTheLocalSocketOnly(t *testing.T) {
 	}
 }
 
-// A who param's word, and a who inside an object param, reach the handler as the key Server.Who gives; anything else is left as sent.
+// A who param's word, and a who inside an object param, reach the handler as the key addr.Resolve gives; anything else is left as
+// sent. A word that names no one goes on as sent for the app, and is refused with the names to use for hl.
 func TestWhoParamsAreResolvedBeforeTheHandler(t *testing.T) {
 	srv := NewServer(fakeAuth{}, "abc1234", 7, "local", func(string, ...any) {})
-	srv.Who = func(w string) string { return map[string]string{"human": "p1", "bob": "a2"}[w] + "|" + w }
+	db := storetest.Open(t)
+	for _, q := range []string{
+		"INSERT INTO workspaces(name, folder, created_at) VALUES('bob', '/x', 0)",
+		"INSERT INTO agents(workspace, name, owner, created_at) VALUES(1, 'lead', 'p1', 0)",
+		"UPDATE workspaces SET lead = 1",
+	} {
+		if _, err := db.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	srv.Names = db
+	c := &Conn{srv: srv, Caller: Caller{Kind: "person", Key: "p1"}}
 	p := map[string]any{"agent": "bob", "minutes": json.Number("5")}
-	srv.resolveWho("load.get", p)
 	f := map[string]any{"owner": "bob", "reporter": "human", "state": "doing"}
 	v := map[string]any{"name": "bob", "filter": f}
-	srv.resolveWho("task.view.save", v)
-	if p["agent"] != "a2|bob" || p["minutes"] != json.Number("5") || f["owner"] != "a2|bob" || f["reporter"] != "p1|human" || f["state"] != "doing" || v["name"] != "bob" {
+	if c.resolveWho("load.get", p) != nil || c.resolveWho("task.view.save", v) != nil {
+		t.Fatal("refused")
+	}
+	if p["agent"] != "a1" || p["minutes"] != json.Number("5") || f["owner"] != "a1" || f["reporter"] != "p1" || f["state"] != "doing" || v["name"] != "bob" {
 		t.Fatalf("%v %v", p, v)
+	}
+	p = map[string]any{"agent": "nobody"}
+	if err := c.resolveWho("load.get", p); err != nil || p["agent"] != "nobody" {
+		t.Fatalf("the app's word that names no one: %v %v", p, err)
+	}
+	c.helloClient = "hl"
+	if err := c.resolveWho("load.get", p); err == nil || !strings.Contains(err.Error(), "names no one you can reach: use human, or a workspace") {
+		t.Fatalf("hl's word that names no one: %v", err)
+	}
+}
+
+// A reply to hl is written out for its reader: a key as the name, a <@key> in text as @name, and a field named key kept. The app's
+// reply keeps keys, and writing one out leaves the value the handler keeps as it was.
+func TestARepliesWhosAreWrittenOutForHlOnly(t *testing.T) {
+	db := storetest.Open(t)
+	for _, q := range []string{
+		"INSERT INTO workspaces(name, folder, created_at) VALUES('shop', '/p/shop', 0)",
+		"INSERT INTO agents(workspace, name, owner, created_at) VALUES(1, 'designer', 'p1', 0)",
+	} {
+		if _, err := db.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	srv := NewServer(fakeAuth{key: "k"}, "abc1234", 7, "local", func(string, ...any) {})
+	srv.DB, srv.Names = db, db
+	kept := map[string]any{"from": "a1", "key": "a1", "text": "ask <@a1>", "who": []any{"p1"}}
+	srv.Register("test.read", Method{Role: "owner", Read: true, Handler: func(*Conn, map[string]any) (any, error) { return kept, nil }})
+	srv.Register("test.fail", Method{Role: "owner", Read: true, Handler: func(*Conn, map[string]any) (any, error) {
+		return nil, NotFoundError("no task for <@a1>")
+	}})
+	read := func(client, method string) map[string]any {
+		c := connect(t, srv, `{"client":"`+client+`","protocol":1,"key":"k","cwd":"/p/shop/go"}`)
+		return c.raw(t, `{"jsonrpc":"2.0","id":2,"method":"`+method+`","params":{}}`)
+	}
+	got := read("hl", "test.read")["result"].(map[string]any)
+	if got["from"] != "designer" || got["key"] != "a1" || got["text"] != "ask @designer" || got["who"].([]any)[0] != "human" {
+		t.Fatalf("hl reads %v", got)
+	}
+	if e := read("hl", "test.fail")["error"].(map[string]any); e["message"] != "no task for @designer" {
+		t.Fatalf("hl's error %v", e)
+	}
+	if got := read("app", "test.read")["result"].(map[string]any); got["from"] != "a1" || got["text"] != "ask <@a1>" {
+		t.Fatalf("the app reads %v", got)
+	}
+	if kept["from"] != "a1" || kept["text"] != "ask <@a1>" {
+		t.Fatalf("the handler's value changed: %v", kept)
 	}
 }

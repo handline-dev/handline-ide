@@ -313,8 +313,21 @@ func TestAWaitingWriteDoesNotHoldUpTheCallsAfterItAndKeepsItsReply(t *testing.T)
 func TestARetryIsTheCallAsSentThoughItsWhoNowResolvesOtherwise(t *testing.T) {
 	db, ran := storetest.Open(t), new(int)
 	srv := writeServer(t, db, ran, nil)
-	key := "a3"
-	srv.Who = func(w string) string { return key }
+	srv.Names = db
+	// bob is a workspace, which names its lead: a1 now, a2 once the first is renamed and a new bob is made.
+	lead := func(name string, agent int) {
+		t.Helper()
+		for _, q := range []string{
+			fmt.Sprintf("INSERT INTO workspaces(name, folder, created_at) VALUES('%s', '/x', 0)", name),
+			fmt.Sprintf("INSERT INTO agents(id, workspace, name, owner, created_at) VALUES(%d, last_insert_rowid(), 'lead', 'p1', 0)", agent),
+			fmt.Sprintf("UPDATE workspaces SET lead = %d WHERE name = '%s'", agent, name),
+		} {
+			if _, err := db.Exec(q); err != nil {
+				t.Fatal(q, err)
+			}
+		}
+	}
+	lead("bob", 1)
 	srv.Register("task.handoff", Method{Write: true, Handler: func(c *Conn, p map[string]any) (any, error) {
 		return c.Effect(func(tx *sql.Tx) (map[string]any, error) {
 			*ran++
@@ -323,11 +336,14 @@ func TestARetryIsTheCallAsSentThoughItsWhoNowResolvesOtherwise(t *testing.T) {
 	}})
 	c := connect(t, srv, `{"client":"t","protocol":1,"key":"k"}`)
 	call := `{"jsonrpc":"2.0","id":2,"method":"task.handoff","params":{"task":1,"to":"bob","request_id":"h1"}}`
-	if r := c.raw(t, call); r["result"].(map[string]any)["to"] != "a3" {
+	if r := c.raw(t, call); r["result"].(map[string]any)["to"] != "a1" {
 		t.Fatalf("%v", r)
 	}
-	key = "bob"
-	if r := c.raw(t, call); r["result"] == nil || r["result"].(map[string]any)["to"] != "a3" || *ran != 1 {
+	if _, err := db.Exec("UPDATE workspaces SET name = 'old' WHERE name = 'bob'"); err != nil {
+		t.Fatal(err)
+	}
+	lead("bob", 2)
+	if r := c.raw(t, call); r["result"] == nil || r["result"].(map[string]any)["to"] != "a1" || *ran != 1 {
 		t.Fatalf("a retry after its word changed meaning: %v ran %d", r, *ran)
 	}
 }

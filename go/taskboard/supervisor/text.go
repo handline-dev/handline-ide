@@ -5,6 +5,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/handline/handline/go/kit/addr"
+
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
 	"github.com/handline/handline/go/data/team"
@@ -183,7 +185,7 @@ func tellText(q db.Q, head *db.Request, depth int, aheadOf *db.Request, parked b
 		end = "."
 	}
 	return fmt.Sprintf("%s from %s%s, waiting for you:\n%s%s\n`hl read %s` shows it whole; %s%s",
-		head.Name(q), head.Requester, reply, shown, tail, head.Name(q), answerVerb(q, head), end)
+		head.Name(q), addr.For(q, head.Target, head.Requester), reply, shown, tail, head.Name(q), answerVerb(q, head), end)
 }
 
 // BatchText is one message for several queued tasks: a line each, then how to work them.
@@ -206,7 +208,7 @@ func batchText(q db.Q, batch []*db.Request, folded []*db.Request, aheadOf *db.Re
 		if utf8.RuneCountInString(text) > BatchLine {
 			text = strings.TrimRight(string([]rune(text)[:BatchLine]), " \t\n\r\v\f") + "…"
 		}
-		lines[i] = fmt.Sprintf("%s from %s: %s", r.Name(q), r.Requester, text)
+		lines[i] = fmt.Sprintf("%s from %s: %s", r.Name(q), addr.For(q, r.Target, r.Requester), text)
 	}
 	head := fmt.Sprintf("%d tasks waiting for you:", len(batch))
 	if aheadOf != nil {

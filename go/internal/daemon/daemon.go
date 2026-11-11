@@ -577,7 +577,7 @@ func (d *Daemon) readsEnv() reads.Env {
 func (d *Daemon) newServer(transport string) *rpc.Server {
 	s := rpc.NewServer(d.cfg.Auth, version.Sha, store.LatestVersion(), transport, d.cfg.Log)
 	s.DB = d.db
-	s.Who = func(word string) string { return paths.WhoKey(d.cfg.Home, word) }
+	s.Names = d.db
 	s.Note = func(agent, kind string, argv []string, chain string) {
 		_, _ = dbpkg.AddEvent(d.db, agent, kind, dbpkg.KV{K: "argv", V: argv}, dbpkg.KV{K: "chain", V: chain})
 	}

@@ -6,13 +6,14 @@ import (
 	"net"
 	"testing"
 
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
 // dialAs is a connection of process pid on transport.
 func (r *rig) dialAs(transport string, pid int) *conn {
 	srv := rpc.NewServer(auth{}, "sha", 1, transport, func(string, ...any) {})
-	srv.DB, srv.Who = r.e.DB, r.who
+	srv.DB, srv.Names = r.e.DB, teamtest.DB(r.t, r.e.Home)
 	Register(srv, r.e)
 	cl, sv := net.Pipe()
 	go func() { srv.Serve(rpc.NewLineTransport(sv), pid); sv.Close() }()

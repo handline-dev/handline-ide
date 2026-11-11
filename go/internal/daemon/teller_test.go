@@ -138,7 +138,7 @@ func TestAMemoOnADoingTaskIsTypedAtItsHolderWhenThePortsAreWired(t *testing.T) {
 		t.Fatalf("the holder was not told: %q", got)
 	}
 	result(t, f.ask(`{"jsonrpc":"2.0","id":3,"method":"task.memo.edit","params":{"task":1,"memo":1,"text":"@bob mind the disk","request_id":"m2"}}`))
-	if got := agents.said(key(t, d, "bob")); !strings.Contains(got, "comment 1 edited by a: @bob mind the disk") {
+	if got := agents.said(key(t, d, "bob")); !strings.Contains(got, "comment 1 edited by a: @lead mind the disk") { // bob leads its workspace: it reads itself as lead
 		t.Fatalf("the edit was not typed: %q", got)
 	}
 	// a delete names no reader, so nobody is told

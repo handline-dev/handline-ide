@@ -13,7 +13,6 @@ import (
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/internal/reads"
-	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/protocol/rpc"
 )
@@ -22,7 +21,7 @@ import (
 func sendingReasons(t *testing.T, p *Parts, home string) []any {
 	t.Helper()
 	srv := rpc.NewServer(founder{}, "x", store.LatestVersion(), "local", func(string, ...any) {})
-	srv.DB, srv.Who = p.db, func(w string) string { return paths.WhoKey(home, w) }
+	srv.DB, srv.Names = p.db, teamtest.DB(t, home)
 	reads.Register(srv, reads.Env{DB: p.db, Home: home, Delivery: p.Delivery()})
 	r := call(t, srv, `{"jsonrpc":"2.0","id":2,"method":"chat.messages","params":{"agent":"alice","scope":"all"}}`)[0]
 	b, _ := json.Marshal(r)
@@ -121,7 +120,7 @@ func TestTheTriggerOfAClosedAgentWhoseWakeIsWalledIsTheWaitTheDaemonPrints(t *te
 	}
 	// agents.list says the same sentence in its status line, and nothing once the request is settled
 	srv := rpc.NewServer(founder{}, "x", store.LatestVersion(), "local", func(string, ...any) {})
-	srv.DB, srv.Who = d, func(w string) string { return paths.WhoKey(home, w) }
+	srv.DB, srv.Names = d, teamtest.DB(t, home)
 	reads.Register(srv, reads.Env{DB: d, Home: home, Delivery: p.Delivery()})
 	said := func() any {
 		t.Helper()

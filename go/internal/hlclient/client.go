@@ -179,6 +179,9 @@ func (c *Client) Call(method string, params map[string]any) (map[string]any, err
 	if c.Key != "" {
 		hello["key"] = c.Key
 	}
+	if wd, err := os.Getwd(); err == nil {
+		hello["cwd"] = wd // where a person's agent names resolve
+	}
 	if c.note != nil {
 		hello["note"], c.note = c.note, nil
 	}

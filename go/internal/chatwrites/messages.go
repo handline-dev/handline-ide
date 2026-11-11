@@ -65,7 +65,9 @@ func (w *writes) say(c *rpc.Conn, p map[string]any) (any, error) {
 		return nil, err
 	}
 	me, speaker := sender(c)
-	body = textsafe.Text(body)
+	if body, err = c.Mentions(textsafe.Text(body)); err != nil {
+		return nil, err
+	}
 	var out *supervisor.SayVerbOut
 	res, err := c.Effect(func(tx *sql.Tx) (map[string]any, error) {
 		if _, err := w.images.CheckMessage(tx, body, "body", nil, c.Caller.Role == "agent"); err != nil {

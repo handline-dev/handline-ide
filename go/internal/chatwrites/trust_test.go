@@ -10,8 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/handline/handline/go/data/team/teamtest"
+
 	"github.com/handline/handline/go/data/team"
-	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/protocol/rpc"
 )
@@ -176,7 +177,7 @@ func TestADevicesTrustProposeIsRefused(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
 	s := rpc.NewServer(auth{""}, "x", store.LatestVersion(), "network", func(string, ...any) {})
-	s.DB, s.Net, s.Who = r.db, phone{}, func(w string) string { return paths.WhoKey(r.home, w) }
+	s.DB, s.Net, s.Names = r.db, phone{}, teamtest.DB(r.t, r.home)
 	Register(s, r.env, r.env)
 	cl, sv := net.Pipe()
 	done := make(chan struct{})

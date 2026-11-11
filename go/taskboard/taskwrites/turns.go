@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/handline/handline/go/kit/addr"
+
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/textsafe"
@@ -70,7 +72,7 @@ func pushTurn(tx *sql.Tx, tell Teller, tid int64, by, to, ask string, memo int64
 	if tell == nil {
 		return Handover{}, nil, fmt.Errorf("a turn to an agent needs the supervisor to route its ask")
 	}
-	body := fmt.Sprintf("T%d is your turn, from %s: %s", tid, by, t.Title)
+	body := fmt.Sprintf("T%d is your turn, from %s: %s", tid, addr.For(tx, to, by), t.Title)
 	if ask != "" {
 		body += "\n\n" + ask
 	}

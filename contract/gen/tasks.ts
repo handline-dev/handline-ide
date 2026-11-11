@@ -694,7 +694,7 @@ export interface TasksMethods {
   } };
   "task.comment.add": { params: {
   task: number;
-  /** Markdown. It may name images (x-attachments, texts). */
+  /** Markdown. It may name images (x-attachments, texts). Each @word that names someone the caller may reach is stored as <@key>, and reads give that token: a client writes it out as the reader's name. */
   text: string;
   /** Tell every reader at once, even mid-turn. */
   now?: boolean;
@@ -726,7 +726,7 @@ export interface TasksMethods {
   } };
   "task.memo.add": { params: {
   task: number;
-  /** Markdown. It may name images (x-attachments, texts). */
+  /** Markdown. It may name images (x-attachments, texts). Each @word that names someone the caller may reach is stored as <@key>, and reads give that token: a client writes it out as the reader's name. */
   text: string;
   /** Tell every reader at once, even mid-turn. */
   now?: boolean;
@@ -741,14 +741,14 @@ export interface TasksMethods {
   "task.comment.edit": { params: {
   task: number;
   memo: number;
-  /** Markdown. It may name images (x-attachments, texts). */
+  /** Markdown. It may name images (x-attachments, texts). Each @word that names someone the caller may reach is stored as <@key>, and reads give that token: a client writes it out as the reader's name. */
   text: string;
   request_id: RequestId;
 }; result: Accepted };
   "task.memo.edit": { params: {
   task: number;
   memo: number;
-  /** Markdown. It may name images (x-attachments, texts). */
+  /** Markdown. It may name images (x-attachments, texts). Each @word that names someone the caller may reach is stored as <@key>, and reads give that token: a client writes it out as the reader's name. */
   text: string;
   request_id: RequestId;
 }; result: Accepted };

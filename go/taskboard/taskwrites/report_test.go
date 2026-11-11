@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/handline/handline/go/data/team/teamtest"
-	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/kit/storetest"
 	"github.com/handline/handline/go/protocol/rpc"
@@ -41,7 +40,7 @@ func reportEnvIn(t *testing.T, home string, rows ...string) (*sql.DB, *fakeTelle
 	return sdb, f, func(agent, method, rid, params string) map[string]any {
 		s := rpc.NewServer(auth{as(t, home, agent)}, "x", store.LatestVersion(), "local", func(string, ...any) {})
 		s.DB = sdb
-		s.Who = func(w string) string { return paths.WhoKey(home, w) }
+		s.Names = teamtest.DB(t, home)
 		Register(s, home, f, nil)
 		return call(t, s, fmt.Sprintf(`{"jsonrpc":"2.0","id":2,"method":%q,"params":{"request_id":%q%s}}`, method, rid, params))[0]
 	}

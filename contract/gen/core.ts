@@ -769,6 +769,8 @@ export interface CoreMethods {
   key?: string;
   /** The git sha the client was built from. When it is not the daemon's own, the daemon logs it once on this connection; nothing is refused. */
   client_build?: string;
+  /** The directory the client runs in. A person's agent names resolve in the workspace whose project folder holds it; elsewhere only workspace names and handles resolve. An agent's resolve in its own workspace whatever this says. */
+  cwd?: string;
   /** Local socket only: a record for the daemon to keep, which a command that writes nothing to the database cannot make itself. {agent: the $HANDLINE_AGENT it ran as, kind: verb_chain (a state-changing command ran) or nested_claude_refused, argv: its first three arguments, chain: the programs above it as program:pid joined by ' > '}. The daemon writes one event of that kind for the agent with argv and chain as its payload; a note it cannot read or write is dropped and changes nothing. */
   note?: { [key: string]: unknown };
 }; result: {

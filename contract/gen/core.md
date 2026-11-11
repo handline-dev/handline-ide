@@ -5,7 +5,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 
 | Method | Role | Write | Params | Result | Errors | Gates | App |
 |---|---|---|---|---|---|---|---|
-| `hello` | anonymous |  | `client`, `protocol`, `token?`, `key?`, `client_build?`, `note?` | `{protocol, min_client, daemon, version, exe, schema, role, caller, capabilities, transport, methods}` | `refused`, `bad_request` |  | not cached |
+| `hello` | anonymous |  | `client`, `protocol`, `token?`, `key?`, `client_build?`, `cwd?`, `note?` | `{protocol, min_client, daemon, version, exe, schema, role, caller, capabilities, transport, methods}` | `refused`, `bad_request` |  | not cached |
 | `whoami` | agent |  | none | `{caller, role, methods}` |  |  | not cached |
 | `subscribe` | agent |  | `topics`, `since?`, `resume?`, `agent?` | `{cursor}` | `bad_request`, `refused` | role | not cached |
 | `unsubscribe` | agent |  | `topics` | `object` | `bad_request` |  | not cached |

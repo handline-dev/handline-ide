@@ -4,7 +4,7 @@ package rpc
 
 // specMethods is every method of the contract, in the spec's order.
 var specMethods = []SpecMethod{
-	{Name: "hello", Role: "anonymous", Write: false, Since: 1, Callers: nil, Params: []SpecParam{{Name: "client", Type: "string", Required: true}, {Name: "protocol", Type: "json.Number", Required: true}, {Name: "token", Type: "string", Required: false}, {Name: "key", Type: "string", Required: false}, {Name: "client_build", Type: "string", Required: false}, {Name: "note", Type: "map[string]any", Required: false}}, Result: ""},
+	{Name: "hello", Role: "anonymous", Write: false, Since: 1, Callers: nil, Params: []SpecParam{{Name: "client", Type: "string", Required: true}, {Name: "protocol", Type: "json.Number", Required: true}, {Name: "token", Type: "string", Required: false}, {Name: "key", Type: "string", Required: false}, {Name: "client_build", Type: "string", Required: false}, {Name: "cwd", Type: "string", Required: false}, {Name: "note", Type: "map[string]any", Required: false}}, Result: ""},
 	{Name: "whoami", Role: "agent", Write: false, Since: 1, Callers: nil, Params: []SpecParam{}, Result: ""},
 	{Name: "subscribe", Role: "agent", Write: false, Since: 1, Callers: nil, Params: []SpecParam{{Name: "topics", Type: "[]any", Required: true}, {Name: "since", Type: "json.Number", Required: false}, {Name: "resume", Type: "string", Required: false}, {Name: "agent", Type: "string", Required: false, Who: true}}, Result: ""},
 	{Name: "unsubscribe", Role: "agent", Write: false, Since: 1, Callers: nil, Params: []SpecParam{{Name: "topics", Type: "[]any", Required: true}}, Result: ""},

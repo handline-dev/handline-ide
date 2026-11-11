@@ -9,7 +9,6 @@ import (
 
 	dbpkg "github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team/teamtest"
-	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/kit/storetest"
 	"github.com/handline/handline/go/protocol/rpc"
@@ -103,7 +102,7 @@ func discardEnvHome(t *testing.T) (*sql.DB, string, func(agent string, tell ...T
 	return db, home, func(agent string, tell ...Teller) *rpc.Server {
 		s := rpc.NewServer(auth{as(t, home, agent)}, "x", store.LatestVersion(), "local", func(string, ...any) {})
 		s.DB = db
-		s.Who = func(w string) string { return paths.WhoKey(home, w) }
+		s.Names = teamtest.DB(t, home)
 		var teller Teller
 		if len(tell) > 0 {
 			teller = tell[0]

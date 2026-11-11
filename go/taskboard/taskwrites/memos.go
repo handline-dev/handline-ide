@@ -223,6 +223,9 @@ func memoAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, err
 				}
 				return nil, refusal(fmt.Sprintf("no task T%d", tid))
 			}
+			if body, err = c.Mentions(body); err != nil {
+				return nil, err
+			}
 			if err := claimImages(tx, home, c.Caller.Actor(), body, "", "text"); err != nil {
 				return nil, err
 			}
@@ -366,6 +369,9 @@ func memoRecipients(tell Teller) func(*rpc.Conn, map[string]any) (any, error) {
 		if err != nil {
 			return nil, err
 		}
+		if body, err = c.Mentions(body); err != nil { // as add would store it
+			return nil, err
+		}
 		now, err := optionalBool(p, "now")
 		if err != nil {
 			return nil, err
@@ -408,6 +414,9 @@ func memoEdit(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, er
 				return nil, err
 			}
 			if err := guard(c.Caller.Actor(), author, mid); err != nil {
+				return nil, err
+			}
+			if body, err = c.Mentions(body); err != nil {
 				return nil, err
 			}
 			if body == was {
