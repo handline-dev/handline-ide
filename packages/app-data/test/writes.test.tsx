@@ -301,7 +301,7 @@ describe('writes', () => {
   it('never sends a structured agent a terminal write: the five are refused before the wire, a terminal agent is not', async () => {
     const stub = stubClient();
     const qc = makeQueryClient();
-    const row = (name: string, structured: boolean) => ({ name, structured });
+    const row = (name: string, structured: boolean) => ({ key: name, name, structured });
     qc.setQueryData(qk.agents(D), { agents: [row('s.one', true), row('t.one', false)] });
     const five = NOT_FOR_STRUCTURED;
     expect(five).toEqual(['session.input', 'session.keys', 'session.type', 'input.take', 'input.release']);

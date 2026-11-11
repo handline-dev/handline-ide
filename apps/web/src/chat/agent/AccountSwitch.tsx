@@ -7,7 +7,7 @@ import { Menu, MenuItem } from '#src/ui/Menu.tsx';
 import { toast } from '#src/ui/toast.tsx';
 import { uuid } from '#src/ui/uuid.ts';
 
-const useSwitch = (agent: string) => useAgents().data?.agents.find((a) => a.name === agent);
+const useSwitch = (agent: string) => useAgents().data?.agents.find((a) => a.key === agent);
 
 /** The message box's words while the agent saves, switches or starts on a new account; null when it takes messages. */
 export function useSwitchLock(agent: string): string | null {

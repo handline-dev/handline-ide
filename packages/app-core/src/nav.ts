@@ -54,7 +54,7 @@ export function chipList(
   return {
     pinned: [],
     rows: navList(
-      agents.filter((a) => turn.has(a.name)),
+      agents.filter((a) => turn.has(a.key)),
       { ...nav, hidden: [] },
       search,
     ).rows,
@@ -63,7 +63,7 @@ export function chipList(
 
 /** The pinned agents in the person's order; a pin naming an agent that is gone is skipped. */
 export function pinnedOf(agents: readonly AgentView[], pins: readonly string[]): AgentView[] {
-  const byName = new Map(agents.map((a) => [a.name, a]));
+  const byName = new Map(agents.map((a) => [a.key, a]));
   return pins.flatMap((n) => byName.get(n) ?? []);
 }
 
@@ -88,7 +88,7 @@ export function navDock(
   open: readonly OpenTab[],
   worktrees: readonly Worktree[],
 ): { pinned: DockItem[]; open: DockItem[] } {
-  const item = (a: AgentView): DockItem => ({ agent: a, branch: branchOf(worktrees, a.name, open.find((t) => t.agent === a.name)?.path) });
+  const item = (a: AgentView): DockItem => ({ agent: a, branch: branchOf(worktrees, a.key, open.find((t) => t.agent === a.key)?.path) });
   const unpinned = open.map((t) => t.agent).filter((n) => !pins.includes(n));
   return { pinned: pinnedOf(agents, pins).map(item), open: pinnedOf(agents, unpinned).map(item) };
 }
@@ -123,10 +123,10 @@ export function movePin(pins: readonly string[], name: string, index: number): s
 
 /** The names shown under the same parent as `name`, in the order shown (a parent the filter hides counts as the top). */
 export function siblingsOf(rows: readonly RailRow[], name: string): string[] {
-  const shown = new Set(rows.map((r) => r.agent.name));
+  const shown = new Set(rows.map((r) => r.agent.key));
   const parentOf = (a: AgentView) => (a.parent && shown.has(a.parent) ? a.parent : '');
-  const me = rows.find((r) => r.agent.name === name);
-  return me ? rows.filter((r) => parentOf(r.agent) === parentOf(me.agent)).map((r) => r.agent.name) : [];
+  const me = rows.find((r) => r.agent.key === name);
+  return me ? rows.filter((r) => parentOf(r.agent) === parentOf(me.agent)).map((r) => r.agent.key) : [];
 }
 
 /** The saved order after `name` moves to `index` among its siblings (the names now shown under one parent, in the order shown). Other parents' entries stay as they are. */

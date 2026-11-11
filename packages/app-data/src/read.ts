@@ -1,7 +1,7 @@
 // The read hooks: `useRead` is the one place a read becomes a query, and every named hook is a line over it.
 import { useCallback, useMemo, useState } from 'react';
 import { keepPreviousData, useQueries, useQuery, type UseQueryResult } from '@tanstack/react-query';
-import { hashNumbers, reviewPictures, waitingCount } from '@handline/app-core';
+import { EMPTY_DIRECTORY, hashNumbers, nameOf, reviewPictures, waitingCount, type Directory } from '@handline/app-core';
 import { useStore } from '@handline/app-react';
 import type { CallParams, InboxItem, Methods, Task } from '@handline/client';
 import { useData, useFeed, useServes } from '#src/provider.ts';
@@ -53,6 +53,27 @@ export function viewState(
 }
 
 export const useAgents = () => useRead('agents.list', {});
+
+/** The three lists every key is written out through (app-core names.ts); a list not read yet is empty, so its keys show as they are. */
+export function useDirectory(): Directory {
+  const agents = useAgents().data?.agents;
+  const people = useRead('people.list', {}).data?.people;
+  const workspaces = useRead('workspaces.list', {}).data?.workspaces;
+  return useMemo(
+    () => ({
+      agents: agents ?? EMPTY_DIRECTORY.agents,
+      people: people ?? EMPTY_DIRECTORY.people,
+      workspaces: workspaces ?? EMPTY_DIRECTORY.workspaces,
+    }),
+    [agents, people, workspaces],
+  );
+}
+
+/** nameOf over the directory: what a screen shows for a key. */
+export function useNameOf(): (key: string) => string {
+  const d = useDirectory();
+  return useCallback((key: string) => nameOf(d, key), [d]);
+}
 /**
  * Messages owed to each agent that have not reached it. The daemon sends `unreached` only for agents.list `status: true`, which is another
  * key from the event-fed list `useAgents` reads, so the bridge does not keep it current: it is read on its own, again every 20 s.
@@ -60,7 +81,7 @@ export const useAgents = () => useRead('agents.list', {});
 export function useUnreached(): Map<string, number> {
   const q = useRead('agents.list', { status: true }, { refetchMs: 20_000 });
   return useMemo(
-    () => new Map((q.data?.agents ?? []).flatMap((a) => (typeof a.unreached === 'number' ? [[a.name, a.unreached] as const] : []))),
+    () => new Map((q.data?.agents ?? []).flatMap((a) => (typeof a.unreached === 'number' ? [[a.key, a.unreached] as const] : []))),
     [q.data],
   );
 }

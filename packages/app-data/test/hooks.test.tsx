@@ -22,7 +22,7 @@ describe('a read', () => {
     await mount(store, p.node);
     expect(p.get().isPending).toBe(true);
     await until(() => p.get().data, 'the agents');
-    expect(p.get().data!.agents.map((a) => a.name)).toContain(ARCH);
+    expect(p.get().data!.agents.map((a) => a.key)).toContain(ARCH);
   });
 
   it('is kept current by events, with no second read', async () => {
@@ -34,9 +34,9 @@ describe('a read', () => {
     const reads = spy.mock.calls.filter((c) => c[0] === 'agents.list').length;
     daemon.emit('agents', 'agent.changed', {
       agent: ARCH,
-      data: { ...p.get().data!.agents.find((a) => a.name === ARCH)!, state: 'blocked' },
+      data: { ...p.get().data!.agents.find((a) => a.key === ARCH)!, state: 'blocked' },
     });
-    await until(() => p.get().data!.agents.find((a) => a.name === ARCH)!.state === 'blocked', 'the event in the cache');
+    await until(() => p.get().data!.agents.find((a) => a.key === ARCH)!.state === 'blocked', 'the event in the cache');
     expect(spy.mock.calls.filter((c) => c[0] === 'agents.list').length).toBe(reads);
   });
 

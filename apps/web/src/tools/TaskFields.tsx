@@ -67,7 +67,7 @@ function Assignee({ t, open }: { t: TaskDetail; open: boolean }) {
  * team, me, the owner now). A click or Enter picks; arrows move. Picking the owner now picks nothing. */
 export function AssignPicker({ t, trigger, onPick }: { t: TaskDetail; trigger: ReactElement; onPick: (to: string) => void }) {
   const me = useMe();
-  const known = useAgents().data?.agents.map((a) => a.name) ?? [];
+  const known = useAgents().data?.agents.map((a) => a.key) ?? [];
   const team = useTeam().data ?? { agents: [] };
   const [shown, setShown] = useState(false);
   const [find, setFind] = useState('');

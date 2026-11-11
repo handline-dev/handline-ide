@@ -4,7 +4,11 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { Attachments } from '#src/chat/attachments.tsx';
 import { Composer } from '#src/chat/Composer.tsx';
 
-vi.mock('@handline/app-data', async (real) => ({ ...(await real<object>()), useAgents: () => ({ data: { agents: [] } }) }));
+vi.mock('@handline/app-data', async (real) => ({
+  ...(await real<object>()),
+  useAgents: () => ({ data: { agents: [] } }),
+  useNameOf: () => (k: string) => k,
+}));
 
 let root: Root;
 let el: HTMLDivElement;

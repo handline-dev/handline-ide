@@ -2,7 +2,7 @@ import { dotOf, restartingLine, whyOf } from '@handline/app-core';
 /** The sidebar's agent tree: each agent under the agent it reports to (`parent`). Siblings stand in the
  * person's `order` (nav prefs); one not in it comes after, by name. */
 type DotFacts = Parameters<typeof dotOf>[0];
-export type AgentLike = { name: string; parent: string | null; state: string } & Partial<Omit<DotFacts, 'state'>>;
+export type AgentLike = { key: string; name: string; parent: string | null; state: string } & Partial<Omit<DotFacts, 'state'>>;
 export type AgentNode<A extends AgentLike = AgentLike> = { agent: A; children: AgentNode<A>[] };
 
 export function agentTree<A extends AgentLike>(agents: readonly A[], order: readonly string[] = []): AgentNode<A>[] {
@@ -10,19 +10,19 @@ export function agentTree<A extends AgentLike>(agents: readonly A[], order: read
     const i = order.indexOf(n);
     return i < 0 ? Infinity : i;
   };
-  const names = new Set(agents.map((a) => a.name));
+  const keys = new Set(agents.map((a) => a.key));
   const kids = new Map<string | null, A[]>();
   for (const a of agents) {
     // A parent the list does not hold (removed, or another team's) puts the agent at the top level.
-    const p = a.parent && names.has(a.parent) && a.parent !== a.name ? a.parent : null;
+    const p = a.parent && keys.has(a.parent) && a.parent !== a.key ? a.parent : null;
     kids.set(p, [...(kids.get(p) ?? []), a]);
   }
   const seen = new Set<string>();
   const build = (parent: string | null): AgentNode<A>[] =>
     (kids.get(parent) ?? [])
-      .filter((a) => !seen.has(a.name) && seen.add(a.name))
-      .sort((x, y) => rank(x.name) - rank(y.name) || x.name.localeCompare(y.name))
-      .map((agent) => ({ agent, children: build(agent.name) }));
+      .filter((a) => !seen.has(a.key) && seen.add(a.key))
+      .sort((x, y) => rank(x.key) - rank(y.key) || x.name.localeCompare(y.name))
+      .map((agent) => ({ agent, children: build(agent.key) }));
   return build(null);
 }
 
@@ -63,15 +63,15 @@ export function splitPinned<A extends AgentLike>(tree: AgentNode<A>[], pins: rea
   const take = (nodes: AgentNode<A>[]): AgentNode<A>[] =>
     nodes.flatMap((n) => {
       const kept = { ...n, children: take(n.children) };
-      if (!pins.includes(n.agent.name)) return [kept];
+      if (!pins.includes(n.agent.key)) return [kept];
       pinned.push({ ...n, children: unpinned(n.children) });
       return [];
     });
   // A pinned team leaves out its own sub-agents that are pinned: they show once, on their own line.
   const unpinned = (nodes: AgentNode<A>[]): AgentNode<A>[] =>
-    nodes.filter((c) => !pins.includes(c.agent.name)).map((c) => ({ ...c, children: unpinned(c.children) }));
+    nodes.filter((c) => !pins.includes(c.agent.key)).map((c) => ({ ...c, children: unpinned(c.children) }));
   const rest = take(tree);
-  pinned.sort((x, y) => pins.indexOf(x.agent.name) - pins.indexOf(y.agent.name));
+  pinned.sort((x, y) => pins.indexOf(x.agent.key) - pins.indexOf(y.agent.key));
   return { pinned, rest };
 }
 
@@ -79,7 +79,7 @@ export function splitPinned<A extends AgentLike>(tree: AgentNode<A>[], pins: rea
 export function pathTo<A extends AgentLike>(nodes: AgentNode<A>[], name: string | null): AgentNode<A>[] {
   if (!name) return [];
   return nodes.flatMap((n) => {
-    if (n.agent.name === name) return [{ ...n, children: [] }];
+    if (n.agent.key === name) return [{ ...n, children: [] }];
     const below = pathTo(n.children, name);
     return below.length ? [{ ...n, children: below }] : [];
   });

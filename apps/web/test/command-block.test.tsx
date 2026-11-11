@@ -4,7 +4,10 @@ import { afterEach, expect, it, vi } from 'vitest';
 
 const mutateAsync = vi.fn(async (_: unknown) => ({ terminal: '%7' }));
 const openTab = vi.fn();
-vi.mock('@handline/app-data', () => ({ useWrite: () => ({ mutateAsync, isPending: false }) }));
+vi.mock('@handline/app-data', () => ({
+  useWrite: () => ({ mutateAsync, isPending: false }),
+  useDirectory: () => ({ agents: [], people: [], workspaces: [] }),
+}));
 vi.mock('#src/layout/openTab.tsx', () => ({ useOpenTab: () => openTab, howOf: () => 'here' }));
 
 const { CommandsOf } = await import('#src/chat/CommandBlock.tsx');

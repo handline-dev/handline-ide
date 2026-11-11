@@ -49,7 +49,7 @@ export function AgentMenu({
   onSettings: () => void;
   children: ReactNode;
 }) {
-  const name = agent.name;
+  const name = agent.key;
   const { nav, togglePin } = useNav();
   const pinned = nav.pins.includes(name);
   const detail = useAgentDetail(name).data;

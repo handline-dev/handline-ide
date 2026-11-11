@@ -21,7 +21,7 @@ const item = (o: Partial<InboxItem>): InboxItem =>
   }) as InboxItem;
 const task = (o: Partial<Task>): Task =>
   ({ id: 1, title: 'T', state: 'doing', priority: 2, to: 'a', time: null, report: null, ...o }) as Task;
-const agent = (o: Partial<AgentView>): AgentView => ({ name: 'a', needs_you: null, task: null, ...o }) as AgentView;
+const agent = (o: Partial<AgentView>): AgentView => ({ key: 'a', name: 'a', needs_you: null, task: null, ...o }) as AgentView;
 const perm = {
   id: 'p1',
   agent: 'a',
@@ -66,11 +66,11 @@ test('a permission item offers Allow then Deny; read items are not cards', () =>
 
 test('a dialog needs_you has only Open terminal, and a permission one is not doubled by its item', () => {
   const dialog = agent({
-    name: 'd',
+    key: 'd',
     needs_you: { kind: 'dialog', since: '2026-10-15T00:00:00Z', title: 'Waiting at a dialog', text: 'x', source: 'hook' },
   });
   const asks = agent({
-    name: 'a',
+    key: 'a',
     needs_you: { kind: 'permission', since: '2026-10-15T00:00:00Z', title: 'Waiting for your OK', text: null, source: 'hook' },
   });
   const cards = myTurn({ items: [item({ kind: 'prompt', prompt: perm as InboxItem['prompt'] })], agents: [dialog, asks], tasks: [] });
@@ -92,7 +92,7 @@ test('inboxGroup: decision and ask are decisions, a permission prompt is an appr
 
 test("a daemon stall's card uses the daemon's title and sentence, not one built from its kind", () => {
   const stall = (name: string, kind: 'trust' | 'start_failed' | 'no_session', title: string, text: string) =>
-    agent({ name, needs_you: { kind, since: '2026-10-15T00:00:00Z', title, text, source: 'daemon' } });
+    agent({ key: name, needs_you: { kind, since: '2026-10-15T00:00:00Z', title, text, source: 'daemon' } });
   const cards = myTurn({
     items: [],
     agents: [
@@ -117,7 +117,7 @@ test("a daemon stall's card uses the daemon's title and sentence, not one built 
 test('a stall the daemon raised has one button: Try again for a start that failed, the terminal otherwise', () => {
   const stall = (name: string, kind: 'trust' | 'start_failed' | 'no_session') =>
     agent({
-      name,
+      key: name,
       task: { id: 7, title: 'x' },
       needs_you: { kind, since: '2026-10-15T00:00:00Z', title: 't', text: null, source: 'daemon' },
     });
@@ -245,7 +245,7 @@ test('the agents of My turn are the ones its cards name', () => {
     items: [],
     agents: [
       agent({
-        name: 'b',
+        key: 'b',
         needs_you: { kind: 'dialog', since: '2026-10-15T00:00:00Z', title: 'Waiting at a dialog', text: null } as AgentView['needs_you'],
       }),
     ],
@@ -285,10 +285,10 @@ test('an ask from a task comment is answered by a reply, OK or Approve, and neve
 
 test('one message row per agent with unread messages, newest first, opening at the first above the cursor', () => {
   const rows = messageRows([
-    agent({ name: 'a', founder_unread: 2, founder_seen: 10, last_to_founder: { text: 'old', at: '2026-10-15T00:00:00Z' } }),
-    agent({ name: 'b', founder_unread: 1, last_to_founder: { text: 'new', at: '2026-10-16T00:00:00Z' } }),
-    agent({ name: 'c', founder_unread: 0 }),
-    agent({ name: 'd' }),
+    agent({ key: 'a', founder_unread: 2, founder_seen: 10, last_to_founder: { text: 'old', at: '2026-10-15T00:00:00Z' } }),
+    agent({ key: 'b', founder_unread: 1, last_to_founder: { text: 'new', at: '2026-10-16T00:00:00Z' } }),
+    agent({ key: 'c', founder_unread: 0 }),
+    agent({ key: 'd' }),
   ]);
   assert.deepEqual(
     rows.map((r) => [r.agent, r.line, r.unread, r.from]),

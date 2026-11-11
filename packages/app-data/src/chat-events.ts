@@ -57,7 +57,7 @@ export function chatEvent({ qc, d, me }: Ctx, e: WireEvent): void {
     edit<Pages<TrPage>>(qc, qk.transcript(d, agent), (data) => mapPages(data, (p, i) => (i === 0 ? { ...p, working } : p)), e.cursor);
   } else if (e.type === 'chat.message') {
     const m = e.data as unknown as ChatMessage;
-    const names = new Set(qc.getQueryData<{ agents: AgentView[] }>(qk.agents(d))?.agents.map((a) => a.name));
+    const names = new Set(qc.getQueryData<{ agents: AgentView[] }>(qk.agents(d))?.agents.map((a) => a.key));
     const talkBetweenAgents = names.has(m.from) && names.has(m.to);
     for (const [key, cached] of qc.getQueriesData<Pages<MsgPage>>({ queryKey: qk.chatMessagesOf(d, agent) })) {
       const scope = key[4];

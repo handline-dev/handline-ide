@@ -1,6 +1,6 @@
 // The message box's two lists: `@` at the end of the text offers agents to name, `/` at the start of the line offers the box's commands.
 // Arrows move, Enter or Tab picks, Escape closes. A `/` line is never sent as words: it runs its command, or says there is none.
-import { useAgents } from '@handline/app-data';
+import { useAgents, useNameOf } from '@handline/app-data';
 import { AtSign, ChevronRight } from 'lucide-react';
 import { useState, type KeyboardEvent, type ReactNode } from 'react';
 
@@ -19,6 +19,7 @@ export function useSuggest(draft: string, setDraft: (v: string) => void, command
   // Said for the text it was sent with; gone once the text changes.
   const [refused, setRefused] = useState<{ text: string; why: string } | null>(null);
   const agents = useAgents().data?.agents ?? [];
+  const nameOf = useNameOf();
 
   const mention = AT.exec(draft)?.[1];
   const slash = SLASH.exec(draft)?.[1];
@@ -26,15 +27,17 @@ export function useSuggest(draft: string, setDraft: (v: string) => void, command
   const all: Entry[] =
     mention !== undefined
       ? agents
-          .filter((a) => a.name.toLowerCase().includes(q))
-          .sort((a, b) => Number(!a.name.toLowerCase().startsWith(q)) - Number(!b.name.toLowerCase().startsWith(q)))
+          .map((a) => ({ a, word: nameOf(a.key) }))
+          .filter(({ word }) => word.toLowerCase().includes(q))
+          .sort((x, y) => Number(!x.word.toLowerCase().startsWith(q)) - Number(!y.word.toLowerCase().startsWith(q)))
           .slice(0, 8)
-          .map((a) => ({
-            key: a.name,
-            label: `@${a.name}`,
+          .map(({ a, word }) => ({
+            key: a.key,
+            label: `@${word}`,
             hint: a.state,
             icon: <AtSign size={14} />,
-            pick: () => setDraft(draft.replace(/@[\w.-]*$/, `@${a.name} `)),
+            // The word is what the composer shows; the send writes it as the agent's key (app-core toRefs).
+            pick: () => setDraft(draft.replace(/@[\w.-]*$/, `@${word} `)),
           }))
       : slash !== undefined
         ? commands

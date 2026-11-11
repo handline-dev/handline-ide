@@ -208,7 +208,7 @@ export function ByAgent({ win }: { win: Win }) {
 export function ByModel({ win }: { win: Win }) {
   const s = useStats(win).data;
   const agents = useAgents().data?.agents ?? [];
-  const modelOf = new Map(agents.map((a) => [a.name, [a.model, a.effort].filter(Boolean).join(' ') || 'Unknown']));
+  const modelOf = new Map(agents.map((a) => [a.key, [a.model, a.effort].filter(Boolean).join(' ') || 'Unknown']));
   const by = new Map<string, { cost: number; week: number | null; agents: Set<string> }>();
   for (const u of s?.use ?? []) {
     const m = modelOf.get(u.agent) ?? 'Unknown';

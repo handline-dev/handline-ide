@@ -14,7 +14,6 @@ import {
   SquareTerminal,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { shortName } from '#src/layout/agentTree.ts';
 
 /** Every kind of tab: its title and icon, shown alike in the tab bar, the + menu and an Empty tab's picker. */
 const kinds: Record<string, { label: string; icon: ReactNode }> = {
@@ -72,10 +71,10 @@ const onThing = (kind: string): { label: string; icon: ReactNode } | null => {
 /** What a new tab can open (legacy CHOICES). Chat is not here: the first pane's Chat is the one chat. */
 export const choices = ['newshell', 'diff', 'tasks', 'markdown', 'web', 'android', 'ios'].map((kind) => ({ kind, ...kinds[kind] }));
 
-/** `within`: the agent whose workspace shows it, so its own agents' chats read short (see shortName). */
-export const labelOf = (kind: string, within: string | null = null) => {
-  const name = chatName(kind);
-  return kinds[kind]?.label ?? (name ? `${shortName(name, within)} chat` : (onThing(kind)?.label ?? kind));
+/** `nameOf` writes out the agent key a chat tab carries (useNameOf). */
+export const labelOf = (kind: string, nameOf: (key: string) => string = (k) => k) => {
+  const key = chatName(kind);
+  return kinds[kind]?.label ?? (key ? `${nameOf(key)} chat` : (onThing(kind)?.label ?? kind));
 };
 /** An Empty tab (no kind) shows +. */
 export const iconOf = (kind?: string) => {

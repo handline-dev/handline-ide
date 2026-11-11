@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import type { AgentView } from '@handline/client';
 import { CONFIRM_VERBS, askOf, VERBS, callOf, verbsOf } from '#src/index.ts';
 
-const row = (state: string) => ({ name: 'a.b', state }) as AgentView;
+const row = (state: string) => ({ key: 'a.b', state }) as AgentView;
 const ids = (state: string, session_open: boolean, session_id: string | null) =>
   verbsOf(row(state), { session_open, session_id }).map((v) => v.id);
 
@@ -18,7 +18,7 @@ test('a stalled row offers clear stall', () => {
   assert.deepEqual(ids('stalled', false, 's1'), ['clear_stall', 'move']);
 });
 test('a row held for machine load offers force start, and calls agent.force_start', () => {
-  const held = { name: 'a.b', state: 'waiting', status: { state: 'waiting', reason: 'load' } } as AgentView;
+  const held = { key: 'a.b', state: 'waiting', status: { state: 'waiting', reason: 'load' } } as AgentView;
   assert.deepEqual(
     verbsOf(held, { session_open: false, session_id: null }).map((v) => v.id),
     ['force_start', 'move'],

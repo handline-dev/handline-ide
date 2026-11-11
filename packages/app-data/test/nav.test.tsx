@@ -77,7 +77,7 @@ describe('the dock', () => {
     p.get().tabs.open(ARCH);
     p.get().tabs.open(AUDITOR, '/work/spare');
     await until(() => p.get().dock.open.length === 2 && p.get().dock.open[0]!.branch !== null, 'the dock with branches');
-    expect(p.get().dock.open.map((i) => [i.agent.name, i.branch])).toEqual([
+    expect(p.get().dock.open.map((i) => [i.agent.key, i.branch])).toEqual([
       [ARCH, 'yourname/handline.architect'],
       [AUDITOR, 'spare/old-idea'],
     ]);

@@ -11,7 +11,7 @@ import { SquareTerminal } from 'lucide-react';
 export function StatusLine({ agent }: { agent: string }) {
   const detail = useAgentDetail(agent).data;
   // From the list, which the agents feed keeps current.
-  const jobs = useAgents().data?.agents.find((a) => a.name === agent)?.background ?? [];
+  const jobs = useAgents().data?.agents.find((a) => a.key === agent)?.background ?? [];
   return (
     <div className="flex h-8 items-center gap-5 overflow-hidden pb-2 pl-2 text-xs text-muted">
       {detail?.worktree && <BranchItem agent={agent} branch={detail.worktree.branch} path={detail.worktree.path} />}
