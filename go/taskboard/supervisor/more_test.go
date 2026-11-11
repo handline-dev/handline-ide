@@ -10,10 +10,10 @@ import (
 
 func TestTellUndeliveredTypesWhatReachedAnAgentWhileItHadNoSession(t *testing.T) {
 	r := newRig(t)
-	r.agentUp("bob")
-	msg := r.ask("alice", "bob", "while you slept", "ask")
-	task := r.task("bob", "alice", "a task")
-	r.must(r.TellUndelivered(r.DB, r.k("bob")))
+	r.agentUp(r.k("bob"))
+	msg := r.ask(r.k("alice"), r.k(("bob")), "while you slept", "ask")
+	task := r.task(r.k("bob"), r.k(("alice")), "a task")
+	r.must(r.TellUndelivered(r.DB, r.k(("bob"))))
 	if got := r.term.last(); !strings.Contains(got, "#"+itoa(msg)+" from alice") {
 		t.Fatalf("%q", got)
 	}
@@ -23,10 +23,10 @@ func TestTellUndeliveredTypesWhatReachedAnAgentWhileItHadNoSession(t *testing.T)
 		}
 	}
 	// a closed agent is left to the wake
-	db.SetClosed(r.DB, "bob", "")
+	db.SetClosed(r.DB, r.k(("bob")), "")
 	r.term.typed = nil
-	r.ask("alice", "bob", "another", "ask")
-	r.must(r.TellUndelivered(r.DB, r.k("bob")))
+	r.ask(r.k("alice"), r.k(("bob")), "another", "ask")
+	r.must(r.TellUndelivered(r.DB, r.k(("bob"))))
 	if len(r.term.typed) != 0 {
 		t.Fatal("typed at a closed agent")
 	}
@@ -36,12 +36,12 @@ func itoa(n int64) string { return string(rune('0' + n)) }
 
 func TestStartupSettlesOnlyTheSaysNothingTracksAndTypesPendingRows(t *testing.T) {
 	r := newRig(t)
-	r.agentUp("bob")
-	owed := r.ask("alice", "bob", "sent minutes before the restart", "say") // never told
-	told := r.ask("alice", "bob", "told by the old daemon", "say")
+	r.agentUp(r.k("bob"))
+	owed := r.ask(r.k("alice"), r.k(("bob")), "sent minutes before the restart", "say") // never told
+	told := r.ask(r.k("alice"), r.k(("bob")), "told by the old daemon", "say")
 	db.MarkDelivered(r.DB, told)
-	tracked := r.ask("alice", "bob", "written to a session, the ledger holds it", "say")
-	batched := r.ask("alice", "bob", "written with another", "say")
+	tracked := r.ask(r.k("alice"), r.k(("bob")), "written to a session, the ledger holds it", "say")
+	batched := r.ask(r.k("alice"), r.k(("bob")), "written with another", "say")
 	db.MarkDelivered(r.DB, tracked)
 	db.MarkDelivered(r.DB, batched)
 	for id, op := range map[int64]string{tracked: "request:" + itoa(tracked), batched: "request:" + itoa(batched-1) + "," + itoa(batched) + ",9"} {
@@ -49,7 +49,7 @@ func TestStartupSettlesOnlyTheSaysNothingTracksAndTypesPendingRows(t *testing.T)
 			t.Fatalf("%d: %v", id, err)
 		}
 	}
-	asked := r.ask("alice", "bob", "old ask", "ask")
+	asked := r.ask(r.k("alice"), r.k(("bob")), "old ask", "ask")
 	db.MarkDelivered(r.DB, asked)
 	r.must(r.MigrateOldMessages(r.DB))
 	state := func(id int64) string { row, _ := db.GetRequest(r.DB, id); return row.State }
@@ -57,14 +57,14 @@ func TestStartupSettlesOnlyTheSaysNothingTracksAndTypesPendingRows(t *testing.T)
 		t.Fatalf("told %s owed %s tracked %s batched %s", state(told), state(owed), state(tracked), state(batched))
 	}
 	// what is owed is told by the tick
-	r.must(r.TellUndelivered(r.DB, r.k("bob")))
+	r.must(r.TellUndelivered(r.DB, r.k(("bob"))))
 	if got := r.term.last(); !strings.Contains(got, "sent minutes before the restart") {
 		t.Fatalf("an undelivered say was not told after the restart: %q", got)
 	}
 	if row, _ := db.GetRequest(r.DB, asked); row.State != "queued" || !row.TypedAt.Valid {
 		t.Fatalf("an old told ask is treated as typed: %+v", row)
 	}
-	db.AddPending(r.DB, "bob", "owed since the reboot", 5)
+	db.AddPending(r.DB, r.k(("bob")), "owed since the reboot", 5)
 	r.must(r.ReloadPending(r.DB))
 	if r.term.last() != "owed since the reboot" {
 		t.Fatalf("%q", r.term.last())
@@ -73,8 +73,8 @@ func TestStartupSettlesOnlyTheSaysNothingTracksAndTypesPendingRows(t *testing.T)
 
 func TestSweepNoticesRunsTheStoppedAndDigestSweeps(t *testing.T) {
 	r := newRig(t)
-	r.agentUp("bob")
-	db.AddRequest(r.DB, db.NewRequest{Requester: db.NoticeRequester, Target: "bob", Body: "T3 done by alice: ok", Kind: "say", Notice: true})
+	r.agentUp(r.k("bob"))
+	db.AddRequest(r.DB, db.NewRequest{Requester: db.NoticeRequester, Target: r.k(("bob")), Body: "T3 done by alice: ok", Kind: "say", Notice: true})
 	r.must(r.SweepNotices(r.clock + 900))
 	if !strings.Contains(r.term.last(), "Result digest - 1 result") {
 		t.Fatalf("%q", r.term.last())
@@ -83,9 +83,9 @@ func TestSweepNoticesRunsTheStoppedAndDigestSweeps(t *testing.T) {
 
 func TestTheTextsOfAReply(t *testing.T) {
 	r := newRig(t)
-	r.agentUp("bob")
-	q := r.ask("alice", "bob", "first line of the question\nsecond", "ask")
-	out, _ := r.Say(r.DB, SayIn{Target: r.k("alice"), Body: "the answer", Requester: r.k("bob"), ParentID: q})
+	r.agentUp(r.k("bob"))
+	q := r.ask(r.k("alice"), r.k(("bob")), "first line of the question\nsecond", "ask")
+	out, _ := r.Say(r.DB, SayIn{Target: r.k(("alice")), Body: "the answer", Requester: r.k(("bob")), ParentID: q})
 	head := mustReq(r, out.RID)
 	if got := r.ids(inReplyTo(r.DB, head)); got != "in reply to #"+itoa(q)+": first line of the question" {
 		t.Fatalf("%q", got)
@@ -98,7 +98,7 @@ func TestTheTextsOfAReply(t *testing.T) {
 		t.Fatalf("the quote goes above the words: %q", got)
 	}
 	// parked and send-now tails
-	other := mustReq(r, r.ask("alice", "bob", "x", "ask"))
+	other := mustReq(r, r.ask(r.k("alice"), r.k(("bob")), "x", "ask"))
 	if got := r.ids(tellText(r.DB, other, 2, head, true, nil, "")); !strings.Contains(got, "[Queued behind #2, which is still open: the next task comes when you hand it on or finish it.]") {
 		t.Fatalf("%q", got)
 	}
@@ -118,8 +118,8 @@ func mustReq(r *rig, id int64) *db.Request {
 
 func TestTheImagesFollowTheBodyAfterTheCut(t *testing.T) {
 	r := newRig(t)
-	r.agentUp("bob")
-	head := mustReq(r, r.ask("alice", "bob", strings.Repeat("w", 500), "say"))
+	r.agentUp(r.k("bob"))
+	head := mustReq(r, r.ask(r.k("alice"), r.k(("bob")), strings.Repeat("w", 500), "say"))
 	lines := "[image 1: /h/attachments/a.png (image/png, 3 KB)]\n[image 2: /h/attachments/b.jpg (image/jpeg, 9 KB)]"
 	got := tellText(r.DB, head, 1, nil, false, nil, lines)
 	if !strings.Contains(got, strings.Repeat("w", 400)+"…\n"+lines+"\n") {
@@ -128,9 +128,9 @@ func TestTheImagesFollowTheBodyAfterTheCut(t *testing.T) {
 	if got := tellText(r.DB, head, 1, nil, false, nil, ""); strings.Contains(got, "[image") {
 		t.Fatalf("%q", got)
 	}
-	tid, err := db.NewTask(r.DB, "write the docs", "bob", "alice", 0, db.DefaultPriority, "", 0, "")
+	tid, err := db.NewTask(r.DB, "write the docs", r.k(("bob")), r.k(("alice")), 0, db.DefaultPriority, "", 0, "")
 	r.must(err)
-	bare := r.ask("alice", "bob", "", "task")
+	bare := r.ask(r.k("alice"), r.k(("bob")), "", "task")
 	r.must(db.LinkRequest(r.DB, tid, bare))
 	if got := tellText(r.DB, mustReq(r, bare), 1, nil, false, nil, ""); strings.Contains(got, "(empty)") || !strings.Contains(got, "Title: write the docs") {
 		t.Fatalf("a task with no body shows its title: %q", got)
@@ -138,7 +138,7 @@ func TestTheImagesFollowTheBodyAfterTheCut(t *testing.T) {
 	if got := batchText(r.DB, []*db.Request{mustReq(r, bare)}, nil, nil); strings.Contains(got, "(empty)") || !strings.Contains(got, "Title: write the docs") {
 		t.Fatalf("%q", got)
 	}
-	empty := mustReq(r, r.ask("alice", "bob", "", "say"))
+	empty := mustReq(r, r.ask(r.k("alice"), r.k(("bob")), "", "say"))
 	if got := tellText(r.DB, empty, 1, nil, false, nil, lines); strings.Contains(got, "(empty)") || !strings.Contains(got, "waiting for you:\n"+lines) {
 		t.Fatalf("%q", got)
 	}

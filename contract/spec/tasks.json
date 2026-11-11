@@ -3448,7 +3448,7 @@
      "name": "turn",
      "required": false,
      "schema": {
-      "type": "string",
+      "$ref": "#/components/schemas/AgentName",
       "description": "Hand the task to this agent, or human, with this comment: it goes on top and acts now; the one below keeps its turn but acts on nothing, so its doing slot frees. For human, the comment is the decision and what you recommend."
      }
     },
