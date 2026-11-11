@@ -1,4 +1,4 @@
-import { classify, sentence, useNewAgentForm, useOperation } from '@handline/app-data';
+import { classify, sentence, useNameOf, useNewAgentForm, useOperation } from '@handline/app-data';
 import { useEffect, useState } from 'react';
 import { Button } from '#src/ui/Button.tsx';
 import { Field, Input, Select } from '#src/ui/Field.tsx';
@@ -34,6 +34,7 @@ function Form({ parent, close }: { parent?: string; close: Close<string> }) {
   const [started, setStarted] = useState<{ operation: string; name: string } | null>(null);
   const form = useNewAgentForm((operation, f) => setStarted({ operation, name: (f.parent ? `${f.parent}.` : '') + f.name.trim() }));
   const { f, set, list, prefix, ready, send, create, agents } = form;
+  const nameOf = useNameOf();
   // A sub-agent's dialog starts with its parent picked.
   useEffect(() => {
     if (parent) set('parent', parent);
@@ -72,8 +73,8 @@ function Form({ parent, close }: { parent?: string; close: Close<string> }) {
         <Select value={f.parent} onChange={(e) => set('parent', e.target.value)}>
           <option value="">Nobody (a new top-level agent)</option>
           {agents.map((a) => (
-            <option key={a.name} value={a.name}>
-              {a.name}
+            <option key={a.key} value={a.key}>
+              {nameOf(a.key)}
             </option>
           ))}
         </Select>

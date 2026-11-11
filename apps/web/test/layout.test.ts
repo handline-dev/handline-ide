@@ -95,13 +95,13 @@ describe('agent tree', () => {
   it('nests agents under their parent, sorted, with unknown or self parents at the top', async () => {
     const { agentTree } = await import('#src/layout/agentTree.ts');
     const tree = agentTree([
-      { name: 'handline.ui', parent: 'handline', state: 'running' },
-      { name: 'handline', parent: null, state: 'idle' },
-      { name: 'handline.api', parent: 'handline', state: 'idle' },
-      { name: 'orphan', parent: 'gone', state: 'idle' },
-      { name: 'loop', parent: 'loop', state: 'idle' },
+      { key: 'handline.ui', name: 'handline.ui', parent: 'handline', state: 'running' },
+      { key: 'handline', name: 'handline', parent: null, state: 'idle' },
+      { key: 'handline.api', name: 'handline.api', parent: 'handline', state: 'idle' },
+      { key: 'orphan', name: 'orphan', parent: 'gone', state: 'idle' },
+      { key: 'loop', name: 'loop', parent: 'loop', state: 'idle' },
     ]);
-    const flat = (ns: typeof tree, d = 0): string[] => ns.flatMap((n) => [`${d}:${n.agent.name}`, ...flat(n.children, d + 1)]);
+    const flat = (ns: typeof tree, d = 0): string[] => ns.flatMap((n) => [`${d}:${n.agent.key}`, ...flat(n.children, d + 1)]);
     expect(flat(tree)).toEqual(['0:handline', '1:handline.api', '1:handline.ui', '0:loop', '0:orphan']);
   });
 });
@@ -185,12 +185,12 @@ describe('pathTo', () => {
   it('keeps only the branch down to the picked agent', async () => {
     const { agentTree, pathTo } = await import('#src/layout/agentTree.ts');
     const tree = agentTree([
-      { name: 'a', parent: null, state: 'idle' },
-      { name: 'a.b', parent: 'a', state: 'idle' },
-      { name: 'a.b.c', parent: 'a.b', state: 'idle' },
-      { name: 'a.d', parent: 'a', state: 'idle' },
+      { key: 'a', name: 'a', parent: null, state: 'idle' },
+      { key: 'a.b', name: 'a.b', parent: 'a', state: 'idle' },
+      { key: 'a.b.c', name: 'a.b.c', parent: 'a.b', state: 'idle' },
+      { key: 'a.d', name: 'a.d', parent: 'a', state: 'idle' },
     ]);
-    const names = (ns: typeof tree): string[] => ns.flatMap((n) => [n.agent.name, ...names(n.children)]);
+    const names = (ns: typeof tree): string[] => ns.flatMap((n) => [n.agent.key, ...names(n.children)]);
     expect(names(pathTo(tree[0].children, 'a.b.c'))).toEqual(['a.b', 'a.b.c']);
     expect(pathTo(tree[0].children, 'x')).toEqual([]);
   });
@@ -198,26 +198,26 @@ describe('pathTo', () => {
 
 describe('pins', () => {
   const agents = [
-    { name: 'a', parent: null, state: 'idle' },
-    { name: 'a.x', parent: 'a', state: 'idle' },
-    { name: 'b', parent: null, state: 'idle' },
-    { name: 'c', parent: null, state: 'idle' },
+    { key: 'a', name: 'a', parent: null, state: 'idle' },
+    { key: 'a.x', name: 'a.x', parent: 'a', state: 'idle' },
+    { key: 'b', name: 'b', parent: null, state: 'idle' },
+    { key: 'c', name: 'c', parent: null, state: 'idle' },
   ];
   it('moves pinned agents with their subtrees out of the tree, in pin order', async () => {
     const { agentTree, splitPinned } = await import('#src/layout/agentTree.ts');
     const { pinned, rest } = splitPinned(agentTree(agents), ['c', 'a']);
-    expect(pinned.map((n) => n.agent.name)).toEqual(['c', 'a']);
-    expect(pinned[1].children.map((n) => n.agent.name)).toEqual(['a.x']);
-    expect(rest.map((n) => n.agent.name)).toEqual(['b']);
+    expect(pinned.map((n) => n.agent.key)).toEqual(['c', 'a']);
+    expect(pinned[1].children.map((n) => n.agent.key)).toEqual(['a.x']);
+    expect(rest.map((n) => n.agent.key)).toEqual(['b']);
   });
 
   it('pins a sub-agent out of its team: it shows once, under Pinned', async () => {
     const { agentTree, splitPinned } = await import('#src/layout/agentTree.ts');
     const { pinned, rest } = splitPinned(agentTree(agents), ['a.x']);
-    expect(pinned.map((n) => [n.agent.name, n.children.length])).toEqual([['a.x', 0]]);
-    expect(rest.find((n) => n.agent.name === 'a')!.children.map((n) => n.agent.name)).toEqual([]);
+    expect(pinned.map((n) => [n.agent.key, n.children.length])).toEqual([['a.x', 0]]);
+    expect(rest.find((n) => n.agent.key === 'a')!.children.map((n) => n.agent.key)).toEqual([]);
     const both = splitPinned(agentTree(agents), ['a', 'a.x']);
-    expect(both.pinned.map((n) => [n.agent.name, n.children.length])).toEqual([
+    expect(both.pinned.map((n) => [n.agent.key, n.children.length])).toEqual([
       ['a', 0],
       ['a.x', 0],
     ]);

@@ -6,7 +6,7 @@ import { TaskTab } from '#src/tools/TaskTab.tsx';
 import { TasksTab } from '#src/tools/TasksTab.tsx';
 import { RequestsTab } from '#src/requests/RequestsTab.tsx';
 import { ShellTab, TerminalTab } from '#src/tools/TerminalTab.tsx';
-import { useWrite } from '@handline/app-data';
+import { useNameOf, useWrite } from '@handline/app-data';
 import { WebTab } from '#src/tools/WebTab.tsx';
 import { Usage } from '#src/usage/Usage.tsx';
 import { PaneOpen, setShownWorkspace, type How } from '#src/layout/openTab.tsx';
@@ -41,11 +41,11 @@ const dotOf = (target: TabTarget) => (target ? <TabDot target={target} /> : null
 
 export type Dispatch = (a: Action) => void;
 
-type Context = { root: Node; agent: string | null; dispatch: Dispatch };
+type Context = { root: Node; agent: string | null; dispatch: Dispatch; nameOf: (key: string) => string };
 
 /** Applies a drop of any tab source (a tab moving, or a thing to open) at `to`. Something already open
  * here is not opened twice: its tab comes up, and a toast says why. */
-function dropTo(e: DragEvent, to: Target, { root, agent, dispatch }: Context) {
+function dropTo(e: DragEvent, to: Target, { root, agent, dispatch, nameOf }: Context) {
   const drag = readTabDrag(e);
   if (!drag) return;
   e.preventDefault();
@@ -57,18 +57,18 @@ function dropTo(e: DragEvent, to: Target, { root, agent, dispatch }: Context) {
     if (tab && tab.closable !== false) return dispatch({ type: 'move', from: p.id, tab: tab.id, to });
   }
   if (isOpen(root, opens)) {
-    toast(opens === 'chat' ? "This is this agent's own chat, already open here." : `${labelOf(opens, agent)} is already open here.`, {
+    toast(opens === 'chat' ? "This is this agent's own chat, already open here." : `${labelOf(opens, nameOf)} is already open here.`, {
       tone: 'warning',
     });
-    return dispatch({ type: 'show', opens, title: labelOf(opens, agent) });
+    return dispatch({ type: 'show', opens, title: labelOf(opens, nameOf) });
   }
-  dispatch({ type: 'open', opens, title: labelOf(opens, agent), to });
+  dispatch({ type: 'open', opens, title: labelOf(opens, nameOf), to });
 }
 
 /** Opens `opens` from pane `from`, where `how` asks (whereTo). Something already open is brought up where it is, not opened twice. */
-function openFrom({ root, agent, dispatch }: Context, from: string, kind: string, how: How = 'here') {
+function openFrom({ root, agent, dispatch, nameOf }: Context, from: string, kind: string, how: How = 'here') {
   const opens = canonical(kind, agent);
-  const title = labelOf(opens, agent);
+  const title = labelOf(opens, nameOf);
   if (isOpen(root, opens)) return dispatch({ type: 'show', opens, title });
   dispatch({ type: 'open', opens, title, to: whereTo(root, from, how) });
 }
@@ -162,6 +162,7 @@ function PaneView({
   canClose: boolean;
   lead?: ReactNode;
 }) {
+  const nameOf = useNameOf();
   const bar = useRef<HTMLDivElement>(null);
   const body = useRef<HTMLDivElement>(null);
   const [line, setLine] = useState<number | null>(null);
@@ -206,13 +207,13 @@ function PaneView({
           onDragLeave={(e) => leave(e, () => setLine(null))}
           onDrop={(e) => {
             setLine(null);
-            if (bar.current) dropTo(e, { pane: pane.id, index: slotAt(e, bar.current).index }, { root, agent, dispatch });
+            if (bar.current) dropTo(e, { pane: pane.id, index: slotAt(e, bar.current).index }, { root, agent, dispatch, nameOf });
           }}
         >
           <TabBar
             tabs={pane.tabs.map((t) => ({
               ...t,
-              title: t.opens ? labelOf(t.opens, agent) : t.title,
+              title: t.opens ? labelOf(t.opens, nameOf) : t.title,
               icon: iconOf(t.opens),
               dot: t.id === pane.active ? null : dotOf(tabTarget(t.opens, agent)),
             }))}
@@ -221,7 +222,9 @@ function PaneView({
             onClose={(tab) => close([tab])}
             onCloseTabs={close}
             newTabKinds={agent ? choices.filter((c) => BUILT.has(c.kind)) : []}
-            onAdd={agent ? (kind, how) => pick(kind, (opens) => openFrom({ root, agent, dispatch }, pane.id, opens, how)) : undefined}
+            onAdd={
+              agent ? (kind, how) => pick(kind, (opens) => openFrom({ root, agent, dispatch, nameOf }, pane.id, opens, how)) : undefined
+            }
             onTabDragStart={(tab, e) => startTabDrag(e, { move: { pane: pane.id, tab } })}
           />
           {line !== null && <InsertLine x={line} />}
@@ -254,12 +257,12 @@ function PaneView({
           setZone(null);
           if (!body.current) return;
           const z = zoneAt(e, body.current);
-          dropTo(e, z === 'center' ? { pane: pane.id } : { pane: pane.id, edge: z }, { root, agent, dispatch });
+          dropTo(e, z === 'center' ? { pane: pane.id } : { pane: pane.id, edge: z }, { root, agent, dispatch, nameOf });
         }}
       >
         <Boundary key={`${current?.id}:${current?.opens}`} loading={null} failed={brokenView('This tab')}>
           <TabId.Provider value={current?.id ?? null}>
-            <PaneOpen.Provider value={(opens, how) => openFrom({ root, agent, dispatch }, pane.id, opens, how)}>
+            <PaneOpen.Provider value={(opens, how) => openFrom({ root, agent, dispatch, nameOf }, pane.id, opens, how)}>
               {current?.opens === 'chat' && agent && <Chat key={agent} agent={agent} />}
               {current?.opens?.startsWith('chat:') && <Chat key={current.opens} agent={current.opens.slice(5)} />}
               {current?.opens === 'diff' && agent && <Changes key={agent} agent={agent} />}
@@ -335,6 +338,7 @@ export function Workspace({
   reopenClosed: (pane: string) => void;
   lead?: ReactNode;
 }) {
+  const nameOf = useNameOf();
   const render = (node: Node, topLeft: boolean): ReactNode =>
     node.kind === 'pane' ? (
       <PaneView
@@ -389,7 +393,7 @@ export function Workspace({
     };
   }, []);
   // Opened from outside a pane (the sidebar): from the first pane.
-  useEffect(() => setShownWorkspace((opens, how) => openFrom({ root, agent, dispatch }, panes(root)[0]!.id, opens, how)));
+  useEffect(() => setShownWorkspace((opens, how) => openFrom({ root, agent, dispatch, nameOf }, panes(root)[0]!.id, opens, how)));
   return <div className="flex min-h-0 min-w-0 flex-1">{render(root, true)}</div>;
 }
 

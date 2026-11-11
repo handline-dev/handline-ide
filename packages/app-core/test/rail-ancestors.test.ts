@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import type { AgentView } from '@handline/client';
 import { railRows } from '#src/model.ts';
 
-const agent = (name: string, state: string, parent: string | null) => ({ name, state, parent, role: '' }) as unknown as AgentView;
+const agent = (name: string, state: string, parent: string | null) =>
+  ({ key: name, name, state, parent, role: '' }) as unknown as AgentView;
 const team = [
   agent('handline', 'idle', null),
   agent('handline.pc', 'parked', 'handline'),
@@ -11,7 +12,7 @@ const team = [
   agent('handline.pc.auditor', 'running', 'handline.pc'),
   agent('handline.pr', 'idle', 'handline'),
 ];
-const tree = (rows: ReturnType<typeof railRows>) => rows.map((r) => `${'-'.repeat(r.depth)}${r.agent.name}`);
+const tree = (rows: ReturnType<typeof railRows>) => rows.map((r) => `${'-'.repeat(r.depth)}${r.agent.key}`);
 
 test('a filter that hides a parent leaves it in the tree while a child of it shows', () => {
   assert.deepEqual(tree(railRows(team, { hidden: new Set(['parked']) })), [

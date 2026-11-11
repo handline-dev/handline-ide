@@ -8,7 +8,7 @@ export function TabDot({ target }: { target: NonNullable<TabTarget> }) {
   const task = useTask(target.on === 'task' ? target.id : 0, { enabled: target.on === 'task' }).data;
   const inboxUnread = useUnread().length;
   const me = useMe();
-  const agentUnread = target.on === 'agent' ? agents?.find((a) => a.name === target.name)?.founder_unread : undefined;
+  const agentUnread = target.on === 'agent' ? agents?.find((a) => a.key === target.name)?.founder_unread : undefined;
   if (!tabHasDot(target, { me, agentUnread, task, inboxUnread })) return null;
   return <span role="img" aria-label="Unread" className="size-1.5 shrink-0 rounded-full bg-accent" />;
 }

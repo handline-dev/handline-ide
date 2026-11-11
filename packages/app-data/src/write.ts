@@ -93,7 +93,7 @@ export function useWrite<M extends WriteMethod>(method: M, target?: string) {
 /** A structured agent has no terminal and no input to hold: a write that needs one never leaves the app. */
 function refuseStructured(qc: QueryClient, daemon: string, method: string, agent: string | undefined) {
   if (!agent || !(NOT_FOR_STRUCTURED as readonly string[]).includes(method)) return;
-  const row = qc.getQueryData<{ agents: AgentView[] }>(qk.agents(daemon))?.agents.find((a) => a.name === agent);
+  const row = qc.getQueryData<{ agents: AgentView[] }>(qk.agents(daemon))?.agents.find((a) => a.key === agent);
   const detail = qc.getQueryData<AgentDetail>(qk.agent(daemon, agent));
   if (row?.structured || detail?.structured) throw new Error(`${method}: ${agent} is a structured agent and has no terminal`);
 }

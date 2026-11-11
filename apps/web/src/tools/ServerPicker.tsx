@@ -28,7 +28,7 @@ const origin = (url: string): string | null => {
 /** Beside the address bar: the servers the agent's processes listen on, lowest port first; picking one opens it here. */
 export function ServerPicker({ agent, current, onPick }: { agent: string; current: string; onPick: (url: string) => void }) {
   // One on a scoped link-local address (fe80::1%en0) has no URL a browser opens.
-  const servers = (useAgents().data?.agents.find((a) => a.name === agent)?.servers ?? []).filter((s) => !s.address.includes('%'));
+  const servers = (useAgents().data?.agents.find((a) => a.key === agent)?.servers ?? []).filter((s) => !s.address.includes('%'));
   const now = useNow();
   const at = (s: AgentServer) => origin(current) === origin(serverUrl(s));
   return (

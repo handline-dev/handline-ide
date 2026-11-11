@@ -28,7 +28,16 @@ const ev = (type: string, data: object, over: Partial<WireEvent> = {}): WireEven
     ...over,
   } as WireEvent;
 };
-const agent = (name: string, state = 'idle') => ({ name, state, role: '', model: null, effort: null, account: null, task: null });
+const agent = (name: string, state = 'idle') => ({
+  key: name,
+  name,
+  state,
+  role: '',
+  model: null,
+  effort: null,
+  account: null,
+  task: null,
+});
 const stale = (key: readonly unknown[]) => qc.getQueryState(key)?.isInvalidated === true;
 
 describe('agents', () => {
@@ -57,13 +66,13 @@ describe('agents', () => {
     expect(qc.getQueryData(qk.agent(D, 'c'))).toBeUndefined();
   });
   it('an event without a field the contract requires reads everything again instead of editing', () => {
-    applyEvent(c, { ...ev('agent.changed', agent('a', 'working')), data: { name: 'a' } } as WireEvent);
+    applyEvent(c, { ...ev('agent.changed', agent('a', 'working')), data: { key: 'a', name: 'a' } } as WireEvent);
     expect(qc.getQueryData<{ agents: { state: string }[] }>(qk.agents(D))!.agents.map((x) => x.state)).toEqual(['idle', 'idle']);
     expect(stale(qk.agents(D))).toBe(true);
   });
   it('agent.removed leaves the list and drops the detail', () => {
-    applyEvent(c, ev('agent.removed', { name: 'a' }, { agent: 'a' }));
-    expect(qc.getQueryData<{ agents: { name: string }[] }>(qk.agents(D))!.agents.map((x) => x.name)).toEqual(['b']);
+    applyEvent(c, ev('agent.removed', { key: 'a' }, { agent: 'a' }));
+    expect(qc.getQueryData<{ agents: { key: string }[] }>(qk.agents(D))!.agents.map((x) => x.key)).toEqual(['b']);
     expect(qc.getQueryData(qk.agent(D, 'a'))).toBeUndefined();
   });
   it("agent.control reads that agent's detail again", () => {

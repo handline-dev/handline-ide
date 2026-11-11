@@ -267,18 +267,18 @@ export function myTurn({ items, agents, tasks, titles, machine = [], me = '' }: 
     const n =
       a.needs_you ?? (a.has_dialog ? { kind: 'dialog', since: a.state_since, text: a.state_detail || null, source: 'screen' } : null);
     if (!n) continue;
-    if (n.kind !== 'dialog' && prompted.has(a.name)) continue; // its inbox item is the card
+    if (n.kind !== 'dialog' && prompted.has(a.key)) continue; // its inbox item is the card
     const dialog = n.kind === 'dialog';
     // A stall the daemon raised is the session's, not the task's: it carries no task.
     const task = n.source === 'daemon' ? null : (a.task?.id ?? null);
     const w = when(task);
     cards.push({
-      key: `agent:${a.name}`,
+      key: `agent:${a.key}`,
       kind: dialog ? 'dialog' : 'attention',
       title: ('title' in n && n.title) || (dialog ? 'Waiting on a dialog' : 'Hit the session limit'), // the daemon's own title; a screen-read dialog has none
       detail: n.text ?? '',
-      agent: a.name,
-      from: a.name,
+      agent: a.key,
+      from: a.key,
       task,
       memo: null,
       review: false,
@@ -288,12 +288,12 @@ export function myTurn({ items, agents, tasks, titles, machine = [], me = '' }: 
       // A dialog the daemon does not know has no Allow or Deny: the terminal is the only way. A stall the daemon raised has its one button.
       actions:
         n.kind === 'start_failed' || n.kind === 'no_session'
-          ? [{ type: 'retry', agent: a.name }]
+          ? [{ type: 'retry', agent: a.key }]
           : dialog || n.kind === 'trust'
-            ? [{ type: 'terminal', agent: a.name }]
+            ? [{ type: 'terminal', agent: a.key }]
             : [
-                { type: 'open', to: `#/agents/${encodeURIComponent(a.name)}` },
-                { type: 'terminal', agent: a.name },
+                { type: 'open', to: `#/agents/${encodeURIComponent(a.key)}` },
+                { type: 'terminal', agent: a.key },
               ],
     });
   }
@@ -332,7 +332,7 @@ export function messageRows(agents: readonly AgentView[]): MessageRow[] {
   return agents
     .filter((a) => (a.founder_unread ?? 0) > 0)
     .map((a) => ({
-      agent: a.name,
+      agent: a.key,
       line: a.last_to_founder?.text ?? '',
       at: at(a.last_to_founder?.at),
       unread: a.founder_unread!,

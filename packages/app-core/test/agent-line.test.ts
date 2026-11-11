@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import type { AgentView, Status } from '@handline/client';
 import { agentLine, doingWords, rowWord } from '#src/agent-line.ts';
 
-const agent = (over: Record<string, unknown>) => ({ name: 'a', state: 'idle', ...over }) as unknown as AgentView;
+const agent = (over: Record<string, unknown>) => ({ key: 'a', name: 'a', state: 'idle', ...over }) as unknown as AgentView;
 
 describe('doingWords', () => {
   it('says a tool call in words, never the command or the path', () => {

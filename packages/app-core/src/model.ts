@@ -32,7 +32,7 @@ export const bySavedOrder =
   (order: readonly string[]) =>
   (a: AgentView, b: AgentView): number => {
     const at = (x: AgentView) => {
-      const i = order.indexOf(x.name);
+      const i = order.indexOf(x.key);
       return i < 0 ? order.length : i;
     };
     return at(a) - at(b) || a.name.localeCompare(b.name);
@@ -81,14 +81,14 @@ export function railRows(agents: AgentView[], opts: RailFilter = {}, order?: rea
   const match = agents.filter(railMatch(opts));
   const found = railMatch({ search: opts.search });
   // Keep the parents a dot filter hides while a child shows, so the children do not float to the top level.
-  const byName = new Map(agents.map((a) => [a.name, a]));
-  const names = new Set(match.map((a) => a.name));
+  const byName = new Map(agents.map((a) => [a.key, a]));
+  const names = new Set(match.map((a) => a.key));
   for (const a of match)
-    for (let p = byName.get(a.parent ?? ''); p && !names.has(p.name) && found(p); p = byName.get(p.parent ?? '')) names.add(p.name);
-  const shown = agents.filter((a) => names.has(a.name));
+    for (let p = byName.get(a.parent ?? ''); p && !names.has(p.key) && found(p); p = byName.get(p.parent ?? '')) names.add(p.key);
+  const shown = agents.filter((a) => names.has(a.key));
   const rows: RailRow[] = [];
   const walk = (a: AgentView, depth: number) => {
-    const kids = shown.filter((x) => x.parent === a.name).sort(sibling);
+    const kids = shown.filter((x) => x.parent === a.key).sort(sibling);
     rows.push({ agent: a, depth, kids: kids.length });
     for (const c of kids) walk(c, depth + 1);
   };
@@ -102,9 +102,9 @@ function below(agents: readonly AgentView[], name: string): AgentView[] {
   let size = 0;
   while (size < under.size) {
     size = under.size;
-    for (const x of agents) if (x.parent && under.has(x.parent)) under.add(x.name);
+    for (const x of agents) if (x.parent && under.has(x.parent)) under.add(x.key);
   }
-  return agents.filter((x) => x.name !== name && under.has(x.name));
+  return agents.filter((x) => x.key !== name && under.has(x.key));
 }
 
 /** How many of an agent's sub-agents, at any depth, are working: a folded row shows it so the work under it is not out of sight. */

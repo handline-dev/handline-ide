@@ -1,6 +1,7 @@
 import { CopyButton } from '#src/chat/MessageActions.tsx';
 import { MessageImages } from '#src/chat/MessageImages.tsx';
-import { attachmentOf, BANG_FROM, bangOf, commandOf } from '@handline/app-core';
+import { attachmentOf, BANG_FROM, bangOf, commandOf, renderRefs } from '@handline/app-core';
+import { useDirectory } from '@handline/app-data';
 import { CommandRunBar, CommandsOf, type CommandsOfValue } from '#src/chat/CommandBlock.tsx';
 import { marked, type Token, type Tokens } from 'marked';
 import { createContext, Fragment, useContext, type ReactNode } from 'react';
@@ -9,9 +10,9 @@ import { fileOf, taskOf, webOf } from '#src/layout/kinds.tsx';
 
 /** Markdown as the chat and notes show it: marked reads it (GFM), and each token is drawn as a React element, so no HTML in the
  * text is ever run. Lists keep the numbers as written (1. 2. or 1) 2)), not renumbered. In text, a task (T1234), a web address
- * and a repo path (apps/web/src/main.tsx:12) open in a tab: a click here, Cmd+click beside. */
+ * and a repo path (apps/web/src/main.tsx:12) open in a tab: a click here, Cmd+click beside. A stored mention (<@key>) reads as @name. */
 export function Markdown({ text }: { text: string }) {
-  const tokens = marked.lexer(text, { gfm: true, breaks: true });
+  const tokens = marked.lexer(renderRefs(useDirectory(), text), { gfm: true, breaks: true });
   // In a chat line, every code fence is numbered in order (app-core commandOf), and each inline `! ` span from BANG_FROM: a command's
   // run is named by that number.
   const of = useContext(CommandsOf);

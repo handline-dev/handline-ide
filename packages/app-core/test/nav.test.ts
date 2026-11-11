@@ -17,7 +17,7 @@ import {
 } from '#src/index.ts';
 
 const agent = (name: string, state: string, parent: string | null, unread = false) =>
-  ({ name, state, parent, role: '', founder_unread: unread ? 1 : 0 }) as unknown as AgentView;
+  ({ key: name, name, state, parent, role: '', founder_unread: unread ? 1 : 0 }) as unknown as AgentView;
 const team = [
   agent('handline', 'idle', null),
   agent('handline.pc', 'running', 'handline'),
@@ -25,7 +25,7 @@ const team = [
   agent('handline.daemon.auditor', 'parked', 'handline.daemon'),
   agent('orca', 'idle', null, true),
 ];
-const names = (l: { agent: AgentView; depth: number }[]) => l.map((r) => `${'-'.repeat(r.depth)}${r.agent.name}`);
+const names = (l: { agent: AgentView; depth: number }[]) => l.map((r) => `${'-'.repeat(r.depth)}${r.agent.key}`);
 
 test('missing prefs read as the defaults', () => {
   assert.deepEqual(navOf(undefined), DEFAULT_NAV);
@@ -36,7 +36,7 @@ test('the list keeps the pinned agents on top', () => {
   const pins = ['orca', 'gone', 'handline.pc'];
   const l = navList(team, { ...DEFAULT_NAV, pins });
   assert.deepEqual(
-    l.pinned.map((a) => a.name),
+    l.pinned.map((a) => a.key),
     ['orca', 'handline.pc'],
   );
 });
@@ -56,7 +56,7 @@ test('a filter or a search lists each match once: no Pinned section, a pinned ma
   assert.ok(names(unread.rows).includes('-handline.daemon') && names(unread.rows).includes('orca'));
   assert.deepEqual(navList(team, { ...DEFAULT_NAV, pins }, 'orc').pinned, []);
   assert.deepEqual(
-    navList(team, { ...DEFAULT_NAV, pins }, '  ').pinned.map((a) => a.name),
+    navList(team, { ...DEFAULT_NAV, pins }, '  ').pinned.map((a) => a.key),
     ['orca', 'handline.daemon'],
   );
 });
@@ -92,7 +92,7 @@ test('the dock is the pins, then the open tabs that are not pinned, each with th
     trees,
   );
   assert.deepEqual(
-    [d.pinned, d.open].map((l) => l.map((i) => `${i.agent.name}@${i.branch}`)),
+    [d.pinned, d.open].map((l) => l.map((i) => `${i.agent.key}@${i.branch}`)),
     [['orca@orca-main'], ['handline.pc@spare', 'handline@null']],
   );
 });

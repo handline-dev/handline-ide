@@ -32,7 +32,7 @@ export function useTeamBoard() {
   const agents = useAgents().data?.agents ?? [];
   const [open, setOpen] = useState<string | null>(null);
   const team = query.data;
-  const doing = (name: string): AgentView | undefined => agents.find((a) => a.name === name);
+  const doing = (name: string): AgentView | undefined => agents.find((a) => a.key === name);
   return {
     query,
     served,

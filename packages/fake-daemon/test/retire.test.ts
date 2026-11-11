@@ -16,7 +16,7 @@ test('agent.retire refuses an open session, then retires the agent and it is gon
   s.open = false;
   const r = await client.call('agent.retire', { agent: name, request_id: 'ret-2' });
   assert.equal(r.said, `${name} is retired.`);
-  const names = (await client.call('agents.list', {})).agents.map((a: { name: string }) => a.name);
+  const names = (await client.call('agents.list', {})).agents.map((a: { key: string }) => a.key);
   assert.ok(!names.includes(name), names.join(', '));
   client.close();
 });

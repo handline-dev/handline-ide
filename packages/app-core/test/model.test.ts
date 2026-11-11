@@ -35,6 +35,7 @@ import {
 
 const agent = (name: string, over: Partial<AgentView> = {}): AgentView =>
   ({
+    key: name,
     name,
     role: 'implementer',
     model: 'opus',
@@ -73,7 +74,7 @@ test('the rail sorts waiting up, nests children, and filters by dot and search',
     agent('u.q', { state: 'queued' }),
     agent('solo'),
   ];
-  const names = (o?: Parameters<typeof railRows>[1]) => railRows(list, o).map((r) => [r.agent.name, r.depth]);
+  const names = (o?: Parameters<typeof railRows>[1]) => railRows(list, o).map((r) => [r.agent.key, r.depth]);
   assert.deepEqual(names(), [
     ['t.w', 0],
     ['u.q', 0],
@@ -101,7 +102,7 @@ test('the rail sorts waiting up, nests children, and filters by dot and search',
 
 test('a child whose parent is filtered out still shows', () => {
   assert.deepEqual(
-    railRows([agent('b'), agent('kid', { parent: 'b', role: 'x' })], { search: 'kid' }).map((r) => r.agent.name),
+    railRows([agent('b'), agent('kid', { parent: 'b', role: 'x' })], { search: 'kid' }).map((r) => r.agent.key),
     ['kid'],
   );
 });
@@ -330,10 +331,10 @@ test('the stop modes of a structured agent are in session words and drop Exit', 
 
 test('an agent that is restarting stays in the list whatever the filter hides', () => {
   const a = (name: string, handoff?: object) =>
-    ({ name, role: 'x', state: 'idle', ...(handoff ? { handoff } : {}) }) as unknown as Parameters<typeof railRows>[0][number];
+    ({ key: name, name, role: 'x', state: 'idle', ...(handoff ? { handoff } : {}) }) as unknown as Parameters<typeof railRows>[0][number];
   const rows = railRows([a('quiet'), a('again', { cause: 'context_full', phase: 'writing', since: 'x' })], { hidden: new Set(['idle']) });
   assert.deepEqual(
-    rows.map((r) => r.agent.name),
+    rows.map((r) => r.agent.key),
     ['again'],
   );
 });

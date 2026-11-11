@@ -257,7 +257,7 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
   // Opening the chat reads what the agent said: its newest message, and what it sent the Inbox about itself.
   useChatReadMarks(agent, chat);
   const { entries, bash } = foldBash(chatView(chat, 'mine', agent, me, [], true).entries);
-  const view = useAgents().data?.agents.find((a) => a.name === agent);
+  const view = useAgents().data?.agents.find((a) => a.key === agent);
   const doing = view?.doing?.text;
   const held = view?.task;
   const now = useNow();

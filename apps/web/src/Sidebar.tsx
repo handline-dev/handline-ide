@@ -1,5 +1,5 @@
-import { dotOf, queuedBehind } from '@handline/app-core';
-import { useAgents, useNav } from '@handline/app-data';
+import { byWorkspace, dotOf, queuedBehind } from '@handline/app-core';
+import { useAgents, useDirectory, useNameOf, useNav } from '@handline/app-data';
 import { AgentMenu } from '#src/AgentMenu.tsx';
 import { newAgent } from '#src/NewAgent.tsx';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -11,7 +11,7 @@ import { ActivityIcon } from '#src/ui/activityIcon.tsx';
 import { ago, useNow } from '#src/format/time.ts';
 import { ChevronLeft, ChevronRight, ListChecks, LoaderCircle, Pin, Plus, PanelLeft } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { activityOf, holdLine, agentTree, pathTo, splitPinned, shortName, workingUnder, type AgentNode } from '#src/layout/agentTree.ts';
+import { activityOf, holdLine, agentTree, pathTo, splitPinned, workingUnder, type AgentNode } from '#src/layout/agentTree.ts';
 import { chatOf, footerPages, pages } from '#src/layout/kinds.tsx';
 import { useRequests } from '#src/requests/data.ts';
 import { Row } from '#src/sidebar/Row.tsx';
@@ -66,8 +66,7 @@ type Pick = {
 let dragged: { name: string; group: string } | null = null;
 
 /** Rows of one sibling group. `onMove(name, names)` hears the group's new order after a drag within it. */
-/** `under`: the agent drawn above this group, whose prefix the names drop; none at a section's top, so a
- * pinned legacy.caricat reads in full. */
+/** `under`: the agent drawn above this group; none at a section's top, where a pinned sub-agent names its parent. */
 function AgentRows({
   nodes,
   pick,
@@ -80,7 +79,8 @@ function AgentRows({
   under?: string | null;
 }) {
   const now = useNow();
-  const names = nodes.map((n) => n.agent.name);
+  const nameOf = useNameOf();
+  const names = nodes.map((n) => n.agent.key);
   const group = names.join('|');
   const [line, setLine] = useState<{ at: string; after: boolean } | null>(null);
   const drop = (target: string, after: boolean) => {
@@ -90,17 +90,17 @@ function AgentRows({
     onMove([...rest.slice(0, i), dragged.name, ...rest.slice(i)]);
   };
   return nodes.map(({ agent, children }) => {
-    const open = !pick.folded.has(agent.name);
-    const opens = chatOf(agent.name);
+    const open = !pick.folded.has(agent.key);
+    const opens = chatOf(agent.key);
     // Folded, a team still shows the branch to the picked agent.
     const shown = open ? children : pathTo(children, pick.agent);
     return (
       <div
-        key={agent.name}
+        key={agent.key}
         className="relative flex flex-col rounded-lg border border-transparent has-[>div>div>[role=button]:hover]:border-border"
         onDragStart={(e) => {
           e.stopPropagation();
-          dragged = { name: agent.name, group };
+          dragged = { name: agent.key, group };
         }}
         onDragEnd={() => {
           dragged = null;
@@ -111,7 +111,7 @@ function AgentRows({
           e.preventDefault();
           e.stopPropagation();
           const r = e.currentTarget.getBoundingClientRect();
-          setLine({ at: agent.name, after: e.clientY > r.top + Math.min(r.height, 32) / 2 });
+          setLine({ at: agent.key, after: e.clientY > r.top + Math.min(r.height, 32) / 2 });
         }}
         onDragLeave={(e) => {
           if (!e.currentTarget.contains(e.relatedTarget as globalThis.Node | null)) setLine(null);
@@ -120,23 +120,23 @@ function AgentRows({
           if (!dragged || dragged.group !== group) return;
           e.preventDefault();
           e.stopPropagation();
-          drop(agent.name, line?.after ?? false);
+          drop(agent.key, line?.after ?? false);
           setLine(null);
         }}
       >
-        {line?.at === agent.name && (
+        {line?.at === agent.key && (
           <span className={`pointer-events-none absolute inset-x-1 h-0.5 rounded-full bg-accent ${line.after ? '-bottom-1' : '-top-1'}`} />
         )}
-        <AgentMenu agent={agent} opens={opens} onShow={() => pick.onSelect(agent.name)} onSettings={() => pick.onSettings(agent.name)}>
+        <AgentMenu agent={agent} opens={opens} onShow={() => pick.onSelect(agent.key)} onSettings={() => pick.onSettings(agent.key)}>
           <AgentRowCard jobs={agent.background ?? []}>
             <Row
               opens={opens}
               menu={false}
-              // At a section's top a sub-agent is a pin out of its team: its short name after the team's.
-              title={under === null && agent.parent ? shortName(agent.name, agent.parent) : shortName(agent.name, under)}
-              context={under === null && agent.parent ? agent.parent : undefined}
-              selected={pick.agent === agent.name}
-              onShow={() => pick.onSelect(agent.name)}
+              // At a section's top a sub-agent is a pin out of its team: its name after its parent's.
+              title={agent.name}
+              context={under === null && agent.parent ? nameOf(agent.parent) : undefined}
+              selected={pick.agent === agent.key}
+              onShow={() => pick.onSelect(agent.key)}
               // Only a parent has the fold chevron; a leaf starts at its dot.
               lead={
                 children.length > 0 && (
@@ -144,7 +144,7 @@ function AgentRows({
                     className="grid size-3 shrink-0 place-items-center text-muted"
                     onClick={(e) => {
                       e.stopPropagation();
-                      pick.toggleFold(agent.name);
+                      pick.toggleFold(agent.key);
                     }}
                   >
                     <ChevronRight size={12} className={`transition-transform duration-150 ${open ? 'rotate-90' : ''}`} />
@@ -191,7 +191,7 @@ function AgentRows({
               className="overflow-hidden"
             >
               <div className="ml-3.5 flex flex-col gap-1 pt-1">
-                <AgentRows nodes={shown} pick={pick} onMove={onMove} under={agent.name} />
+                <AgentRows nodes={shown} pick={pick} onMove={onMove} under={agent.key} />
               </div>
             </motion.div>
           )}
@@ -249,11 +249,11 @@ function Section({
   );
 }
 
-/** The agents in two sections: Pinned (when any are), each with its whole team, then Agents, the rest of the tree. */
+/** The agents in sections: Pinned (when any are), each with its whole team, then a section per workspace. */
 function Agents({ pick, page, onNew }: { pick: Pick; page: string | null; onNew: () => void }) {
   const list = useAgents();
   const { nav, change, togglePin } = useNav();
-  const first = list.data?.agents[0]?.name;
+  const first = list.data?.agents[0]?.key;
   // Nothing picked yet, neither agent nor page (a first visit): the first agent's workspace.
   useEffect(() => {
     if (!pick.agent && !page && first) pick.onSelect(first);
@@ -261,6 +261,14 @@ function Agents({ pick, page, onNew }: { pick: Pick; page: string | null; onNew:
   // A sibling group's new order goes first in nav.order; the rest of the order stays as it was.
   const reorder = (names: string[]) => change({ order: [...names, ...nav.order.filter((n) => !names.includes(n))] });
   const { pinned, rest } = list.data ? splitPinned(agentTree(list.data.agents, nav.order), nav.pins) : { pinned: [], rest: [] };
+  // The rest of the tree, a section per workspace: each top-level agent with the agents under it.
+  const groups = byWorkspace(
+    useDirectory(),
+    rest.map((n) => n.agent),
+  ).map(({ workspace, agents }) => ({
+    workspace,
+    nodes: agents.map((a) => rest.find((n) => n.agent === a)!),
+  }));
   return (
     <>
       {pinned.length > 0 && (
@@ -277,39 +285,48 @@ function Agents({ pick, page, onNew }: { pick: Pick; page: string | null; onNew:
           />
         </Section>
       )}
-      <Section
-        title="Agents"
-        // Dragging a pinned agent down here unpins it.
-        accepts={(name) => nav.pins.includes(name)}
-        onAgentDrop={togglePin}
-        action={
-          <IconButton label="New agent" onClick={onNew}>
-            <Plus size={14} />
-          </IconButton>
-        }
-      >
-        {list.isPending && (
-          // Shaped like the rows to come: status dot, name, time; some indented as sub-agents.
-          <div aria-busy className="flex animate-pulse flex-col gap-1">
-            {[
-              [0, 55],
-              [1, 45],
-              [1, 60],
-              [0, 50],
-              [0, 40],
-            ].map(([indent, w], i) => (
-              <div key={i} className={`flex h-7 items-center gap-1.5 px-2 ${indent ? 'ml-3.5' : ''}`}>
-                <span className="size-3 shrink-0 rounded-full bg-border" />
-                <span style={{ width: `${w}%` }} className="h-3 rounded bg-border" />
-                <span className="flex-1" />
-                <span className="h-2.5 w-6 rounded bg-border" />
-              </div>
-            ))}
-          </div>
-        )}
-        {list.isError && <p className="px-2 text-sm text-danger">Agents did not load.</p>}
-        <AgentRows nodes={rest} pick={pick} onMove={reorder} />
-      </Section>
+      {groups.map(({ workspace, nodes }, i) => (
+        <Section
+          key={workspace?.key ?? ''}
+          title={workspace?.name ?? 'Agents'}
+          // Dragging a pinned agent down here unpins it.
+          accepts={(name) => nav.pins.includes(name)}
+          onAgentDrop={togglePin}
+          action={
+            i === 0 && (
+              <IconButton label="New agent" onClick={onNew}>
+                <Plus size={14} />
+              </IconButton>
+            )
+          }
+        >
+          <AgentRows nodes={nodes} pick={pick} onMove={reorder} />
+        </Section>
+      ))}
+      {(list.isPending || list.isError) && (
+        <Section title="Agents">
+          {list.isPending && (
+            // Shaped like the rows to come: status dot, name, time; some indented as sub-agents.
+            <div aria-busy className="flex animate-pulse flex-col gap-1">
+              {[
+                [0, 55],
+                [1, 45],
+                [1, 60],
+                [0, 50],
+                [0, 40],
+              ].map(([indent, w], i) => (
+                <div key={i} className={`flex h-7 items-center gap-1.5 px-2 ${indent ? 'ml-3.5' : ''}`}>
+                  <span className="size-3 shrink-0 rounded-full bg-border" />
+                  <span style={{ width: `${w}%` }} className="h-3 rounded bg-border" />
+                  <span className="flex-1" />
+                  <span className="h-2.5 w-6 rounded bg-border" />
+                </div>
+              ))}
+            </div>
+          )}
+          {list.isError && <p className="px-2 text-sm text-danger">Agents did not load.</p>}
+        </Section>
+      )}
     </>
   );
 }

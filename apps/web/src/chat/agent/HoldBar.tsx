@@ -10,7 +10,7 @@ import { Page } from '#src/ui/Page.tsx';
 
 /** At the chat's top while the agent stands still: the sidebar's mark, why in full, and the one button that gets it going. */
 export function HoldBar({ agent }: { agent: string }) {
-  const a = useAgents().data?.agents.find((x) => x.name === agent);
+  const a = useAgents().data?.agents.find((x) => x.key === agent);
   const accounts = useAccounts().data?.accounts;
   const run = useVerbRun(agent);
   const terminal = useOpenable('shell');

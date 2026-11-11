@@ -27,12 +27,12 @@ const data = <T>(e: WireEvent) => e.data as unknown as Data<T>;
 const rules: Record<string, Rule> = {
   'agent.changed': ({ qc, d }, e) => {
     const a = data<AgentView>(e);
-    edit<{ agents: AgentView[] }>(qc, qk.agents(d), (l) => ({ ...l, agents: upsert(l.agents, a, (x) => x.name === a.name) }), e.cursor);
-    edit<AgentDetail>(qc, qk.agent(d, a.name), (old) => ({ ...old, ...a }), e.cursor);
+    edit<{ agents: AgentView[] }>(qc, qk.agents(d), (l) => ({ ...l, agents: upsert(l.agents, a, (x) => x.key === a.key) }), e.cursor);
+    edit<AgentDetail>(qc, qk.agent(d, a.key), (old) => ({ ...old, ...a }), e.cursor);
     // The row does not carry what the detail adds (terminal, who may type, the open prompt), so an open detail is read again.
-    void qc.invalidateQueries({ queryKey: qk.agent(d, a.name) });
+    void qc.invalidateQueries({ queryKey: qk.agent(d, a.key) });
     // The strip (model, context) is read once and kept: a new session or a change of model shows only when it is read again.
-    void qc.invalidateQueries({ queryKey: keyOf(d, 'agent.strip', { agent: a.name }) });
+    void qc.invalidateQueries({ queryKey: keyOf(d, 'agent.strip', { agent: a.key }) });
   },
   // The founder deleted an image: every picture of it goes blank, and the texts that carry it say so when read again.
   'attachment.removed': ({ qc, d }, e) => {
@@ -42,8 +42,8 @@ const rules: Record<string, Rule> = {
     void qc.invalidateQueries({ queryKey: qk.resource(d, 'task.comment.list') });
   },
   'agent.removed': ({ qc, d }, e) => {
-    const name = e.agent ?? String(data<{ name: string }>(e).name);
-    edit<{ agents: AgentView[] }>(qc, qk.agents(d), (l) => ({ ...l, agents: l.agents.filter((x) => x.name !== name) }), e.cursor);
+    const name = e.agent ?? String(data<{ key: string }>(e).key);
+    edit<{ agents: AgentView[] }>(qc, qk.agents(d), (l) => ({ ...l, agents: l.agents.filter((x) => x.key !== name) }), e.cursor);
     qc.removeQueries({ queryKey: qk.agent(d, name) });
   },
   // The store keeps the notes; the detail is read again, since a control changes what it shows.
@@ -99,6 +99,8 @@ const rules: Record<string, Rule> = {
   'device.paired': ({ qc, d }) => void qc.invalidateQueries({ queryKey: qk.resource(d, 'devices.list') }),
   'device.revoked': ({ qc, d }) => void qc.invalidateQueries({ queryKey: qk.resource(d, 'devices.list') }),
   'device.renamed': ({ qc, d }) => void qc.invalidateQueries({ queryKey: qk.resource(d, 'devices.list') }),
+  'people.changed': ({ qc, d }) => void qc.invalidateQueries({ queryKey: qk.resource(d, 'people.list') }),
+  'workspaces.changed': ({ qc, d }) => void qc.invalidateQueries({ queryKey: qk.resource(d, 'workspaces.list') }),
   'prefs.changed': ({ qc, d }, e) => put<Prefs>(qc, qk.prefs(d), data<Prefs>(e), e.cursor),
   // A row replaces its task's row in every cached requests list; a new one goes on top (newest first). One without a task is a chat message.
   'request.changed': ({ qc, d }, e) => {

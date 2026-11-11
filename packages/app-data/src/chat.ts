@@ -12,6 +12,7 @@ import {
   type QueryClient,
   type UseInfiniteQueryResult,
 } from '@tanstack/react-query';
+import { toRefs } from '@handline/app-core';
 import { useStore } from '@handline/app-react';
 import type { ChatMessage, TranscriptItem, Working } from '@handline/client';
 import { mapPages, type Pages } from '#src/cache.ts';
@@ -19,6 +20,7 @@ import { NOT_WORKING, type MsgPage, type TrPage } from '#src/chat-events.ts';
 import { useData, useFeed, useServes } from '#src/provider.ts';
 import { qk } from '#src/reads.ts';
 import { forgetRow, newOperationId, operationOf, type Delivery, type SendTask } from '#src/send-ops.ts';
+import { useDirectory } from '#src/read.ts';
 import { useWrite } from '#src/write.ts';
 
 export type ChatScope = 'mine' | 'all';
@@ -173,6 +175,7 @@ export function useChatActions(agent: string) {
   const qc = useQueryClient();
   const { daemon } = useData();
   const send = useWrite('chat.send', agent);
+  const dir = useDirectory();
   const sendNow = useWrite('chat.send_now', agent);
   const cancel = useWrite('chat.cancel', agent);
   const rows = (f: (m: ChatMessage) => boolean) => {
@@ -198,7 +201,7 @@ export function useChatActions(agent: string) {
   ) =>
     send.mutate({
       agent: to,
-      body,
+      body: toRefs(dir, body),
       ...(parent != null ? { parent } : {}),
       ...(parentItem != null ? { parent_item: parentItem } : {}),
       ...(quote ? { quote } : {}),
