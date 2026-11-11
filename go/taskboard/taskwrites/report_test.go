@@ -37,7 +37,7 @@ func reportEnvIn(t *testing.T, home string, rows ...string) (*sql.DB, *fakeTelle
 			t.Fatalf("%s: %v", q, err)
 		}
 	}
-	f := &fakeTeller{}
+	f := &fakeTeller{db: sdb}
 	return sdb, f, func(agent, method, rid, params string) map[string]any {
 		s := rpc.NewServer(auth{as(t, home, agent)}, "x", store.LatestVersion(), "local", func(string, ...any) {})
 		s.DB = sdb

@@ -28,33 +28,58 @@ type fakeTeller struct {
 	opened    []string
 	edited    []Edited
 	notified  []db.Notice
+	db        *sql.DB // the rig's task database: what is recorded is read by name (keys_test.go)
+}
+
+func (f *fakeTeller) n(s string) string { return named(f.db, s) }
+
+func (f *fakeTeller) notices(ns []db.Notice) []db.Notice {
+	out := make([]db.Notice, len(ns))
+	for i, x := range ns {
+		x.To, x.Text = f.n(x.To), f.n(x.Text)
+		out[i] = x
+	}
+	return out
+}
+
+func (f *fakeTeller) retired(rs []Retired) []Retired {
+	out := make([]Retired, len(rs))
+	for i, x := range rs {
+		x.Requester, x.Target = f.n(x.Requester), f.n(x.Target)
+		out[i] = x
+	}
+	return out
 }
 
 func (f *fakeTeller) MemoRecipients(int64, string, string, bool) ([]Recipient, bool) {
 	return nil, true
 }
 func (f *fakeTeller) MemoChanged(tid, mid int64, by, what, text string, now bool, skip []string) {
-	f.memos = append(f.memos, fmt.Sprintf("T%d %s %s %q%s", tid, by, what, text, map[bool]string{true: " now"}[now]))
+	f.memos = append(f.memos, fmt.Sprintf("T%d %s %s %q%s", tid, f.n(by), what, text, map[bool]string{true: " now"}[now]))
 }
 func (f *fakeTeller) QueueDelivered(tid int64, by string, queued bool) string {
-	f.queued = append(f.queued, fmt.Sprintf("T%d %s %v", tid, by, queued))
+	f.queued = append(f.queued, fmt.Sprintf("T%d %s %v", tid, f.n(by), queued))
 	return fmt.Sprintf("delivered T%d", tid)
 }
 func (f *fakeTeller) Discarded(owner string, told []db.Notice, freed []string) {
-	f.discarded = append(f.discarded, owner)
-	f.told, f.freed = told, freed
+	f.discarded = append(f.discarded, f.n(owner))
+	f.told = f.notices(told)
+	f.freed = nil
+	for _, x := range freed {
+		f.freed = append(f.freed, f.n(x))
+	}
 }
 
 func (f *fakeTeller) Cancelled(tid int64, by, owner string, stop bool, closed []Retired) {
-	f.cancelled = closed
+	f.cancelled = f.retired(closed)
 	f.stopped = stop
 }
 func (f *fakeTeller) Done(tid int64, by, owner string, told []db.Notice, finished bool) {
-	f.done = append(f.done, fmt.Sprintf("T%d %s %s %d %v", tid, by, owner, len(told), finished))
+	f.done = append(f.done, fmt.Sprintf("T%d %s %s %d %v", tid, f.n(by), f.n(owner), len(told), finished))
 }
-func (f *fakeTeller) Notified(told []db.Notice) { f.notified = append(f.notified, told...) }
+func (f *fakeTeller) Notified(told []db.Notice) { f.notified = append(f.notified, f.notices(told)...) }
 func (f *fakeTeller) Released(tid int64, why string, retired []Retired) []string {
-	f.released = retired
+	f.released = f.retired(retired)
 	return []string{fmt.Sprintf("%d stopped", len(retired))}
 }
 
@@ -164,7 +189,7 @@ func (f *fakeTeller) TaskAsk(tx *sql.Tx, in AskReq) (*Asked, error) {
 	if err := within(rid); err != nil {
 		return nil, err
 	}
-	return &Asked{OK: true, Msg: fmt.Sprintf("queued as #%d for %s", rid, to), RID: rid, After: f.after}, nil
+	return &Asked{OK: true, Msg: fmt.Sprintf("queued as #%d for %s", rid, f.n(to)), RID: rid, After: f.after}, nil
 }
 func (f *fakeTeller) HandoffRetire(tx *sql.Tx, rid int64, verdict string) (func(), error) {
 	ok, err := db.CloseIfQueued(tx, rid, "done", verdict)
@@ -174,10 +199,14 @@ func (f *fakeTeller) HandoffRetire(tx *sql.Tx, rid int64, verdict string) (func(
 	return func() {}, nil
 }
 func (f *fakeTeller) HandedOver(h Handover) string {
+	h.By, h.From, h.To = f.n(h.By), f.n(h.From), f.n(h.To)
 	f.handed = append(f.handed, h)
 	return "pushed"
 }
-func (f *fakeTeller) Edited(ed Edited) { f.edited = append(f.edited, ed) }
+func (f *fakeTeller) Edited(ed Edited) {
+	ed.By, ed.WasOwner, ed.Freed = f.n(ed.By), f.n(ed.WasOwner), f.n(ed.Freed)
+	f.edited = append(f.edited, ed)
+}
 func (f *fakeTeller) TaskSay(tx *sql.Tx, to, body string, within func(rid int64, note string) error) (*Asked, error) {
 	if f.deny != "" {
 		return &Asked{Msg: f.deny}, nil

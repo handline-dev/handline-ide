@@ -111,6 +111,9 @@ func discardEnvHome(t *testing.T) (*sql.DB, string, func(agent string, tell ...T
 		var teller Teller
 		if len(tell) > 0 {
 			teller = tell[0]
+			if f, ok := teller.(*fakeTeller); ok {
+				f.db = db
+			}
 		}
 		Register(s, home, teller, nil)
 		return s
