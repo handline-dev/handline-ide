@@ -188,7 +188,7 @@ test('at the wall keys pass and typed input is refused', async () => {
     daemon.sessions.get(W)!.received.map((r) => r.value),
     ['esc'],
   );
-  assert.equal((await client.call('agents.list', {})).agents.find((a) => a.name === W)!.block?.kind, 'wall');
+  assert.equal((await client.call('agents.list', {})).agents.find((a) => a.key === W)!.block?.kind, 'wall');
   client.close();
 });
 

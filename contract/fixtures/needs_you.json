@@ -197,7 +197,7 @@
       }
      },
      "result": {
-      "name": "{{view_alert_agent}}",
+      "key": "{{view_alert_agent}}",
       "state": "waiting",
       "has_dialog": true,
       "attention": "alert",
@@ -267,7 +267,7 @@
       }
      },
      "result": {
-      "name": "{{view_plain_agent}}",
+      "key": "{{view_plain_agent}}",
       "needs_you": null
      }
     }

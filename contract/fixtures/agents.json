@@ -30,7 +30,7 @@
       "agents": {
        "$type": "array",
        "$each": {
-        "name": {
+        "key": {
          "$type": "string"
         },
         "state": {
@@ -122,7 +122,7 @@
         }
        },
        "$contains": {
-        "name": "{{never_started_agent}}",
+        "key": "{{never_started_agent}}",
         "started": false,
         "has_repo": false,
         "has_terminal": false,

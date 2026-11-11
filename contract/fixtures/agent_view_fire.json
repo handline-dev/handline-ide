@@ -29,7 +29,7 @@
       }
      },
      "result": {
-      "name": "{{view_fire_agent}}",
+      "key": "{{view_fire_agent}}",
       "fire": "context"
      }
     },
@@ -43,7 +43,7 @@
      "result": {
       "agents": {
        "$contains": {
-        "name": "{{view_fire_agent}}",
+        "key": "{{view_fire_agent}}",
         "fire": "context"
        }
       }
@@ -80,7 +80,7 @@
       }
      },
      "result": {
-      "name": "{{view_plain_agent}}",
+      "key": "{{view_plain_agent}}",
       "fire": null,
       "cache_ignored": false,
       "config_error": null
@@ -96,7 +96,7 @@
      "result": {
       "agents": {
        "$contains": {
-        "name": "{{view_plain_agent}}",
+        "key": "{{view_plain_agent}}",
         "fire": null,
         "cache_ignored": false,
         "config_error": null
@@ -135,7 +135,7 @@
       }
      },
      "result": {
-      "name": "{{view_ignored_agent}}",
+      "key": "{{view_ignored_agent}}",
       "cache_ignored": true
      }
     },
@@ -149,7 +149,7 @@
      "result": {
       "agents": {
        "$contains": {
-        "name": "{{view_ignored_agent}}",
+        "key": "{{view_ignored_agent}}",
         "cache_ignored": true
        }
       }
@@ -186,7 +186,7 @@
       }
      },
      "result": {
-      "name": "{{view_broken_agent}}",
+      "key": "{{view_broken_agent}}",
       "config_error": {
        "$type": "string"
       },
@@ -205,7 +205,7 @@
      "result": {
       "agents": {
        "$contains": {
-        "name": "{{view_broken_agent}}",
+        "key": "{{view_broken_agent}}",
         "config_error": {
          "$type": "string"
         },

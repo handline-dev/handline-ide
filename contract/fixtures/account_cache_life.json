@@ -29,7 +29,7 @@
       }
      },
      "result": {
-      "name": "{{cold_agent}}",
+      "key": "{{cold_agent}}",
       "account": null
      }
     },
@@ -83,7 +83,7 @@
       }
      },
      "result": {
-      "name": "{{warm_agent}}",
+      "key": "{{warm_agent}}",
       "cache_until": {
        "$type": "timestamp"
       },
@@ -142,7 +142,7 @@
       }
      },
      "result": {
-      "name": "{{view_busy_agent}}",
+      "key": "{{view_busy_agent}}",
       "account": {
        "$type": "string",
        "$save": "acct"

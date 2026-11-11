@@ -189,7 +189,7 @@
       }
      },
      "result": {
-      "name": "{{proposal_turn_rename_to}}",
+      "key": "{{proposal_turn_rename_to}}",
       "session_open": true
      }
     },
