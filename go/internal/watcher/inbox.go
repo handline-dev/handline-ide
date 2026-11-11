@@ -8,12 +8,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/stream"
 	"github.com/handline/handline/go/internal/reads"
 )
 
 const (
-	humanName    = "human"
+	humanName    = db.Human
 	floorEveryS  = 600
 	readTouchSQL = "SELECT id, read_at AS touched FROM requests WHERE id >= :floor AND read_at >= :last"
 	newestTouch  = "SELECT COALESCE(MAX(COALESCE(state_at, ts)), 0) FROM requests"

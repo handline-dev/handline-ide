@@ -90,7 +90,7 @@ func taskDone(q *sql.DB, task any) (map[string]any, error) {
 	}
 	if asker != "" {
 		data["reporter"] = asker
-		data["from_founder"] = asker == "human" || opener.String == "human"
+		data["from_founder"] = asker == db.Human || opener.String == db.Human
 	}
 	first, _, _ := strings.Cut(strings.TrimSpace(evidence.String), "\n")
 	if r := []rune(strings.TrimSpace(first)); len(r) > 0 {
@@ -140,7 +140,7 @@ func (n *Notifications) Scan(q *sql.DB, emit Emit) error {
 				if err != nil {
 					return err
 				}
-				if data["reporter"] != "human" {
+				if data["reporter"] != db.Human {
 					continue // the founder hears of the tasks they answer for, and no others
 				}
 				if _, err := emit(stream.Entry{Topic: "notifications", Type: "task_done", Data: data, Agent: e.agent,

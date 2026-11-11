@@ -13,7 +13,7 @@ import (
 	"github.com/handline/handline/go/taskboard/attachments"
 )
 
-const human = "human"
+const human = db.Human
 
 // CancelVerdict is what a request the founder cancels says it was closed under.
 const CancelVerdict = "withdrawn by the founder"

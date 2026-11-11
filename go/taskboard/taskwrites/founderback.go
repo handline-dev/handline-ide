@@ -24,8 +24,8 @@ func ReturnFounderTasks(d *sql.DB, home string) (said []string, err error) {
 	}
 	rows, err := d.Query("SELECT t.id, t.opened_by, t.title, " +
 		"COALESCE((SELECT e.payload FROM events e WHERE e.kind = 'task_handoff' AND json_valid(e.payload) AND json_extract(e.payload, '$.task_id') = t.id " +
-		"AND json_extract(e.payload, '$.to') = 'human' AND json_extract(e.payload, '$.from') NOT IN ('human', 'gate', 'daemon') ORDER BY e.id DESC LIMIT 1), '') " +
-		"FROM tasks t WHERE t.owner = 'human' AND t.done_evidence IS NULL AND t.discarded_by IS NULL")
+		"AND json_extract(e.payload, '$.to') = '"+db.Human+"' AND json_extract(e.payload, '$.from') NOT IN ('"+db.Human+"', 'gate', 'daemon') ORDER BY e.id DESC LIMIT 1), '') " +
+		"FROM tasks t WHERE t.owner = '"+db.Human+"' AND t.done_evidence IS NULL AND t.discarded_by IS NULL")
 	if err != nil {
 		return nil, err
 	}

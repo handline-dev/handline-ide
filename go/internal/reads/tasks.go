@@ -19,7 +19,7 @@ import (
 	"github.com/handline/handline/go/taskboard/taskresult"
 )
 
-const human = "human"
+const human = db.Human
 
 const eventTask = "CASE WHEN json_valid(payload) THEN json_extract(payload, '$.task_id') END"
 
@@ -475,7 +475,7 @@ func (e *Env) firstRequest(tid int64) (row, error) {
 // askerSQL is askerOf as a column of a tasks row. The + keeps the planner off requests_requester, which would read every request
 // of the founder's for each task.
 const askerSQL = "COALESCE(NULLIF(reporter, ''), CASE WHEN EXISTS (SELECT 1 FROM task_requests l JOIN requests r ON r.id = l.request_id " +
-	"WHERE l.task_id = tasks.id AND +r.requester = 'human') THEN 'human' ELSE opened_by END)"
+	"WHERE l.task_id = tasks.id AND +r.requester = '"+db.Human+"') THEN '"+db.Human+"' ELSE opened_by END)"
 
 // askerOf is actions.task_asker: who a task answers to when it closes. Its reporter when one was set; else the founder, if any request
 // linked to it came from the founder; else whoever opened it.
