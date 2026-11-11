@@ -3,13 +3,13 @@ package reads
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/handline/handline/go/data/team/teamtest"
 	"math"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/kit/paths"
 )
 

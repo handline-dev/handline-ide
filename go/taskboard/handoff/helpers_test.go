@@ -3,7 +3,6 @@ package handoff
 import (
 	"database/sql"
 	"fmt"
-	"github.com/handline/handline/go/data/team/teamtest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,6 +10,7 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/kit/storetest"
 )
 

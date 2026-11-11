@@ -2,7 +2,6 @@ package usage
 
 import (
 	"encoding/json"
-	"github.com/handline/handline/go/data/team/teamtest"
 	"math"
 	"os"
 	"path/filepath"
@@ -13,6 +12,7 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/kit/storetest"
 )
 
@@ -79,7 +79,7 @@ func loadFixture(t *testing.T) fixture {
 
 func writeStatus(t *testing.T, home, acct string, raw any) {
 	t.Helper()
-	dir := filepath.Join(teamtest.AccountDir(t, home, acct))
+	dir := teamtest.AccountDir(t, home, acct)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}

@@ -1,13 +1,13 @@
 package usage
 
 import (
-	"github.com/handline/handline/go/data/team/teamtest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/data/team/teamtest"
 )
 
 func TestPickGivesEachRefusalItsKindAndACandidateNone(t *testing.T) {
@@ -37,7 +37,7 @@ func TestPickGivesEachRefusalItsKindAndACandidateNone(t *testing.T) {
 	writeStatus(t, home, "unmetered", at(fresh, 10, 10, false))
 	e.Metered = func(a string) bool { return a != "unmetered" }
 	for _, n := range []string{"endednofile", "blank"} {
-		os.MkdirAll(filepath.Join(teamtest.AccountDir(t, home, n)), 0o755)
+		os.MkdirAll(teamtest.AccountDir(t, home, n), 0o755)
 	}
 	os.WriteFile(filepath.Join(teamtest.AccountDir(t, home, "removing"), ".removing"), nil, 0o644)
 	cfg := map[string]any{}

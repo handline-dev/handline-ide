@@ -1,7 +1,6 @@
 package lifecycle
 
 import (
-	"github.com/handline/handline/go/data/team/teamtest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,6 +9,7 @@ import (
 	"github.com/handline/handline/go/agentctl/verdict"
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/scheduler/staymove"
 )
 

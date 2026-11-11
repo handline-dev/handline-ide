@@ -2,13 +2,13 @@ package compose
 
 import (
 	"fmt"
-	"github.com/handline/handline/go/data/team/teamtest"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
 
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/data/team/teamtest"
 )
 
 // Two agents in one worktree on one account: each finds only the session running in its own pane, never the other's, however much newer

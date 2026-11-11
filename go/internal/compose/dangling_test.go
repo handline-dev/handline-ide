@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/handline/handline/go/data/team/teamtest"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/handline/handline/go/agentctl/peerinbox"
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/data/team/teamtest"
 )
 
 // danglingRig: a session file for this test's own process under account a1, as a session running in a pane would leave.

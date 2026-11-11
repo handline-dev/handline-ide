@@ -2,7 +2,6 @@ package housekeeping
 
 import (
 	"fmt"
-	"github.com/handline/handline/go/data/team/teamtest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -10,12 +9,13 @@ import (
 
 	"github.com/handline/handline/go/accounts/usage"
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/kit/storetest"
 )
 
 func TestTheLoginWatchHoldsANeedUntilTheLoginOrTheLastDay(t *testing.T) {
 	home := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(teamtest.AccountDir(t, home, "alpha")), 0o755); err != nil {
+	if err := os.MkdirAll(teamtest.AccountDir(t, home, "alpha"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	q, err := storetest.OpenAt(t, filepath.Join(home, "db.sqlite"))
@@ -91,7 +91,7 @@ func TestTheLoginWatchHoldsANeedUntilTheLoginOrTheLastDay(t *testing.T) {
 // A stall keeps its time and why the account cannot be used, so the read that shows it asks nothing of the account.
 func TestTheLoginWatchKeepsWhyAStalledAccountCannotBeUsed(t *testing.T) {
 	home := t.TempDir()
-	dir := filepath.Join(teamtest.AccountDir(t, home, "alpha"))
+	dir := teamtest.AccountDir(t, home, "alpha")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}

@@ -41,7 +41,7 @@ func newRig(t *testing.T) *rig {
 		t.Setenv(k, "")
 	}
 	home := t.TempDir()
-	os.MkdirAll(filepath.Join(teamtest.AccountDir(t, home, "main")), 0o755)
+	os.MkdirAll(teamtest.AccountDir(t, home, "main"), 0o755)
 	d, err := storetest.OpenAt(t, filepath.Join(home, "db.sqlite"))
 	if err != nil {
 		t.Fatal(err)
@@ -345,7 +345,7 @@ func TestAccountReadUsageAsksThePollAndNeedsALogin(t *testing.T) {
 
 func TestAccountSetPausesAndResumesAnAccount(t *testing.T) {
 	r := newRig(t)
-	os.MkdirAll(filepath.Join(teamtest.AccountDir(t, r.home, "main")), 0o755)
+	os.MkdirAll(teamtest.AccountDir(t, r.home, "main"), 0o755)
 	if res := r.result(r.one("account.set", `{"account":"main","paused":true,"request_id":"p1"}`)); r.account("main")["paused"] != true {
 		t.Fatalf("%v %v", res, r.account("main"))
 	}

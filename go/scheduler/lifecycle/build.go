@@ -69,6 +69,12 @@ func (l *Launcher) Build(site *Site, agent string, extra []string, force bool, a
 		}
 		return nil, nil, refuse("agent '%s': %s", agent, l.NoRoom(agent))
 	}
+	// Its config dir is by key: one not looked up would point the session at an empty folder that is no account.
+	if key, err := paths.AccountKeyIn(l.Q, acct); err != nil {
+		return nil, nil, err
+	} else if key == "" {
+		return nil, nil, refuse("account '%s' is not registered: no account row has it", acct)
+	}
 	// The last line before an exec: whatever chose this account, a session is this vendor's binary pointed at that account's credentials.
 	if theirs := p.Vendors.AccountVendor(acct); theirs != drv.Name() {
 		return nil, nil, refuse("agent '%s' is a %s agent and account '%s' is a %s account - refusing to start it there.", agent, drv.Name(), acct, theirs)

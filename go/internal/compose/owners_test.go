@@ -1,11 +1,11 @@
 package compose
 
 import (
-	"github.com/handline/handline/go/data/team/teamtest"
 	"os"
 	"testing"
 
 	dbpkg "github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/kit/paths"
 )
 

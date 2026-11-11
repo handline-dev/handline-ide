@@ -172,7 +172,7 @@ func TestReadAllGivesEveryAccountItsCapAndTheBurnOfItsAgents(t *testing.T) {
 	home := t.TempDir()
 	e := testEnv(home, clock)
 	for _, a := range []string{"a", "b"} {
-		os.MkdirAll(filepath.Join(teamtest.AccountDir(t, home, a)), 0o755)
+		os.MkdirAll(teamtest.AccountDir(t, home, a), 0o755)
 	}
 	writeConfig(t, home, map[string]any{"active_cap": 3, "active_cap_b": 1})
 	seedCosts(t, q, 0.6, 5, map[string]AccountFactors{"b": {Short: Factor{USDPerPct: 0.4, Source: FactorOwn}}})

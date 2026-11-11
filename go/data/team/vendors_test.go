@@ -17,8 +17,12 @@ func TestAccountConfigDirIsTheLiveAccountsOne(t *testing.T) {
 		t.Fatalf("unset: %q %v", got, err)
 	}
 	t.Setenv("HANDLINE_"+LiveAccounts, real)
+	want := filepath.Join(accountDir(t, real, "theta"), ".claude")
 	got, err = AccountConfigDir(scratch, "theta")
-	if err != nil || got != filepath.Join(paths.AccountDir(real, "theta"), ".claude") {
+	if err != nil || got != want {
 		t.Fatalf("set: %q %v", got, err)
+	}
+	if _, err := AccountConfigDir(scratch, "iota"); err == nil {
+		t.Fatal("an account the real home has not")
 	}
 }

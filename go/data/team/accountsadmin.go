@@ -48,28 +48,49 @@ func (a Accounts) Add(acct, vendor string) (string, error) {
 	}
 	// Its row first: the folder is named by the row's key.
 	d, err := store.SharedIfThere(paths.DBFile(a.Home))
+	if err != nil {
+		return "", err
+	}
 	if d == nil {
-		return "", fmt.Errorf("no database at %s: %v", a.Home, err)
+		return "", fmt.Errorf("no database in %s: start the daemon once", a.Home)
 	}
 	owner, err := actor.Owner(d)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("account %s: %w", acct, err)
 	}
 	res, err := d.Exec("INSERT INTO accounts(name, owner, created_at) VALUES(?, ?, ?) ON CONFLICT(name) DO NOTHING", acct, owner, time.Now().Unix())
 	if err != nil {
 		return "", err
 	}
-	madeRow, _ := res.RowsAffected()
+	madeRow, err := res.RowsAffected()
+	if err != nil {
+		return "", err
+	}
 	dir := paths.AccountDir(a.Home, acct)
-	cdir := filepath.Join(dir, ConfigDirName(vendor))
-	fail := func(err error) (string, error) {
-		os.RemoveAll(dir)
+	dropRow := func() {
 		if madeRow > 0 {
 			d.Exec("DELETE FROM accounts WHERE name = ?", acct)
 		}
+	}
+	if err := os.MkdirAll(paths.AccountsDir(a.Home), 0o755); err != nil {
+		dropRow()
 		return "", err
 	}
-	if err := os.MkdirAll(cdir, 0o755); err != nil {
+	// Made alone, so of two adds of one name at once the second finds it there.
+	if err := os.Mkdir(dir, 0o755); err != nil {
+		dropRow()
+		if os.IsExist(err) {
+			return "", fmt.Errorf("%w: account '%s' already exists", ErrAccountExists, acct)
+		}
+		return "", err
+	}
+	cdir := filepath.Join(dir, ConfigDirName(vendor))
+	fail := func(err error) (string, error) {
+		os.RemoveAll(dir)
+		dropRow()
+		return "", err
+	}
+	if err := os.Mkdir(cdir, 0o755); err != nil {
 		return fail(err)
 	}
 	if vendor != DefaultVendor {
@@ -162,21 +183,26 @@ func (a Accounts) Remove(q *sql.DB, acct string, now time.Time, run func(argv []
 		}
 	}
 	os.Remove(marker)
-	dest, err := a.Retire(acct, now)
-	if err != nil {
-		return "", err
-	}
-	// The name can be added again, and a poll remembered against the old account would hold the new one in its cooldown.
-	for _, kind := range []string{"usage-poll", "usage-refresh", "login-check"} {
-		if err := db.ClearCursor(q, kind+":"+acct); err != nil {
-			return "", err
+	dir := paths.AccountDir(a.Home, acct) // by its row's key, so before the row goes
+	// The rows first, in one transaction: a removal stopped halfway leaves no row a new account of the name would take over.
+	if err := inTx(q, func(tx db.Q) error {
+		// The name can be added again, and a poll remembered against the old account would hold the new one in its cooldown.
+		for _, kind := range []string{"usage-poll", "usage-refresh", "login-check"} {
+			if err := db.ClearCursor(tx, kind+":"+acct); err != nil {
+				return err
+			}
 		}
-	}
-	// A closed agent's resume id lived under the directory just moved aside: it starts fresh on whatever account has room.
-	if _, err := q.Exec("UPDATE agent_state SET account = NULL, account_source = NULL, resume_session = NULL WHERE account = ?", acct); err != nil {
+		// A closed agent's resume id lives under the directory moved aside: it starts fresh on whatever account has room.
+		if _, err := tx.Exec("UPDATE agent_state SET account = NULL, account_source = NULL, resume_session = NULL WHERE account = ?", acct); err != nil {
+			return err
+		}
+		_, err := tx.Exec("DELETE FROM accounts WHERE name = ?", acct) // a new account of the name starts at the defaults
+		return err
+	}); err != nil {
 		return "", err
 	}
-	if _, err := q.Exec("DELETE FROM accounts WHERE name = ?", acct); err != nil { // a new account of the name starts at the defaults
+	dest, err := a.retire(dir, acct, now)
+	if err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("removed account '%s' (logged out; directory kept at %s)", acct, dest), nil

@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"github.com/handline/handline/go/data/team/teamtest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,6 +13,7 @@ import (
 	_ "github.com/handline/handline/go/agentctl/agent/vendors"
 	"github.com/handline/handline/go/agentctl/term"
 	"github.com/handline/handline/go/data/stream"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/internal/cmdruns"
 	"github.com/handline/handline/go/internal/reads"
 )

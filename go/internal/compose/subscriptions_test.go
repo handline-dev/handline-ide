@@ -1,12 +1,12 @@
 package compose
 
 import (
-	"github.com/handline/handline/go/data/team/teamtest"
 	"os"
 	"path/filepath"
 	"testing"
 
 	dbpkg "github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/team/teamtest"
 )
 
 func TestTheFounderCloserMarksTheCardDoneAsTheFounder(t *testing.T) {

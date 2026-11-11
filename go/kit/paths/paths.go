@@ -133,6 +133,9 @@ func ListAccounts(home string) []string {
 			out = append(out, name)
 		}
 	}
+	if rows.Err() != nil {
+		return []string{}
+	}
 	return out
 }
 

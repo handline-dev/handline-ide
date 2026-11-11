@@ -8,6 +8,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/handline/handline/go/data/team"
@@ -32,9 +33,16 @@ func DB(t testing.TB, home string) *sql.DB {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { store.ForgetShared(path) })
+	// Closed once, by the first caller's cleanup, so after the cleanups a rig registered after it (its waits for work still
+	// running) have run.
+	if _, again := closing.LoadOrStore(path, true); !again {
+		t.Cleanup(func() { store.ForgetShared(path); closing.Delete(path) })
+	}
 	return d
 }
+
+// closing is the homes whose database a test closes at its end.
+var closing sync.Map
 
 // Seed registers each agent in home, leads first, with the defaults a new agent gets.
 func Seed(t testing.TB, home string, agents ...string) *sql.DB {
