@@ -278,6 +278,83 @@
    ]
   },
   {
+   "name": "account.read_usage.unknown_account_is_not_found",
+   "spec": "account.read_usage",
+   "about": "An account the home does not have is not_found.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "account.read_usage",
+      "params": {
+       "account": "no.such.account",
+       "request_id": "conf-ru-1"
+      }
+     },
+     "error": {
+      "code": -32001,
+      "data": {
+       "code": "not_found",
+       "what": "account"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "account.read_usage.is_refused_to_an_agent_session",
+   "spec": "account.read_usage",
+   "about": "Below the method's role: refused, gate role, nothing written.",
+   "as": "agent",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "account.read_usage",
+      "params": {
+       "account": "no.such.account",
+       "request_id": "conf-ru-2"
+      }
+     },
+     "error": {
+      "code": -32002,
+      "data": {
+       "code": "refused",
+       "gate": "role"
+      }
+     }
+    }
+   ]
+  },
+  {
    "name": "account.login.unknown_account_is_not_found",
    "spec": "account.login",
    "about": "An account the home does not have is not_found; no login is started.",

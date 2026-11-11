@@ -53,7 +53,12 @@ func (e *Env) metered(acct string) bool {
 	if e.Metered != nil {
 		return e.Metered(acct)
 	}
-	v := team.AccountVendor(e.Home, acct)
+	return Metered(e.Home, acct)
+}
+
+// Metered is whether the account's vendor has limits the daemon reads.
+func Metered(home, acct string) bool {
+	v := team.AccountVendor(home, acct)
 	return v == team.DefaultVendor || team.CheckVendor(v) != nil // no driver is left to the login check, which refuses it
 }
 

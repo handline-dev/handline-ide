@@ -207,3 +207,103 @@ func TestNotLoggedInIsLeftForTheLoginCheck(t *testing.T) {
 		t.Errorf("cursor %d", c)
 	}
 }
+
+func askedNow(t *testing.T, r *rig, acct string) bool {
+	t.Helper()
+	_, ok, err := db.Meta(r.db, readAskKey(acct))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return ok
+}
+
+func TestAnAskedAccountIsReadFirstPastItsCadenceAndBackoff(t *testing.T) {
+	r := newRig(t, "a", "b")
+	r.seed(t, "a", now-10, now+3600) // fresh, nothing due
+	r.seed(t, "b", now-2000, now+3600)
+	_ = db.SetCursor(r.db, "usage-poll:a", now+states.UsageFailBackoffCapS)
+	r.m.give["a"], r.m.give["b"] = reading("a", 40, 1, now+3600), reading("b", 1, 1, now+3600)
+	if err := AskRead(r.db, "a", now-1); err != nil {
+		t.Fatal(err)
+	}
+	r.p.Tick(context.Background())
+	if len(r.m.asked) != 1 || r.m.asked[0] != "a" {
+		t.Fatalf("asked %v, want only the asked a", r.m.asked)
+	}
+	if st := r.p.Env.Read("a"); st.Short.Pct == nil || *st.Short.Pct != 40 {
+		t.Errorf("recorded %+v", st.Short)
+	}
+	if askedNow(t, r, "a") {
+		t.Error("the ask outlived its read")
+	}
+	r.m.asked = nil
+	r.p.Tick(context.Background())
+	if len(r.m.asked) != 1 || r.m.asked[0] != "b" {
+		t.Errorf("next tick asked %v, want the polled b", r.m.asked)
+	}
+}
+
+func TestAskingTwiceBeforeTheReadIsOneRead(t *testing.T) {
+	r := newRig(t, "a")
+	r.seed(t, "a", now-10, now+3600)
+	r.m.give["a"] = reading("a", 5, 1, now+3600)
+	_ = AskRead(r.db, "a", now-2)
+	_ = AskRead(r.db, "a", now) // during the read: the same ask
+	r.p.Tick(context.Background())
+	r.p.Tick(context.Background())
+	if len(r.m.asked) != 1 {
+		t.Errorf("asked %v, want one read", r.m.asked)
+	}
+}
+
+func TestAnAskedReadOfABackedOffAccountSpendsNoTurn(t *testing.T) {
+	r := newRig(t, "a")
+	r.seed(t, "a", now-10, now+3600)
+	_ = db.SetCursor(r.db, "usage-poll:a", now+states.UsagePollS)
+	_ = AskRead(r.db, "a", now)
+	r.p.Tick(context.Background())
+	if len(r.m.asked) != 1 || len(r.rec) != 0 {
+		t.Fatalf("asked %v, recovered %v: a backed-off account was read once and spent no turn", r.m.asked, r.rec)
+	}
+	if askedNow(t, r, "a") {
+		t.Error("the failed read left the ask")
+	}
+}
+
+func TestAnAskedReadCutShortByAStopKeepsTheAsk(t *testing.T) {
+	r := newRig(t, "a")
+	r.seed(t, "a", now-10, now+3600)
+	_ = AskRead(r.db, "a", now)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	r.p.pollAccount(ctx, "a", now)
+	if !askedNow(t, r, "a") {
+		t.Error("a read cut short by a stop dropped the ask")
+	}
+}
+
+func TestAFailedAskedReadIsBackedOffAndAnswered(t *testing.T) {
+	r := newRig(t, "a")
+	r.seed(t, "a", now-10, now+3600)
+	_ = AskRead(r.db, "a", now)
+	r.p.Tick(context.Background())
+	if len(r.m.asked) != 1 || len(r.rec) != 1 {
+		t.Fatalf("asked %v, recovered %v", r.m.asked, r.rec)
+	}
+	if c, _ := db.Cursor(r.db, "usage-poll:a"); c != now+states.UsagePollS {
+		t.Errorf("backoff %d", c-now)
+	}
+	if askedNow(t, r, "a") {
+		t.Error("a failed read left the ask")
+	}
+}
+
+func TestAnAskedAccountNotLoggedInIsNotRead(t *testing.T) {
+	r := newRig(t, "a")
+	r.p.LoggedIn = func(string) bool { return false }
+	_ = AskRead(r.db, "a", now)
+	r.p.Tick(context.Background())
+	if len(r.m.asked) != 0 || askedNow(t, r, "a") {
+		t.Errorf("asked %v, ask kept %v", r.m.asked, askedNow(t, r, "a"))
+	}
+}

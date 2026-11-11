@@ -309,6 +309,10 @@ export interface AccountsMethods {
   account: string;
   request_id: RequestId;
 }; result: Accepted };
+  "account.read_usage": { params: {
+  account: string;
+  request_id: RequestId;
+}; result: Accepted };
   "account.add": { params: {
   /** The new account's name: one plain line, no slash, not starting with a dot. */
   account: string;
@@ -374,6 +378,7 @@ export const ACCOUNTS_METHODS: { [K in keyof AccountsMethods]: { role: Role; cal
   "status.pick": { role: "agent", callers: null, write: false, since: 1 },
   "account.set": { role: "founder", callers: null, write: true, since: 1 },
   "account.wake": { role: "founder", callers: null, write: true, since: 1 },
+  "account.read_usage": { role: "founder", callers: null, write: true, since: 1 },
   "account.add": { role: "founder", callers: null, write: true, since: 1 },
   "account.login": { role: "founder", callers: null, write: true, since: 1 },
   "account.login_cancel": { role: "founder", callers: null, write: true, since: 1 },
@@ -396,9 +401,10 @@ export const ACCOUNTS_APP_CACHE: { [K in "accounts.list" | "status.pick" | "stat
 };
 
 /** x-app-write of each write (x-app in core.json). */
-export const ACCOUNTS_APP_WRITES: { [K in "account.set" | "account.wake" | "account.add" | "account.login" | "account.login_cancel" | "account.login_code" | "account.remove"]: { kind: WriteKind; label: string } | false } = {
+export const ACCOUNTS_APP_WRITES: { [K in "account.set" | "account.wake" | "account.read_usage" | "account.add" | "account.login" | "account.login_cancel" | "account.login_code" | "account.remove"]: { kind: WriteKind; label: string } | false } = {
   "account.set": {"kind": "authored", "label": "save account"},
   "account.wake": {"kind": "authored", "label": "wake"},
+  "account.read_usage": {"kind": "decided", "label": "read usage"},
   "account.add": {"kind": "decided", "label": "add account"},
   "account.login": {"kind": "decided", "label": "log in"},
   "account.login_cancel": {"kind": "decided", "label": "cancel login"},

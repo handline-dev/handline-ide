@@ -47,6 +47,7 @@ func Register(s *rpc.Server, e *Env) {
 	s.Register("settings.set", rpc.Method{Handler: e.settingsSet})
 	s.Register("account.set", rpc.Method{Handler: e.accountSet})
 	s.Register("account.wake", rpc.Method{Handler: e.accountWake})
+	s.Register("account.read_usage", rpc.Method{Handler: e.accountReadUsage})
 	s.Register("account.add", rpc.Method{Handler: e.accountAdd})
 	// Unkept and OwnEvent: a dry run writes and records nothing, and a removal that happened is judged again by a retry (no such account).
 	s.Register("account.remove", rpc.Method{Unkept: true, OwnEvent: true, Handler: e.accountRemove})

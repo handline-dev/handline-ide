@@ -294,3 +294,23 @@ func TestAccountWakeEndsTheStallAndSaysTheFailuresBeforeItAreOld(t *testing.T) {
 		t.Fatalf("still stalled, or %d account_woken events", n)
 	}
 }
+
+func TestAccountReadUsageAsksThePollAndNeedsALogin(t *testing.T) {
+	r := newRig(t)
+	dir := filepath.Join(r.home, "accounts", "main", ".claude")
+	os.MkdirAll(dir, 0o755)
+	if r.code(r.one("account.read_usage", `{"account":"main","request_id":"r1"}`)) != "refused" {
+		t.Fatal("an account with no login has no usage to read")
+	}
+	os.WriteFile(filepath.Join(dir, ".credentials.json"), []byte("c"), 0o600)
+	if res := r.result(r.one("account.read_usage", `{"account":"main","request_id":"r2"}`)); res["accepted"] != true {
+		t.Fatalf("%v", res)
+	}
+	var n int
+	if r.e.DB.QueryRow("SELECT COUNT(*) FROM meta WHERE name = 'usage-read-now:main'").Scan(&n); n != 1 {
+		t.Fatal("no ask for the poll")
+	}
+	if r.code(r.one("account.read_usage", `{"account":"nope","request_id":"r3"}`)) != "not_found" {
+		t.Fatal("an unknown account is not_found")
+	}
+}

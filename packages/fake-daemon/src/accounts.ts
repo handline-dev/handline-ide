@@ -138,6 +138,8 @@ export class FakeAccounts {
         return this.remove(p, accepted);
       case 'account.wake':
         return (this.wake(p), accepted('Woke.'));
+      case 'account.read_usage':
+        return (this.readUsage(p), accepted('Usage is read at the next tick.'));
       default:
         throw new Failure('refused', `the fake daemon does not serve ${method}`, { reason: 'unsupported', gate: 'unsupported' });
     }
@@ -245,6 +247,13 @@ export class FakeAccounts {
     if (!r.stalled) throw new Failure('refused', `${r.name} is not stalled`, { reason: 'not_stalled', gate: 'state' });
     r.stalled = null;
     this.emit(this.view(r));
+  }
+
+  /** The fake has no reading to refresh: it refuses as the daemon does, an account not logged in or STALLED. */
+  private readUsage(p: Record<string, unknown>): void {
+    const r = this.find(p.account);
+    if (r.login_state !== 'ok' || r.stalled)
+      throw new Failure('refused', `${r.name}: not logged in, or STALLED (account.wake)`, { reason: 'not_usable', gate: 'state' });
   }
 
   loggedIn(name: string): void {

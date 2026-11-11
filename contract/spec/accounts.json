@@ -1398,6 +1398,54 @@
    ]
   },
   {
+   "name": "account.read_usage",
+   "summary": "Read the account's usage again now: Accepted at once, and the usage poll reads the account first at its next tick, past its cadence. accounts.list shows the reading once it lands. Asking again before that read ends is the same ask. A failed read is backed off as a polled one is, and spends no real turn while backed off. Refused (gate state) when the account is not logged in or STALLED, or its vendor has no limits to read.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "account",
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Accepted"
+    }
+   },
+   "x-role": "founder",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "read usage"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "x-gates": [
+    "state"
+   ]
+  },
+  {
    "name": "account.add",
    "summary": "Register an account on this machine; it is not logged in until account.login runs.",
    "paramStructure": "by-name",

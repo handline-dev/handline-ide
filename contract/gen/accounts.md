@@ -9,6 +9,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `status.pick` | agent |  | none | `{picked, candidates, agent_costs, agent_pace_usd}` |  |  | not cached |
 | `account.set` | founder | yes | `account`, `label?`, `cap?`, `recover?`, `cycle?`, `cycle_end?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | authored: save account |
 | `account.wake` | founder | yes | `account`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | state | authored: wake |
+| `account.read_usage` | founder | yes | `account`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | state | decided: read usage |
 | `account.add` | founder | yes | `account`, `vendor?`, `request_id` | `Accepted & {account}` | `refused`, `bad_request` | role, state | decided: add account |
 | `account.login` | founder | yes | `account`, `request_id` | `Accepted & {login_id, state, url}` | `refused`, `not_found` | role, state | decided: log in |
 | `account.login_cancel` | founder | yes | `login_id`, `request_id` | `Accepted` | `refused`, `not_found` | role | decided: cancel login |
@@ -34,6 +35,10 @@ The account Settings form in one call: alias, cap, usage recovery and the month 
 ### `account.wake`
 
 Wake a STALLED account: its stall ends, agents may be placed on it again and the agents stalled with it are released, as session.wake clears a stalled agent (hl account wake). A login on the account, or a turn that ends well there, ends the stall too. Refused (gate state) when the account is not stalled.
+
+### `account.read_usage`
+
+Read the account's usage again now: Accepted at once, and the usage poll reads the account first at its next tick, past its cadence. accounts.list shows the reading once it lands. Asking again before that read ends is the same ask. A failed read is backed off as a polled one is, and spends no real turn while backed off. Refused (gate state) when the account is not logged in or STALLED, or its vendor has no limits to read.
 
 ### `account.add`
 

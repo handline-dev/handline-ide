@@ -48,9 +48,10 @@ func (p *Poller) now() int64 {
 	return time.Now().Unix()
 }
 
-// Tick asks at most one account for a reading that succeeds. The oldest reading goes first: with one success per tick a fixed order let
-// the accounts early in the list take every slot whenever ticks ran slow, and the rest went unread and were refused work as stale. A
-// failing account keeps its own cursor moving and is backed off exponentially, so it costs less of the tick the longer it keeps failing.
+// Tick asks at most one account for a reading that succeeds. An account the founder asked to read (AskRead) goes first, then the oldest
+// reading: with one success per tick a fixed order let the accounts early in the list take every slot whenever ticks ran slow, and the
+// rest went unread and were refused work as stale. A failing account keeps its own cursor moving and is backed off exponentially, so it
+// costs less of the tick the longer it keeps failing.
 func (p *Poller) Tick(ctx context.Context) {
 	now := p.now()
 	accts := p.accounts()
@@ -60,7 +61,16 @@ func (p *Poller) Tick(ctx context.Context) {
 			at[a] = *s
 		}
 	}
-	sort.SliceStable(accts, func(i, j int) bool { return at[accts[i]] < at[accts[j]] })
+	asked := map[string]bool{}
+	for _, a := range accts {
+		asked[a] = p.asked(a)
+	}
+	sort.SliceStable(accts, func(i, j int) bool {
+		if asked[accts[i]] != asked[accts[j]] {
+			return asked[accts[i]]
+		}
+		return at[accts[i]] < at[accts[j]]
+	})
 	for _, a := range accts {
 		if ctx.Err() != nil || p.pollAccount(ctx, a, now) {
 			return
@@ -139,16 +149,49 @@ func EndedWindow(st *usage.AccountStatus, r *usage.Reading, now int64) (label st
 	return "", 0, false
 }
 
+// readAskKey is the meta name of the founder's ask to read the account now; its value is when it was asked, for a reader of the table.
+func readAskKey(acct string) string { return "usage-read-now:" + acct }
+
+// AskRead is account.read_usage: read the account at the next tick. Asks before that read ends are one.
+func AskRead(q db.Q, acct string, at int64) error {
+	return db.SetMeta(q, readAskKey(acct), strconv.FormatInt(at, 10))
+}
+
+func (p *Poller) asked(acct string) bool {
+	_, ok, err := db.Meta(p.DB, readAskKey(acct))
+	return err == nil && ok
+}
+
+// answered drops the ask once its read ended, whatever it found.
+func (p *Poller) answered(acct string) {
+	if err := db.ClearMeta(p.DB, readAskKey(acct)); err != nil {
+		p.logf("  usage: %s: could not clear the ask to read it: %v", acct, err)
+	}
+}
+
 // pollAccount is one account's turn; true when it took the tick's one successful reading.
 func (p *Poller) pollAccount(ctx context.Context, acct string, now int64) bool {
-	if cur, err := db.Cursor(p.DB, "usage-poll:"+acct); err != nil || now < cur {
+	asked := p.asked(acct)
+	cur, err := db.Cursor(p.DB, "usage-poll:"+acct)
+	backedOff := err != nil || now < cur
+	if asked {
+		// A read cut short by the daemon stopping is not an answer: the ask waits for the next start.
+		defer func() {
+			if ctx.Err() == nil {
+				p.answered(acct)
+			}
+		}()
+	} else if backedOff {
 		return false
 	}
 	st := p.Env.Read(acct)
 	if st.Unmetered {
 		return false
 	}
-	why := p.Due(acct, st, now)
+	why := "asked from the app"
+	if !asked {
+		why = p.Due(acct, st, now)
+	}
 	if why == "" {
 		return false
 	}
@@ -160,6 +203,11 @@ func (p *Poller) pollAccount(ctx context.Context, acct string, now int64) bool {
 	// a real turn says otherwise (the turn is what makes the CLI renew).
 	r, _ := p.Meter.Read(ctx, acct)
 	if r == nil {
+		// The real turn waits out the backoff, so pressing retry on a failing account does not spend one per press.
+		if backedOff {
+			p.backoff(acct, now)
+			return false
+		}
 		ok, msg := p.Recover(acct)
 		if ok {
 			p.succeeded(acct, now)
