@@ -85,7 +85,8 @@ func TestTheDollarPaceIsTheModelsMedianElseAllAgentsElseTheStartingValueAndEffor
 	}
 }
 
-// ownerEnv is a home with agents a and b, a's status file the shape the pull writes, and tasks 1 (a's, doing), 2 (closed), 3 (b's).
+// ownerEnv is a home with agents a and b (keys a1 and a2, which its rows name), a's status file the shape the pull writes, and tasks 1
+// (a's, doing), 2 (closed), 3 (b's).
 func ownerEnv(t *testing.T) (*Env, db.Q, *int64) {
 	t.Helper()
 	e, q, now := burnEnv(t)
@@ -114,9 +115,9 @@ func ownerEnv(t *testing.T) (*Env, db.Q, *int64) {
 		t.Fatal(err)
 	}
 	for _, s := range []string{
-		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'one', 'a', 'h', 1), (2, 'two', 'a', 'h', 1), (3, 'three', 'b', 'h', 1)",
+		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'one', 'a1', 'h', 1), (2, 'two', 'a1', 'h', 1), (3, 'three', 'a2', 'h', 1)",
 		"UPDATE tasks SET done_evidence = 'x' WHERE id = 2",
-		"INSERT INTO agent_state(agent, state, updated, current_task, resume_session) VALUES('a', 'RUNNING', 1, 1, 'old-a'), ('b', 'RUNNING', 1, 3, 'sess-b')",
+		"INSERT INTO agent_state(agent, state, updated, current_task, resume_session) VALUES('a1', 'RUNNING', 1, 1, 'old-a'), ('a2', 'RUNNING', 1, 3, 'sess-b')",
 	} {
 		if _, err := q.Exec(s); err != nil {
 			t.Fatal(err)
@@ -131,17 +132,17 @@ func TestCallsAreChargedToTheirSessionsAgentAndTheTaskItHoldsAsDoing(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(owners["sess-a"], Owner{Agent: "a", Task: 1}) || !reflect.DeepEqual(owners["old-a"], Owner{Agent: "a", Task: 1}) ||
-		!reflect.DeepEqual(owners["sess-b"], Owner{Agent: "b", Task: 3}) {
+	if !reflect.DeepEqual(owners["sess-a"], Owner{Agent: "a1", Task: 1}) || !reflect.DeepEqual(owners["old-a"], Owner{Agent: "a1", Task: 1}) ||
+		!reflect.DeepEqual(owners["sess-b"], Owner{Agent: "a2", Task: 3}) {
 		t.Fatalf("%+v", owners)
 	}
-	if _, err := q.Exec("UPDATE agent_state SET current_task = 2 WHERE agent = 'a'"); err != nil {
+	if _, err := q.Exec("UPDATE agent_state SET current_task = 2 WHERE agent = 'a1'"); err != nil {
 		t.Fatal(err)
 	}
 	if owners, _ := e.CallOwners(q); owners["sess-a"].Task != 0 {
 		t.Fatalf("a closed task is held by nobody: %+v", owners)
 	}
-	if _, err := q.Exec("UPDATE agent_state SET current_task = 3 WHERE agent = 'a'"); err != nil {
+	if _, err := q.Exec("UPDATE agent_state SET current_task = 3 WHERE agent = 'a1'"); err != nil {
 		t.Fatal(err)
 	}
 	if owners, _ := e.CallOwners(q); owners["sess-a"].Task != 0 {
@@ -151,10 +152,10 @@ func TestCallsAreChargedToTheirSessionsAgentAndTheTaskItHoldsAsDoing(t *testing.
 	if _, err := q.Exec("UPDATE tasks SET done_at = ? WHERE id = 2", *now-100); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := q.Exec(`INSERT INTO events(ts, agent, kind, payload) VALUES(?, 'a', 'task_handoff', '{"task_id": 3, "from": "a", "to": "b"}')`, *now-50); err != nil {
+	if _, err := q.Exec(`INSERT INTO events(ts, agent, kind, payload) VALUES(?, 'a1', 'task_handoff', '{"task_id": 3, "from": "a1", "to": "a2"}')`, *now-50); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := q.Exec("UPDATE agent_state SET current_task = 1 WHERE agent = 'a'"); err != nil {
+	if _, err := q.Exec("UPDATE agent_state SET current_task = 1 WHERE agent = 'a1'"); err != nil {
 		t.Fatal(err)
 	}
 	owners, _ = e.CallOwners(q)

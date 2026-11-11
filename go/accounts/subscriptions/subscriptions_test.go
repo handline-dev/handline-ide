@@ -98,7 +98,7 @@ func (w *world) agent(name, account string) {
 	w.t.Helper()
 	teamtest.Seed(w.t, w.Home, name)
 	if account != "" {
-		if _, err := w.DB.Exec("INSERT INTO agent_state(agent, state, updated, account) VALUES(?, 'IDLE', 1, ?)", name, account); err != nil {
+		if _, err := w.DB.Exec("INSERT INTO agent_state(agent, state, updated, account) VALUES(?, 'IDLE', 1, ?)", teamtest.Key(w.t, w.Home, name), account); err != nil {
 			w.t.Fatal(err)
 		}
 	}
@@ -168,7 +168,7 @@ func TestTheFounderIsToldOnceInsideTheWarningWindow(t *testing.T) {
 	w.config(endingConfig)
 
 	w.sweep()
-	if len(w.asker.raised) != 1 || w.asker.openers[0] != "beta" {
+	if len(w.asker.raised) != 1 || w.asker.openers[0] != teamtest.Key(t, w.Home, "beta") {
 		t.Fatalf("raised %q by %q", w.asker.raised, w.asker.openers)
 	}
 	body := w.asker.raised[0]

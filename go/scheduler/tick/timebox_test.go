@@ -602,7 +602,7 @@ func TestAHeldTaskGoesToTheBossWhenItAnswersToTheHolderAndIsNeverHandedToTheFoun
 	if len(p.handed) != 1 || !strings.HasPrefix(p.handed[0], "T1 to lead:") {
 		t.Fatalf("a task answering to its holder goes to the boss: %v", p.handed)
 	}
-	for _, opener := range []string{"human", "a"} {
+	for _, opener := range []string{db.Human, "a"} {
 		tk, b, p, _ := heldAfterAsk(t, opener, "")
 		check(b.Sweep(tk, 2000))
 		if len(p.handed) != 0 || p.handTries != 0 {
@@ -1059,7 +1059,7 @@ func TestAnOpenAskOfTheFounderStopsTheClock(t *testing.T) {
 	tid := newTask(t, tk, "a", "boss", 100)
 	p.doing[tid] = true
 	b.SweepTaskTimeouts(tk, 1000)
-	must(tk.Q.Exec("INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(900, 1020, 'a', 'human', 'which?', 'queued', 'ask')"))
+	must(tk.Q.Exec("INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(900, 1020, 'a', 'p1', 'which?', 'queued', 'ask')"))
 	must(tk.Q.Exec("INSERT INTO task_requests(task_id, request_id) VALUES(?, 900)", tid))
 	b.SweepTaskTimeouts(tk, 1020)
 	b.SweepTaskTimeouts(tk, 5000)

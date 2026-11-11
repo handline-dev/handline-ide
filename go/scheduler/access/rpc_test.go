@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/data/team/teamtest"
+	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/kit/storetest"
 	"github.com/handline/handline/go/protocol/rpc"
@@ -57,6 +58,7 @@ func TestGrantPathsAndRetry(t *testing.T) {
 	teamtest.Set(t, home, "a", "vendor", "claude")
 	srv := rpc.NewServer(founder{}, "x", store.LatestVersion(), "local", func(string, ...any) {})
 	srv.DB = storetest.Open(t)
+	srv.Who = func(w string) string { return paths.WhoKey(home, w) }
 	var events []map[string]any
 	var lived []string
 	Register(srv, home, func(topic, typ string, data map[string]any) error {
@@ -80,7 +82,7 @@ func TestGrantPathsAndRetry(t *testing.T) {
 		t.Fatalf("no session started: %v, live %v", r, lived)
 	}
 	events = nil
-	srv.DB.Exec("INSERT INTO session_starts(agent, ts, cause, resumed, text, prompt) VALUES('a', 1, 'wake', 0, '', '')")
+	srv.DB.Exec("INSERT INTO session_starts(agent, ts, cause, resumed, text, prompt) VALUES(?, 1, 'wake', 0, '', '')", teamtest.Key(t, home, "a"))
 	got := call(t, srv, calls...)
 	for i, p := range bad {
 		e, _ := got[i]["error"].(map[string]any)
