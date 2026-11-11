@@ -17,6 +17,7 @@ import (
 	dbpkg "github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/data/team/teamtest"
+	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/scheduler/lifecycle"
 )
 
@@ -153,14 +154,14 @@ func TestATerminalAgentIsStartedInANewWorktreeThroughTheHostAndItsHandleKept(t *
 		t.Fatalf("a session runs in it: %v %q", ok, said)
 	}
 	if len(ft.opened) != 1 || !strings.HasSuffix(ft.opened[0], "|bob|"+lifecycle.CommandFor("", "", "", "bob")) ||
-		!strings.HasPrefix(ft.opened[0], repo+".worktrees.noindex/bob|") {
+		!strings.HasPrefix(ft.opened[0], repo+".worktrees.noindex/"+paths.AgentKey(p.home, "bob")+"|") {
 		t.Fatalf("%v %q opened %q", ok, said, ft.opened)
 	}
 	if h, _ := dbpkg.Terminal(d, "bob"); h != "%1" {
 		t.Fatalf("the handle of the terminal is kept: %q", h)
 	}
-	if _, err := os.Stat(repo + ".worktrees.noindex/bob"); err != nil {
-		t.Fatal("the worktree was made beside the repo")
+	if _, err := os.Stat(repo + ".worktrees.noindex/" + paths.AgentKey(p.home, "bob")); err != nil {
+		t.Fatal("the worktree was made beside the repo, named by the agent's key")
 	}
 }
 
