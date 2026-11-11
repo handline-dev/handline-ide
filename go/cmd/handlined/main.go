@@ -169,6 +169,9 @@ func main() {
 			} else if n > 0 {
 				log.Printf("withdrew %d comment asks not addressed to the founder", n)
 			}
+			if err := compose.RetryStartStalls(db, log.Printf); err != nil {
+				log.Printf("clearing the start and wake stalls to try again: %v", err)
+			}
 			ccfg.DB = db
 			env.Ports = parts.SupervisorPorts(parts.Lifecycle(ccfg, compose.LifecycleConfig{Env: env}))
 			parts.SettlePeerSends()

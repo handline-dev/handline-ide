@@ -273,18 +273,8 @@ func (e *Env) Unstall(agent string) (cleared bool, said string, err error) {
 		}
 		return false, fmt.Sprintf("%s: not STALLED (%s)", agent, state), nil
 	}
-	if err := db.SetAgentState(e.DB, agent, states.Queued, 0, "cleared by a human"); err != nil {
+	if err := db.ClearStall(e.DB, agent, "cleared by a human"); err != nil {
 		return false, "", err
-	}
-	for _, col := range []string{"failed_attempts", "throttle_count", "wake_failures"} {
-		if err := db.ResetCounter(e.DB, agent, col); err != nil {
-			return false, "", err
-		}
-	}
-	for _, key := range []string{"dialog_since:", "dialog_title:"} {
-		if err := db.ClearCursor(e.DB, key+agent); err != nil {
-			return false, "", err
-		}
 	}
 	return true, agent + ": STALLED -> QUEUED", nil
 }
