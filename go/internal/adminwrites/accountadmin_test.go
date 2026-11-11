@@ -152,13 +152,14 @@ func TestAccountRemoveIsRefusedWhileAnAgentIsOnItAndWhenTheLogoutFails(t *testin
 		}
 		return m["error"].(map[string]any)["message"].(string)
 	}
-	if _, err := r.e.DB.Exec("INSERT INTO agent_state(agent, state, updated, account) VALUES('alice', 'idle', 1, 'main')"); err != nil {
+	alice := teamtest.Key(t, r.home, "alice")
+	if _, err := r.e.DB.Exec("INSERT INTO agent_state(agent, state, updated, account) VALUES(?, 'idle', 1, 'main')", alice); err != nil {
 		t.Fatal(err)
 	}
-	if got := refusal(rm("g2")); !strings.Contains(got, "has a session open for alice") {
+	if got := refusal(rm("g2")); !strings.Contains(got, "has a session open for "+alice) {
 		t.Fatalf("%q", got)
 	}
-	r.e.DB.Exec("UPDATE agent_state SET closed_at = ? WHERE agent = 'alice'", time.Now().Unix())
+	r.e.DB.Exec("UPDATE agent_state SET closed_at = ? WHERE agent = ?", time.Now().Unix(), alice)
 	if got := refusal(rm("g3")); !strings.Contains(got, "logout failed - 'main' is still logged in, so it stays") {
 		t.Fatalf("%q", got)
 	}

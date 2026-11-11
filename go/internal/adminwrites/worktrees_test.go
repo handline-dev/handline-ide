@@ -7,13 +7,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/internal/reads"
 )
 
 func TestSetStatusLabelsAWorktreeAnAgentWorksIn(t *testing.T) {
 	r := newRig(t)
 	wt, _ := filepath.EvalSymlinks(t.TempDir())
-	if _, err := r.e.DB.Exec("INSERT INTO agent_state(agent, state, updated, worktree) VALUES('alice', 'idle', 0, ?)", wt); err != nil {
+	if _, err := r.e.DB.Exec("INSERT INTO agent_state(agent, state, updated, worktree) VALUES(?, 'idle', 0, ?)", teamtest.Key(t, r.home, "alice"), wt); err != nil {
 		t.Fatal(err)
 	}
 	set := func(status, id string) map[string]any {

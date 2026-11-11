@@ -16,6 +16,7 @@ import (
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/internal/reads"
+	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/kit/storetest"
 	"github.com/handline/handline/go/protocol/rpc"
@@ -53,6 +54,7 @@ func newRig(t *testing.T) *rig {
 	e := &Env{DB: d, Home: home, LabelKey: (&reads.Env{DB: d, Home: home}).LabelKey}
 	s := rpc.NewServer(auth{}, "x", store.LatestVersion(), "local", func(string, ...any) {})
 	s.DB = d
+	s.Who = func(w string) string { return paths.WhoKey(home, w) }
 	Register(s, e)
 	return &rig{t, home, s, e}
 }
