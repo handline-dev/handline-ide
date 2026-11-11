@@ -11,6 +11,7 @@ import (
 	"github.com/handline/handline/go/data/stream"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/internal/reads"
+	"github.com/handline/handline/go/kit/actor"
 )
 
 // Notifications is the notifications topic, from what the other writers leave: a task marked done and an account stalled (the events
@@ -90,7 +91,7 @@ func taskDone(q *sql.DB, task any) (map[string]any, error) {
 	}
 	if asker != "" {
 		data["reporter"] = asker
-		data["from_founder"] = asker == db.Human || opener.String == db.Human
+		data["from_founder"] = actor.IsPerson(asker) || actor.IsPerson(opener.String)
 	}
 	first, _, _ := strings.Cut(strings.TrimSpace(evidence.String), "\n")
 	if r := []rune(strings.TrimSpace(first)); len(r) > 0 {
@@ -140,7 +141,7 @@ func (n *Notifications) Scan(q *sql.DB, emit Emit) error {
 				if err != nil {
 					return err
 				}
-				if data["reporter"] != db.Human {
+				if r, _ := data["reporter"].(string); !actor.IsPerson(r) {
 					continue // the founder hears of the tasks they answer for, and no others
 				}
 				if _, err := emit(stream.Entry{Topic: "notifications", Type: "task_done", Data: data, Agent: e.agent,

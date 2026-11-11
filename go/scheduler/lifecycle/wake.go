@@ -12,6 +12,7 @@ import (
 	"github.com/handline/handline/go/agentctl/verdict"
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
+	"github.com/handline/handline/go/kit/actor"
 )
 
 var shellSafe = regexp.MustCompile(`^[A-Za-z0-9_@%+=:,./-]+$`)
@@ -32,7 +33,7 @@ func shlexQuote(s string) string {
 // restarted to apply. A restart usually means something went wrong, so it is told to retry that.
 func RestartNotice(by string, resumed bool, settings []string, changed string) string {
 	who := by
-	if who == db.Human {
+	if actor.IsPerson(who) {
 		who = "the founder"
 	}
 	line := "---------- restarted"

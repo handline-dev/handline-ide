@@ -11,6 +11,7 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/stream"
 	"github.com/handline/handline/go/internal/reads"
+	"github.com/handline/handline/go/kit/actor"
 )
 
 const (
@@ -146,7 +147,7 @@ func (n *Inbox) begin(q *sql.DB) error {
 		if err != nil {
 			return err
 		}
-		if req != nil && req.target != humanName && !req.notice {
+		if req != nil && !actor.IsPerson(req.target) && !req.notice {
 			items, err := n.Reads.AgentItems(req.target, r.id)
 			if err != nil {
 				return err
@@ -216,10 +217,10 @@ func (n *Inbox) Scan(q *sql.DB, emit Emit) error {
 		if req == nil {
 			continue
 		}
-		if req.target == humanName || req.requester == humanName {
+		if actor.IsPerson(req.target) || actor.IsPerson(req.requester) {
 			dirty = true
 		}
-		if req.target == humanName || req.notice {
+		if actor.IsPerson(req.target) || req.notice {
 			continue
 		}
 		items, err := n.Reads.AgentItems(req.target, id)

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
 )
 
 // The wait-for graph over task_blocks: what can never finish, told to the human once. A task waits on the tasks in task_blocks (a
@@ -277,7 +278,7 @@ func (w *WaitFor) Sweep(q db.Q, now int64) error {
 		}
 		who := db.Human
 		for _, o := range []string{task.Acting, task.OpenedBy} {
-			if o != db.Human {
+			if !actor.IsPerson(o) {
 				who = o
 				break
 			}

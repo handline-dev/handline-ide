@@ -12,6 +12,7 @@ import (
 	"github.com/handline/handline/go/agentctl/peerinbox"
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/lock"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/scheduler/worktreepaths"
@@ -216,7 +217,7 @@ func peerFrom(d *sql.DB) func(agent, op string) peerinbox.From {
 		}
 		var names []string
 		for _, a := range authors {
-			if a == db.Human {
+			if actor.IsPerson(a) {
 				a = "founder"
 			}
 			if a != agent && !slices.Contains(names, a) {

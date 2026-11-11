@@ -7,6 +7,7 @@ import (
 	"github.com/handline/handline/go/agentctl/verdict"
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/timefmt"
 )
 
@@ -76,7 +77,7 @@ type Timebox struct {
 }
 
 func (b *Timebox) tell(t *Tick, who, text string, now int64) bool {
-	if who == db.Human {
+	if actor.IsPerson(who) {
 		return true
 	}
 	key := "notice_try:" + who
@@ -104,7 +105,7 @@ func (b *Timebox) parked(t *Tick, agent string) bool {
 // the founder only when neither is an agent.
 func (b *Timebox) answerer(t *Tick, agent string, tid int64) string {
 	if tid != 0 {
-		if task := must(db.GetTask(t.Q, tid)); task != nil && task.OpenedBy != agent && task.OpenedBy != db.Human && task.OpenedBy != "" {
+		if task := must(db.GetTask(t.Q, tid)); task != nil && task.OpenedBy != agent && !actor.IsPerson(task.OpenedBy) && task.OpenedBy != "" {
 			return task.OpenedBy
 		}
 	}
@@ -149,7 +150,7 @@ func (b *Timebox) SweepTaskTimeouts(t *Tick, now int64) {
 		// the holder can act on it, and its lead routes; the opener of a task another agent holds cannot
 		var notified []string
 		for _, who := range []string{row.Acting, b.boss(row.Acting)} {
-			if who != db.Human { // never the founder; it waits in the next digest
+			if !actor.IsPerson(who) { // never the founder; it waits in the next digest
 				check(b.Ports.SendBatch(t.Q, who, text))
 				notified = append(notified, who)
 			}
@@ -198,7 +199,7 @@ func (b *Timebox) SweepQueuedBlockers(t *Tick, now int64) {
 			key, who string
 			afterS   int64
 		}{{held, row.Acting, holderS}, {lead, b.boss(row.Acting), leadS}} {
-			if told := must(db.Cursor(t.Q, level.key)); now-since < level.afterS || level.who == db.Human || told != 0 && told >= reopened {
+			if told := must(db.Cursor(t.Q, level.key)); now-since < level.afterS || actor.IsPerson(level.who) || told != 0 && told >= reopened {
 				continue
 			}
 			check(b.Ports.SendBatch(t.Q, level.who, text))
@@ -431,16 +432,16 @@ func (b *Timebox) SweepForgottenResolveCapped(t *Tick, now int64) {
 		who := b.answerer(t, agent, tid)
 		// The founder's screens show no message id: told to them, the message is named by its task or not at all.
 		name, read := db.MsgName(t.Q, found.HeadID), ""
-		if who != db.Human {
+		if !actor.IsPerson(who) {
 			read = fmt.Sprintf("`hl read %s`; ", name)
 		}
 		on := name
 		switch {
-		case found.Task != nil && who == db.Human:
+		case found.Task != nil && actor.IsPerson(who):
 			on = fmt.Sprintf("T%d", found.Task.ID)
 		case found.Task != nil:
 			on = fmt.Sprintf("T%d (%s)", found.Task.ID, name)
-		case who == db.Human:
+		case actor.IsPerson(who):
 			on = "a message"
 		}
 		after := fmt.Sprintf("after %d reminders", b.Ports.NudgeScheduleLen())
@@ -503,7 +504,7 @@ func (b *Timebox) SweepHeldTaskAfterClose(t *Tick, now int64) {
 		if to == "" || to == agent {
 			to = b.boss(agent)
 		}
-		if to == db.Human {
+		if actor.IsPerson(to) {
 			continue // a task is not handed to the founder
 		}
 		note := "held after being asked"

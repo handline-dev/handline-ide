@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
 )
 
 const (
@@ -53,7 +54,7 @@ func AnswerVerb(q db.Q, head *db.Request) (string, error) {
 			return fmt.Sprintf("you own T%d now: hand it on with `hl task handoff T%d <agent> \"<note>\"`, or `hl task done T%d` if you are its last step", t.ID, t.ID, t.ID), nil
 		}
 	}
-	if head.Requester == db.Human {
+	if actor.IsPerson(head.Requester) {
 		return fmt.Sprintf("answer the founder now, before other work: `hl say human --parent %s \"...\"` - if it is work, one line on what you will do or who has it (`hl task begin \"<title>\" --chat <msg>` takes it, `hl task request <msg>` gives it to another)", head.Name(q)), nil
 	}
 	if head.Kind.String == "say" {

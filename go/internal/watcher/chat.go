@@ -10,6 +10,7 @@ import (
 	"github.com/handline/handline/go/data/stream"
 	"github.com/handline/handline/go/internal/cmdruns"
 	"github.com/handline/handline/go/internal/reads"
+	"github.com/handline/handline/go/kit/actor"
 )
 
 // The chat topic's cursors are the Python watcher's, so either side picks up where the other left off.
@@ -181,7 +182,7 @@ func (c *Chat) requests(q *sql.DB, emit Emit) error {
 func (c *Chat) tell(emit Emit, req *reads.ChatRequest) error {
 	var told []string
 	for _, agent := range []string{req.Target, req.Requester} {
-		if agent == db.Human || slices.Contains(told, agent) {
+		if actor.IsPerson(agent) || slices.Contains(told, agent) {
 			continue
 		}
 		told = append(told, agent)
@@ -274,7 +275,7 @@ func (c *Chat) taskEvents(q *sql.DB, emit Emit) error {
 		if err != nil {
 			return err
 		}
-		if ok && agent != "" && agent != db.Human {
+		if ok && agent != "" && !actor.IsPerson(agent) {
 			if err := c.say(emit, "chat.transcript", agent, item); err != nil {
 				return err
 			}
