@@ -117,6 +117,11 @@ func (e *Env) teamNames(name string, members []string, repos map[string]string, 
 // draft checks one change against the roster `registered` and returns it as a proposal, or why not.
 func (e *Env) draft(actor, kind string, args map[string]any, why string, registered []string) (*Prop, string) {
 	name := argStr(args, "name")
+	// registered is keys: a name is an agent when it resolves to one of them
+	exists := func(n string) bool { return slices.Contains(registered, paths.WhoKey(e.Home, n)) }
+	if kind != "add" && kind != "team" { // these name an agent there is; add and team name one to make
+		name = paths.WhoKey(e.Home, name)
+	}
 	str := func(k string) string { return argStr(args, k) }
 	why = strings.TrimSpace(why)
 	if !slices.Contains(proposable, kind) {
@@ -143,11 +148,11 @@ func (e *Env) draft(actor, kind string, args map[string]any, why string, registe
 			return nil, msg
 		}
 	case "add":
-		if slices.Contains(registered, name) {
+		if exists(name) {
 			return nil, fmt.Sprintf("%s is already an agent", name)
 		}
 	default:
-		if !slices.Contains(registered, name) {
+		if !exists(name) {
 			return nil, fmt.Sprintf("%s is not an agent", name)
 		}
 	}
@@ -158,7 +163,7 @@ func (e *Env) draft(actor, kind string, args map[string]any, why string, registe
 		if textsafe.HasUnsafe(to) {
 			return nil, fmt.Sprintf("bad agent name: %q", to)
 		}
-		if slices.Contains(registered, to) {
+		if exists(to) {
 			return nil, fmt.Sprintf("%s is already an agent", to)
 		}
 	}
