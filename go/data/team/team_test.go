@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/names"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/store"
@@ -279,11 +280,13 @@ func TestAnAgentRegisteredBeforeItsLeadReportsToTheLeadOnceItComes(t *testing.T)
 	home := newHome(t)
 	r := NewRoster(home)
 	register(t, r, "shop.ui", "shop")
-	d, _ := store.Shared(paths.DBFile(home))
-	var reports, lead string
-	d.QueryRow("SELECT a.reports_to, 'a' || w.lead FROM agents a JOIN workspaces w ON w.id = a.workspace WHERE a.name = 'ui'").Scan(&reports, &lead)
-	if reports != lead || lead == "a" {
-		t.Fatalf("shop.ui reports to %q, its lead is %q", reports, lead)
+	var reports string
+	var lead int64
+	if err := r.DB.QueryRow("SELECT a.reports_to, w.lead FROM agents a JOIN workspaces w ON w.id = a.workspace WHERE a.name = 'ui'").Scan(&reports, &lead); err != nil {
+		t.Fatal(err)
+	}
+	if reports != actor.Key(actor.Agent, lead) {
+		t.Fatalf("shop.ui reports to %q, its lead is a%d", reports, lead)
 	}
 }
 

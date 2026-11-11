@@ -15,7 +15,7 @@ import (
 func settingsWith(t *testing.T, config string, ann ...any) *Settings {
 	t.Helper()
 	home := t.TempDir()
-	s := &Settings{Home: home, Roster: team.NewRoster(home)}
+	s := &Settings{Home: home}
 	if config != "" {
 		if err := os.WriteFile(paths.ConfigFile(home), []byte(config), 0o644); err != nil {
 			t.Fatal(err)
@@ -24,6 +24,7 @@ func settingsWith(t *testing.T, config string, ann ...any) *Settings {
 	if len(ann) > 0 {
 		teamtest.Set(t, home, "ann", ann...)
 	}
+	s.Roster = team.NewRoster(home) // after the seed: a roster of a home with no database yet has none
 	return s
 }
 
