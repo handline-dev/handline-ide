@@ -15,7 +15,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -24,6 +23,7 @@ import (
 	"github.com/handline/handline/go/accounts/usage"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/actor"
+	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/kit/names"
 	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/kit/yamlcompat"
@@ -118,7 +118,7 @@ func run(from, to, ownerName string, out *os.File) error {
 	defer tx.Rollback()
 	im := &importer{from: from, to: to, old: old, tx: tx, owner: owner, out: out, unmapped: map[string]map[string]int{},
 		accts: map[string]string{}, wss: map[string]int64{},
-		keys: map[string]string{"human": owner, "founder": owner, "task-board": actor.Sys, actor.Gate: actor.Gate}}
+		keys: map[string]string{"human": owner, "founder": owner, "task-board": actor.Sys, "land": actor.Sys, "schedule": actor.Sys, actor.Gate: actor.Gate}}
 	steps := []struct {
 		name string
 		f    func() error
@@ -137,7 +137,7 @@ func run(from, to, ownerName string, out *os.File) error {
 		return err
 	}
 	if err := im.files(); err != nil {
-		return fmt.Errorf("files: %w", err)
+		return fmt.Errorf("files: %w (the database is written: remove %s and run again)", err, to)
 	}
 	im.report()
 	return nil
@@ -205,6 +205,9 @@ func (im *importer) agents() error {
 			return fmt.Errorf("workspace %s: %w", ws, err)
 		}
 		folder, _ := group[0].cfg["repo"].(string)
+		if group[0].agent != "" {
+			fmt.Fprintf(im.out, "workspace %s has no lead: its folder %q is %s's\n", ws, folder, group[0].name)
+		}
 		res, err := im.tx.Exec("INSERT INTO workspaces(name, folder, created_at) VALUES(?, ?, ?)", ws, expandHome(folder), now)
 		if err != nil {
 			return err
@@ -267,19 +270,12 @@ func (im *importer) settings(id int64, a oldAgent, cols []string) error {
 			fmt.Fprintf(im.out, "agent %s: setting %s=%v is no column, not brought\n", a.name, k, a.cfg[k])
 			continue
 		}
-		v := a.cfg[k]
-		switch b := v.(type) {
-		case bool:
-			v = 0
-			if b {
-				v = 1
-			}
-		case int64, int, string, nil:
-		default:
-			return fmt.Errorf("setting %s: %v (%T) is no column value", k, v, v)
-		}
-		if v == nil && k == "enabled" {
+		if a.cfg[k] == nil && k == "enabled" {
 			continue
+		}
+		v, err := team.Setting(k, a.cfg[k])
+		if err != nil {
+			return err
 		}
 		// k is a column of the agents table, never input text.
 		if _, err := im.tx.Exec("UPDATE agents SET "+k+" = ? WHERE id = ?", v, id); err != nil {
@@ -301,7 +297,8 @@ func (im *importer) readAgents() ([]oldAgent, error) {
 		}
 		b, err := os.ReadFile(filepath.Join(im.from, "agents", e.Name(), "agent.yaml"))
 		if errors.Is(err, os.ErrNotExist) {
-			continue // a folder with no agent.yaml is no registered agent
+			fmt.Fprintf(im.out, "agents/%s has no agent.yaml: no agent, left behind\n", e.Name())
+			continue
 		}
 		if err != nil {
 			return nil, err
@@ -360,6 +357,11 @@ func (im *importer) accounts() error {
 				sets[acct] = map[string]any{}
 			}
 			sets[acct][col] = v
+		}
+	}
+	for acct := range sets {
+		if _, err := os.Stat(filepath.Join(im.from, "accounts", acct)); err != nil {
+			fmt.Fprintf(im.out, "config.yaml: settings of account %s, which has no folder, not brought\n", acct)
 		}
 	}
 	for _, e := range ents {
@@ -502,16 +504,13 @@ func (im *importer) key(at, word string) string {
 	return word
 }
 
-// mentionRe is addr's: an @word where a mention may start, not inside a word or an address like a@b.
-var mentionRe = regexp.MustCompile(`(^|[^A-Za-z0-9_.@<-])@([A-Za-z0-9][A-Za-z0-9_.-]*)`)
-
 // mentions is text with each @name of a key as <@key>; any other @word stays text.
 func (im *importer) mentions(text string) string {
 	if !strings.Contains(text, "@") {
 		return text
 	}
-	return mentionRe.ReplaceAllStringFunc(text, func(m string) string {
-		s := mentionRe.FindStringSubmatch(m)
+	return addr.MentionRe.ReplaceAllStringFunc(text, func(m string) string {
+		s := addr.MentionRe.FindStringSubmatch(m)
 		word := strings.TrimRight(s[2], ".-") // a sentence's full stop is not part of the name
 		k, ok := im.keys[word]
 		if !ok {
@@ -528,7 +527,7 @@ func (im *importer) nav(text string) (string, error) {
 	if err := json.Unmarshal([]byte(text), &m); err != nil {
 		return "", fmt.Errorf("prefs.nav: %w", err)
 	}
-	for _, f := range []string{"pins", "order", "hidden"} {
+	for _, f := range []string{"pins", "order"} { // hidden holds status words, not agents
 		list, ok := m[f].([]any)
 		if !ok {
 			continue
@@ -700,7 +699,7 @@ func clone(src, dst string) error {
 		return err
 	}
 	if out, err := exec.Command("cp", "-cRp", src, dst).CombinedOutput(); err != nil {
-		return fmt.Errorf("cp %s %s: %v: %s", src, dst, err, out)
+		return fmt.Errorf("cp %s %s: %w: %s", src, dst, err, out)
 	}
 	return nil
 }
