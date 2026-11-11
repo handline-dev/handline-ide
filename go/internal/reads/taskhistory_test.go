@@ -45,7 +45,7 @@ func TestTaskHistoryListsEveryChangeAsRowsNewestFirst(t *testing.T) {
 	want := []string{
 		`19 bob state: "doing" -> "done" (abc123)`,
 		`18 dan blocked_by: "T7" -> ""`,
-		`17 human memo: "mind the disk" -> "" memo 3`,
+		`17 p1 memo: "mind the disk" -> "" memo 3`,
 		`16 cat memo: "mind the cache" -> "mind the disk" memo 3`,
 		`15 cat memo: "" -> "mind the cache" memo 3`,
 		`14 bob state: "queued" -> "doing"`,

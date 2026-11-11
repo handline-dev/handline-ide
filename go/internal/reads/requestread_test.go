@@ -19,6 +19,11 @@ var (
 	asCat     = &rpc.Conn{Caller: rpc.Caller{Role: "agent", Info: map[string]any{"kind": "agent", "name": "cat"}}}
 )
 
+// asAgent is a connection of the agent whose key is key.
+func asAgent(key string) *rpc.Conn {
+	return &rpc.Conn{Caller: rpc.Caller{Role: "agent", Info: map[string]any{"kind": "agent", "name": key}}}
+}
+
 func num64(n int64) json.Number { return json.Number(fmt.Sprint(n)) }
 
 func read(t *testing.T, e *Env, c *rpc.Conn, id int64) map[string]any {
@@ -188,7 +193,7 @@ func TestAMessagesImagesReadBackInPartsWithAPathOnlyForAnAgent(t *testing.T) {
 		t.Fatalf("parts %v, attachments %v", kinds, m["attachments"])
 	}
 	named, _ := s.Lookup(ids[0])
-	if parts, _ := read(t, e, asBob, 1)["parts"].([]any); len(parts) != 4 || parts[1].(map[string]any)["path"] != s.Path(named) {
+	if parts, _ := read(t, e, asAgent(bob), 1)["parts"].([]any); len(parts) != 4 || parts[1].(map[string]any)["path"] != s.Path(named) {
 		t.Fatalf("an agent reading the message gets the path: %v", parts)
 	}
 }
@@ -197,12 +202,11 @@ func TestRequestReadIsForTheEndsTheirSupervisorsTheTaskAndTheFounder(t *testing.
 	t.Parallel()
 	e := testEnv(t)
 	teamtest.Seed(t, e.Home, "amy", "amy.kid", "bob", "cat", "dan", "eve")
-	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(1, 10, 'amy.kid', 'bob', 'private', 'landed', 'ask', 1)")
-	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 't', 'dan', 'eve', 1)")
+	key := func(name string) string { return teamtest.Key(t, e.Home, name) }
+	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(1, 10, ?, ?, 'private', 'landed', 'ask', 1)", key("amy.kid"), key("bob"))
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 't', ?, ?, 1)", key("dan"), key("eve"))
 	run(t, e, "INSERT INTO task_requests(task_id, request_id) VALUES(1, 1)")
-	agent := func(name string) *rpc.Conn {
-		return &rpc.Conn{Caller: rpc.Caller{Role: "agent", Info: map[string]any{"kind": "agent", "name": name}}}
-	}
+	agent := func(name string) *rpc.Conn { return asAgent(key(name)) }
 	for who, conn := range map[string]*rpc.Conn{"founder": asFounder, "requester": agent("amy.kid"), "target": agent("bob"),
 		"supervisor of the requester": agent("amy"), "assignee of a linked task": agent("dan"), "opener of a linked task": agent("eve")} {
 		if got, err := e.requestRead(conn, map[string]any{"id": num64(1)}); err != nil || got.(map[string]any)["body"] != "private" {
@@ -213,9 +217,9 @@ func TestRequestReadIsForTheEndsTheirSupervisorsTheTaskAndTheFounder(t *testing.
 		}
 	}
 	// a stranger is told what a missing number is told
-	_, missing := e.requestRead(asCat, map[string]any{"id": num64(99)})
+	_, missing := e.requestRead(agent("cat"), map[string]any{"id": num64(99)})
 	for _, f := range []func(*rpc.Conn, map[string]any) (any, error){e.requestRead, e.inboxGet} {
-		_, err := f(asCat, map[string]any{"id": num64(1)})
+		_, err := f(agent("cat"), map[string]any{"id": num64(1)})
 		var nf, want *rpc.Error
 		if !errors.As(err, &nf) || !errors.As(missing, &want) || nf.Code != "not_found" || nf.Code != want.Code ||
 			strings.ReplaceAll(nf.Message, "1", "9") != strings.ReplaceAll(want.Message, "99", "9") {

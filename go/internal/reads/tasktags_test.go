@@ -67,10 +67,10 @@ func TestTasksListFiltersOnTagsAndTheOtherFieldsTogether(t *testing.T) {
 		}
 	}
 	// an agent sees the tasks it or its reports work or answer for: amy has bob under it
-	if got := ids(asAmy, map[string]any{"tags": tags("fe")}); got != "[2 1]" {
+	if got := ids(asAgent(amy), map[string]any{"tags": tags("fe")}); got != "[2 1]" {
 		t.Errorf("amy's scope: %s", got)
 	}
-	if got := ids(asCat, map[string]any{}); got != "[5]" {
+	if got := ids(asAgent(cat), map[string]any{}); got != "[5]" {
 		t.Errorf("cat's scope: %s", got)
 	}
 	got, _ := e.tasksList(asFounder, map[string]any{"tags": tags("fe", "be")})

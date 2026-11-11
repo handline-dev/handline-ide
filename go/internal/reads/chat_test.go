@@ -25,11 +25,11 @@ func TestAMessageToAStructuredAgentCarriesItsReceiptAndLandsAsItSays(t *testing.
 		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(4, 4, 'p1', '" + bob + "', 'lost', 'queued', 'say')",
 		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(5, 5, 'p1', '" + bob + "', 'taken back', 'withdrawn', 'say')",
 		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(6, 6, 'p1', '" + bob + "', 'to a terminal', 'queued', 'say')",
-		"INSERT INTO operations(id, kind, state, result_json, agent, created_at, updated_at) VALUES('send:bob:request:1', 'send', 'queued', '{\"uuid\":\"u1\"}', '" + bob + "', 1, 1)",
-		"INSERT INTO operations(id, kind, state, result_json, agent, created_at, updated_at) VALUES('send:bob:request:2', 'send', 'sent', '{\"uuid\":\"u2\"}', '" + bob + "', 1, 1)",
-		"INSERT INTO operations(id, kind, state, result_json, agent, created_at, updated_at) VALUES('send:bob:request:3', 'send', 'confirmed', '{\"uuid\":\"u3\"}', '" + bob + "', 1, 1)",
-		"INSERT INTO operations(id, kind, state, result_json, agent, created_at, updated_at) VALUES('send:bob:request:4', 'send', 'unknown', '{\"uuid\":\"u4\"}', '" + bob + "', 1, 1)",
-		"INSERT INTO operations(id, kind, state, result_json, agent, created_at, updated_at) VALUES('send:bob:request:5', 'send', 'withdrawn', '{\"uuid\":\"u5\"}', '" + bob + "', 1, 1)",
+		"INSERT INTO operations(id, kind, state, result_json, agent, created_at, updated_at) VALUES('send:" + bob + ":request:1', 'send', 'queued', '{\"uuid\":\"u1\"}', '" + bob + "', 1, 1)",
+		"INSERT INTO operations(id, kind, state, result_json, agent, created_at, updated_at) VALUES('send:" + bob + ":request:2', 'send', 'sent', '{\"uuid\":\"u2\"}', '" + bob + "', 1, 1)",
+		"INSERT INTO operations(id, kind, state, result_json, agent, created_at, updated_at) VALUES('send:" + bob + ":request:3', 'send', 'confirmed', '{\"uuid\":\"u3\"}', '" + bob + "', 1, 1)",
+		"INSERT INTO operations(id, kind, state, result_json, agent, created_at, updated_at) VALUES('send:" + bob + ":request:4', 'send', 'unknown', '{\"uuid\":\"u4\"}', '" + bob + "', 1, 1)",
+		"INSERT INTO operations(id, kind, state, result_json, agent, created_at, updated_at) VALUES('send:" + bob + ":request:5', 'send', 'withdrawn', '{\"uuid\":\"u5\"}', '" + bob + "', 1, 1)",
 	} {
 		if _, err := e.DB.Exec(q); err != nil {
 			t.Fatal(err)

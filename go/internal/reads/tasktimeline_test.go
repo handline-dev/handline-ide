@@ -78,28 +78,38 @@ func TestATasksPageNamesItsSubtasksParentMergeAndWhomToAsk(t *testing.T) {
 	for _, a := range []string{"amy", "eng", "eng.bob", "eng.cy", "dee"} {
 		addAgent(t, e, a, "")
 	}
-	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'the story', 'amy', 'amy', 10), "+
-		"(2, 'a', 'eng.bob', 'amy', 10), (3, 'b', 'eng.cy', 'eng.bob', 10), (4, 'c', 'eng.cy', 'eng.bob', 10)")
+	nameOf := map[string]string{} // by key, so the wants read by name
+	key := func(name string) string { k := teamtest.Key(t, e.Home, name); nameOf[k] = name; return k }
+	amy, bob, cy, dee := key("amy"), key("eng.bob"), key("eng.cy"), key("dee")
+	key("eng")
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'the story', ?, ?, 10), "+
+		"(2, 'a', ?, ?, 10), (3, 'b', ?, ?, 10), (4, 'c', ?, ?, 10)", amy, amy, bob, amy, cy, bob, cy, bob)
 	run(t, e, "UPDATE tasks SET parent_task = 1 WHERE id = 2")
 	run(t, e, "UPDATE tasks SET parent_task = 2 WHERE id IN (3, 4)")
 	run(t, e, "UPDATE tasks SET done_evidence = 'sha', done_at = 20 WHERE id = 3")
-	run(t, e, "UPDATE tasks SET discarded_by = 'eng.bob', discarded_at = 20, merged_into = 3 WHERE id = 4")
-	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, edge_ok) VALUES(1, 1, 'p1', 'eng.cy', 'x', 'landed', 1), "+
-		"(2, 2, 'dee', 'p1', 'y', 'landed', 1), (3, 3, 'p1', 'eng.cy', 'z', 'landed', 1)")
+	run(t, e, "UPDATE tasks SET discarded_by = ?, discarded_at = 20, merged_into = 3 WHERE id = 4", bob)
+	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, edge_ok) VALUES(1, 1, 'p1', ?, 'x', 'landed', 1), "+
+		"(2, 2, ?, 'p1', 'y', 'landed', 1), (3, 3, 'p1', ?, 'z', 'landed', 1)", cy, dee, cy)
 	got, err := e.taskGet(nil, map[string]any{"task": json.Number("2")})
 	if err != nil {
 		t.Fatal(err)
 	}
 	d := got.(map[string]any)
 	subs, _ := json.Marshal(d["subtasks"])
-	if want := `[{"block_reason":null,"evidence":"sha","hold_reason":null,"id":3,"owner":"eng.cy","state":"done","title":"b","waiting":null},` +
-		`{"block_reason":null,"evidence":null,"hold_reason":null,"id":4,"owner":"eng.cy","state":"discarded","title":"c","waiting":null}]`; string(subs) != want {
+	if want := `[{"block_reason":null,"evidence":"sha","hold_reason":null,"id":3,"owner":"` + cy + `","state":"done","title":"b","waiting":null},` +
+		`{"block_reason":null,"evidence":null,"hold_reason":null,"id":4,"owner":"` + cy + `","state":"discarded","title":"c","waiting":null}]`; string(subs) != want {
 		t.Fatalf("subtasks %s, want %s", subs, want)
 	}
 	if d["parent_title"] != "the story" || d["merged_into"] != nil {
 		t.Fatalf("parent_title %v, merged_into %v", d["parent_title"], d["merged_into"])
 	}
-	if people := fmt.Sprint(d["people"]); people != "map[others:[amy] recent:[eng.cy dee] team:[eng eng.bob]]" {
+	people := map[string][]string{}
+	for k, keys := range d["people"].(map[string]any) {
+		for _, key := range keys.([]string) {
+			people[k] = append(people[k], nameOf[key])
+		}
+	}
+	if fmt.Sprint(people) != "map[others:[amy] recent:[eng.cy dee] team:[eng eng.bob]]" {
 		t.Fatalf("people %s", people)
 	}
 	if got, _ = e.taskGet(nil, map[string]any{"task": json.Number("4")}); got.(map[string]any)["merged_into"] != int64(3) {

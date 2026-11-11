@@ -159,7 +159,7 @@ func TestAnAccountListsTheAgentsItsViewsPutOnIt(t *testing.T) {
 	}
 	for _, n := range []string{"cold", "fresh", "warm"} {
 		addAgent(t, e, n, "")
-		if _, err := e.DB.Exec("INSERT INTO agent_state(agent, state, account, updated) VALUES(?, 'IDLE', 'main', 1)", n); err != nil {
+		if _, err := e.DB.Exec("INSERT INTO agent_state(agent, state, account, updated) VALUES(?, 'IDLE', 'main', 1)", teamtest.Key(t, e.Home, n)); err != nil {
 			t.Fatal(err)
 		}
 	}
