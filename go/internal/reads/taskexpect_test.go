@@ -115,7 +115,7 @@ func TestHistoryOfEstimateVersusActualBySizeChangesTheExpectedEnd(t *testing.T) 
 	if x := expectedOf(t, e, 2, now); x != nil {
 		t.Fatalf("an ended task expects nothing: %v", x)
 	}
-	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, timeout_s) VALUES(20, 'yours', 'human', 'amy', 5000, 60)")
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, timeout_s) VALUES(20, 'yours', 'p1', 'amy', 5000, 60)")
 	if x := expectedOf(t, e, 20, now); x != nil {
 		t.Fatalf("a task the founder holds has no queue or account: %v", x)
 	}

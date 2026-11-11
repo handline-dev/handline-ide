@@ -15,16 +15,16 @@ func seedForYou(t *testing.T, e *Env) []string {
 	now := time.Now().Unix()
 	for _, q := range []string{
 		// task 1: given to the founder (owned by human, queued); task 2: tagged review, with a comment ask on it; task 3: an agent's own
-		"INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(1, 'pick one', 'human', 'boss', 10, 'boss')",
+		"INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(1, 'pick one', 'p1', 'boss', 10, 'boss')",
 		"INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(2, 'look at it', 'w', 'boss', 20, 'boss')",
-		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(3, 'draft', 'human', 'boss', 25)",
+		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(3, 'draft', 'p1', 'boss', 25)",
 		"INSERT INTO task_tags(task_id, tag) VALUES(2, 'review')",
 		"INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(7, 2, 'w', '@human is it right?', 30)",
-		"INSERT INTO requests(id, ref, ts, requester, target, body, state, memo_id, edge_ok) VALUES(70, 'aaaaaaaaaaa7', 30, 'w', 'human', '@human is it right?', 'queued', 7, 1)",
+		"INSERT INTO requests(id, ref, ts, requester, target, body, state, memo_id, edge_ok) VALUES(70, 'aaaaaaaaaaa7', 30, 'w', 'p1', '@human is it right?', 'queued', 7, 1)",
 		"INSERT INTO task_requests(task_id, request_id) VALUES(2, 70)",
 		// an ask on no task, and a say (nothing asked)
-		"INSERT INTO requests(id, ref, ts, requester, target, body, state, kind, edge_ok) VALUES(71, 'aaaaaaaaaaa8', 40, 'w', 'human', 'which colour?', 'queued', 'ask', 1)",
-		"INSERT INTO requests(id, ref, ts, requester, target, body, state, kind, edge_ok, landed_at) VALUES(72, 'aaaaaaaaaaa9', 41, 'w', 'human', 'fyi', 'landed', 'say', 1, 41)",
+		"INSERT INTO requests(id, ref, ts, requester, target, body, state, kind, edge_ok) VALUES(71, 'aaaaaaaaaaa8', 40, 'w', 'p1', 'which colour?', 'queued', 'ask', 1)",
+		"INSERT INTO requests(id, ref, ts, requester, target, body, state, kind, edge_ok, landed_at) VALUES(72, 'aaaaaaaaaaa9', 41, 'w', 'p1', 'fyi', 'landed', 'say', 1, 41)",
 		"INSERT INTO prompt_blocks(agent, kind, fingerprint, title, panel, detail, first_seen, last_seen) VALUES('bob', 'permission', 'fp1', 't', '[]', '{\"tool\":\"Bash\",\"command\":\"ls\"}', " +
 			strconv.FormatInt(now-100, 10) + ", " + strconv.FormatInt(now, 10) + ")",
 	} {
@@ -104,7 +104,7 @@ func TestEachKindLeavesTheCountWhenItIsAnswered(t *testing.T) {
 // deferNav keeps the founder's Later pref, given as the JSON of nav.later.
 func deferNav(t *testing.T, e *Env, later string) {
 	t.Helper()
-	run(t, e, `INSERT INTO prefs(person, nav, updated_at) VALUES('human', '{"later":`+later+`}', 0) ON CONFLICT(person) DO UPDATE SET nav = excluded.nav`)
+	run(t, e, `INSERT INTO prefs(person, nav, updated_at) VALUES('p1', '{"later":`+later+`}', 0) ON CONFLICT(person) DO UPDATE SET nav = excluded.nav`)
 }
 
 func stamp(sec int64) string { return time.Unix(sec, 0).UTC().Format(time.RFC3339) }
@@ -152,8 +152,8 @@ func TestAFoundersTurnRowIsDatedWhenTheTurnCame(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(1, 'ship it?', 'w', 'boss', 10, 'boss'), "+
-		"(2, 'pick one', 'human', 'boss', 20, 'boss')")
-	run(t, e, "INSERT INTO task_turns(task_id, pos, agent, ask, pushed_by, since) VALUES(1, 1, 'cy', 'look', 'w', 300), (1, 2, 'human', 'decide', 'cy', 500)")
+		"(2, 'pick one', 'p1', 'boss', 20, 'boss')")
+	run(t, e, "INSERT INTO task_turns(task_id, pos, agent, ask, pushed_by, since) VALUES(1, 1, 'cy', 'look', 'w', 300), (1, 2, 'p1', 'decide', 'cy', 500)")
 	got, _ := forYou(t, e)
 	if it := got["task\x001"]; it == nil || it["since"] != stamp(500) {
 		t.Errorf("the top turn's time: %v", it)

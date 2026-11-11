@@ -12,7 +12,7 @@ func TestAQueuedTasksWaitLineNamesTheTaskItsOwnerIsOn(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by, parent_task) VALUES"+
-		"(1, 'on it', 'bob', 'human', 1, 'human', NULL), (2, 'next', 'bob', 'human', 1, 'human', 3), (3, 'parent', 'cy', 'human', 1, 'human', NULL)")
+		"(1, 'on it', 'bob', 'p1', 1, 'p1', NULL), (2, 'next', 'bob', 'p1', 1, 'p1', 3), (3, 'parent', 'cy', 'p1', 1, 'p1', NULL)")
 	run(t, e, "INSERT INTO agent_state(agent, state, updated, current_task) VALUES('bob', 'BUSY', 1, 1)")
 	get := func(id int) map[string]any {
 		t.Helper()

@@ -83,7 +83,7 @@ func TestOnlyTheFounderReadingARequestOpensIt(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES"+
-		"(1, 1, 'bob', 'human', 'a report', 'queued', 'say', 1), (2, 2, 'human', 'bob', 'a question', 'landed', 'ask', 1)")
+		"(1, 1, 'bob', 'p1', 'a report', 'queued', 'say', 1), (2, 2, 'p1', 'bob', 'a question', 'landed', 'ask', 1)")
 	isRead := func() bool {
 		report, err := queryOne(e.DB, "SELECT read_at FROM requests WHERE id = 1")
 		if err != nil {
@@ -106,7 +106,7 @@ func TestOnlyTheFounderReadingARequestOpensIt(t *testing.T) {
 
 func TestAWaitThatEndsUnsettledOpensNothing(t *testing.T) {
 	e := testEnv(t)
-	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(1, 1, 'bob', 'human', 'which one?', 'queued', 'ask', 1)")
+	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(1, 1, 'bob', 'p1', 'which one?', 'queued', 'ask', 1)")
 	isRead := func() bool {
 		r, err := queryOne(e.DB, "SELECT read_at FROM requests WHERE id = 1")
 		if err != nil {
@@ -162,7 +162,7 @@ func TestAMessagesImagesReadBackInPartsWithAPathOnlyForAnAgent(t *testing.T) {
 		}
 		ids = append(ids, out.Attachment.ID)
 	}
-	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(1, 10, 'human', 'bob', ?, 'landed', 'say', 1)",
+	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(1, 10, 'p1', 'bob', ?, 'landed', 'say', 1)",
 		"see ![it](attachment:"+ids[0]+") here")
 	listed, _ := s.Lookup(ids[1])
 	attachments.Record(e.DB, 1, []attachments.Info{listed})
@@ -236,8 +236,8 @@ func TestRequestReadKeepsTheParentsWordsFromAStranger(t *testing.T) {
 func TestRequestReadLetsTheTargetOfTheFoundersQuoteReadWhatWasQuoted(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(1, 10, 'amy', 'human', 'which one?', 'landed', 'ask', 1), (2, 11, 'amy', 'cat', 'between agents', 'landed', 'ask', 1)")
-	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok, parent_id) VALUES(3, 20, 'human', 'bob', 'see this', 'landed', 'say', 1, 1), (4, 21, 'cat', 'bob', 'see this', 'landed', 'say', 1, 2)")
+	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(1, 10, 'amy', 'p1', 'which one?', 'landed', 'ask', 1), (2, 11, 'amy', 'cat', 'between agents', 'landed', 'ask', 1)")
+	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok, parent_id) VALUES(3, 20, 'p1', 'bob', 'see this', 'landed', 'say', 1, 1), (4, 21, 'cat', 'bob', 'see this', 'landed', 'say', 1, 2)")
 	if got := read(t, e, asBob, 1); got["body"] != "which one?" {
 		t.Fatalf("the founder quoted it to bob: %v", got)
 	}

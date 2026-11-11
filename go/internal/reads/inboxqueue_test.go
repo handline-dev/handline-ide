@@ -131,16 +131,16 @@ func TestInboxQueueOfTheFounderPrintsAsHlInboxDid(t *testing.T) {
 	e := testEnv(t)
 	printsAs(t, e, human, "founder-empty") // nothing waiting
 	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok, response, landed_at) VALUES"+
-		"(1, 10, 'amy', 'human', 'seen before', 'landed', 'say', 1, NULL, 10), (2, 20, 'amy', 'human', 'report one', 'landed', 'say', 1, NULL, 20), "+
-		"(3, 30, 'amy', 'human', 'report two\nmore', 'landed', 'say', 1, NULL, 30), (4, 40, 'bob', 'human', 'which one?', 'queued', 'ask', 1, 'async', NULL), "+
-		"(5, 50, 'bob', 'human', 'approve the plan', 'queued', 'task', 1, NULL, NULL), (6, 60, 'human', 'cy', 'do it', 'landed', 'ask', 1, NULL, 60), "+
-		"(7, 70, 'cy', 'human', 'done as asked', 'landed', 'say', 1, NULL, 70), (8, 80, 'human', 'cy', 'and this', 'withdrawn', 'ask', 1, NULL, NULL), "+
-		"(9, 90, 'bob', 'human', 'old question', 'landed', 'ask', 1, NULL, 90), (10, 95, 'dee', 'human', 'no kind', 'queued', NULL, 1, NULL, NULL)")
+		"(1, 10, 'amy', 'p1', 'seen before', 'landed', 'say', 1, NULL, 10), (2, 20, 'amy', 'p1', 'report one', 'landed', 'say', 1, NULL, 20), "+
+		"(3, 30, 'amy', 'p1', 'report two\nmore', 'landed', 'say', 1, NULL, 30), (4, 40, 'bob', 'p1', 'which one?', 'queued', 'ask', 1, 'async', NULL), "+
+		"(5, 50, 'bob', 'p1', 'approve the plan', 'queued', 'task', 1, NULL, NULL), (6, 60, 'p1', 'cy', 'do it', 'landed', 'ask', 1, NULL, 60), "+
+		"(7, 70, 'cy', 'p1', 'done as asked', 'landed', 'say', 1, NULL, 70), (8, 80, 'p1', 'cy', 'and this', 'withdrawn', 'ask', 1, NULL, NULL), "+
+		"(9, 90, 'bob', 'p1', 'old question', 'landed', 'ask', 1, NULL, 90), (10, 95, 'dee', 'p1', 'no kind', 'queued', NULL, 1, NULL, NULL)")
 	run(t, e, "UPDATE requests SET settles = 6 WHERE id = 7")
-	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'decide', 'human', 'bob', 1)")
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'decide', 'p1', 'bob', 1)")
 	run(t, e, "INSERT INTO task_requests(task_id, request_id) VALUES(1, 5)")
 	run(t, e, "INSERT INTO cursors(name, row_id, updated) VALUES('for_you_seen:amy', 1, 1)")
-	run(t, e, `INSERT INTO events(ts, agent, kind, payload) VALUES(91, 'human', 'dismissed', '{"request_id": 9, "by": "human", "reason": "stale"}')`)
+	run(t, e, `INSERT INTO events(ts, agent, kind, payload) VALUES(91, 'p1', 'dismissed', '{"request_id": 9, "by": "human", "reason": "stale"}')`)
 	printsAs(t, e, human, "founder-mailbox")
 	got := queueOf(t, e, asFounder, nil)
 	if got["waiting"] != 7 || got["newest"] != int64(10) || got["head"] != nil || got["dealt"] != nil {

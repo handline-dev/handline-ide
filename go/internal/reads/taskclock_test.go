@@ -23,12 +23,12 @@ func TestATasksClockRunsOnlyWhileItIsDoing(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	now := time.Now().Unix()
-	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(1, 'q', 'bob', 'human', 1, 'human')")
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(1, 'q', 'bob', 'p1', 1, 'p1')")
 	_, c := clockOf(t, e, 1)
 	if c["length_s"] != int64(4*3600) || c["default"] != true || c["start"] != nil || c["end"] != nil || c["told"] != 0 {
 		t.Fatalf("a queued task has a length and no counting: %v", c)
 	}
-	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by, timeout_s, timeout_at, sent_at) VALUES(2, 'd', 'bob', 'human', 1, 'human', 600, ?, 1)", now+300)
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by, timeout_s, timeout_at, sent_at) VALUES(2, 'd', 'bob', 'p1', 1, 'p1', 600, ?, 1)", now+300)
 	run(t, e, "INSERT INTO agent_state(agent, state, updated, current_task) VALUES('bob', 'RUNNING', 0, 2)")
 	task, c := clockOf(t, e, 2)
 	if task["state"] != "doing" || c["length_s"] != int64(600) || c["default"] != false || c["start"] != ts(now+300-600) ||
@@ -45,7 +45,7 @@ func TestAnOverClockSaysSinceItsEndAndCountsTheNoticesOfItsBox(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	now := time.Now().Unix()
-	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by, timeout_s, timeout_at, sent_at) VALUES(1, 'd', 'bob', 'human', 1, 'human', 600, ?, 1)", now-100)
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by, timeout_s, timeout_at, sent_at) VALUES(1, 'd', 'bob', 'p1', 1, 'p1', 600, ?, 1)", now-100)
 	run(t, e, "INSERT INTO agent_state(agent, state, updated, current_task) VALUES('bob', 'RUNNING', 0, 1)")
 	if _, c := clockOf(t, e, 1); c["overdue_since"] != ts(now-100) || c["told"] != 0 {
 		t.Fatalf("no notice yet: over since its end: %v", c)
@@ -53,7 +53,7 @@ func TestAnOverClockSaysSinceItsEndAndCountsTheNoticesOfItsBox(t *testing.T) {
 	// One notice before an edit of the timeout started a new box, two after it.
 	run(t, e, `INSERT INTO events(ts, agent, kind, payload) VALUES
 		(1, 'bob', 'task_timeout_exceeded', '{"task_id": 1, "over_s": 0}'),
-		(2, 'human', 'edit_task', '{"task_id": 1, "timeout": {"old": "5m", "new": "10m"}}'),
+		(2, 'p1', 'edit_task', '{"task_id": 1, "timeout": {"old": "5m", "new": "10m"}}'),
 		(3, 'bob', 'task_timeout_exceeded', '{"task_id": 1, "over_s": 0}'),
 		(4, 'bob', 'task_timeout_exceeded', '{"task_id": 1, "over_s": 600}')`)
 	if _, c := clockOf(t, e, 1); c["overdue_since"] != ts(now-100) || c["told"] != 2 {
@@ -64,7 +64,7 @@ func TestAnOverClockSaysSinceItsEndAndCountsTheNoticesOfItsBox(t *testing.T) {
 func TestAPausedClockOverItsLengthKeepsHowFarOver(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by, timeout_s, timeout_left, sent_at) VALUES(1, 'd', 'bob', 'human', 1, 'human', 600, -120, 1)")
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by, timeout_s, timeout_left, sent_at) VALUES(1, 'd', 'bob', 'p1', 1, 'p1', 600, -120, 1)")
 	run(t, e, "INSERT INTO agent_state(agent, state, updated, current_task) VALUES('bob', 'RUNNING', 0, 1)")
 	if _, c := clockOf(t, e, 1); c["left_s"] != int64(-120) || c["end"] != nil {
 		t.Fatalf("%v", c)
@@ -76,7 +76,7 @@ func TestAPastDeadlineIsNotOverdueWhileAChildIsOpenOrTheFounderHoldsIt(t *testin
 	t.Parallel()
 	e := testEnv(t)
 	now := time.Now().Unix()
-	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by, timeout_s, timeout_at, sent_at) VALUES(1, 'd', 'bob', 'human', 1, 'human', 600, ?, 1)", now-100)
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by, timeout_s, timeout_at, sent_at) VALUES(1, 'd', 'bob', 'p1', 1, 'p1', 600, ?, 1)", now-100)
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, parent_task) VALUES(2, 'child', 'amy', 'bob', 1, 1)")
 	run(t, e, "INSERT INTO agent_state(agent, state, updated, current_task) VALUES('bob', 'RUNNING', 0, 1)")
 	if task, c := clockOf(t, e, 1); task["state"] != "doing" || c["overdue_since"] != nil {
@@ -86,7 +86,7 @@ func TestAPastDeadlineIsNotOverdueWhileAChildIsOpenOrTheFounderHoldsIt(t *testin
 	if _, c := clockOf(t, e, 1); c["overdue_since"] != ts(now-100) {
 		t.Fatalf("the child done: overdue: %v", c)
 	}
-	run(t, e, "UPDATE tasks SET owner = 'human' WHERE id = 1")
+	run(t, e, "UPDATE tasks SET owner = 'p1' WHERE id = 1")
 	if task, c := clockOf(t, e, 1); task["state"] != "doing" || c["overdue_since"] != nil {
 		t.Fatalf("the founder holds it: not overdue: %v %v", task["state"], c)
 	}
@@ -97,7 +97,7 @@ func itoa(n int64) string { return strconv.FormatInt(n, 10) }
 func TestATaskListsTheOpenTasksThatHoldItAndNoDoneOne(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'held', 'bob', 'human', 1), (2, 'open', 'amy', 'human', 1), (3, 'done', 'amy', 'human', 1)")
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'held', 'bob', 'p1', 1), (2, 'open', 'amy', 'p1', 1), (3, 'done', 'amy', 'p1', 1)")
 	run(t, e, "UPDATE tasks SET done_evidence = 'x' WHERE id = 3")
 	run(t, e, "INSERT INTO task_blocks(task_id, blocks_on, created_at) VALUES(1, 2, 1), (1, 3, 1)")
 	task, _ := clockOf(t, e, 1)
@@ -113,7 +113,7 @@ func TestAllWithBeforePagesThroughEveryTaskNewestFirst(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	for i := 1; i <= 5; i++ {
-		run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(?, 't', 'bob', 'human', 1)", i)
+		run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(?, 't', 'bob', 'p1', 1)", i)
 	}
 	run(t, e, "UPDATE tasks SET done_evidence = 'x' WHERE id IN (2, 4)")
 	c := &rpc.Conn{Caller: rpc.Caller{Role: "founder"}}
@@ -143,7 +143,7 @@ func TestADoingTaskGivenNoTimeoutCountsFourHoursBack(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	end := time.Now().Unix() + 3600
-	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by, timeout_at, sent_at) VALUES(1, 'd', 'bob', 'human', 1, 'human', ?, 1)", end)
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by, timeout_at, sent_at) VALUES(1, 'd', 'bob', 'p1', 1, 'p1', ?, 1)", end)
 	run(t, e, "INSERT INTO agent_state(agent, state, updated, current_task) VALUES('bob', 'RUNNING', 0, 1)")
 	_, c := clockOf(t, e, 1)
 	if c["length_s"] != int64(4*3600) || c["default"] != true || c["start"] != ts(end-4*3600) || c["end"] != ts(end) {
@@ -154,7 +154,7 @@ func TestADoingTaskGivenNoTimeoutCountsFourHoursBack(t *testing.T) {
 func TestAPausedClockSaysWhatItHasLeftAndNoStartOrEnd(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by, timeout_s, timeout_left, sent_at) VALUES(1, 'd', 'bob', 'human', 1, 'human', 600, 240, 1)")
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by, timeout_s, timeout_left, sent_at) VALUES(1, 'd', 'bob', 'p1', 1, 'p1', 600, 240, 1)")
 	run(t, e, "INSERT INTO agent_state(agent, state, updated, current_task) VALUES('bob', 'RUNNING', 0, 1)")
 	task, c := clockOf(t, e, 1)
 	if task["state"] != "doing" || c["left_s"] != int64(240) || c["start"] != nil || c["end"] != nil {

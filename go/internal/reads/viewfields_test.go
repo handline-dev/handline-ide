@@ -40,8 +40,8 @@ func TestAgentViewServesKindTaskCountAndReady(t *testing.T) {
 	addAgent(t, e, "bob", "")
 	run(t, e, `INSERT INTO agent_view(agent, view, updated) VALUES('bob', '{"name":"bob","state":"idle"}', 0)`)
 	// 1 is bob's current task, queued; 2 is a draft that is not current and does not count; 3 is queued and waits.
-	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(1, 'a', 'bob', 'human', 1, 'human'), (3, 'c', 'bob', 'human', 1, 'human')")
-	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(2, 'b', 'bob', 'human', 1)")
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(1, 'a', 'bob', 'p1', 1, 'p1'), (3, 'c', 'bob', 'p1', 1, 'p1')")
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(2, 'b', 'bob', 'p1', 1)")
 	run(t, e, "INSERT INTO agent_state(agent, state, updated, current_task) VALUES('bob', 'IDLE', 0, 1)")
 	v := viewOfAgent(t, e, "bob")
 	if k, _ := v["kind"].(string); k == "" {
@@ -51,7 +51,7 @@ func TestAgentViewServesKindTaskCountAndReady(t *testing.T) {
 		t.Fatalf("%v", v)
 	}
 
-	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(4, 'blocker', 'amy', 'human', 1)")
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(4, 'blocker', 'amy', 'p1', 1)")
 	run(t, e, "INSERT INTO task_blocks(task_id, blocks_on, created_at) VALUES(1, 4, 1)")
 	if v = viewOfAgent(t, e, "bob"); v["ready"] != false {
 		t.Fatalf("an open blocker holds it: %v", v)
@@ -163,7 +163,7 @@ func TestAgentViewServesItsLastRequestToTheFounderAndHowManyAreUnseen(t *testing
 		t.Fatalf("an agent that never wrote: %v", v)
 	}
 	for id, ts := range map[int]int{1: 100, 2: 200, 3: 300} {
-		run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(?, ?, 'bob', 'human', ?, 'queued', 'say', 1)", id, ts, "msg"+string(rune('0'+id)))
+		run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(?, ?, 'bob', 'p1', ?, 'queued', 'say', 1)", id, ts, "msg"+string(rune('0'+id)))
 	}
 	run(t, e, "INSERT INTO cursors(name, row_id, updated) VALUES('for_you_seen:bob', 1, 0)")
 	v := viewOfAgent(t, e, "bob")
@@ -179,8 +179,8 @@ func TestTaskCountLeavesOutWhatIsNotTheAgentsToDoNow(t *testing.T) {
 	addAgent(t, e, "bob", "")
 	run(t, e, `INSERT INTO agent_view(agent, view, updated) VALUES('bob', '{"name":"bob","state":"idle"}', 0)`)
 	// 1 is bob's current task, 3 waits behind it; 4 is amy's.
-	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(1, 'a', 'bob', 'human', 1, 'human'), "+
-		"(3, 'c', 'bob', 'human', 1, 'human'), (4, 'blocker', 'amy', 'human', 1, 'human')")
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(1, 'a', 'bob', 'p1', 1, 'p1'), "+
+		"(3, 'c', 'bob', 'p1', 1, 'p1'), (4, 'blocker', 'amy', 'p1', 1, 'p1')")
 	run(t, e, "INSERT INTO agent_state(agent, state, updated, current_task) VALUES('bob', 'IDLE', 0, 1)")
 	count := func(want float64, why string) {
 		t.Helper()
@@ -189,7 +189,7 @@ func TestTaskCountLeavesOutWhatIsNotTheAgentsToDoNow(t *testing.T) {
 		}
 	}
 	count(2, "both bob's")
-	run(t, e, "INSERT INTO task_turns(task_id, pos, agent, ask, pushed_by, since) VALUES(3, 1, 'human', 'pick', 'bob', 1)")
+	run(t, e, "INSERT INTO task_turns(task_id, pos, agent, ask, pushed_by, since) VALUES(3, 1, 'p1', 'pick', 'bob', 1)")
 	count(1, "the founder's turn")
 	run(t, e, "UPDATE task_turns SET agent = 'amy' WHERE task_id = 3")
 	count(1, "another agent's turn")
@@ -200,6 +200,6 @@ func TestTaskCountLeavesOutWhatIsNotTheAgentsToDoNow(t *testing.T) {
 	count(1, "blocked by an open task")
 	run(t, e, "UPDATE tasks SET done_evidence = 'x' WHERE id = 4")
 	count(2, "the blocker done")
-	run(t, e, "INSERT INTO task_turns(task_id, pos, agent, ask, pushed_by, since) VALUES(1, 1, 'human', 'pick', 'bob', 1)")
+	run(t, e, "INSERT INTO task_turns(task_id, pos, agent, ask, pushed_by, since) VALUES(1, 1, 'p1', 'pick', 'bob', 1)")
 	count(2, "the held task counts on the founder's turn")
 }

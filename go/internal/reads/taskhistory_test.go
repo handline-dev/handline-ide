@@ -21,7 +21,7 @@ func TestTaskHistoryListsEveryChangeAsRowsNewestFirst(t *testing.T) {
 		(14, 'bob', 'task_start', '{"task_id": 1, "was_current": null}'),
 		(15, 'cat', 'memo_add', '{"task_id": 1, "memo": 3, "now": "mind the cache"}'),
 		(16, 'cat', 'memo_edit', '{"task_id": 1, "memo": 3, "was": "mind the cache", "now": "mind the disk"}'),
-		(17, 'human', 'memo_delete', '{"task_id": 1, "memo": 3, "was": "mind the disk"}'),
+		(17, 'p1', 'memo_delete', '{"task_id": 1, "memo": 3, "was": "mind the disk"}'),
 		(18, 'dan', 'unblock_task', '{"task_id": 1, "blocks_on": 7, "after_request": 6}'),
 		(19, 'bob', 'mark_task_done', '{"task_id": 1, "done": "abc123", "from": "doing"}'),
 		(20, 'cat', 'edit_task', '{"task_id": 2, "title": {"old": "x", "new": "y"}}')`)

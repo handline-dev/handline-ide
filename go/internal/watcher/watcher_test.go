@@ -43,7 +43,7 @@ func rows(t *testing.T, l *stream.Log) []*stream.Event {
 
 func TestTheFirstLookSaysNothingAndEachChangeIsOneTaskChangedRow(t *testing.T) {
 	d, l := rig(t)
-	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'old', 'bob', 'human', 1)")
+	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'old', 'bob', 'p1', 1)")
 	tk := &Tasks{Reads: &reads.Env{DB: d}}
 	emit := func(e stream.Entry) (*stream.Event, error) { return l.Append(e) }
 	if err := tk.Scan(d, emit); err != nil || len(rows(t, l)) != 0 {
@@ -53,7 +53,7 @@ func TestTheFirstLookSaysNothingAndEachChangeIsOneTaskChangedRow(t *testing.T) {
 		t.Fatalf("nothing changed: %v", rows(t, l))
 	}
 	exec(t, d, "UPDATE tasks SET title = 'new' WHERE id = 1")
-	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(2, 'second', 'carol', 'human', 1)")
+	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(2, 'second', 'carol', 'p1', 1)")
 	if err := tk.Scan(d, emit); err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +74,7 @@ func TestTheFirstLookSaysNothingAndEachChangeIsOneTaskChangedRow(t *testing.T) {
 func TestAnEndedTaskLeavesTheWatchAfterADayWithoutAnEvent(t *testing.T) {
 	d, l := rig(t)
 	now := time.Now()
-	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, created_at, done_evidence, done_at) VALUES(1, 't', 'bob', 'human', 1, 'e', ?)", now.Unix()-10)
+	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, created_at, done_evidence, done_at) VALUES(1, 't', 'bob', 'p1', 1, 'e', ?)", now.Unix()-10)
 	tk := &Tasks{Reads: &reads.Env{DB: d}, Now: func() time.Time { return now }}
 	emit := func(e stream.Entry) (*stream.Event, error) { return l.Append(e) }
 	tk.Scan(d, emit)
@@ -120,7 +120,7 @@ func TestAFailingDetectorDoesNotStopTheOthersAndTheWatchSeesAnotherConnectionsCo
 	done := make(chan struct{})
 	go func() { w.Run(stop); close(done) }()
 	firstLook(t, look)
-	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 't', 'bob', 'human', 1)")
+	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 't', 'bob', 'p1', 1)")
 	for i := 0; i < 100 && len(rows(t, l)) == 0; i++ {
 		time.Sleep(20 * time.Millisecond)
 	}
@@ -136,7 +136,7 @@ func TestAFailingDetectorDoesNotStopTheOthersAndTheWatchSeesAnotherConnectionsCo
 
 func TestPrimeStartsANewCursorAtTheNewestRowAndKeepsAnOldOne(t *testing.T) {
 	d, _ := rig(t)
-	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(7, 't', 'bob', 'human', 1)")
+	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(7, 't', 'bob', 'p1', 1)")
 	got, err := Prime(d, "stream:test", "SELECT COALESCE(MAX(id), 0) FROM tasks")
 	if err != nil || got != 7 {
 		t.Fatalf("%d %v", got, err)
@@ -152,7 +152,7 @@ func TestPrimeStartsANewCursorAtTheNewestRowAndKeepsAnOldOne(t *testing.T) {
 // Reading a task's comments changes its unread count, so every device is told: the marker is a change of the task.
 func TestTheFoundersReadMarkerIsAChangeOfTheTask(t *testing.T) {
 	d, l := rig(t)
-	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'old', 'bob', 'human', 1)")
+	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'old', 'bob', 'p1', 1)")
 	exec(t, d, "INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(4, 1, 'bob', 'note', 5)")
 	tk := &Tasks{Reads: &reads.Env{DB: d}}
 	emit := func(e stream.Entry) (*stream.Event, error) { return l.Append(e) }

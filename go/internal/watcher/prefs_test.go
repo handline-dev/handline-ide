@@ -18,7 +18,7 @@ func TestAChangeToAPersonsPrefsIsToldWithTheWholePrefs(t *testing.T) {
 		}
 		return len(got)
 	}
-	exec(t, d, `INSERT INTO prefs(person, nav, updated_at) VALUES('human', '{"pins":["a"],"layout":"flat"}', 1)`)
+	exec(t, d, `INSERT INTO prefs(person, nav, updated_at) VALUES('p1', '{"pins":["a"],"layout":"flat"}', 1)`)
 	if n := emit(); n != 0 {
 		t.Fatalf("a first look told %d", n)
 	}

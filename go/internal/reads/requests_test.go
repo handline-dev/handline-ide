@@ -12,27 +12,27 @@ func TestRequestsAreReadFromTheirTreeOfTasks(t *testing.T) {
 	now := time.Now().Unix()
 	at := func(n int64) string { return itoa(now - n) }
 	run(t, e, "INSERT INTO requests(id, ref, ts, requester, target, body, state, kind, edge_ok) VALUES"+
-		"(1, 'aaaaaaaaaaa1', "+at(900)+", 'human', 'lead', 'make it fast', 'landed', 'say', 1), "+
-		"(2, 'aaaaaaaaaaa2', "+at(800)+", 'human', 'lead', 'thanks', 'landed', 'say', 1), "+
-		"(3, 'aaaaaaaaaaa3', "+at(700)+", 'human', 'lead', 'still nothing', 'landed', 'say', 1), "+
-		"(4, 'aaaaaaaaaaa4', "+at(600)+", 'human', 'lead', 'ship it', 'landed', 'say', 1), "+
-		"(5, 'aaaaaaaaaaa5', "+at(500)+", 'human', 'lead', 'ask me', 'landed', 'say', 1)")
+		"(1, 'aaaaaaaaaaa1', "+at(900)+", 'p1', 'lead', 'make it fast', 'landed', 'say', 1), "+
+		"(2, 'aaaaaaaaaaa2', "+at(800)+", 'p1', 'lead', 'thanks', 'landed', 'say', 1), "+
+		"(3, 'aaaaaaaaaaa3', "+at(700)+", 'p1', 'lead', 'still nothing', 'landed', 'say', 1), "+
+		"(4, 'aaaaaaaaaaa4', "+at(600)+", 'p1', 'lead', 'ship it', 'landed', 'say', 1), "+
+		"(5, 'aaaaaaaaaaa5', "+at(500)+", 'p1', 'lead', 'ask me', 'landed', 'say', 1)")
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, parent_task, created_at, from_request, pr, done_evidence, done_at) VALUES"+
-		"(10, 'fast', 'lead', 'human', NULL, "+at(850)+", 1, NULL, NULL, NULL), "+
+		"(10, 'fast', 'lead', 'p1', NULL, "+at(850)+", 1, NULL, NULL, NULL), "+
 		"(11, 'child a', 'dev', 'lead', 10, "+at(840)+", NULL, 55, NULL, NULL), "+
 		"(12, 'child b', 'dev2', 'lead', 10, "+at(830)+", NULL, NULL, 'merged abc', "+at(100)+"), "+
-		"(20, 'shipped', 'lead', 'human', NULL, "+at(550)+", 4, NULL, 'done', "+at(200)+"), "+
-		"(30, 'asking', 'lead', 'human', NULL, "+at(450)+", 5, NULL, NULL, NULL), "+
-		"(31, 'decide', 'human', 'lead', 30, "+at(440)+", NULL, NULL, NULL, NULL), "+
-		"(40, 'a todo', 'human', 'human', NULL, "+at(400)+", NULL, NULL, NULL, NULL)")
+		"(20, 'shipped', 'lead', 'p1', NULL, "+at(550)+", 4, NULL, 'done', "+at(200)+"), "+
+		"(30, 'asking', 'lead', 'p1', NULL, "+at(450)+", 5, NULL, NULL, NULL), "+
+		"(31, 'decide', 'p1', 'lead', 30, "+at(440)+", NULL, NULL, NULL, NULL), "+
+		"(40, 'a todo', 'p1', 'p1', NULL, "+at(400)+", NULL, NULL, NULL, NULL)")
 	run(t, e, "INSERT INTO task_requests(task_id, request_id) VALUES(10, 1), (20, 4), (30, 5)")
 	// answering to the founder through the reporter makes a root whoever opened it; an agent's reporter does not
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, reporter, parent_task, created_at, done_evidence, done_at) VALUES"+
-		"(60, 'begun', 'lead', 'lead', 'human', NULL, "+at(300)+", NULL, NULL), "+
+		"(60, 'begun', 'lead', 'lead', 'p1', NULL, "+at(300)+", NULL, NULL), "+
 		"(61, 'first', 'dev', 'lead', NULL, 60, "+at(290)+", NULL, NULL), "+
 		"(62, 'second', 'dev2', 'lead', NULL, 60, "+at(280)+", NULL, NULL), "+
 		"(70, 'agent asked', 'lead', 'lead', 'boss', NULL, "+at(300)+", NULL, NULL), "+
-		"(80, 'begun too', 'lead', 'lead', 'human', NULL, "+at(270)+", NULL, NULL), "+
+		"(80, 'begun too', 'lead', 'lead', 'p1', NULL, "+at(270)+", NULL, NULL), "+
 		"(81, 'newer', 'dev', 'lead', NULL, 80, "+at(260)+", NULL, NULL), "+
 		"(82, 'older', 'dev3', 'lead', NULL, 80, "+at(265)+", NULL, NULL), "+
 		"(83, 'ended', 'dev4', 'lead', NULL, 80, "+at(266)+", 'ok', "+at(255)+")")
@@ -79,7 +79,7 @@ func TestRequestsListFiltersByStatusAndPages(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	now := time.Now().Unix()
-	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'one', 'lead', 'human', "+itoa(now-30)+"), (2, 'two', 'lead', 'human', "+itoa(now-20)+")")
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'one', 'lead', 'p1', "+itoa(now-30)+"), (2, 'two', 'lead', 'p1', "+itoa(now-20)+")")
 	out, err := e.requestsList(nil, map[string]any{"state": "doing", "limit": json.Number("1")})
 	if err != nil {
 		t.Fatal(err)
@@ -104,9 +104,9 @@ func TestAFoundersChatMessageSaysWhatBecameOfIt(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	run(t, e, "INSERT INTO requests(id, ref, ts, requester, target, body, state, kind, edge_ok, landed_at) VALUES"+
-		"(1, 'aaaaaaaaaaa1', 10, 'human', 'lead', 'make it', 'landed', 'say', 1, 10), (2, 'aaaaaaaaaaa2', 20, 'human', 'lead', 'thanks', 'landed', 'say', 1, 20), "+
-		"(3, 'aaaaaaaaaaa3', 30, 'lead', 'human', 'done', 'landed', 'say', 1, 30)")
-	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, from_request) VALUES(5, 'made', 'lead', 'human', 1, 1)")
+		"(1, 'aaaaaaaaaaa1', 10, 'p1', 'lead', 'make it', 'landed', 'say', 1, 10), (2, 'aaaaaaaaaaa2', 20, 'p1', 'lead', 'thanks', 'landed', 'say', 1, 20), "+
+		"(3, 'aaaaaaaaaaa3', 30, 'lead', 'p1', 'done', 'landed', 'say', 1, 30)")
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, from_request) VALUES(5, 'made', 'lead', 'p1', 1, 1)")
 	pass := e.ChatRequests()
 	for id, want := range map[int64]any{1: int64(5), 2: nil} {
 		req, err := pass.Get(id)

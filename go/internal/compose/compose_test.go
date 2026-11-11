@@ -215,8 +215,8 @@ func TestADecisionAndAColdStartMeasurementAreReallyMade(t *testing.T) {
 		t.Fatal(err) // the same text still waiting is that decision, not a second
 	}
 	var cards, tasks int
-	d.QueryRow("SELECT COUNT(*) FROM requests WHERE requester = 'alice' AND target = 'human' AND body LIKE '[trust]%'").Scan(&cards)
-	d.QueryRow("SELECT COUNT(*) FROM tasks WHERE owner = 'human' AND expects = 'decision'").Scan(&tasks)
+	d.QueryRow("SELECT COUNT(*) FROM requests WHERE requester = 'alice' AND target = 'p1' AND body LIKE '[trust]%'").Scan(&cards)
+	d.QueryRow("SELECT COUNT(*) FROM tasks WHERE owner = 'p1' AND expects = 'decision'").Scan(&tasks)
 	if cards != 1 || tasks != 1 {
 		t.Fatalf("cards %d, tasks %d", cards, tasks)
 	}

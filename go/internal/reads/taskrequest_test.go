@@ -48,7 +48,7 @@ func TestAMessageATurnMadeARequestIsListedOnce(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	now := time.Now().Unix()
-	run(t, e, "INSERT INTO requests(id, ref, ts, requester, target, body, state, kind) VALUES(7, 'aaaaaaaaaaa7', "+itoa(now-100)+", 'human', 'lead', 'new ask', 'landed', 'say')")
+	run(t, e, "INSERT INTO requests(id, ref, ts, requester, target, body, state, kind) VALUES(7, 'aaaaaaaaaaa7', "+itoa(now-100)+", 'p1', 'lead', 'new ask', 'landed', 'say')")
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, request, turn_origin) VALUES(1, 'from the ask', 'dev', 'lead', "+itoa(now-90)+", 1, 7)")
 	rows, err := e.RequestRows(now)
 	if err != nil {

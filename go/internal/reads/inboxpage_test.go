@@ -13,10 +13,10 @@ func TestInboxListFiltersAndPagesBeforeBuildingItems(t *testing.T) {
 	addAgent(t, e, "bob", "")
 	addAgent(t, e, "cat", "")
 	run(t, e, "INSERT INTO requests(id, ref, ts, requester, target, body, state, kind, edge_ok) VALUES"+
-		"(1, 'aaaaaaaaaaa1', 10, 'bob', 'human', 'one', 'queued', 'ask', 1), "+
-		"(2, 'aaaaaaaaaaa2', 20, 'cat', 'human', 'two', 'queued', 'ask', 1), "+
-		"(3, 'aaaaaaaaaaa3', 30, 'bob', 'human', 'three', 'queued', 'task', 1), "+
-		"(4, 'aaaaaaaaaaa4', 40, 'bob', 'human', 'four', 'queued', 'ask', 1)")
+		"(1, 'aaaaaaaaaaa1', 10, 'bob', 'p1', 'one', 'queued', 'ask', 1), "+
+		"(2, 'aaaaaaaaaaa2', 20, 'cat', 'p1', 'two', 'queued', 'ask', 1), "+
+		"(3, 'aaaaaaaaaaa3', 30, 'bob', 'p1', 'three', 'queued', 'task', 1), "+
+		"(4, 'aaaaaaaaaaa4', 40, 'bob', 'p1', 'four', 'queued', 'ask', 1)")
 	run(t, e, `INSERT INTO events(ts, agent, kind, payload) VALUES(30, 'bob', 'raise_decision', '{"request_id": 3, "task_id": 1, "reason": "heal", "fix": "open_terminal"}')`)
 	founder := &rpc.Conn{Caller: rpc.Caller{Role: "founder", Info: map[string]any{"kind": "person"}}}
 

@@ -169,9 +169,9 @@ func TestChatRefsAreTheAgentsNewestRequestsAndLeaveOutWhatNeverReached(t *testin
 	e := testEnv(t)
 	addAgent(t, e, "alice", "")
 	for _, q := range []string{
-		"INSERT INTO requests(id, ts, requester, target, body, state) VALUES(1, 1, 'human', 'alice', '  ', 'queued')",
+		"INSERT INTO requests(id, ts, requester, target, body, state) VALUES(1, 1, 'p1', 'alice', '  ', 'queued')",
 		"INSERT INTO requests(id, ts, requester, target, body, state) VALUES(2, 2, 'alice', 'bob', 'first line' || char(10) || 'second', 'queued')",
-		"INSERT INTO requests(id, ts, requester, target, body, state) VALUES(3, 3, 'human', 'alice', 'taken back', 'withdrawn')",
+		"INSERT INTO requests(id, ts, requester, target, body, state) VALUES(3, 3, 'p1', 'alice', 'taken back', 'withdrawn')",
 		"INSERT INTO requests(id, ts, requester, target, body, state) VALUES(4, 4, 'bob', 'carol', 'not alice''s', 'queued')",
 	} {
 		if _, err := e.DB.Exec(q); err != nil {
@@ -354,9 +354,9 @@ func TestTheBoardAgreesWithTheOneRule(t *testing.T) {
 		"INSERT INTO agent_state(agent, state, updated, current_task) VALUES('w', 'IDLE', 1, 1), ('z', 'IDLE', 1, 6)",
 		// begun for the founder, begun then released, done, discarded, and held behind a dormant block only
 		"INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by, sent_at, done_evidence, discarded_by) VALUES" +
-			"(7, 'founder', 'human', 'm', 1, NULL, NULL, NULL, NULL), (8, 'released', 'v', 'm', 1, NULL, NULL, NULL, NULL), " +
+			"(7, 'founder', 'p1', 'm', 1, NULL, NULL, NULL, NULL), (8, 'released', 'v', 'm', 1, NULL, NULL, NULL, NULL), " +
 			"(9, 'done', 'w', 'm', 1, 'm', 2, 'ok', NULL), (10, 'gone', 'w', 'm', 1, 'm', 2, NULL, 'm'), (11, 'dormant', 'u', 'm', 1, 'm', 2, NULL, NULL)",
-		`INSERT INTO events(ts, agent, kind, payload) VALUES(1, 'human', 'task_begin', '{"task_id": 7}'), (1, 'v', 'task_begin', '{"task_id": 8}'), ` +
+		`INSERT INTO events(ts, agent, kind, payload) VALUES(1, 'p1', 'task_begin', '{"task_id": 7}'), (1, 'v', 'task_begin', '{"task_id": 8}'), ` +
 			`(2, 'm', 'release_task', '{"task_id": 8, "retired": []}')`,
 		"INSERT INTO task_blocks(task_id, blocks_on, created_at, dormant) VALUES(11, 2, 1, 1)",
 		"INSERT INTO agent_state(agent, state, updated, current_task) VALUES('u', 'IDLE', 1, 11), ('v', 'IDLE', 1, 8)",

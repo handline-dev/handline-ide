@@ -56,8 +56,8 @@ func TestForYouTellsEachKindOpeningAndClosingWithTheCount(t *testing.T) {
 	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(2, 'other', 'w', 'boss', 1, 'boss')")
 	exec(t, d, "INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(7, 2, 'w', '@human?', 1)")
 
-	step("for_you.opened task/1 1", "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(1, 'pick', 'human', 'boss', 1, 'boss')")
-	step("for_you.opened comment/7 2", "INSERT INTO requests(id, ref, ts, requester, target, body, state, memo_id, edge_ok) VALUES(70, 'aaaaaaaaaaa7', 1, 'w', 'human', '@human?', 'queued', 7, 1)")
+	step("for_you.opened task/1 1", "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(1, 'pick', 'p1', 'boss', 1, 'boss')")
+	step("for_you.opened comment/7 2", "INSERT INTO requests(id, ref, ts, requester, target, body, state, memo_id, edge_ok) VALUES(70, 'aaaaaaaaaaa7', 1, 'w', 'p1', '@human?', 'queued', 7, 1)")
 	step("for_you.opened prompt/fp1 3", "INSERT INTO prompt_blocks(agent, kind, fingerprint, title, panel, detail, first_seen, last_seen) VALUES('bob', 'permission', 'fp1', 't', '[]', '{}', ?, ?)", now, now)
 	if err := os.MkdirAll(filepath.Join(home, "proposals"), 0o755); err != nil {
 		t.Fatal(err)
@@ -74,7 +74,7 @@ func TestForYouTellsEachKindOpeningAndClosingWithTheCount(t *testing.T) {
 
 	// deferred: it leaves the count; back: it joins again
 	later := func(entries string) {
-		exec(t, d, "INSERT INTO prefs(person, nav, updated_at) VALUES('human', ?, 0) ON CONFLICT(person) DO UPDATE SET nav = excluded.nav", `{"later":`+entries+`}`)
+		exec(t, d, "INSERT INTO prefs(person, nav, updated_at) VALUES('p1', ?, 0) ON CONFLICT(person) DO UPDATE SET nav = excluded.nav", `{"later":`+entries+`}`)
 	}
 	later(fmt.Sprintf(`{"task:1":{"until":%q}}`, time.Unix(now+3600, 0).UTC().Format(time.RFC3339)))
 	step("for_you.closed task/1 4", "")
@@ -127,7 +127,7 @@ func TestForYouTellsARewrittenQuestionAgainOnlyWhenItChanges(t *testing.T) {
 	}
 	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(1, 'pick', 'w', 'boss', 1, 'boss')")
 	scan()
-	exec(t, d, "INSERT INTO task_turns(task_id, pos, agent, ask, pushed_by, since) VALUES(1, 1, 'human', 'A or B?', 'w', 1)")
+	exec(t, d, "INSERT INTO task_turns(task_id, pos, agent, ask, pushed_by, since) VALUES(1, 1, 'p1', 'A or B?', 'w', 1)")
 	if got := scan(); len(got) != 1 || got[0] != "for_you.opened pick 1" {
 		t.Fatalf("pushed: %q", got)
 	}

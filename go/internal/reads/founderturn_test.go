@@ -30,7 +30,7 @@ func TestTwoMessagesLostTogetherEachWarn(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, ref, typed_at, edge_ok) VALUES"+
-		"(5, 1, 'human', 'bob', 'one', 'queued', 'say', 'abc', 2, 1), (6, 1, 'human', 'bob', 'two', 'queued', 'say', 'abd', 2, 1)")
+		"(5, 1, 'p1', 'bob', 'one', 'queued', 'say', 'abc', 2, 1), (6, 1, 'p1', 'bob', 'two', 'queued', 'say', 'abd', 2, 1)")
 	noteLost(t, e, db.LostMessagePrefix, 5, "bob", "lost")
 	noteLost(t, e, db.LostMessagePrefix, 6, "bob", "lost")
 	if answerRow(t, e, "machine", "delivery:"+db.MsgPrefix+"abc") == nil || answerRow(t, e, "machine", "delivery:"+db.MsgPrefix+"abd") == nil {
@@ -54,7 +54,7 @@ func TestOnlyALaterMessageThatArrivesToTheSameAgentClearsALostOne(t *testing.T) 
 		"typed to bob":      {later("human", "bob", "9"), false},
 	} {
 		e := testEnv(t)
-		runAll(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, ref, typed_at, edge_ok) VALUES(5, 1, 'human', 'bob', 'one', 'queued', 'say', 'abc', 2, 1)", c.later)
+		runAll(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, ref, typed_at, edge_ok) VALUES(5, 1, 'p1', 'bob', 'one', 'queued', 'say', 'abc', 2, 1)", c.later)
 		noteLost(t, e, db.LostMessagePrefix, 5, "bob", "lost")
 		if got := answerRow(t, e, "machine", "delivery:"+db.MsgPrefix+"abc") != nil; got != c.stays {
 			t.Errorf("%s: the warning stays %v, want %v", name, got, c.stays)
@@ -62,7 +62,7 @@ func TestOnlyALaterMessageThatArrivesToTheSameAgentClearsALostOne(t *testing.T) 
 	}
 	e := testEnv(t)
 	runAll(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, ref, typed_at, edge_ok) VALUES"+
-		"(5, 1, 'human', 'bob', 'one', 'queued', 'say', 'abc', 2, 1), (6, 1, 'human', 'bob', 'two', 'queued', 'say', 'abd', 2, 1)")
+		"(5, 1, 'p1', 'bob', 'one', 'queued', 'say', 'abc', 2, 1), (6, 1, 'p1', 'bob', 'two', 'queued', 'say', 'abd', 2, 1)")
 	noteLost(t, e, db.LostMessagePrefix, 5, "bob", "lost")
 	noteLost(t, e, db.LostMessagePrefix, 6, "bob", "lost")
 	run(t, e, "UPDATE requests SET state = 'withdrawn' WHERE id = 6")
@@ -82,8 +82,8 @@ func TestOnlyALaterMessageThatArrivesToTheSameAgentClearsALostOne(t *testing.T) 
 func TestAnOldDeliveryDoesNotEndARefusal(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	runAll(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(7, 'the task', 'gone', 'human', 1, 'human')",
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(5, 50, 'human', 'gone', 'b', 'landed', 'task', 1)",
+	runAll(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(7, 'the task', 'gone', 'p1', 1, 'p1')",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(5, 50, 'p1', 'gone', 'b', 'landed', 'task', 1)",
 		"INSERT INTO task_requests(task_id, request_id) VALUES(7, 5)")
 	noteLost(t, e, db.RefusedTaskPrefix, 7, "gone", "refused")
 	if answerRow(t, e, "machine", "undelivered:7") == nil {
@@ -95,8 +95,8 @@ func TestAnOldDeliveryDoesNotEndARefusal(t *testing.T) {
 func TestAnOldBoardLineDoesNotWaitOnTheFounder(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	runAll(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(7, 'the task', 'bob', 'human', 1, 'human')",
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind, landed_at, edge_ok) VALUES(5, 1, '"+db.NoticeRequester+"', 'human', 'T7 unblocked', 'landed', 'say', 1, 1)",
+	runAll(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(7, 'the task', 'bob', 'p1', 1, 'p1')",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind, landed_at, edge_ok) VALUES(5, 1, '"+db.NoticeRequester+"', 'p1', 'T7 unblocked', 'landed', 'say', 1, 1)",
 		"INSERT INTO task_requests(task_id, request_id) VALUES(7, 5)")
 	if c := pending(t, e)["counts"].(map[string]any); c["needs_you"] != 0 {
 		t.Fatalf("%v", c)
@@ -111,10 +111,10 @@ func TestALostMessageIsAWarningUntilItsStateSaysItIsOver(t *testing.T) {
 		"it was read":   "UPDATE requests SET read_at = 9 WHERE id = 5",
 		"it was closed": "UPDATE requests SET state = 'withdrawn' WHERE id = 5",
 		"a later one was written": "INSERT INTO requests(id, ts, requester, target, body, state, kind, typed_at, edge_ok) " +
-			"VALUES(6, 9, 'human', 'bob', 'again', 'queued', 'say', 9, 1)",
+			"VALUES(6, 9, 'p1', 'bob', 'again', 'queued', 'say', 9, 1)",
 	} {
 		e := testEnv(t)
-		run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, ref, edge_ok) VALUES(5, 1, 'human', 'bob', 'ship it\nnow', 'queued', 'say', 'abc', 1)")
+		run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, ref, edge_ok) VALUES(5, 1, 'p1', 'bob', 'ship it\nnow', 'queued', 'say', 'abc', 1)")
 		noteLost(t, e, db.LostMessagePrefix, 5, "bob", "was written to its session, and its transcript never showed it (x): it may or may not have been read")
 		r := answerRow(t, e, "machine", "delivery:"+db.MsgPrefix+"abc")
 		if r == nil {
@@ -138,7 +138,7 @@ func TestALostMessageIsAWarningUntilItsStateSaysItIsOver(t *testing.T) {
 func TestAMessageNeverWrittenSaysItWasNotRead(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, ref, edge_ok) VALUES(5, 1, 'human', 'bob', 'ship it', 'queued', 'say', 'abc', 1)")
+	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, ref, edge_ok) VALUES(5, 1, 'p1', 'bob', 'ship it', 'queued', 'say', 'abc', 1)")
 	noteLost(t, e, db.LostMessagePrefix, 5, "bob", "was not written to its session (no inbox): it was not read")
 	if r := answerRow(t, e, "machine", "delivery:"+db.MsgPrefix+"abc"); r == nil || r["title"] != "Your message to bob was not read: ship it" {
 		t.Fatalf("%v", r)
@@ -149,12 +149,12 @@ func TestAMessageNeverWrittenSaysItWasNotRead(t *testing.T) {
 func TestARefusedTaskIsAWarningOnItsRowUntilItMoves(t *testing.T) {
 	t.Parallel()
 	for name, over := range map[string]string{
-		"delivered":        "INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(5, 200, 'human', 'gone', 'b', 'queued', 'task', 1); INSERT INTO task_requests(task_id, request_id) VALUES(7, 5)",
+		"delivered":        "INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(5, 200, 'p1', 'gone', 'b', 'queued', 'task', 1); INSERT INTO task_requests(task_id, request_id) VALUES(7, 5)",
 		"given to another": "UPDATE tasks SET owner = 'bob' WHERE id = 7",
 		"ended":            "UPDATE tasks SET done_evidence = 'x', done_at = 9 WHERE id = 7",
 	} {
 		e := testEnv(t)
-		run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(7, 'the task', 'gone', 'human', 1, 'human')")
+		run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(7, 'the task', 'gone', 'p1', 1, 'p1')")
 		noteLost(t, e, db.RefusedTaskPrefix, 7, "gone", "unknown target 'gone'")
 		r := answerRow(t, e, "machine", "undelivered:7")
 		if r == nil {
@@ -209,7 +209,7 @@ func TestAnAccountThatNeedsALoginIsAWarningWhileTheWatchKeepsIt(t *testing.T) {
 func TestAWarningIsNotAMachineNeed(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, ref, edge_ok) VALUES(5, 1, 'human', 'bob', 'x', 'queued', 'say', 'abc', 1)")
+	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, ref, edge_ok) VALUES(5, 1, 'p1', 'bob', 'x', 'queued', 'say', 'abc', 1)")
 	noteLost(t, e, db.LostMessagePrefix, 5, "bob", "lost")
 	if needs := e.machineNeeds(); len(needs) != 0 {
 		t.Fatalf("%v", needs)
@@ -224,8 +224,8 @@ func TestAWarningIsNotAMachineNeed(t *testing.T) {
 func TestATurnIsARowAndATaskMerelyOwnedIsNot(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	runAll(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(1, 'a turn', 'bob', 'amy', 1, 'amy'), (2, 'owned', 'human', 'amy', 1, 'amy')",
-		"INSERT INTO task_turns(task_id, pos, agent, ask, pushed_by, since) VALUES(1, 1, 'human', 'pick one', 'bob', 5)")
+	runAll(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(1, 'a turn', 'bob', 'amy', 1, 'amy'), (2, 'owned', 'p1', 'amy', 1, 'amy')",
+		"INSERT INTO task_turns(task_id, pos, agent, ask, pushed_by, since) VALUES(1, 1, 'p1', 'pick one', 'bob', 5)")
 	got := pending(t, e)
 	rows := got["answer"].([]map[string]any)
 	if taskIDs(got["answer"]) != "[1]" || rows[0]["kind"] != "decide" || rows[0]["source"] != "task" || rows[0]["agent"] != "bob" || rows[0]["ask"] != "pick one" {
@@ -236,7 +236,7 @@ func TestATurnIsARowAndATaskMerelyOwnedIsNot(t *testing.T) {
 	}
 	// a turn on top for an agent is not the founder's: a request to them on that task is the row, asked by its sender
 	runAll(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(3, 'asked', 'bob', 'amy', 1, 'amy')",
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(20, 10, 'amy', 'human', 'b', 'queued', 'task', 1)",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(20, 10, 'amy', 'p1', 'b', 'queued', 'task', 1)",
 		"INSERT INTO task_requests(task_id, request_id) VALUES(3, 20)",
 		"INSERT INTO task_turns(task_id, pos, agent, ask, pushed_by, since) VALUES(3, 1, 'bob', 'yours', 'carl', 5)")
 	if r := answerRow(t, e, "task", "3"); r == nil || r["agent"] != "amy" || r["ask"] != nil {
@@ -250,14 +250,14 @@ func TestATaskHoldingSeveralItemsIsOneRowTheStrongestNames(t *testing.T) {
 	t.Parallel()
 	setup := func(first, second string) *Env {
 		e := testEnv(t)
-		runAll(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(7, 'the task', 'gone', 'human', 1, 'human')",
+		runAll(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(7, 'the task', 'gone', 'p1', 1, 'p1')",
 			"INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(1, 7, 'bob', 'which one @human?', 10)",
 			"INSERT INTO requests(id, ts, requester, target, body, state, kind, memo_id, edge_ok) VALUES"+first+", "+second,
 			"INSERT INTO task_requests(task_id, request_id) VALUES(7, 20), (7, 21)")
 		noteLost(t, e, db.RefusedTaskPrefix, 7, "gone", "refused")
 		return e
 	}
-	const decide, comment = "'amy', 'human', 'pick', 'queued', 'task', NULL, 1)", "'bob', 'human', 'which one @human?', 'queued', 'ask', 1, 1)"
+	const decide, comment = "'amy', 'p1', 'pick', 'queued', 'task', NULL, 1)", "'bob', 'p1', 'which one @human?', 'queued', 'ask', 1, 1)"
 	for name, c := range map[string]struct {
 		e                       *Env
 		source, id, agent, kind string
@@ -282,7 +282,7 @@ func TestTheBoardsOldLinesAreHiddenFromTheFoundersInbox(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, landed_at, edge_ok) VALUES"+
-		"(5, 1, '"+db.NoticeRequester+"', 'human', 'T1 done', 'landed', 'say', 1, 1), (6, 1, 'bob', 'human', 'a reply', 'landed', 'say', 1, 1)")
+		"(5, 1, '"+db.NoticeRequester+"', 'p1', 'T1 done', 'landed', 'say', 1, 1), (6, 1, 'bob', 'p1', 'a reply', 'landed', 'say', 1, 1)")
 	rows, err := e.mailboxRows()
 	if err != nil || len(rows) != 1 || rows[0].id != 6 {
 		t.Fatalf("%+v %v", rows, err)
@@ -302,8 +302,8 @@ func TestTheBoardsOldLinesAreHiddenFromTheFoundersInbox(t *testing.T) {
 func TestAnOldBoardLineDoesNotMakeARequestWait(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	runAll(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(7, 'the task', 'bob', 'human', 1, 'human')",
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(5, 1, '"+db.NoticeRequester+"', 'human', 'T7 unblocked', 'queued', 'task', 1)",
+	runAll(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(7, 'the task', 'bob', 'p1', 1, 'p1')",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(5, 1, '"+db.NoticeRequester+"', 'p1', 'T7 unblocked', 'queued', 'task', 1)",
 		"INSERT INTO task_requests(task_id, request_id) VALUES(7, 5)")
 	if r := requestRowOf(t, e, 7); r == nil || r["status"] == reqWaitingOnYou {
 		t.Fatalf("%v", r)
@@ -319,7 +319,7 @@ func TestUnseenIsABooleanAndTheDotCountsTheWindowOnly(t *testing.T) {
 	}
 	now := time.Now().Unix()
 	run(t, e, fmt.Sprintf("INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by, done_evidence, done_at) VALUES"+
-		"(1, 'old', 'bob', 'human', 1, 'human', 'x', %d), (2, 'new', 'bob', 'human', 1, 'human', 'x', %d)", now-requestWindowS-5, now-5))
+		"(1, 'old', 'bob', 'p1', 1, 'p1', 'x', %d), (2, 'new', 'bob', 'p1', 1, 'p1', 'x', %d)", now-requestWindowS-5, now-5))
 	if n, err := e.unseenResults(now); err != nil || n != 1 {
 		t.Fatalf("%d %v", n, err)
 	}
@@ -345,11 +345,11 @@ func TestAFinishedRequestIsSeenByTheFloorOrAMarkSinceItEnded(t *testing.T) {
 	e := testEnv(t)
 	now := time.Now().Unix()
 	run(t, e, fmt.Sprintf("INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by, done_evidence, done_at, discarded_by, discarded_at) VALUES"+
-		"(1, 'open', 'bob', 'human', 1, 'human', NULL, NULL, NULL, NULL), "+
-		"(2, 'old', 'bob', 'human', 1, 'human', 'x', %[1]d, NULL, NULL), "+
-		"(3, 'done', 'bob', 'human', 1, 'human', 'x', %[2]d, NULL, NULL), "+
-		"(4, 'thrown', 'bob', 'human', 1, 'human', NULL, NULL, 'amy', %[2]d), "+
-		"(5, 'too old', 'bob', 'human', 1, 'human', NULL, NULL, 'amy', %[3]d)", now-500, now-100, now-requestWindowS-5))
+		"(1, 'open', 'bob', 'p1', 1, 'p1', NULL, NULL, NULL, NULL), "+
+		"(2, 'old', 'bob', 'p1', 1, 'p1', 'x', %[1]d, NULL, NULL), "+
+		"(3, 'done', 'bob', 'p1', 1, 'p1', 'x', %[2]d, NULL, NULL), "+
+		"(4, 'thrown', 'bob', 'p1', 1, 'p1', NULL, NULL, 'amy', %[2]d), "+
+		"(5, 'too old', 'bob', 'p1', 1, 'p1', NULL, NULL, 'amy', %[3]d)", now-500, now-100, now-requestWindowS-5))
 	if err := db.SetMeta(e.DB, db.ResultSeenFloorMeta, fmt.Sprint(now-200)); err != nil {
 		t.Fatal(err)
 	}
@@ -401,7 +401,7 @@ func TestAFinishedRequestIsSeenByTheFloorOrAMarkSinceItEnded(t *testing.T) {
 func TestARequestsUnreadCommentsComeFromTheMarker(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	runAll(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(1, 'a', 'bob', 'human', 1, 'human')",
+	runAll(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(1, 'a', 'bob', 'p1', 1, 'p1')",
 		"INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(1, 1, 'bob', 'a', 1), (2, 1, 'bob', 'b', 2)",
 		"INSERT INTO cursors(name, row_id, updated) VALUES('task_seen:human:1', 1, 1)")
 	if r := requestRowOf(t, e, 1); r["unread_comments"] != int64(1) {
@@ -414,8 +414,8 @@ func TestALostBashLineWarnsToLookBeforeRunningItAgain(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, ref, typed_at, edge_ok) VALUES"+
-		"(5, 1, 'human', 'bob', '!rm x', 'queued', 'say', 'abc', 2, 1), (6, 1, 'human', 'carol', 'hello', 'queued', 'say', 'abd', 2, 1), "+
-		"(7, 1, 'human', 'dan', '!rm y', 'queued', 'say', 'abe', 2, 1)")
+		"(5, 1, 'p1', 'bob', '!rm x', 'queued', 'say', 'abc', 2, 1), (6, 1, 'p1', 'carol', 'hello', 'queued', 'say', 'abd', 2, 1), "+
+		"(7, 1, 'p1', 'dan', '!rm y', 'queued', 'say', 'abe', 2, 1)")
 	noteLost(t, e, db.LostMessagePrefix, 5, "bob", "was written")
 	noteLost(t, e, db.LostMessagePrefix, 6, "carol", "was written")
 	noteLost(t, e, db.LostMessagePrefix, 7, "dan", "was not written to its session")

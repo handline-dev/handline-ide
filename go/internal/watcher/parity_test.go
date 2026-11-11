@@ -123,19 +123,19 @@ var sinceRecorded = map[string]bool{"waits": true, "waiting": true, "tags": true
 func TestGoAndPythonWriteTheSameRowsForTheSameTaskChange(t *testing.T) {
 	py, events := parity(t, func(d *sql.DB) Detector { return &Tasks{Reads: &reads.Env{DB: d}} },
 		func(run func(string, ...any)) {
-			run("INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'old', 'bob', 'human', 1)")
+			run("INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'old', 'bob', 'p1', 1)")
 		},
 		func(run func(string, ...any)) {
 			run("UPDATE tasks SET title = 'new', priority = 1 WHERE id = 1")
 			run("INSERT INTO task_memos(task_id, author, body, created_at) VALUES(1, 'bob', 'note', 5)")
-			run("INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(2, 'second', 'carol', 'human', 1, 'human')")
+			run("INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(2, 'second', 'carol', 'p1', 1, 'p1')")
 			// one an open blocker holds, and one doing past its deadline (the clock counts from the deadline missed)
-			run("INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(3, 'held', 'carol', 'human', 1, 'human')")
+			run("INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(3, 'held', 'carol', 'p1', 1, 'p1')")
 			run("INSERT INTO task_blocks(task_id, blocks_on, created_at) VALUES(3, 1, 1)")
-			run("INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by, sent_at, timeout_s, timeout_at) VALUES(4, 'late', 'dave', 'human', 1, 'human', 1, 3600, 100)")
+			run("INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by, sent_at, timeout_s, timeout_at) VALUES(4, 'late', 'dave', 'p1', 1, 'p1', 1, 3600, 100)")
 			// a draft with a request out (its mismatch names the request), and the requests linked to a task, oldest first
-			run("INSERT INTO tasks(id, title, owner, opened_by, created_at, sent_at) VALUES(5, 'unapproved', 'erin', 'human', 1, 1)")
-			run("INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(51, 7, 'human', 'erin', 'b', 'queued', 'task', 1)")
+			run("INSERT INTO tasks(id, title, owner, opened_by, created_at, sent_at) VALUES(5, 'unapproved', 'erin', 'p1', 1, 1)")
+			run("INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(51, 7, 'p1', 'erin', 'b', 'queued', 'task', 1)")
 			run("INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(50, 6, 'mgr', 'erin', 'b', 'landed', 'say', 1)")
 			run("INSERT INTO task_requests(task_id, request_id) VALUES(5, 51)")
 			run("INSERT INTO task_requests(task_id, request_id) VALUES(5, 50)")
@@ -222,7 +222,7 @@ func TestGoAndPythonWriteTheSameRowsForTheSameChatChanges(t *testing.T) {
 	pb := "INSERT INTO prompt_blocks(agent, kind, fingerprint, title, panel, detail, answerable, first_seen, last_seen) VALUES(?, 'question', 'f', 't', '[]', '{}', 1, ?, ?)"
 	py, events := parity(t, func(d *sql.DB) Detector { return &Chat{Reads: &reads.Env{DB: d}} },
 		func(run func(string, ...any)) {
-			run("INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 't', 'bob', 'human', 1)")
+			run("INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 't', 'bob', 'p1', 1)")
 			run("INSERT INTO agent_view(agent, view, updated) VALUES('bob', ?, 0), ('amy', ?, 0)", `{"name":"bob","state":"idle"}`, `{"name":"amy","state":"idle"}`)
 			run(pb, "amy", 1, 1)
 		},

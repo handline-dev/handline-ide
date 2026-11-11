@@ -60,7 +60,7 @@ func (r *bashRig) sent(id, typed, landed int64) {
 		l = fmt.Sprint(landed)
 	}
 	run(r.t, r.e, fmt.Sprintf("INSERT INTO requests(id, ts, requester, target, body, state, kind, ref, typed_at, typed_session, landed_at, edge_ok) "+
-		"VALUES(%d, %d, 'human', 'bob', '!x', 'landed', 'say', 'r%d', %d, '%s', %s, 1)", id, typed, id, typed, bashSession, l))
+		"VALUES(%d, %d, 'p1', 'bob', '!x', 'landed', 'say', 'r%d', %d, '%s', %s, 1)", id, typed, id, typed, bashSession, l))
 }
 
 func (r *bashRig) items() []map[string]any {
@@ -104,7 +104,7 @@ func TestABashLineWithNoTypedSessionIsFoundByTheSessionItWasIn(t *testing.T) {
 	r := newBashRig(t)
 	run(t, r.e, "INSERT INTO session_starts(id, agent, ts, session_id, cause, resumed, text, prompt) VALUES(1, 'bob', 50, '"+bashSession+"', 'start', 0, '', ''), "+
 		"(2, 'bob', 900, '99999999-2222-3333-4444-555555555555', 'start', 0, '', '')")
-	run(t, r.e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, ref, typed_at, landed_at, edge_ok) VALUES(1, 200, 'human', 'bob', '! x', 'landed', 'say', 'r1', 200, 201, 1)")
+	run(t, r.e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, ref, typed_at, landed_at, edge_ok) VALUES(1, 200, 'p1', 'bob', '! x', 'landed', 'say', 'r1', 200, 201, 1)")
 	r.ran("a", 200, "x", "out")
 	if got := r.items(); len(got) != 1 || got[0]["stdout"] != "out" || got[0]["request"] != int64(1) {
 		t.Fatalf("%v", got)

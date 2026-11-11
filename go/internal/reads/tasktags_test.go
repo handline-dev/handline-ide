@@ -17,7 +17,7 @@ func TestTasksListFiltersOnTagsAndTheOtherFieldsTogether(t *testing.T) {
 	e := testEnv(t)
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, reporter, parent_task, done_evidence) VALUES"+
 		"(1, 'a', 'bob', 'amy', 1, NULL, NULL, NULL), (2, 'b', 'bob', 'amy', 1, 'cy', NULL, NULL), (3, 'c', 'cy', 'amy', 1, NULL, NULL, 'abc'), "+
-		"(4, 'd', 'bob', 'human', 1, NULL, 1, NULL), (5, 'e', 'cat', 'cat', 1, NULL, NULL, NULL)")
+		"(4, 'd', 'bob', 'p1', 1, NULL, 1, NULL), (5, 'e', 'cat', 'cat', 1, NULL, NULL, NULL)")
 	run(t, e, "INSERT INTO task_tags(task_id, tag) VALUES(1, 'fe'), (1, 'be'), (2, 'fe'), (3, 'fe')")
 	for _, a := range []string{"amy", "bob", "cy", "cat"} {
 		addAgent(t, e, a, "")
@@ -105,7 +105,7 @@ func TestATagAddedOrRemovedIsARowOfTheHistory(t *testing.T) {
 func TestSavedViewsAreListedByNameWithTheirFilters(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	run(t, e, `INSERT INTO task_views(name, filter, updated_by, updated_at) VALUES('z', '{}', 'human', 5), ('fe work', '{"tags":["fe"],"state":"doing"}', 'human', 6)`)
+	run(t, e, `INSERT INTO task_views(name, filter, updated_by, updated_at) VALUES('z', '{}', 'p1', 5), ('fe work', '{"tags":["fe"],"state":"doing"}', 'p1', 6)`)
 	got, err := e.taskViews(asFounder, nil)
 	if err != nil {
 		t.Fatal(err)
