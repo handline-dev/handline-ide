@@ -142,13 +142,17 @@ func (e *Env) SayVerb(q *sql.Tx, in SayVerbIn) (out *SayVerbOut, err error) {
 			fmt.Sprintf("hl task new --assign %s -t 2h '<title>' %s\n  hl task comment T<n> add %s", target, shellQuote(body), shellQuote("@"+target+" "+body)))
 	}
 	within := in.Effect
-	if parent := must(db.GetRequest(q, in.Parent)); parent != nil && parent.Requester == db.Human && parent.State == "queued" && parent.Target == me &&
+	var parent *db.Request
+	if in.Parent != 0 {
+		parent = must(db.GetRequest(q, in.Parent))
+	}
+	if parent != nil && parent.Requester == db.Human && parent.State == "queued" && parent.Target == me &&
 		target == db.Human && parent.Kind.String == "say" {
 		// an answer to the founder's question on a task joins that task
 		asked := must(db.TasksForRequest(q, parent.ID))
 		within = func(c db.Q, note string, rid int64) error {
-			for _, t := range asked {
-				if rid != 0 {
+			if rid != 0 {
+				for _, t := range asked {
 					if err := db.LinkRequest(c, t.ID, rid); err != nil {
 						return err
 					}

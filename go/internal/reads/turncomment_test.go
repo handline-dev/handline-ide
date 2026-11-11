@@ -68,17 +68,20 @@ func TestAnUnreadAtHumanCommentIsANoteNotTheFoundersTurn(t *testing.T) {
 
 // The founder's part in a task is a task_comment card in the chat it concerns: the turn put on them in the chat of the agent below, their
 // comment that gave it back in the chat of the agent it went back to, an @human comment in its author's. Each reads the comment as it is now.
+// An @human comment that a turn on the founder hangs on is one card, the turn's, and a question asked again is a turn card too.
 func TestTheFoundersTurnTheirAnswerAndANoteAreCardsInTheAgentsChat(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(1, 'pick', 'amy', 'amy', 1, 'amy')")
 	run(t, e, "INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES"+
-		"(7, 1, 'amy', 'A or B?', 10), (8, 1, 'human', 'A', 20), (9, 1, 'amy', '@human A is in', 30), (10, 1, 'amy', 'plain', 40)")
+		"(7, 1, 'amy', 'A or B?', 10), (8, 1, 'human', 'A', 20), (9, 1, 'amy', '@human A is in', 30), (10, 1, 'amy', 'plain', 40), (11, 1, 'amy', '@human C or D?', 50)")
 	run(t, e, `INSERT INTO events(id, ts, agent, kind, payload) VALUES`+
 		`(1, 10, 'amy', 'task_turn_push', '{"task_id":1,"to":"human","ask":"","memo":7}'), `+
 		`(2, 20, 'human', 'task_turn_pop', '{"task_id":1,"agent":"human","outcome":"pass","note":"A","to":"amy","memo":8}'), `+
 		`(3, 30, 'amy', 'memo_add', '{"task_id":1,"memo":9,"now":"@human A is in"}'), `+
-		`(4, 40, 'amy', 'memo_add', '{"task_id":1,"memo":10,"now":"plain"}')`)
+		`(4, 40, 'amy', 'memo_add', '{"task_id":1,"memo":10,"now":"plain"}'), `+
+		`(5, 50, 'amy', 'memo_add', '{"task_id":1,"memo":11,"now":"@human C or D?"}'), `+
+		`(6, 50, 'amy', 'task_turn_ask', '{"task_id":1,"agent":"human","from":"A or B?","ask":"@human C or D?","memo":11}')`)
 	run(t, e, "UPDATE task_memos SET body = 'A or B? I recommend A' WHERE id = 7")
 	items, err := e.transcriptItems("amy", nil)
 	if err != nil {
@@ -91,7 +94,7 @@ func TestTheFoundersTurnTheirAnswerAndANoteAreCardsInTheAgentsChat(t *testing.T)
 			got = append(got, fmt.Sprintf("%s %v %s %q", c["kind"], c["memo"], c["who"], c["text"]))
 		}
 	}
-	want := `[turn 7 amy "A or B? I recommend A" answer 8 human "A" note 9 amy "@human A is in"]`
+	want := `[turn 7 amy "A or B? I recommend A" answer 8 human "A" note 9 amy "@human A is in" turn 11 amy "@human C or D?"]`
 	if fmt.Sprint(got) != want {
 		t.Fatalf("got  %v\nwant %v", got, want)
 	}
@@ -99,6 +102,9 @@ func TestTheFoundersTurnTheirAnswerAndANoteAreCardsInTheAgentsChat(t *testing.T)
 		if _, agent, ok, err := e.TaskEventItem(id); err != nil || !ok || agent != "amy" {
 			t.Fatalf("event %d goes live to %q %v %v", id, agent, ok, err)
 		}
+	}
+	if _, _, ok, _ := e.TaskEventItem(5); ok {
+		t.Fatal("the comment a turn hangs on goes live once, as the turn")
 	}
 	if items, _ := e.transcriptItems("bob", nil); len(items) != 0 {
 		t.Fatalf("not bob's: %v", items)

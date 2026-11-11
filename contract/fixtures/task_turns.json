@@ -19,7 +19,13 @@
        "protocol": 1
       }
      },
-     "result": {}
+     "result": {
+      "caller": {
+       "name": {
+        "$save": "me"
+       }
+      }
+     }
     },
     {
      "send": {
@@ -120,7 +126,7 @@
       "params": {
        "task": "{{tid}}",
        "text": "over to you",
-       "turn": "{{turn_c}}",
+       "turn": "{{ask_agent}}",
        "request_id": "conf-turn-6"
       }
      },
@@ -137,7 +143,7 @@
       "params": {
        "task": "{{tid}}",
        "text": "over to you",
-       "turn": "human",
+       "turn": "{{me}}",
        "request_id": "conf-turn-7"
       }
      },

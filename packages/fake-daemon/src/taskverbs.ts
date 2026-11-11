@@ -17,17 +17,34 @@ export class TaskVerbs extends TaskComments {
     const t = this.find(task);
     const top = t.turns?.at(-1);
     if (top?.agent === 'human') {
-      const turn = { ...top, ask, memo, edited: this.now(), earlier: [...(top.earlier ?? []), { ask: top.ask, at: top.edited ?? top.since }] };
+      const turn = {
+        ...top,
+        ask,
+        memo,
+        edited: this.now(),
+        earlier: [...(top.earlier ?? []), { ask: top.ask, at: top.edited ?? top.since }],
+      };
       this.change(t, { turns: [...t.turns!.slice(0, -1), turn] });
       return;
     }
-    const turn = { agent: 'human', ask, by: agent || t.to, since: this.now(), on_pass: null, evidence: null, edited: null, earlier: [], memo };
+    const turn = {
+      agent: 'human',
+      ask,
+      by: agent || t.to,
+      since: this.now(),
+      on_pass: null,
+      evidence: null,
+      edited: null,
+      earlier: [],
+      memo,
+    };
     const log = [...(t.turnLog ?? []), { at: turn.since, who: `${turn.by} → human`, text: '', turn: 'push' as const, memo }];
     this.change(t, { turns: [...(t.turns ?? []), turn], acting: 'human', turnLog: log });
   }
   /** The founder's comment while their turn is on top passes it (docs/design/turns.md); a comment with turn human puts the founder on top. */
   override memo(p: Record<string, unknown>, op: 'add' | 'edit' | 'delete', person: string, agent = false): number {
-    if (op === 'add' && p.turn !== undefined && p.turn !== 'human') throw new TaskFailure('refused', 'the fake daemon hands turns to human only');
+    if (op === 'add' && p.turn !== undefined && p.turn !== 'human')
+      throw new TaskFailure('refused', 'the fake daemon hands turns to human only');
     const id = super.memo(p, op, person, agent);
     if (op === 'add' && p.turn === 'human') this.turnPush(p.task, id, String(p.text).trim(), agent ? person : '');
     else if (op === 'add' && !agent && this.find(p.task).turns?.at(-1)?.agent === 'human') this.turnPop(p);

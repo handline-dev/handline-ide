@@ -242,10 +242,10 @@ func addSampleLoggedOut(tx *sql.Tx) error {
 	return addColumn(tx, "usage_samples", "logged_out", "INTEGER NOT NULL DEFAULT 0")
 }
 
-// addSessionStartChanged is what the settings a session start was launched with changed (session_starts.changed).
 // addTurnMemo is the comment a turn was handed over with (db.Turn.Memo).
 func addTurnMemo(tx *sql.Tx) error { return addColumn(tx, "task_turns", "memo", "INTEGER") }
 
+// addSessionStartChanged is what the settings a session start was launched with changed (session_starts.changed).
 func addSessionStartChanged(tx *sql.Tx) error {
 	return addColumn(tx, "session_starts", "changed", "TEXT NOT NULL DEFAULT ''")
 }

@@ -243,6 +243,9 @@ func memoAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, err
 				}
 			}
 			if c.Caller.Actor() == human {
+				if to == human {
+					return nil, refusal("you do not hand a turn to yourself: name an agent")
+				}
 				if err = answerMemoAsks(tx, tid); err != nil {
 					return nil, err
 				}
@@ -252,6 +255,9 @@ func memoAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, err
 				} else if turns, err := db.Turns(tx, tid); err != nil {
 					return nil, err
 				} else if acting == human && len(turns) > 0 {
+					if to != "" {
+						return nil, refusal(fmt.Sprintf("T%d waits on you: answer with a comment and no turn, and it goes back to the agent that asked", tid))
+					}
 					p, err := popTurn(tx, home, tell, tid, human, db.TurnPass, body, mid)
 					if err != nil {
 						return nil, err
@@ -285,9 +291,6 @@ func memoAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, err
 			}
 			return accepted(said, map[string]any{"memo": mid}), nil
 		})
-		if asked != nil && !asked.OK && asked.After != nil {
-			asked.After()
-		}
 		if err == nil && asked != nil && !asked.Reask {
 			pushed.After = asked.After
 			if tail := tell.HandedOver(pushed); tail != "" {
@@ -452,6 +455,13 @@ func memoDelete(tell Teller) func(*rpc.Conn, map[string]any) (any, error) {
 			}
 			if err := guard(c.Caller.Actor(), author, mid); err != nil {
 				return nil, err
+			}
+			var hung int
+			if err := tx.QueryRow("SELECT COUNT(*) FROM task_turns WHERE memo = ?", mid).Scan(&hung); err != nil {
+				return nil, err
+			}
+			if hung > 0 {
+				return nil, refusal(fmt.Sprintf("comment %d is what a turn on T%d asks: edit it, or take the turn off first", mid, tid))
 			}
 			if err := db.DeleteMemo(tx, mid, c.Caller.Actor()); err != nil {
 				return nil, err
