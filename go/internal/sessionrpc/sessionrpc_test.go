@@ -14,6 +14,7 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/kit/lock"
+	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/storetest"
 	"github.com/handline/handline/go/protocol/rpc"
 )
@@ -60,6 +61,7 @@ type rig struct {
 	closed  []string
 	present bool
 	t       *testing.T
+	ann     string // the key of the agent ann
 }
 
 func newRig(t *testing.T) *rig {
@@ -77,11 +79,15 @@ func newRig(t *testing.T) *rig {
 		CloseTerminal:  func(h string) (bool, string) { r.closed = append(r.closed, h); return true, "" },
 		SessionPresent: func(string) (bool, error) { return r.present, nil }}
 	teamtest.Seed(t, home, "ann")
-	if _, err := d.Exec("INSERT INTO agent_state(agent, state, updated, terminal, worktree) VALUES('ann', 'IDLE', 0, '%1', '/w')"); err != nil {
+	r.ann = teamtest.Key(t, home, "ann")
+	if _, err := d.Exec("INSERT INTO agent_state(agent, state, updated, terminal, worktree) VALUES(?, 'IDLE', 0, '%1', '/w')", r.ann); err != nil {
 		t.Fatal(err)
 	}
 	return r
 }
+
+// who is a who word's key, as the daemon's server resolves it.
+func (r *rig) who(w string) string { return paths.WhoKey(r.e.Home, w) }
 
 type conn struct {
 	name string
@@ -93,8 +99,8 @@ type conn struct {
 
 // dial is one connection to a server with the methods registered, as the founder, or as ann's own session.
 func (r *rig) dial(agent bool) *conn {
-	srv := rpc.NewServer(auth{agent: map[bool]string{true: "ann"}[agent]}, "sha", 1, "local", func(string, ...any) {})
-	srv.DB = r.e.DB
+	srv := rpc.NewServer(auth{agent: map[bool]string{true: r.ann}[agent]}, "sha", 1, "local", func(string, ...any) {})
+	srv.DB, srv.Who = r.e.DB, r.who
 	Register(srv, r.e)
 	RegisterTyping(srv, r.e)
 	cl, sv := net.Pipe()
@@ -159,7 +165,7 @@ func TestStartPassesTheRepoAndBaseAndAPersonIsNotHeldBack(t *testing.T) {
 		t.Fatalf("field %q", f)
 	}
 	got := result(t, c.call("session.start", map[string]any{"agent": "ann", "repo": "/r", "request_id": rid("3")}))
-	if got["accepted"] != true || got["said"] != "done" || r.ctl.calls[0] != "start ann /r main true" {
+	if got["accepted"] != true || got["said"] != "done" || r.ctl.calls[0] != "start "+r.ann+" /r main true" {
 		t.Fatalf("%v %v", got, r.ctl.calls)
 	}
 	again := result(t, c.call("session.start", map[string]any{"agent": "ann", "repo": "/r", "request_id": rid("3")}))
@@ -171,7 +177,7 @@ func TestStartPassesTheRepoAndBaseAndAPersonIsNotHeldBack(t *testing.T) {
 func TestARefusalNamesItsGateFromItsWords(t *testing.T) {
 	r := newRig(t)
 	c := r.dial(false)
-	for said, gate := range map[string]string{"ann: " + TypingElsewhere + "; not starting twice": "terminal_lock", "ann: no room": "state"} {
+	for said, gate := range map[string]string{r.ann + ": " + TypingElsewhere + "; not starting twice": "terminal_lock", r.ann + ": no room": "state"} {
 		r.ctl.ok, r.ctl.said = false, said
 		if g := refused(c.call("session.park", map[string]any{"agent": "ann", "request_id": rid(said[:6] + gate)})); g != gate {
 			t.Fatalf("%q: gate %q, want %q", said, g, gate)
@@ -179,7 +185,7 @@ func TestARefusalNamesItsGateFromItsWords(t *testing.T) {
 	}
 	r.ctl.said = "late"
 	m := c.call("session.wake", map[string]any{"agent": "ann", "request_id": rid("w2")})
-	if msg := m["error"].(map[string]any)["message"]; msg != "ann: not woken - late" {
+	if msg := m["error"].(map[string]any)["message"]; msg != r.ann+": not woken - late" {
 		t.Fatalf("%v", msg)
 	}
 }
@@ -187,12 +193,12 @@ func TestARefusalNamesItsGateFromItsWords(t *testing.T) {
 func TestWakeOfAStalledAgentClearsTheStall(t *testing.T) {
 	r := newRig(t)
 	c := r.dial(false)
-	r.e.DB.Exec("UPDATE agent_state SET state = 'STALLED', failed_attempts = 3 WHERE agent = 'ann'")
+	r.e.DB.Exec("UPDATE agent_state SET state = 'STALLED', failed_attempts = 3 WHERE agent = ?", r.ann)
 	got := result(t, c.call("session.wake", map[string]any{"agent": "ann", "request_id": rid("1")}))
-	if got["said"] != "ann: STALLED -> QUEUED" || len(r.ctl.calls) != 0 {
+	if got["said"] != r.ann+": STALLED -> QUEUED" || len(r.ctl.calls) != 0 {
 		t.Fatalf("%v %v", got, r.ctl.calls)
 	}
-	row, _ := db.GetAgentState(r.e.DB, "ann")
+	row, _ := db.GetAgentState(r.e.DB, r.ann)
 	if row.State != "QUEUED" || row.FailedAttempts != 0 {
 		t.Fatalf("%+v", row)
 	}
@@ -201,13 +207,13 @@ func TestWakeOfAStalledAgentClearsTheStall(t *testing.T) {
 func TestRestartTakesFlagsAndNoNeedlessLock(t *testing.T) {
 	r := newRig(t)
 	c := r.dial(false)
-	h := lock.TakeTerminal(r.e.Home, "ann") // a terminal held by a typist does not stop a structured lifecycle verb
+	h := lock.TakeTerminal(r.e.Home, r.ann) // a terminal held by a typist does not stop a structured lifecycle verb
 	defer h.Release()
 	if badField(c.call("session.restart", map[string]any{"agent": "ann", "fresh": "yes", "request_id": rid("2")})) != "fresh" {
 		t.Fatal("fresh is a flag")
 	}
 	result(t, c.call("session.restart", map[string]any{"agent": "ann", "fresh": true, "force": true, "request_id": rid("3")}))
-	if r.ctl.calls[0] != "restart ann true true" {
+	if r.ctl.calls[0] != "restart "+r.ann+" true true" {
 		t.Fatalf("%v", r.ctl.calls)
 	}
 }
@@ -215,11 +221,11 @@ func TestRestartTakesFlagsAndNoNeedlessLock(t *testing.T) {
 func TestCompactPassesTheCallerAndNoNeedlessLock(t *testing.T) {
 	r := newRig(t)
 	c := r.dial(false)
-	h := lock.TakeTerminal(r.e.Home, "ann") // the handoff types later, under its own lock
+	h := lock.TakeTerminal(r.e.Home, r.ann) // the handoff types later, under its own lock
 	defer h.Release()
 	r.ctl.said = "it hands off"
 	got := result(t, c.call("session.compact", map[string]any{"agent": "ann", "request_id": rid("1")}))
-	if got["said"] != "it hands off" || len(r.ctl.calls) != 1 || !strings.HasPrefix(r.ctl.calls[0], "compact ann ") {
+	if got["said"] != "it hands off" || len(r.ctl.calls) != 1 || !strings.HasPrefix(r.ctl.calls[0], "compact "+r.ann+" ") {
 		t.Fatalf("%v %v", got, r.ctl.calls)
 	}
 	r.ctl.ok, r.ctl.said = false, "it is mid-handoff"
@@ -239,7 +245,7 @@ func TestStopTakesAModeAndKillIsForAMemberAndAbove(t *testing.T) {
 	}
 	result(t, c.call("session.stop", map[string]any{"agent": "ann", "mode": "close", "fresh": true, "request_id": rid("3")}))
 	result(t, c.call("session.stop", map[string]any{"agent": "ann", "mode": "exit", "request_id": rid("3b")}))
-	if strings.Join(r.ctl.calls, ";") != "close ann true;close ann false" {
+	if strings.Join(r.ctl.calls, ";") != "close "+r.ann+" true;close "+r.ann+" false" {
 		t.Fatalf("exit and close both close the session: %v", r.ctl.calls)
 	}
 	if g := refused(r.dial(true).call("session.stop", map[string]any{"agent": "ann", "mode": "kill", "request_id": rid("4")})); g != "role" {
@@ -257,7 +263,7 @@ func TestInterruptIsRecordedOnceAndNotServedWithoutATerminalToPressEscAt(t *test
 	c := r.dial(false)
 	got := result(t, c.call("session.interrupt", map[string]any{"agent": "ann", "request_id": rid("1")}))
 	again := result(t, c.call("session.interrupt", map[string]any{"agent": "ann", "request_id": rid("1")}))
-	if got["said"] != "ann: interrupted" || again["replayed"] != true || len(pressed) != 1 {
+	if got["said"] != r.ann+": interrupted" || again["replayed"] != true || len(pressed) != 1 {
 		t.Fatalf("%v %v %v", got, again, pressed)
 	}
 	r.e.InterruptTerminal = nil
@@ -269,15 +275,15 @@ func TestInterruptIsRecordedOnceAndNotServedWithoutATerminalToPressEscAt(t *test
 func TestFoldRunsOnceForARequestIdAndARejectedFoldIsRefused(t *testing.T) {
 	r := newRig(t)
 	var folded []string
-	ok, said := true, "ann: folded"
+	ok, said := true, r.ann+": folded"
 	r.e.Fold = func(a string) (bool, string) { folded = append(folded, a); return ok, said }
 	c := r.dial(false)
 	got := result(t, c.call("agent.fold", map[string]any{"agent": "ann", "request_id": rid("1")}))
 	again := result(t, c.call("agent.fold", map[string]any{"agent": "ann", "request_id": rid("1")}))
-	if got["said"] != "ann: folded" || again["replayed"] != true || len(folded) != 1 {
+	if got["said"] != r.ann+": folded" || again["replayed"] != true || len(folded) != 1 {
 		t.Fatalf("%v %v %v", got, again, folded)
 	}
-	ok, said = false, "ann: fold rejected - no events to fold"
+	ok, said = false, r.ann+": fold rejected - no events to fold"
 	if g := refused(c.call("agent.fold", map[string]any{"agent": "ann", "request_id": rid("2")})); g != "state" {
 		t.Fatalf("a rejected fold is a refusal: %q", g)
 	}
@@ -295,24 +301,24 @@ func TestTerminalCloseNeedsAStoppedSessionAndRefusesWhileTyping(t *testing.T) {
 	if g := refused(c.call("terminal.close", map[string]any{"agent": "ann", "request_id": rid("1")})); g != "state" || len(r.closed) != 0 {
 		t.Fatalf("a session is running: %q", g)
 	}
-	r.e.DB.Exec("UPDATE agent_state SET closed_at = 5 WHERE agent = 'ann'")
-	h := lock.TakeTerminal(r.e.Home, "ann")
+	r.e.DB.Exec("UPDATE agent_state SET closed_at = 5 WHERE agent = ?", r.ann)
+	h := lock.TakeTerminal(r.e.Home, r.ann)
 	if g := refused(c.call("terminal.close", map[string]any{"agent": "ann", "request_id": rid("2")})); g != "terminal_lock" {
 		t.Fatalf("typing elsewhere: %q", g)
 	}
 	h.Release()
-	r.e.Holds.Take("ann", "person", "sam")
+	r.e.Holds.Take(r.ann, "person", "sam")
 	if g := refused(c.call("terminal.close", map[string]any{"agent": "ann", "request_id": rid("4")})); g != "input_holder" || len(r.closed) != 0 {
 		t.Fatalf("another holds the input: %q", g)
 	}
-	r.e.Holds.Release("ann")
-	r.e.Holds.Take("ann", "person", c.name)
+	r.e.Holds.Release(r.ann)
+	r.e.Holds.Take(r.ann, "person", c.name)
 	got := result(t, c.call("terminal.close", map[string]any{"agent": "ann", "request_id": rid("3")}))
-	row, _ := db.GetAgentState(r.e.DB, "ann")
-	if got["said"] != "ann: terminal closed" || len(r.closed) != 1 || r.closed[0] != "%1" || row.Terminal.String != "" {
+	row, _ := db.GetAgentState(r.e.DB, r.ann)
+	if got["said"] != r.ann+": terminal closed" || len(r.closed) != 1 || r.closed[0] != "%1" || row.Terminal.String != "" {
 		t.Fatalf("%v %v %+v", got, r.closed, row)
 	}
-	if held, _ := r.e.Holds.Holder("ann"); held != nil {
+	if held, _ := r.e.Holds.Holder(r.ann); held != nil {
 		t.Fatal("the hold on a closed terminal is over")
 	}
 	r.e.Holds = nil
@@ -355,13 +361,14 @@ func cursorNames(t *testing.T, d interface {
 	return strings.Join(names, ",")
 }
 
-func seedStall(t *testing.T, d *sql.DB, state string) {
+// seedStall puts ann (by its key, ann) in state with its counters up, and dialog marks for it and for bob.
+func seedStall(t *testing.T, d *sql.DB, ann, state string) {
 	t.Helper()
-	for _, q := range []string{
-		"UPDATE agent_state SET state = '" + state + "', detail = 'x', failed_attempts = 3, throttle_count = 2, wake_failures = 1 WHERE agent = 'ann'",
-		"INSERT INTO cursors(name, row_id, updated) VALUES('dialog_since:ann', 5, 5), ('dialog_title:ann', 6, 6), ('dialog_since:bob', 7, 7)",
+	for _, q := range [][]any{
+		{"UPDATE agent_state SET state = ?, detail = 'x', failed_attempts = 3, throttle_count = 2, wake_failures = 1 WHERE agent = ?", state, ann},
+		{"INSERT INTO cursors(name, row_id, updated) VALUES(?, 5, 5), (?, 6, 6), ('dialog_since:bob', 7, 7)", "dialog_since:" + ann, "dialog_title:" + ann},
 	} {
-		if _, err := d.Exec(q); err != nil {
+		if _, err := d.Exec(q[0].(string), q[1:]...); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -369,7 +376,7 @@ func seedStall(t *testing.T, d *sql.DB, state string) {
 
 func TestWakeOfAStalledAgentDropsItsDialogMarkAndNobodyElses(t *testing.T) {
 	r := newRig(t)
-	seedStall(t, r.e.DB, "STALLED")
+	seedStall(t, r.e.DB, r.ann, "STALLED")
 	result(t, r.dial(false).call("session.wake", map[string]any{"agent": "ann", "request_id": rid("1")}))
 	if got := cursorNames(t, r.e.DB); got != "dialog_since:bob" {
 		t.Fatalf("cursors left: %s", got)
@@ -378,12 +385,12 @@ func TestWakeOfAStalledAgentDropsItsDialogMarkAndNobodyElses(t *testing.T) {
 
 func TestUnstallOfAnAgentThatIsNotStalledLeavesItsDialogMark(t *testing.T) {
 	r := newRig(t)
-	seedStall(t, r.e.DB, "RUNNING")
-	cleared, said, err := r.e.Unstall("ann")
-	if err != nil || cleared || said != "ann: not STALLED (RUNNING)" {
+	seedStall(t, r.e.DB, r.ann, "RUNNING")
+	cleared, said, err := r.e.Unstall(r.ann)
+	if err != nil || cleared || said != r.ann+": not STALLED (RUNNING)" {
 		t.Fatalf("%v %q %v", cleared, said, err)
 	}
-	if got := cursorNames(t, r.e.DB); got != "dialog_since:ann,dialog_since:bob,dialog_title:ann" {
+	if got, want := cursorNames(t, r.e.DB), "dialog_since:"+r.ann+",dialog_since:bob,dialog_title:"+r.ann; got != want {
 		t.Fatalf("cursors: %s", got)
 	}
 }
@@ -391,15 +398,15 @@ func TestUnstallOfAnAgentThatIsNotStalledLeavesItsDialogMark(t *testing.T) {
 // Unstall leaves the agent queued with the human's word as detail, its three failure counters at 0 and its own dialog marks gone.
 func TestUnstallLeavesTheAgentQueuedWithItsCountersAndDialogMarksCleared(t *testing.T) {
 	r := newRig(t)
-	seedStall(t, r.e.DB, "STALLED")
-	cleared, said, err := r.e.Unstall("ann")
-	if err != nil || !cleared || said != "ann: STALLED -> QUEUED" {
+	seedStall(t, r.e.DB, r.ann, "STALLED")
+	cleared, said, err := r.e.Unstall(r.ann)
+	if err != nil || !cleared || said != r.ann+": STALLED -> QUEUED" {
 		t.Fatalf("%v %q %v", cleared, said, err)
 	}
 	var state, detail string
 	var failed, throttle, wake int
-	q := "SELECT state, detail, failed_attempts, throttle_count, wake_failures FROM agent_state WHERE agent = 'ann'"
-	if err := r.e.DB.QueryRow(q).Scan(&state, &detail, &failed, &throttle, &wake); err != nil {
+	q := "SELECT state, detail, failed_attempts, throttle_count, wake_failures FROM agent_state WHERE agent = ?"
+	if err := r.e.DB.QueryRow(q, r.ann).Scan(&state, &detail, &failed, &throttle, &wake); err != nil {
 		t.Fatal(err)
 	}
 	if state != "QUEUED" || detail != "cleared by a human" || failed != 0 || throttle != 0 || wake != 0 {
@@ -415,15 +422,15 @@ func (a auth) SessionsReadable() error { return nil }
 func TestAgentUnstallClearsAStallForTheFounderAndRefusesAnAgentThatIsNotStalled(t *testing.T) {
 	r := newRig(t)
 	c := r.dial(false)
-	seedStall(t, r.e.DB, "RUNNING")
+	seedStall(t, r.e.DB, r.ann, "RUNNING")
 	m := c.call("agent.unstall", map[string]any{"agent": "ann", "request_id": rid("u1")})
-	if refused(m) != "state" || m["error"].(map[string]any)["message"] != "ann: not STALLED (RUNNING)" {
+	if refused(m) != "state" || m["error"].(map[string]any)["message"] != r.ann+": not STALLED (RUNNING)" {
 		t.Fatalf("%v", m)
 	}
-	r.e.DB.Exec("UPDATE agent_state SET state = 'STALLED' WHERE agent = 'ann'")
+	r.e.DB.Exec("UPDATE agent_state SET state = 'STALLED' WHERE agent = ?", r.ann)
 	got := result(t, c.call("agent.unstall", map[string]any{"agent": "ann", "request_id": rid("u2")}))
-	row, _ := db.GetAgentState(r.e.DB, "ann")
-	if got["said"] != "ann: STALLED -> QUEUED" || row.State != "QUEUED" || row.FailedAttempts != 0 || cursorNames(t, r.e.DB) != "dialog_since:bob" {
+	row, _ := db.GetAgentState(r.e.DB, r.ann)
+	if got["said"] != r.ann+": STALLED -> QUEUED" || row.State != "QUEUED" || row.FailedAttempts != 0 || cursorNames(t, r.e.DB) != "dialog_since:bob" {
 		t.Fatalf("%v %+v %s", got, row, cursorNames(t, r.e.DB))
 	}
 	if m := c.call("agent.unstall", map[string]any{"agent": "nobody", "request_id": rid("u3")}); m["error"].(map[string]any)["data"].(map[string]any)["code"] != "not_found" {
@@ -439,11 +446,11 @@ func TestAgentMoveIsAPersonsCallAndPassesTheAccountAndWhoAsked(t *testing.T) {
 	var got []string
 	r.e.Move = func(call Call, agent, account string) (bool, string, error) {
 		got = append(got, fmt.Sprint(agent, " ", account, " ", call.Person))
-		return account != "full", "ann moved a -> " + account, nil
+		return account != "full", agent + " moved a -> " + account, nil
 	}
 	c := r.dial(false)
 	res := result(t, c.call("agent.move", map[string]any{"agent": "ann", "account": "b", "request_id": rid("m1")}))
-	if res["said"] != "ann moved a -> b" || len(got) != 1 || got[0] != "ann b true" {
+	if res["said"] != r.ann+" moved a -> b" || len(got) != 1 || got[0] != r.ann+" b true" {
 		t.Fatalf("%v %v", res, got)
 	}
 	if m := c.call("agent.move", map[string]any{"agent": "ann", "account": "full", "request_id": rid("m2")}); refused(m) != "state" {
@@ -465,18 +472,18 @@ func TestAgentSwitchNowIsAPersonsCallAndPassesTheAccount(t *testing.T) {
 	var got []string
 	r.e.SwitchNow = func(call Call, agent, account string) (bool, string, error) {
 		got = append(got, fmt.Sprint(agent, " ", account, " ", call.Person))
-		return account != "walled", "ann moved a -> " + account, nil
+		return account != "walled", agent + " moved a -> " + account, nil
 	}
 	c := r.dial(false)
 	res := result(t, c.call("agent.switch_now", map[string]any{"agent": "ann", "account": "b", "request_id": rid("s1")}))
-	if res["said"] != "ann moved a -> b" || len(got) != 1 || got[0] != "ann b true" {
+	if res["said"] != r.ann+" moved a -> b" || len(got) != 1 || got[0] != r.ann+" b true" {
 		t.Fatalf("%v %v", res, got)
 	}
 	if m := c.call("agent.switch_now", map[string]any{"agent": "ann", "account": "walled", "request_id": rid("s2")}); refused(m) != "state" {
 		t.Fatalf("a refusal: %v", m)
 	}
 	result(t, c.call("agent.switch_now", map[string]any{"agent": "ann", "request_id": rid("s3")}))
-	if got[2] != "ann  true" {
+	if got[2] != r.ann+"  true" {
 		t.Fatalf("no account leaves the choice to the daemon: %v", got)
 	}
 	if m := r.dial(true).call("agent.switch_now", map[string]any{"agent": "ann", "account": "b", "request_id": rid("s4")}); refused(m) != "role" || len(got) != 3 {

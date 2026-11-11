@@ -64,7 +64,7 @@ func TestTakeAndReleaseAreTheHoldersAlone(t *testing.T) {
 	if got["holder"].(map[string]any)["name"] != c.name {
 		t.Fatalf("take %v", got)
 	}
-	if row, _ := r.e.Holds.Holder("ann"); row == nil || row.Name != c.name {
+	if row, _ := r.e.Holds.Holder(r.ann); row == nil || row.Name != c.name {
 		t.Fatalf("holder %v", row)
 	}
 	// someone else's hold is not the caller's to release or take
@@ -77,7 +77,7 @@ func TestTakeAndReleaseAreTheHoldersAlone(t *testing.T) {
 	}
 	r.e.DB.Exec("UPDATE input_holders SET name = ?", c.name)
 	result(t, c.call("input.release", map[string]any{"agent": "ann", "request_id": rid("r2")}))
-	if row, _ := r.e.Holds.Holder("ann"); row != nil {
+	if row, _ := r.e.Holds.Holder(r.ann); row != nil {
 		t.Fatalf("released, got %v", row)
 	}
 	if said := result(t, c.call("input.release", map[string]any{"agent": "ann", "request_id": rid("r3")}))["said"]; !strings.Contains(said.(string), "already") {
@@ -89,7 +89,7 @@ func TestForceTakesFromAnotherHolderWhoIsTold(t *testing.T) {
 	r, _, c := typingRig(t)
 	told := []string{}
 	r.e.Holds.Changed = func(_ string, h []map[string]any) { told = append(told, h[0]["name"].(string)) }
-	r.e.Holds.Take("ann", "device", "sam")
+	r.e.Holds.Take(r.ann, "device", "sam")
 	if g := refused(c.call("input.take", map[string]any{"agent": "ann", "request_id": rid("f1")})); g != "input_holder" {
 		t.Fatalf("without force: gate %q", g)
 	}
@@ -107,7 +107,7 @@ func TestForceTakesFromAnotherHolderWhoIsTold(t *testing.T) {
 
 func TestForceDoesNotTypeIntoAnAgentsTurn(t *testing.T) {
 	r, h, c := typingRig(t)
-	busy := lock.TakeTerminal(r.e.Home, "ann") // the tick, mid-turn
+	busy := lock.TakeTerminal(r.e.Home, r.ann) // the tick, mid-turn
 	defer busy.Release()
 	result(t, c.call("input.take", map[string]any{"agent": "ann", "force": true, "request_id": rid("f1")}))
 	if g := refused(c.call("session.type", map[string]any{"agent": "ann", "text": "x", "request_id": rid("f2")})); g != "terminal_lock" {
@@ -130,7 +130,7 @@ func TestKeysAndTypeSendWhatTheyNameAndSkipTheDialogCheck(t *testing.T) {
 		t.Fatalf("sent %q", h.sent)
 	}
 	var typed int64
-	r.e.DB.QueryRow("SELECT row_id FROM cursors WHERE name = 'typed_at:ann'").Scan(&typed)
+	r.e.DB.QueryRow("SELECT row_id FROM cursors WHERE name = ?", "typed_at:"+r.ann).Scan(&typed)
 	if typed != 1_000_000 {
 		t.Fatalf("typed_at %d", typed)
 	}
@@ -161,7 +161,7 @@ func TestSessionInputTypesAtAComposerAndIsRefusedAtAShellADialogTheWallAndByAnot
 	if g := refused(call("i2")); g != "screen_blocker" {
 		t.Fatalf("a dialog: gate %q", g)
 	}
-	r.e.Wall = func(string) string { return "ann is at its usage limit" }
+	r.e.Wall = func(string) string { return r.ann + " is at its usage limit" }
 	if g := refused(call("i3")); g != "wall" {
 		t.Fatalf("the wall: gate %q", g)
 	}
@@ -171,7 +171,7 @@ func TestSessionInputTypesAtAComposerAndIsRefusedAtAShellADialogTheWallAndByAnot
 		t.Fatalf("a session at its composer is typed at: %v %q", got, h.sent)
 	}
 	h.sent = nil
-	r.e.Holds.Take("ann", "person", "sam")
+	r.e.Holds.Take(r.ann, "person", "sam")
 	if g := refused(call("i4")); g != "input_holder" {
 		t.Fatalf("another holds it: gate %q", g)
 	}
@@ -200,7 +200,7 @@ func TestSessionInputTypesNothingWhereTheHooksSawTheSessionEnd(t *testing.T) {
 
 func TestATypingCallWhileTheTickHoldsTheTerminalLockIsRefusedAtOnce(t *testing.T) {
 	r, h, c := typingRig(t)
-	busy := lock.TakeTerminal(r.e.Home, "ann")
+	busy := lock.TakeTerminal(r.e.Home, r.ann)
 	defer busy.Release()
 	if g := refused(c.call("session.type", map[string]any{"agent": "ann", "text": "x", "request_id": rid("l1")})); g != "terminal_lock" {
 		t.Fatalf("gate %q", g)
@@ -216,7 +216,7 @@ func TestInterruptPressesEscOnATerminalAgentsPaneBehindTheTypingGates(t *testing
 	c = r.dial(false)                                                                        // the method is registered on a dial that has the port
 	result(t, c.call("input.take", map[string]any{"agent": "ann", "request_id": rid("t1")})) // the caller's own hold lets it through
 	got := result(t, c.call("session.interrupt", map[string]any{"agent": "ann", "request_id": rid("i1")}))
-	if got["said"] != "ann: interrupted" || strings.Join(h.sent, "|") != term.Escape {
+	if got["said"] != r.ann+": interrupted" || strings.Join(h.sent, "|") != term.Escape {
 		t.Fatalf("%v sent %q", got, h.sent)
 	}
 	r.e.DB.Exec("UPDATE input_holders SET name = 'sam'")
@@ -224,12 +224,12 @@ func TestInterruptPressesEscOnATerminalAgentsPaneBehindTheTypingGates(t *testing
 		t.Fatalf("someone else holds its input: %q", g)
 	}
 	r.e.DB.Exec("DELETE FROM input_holders")
-	hold := lock.TakeTerminal(r.e.Home, "ann") // someone is typing at it this moment
+	hold := lock.TakeTerminal(r.e.Home, r.ann) // someone is typing at it this moment
 	if g := refused(c.call("session.interrupt", map[string]any{"agent": "ann", "request_id": rid("i3")})); g != "terminal_lock" {
 		t.Fatalf("an Esc into the middle of something being typed: %q", g)
 	}
 	hold.Release()
-	r.e.DB.Exec("UPDATE agent_state SET terminal = '' WHERE agent = 'ann'")
+	r.e.DB.Exec("UPDATE agent_state SET terminal = '' WHERE agent = ?", r.ann)
 	if g := refused(c.call("session.interrupt", map[string]any{"agent": "ann", "request_id": rid("i4")})); g != "state" {
 		t.Fatalf("no terminal: %q", g)
 	}
