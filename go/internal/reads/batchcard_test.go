@@ -12,8 +12,8 @@ func TestABatchDiscardIsOneCardInItsAuthorsChat(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	addAgent(t, e, "lead", "")
-	addAgent(t, e, "w1", "")
-	lead, w1 := teamtest.Key(t, e.Home, "lead"), teamtest.Key(t, e.Home, "w1")
+	addAgent(t, e, "one", "") // not w1, which reads as a workspace's key
+	lead, w1 := teamtest.Key(t, e.Home, "lead"), teamtest.Key(t, e.Home, "one")
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'first', '"+w1+"', '"+lead+"', 1), (2, 'mine', '"+lead+"', '"+lead+"', 1)")
 	run(t, e, `INSERT INTO events(id, ts, agent, kind, payload) VALUES`+
 		`(10, 100, '`+lead+`', 'discard_task', '{"task_id": 1, "reason": "merged", "batch": "b1"}'), `+
