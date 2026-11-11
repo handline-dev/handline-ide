@@ -408,9 +408,17 @@ func nilIfFalse(b bool) any {
 	return true
 }
 
-// folders makes the agent's folders and, when it has none, its ROLE.md and base.md. Named by the old name until disk is by key (1d).
+// folders makes the agent's folders and, when it has none, its ROLE.md and base.md. Its key is read through r.DB, which may be the
+// transaction that made its row.
 func (r *Roster) folders(name string, o RegisterOpts) (string, error) {
-	d := paths.AgentDir(r.Home, name)
+	key, err := paths.AgentKeyIn(r.DB, name)
+	if err != nil {
+		return "", err
+	}
+	if key == "" {
+		return "", &NotRegistered{name}
+	}
+	d := paths.AgentDir(r.Home, key)
 	for _, sub := range []string{"inbox", "journal", "memory"} {
 		if err := os.MkdirAll(filepath.Join(d, sub), 0o755); err != nil {
 			return "", err

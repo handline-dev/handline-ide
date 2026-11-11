@@ -1,8 +1,6 @@
 package reads
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/handline/handline/go/data/team/teamtest"
@@ -78,7 +76,6 @@ func TestANeedIsSaidInALineThatStaysWhileItDoes(t *testing.T) {
 func TestHealthCountsAnAgentWaitingOnEachAccountReason(t *testing.T) {
 	for reason, line := range map[string]string{"cap": "no free slot", "wall": "a usage limit", "pace": "the weekly pace", "load": ""} {
 		e := testEnv(t)
-		os.MkdirAll(filepath.Join(e.Home, "agents", "bob"), 0o755)
 		teamtest.Seed(t, e.Home, "bob")
 		run(t, e, `INSERT INTO agent_view(agent, view, updated) VALUES('bob', ?, 1)`,
 			`{"status":{"state":"stopped","reason":"`+reason+`","text":"ahead of pace by 12%"}}`)

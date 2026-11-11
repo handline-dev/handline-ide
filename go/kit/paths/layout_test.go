@@ -38,8 +38,8 @@ func TestSetenvSetsTheHandlineName(t *testing.T) {
 }
 
 func TestFilesUnderTheHome(t *testing.T) {
-	if StatusFile("/h", "acct") != "/h/accounts/acct/status.json" || AgentStatusFile("/h", "w") != "/h/agents/w/status.json" ||
-		HandoffNoteFile("/h", "w") != "/h/agents/w/handoff.md" || MCPConfig("/h") != "/h/shared/mcp.json" {
+	if StatusFile("/h", "acct") != "/h/accounts/acct/status.json" || AgentStatusFile("/h", "a3") != "/h/agents/a3/status.json" ||
+		HandoffNoteFile("/h", "a3") != "/h/agents/a3/handoff.md" || MCPConfig("/h") != "/h/shared/mcp.json" {
 		t.Error("layout")
 	}
 }

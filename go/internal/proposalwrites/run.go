@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/handline/handline/go/data/agenthost"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/paths"
 )
 
@@ -17,17 +18,19 @@ import (
 
 // snapshot is what a change to the roster can touch, kept so a step that fails puts all of it back: the routing table and its backup, the
 // config, the folder of each agent a step names (and what lands in the archive), the seals kept for them in the protected store.
-// The database is put back by the transaction the steps run in.
+// The database is put back by the transaction the steps run in. A rolled-back add gives its id to the next agent, so the folders of
+// ids past lastID are removed.
 type snapshot struct {
 	home     string
 	dir      string
 	files    map[string][]byte // nil: the file was not there
-	names    []string
-	folders  map[string]string
+	dirs     []string          // each named agent's folder
+	folders  map[string]string // folder -> its copy
 	archived map[string]bool
+	lastID   int64
 }
 
-func takeSnapshot(home string, names map[string]bool) (*snapshot, error) {
+func takeSnapshot(q *sql.DB, home string, names map[string]bool) (*snapshot, error) {
 	dir, err := os.MkdirTemp(home, "proposal-snapshot-")
 	if err != nil {
 		return nil, err
@@ -40,19 +43,22 @@ func takeSnapshot(home string, names map[string]bool) (*snapshot, error) {
 			s.files[p] = nil
 		}
 	}
-	for n := range names {
-		s.names = append(s.names, n)
+	if err := q.QueryRow("SELECT COALESCE(MAX(id), 0) FROM agents").Scan(&s.lastID); err != nil {
+		s.drop()
+		return nil, err
 	}
-	sortStrings(s.names)
-	for i, n := range s.names {
-		d := paths.AgentDir(home, n)
+	for n := range names {
+		s.dirs = append(s.dirs, paths.AgentDir(home, n))
+	}
+	sortStrings(s.dirs)
+	for i, d := range s.dirs {
 		if st, err := os.Stat(d); err == nil && st.IsDir() {
 			to := filepath.Join(dir, fmt.Sprint(i))
 			if err := copyTree(d, to); err != nil {
 				s.drop()
 				return nil, err
 			}
-			s.folders[n] = to
+			s.folders[d] = to
 		}
 	}
 	if entries, err := os.ReadDir(filepath.Join(home, "agents", "archive")); err == nil {
@@ -120,11 +126,17 @@ func (s *snapshot) restore() {
 			}
 		}
 	}
-	for _, n := range s.names {
-		d := paths.AgentDir(s.home, n)
+	for _, d := range s.dirs {
 		os.RemoveAll(d)
-		if from, ok := s.folders[n]; ok {
+		if from, ok := s.folders[d]; ok {
 			copyTree(from, d)
+		}
+	}
+	if entries, err := os.ReadDir(paths.AgentsDir(s.home)); err == nil {
+		for _, c := range entries {
+			if k, id, ok := actor.Parse(c.Name()); ok && k == actor.Agent && id > s.lastID {
+				os.RemoveAll(filepath.Join(paths.AgentsDir(s.home), c.Name()))
+			}
 		}
 	}
 }
@@ -200,7 +212,7 @@ func (e *Env) run(prop *Prop) (bool, string, error) {
 	if why := e.hostServed(items); why != "" {
 		return false, why, nil
 	}
-	snap, err := takeSnapshot(e.Home, namesOf(items))
+	snap, err := takeSnapshot(e.DB, e.Home, namesOf(items))
 	if err != nil {
 		return false, "", err
 	}

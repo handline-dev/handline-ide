@@ -99,7 +99,7 @@ func TestTheTickRunsItsPassesWithoutHarmingAnAgent(t *testing.T) {
 
 func TestTheFirstTickAfterMidnightRollsTheDigestOfAnAgent(t *testing.T) {
 	p, _, _, _ := wired(t)
-	dir := filepath.Join(p.home, "agents", "alice", "journal")
+	dir := filepath.Join(paths.AgentDir(p.home, "alice"), "journal")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}

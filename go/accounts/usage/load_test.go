@@ -12,6 +12,7 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/data/team/teamtest"
+	"github.com/handline/handline/go/kit/paths"
 )
 
 const clock = int64(1_800_000_000)
@@ -195,10 +196,9 @@ func TestReadForAgentTakesContextFromTheAgentsOwnFreshSnapshotOnly(t *testing.T)
 	live := map[string]any{"windows": []any{}, "collected_at": clock - 5, "ctx_pct": 40, "session_id": "own", "model_id": "m", "account": "a", "cost_usd": 2.5}
 	writeStatus(t, home, "a", map[string]any{"windows": []any{}, "collected_at": clock - 5, "ctx_pct": 99, "session_id": "other"})
 	write := func(agent string, v any) {
-		os.MkdirAll(filepath.Join(home, "agents", agent), 0o755)
-		b, _ := json.Marshal(v)
-		os.WriteFile(filepath.Join(home, "agents", agent, "status.json"), b, 0o644)
 		teamtest.Seed(t, home, agent)
+		b, _ := json.Marshal(v)
+		os.WriteFile(paths.AgentStatusFile(home, agent), b, 0o644)
 	}
 	if st := e.ReadForAgent("none", ""); st.Account != "" || st.Exists {
 		t.Fatalf("an agent on no account knows nothing: %+v", st)

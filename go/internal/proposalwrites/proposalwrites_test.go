@@ -278,6 +278,25 @@ func (r *rig) file(parts ...string) string {
 	return string(b)
 }
 
+// agentFile is a file in the agent's folder, "" when it is not there.
+func (r *rig) agentFile(agent, name string) string {
+	b, _ := os.ReadFile(filepath.Join(paths.AgentDir(r.home, agent), name))
+	return string(b)
+}
+
+// strayFolders are the agent folders no agent row has, as a rolled-back add would leave.
+func (r *rig) strayFolders() []string {
+	entries, _ := os.ReadDir(paths.AgentsDir(r.home))
+	var out []string
+	for _, e := range entries {
+		var n int
+		if r.db.QueryRow("SELECT COUNT(*) FROM agents WHERE 'a' || id = ?", e.Name()).Scan(&n); n == 0 && e.Name() != "archive" {
+			out = append(out, e.Name())
+		}
+	}
+	return out
+}
+
 // rosterText is the agents, one "  <name>: {}" line each, so a check reads who is registered.
 func (r *rig) rosterText() string {
 	var b strings.Builder
@@ -391,7 +410,7 @@ func TestAddRegistersTheAgentInItsWorkspace(t *testing.T) {
 	if !strings.Contains(r.rosterText(), "  eng.carol: {}") || team.NewRoster(r.home).RepoOf("eng.carol") != repo {
 		t.Fatalf("%s", r.rosterText())
 	}
-	if _, err := os.Stat(filepath.Join(r.home, "agents", "eng.carol", "ROLE.md")); err != nil {
+	if _, err := os.Stat(filepath.Join(paths.AgentDir(r.home, "eng.carol"), "ROLE.md")); err != nil {
 		t.Fatal("registered")
 	}
 	// the team named is the workspace its name says
@@ -431,8 +450,8 @@ func TestADiffThatFailsHalfwayPutsEverythingBack(t *testing.T) {
 	if r.rosterText() != before {
 		t.Fatalf("the roster put back:\n%s", r.rosterText())
 	}
-	if _, err := os.Stat(filepath.Join(r.home, "agents", "dave")); err == nil {
-		t.Fatal("the folder the first step made is gone")
+	if stray := r.strayFolders(); len(stray) != 0 {
+		t.Fatalf("the folder the first step made is gone: %v", stray)
 	}
 	if r.state("aaaa0004") != "approved" {
 		t.Fatalf("decided but not applied, so approving again retries: %s", r.state("aaaa0004"))
@@ -461,13 +480,13 @@ func TestRetireArchivesTheFolderAndRenameMovesTheNameAndItsRows(t *testing.T) {
 	}
 	// a sandboxed agent's caches, with a read-only folder as Go's module cache keeps them
 	cache := func(name string) string {
-		ro := filepath.Join(r.home, "caches", name, "go-mod", "m@v1")
+		ro := filepath.Join(paths.CacheDir(r.home, name), "go-mod", "m@v1")
 		os.MkdirAll(ro, 0o755)
 		os.WriteFile(filepath.Join(ro, "go.mod"), nil, 0o444)
 		os.Chmod(ro, 0o555)
-		return filepath.Join(r.home, "caches", name)
+		return paths.CacheDir(r.home, name)
 	}
-	bobs := cache("bob")
+	bobs, bobDir := cache("bob"), paths.AgentDir(r.home, "bob")
 	idle, closed, started := false, []string{}, []string{}
 	ports := HeldPorts{Alive: func(a string) bool { return r.live[a] }, Idle: func(string) bool { return idle },
 		Close: func(a string) (bool, string) { closed = append(closed, a); r.setLive(a, false); return true, "" },
@@ -497,18 +516,21 @@ func TestRetireArchivesTheFolderAndRenameMovesTheNameAndItsRows(t *testing.T) {
 	}
 	pairs, _, _ := yamlcompat.ParsePairs(r.settingsText("robert"))
 	if len(pairs) == 0 {
-		t.Fatal("the folder moved with the name")
+		t.Fatal("the settings moved with the name")
 	}
-	if _, err := os.Stat(bobs); err == nil {
-		t.Fatal("the old name's caches are left behind")
+	if paths.AgentDir(r.home, "robert") != bobDir || paths.CacheDir(r.home, "robert") != bobs {
+		t.Fatal("a rename keeps the folder and the caches, which are by key")
 	}
-	roberts := cache("robert")
+	if _, err := os.Stat(bobs); err != nil {
+		t.Fatal("a rename leaves the caches where they are")
+	}
+	roberts := bobs
 	p2, id2 := r.propose("aaaa0006", "kind", "retire", "agent", "robert")
 	res := r.decide(id2, "approve", p2.subject(), "e3")["result"].(map[string]any)
 	if !strings.Contains(res["said"].(string), "robert is retired; its folder is at") {
 		t.Fatalf("%v", res)
 	}
-	if _, err := os.Stat(filepath.Join(r.home, "agents", "robert")); err == nil {
+	if _, err := os.Stat(bobDir); err == nil {
 		t.Fatal("archived")
 	}
 	if _, err := os.Stat(roberts); err == nil {
@@ -526,8 +548,8 @@ func TestContextScheduleGlobalAndSettingsAreAppliedAsProposed(t *testing.T) {
 	ctx, _ := json.Marshal("You are alice.\n")
 	p, id := r.propose("aaaa0007", "kind", "context", "agent", "alice", "set.ROLE.md", string(ctx))
 	r.decide(id, "approve", p.subject(), "f1")
-	if r.file("agents", "alice", "ROLE.md") != "You are alice.\n" {
-		t.Fatalf("%q", r.file("agents", "alice", "ROLE.md"))
+	if r.agentFile("alice", "ROLE.md") != "You are alice.\n" {
+		t.Fatalf("%q", r.agentFile("alice", "ROLE.md"))
 	}
 	p, id = r.propose("aaaa0008", "kind", "schedule", "agent", "alice", "set.action", "add", "set.cron", "0 9 * * *", "set.message", "morning")
 	if res := r.decide(id, "approve", p.subject(), "f2"); !strings.Contains(r.settingsText("alice"), "morning") {
@@ -553,7 +575,7 @@ func TestAContextFileHasNoSizeLimit(t *testing.T) {
 	role := "# alice\n\n" + strings.Repeat("x", 3072) + "\n"
 	ctx, _ := json.Marshal(role)
 	p, id := r.propose("aaaa0010", "kind", "context", "agent", "alice", "set.ROLE.md", string(ctx))
-	if res := r.decide(id, "approve", p.subject(), "g1"); r.file("agents", "alice", "ROLE.md") != role {
+	if res := r.decide(id, "approve", p.subject(), "g1"); r.agentFile("alice", "ROLE.md") != role {
 		t.Fatalf("a 3KB ROLE.md was not written: %v", res)
 	}
 }
@@ -581,7 +603,7 @@ func TestAgentSetTakesEveryFieldOfTheContractForTheFounder(t *testing.T) {
 		}
 	}
 	res := r.call("agent.set", `{"agent":"alice","values":{"browser":"playwright","browser_sites":"https://a.example https://b.example"},"request_id":"as-sites"}`)
-	if res["result"] == nil || !strings.Contains(r.settingsText("alice")+r.file("agents", "alice", "mcp.json"), "b.example") {
+	if res["result"] == nil || !strings.Contains(r.settingsText("alice")+r.agentFile("alice", "mcp.json"), "b.example") {
 		t.Fatalf("sites: %v", res)
 	}
 	res = r.call("agent.set", `{"agent":"bob","values":{"effort":"low","context_k":"90"},"request_id":"as-two"}`)
@@ -1058,8 +1080,8 @@ func TestAnApproveChecksTheRepoAgain(t *testing.T) {
 		if !strings.Contains(msg, c.want) {
 			t.Fatalf("%s %s: %v", c.kind, c.repo, res)
 		}
-		if _, err := os.Stat(filepath.Join(r.home, "agents", "carol")); err == nil {
-			t.Fatalf("%s %s: carol is registered", c.kind, c.repo)
+		if stray := r.strayFolders(); len(stray) != 0 || paths.AgentKey(r.home, "carol") != "" {
+			t.Fatalf("%s %s: carol is registered: %v", c.kind, c.repo, stray)
 		}
 	}
 }
@@ -1298,8 +1320,8 @@ func TestAProposedRepoIsKeptAbsoluteAndMustBeAGitCheckout(t *testing.T) {
 			t.Errorf("%s: %v", c.want, m)
 		}
 	}
-	if _, err := os.Stat(filepath.Join(r.home, "agents", "dan")); err == nil {
-		t.Fatal("a refused add registers nothing")
+	if stray := r.strayFolders(); len(stray) != 0 {
+		t.Fatalf("a refused add registers nothing: %v", stray)
 	}
 }
 
