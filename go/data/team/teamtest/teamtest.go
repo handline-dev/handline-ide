@@ -154,3 +154,11 @@ func Account(t testing.TB, home, name string) string {
 	AccountDir(t, home, name)
 	return name
 }
+
+// Key is the key of the agent whose old dotted name is name in home; a word no agent has (human, nobody) comes back as it is, and
+// human is the owner's key, p1.
+func Key(t testing.TB, home, name string) string {
+	t.Helper()
+	DB(t, home)
+	return paths.WhoKey(home, name)
+}
