@@ -77,7 +77,9 @@ func (e *Env) create(c *rpc.Conn, params map[string]any) (any, error) {
 		return nil, notFound("repo", repo, "no repo "+repo)
 	}
 	if parent != "" { // parent is a key (a who param); name is the new agent's dotted name
-		if paths.AgentKey(e.Home, parent) != parent {
+		if k, err := paths.AgentKeyIn(e.DB, parent); err != nil {
+			return nil, err
+		} else if k != parent {
 			return nil, notFound("agent", parent, "no agent "+parent)
 		}
 		if paths.AgentKey(e.Home, team.ParentName(name)) != parent {

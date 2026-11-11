@@ -398,7 +398,7 @@ export interface ChatMethods {
   /** mine: person and this agent; all: everything it sent or received. */
   scope?: "mine" | "all";
   /** Only messages whose other party is this name: an agent, or `human` for the person. When one agent's messages are searched (`agent`, or the caller for an agent), the party other than that agent; when the person searches every agent (no `agent`), messages from or to the name. A name no message has finds nothing. */
-  with?: string;
+  with?: AgentName;
   /** Only messages sent at or after this time; one that is not a timestamp is bad_request (field since). */
   since?: Timestamp;
   limit?: number;
@@ -523,7 +523,7 @@ export interface ChatMethods {
   } & ReadCursor };
   "inbox.queue": { params: {
   /** An agent's name, or `human` for the founder's mailbox. Default: the caller's own. */
-  whose?: string;
+  whose?: AgentName;
   /** Add `history` (an agent's inbox) or `dealt` (the founder's). Default false. */
   all?: boolean;
   /** With `wait_s`: a `newest` from an earlier reply. The call holds until something newer waits. Default 0: it holds while nothing waits. */

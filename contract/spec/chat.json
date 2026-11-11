@@ -1642,7 +1642,7 @@
      "name": "with",
      "required": false,
      "schema": {
-      "type": "string",
+      "$ref": "#/components/schemas/AgentName",
       "description": "Only messages whose other party is this name: an agent, or `human` for the person. When one agent's messages are searched (`agent`, or the caller for an agent), the party other than that agent; when the person searches every agent (no `agent`), messages from or to the name. A name no message has finds nothing."
      }
     },
@@ -2492,7 +2492,7 @@
      "name": "whose",
      "required": false,
      "schema": {
-      "type": "string",
+      "$ref": "#/components/schemas/AgentName",
       "description": "An agent's name, or `human` for the founder's mailbox. Default: the caller's own."
      }
     },

@@ -1049,7 +1049,7 @@ func TestProposeRenameTeamAndBundleAreDraftedAsTheOldCLIDraftsThem(t *testing.T)
 		{`"kind":"rename","args":{"name":"bob","to":"alice"},"why":"w"`, "alice is already an agent"},
 		{`"kind":"team","args":{"name":"zed","repo":"/r"},"why":"w"`, "a team needs at least one member"},
 		{`"kind":"team","args":{"name":"zed","members":["sea"]},"why":"w"`, "needs --repo"},
-		{`"kind":"team","args":{"name":"alice","repo":"/r","members":["sea"]},"why":"w"`, "workspace alice already exists"},
+		{`"kind":"team","args":{"name":"alice","repo":"/r","members":["sea"]},"why":"w"`, "alice already an agent"},
 		{`"kind":"bundle","args":{"name":"0 changes","changes":[]},"why":"w"`, "needs at least one change"},
 		{`"kind":"bundle","args":{"name":"1 changes","changes":[{"kind":"retire","name":"ghost"}]},"why":"w"`, "change 1 (retire ghost): ghost is not an agent"},
 		{`"kind":"bundle","args":{"name":"1 changes","changes":[{"kind":"retire","name":"bob","bogus":1}]},"why":"w"`, "not an argument: bogus"},

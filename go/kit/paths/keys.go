@@ -58,6 +58,20 @@ func AgentKeyIn(q rowQ, who string) (string, error) {
 	return actor.Key(actor.Agent, id), nil
 }
 
+// AgentNameIn is the dotted name of the agent whose key is key, read through q: "" and no error when no agent has it.
+func AgentNameIn(q rowQ, key string) (string, error) {
+	k, id, ok := actor.Parse(key)
+	if !ok || k != actor.Agent {
+		return "", nil
+	}
+	var name string
+	err := q.QueryRow(`SELECT `+LegacyNameSQL+` FROM agents a JOIN workspaces w ON w.id = a.workspace WHERE a.id = ?`, id).Scan(&name)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	return name, err
+}
+
 // AgentDir is the agent's folder, agents/<key>; who is its key or its old dotted name. A name not looked up gets
 // agents/.unregistered/<name>.
 func AgentDir(home, who string) string {
@@ -174,7 +188,7 @@ func WorkspaceDir(home, who string) string {
 }
 
 // WhoKey is the key a who param's word stands for: human (or founder) is the owner, a key is itself, an agent's old name its key. A
-// word none of these is, or a home whose database cannot be read, gives the word back. Until addr.Resolve (base-v2 1c).
+// word none of these is, or a home whose database cannot be read, gives the word back.
 func WhoKey(home, word string) string {
 	if word == "human" || word == "founder" {
 		if d, _ := store.SharedIfThere(DBFile(home)); d != nil {
