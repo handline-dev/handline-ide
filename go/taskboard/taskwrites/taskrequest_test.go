@@ -10,7 +10,7 @@ import (
 func TestEachTaskIsTaggedWithTheFounderRequestItServes(t *testing.T) {
 	db, mk := discardEnv(t)
 	exec(t, db,
-		"INSERT INTO tasks(id, title, owner, opened_by, created_at, request) VALUES(3, 'request', 'manager', 'human', 1, 3), (2, 'ops', 'other', 'gp', 1, NULL)",
+		"INSERT INTO tasks(id, title, owner, opened_by, created_at, request) VALUES(3, 'request', 'manager', 'p1', 1, 3), (2, 'ops', 'other', 'gp', 1, NULL)",
 		"INSERT INTO agent_state(agent, state, current_task, updated) VALUES('manager', 'busy', 3, 1), ('other', 'busy', 2, 1)")
 	line := func(method string, id int, params, rid string) string {
 		return fmt.Sprintf(`{"jsonrpc":"2.0","id":%d,"method":%q,"params":{%s,"request_id":%q}}`, id, method, params, rid)
@@ -59,13 +59,13 @@ func TestEachTaskIsTaggedWithTheFounderRequestItServes(t *testing.T) {
 
 	// a task that answers to the founder is its own request whoever opens it; one the founder opens for an agent to answer to is not.
 	ok(call(t, mk("manager", &fakeTeller{}), newTask(2, "for the founder", `,"reporter":"human","no_parent":true`)))
-	exec(t, db, "INSERT INTO agent_state(agent, state, current_task, updated) VALUES('human', 'idle', 3, 1)")
+	exec(t, db, "INSERT INTO agent_state(agent, state, current_task, updated) VALUES('p1', 'idle', 3, 1)")
 	ok(call(t, mk("", &fakeTeller{}), newTask(2, "for manager", `,"reporter":"manager"`)))
 	check("for the founder", idOf("for the founder"))
 	check("for manager", nil)
 
 	// a blocker that serves another request stays in it.
-	exec(t, db, "INSERT INTO tasks(id, title, owner, opened_by, created_at, request) VALUES(200, 'other audit', 'other', 'human', 1, 200)")
+	exec(t, db, "INSERT INTO tasks(id, title, owner, opened_by, created_at, request) VALUES(200, 'other audit', 'other', 'p1', 1, 200)")
 	ok(call(t, mk("manager", &fakeTeller{}), line("task.edit", 2, fmt.Sprintf(`"task":%d,"blocked_by":200`, idOf("held")), "e3")))
 	check("other audit", 200)
 
@@ -83,14 +83,14 @@ func TestEachTaskIsTaggedWithTheFounderRequestItServes(t *testing.T) {
 func TestATaskOpenedInTheTurnOfAFounderMessageIsItsRequest(t *testing.T) {
 	db, mk := discardEnv(t)
 	exec(t, db,
-		"INSERT INTO tasks(id, title, owner, opened_by, created_at, request, from_request) VALUES(3, 'held request', 'other', 'human', 1, 3, NULL), "+
-			"(4, 'made from 9', 'gp', 'human', 1, 4, 9)",
+		"INSERT INTO tasks(id, title, owner, opened_by, created_at, request, from_request) VALUES(3, 'held request', 'other', 'p1', 1, 3, NULL), "+
+			"(4, 'made from 9', 'gp', 'p1', 1, 4, 9)",
 		"INSERT INTO agent_state(agent, state, current_task, updated) VALUES('other', 'busy', 3, 1)",
 		"INSERT INTO events(ts, agent, kind) VALUES(10, 'manager', 'Stop'), (10, 'other', 'Stop'), (10, 'gp', 'Stop')",
 		// 5 landed before manager's last Stop; 7 in its turn, top-level; 8 to other in its turn; 9 to gp, already T4.
 		"INSERT INTO requests(id, requester, target, body, state, kind, ts, landed_at, founder_auth) VALUES"+
-			"(5, 'human', 'manager', 'old', 'landed', 'say', 5, 5, 1), (7, 'human', 'manager', 'new ask', 'landed', 'say', 11, 11, 1), "+
-			"(8, 'human', 'other', 'another', 'landed', 'say', 11, 11, 1), (9, 'human', 'gp', 'made', 'landed', 'say', 11, 11, 1)")
+			"(5, 'p1', 'manager', 'old', 'landed', 'say', 5, 5, 1), (7, 'p1', 'manager', 'new ask', 'landed', 'say', 11, 11, 1), "+
+			"(8, 'p1', 'other', 'another', 'landed', 'say', 11, 11, 1), (9, 'p1', 'gp', 'made', 'landed', 'say', 11, 11, 1)")
 	newTask := func(id int, title string) string {
 		return fmt.Sprintf(`{"jsonrpc":"2.0","id":%d,"method":"task.new","params":{"owner":"worker","title":%q,"body":"b","request_id":%q}}`, id, title, title)
 	}
@@ -120,7 +120,7 @@ func TestATaskOpenedInTheTurnOfAFounderMessageIsItsRequest(t *testing.T) {
 	// A reply in 7's thread, in manager's next turn, joins 7's request; a reply in a thread nothing holds is no request.
 	exec(t, db, "INSERT INTO events(ts, agent, kind) VALUES(20, 'manager', 'Stop')",
 		"INSERT INTO requests(id, requester, target, body, state, kind, ts, landed_at, founder_auth, parent_id) VALUES"+
-			"(101, 'manager', 'human', 'plan?', 'landed', 'say', 21, 21, 0, 7), (102, 'human', 'manager', 'yes, go ahead', 'landed', 'say', 22, 22, 1, 101)")
+			"(101, 'manager', 'p1', 'plan?', 'landed', 'say', 21, 21, 0, 7), (102, 'p1', 'manager', 'yes, go ahead', 'landed', 'say', 22, 22, 1, 101)")
 	if r := call(t, mk("manager", &fakeTeller{}), newTask(2, "reply")); r[0]["error"] != nil {
 		t.Fatalf("%v", r[0])
 	}
@@ -129,7 +129,7 @@ func TestATaskOpenedInTheTurnOfAFounderMessageIsItsRequest(t *testing.T) {
 	}
 	exec(t, db, "INSERT INTO events(ts, agent, kind) VALUES(30, 'manager', 'Stop')",
 		"INSERT INTO requests(id, requester, target, body, state, kind, ts, landed_at, founder_auth, parent_id) VALUES"+
-			"(200, 'human', 'manager', 'about 5', 'landed', 'say', 31, 31, 1, 5)")
+			"(200, 'p1', 'manager', 'about 5', 'landed', 'say', 31, 31, 1, 5)")
 	if r := call(t, mk("manager", &fakeTeller{}), newTask(2, "loose reply")); r[0]["error"] != nil {
 		t.Fatalf("%v", r[0])
 	}

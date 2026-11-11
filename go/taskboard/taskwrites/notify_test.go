@@ -100,9 +100,9 @@ func TestADiscardTellsTheAskerBesideTheOpenerAndAMoveLeavesTheNewOwnerToItsBrief
 func TestAReopenOfATaskTheFounderOpenedWritesThemNoLine(t *testing.T) {
 	t.Parallel()
 	d, mk := discardEnv(t)
-	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, created_at, done_evidence, done_at) VALUES(1, 'one', 'worker', 'human', 1, 'sha', 2)")
+	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, created_at, done_evidence, done_at) VALUES(1, 'one', 'worker', 'p1', 1, 'sha', 2)")
 	callAs(t, mk, "worker", "task.reopen", `{"task":1,"note":"it was wrong","request_id":"r1"}`)
-	if n := count(t, d, "SELECT COUNT(*) FROM requests WHERE target = 'human'"); n != 0 {
+	if n := count(t, d, "SELECT COUNT(*) FROM requests WHERE target = 'p1'"); n != 0 {
 		t.Fatalf("%d lines to the founder", n)
 	}
 }

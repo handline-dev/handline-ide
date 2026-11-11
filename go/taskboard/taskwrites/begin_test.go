@@ -20,9 +20,9 @@ func TestBeginOpensATaskOnTheFoundersMessageAndStartsIt(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	if _, err := db.Exec("INSERT INTO requests(id, requester, target, body, state, kind, ts) VALUES(1, 'human', 'worker', 'do it', 'queued', 'say', 1), " +
-		"(2, 'human', 'worker', 'and this', 'queued', 'say', 1), (3, 'manager', 'worker', 'not the founder', 'queued', 'task', 1), " +
-		"(4, 'human', 'worker', 'no why', 'queued', 'say', 1)"); err != nil {
+	if _, err := db.Exec("INSERT INTO requests(id, requester, target, body, state, kind, ts) VALUES(1, 'p1', 'worker', 'do it', 'queued', 'say', 1), " +
+		"(2, 'p1', 'worker', 'and this', 'queued', 'say', 1), (3, 'manager', 'worker', 'not the founder', 'queued', 'task', 1), " +
+		"(4, 'p1', 'worker', 'no why', 'queued', 'say', 1)"); err != nil {
 		t.Fatal(err)
 	}
 	s := rpc.NewServer(auth{"worker"}, "x", store.LatestVersion(), "local", func(string, ...any) {})

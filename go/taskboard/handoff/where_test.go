@@ -62,7 +62,7 @@ func TestWhereListsTheTasksTheLastWordsWithTheFounderAndTheLeadAndTheProgress(t 
 	for _, want := range []string{
 		"P1 - build the pace cap", "last comment, boss", ": start after the contract lands",
 		fmt.Sprintf("P2 - rebuild the daemon (waits on T%d)", first),
-		"last messages with the founder and boss", "human -> you: do it right", "you -> boss: blocked on the contract",
+		"last messages with the founder and boss", db.Human + " -> you: do it right", "you -> boss: blocked on the contract",
 		"done: slice 1; left: slice 2", "hl inbox --all",
 	} {
 		if !strings.Contains(got, want) {
@@ -130,7 +130,7 @@ func TestWhereKeepsToItsLimits(t *testing.T) {
 	if n := strings.Count(got, " queued P2 - task "); n != WhereTasks || !strings.Contains(got, "task 07\n  ... more: hl task list") {
 		t.Errorf("%d tasks listed, want %d then the more line:\n%s", n, WhereTasks, got)
 	}
-	if n := strings.Count(got, "human -> you: message"); n != WhereMessages || strings.Contains(got, "message 1\n") {
+	if n := strings.Count(got, db.Human+" -> you: message"); n != WhereMessages || strings.Contains(got, "message 1\n") {
 		t.Errorf("%d messages listed, want the newest %d:\n%s", n, WhereMessages, got)
 	}
 }

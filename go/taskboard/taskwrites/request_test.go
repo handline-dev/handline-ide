@@ -14,8 +14,8 @@ func requestLine(method string, id int, params, rid string) string {
 func TestARequestIsATaskTheFounderOpenedFromTheirMessage(t *testing.T) {
 	db, mk := discardEnv(t)
 	exec(t, db, "INSERT INTO requests(id, requester, target, body, state, kind, ts) VALUES"+
-		"(1, 'human', 'manager', 'please do the thing"+"\nwith detail', 'landed', 'say', 1), (2, 'human', 'manager', 'second', 'landed', 'say', 1), "+
-		"(3, 'worker', 'manager', 'not the founder', 'landed', 'say', 1), (4, 'human', 'worker', 'for someone else', 'landed', 'say', 1)")
+		"(1, 'p1', 'manager', 'please do the thing"+"\nwith detail', 'landed', 'say', 1), (2, 'p1', 'manager', 'second', 'landed', 'say', 1), "+
+		"(3, 'worker', 'manager', 'not the founder', 'landed', 'say', 1), (4, 'p1', 'worker', 'for someone else', 'landed', 'say', 1)")
 	code := func(r map[string]any) any { return r["error"].(map[string]any)["data"].(map[string]any)["code"] }
 
 	r := call(t, mk("manager"),
@@ -38,9 +38,9 @@ func TestARequestIsATaskTheFounderOpenedFromTheirMessage(t *testing.T) {
 	}
 	for q, want := range map[string]int{
 		"SELECT COUNT(*) FROM tasks": 1,
-		"SELECT COUNT(*) FROM tasks WHERE id = 1 AND title = 'please do the thing' AND owner = 'manager' AND opened_by = 'human' AND from_request = 1": 1,
+		"SELECT COUNT(*) FROM tasks WHERE id = 1 AND title = 'please do the thing' AND owner = 'manager' AND opened_by = 'p1' AND from_request = 1": 1,
 		"SELECT COUNT(*) FROM task_requests WHERE task_id = 1 AND request_id = 1":                                                                      1,
-		"SELECT COUNT(*) FROM task_memos WHERE task_id = 1 AND author = 'human' AND body LIKE 'please do the thing%'":                                  1,
+		"SELECT COUNT(*) FROM task_memos WHERE task_id = 1 AND author = 'p1' AND body LIKE 'please do the thing%'":                                  1,
 		"SELECT COUNT(*) FROM agent_state WHERE agent = 'manager' AND current_task = 1":                                                                1,
 	} {
 		if got := count(t, db, q); got != want {
@@ -50,7 +50,7 @@ func TestARequestIsATaskTheFounderOpenedFromTheirMessage(t *testing.T) {
 
 	// The founder converts a message of their own to the lead, who is then given a title and owner of their choosing.
 	r = call(t, mk(""), requestLine("task.request", 2, `"request":2,"title":"Named","owner":"worker",`, "f1"))
-	if r[0]["error"] != nil || count(t, db, "SELECT COUNT(*) FROM tasks WHERE id = 2 AND title = 'Named' AND owner = 'worker' AND opened_by = 'human' AND from_request = 2") != 1 {
+	if r[0]["error"] != nil || count(t, db, "SELECT COUNT(*) FROM tasks WHERE id = 2 AND title = 'Named' AND owner = 'worker' AND opened_by = 'p1' AND from_request = 2") != 1 {
 		t.Fatalf("%v", r[0])
 	}
 }
@@ -58,7 +58,7 @@ func TestARequestIsATaskTheFounderOpenedFromTheirMessage(t *testing.T) {
 func TestATaskHangsUnderTheRequestItsOpenerIsWorkingOn(t *testing.T) {
 	db, mk := discardEnv(t)
 	exec(t, db,
-		"INSERT INTO tasks(id, title, owner, opened_by, created_at, from_request) VALUES(1, 'the request', 'manager', 'human', 1, 5), (2, 'plain', 'manager', 'gp', 1, NULL)",
+		"INSERT INTO tasks(id, title, owner, opened_by, created_at, from_request) VALUES(1, 'the request', 'manager', 'p1', 1, 5), (2, 'plain', 'manager', 'gp', 1, NULL)",
 		"INSERT INTO agent_state(agent, state, current_task, updated) VALUES('manager', 'idle', 1, 1)")
 	open := func(id int, extra, rid string) string {
 		return fmt.Sprintf(`{"jsonrpc":"2.0","id":%d,"method":"task.new","params":{"owner":"worker","title":"work %s","body":"b",%s"request_id":%q}}`, id, rid, extra, rid)
@@ -88,8 +88,8 @@ func TestACommentOnARequestRepliesAndTellsTheFounderNothing(t *testing.T) {
 	t.Parallel()
 	db, mk := discardEnv(t)
 	exec(t, db,
-		"INSERT INTO tasks(id, title, owner, opened_by, created_at, from_request) VALUES(1, 'the request', 'manager', 'human', 1, 5), (2, 'plain', 'manager', 'gp', 1, NULL)",
-		"INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(1, 1, 'human', 'the ask', 1)")
+		"INSERT INTO tasks(id, title, owner, opened_by, created_at, from_request) VALUES(1, 'the request', 'manager', 'p1', 1, 5), (2, 'plain', 'manager', 'gp', 1, NULL)",
+		"INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(1, 1, 'p1', 'the ask', 1)")
 	add := func(id, task int, extra, rid string) string {
 		return fmt.Sprintf(`{"jsonrpc":"2.0","id":%d,"method":"task.comment.add","params":{"task":%d,"text":"note %s",%s"request_id":%q}}`, id, task, rid, extra, rid)
 	}
@@ -100,7 +100,7 @@ func TestACommentOnARequestRepliesAndTellsTheFounderNothing(t *testing.T) {
 	for q, want := range map[string]int{
 		"SELECT COUNT(*) FROM task_memos WHERE body = 'note a' AND reply_to = 1":     1,
 		"SELECT COUNT(*) FROM task_memos WHERE body = 'note b' AND reply_to IS NULL": 1,
-		"SELECT COUNT(*) FROM requests WHERE target = 'human'":                       0,
+		"SELECT COUNT(*) FROM requests WHERE target = 'p1'":                       0,
 	} {
 		if got := count(t, db, q); got != want {
 			t.Errorf("%s: %d, want %d", q, got, want)
@@ -111,7 +111,7 @@ func TestACommentOnARequestRepliesAndTellsTheFounderNothing(t *testing.T) {
 // A message's path refs are not kept files: the task's first comment says them, after the message's words.
 func TestARequestSaysItsPathRefsInItsFirstComment(t *testing.T) {
 	db, mk := discardEnv(t)
-	exec(t, db, "INSERT INTO requests(id, requester, target, body, state, kind, ts) VALUES (1, 'human', 'manager', 'read these', 'landed', 'say', 1)")
+	exec(t, db, "INSERT INTO requests(id, requester, target, body, state, kind, ts) VALUES (1, 'p1', 'manager', 'read these', 'landed', 'say', 1)")
 	if err := attachments.RecordPathRefs(db, 1, []attachments.PathRef{{Path: "/w/spec.md"}, {Path: "/w/docs", Folder: true}}); err != nil {
 		t.Fatal(err)
 	}

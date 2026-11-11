@@ -9,6 +9,7 @@ import (
 
 	dbpkg "github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team/teamtest"
+	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/kit/storetest"
 	"github.com/handline/handline/go/protocol/rpc"
@@ -105,6 +106,7 @@ func discardEnvHome(t *testing.T) (*sql.DB, string, func(agent string, tell ...T
 	return db, home, func(agent string, tell ...Teller) *rpc.Server {
 		s := rpc.NewServer(auth{agent}, "x", store.LatestVersion(), "local", func(string, ...any) {})
 		s.DB = db
+		s.Who = func(w string) string { return paths.WhoKey(home, w) }
 		var teller Teller
 		if len(tell) > 0 {
 			teller = tell[0]
@@ -156,7 +158,7 @@ func TestTheFoundersDiscardMovesChildrenUpAndDropsItsOwnWaits(t *testing.T) {
 		count(t, db, "SELECT COUNT(*) FROM task_blocks WHERE task_id = 11") != 0 {
 		t.Fatal("the child moves up with the wait, and the task's own waits are dropped")
 	}
-	if count(t, db, "SELECT COUNT(*) FROM tasks WHERE id = 11 AND discarded_by = 'human'") != 1 ||
+	if count(t, db, "SELECT COUNT(*) FROM tasks WHERE id = 11 AND discarded_by = 'p1'") != 1 ||
 		count(t, db, "SELECT COUNT(*) FROM requests WHERE requester = 'sys' AND target = 'worker' AND body = 'T11 discarded by the founder: gone'") != 1 { // local-ref-ok
 		t.Fatal("recorded as the founder's, and the owner is told")
 	}
@@ -262,7 +264,7 @@ func TestTheAskerOrTheFounderDiscardsATaskWhoseRequestLandedAndTheHolderIsTold(t
 	}
 	f = &fakeTeller{}
 	if r := call(t, mk("", f), discardLine(2, 8, "folded into T7", "h1")); r[0]["error"] != nil ||
-		count(t, db, "SELECT COUNT(*) FROM tasks WHERE id = 8 AND discarded_by = 'human'") != 1 {
+		count(t, db, "SELECT COUNT(*) FROM tasks WHERE id = 8 AND discarded_by = 'p1'") != 1 {
 		t.Fatalf("the founder discards: %v", r[0])
 	}
 	toldWorker = false

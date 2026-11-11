@@ -17,7 +17,7 @@ func TestAnAgentsGiveToTheFounderIsTheFoundersTurn(t *testing.T) {
 			t.Fatalf("give %d: %v", i, r[0])
 		}
 		if count(t, db, "SELECT COUNT(*) FROM tasks WHERE id = 1 AND owner = 'worker'") != 1 ||
-			count(t, db, "SELECT COUNT(*) FROM task_turns WHERE task_id = 1 AND agent = 'human' AND pushed_by = 'worker'") != 1 {
+			count(t, db, "SELECT COUNT(*) FROM task_turns WHERE task_id = 1 AND agent = 'p1' AND pushed_by = 'worker'") != 1 {
 			t.Fatalf("give %d: the task stays the worker's under the founder's turn", i)
 		}
 		if i == 0 && count(t, db, "SELECT COUNT(*) FROM task_turns u JOIN task_memos m ON m.id = u.memo WHERE u.ask = '' AND m.author = 'worker' AND m.body = 'ship now?'") != 1 {
@@ -45,7 +45,7 @@ func TestAnAgentsGiveToTheFounderIsTheFoundersTurn(t *testing.T) {
 	if e, _ := r[0]["error"].(map[string]any); e == nil || e["message"] != newForFounder {
 		t.Fatalf("%v", r[0])
 	}
-	if count(t, db, "SELECT COUNT(*) FROM tasks WHERE owner = 'human'") != 0 {
+	if count(t, db, "SELECT COUNT(*) FROM tasks WHERE owner = 'p1'") != 0 {
 		t.Fatal("no task for the founder")
 	}
 }

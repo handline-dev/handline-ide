@@ -61,13 +61,13 @@ func TestNewOpensATaskAndAsksItsOwnerInOneTransaction(t *testing.T) {
 	// The founder opens a task for an agent, queued as it opens, or a todo of their own, which asks no one.
 	f = &fakeTeller{}
 	r = call(t, mk("", f), line(2, base, "f1"), line(3, `"owner":"human","title":"mine","body":"b","time_box":"1h",`, "f2"))
-	if r[0]["error"] != nil || count(t, db, "SELECT COUNT(*) FROM tasks WHERE id = 5 AND opened_by = 'human' AND queued_by = 'human'") != 1 {
+	if r[0]["error"] != nil || count(t, db, "SELECT COUNT(*) FROM tasks WHERE id = 5 AND opened_by = 'p1' AND queued_by = 'p1'") != 1 {
 		t.Fatalf("the founder's task opens queued: %v", r[0])
 	}
-	todo := "SELECT COUNT(*) FROM requests r JOIN task_requests l ON l.request_id = r.id WHERE l.task_id = 6 AND r.requester = 'human' " +
-		"AND r.target = 'human' AND r.body = 'b' AND r.kind = 'task' AND r.state = 'queued'"
+	todo := "SELECT COUNT(*) FROM requests r JOIN task_requests l ON l.request_id = r.id WHERE l.task_id = 6 AND r.requester = 'p1' " +
+		"AND r.target = 'p1' AND r.body = 'b' AND r.kind = 'task' AND r.state = 'queued'"
 	if r[1]["error"] != nil || count(t, db, todo) != 1 ||
-		count(t, db, "SELECT COUNT(*) FROM tasks WHERE id = 6 AND owner = 'human' AND opened_by = 'human' AND queued_by = 'human' AND expects = 'report'") != 1 ||
+		count(t, db, "SELECT COUNT(*) FROM tasks WHERE id = 6 AND owner = 'p1' AND opened_by = 'p1' AND queued_by = 'p1' AND expects = 'report'") != 1 ||
 		count(t, db, "SELECT COUNT(*) FROM events WHERE kind = 'task_new' AND json_extract(payload, '$.task_id') = 6 AND json_extract(payload, '$.request_id') IS NOT NULL") != 1 {
 		t.Fatalf("the founder's own todo opens queued, a report, its brief on the one request it carries: %v", r[1])
 	}
@@ -107,7 +107,7 @@ func TestNewReturnsBeforeTheOwnerIsTold(t *testing.T) {
 		t.Fatalf("a founder's task says where it is: %v", r[0])
 	}
 	// the delivery is a task's whoever the owner is: no edge's kind decides it
-	if count(t, db, "SELECT COUNT(*) FROM requests WHERE target = 'human' AND kind = 'task'") != 1 {
+	if count(t, db, "SELECT COUNT(*) FROM requests WHERE target = 'p1' AND kind = 'task'") != 1 {
 		t.Fatal("the founder's task is not delivered as a task")
 	}
 	select {

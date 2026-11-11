@@ -20,8 +20,8 @@ func TestSeenMovesTheMarkerForwardOnlyAndReadsAwayNeitherASayNorAQuestion(t *tes
 		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'one', 'worker', 'manager', 1)",
 		"INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(3, 1, 'worker', 'a', 1), (8, 1, 'worker', 'b', 2)",
 		"INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES"+
-			"(21, 1, 'worker', 'human', 'decide @human', 'queued', 'ask', 1)",
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(22, 1, 'worker', 'human', 'a reply', 'landed', 'say', 1)",
+			"(21, 1, 'worker', 'p1', 'decide @human', 'queued', 'ask', 1)",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(22, 1, 'worker', 'p1', 'a reply', 'landed', 'say', 1)",
 		"INSERT INTO task_requests(task_id, request_id) VALUES(1, 21), (1, 22)")
 	cur := func() int64 { n, _ := db.Cursor(d, db.SeenKey(1)); return n }
 	if r := seenCall(t, mk, `"task":1,"upto":3,`, "s1"); r["result"] == nil || cur() != 3 {
@@ -66,7 +66,7 @@ func TestTheSeenFloorIsSetOnceToTheNewestCommentAndNotMovedAfter(t *testing.T) {
 func TestSeenMarksAnEndedTasksResultOnly(t *testing.T) {
 	t.Parallel()
 	d, mk := discardEnv(t)
-	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, created_at, done_evidence, done_at) VALUES(1, 'open', 'worker', 'human', 1, NULL, NULL), (2, 'ended', 'worker', 'human', 1, 'x', 5)")
+	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, created_at, done_evidence, done_at) VALUES(1, 'open', 'worker', 'p1', 1, NULL, NULL), (2, 'ended', 'worker', 'p1', 1, 'x', 5)")
 	seenCall(t, mk, `"task":1,`, "o")
 	seenCall(t, mk, `"task":2,"upto":1,`, "e")
 	if at, _ := db.Cursor(d, db.ResultSeenKey(1)); at != 0 {
@@ -95,7 +95,7 @@ func TestTheResultFloorIsSetOnce(t *testing.T) {
 func TestAResultTheFounderEndedIsAlreadySeen(t *testing.T) {
 	t.Parallel()
 	d, mk := discardEnv(t)
-	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, reporter, created_at) VALUES(1, 'a', 'worker', 'human', 'human', 1), (2, 'b', 'worker', 'human', 'human', 1)")
+	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, reporter, created_at) VALUES(1, 'a', 'worker', 'p1', 'p1', 1), (2, 'b', 'worker', 'p1', 'p1', 1)")
 	done := func(who string, id int) {
 		callAs(t, mk, who, "task.done", fmt.Sprintf(`{"task":%d,"evidence":"it is built","request_id":"d%d"}`, id, id))
 	}
@@ -107,7 +107,7 @@ func TestAResultTheFounderEndedIsAlreadySeen(t *testing.T) {
 	if at, _ := db.Cursor(d, db.ResultSeenKey(2)); at != 0 {
 		t.Fatal("an agent's end is marked seen")
 	}
-	if n := count(t, d, "SELECT COUNT(*) FROM requests WHERE target = 'human'"); n != 0 {
+	if n := count(t, d, "SELECT COUNT(*) FROM requests WHERE target = 'p1'"); n != 0 {
 		t.Fatalf("%d lines to the founder", n)
 	}
 }
@@ -116,7 +116,7 @@ func TestAResultTheFounderEndedIsAlreadySeen(t *testing.T) {
 func TestAnEndTellsAFounderHoldingTheNextTaskNothing(t *testing.T) {
 	t.Parallel()
 	d, mk := discardEnv(t)
-	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, parent_task, created_at) VALUES(1, 'held', 'human', 'gp', NULL, 1), (2, 'blocker', 'worker', 'gp', NULL, 1), (3, 'child', 'worker', 'gp', 1, 1)",
+	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, parent_task, created_at) VALUES(1, 'held', 'p1', 'gp', NULL, 1), (2, 'blocker', 'worker', 'gp', NULL, 1), (3, 'child', 'worker', 'gp', 1, 1)",
 		"INSERT INTO task_blocks(task_id, blocks_on, created_at) VALUES(1, 2, 1), (1, 3, 1)")
 	f := &fakeTeller{}
 	for _, id := range []int{3, 2} {
@@ -125,7 +125,7 @@ func TestAnEndTellsAFounderHoldingTheNextTaskNothing(t *testing.T) {
 			t.Fatal(r[0])
 		}
 	}
-	if n := count(t, d, "SELECT COUNT(*) FROM requests WHERE target = 'human'"); n != 0 {
+	if n := count(t, d, "SELECT COUNT(*) FROM requests WHERE target = 'p1'"); n != 0 {
 		t.Fatalf("%d lines to the founder", n)
 	}
 	if n := count(t, d, "SELECT COUNT(*) FROM task_blocks WHERE task_id = 1"); n != 0 {
@@ -137,7 +137,7 @@ func TestAnEndTellsAFounderHoldingTheNextTaskNothing(t *testing.T) {
 func TestAResultTheFounderMergedAwayIsAlreadySeen(t *testing.T) {
 	t.Parallel()
 	d, mk := discardEnv(t)
-	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'keep', 'worker', 'human', 1), (2, 'two', 'worker', 'human', 1), (3, 'three', 'worker', 'human', 1)")
+	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'keep', 'worker', 'p1', 1), (2, 'two', 'worker', 'p1', 1), (3, 'three', 'worker', 'p1', 1)")
 	merge := func(who string, id int) {
 		callAs(t, mk, who, "task.merge", fmt.Sprintf(`{"into":1,"tasks":[%d],"request_id":"m%d"}`, id, id))
 	}
