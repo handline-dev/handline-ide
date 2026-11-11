@@ -59,6 +59,8 @@ export const useTaskCommentRecipients = (params: CallParams<"task.comment.recipi
 export const useTaskViewList = (params: CallParams<"task.view.list"> = {}, opts?: ReadOpts) => useRead("task.view.list", params, opts);
 export const useTaskBoard = (params: CallParams<"task.board"> = {}, opts?: ReadOpts) => useRead("task.board", params, opts);
 export const useTrustList = (params: CallParams<"trust.list"> = {}, opts?: ReadOpts) => useRead("trust.list", params, opts);
+export const usePeopleList = (params: CallParams<"people.list"> = {}, opts?: ReadOpts) => useRead("people.list", params, opts);
+export const useWorkspacesList = (params: CallParams<"workspaces.list"> = {}, opts?: ReadOpts) => useRead("workspaces.list", params, opts);
 export const useTeamGet = (params: CallParams<"team.get"> = {}, opts?: ReadOpts) => useRead("team.get", params, opts);
 export const useProposalList = (params: CallParams<"proposal.list"> = {}, opts?: ReadOpts) => useRead("proposal.list", params, opts);
 export const useSchedulesList = (params: CallParams<"schedules.list"> = {}, opts?: ReadOpts) => useRead("schedules.list", params, opts);

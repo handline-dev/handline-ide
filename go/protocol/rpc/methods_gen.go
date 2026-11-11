@@ -169,6 +169,8 @@ var specMethods = []SpecMethod{
 	{Name: "trust.propose", Role: "agent", Write: true, Since: 1, Callers: nil, Params: []SpecParam{{Name: "root", Type: "string", Required: true}, {Name: "why", Type: "string", Required: false}, {Name: "request_id", Type: "string", Required: true}}, Result: ""},
 	{Name: "trust.list", Role: "agent", Write: false, Since: 1, Callers: nil, Params: []SpecParam{{Name: "proposals", Type: "bool", Required: false}}, Result: ""},
 	{Name: "trust.remove", Role: "owner", Write: true, Since: 1, Callers: nil, Params: []SpecParam{{Name: "root", Type: "string", Required: true}, {Name: "request_id", Type: "string", Required: true}}, Result: "Accepted"},
+	{Name: "people.list", Role: "agent", Write: false, Since: 1, Callers: nil, Params: []SpecParam{}, Result: ""},
+	{Name: "workspaces.list", Role: "agent", Write: false, Since: 1, Callers: nil, Params: []SpecParam{}, Result: ""},
 	{Name: "team.get", Role: "agent", Write: false, Since: 1, Callers: nil, Params: []SpecParam{}, Result: ""},
 	{Name: "proposal.list", Role: "agent", Write: false, Since: 1, Callers: nil, Params: []SpecParam{{Name: "state", Type: "string", Required: false}}, Result: ""},
 	{Name: "proposal.decide", Role: "member", Write: true, Since: 1, Callers: nil, Params: []SpecParam{{Name: "proposal", Type: "json.Number", Required: true}, {Name: "decision", Type: "string", Required: true}, {Name: "note", Type: "string", Required: false}, {Name: "subject", Type: "string", Required: false}, {Name: "request_id", Type: "string", Required: true}}, Result: "Accepted"},
