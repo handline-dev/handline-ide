@@ -110,6 +110,17 @@
       "type": "string",
       "description": "The name screens show; the account's own name until an alias is set."
      },
+     "email": {
+      "oneOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "The email of the Anthropic account this account was set up with, kept after its login drops; null when none is known. accounts.list gives it to the founder only."
+     },
      "vendor": {
       "type": "string",
       "description": "The tool the account is for (`claude`, `opencode`, ...), as account.add set it."
