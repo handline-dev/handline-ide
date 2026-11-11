@@ -1,15 +1,17 @@
 import type { Account } from '@handline/client';
 import { AccountEmail } from '#src/usage/AccountEmail.tsx';
 import { RowsLoading } from '#src/usage/UsageViews.tsx';
-import { useAccountUsage, useAccounts } from '@handline/app-data';
-import { Settings, TriangleAlert } from 'lucide-react';
-import { useCallback, useRef, useState } from 'react';
+import { useAccountUsage, useAccounts, useWrite } from '@handline/app-data';
+import { RefreshCw, Settings, TriangleAlert } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFocused } from '#src/layout/focus.ts';
 import { Button } from '#src/ui/Button.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { Page } from '#src/ui/Page.tsx';
 import { ScrollFade } from '#src/ui/ScrollFade.tsx';
 import { openSettings } from '#src/settings/open.ts';
+import { toast } from '#src/ui/toast.tsx';
+import { uuid } from '#src/ui/uuid.ts';
 import { Outlook } from '#src/usage/Outlook.tsx';
 import {
   ByAgent,
@@ -56,7 +58,7 @@ export function Usage() {
           <Outlook labels={Object.fromEntries(accounts.map((a) => [a.name, a.label]))} />
           {/* Under the graph, one view at a time. */}
           {/* The views' bar stays at the top while their list scrolls; the view's own range sits at its right. */}
-          <div className="sticky top-0 z-10 -mx-4 mt-4 flex items-center justify-between gap-3 bg-bg px-4 py-2">
+          <div className="@container sticky top-0 z-10 -mx-4 mt-4 flex flex-wrap items-center justify-between gap-3 bg-bg px-4 py-2">
             <Switch label="View" value={view} options={VIEWS} word={(v) => VIEW_WORD[v]} icon={(v) => VIEW_ICON[v]} onChange={setView} />
             {(view === 'agents' || view === 'models') && (
               <Switch label="Window" value={win} options={WINDOWS} word={(w) => w} onChange={setWin} />
@@ -69,14 +71,14 @@ export function Usage() {
           {/* Each account on one row, to read them all at once: its name, its two windows, and the agents on it. */}
           {view === 'accounts' && list.isPending && <RowsLoading rows={6} />}
           {view === 'accounts' && list.isError && <p className="text-sm text-danger">Accounts did not load.</p>}
-          <div className={`flex flex-col ${view === 'accounts' ? '' : 'hidden'}`}>
+          <div className={`@container flex flex-col ${view === 'accounts' ? '' : 'hidden'}`}>
             {accounts.map((a) => (
               <section
                 key={a.name}
                 data-account={a.name}
-                className={`flex scroll-mt-4 flex-wrap items-center gap-x-6 gap-y-2 border-b border-border py-3 transition-colors ${marked === a.name ? 'bg-selected' : ''}`}
+                className={`relative flex scroll-mt-4 flex-col gap-2 border-b @md:flex-row @md:items-center @md:gap-x-6 border-border py-3 transition-colors ${marked === a.name ? 'bg-selected' : ''}`}
               >
-                <div className="flex w-48 min-w-0 flex-col">
+                <div className="flex min-w-0 shrink-0 flex-col pr-8 @md:w-48 @md:pr-0">
                   <span className="flex items-baseline gap-1.5 truncate text-sm font-medium text-fg">
                     {a.label}
                     {plans.get(a.name) && <span className="text-xs font-normal text-muted capitalize">{plans.get(a.name)}</span>}
@@ -94,16 +96,21 @@ export function Usage() {
                   )}
                   <NotPicked why={notPicked.get(a.name)} needsLogin={a.login_state === 'needs_login'} />
                 </div>
-                {/* An account that needs login cannot be used: its windows read dimmed. */}
-                <div className={`min-w-40 flex-1 ${a.login_state === 'needs_login' ? 'opacity-40' : ''}`}>
-                  <UsageBar name="5-hour" span={FIVE_HOURS} w={a.five_hour} />
+                {/* An account that needs login cannot be used: its windows read dimmed. Narrow, the two bars stack. */}
+                <div className={`flex min-w-0 flex-1 flex-wrap gap-x-6 gap-y-2 ${a.login_state === 'needs_login' ? 'opacity-40' : ''}`}>
+                  <div className="min-w-40 flex-1">
+                    <UsageBar name="5-hour" span={FIVE_HOURS} w={a.five_hour} age={a.age_s} />
+                  </div>
+                  <div className="min-w-40 flex-1">
+                    <UsageBar name="Week" span={WEEK} w={a.weekly} age={a.age_s} />
+                  </div>
                 </div>
-                <div className={`min-w-40 flex-1 ${a.login_state === 'needs_login' ? 'opacity-40' : ''}`}>
-                  <UsageBar name="Week" span={WEEK} w={a.weekly} />
+                <div className="absolute top-3 right-0 flex @md:static">
+                  <ReadAgain account={a} />
+                  <IconButton label={`Settings for ${a.label}`} onClick={() => openSettings({ section: 'accounts', account: a.name })}>
+                    <Settings size={14} />
+                  </IconButton>
                 </div>
-                <IconButton label={`Settings for ${a.label}`} onClick={() => openSettings({ section: 'accounts', account: a.name })}>
-                  <Settings size={14} />
-                </IconButton>
               </section>
             ))}
           </div>
@@ -128,5 +135,41 @@ function NotPicked({ why, needsLogin }: { why: Account['not_picked'] | undefined
       {loud && <TriangleAlert size={12} className="mt-0.5 shrink-0" />}
       <span className="line-clamp-2">Not used: {why.text}</span>
     </span>
+  );
+}
+
+/** Reads one account's usage again now. The daemon reads it at its next poll tick, so the icon spins until a reading younger
+ * than the one shown at the click arrives (or a minute passes). */
+function ReadAgain({ account: a }: { account: Account }) {
+  const read = useWrite('account.read_usage', a.name);
+  // The reading's age at the click (Infinity: none yet); null when not asked.
+  const [asked, setAsked] = useState<number | null>(null);
+  // A younger reading came: done asking (set during render, as React's "adjusting state on a prop change").
+  if (asked != null && a.age_s != null && a.age_s < asked) setAsked(null);
+  useEffect(() => {
+    if (asked == null) return;
+    const t = setTimeout(() => setAsked(null), 60_000);
+    return () => clearTimeout(t);
+  }, [asked]);
+  const busy = asked != null || read.isPending;
+  return (
+    <IconButton
+      label={`Read ${a.label}'s usage again`}
+      disabled={busy || a.login_state === 'needs_login'}
+      onClick={() => {
+        setAsked(a.age_s ?? Infinity);
+        read.mutate(
+          { account: a.name, request_id: uuid() },
+          {
+            onError: (e) => {
+              setAsked(null);
+              toast(`Usage was not read again: ${e instanceof Error ? e.message : String(e)}`, { tone: 'warning' });
+            },
+          },
+        );
+      }}
+    >
+      <RefreshCw size={14} className={busy ? 'animate-spin' : ''} />
+    </IconButton>
   );
 }

@@ -48,10 +48,12 @@ export function Switch<T extends string>({
           role="radio"
           aria-checked={o === value}
           onClick={() => onChange(o)}
+          title={icon ? word(o) : undefined}
           className="flex h-6 items-center justify-center gap-1.5 rounded-sm px-2 text-xs text-muted hover:text-fg aria-checked:bg-bg aria-checked:text-fg"
         >
           {icon?.(o)}
-          {word(o)}
+          {/* With an icon, a narrow bar (its parent an @container) shows the icon alone and the word on hover. */}
+          <span className={icon ? 'hidden @lg:inline' : undefined}>{word(o)}</span>
         </button>
       ))}
     </div>

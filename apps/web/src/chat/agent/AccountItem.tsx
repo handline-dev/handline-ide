@@ -41,8 +41,8 @@ export function AccountItem({ agent, account, fire }: { agent: string; account: 
       <div className="flex min-w-64 flex-col gap-2 px-2 pt-1 pb-2">
         {login && <p className="text-xs text-danger">Needs login</p>}
         {moving && <p className="text-xs text-warning">Near its limit: moves to another account soon</p>}
-        <UsageBar name="5-hour" span={FIVE_HOURS} w={mine?.five_hour ?? null} />
-        <UsageBar name="Week" span={WEEK} w={mine?.weekly ?? null} />
+        <UsageBar name="5-hour" span={FIVE_HOURS} w={mine?.five_hour ?? null} age={mine?.age_s} />
+        <UsageBar name="Week" span={WEEK} w={mine?.weekly ?? null} age={mine?.age_s} />
       </div>
       {mine?.email && <MenuFact name="Email">{mine.email}</MenuFact>}
       {mine && <MenuFact name="Agents on it">{`${mine.agents.length} (up to ${mine.cap_effective} at once)`}</MenuFact>}

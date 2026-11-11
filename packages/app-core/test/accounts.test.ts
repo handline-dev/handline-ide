@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { Account } from '@handline/client';
-import { FIVE_HOURS_MS, capacityOf, gaugeOf, headroom, outUntil, stallWord, stateOf, toneOf } from '#src/index.ts';
+import type { Account, Window } from '@handline/client';
+import { FIVE_HOURS_MS, capacityOf, gaugeOf, headroom, outUntil, stallWord, stateOf, toneOf, windowRead } from '#src/index.ts';
 
 const NOW = Date.parse('2026-10-07T12:00:00Z');
 const at = (ms: number) => new Date(NOW + ms).toISOString();
@@ -74,4 +74,14 @@ test('a stall shows a plain word for each error the daemon names, and any other 
   assert.equal(stallWord({ reason: 'billing_error', error: 'billing_error' }), 'billing problem');
   assert.equal(stallWord({ reason: 'login expired', error: 'authentication_failed' }), 'login expired');
   assert.equal(stallWord({ reason: 'odd_error', error: 'odd_error' }), 'odd_error');
+});
+
+test('a window reads as its percent, aged when old, ended once its reset passed, and not open when the account was read without it', () => {
+  const now = Date.parse('2026-11-11T10:00:00Z');
+  const w = { used_pct: 42.4, resets_at: '2026-11-11T12:00:00Z' } as Window;
+  assert.deepEqual(windowRead(w, 60, now), { kind: 'pct', pct: 42, ago: null });
+  assert.deepEqual(windowRead(w, 12 * 60, now), { kind: 'pct', pct: 42, ago: '12m ago' });
+  assert.deepEqual(windowRead({ ...w, resets_at: '2026-11-11T09:00:00Z' }, 60, now), { kind: 'ended' });
+  assert.deepEqual(windowRead(null, 60, now), { kind: 'not-open' });
+  assert.deepEqual(windowRead(null, null, now), { kind: 'none' });
 });

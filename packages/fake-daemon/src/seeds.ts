@@ -326,6 +326,15 @@ export const SEEDS: Record<string, Seed> = {
     };
   },
 
+  /** Three more accounts whose 5-hour number cannot be read as it stands: read 14 minutes ago, its window ended, no window open. */
+  'usage-stale': (d) => {
+    const h = (n: number) => new Date(Date.now() + n * 3_600_000).toISOString();
+    const week = { used_pct: 40, resets_at: h(90), source: 'measured' };
+    d.accounts.add({ name: 'delta', age_s: 14 * 60, five_hour: { used_pct: 23, resets_at: h(3), source: 'measured' }, weekly: week });
+    d.accounts.add({ name: 'theta', age_s: 30, five_hour: { used_pct: 96, resets_at: h(-0.2), source: 'measured' }, weekly: week });
+    d.accounts.add({ name: 'kappa', age_s: 30, five_hour: null, weekly: week });
+  },
+
   /** The account beta stalled on a billing error: its row shows STALLED and a founder can Wake it. */
   'account-stalled': (d) =>
     void d.accounts.stall('beta', { reason: 'billing_error', detail: 'The turn ended: the organization has a billing problem.' }),
