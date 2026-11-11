@@ -198,17 +198,18 @@ func TestTheTriggerJudgesContextByTheAgentsOwnLimit(t *testing.T) {
 	p, _, wt := termTickRig(t)
 	d := p.db
 	teamtest.Set(t, p.home, "bob", "context_tokens", 50000)
+	bob := teamtest.Key(t, p.home, "bob")
 	sid := "44444444-4444-4444-8444-444444444444"
 	writeSession(t, p, "a1", os.Getpid(), `{"cwd":"`+wt+`","sessionId":"`+sid+`","status":"idle"}`)
 	dir, _ := team.AccountConfigDir(p.home, teamtest.Account(t, p.home, "a1"))
 	os.MkdirAll(filepath.Join(dir, "projects", "x"), 0o755)
-	row, _ := dbpkg.GetAgentState(d, "bob")
+	row, _ := dbpkg.GetAgentState(d, bob)
 	// trigger is what the delivery says once the newest reply of his session holds used tokens
 	trigger := func(used int) reads.Trigger {
 		t.Helper()
 		reply := fmt.Sprintf(`{"type":"assistant","message":{"model":"claude-opus-5","usage":{"input_tokens":%d}}}`+"\n", used)
 		os.WriteFile(filepath.Join(dir, "projects", "x", sid+".jsonl"), []byte(reply), 0o644)
-		got, err := p.Delivery().Trigger(d, "bob", row, "a1")
+		got, err := p.Delivery().Trigger(d, bob, row, "a1")
 		if err != nil {
 			t.Fatal(err)
 		}
