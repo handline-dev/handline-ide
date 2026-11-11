@@ -39,9 +39,9 @@ func TestARequestIsATaskTheFounderOpenedFromTheirMessage(t *testing.T) {
 	for q, want := range map[string]int{
 		"SELECT COUNT(*) FROM tasks": 1,
 		"SELECT COUNT(*) FROM tasks WHERE id = 1 AND title = 'please do the thing' AND owner = 'manager' AND opened_by = 'p1' AND from_request = 1": 1,
-		"SELECT COUNT(*) FROM task_requests WHERE task_id = 1 AND request_id = 1":                                                                      1,
+		"SELECT COUNT(*) FROM task_requests WHERE task_id = 1 AND request_id = 1":                                                                   1,
 		"SELECT COUNT(*) FROM task_memos WHERE task_id = 1 AND author = 'p1' AND body LIKE 'please do the thing%'":                                  1,
-		"SELECT COUNT(*) FROM agent_state WHERE agent = 'manager' AND current_task = 1":                                                                1,
+		"SELECT COUNT(*) FROM agent_state WHERE agent = 'manager' AND current_task = 1":                                                             1,
 	} {
 		if got := count(t, db, q); got != want {
 			t.Errorf("%s: %d, want %d", q, got, want)
@@ -100,7 +100,7 @@ func TestACommentOnARequestRepliesAndTellsTheFounderNothing(t *testing.T) {
 	for q, want := range map[string]int{
 		"SELECT COUNT(*) FROM task_memos WHERE body = 'note a' AND reply_to = 1":     1,
 		"SELECT COUNT(*) FROM task_memos WHERE body = 'note b' AND reply_to IS NULL": 1,
-		"SELECT COUNT(*) FROM requests WHERE target = 'p1'":                       0,
+		"SELECT COUNT(*) FROM requests WHERE target = 'p1'":                          0,
 	} {
 		if got := count(t, db, q); got != want {
 			t.Errorf("%s: %d, want %d", q, got, want)

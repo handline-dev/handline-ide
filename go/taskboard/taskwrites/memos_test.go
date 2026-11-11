@@ -46,6 +46,7 @@ func callHello(t *testing.T, srv *rpc.Server, hello string, calls ...string) []m
 		}
 		var m map[string]any
 		json.Unmarshal(b, &m)
+		namedAll(srv.DB, m) // replies are read by name (keys_test.go)
 		out = append(out, m)
 	}
 	return out[1:]

@@ -31,14 +31,15 @@ func reportEnvIn(t *testing.T, home string, rows ...string) (*sql.DB, *fakeTelle
 	t.Cleanup(func() { sdb.Close() })
 	teamtest.Seed(t, home, "w", "boss", "mgr", "lead", "lead.auditor")
 	teamtest.Set(t, home, "w", "reports_to", "lead")
+	homes.Store(sdb, home)
 	for _, q := range rows {
-		if _, err := sdb.Exec(q); err != nil {
+		if _, err := sdb.Exec(keyed(sdb, q)); err != nil {
 			t.Fatalf("%s: %v", q, err)
 		}
 	}
 	f := &fakeTeller{}
 	return sdb, f, func(agent, method, rid, params string) map[string]any {
-		s := rpc.NewServer(auth{agent}, "x", store.LatestVersion(), "local", func(string, ...any) {})
+		s := rpc.NewServer(auth{as(t, home, agent)}, "x", store.LatestVersion(), "local", func(string, ...any) {})
 		s.DB = sdb
 		s.Who = func(w string) string { return paths.WhoKey(home, w) }
 		Register(s, home, f, nil)
