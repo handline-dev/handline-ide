@@ -126,7 +126,7 @@ func TestAWrittenMessageThatLosesItsSessionIsUnknownAndTold(t *testing.T) {
 		t.Fatalf("an unknown message was written again: %v %+v", state, fa.sent)
 	}
 	var n int
-	r.must(r.DB.QueryRow("SELECT count(*) FROM requests WHERE target = 'alice' AND body LIKE '%may or may not%'").Scan(&n))
+	r.must(r.DB.QueryRow(r.sql("SELECT count(*) FROM requests WHERE target = 'alice' AND body LIKE '%may or may not%'")).Scan(&n))
 	if n != 1 {
 		t.Fatalf("the sender was told %d times", n)
 	}
@@ -184,7 +184,7 @@ func TestAMessageLeavesTheLedgerWhenEveryRequestItCarriedLandsOrIsClosed(t *test
 	}
 	r.must(r.SessionLost(r.DB, r.k(("bob"))))
 	var n int
-	r.must(r.DB.QueryRow("SELECT count(*) FROM requests WHERE body LIKE '%may or may not%'").Scan(&n))
+	r.must(r.DB.QueryRow(r.sql("SELECT count(*) FROM requests WHERE body LIKE '%may or may not%'")).Scan(&n))
 	if n != 0 {
 		t.Fatalf("%d senders told about a message whose fate was known", n)
 	}
@@ -368,11 +368,11 @@ func TestADeliveryActedOnSinceIsNotReportedWhenItsSessionEnds(t *testing.T) {
 		_, err := r.TellNow(r.DB, rid)
 		r.must(err)
 	}
-	r.DB.Exec("UPDATE requests SET read_at = 1 WHERE id = ?", read)       // the agent ran hl read on it
-	r.DB.Exec("UPDATE requests SET state = 'done' WHERE id = ?", settled) // what a daemon start does to an old say
+	r.DB.Exec(r.sql("UPDATE requests SET read_at = 1 WHERE id = ?"), read)       // the agent ran hl read on it
+	r.DB.Exec(r.sql("UPDATE requests SET state = 'done' WHERE id = ?"), settled) // what a daemon start does to an old say
 	r.must(r.SessionLost(r.DB, r.k(("bob"))))
 	var told []string
-	rows, _ := r.DB.Query("SELECT target FROM requests WHERE body LIKE '%may or may not%' ORDER BY target")
+	rows, _ := r.DB.Query(r.sql("SELECT target FROM requests WHERE body LIKE '%may or may not%' ORDER BY target"))
 	for rows.Next() {
 		var to string
 		rows.Scan(&to)

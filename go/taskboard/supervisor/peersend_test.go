@@ -161,10 +161,10 @@ func TestAMessageTheTranscriptNeverShowsNeedsAPersonAndIsNotWrittenAgain(t *test
 	op := requestOp(rid)
 	var told, needs int
 	eventually(t, func() bool { // the sender is told last
-		r.must(r.DB.QueryRow("SELECT count(*) FROM requests WHERE target = 'alice' AND body LIKE '%transcript never showed it%'").Scan(&told))
+		r.must(r.DB.QueryRow(r.sql("SELECT count(*) FROM requests WHERE target = 'alice' AND body LIKE '%transcript never showed it%'")).Scan(&told))
 		return told > 0
 	})
-	r.must(r.DB.QueryRow("SELECT count(*) FROM events WHERE agent = 'bob' AND kind = 'needs_you'").Scan(&needs))
+	r.must(r.DB.QueryRow(r.sql("SELECT count(*) FROM events WHERE agent = 'bob' AND kind = 'needs_you'")).Scan(&needs))
 	if told != 1 || needs != 1 {
 		t.Fatalf("sender told %d, needs-you events %d", told, needs)
 	}
@@ -211,7 +211,7 @@ func TestAMessageNeverWrittenSaysSoAndOneWrittenAndUnseenSaysItMayHaveBeenRead(t
 		if written {
 			pattern = "%transcript never showed it (no inbox): it may or may not have been read. It is not sent again; ask bob whether it saw it%"
 		}
-		r.must(r.DB.QueryRow("SELECT count(*) FROM requests WHERE target = 'alice' AND body LIKE ?", pattern).Scan(&n))
+		r.must(r.DB.QueryRow(r.sql("SELECT count(*) FROM requests WHERE target = 'alice' AND body LIKE ?"), pattern).Scan(&n))
 		if n != 1 {
 			t.Fatalf("written=%v: the sender was told %d times", written, n)
 		}
@@ -219,7 +219,7 @@ func TestAMessageNeverWrittenSaysSoAndOneWrittenAndUnseenSaysItMayHaveBeenRead(t
 			t.Fatalf("written=%v: the sender's note waits in its digest, not typed at once: %+v", written, left)
 		}
 		r.must(r.SessionNotDelivered(r.k("bob"), op, "no inbox", written)) // settled once
-		r.must(r.DB.QueryRow("SELECT count(*) FROM events WHERE agent = 'bob' AND kind = 'needs_you'").Scan(&n))
+		r.must(r.DB.QueryRow(r.sql("SELECT count(*) FROM events WHERE agent = 'bob' AND kind = 'needs_you'")).Scan(&n))
 		if n != 1 {
 			t.Fatalf("needs-you events: %d", n)
 		}
