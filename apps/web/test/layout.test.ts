@@ -65,6 +65,38 @@ describe('layout tree', () => {
     expect(panes(root).map(titles)).toEqual([['Tasks'], ['Chat']]);
   });
 
+  it('moves several tabs together, in their bar order, showing the one named', () => {
+    const p = only(initial());
+    let root = run(p, open(p.id, 'A'), open(p.id, 'B'), open(p.id, 'C'), open(p.id, 'D'));
+    const [, a, , c, d] = only(root).tabs;
+    root = run(root, { type: 'move', from: p.id, tab: a.id, tabs: [d.id, a.id], to: { pane: p.id, index: 1 } });
+    expect(titles(only(root))).toEqual(['Chat', 'A', 'D', 'B', 'C']);
+    root = run(root, { type: 'move', from: p.id, tab: c.id, tabs: [a.id, c.id, d.id], to: { pane: p.id, edge: 'right' } });
+    expect(panes(root).map(titles)).toEqual([
+      ['Chat', 'B'],
+      ['A', 'D', 'C'],
+    ]);
+    const right = panes(root)[1];
+    expect(right.active).toBe(c.id);
+    root = run(root, { type: 'move', from: right.id, tab: a.id, tabs: right.tabs.map((t) => t.id), to: { pane: p.id, index: 1 } });
+    expect(root.kind).toBe('pane');
+    expect(titles(only(root))).toEqual(['Chat', 'A', 'D', 'C', 'B']);
+    expect(only(root).active).toBe(a.id);
+  });
+
+  it('moves a group into a bar with an Empty tab in one piece', () => {
+    const p = only(initial());
+    let root = run(p, open(p.id, 'A'), open(p.id, 'B'), { type: 'split', pane: p.id, edge: 'right' });
+    const right = panes(root)[1];
+    root = run(root, open(right.id, 'C'));
+    root = run(root, { type: 'split', pane: right.id, edge: 'down' });
+    const low = panes(root)[2];
+    const [, a, b] = findPane(root, p.id)!.tabs;
+    root = run(root, { type: 'move', from: p.id, tab: b.id, tabs: [a.id, b.id], to: { pane: low.id, index: 1 } });
+    expect(titles(findPane(root, low.id))).toEqual(['A', 'B']);
+    expect(findPane(root, low.id)!.active).toBe(b.id);
+  });
+
   it('will not split a pane off itself with its only tab, nor move a pinned tab', () => {
     const p = only(initial());
     let root = run(p, { type: 'split', pane: p.id, edge: 'right' });
