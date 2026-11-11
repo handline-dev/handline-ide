@@ -180,8 +180,10 @@ func TestRenewalsInStretch(t *testing.T) {
 
 type fakeSettings struct{ parts []Part }
 
-func (f fakeSettings) FingerprintParts(string) ([]Part, error) { return f.parts, nil }
-func (fakeSettings) CurrentAccount(db.Q, string) string        { return "" }
+func (f fakeSettings) FingerprintParts(string) ([]Part, error)                { return f.parts, nil }
+func (fakeSettings) CurrentAccount(db.Q, string) string                       { return "" }
+func (fakeSettings) RulesNote(string, *db.AgentState) (string, string, error) { return "", "", nil }
+func (fakeSettings) TellRules(string, string, string, string) error           { return nil }
 
 func TestChangedSettings(t *testing.T) {
 	a := &ApplySettings{Ports: fakeSettings{[]Part{{"model", "opus"}, {"effort", float64(3)}, {"new", "x"}}}}
