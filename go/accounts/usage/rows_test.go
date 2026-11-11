@@ -16,7 +16,9 @@ func TestAccountSettingsComeFromTheRowAndAnUnreadableRowIsNotDefaults(t *testing
 		t.Fatal(err)
 	}
 	defer d.Close()
-	os.WriteFile(filepath.Join(home, "config.yaml"), []byte("paused_main: true\nactive_cap: 3\n"), 0o644)
+	if err := os.WriteFile(filepath.Join(home, "config.yaml"), []byte("paused_main: true\nactive_cap: 3\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	if cfg := LoadConfig(home); cfg.Paused("main") || cfg.DefaultCap() != 3 {
 		t.Fatalf("config.yaml says nothing of an account: %v", cfg)
 	}
@@ -35,6 +37,10 @@ func TestAccountSettingsComeFromTheRowAndAnUnreadableRowIsNotDefaults(t *testing
 	if cfg, ok := LoadConfigOrNil(home); ok {
 		t.Fatalf("rows that cannot be read read as every account at its defaults: %v", cfg)
 	}
+	e := &Env{Home: home}
+	if !LoadConfig(home).RowsUnreadable() || e.PausedWhy("other") == "" {
+		t.Fatal("no account is picked on settings that could not be read")
+	}
 }
 
 func TestSetAccountWritesNothingForABadColumnOrValue(t *testing.T) {
@@ -45,6 +51,7 @@ func TestSetAccountWritesNothingForABadColumnOrValue(t *testing.T) {
 	for _, set := range []map[string]any{
 		{"paused": true, "owner": "p2"},
 		{"paused": true, "active_cap": 4.5},
+		{"paused": true, "active_cap": 1e20},
 		{"paused": true, "active_cap": "4"},
 		{"paused": true, "month_cycle": "yes"},
 		{"paused": true, "label": 7},

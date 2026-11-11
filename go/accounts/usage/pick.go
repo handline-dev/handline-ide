@@ -55,7 +55,11 @@ func (e *Env) NotFor(acct, vendor string) string {
 
 // PausedWhy is why a paused account takes no agent, "" while it is not paused.
 func (e *Env) PausedWhy(acct string) string {
-	if !e.config().Paused(acct) {
+	cfg := e.config()
+	if cfg.RowsUnreadable() {
+		return "the account settings could not be read this tick - not picked"
+	}
+	if !cfg.Paused(acct) {
 		return ""
 	}
 	return "paused - not picked; resume it in the app's settings for " + acct
