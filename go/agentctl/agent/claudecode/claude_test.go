@@ -251,3 +251,11 @@ func TestTheKeychainIsAskedUnderTheUsersName(t *testing.T) {
 		}
 	}
 }
+
+// A restart prompt opens with a "----------" separator line; claude must get it as the prompt, not as an option.
+func TestPromptArgvEndsOptions(t *testing.T) {
+	p := "---------- restarted by the daemon ----------\nRestarted."
+	if got, want := (Driver{}).PromptArgv(p), []string{"--", p}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("PromptArgv = %q, want %q", got, want)
+	}
+}

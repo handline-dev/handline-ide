@@ -59,7 +59,9 @@ func (Driver) PermissionModeArgv(mode string) []string {
 }
 
 func (Driver) LaunchEnv(string, string, string) map[string]string { return map[string]string{} }
-func (Driver) PromptArgv(prompt string) []string                  { return []string{prompt} }
+
+// PromptArgv ends the options first, so a prompt that starts with a dash is read as the prompt and not as an unknown option.
+func (Driver) PromptArgv(prompt string) []string { return []string{"--", prompt} }
 
 var notAlnum = regexp.MustCompile(`[^A-Za-z0-9]`)
 
