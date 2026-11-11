@@ -1,5 +1,6 @@
 // Settings > Devices: every device that connects to this computer in one table - this one first, who is connected, when the others were last
 // seen (stale after 30 days), and Revoke behind a confirm that waits for the daemon.
+import { ListLoading } from '#src/ui/Loading.tsx';
 import { ChevronRight, MonitorSmartphone, Plus } from 'lucide-react';
 import { useState } from 'react';
 import { ago } from '@handline/app-core';
@@ -129,7 +130,7 @@ export function DevicesTab() {
         </Button>
       }
     >
-      {q.loading && <p className="text-sm text-muted">Loading devices…</p>}
+      {q.loading && <ListLoading rows={3} label="Loading devices" />}
       {q.error && <p className="text-sm text-danger">Devices did not load.</p>}
       {!q.loading && !q.error && rows.length === 0 && <p className="text-sm text-muted">No devices yet.</p>}
       {recent.length > 0 && list(recent)}

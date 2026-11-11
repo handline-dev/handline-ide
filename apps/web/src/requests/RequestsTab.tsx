@@ -1,4 +1,5 @@
 // Requests: the founder's turn, notes to them, their requests in progress, and those finished. The bell's popover previews the turn and the finished.
+import { ListLoading } from '#src/ui/Loading.tsx';
 import { useEffect, type ReactNode } from 'react';
 import { laterWords, pickAllState, requestRow, turnKey, turnRow, unseenOf, type Picked } from '@handline/app-core';
 import { Eye } from 'lucide-react';
@@ -84,6 +85,7 @@ function Requests() {
         <Page className="flex flex-col gap-6 py-4 text-sm">
           <h1 className="px-2 text-lg font-semibold">Requests</h1>
           {r.failed && <p className="px-2 text-danger">Requests did not load.</p>}
+          {!r.loaded && !r.failed && <ListLoading label="Loading requests" />}
           {r.loaded && (
             <>
               <Section title="Your turn" rows={rows.turn} empty="Nothing waits on you.">

@@ -1,3 +1,4 @@
+import { LinesLoading } from '#src/ui/Loading.tsx';
 import { useAgentDetail, useRead, useWorktrees } from '@handline/app-data';
 import { ChevronDown, ChevronRight, GitBranch } from 'lucide-react';
 import { useCallback, useRef } from 'react';
@@ -68,7 +69,7 @@ export function Changes({ agent }: { agent: string }) {
             ]}
           />
         </div>
-        {diff.isPending && <p className="text-sm text-muted">Loading the diff…</p>}
+        {diff.isPending && <LinesLoading label="Loading the diff" />}
         {diff.isError && <p className="text-sm text-danger">The diff did not load.</p>}
         {diff.data && !files.length && <p className="text-sm text-muted">No changes.</p>}
         {files.map((f) => (

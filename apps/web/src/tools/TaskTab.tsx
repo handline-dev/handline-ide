@@ -66,7 +66,7 @@ export function TaskTab({ id }: { id: number }) {
   }, [id]);
   const t = q.data;
   if (q.isError) return <p className="m-auto text-sm text-danger">T{id} did not load.</p>;
-  if (!t) return <p className="m-auto text-sm text-muted">Loading T{id}</p>;
+  if (!t) return <TaskLoading id={id} />;
   const open = !CLOSED.includes(t.state);
   const s = look(t);
   // Blockers have their own rows: "blocked by T<n>" over them would name each twice.
@@ -346,4 +346,39 @@ function ResultChips({ evidence, title }: { evidence: string; title: string }) {
   const chip = o.pr !== null ? `PR #${o.pr}` : o.sha;
   if (!chip) return null;
   return <span className="mb-2 inline-block w-fit rounded-md bg-surface px-2 py-0.5 font-mono text-xs text-fg">{chip}</span>;
+}
+
+/** The task page drawn empty while it loads, in its own layout: the state and title, the line under it, the field rows, the body and the
+ * comment box. */
+function TaskLoading({ id }: { id: number }) {
+  const bar = 'rounded-sm bg-border';
+  return (
+    <div aria-busy="true" aria-label={`Loading T${id}`} className="flex min-h-0 flex-1 animate-pulse flex-col motion-reduce:animate-none">
+      <Page className="flex flex-1 flex-col gap-6 py-4">
+        <header className="flex flex-col gap-3">
+          <div className="flex h-7 items-center gap-2">
+            <span className="h-6 w-16 rounded-md bg-border" />
+            <span className="text-lg text-muted">T{id}</span>
+            <span className={`h-5 w-1/3 ${bar}`} />
+          </div>
+          <span className={`h-3 w-44 ${bar}`} />
+          {[28, 12, 8].map((w) => (
+            <div key={w} className="flex h-6 items-center gap-2.5">
+              <span className="size-4 rounded-sm bg-border" />
+              <span className={`h-3 w-20 ${bar}`} />
+              <span className={`ml-8 h-3 ${bar}`} style={{ width: `${w * 4}px` }} />
+            </div>
+          ))}
+        </header>
+        <div className="flex flex-col gap-2.5">
+          {[90, 80, 45].map((w) => (
+            <span key={w} className={`h-3 ${bar}`} style={{ width: `${w}%` }} />
+          ))}
+        </div>
+      </Page>
+      <Page className="pb-4">
+        <div className="h-18 rounded-lg border border-border" />
+      </Page>
+    </div>
+  );
 }
