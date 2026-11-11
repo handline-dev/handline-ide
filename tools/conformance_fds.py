@@ -54,19 +54,19 @@ LEAD = "c"  # its team's manager, who a done it files for review waits on
 STATES = ["running", "idle", "queued", "parked", "waiting", "stalled", "no_terminal"]
 
 
-def seed_states(home: Path, daemon: subprocess.Popen) -> dict[str, str]:
+def seed_states(home: Path, daemon: subprocess.Popen, fakes: bool) -> dict[str, str]:
     """An agent per state word: its row and a stored view, which the daemon serves as it is. The schema is the daemon's,
     so the views go in once it has made the database. Returns the --var for each."""
     names = {w: f"s.{w}" for w in STATES}
     output_agent = "s.output"
     ask_agent = ASK_AGENT
     order = {"order_a": names["idle"], "order_b": names["running"], **ORDER}
-    for n in [*names.values(), output_agent, ask_agent, DOING_AGENT, AGENT, LEAD, *RETIRE, *ORDER.values(), *TURNS]:
+    for n in [*names.values(), NEVER_STARTED, output_agent, ask_agent, DOING_AGENT, AGENT, LEAD, *RETIRE, *ORDER.values(), *TURNS]:
         agent_dir(home, n)
     for _ in range(200):
         try:
             con = sqlite3.connect(home / "db.sqlite", timeout=5)
-            for w, n in names.items():
+            for w, n in [*names.items(), ("idle", NEVER_STARTED)]:
                 view = {"name": n, "role": "seeded by conformance_fds", "model": None, "effort": None, "state": w, "state_detail": "",
                         "state_since": None, "block": None, "wall_reason": None, "background_since": None, "would_wake": False,
                         "blocker": None, "account": None, "task": None, "cache_until": None, "has_dialog": w == "waiting",
@@ -80,12 +80,12 @@ def seed_states(home: Path, daemon: subprocess.Popen) -> dict[str, str]:
             seed_files(home, con)
             seed_open_question(con, ask_agent)
             typing = seed_typing_gates(home, con)
-            seed_agents(con, [*names.values(), output_agent, ask_agent, DOING_AGENT, AGENT, LEAD, *RETIRE, *ORDER.values(), *typing.values(), *TURNS,
+            seed_agents(con, [*names.values(), *([] if fakes else [NEVER_STARTED]), output_agent, ask_agent, DOING_AGENT, AGENT, LEAD, *RETIRE, *ORDER.values(), *typing.values(), *TURNS,
                               WORKROOM["create_parent"]], {"w": WORKROOM["create_repo"]})
             con.commit()
             con.close()
             return {**{f"state_{w}": n for w, n in names.items()}, "output_agent": output_agent, "session_agent": output_agent,
-                    "ask_agent": ask_agent, "triggers_agent": names["idle"], "doing_agent": DOING_AGENT, "view_plain_agent": names["idle"], "retire_agent": RETIRE[0],
+                    "ask_agent": ask_agent, "never_started_agent": NEVER_STARTED, "triggers_agent": names["idle"], "doing_agent": DOING_AGENT, "view_plain_agent": names["idle"], "retire_agent": RETIRE[0],
                     "retire_parent": RETIRE[1], "files_agent": FILES_AGENT, **WORKROOM, **typing, **order, "order_rename_to": "o.new",
                     **{f"turn_{k}": n for k, n in zip("abc", TURNS)}}
         except sqlite3.Error:
@@ -180,6 +180,7 @@ ASK_AGENT = "c.ask"  # in the agent role's workspace, so it may write to it
 TURNS = ("t.one", "t.two", "t.three")
 # agent.get.doing_names_the_tool_call: a running agent whose turn's newest tool call is Bash `sleep 30`, as the tick stores it.
 DOING_AGENT = "s.doing"
+NEVER_STARTED = "s.never"  # a stored view and no state row; on the fakes its agent row waits for seed_never_started
 
 
 def seed_retro(con: sqlite3.Connection) -> None:
@@ -274,6 +275,17 @@ def seed_session_start(con: sqlite3.Connection, agent: str) -> None:
     """A conversation the agent began, bound to its session, for transcript_session.json."""
     con.execute("INSERT INTO session_starts(agent, ts, session_id, cause, resumed, text, prompt, actor) VALUES(?, ?, 'seed', 'launch', 0, '', '', '')",
                 (agent, int(time.time())))
+
+
+def seed_never_started(home: Path) -> None:
+    """NEVER_STARTED's agent row, once the tick has settled. The daemon's start gives every agent it finds with no state row an IDLE
+    one; seeded before that start has run, it would be found or not by how the two raced."""
+    con = sqlite3.connect(home / "db.sqlite", timeout=5)
+    try:
+        seed_agents(con, [NEVER_STARTED], {})
+        con.commit()
+    finally:
+        con.close()
 
 
 def tick_settled(home: Path) -> None:
@@ -382,9 +394,10 @@ def main(argv: list[str]) -> int:
         local = taker(pairs)
         rc = 1
         try:
-            seeded = seed_states(home, daemon)
+            seeded = seed_states(home, daemon, fakes)
             if fakes:
                 tick_settled(home)
+                seed_never_started(home)
             seeded |= {"add_account": "conf-added", "add_used_account": "conf-used", "add_retry_account": "conf-retried"}  # names no account has
             main_dir = seed_account(home, "main") / ".claude"  # a logged-in account: it has a credential file
             main_dir.mkdir()

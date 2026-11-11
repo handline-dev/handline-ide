@@ -51,7 +51,7 @@
   {
    "name": "agents.list.status_adds_the_status_line",
    "spec": "agents.list",
-   "about": "With status: true every row carries the eight status-line fields, and an agent that never started has none of them set. Needs --var state_idle: an agent with a stored view and no state row.",
+   "about": "With status: true every row carries the eight status-line fields, and an agent that never started has none of them set. Needs --var never_started_agent: an agent with a stored view and no state row.",
    "as": "founder",
    "steps": [
     {
@@ -122,7 +122,7 @@
         }
        },
        "$contains": {
-        "name": "{{state_idle}}",
+        "name": "{{never_started_agent}}",
         "started": false,
         "has_repo": false,
         "has_terminal": false,
