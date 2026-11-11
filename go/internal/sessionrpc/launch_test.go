@@ -12,7 +12,7 @@ import (
 // dialAs is a connection of process pid on transport.
 func (r *rig) dialAs(transport string, pid int) *conn {
 	srv := rpc.NewServer(auth{}, "sha", 1, transport, func(string, ...any) {})
-	srv.DB = r.e.DB
+	srv.DB, srv.Who = r.e.DB, r.who
 	Register(srv, r.e)
 	cl, sv := net.Pipe()
 	go func() { srv.Serve(rpc.NewLineTransport(sv), pid); sv.Close() }()
@@ -32,7 +32,7 @@ func TestALaunchIsPreparedForAProcessOnTheLocalSocketWithItsOwnPid(t *testing.T)
 	params := map[string]any{"agent": "ann", "extra": []any{"--resume", "s1"}, "force": true, "account": "main", "cwd": "/w",
 		"env": map[string]any{"PATH": "/bin"}, "binary": "/bin/claude", "handle": "%3", "pid": 1}
 	res := result(t, r.dialAs("local", 4242).call("session.launch_prepare", params))
-	if got.Agent != "ann" || got.PID != 4242 || !got.Force || got.Cwd != "/w" || got.Env["PATH"] != "/bin" || len(got.Extra) != 2 || got.Handle != "%3" {
+	if got.Agent != r.ann || got.PID != 4242 || !got.Force || got.Cwd != "/w" || got.Env["PATH"] != "/bin" || len(got.Extra) != 2 || got.Handle != "%3" {
 		t.Fatalf("request %+v", got)
 	}
 	if argv, _ := res["argv"].([]any); len(argv) != 1 || argv[0] != "/bin/claude" || res["warnings"].([]any)[0] != "careful" {

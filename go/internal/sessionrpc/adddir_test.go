@@ -40,35 +40,35 @@ func TestAddDirPicksForThisSessionAtAnIdleComposerOnly(t *testing.T) {
 	dh := &dialogHost{host: h, dialog: addDirUI}
 	r.e.Term = term.New(dh, claudecode.ScreenFor)
 	h.rows = composer
-	if !r.e.AddDir("ann", "/data") || strings.Join(h.sent, "|") != "/add-dir /data<enter>|1" {
+	if !r.e.AddDir(r.ann, "/data") || strings.Join(h.sent, "|") != "/add-dir /data<enter>|1" {
 		t.Fatalf("sent %q", h.sent)
 	}
 	h.sent, h.rows = nil, []string{"Do you want to proceed?", "Enter to confirm · Esc to cancel"}
-	if r.e.AddDir("ann", "/data") || len(h.sent) != 0 {
+	if r.e.AddDir(r.ann, "/data") || len(h.sent) != 0 {
 		t.Fatalf("at a dialog: sent %q", h.sent)
 	}
 	h.rows = []string{"", "────────────────────────────────", "❯ ", "────────────────────────────────", "  esc to interrupt"}
-	if r.e.AddDir("ann", "/data") || len(h.sent) != 0 {
+	if r.e.AddDir(r.ann, "/data") || len(h.sent) != 0 {
 		t.Fatalf("in a turn: sent %q", h.sent)
 	}
 	h.rows = composer
-	r.e.Holds.Take("ann", "person", "sam")
-	if r.e.AddDir("ann", "/data") || len(h.sent) != 0 {
+	r.e.Holds.Take(r.ann, "person", "sam")
+	if r.e.AddDir(r.ann, "/data") || len(h.sent) != 0 {
 		t.Fatalf("held: sent %q", h.sent)
 	}
-	r.e.Holds.Release("ann")
+	r.e.Holds.Release(r.ann)
 	dh.dialog = []string{"earlier output", strings.Repeat("▔", 20), " Something else", "", " ❯ 1. Yes", "   2. No", "", " Enter to confirm · Esc to cancel"}
-	if r.e.AddDir("ann", "/data") || strings.Join(h.sent, "|") != "/add-dir /data<enter>|"+term.Escape {
+	if r.e.AddDir(r.ann, "/data") || strings.Join(h.sent, "|") != "/add-dir /data<enter>|"+term.Escape {
 		t.Fatalf("another dialog: sent %q", h.sent)
 	}
 	// No dialog comes and the line stays in the composer: it is deleted, and no Esc is pressed.
 	h.sent = nil
 	dh.dialog = []string{"", "────────────────────────────────", "❯ /add-dir /data", "────────────────────────────────", "  ? for shortcuts"}
-	if r.e.AddDir("ann", "/data") || strings.Join(h.sent, "|") != "/add-dir /data<enter>|"+ctrlU {
+	if r.e.AddDir(r.ann, "/data") || strings.Join(h.sent, "|") != "/add-dir /data<enter>|"+ctrlU {
 		t.Fatalf("no dialog: sent %q", h.sent)
 	}
 	h.sent, h.rows = nil, composer
-	if r.e.AddDir("ann", "/my data") || len(h.sent) != 0 {
+	if r.e.AddDir(r.ann, "/my data") || len(h.sent) != 0 {
 		t.Fatalf("a path with a space: sent %q", h.sent)
 	}
 }
