@@ -1,6 +1,7 @@
 package watcher
 
 import (
+	"bytes"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -67,6 +68,9 @@ func parity(t *testing.T, detector func(*sql.DB) Detector, setup, change func(ru
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Python named the founder human; the rows now carry the owner's key.
+	recorded = bytes.ReplaceAll(recorded, []byte(`"human"`), []byte(`"p1"`))
+	recorded = bytes.ReplaceAll(recorded, []byte(`\"human\"`), []byte(`\"p1\"`))
 	if err := json.Unmarshal(recorded, &py); err != nil {
 		t.Fatal(err)
 	}
