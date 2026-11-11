@@ -112,30 +112,28 @@ export class TaskComments extends TaskStore {
         first_unread: null,
         last_at: p.created,
       });
-    // As the daemon: the newest unread `@human` comment by anyone but the founder, on a task no row above stands for, is a note.
-    const notes: Pending[] = [];
+    // The founder's turn on a task is a row to decide, its ask the first line of what was asked.
     for (const t of this.rows) {
-      if (answer.has(`task:${t.id}`) || t.state === 'discarded') continue;
+      if (t.state === 'done' || t.state === 'discarded') continue;
+      const top = t.turns?.at(-1);
       const v = this.view(t);
-      const m = (t.memos ?? [])
-        .filter((x) => x.author !== 'human' && x.id > (this.seenUpto.get(t.id) ?? 0) && NAMES_HUMAN.test(x.text))
-        .at(-1);
-      if (!m) continue;
-      notes.push({
-        task: t.id,
-        title: t.title,
-        kind: 'note',
-        source: 'comment',
-        id: String(m.id),
-        agent: m.author,
-        ask: m.text.replace(NAMES_HUMAN, ' ').trim().split('\n')[0]!,
-        warning: null,
-        items: [],
-        unread: v.unread ?? 0,
-        first_unread: v.first_unread ?? null,
-        last_at: m.at,
-      });
+      if (top?.agent === 'human' && !answer.has(`task:${t.id}`))
+        answer.set(`task:${t.id}`, {
+          task: t.id,
+          title: t.title,
+          kind: 'decide',
+          source: 'task',
+          id: String(t.id),
+          agent: top.by,
+          ask: top.ask.split('\n')[0] ?? null,
+          warning: null,
+          items: [],
+          unread: v.unread ?? 0,
+          first_unread: v.first_unread ?? null,
+          last_at: top.since,
+        });
     }
+    const notes = this.notes(answer);
     const noted = new Set(notes.map((n) => n.task));
     const comments: Pending[] = [];
     for (const t of this.rows) {
@@ -167,6 +165,34 @@ export class TaskComments extends TaskStore {
         unseen_results: this.host.requests.unseen().length,
       },
     };
+  }
+
+  /** As the daemon: the newest unread `@human` comment by anyone but the founder, on a task no row stands for, is a note. */
+  private notes(answer: Map<string, Pending>): Pending[] {
+    const notes: Pending[] = [];
+    for (const t of this.rows) {
+      if (answer.has(`task:${t.id}`) || t.state === 'discarded') continue;
+      const v = this.view(t);
+      const m = (t.memos ?? [])
+        .filter((x) => x.author !== 'human' && x.id > (this.seenUpto.get(t.id) ?? 0) && NAMES_HUMAN.test(x.text))
+        .at(-1);
+      if (!m) continue;
+      notes.push({
+        task: t.id,
+        title: t.title,
+        kind: 'note',
+        source: 'comment',
+        id: String(m.id),
+        agent: m.author,
+        ask: m.text.replace(NAMES_HUMAN, ' ').trim().split('\n')[0]!,
+        warning: null,
+        items: [],
+        unread: v.unread ?? 0,
+        first_unread: v.first_unread ?? null,
+        last_at: m.at,
+      });
+    }
+    return notes;
   }
 
   private lastComment(t: Row): string {
