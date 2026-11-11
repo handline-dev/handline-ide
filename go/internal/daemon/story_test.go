@@ -35,9 +35,13 @@ func (p storyPorts) SendBatch(q db.Q, agent, text string) error {
 	return err
 }
 
-type storyHost struct{ tick.Host }
+// storyHost is a host with agents, by key, and nothing else.
+type storyHost struct {
+	tick.Host
+	agents []string
+}
 
-func (storyHost) Agents() []string { return []string{"alice", "bob"} }
+func (h storyHost) Agents() []string { return h.agents }
 
 // One story through the real paths: a task the founder gave alice, a child bob does for it, three memos with no @ (told to the holder), the child done
 // (which leaves bob nothing to start, so alice, who gave it, is told that once), the parent done, and bob's own task running past its timeout. It
@@ -45,17 +49,18 @@ func (storyHost) Agents() []string { return []string{"alice", "bob"} }
 func TestAStoryTellsTheFounderOneNoticeAndAgentsOnlyWhatTheyMustActOn(t *testing.T) {
 	d, _ := tellDaemon(t, true)
 	teamtest.Set(t, d.cfg.Home, "bob", "reports_to", "alice")
+	alice, bob := key(t, d, "alice"), key(t, d, "bob")
 	var entries []stream.Entry
 	notes := &watcher.Notifications{Reads: &reads.Env{DB: d.db, Home: d.cfg.Home}}
 	emit := func(e stream.Entry) (*stream.Event, error) { entries = append(entries, e); return &stream.Event{}, nil }
 	if err := notes.Scan(d.db, emit); err != nil { // primes the cursors: what came before is history
 		t.Fatal(err)
 	}
-	parent, err := db.NewTask(d.db, "the founder's job", "alice", db.Human, 0, db.DefaultPriority, "", 0, "")
+	parent, err := db.NewTask(d.db, "the founder's job", alice, db.Human, 0, db.DefaultPriority, "", 0, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	child, err := db.NewTask(d.db, "its part", "bob", "alice", parent, db.DefaultPriority, "", 0, "")
+	child, err := db.NewTask(d.db, "its part", bob, alice, parent, db.DefaultPriority, "", 0, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,17 +79,17 @@ func TestAStoryTellsTheFounderOneNoticeAndAgentsOnlyWhatTheyMustActOn(t *testing
 	result(t, f.ask(fmt.Sprintf(`{"jsonrpc":"2.0","id":21,"method":"task.done","params":{"task":%d,"evidence":"all done","request_id":"story-p"}}`, parent)))
 
 	// bob's own task, opened by alice, runs past its timeout
-	slow, err := db.NewTask(d.db, "slow", "bob", "alice", 0, db.DefaultPriority, "", 100, "")
+	slow, err := db.NewTask(d.db, "slow", bob, alice, 0, db.DefaultPriority, "", 100, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.SetTaskQueued(d.db, slow, "human"); err != nil {
+	if _, err := db.SetTaskQueued(d.db, slow, db.Human); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := d.env().AdvanceCurrentTask(d.db, "bob"); err != nil {
+	if _, _, err := d.env().AdvanceCurrentTask(d.db, bob); err != nil {
 		t.Fatal(err)
 	}
-	tk := &tick.Tick{Q: d.db, Log: func(l string) { t.Log(l) }, Host: storyHost{}}
+	tk := &tick.Tick{Q: d.db, Log: func(l string) { t.Log(l) }, Host: storyHost{agents: []string{alice, bob}}}
 	box := &tick.Timebox{Ports: storyPorts{d: d}}
 	box.SweepTaskTimeouts(tk, 1000)
 	box.SweepTaskTimeouts(tk, 1200)
@@ -129,13 +134,13 @@ func TestAStoryTellsTheFounderOneNoticeAndAgentsOnlyWhatTheyMustActOn(t *testing
 	if founder != 1 {
 		t.Fatalf("the founder is told once, of their task done: %d", founder)
 	}
-	if len(memo) != 1 || memo["alice"] != 3 || len(result_) != 0 {
+	if len(memo) != 1 || memo[alice] != 3 || len(result_) != 0 {
 		t.Fatalf("the holder is told of each memo with no @, no one else, and no one of a child that did not fail: %v %v", memo, result_)
 	}
-	if len(idle) != 1 || idle["alice"] != 1 {
+	if len(idle) != 1 || idle[alice] != 1 {
 		t.Fatalf("bob has nothing to start once the child is done: alice, who gave it, is told once: %v", idle)
 	}
-	if len(timeout) != 2 || timeout["bob"] != 1 || timeout["alice"] != 1 {
+	if len(timeout) != 2 || timeout[bob] != 1 || timeout[alice] != 1 {
 		t.Fatalf("the timeout goes to its holder and the holder's lead, once each: %v", timeout)
 	}
 	if total != 7 {

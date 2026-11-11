@@ -28,18 +28,19 @@ func trustDaemon(t *testing.T) (d *Daemon, id string, card int64, root string) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	alice := key(t, d, "alice")
 	raise := func(title, text string) (bool, string, int64, int64, error) {
-		rid, err := db.AddRequest(d.db, db.NewRequest{Requester: "alice", Target: db.Human, Body: text, Kind: "task"})
+		rid, err := db.AddRequest(d.db, db.NewRequest{Requester: alice, Target: db.Human, Body: text, Kind: "task"})
 		if err != nil {
 			return false, "", 0, 0, err
 		}
-		tid, err := db.NewTask(d.db, title, db.Human, "alice", 0, db.DefaultPriority, "decision", 0, "")
+		tid, err := db.NewTask(d.db, title, db.Human, alice, 0, db.DefaultPriority, "decision", 0, "")
 		if err != nil {
 			return false, "", 0, 0, err
 		}
 		return true, "", rid, tid, db.LinkRequest(d.db, tid, rid)
 	}
-	ok, said, id, err := team.NewTrust(d.cfg.Home).Propose(root, "the repo", "alice", raise)
+	ok, said, id, err := team.NewTrust(d.cfg.Home).Propose(root, "the repo", alice, raise)
 	if err != nil || !ok {
 		t.Fatal(said, err)
 	}
@@ -73,7 +74,7 @@ func reply(t *testing.T, d *Daemon, card int64) string {
 func reportsToFounder(t *testing.T, d *Daemon, body string) int {
 	t.Helper()
 	var n int
-	if err := d.db.QueryRow("SELECT COUNT(*) FROM requests WHERE kind = 'say' AND requester = 'alice' AND target = 'human' AND body = ?", body).Scan(&n); err != nil {
+	if err := d.db.QueryRow("SELECT COUNT(*) FROM requests WHERE kind = 'say' AND requester = ? AND target = ? AND body = ?", key(t, d, "alice"), db.Human, body).Scan(&n); err != nil {
 		t.Fatal(err)
 	}
 	return n
@@ -87,7 +88,7 @@ func TestTheFoundersApproveDeclaresTheProposedRoot(t *testing.T) {
 			d, id, card, root := trustDaemon(t)
 			decide(t, d, card, "approve")
 			tr := team.NewTrust(d.cfg.Home)
-			if got := tr.Declared(); len(got) != 1 || got[0].Root != root || got[0].Why != "the repo" || got[0].AddedBy != "alice" {
+			if got := tr.Declared(); len(got) != 1 || got[0].Root != root || got[0].Why != "the repo" || got[0].AddedBy != key(t, d, "alice") {
 				t.Fatalf("%+v", got)
 			}
 			p, _, _ := tr.LoadProposal(id)

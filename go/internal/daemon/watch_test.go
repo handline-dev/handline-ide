@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/internal/watcher"
 	"github.com/handline/handline/go/scheduler/procload"
 )
@@ -43,13 +45,15 @@ func watchedRows(t *testing.T, watch bool) map[string]int {
 	} else {
 		time.Sleep(3 * watcher.Every)
 	}
-	for _, q := range []string{
-		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 't', 'bob', 'human', 1)",
-		`INSERT INTO agent_view(agent, view, updated) VALUES('bob', '{"name":"bob","state":"idle"}', 0)`,
-		`INSERT INTO events(ts, agent, kind, payload) VALUES(1, 'bob', 'mark_task_done', '{"task_id": 1}')`,
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(1, 5, 'human', 'bob', 'hi', 'queued', 'say')",
+	teamtest.Seed(t, dir, "bob")
+	bob := teamtest.Key(t, dir, "bob")
+	for _, q := range [][]any{
+		{"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 't', ?, ?, 1)", bob, db.Human},
+		{`INSERT INTO agent_view(agent, view, updated) VALUES(?, '{"name":"bob","state":"idle"}', 0)`, bob},
+		{`INSERT INTO events(ts, agent, kind, payload) VALUES(1, ?, 'mark_task_done', '{"task_id": 1}')`, bob},
+		{"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(1, 5, ?, ?, 'hi', 'queued', 'say')", db.Human, bob},
 	} {
-		if _, err := d.db.Exec(q); err != nil {
+		if _, err := d.db.Exec(q[0].(string), q[1:]...); err != nil {
 			t.Fatal(err)
 		}
 	}

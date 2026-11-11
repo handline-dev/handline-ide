@@ -13,15 +13,22 @@ import (
 	"testing"
 	"time"
 
+	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/taskboard/supervisor"
 )
 
 type fakeAuth struct {
 	agent, key string
-	sessions   error // what SessionsReadable says
+	sessions   error  // what SessionsReadable says
+	home       string // set by start: agent is an old name, and the session is its key there
 }
 
-func (f fakeAuth) AgentOf(pid int) string       { return f.agent }
+func (f fakeAuth) AgentOf(pid int) string {
+	if f.agent == "" || f.home == "" {
+		return f.agent
+	}
+	return paths.WhoKey(f.home, f.agent)
+}
 func (f fakeAuth) SessionsReadable() error      { return f.sessions }
 func (f fakeAuth) FounderKeyOK(key string) bool { return f.key != "" && key == f.key }
 
@@ -32,6 +39,7 @@ func start(t *testing.T, a fakeAuth, listen string) *Daemon {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { os.RemoveAll(dir) })
+	a.home = dir
 	d, err := Start(Config{Home: dir, DBFile: filepath.Join(dir, "db.sqlite"), SocketFile: filepath.Join(dir, "d.sock"),
 		Listen: listen + "", Auth: a})
 	if err != nil {
