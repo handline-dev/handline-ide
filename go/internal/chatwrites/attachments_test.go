@@ -286,13 +286,13 @@ func TestSendRefsNeedAGrantWithTheSettingOn(t *testing.T) {
 	os.WriteFile(filepath.Join(r.home, "config.yaml"), []byte("chat_refs_need_grant: true\n"), 0o644)
 	before := r.count("SELECT COUNT(*) FROM requests")
 	e, _ := send("on", own, dir)["error"].(map[string]any)
-	if d, _ := e["data"].(map[string]any); d == nil || d["gate"] != "access_needed" || d["agent"] != "alice" || fmt.Sprint(d["paths"]) != fmt.Sprint([]any{dir}) {
+	if d, _ := e["data"].(map[string]any); d == nil || d["gate"] != "access_needed" || d["agent"] != r.k("alice") || fmt.Sprint(d["paths"]) != fmt.Sprint([]any{dir}) {
 		t.Fatalf("%v", e)
 	}
 	if n := r.count("SELECT COUNT(*) FROM requests"); n != before {
 		t.Fatalf("a refused send wrote %d requests", n-before)
 	}
-	access.Put(r.db, "alice", dir, "once", 1)
+	access.Put(r.db, r.k("alice"), dir, "once", 1)
 	if m := send("on", own, dir); m["error"] != nil {
 		t.Fatalf("granted: %v", m)
 	}

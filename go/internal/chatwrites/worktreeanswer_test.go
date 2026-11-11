@@ -26,7 +26,7 @@ func askedAbout(t *testing.T, r *rig) (tid int64, path string, main string) {
 	}
 	os.WriteFile(filepath.Join(path, "left.txt"), []byte("work"), 0o644)
 	card := r.request("human", "human", "Remove bob's worktree?\n\nPath: "+path+"\nBranch: bobs\n\nMember: bob\n\nReply with the number")
-	tid, err := dbpkg.NewTask(r.db, "Remove bob's worktree?", "human", "human", 0, dbpkg.DefaultPriority, "decision", 0, "")
+	tid, err := dbpkg.NewTask(r.db, "Remove bob's worktree?", dbpkg.Human, dbpkg.Human, 0, dbpkg.DefaultPriority, "decision", 0, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +94,7 @@ func TestAnswerIsNotHandledForAnyOtherTask(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
 	card := r.request("alice", "human", "which one?")
-	tid, _ := dbpkg.NewTask(r.db, "which one?", "human", "alice", 0, dbpkg.DefaultPriority, "decision", 0, "")
+	tid, _ := dbpkg.NewTask(r.db, "which one?", dbpkg.Human, r.k("alice"), 0, dbpkg.DefaultPriority, "decision", 0, "")
 	dbpkg.LinkRequest(r.db, tid, card)
 	if handled, _, err := answer(t, r, tid, "1"); handled || err != nil {
 		t.Fatal(handled, err)
@@ -132,7 +132,7 @@ func TestATaggedTaskAnAgentOpenedIsNotARetireQuestion(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
 	tid, path, _ := askedAbout(t, r)
-	r.db.Exec("UPDATE tasks SET opened_by = 'alice' WHERE id = ?", tid)
+	r.db.Exec("UPDATE tasks SET opened_by = ? WHERE id = ?", r.k("alice"), tid)
 	if handled, _, err := answer(t, r, tid, "2 yes"); handled || err != nil {
 		t.Fatalf("%v %v", handled, err)
 	}

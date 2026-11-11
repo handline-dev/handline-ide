@@ -152,7 +152,7 @@ func TestSendWritesTheMessageOnceAndRefusesWhatIsNotASend(t *testing.T) {
 	}
 	var requester, target, body, state string
 	r.db.QueryRow("SELECT requester, target, body, state FROM requests").Scan(&requester, &target, &body, &state)
-	if r.count("SELECT COUNT(*) FROM requests") != 1 || requester != "human" || target != "alice" || body != "hello" || state != "queued" {
+	if r.count("SELECT COUNT(*) FROM requests") != 1 || requester != dbpkg.Human || target != r.k("alice") || body != "hello" || state != "queued" {
 		t.Fatalf("one message from the person to alice: %s %s %q %s", requester, target, body, state)
 	}
 	if r.count("SELECT COUNT(*) FROM write_effects WHERE method = 'chat.send'") != 1 {
@@ -189,7 +189,7 @@ func TestSendWithATaskOpensItWithItsBriefOnceAndALostAnswerIsReplayed(t *testing
 	if err := r.db.QueryRow("SELECT id, title, owner, opened_by, COALESCE(timeout_s, 0) FROM tasks").Scan(&tid, &title, &owner, &opener, &timeout); err != nil {
 		t.Fatal(err)
 	}
-	if title != "the thing" || owner != "alice" || opener != "human" || timeout != 7200 {
+	if title != "the thing" || owner != r.k("alice") || opener != dbpkg.Human || timeout != 7200 {
 		t.Fatalf("the task: %q %s %s %d", title, owner, opener, timeout)
 	}
 	if r.count("SELECT COUNT(*) FROM task_requests WHERE task_id = ? AND request_id = ?", tid, int64(first["request"].(float64))) != 1 {
@@ -226,7 +226,7 @@ func TestSendUnderAQuestionIsOnlyASayUnderIt(t *testing.T) {
 	// A row between the person and another agent can be quoted in this agent's chat: the message goes to the agent named, the quote is a link.
 	res = r.result(r.one(s, "chat.send", fmt.Sprintf(`{"agent":"bob","body":"yes","parent":%d,"request_id":"u2"}`, asked)))
 	req, _ := res["request"].(float64)
-	if r.count("SELECT COUNT(*) FROM requests WHERE id = ? AND target = 'bob' AND parent_id = ?", int64(req), asked) != 1 {
+	if r.count("SELECT COUNT(*) FROM requests WHERE id = ? AND target = ? AND parent_id = ?", int64(req), r.k("bob"), asked) != 1 {
 		t.Fatalf("it goes to bob with the parent link: %v", res)
 	}
 }
@@ -254,7 +254,7 @@ func TestDecisionOnACardAnswersItsTask(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
 	card := r.request("alice", "human", "which one?")
-	tid, err := dbpkg.NewTask(r.db, "which one?", "human", "alice", 0, dbpkg.DefaultPriority, "decision", 0, "")
+	tid, err := dbpkg.NewTask(r.db, "which one?", dbpkg.Human, r.k("alice"), 0, dbpkg.DefaultPriority, "decision", 0, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -268,7 +268,7 @@ func TestDecisionOnACardAnswersItsTask(t *testing.T) {
 	if r.count("SELECT COUNT(*) FROM requests WHERE id = ? AND state != 'queued'", card) != 1 {
 		t.Fatal("the card is answered")
 	}
-	if r.count("SELECT COUNT(*) FROM requests WHERE target = 'alice' AND body LIKE ?", fmt.Sprintf("T%d done by the founder: the first%%", tid)) != 1 {
+	if r.count("SELECT COUNT(*) FROM requests WHERE target = ? AND body LIKE ?", r.k("alice"), fmt.Sprintf("T%d done by the founder: the first%%", tid)) != 1 {
 		t.Fatal("alice is told the answer")
 	}
 }
@@ -278,7 +278,7 @@ func TestDecisionOnTheFoundersOwnCardClosesItsTask(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
 	card := r.request("human", "human", "remember the milk")
-	tid, err := dbpkg.NewTask(r.db, "remember the milk", "human", "human", 0, dbpkg.DefaultPriority, "", 0, "")
+	tid, err := dbpkg.NewTask(r.db, "remember the milk", dbpkg.Human, dbpkg.Human, 0, dbpkg.DefaultPriority, "", 0, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -294,7 +294,7 @@ func TestDecideCardLeavesATaskTheFounderDoesNotOwnToTaskDone(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
 	card := r.request("alice", "human", "please look")
-	tid, err := dbpkg.NewTask(r.db, "please look", "alice", "alice", 0, dbpkg.DefaultPriority, "", 0, "")
+	tid, err := dbpkg.NewTask(r.db, "please look", r.k("alice"), r.k("alice"), 0, dbpkg.DefaultPriority, "", 0, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -315,7 +315,7 @@ func TestDecideAnswersATaskWhenItsCardWasClosedSomeOtherWay(t *testing.T) {
 	gone := r.request("alice", "human", "which one?")
 	dbpkg.MarkDelivered(r.db, gone)
 	r.db.Exec("UPDATE requests SET state = 'landed' WHERE id = ?", gone)
-	tid, err := dbpkg.NewTask(r.db, "which one?", "human", "alice", 0, dbpkg.DefaultPriority, "decision", 0, "")
+	tid, err := dbpkg.NewTask(r.db, "which one?", dbpkg.Human, r.k("alice"), 0, dbpkg.DefaultPriority, "decision", 0, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -344,9 +344,9 @@ func TestDecideRefusesWhileTheTaskHasAnOpenChild(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
 	card := r.request("alice", "human", "which one?")
-	tid, _ := dbpkg.NewTask(r.db, "which one?", "human", "alice", 0, dbpkg.DefaultPriority, "decision", 0, "")
+	tid, _ := dbpkg.NewTask(r.db, "which one?", dbpkg.Human, r.k("alice"), 0, dbpkg.DefaultPriority, "decision", 0, "")
 	dbpkg.LinkRequest(r.db, tid, card)
-	dbpkg.NewTask(r.db, "first this", "alice", "alice", tid, dbpkg.DefaultPriority, "report", 0, "")
+	dbpkg.NewTask(r.db, "first this", r.k("alice"), r.k("alice"), tid, dbpkg.DefaultPriority, "report", 0, "")
 	tx, err := r.db.Begin()
 	if err != nil {
 		t.Fatal(err)
@@ -407,7 +407,7 @@ func TestSeenMovesTheMarkAndReadsWhatIsBehindIt(t *testing.T) {
 		t.Fatal("read up to the mark and no further")
 	}
 	r.result(r.one(s, "chat.seen", `{"agent":"alice","up_to":1,"request_id":"n2"}`))
-	if c, _ := dbpkg.Cursor(r.db, "for_you_seen:alice"); c != a {
+	if c, _ := dbpkg.Cursor(r.db, "for_you_seen:"+r.k("alice")); c != a {
 		t.Fatalf("the mark never moves back: %d", c)
 	}
 }
@@ -418,7 +418,7 @@ func TestSendNowMarksTheMessageAndRefusesOneThatIsNoLongerWaiting(t *testing.T) 
 	s := r.server("")
 	rid := r.request("human", "alice", "now please")
 	call := fmt.Sprintf(`{"request":%d,"request_id":"j1"}`, rid)
-	if res := r.result(r.one(s, "chat.send_now", call)); res["said"] != fmt.Sprintf("message %d is told to alice now", rid) {
+	if res := r.result(r.one(s, "chat.send_now", call)); res["said"] != fmt.Sprintf("message %d is told to %s now", rid, r.k("alice")) {
 		t.Fatal(res)
 	}
 	if r.count("SELECT COUNT(*) FROM requests WHERE id = ? AND send_now IS NOT NULL", rid) != 1 {

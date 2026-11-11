@@ -37,12 +37,12 @@ func (r *rig) typeSoon(agent string) {
 func TestAPersonsMessageToATerminalAgentAnswersOnceTypedAndIsTakenBackAtTheLimit(t *testing.T) {
 	r := typedRig(t)
 	srv := r.server("")
-	r.typeSoon("alice")
+	r.typeSoon(r.k("alice"))
 	if res := r.result(r.one(srv, "chat.send", `{"agent":"alice","body":"hi","request_id":"ty1"}`)); res["request"] == nil {
 		t.Fatalf("answered with the request: %v", res)
 	}
 	var delivered bool
-	r.db.QueryRow("SELECT delivered_at IS NOT NULL FROM requests WHERE target = 'alice' ORDER BY id DESC LIMIT 1").Scan(&delivered)
+	r.db.QueryRow("SELECT delivered_at IS NOT NULL FROM requests WHERE target = ? ORDER BY id DESC LIMIT 1", r.k("alice")).Scan(&delivered)
 	if !delivered {
 		t.Fatal("answered before it was typed")
 	}
@@ -51,11 +51,11 @@ func TestAPersonsMessageToATerminalAgentAnswersOnceTypedAndIsTakenBackAtTheLimit
 	defer func() { typeWait = 0 }()
 	m := r.one(srv, "chat.send", `{"agent":"bob","body":"anyone?","request_id":"ty2"}`)
 	r.refusedWith(m, "state")
-	if msg := m["error"].(map[string]any)["message"].(string); !strings.Contains(msg, "was not typed into bob's session in time, so it was taken back") {
+	if msg := m["error"].(map[string]any)["message"].(string); !strings.Contains(msg, "was not typed into "+r.k("bob")+"'s session in time, so it was taken back") {
 		t.Fatalf("%q", msg)
 	}
 	var state string
-	r.db.QueryRow("SELECT state FROM requests WHERE target = 'bob' ORDER BY id DESC LIMIT 1").Scan(&state)
+	r.db.QueryRow("SELECT state FROM requests WHERE target = ? ORDER BY id DESC LIMIT 1", r.k("bob")).Scan(&state)
 	if state != "withdrawn" {
 		t.Fatalf("taken back, not left to be typed later: %s", state)
 	}
@@ -69,7 +69,7 @@ func TestAnAgentsMessageIsNotHeldUntilTyped(t *testing.T) {
 	r := typedRig(t)
 	typeWait = time.Hour
 	defer func() { typeWait = 0 }()
-	rid, err := db.AddRequest(r.db, db.NewRequest{Requester: "alice", Target: "bob", Body: "hello", Kind: "say"})
+	rid, err := db.AddRequest(r.db, db.NewRequest{Requester: r.k("alice"), Target: r.k("bob"), Body: "hello", Kind: "say"})
 	if err != nil {
 		t.Fatal(err)
 	}

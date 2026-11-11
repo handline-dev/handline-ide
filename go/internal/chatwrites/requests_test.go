@@ -36,10 +36,10 @@ func TestWithdrawTakesBackTheCallersOwnUndeliveredRequestAndSaysWhyNot(t *testin
 		t.Fatalf("another's request is refused in the reply: %v", res)
 	}
 	res := withdraw(1, mine, `,"reason":"asked the wrong one"`, "w2")
-	if res["ok"] != true || msgtest.IDs(r.db, res["said"].(string)) != fmt.Sprintf("request #%d to bob withdrawn", mine) || r.state(mine) != "withdrawn" {
+	if res["ok"] != true || msgtest.IDs(r.db, res["said"].(string)) != fmt.Sprintf("request #%d to %s withdrawn", mine, r.k("bob")) || r.state(mine) != "withdrawn" {
 		t.Fatalf("%v %s", res, r.state(mine))
 	}
-	if r.count("SELECT COUNT(*) FROM events WHERE agent = 'alice' AND kind = 'withdraw' AND payload LIKE '%asked the wrong one%'") != 1 {
+	if r.count("SELECT COUNT(*) FROM events WHERE agent = ? AND kind = 'withdraw' AND payload LIKE '%asked the wrong one%'", r.k("alice")) != 1 {
 		t.Fatal("the reason is kept with the withdrawal")
 	}
 	if res := withdraw(1, mine, "", "w3"); res["ok"] != false || !strings.Contains(res["said"].(string), "already withdrawn") {
@@ -78,7 +78,7 @@ func TestCancelPlansWithoutWritingAndClosesAnyQueuedRequest(t *testing.T) {
 	const written = "SELECT COUNT(*) FROM events WHERE kind != 'founder_key'" // each call's hello records its key; the call is what is checked
 	events := r.count(written)
 	plan := cancel(rid, `,"dry_run":true`, "c1")
-	if plan["ok"] != true || !strings.HasPrefix(msgtest.IDs(r.db, plan["plan"].(string)), fmt.Sprintf("cancel #%d (delivered to bob)", rid)) {
+	if plan["ok"] != true || !strings.HasPrefix(msgtest.IDs(r.db, plan["plan"].(string)), fmt.Sprintf("cancel #%d (delivered to %s)", rid, r.k("bob"))) {
 		t.Fatalf("%v", plan)
 	}
 	if r.state(rid) != "queued" || r.count(written) != events {
@@ -102,7 +102,7 @@ func TestCancelPlansWithoutWritingAndClosesAnyQueuedRequest(t *testing.T) {
 		t.Fatalf("%v", res)
 	}
 	own := r.request("human", "alice", "never mind")
-	if res := cancel(own, "", "c5"); res["ok"] != true || msgtest.IDs(r.db, res["said"].(string)) != fmt.Sprintf("request #%d to alice withdrawn", own) || r.state(own) != "withdrawn" {
+	if res := cancel(own, "", "c5"); res["ok"] != true || msgtest.IDs(r.db, res["said"].(string)) != fmt.Sprintf("request #%d to %s withdrawn", own, r.k("alice")) || r.state(own) != "withdrawn" {
 		t.Fatalf("the founder's own undelivered request is withdrawn: %v", res)
 	}
 	r.refusedWith(r.one(r.server("alice"), "request.cancel", fmt.Sprintf(`{"id":%d,"request_id":"c6"}`, r.request("alice", "bob", "x"))), "role")
@@ -118,7 +118,7 @@ func TestCancelTakesAHeldMessageBackFromTheSessionsQueue(t *testing.T) {
 	f.busy = true
 	rid := int64(r.result(r.one(s, "chat.send", send("take me back", "d1", "")))["request"].(float64))
 	res := r.result(r.one(s, "request.cancel", fmt.Sprintf(`{"id":%d,"request_id":"c1"}`, rid)))
-	if op, _ := f.ledger("bob").Get(supervisor.RequestOp(rid)); res["ok"] != true || r.state(rid) != "withdrawn" || op.State != delivery.Withdrawn {
+	if op, _ := f.ledger(r.k("bob")).Get(supervisor.RequestOp(rid)); res["ok"] != true || r.state(rid) != "withdrawn" || op.State != delivery.Withdrawn {
 		t.Fatalf("withdrawn in the row and in the session, so the session never writes it: %v %s %v", res, r.state(rid), op)
 	}
 }
