@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -37,6 +38,7 @@ import (
 	"github.com/handline/handline/go/internal/watcher"
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/lock"
+	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/peer"
 	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/kit/version"
@@ -184,7 +186,7 @@ func Start(cfg Config) (*Daemon, error) {
 		db.Close()
 		return nil, err
 	}
-	d := &Daemon{cfg: cfg, db: db, lent: store.Lend(cfg.DBFile, db), started: time.Now(), conns: map[net.Conn]struct{}{}, stop: make(chan struct{})}
+	d := &Daemon{cfg: cfg, db: db, started: time.Now(), conns: map[net.Conn]struct{}{}, stop: make(chan struct{})}
 	if cfg.Turns != nil {
 		cfg.Turns.Agent = func(handle string) string { a, _ := dbpkg.AgentOfTerminal(db, handle); return a }
 		cfg.Turns.Lines = func(agent, session string) func([]byte) {
@@ -244,6 +246,9 @@ func Start(cfg Config) (*Daemon, error) {
 		db.Close()
 		return nil, errors.New("another daemon holds this home: not starting a second")
 	}
+	if home := paths.DBFile(cfg.Home); filepath.Clean(cfg.DBFile) == home { // a -db elsewhere is not the file the home's readers open
+		d.lent = store.Lend(home, db)
+	}
 	// Before the socket takes a call: without the founder key it would serve no founder call.
 	if cfg.EnsureFounderKey != nil && !cfg.EnsureFounderKey() {
 		cfg.Log("founder key: could not make one - the socket will serve no founder call")
@@ -292,6 +297,9 @@ func Start(cfg Config) (*Daemon, error) {
 	if cfg.SocketFile != "" {
 		ln, err := listenUnix(cfg.SocketFile)
 		if err != nil {
+			if d.lent != nil {
+				d.lent()
+			}
 			db.Close()
 			if d.single != nil {
 				d.single.Release()

@@ -23,3 +23,21 @@ func TestALentHandleIsTheSharedOneUntilTakenBack(t *testing.T) {
 	}
 	ForgetShared(path)
 }
+
+func TestTakingALentHandleBackPutsBackTheOneItStoodIn(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "db.sqlite")
+	before, err := Shared(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ForgetShared(path)
+	d, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	Lend(path, d)()
+	if got, _ := Shared(path); got != before {
+		t.Fatal("the handle the lent one stood in for is gone")
+	}
+}

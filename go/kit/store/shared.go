@@ -37,16 +37,22 @@ func SharedIfThere(path string) (*sql.DB, error) {
 	return Shared(path)
 }
 
-// Lend makes d, a handle the caller opened and closes, the shared one for path, so code given only the home uses the caller's pool and
-// not a second one on the same file. The returned func takes it back, before the caller closes d.
+// Lend makes d, a handle the caller opened and closes, the shared one for path, so code given only the home uses the caller's pool.
+// The returned func, called before the caller closes d, puts back the handle d stood in for, if any.
 func Lend(path string, d *sql.DB) (takeBack func()) {
 	sharedMu.Lock()
 	defer sharedMu.Unlock()
+	was := shared[path]
 	shared[path] = d
 	return func() {
 		sharedMu.Lock()
 		defer sharedMu.Unlock()
-		if shared[path] == d {
+		if shared[path] != d {
+			return
+		}
+		if was != nil {
+			shared[path] = was
+		} else {
 			delete(shared, path)
 		}
 	}
