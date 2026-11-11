@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/taskboard/taskwrites"
@@ -24,8 +25,12 @@ func (a agentAuth) FounderKeyOK(string) bool { return false }
 // callAs serves one connection as agent over the task methods with the rig's Env as the teller, and returns the reply to call.
 func (r *rig) callAs(agent, call string) map[string]any {
 	r.t.Helper()
+	if agent != "" {
+		agent = r.k(agent)
+	}
 	srv := rpc.NewServer(agentAuth{agent}, "x", store.LatestVersion(), "local", func(string, ...any) {})
 	srv.DB = r.DB
+	srv.Who = func(w string) string { return paths.WhoKey(r.home, w) }
 	taskwrites.Register(srv, r.home, r.Env, nil)
 	cl, sv := net.Pipe()
 	done := make(chan struct{})
@@ -43,7 +48,7 @@ func (r *rig) callAs(agent, call string) map[string]any {
 			r.t.Fatal(err)
 		}
 		out = nil
-		json.Unmarshal(b, &out)
+		json.Unmarshal([]byte(r.named(string(b))), &out)
 	}
 	return out
 }

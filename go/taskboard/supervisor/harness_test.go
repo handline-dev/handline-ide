@@ -34,7 +34,7 @@ type fakeTerm struct {
 }
 
 // ids is text with each message name read back as #<id>.
-func (r *rig) ids(text string) string { return msgtest.IDs(r.DB, text) }
+func (r *rig) ids(text string) string { return msgtest.IDs(r.DB, r.named(text)) }
 
 func newFakeTerm() *fakeTerm { return &fakeTerm{typeable: true, boxKnown: true} }
 
