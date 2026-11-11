@@ -32,7 +32,7 @@
      "result": {
       "messages": {
        "$contains": {
-        "to": "human",
+        "to": "p1",
         "id": {
          "$type": "integer",
          "$save": "ask"
@@ -94,7 +94,7 @@
      "result": {
       "messages": {
        "$contains": {
-        "to": "human",
+        "to": "p1",
         "id": {
          "$type": "integer",
          "$save": "ask"
@@ -178,7 +178,7 @@
      "result": {
       "messages": {
        "$contains": {
-        "to": "human",
+        "to": "p1",
         "id": {
          "$type": "integer",
          "$save": "ask"
@@ -242,7 +242,7 @@
      "result": {
       "messages": {
        "$contains": {
-        "to": "human",
+        "to": "p1",
         "id": {
          "$type": "integer",
          "$save": "ask"

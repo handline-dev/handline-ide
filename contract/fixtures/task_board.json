@@ -50,13 +50,13 @@
        "$contains": {
         "task": {
          "id": "{{made}}",
-         "to": "human"
+         "to": "p1"
         },
-        "holder": "human",
+        "holder": "p1",
         "now": {
          "kind": "held",
          "agents": [
-          "human"
+          "p1"
          ],
          "tasks": []
         }
@@ -118,7 +118,7 @@
       "mine": {
        "$each": {
         "task": {
-         "to": "human"
+         "to": "p1"
         }
        }
       }

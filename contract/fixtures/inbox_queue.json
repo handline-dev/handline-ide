@@ -27,7 +27,7 @@
       "params": {}
      },
      "result": {
-      "whose": "human",
+      "whose": "p1",
       "newest": {
        "$type": "integer"
       },
@@ -71,7 +71,7 @@
       }
      },
      "result": {
-      "whose": "human",
+      "whose": "p1",
       "dealt": {
        "$type": "array"
       }
