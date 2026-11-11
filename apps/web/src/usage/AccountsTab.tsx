@@ -1,6 +1,6 @@
 // Settings > Accounts: one card per account, its row Usage's, opened in place; several stay open and which is kept.
 import { AccountFacts } from '#src/usage/AccountFacts.tsx';
-import { Remove, Rename, Row, Stepper, SubscriptionEnd } from '#src/usage/AccountParts.tsx';
+import { removeAccount, Rename, Row, Stepper, SubscriptionEnd } from '#src/usage/AccountParts.tsx';
 import { AccountEmail } from '#src/usage/AccountEmail.tsx';
 import type { Account } from '@handline/client';
 import { loginRunning } from '@handline/app-core';
@@ -149,12 +149,9 @@ function Card({
   );
 }
 
-/** Pause or Resume with what it does, and Remove at the right, which asks for the name typed in a red band in its place. */
+/** Pause or Resume with what it does, and Remove at the right, which asks for the name typed in a modal. */
 function Bottom({ account: a }: { account: Account }) {
   const save = useWrite('account.set', a.name);
-  const plan = useWrite('account.remove', a.name);
-  const [removing, setRemoving] = useState(false);
-  if (removing) return <Remove account={a} plan={plan} done={() => setRemoving(false)} />;
   return (
     <div className="flex flex-col gap-2 border-t border-border pt-4">
       <div className="flex flex-wrap items-center gap-3">
@@ -169,14 +166,7 @@ function Bottom({ account: a }: { account: Account }) {
               : 'No new agents go here.'
             : 'Stops new agents here. Running ones move at their next turn.'}
         </span>
-        <Button
-          variant="ghost"
-          className="text-danger"
-          onClick={() => {
-            setRemoving(true);
-            plan.mutate({ account: a.name, dry_run: true });
-          }}
-        >
+        <Button variant="ghost" className="text-danger" onClick={() => void removeAccount(a)}>
           <Trash2 size={13} />
           Remove
         </Button>
