@@ -593,7 +593,7 @@
           "type": "null"
          }
         ],
-        "description": "The comment (Memo.id); null for a turn the daemon put on without one (a handoff to human), whose text is the turn's ask."
+        "description": "The comment (Memo.id); null for a turn put on with no comment (Turn.memo), whose text is the turn's ask."
        },
        "kind": {
         "type": "string",

@@ -150,7 +150,7 @@ export type TranscriptItem = {
   /** For kind task_comment: a task comment the founder is part of, as a card in an agent's chat. turn: the founder's turn put on the task, in the chat of the agent below it; answer: the founder's comment that gave the turn back, in the chat of the agent it went back to; note: an `@human` comment (news, no turn), in its author's chat. The card opens the task; the answer is written there. */
   task_comment?: {
     task: number;
-    /** The comment (Memo.id); null for a turn the daemon put on without one (a handoff to human), whose text is the turn's ask. */
+    /** The comment (Memo.id); null for a turn put on with no comment (Turn.memo), whose text is the turn's ask. */
     memo: number | null;
     kind: "turn" | "answer" | "note";
     /** Who wrote it: the agent, or human for an answer. */
