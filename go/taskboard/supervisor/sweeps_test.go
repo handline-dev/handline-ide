@@ -54,7 +54,7 @@ func TestSweepHoldsRecordsWhyEachTaskWaitsAndWarnsOnceWhenNothingIsInTheWay(t *t
 	}
 	var body string
 	r.DB.QueryRow(r.sql("SELECT body FROM requests WHERE target = 'carol' AND kind = 'say' AND notice >= 1")).Scan(&body)
-	if !strings.HasPrefix(body, "T1 has waited 5 min for bob, which looks able to take it (nothing is in the way") {
+	if !strings.HasPrefix(r.named(body), "T1 has waited 5 min for bob, which looks able to take it (nothing is in the way") {
 		t.Fatalf("%q", body)
 	}
 	// a finished task's line goes

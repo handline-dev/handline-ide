@@ -246,7 +246,7 @@ func TestFounderTasksGoBackWithNoTeamEdgeFromTheDaemon(t *testing.T) {
 	opened := r.newTask(r.k("human"), "eng.alice", "opened by eng.alice")
 	asked := r.newTask(r.k("human"), r.k(("human")), "the founder's own")
 	gone := r.newTask(r.k("human"), r.k(("carol")), "opened by a retired agent")
-	_, err := db.AddEvent(r.DB, "ops.bob", "task_handoff", db.KV{K: "task_id", V: handed}, db.KV{K: "from", V: "ops.bob"}, db.KV{K: "to", V: r.k(("human"))},
+	_, err := db.AddEvent(r.DB, r.k("ops.bob"), "task_handoff", db.KV{K: "task_id", V: handed}, db.KV{K: "from", V: r.k("ops.bob")}, db.KV{K: "to", V: r.k(("human"))},
 		db.KV{K: "note", V: "which one?"})
 	r.must(err)
 
@@ -254,7 +254,7 @@ func TestFounderTasksGoBackWithNoTeamEdgeFromTheDaemon(t *testing.T) {
 	if err != nil || r.named(fmt.Sprint(said)) != fmt.Sprintf("[T%d goes back to ops.bob, the founder's turn on it T%d goes back to eng.alice, the founder's turn on it]", handed, opened) {
 		t.Fatalf("%q %v", said, err)
 	}
-	for tid, want := range map[int64]string{handed: "ops.bob", opened: "eng.alice", asked: r.k(("human")), gone: r.k(("human"))} {
+	for tid, want := range map[int64]string{handed: r.k("ops.bob"), opened: r.k("eng.alice"), asked: r.k(("human")), gone: r.k(("human"))} {
 		if task, _ := db.GetTask(r.DB, tid); task == nil || task.Owner != want || task.Acting != r.k(("human")) {
 			t.Errorf("T%d: owner %+v, want %s under the founder's turn", tid, task, want)
 		}

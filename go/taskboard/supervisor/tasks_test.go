@@ -96,7 +96,7 @@ func TestAdvanceRecordsARefusedDeliveryOnceAndTellsTheManager(t *testing.T) {
 	r := newRig(t)
 	tid := r.newUnroutableTask()
 	other := r.newTask("eng.bob", "eng", "fine")
-	changed, refused, err := r.AdvanceCurrentTask(r.DB, "eng.bob")
+	changed, refused, err := r.AdvanceCurrentTask(r.DB, r.k("eng.bob"))
 	r.must(err)
 	if !changed {
 		t.Fatal("the second task was not delivered")
@@ -104,12 +104,12 @@ func TestAdvanceRecordsARefusedDeliveryOnceAndTellsTheManager(t *testing.T) {
 	if refused[tid] == "" {
 		t.Fatalf("%v", refused)
 	}
-	if cur, _, _ := db.CurrentTask(r.DB, "eng.bob"); cur != other {
+	if cur, _, _ := db.CurrentTask(r.DB, r.k("eng.bob")); cur != other {
 		t.Fatal(cur)
 	}
 	var n int
 	r.DB.QueryRow(r.sql("SELECT COUNT(*) FROM events WHERE kind = 'task_deliver_refused'")).Scan(&n)
-	r.AdvanceCurrentTask(r.DB, "eng.bob")
+	r.AdvanceCurrentTask(r.DB, r.k("eng.bob"))
 	var m int
 	r.DB.QueryRow(r.sql("SELECT COUNT(*) FROM events WHERE kind = 'task_deliver_refused'")).Scan(&m)
 	if n != 1 || m != 1 {
@@ -361,7 +361,7 @@ func TestSweepTaskQueueDeliversAWaitingTaskToAFreeOwnerAndBacksOffWhenNothingLan
 	r2 := newRig(t)
 	r2.newUnroutableTask()
 	r2.must(r2.SweepTaskQueue(r2.clock))
-	if n, _ := db.Cursor(r2.DB, "taskqueue:eng.bob"); n != r2.clock {
+	if n, _ := db.Cursor(r2.DB, "taskqueue:"+r2.k("eng.bob")); n != r2.clock {
 		t.Fatalf("retry clock %d", n)
 	}
 	r2.logs = nil
