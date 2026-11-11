@@ -48,10 +48,10 @@ func TestOnlyALaterMessageThatArrivesToTheSameAgentClearsALostOne(t *testing.T) 
 		later string
 		stays bool
 	}{
-		"not typed":         {later("human", "bob", "NULL"), true},
-		"to another agent":  {later("human", "carol", "9"), true},
+		"not typed":         {later("p1", "bob", "NULL"), true},
+		"to another agent":  {later("p1", "carol", "9"), true},
 		"from someone else": {later("alice", "bob", "9"), true},
-		"typed to bob":      {later("human", "bob", "9"), false},
+		"typed to bob":      {later("p1", "bob", "9"), false},
 	} {
 		e := testEnv(t)
 		runAll(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, ref, typed_at, edge_ok) VALUES(5, 1, 'p1', 'bob', 'one', 'queued', 'say', 'abc', 2, 1)", c.later)

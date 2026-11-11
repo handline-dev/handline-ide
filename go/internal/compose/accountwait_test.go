@@ -37,12 +37,12 @@ func TestAWaitOnAClosedAgentIsFiledUnderCapWhenItsAccountIsFullAndWallAtItsLimit
 	dbpkg.SetAccount(d, "alice", "a1", "")
 	now := time.Now().Unix()
 	dbpkg.BlockOpen(d, "alice", "dialog", "a prompt", "", now, now, "", "") // the task waits on alice itself
-	tid, err := dbpkg.NewTask(d, "fix it", "alice", "human", 0, dbpkg.DefaultPriority, "", 0, "")
+	tid, err := dbpkg.NewTask(d, "fix it", "alice", "p1", 0, dbpkg.DefaultPriority, "", 0, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	dbpkg.SetTaskQueued(d, tid, "human")
-	rid, _ := dbpkg.AddRequest(d, dbpkg.NewRequest{Requester: "human", Target: "alice", Body: "fix it", Kind: "task"})
+	dbpkg.SetTaskQueued(d, tid, "p1")
+	rid, _ := dbpkg.AddRequest(d, dbpkg.NewRequest{Requester: "p1", Target: "alice", Body: "fix it", Kind: "task"})
 	dbpkg.LinkRequest(d, tid, rid)
 	check := func(wait, on string) {
 		t.Helper()

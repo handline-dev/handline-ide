@@ -1109,7 +1109,7 @@ func TestTheFoundersOwnAddIsAppliedAtOnce(t *testing.T) {
 	if !slices.Contains(paths.ListAgents(r.home), "carol") {
 		t.Fatal("registered")
 	}
-	if v := r.e.ProposalView(id); v == nil || v["state"] != "approved" || v["requested_by"] != "human" || v["note"] != nil {
+	if v := r.e.ProposalView(id); v == nil || v["state"] != "approved" || v["requested_by"] != "p1" || v["note"] != nil {
 		t.Fatalf("proposal.list shows it, with no note: %v", v)
 	}
 }
@@ -1255,7 +1255,7 @@ func TestAFoundersProposalLeftWaitingIsListedAndApprovable(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
 	p, id := r.propose("aaaa0009", "kind", "retire", "agent", "bob")
-	p.set("requested_by", "human")
+	p.set("requested_by", "p1")
 	if err := r.e.save(p); err != nil {
 		t.Fatal(err)
 	}

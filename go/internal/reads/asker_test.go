@@ -18,7 +18,7 @@ func TestATaskAnswersToTheFounderWhenARequestOfItsCameFromThem(t *testing.T) {
 	e := testEnv(t)
 	addAgent(t, e, "bob", "")
 	bob := teamtest.Key(t, e.Home, "bob")
-	for id, requester := range map[int64]string{1: "human", 2: "amy", 3: "amy", 4: "human"} {
+	for id, requester := range map[int64]string{1: "p1", 2: "amy", 3: "amy", 4: "p1"} {
 		run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(?, ?, ?, '"+bob+"', 'b', 'queued', 'task', 1)", id, id, requester)
 	}
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'a', '"+bob+"', 'amy', 1), (2, 'b', '"+bob+"', 'amy', 1), (3, 'c', '"+bob+"', 'cy', 1), (4, 'd', '"+bob+"', 'cy', 1)")
@@ -27,7 +27,7 @@ func TestATaskAnswersToTheFounderWhenARequestOfItsCameFromThem(t *testing.T) {
 	// 5 has a founder's request too, but its reporter comes first
 	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(9, 9, 'amy', '"+bob+"', 'b', 'queued', 'task', 1)")
 	run(t, e, "INSERT INTO task_requests(task_id, request_id) VALUES(1, 9), (1, 1), (2, 2), (3, 3), (5, 4)")
-	want := map[int64]string{1: "human", 2: "amy", 3: "cy", 4: "cy", 5: "dee"}
+	want := map[int64]string{1: "p1", 2: "amy", 3: "cy", 4: "cy", 5: "dee"}
 	for id, who := range want {
 		got, err := e.taskGet(nil, map[string]any{"task": json.Number(strconv.FormatInt(id, 10))})
 		if err != nil {
@@ -91,7 +91,7 @@ func TestATaskGetListsEachAssigneeAndOwnerChange(t *testing.T) {
 	addAgent(t, e, "bob", "")
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'a', 'bob', 'p1', 1)")
 	run(t, e, `INSERT INTO events(ts, agent, kind, payload) VALUES
-		(10, 'carol', 'edit_task', '{"task_id": 1, "owner": {"old": "al", "new": "bob"}, "reporter": {"old": "human", "new": "carol"}}'),
+		(10, 'carol', 'edit_task', '{"task_id": 1, "owner": {"old": "al", "new": "bob"}, "reporter": {"old": "p1", "new": "carol"}}'),
 		(11, 'p1', 'edit_task', '{"task_id": 1, "title": {"old": "x", "new": "a"}}'),
 		(12, 'p1', 'edit_task', '{"task_id": 2, "owner": {"old": "bob", "new": "al"}}')`)
 	got, err := e.taskGet(nil, map[string]any{"task": json.Number("1")})
@@ -104,7 +104,7 @@ func TestATaskGetListsEachAssigneeAndOwnerChange(t *testing.T) {
 	}
 	a, o := as[0].(map[string]any), as[1].(map[string]any)
 	if a["what"] != "assignee" || a["from"] != "al" || a["to"] != "bob" || a["by"] != "carol" ||
-		o["what"] != "owner" || o["from"] != "human" || o["to"] != "carol" {
+		o["what"] != "owner" || o["from"] != "p1" || o["to"] != "carol" {
 		t.Fatalf("%v", as)
 	}
 }
