@@ -12,7 +12,6 @@ import (
 
 func holdRig(t *testing.T) rig {
 	r := newRig(t)
-	r.agent(t)
 	r.e.Holds = &inputhold.Store{DB: r.e.DB, Changed: r.e.HoldersChanged, Now: r.e.Now}
 	return r
 }
@@ -32,7 +31,7 @@ func TestKeystrokesAndAResizeAreTheInputHoldersAloneAndAReleaseGivesTheSizeBack(
 	if _, err := r.e.resize(pat, size); gate(t, err) != "input_holder" {
 		t.Fatalf("nobody holds the input and pat has not attached the terminal, got %v", err)
 	}
-	if won, err := r.e.Holds.Take("ann", "person", "pat"); !won || err != nil {
+	if won, err := r.e.Holds.Take(r.ann, "person", "pat"); !won || err != nil {
 		t.Fatalf("take %v %v", won, err)
 	}
 	if _, err := r.e.input(sam, b64("hi")); gate(t, err) != "input_holder" {
@@ -50,7 +49,7 @@ func TestKeystrokesAndAResizeAreTheInputHoldersAloneAndAReleaseGivesTheSizeBack(
 	if cols, rows, _ := r.h.Size("%1"); cols != 100 || rows != 30 {
 		t.Fatalf("size %dx%d", cols, rows)
 	}
-	if err := r.e.Holds.Release("ann"); err != nil {
+	if err := r.e.Holds.Release(r.ann); err != nil {
 		t.Fatal(err)
 	}
 	if cols, rows, _ := r.h.Size("%1"); cols != 80 || rows != 24 {
@@ -61,7 +60,7 @@ func TestKeystrokesAndAResizeAreTheInputHoldersAloneAndAReleaseGivesTheSizeBack(
 func TestInputRefusesWhatIsNotBytesOrCannotBeSentAndRecordsItsByteCountNeverTheBytes(t *testing.T) {
 	r := holdRig(t)
 	pat := person("pat")
-	r.e.Holds.Take("ann", "person", "pat")
+	r.e.Holds.Take(r.ann, "person", "pat")
 	for _, p := range []map[string]any{
 		{"terminal": "%1", "data": "***"},
 		{"terminal": "%1", "data": ""},
@@ -79,7 +78,7 @@ func TestInputRefusesWhatIsNotBytesOrCannotBeSentAndRecordsItsByteCountNeverTheB
 		t.Fatal(err)
 	}
 	var payload string
-	if err := r.e.DB.QueryRow("SELECT payload FROM events WHERE agent = 'ann' AND kind = 'type'").Scan(&payload); err != nil {
+	if err := r.e.DB.QueryRow("SELECT payload FROM events WHERE agent = ? AND kind = 'type'", r.ann).Scan(&payload); err != nil {
 		t.Fatal(err)
 	}
 	if want := `"bytes": 6`; !contains(payload, want) || contains(payload, "secret") {
@@ -92,12 +91,12 @@ func TestAHoldThatWentIdleIsLostWhereverItIsFound(t *testing.T) {
 	now := time.Unix(1_000_000, 0)
 	r.e.Holds.Now = func() time.Time { return now }
 	r.e.Holds.IdleS = func() int64 { return 60 }
-	r.e.Holds.Take("ann", "person", "pat")
+	r.e.Holds.Take(r.ann, "person", "pat")
 	now = now.Add(61 * time.Second)
 	if _, err := r.e.input(person("pat"), b64("late")); gate(t, err) != "input_holder" {
 		t.Fatalf("an idle hold is the daemon's again, got %v", err)
 	}
-	if h, _ := r.e.holders("ann"); h[0]["kind"] != "daemon" {
+	if h, _ := r.e.holders(r.ann); h[0]["kind"] != "daemon" {
 		t.Fatalf("holders %v", h)
 	}
 }
@@ -164,7 +163,7 @@ func TestWithNobodyHoldingTheInputAnAttachedViewerResizesAndTheLastResizeWins(t 
 	}
 
 	// Once someone holds the input, only they resize, and their leaving gives back the size the viewers left.
-	if won, err := r.e.Holds.Take("ann", "person", "pat"); !won || err != nil {
+	if won, err := r.e.Holds.Take(r.ann, "person", "pat"); !won || err != nil {
 		t.Fatalf("take %v %v", won, err)
 	}
 	if err := sized(sam, 70, 20); gate(t, err) != "input_holder" {
@@ -173,7 +172,7 @@ func TestWithNobodyHoldingTheInputAnAttachedViewerResizesAndTheLastResizeWins(t 
 	if err := sized(pat, 120, 40); err != nil {
 		t.Fatal(err)
 	}
-	if err := r.e.Holds.Release("ann"); err != nil {
+	if err := r.e.Holds.Release(r.ann); err != nil {
 		t.Fatal(err)
 	}
 	if cols, rows, _ := r.h.Size("%1"); cols != 90 || rows != 25 {
@@ -218,7 +217,7 @@ func TestNobodyMayResizeUnder80By24AndTheLastDetachGivesTheFirstSizeBack(t *test
 	if err := sized(sam, 100, 30); err != nil {
 		t.Fatal(err)
 	}
-	if won, err := r.e.Holds.Take("ann", "person", "sam"); !won || err != nil {
+	if won, err := r.e.Holds.Take(r.ann, "person", "sam"); !won || err != nil {
 		t.Fatalf("take %v %v", won, err)
 	}
 	if err := sized(sam, 79, 30); gate(t, err) != "input_holder" {
@@ -233,7 +232,7 @@ func TestNobodyMayResizeUnder80By24AndTheLastDetachGivesTheFirstSizeBack(t *test
 	if size() != [2]int{120, 40} {
 		t.Fatalf("held, the size stays: %v", size())
 	}
-	if err := r.e.Holds.Release("ann"); err != nil {
+	if err := r.e.Holds.Release(r.ann); err != nil {
 		t.Fatal(err)
 	}
 	if size() != [2]int{80, 24} {

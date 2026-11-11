@@ -348,8 +348,9 @@ func TestABytesAttachIsSentOutputOnlyFromTheScreensPlaceOnAndAFloodIsAResync(t *
 // ---- the methods
 
 type rig struct {
-	e *Env
-	h *fakeHost
+	e   *Env
+	h   *fakeHost
+	ann string // the key of the agent ann, whose terminal is %1
 }
 
 func newRig(t *testing.T) rig {
@@ -365,15 +366,12 @@ func newRig(t *testing.T) rig {
 	h := &fakeHost{rows: []string{"$ "}, cols: 80, nrows: 24}
 	e := New(db, home, func() term.Backend { return h })
 	e.Now = func() time.Time { return time.Unix(1_000_000, 0) }
-	if _, err := db.Exec("INSERT INTO agent_state(agent, state, updated, terminal) VALUES('ann', 'IDLE', 0, '%1')"); err != nil {
+	teamtest.Seed(t, home, "ann")
+	ann := teamtest.Key(t, home, "ann")
+	if _, err := db.Exec("INSERT INTO agent_state(agent, state, updated, terminal) VALUES(?, 'IDLE', 0, '%1')", ann); err != nil {
 		t.Fatal(err)
 	}
-	return rig{e, h}
-}
-
-func (r rig) agent(t *testing.T) {
-	t.Helper()
-	teamtest.Seed(t, r.e.Home, "ann")
+	return rig{e, h, ann}
 }
 
 func person(name string) *rpc.Conn {
@@ -396,7 +394,6 @@ func gate(t *testing.T, err error) string {
 
 func TestAttachingTwiceToOneTerminalAndFormatKeepsTheSecond(t *testing.T) {
 	r := newRig(t)
-	r.agent(t)
 	first, second := NewClient((&inbox{}).send, func() {}), NewClient((&inbox{}).send, func() {})
 	c := person("pat")
 	ch := r.e.Hub.Attach("%1", first, "text")

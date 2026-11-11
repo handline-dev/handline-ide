@@ -54,9 +54,8 @@ func (h *shellHost) RespawnTerminal(string) (bool, string)                      
 
 func shellRig(t *testing.T) (rig, *shellHost, string) {
 	r := newRig(t)
-	r.agent(t)
 	wt := t.TempDir()
-	if _, err := r.e.DB.Exec("UPDATE agent_state SET worktree = ? WHERE agent = 'ann'", wt); err != nil {
+	if _, err := r.e.DB.Exec("UPDATE agent_state SET worktree = ? WHERE agent = ?", wt, r.ann); err != nil {
 		t.Fatal(err)
 	}
 	h := newShellHost(r.h)
@@ -66,11 +65,11 @@ func shellRig(t *testing.T) (rig, *shellHost, string) {
 
 func TestShellOpenStartsAShellInTheWorktreeAndEachCallAnother(t *testing.T) {
 	r, h, wt := shellRig(t)
-	a, err := r.e.shellOpen(person("casey"), map[string]any{"agent": "ann"})
+	a, err := r.e.shellOpen(person("casey"), map[string]any{"agent": r.ann})
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, _ := r.e.shellOpen(person("casey"), map[string]any{"agent": "ann"})
+	b, _ := r.e.shellOpen(person("casey"), map[string]any{"agent": r.ann})
 	am, bm := a.(map[string]any), b.(map[string]any)
 	if am["terminal"] == bm["terminal"] || am["terminal"] == "%1" || am["cwd"] != wt || len(h.cwds) != 2 || h.cwds[0] != wt {
 		t.Fatalf("two shells, neither the agent's own terminal, in the worktree: %v %v %v", am, bm, h.cwds)
@@ -88,17 +87,17 @@ func TestShellOpenRefusals(t *testing.T) {
 	if _, err := r.e.shellOpen(person("casey"), map[string]any{"agent": "nobody.here"}); err == nil {
 		t.Fatal("an agent nobody has")
 	}
-	r.e.DB.Exec("UPDATE agent_state SET worktree = '/no/such/dir' WHERE agent = 'ann'")
-	if _, err := r.e.shellOpen(person("casey"), map[string]any{"agent": "ann"}); err == nil || len(h.cwds) != 0 {
+	r.e.DB.Exec("UPDATE agent_state SET worktree = '/no/such/dir' WHERE agent = ?", r.ann)
+	if _, err := r.e.shellOpen(person("casey"), map[string]any{"agent": r.ann}); err == nil || len(h.cwds) != 0 {
 		t.Fatalf("an agent whose worktree is gone: %v", err)
 	}
-	r.e.DB.Exec("UPDATE agent_state SET worktree = ? WHERE agent = 'ann'", t.TempDir())
+	r.e.DB.Exec("UPDATE agent_state SET worktree = ? WHERE agent = ?", t.TempDir(), r.ann)
 	for i := 0; i < MaxShells; i++ {
-		if _, err := r.e.shellOpen(person("casey"), map[string]any{"agent": "ann"}); err != nil {
+		if _, err := r.e.shellOpen(person("casey"), map[string]any{"agent": r.ann}); err != nil {
 			t.Fatal(i, err)
 		}
 	}
-	if _, err := r.e.shellOpen(person("casey"), map[string]any{"agent": "ann"}); err == nil || !strings.Contains(err.Error(), "close one") {
+	if _, err := r.e.shellOpen(person("casey"), map[string]any{"agent": r.ann}); err == nil || !strings.Contains(err.Error(), "close one") {
 		t.Fatalf("one over the most: %v", err)
 	}
 }
@@ -106,7 +105,7 @@ func TestShellOpenRefusals(t *testing.T) {
 func TestAShellTakesKeystrokesAndResizesWithNoHolderButTheAgentsTerminalStillDoesNot(t *testing.T) {
 	r, h, _ := shellRig(t)
 	r.e.Holds = &inputhold.Store{DB: r.e.DB, Changed: r.e.HoldersChanged, Now: r.e.Now}
-	got, _ := r.e.shellOpen(person("casey"), map[string]any{"agent": "ann"})
+	got, _ := r.e.shellOpen(person("casey"), map[string]any{"agent": r.ann})
 	sh := got.(map[string]any)["terminal"].(string)
 	data := base64.StdEncoding.EncodeToString([]byte("ls\r"))
 	if _, err := r.e.input(person("casey"), map[string]any{"terminal": sh, "data": data}); err != nil {
@@ -126,7 +125,7 @@ func TestAShellTakesKeystrokesAndResizesWithNoHolderButTheAgentsTerminalStillDoe
 
 func TestShellCloseClosesAShellAndNothingElse(t *testing.T) {
 	r, h, _ := shellRig(t)
-	got, _ := r.e.shellOpen(person("casey"), map[string]any{"agent": "ann"})
+	got, _ := r.e.shellOpen(person("casey"), map[string]any{"agent": r.ann})
 	sh := got.(map[string]any)["terminal"].(string)
 	if _, err := r.e.shellClose(person("casey"), map[string]any{"terminal": "%1"}); err == nil || len(h.closed) != 0 {
 		t.Fatalf("the agent's own terminal is not a shell: %v %v", err, h.closed)
@@ -150,14 +149,14 @@ func (h *shellHost) RunOutput(string, int) []string    { return nil }
 
 func TestShellOpenWithACommandRunsItAndRecordsTheRunOfItsBlock(t *testing.T) {
 	r, h, wt := shellRig(t)
-	got, err := r.e.shellOpen(person("casey"), map[string]any{"agent": "ann", "command": "go test ./...", "block": "12:1"})
+	got, err := r.e.shellOpen(person("casey"), map[string]any{"agent": r.ann, "command": "go test ./...", "block": "12:1"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	m := got.(map[string]any)
 	runs, _ := cmdruns.Of(r.e.DB, 12)
 	if len(runs) != 1 || runs[0].Block != "12:1" || runs[0].Terminal != m["terminal"] || runs[0].State != "running" ||
-		runs[0].Agent != "ann" || runs[0].Command != "go test ./..." || // the agent told how it ends, and what it ran
+		runs[0].Agent != r.ann || runs[0].Command != "go test ./..." || // the agent told how it ends, and what it ran
 		len(h.runs) != 1 || h.runs[0] != runs[0].Tag()+" go test ./..." || m["cwd"] != wt {
 		t.Fatalf("%v %+v %q", m, runs, h.runs)
 	}
@@ -167,23 +166,25 @@ func TestShellOpenWithACommandRunsItAndRecordsTheRunOfItsBlock(t *testing.T) {
 // and opens no window.
 func TestShellOpenRunsABlockOfTheAgentsOwnReplyItem(t *testing.T) {
 	r, h, _ := shellRig(t)
-	for _, row := range []string{
-		`INSERT INTO transcript_events(agent, seq, session, turn, at, kind, item, body) VALUES('ann', 1, 's', NULL, 100, 'text', 1000, '{"text":"run it"}')`,
-		`INSERT INTO transcript_events(agent, seq, session, turn, at, kind, item, body) VALUES('bob', 1, 's', NULL, 100, 'text', 2000, '{"text":"for bob"}')`,
-		`INSERT INTO transcript_events(agent, seq, session, turn, at, kind, item, body) VALUES('ann', 2, 's', NULL, 100, 'tool_use', 3000, '{}')`,
+	for _, row := range []struct {
+		agent, values string
+	}{
+		{r.ann, `1, 's', NULL, 100, 'text', 1000, '{"text":"run it"}'`},
+		{"bob", `1, 's', NULL, 100, 'text', 2000, '{"text":"for bob"}'`},
+		{r.ann, `2, 's', NULL, 100, 'tool_use', 3000, '{}'`},
 	} {
-		if _, err := r.e.DB.Exec(row); err != nil {
+		if _, err := r.e.DB.Exec(`INSERT INTO transcript_events(agent, seq, session, turn, at, kind, item, body) VALUES(?, `+row.values+`)`, row.agent); err != nil {
 			t.Fatal(err)
 		}
 	}
 	for _, block := range []string{"r2000:0", "r3000:0", "r9:0"} {
 		var re *rpc.Error
-		_, err := r.e.shellOpen(person("casey"), map[string]any{"agent": "ann", "command": "true", "block": block})
+		_, err := r.e.shellOpen(person("casey"), map[string]any{"agent": r.ann, "command": "true", "block": block})
 		if !errors.As(err, &re) || re.Data["what"] != "item" || len(h.cwds) != 0 {
 			t.Fatalf("%s is not one of ann's replies: %v", block, err)
 		}
 	}
-	got, err := r.e.shellOpen(person("casey"), map[string]any{"agent": "ann", "command": "make", "block": "r1000:1"})
+	got, err := r.e.shellOpen(person("casey"), map[string]any{"agent": r.ann, "command": "make", "block": "r1000:1"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -210,7 +211,7 @@ func TestShellOpenCommandAndBlockGoTogetherAndAreChecked(t *testing.T) {
 		{map[string]any{"command": "true", "block": "first"}, "block"},
 		{map[string]any{"command": "true", "block": 7}, "block"},
 	} {
-		c.p["agent"] = "ann"
+		c.p["agent"] = r.ann
 		var re *rpc.Error
 		if _, err := r.e.shellOpen(person("casey"), c.p); !errors.As(err, &re) || re.Data["field"] != c.field || len(h.cwds) != 0 {
 			t.Fatalf("%v: %v", c.p, err)
@@ -225,7 +226,7 @@ func TestAFinishedRunsWindowIsNotAShellInUseAndARerunClosesItsOld(t *testing.T) 
 	r, h, _ := shellRig(t)
 	h.ended = map[string]term.PaneRun{}
 	open := func(block string) string {
-		got, err := r.e.shellOpen(person("casey"), map[string]any{"agent": "ann", "command": "true", "block": block})
+		got, err := r.e.shellOpen(person("casey"), map[string]any{"agent": r.ann, "command": "true", "block": block})
 		if err != nil {
 			t.Fatal(block, err)
 		}
@@ -239,7 +240,7 @@ func TestAFinishedRunsWindowIsNotAShellInUseAndARerunClosesItsOld(t *testing.T) 
 		t.Fatalf("a rerun of a block closes the window it had: %v", h.closed)
 	}
 	// A reply's block the same: its runs are read under the reply, not message 5000's.
-	if _, err := r.e.DB.Exec(`INSERT INTO transcript_events(agent, seq, session, turn, at, kind, item, body) VALUES('ann', 1, 's', NULL, 100, 'text', 5000, '{"text":"x"}')`); err != nil {
+	if _, err := r.e.DB.Exec(`INSERT INTO transcript_events(agent, seq, session, turn, at, kind, item, body) VALUES(?, 1, 's', NULL, 100, 'text', 5000, '{"text":"x"}')`, r.ann); err != nil {
 		t.Fatal(err)
 	}
 	reply := open("r5000:0")
@@ -247,7 +248,7 @@ func TestAFinishedRunsWindowIsNotAShellInUseAndARerunClosesItsOld(t *testing.T) 
 	if open("r5000:0"); len(h.closed) != 2 || h.closed[1] != reply {
 		t.Fatalf("a rerun of a reply's block closes the window it had: %v", h.closed)
 	}
-	shell, _ := r.e.shellOpen(person("casey"), map[string]any{"agent": "ann"})
+	shell, _ := r.e.shellOpen(person("casey"), map[string]any{"agent": r.ann})
 	plain := shell.(map[string]any)["terminal"].(string)
 	cmdruns.Start(r.e.DB, cmdruns.Block{Message: 7, N: 0}, plain, "", "", cmdruns.Now()) // after a tmux restart a run row names a handle a plain shell now has
 	open("7:0")
@@ -260,7 +261,7 @@ func TestAFinishedRunsWindowIsNotAShellInUseAndARerunClosesItsOld(t *testing.T) 
 		w := open("6:" + strconv.Itoa(i))
 		h.ended[w] = term.PaneRun{Dead: true}
 	}
-	if _, err := r.e.shellOpen(person("casey"), map[string]any{"agent": "ann"}); err != nil {
+	if _, err := r.e.shellOpen(person("casey"), map[string]any{"agent": r.ann}); err != nil {
 		t.Fatalf("kept windows of finished commands fill no cap: %v", err)
 	}
 }
