@@ -33,6 +33,8 @@ export type Account = {
   cap_effective: number;
   /** Whether a dead usage read may spend one real turn to fix itself (hl account recover). */
   recover: boolean;
+  /** The founder paused it: no new agent goes to it and the ones on it move at their next turn. Absent: not paused. */
+  paused?: boolean;
   /** The Anthropic account's email, kept from its last login so it shows after the login drops; null when none was kept. Given to the founder's app only, never to an agent. */
   email?: string | null;
   cycle: {
@@ -301,6 +303,8 @@ export interface AccountsMethods {
   label?: string;
   cap?: number;
   recover?: boolean;
+  /** Pause or resume the account. */
+  paused?: boolean;
   /** The one-month subscription switch (hl account cycle on|off); off keeps the end day. */
   cycle?: boolean;
   /** Last usable day YYYY-MM-DD; a date alone turns the cycle on, as `hl account cycle --end` does; null clears it. */

@@ -7,7 +7,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 |---|---|---|---|---|---|---|---|
 | `accounts.list` | agent |  | `roster?`, `usage?` | `{accounts} & ReadCursor` | `bad_request` |  | `accounts`, fed by accounts |
 | `status.pick` | agent |  | none | `{picked, candidates, agent_costs, agent_pace_usd}` |  |  | not cached |
-| `account.set` | founder | yes | `account`, `label?`, `cap?`, `recover?`, `cycle?`, `cycle_end?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | authored: save account |
+| `account.set` | founder | yes | `account`, `label?`, `cap?`, `recover?`, `paused?`, `cycle?`, `cycle_end?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | authored: save account |
 | `account.wake` | founder | yes | `account`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | state | authored: wake |
 | `account.read_usage` | founder | yes | `account`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | state | decided: read usage |
 | `account.add` | founder | yes | `account`, `vendor?`, `request_id` | `Accepted & {account}` | `refused`, `bad_request` | role, state | decided: add account |

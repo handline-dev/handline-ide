@@ -134,6 +134,10 @@
       "type": "boolean",
       "description": "Whether a dead usage read may spend one real turn to fix itself (hl account recover)."
      },
+     "paused": {
+      "type": "boolean",
+      "description": "The founder paused it: no new agent goes to it and the ones on it move at their next turn. Absent: not paused."
+     },
      "email": {
       "oneOf": [
        {
@@ -1300,6 +1304,14 @@
      "required": false,
      "schema": {
       "type": "boolean"
+     }
+    },
+    {
+     "name": "paused",
+     "required": false,
+     "schema": {
+      "type": "boolean",
+      "description": "Pause or resume the account."
      }
     },
     {
