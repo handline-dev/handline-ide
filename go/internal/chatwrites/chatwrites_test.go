@@ -13,6 +13,7 @@ import (
 
 	dbpkg "github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team/teamtest"
+	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/kit/storetest"
 	"github.com/handline/handline/go/protocol/rpc"
@@ -55,9 +56,13 @@ func newRig(t *testing.T) *rig {
 	return &rig{t, d, home, env}
 }
 
+// server serves as agent, named by its old name ("" for the founder), the way the daemon does: a who word becomes its key.
 func (r *rig) server(agent string) *rpc.Server {
+	if agent != "" {
+		agent = teamtest.Key(r.t, r.home, agent)
+	}
 	s := rpc.NewServer(auth{agent}, "x", store.LatestVersion(), "local", func(string, ...any) {})
-	s.DB = r.db
+	s.DB, s.Who = r.db, func(w string) string { return paths.WhoKey(r.home, w) }
 	Register(s, r.env, r.env)
 	return s
 }
@@ -119,9 +124,16 @@ func (r *rig) count(q string, args ...any) int {
 	return n
 }
 
+// k is the key of the agent or person named name by its old name (human is the owner, p1).
+func (r *rig) k(name string) string {
+	r.t.Helper()
+	return teamtest.Key(r.t, r.home, name)
+}
+
+// request adds an ask from requester to target, both named by their old names.
 func (r *rig) request(requester, target, body string) int64 {
 	r.t.Helper()
-	rid, err := dbpkg.AddRequest(r.db, dbpkg.NewRequest{Requester: requester, Target: target, Body: body, Kind: "ask"})
+	rid, err := dbpkg.AddRequest(r.db, dbpkg.NewRequest{Requester: r.k(requester), Target: r.k(target), Body: body, Kind: "ask"})
 	if err != nil {
 		r.t.Fatal(err)
 	}

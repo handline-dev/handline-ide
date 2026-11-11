@@ -23,8 +23,8 @@ type fakeSessions struct {
 	sent    []string
 }
 
-func (f *fakeSessions) Structured(a string) bool { return a != "alice" }
-func (f *fakeSessions) Live(a string) bool       { return a != "alice" }
+func (f *fakeSessions) Structured(a string) bool { return a != f.r.k("alice") }
+func (f *fakeSessions) Live(a string) bool       { return a != f.r.k("alice") }
 
 func (f *fakeSessions) ledger(a string) *delivery.DBLedger {
 	return &delivery.DBLedger{DB: f.r.db, Agent: a}
@@ -185,7 +185,7 @@ func TestARepeatAnswersTheReceiptAsItIsNowAndOtherParamsAreRefused(t *testing.T)
 	if receiptOf(t, first)["state"] != "sent" {
 		t.Fatal(first)
 	}
-	f.setState("bob", supervisor.RequestOp(int64(first["request"].(float64))), delivery.Confirmed)
+	f.setState(r.k("bob"), supervisor.RequestOp(int64(first["request"].(float64))), delivery.Confirmed)
 	again := r.result(r.one(s, "chat.send", send("repeat", "d1", "")))
 	if again["replayed"] != true || again["request"] != first["request"] || receiptOf(t, again)["state"] != "confirmed" || len(f.sent) != 1 {
 		t.Fatalf("the receipt now, nothing written again: %v %v", again, f.sent)
@@ -201,7 +201,7 @@ func TestAnUnknownOperationStaysUnknownAndANewIdIsANewOperation(t *testing.T) {
 	r, f, s := sessionRig(t)
 	first := r.result(r.one(s, "chat.send", send("in flight", "crash-1", "")))
 	rid := int64(first["request"].(float64))
-	f.setState("bob", supervisor.RequestOp(rid), delivery.Unknown)
+	f.setState(r.k("bob"), supervisor.RequestOp(rid), delivery.Unknown)
 	again := r.result(r.one(s, "chat.send", send("in flight", "crash-1", "")))
 	if again["replayed"] != true || receiptOf(t, again)["state"] != "unknown" || len(f.sent) != 1 {
 		t.Fatalf("unknown, and not written again: %v", again)
@@ -221,7 +221,7 @@ func TestCancelWithdrawsAQueuedMessageWithoutConfirmAndARetryOfItIsRefused(t *te
 	r.result(r.one(s, "chat.cancel", fmt.Sprintf(`{"request":%d,"request_id":"c1"}`, rid)))
 	var state string
 	r.db.QueryRow("SELECT state FROM requests WHERE id = ?", rid).Scan(&state)
-	if op, _ := f.ledger("bob").Get(supervisor.RequestOp(rid)); state != "withdrawn" || op.State != delivery.Withdrawn {
+	if op, _ := f.ledger(r.k("bob")).Get(supervisor.RequestOp(rid)); state != "withdrawn" || op.State != delivery.Withdrawn {
 		t.Fatalf("withdrawn in the row and in the session: %s %v", state, op)
 	}
 	r.refusedWith(r.one(s, "chat.send", send("take me back", "d1", "")), "state")
@@ -236,7 +236,7 @@ func TestCancelOfAWrittenMessageNeedsTheConfirm(t *testing.T) {
 	// a message the session wrote while the person was deciding is written too: the cancel asks for the confirm
 	f.busy = true
 	held := int64(r.result(r.one(s, "chat.send", send("race", "d2", "")))["request"].(float64))
-	f.setState("bob", supervisor.RequestOp(held), delivery.Sent)
+	f.setState(r.k("bob"), supervisor.RequestOp(held), delivery.Sent)
 	r.refusedWith(r.one(s, "chat.cancel", fmt.Sprintf(`{"request":%d,"request_id":"c2"}`, held)), "confirm")
 	if d, ty := r.delivered(held); !d || !ty {
 		t.Fatalf("marked as written: %v %v", d, ty)
