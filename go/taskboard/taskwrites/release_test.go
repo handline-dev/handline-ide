@@ -130,7 +130,7 @@ func TestTheOpenerIsToldWhenItsTaskIsReleased(t *testing.T) {
 	if r := call(t, mk("worker", &fakeTeller{}), `{"jsonrpc":"2.0","id":2,"method":"task.release","params":{"task":1,"reason":"stuck","request_id":"r1"}}`)[0]; r["error"] != nil {
 		t.Fatalf("%v", r)
 	}
-	if count(t, db, "SELECT COUNT(*) FROM requests WHERE requester = 'sys' AND target = 'gp' AND body = 'task T1 released by worker: stuck'") != 1 {
+	if toldTo(t, db, "task T1 released by worker: stuck") != "gp" {
 		t.Fatal("the opener is not told")
 	}
 }
