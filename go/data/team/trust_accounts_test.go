@@ -260,37 +260,39 @@ func TestUsersOfAndRemovePlan(t *testing.T) {
 	account(t, home, "alpha")
 	r := NewRoster(home)
 	register(t, r, "wa", "wb")
+	k := keyer(home)
+	wa, wb := k("wa"), k("wb")
 	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "db.sqlite"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer db.Close()
 	db.Exec("CREATE TABLE agent_state (agent TEXT PRIMARY KEY, account TEXT, account_source TEXT, closed_at INTEGER)")
-	db.Exec("INSERT INTO agent_state VALUES ('wa', 'alpha', 'recorded', NULL), ('wb', 'alpha', 'assumed', 99)")
+	db.Exec("INSERT INTO agent_state VALUES (?, 'alpha', 'recorded', NULL), (?, 'alpha', 'assumed', 99)", wa, wb)
 	users, err := a.UsersOf(db, "alpha")
-	if err != nil || !reflect.DeepEqual(users, []string{"wa"}) {
+	if err != nil || !reflect.DeepEqual(users, []string{wa}) {
 		t.Fatalf("%v %v", users, err)
 	}
-	if ok, why, _ := a.RemovePlan(db, "alpha"); ok || !strings.Contains(why, "session open for wa - close it on the screen (c) first") {
+	if ok, why, _ := a.RemovePlan(db, "alpha"); ok || !strings.Contains(why, "session open for "+wa+" - close it on the screen (c) first") {
 		t.Fatalf("%v %s", ok, why)
 	}
 	if ok, why, _ := a.RemovePlan(db, "nope"); ok || why != "no account 'nope'" {
 		t.Fatalf("%v %s", ok, why)
 	}
-	db.Exec("UPDATE agent_state SET closed_at = 5 WHERE agent = 'wa'")
+	db.Exec("UPDATE agent_state SET closed_at = 5 WHERE agent = ?", wa)
 	if ok, _, _ := a.RemovePlan(db, "alpha"); !ok {
 		t.Fatal("a closed agent strands nothing")
 	}
-	if acct, _ := CurrentAccount(db, "wa"); acct != "alpha" {
+	if acct, _ := CurrentAccount(db, wa); acct != "alpha" {
 		t.Fatal(acct)
 	}
-	if rd, ok, _ := ReadAccount(db, "wa", nil); !ok || rd.Source != "recorded" {
+	if rd, ok, _ := ReadAccount(db, wa, nil); !ok || rd.Source != "recorded" {
 		t.Fatalf("%+v", rd)
 	}
-	if rd, ok, _ := ReadAccount(db, "wb", func() string { return "beta" }); !ok || rd != (AccountReading{"beta", "reported"}) {
+	if rd, ok, _ := ReadAccount(db, wb, func() string { return "beta" }); !ok || rd != (AccountReading{"beta", "reported"}) {
 		t.Fatalf("%+v", rd)
 	}
-	if rd, ok, _ := ReadAccount(db, "wb", nil); !ok || rd.Source != "assumed" {
+	if rd, ok, _ := ReadAccount(db, wb, nil); !ok || rd.Source != "assumed" {
 		t.Fatalf("%+v", rd)
 	}
 	if _, ok, _ := ReadAccount(db, "nobody", nil); ok {

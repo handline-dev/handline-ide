@@ -22,7 +22,7 @@ func TestListsAreSortedAndNeedTheirMarker(t *testing.T) {
 	for _, f := range []string{"accounts/c1", "accounts/c2", "accounts/.hidden", "accounts/m"} {
 		os.MkdirAll(filepath.Join(home, f), 0o755)
 	}
-	if got := ListAgents(home); !reflect.DeepEqual(got, []string{"w", "w.x"}) {
+	if got := ListAgents(home); !reflect.DeepEqual(got, []string{"a2", "a1"}) {
 		t.Errorf("%v", got)
 	}
 	if got := ListAccounts(home); !reflect.DeepEqual(got, []string{"m", "z"}) {

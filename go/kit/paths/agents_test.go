@@ -10,7 +10,7 @@ import (
 	"github.com/handline/handline/go/kit/storetest"
 )
 
-// seedAgents makes home's database with workspace w, led by agent "lead", and its agent x: listed as w and w.x.
+// seedAgents makes home's database with workspace w, led by agent "lead" (a2), and its agent x (a1): listed lead first, a2 then a1.
 func seedAgents(t *testing.T, home string) {
 	t.Helper()
 	d, err := storetest.OpenAt(t, DBFile(home))
@@ -38,7 +38,7 @@ func TestReadAgentsTellsAnUnreadableListingFromAnEmptyOne(t *testing.T) {
 	}
 	os.MkdirAll(filepath.Join(AgentsDir(home), "a-folder-only"), 0o755)
 	seedAgents(t, home)
-	if list, err := ReadAgents(home); err != nil || !reflect.DeepEqual(list, []string{"w", "w.x"}) {
+	if list, err := ReadAgents(home); err != nil || !reflect.DeepEqual(list, []string{"a2", "a1"}) {
 		t.Fatalf("%v %v", list, err)
 	}
 	broken := t.TempDir()
