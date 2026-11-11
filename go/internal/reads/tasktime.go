@@ -301,7 +301,7 @@ func (e *Env) taskSpans(t row, start, end int64) ([]stretch, error) {
 		}
 	}
 	asks, err := query(e.DB, "SELECT r.ts, r.state, r.state_at FROM requests r JOIN task_requests l ON l.request_id = r.id "+
-		"WHERE l.task_id = ? AND r.target = 'human' AND COALESCE(r.kind, '') != 'say'", tid)
+		"WHERE l.task_id = ? AND r.target = '"+db.Human+"' AND COALESCE(r.kind, '') != 'say'", tid)
 	if err != nil {
 		return nil, err
 	}
@@ -417,7 +417,7 @@ func noTask(tid int64) error {
 // withDeliveries puts the task's landed deliveries among its events in time order, as kind "delivered" with the target in "agent" and "target".
 func withDeliveries(e *Env, tid int64, events []row) ([]row, error) {
 	landed, err := query(e.DB, "SELECT r.landed_at AS ts, r.target, r.target AS agent FROM requests r JOIN task_requests l ON l.request_id = r.id "+
-		"WHERE l.task_id = ? AND "+db.HasLanded("r.")+" AND r.target != 'human' ORDER BY r.landed_at, r.id", tid)
+		"WHERE l.task_id = ? AND "+db.HasLanded("r.")+" AND r.target != '"+db.Human+"' ORDER BY r.landed_at, r.id", tid)
 	if err != nil {
 		return nil, err
 	}

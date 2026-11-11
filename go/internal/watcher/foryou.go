@@ -57,7 +57,7 @@ func (w *ForYou) Scan(_ *sql.DB, emit Emit) error {
 	for k, it := range now {
 		if it["kind"] == "task" {
 			var q string
-			err := w.Reads.DB.QueryRow("SELECT "+db.TurnAskSQL("u")+" FROM task_turns u WHERE task_id = ? AND agent = 'human'", it["id"]).Scan(&q)
+			err := w.Reads.DB.QueryRow("SELECT "+db.TurnAskSQL("u")+" FROM task_turns u WHERE task_id = ? AND agent = '"+db.Human+"'", it["id"]).Scan(&q)
 			if err != nil && err != sql.ErrNoRows {
 				return err
 			}
