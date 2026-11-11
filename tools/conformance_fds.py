@@ -102,14 +102,11 @@ WORKROOM = {"create_repo": "", "create_parent": "w.parent", "status_worktree": "
 
 
 def seed_account(home: Path, name: str) -> Path:
-    """The account name's row, owned by the owner, and its folder, accounts/<key>: the folder is named by the row's key."""
+    """The account name's row, owned by p1 as the other seeds are, and its folder, accounts/<key>: named by the row's key."""
     con = sqlite3.connect(home / "db.sqlite", timeout=5)
     try:
         with con:
-            cur = con.execute("INSERT INTO accounts(name, owner, created_at) SELECT ?, 'p' || id, 0 FROM people WHERE role = 'owner' "
-                              "ORDER BY id LIMIT 1", (name,))
-        if cur.rowcount != 1:
-            raise RuntimeError(f"account {name}: no owner to own it")
+            cur = con.execute("INSERT INTO accounts(name, owner, created_at) VALUES(?, 'p1', 0)", (name,))
         folder = home / "accounts" / f"c{cur.lastrowid}"
     finally:
         con.close()
