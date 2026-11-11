@@ -1,6 +1,6 @@
 // Generated from contract/spec/ by contract/generate.py; do not edit.
 /* eslint-disable */
-import type { Accepted, AgentName, Repo, RequestId, Role, Timestamp, Topic, WriteKind } from './core.ts';
+import type { Accepted, Repo, RequestId, Role, Timestamp, Topic, Who, WriteKind } from './core.ts';
 
 export type ChangedFile = {
   path: string;
@@ -23,7 +23,7 @@ export type Worktree = {
   path: string;
   repo: string;
   branch: string;
-  owner: AgentName | null;
+  owner: Who | null;
   parent: string | null;
   children: string[];
   status: string;
@@ -47,7 +47,7 @@ export type DocUpdate = {
   /** The pushing editor's client id, which collab matches its own updates by; `disk` for a change made to the file outside the doc. */
   client: string;
   changes: ChangeSet;
-  /** Who made it: `human` for a push; for a disk change, the agent whose Edit, Write or MultiEdit named the file in the 10 s before it was seen; absent when the daemon cannot tell. */
+  /** Who made it: the person's key for a push; for a disk change, the agent whose Edit, Write or MultiEdit named the file in the 10 s before it was seen; absent when the daemon cannot tell. */
   by?: string;
 };
 
@@ -85,7 +85,7 @@ export interface ReposMethods {
 }; result: RepoFacts };
   "worktrees.list": { params: {
   repo?: string;
-  owner?: AgentName;
+  owner?: Who;
 }; result: {
     worktrees: Worktree[];
   } };
@@ -106,7 +106,7 @@ export interface ReposMethods {
     base_ref: string | null;
   } };
   "files.list": { params: {
-  agent: AgentName;
+  agent: Who;
   /** Matched case-insensitively as a subsequence of the path: its letters appear in the path in order, not necessarily side by side. Absent, null or empty lists every file. Anything else that is not a string is bad_request (field query). */
   query?: string;
   /** The most files returned; absent or null is 50. Outside 1..200, or not an integer: bad_request (field limit). */
@@ -123,7 +123,7 @@ export interface ReposMethods {
     more: boolean;
   } };
   "file.read": { params: {
-  agent: AgentName;
+  agent: Who;
   /** Relative to the agent's worktree, with `/` between parts. No .., no empty or . part, not absolute, no backslash, and no part of it (nor the worktree path under it) may be a symlink: bad_request (field path) otherwise. */
   path: string;
 }; result: {
@@ -138,7 +138,7 @@ export interface ReposMethods {
     etag: string;
   } };
   "file.write": { params: {
-  agent: AgentName;
+  agent: Who;
   /** Relative to the agent's worktree, with `/` between parts. No .., no empty or . part, not absolute, no backslash, and no part of it (nor the worktree path under it) may be a symlink: bad_request (field path) otherwise. */
   path: string;
   /** The whole new content: UTF-8 text without NUL, at most 1 MiB; for a .json file, valid JSON. */
@@ -158,7 +158,7 @@ export interface ReposMethods {
   request_id: RequestId;
 }; result: Accepted };
   "doc.open": { params: {
-  agent: AgentName;
+  agent: Who;
   /** As file.write's path, and a .md file: bad_request (field path) otherwise. */
   path: string;
 }; result: {
@@ -170,7 +170,7 @@ export interface ReposMethods {
     text: string;
   } };
   "doc.push": { params: {
-  agent: AgentName;
+  agent: Who;
   /** As file.write's path, and a .md file: bad_request (field path) otherwise. */
   path: string;
   /** The doc id doc.open gave. */
@@ -187,7 +187,7 @@ export interface ReposMethods {
     version: number;
   } };
   "doc.pull": { params: {
-  agent: AgentName;
+  agent: Who;
   /** As file.write's path, and a .md file: bad_request (field path) otherwise. */
   path: string;
   /** The doc id doc.open gave. */
@@ -199,7 +199,7 @@ export interface ReposMethods {
     updates: DocUpdate[];
   } };
   "doc.close": { params: {
-  agent: AgentName;
+  agent: Who;
   /** As file.write's path, and a .md file: bad_request (field path) otherwise. */
   path: string;
 }; result: { [key: string]: unknown } };

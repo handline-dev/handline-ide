@@ -384,14 +384,14 @@ def go_type(schema: dict, schemas: dict) -> str:
 
 def who_props(schema: dict, schemas: dict) -> list:
     """The properties of an object param that name a who, resolved like a who param (one level down: a filter's owner)."""
-    while "$ref" in schema and not schema["$ref"].endswith("/AgentName"):
+    while "$ref" in schema and not schema["$ref"].endswith("/Who"):
         schema = schemas[ref_name(schema["$ref"])]
     return sorted(k for k, v in schema.get("properties", {}).items() if is_who(v))
 
 
 def is_who(schema: dict) -> bool:
-    """A param that names a who (AgentName, or a list of them): the daemon resolves its words to keys before the handler."""
-    return schema.get("$ref", schema.get("items", {}).get("$ref", "")).endswith("/AgentName")
+    """A param that names a who (Who, or a list of them): the daemon resolves its words to keys before the handler."""
+    return schema.get("$ref", schema.get("items", {}).get("$ref", "")).endswith("/Who")
 
 
 def gen_go(spec: dict) -> str:

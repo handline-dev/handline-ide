@@ -1,6 +1,6 @@
 // Generated from contract/spec/ by contract/generate.py; do not edit.
 /* eslint-disable */
-import type { Accepted, AgentName, ReadCursor, RequestId, Role, Timestamp, Topic, WriteKind } from './core.ts';
+import type { Accepted, ReadCursor, RequestId, Role, Timestamp, Topic, Who, WriteKind } from './core.ts';
 
 export type Window = {
   used_pct: number;
@@ -15,10 +15,10 @@ export type Account = {
   five_hour: Window | null;
   weekly: Window | null;
   /** The agents on this account (AgentView.account): running on it, or at rest with their prompt cache alive. One past its cache life is on none. */
-  agents: AgentName[];
+  agents: Who[];
   moves: {
     at: Timestamp;
-    agent: AgentName;
+    agent: Who;
     from: string | null;
     to: string;
     reason: string;
@@ -368,7 +368,7 @@ export interface AccountsMethods {
   /** Headroom: that long back and as long ahead. Cost per day: the last that many days (under 1 day counts as 1). */
   range: "12h" | "24h" | "3d" | "7d" | "14d" | "30d";
   /** Also give `overlay` for this pick: an agent's name, or `grp:<name>` for the group of agents whose dotted names start with `<name>.` (and the agent `<name>` itself), the key of a row of the agents table a client draws. It rides on this call and not on a method of its own because the curve is read against `past` and must be sampled at the same moment as it; one pick costs one array, not one per agent. */
-  agent?: AgentName;
+  agent?: Who;
 }; result: Outlook };
   "stats.cost": { params: {
   /** The last that many days (under 1 day counts as 1), as stats.outlook counts them. */

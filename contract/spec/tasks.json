@@ -86,7 +86,7 @@
      },
      "acting": {
       "type": "string",
-      "description": "Who acts on the task now: the agent of its top turn, or human, else its owner (to). Every rule that asks who works the task now (delivery, the doing slot, the time box and whom it tells, my_turn, requests.pending, the board's holder, whom a comment tells) reads this. Absent from a daemon that does not send it."
+      "description": "Who acts on the task now: the key of the agent or person of its top turn, else its owner (to). Every rule that asks who works the task now (delivery, the doing slot, the time box and whom it tells, my_turn, requests.pending, the board's holder, whom a comment tells) reads this. Absent from a daemon that does not send it."
      },
      "turns": {
       "type": "array",
@@ -227,7 +227,7 @@
      },
      "asker": {
       "type": "string",
-      "description": "Who the task answers to when it closes: its reporter when one was set; else the founder (`human`) if any request linked to it came from the founder, else whoever opened it."
+      "description": "Who the task answers to when it closes: its reporter when one was set; else the founder (their key) if any request linked to it came from the founder, else whoever opened it."
      },
      "discarded": {
       "oneOf": [
@@ -687,7 +687,7 @@
        },
        "asker": {
         "type": "string",
-        "description": "Who the task answers to when it closes: its reporter when one was set; else the founder (`human`) if any request linked to it came from the founder, else whoever opened it. A client lets the founder reopen a done task only when this is the founder."
+        "description": "Who the task answers to when it closes: its reporter when one was set; else the founder (their key) if any request linked to it came from the founder, else whoever opened it. A client lets the founder reopen a done task only when this is the founder."
        },
        "discarded": {
         "oneOf": [
@@ -1034,7 +1034,7 @@
      "agent": {
       "oneOf": [
        {
-        "$ref": "#/components/schemas/AgentName"
+        "$ref": "#/components/schemas/Who"
        },
        {
         "type": "null"
@@ -1061,7 +1061,7 @@
          },
          "id": {
           "type": "string",
-          "description": "Agent name, task or item id."
+          "description": "Agent key, task or item id."
          }
         },
         "required": [
@@ -1178,7 +1178,7 @@
      "holder": {
       "oneOf": [
        {
-        "$ref": "#/components/schemas/AgentName"
+        "$ref": "#/components/schemas/Who"
        },
        {
         "type": "null"
@@ -1233,7 +1233,7 @@
      "decision",
      "report"
     ],
-    "description": "What task.done must be given: sha, verdict, decision or report (default; decision when the owner is human)."
+    "description": "What task.done must be given: sha, verdict, decision or report (default; decision when the owner is a person)."
    },
    "MemoFile": {
     "type": "object",
@@ -1297,7 +1297,7 @@
      },
      "by": {
       "type": "string",
-      "description": "Who made the change: an agent, or human."
+      "description": "Who made the change: an agent's key, or a person's."
      },
      "field": {
       "type": "string",
@@ -1377,15 +1377,15 @@
       ]
      },
      "owner": {
-      "$ref": "#/components/schemas/AgentName",
+      "$ref": "#/components/schemas/Who",
       "description": "Who works the task (its assignee)."
      },
      "reporter": {
-      "$ref": "#/components/schemas/AgentName",
+      "$ref": "#/components/schemas/Who",
       "description": "Who the task answers to (its asker: hl's --owner)."
      },
      "from": {
-      "$ref": "#/components/schemas/AgentName",
+      "$ref": "#/components/schemas/Who",
       "description": "Who opened it."
      }
     },
@@ -1673,7 +1673,7 @@
      "agent": {
       "oneOf": [
        {
-        "$ref": "#/components/schemas/AgentName"
+        "$ref": "#/components/schemas/Who"
        },
        {
         "type": "null"
@@ -1716,11 +1716,11 @@
    },
    "Turn": {
     "type": "object",
-    "description": "One turn on a task (docs/design/turns.md): the agent who acts on the task while it is on top, or human.",
+    "description": "One turn on a task (docs/design/turns.md): the agent or person who acts on the task while it is on top.",
     "properties": {
      "agent": {
       "type": "string",
-      "description": "Who acts while this turn is on top: an agent, or human."
+      "description": "Who acts while this turn is on top: an agent's key, or a person's."
      },
      "ask": {
       "type": "string",
@@ -1860,14 +1860,14 @@
      "name": "owner",
      "required": false,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     },
     {
      "name": "acting",
      "required": false,
      "schema": {
-      "$ref": "#/components/schemas/AgentName",
+      "$ref": "#/components/schemas/Who",
       "description": "Only the tasks this agent, or human, acts on now (Task.acting)."
      }
     },
@@ -1875,7 +1875,7 @@
      "name": "reporter",
      "required": false,
      "schema": {
-      "$ref": "#/components/schemas/AgentName",
+      "$ref": "#/components/schemas/Who",
       "description": "Who the task answers to (Task.asker)."
      }
     },
@@ -1883,7 +1883,7 @@
      "name": "from",
      "required": false,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     },
     {
@@ -1997,7 +1997,7 @@
      "required": false,
      "schema": {
       "type": "boolean",
-      "description": "Only the tasks the caller acts on (acting) that wait on it: queued or doing, never draft or ended; the founder's are the ones acting is human. One row per task. It takes no acting."
+      "description": "Only the tasks the caller acts on (acting) that wait on it: queued or doing, never draft or ended; the founder's are the ones whose acting is their key. One row per task. It takes no acting."
      }
     },
     {
@@ -2499,7 +2499,7 @@
      "name": "owner",
      "required": true,
      "schema": {
-      "$ref": "#/components/schemas/AgentName",
+      "$ref": "#/components/schemas/Who",
       "description": "An agent, human, or gate: a task the daemon holds that watches outside state (watch) and closes when it changes."
      }
     },
@@ -2507,7 +2507,7 @@
      "name": "reporter",
      "required": false,
      "schema": {
-      "$ref": "#/components/schemas/AgentName",
+      "$ref": "#/components/schemas/Who",
       "description": "Who the task answers to: told when it ends, and may edit or reassign it. Default: the caller."
      }
     },
@@ -2690,7 +2690,7 @@
      "name": "to",
      "required": true,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     },
     {
@@ -3431,7 +3431,7 @@
       "type": "array",
       "maxItems": 20,
       "items": {
-       "$ref": "#/components/schemas/AgentName"
+       "$ref": "#/components/schemas/Who"
       },
       "description": "Agents not to tell of this comment, from the ones task.comment.recipients names. Skipping the assignee is allowed; the comment stays on the task either way. A name that would not have been told is ignored."
      }
@@ -3448,7 +3448,7 @@
      "name": "turn",
      "required": false,
      "schema": {
-      "$ref": "#/components/schemas/AgentName",
+      "$ref": "#/components/schemas/Who",
       "description": "Hand the task to this agent, or human, with this comment: it goes on top and acts now; the one below keeps its turn but acts on nothing, so its doing slot frees. For human, the comment is the decision and what you recommend."
      }
     },
@@ -3635,7 +3635,7 @@
       "type": "array",
       "maxItems": 20,
       "items": {
-       "$ref": "#/components/schemas/AgentName"
+       "$ref": "#/components/schemas/Who"
       },
       "description": "Agents not to tell of this comment, from the ones task.comment.recipients names. Skipping the assignee is allowed; the comment stays on the task either way. A name that would not have been told is ignored."
      }
@@ -3882,7 +3882,7 @@
      "name": "agent",
      "required": true,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     },
     {
@@ -4347,7 +4347,7 @@
   },
   {
    "name": "task.request",
-   "summary": "Make a founder's chat message a request: a task the founder opened (opened_by human), owned by the lead the message was sent to. The message becomes its first comment, images included. A message converts once; a second call returns the task already made from it.",
+   "summary": "Make a founder's chat message a request: a task the founder opened (opened_by the person's key), owned by the lead the message was sent to. The message becomes its first comment, images included. A message converts once; a second call returns the task already made from it.",
    "paramStructure": "by-name",
    "params": [
     {
@@ -4370,7 +4370,7 @@
      "name": "owner",
      "required": false,
      "schema": {
-      "$ref": "#/components/schemas/AgentName",
+      "$ref": "#/components/schemas/Who",
       "description": "The agent who holds the request. Default: the agent the message was sent to."
      }
     },
@@ -4682,14 +4682,14 @@
      "name": "owner",
      "required": false,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     },
     {
      "name": "reporter",
      "required": false,
      "schema": {
-      "$ref": "#/components/schemas/AgentName",
+      "$ref": "#/components/schemas/Who",
       "description": "A new reporter (who the task answers to); by its opener, its reporter or the founder."
      }
     },
@@ -4852,7 +4852,7 @@
      "name": "to",
      "required": true,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     },
     {

@@ -207,7 +207,7 @@
     "type": "object",
     "properties": {
      "agent": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      },
      "terminal": {
       "type": "string",
@@ -258,7 +258,7 @@
     "type": "object",
     "properties": {
      "agent": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      },
      "terminal": {
       "type": "string",
@@ -291,7 +291,7 @@
      "name": "agent",
      "required": false,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     },
     {
@@ -559,7 +559,7 @@
      "name": "agent",
      "required": true,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     },
     {
@@ -607,7 +607,7 @@
      "name": "agent",
      "required": true,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     }
    ],
@@ -647,7 +647,7 @@
      "name": "agent",
      "required": true,
      "schema": {
-      "$ref": "#/components/schemas/AgentName"
+      "$ref": "#/components/schemas/Who"
      }
     },
     {

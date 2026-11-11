@@ -180,7 +180,7 @@ Take a doing task back to queued or draft: anyone may, with a reason the opener 
 
 ### `task.request`
 
-Make a founder's chat message a request: a task the founder opened (opened_by human), owned by the lead the message was sent to. The message becomes its first comment, images included. A message converts once; a second call returns the task already made from it. The founder, or the agent the message was sent to, may call it.
+Make a founder's chat message a request: a task the founder opened (opened_by the person's key), owned by the lead the message was sent to. The message becomes its first comment, images included. A message converts once; a second call returns the task already made from it. The founder, or the agent the message was sent to, may call it.
 
 ### `task.wait`
 

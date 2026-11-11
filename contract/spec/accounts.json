@@ -65,7 +65,7 @@
      "agents": {
       "type": "array",
       "items": {
-       "$ref": "#/components/schemas/AgentName"
+       "$ref": "#/components/schemas/Who"
       },
       "description": "The agents on this account (AgentView.account): running on it, or at rest with their prompt cache alive. One past its cache life is on none."
      },
@@ -78,7 +78,7 @@
          "$ref": "#/components/schemas/Timestamp"
         },
         "agent": {
-         "$ref": "#/components/schemas/AgentName"
+         "$ref": "#/components/schemas/Who"
         },
         "from": {
          "oneOf": [
@@ -1863,7 +1863,7 @@
      "name": "agent",
      "required": false,
      "schema": {
-      "$ref": "#/components/schemas/AgentName",
+      "$ref": "#/components/schemas/Who",
       "description": "Also give `overlay` for this pick: an agent's name, or `grp:<name>` for the group of agents whose dotted names start with `<name>.` (and the agent `<name>` itself), the key of a row of the agents table a client draws. It rides on this call and not on a method of its own because the curve is read against `past` and must be sampled at the same moment as it; one pick costs one array, not one per agent."
      }
     }

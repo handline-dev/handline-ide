@@ -1,12 +1,12 @@
 // Generated from contract/spec/ by contract/generate.py; do not edit.
 /* eslint-disable */
-import type { Accepted, AgentName, AttachmentId, Duration, ImagePart, Prompt, ReadCursor, RequestId, RequestName, RequestRef, Role, TextPart, Timestamp, Topic, WriteKind } from './core.ts';
+import type { Accepted, AttachmentId, Duration, ImagePart, Prompt, ReadCursor, RequestId, RequestName, RequestRef, Role, TextPart, Timestamp, Topic, Who, WriteKind } from './core.ts';
 
 export type InboxItem = {
   id: number;
   ref?: RequestRef;
   kind: string;
-  agent: AgentName | null;
+  agent: Who | null;
   title: string;
   body: string;
   evidence: string | null;
@@ -108,7 +108,7 @@ export type TranscriptItem = {
     task: number;
     request: number | null;
     evidence: string | null;
-    /** Who did it: the agent (or human) that opened, changed, closed or withdrew the task, as ChatRequestItem.who. */
+    /** Who did it: the key of the agent or person that opened, changed, closed or withdrew the task, as ChatRequestItem.who. */
     who: string;
     /** unblocked only: the blocker whose close freed the task. */
     closed_task?: number;
@@ -153,7 +153,7 @@ export type TranscriptItem = {
     /** The comment (Memo.id); null for a turn put on with no comment (Turn.memo), whose text is the turn's ask. */
     memo: number | null;
     kind: "turn" | "answer" | "note";
-    /** Who wrote it: the agent, or human for an answer. */
+    /** Who wrote it: the agent's key, or the person's for an answer. */
     who: string;
     /** The comment's text as it reads now (edited or not); empty when it was deleted. */
     text: string;
@@ -318,7 +318,7 @@ export type RequestEnded = {
 
 export interface ChatMethods {
   "chat.messages": { params: {
-  agent: AgentName;
+  agent: Who;
   /** mine: person and this agent; all: everything it sent or received. */
   scope: "mine" | "all";
   before?: number;
@@ -329,7 +329,7 @@ export interface ChatMethods {
     more: boolean;
   } & ReadCursor };
   "chat.requests": { params: {
-  agent: AgentName;
+  agent: Who;
   /** mine: person and this agent; all: everything it sent or received. */
   scope: "mine" | "all";
   /** Request id: read the page just older than it. */
@@ -348,7 +348,7 @@ export interface ChatMethods {
     cursor: number;
   } };
   "chat.transcript": { params: {
-  agent: AgentName;
+  agent: Who;
   before?: number;
   since?: number;
   limit?: number;
@@ -360,12 +360,12 @@ export interface ChatMethods {
   "chat.locate": { params: {
   request: RequestName;
   /** Optional: the daemon finds the conversation from the message itself. */
-  agent?: AgentName;
+  agent?: Who;
   /** Page size, default 50. */
   limit?: number;
 }; result: {
     /** The agent whose chat shows it. */
-    agent: AgentName;
+    agent: Who;
     /** mine: person and this agent; all: everything it sent or received. */
     scope: "mine" | "all";
     message: ChatMessage;
@@ -381,7 +381,7 @@ export interface ChatMethods {
     transcript_more_newer: boolean;
   } };
   "chat.refs": { params: {
-  agent: AgentName;
+  agent: Who;
 }; result: {
     /** Up to 30, newest first: every request the agent sent or received that was not withdrawn or turned away. */
     requests: {
@@ -393,12 +393,12 @@ export interface ChatMethods {
     }[];
   } };
   "chat.search": { params: {
-  agent?: AgentName;
+  agent?: Who;
   query: string;
   /** mine: person and this agent; all: everything it sent or received. */
   scope?: "mine" | "all";
   /** Only messages whose other party is this name: an agent, or `human` for the person. When one agent's messages are searched (`agent`, or the caller for an agent), the party other than that agent; when the person searches every agent (no `agent`), messages from or to the name. A name no message has finds nothing. */
-  with?: AgentName;
+  with?: Who;
   /** Only messages sent at or after this time; one that is not a timestamp is bad_request (field since). */
   since?: Timestamp;
   limit?: number;
@@ -406,7 +406,7 @@ export interface ChatMethods {
     messages: ChatMessage[];
   } };
   "chat.send": { params: {
-  agent: AgentName;
+  agent: Who;
   /** Markdown. It may name images (x-attachments, texts), with or without `task`; with `task` it is the task's brief. */
   body: string;
   task?: {
@@ -444,7 +444,7 @@ export interface ChatMethods {
   request_id: RequestId;
 }; result: Accepted };
   "chat.seen": { params: {
-  agent: AgentName;
+  agent: Who;
   /** The highest message number that has been in view. A lower number than before changes nothing: what arrives later has a higher one, so nothing unseen is hidden. */
   up_to: number;
   request_id: RequestId;
@@ -510,7 +510,7 @@ export interface ChatMethods {
   "inbox.list": { params: {
   unread?: boolean;
   kind?: string;
-  agent?: AgentName;
+  agent?: Who;
   /** Return rows older than this id. */
   before?: number;
   /** Default 50, at most 200. */
@@ -523,7 +523,7 @@ export interface ChatMethods {
   } & ReadCursor };
   "inbox.queue": { params: {
   /** An agent's name, or `human` for the founder's mailbox. Default: the caller's own. */
-  whose?: AgentName;
+  whose?: Who;
   /** Add `history` (an agent's inbox) or `dealt` (the founder's). Default false. */
   all?: boolean;
   /** With `wait_s`: a `newest` from an earlier reply. The call holds until something newer waits. Default 0: it holds while nothing waits. */
