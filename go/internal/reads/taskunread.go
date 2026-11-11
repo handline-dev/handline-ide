@@ -11,7 +11,7 @@ import (
 
 // unreadSQL counts, per task, the comments by others above the founder's marker or the floor, whichever is higher.
 const unreadSQL = "SELECT m.task_id AS task, COUNT(*) AS n, MIN(m.id) AS first, MAX(m.created_at) AS last FROM task_memos m " +
-	"LEFT JOIN cursors c ON c.name = 'task_seen:human:' || m.task_id WHERE m.author != '"+db.Human+"' AND m.id > MAX(?, COALESCE(c.row_id, 0)) "
+	"LEFT JOIN cursors c ON c.name = 'task_seen:human:' || m.task_id WHERE m.author != '" + db.Human + "' AND m.id > MAX(?, COALESCE(c.row_id, 0)) "
 
 type unread struct{ n, first, last int64 }
 

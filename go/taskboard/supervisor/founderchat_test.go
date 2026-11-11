@@ -12,7 +12,7 @@ import (
 // typedRig is peerRig with the founder's words typed at bob: what TypeIn was given, in order.
 func typedRig(t *testing.T) (*rig, *fakeInbox, *[]string) {
 	r, in := peerRig(t, peerinbox.Result{Kind: peerinbox.Delivered, Attempts: 1})
-	r.FounderTyped = func(a string) bool { return a == "bob" }
+	r.FounderTyped = func(a string) bool { return a == r.k(("bob")) }
 	r.ShowsTyped = peerinbox.ShowsTyped
 	var typed []string
 	port := r.Agents.(*peerport.Port)
@@ -24,7 +24,7 @@ func typedRig(t *testing.T) (*rig, *fakeInbox, *[]string) {
 
 // founderSays is a say from the founder's own connection: chat.send marks it so (db.MarkFounderAuthored).
 func (r *rig) founderSays(target, body string) int64 {
-	rid := r.ask("human", target, body, "say")
+	rid := r.ask(r.k("human"), target, body, "say")
 	if err := db.MarkFounderAuthored(r.DB, rid); err != nil {
 		r.t.Fatal(err)
 	}
@@ -33,8 +33,8 @@ func (r *rig) founderSays(target, body string) int64 {
 
 func TestTheFoundersMessageIsTypedAsWrittenAndAnAgentsStillGoesToTheInbox(t *testing.T) {
 	r, in, typed := typedRig(t)
-	mine := r.founderSays("bob", "  what is 3+4?\nreply with the number  ")
-	theirs := r.ask("alice", "bob", "psst", "say")
+	mine := r.founderSays(r.k("bob"), "  what is 3+4?\nreply with the number  ")
+	theirs := r.ask(r.k("alice"), r.k(("bob")), "psst", "say")
 	for _, rid := range []int64{mine, theirs} {
 		if got, err := r.TellNow(r.DB, rid); err != nil || got != "sent" {
 			t.Fatalf("%q %v", got, err)
@@ -53,8 +53,8 @@ func TestTheFoundersMessageIsTypedAsWrittenAndAnAgentsStillGoesToTheInbox(t *tes
 // A reply carries the message it answers, as the app shows it: typed alone, "OK merge" says nothing about what it agrees to.
 func TestTheFoundersReplyIsTypedWithTheMessageItAnswers(t *testing.T) {
 	r, _, typed := typedRig(t)
-	parent := r.ask("bob", "human", "#566 merge please\nthe checks are green", "say")
-	out, err := r.Ask(r.DB, AskIn{Target: "bob", Body: "OK merge", Requester: "human", Kind: "say", ParentID: parent})
+	parent := r.ask(r.k("bob"), r.k(("human")), "#566 merge please\nthe checks are green", "say")
+	out, err := r.Ask(r.DB, AskIn{Target: r.k(("bob")), Body: "OK merge", Requester: r.k(("human")), Kind: "say", ParentID: parent})
 	r.must(err)
 	out.Finish()
 	r.must(db.MarkFounderAuthored(r.DB, out.RID))
@@ -71,8 +71,8 @@ func TestTheFoundersReplyIsTypedWithTheMessageItAnswers(t *testing.T) {
 // A reply that quotes part of its parent carries the quote as a > line under the reference, then a blank line, then its words.
 func TestTheFoundersQuoteIsTypedAboveTheReply(t *testing.T) {
 	r, _, typed := typedRig(t)
-	parent := r.ask("bob", "human", "#566 merge please\nthe checks are green", "say")
-	out, err := r.Ask(r.DB, AskIn{Target: "bob", Body: "which checks?", Requester: "human", Kind: "say", ParentID: parent})
+	parent := r.ask(r.k("bob"), r.k(("human")), "#566 merge please\nthe checks are green", "say")
+	out, err := r.Ask(r.DB, AskIn{Target: r.k(("bob")), Body: "which checks?", Requester: r.k(("human")), Kind: "say", ParentID: parent})
 	r.must(err)
 	out.Finish()
 	r.must(db.MarkFounderAuthored(r.DB, out.RID))
@@ -89,8 +89,8 @@ func TestTheFoundersQuoteIsTypedAboveTheReply(t *testing.T) {
 // A message that starts with ! is typed exactly as written, even as a reply: the reference line would push the ! off the front.
 func TestABangMessageIsTypedAsWrittenEvenAsAReply(t *testing.T) {
 	r, _, typed := typedRig(t)
-	parent := r.ask("bob", "human", "#566 merge please", "say")
-	out, err := r.Ask(r.DB, AskIn{Target: "bob", Body: "!git status", Requester: "human", Kind: "say", ParentID: parent})
+	parent := r.ask(r.k("bob"), r.k(("human")), "#566 merge please", "say")
+	out, err := r.Ask(r.DB, AskIn{Target: r.k(("bob")), Body: "!git status", Requester: r.k(("human")), Kind: "say", ParentID: parent})
 	r.must(err)
 	out.Finish()
 	r.must(db.MarkFounderAuthored(r.DB, out.RID))
@@ -109,7 +109,7 @@ func TestTheFoundersMessageIsSaidThroughTheInboxWhenTheAgentCannotBeTypedAt(t *t
 	r, in, typed := typedRig(t)
 	r.Typeable = func(string) string { return "a shell is left in place of its session" }
 	r.Agents.(*peerport.Port).Typeable = r.Typeable
-	mine := r.founderSays("bob", "what is 3+4?")
+	mine := r.founderSays(r.k("bob"), "what is 3+4?")
 	tx, err := r.DB.Begin()
 	if err != nil {
 		t.Fatal(err)
@@ -132,7 +132,7 @@ func TestTheFoundersMessageIsSaidThroughTheInboxWhenTheAgentCannotBeTypedAt(t *t
 // Only the founder's own connection's words are typed: a say that only names the founder as its requester goes to the inbox.
 func TestAMessageThatOnlyNamesTheFounderIsNotTyped(t *testing.T) {
 	r, in, typed := typedRig(t)
-	rid := r.ask("human", "bob", "merge it", "say")
+	rid := r.ask(r.k("human"), r.k(("bob")), "merge it", "say")
 	if got, err := r.TellNow(r.DB, rid); err != nil || got != "sent" {
 		t.Fatalf("%q %v", got, err)
 	}
