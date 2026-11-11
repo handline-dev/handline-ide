@@ -15,7 +15,8 @@ import (
 // homes is the home each rig's task database names its agents in, so exec and count write and read them by key.
 var homes sync.Map // *sql.DB -> string
 
-// keyed is q with each agent of db's home named in quotes ('w') by its key ('a1'), longest names first.
+// keyed is q with each agent of db's home named in quotes ('w', or "w" in a JSON payload) by its key ('a1'), longest names first,
+// and the founder's "human" by p1.
 func keyed(db *sql.DB, q string) string {
 	h, ok := homes.Load(db)
 	if !ok {
@@ -29,8 +30,9 @@ func keyed(db *sql.DB, q string) string {
 	sort.Slice(names, func(i, j int) bool { return len(names[i]) > len(names[j]) })
 	for _, n := range names {
 		q = strings.ReplaceAll(q, "'"+n+"'", "'"+m[n]+"'")
+		q = strings.ReplaceAll(q, `"`+n+`"`, `"`+m[n]+`"`) // a JSON payload's value
 	}
-	return q
+	return strings.ReplaceAll(q, `"human"`, `"p1"`)
 }
 
 // as is the caller agent's key in home; "" (the founder) stays "".

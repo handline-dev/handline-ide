@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/handline/handline/go/data/team/teamtest"
+	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/kit/storetest"
 	"github.com/handline/handline/go/protocol/rpc"
@@ -20,15 +21,17 @@ func TestTheFoundersDoneAndDiscardNeedNoReasonAnAgentsDo(t *testing.T) {
 	defer db.Close()
 	home := t.TempDir()
 	teamtest.Seed(t, home, "w", "boss")
+	homes.Store(db, home)
 	for i := 1; i <= 14; i++ {
-		if _, err := db.Exec("INSERT INTO tasks(id, title, owner, opened_by, created_at, expects) VALUES(?, 't', 'w', 'boss', 1, 'report')", i); err != nil {
+		if _, err := db.Exec(keyed(db, "INSERT INTO tasks(id, title, owner, opened_by, created_at, expects) VALUES(?, 't', 'w', 'boss', 1, 'report')"), i); err != nil {
 			t.Fatal(err)
 		}
 	}
 	mk := func(agent string) *rpc.Server {
-		s := rpc.NewServer(auth{agent}, "x", store.LatestVersion(), "local", func(string, ...any) {})
+		s := rpc.NewServer(auth{as(t, home, agent)}, "x", store.LatestVersion(), "local", func(string, ...any) {})
 		s.DB = db
-		Register(s, home, &fakeTeller{}, nil)
+		s.Who = func(w string) string { return paths.WhoKey(home, w) }
+		Register(s, home, &fakeTeller{db: db}, nil)
 		return s
 	}
 	n := 0

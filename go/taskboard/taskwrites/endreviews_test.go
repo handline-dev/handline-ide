@@ -21,7 +21,7 @@ func TestEndReviewsMovesEachTaskLeftInReview(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if fmt.Sprint(said) != "[T1 left review: handed to lead T2 left review: queued with w]" {
+	if named(sdb, fmt.Sprint(said)) != "[T1 left review: handed to lead T2 left review: queued with w]" {
 		t.Fatalf("%q", said)
 	}
 	if count(t, sdb, "SELECT COUNT(*) FROM tasks WHERE id IN (1, 2) AND reported_at IS NULL AND report IS NULL AND accepted_by IS NULL") != 2 {
@@ -31,7 +31,7 @@ func TestEndReviewsMovesEachTaskLeftInReview(t *testing.T) {
 		t.Fatal("T1 goes to the lead, T2 stays")
 	}
 	if count(t, sdb, "SELECT COUNT(*) FROM task_memos WHERE task_id = 1 AND author = 'daemon' AND body LIKE '%built it%'") != 1 ||
-		count(t, sdb, "SELECT COUNT(*) FROM task_memos WHERE task_id = 2 AND body LIKE '%accepted by lead; it waits on PR #12%'") != 1 {
+		count(t, sdb, "SELECT COUNT(*) FROM task_memos WHERE task_id = 2 AND body LIKE '%accepted by %; it waits on PR #12%'") != 1 {
 		t.Fatal("each answer is kept as a memo")
 	}
 	if len(f.handed) != 1 || f.handed[0].To != "lead" || f.handed[0].By != "daemon" {
@@ -53,7 +53,7 @@ func TestEndReviewsFallsBackToTheReporterThenTheOpener(t *testing.T) {
 			"VALUES(1, 'to the founder', 'boss', 'w', 'p1', 1, 'w', 5, 'a'), (2, 'its own', 'boss', 'boss', NULL, 1, 'boss', 5, 'b')",
 	)
 	said, err := EndReviews(sdb, home, f)
-	if err != nil || fmt.Sprint(said) != "[T1 left review: the founder's turn, boss's below it T2 left review: queued with boss]" {
+	if err != nil || named(sdb, fmt.Sprint(said)) != "[T1 left review: the founder's turn, boss's below it T2 left review: queued with boss]" {
 		t.Fatalf("%q %v", said, err)
 	}
 	if len(f.handed) != 1 || f.handed[0].To != "human" || count(t, sdb, "SELECT COUNT(*) FROM task_turns WHERE task_id = 1 AND agent = 'p1' AND pushed_by = 'boss' AND ask LIKE '%: a'") != 1 ||
@@ -66,7 +66,7 @@ func TestEndReviewsFallsBackToTheReporterThenTheOpener(t *testing.T) {
 	)
 	f.deny = "no route"
 	said, err = EndReviews(sdb, home, f)
-	if err == nil || fmt.Sprint(said) != "[T2 left review: queued with w]" || count(t, sdb, "SELECT COUNT(*) FROM tasks WHERE id = 1 AND reported_at IS NOT NULL") != 1 {
+	if err == nil || named(sdb, fmt.Sprint(said)) != "[T2 left review: queued with w]" || count(t, sdb, "SELECT COUNT(*) FROM tasks WHERE id = 1 AND reported_at IS NOT NULL") != 1 {
 		t.Fatalf("%q %v", said, err)
 	}
 }

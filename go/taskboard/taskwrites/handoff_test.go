@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/handline/handline/go/data/team/teamtest"
 )
 
 func TestHandoffMovesTheTaskToItsNewOwnerWithOneRequestAndRetiresTheOldOnes(t *testing.T) {
@@ -98,15 +100,15 @@ func TestHandOffAsDaemonMovesTheTaskAndTellsOnlyWhenItWasAccepted(t *testing.T) 
 	owner := "SELECT COUNT(*) FROM tasks WHERE id = 1 AND owner = 'manager'"
 
 	f := &fakeTeller{deny: "no edge from daemon to manager"}
-	if err := HandOffAsDaemon(db, home, f, 1, "manager", "held after being asked"); err == nil || !strings.Contains(err.Error(), "refused") {
+	if err := HandOffAsDaemon(db, home, f, 1, teamtest.Key(t, home, "manager"), "held after being asked"); err == nil || !strings.Contains(err.Error(), "refused") {
 		t.Fatalf("a refused handoff is an error: %v", err)
 	}
 	if len(f.handed) != 0 || count(t, db, owner) != 0 {
 		t.Fatalf("a refused handoff neither moves the task nor tells: %v", f.handed)
 	}
 
-	f = &fakeTeller{}
-	if err := HandOffAsDaemon(db, home, f, 1, "manager", "held after being asked"); err != nil {
+	f = &fakeTeller{db: db}
+	if err := HandOffAsDaemon(db, home, f, 1, teamtest.Key(t, home, "manager"), "held after being asked"); err != nil {
 		t.Fatal(err)
 	}
 	if len(f.handed) != 1 || f.handed[0].From != "worker" || f.handed[0].To != "manager" || count(t, db, owner) != 1 {

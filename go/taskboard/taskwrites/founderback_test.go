@@ -16,7 +16,7 @@ func TestFounderTasksGoBackToWhoHandedThemOver(t *testing.T) {
 			`(2, 'gate', 'task_handoff', '{"task_id":1,"from":"gate","to":"human","note":"later"}')`,
 	)
 	said, err := ReturnFounderTasks(sdb, home)
-	if err != nil || fmt.Sprint(said) != "[T1 goes back to w, the founder's turn on it T2 goes back to w, the founder's turn on it]" {
+	if err != nil || named(sdb, fmt.Sprint(said)) != "[T1 goes back to w, the founder's turn on it T2 goes back to w, the founder's turn on it]" {
 		t.Fatalf("%q %v", said, err)
 	}
 	for id, want := range map[int]int{1: 1, 2: 1, 3: 0, 4: 0, 5: 0} {
