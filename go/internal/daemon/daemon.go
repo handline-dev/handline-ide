@@ -122,6 +122,7 @@ type Config struct {
 type Daemon struct {
 	cfg    Config
 	db     *sql.DB
+	lent   func() // takes db back from the shared handles (store.Lend)
 	hooks  *hooks.Recorder
 	files  *filerw.Env        // file.read, file.write and the shared docs
 	pause  pauseClock         // the founder's pause of new work: its until tells the status topic
@@ -183,7 +184,7 @@ func Start(cfg Config) (*Daemon, error) {
 		db.Close()
 		return nil, err
 	}
-	d := &Daemon{cfg: cfg, db: db, started: time.Now(), conns: map[net.Conn]struct{}{}, stop: make(chan struct{})}
+	d := &Daemon{cfg: cfg, db: db, lent: store.Lend(cfg.DBFile, db), started: time.Now(), conns: map[net.Conn]struct{}{}, stop: make(chan struct{})}
 	if cfg.Turns != nil {
 		cfg.Turns.Agent = func(handle string) string { a, _ := dbpkg.AgentOfTerminal(db, handle); return a }
 		cfg.Turns.Lines = func(agent, session string) func([]byte) {
@@ -771,6 +772,9 @@ func (d *Daemon) close() {
 		d.single.Release()
 	}
 	if d.db != nil {
+		if d.lent != nil {
+			d.lent()
+		}
 		d.db.Close()
 	}
 }

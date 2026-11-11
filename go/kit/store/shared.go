@@ -37,6 +37,21 @@ func SharedIfThere(path string) (*sql.DB, error) {
 	return Shared(path)
 }
 
+// Lend makes d, a handle the caller opened and closes, the shared one for path, so code given only the home uses the caller's pool and
+// not a second one on the same file. The returned func takes it back, before the caller closes d.
+func Lend(path string, d *sql.DB) (takeBack func()) {
+	sharedMu.Lock()
+	defer sharedMu.Unlock()
+	shared[path] = d
+	return func() {
+		sharedMu.Lock()
+		defer sharedMu.Unlock()
+		if shared[path] == d {
+			delete(shared, path)
+		}
+	}
+}
+
 // ForgetShared closes the handle on path, for a test that removes its home.
 func ForgetShared(path string) {
 	sharedMu.Lock()
