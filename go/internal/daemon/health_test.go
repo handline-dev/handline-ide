@@ -44,7 +44,7 @@ func TestTheHealthCheckTellsAChangeOnceAndNothingElse(t *testing.T) {
 	}
 	pause.Clear(d.db)
 	teamtest.Seed(t, d.cfg.Home, "bob")
-	if _, err := d.db.Exec(`INSERT INTO agent_view(agent, view, updated) VALUES('bob', '{"state":"queued","status":{"state":"stopped","reason":"cap","text":"waiting for a slot"}}', 1)`); err != nil {
+	if _, err := d.db.Exec(`INSERT INTO agent_view(agent, view, updated) VALUES(?, '{"state":"queued","status":{"state":"stopped","reason":"cap","text":"waiting for a slot"}}', 1)`, teamtest.Key(t, d.cfg.Home, "bob")); err != nil {
 		t.Fatal(err)
 	}
 	if !d.checkHealth() {

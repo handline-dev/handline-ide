@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/taskboard/supervisor"
 )
@@ -18,10 +19,11 @@ func TestATypedTurnsTerminalTextStaysOutOfTheChat(t *testing.T) {
 	t.Cleanup(func() { supervisor.RunInline = false })
 	d := start(t, fakeAuth{agent: "bob"}, "")
 	teamtest.Seed(t, d.cfg.Home, "alice", "bob")
-	d.env().FounderTyped = func(a string) bool { return a == "bob" }
+	bob := teamtest.Key(t, d.cfg.Home, "bob")
+	d.env().FounderTyped = func(a string) bool { return a == bob }
 	now := time.Now().Unix()
 	if _, err := d.db.Exec("INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok, landed_at, typed_at, founder_auth) "+
-		"VALUES(7, ?, 'human', 'bob', 'the code, please', 'landed', 'say', 1, ?, ?, 1)", now, now, now); err != nil {
+		"VALUES(7, ?, ?, ?, 'the code, please', 'landed', 'say', 1, ?, ?, 1)", now, db.Human, bob, now, now); err != nil {
 		t.Fatal(err)
 	}
 	path := filepath.Join(t.TempDir(), "s.jsonl")
@@ -45,7 +47,7 @@ func TestATypedTurnsTerminalTextStaysOutOfTheChat(t *testing.T) {
 	}
 	d.env().Wait()
 	toFounder := func() (n int) {
-		d.db.QueryRow("SELECT COUNT(*) FROM requests WHERE requester = 'bob' AND target = 'human'").Scan(&n)
+		d.db.QueryRow("SELECT COUNT(*) FROM requests WHERE requester = ? AND target = ?", bob, db.Human).Scan(&n)
 		return n
 	}
 	if n := toFounder(); n != 0 {

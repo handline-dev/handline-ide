@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/taskboard/attachments"
 )
 
@@ -55,7 +56,7 @@ func TestAMemoCarriesAnImageAndAMarkdownFileThroughTaskGet(t *testing.T) {
 		t.Fatalf("%v", kept)
 	}
 	// a memo naming the holder is typed at once, with a line per file it can read
-	if said := agents.said("bob"); !strings.Contains(said, "the proposal") || !strings.Contains(said, "[file 2: "+kept[0]+" (text/markdown, 20 B)]") {
+	if said := agents.said(key(t, d, "bob")); !strings.Contains(said, "the proposal") || !strings.Contains(said, "[file 2: "+kept[0]+" (text/markdown, 20 B)]") {
 		t.Fatalf("%q", said)
 	}
 }
@@ -117,10 +118,10 @@ func TestTheFoundersMemoKeepsALinePerFileWhenTypedToTheHolder(t *testing.T) {
 		t.Fatalf("%v", kept)
 	}
 	var said string // a long body is typed cut, with `hl read` for the whole, which the request keeps
-	if err := d.db.QueryRow("SELECT body FROM requests WHERE target = 'bob' AND body LIKE 'T1 comment 1 by%'").Scan(&said); err != nil {
+	if err := d.db.QueryRow("SELECT body FROM requests WHERE target = ? AND body LIKE 'T1 comment 1 by%'", key(t, d, "bob")).Scan(&said); err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"T1 comment 1 by human: the proposal xx", "\n[file 1: ", "\n[file 2: "} {
+	for _, want := range []string{"T1 comment 1 by " + db.Human + ": the proposal xx", "\n[file 1: ", "\n[file 2: "} {
 		if !strings.Contains(said, want) {
 			t.Fatalf("no %q in the told memo: %q", want, said)
 		}

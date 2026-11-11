@@ -60,12 +60,11 @@ func (noScreen) SendCtrlC(string)                            {}
 func (noScreen) ClearContext(string) (bool, string)          { return false, "no terminal" }
 func (noScreen) ClearCommand(string) string                  { return "/clear" }
 
-// wiredPorts is every other port as an agent with no screen, no limit and nothing in the way: the telling layer can call it.
-type wiredPorts struct{}
+// wiredPorts is every other port as an agent with no screen, no limit and nothing in the way: the telling layer can call it. live is
+// the agents with a session, by key.
+type wiredPorts struct{ live map[string]bool }
 
-func (wiredPorts) LiveSessions() (map[string]bool, bool) {
-	return map[string]bool{"alice": true, "bob": true}, true
-}
+func (w wiredPorts) LiveSessions() (map[string]bool, bool)                           { return w.live, true }
 func (wiredPorts) PastDialog(db.Q, string, bool) (string, string)                    { return "", "" }
 func (wiredPorts) Reason(kind, detail string) string                                 { return kind + ": " + detail }
 func (wiredPorts) DecisionAfterS() int64                                             { return 600 }
@@ -105,14 +104,16 @@ func wiredDaemon(t *testing.T, ports bool, proposals func(*sql.DB, string) super
 	t.Helper()
 	t.Setenv("HANDLINE_TEST_ROOT", t.TempDir())
 	home := t.TempDir()
+	live := map[string]bool{}
 	for _, a := range []string{"alice", "bob"} {
 		teamtest.Set(t, home, a, "vendor", "claude")
+		live[teamtest.Key(t, home, a)] = true
 	}
 	agents := &typedAt{typed: map[string][]string{}}
 	cfg := Config{Home: home, DBFile: filepath.Join(home, "db.sqlite"), Auth: pidAuth{}, Log: t.Logf}
 	if ports {
 		cfg.OnOpen = func(d *sql.DB, env *supervisor.Env) {
-			env.Ports = supervisor.Ports{Agents: agents, Terminal: noScreen{}, Observer: wiredPorts{}, Dialogs: wiredPorts{}, Waits: wiredPorts{}, Idle: wiredPorts{}, Sessions: wiredPorts{},
+			env.Ports = supervisor.Ports{Agents: agents, Terminal: noScreen{}, Observer: wiredPorts{}, Dialogs: wiredPorts{}, Waits: wiredPorts{}, Idle: wiredPorts{}, Sessions: wiredPorts{live: live},
 				Lifecycle: wiredPorts{}, Evaluate: wiredPorts{}, Proposals: proposals(d, env.Home), Stuck: wiredPorts{}}
 		}
 	}
@@ -132,16 +133,16 @@ func TestAMemoOnADoingTaskIsTypedAtItsHolderWhenThePortsAreWired(t *testing.T) {
 	if r["result"] == nil {
 		t.Fatalf("%v", r)
 	}
-	if got := agents.said("bob"); !strings.Contains(got, "mind the cache") {
+	if got := agents.said(key(t, d, "bob")); !strings.Contains(got, "mind the cache") {
 		t.Fatalf("the holder was not told: %q", got)
 	}
 	result(t, f.ask(`{"jsonrpc":"2.0","id":3,"method":"task.memo.edit","params":{"task":1,"memo":1,"text":"@bob mind the disk","request_id":"m2"}}`))
-	if got := agents.said("bob"); !strings.Contains(got, "comment 1 edited by a: @bob mind the disk") {
+	if got := agents.said(key(t, d, "bob")); !strings.Contains(got, "comment 1 edited by a: @bob mind the disk") {
 		t.Fatalf("the edit was not typed: %q", got)
 	}
 	// a delete names no reader, so nobody is told
 	result(t, f.ask(`{"jsonrpc":"2.0","id":4,"method":"task.memo.delete","params":{"task":1,"memo":1,"request_id":"m3"}}`))
-	held, err := db.PendingNotices(d.db, "bob")
+	held, err := db.PendingNotices(d.db, key(t, d, "bob"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -153,11 +154,12 @@ func TestAMemoOnADoingTaskIsTypedAtItsHolderWhenThePortsAreWired(t *testing.T) {
 // doing opens T1 for the agent, queues it and makes it the one in hand.
 func doing(t *testing.T, d *Daemon, agent string) {
 	t.Helper()
-	tid, err := db.NewTask(d.db, "job", agent, "alice", 0, db.DefaultPriority, "", 0, "")
+	agent = key(t, d, agent)
+	tid, err := db.NewTask(d.db, "job", agent, key(t, d, "alice"), 0, db.DefaultPriority, "", 0, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.SetTaskQueued(d.db, tid, "human"); err != nil {
+	if _, err := db.SetTaskQueued(d.db, tid, db.Human); err != nil {
 		t.Fatal(err)
 	}
 	if !d.env().Ports.Wired() { // nothing to tell it with: only make the task the one in hand
@@ -167,6 +169,12 @@ func doing(t *testing.T, d *Daemon, agent string) {
 		return
 	}
 	d.env().AdvanceCurrentTask(d.db, agent)
+}
+
+// key is the key of the agent named name by its old name in d's home; human is the owner, p1.
+func key(t *testing.T, d *Daemon, name string) string {
+	t.Helper()
+	return teamtest.Key(t, d.cfg.Home, name)
 }
 
 func result(t *testing.T, r map[string]any) map[string]any {
@@ -180,20 +188,20 @@ func result(t *testing.T, r map[string]any) map[string]any {
 
 func TestAQueuedTaskGoesToAFreeOwnerAndTheReplySaysSo(t *testing.T) {
 	d, agents := tellDaemon(t, true)
-	tid, _ := db.NewTask(d.db, "job", "bob", "alice", 0, db.DefaultPriority, "", 0, "")
+	tid, _ := db.NewTask(d.db, "job", key(t, d, "bob"), key(t, d, "alice"), 0, db.DefaultPriority, "", 0, "")
 	f := pipeTo(t, d, "k")
 	said := result(t, f.ask(`{"jsonrpc":"2.0","id":2,"method":"task.queue","params":{"tasks":[1],"request_id":"q1"}}`))["said"]
-	if said != "task T1 is queued (human) - bob was free, so it went out now" {
+	if want := "task T1 is queued (" + db.Human + ") - " + key(t, d, "bob") + " was free, so it went out now"; said != want {
 		t.Fatalf("%v", said)
 	}
-	if got := agents.said("bob"); !strings.Contains(got, "job") {
+	if got := agents.said(key(t, d, "bob")); !strings.Contains(got, "job") {
 		t.Fatalf("the task was not typed at its owner: %q", got)
 	}
 	_ = tid
 	// the owner is busy now: the second is queued behind the first and the reply says only that
-	db.NewTask(d.db, "second", "bob", "alice", 0, db.DefaultPriority, "", 0, "")
+	db.NewTask(d.db, "second", key(t, d, "bob"), key(t, d, "alice"), 0, db.DefaultPriority, "", 0, "")
 	said = result(t, f.ask(`{"jsonrpc":"2.0","id":3,"method":"task.queue","params":{"tasks":[2],"request_id":"q2"}}`))["said"]
-	if !strings.HasPrefix(said.(string), "task T2 is queued (human)") || strings.Contains(said.(string), "went out") {
+	if !strings.HasPrefix(said.(string), "task T2 is queued ("+db.Human+")") || strings.Contains(said.(string), "went out") {
 		t.Fatalf("%v", said)
 	}
 }
@@ -201,8 +209,8 @@ func TestAQueuedTaskGoesToAFreeOwnerAndTheReplySaysSo(t *testing.T) {
 func TestADiscardTypesItsSaysAndMovesTheOwnerOn(t *testing.T) {
 	d, agents := tellDaemon(t, true)
 	doing(t, d, "bob")
-	second, _ := db.NewTask(d.db, "the next one", "bob", "alice", 0, db.DefaultPriority, "", 0, "")
-	db.SetTaskQueued(d.db, second, "human")
+	second, _ := db.NewTask(d.db, "the next one", key(t, d, "bob"), key(t, d, "alice"), 0, db.DefaultPriority, "", 0, "")
+	db.SetTaskQueued(d.db, second, db.Human)
 	reqs, _ := db.TaskRequests(d.db, 1)
 	for _, q := range reqs {
 		db.CloseIfQueued(d.db, q.ID, "dismissed", "")
@@ -210,10 +218,10 @@ func TestADiscardTypesItsSaysAndMovesTheOwnerOn(t *testing.T) {
 	agents.typed = map[string][]string{}
 	f := pipeTo(t, d, "k")
 	result(t, f.ask(`{"jsonrpc":"2.0","id":2,"method":"task.discard","params":{"task":1,"reason":"not needed","request_id":"d1"}}`))
-	if got := agents.said("bob"); !strings.Contains(got, "T1 discarded by the founder: not needed") {
+	if got := agents.said(key(t, d, "bob")); !strings.Contains(got, "T1 discarded by the founder: not needed") {
 		t.Fatalf("the discard was not told: %q", got)
 	}
-	if cur, _, _ := db.CurrentTask(d.db, "bob"); cur != second {
+	if cur, _, _ := db.CurrentTask(d.db, key(t, d, "bob")); cur != second {
 		t.Fatalf("the owner was not moved on to T%d: %d", second, cur)
 	}
 }
@@ -227,7 +235,7 @@ func TestNoTellingWhenThePortsAreNotAllSet(t *testing.T) {
 	agents.typed = map[string][]string{}
 	f := pipeTo(t, d, "k")
 	result(t, f.ask(`{"jsonrpc":"2.0","id":2,"method":"task.memo.add","params":{"task":1,"text":"@bob mind the cache","request_id":"m1"}}`))
-	if got := agents.said("bob"); got != "" {
+	if got := agents.said(key(t, d, "bob")); got != "" {
 		t.Fatalf("nothing is told: %q", got)
 	}
 }
@@ -235,32 +243,33 @@ func TestNoTellingWhenThePortsAreNotAllSet(t *testing.T) {
 // The founder's comment passes their turn before it is told: recipients names the holder it goes back to, not who the task answers to, as add does.
 func TestCommentRecipientsOnTheFoundersTurnNameTheHolderBelowIt(t *testing.T) {
 	d, agents := tellDaemon(t, true)
-	tid, err := db.NewTask(d.db, "job", "bob", "alice", 0, db.DefaultPriority, "", 0, "")
+	tid, err := db.NewTask(d.db, "job", key(t, d, "bob"), key(t, d, "alice"), 0, db.DefaultPriority, "", 0, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.PushTurn(d.db, tid, db.Turn{Agent: db.Human, By: "bob", Since: 1}); err != nil {
+	if err := db.PushTurn(d.db, tid, db.Turn{Agent: db.Human, By: key(t, d, "bob"), Since: 1}); err != nil {
 		t.Fatal(err)
 	}
 	founder := pipeTo(t, d, "k")
 	list, _ := result(t, founder.ask(fmt.Sprintf(`{"jsonrpc":"2.0","id":5,"method":"task.comment.recipients","params":{"task":%d,"text":"mind the cache"}}`, tid)))["recipients"].([]any)
-	if len(list) != 1 || list[0].(map[string]any)["agent"] != "bob" {
+	if len(list) != 1 || list[0].(map[string]any)["agent"] != key(t, d, "bob") {
 		t.Fatalf("recipients on the founder's turn: %v", list)
 	}
 	result(t, founder.ask(fmt.Sprintf(`{"jsonrpc":"2.0","id":6,"method":"task.comment.add","params":{"task":%d,"text":"mind the cache","request_id":"rt1"}}`, tid)))
-	if !strings.Contains(agents.said("bob"), "mind the cache") || strings.Contains(agents.said("alice"), "mind the cache") {
-		t.Fatalf("add told other than recipients said: alice %q bob %q", agents.said("alice"), agents.said("bob"))
+	if !strings.Contains(agents.said(key(t, d, "bob")), "mind the cache") || strings.Contains(agents.said(key(t, d, "alice")), "mind the cache") {
+		t.Fatalf("add told other than recipients said: alice %q bob %q", agents.said(key(t, d, "alice")), agents.said(key(t, d, "bob")))
 	}
 }
 
 // recipients answers who add then tells, by one rule: with and without skip, for the founder's comment and an agent's.
 func TestCommentRecipientsAreExactlyWhoAddThenTells(t *testing.T) {
 	d, agents := tellDaemon(t, true)
-	tid, err := db.NewTask(d.db, "job", "bob", "alice", 0, db.DefaultPriority, "", 0, "")
+	tid, err := db.NewTask(d.db, "job", key(t, d, "bob"), key(t, d, "alice"), 0, db.DefaultPriority, "", 0, "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	founder, agent := pipeTo(t, d, "k"), pipeTo(t, d, "")
+	alice, bob := key(t, d, "alice"), key(t, d, "bob")
 	recipients := func(f *pipeConn, text string) string {
 		var out []string
 		list, _ := result(t, f.ask(fmt.Sprintf(`{"jsonrpc":"2.0","id":5,"method":"task.comment.recipients","params":{"task":%d,"text":%q}}`, tid, text)))["recipients"].([]any)
@@ -276,21 +285,21 @@ func TestCommentRecipientsAreExactlyWhoAddThenTells(t *testing.T) {
 		n++
 		result(t, f.ask(fmt.Sprintf(`{"jsonrpc":"2.0","id":%d,"method":"task.comment.add","params":{"task":%d,"text":"@alice mind the cache","skip":%s,"request_id":"rc%d"}}`, 10+n, tid, skip, n)))
 	}
-	if got := recipients(founder, "@alice mind the cache"); got != "alice:asked,bob:assignee" {
+	if got := recipients(founder, "@alice mind the cache"); got != alice+":asked,"+bob+":assignee" {
 		t.Fatalf("the founder's comment is for who it names and the assignee: %q", got)
 	}
-	if got := recipients(founder, "no one named"); got != "bob:assignee" {
+	if got := recipients(founder, "no one named"); got != bob+":assignee" {
 		t.Fatalf("the founder's comment on a task an agent holds is that holder's alone: %q", got)
 	}
-	if got := recipients(agent, "@alice mind the cache"); got != "alice:asked,bob:assignee" {
+	if got := recipients(agent, "@alice mind the cache"); got != alice+":asked,"+bob+":assignee" {
 		t.Fatalf("an agent's comment is for who it names and the holder: %q", got)
 	}
-	if got := recipients(agent, "no one named"); got != "bob:assignee" {
+	if got := recipients(agent, "no one named"); got != bob+":assignee" {
 		t.Fatalf("a comment naming no one is told to the holder only: %q", got)
 	}
 	add(founder, `[]`)
-	if !told("alice") || !told("bob") {
-		t.Fatalf("add told other than recipients said: alice %v bob %v", told("alice"), told("bob"))
+	if !told(alice) || !told(bob) {
+		t.Fatalf("add told other than recipients said: alice %v bob %v", told(alice), told(bob))
 	}
 	d2, agents2 := tellDaemon(t, true)
 	tid2, _ := db.NewTask(d2.db, "job", "bob", "alice", 0, db.DefaultPriority, "", 0, "")
