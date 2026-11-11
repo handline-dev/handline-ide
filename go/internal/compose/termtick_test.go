@@ -21,11 +21,12 @@ func termTickRig(t *testing.T) (*Parts, *fakeTerminals, string) {
 	t.Helper()
 	ft := newFakeTerminals()
 	p, _, _, _ := wiredWith(t, ft)
+	bob := teamtest.Key(t, p.home, "bob")
 	wt, _ := filepath.EvalSymlinks(t.TempDir())
-	if err := dbpkg.SetAccount(p.db, "bob", "a1", "recorded"); err != nil {
+	if err := dbpkg.SetAccount(p.db, bob, "a1", "recorded"); err != nil {
 		t.Fatal(err)
 	}
-	if err := dbpkg.SetTerminal(p.db, "bob", "%1", wt); err != nil {
+	if err := dbpkg.SetTerminal(p.db, bob, "%1", wt); err != nil {
 		t.Fatal(err)
 	}
 	ft.live["%1"] = true
@@ -79,33 +80,35 @@ func TestTheTickReadsATerminalAgentsSessionFromItsSessionFile(t *testing.T) {
 
 func TestTerminalAgentsAreOnlyTickedWhenAskedFor(t *testing.T) {
 	p, _, _ := termTickRig(t)
+	bob := teamtest.Key(t, p.home, "bob")
 	has := func(list []string, a string) bool {
 		return strings.Contains(" "+strings.Join(list, " ")+" ", " "+a+" ")
 	}
 	if got := (tickHost{p: p}).Agents(); len(got) != 0 {
 		t.Fatalf("without terminals no agent is ticked: %v", got)
 	}
-	if !has(tickHost{p: p, terminals: true}.Agents(), "bob") {
+	if !has(tickHost{p: p, terminals: true}.Agents(), bob) {
 		t.Fatal("with terminals bob is ticked")
 	}
 }
 
 func TestTheReconcilerRecordsATerminalAgentWhoseSessionEndedAsClosedWithItsSession(t *testing.T) {
 	p, _, wt := termTickRig(t)
+	bob := teamtest.Key(t, p.home, "bob")
 	d := p.db
-	dbpkg.SetResumeSession(d, "bob", "22222222-2222-4222-8222-222222222222")
+	dbpkg.SetResumeSession(d, bob, "22222222-2222-4222-8222-222222222222")
 	tk := p.Tick(cfgOf(p), TickConfig{Terminals: true})
 	// the pane is listed and no session runs in it: the session ended without us
 	actions := []string{}
 	tk.Tick.Reconcile.Sweep(d, &actions)
-	row, _ := dbpkg.GetAgentState(d, "bob")
+	row, _ := dbpkg.GetAgentState(d, bob)
 	if !row.ClosedAt.Valid || row.ClosedAt.Int64 == 0 || row.ResumeSession.String != "22222222-2222-4222-8222-222222222222" {
 		t.Fatalf("closed with its session kept: %+v %v", row, actions)
 	}
 	// a session runs again (a human relaunched it): the closed mark was wrong
 	writeSession(t, p, "a1", os.Getpid(), `{"cwd":"`+wt+`","sessionId":"s2","status":"idle"}`)
 	tk.Tick.Reconcile.Sweep(d, &actions)
-	if row, _ = dbpkg.GetAgentState(d, "bob"); row.ClosedAt.Valid && row.ClosedAt.Int64 != 0 {
+	if row, _ = dbpkg.GetAgentState(d, bob); row.ClosedAt.Valid && row.ClosedAt.Int64 != 0 {
 		t.Fatalf("a running session clears the closed mark: %v", actions)
 	}
 }
