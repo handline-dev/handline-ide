@@ -76,7 +76,7 @@ func TestAnAgentsProposeRaisesADecisionForTheFounder(t *testing.T) {
 	if err := r.db.QueryRow("SELECT id, owner, opened_by, expects FROM tasks").Scan(&tid, &owner, &opener, &expects); err != nil {
 		t.Fatal(err)
 	}
-	if owner != "human" || opener != "alice" || expects != "decision" {
+	if owner != r.k("human") || opener != r.k("alice") || expects != "decision" {
 		t.Fatal(owner, opener, expects)
 	}
 	if err := r.db.QueryRow("SELECT request_id FROM task_requests WHERE task_id = ?", tid).Scan(&rid); err != nil {
@@ -88,14 +88,14 @@ func TestAnAgentsProposeRaisesADecisionForTheFounder(t *testing.T) {
 	}
 	var body string
 	r.db.QueryRow("SELECT body FROM requests WHERE id = ?", rid).Scan(&body)
-	if read, ok := team.RootRead(body, "alice"); !ok || read != root {
+	if read, ok := team.RootRead(body, r.k("alice")); !ok || read != root {
 		t.Fatalf("the founder reads the root: %q", body)
 	}
 	p, ok, err := team.NewTrust(r.home).LoadProposal(id)
 	if err != nil || !ok {
 		t.Fatal(ok, err)
 	}
-	for k, v := range map[string]any{"root": root, "why": "the repo", "requested_by": "alice", "state": "proposed", "request": rid, "task": tid} {
+	for k, v := range map[string]any{"root": root, "why": "the repo", "requested_by": r.k("alice"), "state": "proposed", "request": rid, "task": tid} {
 		if p.Get(k) != v {
 			t.Fatalf("%s = %v (%T), want %v", k, p.Get(k), p.Get(k), v)
 		}
@@ -108,7 +108,7 @@ func TestAnAgentsProposeRaisesADecisionForTheFounder(t *testing.T) {
 	if len(props) != 1 {
 		t.Fatal(got)
 	}
-	if row := props[0].(map[string]any); row["id"] != id || row["root"] != root || row["state"] != "proposed" || row["requested_by"] != "alice" || row["request"] != float64(rid) {
+	if row := props[0].(map[string]any); row["id"] != id || row["root"] != root || row["state"] != "proposed" || row["requested_by"] != r.k("alice") || row["request"] != float64(rid) {
 		t.Fatal(row)
 	}
 	if got := r.result(r.one(s, "trust.list", `{}`)); len(got["proposals"].([]any)) != 0 {
