@@ -33,15 +33,16 @@ func LoadConfig(home string) Config {
 			}
 		}
 	}
-	return withAccountRows(home, m)
+	m, _ = withAccountRows(home, m) // rows that cannot be read leave each account at its defaults, as an unreadable config.yaml does
+	return m
 }
 
-// LoadConfigOrNil is config.yaml, or ok false when it exists and cannot be read as a mapping (a parse error, a write caught half
-// done): a caller that would act on what the file does not say must tell that from a file that says nothing. A missing file is empty.
+// LoadConfigOrNil is LoadConfig, or ok false when config.yaml exists and cannot be read as a mapping (a parse error, a write caught
+// half done) or the account rows cannot be read: a caller that would act on what the file does not say must tell that from a file that says nothing. A missing file is empty.
 func LoadConfigOrNil(home string) (Config, bool) {
 	b, err := os.ReadFile(paths.ConfigFile(home))
 	if os.IsNotExist(err) {
-		return withAccountRows(home, Config{}), true
+		return orNil(withAccountRows(home, Config{}))
 	}
 	if err != nil {
 		return nil, false
@@ -51,7 +52,14 @@ func LoadConfigOrNil(home string) (Config, bool) {
 	if err != nil || !isMap {
 		return nil, false
 	}
-	return withAccountRows(home, m), true
+	return orNil(withAccountRows(home, m))
+}
+
+func orNil(m Config, err error) (Config, bool) {
+	if err != nil {
+		return nil, false
+	}
+	return m, true
 }
 
 func posInt(v any) (int, bool) {

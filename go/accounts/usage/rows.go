@@ -2,6 +2,8 @@ package usage
 
 import (
 	"database/sql"
+	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -17,42 +19,47 @@ var AccountKeys = []struct{ Prefix, Column string }{
 	{"usage_recover_", "usage_recover"}, {"month_cycle_", "month_cycle"}, {"sub_end_", "sub_end"},
 }
 
-var boolColumn = map[string]bool{"paused": true, "usage_recover": true, "month_cycle": true}
-
-func accountKey(k string) bool {
+// AccountSetting is the account and column a per-account Config key is held in; acct is "" for any other key.
+func AccountSetting(k string) (acct, col string) {
 	for _, a := range AccountKeys {
 		if strings.HasPrefix(k, a.Prefix) {
-			return true
+			return strings.TrimPrefix(k, a.Prefix), a.Column
 		}
 	}
-	return false
+	return "", ""
 }
 
-// withAccountRows drops the per-account keys config.yaml may hold and puts in each account row's settings in their place.
-func withAccountRows(home string, m Config) Config {
+func prefixOf(col string) string {
+	for _, a := range AccountKeys {
+		if a.Column == col {
+			return a.Prefix
+		}
+	}
+	return ""
+}
+
+// withAccountRows drops the per-account keys config.yaml may hold and puts in each account row's settings in their place. A home
+// with no database yet has no rows; a database that cannot be read is an error, with m holding no account's settings.
+func withAccountRows(home string, m Config) (Config, error) {
 	for k := range m {
-		if accountKey(k) {
+		if acct, _ := AccountSetting(k); acct != "" {
 			delete(m, k)
 		}
 	}
 	d, err := store.SharedIfThere(paths.DBFile(home))
 	if d == nil || err != nil {
-		return m
+		return m, err
 	}
 	rows, err := ReadAccountRows(d)
 	if err != nil {
-		return m
+		return m, err
 	}
 	for name, set := range rows {
 		for col, v := range set {
-			for _, a := range AccountKeys {
-				if a.Column == col {
-					m[a.Prefix+name] = v
-				}
-			}
+			m[prefixOf(col)+name] = v
 		}
 	}
-	return m
+	return m, nil
 }
 
 // ReadAccountRows is each account's settings that are not the default, by account name and column, as Config holds them: a bool
@@ -98,27 +105,64 @@ func ReadAccountRows(q interface {
 	return out, rows.Err()
 }
 
-// SetAccount writes the account's settings by column, a nil value back to the default, making its row (owned by the install's
-// owner) when it has none. column is one of AccountKeys', never input text.
+// SetAccount writes the account's settings by column (one of AccountKeys'), a nil value back to the default, in one statement that
+// makes its row (owned by the install's owner) when it has none. A column or value of the wrong kind is an error and writes nothing.
 func SetAccount(q actor.Q, name string, set map[string]any) error {
+	cols, vals := []string{}, []any{}
+	for col, v := range set {
+		sv, err := columnValue(col, v)
+		if err != nil {
+			return fmt.Errorf("account %s: %w", name, err)
+		}
+		cols, vals = append(cols, col), append(vals, sv)
+	}
 	owner, err := actor.Owner(q)
 	if err != nil {
 		return err
 	}
-	if _, err := q.Exec("INSERT INTO accounts(name, owner, created_at) VALUES(?, ?, ?) ON CONFLICT(name) DO NOTHING",
-		name, owner, time.Now().Unix()); err != nil {
-		return err
+	update := "NOTHING"
+	if len(cols) > 0 {
+		sets := make([]string, len(cols))
+		for i, c := range cols {
+			sets[i] = c + " = excluded." + c
+		}
+		update = "UPDATE SET " + strings.Join(sets, ", ")
 	}
-	for col, v := range set {
-		if v == nil && col == "paused" {
-			v = false
+	all := append([]string{"name", "owner", "created_at"}, cols...)
+	marks := strings.TrimSuffix(strings.Repeat("?, ", len(all)), ", ")
+	_, err = q.Exec("INSERT INTO accounts("+strings.Join(all, ", ")+") VALUES("+marks+") ON CONFLICT(name) DO "+update,
+		append([]any{name, owner, time.Now().Unix()}, vals...)...)
+	return err
+}
+
+// columnValue is v as col stores it: text for label and sub_end, a whole number of at least 1 for active_cap, 0 or 1 for the flags;
+// nil is NULL but for paused, whose default is 0.
+func columnValue(col string, v any) (any, error) {
+	if prefixOf(col) == "" {
+		return nil, fmt.Errorf("no account setting %q", col)
+	}
+	if v == nil {
+		if col == "paused" {
+			return 0, nil
 		}
-		if b, ok := v.(bool); ok && boolColumn[col] {
-			v = map[bool]int{true: 1, false: 0}[b]
+		return nil, nil
+	}
+	switch col {
+	case "label", "sub_end":
+		if s, ok := v.(string); ok {
+			return s, nil
 		}
-		if _, err := q.Exec("UPDATE accounts SET "+col+" = ? WHERE name = ?", v, name); err != nil {
-			return err
+	case "active_cap":
+		if f, ok := v.(float64); ok && f == math.Trunc(f) { // a number read from JSON
+			v = int64(f)
+		}
+		if n, ok := posInt(v); ok {
+			return n, nil
+		}
+	default:
+		if b, ok := v.(bool); ok {
+			return map[bool]int{true: 1, false: 0}[b], nil
 		}
 	}
-	return nil
+	return nil, fmt.Errorf("%s cannot be %v (%T)", col, v, v)
 }
