@@ -300,3 +300,29 @@ func TestAccountsListGivesTheEmailToTheFounderOnly(t *testing.T) {
 		}
 	}
 }
+
+// An account with no record shows the email Claude Code is logged in to now, and the read records nothing.
+func TestAccountsListShowsTheLoggedInEmailOfAnUnrecordedAccountAndWritesNothing(t *testing.T) {
+	t.Parallel()
+	e := testEnv(t)
+	dir, err := team.AccountConfigDir(e.Home, "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, ".claude.json"), []byte(`{"oauthAccount":{"emailAddress":"now@example.com"}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got, err := e.accountsList(&rpc.Conn{Caller: rpc.Caller{Role: "founder"}}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a := got.(map[string]any)["accounts"].([]any)[0].(map[string]any); a["email"] != "now@example.com" {
+		t.Fatalf("%v", a)
+	}
+	if _, err := os.Stat(filepath.Join(e.Home, "accounts", "main", "identity.json")); !os.IsNotExist(err) {
+		t.Fatalf("the read wrote identity.json: %v", err)
+	}
+}

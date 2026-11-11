@@ -119,7 +119,7 @@
         "type": "null"
        }
       ],
-      "description": "The email of the Anthropic account this account was set up with, kept after its login drops; null when none is known. accounts.list gives it to the founder only."
+      "description": "The email of the Anthropic account this account was set up with, as recorded at its login, else the one it is logged in to now; null when none is known. accounts.list gives it to the founder only."
      },
      "vendor": {
       "type": "string",
