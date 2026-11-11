@@ -47,7 +47,7 @@ type Chat struct {
 func (*Chat) Name() string { return "chat" }
 
 func (*Chat) Tables() []string {
-	return []string{"agent_view", "cursors", "events", "meta", "operations", "prompt_blocks", "requests", "session_starts", "task_requests", "task_turns", "tasks"}
+	return []string{"agent_view", "cursors", "events", "meta", "operations", "prompt_blocks", "requests", "session_starts", "task_memos", "task_requests", "task_turns", "tasks"}
 }
 
 // Pending is whether a command run was still running at the last look and the terminal host is asked: its window ends without a write. So

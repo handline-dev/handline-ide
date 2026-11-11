@@ -8,78 +8,12 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/data/db"
-	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
-// task.turn.push and task.turn.pop (docs/design/turns.md): the agent acting on a task, or the founder, puts another on top of it; the one
-// on top, or the founder, takes its turn off with a pass or a send-back, and the task goes back to the one below.
-
-// turnPushMethod is task.turn.push.
-func turnPushMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, error) {
-	return func(c *rpc.Conn, p map[string]any) (any, error) {
-		tid, err := taskID(p)
-		if err != nil {
-			return nil, err
-		}
-		to, err := text(p, "to")
-		if err != nil {
-			return nil, err
-		}
-		ask, err := optText(p, "ask")
-		if err != nil {
-			return nil, err
-		}
-		onPass, err := optText(p, "on_pass")
-		if err != nil {
-			return nil, err
-		}
-		evidence, err := optText(p, "evidence")
-		if err != nil {
-			return nil, err
-		}
-		if onPass != "" && onPass != db.TurnOnPassDone {
-			return nil, badParam(`on_pass is "done" or absent`, "on_pass")
-		}
-		if (onPass == "") != (evidence == "") {
-			return nil, badParam(`evidence comes with on_pass "done", and only with it`, "evidence")
-		}
-		agents := paths.ListAgents(home)
-		if to != human && !contains(agents, to) {
-			e := rpc.NotFoundError("no agent named " + to)
-			e.Data = map[string]any{"what": "agent", "name": to}
-			return nil, e
-		}
-		me := c.Caller.Actor()
-		var h Handover
-		var asked *Asked
-		out, err := c.Effect(func(tx *sql.Tx) (map[string]any, error) {
-			var err error
-			if h, asked, err = pushTurn(tx, tell, tid, me, to, ask, onPass, evidence); err != nil {
-				return nil, err
-			}
-			if !asked.OK {
-				return nil, &rpc.CommitThen{Err: refusal(asked.Msg)}
-			}
-			if asked.Reask {
-				return accepted(fmt.Sprintf("T%d: %s", tid, asked.Msg), nil), nil
-			}
-			return accepted(fmt.Sprintf("T%d is %s's turn now: %s", tid, to, asked.Msg), nil), nil
-		})
-		if asked != nil && !asked.OK && asked.After != nil {
-			asked.After()
-		}
-		if err != nil || asked.Reask {
-			return out, err
-		}
-		h.After = asked.After
-		if tail := tell.HandedOver(h); tail != "" {
-			out["said"] = out["said"].(string) + "\n" + tail
-		}
-		return out, nil
-	}
-}
+// Turns (docs/design/turns.md): the agent acting on a task, or the founder, puts another on top of it with a comment (task.comment.add
+// with turn); the one on top, or the founder, takes its turn off with task.turn.pop, a pass or a send-back, and the task goes back to the one below.
 
 // optText is an optional text param, trimmed: "" when absent.
 func optText(p map[string]any, key string) (string, error) {
@@ -95,8 +29,9 @@ func optText(p map[string]any, key string) (string, error) {
 }
 
 // pushTurn puts `to` on top of task tid in tx, by the agent acting on it or the founder, and delivers the task to `to` (the founder is not
-// delivered to: the task is in front of them as theirs to act on).
-func pushTurn(tx *sql.Tx, tell Teller, tid int64, by, to, ask, onPass, evidence string) (Handover, *Asked, error) {
+// delivered to: the task is in front of them as theirs to act on). memo is the comment it is handed over with, whose text is ask; 0 for a
+// turn the daemon puts on with ask as its own text.
+func pushTurn(tx *sql.Tx, tell Teller, tid int64, by, to, ask string, memo int64, onPass, evidence string) (Handover, *Asked, error) {
 	t, err := getTask(tx, tid)
 	if err != nil {
 		return Handover{}, nil, err
@@ -107,11 +42,11 @@ func pushTurn(tx *sql.Tx, tell Teller, tid int64, by, to, ask, onPass, evidence 
 	}
 	if to == human && ask != "" && turnRefusal(t, tid, human) == "" && t.Acting == human && len(turns) > 0 && by == Below(turns, t.Owner) {
 		// the founder's turn is their one question slot on the task: asking again rewrites it
-		changed, err := db.ReaskTopTurn(tx, tid, by, ask)
+		changed, err := db.ReaskTopTurn(tx, tid, by, ask, memo)
 		if err != nil || !changed {
 			return Handover{}, &Asked{OK: true, Msg: "the founder's question is unchanged", Reask: true}, err
 		}
-		return Handover{}, &Asked{OK: true, Msg: "the founder's question now reads: " + ask, Reask: true}, nil
+		return Handover{}, &Asked{OK: true, Msg: "the founder's turn now hangs on this comment", Reask: true}, nil
 	}
 	if why := turnRefusal(t, tid, by); why != "" {
 		return Handover{}, nil, refusal(why)
@@ -126,13 +61,13 @@ func pushTurn(tx *sql.Tx, tell Teller, tid int64, by, to, ask, onPass, evidence 
 	}
 	h := Handover{Task: tid, By: by, From: t.Acting, To: to, Title: t.Title}
 	push := func() error {
-		return db.PushTurn(tx, tid, db.Turn{Agent: to, Ask: ask, By: by, Since: time.Now().Unix(), OnPass: onPass, Evidence: evidence})
+		return db.PushTurn(tx, tid, db.Turn{Agent: to, Ask: ask, By: by, Since: time.Now().Unix(), OnPass: onPass, Evidence: evidence, Memo: memo})
 	}
 	if to == human {
 		return h, &Asked{OK: true, Msg: "it waits on the founder"}, shiftTask(tx, tell, &h, "the founder's turn", true, push)
 	}
 	if tell == nil {
-		return Handover{}, nil, fmt.Errorf("task.turn.push needs the supervisor to route its ask")
+		return Handover{}, nil, fmt.Errorf("a turn to an agent needs the supervisor to route its ask")
 	}
 	body := fmt.Sprintf("T%d is your turn, from %s: %s", tid, by, t.Title)
 	if ask != "" {
@@ -143,29 +78,6 @@ func pushTurn(tx *sql.Tx, tell Teller, tid int64, by, to, ask, onPass, evidence 
 		return shiftTask(tx, tell, &h, "turn to "+to, true, push)
 	}})
 	return h, asked, err
-}
-
-// Asker is who may put the founder's question on open task tid, or rewrite it: the agent acting on it, or the one under the founder's turn.
-// "" for none (no such task, or it is over).
-func Asker(tx *sql.Tx, tid int64) (string, error) {
-	t, err := getTask(tx, tid)
-	if err != nil || t == nil || t.done() || t.DiscardedBy.Valid && t.DiscardedBy.String != "" {
-		return "", err
-	}
-	if t.Acting != human {
-		return t.Acting, nil
-	}
-	turns, err := db.Turns(tx, tid)
-	if err != nil || len(turns) == 0 {
-		return "", err // the founder owns it: nobody asks them
-	}
-	return Below(turns, t.Owner), nil
-}
-
-// PutQuestion is the founder's turn on task tid with ask, by its Asker: put on, or its question rewritten when it is already theirs. The
-// caller runs tell.HandedOver on the Handover after the commit unless Asked.Reask.
-func PutQuestion(tx *sql.Tx, tell Teller, tid int64, by, ask string) (Handover, *Asked, error) {
-	return pushTurn(tx, tell, tid, by, human, ask, "", "")
 }
 
 // Below is who acts on a task once its top turn comes off: the turn under it, else its owner.
@@ -299,13 +211,13 @@ func popTurn(tx *sql.Tx, home string, tell Teller, tid int64, by, outcome, note 
 		}
 	}
 	pop := func() error {
-		if _, _, _, err := db.PopTurn(tx, tid, by, outcome, note, h.RID); err != nil {
-			return err
-		}
 		if note != "" && memo == 0 {
 			if memo, err = db.AddMemo(tx, tid, by, note); err != nil {
 				return err
 			}
+		}
+		if _, _, _, err := db.PopTurn(tx, tid, by, outcome, note, h.RID, memo); err != nil {
+			return err
 		}
 		if memo == 0 || h.RID == 0 {
 			return nil

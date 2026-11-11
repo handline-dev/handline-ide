@@ -3274,7 +3274,7 @@
   },
   {
    "name": "say",
-   "summary": "A message typed at once; needs no answer, starts no work.",
+   "summary": "A message typed at once; needs no answer, starts no work, and carries no task: what is written on a task is a comment (task.comment.add).",
    "paramStructure": "by-name",
    "params": [
     {
@@ -3290,21 +3290,6 @@
      "schema": {
       "type": "string",
       "description": "Markdown. It may name images (x-attachments, texts)."
-     }
-    },
-    {
-     "name": "task",
-     "required": false,
-     "schema": {
-      "type": "integer"
-     }
-    },
-    {
-     "name": "no_task",
-     "required": false,
-     "schema": {
-      "type": "string",
-      "description": "Why this carries no task."
      }
     },
     {

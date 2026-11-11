@@ -46,142 +46,24 @@ func TestSayToAReportWithoutATaskIsRefusedWithTheTaskThatWouldReachIt(t *testing
 	// bob reports to alice, the member its team is named after; written before the table is first read and sealed
 	os.WriteFile(filepath.Join(r.home, "team.yaml"), []byte(strings.Replace(teamYAML, "eng: [alice, bob]", "alice: [alice, bob]", 1)), 0o644)
 	out := r.say(SayVerbIn{Requester: "alice", Target: "bob", Body: "fix the bug"})
-	want := "work cannot reach a report by message: make it a task (`hl task new`), or say --task T<n> to comment on one. Try:\n  hl task new --assign bob -t 2h '<title>' 'fix the bug'"
+	want := "work cannot reach a report by message: make it a task, or comment on the task it has. Try:\n  hl task new --assign bob -t 2h '<title>' 'fix the bug'\n  hl task comment T<n> add '@bob fix the bug'"
 	if out.OK || out.Msg != want {
 		t.Fatalf("%q", out.Msg)
 	}
 }
 
-func TestSayWithATaskIsThatTasksMemoAndTellsTheHolder(t *testing.T) {
-	r := newRig(t)
-	r.agentUp("bob")
-	tid := r.newTask("bob", "alice", "job")
-	r.AdvanceCurrentTask(r.DB, "bob")
-	r.term.typed = nil
-	out := r.say(SayVerbIn{Requester: "alice", Target: "bob", Body: "check the cache", Task: tid})
-	if !out.OK || out.Msg != "comment 1 added to T1" {
-		t.Fatalf("%+v", out)
-	}
-	if !strings.Contains(r.term.last(), "T1 comment 1 by alice: check the cache") {
-		t.Fatalf("%q", r.term.last())
-	}
-	m, _ := db.GetMemo(r.DB, 1)
-	if m == nil || m.Body != "check the cache" || m.Author != "alice" {
-		t.Fatalf("%+v", m)
-	}
-	// the wrong holder, a missing task and a bad no-task
-	if out := r.say(SayVerbIn{Requester: "alice", Target: "alice", Body: "x", Task: tid}); out.OK || !strings.HasPrefix(out.Msg, "T1 is with bob, not alice. Try:\n  hl say bob x --task T1") {
-		t.Fatalf("%q", out.Msg)
-	}
-	if out := r.say(SayVerbIn{Requester: "alice", Target: "bob", Body: "x", Task: 9}); out.OK || !strings.HasPrefix(out.Msg, "no task T9. Try:\n  hl say bob x") {
-		t.Fatalf("%q", out.Msg)
-	}
-	no := "because"
-	if out := r.say(SayVerbIn{Requester: "alice", Target: "bob", Body: "x", NoTask: &no}); out.OK || !strings.HasPrefix(out.Msg, "--no-task is for replying to the founder") {
-		t.Fatalf("%q", out.Msg)
-	}
-}
-
-func TestAReplyToTheFoundersRequestMustSayWhatItBecomes(t *testing.T) {
+// A reply to the founder's request needs no task named: work that follows it is a task begun or requested from the message.
+func TestAReplyToTheFoundersRequestNeedsNoTask(t *testing.T) {
 	r := newRig(t)
 	r.agentUp("alice")
 	ask := r.ask("human", "alice", "please build x", "")
-	out := r.say(SayVerbIn{Requester: "alice", Target: "human", Body: "on it", Parent: ask})
-	if out.OK || !strings.Contains(r.ids(out.Msg), "#1 is the founder's: say whether work follows it. --task T<n> names the tasks it opened") || !strings.Contains(r.ids(out.Msg), "Try:\n  hl say human 'on it' --parent #1 --no-task '<why>'") {
-		t.Fatalf("%q", out.Msg)
-	}
-	if row, _ := db.GetRequest(r.DB, ask); row.State != "queued" {
-		t.Fatal("answered despite the refusal")
-	}
-	// exactly one open task of the sender's: the reply attaches to it
-	tid := r.newTask("alice", "human", "build x")
-	out = r.say(SayVerbIn{Requester: "alice", Target: "human", Body: "on it", Parent: ask})
-	if !out.OK || !strings.HasSuffix(out.Msg, "\nattached to T1, your only open task") {
+	if out := r.say(SayVerbIn{Requester: "alice", Target: "human", Body: "on it", Parent: ask}); !out.OK {
 		t.Fatalf("%+v", out)
 	}
-	_ = tid
-	links, _ := db.TaskRequests(r.DB, tid)
-	found := false
-	for _, l := range links {
-		found = found || l.ID == ask
-	}
-	if !found {
-		t.Fatalf("the founder's request is not linked to the task: %+v", links)
-	}
-	if row, _ := db.GetRequest(r.DB, ask); row.State != "queued" {
-		t.Fatalf("a reply links the founder's request to the task and closes nothing: %+v", row)
-	}
-}
-
-func TestAReplyWithATaskLandsInItsThreadNotAsAMemo(t *testing.T) {
-	r := newRig(t)
-	r.agentUp("alice")
-	said := r.say(SayVerbIn{Requester: "human", Target: "alice", Body: "why a memo?"}) // the founder in chat
-	if !said.OK {
-		t.Fatalf("%+v", said)
-	}
-	r.DB.Exec("UPDATE requests SET state = 'landed' WHERE id = 1") // read, as a chat message is
-	tid := r.newTask("human", "bob", "decide")                     // the founder's, opened by someone else
-	out := r.say(SayVerbIn{Requester: "alice", Target: "human", Body: "here is why", Parent: 1, Task: tid})
-	if !out.OK || strings.Contains(out.Msg, "memo") {
-		t.Fatalf("%+v", out)
-	}
-	if m, _ := db.GetMemo(r.DB, 1); m != nil {
-		t.Fatalf("the reply became a memo: %+v", m)
-	}
-	var rid int64
-	r.DB.QueryRow("SELECT id FROM requests WHERE requester = 'alice' AND target = 'human' AND parent_id = 1").Scan(&rid)
-	if rid == 0 {
-		t.Fatal("no reply in the thread of #1")
-	}
-	links, _ := db.TaskRequests(r.DB, tid)
-	found := false
-	for _, l := range links {
-		found = found || l.ID == rid
-	}
-	if !found {
-		t.Fatalf("the reply #%d is not linked to T%d: %+v", rid, tid, links)
-	}
-}
-
-func TestANoTaskReplyRecordsWhy(t *testing.T) {
-	r := newRig(t)
-	ask := r.ask("human", "alice", "what is 2+2?", "")
-	why := "just a question"
-	out := r.say(SayVerbIn{Requester: "alice", Target: "human", Body: "4", Parent: ask, NoTask: &why})
-	if !out.OK {
-		t.Fatalf("%+v", out)
-	}
-	if n, _, _ := db.LastEventID(r.DB, "alice", "no_task"); n == 0 {
-		t.Fatal("no no_task event")
-	}
-}
-
-func TestCheckHumanResolveGuardsTasksAndTheFoundersRows(t *testing.T) {
-	r := newRig(t)
-	mine := r.newTask("alice", "alice", "mine")
-	theirs := r.newTask("bob", "bob", "theirs")
-	row := &db.Request{ID: 5, Requester: db.Human}
-	if got := r.checkHumanResolve(r.DB, row, []int64{9}, nil, "alice", false); got != "no task T9" {
-		t.Fatal(got)
-	}
-	if got := r.checkHumanResolve(r.DB, row, []int64{theirs}, nil, "alice", false); got != "T2 is not yours: only a task you hold, or opened, can be named here (it is bob's)" {
-		t.Fatal(got)
-	}
-	db.MarkTaskDone(r.DB, mine, "ok", "reason")
-	if got := r.checkHumanResolve(r.DB, row, []int64{mine}, nil, "alice", false); got != "task T1 is already done" {
-		t.Fatal(got)
-	}
-	if got := r.checkHumanResolve(r.DB, row, []int64{theirs}, nil, db.Human, false); got != "" {
-		t.Fatalf("the founder's own hands pass: %q", got)
-	}
-	both := "why"
-	if got := r.checkHumanResolve(r.DB, row, []int64{theirs}, &both, "bob", false); !strings.Contains(got, "say whether work follows it. --task T<n> [T<n> ...] names") {
-		t.Fatal(got)
-	}
-	agentRow := &db.Request{ID: 6, Requester: "bob"}
-	if got := r.checkHumanResolve(r.DB, agentRow, nil, nil, "alice", false); got != "" {
-		t.Fatalf("agent-to-agent rows are conversation: %q", got)
+	var n int
+	r.must(r.DB.QueryRow("SELECT COUNT(*) FROM requests WHERE requester = 'alice' AND parent_id = ?", ask).Scan(&n))
+	if n != 1 {
+		t.Fatalf("the reply is in the thread: %d", n)
 	}
 }
 
@@ -286,13 +168,13 @@ func TestASayToTheFounderThatNamesAMessageIsRefusedAndAsksForWords(t *testing.T)
 	var ref string
 	r.DB.QueryRow("SELECT ref FROM requests WHERE id = 1").Scan(&ref)
 	for _, body := range []string{"done, see msg_0123456", "as in " + ref[:8] + " earlier", "re " + strings.ToUpper(ref)} {
-		out := r.say(SayVerbIn{Requester: "alice", Target: db.Human, Body: body, NoTask: ptr("chat")})
+		out := r.say(SayVerbIn{Requester: "alice", Target: db.Human, Body: body})
 		if out.OK || !strings.Contains(out.Msg, "say in words what that message was about") {
 			t.Fatalf("%q: %+v", body, out)
 		}
 	}
 	for _, body := range []string{"merged as 0123456789abcdef0123456789abcdef01234567", "PR #3 is up", "all green"} {
-		if out := r.say(SayVerbIn{Requester: "alice", Target: db.Human, Body: body, NoTask: ptr("chat")}); strings.Contains(out.Msg, "names a message") {
+		if out := r.say(SayVerbIn{Requester: "alice", Target: db.Human, Body: body}); strings.Contains(out.Msg, "names a message") {
 			t.Fatalf("%q is no message id: %+v", body, out)
 		}
 	}

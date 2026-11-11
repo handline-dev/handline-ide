@@ -22,7 +22,6 @@ export const NOT_FROM_UI = [
   'task.memo.delete',
   'task.progress',
   'task.handoff',
-  'task.turn.push', // hl task turn
   // `hl withdraw` and `hl cancel`: the app takes a message back through chat.cancel.
   'request.withdraw',
   'request.cancel',

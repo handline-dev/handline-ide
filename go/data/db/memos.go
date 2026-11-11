@@ -2,6 +2,7 @@ package db
 
 import (
 	"database/sql"
+	"regexp"
 	"time"
 )
 
@@ -110,3 +111,10 @@ func ActedSince(q Q, agent string, ts int64) (bool, error) {
 		"FROM events WHERE agent = ? AND ts >= ? AND kind IN ("+marks(len(ActivityKinds))+")", kindArgs([]any{agent, ts}, ActivityKinds)...).Scan(&other, &prompts, &stops)
 	return other > 0 || prompts > 1 || stops > 1, err
 }
+
+// founderMention is `@human` as a comment's first word.
+var founderMention = regexp.MustCompile(`^\s*@human(?:[^A-Za-z0-9_-]|$)`)
+
+// ToFounder is whether a comment is addressed to the founder: `@human` is its first word. It is news for them and moves no turn; a mention
+// anywhere else (text to agents, a quote, code) is not.
+func ToFounder(body string) bool { return founderMention.MatchString(body) }

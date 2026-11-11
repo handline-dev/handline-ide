@@ -12,26 +12,25 @@ export class TaskVerbs extends TaskComments {
     this.host.inbox.closeAsks(t.id);
     return `task T${t.id} done`;
   }
-  /** The founder goes on top with the ask; already on top, a new ask rewrites it (edited, old text in earlier) and the same text changes nothing. */
-  turnPush(p: Record<string, unknown>, agent: string): void {
-    const t = this.find(p.task);
-    if (p.to !== 'human') throw new TaskFailure('refused', 'the fake daemon pushes turns to human only');
-    const ask = String(p.ask ?? '').trim();
+  /** The founder goes on top with comment memo, its text the ask; already on top, a new comment moves the turn to it (edited, old text in earlier). */
+  turnPush(task: unknown, memo: number, ask: string, agent: string): void {
+    const t = this.find(task);
     const top = t.turns?.at(-1);
     if (top?.agent === 'human') {
-      if (top.ask === ask) return;
-      const turn = { ...top, ask, edited: this.now(), earlier: [...(top.earlier ?? []), { ask: top.ask, at: top.edited ?? top.since }] };
+      const turn = { ...top, ask, memo, edited: this.now(), earlier: [...(top.earlier ?? []), { ask: top.ask, at: top.edited ?? top.since }] };
       this.change(t, { turns: [...t.turns!.slice(0, -1), turn] });
       return;
     }
-    const turn = { agent: 'human', ask, by: agent || t.to, since: this.now(), on_pass: null, evidence: null, edited: null, earlier: [] };
-    const log = [...(t.turnLog ?? []), { at: turn.since, who: `${turn.by} → human`, text: ask, turn: 'push' as const }];
+    const turn = { agent: 'human', ask, by: agent || t.to, since: this.now(), on_pass: null, evidence: null, edited: null, earlier: [], memo };
+    const log = [...(t.turnLog ?? []), { at: turn.since, who: `${turn.by} → human`, text: '', turn: 'push' as const, memo }];
     this.change(t, { turns: [...(t.turns ?? []), turn], acting: 'human', turnLog: log });
   }
-  /** The founder's comment while their turn is on top passes it (docs/design/turns.md); the comment stays a comment here. */
+  /** The founder's comment while their turn is on top passes it (docs/design/turns.md); a comment with turn human puts the founder on top. */
   override memo(p: Record<string, unknown>, op: 'add' | 'edit' | 'delete', person: string, agent = false): number {
+    if (op === 'add' && p.turn !== undefined && p.turn !== 'human') throw new TaskFailure('refused', 'the fake daemon hands turns to human only');
     const id = super.memo(p, op, person, agent);
-    if (op === 'add' && !agent && this.find(p.task).turns?.at(-1)?.agent === 'human') this.turnPop(p);
+    if (op === 'add' && p.turn === 'human') this.turnPush(p.task, id, String(p.text).trim(), agent ? person : '');
+    else if (op === 'add' && !agent && this.find(p.task).turns?.at(-1)?.agent === 'human') this.turnPop(p);
     return id;
   }
   /** The founder gives their turn back to whoever pushed it. */

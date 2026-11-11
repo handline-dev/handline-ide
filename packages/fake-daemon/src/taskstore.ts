@@ -28,7 +28,7 @@ export type Row = Task & {
   body: string;
   memos?: Memo[];
   notes?: { at: string; who: string; text: string }[]; // the notes it was sent back with
-  turnLog?: { at: string; who: string; text: string; turn: 'push' | 'pop' }[]; // turns pushed (`by → to`, the ask) and given back (`from → to`)
+  turnLog?: { at: string; who: string; text: string; turn: 'push' | 'pop'; memo?: number }[]; // turns pushed (`by → to`, the ask) and given back (`from → to`)
   handoffLog?: { at: string; who: string; text: string }[]; // handoffs (`from → to`, the note)
   blockers: { task: number; reason: string; at?: string }[];
   clock?: TaskClock | null;
@@ -275,7 +275,7 @@ export class TaskStore {
         ...(t.notes ?? []).map((n) =>
           withParts({ at: n.at, who: n.who, kind: 'reject' as const, text: n.text, memo: null, edited_at: null }, n.text),
         ),
-        ...(t.turnLog ?? []).map((n) => ({ ...n, kind: 'turn' as const, memo: null, edited_at: null })),
+        ...(t.turnLog ?? []).map((n) => ({ ...n, kind: 'turn' as const, memo: n.memo ?? null, edited_at: null })),
         ...(t.handoffLog ?? []).map((n) => ({ ...n, kind: 'handoff' as const, memo: null, edited_at: null })),
       ].sort((a, b) => a.at.localeCompare(b.at)),
       people: { recent: [], team: [], others: [] },

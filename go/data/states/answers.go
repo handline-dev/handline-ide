@@ -54,7 +54,7 @@ func AnswerVerb(q db.Q, head *db.Request) (string, error) {
 		}
 	}
 	if head.Requester == db.Human {
-		return fmt.Sprintf("answer the founder now, before other work: `hl say human --parent %s \"...\" --task T<n>` (or `--no-task \"<why>\"`) - if it is work, one line on what you will do or who has it", head.Name(q)), nil
+		return fmt.Sprintf("answer the founder now, before other work: `hl say human --parent %s \"...\"` - if it is work, one line on what you will do or who has it (`hl task begin \"<title>\" --chat <msg>` takes it, `hl task request <msg>` gives it to another)", head.Name(q)), nil
 	}
 	if head.Kind.String == "say" {
 		return "it asks nothing", nil

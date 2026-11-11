@@ -1,8 +1,8 @@
 {
  "fixtures": [
   {
-   "name": "task.turn.push.and_pop_refusals",
-   "spec": "task.turn.push",
+   "name": "task.comment.add.turn_and_pop_refusals",
+   "spec": "task.comment.add",
    "about": "On a task the founder opened for one agent: a push to its owner is refused, a push of an agent already on it is refused, a fourth turn is refused, and an agent that is neither the top turn's nor the founder may not pop it. The discard at the end clears the turns.",
    "as": "agent",
    "with": {
@@ -59,10 +59,11 @@
      "send": {
       "jsonrpc": "2.0",
       "id": 3,
-      "method": "task.turn.push",
+      "method": "task.comment.add",
       "params": {
        "task": "{{tid}}",
-       "to": "{{turn_a}}",
+       "text": "over to you",
+       "turn": "{{turn_a}}",
        "request_id": "conf-turn-3"
       }
      },
@@ -78,11 +79,11 @@
      "send": {
       "jsonrpc": "2.0",
       "id": 4,
-      "method": "task.turn.push",
+      "method": "task.comment.add",
       "params": {
        "task": "{{tid}}",
-       "to": "{{turn_b}}",
-       "ask": "look",
+       "text": "look",
+       "turn": "{{turn_b}}",
        "request_id": "conf-turn-4"
       }
      },
@@ -95,10 +96,11 @@
      "send": {
       "jsonrpc": "2.0",
       "id": 5,
-      "method": "task.turn.push",
+      "method": "task.comment.add",
       "params": {
        "task": "{{tid}}",
-       "to": "{{turn_b}}",
+       "text": "over to you",
+       "turn": "{{turn_b}}",
        "request_id": "conf-turn-5"
       }
      },
@@ -114,10 +116,11 @@
      "send": {
       "jsonrpc": "2.0",
       "id": 6,
-      "method": "task.turn.push",
+      "method": "task.comment.add",
       "params": {
        "task": "{{tid}}",
-       "to": "{{turn_c}}",
+       "text": "over to you",
+       "turn": "{{turn_c}}",
        "request_id": "conf-turn-6"
       }
      },
@@ -130,10 +133,11 @@
      "send": {
       "jsonrpc": "2.0",
       "id": 7,
-      "method": "task.turn.push",
+      "method": "task.comment.add",
       "params": {
        "task": "{{tid}}",
-       "to": "human",
+       "text": "over to you",
+       "turn": "human",
        "request_id": "conf-turn-7"
       }
      },
@@ -146,10 +150,11 @@
      "send": {
       "jsonrpc": "2.0",
       "id": 8,
-      "method": "task.turn.push",
+      "method": "task.comment.add",
       "params": {
        "task": "{{tid}}",
-       "to": "{{ask_agent}}",
+       "text": "over to you",
+       "turn": "{{ask_agent}}",
        "request_id": "conf-turn-8"
       }
      },

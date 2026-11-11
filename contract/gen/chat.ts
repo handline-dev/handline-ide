@@ -80,7 +80,7 @@ export type TranscriptItem = {
   /** Its time and its source's row, so it never changes. An item that arrives in a second a client has read up to can sort before the last one it has: `since` reads from that second and a client drops the ids it already holds. For kind reply it is also what chat.send takes as parent_item. A reply has one of two sources, told apart by the last digit of its number within the second: a structured session's text block (even; the same id on every read and in the live event's `item`) and the answer to a request (odd); each is the same on every read, and chat.transcript lists both. Source numbers within the second: 0 reply, 1 prompt, 2 task event, 3 tool call, 4 session start (its number is the session_starts row), 5 bash command (its number is its place in the session's transcript). */
   id: number;
   at: Timestamp;
-  kind: "reply" | "tool" | "prompt" | "task_event" | "session" | "task_batch" | "bash";
+  kind: "reply" | "tool" | "prompt" | "task_event" | "session" | "task_batch" | "bash" | "task_comment";
   text?: string;
   tool?: string;
   /** For kind tool: the text the tool printed, as the store holds it. Absent when the store holds none. */
@@ -146,6 +146,17 @@ export type TranscriptItem = {
       title: string;
       reason: string;
     }[];
+  };
+  /** For kind task_comment: a task comment the founder is part of, as a card in an agent's chat. turn: the founder's turn put on the task, in the chat of the agent below it; answer: the founder's comment that gave the turn back, in the chat of the agent it went back to; note: an `@human` comment (news, no turn), in its author's chat. The card opens the task; the answer is written there. */
+  task_comment?: {
+    task: number;
+    /** The comment (Memo.id); null for a turn the daemon put on without one (a handoff to human), whose text is the turn's ask. */
+    memo: number | null;
+    kind: "turn" | "answer" | "note";
+    /** Who wrote it: the agent, or human for an answer. */
+    who: string;
+    /** The comment's text as it reads now (edited or not); empty when it was deleted. */
+    text: string;
   };
 };
 

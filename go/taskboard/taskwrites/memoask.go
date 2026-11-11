@@ -2,13 +2,9 @@ package taskwrites
 
 import (
 	"database/sql"
-	"regexp"
 
 	"github.com/handline/handline/go/data/db"
 )
-
-// humanMention is a comment addressed to the founder: `@human` is its first word. A mention anywhere else (text to agents, a quote, code) asks nothing.
-var humanMention = regexp.MustCompile(`^\s*@human(?:[^A-Za-z0-9_-]|$)`)
 
 // syncMemoAsk keeps an old @human comment's open ask in step with its edit, or withdraws it; a comment raises no new ask.
 func syncMemoAsk(tx *sql.Tx, mid int64, body string) error {
@@ -20,7 +16,7 @@ func syncMemoAsk(tx *sql.Tx, mid int64, body string) error {
 	if err != nil {
 		return err
 	}
-	if humanMention.MatchString(body) {
+	if db.ToFounder(body) {
 		_, err = tx.Exec("UPDATE requests SET body = ? WHERE id = ?", body, rid)
 		return err
 	}
@@ -59,7 +55,7 @@ func WithdrawUnaddressedMemoAsks(q db.Q) (int64, error) {
 			rows.Close()
 			return 0, err
 		}
-		if !humanMention.MatchString(body) {
+		if !db.ToFounder(body) {
 			stale = append(stale, mid)
 		}
 	}

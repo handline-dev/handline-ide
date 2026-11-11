@@ -1172,7 +1172,12 @@ func (e *Env) turnsOf(tid int64, history bool) ([]any, error) {
 				at, edited = ts(ev["ts"]), ts(ev["ts"])
 			}
 		}
-		turn := map[string]any{"agent": u.Agent, "ask": u.Ask, "by": u.By, "since": ts(u.Since), "on_pass": onPass, "evidence": evidence, "edited": edited}
+		var memo any
+		if u.Memo != 0 {
+			memo = u.Memo
+		}
+		turn := map[string]any{"agent": u.Agent, "ask": u.Ask, "by": u.By, "since": ts(u.Since), "on_pass": onPass, "evidence": evidence, "edited": edited,
+			"memo": memo}
 		if history {
 			turn["earlier"] = earlier
 		}

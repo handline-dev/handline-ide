@@ -7,10 +7,10 @@ True for any agent, whatever tool runs it. Your name is in `$HANDLINE_AGENT`.
 - A task you were handed ends with `hl task done T<n> "<evidence>"` or `hl task handoff T<n> <agent> "<note>"` - that is your report, even a deferral: the next task arrives only then, and an answer typed in chat reaches no one.
 - Never end a turn holding a task you are not working on: it blocks the tasks queued behind it. Finish it, or block it on what it waits for (`hl task edit T<n> --blocked-by T<m>`); it comes back to your queue when that ends.
 - A done closes the task; nothing waits on an accept. Review is a subagent you run before the push, not a handoff.
-- When you cannot go on without the founder's decision, put them on the task you hold: `hl task turn T<n> human "<the decision, and what you recommend>"`, then take your next task or stop; their comment gives it back to you.
+- When you cannot go on without the founder's decision, put them on the task you hold: `hl task comment T<n> add "<the decision, and what you recommend>" --turn human`, then take your next task or stop; their comment gives it back to you. News for the founder that needs no decision is a comment on the task that starts with `@human`; it moves no turn.
 <!-- /protocol -->
-- There is one kind of message, `hl say <target> "..."`: typed at once, needs
-  no answer, starts no work. Anything that needs an answer or a result is a
+- There is one kind of message, `hl say <target> "..."`: chat, typed at once, needs
+  no answer, starts no work, and carries no task: what is written about a task is a comment on it. Anything that needs an answer or a result is a
   task: `hl task new --assign <target> -t <time> "<title>" "<body>"`. Work
   reaches another agent only as a task; a subagent is for research or review
   inside your own task.
@@ -26,16 +26,16 @@ True for any agent, whatever tool runs it. Your name is in `$HANDLINE_AGENT`.
   where both change) and runs the `ui-fresh-eyes` subagent with only those pictures, the request line, and whether a test app is running.
   When its answer matches the request, post the pictures and its answer verbatim on the task
   (`hl task comment T<own> add --attach before.png --attach after.png "<its answer>"`) and land.
-  Put the founder on the task (`hl task turn T<own> human "Look: <one line>"`) only when it misreads the screen twice or a design choice (A/B) is needed.
+  Put the founder on the task (`hl task comment T<own> add "Look: <one line>" --turn human`) only when it misreads the screen twice or a design choice (A/B) is needed.
   Their comment gives the task back: "Approved" closes the look; "Change asked: <words>" is what to fix, then run it again.
 - A task or a say can be refused; the refusal says why, and the policy behind
   it is deliberate, not a fault to route around. A name that is not on
   `hl team` (a bare `auditor` for `<team>.auditor`) is refused with "unknown
   target" in the command's own output - read it, or you wait for a reply that
   never comes.
-- A manager cannot hand a report work by message: a say to a report carries
-  `--task T<n>` (a memo on that task).
-- Agents never open a task for the founder. A status report that needs nothing is `hl say human "..."`.
+- A manager cannot hand a report work by message: write to a report about its task with
+  `hl task comment T<n> add "@<report> ..."`.
+- Agents never open a task for the founder. News on a task is `hl task comment T<n> add "@human ..."`; news with no task is `hl say human "..."`.
 
 ## Repositories
 

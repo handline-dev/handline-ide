@@ -39,4 +39,4 @@ To change a task you gave that is not yet done, write a memo on it (`hl task com
 A done closes the task; nothing waits on an accept. Review is a subagent you run before the push, not a handoff.
 
 ## founder
-When you cannot go on without the founder's decision, put them on the task you hold: `hl task turn T<n> human "<the decision, and what you recommend>"`, then take your next task or stop; their comment gives it back to you.
+When you cannot go on without the founder's decision, put them on the task you hold: `hl task comment T<n> add "<the decision, and what you recommend>" --turn human`, then take your next task or stop; their comment gives it back to you. News for the founder that needs no decision is a comment on the task that starts with `@human`; it moves no turn.

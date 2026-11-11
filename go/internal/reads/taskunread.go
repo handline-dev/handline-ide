@@ -131,7 +131,7 @@ func (e *Env) requestsPending(_ *rpc.Conn, _ map[string]any) (any, error) {
 			for _, o := range open {
 				items = append(items, o.i("id"))
 			}
-			turn, err := queryOne(e.DB, "SELECT agent, ask, pushed_by FROM task_turns WHERE task_id = ? ORDER BY pos DESC LIMIT 1", tid)
+			turn, err := queryOne(e.DB, "SELECT agent, "+db.TurnAskSQL("u")+" AS ask, pushed_by FROM task_turns u WHERE task_id = ? ORDER BY pos DESC LIMIT 1", tid)
 			if err != nil {
 				return nil, err
 			}
@@ -183,6 +183,25 @@ func (e *Env) requestsPending(_ *rpc.Conn, _ map[string]any) (any, error) {
 		}
 		answer = append(answer, out)
 	}
+	// News for the founder: an @human comment they have not read, on a task no row above stands for; the bell's dot, not its count.
+	notes, err := query(e.DB, "SELECT m.id, m.task_id, m.author, m.body, m.created_at, t.title FROM task_memos m JOIN tasks t ON t.id = m.task_id "+
+		"LEFT JOIN cursors c ON c.name = 'task_seen:human:' || m.task_id WHERE m.author != 'human' AND m.id > MAX(?, COALESCE(c.row_id, 0)) "+
+		"AND COALESCE(t.discarded_by, '') = '' ORDER BY m.id DESC", e.seenFloor())
+	if err != nil {
+		return nil, err
+	}
+	noted := 0
+	for _, m := range notes {
+		tid := m.i("task_id")
+		if byTask[tid] != nil || !db.ToFounder(m.str("body")) {
+			continue
+		}
+		out := row(tid, m.str("title"), "note", []int64{}, all[tid], ts(m["created_at"]))
+		out["source"], out["id"], out["agent"], out["ask"] = "comment", strconv.FormatInt(m.i("id"), 10), m.str("author"), firstLine(withoutHumanTag(m.str("body")))
+		byTask[tid] = out
+		answer = append(answer, out)
+		noted++
+	}
 	sort.SliceStable(answer, func(i, j int) bool { return answer[i]["last_at"].(string) > answer[j]["last_at"].(string) })
 
 	// Tasks the founder answers for that have comments they have not read, and are not already a question above.
@@ -221,7 +240,7 @@ func (e *Env) requestsPending(_ *rpc.Conn, _ map[string]any) (any, error) {
 		return nil, err
 	}
 	return map[string]any{"answer": answer, "comments": comments,
-		"counts": map[string]any{"answer": len(answer), "comments": len(comments), "needs_you": needs, "drafts": drafts, "unseen_results": results}}, nil
+		"counts": map[string]any{"answer": len(answer) - noted, "notes": noted, "comments": len(comments), "needs_you": needs, "drafts": drafts, "unseen_results": results}}, nil
 }
 
 // needsYouAndDrafts counts the open tasks the founder owns or that wait on them (Task.waiting.on is founder), and the open drafts.
