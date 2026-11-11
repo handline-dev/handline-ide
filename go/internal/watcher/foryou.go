@@ -23,7 +23,7 @@ type ForYou struct {
 
 // ForYouSignature says how many deferrals have run out their time: the database does not change then, so the watch would not look.
 func ForYouSignature(q *sql.DB) string {
-	later, err := prefs.LaterOf(q, "human")
+	later, err := prefs.LaterOf(q, db.Human)
 	if err != nil {
 		return ""
 	}
