@@ -40,7 +40,7 @@ func TestDoneIsTheOwnersWithOneKindOfEvidenceAndTellsWhoWaited(t *testing.T) {
 		"INSERT INTO task_requests(task_id, request_id) VALUES(1, 10), (8, 12)",
 		"UPDATE tasks SET done_evidence = 'earlier', done_at = 2 WHERE id = 8",
 	} {
-		if _, err := db.Exec(q); err != nil {
+		if _, err := db.Exec(keyed(db, q)); err != nil {
 			t.Fatalf("%s: %v", q, err)
 		}
 	}
@@ -78,8 +78,8 @@ func TestDoneIsTheOwnersWithOneKindOfEvidenceAndTellsWhoWaited(t *testing.T) {
 		t.Fatalf("done: %v", r)
 	}
 	var via string
-	db.QueryRow("SELECT done_via FROM tasks WHERE id = 1").Scan(&via)
-	count := func(q string) (n int) { db.QueryRow(q).Scan(&n); return }
+	db.QueryRow(keyed(db, "SELECT done_via FROM tasks WHERE id = 1")).Scan(&via)
+	count := func(q string) (n int) { db.QueryRow(keyed(db, q)).Scan(&n); return }
 	if via != "reason" || count("SELECT COUNT(*) FROM requests WHERE id = 10 AND state = 'withdrawn'") != 1 {
 		t.Fatalf("the evidence kind is kept and the leftover delivery is closed quietly: %q", via)
 	}

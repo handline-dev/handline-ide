@@ -67,7 +67,7 @@ func TestMemosAreAddedEditedAndDeletedByTheirAuthorOrTheFounder(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	if _, err := db.Exec("INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 't', 'worker', 'manager', 1)"); err != nil {
+	if _, err := db.Exec(keyed(db, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 't', 'worker', 'manager', 1)")); err != nil {
 		t.Fatal(err)
 	}
 	mk := func(agent string) *rpc.Server {
@@ -96,7 +96,7 @@ func TestMemosAreAddedEditedAndDeletedByTheirAuthorOrTheFounder(t *testing.T) {
 	}
 	var n int
 	var body string
-	db.QueryRow("SELECT COUNT(*), MAX(body) FROM task_memos").Scan(&n, &body)
+	db.QueryRow(keyed(db, "SELECT COUNT(*), MAX(body) FROM task_memos")).Scan(&n, &body)
 	if n != 1 || body != "second" {
 		t.Fatalf("%d %q", n, body)
 	}
@@ -108,7 +108,7 @@ func TestMemosAreAddedEditedAndDeletedByTheirAuthorOrTheFounder(t *testing.T) {
 	if got := call(t, mk("worker"), `{"jsonrpc":"2.0","id":2,"method":"task.memo.delete","params":{"task":1,"memo":1,"request_id":"b2"}}`); got[0]["result"] == nil {
 		t.Fatalf("the author deletes: %v", got[0])
 	}
-	db.QueryRow("SELECT COUNT(*) FROM task_memos").Scan(&n)
+	db.QueryRow(keyed(db, "SELECT COUNT(*) FROM task_memos")).Scan(&n)
 	if n != 0 {
 		t.Fatal("the memo is still there")
 	}
@@ -121,7 +121,7 @@ func TestReopenSendsADoneTaskBackWithAReason(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	if _, err := db.Exec("INSERT INTO tasks(id, title, owner, opened_by, created_at, done_evidence, done_at, done_via) VALUES(1, 't', 'worker', 'manager', 1, 'sha', 2, 'reason')"); err != nil {
+	if _, err := db.Exec(keyed(db, "INSERT INTO tasks(id, title, owner, opened_by, created_at, done_evidence, done_at, done_via) VALUES(1, 't', 'worker', 'manager', 1, 'sha', 2, 'reason')")); err != nil {
 		t.Fatal(err)
 	}
 	mk := func(agent string) *rpc.Server {
@@ -145,12 +145,12 @@ func TestReopenSendsADoneTaskBackWithAReason(t *testing.T) {
 	}
 	var ev sql.NullString
 	var n int
-	db.QueryRow("SELECT COUNT(*) FROM tasks WHERE id = 1 AND done_evidence IS NULL").Scan(&n)
-	db.QueryRow("SELECT payload FROM events WHERE kind = 'reopen_task'").Scan(&ev)
+	db.QueryRow(keyed(db, "SELECT COUNT(*) FROM tasks WHERE id = 1 AND done_evidence IS NULL")).Scan(&n)
+	db.QueryRow(keyed(db, "SELECT payload FROM events WHERE kind = 'reopen_task'")).Scan(&ev)
 	if n != 1 || ev.String != `{"task_id": 1, "reason": "the result was wrong", "after_request": 0}` {
 		t.Fatalf("%d %q", n, ev.String)
 	}
-	if _, err := db.Exec("UPDATE tasks SET done_evidence = 'sha', done_at = 3, done_via = 'reason' WHERE id = 1"); err != nil {
+	if _, err := db.Exec(keyed(db, "UPDATE tasks SET done_evidence = 'sha', done_at = 3, done_via = 'reason' WHERE id = 1")); err != nil {
 		t.Fatal(err)
 	}
 	r = call(t, mk("manager"), line(5, 1, "  ", "m4"))
@@ -174,7 +174,7 @@ func TestStartMakesATaskTheOwnersCurrentOneAndPutsItsRequestFirst(t *testing.T) 
 		"INSERT INTO task_requests(task_id, request_id) VALUES(2, 11)",
 		"INSERT INTO task_memos(task_id, author, body, created_at) VALUES(2, 'manager', 'mind the lock', 1700000000)",
 	} {
-		if _, err := db.Exec(q); err != nil {
+		if _, err := db.Exec(keyed(db, q)); err != nil {
 			t.Fatalf("%v: %s", err, q)
 		}
 	}
@@ -204,9 +204,9 @@ func TestStartMakesATaskTheOwnersCurrentOneAndPutsItsRequestFirst(t *testing.T) 
 	}
 	var cur, order int
 	var ev string
-	db.QueryRow("SELECT current_task FROM agent_state WHERE agent = 'worker'").Scan(&cur)
-	db.QueryRow("SELECT queue_order FROM requests WHERE id = 11").Scan(&order)
-	db.QueryRow("SELECT payload FROM events WHERE kind = 'task_start'").Scan(&ev)
+	db.QueryRow(keyed(db, "SELECT current_task FROM agent_state WHERE agent = 'worker'")).Scan(&cur)
+	db.QueryRow(keyed(db, "SELECT queue_order FROM requests WHERE id = 11")).Scan(&order)
+	db.QueryRow(keyed(db, "SELECT payload FROM events WHERE kind = 'task_start'")).Scan(&ev)
 	if cur != 2 || order != 9 || ev != `{"task_id": 2, "was_current": 1}` {
 		t.Fatalf("%d %d %q", cur, order, ev)
 	}
@@ -228,7 +228,7 @@ func TestSendNowTypesAHeldCommentTellOnlyWhileItIsHeld(t *testing.T) {
 		"INSERT INTO requests(id, ts, requester, target, body, state, kind, notice, landed_at, read_at) VALUES(6, 1, 'notices', 'amy', 'b', 'landed', 'say', 2, 1, 2)",
 		"INSERT INTO memo_tells(memo_id, reader, request_id) VALUES(1, 'worker', 5), (1, 'amy', 6)",
 	} {
-		if _, err := db.Exec(q); err != nil {
+		if _, err := db.Exec(keyed(db, q)); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -242,7 +242,7 @@ func TestSendNowTypesAHeldCommentTellOnlyWhileItIsHeld(t *testing.T) {
 	if r := send("s1", "worker"); r["result"] == nil || fmt.Sprint(tell.sentMemo) != "[5]" {
 		t.Fatalf("a held tell goes now: %v %v", r, tell.sentMemo)
 	}
-	db.Exec("UPDATE requests SET delivered_at = 9 WHERE id = 5") // what the digest does
+	db.Exec(keyed(db, "UPDATE requests SET delivered_at = 9 WHERE id = 5")) // what the digest does
 	for i, agent := range []string{"worker", "amy", "nobody"} {  // already sent, already read, never told
 		if r := send(fmt.Sprintf("s%d", i+2), agent); r["error"] == nil {
 			t.Errorf("%s: only a held tell is sent now: %v", agent, r)

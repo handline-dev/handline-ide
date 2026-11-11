@@ -45,7 +45,7 @@ func (f *fakeTeller) notices(ns []db.Notice) []db.Notice {
 func (f *fakeTeller) retired(rs []Retired) []Retired {
 	out := make([]Retired, len(rs))
 	for i, x := range rs {
-		x.Requester, x.Target = f.n(x.Requester), f.n(x.Target)
+		x.Requester, x.Target, x.Verdict = f.n(x.Requester), f.n(x.Target), f.n(x.Verdict)
 		out[i] = x
 	}
 	return out
@@ -92,12 +92,12 @@ func TestADiscardHandsItsSaysItsFreedOwnersToTheTeller(t *testing.T) {
 		"INSERT INTO requests(id, ts, requester, target, body, kind, state, edge_ok) VALUES(5, 1, 'manager', 'worker', 'do t', 'task', 'queued', 1)",
 		"INSERT INTO task_requests(task_id, request_id) VALUES(1, 5)",
 	} {
-		if _, err := sdb.Exec(q); err != nil {
+		if _, err := sdb.Exec(keyed(sdb, q)); err != nil {
 			t.Fatal(err)
 		}
 	}
 	// the request still queued on it refuses a plain discard: withdraw it first
-	if _, err := sdb.Exec("UPDATE requests SET state = 'landed', delivered_at = 1, landed_at = 1 WHERE id = 5"); err != nil {
+	if _, err := sdb.Exec(keyed(sdb, "UPDATE requests SET state = 'landed', delivered_at = 1, landed_at = 1 WHERE id = 5")); err != nil {
 		t.Fatal(err)
 	}
 	f := &fakeTeller{}
@@ -118,7 +118,7 @@ func TestADiscardHandsItsSaysItsFreedOwnersToTheTeller(t *testing.T) {
 		t.Fatalf("%s", got)
 	}
 	// a discard that refuses tells nothing
-	sdb.Exec("INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(3, 'v', 'other', 'other', 1)")
+	sdb.Exec(keyed(sdb, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(3, 'v', 'other', 'other', 1)"))
 	f2 := &fakeTeller{}
 	s2 := mk("other", f2)
 	if r := call(t, s2, `{"jsonrpc":"2.0","id":2,"method":"task.discard","params":{"task":3,"reason":"x","request_id":"d2"}}`); r[0]["error"] != nil {
@@ -135,7 +135,7 @@ func TestADiscardHandsItsSaysItsFreedOwnersToTheTeller(t *testing.T) {
 func TestMemoWritesTellTheHolderThroughTheTeller(t *testing.T) {
 	t.Parallel()
 	sdb, mk := discardEnv(t)
-	sdb.Exec("INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 't', 'worker', 'manager', 1)")
+	sdb.Exec(keyed(sdb, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 't', 'worker', 'manager', 1)"))
 	f := &fakeTeller{}
 	s := mk("manager", f)
 	call(t, s, `{"jsonrpc":"2.0","id":1,"method":"task.memo.add","params":{"task":1,"text":"check the cache","request_id":"m1"}}`)
@@ -160,7 +160,7 @@ func TestMemoWritesTellTheHolderThroughTheTeller(t *testing.T) {
 func TestQueueRepliesWithWhatDeliveryDidForEachTask(t *testing.T) {
 	t.Parallel()
 	sdb, mk := discardEnv(t)
-	sdb.Exec("INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 't', 'worker', 'manager', 1), (2, 'u', 'worker', 'manager', 1)")
+	sdb.Exec(keyed(sdb, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 't', 'worker', 'manager', 1), (2, 'u', 'worker', 'manager', 1)"))
 	f := &fakeTeller{}
 	s := mk("human", f)
 	r := call(t, s, `{"jsonrpc":"2.0","id":1,"method":"task.queue","params":{"tasks":[1,2],"request_id":"q1"}}`)

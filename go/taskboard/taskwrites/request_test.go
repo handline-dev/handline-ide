@@ -119,7 +119,7 @@ func TestARequestSaysItsPathRefsInItsFirstComment(t *testing.T) {
 		t.Fatalf("%v", r[0])
 	}
 	var body string
-	db.QueryRow("SELECT body FROM task_memos WHERE task_id = 1").Scan(&body)
+	db.QueryRow(keyed(db, "SELECT body FROM task_memos WHERE task_id = 1")).Scan(&body)
 	if body != "read these\n[file 1: /w/spec.md]\n[folder 2: /w/docs]" {
 		t.Fatalf("%q", body)
 	}

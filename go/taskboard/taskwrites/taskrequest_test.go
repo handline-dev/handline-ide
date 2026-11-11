@@ -105,7 +105,7 @@ func TestATaskOpenedInTheTurnOfAFounderMessageIsItsRequest(t *testing.T) {
 		}
 	}
 	var first int64
-	db.QueryRow("SELECT id FROM tasks WHERE title = 'first'").Scan(&first)
+	db.QueryRow(keyed(db, "SELECT id FROM tasks WHERE title = 'first'")).Scan(&first)
 	for title, want := range map[string]string{
 		"first":          fmt.Sprintf("%d 7 <nil> <nil>", first), // a root, from 7 by turn_origin; from_request untouched
 		"second":         fmt.Sprintf("%d <nil> <nil> <nil>", first),

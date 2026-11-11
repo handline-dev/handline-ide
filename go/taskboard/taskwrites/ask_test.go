@@ -33,7 +33,7 @@ func TestAskPutsTheFoundersQuestionToAnAgentOnTheTaskWithoutMovingIt(t *testing.
 		t.Fatalf("%v", r[2:])
 	}
 	var body string
-	db.QueryRow("SELECT body FROM requests WHERE id = 1").Scan(&body)
+	db.QueryRow(keyed(db, "SELECT body FROM requests WHERE id = 1")).Scan(&body)
 	if !strings.HasPrefix(body, "Question on T1 from the founder (the task keeps its holder): why?\n\nAnswer by replying") {
 		t.Fatalf("%q", body)
 	}

@@ -30,7 +30,7 @@ func TestSendNowLetsOneTaskThePauseHoldsGoFirst(t *testing.T) {
 			"(20, 'boss', 'w', 'task', 'queued', 2, 'x', 20, NULL), (30, 'boss', 'w', 'task', 'queued', 3, 'x', 30, 6)",
 		"INSERT INTO task_requests(task_id, request_id) VALUES(1, 10), (2, 20), (3, 30)",
 	} {
-		if _, err := db.Exec(q); err != nil {
+		if _, err := db.Exec(keyed(db, q)); err != nil {
 			t.Fatalf("%s: %v", q, err)
 		}
 	}
@@ -71,10 +71,10 @@ func TestSendNowLetsOneTaskThePauseHoldsGoFirst(t *testing.T) {
 	}
 	var passed, sendNow int
 	var o10, o20 float64
-	db.QueryRow("SELECT COUNT(*) FROM events WHERE kind = 'pause_passed' AND json_extract(payload, '$.request_id') = 20").Scan(&passed)
-	db.QueryRow("SELECT COUNT(*) FROM requests WHERE id = 20 AND send_now IS NOT NULL").Scan(&sendNow)
-	db.QueryRow("SELECT queue_order FROM requests WHERE id = 10").Scan(&o10)
-	db.QueryRow("SELECT queue_order FROM requests WHERE id = 20").Scan(&o20)
+	db.QueryRow(keyed(db, "SELECT COUNT(*) FROM events WHERE kind = 'pause_passed' AND json_extract(payload, '$.request_id') = 20")).Scan(&passed)
+	db.QueryRow(keyed(db, "SELECT COUNT(*) FROM requests WHERE id = 20 AND send_now IS NOT NULL")).Scan(&sendNow)
+	db.QueryRow(keyed(db, "SELECT queue_order FROM requests WHERE id = 10")).Scan(&o10)
+	db.QueryRow(keyed(db, "SELECT queue_order FROM requests WHERE id = 20")).Scan(&o20)
 	if passed != 1 || sendNow != 1 || o20 >= o10 {
 		t.Fatalf("passed %d, send_now %d, order %v before %v", passed, sendNow, o20, o10)
 	}

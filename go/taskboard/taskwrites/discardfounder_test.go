@@ -27,7 +27,7 @@ func TestTheFoundersDiscardWithdrawsTheRequestsOutOnTheTask(t *testing.T) {
 		"INSERT INTO task_requests(task_id, request_id) VALUES(1, 10), (2, 20), (3, 30)",
 		"INSERT INTO agent_state(agent, state, updated, current_task) VALUES('w2', 'IDLE', 1, 2)",
 	} {
-		if _, err := db.Exec(q); err != nil {
+		if _, err := db.Exec(keyed(db, q)); err != nil {
 			t.Fatalf("%s: %v", q, err)
 		}
 	}
@@ -41,7 +41,7 @@ func TestTheFoundersDiscardWithdrawsTheRequestsOutOnTheTask(t *testing.T) {
 	discard := func(rid string, task int) map[string]any {
 		return call(t, mk(""), fmt.Sprintf(`{"jsonrpc":"2.0","id":2,"method":"task.discard","params":{"task":%d,"request_id":%q}}`, task, rid))[0]
 	}
-	count := func(q string) (n int) { db.QueryRow(q).Scan(&n); return }
+	count := func(q string) (n int) { db.QueryRow(keyed(db, q)).Scan(&n); return }
 
 	// An agent's discard is still refused while a request is out on the task.
 	r := call(t, mk("boss"), `{"jsonrpc":"2.0","id":2,"method":"task.discard","params":{"task":1,"reason":"moot","request_id":"a1"}}`)[0]

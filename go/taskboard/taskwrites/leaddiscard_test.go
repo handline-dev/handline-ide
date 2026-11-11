@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/handline/handline/go/data/team/teamtest"
-	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/kit/storetest"
 	"github.com/handline/handline/go/protocol/rpc"
 )
@@ -25,16 +24,14 @@ func leadEnv(t *testing.T) (*sql.DB, func(agent string, tell Teller) *rpc.Server
 	teamtest.Seed(t, home, "lead", "w1", "w2", "ops")
 	teamtest.Set(t, home, "w1", "reports_to", "lead")
 	teamtest.Set(t, home, "w2", "reports_to", "lead")
+	homes.Store(d, home)
 	exec(t, d,
 		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'first', 'w1', 'lead', 1), (2, 'second', 'w1', 'lead', 1), (3, 'theirs', 'ops', 'ops', 1)",
 		"INSERT INTO requests(id, ts, requester, target, body, kind, state, edge_ok) VALUES(5, 1, 'w2', 'w1', 'look at t', 'ask', 'queued', 1), "+
 			"(6, 1, 'w2', 'w1', 'and u', 'ask', 'queued', 1)",
 		"INSERT INTO task_requests(task_id, request_id) VALUES(1, 5), (2, 6)")
 	return d, func(agent string, tell Teller) *rpc.Server {
-		s := rpc.NewServer(auth{agent}, "x", store.LatestVersion(), "local", func(string, ...any) {})
-		s.DB = d
-		Register(s, home, tell, nil)
-		return s
+		return rigServer(t, d, home, agent, tell)
 	}
 }
 
@@ -87,7 +84,7 @@ func TestABatchDiscardIsOneEventWithEachTasksReason(t *testing.T) {
 		t.Fatal(r[0])
 	}
 	var payload string
-	if err := d.QueryRow("SELECT payload FROM events WHERE kind = 'discard_batch' AND agent = 'lead'").Scan(&payload); err != nil {
+	if err := d.QueryRow(keyed(d, "SELECT payload FROM events WHERE kind = 'discard_batch' AND agent = 'lead'")).Scan(&payload); err != nil {
 		t.Fatal("one discard_batch event: ", err)
 	}
 	var ev struct {

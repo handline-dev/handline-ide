@@ -29,7 +29,7 @@ func TestQueueAndDraftAreAllOrNone(t *testing.T) {
 		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'a', 'worker', 'manager', 1), (2, 'b', 'worker', 'manager', 1), (3, 'c', 'worker', 'manager', 1)",
 		"UPDATE tasks SET done_evidence = 'x', done_at = 2 WHERE id = 3",
 	} {
-		if _, err := db.Exec(q); err != nil {
+		if _, err := db.Exec(keyed(db, q)); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -59,7 +59,7 @@ func TestQueueAndDraftAreAllOrNone(t *testing.T) {
 		t.Fatalf("%v %v", r[0], r[1])
 	}
 	var kind string
-	db.QueryRow("SELECT kind FROM events WHERE agent = 'manager' AND kind != 'rpc_write' ORDER BY id DESC LIMIT 1").Scan(&kind)
+	db.QueryRow(keyed(db, "SELECT kind FROM events WHERE agent = 'manager' AND kind != 'rpc_write' ORDER BY id DESC LIMIT 1")).Scan(&kind)
 	if kind != "queue_task" {
 		t.Fatalf("the write leaves an event: %q", kind)
 	}
@@ -77,8 +77,8 @@ func TestQueueAndDraftAreAllOrNone(t *testing.T) {
 	}
 
 	// a task with work out on it is not taken back or queued again; held back behind its owner's current task it reads queued
-	db.Exec("INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by, sent_at) VALUES(4, 'd', 'worker', 'manager', 1, 'manager', 5)")
-	if _, err := db.Exec("INSERT INTO agent_state(agent, state, updated, current_task) VALUES('worker', 'RUNNING', 1, 4)"); err != nil {
+	db.Exec(keyed(db, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by, sent_at) VALUES(4, 'd', 'worker', 'manager', 1, 'manager', 5)"))
+	if _, err := db.Exec(keyed(db, "INSERT INTO agent_state(agent, state, updated, current_task) VALUES('worker', 'RUNNING', 1, 4)")); err != nil {
 		t.Fatal(err)
 	}
 	for _, m := range []string{"task.draft", "task.queue"} {
@@ -87,12 +87,12 @@ func TestQueueAndDraftAreAllOrNone(t *testing.T) {
 			t.Fatalf("%s of a task with a request out: %v", m, r[0])
 		}
 	}
-	db.Exec("UPDATE agent_state SET current_task = 1 WHERE agent = 'worker'")                                                // it holds another open task: this one is asked but held back
-	db.Exec("INSERT INTO tasks(id, title, owner, opened_by, created_at, sent_at) VALUES(6, 'f', 'worker', 'manager', 1, 5)") // never approved, asked, held back
+	db.Exec(keyed(db, "UPDATE agent_state SET current_task = 1 WHERE agent = 'worker'"))                                                // it holds another open task: this one is asked but held back
+	db.Exec(keyed(db, "INSERT INTO tasks(id, title, owner, opened_by, created_at, sent_at) VALUES(6, 'f', 'worker', 'manager', 1, 5)")) // never approved, asked, held back
 	if msg := errText(call(t, mk("manager"), line(2, "task.queue", "h1", 6))[0]); msg != "task T6 is already queued" {
 		t.Fatalf("asked but held back reads queued: %q", msg)
 	}
-	db.Exec("UPDATE tasks SET discarded_by = 'manager', discarded_at = 3 WHERE id = 2")
+	db.Exec(keyed(db, "UPDATE tasks SET discarded_by = 'manager', discarded_at = 3 WHERE id = 2"))
 	if msg := errText(call(t, mk("manager"), line(2, "task.draft", "x1", 2))[0]); msg != "task T2 is discarded - only a queued or doing task can be made draft" {
 		t.Fatalf("a discarded task: %q", msg)
 	}
@@ -100,7 +100,7 @@ func TestQueueAndDraftAreAllOrNone(t *testing.T) {
 	if nf["data"].(map[string]any)["what"] != "task" {
 		t.Fatalf("an unknown task is not_found: %v", nf)
 	}
-	db.Exec("INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(5, 'e', 'worker', 'manager', 1)")
+	db.Exec(keyed(db, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(5, 'e', 'worker', 'manager', 1)"))
 	dup := call(t, mk("manager"), line(2, "task.queue", "u1", 5, 5))[0]["result"].(map[string]any)
 	if dup["said"] != "task T5 is queued (manager)" {
 		t.Fatalf("a repeated id queues once: %v", dup)
@@ -135,7 +135,7 @@ func TestDraftWithdrawsTheDeliveryNotYetLandedAndEndsOneThatHas(t *testing.T) {
 		"INSERT INTO task_requests(task_id, request_id) VALUES(1, 10), (2, 11), (5, 12)",
 		"INSERT INTO agent_state(agent, state, updated, current_task) VALUES('w', 'RUNNING', 1, 7)", // w works T7: the others are held back
 	} {
-		if _, err := sdb.Exec(q); err != nil {
+		if _, err := sdb.Exec(keyed(sdb, q)); err != nil {
 			t.Fatalf("%s: %v", q, err)
 		}
 	}
@@ -162,7 +162,7 @@ func TestDraftWithdrawsTheDeliveryNotYetLandedAndEndsOneThatHas(t *testing.T) {
 	if r["error"] != nil || r["result"].(map[string]any)["said"] != "delivered T1 - 1 stopped" || stateOf(1) != "draft" {
 		t.Fatalf("a delivery not yet landed is withdrawn: %v, T1 %s", r, stateOf(1))
 	}
-	sdb.QueryRow("SELECT state FROM requests WHERE id = 10").Scan(&reqState)
+	sdb.QueryRow(keyed(sdb, "SELECT state FROM requests WHERE id = 10")).Scan(&reqState)
 	if reqState != "withdrawn" || len(f.released) != 1 || f.released[0].RID != 10 || f.released[0].Held {
 		t.Fatalf("#10 %s, told %+v", reqState, f.released)
 	}
@@ -172,7 +172,7 @@ func TestDraftWithdrawsTheDeliveryNotYetLandedAndEndsOneThatHas(t *testing.T) {
 		t.Fatalf("a landed delivery held back behind w's current task: %v, T2 %s", r, stateOf(2))
 	}
 	var order *float64
-	sdb.QueryRow("SELECT state, queue_order FROM requests WHERE id = 11").Scan(&reqState, &order)
+	sdb.QueryRow(keyed(sdb, "SELECT state, queue_order FROM requests WHERE id = 11")).Scan(&reqState, &order)
 	if reqState != "landed" || order != nil || f.released != nil {
 		t.Fatalf("ended, and w (working T7) not told to stop: #11 %s %v, told %+v", reqState, order, f.released)
 	}
@@ -212,7 +212,7 @@ func TestDraftParksALandedTaskItsHolderIsWorking(t *testing.T) {
 		"INSERT INTO task_requests(task_id, request_id) VALUES(1, 11), (2, 12)",
 		"INSERT INTO agent_state(agent, state, updated, current_task) VALUES('w', 'RUNNING', 1, 1)",
 	} {
-		if _, err := sdb.Exec(q); err != nil {
+		if _, err := sdb.Exec(keyed(sdb, q)); err != nil {
 			t.Fatalf("%s: %v", q, err)
 		}
 	}

@@ -367,7 +367,7 @@ func leadsTreeOf(home, by string, t *task) (bool, error) {
 	if err != nil {
 		return false, nil // no team file: nobody leads anyone
 	}
-	if _, lead := tm.Managers()[by]; !lead {
+	if !tm.Agents[by].Lead {
 		return false, nil
 	}
 	for _, x := range []string{t.Owner, t.OpenedBy} {

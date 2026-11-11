@@ -22,7 +22,7 @@ func TestProgressIsKeptOnTheTaskTheAgentHoldsOrTheAgentAndReadBack(t *testing.T)
 		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 't', 'worker', 'manager', 1)",
 		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(2, 'u', 'worker', 'manager', 1)",
 	} {
-		if _, err := db.Exec(q); err != nil {
+		if _, err := db.Exec(keyed(db, q)); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -55,7 +55,7 @@ func TestProgressIsKeptOnTheTaskTheAgentHoldsOrTheAgentAndReadBack(t *testing.T)
 		t.Fatalf("%v", r[5])
 	}
 	var kept string
-	db.QueryRow("SELECT value FROM meta WHERE name = 'progress-task:2'").Scan(&kept)
+	db.QueryRow(keyed(db, "SELECT value FROM meta WHERE name = 'progress-task:2'")).Scan(&kept)
 	if kept != "on two" {
 		t.Fatalf("T2's note: %q", kept)
 	}
