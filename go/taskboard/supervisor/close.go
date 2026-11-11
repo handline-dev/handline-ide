@@ -2,10 +2,10 @@ package supervisor
 
 import (
 	"fmt"
-	"github.com/handline/handline/go/kit/actor"
 	"strings"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
 )
 
 // Taking a request out of the queue: withdraw, cancel, retire, resolve (team/ask.py). Each is a write on the Q the caller holds (a
@@ -121,7 +121,7 @@ func (e *Env) CancelWrite(q db.Q, after *After, rid int64, effect func(q db.Q, m
 		return nil, false, fmt.Sprintf("%s is already %s - nothing to cancel%s", db.MsgName(q, rid), row.State, stop), nil
 	}
 	if actor.IsPerson(row.Requester) && !row.DeliveredAt.Valid {
-		ok, msg, err := e.WithdrawWrite(q, after, rid, db.Human, "", effect)
+		ok, msg, err := e.WithdrawWrite(q, after, rid, row.Requester, "", effect)
 		return nil, ok, msg, err
 	}
 	if guard != nil {

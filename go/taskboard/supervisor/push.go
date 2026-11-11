@@ -2,10 +2,10 @@ package supervisor
 
 import (
 	"fmt"
-	"github.com/handline/handline/go/kit/actor"
 	"strings"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
 )
 
 // Getting a request or an answer to the agent now, rather than at the next daemon tick (team/ask.py push, daemon/messaging.py).

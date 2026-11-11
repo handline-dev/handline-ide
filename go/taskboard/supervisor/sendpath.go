@@ -2,7 +2,6 @@ package supervisor
 
 import (
 	"fmt"
-	"github.com/handline/handline/go/kit/actor"
 	"strconv"
 	"strings"
 	"sync"
@@ -10,6 +9,7 @@ import (
 
 	"github.com/handline/handline/go/agentctl/delivery"
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
 )
 
 // The one send path to a structured session (docs/design/structured-sessions.md, "Delivery"): the same for a person's message, another agent's,

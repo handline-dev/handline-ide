@@ -3,10 +3,10 @@ package supervisor
 import (
 	"database/sql"
 	"fmt"
-	"github.com/handline/handline/go/kit/actor"
 	"strings"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/taskboard/taskwrites"
 )

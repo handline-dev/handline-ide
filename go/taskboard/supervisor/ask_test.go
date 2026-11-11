@@ -33,6 +33,11 @@ func TestAskRefusesAnImpersonatedFounderAndAnUnknownAsker(t *testing.T) {
 	if out.OK || !strings.Contains(r.named(out.Message), "alice may not ask as human") {
 		t.Fatalf("%+v", out)
 	}
+	other := "p2" // another person is no more the owner than an agent is
+	if out, _ := r.Ask(r.DB, AskIn{Target: r.k("bob"), Body: "x", Requester: r.k("human"), Speaker: &other}); out.OK ||
+		!strings.Contains(out.Message, "p2 may not ask as p1") {
+		t.Fatalf("%+v", out)
+	}
 	tid := r.newTask("bob", r.k("human"), "x")
 	if out, _ := r.Ask(r.DB, AskIn{Target: r.k("bob"), Body: "x", Requester: r.k("human"), Speaker: &agent, OnBehalfOf: true,
 		Forward: Forward{Task: tid, Carries: db.ForwardQueue}}); !out.OK {

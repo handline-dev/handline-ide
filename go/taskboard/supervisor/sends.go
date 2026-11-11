@@ -3,11 +3,11 @@ package supervisor
 import (
 	"database/sql"
 	"fmt"
-	"github.com/handline/handline/go/kit/actor"
 	"strings"
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/kit/actor"
 )
 
 // `ask` and `say` as the daemon's own verbs (daemon/sends.py): the daemon runs the same checks and the same Ask/Say the CLI used to, writes the
@@ -148,7 +148,7 @@ func (e *Env) SayVerb(q *sql.Tx, in SayVerbIn) (out *SayVerbOut, err error) {
 		parent = must(db.GetRequest(q, in.Parent))
 	}
 	if parent != nil && actor.IsPerson(parent.Requester) && parent.State == "queued" && parent.Target == me &&
-		actor.IsPerson(target) && parent.Kind.String == "say" {
+		parent.Requester == target && parent.Kind.String == "say" {
 		// an answer to the founder's question on a task joins that task
 		asked := must(db.TasksForRequest(q, parent.ID))
 		within = func(c db.Q, note string, rid int64) error {

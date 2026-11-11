@@ -1,12 +1,12 @@
 package supervisor
 
 import (
-	"github.com/handline/handline/go/kit/actor"
 	"strconv"
 	"strings"
 
 	"github.com/handline/handline/go/agentctl/delivery"
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/taskboard/attachments"
 )
 

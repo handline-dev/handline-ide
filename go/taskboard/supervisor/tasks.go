@@ -3,7 +3,6 @@ package supervisor
 import (
 	"database/sql"
 	"fmt"
-	"github.com/handline/handline/go/kit/actor"
 	"regexp"
 	"slices"
 	"strings"
@@ -12,6 +11,7 @@ import (
 	"github.com/handline/handline/go/agentctl/delivery"
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/taskboard/attachments"
@@ -159,7 +159,7 @@ func (e *Env) QueueDeliver(q db.Q, tid int64, by string, queued bool, row *db.Ta
 	defer Catch(&err)
 	if queued && actor.IsPerson(row.Acting) {
 		// The founder holds no current task, so nothing advances it: queuing is putting the card back on their board.
-		out, aerr := e.Ask(q, AskIn{Target: db.Human, Body: row.Title, Requester: row.OpenedBy, Kind: "task", OnBehalfOf: true, Notify: true,
+		out, aerr := e.Ask(q, AskIn{Target: row.Acting, Body: row.Title, Requester: row.OpenedBy, Kind: "task", OnBehalfOf: true, Notify: true,
 			Forward: Forward{Task: tid, Carries: db.ForwardQueue}})
 		if aerr != nil {
 			return "", aerr
