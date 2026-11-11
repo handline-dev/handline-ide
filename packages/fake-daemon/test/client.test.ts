@@ -387,7 +387,7 @@ test('close settles a call waiting for the connection to come back', async () =>
   await assert.rejects(waiting, (e: RpcError) => e.code === 'transport');
 });
 
-test('repos.list, repos.recent, repo.facts and worktrees.list serve the repos, the recent git folders, a folder\'s facts and the worktrees, filtered by repo and owner, and refuse a repo that is not a string', async () => {
+test("repos.list, repos.recent, repo.facts and worktrees.list serve the repos, the recent git folders, a folder's facts and the worktrees, filtered by repo and owner, and refuse a repo that is not a string", async () => {
   const { client } = setup();
   await client.start();
   const { repos } = await client.call('repos.list', {});
@@ -403,10 +403,7 @@ test('repos.list, repos.recent, repo.facts and worktrees.list serve the repos, t
     ['garden', 'notes-app'],
   );
   assert.equal((await client.call('repo.facts', { path: '/Users/me/code/garden' })).test_command, 'pnpm test');
-  await assert.rejects(
-    client.call('repo.facts', { path: '/nowhere' }),
-    (e: RpcError) => e.code === 'not_found' && e.data?.what === 'path',
-  );
+  await assert.rejects(client.call('repo.facts', { path: '/nowhere' }), (e: RpcError) => e.code === 'not_found' && e.data?.what === 'path');
   const all = (await client.call('worktrees.list', {})).worktrees;
   assert.equal(all.length, 5);
   assert.equal(all.find((w) => w.path === '/work/spare')?.owner, null);
