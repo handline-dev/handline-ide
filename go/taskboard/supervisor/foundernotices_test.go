@@ -60,13 +60,13 @@ func TestARefusalWithNoLeadIsKeptAsAWarningAndSaysNothing(t *testing.T) {
 	tid := r.newUnroutableTask()
 	teamtest.Set(t, r.home, "eng.bob", "reports_to", nil) // no lead to tell: it reports to no agent
 	r.DB.Exec("UPDATE workspaces SET lead = NULL WHERE name = 'eng'")
-	if _, _, err := r.AdvanceCurrentTask(r.DB, "eng.bob"); err != nil {
+	if _, _, err := r.AdvanceCurrentTask(r.DB, r.k("eng.bob")); err != nil {
 		t.Fatal(err)
 	}
 	raw, ok, err := db.Meta(r.DB, fmt.Sprintf("%s%d", db.RefusedTaskPrefix, tid))
 	r.must(err)
 	var u db.Undelivered
-	if !ok || json.Unmarshal([]byte(raw), &u) != nil || u.Agent != "eng.bob" || u.Why == "" {
+	if !ok || json.Unmarshal([]byte(raw), &u) != nil || u.Agent != r.k("eng.bob") || u.Why == "" {
 		t.Fatalf("%q", raw)
 	}
 	if n := r.toFounder(); n != 0 {

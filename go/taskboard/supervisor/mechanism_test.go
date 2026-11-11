@@ -163,7 +163,7 @@ func TestNotifyCancelledNamesTheTaskStateAndReportsAFailedSend(t *testing.T) {
 	r.Agents.(*sessionAgents).live[r.k(("bob"))] = false
 	other := *row // the ledger answers the same operation from its first send
 	other.ID = 99
-	if typed, why, _ := r.NotifyCancelled(r.DB, &other, "x"); typed || why != "bob has no live session" {
+	if typed, why, _ := r.NotifyCancelled(r.DB, &other, "x"); typed || r.named(why) != "bob has no live session" {
 		t.Fatalf("%v %q", typed, why)
 	}
 }

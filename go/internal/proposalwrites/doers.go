@@ -216,7 +216,7 @@ func (e *Env) doRetire(p step) (bool, string, error) {
 
 // doRename gives an identity another name. Its folder and rows are by key, so they stay as they are. Not while it is running.
 func (e *Env) doRename(p step) (bool, string, error) {
-	old, new := p.str("agent"), p.str("to")
+	old, new := p.str("agent"), p.str("to") // old: the agent's key or its old name; new: the name it takes
 	was, err := paths.AgentKeyIn(p.tx, old)
 	if err != nil {
 		return false, "", err
@@ -225,7 +225,7 @@ func (e *Env) doRename(p step) (bool, string, error) {
 	if err != nil {
 		return false, "", err
 	}
-	if was == "" && now != "" {
+	if now != "" && (was == "" || was == now) {
 		return true, fmt.Sprintf("%s was renamed to %s already", old, new), nil // approved again after it took effect: settled, not a failure
 	}
 	if e.Live == nil {
@@ -235,7 +235,7 @@ func (e *Env) doRename(p step) (bool, string, error) {
 	if !ok {
 		return false, fmt.Sprintf("could not confirm whether %s has a session running just now - try again in a moment.", old), nil
 	}
-	if live[old] {
+	if live[was] {
 		return false, fmt.Sprintf("%s has a session running. Close it first (Close in its menu in the app) - an identity cannot change under a running session.", old), nil
 	}
 	if now != "" {
@@ -247,20 +247,8 @@ func (e *Env) doRename(p step) (bool, string, error) {
 		}
 		return false, "", err
 	}
-	for _, q := range []string{"UPDATE agent_state SET agent = ? WHERE agent = ?", "UPDATE requests SET requester = ? WHERE requester = ?",
-		"UPDATE requests SET target = ? WHERE target = ?", "UPDATE events SET agent = ? WHERE agent = ?", "UPDATE handoff SET agent = ? WHERE agent = ?", "UPDATE account_switch SET agent = ? WHERE agent = ?"} {
-		if _, err := p.tx.Exec(q, new, old); err != nil {
-			return false, "", err
-		}
-	}
-	if _, err := p.tx.Exec("UPDATE cursors SET name = REPLACE(name, ?, ?) WHERE name LIKE ?", old, new, "%"+old+"%"); err != nil {
-		return false, "", err
-	}
-	if err := prefs.Rename(p.tx, old, new); err != nil {
-		return false, "", err
-	}
-	// The terminal host's worktree label is the host's to set; tmux keeps none.
-	return true, fmt.Sprintf("%s is now %s: its row and every row that named it.", old, new), nil
+	// Every row names the agent by its key, which a rename keeps: only its own row changes.
+	return true, fmt.Sprintf("%s is now %s.", old, new), nil
 }
 
 func pyStr(v any) string {
