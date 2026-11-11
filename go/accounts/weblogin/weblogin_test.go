@@ -3,7 +3,6 @@ package weblogin
 import (
 	"errors"
 	"fmt"
-	"github.com/handline/handline/go/data/team/teamtest"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -14,6 +13,7 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/kit/testkill"
 )
 
@@ -68,7 +68,7 @@ func newRig(t *testing.T, script string) *rig {
 	t.Setenv("SANDBOX_RUNTIME", "") // a sandboxed process cannot tell if a credential is there, and an exit it cannot check is taken as done
 	home := t.TempDir()
 	for _, a := range []string{"main", "other"} {
-		if err := os.MkdirAll(filepath.Join(teamtest.AccountDir(t, home, a)), 0o755); err != nil {
+		if err := os.MkdirAll(teamtest.AccountDir(t, home, a), 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}

@@ -1,13 +1,13 @@
 package lifecycle
 
 import (
-	"github.com/handline/handline/go/data/team/teamtest"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/data/team/teamtest"
 )
 
 // A resume on an account that does not hold the session gets the conversation copied over from the one that does, its subagent

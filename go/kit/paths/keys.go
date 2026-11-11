@@ -138,3 +138,14 @@ func AccountDir(home, who string) string {
 	}
 	return filepath.Join(home, "accounts", Unregistered, who)
 }
+
+// AccountKeyReadOnly is AccountKeyIn on home's database opened read-only and closed after: for a home this process must neither
+// migrate nor write, a live run's real one.
+func AccountKeyReadOnly(home, name string) (string, error) {
+	d, err := sql.Open("sqlite", "file:"+DBFile(home)+"?mode=ro")
+	if err != nil {
+		return "", err
+	}
+	defer d.Close()
+	return AccountKeyIn(d, name)
+}

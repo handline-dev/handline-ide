@@ -6,6 +6,7 @@ import (
 	"github.com/handline/handline/go/kit/paths"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -47,7 +48,7 @@ func TestAccountAddMakesAndLinksTheDirectoryAndLogsNothingIn(t *testing.T) {
 	if r.code(m) != "bad_request" || m["error"].(map[string]any)["data"].(map[string]any)["field"] != "vendor" {
 		t.Fatalf("%v", m)
 	}
-	if _, err := os.Stat(filepath.Join(teamtest.AccountDir(t, r.home, "x"))); err == nil {
+	if paths.AccountKey(r.home, "x") != "" || slices.Contains(paths.ListAccounts(r.home), "x") {
 		t.Fatal("a refusal left an account behind")
 	}
 }
@@ -80,7 +81,7 @@ func TestAccountRemoveDryRunChangesAndRecordsNothing(t *testing.T) {
 	if res["would_remove"] != true || len(plan) < 5 || !strings.Contains(plan[1].(string), "claude auth logout") {
 		t.Fatalf("%v", res)
 	}
-	if _, err := os.Stat(filepath.Join(teamtest.AccountDir(t, r.home, "main"))); err != nil {
+	if _, err := os.Stat(teamtest.AccountDir(t, r.home, "main")); err != nil {
 		t.Fatal("a dry run moved the account")
 	}
 	var events, replies int
@@ -117,7 +118,7 @@ func TestAccountRemoveLogsOutMovesTheDirectoryAsideAndForgetsItOnTheAgents(t *te
 	if len(ran) != 1 || ran[0] != "claude auth logout" || res["accepted"] != true || !strings.HasPrefix(res["said"].(string), "removed account 'main' (logged out; directory kept at ") {
 		t.Fatalf("%v %v", ran, res)
 	}
-	if _, err := os.Stat(filepath.Join(teamtest.AccountDir(t, r.home, "main"))); err == nil {
+	if paths.AccountKey(r.home, "main") != "" || slices.Contains(paths.ListAccounts(r.home), "main") {
 		t.Fatal("the account is still on the roster")
 	}
 	kept, _ := filepath.Glob(filepath.Join(r.home, "accounts", ".retired", "main-*", ".claude"))

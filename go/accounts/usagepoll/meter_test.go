@@ -3,7 +3,6 @@ package usagepoll
 import (
 	"context"
 	"errors"
-	"github.com/handline/handline/go/data/team/teamtest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,6 +11,7 @@ import (
 
 	"github.com/handline/handline/go/accounts/claudecli"
 	"github.com/handline/handline/go/accounts/livetest"
+	"github.com/handline/handline/go/data/team/teamtest"
 )
 
 type fakeCLI struct {

@@ -1,12 +1,12 @@
 package usage
 
 import (
-	"github.com/handline/handline/go/data/team/teamtest"
 	"os"
 	"path/filepath"
 	"testing"
 
 	_ "github.com/handline/handline/go/agentctl/agent/vendors" // opencode registers: a vendor that reports no usage
+	"github.com/handline/handline/go/data/team/teamtest"
 )
 
 // An unpinned agent never lands on an unmetered account: the pick and every room test leave it out with UnmeteredWhy, which only a pin

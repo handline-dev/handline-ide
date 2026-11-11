@@ -2,7 +2,6 @@ package compose
 
 import (
 	"encoding/json"
-	"github.com/handline/handline/go/data/team/teamtest"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -10,6 +9,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/scheduler/tick"
 
 	"github.com/handline/handline/go/agentctl/peerinbox"

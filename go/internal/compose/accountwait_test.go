@@ -3,7 +3,6 @@ package compose
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/handline/handline/go/data/team/teamtest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -12,6 +11,7 @@ import (
 	"github.com/handline/handline/go/accounts/usage"
 	dbpkg "github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
+	"github.com/handline/handline/go/data/team/teamtest"
 )
 
 // atPct writes acct's status at pct of its 5h window, as a session's statusline leaves it.

@@ -3,15 +3,22 @@ pickle for the other scripts here: python3 tools/usage/extract.py calls.pkl
 One record per request id (a call streams as several lines; the largest output
 is kept), plus the user rows that start a turn. Reads only the conversation
 logs under ~/.handline/accounts/*/.claude/projects."""
-import json,glob,os,pickle,sys
+import json,glob,os,pickle,sqlite3,sys
 from datetime import datetime
 calls={}  # (session,req) -> rec
 users=[]  # (session,ts,kind,size)
 def ts(s):
     return datetime.fromisoformat(s.replace("Z","+00:00")).timestamp()
+def account_names():
+    """Each account's folder (its key, c<id>) to its name, read from the home's database without writing to it."""
+    db=os.path.expanduser("~/.handline/db.sqlite")
+    with sqlite3.connect(f"file:{db}?mode=ro",uri=True) as c:
+        return {f"c{i}":n for i,n in c.execute("SELECT id, name FROM accounts")}
+names=account_names()
 files=glob.glob(os.path.expanduser("~/.handline/accounts/*/.claude/projects/*/**/*.jsonl"),recursive=True)
 for f in files:
-    acct=f.split("/accounts/")[1].split("/")[0]
+    key=f.split("/accounts/")[1].split("/")[0]
+    acct=names.get(key,key)
     sub="/subagents/" in f
     for ln in open(f,errors="replace"):
         if '"usage"' not in ln and '"type":"user"' not in ln: continue

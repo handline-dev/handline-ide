@@ -411,12 +411,16 @@ func (a Accounts) LogoutArgv(acct string) ([]string, map[string]string) {
 // Retire takes the account off the roster by moving its directory aside, not deleting it: its transcripts are the only record
 // of what was spent on it. A dot directory is invisible to ListAccounts.
 func (a Accounts) Retire(acct string, now time.Time) (string, error) {
+	return a.retire(paths.AccountDir(a.Home, acct), acct, now)
+}
+
+func (a Accounts) retire(from, acct string, now time.Time) (string, error) {
 	dir := filepath.Join(paths.AccountsDir(a.Home), ".retired")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
 	dest := filepath.Join(dir, acct+"-"+now.Format("20060102-150405"))
-	return dest, os.Rename(paths.AccountDir(a.Home, acct), dest)
+	return dest, os.Rename(from, dest)
 }
 
 // AccountNamedBy is the account a config-dir variable's value points into, or "" for a directory that is not one of ours.
@@ -431,6 +435,13 @@ func (a Accounts) AccountNamedBy(value string) string {
 	}
 	first, _, _ := strings.Cut(strings.TrimPrefix(v, root+"/"), "/")
 	return paths.AccountName(a.Home, first) // the folder is the account's key
+}
+
+// underAccounts is whether a config-dir variable's value points into this home's accounts folder, an account's or not.
+func (a Accounts) underAccounts(value string) bool {
+	root, ok := resolved(paths.AccountsDir(a.Home))
+	v, ok2 := resolved(value)
+	return ok && ok2 && strings.HasPrefix(v, root+"/")
 }
 
 // EnvFor is the environment for launching this account's vendor as this account (and as agent, when one is named): a config-dir
@@ -454,7 +465,7 @@ func (a Accounts) EnvFrom(base map[string]string, acct, agent string) map[string
 	// Only one pointing into an account goes: XDG_DATA_HOME is also the user's own, and claude reads it.
 	for _, vendor := range KnownVendors() {
 		k := ConfigDirEnv(vendor)
-		if v := env[k]; v != "" && a.AccountNamedBy(v) != "" {
+		if v := env[k]; v != "" && a.underAccounts(v) {
 			delete(env, k)
 		}
 	}

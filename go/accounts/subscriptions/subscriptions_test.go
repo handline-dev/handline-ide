@@ -89,7 +89,7 @@ func newWorld(t *testing.T) *world {
 
 func (w *world) account(name string) {
 	w.t.Helper()
-	if err := os.MkdirAll(filepath.Join(teamtest.AccountDir(w.t, w.Home, name)), 0o755); err != nil {
+	if err := os.MkdirAll(teamtest.AccountDir(w.t, w.Home, name), 0o755); err != nil {
 		w.t.Fatal(err)
 	}
 }

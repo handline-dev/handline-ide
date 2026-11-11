@@ -1,7 +1,6 @@
 package usage
 
 import (
-	"github.com/handline/handline/go/data/team/teamtest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,6 +8,7 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/team/teamtest"
 )
 
 const callLine = `{"type":"assistant","requestId":"r1","sessionId":"s1","cwd":"/w","timestamp":"2026-10-08T12:00:00.250Z","message":` +

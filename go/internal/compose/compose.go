@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/handline/handline/go/accounts/subscriptions"
 	"github.com/handline/handline/go/agentctl/agent/claudecode/turns"
 	"github.com/handline/handline/go/agentctl/term"
 	"github.com/handline/handline/go/data/db"
@@ -64,12 +65,20 @@ type Parts struct {
 	healer   *heal.Healer                  // the tick's, once Tick has built it
 	view     atomic.Pointer[agentview.Env] // the tick's too; a move reached over RPC may ask for it first
 	awake    *keepawake.Holder
+	plans    []*subscriptions.Env // each tick's subscriptions pass, whose plan question runs off it
 }
 
 // Wait returns once the heal steps still running off the tick have ended: the daemon closes the database only after.
 func (p *Parts) Wait() {
 	if p.healer != nil {
 		p.healer.Wait()
+	}
+}
+
+// WaitForPlanAsks returns once the plan questions the ticks started have ended (tests: one may run for as long as the vendor's CLI).
+func (p *Parts) WaitForPlanAsks() {
+	for _, s := range p.plans {
+		s.WaitForPlanAsk()
 	}
 }
 

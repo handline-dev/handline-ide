@@ -1,13 +1,13 @@
 package handoff
 
 import (
-	"github.com/handline/handline/go/data/team/teamtest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/team/teamtest"
 )
 
 func TestTheRequestLineNamesTheDeliveredHeadOrSaysNone(t *testing.T) {

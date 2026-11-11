@@ -3,7 +3,6 @@ package reads
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/handline/handline/go/data/team/teamtest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,6 +12,7 @@ import (
 	"github.com/handline/handline/go/accounts/usage"
 	"github.com/handline/handline/go/accounts/weblogin"
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/protocol/rpc"
 )
@@ -20,7 +20,7 @@ import (
 func TestTheAccountsViewNeverCarriesTheAuthorizeURL(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	if err := os.MkdirAll(filepath.Join(teamtest.AccountDir(t, e.Home, "main")), 0o755); err != nil {
+	if err := os.MkdirAll(teamtest.AccountDir(t, e.Home, "main"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	for _, st := range []string{weblogin.Waiting, "code_sent", weblogin.Done, weblogin.Failed, weblogin.Cancelled} {
@@ -49,7 +49,7 @@ func TestTheAccountsViewNeverCarriesTheAuthorizeURL(t *testing.T) {
 func TestAccountsListUsageIsOptInAndSaysWhyAnAccountCannotStart(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	dir := filepath.Join(teamtest.AccountDir(t, e.Home, "main"))
+	dir := teamtest.AccountDir(t, e.Home, "main")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +74,7 @@ func TestAccountsListUsageIsOptInAndSaysWhyAnAccountCannotStart(t *testing.T) {
 func TestStatusPickNamesNoAccountThatIsNotLoggedIn(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	if err := os.MkdirAll(filepath.Join(teamtest.AccountDir(t, e.Home, "main")), 0o755); err != nil {
+	if err := os.MkdirAll(teamtest.AccountDir(t, e.Home, "main"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	got, err := e.statusPick(nil, nil)
@@ -90,7 +90,7 @@ func TestStatusPickNamesNoAccountThatIsNotLoggedIn(t *testing.T) {
 func TestStatusPickNamesAnAccountThatIsLoggedIn(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	dir := filepath.Join(teamtest.AccountDir(t, e.Home, "main"))
+	dir := teamtest.AccountDir(t, e.Home, "main")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +108,7 @@ func TestStatusPickNamesAnAccountThatIsLoggedIn(t *testing.T) {
 func TestAccountsListServesTheNextFiveHourAndWeekResetFromTheStatusFile(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	dir := filepath.Join(teamtest.AccountDir(t, e.Home, "main"))
+	dir := teamtest.AccountDir(t, e.Home, "main")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -132,7 +132,7 @@ func TestAccountsListServesTheNextFiveHourAndWeekResetFromTheStatusFile(t *testi
 func TestAStalledAccountRowSaysStalledWithItsReason(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	if err := os.MkdirAll(filepath.Join(teamtest.AccountDir(t, e.Home, "main")), 0o755); err != nil {
+	if err := os.MkdirAll(teamtest.AccountDir(t, e.Home, "main"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	if acct, _ := e.Account("main"); acct["stalled"] != nil {
@@ -154,7 +154,7 @@ func TestAStalledAccountRowSaysStalledWithItsReason(t *testing.T) {
 func TestAnAccountListsTheAgentsItsViewsPutOnIt(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	if err := os.MkdirAll(filepath.Join(teamtest.AccountDir(t, e.Home, "main")), 0o755); err != nil {
+	if err := os.MkdirAll(teamtest.AccountDir(t, e.Home, "main"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	for _, n := range []string{"cold", "fresh", "warm"} {
@@ -179,7 +179,7 @@ func TestAccountsListSaysEachAccountsVendor(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	for _, a := range []string{"main", "other"} {
-		if err := os.MkdirAll(filepath.Join(teamtest.AccountDir(t, e.Home, a)), 0o755); err != nil {
+		if err := os.MkdirAll(teamtest.AccountDir(t, e.Home, a), 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -206,7 +206,7 @@ func TestAccountsListSaysWhyAnAccountIsNotPickedAndNothingForACandidate(t *testi
 	status := fmt.Sprintf(`{"collected_at": %d, "windows": [{"minutes": 300, "used_percent": 10, "resets_at": %d, "observed_at": %d},
 		{"minutes": 10080, "used_percent": 10, "resets_at": %d, "observed_at": %d}]}`, now-5, now+3600, now-5, now+90000, now-5)
 	for _, a := range []string{"ended", "good", "out", "unknown", "oc", "new"} {
-		dir := filepath.Join(teamtest.AccountDir(t, e.Home, a))
+		dir := teamtest.AccountDir(t, e.Home, a)
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -263,7 +263,7 @@ func TestAccountsListGivesTheEmailToTheFounderOnly(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	for acct, identity := range map[string]string{"main": `{"email": "main@example.com"}`, "bare": `{}`} {
-		dir := filepath.Join(teamtest.AccountDir(t, e.Home, acct))
+		dir := teamtest.AccountDir(t, e.Home, acct)
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -338,7 +338,7 @@ func TestAccountsListSaysAPausedAccountIsPausedAndTakesNoAgent(t *testing.T) {
 	status := fmt.Sprintf(`{"collected_at": %d, "windows": [{"minutes": 300, "used_percent": 10, "resets_at": %d, "observed_at": %d},
 		{"minutes": 10080, "used_percent": 10, "resets_at": %d, "observed_at": %d}]}`, now-5, now+3600, now-5, now+90000, now-5)
 	for _, a := range []string{"rest", "good"} {
-		dir := filepath.Join(teamtest.AccountDir(t, e.Home, a))
+		dir := teamtest.AccountDir(t, e.Home, a)
 		os.MkdirAll(dir, 0o755)
 		os.WriteFile(filepath.Join(dir, "status.json"), []byte(status), 0o644)
 		os.WriteFile(filepath.Join(dir, ".credentials.json"), []byte("{}"), 0o600)
