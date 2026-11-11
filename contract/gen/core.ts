@@ -6,7 +6,7 @@ import type { Proposal } from './team.ts';
 /** UTC, RFC 3339. */
 export type Timestamp = string;
 
-/** An agent's name, as hl team lists it. */
+/** Who: an agent's or person's key, or a word the daemon resolves to one (human, an agent's name as hl team lists it). */
 export type AgentName = string;
 
 /** Ordered lowest to highest. A method's role is the lowest that may call it; every higher role may too. */
@@ -867,7 +867,7 @@ export interface CoreMethods {
   /** Also give `series` for that many minutes back (0 or absent: none). */
   minutes?: number;
   /** Only this agent's rows (and series). */
-  agent?: string;
+  agent?: AgentName;
 }; result: {
     /** The sample these figures are from. */
     at: string;

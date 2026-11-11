@@ -382,6 +382,11 @@ def go_type(schema: dict, schemas: dict) -> str:
     return GO_TYPES.get(schema.get("type"), "any")
 
 
+def is_who(schema: dict) -> bool:
+    """A param that names a who (AgentName, or a list of them): the daemon resolves its words to keys before the handler."""
+    return schema.get("$ref", schema.get("items", {}).get("$ref", "")).endswith("/AgentName")
+
+
 def gen_go(spec: dict) -> str:
     """go/protocol/rpc/methods_gen.go: the method table Register takes each method's role and write flag from."""
     schemas = spec["components"]["schemas"]
@@ -389,7 +394,8 @@ def gen_go(spec: dict) -> str:
          "// specMethods is every method of the contract, in the spec's order.", "var specMethods = []SpecMethod{"]
     q = json.dumps  # a Go string, bool or number literal is its JSON
     for m in spec["methods"]:
-        ps = ", ".join(f"{{Name: {q(p['name'])}, Type: {q(go_type(p['schema'], schemas))}, Required: {q(p['required'])}}}" for p in m["params"])
+        ps = ", ".join(f"{{Name: {q(p['name'])}, Type: {q(go_type(p['schema'], schemas))}, Required: {q(p['required'])}"
+                       + (", Who: true" if is_who(p["schema"]) else "") + "}" for p in m["params"])
         callers = "[]string{" + ", ".join(map(q, m["x-callers"])) + "}" if m.get("x-callers") else "nil"
         res = m["result"]["schema"]
         result = ref_name(res["$ref"]) if "$ref" in res else ""

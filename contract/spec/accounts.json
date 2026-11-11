@@ -1863,7 +1863,7 @@
      "name": "agent",
      "required": false,
      "schema": {
-      "type": "string",
+      "$ref": "#/components/schemas/AgentName",
       "description": "Also give `overlay` for this pick: an agent's name, or `grp:<name>` for the group of agents whose dotted names start with `<name>.` (and the agent `<name>` itself), the key of a row of the agents table a client draws. It rides on this call and not on a method of its own because the curve is read against `past` and must be sampled at the same moment as it; one pick costs one array, not one per agent."
      }
     }

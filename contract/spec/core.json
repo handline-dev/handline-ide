@@ -774,7 +774,7 @@
    },
    "AgentName": {
     "type": "string",
-    "description": "An agent's name, as hl team lists it."
+    "description": "Who: an agent's or person's key, or a word the daemon resolves to one (human, an agent's name as hl team lists it)."
    },
    "Role": {
     "type": "string",
@@ -4263,7 +4263,7 @@
      "name": "agent",
      "required": false,
      "schema": {
-      "type": "string",
+      "$ref": "#/components/schemas/AgentName",
       "description": "Only this agent's rows (and series)."
      }
     }
