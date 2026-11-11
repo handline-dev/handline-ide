@@ -227,6 +227,20 @@ func TestCancelWithdrawsAQueuedMessageWithoutConfirmAndARetryOfItIsRefused(t *te
 	r.refusedWith(r.one(s, "chat.send", send("take me back", "d1", "")), "state")
 }
 
+func TestAnotherPersonsHeldMessageIsNotTheCallersToCancelOrSendNow(t *testing.T) {
+	t.Parallel()
+	r, f, s := sessionRig(t)
+	f.busy = true
+	res := r.result(r.one(s, "chat.send", send("p2 wrote this", "d1", "")))
+	rid := int64(res["request"].(float64))
+	r.db.Exec("UPDATE requests SET requester = 'p2' WHERE id = ?", rid)
+	r.refusedWith(r.one(s, "chat.cancel", fmt.Sprintf(`{"request":%d,"request_id":"c1"}`, rid)), "state")
+	r.one(s, "chat.send_now", fmt.Sprintf(`{"request":%d,"request_id":"n1"}`, rid))
+	if op, _ := f.ledger(r.k("bob")).Get(supervisor.RequestOp(rid)); op.State != delivery.Queued {
+		t.Fatalf("still queued in the session, neither withdrawn nor written: %v", op)
+	}
+}
+
 func TestCancelOfAWrittenMessageNeedsTheConfirm(t *testing.T) {
 	t.Parallel()
 	r, f, s := sessionRig(t)

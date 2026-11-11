@@ -46,7 +46,7 @@ func (w *writes) awaitTyped(c *rpc.Conn, out any, err error) (any, error) {
 		return nil, err
 	}
 	if !ended {
-		if err := w.withdrawHeld(rid); err != nil {
+		if err := w.withdrawHeld(rid, c.Caller.Actor()); err != nil {
 			return nil, err
 		}
 		took, err := db.RetireIfUndelivered(w.e.DB, rid, "withdrawn", "withdrawn: not typed while the sender waited")

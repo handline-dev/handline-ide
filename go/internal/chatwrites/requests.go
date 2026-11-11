@@ -73,7 +73,7 @@ func (w *writes) cancelRequest(c *rpc.Conn, p map[string]any) (any, error) {
 		}
 		return map[string]any{"ok": ok, "plan": plan}, nil
 	}
-	if err := w.withdrawHeld(rid); err != nil {
+	if err := w.withdrawHeld(rid, ""); err != nil { // the founder cancels anyone's
 		return nil, err
 	}
 	no := func(why string) (any, error) {
