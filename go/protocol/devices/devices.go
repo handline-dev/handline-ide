@@ -37,7 +37,7 @@ type Device struct {
 	Push     *Push  // nil until the device gives a push token
 	Kind     string // what the client said it is at device.redeem (ios, android, web, desktop); "" when it did not say
 	Client   string // the client its last hello named; "" before one
-	Person   string // the person's key it belongs to; "" in a store that keeps none, which is the owner's
+	Person   string // the person's key it belongs to; "" from MemStore, which keeps none: the owner's
 }
 
 // Push is where a notification for a device goes: the token its OS gave, for APNs or FCM.

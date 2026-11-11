@@ -15,6 +15,14 @@ import (
 // Roles, lowest first: a call below the method's role is refused.
 var roles = []string{"anonymous", "agent", "member", "founder"}
 
+// methodRole is the method role of a person's role (people.role): the owner's is still founder on the wire.
+func methodRole(personRole string) string {
+	if personRole == "owner" {
+		return "founder"
+	}
+	return personRole
+}
+
 func roleIndex(r string) int {
 	for i, x := range roles {
 		if x == r {
@@ -42,14 +50,14 @@ func anonymous() Caller {
 // Human is the key a write is made under for the founder and any device: the owner, p1 (db.Human).
 const Human = "p1"
 
-// identify is the local caller: owner is the owner's key, whom the founder key proves.
-func identify(a authority.Authority, local bool, pid int, key, owner, founderName string) Caller {
+// identify is the local caller: owner gives the owner's key, whom the founder key proves.
+func identify(a authority.Authority, local bool, pid int, key string, owner func() string, founderName string) Caller {
 	if local {
 		if agent := a.AgentOf(pid); agent != "" { // wins over a key: a session that held the founder key would be a leak
 			return Caller{Kind: "agent", Key: agent, Role: "agent", Info: map[string]any{"kind": "agent", "name": agent}}
 		}
 		if a.FounderKeyOK(key) {
-			return Caller{Kind: "person", Key: owner, Role: "founder", Info: map[string]any{"kind": "person", "name": founderName}}
+			return Caller{Kind: "person", Key: owner(), Role: methodRole("owner"), Info: map[string]any{"kind": "person", "name": founderName}}
 		}
 	}
 	return anonymous()
