@@ -158,15 +158,15 @@ func ListAgents(home string) []string {
 // LegacyNameSQL is team.LegacyName in SQL, over agents a joined to workspaces w.
 const LegacyNameSQL = "CASE WHEN w.lead = a.id THEN w.name ELSE w.name || '.' || a.name END"
 
-// ReadAgents is ListAgents with the read errors. A home with no database yet has no agents. Each is named by its old dotted name, as
-// team.LegacyName writes it, until the who columns hold keys (base-v2 1b).
+// ReadAgents is ListAgents with the read errors: each agent's key, by workspace, its lead first. A home with no database yet has no
+// agents.
 func ReadAgents(home string) ([]string, error) {
 	d, err := store.SharedIfThere(DBFile(home))
 	if d == nil {
 		return []string{}, err
 	}
-	rows, err := d.Query(`SELECT ` + LegacyNameSQL + ` AS n
-		FROM agents a JOIN workspaces w ON w.id = a.workspace ORDER BY n`)
+	rows, err := d.Query(`SELECT 'a' || a.id FROM agents a JOIN workspaces w ON w.id = a.workspace
+		ORDER BY w.name, COALESCE(w.lead = a.id, 0) DESC, a.name`)
 	if err != nil {
 		return nil, err
 	}

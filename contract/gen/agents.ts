@@ -538,7 +538,7 @@ export interface AgentsMethods {
     note: string | null;
   } };
   "say": { params: {
-  target: string;
+  target: AgentName;
   /** Markdown. It may name images (x-attachments, texts). */
   body: string;
   parent?: RequestName;

@@ -67,7 +67,10 @@ type Server struct {
 	DB        *sql.DB // the database the write methods keep their replies in
 	Net       NetGate // the paired devices of a network server; nil on the local one
 	// Note, when set on the local server, records what a hello's note says: a command's verb and the programs above it.
-	Note         func(agent, kind string, argv []string, chain string)
+	Note func(agent, kind string, argv []string, chain string)
+	// Who, when set, turns a who param's word (human, an agent's name) into its key; a word it does not know comes back as it was, for
+	// the handler to refuse.
+	Who          func(word string) string
 	capabilities []func() map[string]any
 	methods      map[string]Method
 	order        []string
@@ -113,10 +116,12 @@ type SpecMethod struct {
 	Result     string // the spec's schema of the result; "" when the spec writes it inline
 }
 
-// SpecParam is one param: Type is the Go value a handler gets for it (numbers as json.Number), any for a union.
+// SpecParam is one param: Type is the Go value a handler gets for it (numbers as json.Number), any for a union. Who is a param that
+// names a who, which Server.Who resolves before the handler runs.
 type SpecParam struct {
 	Name, Type string
 	Required   bool
+	Who        bool
 }
 
 var specByName = func() map[string]SpecMethod {
@@ -472,6 +477,7 @@ func (c *Conn) route(msg any, raw []byte) (routed, error) {
 		c.logRefusal(name, m.Role)
 		return routed{}, Refused(fmt.Sprintf("%s is for a %s or above; this caller is %s", name, m.Role, c.Caller.Role), "role", "")
 	}
+	c.srv.resolveWho(name, params)
 	// A call that waits runs on its own goroutine while a later hello may replace c.Caller: it gets the caller as
 	// it was when routed, on a Conn of its own that shares only what stays fixed.
 	beside := m.Waits || m.Read
@@ -495,6 +501,29 @@ func (c *Conn) route(msg any, raw []byte) (routed, error) {
 		}
 		return result, nil
 	}}, nil
+}
+
+// resolveWho puts the key in place of each who param's word (SpecParam.Who), so a handler sees keys only.
+func (s *Server) resolveWho(method string, params map[string]any) {
+	sp, ok := Spec(method)
+	if !ok || s.Who == nil {
+		return
+	}
+	for _, p := range sp.Params {
+		if !p.Who {
+			continue
+		}
+		switch v := params[p.Name].(type) {
+		case string:
+			params[p.Name] = s.Who(v)
+		case []any:
+			for i, w := range v {
+				if w, ok := w.(string); ok {
+					v[i] = s.Who(w)
+				}
+			}
+		}
+	}
 }
 
 // RequireSelf is for the methods that act as the caller's own session: an agent that is not the caller is refused.

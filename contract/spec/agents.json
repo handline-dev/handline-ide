@@ -3281,7 +3281,7 @@
      "name": "target",
      "required": true,
      "schema": {
-      "type": "string"
+      "$ref": "#/components/schemas/AgentName"
      }
     },
     {

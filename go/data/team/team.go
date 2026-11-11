@@ -15,7 +15,7 @@ import (
 // its workspace, its owner and any workspace's lead; the founder may reach anyone. Decided here, with no model involved.
 
 const (
-	Human                = "human"
+	Human                = db.Human
 	DefaultMaxChainDepth = 4
 	// AskWindowS is how long a refused message sent again unchanged is the same refusal, not a new denied row.
 	AskWindowS = 3600
@@ -58,16 +58,16 @@ type Decision struct {
 type Member struct {
 	Key, Workspace, Name string
 	Lead                 bool
-	ReportsTo            string // the old name of the agent it reports to; "" when it reports to a person or to no one
+	ReportsTo            string // the key of the agent it reports to; "" when it reports to a person or to no one
 	Role                 string
 }
 
 // Team is the workspaces and their agents, read from the rows.
 type Team struct {
-	Agents        map[string]Member   // by old name
-	Teams         map[string][]string // workspace name -> its agents' old names, oldest first
-	leads         map[string]string   // workspace name -> its lead's old name
-	order         []string            // every agent's old name, oldest first
+	Agents        map[string]Member   // by key (by old name in a FromNames team)
+	Teams         map[string][]string // workspace name -> its agents, oldest first
+	leads         map[string]string   // workspace name -> its lead
+	order         []string            // every agent, oldest first
 	MaxChainDepth int
 }
 
@@ -92,7 +92,6 @@ func ReadTeam(q db.Q) (*Team, error) {
 	}
 	defer rows.Close()
 	t := &Team{Agents: map[string]Member{}, Teams: map[string][]string{}, leads: map[string]string{}, MaxChainDepth: DefaultMaxChainDepth}
-	byKey := map[string]string{}
 	for rows.Next() {
 		var id int64
 		var m Member
@@ -100,25 +99,18 @@ func ReadTeam(q db.Q) (*Team, error) {
 			return nil, err
 		}
 		m.Key = actor.Key(actor.Agent, id)
-		n := LegacyName(m.Workspace, m.Name, m.Lead)
+		if actor.IsPerson(m.ReportsTo) {
+			m.ReportsTo = ""
+		}
+		n := m.Key
 		t.Agents[n] = m
 		t.Teams[m.Workspace] = append(t.Teams[m.Workspace], n)
 		if m.Lead {
 			t.leads[m.Workspace] = n
 		}
-		byKey[m.Key] = n
 		t.order = append(t.order, n)
 	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	// reports_to holds a key: written out as the old name it stands for, "" for a person.
-	for _, n := range t.order {
-		m := t.Agents[n]
-		m.ReportsTo = byKey[m.ReportsTo]
-		t.Agents[n] = m
-	}
-	return t, nil
+	return t, rows.Err()
 }
 
 // Members is the agents of a workspace.
@@ -170,9 +162,8 @@ func (t *Team) AuditorOf(agent string) string {
 	if t == nil {
 		return ""
 	}
-	ws := t.TeamOf(agent)
-	if a := LegacyName(ws, "auditor", false); ws != "" && a != agent {
-		if _, ok := t.Agents[a]; ok {
+	for _, a := range t.Teams[t.TeamOf(agent)] {
+		if a != agent && t.Agents[a].Name == "auditor" {
 			return a
 		}
 	}

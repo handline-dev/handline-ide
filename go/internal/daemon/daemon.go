@@ -577,6 +577,7 @@ func (d *Daemon) readsEnv() reads.Env {
 func (d *Daemon) newServer(transport string) *rpc.Server {
 	s := rpc.NewServer(d.cfg.Auth, version.Sha, store.LatestVersion(), transport, d.cfg.Log)
 	s.DB = d.db
+	s.Who = func(word string) string { return whoKey(d.db, d.cfg.Home, word) }
 	s.Note = func(agent, kind string, argv []string, chain string) {
 		_, _ = dbpkg.AddEvent(d.db, agent, kind, dbpkg.KV{K: "argv", V: argv}, dbpkg.KV{K: "chain", V: chain})
 	}
@@ -785,6 +786,24 @@ func (d *Daemon) close() {
 		}
 		d.db.Close()
 	}
+}
+
+// whoKey is the key a who param's word stands for: human (or founder) is the owner, a key is itself, an agent's old name its key. A word
+// none of these is comes back as it was. Until addr.Resolve (base-v2 1c).
+func whoKey(q *sql.DB, home, word string) string {
+	if word == "human" || word == "founder" {
+		if k, err := actor.Owner(q); err == nil && k != "" {
+			return k
+		}
+		return word
+	}
+	if _, _, ok := actor.Parse(word); ok {
+		return word
+	}
+	if k := paths.AgentKey(home, word); k != "" {
+		return k
+	}
+	return word
 }
 
 // paneRuns is what the terminal host says of the windows that run commands (watcher.Chat.Panes); nil when it cannot say.

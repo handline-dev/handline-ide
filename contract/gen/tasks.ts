@@ -445,12 +445,12 @@ export type PendingWarning = {
 
 export interface TasksMethods {
   "tasks.list": { params: {
-  owner?: string;
+  owner?: AgentName;
   /** Only the tasks this agent, or human, acts on now (Task.acting). */
-  acting?: string;
+  acting?: AgentName;
   /** Who the task answers to (Task.asker). */
-  reporter?: string;
-  from?: string;
+  reporter?: AgentName;
+  from?: AgentName;
   /** draft, queued, doing, done or discarded, or one of three groups: open (queued or doing), draft, and closed (done and discarded together). open and draft return every row of the caller's scope: no limit, `more` false, no cursor. closed needs order closed and pages by its cursor. */
   state?: string;
   /** Tasks that carry every one of these tags (lowercased first). With the other filters, every one given must hold. */
@@ -556,9 +556,9 @@ export interface TasksMethods {
   } };
   "task.new": { params: {
   /** An agent, human, or gate: a task the daemon holds that watches outside state (watch) and closes when it changes. */
-  owner: string;
+  owner: AgentName;
   /** Who the task answers to: told when it ends, and may edit or reassign it. Default: the caller. */
-  reporter?: string;
+  reporter?: AgentName;
   title: string;
   /** The brief, Markdown. It may name images (x-attachments, texts). */
   body?: string;
@@ -588,7 +588,7 @@ export interface TasksMethods {
   } };
   "task.handoff": { params: {
   task: number;
-  to: string;
+  to: AgentName;
   /** Markdown. It may name images (x-attachments, texts); they are the task's while it is open. */
   note?: string;
   request_id: RequestId;
@@ -759,7 +759,7 @@ export interface TasksMethods {
 }; result: Accepted };
   "task.comment.send_now": { params: {
   memo: number;
-  agent: string;
+  agent: AgentName;
   request_id: RequestId;
 }; result: Accepted };
   "task.send_now": { params: {
@@ -809,7 +809,7 @@ export interface TasksMethods {
   /** Default: the message's first line. */
   title?: string;
   /** The agent who holds the request. Default: the agent the message was sent to. */
-  owner?: string;
+  owner?: AgentName;
   request_id: RequestId;
 }; result: Accepted & {
     task: number;
@@ -846,9 +846,9 @@ export interface TasksMethods {
 }; result: Accepted };
   "task.edit": { params: {
   task: number;
-  owner?: string;
+  owner?: AgentName;
   /** A new reporter (who the task answers to); by its opener, its reporter or the founder. */
-  reporter?: string;
+  reporter?: AgentName;
   title?: string;
   /** The new brief, Markdown. It may name images (x-attachments, texts). */
   body?: string;

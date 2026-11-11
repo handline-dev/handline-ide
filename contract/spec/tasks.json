@@ -1860,14 +1860,14 @@
      "name": "owner",
      "required": false,
      "schema": {
-      "type": "string"
+      "$ref": "#/components/schemas/AgentName"
      }
     },
     {
      "name": "acting",
      "required": false,
      "schema": {
-      "type": "string",
+      "$ref": "#/components/schemas/AgentName",
       "description": "Only the tasks this agent, or human, acts on now (Task.acting)."
      }
     },
@@ -1875,7 +1875,7 @@
      "name": "reporter",
      "required": false,
      "schema": {
-      "type": "string",
+      "$ref": "#/components/schemas/AgentName",
       "description": "Who the task answers to (Task.asker)."
      }
     },
@@ -1883,7 +1883,7 @@
      "name": "from",
      "required": false,
      "schema": {
-      "type": "string"
+      "$ref": "#/components/schemas/AgentName"
      }
     },
     {
@@ -2499,7 +2499,7 @@
      "name": "owner",
      "required": true,
      "schema": {
-      "type": "string",
+      "$ref": "#/components/schemas/AgentName",
       "description": "An agent, human, or gate: a task the daemon holds that watches outside state (watch) and closes when it changes."
      }
     },
@@ -2507,7 +2507,7 @@
      "name": "reporter",
      "required": false,
      "schema": {
-      "type": "string",
+      "$ref": "#/components/schemas/AgentName",
       "description": "Who the task answers to: told when it ends, and may edit or reassign it. Default: the caller."
      }
     },
@@ -2690,7 +2690,7 @@
      "name": "to",
      "required": true,
      "schema": {
-      "type": "string"
+      "$ref": "#/components/schemas/AgentName"
      }
     },
     {
@@ -3882,7 +3882,7 @@
      "name": "agent",
      "required": true,
      "schema": {
-      "type": "string"
+      "$ref": "#/components/schemas/AgentName"
      }
     },
     {
@@ -4370,7 +4370,7 @@
      "name": "owner",
      "required": false,
      "schema": {
-      "type": "string",
+      "$ref": "#/components/schemas/AgentName",
       "description": "The agent who holds the request. Default: the agent the message was sent to."
      }
     },
@@ -4682,14 +4682,14 @@
      "name": "owner",
      "required": false,
      "schema": {
-      "type": "string"
+      "$ref": "#/components/schemas/AgentName"
      }
     },
     {
      "name": "reporter",
      "required": false,
      "schema": {
-      "type": "string",
+      "$ref": "#/components/schemas/AgentName",
       "description": "A new reporter (who the task answers to); by its opener, its reporter or the founder."
      }
     },
