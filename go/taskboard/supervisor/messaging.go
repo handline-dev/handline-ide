@@ -2,11 +2,11 @@ package supervisor
 
 import (
 	"fmt"
-	"github.com/handline/handline/go/kit/actor"
 
 	"github.com/handline/handline/go/agentctl/delivery"
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
+	"github.com/handline/handline/go/kit/actor"
 )
 
 // A message told to an agent's session at once: the socket's `message` verb and TellNow for a request, and the pending row that survives

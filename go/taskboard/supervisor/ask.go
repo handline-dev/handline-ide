@@ -3,12 +3,12 @@ package supervisor
 import (
 	"errors"
 	"fmt"
-	"github.com/handline/handline/go/kit/actor"
 	"strings"
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/taskboard/taskwrites"
 )
@@ -162,8 +162,8 @@ func (e *Env) Ask(q db.Q, in AskIn) (out *AskOut, err error) {
 	}
 	requester := in.Requester
 	// Nobody may send as the human: that name carries the routing table's reach to every agent and exempts a chain from the loop guards.
-	if actor.IsPerson(requester) && in.Speaker != nil && !actor.IsPerson(*in.Speaker) && !in.OnBehalfOf {
-		return refuse(fmt.Sprintf("%s may not ask as %s: that name is the human's, and it is exempt from the loop guards.", *in.Speaker, db.Human)), nil
+	if actor.IsPerson(requester) && in.Speaker != nil && *in.Speaker != requester && !in.OnBehalfOf {
+		return refuse(fmt.Sprintf("%s may not ask as %s: that name is the human's, and it is exempt from the loop guards.", *in.Speaker, requester)), nil
 	}
 	if requester == "" {
 		return refuse("cannot tell who is asking: the request named nobody. Agents are started by the daemon, which sets HANDLINE_AGENT."), nil

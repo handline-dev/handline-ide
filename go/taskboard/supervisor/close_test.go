@@ -80,6 +80,16 @@ func TestCancelOfTheFoundersUndeliveredRequestIsAWithdrawal(t *testing.T) {
 	}
 }
 
+func TestCancelOfAnotherPersonsUndeliveredRequestIsTheirWithdrawal(t *testing.T) {
+	r := newRig(t)
+	rid := r.ask("p2", r.k("bob"), "do x", "")
+	plan, ok, msg, err := r.CancelWrite(r.DB, &After{}, rid, nil, nil)
+	r.must(err)
+	if !ok || plan != nil || r.ids(msg) != "request #1 to bob withdrawn" {
+		t.Fatalf("%v %v %q", ok, plan, msg)
+	}
+}
+
 // A link only allows a message: the founder's request carries no response kind, and its close wakes nobody.
 func TestTheFoundersRequestCarriesNoResponseAndItsCloseWakesNobody(t *testing.T) {
 	r := newRig(t)
