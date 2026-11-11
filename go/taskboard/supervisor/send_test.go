@@ -13,11 +13,11 @@ func TestWallReasonCoversALimitAndAMovableParkOnly(t *testing.T) {
 		t.Fatal(w)
 	}
 	db.SetAgentState(r.DB, "bob", "PARKED", r.clock+100, "usage")
-	r.DB.Exec("INSERT INTO handoff(id, agent, trigger_kind, step, state, updated) VALUES('h', 'bob', 'usage', 'done', 'done', 5)")
+	r.DB.Exec(r.sql("INSERT INTO handoff(id, agent, trigger_kind, step, state, updated) VALUES('h', 'bob', 'usage', 'done', 'done', 5)"))
 	if w := r.wallReason(r.DB, "bob", nil); w != "bob is parked until its usage window rolls over" {
 		t.Fatal(w)
 	}
-	r.DB.Exec("UPDATE handoff SET trigger_kind = 'by hand'")
+	r.DB.Exec(r.sql("UPDATE handoff SET trigger_kind = 'by hand'"))
 	if w := r.wallReason(r.DB, "bob", nil); w != "" {
 		t.Fatalf("a hand park is not the wall: %q", w)
 	}

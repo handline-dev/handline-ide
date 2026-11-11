@@ -426,7 +426,7 @@ func (r *rig) saysTo(agent string) []string {
 // nobody was told. Anyone named with @ is told, and the assignee; the writer and the opener are not.
 func TestAMemoReachesTheAgentsItNamesWhateverTheTaskState(t *testing.T) {
 	r := newRig(t)
-	r.register(r.k("carol"), r.k(("dave")))
+	r.register("carol", "dave")
 	r.agentUp(r.k("bob"))
 	tid := r.newTask(r.k("bob"), r.k(("alice")), "job")
 	r.must(r.TellMemo(r.DB, tid, r.k(("bob")), "added", "@carol please discard T2, it duplicates this; mail x@dave.example and @nobody", "", false)) // local-ref-ok: an address names nobody
@@ -448,7 +448,7 @@ func TestAMemoReachesTheAgentsItNamesWhateverTheTaskState(t *testing.T) {
 // task's opener, with no @ or say, is not told.
 func TestAMemoIsToldAtOnceOnlyToWhomItIsAimedAt(t *testing.T) {
 	r := newRig(t)
-	r.register(r.k("carol"))
+	r.register("carol")
 	r.agentUp(r.k("carol"))
 	r.agentUp(r.k("bob"))
 	r.must(db.SetAgentState(r.DB, r.k(("carol")), states.Idle, 0, ""))
@@ -582,7 +582,7 @@ func TestABlockedTaskFreesItsOwnerAndComesBackWithoutPreempting(t *testing.T) {
 
 func TestAMemoNoticeToTheNewOwnerDoesNotCountAsTheTaskDelivered(t *testing.T) {
 	r := newRig(t)
-	r.register(r.k("bob"))
+	r.register("bob")
 	tid := r.newTask(r.k("human"), r.k(("bob")), "decide")
 	bob := r.k(("bob"))
 	r.must(db.EditTask(r.DB, tid, r.k(("human")), db.TaskEdit{Owner: &bob}))
@@ -650,7 +650,7 @@ func TestTheFoundersMemoReachesTheTaskOwnerAtOnceWhileAnAgentsMemoWithNoAtIsNotT
 // A memo keeps which request told each reader, held for a digest or typed at once, so the memo can show who has read it.
 func TestAMemoKeepsTheTellItSentToEachReader(t *testing.T) {
 	r := newRig(t)
-	r.register(r.k("carol"))
+	r.register("carol")
 	r.agentUp(r.k("carol"))
 	r.agentUp(r.k("bob"))
 	tid := r.newTask(r.k("bob"), r.k(("carol")), "job")

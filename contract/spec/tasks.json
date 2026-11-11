@@ -3431,7 +3431,7 @@
       "type": "array",
       "maxItems": 20,
       "items": {
-       "type": "string"
+       "$ref": "#/components/schemas/AgentName"
       },
       "description": "Agents not to tell of this comment, from the ones task.comment.recipients names. Skipping the assignee is allowed; the comment stays on the task either way. A name that would not have been told is ignored."
      }
@@ -3635,7 +3635,7 @@
       "type": "array",
       "maxItems": 20,
       "items": {
-       "type": "string"
+       "$ref": "#/components/schemas/AgentName"
       },
       "description": "Agents not to tell of this comment, from the ones task.comment.recipients names. Skipping the assignee is allowed; the comment stays on the task either way. A name that would not have been told is ignored."
      }

@@ -176,6 +176,13 @@ func (e *Env) doRetire(p step) (bool, string, error) {
 	if err != nil {
 		return false, "", err
 	}
+	label := name // what the answer and the archive folder call it: its name, read before its row goes
+	if key != "" {
+		var n string
+		if err := p.tx.QueryRow("SELECT "+paths.LegacyNameSQL+" FROM agents a JOIN workspaces w ON w.id = a.workspace WHERE 'a' || a.id = ?", key).Scan(&n); err == nil {
+			label = n
+		}
+	}
 	if _, err := taskwrites.RetireTurns(p.tx, e.Home, tell, name); err != nil {
 		return false, "", err
 	}
@@ -196,7 +203,7 @@ func (e *Env) doRetire(p step) (bool, string, error) {
 		return false, "", err
 	}
 	src := paths.AgentDir(e.Home, key) // Remove refused a name with no row, so key is set
-	dest := filepath.Join(e.Home, "agents", "archive", time.Now().Format("2006-01-02")+"-"+name)
+	dest := filepath.Join(e.Home, "agents", "archive", time.Now().Format("2006-01-02")+"-"+label)
 	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 		return false, "", err
 	}
@@ -211,7 +218,7 @@ func (e *Env) doRetire(p step) (bool, string, error) {
 	if err := paths.RemoveCacheDir(e.Home, key); err != nil { // the folder is archived already: a cache left behind does not undo that
 		e.logf("  %s: its build caches were not removed: %v", name, err)
 	}
-	return true, fmt.Sprintf("%s is retired; its folder is at %s. %s", name, dest, cleared), nil
+	return true, fmt.Sprintf("%s is retired; its folder is at %s. %s", label, dest, cleared), nil
 }
 
 // doRename gives an identity another name. Its folder and rows are by key, so they stay as they are. Not while it is running.

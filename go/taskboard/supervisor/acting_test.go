@@ -149,7 +149,7 @@ func TestADiscardStopsTheAgentOnTopAndMovesItOn(t *testing.T) {
 		r.agentUp(a)
 	}
 	// carol leads a workspace, so her discard stops the requests out on the task instead of refusing
-	teamtest.Set(t, r.home, r.k("alice"), "reports_to", r.k("carol"))
+	teamtest.Set(t, r.home, "alice", "reports_to", "carol")
 	tid := r.newTask(db.Human, r.k("carol"), "the founder's")
 	r.must(db.PushTurn(r.DB, tid, db.Turn{Agent: r.k("alice"), By: db.Human, Since: r.clock}))
 	r.beginOnTop(tid)
