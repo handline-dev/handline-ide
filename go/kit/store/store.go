@@ -172,6 +172,7 @@ var byHand = map[int]func(*sql.Tx) error{
 	45: addSampleLoggedOut,     // usage_sample_logged_out
 	46: addDeviceClient,        // device_client
 	49: addSessionStartChanged, // session_start_changed
+	51: addTurnMemo,            // turn_memo
 }
 
 // addExtraWorktrees is _agent_extra_worktrees in schema.py: a database made before the column has none.
@@ -240,6 +241,9 @@ func addTurnOrigin(tx *sql.Tx) error { return addColumn(tx, "tasks", "turn_origi
 func addSampleLoggedOut(tx *sql.Tx) error {
 	return addColumn(tx, "usage_samples", "logged_out", "INTEGER NOT NULL DEFAULT 0")
 }
+
+// addTurnMemo is the comment a turn was handed over with (db.Turn.Memo).
+func addTurnMemo(tx *sql.Tx) error { return addColumn(tx, "task_turns", "memo", "INTEGER") }
 
 // addSessionStartChanged is what the settings a session start was launched with changed (session_starts.changed).
 func addSessionStartChanged(tx *sql.Tx) error {

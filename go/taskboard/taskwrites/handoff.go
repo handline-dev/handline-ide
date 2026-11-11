@@ -54,7 +54,7 @@ func handoffRefusal(t *task, to string, agents []string) string {
 	case to == t.Acting:
 		return fmt.Sprintf("T%d is already %s's", t.ID, to)
 	case to == t.Owner:
-		return fmt.Sprintf("T%d is %s's already, under its turns: pass or send back the turns above it (`hl task turn pop`)", t.ID, to)
+		return fmt.Sprintf("T%d is %s's already, under its turns: pass or send back the turns above it (`hl task pass` or `hl task back`)", t.ID, to)
 	}
 	return ""
 }
@@ -103,7 +103,7 @@ func handoffMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (an
 			}
 			var err error
 			if to == human && me != human { // an agent's handoff to the founder is the founder's turn: the task stays the agent's
-				h, asked, err = pushTurn(tx, tell, tid, me, human, said, "", "")
+				h, asked, err = pushTurn(tx, tell, tid, me, human, said, 0, "", "")
 			} else {
 				h, asked, err = handOff(tx, tell, tid, me, to, said, agents, false)
 			}

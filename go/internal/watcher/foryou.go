@@ -6,6 +6,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/stream"
 	"github.com/handline/handline/go/internal/prefs"
 	"github.com/handline/handline/go/internal/reads"
@@ -38,7 +39,7 @@ func ForYouSignature(q *sql.DB) string {
 func (*ForYou) Name() string { return "for_you" }
 
 func (*ForYou) Tables() []string {
-	return []string{"agent_state", "cursors", "events", "meta", "prefs", "prompt_blocks", "requests", "task_blocks", "task_requests", "task_tags", "task_turns", "tasks"} // meta: the pause moves a task between doing and queued
+	return []string{"agent_state", "cursors", "events", "meta", "prefs", "prompt_blocks", "requests", "task_blocks", "task_memos", "task_requests", "task_tags", "task_turns", "tasks"} // meta: the pause moves a task between doing and queued
 }
 
 func (w *ForYou) Scan(_ *sql.DB, emit Emit) error {
@@ -56,7 +57,7 @@ func (w *ForYou) Scan(_ *sql.DB, emit Emit) error {
 	for k, it := range now {
 		if it["kind"] == "task" {
 			var q string
-			err := w.Reads.DB.QueryRow("SELECT ask FROM task_turns WHERE task_id = ? AND agent = 'human'", it["id"]).Scan(&q)
+			err := w.Reads.DB.QueryRow("SELECT "+db.TurnAskSQL("u")+" FROM task_turns u WHERE task_id = ? AND agent = 'human'", it["id"]).Scan(&q)
 			if err != nil && err != sql.ErrNoRows {
 				return err
 			}

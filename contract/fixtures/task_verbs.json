@@ -372,9 +372,9 @@
    ]
   },
   {
-   "name": "task.turn.push.evidence_comes_with_on_pass",
-   "spec": "task.turn.push",
-   "about": "A turn whose pass closes the task names the evidence it closes with: on_pass done without evidence is bad_request naming evidence.",
+   "name": "task.comment.add.done_goes_with_a_turn_to_an_agent",
+   "spec": "task.comment.add",
+   "about": "done (the evidence a passing review closes the task with) goes with a turn to an agent: with a turn to human it is bad_request naming done.",
    "as": "agent",
    "steps": [
     {
@@ -393,11 +393,12 @@
      "send": {
       "jsonrpc": "2.0",
       "id": 2,
-      "method": "task.turn.push",
+      "method": "task.comment.add",
       "params": {
        "task": 1,
-       "to": "human",
-       "on_pass": "done",
+       "text": "over to you",
+       "turn": "human",
+       "done": "built and tested",
        "request_id": "conf-2"
       }
      },
@@ -405,7 +406,7 @@
       "code": -32602,
       "data": {
        "code": "bad_request",
-       "field": "evidence"
+       "field": "done"
       }
      }
     }
@@ -481,7 +482,7 @@
      },
      "error": {
       "code": -32002,
-      "message": "An agent opens no task for the founder. Open it as yours, and when only the founder can decide, put them on it: hl task turn T<n> human \"<the decision, and what you recommend>\".",
+      "message": "An agent opens no task for the founder. Open it as yours, and when only the founder can decide, put them on it: hl task comment T<n> add \"<the decision, and what you recommend>\" --turn human.",
       "data": {
        "code": "refused"
       }

@@ -806,7 +806,7 @@
             "reject",
             "turn"
            ],
-           "description": "memo; handoff; a request linked to the task, except a memo's tell, the ask to the founder an @human memo opens, and a request that forwards a comment or a turn's return (any of them withdrawn too), which repeat their memo or turn; edit, the brief changed (text is the new brief); state, a change of state (text is `from -> done`); reject, the task sent back (text is the note), from before a review was a handoff; turn, a turn pushed (who is `by → to`, text its ask) or given back (who is `from → to`, text empty: a note is its comment)."
+           "description": "memo; handoff; a request linked to the task, except a memo's tell, the ask to the founder an @human memo opens, and a request that forwards a comment or a turn's return (any of them withdrawn too), which repeat their memo or turn; edit, the brief changed (text is the new brief); state, a change of state (text is `from -> done`); reject, the task sent back (text is the note), from before a review was a handoff; turn, a turn pushed (who is `by → to`, text its ask, empty when it was handed over with a comment: memo names that comment) or given back (who is `from → to`, text empty: a note is its comment)."
           },
           "text": {
            "type": "string",
@@ -832,7 +832,7 @@
            "oneOf": [
             {
              "type": "integer",
-             "description": "A memo's id, for editing or deleting it; null for the others."
+             "description": "A memo's id, for editing or deleting it; on a turn push row, the comment the turn was handed over with; null for the others."
             },
             {
              "type": "null"
@@ -1625,9 +1625,10 @@
        "decide",
        "ask",
        "warning",
-       "comment"
+       "comment",
+       "note"
       ],
-      "description": "The strongest item the row holds: allow (a permission request), decide (a decision, or a turn on the task), ask (a question to the founder), warning (the daemon needs the founder to act: see warning), or comment (unread comments only)."
+      "description": "The strongest item the row holds: allow (a permission request), decide (a decision, or a turn on the task), ask (a question to the founder), warning (the daemon needs the founder to act: see warning), or comment (unread comments only). note: an `@human` comment the founder has not read, on a task no other row stands for (news, no turn): source comment, id the comment, ask its first line, agent its author; it leaves when the founder reads the task (task.seen)."
      },
      "items": {
       "type": "array",
@@ -1723,7 +1724,7 @@
      },
      "ask": {
       "type": "string",
-      "description": "What it was asked to do, as it reads now; empty when nothing was said. The founder's turn is the task's one question: asking again rewrites it."
+      "description": "What it was asked to do, as it reads now: the text of its comment (memo) when it has one; empty when nothing was said."
      },
      "by": {
       "type": "string",
@@ -1774,6 +1775,17 @@
        "$ref": "#/components/schemas/TurnAsk"
       },
       "description": "The texts ask replaced, oldest first, each with when it was set; empty when never rewritten. In task.get only."
+     },
+     "memo": {
+      "oneOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "The comment the turn was handed over with (task.comment.add with turn), its message; null for a turn the daemon put on (a handoff to human, a review's end)."
      }
     },
     "required": [
@@ -1783,7 +1795,8 @@
      "since",
      "on_pass",
      "evidence",
-     "edited"
+     "edited",
+     "memo"
     ],
     "additionalProperties": false
    },
@@ -2656,7 +2669,7 @@
      "$ref": "#/components/errors/refused"
     }
    ],
-   "description": "The owner may not be the caller: a task an agent takes on itself is begun from the founder's message (task.begin). An agent may not open a task owned by human: the task is the agent's, and the founder's decision is a turn on it (task.turn.push human).",
+   "description": "The owner may not be the caller: a task an agent takes on itself is begun from the founder's message (task.begin). An agent may not open a task owned by human: the task is the agent's, and the founder's decision is a turn on it (task.comment.add with turn human).",
    "x-gates": [
     "duplicate_title"
    ]
@@ -2714,85 +2727,7 @@
      "$ref": "#/components/errors/not_found"
     }
    ],
-   "description": "Anyone may hand an open task on, not only its owner (the asker takes a task back so). It moves who acts on the task: its owner, or with turns open (task.turn.push) the agent of its top turn; it is refused to an agent that is the owner below the turns or already has a turn on it. task.history's row names who made the move (by). An agent's handoff to `human` is task.turn.push to human with the note as its ask: the task stays the agent's and waits on the founder. The founder may hand a task to `human`."
-  },
-  {
-   "name": "task.turn.push",
-   "summary": "Put another agent, or the founder, on top of a task you act on. While the founder is on top, the agent below asking them again rewrites their turn's ask (Turn.edited, Turn.earlier); the same text changes nothing.",
-   "paramStructure": "by-name",
-   "params": [
-    {
-     "name": "task",
-     "required": true,
-     "schema": {
-      "type": "integer"
-     }
-    },
-    {
-     "name": "to",
-     "required": true,
-     "schema": {
-      "type": "string",
-      "description": "An agent, or human."
-     }
-    },
-    {
-     "name": "ask",
-     "required": false,
-     "schema": {
-      "type": "string",
-      "description": "What `to` is asked to do, in one or a few lines; for human, the decision and what you recommend."
-     }
-    },
-    {
-     "name": "on_pass",
-     "required": false,
-     "schema": {
-      "type": "string",
-      "enum": [
-       "done"
-      ],
-      "description": "done: a pass of this turn closes the task with evidence (a review of finished work)."
-     }
-    },
-    {
-     "name": "evidence",
-     "required": false,
-     "schema": {
-      "type": "string",
-      "description": "The done evidence; given with on_pass done, and only with it."
-     }
-    },
-    {
-     "name": "request_id",
-     "required": true,
-     "schema": {
-      "$ref": "#/components/schemas/RequestId"
-     }
-    }
-   ],
-   "result": {
-    "name": "result",
-    "schema": {
-     "$ref": "#/components/schemas/Accepted"
-    }
-   },
-   "x-role": "agent",
-   "x-write": true,
-   "x-app-write": false,
-   "x-since": 1,
-   "errors": [
-    {
-     "$ref": "#/components/errors/refused"
-    },
-    {
-     "$ref": "#/components/errors/not_found"
-    },
-    {
-     "$ref": "#/components/errors/bad_request"
-    }
-   ],
-   "description": "By the agent acting on the task (Task.acting) or the founder. `to` goes on top and acts on the task now; the one below keeps its turn but acts on nothing, so its doing slot frees and its next queued task starts. An agent is delivered the task with the ask; human is not delivered to: the task waits on the founder (requests.pending, my_turn), no agent is alarmed and its time box starts again when the turn ends. Refused: `to` is the owner or already has a turn, the task carries 3 turns, or the task is ended."
+   "description": "Anyone may hand an open task on, not only its owner (the asker takes a task back so). It moves who acts on the task: its owner, or with turns open the agent of its top turn; it is refused to an agent that is the owner below the turns or already has a turn on it. task.history's row names who made the move (by). An agent's handoff to `human` puts the founder's turn on with the note as its ask: the task stays the agent's and waits on the founder. The founder may hand a task to `human`."
   },
   {
    "name": "task.turn.pop",
@@ -3266,7 +3201,7 @@
          "items": {
           "$ref": "#/components/schemas/PendingRequest"
          },
-         "description": "The founder's turn: one row per task with something only they can act on (a turn on it, a comment asking them, a decision), newest first, and an item with no task (a permission request, a proposal, a daemon warning) as its own row. A row leaves when it is resolved (answered, passed, delivered, logged in, its time gone) or put off (NavPrefs.later) and never by being read."
+         "description": "The founder's turn: one row per task with something only they can act on (a turn on it, a comment asking them, a decision), newest first, and an item with no task (a permission request, a proposal, a daemon warning) as its own row. A row leaves when it is resolved (answered, passed, delivered, logged in, its time gone) or put off (NavPrefs.later) and never by being read. A note row (an unread `@human` comment) is listed here too, but is not the founder's turn: counts.answer leaves it out."
         },
         "comments": {
          "type": "array",
@@ -3280,7 +3215,7 @@
          "properties": {
           "answer": {
            "type": "integer",
-           "description": "The founder's turn: the length of answer. The bell and the sidebar Requests badge both show this."
+           "description": "The founder's turn: the rows of answer that are not notes. The bell and the sidebar Requests badge both show this."
           },
           "comments": {
            "type": "integer",
@@ -3297,13 +3232,18 @@
           "unseen_results": {
            "type": "integer",
            "description": "Finished requests the founder has not seen (requests.list unseen): the bell's dot, not a number on it. Absent from a daemon that does not send it."
+          },
+          "notes": {
+           "type": "integer",
+           "description": "The note rows of answer: unread `@human` comments. The bell's dot, not a number on it."
           }
          },
          "required": [
           "answer",
           "comments",
           "needs_you",
-          "drafts"
+          "drafts",
+          "notes"
          ],
          "description": "Every badge comes only from here, so the page and the badge cannot disagree: bell and Requests are answer, Tasks is needs_you."
         }
@@ -3457,8 +3397,8 @@
   },
   {
    "name": "task.comment.add",
-   "summary": "Add a comment; anyone may. It is told only to an agent that has to act on it: the task's assignee (its holder), each agent it names as @name, and, when the founder wrote it on a task no agent holds, who the task answers to (its reporter, else its opener); with now every one of those readers, mid-turn too. It is never told to its writer. task.comment.recipients says who will be told before posting; skip leaves some of them out. The founder is told by one inbox line per request (a task made from their message, task.request) while it stays unread, counting the agents' new comments. A reader at its prompt is told at once and a reader mid-turn at the end of its turn. comment.edit and comment.delete are told the same way. A comment asks the founder nothing, `@human` or not: their question is their turn on the task (task.turn.push human). The wire still calls a comment a memo (Memo, `memo`, `memos`); task.memo.add is its old name.",
-   "description": "An ask an agent's `@human` comment opened before comments stopped asking (InboxItem kind ask, `task` and `memo` set) stays open until (1) the founder replies to it (inbox.reply), (2) the founder adds any comment to that task, (3) the founder marks it read (inbox.mark_read naming its id), (4) its comment is deleted or edited so it no longer names `@human`, or (5) the task is done or discarded. An edit that keeps `@human` first keeps that ask and updates its body. While human is the top turn (Task.acting), the founder's comment passes that turn, the comment its note (task.turn.pop).",
+   "summary": "Add a comment; anyone may. It is told only to an agent that has to act on it: the task's assignee (its holder), each agent it names as @name, and, when the founder wrote it on a task no agent holds, who the task answers to (its reporter, else its opener); with now every one of those readers, mid-turn too. It is never told to its writer. task.comment.recipients says who will be told before posting; skip leaves some of them out. The founder is told by one inbox line per request (a task made from their message, task.request) while it stays unread, counting the agents' new comments. A reader at its prompt is told at once and a reader mid-turn at the end of its turn. comment.edit and comment.delete are told the same way. A comment asks the founder nothing unless it carries turn human: that is their turn on the task. One whose first word is `@human` is news for them: it moves no turn, and requests.pending lists it as a note until they read the task. The wire still calls a comment a memo (Memo, `memo`, `memos`); task.memo.add is its old name.",
+   "description": "An ask an agent's `@human` comment opened before comments stopped asking (InboxItem kind ask, `task` and `memo` set) stays open until (1) the founder replies to it (inbox.reply), (2) the founder adds any comment to that task, (3) the founder marks it read (inbox.mark_read naming its id), (4) its comment is deleted or edited so it no longer names `@human`, or (5) the task is done or discarded. An edit that keeps `@human` first keeps that ask and updates its body. While human is the top turn (Task.acting), the founder's comment passes that turn, the comment its note (task.turn.pop). With turn, the comment also puts `turn` on top of the task in the same transaction and is that turn's message (Turn.memo): by the agent acting on the task or the founder, refused as a turn is when `turn` is the owner or already has a turn, the task carries 3 turns, or it is ended. An agent is delivered the task with the comment; human is not delivered to: the task waits on the founder (requests.pending, my_turn), no agent is alarmed and its time box starts again when the turn ends. While the founder's turn is on top, the agent below adding another comment with turn human moves that turn to the new comment.",
    "paramStructure": "by-name",
    "params": [
     {
@@ -3502,6 +3442,22 @@
      "schema": {
       "type": "integer",
       "description": "The comment on the same task this one answers (Memo.reply_to). Refused (not_found memo) when the task has no such comment."
+     }
+    },
+    {
+     "name": "turn",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "description": "Hand the task to this agent, or human, with this comment: it goes on top and acts now; the one below keeps its turn but acts on nothing, so its doing slot frees. For human, the comment is the decision and what you recommend."
+     }
+    },
+    {
+     "name": "done",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "description": "With turn naming an agent: the done evidence a pass of that turn closes the task with (a review of finished work)."
      }
     },
     {
@@ -4878,7 +4834,7 @@
      "$ref": "#/components/errors/not_found"
     }
    ],
-   "description": "A new owner (assignee) moves who acts as task.handoff does: with turns open it replaces the top turn's agent; an agent's owner `human` is task.turn.push human. blocked_by and unblock block the task whoever acts on it: the slot freed is the acting agent's (Task.acting)."
+   "description": "A new owner (assignee) moves who acts as task.handoff does: with turns open it replaces the top turn's agent; an agent's owner `human` puts the founder's turn on. blocked_by and unblock block the task whoever acts on it: the slot freed is the acting agent's (Task.acting)."
   },
   {
    "name": "task.ask",

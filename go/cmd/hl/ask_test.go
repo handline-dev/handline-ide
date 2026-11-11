@@ -119,7 +119,7 @@ func TestReadWithdrawAndSayParentSendARefAsTextAndANumberAsANumber(t *testing.T)
 	r.run(asAgent, "read", "MSG_0100200")
 	r.run(asAgent, "read", "7")
 	r.run(asAgent, "withdraw", "123456789012")
-	r.run(asAgent, "say", "b.two", "hi", "--parent", "c0ffee000001", "--no-task", "chat")
+	r.run(asAgent, "say", "b.two", "hi", "--parent", "c0ffee000001")
 	want := []string{`request.read {"id":"0100200","wait_s":0}`, `request.read {"id":7,"wait_s":0}`, `request.withdraw {"id":"123456789012"}`}
 	got := sent(calls())
 	if len(got) < 4 || !reflect.DeepEqual(got[:3], want) || !strings.Contains(got[3], `"parent":"c0ffee000001"`) {

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/taskboard/attachments"
 )
@@ -78,7 +79,6 @@ func Register(s *rpc.Server, home string, tell Teller, decide CardDecider) {
 	s.Register("progress.get", rpc.Method{Handler: progressGet})
 	s.Register("task.begin", rpc.Method{Handler: func(c *rpc.Conn, p map[string]any) (any, error) { return begin(c, p, home) }})
 	s.Register("task.handoff", rpc.Method{Handler: handoffMethod(home, tell)})
-	s.Register("task.turn.push", rpc.Method{Handler: turnPushMethod(home, tell)})
 	s.Register("task.turn.pop", rpc.Method{Handler: turnPopMethod(home, tell)})
 	s.Register("task.new", rpc.Method{Handler: newMethod(home, tell)})
 	s.Register("task.edit", rpc.Method{Handler: editMethod(home, tell)})
@@ -207,10 +207,16 @@ func memoAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, err
 		if err != nil {
 			return nil, err
 		}
+		to, evidence, err := turnParams(p, home)
+		if err != nil {
+			return nil, err
+		}
 		store := attachments.New(home)
 		var files []attachments.Info
 		var added int64
 		var popped *Popped // the founder's comment that ended the founder's turn
+		var pushed Handover
+		var asked *Asked // the turn the comment hands over, when it carries one
 		out, err := c.Effect(func(tx *sql.Tx) (map[string]any, error) {
 			if ok, err := hasTask(tx, tid); err != nil || !ok {
 				if err != nil {
@@ -237,6 +243,9 @@ func memoAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, err
 				}
 			}
 			if c.Caller.Actor() == human {
+				if to == human {
+					return nil, refusal("you do not hand a turn to yourself: name an agent")
+				}
 				if err = answerMemoAsks(tx, tid); err != nil {
 					return nil, err
 				}
@@ -246,6 +255,9 @@ func memoAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, err
 				} else if turns, err := db.Turns(tx, tid); err != nil {
 					return nil, err
 				} else if acting == human && len(turns) > 0 {
+					if to != "" {
+						return nil, refusal(fmt.Sprintf("T%d waits on you: answer with a comment and no turn, and it goes back to the agent that asked", tid))
+					}
 					p, err := popTurn(tx, home, tell, tid, human, db.TurnPass, body, mid)
 					if err != nil {
 						return nil, err
@@ -259,8 +271,35 @@ func memoAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, err
 			if err := store.AttachMemo(tx, mid, files); err != nil {
 				return nil, err
 			}
-			return accepted(fmt.Sprintf("comment %d added to T%d", mid, tid), map[string]any{"memo": mid}), nil
+			said := fmt.Sprintf("comment %d added to T%d", mid, tid)
+			if to != "" {
+				onPass := ""
+				if evidence != "" {
+					onPass = db.TurnOnPassDone
+				}
+				if pushed, asked, err = pushTurn(tx, tell, tid, c.Caller.Actor(), to, body, mid, onPass, evidence); err != nil {
+					return nil, err
+				}
+				if !asked.OK { // the comment and the denied ask roll back together: a refused comment is not left on the task
+					return nil, refusal(asked.Msg)
+				}
+				if asked.Reask {
+					said += ": " + asked.Msg
+				} else {
+					said += fmt.Sprintf(", and T%d is %s's turn now: %s", tid, to, asked.Msg)
+				}
+			}
+			return accepted(said, map[string]any{"memo": mid}), nil
 		})
+		if err == nil && asked != nil && !asked.Reask {
+			pushed.After = asked.After
+			if tail := tell.HandedOver(pushed); tail != "" {
+				out["said"] = out["said"].(string) + "\n" + tail
+			}
+			if to != human {
+				skip = append(skip, to) // the turn's delivery carries the comment
+			}
+		}
 		if err == nil && tell != nil {
 			told := body
 			if lines := store.FileLines(files); lines != "" {
@@ -276,6 +315,25 @@ func memoAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, err
 		}
 		return out, err
 	}
+}
+
+// turnParams are a comment's turn: who it hands the task to ("" for none) and, for a review, the evidence a pass of it closes the task with.
+func turnParams(p map[string]any, home string) (to, evidence string, err error) {
+	if to, err = optText(p, "turn"); err != nil {
+		return "", "", err
+	}
+	if evidence, err = optText(p, "done"); err != nil {
+		return "", "", err
+	}
+	switch {
+	case evidence != "" && (to == "" || to == human):
+		return "", "", badParam("done goes with a turn to an agent: a review whose pass closes the task", "done")
+	case to != "" && to != human && !contains(paths.ListAgents(home), to):
+		e := rpc.NotFoundError("no agent named " + to)
+		e.Data = map[string]any{"what": "agent", "name": to}
+		return "", "", e
+	}
+	return to, evidence, nil
 }
 
 // optionalNames is a list of names (strings) in p[key], or none.
@@ -397,6 +455,13 @@ func memoDelete(tell Teller) func(*rpc.Conn, map[string]any) (any, error) {
 			}
 			if err := guard(c.Caller.Actor(), author, mid); err != nil {
 				return nil, err
+			}
+			var hung int
+			if err := tx.QueryRow("SELECT COUNT(*) FROM task_turns WHERE memo = ?", mid).Scan(&hung); err != nil {
+				return nil, err
+			}
+			if hung > 0 {
+				return nil, refusal(fmt.Sprintf("comment %d is what a turn on T%d asks: edit it instead; the turn comes off with its answer", mid, tid))
 			}
 			if err := db.DeleteMemo(tx, mid, c.Caller.Actor()); err != nil {
 				return nil, err

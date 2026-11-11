@@ -26,8 +26,14 @@ func TestSayWritesOnceAndRefusesWhatIsNotASay(t *testing.T) {
 	if first["accepted"] != true || again["replayed"] != true || r.count("SELECT COUNT(*) FROM requests WHERE requester = 'alice' AND target = 'bob' AND kind = 'say'") != 1 {
 		t.Fatalf("one say, a retry repeats nothing: %v %v", first, again)
 	}
-	if d := r.errData(r.one(s, "say", `{"target":"bob","body":"x","no_task":"why","request_id":"m2"}`)); d["code"] != "refused" {
-		t.Fatalf("--no-task is for replying to the founder: %v", d)
+	for _, p := range []string{`"no_task":"why"`, `"task":3`} { // a say is chat: on a task, a comment says it
+		out := r.one(s, "say", `{"target":"bob","body":"x",`+p+`,"request_id":"m2"}`)
+		if d := r.errData(out); d["code"] != "refused" || !strings.Contains(fmt.Sprint(out["error"]), "hl task comment") {
+			t.Fatalf("%s: %v", p, out)
+		}
+	}
+	if n := r.count("SELECT COUNT(*) FROM requests WHERE body = 'x'"); n != 0 {
+		t.Fatalf("a say naming a task was sent: %d", n)
 	}
 	if d := r.errData(r.one(s, "say", `{"target":"bob","body":" ","request_id":"m3"}`)); d["field"] != "body" {
 		t.Fatal(d)

@@ -15,11 +15,11 @@ import (
 	"github.com/handline/handline/go/taskboard/watch"
 )
 
-// unserved are the parameters the contract names and no action is behind yet.
 // newForFounder is the refusal when an agent opens a task for the founder: the task is the agent's, and the founder's decision is a turn on it.
 const newForFounder = "An agent opens no task for the founder. Open it as yours, and when only the founder can decide, " +
-	"put them on it: hl task turn T<n> human \"<the decision, and what you recommend>\"."
+	"put them on it: hl task comment T<n> add \"<the decision, and what you recommend>\" --turn human."
 
+// unserved are the parameters the contract names and no action is behind yet.
 func unserved(p map[string]any, keys ...string) error {
 	for _, k := range keys {
 		if p[k] != nil {

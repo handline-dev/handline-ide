@@ -143,7 +143,7 @@ func (b *Timebox) SweepTaskTimeouts(t *Tick, now int64) {
 		}
 		title := shortTitle(row.Title)
 		text := fmt.Sprintf("T%d (%s), held by %s, has been doing past its %s timeout.%s Do it, hand it on (`hl task handoff T%d <agent> \"<note>\"`), "+
-			"mark what blocks it (`hl task edit T%d --blocked-by T<n>`), or put the founder on it if only they can decide (`hl task turn T%d human \"<the decision, and what you recommend>\"`). "+
+			"mark what blocks it (`hl task edit T%d --blocked-by T<n>`), or put the founder on it if only they can decide (`hl task comment T%d add \"<the decision, and what you recommend>\" --turn human`). "+
 			"`hl task release T%d \"<reason>\"` takes it back.",
 			tid, title, row.Acting, timefmt.Ago(box), behindLine(t, row.Acting, tid), tid, tid, tid, tid)
 		// the holder can act on it, and its lead routes; the opener of a task another agent holds cannot
@@ -489,7 +489,7 @@ func (b *Timebox) SweepHeldTaskAfterClose(t *Tick, now int64) {
 		}
 		if asked == 0 {
 			text := fmt.Sprintf("You hold T%d (%s) and your session was closed.%s Do it, hand it on (`hl task handoff T%d <agent> \"<note>\"`), "+
-				"mark what blocks it (`hl task edit T%d --blocked-by T<n>`), or put the founder on it if only they can decide (`hl task turn T%d human \"<the decision, and what you recommend>\"`).",
+				"mark what blocks it (`hl task edit T%d --blocked-by T<n>`), or put the founder on it if only they can decide (`hl task comment T%d add \"<the decision, and what you recommend>\" --turn human`).",
 				tid, shortTitle(task.Title), behindLine(t, agent, tid), tid, tid, tid)
 			check(b.Ports.SayNow(t.Q, agent, text))
 			check(db.SetCursor(t.Q, key, now))

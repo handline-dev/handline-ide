@@ -103,21 +103,6 @@ func TestACommentTellsTheAgentOnTop(t *testing.T) {
 	}
 }
 
-// A say with --task goes to the agent on top: to anyone else it is refused with the line that works.
-func TestASayOnATaskGoesToTheAgentOnTop(t *testing.T) {
-	r, tid := turnRig(t)
-	if out := r.say(SayVerbIn{Requester: "dave", Target: "bob", Body: "x", Task: tid}); out.OK || !strings.HasPrefix(out.Msg, fmt.Sprintf("T%d is with alice, not bob", tid)) {
-		t.Fatalf("%q", out.Msg)
-	}
-	no := "because"
-	if out := r.say(SayVerbIn{Requester: "dave", Target: "alice", Body: "x", Task: tid, NoTask: &no}); out.OK || !strings.Contains(out.Msg, fmt.Sprintf("hl say alice x --task T%d", tid)) {
-		t.Fatalf("the line to try keeps the task alice acts on: %q", out.Msg)
-	}
-	if out := r.say(SayVerbIn{Requester: "dave", Target: "alice", Body: "look at the cache", Task: tid}); !out.OK {
-		t.Fatalf("%q", out.Msg)
-	}
-}
-
 // The agent on top may start the task and keep progress on it; its owner may do neither.
 func TestTheAgentOnTopStartsTheTaskAndKeepsItsProgress(t *testing.T) {
 	r, tid := turnRig(t)
