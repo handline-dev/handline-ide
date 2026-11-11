@@ -302,10 +302,11 @@ func TestCommentRecipientsAreExactlyWhoAddThenTells(t *testing.T) {
 		t.Fatalf("add told other than recipients said: alice %v bob %v", told(alice), told(bob))
 	}
 	d2, agents2 := tellDaemon(t, true)
-	tid2, _ := db.NewTask(d2.db, "job", "bob", "alice", 0, db.DefaultPriority, "", 0, "")
+	alice2, bob2 := key(t, d2, "alice"), key(t, d2, "bob")
+	tid2, _ := db.NewTask(d2.db, "job", bob2, alice2, 0, db.DefaultPriority, "", 0, "")
 	result(t, pipeTo(t, d2, "k").ask(fmt.Sprintf(`{"jsonrpc":"2.0","id":9,"method":"task.comment.add","params":{"task":%d,"text":"@alice mind the cache","skip":["bob"],"request_id":"rs1"}}`, tid2)))
-	if !strings.Contains(agents2.said("alice"), "mind the cache") || strings.Contains(agents2.said("bob"), "mind the cache") {
-		t.Fatalf("a skipped assignee was told, or the one not skipped was not: alice %q bob %q", agents2.said("alice"), agents2.said("bob"))
+	if !strings.Contains(agents2.said(alice2), "mind the cache") || strings.Contains(agents2.said(bob2), "mind the cache") {
+		t.Fatalf("a skipped assignee was told, or the one not skipped was not: alice %q bob %q", agents2.said(alice2), agents2.said(bob2))
 	}
 	var kept int
 	d2.db.QueryRow("SELECT COUNT(*) FROM task_memos WHERE task_id = ?", tid2).Scan(&kept)
