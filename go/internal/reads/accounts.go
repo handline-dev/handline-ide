@@ -109,7 +109,7 @@ func (e *Env) accountsList(c *rpc.Conn, params map[string]any) (any, error) {
 		withUsage = b
 	}
 	// The email is the founder's to see, never an agent's: it would reach their transcripts and what they send.
-	founder := c != nil && c.Caller.Role == "founder"
+	founder := c != nil && c.Caller.Role == "owner"
 	recorded := team.Accounts{Home: e.Home}
 	v := e.accountView()
 	var loads map[string]*usage.Load

@@ -70,7 +70,7 @@ export class FakeAdmin {
     {
       id: 'd1',
       name: 'Handline desktop',
-      role: 'founder' as const,
+      role: 'owner' as const,
       created: '2026-10-01T09:00:00Z',
       last_seen: '2026-10-16T01:00:00Z',
       connected: true,
@@ -79,7 +79,7 @@ export class FakeAdmin {
     {
       id: 'd2',
       name: 'phone-3b54',
-      role: 'founder' as const,
+      role: 'owner' as const,
       created: '2026-10-05T09:00:00Z',
       last_seen: '2026-10-12T08:00:00Z',
       connected: false,

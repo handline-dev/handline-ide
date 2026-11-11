@@ -2369,7 +2369,7 @@
      ]
     }
    },
-   "x-role": "founder",
+   "x-role": "owner",
    "x-write": true,
    "x-app-write": {
     "kind": "decided",
@@ -3041,7 +3041,7 @@
      }
     }
    },
-   "x-role": "founder",
+   "x-role": "owner",
    "x-write": true,
    "x-app-write": false,
    "x-since": 1,
@@ -3255,7 +3255,7 @@
      ]
     }
    },
-   "x-role": "founder",
+   "x-role": "owner",
    "x-write": false,
    "x-app-cache": {
     "resource": "answers",
@@ -3314,7 +3314,7 @@
      "$ref": "#/components/schemas/Accepted"
     }
    },
-   "x-role": "founder",
+   "x-role": "owner",
    "x-write": true,
    "x-app-write": {
     "kind": "authored",
@@ -3374,7 +3374,7 @@
      "$ref": "#/components/schemas/Accepted"
     }
    },
-   "x-role": "founder",
+   "x-role": "owner",
    "x-write": true,
    "x-app-write": {
     "kind": "authored",

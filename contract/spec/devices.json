@@ -12,9 +12,9 @@
      },
      "role": {
       "type": "string",
-      "description": "A paired device is the founder.",
+      "description": "A paired device acts with its person's role: the owner's, before team mode.",
       "enum": [
-       "founder"
+       "owner"
       ]
      },
      "created": {
@@ -117,7 +117,7 @@
      ]
     }
    },
-   "x-role": "founder",
+   "x-role": "owner",
    "x-write": false,
    "x-app-cache": {
     "resource": "devices",
@@ -210,7 +210,7 @@
      ]
     }
    },
-   "x-role": "founder",
+   "x-role": "owner",
    "x-write": true,
    "x-app-write": {
     "kind": "decided",
@@ -326,7 +326,7 @@
      "$ref": "#/components/schemas/Accepted"
     }
    },
-   "x-role": "founder",
+   "x-role": "owner",
    "x-write": true,
    "x-app-write": {
     "kind": "decided",
@@ -377,7 +377,7 @@
      "$ref": "#/components/schemas/Accepted"
     }
    },
-   "x-role": "founder",
+   "x-role": "owner",
    "x-write": true,
    "x-app-write": {
     "kind": "decided",
@@ -444,7 +444,7 @@
      "$ref": "#/components/schemas/Accepted"
     }
    },
-   "x-role": "founder",
+   "x-role": "owner",
    "x-write": true,
    "x-app-write": false,
    "x-since": 1,

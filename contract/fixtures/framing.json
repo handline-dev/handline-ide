@@ -18,7 +18,7 @@
       }
      },
      "result": {
-      "role": "founder",
+      "role": "owner",
       "methods": {
        "$contains": {
         "name": "hello",
@@ -48,7 +48,7 @@
      },
      "within_s": 1.5,
      "result": {
-      "role": "founder"
+      "role": "owner"
      }
     },
     {
@@ -83,7 +83,7 @@
       }
      },
      "result": {
-      "role": "founder",
+      "role": "owner",
       "methods": {
        "$contains": {
         "name": "hello",
@@ -114,7 +114,7 @@
      },
      "within_s": 1.5,
      "result": {
-      "role": "founder"
+      "role": "owner"
      }
     },
     {
@@ -149,7 +149,7 @@
       }
      },
      "result": {
-      "role": "founder",
+      "role": "owner",
       "methods": {
        "$contains": {
         "name": "hello",
@@ -188,13 +188,13 @@
     {
      "await": 12,
      "result": {
-      "role": "founder"
+      "role": "owner"
      }
     },
     {
      "await": "b",
      "result": {
-      "role": "founder"
+      "role": "owner"
      }
     },
     {

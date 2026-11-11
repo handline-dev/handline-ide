@@ -8,7 +8,7 @@ const day = 86_400_000;
 const dev = (id: string, o: object) => ({
   id,
   name: id,
-  role: 'founder',
+  role: 'owner',
   created: new Date(NOW - 60 * day).toISOString(),
   push: false,
   last_seen: null,

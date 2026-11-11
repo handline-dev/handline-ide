@@ -224,7 +224,7 @@ func TestSendKeepsPathRefsAndTellsThemAfterTheAttachments(t *testing.T) {
 	if _, err := refPaths(member, map[string]any{"refs": []any{dir}}, 0); err == nil || err.(*rpc.Error).Data["gate"] != "role" {
 		t.Fatalf("a caller not proved the founder: %v", err)
 	}
-	founder := &rpc.Conn{Caller: rpc.Caller{Role: "founder"}}
+	founder := &rpc.Conn{Caller: rpc.Caller{Role: "owner"}}
 	for name, p := range map[string]map[string]any{
 		"seven with the attachments": {"refs": []any{"/a", "/b"}}, "with a task": {"refs": []any{"/a"}, "task": map[string]any{}},
 		"empty": {"refs": []any{}}, "twice": {"refs": []any{"/a", "/a"}}, "not text": {"refs": []any{5}}, "not a list": {"refs": "/a"},

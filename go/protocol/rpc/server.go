@@ -548,7 +548,7 @@ func (s *Server) deviceCaller(id, name, person string) (Caller, error) {
 	if role != "owner" {
 		return Caller{}, Refused("a member's device is not served before team mode", "role", "")
 	}
-	return Caller{Kind: "device", Key: person, Person: person, Role: methodRole(role), Info: map[string]any{"kind": "device", "device": id, "name": name}}, nil
+	return Caller{Kind: "device", Key: person, Person: person, Role: role, Info: map[string]any{"kind": "device", "device": id, "name": name}}, nil
 }
 
 // resolveWho puts the key in place of each who param's word (SpecParam.Who, and WhoIn inside an object), so a handler sees keys only.
@@ -651,7 +651,7 @@ func hello(c *Conn, params map[string]any) (any, error) {
 		switch {
 		case key == "":
 			c.helloKey = "no key"
-		case c.Caller.Role == "founder":
+		case c.Caller.Role == "owner":
 			c.helloKey = "the founder key"
 			c.srv.noteFounderKey(c.Pid, c.helloClient)
 		default:

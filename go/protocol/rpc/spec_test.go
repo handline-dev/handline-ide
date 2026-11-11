@@ -24,12 +24,12 @@ func TestRegisterTakesRoleAndWriteFromTheSpec(t *testing.T) {
 		}()
 		s.Register(name, m)
 	}
-	panics("task.done", Method{Role: "founder"}, "contract/spec says")
+	panics("task.done", Method{Role: "owner"}, "contract/spec says")
 	panics("task.get", Method{Write: true}, "contract/spec says")
 	panics("task.done", Method{Read: true}, "contract/spec says")
 	panics("test.open", Method{}, "gives no Role")
-	s.Register("test.only", Method{Role: "founder"}) // a name the spec lacks keeps its own role
-	if s.methods["test.only"].Role != "founder" {
+	s.Register("test.only", Method{Role: "owner"}) // a name the spec lacks keeps its own role
+	if s.methods["test.only"].Role != "owner" {
 		t.Fatalf("test.only: %+v", s.methods["test.only"])
 	}
 }

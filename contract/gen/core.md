@@ -10,8 +10,8 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `subscribe` | agent |  | `topics`, `since?`, `resume?`, `agent?` | `{cursor}` | `bad_request`, `refused` | role | not cached |
 | `unsubscribe` | agent |  | `topics` | `object` | `bad_request` |  | not cached |
 | `daemon.status` | agent |  | none | `DaemonStatus & ReadCursor` |  |  | `status`, fed by status |
-| `daemon.pause` | founder | yes | `until?`, `request_id` | `Accepted` | `refused`, `bad_request` |  | decided: pause new work |
-| `daemon.resume` | founder | yes | `request_id` | `Accepted` | `refused` |  | decided: resume new work |
+| `daemon.pause` | owner | yes | `until?`, `request_id` | `Accepted` | `refused`, `bad_request` |  | decided: pause new work |
+| `daemon.resume` | owner | yes | `request_id` | `Accepted` | `refused` |  | decided: resume new work |
 | `lease.take` | agent |  | `agent`, `kind`, `hold?` | `{lease, waited_s}` | `refused`, `bad_request` |  | not cached |
 | `lease.release` | agent |  | `agent`, `lease?`, `kind?` | `{released}` | `refused`, `bad_request` |  | not cached |
 | `lease.get` | agent |  | none | `{kinds}` |  |  | not cached |
@@ -19,15 +19,15 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `events.feed` | agent |  | `since?`, `topics?`, `limit?` | `{events, cursor, gap}` | `bad_request` |  | not cached |
 | `operation.get` | member |  | `operation` | `Operation & ReadCursor` | `not_found` |  | `operation` by operation, fed by operations |
 | `debug.terminals` | member |  | none | `{host, now, panes}` | `refused` | role, unsupported, state | `debug-terminals`, snapshot |
-| `prefs.get` | member (only member, founder) |  | none | `Prefs & ReadCursor` | `refused` |  | `prefs`, fed by prefs |
-| `prefs.set` | member (only member, founder) | yes | `changes`, `request_id` | `Accepted` | `bad_request`, `refused` |  | authored: save view preferences |
+| `prefs.get` | member (only member, owner) |  | none | `Prefs & ReadCursor` | `refused` |  | `prefs`, fed by prefs |
+| `prefs.set` | member (only member, owner) | yes | `changes`, `request_id` | `Accepted` | `bad_request`, `refused` |  | authored: save view preferences |
 | `hook.record` | agent (only agent) | yes | `agent`, `kind`, `at`, `data`, `request_id` | `Accepted & {nudge}` | `refused` | not_self | not from the app |
 | `subagent.start` | agent (only agent) | yes | `agent`, `session_id?`, `description?`, `subagent_type?`, `run_in_background?` | `{deny}` | `refused`, `bad_request` | not_self | not from the app |
 | `memory.status` | agent |  | `agent?` | `{agents}` |  |  | `memory`, snapshot |
-| `connection.get` | founder |  | none | `ConnectionInfo` |  |  | `connection`, snapshot |
-| `connection.addresses` | founder |  | none | `ConnectionAddresses` |  |  | `addresses`, snapshot |
-| `settings.get` | founder |  | `agent?` | `Settings` | `bad_request`, `not_found` |  | `settings`, snapshot |
-| `settings.set` | founder | yes | `changes`, `agent?`, `request_id` | `Accepted` | `refused`, `bad_request` |  | authored: save settings |
+| `connection.get` | owner |  | none | `ConnectionInfo` |  |  | `connection`, snapshot |
+| `connection.addresses` | owner |  | none | `ConnectionAddresses` |  |  | `addresses`, snapshot |
+| `settings.get` | owner |  | `agent?` | `Settings` | `bad_request`, `not_found` |  | `settings`, snapshot |
+| `settings.set` | owner | yes | `changes`, `agent?`, `request_id` | `Accepted` | `refused`, `bad_request` |  | authored: save settings |
 | `for_you.list` | member |  | none | `ForYouList & ReadCursor` |  |  | `for-you`, fed by for_you |
 
 ### `hello`

@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	asFounder = &rpc.Conn{Caller: rpc.Caller{Role: "founder", Kind: "person", Info: map[string]any{"kind": "person"}}}
+	asFounder = &rpc.Conn{Caller: rpc.Caller{Role: "owner", Kind: "person", Info: map[string]any{"kind": "person"}}}
 	asBob     = &rpc.Conn{Caller: rpc.Caller{Role: "agent", Kind: "agent", Key: "bob", Info: map[string]any{"kind": "agent", "name": "bob"}}}
 	asCat     = &rpc.Conn{Caller: rpc.Caller{Role: "agent", Kind: "agent", Key: "cat", Info: map[string]any{"kind": "agent", "name": "cat"}}}
 )
@@ -96,7 +96,7 @@ func TestOnlyTheFounderReadingARequestOpensIt(t *testing.T) {
 		}
 		return report.set("read_at")
 	}
-	asMember := &rpc.Conn{Caller: rpc.Caller{Role: "founder", Kind: "device", Info: map[string]any{"kind": "device", "device": "d1", "name": "phone"}}}
+	asMember := &rpc.Conn{Caller: rpc.Caller{Role: "owner", Kind: "device", Info: map[string]any{"kind": "device", "device": "d1", "name": "phone"}}}
 	for _, c := range []*rpc.Conn{asBob, asMember} {
 		read(t, e, c, 1)
 		if isRead() {

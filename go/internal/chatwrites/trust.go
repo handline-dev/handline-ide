@@ -48,10 +48,10 @@ func (w *writes) trustPropose(c *rpc.Conn, p map[string]any) (any, error) {
 		}
 		why = s
 	}
-	if c.Caller.Kind == "device" || c.Caller.Role != "founder" && c.Caller.Role != "agent" {
+	if c.Caller.Kind == "device" || c.Caller.Role != "owner" && c.Caller.Role != "agent" {
 		return nil, rpc.Refused("a trust root is proposed by an agent or declared by the founder, not from a device", "role", "")
 	}
-	if c.Caller.Role == "founder" {
+	if c.Caller.Role == "owner" {
 		if why == "" {
 			why = "added by the founder"
 		}

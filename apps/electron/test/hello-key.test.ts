@@ -44,7 +44,7 @@ function founderDaemon(key: () => string | null, good: string) {
       live = s;
       s.onmessage = (m) => {
         const { id, params } = JSON.parse(m);
-        const role = params.key === good ? 'founder' : 'anonymous';
+        const role = params.key === good ? 'owner' : 'anonymous';
         roles.push(role);
         s.send(JSON.stringify({ jsonrpc: '2.0', id, result: { protocol: 1, min_client: 0, role } }));
       };
@@ -67,9 +67,9 @@ test('a hello that is not the founder is retried until the key is found, then th
     }
   }
   client.close();
-  assert.equal(roles.at(-1), 'founder');
+  assert.equal(roles.at(-1), 'owner');
   assert.ok(roles.slice(0, -1).every((r) => r === 'anonymous'));
-  assert.equal(client.hello?.role, 'founder');
+  assert.equal(client.hello?.role, 'owner');
 });
 
 test('a dropped connection says hello with the key again before anything else is sent', async () => {
@@ -80,5 +80,5 @@ test('a dropped connection says hello with the key again before anything else is
     const t = setInterval(() => roles.length >= 2 && client.state === 'open' && (clearInterval(t), ok()), 5);
   });
   client.close();
-  assert.deepEqual(roles, ['founder', 'founder']);
+  assert.deepEqual(roles, ['owner', 'owner']);
 });

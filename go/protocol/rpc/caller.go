@@ -13,15 +13,7 @@ import (
 )
 
 // Roles, lowest first: a call below the method's role is refused.
-var roles = []string{"anonymous", "agent", "member", "founder"}
-
-// methodRole is the method role of a person's role (people.role): the owner's is still founder on the wire.
-func methodRole(personRole string) string {
-	if personRole == "owner" {
-		return "founder"
-	}
-	return personRole
-}
+var roles = []string{"anonymous", "agent", "member", "owner"}
 
 func roleIndex(r string) int {
 	for i, x := range roles {
@@ -57,7 +49,7 @@ func identify(a authority.Authority, local bool, pid int, key string, owner func
 			return Caller{Kind: "agent", Key: agent, Role: "agent", Info: map[string]any{"kind": "agent", "name": agent}}
 		}
 		if a.FounderKeyOK(key) {
-			return Caller{Kind: "person", Key: owner(), Role: methodRole("owner"), Info: map[string]any{"kind": "person", "name": founderName}}
+			return Caller{Kind: "person", Key: owner(), Role: "owner", Info: map[string]any{"kind": "person", "name": founderName}}
 		}
 	}
 	return anonymous()
@@ -96,7 +88,7 @@ func (c Caller) ActorInfo() map[string]any {
 // logRefusal logs a founder's method refused to a caller that is not an agent (agents are refused by design), with what its hello said and
 // the processes above it, so a refused founder client names its cause. Once per connection and method: a client that retries logs once.
 func (c *Conn) logRefusal(method, role string) {
-	if role != "founder" || c.Caller.Role == "agent" || c.srv.Log == nil || c.refusalNoted[method] {
+	if role != "owner" || c.Caller.Role == "agent" || c.srv.Log == nil || c.refusalNoted[method] {
 		return
 	}
 	if c.refusalNoted == nil {

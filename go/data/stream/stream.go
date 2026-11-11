@@ -378,7 +378,7 @@ func Register(srv *rpc.Server, h *Hub) {
 		}
 		switch {
 		case names[devicesTopic]:
-			if !c.Caller.Allows("founder") {
+			if !c.Caller.Allows("owner") {
 				return nil, rpc.Refused("the devices topic is for a founder; this caller is "+c.Caller.Role, "role", "")
 			}
 		}

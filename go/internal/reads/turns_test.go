@@ -45,7 +45,7 @@ func TestMyTurnListsTheTasksTheFoundersTurnIsOn(t *testing.T) {
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES"+
 		"(1, 'on top', 'amy', 'amy', 1, 'amy'), (2, 'under amy', 'p1', 'amy', 1, 'amy')")
 	run(t, e, "INSERT INTO task_turns(task_id, pos, agent, pushed_by, since) VALUES(1, 1, 'p1', 'amy', 1), (2, 1, 'amy', 'p1', 1)")
-	founder := &rpc.Conn{Caller: rpc.Caller{Role: "founder"}}
+	founder := &rpc.Conn{Caller: rpc.Caller{Role: "owner"}}
 	list, err := e.tasksList(founder, map[string]any{"my_turn": true})
 	if err != nil {
 		t.Fatal(err)

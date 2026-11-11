@@ -11,7 +11,7 @@ import (
 
 // agentSetMethod is agent.set: the founder changes any setting of any agent, an agent only the ordinary ones of itself.
 func (e *Env) agentSetMethod(c *rpc.Conn, params map[string]any) (any, error) {
-	if r := c.Caller.Role; r != "agent" && r != "founder" { // the gate lets a paired device through at agent; the contract closes this method to it
+	if r := c.Caller.Role; r != "agent" && r != "owner" { // the gate lets a paired device through at agent; the contract closes this method to it
 		return nil, rpc.Refused("agent.set is for an agent on itself or the founder; this caller is "+r, "role", "")
 	}
 	bad := func(message, field string) error { return rpc.BadRequestError(message, field, rpc.InvalidParams) }
@@ -56,7 +56,7 @@ func (e *Env) agentSetMethod(c *rpc.Conn, params map[string]any) (any, error) {
 		return nil, rpc.Refused(said, "", "")
 	}
 	by := agent
-	if c.Caller.Role == "founder" {
+	if c.Caller.Role == "owner" {
 		by = db.Human
 	}
 	return c.Effect(func(tx *sql.Tx) (map[string]any, error) {

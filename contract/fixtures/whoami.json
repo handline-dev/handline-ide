@@ -18,7 +18,7 @@
       }
      },
      "result": {
-      "role": "founder",
+      "role": "owner",
       "methods": {
        "$contains": {
         "name": "hello",
@@ -39,7 +39,7 @@
       "caller": {
        "kind": "person"
       },
-      "role": "founder",
+      "role": "owner",
       "methods": {
        "$contains": {
         "name": "whoami",

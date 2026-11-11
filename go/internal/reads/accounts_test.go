@@ -292,7 +292,7 @@ func TestAccountsListGivesTheEmailToTheFounderOnly(t *testing.T) {
 	} else if _, has := acct["email"]; has {
 		t.Fatalf("the accounts topic's Account, which agents hear, has the email: %v", acct)
 	}
-	if got := emails(&rpc.Conn{Caller: rpc.Caller{Role: "founder"}}); got["main"] != "main@example.com" || got["bare"] != nil || len(got) != 2 {
+	if got := emails(&rpc.Conn{Caller: rpc.Caller{Role: "owner"}}); got["main"] != "main@example.com" || got["bare"] != nil || len(got) != 2 {
 		t.Fatalf("founder: %v", got)
 	}
 	for name, c := range map[string]*rpc.Conn{
@@ -320,7 +320,7 @@ func TestAccountsListShowsTheLoggedInEmailOfAnUnrecordedAccountAndWritesNothing(
 	if err := os.WriteFile(filepath.Join(dir, ".claude.json"), []byte(`{"oauthAccount":{"emailAddress":"now@example.com"}}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	got, err := e.accountsList(&rpc.Conn{Caller: rpc.Caller{Role: "founder"}}, nil)
+	got, err := e.accountsList(&rpc.Conn{Caller: rpc.Caller{Role: "owner"}}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

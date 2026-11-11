@@ -37,7 +37,7 @@ func TestATaskAnswersToTheFounderWhenARequestOfItsCameFromThem(t *testing.T) {
 			t.Errorf("task.get T%d: asker %v, want %s", id, a, who)
 		}
 	}
-	list, err := e.tasksList(&rpc.Conn{Caller: rpc.Caller{Role: "founder"}}, map[string]any{})
+	list, err := e.tasksList(&rpc.Conn{Caller: rpc.Caller{Role: "owner"}}, map[string]any{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +120,7 @@ func TestMyTurnListsTheOpenTasksAssignedToTheFounder(t *testing.T) {
 	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES"+
 		"(1, 1, 'amy', 'p1', 'waits', 'landed', 'task', 1), (2, 2, 'amy', 'p1', 'more', 'landed', 'say', 1), (3, 3, 'amy', 'p1', 'and more', 'landed', 'say', 1)")
 	run(t, e, "INSERT INTO task_requests(task_id, request_id) VALUES(1, 1), (1, 2), (1, 3)")
-	founder := &rpc.Conn{Caller: rpc.Caller{Role: "founder"}}
+	founder := &rpc.Conn{Caller: rpc.Caller{Role: "owner"}}
 	list, err := e.tasksList(founder, map[string]any{"my_turn": true})
 	if err != nil {
 		t.Fatal(err)
@@ -198,7 +198,7 @@ func TestATaskGetAndTheTaskListSayWhatTheTaskSpent(t *testing.T) {
 	if one["spent_usd"] != 3.0 || spend["minutes"] != 1.0 || spend["by_agent"].(map[string]float64)["bob"] != 3 {
 		t.Fatalf("%v %v", one["spent_usd"], spend)
 	}
-	list, err := e.tasksList(&rpc.Conn{Caller: rpc.Caller{Role: "founder"}}, map[string]any{})
+	list, err := e.tasksList(&rpc.Conn{Caller: rpc.Caller{Role: "owner"}}, map[string]any{})
 	if err != nil {
 		t.Fatal(err)
 	}

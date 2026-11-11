@@ -10,7 +10,7 @@ import (
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
-var asFounderConn = &rpc.Conn{Caller: rpc.Caller{Role: "founder"}}
+var asFounderConn = &rpc.Conn{Caller: rpc.Caller{Role: "owner"}}
 
 // closedPage is one page of tasks.list in closed order: its ids and the cursor to go on with ("" at the end).
 func closedPage(t *testing.T, e *Env, params map[string]any) (ids string, next string) {

@@ -18,19 +18,19 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `attachment.put` | member | yes | `name`, `mime`, `bytes`, `offset?`, `upload?`, `data`, `folder?`, `rel_path?`, `request_id` | `Accepted & {upload, received, attachment}` | `refused`, `not_found`, `bad_request` | role, limit | decided: attach image |
 | `attachment.folder` | member | yes | `name`, `request_id` | `Accepted & {attachment}` | `refused`, `bad_request` | role, limit | decided: attach folder |
 | `attachment.get` | member |  | `id`, `thumb?`, `offset?` | `{mime, bytes, offset, data, done}` | `refused`, `not_found`, `bad_request` | role | not cached |
-| `attachment.remove` | founder | yes | `id`, `dry_run?`, `request_id` | `Accepted & {removed_from}` | `refused`, `not_found`, `bad_request` | role | decided: delete the photo |
+| `attachment.remove` | owner | yes | `id`, `dry_run?`, `request_id` | `Accepted & {removed_from}` | `refused`, `not_found`, `bad_request` | role | decided: delete the photo |
 | `inbox.list` | agent |  | `unread?`, `kind?`, `agent?`, `before?`, `limit?`, `wait_s?` | `{items, more} & ReadCursor` |  |  | `inbox`, fed by inbox |
 | `inbox.queue` | agent |  | `whose?`, `all?`, `since?`, `wait_s?` | `{whose, newest, head, history, waiting, lines, dealt}` | `refused`, `bad_request` | listing | not cached |
 | `inbox.get` | agent |  | `id`, `wait_s?` | `InboxItem & ReadCursor` | `not_found`, `bad_request` |  | `inbox-item` by id, fed by inbox |
 | `request.read` | agent |  | `id`, `wait_s?` | `{id, ref, requester, target, kind, state, created, chain_depth, parent, body, answer, parts, refs}` | `not_found`, `bad_request` |  | not cached |
 | `request.withdraw` | agent | yes | `id`, `reason?`, `request_id` | `{ok, said}` | `bad_request` |  | not from the app |
-| `request.cancel` | founder | yes | `id`, `dry_run?`, `request_id` | `{ok, plan, said}` | `refused`, `bad_request` |  | not from the app |
+| `request.cancel` | owner | yes | `id`, `dry_run?`, `request_id` | `{ok, plan, said}` | `refused`, `bad_request` |  | not from the app |
 | `inbox.mark_read` | agent | yes | `ids`, `request_id` | `Accepted` | `not_found`, `refused`, `bad_request` |  | authored: mark read |
 | `inbox.reply` | agent | yes | `id`, `text`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | authored: reply |
 | `requests.list` | member |  | `state?`, `unseen?`, `before?`, `limit?` | `{items, more}` | `bad_request` |  | `requests`, fed by requests |
-| `answers.list` | founder |  | none | `{answers}` |  |  | `answers`, snapshot |
-| `answer.add` | founder | yes | `folder?`, `vendor?`, `title?`, `label?`, `request_id` | `Accepted` | `refused`, `bad_request` | unsupported | authored: add standing answer |
-| `answer.remove` | founder | yes | `kind`, `key`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | authored: remove standing answer |
+| `answers.list` | owner |  | none | `{answers}` |  |  | `answers`, snapshot |
+| `answer.add` | owner | yes | `folder?`, `vendor?`, `title?`, `label?`, `request_id` | `Accepted` | `refused`, `bad_request` | unsupported | authored: add standing answer |
+| `answer.remove` | owner | yes | `kind`, `key`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | authored: remove standing answer |
 
 ### `chat.messages`
 

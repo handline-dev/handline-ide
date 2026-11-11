@@ -38,7 +38,7 @@ export const FIELDS: Field[] = [
 export const OWN_KEYS: ReadonlySet<FieldKey> = new Set<FieldKey>(['model', 'effort', 'context_k', 'handoff_note']);
 
 /** Whether this viewer may change the field: the founder any, anyone else only the agent's own keys. */
-export const mayChange = (key: FieldKey, role: string | undefined): boolean => role === 'founder' || OWN_KEYS.has(key);
+export const mayChange = (key: FieldKey, role: string | undefined): boolean => role === 'owner' || OWN_KEYS.has(key);
 
 /** What the person typed for a field, or the problem in words; null is fine. Nothing invalid is sent. */
 export function problemWith(f: Field, raw: string): string | null {
