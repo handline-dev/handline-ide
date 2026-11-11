@@ -30,7 +30,7 @@ func idleSays(r *rig, to string) []string {
 	for rows.Next() {
 		var b string
 		r.must(rows.Scan(&b))
-		out = append(out, b)
+		out = append(out, r.named(b))
 	}
 	return out
 }
