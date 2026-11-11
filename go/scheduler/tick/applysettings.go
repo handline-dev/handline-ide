@@ -10,12 +10,10 @@ import (
 	"github.com/handline/handline/go/kit/pyjson"
 )
 
-// A session started with settings that have since changed is restarted, once, at an idle moment. What a launch reads from the settings a
-// person edits (the model, effort, mcp config, browser, permission switches, ROLE.md, base.md, the team line and rules) is read once, at
-// session start. The launch records each beside the session; this compares those with what the next launch would use and, when a named
-// setting differs, restarts the agent the way session.restart does (resumed, the same conversation, unless agent.set asked for fresh: a
-// handoff, then a new one), never mid-turn and never over an open dialog. A level read each tick from the row, not an edge: a change made
-// while the agent was busy is applied when it is not.
+// A session whose launch settings (model, effort, mcp config, browser, permissions, ROLE.md, base.md, the team line) have changed is
+// restarted once at an idle moment, as session.restart does (resumed, unless agent.set asked for fresh), never mid-turn or over a dialog.
+// A change of the team rules alone restarts no one: the session is told the changed lines once, as a notice for its next turn. Each tick
+// compares the parts the launch recorded with what the next launch would read, so a change made mid-turn is applied after the turn.
 const (
 	// SettingsWho is who the restart says asked for it when no person's change is kept (db.SettingsByMeta).
 	SettingsWho = "the daemon"
@@ -35,7 +33,15 @@ type SettingsPorts interface {
 	FingerprintParts(agent string) ([]Part, error)
 	// CurrentAccount is agents.current_account.
 	CurrentAccount(q db.Q, agent string) string
+	// RulesNote is the note of a session's changed team rules and the record to keep once it is told; KeepRulesTold keeps it.
+	RulesNote(agent string, row *db.AgentState) (note, record string, err error)
+	KeepRulesTold(q db.Q, agent, was, record string) error
+	// Tell queues a notice to the agent for its next turn.
+	Tell(q db.Q, agent, text string) error
 }
+
+// RulesPart is the one setting a running session is told of rather than restarted for: its team rules (lifecycle's part name).
+const RulesPart = "team rules"
 
 // ApplySettings restarts sessions launched with settings that have changed.
 type ApplySettings struct{ Ports SettingsPorts }
@@ -103,6 +109,17 @@ func (a *ApplySettings) apply(t *Tick, agent string, now int64) {
 		return
 	}
 	names := must(a.Changed(agent, row))
+	if len(names) == 1 && names[0] == RulesPart {
+		note, record := must2(a.Ports.RulesNote(agent, row))
+		if note != "" { // told before it is kept: a failed tell is tried again next tick, a failed keep only tells twice
+			check(a.Ports.Tell(t.Q, agent, note))
+			t.logf("  %s: told of its changed team rules, not restarted", agent)
+		}
+		if record != "" {
+			check(a.Ports.KeepRulesTold(t.Q, agent, row.LaunchParts.String, record))
+		}
+		names = nil
+	}
 	if len(names) == 0 {
 		check(db.SetSettingsOwed(t.Q, agent, nil, 0))
 		return

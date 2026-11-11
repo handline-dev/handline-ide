@@ -26,7 +26,7 @@ func (p *Parts) passes(cfg Config, tk *tick.Tick) []tick.NamedSweep {
 	lc := p.LC
 	timebox := &tick.Timebox{Ports: timeboxPorts{p: p, env: lc.Env, set: lc.Manager.Settings, home: cfg.Home}}
 	wait := &tick.WaitFor{Decide: waitDecider{lc: lc}, Log: func(s string) { cfg.Log("%s", s) }}
-	apply := &tick.ApplySettings{Ports: settingsPorts{launcher: lc.Launch}}
+	apply := &tick.ApplySettings{Ports: settingsPorts{launcher: lc.Launch, env: lc.Env}}
 	subs := &subscriptions.Env{DB: lc.Env.DB, Home: cfg.Home, Asker: founderAsker{lc.Env}, Tasks: founderCloser{lc.Env, cfg.Home},
 		Plans: vendorPlans{cfg.Home, cfg.CLI}, Now: cfg.Now, Log: cfg.Log}
 	sched := &schedules.Runner{Q: p.db, Agents: func() []string { return paths.ListAgents(cfg.Home) }, Schedules: func(agent string) []cronspec.Schedule { return cronspec.Of(cfg.Home, agent) },
@@ -93,7 +93,23 @@ func (w waitDecider) RaiseDecision(q db.Q, who, text, source string) error {
 type settingsPorts struct {
 	launcher interface {
 		FingerprintParts(agent string) (map[string]string, error)
+		RulesNote(agent string, row *db.AgentState) (string, string, error)
+		KeepRulesTold(q db.Q, agent, was, record string) error
 	}
+	env *supervisor.Env
+}
+
+func (s settingsPorts) RulesNote(agent string, row *db.AgentState) (string, string, error) {
+	return s.launcher.RulesNote(agent, row)
+}
+
+func (s settingsPorts) KeepRulesTold(q db.Q, agent, was, record string) error {
+	return s.launcher.KeepRulesTold(q, agent, was, record)
+}
+
+func (s settingsPorts) Tell(q db.Q, agent, text string) error {
+	_, err := s.env.Notice(q, agent, text, "team rules")
+	return err
 }
 
 func (s settingsPorts) FingerprintParts(agent string) ([]tick.Part, error) {
@@ -214,4 +230,3 @@ func (t timeboxPorts) BgJobs(_ db.Q, agent string, count int, _ int64) []string 
 	}
 	return jobs
 }
-

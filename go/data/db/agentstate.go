@@ -255,6 +255,12 @@ func SetLaunchFingerprint(q Q, agent, fingerprint, parts string) error {
 	return err
 }
 
+// ReplaceLaunchParts puts parts in place of was as the agent's launch record; a record that is no longer was is left as it is.
+func ReplaceLaunchParts(q Q, agent, was, parts string) error {
+	_, err := q.Exec("UPDATE agent_state SET launch_parts = ?, updated = ? WHERE agent = ? AND launch_parts = ?", parts, Now(), agent, was)
+	return err
+}
+
 // SetClosed is db.set_closed: the session was closed, and this is how to get it back.
 func SetClosed(q Q, agent, session string) error {
 	_, err := q.Exec("UPDATE agent_state SET closed_at = ?, resume_session = ?, updated = ? WHERE agent = ?", Now(), nullStr(session), Now(), agent)
