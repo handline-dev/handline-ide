@@ -156,7 +156,7 @@ const PLAIN_START = new Set(['launch', 'start']);
 function mergeSessions(a: Extract<TimelineEntry, { kind: 'item' }>, b: Extract<TimelineEntry, { kind: 'item' }>): TimelineEntry {
   const [x, y] = [a.item.session, b.item.session];
   const cause = [y?.cause, x?.cause].find((c) => c && !PLAIN_START.has(c)) ?? y?.cause ?? x?.cause;
-  const changed = [x?.changed, y?.changed].filter(Boolean).join(', ');
+  const changed = [...new Set([x?.changed, y?.changed].filter(Boolean))].join(', '); // the same reason twice is said once
   const session = { ...y!, handoff: y?.handoff || x?.handoff || null, ...(cause ? { cause } : {}), ...(changed ? { changed } : {}) };
   return { ...b, item: { ...b.item, session } };
 }
