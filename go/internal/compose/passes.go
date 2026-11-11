@@ -108,7 +108,10 @@ func (s settingsPorts) KeepRulesTold(q db.Q, agent, was, record string) error {
 }
 
 func (s settingsPorts) Tell(q db.Q, agent, text string) error {
-	_, err := s.env.Notice(q, agent, text, "team rules")
+	rid, err := s.env.BoardSay(q, agent, text, "team rules")
+	if err == nil {
+		s.env.Push(q, agent, rid) // one held is told by the tick (TellUndelivered)
+	}
 	return err
 }
 

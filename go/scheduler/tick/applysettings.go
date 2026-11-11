@@ -12,7 +12,7 @@ import (
 
 // A session whose launch settings (model, effort, mcp config, browser, permissions, ROLE.md, base.md, the team line) have changed is
 // restarted once at an idle moment, as session.restart does (resumed, unless agent.set asked for fresh), never mid-turn or over a dialog.
-// A change of the team rules alone restarts no one: the session is told the changed lines once, as a notice for its next turn. Each tick
+// A change of the team rules alone restarts no one: the session is told the changed lines once, in a message. Each tick
 // compares the parts the launch recorded with what the next launch would read, so a change made mid-turn is applied after the turn.
 const (
 	// SettingsWho is who the restart says asked for it when no person's change is kept (db.SettingsByMeta).
@@ -36,7 +36,7 @@ type SettingsPorts interface {
 	// RulesNote is the note of a session's changed team rules and the record to keep once it is told; KeepRulesTold keeps it.
 	RulesNote(agent string, row *db.AgentState) (note, record string, err error)
 	KeepRulesTold(q db.Q, agent, was, record string) error
-	// Tell queues a notice to the agent for its next turn.
+	// Tell sends the agent a message at once, the tick retrying one held (not a notice: those wait for a digest and lose their lines).
 	Tell(q db.Q, agent, text string) error
 }
 
