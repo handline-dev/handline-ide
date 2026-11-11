@@ -11,6 +11,7 @@ import (
 	"github.com/handline/handline/go/agentctl/verdict"
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
+	"github.com/handline/handline/go/kit/actor"
 )
 
 const (
@@ -103,7 +104,7 @@ func (h *Healer) stuck(q db.Q, agent string, now int64) (*trouble, error) {
 		held = h.Ports.LoadHeld(agent)
 	}
 	for _, r := range waiting {
-		if r.Kind.String == "task" || r.Notice.Int64 != 0 || r.EdgeOK.Int64 == 0 || now-r.TS < UndeliveredS || held != "" && r.Requester != db.Human {
+		if r.Kind.String == "task" || r.Notice.Int64 != 0 || r.EdgeOK.Int64 == 0 || now-r.TS < UndeliveredS || held != "" && !actor.IsPerson(r.Requester) {
 			continue
 		}
 		return &trouble{what: fmt.Sprintf("message %s has not been delivered for %dm", r.Ref, (now-r.TS)/60), rid: r.ID}, nil

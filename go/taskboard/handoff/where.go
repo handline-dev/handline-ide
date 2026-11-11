@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/textsafe"
 )
 
@@ -116,7 +117,7 @@ func messageLines(q db.Q, agent, lead string) ([]string, error) {
 		return nil, err
 	}
 	head := "last messages with the founder"
-	if lead != db.Human {
+	if !actor.IsPerson(lead) {
 		head += " and " + lead
 	}
 	lines := []string{head + ", newest first:"}
