@@ -11,6 +11,7 @@ import (
 	"github.com/handline/handline/go/agentctl/delivery"
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/taskboard/attachments"
 	"github.com/handline/handline/go/taskboard/taskwrites"
@@ -547,12 +548,12 @@ func (e *Env) memoReaders(row *db.Task, by string, mentioned []string) []string 
 	return out
 }
 
-// mentioned is every registered agent text names with @.
+// mentioned is the key of every registered agent text names with @.
 func (e *Env) mentioned(text string) []string {
 	var out []string
 	for _, m := range mentionRe.FindAllStringSubmatch(text, -1) {
-		if name := strings.TrimRight(m[1], ".-"); e.registered(name) {
-			out = append(out, name)
+		if who := paths.WhoKey(e.Home, strings.TrimRight(m[1], ".-")); e.registered(who) { // until mentions are written as <@key> (1c)
+			out = append(out, who)
 		}
 	}
 	return out
