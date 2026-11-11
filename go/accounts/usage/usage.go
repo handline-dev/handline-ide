@@ -94,6 +94,9 @@ func (c Config) LabelOf(acct string) string {
 	return acct
 }
 
+// Paused is whether the founder paused the account (account.set paused): no new agent goes on it, and its agents leave it.
+func (c Config) Paused(acct string) bool { return c["paused_"+acct] == true }
+
 // RecoverEnabled is false only where `usage_recover_<account>: false` says so.
 func (c Config) RecoverEnabled(acct string) bool { return c["usage_recover_"+acct] != false }
 

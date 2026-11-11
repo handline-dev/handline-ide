@@ -35,16 +35,30 @@ func spanF(secs float64) string {
 	return timefmt.Span(int64(secs), false)
 }
 
-// NotFor is why no agent of vendor is ever placed on this account, whatever its room: it is another vendor's, it cannot be read, or
-// its month cycle has ended. "" when it may be.
+// NotFor is why no agent of vendor is ever placed on this account, whatever its room: it is another vendor's, its month cycle has
+// ended, it is paused, or it cannot be read. "" when it may be.
 func (e *Env) NotFor(acct, vendor string) string {
 	if theirs := team.AccountVendor(e.Home, acct); theirs != vendor {
 		return fmt.Sprintf("a %s account, not %s", theirs, vendor)
 	}
+	if why := e.EndedWhy(acct); why != "" {
+		return why
+	}
+	if why := e.PausedWhy(acct); why != "" {
+		return why
+	}
 	if !e.metered(acct) {
 		return UnmeteredWhy
 	}
-	return e.EndedWhy(acct)
+	return ""
+}
+
+// PausedWhy is why a paused account takes no agent, "" while it is not paused.
+func (e *Env) PausedWhy(acct string) string {
+	if !e.config().Paused(acct) {
+		return ""
+	}
+	return "paused - not picked; resume it in the app's settings for " + acct
 }
 
 // EndedWhy is cycle.ended_why: why the account is out for good now, "" while it is not.
@@ -388,6 +402,7 @@ const (
 	KindWeekCap     = "week_cap"
 	KindFiveHourCap = "five_hour_cap"
 	KindLogin       = "login"
+	KindPaused      = "paused"
 	KindHeld        = "held" // the agent cap or the launch pace hold
 	KindOther       = "other"
 )
@@ -399,6 +414,9 @@ const StaleEndNote = " - but it is logged in and its usage reads fresh, so this 
 // outrightReason is the reason of an account refused before its room is weighed; an ended one notes an end day that may be stale.
 func (e *Env) outrightReason(n string, facts verdict.Account, read func(string) *AccountStatus) Reason {
 	why := verdict.Admit(facts).Reasons[0]
+	if !facts.Removing && !facts.Excluded && facts.NotFor == e.PausedWhy(n) {
+		return Reason{n, why, KindPaused}
+	}
 	if facts.Removing || facts.Excluded || facts.NotFor != e.EndedWhy(n) {
 		return Reason{n, why, KindOther}
 	}

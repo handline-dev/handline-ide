@@ -87,3 +87,45 @@ func TestPickRefusesEveryAccountAsOtherWhenTheAgentsFileIsUnreadable(t *testing.
 		t.Fatalf("%q %v %v", picked, reasons, err)
 	}
 }
+
+func TestAPausedAccountTakesNoAgentUntilItIsResumed(t *testing.T) {
+	home := t.TempDir()
+	e := testEnv(home, clock)
+	st := func(week int) map[string]any {
+		return map[string]any{"collected_at": clock - 5, "windows": []any{
+			map[string]any{"minutes": 300, "used_percent": 10, "resets_at": clock + 3600, "observed_at": clock - 5},
+			map[string]any{"minutes": 10080, "used_percent": week, "resets_at": clock + 90000, "observed_at": clock - 5}}}
+	}
+	writeStatus(t, home, "rest", st(5)) // the most room: picked unless paused
+	writeStatus(t, home, "busy", st(50))
+	writeStatus(t, home, "both", st(20))
+	writeStatus(t, home, "quiet", st(1)) // unmetered and paused: says paused
+	pick := func() (string, map[string]string) {
+		t.Helper()
+		picked, reasons, err := e.Pick(openDB(t), PickOpts{Candidates: []string{"rest", "busy", "both", "quiet"}, Bootstrap: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		kinds := map[string]string{}
+		for _, r := range reasons {
+			kinds[r.Account] = r.Kind
+		}
+		return picked, kinds
+	}
+	e.Metered = func(a string) bool { return a != "quiet" }
+	writeConfig(t, home, map[string]any{"paused_rest": true, "paused_both": true, "paused_quiet": true, "month_cycle_both": true, "sub_end_both": "2020-01-01"})
+	picked, kinds := pick()
+	if picked != "busy" || kinds["rest"] != KindPaused || kinds["both"] != KindEnded || kinds["quiet"] != KindPaused {
+		t.Fatalf("paused: picked %q, kinds %v (an ended account says ended first)", picked, kinds)
+	}
+	if n := e.CapNow(openDB(t), "rest"); n != 0 {
+		t.Errorf("a paused account's cap in force is %d, want 0", n)
+	}
+	writeConfig(t, home, map[string]any{})
+	if picked, kinds = pick(); picked != "rest" || kinds["rest"] != "" {
+		t.Errorf("resumed: picked %q, kinds %v", picked, kinds)
+	}
+	if e.CapNow(openDB(t), "rest") == 0 {
+		t.Error("a resumed account's cap in force is still 0")
+	}
+}

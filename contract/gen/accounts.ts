@@ -33,7 +33,7 @@ export type Account = {
   cap_effective: number;
   /** Whether a dead usage read may spend one real turn to fix itself (hl account recover). */
   recover: boolean;
-  /** The founder paused it: no new agent goes to it and the ones on it move at their next turn. Absent: not paused. */
+  /** Paused by the founder (account.set paused): no agent starts on it (cap_effective 0), and its agents move off at their next turn when another account has room. Absent from a daemon that does not send it. */
   paused?: boolean;
   /** The Anthropic account's email, kept from its last login so it shows after the login drops; null when none was kept. Given to the founder's app only, never to an agent. */
   email?: string | null;
@@ -84,8 +84,8 @@ export type Account = {
   assign_reason?: string;
   /** Only with accounts.list `usage: true`. Why the daemon's pick for its vendor would not choose it now; null while it is a candidate. When the pick chooses none, a start may still fall back to a refused account. assign_reason says whether one more agent may start on it; not_picked says why the pick passes it over. A client shows not_picked. */
   not_picked?: {
-    /** What keeps new work off it: its subscription end day has passed, its weekly or 5-hour window is at the wall, it is not logged in (which wins over the rest), the agent cap or the launch pace hold, or something else (a stale, lost or unreadable reading). */
-    kind: "subscription_ended" | "week_cap" | "five_hour_cap" | "login" | "held" | "other";
+    /** What keeps new work off it: its subscription end day has passed, the founder paused it, its weekly or 5-hour window is at the wall, it is not logged in (which wins over the rest), the agent cap or the launch pace hold, or something else (a stale, lost or unreadable reading). */
+    kind: "subscription_ended" | "paused" | "week_cap" | "five_hour_cap" | "login" | "held" | "other";
     /** The daemon's reason in words, as `hl status` prints it. An ended account that is logged in with a fresh reading adds that its end day may be out of date. */
     text: string;
   } | null;

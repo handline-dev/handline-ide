@@ -314,3 +314,29 @@ func TestAccountReadUsageAsksThePollAndNeedsALogin(t *testing.T) {
 		t.Fatal("an unknown account is not_found")
 	}
 }
+
+func TestAccountSetPausesAndResumesAnAccount(t *testing.T) {
+	r := newRig(t)
+	os.MkdirAll(filepath.Join(r.home, "accounts", "main"), 0o755)
+	if res := r.result(r.one("account.set", `{"account":"main","paused":true,"request_id":"p1"}`)); !strings.Contains(r.file("config.yaml"), "paused_main: true") {
+		t.Fatalf("%v %q", res, r.file("config.yaml"))
+	}
+	r.e.DB.Exec("INSERT INTO meta(name, value, updated) VALUES('noroom_told:main', 'paused', 0)")
+	var told int
+	if res := r.result(r.one("account.set", `{"account":"main","paused":true,"request_id":"p2"}`)); res["said"] != "nothing changed" {
+		t.Fatalf("a second pause changes nothing: %v", res)
+	}
+	if r.e.DB.QueryRow("SELECT COUNT(*) FROM meta WHERE name = 'noroom_told:main'").Scan(&told); told != 1 {
+		t.Fatal("a pause that changed nothing forgot what the founder was told")
+	}
+	if r.result(r.one("account.set", `{"account":"main","paused":false,"request_id":"p3"}`)); strings.Contains(r.file("config.yaml"), "paused_main") {
+		t.Fatalf("a resume leaves %q", r.file("config.yaml"))
+	}
+	r.result(r.one("account.set", `{"account":"main","paused":true,"request_id":"p5"}`))
+	if r.e.DB.QueryRow("SELECT COUNT(*) FROM meta WHERE name = 'noroom_told:main'").Scan(&told); told != 0 {
+		t.Fatal("a new pause is news to the founder again")
+	}
+	if r.code(r.one("account.set", `{"account":"main","paused":"yes","request_id":"p4"}`)) != "bad_request" {
+		t.Fatal("paused is true or false")
+	}
+}

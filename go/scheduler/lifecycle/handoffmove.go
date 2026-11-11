@@ -13,10 +13,12 @@ import (
 	"github.com/handline/handline/go/scheduler/staymove"
 )
 
-// The triggers a move answers (daemon/handoff.py): the two walls, a person's order, a login that expired, and a subscription that ended.
+// The triggers a move answers (daemon/handoff.py): the two walls, a person's order, a login that expired, a subscription that ended, and
+// a pause.
 const (
 	LoginTrigger  = "login"
 	EndedTrigger  = "ended"
+	PausedTrigger = "paused"
 	ClearWaitS    = 300
 	handoffReason = "handoff"
 )
@@ -24,7 +26,12 @@ const (
 // MovableTrigger is handoff.MOVABLE_TRIGGERS.
 func MovableTrigger(kind string) bool {
 	return kind == "usage" || kind == "usage_7d" || kind == states.EarlyUsageTrigger || kind == "forced" || kind == LoginTrigger ||
-		kind == EndedTrigger
+		kind == EndedTrigger || kind == PausedTrigger
+}
+
+// outTrigger is a move off an account that cannot be used: no stay-or-move weighing and no minimum interval between handoffs.
+func outTrigger(kind string) bool {
+	return kind == LoginTrigger || kind == EndedTrigger || kind == PausedTrigger
 }
 
 func usageTrigger(kind string) bool { return kind == "usage" || kind == "usage_7d" }
@@ -143,7 +150,7 @@ func (v *Mover) plan(agent, kind string, starting bool) (dest, why string, rooml
 		resetIn = &d
 	}
 	work := starting || len(must(db.QueuedFor(m.Q, agent))) > 0
-	if kind != LoginTrigger && kind != EndedTrigger {
+	if !outTrigger(kind) {
 		s := staymove.Situation{WorkWaiting: work, ResetInS: resetIn, ColdStartPct: v.E.ColdStartPct(m.Q), WindowS: w.ShortS,
 			CacheLifeS: states.PromptCacheS}
 		if end, ok := must2(db.LastEventOfTS(m.Q, agent, []string{"Stop", "StopFailure"})); ok {
@@ -315,7 +322,7 @@ func (v *Mover) PerformHandoff(agent string, t HandoffTrigger, dest string) (ok 
 	now := m.now()
 	var last *int64
 	_ = m.Q.QueryRow("SELECT MAX(updated) FROM handoff WHERE agent = ?", agent).Scan(&last)
-	if last != nil && t.Kind != "forced" && t.Kind != LoginTrigger && t.Kind != EndedTrigger && now-*last < states.MinHandoffIntervalS {
+	if last != nil && t.Kind != "forced" && !outTrigger(t.Kind) && now-*last < states.MinHandoffIntervalS {
 		v.log("  %s: %s fired again %ds after the last handoff - too soon, skipping", agent, t.Kind, now-*last)
 		if usageTrigger(t.Kind) && m.sessionAlive(agent) {
 			v.saving(agent, t.Kind)
