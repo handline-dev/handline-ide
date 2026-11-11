@@ -93,7 +93,7 @@ An agent uses three forms. `hl say`, `--assign`, `hl task handoff`, `hl task tur
 ## Contract
 
 - Every who field in `contract/protocol.json` carries a key.
-- New reads give the words: `people.list`, `workspaces.list` and `agents.list` (key, name, workspace, lead, owner). The app keeps them cached and writes out every key through them. A rename is a `table_changes` bump on that list.
+- New reads give the words: `people.list`, `workspaces.list` and `agents.list` (key, name, workspace, owner). The app keeps them cached and writes out every key through them. A rename is a `table_changes` bump on that list.
 - Routes and tab ids use keys (`chat:a17`), so open tabs survive a rename.
 - The architect reviews the contract diff before it lands.
 

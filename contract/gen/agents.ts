@@ -9,14 +9,12 @@ export type Block = {
 
 /** The stored per-agent view; the daemon decided every field. */
 export type AgentView = {
-  /** The agent's key (a17): what every other field and call names it by. */
-  key: AgentName;
+  /** a<n>. */
+  key: string;
   /** Its name within its workspace (designer). A rename changes it and nothing else. */
   name: string;
   /** The key of its workspace (w2); workspaces.list gives the workspace's name. */
   workspace: string;
-  /** Whether it is its workspace's lead: what is sent to the workspace reaches it. */
-  lead: boolean;
   /** The key of the person who owns it (p1); people.list gives the person's name. */
   owner: string;
   /** The first line of the agent's ROLE.md that is not blank and not a heading, as one line, at most 160 characters; empty when there is none. */

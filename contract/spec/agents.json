@@ -20,8 +20,8 @@
     "type": "object",
     "properties": {
      "key": {
-      "$ref": "#/components/schemas/AgentName",
-      "description": "The agent's key (a17): what every other field and call names it by."
+      "type": "string",
+      "description": "a<n>."
      },
      "name": {
       "type": "string",
@@ -30,10 +30,6 @@
      "workspace": {
       "type": "string",
       "description": "The key of its workspace (w2); workspaces.list gives the workspace's name."
-     },
-     "lead": {
-      "type": "boolean",
-      "description": "Whether it is its workspace's lead: what is sent to the workspace reaches it."
      },
      "owner": {
       "type": "string",
@@ -550,7 +546,6 @@
      "key",
      "name",
      "workspace",
-     "lead",
      "owner",
      "role",
      "model",
