@@ -67,7 +67,7 @@ func TestTheDiffOfAWholeWorktreeIncludesUntrackedFilesButNotIgnoredOnes(t *testi
 	t.Parallel()
 	e := testEnv(t)
 	prAgent(t, e, "w", "")
-	row, _ := queryOne(e.DB, "SELECT worktree FROM agent_state WHERE agent = 'w'")
+	row, _ := queryOne(e.DB, "SELECT worktree FROM agent_state WHERE agent = ?", teamtest.Key(t, e.Home, "w"))
 	dir := row.str("worktree")
 	git := func(args ...string) {
 		t.Helper()
@@ -244,7 +244,7 @@ func TestWorktreesWithNoPullRequestToAskAboutAreNeverAsked(t *testing.T) {
 	}
 	for agent, path := range map[string]string{"onbase": link + "/", "detached": detached, "gitlab": other} {
 		addAgent(t, e, agent, "")
-		if _, err := e.DB.Exec("INSERT INTO agent_state(agent, state, updated, worktree) VALUES(?, 'idle', 0, ?)", agent, path); err != nil {
+		if _, err := e.DB.Exec("INSERT INTO agent_state(agent, state, updated, worktree) VALUES(?, 'idle', 0, ?)", teamtest.Key(t, e.Home, agent), path); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -309,7 +309,7 @@ func TestTheDiffAgainstBaseShowsTheBranchsCommitsAndTheUncommittedWork(t *testin
 	t.Parallel()
 	e := testEnv(t)
 	prAgent(t, e, "wb", "")
-	row, _ := queryOne(e.DB, "SELECT worktree FROM agent_state WHERE agent = 'wb'")
+	row, _ := queryOne(e.DB, "SELECT worktree FROM agent_state WHERE agent = ?", teamtest.Key(t, e.Home, "wb"))
 	dir := row.str("worktree")
 	git := func(args ...string) string {
 		t.Helper()

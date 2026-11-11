@@ -170,8 +170,8 @@ func TestATasksTimelineHasItsTurnsAndSaysWhatTheDaemonDelivered(t *testing.T) {
 	run(t, e, `INSERT INTO events(ts, agent, kind, payload) VALUES
 		(10, '', 'task_forward', '{"task_id": 1, "request_id": 1, "carries": "queue", "from": 0}'),
 		(20, '`+bob+`', 'task_turn_push', '{"task_id": 1, "to": "p1", "ask": "now?"}'),
-		(30, 'p1', 'task_turn_pop', '{"task_id": 1, "agent": "p1", "outcome": "pass", "note": "", "to": bob, "request_id": 2}'),
-		(40, '`+bob+`', 'task_turn_pop', '{"task_id": 1, "agent": bob, "outcome": "cleared"}')`)
+		(30, 'p1', 'task_turn_pop', '{"task_id": 1, "agent": "p1", "outcome": "pass", "note": "", "to": "`+bob+`", "request_id": 2}'),
+		(40, '`+bob+`', 'task_turn_pop', '{"task_id": 1, "agent": "`+bob+`", "outcome": "cleared"}')`)
 	got, err := e.taskGet(nil, map[string]any{"task": json.Number("1")})
 	if err != nil {
 		t.Fatal(err)
@@ -181,7 +181,7 @@ func TestATasksTimelineHasItsTurnsAndSaysWhatTheDaemonDelivered(t *testing.T) {
 		m := r.(map[string]any)
 		rows = append(rows, fmt.Sprintf("%v|%v|%v|%v|%v", m["kind"], m["who"], m["text"], m["forwards"], m["turn"]))
 	}
-	want := []string{"request|human → bob|landed  a|queue|<nil>", "turn|bob → human|now?|<nil>|push", "turn|human → bob||<nil>|pop"}
+	want := []string{"request|p1 → " + bob + "|landed  a|queue|<nil>", "turn|" + bob + " → p1|now?|<nil>|push", "turn|p1 → " + bob + "||<nil>|pop"}
 	if fmt.Sprint(rows) != fmt.Sprint(want) {
 		t.Fatalf("got  %q\nwant %q", rows, want)
 	}
