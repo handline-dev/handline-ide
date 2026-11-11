@@ -60,7 +60,7 @@ func TestAnUnreadAtHumanCommentIsANoteNotTheFoundersTurn(t *testing.T) {
 	if counts["answer"] != 0 || counts["notes"] != 1 {
 		t.Fatalf("a note is the bell's dot, not its count: %v", counts)
 	}
-	run(t, e, "INSERT INTO cursors(name, row_id, updated) VALUES('task_seen:human:2', 8, 1)")
+	run(t, e, "INSERT INTO cursors(name, row_id, updated) VALUES('task_seen:p1:2', 8, 1)")
 	if p := pending(); len(p["answer"].([]map[string]any)) != 0 || p["counts"].(map[string]any)["notes"] != 0 {
 		t.Fatalf("read, the note is gone: %v", p)
 	}

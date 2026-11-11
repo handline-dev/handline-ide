@@ -11,7 +11,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/handline/handline/go/data/db"
-	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/kit/timefmt"
@@ -296,7 +295,7 @@ func (w *writes) send(c *rpc.Conn, p map[string]any) (any, error) {
 		}
 		var res *Result
 		if parent != 0 {
-			res, err = w.sendUnder(tx, agent, parent, quote, body, act)
+			res, err = w.sendUnder(tx, c.Caller.Actor(), agent, parent, quote, body, act)
 		} else {
 			res, err = sayWrite(w.e, tx, c.Caller.Actor(), agent, body, 0, nil, act)
 		}
@@ -369,7 +368,7 @@ func collapsed(s string) string { return strings.Join(strings.Fields(s), " ") }
 
 // sendUnder is a message that replies to parent: a say to the agent with the parent link, whoever it is between. Under a memo ask it is the answer to it (answerAsk); under anything else it settles nothing.
 // A quote must be words of the parent, whitespace aside, so the message never shows the parent saying what it did not.
-func (w *writes) sendUnder(tx *sql.Tx, agent string, parent int64, quote, body string, act func(rid int64)) (*Result, error) {
+func (w *writes) sendUnder(tx *sql.Tx, me, agent string, parent int64, quote, body string, act func(rid int64)) (*Result, error) {
 	row, err := message(tx, parent)
 	if err != nil {
 		return nil, err
@@ -377,7 +376,7 @@ func (w *writes) sendUnder(tx *sql.Tx, agent string, parent int64, quote, body s
 	if quote != "" && !strings.Contains(collapsed(row.Body), quote) {
 		return nil, badParam("quote is not in the parent message", "quote")
 	}
-	res, err := sayWrite(w.e, tx, actor.OwnerKey, agent, body, parent, nil, act)
+	res, err := sayWrite(w.e, tx, me, agent, body, parent, nil, act)
 	if err != nil || res == nil || !res.OK || res.Request == 0 {
 		return res, err
 	}
@@ -386,7 +385,7 @@ func (w *writes) sendUnder(tx *sql.Tx, agent string, parent int64, quote, body s
 			return nil, err
 		}
 	}
-	return w.answerAsk(tx, res, actor.OwnerKey, parent, body)
+	return w.answerAsk(tx, res, me, parent, body)
 }
 
 func (w *writes) cancel(c *rpc.Conn, p map[string]any) (any, error) {

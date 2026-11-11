@@ -325,7 +325,7 @@ func turnParams(p map[string]any, home string) (to, evidence string, err error) 
 		return "", "", err
 	}
 	switch {
-	case evidence != "" && (to == "" || actor.IsPerson(to)):
+	case evidence != "" && (to == "" || to == actor.OwnerKey):
 		return "", "", badParam("done goes with a turn to an agent: a review whose pass closes the task", "done")
 	case to != "" && to != actor.OwnerKey && !contains(paths.ListAgents(home), to):
 		e := rpc.NotFoundError("no agent named " + to)

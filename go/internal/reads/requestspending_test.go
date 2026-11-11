@@ -42,7 +42,7 @@ func TestATaskCountsTheCommentsAboveTheFoundersMarkerAndNamesTheFirst(t *testing
 	if got[1]["unread"] != int64(2) || got[1]["first_unread"] != int64(5) || got[2]["unread"] != int64(1) || got[2]["first_unread"] != int64(8) {
 		t.Fatalf("the founder's own comment is not unread: %v %v / %v %v", got[1]["unread"], got[1]["first_unread"], got[2]["unread"], got[2]["first_unread"])
 	}
-	run(t, e, "INSERT INTO cursors(name, row_id, updated) VALUES('task_seen:human:1', 5, 1)")
+	run(t, e, "INSERT INTO cursors(name, row_id, updated) VALUES('task_seen:p1:1', 5, 1)")
 	run(t, e, "INSERT INTO meta(name, value, updated) VALUES('task_seen_floor', '7', 1)")
 	got, _ = e.Tasks([]int64{1, 2})
 	if got[1]["unread"] != int64(0) || got[1]["first_unread"] != nil || got[2]["unread"] != int64(1) {
@@ -93,7 +93,7 @@ func TestRequestsPendingGroupsByTaskAndNeverReadsAQuestionAway(t *testing.T) {
 	}
 	deferNav(t, e, `{}`)
 	for _, id := range []int64{1, 2} { // read both: the comment row goes, the question does not
-		run(t, e, fmt.Sprintf("INSERT INTO cursors(name, row_id, updated) VALUES('task_seen:human:%d', 9, 1)", id))
+		run(t, e, fmt.Sprintf("INSERT INTO cursors(name, row_id, updated) VALUES('task_seen:p1:%d', 9, 1)", id))
 	}
 	got = pending(t, e)
 	if taskIDs(got["answer"]) != "[1]" || taskIDs(got["comments"]) != "[]" {
