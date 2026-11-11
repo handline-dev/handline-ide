@@ -209,7 +209,7 @@ func TestAMessageNeverWrittenSaysSoAndOneWrittenAndUnseenSaysItMayHaveBeenRead(t
 		var n int
 		pattern := "%was not written to its session (no inbox): it was not read. It is not sent again; send it again.%"
 		if written {
-			pattern = "%transcript never showed it (no inbox): it may or may not have been read. It is not sent again; ask bob whether it saw it%"
+			pattern = "%transcript never showed it (no inbox): it may or may not have been read. It is not sent again; ask " + r.k("bob") + " whether it saw it%"
 		}
 		r.must(r.DB.QueryRow(r.sql("SELECT count(*) FROM requests WHERE target = 'alice' AND body LIKE ?"), pattern).Scan(&n))
 		if n != 1 {
