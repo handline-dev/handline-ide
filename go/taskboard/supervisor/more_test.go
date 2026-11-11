@@ -13,7 +13,7 @@ func TestTellUndeliveredTypesWhatReachedAnAgentWhileItHadNoSession(t *testing.T)
 	r.agentUp("bob")
 	msg := r.ask("alice", "bob", "while you slept", "ask")
 	task := r.task("bob", "alice", "a task")
-	r.must(r.TellUndelivered(r.DB, "bob"))
+	r.must(r.TellUndelivered(r.DB, r.k("bob")))
 	if got := r.term.last(); !strings.Contains(got, "#"+itoa(msg)+" from alice") {
 		t.Fatalf("%q", got)
 	}
@@ -26,7 +26,7 @@ func TestTellUndeliveredTypesWhatReachedAnAgentWhileItHadNoSession(t *testing.T)
 	db.SetClosed(r.DB, "bob", "")
 	r.term.typed = nil
 	r.ask("alice", "bob", "another", "ask")
-	r.must(r.TellUndelivered(r.DB, "bob"))
+	r.must(r.TellUndelivered(r.DB, r.k("bob")))
 	if len(r.term.typed) != 0 {
 		t.Fatal("typed at a closed agent")
 	}
@@ -57,7 +57,7 @@ func TestStartupSettlesOnlyTheSaysNothingTracksAndTypesPendingRows(t *testing.T)
 		t.Fatalf("told %s owed %s tracked %s batched %s", state(told), state(owed), state(tracked), state(batched))
 	}
 	// what is owed is told by the tick
-	r.must(r.TellUndelivered(r.DB, "bob"))
+	r.must(r.TellUndelivered(r.DB, r.k("bob")))
 	if got := r.term.last(); !strings.Contains(got, "sent minutes before the restart") {
 		t.Fatalf("an undelivered say was not told after the restart: %q", got)
 	}
@@ -85,7 +85,7 @@ func TestTheTextsOfAReply(t *testing.T) {
 	r := newRig(t)
 	r.agentUp("bob")
 	q := r.ask("alice", "bob", "first line of the question\nsecond", "ask")
-	out, _ := r.Say(r.DB, SayIn{Target: "alice", Body: "the answer", Requester: "bob", ParentID: q})
+	out, _ := r.Say(r.DB, SayIn{Target: r.k("alice"), Body: "the answer", Requester: r.k("bob"), ParentID: q})
 	head := mustReq(r, out.RID)
 	if got := r.ids(inReplyTo(r.DB, head)); got != "in reply to #"+itoa(q)+": first line of the question" {
 		t.Fatalf("%q", got)
