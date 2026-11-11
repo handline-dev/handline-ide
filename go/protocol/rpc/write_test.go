@@ -307,3 +307,26 @@ func TestAWaitingWriteDoesNotHoldUpTheCallsAfterItAndKeepsItsReply(t *testing.T)
 		t.Fatalf("a retry gets the kept reply: %v", r)
 	}
 }
+
+// A retry is the call as sent: a who word that has since come to mean another key (an agent retired, renamed or made) still replays.
+func TestARetryIsTheCallAsSentThoughItsWhoNowResolvesOtherwise(t *testing.T) {
+	db, ran := storetest.Open(t), new(int)
+	srv := writeServer(t, db, ran, nil)
+	key := "a3"
+	srv.Who = func(w string) string { return key }
+	srv.Register("task.handoff", Method{Write: true, Handler: func(c *Conn, p map[string]any) (any, error) {
+		return c.Effect(func(tx *sql.Tx) (map[string]any, error) {
+			*ran++
+			return map[string]any{"to": p["to"]}, nil
+		})
+	}})
+	c := connect(t, srv, `{"client":"t","protocol":1,"key":"k"}`)
+	call := `{"jsonrpc":"2.0","id":2,"method":"task.handoff","params":{"task":1,"to":"bob","request_id":"h1"}}`
+	if r := c.raw(t, call); r["result"].(map[string]any)["to"] != "a3" {
+		t.Fatalf("%v", r)
+	}
+	key = "bob"
+	if r := c.raw(t, call); r["result"] == nil || r["result"].(map[string]any)["to"] != "a3" || *ran != 1 {
+		t.Fatalf("a retry after its word changed meaning: %v ran %d", r, *ran)
+	}
+}

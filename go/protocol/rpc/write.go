@@ -44,7 +44,9 @@ func differentCall(rid string) *Error {
 // runWrite runs a write once per request id, as handline/daemon/rpc.py _write does over the same tables. The reply
 // of a success is kept a day; a retry with the same id and params gets it back marked replayed and repeats nothing.
 // Refusals and errors are not kept, so a retry is judged again.
-func (c *Conn) runWrite(name string, m Method, params map[string]any) (any, error) {
+// sentKey is paramsKey of the params as the call sent them, before their who words were resolved: a retry is the same call though a
+// word it named has since come to mean another key or none (an agent made, retired or renamed).
+func (c *Conn) runWrite(name string, m Method, params map[string]any, sentKey string) (any, error) {
 	rid, ok := params["request_id"].(string)
 	if !ok || rid == "" || len([]rune(rid)) > requestIDMax {
 		return nil, BadRequestError(fmt.Sprintf("%s is a write: it takes a request_id, a string of 1 to %d characters", name, requestIDMax),
@@ -62,7 +64,7 @@ func (c *Conn) runWrite(name string, m Method, params map[string]any) (any, erro
 	mu.Lock()
 	defer mu.Unlock()
 	cutoff := time.Now().Add(-ReplyKeep).Unix()
-	pkey := paramsKey(params)
+	pkey := sentKey
 	var method, kept, reply string
 	err := db.QueryRow("SELECT method, params, reply FROM rpc_replies WHERE caller = ? AND request_id = ? AND ts > ?",
 		writer, rid, cutoff).Scan(&method, &kept, &reply)
