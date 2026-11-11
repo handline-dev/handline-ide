@@ -81,15 +81,19 @@ func TestTheTickRunsItsPassesWithoutHarmingAnAgent(t *testing.T) {
 	if len(tk.Tick.Passes) != 14 {
 		t.Fatalf("passes: %d", len(tk.Tick.Passes))
 	}
+	var mu sync.Mutex // the plan question logs from its own goroutine
 	var logs []string
 	cfg := cfgOf(p)
-	cfg.Log = func(format string, a ...any) { logs = append(logs, fmt.Sprintf(format, a...)) }
+	cfg.Log = func(format string, a ...any) { mu.Lock(); logs = append(logs, fmt.Sprintf(format, a...)); mu.Unlock() }
 	tk = p.Tick(cfg, TickConfig{})
 	for i := 0; i < 3; i++ {
 		if _, err := tk.Tick.Run(); err != nil {
 			t.Fatal(err)
 		}
 	}
+	p.WaitForPlanAsks()
+	mu.Lock()
+	defer mu.Unlock()
 	for _, l := range logs {
 		if strings.Contains(l, "timebox:") || strings.Contains(l, "schedules:") || strings.Contains(l, "notice-digest:") || strings.Contains(l, "task-queue:") || strings.Contains(l, "task-holds:") || strings.Contains(l, "subscriptions:") || strings.Contains(l, "wait-for:") || strings.Contains(l, "apply-settings:") || strings.Contains(l, "proposal-held:") {
 			t.Fatalf("a pass failed: %s", l)
