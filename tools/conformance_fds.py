@@ -315,14 +315,15 @@ def seed_session_start(con: sqlite3.Connection, agent: str) -> None:
                 (agent, int(time.time())))
 
 
-def seed_never_started(home: Path) -> None:
+def seed_never_started(home: Path) -> str:
     """NEVER_STARTED's agent row, once the tick has settled. The daemon's start gives every agent it finds with no state row an IDLE
-    one; seeded before that start has run, it would be found or not by how the two raced."""
+    one; seeded before that start has run, it would be found or not by how the two raced. Returns its key."""
     con = sqlite3.connect(home / "db.sqlite", timeout=5)
     try:
         seed_agents(con, [NEVER_STARTED], {})
-        rekey(home, con)
+        key = rekey(home, con)[NEVER_STARTED]
         con.commit()
+        return key
     finally:
         con.close()
 
@@ -437,7 +438,7 @@ def main(argv: list[str]) -> int:
             seeded = seed_states(home, daemon, fakes)
             if fakes:
                 tick_settled(home)
-                seed_never_started(home)
+                seeded["never_started_agent"] = seed_never_started(home)
             seeded |= {"add_account": "conf-added", "add_used_account": "conf-used", "add_retry_account": "conf-retried"}  # names no account has
             main_dir = seed_account(home, "main") / ".claude"  # a logged-in account: it has a credential file
             main_dir.mkdir()
