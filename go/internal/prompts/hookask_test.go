@@ -11,8 +11,8 @@ import (
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
-func asBackend() *rpc.Conn {
-	return &rpc.Conn{Caller: rpc.Caller{Role: "agent", Info: map[string]any{"kind": "agent", "name": "backend"}}}
+func asBackend(e *Env) *rpc.Conn {
+	return &rpc.Conn{Caller: rpc.Caller{Role: "agent", Info: map[string]any{"kind": "agent", "name": backendKey(e)}}}
 }
 
 type asked struct {
@@ -25,7 +25,7 @@ func ask(t *testing.T, e *Env, command string) (<-chan asked, *Block) {
 	t.Helper()
 	out := make(chan asked, 1)
 	go func() {
-		r, err := e.permissionAsk(asBackend(), map[string]any{"tool": "Bash", "input": map[string]any{"command": command, "description": "clean up"}})
+		r, err := e.permissionAsk(asBackend(e), map[string]any{"tool": "Bash", "input": map[string]any{"command": command, "description": "clean up"}})
 		m, _ := r.(map[string]any)
 		out <- asked{m, err}
 	}()
@@ -35,7 +35,7 @@ func ask(t *testing.T, e *Env, command string) (<-chan asked, *Block) {
 func waitOpen(t *testing.T, e *Env, command string) *Block {
 	t.Helper()
 	for i := 0; i < 200; i++ {
-		if b, _ := e.OpenBlockOf("backend"); b != nil && b.Detail["command"] == command {
+		if b, _ := e.OpenBlockOf(backendKey(e)); b != nil && b.Detail["command"] == command {
 			return b
 		}
 		time.Sleep(10 * time.Millisecond)
@@ -65,18 +65,18 @@ func TestAHookQuestionIsAnsweredThroughItsCall(t *testing.T) {
 	e := testEnv(t)
 	register(t, e)
 	call, b := ask(t, e, "rm -rf node_modules")
-	if p := openPrompt(t, e, "backend"); p["source"] != "hook" || p["command"] != "rm -rf node_modules" || p["reason"] != "clean up" {
+	if p := openPrompt(t, e, backendKey(e)); p["source"] != "hook" || p["command"] != "rm -rf node_modules" || p["reason"] != "clean up" {
 		t.Fatalf("%v", p)
 	}
 	refusal(t, mustErr(answers(e, b.Fingerprint, "yes")), "bad_request")
-	refusal(t, mustErr(e.answer(asRon(), map[string]any{"agent": "backend", "prompt": b.Fingerprint, "choice": "allow", "note": "x"})), "bad_request")
-	if _, err := e.answer(asRon(), map[string]any{"agent": "backend", "prompt": b.Fingerprint, "choice": "deny", "note": " use the script "}); err != nil {
+	refusal(t, mustErr(e.answer(asRon(), map[string]any{"agent": backendKey(e), "prompt": b.Fingerprint, "choice": "allow", "note": "x"})), "bad_request")
+	if _, err := e.answer(asRon(), map[string]any{"agent": backendKey(e), "prompt": b.Fingerprint, "choice": "deny", "note": " use the script "}); err != nil {
 		t.Fatal(err)
 	}
 	if r := reply(t, call); r["behavior"] != "deny" || r["message"] != "The founder said no: use the script" {
 		t.Fatalf("%v", r)
 	}
-	if left, _ := e.OpenOf("backend"); left != nil {
+	if left, _ := e.OpenOf(backendKey(e)); left != nil {
 		t.Fatal("the answered question is still open")
 	}
 
@@ -98,11 +98,11 @@ func TestASecondQuestionWaitsAndAnEndedCallClosesItsOwn(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	second := make(chan bool, 1)
 	go func() {
-		_, answered, _ := e.AskPermission(ctx, "backend", "Bash", map[string]any{"command": "two"})
+		_, answered, _ := e.AskPermission(ctx, backendKey(e), "Bash", map[string]any{"command": "two"})
 		second <- answered
 	}()
 	time.Sleep(50 * time.Millisecond)
-	if open, _ := e.OpenOf("backend"); open == nil || open.ID != b.ID {
+	if open, _ := e.OpenOf(backendKey(e)); open == nil || open.ID != b.ID {
 		t.Fatal("the second question replaced the first")
 	}
 	if _, err := answers(e, b.Fingerprint, "allow"); err != nil {
@@ -114,7 +114,7 @@ func TestASecondQuestionWaitsAndAnEndedCallClosesItsOwn(t *testing.T) {
 	if answered := <-second; answered {
 		t.Fatal("a cancelled call was answered")
 	}
-	if open, _ := e.OpenOf("backend"); open != nil {
+	if open, _ := e.OpenOf(backendKey(e)); open != nil {
 		t.Fatal("the cancelled call left its question open")
 	}
 }
@@ -154,7 +154,7 @@ func TestAQuestionTheAgentMovedOnFromIsClosed(t *testing.T) {
 		if !c.ends {
 			wait = 4 * refreshInTests // two refreshes
 		}
-		if _, err := db.AddEvent(e.DB, "backend", c.kind); err != nil {
+		if _, err := db.AddEvent(e.DB, backendKey(e), c.kind); err != nil {
 			t.Fatal(err)
 		}
 		select {
@@ -162,14 +162,14 @@ func TestAQuestionTheAgentMovedOnFromIsClosed(t *testing.T) {
 			if !c.ends || a.err != nil || a.reply["behavior"] != nil {
 				t.Fatalf("%s: returned %v %v", c.kind, a.reply, a.err)
 			}
-			if open, _ := e.OpenOf("backend"); open != nil {
+			if open, _ := e.OpenOf(backendKey(e)); open != nil {
 				t.Fatalf("%s: the question stays open", c.kind)
 			}
 		case <-time.After(wait):
 			if c.ends {
 				t.Fatalf("%s: the call still waits on a question nobody sees", c.kind)
 			}
-			if open, _ := e.OpenOf("backend"); open == nil || open.ID != b.ID {
+			if open, _ := e.OpenOf(backendKey(e)); open == nil || open.ID != b.ID {
 				t.Fatalf("%s: the question was closed", c.kind)
 			}
 			if _, err := answers(e, b.Fingerprint, "allow"); err != nil {
@@ -192,7 +192,7 @@ func TestAQuestionWhoseHookClientIsGoneIsClosed(t *testing.T) {
 	e := testEnv(t)
 	register(t, e)
 	cl, sv := net.Pipe()
-	srv := rpc.NewServer(sessionOf{"backend"}, "abc1234", 7, "local", func(string, ...any) {})
+	srv := rpc.NewServer(sessionOf{backendKey(e)}, "abc1234", 7, "local", func(string, ...any) {})
 	Register(srv, e)
 	served := make(chan struct{})
 	go func() { srv.Serve(rpc.NewLineTransport(sv), 0); sv.Close(); close(served) }()
@@ -212,7 +212,7 @@ func TestAQuestionWhoseHookClientIsGoneIsClosed(t *testing.T) {
 		t.Fatal("the connection was not served out")
 	}
 	for i := 0; i < 100; i++ {
-		if open, _ := e.OpenOf("backend"); open == nil {
+		if open, _ := e.OpenOf(backendKey(e)); open == nil {
 			return
 		}
 		time.Sleep(50 * time.Millisecond)
@@ -226,7 +226,7 @@ func TestALateReplayedEventFromBeforeTheQuestionLeavesItOpen(t *testing.T) {
 	e := testEnv(t)
 	register(t, e)
 	call, b := ask(t, e, "cd /x && make")
-	if _, err := db.AddEventAt(e.DB, time.Now().Unix()-3600, "backend", "Stop"); err != nil {
+	if _, err := db.AddEventAt(e.DB, time.Now().Unix()-3600, backendKey(e), "Stop"); err != nil {
 		t.Fatal(err)
 	}
 	select {
@@ -234,7 +234,7 @@ func TestALateReplayedEventFromBeforeTheQuestionLeavesItOpen(t *testing.T) {
 		t.Fatalf("a replayed old Stop ended the call: %v %v", a.reply, a.err)
 	case <-time.After(4 * refreshInTests): // two refreshes
 	}
-	if open, _ := e.OpenOf("backend"); open == nil || open.ID != b.ID {
+	if open, _ := e.OpenOf(backendKey(e)); open == nil || open.ID != b.ID {
 		t.Fatal("the question was closed")
 	}
 	if _, err := answers(e, b.Fingerprint, "allow"); err != nil {

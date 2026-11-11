@@ -29,7 +29,7 @@ func TestAnAnswerIsKeptWithItsWordsAndWhoGaveIt(t *testing.T) {
 		t.Fatalf("permission allow: %q %q %q", label, note, by)
 	}
 	_, b = ask(t, e, "rm -rf build")
-	if _, err := e.answer(asRon(), map[string]any{"agent": "backend", "prompt": b.Fingerprint, "choice": "deny", "note": " use the script "}); err != nil {
+	if _, err := e.answer(asRon(), map[string]any{"agent": backendKey(e), "prompt": b.Fingerprint, "choice": "deny", "note": " use the script "}); err != nil {
 		t.Fatal(err)
 	}
 	if label, note, _ := answered(t, e, b.Fingerprint); label != "Denied" || note != "use the script" {

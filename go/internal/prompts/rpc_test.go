@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/handline/handline/go/data/team/teamtest"
+	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
@@ -17,8 +18,11 @@ func register(t *testing.T, e *Env) {
 	teamtest.Set(t, e.Home, "backend", "vendor", "claude")
 }
 
+// backendKey is the key of the agent register seeds as backend.
+func backendKey(e *Env) string { return paths.WhoKey(e.Home, "backend") }
+
 func answers(e *Env, prompt string, choice any) (any, error) {
-	return e.answer(asRon(), map[string]any{"agent": "backend", "prompt": prompt, "choice": choice})
+	return e.answer(asRon(), map[string]any{"agent": backendKey(e), "prompt": prompt, "choice": choice})
 }
 
 func refusal(t *testing.T, err error, code string) *rpc.Error {
@@ -59,7 +63,7 @@ func TestAKeyAHookQuestionDoesNotOfferIsABadRequest(t *testing.T) {
 	for _, choice := range []any{"yes", "no", "esc", "1", "", []any{"allow"}, map[string]any{"text": "x"}, 7} {
 		refusal(t, mustErr(answers(e, b.Fingerprint, choice)), "bad_request")
 	}
-	_, err := e.answer(asRon(), map[string]any{"agent": "backend", "choice": "allow"})
+	_, err := e.answer(asRon(), map[string]any{"agent": backendKey(e), "choice": "allow"})
 	refusal(t, err, "bad_request")
 	_, err = e.answer(asRon(), map[string]any{"agent": "nobody", "prompt": b.Fingerprint, "choice": "allow"})
 	refusal(t, err, "not_found")
