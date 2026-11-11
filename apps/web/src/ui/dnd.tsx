@@ -4,7 +4,7 @@
 import type { DragEvent } from 'react';
 
 const MIME = 'application/x-handline-tab';
-export type TabDrag = { move: { pane: string; tab: string } } | { open: { opens: string; title: string } };
+export type TabDrag = { move: { pane: string; tab: string; tabs?: string[] } } | { open: { opens: string; title: string } };
 
 export function startTabDrag(e: DragEvent, drag: TabDrag) {
   e.dataTransfer.setData(MIME, JSON.stringify(drag));
