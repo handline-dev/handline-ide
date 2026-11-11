@@ -256,8 +256,9 @@ func (r *rig) propose(id string, fields ...string) (*Prop, int64) {
 	p.set("id", id)
 	for i := 0; i < len(fields); i += 2 {
 		v := fields[i+1]
-		if fields[i] == "agent" {
-			v = r.who(v) // a proposal names its agent by key
+		// a proposal names its agents by key: its agent, a bundle item's, and a link's other end
+		if k := fields[i]; k == "agent" || strings.HasSuffix(k, ".agent") || strings.HasSuffix(k, ".to") && r.who(v) != v {
+			v = r.who(v)
 		}
 		p.set(fields[i], v)
 	}
@@ -472,7 +473,7 @@ func TestADiffThatFailsHalfwayPutsEverythingBack(t *testing.T) {
 func TestRetireArchivesTheFolderAndRenameMovesTheNameAndItsRows(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
-	r.db.Exec("INSERT INTO agent_state(agent, state, updated) VALUES('bob', 'idle', 1)")
+	r.db.Exec("INSERT INTO agent_state(agent, state, updated) VALUES(?, 'idle', 1)", r.who("bob"))
 	if _, err := dbpkg.AddRequest(r.db, dbpkg.NewRequest{Requester: "alice", Target: "bob", Body: "hi", Kind: "ask"}); err != nil {
 		t.Fatal(err)
 	}
@@ -817,7 +818,7 @@ func TestAPairedDeviceDecidesAndAnAgentSessionIsRefused(t *testing.T) {
 
 func (r *rig) told(who string) []string {
 	r.t.Helper()
-	rows, err := r.db.Query("SELECT body FROM requests WHERE target = ? AND requester = ? ORDER BY id", who, dbpkg.NoticeRequester)
+	rows, err := r.db.Query("SELECT body FROM requests WHERE target = ? AND requester = ? ORDER BY id", r.who(who), dbpkg.NoticeRequester)
 	if err != nil {
 		r.t.Fatal(err)
 	}
@@ -859,11 +860,11 @@ func TestABatchOfDecisionsWaitsForTheProposersDigestAndNothingIsFromTheFounder(t
 		p, id := r.propose(fmt.Sprintf("aaaa002%d", i), "kind", "schedule", "agent", "bob", "set.action", "add", "set.cron", "0 9 * * *", "set.message", "m")
 		r.decide(id, ifThen(i%2 == 0, "approve", "reject"), p.subject(), fmt.Sprintf("b%d", i))
 	}
-	if pending, err := dbpkg.PendingNotices(r.db, "bob"); err != nil || len(pending) != 5 {
+	if pending, err := dbpkg.PendingNotices(r.db, r.who("bob")); err != nil || len(pending) != 5 {
 		t.Fatalf("bob: five outcomes wait for one digest: %d %v", len(pending), err)
 	}
 	var fromFounder int
-	r.db.QueryRow("SELECT COUNT(*) FROM requests WHERE target = 'alice' AND requester = 'p1'").Scan(&fromFounder)
+	r.db.QueryRow("SELECT COUNT(*) FROM requests WHERE target = ? AND requester = 'p1'", r.who("alice")).Scan(&fromFounder)
 	if fromFounder != 0 {
 		t.Fatalf("%d outcomes were said as the founder", fromFounder)
 	}
@@ -894,11 +895,11 @@ func TestAnOutcomeWakesTheIdleProposerAndOnlyNoticesTheOthersNamed(t *testing.T)
 	if got := r.started.list(); !slices.Equal(got, []string{r.who("alice")}) {
 		t.Fatalf("the closed proposer is started at once, nobody else: %q", got)
 	}
-	owed, err := dbpkg.UndeliveredFor(r.db, "alice")
+	owed, err := dbpkg.UndeliveredFor(r.db, r.who("alice"))
 	if err != nil || len(owed) != 1 || owed[0].Notice.Int64 != 0 || !strings.HasPrefix(owed[0].Body, "proposal aaaa0041 applied") {
 		t.Fatalf("the proposer is owed the outcome as a message the tick tells, not a digest line: %v %v", owed, err)
 	}
-	if pending, err := dbpkg.PendingNotices(r.db, "bob"); err != nil || len(pending) != 1 {
+	if pending, err := dbpkg.PendingNotices(r.db, r.who("bob")); err != nil || len(pending) != 1 {
 		t.Fatalf("the agent the change names gets a notice for its digest: %d %v", len(pending), err)
 	}
 }
@@ -918,7 +919,7 @@ func TestEachOutcomeMessageNamesTheProposalItIsAbout(t *testing.T) {
 	p, applied := r.propose("aaaa0016", "kind", "schedule", "agent", "bob", "set.action", "add", "set.cron", "0 9 * * *", "set.message", "m")
 	r.decide(applied, "approve", p.subject(), "o2")
 	rows, err := r.db.Query("SELECT json_extract(e.payload, '$.proposal') FROM requests q LEFT JOIN events e ON e.dedup_key = 'proposal_outcome:' || q.id "+
-		"WHERE q.target = 'alice' AND q.requester = ? ORDER BY q.id", dbpkg.NoticeRequester)
+		"WHERE q.target = ? AND q.requester = ? ORDER BY q.id", r.who("alice"), dbpkg.NoticeRequester)
 	if err != nil {
 		t.Fatal(err)
 	}

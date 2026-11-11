@@ -32,25 +32,26 @@ func TestAgentRetireRefusesADependedOnAgentAndRetiresOneThatIsNot(t *testing.T) 
 	if _, err := team.NewRoster(r.home).Register("bob.kid", team.RegisterOpts{Role: "r"}); err != nil {
 		t.Fatal(err)
 	}
-	if msg := refusal(t, r.call("agent.retire", `{"agent":"bob","request_id":"r2"}`)); !strings.Contains(msg, "bob has agents under it (bob.kid)") {
+	bob, kid := r.who("bob"), r.who("bob.kid")
+	if msg := refusal(t, r.call("agent.retire", `{"agent":"bob","request_id":"r2"}`)); !strings.Contains(msg, bob+" has agents under it ("+kid+")") {
 		t.Fatal(msg)
 	}
-	if !slices.Contains(paths.ListAgents(r.home), "bob") {
+	if !slices.Contains(paths.ListAgents(r.home), bob) {
 		t.Fatal("a refusal retired nothing")
 	}
 	// bob.kid is retired: nothing depends on it
-	r.db.Exec("INSERT INTO agent_state(agent, state, updated) VALUES('bob.kid', 'idle', 1)")
+	r.db.Exec("INSERT INTO agent_state(agent, state, updated) VALUES(?, 'idle', 1)", kid)
 	m := r.call("agent.retire", `{"agent":"bob.kid","request_id":"r3"}`)
 	res, _ := m["result"].(map[string]any)
-	archive := filepath.Join(r.home, "agents", "archive", time.Now().Format("2006-01-02")+"-bob.kid")
-	if res == nil || !strings.HasPrefix(res["said"].(string), "bob.kid is retired; its folder is at "+archive) {
+	archive := filepath.Join(r.home, "agents", "archive", time.Now().Format("2006-01-02")+"-"+kid)
+	if res == nil || !strings.HasPrefix(res["said"].(string), kid+" is retired; its folder is at "+archive) {
 		t.Fatalf("%v", m)
 	}
 	if _, err := os.Stat(filepath.Join(archive, "ROLE.md")); err != nil {
 		t.Fatal("the folder is archived:", err)
 	}
 	var rows int
-	r.db.QueryRow("SELECT COUNT(*) FROM agent_state WHERE agent = 'bob.kid'").Scan(&rows)
+	r.db.QueryRow("SELECT COUNT(*) FROM agent_state WHERE agent = ?", kid).Scan(&rows)
 	if rows != 0 || strings.Contains(r.rosterText(), "bob.kid") {
 		t.Fatalf("rows %d\n%s", rows, r.rosterText())
 	}
@@ -102,14 +103,15 @@ func (r *rig) retireHeld(params string, during func(sweep func(ended bool))) map
 func TestTheFoundersRetireOfARunningAgentAnswersOnceItIsRetired(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
+	bob := r.who("bob")
 	m := r.retireHeld(`{"agent":"bob","request_id":"h1"}`, func(sweep func(bool)) {
 		sweep(false)
-		if !slices.Contains(paths.ListAgents(r.home), "bob") {
+		if !slices.Contains(paths.ListAgents(r.home), bob) {
 			t.Error("bob stays while its turn runs")
 		}
 		sweep(true)
 	})
-	if res, _ := m["result"].(map[string]any); res == nil || !strings.HasPrefix(res["said"].(string), "bob is retired; its folder is at ") {
+	if res, _ := m["result"].(map[string]any); res == nil || !strings.HasPrefix(res["said"].(string), bob+" is retired; its folder is at ") {
 		t.Fatalf("the outcome, not an acceptance: %v", m)
 	}
 	if strings.Contains(r.rosterText(), "bob") || r.state(r.e.listing()[0].id()) != "applied" {
@@ -121,9 +123,10 @@ func TestTheFoundersRetireOfARunningAgentAnswersOnceItIsRetired(t *testing.T) {
 func TestARetireWhoseTurnOutlastsTheLimitIsRefusedAndDropped(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
+	bob := r.who("bob")
 	r.e.Wait = 50 * time.Millisecond
 	m := r.retireHeld(`{"agent":"bob","request_id":"h4"}`, func(sweep func(bool)) { sweep(false) })
-	if msg := refusal(t, m); !strings.Contains(msg, "bob is still in its turn, so nothing was deleted") {
+	if msg := refusal(t, m); !strings.Contains(msg, bob+" is still in its turn, so nothing was deleted") {
 		t.Fatalf("refused at the limit: %v", m)
 	}
 	pid := r.e.listing()[0].id()
@@ -140,6 +143,7 @@ func TestARetireWhoseTurnOutlastsTheLimitIsRefusedAndDropped(t *testing.T) {
 // bobsWorktrees is a repo with bob's three worktrees: done (merged, clean), ahead (a commit not on main) and shared (alice works in it too).
 func bobsWorktrees(t *testing.T, r *rig) (main string, wt map[string]string, git func(dir string, args ...string) bool) {
 	t.Helper()
+	bob := r.who("bob")
 	root, _ := filepath.EvalSymlinks(t.TempDir())
 	main = filepath.Join(root, "main")
 	git = func(dir string, args ...string) bool {
@@ -154,7 +158,7 @@ func bobsWorktrees(t *testing.T, r *rig) (main string, wt map[string]string, git
 		git(main, "worktree", "add", "-q", "-b", name, wt[name])
 	}
 	git(wt["ahead"], "commit", "-q", "--allow-empty", "-m", "unmerged work")
-	r.db.Exec("INSERT INTO agent_state(agent, state, updated, worktree, extra_worktrees) VALUES('bob', 'idle', 1, ?, ?)",
+	r.db.Exec("INSERT INTO agent_state(agent, state, updated, worktree, extra_worktrees) VALUES(?, 'idle', 1, ?, ?)", bob,
 		"repo::"+wt["done"], `["`+wt["ahead"]+`", "`+wt["shared"]+`"]`)
 	r.db.Exec("INSERT INTO agent_state(agent, state, updated, worktree) VALUES('alice', 'idle', 1, ?)", wt["shared"])
 	return main, wt, git
@@ -165,6 +169,7 @@ func bobsWorktrees(t *testing.T, r *rig) (main string, wt map[string]string, git
 func TestTheFoundersRetireIsRefusedWhileAWorktreeHoldsWorkWithNoAnswer(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
+	bob := r.who("bob")
 	_, wt, _ := bobsWorktrees(t, r)
 	m := r.call("agent.retire", `{"agent":"bob","request_id":"w0"}`)
 	e, _ := m["error"].(map[string]any)
@@ -176,7 +181,7 @@ func TestTheFoundersRetireIsRefusedWhileAWorktreeHoldsWorkWithNoAnswer(t *testin
 	if h := list[0].(map[string]any); h["path"] != wt["ahead"] || h["commits_ahead"] != float64(1) || h["files_changed"] != float64(0) {
 		t.Fatalf("%v", h)
 	}
-	if !slices.Contains(paths.ListAgents(r.home), "bob") {
+	if !slices.Contains(paths.ListAgents(r.home), bob) {
 		t.Fatal("bob was retired")
 	}
 	if m := r.call("agent.retire", `{"agent":"bob","worktree":"maybe","request_id":"w0b"}`); m["error"] == nil {
@@ -222,9 +227,10 @@ func TestTheFoundersAnswerIsCarriedOutForAWorktreeThatHoldsWork(t *testing.T) {
 	}
 	t.Run("keep", func(t *testing.T) {
 		r := newRig(t)
+		bob := r.who("bob")
 		_, wt, _ := bobsWorktrees(t, r)
 		m := r.call("agent.retire", `{"agent":"bob","worktree":"keep","request_id":"w1"}`)
-		if e, _ := m["error"].(map[string]any); e == nil || !strings.Contains(e["message"].(string), wt["ahead"]+" holds work (ahead is not merged into main) and is kept, as asked, so bob is not deleted") {
+		if e, _ := m["error"].(map[string]any); e == nil || !strings.Contains(e["message"].(string), wt["ahead"]+" holds work (ahead is not merged into main) and is kept, as asked, so "+bob+" is not deleted") {
 			t.Fatalf("%v", m)
 		}
 		assertNotRetired(t, r, wt)
@@ -234,7 +240,8 @@ func TestTheFoundersAnswerIsCarriedOutForAWorktreeThatHoldsWork(t *testing.T) {
 // assertNotRetired is bob still on the team with each of its worktrees where it was.
 func assertNotRetired(t *testing.T, r *rig, wt map[string]string) {
 	t.Helper()
-	if !slices.Contains(paths.ListAgents(r.home), "bob") {
+	bob := r.who("bob")
+	if !slices.Contains(paths.ListAgents(r.home), bob) {
 		t.Fatal("bob was retired")
 	}
 	for name, path := range wt {
@@ -249,6 +256,7 @@ func assertNotRetired(t *testing.T, r *rig, wt map[string]string) {
 func TestAnAgentWhoseWorktreeCannotBeRemovedIsNotDeleted(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
+	bob := r.who("bob")
 	main, wt, git := bobsWorktrees(t, r)
 	r.e.Ask = func(title, body string, tags ...string) (int64, error) {
 		t.Fatal("asked the founder: " + title)
@@ -276,7 +284,7 @@ func TestAnAgentWhoseWorktreeCannotBeRemovedIsNotDeleted(t *testing.T) {
 	m = r.call("agent.retire", `{"agent":"bob","worktree":"save","request_id":"l2"}`)
 	e, _ = m["error"].(map[string]any)
 	if d, _ := e["data"].(map[string]any); d["gate"] != "state" || !strings.Contains(e["message"].(string), wt["done"]+" could not be removed (") ||
-		!strings.Contains(e["message"].(string), "so bob is not deleted") {
+		!strings.Contains(e["message"].(string), "so "+bob+" is not deleted") {
 		t.Fatalf("git failing: %v", m)
 	}
 	os.Chmod(root, 0o755)
@@ -288,13 +296,14 @@ func TestAnAgentWhoseWorktreeCannotBeRemovedIsNotDeleted(t *testing.T) {
 func TestAnApprovedRetireIsRefusedWhileAWorktreeHoldsWork(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
+	bob := r.who("bob")
 	_, wt, _ := bobsWorktrees(t, r)
 	r.e.Ask = func(title, body string, tags ...string) (int64, error) {
 		t.Fatal("asked the founder: " + title)
 		return 0, nil
 	}
-	prop := &Prop{pairs: []yamlcompat.Pair{{Key: "kind", Val: "retire"}, {Key: "agent", Val: "bob"}, {Key: "id", Val: "hr1"}}}
-	if ok, said, err := r.e.run(prop); err != nil || ok || !strings.Contains(said, wt["ahead"]+" holds work (") || !strings.Contains(said, "so bob is not deleted") {
+	prop := &Prop{pairs: []yamlcompat.Pair{{Key: "kind", Val: "retire"}, {Key: "agent", Val: bob}, {Key: "id", Val: "hr1"}}}
+	if ok, said, err := r.e.run(prop); err != nil || ok || !strings.Contains(said, wt["ahead"]+" holds work (") || !strings.Contains(said, "so "+bob+" is not deleted") {
 		t.Fatalf("an approved retire with held work: %v %q %v", ok, said, err)
 	}
 	assertNotRetired(t, r, wt)
@@ -305,12 +314,13 @@ func TestAnApprovedRetireIsRefusedWhileAWorktreeHoldsWork(t *testing.T) {
 func TestAHeldRetireThatFindsHeldWorkAtItsTurnsEndIsRefused(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
+	bob := r.who("bob")
 	var wt map[string]string
 	m := r.retireHeld(`{"agent":"bob","request_id":"h3"}`, func(sweep func(bool)) {
 		_, wt, _ = bobsWorktrees(t, r) // the work appears while the turn runs
 		sweep(true)
 	})
-	if msg := refusal(t, m); !strings.Contains(msg, wt["ahead"]+" holds work (") || !strings.Contains(msg, "so bob is not deleted") {
+	if msg := refusal(t, m); !strings.Contains(msg, wt["ahead"]+" holds work (") || !strings.Contains(msg, "so "+bob+" is not deleted") {
 		t.Fatalf("refused through the waiting call: %v", m)
 	}
 	if held := r.e.listing(); len(held) != 1 || held[0].str("state") != "approved" || !strings.Contains(held[0].str("error"), wt["ahead"]+" holds work (") {
@@ -324,6 +334,7 @@ func TestAHeldRetireThatFindsHeldWorkAtItsTurnsEndIsRefused(t *testing.T) {
 func TestAWorktreeOnNoBranchIsJudgedByItsHeadAndOneThatIsNoCheckoutIsLeft(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
+	bob := r.who("bob")
 	main, wt, git := bobsWorktrees(t, r)
 	detached, held, nested := filepath.Join(filepath.Dir(main), "detached"), filepath.Join(filepath.Dir(main), "held"), filepath.Join(main, "nested")
 	git(main, "worktree", "add", "-q", "--detach", detached)
@@ -331,7 +342,7 @@ func TestAWorktreeOnNoBranchIsJudgedByItsHeadAndOneThatIsNoCheckoutIsLeft(t *tes
 	git(held, "commit", "-q", "--allow-empty", "-m", "detached work")
 	git(main, "worktree", "add", "-q", "-b", "nested", nested)
 	os.Remove(filepath.Join(nested, ".git"))
-	r.db.Exec("UPDATE agent_state SET extra_worktrees = ? WHERE agent = 'bob'", `["`+detached+`", "`+held+`", "`+nested+`", "`+wt["ahead"]+`"]`)
+	r.db.Exec("UPDATE agent_state SET extra_worktrees = ? WHERE agent = ?", `["`+detached+`", "`+held+`", "`+nested+`", "`+wt["ahead"]+`"]`, bob)
 	m := r.call("agent.retire", `{"agent":"bob","worktree":"save","request_id":"d1"}`)
 	res, _ := m["result"].(map[string]any)
 	said, _ := res["said"].(string)
@@ -376,13 +387,14 @@ func TestARunningAgentsRetireKeepsTheFoundersAnswerForItsTurnsEnd(t *testing.T) 
 func TestWithNoAnswerAWorktreeThatHoldsWorkIsAskedAsATask(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
+	bob := r.who("bob")
 	_, wt, _ := bobsWorktrees(t, r)
 	var asked []string
 	r.e.Ask = func(title, body string, tags ...string) (int64, error) {
 		asked = append(asked, title+"|"+strings.Join(tags, ",")+"|"+body)
 		return int64(40 + len(asked)), nil
 	}
-	said := r.e.pruneMemberWorktrees("bob", []string{wt["done"], wt["ahead"], wt["shared"]})
+	said := r.e.pruneMemberWorktrees(bob, []string{wt["done"], wt["ahead"], wt["shared"]})
 	if len(asked) != 1 || !strings.HasPrefix(asked[0], "Remove bob's worktree?|worktree-removal|") ||
 		!strings.Contains(asked[0], "Path: "+wt["ahead"]) || !strings.Contains(asked[0], "holds work that is not on main: 0 files changed, 1 commit not on main.") ||
 		!strings.Contains(asked[0], "\nforce  Force delete:") || !strings.Contains(said, wt["ahead"]+" stays: ahead is not merged into main (asked the founder in T41)") { // local-ref-ok: the fake Ask numbers tasks from T41
@@ -398,13 +410,14 @@ func TestWithNoAnswerAWorktreeThatHoldsWorkIsAskedAsATask(t *testing.T) {
 func TestAWorktreeAnAgentLeftForAnotherIsJudged(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
+	bob := r.who("bob")
 	main, wt, git := bobsWorktrees(t, r)
 	var asked []string
 	r.e.Ask = func(title, body string, tags ...string) (int64, error) { asked = append(asked, title); return 50, nil }
-	r.db.Exec("UPDATE agent_state SET worktree = ?, extra_worktrees = NULL WHERE agent = 'bob'", wt["done"])
+	r.db.Exec("UPDATE agent_state SET worktree = ?, extra_worktrees = NULL WHERE agent = ?", wt["done"], bob)
 	moved := filepath.Join(filepath.Dir(main), "next")
 	for _, step := range []string{wt["ahead"], wt["shared"], moved} { // done -> ahead -> shared -> next
-		if err := db.SetTerminal(r.db, "bob", "", step); err != nil {
+		if err := db.SetTerminal(r.db, bob, "", step); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -429,8 +442,9 @@ func TestAWorktreeAnAgentLeftForAnotherIsJudged(t *testing.T) {
 func TestAnAgentInTheRepositorysOwnCheckoutIsDeletedAndTheCheckoutStays(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
+	bob := r.who("bob")
 	main, _, _ := bobsWorktrees(t, r)
-	r.db.Exec("UPDATE agent_state SET worktree = ?, extra_worktrees = NULL WHERE agent = 'bob'", main)
+	r.db.Exec("UPDATE agent_state SET worktree = ?, extra_worktrees = NULL WHERE agent = ?", main, bob)
 	if m := r.call("agent.retire", `{"agent":"bob","request_id":"c1"}`); m["result"] == nil {
 		t.Fatalf("%v", m)
 	}
