@@ -506,7 +506,7 @@ func TimeoutNotices(q Q, tid int64) (Notices, error) {
 // FounderAsked is whether task tid has an ask of the founder still open.
 func FounderAsked(q Q, tid int64) (bool, error) {
 	var one int
-	err := q.QueryRow("SELECT 1 FROM requests r JOIN task_requests l ON l.request_id = r.id WHERE l.task_id = ? AND r.target = ? "+
+	err := q.QueryRow("SELECT 1 FROM task_requests l CROSS JOIN requests r ON l.request_id = r.id WHERE l.task_id = ? AND r.target = ? "+
 		"AND COALESCE(r.kind, '') != 'say' AND r.state = 'queued' LIMIT 1", tid, Human).Scan(&one)
 	if err == sql.ErrNoRows {
 		return false, nil

@@ -253,5 +253,10 @@
   "version": 51,
   "name": "turn_memo",
   "additive": true
+ },
+ {
+  "version": 52,
+  "name": "requests_memo",
+  "additive": true
  }
 ]
