@@ -49,7 +49,7 @@ type rig struct {
 
 func (r *rig) setLive(agent string, on bool) {
 	r.liveMu.Lock()
-	r.live[agent] = on
+	r.live[r.who(agent)] = on
 	r.liveMu.Unlock()
 }
 
@@ -100,11 +100,14 @@ func newRig(t *testing.T) *rig {
 	}
 	t.Cleanup(func() { store.ForgetShared(filepath.Join(home, "db.sqlite")) })
 	s := rpc.NewServer(auth{}, "x", store.LatestVersion(), "local", func(string, ...any) {})
-	s.DB = d
+	s.DB, s.Who = d, r.who
 	Register(s, r.e)
 	r.srv = s
 	return r
 }
+
+// who is a word's key, as the daemon's server resolves it.
+func (r *rig) who(word string) string { return paths.WhoKey(r.home, word) }
 
 func (r *rig) call(method, params string) map[string]any {
 	return r.callHello(`{"client":"t","protocol":1,"key":"founder"}`, method, params)
@@ -121,8 +124,8 @@ func (r *rig) callAs(agent, method, params string) map[string]any {
 	r.t.Helper()
 	was := r.srv
 	defer func() { r.srv = was }()
-	s := rpc.NewServer(agentAuth{agent}, "x", store.LatestVersion(), "local", func(string, ...any) {})
-	s.DB = r.db
+	s := rpc.NewServer(agentAuth{r.who(agent)}, "x", store.LatestVersion(), "local", func(string, ...any) {})
+	s.DB, s.Who = r.db, r.who
 	Register(s, r.e)
 	r.srv = s
 	return r.callHello(`{"client":"t","protocol":1}`, method, params)
@@ -144,7 +147,7 @@ func (r *rig) callHello(hello, method, params string) map[string]any {
 	go func() {
 		if r.device != "" {
 			s := rpc.NewServer(auth{}, "x", store.LatestVersion(), "network", func(string, ...any) {})
-			s.DB, s.Net = r.db, phone{r.device}
+			s.DB, s.Net, s.Who = r.db, phone{r.device}, r.who
 			Register(s, r.e)
 			s.ServeNet(rpc.NewLineTransport(sv), "127.0.0.1", func() { sv.Close() })
 		} else {
@@ -252,9 +255,13 @@ func (r *rig) propose(id string, fields ...string) (*Prop, int64) {
 	p := &Prop{}
 	p.set("id", id)
 	for i := 0; i < len(fields); i += 2 {
-		p.set(fields[i], fields[i+1])
+		v := fields[i+1]
+		if fields[i] == "agent" {
+			v = r.who(v) // a proposal names its agent by key
+		}
+		p.set(fields[i], v)
 	}
-	p.set("requested_by", "alice")
+	p.set("requested_by", r.who("alice"))
 	p.set("why", "because")
 	p.set("created", int64(1000))
 	p.set("state", "proposed")
@@ -497,11 +504,11 @@ func TestRetireArchivesTheFolderAndRenameMovesTheNameAndItsRows(t *testing.T) {
 	}
 	idle = true
 	r.e.SweepHeld(ports) // at its prompt: closed, applied on the next look
-	if !reflect.DeepEqual(closed, []string{"bob"}) || r.state("aaaa0005") != "applying" {
+	if !reflect.DeepEqual(closed, []string{r.who("bob")}) || r.state("aaaa0005") != "applying" {
 		t.Fatalf("closed at its prompt: %v %s", closed, r.state("aaaa0005"))
 	}
 	r.e.SweepHeld(ports)
-	if r.state("aaaa0005") != "applied" || !reflect.DeepEqual(started, []string{"robert"}) {
+	if r.state("aaaa0005") != "applied" || !reflect.DeepEqual(started, []string{r.who("robert")}) {
 		t.Fatalf("applied, and the agent started under its new name: %s %v", r.state("aaaa0005"), started)
 	}
 	if m := answer(); m["result"] == nil || !strings.Contains(m["result"].(map[string]any)["said"].(string), "robert") {
@@ -884,7 +891,7 @@ func TestAnOutcomeWakesTheIdleProposerAndOnlyNoticesTheOthersNamed(t *testing.T)
 	p, id := r.propose("aaaa0041", "kind", "schedule", "agent", "bob", "set.action", "add", "set.cron", "0 9 * * *", "set.message", "m")
 	r.decide(id, "approve", p.subject(), "w1")
 	r.e.Say.Wait()
-	if got := r.started.list(); !slices.Equal(got, []string{"alice"}) {
+	if got := r.started.list(); !slices.Equal(got, []string{r.who("alice")}) {
 		t.Fatalf("the closed proposer is started at once, nobody else: %q", got)
 	}
 	owed, err := dbpkg.UndeliveredFor(r.db, "alice")
@@ -1106,7 +1113,7 @@ func TestTheFoundersOwnAddIsAppliedAtOnce(t *testing.T) {
 	if got := r.e.decisionOf(id); got == nil || got["call"] != "approved" {
 		t.Fatalf("the approval is on record: %v", got)
 	}
-	if !slices.Contains(paths.ListAgents(r.home), "carol") {
+	if !slices.Contains(paths.ListAgents(r.home), r.who("carol")) {
 		t.Fatal("registered")
 	}
 	if v := r.e.ProposalView(id); v == nil || v["state"] != "approved" || v["requested_by"] != "p1" || v["note"] != nil {
@@ -1189,7 +1196,7 @@ func TestAHeldRenameWhoseStartIsHeldIsAppliedAndStartsByItself(t *testing.T) {
 	}
 	var started []string
 	r.sweepEnded(func(a string) (bool, string) { started = append(started, a); return true, "" })
-	if !slices.Equal(started, []string{"robert"}) || r.followUp("aaaa000b") != nil {
+	if !slices.Equal(started, []string{r.who("robert")}) || r.followUp("aaaa000b") != nil {
 		t.Fatalf("started %v, follow-up %v", started, r.followUp("aaaa000b"))
 	}
 }
@@ -1545,7 +1552,7 @@ func TestAgentSetKeepsWhoMadeTheChange(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
 	by := func() string {
-		v, _, err := dbpkg.Meta(r.db, dbpkg.SettingsByMeta("alice"))
+		v, _, err := dbpkg.Meta(r.db, dbpkg.SettingsByMeta(r.who("alice")))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1554,7 +1561,7 @@ func TestAgentSetKeepsWhoMadeTheChange(t *testing.T) {
 	if res := r.call("agent.set", `{"agent":"alice","values":{"model":"opus"},"request_id":"b1"}`); res["result"] == nil || by() != dbpkg.Human {
 		t.Fatalf("%v %q", res, by())
 	}
-	if res := r.callAs("alice", "agent.set", `{"agent":"alice","values":{"effort":"high"},"request_id":"b2"}`); res["result"] == nil || by() != "alice" {
+	if res := r.callAs("alice", "agent.set", `{"agent":"alice","values":{"effort":"high"},"request_id":"b2"}`); res["result"] == nil || by() != r.who("alice") {
 		t.Fatalf("%v %q", res, by())
 	}
 }
@@ -1565,7 +1572,7 @@ func TestAgentSetKeepsTheRestartModeOfItsChange(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
 	mode := func() string {
-		v, _, err := dbpkg.Meta(r.db, dbpkg.SettingsRestartMeta("alice"))
+		v, _, err := dbpkg.Meta(r.db, dbpkg.SettingsRestartMeta(r.who("alice")))
 		if err != nil {
 			t.Fatal(err)
 		}
