@@ -13,6 +13,7 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/kit/actor"
+	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/taskboard/supervisor"
 )
 
@@ -192,7 +193,7 @@ func TestAQueuedTaskGoesToAFreeOwnerAndTheReplySaysSo(t *testing.T) {
 	tid, _ := db.NewTask(d.db, "job", key(t, d, "bob"), key(t, d, "alice"), 0, db.DefaultPriority, "", 0, "")
 	f := pipeTo(t, d, "k")
 	said := result(t, f.ask(`{"jsonrpc":"2.0","id":2,"method":"task.queue","params":{"tasks":[1],"request_id":"q1"}}`))["said"]
-	if want := "task T1 is queued (" + actor.OwnerKey + ") - " + key(t, d, "bob") + " was free, so it went out now"; said != want {
+	if want := "task T1 is queued (" + addr.Ref(actor.OwnerKey) + ") - " + addr.Ref(key(t, d, "bob")) + " was free, so it went out now"; said != want {
 		t.Fatalf("%v", said)
 	}
 	if got := agents.said(key(t, d, "bob")); !strings.Contains(got, "job") {
@@ -202,7 +203,7 @@ func TestAQueuedTaskGoesToAFreeOwnerAndTheReplySaysSo(t *testing.T) {
 	// the owner is busy now: the second is queued behind the first and the reply says only that
 	db.NewTask(d.db, "second", key(t, d, "bob"), key(t, d, "alice"), 0, db.DefaultPriority, "", 0, "")
 	said = result(t, f.ask(`{"jsonrpc":"2.0","id":3,"method":"task.queue","params":{"tasks":[2],"request_id":"q2"}}`))["said"]
-	if !strings.HasPrefix(said.(string), "task T2 is queued ("+actor.OwnerKey+")") || strings.Contains(said.(string), "went out") {
+	if !strings.HasPrefix(said.(string), "task T2 is queued ("+addr.Ref(actor.OwnerKey)+")") || strings.Contains(said.(string), "went out") {
 		t.Fatalf("%v", said)
 	}
 }

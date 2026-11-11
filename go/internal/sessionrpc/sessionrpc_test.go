@@ -13,6 +13,7 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team/teamtest"
+	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/kit/lock"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/storetest"
@@ -387,7 +388,7 @@ func TestUnstallOfAnAgentThatIsNotStalledLeavesItsDialogMark(t *testing.T) {
 	r := newRig(t)
 	seedStall(t, r.e.DB, r.ann, "RUNNING")
 	cleared, said, err := r.e.Unstall(r.ann)
-	if err != nil || cleared || said != r.ann+": not STALLED (RUNNING)" {
+	if err != nil || cleared || said != addr.Ref(r.ann)+": not STALLED (RUNNING)" {
 		t.Fatalf("%v %q %v", cleared, said, err)
 	}
 	if got, want := cursorNames(t, r.e.DB), "dialog_since:"+r.ann+",dialog_since:bob,dialog_title:"+r.ann; got != want {
@@ -424,7 +425,7 @@ func TestAgentUnstallClearsAStallForTheFounderAndRefusesAnAgentThatIsNotStalled(
 	c := r.dial(false)
 	seedStall(t, r.e.DB, r.ann, "RUNNING")
 	m := c.call("agent.unstall", map[string]any{"agent": "ann", "request_id": rid("u1")})
-	if refused(m) != "state" || m["error"].(map[string]any)["message"] != r.ann+": not STALLED (RUNNING)" {
+	if refused(m) != "state" || m["error"].(map[string]any)["message"] != addr.Ref(r.ann)+": not STALLED (RUNNING)" {
 		t.Fatalf("%v", m)
 	}
 	r.e.DB.Exec("UPDATE agent_state SET state = 'STALLED' WHERE agent = ?", r.ann)

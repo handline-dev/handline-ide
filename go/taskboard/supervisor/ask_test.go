@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/addr"
 )
 
 func TestAskQueuesAndTellsOnlyAfterTheCommit(t *testing.T) {
@@ -74,7 +75,7 @@ func TestACycleInAChainIsRaisedToTheFounderButASayBackIsNot(t *testing.T) {
 		t.Fatalf("%+v", out)
 	}
 	out.Finish()
-	if ids, _ := db.OpenDecisionCardIDs(r.DB, r.k("bob"), "[stopped] "+r.k("bob")+" -> "+r.k("alice")+" was stopped: cycle", nil); len(ids) != 1 {
+	if ids, _ := db.OpenDecisionCardIDs(r.DB, r.k("bob"), "[stopped] "+addr.Ref(r.k("bob"))+" -> "+addr.Ref(r.k("alice"))+" was stopped: cycle", nil); len(ids) != 1 {
 		t.Fatalf("the runaway is not on the founder's board: %v", ids)
 	}
 	if reply, err := r.Say(r.DB, SayIn{Target: r.k("alice"), Body: "back to you", Requester: r.k("bob"), ParentID: first.RID}); err != nil || !reply.OK {

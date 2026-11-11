@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/handline/handline/go/kit/addr"
+
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
 	"github.com/handline/handline/go/data/team"
@@ -89,7 +91,7 @@ func (e *Env) report(q db.Q, after *After, agent, text, reason string) int64 {
 }
 
 func (e *Env) stopRunaway(q db.Q, after *After, requester, target, body, files, chainID string, depth, parentID int64, reason string) int64 {
-	text := fmt.Sprintf("[stopped] %s -> %s was stopped: %s\n\nOriginal request:\n%s", requester, target, reason, body)
+	text := fmt.Sprintf("[stopped] %s -> %s was stopped: %s\n\nOriginal request:\n%s", addr.Ref(requester), addr.Ref(target), reason, body)
 	return e.raiseDecision(q, after, requester, text, reason, files, chainID, depth, parentID, db.KV{K: "blocked_target", V: target})
 }
 
@@ -100,7 +102,7 @@ func cycleInChain(q db.Q, chainID, requester, target, kind string) string {
 	}
 	for _, r := range must(db.ChainMembers(q, chainID)) {
 		if r.Requester == target && r.Target == requester {
-			return fmt.Sprintf("cycle: %s already asked %s in this chain (request %s), and this would send it straight back", target, requester, db.MsgName(q, r.ID))
+			return fmt.Sprintf("cycle: %s already asked %s in this chain (request %s), and this would send it straight back", addr.Ref(target), addr.Ref(requester), db.MsgName(q, r.ID))
 		}
 	}
 	return ""

@@ -42,11 +42,11 @@ type Env struct {
 // Register adds file.read, file.write and the doc.* methods, the founder's (which a paired device is), and files.list, a member's.
 func Register(s *rpc.Server, e *Env) {
 	s.Register("files.list", rpc.Method{Handler: e.list})
-	s.Register("file.read", rpc.Method{Handler: e.read})
+	s.Register("file.read", rpc.Method{Verbatim: true, Handler: e.read})
 	s.Register("file.write", rpc.Method{Handler: e.write})
-	s.Register("doc.open", rpc.Method{Handler: e.openDoc})
-	s.Register("doc.push", rpc.Method{Unkept: true, OwnEvent: true, Handler: e.pushDoc}) // a retry is judged again: collab pulls
-	s.Register("doc.pull", rpc.Method{Handler: e.pullDoc})
+	s.Register("doc.open", rpc.Method{Verbatim: true, Handler: e.openDoc})
+	s.Register("doc.push", rpc.Method{Verbatim: true, Unkept: true, OwnEvent: true, Handler: e.pushDoc}) // a retry is judged again: collab pulls
+	s.Register("doc.pull", rpc.Method{Verbatim: true, Handler: e.pullDoc})
 	s.Register("doc.close", rpc.Method{Handler: e.closeDocRPC})
 }
 

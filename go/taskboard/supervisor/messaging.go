@@ -3,6 +3,8 @@ package supervisor
 import (
 	"fmt"
 
+	"github.com/handline/handline/go/kit/addr"
+
 	"github.com/handline/handline/go/agentctl/delivery"
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
@@ -59,11 +61,11 @@ func (e *Env) SendMessage(q db.Q, agent, text string) (ok bool, msg string, err 
 			if sent, why = e.deliverRow(q, agent, rowID, text); sent {
 				return true, agent + ": woken and typed", nil
 			}
-			return true, fmt.Sprintf("%s: queued - woken, will type once free (%s)", agent, why), nil
+			return true, fmt.Sprintf("%s: queued - woken, will type once free (%s)", addr.Ref(agent), why), nil
 		}
-		return true, fmt.Sprintf("%s: queued - not woken (%s)", agent, wakeWhy), nil
+		return true, fmt.Sprintf("%s: queued - not woken (%s)", addr.Ref(agent), wakeWhy), nil
 	}
-	return true, fmt.Sprintf("%s: queued - %s", agent, why), nil
+	return true, fmt.Sprintf("%s: queued - %s", addr.Ref(agent), why), nil
 }
 
 // TellNow tells an agent about request rid at once, the way SendMessage types a line: the notice goes out even mid-turn, and only a screen

@@ -80,7 +80,7 @@ func TestABodyEditIsToldToTheAgentOnTop(t *testing.T) {
 	r, tid := turnRig(t)
 	r.beginOnTop(tid)
 	r.turnCall("bob", "task.edit", fmt.Sprintf(`{"task":%d,"body":"check the cache too","request_id":"e1"}`, tid))
-	if !strings.Contains(r.term.last(), fmt.Sprintf("T%d body edited by bob: check the cache too", tid)) {
+	if !strings.Contains(r.term.last(), fmt.Sprintf("T%d body edited by @bob: check the cache too", tid)) {
 		t.Fatalf("alice is not told: %v", r.term.typed)
 	}
 	r.agentUp("erin")
@@ -89,7 +89,7 @@ func TestABodyEditIsToldToTheAgentOnTop(t *testing.T) {
 	r.beginOnTop(founders)
 	r.term.typed = nil
 	r.turnCall("human", "task.edit", fmt.Sprintf(`{"task":%d,"body":"and the docs","request_id":"e2"}`, founders))
-	if len(r.term.typed) != 1 || !strings.Contains(r.term.last(), fmt.Sprintf("T%d body edited by human: and the docs", founders)) {
+	if len(r.term.typed) != 1 || !strings.Contains(r.term.last(), fmt.Sprintf("T%d body edited by @human: and the docs", founders)) {
 		t.Fatalf("erin is not told: %v", r.term.typed)
 	}
 }
@@ -164,7 +164,7 @@ func TestADiscardStopsTheAgentOnTopAndMovesItOn(t *testing.T) {
 	}
 	told := false
 	for _, s := range r.term.typed {
-		told = told || strings.Contains(s, fmt.Sprintf("T%d discarded by carol - stop work on it", tid))
+		told = told || strings.Contains(s, fmt.Sprintf("T%d discarded by @carol - stop work on it", tid))
 	}
 	if !told {
 		t.Fatalf("alice is told to stop: %v", r.term.typed)

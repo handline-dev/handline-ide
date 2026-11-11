@@ -13,7 +13,7 @@ import (
 func Register(srv *rpc.Server, s *Store, emit Emit) {
 	srv.Register("attachment.put", rpc.Method{Handler: s.put})
 	srv.Register("attachment.folder", rpc.Method{Handler: s.folder})
-	srv.Register("attachment.get", rpc.Method{Handler: s.get})
+	srv.Register("attachment.get", rpc.Method{Verbatim: true, Handler: s.get})
 	srv.Register("attachment.remove", rpc.Method{Unkept: true, OwnEvent: true, Handler: s.removeMethod(emit)})
 }
 

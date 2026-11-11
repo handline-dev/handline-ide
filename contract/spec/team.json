@@ -4,21 +4,27 @@
    "TeamAgent": {
     "type": "object",
     "properties": {
+     "key": {
+      "type": "string",
+      "description": "The agent's key (a17)."
+     },
      "name": {
-      "$ref": "#/components/schemas/AgentName"
+      "type": "string",
+      "description": "The word the caller uses for this agent: its name in the caller's workspace, another workspace's lead by that workspace's name, any other agent as name (workspace)."
      },
      "role": {
       "type": "string"
      },
-     "parent": {
+     "reports_to": {
       "oneOf": [
        {
-        "$ref": "#/components/schemas/AgentName"
+        "type": "string"
        },
        {
         "type": "null"
        }
-      ]
+      ],
+      "description": "The key of the agent or person it reports to; null for none."
      },
      "role_file": {
       "type": "object",
@@ -66,9 +72,10 @@
      }
     },
     "required": [
+     "key",
      "name",
      "role",
-     "parent",
+     "reports_to",
      "role_file",
      "base_file"
     ]
@@ -687,7 +694,7 @@
   },
   {
    "name": "team.get",
-   "summary": "Agents, roles, allowed edges, role and base file metadata.",
+   "summary": "The caller's team: the agents of its workspace (all of them for a person outside every workspace folder, as the app is), the people, and the other workspaces. Each name is the word the caller uses for that key.",
    "paramStructure": "by-name",
    "params": [],
    "result": {
@@ -701,28 +708,61 @@
         "$ref": "#/components/schemas/TeamAgent"
        }
       },
-      "edges": {
+      "people": {
        "type": "array",
        "items": {
         "type": "object",
         "properties": {
-         "from": {
+         "key": {
           "type": "string"
          },
-         "to": {
-          "type": "string"
+         "name": {
+          "type": "string",
+          "description": "The word the caller uses for this person: human for its owner or itself, else the handle or display name."
          }
         },
         "required": [
-         "from",
-         "to"
+         "key",
+         "name"
+        ]
+       }
+      },
+      "workspaces": {
+       "type": "array",
+       "description": "The workspaces other than the caller's own.",
+       "items": {
+        "type": "object",
+        "properties": {
+         "key": {
+          "type": "string"
+         },
+         "name": {
+          "type": "string"
+         },
+         "lead": {
+          "oneOf": [
+           {
+            "type": "string"
+           },
+           {
+            "type": "null"
+           }
+          ],
+          "description": "Its lead agent's key, which receives what is sent to the workspace."
+         }
+        },
+        "required": [
+         "key",
+         "name",
+         "lead"
         ]
        }
       }
      },
      "required": [
       "agents",
-      "edges"
+      "people",
+      "workspaces"
      ]
     }
    },

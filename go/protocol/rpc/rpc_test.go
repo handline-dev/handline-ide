@@ -489,8 +489,8 @@ func TestWhoParamsAreResolvedBeforeTheHandler(t *testing.T) {
 	}
 }
 
-// A reply to hl is written out for its reader: a key as the name, a <@key> in text as @name, and a field named key kept. The app's
-// reply keeps keys, and writing one out leaves the value the handler keeps as it was.
+// A reply to hl is written out for its reader: a who field's key as the name and a <@key> in text as @name; a Verbatim method's
+// content stays as it is. The app's reply keeps keys, and writing one out leaves the value the handler keeps as it was.
 func TestARepliesWhosAreWrittenOutForHlOnly(t *testing.T) {
 	db := storetest.Open(t)
 	for _, q := range []string{
@@ -503,8 +503,10 @@ func TestARepliesWhosAreWrittenOutForHlOnly(t *testing.T) {
 	}
 	srv := NewServer(fakeAuth{key: "k"}, "abc1234", 7, "local", func(string, ...any) {})
 	srv.DB, srv.Names = db, db
-	kept := map[string]any{"from": "a1", "key": "a1", "text": "ask <@a1>", "who": []any{"p1"}}
+	kept := map[string]any{"from": "a1", "key": "a1", "text": "ask <@a1>", "who": []any{"p1"},
+		"by_agent": map[string]any{"a1": 1}, "clash": map[string]any{"a1": 1, "designer": 2}}
 	srv.Register("test.read", Method{Role: "owner", Read: true, Handler: func(*Conn, map[string]any) (any, error) { return kept, nil }})
+	srv.Register("test.file", Method{Role: "owner", Read: true, Verbatim: true, Handler: func(*Conn, map[string]any) (any, error) { return kept, nil }})
 	srv.Register("test.fail", Method{Role: "owner", Read: true, Handler: func(*Conn, map[string]any) (any, error) {
 		return nil, NotFoundError("no task for <@a1>")
 	}})
@@ -516,8 +518,14 @@ func TestARepliesWhosAreWrittenOutForHlOnly(t *testing.T) {
 	if got["from"] != "designer" || got["key"] != "a1" || got["text"] != "ask @designer" || got["who"].([]any)[0] != "human" {
 		t.Fatalf("hl reads %v", got)
 	}
+	if by, clash := got["by_agent"].(map[string]any), got["clash"].(map[string]any); by["designer"] == nil || clash["a1"] == nil || len(clash) != 2 {
+		t.Fatalf("a map by who is by name, unless a name is taken: %v %v", by, clash)
+	}
 	if e := read("hl", "test.fail")["error"].(map[string]any); e["message"] != "no task for @designer" {
 		t.Fatalf("hl's error %v", e)
+	}
+	if got := read("hl", "test.file")["result"].(map[string]any); got["from"] != "a1" || got["text"] != "ask <@a1>" {
+		t.Fatalf("hl reads content as it is: %v", got)
 	}
 	if got := read("app", "test.read")["result"].(map[string]any); got["from"] != "a1" || got["text"] != "ask <@a1>" {
 		t.Fatalf("the app reads %v", got)

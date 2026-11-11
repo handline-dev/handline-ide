@@ -2,12 +2,13 @@ package reads
 
 import (
 	"encoding/json"
-	"github.com/handline/handline/go/scheduler/settings"
-	"github.com/handline/handline/go/scheduler/worktreepaths"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"github.com/handline/handline/go/scheduler/settings"
+	"github.com/handline/handline/go/scheduler/worktreepaths"
 
 	"github.com/handline/handline/go/accounts/usage"
 	"github.com/handline/handline/go/data/db"

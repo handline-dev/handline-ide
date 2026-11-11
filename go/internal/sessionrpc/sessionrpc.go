@@ -16,6 +16,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/handline/handline/go/kit/addr"
+
 	"github.com/handline/handline/go/agentctl/term"
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
@@ -124,7 +126,7 @@ func Register(s *rpc.Server, e *Env) {
 		s.Register("agent.fold", rpc.Method{Handler: e.fold})
 	}
 	if e.Launch != nil {
-		s.Register("session.launch_prepare", rpc.Method{Handler: e.launchPrepare})
+		s.Register("session.launch_prepare", rpc.Method{Verbatim: true, Handler: e.launchPrepare})
 	}
 	if e.InterruptTerminal != nil {
 		s.Register("session.interrupt", rpc.Method{Handler: e.interrupt})
@@ -271,7 +273,7 @@ func (e *Env) Unstall(agent string) (cleared bool, said string, err error) {
 		if row != nil {
 			state = row.State
 		}
-		return false, fmt.Sprintf("%s: not STALLED (%s)", agent, state), nil
+		return false, fmt.Sprintf("%s: not STALLED (%s)", addr.Ref(agent), state), nil
 	}
 	if err := db.ClearStall(e.DB, agent, "cleared by a human"); err != nil {
 		return false, "", err
@@ -438,7 +440,7 @@ func (e *Env) terminalClose(c *rpc.Conn, params map[string]any) (any, error) {
 			return nil, rpc.Refused(agent+" has a session running; stop it first", "state", "")
 		}
 		if ok, why := e.CloseTerminal(handle); !ok {
-			return nil, rpc.Refused(fmt.Sprintf("%s: its terminal would not close: %s", agent, why), "state", "")
+			return nil, rpc.Refused(fmt.Sprintf("%s: its terminal would not close: %s", addr.Ref(agent), why), "state", "")
 		}
 		if err := db.SetTerminal(e.DB, agent, "", row.Worktree.String); err != nil {
 			return nil, err

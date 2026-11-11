@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/handline/handline/go/kit/addr"
+
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/pyjson"
@@ -111,7 +113,7 @@ func (e *Env) scheduleAdd(c *rpc.Conn, p map[string]any) (any, error) {
 	if err := e.writeSchedules(agent, next); err != nil {
 		return nil, err
 	}
-	return wrote(c, fmt.Sprintf("%s: scheduled %s", agent, item.Cron), map[string]any{"schedule": cronspec.ID(agent, item)})
+	return wrote(c, fmt.Sprintf("%s: scheduled %s", addr.Ref(agent), item.Cron), map[string]any{"schedule": cronspec.ID(agent, item)})
 }
 
 func (e *Env) scheduleEdit(c *rpc.Conn, p map[string]any) (any, error) {
@@ -175,7 +177,7 @@ func (e *Env) scheduleEdit(c *rpc.Conn, p map[string]any) (any, error) {
 			return nil, err
 		}
 	}
-	return wrote(c, fmt.Sprintf("%s: schedule is now %s", target, item.Cron), map[string]any{"schedule": cronspec.ID(target, item)})
+	return wrote(c, fmt.Sprintf("%s: schedule is now %s", addr.Ref(target), item.Cron), map[string]any{"schedule": cronspec.ID(target, item)})
 }
 
 func (e *Env) removeSchedule(agent string, index int) error {
@@ -197,5 +199,5 @@ func (e *Env) scheduleRemove(c *rpc.Conn, p map[string]any) (any, error) {
 	if err := e.removeSchedule(agent, index); err != nil {
 		return nil, err
 	}
-	return wrote(c, fmt.Sprintf("%s: removed %s", agent, item.Cron), nil)
+	return wrote(c, fmt.Sprintf("%s: removed %s", addr.Ref(agent), item.Cron), nil)
 }

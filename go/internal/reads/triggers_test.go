@@ -2,9 +2,10 @@ package reads
 
 import (
 	"errors"
-	"github.com/handline/handline/go/data/team/teamtest"
 	"reflect"
 	"testing"
+
+	"github.com/handline/handline/go/data/team/teamtest"
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/protocol/rpc"

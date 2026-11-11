@@ -1,10 +1,12 @@
 package reads
 
 import (
+	"database/sql"
 	"os"
 	"path/filepath"
 
-	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/kit/actor"
+	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/protocol/rpc"
 )
@@ -18,24 +20,88 @@ func fileInfo(path string) map[string]any {
 	return map[string]any{"path": path, "updated": updated}
 }
 
-// teamGet is team.get: every agent with its parent and files. Rows that cannot be read are no parents.
+// teamGet is team.get: the agents of the caller's workspace (every agent for a person outside every workspace folder: the app), each
+// with who it reports to and its files, the people, and the other workspaces. Each name is the caller's word for that key (addr.Name).
 func (e *Env) teamGet(c *rpc.Conn, params map[string]any) (any, error) {
-	table, err := team.LoadTeam(e.Home)
+	r, err := addr.Of(e.DB, c.Caller.Key, c.Cwd())
 	if err != nil {
-		table = nil
+		return nil, err
+	}
+	all := r.Workspace == 0 && actor.KindOf(r.Key) != actor.Agent
+	rows, err := e.DB.Query("SELECT id, COALESCE(reports_to, '') FROM agents WHERE ? OR workspace = ? ORDER BY workspace, name", all, r.Workspace)
+	if err != nil {
+		return nil, err
+	}
+	type agentRow struct{ key, reportsTo string }
+	var list []agentRow
+	for rows.Next() {
+		var id int64
+		var to string
+		if err := rows.Scan(&id, &to); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		list = append(list, agentRow{actor.Key(actor.Agent, id), to})
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	agents := []any{}
-	for _, name := range e.listAgents() {
-		var parent any
-		if table != nil {
-			if p := table.SupervisorOf(name); p != "" {
-				parent = p
-			}
+	for _, a := range list {
+		var to any
+		if a.reportsTo != "" {
+			to = a.reportsTo
 		}
-		dir := paths.AgentDir(e.Home, name)
-		agents = append(agents, map[string]any{"name": name, "role": e.roleLine(name), "parent": parent,
+		dir := paths.AgentDir(e.Home, a.key)
+		agents = append(agents, map[string]any{"key": a.key, "name": addr.Name(e.DB, r, a.key), "role": e.roleLine(a.key), "reports_to": to,
 			"role_file": fileInfo(filepath.Join(dir, "ROLE.md")), "base_file": fileInfo(filepath.Join(dir, "base.md"))})
 	}
-	// Routing follows workspaces now, with no edges: the field stays empty until the contract drops it (base-v2 1e).
-	return map[string]any{"agents": agents, "edges": []any{}}, nil
+	people := []any{}
+	ids, err := e.DB.Query("SELECT id FROM people ORDER BY id")
+	if err != nil {
+		return nil, err
+	}
+	for ids.Next() {
+		var id int64
+		if err := ids.Scan(&id); err != nil {
+			ids.Close()
+			return nil, err
+		}
+		k := actor.Key(actor.Person, id)
+		people = append(people, map[string]any{"key": k, "name": addr.Name(e.DB, r, k)})
+	}
+	ids.Close()
+	if err := ids.Err(); err != nil {
+		return nil, err
+	}
+	workspaces := []any{}
+	if err := eachRow(e.DB, "SELECT id, COALESCE(lead, 0) FROM workspaces WHERE id != ? ORDER BY name", func(id, lead int64) {
+		var l any
+		if lead != 0 {
+			l = actor.Key(actor.Agent, lead)
+		}
+		k := actor.Key(actor.Workspace, id)
+		workspaces = append(workspaces, map[string]any{"key": k, "name": addr.Name(e.DB, r, k), "lead": l})
+	}, r.Workspace); err != nil {
+		return nil, err
+	}
+	return map[string]any{"agents": agents, "people": people, "workspaces": workspaces}, nil
+}
+
+// eachRow calls f with each row of query's two integer columns.
+func eachRow(q *sql.DB, query string, f func(a, b int64), args ...any) error {
+	rows, err := q.Query(query, args...)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var a, b int64
+		if err := rows.Scan(&a, &b); err != nil {
+			return err
+		}
+		f(a, b)
+	}
+	return rows.Err()
 }

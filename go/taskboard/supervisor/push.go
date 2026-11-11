@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/handline/handline/go/kit/addr"
+
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/actor"
 )
@@ -19,7 +21,7 @@ func (e *Env) Push(q db.Q, target string, rid int64) (out string) {
 		return "it is on the founder's screen (`hl`)"
 	}
 	if !e.registered(target) {
-		return fmt.Sprintf("%s is not registered with Handline - nothing can be started for it", target)
+		return fmt.Sprintf("%s is not registered with Handline - nothing can be started for it", addr.Ref(target))
 	}
 	return e.PushHere(q, target, rid)
 }
@@ -36,7 +38,7 @@ func (e *Env) PushHere(q db.Q, target string, rid int64) (out string) {
 		if told == "typed" || told == "sent" { // sent: written to a structured agent's session
 			return "  delivered to " + target
 		}
-		return fmt.Sprintf("  %s: %s", target, told)
+		return fmt.Sprintf("  %s: %s", addr.Ref(target), told)
 	}
 	var said []string
 	row := stateOf(q, target)
@@ -48,7 +50,7 @@ func (e *Env) PushHere(q db.Q, target string, rid int64) (out string) {
 	}
 	if row != nil && row.ClosedAt.Valid && row.ClosedAt.Int64 != 0 {
 		_, why := e.Lifecycle.WakeAgent(q, target)
-		said = append(said, fmt.Sprintf("%s: %s", target, why))
+		said = append(said, fmt.Sprintf("%s: %s", addr.Ref(target), why))
 	}
 	if sentQ := must(e.DeliverQueued(q, target)); sentQ {
 		said = append(said, "delivered to "+target)

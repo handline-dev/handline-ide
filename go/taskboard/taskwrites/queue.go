@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/handline/handline/go/kit/addr"
+
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/gitrun"
@@ -89,7 +91,9 @@ func taskIDs(p map[string]any, key string) ([]int64, error) {
 	return out, nil
 }
 
-func draftWhy(tid int64, by string) string { return fmt.Sprintf("T%d made draft by %s", tid, by) }
+func draftWhy(tid int64, by string) string {
+	return fmt.Sprintf("T%d made draft by %s", tid, addr.Ref(by))
+}
 
 // queuedSet is what setQueued did to one task: its message, the phrase naming the memo a park left ("" for none), the notices of it, and
 // the delivery requests a draft withdrew.
@@ -178,7 +182,7 @@ func setQueued(tx *sql.Tx, home string, tid int64, by string, queued bool, kept 
 	if err := addEvent(tx, by, kind, kv{"task_id", tid}, kv{"after_request", after}); err != nil {
 		return queuedSet{}, err
 	}
-	msg, memo := fmt.Sprintf("task T%d is %s (%s)", tid, word, by), ""
+	msg, memo := fmt.Sprintf("task T%d is %s (%s)", tid, word, addr.Ref(by)), ""
 	// back to queued or draft: its time box starts over
 	if _, err := tx.Exec("UPDATE tasks SET timeout_at = NULL, timeout_left = NULL WHERE id = ?", tid); err != nil {
 		return queuedSet{}, err
@@ -309,7 +313,7 @@ func workKept(q *sql.DB, tid int64) (string, error) {
 	if changed {
 		has = append(has, "uncommitted changes")
 	}
-	return fmt.Sprintf("parked while %s worked it: branch %s @ %s in %s (%s) - resume from there", agent,
+	return fmt.Sprintf("parked while %s worked it: branch %s @ %s in %s (%s) - resume from there", addr.Ref(agent),
 		textsafe.Oneline(strings.TrimSpace(branch.Stdout)), strings.TrimSpace(head.Stdout), wt, strings.Join(has, ", ")), nil
 }
 

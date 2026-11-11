@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/handline/handline/go/kit/addr"
+
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/actor"
 )
@@ -88,7 +90,7 @@ func (e *Env) closeTell(q db.Q, rid int64, row *db.Request, verdict string) (tar
 		if typed {
 			said = append(said, target+" was told to stop")
 		} else {
-			said = append(said, fmt.Sprintf("%s could not be told now (%s); resolving %s is refused to it, so it cannot undo this", target, why, db.MsgName(q, rid)))
+			said = append(said, fmt.Sprintf("%s could not be told now (%s); resolving %s is refused to it, so it cannot undo this", addr.Ref(target), why, db.MsgName(q, rid)))
 		}
 	}
 	msg, err = e.AfterClose(q, rid, row, "rejected")

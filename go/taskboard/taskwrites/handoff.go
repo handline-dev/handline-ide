@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/handline/handline/go/kit/addr"
+
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/paths"
@@ -53,9 +55,9 @@ func handoffRefusal(t *task, to string, agents []string) string {
 	case to != actor.OwnerKey && !contains(agents, to):
 		return "no agent named " + to
 	case to == t.Acting:
-		return fmt.Sprintf("T%d is already %s's", t.ID, to)
+		return fmt.Sprintf("T%d is already %s's", t.ID, addr.Ref(to))
 	case to == t.Owner:
-		return fmt.Sprintf("T%d is %s's already, under its turns: pass or send back the turns above it (`hl task pass` or `hl task back`)", t.ID, to)
+		return fmt.Sprintf("T%d is %s's already, under its turns: pass or send back the turns above it (`hl task pass` or `hl task back`)", t.ID, addr.Ref(to))
 	}
 	return ""
 }
@@ -132,7 +134,7 @@ func handoffMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (an
 			if asked.Reask { // already on the founder's turn: it moved to this note, nothing is handed over
 				return accepted(fmt.Sprintf("T%d: %s", tid, msg), nil), nil
 			}
-			return accepted(fmt.Sprintf("T%d handed to %s: %s", tid, to, msg), nil), nil
+			return accepted(fmt.Sprintf("T%d handed to %s: %s", tid, addr.Ref(to), msg), nil), nil
 		})
 		if asked != nil && !asked.OK && asked.After != nil {
 			asked.After() // the refusal's writes stood: what follows them still runs
@@ -143,7 +145,7 @@ func handoffMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (an
 		if !asked.Reask {
 			h.After = asked.After
 			if tail := tell.HandedOver(h); tail != "" {
-				out["said"] = fmt.Sprintf("T%d handed to %s: %s\n%s", tid, to, msg, tail)
+				out["said"] = fmt.Sprintf("T%d handed to %s: %s\n%s", tid, addr.Ref(to), msg, tail)
 			}
 		}
 		if memo != 0 {
@@ -169,13 +171,13 @@ func handOff(tx *sql.Tx, tell Teller, tid int64, by, to, note string, agents []s
 	if in, err := db.InStack(tx, tid, to); err != nil {
 		return Handover{}, nil, err
 	} else if in {
-		return Handover{}, nil, refusal(fmt.Sprintf("%s already has a turn on T%d", to, tid))
+		return Handover{}, nil, refusal(fmt.Sprintf("%s already has a turn on T%d", addr.Ref(to), tid))
 	}
 	if tell == nil {
 		return Handover{}, nil, fmt.Errorf("task.handoff needs the supervisor to route its ask")
 	}
 	h := Handover{Task: tid, By: by, From: t.Acting, To: to, Title: t.Title}
-	asked, err := tell.TaskAsk(tx, AskReq{From: by, To: to, Kind: "task", System: system, Body: fmt.Sprintf("T%d handed to you by %s: %s\n\n%s", tid, by, t.Title, note),
+	asked, err := tell.TaskAsk(tx, AskReq{From: by, To: to, Kind: "task", System: system, Body: fmt.Sprintf("T%d handed to you by %s: %s\n\n%s", tid, addr.Ref(by), t.Title, note),
 		Within: func(rid int64) error {
 			h.RID = rid
 			return moveTask(tx, tell, &h, note)

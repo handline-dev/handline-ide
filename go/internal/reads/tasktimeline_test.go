@@ -3,8 +3,9 @@ package reads
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/handline/handline/go/data/team/teamtest"
 	"testing"
+
+	"github.com/handline/handline/go/data/team/teamtest"
 )
 
 func TestATasksTimelineIsEverythingThatHappenedOnItInOrder(t *testing.T) {

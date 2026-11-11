@@ -353,7 +353,7 @@
   {
    "name": "team.get.shape",
    "spec": "team.get",
-   "about": "Agents with their parent and files, and the allowed edges.",
+   "about": "The caller's agents with who they report to and their files, the people, and the other workspaces.",
    "as": "founder",
    "steps": [
     {
@@ -379,7 +379,10 @@
       "agents": {
        "$type": "array"
       },
-      "edges": {
+      "people": {
+       "$type": "array"
+      },
+      "workspaces": {
        "$type": "array"
       }
      }

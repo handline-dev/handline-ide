@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/handline/handline/go/kit/addr"
+
 	"github.com/handline/handline/go/agentctl/delivery"
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
@@ -164,7 +166,7 @@ func MarkDone(tx *sql.Tx, home, by string, in DoneIn) (*DoneResult, error) {
 		return nil, refusal(fmt.Sprintf("no task T%d", tid))
 	}
 	if t.DiscardedBy.Valid && t.DiscardedBy.String != "" {
-		return nil, refusal(fmt.Sprintf("task T%d is already discarded (%s)", tid, t.DiscardedBy.String))
+		return nil, refusal(fmt.Sprintf("task T%d is already discarded (%s)", tid, addr.Ref(t.DiscardedBy.String)))
 	}
 	if t.done() {
 		// a delivery left queued when the task ended some other way is settled here
@@ -187,7 +189,7 @@ func MarkDone(tx *sql.Tx, home, by string, in DoneIn) (*DoneResult, error) {
 	if ok, err := mayClose(tx, home, by, t); err != nil {
 		return nil, err
 	} else if !ok {
-		return nil, refusal(fmt.Sprintf("task T%d can only be marked done by its assignee (%s), owner (%s), its parent's owner, a lead of its team or the founder", tid, t.Owner, t.reporter()))
+		return nil, refusal(fmt.Sprintf("task T%d can only be marked done by its assignee (%s), owner (%s), its parent's owner, a lead of its team or the founder", tid, addr.Ref(t.Owner), addr.Ref(t.reporter())))
 	}
 	var mark, via string
 	switch {
@@ -277,7 +279,7 @@ func MarkDone(tx *sql.Tx, home, by string, in DoneIn) (*DoneResult, error) {
 
 // doneText is what a task's end says to whoever it tells: "T<n> done by <by>: <evidence on one line>".
 func doneText(tid int64, by, evidence string) string {
-	who := by
+	who := addr.Ref(by)
 	if by == actor.OwnerKey {
 		who = "the founder"
 	}
@@ -340,7 +342,7 @@ func openChildrenRefusal(tx *sql.Tx, tid int64, kids []int64) error {
 		if err != nil {
 			return err
 		}
-		lines = append(lines, fmt.Sprintf("  T%d  %s  %s  %s", id, state, t.Owner, t.Title))
+		lines = append(lines, fmt.Sprintf("  T%d  %s  %s  %s", id, state, addr.Ref(t.Owner), t.Title))
 		children = append(children, map[string]any{"task": id, "state": state, "assignee": t.Owner, "title": t.Title})
 	}
 	hint := fmt.Sprintf("close each: `hl task discard T%d \"<reason>\"` for one not needed (a duplicate of T%d, say), or its assignee's `hl task done T%d` for one finished", kids[0], tid, kids[0])

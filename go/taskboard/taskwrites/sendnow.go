@@ -6,6 +6,8 @@ import (
 	"slices"
 	"time"
 
+	"github.com/handline/handline/go/kit/addr"
+
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/protocol/rpc"
 )
@@ -55,6 +57,6 @@ func sendNow(c *rpc.Conn, p map[string]any) (any, error) {
 		if err := addEvent(tx, t.Owner, db.PausePassed, kv{"request_id", r.ID}, kv{"task_id", tid}); err != nil {
 			return nil, err
 		}
-		return accepted(fmt.Sprintf("T%d goes to %s now; the pause holds the rest", tid, t.Owner), nil), nil
+		return accepted(fmt.Sprintf("T%d goes to %s now; the pause holds the rest", tid, addr.Ref(t.Owner)), nil), nil
 	})
 }

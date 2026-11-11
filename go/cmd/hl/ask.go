@@ -4,11 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"sort"
 	"strings"
 	"time"
 
-	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/internal/hlclient"
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/kit/timefmt"
@@ -310,11 +308,17 @@ func teamCmd(c *hlclient.Client, args []string) (int, bool) {
 		fmt.Printf("could not read the team: %v\n", err)
 		return 1, true
 	}
-	parents := map[string]string{}
+	self := "" // me's key: the agent named me in team.get, or for an agent asking for itself its key from whoami
 	for _, a := range list(got, "agents") {
-		parents[str(a, "name")] = str(a, "parent")
+		if str(a, "name") == me || str(a, "key") == me {
+			self = str(a, "key")
+		}
 	}
-	t := team.FromNames(parents)
+	if who, err := c.Call("whoami", nil); self == "" && err == nil {
+		if caller, ok := who["caller"].(map[string]any); ok && str(caller, "kind") == "agent" {
+			self = str(caller, "name")
+		}
+	}
 	lines := map[string]map[string]any{}
 	if got, err := c.Call("agents.list", map[string]any{"status": true}); err != nil {
 		fmt.Fprintf(os.Stderr, "could not read what they are doing: %v\n", err)
@@ -323,40 +327,51 @@ func teamCmd(c *hlclient.Client, args []string) (int, bool) {
 			lines[str(a, "name")] = a
 		}
 	}
-	type mine struct{ name, rel, doing string }
-	type theirs struct{ name, rel string }
-	var outs []mine
-	var ins []theirs
+	type row struct{ name, rel, doing string }
+	var rows []row
 	var names []string
-	for _, other := range sortedKeys(parents) {
-		if other == me {
+	byKey := map[string]map[string]any{}
+	for _, a := range list(got, "agents") {
+		byKey[str(a, "key")] = a
+	}
+	for _, a := range list(got, "agents") {
+		k := str(a, "key")
+		if k == self {
+			me = str(a, "name")
 			continue
 		}
-		if t.Route(me, other, 0).Allowed {
-			outs = append(outs, mine{other, inYourWords(t, me, other), doing(other, lines[other])})
-			names = append(names, other)
+		rel := "peer"
+		switch {
+		case self != "" && str(a, "reports_to") == self:
+			rel = "your report"
+		case self != "" && str(byKey[self], "reports_to") == k:
+			rel = "your manager"
 		}
-		if t.Route(other, me, 0).Allowed {
-			ins = append(ins, theirs{other, inYourWords(t, me, other)})
-			names = append(names, other)
-		}
+		rows = append(rows, row{str(a, "name"), rel, doing(k, lines[k])})
+		names = append(names, str(a, "name"))
 	}
 	w := nameCol(names)
 	fmt.Printf("you are %s\n", me)
-	if len(outs) > 0 {
-		fmt.Println("\nyou may ask:")
-		for _, o := range outs {
-			fmt.Printf("  %s%s%s\n", pad(o.name, w), pad(o.rel, 12), o.doing)
+	if len(rows) > 0 {
+		fmt.Println("\nyour workspace:")
+		for _, r := range rows {
+			fmt.Printf("  %s%s%s\n", pad(r.name, w), pad(r.rel, 12), r.doing)
 		}
 	} else {
-		fmt.Println("\nthere is nobody you may ask.")
+		fmt.Println("\nno one else is in your workspace.")
 	}
-	if len(ins) > 0 {
-		var parts []string
-		for _, i := range ins {
-			parts = append(parts, fmt.Sprintf("%s (%s)", i.name, i.rel))
-		}
-		fmt.Printf("\nmay ask you: %s\n", strings.Join(parts, ", "))
+	var people, spaces []string
+	for _, p := range list(got, "people") {
+		people = append(people, str(p, "name"))
+	}
+	for _, ws := range list(got, "workspaces") {
+		spaces = append(spaces, str(ws, "name"))
+	}
+	if len(people) > 0 {
+		fmt.Printf("\npeople: %s\n", strings.Join(people, ", "))
+	}
+	if len(spaces) > 0 {
+		fmt.Printf("other workspaces (their lead receives what you send): %s\n", strings.Join(spaces, ", "))
 	}
 	if got, err := c.Call("lease.get", nil); err == nil {
 		fmt.Print(leaseText(got))
@@ -364,17 +379,6 @@ func teamCmd(c *hlclient.Client, args []string) (int, bool) {
 	fmt.Println("\n`hl task new --assign <name> -t <time> \"<title>\" \"<body>\"` gives one work, and `hl say <name> \"...\"` sends a message. " +
 		"A task is the only way to give an agent work:\na subagent is for research or review inside your own task.")
 	return 0, true
-}
-
-// inYourWords is what other is to me, read from the names: my report, my manager, or a peer.
-func inYourWords(t *team.Team, me, other string) string {
-	switch {
-	case t.SupervisorOf(other) == me:
-		return "your report"
-	case t.SupervisorOf(me) == other:
-		return "your manager"
-	}
-	return "peer"
 }
 
 // doing is one line on what an agent is doing, from its agents.list status line ("?" when the daemon gave none).
@@ -408,13 +412,4 @@ func doing(agent string, line map[string]any) string {
 		state += " · no terminal yet"
 	}
 	return state
-}
-
-func sortedKeys(m map[string]string) []string {
-	out := make([]string, 0, len(m))
-	for k := range m {
-		out = append(out, k)
-	}
-	sort.Strings(out)
-	return out
 }

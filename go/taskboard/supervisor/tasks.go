@@ -60,7 +60,7 @@ func (e *Env) tellRefusal(q db.Q, agent string, tid int64, msg string) {
 		return
 	}
 	to := t.ManagerOf(agent)
-	text := fmt.Sprintf("T%d could not be delivered to %s and is waiting: %s", tid, agent, msg)
+	text := fmt.Sprintf("T%d could not be delivered to %s and is waiting: %s", tid, addr.Ref(agent), msg)
 	rid := must(db.AddRequest(q, db.NewRequest{Requester: db.NoticeRequester, Target: to, Body: text, Kind: "say"}))
 	check(db.LinkRequest(q, tid, rid))
 	e.Push(q, to, rid)
@@ -165,10 +165,10 @@ func (e *Env) QueueDeliver(q db.Q, tid int64, by string, queued bool, row *db.Ta
 		}
 		text := out.Finish()
 		if !out.OK {
-			return fmt.Sprintf("task T%d is queued (%s) but its card was not raised: %s", tid, by, text), nil
+			return fmt.Sprintf("task T%d is queued (%s) but its card was not raised: %s", tid, addr.Ref(by), text), nil
 		}
 		e.linkDelivery(q, tid, actor.OwnerKey, out.RID)
-		return fmt.Sprintf("task T%d is queued (%s) - its card is on the founder's board", tid, by), nil
+		return fmt.Sprintf("task T%d is queued (%s) - its card is on the founder's board", tid, addr.Ref(by)), nil
 	}
 	word := "draft"
 	if queued {
@@ -182,13 +182,13 @@ func (e *Env) QueueDeliver(q db.Q, tid int64, by string, queued bool, row *db.Ta
 			e.Push(q, row.Acting, 0)
 		}
 		if st := must(db.TaskState(q, must(db.GetTask(q, tid)))); st == "doing" {
-			return fmt.Sprintf("task T%d is queued (%s) - %s was free, so it went out now", tid, by, row.Acting), nil
+			return fmt.Sprintf("task T%d is queued (%s) - %s was free, so it went out now", tid, addr.Ref(by), addr.Ref(row.Acting)), nil
 		}
 		if why, ok := refused[tid]; ok { // queued, but not sent, and the approver is told why
-			return fmt.Sprintf("task T%d is queued (%s) but was not sent to %s: %s", tid, by, row.Acting, why), nil
+			return fmt.Sprintf("task T%d is queued (%s) but was not sent to %s: %s", tid, addr.Ref(by), addr.Ref(row.Acting), why), nil
 		}
 	}
-	return fmt.Sprintf("task T%d is %s (%s)", tid, word, by), nil
+	return fmt.Sprintf("task T%d is %s (%s)", tid, word, addr.Ref(by)), nil
 }
 
 // ---------------------------------------------------------------- unblocked and result notices
@@ -234,12 +234,12 @@ func (e *Env) tellAssigneeIdle(q db.Q, tid int64, by, assignee string, told []db
 			return
 		}
 	}
-	who := by
+	who := addr.Ref(by)
 	if actor.IsPerson(by) {
 		who = "the founder"
 	}
 	text := strings.TrimRight(fmt.Sprintf("T%d done by %s: %s", tid, who, oneSpace(t.DoneEvidence.String)), ": ") +
-		fmt.Sprintf(" - %s has nothing it can start now.", assignee)
+		fmt.Sprintf(" - %s has nothing it can start now.", addr.Ref(assignee))
 	e.tellNowSay(q, reporter, text, "assignee idle")
 }
 
@@ -264,9 +264,9 @@ func (e *Env) childResultNotice(q db.Q, dep *db.Task, by string, tid int64) *db.
 	var text string
 	switch {
 	case child.DoneEvidence.Valid && child.DoneEvidence.String != "":
-		text = fmt.Sprintf("T%d done by %s: %s", tid, child.Acting, oneSpace(child.DoneEvidence.String))
+		text = fmt.Sprintf("T%d done by %s: %s", tid, addr.Ref(child.Acting), oneSpace(child.DoneEvidence.String))
 	case child.DiscardedBy.Valid && child.DiscardedBy.String != "":
-		text = fmt.Sprintf("T%d discarded by %s: %s", tid, child.DiscardedBy.String, oneSpace(child.DiscardReason.String))
+		text = fmt.Sprintf("T%d discarded by %s: %s", tid, addr.Ref(child.DiscardedBy.String), oneSpace(child.DiscardReason.String))
 	default:
 		return nil
 	}

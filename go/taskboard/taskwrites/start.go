@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/handline/handline/go/kit/addr"
+
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/protocol/rpc"
 )
@@ -69,7 +71,7 @@ func start(c *rpc.Conn, p map[string]any) (any, error) {
 		if err != nil {
 			return nil, err
 		}
-		msg := fmt.Sprintf("T%d is now %s's current task%s", tid, me, back)
+		msg := fmt.Sprintf("T%d is now %s's current task%s", tid, addr.Ref(me), back)
 		if memos != "" {
 			msg += "\n" + memos
 		}

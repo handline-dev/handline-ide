@@ -1107,7 +1107,7 @@ func commentCardOf(ev row) (item map[string]any, agent string, ok bool) {
 		}
 		kind, agent = "answer", text(p["to"])
 	case "memo_add":
-		if actor.IsPerson(ev.str("agent")) || ev.i("turned") != 0 || !db.ToFounder(text(p["now"])) {
+		if actor.IsPerson(ev.str("agent")) || ev.i("turned") != 0 || !db.ToPerson(text(p["now"])) {
 			return nil, "", false
 		}
 		kind, agent, words = "note", ev.str("agent"), text(p["now"])

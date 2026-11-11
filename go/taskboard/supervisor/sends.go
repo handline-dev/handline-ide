@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/handline/handline/go/kit/addr"
+
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/actor"
@@ -139,8 +141,9 @@ func (e *Env) SayVerb(q *sql.Tx, in SayVerbIn) (out *SayVerbOut, err error) {
 		}
 	}
 	if in.Parent == 0 && e.isReportOf(me, target) {
+		word := addr.Address(q, me, target)
 		return fail("work cannot reach a report by message: make it a task, or comment on the task it has. Try:\n  " +
-			fmt.Sprintf("hl task new --assign %s -t 2h '<title>' %s\n  hl task comment T<n> add %s", target, shellQuote(body), shellQuote("@"+target+" "+body)))
+			fmt.Sprintf("hl task new --assign %s -t 2h '<title>' %s\n  hl task comment T<n> add %s", word, shellQuote(body), shellQuote("@"+word+" "+body)))
 	}
 	within := in.Effect
 	var parent *db.Request

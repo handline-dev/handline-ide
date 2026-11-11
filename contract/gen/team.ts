@@ -3,9 +3,13 @@
 import type { Accepted, AgentName, ReadCursor, RequestId, Role, Timestamp, Topic, WriteKind } from './core.ts';
 
 export type TeamAgent = {
-  name: AgentName;
+  /** The agent's key (a17). */
+  key: string;
+  /** The word the caller uses for this agent: its name in the caller's workspace, another workspace's lead by that workspace's name, any other agent as name (workspace). */
+  name: string;
   role: string;
-  parent: AgentName | null;
+  /** The key of the agent or person it reports to; null for none. */
+  reports_to: string | null;
   role_file: {
     path: string;
     updated: Timestamp | null;
@@ -159,9 +163,17 @@ export interface TeamMethods {
 }; result: Accepted };
   "team.get": { params: { [key: string]: unknown }; result: {
     agents: TeamAgent[];
-    edges: {
-      from: string;
-      to: string;
+    people: {
+      key: string;
+      /** The word the caller uses for this person: human for its owner or itself, else the handle or display name. */
+      name: string;
+    }[];
+    /** The workspaces other than the caller's own. */
+    workspaces: {
+      key: string;
+      name: string;
+      /** Its lead agent's key, which receives what is sent to the workspace. */
+      lead: string | null;
     }[];
   } };
   "proposal.list": { params: {

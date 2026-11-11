@@ -14,6 +14,7 @@ import (
 	dbpkg "github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/kit/actor"
+	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/kit/storetest"
 	"github.com/handline/handline/go/protocol/rpc"
@@ -418,7 +419,7 @@ func TestSendNowMarksTheMessageAndRefusesOneThatIsNoLongerWaiting(t *testing.T) 
 	s := r.server("")
 	rid := r.request("human", "alice", "now please")
 	call := fmt.Sprintf(`{"request":%d,"request_id":"j1"}`, rid)
-	if res := r.result(r.one(s, "chat.send_now", call)); res["said"] != fmt.Sprintf("message %d is told to %s now", rid, r.k("alice")) {
+	if res := r.result(r.one(s, "chat.send_now", call)); res["said"] != fmt.Sprintf("message %d is told to %s now", rid, addr.Ref(r.k("alice"))) {
 		t.Fatal(res)
 	}
 	if r.count("SELECT COUNT(*) FROM requests WHERE id = ? AND send_now IS NOT NULL", rid) != 1 {

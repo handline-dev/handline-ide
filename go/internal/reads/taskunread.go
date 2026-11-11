@@ -194,7 +194,7 @@ func (e *Env) requestsPending(_ *rpc.Conn, _ map[string]any) (any, error) {
 	noted := 0
 	for _, m := range notes {
 		tid := m.i("task_id")
-		if byTask[tid] != nil || !db.ToFounder(m.str("body")) {
+		if byTask[tid] != nil || !db.ToPerson(m.str("body")) {
 			continue
 		}
 		out := row(tid, m.str("title"), "note", []int64{}, all[tid], ts(m["created_at"]))

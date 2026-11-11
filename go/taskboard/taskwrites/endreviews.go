@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/handline/handline/go/kit/addr"
+
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/actor"
@@ -104,7 +106,7 @@ func EndReviews(d *sql.DB, home string, tell Teller) (said []string, err error) 
 			continue
 		}
 		if to == "" && !founder {
-			said = append(said, fmt.Sprintf("T%d left review: queued with %s", r.id, r.owner))
+			said = append(said, fmt.Sprintf("T%d left review: queued with %s", r.id, addr.Ref(r.owner)))
 			continue
 		}
 		if asked.After != nil {
@@ -112,10 +114,10 @@ func EndReviews(d *sql.DB, home string, tell Teller) (said []string, err error) 
 		}
 		tell.HandedOver(h)
 		if founder {
-			said = append(said, fmt.Sprintf("T%d left review: the founder's turn, %s's below it", r.id, r.owner))
+			said = append(said, fmt.Sprintf("T%d left review: the founder's turn, %s's below it", r.id, addr.Ref(r.owner)))
 			continue
 		}
-		said = append(said, fmt.Sprintf("T%d left review: handed to %s", r.id, to))
+		said = append(said, fmt.Sprintf("T%d left review: handed to %s", r.id, addr.Ref(to)))
 	}
 	return said, failed
 }

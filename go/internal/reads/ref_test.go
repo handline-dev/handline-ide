@@ -2,8 +2,9 @@ package reads
 
 import (
 	"encoding/json"
-	"github.com/handline/handline/go/data/team/teamtest"
 	"testing"
+
+	"github.com/handline/handline/go/data/team/teamtest"
 )
 
 func TestEachReadOfARequestCarriesItsRef(t *testing.T) {

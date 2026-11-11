@@ -57,7 +57,7 @@ func pushTurn(tx *sql.Tx, tell Teller, tid int64, by, to, ask string, memo int64
 	if in, err := db.InStack(tx, tid, to); err != nil {
 		return Handover{}, nil, err
 	} else if in {
-		return Handover{}, nil, refusal(fmt.Sprintf("%s already acts on T%d or has a turn below", to, tid))
+		return Handover{}, nil, refusal(fmt.Sprintf("%s already acts on T%d or has a turn below", addr.Ref(to), tid))
 	}
 	if len(turns) >= db.MaxTurns {
 		return Handover{}, nil, refusal(fmt.Sprintf("T%d carries %d turns, the most it may: pop one first", tid, db.MaxTurns))
@@ -195,7 +195,7 @@ func popTurn(tx *sql.Tx, home string, tell Teller, tid int64, by, outcome, note 
 		return Popped{}, err
 	}
 	if len(turns) == 0 {
-		return Popped{}, refusal(fmt.Sprintf("T%d has no turn on it: %s acts on it as its owner", tid, t.Owner))
+		return Popped{}, refusal(fmt.Sprintf("T%d has no turn on it: %s acts on it as its owner", tid, addr.Ref(t.Owner)))
 	}
 	top := turns[len(turns)-1]
 	below := Below(turns, t.Owner)

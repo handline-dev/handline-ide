@@ -16,6 +16,7 @@ import (
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/internal/reads"
+	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/kit/storetest"
 	"github.com/handline/handline/go/protocol/rpc"
@@ -132,7 +133,7 @@ func TestSchedulesAreAddedEditedMovedAndRemovedByTheirId(t *testing.T) {
 	res := r.result(r.one("schedule.add", add))
 	alice, bob := teamtest.Key(t, r.home, "alice"), teamtest.Key(t, r.home, "bob")
 	id := cronspec.ID(alice, cronspec.Schedule{Cron: "0 9 * * *", Message: "morning check"})
-	if res["schedule"] != float64(id) || res["said"] != alice+": scheduled 0 9 * * *" {
+	if res["schedule"] != float64(id) || res["said"] != addr.Ref(alice)+": scheduled 0 9 * * *" {
 		t.Fatalf("%v", res)
 	}
 	if r.result(r.one("schedule.add", add))["replayed"] != true || strings.Count(r.setting("alice", "schedules"), "morning check") != 1 {

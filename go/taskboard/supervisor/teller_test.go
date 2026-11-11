@@ -141,7 +141,7 @@ func TestTheTellerAfterACancelClosesTheTellsAndTypesTheStopToAnOwnerWithNoDelive
 	db.CloseIfQueued(r.DB, rid, "rejected", CancelVerdict)
 	r.term.typed = nil
 	r.Cancelled(1, r.k(("human")), r.k(("bob")), true, []taskwrites.Retired{{RID: rid, Requester: r.k(("alice")), Target: r.k(("bob")), Delivered: true}})
-	if typed := strings.Join(r.term.typed, "\n"); !strings.Contains(r.named(typed), "T1 discarded by human - stop work on it") {
+	if typed := strings.Join(r.term.typed, "\n"); !strings.Contains(r.named(typed), "T1 discarded by @human - stop work on it") {
 		t.Fatalf("%q", typed)
 	}
 }
@@ -230,7 +230,7 @@ func TestTheTellerSendsATaskThatAnEditGaveToANewOwnerAndTellsTheOldOneToStop(t *
 	if cur, _, _ := db.CurrentTask(r.DB, r.k(("alice"))); cur != tid {
 		t.Fatalf("alice holds %d", cur)
 	}
-	if !strings.Contains(strings.Join(r.term.typed, "\n"), "T1 moved to alice by human - stop work on it") {
+	if !strings.Contains(strings.Join(r.term.typed, "\n"), "T1 moved to @alice by @human - stop work on it") {
 		t.Fatalf("the old owner is told to stop: %q", r.term.typed)
 	}
 }

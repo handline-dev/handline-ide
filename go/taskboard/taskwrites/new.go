@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/handline/handline/go/kit/addr"
+
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/paths"
@@ -212,7 +214,7 @@ func newMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, e
 					freed = append(freed, o)
 				}
 			}
-			return accepted(fmt.Sprintf("task T%d opened for %s", tid, owner), map[string]any{"task": tid}), nil
+			return accepted(fmt.Sprintf("task T%d opened for %s", tid, addr.Ref(owner)), map[string]any{"task": tid}), nil
 		})
 		for _, o := range freed {
 			if err == nil && tell != nil {
@@ -237,7 +239,7 @@ func newMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, e
 			// The telling can start a closed session and wait on it: the task is open, so the call returns.
 			go asked.After()
 		}
-		out["said"] = fmt.Sprintf("task T%d opened for %s (P%d%s): %s", tid, owner, prio, limit, msg)
+		out["said"] = fmt.Sprintf("task T%d opened for %s (P%d%s): %s", tid, addr.Ref(owner), prio, limit, msg)
 		return out, nil
 	}
 }

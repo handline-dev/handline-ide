@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/handline/handline/go/kit/addr"
+
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/actor"
@@ -107,7 +109,7 @@ func undeliverable(tx *sql.Tx, t *task, to, home string) (string, error) {
 		return "", err
 	}
 	if d := tm.Route(asker, to, 0); !d.Allowed {
-		return fmt.Sprintf("T%d cannot go to %s: its brief is sent on %s's behalf, and %s", t.ID, to, asker, d.Reason), nil
+		return fmt.Sprintf("T%d cannot go to %s: its brief is sent on %s's behalf, and %s", t.ID, addr.Ref(to), addr.Ref(asker), d.Reason), nil
 	}
 	return "", nil
 }
@@ -307,7 +309,7 @@ func editTask(tx *sql.Tx, tid int64, by string, home string, owner, reporter, ti
 	if err := addEvent(tx, by, "edit_task", payload...); err != nil {
 		return "", "", err
 	}
-	return "", fmt.Sprintf("task T%d edited by %s: %s", tid, by, strings.Join(said, ", ")), nil
+	return "", fmt.Sprintf("task T%d edited by %s: %s", tid, addr.Ref(by), strings.Join(said, ", ")), nil
 }
 
 // setPR names the pull request an open task's work merges in: accepted, the task then waits on that PR's merge (acceptForMerge).
@@ -332,7 +334,7 @@ func setPR(tx *sql.Tx, tid int64, by string, pr int64) (string, string, error) {
 	if err := addEvent(tx, by, "edit_task", kv{"task_id", tid}, kv{"pr", pyjson.Pairs{{K: "old", V: old}, {K: "new", V: fmt.Sprintf("#%d", pr)}}}); err != nil {
 		return "", "", err
 	}
-	return "", fmt.Sprintf("task T%d edited by %s: pr %s -> '#%d'", tid, by, pyRepr(old), pr), nil
+	return "", fmt.Sprintf("task T%d edited by %s: pr %s -> '#%d'", tid, addr.Ref(by), pyRepr(old), pr), nil
 }
 
 // saidAs is how an edit's reply names a field: the owner column holds who works the task (its assignee), the reporter who answers for it

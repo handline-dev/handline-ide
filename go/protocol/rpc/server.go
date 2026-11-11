@@ -52,6 +52,9 @@ type Method struct {
 	// contract method come from the spec (Register).
 	// OwnEvent says it writes its own event, or none, so the generic rpc_write one is not added.
 	Write, OwnEvent bool
+	// Verbatim marks a method whose reply is content (a file, a terminal, a launch's argv): hl gets it as it is, not written out for
+	// its reader (writeOut).
+	Verbatim bool
 	// Unkept marks a write whose reply is never kept for a retry: one that holds a secret given once (a pairing code, a device
 	// token), or one too frequent to keep (doc.push, a keystroke). The retry runs again and is judged on its own.
 	Unkept bool
@@ -507,7 +510,7 @@ func (c *Conn) route(msg any, raw []byte) (routed, error) {
 		} else {
 			result, err = m.Handler(at, params)
 		}
-		if at.Typed() && at.srv.Names != nil && name != "hello" {
+		if at.Typed() && at.srv.Names != nil && name != "hello" && !m.Verbatim {
 			result, err = at.writeOut(result, err)
 		}
 		if err != nil {
@@ -567,6 +570,9 @@ func (s *Server) deviceCaller(id, name, person string) (Caller, error) {
 // names no one is refused with the names to use, and the reply is written out for the reader (writeOut). Every other client gets
 // keys, as the contract says, and writes names out itself.
 func (c *Conn) Typed() bool { return c.helloClient == "hl" }
+
+// Cwd is the directory the caller's hello was sent from, "" when it said none.
+func (c *Conn) Cwd() string { return c.cwd }
 
 // Reader is the caller as addr resolves its words and writes text out for it.
 func (c *Conn) Reader() (addr.Who, error) {
@@ -645,7 +651,7 @@ func (c *Conn) Mentions(text string) (string, error) {
 }
 
 // writeOut is a reply as a Typed caller reads it: each <@key> in its text written out as @ and the name the caller would use
-// (addr.Render), and a key held by a who field (whoFields) as that name. Other values, a field named key among them, stay as they are.
+// (addr.Render), and a key held by a who field (whoFields) or used as a map's key as that name. Other values stay as they are.
 func (c *Conn) writeOut(result any, err error) (any, error) {
 	r, rerr := c.Reader()
 	if rerr != nil {
@@ -669,9 +675,17 @@ func (c *Conn) writeOut(result any, err error) (any, error) {
 			}
 			return addr.Render(c.srv.Names, r, v)
 		case map[string]any:
+			out := make(map[string]any, len(v))
 			for k, x := range v {
-				v[k] = walk(x, whoFields[k])
+				x = walk(x, whoFields[k])
+				if kind := actor.KindOf(k); kind == actor.Agent || kind == actor.Person { // a map by who, as spend.by_agent
+					if n := name(k); v[n] == nil && out[n] == nil { // two whos one name would lose one: that one keeps its key
+						k = n
+					}
+				}
+				out[k] = x
 			}
+			return out
 		case []any:
 			for i, x := range v {
 				v[i] = walk(x, who)
@@ -683,7 +697,7 @@ func (c *Conn) writeOut(result any, err error) (any, error) {
 		out := *e
 		out.Message = addr.Render(c.srv.Names, r, e.Message)
 		out.Data, _ = walk(generic(e.Data), false).(map[string]any)
-		err = &out
+		err = rewrap(err, e, &out)
 	}
 	return walk(generic(result), false), err
 }
@@ -692,6 +706,19 @@ func (c *Conn) writeOut(result any, err error) (any, error) {
 var whoFields = map[string]bool{"acting": true, "agent": true, "agents": true, "assignee": true, "author": true, "by": true,
 	"discarded_by": true, "from": true, "opened_by": true, "owner": true, "pushed_by": true, "reporter": true, "requested_by": true,
 	"requester": true, "target": true, "to": true, "who": true}
+
+// rewrap is err with inner, which it wraps, replaced by out: a wrapper the handler gave (CommitThen) stays around the written-out error.
+func rewrap(err error, inner, out *Error) error {
+	if err == error(inner) {
+		return out
+	}
+	if ct, ok := err.(*CommitThen); ok && ct.Err == error(inner) {
+		c := *ct
+		c.Err = out
+		return &c
+	}
+	return out
+}
 
 // generic is v as JSON decodes it: a copy in maps and slices, so writing out a reply changes no value a handler keeps.
 func generic(v any) any {
