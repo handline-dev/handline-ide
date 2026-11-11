@@ -15,6 +15,7 @@ const NOUN: Record<PendingRequest['kind'], string> = {
   ask: 'question',
   warning: 'warning',
   comment: 'comment',
+  note: 'note',
 };
 const counted = (n: number, noun: string) => `${n} ${noun}${n === 1 ? '' : 's'}`;
 /** Turns counted by their kind, "3 questions"; turns of several kinds are "items". */
