@@ -18,7 +18,7 @@ func TestTrackBackgroundWorkFollowsTheFooterAndEndsTheSpell(t *testing.T) {
 	if !r.hasBackgroundWork(r.DB, r.k("bob")) {
 		t.Fatal("not recorded")
 	}
-	if n, _ := db.Cursor(r.DB, "bgcount:bob"); n != 1 {
+	if n, _ := db.Cursor(r.DB, "bgcount:"+r.k("bob")); n != 1 {
 		t.Fatal(n)
 	}
 	if since, ok := r.bgSince(r.DB, r.k("bob")); !ok || since != r.clock {
@@ -113,7 +113,7 @@ func TestBgMayStopAnAgentThatOwesNothingAfterItsGraceOrAStaleOneAfterTheVeto(t *
 	if r.bgMayStop(r.DB, r.k("bob"), now) {
 		t.Fatal("stopped before it was told")
 	}
-	db.SetCursor(r.DB, "bg_prompt:bob", r.clock)
+	db.SetCursor(r.DB, "bg_prompt:"+r.k("bob"), r.clock)
 	if !r.bgMayStop(r.DB, r.k("bob"), now) {
 		t.Fatal("told and silent past the grace, but not stoppable")
 	}
@@ -125,7 +125,7 @@ func TestBgMayStopAnAgentThatOwesNothingAfterItsGraceOrAStaleOneAfterTheVeto(t *
 	if r.bgMayStop(r.DB, r.k("bob"), now) {
 		t.Fatal("stopped while it owes an answer")
 	}
-	db.SetCursor(r.DB, "stale_bg_told:bob", now-StaleBgVetoS)
+	db.SetCursor(r.DB, "stale_bg_told:"+r.k("bob"), now-StaleBgVetoS)
 	if r.bgMayStop(r.DB, r.k("bob"), now) {
 		t.Fatal("not stale yet")
 	}
@@ -201,7 +201,7 @@ func TestNudgeForAMessageNamesTheAnswerVerb(t *testing.T) {
 	rid := r.ask("alice", r.k("bob"), "can you look?", "ask")
 	// an ask is typed at once and stays open until answered; make it the told head
 	r.TellNow(r.DB, rid)
-	db.SetCursor(r.DB, "notify:bob", rid)
+	db.SetCursor(r.DB, "notify:"+r.k("bob"), rid)
 	if f := r.forgottenResolve(r.DB, r.k("bob"), mustState(r, r.k("bob")), r.clock+1000); f != nil {
 		t.Fatal("only a task head is forgotten")
 	}

@@ -480,6 +480,7 @@ func TestAMemoIsToldAtOnceOnlyToWhomItIsAimedAt(t *testing.T) {
 func (r *rig) beginCurrent(owner, opener, title string) int64 {
 	r.t.Helper()
 	tid := r.newTask(owner, opener, title)
+	owner = r.k(owner)
 	_, _, err := r.AdvanceCurrentTask(r.DB, owner)
 	r.must(err)
 	_, err = db.AddEvent(r.DB, owner, "task_begin", db.KV{K: "task_id", V: tid})
