@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/scheduler/loadgate"
 )
 
@@ -123,9 +124,10 @@ func (e *Env) carry(prop *Prop, p HeldPorts) error {
 		// An agent the change renamed has no session until it starts. The change itself stands: a start that is held or fails is the
 		// agent's follow-up (start_*), not an apply failure.
 		for _, it := range stepsOf(prop) {
-			if it.kind() == "rename" && slices.Contains(waiting, it.str("agent")) {
-				if started, why := p.Start(it.str("to")); !started {
-					prop.set("start_agent", it.str("to"))
+			key := paths.AgentKey(e.Home, it.str("to")) // a rename keeps the key: the new name finds it
+			if it.kind() == "rename" && key != "" && slices.Contains(waiting, key) {
+				if started, why := p.Start(key); !started {
+					prop.set("start_agent", key)
 					prop.set("start_why", why)
 					unstarted = append(unstarted, it.str("to"))
 				}
