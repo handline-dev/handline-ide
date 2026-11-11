@@ -33,8 +33,7 @@ func DB(t testing.TB, home string) *sql.DB {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Closed once, by the first caller's cleanup, so after the cleanups a rig registered after it (its waits for work still
-	// running) have run.
+	// Closed once, by the first caller's cleanup, which runs after the cleanups registered later (a rig's waits for its work).
 	if _, again := closing.LoadOrStore(path, true); !again {
 		t.Cleanup(func() { store.ForgetShared(path); closing.Delete(path) })
 	}

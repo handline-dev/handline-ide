@@ -12,8 +12,9 @@ def ts(s):
 def account_names():
     """Each account's folder (its key, c<id>) to its name, read from the home's database without writing to it."""
     db=os.path.expanduser("~/.handline/db.sqlite")
-    with sqlite3.connect(f"file:{db}?mode=ro",uri=True) as c:
-        return {f"c{i}":n for i,n in c.execute("SELECT id, name FROM accounts")}
+    c=sqlite3.connect(f"file:{db}?mode=ro",uri=True)
+    try: return {f"c{i}":n for i,n in c.execute("SELECT id, name FROM accounts")}
+    finally: c.close()
 names=account_names()
 files=glob.glob(os.path.expanduser("~/.handline/accounts/*/.claude/projects/*/**/*.jsonl"),recursive=True)
 for f in files:

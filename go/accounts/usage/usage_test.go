@@ -1,10 +1,11 @@
 package usage
 
 import (
-	"github.com/handline/handline/go/data/team/teamtest"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/handline/handline/go/data/team/teamtest"
 )
 
 func TestStatusReadsBothShapes(t *testing.T) {

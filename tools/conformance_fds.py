@@ -108,6 +108,8 @@ def seed_account(home: Path, name: str) -> Path:
         with con:
             cur = con.execute("INSERT INTO accounts(name, owner, created_at) SELECT ?, 'p' || id, 0 FROM people WHERE role = 'owner' "
                               "ORDER BY id LIMIT 1", (name,))
+        if cur.rowcount != 1:
+            raise RuntimeError(f"account {name}: no owner to own it")
         folder = home / "accounts" / f"c{cur.lastrowid}"
     finally:
         con.close()
