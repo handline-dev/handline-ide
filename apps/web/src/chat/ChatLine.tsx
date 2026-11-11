@@ -20,7 +20,7 @@ import { CommandsOf } from '#src/chat/CommandBlock.tsx';
 export function drawsNothing(e: TimelineEntry, agent: string, me: string): boolean {
   if (e.kind === 'item') return !e.item.session && !e.item.text && e.item.kind !== 'bash';
   if (e.kind === 'proposal') return true;
-  // The daemon's own bookkeeping (task-board digests and nudges) is not shown anywhere.
+  // The daemon's own bookkeeping (sys digests and nudges) is not shown anywhere.
   if (isSystem(e.message.from)) return true;
   if (!isPerson(e.message.from, me) && !isPerson(e.message.to, me)) return e.message.from !== agent;
   const text = e.message.parts ? e.message.parts.some((p) => 'text' in p && p.text.trim()) : !!e.message.body;

@@ -7,7 +7,7 @@ import (
 
 // Notice and digest names (db.requests).
 const (
-	NoticeRequester = "task-board"
+	NoticeRequester = "sys"
 	DigestHead      = "Result digest - "
 	Landed          = "landed"
 )

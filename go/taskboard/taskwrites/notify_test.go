@@ -35,7 +35,7 @@ func TestAnyoneChangesATaskAndItsOpenerAndAssigneeAreTold(t *testing.T) {
 	}
 	toldOf := func(text string) string {
 		var to []string
-		rows, err := db.Query("SELECT target FROM requests WHERE requester = 'task-board' AND body = ?", text)
+		rows, err := db.Query("SELECT target FROM requests WHERE requester = 'sys' AND body = ?", text)
 		if err != nil {
 			t.Fatal(err)
 		}

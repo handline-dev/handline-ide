@@ -368,9 +368,9 @@ func TestANoticeTheDigestListedIsNotDrawnAgainBesideTheDigest(t *testing.T) {
 	e := testEnv(t)
 	addAgent(t, e, "bob", "")
 	for _, q := range []string{
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind, notice, landed_at) VALUES(1, 1, 'task-board', 'bob', 'task T1 now waits on T2', 'landed', 'say', 1, 1)",
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind, notice, landed_at, delivered_at) VALUES(2, 2, 'task-board', 'bob', 'T3 done by x: ok', 'landed', 'say', 1, 2, 3)",
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind, landed_at) VALUES(3, 4, 'task-board', 'bob', 'Result digest - 1 result since 00:00', 'landed', 'say', 4)",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind, notice, landed_at) VALUES(1, 1, 'sys', 'bob', 'task T1 now waits on T2', 'landed', 'say', 1, 1)",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind, notice, landed_at, delivered_at) VALUES(2, 2, 'sys', 'bob', 'T3 done by x: ok', 'landed', 'say', 1, 2, 3)",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind, landed_at) VALUES(3, 4, 'sys', 'bob', 'Result digest - 1 result since 00:00', 'landed', 'say', 4)",
 	} {
 		if _, err := e.DB.Exec(q); err != nil {
 			t.Fatal(err)
@@ -394,7 +394,7 @@ func TestARequestDeliveredButNotYetTypedIsStillDrawn(t *testing.T) {
 	addAgent(t, e, "bob", "")
 	for _, q := range []string{
 		"INSERT INTO requests(id, ts, requester, target, body, state, kind, landed_at, delivered_at) VALUES(1, 1, 'human', 'bob', 'hello bob', 'landed', 'say', 1, 2)",
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind, notice, landed_at, delivered_at) VALUES(2, 3, 'task-board', 'bob', 'T3 done by x: ok', 'landed', 'say', 1, 3, 4)",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind, notice, landed_at, delivered_at) VALUES(2, 3, 'sys', 'bob', 'T3 done by x: ok', 'landed', 'say', 1, 3, 4)",
 	} {
 		if _, err := e.DB.Exec(q); err != nil {
 			t.Fatal(err)
@@ -645,7 +645,7 @@ func TestTheChatLeavesOutAReturnThatToldAComment(t *testing.T) {
 	addAgent(t, e, "bob", "")
 	runAll(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(1, 1, 'human', 'bob', 'T1 is your turn again: human passed it: a', 'landed', 'task'), "+
 		"(2, 2, 'human', 'bob', 'T2 is your turn again: human passed it: b', 'landed', 'task'), (3, 3, 'human', 'bob', 'plain', 'landed', 'say'), "+
-		"(4, 4, 'human', 'bob', 'T3 is your turn again: human passed it: c', 'landed', 'task'), (5, 5, 'task-board', 'bob', 'T1 comment by the founder', 'landed', 'say')",
+		"(4, 4, 'human', 'bob', 'T3 is your turn again: human passed it: c', 'landed', 'task'), (5, 5, 'sys', 'bob', 'T1 comment by the founder', 'landed', 'say')",
 		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'a', 'bob', 'human', 1)",
 		"INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(7, 1, 'human', 'now', 1), (9, 1, 'human', 'also', 5)",
 		// 8 is a comment since deleted: its return shows again; 9's tell is a board line, which stays

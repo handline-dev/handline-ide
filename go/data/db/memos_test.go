@@ -72,8 +72,8 @@ func TestAMemoChangeIsKeptAsAnEventWithItsTextBeforeAndAfter(t *testing.T) {
 func TestALaterTellReplacesASayButNotATaskReturnThatMayReachItsReader(t *testing.T) {
 	q := open(t)
 	if _, err := q.Exec("INSERT INTO requests(id, ts, requester, target, body, state, kind, landed_at, edge_ok) VALUES" +
-		"(1, 1, 'task-board', 'bob', 'told', 'landed', 'say', 1, 1), (2, 2, 'task-board', 'bob', 'edited', 'landed', 'say', 2, 1), " +
-		"(3, 3, 'human', 'bob', 'T1 is your turn again', 'queued', 'task', NULL, 1), (4, 4, 'task-board', 'bob', 'edited again', 'landed', 'say', 4, 1), " +
+		"(1, 1, 'sys', 'bob', 'told', 'landed', 'say', 1, 1), (2, 2, 'sys', 'bob', 'edited', 'landed', 'say', 2, 1), " +
+		"(3, 3, 'human', 'bob', 'T1 is your turn again', 'queued', 'task', NULL, 1), (4, 4, 'sys', 'bob', 'edited again', 'landed', 'say', 4, 1), " +
 		"(5, 5, 'human', 'bob', 'T1 is your turn again', 'withdrawn', 'task', 5, 1)"); err != nil {
 		t.Fatal(err)
 	}

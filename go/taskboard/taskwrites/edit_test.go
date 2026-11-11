@@ -90,7 +90,7 @@ func TestAWaitChangeIsToldToTheLeadOnlyWhenTheBlockerIsHeldOutsideTheTeam(t *tes
 		}
 	}
 	got := func(text string) int {
-		return count(t, db, fmt.Sprintf("SELECT COUNT(*) FROM requests WHERE requester = 'task-board' AND target = 'manager' AND body = %q", text))
+		return count(t, db, fmt.Sprintf("SELECT COUNT(*) FROM requests WHERE requester = 'sys' AND target = 'manager' AND body = %q", text))
 	}
 	for text, want := range map[string]int{
 		"task T1 now waits on T2":       0,

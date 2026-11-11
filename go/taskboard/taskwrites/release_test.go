@@ -103,7 +103,7 @@ func TestATaskBegunOnTheFoundersMessageIsReleasedByAnyone(t *testing.T) {
 	if len(f.released) != 1 || f.released[0] != (Retired{Target: "worker", Held: true}) {
 		t.Fatalf("its owner is to be told to stop: %+v", f.released)
 	}
-	if n := count(t, db, "SELECT COUNT(*) FROM requests WHERE requester = 'task-board'"); n != 0 || len(f.notified) != 0 {
+	if n := count(t, db, "SELECT COUNT(*) FROM requests WHERE requester = 'sys'"); n != 0 || len(f.notified) != 0 {
 		t.Fatalf("the board tells the founder nothing, and the owner only its stop: %d %v", n, f.notified)
 	}
 	if count(t, db, "SELECT COUNT(*) FROM tasks WHERE id = 7 AND timeout_at IS NULL") != 1 {
@@ -130,7 +130,7 @@ func TestTheOpenerIsToldWhenItsTaskIsReleased(t *testing.T) {
 	if r := call(t, mk("worker", &fakeTeller{}), `{"jsonrpc":"2.0","id":2,"method":"task.release","params":{"task":1,"reason":"stuck","request_id":"r1"}}`)[0]; r["error"] != nil {
 		t.Fatalf("%v", r)
 	}
-	if count(t, db, "SELECT COUNT(*) FROM requests WHERE requester = 'task-board' AND target = 'gp' AND body = 'task T1 released by worker: stuck'") != 1 {
+	if count(t, db, "SELECT COUNT(*) FROM requests WHERE requester = 'sys' AND target = 'gp' AND body = 'task T1 released by worker: stuck'") != 1 {
 		t.Fatal("the opener is not told")
 	}
 }

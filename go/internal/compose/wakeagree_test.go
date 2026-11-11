@@ -42,7 +42,7 @@ func TestWhatWakesAClosedAgentIsWhatItsWakePromptCarries(t *testing.T) {
 		must(t, err)
 	}
 	say := func(t *testing.T, d q, body string) {
-		_, err := dbpkg.AddRequest(d, dbpkg.NewRequest{Requester: "task-board", Target: "alice", Body: body, Kind: "say"})
+		_, err := dbpkg.AddRequest(d, dbpkg.NewRequest{Requester: "sys", Target: "alice", Body: body, Kind: "say"})
 		must(t, err)
 	}
 	for name, shape := range map[string]func(*testing.T, q){

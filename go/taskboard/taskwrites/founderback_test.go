@@ -10,7 +10,7 @@ func TestFounderTasksGoBackToWhoHandedThemOver(t *testing.T) {
 	home := t.TempDir()
 	sdb, _, _ := reportEnvIn(t, home,
 		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'handed', 'human', 'boss', 1), (2, 'opened', 'human', 'w', 1), "+
-			"(3, 'ask', 'human', 'human', 1), (4, 'notice', 'human', 'task-board', 1), (5, 'done', 'human', 'boss', 1)",
+			"(3, 'ask', 'human', 'human', 1), (4, 'notice', 'human', 'sys', 1), (5, 'done', 'human', 'boss', 1)",
 		"UPDATE tasks SET done_evidence = 'ok' WHERE id = 5",
 		`INSERT INTO events(ts, agent, kind, payload) VALUES(1, 'w', 'task_handoff', '{"task_id":1,"from":"w","to":"human","note":"which one?"}'), `+
 			`(2, 'gate', 'task_handoff', '{"task_id":1,"from":"gate","to":"human","note":"later"}')`,

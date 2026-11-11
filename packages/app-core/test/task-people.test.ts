@@ -19,7 +19,7 @@ const task = {
   to: 'pc',
   events: [
     { at: '2026-10-01T10:00:00Z', agent: 'pc', actor: null },
-    { at: '2026-10-03T10:00:00Z', agent: 'rev', actor: { kind: 'agent', name: 'task-board' } },
+    { at: '2026-10-03T10:00:00Z', agent: 'rev', actor: { kind: 'agent', name: 'sys' } },
     { at: '2026-10-02T10:00:00Z', agent: 'mobile', actor: { kind: 'user', name: 'human' } },
   ],
 };
@@ -45,8 +45,8 @@ test('the picker lists who acted most recent first, then the near, then the rest
 });
 
 test('the holder, the viewer and the system never appear, and an empty group is left out', () => {
-  const all = assignGroups(task, team, [...names, 'task-board'], 'me').flatMap((g) => g.names);
-  for (const n of ['pc', 'me', 'task-board']) assert.ok(!all.includes(n));
+  const all = assignGroups(task, team, [...names, 'sys'], 'me').flatMap((g) => g.names);
+  for (const n of ['pc', 'me', 'sys']) assert.ok(!all.includes(n));
   assert.deepEqual(
     assignGroups({ ...task, events: [] }, { agents: [] }, ['a'], 'me').map((g) => g.key),
     ['rest'],
