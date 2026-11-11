@@ -29,14 +29,14 @@ func TestTheDeliveryFixturesPassAgainstTheChatWritesAndReads(t *testing.T) {
 		t.Run(fx.Name, func(t *testing.T) {
 			r := newRig(t)
 			teamtest.Seed(t, r.home, "carol", "dave")
-			f := &fakeSessions{r: r, busyFor: map[string]bool{"carol": true}}
+			f := &fakeSessions{r: r, busyFor: map[string]bool{r.k("carol"): true}}
 			r.env.Agents = f
 			srv := r.server("")
 			reads.Register(srv, reads.Env{DB: r.db, Home: r.home, Started: time.Now()})
 			// dave's operation was written, and the session ended before it was echoed
 			r.one(srv, "chat.send", `{"agent":"dave","body":"in flight when it died","request_id":"crashed-op"}`)
-			f.setState("dave", supervisor.RequestOp(1), delivery.Unknown)
-			vars := map[string]any{"founder_key": "founder", "transcript_agent": "bob", "working_agent": "carol", "crashed_agent": "dave", "terminal_agent": "alice"}
+			f.setState(r.k("dave"), supervisor.RequestOp(1), delivery.Unknown)
+			vars := map[string]any{"founder_key": "founder", "transcript_agent": r.k("bob"), "working_agent": r.k("carol"), "crashed_agent": r.k("dave"), "terminal_agent": r.k("alice")}
 			saved := map[string]any{}
 			cl, sv := net.Pipe()
 			done := make(chan struct{})
