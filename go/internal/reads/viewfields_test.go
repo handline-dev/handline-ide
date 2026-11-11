@@ -159,14 +159,15 @@ func TestAgentViewServesItsLastRequestToTheFounderAndHowManyAreUnseen(t *testing
 	t.Parallel()
 	e := testEnv(t)
 	addAgent(t, e, "bob", "")
-	if v := viewOfAgent(t, e, "bob"); v["last_to_founder"] != nil || v["founder_unread"] != float64(0) {
+	bob := teamtest.Key(t, e.Home, "bob")
+	if v := viewOfAgent(t, e, bob); v["last_to_founder"] != nil || v["founder_unread"] != float64(0) {
 		t.Fatalf("an agent that never wrote: %v", v)
 	}
 	for id, ts := range map[int]int{1: 100, 2: 200, 3: 300} {
-		run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(?, ?, 'bob', 'p1', ?, 'queued', 'say', 1)", id, ts, "msg"+string(rune('0'+id)))
+		run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(?, ?, '"+bob+"', 'p1', ?, 'queued', 'say', 1)", id, ts, "msg"+string(rune('0'+id)))
 	}
-	run(t, e, "INSERT INTO cursors(name, row_id, updated) VALUES('for_you_seen:bob', 1, 0)")
-	v := viewOfAgent(t, e, "bob")
+	run(t, e, "INSERT INTO cursors(name, row_id, updated) VALUES('for_you_seen:"+bob+"', 1, 0)")
+	v := viewOfAgent(t, e, bob)
 	last, _ := v["last_to_founder"].(map[string]any)
 	if last["text"] != "msg3" || last["at"] != "1970-01-01T00:05:00Z" || v["founder_unread"] != float64(2) {
 		t.Fatalf("%v", v)
@@ -177,29 +178,30 @@ func TestTaskCountLeavesOutWhatIsNotTheAgentsToDoNow(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	addAgent(t, e, "bob", "")
-	run(t, e, `INSERT INTO agent_view(agent, view, updated) VALUES('bob', '{"name":"bob","state":"idle"}', 0)`)
+	bob := teamtest.Key(t, e.Home, "bob")
+	run(t, e, `INSERT INTO agent_view(agent, view, updated) VALUES('`+bob+`', '{"name":"`+bob+`","state":"idle"}', 0)`)
 	// 1 is bob's current task, 3 waits behind it; 4 is amy's.
-	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(1, 'a', 'bob', 'p1', 1, 'p1'), "+
-		"(3, 'c', 'bob', 'p1', 1, 'p1'), (4, 'blocker', 'amy', 'p1', 1, 'p1')")
-	run(t, e, "INSERT INTO agent_state(agent, state, updated, current_task) VALUES('bob', 'IDLE', 0, 1)")
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(1, 'a', '"+bob+"', 'p1', 1, 'p1'), "+
+		"(3, 'c', '"+bob+"', 'p1', 1, 'p1'), (4, 'blocker', 'amy', 'p1', 1, 'p1')")
+	run(t, e, "INSERT INTO agent_state(agent, state, updated, current_task) VALUES('"+bob+"', 'IDLE', 0, 1)")
 	count := func(want float64, why string) {
 		t.Helper()
-		if v := viewOfAgent(t, e, "bob"); v["task_count"] != want {
+		if v := viewOfAgent(t, e, bob); v["task_count"] != want {
 			t.Fatalf("%s: task_count %v, want %v", why, v["task_count"], want)
 		}
 	}
 	count(2, "both bob's")
-	run(t, e, "INSERT INTO task_turns(task_id, pos, agent, ask, pushed_by, since) VALUES(3, 1, 'p1', 'pick', 'bob', 1)")
+	run(t, e, "INSERT INTO task_turns(task_id, pos, agent, ask, pushed_by, since) VALUES(3, 1, 'p1', 'pick', '"+bob+"', 1)")
 	count(1, "the founder's turn")
 	run(t, e, "UPDATE task_turns SET agent = 'amy' WHERE task_id = 3")
 	count(1, "another agent's turn")
-	run(t, e, "INSERT INTO task_turns(task_id, pos, agent, ask, pushed_by, since) VALUES(3, 2, 'bob', 'back', 'amy', 2)")
+	run(t, e, "INSERT INTO task_turns(task_id, pos, agent, ask, pushed_by, since) VALUES(3, 2, '"+bob+"', 'back', 'amy', 2)")
 	count(2, "the turn back to bob")
 	run(t, e, "DELETE FROM task_turns")
 	run(t, e, "INSERT INTO task_blocks(task_id, blocks_on, created_at) VALUES(3, 4, 1)")
 	count(1, "blocked by an open task")
 	run(t, e, "UPDATE tasks SET done_evidence = 'x' WHERE id = 4")
 	count(2, "the blocker done")
-	run(t, e, "INSERT INTO task_turns(task_id, pos, agent, ask, pushed_by, since) VALUES(1, 1, 'p1', 'pick', 'bob', 1)")
+	run(t, e, "INSERT INTO task_turns(task_id, pos, agent, ask, pushed_by, since) VALUES(1, 1, 'p1', 'pick', '"+bob+"', 1)")
 	count(2, "the held task counts on the founder's turn")
 }
