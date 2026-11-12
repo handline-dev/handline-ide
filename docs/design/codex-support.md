@@ -56,6 +56,8 @@ Follow these steps to sign in with ChatGPT using device code authorization:
 
 **Refusing a tool call works.** On `PreToolUse`, the hook prints `{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"<why>"}}` and exits 0. The TUI shows `• Blocked by hook └ <why>`, the command does not run (checked for `touch` and an `apply_patch` add) and the model reads the reason. `deny` without a reason is refused, as are `allow` and `ask`. A hook whose command is missing shows `Hook failed └ hook exited with code 127` and the tool runs anyway, so a broken guard leaves the agent unguarded.
 
+**Sandbox and the socket (V5):** under `-s workspace-write` a command cannot connect to the daemon's socket (checked with `codex sandbox`), so every `hl` would fail; `-c sandbox_workspace_write.network_access=true` lets it through, and with it the whole network: codex 0.157 has no socket-only allowance that its sandbox honours (`network.allow_unix_sockets` and `network.allowed_domains` changed nothing under `codex sandbox`), so a codex agent's commands are not held to its allowed domains. A message typed mid-turn is taken in, and every typed message shows in the session file as a `response_item` user message, which is how its delivery is confirmed.
+
 **Session file:** `$CODEX_HOME/sessions/YYYY/MM/DD/rollout-<local time>-<session id>.jsonl`. Its first line is `{"type":"session_meta","payload":{"session_id","cwd",...}}`, Every hook passes the path as `transcript_path`, so the folder scan in decision 6 is only the fallback before the first hook.
 
 ## Contract (additive; clients ignore unknown fields)

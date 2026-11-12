@@ -1,18 +1,16 @@
 package codex
 
 import (
-	"errors"
 	"fmt"
 	"os/exec"
 	"strings"
 
 	"github.com/handline/handline/go/agentctl/agent"
-	"github.com/handline/handline/go/agentctl/delivery"
 	"github.com/handline/handline/go/agentctl/term"
 )
 
 // Driver is codex as a launch starts it (docs/design/codex-support.md, S1 findings): the TUI, one process per agent, its home the
-// account's CODEX_HOME. Hooks, the transcript lookup and delivery are V5's; until then a codex session reports no state of its own.
+// account's CODEX_HOME.
 type Driver struct {
 	Account
 	agent.Host
@@ -36,7 +34,7 @@ func (Driver) Binary() string {
 
 func (Driver) Screen() term.Driver { return Screen{} }
 
-func (Driver) Hooks() agent.Hooks { return nil }
+func (d Driver) Hooks() agent.Hooks { return Hooks{d.Host} }
 
 // The approval policy is on the launch line itself; codex has no mode of Claude Code's.
 func (Driver) AutoModeArgv() []string             { return nil }
@@ -47,33 +45,16 @@ func (Driver) LaunchEnv(string, string, string) map[string]string { return map[s
 // PromptArgv ends the options first, so a prompt that starts with a dash is the prompt.
 func (Driver) PromptArgv(prompt string) []string { return []string{"--", prompt} }
 
+// TranscriptDir: codex files sessions by date, not by worktree (SessionFile finds one by its cwd), so no folder is one worktree's.
 func (Driver) TranscriptDir(string, string) (string, bool) { return "", false }
-
-// Deliver: until V5 types into a codex session, its port is never live and writes nothing.
-func (Driver) Deliver(agent.DeliverEnv) agent.Port { return noPort{} }
-
-type noPort struct{}
-
-var errNoPort = errors.New("codex sessions take no messages yet")
-
-func (noPort) Structured(string) bool { return false }
-func (noPort) Live(string) bool       { return false }
-func (noPort) Send(a, _, _ string, _ delivery.Delivery) (delivery.Receipt, error) {
-	return delivery.Receipt{}, fmt.Errorf("%s: %w", a, errNoPort)
-}
-func (noPort) Withdraw(a, _ string) (delivery.Receipt, bool, error) {
-	return delivery.Receipt{}, false, fmt.Errorf("%s: %w", a, errNoPort)
-}
-func (noPort) Promote(a, _ string) (delivery.Receipt, error) {
-	return delivery.Receipt{}, fmt.Errorf("%s: %w", a, errNoPort)
-}
 
 // efforts maps Handline's effort onto codex's model_reasoning_effort, which has no step above high.
 var efforts = map[string]string{"low": "low", "medium": "medium", "high": "high", "xhigh": "high", "max": "high"}
 
 // LaunchArgv is S1's launch line. --no-daemon keeps each agent off codex's shared app-server; the inline projects table trusts the
-// worktree without saving it; the rules go in as developer_instructions, so nothing is written into the repo. Disallowed, Hide, NoWrite,
-// ReadAllow, MCPArgs and AllowDomains have no codex flag: the guards that stand for them are V5's PreToolUse hooks.
+// worktree without saving it; the rules go in as developer_instructions, so nothing is written into the repo; the hooks are Handline's
+// own file, so their review is bypassed. Disallowed, Hide, NoWrite, ReadAllow, MCPArgs and AllowDomains have no codex flag: a codex
+// session is held only by the sandbox and the PreToolUse guards.
 func (Driver) LaunchArgv(exe string, o agent.LaunchArgs) []string {
 	argv := []string{exe, "--no-daemon"}
 	if o.Cwd != "" {
@@ -89,7 +70,11 @@ func (Driver) LaunchArgv(exe string, o agent.LaunchArgs) []string {
 	if o.SandboxOff {
 		sandbox = "danger-full-access"
 	}
-	argv = append(argv, "-s", sandbox, "-a", "on-request", "-c", "check_for_update_on_startup=false")
+	argv = append(argv, "-s", sandbox, "-a", "on-request", "-c", "check_for_update_on_startup=false", "--dangerously-bypass-hook-trust")
+	if !o.SandboxOff {
+		// Without network the sandbox cannot connect to the daemon's socket either, and every hl in the session fails.
+		argv = append(argv, "-c", "sandbox_workspace_write.network_access=true")
+	}
 	dirs := append(append([]string{}, o.ExtraDirs...), o.AllowWrite...)
 	if o.CacheDir != "" && !o.SandboxOff {
 		dirs = append(dirs, o.CacheDir)

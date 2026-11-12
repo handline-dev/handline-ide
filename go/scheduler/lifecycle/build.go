@@ -113,6 +113,8 @@ func (l *Launcher) Build(site *Site, agent string, extra []string, force bool, a
 			if hooks.Missing() {
 				if err := hooks.Install(site.HlExe); err != nil {
 					site.warn("warning: Handline's own hooks are behind and could not be installed (%v) - run `hl init` from outside an agent's sandbox", err)
+				} else {
+					team.RelinkAll(l.Home, func(s string) { site.warn("%s", s) }) // a file installed for the first time reaches the accounts before this session starts
 				}
 			}
 			if err := hooks.AllowHomeSocket(); err != nil {
