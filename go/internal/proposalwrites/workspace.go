@@ -11,6 +11,7 @@ import (
 	"github.com/handline/handline/go/internal/worktreeprune"
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/addr"
+	"github.com/handline/handline/go/kit/wslock"
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
@@ -89,6 +90,11 @@ func (e *Env) workspaceDelete(c *rpc.Conn, params map[string]any) (any, error) {
 	if v, has := params["worktree"]; has && choice != worktreeprune.Save && choice != worktreeprune.Force {
 		return nil, rpc.BadRequestError(fmt.Sprintf("worktree is save or force, not %v", v), "worktree", rpc.InvalidParams)
 	}
+	release, held := wslock.Delete(e.Home, w.key) // before the checks: no agent is added or started in it from here on
+	if !held {
+		return nil, rpc.Refused(w.name+" has an agent being created or started just now: try again once it is.", "state", "")
+	}
+	defer release()
 	live, ok := map[string]bool(nil), false
 	if e.Live != nil {
 		live, ok = e.Live()
@@ -105,11 +111,20 @@ func (e *Env) workspaceDelete(c *rpc.Conn, params map[string]any) (any, error) {
 	if len(running) > 0 {
 		return nil, rpc.Refused(fmt.Sprintf("%s has sessions running (%s): stop them first. Nothing was deleted.", w.name, strings.Join(running, ", ")), "state", "")
 	}
-	if choice == "" {
-		for _, a := range w.agents {
+	for _, a := range w.agents { // every refusal before the first removal: what is left to fail part way is git or the disk
+		if choice == "" {
 			if err := e.refuseHeldWork(a); err != nil {
 				return nil, err
 			}
+		}
+		mine, err := worktreeprune.Of(e.DB, a)
+		if err != nil {
+			return nil, err
+		}
+		if _, refused, err := e.leaving(a, mine, choice); err != nil {
+			return nil, err
+		} else if refused != "" {
+			return nil, rpc.Refused(refused+" Nothing was deleted.", "worktree", "")
 		}
 	}
 	prop := &Prop{}

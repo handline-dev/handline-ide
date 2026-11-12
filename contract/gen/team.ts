@@ -191,7 +191,7 @@ export interface TeamMethods {
     workspaces: Workspace[];
   } };
   "workspace.create": { params: {
-  /** The workspace's name: lowercase letters, digits and -, 1 to 32 long, starting with a letter, used by no workspace and no person's handle. A dot or a slash is bad_request, field name; another name the rules refuse fails the operation with the reason. */
+  /** The workspace's name, by the naming rules (names.Check), used by no workspace and no person's handle. A dot or a slash is bad_request, field name; another name the rules refuse fails the operation with the reason. */
   name: string;
   /** The project folder, an absolute path (~ is the home folder). */
   folder: string;
@@ -200,7 +200,7 @@ export interface TeamMethods {
   "workspace.set": { params: {
   /** The workspace's key (w3) or its name, as workspaces.list gives them. An unknown one is not_found, what workspace. */
   workspace: string;
-  /** The new name, by workspace.create's rules. */
+  /** The new name, by the naming rules (names.Check). */
   name: string;
   request_id: RequestId;
 }; result: Accepted };

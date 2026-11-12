@@ -1,12 +1,15 @@
 package sessionrpc
 
 import (
+	"database/sql"
 	"errors"
 	"strings"
 
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/textsafe"
+	"github.com/handline/handline/go/kit/wslock"
 	"github.com/handline/handline/go/kit/yamlcompat"
 	"github.com/handline/handline/go/protocol/rpc"
 )
@@ -46,4 +49,34 @@ func (e *Env) workspaceCreate(c *rpc.Conn, params map[string]any) (any, error) {
 		_, err := e.Roster.Create(name, top)
 		return err
 	})
+}
+
+// useWorkspace holds the workspace agent is in (or would be, by its dotted name) against its delete while a call starts or adds
+// an agent there. A workspace that does not exist yet needs no hold.
+func (e *Env) useWorkspace(agent string) (release func(), err error) {
+	var ws string
+	if e.DB == nil {
+		return func() {}, nil
+	}
+	if k, id, ok := actor.Parse(agent); ok && k == actor.Agent {
+		var n int64
+		if err := e.DB.QueryRow("SELECT workspace FROM agents WHERE id = ?", id).Scan(&n); err == nil {
+			ws = actor.Key(actor.Workspace, n)
+		} else if !errors.Is(err, sql.ErrNoRows) {
+			return nil, err
+		}
+	} else {
+		wsName, _ := team.SplitLegacy(agent)
+		if ws, err = paths.WorkspaceKeyIn(e.DB, wsName); err != nil {
+			return nil, err
+		}
+	}
+	if ws == "" {
+		return func() {}, nil
+	}
+	release, ok := wslock.Use(e.Home, ws)
+	if !ok {
+		return nil, rpc.Refused("the workspace of "+agent+" is being deleted", "state", "")
+	}
+	return release, nil
 }

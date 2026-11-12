@@ -108,6 +108,10 @@ func (e *Env) create(c *rpc.Conn, params map[string]any) (any, error) {
 
 // operate runs register and then starts agent name as operation kind (agent.create, workspace.create), and answers once it ended.
 func (e *Env) operate(c *rpc.Conn, kind, name, repo, base string, register func() error) (any, error) {
+	release, err := e.useWorkspace(name)
+	if err != nil {
+		return nil, err
+	}
 	op := newOperationID()
 	operations.Begin(op) // before the row exists, so nothing reads a running row of a live operation as dead
 	result, err := c.Effect(func(tx *sql.Tx) (map[string]any, error) {
@@ -142,11 +146,16 @@ func (e *Env) operate(c *rpc.Conn, kind, name, repo, base string, register func(
 	})
 	if err != nil {
 		operations.End(op)
+		release()
 		return nil, err
 	}
 	e.announce(op)
 	ran := make(chan struct{})
-	go func() { defer close(ran); e.runCreate(op, name, repo, base, register, callOf(c)) }()
+	go func() {
+		defer close(ran)
+		defer release()
+		e.runCreate(op, name, repo, base, register, callOf(c))
+	}()
 	if _, err := outcome.Wait(e.Wait, c.Done(), func() (bool, error) {
 		select {
 		case <-ran:
