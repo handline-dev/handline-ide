@@ -17,7 +17,7 @@ var _ leases.Store = Store{}
 
 // Load is every stored lease and ask, and the highest id the table ever gave.
 func (s Store) Load() ([]leases.Lease, []leases.Ask, int64, error) {
-	rs, err := s.DB.Query("SELECT id, kind, agent, workspace, granted_at, pid, task, gate, until, waiting FROM leases ORDER BY id")
+	rs, err := s.DB.Query("SELECT id, kind, agent, workspace, granted_at, pid, task, gate, until, waiting, port FROM leases ORDER BY id")
 	if err != nil {
 		return nil, nil, 0, err
 	}
@@ -28,7 +28,7 @@ func (s Store) Load() ([]leases.Lease, []leases.Ask, int64, error) {
 		var l leases.Lease
 		var gate int64
 		var waiting bool
-		if err := rs.Scan(&l.ID, &l.Kind, &l.Agent, &l.Workspace, &l.Since, &l.PID, &l.Task, &gate, &l.Until, &waiting); err != nil {
+		if err := rs.Scan(&l.ID, &l.Kind, &l.Agent, &l.Workspace, &l.Since, &l.PID, &l.Task, &gate, &l.Until, &waiting, &l.Port); err != nil {
 			return nil, nil, 0, err
 		}
 		if waiting {
@@ -51,8 +51,8 @@ func (s Store) Load() ([]leases.Lease, []leases.Ask, int64, error) {
 
 // Put stores l under its own id, in place of what that id held.
 func (s Store) Put(l leases.Lease) error {
-	_, err := s.DB.Exec("INSERT OR REPLACE INTO leases (id, kind, agent, workspace, granted_at, pid, task, until) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-		l.ID, l.Kind, l.Agent, l.Workspace, l.Since, l.PID, l.Task, l.Until)
+	_, err := s.DB.Exec("INSERT OR REPLACE INTO leases (id, kind, agent, workspace, granted_at, pid, task, until, port) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		l.ID, l.Kind, l.Agent, l.Workspace, l.Since, l.PID, l.Task, l.Until, l.Port)
 	return err
 }
 

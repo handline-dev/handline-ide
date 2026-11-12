@@ -33,6 +33,7 @@ const (
 	awake  = "off, on or working"
 	reaper = "dry, on or off"
 	hosts  = "hosts"
+	ports  = "lo-hi"
 )
 
 // HostsMax is how many hosts network_addresses may name.
@@ -54,7 +55,8 @@ var settingKinds = map[string]string{"active_cap": int1, "park_timeout_s": int0,
 	loadgate.AgentCapKey: int0, loadgate.LoadPctKey: int0, loadgate.RAMFreePctKey: pct, loadgate.DiskFreeGBKey: int0,
 	usage.LaunchHoldKey: flag_, usage.PaceTargetKey: tgt, usage.PaceBurstKey: burst, usage.SubagentGuardKey: flag_, usage.MoveBeforeKey: pct,
 	settings.ClearPastBackgroundKey: flag_, settings.TranscriptRowsKey: flag_, settings.RefsNeedGrantKey: flag_,
-	leases.HeavyMaxKey: int0, leases.SimulatorMaxKey: int0, leases.BrowserMaxKey: int0, usage.NetworkAddressesKey: hosts}
+	leases.HeavyMaxKey: int0, leases.SimulatorMaxKey: int0, leases.BrowserMaxKey: int0, leases.PortRangeKey: ports,
+	usage.NetworkAddressesKey: hosts}
 
 var perAgent = map[string]bool{"park_timeout_s": true, "ignore_cache_expiry": true, "bg_notice_s": true, "bg_grace_s": true, "bg_check_s": true,
 	"notice_digest_s": true, handoff.PromptKey: true}
@@ -116,6 +118,12 @@ func settingValue(key string, v any) (any, error) {
 		if l, ok := hostList(v); ok {
 			return l, nil
 		}
+	case ports:
+		if s, ok := v.(string); ok {
+			if lo, hi, ok := leases.ParsePortRange(s); ok {
+				return fmt.Sprintf("%d-%d", lo, hi), nil
+			}
+		}
 	case line:
 		// config.yaml holds one line: a newline or another control character is refused, not written.
 		if s, ok := v.(string); ok && !textsafe.HasUnsafe(s) && utf8.RuneCountInString(s) <= LineMax {
@@ -131,7 +139,8 @@ func settingValue(key string, v any) (any, error) {
 		tgt: "a whole number from 50 to 100", burst: "a whole number from 0 to 50",
 		flag_: "true or false", awake: "off, on or working", reaper: "dry, on or off",
 		line:  fmt.Sprintf("one line of text, at most %d characters", LineMax),
-		hosts: fmt.Sprintf("a list of at most %d different hosts from connection.addresses", HostsMax)}[kind]
+		hosts: fmt.Sprintf("a list of at most %d different hosts from connection.addresses", HostsMax),
+		ports: "a range of ports like 4000-4999, from 1 to 65535"}[kind]
 	return nil, badParam(fmt.Sprintf("%s is %s, or null", key, what), key)
 }
 

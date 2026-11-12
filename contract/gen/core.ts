@@ -389,6 +389,8 @@ export type SettingsValues = {
   simulator_max?: number;
   /** Most browsers (headless Chrome or Chromium, Playwright) held at once through hl use, over every agent; 0 is no limit, the default. Over it an agent's hl use browser waits its turn (lease.take), and the PreToolUse guard refuses a browser started outside hl use unless the agent holds one; with 0 nothing waits or is refused. */
   browser_max?: number;
+  /** The ports a port lease (hl use port) is picked from, as lo-hi (e.g. 4000-4999) with 1024 <= lo <= hi <= 65535: a port no lease holds and that binds at grant time, given to the command as $HL_PORT; over the range an ask waits. Unset, the default, a port lease is any free port the system gives and none waits. */
+  port_range?: string | null;
   /** Hosts the network listener serves, from connection.addresses, each on the -listen port: a door on each of their addresses, made again within seconds when the setting or the interfaces change (no restart). The web page is served on each. null (the default) serves -listen alone; [] serves none. A host the machine has no address for now is served when it has one again. A write answers unreachable_devices: the paired devices whose host is no longer served. */
   network_addresses?: string[] | null;
 };
@@ -473,6 +475,8 @@ export type SettingsChanges = {
   simulator_max?: number | null;
   /** Most browsers (headless Chrome or Chromium, Playwright) held at once through hl use, over every agent; 0 is no limit, the default. Over it an agent's hl use browser waits its turn (lease.take), and the PreToolUse guard refuses a browser started outside hl use unless the agent holds one; with 0 nothing waits or is refused. null removes the key (back to the default). */
   browser_max?: number | null;
+  /** The ports a port lease (hl use port) is picked from, as lo-hi (e.g. 4000-4999) with 1024 <= lo <= hi <= 65535: a port no lease holds and that binds at grant time, given to the command as $HL_PORT; over the range an ask waits. Unset, the default, a port lease is any free port the system gives and none waits. Another value is bad_request (field port_range). null removes the key (back to the default). */
+  port_range?: string | null;
   /** Hosts the network listener serves, from connection.addresses, each on the -listen port: a door on each of their addresses, made again within seconds when the setting or the interfaces change (no restart). The web page is served on each. null (the default) serves -listen alone; [] serves none. A host the machine has no address for now is served when it has one again. A write answers unreachable_devices: the paired devices whose host is no longer served. A host this machine cannot be reached on is refused, gate address. A client connected through a host it drops is cut off before the answer; its retry with the same request_id reads it. null removes the key (back to the default). */
   network_addresses?: string[] | null;
 };
@@ -830,7 +834,7 @@ export interface CoreMethods {
 }; result: Accepted };
   "lease.take": { params: {
   agent: Who;
-  kind: "heavy" | "simulator" | "browser";
+  kind: "heavy" | "simulator" | "browser" | "port";
   /** A lease kept across commands (hl use <kind> --hold) rather than one for the calling process. */
   hold?: boolean;
 }; result: {
@@ -838,19 +842,21 @@ export interface CoreMethods {
     lease: number;
     /** How long the ask waited. */
     waited_s: number;
+    /** A port lease: the port, given to the command as $HL_PORT. */
+    port?: number;
   } };
   "lease.release": { params: {
   agent: Who;
   lease?: number;
-  kind?: ("heavy" | "simulator" | "browser") | "";
+  kind?: ("heavy" | "simulator" | "browser" | "port") | "";
 }; result: {
     /** How many leases were given back. */
     released: number;
   } };
   "lease.get": { params: { [key: string]: unknown }; result: {
     kinds: {
-      kind: "heavy" | "simulator" | "browser";
-      /** heavy_max, simulator_max or browser_max; 0 is no limit. */
+      kind: "heavy" | "simulator" | "browser" | "port";
+      /** heavy_max, simulator_max or browser_max; for port, the size of port_range, 0 when unset; 0 is no limit. */
       max: number;
       held: {
         lease: number;
@@ -864,6 +870,8 @@ export interface CoreMethods {
         reserved_for?: number;
         /** A reservation: when it goes to the next ask if not taken. */
         until?: Timestamp;
+        /** A port lease: its port. */
+        port?: number;
       }[];
       queue: {
         agent: string;
