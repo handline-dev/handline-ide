@@ -80,6 +80,12 @@ func TestAccountAddWithNoNameNamesItAfterTheCount(t *testing.T) {
 	if res := r.result(r.one("account.add", `{"request_id":"an3"}`)); res["account"] != fmt.Sprintf("account%d", have+4) {
 		t.Fatalf("past the one in use: %v", res)
 	}
+	if res := r.result(r.one("account.add", `{"request_id":"an1"}`)); res["replayed"] != true || res["account"] != next {
+		t.Fatalf("a retry answers the name it gave: %v", res)
+	}
+	if m := r.one("account.add", `{"account":5,"request_id":"an4"}`); r.code(m) != "bad_request" {
+		t.Fatalf("a name that is no string: %v", m)
+	}
 }
 
 func (r *rig) loggedIn(acct string) {

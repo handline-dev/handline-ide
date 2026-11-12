@@ -320,7 +320,7 @@ export interface AccountsMethods {
   request_id: RequestId;
 }; result: Accepted };
   "account.add": { params: {
-  /** The new account's name: one plain line, no slash, not starting with a dot. Omitted, it is account<n>, n one past the accounts there are (the second is account2). */
+  /** The new account's name: one plain line, no slash, not starting with a dot. Omitted: account<n>, n the number of accounts plus one, skipping a name in use. */
   account?: string;
   /** The tool the account is for; omitted means the default (claude). */
   vendor?: string;

@@ -176,7 +176,7 @@ export class FakeAccounts {
    * No name is account<n>, n one past the accounts there are, moving on past a name in use. */
   private register(p: Record<string, unknown>, accepted: (said: string, extra?: object) => unknown): unknown {
     let name = p.account;
-    if (name === undefined) {
+    if (name == null) {
       let n = this.rows.length + 1;
       while (this.rows.some((x) => x.name === `account${n}`)) n++;
       name = `account${n}`;
