@@ -33,8 +33,17 @@ func TestToldCutsALongCommandAndKeepsTheEndOfALongOutput(t *testing.T) {
 // An inline `! <command>` span is named as one, not as a code block numbered past a thousand.
 func TestABangSpanRunIsNamedAsOne(t *testing.T) {
 	st := 0
-	r := Run{Block: Block{Message: 7, Reply: true, N: bangFrom + 1}.String(), Command: "gh auth login", Started: 1, Ended: 2, Exit: &st}
+	r := Run{Block: Block{Message: 7, Owner: ByReply, N: bangFrom + 1}.String(), Command: "gh auth login", Started: 1, Ended: 2, Exit: &st}
 	if line := Told(nil, r, nil); !strings.HasPrefix(line, "The run of your reply's ! command 2 ended") {
+		t.Fatal(line)
+	}
+}
+
+// A run proposal's command is named as the agent's own proposal, by the id hl propose list shows.
+func TestAProposedCommandRunIsNamedAsTheProposal(t *testing.T) {
+	st := 1
+	r := Run{Block: ProposalBlock(0x0a1b2c3d).String(), Command: "rm -r /tmp/x", Started: 1, Ended: 13, Exit: &st}
+	if line := Told(nil, r, nil); !strings.HasPrefix(line, "The run of your proposed command (proposal 0a1b2c3d) ended with exit 1 after 12s. Command: rm -r /tmp/x") {
 		t.Fatal(line)
 	}
 }

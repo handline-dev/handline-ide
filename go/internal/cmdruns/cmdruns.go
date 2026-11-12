@@ -20,15 +20,28 @@ const prefix = "run:"
 // keep is how long a run row stays after it ends.
 const keep = 30 * 24 * 3600
 
-var blockRE = regexp.MustCompile(`^(r?)([0-9]{1,18}):([0-9]{1,9})$`)
+var blockRE = regexp.MustCompile(`^([rp]?)([0-9]{1,18}):([0-9]{1,9})$`)
 
-// Block is a parsed "<message id>:<n>", or "r<item id>:<n>" for the nth block of an agent's reply item (Reply true, Message the item id).
+// Owner is what a block belongs to: a chat message, an agent's reply item, or a run proposal (hl propose run), which has one block, 0.
+type Owner byte
+
+const (
+	ByMessage  Owner = 0
+	ByReply    Owner = 'r'
+	ByProposal Owner = 'p'
+)
+
+// Block is a parsed "<message id>:<n>", "r<item id>:<n>" for the nth block of an agent's reply item, or "p<proposal id>:0" for a run
+// proposal's command; Message is the message's, item's or proposal's id.
 type Block struct {
 	Message, N int64
-	Reply      bool
+	Owner      Owner
 }
 
-// ParseBlock reads "<message id>:<n>" or "r<item id>:<n>"; ok is false for any other text.
+// ProposalBlock is the block of run proposal id's command.
+func ProposalBlock(id int64) Block { return Block{Message: id, Owner: ByProposal} }
+
+// ParseBlock reads a block's text; ok is false for any other text.
 func ParseBlock(s string) (Block, bool) {
 	m := blockRE.FindStringSubmatch(s)
 	if m == nil {
@@ -36,17 +49,22 @@ func ParseBlock(s string) (Block, bool) {
 	}
 	msg, _ := strconv.ParseInt(m[2], 10, 64)
 	n, _ := strconv.ParseInt(m[3], 10, 64)
-	return Block{Message: msg, N: n, Reply: m[1] == "r"}, true
+	b := Block{Message: msg, N: n}
+	if m[1] != "" {
+		b.Owner = Owner(m[1][0])
+	}
+	return b, true
 }
 
 func (b Block) String() string { return b.owner() + ":" + strconv.FormatInt(b.N, 10) }
 
-// owner is the message id, or r and the reply item's id.
+// owner is the message id, or r or p and the reply item's or proposal's id.
 func (b Block) owner() string {
-	if b.Reply {
-		return "r" + strconv.FormatInt(b.Message, 10)
+	id := strconv.FormatInt(b.Message, 10)
+	if b.Owner != ByMessage {
+		return string(rune(b.Owner)) + id
 	}
-	return strconv.FormatInt(b.Message, 10)
+	return id
 }
 
 // Run is one run as kept: State is running, done, failed or stopped; Exit is set once it is done or failed. Agent is the agent whose chat
@@ -116,7 +134,16 @@ func All(q db.Q) ([]Run, error) { return read(q, prefix+"%") }
 func Of(q db.Q, id int64) ([]Run, error) { return OfBlocks(q, Block{Message: id}) }
 
 // OfReply is the runs of reply item id, oldest start first.
-func OfReply(q db.Q, id int64) ([]Run, error) { return OfBlocks(q, Block{Message: id, Reply: true}) }
+func OfReply(q db.Q, id int64) ([]Run, error) { return OfBlocks(q, Block{Message: id, Owner: ByReply}) }
+
+// OfProposalRun is the run of run proposal id's command; ok is false while it has none.
+func OfProposalRun(q db.Q, id int64) (Run, bool, error) {
+	runs, err := OfBlocks(q, ProposalBlock(id))
+	if err != nil || len(runs) == 0 {
+		return Run{}, false, err
+	}
+	return runs[len(runs)-1], true, nil
+}
 
 // OfBlocks is the runs of every block of b's message or reply item, oldest start first.
 func OfBlocks(q db.Q, b Block) ([]Run, error) {
