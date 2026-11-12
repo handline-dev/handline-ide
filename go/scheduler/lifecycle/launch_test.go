@@ -63,6 +63,7 @@ type fakeUsage struct {
 	others  int
 	exclude *string        // the agent ActiveOn was asked to leave out
 	active  map[string]int // agents mid-turn by account, over others
+	midTurn []string       // the agents MidTurn names
 	head    map[string]float64
 	share   map[string]float64 // FiveHourShare by account; unlisted is unknown
 	urgent  map[string]float64 // Urgency by account; unlisted is unknown
@@ -89,6 +90,10 @@ func (u fakeUsage) Headroom(acct string) (float64, bool) {
 	h, ok := u.head[acct]
 	return h, ok
 }
+func (u fakeUsage) MidTurn(_ db.Q, agent string) []string {
+	return slices.DeleteFunc(slices.Clone(u.midTurn), func(a string) bool { return a == agent })
+}
+
 func (u fakeUsage) ActiveOn(_ db.Q, acct, agent string) int {
 	if u.exclude != nil {
 		*u.exclude = agent

@@ -72,7 +72,7 @@ func (d queueReasons) Wall(q db.Q, agent string, row *db.AgentState) (*reads.Wal
 		return nil, err
 	}
 	w := d.p.LC.Launch.WakeWait(q, agent, row)
-	if w == nil {
+	if w == nil || w.Workspace != "" { // a workspace's cap is no account's wall: the queue reason says it
 		return nil, nil
 	}
 	out := &reads.Wall{Account: w.Account, Assumed: w.Assumed}

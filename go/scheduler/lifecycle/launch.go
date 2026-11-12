@@ -23,6 +23,7 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/kit/gitrun"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/protocol/sessiontoken"
@@ -84,6 +85,8 @@ type UsagePort interface {
 	// from its wake_reserved event until its Stop counts too. PickAccount and Fit leave agent out of the load the same way
 	// (load.read_all(exclude=agent)), so a placement is not refused for the slot the agent being placed holds.
 	ActiveOn(q db.Q, acct, agent string) int
+	// MidTurn is every agent mid-turn on any account, agent left out, as ActiveOn counts them; nil when it cannot be read.
+	MidTurn(q db.Q, agent string) []string
 }
 
 // AccountsPort is team/accounts.py as launch uses it.
@@ -179,15 +182,54 @@ func (l *Launcher) now() time.Time {
 	return time.Now()
 }
 
-// mayStartAccounts is the accounts that are logged in: `assignable` says nothing about credentials.
-func (l *Launcher) mayStartAccounts() []string {
+// mayStartAccounts is the accounts agent may start on: logged in (`assignable` says nothing about credentials), and named by its
+// workspace's accounts rule when one is on.
+func (l *Launcher) mayStartAccounts(agent string) []string {
+	allowed, _ := l.accountsRule(agent)
 	var out []string
 	for _, a := range paths.ListAccounts(l.Home) {
-		if l.Ports.Accounts.MayStart(a) {
+		if l.Ports.Accounts.MayStart(a) && (allowed == nil || slices.Contains(allowed, a)) {
 			out = append(out, a)
 		}
 	}
 	return out
+}
+
+// accountsRule is the accounts agent's workspace lets it run on and the rule that says so, nil when no accounts rule is on.
+func (l *Launcher) accountsRule(agent string) ([]string, *team.KeptRule) {
+	r, _ := l.rule(l.Q, agent, team.RuleAccounts)
+	if r == nil {
+		return nil, nil
+	}
+	return r.Value.([]string), r
+}
+
+// leftOut is how agent's workspace's accounts rule leaves acct out, "" when it does not or acct is "".
+func (l *Launcher) leftOut(agent, acct string) string {
+	if acct == "" {
+		return ""
+	}
+	allowed, rule := l.accountsRule(agent)
+	if allowed == nil || slices.Contains(allowed, acct) {
+		return ""
+	}
+	return "is left out by its workspace's rule " + ruleWords(rule)
+}
+
+// rule is the kept rule key in force for agent's workspace and that workspace's name, nil when none is on. One that cannot be read is
+// none: a rule never stalls work.
+func (l *Launcher) rule(q db.Q, agent, key string) (*team.KeptRule, string) {
+	rules, ws, err := team.AgentRules(q, agent)
+	if err != nil {
+		l.warn("kept rules: not read for %s: %v", agent, err)
+		return nil, ""
+	}
+	for _, r := range rules {
+		if r.Key == key && team.RuleOn(r.Value) {
+			return &r, ws
+		}
+	}
+	return nil, ws
 }
 
 // PinOf is the account its row pins the agent to, "" for none. A pinned agent runs only there: nothing that picks or moves
@@ -205,10 +247,12 @@ func (l *Launcher) PinOf(agent string) string {
 // logged in. One whose vendor reports no usage takes it with no room test; one that reports usage is held to its room as any account is.
 func (l *Launcher) pinnedWhy(agent, pin string) string {
 	vendor, theirs := l.Ports.Vendors.AgentVendor(agent), l.Ports.Vendors.AccountVendor(pin)
-	switch {
+	switch out := l.leftOut(agent, pin); {
 	case theirs != vendor:
 		return fmt.Sprintf("it is pinned to %s, a %s account, but it runs %s", pin, theirs, vendor)
-	case !slices.Contains(l.mayStartAccounts(), pin):
+	case out != "":
+		return fmt.Sprintf("it is pinned to %s, which %s", pin, out)
+	case !slices.Contains(l.mayStartAccounts(agent), pin):
 		return fmt.Sprintf("it is pinned to %s, which is not logged in or may not start", pin)
 	case l.Ports.Usage.Read(pin).Paused:
 		return fmt.Sprintf("it is pinned to %s, which is paused", pin)
@@ -230,7 +274,7 @@ func (l *Launcher) FindRoom(agent string) string {
 		}
 		return pin
 	}
-	candidates := l.mayStartAccounts()
+	candidates := l.mayStartAccounts(agent)
 	if picked := l.Ports.Usage.PickAccount(candidates, agent); picked != "" {
 		return picked
 	}
@@ -259,20 +303,34 @@ func (l *Launcher) FindRoom(agent string) string {
 // (carrySession) and still holds the account to the vendor, login and wall checks.
 func (l *Launcher) ChooseAccount(agent string, resuming bool, account string) string {
 	pin := l.PinOf(agent)
+	outside := func(a string) bool { return l.leftOut(agent, a) != "" }
 	switch {
 	case pin != "" && account != "" && account != pin:
 		return "" // a destination other than the pin: a pinned agent goes nowhere else
+	case pin != "" && outside(pin):
+		return "" // a pin its workspace's accounts rule leaves out takes it nowhere
+	case account != "" && outside(account):
+		return "" // a destination its workspace's accounts rule leaves out
 	case account != "":
 		return account
 	case resuming && pin != "":
 		return pin // a session recorded elsewhere, from before the pin, is not followed
-	case resuming:
+	case resuming && !outside(l.Ports.CurrentAccount(l.Q, agent)):
 		return l.Ports.CurrentAccount(l.Q, agent)
 	}
-	return l.FindRoom(agent)
+	return l.FindRoom(agent) // a session on an account the rule leaves out is carried to one it names
 }
 
-// WakeWait is a closed agent's wake walled behind an account's 5h or weekly wall.
+// ruleWords is a kept rule as a refusal names it: its key, its value and who set it.
+func ruleWords(r *team.KeptRule) string {
+	v := fmt.Sprint(r.Value)
+	if list, ok := r.Value.([]string); ok {
+		v = strings.Join(list, ", ")
+	}
+	return fmt.Sprintf("%s %s (set by %s)", r.Key, v, addr.Ref(r.SetBy))
+}
+
+// WakeWait is a closed agent's wake walled behind an account's 5h or weekly wall, its slots, or its workspace's agent_cap.
 type WakeWait struct {
 	Account string
 	Pct     int
@@ -291,6 +349,9 @@ type WakeWait struct {
 	FiveHour bool
 	// Paused: the account is paused, so nothing starts on it until it is resumed.
 	Paused bool
+	// Workspace: the agent's workspace has Busy of its agent_cap (Full) mid-turn, Rule saying so; no account is in question.
+	Workspace string
+	Rule      *team.KeptRule
 }
 
 // wall is the window this account is walled behind, the shortest first: an account walled on both reports the shortest one's rollover,
@@ -353,7 +414,7 @@ func (l *Launcher) full(q db.Q, agent string, row *db.AgentState, acct string, a
 func (l *Launcher) earliestFiveHourReset(agent, own string) int64 {
 	vendor, now := l.Ports.Vendors.AgentVendor(agent), l.now().Unix()
 	var first int64
-	for _, a := range l.mayStartAccounts() {
+	for _, a := range l.mayStartAccounts(agent) {
 		if r := l.Ports.Usage.Read(a).ShortReset; r > now && !l.Ports.Usage.NotFor(a, vendor) && (first == 0 || r < first) {
 			first = r
 		}
@@ -368,7 +429,7 @@ func (l *Launcher) earliestFiveHourReset(agent, own string) int64 {
 // window is not what keeps it out.
 func (l *Launcher) fiveHourHold(q db.Q, agent string) *WakeWait {
 	vendor, short := l.Ports.Vendors.AgentVendor(agent), ""
-	for _, a := range l.mayStartAccounts() {
+	for _, a := range l.mayStartAccounts(agent) {
 		if l.Ports.Usage.NotFor(a, vendor) {
 			continue
 		}
@@ -416,7 +477,7 @@ func (l *Launcher) ClosestRoom(q db.Q, agent string, row *db.AgentState, exclude
 	}
 	row = asWaiter(row)
 	best, most := "", math.Inf(-1)
-	for _, a := range l.mayStartAccounts() {
+	for _, a := range l.mayStartAccounts(agent) {
 		if _, skip := exclude[a]; skip || !l.pastFit(q, agent, row, a) {
 			continue
 		}
@@ -446,7 +507,10 @@ func (l *Launcher) RoomPastFit(q db.Q, agent string, row *db.AgentState, acct st
 	if pin := l.PinOf(agent); pin != "" && acct != pin {
 		return "is not " + pin + ", the account it is pinned to"
 	}
-	if !slices.Contains(l.mayStartAccounts(), acct) {
+	if why := l.leftOut(agent, acct); why != "" {
+		return why
+	}
+	if !slices.Contains(l.mayStartAccounts(agent), acct) {
 		return "is not logged in or may not start"
 	}
 	if !l.pastFit(q, agent, asWaiter(row), acct) {
@@ -478,7 +542,7 @@ func (l *Launcher) roomElsewhere(q db.Q, agent string, row *db.AgentState, exclu
 	best, most := "", math.Inf(-1)
 	var passed []string
 	var ranked []usage.Ranked
-	for _, a := range l.mayStartAccounts() {
+	for _, a := range l.mayStartAccounts(agent) {
 		if _, skip := exclude[a]; skip {
 			continue
 		}
@@ -515,8 +579,11 @@ func (l *Launcher) RoomOn(q db.Q, agent string, row *db.AgentState, acct string)
 	if pin := l.PinOf(agent); pin != "" && acct != pin {
 		return "is not " + pin + ", the account it is pinned to"
 	}
+	if why := l.leftOut(agent, acct); why != "" {
+		return why
+	}
 	row = asWaiter(row)
-	for _, a := range l.mayStartAccounts() {
+	for _, a := range l.mayStartAccounts(agent) {
 		if a != acct {
 			continue
 		}
@@ -541,7 +608,7 @@ func (l *Launcher) FreesFirst(agent string) *WakeWait {
 		}
 		return float64(w.Reset)
 	}
-	for _, a := range l.mayStartAccounts() {
+	for _, a := range l.mayStartAccounts(agent) {
 		if l.Ports.Usage.NotFor(a, vendor) {
 			continue
 		}
@@ -560,16 +627,19 @@ func (l *Launcher) NoRoom(agent string) string {
 		}
 	}
 	named := paths.ListAccounts(l.Home)
-	if len(l.mayStartAccounts()) == 0 {
+	if len(l.mayStartAccounts(agent)) == 0 {
 		if len(named) == 0 {
 			return "no account is registered - add one in the app's Accounts page first"
+		}
+		if allowed, rule := l.accountsRule(agent); allowed != nil {
+			return "no account its workspace's rule " + ruleWords(rule) + " names is logged in"
 		}
 		cmd, _ := l.Ports.Accounts.LoginCommand(named[0])
 		return fmt.Sprintf("no account is logged in. A human has to do this once (Handline never touches credentials):\n\n  %s\n", cmd)
 	}
 	why := "no account can take one more agent"
 	var each []string
-	for _, r := range l.Ports.Usage.PickReasons(l.mayStartAccounts(), agent) {
+	for _, r := range l.Ports.Usage.PickReasons(l.mayStartAccounts(agent), agent) {
 		each = append(each, r.Account+": "+r.Why)
 	}
 	if len(each) > 0 {
@@ -581,17 +651,19 @@ func (l *Launcher) NoRoom(agent string) string {
 	return why
 }
 
-// WakeWait is whether a closed agent's wake is walled behind its own account's 5h or weekly wall: the check made before anything is
-// typed into a closed agent's terminal. A resume cannot follow an account change, but the pinning rescue can start fresh elsewhere, so
-// a wait is not final. It answers only "is the account full", not "is anyone trying to wake this agent". A start with no session to
-// resume goes wherever ChooseAccount finds room; with none it waits on the account that frees up first. The resume branch is pinned to
-// the account its session is tied to. A computed condition, not a stored one: called again a moment later, on an account whose window
-// has since rolled over, it returns nil.
+// WakeWait is whether a closed agent's wake is held by its workspace's agent_cap or walled behind its own account's 5h or weekly wall:
+// the check made before anything is typed into its terminal. A resume cannot follow an account change, but the pinning rescue can start
+// fresh elsewhere, so a wait is not final. It answers only "is it full", not "is anyone trying to wake this agent". A start with no
+// session to resume goes wherever ChooseAccount finds room; with none it waits on the account that frees up first. The resume branch is
+// pinned to the account its session is tied to. A computed condition: called again after a window rolls over, it returns nil.
 func (l *Launcher) WakeWait(q db.Q, agent string, row *db.AgentState) *WakeWait {
 	if !isClosed(row) {
 		return nil
 	}
-	if row.ResumeSession.String != "" {
+	if w := l.WorkspaceWait(q, agent); w != nil {
+		return w
+	}
+	if row.ResumeSession.String != "" && l.leftOut(agent, l.Ports.CurrentAccount(q, agent)) == "" {
 		acct, source, ok := l.Ports.AccountReading(q, agent)
 		if !ok {
 			return nil
@@ -611,6 +683,30 @@ func (l *Launcher) WakeWait(q db.Q, agent string, row *db.AgentState) *WakeWait 
 		return nil
 	}
 	return l.fiveHourHold(q, agent)
+}
+
+// WorkspaceWait is the wait of agent's workspace at its agent_cap: as many of its other agents mid-turn as the rule allows, nil when
+// fewer are. A count that cannot be read holds nothing.
+func (l *Launcher) WorkspaceWait(q db.Q, agent string) *WakeWait {
+	r, ws := l.rule(q, agent, team.RuleAgentCap)
+	if r == nil {
+		return nil
+	}
+	members, err := team.WorkspaceAgents(q, agent)
+	if err != nil {
+		l.warn("agent_cap: members of %s not read: %v", ws, err)
+		return nil
+	}
+	busy := 0
+	for _, a := range l.Ports.Usage.MidTurn(q, agent) {
+		if slices.Contains(members, a) {
+			busy++
+		}
+	}
+	if capN := int(r.Value.(int64)); busy >= capN {
+		return &WakeWait{Slot: true, Workspace: ws, Full: capN, Busy: busy, Rule: r}
+	}
+	return nil
 }
 
 // WakeWaitReason is the sentence ps, triggers and the daemon's own log line print for a walled wake: one wording, so a screen can
@@ -636,6 +732,9 @@ func WaitClock(w *WakeWait, unknown string) string {
 
 // DescribeWakeWait is the wording for a wait already computed, so a caller that holds one does not recompute it.
 func DescribeWakeWait(w *WakeWait) string {
+	if w.Workspace != "" {
+		return fmt.Sprintf("waiting for a slot in workspace %s (%d of %d of its agents mid-turn; its rule %s)", w.Workspace, w.Busy, w.Full, ruleWords(w.Rule))
+	}
 	if w.Paused {
 		return fmt.Sprintf("waiting for %s: it is paused; resume it in the app's settings", w.Account)
 	}
@@ -1333,6 +1432,8 @@ func (p LaunchPort) Drifted(agent string, row *db.AgentState) bool { return p.L.
 func (p LaunchPort) WakeWait(q db.Q, agent string, row *db.AgentState) *WakeWait {
 	return p.L.WakeWait(q, agent, row)
 }
+
+func (p LaunchPort) WorkspaceWait(q db.Q, agent string) *WakeWait { return p.L.WorkspaceWait(q, agent) }
 
 func (p LaunchPort) AccountFor(q db.Q, agent string, resuming bool) string {
 	return p.L.ChooseAccount(agent, resuming, "")

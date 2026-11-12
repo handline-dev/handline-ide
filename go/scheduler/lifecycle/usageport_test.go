@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/handline/handline/go/accounts/usage"
@@ -68,6 +69,12 @@ func TestTheUsageAdapterPicksTheAccountFurthestBehindItsPaceAndCountsLoadWithout
 	if n := u.ActiveOn(q, "soon", "w1"); n != 1 {
 		t.Fatalf("%d", n)
 	}
+	db.SetAgentState(q, "w3", states.Running, 0, "")
+	db.SetAccount(q, "w3", "later", "")
+	if got := u.MidTurn(q, "w1"); !slices.Equal(slices.Sorted(slices.Values(got)), []string{"w2", "w3"}) {
+		t.Fatalf("mid-turn on every account, the agent left out: %v", got)
+	}
+	db.SetAgentState(q, "w3", states.Idle, 0, "")
 	if u.CapOf("soon") != usage.DefaultActiveCap {
 		t.Fatalf("%d", u.CapOf("soon"))
 	}
@@ -105,6 +112,9 @@ func TestAnAccountIsNotFitWhenItsLoadCannotBeRead(t *testing.T) {
 	}
 	if n := u.ActiveOn(q, "a", ""); n != u.CapOf("a") {
 		t.Fatalf("an unreadable count is the cap: %d", n)
+	}
+	if got := u.MidTurn(q, ""); got != nil {
+		t.Fatalf("an unreadable count names nobody: %v", got)
 	}
 }
 
