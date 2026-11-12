@@ -1,6 +1,7 @@
 package leases
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -80,6 +81,22 @@ func TestPastItsMaxHoldALeaseOnlyGoesWhenSomeoneAsks(t *testing.T) {
 	r.at(1000 + 920)
 	if len(r.signals) != 2 {
 		t.Fatalf("killed twice: %q", r.signals)
+	}
+}
+
+func TestAnAskNeverTakesBackTheAskersOwnLease(t *testing.T) {
+	r := newHoldRig()
+	if _, err := r.m.Take(nil, Browser, "a", true, 0, long); err != nil {
+		t.Fatal(err)
+	}
+	r.at(1000 + 900)
+	_, err := r.m.Take(nil, Browser, "a", false, 7, long) // a, holding it past max_hold, asks for another
+	var ooo *OutOfOrder
+	if !errors.As(err, &ooo) {
+		t.Fatalf("want the hold-and-wait refusal, got %v", err)
+	}
+	if h := pool(r.m, Browser).Held; len(h) != 1 || h[0].Agent != "a" || len(r.signals) != 0 {
+		t.Fatalf("a's own lease was taken back: %+v signals %q", h, r.signals)
 	}
 }
 

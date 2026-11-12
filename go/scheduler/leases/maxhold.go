@@ -78,21 +78,22 @@ func (m *Manager) overTime(periods map[string]int64) {
 	for _, kind := range Kinds {
 		// One per waiter: a port or a slot a revoked command still holds frees only once it exits, so the line may not shrink at once.
 		for range len(m.queues[kind]) {
-			if !m.revokeOne(kind, periods[kind]) {
+			if !m.revokeOne(kind, "", periods[kind]) {
 				break
 			}
 		}
 	}
 }
 
-// revokeOne takes back the lease of kind longest past its max_hold of period seconds; false when none is past it. The caller holds mu.
-func (m *Manager) revokeOne(kind string, period int64) bool {
+// revokeOne takes back the lease of kind longest past its max_hold of period seconds, never asker's own (its ask is refused instead);
+// false when none is past it. The caller holds mu.
+func (m *Manager) revokeOne(kind, asker string, period int64) bool {
 	if period == 0 {
 		return false
 	}
 	var oldest *Lease
 	for _, l := range m.held {
-		if l.Kind == kind && !l.Reserved() && m.now() >= l.deadline(period) && (oldest == nil || l.deadline(period) < oldest.deadline(period)) {
+		if l.Kind == kind && !l.Reserved() && l.Agent != asker && m.now() >= l.deadline(period) && (oldest == nil || l.deadline(period) < oldest.deadline(period)) {
 			oldest = l
 		}
 	}
