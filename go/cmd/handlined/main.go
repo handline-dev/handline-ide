@@ -125,7 +125,7 @@ func main() {
 		return
 	}
 	if agent := leaveAgentSession(); agent != "" {
-		log.Printf("handlined: started from %s's session: its agent variables are dropped, so the daemon keeps its own store", agent)
+		log.Printf("handlined: started from %s's session; dropped its agent variables", agent)
 	}
 	homeDir, err := resolveHome(*home, *allowReal)
 	if err != nil {
@@ -269,9 +269,7 @@ func untilClosed(ctx context.Context, r io.Reader) context.Context {
 	return ctx
 }
 
-// leaveAgentSession drops the variables that make a process an agent's session, which a daemon started from one inherits: with them
-// the protected store refuses the daemon's writes, so no launch is recorded and every agent's hl falls back to the founder key. It
-// answers the agent they named, "" when none.
+// leaveAgentSession drops the agent variables a daemon started from an agent's session inherits, and names that agent ("" for none).
 func leaveAgentSession() string {
 	agent, _ := paths.Getenv("AGENT")
 	for _, k := range []string{"HANDLINE_AGENT", "HANDLINE_ACCOUNT"} {
