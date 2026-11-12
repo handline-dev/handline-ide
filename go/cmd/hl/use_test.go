@@ -58,10 +58,11 @@ func TestUseHoldAndRelease(t *testing.T) {
 
 func TestLeaseText(t *testing.T) {
 	got := leaseText(obj{"kinds": []any{
+		map[string]any{"kind": "heavy", "max": float64(2), "held": []any{map[string]any{"agent": "d"}}, "queue": []any{}},
 		map[string]any{"kind": "simulator", "max": float64(0), "held": []any{}, "queue": []any{}},
 		map[string]any{"kind": "browser", "max": float64(1), "held": []any{map[string]any{"agent": "a"}}, "queue": []any{map[string]any{"agent": "b"}, map[string]any{"agent": "c"}}},
 	}})
-	if !strings.HasPrefix(got, "\nbrowsers: 1 held of 1 (a); waiting: b, c\n") || strings.Contains(got, "simulators") {
+	if !strings.HasPrefix(got, "\ntest or build runs: 1 held of 2 (d)\nbrowsers: 1 held of 1 (a); waiting: b, c\n") || strings.Contains(got, "simulators") {
 		t.Fatalf("%q", got)
 	}
 	if leaseText(obj{"kinds": []any{map[string]any{"kind": "browser", "max": float64(0), "held": []any{}, "queue": []any{}}}}) != "" {

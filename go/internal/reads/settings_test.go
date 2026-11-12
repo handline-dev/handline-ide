@@ -161,8 +161,8 @@ func TestTheLoadLimitsShowTheirDefaultsAndWhatIsSet(t *testing.T) {
 	if v["host_active_cap"] != 0 || v["load_per_core_pct"] != 0 || v["ram_free_min_pct"] != 0 || v["disk_free_min_gb"] != 0 {
 		t.Fatalf("defaults: %v %v %v", v["host_active_cap"], v["load_per_core_pct"], v["ram_free_min_pct"])
 	}
-	if v["simulator_max"] != 0 || v["browser_max"] != 0 {
-		t.Fatalf("lease defaults: %v %v", v["simulator_max"], v["browser_max"])
+	if v["heavy_max"] != 0 || v["simulator_max"] != 0 || v["browser_max"] != 0 {
+		t.Fatalf("lease defaults: %v %v %v", v["heavy_max"], v["simulator_max"], v["browser_max"])
 	}
 	os.WriteFile(filepath.Join(home, "config.yaml"), []byte("host_active_cap: 4\nload_per_core_pct: 150\nbrowser_max: 1\n"), 0o644)
 	if v = e.settingsValues(); v["host_active_cap"] != 4 || v["load_per_core_pct"] != 150 || v["browser_max"] != 1 {

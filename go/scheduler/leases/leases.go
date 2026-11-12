@@ -1,8 +1,9 @@
-// Package leases is how many simulators and browsers run at once: an agent asks for a lease in its turn (hl use), waits while every
-// lease of the kind is held, and gives it back when its command exits, when it releases a held one, when its turn or session ends, or
-// when the processes behind it are gone. A freed lease goes to the workspace that held the kind least in the last hour, first come
-// first served inside it. With the kind's limit 0 (the default) every ask is granted at once: the leases are still listed, and nothing
-// waits. The leases are stored, so a restart keeps what is held (docs/design/people-workspaces.md, Resource leases).
+// Package leases is how many test or build runs, simulators and browsers run at once: an agent asks for a lease in its turn (hl use),
+// waits while every lease of the kind is held, and gives it back when its command exits, when it releases a held one, when its turn or
+// session ends, or when the processes behind it are gone. A freed lease goes to the workspace that held the kind least in the last
+// hour, first come first served inside it. With the kind's limit 0 (the default) every ask is granted at once: the leases are still
+// listed, and nothing waits. The leases are stored, so a restart keeps what is held (docs/design/people-workspaces.md, Resource
+// leases).
 package leases
 
 import (
@@ -21,15 +22,17 @@ import (
 
 // The kinds of lease.
 const (
+	Heavy     = "heavy"     // a test or build run
 	Simulator = "simulator" // iOS Simulator, Android emulator
 	Browser   = "browser"   // Chrome or Chromium for shots, Playwright, CDP
 )
 
 // Kinds are every kind, in the order the read lists them.
-var Kinds = []string{Simulator, Browser}
+var Kinds = []string{Heavy, Simulator, Browser}
 
 // The config.yaml keys of each kind's limit: the most leases held at once, 0 for no limit.
 const (
+	HeavyMaxKey     = "heavy_max"
 	SimulatorMaxKey = "simulator_max"
 	BrowserMaxKey   = "browser_max"
 )
@@ -40,11 +43,19 @@ const CeilingS = 30 * 60
 // fairS is how far back a workspace's hold-seconds count toward who is granted next.
 const fairS = 60 * 60
 
+// Noun is what a lease of kind is called in a sentence.
+func Noun(kind string) string {
+	if kind == Heavy {
+		return "test or build run"
+	}
+	return kind
+}
+
 // MaxKey is kind's limit key.
 func MaxKey(kind string) string { return kind + "_max" }
 
 // Known is whether kind is a kind of lease.
-func Known(kind string) bool { return kind == Simulator || kind == Browser }
+func Known(kind string) bool { return kind == Heavy || kind == Simulator || kind == Browser }
 
 // Max is kind's limit in cfg: 0 (no limit) when it is absent or not a whole number above 0.
 func Max(cfg usage.Config, kind string) int {
@@ -59,6 +70,7 @@ func Max(cfg usage.Config, kind string) int {
 
 // procOf is what a hold's processes look like, shown on the read; a hold is not freed by them.
 var procOf = map[string]*regexp.Regexp{
+	Heavy:     regexp.MustCompile(`(?i)go test|\.test( |$)|cargo|xcodebuild|swift-(build|test)|vitest|jest|pytest|gradle|mvn|bazel`),
 	Simulator: regexp.MustCompile(`(?i)simulator|launchd_sim|qemu-system|/emulator`),
 	Browser:   regexp.MustCompile(`(?i)chrom|playwright|headless_shell`),
 }
