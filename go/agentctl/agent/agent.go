@@ -28,6 +28,8 @@ type Agent interface {
 
 // LaunchArgs are what a vendor's launch line is built from.
 type LaunchArgs struct {
+	// Cwd is the worktree the session starts in.
+	Cwd                       string
 	Model, Effort, Disallowed string
 	MCPArgs                   []string
 	Preamble                  string

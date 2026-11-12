@@ -8,8 +8,8 @@ import (
 	"github.com/handline/handline/go/agentctl/agent"
 )
 
-// codex registers its account facts and its CLI, and no launchable Agent until its launch line is built.
-func TestCodexRegistersItsAccountAndToolButNoAgent(t *testing.T) {
+// codex registers its account facts and its CLI.
+func TestCodexRegistersItsAccountAndTool(t *testing.T) {
 	if a, ok := agent.Lookup(Vendor); !ok || a.ConfigDirEnv() != "CODEX_HOME" {
 		t.Fatalf("account facts: %v %v", a, ok)
 	}
@@ -19,9 +19,6 @@ func TestCodexRegistersItsAccountAndToolButNoAgent(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("tools: %v", agent.Tools())
-	}
-	if _, ok := agent.New(Vendor, agent.Host{}); ok {
-		t.Fatal("a launchable agent before its launch line")
 	}
 }
 

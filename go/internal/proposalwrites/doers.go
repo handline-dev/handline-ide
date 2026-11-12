@@ -45,7 +45,7 @@ func (e *Env) roleOf(p step, with string) string {
 
 func (e *Env) register(name string, p step, repo, role string) error {
 	_, err := e.rosterIn(p).Register(name, team.RegisterOpts{Role: role, Repo: repo, Model: strPtr(p.str("model")), Effort: strPtr(p.str("effort")),
-		Vendor: strPtr(p.str("vendor"))})
+		Vendor: strPtr(p.str("vendor")), Account: strPtr(team.PinFor(e.Home, p.str("vendor")))})
 	return err
 }
 

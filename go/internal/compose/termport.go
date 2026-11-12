@@ -10,6 +10,8 @@ import (
 	"github.com/handline/handline/go/agentctl/agent/claudecode"
 	"github.com/handline/handline/go/agentctl/term"
 	"github.com/handline/handline/go/data/agenthost"
+	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/gitrun"
 	"github.com/handline/handline/go/scheduler/lifecycle"
 	"github.com/handline/handline/go/taskboard/supervisor"
@@ -24,9 +26,11 @@ type termPort struct{ t *term.Term }
 
 type termHost struct{ t *term.Term }
 
-// newTerm is the Term over the host in force for home (tmux unless config.yaml says otherwise). The driver is the default vendor's: the
-// vendor of the agent in a terminal is not looked up from its handle.
-func newTerm(home string) *term.Term { return term.New(agenthost.Dynamic(home), claudecode.ScreenFor) }
+// newTerm is the Term over the host in force for home (tmux unless config.yaml says otherwise), each terminal read in the wording of
+// its agent's vendor.
+func newTerm(home string, q db.Q) *term.Term {
+	return term.New(agenthost.Dynamic(home), team.ScreenFor(home, q, claudecode.ScreenFor))
+}
 
 var (
 	_ lifecycle.Terminal  = termPort{}
