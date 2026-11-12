@@ -69,6 +69,7 @@ var layer = map[string]int{
 	"scheduler/keepawake":     3,
 	"accounts/livetest":       3,
 	"scheduler/leases":        3,
+	"scheduler/leasestore":    3,
 	"scheduler/loadgate":      3,
 	"scheduler/pause":         3,
 	"scheduler/procload":      3,

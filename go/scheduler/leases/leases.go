@@ -1,7 +1,8 @@
-// Package leases is how many simulators and browsers run at once: an agent asks for a lease in its turn (hl use), waits first come
-// first served while every lease of the kind is held, and gives it back when its command exits, when it releases a held one, when its
-// turn or session ends, or when the processes behind it are gone. With the kind's limit 0 (the default) every ask is granted at once:
-// the leases are still listed, and nothing waits.
+// Package leases is how many simulators and browsers run at once: an agent asks for a lease in its turn (hl use), waits while every
+// lease of the kind is held, and gives it back when its command exits, when it releases a held one, when its turn or session ends, or
+// when the processes behind it are gone. A freed lease goes to the workspace that held the kind least in the last hour, first come
+// first served inside it. With the kind's limit 0 (the default) every ask is granted at once: the leases are still listed, and nothing
+// waits. The leases are stored, so a restart keeps what is held (docs/design/people-workspaces.md, Resource leases).
 package leases
 
 import (
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/accounts/usage"
+	"github.com/handline/handline/go/kit/peer"
 	"github.com/handline/handline/go/scheduler/procload"
 )
 
@@ -34,6 +36,9 @@ const (
 
 // CeilingS is the longest an ask waits before it is refused.
 const CeilingS = 30 * 60
+
+// fairS is how far back a workspace's hold-seconds count toward who is granted next.
+const fairS = 60 * 60
 
 // MaxKey is kind's limit key.
 func MaxKey(kind string) string { return kind + "_max" }
@@ -60,21 +65,36 @@ var procOf = map[string]*regexp.Regexp{
 
 // Lease is one held lease.
 type Lease struct {
-	ID    int64
-	Kind  string
-	Agent string
-	Since int64 // epoch seconds it was granted
-	Hold  bool  // taken with --hold: no command stands behind it
-	PID   int   // the hl use process the command runs under; 0 for a hold
-	Pids  []int // its processes at the last sample
+	ID        int64
+	Kind      string
+	Agent     string
+	Workspace string // the agent's workspace key when it was granted; "" when it has none
+	Since     int64  // epoch seconds it was granted
+	Hold      bool   // taken with --hold: no command stands behind it
+	PID       int    // the hl use process the command runs under; 0 for a hold
+	Pids      []int  // its processes at the last sample
+}
+
+// Store keeps the held leases across a restart. A hold is stored as PID 0, and comes back with Hold set.
+type Store interface {
+	// Load is every stored lease and the highest id ever given, so an id is not given twice.
+	Load() ([]Lease, int64, error)
+	Add(Lease) error
+	Remove(id int64) error
 }
 
 type waiter struct {
-	kind, agent string
-	since       int64
-	hold        bool
-	pid         int
-	got         chan *Lease // granted, buffered
+	kind, agent, ws string
+	since           int64
+	hold            bool
+	pid             int
+	got             chan *Lease // granted, buffered
+}
+
+// span is an ended lease's time, kept for an hour for the fair grant.
+type span struct {
+	kind, ws    string
+	from, until int64
 }
 
 // Manager holds the leases and the queues.
@@ -83,13 +103,64 @@ type Manager struct {
 	Max func(kind string) int
 	// Alive is whether a process runs; nil asks the system.
 	Alive func(pid int) bool
-	Now   func() int64
-	Log   func(format string, args ...any)
+	// Started is when a running process began, in epoch seconds; nil asks the system.
+	Started func(pid int) (int64, bool)
+	Now     func() int64
+	Log     func(format string, args ...any)
+	// Store keeps the leases; nil keeps them in memory only. Adopt reads it back at start.
+	Store Store
+	// WorkspaceOf is agent's workspace key, "" for none; nil puts every agent in one.
+	WorkspaceOf func(agent string) string
 
 	mu     sync.Mutex
 	next   int64
 	held   []*Lease
+	ended  []span
 	queues map[string][]*waiter
+}
+
+func (m *Manager) workspaceOf(agent string) string {
+	if m.WorkspaceOf == nil {
+		return ""
+	}
+	return m.WorkspaceOf(agent)
+}
+
+// Adopt takes back the stored leases after a restart: a hold stays until its holder's turn ends, and a command's lease stays while
+// the hl use process it was granted to runs, and is dropped when that process is gone or its pid now names a later one.
+func (m *Manager) Adopt() error {
+	if m.Store == nil {
+		return nil
+	}
+	stored, last, err := m.Store.Load()
+	if err != nil {
+		return fmt.Errorf("loading the stored leases: %w", err)
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.next = max(m.next, last)
+	for _, l := range stored {
+		m.next = max(m.next, l.ID)
+		if !l.Hold && !m.ranSince(l.PID, l.Since) {
+			m.forget(l.ID)
+			m.logf("lease: %s's %s (lease %d) freed: its hl use process ended while the daemon was down", l.Agent, l.Kind, l.ID)
+			continue
+		}
+		c := l
+		m.held = append(m.held, &c)
+		m.logf("lease: %s's %s (lease %d) kept across the restart", l.Agent, l.Kind, l.ID)
+	}
+	return nil
+}
+
+// forget removes lease id from the store, logging a failure: the leases in memory stay the truth.
+func (m *Manager) forget(id int64) {
+	if m.Store == nil {
+		return
+	}
+	if err := m.Store.Remove(id); err != nil {
+		m.logf("lease: removing lease %d from the store: %v", id, err)
+	}
 }
 
 func (m *Manager) now() int64 {
@@ -105,6 +176,16 @@ func (m *Manager) alive(pid int) bool {
 	}
 	err := syscall.Kill(pid, 0)
 	return err == nil || err == syscall.EPERM
+}
+
+// ranSince is whether pid runs and began at or before at: the same process, not a later one given its pid.
+func (m *Manager) ranSince(pid int, at int64) bool {
+	if m.Started != nil {
+		began, ok := m.Started(pid)
+		return ok && began <= at
+	}
+	began, ok := peer.Started(pid)
+	return ok && began.Unix() <= at
 }
 
 func (m *Manager) logf(format string, args ...any) {
@@ -137,27 +218,71 @@ func (m *Manager) free(kind string, limits map[string]int) bool {
 	return n < limits[kind]
 }
 
-func (m *Manager) grant(kind, agent string, hold bool, pid int) *Lease {
+func (m *Manager) grant(kind, agent, ws string, hold bool, pid int) *Lease {
 	m.next++
-	l := &Lease{ID: m.next, Kind: kind, Agent: agent, Since: m.now(), Hold: hold, PID: pid}
+	l := &Lease{ID: m.next, Kind: kind, Agent: agent, Workspace: ws, Since: m.now(), Hold: hold, PID: pid}
 	m.held = append(m.held, l)
+	if m.Store != nil {
+		if err := m.Store.Add(*l); err != nil {
+			m.logf("lease: storing lease %d: %v", l.ID, err)
+		}
+	}
 	return l
 }
 
-// promote grants the first waiters of each kind while a lease of it is free. The caller holds mu.
+// heldSeconds is each workspace's seconds holding kind in the last hour, ended leases and held ones. The caller holds mu.
+func (m *Manager) heldSeconds(kind string, now int64) map[string]int64 {
+	from := now - fairS
+	out := map[string]int64{}
+	for _, s := range m.ended {
+		if s.kind == kind && s.until > from {
+			out[s.ws] += s.until - max(s.from, from)
+		}
+	}
+	for _, l := range m.held {
+		if l.Kind == kind {
+			out[l.Workspace] += now - max(l.Since, from)
+		}
+	}
+	return out
+}
+
+// inLine is kind's waiters in the order they are granted: the workspace that held kind least in the last hour first, first come first
+// served among equals. The caller holds mu.
+func (m *Manager) inLine(kind string) []*waiter {
+	q := append([]*waiter{}, m.queues[kind]...)
+	if len(q) > 1 {
+		used := m.heldSeconds(kind, m.now())
+		sort.SliceStable(q, func(i, j int) bool { return used[q[i].ws] < used[q[j].ws] })
+	}
+	return q
+}
+
+// promote grants kind's waiters in line while a lease of it is free. The caller holds mu.
 func (m *Manager) promote() {
 	if len(m.queues) == 0 {
 		return
 	}
 	limits := m.limits()
 	for _, kind := range Kinds {
-		q := m.queues[kind]
-		for len(q) > 0 && m.free(kind, limits) {
-			w := q[0]
-			q = q[1:]
-			w.got <- m.grant(w.kind, w.agent, w.hold, w.pid)
+		if len(m.queues[kind]) == 0 || !m.free(kind, limits) {
+			continue
 		}
-		m.queues[kind] = q
+		granted := map[*waiter]bool{}
+		for _, w := range m.inLine(kind) {
+			if !m.free(kind, limits) {
+				break
+			}
+			granted[w] = true
+			w.got <- m.grant(w.kind, w.agent, w.ws, w.hold, w.pid)
+		}
+		var left []*waiter
+		for _, w := range m.queues[kind] {
+			if !granted[w] {
+				left = append(left, w)
+			}
+		}
+		m.queues[kind] = left
 	}
 }
 
@@ -166,19 +291,20 @@ type Refusal struct{ Why string }
 
 func (r *Refusal) Error() string { return r.Why }
 
-// Take is a lease of kind for agent, granted once one is free and nobody asked before: a hold, or one for the command running under
+// Take is a lease of kind for agent, granted once one is free and no waiter is ahead in line: a hold, or one for the command running under
 // pid. Past ceiling it is a *Refusal naming the holders; done closing (the asker hung up) ends the wait with no lease.
 func (m *Manager) Take(done <-chan struct{}, kind, agent string, hold bool, pid int, ceiling time.Duration) (*Lease, error) {
+	ws := m.workspaceOf(agent)
 	m.mu.Lock()
 	if m.queues == nil {
 		m.queues = map[string][]*waiter{}
 	}
 	if len(m.queues[kind]) == 0 && m.free(kind, m.limits()) {
-		l := m.grant(kind, agent, hold, pid)
+		l := m.grant(kind, agent, ws, hold, pid)
 		m.mu.Unlock()
 		return l, nil
 	}
-	w := &waiter{kind: kind, agent: agent, since: m.now(), hold: hold, pid: pid, got: make(chan *Lease, 1)}
+	w := &waiter{kind: kind, agent: agent, ws: ws, since: m.now(), hold: hold, pid: pid, got: make(chan *Lease, 1)}
 	m.queues[kind] = append(m.queues[kind], w)
 	m.mu.Unlock()
 	timer := time.NewTimer(ceiling)
@@ -256,6 +382,15 @@ func (m *Manager) drop(id int64, why string) bool {
 	for i, l := range m.held {
 		if l.ID == id {
 			m.held = append(m.held[:i:i], m.held[i+1:]...)
+			m.forget(id)
+			now := m.now()
+			kept := m.ended[:0]
+			for _, s := range m.ended {
+				if s.until > now-fairS {
+					kept = append(kept, s)
+				}
+			}
+			m.ended = append(kept, span{l.Kind, l.Workspace, l.Since, now})
 			m.logf("lease: %s's %s (lease %d) freed: %s", l.Agent, l.Kind, l.ID, why)
 			m.promote()
 			return true
@@ -359,10 +494,11 @@ func tree(pid int, children map[int][]int) []int {
 
 // Waiting is one ask in a queue.
 type Waiting struct {
-	Agent    string
-	Since    int64
-	Position int    // 1 is next
-	Says     string // "waiting for a browser, 2nd in line, held by a and b"
+	Agent     string
+	Workspace string
+	Since     int64
+	Position  int    // 1 is next
+	Says      string // "waiting for a browser, 2nd in line, held by a and b"
 }
 
 // Pool is one kind as the read serves it.
@@ -390,12 +526,12 @@ func (m *Manager) View() []Pool {
 				who = append(who, l.Agent)
 			}
 		}
-		for i, w := range m.queues[kind] {
+		for i, w := range m.inLine(kind) {
 			says := fmt.Sprintf("waiting for a %s, %s in line", kind, ordinal(i+1))
 			if len(who) > 0 {
 				says += ", held by " + andList(who)
 			}
-			p.Queue = append(p.Queue, Waiting{Agent: w.agent, Since: w.since, Position: i + 1, Says: says})
+			p.Queue = append(p.Queue, Waiting{Agent: w.agent, Workspace: w.ws, Since: w.since, Position: i + 1, Says: says})
 		}
 		out = append(out, p)
 	}

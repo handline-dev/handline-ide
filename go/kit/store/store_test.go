@@ -183,7 +183,7 @@ func TestADatabaseAnAdditiveStepAheadIsUsedAsItIs(t *testing.T) {
 		t.Fatalf("refused a step that only added: %v", err)
 	}
 	defer db.Close()
-	if got := versions(t, db); len(got) != 2 {
+	if got := versions(t, db); len(got) != LatestVersion()-baseVersion+2 {
 		t.Fatalf("nothing is stamped or removed: %v", got)
 	}
 }
@@ -272,7 +272,7 @@ func TestConcurrentOpensOfANewDatabaseMakeItOnce(t *testing.T) {
 	}
 	db, _ := Open(p)
 	defer db.Close()
-	if got := versions(t, db); len(got) != 1 {
+	if got := versions(t, db); len(got) != LatestVersion()-baseVersion+1 {
 		t.Fatalf("versions %v", got)
 	}
 }
