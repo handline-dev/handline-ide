@@ -342,7 +342,7 @@ func TestTheFoundersPassIsTheirCommentsTellAndTheTaskStillMoves(t *testing.T) {
 	if passes, err := db.PassesPause(r.DB, req); err != nil || !passes {
 		t.Fatalf("the founder's pass is held by a pause: %v %v", passes, err)
 	}
-	r.turnCall(r.k("human"), "task.edit", fmt.Sprintf(`{"task":%d,"owner":"eng.alice","request_id":"e1"}`, held))
+	r.turnCall(r.k("human"), "task.edit", fmt.Sprintf(`{"task":%d,"owner":%q,"request_id":"e1"}`, held, r.k("eng.alice")))
 	if task, _ := db.GetTask(r.DB, held); task.Owner != r.k("eng.alice") {
 		t.Fatalf("the task did not move: %+v", task)
 	}

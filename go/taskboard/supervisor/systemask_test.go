@@ -71,7 +71,7 @@ func TestAnAgentsHandoffStillNeedsItsEdge(t *testing.T) {
 	r := newRig(t)
 	r.founderOnlyTeam()
 	tid := r.newTask("eng.alice", "human", "job")
-	got := r.callAs("eng.alice", fmt.Sprintf(`{"jsonrpc":"2.0","id":2,"method":"task.handoff","params":{"task":%d,"to":"ops.bob","note":"yours","request_id":"h1"}}`, tid))
+	got := r.callAs("eng.alice", fmt.Sprintf(`{"jsonrpc":"2.0","id":2,"method":"task.handoff","params":{"task":%d,"to":%q,"note":"yours","request_id":"h1"}}`, tid, r.k("ops.bob")))
 	if task, _ := db.GetTask(r.DB, tid); task == nil || task.Owner != r.k("eng.alice") || !strings.Contains(fmt.Sprint(got), "ops.bob is in another workspace") {
 		t.Fatalf("refused, and the task stays: %v %+v", got, task)
 	}
