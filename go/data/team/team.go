@@ -156,6 +156,14 @@ func (t *Team) SupervisorOf(agent string) string {
 // LeadOf is who agent answers to; "" for none.
 func (t *Team) LeadOf(agent string) string { return t.SupervisorOf(agent) }
 
+// ContactOf is the contact of workspace ws, its lead: work from another workspace comes to it. "" when ws has none.
+func (t *Team) ContactOf(ws string) string {
+	if t == nil {
+		return ""
+	}
+	return t.leads[ws]
+}
+
 // AuditorOf is the agent named auditor in agent's workspace; "" when it has none.
 func (t *Team) AuditorOf(agent string) string {
 	if t == nil {
