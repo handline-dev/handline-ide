@@ -124,6 +124,52 @@ Work happens on a branch, `base-v2`. It cannot land in parts, because the team r
 - After 1f, the old home stays at `~/.handline-v1` for a week, to read from if something was missed.
 - Done means the team runs on the new base and every agent reaches the others by the three forms.
 
+## Resource leases
+
+What is there now (`hl use`, `go/scheduler/leases`, `leaseguard.go`): two kinds, `simulator` and `browser`, each with a limit in config (`simulator_max`, `browser_max`, 0 = no limit). An agent runs `hl use <kind> -- <command>` (lease held while the command runs) or `--hold` / `--release`. Asks queue first come first served, up to 30 minutes, then are refused naming the holders. A lease ends when the command exits, on `--release`, at the turn's end (holds) or session's end, or when the `hl use` process and its children are gone. A PreToolUse guard refuses a Bash call that starts a simulator or browser outside `hl use` while the kind has a limit. Leases live in memory only. `heavy_slots` is not built: it is a proposal in `docs/story2-load-research.md` (slots for test and build runs, from idle cores).
+
+### What is leased
+
+A lease is a claim on something the machine has few of. Three kinds of pool:
+
+| Kind | Pool | Limit |
+|---|---|---|
+| `simulator`, `browser` | counted (as today) | config, 0 = none |
+| `heavy` | counted slots for tests and builds | config, or the live reading in the load research; 0 = none until measured |
+| `port` | a range, e.g. 4000-4999; the lease carries the port number | the range |
+
+`hl use port -- <command>` sets `$HL_PORT` for the command; `hl use port --hold` prints it. Nothing else is leased: disk and memory stay guards, not leases.
+
+### Who holds, and the scope
+
+The holder is an agent key (people-workspaces keys), with its workspace recorded. The pools belong to the machine, not to a workspace: two workspaces on one Mac share one simulator. Limits are set in the settings (owner only). Queues are fair across workspaces: the next grant goes to the workspace that has held least in the last hour, first come first served inside it, so a busy workspace cannot starve another.
+
+### When it is given back
+
+A lease ends at the first of: the command exits; `hl use --release`; the end of the turn (holds); the end of the session; every process behind it gone (as today); **a time limit**, new. Each kind has a `max_hold` (default simulator 60 min, browser 30, heavy 30, port none). A command's lease is not cut while its process runs unless a hold. A hold past `max_hold` is revoked.
+
+### Taking back what is not returned
+
+1. At 80 % of `max_hold` the holder gets a notice naming the lease and the time left. `hl use --extend` adds one period, once, and only when nobody waits.
+2. At `max_hold` with a waiter in the queue the daemon revokes: it tells the holder, ends the lease, kills the processes that matched the kind for a hold (the kind's patterns in `procOf`, only the holder's own), and grants the next waiter. With no waiter nothing is revoked, and the line in `hl team` says "over time".
+3. A holder whose session is gone or parked loses its leases at once.
+4. At daemon start, holds are dropped (their turns ended with the daemon) and a command's lease is adopted again if its `hl use` pid is alive, else dropped.
+5. A waiter that hits the 30-minute ceiling is refused as today, and the refusal names who holds and for how long.
+
+### Seen
+
+`hl team` and the app list each pool: held (who, since, workspace), waiting (position), over time. Revocation and refusal are events on the holder's turn.
+
+### Builder tasks
+
+1. Persist nothing; add `Lease.Workspace` and fairness across workspaces in `leases.Manager` (tests: two workspaces, one starved).
+2. `max_hold`, warning notice, `hl use --extend`, revocation with process kill (needs 1).
+3. `heavy` kind: `hl use heavy -- <cmd>`, guard patterns for test and build commands, limit from config; the live reading is a later follow-up.
+4. `port` kind: range pool, `$HL_PORT`, free-port check before grant.
+5. Daemon start: drop holds, adopt live command leases.
+6. Contract and `hl team` / app lines for the new kinds and "over time"; settings keys.
+Steps 1 and 3-5 are independent; 2 and 6 follow 1.
+
 ## Later phases
 
 - **2 - personal mode and the first run.** The screens are designed and shown to the founder before they are built: first run, new workspace, the sidebar by workspace, settings. The first-run fixes already agreed are part of it: installing the tools on a bare Mac, the account and folder steps, the lead proposing the team, the settings cut, resource leases, the one device tab, signing. Signing needs the founder's Apple developer account.
