@@ -41,6 +41,20 @@ if [ "${GITHUB_EVENT_NAME:-}" = push ]; then kind=go; [ "$apps" = turbo ] || app
 [ -z "${CHECK_FULL:-}" ] || kind=go # the whole Go suite, even with nothing changed (the nightly run)
 if [ -n "$plan" ]; then printf 'kind=%s\napps=%s\n' "$kind" "$apps"; exit 0; fi
 
+# A local run needs disk (a Go build is gigabytes) and, with `heavy_max` set, a heavy slot: the machine's runs queue instead of all
+# filling the disk and the cores at once. CHECK_MIN_FREE_GB (default 5) is the free space under which it does not start.
+if [ "$kind" = go ] && [ -z "${GITHUB_ACTIONS:-}" ]; then
+    free_gb="$(df -Pk "${TMPDIR:-/tmp}" | awk 'NR==2 {printf "%d", $4 / 1048576}')"
+    if [ "${free_gb:-0}" -lt "${CHECK_MIN_FREE_GB:-5}" ]; then
+        echo "tools/check.sh: only ${free_gb} GB free (floor ${CHECK_MIN_FREE_GB:-5} GB): not starting. Free space (tools/gocache_prune.py --cap-gb 10, old worktrees: tools/prune_worktrees.py) and run again." >&2
+        exit 1
+    fi
+    if [ -z "${CHECK_HEAVY_HELD:-}" ] && command -v hl >/dev/null && hl use 2>&1 | grep -q heavy; then
+        export CHECK_HEAVY_HELD=1
+        exec hl use heavy -- "$0" "${args[@]}"
+    fi
+fi
+
 want() { [ -z "$group" ] || [ "$group" = "$1" ]; }
 # A Go group has nothing to run for a change that is not Go.
 golike() { [ "$kind" = go ] && { want go || want contract || want fakes; }; }
@@ -63,7 +77,7 @@ group_apps() {
 group_files() {
     needs_node file || return 1
     local r=0 pretty
-    quiet python3 -m unittest tools/test_pr_checks.py tools/test_check_hl_commands.py tools/test_go_modules.py tools/test_app.py tools/test_leakcheck.py || r=1
+    quiet python3 -m unittest tools/test_pr_checks.py tools/test_check_hl_commands.py tools/test_go_modules.py tools/test_app.py tools/test_leakcheck.py tools/test_gocache_prune.py tools/test_check_guard.py || r=1
     python3 tools/check_hl_commands.py || r=1
     node tools/ui-copy-check.mjs || r=1
     [ -n "$base" ] || return "$r"

@@ -5,10 +5,9 @@ cache="$(go env GOCACHE)"
 if ! mkdir -p "$cache" 2>/dev/null || ! [ -w "$cache" ]; then
     export GOCACHE="${TMPDIR:-/tmp}/handline-gocache"
 fi
-# Once a day, drop the cache files no build used for 12 hours (go marks an entry used by its mtime; its own trim waits five): the
-# worktrees write about 24 GB a day, and each new file is one more event for fseventsd. In the background: the walk takes minutes.
-# Never `go clean -cache` here: the files vanish under the builds running in other worktrees.
+# At most once an hour, keep the cache under its size cap (20 GB, HANDLINE_GOCACHE_MAX_GB), longest-unused files first. In the
+# background: the walk takes minutes. Never `go clean -cache` here: the files vanish under the builds running in other worktrees.
 cache="$(go env GOCACHE)"
-if [ -z "$(find "$cache/handline-pruned" -mtime -1 2>/dev/null)" ] && touch "$cache/handline-pruned" 2>/dev/null; then
-    (find "$cache" -mindepth 2 -type f -mmin +720 -delete >/dev/null 2>&1 &)
+if [ -z "$(find "$cache/handline-pruned" -mmin -60 2>/dev/null)" ] && touch "$cache/handline-pruned" 2>/dev/null; then
+    (python3 "$(dirname "${BASH_SOURCE[0]}")/gocache_prune.py" --dir "$cache" >/dev/null 2>&1 &)
 fi
