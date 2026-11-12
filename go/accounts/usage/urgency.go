@@ -14,11 +14,11 @@ const (
 )
 
 // Urgency is the account's unused weekly use per hour left before its week ends (the reset, or the subscription's end when that comes
-// first). ok false where the weekly reading is stale or unread, or the week is already over: such an account is not ranked. A stale
-// week is still a floor for the wall (LongTrusted), but a floor is no measure of what is left to spend.
+// first). ok false where the weekly reading is stale (carried_old: still a floor for the wall, no measure of what is left) or unread,
+// or the week is already over: such an account is not ranked.
 func Urgency(st *AccountStatus) (float64, bool) {
 	used, left := st.LongTrusted(), 0.0
-	if used == nil || st.Stale() || st.LongSource() == "carried_old" {
+	if used == nil || st.LongSource() == "carried_old" {
 		return 0, false
 	}
 	var ok bool
