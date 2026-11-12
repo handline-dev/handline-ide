@@ -72,12 +72,11 @@ func stubVersions(t *testing.T, vs map[string][3]int) {
 }
 
 func TestReadsTheCodexVersion(t *testing.T) {
-	exe := filepath.Join(t.TempDir(), "codex")
-	if err := os.WriteFile(exe, []byte("#!/bin/sh\necho codex-cli 0.167.2 '(abc1234)'\n"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if got, ok := versionOf(exe); got != [3]int{0, 167, 2} || !ok {
+	if got, ok := parseVersion("codex-cli 0.167.2 (abc1234)\n"); got != [3]int{0, 167, 2} || !ok {
 		t.Fatalf("%v %v", got, ok)
+	}
+	if _, ok := parseVersion("codex-cli dev\n"); ok {
+		t.Fatal("no version read as one")
 	}
 	if _, ok := versionOf(filepath.Join(t.TempDir(), "none")); ok {
 		t.Fatal("no binary read as a version")
