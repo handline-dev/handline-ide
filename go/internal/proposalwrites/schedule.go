@@ -111,7 +111,7 @@ func (e *Env) scheduleChange(agent string, args map[string]any) (map[string]stri
 	}
 	for _, p := range e.listing() {
 		if p.kind() == "schedule" && p.str("state") == "proposed" && p.str("agent") == agent && p.sets()["sid"] == sets["sid"] {
-			return nil, fmt.Sprintf("proposal %s already asks for that schedule of %s: withdraw it first (`hl propose withdraw %s`) to change it", p.id(), agent, p.id())
+			return nil, fmt.Sprintf("proposal %s already asks for that schedule of %s: withdraw it first (`hl propose withdraw %s`) to change it", p.id(), addr.Ref(agent), p.id())
 		}
 	}
 	return sets, ""

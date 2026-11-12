@@ -8,6 +8,7 @@ import (
 	dbpkg "github.com/handline/handline/go/data/db"
 
 	"github.com/handline/handline/go/kit/actor"
+	"github.com/handline/handline/go/kit/addr"
 )
 
 func (r *rig) errData(m map[string]any) map[string]any {
@@ -198,10 +199,10 @@ func TestTheCancelConfirmSaysYouForTheFoundersOwnMessage(t *testing.T) {
 	mine, _ := dbpkg.AddRequest(r.db, dbpkg.NewRequest{Requester: actor.OwnerKey, Target: r.k("bob"), Body: "x", Kind: "say"})
 	theirs, _ := dbpkg.AddRequest(r.db, dbpkg.NewRequest{Requester: r.k("alice"), Target: r.k("bob"), Body: "y", Kind: "say"})
 	r.db.Exec("UPDATE requests SET delivered_at = 1")
-	if _, said, err := CancelPlan(r.db, mine); err != nil || !strings.Contains(said, r.k("bob")+" is told to stop, you are not told") {
+	if _, said, err := CancelPlan(r.db, mine); err != nil || !strings.Contains(said, addr.Ref(r.k("bob"))+" is told to stop, you are not told") {
 		t.Fatalf("%q %v", said, err)
 	}
-	if _, said, err := CancelPlan(r.db, theirs); err != nil || !strings.Contains(said, r.k("alice")+" is not told") {
+	if _, said, err := CancelPlan(r.db, theirs); err != nil || !strings.Contains(said, addr.Ref(r.k("alice"))+" is not told") {
 		t.Fatalf("%q %v", said, err)
 	}
 }

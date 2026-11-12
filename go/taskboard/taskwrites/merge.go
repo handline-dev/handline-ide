@@ -8,6 +8,7 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/actor"
+	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
@@ -85,7 +86,7 @@ func mergeMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any,
 			for i, r := range rows {
 				names[i] = fmt.Sprintf("T%d", r.ID)
 			}
-			said := fmt.Sprintf("%s merged into T%d by %s", strings.Join(names, ", "), keep, by)
+			said := fmt.Sprintf("%s merged into T%d by %s", strings.Join(names, ", "), keep, addr.Ref(by))
 			var who []string
 			for _, t := range involved {
 				who = append(who, t.OpenedBy, t.Owner)

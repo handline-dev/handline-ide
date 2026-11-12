@@ -8,6 +8,7 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/actor"
+	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/kit/textsafe"
 )
 
@@ -118,14 +119,14 @@ func messageLines(q db.Q, agent, lead string) ([]string, error) {
 	}
 	head := "last messages with the founder"
 	if !actor.IsPerson(lead) {
-		head += " and " + lead
+		head += " and " + addr.Ref(lead)
 	}
 	lines := []string{head + ", newest first:"}
 	name := func(n string) string {
 		if n == agent {
 			return "you"
 		}
-		return n
+		return addr.Ref(n)
 	}
 	for _, m := range ms {
 		lines = append(lines, fmt.Sprintf("  %s %s %s -> %s: %s", db.MsgName(q, m.id), time.Unix(m.ts, 0).Format("01-02 15:04"), name(m.from), name(m.to), firstLine(m.body)))
@@ -163,5 +164,5 @@ func WhereText(q db.Q, agent, lead, record string, now time.Time) (string, error
 		lines = append(lines, progress...)
 	}
 	lines = append(lines, "Older messages: `hl inbox --all`, then `hl read <id>`; find one by its text with `hl chat search \"<text>\" [--with <name>] [--since 2d]`.")
-	return strings.Join(lines, "\n"), nil
+	return addr.RenderFor(q, agent, strings.Join(lines, "\n")), nil
 }

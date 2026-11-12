@@ -178,7 +178,10 @@ func stamp(epoch int64) any {
 
 func clip(s string, n int) string {
 	if r := []rune(s); len(r) > n {
-		return string(r[:n])
+		s = string(r[:n])
+		if open := strings.LastIndex(s, "<@"); open > strings.LastIndex(s, ">") {
+			s = strings.TrimRight(s[:open], " (,") // a <@key> ref cut in two is dropped, not half shown
+		}
 	}
 	return s
 }

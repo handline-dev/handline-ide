@@ -7,6 +7,7 @@ import (
 	"github.com/handline/handline/go/agentctl/delivery"
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/actor"
+	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/taskboard/supervisor"
 )
@@ -120,7 +121,7 @@ func (w *writes) promoteHeld(c *rpc.Conn, rid int64) (out map[string]any, handle
 		return nil, true, notQueued
 	}
 	out, err = c.Effect(func(*sql.Tx) (map[string]any, error) {
-		return map[string]any{"accepted": true, "said": fmt.Sprintf("message %d is told to %s now", rid, row.Target), "receipt": receiptMap(r)}, nil
+		return map[string]any{"accepted": true, "said": fmt.Sprintf("message %d is told to %s now", rid, addr.Ref(row.Target)), "receipt": receiptMap(r)}, nil
 	})
 	return out, true, err
 }

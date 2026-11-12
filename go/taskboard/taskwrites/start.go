@@ -27,7 +27,7 @@ func start(c *rpc.Conn, p map[string]any) (any, error) {
 		case t == nil:
 			return nil, refusal(fmt.Sprintf("no task T%d", tid))
 		case t.Acting != me:
-			return nil, refusal(fmt.Sprintf("task T%d is %s's, not yours to start", tid, t.Acting))
+			return nil, refusal(fmt.Sprintf("task T%d is %s's, not yours to start", tid, addr.Ref(t.Acting)))
 		case t.DiscardedBy.Valid && t.DiscardedBy.String != "":
 			return nil, refusal(fmt.Sprintf("task T%d is discarded - nothing to start", tid))
 		case t.done():

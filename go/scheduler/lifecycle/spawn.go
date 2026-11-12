@@ -3,7 +3,6 @@ package lifecycle
 import (
 	"context"
 	"fmt"
-	"github.com/handline/handline/go/scheduler/worktreepaths"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,10 +12,12 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/kit/gitrun"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/scheduler/worktreelock"
+	"github.com/handline/handline/go/scheduler/worktreepaths"
 )
 
 const (
@@ -250,34 +251,34 @@ func inWorktreesDir(dir, repo string) bool {
 func (s *Spawns) Recreate(agent, repo, recorded string) (string, string) {
 	path := worktreepaths.RecordedPath(recorded)
 	if path == "" {
-		return "", fmt.Sprintf("%s: its recorded worktree %q is not an absolute path", agent, recorded)
+		return "", fmt.Sprintf("%s: its recorded worktree %q is not an absolute path", addr.Ref(agent), recorded)
 	}
 	key, err := s.worktreeName(agent)
 	if err != nil {
-		return "", fmt.Sprintf("%s: its key could not be read: %v", agent, err)
+		return "", fmt.Sprintf("%s: its key could not be read: %v", addr.Ref(agent), err)
 	}
 	if key == "" {
-		return "", agent + " is not registered"
+		return "", addr.Ref(agent) + " is not registered"
 	}
 	branch := filepath.Base(path)
 	if !inWorktreesDir(filepath.Dir(path), repo) || !spawnBranch(key, branch) {
-		return "", fmt.Sprintf("%s: its worktree %s is gone and is not one a spawn made for it (%s.worktrees.noindex/%s) - not made again", agent,
+		return "", fmt.Sprintf("%s: its worktree %s is gone and is not one a spawn made for it (%s.worktrees.noindex/%s) - not made again", addr.Ref(agent),
 			path, filepath.Base(repo), key)
 	}
 	// A lock left by a session that is gone outlives the folder and would refuse the prune and the add.
 	if who := worktreelock.Held(repo, path, worktreelock.Running); who != "" {
-		return "", fmt.Sprintf("%s: its worktree %s is gone, but %s's session that locked it still runs", agent, path, who)
+		return "", fmt.Sprintf("%s: its worktree %s is gone, but %s's session that locked it still runs", addr.Ref(agent), path, addr.Ref(who))
 	}
 	if _, err := worktreelock.Release(repo, path, worktreelock.Running); err != nil {
-		return "", fmt.Sprintf("%s: its worktree %s is gone and its lock could not be let go: %v", agent, path, err)
+		return "", fmt.Sprintf("%s: its worktree %s is gone and its lock could not be let go: %v", addr.Ref(agent), path, err)
 	}
 	_ = gitrun.Run(repo, "worktree", "prune") // the gone worktree's entry, which would refuse the add
 	if r := gitrun.Run(repo, "rev-parse", "--verify", "--quiet", "refs/heads/"+branch); r.RC != 0 {
 		return "", fmt.Sprintf("%s: its worktree %s is gone and its branch %s is not in %s - not started in a new worktree, which would "+
-			"leave its work behind", agent, path, branch, repo)
+			"leave its work behind", addr.Ref(agent), path, branch, repo)
 	}
 	if r := gitrun.RunTimeout(repo, 120*time.Second, "worktree", "add", path, branch); r.RC != 0 {
-		return "", fmt.Sprintf("%s: its worktree %s is gone and could not be made again from branch %s: %s", agent, path, branch,
+		return "", fmt.Sprintf("%s: its worktree %s is gone and could not be made again from branch %s: %s", addr.Ref(agent), path, branch,
 			strings.TrimSpace(r.Stderr))
 	}
 	return path, ""
@@ -334,14 +335,14 @@ func (s *Spawns) EnsureExtras(agent, first, repo string) (have, told []string, e
 		}
 	}
 	if repo == "" {
-		return have, []string{fmt.Sprintf("%s: could not tell which repository %s belongs to, so its extra worktree was not made", agent, first)}, nil
+		return have, []string{fmt.Sprintf("%s: could not tell which repository %s belongs to, so its extra worktree was not made", addr.Ref(agent), first)}, nil
 	}
 	baseRef, why, err := PickBase(repo, gitrun.DefaultBranch(repo))
 	if err != nil {
 		return have, nil, err
 	}
 	if baseRef == "" {
-		return have, []string{fmt.Sprintf("%s: no extra worktree made: %s", agent, why)}, nil
+		return have, []string{fmt.Sprintf("%s: no extra worktree made: %s", addr.Ref(agent), why)}, nil
 	}
 	key, err := s.worktreeName(agent)
 	if err != nil {
@@ -353,11 +354,11 @@ func (s *Spawns) EnsureExtras(agent, first, repo string) (have, told []string, e
 	for n := len(have) + 2; n < want+2; n++ {
 		wt, failed := s.Host.CreateWorktree(repo, fmt.Sprintf("%s-%d", key, n), baseRef)
 		if wt == "" {
-			told = append(told, fmt.Sprintf("%s: could not make %s-%d: %s", agent, key, n, failed))
+			told = append(told, fmt.Sprintf("%s: could not make %s-%d: %s", addr.Ref(agent), key, n, failed))
 			break
 		}
 		have = append(have, wt)
-		told = append(told, fmt.Sprintf("%s: made worktree %s (branch %s-%d from %s)", agent, wt, key, n, baseRef))
+		told = append(told, fmt.Sprintf("%s: made worktree %s (branch %s-%d from %s)", addr.Ref(agent), wt, key, n, baseRef))
 	}
 	if len(told) > 0 {
 		if err := db.SetExtraWorktrees(s.Q, agent, have); err != nil {
@@ -376,7 +377,7 @@ func (s *Spawns) StartIn(agent, worktree, cmd string) (bool, string, error) {
 		return false, s.Host.Missing(), nil
 	}
 	if _, err := os.Stat(worktree); err != nil {
-		return false, fmt.Sprintf("%s: its worktree %s is gone", agent, worktree), nil
+		return false, fmt.Sprintf("%s: its worktree %s is gone", addr.Ref(agent), worktree), nil
 	}
 	_, extraTold, err := s.EnsureExtras(agent, worktree, "")
 	if err != nil {
@@ -390,7 +391,7 @@ func (s *Spawns) StartIn(agent, worktree, cmd string) (bool, string, error) {
 	s.Trust(agent, worktree)
 	handle, why := s.Host.OpenTerminal(cmd, worktree, agent, agent)
 	if handle == "" && why != "" {
-		return false, fmt.Sprintf("%s: could not start in %s: %s", agent, worktree, why), nil
+		return false, fmt.Sprintf("%s: could not start in %s: %s", addr.Ref(agent), worktree, why), nil
 	}
 	if err := s.took(agent, handle, worktree); err != nil {
 		return false, "", err
@@ -399,7 +400,7 @@ func (s *Spawns) StartIn(agent, worktree, cmd string) (bool, string, error) {
 	if shown == "" {
 		shown = "unknown"
 	}
-	said := strings.Join(append(extraTold, fmt.Sprintf("%s: started in %s (terminal %s)", agent, worktree, shown)), "\n")
+	said := strings.Join(append(extraTold, fmt.Sprintf("%s: started in %s (terminal %s)", addr.Ref(agent), worktree, shown)), "\n")
 	if problem := s.confirmSession(agent); problem != "" {
 		return false, said + "\n  but " + problem, nil
 	}
@@ -499,7 +500,7 @@ func (s *Spawns) SpawnWith(agent, repo string, o SpawnOpts) (bool, string, error
 	if shown == "" {
 		shown = "unknown"
 	}
-	lines := []string{fmt.Sprintf("%s: worktree %s", agent, wt), fmt.Sprintf("  %s (%s)", from, why)}
+	lines := []string{fmt.Sprintf("%s: worktree %s", addr.Ref(agent), wt), fmt.Sprintf("  %s (%s)", from, why)}
 	for _, t := range extraTold {
 		lines = append(lines, "  "+t)
 	}

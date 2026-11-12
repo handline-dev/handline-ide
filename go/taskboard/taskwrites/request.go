@@ -39,7 +39,7 @@ func founderMessage(tx *sql.Tx, home string, c *rpc.Conn, p map[string]any) (int
 	case !actor.IsPerson(req.Requester) || actor.IsPerson(req.Target):
 		return 0, nil, refusal(fmt.Sprintf("%s is not a message from the founder to an agent", name))
 	case me != actor.OwnerKey && me != req.Target:
-		return 0, nil, refusal(fmt.Sprintf("%s was sent to %s: only it, or the founder, may act on it", name, req.Target))
+		return 0, nil, refusal(fmt.Sprintf("%s was sent to %s: only it, or the founder, may act on it", name, addr.Ref(req.Target)))
 	}
 	return rid, req, nil
 }
