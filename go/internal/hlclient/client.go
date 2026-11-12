@@ -66,12 +66,16 @@ type Client struct {
 	note map[string]any
 }
 
-// slow are the methods that start, wake or stop a session (or the daemon) before they answer; the rest are Quick.
-var slow = map[string]bool{
-	"session.start": true, "session.wake": true, "session.restart": true, "session.stop": true, "session.park": true,
-	"agent.create": true, "agent.retire": true, "agent.move": true, "agent.switch_now": true, "agent.unstall": true, "agent.force_start": true,
-	"account.wake": true, "say": true, "chat.send": true, "chat.send_now": true,
-}
+// slow are the methods that start, wake or stop a session (or the daemon), or wait for git, before they answer; the rest are Quick.
+var slow = func() map[string]bool {
+	m := map[string]bool{}
+	for _, name := range []string{"session.start", "session.wake", "session.restart", "session.stop", "session.park",
+		"agent.create", "agent.retire", "agent.move", "agent.switch_now", "agent.unstall", "agent.force_start",
+		"account.wake", "say", "chat.send", "chat.send_now", "folder.init", "folder.clone"} {
+		m[name] = true
+	}
+	return m
+}()
 
 // DeadlineOf is how long a call to method may take: Timeout for the ones that start, wake or stop a session, Quick for the rest.
 func DeadlineOf(method string) time.Duration {

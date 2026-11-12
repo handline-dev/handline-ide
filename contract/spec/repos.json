@@ -376,6 +376,143 @@
    ]
   },
   {
+   "name": "folder.init",
+   "summary": "Make a folder on this Mac a git repository, for the first-run folder pick: git init, then a first commit of everything it holds but secrets. The call answers once git is done; hanging up stops it. Owner only.",
+   "description": "The branch is git's init.defaultBranch, main when none is set. Common secret files (.env, keys, certificates) are left out through .git/info/exclude, never a file of the folder. With no user.name or user.email set, the commit is the Mac user's. All or nothing: when the commit fails the .git made is removed. Refused (gate state), with the reason: the folder already holds a .git, sits inside another repository, is the home folder or above it, or git failed.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "path",
+     "required": true,
+     "schema": {
+      "type": "string"
+     },
+     "description": "An absolute path of a folder; anything else is not_found, what path."
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "allOf": [
+      {
+       "$ref": "#/components/schemas/Accepted"
+      },
+      {
+       "type": "object",
+       "properties": {
+        "path": {
+         "type": "string",
+         "description": "The folder, as given."
+        }
+       },
+       "required": [
+        "path"
+       ]
+      }
+     ]
+    }
+   },
+   "x-role": "owner",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "start git"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "x-gates": [
+    "state"
+   ]
+  },
+  {
+   "name": "folder.clone",
+   "summary": "Clone a repository into a folder that does not exist yet or is empty, for the first-run folder pick. The call answers once git is done; hanging up stops it. Owner only.",
+   "description": "Over https, ssh or git only. Neither git nor ssh asks for anything: a repository that needs a password or a host key the Mac does not already have is refused. Refused (gate state), with git's words: path is a folder that is not empty (a name taken by another folder is refused, never given a suffix), git failed, or it ran past 7 minutes; the folder is then not made. said names the url without any user or password in it.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "url",
+     "required": true,
+     "schema": {
+      "type": "string"
+     },
+     "description": "https://, ssh:// or git:// address, or the scp-like user@host:path. Blank, starting with -, holding a control character, or any other transport (ext::, file://, a local path): bad_request (field url)."
+    },
+    {
+     "name": "path",
+     "required": false,
+     "schema": {
+      "type": "string"
+     },
+     "description": "An absolute path; missing folders above it are made. Absent: ~/Handline/<the url's last part, less .git>, ~/Handline made when missing. Not absolute: bad_request (field path)."
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "allOf": [
+      {
+       "$ref": "#/components/schemas/Accepted"
+      },
+      {
+       "type": "object",
+       "properties": {
+        "path": {
+         "type": "string",
+         "description": "The folder the repository is in."
+        }
+       },
+       "required": [
+        "path"
+       ]
+      }
+     ]
+    }
+   },
+   "x-role": "owner",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "clone"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "x-gates": [
+    "state"
+   ]
+  },
+  {
    "name": "worktrees.list",
    "summary": "Worktrees with status, changed files, what each holds beyond its base and its pull request.",
    "paramStructure": "by-name",

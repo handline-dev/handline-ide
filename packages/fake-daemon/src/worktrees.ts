@@ -5,7 +5,8 @@ import { Failure, invalidParams, refused } from '#src/errors.ts';
 import { AGENTS } from '#src/fixtures.ts';
 
 /** The methods this answers. */
-const WORKTREES = /^(repos\.list|repos\.recent|repo\.facts|worktrees\.list|worktree\.diff|worktree\.remove|files\.list|file\.read|file\.write)$/;
+const WORKTREES =
+  /^(repos\.list|repos\.recent|repo\.facts|folder\.init|folder\.clone|worktrees\.list|worktree\.diff|worktree\.remove|files\.list|file\.read|file\.write)$/;
 
 const REPOS: Repo[] = [
   { name: 'handline', path: '/work/handline', default_branch: 'main' },
@@ -212,6 +213,30 @@ export class FakeWorktrees {
         if (![...this.repos, ...this.recent].some((r) => r.path === p.path))
           throw new Failure('not_found', `${p.path} is not a git folder`, { what: 'path', path: p.path });
         return { test_command: 'pnpm test', issues: [{ number: 42, title: 'Dark mode flickers on load' }], todos: 7, uncommitted: 2 };
+      }
+      case 'folder.init': {
+        // The fake makes no repository: the home folder and above are refused, a known repo is one already, anything else is not there.
+        if (typeof p.path !== 'string' || !p.path.startsWith('/'))
+          throw new Failure('not_found', `${String(p.path)} is not a folder`, { what: 'path', path: p.path });
+        if ('/Users'.startsWith(p.path)) throw refused('state', `${p.path} holds the home folder: choose a project folder inside it`);
+        if ([...this.repos, ...this.recent].some((r) => r.path === p.path)) throw refused('state', `${p.path} is already a git repository`);
+        throw new Failure('not_found', `${p.path} is not a folder`, { what: 'path', path: p.path });
+      }
+      case 'folder.clone': {
+        const url = typeof p.url === 'string' ? p.url.trim() : '';
+        if (!/^(https|ssh|git):\/\/|^[^/:]+:(?!:)/i.test(url) || url.startsWith('-'))
+          throw invalidParams("url is a repository's https, ssh or git address", 'url');
+        if (p.path !== undefined && (typeof p.path !== 'string' || !p.path.startsWith('/')))
+          throw invalidParams('path is an absolute path', 'path');
+        const name = url
+          .replace(/\/+$/, '')
+          .split(/[/:]/)
+          .pop()!
+          .replace(/\.git$/, '');
+        const path = (p.path as string | undefined) ?? `/Users/founder/Handline/${name}`;
+        if (path === '/' || [...this.repos, ...this.recent].some((r) => r.path === path))
+          throw refused('state', `${path} already exists and is not empty: choose another folder`);
+        return { accepted: true, said: `${url.replace(/\/\/[^@/]*@/, '//')} is cloned into ${path}`, path };
       }
       case 'worktrees.list': {
         if (p.repo !== undefined && typeof p.repo !== 'string') throw invalidParams('repo must be a string', 'repo');

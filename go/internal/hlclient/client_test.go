@@ -235,7 +235,7 @@ func TestEachMethodHasItsDeadline(t *testing.T) {
 		"task.done": Quick, "task.new": Quick, "task.comment.add": Quick, "inbox.queue": Quick, "hook.record": Quick, "a.method.not.yet.known": Quick,
 		"session.wake": Timeout, "session.start": Timeout, "session.restart": Timeout, "session.stop": Timeout, "session.park": Timeout,
 		"agent.create": Timeout, "agent.retire": Timeout, "agent.move": Timeout, "agent.switch_now": Timeout, "agent.unstall": Timeout, "agent.force_start": Timeout,
-		"account.wake": Timeout, "say": Timeout, "chat.send": Timeout, "chat.send_now": Timeout,
+		"account.wake": Timeout, "say": Timeout, "chat.send": Timeout, "chat.send_now": Timeout, "folder.init": Timeout, "folder.clone": Timeout,
 	} {
 		if got := DeadlineOf(method); got != want {
 			t.Errorf("%s: %v, want %v", method, got, want)

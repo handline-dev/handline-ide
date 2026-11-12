@@ -83,6 +83,21 @@ export interface ReposMethods {
   "repo.facts": { params: {
   path: string;
 }; result: RepoFacts };
+  "folder.init": { params: {
+  path: string;
+  request_id: RequestId;
+}; result: Accepted & {
+    /** The folder, as given. */
+    path: string;
+  } };
+  "folder.clone": { params: {
+  url: string;
+  path?: string;
+  request_id: RequestId;
+}; result: Accepted & {
+    /** The folder the repository is in. */
+    path: string;
+  } };
   "worktrees.list": { params: {
   repo?: string;
   owner?: Who;
@@ -209,6 +224,8 @@ export const REPOS_METHODS: { [K in keyof ReposMethods]: { role: Role; callers: 
   "repos.list": { role: "member", callers: null, write: false, since: 1 },
   "repos.recent": { role: "member", callers: null, write: false, since: 1 },
   "repo.facts": { role: "member", callers: null, write: false, since: 1 },
+  "folder.init": { role: "owner", callers: null, write: true, since: 1 },
+  "folder.clone": { role: "owner", callers: null, write: true, since: 1 },
   "worktrees.list": { role: "member", callers: null, write: false, since: 1 },
   "worktree.diff": { role: "member", callers: null, write: false, since: 1 },
   "files.list": { role: "member", callers: null, write: false, since: 1 },
@@ -236,7 +253,9 @@ export const REPOS_APP_CACHE: { [K in "repos.list" | "repos.recent" | "repo.fact
 };
 
 /** x-app-write of each write (x-app in core.json). */
-export const REPOS_APP_WRITES: { [K in "file.write" | "worktree.set_status" | "doc.push"]: { kind: WriteKind; label: string } | false } = {
+export const REPOS_APP_WRITES: { [K in "folder.init" | "folder.clone" | "file.write" | "worktree.set_status" | "doc.push"]: { kind: WriteKind; label: string } | false } = {
+  "folder.init": {"kind": "decided", "label": "start git"},
+  "folder.clone": {"kind": "decided", "label": "clone"},
   "file.write": {"kind": "decided", "label": "save file"},
   "worktree.set_status": {"kind": "decided", "label": "set status"},
   "doc.push": {"kind": "uncached", "label": "edit"},

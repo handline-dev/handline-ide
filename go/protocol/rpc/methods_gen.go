@@ -114,6 +114,8 @@ var specMethods = []SpecMethod{
 	{Name: "repos.list", Role: "member", Write: false, Since: 1, Callers: nil, Params: []SpecParam{}, Result: ""},
 	{Name: "repos.recent", Role: "member", Write: false, Since: 1, Callers: nil, Params: []SpecParam{}, Result: ""},
 	{Name: "repo.facts", Role: "member", Write: false, Since: 1, Callers: nil, Params: []SpecParam{{Name: "path", Type: "string", Required: true}}, Result: "RepoFacts"},
+	{Name: "folder.init", Role: "owner", Write: true, Since: 1, Callers: nil, Params: []SpecParam{{Name: "path", Type: "string", Required: true}, {Name: "request_id", Type: "string", Required: true}}, Result: ""},
+	{Name: "folder.clone", Role: "owner", Write: true, Since: 1, Callers: nil, Params: []SpecParam{{Name: "url", Type: "string", Required: true}, {Name: "path", Type: "string", Required: false}, {Name: "request_id", Type: "string", Required: true}}, Result: ""},
 	{Name: "worktrees.list", Role: "member", Write: false, Since: 1, Callers: nil, Params: []SpecParam{{Name: "repo", Type: "string", Required: false}, {Name: "owner", Type: "string", Required: false, Who: true}}, Result: ""},
 	{Name: "worktree.diff", Role: "member", Write: false, Since: 1, Callers: nil, Params: []SpecParam{{Name: "path", Type: "string", Required: true}, {Name: "file", Type: "string", Required: false}, {Name: "against", Type: "string", Required: false}}, Result: ""},
 	{Name: "files.list", Role: "member", Write: false, Since: 1, Callers: nil, Params: []SpecParam{{Name: "agent", Type: "string", Required: true, Who: true}, {Name: "query", Type: "string", Required: false}, {Name: "limit", Type: "json.Number", Required: false}}, Result: ""},
