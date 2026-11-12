@@ -37,7 +37,7 @@ func TestADeliveryNamesWhoWroteItAndNeverTheSessionsOwnPerson(t *testing.T) {
 	from := peerFrom(d)
 	for _, c := range []struct{ op, name string }{
 		{op("asks"), "asks"},
-		{op(actor.OwnerKey), "founder"},
+		{op(actor.OwnerKey), "human"},
 		{supervisor.DaemonOp, ""},
 		{"notice:1", ""},
 	} {

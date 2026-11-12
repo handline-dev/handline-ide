@@ -207,7 +207,7 @@ func (noSessionPort) Promote(agent, _ string) (delivery.Receipt, error) {
 	return delivery.Receipt{}, fmt.Errorf("%s: %w", agent, errNoSessionPort)
 }
 
-// peerFrom is who the message op to a session is from: whoever wrote it (the agents named in the operation, "founder" for the person), else
+// peerFrom is who the message op to a session is from: whoever wrote it (the agents named in the operation, "human" for the person), else
 // the daemon. A message always says it is another's, never reads as the person's own typing.
 func peerFrom(d *sql.DB) func(agent, op string) peerinbox.From {
 	return func(agent, op string) peerinbox.From {
@@ -218,7 +218,7 @@ func peerFrom(d *sql.DB) func(agent, op string) peerinbox.From {
 		var names []string
 		for _, a := range authors {
 			if actor.IsPerson(a) {
-				a = "founder"
+				a = "human"
 			}
 			if a != agent && !slices.Contains(names, a) {
 				names = append(names, a)
