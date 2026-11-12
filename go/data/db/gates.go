@@ -19,12 +19,37 @@ type Watch struct {
 const GateDeadlineS = int64(policy.GateDeadline / time.Second)
 
 // OpenGate makes task tid, owned by Gate, watch w: it is queued by `by` and doing from now, and its deadline is its time box from now.
+// A zero w watches nothing and has no deadline: the part of the daemon that opened it closes it (a lease's gate).
 func OpenGate(q Q, tid int64, by string, w Watch) error {
 	now := Now()
+	if w.Vendor == "" {
+		_, err := q.Exec("UPDATE tasks SET queued_by = COALESCE(queued_by, ?), queued_at = COALESCE(queued_at, ?), sent_at = ? WHERE id = ?",
+			by, now, now, tid)
+		return err
+	}
 	_, err := q.Exec("UPDATE tasks SET watch_vendor = ?, watch_target = ?, watch_until = ?, watch_label = ?, queued_by = COALESCE(queued_by, ?), "+
 		"queued_at = COALESCE(queued_at, ?), sent_at = ?, timeout_at = ? + COALESCE(timeout_s, ?) WHERE id = ?",
 		w.Vendor, w.Target, w.Until, w.Label, by, now, now, now, GateDeadlineS, tid)
 	return err
+}
+
+// OpenLeaseGates are the open gates that watch nothing (a lease's) created before at.
+func OpenLeaseGates(q Q, before int64) ([]int64, error) {
+	rows, err := q.Query("SELECT id FROM tasks WHERE owner = ? AND watch_vendor IS NULL AND done_evidence IS NULL AND discarded_by IS NULL "+
+		"AND created_at < ? ORDER BY id", Gate, before)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
 }
 
 const watchCols = "watch_vendor, watch_target, watch_until, watch_label, COALESCE(watch_result, ''), COALESCE(watch_error, ''), created_at"

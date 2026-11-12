@@ -860,6 +860,10 @@ export interface CoreMethods {
         hold: boolean;
         /** Its processes at the last sample: the hl use process and its descendants, or the agent's processes of a hold's kind. */
         pids: number[];
+        /** A reservation: the task it is kept for until its agent runs hl use on it (lease_claim). */
+        reserved_for?: number;
+        /** A reservation: when it goes to the next ask if not taken. */
+        until?: Timestamp;
       }[];
       queue: {
         agent: string;
@@ -868,6 +872,8 @@ export interface CoreMethods {
         position: number;
         /** The wait in words, for the agent view: 'waiting for a browser, 2nd in line, held by a and b'. */
         says: string;
+        /** The task the ask blocks (its gate waits on this lease); absent for a call held open. */
+        task?: number;
       }[];
     }[];
   } };
