@@ -1,4 +1,6 @@
 import { outsideBlockers, subtaskCount } from '#src/tools/subtasks.ts';
+import { useLeaseWaits } from '#src/tools/leaseWait.ts';
+import { LeaseIcon } from '#src/tools/LeaseIcon.tsx';
 import { activityOf, foundersTurn, taskOutcome, isPerson, turnChain, isSystem, type ActivityItem } from '@handline/app-core';
 import { hooks, useNameOf, useTaskHistory, useTaskSeen, useWrite } from '@handline/app-data';
 import { CommentRow, EventRow, type Turn } from '#src/tools/TaskEvents.tsx';
@@ -33,6 +35,7 @@ const CLOSED = ['done', 'discarded'];
  * its activity (comments and changes in one list) and a box to comment in, the chat's own. */
 export function TaskTab({ id }: { id: number }) {
   const q = hooks.useTaskGet({ task: id });
+  const leases = useLeaseWaits();
   const me = useMe();
   const nameOf = useNameOf();
   useTaskSeen(id);
@@ -68,10 +71,13 @@ export function TaskTab({ id }: { id: number }) {
   const t = q.data;
   if (q.isError) return <p className="m-auto text-sm text-danger">T{id} did not load.</p>;
   if (!t) return <TaskLoading id={id} />;
+  // In line for a machine resource: the line says which and who has it, in place of the daemon's gate task it waits on.
+  const lease = leases.get(t.id) ?? null;
+  const blockers = outsideBlockers(t).filter((b) => !(lease && b.owner === 'gate'));
   const open = !CLOSED.includes(t.state);
   const s = look(t);
   // Blockers have their own rows: "blocked by T<n>" over them would name each twice.
-  const why = t.blockers.length ? null : (t.waiting?.text ?? t.block_reason ?? t.hold_reason);
+  const why = lease?.text ?? (t.blockers.length ? null : (t.waiting?.text ?? t.block_reason ?? t.hold_reason));
   const mine = open && foundersTurn(t, me);
   const chain = turnChain(t, me, nameOf);
   const turn = t.turns?.at(-1);
@@ -115,12 +121,12 @@ export function TaskTab({ id }: { id: number }) {
               {/* The founder's turn is its row in Activity; up here only why the task waits on someone else. */}
               {open && !mine && why && (
                 <p className="flex items-start gap-2 text-sm text-muted">
-                  <Hourglass size={14} className="mt-0.5 shrink-0" />
+                  {lease ? <LeaseIcon kind={lease.kind} size={14} /> : <Hourglass size={14} className="mt-0.5 shrink-0" />}
                   <Linked text={why} />
                 </p>
               )}
               {open &&
-                outsideBlockers(t).map((b, i) => (
+                blockers.map((b, i) => (
                   <p key={b.task} className={`flex min-w-0 items-center gap-2 text-sm ${i > 0 ? 'pl-6' : ''}`}>
                     {i === 0 && <Hourglass size={14} className="shrink-0 text-muted" />}
                     <span className="shrink-0 whitespace-nowrap text-muted">Waiting on</span>
