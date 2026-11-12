@@ -13,6 +13,11 @@ func workspaceCmd(c *hlclient.Client, args []string) (int, bool) {
 		return 0, false
 	}
 	sub, rest := args[0], args[1:]
+	c.NoteVerbChain([]string{"workspace", sub})
+	if hlclient.Agent() != "" {
+		fmt.Println("workspaces are the founder's: propose one with `hl propose team <name> --member <name> ... --repo PATH --why \"<why>\"`, or ask the founder to rename or delete one")
+		return 1, true
+	}
 	var method string
 	params := map[string]any{}
 	switch sub {
@@ -22,9 +27,12 @@ func workspaceCmd(c *hlclient.Client, args []string) (int, bool) {
 			return 0, false
 		}
 		folder, _ := p.opt("--folder")
-		abs, err := filepath.Abs(expandHome(folder)) // the daemon reads it from its own folder: as typed here, none is here
+		if folder == "~" {
+			folder = "~/"
+		}
+		abs, err := filepath.Abs(expandHome(folder)) // relative to where hl is typed, not the daemon's folder
 		if err != nil {
-			return wrongArgs("--folder %s cannot be read: %v", folder, err)
+			return wrongArgs("the current folder cannot be read: %v", err)
 		}
 		method, params["name"], params["folder"] = "workspace.create", p.pos[0], abs
 	case "rename":
@@ -52,14 +60,9 @@ func workspaceCmd(c *hlclient.Client, args []string) (int, bool) {
 	default:
 		return 0, false
 	}
-	if hlclient.Agent() != "" {
-		fmt.Println("workspaces are the founder's: propose one with `hl propose team <name> --member <name> ... --repo PATH --why \"<why>\"`, or ask the founder to rename or delete one")
-		return 1, true
-	}
-	c.NoteVerbChain([]string{"workspace", sub})
 	ok, text, got := c.Written(method, params)
 	if ok && sub == "new" {
-		text = fmt.Sprintf("workspace %s is being made in %s and its lead started (operation %s)", params["name"], params["folder"], line(got["operation"]))
+		text = fmt.Sprintf("workspace %s: making it on the git checkout of %s and starting its lead (operation %s)", params["name"], params["folder"], line(got["operation"]))
 	}
 	return said(ok, text), true
 }

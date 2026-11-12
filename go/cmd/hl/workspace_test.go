@@ -16,8 +16,8 @@ func TestWorkspaceNewRenameDeleteCallTheOwnersMethods(t *testing.T) {
 		args []string
 		out  string
 	}{
-		{[]string{"workspace", "new", "shop", "--folder", "sub"}, "workspace shop is being made in " + filepath.Join(root, "sub") + " and its lead started (operation op1)"},
-		{[]string{"workspace", "new", "here"}, "workspace here is being made in " + root},
+		{[]string{"workspace", "new", "shop", "--folder", "sub"}, "workspace shop: making it on the git checkout of " + filepath.Join(root, "sub") + " and starting its lead (operation op1)\n"},
+		{[]string{"workspace", "new", "here"}, "workspace here: making it on the git checkout of " + root + " and starting its lead (operation op1)\n"},
 		{[]string{"workspace", "rename", "shop", "--to", "store"}, "workspace shop is store"},
 		{[]string{"workspace", "delete", "store", "--worktree", "save"}, "workspace store deleted"},
 	} {
@@ -25,13 +25,16 @@ func TestWorkspaceNewRenameDeleteCallTheOwnersMethods(t *testing.T) {
 			t.Errorf("%v: %d %q %q", c.args, code, out, errs)
 		}
 	}
-	for _, args := range [][]string{{"workspace"}, {"workspace", "new"}, {"workspace", "rename", "shop"}, {"workspace", "delete", "a", "--worktree", "keep"}, {"workspace", "move", "a"}} {
+	for _, args := range [][]string{{"workspace"}, {"workspace", "new"}, {"workspace", "rename", "shop"}, {"workspace", "rename", "shop", "--to", ""},
+		{"workspace", "delete", "a", "--worktree", "keep"}, {"workspace", "move", "a"}} {
 		if _, errs, code := r.run(nil, args...); code != 2 || !strings.Contains(errs, "arguments not understood") {
 			t.Errorf("%v: %d %q", args, code, errs)
 		}
 	}
-	if out, _, code := r.run(asAgent, "workspace", "delete", "store"); code != 1 || !strings.Contains(out, "hl propose team") {
-		t.Errorf("an agent is not pointed to a proposal: %d %q", code, out)
+	for _, args := range [][]string{{"workspace", "delete", "store"}, {"workspace", "new"}} {
+		if out, _, code := r.run(asAgent, args...); code != 1 || !strings.Contains(out, "hl propose team") {
+			t.Errorf("%v: an agent is not pointed to a proposal: %d %q", args, code, out)
+		}
 	}
 	want := []string{
 		`workspace.create {"folder":"` + filepath.Join(root, "sub") + `","name":"shop"}`,
@@ -41,5 +44,13 @@ func TestWorkspaceNewRenameDeleteCallTheOwnersMethods(t *testing.T) {
 	}
 	if got := sent(calls()); !reflect.DeepEqual(got, want) {
 		t.Errorf("calls\n got  %v\n want %v", got, want)
+	}
+}
+
+func TestAWorkspaceCallTheDaemonRefusesSaysWhyAndFails(t *testing.T) {
+	r := newRig(t)
+	r.daemon(map[string]string{"workspace.set": "error:an agent of shop has a session running"})
+	if out, _, code := r.run(nil, "workspace", "rename", "shop", "--to", "store"); code != 1 || !strings.Contains(out, "session running") {
+		t.Errorf("%d %q", code, out)
 	}
 }
