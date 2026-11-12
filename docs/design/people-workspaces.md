@@ -182,6 +182,43 @@ Leases are stored in the base (kind, agent, workspace, granted-at, `hl use` pid,
 
 New limits merge off by default (AGENTS.md): `max_hold` and `heavy` start at 0 = none.
 
+## Workspace rules
+
+Today (main, read from `go/scheduler/lifecycle/launch.go` and `rulesnote.go`): `workspaces/<key>/base.md` reaches each agent of the workspace as the "# Rules for team X" part of the session's system prompt at launch, and a running session is told the changed lines as a note when the text's hash differs from the launch's (`RulesNote`), so there is no wait for a restart. Limit 2 KB. It is text only: nothing in it is kept by the daemon. What the daemon does keep is machine-wide or per agent, never per workspace: an account's agent cap, the load limits, lease limits, the agent's `mode` and sandbox (founder only), the global disallowed-tools list, the access grants. A workspace has a folder, added folders and a lead, and no rule.
+
+### Two kinds of rule
+
+- **Text rules** (`base.md`): how we work, in words an agent reads. No check. Stays as is.
+- **Kept rules**: rows `workspace_settings(workspace, key, value)`, set by the owner only (a lead may propose). A value on the workspace beats the machine default, which beats the built-in. Each key names the one place that keeps it.
+
+| Key | Meaning | Kept at |
+|---|---|---|
+| `accounts` | accounts the workspace's agents may run on (empty = any) | `Admit` / `FindRoom` filter; a pin outside it is refused |
+| `agent_cap` | most agents of the workspace mid-turn at once (0 = none) | the start gate beside the account cap |
+| `lease_max.<kind>` | most leases of a kind the workspace holds at once | the lease grant (fair share, see Resource leases) |
+| `tools_deny` | tools its agents may not use, added to the global list | launch argv and the PreToolUse guard |
+| `mode_max` | strongest mode an agent of it may be given (`plan` < `default` < `acceptEdits` < `auto`) | agent create and settings write |
+| `review_required` | a task with commits needs a review comment from another agent before `hl task done` | the task.done write |
+
+New keys merge off (0 or empty = no rule); the founder turns them on. Nothing else is a kept rule until a kept place for it exists: "how work lands" (direct to main or a PR) stays text in `base.md` until the daemon can see a landing.
+
+### Told when it changes
+
+The settings render into the same "team rules" part as a short block under the text ("Kept rules: agent_cap 3; accounts alpha, gamma"), so the existing hash and `RulesNote` tell a running agent what changed, with the changed lines only. A key that acts only at the next session start (`tools_deny`, `mode_max`) says so in that line. A refusal by a kept rule names the key, its value and who set it.
+
+### Tests
+
+One table test per key: value on the workspace, on the machine only, on neither (precedence); the place that keeps it refuses or allows with the exact text; a change produces the note once; a second workspace is unaffected. Reads and writes by a non-owner are refused.
+
+### Builder tasks
+
+1. `workspace_settings` table, owner write rpc and contract, precedence resolve, rendering into the rules block (go/data, contract). First.
+2. `accounts` filter and `agent_cap` gate (needs 1; touches usage/pick and lifecycle launch).
+3. `lease_max.<kind>` (needs 1 and the leases manager task).
+4. `tools_deny` and `mode_max` (needs 1; launch argv and agent create).
+5. `review_required` at task.done (needs 1).
+6. The rules column for T8955: key, value, source (workspace or machine), the `base.md` size (needs 1).
+
 ## Later phases
 
 - **2 - personal mode and the first run.** The screens are designed and shown to the founder before they are built: first run, new workspace, the sidebar by workspace, settings. The first-run fixes already agreed are part of it: installing the tools on a bare Mac, the account and folder steps, the lead proposing the team, the settings cut, resource leases, the one device tab, signing. Signing needs the founder's Apple developer account.
