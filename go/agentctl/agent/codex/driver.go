@@ -133,13 +133,21 @@ type binaryKey struct {
 
 var versionRE = regexp.MustCompile(`\b(\d+)\.(\d+)\.(\d+)\b`)
 
-// versionOf is the first X.Y.Z a binary's --version prints, ok false when it cannot be read.
-var versionOf = func(exe string) (v [3]int, ok bool) {
+// versionOf is the version a binary's --version prints, ok false when it cannot be read.
+var versionOf = func(exe string) ([3]int, bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	out, err := exec.CommandContext(ctx, exe, "--version").Output()
-	m := versionRE.FindStringSubmatch(string(out))
-	if err != nil || m == nil {
+	if err != nil {
+		return [3]int{}, false
+	}
+	return parseVersion(string(out))
+}
+
+// parseVersion is the first X.Y.Z in out.
+func parseVersion(out string) (v [3]int, ok bool) {
+	m := versionRE.FindStringSubmatch(out)
+	if m == nil {
 		return v, false
 	}
 	for i := range v {
