@@ -656,7 +656,7 @@ func (c *chat) sessions(agent string, rs []row) ([]map[string]any, error) {
 // chatStarts are the session starts a chat marks, of the session_starts rows where says, oldest first: each that began a conversation, and
 // a resume that restarted it or changed its settings (a resume that only woke a closed session is no event in the chat).
 func chatStarts(db *sql.DB, where string, args ...any) ([]row, error) {
-	return query(db, "SELECT id, agent, ts, session_id, cause, resumed, changed, text FROM session_starts WHERE (resumed = 0 OR cause IN ('restart', 'settings_applied', 'move') OR changed != '') AND "+where+" ORDER BY id", args...)
+	return query(db, "SELECT id, agent, ts, session_id, cause, resumed, changed, changed_lines, text FROM session_starts WHERE (resumed = 0 OR cause IN ('restart', 'settings_applied', 'move') OR changed != '') AND "+where+" ORDER BY id", args...)
 }
 
 // sessionFields are what a chat says of a session start. A resume's line offers no handoff: it is the same conversation, not one started from the note.
@@ -665,7 +665,12 @@ func sessionFields(s row) map[string]any {
 	if t := s.str("text"); t != "" && s.i("resumed") == 0 {
 		handoff = t
 	}
-	return map[string]any{"cause": s.str("cause"), "handoff": handoff, "resumed": s.i("resumed") != 0, "changed": s.str("changed")}
+	m := map[string]any{"cause": s.str("cause"), "handoff": handoff, "resumed": s.i("resumed") != 0, "changed": s.str("changed")}
+	var lines []any
+	if json.Unmarshal([]byte(s.str("changed_lines")), &lines) == nil && len(lines) > 0 {
+		m["changed_lines"] = lines
+	}
+	return m
 }
 
 // sessionItemOf is a session start as a transcript item; false until its session id is known.

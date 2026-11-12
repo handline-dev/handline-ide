@@ -432,7 +432,7 @@ func TestAHandoffShowsFromTheNoteWaitThroughTheLaunchUntilTheNewSessionBegins(t 
 	}
 
 	// One restart is one state: the line stays until the chat can show the New session line, which needs the session's id.
-	if _, err := db.NoteSessionStart(r.env.Q, "a", "context_full", false, "", "", "", "", ""); err != nil {
+	if _, err := db.NoteSessionStart(r.env.Q, "a", "context_full", false, "", "", "", "", "", ""); err != nil {
 		t.Fatal(err)
 	}
 	if h := handoff(); h == nil {
@@ -479,7 +479,7 @@ func TestASettingsRestartShowsWaitingForTheTurnThenStartingUntilTheNewSession(t 
 	if h["cause"] != "settings_applied" || h["phase"] != "starting" || fmt.Sprint(h["settings"]) != "[model]" {
 		t.Fatalf("restarting: %v", h)
 	}
-	if _, err := db.NoteSessionStart(r.env.Q, "a", "settings_applied", true, "", "", "", "", ""); err != nil {
+	if _, err := db.NoteSessionStart(r.env.Q, "a", "settings_applied", true, "", "", "", "", "", ""); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := r.env.Q.Exec("UPDATE session_starts SET session_id = 's2', ts = ts + 1 WHERE agent = 'a'"); err != nil {
