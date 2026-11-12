@@ -69,8 +69,9 @@ func runOf(params map[string]any) (command string, block cmdruns.Block, ok bool,
 	if !isText || command == "" || len(command) > maxCommand {
 		return "", block, false, bad("a block needs a command, text of 1 to "+strconv.Itoa(maxCommand)+" characters", "command")
 	}
-	text, _ := b.(string) // a missing or non-text block is "", which is no block
-	if block, ok = cmdruns.ParseBlock(text); !ok {
+	// a missing or non-text block is "", which is no block; a proposal's command runs only at the founder's approve
+	text, _ := b.(string)
+	if block, ok = cmdruns.ParseBlock(text); !ok || block.Owner == cmdruns.ByProposal {
 		return "", block, false, bad(`block is "<message id>:<n>" or "r<reply item id>:<n>"`, "block")
 	}
 	return command, block, true, nil
@@ -88,7 +89,7 @@ func (e *Env) shellOpen(_ *rpc.Conn, params map[string]any) (any, error) {
 	if !has(paths.ListAgents(e.Home), name) {
 		return nil, notFound("no such agent: "+name, "agent", name)
 	}
-	if running && block.Reply {
+	if running && block.Owner == cmdruns.ByReply {
 		if mine, err := transcript.IsReply(e.DB, name, block.Message); err != nil {
 			return nil, err
 		} else if !mine {
@@ -104,56 +105,103 @@ func (e *Env) shellOpen(_ *rpc.Conn, params map[string]any) (any, error) {
 	if cwd == "" {
 		return nil, notFound(name+" has no worktree to open a shell in", "worktree", name)
 	}
+	var handle string
+	if running {
+		handle, err = e.StartRun(name, cwd, command, block)
+	} else {
+		handle, err = e.openShell(name, cwd)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"agent": name, "terminal": handle, "cwd": cwd, "host": e.Backend().Name()}, nil
+}
+
+// StartRun runs command for block in a window of the terminal host beside agent, in cwd, and records the run: shell.open's run, and a
+// run proposal's at the founder's approve (proposalwrites). A rerun of a block closes the window its last run had; a proposal's block
+// runs once.
+func (e *Env) StartRun(agent, cwd, command string, block cmdruns.Block) (string, error) {
+	host, err := e.shellHost()
+	if err != nil {
+		return "", err
+	}
+	ended := e.PaneRuns()
+	prev, err := cmdruns.OfBlocks(e.DB, block)
+	if err != nil {
+		return "", err
+	}
+	for _, r := range prev {
+		if r.Block != block.String() {
+			continue
+		}
+		if block.Owner == cmdruns.ByProposal {
+			return "", rpc.Refused("the command of proposal "+strconv.FormatInt(block.Message, 16)+" was started already: it runs once", "state", "")
+		}
+		// a rerun closes the window its block had, if that window is still the run's (pane ids start over with a tmux server)
+		if h, ok := e.Backend().(term.Host); ok && ended[r.Terminal].Tag == r.Tag() {
+			if r.State == "running" { // ended first: a settle between the close and the new run would tell the agent it was stopped
+				if err := cmdruns.Replaced(e.DB, r, ended[r.Terminal], cmdruns.Now(), cmdruns.Telling(e.Tail)); err != nil {
+					return "", err
+				}
+			}
+			h.CloseTerminal(r.Terminal, true)
+		}
+	}
+	if err := e.underShellLimit(host, agent, ended); err != nil {
+		return "", err
+	}
+	runner, can := host.(term.Runs)
+	if !can {
+		return "", rpc.Refused("the terminal host ("+e.Backend().Name()+") cannot run a command", "unsupported", "")
+	}
+	started := cmdruns.Now()
+	handle, why := runner.CreateRun(cwd, agent+"-run", agent, cmdruns.Run{Block: block.String(), Started: started}.Tag(), command)
+	if handle == "" {
+		return "", rpc.Refused("no shell was opened: "+why, "state", "")
+	}
+	if _, err := cmdruns.Start(e.DB, block, handle, agent, command, started); err != nil {
+		return "", err
+	}
+	return handle, nil
+}
+
+// openShell opens a plain shell beside agent in cwd.
+func (e *Env) openShell(agent, cwd string) (string, error) {
+	host, err := e.shellHost()
+	if err != nil {
+		return "", err
+	}
+	if err := e.underShellLimit(host, agent, e.PaneRuns()); err != nil {
+		return "", err
+	}
+	handle, why := host.CreateShell(cwd, agent+"-sh", agent)
+	if handle == "" {
+		return "", rpc.Refused("no shell was opened: "+why, "state", "")
+	}
+	return handle, nil
+}
+
+// shellHost is the host's shells, or why it opens none.
+func (e *Env) shellHost() (term.Shells, error) {
 	host, ok := e.shells()
 	if !ok {
 		return nil, rpc.Refused("the terminal host ("+e.Backend().Name()+") cannot open a shell", "unsupported", "")
 	}
-	ended := e.PaneRuns()
-	if running { // a rerun closes the window its block had, if that window is still the run's (pane ids start over with a tmux server)
-		prev, err := cmdruns.OfBlocks(e.DB, block)
-		if err != nil {
-			return nil, err
-		}
-		for _, r := range prev {
-			if h, ok := e.Backend().(term.Host); ok && r.Block == block.String() && ended[r.Terminal].Tag == r.Tag() {
-				if r.State == "running" { // ended first: a settle between the close and the new run would tell the agent it was stopped
-					if err := cmdruns.Replaced(e.DB, r, ended[r.Terminal], cmdruns.Now(), cmdruns.Telling(e.Tail)); err != nil {
-						return nil, err
-					}
-				}
-				h.CloseTerminal(r.Terminal, true)
-			}
-		}
-	}
+	return host, nil
+}
+
+// underShellLimit refuses a window past MaxShells beside agent; a window kept for a finished command is not a shell in use.
+func (e *Env) underShellLimit(host term.Shells, agent string, ended map[string]term.PaneRun) error {
 	open := 0
 	for h := range e.Backend().ListTerminals() {
-		if a, _ := host.PaneShell(h); a == name && !ended[h].Dead { // a window kept for a finished command is not a shell in use
+		if a, _ := host.PaneShell(h); a == agent && !ended[h].Dead {
 			open++
 		}
 	}
 	if open >= MaxShells {
-		return nil, rpc.Refused(name+" has "+strconv.Itoa(open)+" shells open; close one first", "state", "")
+		return rpc.Refused(agent+" has "+strconv.Itoa(open)+" shells open; close one first", "state", "")
 	}
-	var handle, why string
-	if running {
-		runner, can := host.(term.Runs)
-		if !can {
-			return nil, rpc.Refused("the terminal host ("+e.Backend().Name()+") cannot run a command", "unsupported", "")
-		}
-		started := cmdruns.Now()
-		handle, why = runner.CreateRun(cwd, name+"-run", name, cmdruns.Run{Block: block.String(), Started: started}.Tag(), command)
-		if handle != "" {
-			if _, err := cmdruns.Start(e.DB, block, handle, name, command, started); err != nil {
-				return nil, err
-			}
-		}
-	} else {
-		handle, why = host.CreateShell(cwd, name+"-sh", name)
-	}
-	if handle == "" {
-		return nil, rpc.Refused("no shell was opened: "+why, "state", "")
-	}
-	return map[string]any{"agent": name, "terminal": handle, "cwd": cwd, "host": e.Backend().Name()}, nil
+	return nil
 }
 
 func (e *Env) shellClose(_ *rpc.Conn, params map[string]any) (any, error) {
@@ -173,6 +221,18 @@ func (e *Env) shellClose(_ *rpc.Conn, params map[string]any) (any, error) {
 		return nil, rpc.Refused("shell "+handle+" was not closed: "+why, "state", "")
 	}
 	return map[string]any{"accepted": true, "said": agent + ": shell " + handle + " closed"}, nil
+}
+
+// CloseRun closes a run window, as shell.close does: proposal.stop's close of a run proposal's command.
+func (e *Env) CloseRun(handle string) error {
+	h, ok := e.Backend().(term.Host)
+	if !ok || e.shellOf(handle) == "" {
+		return rpc.Refused("window "+handle+" is not a run the terminal host can close", "state", "")
+	}
+	if ok, why := h.CloseTerminal(handle, true); !ok {
+		return rpc.Refused("window "+handle+" was not closed: "+why, "state", "")
+	}
+	return nil
 }
 
 // shellInput types raw bytes at a shell.
