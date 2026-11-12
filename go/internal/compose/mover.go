@@ -17,6 +17,7 @@ func (p *Parts) newMover(m *lifecycle.Manager, uenv *usage.Env, env *supervisor.
 	tu := tickUsage{p: p, u: uenv}
 	ho := func() interface {
 		Hold(agent string, now int64) (bool, error)
+		NoteText(agent string) (string, error)
 	} {
 		return p.LC.Handoff
 	}
@@ -45,6 +46,10 @@ func (p *Parts) newMover(m *lifecycle.Manager, uenv *usage.Env, env *supervisor.
 		NoteHold: func(_ db.Q, agent string, at int64) bool {
 			hold, _ := ho().Hold(agent, at)
 			return hold
+		},
+		NoteWritten: func(agent string) bool {
+			text, err := ho().NoteText(agent)
+			return err == nil && text != ""
 		},
 		LimitDialogOpen: p.limitDialogOpen,
 		BackgroundWork: func(q db.Q, agent string) string {

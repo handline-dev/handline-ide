@@ -76,7 +76,7 @@ func newTermMoveRig(t *testing.T) *termMoveRig {
 
 func TestATerminalAgentAtTheWallIsClosedByItsPaneAndRelaunchedFreshOnTheOtherAccount(t *testing.T) {
 	g := newTermMoveRig(t)
-	if ok, err := g.v.PerformHandoff("a", HandoffTrigger{"usage", "5h wall"}, ""); !ok || err != nil {
+	if ok, err := g.v.PerformHandoff("a", HandoffTrigger{Kind: "usage", Reason: "5h wall"}, ""); !ok || err != nil {
 		t.Fatalf("%v %v", ok, err)
 	}
 	if len(g.pane.handles) != 1 || g.pane.handles[0] != "t1" || len(g.sp.startedIn) != 1 || g.sp.startedIn[0] != "a@/wt" {
@@ -96,7 +96,7 @@ func TestATerminalAgentAtTheWallIsClosedByItsPaneAndRelaunchedFreshOnTheOtherAcc
 
 func TestATerminalAgentOnAnExpiredLoginIsClosedByItsPaneAndRelaunchedFreshOnTheOtherAccount(t *testing.T) {
 	g := newTermMoveRig(t)
-	if ok, err := g.v.PerformHandoff("a", HandoffTrigger{LoginTrigger, "login expired on alpha"}, ""); !ok || err != nil {
+	if ok, err := g.v.PerformHandoff("a", HandoffTrigger{Kind: LoginTrigger, Reason: "login expired on alpha"}, ""); !ok || err != nil {
 		t.Fatalf("%v %v", ok, err)
 	}
 	row := g.row(t)
@@ -107,7 +107,7 @@ func TestATerminalAgentOnAnExpiredLoginIsClosedByItsPaneAndRelaunchedFreshOnTheO
 
 func TestAnAgentOnAnEndedAccountFinishesItsTurnAndNoteBeforeItMoves(t *testing.T) {
 	g := newTermMoveRig(t)
-	ended := HandoffTrigger{EndedTrigger, "subscription ended on alpha"}
+	ended := HandoffTrigger{Kind: EndedTrigger, Reason: "subscription ended on alpha"}
 	g.run.status = "busy"
 	if ok, err := g.v.PerformHandoff("a", ended, "beta"); !ok || err != nil || len(g.pane.handles) != 0 {
 		t.Fatalf("an ended account still answers, so a live turn is not cut off: %v %v %v", ok, err, g.pane.handles)
@@ -129,7 +129,7 @@ func TestAnAgentOnAnEndedAccountFinishesItsTurnAndNoteBeforeItMoves(t *testing.T
 func TestATerminalAgentAtAFullContextIsClosedByItsPaneAndParkedForAFreshWake(t *testing.T) {
 	g := newTermMoveRig(t)
 	db.MarkNoteWait(g.m.Q, "a", "context", g.m.now())
-	if ok, _ := g.v.PerformHandoff("a", HandoffTrigger{"context", "190k of 200k"}, ""); !ok {
+	if ok, _ := g.v.PerformHandoff("a", HandoffTrigger{Kind: "context", Reason: "190k of 200k"}, ""); !ok {
 		t.Fatal("degraded")
 	}
 	if _, _, waits, _ := db.NoteWait(g.m.Q, "a"); waits {
@@ -154,7 +154,7 @@ func TestATerminalThatWillNotCloseIsNotRelaunchedOver(t *testing.T) {
 	} {
 		g := newTermMoveRig(t)
 		set(g)
-		g.v.PerformHandoff("a", HandoffTrigger{"usage", "5h wall"}, "")
+		g.v.PerformHandoff("a", HandoffTrigger{Kind: "usage", Reason: "5h wall"}, "")
 		row := g.row(t)
 		if isClosed(row) || len(g.sp.startedIn) != 0 || row.State != states.Parked || states.ParkReason(row) != verdict.ParkMoving {
 			t.Fatalf("%s: %+v started %v", name, row, g.sp.startedIn)
@@ -171,7 +171,7 @@ func TestATerminalThatWillNotCloseIsNotRelaunchedOver(t *testing.T) {
 func TestATerminalSessionWhoseFileCannotBeReadIsNeverClosed(t *testing.T) {
 	g := newTermMoveRig(t)
 	g.run.pid, g.run.status = 0, "unknown"
-	g.v.PerformHandoff("a", HandoffTrigger{"context", "full"}, "")
+	g.v.PerformHandoff("a", HandoffTrigger{Kind: "context", Reason: "full"}, "")
 	if len(g.pane.handles) != 0 || isClosed(g.row(t)) {
 		t.Fatalf("closed %v", g.pane.handles)
 	}
@@ -181,10 +181,10 @@ func TestATerminalAgentMidTurnIsNotHandedOffAndAForcedOneIsNotInterrupted(t *tes
 	g := newTermMoveRig(t)
 	for _, status := range []string{"busy", "waiting", "unknown"} {
 		g.run.status = status
-		if ok, err := g.v.PerformHandoff("a", HandoffTrigger{"usage", "wall"}, ""); !ok || err != nil {
+		if ok, err := g.v.PerformHandoff("a", HandoffTrigger{Kind: "usage", Reason: "wall"}, ""); !ok || err != nil {
 			t.Fatalf("%s: %v %v", status, ok, err)
 		}
-		if ok, err := g.v.PerformHandoff("a", HandoffTrigger{"forced", "by hand"}, "beta"); ok || err == nil {
+		if ok, err := g.v.PerformHandoff("a", HandoffTrigger{Kind: "forced", Reason: "by hand"}, "beta"); ok || err == nil {
 			t.Fatalf("forced %s: a person is told it did not happen: %v %v", status, ok, err)
 		}
 		if len(g.pane.handles) != 0 || isClosed(g.row(t)) {
@@ -196,7 +196,7 @@ func TestATerminalAgentMidTurnIsNotHandedOffAndAForcedOneIsNotInterrupted(t *tes
 func TestATerminalClearThatBackgroundWorkHoldsOffIsToldThroughItsSessionAndSettledWhenTheWorkEnds(t *testing.T) {
 	g := newTermMoveRig(t)
 	g.bg = "npm test"
-	if ok, _ := g.v.PerformHandoff("a", HandoffTrigger{"context", "full"}, ""); !ok {
+	if ok, _ := g.v.PerformHandoff("a", HandoffTrigger{Kind: "context", Reason: "full"}, ""); !ok {
 		t.Fatal("degraded")
 	}
 	if len(g.run.told) != 1 || !strings.Contains(g.run.told[0], "will be cleared in 5 minutes") || len(g.pane.handles) != 0 {
@@ -229,7 +229,7 @@ func TestAClearPastBackgroundWorkGoesOnlyWithTheSettingAndOnlyWhenTheTurnHasEnde
 			t.Fatal(err)
 		}
 		g.run.status, g.run.bgIdle, g.bg = "busy", c.bgIdle, "vite"
-		if ok, _ := g.v.PerformHandoff("a", HandoffTrigger{c.kind, "full"}, ""); !ok {
+		if ok, _ := g.v.PerformHandoff("a", HandoffTrigger{Kind: c.kind, Reason: "full"}, ""); !ok {
 			t.Fatalf("%s: degraded", c.name)
 		}
 		if told := len(g.run.told) == 1 && strings.Contains(g.run.told[0], "will be cleared in 5 minutes"); told != c.toldAndClose || len(g.pane.handles) != 0 {
@@ -259,7 +259,7 @@ func TestAClearPastBackgroundWorkIsNotAClearOwedByAMoveWithNoRoom(t *testing.T) 
 	}
 	g.l.dest = "" // no account has room
 	g.run.status, g.run.bgIdle, g.bg = "busy", true, "vite"
-	g.v.PerformHandoff("a", HandoffTrigger{LoginTrigger, "expired"}, "")
+	g.v.PerformHandoff("a", HandoffTrigger{Kind: LoginTrigger, Reason: "expired"}, "")
 	if g.v.clearOwed("a") == 0 {
 		t.Fatal("the clear is not owed")
 	}
@@ -273,7 +273,7 @@ func TestATerminalNoticeThatFailsStillLeavesTheClearOwed(t *testing.T) {
 	g := newTermMoveRig(t)
 	g.bg = "npm test"
 	g.m.TermRun = failingTell{g.run}
-	g.v.PerformHandoff("a", HandoffTrigger{"context", "full"}, "")
+	g.v.PerformHandoff("a", HandoffTrigger{Kind: "context", Reason: "full"}, "")
 	if g.v.clearOwed("a") == 0 {
 		t.Fatal("the clear is not owed")
 	}
@@ -286,7 +286,7 @@ func (failingTell) Tell(string, string, string) error { return errors.New("no so
 func TestASessionThatOutlivedItsPaneIsRecordedClosedOnceItsPidIsGoneAndThenRelaunchedFresh(t *testing.T) {
 	g := newTermMoveRig(t)
 	g.run.survives = true
-	g.v.PerformHandoff("a", HandoffTrigger{"context", "full"}, "")
+	g.v.PerformHandoff("a", HandoffTrigger{Kind: "context", Reason: "full"}, "")
 	if row := g.row(t); isClosed(row) || row.Terminal.String != "" {
 		t.Fatalf("%+v", row)
 	}
@@ -312,7 +312,7 @@ func TestASessionThatOutlivedItsPaneIsRecordedClosedOnceItsPidIsGoneAndThenRelau
 func TestAReusedPidReadsAsTheSessionHavingEnded(t *testing.T) {
 	g := newTermMoveRig(t)
 	g.run.survives, g.run.started = true, 100
-	g.v.PerformHandoff("a", HandoffTrigger{"context", "full"}, "")
+	g.v.PerformHandoff("a", HandoffTrigger{Kind: "context", Reason: "full"}, "")
 	g.v.SettleOwedClear("a")
 	if isClosed(g.row(t)) {
 		t.Fatal("closed over a live session")
@@ -327,7 +327,7 @@ func TestAReusedPidReadsAsTheSessionHavingEnded(t *testing.T) {
 func TestASessionStillThereAfterTheBoundIsReportedOnceAndNeverStartedOver(t *testing.T) {
 	g := newTermMoveRig(t)
 	g.run.survives = true
-	g.v.PerformHandoff("a", HandoffTrigger{"context", "full"}, "")
+	g.v.PerformHandoff("a", HandoffTrigger{Kind: "context", Reason: "full"}, "")
 	db.SetCursor(g.m.Q, orphanKey("a")+":since", g.m.now()-OrphanGiveUpS-1)
 	for i := 0; i < 3; i++ {
 		g.v.SettleOwedClear("a")
@@ -348,7 +348,7 @@ func TestAnOwedClearWhoseOrphanExitsEndsLikeANormalClear(t *testing.T) {
 	g := newTermMoveRig(t)
 	g.bg = "npm test"
 	g.run.survives = true
-	g.v.PerformHandoff("a", HandoffTrigger{"context", "full"}, "")
+	g.v.PerformHandoff("a", HandoffTrigger{Kind: "context", Reason: "full"}, "")
 	db.SetCursor(g.m.Q, "clear_owed:a", g.m.now()-ClearWaitS-1)
 	g.v.SettleOwedClear("a") // times out: the pane closes, the session stays
 	if row := g.row(t); isClosed(row) || row.State == states.Parked {
@@ -372,7 +372,7 @@ func TestAnOwedClearWhoseOrphanExitsEndsLikeANormalClear(t *testing.T) {
 func TestASecondSessionOutsideTheClosedPaneIsReportedAndDoesNotFailTheClose(t *testing.T) {
 	g := newTermMoveRig(t)
 	g.run.survives, g.run.outside = true, true
-	g.v.PerformHandoff("a", HandoffTrigger{"context", "full"}, "")
+	g.v.PerformHandoff("a", HandoffTrigger{Kind: "context", Reason: "full"}, "")
 	row := g.row(t)
 	if !isClosed(row) || row.Terminal.String != "" {
 		t.Fatalf("the pane's own end is proved by the pane: %+v", row)

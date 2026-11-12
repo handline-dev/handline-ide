@@ -49,8 +49,11 @@ func parkReason(kind string, shortRetry bool) verdict.ParkReason {
 	return verdict.ParkNone
 }
 
-// HandoffTrigger is why a handoff happens: its kind and the sentence for it.
-type HandoffTrigger struct{ Kind, Reason string }
+// HandoffTrigger is why a handoff happens: its kind and the sentence for it. NoteWritten is whether the agent's note was in when it began.
+type HandoffTrigger struct {
+	Kind, Reason string
+	NoteWritten  bool
+}
 
 // Windows are an account's two windows as the move reads them.
 type Windows struct {
@@ -69,6 +72,8 @@ type MoveEnv struct {
 	AtLimit func(q db.Q, agent string) (at int64, ok bool)
 	// NoteHold is handoff_note.hold: the ask is out and the note not yet in.
 	NoteHold func(q db.Q, agent string, now int64) bool
+	// NoteWritten is whether the agent wrote its handoff note for this stretch; nil for never.
+	NoteWritten func(agent string) bool
 	// LimitDialogOpen is whether the usage-limit dialog is on the agent's screen: the turn behind it is over, whatever the session says.
 	LimitDialogOpen func(agent string) bool
 	// BackgroundWork is what the agent's session still runs behind its prompt, "" for nothing.
@@ -285,7 +290,8 @@ func (v *Mover) land(agent string, t HandoffTrigger, here, there, why string, pa
 			check(db.ClearHandoff(m.Q, agent))
 		}
 	}
-	must(db.AddEvent(m.Q, agent, "moved_account", db.KV{K: "from", V: here}, db.KV{K: "to", V: there}, db.KV{K: "trigger", V: t.Kind}))
+	must(db.AddEvent(m.Q, agent, "moved_account", db.KV{K: "from", V: here}, db.KV{K: "to", V: there}, db.KV{K: "trigger", V: t.Kind},
+		db.KV{K: "note_written", V: t.NoteWritten}))
 	v.log("  %s: moved %s -> %s (%s) - %s%s", agent, here, there, t.Kind, why, ifTrue(!woke && !hookRunning, " - but it was not handed its handoff: "+clip(wakeWhy, 80)))
 	return true, ""
 }
@@ -312,8 +318,13 @@ func (v *Mover) MoveToRoom(agent string, t HandoffTrigger) (moved bool, err erro
 // counts nothing against it: the trigger is a condition and fires again), false when it degraded.
 func (v *Mover) PerformHandoff(agent string, t HandoffTrigger, dest string) (ok bool, err error) {
 	defer catch(&err)
+	defer v.M.lockAgent(agent)()
+	return v.performHandoff(agent, t, dest)
+}
+
+// performHandoff is PerformHandoff for a caller that holds the agent's lock.
+func (v *Mover) performHandoff(agent string, t HandoffTrigger, dest string) (bool, error) {
 	m := v.M
-	defer m.lockAgent(agent)()
 	if existing := must(db.InFlightFor(m.Q, agent)); existing != nil {
 		check(db.AdvanceHandoff(m.Q, existing.ID, existing.Step, existing.State, strings.Trim(existing.Detail.String+"; also "+t.Kind, "; ")))
 		v.log("  %s: already handing off at step '%s', merged '%s' as an added reason", agent, existing.Step, t.Kind)
@@ -336,7 +347,8 @@ func (v *Mover) PerformHandoff(agent string, t HandoffTrigger, dest string) (ok 
 	// A turn that ended on the usage limit and has stayed quiet is over, whatever else says; one that ended on an expired login is over at
 	// once. Sooner than that a person or the agent may be mid-turn.
 	stoppedAt, stopped := v.E.AtLimit(m.Q, agent)
-	settled := t.Kind == LoginTrigger || (stopped && now-stoppedAt >= states.LimitSettleS) || (usageTrigger(t.Kind) && v.E.LimitDialogOpen(agent))
+	settled := t.Kind == LoginTrigger || (stopped && now-stoppedAt >= states.LimitSettleS) ||
+		((usageTrigger(t.Kind) || t.Kind == "forced") && v.E.LimitDialogOpen(agent))
 	busy := m.sessionBusy
 	if t.Kind == "context" {
 		busy = m.turnBusy // only a context clear has its own wait for background work (reclaim)
@@ -358,7 +370,16 @@ func (v *Mover) PerformHandoff(agent string, t HandoffTrigger, dest string) (ok 
 		v.saving(agent, t.Kind)
 		return true, nil
 	}
-	return v.perform(agent, t, dest), nil
+	// A person's kept move names where any handoff takes the agent; one that cannot go there says so rather than vanish.
+	kept := must(db.GetSwitch(m.Q, agent))
+	if !kept.Pending() {
+		return v.perform(agent, t, dest), nil
+	}
+	ok := v.perform(agent, t, kept.To)
+	if m.Agents.CurrentAccount(m.Q, agent) != kept.To {
+		v.moveFailed(agent, kept.To, fmt.Sprintf("a %s handoff came first and could not take it there", t.Kind))
+	}
+	return ok, nil
 }
 
 func (v *Mover) perform(agent string, t HandoffTrigger, dest string) bool {
@@ -374,6 +395,7 @@ func (v *Mover) perform(agent string, t HandoffTrigger, dest string) bool {
 	v.log("  %s: HANDOFF (%s) - %s", agent, t.Kind, t.Reason)
 
 	prior := must(db.GetHandoff(m.Q, agent))
+	t.NoteWritten = v.E.NoteWritten != nil && v.E.NoteWritten(agent)
 	ok := v.recordHandoff(agent, hid)
 	check(db.AdvanceHandoff(m.Q, hid, "extracted", "in_flight", ""))
 	released := func(detail string) {

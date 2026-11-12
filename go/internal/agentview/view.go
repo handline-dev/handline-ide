@@ -477,7 +477,7 @@ func (e *Env) Compute(agent string) (view map[string]any, err error) {
 		"would_wake": row != nil && must(e.WouldWake(row)),
 		"blocker":    blocker, "account": account, "task": task, "cache_until": cache, "ctx_pct": ctx,
 		"has_dialog": word == "DIALOG", "parent": parent, "needs_you": needsView(needs), "handoff": handoff, "doing": doing,
-		"account_switch": must(e.switchView(row, now)), "status": st.Map(), "background": jobsView(jobs), "servers": e.servers(agent),
+		"account_switch": must(e.switchView(row, now)), "pending_move": must(e.pendingMove(row, now)), "status": st.Map(), "background": jobsView(jobs), "servers": e.servers(agent),
 	}, nil
 }
 
@@ -505,7 +505,7 @@ func causeWord(kind string) string {
 // switchView is AgentView.account_switch, nil when the agent is in none. until is the wake of a wait.
 func (e *Env) switchView(row *db.AgentState, now int64) (any, error) {
 	s, err := db.LiveSwitch(e.Q, row, now)
-	if err != nil || s == nil {
+	if err != nil || s == nil || s.Pending() {
 		return nil, err
 	}
 	var to, until any
@@ -516,6 +516,15 @@ func (e *Env) switchView(row *db.AgentState, now int64) (any, error) {
 		until = stamp(row.WakeAt.Int64)
 	}
 	return map[string]any{"cause": causeWord(s.Cause), "phase": s.Phase, "from": s.From, "to": to, "since": stamp(s.Since), "until": until}, nil
+}
+
+// pendingMove is AgentView.pending_move: a person's move waiting for the turn to end or for the note, nil when there is none.
+func (e *Env) pendingMove(row *db.AgentState, now int64) (any, error) {
+	s, err := db.LiveSwitch(e.Q, row, now)
+	if err != nil || !s.Pending() {
+		return nil, err
+	}
+	return map[string]any{"to": s.To, "since": stamp(s.Since), "phase": s.Phase}, nil
 }
 
 // wallBanner is the chat's limit banner: the wait the agent's wake is in, nil while it moves to another account or the limit holds nothing

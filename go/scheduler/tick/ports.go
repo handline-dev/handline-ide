@@ -87,6 +87,8 @@ type Lifecycle interface {
 // Handoff is daemon/handoff.py and daemon/handoff_note.py.
 type Handoff interface {
 	SettleOwedClear(q db.Q, agent string) bool
+	// RunPendingMove runs a person's move the agent keeps once its turn (or move_now's note) is over; whether it acted.
+	RunPendingMove(q db.Q, agent string) bool
 	// Movable is whether the trigger kind may be answered by a move to another account (handoff.MOVABLE_TRIGGERS).
 	Movable(kind string) bool
 	// MovePlan is handoff._move_plan: the account to move to ("" for none) and why not.

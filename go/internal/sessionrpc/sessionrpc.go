@@ -12,6 +12,7 @@ package sessionrpc
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -80,8 +81,13 @@ type Env struct {
 	// Roster registers the agent of agent.create, and Emit tells the operations topic its progress; with Controls they serve agent.create.
 	Roster *team.Roster
 	Emit   func(topic, typ string, data any, agent string)
-	// Move is handoff.force_move: the agent's session to another account now, a closed agent's next wake there; nil serves no agent.move.
+	// Move is handoff.force_move: the agent's session to another account now, a closed agent's next wake there, one mid-turn's when the turn
+	// ends; nil serves no agent.move.
 	Move func(call Call, agent, account string) (ok bool, said string, err error)
+	// MoveNow starts the agent's move, to account or with "" the one it keeps, once its note is in; stop ends a turn under way.
+	// CancelMove drops the move it keeps. nil serves no agent.move_now, no agent.move_cancel.
+	MoveNow    func(call Call, agent, account string, stop func() error) (ok bool, said string, err error)
+	CancelMove func(call Call, agent string) (ok bool, said string, err error)
 	// SwitchNow moves an agent waiting at its wall to the account a person chose past the room test, "" for the closest (a switch_offer); nil serves no agent.switch_now.
 	SwitchNow func(call Call, agent, account string) (ok bool, said string, err error)
 	// ForceStart lets an agent's work the machine's load holds go past the limits once; nil serves no agent.force_start.
@@ -115,6 +121,12 @@ func Register(s *rpc.Server, e *Env) {
 	}
 	if e.Move != nil {
 		s.Register("agent.move", rpc.Method{Handler: e.move})
+	}
+	if e.MoveNow != nil {
+		s.Register("agent.move_now", rpc.Method{Handler: e.moveNow})
+	}
+	if e.CancelMove != nil {
+		s.Register("agent.move_cancel", rpc.Method{Handler: e.moveCancel})
 	}
 	if e.SwitchNow != nil {
 		s.Register("agent.switch_now", rpc.Method{Handler: e.switchNow})
@@ -311,6 +323,26 @@ func (e *Env) move(c *rpc.Conn, params map[string]any) (any, error) {
 	}
 	return e.run(c, "agent.move", params, false, func(call Call, agent string) (map[string]any, error) {
 		return done(e.Move(call, agent, account))
+	})
+}
+
+// moveNow is agent.move_now: the turn under way is stopped as session.interrupt stops it, and the move runs once the note is in.
+func (e *Env) moveNow(c *rpc.Conn, params map[string]any) (any, error) {
+	account, _ := params["account"].(string)
+	return e.run(c, "agent.move_now", params, false, func(call Call, agent string) (map[string]any, error) {
+		return done(e.MoveNow(call, agent, account, func() error {
+			if e.InterruptTerminal == nil {
+				return errors.New("no terminal to stop it in")
+			}
+			return e.InterruptTerminal(c, agent)
+		}))
+	})
+}
+
+// moveCancel is agent.move_cancel.
+func (e *Env) moveCancel(c *rpc.Conn, params map[string]any) (any, error) {
+	return e.run(c, "agent.move_cancel", params, false, func(call Call, agent string) (map[string]any, error) {
+		return done(e.CancelMove(call, agent))
 	})
 }
 

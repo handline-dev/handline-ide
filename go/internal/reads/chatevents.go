@@ -51,6 +51,9 @@ func (e *Env) TaskEventItem(id int64) (item map[string]any, agent string, ok boo
 	if item, agent, ok := commentCardOf(ev); ok {
 		return item, agent, true, nil
 	}
+	if item, ok := accountItemOf(ev); ok {
+		return item, ev.str("agent"), true, nil
+	}
 	item, tid, shown := taskItemOf(ev)
 	if !shown {
 		return nil, "", false, nil
@@ -100,9 +103,9 @@ func (e *Env) SessionItem(id int64) (item map[string]any, agent string, ok bool,
 // WorkingOf is a stored agent view (the agent_view row's JSON) as the spec's Working.
 func WorkingOf(view string) map[string]any { return workingFrom(decodeObject(view)) }
 
-// ChatTaskKinds are the kinds of task event the chat shows, a batch discard's and a task_comment item's among them, sorted.
+// ChatTaskKinds are the kinds of event the chat shows: the task events, a batch discard's, a task_comment item's and an account move's, sorted.
 func ChatTaskKinds() []string {
-	kinds := append(taskCardKinds(), commentCardKinds...)
+	kinds := append(append(taskCardKinds(), commentCardKinds...), accountKinds...)
 	sort.Strings(kinds)
 	return kinds
 }
@@ -115,4 +118,28 @@ func taskCardKinds() []string {
 	}
 	sort.Strings(kinds)
 	return kinds
+}
+
+// accountKinds are the events of an account move the agent's own chat shows: one landed, and a person's that could not run.
+var accountKinds = []string{"moved_account", db.MoveFailedKind}
+
+// accountItemOf is an account move's event as a transcript item: account_moved (cause manual for a person's move, policy for the
+// daemon's) or move_failed; false for any other event.
+func accountItemOf(ev row) (map[string]any, bool) {
+	p := decodeObject(ev.str("payload"))
+	id, at := itemID(ev.i("ts"), itemTask, ev.i("id")), ts(ev["ts"])
+	switch ev.str("kind") {
+	case "moved_account":
+		cause := "policy"
+		if text(p["trigger"]) == "forced" {
+			cause = "manual"
+		}
+		written, _ := p["note_written"].(bool)
+		return map[string]any{"id": id, "at": at, "kind": "account_moved",
+			"account_moved": map[string]any{"from": text(p["from"]), "to": text(p["to"]), "cause": cause, "note_written": written}}, true
+	case db.MoveFailedKind:
+		return map[string]any{"id": id, "at": at, "kind": "move_failed",
+			"move_failed": map[string]any{"to": text(p["to"]), "reason": text(p["reason"])}}, true
+	}
+	return nil, false
 }

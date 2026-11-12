@@ -14,6 +14,8 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `agent.set` | agent (only agent, owner) | yes | `agent`, `values`, `speaker?`, `restart?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | not_self | authored: set |
 | `agent.fold` | agent | yes | `agent`, `request_id` | `Accepted` | `refused`, `not_found` |  | decided: fold |
 | `agent.move` | agent | yes | `agent`, `account`, `request_id` | `Accepted` | `refused`, `not_found` |  | decided: move |
+| `agent.move_cancel` | owner | yes | `agent`, `request_id` | `Accepted` | `refused`, `not_found` |  | decided: cancel move |
+| `agent.move_now` | owner | yes | `agent`, `account?`, `request_id` | `Accepted` | `refused`, `not_found` |  | decided: move now |
 | `agent.switch_now` | owner | yes | `agent`, `account?`, `request_id` | `Accepted` | `refused`, `not_found` |  | decided: switch |
 | `agent.unstall` | owner | yes | `agent`, `request_id` | `Accepted` | `refused`, `not_found` | terminal_lock, state | decided: clear stall |
 | `agent.force_start` | owner | yes | `agent`, `request_id` | `Accepted` | `refused`, `not_found` | state | decided: force start |
@@ -77,7 +79,15 @@ Run hl fold for an agent.
 
 ### `agent.move`
 
-Move an agent to another account.
+Move an agent to another account. An idle or closed agent moves now (a closed one on its next wake). One mid-turn keeps the move (AgentView.pending_move, phase scheduled) and moves when the turn ends; a second call replaces the account. A pin, another vendor, an account that is not logged in or has no room refuse at the call, and the room test is made again when the turn ends: a move that cannot run then clears itself and leaves a move_failed line in the agent's chat. Refused while another switch of the agent is under way, with its phase named.
+
+### `agent.move_cancel`
+
+Drop the move an agent keeps for its turn's end (pending_move phase scheduled). Refused when it keeps none, and once agent.move_now has stopped its turn (phase stopping).
+
+### `agent.move_now`
+
+Move an agent now: to `account`, or without it to the account its kept move names. The turn under way is stopped as session.interrupt stops it, the agent is asked for its handoff note, and the move runs once the note is in (or after the daemon's own note wait, on its own record; account_moved says which). A closed agent's next wake starts on the account.
 
 ### `agent.switch_now`
 

@@ -176,6 +176,7 @@ type wHandoff struct {
 }
 
 func (h wHandoff) SettleOwedClear(db.Q, string) bool              { return false }
+func (h wHandoff) RunPendingMove(db.Q, string) bool               { return false }
 func (h wHandoff) Movable(kind string) bool                       { return h.w.movable[kind] }
 func (h wHandoff) MovePlan(db.Q, string, string) (string, string) { return h.w.movePlan, "" }
 func (h wHandoff) MoveToRoom(db.Q, string, Trigger) bool          { h.w.call("moveroom"); return h.w.moved }

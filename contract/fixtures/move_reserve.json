@@ -1,0 +1,348 @@
+{
+ "fixtures": [
+  {
+   "name": "agent.move_cancel.unknown_agent_is_not_found",
+   "spec": "agent.move_cancel",
+   "about": "An agent the team does not have is not_found.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "agent.move_cancel",
+      "params": {
+       "agent": "a999",
+       "request_id": "conf-mc-1"
+      }
+     },
+     "error": {
+      "code": -32001,
+      "data": {
+       "code": "not_found"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "agent.move_cancel.needs_a_request_id",
+   "spec": "agent.move_cancel",
+   "about": "A write without a request_id is bad_request naming it.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "agent.move_cancel",
+      "params": {
+       "agent": "a999"
+      }
+     },
+     "error": {
+      "code": -32600,
+      "data": {
+       "code": "bad_request",
+       "field": "request_id"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "agent.move_cancel.an_agent_session_is_refused_by_role",
+   "spec": "agent.move_cancel",
+   "about": "A person's move is the founder's call: a call from an agent session is refused, gate role.",
+   "as": "agent",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "agent.move_cancel",
+      "params": {
+       "agent": "a1",
+       "request_id": "conf-mc-8"
+      }
+     },
+     "error": {
+      "code": -32002,
+      "data": {
+       "code": "refused",
+       "gate": "role"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "agent.move_cancel.state_gate_refuses_an_agent_that_keeps_no_move",
+   "spec": "agent.move_cancel",
+   "about": "An agent that keeps no move has nothing to cancel: refused with gate state.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "agent.move_cancel",
+      "params": {
+       "agent": "{{running_agent}}",
+       "request_id": "conf-mc-9"
+      }
+     },
+     "error": {
+      "code": -32002,
+      "data": {
+       "code": "refused",
+       "gate": "state"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "agent.move_now.unknown_agent_is_not_found",
+   "spec": "agent.move_now",
+   "about": "An agent the team does not have is not_found.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "agent.move_now",
+      "params": {
+       "agent": "a999",
+       "request_id": "conf-mn-1",
+       "account": "beta"
+      }
+     },
+     "error": {
+      "code": -32001,
+      "data": {
+       "code": "not_found"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "agent.move_now.needs_a_request_id",
+   "spec": "agent.move_now",
+   "about": "A write without a request_id is bad_request naming it.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "agent.move_now",
+      "params": {
+       "agent": "a999",
+       "account": "beta"
+      }
+     },
+     "error": {
+      "code": -32600,
+      "data": {
+       "code": "bad_request",
+       "field": "request_id"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "agent.move_now.an_agent_session_is_refused_by_role",
+   "spec": "agent.move_now",
+   "about": "A person's move is the founder's call: a call from an agent session is refused, gate role.",
+   "as": "agent",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "agent.move_now",
+      "params": {
+       "agent": "a1",
+       "request_id": "conf-mn-8",
+       "account": "beta"
+      }
+     },
+     "error": {
+      "code": -32002,
+      "data": {
+       "code": "refused",
+       "gate": "role"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "agent.move_now.state_gate_refuses_an_agent_that_keeps_no_move",
+   "spec": "agent.move_now",
+   "about": "An agent that keeps no move has nothing to move to: refused with gate state.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "agent.move_now",
+      "params": {
+       "agent": "{{running_agent}}",
+       "request_id": "conf-mn-9"
+      }
+     },
+     "error": {
+      "code": -32002,
+      "data": {
+       "code": "refused",
+       "gate": "state"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "agent.get.pending_move_is_null_with_no_move_kept",
+   "spec": "agent.get",
+   "about": "An agent that keeps no person's move shows pending_move null.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "agent.get",
+      "params": {
+       "agent": "{{running_agent}}"
+      }
+     },
+     "result": {
+      "key": "{{running_agent}}",
+      "pending_move": null
+     }
+    }
+   ]
+  }
+ ]
+}

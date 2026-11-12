@@ -19,7 +19,8 @@ import (
 func (p *Parts) SessionRPC(cfg Config) *sessionrpc.Env {
 	c := controls{p: p, lc: p.LC}
 	f := &fold.Env{Home: cfg.Home, DB: p.db, InTx: func(fn func(db.Q) error) error { return inTx(p.db, fn) }, Usage: p.LC.usage, Accounts: team.Accounts{Home: cfg.Home}, Today: today(cfg)}
-	return &sessionrpc.Env{DB: p.db, Home: cfg.Home, Controls: c, Move: c.viaMover((*lifecycle.Mover).ForceMove), SwitchNow: c.viaMover((*lifecycle.Mover).SwitchNow), Now: cfg.Now, Fold: f.Fold, Roster: p.LC.roster,
+	return &sessionrpc.Env{DB: p.db, Home: cfg.Home, Controls: c, Move: c.viaMover((*lifecycle.Mover).ForceMove), SwitchNow: c.viaMover((*lifecycle.Mover).SwitchNow),
+		MoveNow: c.moveNow, CancelMove: c.cancelMove, Now: cfg.Now, Fold: f.Fold, Roster: p.LC.roster,
 		ForceStart: c.ForceStart, Unpass: c.Unpass, Launch: p.LC.prepareLaunch}
 }
 
@@ -162,6 +163,22 @@ func (c controls) viaMover(do func(m *lifecycle.Mover, agent, account, by string
 		}
 		return do(c.lc.Mover, agent, account, call.By)
 	}
+}
+
+// moveNow is agent.move_now over the lifecycle's mover.
+func (c controls) moveNow(call sessionrpc.Call, agent, account string, stop func() error) (bool, string, error) {
+	if c.lc.Mover == nil {
+		return false, agent + ": the move is the handoff's, which this daemon has not built", nil
+	}
+	return c.lc.Mover.MoveNow(agent, account, call.By, stop)
+}
+
+// cancelMove is agent.move_cancel over the lifecycle's mover.
+func (c controls) cancelMove(_ sessionrpc.Call, agent string) (bool, string, error) {
+	if c.lc.Mover == nil {
+		return false, agent + ": the move is the handoff's, which this daemon has not built", nil
+	}
+	return c.lc.Mover.CancelMove(agent)
 }
 
 // Context is the model id and context figures of an agent on an account (agent.strip). The percent is the status file's own, nil when

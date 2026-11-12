@@ -12,7 +12,18 @@ const (
 	SwitchSwitching = "switching" // the old session is closing for To
 	SwitchStarting  = "starting"  // the session on To is launching
 	SwitchWaiting   = "waiting"   // no move: it stays parked until From resets
+	// A person's move, before it begins: it waits for the turn to end (scheduled), then for the handoff note (stopping).
+	SwitchScheduled = "scheduled"
+	SwitchStopping  = "stopping"
 )
+
+// MoveFailedKind is the event of a person's move that could not run when its turn ended or its note was in: a line in the agent's chat.
+const MoveFailedKind = "move_failed"
+
+// Pending is whether the switch is a person's move that has not begun: AgentView.pending_move, not account_switch.
+func (s *AccountSwitch) Pending() bool {
+	return s != nil && (s.Phase == SwitchScheduled || s.Phase == SwitchStopping)
+}
 
 // AccountSwitch is the account switch an agent is in. To is "" until an account is chosen. Since is when this phase began.
 type AccountSwitch struct {
@@ -52,15 +63,17 @@ func ClearSavingSwitch(q Q, agent string) error {
 
 // LiveSwitch is the switch the agent is in now, nil when its row is over: a landed move leaves its row, and this is what ends it. A session
 // bound since ends a move, and NoteWaitStaleS outlives a daemon that died mid-move; waiting ends with the park; a closed agent is not saving.
+// A person's move that has not begun lasts until it runs or is cancelled, a restart and a stall included: it stays in sight to cancel.
 func LiveSwitch(q Q, row *AgentState, now int64) (*AccountSwitch, error) {
-	if row == nil || row.State == rowstate.Stalled {
+	if row == nil {
 		return nil, nil
 	}
 	s, err := GetSwitch(q, row.Agent)
-	if err != nil || s == nil {
+	if err != nil || s == nil || (row.State == rowstate.Stalled && !s.Pending()) {
 		return nil, err
 	}
 	switch s.Phase {
+	case SwitchScheduled, SwitchStopping:
 	case SwitchWaiting:
 		if row.State != rowstate.Parked || row.WakeAt.Int64 <= now {
 			return nil, nil

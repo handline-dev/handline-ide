@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"path/filepath"
@@ -465,6 +466,33 @@ func TestAgentMoveIsAPersonsCallAndPassesTheAccountAndWhoAsked(t *testing.T) {
 	}
 	if m := r.dial(true).call("agent.move", map[string]any{"agent": "ann", "account": "b", "request_id": rid("m5")}); refused(m) != "role" || len(got) != 2 {
 		t.Fatalf("an agent's session moved an agent: %v %v", m, got)
+	}
+}
+
+func TestAgentMoveNowStopsTheTurnThroughTheInterrupt(t *testing.T) {
+	r := newRig(t)
+	var stopped []string
+	r.e.MoveNow = func(_ Call, agent, account string, stop func() error) (bool, string, error) {
+		if account == "full" {
+			return false, agent + " refused", nil
+		}
+		return true, agent + " -> " + account + ": " + fmt.Sprint(stop()), nil
+	}
+	r.e.CancelMove = func(_ Call, agent string) (bool, string, error) { return false, agent + " has no move waiting", nil }
+	r.e.InterruptTerminal = func(_ *rpc.Conn, agent string) error {
+		stopped = append(stopped, agent)
+		return errors.New("typing elsewhere")
+	}
+	c := r.dial(false)
+	res := result(t, c.call("agent.move_now", map[string]any{"agent": "ann", "account": "b", "request_id": rid("n1")}))
+	if len(stopped) != 1 || stopped[0] != r.ann || res["said"] != r.ann+" -> b: typing elsewhere" {
+		t.Fatalf("%v %v", res, stopped)
+	}
+	if m := c.call("agent.move_now", map[string]any{"agent": "ann", "account": "full", "request_id": rid("n3")}); refused(m) != "state" {
+		t.Fatalf("%v", m)
+	}
+	if m := c.call("agent.move_cancel", map[string]any{"agent": "ann", "request_id": rid("n4")}); refused(m) != "state" {
+		t.Fatalf("%v", m)
 	}
 }
 
