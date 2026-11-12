@@ -10,6 +10,7 @@ import (
 	"github.com/handline/handline/go/kit/names"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/store"
+	"github.com/handline/handline/go/kit/yamlcompat"
 )
 
 func TestCreateMakesTheWorkspaceItsLeadAndItsRules(t *testing.T) {
@@ -25,8 +26,31 @@ func TestCreateMakesTheWorkspaceItsLeadAndItsRules(t *testing.T) {
 	if folder != repo || lead != names.Lead || reports != "p1" {
 		t.Fatalf("at %s, led by %s reporting to %s", folder, lead, reports)
 	}
-	if b, err := os.ReadFile(filepath.Join(paths.WorkspaceDir(home, key), "base.md")); err != nil || !strings.HasPrefix(string(b), "# base - shop") {
-		t.Fatalf("base.md %q %v", b, err)
+	dir := paths.WorkspaceDir(home, key)
+	if b, err := os.ReadFile(filepath.Join(dir, "base.md")); err != nil || string(b) != DefaultRules {
+		t.Fatalf("base.md is the house rules: %q %v", b, err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".seeded")); err != nil {
+		t.Fatal("seeded, so a team that empties its rules keeps them empty")
+	}
+	if _, err := NewRoster(home).Create("shop", repo); err == nil || !strings.Contains(err.Error(), "exists already") {
+		t.Fatalf("a second Create of shop: %v", err)
+	}
+}
+
+// A settings save sends the folder back as it is: that is no change, even where the folder is no checkout (a workspace made before the
+// check), and an agent that is not the lead may send it.
+func TestAnUnchangedFolderIsNoChange(t *testing.T) {
+	home := newHome(t)
+	r := NewRoster(home)
+	register(t, r, "shop", "shop.ui")
+	plain := t.TempDir()
+	d, _ := store.Shared(paths.DBFile(home))
+	d.Exec("UPDATE workspaces SET folder = ? WHERE name = 'shop'", plain)
+	for _, who := range []string{"shop", "shop.ui"} {
+		if err := r.SetKeys(who, []yamlcompat.Pair{{Key: "repo", Val: plain}, {Key: "model", Val: "opus"}}); err != nil {
+			t.Fatalf("%s: %v", who, err)
+		}
 	}
 }
 
