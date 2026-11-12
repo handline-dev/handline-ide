@@ -44,7 +44,6 @@ func stalled(q db.Q, accounts team.Accounts, acct string) *team.Stall {
 	return e
 }
 
-
 // raiser opens a decision for the founder (founderAsker).
 type raiser interface {
 	RaiseDecision(q db.Q, agent, text, reason string) (int64, error)
