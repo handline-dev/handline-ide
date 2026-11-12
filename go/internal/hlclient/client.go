@@ -70,6 +70,7 @@ type Client struct {
 var slow = map[string]bool{
 	"session.start": true, "session.wake": true, "session.restart": true, "session.stop": true, "session.park": true,
 	"agent.create": true, "agent.retire": true, "agent.move": true, "agent.switch_now": true, "agent.unstall": true, "agent.force_start": true,
+	"workspace.create": true, "workspace.delete": true,
 	"account.wake": true, "say": true, "chat.send": true, "chat.send_now": true,
 }
 
