@@ -43,7 +43,7 @@ var usages = map[string][2]string{
 	"task draft":       {`hl task draft T<n> [T<m> ...]`, `hl task draft T12`},
 	"task merge":       {`hl task merge T<n> T<m> [...]`, `hl task merge T12 T13`},
 	"hook":             {`hl hook <event>`, `hl hook Stop`},
-	"propose":          {`hl propose <add|retire|rename|team|context|schedule|bundle|list|withdraw> ...`, `hl propose list`},
+	"propose":          {`hl propose <add|retire|rename|team|context|schedule|bundle|run|list|withdraw> ...`, `hl propose run "rm -r build" --cwd . --why "frees 2 GB"`},
 	"propose add":      {`hl propose add <agent> --repo PATH --why "<why>" [--team T] [--model M] [--effort E] [--vendor V]`, `hl propose add shop.sea --repo /code/sea --why "split the storefront work"`},
 	"propose retire":   {`hl propose retire <agent> --why "<why>" (refused when applied while a worktree of the agent holds work)`, `hl propose retire old.agent --why "its work moved to new.agent"`},
 	"propose rename":   {`hl propose rename <agent> --to <new name> --why "<why>" [--team T]`, `hl propose rename shop.sea --to shop.ocean --why "clearer name"`},

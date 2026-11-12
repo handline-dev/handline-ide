@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -190,5 +191,39 @@ func TestProposeListPadsTheKindColumnForTheLongestKind(t *testing.T) {
 	rows := strings.Split(strings.TrimSpace(out), "\n")
 	if len(rows) != 2 || strings.Index(rows[0], "a.one") != strings.Index(rows[1], "b.two") {
 		t.Errorf("agent column does not align:\n%s", out)
+	}
+}
+
+// hl propose run asks the founder to run a command for the asking agent, in --cwd or the folder it is typed in; list shows how it runs.
+func TestProposeRunSendsTheCommandForTheAskingAgentAndListShowsItsRun(t *testing.T) {
+	r := newRig(t)
+	calls := r.daemon(map[string]string{"proposal.propose": `{"accepted":true,"proposal":3,"said":"proposal 00000003 raised."}`,
+		"proposal.list": `{"proposals":[
+		{"id":3,"kind":"run","agent":"a.one","state":"approved","requested_by":"a.one","run":{"command":"rm -r build","cwd":"/w","risks":["delete"],"state":"failed","exit":1}},
+		{"id":4,"kind":"run","agent":"a.one","state":"open","requested_by":"a.one","run":{"command":"ls","cwd":"/w","risks":[]}}]}`})
+	for _, args := range [][]string{
+		{"propose", "run", "rm -r build", "--cwd", "/w", "--why", "frees 2 GB"},
+		{"propose", "run", "ls", "--why", "look"},
+	} {
+		if out, errs, code := r.run(asAgent, args...); code != 0 || errs != "" || out == "" {
+			t.Errorf("%v: %d %q %q", args, code, out, errs)
+		}
+	}
+	for _, args := range [][]string{{"propose", "run", "ls"}, {"propose", "run", "--why", "w"}, {"propose", "run", "a", "b", "--why", "w"}} {
+		if _, errs, code := r.run(asAgent, args...); code != 2 || !strings.Contains(errs, "arguments not understood") {
+			t.Errorf("%v: %d %q", args, code, errs)
+		}
+	}
+	root, _ := filepath.EvalSymlinks(r.root)
+	want := []string{
+		`proposal.propose {"args":{"command":"rm -r build","cwd":"/w","name":"a.one"},"kind":"run","why":"frees 2 GB"}`,
+		`proposal.propose {"args":{"command":"ls","cwd":"` + root + `","name":"a.one"},"kind":"run","why":"look"}`,
+	}
+	if got := sent(calls()); !reflect.DeepEqual(got, want) {
+		t.Errorf("calls\n got  %v\n want %v", got, want)
+	}
+	out, _, _ := r.run(nil, "propose", "list")
+	if !strings.Contains(out, "failed (exit 1) in /w: rm -r build  [delete]") || !strings.Contains(out, "not started in /w: ls\n") {
+		t.Errorf("list:\n%s", out)
 	}
 }
