@@ -141,7 +141,7 @@ function Line({
         </span>
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="truncate text-fg">{title}</span>
-          <span className="truncate text-xs text-muted">{meta}</span>
+          <span className="line-clamp-2 text-xs break-words text-muted">{meta}</span>
         </span>
       </button>
       {trailing && (

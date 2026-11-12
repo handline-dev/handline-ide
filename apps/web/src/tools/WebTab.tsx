@@ -65,7 +65,7 @@ export function WebTab({ tab, agent, start = '' }: { tab: string; agent: string 
     }
   };
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <form
         className="flex h-9 shrink-0 items-center gap-1 border-b border-border px-2"
         onSubmit={(e) => {
