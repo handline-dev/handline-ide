@@ -71,7 +71,7 @@ var slow = func() map[string]bool {
 	m := map[string]bool{}
 	for _, name := range []string{"session.start", "session.wake", "session.restart", "session.stop", "session.park",
 		"agent.create", "agent.retire", "agent.move", "agent.switch_now", "agent.unstall", "agent.force_start",
-		"account.wake", "say", "chat.send", "chat.send_now", "folder.init", "folder.clone"} {
+		"account.wake", "say", "chat.send", "chat.send_now", "folder.init", "folder.clone", "workspace.create", "workspace.delete"} {
 		m[name] = true
 	}
 	return m

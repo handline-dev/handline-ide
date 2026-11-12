@@ -69,6 +69,7 @@ Every error is a JSON-RPC error whose `data.code` is the stable string. A refusa
 | `reopen` | doc.push, doc.pull: the doc id is not the loaded copy, or the version is older than the kept updates. Open the doc again. |
 | `lease_ceiling` | lease.take: no lease came free in 30 minutes for a call held open (a shell with no current task); nothing ran. |
 | `lease_wait` | lease.take: no lease is free, so the agent's current task now waits on a gate task for one and comes back by itself when a lease is reserved for it; hl use exits 75 and nothing ran. |
+| `not_git` | The folder is in no git checkout: a workspace's folder is one. The owner makes it one (folder.init) or chooses another folder. |
 
 ## App cache and writes
 
@@ -91,7 +92,7 @@ One file per group, generated from `spec/<group>.json`; field types are in `prot
 - [devices](gen/devices.md): 6 methods
 - [repos](gen/repos.md): 15 methods
 - [tasks](gen/tasks.md): 40 methods
-- [team](gen/team.md): 15 methods
+- [team](gen/team.md): 18 methods
 - [terminal](gen/terminal.md): 9 methods
 
 ## Who the caller is
