@@ -6,6 +6,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/handline/handline/go/agentctl/term"
+	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/kit/timefmt"
 )
 
@@ -771,9 +772,9 @@ func (e *Env) raise(recs []*Block, now int64) error {
 		if err != nil {
 			return err
 		}
-		lead := fmt.Sprintf("%s cannot be given its work (%s).", r.Agent, timefmt.Ago(held))
+		lead := fmt.Sprintf("%s cannot be given its work (%s).", addr.Ref(r.Agent), timefmt.Ago(held))
 		if r.Origin == ExitOrigin && r.Work == "" {
-			lead = fmt.Sprintf("%s has sat on a dialog nobody is answering (%s).", r.Agent, timefmt.Ago(held))
+			lead = fmt.Sprintf("%s has sat on a dialog nobody is answering (%s).", addr.Ref(r.Agent), timefmt.Ago(held))
 		}
 		advice, ok := Advice[r.Kind]
 		if !ok {

@@ -484,7 +484,7 @@ func editMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, 
 						return nil, &rpc.CommitThen{Err: refusal(asked.Msg)}
 					}
 					moved, movedA, owner, done.WasOwner = &h, asked, nil, ""
-					msgs = append(msgs, fmt.Sprintf("T%d is %s's turn now", tid, h.To))
+					msgs = append(msgs, fmt.Sprintf("T%d is %s's turn now", tid, addr.Ref(h.To)))
 					fields = reporter != nil || title != nil || body != nil || evidence != nil || timeoutS != nil || priority != nil || estimate != nil
 				}
 			}

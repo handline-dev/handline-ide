@@ -8,6 +8,7 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/actor"
+	"github.com/handline/handline/go/kit/addr"
 )
 
 // The wait-for graph over task_blocks: what can never finish, told to the human once. A task waits on the tasks in task_blocks (a
@@ -205,7 +206,7 @@ func StuckWaits(q db.Q) ([]StuckWait, error) {
 			}
 			found.put(StuckWait{fmt.Sprintf("gone:%d>%d", waiter.ID, p.blocker), waiter.ID, fmt.Sprintf(
 				"T%d (%s) waited on T%d, which %s. That wait no longer holds it back, but what it waited for never happened - "+
-					"check whether T%d can go on, or say what it needs instead.", waiter.ID, waiter.Acting, p.blocker, gone, waiter.ID)})
+					"check whether T%d can go on, or say what it needs instead.", waiter.ID, addr.Ref(waiter.Acting), p.blocker, gone, waiter.ID)})
 		} else if open(blocker) {
 			edges[waiter.ID] = append(edges[waiter.ID], blocker.ID)
 		}
@@ -214,7 +215,7 @@ func StuckWaits(q db.Q) ([]StuckWait, error) {
 		loop := ring(edges, group)
 		var names []string
 		for _, id := range append(append([]int64{}, loop...), loop[0]) {
-			names = append(names, fmt.Sprintf("T%d (%s)", id, tasks[id].Acting))
+			names = append(names, fmt.Sprintf("T%d (%s)", id, addr.Ref(tasks[id].Acting)))
 		}
 		var more, ids []string
 		inLoop := map[int64]bool{}

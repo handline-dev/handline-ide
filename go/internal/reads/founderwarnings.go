@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/addr"
 )
 
 // founderWarning is what the daemon needs of the founder and cannot do itself, read from state, so it leaves when the state does.
@@ -109,9 +110,9 @@ func (e *Env) lostMessages() ([]founderWarning, error) {
 // to look first.
 func lostTitle(agent, outcome, line string) string {
 	if strings.HasPrefix(line, "!") && lostWord(outcome) != "was not read" {
-		return fmt.Sprintf("Your command to %s may or may not have run: look at its terminal before running it again: %s", agent, line)
+		return fmt.Sprintf("Your command to %s may or may not have run: look at its terminal before running it again: %s", addr.Ref(agent), line)
 	}
-	return fmt.Sprintf("Your message to %s %s: %s", agent, lostWord(outcome), line)
+	return fmt.Sprintf("Your message to %s %s: %s", addr.Ref(agent), lostWord(outcome), line)
 }
 
 // lostWord is the delivery's outcome cut to what the founder can act on.
@@ -132,7 +133,7 @@ func (e *Env) refusedTasks() ([]founderWarning, error) {
 			return err
 		}
 		out = append(out, founderWarning{id: fmt.Sprintf("undelivered:%d", id), task: id, since: ts(u.At), view: map[string]any{"kind": "undelivered", "agent": u.Agent},
-			title: fmt.Sprintf("T%d could not be delivered to %s: %s", id, u.Agent, u.Why)})
+			title: fmt.Sprintf("T%d could not be delivered to %s: %s", id, addr.Ref(u.Agent), u.Why)})
 		return nil
 	})
 	return out, err

@@ -15,9 +15,11 @@ package dangling
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/kit/paths"
 )
 
@@ -206,7 +208,7 @@ func (s *Sweep) end(r db.OpenTerminal, pid int) error {
 		return err
 	}
 	if start == 0 || s.Ports.PidStart(pid) != start {
-		s.tell(r.Agent, fmt.Sprintf("%s's session (pid %d) outlived its closed terminal %s and could not be proved to be that session; end it by hand", r.Agent, pid, r.Handle))
+		s.tell(r.Agent, fmt.Sprintf("%s's session (pid %d) outlived its closed terminal %s and could not be proved to be that session; end it by hand", addr.Ref(r.Agent), pid, r.Handle))
 		return s.settle(r.Handle)
 	}
 	if err := s.Ports.Kill(pid); err != nil {
@@ -233,11 +235,11 @@ func (s *Sweep) notify(r db.OpenTerminal, current string, pid int, reached bool,
 	if current == "" {
 		current = "none"
 	}
-	s.tell(r.Agent, fmt.Sprintf("closed %s's terminal %s: not its current terminal (%s); %s", r.Agent, r.Handle, current, what))
+	s.tell(r.Agent, fmt.Sprintf("closed %s's terminal %s: not its current terminal (%s); %s", addr.Ref(r.Agent), r.Handle, current, what))
 }
 
 func (s *Sweep) tell(agent, text string) {
-	s.log("  %s: %s", agent, text)
+	s.log("  %s: %s", agent, strings.ReplaceAll(text, addr.Ref(agent), agent)) // the log keeps keys
 	to := team.ParentName(agent)
 	if to == "" {
 		return // no manager: the founder has nothing to do about a closed terminal

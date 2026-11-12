@@ -9,6 +9,7 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/actor"
+	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/taskboard/supervisor"
 	"github.com/handline/handline/go/taskboard/taskwrites"
@@ -220,7 +221,7 @@ func CancelPlan(q db.Q, rid int64) (bool, string, error) {
 	}
 	target, requester := row.Target, row.Requester
 	if actor.IsPerson(requester) && !row.DeliveredAt.Valid {
-		return true, fmt.Sprintf("withdraw %s to %s: not delivered yet, so nobody is told", db.MsgName(q, rid), target), nil
+		return true, fmt.Sprintf("withdraw %s to %s: not delivered yet, so nobody is told", db.MsgName(q, rid), addr.Ref(target)), nil
 	}
 	queued, err := db.QueuedFor(q, target)
 	if err != nil {
@@ -233,18 +234,18 @@ func CancelPlan(q db.Q, rid int64) (bool, string, error) {
 			break
 		}
 	}
-	told := requester + " is not told"
+	told := addr.Ref(requester) + " is not told"
 	if requester == actor.OwnerKey { // the confirm is the founder's to read
 		told = "you are not told"
 	}
 	if row.DeliveredAt.Valid {
-		told = target + " is told to stop, " + told
+		told = addr.Ref(target) + " is told to stop, " + told
 	}
 	way := "queued for"
 	if row.DeliveredAt.Valid {
 		way = "delivered to"
 	}
-	out := fmt.Sprintf("cancel %s (%s %s): closed as rejected, '%s'; %s", db.MsgName(q, rid), way, target, supervisor.CancelVerdict, told)
+	out := fmt.Sprintf("cancel %s (%s %s): closed as rejected, '%s'; %s", db.MsgName(q, rid), way, addr.Ref(target), supervisor.CancelVerdict, told)
 	if row.DeliveredAt.Valid && behind != 0 {
 		out += fmt.Sprintf("; %s delivers next", db.MsgName(q, behind))
 	}

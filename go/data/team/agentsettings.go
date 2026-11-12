@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/kit/yamlcompat"
 )
@@ -345,7 +346,7 @@ func (r *Roster) SetByAgent(db *sql.DB, agent string, values map[string]string, 
 		if who == "" {
 			who = "someone"
 		}
-		return false, fmt.Sprintf("%s may not change %s's settings; an agent changes its own. For another's, propose it: `hl agent set %s <setting>=<value> --why \"...\"`", who, agent, agent)
+		return false, fmt.Sprintf("%s may not change %s's settings; an agent changes its own. For another's, propose it: `hl agent set %s <setting>=<value> --why \"...\"`", addr.Ref(who), addr.Ref(agent), addr.Address(db, speaker, agent))
 	}
 	var held []string
 	for k := range values {

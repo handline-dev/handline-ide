@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/protocol/rpc"
 )
@@ -99,7 +100,7 @@ func progress(c *rpc.Conn, p map[string]any) (any, error) {
 			return nil, refusal(fmt.Sprintf("no task T%d", tid))
 		}
 		if t.Acting != me {
-			return nil, rpc.Refused(fmt.Sprintf("task T%d is %s's: progress is kept by whoever holds it", tid, t.Acting), "state", "")
+			return nil, rpc.Refused(fmt.Sprintf("task T%d is %s's: progress is kept by whoever holds it", tid, addr.Ref(t.Acting)), "state", "")
 		}
 		if cur, held, err := db.CurrentTask(tx, me); err != nil {
 			return nil, err

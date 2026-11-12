@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/taskboard/supervisor"
 )
@@ -51,7 +52,7 @@ func TestAPersonsMessageToATerminalAgentAnswersOnceTypedAndIsTakenBackAtTheLimit
 	defer func() { typeWait = 0 }()
 	m := r.one(srv, "chat.send", `{"agent":"bob","body":"anyone?","request_id":"ty2"}`)
 	r.refusedWith(m, "state")
-	if msg := m["error"].(map[string]any)["message"].(string); !strings.Contains(msg, "was not typed into "+r.k("bob")+"'s session in time, so it was taken back") {
+	if msg := m["error"].(map[string]any)["message"].(string); !strings.Contains(msg, "was not typed into "+addr.Ref(r.k("bob"))+"'s session in time, so it was taken back") {
 		t.Fatalf("%q", msg)
 	}
 	var state string
