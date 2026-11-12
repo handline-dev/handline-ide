@@ -402,10 +402,7 @@ func (a Accounts) LogoutArgv(acct string) ([]string, map[string]string) {
 	if !a.LoggedIn(acct) {
 		return nil, nil
 	}
-	if AccountVendor(a.Home, acct) == "opencode" {
-		return []string{"opencode", "auth", "logout"}, a.EnvFor(acct, "")
-	}
-	return []string{"claude", "auth", "logout"}, a.EnvFor(acct, "")
+	return facts(AccountVendor(a.Home, acct)).LogoutArgv(), a.EnvFor(acct, "")
 }
 
 // Retire takes the account off the roster by moving its directory aside, not deleting it: its transcripts are the only record

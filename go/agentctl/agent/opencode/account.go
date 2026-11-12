@@ -20,6 +20,7 @@ func (Account) Name() string          { return "opencode" }
 func (Account) ConfigDirName() string { return "xdg-data" }
 func (Account) ConfigDirEnv() string  { return "XDG_DATA_HOME" }
 func (Account) LoginArgv() []string   { return []string{"opencode", "auth", "login"} }
+func (Account) LogoutArgv() []string  { return []string{"opencode", "auth", "logout"} }
 
 // WebLoginArgv: opencode has no login the web page can drive.
 func (Account) WebLoginArgv() ([]string, bool) { return nil, false }

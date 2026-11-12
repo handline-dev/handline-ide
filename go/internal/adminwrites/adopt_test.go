@@ -16,6 +16,7 @@ func (fakeCodex) Name() string                       { return "codex" }
 func (fakeCodex) ConfigDirName() string              { return ".codex" }
 func (fakeCodex) ConfigDirEnv() string               { return "CODEX_HOME" }
 func (fakeCodex) LoginArgv() []string                { return []string{"codex", "login"} }
+func (fakeCodex) LogoutArgv() []string               { return []string{"codex", "logout"} }
 func (fakeCodex) WebLoginArgv() ([]string, bool)     { return nil, false }
 func (fakeCodex) CredentialModified(string) *float64 { return nil }
 func (fakeCodex) CredentialFile() string             { return "auth.json" }

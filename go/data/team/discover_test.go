@@ -18,6 +18,7 @@ func (s sharer) Name() string                     { return s.name }
 func (sharer) ConfigDirName() string              { return ".sharer" }
 func (sharer) ConfigDirEnv() string               { return "SHARER_HOME" }
 func (sharer) LoginArgv() []string                { return []string{"true"} }
+func (sharer) LogoutArgv() []string               { return nil }
 func (sharer) WebLoginArgv() ([]string, bool)     { return nil, false }
 func (sharer) CredentialModified(string) *float64 { return nil }
 func (sharer) CredentialFile() string             { return "auth.json" }
