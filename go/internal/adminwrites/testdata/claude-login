@@ -1,0 +1,3 @@
+#!/bin/sh
+echo https://claude.example/oauth/authorize?state=abc
+cat > /dev/null

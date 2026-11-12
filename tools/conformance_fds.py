@@ -168,15 +168,8 @@ def seed_open_question(con: sqlite3.Connection, agent: str) -> None:
 
 
 # The gh the daemon finds first: the pull requests worktrees.list.facts_of_a_branch_whose_checks_fail and ..._with_a_ready_pr read.
-GH_STUB = """#!/bin/sh
-while [ $# -gt 0 ]; do [ "$1" = --head ] && head=$2; shift; done
-case "$head" in
-facts/failing) echo '[{"number":901,"url":"https://github.com/conf/workroom/pull/901","state":"OPEN","isDraft":false,"reviewDecision":"","statusCheckRollup":[{"conclusion":"FAILURE"},{"conclusion":"TIMED_OUT"},{"conclusion":"SUCCESS"}]}]';;
-facts/ready) echo '[{"number":902,"url":"https://github.com/conf/workroom/pull/902","state":"OPEN","isDraft":false,"reviewDecision":"APPROVED","statusCheckRollup":[{"conclusion":"SUCCESS"}]}]';;
-*) echo '[]';;
-esac
-"""
-
+# Checked in: a newly written executable's first exec can stall seconds on macOS. Only gh lives there.
+GH_BIN = ROOT / "tools" / "conformance-bin"
 
 ASK_AGENT = "c.ask"  # in the agent role's workspace, so it may write to it
 # task_turns.json: three agents only its fixtures put on a task, so the turns they take touch no other fixture's agent.
@@ -398,9 +391,6 @@ def main(argv: list[str]) -> int:
         key = secrets.token_urlsafe(32)
         (store / "founder-keys" / "key").write_text(key)
         (store / "founder-keys" / "key").chmod(0o600)
-        (test_root / "bin").mkdir()
-        (test_root / "bin" / "gh").write_text(GH_STUB)
-        (test_root / "bin" / "gh").chmod(0o755)
         mine, session, holder = agent_pairs(store, AGENT_PAIRS)  # first: the child would hold a copy of any pair made before it
         pairs = [socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM) for _ in range(PAIRS)]
         net_pairs = [socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM) for _ in range(PAIRS)]
@@ -419,7 +409,7 @@ def main(argv: list[str]) -> int:
                                   env={**{k: v for k, v in os.environ.items() if not k.startswith("OCP_")},
                                        "HANDLINE_TEST_ROOT": str(test_root), "HANDLINE_AGENT": "",
                                        **({"HANDLINE_TERMINAL": "fake"} if fakes else {}),
-                                       "PATH": f"{test_root / 'bin'}:{os.environ['PATH']}"})
+                                       "PATH": f"{GH_BIN}:{os.environ['PATH']}"})
         for _a, b in pairs + net_pairs + mine:
             b.close()
 

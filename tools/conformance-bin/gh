@@ -1,0 +1,7 @@
+#!/bin/sh
+while [ $# -gt 0 ]; do [ "$1" = --head ] && head=$2; shift; done
+case "$head" in
+facts/failing) echo '[{"number":901,"url":"https://github.com/conf/workroom/pull/901","state":"OPEN","isDraft":false,"reviewDecision":"","statusCheckRollup":[{"conclusion":"FAILURE"},{"conclusion":"TIMED_OUT"},{"conclusion":"SUCCESS"}]}]';;
+facts/ready) echo '[{"number":902,"url":"https://github.com/conf/workroom/pull/902","state":"OPEN","isDraft":false,"reviewDecision":"APPROVED","statusCheckRollup":[{"conclusion":"SUCCESS"}]}]';;
+*) echo '[]';;
+esac
