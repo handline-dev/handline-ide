@@ -23,5 +23,10 @@
   "version": 104,
   "name": "lease_extended",
   "additive": true
+ },
+ {
+  "version": 105,
+  "name": "workspace_settings",
+  "additive": true
  }
 ]

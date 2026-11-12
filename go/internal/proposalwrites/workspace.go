@@ -194,8 +194,14 @@ func (e *Env) workspaceDelete(c *rpc.Conn, params map[string]any) (any, error) {
 	}
 	if len(w.agents) == 0 { // a workspace no agent is left in
 		return c.Effect(func(tx *sql.Tx) (map[string]any, error) {
-			if _, err := tx.Exec("DELETE FROM workspaces WHERE id = ? AND NOT EXISTS (SELECT 1 FROM agents WHERE workspace = workspaces.id)", w.id); err != nil {
+			res, err := tx.Exec("DELETE FROM workspaces WHERE id = ? AND NOT EXISTS (SELECT 1 FROM agents WHERE workspace = workspaces.id)", w.id)
+			if err != nil {
 				return nil, err
+			}
+			if n, _ := res.RowsAffected(); n > 0 {
+				if err := team.ClearRules(tx, w.id); err != nil {
+					return nil, err
+				}
 			}
 			return map[string]any{"accepted": true, "said": "workspace " + w.name + " is deleted"}, nil
 		})

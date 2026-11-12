@@ -160,6 +160,22 @@ export type Workspace = {
   lead: string | null;
 };
 
+/** A kept rule in force for a workspace (docs/design/people-workspaces.md "Workspace rules"): its value, and whether the workspace or the machine default sets it. */
+export type WorkspaceRule = {
+  /** accounts, agent_cap, lease_max.<kind>, tools_deny, mode_max or review_required. */
+  key: string;
+  /** accounts and tools_deny: a list of names; agent_cap and lease_max.<kind>: a whole number; mode_max: plan, default, acceptEdits or auto; review_required: true or false. 0, an empty list or name and false are no rule. */
+  value: unknown;
+  /** Whether the value is a rule, not 0, empty or false. */
+  on: boolean;
+  /** workspace: set on it, beating the machine default; machine: the machine default. */
+  source: "workspace" | "machine";
+  /** The key of the person who set it. */
+  set_by: string;
+  /** When, unix seconds. */
+  set_at: number;
+};
+
 export interface TeamMethods {
   "proposal.propose": { params: {
   kind: "add" | "retire" | "rename" | "team" | "settings" | "context" | "schedule" | "run" | "bundle";
@@ -230,6 +246,21 @@ export interface TeamMethods {
   workspace: string;
   /** The founder's answer for every worktree of the workspace's agents that holds work, as agent.retire's save and force. keep, which would keep an agent, is bad_request, field worktree, as is any other word. */
   worktree?: "save" | "force";
+  request_id: RequestId;
+}; result: Accepted };
+  "workspace.rules": { params: {
+  /** The workspace's key (w3) or its name, as workspaces.list gives them; absent for the machine default. An unknown one is not_found, what workspace. */
+  workspace?: string;
+}; result: {
+    rules: WorkspaceRule[];
+  } };
+  "workspace.rule.set": { params: {
+  /** The workspace's key (w3) or its name, as workspaces.list gives them; absent for the machine default. An unknown one is not_found, what workspace. */
+  workspace?: string;
+  /** accounts, agent_cap, lease_max.<kind> (heavy, simulator, browser or port), tools_deny, mode_max or review_required. */
+  key: string;
+  /** The value as WorkspaceRule.value says, or null to clear it, so the level below holds. */
+  value: unknown;
   request_id: RequestId;
 }; result: Accepted };
   "team.get": { params: { [key: string]: unknown }; result: {
@@ -305,6 +336,8 @@ export const TEAM_METHODS: { [K in keyof TeamMethods]: { role: Role; callers: Ro
   "workspace.create": { role: "owner", callers: null, write: true, since: 1 },
   "workspace.set": { role: "owner", callers: null, write: true, since: 1 },
   "workspace.delete": { role: "owner", callers: null, write: true, since: 1 },
+  "workspace.rules": { role: "agent", callers: null, write: false, since: 1 },
+  "workspace.rule.set": { role: "owner", callers: null, write: true, since: 1 },
   "team.get": { role: "agent", callers: null, write: false, since: 1 },
   "proposal.list": { role: "agent", callers: null, write: false, since: 1 },
   "proposal.decide": { role: "member", callers: null, write: true, since: 1 },
@@ -317,17 +350,18 @@ export const TEAM_METHODS: { [K in keyof TeamMethods]: { role: Role; callers: Ro
 };
 
 /** x-app-cache of each read (x-app in core.json). */
-export const TEAM_APP_CACHE: { [K in "trust.list" | "people.list" | "workspaces.list" | "team.get" | "proposal.list" | "schedules.list"]: { resource: string; id?: string; feed: Topic | null } | false } = {
+export const TEAM_APP_CACHE: { [K in "trust.list" | "people.list" | "workspaces.list" | "workspace.rules" | "team.get" | "proposal.list" | "schedules.list"]: { resource: string; id?: string; feed: Topic | null } | false } = {
   "trust.list": {"resource": "trust", "feed": null},
   "people.list": {"resource": "people", "feed": "people"},
   "workspaces.list": {"resource": "workspaces", "feed": "workspaces"},
+  "workspace.rules": false,
   "team.get": {"resource": "team", "feed": null},
   "proposal.list": {"resource": "proposals", "feed": "proposals"},
   "schedules.list": {"resource": "schedules", "feed": null},
 };
 
 /** x-app-write of each write (x-app in core.json). */
-export const TEAM_APP_WRITES: { [K in "proposal.propose" | "proposal.withdraw" | "trust.propose" | "trust.remove" | "workspace.create" | "workspace.set" | "workspace.delete" | "proposal.decide" | "proposal.apply_now" | "proposal.stop" | "schedule.add" | "schedule.edit" | "schedule.remove"]: { kind: WriteKind; label: string } | false } = {
+export const TEAM_APP_WRITES: { [K in "proposal.propose" | "proposal.withdraw" | "trust.propose" | "trust.remove" | "workspace.create" | "workspace.set" | "workspace.delete" | "workspace.rule.set" | "proposal.decide" | "proposal.apply_now" | "proposal.stop" | "schedule.add" | "schedule.edit" | "schedule.remove"]: { kind: WriteKind; label: string } | false } = {
   "proposal.propose": false,
   "proposal.withdraw": {"kind": "decided", "label": "withdraw"},
   "trust.propose": false,
@@ -335,6 +369,7 @@ export const TEAM_APP_WRITES: { [K in "proposal.propose" | "proposal.withdraw" |
   "workspace.create": {"kind": "decided", "label": "create workspace"},
   "workspace.set": {"kind": "decided", "label": "rename workspace"},
   "workspace.delete": {"kind": "decided", "label": "delete workspace"},
+  "workspace.rule.set": {"kind": "decided", "label": "set workspace rule"},
   "proposal.decide": {"kind": "decided", "label": "decide"},
   "proposal.apply_now": {"kind": "decided", "label": "apply now"},
   "proposal.stop": {"kind": "decided", "label": "stop"},

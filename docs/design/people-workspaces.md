@@ -189,7 +189,7 @@ Today (main, read from `go/scheduler/lifecycle/launch.go` and `rulesnote.go`): `
 ### Two kinds of rule
 
 - **Text rules** (`base.md`): how we work, in words an agent reads. No check. Stays as is.
-- **Kept rules**: rows `workspace_settings(workspace, key, value)`, set by the owner only (a lead may propose). A value on the workspace beats the machine default, which beats the built-in. Each key names the one place that keeps it.
+- **Kept rules**: rows `workspace_settings(workspace, key, value)`, set by the owner only (a lead may propose) with `workspace.rule.set` and read with `workspace.rules`. A value on the workspace beats the machine default (the row of workspace 0), which beats the built-in. Each key names the one place that keeps it.
 
 | Key | Meaning | Kept at |
 |---|---|---|
