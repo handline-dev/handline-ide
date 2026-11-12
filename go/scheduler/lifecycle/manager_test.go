@@ -117,6 +117,7 @@ func (fakeLaunch) RoomElsewhere(db.Q, string, *db.AgentState, map[string]string)
 	return "", "no account can take one more agent"
 }
 func (fakeLaunch) WorthRepick(string, string) bool { return true }
+func (fakeLaunch) Placing() func()                 { return func() {} }
 func (fakeLaunch) AccountFor(_ db.Q, _ string, resuming bool) string {
 	if resuming {
 		return "resume-acct"

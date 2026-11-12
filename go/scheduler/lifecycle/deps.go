@@ -110,6 +110,8 @@ type Launch interface {
 	ChooseAccount(q db.Q, agent string) bool
 	// AccountFor is the account this launch would run on (launch.choose_account), "" for none; resuming goes back to the recorded one.
 	AccountFor(q db.Q, agent string, resuming bool) string
+	// Placing holds every other placement off until the returned func is called: the choice and its wake_reserved are one step.
+	Placing() func()
 	NoRoom(agent string) string
 	// SlowestPaced is the account other than skip with a free slot that is furthest behind its week, "" when none has room.
 	SlowestPaced(q db.Q, agent string, row *db.AgentState, skip string) string
