@@ -5,6 +5,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Button } from '#src/ui/Button.tsx';
 import { Input } from '#src/ui/Field.tsx';
 import { ModalFrame, openModal, type Close } from '#src/ui/modal.tsx';
+import { Refs } from '#src/ui/refs.tsx';
 
 const why = (e: unknown) => (e ? sentence(classify(e)) : null);
 
@@ -62,7 +63,11 @@ function RemoveModal({ account: a, close }: { account: Account; close: Close<boo
         {plan.isPending && <p className="text-muted">Checking what removing it would do…</p>}
         {a.agents.length > 0 && <p className="text-warning">On it now: {a.agents.join(', ')}. Move them off first.</p>}
         {!a.agents.length && !!plan.data?.plan?.length && <p className="text-xs text-muted">{plan.data.plan.join(' · ')}</p>}
-        {!!(remove.error || (plan.error && !a.agents.length)) && <p className="text-danger">{why(remove.error ?? plan.error)}</p>}
+        {!!(remove.error || (plan.error && !a.agents.length)) && (
+          <p className="text-danger">
+            <Refs text={why(remove.error ?? plan.error)} />
+          </p>
+        )}
       </div>
     </ModalFrame>
   );

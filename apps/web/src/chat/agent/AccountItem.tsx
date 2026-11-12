@@ -6,6 +6,7 @@ import { focusIn } from '#src/layout/focus.ts';
 import { useOpenable } from '#src/layout/openable.tsx';
 import { HoverCard } from '#src/ui/HoverCard.tsx';
 import { FIVE_HOURS, HIGH, UsageBar, WEEK } from '#src/usage/UsageBar.tsx';
+import { Refs } from '#src/ui/refs.tsx';
 
 /** The account the agent runs on: its name, with a mark when its 5-hour window runs high, the login is gone, or the daemon is
  * about to move the agent off it. Resting on it shows the account's windows, who shares it, and this agent's last moves, with a
@@ -55,7 +56,8 @@ export function AccountItem({ agent, account, fire }: { agent: string; account: 
               key={m.at}
               name={new Date(m.at).toLocaleString([], { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
             >
-              {`${m.from ?? '—'} → ${m.to}, ${m.reason}`}
+              {`${m.from ?? '—'} → ${m.to}, `}
+              <Refs text={m.reason} />
             </MenuFact>
           ))}
         </>

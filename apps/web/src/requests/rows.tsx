@@ -31,6 +31,7 @@ import type { How } from '#src/layout/openTab.tsx';
 import { openSettings } from '#src/settings/open.ts';
 import { goToTurnOf } from '#src/tools/TaskTurn.ts';
 import { failedLine } from '#src/ui/taskLook.tsx';
+import { useRefs } from '#src/ui/refs.tsx';
 
 const WARN: Record<NonNullable<PendingRequest['warning']>['kind'], typeof HardDrive> = {
   disk: HardDrive,
@@ -177,6 +178,7 @@ function turnOpens(p: PendingRequest): string | null {
 /** Something waiting on the founder: what is asked, who asks (an agent, or the daemon itself), how long ago. */
 export function TurnLine({ p, onOpened, until }: { p: PendingRequest; onOpened?: () => void; until?: string }) {
   const nameOf = useNameOf();
+  const refs = useRefs();
   const daemon = p.kind === 'warning' || p.agent === null;
   const opens = turnOpens(p);
   const login = p.warning?.kind === 'login' ? p.warning.account : undefined;
@@ -184,13 +186,13 @@ export function TurnLine({ p, onOpened, until }: { p: PendingRequest; onOpened?:
     <Line
       mark
       row={turnRow(p)}
-      title={p.title}
+      title={refs(p.title)}
       icon={turnIcon(p)}
       meta={[
         until ? `back ${until}` : ASK[p.kind],
         daemon ? 'daemon' : nameOf(p.agent!),
         p.task !== null && `T${p.task}`,
-        p.ask,
+        p.ask && refs(p.ask),
         ago(p.last_at),
       ]
         .filter(Boolean)

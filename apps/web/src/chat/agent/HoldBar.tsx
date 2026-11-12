@@ -7,6 +7,7 @@ import { useOpenable } from '#src/layout/openable.tsx';
 import { Button } from '#src/ui/Button.tsx';
 import { ActivityIcon } from '#src/ui/activityIcon.tsx';
 import { Page } from '#src/ui/Page.tsx';
+import { Refs } from '#src/ui/refs.tsx';
 
 /** At the chat's top while the agent stands still: the sidebar's mark, why in full, and the one button that gets it going. */
 export function HoldBar({ agent }: { agent: string }) {
@@ -51,7 +52,11 @@ export function HoldBar({ agent }: { agent: string }) {
           ) : (
             line
           )}
-          {refused && <div className="text-danger">{refused}</div>}
+          {refused && (
+            <div className="text-danger">
+              <Refs text={refused} />
+            </div>
+          )}
           {button && <div className="mt-2 flex justify-end">{button}</div>}
         </div>
       </div>
