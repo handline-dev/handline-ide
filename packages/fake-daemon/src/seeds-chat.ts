@@ -66,7 +66,11 @@ export const CHAT_SEEDS: Record<string, Seed> = {
             added: ['- 대표님께 화면을 보일 때는 첨부 이미지로 보낸다.'],
             removed: ['- 대표님께 화면을 보일 때는 아티팩트 링크로 보낸다.'],
           },
-          { part: 'team instructions', added: ['ui: handline.ui (ROLE.md)'], removed: [], more: 2 },
+          {
+            part: 'team instructions',
+            added: Array.from({ length: 12 }, (_, i) => `ui rule ${i + 1}: keep messages short`),
+            removed: ['ui: handline.ui (ROLE.md)'],
+          },
         ],
       },
     });
