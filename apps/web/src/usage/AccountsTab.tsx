@@ -1,6 +1,6 @@
 // Settings > Accounts: one card per account, its row Usage's, opened in place; several stay open and which is kept.
 import { AccountFacts } from '#src/usage/AccountFacts.tsx';
-import { removeAccount, Rename, Row, Stepper, SubscriptionEnd } from '#src/usage/AccountParts.tsx';
+import { removeAccount, Row } from '#src/usage/AccountParts.tsx';
 import { AccountEmail } from '#src/usage/AccountEmail.tsx';
 import type { Account } from '@handline/client';
 import { loginRunning } from '@handline/app-core';
@@ -68,7 +68,7 @@ export function AccountsTab({ focus }: { focus?: string }) {
   );
 }
 
-/** One click adds an account under a free name and starts its login; Rename changes the name after. */
+/** One click adds an account under a free name and starts its login. */
 function AddAccount({ names, onAdded }: { names: string[]; onAdded: (name: string) => void }) {
   const add = useWrite('account.add', 'new');
   const free = () => {
@@ -94,7 +94,7 @@ function AddAccount({ names, onAdded }: { names: string[]; onAdded: (name: strin
   );
 }
 
-/** One account: the row (a button that opens it, or Log in when it is logged out), and opened, its two columns and the bottom row. */
+/** One account: the row (a button that opens it, or Log in when it is logged out), and opened, its Login row and the bottom row. */
 function Card({
   account: a,
   plan,
@@ -124,24 +124,11 @@ function Card({
           <ChevronRight size={16} className={`shrink-0 text-muted transition-transform ${open ? 'rotate-90' : ''}`} />
           <AccountFacts account={a} plan={plan} bars={!out} />
         </button>
-        {out && <Login account={a} autoStart={autoLogin} onStarted={onStarted} />}
+        {out && <Login account={a} autoStart={autoLogin} onStarted={onStarted} codeClass="basis-full pb-4 pl-12" />}
       </div>
       {open && (
         <div className="flex flex-col gap-5 border-t border-border bg-surface/40 p-4 pl-12">
-          <div className="grid gap-x-12 gap-y-5 sm:grid-cols-2">
-            <div className="flex flex-col gap-5">
-              <Rename account={a} />
-              <Row label="Login">{out ? <AccountEmail account={a} className="text-sm text-fg" /> : <Login account={a} emailBefore />}</Row>
-            </div>
-            <div className="flex flex-col gap-5">
-              <Row label="Agents at once">
-                <Stepper account={a} />
-              </Row>
-              <Row label="Subscription end">
-                <SubscriptionEnd account={a} />
-              </Row>
-            </div>
-          </div>
+          <Row label="Login">{out ? <AccountEmail account={a} className="text-sm text-fg" /> : <Login account={a} emailBefore />}</Row>
           <Bottom account={a} />
         </div>
       )}
@@ -176,18 +163,24 @@ function Bottom({ account: a }: { account: Account }) {
   );
 }
 
-/** Log in by URL and code: account.login starts the vendor's login and gives its URL; the code goes back with account.login_code. The code
- * is never kept. A login another window started can be cancelled here. */
+/** The login page opens in the browser as soon as account.login gives it. */
+const openPage = { onSuccess: (r: { url?: string | null }) => void (r.url && window.open(r.url, '_blank', 'noopener,noreferrer')) };
+
+/** Log in by URL and code: account.login starts the vendor's login and gives its URL, which opens in the browser; the code goes back with
+ * account.login_code. The code is never kept. A login another window started can be cancelled here. */
 export function Login({
   account: a,
   autoStart,
   onStarted,
   emailBefore,
+  codeClass = '',
 }: {
   account: Account;
   autoStart?: boolean;
   onStarted?: () => void;
   emailBefore?: boolean;
+  /** Where the code step sits: the card header puts it on its own line. */
+  codeClass?: string;
 }) {
   const login = useWrite('account.login', a.name);
   const sendCode = useWrite('account.login_code', a.name);
@@ -197,7 +190,7 @@ export function Login({
   useEffect(() => {
     if (!autoStart || started.current) return;
     started.current = true;
-    login.mutate({ account: a.name });
+    login.mutate({ account: a.name }, openPage);
     onStarted?.();
   }, [autoStart, onStarted, login, a.name]);
   const run = loginRunning(a);
@@ -209,13 +202,12 @@ export function Login({
   };
   if (run && url)
     return (
-      <div className="flex flex-col gap-2 text-sm">
+      <div className={`flex flex-col gap-2 text-sm ${codeClass}`}>
         <p className="text-muted">
-          Open{' '}
-          <a className="break-all text-accent" href={url} target="_blank" rel="noreferrer">
-            {url}
-          </a>{' '}
-          and bring the code back.
+          Finish in the browser tab that opened, then paste the code it shows here.{' '}
+          <a className="text-accent" href={url} target="_blank" rel="noreferrer">
+            Open the login page again
+          </a>
         </p>
         <div className="flex items-end gap-2">
           <Field label="Code" error={why(sendCode.error)}>
@@ -248,11 +240,11 @@ export function Login({
     );
   return (
     <div className="flex flex-wrap items-center gap-2 text-sm">
-      {emailBefore && <AccountEmail account={a} className="text-sm text-fg" />}
-      <Button disabled={login.isPending} onClick={() => login.mutate({ account: a.name })}>
+      {emailBefore && <AccountEmail account={a} before={a.login_state === 'ok' ? 'Logged in as' : ''} className="text-sm text-fg" />}
+      <Button disabled={login.isPending} onClick={() => login.mutate({ account: a.name }, openPage)}>
         {login.isPending ? 'Starting…' : a.login_state === 'ok' ? 'Log in again' : 'Log in'}
       </Button>
-      {!emailBefore && <AccountEmail account={a} as />}
+      {!emailBefore && <AccountEmail account={a} before="as" />}
       {a.login?.state === 'failed' && <span className="text-danger">Login failed: {a.login.reason}</span>}
       {!!login.error && <span className="text-danger">{why(login.error)}</span>}
     </div>
