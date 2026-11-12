@@ -93,6 +93,7 @@ def seed_states(home: Path, fakes: bool) -> dict[str, str]:
 
 def wait_served(conn: socket.socket, daemon: subprocess.Popen) -> None:
     """Block until the daemon answers a hello on conn: it serves its pairs only once it has opened and migrated the database."""
+    conn.settimeout(120)  # a daemon alive but never serving fails the run, with its log, instead of hanging it
     conn.sendall(json.dumps({"jsonrpc": "2.0", "id": 0, "method": "hello", "params": {"client": "conformance/seed", "protocol": 1}}).encode() + b"\n")
     got = b""
     while not got.endswith(b"\n"):
