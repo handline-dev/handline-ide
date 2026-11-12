@@ -60,6 +60,14 @@ export const CHAT_SEEDS: Record<string, Seed> = {
         resumed: true,
         cause: 'restart',
         changed: `${team}, team rules changed, ${team}, team rules changed (workspaces/w1/base.md)`,
+        changed_lines: [
+          {
+            part: 'team rules',
+            added: ['- 대표님께 화면을 보일 때는 첨부 이미지로 보낸다.'],
+            removed: ['- 대표님께 화면을 보일 때는 아티팩트 링크로 보낸다.'],
+          },
+          { part: 'team instructions', added: ['ui: handline.ui (ROLE.md)'], removed: [], more: 2 },
+        ],
       },
     });
     const s = d.sessions.get(ARCH)!;
