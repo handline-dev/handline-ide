@@ -102,6 +102,23 @@ func TestScenarioAWindowEdges(t *testing.T) {
 			t.Fatalf("+61 s: picked %q (%q)", picked, why["alpha"])
 		}
 	})
+	t.Run("A3b 5h rolled over with the week at W: refused on the week, not as unknown", func(t *testing.T) {
+		w := newWorld(t, map[string]acct{"alpha": {short: 50, shortReset: 60, week: WallPct}})
+		w.now += 61
+		want := "7d usage 100% >= 100% - resets " + timefmt.Stamp(clock+WeekS/2, timefmt.Short)
+		if picked, why := w.pick([]string{"alpha"}, nil, ""); picked != "" || why["alpha"] != want {
+			t.Fatalf("picked %q, alpha: %q", picked, why["alpha"])
+		}
+	})
+	t.Run("A3c a fresh lost 5h past its reset stays fail-closed", func(t *testing.T) {
+		w := newWorld(t, nil)
+		writeStatus(t, w.home, "alpha", map[string]any{"collected_at": w.now, "windows": []any{
+			map[string]any{"minutes": 300, "used_percent": 40, "resets_at": w.now - 1, "observed_at": w.now, "lost": true},
+			map[string]any{"minutes": 10080, "used_percent": 10, "resets_at": w.now + WeekS/2, "observed_at": w.now}}})
+		if picked, why := w.pick([]string{"alpha"}, nil, ""); picked != "" {
+			t.Fatalf("picked %q (%q)", picked, why["alpha"])
+		}
+	})
 	t.Run("A4 week at W, 5h at 0: refused on the week, naming its reset", func(t *testing.T) {
 		w := newWorld(t, map[string]acct{"alpha": {week: WallPct}})
 		picked, why := w.pick([]string{"alpha"}, nil, "")
@@ -149,7 +166,9 @@ func TestScenarioAWindowEdges(t *testing.T) {
 		}
 	})
 	t.Run("A11 paused: the exact text; a month cycle ends at the start of the day after its end day", func(t *testing.T) {
+		was := time.Local
 		time.Local = time.UTC
+		t.Cleanup(func() { time.Local = was })
 		w := newWorld(t, map[string]acct{"alpha": {short: 10}})
 		writeConfig(t, w.home, map[string]any{"paused_alpha": true})
 		if got := w.env.NotFor("alpha", "claude"); got != "paused - not picked; resume it in the app's settings for alpha" {
