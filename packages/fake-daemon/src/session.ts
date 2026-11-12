@@ -183,6 +183,7 @@ export function statusReply(
   needs: readonly MachineNeed[] = [],
   keepAwake = 'off',
   paused: object | null = null,
+  missing: readonly { tool: string; fix: string }[] = [],
 ) {
   const by_state: Record<string, number> = {};
   for (const s of sessions.values()) by_state[s.state] = (by_state[s.state] ?? 0) + 1;
@@ -201,6 +202,7 @@ export function statusReply(
     keep_awake: { mode: keepAwake, held, ...(held ? { since: startedAt } : {}) },
     ...(needs.length ? { needs_you: [...needs] } : {}),
     ...(paused ? { paused } : {}),
+    ...(missing.length ? { missing_tools: [...missing] } : {}),
   };
 }
 

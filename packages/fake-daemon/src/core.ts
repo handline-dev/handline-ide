@@ -82,7 +82,15 @@ export function coreCall(
           .map(([n]) => n),
       };
     case 'daemon.status':
-      return statusReply(d.sessions, d.inbox.unread(), d.iso(), d.admin.machineNeeds, d.admin.keepAwake(), d.admin.paused);
+      return statusReply(
+        d.sessions,
+        d.inbox.unread(),
+        d.iso(),
+        d.admin.machineNeeds,
+        d.admin.keepAwake(),
+        d.admin.paused,
+        d.admin.missingTools,
+      );
     case 'load.get':
       return loadReply(d.sessions, d.iso(), p);
     case 'agents.list':

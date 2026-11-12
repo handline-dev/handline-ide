@@ -15,6 +15,7 @@ export function handleOpenIn(origin: string, client: DaemonClient, tmp: string):
     tmp,
     worktreeOf: async (agent) => (await client.call('agent.get', { agent })).worktree?.path ?? null,
     attachOf: async (agent) => (await client.call('terminal.open', { agent })).attach?.argv ?? null,
+    missingOf: async () => (await client.call('daemon.status', {})).missing_tools ?? [],
     exec: (file, args) => new Promise((resolve, reject) => execFile(file, args, (err) => (err ? reject(err) : resolve()))),
     exists: (p) =>
       fs.promises.access(p).then(
@@ -25,4 +26,5 @@ export function handleOpenIn(origin: string, client: DaemonClient, tmp: string):
   });
   ipcMain.handle(CHANNELS.openIn, (e, arg) => openIn.open(e, arg));
   ipcMain.handle(CHANNELS.openInApps, (e) => openIn.apps(e));
+  ipcMain.handle(CHANNELS.installTools, (e, arg) => openIn.install(e, arg));
 }

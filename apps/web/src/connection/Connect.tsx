@@ -1,5 +1,5 @@
 // Opens the daemon: a listener that wants a device token gets the pairing screen until this browser holds one.
-import { Store, type KV } from '@handline/app-core';
+import { Store, type KV, type ShellDaemon } from '@handline/app-core';
 import { shell } from '#src/shell.ts';
 import { DataProvider, SKELETON_CSS, type BoxComponent } from '@handline/app-data';
 import { DaemonProvider } from '@handline/app-react';
@@ -80,12 +80,33 @@ function AppSkeleton() {
   );
 }
 
-/** In place of the app when it will not connect: why, in the store's words. */
+/** In place of the app when it will not connect: why, and Try again when the desktop app can start its daemon. */
 function Stopped({ text }: { text: string }) {
+  const [daemon, setDaemon] = useState<ShellDaemon | null>(null);
+  useEffect(() => shell()?.onDaemon?.(setDaemon), []);
+  const [tried, setTried] = useState(false);
+  useEffect(() => {
+    if (tried && daemon?.state === 'running') location.reload();
+  }, [tried, daemon?.state]);
+  const failed = daemon?.state === 'failed';
   return (
-    <p role="alert" className="mx-auto mt-32 max-w-sm px-4 text-sm text-danger">
-      {text}
-    </p>
+    <div role="alert" className="mx-auto mt-32 flex max-w-sm flex-col gap-3 px-4 text-sm">
+      {failed && <h1 className="text-lg font-semibold text-fg">Handline could not start</h1>}
+      <p className="text-danger">{failed && daemon.reason ? daemon.reason : text}</p>
+      {failed && daemon.canStart && (
+        <Button
+          variant="primary"
+          className="w-fit"
+          onClick={() => {
+            setTried(true);
+            void shell()?.startDaemon?.();
+          }}
+        >
+          Try again
+        </Button>
+      )}
+      {tried && daemon?.state === 'starting' && <p className="text-muted">Starting…</p>}
+    </div>
   );
 }
 
