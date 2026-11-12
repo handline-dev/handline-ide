@@ -3,7 +3,6 @@ package adminwrites
 import (
 	"database/sql"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -13,13 +12,14 @@ import (
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
-const loginURL = "https://claude.example/oauth/authorize?state=abc"
+const loginURL = "https://claude.example/oauth/authorize?state=abc" // what testdata/claude-login prints
 
 func loginRig(t *testing.T) *rig {
 	t.Helper()
 	r := newRig(t)
-	bin := filepath.Join(t.TempDir(), "claude")
-	if err := os.WriteFile(bin, []byte("#!/bin/sh\necho "+loginURL+"\ncat > /dev/null\n"), 0o755); err != nil {
+	// checked in: a newly written executable's first exec can stall seconds on macOS
+	bin, err := filepath.Abs("testdata/claude-login")
+	if err != nil {
 		t.Fatal(err)
 	}
 	r.e.Logins = &weblogin.Manager{Home: r.home, Lookup: func(string) (string, error) { return bin, nil }}
