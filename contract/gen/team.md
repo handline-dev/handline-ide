@@ -12,6 +12,9 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `trust.remove` | owner | yes | `root`, `request_id` | `Accepted` | `not_found` |  | authored: remove folder |
 | `people.list` | agent |  | none | `{people}` | `bad_request` |  | `people`, fed by people |
 | `workspaces.list` | agent |  | none | `{workspaces}` | `bad_request` |  | `workspaces`, fed by workspaces |
+| `workspace.create` | owner | yes | `name`, `folder`, `request_id` | `OperationStarted` | `refused`, `not_found`, `bad_request` | state, not_git | decided: create workspace |
+| `workspace.set` | owner | yes | `workspace`, `name`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | state | decided: rename workspace |
+| `workspace.delete` | owner | yes | `workspace`, `worktree?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | state, dirty | decided: delete workspace |
 | `team.get` | agent |  | none | `{agents, people, workspaces}` |  |  | `team`, snapshot |
 | `proposal.list` | agent |  | `state?` | `{proposals} & ReadCursor` | `bad_request` |  | `proposals`, fed by proposals |
 | `proposal.decide` | member | yes | `proposal`, `decision`, `note?`, `subject?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | proposal_changed, proposal_settled | decided: decide |
@@ -48,6 +51,18 @@ Every person, so a client writes out a person key by name.
 ### `workspaces.list`
 
 Every workspace, so a client writes out a workspace key by name and groups agents by it.
+
+### `workspace.create`
+
+Make a workspace on a project folder and its lead, and start the lead there, as one operation like agent.create's. The folder is the top of the git checkout it is in; one that is in no checkout is refused (gate not_git), one that is missing or not a folder is not_found, what folder. A folder that is another workspace's, inside one or holding one is refused (gate state): a checkout is one workspace's. A name a workspace already has is refused (gate state) and no operation starts. The lead reports to the owner and the workspace's rules (base.md) are seeded as a launch would. The call answers only once the operation ended, as agent.create does: done with the operation id and the start's words in said, or refused (gate state) with the reason, the operation id and whether the lead was registered. Founder only; an agent proposes a team instead (proposal.propose). The operation has kind workspace.create and its agent is the workspace's name (its lead). Its steps and result are agent.create's: register (the workspace and its lead), then start. A start that fails leaves the workspace and its lead registered; nothing is cleaned up.
+
+### `workspace.set`
+
+Rename a workspace: its name is the one thing this changes. Its agents keep their keys, folders and sessions, and their dotted names (workspace.agent) follow the new name. The same name is no change. A name the naming rules refuse, or one a workspace or a person's handle already has, is refused (gate state) with the reason. Founder only; an agent proposes instead.
+
+### `workspace.delete`
+
+Delete a workspace: each of its agents is retired as agent.retire retires one, its lead last, and the workspace's row goes with the lead. All or nothing: a retire that is refused or fails puts back every one before it (rows and agent folders), and the call is refused (gate state) naming the step and why. The project folder is never touched; the agents' git worktrees go as agent.retire's do, and a clean one removed before a failed step stays removed. Refused with nothing done while any of its agents has a session running (gate state, naming them: stop them first), and, without worktree, while a worktree of any of them holds work (gate dirty, with worktrees in the error data, as agent.retire). Founder only. The call answers once the retires have run, with said for what was done.
 
 ### `team.get`
 

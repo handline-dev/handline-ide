@@ -841,6 +841,184 @@
    ]
   },
   {
+   "name": "workspace.create",
+   "summary": "Make a workspace on a project folder and its lead, and start the lead there, as one operation like agent.create's. The folder is the top of the git checkout it is in; one that is in no checkout is refused (gate not_git), one that is missing or not a folder is not_found, what folder. A folder that is another workspace's, inside one or holding one is refused (gate state): a checkout is one workspace's. A name a workspace already has is refused (gate state) and no operation starts. The lead reports to the owner and the workspace's rules (base.md) are seeded as a launch would. The call answers only once the operation ended, as agent.create does: done with the operation id and the start's words in said, or refused (gate state) with the reason, the operation id and whether the lead was registered. Founder only; an agent proposes a team instead (proposal.propose).",
+   "description": "The operation has kind workspace.create and its agent is the workspace's name (its lead). Its steps and result are agent.create's: register (the workspace and its lead), then start. A start that fails leaves the workspace and its lead registered; nothing is cleaned up.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "name",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "description": "The workspace's name: lowercase letters, digits and -, 1 to 32 long, starting with a letter, used by no workspace and no person's handle. A dot or a slash is bad_request, field name; another name the rules refuse fails the operation with the reason."
+     }
+    },
+    {
+     "name": "folder",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "description": "The project folder, an absolute path (~ is the home folder)."
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/OperationStarted"
+    }
+   },
+   "x-role": "owner",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "create workspace"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "x-gates": [
+    "state",
+    "not_git"
+   ]
+  },
+  {
+   "name": "workspace.set",
+   "summary": "Rename a workspace: its name is the one thing this changes. Its agents keep their keys, folders and sessions, and their dotted names (workspace.agent) follow the new name. The same name is no change. A name the naming rules refuse, or one a workspace or a person's handle already has, is refused (gate state) with the reason. Founder only; an agent proposes instead.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "workspace",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "description": "The workspace's key (w3) or its name, as workspaces.list gives them. An unknown one is not_found, what workspace."
+     }
+    },
+    {
+     "name": "name",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "description": "The new name, by workspace.create's rules."
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Accepted"
+    }
+   },
+   "x-role": "owner",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "rename workspace"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "x-gates": [
+    "state"
+   ]
+  },
+  {
+   "name": "workspace.delete",
+   "summary": "Delete a workspace: each of its agents is retired as agent.retire retires one, its lead last, and the workspace's row goes with the lead. All or nothing: a retire that is refused or fails puts back every one before it (rows and agent folders), and the call is refused (gate state) naming the step and why. The project folder is never touched; the agents' git worktrees go as agent.retire's do, and a clean one removed before a failed step stays removed. Refused with nothing done while any of its agents has a session running (gate state, naming them: stop them first), and, without worktree, while a worktree of any of them holds work (gate dirty, with worktrees in the error data, as agent.retire). Founder only. The call answers once the retires have run, with said for what was done.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "workspace",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "description": "The workspace's key (w3) or its name, as workspaces.list gives them. An unknown one is not_found, what workspace."
+     }
+    },
+    {
+     "name": "worktree",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "enum": [
+       "save",
+       "force"
+      ],
+      "description": "The founder's answer for every worktree of the workspace's agents that holds work, as agent.retire's save and force. keep, which would keep an agent, is bad_request, field worktree, as is any other word."
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Accepted"
+    }
+   },
+   "x-role": "owner",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "delete workspace"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "x-gates": [
+    "state",
+    "dirty"
+   ]
+  },
+  {
    "name": "team.get",
    "summary": "The caller's team: the agents of its workspace (all of them for a person outside every workspace folder, as the app is), the people, and the other workspaces. Each name is the word the caller uses for that key.",
    "paramStructure": "by-name",
