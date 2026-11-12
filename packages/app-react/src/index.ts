@@ -19,6 +19,14 @@ const StoreContext = createContext<Store | null>(null);
  * Gives the tree one store, and starts it. The caller builds the store (and its client), so each app picks its own transport.
  * `connect` false leaves it unstarted (the app has already said why). A daemon that cannot be reached is said so in `error` and tried again; one that refuses this client (protocol) is not.
  */
+/** A daemon just started or restarted takes a while to answer, so the first tries say so; later ones name the address and why the last try failed. */
+export function unreachableText(tries: number, where: string | undefined, e: unknown): string {
+  if (tries <= STARTING_TRIES) return 'Starting the daemon…';
+  const why = e instanceof Error && e.message ? ` (${e.message})` : '';
+  return `The daemon${where ? ` at ${where}` : ''} does not answer${why}. Start Handline's daemon, or open the Handline app; trying again.`;
+}
+const STARTING_TRIES = 10;
+
 export function DaemonProvider(props: {
   store: Store;
   where?: string;
@@ -33,14 +41,15 @@ export function DaemonProvider(props: {
     if (!connect) return;
     let done = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let tries = 0;
     const boot = () =>
       store.start().then(
         () => (store.setUnreachable(false), store.dismissError()),
         (e) => {
           if (done) return;
           const fatal = e instanceof RpcError && e.code === 'protocol';
-          if (fatal || notify)
-            store.fail(fatal ? (e.reason ?? e.message) : `Cannot reach the daemon${where ? ` at ${where}` : ''}; trying again.`);
+          tries += 1;
+          if (fatal || notify) store.fail(fatal ? (e.reason ?? e.message) : unreachableText(tries, where, e));
           store.setUnreachable(!fatal);
           if (!fatal) timer = setTimeout(boot, retryMs);
         },
