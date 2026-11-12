@@ -292,25 +292,40 @@ func fairManager(limit int, now *int64) *Manager {
 
 type memStore struct {
 	rows    map[int64]Lease
+	asks    map[int64]Ask
 	last    int64
 	removed []int64
 }
 
-func (s *memStore) Load() ([]Lease, int64, error) {
+func (s *memStore) Load() ([]Lease, []Ask, int64, error) {
 	var out []Lease
 	for _, l := range s.rows {
 		out = append(out, l)
 	}
-	return out, s.last, nil
+	var asks []Ask
+	for _, a := range s.asks {
+		asks = append(asks, a)
+	}
+	sort.Slice(asks, func(i, j int) bool { return asks[i].ID < asks[j].ID })
+	return out, asks, s.last, nil
 }
 
-func (s *memStore) Add(l Lease) error {
+func (s *memStore) Put(l Lease) error {
 	s.rows[l.ID], s.last = l, max(s.last, l.ID)
+	return nil
+}
+
+func (s *memStore) AddAsk(a Ask) error {
+	if s.asks == nil {
+		s.asks = map[int64]Ask{}
+	}
+	s.asks[a.ID], s.last = a, max(s.last, a.ID)
 	return nil
 }
 
 func (s *memStore) Remove(id int64) error {
 	delete(s.rows, id)
+	delete(s.asks, id)
 	s.removed = append(s.removed, id)
 	return nil
 }

@@ -52,6 +52,9 @@ func (m *Manager) take(c *rpc.Conn, params map[string]any) (any, error) {
 	if r, ok := err.(*Refusal); ok {
 		return nil, rpc.Refused(r.Why, "lease_ceiling", "")
 	}
+	if b, ok := err.(*Blocked); ok {
+		return nil, rpc.Refused(b.Why, "lease_wait", "")
+	}
 	if err != nil || l == nil {
 		return nil, err
 	}
@@ -87,11 +90,19 @@ func (m *Manager) get(_ *rpc.Conn, _ map[string]any) (any, error) {
 			for _, pid := range l.Pids {
 				pids = append(pids, pid)
 			}
-			held = append(held, map[string]any{"lease": l.ID, "agent": l.Agent, "since": stamp(l.Since), "hold": l.Hold, "pids": pids})
+			row := map[string]any{"lease": l.ID, "agent": l.Agent, "since": stamp(l.Since), "hold": l.Hold, "pids": pids}
+			if l.Reserved() {
+				row["reserved_for"], row["until"] = l.Task, stamp(l.Until)
+			}
+			held = append(held, row)
 		}
 		queue := []any{}
 		for _, w := range p.Queue {
-			queue = append(queue, map[string]any{"agent": w.Agent, "since": stamp(w.Since), "position": w.Position, "says": w.Says})
+			row := map[string]any{"agent": w.Agent, "since": stamp(w.Since), "position": w.Position, "says": w.Says}
+			if w.Task != 0 {
+				row["task"] = w.Task
+			}
+			queue = append(queue, row)
 		}
 		pools = append(pools, map[string]any{"kind": p.Kind, "max": p.Max, "held": held, "queue": queue})
 	}

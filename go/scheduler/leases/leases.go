@@ -43,6 +43,9 @@ const CeilingS = 30 * 60
 // fairS is how far back a workspace's hold-seconds count toward who is granted next.
 const fairS = 60 * 60
 
+// ClaimS is how long a lease reserved for a task waits for its agent's hl use before it goes to the next ask (lease_claim).
+const ClaimS = 10 * 60
+
 // Noun is what a lease of kind is called in a sentence.
 func Noun(kind string) string {
 	if kind == Heavy {
@@ -83,23 +86,56 @@ type Lease struct {
 	Workspace string // the agent's workspace key when it was granted; "" when it has none
 	Since     int64  // epoch seconds it was granted
 	Hold      bool   // taken with --hold: no command stands behind it
-	PID       int    // the hl use process the command runs under; 0 for a hold
+	PID       int    // the hl use process the command runs under; 0 for a hold or a reservation
 	Pids      []int  // its processes at the last sample
+	Task      int64  // a reservation's task
+	Until     int64  // a reservation's claim deadline, epoch seconds; 0 once taken
 }
 
-// Store keeps the held leases across a restart. A hold is stored as PID 0, and comes back with Hold set.
+// Reserved is whether the lease waits for its task's agent to take it.
+func (l *Lease) Reserved() bool { return l.Until != 0 }
+
+// Ask is a task's ask waiting in line: its task is blocked by gate until a lease of kind is reserved for it.
+type Ask struct {
+	ID                     int64
+	Kind, Agent, Workspace string
+	Task, Gate             int64
+	Since                  int64
+}
+
+// Store keeps the leases and the asks across a restart. A hold is stored as PID 0 with no Until.
 type Store interface {
-	// Load is every stored lease and the highest id ever given, so an id is not given twice.
-	Load() ([]Lease, int64, error)
-	Add(Lease) error
+	// Load is every stored lease and ask and the highest id ever given, so an id is not given twice.
+	Load() ([]Lease, []Ask, int64, error)
+	Put(Lease) error
+	AddAsk(Ask) error
 	Remove(id int64) error
 }
 
+// Tasks is the task board the asks of agents with a current task wait on.
+type Tasks interface {
+	// Current is agent's current task, 0 for none.
+	Current(agent string) int64
+	// Open is whether task is open and agent's.
+	Open(agent string, task int64) bool
+	// Wait blocks task on a new gate for a lease of kind, releasing it when doing, and answers the gate.
+	Wait(agent string, task int64, kind string) (gate int64, err error)
+	// Granted marks gate done: a lease of kind is reserved for its task, which comes back to its agent.
+	Granted(gate int64, kind string)
+	// Dropped closes gate: its ask ended (why).
+	Dropped(gate int64, why string)
+	// CloseStray closes the lease gates over a minute old that are not in keep: their ask or their close was lost.
+	CloseStray(keep map[int64]bool)
+}
+
+// waiter is an ask in line: a task's (task and gate set, got nil) or a call held open (got set).
 type waiter struct {
+	id              int64
 	kind, agent, ws string
 	since           int64
 	hold            bool
 	pid             int
+	task, gate      int64
 	got             chan *Lease // granted, buffered
 }
 
@@ -123,12 +159,26 @@ type Manager struct {
 	Store Store
 	// WorkspaceOf is agent's workspace key, "" for none; nil puts every agent in one.
 	WorkspaceOf func(agent string) string
+	// Tasks blocks an agent's current task while its ask waits; nil holds every ask's call open instead.
+	Tasks Tasks
 
 	mu     sync.Mutex
 	next   int64
 	held   []*Lease
 	ended  []span
 	queues map[string][]*waiter
+	asking map[int64]bool // the tasks whose gate is being opened
+	after  []func()       // the task board's writes, run once mu is let go
+}
+
+// unlock lets mu go and runs what was left for after it.
+func (m *Manager) unlock() {
+	fs := m.after
+	m.after = nil
+	m.mu.Unlock()
+	for _, f := range fs {
+		f()
+	}
 }
 
 func (m *Manager) workspaceOf(agent string) string {
@@ -138,22 +188,31 @@ func (m *Manager) workspaceOf(agent string) string {
 	return m.WorkspaceOf(agent)
 }
 
-// Adopt takes back the stored leases after a restart: a hold stays until its holder's turn ends, and a command's lease stays while
-// the hl use process it was granted to runs, and is dropped when that process is gone or its pid now names a later one.
+// Adopt takes back the stored leases and asks after a restart: a hold stays until its holder's turn ends, a reservation until it is
+// taken or lapses, an ask in line, and a command's lease while the hl use process it was granted to runs; that lease is dropped when
+// the process is gone or its pid now names a later one.
 func (m *Manager) Adopt() error {
 	if m.Store == nil {
 		return nil
 	}
-	stored, last, err := m.Store.Load()
+	stored, asks, last, err := m.Store.Load()
 	if err != nil {
 		return fmt.Errorf("loading the stored leases: %w", err)
 	}
 	m.mu.Lock()
-	defer m.mu.Unlock()
+	defer m.unlock()
 	m.next = max(m.next, last)
+	for _, a := range asks {
+		m.next = max(m.next, a.ID)
+		if m.Tasks == nil { // no task board to close its gate
+			m.forget(a.ID)
+			continue
+		}
+		m.enqueue(&waiter{id: a.ID, kind: a.Kind, agent: a.Agent, ws: a.Workspace, since: a.Since, task: a.Task, gate: a.Gate})
+	}
 	for _, l := range stored {
 		m.next = max(m.next, l.ID)
-		if !l.Hold && !m.ranSince(l.PID, l.Since) {
+		if !l.Hold && !l.Reserved() && !m.ranSince(l.PID, l.Since) {
 			m.forget(l.ID)
 			m.logf("lease: %s's %s (lease %d) freed: its hl use process ended while the daemon was down", l.Agent, l.Kind, l.ID)
 			continue
@@ -230,16 +289,31 @@ func (m *Manager) free(kind string, limits map[string]int) bool {
 	return n < limits[kind]
 }
 
-func (m *Manager) grant(kind, agent, ws string, hold bool, pid int) *Lease {
+// grant holds l under a new id from now. The caller holds mu.
+func (m *Manager) grant(l Lease) *Lease {
 	m.next++
-	l := &Lease{ID: m.next, Kind: kind, Agent: agent, Workspace: ws, Since: m.now(), Hold: hold, PID: pid}
-	m.held = append(m.held, l)
-	if m.Store != nil {
-		if err := m.Store.Add(*l); err != nil {
-			m.logf("lease: storing lease %d: %v", l.ID, err)
-		}
+	l.ID, l.Since = m.next, m.now()
+	m.held = append(m.held, &l)
+	m.put(&l)
+	return &l
+}
+
+// put stores l, logging a failure: the leases in memory stay the truth.
+func (m *Manager) put(l *Lease) {
+	if m.Store == nil {
+		return
 	}
-	return l
+	if err := m.Store.Put(*l); err != nil {
+		m.logf("lease: storing lease %d: %v", l.ID, err)
+	}
+}
+
+// enqueue puts w at the back of its kind's line. The caller holds mu.
+func (m *Manager) enqueue(w *waiter) {
+	if m.queues == nil {
+		m.queues = map[string][]*waiter{}
+	}
+	m.queues[w.kind] = append(m.queues[w.kind], w)
 }
 
 // heldSeconds is each workspace's seconds holding kind in the last hour, ended leases and held ones. The caller holds mu.
@@ -286,7 +360,15 @@ func (m *Manager) promote() {
 				break
 			}
 			granted[w] = true
-			w.got <- m.grant(w.kind, w.agent, w.ws, w.hold, w.pid)
+			if w.got != nil {
+				w.got <- m.grant(Lease{Kind: w.kind, Agent: w.agent, Workspace: w.ws, Hold: w.hold, PID: w.pid})
+				continue
+			}
+			l := m.grant(Lease{Kind: w.kind, Agent: w.agent, Workspace: w.ws, Task: w.task, Until: m.now() + ClaimS})
+			m.forget(w.id)
+			m.logf("lease: %s (lease %d) reserved for %s's T%d", w.kind, l.ID, w.agent, w.task)
+			gate, kind := w.gate, w.kind
+			m.after = append(m.after, func() { m.Tasks.Granted(gate, kind) })
 		}
 		var left []*waiter
 		for _, w := range m.queues[kind] {
@@ -303,22 +385,45 @@ type Refusal struct{ Why string }
 
 func (r *Refusal) Error() string { return r.Why }
 
-// Take is a lease of kind for agent, granted once one is free and no waiter is ahead in line: a hold, or one for the command running under
-// pid. Past ceiling it is a *Refusal naming the holders; done closing (the asker hung up) ends the wait with no lease.
+// Blocked is an ask that waits in line as a blocker on its task: nothing ran, and the task comes back when a lease is reserved for it.
+type Blocked struct {
+	Task, Gate int64
+	Why        string
+}
+
+func (b *Blocked) Error() string { return b.Why }
+
+// Take is a lease of kind for agent: a hold, or one for the command running under pid. A lease reserved for the agent's current task
+// is taken at once, as is a free one when no ask is ahead in line. Otherwise an agent with a current task gets *Blocked: its ask waits
+// in line as a blocker on the task. One with none waits here: past ceiling it is a *Refusal naming the holders, and done closing (the
+// asker hung up) ends the wait with no lease.
 func (m *Manager) Take(done <-chan struct{}, kind, agent string, hold bool, pid int, ceiling time.Duration) (*Lease, error) {
-	ws := m.workspaceOf(agent)
+	ws, task := m.workspaceOf(agent), int64(0)
+	if m.Tasks != nil {
+		task = m.Tasks.Current(agent)
+	}
 	m.mu.Lock()
-	if m.queues == nil {
-		m.queues = map[string][]*waiter{}
+	for _, l := range m.held {
+		if task != 0 && l.Reserved() && l.Task == task && l.Kind == kind {
+			l.Agent, l.Hold, l.PID, l.Until = agent, hold, pid, 0 // Since stays: the reserved time was held
+			m.put(l)
+			m.logf("lease: %s took the %s (lease %d) reserved for T%d", agent, kind, l.ID, task)
+			c := *l
+			m.unlock()
+			return &c, nil
+		}
 	}
 	if len(m.queues[kind]) == 0 && m.free(kind, m.limits()) {
-		l := m.grant(kind, agent, ws, hold, pid)
-		m.mu.Unlock()
+		l := m.grant(Lease{Kind: kind, Agent: agent, Workspace: ws, Hold: hold, PID: pid})
+		m.unlock()
 		return l, nil
 	}
+	if task != 0 {
+		return nil, m.block(kind, agent, ws, task)
+	}
 	w := &waiter{kind: kind, agent: agent, ws: ws, since: m.now(), hold: hold, pid: pid, got: make(chan *Lease, 1)}
-	m.queues[kind] = append(m.queues[kind], w)
-	m.mu.Unlock()
+	m.enqueue(w)
+	m.unlock()
 	timer := time.NewTimer(ceiling)
 	defer timer.Stop()
 	select {
@@ -328,7 +433,7 @@ func (m *Manager) Take(done <-chan struct{}, kind, agent string, hold bool, pid 
 	case <-timer.C:
 	}
 	m.mu.Lock()
-	defer m.mu.Unlock()
+	defer m.unlock()
 	select {
 	case l := <-w.got: // granted as the wait ended
 		select {
@@ -340,19 +445,71 @@ func (m *Manager) Take(done <-chan struct{}, kind, agent string, hold bool, pid 
 		}
 	default:
 	}
-	q := m.queues[kind]
-	for i, x := range q {
-		if x == w {
-			m.queues[kind] = append(q[:i:i], q[i+1:]...)
-			break
-		}
-	}
+	m.unqueue(w)
 	select {
 	case <-done:
 		return nil, nil
 	default:
 	}
-	return nil, &Refusal{fmt.Sprintf("Refused: no %s came free in %s; %s. Nothing ran.", kind, ceiling.Round(time.Minute), m.heldBy(kind))}
+	return nil, &Refusal{fmt.Sprintf("Refused: no %s came free in %s; %s. Nothing ran.", Noun(kind), ceiling.Round(time.Minute), m.heldBy(kind))}
+}
+
+// block puts task's ask for kind in line behind a new gate on the task, or answers the ask already there. Called holding mu; lets it go.
+func (m *Manager) block(kind, agent, ws string, task int64) error {
+	for _, w := range m.queues[kind] {
+		if w.task == task {
+			m.unlock()
+			return m.blocked(kind, task, w.gate)
+		}
+	}
+	if m.asking[task] { // another hl use of this task is opening its gate
+		m.unlock()
+		return m.blocked(kind, task, 0)
+	}
+	if m.asking == nil {
+		m.asking = map[int64]bool{}
+	}
+	m.asking[task] = true
+	m.unlock()
+	gate, err := m.Tasks.Wait(agent, task, kind)
+	m.mu.Lock()
+	defer m.unlock()
+	delete(m.asking, task)
+	if err != nil {
+		m.logf("lease: %s's T%d cannot wait for a %s: %v", agent, task, kind, err)
+		return err
+	}
+	m.next++
+	w := &waiter{id: m.next, kind: kind, agent: agent, ws: ws, since: m.now(), task: task, gate: gate}
+	m.enqueue(w)
+	if m.Store != nil {
+		if err := m.Store.AddAsk(Ask{ID: w.id, Kind: kind, Agent: agent, Workspace: ws, Task: task, Gate: gate, Since: w.since}); err != nil {
+			m.logf("lease: storing ask %d: %v", w.id, err)
+		}
+	}
+	m.logf("lease: %s's T%d waits for a %s (gate T%d)", agent, task, kind, gate)
+	m.promote()
+	return m.blocked(kind, task, gate)
+}
+
+func (m *Manager) blocked(kind string, task, gate int64) *Blocked {
+	on := ""
+	if gate != 0 {
+		on = fmt.Sprintf(" (gate T%d)", gate)
+	}
+	return &Blocked{Task: task, Gate: gate, Why: fmt.Sprintf("No %s is free: T%d now waits for one%s and comes back by itself once one "+
+		"is reserved for it; then run this hl use again. Take your next task. Nothing ran.", Noun(kind), task, on)}
+}
+
+// unqueue takes w out of its line. The caller holds mu.
+func (m *Manager) unqueue(w *waiter) {
+	q := m.queues[w.kind]
+	for i, x := range q {
+		if x == w {
+			m.queues[w.kind] = append(q[:i:i], q[i+1:]...)
+			return
+		}
+	}
 }
 
 // unlessGone is l, or nil with l given back when its asker hung up as it was granted.
@@ -360,7 +517,7 @@ func (m *Manager) unlessGone(done <-chan struct{}, l *Lease) *Lease {
 	select {
 	case <-done:
 		m.mu.Lock()
-		defer m.mu.Unlock()
+		defer m.unlock()
 		m.drop(l.ID, "its asker hung up")
 		return nil
 	default:
@@ -372,7 +529,10 @@ func (m *Manager) unlessGone(done <-chan struct{}, l *Lease) *Lease {
 func (m *Manager) heldBy(kind string) string {
 	var who []string
 	for _, l := range m.held {
-		if l.Kind == kind {
+		switch {
+		case l.Kind == kind && l.Reserved():
+			who = append(who, fmt.Sprintf("reserved for %s's T%d", l.Agent, l.Task))
+		case l.Kind == kind:
 			who = append(who, fmt.Sprintf("%s since %s", l.Agent, time.Unix(l.Since, 0).Format("15:04")))
 		}
 	}
@@ -414,7 +574,7 @@ func (m *Manager) drop(id int64, why string) bool {
 // Release ends lease id when agent holds it; false when it does not.
 func (m *Manager) Release(id int64, agent string) bool {
 	m.mu.Lock()
-	defer m.mu.Unlock()
+	defer m.unlock()
 	for _, l := range m.held {
 		if l.ID == id && l.Agent == agent {
 			return m.drop(id, "released")
@@ -423,13 +583,14 @@ func (m *Manager) Release(id int64, agent string) bool {
 	return false
 }
 
-// ReleaseAgent ends agent's leases: of kind ("" for every kind), only its holds when holdsOnly. It is how many ended.
+// ReleaseAgent ends agent's leases: of kind ("" for every kind), only its holds when holdsOnly. It is how many ended. A reservation is
+// its task's, so it stays.
 func (m *Manager) ReleaseAgent(agent, kind string, holdsOnly bool, why string) int {
 	m.mu.Lock()
-	defer m.mu.Unlock()
+	defer m.unlock()
 	var ids []int64
 	for _, l := range m.held {
-		if l.Agent == agent && (kind == "" || l.Kind == kind) && (l.Hold || !holdsOnly) {
+		if l.Agent == agent && (kind == "" || l.Kind == kind) && (l.Hold || !holdsOnly) && !l.Reserved() {
 			ids = append(ids, l.ID)
 		}
 	}
@@ -452,10 +613,13 @@ func (m *Manager) Holds(agent, kind string) bool {
 }
 
 // Check notes each lease's processes from a sample and frees a command's lease once its hl use process and every process last seen
-// under it are gone, so a killed run holds nothing. It also lets in the waiters a raised limit admits.
+// under it are gone, so a killed run holds nothing. A reservation not taken in ClaimS goes to the next ask; its task asks again at its
+// next hl use. An ask or a reservation whose task ended or left its agent is dropped, and a lease gate no ask names is closed. It also
+// lets in the waiters a raised limit admits.
 func (m *Manager) Check(procs []procload.Proc) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
+	defer m.unlock()
+	m.dropEnded()
 	children := map[int][]int{}
 	for _, p := range procs {
 		if !p.Gone {
@@ -463,7 +627,14 @@ func (m *Manager) Check(procs []procload.Proc) {
 		}
 	}
 	var gone []int64
+	var lapsed []Lease
 	for _, l := range m.held {
+		if l.Reserved() {
+			if l.Until <= m.now() {
+				lapsed = append(lapsed, *l)
+			}
+			continue
+		}
 		if l.Hold {
 			l.Pids = nil
 			for _, p := range procs {
@@ -491,7 +662,45 @@ func (m *Manager) Check(procs []procload.Proc) {
 	for _, id := range gone {
 		m.drop(id, "its processes ended")
 	}
+	for _, l := range lapsed {
+		m.drop(l.ID, fmt.Sprintf("not taken for T%d in %d minutes", l.Task, ClaimS/60))
+	}
 	m.promote()
+	if m.Tasks != nil {
+		keep := map[int64]bool{}
+		for _, q := range m.queues {
+			for _, w := range q {
+				keep[w.gate] = true
+			}
+		}
+		m.after = append(m.after, func() { m.Tasks.CloseStray(keep) })
+	}
+}
+
+// dropEnded drops the asks and the reservations whose task ended or left its agent. The caller holds mu.
+func (m *Manager) dropEnded() {
+	if m.Tasks == nil {
+		return
+	}
+	for _, kind := range Kinds {
+		for _, w := range append([]*waiter{}, m.queues[kind]...) {
+			if w.got == nil && !m.Tasks.Open(w.agent, w.task) {
+				m.unqueue(w)
+				m.forget(w.id)
+				m.logf("lease: %s's ask for a %s dropped: T%d ended or moved", w.agent, kind, w.task)
+				m.after = append(m.after, func() { m.Tasks.Dropped(w.gate, fmt.Sprintf("T%d no longer waits", w.task)) })
+			}
+		}
+	}
+	var ended []int64
+	for _, l := range m.held {
+		if l.Reserved() && !m.Tasks.Open(l.Agent, l.Task) {
+			ended = append(ended, l.ID)
+		}
+	}
+	for _, id := range ended {
+		m.drop(id, "its task ended or moved")
+	}
 }
 
 // tree is pid and its descendants, sorted.
@@ -508,6 +717,7 @@ func tree(pid int, children map[int][]int) []int {
 type Waiting struct {
 	Agent     string
 	Workspace string
+	Task      int64 // the task the ask blocks; 0 for a call held open
 	Since     int64
 	Position  int    // 1 is next
 	Says      string // "waiting for a browser, 2nd in line, held by a and b"
@@ -543,7 +753,7 @@ func (m *Manager) View() []Pool {
 			if len(who) > 0 {
 				says += ", held by " + andList(who)
 			}
-			p.Queue = append(p.Queue, Waiting{Agent: w.agent, Workspace: w.ws, Since: w.since, Position: i + 1, Says: says})
+			p.Queue = append(p.Queue, Waiting{Agent: w.agent, Workspace: w.ws, Task: w.task, Since: w.since, Position: i + 1, Says: says})
 		}
 		out = append(out, p)
 	}

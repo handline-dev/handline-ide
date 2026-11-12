@@ -155,8 +155,8 @@ func TestProgressNamesNoOneWithoutAnAgent(t *testing.T) {
 }
 
 // daemon answers the rig's runs over socketpairs, no socket file being bound: each method answers its result (an
-// object, `{}` when none is given), or its error when the result starts with "error:". calls is every message
-// received, hello included.
+// object, `{}` when none is given), or its error when the result starts with "error:" (a refusal by gate g with "error[g]:"). calls is
+// every message received, hello included.
 func (r *rig) daemon(results map[string]string) (calls func() []map[string]any) {
 	ln := pairsock.NewListener()
 	r.t.Cleanup(func() { ln.Close() })
@@ -185,6 +185,9 @@ func (r *rig) daemon(results map[string]string) (calls func() []map[string]any) 
 				answer := `"result":{}`
 				if res, ok := results[result]; ok && strings.HasPrefix(res, "error:") {
 					answer = `"error":{"code":-32000,"message":` + strconv.Quote(res[6:]) + `,"data":{"code":"refused"}}`
+				} else if rest, refused := strings.CutPrefix(res, "error["); ok && refused {
+					gate, msg, _ := strings.Cut(rest, "]:")
+					answer = `"error":{"code":-32001,"message":` + strconv.Quote(msg) + `,"data":{"code":"refused","gate":` + strconv.Quote(gate) + `}}`
 				} else if ok {
 					var flat bytes.Buffer
 					if err := json.Compact(&flat, []byte(res)); err != nil {

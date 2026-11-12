@@ -224,6 +224,7 @@ func Start(cfg Config) (*Daemon, error) {
 	ls := leasestore.Store{DB: db}
 	d.leases = &leases.Manager{Log: cfg.Log, Max: func(kind string) int { return leases.Max(usage.LoadConfig(cfg.Home), kind) },
 		Store: ls, WorkspaceOf: ls.WorkspaceOf}
+	d.leases.Tasks = leaseTasks{d}
 	d.hooks.TurnEnded = func(agent, kind string) {
 		// A hold lasts the turn; a session's end also ends the commands' leases its hl use processes did not give back.
 		if kind == "SessionEnd" {
