@@ -14,6 +14,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `daemon.resume` | owner | yes | `request_id` | `Accepted` | `refused` |  | decided: resume new work |
 | `lease.take` | agent |  | `agent`, `kind`, `hold?` | `{lease, waited_s, port}` | `refused`, `bad_request` | lease_wait, lease_order, lease_ceiling | not cached |
 | `lease.release` | agent |  | `agent`, `lease?`, `kind?` | `{released}` | `refused`, `bad_request` |  | not cached |
+| `lease.extend` | agent |  | `agent`, `kind?` | `{extended}` | `refused`, `bad_request` |  | not cached |
 | `lease.get` | agent |  | none | `{kinds}` |  |  | not cached |
 | `load.get` | agent |  | `minutes?`, `agent?` | `{at, every_s, machine, total, agents, unowned, processes, sampling, series} \| null` | `bad_request` |  | `load`, snapshot |
 | `events.feed` | agent |  | `since?`, `topics?`, `limit?` | `{events, cursor, gap}` | `bad_request` |  | not cached |
@@ -65,6 +66,10 @@ hl use asks for a test or build run, simulator, browser or port lease. A free on
 ### `lease.release`
 
 Gives back the caller's lease, or with no lease every one it holds of kind (of every kind when kind is absent); the first ask waiting gets it.
+
+### `lease.extend`
+
+hl use --extend: adds one max_hold period to each of the caller's leases of kind (of every kind when kind is absent). Refused, changing nothing, when a lease of the named kind has no max_hold (with no kind, those are passed over), one was extended twice already, would still be past its max_hold, or has an ask of its kind waiting. A lease's max_hold (<kind>_max_hold_min in config.yaml; heavy 30, simulator 60, browser 30, port none) counts from its grant (time reserved for a task included) and only while its kind has a limit. At 80 % its agent is told; once past it, the lease is taken back as soon as an ask of its kind waits: a command's hl use gets TERM, which it passes on, and the command's processes are killed 10 s later; a hold's agent is told to stop.
 
 ### `lease.get`
 

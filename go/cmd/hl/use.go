@@ -16,7 +16,7 @@ import (
 )
 
 // useCmd is hl use <kind...> -- <command...> (take each lease, run, give them back, exit as the command did), hl use <kind> --hold
-// and hl use --release [<kind>]. Several kinds are asked in the fixed order leases.Kinds, so no two asks wait on each other. A shell
+// hl use --release [<kind>] and hl use --extend [<kind>]. Several kinds are asked in the fixed order leases.Kinds, so no two asks wait on each other. A shell
 // that is not an agent's runs the command without a lease.
 func useCmd(c *hlclient.Client, args []string) (int, bool) {
 	var command []string
@@ -26,7 +26,7 @@ func useCmd(c *hlclient.Client, args []string) (int, bool) {
 			break
 		}
 	}
-	p, ok := parse(args, nil, []string{"--hold", "--release"}, nil)
+	p, ok := parse(args, nil, []string{"--hold", "--release", "--extend"}, nil)
 	if !ok {
 		return 0, false
 	}
@@ -41,8 +41,11 @@ func useCmd(c *hlclient.Client, args []string) (int, bool) {
 			kinds = append(kinds, k)
 		}
 	}
-	hold, release := p.flags["--hold"], p.flags["--release"]
+	hold, release, extend := p.flags["--hold"], p.flags["--release"], p.flags["--extend"]
 	switch {
+	case extend && !hold && !release && command == nil && len(kinds) <= 1:
+	case extend:
+		return 0, false
 	case release && !hold && command == nil && len(kinds) <= 1:
 	case hold && !release && command == nil && len(kinds) == 1: // a hold may not wait beside another, so one kind
 	case !hold && !release && len(command) > 0 && len(kinds) > 0:
@@ -52,17 +55,35 @@ func useCmd(c *hlclient.Client, args []string) (int, bool) {
 	agent := c.CurrentAgent()
 	if agent == "" {
 		if command == nil {
-			fmt.Println(hlclient.WhoRefusal("hold a " + kinds[0]))
+			what := "give a lease back"
+			switch {
+			case hold:
+				what = "hold a " + kinds[0]
+			case extend:
+				what = "extend a lease"
+			}
+			fmt.Println(hlclient.WhoRefusal(what))
 			return 1, true
 		}
 		fmt.Fprintln(os.Stderr, "hl use: not an agent's session, so no lease is taken")
 		return run(command), true
 	}
-	if release {
-		kind := ""
-		if len(kinds) == 1 {
-			kind = kinds[0]
+	kind := ""
+	if len(kinds) == 1 {
+		kind = kinds[0]
+	}
+	if extend {
+		got, err := c.Call("lease.extend", map[string]any{"agent": agent, "kind": kind})
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "hl use: %v\n", err)
+			return 1, true
 		}
+		for _, l := range list(got, "extended") {
+			fmt.Printf("lease %d (%s) now runs to %s\n", num(l, "lease"), str(l, "kind"), str(l, "max_hold_at"))
+		}
+		return 0, true
+	}
+	if release {
 		got, err := c.Call("lease.release", map[string]any{"agent": agent, "kind": kind})
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "hl use: %v\n", err)
