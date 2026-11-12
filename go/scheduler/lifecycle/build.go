@@ -269,6 +269,12 @@ func (l *Launcher) keepWhatItStartsWith(site *Site, agent string, extra []string
 	if err != nil {
 		return err
 	}
+	// what it is given is the handoff and the daemon's record under it (ContextFor), so the chat's handoff shows both
+	if where, err := l.where(agent, text); err != nil {
+		site.warn("hl launch: could not read where %s was: %v", agent, err)
+	} else {
+		text = strings.TrimSpace(text + "\n\n" + where)
+	}
 	if why == "" {
 		why = "launch"
 	}

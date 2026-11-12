@@ -45,6 +45,34 @@ export const CHAT_SEEDS: Record<string, Seed> = {
         session: { id: `r${n}`, started: iso(min), handoff: null, resumed: true, cause: 'settings_applied', changed },
       });
   },
+  /** A restart for team instructions and rules under way after one that is done, in the daemon's words (T9059): the done one is one short
+   * line, the live one sits in the turn's row at the chat's foot. */
+  restarting: (d) => {
+    const at = new Date(Date.now() - 3 * 60_000).toISOString();
+    const team = 'team instructions changed (team.yaml, the agent list or a Handline update)';
+    d.chat.seedItem(ARCH, {
+      at,
+      kind: 'session',
+      session: {
+        id: 'r1',
+        started: at,
+        handoff: null,
+        resumed: true,
+        cause: 'restart',
+        changed: `${team}, team rules changed, ${team}, team rules changed (workspaces/w1/base.md)`,
+      },
+    });
+    const s = d.sessions.get(ARCH)!;
+    s.fx.view = {
+      ...s.fx.view,
+      handoff: {
+        cause: 'settings_applied',
+        phase: 'waiting',
+        since: new Date().toISOString(),
+        settings: ['team instructions', 'team rules'],
+      },
+    };
+  },
   /** ! lines (T8684). */
   bash: (d) => {
     const iso = (min: number) => new Date(Date.now() - min * 60_000).toISOString();

@@ -1,7 +1,7 @@
 import { classify, sentence, useAccounts, useAgents, useVerbRun } from '@handline/app-data';
 import { useState } from 'react';
 import { VERBS } from '@handline/app-core';
-import { activityOf, holdLine } from '#src/layout/agentTree.ts';
+import { activityOf, holdLine, restarting } from '#src/layout/agentTree.ts';
 import { openSettings } from '#src/settings/open.ts';
 import { useOpenable } from '#src/layout/openable.tsx';
 import { Button } from '#src/ui/Button.tsx';
@@ -16,7 +16,7 @@ export function HoldBar({ agent }: { agent: string }) {
   const run = useVerbRun(agent);
   const terminal = useOpenable('shell');
   const [refused, setRefused] = useState<string | null>(null);
-  const line = a && holdLine(a);
+  const line = a && !restarting(a) && holdLine(a); // a restart shows at the chat's foot, in the turn's row
   const need = a?.needs_you?.source === 'daemon' ? a.needs_you : null;
   if (!a || (!line && !need)) return null;
   const act = activityOf(a);

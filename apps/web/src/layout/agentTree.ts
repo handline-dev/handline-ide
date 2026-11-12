@@ -43,12 +43,14 @@ export function activityOf(a: Pick<AgentLike, keyof DotFacts>): Activity {
 
 // The handoffs that are restarts; one for a full context or a move has its own line in the chat.
 const RESTARTS = new Set(['settings_applied', 'restart']);
+/** Whether a restart is under way: from the setting's change until the new session is up. */
+export const restarting = (a: Pick<AgentLike, 'handoff'>): boolean => !!a.handoff && RESTARTS.has(a.handoff.cause);
 
 /** Why the agent's mark is not plain, in one line: a restart under way, else the tasks it waits on, else the daemon's status line, else
  * its block's words; null while it works or rests. */
 export function holdLine(a: Pick<AgentLike, keyof DotFacts> & Partial<Parameters<typeof whyOf>[0]>): string | null {
   // A restart says so from the setting's change until the new session is up, while its mark shows it working.
-  if (a.handoff && RESTARTS.has(a.handoff.cause)) return restartingLine(a.handoff);
+  if (a.handoff && restarting(a)) return restartingLine(a.handoff);
   const act = activityOf(a);
   if (act !== 'you' && act !== 'held' && act !== 'error') return null;
   const tasks = a.status?.reason === 'task' ? a.status.tasks : [];

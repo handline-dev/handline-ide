@@ -1058,6 +1058,22 @@ func (l *Launcher) ContextFor(agent string) (string, error) {
 	if text != "" {
 		parts = append(parts, "# Where you left off (your handoff)\nYou were interrupted and resumed. This is your own record.\n"+strings.TrimSpace(text))
 	}
+	where, err := l.where(agent, text)
+	if err != nil {
+		return "", err
+	}
+	parts = append(parts, where)
+	var out []string
+	for _, p := range parts {
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return strings.Join(out, "\n\n"), nil
+}
+
+// where is the daemon's own record of where agent was (handoff.WhereText), for a session that starts with the handoff text.
+func (l *Launcher) where(agent, text string) (string, error) {
 	// the agent the handoff lists messages with: the opener of the oldest task it holds, else its workspace's contact
 	lead, _, err := db.AgentNoticeTo(l.Q, agent)
 	if err != nil {
@@ -1070,18 +1086,7 @@ func (l *Launcher) ContextFor(agent string) (string, error) {
 			}
 		}
 	}
-	where, err := handoff.WhereText(l.Q, agent, lead, text, l.now())
-	if err != nil {
-		return "", err
-	}
-	parts = append(parts, where)
-	var out []string
-	for _, p := range parts {
-		if p != "" {
-			out = append(out, p)
-		}
-	}
-	return strings.Join(out, "\n\n"), nil
+	return handoff.WhereText(l.Q, agent, lead, text, l.now())
 }
 
 // yourTeam is the agent's workspace peers and its contact, read from the roster, and the hl commands that reach them. Every agent of
