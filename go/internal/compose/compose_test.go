@@ -353,3 +353,16 @@ func TestADaemonStartSetsTheSeenFloor(t *testing.T) {
 		t.Fatalf("result floor set %v err %v", ok, err)
 	}
 }
+
+// The rules an agent's session is told carry its workspace's kept rules under the team's text.
+func TestTheTeamRulesCarryTheKeptRules(t *testing.T) {
+	p, home := rig(t)
+	bob := teamtest.Key(t, home, "bob")
+	lc := p.Lifecycle(cfgOf(p), LifecycleConfig{Env: &supervisor.Env{DB: p.db, Home: home, Log: func(string, ...any) {}}})
+	if err := team.SetRule(p.db, team.MachineRules, team.RuleAgentCap, int64(2), actor.OwnerKey, 1); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(lc.Launch.Ports.TeamRules(bob), "\n"); !strings.Contains(got, "Kept rules (set by the owner): agent_cap 2.") {
+		t.Fatalf("%q", got)
+	}
+}

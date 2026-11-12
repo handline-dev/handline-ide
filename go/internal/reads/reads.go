@@ -131,6 +131,7 @@ func Register(s *rpc.Server, env Env) {
 	s.Register("team.get", rpc.Method{Handler: e.teamGet, Read: true})
 	s.Register("people.list", rpc.Method{Handler: e.peopleList, Read: true})
 	s.Register("workspaces.list", rpc.Method{Handler: e.workspacesList, Read: true})
+	s.Register("workspace.rules", rpc.Method{Handler: e.workspaceRules, Read: true})
 	s.Register("agent.triggers", rpc.Method{Handler: e.agentTriggers, Read: true})
 	s.Register("schedules.list", rpc.Method{Handler: e.schedulesList, Read: true})
 	s.Register("inbox.list", rpc.Method{Handler: e.inboxList, Waits: true})

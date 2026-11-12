@@ -141,6 +141,7 @@ export const useTrustRemove = (target?: string) => useWrite("trust.remove", targ
 export const useWorkspaceCreate = (target?: string) => useWrite("workspace.create", target);
 export const useWorkspaceSet = (target?: string) => useWrite("workspace.set", target);
 export const useWorkspaceDelete = (target?: string) => useWrite("workspace.delete", target);
+export const useWorkspaceRuleSet = (target?: string) => useWrite("workspace.rule.set", target);
 export const useProposalDecide = (target?: string) => useWrite("proposal.decide", target);
 export const useProposalApplyNow = (target?: string) => useWrite("proposal.apply_now", target);
 export const useProposalStop = (target?: string) => useWrite("proposal.stop", target);

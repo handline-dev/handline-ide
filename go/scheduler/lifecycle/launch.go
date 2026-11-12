@@ -113,7 +113,7 @@ type LaunchPorts struct {
 	CurrentAccount func(q db.Q, agent string) string
 	// WaitingFor is lifecycle.waiting_for: whether anything is waiting to be told to the agent.
 	WaitingFor func(q db.Q, agent string) bool
-	// TeamRules is the workspaces/<key>/base.md of each team the agent is in, as "# Rules for team X\n<text>".
+	// TeamRules is the rules of each team the agent is in (team.Rules): its base.md text and its kept rules.
 	TeamRules func(agent string) []string
 	// Routing is the roster; nil when there is none.
 	Routing func() *team.Team
