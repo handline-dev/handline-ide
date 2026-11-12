@@ -43,6 +43,7 @@ var layer = map[string]int{
 	"scheduler/worktreelock": 0,
 	// L1 wire and infra
 	"data/agenthost":     1,
+	"data/homeinit":      1,
 	"accounts/claudecli": 1,
 	"debugterm":          1,
 	"hooks":              1,
