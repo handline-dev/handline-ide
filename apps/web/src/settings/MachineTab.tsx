@@ -1,16 +1,26 @@
-// Settings > Machine: what the machine and the agents use, the limits that hold new starts, keep-awake, and the disk. Stop is the one change to an
-// agent. Every write dims its control until the daemon answers; a refusal says why under it.
-import { Cpu, HardDrive, MemoryStick, TriangleAlert } from 'lucide-react';
+// Settings > This Mac: what the machine and the agents use, the simulator and browser limits, and keep-awake. Stop is the one change to an agent. Every write dims its control until the daemon answers; a refusal says why under it.
+import { Bot, Clock, Coffee, Cpu, Gauge, Globe, HardDrive, MemoryStick, Smartphone, TriangleAlert, Zap } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
-import { bytesText, limitSentence, loadFull, LOAD_PRESETS, LOW_DISK_BYTES, memoryLow, MEMORY_PRESETS } from '@handline/app-core';
-import { Bar, Block, Setting, toneOf } from '#src/settings/Meter.tsx';
+import { bytesText, loadFull, LOW_DISK_BYTES, memoryLow } from '@handline/app-core';
+import { Bar, Block, LineRow, Setting, toneOf } from '#src/settings/Meter.tsx';
 import { SettingsPage } from '#src/settings/SettingsPage.tsx';
 import { useMachine } from '#src/settings/data/machine.ts';
 import { useService } from '#src/settings/data/service.ts';
 import { ServiceBlock } from '#src/settings/ServiceBlock.tsx';
 import { Button } from '#src/ui/Button.tsx';
+import { NumberStepper } from '#src/ui/NumberStepper.tsx';
 import { Switch } from '#src/usage/UsageViews.tsx';
 
+const LEASE_KINDS = ['simulator', 'browser'] as const;
+const ordinal = (n: number) => `${n}${['th', 'st', 'nd', 'rd'][n % 100 >= 11 && n % 100 <= 13 ? 0 : n % 10 < 4 ? n % 10 : 0]}`;
+/** "since 14:02", or with the day when it is not today. */
+function sinceText(iso: string) {
+  const d = new Date(iso);
+  const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return d.toDateString() === new Date().toDateString()
+    ? `since ${time}`
+    : `since ${d.toLocaleDateString([], { month: 'short', day: 'numeric' })} ${time}`;
+}
 const AWAKE = ['off', 'on', 'working'] as const;
 const AWAKE_WORD = { off: 'Off', on: 'On', working: 'While agents work' } as const;
 
@@ -51,10 +61,13 @@ export function MachineTab() {
   const m = useMachine();
   const service = useService();
   const [refused, setRefused] = useState<{ key: string; text: string } | null>(null);
-  const run = (key: string, go: () => Promise<unknown>) => {
+  const send = (key: string, go: () => Promise<unknown>) => {
     setRefused(null);
-    go().catch((e: unknown) => setRefused({ key, text: String(e) }));
+    const done = go();
+    done.catch((e: unknown) => setRefused({ key, text: String(e) }));
+    return done;
   };
+  const run = (key: string, go: () => Promise<unknown>) => void send(key, go);
   const r = m.resources;
   const mc = r?.machine;
   const diskUsed = mc?.disk_total_bytes ? Math.round((1 - mc.disk_free_bytes / mc.disk_total_bytes) * 100) : 0;
@@ -68,10 +81,11 @@ export function MachineTab() {
   const load = m.limits.load_per_core_pct;
   const free = m.limits.ram_free_min_pct;
   return (
-    <SettingsPage keep="settings-machine" title="Machine" note="What this computer and its agents use, and when new agents wait.">
+    <SettingsPage keep="settings-machine" title="This Mac" note="What this computer and its agents use, and whether it stays awake.">
       <Block
         title="Resources"
-        note={`${r?.start_hold ? `Starts are held: ${r.start_hold}.` : 'New agents start as usual.'} Each bar is the share in use: amber from 60%, red from 85% or when a limit holds starts.`}
+        icon={<Gauge size={16} />}
+        note={`${r?.start_hold ? `Starts are held: ${r.start_hold}. ` : ''}Each bar is the share in use: amber from 60%, red from 85%.`}
       >
         {mc && r ? (
           <div className="flex flex-col gap-3">
@@ -105,6 +119,7 @@ export function MachineTab() {
 
       <Block
         title="Agents"
+        icon={<Bot size={16} />}
         note={
           r
             ? `${m.agents.length} running, using ${Math.round(r.agents_total.cpu_pct)}% of one core and ${bytesText(r.agents_total.rss_bytes)} of memory.`
@@ -117,6 +132,7 @@ export function MachineTab() {
             const key = `stop:${a.name}`;
             return (
               <div key={a.name} className={`flex items-center gap-3 text-sm ${m.pending === key ? 'opacity-50' : ''}`}>
+                <Bot size={14} className="shrink-0 text-muted" />
                 <span className="min-w-0 flex-1 truncate">{a.name}</span>
                 <span className="w-24 text-right tabular-nums text-muted">{Math.round(a.cpu_pct)}% of a core</span>
                 <span className="w-16 text-right tabular-nums text-muted">{bytesText(a.rss_bytes)}</span>
@@ -131,43 +147,72 @@ export function MachineTab() {
       </Block>
 
       <Block
-        title="Limits"
-        note="While a limit is over, new agents wait to start. Running agents are never stopped, and starting one by hand always works."
+        title="Simulators and browsers"
+        icon={<Smartphone size={16} />}
+        note="The most all agents hold together. Over it, an agent waits its turn. 0 means no limit."
       >
-        <Setting
-          title="CPU load per core"
-          note={limitSentence(r ? `${r.machine.load_per_core.toFixed(1)}` : '-', !!r && loadFull(r, load), load === 0)}
-        >
-          <div className={m.pending === 'load_per_core_pct' ? 'opacity-50' : ''}>
-            <Switch
-              label="Load limit"
-              value={String(load)}
-              options={LOAD_PRESETS.map((p) => String(p.pct))}
-              word={(v) => LOAD_PRESETS.find((p) => String(p.pct) === v)?.label ?? `${v}%`}
-              onChange={(v) => m.pending === null && run('load_per_core_pct', () => m.setLimit('load_per_core_pct', Number(v)))}
-            />
-          </div>
-        </Setting>
-        {why('load_per_core_pct')}
-        <Setting
-          title="Memory kept free"
-          note={limitSentence(r ? `${r.machine.ram_free_pct}% free` : '-', !!r && memoryLow(r, free), free === 0)}
-        >
-          <div className={m.pending === 'ram_free_min_pct' ? 'opacity-50' : ''}>
-            <Switch
-              label="Memory limit"
-              value={String(free)}
-              options={MEMORY_PRESETS.map((p) => String(p.pct))}
-              word={(v) => MEMORY_PRESETS.find((p) => String(p.pct) === v)?.label ?? `${v}%`}
-              onChange={(v) => m.pending === null && run('ram_free_min_pct', () => m.setLimit('ram_free_min_pct', Number(v)))}
-            />
-          </div>
-        </Setting>
-        {why('ram_free_min_pct')}
+        {LEASE_KINDS.flatMap((kind) => m.leases.find((l) => l.kind === kind) ?? []).map((k) => {
+          const key = `${k.kind}_max`;
+          const word = k.kind === 'simulator' ? 'Simulators' : 'Browsers';
+          const rows = [
+            ...k.held.map((h) => ({
+              id: `h${h.lease}`,
+              icon: <Bot size={12} />,
+              who: h.agent,
+              what: `in use ${sinceText(h.since)}`,
+              title: undefined,
+            })),
+            ...[...k.queue]
+              .sort((x, y) => x.position - y.position)
+              .map((w) => ({
+                id: `w${w.position}`,
+                icon: <Clock size={12} />,
+                who: w.agent,
+                what: `waiting, ${ordinal(w.position)} in line`,
+                title: w.says,
+              })),
+          ];
+          const over = k.max > 0 && k.held.length > k.max;
+          return (
+            <Setting
+              key={k.kind}
+              title={word}
+              icon={k.kind === 'simulator' ? <Smartphone size={14} /> : <Globe size={14} />}
+              note={
+                <>
+                  {k.max === 0 ? 'Any number at once.' : `Up to ${k.max} at once.`}{' '}
+                  {k.held.length === 0 ? 'None in use.' : `${k.held.length} in use.`}
+                  {k.queue.length > 0 && ` ${k.queue.length} waiting.`}
+                  {over && ' Over the limit: they keep running and new asks wait.'}
+                </>
+              }
+              below={
+                rows.length > 0 || refused?.key === key ? (
+                  <>
+                    {rows.slice(0, 5).map((r) => (
+                      <LineRow key={r.id} icon={r.icon} who={r.who} what={r.what} title={r.title} />
+                    ))}
+                    {rows.length > 5 && <span className="text-xs text-muted">and {rows.length - 5} more</span>}
+                    {why(key)}
+                  </>
+                ) : undefined
+              }
+            >
+              <NumberStepper
+                value={k.max}
+                label={`${word} at once`}
+                stepLabels={[`Fewer ${word.toLowerCase()}`, `More ${word.toLowerCase()}`]}
+                zeroWord="No limit"
+                disabled={m.pending !== null}
+                onCommit={(n) => send(key, () => m.setLeaseMax(k.kind, n))}
+              />
+            </Setting>
+          );
+        })}
       </Block>
 
-      <Block title="Other">
-        <Setting title="Keep awake" note="Stops the Mac sleeping on its own. Closing the lid still sleeps it.">
+      <Block title="Power" icon={<Zap size={16} />}>
+        <Setting title="Keep awake" icon={<Coffee size={14} />} note="Stops the Mac sleeping on its own. Closing the lid still sleeps it.">
           <div className={m.pending === 'awake' ? 'opacity-50' : ''}>
             <Switch
               label="Keep awake"
@@ -179,21 +224,6 @@ export function MachineTab() {
           </div>
         </Setting>
         {why('awake')}
-        <Setting
-          title="Tool record in chat"
-          note="Each turn's tool calls, folded under one line in the agent's chat. One database write per call."
-        >
-          <div className={m.pending === 'record' ? 'opacity-50' : ''}>
-            <Switch
-              label="Tool record in chat"
-              value={m.record ? 'on' : 'off'}
-              options={['off', 'on'] as const}
-              word={(v) => (v === 'on' ? 'On' : 'Off')}
-              onChange={(v) => m.pending === null && run('record', () => m.setRecord(v === 'on'))}
-            />
-          </div>
-        </Setting>
-        {why('record')}
       </Block>
       {service && <ServiceBlock service={service} working={m.working} />}
     </SettingsPage>

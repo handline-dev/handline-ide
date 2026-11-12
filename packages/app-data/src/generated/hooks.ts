@@ -7,6 +7,7 @@ import { useWrite } from '#src/write.ts';
 type ReadOpts = NonNullable<Parameters<typeof useRead>[2]>;
 
 export const useDaemonStatus = (params: CallParams<"daemon.status"> = {}, opts?: ReadOpts) => useRead("daemon.status", params, opts);
+export const useLeaseGet = (params: CallParams<"lease.get"> = {}, opts?: ReadOpts) => useRead("lease.get", params, opts);
 export const useLoadGet = (params: CallParams<"load.get"> = {}, opts?: ReadOpts) => useRead("load.get", params, opts);
 export const useOperationGet = (params: CallParams<"operation.get">, opts?: ReadOpts) => useRead("operation.get", params, opts);
 export const useDebugTerminals = (params: CallParams<"debug.terminals"> = {}, opts?: ReadOpts) => useRead("debug.terminals", params, opts);

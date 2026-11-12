@@ -194,8 +194,13 @@ const settings: Record<string, Patch> = {
     reconcile: (c, p) => void c.qc.invalidateQueries({ queryKey: keyOf(c.d, 'agent.strip', { agent: as<{ agent: string }>(p).agent }) }),
   },
   'settings.set': {
-    // network_addresses moves the doors: the addresses and the listeners are read again.
-    touches: (d) => [qk.resource(d, 'settings.get'), qk.resource(d, 'connection.addresses'), qk.resource(d, 'connection.get')],
+    // network_addresses moves the doors: the addresses and the listeners are read again; the lease limits show on lease.get.
+    touches: (d) => [
+      qk.resource(d, 'settings.get'),
+      qk.resource(d, 'connection.addresses'),
+      qk.resource(d, 'connection.get'),
+      qk.resource(d, 'lease.get'),
+    ],
     // A per-agent override is not the shared value, so only the shared one is shown early; null is the default, which only the daemon knows.
     patch: (c, p) => {
       const { agent, changes } = as<{ agent?: string; changes: PageSettings }>(p);
