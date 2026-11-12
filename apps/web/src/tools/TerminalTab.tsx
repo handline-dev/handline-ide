@@ -231,13 +231,13 @@ function BytesTab({ agent, shell, detail }: { agent: string; shell?: string; det
   const note = !hasTerminal ? '' : state === 'failed' ? failure : NOTE[state];
 
   return (
-    <div className="terminal-tab flex min-h-0 flex-1 flex-col">
+    <div className="terminal-tab flex min-h-0 min-w-0 flex-1 flex-col">
       <div
-        className={`terminal xterm-pane relative flex min-h-0 flex-1 flex-col bg-term-bg${state === 'stale' || !hasTerminal ? ' dim [&_.xterm-host]:opacity-55' : ''}`}
+        className={`terminal xterm-pane relative flex min-h-0 min-w-0 flex-1 flex-col bg-term-bg${state === 'stale' || !hasTerminal ? ' dim [&_.xterm-host]:opacity-55' : ''}`}
         title={title}
       >
         <div
-          className="xterm-host min-h-0 flex-1 overflow-hidden px-2.5 py-2 [&>div]:h-full"
+          className="xterm-host min-h-0 min-w-0 flex-1 overflow-hidden px-2.5 py-2 [&>div]:h-full"
           ref={host}
           aria-label={`Terminal of ${word}`}
         />
