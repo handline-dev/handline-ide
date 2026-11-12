@@ -239,6 +239,9 @@ func (e *Env) draft(actor, kind string, args map[string]any, why string, registe
 		return nil, err.Error()
 	}
 	if kind == "run" {
+		if len(sets) > 0 {
+			return nil, "a run takes command and cwd, no sets"
+		}
 		if why := e.draftRun(actor, name, args, prop); why != "" {
 			return nil, why
 		}
@@ -387,8 +390,11 @@ func (e *Env) proposeBundle(c *rpc.Conn, raw []any, why string) (any, error) {
 		if kind == "" || argStr(ch, "name") == "" {
 			return refuse("change %d needs a kind and a name", i+1)
 		}
-		if !slices.Contains(itemKinds, kind) || kind == "run" {
-			return refuse("change %d: kind must be one of %s", i+1, strings.Join(itemKinds, ", "))
+		if kind == "run" {
+			return refuse("change %d: a run is proposed alone (hl propose run), never in a bundle", i+1)
+		}
+		if !slices.Contains(itemKinds, kind) {
+			return refuse("change %d: kind must be one of %s", i+1, strings.Join(slices.DeleteFunc(slices.Clone(itemKinds), func(k string) bool { return k == "run" }), ", "))
 		}
 		var extra []string
 		for k := range ch {
