@@ -3077,11 +3077,11 @@
     "age_s": 0.0,
     "assignable": [
      false,
-     "5h 99% was observed 83m ago and only ever rises (carried past 900s)"
+     "5h usage unknown (fail-closed)"
     ],
     "assignable_active1": [
      false,
-     "5h 99% was observed 83m ago and only ever rises (carried past 900s)"
+     "5h usage unknown (fail-closed)"
     ],
     "cost_usd": null,
     "ctx_pct": null,
@@ -3110,11 +3110,11 @@
     "long_trusted": null,
     "model_id": null,
     "rolled_over": [
-     false,
-     ""
+     true,
+     "5h 99% (0s old, reset since) - window rolled over"
     ],
-    "runway_burn": "outlasts reset",
-    "runway_none": "no recent burn",
+    "runway_burn": "",
+    "runway_none": "",
     "session_id": null,
     "short": {
      "at": 1799995000,
@@ -3126,31 +3126,31 @@
      "reset": 1799999995
     },
     "short_age_s": 5000.0,
-    "short_headroom": 1,
-    "short_source": "carried_old",
-    "short_trusted": 99,
+    "short_headroom": null,
+    "short_source": "unknown",
+    "short_trusted": null,
     "shown_short": [
-     99,
-     "!"
+     null,
+     " "
     ],
     "stale": false,
     "sub_end": 1800057600.0,
     "takes_work": [
-     false,
-     "5h 99% was observed 83m ago and only ever rises (carried past 900s)"
+     true,
+     "5h 99% (0s old, reset since) - window rolled over"
     ],
     "trusted_ctx_pct": null,
     "trusted_ctx_used": null,
-    "unfit": "5h 99%, fill 1.5%/min, 0/1 agents, one more agent (0.30%/min) lasts ~1m - under the 30m a start is worth",
-    "unfit_agent": "5h 99%, fill 1.5%/min, 0/1 agents, one more agent (0.30%/min) lasts ~1m - under the 30m a start is worth",
+    "unfit": null,
+    "unfit_agent": null,
     "unmetered": false,
     "window_report": [
      {
-      "effective": 99,
+      "effective": null,
       "minutes": 300,
       "pct": 99,
       "reset": 1799999995,
-      "source": "carried_old",
+      "source": "unknown",
       "window": "5h"
      }
     ]
@@ -3464,8 +3464,8 @@
     "long_trusted": 30,
     "model_id": null,
     "rolled_over": [
-     false,
-     ""
+     true,
+     "window rolled over, 7d 30%"
     ],
     "runway_burn": "",
     "runway_none": "",
@@ -3490,8 +3490,8 @@
     "stale": false,
     "sub_end": null,
     "takes_work": [
-     false,
-     "5h usage unknown (fail-closed)"
+     true,
+     "window rolled over, 7d 30%"
     ],
     "trusted_ctx_pct": null,
     "trusted_ctx_used": null,
@@ -3704,8 +3704,8 @@
     "long_trusted": 29,
     "model_id": null,
     "rolled_over": [
-     false,
-     ""
+     true,
+     "window rolled over, 7d 29%"
     ],
     "runway_burn": "",
     "runway_none": "",
@@ -3730,8 +3730,8 @@
     "stale": false,
     "sub_end": null,
     "takes_work": [
-     false,
-     "5h usage unknown (fail-closed)"
+     true,
+     "window rolled over, 7d 29%"
     ],
     "trusted_ctx_pct": null,
     "trusted_ctx_used": null,
@@ -5329,12 +5329,12 @@
    "expect": {
     "age_s": 10.0,
     "assignable": [
-     true,
-     "5h 29%"
+     false,
+     "5h usage unknown (fail-closed)"
     ],
     "assignable_active1": [
-     true,
-     "5h 29%"
+     false,
+     "5h usage unknown (fail-closed)"
     ],
     "cost_usd": null,
     "ctx_pct": null,
@@ -5347,7 +5347,7 @@
     ],
     "last_known": "5h 29% (10s old, reset since), 7d 1%",
     "last_week_first": true,
-    "live": true,
+    "live": false,
     "long": {
      "at": 1799999600,
      "carried": false,
@@ -5363,11 +5363,11 @@
     "long_trusted": 1,
     "model_id": null,
     "rolled_over": [
-     false,
-     ""
+     true,
+     "5h 29% (10s old, reset since), 7d 1% - window rolled over"
     ],
-    "runway_burn": "~43m to 7d",
-    "runway_none": "~43m to 7d",
+    "runway_burn": "",
+    "runway_none": "",
     "session_id": null,
     "short": {
      "at": 1799999600,
@@ -5379,18 +5379,18 @@
      "reset": 1799999995
     },
     "short_age_s": 400.0,
-    "short_headroom": 71,
-    "short_source": "live",
-    "short_trusted": 29,
+    "short_headroom": null,
+    "short_source": "unknown",
+    "short_trusted": null,
     "shown_short": [
-     29,
+     null,
      " "
     ],
     "stale": false,
     "sub_end": null,
     "takes_work": [
      true,
-     "5h 29%"
+     "5h 29% (10s old, reset since), 7d 1% - window rolled over"
     ],
     "trusted_ctx_pct": null,
     "trusted_ctx_used": null,
@@ -5399,11 +5399,11 @@
     "unmetered": false,
     "window_report": [
      {
-      "effective": 29,
+      "effective": null,
       "minutes": 300,
       "pct": 29,
       "reset": 1799999995,
-      "source": "live",
+      "source": "unknown",
       "window": "5h"
      },
      {
@@ -7566,8 +7566,8 @@
     "long_trusted": null,
     "model_id": null,
     "rolled_over": [
-     false,
-     ""
+     true,
+     "window rolled over, ? unknown"
     ],
     "runway_burn": "",
     "runway_none": "",
@@ -7592,8 +7592,8 @@
     "stale": false,
     "sub_end": null,
     "takes_work": [
-     false,
-     "5h usage unknown (fail-closed)"
+     true,
+     "window rolled over, ? unknown"
     ],
     "trusted_ctx_pct": null,
     "trusted_ctx_used": null,
@@ -7650,11 +7650,11 @@
     "age_s": 10.0,
     "assignable": [
      false,
-     "5h 71% was observed 16m ago and only ever rises (carried past 900s)"
+     "5h usage unknown (fail-closed)"
     ],
     "assignable_active1": [
      false,
-     "5h 71% was observed 16m ago and only ever rises (carried past 900s)"
+     "5h usage unknown (fail-closed)"
     ],
     "cost_usd": null,
     "ctx_pct": null,
@@ -7683,11 +7683,11 @@
     "long_trusted": 69,
     "model_id": null,
     "rolled_over": [
-     false,
-     ""
+     true,
+     "5h 71% (10s old, reset since), 7d 69% - window rolled over"
     ],
-    "runway_burn": "outlasts reset",
-    "runway_none": "no recent burn",
+    "runway_burn": "",
+    "runway_none": "",
     "session_id": null,
     "short": {
      "at": 1799999000,
@@ -7699,18 +7699,18 @@
      "reset": 1799999995
     },
     "short_age_s": 1000.0,
-    "short_headroom": 29,
-    "short_source": "carried_old",
-    "short_trusted": 71,
+    "short_headroom": null,
+    "short_source": "unknown",
+    "short_trusted": null,
     "shown_short": [
-     71,
-     "!"
+     null,
+     " "
     ],
     "stale": false,
     "sub_end": null,
     "takes_work": [
-     false,
-     "5h 71% was observed 16m ago and only ever rises (carried past 900s)"
+     true,
+     "5h 71% (10s old, reset since), 7d 69% - window rolled over"
     ],
     "trusted_ctx_pct": null,
     "trusted_ctx_used": null,
@@ -7719,11 +7719,11 @@
     "unmetered": false,
     "window_report": [
      {
-      "effective": 71,
+      "effective": null,
       "minutes": 300,
       "pct": 71,
       "reset": 1799999995,
-      "source": "carried_old",
+      "source": "unknown",
       "window": "5h"
      },
      {
@@ -7779,11 +7779,11 @@
     "age_s": 10.0,
     "assignable": [
      false,
-     "7d 90% was observed unknown ago and only ever rises (carried past 900s)"
+     "7d usage unknown (fail-closed)"
     ],
     "assignable_active1": [
      false,
-     "7d 90% was observed unknown ago and only ever rises (carried past 900s)"
+     "7d usage unknown (fail-closed)"
     ],
     "cost_usd": null,
     "ctx_pct": null,
@@ -7812,11 +7812,11 @@
     "long_trusted": null,
     "model_id": null,
     "rolled_over": [
-     false,
-     ""
+     true,
+     "7d 90% (10s old, reset since) - window rolled over"
     ],
-    "runway_burn": "outlasts reset",
-    "runway_none": "no recent burn",
+    "runway_burn": "",
+    "runway_none": "",
     "session_id": null,
     "short": {
      "at": null,
@@ -7828,31 +7828,31 @@
      "reset": 1799999995
     },
     "short_age_s": null,
-    "short_headroom": 10,
-    "short_source": "carried_old",
-    "short_trusted": 90,
+    "short_headroom": null,
+    "short_source": "unknown",
+    "short_trusted": null,
     "shown_short": [
-     90,
-     "!"
+     null,
+     " "
     ],
     "stale": false,
     "sub_end": null,
     "takes_work": [
-     false,
-     "7d 90% was observed unknown ago and only ever rises (carried past 900s)"
+     true,
+     "7d 90% (10s old, reset since) - window rolled over"
     ],
     "trusted_ctx_pct": null,
     "trusted_ctx_used": null,
-    "unfit": "7d 90%, fill 1.5%/min, 0/2 agents, one more agent (0.30%/min) lasts ~5m - under the 30m a start is worth",
-    "unfit_agent": "7d 90%, fill 1.5%/min, 0/2 agents, one more agent (0.30%/min) lasts ~5m - under the 30m a start is worth",
+    "unfit": null,
+    "unfit_agent": null,
     "unmetered": false,
     "window_report": [
      {
-      "effective": 90,
+      "effective": null,
       "minutes": 10080,
       "pct": 90,
       "reset": 1799999995,
-      "source": "carried_old",
+      "source": "unknown",
       "window": "7d"
      }
     ]
@@ -9563,8 +9563,8 @@
     "long_trusted": null,
     "model_id": null,
     "rolled_over": [
-     false,
-     ""
+     true,
+     "5h 69% (14m old, reset since) - window rolled over"
     ],
     "runway_burn": "",
     "runway_none": "",
@@ -9589,8 +9589,8 @@
     "stale": false,
     "sub_end": 1800057600.0,
     "takes_work": [
-     false,
-     "5h usage unknown (fail-closed)"
+     true,
+     "5h 69% (14m old, reset since) - window rolled over"
     ],
     "trusted_ctx_pct": null,
     "trusted_ctx_used": null,
@@ -14587,11 +14587,11 @@
     "age_s": 899.0,
     "assignable": [
      false,
-     "7d 99% was observed 16m ago and only ever rises (carried past 900s)"
+     "7d usage unknown (fail-closed)"
     ],
     "assignable_active1": [
      false,
-     "7d 99% was observed 16m ago and only ever rises (carried past 900s)"
+     "7d usage unknown (fail-closed)"
     ],
     "cost_usd": null,
     "ctx_pct": null,
@@ -14620,11 +14620,11 @@
     "long_trusted": null,
     "model_id": null,
     "rolled_over": [
-     false,
-     ""
+     true,
+     "7d 99% (14m old, reset since) - window rolled over"
     ],
-    "runway_burn": "outlasts reset",
-    "runway_none": "no recent burn",
+    "runway_burn": "",
+    "runway_none": "",
     "session_id": null,
     "short": {
      "at": 1799999000,
@@ -14636,31 +14636,31 @@
      "reset": 1799999900
     },
     "short_age_s": 1000.0,
-    "short_headroom": 1,
-    "short_source": "carried_old",
-    "short_trusted": 99,
+    "short_headroom": null,
+    "short_source": "unknown",
+    "short_trusted": null,
     "shown_short": [
-     99,
-     "!"
+     null,
+     " "
     ],
     "stale": false,
     "sub_end": null,
     "takes_work": [
-     false,
-     "7d 99% was observed 16m ago and only ever rises (carried past 900s)"
+     true,
+     "7d 99% (14m old, reset since) - window rolled over"
     ],
     "trusted_ctx_pct": null,
     "trusted_ctx_used": null,
-    "unfit": "7d 99%, fill 0.0%/min, 0/2 agents, one more agent (0.30%/min) lasts ~3m - under the 30m a start is worth",
-    "unfit_agent": "7d 99%, fill 0.0%/min, 0/2 agents, one more agent (0.30%/min) lasts ~3m - under the 30m a start is worth",
+    "unfit": null,
+    "unfit_agent": null,
     "unmetered": false,
     "window_report": [
      {
-      "effective": 99,
+      "effective": null,
       "minutes": 10080,
       "pct": 99,
       "reset": 1799999900,
-      "source": "carried_old",
+      "source": "unknown",
       "window": "7d"
      }
     ]
@@ -14956,7 +14956,7 @@
     ],
     "last_known": "5h 29% (10s old, reset since), 7d 100%",
     "last_week_first": true,
-    "live": true,
+    "live": false,
     "long": {
      "at": 1799999600,
      "carried": false,
@@ -14975,8 +14975,8 @@
      false,
      ""
     ],
-    "runway_burn": "at the 7d wall",
-    "runway_none": "at the 7d wall",
+    "runway_burn": "",
+    "runway_none": "",
     "session_id": null,
     "short": {
      "at": 1800000500,
@@ -14988,11 +14988,11 @@
      "reset": 1799999900
     },
     "short_age_s": null,
-    "short_headroom": 71,
-    "short_source": "live",
-    "short_trusted": 29,
+    "short_headroom": null,
+    "short_source": "unknown",
+    "short_trusted": null,
     "shown_short": [
-     29,
+     null,
      " "
     ],
     "stale": false,
@@ -15008,11 +15008,11 @@
     "unmetered": false,
     "window_report": [
      {
-      "effective": 29,
+      "effective": null,
       "minutes": 300,
       "pct": 29,
       "reset": 1799999900,
-      "source": "live",
+      "source": "unknown",
       "window": "5h"
      },
      {
@@ -15494,8 +15494,8 @@
     "long_trusted": 1,
     "model_id": null,
     "rolled_over": [
-     false,
-     ""
+     true,
+     "5h 100% (14m old, reset since), 7d 1% - window rolled over"
     ],
     "runway_burn": "",
     "runway_none": "",
@@ -15520,8 +15520,8 @@
     "stale": false,
     "sub_end": 1800057600.0,
     "takes_work": [
-     false,
-     "5h usage unknown (fail-closed)"
+     true,
+     "5h 100% (14m old, reset since), 7d 1% - window rolled over"
     ],
     "trusted_ctx_pct": null,
     "trusted_ctx_used": null,
@@ -16091,11 +16091,11 @@
     "age_s": 10.0,
     "assignable": [
      false,
-     "5h usage 100% >= 100%"
+     "5h usage unknown (fail-closed)"
     ],
     "assignable_active1": [
      false,
-     "5h usage 100% >= 100%"
+     "5h usage unknown (fail-closed)"
     ],
     "cost_usd": null,
     "ctx_pct": null,
@@ -16124,11 +16124,11 @@
     "long_trusted": null,
     "model_id": null,
     "rolled_over": [
-     false,
-     ""
+     true,
+     "5h 100% (10s old, reset since) - window rolled over"
     ],
-    "runway_burn": "at the wall",
-    "runway_none": "at the wall",
+    "runway_burn": "",
+    "runway_none": "",
     "session_id": null,
     "short": {
      "at": 1800000500,
@@ -16140,31 +16140,31 @@
      "reset": 1799999900
     },
     "short_age_s": null,
-    "short_headroom": 0,
-    "short_source": "carried_old",
-    "short_trusted": 100,
+    "short_headroom": null,
+    "short_source": "unknown",
+    "short_trusted": null,
     "shown_short": [
-     100,
-     "!"
+     null,
+     " "
     ],
     "stale": false,
     "sub_end": null,
     "takes_work": [
-     false,
-     "5h usage 100% >= 100%"
+     true,
+     "5h 100% (10s old, reset since) - window rolled over"
     ],
     "trusted_ctx_pct": null,
     "trusted_ctx_used": null,
-    "unfit": "5h usage at the wall (100%)",
-    "unfit_agent": "5h usage at the wall (100%)",
+    "unfit": "at its cap: 2 of 2 agents mid-turn",
+    "unfit_agent": "at its cap: 2 of 2 agents mid-turn",
     "unmetered": false,
     "window_report": [
      {
-      "effective": 100,
+      "effective": null,
       "minutes": 300,
       "pct": 100,
       "reset": 1799999900,
-      "source": "carried_old",
+      "source": "unknown",
       "window": "5h"
      }
     ]
@@ -16703,12 +16703,12 @@
    "expect": {
     "age_s": 899.0,
     "assignable": [
-     true,
-     "5h 1%"
+     false,
+     "5h usage unknown (fail-closed)"
     ],
     "assignable_active1": [
-     true,
-     "5h 1%"
+     false,
+     "5h usage unknown (fail-closed)"
     ],
     "cost_usd": null,
     "ctx_pct": null,
@@ -16721,7 +16721,7 @@
     ],
     "last_known": "5h 1% (14m old, reset since), 7d 29%",
     "last_week_first": true,
-    "live": true,
+    "live": false,
     "long": {
      "at": 1800000500,
      "carried": false,
@@ -16737,11 +16737,11 @@
     "long_trusted": 29,
     "model_id": null,
     "rolled_over": [
-     false,
-     ""
+     true,
+     "5h 1% (14m old, reset since), 7d 29% - window rolled over"
     ],
-    "runway_burn": "outlasts reset",
-    "runway_none": "no recent burn",
+    "runway_burn": "",
+    "runway_none": "",
     "session_id": null,
     "short": {
      "at": 1799999600,
@@ -16753,18 +16753,18 @@
      "reset": 1799999900
     },
     "short_age_s": 400.0,
-    "short_headroom": 99,
-    "short_source": "live",
-    "short_trusted": 1,
+    "short_headroom": null,
+    "short_source": "unknown",
+    "short_trusted": null,
     "shown_short": [
-     1,
+     null,
      " "
     ],
     "stale": false,
     "sub_end": null,
     "takes_work": [
      true,
-     "5h 1%"
+     "5h 1% (14m old, reset since), 7d 29% - window rolled over"
     ],
     "trusted_ctx_pct": null,
     "trusted_ctx_used": null,
@@ -16773,11 +16773,11 @@
     "unmetered": false,
     "window_report": [
      {
-      "effective": 1,
+      "effective": null,
       "minutes": 300,
       "pct": 1,
       "reset": 1799999900,
-      "source": "live",
+      "source": "unknown",
       "window": "5h"
      },
      {
@@ -21602,12 +21602,12 @@
    "expect": {
     "age_s": 899.0,
     "assignable": [
-     true,
-     "5h 69%"
+     false,
+     "5h usage unknown (fail-closed)"
     ],
     "assignable_active1": [
-     true,
-     "5h 69%"
+     false,
+     "5h usage unknown (fail-closed)"
     ],
     "cost_usd": null,
     "ctx_pct": null,
@@ -21620,7 +21620,7 @@
     ],
     "last_known": "5h 69% (14m old, reset since)",
     "last_week_first": true,
-    "live": true,
+    "live": false,
     "long": {
      "at": null,
      "carried": false,
@@ -21636,11 +21636,11 @@
     "long_trusted": null,
     "model_id": null,
     "rolled_over": [
-     false,
-     ""
+     true,
+     "5h 69% (14m old, reset since) - window rolled over"
     ],
-    "runway_burn": "outlasts reset",
-    "runway_none": "no recent burn",
+    "runway_burn": "",
+    "runway_none": "",
     "session_id": null,
     "short": {
      "at": 1799999600,
@@ -21652,18 +21652,18 @@
      "reset": 1799999900
     },
     "short_age_s": 400.0,
-    "short_headroom": 31,
-    "short_source": "live",
-    "short_trusted": 69,
+    "short_headroom": null,
+    "short_source": "unknown",
+    "short_trusted": null,
     "shown_short": [
-     69,
+     null,
      " "
     ],
     "stale": false,
     "sub_end": null,
     "takes_work": [
      true,
-     "5h 69%"
+     "5h 69% (14m old, reset since) - window rolled over"
     ],
     "trusted_ctx_pct": null,
     "trusted_ctx_used": null,
@@ -21672,11 +21672,11 @@
     "unmetered": false,
     "window_report": [
      {
-      "effective": 69,
+      "effective": null,
       "minutes": 300,
       "pct": 69,
       "reset": 1799999900,
-      "source": "live",
+      "source": "unknown",
       "window": "5h"
      }
     ]
@@ -22002,8 +22002,8 @@
     "long_trusted": null,
     "model_id": null,
     "rolled_over": [
-     false,
-     ""
+     true,
+     "5h 70% (14m old, reset since), 7d 0% (reset since) - window rolled over"
     ],
     "runway_burn": "",
     "runway_none": "",
@@ -22028,8 +22028,8 @@
     "stale": false,
     "sub_end": null,
     "takes_work": [
-     false,
-     "5h usage unknown (fail-closed)"
+     true,
+     "5h 70% (14m old, reset since), 7d 0% (reset since) - window rolled over"
     ],
     "trusted_ctx_pct": null,
     "trusted_ctx_used": null,
@@ -22221,11 +22221,11 @@
     "age_s": 0.0,
     "assignable": [
      false,
-     "5h 30% was observed 83m ago and only ever rises (carried past 900s)"
+     "5h usage unknown (fail-closed)"
     ],
     "assignable_active1": [
      false,
-     "5h 30% was observed 83m ago and only ever rises (carried past 900s)"
+     "5h usage unknown (fail-closed)"
     ],
     "cost_usd": null,
     "ctx_pct": 10,
@@ -22254,11 +22254,11 @@
     "long_trusted": 99,
     "model_id": null,
     "rolled_over": [
-     false,
-     ""
+     true,
+     "5h 30% (0s old, reset since), 7d 99% - window rolled over"
     ],
-    "runway_burn": "~1m to 7d",
-    "runway_none": "~1m to 7d",
+    "runway_burn": "",
+    "runway_none": "",
     "session_id": null,
     "short": {
      "at": 1799995000,
@@ -22270,18 +22270,18 @@
      "reset": 1799999995
     },
     "short_age_s": 5000.0,
-    "short_headroom": 70,
-    "short_source": "carried_old",
-    "short_trusted": 30,
+    "short_headroom": null,
+    "short_source": "unknown",
+    "short_trusted": null,
     "shown_short": [
-     30,
-     "!"
+     null,
+     " "
     ],
     "stale": false,
     "sub_end": null,
     "takes_work": [
-     false,
-     "5h 30% was observed 83m ago and only ever rises (carried past 900s)"
+     true,
+     "5h 30% (0s old, reset since), 7d 99% - window rolled over"
     ],
     "trusted_ctx_pct": 10,
     "trusted_ctx_used": 5000,
@@ -22290,11 +22290,11 @@
     "unmetered": false,
     "window_report": [
      {
-      "effective": 30,
+      "effective": null,
       "minutes": 300,
       "pct": 30,
       "reset": 1799999995,
-      "source": "carried_old",
+      "source": "unknown",
       "window": "5h"
      },
      {
@@ -25520,12 +25520,12 @@
    "expect": {
     "age_s": 899.0,
     "assignable": [
-     true,
-     "5h 29%"
+     false,
+     "5h usage unknown (fail-closed)"
     ],
     "assignable_active1": [
-     true,
-     "5h 29%"
+     false,
+     "5h usage unknown (fail-closed)"
     ],
     "cost_usd": null,
     "ctx_pct": null,
@@ -25538,7 +25538,7 @@
     ],
     "last_known": "5h 29% (14m old, reset since)",
     "last_week_first": true,
-    "live": true,
+    "live": false,
     "long": {
      "at": null,
      "carried": false,
@@ -25554,11 +25554,11 @@
     "long_trusted": null,
     "model_id": null,
     "rolled_over": [
-     false,
-     ""
+     true,
+     "5h 29% (14m old, reset since) - window rolled over"
     ],
-    "runway_burn": "outlasts reset",
-    "runway_none": "no recent burn",
+    "runway_burn": "",
+    "runway_none": "",
     "session_id": null,
     "short": {
      "at": 1799999600,
@@ -25570,18 +25570,18 @@
      "reset": 1799999900
     },
     "short_age_s": 400.0,
-    "short_headroom": 71,
-    "short_source": "live",
-    "short_trusted": 29,
+    "short_headroom": null,
+    "short_source": "unknown",
+    "short_trusted": null,
     "shown_short": [
-     29,
+     null,
      " "
     ],
     "stale": false,
     "sub_end": 1800057600.0,
     "takes_work": [
      true,
-     "5h 29%"
+     "5h 29% (14m old, reset since) - window rolled over"
     ],
     "trusted_ctx_pct": null,
     "trusted_ctx_used": null,
@@ -25590,11 +25590,11 @@
     "unmetered": false,
     "window_report": [
      {
-      "effective": 29,
+      "effective": null,
       "minutes": 300,
       "pct": 29,
       "reset": 1799999900,
-      "source": "live",
+      "source": "unknown",
       "window": "5h"
      }
     ]
@@ -29004,11 +29004,11 @@
     "age_s": 899.0,
     "assignable": [
      false,
-     "5h 1% was observed unknown ago and only ever rises (carried past 900s)"
+     "5h usage unknown (fail-closed)"
     ],
     "assignable_active1": [
      false,
-     "5h 1% was observed unknown ago and only ever rises (carried past 900s)"
+     "5h usage unknown (fail-closed)"
     ],
     "cost_usd": null,
     "ctx_pct": null,
@@ -29037,11 +29037,11 @@
     "long_trusted": null,
     "model_id": null,
     "rolled_over": [
-     false,
-     ""
+     true,
+     "5h 1% (14m old, reset since) - window rolled over"
     ],
-    "runway_burn": "outlasts reset",
-    "runway_none": "no recent burn",
+    "runway_burn": "",
+    "runway_none": "",
     "session_id": null,
     "short": {
      "at": null,
@@ -29053,18 +29053,18 @@
      "reset": 1799999995
     },
     "short_age_s": null,
-    "short_headroom": 99,
-    "short_source": "carried_old",
-    "short_trusted": 1,
+    "short_headroom": null,
+    "short_source": "unknown",
+    "short_trusted": null,
     "shown_short": [
-     1,
-     "!"
+     null,
+     " "
     ],
     "stale": false,
     "sub_end": null,
     "takes_work": [
-     false,
-     "5h 1% was observed unknown ago and only ever rises (carried past 900s)"
+     true,
+     "5h 1% (14m old, reset since) - window rolled over"
     ],
     "trusted_ctx_pct": null,
     "trusted_ctx_used": null,
@@ -29073,11 +29073,11 @@
     "unmetered": false,
     "window_report": [
      {
-      "effective": 1,
+      "effective": null,
       "minutes": 300,
       "pct": 1,
       "reset": 1799999995,
-      "source": "carried_old",
+      "source": "unknown",
       "window": "5h"
      }
     ]
@@ -30082,12 +30082,12 @@
    "expect": {
     "age_s": 899.0,
     "assignable": [
-     true,
-     "7d 50%"
+     false,
+     "7d usage unknown (fail-closed)"
     ],
     "assignable_active1": [
-     true,
-     "7d 50%"
+     false,
+     "7d usage unknown (fail-closed)"
     ],
     "cost_usd": null,
     "ctx_pct": null,
@@ -30100,7 +30100,7 @@
     ],
     "last_known": "7d 50% (14m old, reset since)",
     "last_week_first": true,
-    "live": true,
+    "live": false,
     "long": {
      "at": null,
      "carried": false,
@@ -30116,11 +30116,11 @@
     "long_trusted": null,
     "model_id": null,
     "rolled_over": [
-     false,
-     ""
+     true,
+     "7d 50% (14m old, reset since) - window rolled over"
     ],
-    "runway_burn": "outlasts reset",
-    "runway_none": "no recent burn",
+    "runway_burn": "",
+    "runway_none": "",
     "session_id": null,
     "short": {
      "at": 1799999600,
@@ -30132,18 +30132,18 @@
      "reset": 1799999900
     },
     "short_age_s": 400.0,
-    "short_headroom": 50,
-    "short_source": "live",
-    "short_trusted": 50,
+    "short_headroom": null,
+    "short_source": "unknown",
+    "short_trusted": null,
     "shown_short": [
-     50,
+     null,
      " "
     ],
     "stale": false,
     "sub_end": null,
     "takes_work": [
      true,
-     "7d 50%"
+     "7d 50% (14m old, reset since) - window rolled over"
     ],
     "trusted_ctx_pct": null,
     "trusted_ctx_used": null,
@@ -30152,11 +30152,11 @@
     "unmetered": false,
     "window_report": [
      {
-      "effective": 50,
+      "effective": null,
       "minutes": 10080,
       "pct": 50,
       "reset": 1799999900,
-      "source": "live",
+      "source": "unknown",
       "window": "7d"
      }
     ]
@@ -31042,8 +31042,8 @@
     "long_trusted": 29,
     "model_id": null,
     "rolled_over": [
-     false,
-     ""
+     true,
+     "5h 100% (0s old, reset since), 7d 29% - window rolled over"
     ],
     "runway_burn": "",
     "runway_none": "",
@@ -31068,8 +31068,8 @@
     "stale": false,
     "sub_end": null,
     "takes_work": [
-     false,
-     "5h usage unknown (fail-closed)"
+     true,
+     "5h 100% (0s old, reset since), 7d 29% - window rolled over"
     ],
     "trusted_ctx_pct": 10,
     "trusted_ctx_used": 5000,
@@ -31246,11 +31246,11 @@
     "age_s": 10.0,
     "assignable": [
      false,
-     "7d 50% was observed 16m ago and only ever rises (carried past 900s)"
+     "7d usage unknown (fail-closed)"
     ],
     "assignable_active1": [
      false,
-     "7d 50% was observed 16m ago and only ever rises (carried past 900s)"
+     "7d usage unknown (fail-closed)"
     ],
     "cost_usd": null,
     "ctx_pct": null,
@@ -31279,11 +31279,11 @@
     "long_trusted": null,
     "model_id": null,
     "rolled_over": [
-     false,
-     ""
+     true,
+     "7d 50% (10s old, reset since) - window rolled over"
     ],
-    "runway_burn": "outlasts reset",
-    "runway_none": "no recent burn",
+    "runway_burn": "",
+    "runway_none": "",
     "session_id": null,
     "short": {
      "at": 1799999000,
@@ -31295,31 +31295,31 @@
      "reset": 1799999900
     },
     "short_age_s": 1000.0,
-    "short_headroom": 50,
-    "short_source": "carried_old",
-    "short_trusted": 50,
+    "short_headroom": null,
+    "short_source": "unknown",
+    "short_trusted": null,
     "shown_short": [
-     50,
-     "!"
+     null,
+     " "
     ],
     "stale": false,
     "sub_end": null,
     "takes_work": [
-     false,
-     "7d 50% was observed 16m ago and only ever rises (carried past 900s)"
+     true,
+     "7d 50% (10s old, reset since) - window rolled over"
     ],
     "trusted_ctx_pct": null,
     "trusted_ctx_used": null,
-    "unfit": "7d 50%, fill 1.5%/min, 2/3 agents, one more agent (1.20%/min) lasts ~18m - under the 30m a start is worth",
-    "unfit_agent": "7d 50%, fill 1.5%/min, 2/3 agents, one more agent (1.20%/min) lasts ~18m - under the 30m a start is worth",
+    "unfit": null,
+    "unfit_agent": null,
     "unmetered": false,
     "window_report": [
      {
-      "effective": 50,
+      "effective": null,
       "minutes": 10080,
       "pct": 50,
       "reset": 1799999900,
-      "source": "carried_old",
+      "source": "unknown",
       "window": "7d"
      }
     ]
@@ -32746,12 +32746,12 @@
    "expect": {
     "age_s": 0.0,
     "assignable": [
-     true,
-     "5h 71%"
+     false,
+     "5h usage unknown (fail-closed)"
     ],
     "assignable_active1": [
-     true,
-     "5h 71%"
+     false,
+     "5h usage unknown (fail-closed)"
     ],
     "cost_usd": null,
     "ctx_pct": null,
@@ -32780,11 +32780,11 @@
     "long_trusted": 0,
     "model_id": null,
     "rolled_over": [
-     false,
-     ""
+     true,
+     "5h 71% (0s old, reset since), 7d 0% - window rolled over"
     ],
-    "runway_burn": "outlasts reset",
-    "runway_none": "no recent burn",
+    "runway_burn": "",
+    "runway_none": "",
     "session_id": null,
     "short": {
      "at": null,
@@ -32796,31 +32796,31 @@
      "reset": 1799999900
     },
     "short_age_s": null,
-    "short_headroom": 29,
-    "short_source": "live",
-    "short_trusted": 71,
+    "short_headroom": null,
+    "short_source": "unknown",
+    "short_trusted": null,
     "shown_short": [
-     71,
+     null,
      " "
     ],
     "stale": false,
     "sub_end": null,
     "takes_work": [
      true,
-     "5h 71%"
+     "5h 71% (0s old, reset since), 7d 0% - window rolled over"
     ],
     "trusted_ctx_pct": null,
     "trusted_ctx_used": null,
-    "unfit": "5h 71%, fill 0.0%/min, 0/2 agents, one more agent (1.20%/min) lasts ~24m - under the 30m a start is worth",
-    "unfit_agent": "5h 71%, fill 0.0%/min, 0/2 agents, one more agent (1.20%/min) lasts ~24m - under the 30m a start is worth",
+    "unfit": null,
+    "unfit_agent": null,
     "unmetered": false,
     "window_report": [
      {
-      "effective": 71,
+      "effective": null,
       "minutes": 300,
       "pct": 71,
       "reset": 1799999900,
-      "source": "live",
+      "source": "unknown",
       "window": "5h"
      },
      {
@@ -33130,12 +33130,12 @@
    "expect": {
     "age_s": 0.0,
     "assignable": [
-     true,
-     "7d 99%"
+     false,
+     "7d usage unknown (fail-closed)"
     ],
     "assignable_active1": [
-     true,
-     "7d 99%"
+     false,
+     "7d usage unknown (fail-closed)"
     ],
     "cost_usd": null,
     "ctx_pct": null,
@@ -33148,7 +33148,7 @@
     ],
     "last_known": "7d 99% (0s old, reset since)",
     "last_week_first": true,
-    "live": true,
+    "live": false,
     "long": {
      "at": null,
      "carried": false,
@@ -33164,11 +33164,11 @@
     "long_trusted": null,
     "model_id": null,
     "rolled_over": [
-     false,
-     ""
+     true,
+     "7d 99% (0s old, reset since) - window rolled over"
     ],
-    "runway_burn": "outlasts reset",
-    "runway_none": "no recent burn",
+    "runway_burn": "",
+    "runway_none": "",
     "session_id": null,
     "short": {
      "at": 1800000500,
@@ -33180,18 +33180,18 @@
      "reset": 1799999900
     },
     "short_age_s": null,
-    "short_headroom": 1,
-    "short_source": "live",
-    "short_trusted": 99,
+    "short_headroom": null,
+    "short_source": "unknown",
+    "short_trusted": null,
     "shown_short": [
-     99,
+     null,
      " "
     ],
     "stale": false,
     "sub_end": null,
     "takes_work": [
      true,
-     "7d 99%"
+     "7d 99% (0s old, reset since) - window rolled over"
     ],
     "trusted_ctx_pct": null,
     "trusted_ctx_used": 5000,
@@ -33200,11 +33200,11 @@
     "unmetered": false,
     "window_report": [
      {
-      "effective": 99,
+      "effective": null,
       "minutes": 10080,
       "pct": 99,
       "reset": 1799999900,
-      "source": "live",
+      "source": "unknown",
       "window": "7d"
      }
     ]
@@ -33265,7 +33265,7 @@
     ],
     "last_known": "5h 99% (0s old, reset since), 7d 100%",
     "last_week_first": true,
-    "live": true,
+    "live": false,
     "long": {
      "at": 1799999000,
      "carried": false,
@@ -33284,8 +33284,8 @@
      false,
      ""
     ],
-    "runway_burn": "at the 7d wall",
-    "runway_none": "at the 7d wall",
+    "runway_burn": "",
+    "runway_none": "",
     "session_id": null,
     "short": {
      "at": 1799999600,
@@ -33297,11 +33297,11 @@
      "reset": 1799999995
     },
     "short_age_s": 400.0,
-    "short_headroom": 1,
-    "short_source": "live",
-    "short_trusted": 99,
+    "short_headroom": null,
+    "short_source": "unknown",
+    "short_trusted": null,
     "shown_short": [
-     99,
+     null,
      " "
     ],
     "stale": false,
@@ -33317,11 +33317,11 @@
     "unmetered": false,
     "window_report": [
      {
-      "effective": 99,
+      "effective": null,
       "minutes": 300,
       "pct": 99,
       "reset": 1799999995,
-      "source": "live",
+      "source": "unknown",
       "window": "5h"
      },
      {
@@ -34458,8 +34458,8 @@
     "long_trusted": 71,
     "model_id": null,
     "rolled_over": [
-     false,
-     ""
+     true,
+     "5h 90% (14m old, reset since), 7d 71% - window rolled over"
     ],
     "runway_burn": "",
     "runway_none": "",
@@ -34484,8 +34484,8 @@
     "stale": false,
     "sub_end": null,
     "takes_work": [
-     false,
-     "5h usage unknown (fail-closed)"
+     true,
+     "5h 90% (14m old, reset since), 7d 71% - window rolled over"
     ],
     "trusted_ctx_pct": 92,
     "trusted_ctx_used": null,
@@ -34562,11 +34562,11 @@
     "age_s": 0.0,
     "assignable": [
      false,
-     "5h usage 101% >= 100%"
+     "5h usage unknown (fail-closed)"
     ],
     "assignable_active1": [
      false,
-     "5h usage 101% >= 100%"
+     "5h usage unknown (fail-closed)"
     ],
     "cost_usd": null,
     "ctx_pct": null,
@@ -34595,11 +34595,11 @@
     "long_trusted": 29,
     "model_id": null,
     "rolled_over": [
-     false,
-     ""
+     true,
+     "5h 101% (0s old, reset since), 7d 29% - window rolled over"
     ],
-    "runway_burn": "at the wall",
-    "runway_none": "at the wall",
+    "runway_burn": "",
+    "runway_none": "",
     "session_id": null,
     "short": {
      "at": 1799999000,
@@ -34611,31 +34611,31 @@
      "reset": 1799999900
     },
     "short_age_s": 1000.0,
-    "short_headroom": 0,
-    "short_source": "carried_old",
-    "short_trusted": 101,
+    "short_headroom": null,
+    "short_source": "unknown",
+    "short_trusted": null,
     "shown_short": [
-     101,
-     "!"
+     null,
+     " "
     ],
     "stale": false,
     "sub_end": 1800057600.0,
     "takes_work": [
-     false,
-     "5h usage 101% >= 100%"
+     true,
+     "5h 101% (0s old, reset since), 7d 29% - window rolled over"
     ],
     "trusted_ctx_pct": null,
     "trusted_ctx_used": null,
-    "unfit": "5h usage at the wall (101%)",
-    "unfit_agent": "5h usage at the wall (101%)",
+    "unfit": null,
+    "unfit_agent": null,
     "unmetered": false,
     "window_report": [
      {
-      "effective": 101,
+      "effective": null,
       "minutes": 300,
       "pct": 101,
       "reset": 1799999900,
-      "source": "carried_old",
+      "source": "unknown",
       "window": "5h"
      },
      {
@@ -35205,11 +35205,11 @@
     "age_s": 899.0,
     "assignable": [
      false,
-     "5h usage 100% >= 100%"
+     "5h usage unknown (fail-closed)"
     ],
     "assignable_active1": [
      false,
-     "5h usage 100% >= 100%"
+     "5h usage unknown (fail-closed)"
     ],
     "cost_usd": null,
     "ctx_pct": 10,
@@ -35241,8 +35241,8 @@
      false,
      ""
     ],
-    "runway_burn": "at the wall",
-    "runway_none": "at the wall",
+    "runway_burn": "",
+    "runway_none": "",
     "session_id": null,
     "short": {
      "at": 1799999600,
@@ -35254,31 +35254,31 @@
      "reset": 1799999995
     },
     "short_age_s": 400.0,
-    "short_headroom": 0,
-    "short_source": "carried",
-    "short_trusted": 100,
+    "short_headroom": null,
+    "short_source": "unknown",
+    "short_trusted": null,
     "shown_short": [
-     100,
-     "~"
+     null,
+     " "
     ],
     "stale": false,
     "sub_end": null,
     "takes_work": [
      false,
-     "5h usage 100% >= 100%"
+     "5h usage unknown (fail-closed)"
     ],
     "trusted_ctx_pct": 10,
     "trusted_ctx_used": 3,
-    "unfit": "5h usage at the wall (100%)",
-    "unfit_agent": "5h usage at the wall (100%)",
+    "unfit": null,
+    "unfit_agent": null,
     "unmetered": false,
     "window_report": [
      {
-      "effective": 100,
+      "effective": null,
       "minutes": 300,
       "pct": 100,
       "reset": 1799999995,
-      "source": "carried",
+      "source": "unknown",
       "window": "5h"
      },
      {
@@ -35830,12 +35830,12 @@
    "expect": {
     "age_s": 10.0,
     "assignable": [
-     true,
-     "5h 90%"
+     false,
+     "5h usage unknown (fail-closed)"
     ],
     "assignable_active1": [
-     true,
-     "5h 90%"
+     false,
+     "5h usage unknown (fail-closed)"
     ],
     "cost_usd": null,
     "ctx_pct": 10,
@@ -35864,11 +35864,11 @@
     "long_trusted": null,
     "model_id": null,
     "rolled_over": [
-     false,
-     ""
+     true,
+     "5h 90% (10s old, reset since) - window rolled over"
     ],
-    "runway_burn": "outlasts reset",
-    "runway_none": "no recent burn",
+    "runway_burn": "",
+    "runway_none": "",
     "session_id": null,
     "short": {
      "at": null,
@@ -35880,31 +35880,31 @@
      "reset": 1799999995
     },
     "short_age_s": null,
-    "short_headroom": 10,
-    "short_source": "live",
-    "short_trusted": 90,
+    "short_headroom": null,
+    "short_source": "unknown",
+    "short_trusted": null,
     "shown_short": [
-     90,
+     null,
      " "
     ],
     "stale": false,
     "sub_end": null,
     "takes_work": [
      true,
-     "5h 90%"
+     "5h 90% (10s old, reset since) - window rolled over"
     ],
     "trusted_ctx_pct": 10,
     "trusted_ctx_used": 3,
-    "unfit": "5h 90%, fill 1.5%/min, 0/3 agents, one more agent (1.20%/min) lasts ~3m - under the 30m a start is worth",
-    "unfit_agent": "5h 90%, fill 1.5%/min, 0/3 agents, one more agent (1.20%/min) lasts ~3m - under the 30m a start is worth",
+    "unfit": null,
+    "unfit_agent": null,
     "unmetered": false,
     "window_report": [
      {
-      "effective": 90,
+      "effective": null,
       "minutes": 300,
       "pct": 90,
       "reset": 1799999995,
-      "source": "live",
+      "source": "unknown",
       "window": "5h"
      },
      {
@@ -36879,11 +36879,11 @@
     "age_s": 0.0,
     "assignable": [
      false,
-     "5h 71% was observed 16m ago and only ever rises (carried past 900s)"
+     "5h usage unknown (fail-closed)"
     ],
     "assignable_active1": [
      false,
-     "5h 71% was observed 16m ago and only ever rises (carried past 900s)"
+     "5h usage unknown (fail-closed)"
     ],
     "cost_usd": null,
     "ctx_pct": null,
@@ -36912,11 +36912,11 @@
     "long_trusted": null,
     "model_id": null,
     "rolled_over": [
-     false,
-     ""
+     true,
+     "5h 71% (0s old, reset since) - window rolled over"
     ],
-    "runway_burn": "outlasts reset",
-    "runway_none": "no recent burn",
+    "runway_burn": "",
+    "runway_none": "",
     "session_id": null,
     "short": {
      "at": 1799999000,
@@ -36928,18 +36928,18 @@
      "reset": 1799999900
     },
     "short_age_s": 1000.0,
-    "short_headroom": 29,
-    "short_source": "carried_old",
-    "short_trusted": 71,
+    "short_headroom": null,
+    "short_source": "unknown",
+    "short_trusted": null,
     "shown_short": [
-     71,
-     "!"
+     null,
+     " "
     ],
     "stale": false,
     "sub_end": 1800057600.0,
     "takes_work": [
-     false,
-     "5h 71% was observed 16m ago and only ever rises (carried past 900s)"
+     true,
+     "5h 71% (0s old, reset since) - window rolled over"
     ],
     "trusted_ctx_pct": null,
     "trusted_ctx_used": null,
@@ -36948,11 +36948,11 @@
     "unmetered": false,
     "window_report": [
      {
-      "effective": 71,
+      "effective": null,
       "minutes": 300,
       "pct": 71,
       "reset": 1799999900,
-      "source": "carried_old",
+      "source": "unknown",
       "window": "5h"
      }
     ]
@@ -37772,8 +37772,8 @@
     "long_trusted": null,
     "model_id": null,
     "rolled_over": [
-     false,
-     ""
+     true,
+     "window rolled over, ? unknown"
     ],
     "runway_burn": "",
     "runway_none": "",
@@ -37798,8 +37798,8 @@
     "stale": false,
     "sub_end": null,
     "takes_work": [
-     false,
-     "5h usage unknown (fail-closed)"
+     true,
+     "window rolled over, ? unknown"
     ],
     "trusted_ctx_pct": 92,
     "trusted_ctx_used": 5000,
@@ -39039,8 +39039,8 @@
     "long_trusted": null,
     "model_id": null,
     "rolled_over": [
-     false,
-     ""
+     true,
+     "5h 101% (10s old, reset since) - window rolled over"
     ],
     "runway_burn": "",
     "runway_none": "",
@@ -39065,8 +39065,8 @@
     "stale": false,
     "sub_end": null,
     "takes_work": [
-     false,
-     "5h usage unknown (fail-closed)"
+     true,
+     "5h 101% (10s old, reset since) - window rolled over"
     ],
     "trusted_ctx_pct": null,
     "trusted_ctx_used": null,
@@ -40409,8 +40409,8 @@
     "long_trusted": null,
     "model_id": null,
     "rolled_over": [
-     false,
-     ""
+     true,
+     "5h 101% (0s old, reset since), 7d 30% (reset since) - window rolled over"
     ],
     "runway_burn": "",
     "runway_none": "",
@@ -40435,8 +40435,8 @@
     "stale": false,
     "sub_end": null,
     "takes_work": [
-     false,
-     "5h usage unknown (fail-closed)"
+     true,
+     "5h 101% (0s old, reset since), 7d 30% (reset since) - window rolled over"
     ],
     "trusted_ctx_pct": null,
     "trusted_ctx_used": null,
@@ -45923,11 +45923,11 @@
     "age_s": 10.0,
     "assignable": [
      false,
-     "5h 71% was observed 16m ago and only ever rises (carried past 900s)"
+     "5h usage unknown (fail-closed)"
     ],
     "assignable_active1": [
      false,
-     "5h 71% was observed 16m ago and only ever rises (carried past 900s)"
+     "5h usage unknown (fail-closed)"
     ],
     "cost_usd": null,
     "ctx_pct": 10,
@@ -45956,11 +45956,11 @@
     "long_trusted": null,
     "model_id": null,
     "rolled_over": [
-     false,
-     ""
+     true,
+     "5h 71% (10s old, reset since) - window rolled over"
     ],
-    "runway_burn": "outlasts reset",
-    "runway_none": "no recent burn",
+    "runway_burn": "",
+    "runway_none": "",
     "session_id": null,
     "short": {
      "at": 1799999000,
@@ -45972,31 +45972,31 @@
      "reset": 1799999900
     },
     "short_age_s": 1000.0,
-    "short_headroom": 29,
-    "short_source": "carried_old",
-    "short_trusted": 71,
+    "short_headroom": null,
+    "short_source": "unknown",
+    "short_trusted": null,
     "shown_short": [
-     71,
-     "!"
+     null,
+     " "
     ],
     "stale": false,
     "sub_end": 1800057600.0,
     "takes_work": [
-     false,
-     "5h 71% was observed 16m ago and only ever rises (carried past 900s)"
+     true,
+     "5h 71% (10s old, reset since) - window rolled over"
     ],
     "trusted_ctx_pct": 10,
     "trusted_ctx_used": 5000,
-    "unfit": "5h 71%, fill 1.5%/min, 0/1 agents, one more agent (0.75%/min) lasts ~12m - under the 30m a start is worth",
-    "unfit_agent": "5h 71%, fill 1.5%/min, 0/1 agents, one more agent (0.75%/min) lasts ~12m - under the 30m a start is worth",
+    "unfit": null,
+    "unfit_agent": null,
     "unmetered": false,
     "window_report": [
      {
-      "effective": 71,
+      "effective": null,
       "minutes": 300,
       "pct": 71,
       "reset": 1799999900,
-      "source": "carried_old",
+      "source": "unknown",
       "window": "5h"
      }
     ]
@@ -48436,12 +48436,12 @@
    "expect": {
     "age_s": 10.0,
     "assignable": [
-     true,
-     "5h 50%"
+     false,
+     "5h usage unknown (fail-closed)"
     ],
     "assignable_active1": [
-     true,
-     "5h 50%"
+     false,
+     "5h usage unknown (fail-closed)"
     ],
     "cost_usd": null,
     "ctx_pct": null,
@@ -48454,7 +48454,7 @@
     ],
     "last_known": "5h 50% (10s old, reset since), 7d 1%",
     "last_week_first": true,
-    "live": true,
+    "live": false,
     "long": {
      "at": 1799995000,
      "carried": false,
@@ -48470,11 +48470,11 @@
     "long_trusted": 1,
     "model_id": null,
     "rolled_over": [
-     false,
-     ""
+     true,
+     "5h 50% (10s old, reset since), 7d 1% - window rolled over"
     ],
-    "runway_burn": "outlasts reset",
-    "runway_none": "no recent burn",
+    "runway_burn": "",
+    "runway_none": "",
     "session_id": null,
     "short": {
      "at": 1799999600,
@@ -48486,18 +48486,18 @@
      "reset": 1799999900
     },
     "short_age_s": 400.0,
-    "short_headroom": 50,
-    "short_source": "live",
-    "short_trusted": 50,
+    "short_headroom": null,
+    "short_source": "unknown",
+    "short_trusted": null,
     "shown_short": [
-     50,
+     null,
      " "
     ],
     "stale": false,
     "sub_end": null,
     "takes_work": [
      true,
-     "5h 50%"
+     "5h 50% (10s old, reset since), 7d 1% - window rolled over"
     ],
     "trusted_ctx_pct": null,
     "trusted_ctx_used": null,
@@ -48506,11 +48506,11 @@
     "unmetered": false,
     "window_report": [
      {
-      "effective": 50,
+      "effective": null,
       "minutes": 300,
       "pct": 50,
       "reset": 1799999900,
-      "source": "live",
+      "source": "unknown",
       "window": "5h"
      },
      {
@@ -50437,8 +50437,8 @@
     "long_trusted": 29,
     "model_id": null,
     "rolled_over": [
-     false,
-     ""
+     true,
+     "window rolled over, 7d 29%"
     ],
     "runway_burn": "",
     "runway_none": "",
@@ -50463,8 +50463,8 @@
     "stale": false,
     "sub_end": null,
     "takes_work": [
-     false,
-     "5h usage unknown (fail-closed)"
+     true,
+     "window rolled over, 7d 29%"
     ],
     "trusted_ctx_pct": null,
     "trusted_ctx_used": null,
@@ -50802,12 +50802,12 @@
    "expect": {
     "age_s": 0.0,
     "assignable": [
-     true,
-     "5h 71%"
+     false,
+     "5h usage unknown (fail-closed)"
     ],
     "assignable_active1": [
-     true,
-     "5h 71%"
+     false,
+     "5h usage unknown (fail-closed)"
     ],
     "cost_usd": null,
     "ctx_pct": null,
@@ -50836,11 +50836,11 @@
     "long_trusted": 90,
     "model_id": null,
     "rolled_over": [
-     false,
-     ""
+     true,
+     "5h 71% (0s old, reset since), 7d 90% - window rolled over"
     ],
-    "runway_burn": "outlasts reset",
-    "runway_none": "no recent burn",
+    "runway_burn": "",
+    "runway_none": "",
     "session_id": null,
     "short": {
      "at": null,
@@ -50852,18 +50852,18 @@
      "reset": 1799999995
     },
     "short_age_s": null,
-    "short_headroom": 29,
-    "short_source": "live",
-    "short_trusted": 71,
+    "short_headroom": null,
+    "short_source": "unknown",
+    "short_trusted": null,
     "shown_short": [
-     71,
+     null,
      " "
     ],
     "stale": false,
     "sub_end": 1800057600.0,
     "takes_work": [
      true,
-     "5h 71%"
+     "5h 71% (0s old, reset since), 7d 90% - window rolled over"
     ],
     "trusted_ctx_pct": null,
     "trusted_ctx_used": null,
@@ -50872,11 +50872,11 @@
     "unmetered": false,
     "window_report": [
      {
-      "effective": 71,
+      "effective": null,
       "minutes": 300,
       "pct": 71,
       "reset": 1799999995,
-      "source": "live",
+      "source": "unknown",
       "window": "5h"
      },
      {
@@ -50965,8 +50965,8 @@
     "long_trusted": 71,
     "model_id": null,
     "rolled_over": [
-     false,
-     ""
+     true,
+     "window rolled over, 7d 71%"
     ],
     "runway_burn": "",
     "runway_none": "",
@@ -50991,8 +50991,8 @@
     "stale": false,
     "sub_end": null,
     "takes_work": [
-     false,
-     "5h usage unknown (fail-closed)"
+     true,
+     "window rolled over, 7d 71%"
     ],
     "trusted_ctx_pct": null,
     "trusted_ctx_used": null,
@@ -53772,7 +53772,7 @@
      ],
      [
       "c",
-      "5h 20%, fill 0.1%/min, 1/2 agents, one more agent (0.75%/min) lasts ~1h34m; 7d 92% (resets in 4d15h, 2.72x its weekly pace)"
+      "5h 20% (10s old, reset since), 7d 92% - window rolled over"
      ],
      [
       "d",
@@ -53901,7 +53901,7 @@
      ],
      [
       "b",
-      "5h usage 100% >= 100%"
+      "7d 92%, resets in 4d15h: one more agent lasts ~5m of it - under the 30m a start is worth"
      ],
      [
       "c",
@@ -54113,7 +54113,7 @@
      ],
      [
       "b",
-      "5h usage 100% >= 100%"
+      "5h 100% (10s old, reset since), 7d 5% - window rolled over"
      ]
     ]
    },
@@ -54239,7 +54239,7 @@
     "reasons": [
      [
       "a",
-      "5h 0%, fill 0.0%/min, 0/3 agents, one more agent (0.75%/min) lasts ~2h13m; 7d 5% (resets in 83m, 0.05x its weekly pace) <- picked"
+      "5h 0% (10s old, reset since), 7d 5% - window rolled over <- picked"
      ],
      [
       "b",
@@ -54504,11 +54504,11 @@
    ],
    "config": {},
    "expect": {
-    "picked": "",
+    "picked": "a",
     "reasons": [
      [
       "a",
-      "5h usage 100% >= 100%"
+      "5h 100% (10s old, reset since), 7d 92% (reset since) - window rolled over <- picked"
      ],
      [
       "b",
@@ -54669,11 +54669,11 @@
    ],
    "config": {},
    "expect": {
-    "picked": "d",
+    "picked": "a",
     "reasons": [
      [
       "a",
-      "5h 95%, fill 0.0%/min, 2/3 agents, one more agent (0.75%/min) lasts ~6m - under the 30m a start is worth"
+      "5h 95% (10s old, reset since), 7d 60% - window rolled over <- picked"
      ],
      [
       "b",
@@ -54685,7 +54685,7 @@
      ],
      [
       "d",
-      "5h 20% (25m old), 7d 5% - stale but idle <- picked"
+      "5h 20% (25m old), 7d 5% - stale but idle"
      ]
     ]
    },
@@ -54866,7 +54866,7 @@
      ],
      [
       "d",
-      "5h 20%, fill 0.1%/min, 2/3 agents, one more agent (0.75%/min) lasts ~1h34m; 7d unknown (resets in 0s, unknown pace)"
+      "5h 20% (10s old, reset since), 7d 30% (reset since) - window rolled over"
      ]
     ]
    },
@@ -56222,7 +56222,7 @@
      ],
      [
       "c",
-      "5h 0%, fill 0.0%/min, 0/3 agents, one more agent (0.75%/min) lasts ~2h13m; 7d 5% (resets in 4d15h, 0.15x its weekly pace) <- picked"
+      "5h 0% (10s old, reset since), 7d 5% - window rolled over <- picked"
      ],
      [
       "d",
@@ -56550,7 +56550,7 @@
      ],
      [
       "b",
-      "5h 0%, fill 0.1%/min, 2/3 agents, one more agent (0.75%/min) lasts ~1h57m; 7d unknown (resets in 0s, unknown pace) <- picked"
+      "5h 0% (10s old, reset since), 7d 100% (reset since) - window rolled over <- picked"
      ],
      [
       "c",
@@ -56686,7 +56686,7 @@
      ],
      [
       "c",
-      "5h 45%, fill 0.0%/min, 0/2 agents, one more agent (0.60%/min) lasts ~1h31m; 7d 60% (resets in 4d15h, 1.77x its weekly pace) <- picked"
+      "5h 45% (10s old, reset since), 7d 60% - window rolled over <- picked"
      ]
     ]
    },
@@ -56875,7 +56875,7 @@
      ],
      [
       "b",
-      "5h 95%, fill 0.8%/min, 0/3 agents, one more agent (0.75%/min) lasts ~3m - under the 30m a start is worth"
+      "5h 95% (10s old, reset since), 7d 92% (reset since) - window rolled over"
      ]
     ]
    },
@@ -57195,7 +57195,7 @@
      ],
      [
       "c",
-      "5h 0%, fill 0.8%/min, 0/2 agents, one more agent (0.75%/min) lasts ~1h04m; 7d unknown (resets in 1d1h, unknown pace) <- picked"
+      "5h 0% (10s old, reset since) - window rolled over <- picked"
      ]
     ]
    },
@@ -57453,7 +57453,7 @@
     "reasons": [
      [
       "a",
-      "5h 0%, fill 0.8%/min, 2/3 agents, one more agent (0.75%/min) lasts ~1h04m; 7d 60% (resets in 1d1h, 0.70x its weekly pace) <- picked"
+      "5h 0% (10s old, reset since), 7d 60% - window rolled over <- picked"
      ],
      [
       "b",
@@ -57846,7 +57846,7 @@
    ],
    "config": {},
    "expect": {
-    "picked": "",
+    "picked": "c",
     "reasons": [
      [
       "a",
@@ -57858,7 +57858,7 @@
      ],
      [
       "c",
-      "5h usage 100% >= 100%"
+      "5h 100% (10s old, reset since), 7d 30% - window rolled over <- picked"
      ]
     ]
    },
@@ -58159,7 +58159,7 @@
     "reasons": [
      [
       "a",
-      "5h 45%, fill 0.8%/min, 2/3 agents, one more agent (0.75%/min) lasts ~35m; 7d unknown (resets in 83m, unknown pace) <- picked"
+      "5h 45% (10s old, reset since) - window rolled over <- picked"
      ],
      [
       "b",
@@ -58788,7 +58788,7 @@
      ],
      [
       "b",
-      "5h 80%, fill 0.0%/min, 1/3 agents, one more agent (0.75%/min) lasts ~26m - under the 30m a start is worth"
+      "5h 80% (10s old, reset since), 7d 100% (reset since) - window rolled over"
      ],
      [
       "c",
@@ -59043,7 +59043,7 @@
    ],
    "config": {},
    "expect": {
-    "picked": "",
+    "picked": "b",
     "reasons": [
      [
       "a",
@@ -59051,7 +59051,7 @@
      ],
      [
       "b",
-      "5h 80%, fill 0.8%/min, 1/2 agents, one more agent (0.75%/min) lasts ~12m - under the 30m a start is worth"
+      "5h 80% (10s old, reset since), 7d 5% - window rolled over <- picked"
      ],
      [
       "c",
@@ -59254,7 +59254,7 @@
     "reasons": [
      [
       "a",
-      "5h usage 100% >= 100%"
+      "7d usage 100% >= 100%"
      ],
      [
       "b",
@@ -59604,7 +59604,7 @@
      ],
      [
       "c",
-      "5h 20%, fill 0.8%/min, 2/3 agents, one more agent (0.75%/min) lasts ~51m; 7d unknown (resets in 0s, unknown pace)"
+      "5h 20% (10s old, reset since), 7d 60% (reset since) - window rolled over"
      ],
      [
       "d",
@@ -59701,7 +59701,7 @@
     "reasons": [
      [
       "a",
-      "5h 0%, fill 0.8%/min, 2/3 agents, one more agent (0.75%/min) lasts ~1h04m; 7d 5% (resets in 1d1h, 0.06x its weekly pace) <- picked"
+      "window rolled over, 7d 5% <- picked"
      ],
      [
       "b",
@@ -60403,7 +60403,7 @@
     "reasons": [
      [
       "a",
-      "5h 0%, fill 0.1%/min, 1/3 agents, one more agent (0.75%/min) lasts ~1h57m; 7d 30% (resets in 1d1h, 0.35x its weekly pace) <- picked"
+      "5h 0% (10s old, reset since), 7d 30% - window rolled over <- picked"
      ],
      [
       "b",
@@ -60510,7 +60510,7 @@
      ],
      [
       "b",
-      "5h 0%, fill 0.0%/min, 1/2 agents, one more agent (0.75%/min) lasts ~2h13m; 7d 5% (resets in 4d15h, 0.15x its weekly pace) <- picked"
+      "window rolled over, 7d 5% <- picked"
      ]
     ]
    },
