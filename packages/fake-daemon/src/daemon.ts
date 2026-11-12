@@ -10,6 +10,7 @@ import { FakeAdmin } from '#src/admin.ts';
 import { FakePairing } from '#src/pairing.ts';
 import { FakeInbox } from '#src/inbox.ts';
 import { FakeWork } from '#src/workroom.ts';
+import { FakeWorkspaces } from '#src/workspaces.ts';
 import { FakeRequests } from '#src/requests.ts';
 import { FakeTasks } from '#src/tasks.ts';
 import { FakeAttachments } from '#src/attachments.ts';
@@ -57,6 +58,8 @@ export class FakeDaemon {
   readonly admin: FakeAdmin;
   /** The repos, worktrees and the agent.create operation; `work.stepMs` slows its steps. */
   readonly work = new FakeWork(this, () => this.iso());
+  /** workspaces.list and the owner's workspace.create, workspace.set and workspace.delete. */
+  readonly spaces = new FakeWorkspaces(this);
   /** hello's capabilities.transcript: chat.send takes parent_item. */
   readonly replyItems: boolean;
   readonly serveChat: boolean;

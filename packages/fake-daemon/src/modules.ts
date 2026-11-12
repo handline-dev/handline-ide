@@ -15,6 +15,7 @@ import { accountsReply, view, type Session } from '#src/session.ts';
 import type { FakeTasks } from '#src/tasks.ts';
 import { taskCall } from '#src/taskcall.ts';
 import type { FakeWork } from '#src/workroom.ts';
+import type { FakeWorkspaces } from '#src/workspaces.ts';
 
 /** What the areas need of the daemon that hosts them. */
 export interface ModuleHost {
@@ -23,6 +24,7 @@ export interface ModuleHost {
   readonly accounts: FakeAccounts;
   readonly admin: FakeAdmin;
   readonly work: FakeWork;
+  readonly spaces: FakeWorkspaces;
   readonly requests: FakeRequests;
   readonly uploads: FakeAttachments;
   readonly inbox: FakeInbox;
@@ -61,6 +63,7 @@ const AREAS: Area[] = [
     return { value };
   },
   (d, _c, method, p, ok) => (d.work.owns(method) ? { value: d.work.call(method, p, ok) } : null),
+  (d, c, method, p, ok) => (d.spaces.owns(method) ? { value: d.spaces.call(method, p, ok, d.actor(c)) } : null),
   (d, _c, method, p, ok) => (d.requests.owns(method) ? { value: d.requests.call(method, p, ok) } : null),
   (d, _c, method, p, ok) => (method === 'attachment.remove' ? { value: removeAttachment(d, p, ok) } : null),
   (d, _c, method, p, ok) => (method.startsWith('attachment.') ? { value: d.uploads.call(method, p, ok) } : null),
