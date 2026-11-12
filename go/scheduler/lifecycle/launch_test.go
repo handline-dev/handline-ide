@@ -1127,10 +1127,13 @@ func TestWhatChangedSaysTheLinesOfTheTextParts(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(lines, want) {
 		t.Fatalf("%+v %v", lines, err)
 	}
-	// A long change keeps changedLinesMax lines of each side and counts the rest.
-	os.WriteFile(filepath.Join(paths.AgentDir(r.l.Home, "ann"), "base.md"), []byte(strings.Repeat("x\n", changedLinesMax+5)), 0o644)
-	if _, lines, _ := r.l.whatChanged("ann"); len(lines) != 3 || lines[1].Part != "base.md" || len(lines[1].Added) != changedLinesMax || lines[1].More != 5 {
-		t.Fatalf("%+v", lines)
+	// Lines are kept in order up to changedBytesMax over the whole start (ROLE.md's 5 bytes first) and every line after counted.
+	line := strings.Repeat("x", 1000)
+	os.WriteFile(filepath.Join(paths.AgentDir(r.l.Home, "ann"), "base.md"), []byte(strings.Repeat(line+"\n", 100)), 0o644)
+	_, lines, _ = r.l.whatChanged("ann")
+	if len(lines) != 3 || lines[1].Part != "base.md" || len(lines[1].Added) != changedBytesMax/1000 || lines[1].More != 100-changedBytesMax/1000 ||
+		len(lines[2].Added)+len(lines[2].Removed) != 0 || lines[2].More != 2 {
+		t.Fatalf("%d %d %+v", len(lines[1].Added), lines[1].More, lines[2])
 	}
 	var old map[string]any
 	if err := json.Unmarshal([]byte(rec), &old); err != nil {
