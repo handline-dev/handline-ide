@@ -27,7 +27,7 @@ func wsRig(max *int) *Manager {
 }
 
 func reservedFor(m *Manager, agent string) bool {
-	return slices.ContainsFunc(pool(m, Browser).Held, func(l Lease) bool { return l.Agent == agent && l.Reserved() })
+	return slices.ContainsFunc(pool(m, Browser).Held, func(l Held) bool { return l.Agent == agent && l.Reserved() })
 }
 
 func TestAWorkspaceHoldsNoMoreOfAKindThanItsLeaseMax(t *testing.T) {
