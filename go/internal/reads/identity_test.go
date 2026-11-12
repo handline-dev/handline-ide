@@ -2,7 +2,12 @@ package reads
 
 import (
 	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
+
+	"github.com/handline/handline/go/data/team"
 )
 
 func TestPeopleAndWorkspacesAreListedByKey(t *testing.T) {
@@ -55,9 +60,19 @@ func TestWorkspaceRulesListsTheRulesInForceAndWhereEachComesFrom(t *testing.T) {
 		return string(b)
 	}
 	shop := `{"rules":[{"key":"agent_cap","value":0,"on":false,"source":"workspace","set_by":"p1","set_at":2},` +
-		`{"key":"tools_deny","value":["WebFetch"],"on":true,"source":"machine","set_by":"p1","set_at":1}]}`
+		`{"key":"tools_deny","value":["WebFetch"],"on":true,"source":"machine","set_by":"p1","set_at":1}],"limit_bytes":2048,"text_bytes":%d}`
+	if s := got(map[string]any{"workspace": "shop"}); !sameJSON(s, fmt.Sprintf(shop, 0)) {
+		t.Errorf("no base.md is no text: %s", s)
+	}
+	base := team.RulesFile(e.Home, "w5")
+	if err := os.MkdirAll(filepath.Dir(base), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(base, []byte("Keep messages short.\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	for _, ws := range []string{"shop", "w5"} {
-		if s := got(map[string]any{"workspace": ws}); !sameJSON(s, shop) {
+		if s := got(map[string]any{"workspace": ws}); !sameJSON(s, fmt.Sprintf(shop, 21)) {
 			t.Errorf("%s: %s", ws, s)
 		}
 	}

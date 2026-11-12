@@ -257,6 +257,10 @@ export interface TeamMethods {
   agent?: string;
 }; result: {
     rules: WorkspaceRule[];
+    /** The size of the workspace's rules text (its base.md) in bytes, 0 when it has none. Only with a workspace. */
+    text_bytes?: number;
+    /** The most bytes the rules text should hold. Only with a workspace. */
+    limit_bytes?: number;
   } };
   "workspace.rule.set": { params: {
   /** The workspace's key (w3) or its name, as workspaces.list gives them; absent for the machine default. An unknown one is not_found, what workspace. */
