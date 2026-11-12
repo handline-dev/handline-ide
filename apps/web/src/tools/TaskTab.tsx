@@ -25,7 +25,6 @@ import { keptScroll } from '#src/ui/keptScroll.ts';
 import { sayRefusal } from '#src/ui/refusal.tsx';
 import { toast } from '#src/ui/toast.tsx';
 import { useTabState } from '#src/persist/tabState.ts';
-import { Who } from '#src/ui/Who.tsx';
 
 const CLOSED = ['done', 'discarded'];
 
