@@ -19,17 +19,32 @@ import (
 // worktrees on the new account is settings.trust's.
 
 func (e *Env) accountAdd(c *rpc.Conn, p map[string]any) (any, error) {
-	acct, ok := p["account"].(string)
-	if !ok || acct == "" {
-		return nil, badParam("account is the new account's name", "account")
+	acct, named := "", p["account"] != nil
+	if named {
+		var ok bool
+		if acct, ok = p["account"].(string); !ok || acct == "" {
+			return nil, badParam("account is the new account's name", "account")
+		}
 	}
 	vendor := ""
 	if v := p["vendor"]; v != nil {
+		var ok bool
 		if vendor, ok = v.(string); !ok || vendor == "" {
 			return nil, badParam("vendor is the tool the account is for", "vendor")
 		}
 	}
-	_, err := team.Accounts{Home: e.Home}.Add(acct, vendor)
+	accts := team.Accounts{Home: e.Home}
+	var err error
+	if named {
+		_, err = accts.Add(acct, vendor)
+	} else { // account<n>; a name in use moves on to the next
+		for n := len(paths.ListAccounts(e.Home)) + 1; ; n++ {
+			acct = fmt.Sprintf("account%d", n)
+			if _, err = accts.Add(acct, vendor); !errors.Is(err, team.ErrAccountExists) {
+				break
+			}
+		}
+	}
 	var unknown *team.UnknownVendor
 	switch {
 	case errors.Is(err, team.ErrBadAccountName):
