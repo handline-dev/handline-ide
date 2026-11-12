@@ -687,7 +687,7 @@ func TestAPersonsStartGoesToTheAccountItWasLastOnElseTheMostHeadroomAndQueuesBeh
 	}
 }
 
-func TestAnOpenAgentsMoveDoesNotTakeTheSlotAnOlderClosedWaiterHolds(t *testing.T) {
+func TestAnOpenAgentsMoveDoesNotTakeTheSlotAnOlderClosedWaiterHolds(t *testing.T) { // E4
 	r := newLaunchRig(t)
 	pct := 10
 	r.l.Ports.Accounts = fakeAccounts{true}
