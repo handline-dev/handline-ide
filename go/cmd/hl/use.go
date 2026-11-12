@@ -64,7 +64,11 @@ func useCmd(c *hlclient.Client, args []string) (int, bool) {
 	waiting.Deadline = (leases.CeilingS + 30) * time.Second
 	got, err := waiting.Call("lease.take", map[string]any{"agent": agent, "kind": kind, "hold": hold})
 	var down *hlclient.DaemonDown
+	var refused *hlclient.RPCError
 	switch {
+	case errors.As(err, &refused) && refused.Data["gate"] == "lease_wait":
+		fmt.Println(refused.Message)
+		return BlockedExit, true
 	case errors.As(err, &down) && !hold:
 		fmt.Fprintf(os.Stderr, "hl use: %v; running it without a lease\n", err)
 		return run(command), true
@@ -86,6 +90,9 @@ func useCmd(c *hlclient.Client, args []string) (int, bool) {
 	}
 	return code, true
 }
+
+// BlockedExit is hl use's exit code when its ask waits in line as a blocker on the agent's task: nothing ran (EX_TEMPFAIL).
+const BlockedExit = 75
 
 // run runs command with this process's input and output and is its exit code. hl outlives it to give the lease back: an interrupt
 // reaches the command from the terminal, and a termination is passed on.

@@ -40,3 +40,31 @@ func TestAGateTaskShowsItsWatchAndIsRunningWhileItWatches(t *testing.T) {
 		t.Fatalf("%v", w)
 	}
 }
+
+// A lease's gate watches nothing: its status is its title.
+func TestALeaseGateSaysWhatItWaitsFor(t *testing.T) {
+	e := testEnv(t)
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by, sent_at) VALUES(1, 'T9 waits on a simulator', 'gate', 'a2', 1, 'a2', 2)")
+	got, err := e.taskGet(nil, map[string]any{"task": json.Number("1")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := json.Marshal(got)
+	var task map[string]any
+	json.Unmarshal(b, &task)
+	if st, _ := task["status"].(map[string]any); task["watch"] != nil || st["reason"] != "watch" || st["text"] != "T9 waits on a simulator" {
+		t.Fatalf("%v", task)
+	}
+}
+
+// A task waiting on a lease's gate waits on the gate, not on the founder: neither is the founder's to act on, and the gate is no draft.
+func TestALeaseGateIsNotTheFoundersToAnswer(t *testing.T) {
+	e := testEnv(t)
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(9, 'ship', 'a2', 'p1', 1, 'p1')")
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by, queued_at, sent_at) VALUES(10, 'T9 waits on a simulator', 'gate', 'a2', 2, 'a2', 2, 2)")
+	run(t, e, "INSERT INTO task_blocks(task_id, blocks_on, created_at) VALUES(9, 10, 2)")
+	needs, drafts, err := e.needsYouAndDrafts()
+	if err != nil || needs != 0 || drafts != 0 {
+		t.Fatalf("needs %d drafts %d %v", needs, drafts, err)
+	}
+}
