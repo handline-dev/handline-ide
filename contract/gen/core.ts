@@ -853,6 +853,18 @@ export interface CoreMethods {
     /** How many leases were given back. */
     released: number;
   } };
+  "lease.extend": { params: {
+  agent: Who;
+  kind?: ("heavy" | "simulator" | "browser" | "port") | "";
+}; result: {
+    /** The leases extended. */
+    extended: {
+      lease: number;
+      kind: "heavy" | "simulator" | "browser" | "port";
+      /** When the lease now reaches its max_hold. */
+      max_hold_at: string;
+    }[];
+  } };
   "lease.get": { params: { [key: string]: unknown }; result: {
     kinds: {
       kind: "heavy" | "simulator" | "browser" | "port";
@@ -1114,6 +1126,7 @@ export const CORE_METHODS: { [K in keyof CoreMethods]: { role: Role; callers: Ro
   "daemon.resume": { role: "owner", callers: null, write: true, since: 1 },
   "lease.take": { role: "agent", callers: null, write: false, since: 1 },
   "lease.release": { role: "agent", callers: null, write: false, since: 1 },
+  "lease.extend": { role: "agent", callers: null, write: false, since: 1 },
   "lease.get": { role: "agent", callers: null, write: false, since: 1 },
   "load.get": { role: "agent", callers: null, write: false, since: 1 },
   "events.feed": { role: "agent", callers: null, write: false, since: 1 },
@@ -1132,7 +1145,7 @@ export const CORE_METHODS: { [K in keyof CoreMethods]: { role: Role; callers: Ro
 };
 
 /** x-app-cache of each read (x-app in core.json). */
-export const CORE_APP_CACHE: { [K in "hello" | "whoami" | "subscribe" | "unsubscribe" | "daemon.status" | "lease.take" | "lease.release" | "lease.get" | "load.get" | "events.feed" | "operation.get" | "debug.terminals" | "prefs.get" | "memory.status" | "connection.get" | "connection.addresses" | "settings.get" | "for_you.list"]: { resource: string; id?: string; feed: Topic | null } | false } = {
+export const CORE_APP_CACHE: { [K in "hello" | "whoami" | "subscribe" | "unsubscribe" | "daemon.status" | "lease.take" | "lease.release" | "lease.extend" | "lease.get" | "load.get" | "events.feed" | "operation.get" | "debug.terminals" | "prefs.get" | "memory.status" | "connection.get" | "connection.addresses" | "settings.get" | "for_you.list"]: { resource: string; id?: string; feed: Topic | null } | false } = {
   "hello": false,
   "whoami": false,
   "subscribe": false,
@@ -1140,6 +1153,7 @@ export const CORE_APP_CACHE: { [K in "hello" | "whoami" | "subscribe" | "unsubsc
   "daemon.status": {"resource": "status", "feed": "status"},
   "lease.take": false,
   "lease.release": false,
+  "lease.extend": false,
   "lease.get": false,
   "load.get": {"resource": "load", "feed": null},
   "events.feed": false,

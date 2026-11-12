@@ -86,7 +86,7 @@ Every read has x-app-cache and every write x-app-write; false: the app does not 
 
 One file per group, generated from `spec/<group>.json`; field types are in `protocol.ts`.
 
-- [core](gen/core.md): 24 methods
+- [core](gen/core.md): 25 methods
 - [accounts](gen/accounts.md): 14 methods
 - [agents](gen/agents.md): 37 methods
 - [chat](gen/chat.md): 26 methods

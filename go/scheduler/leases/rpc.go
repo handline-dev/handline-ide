@@ -1,12 +1,13 @@
 package leases
 
 import (
+	"errors"
 	"time"
 
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
-// Register adds lease.take, lease.release and lease.get.
+// Register adds lease.take, lease.release, lease.extend and lease.get.
 func Register(s *rpc.Server, m *Manager) {
 	for _, r := range []struct {
 		name   string
@@ -14,6 +15,7 @@ func Register(s *rpc.Server, m *Manager) {
 	}{
 		{"lease.take", rpc.Method{Waits: true, Handler: m.take}},
 		{"lease.release", rpc.Method{Handler: m.release}},
+		{"lease.extend", rpc.Method{Handler: m.extend}},
 		{"lease.get", rpc.Method{Read: true, Handler: m.get}},
 	} {
 		s.Register(r.name, r.method)
@@ -86,6 +88,31 @@ func (m *Manager) release(c *rpc.Conn, params map[string]any) (any, error) {
 		return nil, bad("kind is heavy, simulator, browser or port", "kind")
 	}
 	return map[string]any{"released": m.ReleaseAgent(agent, kind, false, "released")}, nil
+}
+
+// extend adds a period to each of the caller's leases of kind (every kind when absent): {extended: [{lease, kind, max_hold_at}]}.
+func (m *Manager) extend(c *rpc.Conn, params map[string]any) (any, error) {
+	agent, err := agentOf(c, params)
+	if err != nil {
+		return nil, err
+	}
+	kind, _ := params["kind"].(string)
+	if kind != "" && !Known(kind) {
+		return nil, bad("kind is heavy, simulator, browser or port", "kind")
+	}
+	ls, err := m.Extend(agent, kind)
+	var r *Refusal
+	if errors.As(err, &r) {
+		return nil, rpc.Refused(r.Why, "", "")
+	}
+	if err != nil {
+		return nil, err
+	}
+	out := []any{}
+	for _, l := range ls {
+		out = append(out, map[string]any{"lease": l.ID, "kind": l.Kind, "max_hold_at": stamp(l.MaxHoldAt)})
+	}
+	return map[string]any{"extended": out}, nil
 }
 
 func (m *Manager) get(_ *rpc.Conn, _ map[string]any) (any, error) {
