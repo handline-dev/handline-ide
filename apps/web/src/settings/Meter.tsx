@@ -38,7 +38,7 @@ export function Setting({
   below,
   children,
 }: {
-  title: string;
+  title: ReactNode;
   icon?: ReactNode;
   note?: ReactNode;
   below?: ReactNode;
