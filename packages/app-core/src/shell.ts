@@ -164,6 +164,8 @@ export interface ShellApi {
   daemon?(): Promise<({ ok: true } & ShellDaemon) | Fail<'bad_request'>>;
   onDaemon?(cb: (v: ShellDaemon) => void): () => void;
   startDaemon?(): Promise<{ ok: true } | Fail<'bad_request'>>;
+  /** Stops the app's own daemon, which stays stopped until started; `cannot_stop` says why not. */
+  stopDaemon?(): Promise<{ ok: true } | Fail<'bad_request' | 'cannot_stop'>>;
   /** Pairs with another device's daemon, from its `handline://` link or its address and code; the app relaunches on it. */
   pairRemote?(a: { link?: string; address?: string; code?: string }): Promise<{ ok: true } | Fail<'bad_request' | 'cannot_pair'>>;
   /** The page's zoom factor (1 = 100%), read from the window itself: `outerWidth` lags a full-screen change, so the page cannot tell it from its own size. */

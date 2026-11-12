@@ -28,7 +28,7 @@ export function Block({ title, note, children }: { title: string; note?: ReactNo
 }
 
 /** One setting: what it is and what it does at the left, its control at the right (under it when narrow). */
-export function Setting({ title, note, children }: { title: string; note?: ReactNode; children: ReactNode }) {
+export function Setting({ title, note, children }: { title: ReactNode; note?: ReactNode; children: ReactNode }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-border pt-3 first:border-t-0 first:pt-0">
       <div className="min-w-0 flex-1 basis-56">

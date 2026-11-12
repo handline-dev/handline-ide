@@ -34,6 +34,7 @@ export const CHANNELS = {
   update: 'handline:update',
   daemon: 'handline:daemon',
   startDaemon: 'handline:startDaemon',
+  stopDaemon: 'handline:stopDaemon',
   updateAct: 'handline:updateAct',
   token: 'handline:token',
   captureWindows: 'handline:captureWindows',
@@ -310,6 +311,7 @@ export interface DaemonDeps {
   view(): ShellDaemon;
   /** Brings the app's own daemon up. */
   start(): void;
+  stop(): Promise<void>;
 }
 
 /** The daemon state the page shows when the daemon is down, and its Start button, with the usual sender check. */
@@ -328,5 +330,15 @@ export class DaemonView {
     if (!this.d.view().canStart) return bad('this app does not start a daemon');
     this.d.start();
     return { ok: true };
+  }
+  async stop(e: Sender): Promise<Reply | Fail<'cannot_stop'>> {
+    if (!fromWindow(e, this.origin)) return bad('not from the app window');
+    if (!this.d.view().canStart) return bad('this app does not stop a daemon');
+    try {
+      await this.d.stop();
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, code: 'cannot_stop', message: err instanceof Error ? err.message : String(err) };
+    }
   }
 }
