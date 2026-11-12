@@ -63,7 +63,7 @@ group_apps() {
 group_files() {
     needs_node file || return 1
     local r=0 pretty
-    quiet python3 -m unittest tools/test_pr_checks.py tools/test_check_hl_commands.py tools/test_go_modules.py tools/test_app.py || r=1
+    quiet python3 -m unittest tools/test_pr_checks.py tools/test_check_hl_commands.py tools/test_go_modules.py tools/test_app.py tools/test_leakcheck.py || r=1
     python3 tools/check_hl_commands.py || r=1
     node tools/ui-copy-check.mjs || r=1
     [ -n "$base" ] || return "$r"
@@ -141,7 +141,7 @@ group_secrets() {
 
 if golike; then
     if [ -z "${GITHUB_ACTIONS:-}" ]; then
-        run="$(tools/leakcheck.py begin)" || exit 1
+        run="$(tools/leakcheck.py begin "$$")" || exit 1
         export TMPDIR="$run/tmp/" TMUX_TMPDIR="$run"
         # Stopped by a signal, the run still says what it left and takes its directory with it, once the step it was in has ended.
         stopped() { trap - INT TERM HUP; tools/leakcheck.py end --interrupted "$run"; exit "$1"; }
