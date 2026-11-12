@@ -107,6 +107,11 @@ export class FakeAdmin {
 
   /** DaemonStatus.missing_tools: the tools agents need that this machine lacks; the first-run seed sets them. */
   missingTools: { tool: string; fix: string }[] = [];
+  /** DaemonStatus.vendors: what agents can run with here, installed or not; a test marks one missing. */
+  vendors: { vendor: string; binary: string; installed: boolean; fix: string }[] = [
+    { vendor: 'claude', binary: 'claude', installed: true, fix: 'npm install -g @anthropic-ai/claude-code' },
+    { vendor: 'codex', binary: 'codex', installed: false, fix: 'npm install -g @openai/codex' },
+  ];
 
   /** daemon.pause on this machine (DaemonStatus.paused), null while new work runs. */
   paused: { since: Timestamp; until: null; machine: { id: string; name: string } } | null = null;

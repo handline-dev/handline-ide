@@ -216,6 +216,8 @@ export interface TeamMethods {
   name: string;
   /** The project folder, an absolute path (~ is the home folder). */
   folder: string;
+  /** An account to pin the lead to: it runs that account's vendor and never moves off it. Needed for a codex account, which the pick never places an unpinned agent on. Omitted: the lead is placed as any agent. An unknown account is not_found, what account; one not logged in is accepted, and the lead waits for its login as any agent pinned to a logged-out account does. */
+  account?: string;
   request_id: RequestId;
 }; result: OperationStarted };
   "workspace.set": { params: {

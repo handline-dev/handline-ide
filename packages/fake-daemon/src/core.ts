@@ -1,5 +1,6 @@
 // The fake daemon's own methods: the handshake, who is calling, the subscription, the status and the agents, pairing, pull requests.
 import { METHODS, PROTOCOL, ROLE_ORDER, type MethodName, type Role, type Timestamp, type Topic } from '@handline/contract';
+import type { FakeAccounts } from '#src/accounts.ts';
 import type { FakeAdmin } from '#src/admin.ts';
 import { TERMINAL_CAPS, TEXT_CAPS, type Conn } from '#src/conn.ts';
 import { badRequest, refused } from '#src/errors.ts';
@@ -16,6 +17,7 @@ export interface CoreHost {
   readonly tasks: TaskCounter;
   readonly inbox: FakeInbox;
   readonly admin: FakeAdmin;
+  readonly accounts: FakeAccounts;
   readonly replyItems: boolean;
   readonly pairing: FakePairing;
   readonly log: EventLog;
@@ -89,7 +91,8 @@ export function coreCall(
         d.admin.machineNeeds,
         d.admin.keepAwake(),
         d.admin.paused,
-        d.admin.missingTools,
+        missingTools(d),
+        d.admin.vendors,
       );
     case 'load.get':
       return loadReply(d.sessions, d.iso(), p);
@@ -126,4 +129,11 @@ export function coreCall(
     default:
       throw refused('unsupported', `the fake daemon does not serve ${method}`);
   }
+}
+
+/** missing_tools: the seeded ones, and codex while it is not installed and an account uses it. */
+function missingTools(d: CoreHost): { tool: string; fix: string }[] {
+  const codex = d.admin.vendors.find((v) => v.vendor === 'codex' && !v.installed);
+  const used = codex && d.accounts.list().accounts.some((a) => a.vendor === 'codex');
+  return used ? [...d.admin.missingTools, { tool: 'codex', fix: codex.fix }] : d.admin.missingTools;
 }

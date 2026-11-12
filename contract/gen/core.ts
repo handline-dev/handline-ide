@@ -146,7 +146,7 @@ export type Event = {
 
 export type MissingTool = {
   /** The tool. */
-  tool: "claude" | "git" | "tmux";
+  tool: "claude" | "git" | "tmux" | "codex";
   /** A shell command that installs the tool, for a client to show and copy, for example "brew install tmux". */
   fix: string;
 };
@@ -176,8 +176,10 @@ export type DaemonStatus = {
   resources?: Resources | null;
   /** The machine's own needs-you items, oldest first; absent when there are none, and on a daemon that does not serve it. A client draws each beside the agents' needs-you cards, in the text given. */
   needs_you?: MachineNeed[];
-  /** The tools agents are run with (claude, git, tmux) that this machine lacks, read at each call; absent when none is missing, when the daemon runs no agent side, and on a daemon that does not serve it. No agent can start while one is missing: a client shows each with its fix. */
+  /** The tools agents are run with (claude, git, tmux, and codex while an account or agent uses it) that this machine lacks, read at each call; absent when none is missing, when the daemon runs no agent side, and on a daemon that does not serve it. No agent can start while claude, git or tmux is missing, and no codex agent while codex is: a client shows each with its fix. */
   missing_tools?: MissingTool[];
+  /** Every vendor this daemon can run agents with, installed or not, for the first-run pick; a client offers only the vendors it supports; absent on a daemon that does not serve it. Unlike missing_tools it says nothing about need: codex is in missing_tools only while an account or agent uses it. */
+  vendors?: VendorStatus[];
   /** Null when new work is not paused; absent on a daemon that does not serve it. */
   paused?: DaemonPause | null;
   /** Absent on a daemon that does not serve it. */
@@ -765,6 +767,17 @@ export type Machine = {
   id: string;
   /** The machine's name as its owner set it (the computer name), else its host name. */
   name: string;
+};
+
+export type VendorStatus = {
+  /** The vendor as account.add takes it: claude, codex, or another the daemon has a driver for. */
+  vendor: string;
+  /** The command the daemon runs for it, for example "codex". */
+  binary: string;
+  /** Whether the command is on the daemon's PATH, read at each call. */
+  installed: boolean;
+  /** A shell command that installs it, for a client to show and copy, for example "npm install -g @openai/codex". */
+  fix: string;
 };
 
 export interface CoreMethods {

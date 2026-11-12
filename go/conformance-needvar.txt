@@ -3,6 +3,7 @@
 # fixture that no longer needs one fails the run. The fakes run (tools/test-go.sh --fakes) reads it too: the fixtures here that need a
 # running agent stay in both runs, since the daemon finds a session only in Claude Code's session files, which the fake does not write.
 account.login.a_code_after_the_end_is_refused
+account.login.a_codex_login_answers_a_device_code
 account.login.a_second_login_is_refused_while_one_waits
 account.login.a_wrong_code_ends_failed_with_a_reason
 account.login.cancel_ends_cancelled_and_is_idempotent

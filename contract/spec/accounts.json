@@ -1492,7 +1492,7 @@
      "required": false,
      "schema": {
       "type": "string",
-      "description": "The tool the account is for; omitted means the default (claude)."
+      "description": "The tool the account is for: claude, codex, or another the daemon has a driver for; omitted means claude."
      }
     },
     {
@@ -1548,7 +1548,7 @@
   },
   {
    "name": "account.login",
-   "summary": "Start a login on the account; answers the login id and the URL to open.",
+   "summary": "Start a login on the account; answers the login id, the URL to open and, for codex, the code to type there.",
    "paramStructure": "by-name",
    "params": [
     {
@@ -1587,7 +1587,11 @@
         },
         "url": {
          "type": "string",
-         "description": "The authorize URL the claude CLI printed; the person opens it and brings the code back with account.login_code."
+         "description": "Claude: the authorize URL the CLI printed; the person opens it and brings the code back with account.login_code. Codex: the device page; the person opens it and types device_code there, and nothing comes back."
+        },
+        "device_code": {
+         "type": "string",
+         "description": "Codex only: the one-time code the CLI printed, for the person to type at url. Absent for claude. Kept in memory for the login only: never in an event, a log, the login row or the kept reply a retry gets."
         }
        },
        "required": [
@@ -1614,7 +1618,7 @@
      "$ref": "#/components/errors/not_found"
     }
    ],
-   "description": "No terminal is opened: the CLI runs without one, its URL is read from its stdout and its code is fed to its stdin by account.login_code. Refused with gate `state` while the account is already logging in; not_found for an unknown account. The end of a login is not a method: the accounts topic reports it in the account's `login`, state waiting, then code_sent after account.login_code, then done, or failed with a `reason`, or cancelled by account.login_cancel. A login that is done leaves login_state ok.",
+   "description": "No terminal is opened: the CLI runs without one, its URL is read from its stdout and its code is fed to its stdin by account.login_code. Refused with gate `state` while the account is already logging in; not_found for an unknown account. The end of a login is not a method: the accounts topic reports it in the account's `login`, state waiting, then code_sent after account.login_code, then done, or failed with a `reason`, or cancelled by account.login_cancel. A login that is done leaves login_state ok. A codex login (codex login --device-auth) goes from waiting straight to done or failed when the CLI exits, with no code_sent: account.login_code on it is refused, gate `state`.",
    "x-gates": [
     "role",
     "state"
@@ -1719,7 +1723,157 @@
      "$ref": "#/components/errors/bad_request"
     }
    ],
-   "description": "The code is never echoed back, never in an event, a log or the request record. Refused with gate `state` when the login is not waiting for a code. An id the daemon never issued is not_found.",
+   "description": "The code is never echoed back, never in an event, a log or the request record. Refused with gate `state` when the login is not waiting for a code. An id the daemon never issued is not_found. A codex login never waits for a code, so it is always refused there.",
+   "x-gates": [
+    "role",
+    "state"
+   ]
+  },
+  {
+   "name": "accounts.discover",
+   "summary": "Logins already on this Mac, outside Handline, that an account could use: ~/.claude and ~/.codex.",
+   "paramStructure": "by-name",
+   "params": [],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "properties": {
+      "found": {
+       "type": "array",
+       "items": {
+        "type": "object",
+        "properties": {
+         "vendor": {
+          "type": "string",
+          "description": "claude or codex."
+         },
+         "source": {
+          "type": "string",
+          "description": "The folder the login lives in, as ~/.codex; what account.adopt takes."
+         },
+         "logged_in": {
+          "oneOf": [
+           {
+            "type": "boolean"
+           },
+           {
+            "type": "null"
+           }
+          ],
+          "description": "Whether the vendor's own check says it is logged in; null when it cannot be told."
+         },
+         "adoptable": {
+          "type": "boolean",
+          "description": "Whether account.adopt takes it: true for codex. A Claude login is keyed by its config folder, so a client shows it as found and the account logs in again."
+         }
+        },
+        "required": [
+         "vendor",
+         "source",
+         "logged_in",
+         "adoptable"
+        ],
+        "additionalProperties": false
+       },
+       "description": "One row per folder that exists, claude first; empty when there is none."
+      }
+     },
+     "required": [
+      "found"
+     ]
+    }
+   },
+   "x-role": "owner",
+   "x-write": false,
+   "x-since": 1,
+   "description": "Read from each vendor's own login check only (claude auth status, codex login status, under that folder): never a credential's content. Owner only.",
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    }
+   ],
+   "x-app-cache": false
+  },
+  {
+   "name": "account.adopt",
+   "summary": "Make a codex account that uses a codex login already on this Mac (accounts.discover).",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "vendor",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "description": "codex. Any other is bad_request, field vendor: a Claude login cannot be shared, so the account is added and logs in."
+     }
+    },
+    {
+     "name": "source",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "description": "A source accounts.discover answered for that vendor. Another is not_found, what source."
+     }
+    },
+    {
+     "name": "account",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The new account's name, as account.add takes it; omitted: account<n>."
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "allOf": [
+      {
+       "$ref": "#/components/schemas/Accepted"
+      },
+      {
+       "type": "object",
+       "properties": {
+        "account": {
+         "type": "string",
+         "description": "The name as registered."
+        }
+       },
+       "required": [
+        "account"
+       ]
+      }
+     ]
+    }
+   },
+   "x-role": "owner",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "use this login"
+   },
+   "x-since": 1,
+   "description": "The account gets its own config folder with only auth.json linked to the source's, so its hooks, instructions and sessions stay out of the person's own folder; it starts logged in as the same login (login_state ok) and the accounts topic sends account.changed. While the link holds, a logout in either logs both out, which a client says before the call; a token refresh that rewrites the file can make the two drift apart, and the account then logs in on its own. Refused, gate `state`, when the source is not logged in or the name is in use; a bad name is bad_request, field account. Nothing is changed on a refusal.",
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
    "x-gates": [
     "role",
     "state"

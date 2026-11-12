@@ -916,6 +916,14 @@
      }
     },
     {
+     "name": "account",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "description": "An account to pin the lead to: it runs that account's vendor and never moves off it. Needed for a codex account, which the pick never places an unpinned agent on. Omitted: the lead is placed as any agent. An unknown account is not_found, what account; one not logged in is accepted, and the lead waits for its login as any agent pinned to a logged-out account does."
+     }
+    },
+    {
      "name": "request_id",
      "required": true,
      "schema": {
