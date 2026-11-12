@@ -22,8 +22,11 @@ const StoreContext = createContext<Store | null>(null);
 /** A daemon just started or restarted takes a while to answer, so the first tries say so; later ones name the address and why the last try failed. */
 export function unreachableText(tries: number, where: string | undefined, e: unknown): string {
   if (tries <= STARTING_TRIES) return 'Starting the daemon…';
-  const why = e instanceof Error && e.message ? ` (${e.message})` : '';
-  return `The daemon${where ? ` at ${where}` : ''} does not answer${why}. Start Handline's daemon, or open the Handline app; trying again.`;
+  const reason = e instanceof Error ? e.message : '';
+  // The transport's own reason often names the address already: say it once.
+  const at = where && !reason.includes(where) ? ` at ${where}` : '';
+  const why = reason ? ` (${reason})` : '';
+  return `The daemon${at} does not answer${why}. Start Handline's daemon, or open the Handline app; trying again.`;
 }
 const STARTING_TRIES = 10;
 

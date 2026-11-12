@@ -12,3 +12,9 @@ test('later tries name the address, the reason, and what to do', () => {
   expect(t).toContain('the daemon took this app as guest');
   expect(t).toContain('Start Handline');
 });
+
+test('the address is said once when the reason already names it', () => {
+  const where = 'ws://127.0.0.1:7443/rpc';
+  const t = unreachableText(11, where, new Error(`cannot connect to ${where}`));
+  expect(t.split(where)).toHaveLength(2);
+});
