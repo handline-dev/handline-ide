@@ -76,15 +76,23 @@ func useCmd(c *hlclient.Client, args []string) (int, bool) {
 		fmt.Fprintf(os.Stderr, "hl use: %v\n", err)
 		return 1, true
 	}
-	lease := num(got, "lease")
+	lease, port := num(got, "lease"), num(got, "port")
 	if w := num(got, "waited_s"); w > 0 {
 		fmt.Fprintf(os.Stderr, "hl use: waited %s for a %s\n", time.Duration(w)*time.Second, kind)
 	}
 	if hold {
-		fmt.Printf("holding a %s (lease %d) until hl use --release or this turn's end\n", kind, lease)
+		what := "a " + kind
+		if kind == leases.Port {
+			what = fmt.Sprintf("port %d", port)
+		}
+		fmt.Printf("holding %s (lease %d) until hl use --release or this turn's end\n", what, lease)
 		return 0, true
 	}
-	code := run(command)
+	var env []string
+	if kind == leases.Port {
+		env = []string{fmt.Sprintf("HL_PORT=%d", port)}
+	}
+	code := run(command, env...)
 	if _, err := c.Call("lease.release", map[string]any{"agent": agent, "lease": lease}); err != nil {
 		fmt.Fprintf(os.Stderr, "hl use: giving the %s back: %v (the daemon frees it once this process is gone)\n", kind, err)
 	}
@@ -94,11 +102,14 @@ func useCmd(c *hlclient.Client, args []string) (int, bool) {
 // BlockedExit is hl use's exit code when its ask waits in line as a blocker on the agent's task: nothing ran (EX_TEMPFAIL).
 const BlockedExit = 75
 
-// run runs command with this process's input and output and is its exit code. hl outlives it to give the lease back: an interrupt
-// reaches the command from the terminal, and a termination is passed on.
-func run(command []string) int {
+// run runs command with this process's input and output and env added to its environment, and is its exit code. hl outlives it to
+// give the lease back: an interrupt reaches the command from the terminal, and a termination is passed on.
+func run(command []string, env ...string) int {
 	cmd := exec.Command(command[0], command[1:]...)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+	if len(env) > 0 {
+		cmd.Env = append(os.Environ(), env...)
+	}
 	if err := cmd.Start(); err != nil {
 		fmt.Fprintf(os.Stderr, "hl use: %v\n", err)
 		return 127
@@ -151,7 +162,7 @@ func leaseText(got obj) string {
 		out += line + "\n"
 	}
 	if out != "" {
-		out = "\n" + out + "`hl use <heavy|simulator|browser> -- <command>` waits for one and gives it back when the command exits.\n"
+		out = "\n" + out + "`hl use <heavy|simulator|browser|port> -- <command>` waits for one and gives it back when the command exits.\n"
 	}
 	return out
 }

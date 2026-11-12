@@ -220,6 +220,23 @@ func TestTheLeaseLimitsAreSetAndClearedForTheWholeMachine(t *testing.T) {
 	}
 }
 
+func TestThePortRangeIsWrittenAsLoHiAndRefusedOtherwise(t *testing.T) {
+	r := newRig(t)
+	r.result(r.one("settings.set", `{"changes":{"port_range":"4000-4999"},"request_id":"p1"}`))
+	if got := r.file("config.yaml"); !strings.Contains(got, "port_range: 4000-4999") {
+		t.Fatalf("%q", got)
+	}
+	for i, bad := range []string{`"4999-4000"`, `"4000"`, `4000`, `"0-10"`, `" 4000 - 4999 "`, `"+4000-4999"`} {
+		if r.code(r.one("settings.set", `{"changes":{"port_range":`+bad+`},"request_id":"p`+strconv.Itoa(i+2)+`"}`)) != "bad_request" {
+			t.Fatalf("%s was taken", bad)
+		}
+	}
+	r.result(r.one("settings.set", `{"changes":{"port_range":null},"request_id":"p9"}`))
+	if got := r.file("config.yaml"); strings.Contains(got, "port_range") {
+		t.Fatalf("cleared: %q", got)
+	}
+}
+
 func TestEveryPushSwitchIsAFounderFlagForTheWholeTeam(t *testing.T) {
 	for _, key := range []string{"push_prompt_asked", "push_task_done", "push_stall", "push_account_out"} {
 		r := newRig(t)
