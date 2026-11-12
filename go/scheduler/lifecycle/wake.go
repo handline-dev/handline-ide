@@ -156,6 +156,9 @@ func (m *Manager) StartForWork(agent string) (said string, err error) {
 	if why := m.loadHeld(agent); why != "" {
 		return fmt.Sprintf("%s: not started - %s", agent, why), nil
 	}
+	if w := m.Launch.WorkspaceWait(m.Q, agent); w != nil {
+		return fmt.Sprintf("%s: not started - %s", agent, DescribeWakeWait(w)), nil
+	}
 	// With no room `hl launch` would refuse in the new terminal, and the refusal would count against the agent though it is the accounts
 	// that are full.
 	if !m.Launch.ChooseAccount(m.Q, agent) {
@@ -447,6 +450,9 @@ func (m *Manager) wakeClosed(agent string, row *db.AgentState, handle, wt string
 	if movedTo == "" && !force && !m.waitingFor(agent) {
 		return false, NothingWaiting
 	}
+	if w := m.Launch.WorkspaceWait(m.Q, agent); w != nil {
+		return false, m.Launch.DescribeWakeWait(w) // before any move: no account frees a workspace's own cap
+	}
 	// A session closed with its context at the agent's limit (an idle close can come before the trigger was evaluated) would fire the
 	// context trigger at once if resumed: it starts fresh the way a close owing a handoff does.
 	if movedTo == "" && row.ResumeSession.String != "" && m.Handoff.ContextFull(m.Q, agent, row.ResumeSession.String) {
@@ -715,11 +721,11 @@ func (m *Manager) launchClosed(agent string, row *db.AgentState, wt, session str
 	// The slot is held from here, so a second wake in this tick sees it taken.
 	slot := c.movedTo
 	if slot == "" {
-		slot = m.Launch.AccountFor(m.Q, agent, session != "" && !cold)
+		if slot = m.Launch.AccountFor(m.Q, agent, session != "" && !cold); slot == "" {
+			return false, m.Launch.NoRoom(agent) // a resume with nowhere to go (its workspace's accounts rule): typed, it would be refused
+		}
 	}
-	if slot != "" {
-		must(db.AddEventFor(m.Q, agent, slot, "wake_reserved", db.KV{K: "account", V: slot}))
-	}
+	must(db.AddEventFor(m.Q, agent, slot, "wake_reserved", db.KV{K: "account", V: slot}))
 	took := false
 	if cold && must(db.GetHandoff(m.Q, agent)) == "" {
 		// The close that would have taken it failed, and the snapshot no longer names the session; the id on the row still does.

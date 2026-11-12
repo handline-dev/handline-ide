@@ -10,6 +10,7 @@ import (
 	"time"
 
 	dbpkg "github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/states"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/internal/reads"
@@ -220,5 +221,32 @@ func TestTheTriggerJudgesContextByTheAgentsOwnLimit(t *testing.T) {
 	// 60,000 is far under the 300,000 every agent has
 	if got, want := trigger(60000), (reads.Trigger{Applies: true, Fired: true, Kind: "context", Reason: "context 60,000 >= 50,000"}); got != want {
 		t.Fatalf("over his own limit: %+v", got)
+	}
+}
+
+// A wake held by its workspace's agent_cap is filed under cap and said in the trigger, and is no account's wall.
+func TestAWakeHeldByItsWorkspacesCapIsACapAndNoAccountsWall(t *testing.T) {
+	p, lc, _, _ := wired(t) // alice is closed, with one request from the person that nothing has delivered
+	d, home := p.db, p.home
+	teamtest.Seed(t, home, "alice.bob")
+	alice, bob := teamtest.Key(t, home, "alice"), teamtest.Key(t, home, "alice.bob")
+	ws, _, _ := team.WorkspaceID(d, "alice")
+	if err := team.SetRule(d, ws, team.RuleAgentCap, int64(1), "p1", 1); err != nil {
+		t.Fatal(err)
+	}
+	dbpkg.SetAgentState(d, bob, states.Running, 0, "")
+	dbpkg.SetAccount(d, bob, "a1", "")
+	row, _ := dbpkg.GetAgentState(d, alice)
+	if w, err := (lifecycleStarter{m: lc.Manager}).AccountWait(d, alice); err != nil || w != "cap" {
+		t.Fatalf("%q %v", w, err)
+	}
+	if w, err := (queueReasons{p}).Wall(d, alice, row); err != nil || w != nil {
+		t.Fatalf("%+v %v", w, err)
+	}
+	if got, err := p.Delivery().Trigger(d, alice, row, "a1"); err != nil || !strings.HasPrefix(got.Reason, "waiting for a slot in workspace alice") {
+		t.Fatalf("%+v %v", got, err)
+	}
+	if ok, said, _ := (controls{p: p, lc: lc}).ForceStart(alice); ok || !strings.HasPrefix(said, "A force start does not pass "+alice+"'s workspace rule: waiting for a slot") {
+		t.Fatalf("%v %q", ok, said)
 	}
 }

@@ -95,6 +95,23 @@ func (u *UsageAdapter) ActiveOn(q db.Q, acct, agent string) int {
 	return by[acct]
 }
 
+// MidTurn is every agent mid-turn, agent left out; nil when the count cannot be read.
+func (u *UsageAdapter) MidTurn(q db.Q, agent string) []string {
+	by, err := u.Env.ActiveByAccount(q)
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, names := range by {
+		for _, a := range names {
+			if a != agent {
+				out = append(out, a)
+			}
+		}
+	}
+	return out
+}
+
 // StatusAdapter is the StatusPort: what the daemon knows of an agent's session, its id and context from its status file.
 type StatusAdapter struct {
 	Env *usage.Env
