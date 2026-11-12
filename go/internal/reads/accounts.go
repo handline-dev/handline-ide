@@ -100,11 +100,11 @@ func loginWord(in, known bool) string {
 
 // accountsList is accounts.list: every account with its login, usage windows, agents, recent moves, label, caps and cycle.
 func (e *Env) accountsList(c *rpc.Conn, params map[string]any) (any, error) {
-	withUsage, err := boolParam(params, "usage")
+	withUsage, err := optBool(params, "usage")
 	if err != nil {
 		return nil, err
 	}
-	withRoster, err := boolParam(params, "roster")
+	withRoster, err := optBool(params, "roster")
 	if err != nil {
 		return nil, err
 	}
@@ -188,19 +188,6 @@ func (v *accountView) addRoster(acct map[string]any, a string, midTurn map[strin
 		acct["agents_background"] = background
 	}
 	return nil
-}
-
-// boolParam is the boolean param name, false when not given.
-func boolParam(params map[string]any, name string) (bool, error) {
-	u, given := params[name]
-	if !given {
-		return false, nil
-	}
-	b, ok := u.(bool)
-	if !ok {
-		return false, badParam(name+" is true or false", name)
-	}
-	return b, nil
 }
 
 // Account is the spec's Account of one account, as accounts.list shows it; false when there is no such account.
