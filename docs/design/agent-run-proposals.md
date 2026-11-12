@@ -14,7 +14,7 @@ Reused as they are: the run, its window, the live chat state, and `Tell`. Also t
 
 ## Decision: a proposal kind `run` whose approve starts a `cmdruns` run
 
-Approve = the daemon calls the same code as `shell.open` (extracted to a function both call) with the proposal's command and cwd, and the block `p<proposal id>:0`. `cmdruns.ParseBlock` gets the owner letter `p` (like `r` for a reply item); `Told` says "your proposed command" for it. The agent's sandbox and classifier wrap only the agent's own tool calls, so the window, opened by the daemon at the founder's press, is outside them.
+Approve = the daemon calls the same code as `shell.open` (extracted to a function both call) with the proposal's command, its own cwd (the function takes a cwd; `shell.open` passes the agent's worktree) and the block `p<proposal id>:0`. `cmdruns.Block` gets an owner kind (message, reply, proposal) in place of the `Reply` bool; `ParseBlock`, `owner()`, `OfBlocks` and the `LIKE` patterns learn `p`, the reply-ownership check does not apply to it, and `Told` says "your proposed command" for it. The agent's sandbox and classifier wrap only the agent's own tool calls, so the window, opened by the daemon at the founder's press, is outside them.
 
 ## The agent's side
 
@@ -32,8 +32,8 @@ Command in full (scrollable, never cut), cwd, why, who proposed, and the **risk 
 | Mark | Shown when the text has |
 |---|---|
 | delete | `rm`, `rmdir`, `find ... -delete`, `shred`, `git clean`, `git branch -D` |
-| overwrite | `>` or `>>` redirect, `mv`, `cp` to an existing path, `dd`, `truncate`, `sed -i`, `git reset --hard`, `git checkout -- `, `git push --force` |
-| network | `curl`, `wget`, `ssh`, `scp`, `rsync` to a host, `git push/pull/fetch`, `npm/pip install/publish` |
+| overwrite | `>` or `>>` redirect, `mv`, `dd`, `truncate`, `sed -i`, `git reset --hard`, `git checkout -- `, `git push --force` |
+| network | `curl`, `wget`, `ssh`, `scp`, `rsync`, `git push/pull/fetch`, `npm/pip install/publish` |
 | outside | an absolute or `~` or `..` path that is not under the cwd; one outside the founder's home is marked stronger |
 | privilege | `sudo`, `su`, `chmod -R`, `chown -R` (no terminal, so sudo fails at the password; the mark says so) |
 
@@ -60,7 +60,7 @@ To the card: state, exit, seconds, the window's last rows, through the chat stat
 - `proposal.list` row: add `run` = `{command, cwd, risks[], terminal, started, ended, exit}`; the chat's command-run state (T7389) accepts the block `p<proposal>:0`. An old client shows an unknown state as text.
 - New `proposal.stop` (owner, write; closes the window).
 - Errors: `bad_request` for a command too long or a missing cwd, `refused` for the sixth open card.
-- Nothing is off or on: no agent can start a run, so the feature does nothing until an agent proposes and the founder presses.
+- No setting: nothing runs until an agent proposes and the founder presses.
 
 ## Builder tasks (draft)
 
