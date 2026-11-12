@@ -7,12 +7,13 @@ import (
 
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/paths"
+	"github.com/handline/handline/go/kit/testfiles"
 	"github.com/handline/handline/go/kit/wslock"
 )
 
 func TestWorkspaceCreateMakesItsLeadOnTheCheckoutTopAndStartsIt(t *testing.T) {
 	r, sn, c := createRig(t)
-	repo, err := filepath.EvalSymlinks(checkout(t)) // git names a checkout's top by its real path
+	repo, err := filepath.EvalSymlinks(testfiles.GitCheckout(t)) // git names a checkout's top by its real path
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,13 +47,13 @@ func TestWorkspaceCreateRefusesBeforeAnyOperation(t *testing.T) {
 		name, folder string
 		check        func(map[string]any) bool
 	}{
-		{"shop.x", checkout(t), func(m map[string]any) bool { return badField(m) == "name" }},
+		{"shop.x", testfiles.GitCheckout(t), func(m map[string]any) bool { return badField(m) == "name" }},
 		{"shop", plain, func(m map[string]any) bool { return refused(m) == "not_git" }},
 		{"shop", filepath.Join(plain, "gone"), func(m map[string]any) bool {
 			e, _ := m["error"].(map[string]any)
 			return e["message"] != nil && refused(m) == "" && badField(m) == ""
 		}},
-		{"ann", checkout(t), func(m map[string]any) bool { return refused(m) == "state" }},
+		{"ann", testfiles.GitCheckout(t), func(m map[string]any) bool { return refused(m) == "state" }},
 	}
 	for i, tc := range cases {
 		m := c.call("workspace.create", map[string]any{"name": tc.name, "folder": tc.folder, "request_id": rid("wr" + string(rune('a'+i)))})
@@ -76,7 +77,7 @@ func TestNothingStartsInAWorkspaceBeingDeleted(t *testing.T) {
 	if g := refused(c.call("session.start", map[string]any{"agent": "ann", "request_id": rid("x1")})); g != "state" {
 		t.Errorf("session.start: gate %q", g)
 	}
-	if g := refused(c.call("agent.create", map[string]any{"name": "ann.new", "role": "r", "repo": checkout(t), "parent": "ann", "request_id": rid("x2")})); g != "state" {
+	if g := refused(c.call("agent.create", map[string]any{"name": "ann.new", "role": "r", "repo": testfiles.GitCheckout(t), "parent": "ann", "request_id": rid("x2")})); g != "state" {
 		t.Errorf("agent.create: gate %q", g)
 	}
 	if len(r.ctl.calls) != 0 {
