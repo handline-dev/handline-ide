@@ -193,6 +193,11 @@ func (e *Env) run(c *rpc.Conn, name string, params map[string]any, hold bool, fn
 	if err != nil {
 		return nil, err
 	}
+	release, err := e.useWorkspace(agent)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
 	var result map[string]any
 	if hold {
 		h := lock.TakeTerminal(e.Home, agent)
