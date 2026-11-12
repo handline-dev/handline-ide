@@ -40,10 +40,10 @@ func TestTeamRulesAreTheTeamsTheAgentIsInWithText(t *testing.T) {
 	}
 	tm := &Team{Teams: map[string][]string{"zeta": {"a"}, "alpha": {"b", "a"}, "empty": {"a"}, "other": {"b"}, "nofile": {"a"}}}
 	want := []string{"# Rules for team alpha\nfirst rule", "# Rules for team zeta\nlast"}
-	if got := Rules(home, "a", tm); !reflect.DeepEqual(got, want) {
+	if got := Rules(home, "a", tm, noKept); !reflect.DeepEqual(got, want) {
 		t.Errorf("got %q", got)
 	}
-	if got := Rules(home, "a", nil); got != nil {
+	if got := Rules(home, "a", nil, noKept); got != nil {
 		t.Errorf("no routing: %q", got)
 	}
 	if RulesFile(home, "alpha") != filepath.Join(home, "workspaces", paths.WorkspaceKey(home, "alpha"), "base.md") {
@@ -89,3 +89,5 @@ func TestSeedRulesWritesEachNewTeamTheDefaultOnce(t *testing.T) {
 		t.Errorf("a team added later is not seeded: %q", got)
 	}
 }
+
+func noKept(string) string { return "" }

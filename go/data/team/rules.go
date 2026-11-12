@@ -84,13 +84,32 @@ func RuleFiles(home, agent string, t *Team) []string {
 	return files
 }
 
-// Rules is the text of each of the agent's rules files, as "# Rules for team X\n<text>" (launch._team_rules).
-func Rules(home, agent string, t *Team) []string {
-	names, files := teamRules(home, agent, t)
+// Rules is each of the agent's teams' rules, as "# Rules for team X\n<text>" (launch._team_rules): its rules file, then kept(team), the
+// kept rules in force (RulesBlock). A team with neither has none.
+func Rules(home, agent string, t *Team, kept func(team string) string) []string {
+	if t == nil {
+		return nil
+	}
+	var names []string
+	for name, members := range t.Teams {
+		if slices.Contains(members, agent) {
+			names = append(names, name)
+		}
+	}
+	slices.Sort(names)
 	var out []string
-	for i, f := range files {
-		b, _ := os.ReadFile(f)
-		out = append(out, fmt.Sprintf("# Rules for team %s\n%s", names[i], textsafe.Strip(string(b))))
+	for _, name := range names {
+		b, _ := os.ReadFile(RulesFile(home, name))
+		text := textsafe.Strip(string(b))
+		if block := kept(name); block != "" {
+			if text != "" {
+				text += "\n\n"
+			}
+			text += block
+		}
+		if text != "" {
+			out = append(out, fmt.Sprintf("# Rules for team %s\n%s", name, text))
+		}
 	}
 	return out
 }
