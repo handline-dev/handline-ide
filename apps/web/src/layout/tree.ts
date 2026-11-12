@@ -155,7 +155,7 @@ export function reduce(root: Node, action: Action): Node {
 
 function move(root: Node, from: string, ids: string[], shown: string, to: Target): Node {
   const src = findPane(root, from);
-  const group = src?.tabs.filter((t) => ids.includes(t.id) && t.closable !== false) ?? [];
+  const group = src?.tabs.filter((t) => ids.includes(t.id)) ?? []; // a pinned tab moves too; it only never closes
   if (!src || !group.length || !findPane(root, to.pane)) return root;
   const active = group.some((t) => t.id === shown) ? shown : group[group.length - 1].id;
   const moving = new Set(group.map((t) => t.id));

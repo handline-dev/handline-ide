@@ -1,6 +1,6 @@
 import { howOf, type How } from '#src/layout/openTab.tsx';
 import { Plus, X } from 'lucide-react';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { clickPick, dragged, noPick, type Pick } from '#src/ui/tabPick.ts';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { useSpringOpen } from '#src/ui/springOpen.ts';
@@ -31,15 +31,21 @@ export function Tab({
   onPress?: (e: React.MouseEvent) => void;
   onDragEnd?: () => void;
   onClose: () => void;
-  /** Makes the tab draggable (pinned tabs never are); fill the drag's dataTransfer here. */
+  /** Makes the tab draggable, a pinned one too; fill the drag's dataTransfer here. */
   onDragStart?: (e: React.DragEvent) => void;
 }) {
   const closable = tab.closable !== false;
-  const draggable = closable && !!onDragStart;
+  const draggable = !!onDragStart;
   // Files held over a tab bring it up, so they can be dropped in it.
   const spring = useSpringOpen(onSelect);
+  // The shown tab is always in view of a bar that scrolls.
+  const el = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (active) el.current?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+  }, [active]);
   return (
     <div
+      ref={el}
       {...spring.props}
       role="tab"
       draggable={draggable}
@@ -47,7 +53,7 @@ export function Tab({
       onDragEnd={onDragEnd}
       aria-selected={active}
       onClick={onPress ?? onSelect}
-      className={`group flex h-7 select-none max-w-48 min-w-20 cursor-default items-center gap-1 rounded-md text-sm ${
+      className={`group flex h-7 select-none max-w-48 min-w-20 shrink-0 cursor-default items-center gap-1 rounded-md text-sm ${
         closable ? 'pr-1.5 pl-3' : 'px-2.5'
       } ${
         picked
@@ -124,76 +130,86 @@ export function TabBar({
     if (next.show) onSelect(id);
   };
   return (
-    <div role="tablist" aria-multiselectable className="flex h-10 items-center gap-1 border-b border-border bg-surface px-2">
-      {tabs.map((t, i) => {
-        const tab = (
-          <Tab
-            key={t.id}
-            tab={t}
-            active={t.id === active}
-            picked={shown.has(t.id)}
-            faded={dragging && shown.has(t.id)}
-            onSelect={() => onSelect(t.id)}
-            onPress={(e) => click(t.id, e)}
-            onClose={() => t.closable !== false && onClose(t.id)}
-            onDragStart={
-              onTabDragStart &&
-              ((e) => {
-                const carried = dragged({ ...pick, picked: [...shown] }, t.id);
-                if (carried.length > 1) {
-                  setDragging(true);
-                  dragLabel(e, `${carried.length} tabs`);
-                }
-                onTabDragStart(t.id, carried, e);
-              })
-            }
-            onDragEnd={() => {
-              if (dragging) setPick(noPick);
-              setDragging(false);
-            }}
-          />
-        );
-        if (!onCloseTabs) return tab;
-        const closable = (l: TabItem[]) => l.filter((x) => x.closable !== false).map((x) => x.id);
-        const others = closable(tabs.filter((x) => x.id !== t.id));
-        const right = closable(tabs.slice(i + 1));
-        const picked = shown.has(t.id) ? closable(tabs.filter((x) => shown.has(x.id))) : [];
-        return (
-          <ContextMenu
-            key={t.id}
-            items={
-              <>
-                {picked.length > 1 ? (
-                  <MenuItem
-                    onClick={() => {
-                      setPick(noPick);
-                      onCloseTabs(picked);
-                    }}
-                  >
-                    Close {picked.length} picked tabs
+    // Tabs keep their width; the strip scrolls sideways, by wheel too; + stays at the end.
+    <div className="flex h-10 items-center gap-1 border-b border-border bg-surface px-2">
+      <div
+        role="tablist"
+        aria-multiselectable
+        onWheel={(e) => {
+          if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) e.currentTarget.scrollLeft += e.deltaY;
+        }}
+        className="flex min-w-0 items-center gap-1 overflow-x-auto"
+      >
+        {tabs.map((t, i) => {
+          const tab = (
+            <Tab
+              key={t.id}
+              tab={t}
+              active={t.id === active}
+              picked={shown.has(t.id)}
+              faded={dragging && shown.has(t.id)}
+              onSelect={() => onSelect(t.id)}
+              onPress={(e) => click(t.id, e)}
+              onClose={() => t.closable !== false && onClose(t.id)}
+              onDragStart={
+                onTabDragStart &&
+                ((e) => {
+                  const carried = dragged({ ...pick, picked: [...shown] }, t.id);
+                  if (carried.length > 1) {
+                    setDragging(true);
+                    dragLabel(e, `${carried.length} tabs`);
+                  }
+                  onTabDragStart(t.id, carried, e);
+                })
+              }
+              onDragEnd={() => {
+                if (dragging) setPick(noPick);
+                setDragging(false);
+              }}
+            />
+          );
+          if (!onCloseTabs) return tab;
+          const closable = (l: TabItem[]) => l.filter((x) => x.closable !== false).map((x) => x.id);
+          const others = closable(tabs.filter((x) => x.id !== t.id));
+          const right = closable(tabs.slice(i + 1));
+          const picked = shown.has(t.id) ? closable(tabs.filter((x) => shown.has(x.id))) : [];
+          return (
+            <ContextMenu
+              key={t.id}
+              items={
+                <>
+                  {picked.length > 1 ? (
+                    <MenuItem
+                      onClick={() => {
+                        setPick(noPick);
+                        onCloseTabs(picked);
+                      }}
+                    >
+                      Close {picked.length} picked tabs
+                    </MenuItem>
+                  ) : (
+                    <MenuItem disabled={t.closable === false} onClick={() => onClose(t.id)}>
+                      Close
+                    </MenuItem>
+                  )}
+                  <MenuItem disabled={!others.length} onClick={() => onCloseTabs(others)}>
+                    Close others
                   </MenuItem>
-                ) : (
-                  <MenuItem disabled={t.closable === false} onClick={() => onClose(t.id)}>
-                    Close
+                  <MenuItem disabled={!right.length} onClick={() => onCloseTabs(right)}>
+                    Close tabs to the right
                   </MenuItem>
-                )}
-                <MenuItem disabled={!others.length} onClick={() => onCloseTabs(others)}>
-                  Close others
-                </MenuItem>
-                <MenuItem disabled={!right.length} onClick={() => onCloseTabs(right)}>
-                  Close tabs to the right
-                </MenuItem>
-                <MenuSeparator />
-                <MenuItem disabled={!closable(tabs).length} onClick={() => onCloseTabs(closable(tabs))}>
-                  Close all
-                </MenuItem>
-              </>
-            }
-          >
-            {tab}
-          </ContextMenu>
-        );
-      })}
+                  <MenuSeparator />
+                  <MenuItem disabled={!closable(tabs).length} onClick={() => onCloseTabs(closable(tabs))}>
+                    Close all
+                  </MenuItem>
+                </>
+              }
+            >
+              {tab}
+            </ContextMenu>
+          );
+        })}
+      </div>
       {onAdd && newTabKinds.length > 0 && (
         <Menu
           trigger={
