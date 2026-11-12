@@ -128,7 +128,6 @@ func TestScenarioAWindowEdges(t *testing.T) {
 	})
 	t.Run("A6 a reading older than its trust window is unknown, not empty", func(t *testing.T) {
 		w := newWorld(t, map[string]acct{"alpha": {short: 10, week: 10, age: StaleAfterS + 1}, "beta": {short: 60, week: 60}})
-		t.Skip("T9056: Urgency ranks a stale (carried_old) week, so alpha is picked over beta")
 		st := w.env.Read("alpha")
 		if !st.Stale() {
 			t.Fatal("not stale")
@@ -138,7 +137,7 @@ func TestScenarioAWindowEdges(t *testing.T) {
 		}
 		// Admitted only as the account nobody has run on lately (the idle floor), never as a ranked one; beta, read, wins.
 		picked, why := w.pick([]string{"alpha", "beta"}, nil, "")
-		if picked != "beta" || !strings.Contains(why["alpha"], "nothing has run on it") {
+		if picked != "beta" || !strings.HasSuffix(why["alpha"], "- stale but idle") {
 			t.Fatalf("picked %q, alpha: %q", picked, why["alpha"])
 		}
 	})
@@ -188,12 +187,8 @@ func TestScenarioBCap(t *testing.T) {
 		}
 	}
 	t.Run("B9 cap 0 takes nothing, and says so rather than 0 of 0", func(t *testing.T) {
-		got := Unfit(st, &Load{Account: "alpha", Cap: 0}, "")
-		if got == "" {
-			t.Fatal("a cap-0 account takes a start")
-		}
-		if strings.Contains(got, "0 of 0") {
-			t.Skipf("T9058: %q", got)
+		if got := Unfit(st, &Load{Account: "alpha", Cap: 0}, ""); got != "takes no agents: its cap is 0 (0 mid-turn)" {
+			t.Fatalf("%q", got)
 		}
 	})
 }
