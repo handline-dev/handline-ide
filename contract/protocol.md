@@ -67,6 +67,8 @@ Every error is a JSON-RPC error whose `data.code` is the stable string. A refusa
 | `access_needed` | chat.send: a ref is outside what the agent may read and chat_refs_need_grant is on (x-access). data.agent and data.paths name them. |
 | `behind` | doc.push: the version is not the doc's current one. Nothing was taken; data.version is the current one. |
 | `reopen` | doc.push, doc.pull: the doc id is not the loaded copy, or the version is older than the kept updates. Open the doc again. |
+| `lease_ceiling` | lease.take: no lease came free in 30 minutes for a call held open (a shell with no current task); nothing ran. |
+| `lease_wait` | lease.take: no lease is free, so the agent's current task now waits on a gate task for one and comes back by itself when a lease is reserved for it; hl use exits 75 and nothing ran. |
 
 ## App cache and writes
 

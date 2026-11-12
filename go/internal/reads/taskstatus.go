@@ -23,6 +23,8 @@ func (e *Env) statusOf(t row, state string, waiting map[string]any, since int64)
 	}
 	if waiting == nil {
 		switch {
+		case owner == db.Gate && t.str("watch_label") == "": // a lease's gate
+			return at(status.Running, status.Watch, t.str("title"), t.i("sent_at")), nil
 		case owner == db.Gate:
 			text := "watching " + t.str("watch_label")
 			if why := t.str("watch_error"); why != "" {

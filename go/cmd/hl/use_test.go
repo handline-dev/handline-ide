@@ -36,6 +36,19 @@ func TestUseRefusedRunsNothing(t *testing.T) {
 	}
 }
 
+func TestUseWhoseAskWaitsAsABlockerExits75AndRunsNothing(t *testing.T) {
+	r := newRig(t)
+	why := "No browser is free: T20 now waits for one (gate T1001) and comes back by itself once one is reserved for it; then run this hl use again. Take your next task. Nothing ran."
+	calls := r.daemon(map[string]string{"lease.take": "error[lease_wait]:" + why})
+	out, _, code := r.run(asAgent, "use", "browser", "--", "sh", "-c", "echo ran")
+	if code != BlockedExit || out != why+"\n" {
+		t.Fatalf("%q %d", out, code)
+	}
+	if got := calls(); len(got) != 1 || got[0]["method"] != "lease.take" {
+		t.Fatalf("calls %v", got)
+	}
+}
+
 func TestUseHoldAndRelease(t *testing.T) {
 	r := newRig(t)
 	calls := r.daemon(map[string]string{"lease.take": `{"lease":5,"waited_s":0}`, "lease.release": `{"released":1}`})

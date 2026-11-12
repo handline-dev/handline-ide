@@ -428,10 +428,14 @@ func OpenTask(tx *sql.Tx, tell Teller, me string, in NewIn) (tid int64, asked *A
 		}
 		return nil
 	}
-	if in.Watch != nil {
-		// A gate asks no one: the daemon holds it and closes it when what it watches changes.
+	if owner == db.Gate {
+		// A gate asks no one: the daemon holds it and closes it, when what it watches changes or, with no watch, when the part that
+		// opened it is done (a lease reserved).
 		if err := open(0); err != nil {
 			return 0, nil, err
+		}
+		if in.Watch == nil {
+			return tid, &Asked{OK: true, Msg: in.Title}, db.OpenGate(tx, tid, me, db.Watch{})
 		}
 		if err := db.OpenGate(tx, tid, me, *in.Watch); err != nil {
 			return 0, nil, err

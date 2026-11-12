@@ -58,7 +58,9 @@
   "worktree": "agent.retire: a worktree of the agent cannot be removed, so the agent is not retired: the founder answered keep for one that holds work, or it is locked, on no branch or on main (force removes the last two). The reason names the worktree and why; nothing was changed.",
   "access_needed": "chat.send: a ref is outside what the agent may read and chat_refs_need_grant is on (x-access). data.agent and data.paths name them.",
   "behind": "doc.push: the version is not the doc's current one. Nothing was taken; data.version is the current one.",
-  "reopen": "doc.push, doc.pull: the doc id is not the loaded copy, or the version is older than the kept updates. Open the doc again."
+  "reopen": "doc.push, doc.pull: the doc id is not the loaded copy, or the version is older than the kept updates. Open the doc again.",
+  "lease_ceiling": "lease.take: no lease came free in 30 minutes for a call held open (a shell with no current task); nothing ran.",
+  "lease_wait": "lease.take: no lease is free, so the agent's current task now waits on a gate task for one and comes back by itself when a lease is reserved for it; hl use exits 75 and nothing ran."
  },
  "x-app": {
   "rule": "Every read has x-app-cache and every write x-app-write; false: the app does not cache that read or make that write. contract/generate.py fails a method with neither.",
@@ -4032,8 +4034,8 @@
   },
   {
    "name": "lease.take",
-   "summary": "hl use asks for a test or build run, simulator or browser lease: the call is held until one is free and no ask is ahead in line (per kind, the workspace that held the kind least in the last hour first, then first come first served), then answers the lease. Refused after 30 minutes, naming who holds them.",
-   "description": "With the kind's limit 0 (heavy_max, simulator_max, browser_max) it is granted at once. A command's lease (hold false) belongs to the calling process, the hl use the command runs under: it is freed by lease.release, by the agent's session end, or within 5 s once that process and every process last seen under it are gone. A hold is freed by lease.release or the agent's turn or session end; the PreToolUse guard lets the agent's own starters of its kind through while it is held. An ask whose caller hangs up leaves the queue. Leases are stored: after a restart a hold is kept until its holder's turn ends, and a command's lease while the hl use process it was granted to runs.",
+   "summary": "hl use asks for a test or build run, simulator or browser lease. A free one with no ask ahead in line (per kind, the workspace that held the kind least in the last hour first, then first come first served), or one reserved for the agent's current task, is answered at once. Otherwise an agent with a current task is refused with gate lease_wait: its task waits in line on a gate task and comes back when a lease is reserved for it. A call with no current task is held until one is free, refused after 30 minutes naming who holds them.",
+   "description": "With the kind's limit 0 (heavy_max, simulator_max, browser_max) it is granted at once. A command's lease (hold false) belongs to the calling process, the hl use the command runs under: it is freed by lease.release, by the agent's session end, or within 5 s once that process and every process last seen under it are gone. A hold is freed by lease.release or the agent's turn or session end; the PreToolUse guard lets the agent's own starters of its kind through while it is held. An ask whose caller hangs up leaves the queue. Leases are stored: after a restart a hold is kept until its holder's turn ends, and a command's lease while the hl use process it was granted to runs. A lease reserved for a task waits 10 minutes (lease_claim) for its agent's hl use, then goes to the next ask; its task is not blocked again until its next hl use asks again; an ask or reservation whose task ends or leaves its agent is dropped and its gate closed. Reserved leases count toward the limit; turn and session ends leave them.",
    "paramStructure": "by-name",
    "params": [
     {
@@ -4098,6 +4100,10 @@
     {
      "$ref": "#/components/errors/bad_request"
     }
+   ],
+   "x-gates": [
+    "lease_wait",
+    "lease_ceiling"
    ]
   },
   {
@@ -4246,6 +4252,14 @@
               "type": "integer"
              },
              "description": "Its processes at the last sample: the hl use process and its descendants, or the agent's processes of a hold's kind."
+            },
+            "reserved_for": {
+             "type": "integer",
+             "description": "A reservation: the task it is kept for until its agent runs hl use on it (lease_claim)."
+            },
+            "until": {
+             "$ref": "#/components/schemas/Timestamp",
+             "description": "A reservation: when it goes to the next ask if not taken."
             }
            }
           }
@@ -4277,6 +4291,10 @@
             "says": {
              "type": "string",
              "description": "The wait in words, for the agent view: 'waiting for a browser, 2nd in line, held by a and b'."
+            },
+            "task": {
+             "type": "integer",
+             "description": "The task the ask blocks (its gate waits on this lease); absent for a call held open."
             }
            }
           }
