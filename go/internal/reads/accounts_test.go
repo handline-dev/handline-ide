@@ -364,3 +364,70 @@ func TestAccountsListSaysAPausedAccountIsPausedAndTakesNoAgent(t *testing.T) {
 		t.Errorf("good: paused %v, not_picked %v", good["paused"], good["not_picked"])
 	}
 }
+
+// Scenario B3 and B7 (docs/design/account-assignment-scenarios.md), the 7 / 2 fixture: alpha, cap 2, has 7 agents, 3 mid-turn and 4 at
+// their prompt with background work running. agents_running is the mid-turn count the cap holds to; the 4 are counted apart, not in it.
+func TestAccountsListRosterCountsMidTurnAsTheCapDoesAndBackgroundWorkApart(t *testing.T) {
+	t.Parallel()
+	e := testEnv(t)
+	now := time.Now().Unix()
+	dir := teamtest.AccountDir(t, e.Home, "alpha")
+	os.MkdirAll(dir, 0o755)
+	os.WriteFile(filepath.Join(dir, "status.json"), []byte(fmt.Sprintf(`{"collected_at": %d, "windows": [{"minutes": 300, "used_percent": 10, "resets_at": %d, "observed_at": %d}, {"minutes": 10080, "used_percent": 10, "resets_at": %d, "observed_at": %d}]}`, now-5, now+3600, now-5, now+90000, now-5)), 0o644)
+	os.WriteFile(filepath.Join(dir, ".credentials.json"), []byte("{}"), 0o600)
+	if err := usage.SetAccount(e.DB, "alpha", map[string]any{"active_cap": 2}); err != nil {
+		t.Fatal(err)
+	}
+	bg := map[string]bool{}
+	for i, n := range []string{"ann", "bob", "cal", "dee", "eve", "fay", "gus"} {
+		addAgent(t, e, n, "")
+		state, key := "RUNNING", teamtest.Key(t, e.Home, n)
+		if i >= 3 {
+			state, bg[key] = "IDLE", true
+		}
+		if _, err := e.DB.Exec("INSERT INTO agent_state(agent, state, account, updated) VALUES(?, ?, 'alpha', 1)", key, state); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// A running agent's session may run background work too: it is mid-turn, so it is counted there only.
+	bg[teamtest.Key(t, e.Home, "ann")] = true
+	// hal runs on beta while its view still says alpha (just moved): it counts on beta only, in neither of alpha's figures.
+	os.MkdirAll(teamtest.AccountDir(t, e.Home, "beta"), 0o755)
+	addAgent(t, e, "hal", "")
+	hal := teamtest.Key(t, e.Home, "hal")
+	bg[hal] = true
+	if _, err := e.DB.Exec("INSERT INTO agent_state(agent, state, account, updated) VALUES(?, 'RUNNING', 'beta', 1)", hal); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.DB.Exec(`INSERT INTO agent_view(agent, view, updated) VALUES(?, '{"account": "alpha"}', 1)`, hal); err != nil {
+		t.Fatal(err)
+	}
+	e.Delivery = fakeDelivery{background: bg}
+
+	got, err := e.accountsList(nil, map[string]any{"roster": true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows := map[string]map[string]any{}
+	for _, r := range got.(map[string]any)["accounts"].([]any) {
+		rows[r.(map[string]any)["name"].(string)] = r.(map[string]any)
+	}
+	a, b := rows["alpha"], rows["beta"]
+	if b["agents_assigned"] != 1 || b["agents_running"] != 1 || b["agents_background"] != 0 {
+		t.Fatalf("beta: assigned %v running %v background %v", b["agents_assigned"], b["agents_running"], b["agents_background"])
+	}
+	if a["agents_assigned"] != 7 || a["agents_running"] != 3 || a["agents_background"] != 4 || a["cap_effective"] != 2 {
+		t.Fatalf("assigned %v running %v background %v cap %v", a["agents_assigned"], a["agents_running"], a["agents_background"], a["cap_effective"])
+	}
+	by, err := e.usageEnv().ActiveByAccount(e.DB)
+	if err != nil || len(by["alpha"]) != a["agents_running"] {
+		t.Fatalf("the cap's own count %v (%v) is not agents_running %v", by["alpha"], err, a["agents_running"])
+	}
+	plain, _ := e.accountsList(nil, nil)
+	if _, has := plain.(map[string]any)["accounts"].([]any)[0].(map[string]any)["agents_running"]; has {
+		t.Fatal("the roster counts are only there when asked for")
+	}
+	if _, err := e.accountsList(nil, map[string]any{"roster": 1}); err == nil {
+		t.Fatal("a roster that is not a boolean is refused")
+	}
+}

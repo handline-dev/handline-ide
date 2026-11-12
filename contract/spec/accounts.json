@@ -187,7 +187,12 @@
      "agents_running": {
       "type": "integer",
       "minimum": 0,
-      "description": "Only with accounts.list `roster: true`. Those of them that are mid-turn or otherwise running."
+      "description": "Only with accounts.list `roster: true`. Agents mid-turn on this account: the count cap_effective holds to."
+     },
+     "agents_background": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Only with accounts.list `roster: true`, and absent when the daemon runs no supervisor. Agents on this account at their prompt whose session still runs background work; never in agents_running."
      },
      "agents_unplaced": {
       "type": "integer",
@@ -1131,7 +1136,7 @@
      "required": false,
      "schema": {
       "type": "boolean",
-      "description": "Add each account's agents_assigned, agents_running and agents_unplaced. Default false."
+      "description": "Add each account's agents_assigned, agents_running, agents_background and agents_unplaced. Default false."
      }
     },
     {
