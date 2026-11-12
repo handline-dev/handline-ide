@@ -219,9 +219,9 @@ export type TaskDetail = Task & {
     /** Dollars by model. */
     by_model: { [key: string]: number };
   } | null;
-  /** The to-do list of the session working the task now (acting), as it keeps it; not the note task.progress sets. Absent when that session keeps none, and on a done or discarded task. */
-  progress?: {
-    /** Items checked off; at most total. */
+  /** The to-do list of the session working the task now (acting), as it keeps it; not the note task.progress sets. Absent when that session keeps none, on a done or discarded task, and from a daemon that does not send it. */
+  todo?: {
+    /** Items checked off. A session can report more than total; a client draws min(done, total). */
     done: number;
     /** Items on the list. */
     total: number;

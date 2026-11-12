@@ -987,13 +987,13 @@
         ],
         "description": "What the task and its subtasks cost, null when nothing was charged to them."
        },
-       "progress": {
+       "todo": {
         "type": "object",
         "properties": {
          "done": {
           "type": "integer",
           "minimum": 0,
-          "description": "Items checked off; at most total."
+          "description": "Items checked off. A session can report more than total; a client draws min(done, total)."
          },
          "total": {
           "type": "integer",
@@ -1022,7 +1022,7 @@
          "current",
          "updated_at"
         ],
-        "description": "The to-do list of the session working the task now (acting), as it keeps it; not the note task.progress sets. Absent when that session keeps none, and on a done or discarded task."
+        "description": "The to-do list of the session working the task now (acting), as it keeps it; not the note task.progress sets. Absent when that session keeps none, on a done or discarded task, and from a daemon that does not send it."
        }
       },
       "required": [
