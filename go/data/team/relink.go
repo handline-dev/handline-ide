@@ -12,6 +12,9 @@ func sharedItems(vendor string) []string {
 	if vendor == DefaultVendor {
 		return []string{"settings.json", "CLAUDE.md", "skills", "agents", "commands", "plugins"}
 	}
+	if vendor == "codex" {
+		return []string{"hooks.json"}
+	}
 	return nil // opencode's config is under XDG_DATA_HOME, which every account already shares
 }
 
