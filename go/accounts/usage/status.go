@@ -159,6 +159,9 @@ func (s *AccountStatus) ShortSource() string {
 	if s.Short.Pct == nil {
 		return "quiet"
 	}
+	if s.Short.Reset != 0 && float64(s.Short.Reset) <= s.now() {
+		return "unknown" // a window that has rolled over since: RolledOver's case
+	}
 	age := s.ShortAgeS()
 	if age != nil && *age > CarryMaxAgeS {
 		return "carried_old"
@@ -300,6 +303,10 @@ func (s *AccountStatus) assignable(active int) (bool, string, string) {
 	}
 	pct := s.ShortTrusted()
 	if pct == nil {
+		if week := s.LongTrusted(); week != nil && *week >= LongBlock && s.Short.Reset != 0 && float64(s.Short.Reset) <= s.now() {
+			// the shortest window rolled over since the reading; the week did not
+			return false, fmt.Sprintf("%s usage %d%% >= %d%%", s.Long.Label(), *week, LongBlock), KindWeekCap
+		}
 		return false, fmt.Sprintf("%s usage unknown (fail-closed)", s.Short.Label()), KindOther
 	}
 	if *pct >= ShortBlock {
@@ -352,10 +359,11 @@ func (s *AccountStatus) takesWork(active int) (bool, string, string) {
 	return ok, why, kind
 }
 
-// RolledOver: a stale account whose shortest window has passed can take work if its last weekly reading had room: the session that
-// starts there writes a fresh reading, and the move trigger takes the agent off if it is full.
+// RolledOver: an account whose shortest window has passed since its reading (a stale one, or a fresh one past its reset) can take
+// work if its last weekly reading had room: the session that starts there writes a fresh reading, and the move trigger takes the
+// agent off if it is full.
 func (s *AccountStatus) RolledOver() (bool, string) {
-	if !s.Exists || s.Error != "" || s.Long.Lost || !s.Stale() || s.AgeS() == nil {
+	if !s.Exists || s.Error != "" || s.Long.Lost || s.AgeS() == nil || (!s.Stale() && s.Short.Reset == 0) {
 		return false, ""
 	}
 	now := s.now()
@@ -370,20 +378,28 @@ func (s *AccountStatus) RolledOver() (bool, string) {
 	}
 	week := s.Long.Pct
 	weekOver := s.Long.Reset != 0 && float64(s.Long.Reset) <= now
-	if week == nil && !weekOver {
+	if week == nil && !weekOver && s.Stale() { // a fresh reading with no week was assignable before its window rolled
 		return false, ""
 	}
 	if week != nil && *week >= LongBlock && !weekOver {
 		return false, ""
 	}
+	stale := "stale, "
+	if !s.Stale() {
+		stale = ""
+	}
 	if last := s.LastKnown(); last != "" {
-		return true, last + " - stale, window rolled over"
+		return true, last + " - " + stale + "window rolled over"
 	}
 	shown := "its week has rolled over"
-	if !weekOver {
+	switch {
+	case weekOver:
+	case week == nil:
+		shown = s.Long.Label() + " unknown"
+	default:
 		shown = fmt.Sprintf("%s %d%%", s.Long.Label(), *week)
 	}
-	return true, "stale, window rolled over, " + shown
+	return true, stale + "window rolled over, " + shown
 }
 
 // IdleFloor: a stale account still inside its shortest window with no agent of ours mid-turn on it is idle, not unknown, and keeps

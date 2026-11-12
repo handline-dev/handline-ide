@@ -90,7 +90,6 @@ func TestScenarioAWindowEdges(t *testing.T) {
 		}
 	})
 	t.Run("A3 5h at W resetting in 60 s: refused at +59 s, picked at +61 s", func(t *testing.T) {
-		t.Skip("T9057: a fresh 5h reading keeps refusing past its reset until the next reading")
 		w := newWorld(t, map[string]acct{"alpha": {short: WallPct, shortReset: 60}})
 		w.now += 59
 		if picked, why := w.pick([]string{"alpha"}, nil, ""); picked != "" {
@@ -108,7 +107,7 @@ func TestScenarioAWindowEdges(t *testing.T) {
 			t.Fatalf("picked %q, alpha: %q", picked, why["alpha"])
 		}
 		if !strings.Contains(why["alpha"], "resets") {
-			t.Skipf("T9057: the reason does not name the reset: %q", why["alpha"])
+			t.Skipf("T9060: the reason does not name the reset: %q", why["alpha"])
 		}
 	})
 	t.Run("A5 a subscription ending before the week resets ends the week; once passed, no urgency", func(t *testing.T) {
