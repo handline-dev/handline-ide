@@ -91,7 +91,7 @@ One file per group, generated from `spec/<group>.json`; field types are in `prot
 - [devices](gen/devices.md): 6 methods
 - [repos](gen/repos.md): 15 methods
 - [tasks](gen/tasks.md): 40 methods
-- [team](gen/team.md): 15 methods
+- [team](gen/team.md): 16 methods
 - [terminal](gen/terminal.md): 9 methods
 
 ## Who the caller is
@@ -140,6 +140,7 @@ Every `hl` command an agent runs today and the method that serves it.
 | `hl wake` | `session.wake` |
 | `hl propose add|retire|rename|team|context` | `proposal.propose` |
 | `hl propose diff` | `proposal.propose` |
+| `hl propose run` | `proposal.propose` |
 | `hl propose withdraw` | `proposal.withdraw` |
 | `hl propose list` | `proposal.list` |
 | `hl trust add` | `trust.propose` |

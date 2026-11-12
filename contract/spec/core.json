@@ -112,6 +112,7 @@
   "hl wake": "session.wake",
   "hl propose add|retire|rename|team|context": "proposal.propose",
   "hl propose diff": "proposal.propose",
+  "hl propose run": "proposal.propose",
   "hl propose withdraw": "proposal.withdraw",
   "hl propose list": "proposal.list",
   "hl trust add": "trust.propose",
