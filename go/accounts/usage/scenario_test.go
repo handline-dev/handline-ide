@@ -267,3 +267,26 @@ func TestScenarioCOrder(t *testing.T) {
 		}
 	})
 }
+
+// E6: a tick on the very second an account's 5h window resets has one answer, the same in two runs; the second before, the wall holds.
+func TestScenarioE6ATickOnTheResetSecondHasOneAnswer(t *testing.T) {
+	run := func(offset int64) (string, map[string]string) {
+		w := newWorld(t, map[string]acct{"beta": {short: 10}})
+		reset := w.now
+		w.now += offset
+		writeStatus(t, w.home, "alpha", map[string]any{"collected_at": reset - 60, "windows": []any{
+			map[string]any{"minutes": 300, "used_percent": 100, "resets_at": reset, "observed_at": reset - 60},
+			map[string]any{"minutes": 10080, "used_percent": 10, "resets_at": reset + WeekS/2, "observed_at": reset - 60}}})
+		return w.pick([]string{"alpha", "beta"}, nil, "")
+	}
+	for _, offset := range []int64{-1, 0, 1} {
+		a, whyA := run(offset)
+		b, whyB := run(offset)
+		if a != b || whyA["alpha"] != whyB["alpha"] {
+			t.Fatalf("%+d s: %q (%q) then %q (%q)", offset, a, whyA["alpha"], b, whyB["alpha"])
+		}
+		if offset == -1 && a != "beta" {
+			t.Fatalf("the second before the reset took alpha at its wall: %q", a)
+		}
+	}
+}
