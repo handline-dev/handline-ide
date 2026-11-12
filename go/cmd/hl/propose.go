@@ -226,13 +226,10 @@ func proposalRun(c *hlclient.Client, args []string) (int, bool) {
 	if problem != "" {
 		return wrongArgs("%s", problem)
 	}
-	cwd, given := p.opt("--cwd")
-	if !given {
-		here, err := os.Getwd()
-		if err != nil {
-			return wrongArgs("--cwd is missing and the current folder cannot be read: %v", err)
-		}
-		cwd = here
+	cwd, _ := p.opt("--cwd")
+	cwd, err := filepath.Abs(expandHome(cwd)) // as the folder hl is typed in reads it; none is that folder
+	if err != nil {
+		return wrongArgs("--cwd %s cannot be read: %v", cwd, err)
 	}
 	me := c.AskingAgent()
 	if me == "" {
@@ -241,7 +238,7 @@ func proposalRun(c *hlclient.Client, args []string) (int, bool) {
 	}
 	c.NoteVerbChain([]string{"propose", "run"})
 	return said(c.Write("proposal.propose", map[string]any{"kind": "run", "why": why,
-		"args": map[string]any{"name": me, "command": p.pos[0], "cwd": expandHome(cwd)}})), true
+		"args": map[string]any{"name": me, "command": p.pos[0], "cwd": cwd}})), true
 }
 
 // proposalWhy is --why, or what is wrong with it: missing, or naming a message the founder cannot read.

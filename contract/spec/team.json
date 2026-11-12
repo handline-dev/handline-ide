@@ -1149,7 +1149,7 @@
   },
   {
    "name": "proposal.stop",
-   "summary": "Stop the running command of an approved run proposal: its window is closed and the run ends stopped; the proposing agent is told. Refused (gate state) when the proposal is not kind run or its command is not running.",
+   "summary": "The founder stops the running command of an approved run proposal: its window is closed and the run ends stopped; the proposing agent is told. Refused (gate role) for anyone else, and (gate state) when the proposal is not kind run, its command is not running, or its window is no longer the command's.",
    "paramStructure": "by-name",
    "params": [
     {

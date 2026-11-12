@@ -27,10 +27,11 @@ const (
 
 // Env is what the terminal methods share.
 type Env struct {
-	DB      *sql.DB
-	Home    string
-	Backend func() term.Backend
-	Now     func() time.Time
+	runStart sync.Mutex // StartRun's, so a block's rows are read and written by one start at a time
+	DB       *sql.DB
+	Home     string
+	Backend  func() term.Backend
+	Now      func() time.Time
 
 	Hub   *Hub
 	Bytes *BytesHub

@@ -18,8 +18,8 @@ const (
 )
 
 // Risks is the marks of command run in cwd, for a founder whose home is home, in a fixed order. The command is read as the shell
-// splits it, quotes and `$(...)` included; what it does not see: a command built at run time (`$x`, eval, a script it runs), and a
-// backslash-escaped space (`rm\ x` is one word).
+// splits it: quotes, `$(...)`, `sh -c` and eval included. It does not see a command or path built at run time (`$x`, `$HOME`), a
+// script the command runs, or a backslash-escaped space (`rm\ x` is one word).
 func Risks(command, cwd, home string) []string {
 	marks := map[string]bool{}
 	for _, words := range simpleCommands(command, marks) {
@@ -81,6 +81,9 @@ func simpleCommands(command string, marks map[string]bool) [][]string {
 					}
 					cmds = append(cmds, simpleCommands(string(rs[from:end]), marks)...)
 					i = end
+					if end < len(rs) && rs[end] == '"' { // unclosed: the loop's step lands on the closing quote
+						i--
+					}
 					continue
 				}
 				word.WriteRune(rs[i])
@@ -136,6 +139,7 @@ var (
 	overwrites = []string{"mv", "dd", "truncate"}
 	networks   = []string{"curl", "wget", "ssh", "scp", "rsync", "sftp", "ftp", "nc", "telnet"}
 	privileges = []string{"sudo", "su", "doas"}
+	shells     = []string{"sh", "bash", "zsh", "dash", "ksh", "fish"}
 )
 
 func markCommand(words []string, cwd, home string, marks map[string]bool) {
@@ -152,13 +156,32 @@ func markCommand(words []string, cwd, home string, marks map[string]bool) {
 	if slices.Contains(privileges, name) {
 		marks[RiskPrivilege] = true
 		var rest []string
-		for i, a := range args {
-			if !strings.HasPrefix(a, "-") {
+		for i := 0; i < len(args); i++ {
+			if a := args[i]; !strings.HasPrefix(a, "-") {
 				rest = args[i:]
 				break
+			} else if a == "-u" || a == "-g" || a == "-C" || a == "-h" && name == "sudo" { // an option with a value
+				i++
 			}
 		}
 		markCommand(rest, cwd, home, marks)
+		return
+	}
+	if slices.Contains(shells, name) || name == "eval" { // sh -c '<script>', eval '<script>': the script is commands too
+		for i, a := range args {
+			if name == "eval" || a == "-c" && i+1 < len(args) {
+				script := a
+				if name != "eval" {
+					script = args[i+1]
+				}
+				for _, words := range simpleCommands(script, marks) {
+					markCommand(words, cwd, home, marks)
+				}
+				if name != "eval" {
+					break
+				}
+			}
+		}
 		return
 	}
 	has := func(flags ...string) bool {
@@ -170,10 +193,12 @@ func markCommand(words []string, cwd, home string, marks map[string]bool) {
 		return false
 	}
 	sub := ""
-	for _, a := range args {
-		if !strings.HasPrefix(a, "-") {
+	for i := 0; i < len(args); i++ {
+		if a := args[i]; !strings.HasPrefix(a, "-") {
 			sub = a
 			break
+		} else if name == "git" && (a == "-C" || a == "-c") { // git -C <dir> clean
+			i++
 		}
 	}
 	switch {
@@ -229,8 +254,8 @@ func markCommand(words []string, cwd, home string, marks map[string]bool) {
 
 // markPath marks a word that is a path outside cwd: absolute, ~ or with a .. that climbs out of it. Flags and URLs are not paths.
 func markPath(w, cwd, home string, marks map[string]bool) {
-	if i := strings.Index(w, "="); strings.HasPrefix(w, "-") && i > 0 {
-		w = w[i+1:] // --out=/tmp/x
+	if i := strings.Index(w, "="); i > 0 {
+		w = w[i+1:] // --out=/tmp/x, of=/etc/x
 	}
 	if w == "" || strings.HasPrefix(w, "-") || strings.Contains(w, "://") {
 		return
