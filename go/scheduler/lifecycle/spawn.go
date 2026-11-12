@@ -337,7 +337,7 @@ func (s *Spawns) EnsureExtras(agent, first, repo string) (have, told []string, e
 	if repo == "" {
 		return have, []string{fmt.Sprintf("%s: could not tell which repository %s belongs to, so its extra worktree was not made", agent, first)}, nil
 	}
-	baseRef, why, err := PickBase(repo, "main")
+	baseRef, why, err := PickBase(repo, gitrun.DefaultBranch(repo))
 	if err != nil {
 		return have, nil, err
 	}
@@ -420,9 +420,6 @@ func (s *Spawns) Spawn(agent, repo string) (bool, string, error) {
 
 // SpawnWith is Spawn with its options.
 func (s *Spawns) SpawnWith(agent, repo string, o SpawnOpts) (bool, string, error) {
-	if o.Base == "" {
-		o.Base = "main"
-	}
 	if !s.Host.Available() {
 		return false, s.Host.Missing(), nil
 	}
@@ -443,6 +440,9 @@ func (s *Spawns) SpawnWith(agent, repo string, o SpawnOpts) (bool, string, error
 	}
 	baseRef, why := "", "its own worktree, kept"
 	if wt == "" {
+		if o.Base == "" {
+			o.Base = gitrun.DefaultBranch(repo)
+		}
 		if baseRef, why, err = PickBase(repo, o.Base); err != nil {
 			return false, "", err
 		} else if baseRef == "" {
@@ -470,7 +470,7 @@ func (s *Spawns) SpawnWith(agent, repo string, o SpawnOpts) (bool, string, error
 		}
 		have := len(worktreepaths.ExtraPaths(row))
 		for n := have + 2; n < s.wantedExtras(agent)+2; n++ {
-			text += fmt.Sprintf("\n  would make %s-%d beside it (branch %s-%d from main)", key, n, key, n)
+			text += fmt.Sprintf("\n  would make %s-%d beside it (branch %s-%d from %s)", key, n, key, n, gitrun.DefaultBranch(repo))
 		}
 		return true, text, nil
 	}

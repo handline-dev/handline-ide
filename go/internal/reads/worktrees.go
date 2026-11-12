@@ -52,13 +52,11 @@ func (e *Env) repoOf(agent string) string {
 	return s
 }
 
-func defaultBranch(repo string) string { return worktreeprune.DefaultBranch(repo) }
-
 // repos is rpc_worktrees.repos: the repos the agents were told to work in, by path.
 func (e *Env) repos() []any {
 	out := []any{}
 	for _, p := range worktreeprune.Repos(e.Home) {
-		out = append(out, map[string]any{"name": filepath.Base(p), "path": p, "default_branch": defaultBranch(p)})
+		out = append(out, map[string]any{"name": filepath.Base(p), "path": p, "default_branch": gitrun.DefaultBranch(p)})
 	}
 	return out
 }
@@ -260,7 +258,7 @@ func (e *Env) facts(path string, files int) (map[string]any, error) {
 		size = n
 	}
 	_, ahead := worktreeprune.Ahead(path)
-	return map[string]any{"base": defaultBranch(path), "commits_ahead": ahead, "files_changed": files, "size_bytes": size, "pr": nil}, nil
+	return map[string]any{"base": gitrun.DefaultBranch(path), "commits_ahead": ahead, "files_changed": files, "size_bytes": size, "pr": nil}, nil
 }
 
 func (e *Env) worktree(path, owner string, kn known, bosses map[string]string, labels map[string]string) (map[string]any, error) {
@@ -472,7 +470,7 @@ func (e *Env) worktreeDiff(_ *rpc.Conn, params map[string]any) (any, error) {
 // baseMergeBase is the ref the branch is measured against (origin/<default branch> when that exists, else the local branch, so a
 // stale local main still shows what has not reached the remote) and its merge-base with HEAD; "" when there is none.
 func baseMergeBase(root string) (ref, mergeBase string) {
-	def := defaultBranch(root)
+	def := gitrun.DefaultBranch(root)
 	if def == "" {
 		return "", ""
 	}

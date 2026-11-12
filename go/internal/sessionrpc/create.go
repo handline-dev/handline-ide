@@ -92,9 +92,6 @@ func (e *Env) create(c *rpc.Conn, params map[string]any) (any, error) {
 	if abs, aerr := filepath.Abs(repo); aerr == nil {
 		repo = abs
 	}
-	if base == "" {
-		base = "main"
-	}
 
 	op := newOperationID()
 	operations.Begin(op) // before the row exists, so nothing reads a running row of a live operation as dead

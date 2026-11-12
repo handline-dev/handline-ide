@@ -166,7 +166,7 @@ func TestStartPassesTheRepoAndBaseAndAPersonIsNotHeldBack(t *testing.T) {
 		t.Fatalf("field %q", f)
 	}
 	got := result(t, c.call("session.start", map[string]any{"agent": "ann", "repo": "/r", "request_id": rid("3")}))
-	if got["accepted"] != true || got["said"] != "done" || r.ctl.calls[0] != "start "+r.ann+" /r main true" {
+	if got["accepted"] != true || got["said"] != "done" || r.ctl.calls[0] != "start "+r.ann+" /r  true" { // no base: spawn reads the repo's default
 		t.Fatalf("%v %v", got, r.ctl.calls)
 	}
 	again := result(t, c.call("session.start", map[string]any{"agent": "ann", "repo": "/r", "request_id": rid("3")}))

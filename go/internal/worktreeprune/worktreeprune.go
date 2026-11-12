@@ -274,14 +274,6 @@ func Repos(home string) []string {
 	return out
 }
 
-// DefaultBranch is the branch the repository at path merges into: origin's HEAD, else gitrun.IntegrationBranch.
-func DefaultBranch(path string) string {
-	if r := gitrun.Run(path, "symbolic-ref", "-q", "--short", "refs/remotes/origin/HEAD"); r.RC == 0 && strings.TrimSpace(r.Stdout) != "" {
-		return strings.TrimPrefix(strings.TrimSpace(r.Stdout), "origin/")
-	}
-	return gitrun.IntegrationBranch
-}
-
 // Unsaved is what the worktree holds that its repository's default branch does not: whether its HEAD is merged into it, its changed or
 // untracked files and its commits not on it.
 func Unsaved(path string) (merged bool, files, commits int) {
@@ -294,7 +286,7 @@ func Unsaved(path string) (merged bool, files, commits int) {
 
 // Ahead is Unsaved without the files: whether the worktree's HEAD is merged into the default branch, and its commits not on it.
 func Ahead(path string) (merged bool, commits int) {
-	base := DefaultBranch(path)
+	base := gitrun.DefaultBranch(path)
 	merged = gitrun.Run(path, "merge-base", "--is-ancestor", "HEAD", base).RC == 0
 	if r := gitrun.Run(path, "rev-list", "--count", base+"..HEAD"); r.RC == 0 {
 		commits, _ = strconv.Atoi(strings.TrimSpace(r.Stdout))

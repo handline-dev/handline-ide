@@ -383,7 +383,7 @@ export interface AgentsMethods {
   role: string;
   /** A directory, as repos.list gives it in path. An unknown one is not_found, what repo. */
   repo: string;
-  /** The branch to start from. The worktree takes the side, local or origin/, that leads, and the operation fails when they have diverged. */
+  /** The branch to start from; absent, the repo's default branch. The worktree takes the side, local or origin/, that leads, and the operation fails when they have diverged. */
   base?: string;
   model?: string;
   effort?: "low" | "medium" | "high" | "xhigh" | "max";
@@ -397,6 +397,7 @@ export interface AgentsMethods {
   /** The Go daemon does not place sessions on a named account yet: it answers bad_request, field account, never drops it. A client offers no account picker until then. */
   account?: string;
   repo?: string;
+  /** The branch a new worktree starts from; absent, the repo's default branch. */
   base?: string;
   request_id: RequestId;
 }; result: Accepted };
