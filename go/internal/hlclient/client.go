@@ -88,7 +88,10 @@ func DeadlineOf(method string) time.Duration {
 // New is the client for this process's home, holding the founder key when this terminal may read it.
 func New() *Client {
 	home := paths.Home()
-	key, _ := protected.New(home).Get(founderNS, "key")
+	var key string
+	if !protected.InAgentSession() { // an agent's session the daemon cannot trace is anonymous, never the founder
+		key, _ = protected.New(home).Get(founderNS, "key")
+	}
 	return &Client{
 		Home: home,
 		Key:  strings.TrimSpace(key),

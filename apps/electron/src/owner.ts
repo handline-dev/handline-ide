@@ -316,3 +316,10 @@ export function portHolder(lsof: string): { pid: number; command: string } | nul
   const pid = parseInt(/^p(\d+)$/m.exec(lsof)?.[1] ?? '', 10);
   return pid > 0 ? { pid, command: /^c(.*)$/m.exec(lsof)?.[1] ?? '?' } : null;
 }
+
+/** The daemon's environment: the app's, with PATH when the login shell gave one, less the variables that make a process an agent's
+ * session (an app started from an agent's terminal has them), which would make the daemon refuse its own store's writes. */
+export function daemonEnv(base: NodeJS.ProcessEnv, pathVar?: string): NodeJS.ProcessEnv {
+  const { HANDLINE_AGENT: _agent, HANDLINE_ACCOUNT: _account, ...env } = base;
+  return pathVar ? { ...env, PATH: pathVar } : env;
+}
