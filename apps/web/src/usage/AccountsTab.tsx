@@ -120,7 +120,7 @@ function Card({
           aria-expanded={open}
           aria-label={`${open ? 'Close' : 'Open'} ${a.label}`}
           onClick={toggle}
-          className={`@container flex min-w-0 items-center gap-3 rounded-xl p-4 text-left hover:bg-hover/20 ${out ? '' : 'flex-1'}`}
+          className={`flex min-w-0 items-center gap-3 rounded-xl p-4 text-left hover:bg-hover/20 ${out ? '' : '@container flex-1'}`}
         >
           <ChevronRight size={16} className={`shrink-0 text-muted transition-transform ${open ? 'rotate-90' : ''}`} />
           <AccountFacts account={a} plan={plan} bars={!out} />
