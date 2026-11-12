@@ -33,3 +33,20 @@ func TestRelinkLinksOnlyWhatGainedATargetAndLeavesWhatIsThere(t *testing.T) {
 		t.Fatal(got)
 	}
 }
+
+// A codex account links the shared hooks.json, and only that, into its CODEX_HOME.
+func TestRelinkLinksACodexAccountsHooks(t *testing.T) {
+	home := t.TempDir()
+	dir := accountDir(t, home, "cx")
+	cdir := filepath.Join(dir, ".codex")
+	os.MkdirAll(cdir, 0o755)
+	os.WriteFile(filepath.Join(dir, "vendor"), []byte("codex\n"), 0o644)
+	os.MkdirAll(filepath.Join(home, "shared", ".codex"), 0o755)
+	os.WriteFile(filepath.Join(home, "shared", ".codex", "hooks.json"), []byte("{}"), 0o644)
+	if got := RelinkAll(home, func(s string) { t.Log(s) }); !reflect.DeepEqual(got, map[string][]string{"cx": {"hooks.json"}}) {
+		t.Fatalf("%v", got)
+	}
+	if to, _ := os.Readlink(filepath.Join(cdir, "hooks.json")); to != filepath.Join(home, "shared", ".codex", "hooks.json") {
+		t.Fatalf("%q", to)
+	}
+}
