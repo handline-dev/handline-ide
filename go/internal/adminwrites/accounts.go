@@ -265,21 +265,27 @@ func (e *Env) accountLogin(c *rpc.Conn, p map[string]any) (any, error) {
 	if err != nil {
 		return nil, refused("the login could not be started", "")
 	}
-	// The URL is not kept in the request record: the first answer carries it, and a retry's is refreshed from the login if it still waits.
+	// The URL and device code are not kept in the request record; a retry's are refreshed from the login while it waits.
 	out, err := wrote(c, "login started on "+acct, map[string]any{"login_id": l.ID, "state": l.State})
 	if m, ok := out.(map[string]any); ok && err == nil {
 		m["url"] = l.URL
+		if l.DeviceCode != "" {
+			m["device_code"] = l.DeviceCode
+		}
 	}
 	return out, err
 }
 
-// refreshLogin gives a retried account.login the login's URL while it still waits, and its state as it is now.
+// refreshLogin gives a retried account.login the login's URL (and device code) while it still waits, and its state as it is now.
 func (e *Env) refreshLogin(_ *rpc.Conn, reply map[string]any) error {
 	id, _ := reply["login_id"].(string)
 	if l, ok := e.Logins.ByID(id); ok {
 		reply["state"] = l.State
 		if l.State == weblogin.Waiting {
 			reply["url"] = l.URL
+			if l.DeviceCode != "" {
+				reply["device_code"] = l.DeviceCode
+			}
 		}
 	}
 	return nil

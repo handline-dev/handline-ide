@@ -3,11 +3,13 @@ package adminwrites
 import (
 	"database/sql"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/handline/handline/go/accounts/weblogin"
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/protocol/rpc"
 )
@@ -48,6 +50,35 @@ func TestAccountLoginAnswersTheURLAndKeepsItOutOfTheRecord(t *testing.T) {
 	}
 	if r.code(r.one("account.login", `{"account":"main","request_id":"l2"}`)) != "refused" {
 		t.Fatal("a second login on the account is refused")
+	}
+}
+
+func TestACodexLoginAnswersItsDeviceCodeOnlyToItsStarterAndTakesNoCode(t *testing.T) {
+	r := newRig(t)
+	if err := os.WriteFile(filepath.Join(teamtest.AccountDir(t, r.home, "main"), "vendor"), []byte("codex\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	bin, err := filepath.Abs("testdata/codex-login")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.e.Logins = &weblogin.Manager{Home: r.home, Lookup: func(string) (string, error) { return bin, nil }}
+	t.Cleanup(r.e.Logins.Close)
+	Register(r.srv, r.e)
+	res := r.result(r.one("account.login", `{"account":"main","request_id":"x1"}`))
+	if res["url"] != "https://auth.example/codex/device" || res["device_code"] != "AB12-CD3EF" {
+		t.Fatalf("%v", res)
+	}
+	var kept string
+	if err := r.e.DB.QueryRow("SELECT result_json FROM write_effects WHERE request_id = 'x1'").Scan(&kept); err != nil || strings.Contains(kept, "AB12") {
+		t.Fatalf("the request record keeps the code: %q (%v)", kept, err)
+	}
+	if again := r.result(r.one("account.login", `{"account":"main","request_id":"x1"}`)); again["device_code"] != "AB12-CD3EF" {
+		t.Fatalf("a retry while it waits gets the code: %v", again)
+	}
+	id, _ := res["login_id"].(string)
+	if got := r.code(r.one("account.login_code", `{"login_id":"`+id+`","code":"x","request_id":"x2"}`)); got != "refused" {
+		t.Fatalf("a codex login took a code: %s", got)
 	}
 }
 
