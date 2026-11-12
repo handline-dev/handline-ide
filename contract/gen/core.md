@@ -15,7 +15,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `lease.take` | agent |  | `agent`, `kind`, `hold?` | `{lease, waited_s, port}` | `refused`, `bad_request` | lease_wait, lease_order, lease_ceiling | not cached |
 | `lease.release` | agent |  | `agent`, `lease?`, `kind?` | `{released}` | `refused`, `bad_request` |  | not cached |
 | `lease.extend` | agent |  | `agent`, `kind?` | `{extended}` | `refused`, `bad_request` |  | not cached |
-| `lease.get` | agent |  | none | `{kinds}` |  |  | not cached |
+| `lease.get` | agent |  | none | `{kinds}` |  |  | `leases`, snapshot |
 | `load.get` | agent |  | `minutes?`, `agent?` | `{at, every_s, machine, total, agents, unowned, processes, sampling, series} \| null` | `bad_request` |  | `load`, snapshot |
 | `events.feed` | agent |  | `since?`, `topics?`, `limit?` | `{events, cursor, gap}` | `bad_request` |  | not cached |
 | `operation.get` | member |  | `operation` | `Operation & ReadCursor` | `not_found` |  | `operation` by operation, fed by operations |

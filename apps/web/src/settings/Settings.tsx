@@ -14,7 +14,7 @@ const SECTIONS = ['accounts', 'machine', 'devices'] as const;
 type Section = (typeof SECTIONS)[number];
 const MENU: Record<Section, { word: string; icon: ReactNode }> = {
   accounts: { word: 'Accounts', icon: <UserRound size={14} /> },
-  machine: { word: 'Machine', icon: <HardDrive size={14} /> },
+  machine: { word: 'This Mac', icon: <HardDrive size={14} /> },
   devices: { word: 'Devices', icon: <MonitorSmartphone size={14} /> },
 };
 

@@ -1,15 +1,17 @@
-// Settings > Machine. Write keys: 'awake', 'record', 'load_per_core_pct', 'ram_free_min_pct', 'stop:<name>'.
+// Settings > This Mac. Write keys: 'awake', 'record', 'load_per_core_pct', 'ram_free_min_pct', 'simulator_max', 'browser_max', 'stop:<name>'.
 import { DEFAULT_LIMITS, useRows, type Limits } from '@handline/app-core';
 import type { SettingsChanges } from '@handline/client';
 import { hooks } from '@handline/app-data';
 import { useKeyed } from '#src/settings/data/keyed.ts';
 
+export type LeaseKind = 'simulator' | 'browser';
 export type KeepAwake = 'off' | 'on' | 'working';
 
 export function useMachine() {
   const status = hooks.useDaemonStatus();
   const settings = hooks.useSettingsGet();
   const set = hooks.useSettingsSet();
+  const leases = hooks.useLeaseGet({}, { refetchMs: 10_000 });
   const stopAgent = hooks.useSessionStop();
   const { pending, run } = useKeyed();
   const resources = status.data?.resources ?? null;
@@ -26,6 +28,9 @@ export function useMachine() {
     /** Why the daemon starts no new work now, or null. */
     startHold: resources?.start_hold ?? null,
     limits,
+    /** Per kind of simulator or browser: its most at once (0 is no limit), who holds one and who waits. */
+    leases: (leases.data?.kinds ?? []).filter((k): k is typeof k & { kind: LeaseKind } => k.kind !== 'heavy'),
+    setLeaseMax: (kind: LeaseKind, n: number) => change(`${kind}_max`, kind === 'simulator' ? { simulator_max: n } : { browser_max: n }),
     awake: (values?.keep_awake ?? 'off') as KeepAwake,
     /** Agents mid-turn: what keep-awake "working" holds the machine for. */
     working: status.data?.agents.by_state.running ?? 0,

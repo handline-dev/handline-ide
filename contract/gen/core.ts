@@ -1167,7 +1167,7 @@ export const CORE_APP_CACHE: { [K in "hello" | "whoami" | "subscribe" | "unsubsc
   "lease.take": false,
   "lease.release": false,
   "lease.extend": false,
-  "lease.get": false,
+  "lease.get": {"resource": "leases", "feed": null},
   "load.get": {"resource": "load", "feed": null},
   "events.feed": false,
   "operation.get": {"resource": "operation", "id": "operation", "feed": "operations"},

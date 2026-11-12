@@ -4,6 +4,7 @@ import type { Topic } from '@handline/client';
 /** The cache entry of each read (x-app-cache): its name in the key, the param that names the entry, the topic that keeps it fresh. */
 export const reads = {
   "daemon.status": { resource: "status", feed: "status" },
+  "lease.get": { resource: "leases" },
   "load.get": { resource: "load" },
   "operation.get": { resource: "operation", id: "operation", feed: "operations" },
   "debug.terminals": { resource: "debug-terminals" },
@@ -64,7 +65,7 @@ export const reads = {
 } as const satisfies Record<string, { resource: string; id?: string; feed?: Topic }>;
 
 /** The reads the app does not cache (x-app-cache false). */
-export const NOT_CACHED = ["hello", "whoami", "subscribe", "unsubscribe", "lease.take", "lease.release", "lease.extend", "lease.get", "events.feed", "status.pick", "accounts.discover", "session.launch_prepare", "permission.ask", "progress.get", "attachment.get", "inbox.queue", "request.read", "doc.open", "doc.pull", "doc.close", "task.shot", "task.memo.list", "workspace.rules", "terminal.attach", "terminal.history", "terminal.open", "terminal.detach"] as const;
+export const NOT_CACHED = ["hello", "whoami", "subscribe", "unsubscribe", "lease.take", "lease.release", "lease.extend", "events.feed", "status.pick", "accounts.discover", "session.launch_prepare", "permission.ask", "progress.get", "attachment.get", "inbox.queue", "request.read", "doc.open", "doc.pull", "doc.close", "task.shot", "task.memo.list", "workspace.rules", "terminal.attach", "terminal.history", "terminal.open", "terminal.detach"] as const;
 
 /** The writes the app does not make from a screen (x-app-write false). */
 export const NOT_WRITTEN = ["hook.record", "subagent.start", "session.wake", "say", "request.withdraw", "request.cancel", "device.redeem", "device.push_token", "task.handoff", "task.progress", "task.begin", "task.start", "task.memo.add", "task.memo.edit", "task.memo.delete", "task.wait", "proposal.propose", "trust.propose"] as const;

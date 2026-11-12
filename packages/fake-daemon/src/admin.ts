@@ -22,7 +22,7 @@ const FINGERPRINT = 'sha256:3f9c1e7a52b84d06a1e3c7f90b2d4856e1a7c3095bd8f2e46a0c
 
 /** The methods this answers. */
 const ADMIN =
-  /^(stats\.|connection\.(get|addresses)|settings\.|answers?\.|devices?\.(list|revoke)|agent\.triggers|memory\.status|events\.feed|daemon\.(pause|resume)|task\.send_now)/;
+  /^(stats\.|connection\.(get|addresses)|settings\.|lease\.get|answers?\.|devices?\.(list|revoke)|agent\.triggers|memory\.status|events\.feed|daemon\.(pause|resume)|task\.send_now)/;
 /** The built-in handoff prompt (go/taskboard/handoff/note.go AskTemplate). */
 const BUILTIN_HANDOFF =
   "Write your handoff to {path} now, while your prompt cache is warm, with one Write (replace what is there), then stop and run nothing else. The next session of you, if it starts fresh, reads it first: copy yourself into it. At most {max} characters, about 30 lines, only what `hl` and your memory cannot tell it: (1) what you were deciding and why; (2) what you meant to do next; (3) promises or doubts not yet on any task; (4) the founder's preferences and the pitfalls you learned this session; (5) who you wait on, as T<n>/#<n> numbers only; (6) what slowed you down: one line each, starting with 'Slowed:', naming the command, tool, rule or T number and what it cost (retries, a wait, a refusal), or 'Slowed: none' if nothing did. Do not restate what a task or message holds; cite its T or # number. A lasting lesson or preference goes to your memory first, not here. If there is nothing, write the single word: nothing.";
@@ -150,6 +150,8 @@ export class FakeAdmin {
         return this.settings();
       case 'settings.set':
         return (this.set((p.changes ?? {}) as SettingsChanges), accepted('Saved.'));
+      case 'lease.get':
+        return this.leases();
       case 'agent.triggers':
         return { agents: AGENTS.map((agent, i) => ({ agent, fired: i === 0, reason: i === 0 ? 'a task arrived' : 'nothing to wake it' })) };
       case 'memory.status':
@@ -250,6 +252,24 @@ export class FakeAdmin {
   /** The keep_awake mode the settings say (DaemonStatus.keep_awake.mode). */
   keepAwake(): string {
     return this.values.keep_awake ?? 'off';
+  }
+
+  /** Fixed holders and waiters; the limits are the settings'. */
+  leases() {
+    const since = this.now();
+    const kind = (k: 'simulator' | 'browser', max: number, held: string[], queue: string[]) => ({
+      kind: k,
+      max,
+      held: held.map((agent, i) => ({ lease: i + 1, agent, since, hold: false, pids: [] })),
+      queue: queue.map((agent, i) => ({ agent, since, position: i + 1, says: `waiting for a ${k}, number ${i + 1} in line` })),
+    });
+    const { simulator_max = 0, browser_max = 0 } = this.values;
+    return {
+      kinds: [
+        kind('simulator', simulator_max, [AGENTS[0]], simulator_max === 1 ? [AGENTS[1]] : []),
+        kind('browser', browser_max, [AGENTS[1]], []),
+      ],
+    };
   }
 
   settings(): Settings {

@@ -4478,7 +4478,10 @@
    },
    "x-role": "agent",
    "x-write": false,
-   "x-app-cache": false,
+   "x-app-cache": {
+    "resource": "leases",
+    "feed": null
+   },
    "x-since": 1
   },
   {

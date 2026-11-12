@@ -121,3 +121,15 @@ test('daemon.status keep_awake under working is held only while a session runs',
   daemon.sessions.values().next().value!.state = 'running';
   assert.equal((await client.call('daemon.status', {})).keep_awake?.held, true);
 });
+
+test('lease.get gives the simulator and browser limits as set, and a simulator limit of 1 makes the second agent wait', async () => {
+  const { client } = setup();
+  await client.start();
+  const kinds = async () => Object.fromEntries((await client.call('lease.get', {})).kinds.map((k) => [k.kind, k]));
+  const before = await kinds();
+  assert.deepEqual([before.simulator?.max, before.browser?.max, before.simulator?.queue.length], [0, 0, 0]);
+  await client.call('settings.set', { changes: { simulator_max: 1, browser_max: 2 }, request_id: 'l2-a' });
+  const after = await kinds();
+  assert.deepEqual([after.simulator?.max, after.browser?.max, after.simulator?.queue.map((w) => w.position)], [1, 2, [1]]);
+  client.close();
+});
