@@ -60,6 +60,7 @@
   "behind": "doc.push: the version is not the doc's current one. Nothing was taken; data.version is the current one.",
   "reopen": "doc.push, doc.pull: the doc id is not the loaded copy, or the version is older than the kept updates. Open the doc again.",
   "lease_ceiling": "lease.take: no lease came free in 30 minutes for a call held open (a shell with no current task); nothing ran.",
+  "lease_order": "lease.take: no lease is free, and the agent holds a hold, or the calling process runs under a lease of a kind after the asked one in the order heavy, simulator, browser, port; nothing waits and nothing ran.",
   "lease_wait": "lease.take: no lease is free, so the agent's current task now waits on a gate task for one and comes back by itself when a lease is reserved for it; hl use exits 75 and nothing ran."
  },
  "x-app": {
@@ -4059,7 +4060,7 @@
   {
    "name": "lease.take",
    "summary": "hl use asks for a test or build run, simulator, browser or port lease. A free one with no ask ahead in line (per kind, the workspace that held the kind least in the last hour first, then first come first served), or one reserved for the agent's current task, is answered at once. Otherwise an agent with a current task is refused with gate lease_wait: its task waits in line on a gate task and comes back when a lease is reserved for it. A call with no current task is held until one is free, refused after 30 minutes naming who holds them.",
-   "description": "With the kind's limit 0 (heavy_max, simulator_max, browser_max; port: with no port_range) it is granted at once. A port is free when granted, not reserved against other programs: a command that gets 'address in use' asks again. A command's lease (hold false) belongs to the calling process, the hl use the command runs under: it is freed by lease.release, by the agent's session end, or within 5 s once that process and every process last seen under it are gone. A hold is freed by lease.release or the agent's turn or session end; the PreToolUse guard lets the agent's own starters of its kind through while it is held. An ask whose caller hangs up leaves the queue. Leases are stored: after a restart a hold is kept until its holder's turn ends, and a command's lease while the hl use process it was granted to runs. A lease reserved for a task waits 10 minutes (lease_claim) for its agent's hl use, then goes to the next ask; its task is not blocked again until its next hl use asks again; an ask or reservation whose task ends or leaves its agent is dropped and its gate closed. Reserved leases count toward the limit; turn and session ends leave them.",
+   "description": "With the kind's limit 0 (heavy_max, simulator_max, browser_max; port: with no port_range) it is granted at once. A port is free when granted, not reserved against other programs: a command that gets 'address in use' asks again. A command needing several kinds asks for them in the order heavy, simulator, browser, port; one that would wait while its agent holds a hold, or while the calling process runs under a later kind, is refused (lease_order). A task that waits for a kind gives up the leases reserved for it of later kinds. A command's lease (hold false) belongs to the calling process, the hl use the command runs under: it is freed by lease.release, by the agent's session end, or within 5 s once that process and every process last seen under it are gone. A hold is freed by lease.release or the agent's turn or session end; the PreToolUse guard lets the agent's own starters of its kind through while it is held. An ask whose caller hangs up leaves the queue. Leases are stored: after a restart a hold is kept until its holder's turn ends, and a command's lease while the hl use process it was granted to runs. A lease reserved for a task waits 10 minutes (lease_claim) for its agent's hl use, then goes to the next ask; its task is not blocked again until its next hl use asks again; an ask or reservation whose task ends or leaves its agent is dropped and its gate closed. Reserved leases count toward the limit; turn and session ends leave them.",
    "paramStructure": "by-name",
    "params": [
     {
@@ -4132,6 +4133,7 @@
    ],
    "x-gates": [
     "lease_wait",
+    "lease_order",
     "lease_ceiling"
    ]
   },

@@ -9,6 +9,7 @@ package leases
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -402,6 +403,33 @@ type Refusal struct{ Why string }
 
 func (r *Refusal) Error() string { return r.Why }
 
+// OutOfOrder is an ask that would wait while its asker holds a hold, or a lease of a kind after the asked one in Kinds: refused, so
+// nothing waits.
+type OutOfOrder struct{ Why string }
+
+func (o *OutOfOrder) Error() string { return o.Why }
+
+// holdAndWait is why agent's ask for kind, made by pid (0 for a hold), may not wait, "" when it may. A hold counts agent-wide; a
+// command's lease only for the process that took it or one under it, as only a nested hl use can wait on its own lease. The caller
+// holds mu.
+func (m *Manager) holdAndWait(kind, agent string, pid int) string {
+	for _, l := range m.held {
+		if l.Reserved() || l.Agent != agent {
+			continue
+		}
+		if l.Hold {
+			return fmt.Sprintf("Refused: no %s is free, and you hold a %s (lease %d, --hold): hl use --release it, then ask again. "+
+				"Nothing ran.", Noun(kind), Noun(l.Kind), l.ID)
+		}
+		mine := pid != 0 && (l.PID == pid || slices.Contains(l.Pids, pid))
+		if mine && slices.Index(Kinds, l.Kind) > slices.Index(Kinds, kind) {
+			return fmt.Sprintf("Refused: no %s is free, and this command runs under a %s (lease %d); ask for both in one hl use "+
+				"(hl use %s %s -- ...). Nothing ran.", Noun(kind), Noun(l.Kind), l.ID, kind, l.Kind)
+		}
+	}
+	return ""
+}
+
 // Blocked is an ask that waits in line as a blocker on its task: nothing ran, and the task comes back when a lease is reserved for it.
 type Blocked struct {
 	Task, Gate int64
@@ -436,6 +464,10 @@ func (m *Manager) Take(done <-chan struct{}, kind, agent string, hold bool, pid 
 			m.unlock()
 			return l, nil
 		}
+	}
+	if why := m.holdAndWait(kind, agent, pid); why != "" {
+		m.unlock()
+		return nil, &OutOfOrder{why}
 	}
 	if task != 0 {
 		return nil, m.block(kind, agent, ws, task)
@@ -507,6 +539,15 @@ func (m *Manager) block(kind, agent, ws string, task int64) error {
 		}
 	}
 	m.logf("lease: %s's T%d waits for a %s (gate T%d)", agent, task, kind, gate)
+	var later []int64 // kept while the task waits, they would be hold-and-wait: they go to the next ask
+	for _, l := range m.held {
+		if l.Reserved() && l.Task == task && slices.Index(Kinds, l.Kind) > slices.Index(Kinds, kind) {
+			later = append(later, l.ID)
+		}
+	}
+	for _, id := range later {
+		m.drop(id, fmt.Sprintf("T%d now waits for a %s, which comes first", task, Noun(kind)))
+	}
 	m.promote()
 	return m.blocked(kind, task, gate)
 }

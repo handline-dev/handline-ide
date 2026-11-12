@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"slices"
 	"strings"
 	"syscall"
 	"time"
@@ -14,8 +15,9 @@ import (
 	"github.com/handline/handline/go/scheduler/leases"
 )
 
-// useCmd is hl use <kind> -- <command...> (wait for a lease, run, give it back, exit as the command did), hl use <kind> --hold and
-// hl use --release [<kind>]. A shell that is not an agent's runs the command without a lease.
+// useCmd is hl use <kind...> -- <command...> (take each lease, run, give them back, exit as the command did), hl use <kind> --hold
+// and hl use --release [<kind>]. Several kinds are asked in the fixed order leases.Kinds, so no two asks wait on each other. A shell
+// that is not an agent's runs the command without a lease.
 func useCmd(c *hlclient.Client, args []string) (int, bool) {
 	var command []string
 	for i, a := range args {
@@ -25,33 +27,42 @@ func useCmd(c *hlclient.Client, args []string) (int, bool) {
 		}
 	}
 	p, ok := parse(args, nil, []string{"--hold", "--release"}, nil)
-	if !ok || len(p.pos) > 1 {
+	if !ok {
 		return 0, false
 	}
-	kind := ""
-	if len(p.pos) == 1 {
-		if kind = p.pos[0]; !leases.Known(kind) {
+	for _, k := range p.pos {
+		if !leases.Known(k) {
 			return 0, false
+		}
+	}
+	var kinds []string // p.pos in the fixed order, once each
+	for _, k := range leases.Kinds {
+		if slices.Contains(p.pos, k) {
+			kinds = append(kinds, k)
 		}
 	}
 	hold, release := p.flags["--hold"], p.flags["--release"]
 	switch {
-	case release && !hold && command == nil:
-	case hold && !release && command == nil && kind != "":
-	case !hold && !release && len(command) > 0 && kind != "":
+	case release && !hold && command == nil && len(kinds) <= 1:
+	case hold && !release && command == nil && len(kinds) == 1: // a hold may not wait beside another, so one kind
+	case !hold && !release && len(command) > 0 && len(kinds) > 0:
 	default:
 		return 0, false
 	}
 	agent := c.CurrentAgent()
 	if agent == "" {
 		if command == nil {
-			fmt.Println(hlclient.WhoRefusal("hold a " + kind))
+			fmt.Println(hlclient.WhoRefusal("hold a " + kinds[0]))
 			return 1, true
 		}
 		fmt.Fprintln(os.Stderr, "hl use: not an agent's session, so no lease is taken")
 		return run(command), true
 	}
 	if release {
+		kind := ""
+		if len(kinds) == 1 {
+			kind = kinds[0]
+		}
 		got, err := c.Call("lease.release", map[string]any{"agent": agent, "kind": kind})
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "hl use: %v\n", err)
@@ -60,42 +71,51 @@ func useCmd(c *hlclient.Client, args []string) (int, bool) {
 		fmt.Printf("gave back %d lease(s)\n", num(got, "released"))
 		return 0, true
 	}
+	var taken []int64
+	giveBack := func() {
+		for _, id := range taken {
+			if _, err := c.Call("lease.release", map[string]any{"agent": agent, "lease": id}); err != nil {
+				fmt.Fprintf(os.Stderr, "hl use: giving lease %d back: %v (the daemon frees it once this process is gone)\n", id, err)
+			}
+		}
+	}
 	waiting := *c
 	waiting.Deadline = (leases.CeilingS + 30) * time.Second
-	got, err := waiting.Call("lease.take", map[string]any{"agent": agent, "kind": kind, "hold": hold})
-	var down *hlclient.DaemonDown
-	var refused *hlclient.RPCError
-	switch {
-	case errors.As(err, &refused) && refused.Data["gate"] == "lease_wait":
-		fmt.Println(refused.Message)
-		return BlockedExit, true
-	case errors.As(err, &down) && !hold:
-		fmt.Fprintf(os.Stderr, "hl use: %v; running it without a lease\n", err)
-		return run(command), true
-	case err != nil:
-		fmt.Fprintf(os.Stderr, "hl use: %v\n", err)
-		return 1, true
-	}
-	lease, port := num(got, "lease"), num(got, "port")
-	if w := num(got, "waited_s"); w > 0 {
-		fmt.Fprintf(os.Stderr, "hl use: waited %s for a %s\n", time.Duration(w)*time.Second, kind)
-	}
-	if hold {
+	var env []string
+	for _, kind := range kinds {
+		got, err := waiting.Call("lease.take", map[string]any{"agent": agent, "kind": kind, "hold": hold})
+		var down *hlclient.DaemonDown
+		var refused *hlclient.RPCError
+		switch {
+		case errors.As(err, &refused) && refused.Data["gate"] == "lease_wait":
+			giveBack() // a task in line keeps nothing from others
+			fmt.Println(refused.Message)
+			return BlockedExit, true
+		case errors.As(err, &down) && !hold: // leases taken before stay this process's until it exits
+			fmt.Fprintf(os.Stderr, "hl use: %v; running it without a lease\n", err)
+			return run(command), true
+		case err != nil:
+			giveBack()
+			fmt.Fprintf(os.Stderr, "hl use: %v\n", err)
+			return 1, true
+		}
+		lease, port := num(got, "lease"), num(got, "port")
+		taken = append(taken, lease)
+		if w := num(got, "waited_s"); w > 0 {
+			fmt.Fprintf(os.Stderr, "hl use: waited %s for a %s\n", time.Duration(w)*time.Second, kind)
+		}
 		what := "a " + kind
 		if kind == leases.Port {
 			what = fmt.Sprintf("port %d", port)
+			env = []string{fmt.Sprintf("HL_PORT=%d", port)}
 		}
-		fmt.Printf("holding %s (lease %d) until hl use --release or this turn's end\n", what, lease)
-		return 0, true
-	}
-	var env []string
-	if kind == leases.Port {
-		env = []string{fmt.Sprintf("HL_PORT=%d", port)}
+		if hold {
+			fmt.Printf("holding %s (lease %d) until hl use --release or this turn's end\n", what, lease)
+			return 0, true
+		}
 	}
 	code := run(command, env...)
-	if _, err := c.Call("lease.release", map[string]any{"agent": agent, "lease": lease}); err != nil {
-		fmt.Fprintf(os.Stderr, "hl use: giving the %s back: %v (the daemon frees it once this process is gone)\n", kind, err)
-	}
+	giveBack()
 	return code, true
 }
 
