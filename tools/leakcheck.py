@@ -12,7 +12,7 @@ TMPDIR, so a socket under it still fits in the 104 bytes a socket path holds:
   real store, not its own).
 tools/leakcheck.py run [--dir DIR] CMD... does both around one command, and exits 1 if it failed, was stopped or left anything. With --dir
 the run's directory is DIR, emptied first, not a new one: CI's Go job keeps the same TMPDIR each run, as go test's cache needs.
-Nothing is killed or removed when something is left: the run is fixed, not swept. A clean run's directory is removed.
+Nothing is killed when something is left, and its directory stays only while a process or tmux server still runs in it; the report names the rest.
 """
 from __future__ import annotations
 
@@ -65,6 +65,15 @@ def tmux_servers(run: Path) -> list[str]:
     return left
 
 
+def remove(run: Path) -> None:
+    """Go's module cache is read-only on purpose, and a directory without write permission cannot be emptied."""
+    def writable(func, path, _exc):
+        os.chmod(os.path.dirname(path), 0o700)
+        os.chmod(path, 0o700)
+        func(path)
+    shutil.rmtree(run, onerror=writable)
+
+
 def end(run: Path, interrupted: bool = False) -> int:
     left = processes(run)
     for _ in range(50 if interrupted else 0):  # what the signal reached may still be exiting
@@ -80,11 +89,15 @@ def end(run: Path, interrupted: bool = False) -> int:
     if PROTECTED.is_dir():
         found += [f"real protected store: {p}" for p in sorted(PROTECTED.iterdir()) if mark in p.name]
     if found:
-        print(f"tools/leakcheck.py: the run left {len(found)} thing(s) behind (kept for you to read, under {run}):", file=sys.stderr)
+        print(f"tools/leakcheck.py: the run left {len(found)} thing(s) behind:", file=sys.stderr)
         for line in found:
             print(f"  {line[:300]}", file=sys.stderr)
+        if left or tmux_servers(run):  # something still runs in it: the directory stays until that is stopped
+            print(f"  (the directory {run} is kept: stop those, then remove it)", file=sys.stderr)
+        else:
+            remove(run)
         return 1
-    shutil.rmtree(run, ignore_errors=True)
+    remove(run)
     print("tools/leakcheck.py: the run left nothing behind", file=sys.stderr)
     return 0
 
