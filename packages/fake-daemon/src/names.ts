@@ -7,7 +7,7 @@ import type { Person, Workspace } from '@handline/contract';
 export const OWNER = 'human';
 export const PEOPLE: Person[] = [{ key: OWNER, display_name: 'Founder', handle: null, role: 'owner' }];
 
-const segment = (key: string) => key.split('.')[0]!;
+export const segment = (key: string) => key.split('.')[0]!;
 
 /** Workspace keys by segment, given out in the order the segments are first seen, so a key never changes within a run. */
 const workspaceKeys = new Map<string, string>();
@@ -23,14 +23,18 @@ export function identOf(key: string): { key: string; name: string; workspace: st
   return { key, name: key === seg ? 'lead' : key.slice(seg.length + 1), workspace: workspaceKey(seg), owner: OWNER };
 }
 
-/** workspaces.list over the agents' keys. */
-export function workspacesOf(agents: readonly string[]): Workspace[] {
+/** workspaces.list over the agents' keys; a workspace renamed or made at a folder has its name or folder by segment. */
+export function workspacesOf(
+  agents: readonly string[],
+  names: ReadonlyMap<string, string> = new Map(),
+  folders: ReadonlyMap<string, string> = new Map(),
+): Workspace[] {
   const segs = [...new Set(agents.map(segment))];
   return segs
     .map((seg) => ({
       key: workspaceKey(seg),
-      name: seg,
-      folder: `/fake/${seg}`,
+      name: names.get(seg) ?? seg,
+      folder: folders.get(seg) ?? `/fake/${seg}`,
       added_folders: [],
       lead: agents.includes(seg) ? seg : null,
     }))
