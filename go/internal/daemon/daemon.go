@@ -443,6 +443,9 @@ func (d *Daemon) teller() taskwrites.Teller {
 func (d *Daemon) proposalEnv() *proposalwrites.Env {
 	env := d.env()
 	h := &proposalwrites.Env{DB: d.db, Home: d.cfg.Home, Say: env, Log: d.cfg.Log, Ask: d.askFounder, ProposalView: (&reads.Env{DB: d.db, Home: d.cfg.Home}).ProposalView}
+	if d.tchan != nil {
+		h.Runs = d.tchan
+	}
 	if env.Observer != nil {
 		h.Live = env.Observer.LiveSessions
 	}

@@ -19,7 +19,7 @@ import (
 )
 
 // proposable are the kinds `hl propose` raises from a session: the roster changes, and an agent's schedule, that need no settings or global checks.
-var proposable = []string{"add", "retire", "rename", "team", "context", "schedule"}
+var proposable = []string{"add", "retire", "rename", "team", "context", "schedule", "run"}
 
 // maxSteps bounds a team diff (MAX_STEPS in handline/team/proposals.py).
 const maxSteps = 40
@@ -238,6 +238,11 @@ func (e *Env) draft(actor, kind string, args map[string]any, why string, registe
 	if err != nil {
 		return nil, err.Error()
 	}
+	if kind == "run" {
+		if why := e.draftRun(actor, name, args, prop); why != "" {
+			return nil, why
+		}
+	}
 	for _, k := range []string{"action", "cron", "cron_was", "message", "message_was", "sid"} {
 		if v, ok := sched[k]; ok {
 			prop.set("set."+k, v)
@@ -382,7 +387,7 @@ func (e *Env) proposeBundle(c *rpc.Conn, raw []any, why string) (any, error) {
 		if kind == "" || argStr(ch, "name") == "" {
 			return refuse("change %d needs a kind and a name", i+1)
 		}
-		if !slices.Contains(itemKinds, kind) {
+		if !slices.Contains(itemKinds, kind) || kind == "run" {
 			return refuse("change %d: kind must be one of %s", i+1, strings.Join(itemKinds, ", "))
 		}
 		var extra []string

@@ -21,8 +21,9 @@ type Proposals struct {
 
 func (*Proposals) Name() string { return "proposals" }
 
-// Tables are none: its store is files, which the Watcher's Signature (ProposalSignature) watches.
-func (*Proposals) Tables() []string { return nil }
+// Tables is meta, where a run proposal's run is kept; the proposals themselves are files, which the Watcher's Signature
+// (ProposalSignature) watches.
+func (*Proposals) Tables() []string { return []string{"meta"} }
 
 // ProposalSignature is whether the store changed: the proposal files by name and modification time.
 func ProposalSignature(home string) func() string {
@@ -39,8 +40,11 @@ func ProposalSignature(home string) func() string {
 	}
 }
 
-// key is what a change in a proposal is told from: its state, when it settled and its error.
-func key(w map[string]any) string { return fmt.Sprint(w["state"], "|", w["settled"], "|", w["error"]) }
+// key is what a change in a proposal is told from: its state, when it settled, its error and a run proposal's run.
+func key(w map[string]any) string {
+	run, _ := w["run"].(map[string]any)
+	return fmt.Sprint(w["state"], "|", w["settled"], "|", w["error"], "|", run["state"], "|", run["terminal"])
+}
 
 func (h *Proposals) Scan(_ *sql.DB, emit Emit) error {
 	now := map[int64]map[string]any{}

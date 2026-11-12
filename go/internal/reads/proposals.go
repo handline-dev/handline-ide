@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/handline/handline/go/internal/cmdruns"
 	"github.com/handline/handline/go/kit/policy"
 	"github.com/handline/handline/go/kit/pyjson"
 	"github.com/handline/handline/go/protocol/rpc"
@@ -23,7 +24,7 @@ const (
 )
 
 var proposalKinds = map[string]bool{"add": true, "retire": true, "rename": true,
-	"team": true, "settings": true, "context": true, "schedule": true, "global": true, "bundle": true}
+	"team": true, "settings": true, "context": true, "schedule": true, "global": true, "bundle": true, "run": true}
 
 // proposalState is the wire word for a proposal file's state, as handline/team/proposals.py card() draws them: "proposed" waits for the
 // founder, "approved" is decided but did not go through, "applying" waits for running turns to end, "applied" is done. "enacting" and "failed"
@@ -143,6 +144,30 @@ func (e *Env) proposalView(p proposal) map[string]any {
 	}
 	if len(asked) > 0 && p.text("kind") != "bundle" {
 		v["asked"] = asked
+	}
+	if p.text("kind") == "run" {
+		v["run"] = e.runView(p)
+	}
+	return v
+}
+
+// runView is a run proposal's run: its command, cwd and risk marks, and once the approve started it, the run.
+func (e *Env) runView(p proposal) map[string]any {
+	command, cwd := p.runCommand()
+	home, _ := os.UserHomeDir()
+	risks := cmdruns.Risks(command, cwd, home)
+	if risks == nil {
+		risks = []string{}
+	}
+	v := map[string]any{"command": command, "cwd": cwd, "risks": risks}
+	if r, ok, err := cmdruns.OfProposalRun(e.DB, p.wireID); err == nil && ok {
+		v["state"], v["terminal"], v["started"] = r.State, r.Terminal, ts(r.Started)
+		if r.Ended > 0 {
+			v["ended"] = ts(r.Ended)
+		}
+		if r.Exit != nil {
+			v["exit"] = *r.Exit
+		}
 	}
 	return v
 }
