@@ -1213,7 +1213,7 @@
    },
    "LineChange": {
     "type": "object",
-    "description": "Lines added to and removed from one text part since the session before: non-blank lines, in order, at most 40 of each.",
+    "description": "Lines added to and removed from one text part since the session before: every non-blank line, in order, up to 32 KiB over all of a start's parts.",
     "properties": {
      "part": {
       "type": "string",

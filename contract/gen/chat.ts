@@ -335,7 +335,7 @@ export type RequestEnded = {
   seen: boolean;
 };
 
-/** Lines added to and removed from one text part since the session before: non-blank lines, in order, at most 40 of each. */
+/** Lines added to and removed from one text part since the session before: every non-blank line, in order, up to 32 KiB over all of a start's parts. */
 export type LineChange = {
   /** Which part, as `changed` names it: `team rules`, `team instructions`, `ROLE.md` or `base.md`. Open set. */
   part: string;

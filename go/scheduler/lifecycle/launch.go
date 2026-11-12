@@ -1232,8 +1232,8 @@ const LaunchedValues = "values"
 // launch adds and removes. The team rules text is under LaunchedRules, which RulesNote also rewrites once a session is told.
 const LaunchedTexts = "texts"
 
-// changedLinesMax is how many added, and how many removed, lines a start keeps of one part; More counts the rest.
-const changedLinesMax = 40
+// changedBytesMax is how many bytes of changed lines a start keeps, in order over all its parts; More counts the lines past it.
+const changedBytesMax = 32 << 10
 
 // partOrder is the order the parts are written in, as the Python dict keeps it.
 // Renaming a part restarts no one: a name the earlier record lacks is skipped.
@@ -1339,7 +1339,7 @@ func (l *Launcher) readableValues(agent string) (map[string]string, error) {
 }
 
 // LineChange is the lines a launch adds to one text part, and the ones it takes out, since the session recorded before it: at most
-// changedLinesMax of each, More the rest.
+// changedBytesMax over all of a start's parts, More the rest.
 type LineChange struct {
 	Part    string   `json:"part"`
 	Added   []string `json:"added"`
@@ -1381,6 +1381,19 @@ func (l *Launcher) whatChanged(agent string) (string, []LineChange, error) {
 	}
 	var changed []string
 	var lines []LineChange
+	budget := changedBytesMax // once a line does not fit, it and every line after it are counted, so what is kept has no gaps
+	keep := func(side []string) (kept []string, more int) {
+		kept = []string{}
+		for i, ln := range side {
+			if budget < len(ln) {
+				budget = -1
+				return kept, len(side) - i
+			}
+			budget -= len(ln)
+			kept = append(kept, ln)
+		}
+		return kept, 0
+	}
 	for _, k := range partOrder {
 		hash, ok := old[k]
 		if !ok {
@@ -1399,13 +1412,11 @@ func (l *Launcher) whatChanged(agent string) (string, []LineChange, error) {
 		changed = append(changed, words)
 		if before, ok := wasText[k]; ok {
 			if added, removed := lineChanges(before, nowText[k]); len(added)+len(removed) > 0 {
-				c := LineChange{Part: k, Added: added, Removed: removed}
-				for _, side := range []*[]string{&c.Added, &c.Removed} {
-					if len(*side) > changedLinesMax {
-						c.More += len(*side) - changedLinesMax
-						*side = (*side)[:changedLinesMax]
-					}
-				}
+				c := LineChange{Part: k}
+				var ma, mr int
+				c.Added, ma = keep(added)
+				c.Removed, mr = keep(removed)
+				c.More = ma + mr
 				lines = append(lines, c)
 			}
 		}
