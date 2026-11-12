@@ -35,6 +35,7 @@ export interface AgentFixture {
       | 'state_detail'
       | 'handoff'
       | 'account_switch'
+      | 'pending_move'
       | 'status'
       | 'doing'
       | 'background'

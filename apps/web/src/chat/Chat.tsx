@@ -26,7 +26,7 @@ import { LoaderCircle } from 'lucide-react';
 import { useEffect, useImperativeHandle, useRef, useState, type ReactNode, type Ref } from 'react';
 import { ContextRing } from '#src/chat/agent/ContextRing.tsx';
 import { COMPACTING_WORDS, useCompacting, useCompactNow } from '#src/chat/agent/compaction.ts';
-import { SwitchWait, useSwitchLock } from '#src/chat/agent/AccountSwitch.tsx';
+import { PendingMove, SwitchWait, useSwitchLock } from '#src/chat/agent/AccountSwitch.tsx';
 import type { Command } from '#src/chat/Suggest.tsx';
 import { useOpenTab } from '#src/layout/openTab.tsx';
 import { restarting } from '#src/layout/agentList.ts';
@@ -393,23 +393,28 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
             )}
           </AnimatePresence>
           {/* The dots' row is always there, so turning them on or off does not move the chat. */}
-          <div className={`h-5 transition-opacity ${busy ? 'opacity-100' : 'opacity-0'}`} aria-hidden={!busy}>
-            <span className="flex items-center gap-2">
-              <Dots />
-              {/* The held task, this turn's minutes, then its newest tool call (AgentView.task, .doing). */}
-              <span className="min-w-0 truncate text-xs text-muted">
-                {restart && <span className="font-medium text-fg">{restart}</span>}
-                {restart && (held || doing) && ' · '}
-                {held && (
-                  <span className="font-medium text-fg">
-                    T{held.id} · {turnMinutes(chat.working.since, now)}
-                  </span>
-                )}
-                {held && doing && ' · '}
-                {doing}
+          {/* A move kept for the turn's end takes the row, at its height: the move or the dots, never both. */}
+          {view?.pending_move ? (
+            <PendingMove agent={agent} />
+          ) : (
+            <div className={`h-5 transition-opacity ${busy ? 'opacity-100' : 'opacity-0'}`} aria-hidden={!busy}>
+              <span className="flex items-center gap-2">
+                <Dots />
+                {/* The held task, this turn's minutes, then its newest tool call (AgentView.task, .doing). */}
+                <span className="min-w-0 truncate text-xs text-muted">
+                  {restart && <span className="font-medium text-fg">{restart}</span>}
+                  {restart && (held || doing) && ' · '}
+                  {held && (
+                    <span className="font-medium text-fg">
+                      T{held.id} · {turnMinutes(chat.working.since, now)}
+                    </span>
+                  )}
+                  {held && doing && ' · '}
+                  {doing}
+                </span>
               </span>
-            </span>
-          </div>
+            </div>
+          )}
           <PauseCard agent={agent} />
           <PromptCard agent={agent} />
         </Page>

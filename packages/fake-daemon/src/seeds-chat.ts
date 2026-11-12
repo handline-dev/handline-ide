@@ -73,6 +73,18 @@ export const CHAT_SEEDS: Record<string, Seed> = {
       },
     };
   },
+  /** A person's move kept for the end of the turn, after one that landed without a note and one that could not run (T8905). */
+  'move-scheduled': (d) => {
+    const iso = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
+    d.chat.seedItem(ARCH, {
+      at: iso(30),
+      kind: 'account_moved',
+      account_moved: { from: 'alpha', to: 'beta', cause: 'manual', note_written: false },
+    });
+    d.chat.seedItem(ARCH, { at: iso(10), kind: 'move_failed', move_failed: { to: 'gamma', reason: 'gamma is at its usage limit' } });
+    const s = d.sessions.get(ARCH)!;
+    s.fx.view = { ...s.fx.view, pending_move: { to: 'alpha', since: iso(1), phase: 'scheduled' } };
+  },
   /** ! lines (T8684). */
   bash: (d) => {
     const iso = (min: number) => new Date(Date.now() - min * 60_000).toISOString();

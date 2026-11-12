@@ -1,6 +1,8 @@
 import { roomRows, switchWords, waitLine } from '@handline/app-core';
 import { useAccounts, useAgents, useWrite } from '@handline/app-data';
-import { ArrowRight, Check, ChevronDown, Clock } from 'lucide-react';
+import type { TranscriptItem } from '@handline/client';
+import { clock } from '#src/format/time.ts';
+import { ArrowRight, ArrowRightLeft, Check, ChevronDown, Clock, TriangleAlert } from 'lucide-react';
 import { useRef } from 'react';
 import { Button } from '#src/ui/Button.tsx';
 import { Menu, MenuItem } from '#src/ui/Menu.tsx';
@@ -89,6 +91,73 @@ export function SwitchWait({ agent }: { agent: string }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/** A person's move waiting to run, in the turn's row at the chat's foot: to which account and when, with Move now and Cancel while it
+ * waits for the turn to end; once Move now stopped the turn, that it waits for the handoff note. */
+export function PendingMove({ agent }: { agent: string }) {
+  const m = useSwitch(agent)?.pending_move;
+  const now = useWrite('agent.move_now', agent);
+  const cancel = useWrite('agent.move_cancel', agent);
+  if (!m) return null;
+  const failed = (what: string) => (e: unknown) => toast(`${what}: ${e instanceof Error ? e.message : String(e)}`, { tone: 'warning' });
+  const stopping = m.phase === 'stopping';
+  const busy = now.isPending || cancel.isPending;
+  const link = 'shrink-0 rounded px-1 hover:bg-hover disabled:opacity-50';
+  return (
+    <div role="status" className="flex h-5 min-w-0 items-center gap-2 text-xs text-muted">
+      <ArrowRightLeft size={12} className="shrink-0" />
+      <span className="min-w-0 truncate">
+        {stopping ? `Moving to ${m.to}: waiting for the handoff note…` : `Moves to ${m.to} when this turn ends, after its handoff note`}
+      </span>
+      {!stopping && (
+        <>
+          <button
+            type="button"
+            className={`${link} font-medium text-accent`}
+            disabled={busy}
+            onClick={() => now.mutate({ agent, account: m.to, request_id: uuid() }, { onError: failed('Did not move now') })}
+          >
+            Move now
+          </button>
+          <button
+            type="button"
+            className={`${link} text-fg`}
+            disabled={busy}
+            onClick={() => cancel.mutate({ agent, request_id: uuid() }, { onError: failed('Not cancelled') })}
+          >
+            Cancel
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
+/** A move in the chat: the account it landed on (and that it began without a handoff note when so), or a kept move that could not run. */
+export function MoveLine({
+  at,
+  moved,
+  failed,
+}: {
+  at: string;
+  moved?: TranscriptItem['account_moved'];
+  failed?: TranscriptItem['move_failed'];
+}) {
+  const text = moved
+    ? `Moved to ${moved.to}${moved.note_written ? '' : ' · started from the daemon’s record, no handoff note'}`
+    : `Did not move to ${failed?.to}: ${failed?.reason}`;
+  const Icon = moved ? ArrowRightLeft : TriangleAlert;
+  return (
+    <div className="my-3 flex items-center gap-4 text-sm text-muted">
+      <div className="h-px flex-1 bg-border" />
+      <span title={clock(at)} className={`flex items-center gap-1.5 ${failed ? 'text-warning' : ''}`}>
+        <Icon size={14} />
+        {text}
+      </span>
+      <div className="h-px flex-1 bg-border" />
     </div>
   );
 }
