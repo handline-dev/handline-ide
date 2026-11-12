@@ -11,6 +11,8 @@ import {
   useChat,
   useChatActions,
   useBusy,
+  useDirectory,
+  hooks,
   usePending,
   useWrite,
   writes,
@@ -392,6 +394,22 @@ describe('a decided write, against the fake daemon with latency and a refusal', 
     expect(v.get().pending).toEqual([]);
     expect(qc.getQueryData(qk.agents(D))).toEqual(before);
     expect(store.error).toBe("Couldn't start: the usage limit is hit (wait for the reset)");
+  });
+});
+
+describe('workspace writes, against the fake daemon', () => {
+  it('a rename shows in the directory, and a delete with an agent running is refused with the reason', async () => {
+    const { store, daemon } = await connected();
+    const v = probe(() => ({ dir: useDirectory(), rename: hooks.useWorkspaceSet(), remove: hooks.useWorkspaceDelete() }));
+    await mount(store, v.node);
+    await until(() => v.get().dir.workspaces.some((w) => w.name === 'handline'), 'the workspaces');
+    for (const s of daemon.sessions.values()) s.open = false;
+    act(() => v.get().rename.mutate({ workspace: 'handline', name: 'hl' }));
+    await until(() => v.get().dir.workspaces.some((w) => w.name === 'hl'), 'the new name');
+    daemon.sessions.get(ARCH)!.open = true;
+    act(() => v.get().remove.mutate({ workspace: 'hl' }));
+    await until(() => v.get().remove.isError, 'the refusal');
+    expect(store.error).toMatch(/handline.architect has a session running/);
   });
 });
 

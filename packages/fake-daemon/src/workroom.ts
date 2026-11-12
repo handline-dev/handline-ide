@@ -112,19 +112,6 @@ export class FakeWork {
     if (parent !== undefined && !name.startsWith(`${String(parent)}.`))
       throw invalidParams(`under ${String(parent)} the name is ${String(parent)}.<name>`, 'name');
     if (this.host.sessions.has(name)) throw refused('state', `${name} is already an agent`);
-    const id = `op-${++this.count}`;
-    const op: Operation = {
-      id,
-      kind: 'agent.create',
-      state: 'running',
-      step: null,
-      steps_done: 0,
-      steps_total: STEPS.length,
-      message: null,
-      result: null,
-      agent: name,
-    };
-    this.ops.set(id, op);
     const fx: AgentFixture = {
       ...AGENTS[0]!,
       name,
@@ -137,17 +124,37 @@ export class FakeWork {
       branch: `agent/${name}`,
       session: null,
     };
-    setImmediate(() => void this.run(op, fx, typeof base === 'string' ? base : 'main', found));
+    const id = this.launch('agent.create', fx, typeof base === 'string' ? base : 'main', found);
     return accepted(`Creating ${name}.`, { operation: id });
   }
 
-  private async run(op: Operation, fx: AgentFixture, base: string, repo: Repo): Promise<void> {
+  /** Starts the operation that registers the agent, makes its worktree and starts it; `fails` ends it at the first step, unregistered. */
+  launch(kind: Operation['kind'], fx: AgentFixture, base: string, repo: Repo, fails?: string): string {
+    const id = `op-${++this.count}`;
+    const op: Operation = {
+      id,
+      kind,
+      state: 'running',
+      step: null,
+      steps_done: 0,
+      steps_total: STEPS.length,
+      message: null,
+      result: null,
+      agent: fx.name,
+    };
+    this.ops.set(id, op);
+    setImmediate(() => void this.run(op, fx, base, repo, fails));
+    return id;
+  }
+
+  private async run(op: Operation, fx: AgentFixture, base: string, repo: Repo, fails?: string): Promise<void> {
     const report = (o: Partial<Operation>) => {
       Object.assign(op, o);
       this.host.emit('operations', 'operation.progress', { agent: fx.name, title: `Creating ${fx.name}`, data: { ...op } });
     };
     report({ step: STEPS[0] });
     await this.wait();
+    if (fails) return report({ state: 'failed', message: fails, result: { agent: fx.name, registered: false } });
     const s = newSession(fx, this.now());
     this.host.sessions.set(fx.name, s);
     this.host.emit('agents', 'agent.changed', { agent: fx.name, data: view(s, this.host.tasks) as unknown as Record<string, unknown> });
