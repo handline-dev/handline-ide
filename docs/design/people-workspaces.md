@@ -198,7 +198,7 @@ Today (main, read from `go/scheduler/lifecycle/launch.go` and `rulesnote.go`): `
 | `lease_max.<kind>` | most leases of a kind the workspace holds at once | the lease grant (fair share, see Resource leases) |
 | `tools_deny` | tools its agents may not use, added to the global list | launch argv and the PreToolUse guard |
 | `mode_max` | strongest mode an agent of it may be given (`plan` < `default` < `acceptEdits` < `auto`) | agent create and settings write |
-| `review_required` | a task with commits needs a review comment from another agent before `hl task done` | the task.done write |
+| `review_required` | a done with commits (a sha or `--commit`) by an agent of the workspace needs a turn on the task answered with a comment by an agent that did not work it (not the one closing, its holder, or one that handed it on); a done in words only is not held | the task.done write |
 | `land_by` | the one agent that may push to a repo's default branch (empty = anyone) | the PreToolUse guard on `git push` |
 | `land_check` | a command that must pass before such a push (empty = none) | the PreToolUse guard, which runs it in the agent's folder and refuses with the end of its output |
 

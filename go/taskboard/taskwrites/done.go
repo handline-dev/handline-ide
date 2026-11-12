@@ -235,6 +235,13 @@ func MarkDone(tx *sql.Tx, home, by string, in DoneIn) (*DoneResult, error) {
 		}
 		return nil, refusal(fmt.Sprintf("task T%d is waiting on %s - it is done only once they are", tid, taskList(waits)))
 	}
+	if sha != "" || in.Commit != "" {
+		if why, err := reviewMissing(tx, by, t); err != nil {
+			return nil, err
+		} else if why != "" {
+			return nil, refusal(why)
+		}
+	}
 	result, finalize, err := doneResult(tx, home, by, t, in, via, mark)
 	if err != nil {
 		return nil, err
