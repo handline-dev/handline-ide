@@ -26,8 +26,9 @@ var (
 // Add registers an account and links it to the shared files, as `hl account add --no-login`: its directory is made and nothing is logged
 // in. Everything is checked before anything is made, and a failure while linking takes the new directory away again, so a refusal leaves
 // no account behind. A name that is empty, holds a slash, starts with a dot or would not read back as text is ErrBadAccountName (wrapped,
-// with the reason); a vendor with no driver is *UnknownVendor; a name in use is ErrAccountExists. Returns the config directory made.
-func (a Accounts) Add(acct, vendor string) (string, error) {
+// with the reason); a vendor with no driver is *UnknownVendor; a name in use is ErrAccountExists. extra are links its config dir gets
+// too (AdoptLink). Returns the config directory made.
+func (a Accounts) Add(acct, vendor string, extra ...Link) (string, error) {
 	if acct == "" || strings.Contains(acct, "/") || strings.HasPrefix(acct, ".") {
 		return "", fmt.Errorf("%w: %q", ErrBadAccountName, acct)
 	}
@@ -105,6 +106,11 @@ func (a Accounts) Add(acct, vendor string) (string, error) {
 		}
 		if err := os.Symlink(target, filepath.Join(cdir, item)); err != nil {
 			return fail(fmt.Errorf("%s failed (%w); nothing was kept", item, err))
+		}
+	}
+	for _, l := range extra {
+		if err := os.Symlink(l.Target, filepath.Join(cdir, l.Name)); err != nil {
+			return fail(fmt.Errorf("linking %s failed (%w); nothing was kept", l.Name, err))
 		}
 	}
 	return cdir, nil
