@@ -219,6 +219,17 @@ export type TaskDetail = Task & {
     /** Dollars by model. */
     by_model: { [key: string]: number };
   } | null;
+  /** The to-do list of the session working the task now (acting), as it keeps it; not the note task.progress sets. Absent when that session keeps none, and on a done or discarded task. */
+  progress?: {
+    /** Items checked off; at most total. */
+    done: number;
+    /** Items on the list. */
+    total: number;
+    /** The item in progress, as its session words it; null when none is. */
+    current: string | null;
+    /** When the list last changed. */
+    updated_at: Timestamp;
+  };
 };
 
 /** An event as task.get lists it: the fields of Event but no cursor, because task events are not on the stream and have no position in it. */
