@@ -210,7 +210,51 @@
      },
      "kind": {
       "type": "string",
-      "description": "What the proposal does: add, retire, rename, team, settings, context, schedule or bundle (several changes decided once). An open set: a client draws a word it does not know as text."
+      "description": "What the proposal does: add, retire, rename, team, settings, context, schedule, run (a shell command the founder runs with the approve) or bundle (several changes decided once). An open set: a client draws a word it does not know as text."
+     },
+     "run": {
+      "type": "object",
+      "description": "Kind run only: the command and, once the approve started it, its run. The run's output goes to the proposing agent: a card says so before the press.",
+      "properties": {
+       "command": {
+        "type": "string",
+        "description": "The command in full, as it will run; text from an agent: draw it as text, never cut."
+       },
+       "cwd": {
+        "type": "string",
+        "description": "The absolute folder it runs in."
+       },
+       "risks": {
+        "type": "array",
+        "items": {
+         "type": "string"
+        },
+        "description": "Hints for reading, from the text alone: delete, overwrite, network, outside, outside_home, privilege. Never a gate, and none is not safe. An open set: draw a word you do not know as text."
+       },
+       "state": {
+        "type": "string",
+        "description": "Absent until the approve started it; then running, done (exit 0), failed (another exit) or stopped (its window closed first), as CommandRun.state. An open set."
+       },
+       "terminal": {
+        "type": "string",
+        "description": "The run's window, as terminal.attach takes it; set once started."
+       },
+       "started": {
+        "$ref": "#/components/schemas/Timestamp"
+       },
+       "ended": {
+        "$ref": "#/components/schemas/Timestamp"
+       },
+       "exit": {
+        "type": "integer",
+        "description": "The exit status once done or failed."
+       }
+      },
+      "required": [
+       "command",
+       "cwd",
+       "risks"
+      ]
      }
     },
     "required": [
@@ -356,6 +400,14 @@
      "was_message": {
       "type": "string",
       "description": "schedule edit, remove: its message, when two of the agent's schedules share the cron."
+     },
+     "command": {
+      "type": "string",
+      "description": "run: the shell command the founder's approve runs in a terminal window, 1 to 4000 characters, no NUL. One string, run by the window's shell: a pipeline or `&&` is one proposal."
+     },
+     "cwd": {
+      "type": "string",
+      "description": "run: the folder it runs in; it must be a directory when proposed. A relative one is taken from the agent's worktree; kept absolute."
      }
     }
    },
@@ -458,7 +510,7 @@
  "methods": [
   {
    "name": "proposal.propose",
-   "summary": "Propose a roster change; the founder decides (hl propose add, retire, rename, team, settings, context, schedule, and diff, which is kind bundle: args.changes lists several changes decided once and applied together or not at all).",
+   "summary": "Propose a roster change; the founder decides (hl propose add, retire, rename, team, settings, context, schedule, run (a shell command the founder's approve runs in a terminal window; at most 5 open per agent, the sixth refused), and diff, which is kind bundle: args.changes lists several changes decided once and applied together or not at all).",
    "paramStructure": "by-name",
    "params": [
     {
@@ -474,6 +526,7 @@
        "settings",
        "context",
        "schedule",
+       "run",
        "bundle"
       ]
      }
@@ -1271,6 +1324,48 @@
    ],
    "x-gates": [
     "proposal_settled"
+   ]
+  },
+  {
+   "name": "proposal.stop",
+   "summary": "Stop the running command of an approved run proposal: its window is closed and the run ends stopped; the proposing agent is told. Refused (gate state) when the proposal is not kind run or its command is not running.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "proposal",
+     "required": true,
+     "schema": {
+      "type": "integer"
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Accepted"
+    }
+   },
+   "x-role": "member",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "stop"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    }
    ]
   },
   {
