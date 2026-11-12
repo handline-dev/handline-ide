@@ -35,7 +35,7 @@ func Toplevel(folder string) (string, error) {
 		return "", &NotGit{path}
 	}
 	top := filepath.Clean(strings.TrimSpace(r.Stdout))
-	if real, err := filepath.EvalSymlinks(path); err == nil && real == top { // the top itself, kept as it was written (/tmp, not /private/tmp)
+	if real(path) == top { // the top itself, kept as it was written (/tmp, not /private/tmp)
 		return filepath.Clean(path), nil
 	}
 	return top, nil
@@ -80,24 +80,24 @@ func sharing(q db.Q, top string, id int64) (string, string, error) {
 		if err := rows.Scan(&name, &at); err != nil {
 			return "", "", err
 		}
-		if at = toplevelOr(at); within(top, at) || within(at, top) {
+		if within(real(top), real(at)) || within(real(at), real(top)) {
 			return name, at, nil
 		}
 	}
 	return "", "", rows.Err()
 }
 
-// toplevelOr is folder's checkout top, or folder itself when it is in none: a folder recorded before the check may be either.
-func toplevelOr(folder string) string {
-	if top, err := Toplevel(folder); err == nil {
-		return top
+// real is folder with its symlinks followed, or as written when it cannot be: /tmp and /private/tmp are one folder.
+func real(folder string) string {
+	folder = filepath.Clean(expandUser(folder))
+	if r, err := filepath.EvalSymlinks(folder); err == nil {
+		return r
 	}
 	return folder
 }
 
 // within is whether path is dir or under it.
 func within(path, dir string) bool {
-	dir = filepath.Clean(expandUser(dir))
 	return path == dir || strings.HasPrefix(path, dir+string(filepath.Separator))
 }
 

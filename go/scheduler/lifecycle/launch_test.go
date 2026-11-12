@@ -822,7 +822,10 @@ func TestBuildHandsTheDriverTheAllowancesOfTheAgentsRepoOnly(t *testing.T) {
 	if err := r.l.Roster.Store.Put(team.RepoAllowanceNS, "handline", "weaker-network\npnpm-install"); err != nil {
 		t.Fatal(err)
 	}
-	for repo, want := range map[string]bool{"/ws/handline": true, "/ws/harbor-app": false} {
+	ws := t.TempDir()
+	for name, want := range map[string]bool{"handline": true, "harbor-app": false} {
+		repo := filepath.Join(ws, name) // a workspace's folder is a git checkout
+		gitIn(t, ws, "init", "-q", repo)
 		if err := r.l.Roster.SetKeys("ann", []yamlcompat.Pair{{Key: "sandbox", Val: true}, {Key: "repo", Val: repo}}); err != nil {
 			t.Fatal(err)
 		}
