@@ -1,6 +1,8 @@
 package team
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -132,4 +134,31 @@ func (r *Roster) Create(name, folder string) (string, error) {
 	}
 	key := actor.Key(actor.Workspace, ws)
 	return key, seedWorkspace(r.Home, key)
+}
+
+// RenameWorkspace gives workspace ws (its key) the name name. Its agents' dotted names follow it; their keys, folders and rows stay.
+func (r *Roster) RenameWorkspace(ws, name string) error {
+	if err := requireFounder(); err != nil {
+		return err
+	}
+	if r.err != nil {
+		return r.err
+	}
+	k, id, ok := actor.Parse(ws)
+	if !ok || k != actor.Workspace {
+		return fmt.Errorf("%s is no workspace key", ws)
+	}
+	return inTx(r.DB, func(q db.Q) error {
+		var was string
+		if err := q.QueryRow("SELECT name FROM workspaces WHERE id = ?", id).Scan(&was); errors.Is(err, sql.ErrNoRows) {
+			return &NotRegistered{ws}
+		} else if err != nil || was == name {
+			return err
+		}
+		if err := names.Check(q, names.Workspace, name, 0); err != nil {
+			return err
+		}
+		_, err := q.Exec("UPDATE workspaces SET name = ? WHERE id = ?", name, id)
+		return err
+	})
 }
