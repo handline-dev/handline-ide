@@ -14,7 +14,7 @@ import { Splitter } from '#src/ui/Splitter.tsx';
 import { useAgentLayouts } from '#src/layout/agentLayouts.ts';
 import { Workspace } from '#src/Workspace.tsx';
 import { StatusRow } from '#src/sidebar/StatusRow.tsx';
-import { FirstRunGate } from '#src/firstrun/FirstRun.tsx';
+import { Onboarding } from '#src/onboarding/Onboarding.tsx';
 import { Settings } from '#src/settings/Settings.tsx';
 import { openSettings } from '#src/settings/open.ts';
 import '#src/styles.css';
@@ -129,9 +129,8 @@ createRoot(document.getElementById('root')!).render(
   ) : (
     <Connect>
       <Boundary loading={null} failed={brokenView('Handline')}>
-        <FirstRunGate>
-          <App />
-        </FirstRunGate>
+        <App />
+        <Onboarding />
       </Boundary>
       <OpenMenuHost />
       <ModalHost />

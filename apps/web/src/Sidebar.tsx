@@ -15,6 +15,7 @@ import { activityOf, holdLine, agentTree, pathTo, splitPinned, workingUnder, typ
 import { chatOf, footerPages, pages } from '#src/layout/kinds.tsx';
 import { useRequests } from '#src/requests/data.ts';
 import { Row } from '#src/sidebar/Row.tsx';
+import { SetupCard } from '#src/onboarding/SetupCard.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { useScrollFade } from '#src/ui/ScrollFade.tsx';
 import { useFolded } from '#src/useFolded.ts';
@@ -372,6 +373,7 @@ export function Sidebar({
           onNew={() => void newAgent().then((name) => name && onSelectAgent(name))}
         />
       </div>
+      <SetupCard />
       <nav className="mt-auto flex gap-0.5 border-t border-border pt-2">
         {footerPages.map((p) => (
           <IconButton key={p.kind} label={p.label} onClick={() => onSelectPage(p.kind, p.label)}>
