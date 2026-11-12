@@ -95,6 +95,10 @@ type Lease struct {
 	Port      int    // a port lease's number
 	Task      int64  // a reservation's task
 	Until     int64  // a reservation's claim deadline, epoch seconds; 0 once taken
+	Extended  int    // the periods hl use --extend added past its max_hold
+	Warned    bool   // told it nears its max_hold, this period
+
+	sampled int64 // when Pids were last sampled
 }
 
 // Reserved is whether the lease waits for its task's agent to take it.
@@ -170,6 +174,12 @@ type Manager struct {
 	Ports func() (lo, hi int, ok bool)
 	// PortFree is whether a port binds now; nil tries it.
 	PortFree func(port int) bool
+	// MaxHold is kind's max_hold in seconds, 0 for none; nil is none for every kind.
+	MaxHold func(kind string) int64
+	// Tell says a line to an agent: its lease nears its max_hold, or was taken back. Nil tells nobody.
+	Tell func(agent, text string)
+	// Signal sends a signal to a process; nil is the system's kill.
+	Signal func(pid int, sig syscall.Signal) error
 
 	mu     sync.Mutex
 	next   int64
@@ -177,7 +187,8 @@ type Manager struct {
 	ended  []span
 	queues map[string][]*waiter
 	asking map[int64]bool // the tasks whose gate is being opened
-	after  []func()       // the task board's writes, run once mu is let go
+	after  []func()       // the task board's writes and the tellings, run once mu is let go
+	kills  []kill         // revoked commands to kill once their time comes
 }
 
 // unlock lets mu go and runs what was left for after it.
@@ -459,7 +470,12 @@ func (m *Manager) Take(done <-chan struct{}, kind, agent string, hold bool, pid 
 		}
 	}
 	if len(m.queues[kind]) == 0 {
-		if port, ok := m.free(kind, m.limits()); ok {
+		limits := m.limits()
+		port, ok := m.free(kind, limits)
+		if !ok && m.revokeOne(kind, agent, m.periods(limits)[kind]) {
+			port, ok = m.free(kind, limits)
+		}
+		if ok {
 			l := m.grant(Lease{Kind: kind, Agent: agent, Workspace: ws, Hold: hold, PID: pid, Port: port})
 			m.unlock()
 			return l, nil
@@ -707,7 +723,7 @@ func (m *Manager) Check(procs []procload.Proc) {
 			continue
 		}
 		if m.alive(l.PID) {
-			l.Pids = tree(l.PID, children)
+			l.Pids, l.sampled = tree(l.PID, children), m.now()
 			continue
 		}
 		var left []int
@@ -726,6 +742,8 @@ func (m *Manager) Check(procs []procload.Proc) {
 	for _, l := range lapsed {
 		m.drop(l.ID, fmt.Sprintf("not taken for T%d in %d minutes", l.Task, ClaimS/60))
 	}
+	m.killDue()
+	m.overTime(m.periods(m.limits()))
 	m.promote()
 	if m.Tasks != nil {
 		keep := map[int64]bool{}
