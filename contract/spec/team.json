@@ -842,8 +842,8 @@
   },
   {
    "name": "workspace.create",
-   "summary": "Make a workspace on a project folder and its lead, and start the lead there, as one operation like agent.create's. The folder is the top of the git checkout it is in; one that is in no checkout is refused (gate not_git), one that is missing or not a folder is not_found, what folder. A folder that is another workspace's, inside one or holding one is refused (gate state): a checkout is one workspace's. A name a workspace already has is refused (gate state) and no operation starts. The lead reports to the owner and the workspace's rules (base.md) are seeded as a launch would. The call answers only once the operation ended, as agent.create does: done with the operation id and the start's words in said, or refused (gate state) with the reason, the operation id and whether the lead was registered. Owner only; an agent proposes a team instead (proposal.propose).",
-   "description": "The operation has kind workspace.create and its agent is the workspace's name (its lead). Its steps and result are agent.create's: register (the workspace and its lead), then start. A start that fails leaves the workspace and its lead registered, so its name is in use: start the lead with session.start (hl wake), or remove it with workspace.delete.",
+   "summary": "Make a workspace on the top of the git checkout folder is in, with its lead (reporting to the owner, its rules seeded), and start the lead: one operation, answered as agent.create's. Refused before any operation starts: a folder in no checkout (gate not_git), a missing one (not_found, what folder), a name a workspace has (gate state). Owner only; an agent proposes a team instead.",
+   "description": "The operation has kind workspace.create and its agent is the workspace's name (its lead); its steps and result are agent.create's. A folder another workspace's shares, or a name the rules refuse, fails it with the reason. A start that fails leaves the workspace and its lead registered, so its name is in use: start the lead with session.start (hl wake), or remove it with workspace.delete.",
    "paramStructure": "by-name",
    "params": [
     {
@@ -851,7 +851,7 @@
      "required": true,
      "schema": {
       "type": "string",
-      "description": "The workspace's name, by the naming rules (names.Check), used by no workspace and no person's handle. A dot or a slash is bad_request, field name; another name the rules refuse fails the operation with the reason."
+      "description": "The workspace's name: lowercase letters, digits and -, 1 to 32 long, starting with a letter, used by no workspace and no person's handle. A dot or a slash is bad_request, field name."
      }
     },
     {
@@ -901,7 +901,7 @@
   },
   {
    "name": "workspace.set",
-   "summary": "Rename a workspace: its name is the one thing this changes. Its agents keep their keys, folders and sessions; keys never change, and the dotted form of each name (workspace.agent) follows the new name, so the old one no longer resolves. The same name is no change. A name the naming rules refuse, or one a workspace or a person's handle already has, is refused (gate state) with the reason. Owner only; an agent proposes instead.",
+   "summary": "Rename a workspace: its name is the one thing this changes. Keys never change; the dotted form of each agent's name (workspace.agent) follows the new name, and the old one no longer resolves. Refused (gate state) while one of its agents has a session running, while an open proposal names one by its dotted name, or for a name the rules refuse or a workspace or person's handle has. The same name is no change. Owner only.",
    "paramStructure": "by-name",
    "params": [
     {
@@ -917,7 +917,7 @@
      "required": true,
      "schema": {
       "type": "string",
-      "description": "The new name, by the naming rules (names.Check)."
+      "description": "The new name: lowercase letters, digits and -, 1 to 32 long, starting with a letter."
      }
     },
     {
@@ -958,7 +958,7 @@
   },
   {
    "name": "workspace.delete",
-   "summary": "Delete a workspace: each of its agents is retired as agent.retire retires one, its lead last, and the workspace's row goes with the lead. The project folder is never touched. Every refusal is checked for all its agents before anything is removed, and nothing is done when one applies: a session running (gate state, naming them: stop them first), a worktree that holds work with no worktree answer (gate dirty, with worktrees in the error data, as agent.retire), or one that cannot go (gate worktree). While the delete runs, agent.create and the session methods in the workspace are refused (gate state), and the delete is refused while one of them is under way. What is left to fail part way is git or the disk: that puts back every retire before it (rows and agent folders), a clean worktree already removed stays removed, and the call is refused (gate state) naming the step. Owner only. The call answers once the retires have run, with said for what was done.",
+   "summary": "Delete a workspace: each of its agents is retired as agent.retire retires one, its lead last, and the workspace goes with the lead. The project folder is never touched. Nothing is done when any agent has a session running or an agent of another workspace under it (gate state), a worktree holds work with no worktree answer (gate dirty, every agent's in worktrees), or a worktree cannot go (gate worktree). While it runs, agent.create and the session methods in the workspace are refused (gate state), and it is refused while one of them is under way. Git or the disk failing part way puts back every retire before it, but not a worktree already removed; the call is refused (gate state) naming the step. Owner only.",
    "paramStructure": "by-name",
    "params": [
     {
