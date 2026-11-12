@@ -16,17 +16,19 @@ describe('ruleRows', () => {
 });
 
 describe('useWorkspaceRules', () => {
-  it("reads a workspace's rules and reads them again after a rule is set on it or on the machine", async () => {
+  it("reads a workspace's rules and its rules text's size, and reads them again after a rule is set on it or on the machine", async () => {
     const s = setup();
     const store = new Store(s.client);
     await store.start();
     const [ws] = (await store.client.call('workspaces.list', {})).workspaces;
     if (!ws) throw new Error('a seeded workspace');
+    s.daemon.rules.textBytes.set(ws.key, 812);
     const v = probe(() => ({ rules: useWorkspaceRules(ws.key), set: useWrite('workspace.rule.set') }));
     await mount(store, v.node);
-    const row = (key: string) => v.get().rules.data?.find((r) => r.key === key);
+    const row = (key: string) => v.get().rules.data?.rules.find((r) => r.key === key);
     await until(() => v.get().rules.data, 'the rules');
     expect(row('agent_cap')).toMatchObject({ set: false });
+    expect(v.get().rules.data).toMatchObject({ textBytes: 812, limitBytes: 2048 });
 
     await v.get().set.mutateAsync({ key: 'agent_cap', value: 4 });
     await until(() => row('agent_cap')?.set, 'the machine default');

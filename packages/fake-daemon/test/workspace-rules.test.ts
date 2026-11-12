@@ -21,6 +21,9 @@ test('workspace.rules: a workspace value beats the machine default, a key set no
     (await client.call('workspace.rules', workspace ? { workspace } : {})).rules.map((r) => [r.key, r.value, r.on, r.source]);
 
   assert.deepEqual(await rules(a.key), []);
+  const { text_bytes, limit_bytes } = await client.call('workspace.rules', { workspace: a.key });
+  assert.deepEqual([text_bytes, limit_bytes], [0, 2048]);
+  assert.equal('text_bytes' in (await client.call('workspace.rules', {})), false);
   await set('agent_cap', 3);
   await set('agent_cap', 1, a.key);
   await set('review_required', false, a.name);
