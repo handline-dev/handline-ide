@@ -23,7 +23,6 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
 	"github.com/handline/handline/go/data/team"
-	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/gitrun"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/protocol/sessiontoken"
@@ -966,9 +965,9 @@ func (l *Launcher) ContextFor(agent string) (string, error) {
 	return strings.Join(out, "\n\n"), nil
 }
 
-// yourTeam is who this agent answers to and who answers to it, read from the roster, and the hl commands that reach them. Generated
-// rather than written into each ROLE.md: a role that named its colleagues by hand kept naming them after they were retired and renamed.
-// How a team works together is its rules file (team.Rules), not this.
+// yourTeam is the agent's workspace peers and its contact, read from the roster, and the hl commands that reach them. Every agent of
+// a workspace is told the same: no one reports to anyone. Generated rather than written into each ROLE.md: a role that named its
+// colleagues by hand kept naming them after they were retired and renamed. How a team works together is its rules file (team.Rules).
 func (l *Launcher) yourTeam(agent string) string {
 	var t *team.Team
 	if l.Ports.Routing != nil {
@@ -977,35 +976,50 @@ func (l *Launcher) yourTeam(agent string) string {
 	if t == nil {
 		return ""
 	}
-	boss := t.SupervisorOf(agent)
-	if boss == "" {
-		boss = actor.OwnerKey
+	ws := t.TeamOf(agent)
+	contact := t.ContactOf(ws)
+	label := func(key string) string { // a lead is called by its workspace's name, as hl team shows it
+		m := t.Agents[key]
+		if m.Lead || m.Name == "" {
+			return "`" + key + "` (" + m.Workspace + ")"
+		}
+		return "`" + key + "` (" + m.Name + ")"
 	}
-	var reports []string
-	for _, n := range paths.ListAgents(l.Home) {
-		if n != agent && t.SupervisorOf(n) == agent {
-			reports = append(reports, n)
+	lines := []string{"# Your team"}
+	var peers []string
+	for _, n := range t.Members(ws) {
+		if n != agent {
+			peers = append(peers, label(n))
 		}
 	}
-	typed := l.FounderTyped != nil && l.FounderTyped(agent)
-	report := "You report to `" + boss + "`. " + team.Protocol("ends")
-	if !actor.IsPerson(boss) {
-		report += " Being blocked, a decision only `" + boss + "` can make, or work nobody handed you is a task for it: `hl task new --assign " + boss + " -t <time> \"<title>\" \"<body>\"`."
+	if len(peers) > 0 {
+		lines = append(lines, "Your peers in workspace `"+ws+"`: "+strings.Join(peers, ", ")+".")
+	}
+	switch contact {
+	case "":
+	case agent:
+		lines = append(lines, "You are the workspace's contact: work from another workspace comes to you. Pass it to the peer it fits, and do your own work too.")
+	default:
+		lines = append(lines, "The workspace's contact is "+label(contact)+": work from another workspace comes to it, and it passes that work to the peer it fits.")
+	}
+	lines = append(lines, team.Protocol("ends"),
+		"Give anyone work with `hl task new --assign <name> -t <time> \"<title>\" \"<what to do, and what done looks like>\"`; its done goes back to "+
+			"whoever opened the task. Write about a task with `hl task comment T<n> add \"@<name> ...\"`; correct a task the same way, throw a "+
+			"stale one away with `hl task discard T<n> \"<why>\"`, and record a wait with `--blocked-by T<n>`.")
+	if contact != "" && contact != agent {
+		lines = append(lines, "Being blocked, or a decision someone else must make, is a task for the owner of the task you hold, or for the "+
+			"contact when you do not know who: `hl task new --assign <name> -t <time> \"<title>\" \"<body>\"`.")
+	} else {
+		lines = append(lines, "Being blocked, or a decision someone else must make, is a task for the owner of the task you hold: "+
+			"`hl task new --assign <name> -t <time> \"<title>\" \"<body>\"`.")
 	}
 	talk := team.Protocol("terminal")
-	if typed {
+	if l.FounderTyped != nil && l.FounderTyped(agent) {
 		talk = "The founder may type straight into your terminal. When the person types to you directly, answer with `hl say` too; your terminal " +
 			"text is not shown to them. " + talk
 	}
-	lines := []string{"# Your team", report, talk, team.Protocol("land"), team.Protocol("progress")}
-	if len(reports) > 0 {
-		var quoted []string
-		for _, n := range reports {
-			quoted = append(quoted, "`"+n+"`")
-		}
-		lines = append(lines, "Your reports: "+strings.Join(quoted, ", ")+". Give one work with `hl task new --assign <name> -t <time> \"<title>\" \"<what to do, and what done looks like>\"`. Write to a report about its task with `hl task comment T<n> add \"@<name> ...\"`; correct a task the same way, throw a stale one away with `hl task discard T<n> \"<why>\"`, and record a wait with `--blocked-by T<n>`.")
-	}
-	lines = append(lines, "`hl team` shows who you may reach and what each is doing now. "+team.Protocol("founder"))
+	lines = append(lines, talk, team.Protocol("land"), team.Protocol("progress"),
+		"`hl team` shows who you may reach and what each is doing now. "+team.Protocol("founder"))
 	return strings.Join(lines, "\n")
 }
 
