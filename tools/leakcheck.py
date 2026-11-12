@@ -2,7 +2,7 @@
 """What a test run left behind. tools/check.sh gives the run a directory of its own and points TMPDIR and TMUX_TMPDIR
 into it, so every temp home, tmux socket and scratch binary the run makes is under it. It is in /tmp, not the per-user
 TMPDIR, so a socket under it still fits in the 104 bytes a socket path holds:
-    run="$(tools/leakcheck.py begin)"      prints the directory; TMPDIR is <run>/tmp, TMUX_TMPDIR <run> itself
+    run="$(tools/leakcheck.py begin $$)"   prints the directory, owned by pid $$; TMPDIR is <run>/tmp, TMUX_TMPDIR <run> itself
     tools/leakcheck.py end [--interrupted] "$run"   exit 1, naming each, when the run left any of:
 - a process whose command line names the directory (a daemon on a temp home, a fake claude, a test binary);
 - a tmux server still answering on a socket under <run>/tmux-<uid>;
@@ -13,6 +13,8 @@ TMPDIR, so a socket under it still fits in the 104 bytes a socket path holds:
 tools/leakcheck.py run [--dir DIR] CMD... does both around one command, and exits 1 if it failed, was stopped or left anything. With --dir
 the run's directory is DIR, emptied first, not a new one: CI's Go job keeps the same TMPDIR each run, as go test's cache needs.
 Nothing is killed when something is left, and its directory stays only while a process or tmux server still runs in it; the report names the rest.
+A new run removes the directories of runs older than a day whose owner has exited and that no process names: ones whose processes have
+stopped since, and runs killed before end could run.
 """
 from __future__ import annotations
 
@@ -34,27 +36,73 @@ def slug(path: Path) -> str:
     return re.sub(r"[^A-Za-z0-9]", "-", str(path))
 
 
-def new_run(at: Path | None = None) -> Path:
+KEEP_S = 24 * 3600
+
+
+def names(run: Path) -> set[str]:
+    """The ways a process may spell run's path: /tmp is /private/tmp on macOS."""
+    return {str(run.resolve()), str(run.resolve()).removeprefix("/private")}
+
+
+def alive(run: Path) -> bool:
+    """Whether the process that owns run (the pid new_run wrote) is still running."""
+    try:
+        os.kill(int((run / "owner").read_text()), 0)
+    except (OSError, ValueError):
+        return False
+    return True
+
+
+def sweep_kept(root: Path = Path("/tmp")) -> None:
+    """Removes the runs' directories under root older than KEEP_S whose owner has exited and that no process names on its command
+    line. Nothing is removed when the processes cannot be listed: a sweep never stops a run from starting."""
+    old = []
+    for p in root.glob("hlc.*"):
+        try:
+            if p.is_dir() and time.time() - p.stat().st_mtime > KEEP_S and not alive(p):
+                old.append(p)
+        except OSError:  # another run's sweep took it
+            continue
+    if not old:
+        return
+    try:
+        ps = subprocess.run(["ps", "-axww", "-o", "command="], capture_output=True, text=True)
+    except OSError:
+        return
+    if ps.returncode != 0 or not ps.stdout:
+        return
+    for p in old:
+        if not any(n in ps.stdout for n in names(p)):
+            try:
+                remove(p)
+            except OSError:
+                pass
+
+
+def new_run(at: Path | None = None, owner: int | None = None) -> Path:
+    """A run's directory, owned by the process owner: the shell begin names, or this one for run."""
     if at is None:
+        sweep_kept()
         run = Path(tempfile.mkdtemp(prefix="hlc.", dir="/tmp"))
     else:
         run = at.resolve()
         shutil.rmtree(run, ignore_errors=True)
         run.mkdir(parents=True)
     (run / "tmp").mkdir()
+    (run / "owner").write_text(str(os.getpid() if owner is None else owner))
     return run
 
 
-def begin() -> int:
-    print(new_run())
+def begin(owner: int) -> int:
+    print(new_run(owner=owner))
     return 0
 
 
 def processes(run: Path) -> list[str]:
-    names = {str(run.resolve()), str(run.resolve()).removeprefix("/private")}
+    spelled = names(run)
     out = subprocess.run(["ps", "-axww", "-o", "pid=,command="], capture_output=True, text=True).stdout
     return [line.strip() for line in out.splitlines()
-            if any(n in line for n in names) and str(os.getpid()) != line.split()[0]]
+            if any(n in line for n in spelled) and str(os.getpid()) != line.split()[0]]
 
 
 def tmux_servers(run: Path) -> list[str]:
@@ -124,8 +172,8 @@ def run_one(cmd: list[str], at: Path | None = None) -> int:
 
 
 def main(argv: list[str]) -> int:
-    if argv[:1] == ["begin"]:
-        return begin()
+    if argv[:1] == ["begin"] and len(argv) == 2 and argv[1].isdigit():
+        return begin(int(argv[1]))
     if argv[:1] == ["end"] and len(argv) == 2:
         return end(Path(argv[1]))
     if argv[:2] == ["end", "--interrupted"] and len(argv) == 3:
