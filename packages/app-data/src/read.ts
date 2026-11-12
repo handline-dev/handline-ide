@@ -330,7 +330,8 @@ export function ruleRows(rules: readonly WorkspaceRule[]): RuleRow[] {
   });
 }
 
-/** A workspace's kept rules, every key (ruleRows), or the machine default's without one. No topic feeds them: read when the screen opens and again after workspace.rule.set. */
+/** A workspace's kept rules, every key (ruleRows), and its rules text's size and limit in bytes; without a workspace the machine
+ * default's rules and no size. No topic feeds them: read when the screen opens and again after workspace.rule.set. */
 export function useWorkspaceRules(workspace?: string) {
   const store = useStore();
   const { daemon } = useData();
@@ -339,7 +340,7 @@ export function useWorkspaceRules(workspace?: string) {
     queryKey: qk.rules(daemon, workspace ?? null),
     queryFn: () => store.client.call('workspace.rules', workspace === undefined ? {} : { workspace }),
     enabled: served && open,
-    select: (r) => ruleRows(r.rules),
+    select: (r) => ({ rules: ruleRows(r.rules), textBytes: r.text_bytes ?? null, limitBytes: r.limit_bytes ?? null }),
   });
 }
 /** The newest events of the daemon's log, read once when the page opens (the log is not a cache the bridge keeps; a screen that wants it live asks again). */

@@ -34,11 +34,15 @@ const KINDS: Record<Key, { valid: (v: unknown) => boolean; kind: string; on: (v:
   land_check: { valid: (v) => typeof v === 'string', kind: 'a shell command', on: (v) => v !== '' },
 };
 const isKey = (k: unknown): k is Key => typeof k === 'string' && Object.hasOwn(KINDS, k);
+/** The most bytes a workspace's rules text should hold (team.RulesTextLimit). */
+const TEXT_LIMIT = 2048;
 /** The machine default's rows are kept under this key. */
 const MACHINE = '';
 
 export class FakeRules {
   private rows = new Map<string, Map<Key, Row>>();
+  /** Each workspace's rules text size in bytes, by key; 0 when unset, as for a workspace with no base.md. */
+  readonly textBytes = new Map<string, number>();
   private host: Host;
 
   constructor(host: Host) {
@@ -49,7 +53,9 @@ export class FakeRules {
 
   call(method: string, p: Record<string, unknown>, ok: Ok, actor: Actor): unknown {
     const ws = this.workspace(p.workspace);
-    return method === 'workspace.rules' ? { rules: this.inForce(ws) } : this.set(ws, p, ok, actor);
+    if (method !== 'workspace.rules') return this.set(ws, p, ok, actor);
+    const rules = this.inForce(ws);
+    return ws === MACHINE ? { rules } : { rules, text_bytes: this.textBytes.get(ws) ?? 0, limit_bytes: TEXT_LIMIT };
   }
 
   /** A workspace's key, by key or name; MACHINE when absent. */
