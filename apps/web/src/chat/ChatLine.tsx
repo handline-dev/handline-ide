@@ -6,6 +6,7 @@ import { BashChip } from '#src/chat/Composer.tsx';
 import { useState, type ReactNode } from 'react';
 import { AgentNote } from '#src/chat/AgentNote.tsx';
 import { CompactionLine } from '#src/chat/CompactionLine.tsx';
+import { MoveLine } from '#src/chat/agent/AccountSwitch.tsx';
 import { Dots } from '#src/chat/Dots.tsx';
 import { Actions, CopyButton } from '#src/chat/MessageActions.tsx';
 import { MessageImages } from '#src/chat/MessageImages.tsx';
@@ -18,7 +19,7 @@ import { CommandsOf } from '#src/chat/CommandBlock.tsx';
 /** Whether a line draws nothing (what others said to the agent, an empty item): the rules ChatLine follows, so a run of task
  * cards is not cut by a line nobody sees. */
 export function drawsNothing(e: TimelineEntry, agent: string, me: string): boolean {
-  if (e.kind === 'item') return !e.item.session && !e.item.text && e.item.kind !== 'bash';
+  if (e.kind === 'item') return !e.item.session && !e.item.text && e.item.kind !== 'bash' && !e.item.account_moved && !e.item.move_failed;
   if (e.kind === 'proposal') return true;
   // The daemon's own bookkeeping (sys digests and nudges) is not shown anywhere.
   if (isSystem(e.message.from)) return true;
@@ -61,6 +62,12 @@ export function ChatLine({
     return (
       <motion.div data-id={key} {...fade}>
         <CompactionLine at={e.at} {...e.item.session} />
+      </motion.div>
+    );
+  if (e.kind === 'item' && (e.item.account_moved || e.item.move_failed))
+    return (
+      <motion.div data-id={key} {...fade}>
+        <MoveLine at={e.at} moved={e.item.account_moved} failed={e.item.move_failed} />
       </motion.div>
     );
   // A command with no message to fold into: typed at the terminal, or sent before messages recorded their landing.

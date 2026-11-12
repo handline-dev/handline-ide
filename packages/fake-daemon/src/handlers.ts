@@ -74,10 +74,34 @@ const BASE: Record<string, (h: Call) => unknown> = {
     const { p, actor, script, agent } = h;
     const s = agent();
     if (typeof p.account !== 'string' || !p.account) throw badRequest('account names an account', 'account');
+    // As the daemon: a move asked mid-turn is kept and runs when the turn ends.
+    if (s.state === 'running') {
+      s.fx.view = { ...s.fx.view, pending_move: { to: p.account, since: new Date().toISOString(), phase: 'scheduled' } };
+      script.setState(s, s.state, actor);
+      return script.accepted('Kept until the turn ends.');
+    }
     s.fx.account = p.account;
     script.control(s, actor, 'agent.move', `${actor.name} moved the agent to ${p.account}`);
     script.setState(s, s.state, actor);
     return script.accepted('Moved.');
+  },
+  'agent.move_cancel': (h) => {
+    const { actor, script, agent } = h;
+    const s = agent();
+    if (s.fx.view?.pending_move?.phase !== 'scheduled') throw refused('state', `${s.fx.name} has no move to cancel`);
+    s.fx.view = { ...s.fx.view, pending_move: null };
+    script.setState(s, s.state, actor);
+    return script.accepted('Cancelled.');
+  },
+  /** The turn stops and the move waits for the note; the fake stays there (a seed or a test moves it on). */
+  'agent.move_now': (h) => {
+    const { p, actor, script, agent } = h;
+    const s = agent();
+    const to = typeof p.account === 'string' && p.account ? p.account : s.fx.view?.pending_move?.to;
+    if (!to) throw badRequest('account names an account', 'account');
+    s.fx.view = { ...s.fx.view, pending_move: { to, since: new Date().toISOString(), phase: 'stopping' } };
+    script.setState(s, s.state, actor);
+    return script.accepted('Stopping the turn.');
   },
   'agent.switch_now': (h) => {
     const { p, actor, script, agent } = h;
