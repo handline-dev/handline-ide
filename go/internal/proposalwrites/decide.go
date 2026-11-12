@@ -37,6 +37,8 @@ type Env struct {
 	ProposalView func(pid string) map[string]any
 	// Wait is how long a call that answers with its outcome waits for a held change to be applied; 0 is outcome.Limit.
 	Wait time.Duration
+	// Runs opens a run proposal's window; nil refuses its apply.
+	Runs Runs
 }
 
 func (e *Env) logf(format string, args ...any) {
@@ -52,6 +54,7 @@ func Register(s *rpc.Server, e *Env) {
 	s.Register("proposal.propose", rpc.Method{Handler: e.proposeMethod})
 	s.Register("proposal.apply_now", rpc.Method{Waits: true, Handler: e.applyNowMethod})
 	s.Register("proposal.withdraw", rpc.Method{Handler: e.withdrawMethod})
+	s.Register("proposal.stop", rpc.Method{Handler: e.stopMethod})
 	s.Register("agent.retire", rpc.Method{Waits: true, Handler: e.retireMethod})
 	s.Register("workspace.set", rpc.Method{Handler: e.workspaceSet})
 	s.Register("workspace.delete", rpc.Method{Waits: true, Handler: e.workspaceDelete})
@@ -313,6 +316,13 @@ func (e *Env) decide(pid, call, by, note, subject string, tell bool) (bool, stri
 		finish("ROLLBACK")
 		return false, fmt.Sprintf("proposal %s changed after you read it - read it again before approving", pid), nil
 	}
+	if ran, err := e.started(prop); err != nil || ran {
+		finish("ROLLBACK")
+		if err != nil {
+			return false, "", err
+		}
+		return false, fmt.Sprintf("the command of proposal %s was started already: it runs once; propose it again to run it again", pid), nil
+	}
 	if got := e.decisionOf(pid); prop.str("state") == "approved" && call == "approved" && got != nil && got["call"] == "approved" && got["subject"] == prop.subject() {
 		finish("ROLLBACK")
 		return e.apply(pid, tell)
@@ -366,6 +376,13 @@ func (e *Env) apply(pid string, tell bool) (bool, string, error) {
 	}
 	if why := e.unapproved(prop); why != "" {
 		return false, why, nil
+	}
+	if prop.kind() == "run" { // a command, not a roster change: nothing to hold for a running turn, nothing of the roster to put back
+		ok, said, err := e.startRun(prop)
+		if err != nil {
+			return false, "", err
+		}
+		return e.record(prop, ok, said, tell)
 	}
 	if busy := e.heldBy(prop); len(busy) > 0 {
 		if err := e.hold(prop, busy); err != nil {
