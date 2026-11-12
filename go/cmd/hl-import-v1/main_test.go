@@ -12,6 +12,7 @@ import (
 
 	"github.com/handline/handline/go/agentctl/agent/claudecode"
 	"github.com/handline/handline/go/kit/store"
+	"github.com/handline/handline/go/kit/testfiles"
 )
 
 // oldHome writes an old home: two workspaces' agents by dotted name, an account with its settings in config.yaml, team rules, and a
@@ -19,26 +20,19 @@ import (
 func oldHome(t *testing.T) string {
 	t.Helper()
 	h := t.TempDir()
-	write := func(rel, body string) {
-		p := filepath.Join(h, rel)
-		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
-			t.Fatal(err)
-		}
-	}
-	write("agents/shop/agent.yaml", "name: shop\nmodel: opus\nrepo: /src/shop\nsandbox: false\n")
-	write("agents/shop.ui/agent.yaml", "name: shop.ui\nmodel: sonnet\nenabled: true\ncontext_tokens: 600000\nrepo: /src/other\nskip_permissions: true\n")
-	write("agents/shop.ui/memory/note.md", "kept")
-	write("agents/home/agent.yaml", "name: home\nrepo: /src/home\n")
-	write("agents/shop.gone/inbox/x", "") // no agent.yaml: no agent now
-	write("accounts/alpha/identity.json", "{}")
-	write("config.yaml", "version: 1\nactive_cap: 2\nactive_cap_alpha: 3\nmonth_cycle_alpha: false\n")
-	write("team.yaml", "agents:\n  shop.ui: { role: check }\n")
-	write("shared/team/shop.md", "shop rules\n")
-	write("shared/team/shop.sub.md", "sub rules\n")
-	write("attachments/a.png", "png")
+	testfiles.Write(t, h, map[string]string{
+		"agents/shop/agent.yaml":        "name: shop\nmodel: opus\nrepo: /src/shop\nsandbox: false\n",
+		"agents/shop.ui/agent.yaml":     "name: shop.ui\nmodel: sonnet\nenabled: true\ncontext_tokens: 600000\nrepo: /src/other\nskip_permissions: true\n",
+		"agents/shop.ui/memory/note.md": "kept",
+		"agents/home/agent.yaml":        "name: home\nrepo: /src/home\n",
+		"agents/shop.gone/inbox/x":      "", // no agent.yaml: no agent now
+		"accounts/alpha/identity.json":  "{}",
+		"config.yaml":                   "version: 1\nactive_cap: 2\nactive_cap_alpha: 3\nmonth_cycle_alpha: false\n",
+		"team.yaml":                     "agents:\n  shop.ui: { role: check }\n",
+		"shared/team/shop.md":           "shop rules\n",
+		"shared/team/shop.sub.md":       "sub rules\n",
+		"attachments/a.png":             "png",
+	})
 
 	d, err := store.Open(filepath.Join(h, "db.sqlite"))
 	if err != nil {

@@ -3,27 +3,14 @@ package reads
 import (
 	"context"
 	"errors"
-	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
 	"time"
 
+	"github.com/handline/handline/go/kit/testfiles"
 	"github.com/handline/handline/go/protocol/rpc"
 )
-
-func writeFiles(t *testing.T, dir string, files map[string]string) {
-	t.Helper()
-	for name, text := range files {
-		p := filepath.Join(dir, name)
-		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(p, []byte(text), 0o644); err != nil {
-			t.Fatal(err)
-		}
-	}
-}
 
 func TestTestCommandIsReadFromTheFilesAtTheTop(t *testing.T) {
 	script := `{"scripts":{"test":"vitest"}}`
@@ -44,7 +31,7 @@ func TestTestCommandIsReadFromTheFilesAtTheTop(t *testing.T) {
 		{map[string]string{"README.md": "hi"}, nil},
 	} {
 		dir := t.TempDir()
-		writeFiles(t, dir, c.files)
+		testfiles.Write(t, dir, c.files)
 		if got := testCommand(dir); got != c.want {
 			t.Errorf("%v: test_command %v, want %v", c.files, got, c.want)
 		}
@@ -56,7 +43,7 @@ func TestRepoFactsCountsTodosAndUncommittedFilesAndAsksForIssues(t *testing.T) {
 	dir, _ := filepath.EvalSymlinks(t.TempDir())
 	git := gitIn(t)
 	git(dir, "init", "-q", "-b", "main")
-	writeFiles(t, dir, map[string]string{
+	testfiles.Write(t, dir, map[string]string{
 		"go.mod":   "module x\n",
 		"a.go":     "// TODO one\n// FIXME two\n// TODOS is not the word\n",
 		"b/c.go":   "x := 1 // TODO three\n",
@@ -64,7 +51,7 @@ func TestRepoFactsCountsTodosAndUncommittedFilesAndAsksForIssues(t *testing.T) {
 	})
 	git(dir, "add", "-A")
 	git(dir, "commit", "-q", "-m", "start")
-	writeFiles(t, dir, map[string]string{"go.mod": "module y\n", "new.txt": "TODO untracked, not counted\n"})
+	testfiles.Write(t, dir, map[string]string{"go.mod": "module y\n", "new.txt": "TODO untracked, not counted\n"})
 	asked := ""
 	e.Issues = func(_ context.Context, d string) ([]any, error) {
 		asked = d
@@ -127,7 +114,7 @@ func TestRepoFactsReturnsAtItsBudgetWhenAPartDoesNotStop(t *testing.T) {
 	e := testEnv(t)
 	dir, _ := filepath.EvalSymlinks(t.TempDir())
 	gitIn(t)(dir, "init", "-q", "-b", "main")
-	writeFiles(t, dir, map[string]string{"go.mod": "module x\n"})
+	testfiles.Write(t, dir, map[string]string{"go.mod": "module x\n"})
 	was, wasIssues := factsBudget, issuesBudget
 	factsBudget, issuesBudget = 300*time.Millisecond, 300*time.Millisecond
 	t.Cleanup(func() { factsBudget, issuesBudget = was, wasIssues })
