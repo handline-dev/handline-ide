@@ -46,10 +46,11 @@ const reasonOf = (e: unknown) => (e as { reason?: string }).reason ?? (e as Erro
 
 export function TerminalTab({ agent }: { agent: string }) {
   const q = useAgentDetail(agent);
+  const word = useNameOf()(agent);
   if (!q.data)
     return (
       <div className="grid min-h-0 flex-1 place-items-center bg-term-bg text-xs text-term-ink">
-        {q.isError && `${agent} did not load: ${reasonOf(q.error)}`}
+        {q.isError && `${word} did not load: ${reasonOf(q.error)}`}
       </div>
     );
   return <BytesTab agent={agent} detail={q.data} />;
