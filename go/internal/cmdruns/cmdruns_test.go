@@ -147,15 +147,18 @@ func TestAReplyItemsBlockIsKeptApartFromAMessagesOfTheSameID(t *testing.T) {
 	}
 	defer q.Close()
 	b, ok := ParseBlock("r7:2")
-	if !ok || !b.Reply || b.Message != 7 || b.N != 2 || b.String() != "r7:2" {
+	if !ok || b.Owner != ByReply || b.Message != 7 || b.N != 2 || b.String() != "r7:2" {
 		t.Fatalf("%+v %v", b, ok)
 	}
-	for _, bad := range []string{"r:1", "rr7:1", "x7:1", "r7"} {
+	for _, bad := range []string{"r:1", "rr7:1", "x7:1", "r7", "rp7:0"} {
 		if _, ok := ParseBlock(bad); ok {
 			t.Errorf("%q is no block", bad)
 		}
 	}
-	if m, _ := ParseBlock("7:2"); m.Reply || m.String() != "7:2" {
+	if p, ok := ParseBlock("p9:0"); !ok || p != ProposalBlock(9) || p.String() != "p9:0" {
+		t.Fatalf("a proposal's block: %+v", p)
+	}
+	if m, _ := ParseBlock("7:2"); m.Owner != ByMessage || m.String() != "7:2" {
 		t.Fatalf("a message's block: %+v", m)
 	}
 	if _, err := Start(q, b, "%1", "", "", 100); err != nil {
@@ -178,7 +181,7 @@ func TestAReplyItemsBlockIsKeptApartFromAMessagesOfTheSameID(t *testing.T) {
 		t.Fatalf("the message's runs: %+v %v", msgs, err)
 	}
 	// Block 0 sorts first by name but started later: the runs go by start.
-	if _, err := Start(q, Block{Message: 7, N: 0, Reply: true}, "%3", "", "", 300); err != nil {
+	if _, err := Start(q, Block{Message: 7, N: 0, Owner: ByReply}, "%3", "", "", 300); err != nil {
 		t.Fatal(err)
 	}
 	all, err := Replies(q)

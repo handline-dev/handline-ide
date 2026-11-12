@@ -295,7 +295,7 @@ func TestARunOfAReplysBlockIsTheItemSaidAgainWithItsRuns(t *testing.T) {
 	c.Panes = func() map[string]term.PaneRun { return panes }
 	r.scan(c)
 	wantTypes(t, r.types())
-	run, err := cmdruns.Start(r.d, cmdruns.Block{Message: 1000, N: 0, Reply: true}, "%4", "", "", started)
+	run, err := cmdruns.Start(r.d, cmdruns.Block{Message: 1000, N: 0, Owner: cmdruns.ByReply}, "%4", "", "", started)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -495,7 +495,7 @@ func TestARunThatEndsIsToldToItsAgentWithItsExitAndLastRows(t *testing.T) {
 	}
 	r.scan(c)
 	failed, _ := cmdruns.Start(r.d, cmdruns.Block{Message: 1, N: 0}, "%4", "bob", "go test ./...", started)
-	reply, _ := cmdruns.Start(r.d, cmdruns.Block{Message: 1000, N: 1, Reply: true}, "%5", "bob", "make", started)
+	reply, _ := cmdruns.Start(r.d, cmdruns.Block{Message: 1000, N: 1, Owner: cmdruns.ByReply}, "%5", "bob", "make", started)
 	unowned, _ := cmdruns.Start(r.d, cmdruns.Block{Message: 1, N: 1}, "%6", "", "true", started)
 	panes["%4"] = term.PaneRun{Tag: failed.Tag()}
 	panes["%5"] = term.PaneRun{Tag: reply.Tag()}
