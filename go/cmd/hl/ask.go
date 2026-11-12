@@ -371,7 +371,7 @@ func teamCmd(c *hlclient.Client, args []string) (int, bool) {
 		fmt.Printf("other workspaces (their lead receives what you send): %s\n", strings.Join(spaces, ", "))
 	}
 	if got, err := c.Call("lease.get", nil); err == nil {
-		fmt.Print(leaseText(got))
+		fmt.Print(leaseText(got, time.Now()))
 	}
 	fmt.Println("\n`hl task new --assign <name> -t <time> \"<title>\" \"<body>\"` gives one work, and `hl say <name> \"...\"` sends a message. " +
 		"A task is the only way to give an agent work:\na subagent is for research or review inside your own task.")
