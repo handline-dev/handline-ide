@@ -159,7 +159,7 @@ func (s *AccountStatus) ShortSource() string {
 	if s.Short.Pct == nil {
 		return "quiet"
 	}
-	if s.Short.Reset != 0 && float64(s.Short.Reset) <= s.now() {
+	if s.shortPassed() {
 		return "unknown" // a window that has rolled over since: RolledOver's case
 	}
 	age := s.ShortAgeS()
@@ -303,7 +303,7 @@ func (s *AccountStatus) assignable(active int) (bool, string, string) {
 	}
 	pct := s.ShortTrusted()
 	if pct == nil {
-		if week := s.LongTrusted(); week != nil && *week >= LongBlock && s.Short.Reset != 0 && float64(s.Short.Reset) <= s.now() {
+		if week := s.LongTrusted(); week != nil && *week >= LongBlock && s.shortPassed() {
 			// the shortest window rolled over since the reading; the week did not
 			return false, s.weekWall(*week), KindWeekCap
 		}
@@ -331,6 +331,11 @@ func (s *AccountStatus) assignable(active int) (bool, string, string) {
 		return true, fmt.Sprintf("%s %d%% (carried, still inside the window)", s.Short.Label(), *pct), ""
 	}
 	return true, fmt.Sprintf("%s %d%%", s.Short.Label(), *pct), ""
+}
+
+// shortPassed: the shortest window's reset, known, has come since the reading.
+func (s *AccountStatus) shortPassed() bool {
+	return s.Short.Reset != 0 && float64(s.Short.Reset) <= s.now()
 }
 
 // weekWall is the refusal of a week at its wall, with when it comes back.
@@ -372,7 +377,11 @@ func (s *AccountStatus) takesWork(active int) (bool, string, string) {
 // work if its last weekly reading had room: the session that starts there writes a fresh reading, and the move trigger takes the
 // agent off if it is full.
 func (s *AccountStatus) RolledOver() (bool, string) {
-	if !s.Exists || s.Error != "" || s.Long.Lost || s.AgeS() == nil || (!s.Stale() && s.Short.Reset == 0) {
+	if !s.Exists || s.Error != "" || s.Long.Lost || s.AgeS() == nil {
+		return false, ""
+	}
+	// A fresh reading rolls over only on a figure it did read, whose reset has passed; a quiet, lost or unreadable one is not this case.
+	if !s.Stale() && !(s.shortPassed() && s.Short.Pct != nil && s.Short.Readable && !s.Short.Lost) {
 		return false, ""
 	}
 	now := s.now()
