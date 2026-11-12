@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { clickPick, dragged, noPick, type Pick } from '#src/ui/tabPick.ts';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { useSpringOpen } from '#src/ui/springOpen.ts';
+import { useScrollFade } from '#src/ui/ScrollFade.tsx';
 import { ContextMenu, Menu, MenuItem, MenuSeparator } from '#src/ui/Menu.tsx';
 
 /** `closable: false` pins a tab: no close button, and onClose is never called for it. `dot`: what marks it right of its label. */
@@ -107,6 +108,8 @@ export function TabBar({
   onTabDragStart?: (id: string, ids: string[], e: React.DragEvent) => void;
 }) {
   const [pick, setPick] = useState<Pick>(noPick);
+  const strip = useRef<HTMLDivElement>(null);
+  const fade = useScrollFade(strip); // the edges fade while more tabs are off that side
   const [dragging, setDragging] = useState(false);
   const ids = tabs.map((t) => t.id);
   const key = ids.join('|');
@@ -133,6 +136,8 @@ export function TabBar({
     // Tabs keep their width; the strip scrolls sideways, by wheel too; + stays at the end.
     <div className="flex h-10 items-center gap-1 border-b border-border bg-surface px-2">
       <div
+        ref={strip}
+        style={fade}
         role="tablist"
         aria-multiselectable
         onWheel={(e) => {
