@@ -159,13 +159,15 @@ function BytesTab({ agent, shell, detail }: { agent: string; shell?: string; det
       watch.observe(el);
       const fitted = pane.onFit?.(layout); // xterm measures its cells after it first draws: no element resize says so
       let off = () => {};
+      /** The daemon names a holder by the caller's name (a device's own name), not the person's key. */
+      const mine = (h: ByteTerminalView['holders'][number]) => h.name === store.callerName;
       /** The view's state, holders included: what the person sees, and whether this pane sizes the host (on going live and on any change). */
       const settle = (v: ByteTerminalView) => {
         setState(v.state);
         setFailure(v.failure);
-        const now = v.state === 'live' && (!!shell || v.holders.some((h) => h.kind !== 'daemon' && h.name === store.me));
-        const other = v.state === 'live' && v.holders.some((h) => h.kind !== 'daemon' && h.name !== store.me);
-        setHeldBy(v.holders.find((h) => h.kind !== 'daemon' && h.name !== store.me)?.name ?? '');
+        const now = v.state === 'live' && (!!shell || v.holders.some((h) => h.kind !== 'daemon' && mine(h)));
+        const other = v.state === 'live' && v.holders.some((h) => h.kind !== 'daemon' && !mine(h));
+        setHeldBy(v.holders.find((h) => h.kind !== 'daemon' && !mine(h))?.name ?? '');
         const wentLive = v.state === 'live' && !wasLive;
         wasLive = v.state === 'live';
         if (now !== holding || other !== otherHolds || wentLive) {
