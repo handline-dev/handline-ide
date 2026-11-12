@@ -148,6 +148,8 @@ export interface Own {
   daemon(): ShellDaemon;
   onDaemon(f: () => void): void;
   startDaemon(): void;
+  /** Stops this Mac's daemon; rejects with the reason when this app does not run it or it did not stop. */
+  stopDaemon(): Promise<void>;
   /** Whether this Mac's daemon runs: quitting asks first only then. */
   running(): boolean;
 }
@@ -228,6 +230,25 @@ const signals = {
   killPid: (pid: number) => process.kill(pid, 'SIGKILL'),
 };
 
+/** Builds and starts this Mac's daemon again for the page; rejects with why it could not. */
+async function restartOwn(
+  o: Parameters<typeof daemonCmd>[0] & { buildDaemon?: () => Promise<unknown> },
+  owner: Owner,
+  mine: boolean,
+): Promise<void> {
+  if (!mine) throw new Error('this app does not run this daemon; restart it where it runs');
+  await o.buildDaemon?.();
+  await owner.restart(() => daemonCmd(o));
+  if (owner.state !== 'running') throw new Error(owner.reason);
+}
+
+/** Stops this Mac's daemon for the page; rejects with why it could not. */
+async function stopOwn(owner: Owner, mine: boolean): Promise<void> {
+  if (!mine) throw new Error('this app does not run this daemon; stop it where it runs');
+  await owner.stop();
+  if (owner.state !== 'stopped') throw new Error(owner.reason);
+}
+
 export function ownDaemon(o: {
   env: (k: string) => string | undefined;
   home: string;
@@ -287,12 +308,7 @@ export function ownDaemon(o: {
   const relaunchAs = (next: Settings) => relaunchWith(o.settings, next);
   const pair = async (i: OfferInput) => relaunchAs({ ...o.current, remote: await pairFrom(i) });
   link.onChange(() => draw());
-  const restartDaemon = async () => {
-    if (!mine) throw new Error('this app does not run this daemon; restart it where it runs');
-    await o.buildDaemon?.();
-    await owner.restart(() => daemonCmd(o));
-    if (owner.state !== 'running') throw new Error(owner.reason);
-  };
+  const restartDaemon = () => restartOwn(o, owner, mine);
   const counts = { working: null as number | null, unread: 0 };
   const actions = trayActions(o, () => draw());
   const draw = trayControls(tray, owner, actions, () => ({
@@ -335,6 +351,7 @@ export function ownDaemon(o: {
     daemon: () => ({ state: owner.state, reason: owner.reason, canStart: !remote, pathTimedOut: pathTimedOut(o.home) }),
     onDaemon: (f) => owner.onChange(f),
     startDaemon: () => void owner.start(),
+    stopDaemon: () => stopOwn(owner, mine),
     running: () => mine && owner.state === 'running',
     pair,
     useThisMac: () => relaunchAs({ ...o.current, remote: null }),

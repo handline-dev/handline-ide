@@ -167,9 +167,10 @@ function handleConnection(origin: string, own: Own, remote: Remote | null, f?: F
   ipcMain.handle(CHANNELS.setMode, (e, arg) => c.setMode(e, arg));
   ipcMain.handle(CHANNELS.build, (e) => c.build(e));
   ipcMain.handle(CHANNELS.restartDaemon, (e) => c.restartDaemon(e));
-  const d = new DaemonView(origin, { view: () => own.daemon(), start: () => own.startDaemon() });
+  const d = new DaemonView(origin, { view: () => own.daemon(), start: () => own.startDaemon(), stop: () => own.stopDaemon() });
   ipcMain.handle(CHANNELS.daemon, (e) => d.view(e));
   ipcMain.handle(CHANNELS.startDaemon, (e) => d.start(e));
+  ipcMain.handle(CHANNELS.stopDaemon, (e) => d.stop(e));
   own.onDaemon(() => win?.webContents.send(CHANNELS.daemon, own.daemon()));
   ipcMain.handle(CHANNELS.follow, (e) => c.follow(e));
   ipcMain.handle(CHANNELS.checkUpdate, (e) => c.checkUpdate(e));

@@ -7,12 +7,14 @@ const ORIGIN = 'http://127.0.0.1:17443';
 const win = { senderFrame: { url: `${ORIGIN}/`, parent: null } };
 const frame = { senderFrame: { url: `${ORIGIN}/`, parent: {} } };
 
-test('the page reads the daemon state and presses Start only from the window, and only when the app starts a daemon', () => {
+test('the page reads the daemon state and presses Start or Stop only from the window, and only when the app starts a daemon', async () => {
   let started = 0;
+  let stopped = 0;
   let canStart = true;
   const d = new DaemonView(ORIGIN, {
     view: () => ({ state: 'failed', reason: 'the daemon exited at start (exit 1)', canStart }),
     start: () => void started++,
+    stop: async () => void stopped++,
   });
   assert.deepEqual(d.view(win), { ok: true, state: 'failed', reason: 'the daemon exited at start (exit 1)', canStart: true });
   assert.equal(d.view(frame).ok, false);
@@ -23,6 +25,14 @@ test('the page reads the daemon state and presses Start only from the window, an
   canStart = false;
   assert.equal(d.start(win).ok, false);
   assert.equal(started, 1);
+  assert.equal((await d.stop(frame)).ok, false);
+  assert.equal(stopped, 0);
+  canStart = true;
+  assert.deepEqual(await d.stop(win), { ok: true });
+  assert.equal(stopped, 1);
+  canStart = false;
+  assert.equal((await d.stop(win)).ok, false);
+  assert.equal(stopped, 1);
 });
 
 test('the preload keeps the last daemon state for a listener that registers after it, and sends every change', async () => {

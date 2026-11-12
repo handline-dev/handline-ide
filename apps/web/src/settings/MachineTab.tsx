@@ -6,6 +6,8 @@ import { bytesText, limitSentence, loadFull, LOAD_PRESETS, LOW_DISK_BYTES, memor
 import { Bar, Block, Setting, toneOf } from '#src/settings/Meter.tsx';
 import { SettingsPage } from '#src/settings/SettingsPage.tsx';
 import { useMachine } from '#src/settings/data/machine.ts';
+import { useService } from '#src/settings/data/service.ts';
+import { ServiceBlock } from '#src/settings/ServiceBlock.tsx';
 import { Button } from '#src/ui/Button.tsx';
 import { Switch } from '#src/usage/UsageViews.tsx';
 
@@ -47,6 +49,7 @@ function Row({
 
 export function MachineTab() {
   const m = useMachine();
+  const service = useService();
   const [refused, setRefused] = useState<{ key: string; text: string } | null>(null);
   const run = (key: string, go: () => Promise<unknown>) => {
     setRefused(null);
@@ -192,6 +195,7 @@ export function MachineTab() {
         </Setting>
         {why('record')}
       </Block>
+      {service && <ServiceBlock service={service} working={m.working} />}
     </SettingsPage>
   );
 }
