@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { askQuit, askStop, guardQuit, quitDetail, quitQuietly, stopDetail, type Ask } from '#src/ask.ts';
+import { askQuit, guardQuit, quitDetail, quitQuietly, type Ask } from '#src/ask.ts';
 
 /** An Ask that records what it showed and answers with the button given (and the checkbox). */
 const answer = (response: number, checkboxChecked = false) => {
@@ -32,20 +32,6 @@ test('Don’t show again is remembered from a Quit; once kept, and with no daemo
   const none = answer(1);
   assert.deepEqual(await askQuit({ running: false, working: 0, skip: false, ask: none.ask }), { quit: true, dontAsk: false });
   assert.equal(kept.shown.length + none.shown.length, 0);
-});
-
-test('Stop daemon always asks, Cancel the default, and names the agents mid-turn', async () => {
-  const no = answer(1);
-  assert.equal(await askStop({ working: 3, ask: no.ask }), false);
-  assert.equal(no.shown[0]!.message, 'Stop the daemon?');
-  assert.equal(
-    no.shown[0]!.detail,
-    '3 agents are mid-turn: they stop being served until the daemon starts again. Their work stays in their folders.',
-  );
-  assert.deepEqual(no.shown[0]!.buttons, ['Stop', 'Cancel']);
-  assert.equal(no.shown[0]!.defaultId, 1);
-  assert.equal(await askStop({ working: 0, ask: answer(0).ask }), true);
-  assert.match(stopDetail(0), /No agent is mid-turn/);
 });
 
 test('every quit the person starts asks first; Cancel keeps the app; a quit the app makes itself asks nothing', async () => {

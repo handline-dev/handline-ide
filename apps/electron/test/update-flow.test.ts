@@ -11,8 +11,15 @@ test('preparing, ready, failed and idle each say so to the listeners, with the s
   f.failed('vite failed', () => undefined, 'log text');
   f.idle();
   f.idle(); // already idle: nothing to say
-  assert.deepEqual(seen, ['preparing|Building (2 of 3)|', 'ready||', 'failed||vite failed', 'idle||']);
+  assert.deepEqual(seen, ['preparing|Building (2 of 3)|', 'ready||', 'failed||The update did not finish.', 'idle||']);
   assert.equal(f.log, 'log text');
+});
+
+test('a failure reads in plain words; the raw text is kept for Details', () => {
+  const f = new UpdateFlow();
+  f.failed('ENOSPC: no space left on device, rename /x/apps/web/dist', () => undefined);
+  assert.equal(f.view.reason, 'The disk is full.');
+  assert.match(f.log, /ENOSPC/);
 });
 
 test('restart and retry run what the source gave, only in the phase that has them; later only puts off a ready update', () => {

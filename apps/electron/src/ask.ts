@@ -11,17 +11,10 @@ export type Ask = (o: {
   checkboxLabel?: string;
 }) => Promise<{ response: number; checkboxChecked: boolean }>;
 
-const agents = (n: number) => `${n} agent${n === 1 ? '' : 's'}`;
-
 export const quitDetail = (working: number): string =>
   working
     ? `Handline closes. The daemon and ${working} working agent${working === 1 ? '' : 's'} keep running in the background. Open Handline again to see them.`
     : 'Handline closes. The daemon keeps running in the background. Open Handline again to see it.';
-
-export const stopDetail = (working: number): string =>
-  working
-    ? `${agents(working)} ${working === 1 ? 'is' : 'are'} mid-turn: they stop being served until the daemon starts again. Their work stays in their folders.`
-    : 'No agent is mid-turn. Agents are not served until the daemon starts again; their work stays in their folders.';
 
 /** Quit Handline: asked only while the daemon runs and the person has not said not to; dontAsk is the ticked "Don't show again". */
 export async function askQuit(o: {
@@ -40,18 +33,6 @@ export async function askQuit(o: {
     checkboxLabel: "Don't show again",
   });
   return { quit: r.response === 0, dontAsk: r.response === 0 && r.checkboxChecked };
-}
-
-/** Stop daemon…: always asked, Cancel the default. */
-export async function askStop(o: { working: number; ask: Ask }): Promise<boolean> {
-  const r = await o.ask({
-    message: 'Stop the daemon?',
-    detail: stopDetail(o.working),
-    buttons: ['Stop', 'Cancel'],
-    defaultId: 1,
-    cancelId: 1,
-  });
-  return r.response === 0;
 }
 
 let quiet = false;

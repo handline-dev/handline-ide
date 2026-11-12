@@ -17,11 +17,6 @@ export interface TrayActions {
   open(): void;
   /** The Inbox, where the items waiting on the person are. */
   inbox(): void;
-  startDaemon(): void;
-  /** Absent when the daemon is another device's. */
-  restartDaemon?(): void;
-  /** Asks first (Stop daemon…); absent when the daemon is another device's. */
-  stopDaemon?(): void;
   setOpenAtLogin(on: boolean): void;
   /** Asks first when the daemon runs (Quit Handline). */
   quit(): void;
@@ -32,12 +27,9 @@ export interface TrayActions {
 /** What the menu-bar icon shows: nothing extra, a red dot (items wait on the person), a blue dot (an update is ready) or the yellow icon (trouble). */
 export type TrayIcon = 'plain' | 'turn' | 'update' | 'trouble';
 
-/** The update flow as the menu shows it. */
+/** The update flow as the menu-bar icon reads it: a ready update is a blue dot, a failed one trouble. */
 export interface TrayUpdate {
   phase: UpdatePhase;
-  reason: string;
-  restart(): void;
-  retry(): void;
 }
 
 /** Follow-main mode: the commit the app runs, whether main has moved, and what the tray offers. */
@@ -69,20 +61,21 @@ export interface TrayView {
 
 const agents = (n: number) => `${n} agent${n === 1 ? '' : 's'}`;
 
-/** The first line, which says what runs. */
-export function statusLine(state: DaemonState, reason: string, v: Pick<TrayView, 'working' | 'remote'>): string {
-  if (v.remote) return `Paired with ${v.remote}`;
-  if (state === 'running') return v.working === null ? 'Daemon running' : `Daemon running · ${agents(v.working)} working`;
-  if (state === 'starting') return 'Starting daemon…';
-  if (state === 'failed') return `Daemon stopped: ${reason || 'it did not start'}`;
-  return reason ? `Daemon stopped: ${reason}` : 'Daemon stopped';
-}
+/** Something the person should know about: this Mac's daemon is not running, or an update failed. The app says what and why. */
+const trouble = (state: DaemonState, v: Pick<TrayView, 'remote' | 'update'>) =>
+  (!v.remote && state !== 'running' && state !== 'starting') || v.update?.phase === 'failed';
 
-const down = (state: DaemonState, v: Pick<TrayView, 'remote'>) => !v.remote && (state === 'stopped' || state === 'failed');
+/** The first line: what runs, or that the app has something to say. */
+export function statusLine(state: DaemonState, v: Pick<TrayView, 'working' | 'remote' | 'update'>): string {
+  if (trouble(state, v)) return 'Handline needs attention';
+  if (v.remote) return `Paired with ${v.remote}`;
+  if (state === 'starting') return 'Handline is starting…';
+  return v.working ? `Handline · ${agents(v.working)} working` : 'Handline';
+}
 
 /** What the icon carries: trouble first, then the person's turn, then an update. */
 export function trayIcon(state: DaemonState, v: TrayView): TrayIcon {
-  if (down(state, v)) return 'trouble';
+  if (trouble(state, v)) return 'trouble';
   if (v.unread > 0) return 'turn';
   return v.update?.phase === 'ready' || v.update?.phase === 'later' ? 'update' : 'plain';
 }
@@ -98,25 +91,16 @@ function detailItems(a: TrayActions, v: TrayView): TrayItem[] {
   return items;
 }
 
-/** The menu, top to bottom: what runs, Open, what needs the person, Open at login, the daemon's controls, Quit. */
-export function trayMenu(state: DaemonState, reason: string, a: TrayActions, v: TrayView): TrayItem[] {
-  const items: TrayItem[] = [{ label: statusLine(state, reason, v), enabled: false }, { type: 'separator' }];
+/** The menu, top to bottom: what runs (or that the app needs attention, which opens it), Open, what needs the person, Open at login, Quit. */
+export function trayMenu(state: DaemonState, a: TrayActions, v: TrayView): TrayItem[] {
+  const items: TrayItem[] = [
+    trouble(state, v) ? { label: statusLine(state, v), click: a.open } : { label: statusLine(state, v), enabled: false },
+    { type: 'separator' },
+  ];
   items.push({ label: 'Open Handline', click: a.open });
   if (v.unread > 0) items.push({ label: `Needs you · ${badgeText(v.unread)}`, click: a.inbox });
-  if (down(state, v)) items.push({ label: 'Start daemon', click: a.startDaemon });
-  const u = v.update;
-  if (u?.phase === 'preparing') items.push({ label: 'Updating Handline…', enabled: false });
-  if (u?.phase === 'ready' || u?.phase === 'later')
-    items.push({ label: 'Handline is ready to restart', enabled: false }, { label: 'Restart now', click: u.restart });
-  if (u?.phase === 'failed')
-    items.push({ label: `Handline was not updated: ${u.reason}`, enabled: false }, { label: 'Try again', click: u.retry });
   items.push({ type: 'separator' });
   items.push({ label: 'Open at login', type: 'checkbox', checked: v.openAtLogin, click: () => a.setOpenAtLogin(!v.openAtLogin) });
-  if (!v.remote && state === 'running' && (a.restartDaemon || a.stopDaemon)) {
-    items.push({ type: 'separator' });
-    if (a.restartDaemon) items.push({ label: 'Restart daemon', click: a.restartDaemon });
-    if (a.stopDaemon) items.push({ label: 'Stop daemon…', click: a.stopDaemon });
-  }
   if (v.details) {
     const more = detailItems(a, v);
     if (more.length) items.push({ type: 'separator' }, ...more);

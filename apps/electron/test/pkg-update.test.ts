@@ -107,7 +107,7 @@ test('a download that does not match its checksum fails the update and says so; 
   const r = rig({ sum: 'WRONG' });
   await r.u.check();
   assert.equal(r.flow.view.phase, 'failed');
-  assert.match(r.flow.view.reason, /checksum/);
+  assert.match(r.flow.log, /checksum/);
   assert.ok(!r.calls.includes('stage'));
   r.flow.act('retry');
   await new Promise((res) => setImmediate(res));

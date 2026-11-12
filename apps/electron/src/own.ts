@@ -16,7 +16,7 @@ import { answers, lockHolder, stopLeftovers } from '#src/leftovers.ts';
 import { ensureToken, founderKeyFile, once, TokenFile, type PairDeps } from '#src/pair.ts';
 import { grant } from '#src/grant.ts';
 import { onTailnet } from '#src/tailnet.ts';
-import { askStop, quitQuietly, type Ask } from '#src/ask.ts';
+import { quitQuietly, type Ask } from '#src/ask.ts';
 import {
   trayIcon as iconFor,
   trayMenu,
@@ -45,9 +45,6 @@ function trayImage(kind: TrayIcon): Electron.NativeImage {
   }
   return nativeImage.createFromPath(path.join(dir, `tray-${kind}-${nativeTheme.shouldUseDarkColors ? 'dark' : 'light'}.png`));
 }
-
-/** The tray's Restart daemon: the reason goes in a dialog when the daemon will not move. */
-const showUpgradeFailure = (e: Error): void => dialog.showErrorBox('Cannot restart the daemon', e.message);
 
 /** How the app proves itself to its own daemon's socket. */
 const localPairing = (home: string, socket: string): PairDeps => ({
@@ -187,26 +184,14 @@ export const electronAsk: Ask = (o) => {
   return w ? dialog.showMessageBox(w, o) : dialog.showMessageBox(o);
 };
 
-/** What the tray's items do; Restart and Stop daemon only for a daemon this app runs, and Stop asks first. */
+/** What the tray's items do. */
 function trayActions(
   o: { openWindow: () => void; openPage: (screen: 'inbox' | 'settings') => void; current: Settings; setOpenAtLogin: (on: boolean) => void },
-  owner: Owner,
-  counts: { working: number | null },
-  mine: boolean,
-  restartDaemon: () => Promise<void>,
   draw: () => void,
 ): TrayActions {
   return {
     open: o.openWindow,
     inbox: () => o.openPage('inbox'),
-    startDaemon: () => void owner.start(),
-    restartDaemon: mine ? () => void restartDaemon().catch(showUpgradeFailure) : undefined,
-    stopDaemon: !mine
-      ? undefined
-      : () =>
-          void askStop({ working: counts.working ?? 0, ask: electronAsk }).then(async (yes) => {
-            if (yes) await owner.stop();
-          }),
     setOpenAtLogin: (on) => {
       o.current.openAtLogin = on;
       o.setOpenAtLogin(on);
@@ -221,7 +206,7 @@ function trayActions(
  * click adds the details. */
 function trayControls(tray: Tray, owner: Owner, actions: TrayActions, view: () => Omit<TrayView, 'details'>): () => void {
   const draw = () => tray.setImage(trayImage(iconFor(owner.state, { ...view(), details: false })));
-  const menu = (details: boolean) => Menu.buildFromTemplate(trayMenu(owner.state, owner.reason, actions, { ...view(), details }));
+  const menu = (details: boolean) => Menu.buildFromTemplate(trayMenu(owner.state, actions, { ...view(), details }));
   tray.on('click', (e) => tray.popUpContextMenu(menu(!!e.altKey)));
   tray.on('right-click', (e) => tray.popUpContextMenu(menu(!!e.altKey)));
   return draw;
@@ -293,7 +278,7 @@ export function ownDaemon(o: {
     if (owner.state !== 'running') throw new Error(owner.reason);
   };
   const counts = { working: null as number | null, unread: 0 };
-  const actions = trayActions(o, owner, counts, mine, restartDaemon, () => draw());
+  const actions = trayActions(o, () => draw());
   const draw = trayControls(tray, owner, actions, () => ({
     ...counts,
     openAtLogin: o.current.openAtLogin,
