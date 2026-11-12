@@ -136,9 +136,22 @@ Today: `hl use` and `go/scheduler/leases` lease `simulator` and `browser`, limit
 
 ### Who holds, and the scope
 
-The holder is an agent key, with its workspace recorded. Pools belong to the machine: two workspaces share one simulator. Limits are owner settings. The next grant goes to the workspace that has held the kind least in the last hour (the manager keeps the hold-seconds per workspace for that hour; lost at restart, which only resets fairness), first come first served inside it.
+The holder is an agent key, with its workspace recorded. Pools belong to the machine: two workspaces, and every project, share one simulator. The founder's setting is `simulator_max` 1; the shipped default stays 0 (none). Limits are owner settings.
 
 One ask is for one kind. A command that needs two takes them in the fixed order `heavy`, `simulator`, `browser`, `port` (`hl use a b -- cmd` asks in that order and gives all back together); asking out of order is refused. That removes the hold-and-wait cycle.
+
+### Waiting is a blocker, not a held agent
+
+Today `hl use` makes the agent's turn sit in the queue for up to 30 minutes. Instead, when no lease is free:
+
+1. The daemon queues the ask and puts a **lease-wait blocker** on the agent's current task (`waiting on simulator`), in the same write. By the one-doing rule (T5255) the task goes back to queued and the agent moves to its next task.
+2. `hl use` exits at once with a fixed code (75) and the text "no simulator is free; this task now waits for one and comes back by itself; take your next task". Nothing ran.
+3. When a lease frees, the first ask in the queue is **reserved** for that task (the lease is held by the task, not by a process) and the blocker is cleared, so the task returns to its agent by priority, not ahead of a task already running. The agent runs `hl use` again: it takes the reserved lease at once and goes on where the task left off (the task's notes and the turn's own memory carry the context).
+4. A reservation not claimed within `lease_claim` (10 min, as the wake reservation) lapses to the next ask, and the task is blocked again at the back of the queue. The same applies when the task is closed, handed off or its agent retired.
+
+The queue is per kind. Order: the workspace that has held the kind least in the last hour first (hold-seconds per workspace for that hour are kept by the manager; lost at restart, which only resets fairness), then first come first served. A reserved lease counts as held for the limit and for the display, so with one simulator the screen shows "held by A, reserved for B, waiting C, D". An agent that holds a lease taken with `--hold` and then asks for another kind is not blocked mid-task: it gets the refusal and finishes or releases first.
+
+The in-process wait stays only for a shell that is not an agent's, which never leases.
 
 ### Given back
 
@@ -146,7 +159,7 @@ Today's ends stay: the command exits, `--release`, turn end (holds), session end
 
 - **`max_hold`** per kind, config (simulator 60 min, browser 30, heavy 30, port none), counted from the grant, for commands and holds alike, so a wedged `go test` cannot keep its slot.
 - At 80 % the holder is told how long is left. `hl use --extend` adds one period, up to twice, and is refused while anyone waits.
-- At `max_hold` the lease is revoked when someone waits, else it only shows "over time" and goes the moment someone asks. A waiter is refused at the 30-minute ceiling, so `max_hold` stays at or under it plus the waiter's own wait: the ask's ceiling is `max(30 min, max_hold)` for a kind that has a `max_hold`.
+- At `max_hold` the lease is revoked when someone waits, else it only shows "over time" and goes the moment someone asks. A waiting ask has no time ceiling: it is a blocker, and it shows in the queue until granted or its task ends.
 - Revoking ends the lease and tells the holder. For a command the daemon signals the process group `hl use` started (TERM, then KILL after 10 s). For a hold there is no group to kill: the holder is told to stop and the lease is ended, never a process picked by name. `procOf` stays a display heuristic.
 
 ### Restart
@@ -159,12 +172,13 @@ Leases are stored in the base (kind, agent, workspace, granted-at, `hl use` pid,
 
 ### Builder tasks
 
-1. Store and restart adoption; `Lease.Workspace`; per-workspace fair grant. (go/scheduler/leases)
-2. `max_hold`, warning, `--extend`, revocation (needs 1).
-3. `heavy` kind and its guard patterns.
-4. `port` kind, `port_range`, `$HL_PORT`.
-5. Multi-kind `hl use a b` in the fixed order.
-6. Contract, `hl team` and app lines, settings keys (needs 1, 2).
+1. Store and restart adoption; `Lease.Workspace`; per-workspace fair grant (go/scheduler/leases).
+2. Lease-wait blocker: `lease.take` for an agent with no free lease queues the ask, blocks its current task (db task-state rule counts it as an open blocker), returns code 75; grant reserves for the task, clears the blocker; `lease_claim` lapse (needs 1; touches db/taskstate and hl use).
+3. `max_hold`, warning, `--extend`, revocation (needs 2: same files).
+4. `heavy` kind and its guard patterns (needs 1).
+5. `port` kind, `port_range`, `$HL_PORT` (needs 1).
+6. Multi-kind `hl use a b` in the fixed order (needs 2).
+7. Contract, `hl team` and the status-bar popover data (held, reserved, waiting with order, minutes held) and settings keys (needs 2, 3).
 
 New limits merge off by default (AGENTS.md): `max_hold` and `heavy` start at 0 = none.
 
