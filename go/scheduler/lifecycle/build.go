@@ -276,6 +276,9 @@ func (l *Launcher) Prepare(site *Site, agent string, extra []string, force bool,
 		return nil, err
 	}
 	argv, env, err := l.Build(site, agent, append([]string(nil), extra...), force, account)
+	if err == nil && !l.Tokens.Record(agent, site.PID) { // the proof this session is the agent's; before anything is used up
+		err = refuse("the session of %s could not be recorded, so it is not started", agent)
+	}
 	if err != nil {
 		var refused *Refusal
 		if errors.As(err, &refused) {
@@ -308,7 +311,6 @@ func (l *Launcher) Prepare(site *Site, agent string, extra []string, force bool,
 			return nil, err
 		}
 	}
-	l.Tokens.Record(agent, site.PID) // the proof this session is the agent's
 	fp, _ := l.Fingerprint(agent)
 	l.recordTerminal(site, agent, env["HANDLINE_ACCOUNT"], fp)
 	gitrun.PointOriginHeadAtMain(site.Cwd) // the session names its main branch from it

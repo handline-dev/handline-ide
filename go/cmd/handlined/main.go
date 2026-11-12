@@ -124,6 +124,9 @@ func main() {
 		fmt.Println(version.Sha)
 		return
 	}
+	if agent := leaveAgentSession(); agent != "" {
+		log.Printf("handlined: started from %s's session; dropped its agent variables", agent)
+	}
 	homeDir, err := resolveHome(*home, *allowReal)
 	if err != nil {
 		log.Fatalf("handlined: %v", err)
@@ -264,4 +267,13 @@ func untilClosed(ctx context.Context, r io.Reader) context.Context {
 		cancel(errors.New("stdin closed"))
 	}()
 	return ctx
+}
+
+// leaveAgentSession drops the agent variables a daemon started from an agent's session inherits, and names that agent ("" for none).
+func leaveAgentSession() string {
+	agent, _ := paths.Getenv("AGENT")
+	for _, k := range []string{"HANDLINE_AGENT", "HANDLINE_ACCOUNT"} {
+		os.Unsetenv(k)
+	}
+	return agent
 }
