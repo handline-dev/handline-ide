@@ -10,7 +10,7 @@ import { Composer } from '#src/chat/Composer.tsx';
 import type { MarkedPicture } from '#src/viewer/ImageViewer.tsx';
 import type { Command } from '#src/chat/Suggest.tsx';
 import { AssignPicker } from '#src/tools/TaskFields.tsx';
-import { choices, openAsks } from '#src/tools/TaskWaiting.tsx';
+import { openAsks } from '#src/tools/TaskWaiting.tsx';
 import { turnReply } from '#src/tools/TaskTurn.ts';
 import { confirm } from '#src/ui/modal.tsx';
 import { useMe } from '@handline/app-react';
@@ -173,9 +173,6 @@ export function CommentBox({
   };
   // Answering the founder's turn, not handing the task on: the box ends the turn, and empty it gives the turn back with no words.
   const answering = !!turn && !picked && !to;
-  const options = answering ? choices(turn.ask ?? '') : [];
-  // A choice fills the box, or goes in front of what is written there.
-  const pick = (o: string) => setDraft(!draft.trim() || options.some((c) => draft.trim() === `${c.key}) ${c.text}`) ? o : `${o}\n${draft}`);
   return (
     <Page>
       <Composer
@@ -187,26 +184,10 @@ export function CommentBox({
         focusOn={picked ?? (typing || undefined)}
         above={
           answering ? (
-            <div className="flex flex-col gap-2 text-xs text-muted">
-              <span className="flex items-center gap-1.5">
-                <CornerDownRight size={14} className="shrink-0" />
-                Sending answers <Who k={turn.by} /> and gives the turn back · Send it empty to give it back with no answer
-              </span>
-              {options.length > 0 && (
-                <span className="flex flex-wrap gap-1.5">
-                  {options.map((o) => (
-                    <button
-                      key={o.key}
-                      type="button"
-                      onClick={() => pick(`${o.key}) ${o.text}`)}
-                      className="max-w-full truncate rounded-md border border-border px-2 py-0.5 text-xs text-fg hover:bg-hover/30"
-                    >
-                      {o.key}) {o.text}
-                    </button>
-                  ))}
-                </span>
-              )}
-            </div>
+            <span className="flex items-center gap-1.5 text-xs text-muted">
+              <CornerDownRight size={14} className="shrink-0" />
+              Sending gives <Who k={turn.by} /> your answer and the turn back · Send it empty to give it back with no answer
+            </span>
           ) : (
             picked && (
               <div role="status" className="-ml-2 flex min-w-0 items-center gap-1.5 text-xs text-muted">
