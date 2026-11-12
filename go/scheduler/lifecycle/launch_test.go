@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -1015,7 +1016,7 @@ func TestALaunchAllowsSubagentsAndKeepsTheOtherToolsDisallowed(t *testing.T) {
 // A start says what its settings changed from the session recorded before it: a value a person can read as old -> new, the rest by name.
 func TestWhatChangedSaysOldAndNewValues(t *testing.T) {
 	r := newLaunchRig(t)
-	if got, err := r.l.whatChanged("ann"); got != "" || err != nil {
+	if got, _, err := r.l.whatChanged("ann"); got != "" || err != nil {
 		t.Fatalf("no record yet: %q %v", got, err)
 	}
 	record := func(parts string) {
@@ -1029,7 +1030,7 @@ func TestWhatChangedSaysOldAndNewValues(t *testing.T) {
 		t.Fatal(err)
 	}
 	record(rec)
-	if got, err := r.l.whatChanged("ann"); got != "" || err != nil {
+	if got, _, err := r.l.whatChanged("ann"); got != "" || err != nil {
 		t.Fatalf("nothing changed: %q %v", got, err)
 	}
 	set := func(model, effort string) {
@@ -1040,7 +1041,7 @@ func TestWhatChangedSaysOldAndNewValues(t *testing.T) {
 	}
 	set("claude-sonnet-5-5", "low")
 	os.WriteFile(filepath.Join(paths.AgentDir(r.l.Home, "ann"), "ROLE.md"), []byte("a new role"), 0o644)
-	if got, err := r.l.whatChanged("ann"); got != "model changed (m1 -> sonnet-5-5), effort changed (high -> low), ROLE.md changed" || err != nil {
+	if got, _, err := r.l.whatChanged("ann"); got != "model changed (m1 -> sonnet-5-5), effort changed (high -> low), ROLE.md changed" || err != nil {
 		t.Fatalf("%q %v", got, err)
 	}
 	// A session recorded before values were kept: the hash says it changed, not from what.
@@ -1052,11 +1053,11 @@ func TestWhatChangedSaysOldAndNewValues(t *testing.T) {
 	b, _ := json.Marshal(old)
 	record(string(b))
 	set("m1", "high")
-	if got, _ := r.l.whatChanged("ann"); got != "ROLE.md changed" {
+	if got, _, _ := r.l.whatChanged("ann"); got != "ROLE.md changed" {
 		t.Fatalf("back to the old model and effort, only the role differs: %q", got)
 	}
 	set("m2", "high")
-	if got, _ := r.l.whatChanged("ann"); got != "model changed, ROLE.md changed" {
+	if got, _, _ := r.l.whatChanged("ann"); got != "model changed, ROLE.md changed" {
 		t.Fatalf("%q", got)
 	}
 }
@@ -1082,7 +1083,7 @@ func TestWhatChangedNamesTheTeamRulesFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	rules = "new rules"
-	if got, _ := r.l.whatChanged("ann"); got != "team rules changed ("+core+")" {
+	if got, _, _ := r.l.whatChanged("ann"); got != "team rules changed ("+core+")" {
 		t.Fatalf("%q", got)
 	}
 	// A session launched when both were one "team" part: its record has neither name, so nothing reads as changed and no one restarts.
@@ -1097,8 +1098,52 @@ func TestWhatChangedNamesTheTeamRulesFile(t *testing.T) {
 	if err := db.SetLaunchFingerprint(r.l.Q, "ann", "fp", string(b)); err != nil {
 		t.Fatal(err)
 	}
-	if got, _ := r.l.whatChanged("ann"); got != "" {
+	if got, _, _ := r.l.whatChanged("ann"); got != "" {
 		t.Fatalf("an old record's team part: %q", got)
+	}
+}
+
+// A changed text part is said line by line, from the text the earlier launch kept; a record that kept none names the part alone.
+func TestWhatChangedSaysTheLinesOfTheTextParts(t *testing.T) {
+	r := newLaunchRig(t)
+	rules := "# Rules\n- keep it short\n- reply in English"
+	r.l.Ports.TeamRules = func(string) []string { return []string{rules} }
+	role := filepath.Join(paths.AgentDir(r.l.Home, "ann"), "ROLE.md")
+	os.WriteFile(role, []byte("builds\nreviews"), 0o644)
+	rec, err := r.l.LaunchRecord("ann")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SetLaunchFingerprint(r.l.Q, "ann", "fp", rec); err != nil {
+		t.Fatal(err)
+	}
+	rules = "# Rules\n- keep it short\n- reply in Korean"
+	os.WriteFile(role, []byte("builds\nreviews\ntests"), 0o644)
+	_, lines, err := r.l.whatChanged("ann")
+	want := []LineChange{
+		{Part: "ROLE.md", Added: []string{"tests"}, Removed: []string{}},
+		{Part: "team rules", Added: []string{"- reply in Korean"}, Removed: []string{"- reply in English"}},
+	}
+	if err != nil || !reflect.DeepEqual(lines, want) {
+		t.Fatalf("%+v %v", lines, err)
+	}
+	// A long change keeps changedLinesMax lines of each side and counts the rest.
+	os.WriteFile(filepath.Join(paths.AgentDir(r.l.Home, "ann"), "base.md"), []byte(strings.Repeat("x\n", changedLinesMax+5)), 0o644)
+	if _, lines, _ := r.l.whatChanged("ann"); len(lines) != 3 || lines[1].Part != "base.md" || len(lines[1].Added) != changedLinesMax || lines[1].More != 5 {
+		t.Fatalf("%+v", lines)
+	}
+	var old map[string]any
+	if err := json.Unmarshal([]byte(rec), &old); err != nil {
+		t.Fatal(err)
+	}
+	delete(old, LaunchedTexts)
+	delete(old, LaunchedRules)
+	b, _ := json.Marshal(old)
+	if err := db.SetLaunchFingerprint(r.l.Q, "ann", "fp", string(b)); err != nil {
+		t.Fatal(err)
+	}
+	if got, lines, _ := r.l.whatChanged("ann"); got != "ROLE.md changed, base.md changed, team rules changed" || lines != nil {
+		t.Fatalf("no texts kept: %q %+v", got, lines)
 	}
 }
 
@@ -1112,16 +1157,18 @@ func TestAStartKeepsWhatItsSettingsChanged(t *testing.T) {
 	if err := r.l.Roster.SetKeys("ann", []yamlcompat.Pair{{Key: "model", Val: "m2"}}); err != nil {
 		t.Fatal(err)
 	}
+	os.WriteFile(filepath.Join(paths.AgentDir(r.l.Home, "ann"), "base.md"), []byte("a new line"), 0o644)
 	if err := r.l.keepWhatItStartsWith(&Site{}, "ann", []string{"--resume", "s1"}, "", "settings_applied", "the daemon"); err != nil {
 		t.Fatal(err)
 	}
-	var changed string
+	var changed, lines string
 	var resumed int
-	if err := r.l.Q.QueryRow("SELECT changed, resumed FROM session_starts WHERE agent = 'ann'").Scan(&changed, &resumed); err != nil {
+	if err := r.l.Q.QueryRow("SELECT changed, changed_lines, resumed FROM session_starts WHERE agent = 'ann'").Scan(&changed, &lines, &resumed); err != nil {
 		t.Fatal(err)
 	}
-	if changed != "model changed (m1 -> m2)" || resumed != 1 {
-		t.Fatalf("%q %d", changed, resumed)
+	if changed != "model changed (m1 -> m2), base.md changed" || resumed != 1 ||
+		lines != `[{"part":"base.md","added":["a new line"],"removed":[]}]` {
+		t.Fatalf("%q %q %d", changed, lines, resumed)
 	}
 }
 

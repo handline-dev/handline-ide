@@ -61,7 +61,7 @@ func TestARulesChangeIsToldOnceAndIsNoDrift(t *testing.T) {
 	if note, _, _ := r.l.RulesNote("ann", row()); note != "" {
 		t.Fatalf("told twice: %q", note)
 	}
-	if got, _ := r.l.whatChanged("ann"); got != "" {
+	if got, _, _ := r.l.whatChanged("ann"); got != "" {
 		t.Fatalf("a later launch would still name the told rules: %q", got)
 	}
 	// A launch that recorded itself between the note and its keeping is not overwritten.

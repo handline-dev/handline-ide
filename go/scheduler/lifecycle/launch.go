@@ -1223,6 +1223,13 @@ const LaunchedAt = "launched_at"
 // LaunchedValues is beside the setting hashes too: the settings whose value a person can read, for saying what a later launch changed.
 const LaunchedValues = "values"
 
+// LaunchedTexts is beside the setting hashes too: the text of ROLE.md, base.md and the team instructions, for saying which lines a later
+// launch adds and removes. The team rules text is under LaunchedRules, which RulesNote also rewrites once a session is told.
+const LaunchedTexts = "texts"
+
+// changedLinesMax is how many added, and how many removed, lines a start keeps of one part; More counts the rest.
+const changedLinesMax = 40
+
 // partOrder is the order the parts are written in, as the Python dict keeps it.
 // Renaming a part restarts no one: a name the earlier record lacks is skipped.
 var partOrder = []string{"model", "effort", "mcp config", "browser", "permissions", "sandbox", "ROLE.md", "base.md", "team instructions", rulesPart}
@@ -1231,19 +1238,17 @@ var partOrder = []string{"model", "effort", "mcp config", "browser", "permission
 // launch beside Fingerprint, and compared by the daemon to name what a running session has not picked up. Not here: what Build reads
 // from the machine (the account, the handoff, hidden transcripts, the main-ref files) and the fixed text of the preamble.
 func (l *Launcher) FingerprintParts(agent string) (map[string]string, error) {
+	texts, rules := l.texts(agent)
+	return l.partsOf(agent, texts, rules)
+}
+
+// partsOf is FingerprintParts of texts and rules read once, so a record's texts are of the version its hashes are.
+func (l *Launcher) partsOf(agent string, texts map[string]string, rules []string) (map[string]string, error) {
 	cfg, err := l.Roster.Read(agent)
 	if err != nil {
 		return nil, err
 	}
-	d := paths.AgentDir(l.Home, agent)
 	h := func(s string) string { return sha256Hex(s)[:8] }
-	file := func(name string) string {
-		b, err := os.ReadFile(filepath.Join(d, name))
-		if err != nil {
-			return ""
-		}
-		return strings.TrimSpace(string(b))
-	}
 	mcp := team.MCPConfigArgs(cfg)
 	mcpTail := ""
 	if len(mcp) > 0 {
@@ -1268,16 +1273,32 @@ func (l *Launcher) FingerprintParts(agent string) (map[string]string, error) {
 		"browser":           h(browser),
 		"permissions":       h(perm),
 		"sandbox":           sandbox,
-		"ROLE.md":           h(file("ROLE.md")),
-		"base.md":           h(file("base.md")),
-		"team instructions": h(l.yourTeam(agent)),
-		rulesPart:           rulesHash(l.Ports.TeamRules(agent)),
+		"ROLE.md":           h(texts["ROLE.md"]),
+		"base.md":           h(texts["base.md"]),
+		"team instructions": h(texts["team instructions"]),
+		rulesPart:           rulesHash(rules),
 	}, nil
+}
+
+// texts are ROLE.md, base.md, the team instructions and the team rules as the next launch gives them, and the rules as read.
+func (l *Launcher) texts(agent string) (map[string]string, []string) {
+	d := paths.AgentDir(l.Home, agent)
+	file := func(name string) string {
+		b, err := os.ReadFile(filepath.Join(d, name))
+		if err != nil {
+			return ""
+		}
+		return strings.TrimSpace(string(b))
+	}
+	rules := l.Ports.TeamRules(agent)
+	return map[string]string{"ROLE.md": file("ROLE.md"), "base.md": file("base.md"), "team instructions": l.yourTeam(agent),
+		rulesPart: strings.Join(rules, "\n\n")}, rules
 }
 
 // LaunchRecord is the parts as JSON, in order, with the launch's own stamp, as `launch_parts` keeps them.
 func (l *Launcher) LaunchRecord(agent string) (string, error) {
-	parts, err := l.FingerprintParts(agent)
+	texts, rules := l.texts(agent)
+	parts, err := l.partsOf(agent, texts, rules)
 	if err != nil {
 		return "", err
 	}
@@ -1293,8 +1314,11 @@ func (l *Launcher) LaunchRecord(agent string) (string, error) {
 	}
 	v, _ := json.Marshal(values)
 	items = append(items, `"`+LaunchedValues+`": `+string(v))
-	r, _ := json.Marshal(l.rulesText(agent))
+	r, _ := json.Marshal(texts[rulesPart])
 	items = append(items, `"`+LaunchedRules+`": `+string(r))
+	delete(texts, rulesPart)
+	tx, _ := json.Marshal(texts)
+	items = append(items, `"`+LaunchedTexts+`": `+string(tx))
 	stamp := float64(l.now().UnixNano()) / 1e9
 	items = append(items, `"`+LaunchedAt+`": `+strconv.FormatFloat(stamp, 'f', -1, 64))
 	return "{" + strings.Join(items, ", ") + "}", nil
@@ -1309,29 +1333,49 @@ func (l *Launcher) readableValues(agent string) (map[string]string, error) {
 	return map[string]string{"model": modelOf(cfg), "effort": l.effortOf(cfg)}, nil
 }
 
+// LineChange is the lines a launch adds to one text part, and the ones it takes out, since the session recorded before it: at most
+// changedLinesMax of each, More the rest.
+type LineChange struct {
+	Part    string   `json:"part"`
+	Added   []string `json:"added"`
+	Removed []string `json:"removed"`
+	More    int      `json:"more,omitempty"`
+}
+
 // whatChanged says what this launch's settings change from the session recorded before it, in launch order and in the words a person
 // reads: "model changed (opus-5-5 -> sonnet-5-5), team rules changed (workspaces/w1/base.md)". Nothing for no earlier record.
-// A record from before the values were kept names the setting alone.
-func (l *Launcher) whatChanged(agent string) (string, error) {
+// A record from before the values were kept names the setting alone. lines are the changed text parts line by line, for each whose
+// earlier text the record kept.
+func (l *Launcher) whatChanged(agent string) (string, []LineChange, error) {
 	row, err := db.GetAgentState(l.Q, agent)
 	if err != nil || row == nil {
-		return "", err
+		return "", nil, err
 	}
 	var old map[string]json.RawMessage
 	if json.Unmarshal([]byte(row.LaunchParts.String), &old) != nil {
-		return "", nil
+		return "", nil, nil
 	}
-	var was map[string]string
+	var was, wasText map[string]string
 	_ = json.Unmarshal(old[LaunchedValues], &was)
-	parts, err := l.FingerprintParts(agent)
+	_ = json.Unmarshal(old[LaunchedTexts], &wasText)
+	var wasRules string
+	if json.Unmarshal(old[LaunchedRules], &wasRules) == nil {
+		if wasText == nil {
+			wasText = map[string]string{}
+		}
+		wasText[rulesPart] = wasRules
+	}
+	nowText, rules := l.texts(agent)
+	parts, err := l.partsOf(agent, nowText, rules)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	now, err := l.readableValues(agent)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	var changed []string
+	var lines []LineChange
 	for _, k := range partOrder {
 		hash, ok := old[k]
 		if !ok {
@@ -1348,8 +1392,20 @@ func (l *Launcher) whatChanged(agent string) (string, error) {
 			words += " (" + where + ")"
 		}
 		changed = append(changed, words)
+		if before, ok := wasText[k]; ok {
+			if added, removed := lineChanges(before, nowText[k]); len(added)+len(removed) > 0 {
+				c := LineChange{Part: k, Added: added, Removed: removed}
+				for _, side := range []*[]string{&c.Added, &c.Removed} {
+					if len(*side) > changedLinesMax {
+						c.More += len(*side) - changedLinesMax
+						*side = (*side)[:changedLinesMax]
+					}
+				}
+				lines = append(lines, c)
+			}
+		}
 	}
-	return strings.Join(changed, ", "), nil
+	return strings.Join(changed, ", "), lines, nil
 }
 
 // sourceOf names where a person edits a part that has no value to show.
@@ -1367,7 +1423,7 @@ func (l *Launcher) sourceOf(agent, part string) string {
 
 // WhatChanged is whatChanged for the restart notice, "" when it cannot be read.
 func (l *Launcher) WhatChanged(agent string) string {
-	s, _ := l.whatChanged(agent)
+	s, _, _ := l.whatChanged(agent)
 	return s
 }
 

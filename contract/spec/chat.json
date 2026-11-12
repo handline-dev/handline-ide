@@ -512,6 +512,13 @@
        "changed": {
         "type": "string",
         "description": "What the settings of this start changed from the session before, in words a person reads: `model changed (opus-5-5 -> sonnet-5-5), team rules changed (shared/team/handline.md)`. Empty when nothing did. Absent means empty."
+       },
+       "changed_lines": {
+        "type": "array",
+        "items": {
+         "$ref": "#/components/schemas/LineChange"
+        },
+        "description": "Lines added and removed in each part `changed` names, for the parts whose earlier text the daemon kept. Absent means none."
        }
       },
       "required": [
@@ -817,6 +824,13 @@
      "changed": {
       "type": "string",
       "description": "session only: what its settings changed, in words a person reads; empty when nothing did. Absent means empty."
+     },
+     "changed_lines": {
+      "type": "array",
+      "items": {
+       "$ref": "#/components/schemas/LineChange"
+      },
+      "description": "session only: as the transcript session's changed_lines. Absent means none."
      },
      "handoff": {
       "oneOf": [
@@ -1195,6 +1209,37 @@
      "outcome",
      "at",
      "seen"
+    ]
+   },
+   "LineChange": {
+    "type": "object",
+    "description": "Lines added to and removed from one text part since the session before: non-blank lines, in order, at most 40 of each.",
+    "properties": {
+     "part": {
+      "type": "string",
+      "description": "Which part, as `changed` names it: `team rules`, `team instructions`, `ROLE.md` or `base.md`. Open set."
+     },
+     "added": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "removed": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "more": {
+      "type": "integer",
+      "description": "How many more added and removed lines there were than are listed. Absent means 0."
+     }
+    },
+    "required": [
+     "part",
+     "added",
+     "removed"
     ]
    }
   }

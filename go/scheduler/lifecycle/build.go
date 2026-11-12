@@ -1,6 +1,7 @@
 package lifecycle
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -271,11 +272,16 @@ func (l *Launcher) keepWhatItStartsWith(site *Site, agent string, extra []string
 	if why == "" {
 		why = "launch"
 	}
-	changed, err := l.whatChanged(agent)
+	changed, lines, err := l.whatChanged(agent)
 	if err != nil {
 		site.warn("hl launch: could not read what changed for %s: %v", agent, err)
 	}
-	if _, err := db.NoteSessionStart(l.Q, agent, why, resumed, sid, text, prompt, by, changed); err != nil {
+	changedLines := ""
+	if len(lines) > 0 {
+		b, _ := json.Marshal(lines)
+		changedLines = string(b)
+	}
+	if _, err := db.NoteSessionStart(l.Q, agent, why, resumed, sid, text, prompt, by, changed, changedLines); err != nil {
 		site.warn("hl launch: could not keep how %s was started: %v", agent, err)
 	}
 	return nil

@@ -126,6 +126,8 @@ export type TranscriptItem = {
     resumed?: boolean;
     /** What the settings of this start changed from the session before, in words a person reads: `model changed (opus-5-5 -> sonnet-5-5), team rules changed (shared/team/handline.md)`. Empty when nothing did. Absent means empty. */
     changed?: string;
+    /** Lines added and removed in each part `changed` names, for the parts whose earlier text the daemon kept. Absent means none. */
+    changed_lines?: LineChange[];
   };
   /** For kind bash: a person's ! line as it ran, without the !. */
   command?: string;
@@ -215,6 +217,8 @@ export type ChatRequestItem = {
   resumed?: boolean;
   /** session only: what its settings changed, in words a person reads; empty when nothing did. Absent means empty. */
   changed?: string;
+  /** session only: as the transcript session's changed_lines. Absent means none. */
+  changed_lines?: LineChange[];
   handoff?: string | null;
 };
 
@@ -329,6 +333,16 @@ export type RequestEnded = {
   at: Timestamp;
   /** True once task.seen has been called on the task since it ended, when the founder ended it themselves, or when it ended before this daemon first kept the mark. */
   seen: boolean;
+};
+
+/** Lines added to and removed from one text part since the session before: non-blank lines, in order, at most 40 of each. */
+export type LineChange = {
+  /** Which part, as `changed` names it: `team rules`, `team instructions`, `ROLE.md` or `base.md`. Open set. */
+  part: string;
+  added: string[];
+  removed: string[];
+  /** How many more added and removed lines there were than are listed. Absent means 0. */
+  more?: number;
 };
 
 export interface ChatMethods {
