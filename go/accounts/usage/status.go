@@ -305,7 +305,7 @@ func (s *AccountStatus) assignable(active int) (bool, string, string) {
 	if pct == nil {
 		if week := s.LongTrusted(); week != nil && *week >= LongBlock && s.Short.Reset != 0 && float64(s.Short.Reset) <= s.now() {
 			// the shortest window rolled over since the reading; the week did not
-			return false, fmt.Sprintf("%s usage %d%% >= %d%%", s.Long.Label(), *week, LongBlock), KindWeekCap
+			return false, s.weekWall(*week), KindWeekCap
 		}
 		return false, fmt.Sprintf("%s usage unknown (fail-closed)", s.Short.Label()), KindOther
 	}
@@ -313,7 +313,7 @@ func (s *AccountStatus) assignable(active int) (bool, string, string) {
 		return false, fmt.Sprintf("%s usage %d%% >= %d%%", s.Short.Label(), *pct, ShortBlock), KindFiveHourCap
 	}
 	if week := s.LongTrusted(); week != nil && *week >= LongBlock {
-		return false, fmt.Sprintf("%s usage %d%% >= %d%%", s.Long.Label(), *week, LongBlock), KindWeekCap
+		return false, s.weekWall(*week), KindWeekCap
 	}
 	if s.Long.Lost {
 		return false, fmt.Sprintf("%s usage was lost - the longest window's gate cannot be checked (fail-closed)", s.Long.Label()), KindOther
@@ -331,6 +331,15 @@ func (s *AccountStatus) assignable(active int) (bool, string, string) {
 		return true, fmt.Sprintf("%s %d%% (carried, still inside the window)", s.Short.Label(), *pct), ""
 	}
 	return true, fmt.Sprintf("%s %d%%", s.Short.Label(), *pct), ""
+}
+
+// weekWall is the refusal of a week at its wall, with when it comes back.
+func (s *AccountStatus) weekWall(week int) string {
+	text := fmt.Sprintf("%s usage %d%% >= %d%%", s.Long.Label(), week, LongBlock)
+	if s.Long.Reset != 0 {
+		text += " - resets " + timefmt.Stamp(s.Long.Reset, timefmt.Short)
+	}
+	return text
 }
 
 // TakesWork: may a session be started here: assignable, or a rolled-over stale account, and under the weekly wall. The usage half of
@@ -354,7 +363,7 @@ func (s *AccountStatus) takesWork(active int) (bool, string, string) {
 		}
 	}
 	if ok && week != nil && *week >= LongBlock {
-		return false, fmt.Sprintf("%s usage %d%% >= %d%%", s.Long.Label(), *week, LongBlock), KindWeekCap
+		return false, s.weekWall(*week), KindWeekCap
 	}
 	return ok, why, kind
 }
