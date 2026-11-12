@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/handline/handline/go/accounts/usage"
 	cli "github.com/handline/handline/go/agentctl/agent"
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
@@ -44,7 +45,7 @@ func (s *Site) warn(format string, a ...any) {
 
 // Build is the argv and environment ready to hand to execve for agent. extra are the caller's own arguments, force overrides the usage
 // wall, account is a destination someone already chose. A launch that must not go ahead is a *Refusal.
-func (l *Launcher) Build(site *Site, agent string, extra []string, force bool, account string) ([]string, map[string]string, error) {
+func (l *Launcher) Build(site *Site, agent string, extra []string, force bool, account string) (argv []string, env map[string]string, err error) {
 	p := l.Ports
 	if l.Tokens == nil {
 		// Without the key store nothing would be hidden from the session and no proof or key recorded for it: a wiring that forgot it must not fail open.
@@ -65,7 +66,19 @@ func (l *Launcher) Build(site *Site, agent string, extra []string, force bool, a
 	if why := l.leftOut(agent, account); why != "" {
 		return nil, nil, refuse("agent '%s': account '%s' %s", agent, account, why)
 	}
-	acct := l.ChooseAccount(agent, resuming, account)
+	acct, err := l.place(agent, resuming, account)
+	if err != nil {
+		return nil, nil, err
+	}
+	if acct != "" {
+		defer func() { // a refusal past the hold lets the slot go now, not when the look-back ends
+			if err != nil {
+				if derr := l.dropHold(agent, err); derr != nil {
+					err = errors.Join(err, derr)
+				}
+			}
+		}()
+	}
 	if acct == "" {
 		if resuming && l.Ports.CurrentAccount(l.Q, agent) == "" {
 			return nil, nil, refuse("agent '%s' has no recorded session to resume", agent)
@@ -201,7 +214,7 @@ func (l *Launcher) Build(site *Site, agent string, extra []string, force bool, a
 	if len(mode) > 0 && chosen == team.DefaultMode {
 		trusted = l.TrustedEnvironment(cwd)
 	}
-	argv := drv.LaunchArgv(exe, cli.LaunchArgs{
+	argv = drv.LaunchArgv(exe, cli.LaunchArgs{
 		Model: modelOf(cfg), Effort: effort, Disallowed: l.disallowed(agent),
 		MCPArgs:  append(append([]string{}, mcpArg...), team.MCPConfigArgs(cfg)...),
 		Preamble: preamble, Hide: hide,
@@ -226,7 +239,7 @@ func (l *Launcher) Build(site *Site, agent string, extra []string, force bool, a
 	}
 	argv = append(argv, extra...)
 
-	env := p.Accounts.EnvFrom(site.Env, acct, agent)
+	env = p.Accounts.EnvFrom(site.Env, acct, agent)
 	if env == nil {
 		env = map[string]string{}
 	}
@@ -272,24 +285,56 @@ type Prepared struct {
 	Env  []string
 }
 
+// place is ChooseAccount and the hold of the slot it chose (wake_reserved, source launch) as one step under placeMu.
+func (l *Launcher) place(agent string, resuming bool, account string) (string, error) {
+	defer l.Placing()()
+	acct := l.ChooseAccount(agent, resuming, account)
+	if acct == "" {
+		return "", nil
+	}
+	if err := db.EnsureAgentState(l.Q, agent); err != nil { // the held slots are counted from agent_state
+		return "", err
+	}
+	_, err := db.AddEventFor(l.Q, agent, acct, "wake_reserved", db.KV{K: "account", V: acct}, db.KV{K: "source", V: "launch"})
+	return acct, err
+}
+
+// refused is err, with a refusal kept as launch_refused first.
+func (l *Launcher) refused(agent string, err error) error {
+	var r *Refusal
+	if errors.As(err, &r) {
+		if _, aerr := db.AddEvent(l.Q, agent, LaunchRefusedKind, db.KV{K: "why", V: r.Msg}); aerr != nil {
+			return aerr
+		}
+	}
+	return err
+}
+
+// dropHold lets a launch's slot go (hold_dropped) because it will not start.
+func (l *Launcher) dropHold(agent string, why error) error {
+	_, err := db.AddEvent(l.Q, agent, usage.HoldDroppedKind, db.KV{K: "why", V: why.Error()})
+	return err
+}
+
 // Prepare builds the launch for site and keeps what it starts with (the session start, the handoff taken, the terminal, the account and
 // the fingerprint); the caller locks the worktree and execs. It returns only a *Refusal, or an error when the launch cannot be built.
-func (l *Launcher) Prepare(site *Site, agent string, extra []string, force bool, promptFile, account, why, by string) (*Prepared, error) {
+func (l *Launcher) Prepare(site *Site, agent string, extra []string, force bool, promptFile, account, why, by string) (got *Prepared, err error) {
 	if err := l.refuseOthersPane(site, agent); err != nil {
 		return nil, err
 	}
 	argv, env, err := l.Build(site, agent, append([]string(nil), extra...), force, account)
-	if err == nil && !l.Tokens.Record(agent, site.PID) { // the proof this session is the agent's; before anything is used up
-		err = refuse("the session of %s could not be recorded, so it is not started", agent)
-	}
 	if err != nil {
-		var refused *Refusal
-		if errors.As(err, &refused) {
-			if _, aerr := db.AddEvent(l.Q, agent, LaunchRefusedKind, db.KV{K: "why", V: refused.Msg}); aerr != nil {
-				return nil, aerr
+		return nil, l.refused(agent, err) // Build let its own hold go
+	}
+	defer func() { // Build held a slot: a launch that fails past it lets the slot go
+		if err != nil {
+			if derr := l.dropHold(agent, err); derr != nil {
+				err = errors.Join(err, derr)
 			}
 		}
-		return nil, err
+	}()
+	if !l.Tokens.Record(agent, site.PID) { // the proof this session is the agent's; before anything is used up
+		return nil, l.refused(agent, refuse("the session of %s could not be recorded, so it is not started", agent))
 	}
 	prompt := TakePrompt(promptFile)
 	if promptFile == "" && !slices.Contains(extra, "--resume") {

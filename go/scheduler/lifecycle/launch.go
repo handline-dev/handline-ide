@@ -153,6 +153,16 @@ type Launcher struct {
 
 	// pacePassed is each agent a person let past the pace (PassPace), until when.
 	pacePassed sync.Map
+	// placeMu makes choosing an account and holding its slot (wake_reserved) one step: a launch's choice (Build) and a wake's fresh
+	// or cold choice (wake.go). A move's destination and a warm resume's room are still decided before it (T9062). Taken after the agent's lock and the terminal lock, never before them; nothing under it takes
+	// another lock, makes a network call or waits (usage.Env.Refresh, the one live read a pick may make, is not set in the daemon).
+	placeMu sync.Mutex
+}
+
+// Placing takes placeMu; the returned func lets it go.
+func (l *Launcher) Placing() func() {
+	l.placeMu.Lock()
+	return l.placeMu.Unlock
 }
 
 // PacePassFor is how long a force start lets an agent past the pace: long enough for the start it asked for.
@@ -1435,6 +1445,8 @@ func (p LaunchPort) WorkspaceWait(q db.Q, agent string) *WakeWait { return p.L.W
 func (p LaunchPort) AccountFor(q db.Q, agent string, resuming bool) string {
 	return p.L.ChooseAccount(agent, resuming, "")
 }
+
+func (p LaunchPort) Placing() func() { return p.L.Placing() }
 
 func (p LaunchPort) SlowestPaced(q db.Q, agent string, row *db.AgentState, skip string) string {
 	return p.L.SlowestPaced(q, agent, row, skip)

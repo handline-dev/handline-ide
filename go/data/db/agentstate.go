@@ -241,6 +241,12 @@ func CloseAgentTerminal(q Q, handle string) error {
 	return err
 }
 
+// EnsureAgentState gives agent an IDLE row when it has none, so the count of held slots (read from agent_state) sees its first launch.
+func EnsureAgentState(q Q, agent string) error {
+	_, err := q.Exec("INSERT INTO agent_state(agent, state, updated) VALUES(?,?,?) ON CONFLICT(agent) DO NOTHING", agent, "IDLE", Now())
+	return err
+}
+
 // SetAccount is db.set_account; source is "recorded" or "assumed".
 func SetAccount(q Q, agent, account, source string) error {
 	_, err := q.Exec("INSERT INTO agent_state(agent, state, updated, account, account_source) VALUES(?,?,?,?,?) ON CONFLICT(agent) DO UPDATE SET account=excluded.account, account_source=excluded.account_source, updated=excluded.updated",

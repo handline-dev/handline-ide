@@ -716,17 +716,24 @@ func (m *Manager) launchClosed(agent string, row *db.AgentState, wt, session str
 	cold := c.movedTo == "" && !c.warm && m.cacheExpiredAt(agent, session, m.now()) && m.carried(agent, session) == ""
 	// A fresh start goes where there is room. With none, `hl launch` would refuse and the refusal would count against the agent's wake
 	// attempts, though it is the accounts that are full.
-	if c.movedTo == "" && (cold || session == "") && !m.Launch.ChooseAccount(m.Q, agent) {
+	// The slot is held from the choice, under the one placement lock, so no other wake or launch sees it free.
+	slot := func() string {
+		defer m.Launch.Placing()()
+		if c.movedTo == "" && (cold || session == "") && !m.Launch.ChooseAccount(m.Q, agent) {
+			return ""
+		}
+		slot := c.movedTo
+		if slot == "" {
+			slot = m.Launch.AccountFor(m.Q, agent, session != "" && !cold) // "": a resume with nowhere to go (its workspace's accounts rule)
+		}
+		if slot != "" {
+			must(db.AddEventFor(m.Q, agent, slot, "wake_reserved", db.KV{K: "account", V: slot}))
+		}
+		return slot
+	}()
+	if slot == "" {
 		return false, m.Launch.NoRoom(agent)
 	}
-	// The slot is held from here, so a second wake in this tick sees it taken.
-	slot := c.movedTo
-	if slot == "" {
-		if slot = m.Launch.AccountFor(m.Q, agent, session != "" && !cold); slot == "" {
-			return false, m.Launch.NoRoom(agent) // a resume with nowhere to go (its workspace's accounts rule): typed, it would be refused
-		}
-	}
-	must(db.AddEventFor(m.Q, agent, slot, "wake_reserved", db.KV{K: "account", V: slot}))
 	took := false
 	if cold && must(db.GetHandoff(m.Q, agent)) == "" {
 		// The close that would have taken it failed, and the snapshot no longer names the session; the id on the row still does.
