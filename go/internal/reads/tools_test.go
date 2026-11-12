@@ -22,25 +22,25 @@ func TestDaemonStatusNamesTheMissingToolsOfTheAgentSide(t *testing.T) {
 	t.Setenv("PATH", bin)
 	e := testEnv(t)
 	all := []MissingTool{{"claude", "curl -fsSL https://claude.ai/install.sh | bash"}, {"git", "xcode-select --install"}, {"tmux", "brew install tmux"}}
-	if got := e.missingTools(); got != nil {
+	if got := e.missingTools(e.vendors()); got != nil {
 		t.Fatalf("no agent side: %v", got)
 	}
 	e.Claude = "claude"
-	if got := e.missingTools(); !reflect.DeepEqual(got, all) {
+	if got := e.missingTools(e.vendors()); !reflect.DeepEqual(got, all) {
 		t.Fatalf("an empty PATH: %v", got)
 	}
 	tool(t, bin, "git")
 	tool(t, bin, "claude")
-	if got := e.missingTools(); !reflect.DeepEqual(got, all[2:]) {
+	if got := e.missingTools(e.vendors()); !reflect.DeepEqual(got, all[2:]) {
 		t.Fatalf("claude and git on PATH: %v", got)
 	}
 	tool(t, bin, "tmux")
 	e.Claude = filepath.Join(bin, "gone", "claude")
-	if got := e.missingTools(); !reflect.DeepEqual(got, all[:1]) {
+	if got := e.missingTools(e.vendors()); !reflect.DeepEqual(got, all[:1]) {
 		t.Fatalf("a claude path that is not there: %v", got)
 	}
 	e.Claude = tool(t, t.TempDir(), "my-claude")
-	if got := e.missingTools(); got != nil {
+	if got := e.missingTools(e.vendors()); got != nil {
 		t.Fatalf("a claude path off PATH: %v", got)
 	}
 }
