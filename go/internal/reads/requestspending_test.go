@@ -108,10 +108,10 @@ func TestRequestsPendingGroupsByTaskAndNeverReadsAQuestionAway(t *testing.T) {
 func TestRequestsPendingLeavesOutATaskTheFounderQueuedToThemself(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(1, 'my story', 'human', 'human', 1, 'human'), "+
-		"(2, 'handed', 'human', 'bob', 1, 'bob')")
-	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(20, 10, 'human', 'human', 'story', 'queued', 'task', 1), "+
-		"(21, 11, 'bob', 'human', 'T2 handed to you', 'queued', 'task', 1)")
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(1, 'my story', 'p1', 'p1', 1, 'p1'), "+
+		"(2, 'handed', 'p1', 'bob', 1, 'bob')")
+	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(20, 10, 'p1', 'p1', 'story', 'queued', 'task', 1), "+
+		"(21, 11, 'bob', 'p1', 'T2 handed to you', 'queued', 'task', 1)")
 	run(t, e, "INSERT INTO task_requests(task_id, request_id) VALUES(1, 20), (2, 21)")
 	got := pending(t, e)
 	if taskIDs(got["answer"]) != "[2]" || got["counts"].(map[string]any)["answer"] != 1 {

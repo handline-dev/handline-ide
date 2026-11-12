@@ -2,8 +2,6 @@ package main
 
 import (
 	"database/sql"
-	"github.com/handline/handline/go/agentctl/agent"
-	"github.com/handline/handline/go/agentctl/agent/claudecode"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/handline/handline/go/agentctl/agent/claudecode"
 	"github.com/handline/handline/go/kit/store"
 )
 
@@ -175,7 +174,7 @@ func TestCopyLoginCopiesTheKeychainItem(t *testing.T) {
 	}
 	dir := t.TempDir()
 	from, to := filepath.Join(dir, "a", ".claude"), filepath.Join(dir, "b", ".claude")
-	user := agent.UserName()
+	user := claudecode.KeychainAccount()
 	for _, d := range []string{from, to} {
 		t.Cleanup(func() {
 			exec.Command("security", "delete-generic-password", "-a", user, "-s", claudecode.KeychainService(d)).Run()

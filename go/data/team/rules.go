@@ -87,10 +87,10 @@ func RuleFiles(home, agent string, t *Team) []string {
 // Rules is the text of each of the agent's rules files, as "# Rules for team X\n<text>" (launch._team_rules).
 func Rules(home, agent string, t *Team) []string {
 	names, files := teamRules(home, agent, t)
-	out := make([]string, len(files))
+	var out []string
 	for i, f := range files {
 		b, _ := os.ReadFile(f)
-		out[i] = fmt.Sprintf("# Rules for team %s\n%s", names[i], textsafe.Strip(string(b)))
+		out = append(out, fmt.Sprintf("# Rules for team %s\n%s", names[i], textsafe.Strip(string(b))))
 	}
 	return out
 }
