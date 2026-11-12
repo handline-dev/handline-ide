@@ -24,7 +24,7 @@
       "id": 2,
       "method": "terminal.attach",
       "params": {
-       "agent": "a.one"
+       "agent": "a1"
       }
      },
      "error": {
@@ -178,7 +178,7 @@
       "id": 2,
       "method": "terminal.attach",
       "params": {
-       "agent": "nobody.here"
+       "agent": "a999"
       }
      },
      "error": {
@@ -252,7 +252,7 @@
       "id": 2,
       "method": "terminal.attach",
       "params": {
-       "agent": "a.one",
+       "agent": "a1",
        "terminal": "%1"
       }
      },
@@ -327,7 +327,7 @@
       "id": 2,
       "method": "terminal.attach",
       "params": {
-       "agent": "a.one",
+       "agent": "a1",
        "history": -1
       }
      },

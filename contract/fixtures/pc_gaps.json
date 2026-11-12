@@ -345,7 +345,7 @@
       "id": 2,
       "method": "prompt.answer",
       "params": {
-       "agent": "nobody.here",
+       "agent": "a999",
        "request_id": "conf-g-5",
        "prompt": "p",
        "choice": [
@@ -367,7 +367,7 @@
       "id": 3,
       "method": "prompt.answer",
       "params": {
-       "agent": "nobody.here",
+       "agent": "a999",
        "request_id": "conf-g-6",
        "prompt": "p",
        "choice": [

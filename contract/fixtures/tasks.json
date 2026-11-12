@@ -125,7 +125,7 @@
       "id": 2,
       "method": "task.new",
       "params": {
-       "owner": "a.one",
+       "owner": "a1",
        "title": "t",
        "body": "b",
        "time_box": "1h"
@@ -165,7 +165,7 @@
       "id": 2,
       "method": "task.new",
       "params": {
-       "owner": "a.one",
+       "owner": "a1",
        "title": "t",
        "body": "b",
        "time_box": "soon",

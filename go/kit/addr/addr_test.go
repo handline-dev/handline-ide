@@ -55,8 +55,8 @@ func TestResolve(t *testing.T) {
 		{shopAgent, "a9", ""},
 		{outside, "designer", ""}, // a person outside every folder has no agent names
 		{outside, "blog", "a3"},
-		{shopAgent, "blog.designer", "a4"}, // the old dotted name, until the cutover
-		{shopAgent, "founder", "p1"},
+		{shopAgent, "blog.designer", ""}, // an old dotted name
+		{shopAgent, "founder", ""},
 		{shopAgent, "nobody", ""},
 	} {
 		got, err := Resolve(db, c.who, c.word)

@@ -887,7 +887,7 @@
       "id": 2,
       "method": "schedule.add",
       "params": {
-       "target": "nobody.here",
+       "target": "a999",
        "cron": "0 9 * * *",
        "message": "stand up",
        "request_id": "conf-w2-14"

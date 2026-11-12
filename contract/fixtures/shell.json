@@ -139,7 +139,7 @@
       "id": 2,
       "method": "shell.open",
       "params": {
-       "agent": "nobody.here",
+       "agent": "a999",
        "request_id": "s4"
       }
      },
@@ -176,7 +176,7 @@
       "id": 2,
       "method": "shell.open",
       "params": {
-       "agent": "nobody.here",
+       "agent": "a999",
        "request_id": "s5"
       }
      },

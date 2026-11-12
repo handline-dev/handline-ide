@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/handline/handline/go/kit/actor"
-	"github.com/handline/handline/go/kit/paths"
 )
 
 // Q is what the lookups read: a *sql.DB or a *sql.Tx.
@@ -86,8 +85,7 @@ type Refusal struct{ Msg string }
 func (r *Refusal) Error() string { return r.Msg }
 
 // Resolve is the key word names for c, tried in this order: human (c's owner), a key that names a row, an agent of c's workspace, a
-// workspace (its lead), a handle. Until the cutover imports every agent under its new name (base-v2 1f), an agent's old dotted name
-// and founder (for human) still resolve last. Anything else is a *Refusal.
+// workspace (its lead), a handle. Anything else is a *Refusal.
 func Resolve(q Q, c Who, word string) (string, error) {
 	if word == "human" {
 		return ownerOf(q, c)
@@ -105,7 +103,6 @@ func Resolve(q Q, c Who, word string) (string, error) {
 		{"SELECT id FROM agents WHERE workspace = ? AND name = ?", []any{c.Workspace, word}, actor.Agent},
 		{"SELECT lead FROM workspaces WHERE name = ? AND lead IS NOT NULL", []any{word}, actor.Agent},
 		{"SELECT id FROM people WHERE handle = ?", []any{word}, actor.Person},
-		{`SELECT a.id FROM agents a JOIN workspaces w ON w.id = a.workspace WHERE ` + paths.LegacyNameSQL + ` = ?`, []any{word}, actor.Agent},
 	}
 	for _, t := range try {
 		var id int64
@@ -116,9 +113,6 @@ func Resolve(q Q, c Who, word string) (string, error) {
 		if !errors.Is(err, sql.ErrNoRows) {
 			return "", err
 		}
-	}
-	if word == "founder" {
-		return ownerOf(q, c)
 	}
 	return "", refusal(q, c, word)
 }
