@@ -25,6 +25,8 @@ export const detachedSpawn = (log: number) => ({ stdio: ['ignore', log, log] as 
 export const STOP_LIMIT_MS = 20_000;
 /** A daemon that exits again within this long of being started again is left stopped. */
 export const RESTART_WINDOW_MS = 60_000;
+/** How long a killed daemon gets to let go of its lock. */
+export const KILL_WAIT_MS = 5_000;
 /** How often the app looks whether its daemon still answers. */
 export const WATCH_MS = 2_000;
 
@@ -39,6 +41,8 @@ export interface OwnerDeps {
   holder(): Promise<number | null>;
   /** Asks that pid to stop (SIGTERM). */
   stopPid(pid: number): void;
+  /** SIGKILL. */
+  killPid(pid: number): void;
   /** Stops what an older build left running beside its daemon (a separate gateway, a handlined holding the listen port); throws what holds
    * it, with its pid, when it cannot. */
   stopLeftovers(): Promise<void>;
@@ -140,9 +144,12 @@ export class Owner {
     return this.d.doorUp?.() ?? Promise.resolve(true);
   }
 
+  /** Asks it to stop; one that has not within the stop limit is killed. */
   private async stopHolder(pid: number, what: string): Promise<void> {
     this.d.stopPid(pid);
-    if (!(await this.holderGone())) throw new Error(`${what} (pid ${pid}) did not stop within ${STOP_LIMIT_MS / 1000}s`);
+    if (await this.holderGone(pid, STOP_LIMIT_MS)) return;
+    this.d.killPid(pid);
+    if (!(await this.holderGone(pid, KILL_WAIT_MS))) throw new Error(`${what} (pid ${pid}) did not stop, even when killed`);
   }
 
   private async spawnUp(cmd: Cmd | (() => Promise<Cmd>) = this.d.daemon): Promise<void> {
@@ -201,11 +208,34 @@ export class Owner {
   private watch(): void {
     if (this.watching) return;
     this.watching = true;
+    let hungSince: number | null = null;
     void (async () => {
       while (!this.closed) {
         await this.d.wait(WATCH_MS);
         if (this.closed) return;
-        if (this.state !== 'running' || this.busy || (await this.d.socketUp()) || (await this.d.holder()) !== null) continue;
+        if (this.state !== 'running' || this.busy || (await this.d.socketUp())) {
+          hungSince = null;
+          continue;
+        }
+        const pid = await this.d.holder();
+        if (pid !== null) {
+          // Holding its lock but not answering (stuck on a full disk, say): past the stop limit it is replaced, as at start.
+          hungSince ??= this.d.now();
+          if (this.d.attachOnly || this.d.now() - hungSince < STOP_LIMIT_MS) continue;
+          hungSince = null;
+          await this.one(async () => {
+            // A Stop or Restart that ran meanwhile wins.
+            if (this.state !== 'running' || (await this.d.socketUp()) || (await this.d.holder()) !== pid) return;
+            this.set('starting');
+            try {
+              await this.stopHolder(pid, 'the daemon');
+              await this.spawnUp();
+            } catch (e) {
+              this.set('failed', e instanceof Error ? e.message : String(e));
+            }
+          });
+          continue;
+        }
         if (this.d.attachOnly) {
           this.set('stopped', 'it stopped, and this run only attaches');
           continue;
@@ -223,13 +253,13 @@ export class Owner {
     })();
   }
 
-  /** Whether the lock's holder is gone within the daemon's stop limit. */
-  private async holderGone(): Promise<boolean> {
-    for (let waited = 0; waited < STOP_LIMIT_MS; waited += 250) {
-      if ((await this.d.holder()) === null) return true;
+  /** Whether `pid` no longer holds the lock within `ms` (another holder counts: that pid is gone, and may be reused). */
+  private async holderGone(pid: number, ms: number): Promise<boolean> {
+    for (let waited = 0; waited < ms; waited += 250) {
+      if ((await this.d.holder()) !== pid) return true;
       await this.d.wait(250);
     }
-    return (await this.d.holder()) === null;
+    return (await this.d.holder()) !== pid;
   }
 }
 

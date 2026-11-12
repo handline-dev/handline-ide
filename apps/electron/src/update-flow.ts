@@ -25,6 +25,10 @@ export function plainReason(raw: string): string {
   return 'The update did not finish.';
 }
 
+/** A failed update is tried again after this long, twice as long after each failure in a row, up to RETRY_MAX_MS. */
+export const RETRY_MS = 10 * 60_000;
+export const RETRY_MAX_MS = 60 * 60_000;
+
 export class UpdateFlow {
   view: UpdateView = { phase: 'idle', step: '', fraction: 0, reason: '' };
   /** The command output behind a failure, for "Details". */
@@ -34,19 +38,32 @@ export class UpdateFlow {
   private retryFn: () => void = () => undefined;
   private laterAt = 0;
   private now: () => number;
-  constructor(now: () => number = Date.now) {
+  private after: (fn: () => void, ms: number) => () => void;
+  private cancelRetry: () => void = () => undefined;
+  private failures = 0;
+  constructor(
+    now: () => number = Date.now,
+    after: (fn: () => void, ms: number) => () => void = (fn, ms) => {
+      const t = setTimeout(fn, ms);
+      t.unref();
+      return () => clearTimeout(t);
+    },
+  ) {
     this.now = now;
+    this.after = after;
   }
 
   onChange(f: () => void): void {
     this.listeners.push(f);
   }
   private set(view: UpdateView): void {
+    this.cancelRetry();
     this.view = view;
     for (const f of this.listeners) f();
   }
 
   idle(): void {
+    this.failures = 0;
     if (this.view.phase !== 'idle') this.set({ phase: 'idle', step: '', fraction: 0, reason: '' });
   }
   preparing(step: string, fraction: number): void {
@@ -54,6 +71,7 @@ export class UpdateFlow {
   }
   /** The update is built: "Restart now" runs `restart`. */
   ready(restart: () => void): void {
+    this.failures = 0;
     this.restartFn = restart;
     this.set({ phase: 'ready', step: '', fraction: 0, reason: '' });
   }
@@ -61,6 +79,7 @@ export class UpdateFlow {
     this.retryFn = retry;
     this.log = log || reason;
     this.set({ phase: 'failed', step: '', fraction: 0, reason: plainReason(reason) });
+    this.cancelRetry = this.after(() => this.act('retry'), Math.min(RETRY_MS * 2 ** this.failures++, RETRY_MAX_MS));
   }
   /** "Later": the toast goes and the bell keeps the row. Only a ready update can be put off. */
   later(): void {

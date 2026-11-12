@@ -222,6 +222,12 @@ function trayControls(tray: Tray, owner: Owner, actions: TrayActions, view: () =
   return draw;
 }
 
+/** SIGTERM, then SIGKILL for a daemon past its stop limit. */
+const signals = {
+  stopPid: (pid: number) => process.kill(pid, 'SIGTERM'),
+  killPid: (pid: number) => process.kill(pid, 'SIGKILL'),
+};
+
 export function ownDaemon(o: {
   env: (k: string) => string | undefined;
   home: string;
@@ -265,7 +271,7 @@ export function ownDaemon(o: {
     ...(door !== null && { doorUp: () => answers(door) }),
     daemonBuild: () => daemonBuild(o.socket),
     holder: () => lockHolder(o.home),
-    stopPid: (pid) => process.kill(pid, 'SIGTERM'),
+    ...signals,
     stopLeftovers: () => stopLeftovers(o.home, o.listen),
     spawn: (cmd) => spawnDetached(cmd, log, o.home),
     daemon: () => daemonCmd(o),
