@@ -9,7 +9,6 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
-	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/actor"
 )
 
@@ -235,13 +234,12 @@ func (e *Env) SweepHolds(now int64) (err error) {
 			ableSince = *rec.AbleSince
 		}
 		if able && rec.Warned == nil && now-ableSince >= AbleWarnS {
-			if lead := must(team.LoadTeam(e.Home)).LeadOf(t.Acting); lead != "" && !actor.IsPerson(lead) && e.registered(lead) {
-				must(e.Notice(q, lead, fmt.Sprintf("T%d has waited %d min for %s, which looks able to take it (%s). Delivery should have landed it - this is a missed delivery, not a queue.",
-					tid, (now-ableSince)/60, t.Acting, why), "queued task not landing"))
-			}
+			to := db.NoticeTo(t, t.Acting)
+			check(e.TellAbout(q, to, t.Acting, tid, fmt.Sprintf("T%d has waited %d min for %s, which looks able to take it (%s). "+
+				"Delivery should have landed it - this is a missed delivery, not a queue.", tid, (now-ableSince)/60, t.Acting, why), "queued task not landing", now))
 			rec.Warned = &now
 			changed = true
-			e.log("  T%d: waited %d min for an owner that looks able - its lead told", tid, AbleWarnS/60)
+			e.log("  T%d: waited %d min for an owner that looks able - %s told", tid, AbleWarnS/60, to)
 		}
 		if changed {
 			rec.write(q, tid)

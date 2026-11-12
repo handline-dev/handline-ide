@@ -5,9 +5,9 @@ import (
 	"testing"
 )
 
-// A task the founder holds is closed from under them by its parent's owner or reporter (or opener), or a lead of its team, never by a stranger,
-// and the founder hears it.
-func TestFounderHeldTaskIsClosedByItsParentOwnerOrALead(t *testing.T) {
+// A task the founder holds is closed from under them by its parent's owner or reporter (or opener), never by a stranger or a lead, and the
+// founder hears it.
+func TestFounderHeldTaskIsClosedByItsParentOwner(t *testing.T) {
 	t.Parallel()
 	sdb, _, call := reportEnv(t,
 		"INSERT INTO tasks(id, title, owner, opened_by, reporter, created_at, expects) VALUES(1, 'parent', 'mgr', 'boss', 'lead.auditor', 1, 'report')",
@@ -18,10 +18,13 @@ func TestFounderHeldTaskIsClosedByItsParentOwnerOrALead(t *testing.T) {
 	if r := call("boss", "task.done", "r0", `,"task":7,"evidence":"taken back"`); r["error"] == nil {
 		t.Fatalf("a stranger closed a founder-held task: %v", r)
 	}
+	if r := call("lead", "task.done", "r6", `,"task":6,"evidence":"taken back"`); r["error"] == nil {
+		t.Fatalf("leading a team gives no say over its tasks: %v", r)
+	}
 	for _, c := range []struct {
 		agent string
 		task  int
-	}{{"mgr", 3}, {"lead.auditor", 4}, {"boss", 5}, {"lead", 6}} {
+	}{{"mgr", 3}, {"lead.auditor", 4}, {"boss", 5}} {
 		said(t, call(c.agent, "task.done", fmt.Sprint("r", c.task), fmt.Sprintf(`,"task":%d,"evidence":"taken back"`, c.task)))
 		if n(fmt.Sprintf("SELECT COUNT(*) FROM tasks WHERE id = %d AND done_evidence = 'taken back'", c.task)) != 1 {
 			t.Fatalf("%s did not close T%d", c.agent, c.task)

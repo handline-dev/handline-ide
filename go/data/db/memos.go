@@ -140,3 +140,13 @@ var founderMention = regexp.MustCompile(`^\s*@human(?:[^A-Za-z0-9_-]|$)`)
 func ToPerson(body string) bool {
 	return actor.IsPerson(addr.Lead(body)) || founderMention.MatchString(body)
 }
+
+// MemoWriter is who wrote the comment that request rid tells its reader about, "" when rid tells no comment.
+func MemoWriter(q Q, rid int64) (string, error) {
+	var author string
+	err := q.QueryRow("SELECT m.author FROM memo_tells t JOIN task_memos m ON m.id = t.memo_id WHERE t.request_id = ? LIMIT 1", rid).Scan(&author)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	return author, err
+}

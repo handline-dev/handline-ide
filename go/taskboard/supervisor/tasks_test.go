@@ -93,7 +93,7 @@ func TestSelfDeliveryCarriesWhatItsRequestsClosedWith(t *testing.T) {
 	}
 }
 
-func TestAdvanceRecordsARefusedDeliveryOnceAndTellsTheManager(t *testing.T) {
+func TestAdvanceRecordsARefusedDeliveryOnceAndTellsItsOpener(t *testing.T) {
 	r := newRig(t)
 	tid := r.newUnroutableTask()
 	other := r.newTask("eng.bob", "eng", "fine")
@@ -117,9 +117,12 @@ func TestAdvanceRecordsARefusedDeliveryOnceAndTellsTheManager(t *testing.T) {
 		t.Fatalf("a permanent refusal fills the log: %d %d", n, m)
 	}
 	var told int
-	r.DB.QueryRow(r.sql("SELECT COUNT(*) FROM requests WHERE requester = ? AND target = 'eng' AND body LIKE ?"), db.NoticeRequester, fmt.Sprintf("T%d could not be delivered%%", tid)).Scan(&told)
+	r.DB.QueryRow(r.sql("SELECT COUNT(*) FROM requests WHERE requester = ? AND target = 'ops.carol' AND body LIKE ?"), db.NoticeRequester, fmt.Sprintf("T%d could not be delivered%%", tid)).Scan(&told)
 	if told != 1 {
-		t.Fatalf("the refusal was told %d times", told)
+		t.Fatalf("ops.carol opened it, so it is told once: %d", told)
+	}
+	if _, ok, _ := db.Meta(r.DB, fmt.Sprintf("notice_watch:%d", tid)); !ok {
+		t.Fatal("the founder hears if ops.carol does not move it in an hour")
 	}
 }
 

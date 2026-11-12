@@ -6,7 +6,6 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
-	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/protocol/rpc"
 )
@@ -69,16 +68,12 @@ func (e *Env) inboxQueue(c *rpc.Conn, params map[string]any) (any, error) {
 	}
 }
 
-// listingRefusal is actions.listing_refusal: why caller may not list whose messages, "" when it may. The founder, the agent itself
-// and its supervisor may.
+// listingRefusal is actions.listing_refusal: why caller may not list whose messages, "" when it may. The founder and the agent itself may.
 func (e *Env) listingRefusal(caller, whose string) string {
 	if caller == actor.OwnerKey || caller == whose { // owner-only: the owner may list anyone's
 		return ""
 	}
-	if t, _ := team.LoadTeam(e.Home); t.SupervisorOf(whose) == caller {
-		return ""
-	}
-	return caller + " may not list " + whose + "'s messages: only " + whose + ", its supervisor and the human may. " +
+	return caller + " may not list " + whose + "'s messages: only " + whose + " and the human may. " +
 		"`hl read <id>` shows one request by number."
 }
 

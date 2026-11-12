@@ -55,7 +55,7 @@ func begin(c *rpc.Conn, p map[string]any, home string) (any, error) {
 		if actor.IsPerson(me) {
 			return nil, refusal("a task is begun by an agent, never in the founder's name")
 		}
-		chat, err := requestref.Resolve(tx, home, p["message"], me, "message")
+		chat, err := requestref.Resolve(tx, p["message"], me, "message")
 		if name, missing := requestref.Missing(err); missing {
 			return nil, refusal("no request #" + name)
 		}

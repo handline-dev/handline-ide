@@ -175,18 +175,18 @@ func TestInboxQueueOfTheFounderPrintsAsHlInboxDid(t *testing.T) {
 	}
 }
 
-func TestInboxQueueListsOnlyForTheAgentItsSupervisorAndTheFounder(t *testing.T) {
+func TestInboxQueueListsOnlyForTheAgentAndTheFounder(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	teamtest.Seed(t, e.Home, "bob", "bob.kid", "amy")
 	bob, kid, amy := teamtest.Key(t, e.Home, "bob"), teamtest.Key(t, e.Home, "bob.kid"), teamtest.Key(t, e.Home, "amy")
-	for whose, ok := range map[string]bool{bob: true, kid: true, amy: false, actor.OwnerKey: false} {
+	for whose, ok := range map[string]bool{bob: true, kid: false, amy: false, actor.OwnerKey: false} {
 		_, err := e.inboxQueue(asAgent(bob), map[string]any{"whose": whose})
 		var refused *rpc.Error
 		if ok && err != nil {
 			t.Errorf("bob lists %s: %v", whose, err)
 		} else if !ok && (!errors.As(err, &refused) || refused.Code != "refused" || refused.Data["gate"] != "listing" ||
-			refused.Message != bob+" may not list "+whose+"'s messages: only "+whose+", its supervisor and the human may. `hl read <id>` shows one request by number.") {
+			refused.Message != bob+" may not list "+whose+"'s messages: only "+whose+" and the human may. `hl read <id>` shows one request by number.") {
 			t.Errorf("bob lists %s: %v", whose, err)
 		}
 	}

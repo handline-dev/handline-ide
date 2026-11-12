@@ -163,7 +163,7 @@ func (h *runHost) RunCurrent() string                             { return h.cur
 func (h *runHost) RunExists(string) bool                          { return h.exists }
 func (h *runHost) RunUse(run string)                              { h.used = append(h.used, run) }
 func (h *runHost) RunCreate(string) string                        { h.runs = append(h.runs, h.created); return h.created }
-func (h *runHost) TaskCreate(_, title, _, run, parent string) string {
+func (h *runHost) TaskCreate(_, title, _, run string) string {
 	return "task-" + title
 }
 func (h *runHost) Dispatch(task, handle, run string) string { return task + "@" + handle }

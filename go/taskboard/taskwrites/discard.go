@@ -12,7 +12,6 @@ import (
 	"github.com/handline/handline/go/kit/addr"
 
 	"github.com/handline/handline/go/data/db"
-	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/pyjson"
 	"github.com/handline/handline/go/kit/textsafe"
@@ -249,11 +248,6 @@ func discardOne(tx *sql.Tx, home, by string, tid int64, reason, batch string, ow
 		verdict = fmt.Sprintf("withdrawn by %s: %s", addr.Ref(by), said)
 	}
 	stops := by == actor.OwnerKey
-	if !stops && len(live) > 0 {
-		if stops, err = leadsTreeOf(home, by, t); err != nil {
-			return nil, err
-		}
-	}
 	// A request that already landed is held by its agent and no cancel can take it back: the asker or the founder discards the task
 	// all the same, the hold ends with it and the holder is told.
 	var holders []string
@@ -362,26 +356,6 @@ func discardOne(tx *sql.Tx, home, by string, tid int64, reason, batch string, ow
 	d.notes, d.freed, d.owner = append(d.notes, cleared...), owners, t.Acting
 	d.title, d.reason, d.said = t.Title, said, fmt.Sprintf("task T%d discarded by %s: %s", tid, addr.Ref(by), said)
 	return d, nil
-}
-
-// leadsTreeOf is whether by leads a team whose tree holds the task: its owner or opener is by, or reports to by up the managers' chain.
-func leadsTreeOf(home, by string, t *task) (bool, error) {
-	tm, err := team.LoadTeam(home)
-	if err != nil {
-		return false, nil // no team file: nobody leads anyone
-	}
-	if !tm.Agents[by].Lead {
-		return false, nil
-	}
-	for _, x := range []string{t.Owner, t.OpenedBy} {
-		for seen := map[string]bool{}; x != "" && !actor.IsPerson(x) && !seen[x]; x = tm.ManagerOf(x) {
-			if x == by {
-				return true, nil
-			}
-			seen[x] = true
-		}
-	}
-	return false, nil
 }
 
 // endHeld takes the task out of its owners' queues: the landed delivery that asked for it is history from now on.

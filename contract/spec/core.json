@@ -48,7 +48,7 @@
   "proposal_settled": "proposal.decide, proposal.withdraw: the proposal is already approved, rejected or withdrawn, so there is nothing to decide or take back. The refusal's `proposal` is the proposal as it is now.",
   "confirm": "chat.cancel: the message was delivered, so cancelling needs confirm true. data.plan says what it would do.",
   "limit": "attachment.put: the file or the unsent total is over its limit, or too many uploads are open (x-attachments).",
-  "listing": "inbox.queue: the caller may not list that agent's messages. Only the agent itself, its supervisor and the founder may.",
+  "listing": "inbox.queue: the caller may not list that agent's messages. Only the agent itself and the founder may.",
   "duplicate_title": "task.new: an open task under the same parent, or the parent itself, has nearly the title (same first word, 80% of the shorter title's words, Story prefix, case, punctuation and commit shas ignored). data.task names it; duplicate_ok opens the task anyway.",
   "open_children": "task.done: the task has open child tasks. The reason names each (number, state, assignee, title), the hint the commands that close one, and the refusal's `children` lists them, so a client can offer to discard them from the same prompt.",
   "denied": "file.write: the path is one the daemon never writes: under .git, .claude, .github, .husky, .codex, .cursor, .vscode, .devcontainer or a hooks folder (at any depth); a settings.json, settings.local.json, .mcp.json, mcp.json, hooks.json, package.json, .claude.json, tsconfig.json, turbo.json, deno.json, composer.json or lefthook.json; or anything but a .md or .json file.",
@@ -1964,7 +1964,7 @@
      },
      "blocker_alarm": {
       "type": "boolean",
-      "description": "Tell a queued task's holder when other open tasks have waited on it (blocked by it, or its parent) for blocker_alarm_s, and the holder's lead at blocker_alarm_lead_s; once each per wait, in the digest, never the founder.",
+      "description": "Tell a queued task's holder when other open tasks have waited on it (blocked by it, or its parent) for blocker_alarm_s, and the queued task's opener at blocker_alarm_opener_s (the founder when no agent opened it, or an hour later if it has not moved); once each per wait.",
       "default": false
      },
      "blocker_alarm_s": {
@@ -1973,11 +1973,11 @@
       "default": 3600,
       "description": "Seconds the first open task waiting on a queued task may wait before its holder is told (blocker_alarm)."
      },
-     "blocker_alarm_lead_s": {
+     "blocker_alarm_opener_s": {
       "type": "integer",
       "minimum": 1,
       "default": 14400,
-      "description": "Seconds the first open task waiting on a queued task may wait before its holder's lead is told (blocker_alarm)."
+      "description": "Seconds the first open task waiting on a queued task may wait before the queued task's opener is told (blocker_alarm); the founder hears when no agent opened it, or an hour later if it has not moved."
      },
      "attention_sent_back": {
       "type": "integer",
@@ -2299,7 +2299,7 @@
      },
      "blocker_alarm": {
       "type": "boolean",
-      "description": "Tell a queued task's holder when other open tasks have waited on it (blocked by it, or its parent) for blocker_alarm_s, and the holder's lead at blocker_alarm_lead_s; once each per wait, in the digest, never the founder."
+      "description": "Tell a queued task's holder when other open tasks have waited on it (blocked by it, or its parent) for blocker_alarm_s, and the queued task's opener at blocker_alarm_opener_s (the founder when no agent opened it, or an hour later if it has not moved); once each per wait."
      },
      "blocker_alarm_s": {
       "oneOf": [
@@ -2313,7 +2313,7 @@
       ],
       "description": "Seconds the first open task waiting on a queued task may wait before its holder is told (blocker_alarm). null removes the key (back to the default)."
      },
-     "blocker_alarm_lead_s": {
+     "blocker_alarm_opener_s": {
       "oneOf": [
        {
         "type": "integer",
@@ -2323,7 +2323,7 @@
         "type": "null"
        }
       ],
-      "description": "Seconds the first open task waiting on a queued task may wait before its holder's lead is told (blocker_alarm). null removes the key (back to the default)."
+      "description": "Seconds the first open task waiting on a queued task may wait before the queued task's opener is told (blocker_alarm); the founder hears when no agent opened it, or an hour later if it has not moved. null removes the key (back to the default)."
      },
      "attention_sent_back": {
       "oneOf": [

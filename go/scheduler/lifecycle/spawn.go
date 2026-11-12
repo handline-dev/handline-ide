@@ -50,7 +50,7 @@ type Host interface {
 	RunExists(run string) bool
 	RunUse(run string)
 	RunCreate(title string) string
-	TaskCreate(spec, title, displayName, run, parent string) string
+	TaskCreate(spec, title, displayName, run string) string
 	Dispatch(task, handle, run string) string
 }
 
@@ -63,7 +63,6 @@ type Spawns struct {
 	Launch   Launch
 	Delivery Delivery
 	Roster   *team.Roster
-	Team     func() *team.Team
 	Sleep    func(time.Duration)
 	Now      func() time.Time
 	Locks    *AgentLocks
@@ -589,25 +588,8 @@ func (s *Spawns) RegisterWorker(agent, handle string) (string, error) {
 		// Already a worker; the dispatch binds the (possibly new) terminal.
 		return s.Host.Dispatch(row.Task.String, handle, run), nil
 	}
-	parent := ""
-	if s.Team != nil {
-		if boss := s.Team().SupervisorOf(agent); boss != "" {
-			bossRow, err := db.GetAgentState(s.Q, boss)
-			if err != nil {
-				return "", err
-			}
-			if bossRow != nil {
-				parent = bossRow.Task.String
-			}
-		}
-	}
 	spec := fmt.Sprintf("%s: a Handline agent. Work reaches it as a task (`hl task new --assign %s`); this task is the card it appears in.", agent, agent)
-	task := s.Host.TaskCreate(spec, agent, agent, run, parent)
-	if task == "" && parent != "" {
-		// A parent in another Run - an older card, or one made before this remembered which Run was the team's - is a reason to draw the
-		// agent flat, not a reason not to draw it.
-		task = s.Host.TaskCreate(spec, agent, agent, run, "")
-	}
+	task := s.Host.TaskCreate(spec, agent, agent, run)
 	if task == "" {
 		return "", nil
 	}

@@ -15,6 +15,7 @@ import (
 	dbpkg "github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/data/team/teamtest"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/storetest"
 	"github.com/handline/handline/go/kit/testkill"
 	"github.com/handline/handline/go/taskboard/supervisor"
@@ -253,32 +254,54 @@ func TestSettlingPeerSendsAtStartTellsTheSenderThroughTheWiredPorts(t *testing.T
 	}
 }
 
-// A stall from failed starts is told to the agent's lead as a notice; an agent with no lead is told to no one.
-func TestAStartStallIsToldToTheLead(t *testing.T) {
+// A stall from failed starts is told to the agent that opened the oldest task waiting for it; with none waiting, it is a warning for the
+// founder that leaves once the stall is cleared.
+func TestAStartStallIsToldToTheOpenerOfItsWork(t *testing.T) {
 	p, home := rig(t)
-	teamtest.Set(t, home, "bob", "reports_to", "alice")
 	alice, bob := teamtest.Key(t, home, "alice"), teamtest.Key(t, home, "bob")
 	env := &supervisor.Env{DB: p.db, Home: home, Log: func(string, ...any) {}}
 	t.Cleanup(env.Wait)
-	tell := tellLeadOfStall(home, env, func(string, ...any) {})
+	tell := tellOpenerOfStall(env, func(string, ...any) {})
 	tell(p.db, bob, "spawn said: no git checkout")
-	tell(p.db, alice, "spawn said: no git checkout")
+	var founder int
+	p.db.QueryRow("SELECT COUNT(*) FROM meta WHERE name = ?", dbpkg.FounderNoticePrefix+bob+":start_stall").Scan(&founder)
+	if founder != 1 {
+		t.Fatal("no task waits for bob: the founder is told")
+	}
+	// a task the founder opened waits: the warning is still about bob, not the task, so clearing the stall ends it
+	mine, err := dbpkg.NewTask(p.db, "the founder's", bob, actor.OwnerKey, 0, dbpkg.DefaultPriority, "", 0, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.db.Exec("DELETE FROM meta WHERE name LIKE ?", dbpkg.FounderNoticePrefix+"%")
+	tell(p.db, bob, "again")
+	p.db.QueryRow("SELECT COUNT(*) FROM meta WHERE name = ?", dbpkg.FounderNoticePrefix+bob+":start_stall").Scan(&founder)
+	if founder != 1 {
+		t.Fatal("a stall told to the founder is keyed on the agent")
+	}
+	p.db.Exec("UPDATE tasks SET done_evidence = 'x' WHERE id = ?", mine)
+	if _, err := dbpkg.NewTask(p.db, "the work", bob, alice, 0, dbpkg.DefaultPriority, "", 0, ""); err != nil {
+		t.Fatal(err)
+	}
+	tell(p.db, bob, "spawn said: no git checkout")
 	var to, body string
 	var n int
 	p.db.QueryRow("SELECT COUNT(*), MAX(target), MAX(body) FROM requests").Scan(&n, &to, &body)
 	if n != 1 || to != alice || !strings.Contains(body, bob+" is STALLED") || !strings.Contains(body, "no git checkout") {
-		t.Fatalf("%d %s %q", n, to, body)
+		t.Fatalf("alice opened bob's work, so alice is told: %d %s %q", n, to, body)
 	}
 }
 
-// A roster repo that is no git checkout is told to the agent's lead once per break: not again at the next start, again after a fix and a
-// second break.
-func TestARosterRepoThatIsNoCheckoutIsToldToTheLeadOnce(t *testing.T) {
+// A roster repo that is no git checkout is told to the opener of the agent's work once per break: not again at the next start, again after
+// a fix and a second break.
+func TestARosterRepoThatIsNoCheckoutIsToldOnce(t *testing.T) {
 	p, home := rig(t)
-	teamtest.Set(t, home, "bob", "reports_to", "alice")
 	alice, bob := teamtest.Key(t, home, "alice"), teamtest.Key(t, home, "bob")
 	env := &supervisor.Env{DB: p.db, Home: home, Log: func(string, ...any) {}}
 	t.Cleanup(env.Wait)
+	if _, err := dbpkg.NewTask(p.db, "the work", bob, alice, 0, dbpkg.DefaultPriority, "", 0, ""); err != nil {
+		t.Fatal(err)
+	}
 	told := func() (n int) {
 		p.db.QueryRow("SELECT COUNT(*) FROM requests WHERE target = '" + alice + "' AND body LIKE '" + bob + "''s repo % is not a git checkout%'").Scan(&n)
 		return n
@@ -296,6 +319,17 @@ func TestARosterRepoThatIsNoCheckoutIsToldToTheLeadOnce(t *testing.T) {
 	check()
 	if n := told(); n != 2 {
 		t.Fatalf("a second break is told again: %d", n)
+	}
+	// with no task waiting for bob, the founder keeps it as a warning about bob
+	if _, err := p.db.Exec("UPDATE tasks SET done_evidence = 'x'"); err != nil {
+		t.Fatal(err)
+	}
+	os.Mkdir(filepath.Join(repo, ".git"), 0o755)
+	check()
+	os.Remove(filepath.Join(repo, ".git"))
+	check()
+	if _, ok, err := dbpkg.Meta(p.db, dbpkg.FounderNoticePrefix+bob+":bad_repo"); err != nil || !ok || told() != 2 {
+		t.Fatalf("the founder is told, not alice: warning %v %v, alice told %d", ok, err, told())
 	}
 }
 

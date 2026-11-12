@@ -9,7 +9,6 @@ import (
 
 	"github.com/handline/handline/go/agentctl/delivery"
 	"github.com/handline/handline/go/data/db"
-	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/kit/textsafe"
@@ -52,17 +51,19 @@ func (e *Env) noteRefusal(q db.Q, agent string, tid int64, msg string, refused m
 	e.tellRefusal(q, agent, tid, msg)
 }
 
-// tellRefusal tells the owner's manager that tid sits queued because its delivery was refused; with no manager it is a warning on the founder's turn.
+// tellRefusal tells the agent that opened tid (db.NoticeTo) that it sits queued because its delivery was refused; when that is no agent
+// it is a warning on the founder's turn. Not TellAbout: a say, and NoteUndelivered is the founder's side.
 func (e *Env) tellRefusal(q db.Q, agent string, tid int64, msg string) {
-	t, err := team.LoadTeam(e.Home)
-	if err != nil || t.ManagerOf(agent) == "" {
-		check(db.NoteUndelivered(q, db.RefusedTaskPrefix, tid, time.Now().Unix(), agent, msg))
+	now := time.Now().Unix()
+	to := db.NoticeTo(must(db.GetTask(q, tid)), agent)
+	if actor.IsPerson(to) || !e.registered(to) {
+		check(db.NoteUndelivered(q, db.RefusedTaskPrefix, tid, now, agent, msg))
 		return
 	}
-	to := t.ManagerOf(agent)
 	text := fmt.Sprintf("T%d could not be delivered to %s and is waiting: %s", tid, addr.Ref(agent), msg)
 	rid := must(db.AddRequest(q, db.NewRequest{Requester: db.NoticeRequester, Target: to, Body: text, Kind: "say"}))
 	check(db.LinkRequest(q, tid, rid))
+	check(db.WatchNotice(q, tid, to, text, now))
 	e.Push(q, to, rid)
 }
 
@@ -586,11 +587,11 @@ func memoLine(tid, mid int64, what, by, text string) string {
 	return strings.Join(append([]string{line + ": " + t}, files...), "\n")
 }
 
-// MemoLeadS is how long a memo held for its reader's digest may go unread before the reader's lead is told.
+// MemoLeadS is how long a memo held for its reader's digest may go unread before its writer is told.
 const MemoLeadS = 3600
 
-// SweepHeldMemos tells the reader's lead once, in its digest, of each memo held for the reader's digest that has gone MemoLeadS unread. The
-// memo stays held for the reader.
+// SweepHeldMemos tells the memo's writer once, in its digest, of each memo held for the reader's digest that has gone MemoLeadS unread: the
+// writer is the one waiting on it. The memo stays held for the reader.
 func (e *Env) SweepHeldMemos(now int64) (err error) {
 	defer Catch(&err)
 	q := db.Q(e.DB)
@@ -598,15 +599,14 @@ func (e *Env) SweepHeldMemos(now int64) (err error) {
 	if len(rows) == 0 {
 		return nil
 	}
-	t := must(team.LoadTeam(e.Home))
 	for _, r := range rows {
 		key := fmt.Sprintf("memo_lead:%d", r.ID)
 		if must(db.Cursor(q, key)) != 0 {
 			continue
 		}
 		check(db.SetCursor(q, key, 1))
-		if lead := t.SupervisorOf(r.Target); lead != "" && !actor.IsPerson(lead) && e.registered(lead) {
-			must(e.Notice(q, lead, fmt.Sprintf("%s has not read this comment in an hour, held for its next digest (%s): %s", r.Target, db.MsgName(q, r.ID), r.Body), "memo unread 1h"))
+		if writer := must(db.MemoWriter(q, r.ID)); writer != r.Target && !actor.IsPerson(writer) && e.registered(writer) {
+			must(e.Notice(q, writer, fmt.Sprintf("%s has not read this comment in an hour, held for its next digest (%s): %s", r.Target, db.MsgName(q, r.ID), r.Body), "memo unread 1h"))
 		}
 	}
 	return nil
