@@ -38,9 +38,12 @@ func Told(q db.Q, r Run, tail []string) string {
 	if b.N >= bangFrom {
 		from = "! command " + strconv.FormatInt(b.N-bangFrom+1, 10)
 	}
-	if b.Reply {
+	switch b.Owner {
+	case ByReply:
 		from = "your reply's " + from
-	} else {
+	case ByProposal:
+		from = fmt.Sprintf("your proposed command (proposal %08x)", b.Message)
+	default:
 		from += " of " + db.MsgName(q, b.Message)
 	}
 	command := textsafe.Oneline(r.Command)

@@ -219,10 +219,10 @@ func (c *Chat) runs(q *sql.DB, emit Emit) error {
 		before := c.runSeen[r.Block]
 		c.runSeen[r.Block] = now
 		block, _ := cmdruns.ParseBlock(r.Block)
-		if first || before == now {
+		if first || before == now || block.Owner == cmdruns.ByProposal { // a proposal's run is told on the proposals topic
 			continue
 		}
-		if block.Reply {
+		if block.Owner == cmdruns.ByReply {
 			item, agent, ok, err := c.Reads.ReplyItem(block.Message)
 			if err != nil {
 				return err

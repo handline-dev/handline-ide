@@ -265,3 +265,24 @@ func TestAFinishedRunsWindowIsNotAShellInUseAndARerunClosesItsOld(t *testing.T) 
 		t.Fatalf("kept windows of finished commands fill no cap: %v", err)
 	}
 }
+
+// A run proposal's command starts only through StartRun, at the founder's approve, and only once; shell.open takes no p block.
+func TestAProposalsCommandRunsOnceAndNeverFromShellOpen(t *testing.T) {
+	r, h, wt := shellRig(t)
+	var re *rpc.Error
+	if _, err := r.e.shellOpen(person("casey"), map[string]any{"agent": r.ann, "command": "true", "block": "p9:0"}); !errors.As(err, &re) || re.Data["field"] != "block" || len(h.runs) != 0 {
+		t.Fatalf("shell.open ran a proposal's block: %v %q", err, h.runs)
+	}
+	handle, err := r.e.StartRun(r.ann, wt, "rm -r out", cmdruns.ProposalBlock(9))
+	if err != nil {
+		t.Fatal(err)
+	}
+	run, ok, _ := cmdruns.OfProposalRun(r.e.DB, 9)
+	if !ok || run.Terminal != handle || run.Agent != r.ann || run.Command != "rm -r out" || len(h.runs) != 1 || h.cwds[0] != wt {
+		t.Fatalf("%+v %v %q", run, ok, h.runs)
+	}
+	h.ended = map[string]term.PaneRun{handle: {Tag: run.Tag(), Dead: true, Status: 1}}
+	if _, err := r.e.StartRun(r.ann, wt, "rm -r out", cmdruns.ProposalBlock(9)); !errors.As(err, &re) || re.Data["gate"] != "state" || len(h.runs) != 1 || len(h.closed) != 0 {
+		t.Fatalf("a proposal's command ran twice, or its window was closed: %v %q %q", err, h.runs, h.closed)
+	}
+}
