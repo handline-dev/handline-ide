@@ -52,6 +52,9 @@ func ProtocolBlock(keys []string) string {
 	return strings.Join(lines, "\n")
 }
 
+// RulesTextLimit is the most bytes a workspace's base.md should hold (docs/design/people-workspaces.md, Workspace rules).
+const RulesTextLimit = 2 << 10
+
 // RulesFile is the team's rules, its workspace's base.md (docs/design/people-workspaces.md, Disk); ws is its name or key.
 func RulesFile(home, ws string) string { return filepath.Join(paths.WorkspaceDir(home, ws), "base.md") }
 
