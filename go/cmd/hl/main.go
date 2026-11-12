@@ -35,6 +35,7 @@ var commands = map[string]command{
 	"use":             useCmd,
 	"version":         versionCmd,
 	"withdraw":        withdraw,
+	"workspace":       workspaceCmd,
 }
 
 func main() {
