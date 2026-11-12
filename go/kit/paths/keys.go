@@ -9,8 +9,8 @@ import (
 	"github.com/handline/handline/go/kit/store"
 )
 
-// Folders are named by key (docs/design/people-workspaces.md, Disk), so a rename moves nothing. Until the who columns hold keys
-// (base-v2 1b), callers still name an agent by its old dotted name, and the folder helpers look it up here.
+// Folders are named by key (docs/design/people-workspaces.md, Disk), so a rename moves nothing. A caller may name an agent by its
+// dotted name, and the folder helpers look it up here.
 
 // Unregistered holds the folders of a name no agent has: nothing lists it, and no key can be it.
 const Unregistered = ".unregistered"
