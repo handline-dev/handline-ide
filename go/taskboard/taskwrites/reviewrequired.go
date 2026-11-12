@@ -10,7 +10,7 @@ import (
 )
 
 // reviewMissing is why a done with commits is refused under the closing agent's workspace's review_required, "" when no such rule is
-// on or the task has a comment from a reviewer: an agent that neither closes it, holds it nor ever handed it on.
+// on or the task has a review: a turn on it answered with a comment by an agent that neither closes it, holds it nor ever handed it on.
 func reviewMissing(tx *sql.Tx, by string, t *task) (string, error) {
 	rules, _, err := team.AgentRules(tx, by)
 	if err != nil {
@@ -26,18 +26,19 @@ func reviewMissing(tx *sql.Tx, by string, t *task) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	authors, err := column(tx, "SELECT DISTINCT author FROM task_memos WHERE task_id = ?", t.ID)
+	reviewers, err := column(tx, "SELECT json_extract(payload, '$.agent') FROM events WHERE kind = 'task_turn_pop' AND json_valid(payload) "+
+		"AND json_extract(payload, '$.task_id') = ? AND json_extract(payload, '$.memo') IS NOT NULL", t.ID)
 	if err != nil {
 		return "", err
 	}
 	workers = append(workers, from...)
-	for _, a := range authors {
+	for _, a := range reviewers {
 		if k, _, ok := actor.Parse(a); ok && k == actor.Agent && !slices.Contains(workers, a) {
 			return "", nil
 		}
 	}
-	return fmt.Sprintf("task T%d has commits, and its workspace's rule %s wants a review first: a comment on it from an agent that "+
-		"did not work it (hl task comment T%d add \"...\")", t.ID, rules[i].Words(), t.ID), nil
+	return fmt.Sprintf("task T%d has commits, and its workspace's rule %s wants a review first: give an agent that did not work it "+
+		"a turn (hl task comment T%d add \"...\" --turn <agent>); its answer is the review", t.ID, rules[i].Words(), t.ID), nil
 }
 
 // column is the one text column a query gives, NULLs left out.

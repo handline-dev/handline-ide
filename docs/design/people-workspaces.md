@@ -198,7 +198,7 @@ Today (main, read from `go/scheduler/lifecycle/launch.go` and `rulesnote.go`): `
 | `lease_max.<kind>` | most leases of a kind the workspace holds at once | the lease grant (fair share, see Resource leases) |
 | `tools_deny` | tools its agents may not use, added to the global list | launch argv and the PreToolUse guard |
 | `mode_max` | strongest mode an agent of it may be given (`plan` < `default` < `acceptEdits` < `auto`) | agent create and settings write |
-| `review_required` | a done with commits (a sha or `--commit`) by an agent of the workspace needs a comment on the task from an agent that did not work it (not the one closing, its holder, or one that handed it on); a done in words only is not held | the task.done write |
+| `review_required` | a done with commits (a sha or `--commit`) by an agent of the workspace needs a turn on the task answered with a comment by an agent that did not work it (not the one closing, its holder, or one that handed it on); a done in words only is not held | the task.done write |
 
 New keys merge off (0 or empty = no rule); the founder turns them on. Nothing else is a kept rule until a kept place for it exists: "how work lands" (direct to main or a PR) stays text in `base.md` until the daemon can see a landing.
 
