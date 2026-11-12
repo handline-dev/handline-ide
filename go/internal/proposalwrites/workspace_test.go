@@ -162,3 +162,64 @@ func TestWorkspaceDeleteAndAStartInItExcludeEachOther(t *testing.T) {
 		t.Fatal("no start while it is deleted")
 	}
 }
+
+// The dirty refusal lists every agent's held work, since the one answer is applied to all of them.
+func TestWorkspaceDeleteListsEveryAgentsHeldWork(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	_, kid := bobWithKid(t, r)
+	main, wt, git := bobsWorktrees(t, r)
+	kidWt := filepath.Join(filepath.Dir(wt["done"]), "kid")
+	git(main, "worktree", "add", "-q", "-b", "kid", kidWt)
+	git(kidWt, "commit", "-q", "--allow-empty", "-m", "kid's work")
+	r.db.Exec("INSERT INTO agent_state(agent, state, updated, worktree) VALUES(?, 'idle', 1, ?)", kid, "repo::"+kidWt)
+	m := r.call("workspace.delete", `{"workspace":"bob","request_id":"d1"}`)
+	e, _ := m["error"].(map[string]any)
+	d, _ := e["data"].(map[string]any)
+	list, _ := d["worktrees"].([]any)
+	var got []string
+	for _, h := range list {
+		got = append(got, h.(map[string]any)["path"].(string))
+	}
+	if gate(m) != "dirty" || !slices.Contains(got, kidWt) || !slices.Contains(got, wt["ahead"]) {
+		t.Fatalf("%v", m)
+	}
+}
+
+// An agent of another workspace under one of its agents keeps the workspace.
+func TestWorkspaceDeleteRefusesWhileAnotherWorkspacesAgentReportsIntoIt(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	bob, kid := bobWithKid(t, r)
+	if _, err := team.NewRoster(r.home).Register("alice.helper", team.RegisterOpts{Role: "r"}); err != nil {
+		t.Fatal(err)
+	}
+	helper := r.who("alice.helper")
+	r.db.Exec("UPDATE agents SET reports_to = ? WHERE id = ?", kid, strings.TrimPrefix(helper, "a"))
+	m := r.call("workspace.delete", `{"workspace":"bob","request_id":"d1"}`)
+	if gate(m) != "state" || !strings.Contains(refusalOf(m), helper) {
+		t.Fatalf("%v", m)
+	}
+	if everyone := paths.ListAgents(r.home); !slices.Contains(everyone, bob) || !slices.Contains(everyone, kid) {
+		t.Fatalf("nothing was deleted: %v", everyone)
+	}
+}
+
+// A rename that would change a name in use is refused: a session running, or an open proposal naming an agent by its dotted name.
+func TestWorkspaceSetRefusesWhileANameIsInUse(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	bobWithKid(t, r)
+	r.setLive("bob.kid", true)
+	if m := r.call("workspace.set", `{"workspace":"bob","name":"shop","request_id":"s1"}`); gate(m) != "state" || !strings.Contains(refusalOf(m), "session running") {
+		t.Fatalf("%v", m)
+	}
+	r.setLive("bob.kid", false)
+	r.propose("0a01", "kind", "rename", "agent", "bob.kid", "to", "bob.helper")
+	if m := r.call("workspace.set", `{"workspace":"bob","name":"shop","request_id":"s2"}`); gate(m) != "state" || !strings.Contains(refusalOf(m), "names bob.helper") {
+		t.Fatalf("%v", m)
+	}
+	if r.who("bob.kid") == "bob.kid" {
+		t.Fatal("not renamed")
+	}
+}

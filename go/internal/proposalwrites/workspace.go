@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -11,12 +12,14 @@ import (
 	"github.com/handline/handline/go/internal/worktreeprune"
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/addr"
+	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/wslock"
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
 // workspaceAt is the workspace a call names by its key or its name: its key, name and agents' keys, its lead last.
 type workspaceAt struct {
+	id        int64
 	key, name string
 	agents    []string
 }
@@ -27,22 +30,21 @@ func (e *Env) workspaceOf(params map[string]any) (workspaceAt, error) {
 		return workspaceAt{}, rpc.BadRequestError("workspace is a workspace's key or name", "workspace", rpc.InvalidParams)
 	}
 	var w workspaceAt
-	var id int64
 	var lead sql.NullInt64
 	q := "SELECT id, name, lead FROM workspaces WHERE name = ?"
 	arg := any(who)
 	if k, n, ok := actor.Parse(who); ok && k == actor.Workspace {
 		q, arg = "SELECT id, name, lead FROM workspaces WHERE id = ?", n
 	}
-	if err := e.DB.QueryRow(q, arg).Scan(&id, &w.name, &lead); errors.Is(err, sql.ErrNoRows) {
+	if err := e.DB.QueryRow(q, arg).Scan(&w.id, &w.name, &lead); errors.Is(err, sql.ErrNoRows) {
 		nf := rpc.NotFoundError("no workspace " + who)
 		nf.Data = map[string]any{"what": "workspace", "name": who}
 		return w, nf
 	} else if err != nil {
 		return w, err
 	}
-	w.key = actor.Key(actor.Workspace, id)
-	rows, err := e.DB.Query("SELECT id FROM agents WHERE workspace = ? ORDER BY id = ?, id", id, lead.Int64)
+	w.key = actor.Key(actor.Workspace, w.id)
+	rows, err := e.DB.Query("SELECT id FROM agents WHERE workspace = ? ORDER BY id = ?, id", w.id, lead.Int64)
 	if err != nil {
 		return w, err
 	}
@@ -67,6 +69,11 @@ func (e *Env) workspaceSet(c *rpc.Conn, params map[string]any) (any, error) {
 	if strings.TrimSpace(name) == "" {
 		return nil, rpc.BadRequestError("name is the workspace's new name", "name", rpc.InvalidParams)
 	}
+	if name != w.name {
+		if err := e.refuseRename(w); err != nil {
+			return nil, err
+		}
+	}
 	return c.Effect(func(tx *sql.Tx) (map[string]any, error) {
 		if err := team.NewRosterOn(tx, e.Home).RenameWorkspace(w.key, name); err != nil {
 			if team.IsRefusal(err) {
@@ -78,9 +85,45 @@ func (e *Env) workspaceSet(c *rpc.Conn, params map[string]any) (any, error) {
 	})
 }
 
-// workspaceDelete is workspace.delete: every agent of the workspace retired as agent.retire retires one, its lead last and the
-// workspace with it, in one step that puts everything back when any part is refused. The project folder is never touched. Refused,
-// with nothing done, while any of its agents has a session running, or holds work in a worktree and worktree gives no answer for it.
+// refuseRename refuses a rename that would change a name in use: while one of the agents has a session (an identity does not change
+// under a running session, as for an agent's rename), or an open proposal names one by its dotted name, which would then reach nobody.
+func (e *Env) refuseRename(w workspaceAt) error {
+	live, ok := map[string]bool(nil), false
+	if e.Live != nil {
+		live, ok = e.Live()
+	}
+	if !ok {
+		return rpc.Refused("could not confirm whether the agents of "+w.name+" have a session running just now - try again in a moment.", "state", "")
+	}
+	for _, a := range w.agents {
+		if live[a] {
+			return rpc.Refused(fmt.Sprintf("%s has a session running: stop it before renaming %s.", addr.Ref(a), w.name), "state", "")
+		}
+	}
+	for _, p := range e.listing() {
+		if st := p.str("state"); st != "proposed" && st != "approved" && st != applying {
+			continue
+		}
+		for _, kv := range p.pairs {
+			field := kv.Key
+			if m := itemKey.FindStringSubmatch(field); m != nil {
+				field = m[2]
+			}
+			if field != "agent" && field != "to" && field != "members" {
+				continue
+			}
+			for _, n := range strings.Split(fmt.Sprint(kv.Val), ",") {
+				if n == w.name || strings.HasPrefix(n, w.name+".") {
+					return rpc.Refused(fmt.Sprintf("proposal %s names %s: decide or withdraw it before renaming %s.", p.id(), n, w.name), "state", "")
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// workspaceDelete is workspace.delete: its agents retired in one bundle, the lead last and the workspace with it, after every
+// refusal is checked for all of them. The project folder is never touched.
 func (e *Env) workspaceDelete(c *rpc.Conn, params map[string]any) (any, error) {
 	w, err := e.workspaceOf(params)
 	if err != nil {
@@ -111,12 +154,24 @@ func (e *Env) workspaceDelete(c *rpc.Conn, params map[string]any) (any, error) {
 	if len(running) > 0 {
 		return nil, rpc.Refused(fmt.Sprintf("%s has sessions running (%s): stop them first. Nothing was deleted.", w.name, strings.Join(running, ", ")), "state", "")
 	}
+	everyone := paths.ListAgents(e.Home)
 	for _, a := range w.agents { // every refusal before the first removal: what is left to fail part way is git or the disk
-		if choice == "" {
-			if err := e.refuseHeldWork(a); err != nil {
-				return nil, err
+		var outside []string
+		for _, d := range e.dependents(a, everyone) {
+			if !slices.Contains(w.agents, d) {
+				outside = append(outside, d)
 			}
 		}
+		if len(outside) > 0 {
+			return nil, rpc.Refused(fmt.Sprintf("%s has agents of other workspaces under it (%s): retire or move them first. Nothing was deleted.", addr.Ref(a), strings.Join(outside, ", ")), "state", "")
+		}
+	}
+	if choice == "" {
+		if err := e.refuseHeldWork(w.agents...); err != nil {
+			return nil, err
+		}
+	}
+	for _, a := range w.agents {
 		mine, err := worktreeprune.Of(e.DB, a)
 		if err != nil {
 			return nil, err
@@ -139,7 +194,7 @@ func (e *Env) workspaceDelete(c *rpc.Conn, params map[string]any) (any, error) {
 	}
 	if len(w.agents) == 0 { // a workspace no agent is left in
 		return c.Effect(func(tx *sql.Tx) (map[string]any, error) {
-			if _, err := tx.Exec("DELETE FROM workspaces WHERE name = ? AND NOT EXISTS (SELECT 1 FROM agents WHERE workspace = workspaces.id)", w.name); err != nil {
+			if _, err := tx.Exec("DELETE FROM workspaces WHERE id = ? AND NOT EXISTS (SELECT 1 FROM agents WHERE workspace = workspaces.id)", w.id); err != nil {
 				return nil, err
 			}
 			return map[string]any{"accepted": true, "said": "workspace " + w.name + " is deleted"}, nil
