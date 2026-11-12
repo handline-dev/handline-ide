@@ -56,7 +56,7 @@ type LifecycleConfig struct {
 func (p *Parts) Lifecycle(cfg Config, lc LifecycleConfig) *Lifecycle {
 	q, home := p.db, cfg.Home
 	roster := team.NewRoster(home)
-	uenv := &usage.Env{Home: home}
+	uenv := &usage.Env{Home: home, Now: func() float64 { return float64(nowOf(cfg.Now)().UnixNano()) / 1e9 }}
 	accounts := team.Accounts{Home: home}
 	routing := func() *team.Team { t, _ := team.LoadTeam(home); return t }
 	var founderTyped func(agent string) bool // the founder's words typed at the agents the peer inbox reaches
@@ -165,7 +165,8 @@ func (p *Parts) Lifecycle(cfg Config, lc LifecycleConfig) *Lifecycle {
 		Delivery: lc.Env, Handoff: hp, Term: termPort{tm}, Blocked: noBlocked{}, Launch: launchPort, Spawn: spawns,
 		Agents: agentsPort{home: home, roster: roster, accounts: accounts, env: lc.Env, usage: uenv}, Status: &lifecycle.StatusAdapter{Env: uenv, Q: q},
 		Observe: observer{p: p}, Typing: terminalLock{home: p.home}, TermRun: termRun{p}, Locks: p.Locks, OnLaunch: onLaunch,
-		LoadHeld: forWork, OnStartStall: tellLeadOfStall(home, lc.Env, cfg.Log), WhatChanged: launcher.WhatChanged}
+		LoadHeld: forWork, OnStartStall: tellLeadOfStall(home, lc.Env, cfg.Log), WhatChanged: launcher.WhatChanged,
+		Now: func() int64 { return nowOf(cfg.Now)().Unix() }}
 	p.LC = &Lifecycle{Manager: m, Spawns: spawns, Launch: launcher, Handoff: ho, Env: lc.Env, Gate: gate, usage: uenv, roster: roster, term: tm}
 	hp.limit = tickUsage{roster: roster}.ContextLimit
 	hp.mover = func() *lifecycle.Mover { return p.LC.Mover }

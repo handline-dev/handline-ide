@@ -203,7 +203,7 @@ func capture(c *hlclient.Client, agent, event string, raw map[string]any) int {
 			cwd, _ = os.Getwd()
 		}
 		sid, _ := raw["session_id"].(string)
-		usage.CollectSnapshot(c.Home, agent, cwd, sid)
+		usage.CollectSnapshot(c.Home, agent, cwd, sid, time.Now().Unix())
 	}
 	res := record(c, agent, event, raw)
 	out := "{}"

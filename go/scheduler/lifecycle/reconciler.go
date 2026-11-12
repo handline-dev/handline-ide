@@ -335,7 +335,7 @@ func (r *Reconciler) Sweep(actions *[]string) error {
 		terminals[a] = t
 	}
 	seen := r.Ports.Observe(names, terminals)
-	r.Ports.NoteSeen(seen, time.Now())
+	r.Ports.NoteSeen(seen, time.Unix(r.now(), 0))
 	type suspect struct {
 		agent string
 		row   *db.AgentState

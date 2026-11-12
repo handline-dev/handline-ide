@@ -641,10 +641,8 @@ func (m *Manager) closeAgent(agent string, st SessionStatus, o CloseOpts) (bool,
 // dialog that does not match is declined as ever. True when one was declined; a dialog that would not be, or none, is left to the
 // session-still-running report. Stops when the session is gone, or after the wait.
 func (m *Manager) answerExitDialog(agent string, stop bool) bool {
-	wait := time.Duration(min(supervisor.ExitDialogWaitS, supervisor.EndWaitS)) * time.Second
-	deadline := time.Now().Add(wait)
 	handle := must(db.Terminal(m.Q, agent))
-	for time.Now().Before(deadline) {
+	for range min(supervisor.ExitDialogWaitS, supervisor.EndWaitS) / supervisor.EndPollS {
 		if sessions, ok := m.Observe.LiveSessions(); ok && sessions[agent] == 0 {
 			return false
 		}

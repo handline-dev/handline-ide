@@ -65,20 +65,20 @@ func TestAPulledSnapshotIsTheLastRealTurnOfTheSessionsOwnTranscript(t *testing.T
 	if PullSnapshot(home, "a1", "/w/a", "nope", 50) != nil || PullSnapshot(home, "a1", "/w/b", "", 50) != nil {
 		t.Fatal("no transcript, no snapshot")
 	}
-	if !CollectSnapshot(home, "a1", "/w/a", "s1") {
+	if !CollectSnapshot(home, "a1", "/w/a", "s1", time.Now().Unix()) {
 		t.Fatal("not written")
 	}
 	if b, err := os.ReadFile(paths.AgentStatusFile(home, "a1")); err != nil || !json.Valid(b) {
 		t.Fatalf("%s %v", b, err)
 	}
-	if CollectSnapshot(home, "a1", "/w/a", "s1-gone") != true {
+	if CollectSnapshot(home, "a1", "/w/a", "s1-gone", time.Now().Unix()) != true {
 		t.Fatal("a new session with no transcript yet replaces the last one's reading")
 	}
 	fresh := (&Env{Home: home}).ReadFile("alpha", paths.AgentStatusFile(home, "a1"))
 	if fresh.SessionID != "s1-gone" || fresh.CtxUsed != nil || fresh.CtxPct != nil || fresh.Stale() {
 		t.Fatalf("%+v", fresh)
 	}
-	if CollectSnapshot(home, "a1", "/w/a", "s1-gone") || CollectSnapshot(home, "a1", "/w/b", "") {
+	if CollectSnapshot(home, "a1", "/w/a", "s1-gone", time.Now().Unix()) || CollectSnapshot(home, "a1", "/w/b", "", time.Now().Unix()) {
 		t.Fatal("the same session, or none named, writes nothing")
 	}
 	if ContextWindow("claude-haiku-4-5-20251001") != 200_000 || ContextWindow("gpt-5") != 0 {
