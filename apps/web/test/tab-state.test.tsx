@@ -101,9 +101,9 @@ describe('tab state', () => {
     const live = tabOf(root, 'tasks').t.id;
     write(`tab/${live}/url`, 'https://example.com');
     write('tab/gone-long-ago/path', 'notes.md');
-    write('folded', ['x']);
+    write('not-a-tab', ['x']);
     sweep(root);
     expect(names('tab/')).toEqual([`tab/${live}/url`]);
-    expect(read('folded', [])).toEqual(['x']);
+    expect(read('not-a-tab', [])).toEqual(['x']);
   });
 });

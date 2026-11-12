@@ -113,7 +113,7 @@ func (e *Env) settingsValues() map[string]any {
 			prices[k] = v
 		}
 	}
-	out := map[string]any{
+	return map[string]any{
 		"active_cap": cfg.DefaultCap(), "park_timeout_s": park, "handoff_note": s.Flag("handoff_note", true), "ignore_cache_expiry": cfg["ignore_cache_expiry"] == true,
 		"dev_mode":    DevMode(cfg),
 		"bg_notice_s": s.ConfigSeconds("bg_notice_s", bgNotice), "bg_grace_s": s.ConfigSeconds("bg_grace_s", settings.BgGraceS),
@@ -143,10 +143,6 @@ func (e *Env) settingsValues() map[string]any {
 		usage.NetworkAddressesKey: hostsSetting(cfg[usage.NetworkAddressesKey]),
 		leases.PortRangeKey:       portRangeSetting(cfg),
 	}
-	for _, kind := range leases.Kinds {
-		out[leases.MaxHoldKey(kind)] = leases.MaxHold(cfg, kind) / 60
-	}
-	return out
 }
 
 // hostsSetting is network_addresses as written: the list of hosts, or nil when unset (the network listener serves -listen).

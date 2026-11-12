@@ -125,18 +125,19 @@ describe('layout tree', () => {
   });
 });
 
-describe('agent tree', () => {
-  it('nests agents under their parent, sorted, with unknown or self parents at the top', async () => {
-    const { agentTree } = await import('#src/layout/agentTree.ts');
-    const tree = agentTree([
-      { key: 'handline.ui', name: 'handline.ui', parent: 'handline', state: 'running' },
-      { key: 'handline', name: 'handline', parent: null, state: 'idle' },
-      { key: 'handline.api', name: 'handline.api', parent: 'handline', state: 'idle' },
-      { key: 'orphan', name: 'orphan', parent: 'gone', state: 'idle' },
-      { key: 'loop', name: 'loop', parent: 'loop', state: 'idle' },
-    ]);
-    const flat = (ns: typeof tree, d = 0): string[] => ns.flatMap((n) => [`${d}:${n.agent.key}`, ...flat(n.children, d + 1)]);
-    expect(flat(tree)).toEqual(['0:handline', '1:handline.api', '1:handline.ui', '0:loop', '0:orphan']);
+describe('agent list', () => {
+  it('lists the saved order first, then the rest by name', async () => {
+    const { ordered } = await import('#src/layout/agentList.ts');
+    const list = ordered(
+      [
+        { key: 'ui', name: 'ui', state: 'running' },
+        { key: 'lead', name: 'lead', state: 'idle' },
+        { key: 'api', name: 'api', state: 'idle' },
+        { key: 'zed', name: 'zed', state: 'idle' },
+      ],
+      ['zed', 'ui'],
+    );
+    expect(list.map((a) => a.key)).toEqual(['zed', 'ui', 'api', 'lead']);
   });
 });
 
@@ -153,20 +154,10 @@ describe('show', () => {
   });
 });
 
-describe('shortName', () => {
-  it('drops the parent prefix', async () => {
-    const { shortName } = await import('#src/layout/agentTree.ts');
-    expect(shortName('a.b', 'a')).toBe('b');
-    expect(shortName('a.b.c', 'a')).toBe('b.c');
-    expect(shortName('ab.c', 'a')).toBe('ab.c');
-    expect(shortName('a.b', null)).toBe('a.b');
-  });
-});
-
 describe('activityOf', () => {
   const of = (state: string) => ({ state, has_dialog: false });
   it('sorts the state words, unknown as resting', async () => {
-    const { activityOf } = await import('#src/layout/agentTree.ts');
+    const { activityOf } = await import('#src/layout/agentList.ts');
     const words = (l: string[]) => l.map((w) => activityOf(of(w)));
     expect(words(['running', 'starting', 'queued'])).toEqual(['working', 'waking', 'waking']);
     expect(words(['parked', 'no_terminal'])).toEqual(['asleep', 'asleep']);
@@ -175,7 +166,7 @@ describe('activityOf', () => {
   });
 
   it('reads AgentView.status: idle state with background work running is working', async () => {
-    const { activityOf } = await import('#src/layout/agentTree.ts');
+    const { activityOf } = await import('#src/layout/agentList.ts');
     const status = { state: 'running', reason: 'background', text: '', until: null, since: null, tasks: [] };
     expect(activityOf({ ...of('idle'), status })).toBe('working');
   });
@@ -183,7 +174,7 @@ describe('activityOf', () => {
 
 describe('restarting', () => {
   it('is a settings change or an asked restart under way, not a move or a full context', async () => {
-    const { restarting } = await import('#src/layout/agentTree.ts');
+    const { restarting } = await import('#src/layout/agentList.ts');
     const h = (cause: string) => ({ handoff: { cause, phase: 'waiting' as const, since: '' } });
     expect([restarting(h('settings_applied')), restarting(h('restart')), restarting(h('move')), restarting({})]).toEqual([
       true,
@@ -204,20 +195,20 @@ describe('holdLine', () => {
     tasks,
   });
   it('names the tasks a held agent waits on, calm, not as a fault', async () => {
-    const { activityOf, holdLine } = await import('#src/layout/agentTree.ts');
+    const { activityOf, holdLine } = await import('#src/layout/agentList.ts');
     const a = { state: 'idle', has_dialog: false, status: status('waiting', 'task', 'blocked by T8771 (human)', [8771, 8772]) };
     expect(activityOf(a)).toBe('held');
     expect(holdLine(a)).toBe('Waiting on T8771, T8772');
   });
   it('a stop is a fault and says its own line; a working agent has none', async () => {
-    const { activityOf, holdLine } = await import('#src/layout/agentTree.ts');
+    const { activityOf, holdLine } = await import('#src/layout/agentList.ts');
     const a = { state: 'stalled', has_dialog: false, status: status('stopped', 'stalled', 'stalled until someone unstalls it') };
     expect(activityOf(a)).toBe('error');
     expect(holdLine(a)).toBe('Stalled until someone unstalls it');
     expect(holdLine({ state: 'running', has_dialog: false })).toBeNull();
   });
   it('a restart for a changed model says so while the agent still works, then while it starts', async () => {
-    const { activityOf, holdLine } = await import('#src/layout/agentTree.ts');
+    const { activityOf, holdLine } = await import('#src/layout/agentList.ts');
     const h = { cause: 'settings_applied', settings: ['model'], since: '2026-11-08T12:00:00Z' };
     const waiting = { state: 'running', has_dialog: false, handoff: { ...h, phase: 'waiting' as const } };
     expect(activityOf(waiting)).toBe('working');
@@ -228,46 +219,13 @@ describe('holdLine', () => {
   });
 });
 
-describe('pathTo', () => {
-  it('keeps only the branch down to the picked agent', async () => {
-    const { agentTree, pathTo } = await import('#src/layout/agentTree.ts');
-    const tree = agentTree([
-      { key: 'a', name: 'a', parent: null, state: 'idle' },
-      { key: 'a.b', name: 'a.b', parent: 'a', state: 'idle' },
-      { key: 'a.b.c', name: 'a.b.c', parent: 'a.b', state: 'idle' },
-      { key: 'a.d', name: 'a.d', parent: 'a', state: 'idle' },
-    ]);
-    const names = (ns: typeof tree): string[] => ns.flatMap((n) => [n.agent.key, ...names(n.children)]);
-    expect(names(pathTo(tree[0].children, 'a.b.c'))).toEqual(['a.b', 'a.b.c']);
-    expect(pathTo(tree[0].children, 'x')).toEqual([]);
-  });
-});
-
 describe('pins', () => {
-  const agents = [
-    { key: 'a', name: 'a', parent: null, state: 'idle' },
-    { key: 'a.x', name: 'a.x', parent: 'a', state: 'idle' },
-    { key: 'b', name: 'b', parent: null, state: 'idle' },
-    { key: 'c', name: 'c', parent: null, state: 'idle' },
-  ];
-  it('moves pinned agents with their subtrees out of the tree, in pin order', async () => {
-    const { agentTree, splitPinned } = await import('#src/layout/agentTree.ts');
-    const { pinned, rest } = splitPinned(agentTree(agents), ['c', 'a']);
-    expect(pinned.map((n) => n.agent.key)).toEqual(['c', 'a']);
-    expect(pinned[1].children.map((n) => n.agent.key)).toEqual(['a.x']);
-    expect(rest.map((n) => n.agent.key)).toEqual(['b']);
-  });
-
-  it('pins a sub-agent out of its team: it shows once, under Pinned', async () => {
-    const { agentTree, splitPinned } = await import('#src/layout/agentTree.ts');
-    const { pinned, rest } = splitPinned(agentTree(agents), ['a.x']);
-    expect(pinned.map((n) => [n.agent.key, n.children.length])).toEqual([['a.x', 0]]);
-    expect(rest.find((n) => n.agent.key === 'a')!.children.map((n) => n.agent.key)).toEqual([]);
-    const both = splitPinned(agentTree(agents), ['a', 'a.x']);
-    expect(both.pinned.map((n) => [n.agent.key, n.children.length])).toEqual([
-      ['a', 0],
-      ['a.x', 0],
-    ]);
+  it('takes the pinned agents out of the list, in pin order', async () => {
+    const { splitPinned } = await import('#src/layout/agentList.ts');
+    const agents = ['a', 'b', 'c'].map((key) => ({ key, name: key, state: 'idle' }));
+    const { pinned, rest } = splitPinned(agents, ['c', 'a', 'gone']);
+    expect(pinned.map((a) => a.key)).toEqual(['c', 'a']);
+    expect(rest.map((a) => a.key)).toEqual(['b']);
   });
 });
 
@@ -327,14 +285,5 @@ describe('reopen closed', () => {
     after = reduce(after, { type: 'open', opens: 'task:2', title: 'T2', to: { pane: first } });
     const back = reopen(after, c, first);
     expect(opens(back)).toEqual([['chat', 'task:2', 'task:1']]);
-  });
-});
-
-describe('workingUnder', () => {
-  it('counts the working and the starting at any depth', async () => {
-    const { workingUnder } = await import('#src/layout/agentTree.ts');
-    const node = (state: string, children: unknown[] = []) => ({ agent: { name: state, state, has_dialog: false }, children });
-    const tree = [node('running', [node('starting'), node('idle')]), node('parked')];
-    expect(workingUnder(tree as never)).toBe(2);
   });
 });

@@ -127,7 +127,7 @@ test('worktree.set_status sets a label that worktrees.list shows, and refuses a 
   const { worktrees } = await client.call('worktrees.list', { owner: 'handline.auditor' });
   assert.deepEqual(
     worktrees.map((w) => [w.path, w.status, w.parent]),
-    [[path, 'in review', '/work/handline.architect']],
+    [[path, 'in review', null]],
   );
   assert.equal(daemon.admin.worktrees.rows.find((w) => w.path === path)?.status, 'in review');
   await assert.rejects(

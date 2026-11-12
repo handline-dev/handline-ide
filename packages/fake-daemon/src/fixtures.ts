@@ -10,7 +10,6 @@ export interface AgentFixture {
   state: string;
   account: string | null;
   task: { id: number; title: string } | null;
-  parent: string | null;
   worktree: string;
   branch: string;
   /** owner/repo of the worktree's GitHub origin, or null. */
@@ -53,7 +52,6 @@ export const AGENTS: AgentFixture[] = [
     state: 'parked',
     account: null,
     task: null,
-    parent: 'handline.architect',
     worktree: '/work/handline.term-build',
     branch: 'yourname/handline.term-build',
     repo: 'handline-dev/handline',
@@ -67,7 +65,6 @@ export const AGENTS: AgentFixture[] = [
     state: 'idle',
     account: 'alpha',
     task: { id: 1684, title: 'Web UI design' },
-    parent: null,
     worktree: '/work/handline.architect',
     branch: 'yourname/handline.architect',
     repo: 'handline-dev/handline',
@@ -81,7 +78,6 @@ export const AGENTS: AgentFixture[] = [
     state: 'idle',
     account: 'beta',
     task: null,
-    parent: 'handline.architect',
     worktree: '/work/handline.auditor',
     branch: 'yourname/handline.auditor',
     repo: 'handline-dev/handline',

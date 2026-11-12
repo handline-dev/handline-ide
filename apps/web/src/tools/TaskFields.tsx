@@ -1,7 +1,7 @@
 // A task's fields that can be changed: assignee, priority and time box, each a label and its value; the value opens its choices.
 import { assignGroups } from '@handline/app-core';
 import type { TaskDetail } from '@handline/client';
-import { useAgents, useTeam, useWrite } from '@handline/app-data';
+import { useAgents, useWrite } from '@handline/app-data';
 import { useMe } from '@handline/app-react';
 import { ChevronDown, Flag, Timer, User } from 'lucide-react';
 import { useState, type ComponentProps, type ReactElement, type ReactNode } from 'react';
@@ -74,16 +74,15 @@ function Assignee({ t, open }: { t: TaskDetail; open: boolean }) {
   );
 }
 
-/** Who to give the task to: a search over everyone, and before typing a short list of who is likely (who worked on it, near it in the
- * team, me, the owner now). A click or Enter picks; arrows move. Picking the owner now picks nothing. */
+/** Who to give the task to: a search over everyone, and before typing a short list of who is likely (who worked on it, in its
+ * workspace, me, the owner now). A click or Enter picks; arrows move. Picking the owner now picks nothing. */
 export function AssignPicker({ t, trigger, onPick }: { t: TaskDetail; trigger: ReactElement; onPick: (to: string) => void }) {
   const me = useMe();
-  const known = useAgents().data?.agents.map((a) => a.key) ?? [];
-  const team = useTeam().data ?? { agents: [] };
+  const agents = useAgents().data?.agents ?? [];
   const [shown, setShown] = useState(false);
   const [find, setFind] = useState('');
   const [at, setAt] = useState(0);
-  const groups = assignGroups(t, team, known, me);
+  const groups = assignGroups(t, agents, me);
   const likely = groups.filter((g) => g.key !== 'rest').flatMap((g) => g.names);
   const everyone = [...new Set([...groups.flatMap((g) => g.names), me, t.to])];
   const q = find.trim().toLowerCase();

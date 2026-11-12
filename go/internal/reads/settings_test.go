@@ -164,12 +164,8 @@ func TestTheLoadLimitsShowTheirDefaultsAndWhatIsSet(t *testing.T) {
 	if v["heavy_max"] != 0 || v["simulator_max"] != 0 || v["browser_max"] != 0 || v["port_range"] != nil {
 		t.Fatalf("lease defaults: %v %v %v %v", v["heavy_max"], v["simulator_max"], v["browser_max"], v["port_range"])
 	}
-	if v["heavy_max_hold_min"] != int64(30) || v["simulator_max_hold_min"] != int64(60) || v["browser_max_hold_min"] != int64(30) || v["port_max_hold_min"] != int64(0) {
-		t.Fatalf("max_hold defaults: %v %v %v %v", v["heavy_max_hold_min"], v["simulator_max_hold_min"], v["browser_max_hold_min"], v["port_max_hold_min"])
-	}
-	os.WriteFile(filepath.Join(home, "config.yaml"), []byte("host_active_cap: 4\nload_per_core_pct: 150\nbrowser_max: 1\nport_range: 4000-4999\nbrowser_max_hold_min: 0\nport_max_hold_min: 5\n"), 0o644)
-	if v = e.settingsValues(); v["host_active_cap"] != 4 || v["load_per_core_pct"] != 150 || v["browser_max"] != 1 || v["port_range"] != "4000-4999" ||
-		v["browser_max_hold_min"] != int64(0) || v["port_max_hold_min"] != int64(5) {
-		t.Fatalf("set: %v %v %v %v %v %v", v["host_active_cap"], v["load_per_core_pct"], v["browser_max"], v["port_range"], v["browser_max_hold_min"], v["port_max_hold_min"])
+	os.WriteFile(filepath.Join(home, "config.yaml"), []byte("host_active_cap: 4\nload_per_core_pct: 150\nbrowser_max: 1\nport_range: 4000-4999\n"), 0o644)
+	if v = e.settingsValues(); v["host_active_cap"] != 4 || v["load_per_core_pct"] != 150 || v["browser_max"] != 1 || v["port_range"] != "4000-4999" {
+		t.Fatalf("set: %v %v %v %v", v["host_active_cap"], v["load_per_core_pct"], v["browser_max"], v["port_range"])
 	}
 }

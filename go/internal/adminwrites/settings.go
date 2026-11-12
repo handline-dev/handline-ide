@@ -56,8 +56,7 @@ var settingKinds = map[string]string{"active_cap": int1, "park_timeout_s": int0,
 	usage.LaunchHoldKey: flag_, usage.PaceTargetKey: tgt, usage.PaceBurstKey: burst, usage.SubagentGuardKey: flag_, usage.MoveBeforeKey: pct,
 	settings.ClearPastBackgroundKey: flag_, settings.TranscriptRowsKey: flag_, settings.RefsNeedGrantKey: flag_,
 	leases.HeavyMaxKey: int0, leases.SimulatorMaxKey: int0, leases.BrowserMaxKey: int0, leases.PortRangeKey: ports,
-	leases.MaxHoldKey(leases.Heavy): int0, leases.MaxHoldKey(leases.Simulator): int0, leases.MaxHoldKey(leases.Browser): int0,
-	leases.MaxHoldKey(leases.Port): int0, usage.NetworkAddressesKey: hosts}
+	usage.NetworkAddressesKey: hosts}
 
 var perAgent = map[string]bool{"park_timeout_s": true, "ignore_cache_expiry": true, "bg_notice_s": true, "bg_grace_s": true, "bg_check_s": true,
 	"notice_digest_s": true, handoff.PromptKey: true}

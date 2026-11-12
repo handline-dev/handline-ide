@@ -2,23 +2,20 @@ import { byWorkspace, dotOf, queuedBehind } from '@handline/app-core';
 import { useAgents, useDirectory, useNameOf, useNav } from '@handline/app-data';
 import { AgentMenu } from '#src/AgentMenu.tsx';
 import { newAgent } from '#src/NewAgent.tsx';
-import { AnimatePresence, motion } from 'framer-motion';
-import { spring } from '#src/motion.ts';
 import type { AgentView } from '@handline/client';
 import { JobList, type Job } from '#src/chat/agent/BackgroundItem.tsx';
 import { HoverCard } from '#src/ui/HoverCard.tsx';
 import { ActivityIcon } from '#src/ui/activityIcon.tsx';
 import { ago, useNow } from '#src/format/time.ts';
-import { ChevronLeft, ChevronRight, ListChecks, LoaderCircle, Pin, Plus, PanelLeft } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ListChecks, Pin, Plus, PanelLeft } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { activityOf, holdLine, agentTree, pathTo, splitPinned, workingUnder, type AgentNode } from '#src/layout/agentTree.ts';
+import { activityOf, holdLine, ordered, splitPinned } from '#src/layout/agentList.ts';
 import { chatOf, footerPages, pages } from '#src/layout/kinds.tsx';
 import { useRequests } from '#src/requests/data.ts';
 import { Row } from '#src/sidebar/Row.tsx';
 import { SetupCard } from '#src/onboarding/SetupCard.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { useScrollFade } from '#src/ui/ScrollFade.tsx';
-import { useFolded } from '#src/useFolded.ts';
 import { useKeptScroll } from '#src/ui/keptScroll.ts';
 
 /** Top-left controls: collapse the sidebar, back, forward. They stay put when the sidebar is collapsed. */
@@ -59,29 +56,16 @@ type Pick = {
   agent: string | null;
   onSelect: (name: string) => void;
   onSettings: (name: string) => void;
-  folded: ReadonlySet<string>;
-  toggleFold: (name: string) => void;
 };
 
-/** The agent row being dragged and the sibling group it came from; a drop reorders only within that group. */
+/** The agent row being dragged and the section it came from; a drop reorders only within that section. */
 let dragged: { name: string; group: string } | null = null;
 
-/** Rows of one sibling group. `onMove(name, names)` hears the group's new order after a drag within it. */
-/** `under`: the agent drawn above this group; none at a section's top, where a pinned sub-agent names its parent. */
-function AgentRows({
-  nodes,
-  pick,
-  onMove,
-  under = null,
-}: {
-  nodes: AgentNode<AgentView>[];
-  pick: Pick;
-  onMove: (names: string[]) => void;
-  under?: string | null;
-}) {
+/** The rows of one section. `onMove(names)` hears the section's new order after a drag within it. */
+function AgentRows({ agents, pick, onMove }: { agents: AgentView[]; pick: Pick; onMove: (names: string[]) => void }) {
   const now = useNow();
   const nameOf = useNameOf();
-  const names = nodes.map((n) => n.agent.key);
+  const names = agents.map((a) => a.key);
   const group = names.join('|');
   const [line, setLine] = useState<{ at: string; after: boolean } | null>(null);
   const drop = (target: string, after: boolean) => {
@@ -90,15 +74,12 @@ function AgentRows({
     const i = rest.indexOf(target) + (after ? 1 : 0);
     onMove([...rest.slice(0, i), dragged.name, ...rest.slice(i)]);
   };
-  return nodes.map(({ agent, children }) => {
-    const open = !pick.folded.has(agent.key);
+  return agents.map((agent) => {
     const opens = chatOf(agent.key);
-    // Folded, a team still shows the branch to the picked agent.
-    const shown = open ? children : pathTo(children, pick.agent);
     return (
       <div
         key={agent.key}
-        className="relative flex flex-col rounded-lg border border-transparent has-[>div>div>[role=button]:hover]:border-border"
+        className="relative flex flex-col"
         onDragStart={(e) => {
           e.stopPropagation();
           dragged = { name: agent.key, group };
@@ -133,36 +114,13 @@ function AgentRows({
             <Row
               opens={opens}
               menu={false}
-              // At a section's top its word (a lead is its workspace, a shared name says its workspace); under a parent its name.
-              title={under === null ? nameOf(agent.key) : agent.name}
-              context={under === null && agent.parent ? nameOf(agent.parent) : undefined}
+              title={nameOf(agent.key)}
               selected={pick.agent === agent.key}
               onShow={() => pick.onSelect(agent.key)}
-              // Only a parent has the fold chevron; a leaf starts at its dot.
-              lead={
-                children.length > 0 && (
-                  <span
-                    className="grid size-3 shrink-0 place-items-center text-muted"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      pick.toggleFold(agent.key);
-                    }}
-                  >
-                    <ChevronRight size={12} className={`transition-transform duration-150 ${open ? 'rotate-90' : ''}`} />
-                  </span>
-                )
-              }
               icon={<ActivityIcon act={activityOf(agent)} />}
-              // When it last worked: now while running, else since it stopped (state_since).
-              // how many below it are working (spinner and count), and its queued tasks.
+              // Its queued tasks, and when it last worked: now while running, else since it stopped (state_since).
               trail={
                 <span className="flex items-center gap-1.5">
-                  {workingUnder(children) > 0 && (
-                    <span className="flex items-center gap-0.5 text-success" title="sub-agents working or starting">
-                      <LoaderCircle size={11} strokeWidth={3.5} className="animate-spin" />
-                      {workingUnder(children)}
-                    </span>
-                  )}
                   {(queuedBehind(agent) ?? 0) > 0 && (
                     <span className="flex items-center gap-0.5" title="tasks queued">
                       <ListChecks size={12} />
@@ -178,25 +136,6 @@ function AgentRows({
             />
           </AgentRowCard>
         </AgentMenu>
-        <AnimatePresence initial={false}>
-          {shown.length > 0 && (
-            // Each level indents its whole block, so a hovered team's highlight starts at its own row.
-            // Folding slides the block's height, clipped, so rows below move with it; the space above it is
-            // padding inside, so it folds away with the height instead of jumping when the block goes.
-            <motion.div
-              key="children"
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={spring}
-              className="overflow-hidden"
-            >
-              <div className="ml-3.5 flex flex-col gap-1 pt-1">
-                <AgentRows nodes={shown} pick={pick} onMove={onMove} under={agent.key} />
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </div>
     );
   });
@@ -250,7 +189,7 @@ function Section({
   );
 }
 
-/** The agents in sections: Pinned (when any are), each with its whole team, then a section per workspace. */
+/** The agents in sections: Pinned (when any are), then a flat list per workspace. */
 function Agents({ pick, page, onNew }: { pick: Pick; page: string | null; onNew: () => void }) {
   const list = useAgents();
   const { nav, change, togglePin } = useNav();
@@ -259,34 +198,24 @@ function Agents({ pick, page, onNew }: { pick: Pick; page: string | null; onNew:
   useEffect(() => {
     if (!pick.agent && !page && first) pick.onSelect(first);
   }, [pick, page, first]);
-  // A sibling group's new order goes first in nav.order; the rest of the order stays as it was.
+  // A section's new order goes first in nav.order; the rest of the order stays as it was.
   const reorder = (names: string[]) => change({ order: [...names, ...nav.order.filter((n) => !names.includes(n))] });
-  const { pinned, rest } = list.data ? splitPinned(agentTree(list.data.agents, nav.order), nav.pins) : { pinned: [], rest: [] };
-  // The rest of the tree, a section per workspace: each top-level agent with the agents under it. With none, one Agents section still
-  // holds New agent, the loading rows and a dropped pin.
-  const nodeOf = new Map(rest.map((n) => [n.agent, n]));
-  const groups = byWorkspace(
-    useDirectory(),
-    rest.map((n) => n.agent),
-  ).map(({ workspace, agents }) => ({ workspace, nodes: agents.map((a) => nodeOf.get(a)!) }));
-  const sections = groups.length ? groups : [{ workspace: null, nodes: [] }];
+  const { pinned, rest } = splitPinned(ordered(list.data?.agents ?? [], nav.order), nav.pins);
+  // A section per workspace. With none, one Agents section still holds New agent, the loading rows and a dropped pin.
+  const groups = byWorkspace(useDirectory(), rest);
+  const sections = groups.length ? groups : [{ workspace: null, agents: [] }];
   return (
     <>
       {pinned.length > 0 && (
         <Section title="Pinned" icon={<Pin size={12} />} accepts={(name) => !nav.pins.includes(name)} onAgentDrop={togglePin}>
           <AgentRows
-            nodes={pinned}
+            agents={pinned}
             pick={pick}
-            // The pinned top level is the pins' order; a team inside one keeps the shared order.
-            onMove={(names) =>
-              names.every((n) => nav.pins.includes(n))
-                ? change({ pins: [...names, ...nav.pins.filter((n) => !names.includes(n))] })
-                : reorder(names)
-            }
+            onMove={(names) => change({ pins: [...names, ...nav.pins.filter((n) => !names.includes(n))] })}
           />
         </Section>
       )}
-      {sections.map(({ workspace, nodes }, i) => (
+      {sections.map(({ workspace, agents }, i) => (
         <Section
           key={workspace?.key ?? ''}
           title={workspace?.name ?? 'Agents'}
@@ -302,16 +231,10 @@ function Agents({ pick, page, onNew }: { pick: Pick; page: string | null; onNew:
           }
         >
           {i === 0 && list.isPending && (
-            // Shaped like the rows to come: status dot, name, time; some indented as sub-agents.
+            // Shaped like the rows to come: status dot, name, time.
             <div aria-busy className="flex animate-pulse flex-col gap-1">
-              {[
-                [0, 55],
-                [1, 45],
-                [1, 60],
-                [0, 50],
-                [0, 40],
-              ].map(([indent, w], j) => (
-                <div key={j} className={`flex h-7 items-center gap-1.5 px-2 ${indent ? 'ml-3.5' : ''}`}>
+              {[55, 45, 60, 50, 40].map((w, j) => (
+                <div key={j} className="flex h-7 items-center gap-1.5 px-2">
                   <span className="size-3 shrink-0 rounded-full bg-border" />
                   <span style={{ width: `${w}%` }} className="h-3 rounded bg-border" />
                   <span className="flex-1" />
@@ -321,14 +244,14 @@ function Agents({ pick, page, onNew }: { pick: Pick; page: string | null; onNew:
             </div>
           )}
           {i === 0 && list.isError && <p className="px-2 text-sm text-danger">Agents did not load.</p>}
-          <AgentRows nodes={nodes} pick={pick} onMove={reorder} />
+          <AgentRows agents={agents} pick={pick} onMove={reorder} />
         </Section>
       ))}
     </>
   );
 }
 
-/** The pages (Tasks, Requests, Usage), then the agents as a tree. Picking a page or an agent brings up its own
+/** The pages (Tasks, Requests, Usage), then the agents by workspace. Picking a page or an agent brings up its own
  * workspace; dragging one opens its chat as a tab in the current one. Width is set by the splitter (see App). */
 export function Sidebar({
   width,
@@ -345,7 +268,6 @@ export function Sidebar({
   onSelectAgent: (name: string) => void;
   onAgentSettings: (name: string) => void;
 }) {
-  const fold = useFolded();
   const waiting = useRequests().count;
   // Only the agents scroll; the pages above and the buttons below stay put.
   const scroller = useRef<HTMLDivElement>(null);
@@ -369,7 +291,7 @@ export function Sidebar({
       <div ref={scroller} style={fade} className="-mx-2 min-h-0 flex-1 overflow-y-auto px-2">
         <Agents
           page={page}
-          pick={{ agent, onSelect: onSelectAgent, onSettings: onAgentSettings, ...fold }}
+          pick={{ agent, onSelect: onSelectAgent, onSettings: onAgentSettings }}
           onNew={() => void newAgent().then((name) => name && onSelectAgent(name))}
         />
       </div>

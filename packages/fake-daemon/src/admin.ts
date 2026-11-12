@@ -55,10 +55,6 @@ const DEFAULTS: Settings['values'] = {
   simulator_max: 0,
   browser_max: 0,
   port_range: null,
-  heavy_max_hold_min: 30,
-  simulator_max_hold_min: 60,
-  browser_max_hold_min: 30,
-  port_max_hold_min: 0,
   network_addresses: null,
   keep_awake: 'off',
   reap_orphans: 'dry',
@@ -258,28 +254,15 @@ export class FakeAdmin {
     return this.values.keep_awake ?? 'off';
   }
 
-  /** Fixed holders and waiters, granted now; the limits and max_holds are the settings'. */
+  /** Fixed holders and waiters; the limits are the settings'. */
   leases() {
     const since = this.now();
-    const kind = (k: 'simulator' | 'browser', max: number, held: string[], queue: string[]) => {
-      // As the daemon: a max_hold counts only while the kind has a limit.
-      const maxHold = max > 0 ? (this.values[`${k}_max_hold_min`] ?? 0) : 0;
-      const due =
-        maxHold > 0
-          ? {
-              max_hold_at: new Date(Date.parse(since) + maxHold * 60_000).toISOString().replace(/\.\d+Z$/, 'Z'),
-              over_time: false,
-              extended: 0,
-            }
-          : {};
-      return {
-        kind: k,
-        max,
-        max_hold_min: maxHold,
-        held: held.map((agent, i) => ({ lease: i + 1, agent, since, hold: false, pids: [], ...due })),
-        queue: queue.map((agent, i) => ({ agent, since, position: i + 1, says: `waiting for a ${k}, number ${i + 1} in line` })),
-      };
-    };
+    const kind = (k: 'simulator' | 'browser', max: number, held: string[], queue: string[]) => ({
+      kind: k,
+      max,
+      held: held.map((agent, i) => ({ lease: i + 1, agent, since, hold: false, pids: [] })),
+      queue: queue.map((agent, i) => ({ agent, since, position: i + 1, says: `waiting for a ${k}, number ${i + 1} in line` })),
+    });
     const { simulator_max = 0, browser_max = 0 } = this.values;
     return {
       kinds: [

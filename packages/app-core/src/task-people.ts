@@ -1,4 +1,4 @@
-// Who a task's detail offers: the people to assign it to (who acted on it, who is near in the team tree, everyone else)
+// Who a task's detail offers: the people to assign it to (who acted on it, who shares its workspace, everyone else)
 // and the people worth a reply (everyone the task's history names). Decided here so the screens only draw it.
 
 export interface PeopleTask {
@@ -7,8 +7,10 @@ export interface PeopleTask {
   events: readonly { at: string; agent?: string | null; actor?: { kind: string; name: string } | null }[];
   memos?: readonly { at: string; author: string }[];
 }
-export interface PeopleTeam {
-  agents: readonly { key: string; reports_to: string | null }[];
+/** An agent and the workspace it is in (AgentView.workspace). */
+export interface PeopleAgent {
+  key: string;
+  workspace: string;
 }
 export interface AssignGroup {
   key: 'acted' | 'near' | 'rest';
@@ -31,31 +33,20 @@ export function involved(t: PeopleTask): string[] {
   return [...new Set([...byTime, t.to, t.from])].filter((n) => n && !SYSTEM.has(n));
 }
 
-/** Steps between two agents along the reports-to tree; Infinity when they are in different trees. */
-export function treeDistance(team: PeopleTeam, a: string, b: string): number {
-  const parent = new Map(team.agents.map((x) => [x.key, x.reports_to]));
-  const up = (n: string) => {
-    const path = [n];
-    for (let p = parent.get(n); p && !path.includes(p); p = parent.get(p)) path.push(p);
-    return path;
-  };
-  const pa = up(a);
-  const pb = up(b);
-  const meet = pa.findIndex((n) => pb.includes(n));
-  return meet < 0 ? Infinity : meet + pb.indexOf(pa[meet]!);
-}
-
-/** How many of the close agents the short list shows after those who worked on the task; the others wait with the other teams. */
+/** How many agents of the task's workspace the short list shows after those who worked on the task; the others wait with the rest. */
 export const NEAR_SHOWN = 6;
 
-/** The assign picker: who acted on the task (latest first), then the few agents nearest the holder in the tree, then the rest by name as the other teams. */
-export function assignGroups(t: PeopleTask, team: PeopleTeam, known: readonly string[], me: string): AssignGroup[] {
-  const all = [...new Set([...known, ...team.agents.map((a) => a.key)])].filter((n) => n !== me && !SYSTEM.has(n));
+/** The assign picker: who acted on the task (latest first), then a few agents of the holder's or opener's workspace by name, then the rest by name. */
+export function assignGroups(t: PeopleTask, agents: readonly PeopleAgent[], me: string): AssignGroup[] {
+  const all = agents.map((a) => a.key).filter((n) => n !== me && !SYSTEM.has(n));
   const acted = involved(t).filter((n) => all.includes(n) && n !== t.to);
   const left = all.filter((n) => !acted.includes(n) && n !== t.to);
-  const dist = new Map(left.map((n) => [n, Math.min(treeDistance(team, t.to, n), treeDistance(team, t.from, n))]));
-  const close = left.filter((n) => dist.get(n)! <= 2).sort((a, b) => dist.get(a)! - dist.get(b)! || a.localeCompare(b));
-  const near = close.slice(0, NEAR_SHOWN);
+  const ws = new Map(agents.map((a) => [a.key, a.workspace]));
+  const home = new Set([ws.get(t.to), ws.get(t.from)]);
+  const near = left
+    .filter((n) => home.has(ws.get(n)))
+    .sort((a, b) => a.localeCompare(b))
+    .slice(0, NEAR_SHOWN);
   const rest = left.filter((n) => !near.includes(n)).sort((a, b) => a.localeCompare(b));
   return [
     { key: 'acted' as const, label: 'Worked on this task', names: acted },

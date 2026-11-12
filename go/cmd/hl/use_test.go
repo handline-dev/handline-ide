@@ -5,7 +5,6 @@ import (
 	"slices"
 	"strings"
 	"testing"
-	"time"
 )
 
 func TestUseWaitsRunsTheCommandAndGivesTheLeaseBack(t *testing.T) {
@@ -84,22 +83,15 @@ func TestUseHoldAndRelease(t *testing.T) {
 }
 
 func TestLeaseText(t *testing.T) {
-	now := time.Date(2026, 11, 12, 10, 0, 0, 0, time.UTC)
-	until := now.Add(8 * time.Minute)
 	got := leaseText(obj{"kinds": []any{
-		map[string]any{"kind": "heavy", "max": float64(2), "held": []any{map[string]any{"agent": "d", "since": "2026-11-12T09:55:00Z"}}, "queue": []any{}},
+		map[string]any{"kind": "heavy", "max": float64(2), "held": []any{map[string]any{"agent": "d"}}, "queue": []any{}},
 		map[string]any{"kind": "simulator", "max": float64(0), "held": []any{}, "queue": []any{}},
-		map[string]any{"kind": "browser", "max": float64(2), "held": []any{
-			map[string]any{"agent": "a", "workspace": "w1", "since": "2026-11-12T09:20:00Z", "over_time": true},
-			map[string]any{"agent": "b", "workspace": "w2", "since": "2026-11-12T09:58:00Z", "reserved_for": float64(20), "until": until.Format(time.RFC3339)},
-		}, "queue": []any{map[string]any{"agent": "c", "workspace": "w2", "task": float64(30)}, map[string]any{"agent": "e"}}},
-	}}, now)
-	want := "\ntest or build runs: 1 held of 2 (d for 5 min)\nbrowsers: 2 held of 2 (a in w1 for 40 min, over time; reserved for T20 (b in w2) until " +
-		until.Local().Format("15:04") + "); waiting, next first: c in w2 for T30, e\n"
-	if !strings.HasPrefix(got, want) || strings.Contains(got, "simulators") {
+		map[string]any{"kind": "browser", "max": float64(1), "held": []any{map[string]any{"agent": "a"}}, "queue": []any{map[string]any{"agent": "b"}, map[string]any{"agent": "c"}}},
+	}})
+	if !strings.HasPrefix(got, "\ntest or build runs: 1 held of 2 (d)\nbrowsers: 1 held of 1 (a); waiting: b, c\n") || strings.Contains(got, "simulators") {
 		t.Fatalf("%q", got)
 	}
-	if leaseText(obj{"kinds": []any{map[string]any{"kind": "browser", "max": float64(0), "held": []any{}, "queue": []any{}}}}, now) != "" {
+	if leaseText(obj{"kinds": []any{map[string]any{"kind": "browser", "max": float64(0), "held": []any{}, "queue": []any{}}}}) != "" {
 		t.Fatal("nothing to say says something")
 	}
 }

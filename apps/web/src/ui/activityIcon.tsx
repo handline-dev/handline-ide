@@ -1,4 +1,4 @@
-import type { Activity } from '#src/layout/agentTree.ts';
+import type { Activity } from '#src/layout/agentList.ts';
 import { Circle, CircleAlert, CircleHelp, Clock, LoaderCircle } from 'lucide-react';
 import type { ReactNode } from 'react';
 
