@@ -126,6 +126,9 @@ export function useAiTools() {
   return {
     loading: !status.isSuccess || !accounts.isSuccess || found.isLoading,
     rows,
+    /** Looks for logins on this Mac again. */
+    look: () => void found.refetch(),
+    looking: found.isFetching,
     /** True while a call below is in flight; the buttons wait for it. */
     busy,
     /** Uses a codex login found on this Mac as it is; the new account is logged in when this resolves. The daemon names it. */
