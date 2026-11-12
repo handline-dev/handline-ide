@@ -139,6 +139,7 @@ export const useProposalWithdraw = (target?: string) => useWrite("proposal.withd
 export const useTrustRemove = (target?: string) => useWrite("trust.remove", target);
 export const useProposalDecide = (target?: string) => useWrite("proposal.decide", target);
 export const useProposalApplyNow = (target?: string) => useWrite("proposal.apply_now", target);
+export const useProposalStop = (target?: string) => useWrite("proposal.stop", target);
 export const useScheduleAdd = (target?: string) => useWrite("schedule.add", target);
 export const useScheduleEdit = (target?: string) => useWrite("schedule.edit", target);
 export const useScheduleRemove = (target?: string) => useWrite("schedule.remove", target);

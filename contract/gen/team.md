@@ -16,6 +16,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `proposal.list` | agent |  | `state?` | `{proposals} & ReadCursor` | `bad_request` |  | `proposals`, fed by proposals |
 | `proposal.decide` | member | yes | `proposal`, `decision`, `note?`, `subject?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | proposal_changed, proposal_settled | decided: decide |
 | `proposal.apply_now` | member | yes | `proposal`, `request_id` | `Accepted` | `refused`, `not_found` | proposal_settled | decided: apply now |
+| `proposal.stop` | member | yes | `proposal`, `request_id` | `Accepted` | `refused`, `not_found` |  | decided: stop |
 | `schedules.list` | agent |  | none | `{schedules, errors}` |  |  | `schedules`, snapshot |
 | `schedule.add` | owner | yes | `target`, `cron`, `message`, `request_id` | `Accepted & {schedule}` | `refused`, `bad_request`, `not_found` |  | authored: add schedule |
 | `schedule.edit` | owner | yes | `schedule`, `target?`, `cron?`, `message?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | authored: edit schedule |
@@ -23,7 +24,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 
 ### `proposal.propose`
 
-Propose a roster change; the founder decides (hl propose add, retire, rename, team, settings, context, schedule, and diff, which is kind bundle: args.changes lists several changes decided once and applied together or not at all).
+Propose a roster change; the founder decides (hl propose add, retire, rename, team, settings, context, schedule, run (a shell command the founder's approve runs in a terminal window; at most 5 open per agent, the sixth refused), and diff, which is kind bundle: args.changes lists several changes decided once and applied together or not at all).
 
 ### `proposal.withdraw`
 
@@ -64,6 +65,10 @@ Approve or reject a proposal; approving an apply_failed one applies it again. Th
 ### `proposal.apply_now`
 
 Apply a waiting proposal now: for an applying proposal, interrupt the turn of each agent in `waiting_on` (as session.interrupt does), then close the session, apply the change and restart the renamed agent at the next tick, without waiting for the turn to end. The call answers once the change is applied, with what was done, or the refusal; past 10 minutes the held change is dropped (withdrawn) and the call is refused (gate state). Refused with gate proposal_settled, carrying the proposal as it is, unless the proposal is applying. Works for every kind a running session can hold: rename, retire, context, link, settings.
+
+### `proposal.stop`
+
+Stop the running command of an approved run proposal: its window is closed and the run ends stopped; the proposing agent is told. Refused (gate state) when the proposal is not kind run or its command is not running.
 
 ### `schedules.list`
 

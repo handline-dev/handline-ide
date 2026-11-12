@@ -65,8 +65,25 @@ export type Proposal = {
   };
   error?: string | null;
   settled?: Timestamp | null;
-  /** What the proposal does: add, retire, rename, team, settings, context, schedule or bundle (several changes decided once). An open set: a client draws a word it does not know as text. */
+  /** What the proposal does: add, retire, rename, team, settings, context, schedule, run (a shell command the founder runs with the approve) or bundle (several changes decided once). An open set: a client draws a word it does not know as text. */
   kind?: string;
+  /** Kind run only: the command and, once the approve started it, its run. The run's output goes to the proposing agent: a card says so before the press. */
+  run?: {
+    /** The command in full, as it will run; text from an agent: draw it as text, never cut. */
+    command: string;
+    /** The absolute folder it runs in. */
+    cwd: string;
+    /** Hints for reading, from the text alone: delete, overwrite, network, outside, outside_home, privilege. Never a gate, and none is not safe. An open set: draw a word you do not know as text. */
+    risks: string[];
+    /** Absent until the approve started it; then running, done (exit 0), failed (another exit) or stopped (its window closed first), as CommandRun.state. An open set. */
+    state?: string;
+    /** The run's window, as terminal.attach takes it; set once started. */
+    terminal?: string;
+    started?: Timestamp;
+    ended?: Timestamp;
+    /** The exit status once done or failed. */
+    exit?: number;
+  };
 };
 
 export type Schedule = {
@@ -108,6 +125,10 @@ export type ProposalArgs = {
   was_cron?: string;
   /** schedule edit, remove: its message, when two of the agent's schedules share the cron. */
   was_message?: string;
+  /** run: the shell command the founder's approve runs in a terminal window, 1 to 4000 characters, no NUL. One string, run by the window's shell: a pipeline or `&&` is one proposal. */
+  command?: string;
+  /** run: the folder it runs in; it must be a directory when proposed. A relative one is taken from the agent's worktree; kept absolute. */
+  cwd?: string;
 };
 
 export type ScheduleError = {
@@ -140,7 +161,7 @@ export type Workspace = {
 
 export interface TeamMethods {
   "proposal.propose": { params: {
-  kind: "add" | "retire" | "rename" | "team" | "settings" | "context" | "schedule" | "bundle";
+  kind: "add" | "retire" | "rename" | "team" | "settings" | "context" | "schedule" | "run" | "bundle";
   args: ProposalArgs;
   why?: string;
   request_id: RequestId;
@@ -221,6 +242,10 @@ export interface TeamMethods {
   proposal: number;
   request_id: RequestId;
 }; result: Accepted };
+  "proposal.stop": { params: {
+  proposal: number;
+  request_id: RequestId;
+}; result: Accepted };
   "schedules.list": { params: { [key: string]: unknown }; result: {
     schedules: Schedule[];
     /** Present only when an agent's `schedules` value cannot be read: that agent, and why. */
@@ -259,6 +284,7 @@ export const TEAM_METHODS: { [K in keyof TeamMethods]: { role: Role; callers: Ro
   "proposal.list": { role: "agent", callers: null, write: false, since: 1 },
   "proposal.decide": { role: "member", callers: null, write: true, since: 1 },
   "proposal.apply_now": { role: "member", callers: null, write: true, since: 1 },
+  "proposal.stop": { role: "member", callers: null, write: true, since: 1 },
   "schedules.list": { role: "agent", callers: null, write: false, since: 1 },
   "schedule.add": { role: "owner", callers: null, write: true, since: 1 },
   "schedule.edit": { role: "owner", callers: null, write: true, since: 1 },
@@ -276,13 +302,14 @@ export const TEAM_APP_CACHE: { [K in "trust.list" | "people.list" | "workspaces.
 };
 
 /** x-app-write of each write (x-app in core.json). */
-export const TEAM_APP_WRITES: { [K in "proposal.propose" | "proposal.withdraw" | "trust.propose" | "trust.remove" | "proposal.decide" | "proposal.apply_now" | "schedule.add" | "schedule.edit" | "schedule.remove"]: { kind: WriteKind; label: string } | false } = {
+export const TEAM_APP_WRITES: { [K in "proposal.propose" | "proposal.withdraw" | "trust.propose" | "trust.remove" | "proposal.decide" | "proposal.apply_now" | "proposal.stop" | "schedule.add" | "schedule.edit" | "schedule.remove"]: { kind: WriteKind; label: string } | false } = {
   "proposal.propose": false,
   "proposal.withdraw": {"kind": "decided", "label": "withdraw"},
   "trust.propose": false,
   "trust.remove": {"kind": "authored", "label": "remove folder"},
   "proposal.decide": {"kind": "decided", "label": "decide"},
   "proposal.apply_now": {"kind": "decided", "label": "apply now"},
+  "proposal.stop": {"kind": "decided", "label": "stop"},
   "schedule.add": {"kind": "authored", "label": "add schedule"},
   "schedule.edit": {"kind": "authored", "label": "edit schedule"},
   "schedule.remove": {"kind": "authored", "label": "remove schedule"},
