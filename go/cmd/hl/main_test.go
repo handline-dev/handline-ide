@@ -277,3 +277,21 @@ func TestEveryVerbHasAUsage(t *testing.T) {
 		}
 	}
 }
+
+func TestProgressSendsAStepCountWithTheNote(t *testing.T) {
+	r := newRig(t)
+	calls := r.daemon(map[string]string{"task.progress": `{"said":"kept"}`})
+	agent := []string{"HANDLINE_AGENT=a.one"}
+	if out, errs, code := r.run(agent, "progress", "--done", "3", "--of", "5", "wiring the gate"); code != 0 || out != "kept\n" {
+		t.Fatalf("write: %q %q %d", out, errs, code)
+	}
+	if p := calls()[0]["params"].(map[string]any); p["note"] != "wiring the gate" || p["done"] != float64(3) || p["total"] != float64(5) {
+		t.Fatalf("params %v", p)
+	}
+	for _, args := range [][]string{{"--done", "3", "x"}, {"--of", "5", "x"}, {"--done", "a", "--of", "5", "x"}, {"--done", "3", "--of", "5"},
+		{"--done", "-1", "--of", "5", "x"}, {"--done", "1", "--done", "2", "--of", "5", "x"}, {"x", "--done"}} {
+		if _, errs, code := r.run(agent, append([]string{"progress"}, args...)...); code == 0 || !strings.Contains(errs, "usage: hl progress") {
+			t.Errorf("%v: %d %q", args, code, errs)
+		}
+	}
+}

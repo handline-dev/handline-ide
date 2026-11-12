@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/handline/handline/go/internal/hlclient"
 	"github.com/handline/handline/go/kit/textsafe"
@@ -10,7 +11,8 @@ import (
 
 // progress keeps or shows the agent's note on its request in progress (cli/task.py cmd_progress).
 func progress(c *hlclient.Client, args []string) (int, bool) {
-	if len(args) > 1 || !plain(args) {
+	params, args, ok := progressCount(args)
+	if !ok || len(args) > 1 || !plain(args) || (params != nil && len(args) == 0) {
 		return 0, false
 	}
 	c.NoteVerbChain([]string{"progress", ""})
@@ -35,11 +37,42 @@ func progress(c *hlclient.Client, args []string) (int, bool) {
 		fmt.Println(textsafe.Text(note))
 		return 0, true
 	}
-	ok, said := c.Write("task.progress", map[string]any{"note": args[0]})
+	if params == nil {
+		params = map[string]any{}
+	}
+	params["note"] = args[0]
+	ok, said := c.Write("task.progress", params)
 	if !ok {
 		fmt.Fprintln(os.Stderr, said)
 		return 1, true
 	}
 	fmt.Println(said)
 	return 0, true
+}
+
+// progressCount takes --done N and --of M off args: both or neither, whole numbers; the daemon checks 1 <= total and done <= total.
+func progressCount(args []string) (params map[string]any, rest []string, ok bool) {
+	vals := map[string]int{}
+	for i := 0; i < len(args); i++ {
+		if a := args[i]; a == "--done" || a == "--of" {
+			if i+1 == len(args) {
+				return nil, nil, false
+			}
+			n, err := strconv.Atoi(args[i+1])
+			if _, twice := vals[a]; err != nil || n < 0 || twice {
+				return nil, nil, false
+			}
+			vals[a] = n
+			i++
+			continue
+		}
+		rest = append(rest, args[i])
+	}
+	if len(vals) == 0 {
+		return nil, rest, true
+	}
+	if len(vals) != 2 {
+		return nil, nil, false
+	}
+	return map[string]any{"done": vals["--done"], "total": vals["--of"]}, rest, true
 }

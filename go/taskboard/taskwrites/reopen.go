@@ -79,6 +79,9 @@ func reopenMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any
 			if n, _ := res.RowsAffected(); n == 0 {
 				return nil, refusal(fmt.Sprintf("task T%d was reopened by someone else just now", tid))
 			}
+			if err := db.SetTaskTodo(tx, tid, nil); err != nil { // the count was for the work that ended
+				return nil, err
+			}
 			if doing, err := db.IsDoing(tx, tid); err != nil {
 				return nil, err
 			} else if doing { // a doing task's clock restarts from now

@@ -55,17 +55,41 @@ func progress(c *rpc.Conn, p map[string]any) (any, error) {
 	if utf8.RuneCountInString(note) > progressMax {
 		return nil, badParam(fmt.Sprintf("note is at most %d characters: keep what is done and what is left", progressMax), "note")
 	}
+	todo, err := progressCount(p, note)
+	if err != nil {
+		return nil, err
+	}
 	me := c.Caller.Actor()
+	if todo != nil {
+		todo.By = me
+	}
 	return c.Effect(func(tx *sql.Tx) (map[string]any, error) {
-		kept := func() (map[string]any, error) {
+		// count is where the step count goes: the task named, else the one the caller holds; the note's own place may be a request.
+		count := func(tid int64) error { return db.SetTaskTodo(tx, tid, todo) }
+		kept := func(target int64) (map[string]any, error) {
 			where, err := setProgress(tx, me, note)
 			if err != nil {
 				return nil, err
 			}
-			return accepted(fmt.Sprintf("progress on %s kept; the handoff and the wake prompt carry it", where), nil), nil
+			if target == 0 {
+				if cur, held, err := db.CurrentTask(tx, me); err != nil {
+					return nil, err
+				} else if held {
+					target = cur
+				}
+			}
+			said := fmt.Sprintf("progress on %s kept; the handoff and the wake prompt carry it", where)
+			if target != 0 {
+				if err := count(target); err != nil {
+					return nil, err
+				}
+			} else if todo != nil {
+				said += " (no task held, so no step count)"
+			}
+			return accepted(said, nil), nil
 		}
 		if !named { // what `hl progress` does: the note goes where the caller's own state says, task held or not
-			return kept()
+			return kept(0)
 		}
 		t, err := getTask(tx, tid)
 		if err != nil {
@@ -80,13 +104,35 @@ func progress(c *rpc.Conn, p map[string]any) (any, error) {
 		if cur, held, err := db.CurrentTask(tx, me); err != nil {
 			return nil, err
 		} else if !held || cur == tid {
-			return kept() // the same place `hl progress` keeps it
+			return kept(tid) // the same place `hl progress` keeps the note
 		}
 		if err := db.SetMeta(tx, taskProgressKey(tid), note); err != nil {
 			return nil, err
 		}
+		if err := count(tid); err != nil {
+			return nil, err
+		}
 		return accepted(fmt.Sprintf("progress on T%d kept; the handoff and the wake prompt carry it", tid), nil), nil
 	})
+}
+
+// progressCount is the step count given beside the note: done and total both or neither, whole numbers with 0 <= done <= total and
+// total >= 1; nil for none, and for an empty note, which clears the count with the note.
+func progressCount(p map[string]any, note string) (*db.TaskTodo, error) {
+	if p["done"] == nil && p["total"] == nil {
+		return nil, nil
+	}
+	done, okDone := rpc.AsInt(p["done"])
+	total, okTotal := rpc.AsInt(p["total"])
+	switch {
+	case !okDone || done < 0:
+		return nil, badParam("done is a whole number of steps, given with total", "done")
+	case !okTotal || total < 1 || total < done:
+		return nil, badParam("total is a whole number of steps, at least 1, given with done and not under it", "total")
+	case note == "":
+		return nil, nil
+	}
+	return &db.TaskTodo{Done: int(done), Total: int(total), Current: note}, nil
 }
 
 // progressGet is progress.get: the note kept on the caller's effective head, else on its current task, else on the agent.
