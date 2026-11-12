@@ -1166,6 +1166,14 @@
        "items": {
         "$ref": "#/components/schemas/WorkspaceRule"
        }
+      },
+      "text_bytes": {
+       "type": "integer",
+       "description": "The size of the workspace's rules text (its base.md) in bytes, 0 when it has none. Only with a workspace."
+      },
+      "limit_bytes": {
+       "type": "integer",
+       "description": "The most bytes the rules text should hold. Only with a workspace."
       }
      },
      "required": [
