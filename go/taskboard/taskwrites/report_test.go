@@ -19,7 +19,7 @@ func reportEnv(t *testing.T, rows ...string) (*sql.DB, *fakeTeller, func(agent, 
 	return reportEnvIn(t, t.TempDir(), rows...)
 }
 
-// reportEnvIn is reportEnv with the daemon's home at home: w reports to lead, lead.auditor is in lead's workspace, boss and mgr lead
+// reportEnvIn is reportEnv with the daemon's home at home: lead.auditor is in lead's workspace, boss and mgr lead
 // their own.
 func reportEnvIn(t *testing.T, home string, rows ...string) (*sql.DB, *fakeTeller, func(agent, method, rid, params string) map[string]any) {
 	t.Helper()
@@ -29,7 +29,6 @@ func reportEnvIn(t *testing.T, home string, rows ...string) (*sql.DB, *fakeTelle
 	}
 	t.Cleanup(func() { sdb.Close() })
 	teamtest.Seed(t, home, "w", "boss", "mgr", "lead", "lead.auditor")
-	teamtest.Set(t, home, "w", "reports_to", "lead")
 	homes.Store(sdb, home)
 	for _, q := range rows {
 		if _, err := sdb.Exec(keyed(sdb, q)); err != nil {

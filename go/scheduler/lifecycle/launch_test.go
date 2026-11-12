@@ -891,6 +891,25 @@ func TestAFreshStartIsToldWhereItWas(t *testing.T) {
 	}
 }
 
+// The handoff lists messages with the agent that opened the task it holds, not with a boss.
+func TestAFreshStartListsMessagesWithItsTasksOpener(t *testing.T) {
+	r := newLaunchRig(t)
+	tid, _ := db.NewTask(r.l.Q, "the held task", "ann", "cleo", 0, 2, "", 0, "")
+	if _, err := db.SetTaskQueued(r.l.Q, tid, "cleo"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.AddRequest(r.l.Q, db.NewRequest{Requester: "cleo", Target: "ann", Body: "take this"}); err != nil {
+		t.Fatal(err)
+	}
+	text, err := r.l.ContextFor("ann")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(text, "last messages with the founder and cleo") || !strings.Contains(text, "take this") {
+		t.Fatalf("%s", text)
+	}
+}
+
 func TestAStartIsHeldOnlyWhenNoAccountLastsToItsFiveHourReset(t *testing.T) {
 	r := newLaunchRig(t)
 	for _, a := range []string{"a", "b"} {

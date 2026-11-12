@@ -200,19 +200,6 @@ func changed(path string) ([]any, int) {
 	return rows, total
 }
 
-// bosses is each agent's supervisor from the roster; empty when it cannot be read.
-func (e *Env) bosses() map[string]string {
-	t, err := team.LoadTeam(e.Home)
-	if err != nil {
-		return map[string]string{}
-	}
-	out := map[string]string{}
-	for _, a := range paths.ListAgents(e.Home) {
-		out[a] = t.SupervisorOf(a)
-	}
-	return out
-}
-
 // StatusLabelPrefix starts the meta name a worktree's status label is kept under: the prefix, then the worktree's real path.
 const StatusLabelPrefix = "worktree_status:"
 
@@ -261,31 +248,18 @@ func (e *Env) facts(path string, files int) (map[string]any, error) {
 	return map[string]any{"base": gitrun.DefaultBranch(path), "commits_ahead": ahead, "files_changed": files, "size_bytes": size, "pr": nil}, nil
 }
 
-func (e *Env) worktree(path, owner string, kn known, bosses map[string]string, labels map[string]string) (map[string]any, error) {
+func (e *Env) worktree(path, owner string, labels map[string]string) (map[string]any, error) {
 	ok, branch := git(path, "rev-parse", "--abbrev-ref", "HEAD")
 	ch, files := changed(path)
 	facts, err := e.facts(path, files)
 	if err != nil {
 		return nil, err
 	}
-	boss := bosses[owner]
 	repo := e.repoOf(owner)
 	repoName := ""
 	if repo != "" {
 		repoName = filepath.Base(repo)
 	}
-	var parent any
-	children := []string{}
-	for _, p := range kn.order {
-		o := kn.who[p]
-		if boss != "" && o == boss && parent == nil {
-			parent = p
-		}
-		if bosses[o] == owner {
-			children = append(children, p)
-		}
-	}
-	sort.Strings(children)
 	status := "clean"
 	if len(ch) > 0 {
 		status = "dirty"
@@ -297,8 +271,8 @@ func (e *Env) worktree(path, owner string, kn known, bosses map[string]string, l
 	if ok {
 		b = strings.TrimSpace(branch)
 	}
-	facts["path"], facts["repo"], facts["branch"], facts["owner"], facts["parent"] = path, repoName, b, owner, parent
-	facts["children"], facts["status"], facts["changed"] = children, status, ch
+	facts["path"], facts["repo"], facts["branch"], facts["owner"], facts["parent"] = path, repoName, b, owner, nil // agents are peers: no worktree hangs under another
+	facts["children"], facts["status"], facts["changed"] = []string{}, status, ch
 	return facts, nil
 }
 
@@ -364,7 +338,6 @@ func (e *Env) worktreesList(_ *rpc.Conn, params map[string]any) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	bosses := e.bosses()
 	labels, err := e.labels()
 	if err != nil {
 		return nil, err
@@ -374,7 +347,7 @@ func (e *Env) worktreesList(_ *rpc.Conn, params map[string]any) (any, error) {
 	out := []any{}
 	for _, p := range keys {
 		who := kn.who[p]
-		wt, err := e.worktree(p, who, kn, bosses, labels)
+		wt, err := e.worktree(p, who, labels)
 		if err != nil {
 			return nil, err
 		}

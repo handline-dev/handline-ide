@@ -186,25 +186,6 @@ func TestWorkspaceDeleteListsEveryAgentsHeldWork(t *testing.T) {
 	}
 }
 
-// An agent of another workspace under one of its agents keeps the workspace.
-func TestWorkspaceDeleteRefusesWhileAnotherWorkspacesAgentReportsIntoIt(t *testing.T) {
-	t.Parallel()
-	r := newRig(t)
-	bob, kid := bobWithKid(t, r)
-	if _, err := team.NewRoster(r.home).Register("alice.helper", team.RegisterOpts{Role: "r"}); err != nil {
-		t.Fatal(err)
-	}
-	helper := r.who("alice.helper")
-	r.db.Exec("UPDATE agents SET reports_to = ? WHERE id = ?", kid, strings.TrimPrefix(helper, "a"))
-	m := r.call("workspace.delete", `{"workspace":"bob","request_id":"d1"}`)
-	if gate(m) != "state" || !strings.Contains(refusalOf(m), helper) {
-		t.Fatalf("%v", m)
-	}
-	if everyone := paths.ListAgents(r.home); !slices.Contains(everyone, bob) || !slices.Contains(everyone, kid) {
-		t.Fatalf("nothing was deleted: %v", everyone)
-	}
-}
-
 // A rename that would change a name in use is refused: a session running, or an open proposal naming an agent by its dotted name.
 func TestWorkspaceSetRefusesWhileANameIsInUse(t *testing.T) {
 	t.Parallel()

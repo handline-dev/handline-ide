@@ -21,40 +21,35 @@ func fileInfo(path string) map[string]any {
 }
 
 // teamGet is team.get: the agents of the caller's workspace (every agent for a person outside every workspace folder: the app), each
-// with who it reports to and its files, the people, and the other workspaces. Each name is the caller's word for that key (addr.Name).
+// with its files, the people, and the other workspaces. Each name is the caller's word for that key (addr.Name).
 func (e *Env) teamGet(c *rpc.Conn, params map[string]any) (any, error) {
 	r, err := addr.Of(e.DB, c.Caller.Key, c.Cwd())
 	if err != nil {
 		return nil, err
 	}
 	all := r.Workspace == 0 && actor.KindOf(r.Key) != actor.Agent
-	rows, err := e.DB.Query("SELECT id, COALESCE(reports_to, '') FROM agents WHERE ? OR workspace = ? ORDER BY workspace, name", all, r.Workspace)
+	rows, err := e.DB.Query("SELECT id FROM agents WHERE ? OR workspace = ? ORDER BY workspace, name", all, r.Workspace)
 	if err != nil {
 		return nil, err
 	}
-	type agentRow struct{ key, reportsTo string }
-	var list []agentRow
+	var keys []string
 	for rows.Next() {
 		var id int64
-		var to string
-		if err := rows.Scan(&id, &to); err != nil {
+		if err := rows.Scan(&id); err != nil {
 			rows.Close()
 			return nil, err
 		}
-		list = append(list, agentRow{actor.Key(actor.Agent, id), to})
+		keys = append(keys, actor.Key(actor.Agent, id))
 	}
 	rows.Close()
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 	agents := []any{}
-	for _, a := range list {
-		var to any
-		if a.reportsTo != "" {
-			to = a.reportsTo
-		}
-		dir := paths.AgentDir(e.Home, a.key)
-		agents = append(agents, map[string]any{"key": a.key, "name": addr.Name(e.DB, r, a.key), "role": e.roleLine(a.key), "reports_to": to,
+	for _, k := range keys {
+		dir := paths.AgentDir(e.Home, k)
+		// reports_to stays null until clients stop reading it: agents are peers
+		agents = append(agents, map[string]any{"key": k, "name": addr.Name(e.DB, r, k), "role": e.roleLine(k), "reports_to": nil,
 			"role_file": fileInfo(filepath.Join(dir, "ROLE.md")), "base_file": fileInfo(filepath.Join(dir, "base.md"))})
 	}
 	people := []any{}
