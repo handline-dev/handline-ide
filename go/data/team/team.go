@@ -20,8 +20,8 @@ const (
 	AskWindowS = 3600
 )
 
-// Until the who columns hold keys (base-v2 1b), the rest of the code names an agent by its old dotted name: its workspace's name for
-// the lead, else workspace.agent. LegacyName, SplitLegacy and paths.LegacyNameSQL are the only places that know that form.
+// The roster, proposals and session creation name an agent by its dotted name: its workspace's name for the lead, else
+// workspace.agent: LegacyName, SplitLegacy and paths.LegacyNameSQL.
 
 // LegacyName is the old dotted name of agent name in workspace ws; lead is whether it is the workspace's lead.
 func LegacyName(ws, name string, lead bool) string {
