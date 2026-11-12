@@ -25,7 +25,7 @@ var usages = map[string][2]string{
 		`hl task comment T12 add "Ship to beta now, or after the fix? I recommend now." --turn human`},
 	"task pass": {`hl task pass T<n> ["<note>"] (your turn is done; the task goes back to the one below)`, `hl task pass T12 "reviewed: fine"`},
 	"task back": {`hl task back T<n> "<why>" (sends the task back to the one below, with why)`, `hl task back T12 "the test misses the empty list"`},
-	"task edit": {`hl task edit T<n> [--assign <agent>] [--owner <agent>] [--title T] [--body B | --body-file PATH] [--priority 1-5] [--estimate N] [--blocked-by T<m>] [--unblock T<m>] [--timeout <span>] [--tag T] [--untag T] [--pr N]`,
+	"task edit": {`hl task edit T<n> [--assign <agent>] [--owner <agent>] [--title T] [--body B | --body-file PATH] [--priority 1-5] [--estimate N] [--blocked-by T<m>] [--unblock T<m>] [--timeout <span>] [--tag T] [--untag T] [--pr N] [--parent T<m> | --no-parent]`,
 		`hl task edit T12 --blocked-by T13`},
 	"task comment": {`hl task comment T<n> add "<text>" [--turn <agent|human> [--done "<evidence>"]] [--reply <id>] [--attach FILE] [--now]   |   list   |   edit <id> "<text>"   |   delete <id>` +
 		` (--turn hands the task to them with this comment, your turn waiting below; --done: their pass closes the task; "@human ..." first is news for the founder, no turn)`,

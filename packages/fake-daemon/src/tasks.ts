@@ -1,7 +1,7 @@
 // The fake daemon's tasks: the rows `tasks.list` and `task.get` answer and the writes that change them, on the tasks topic.
 // A task the founder asks for starts as `queued`; withdrawing or cancelling one that has not been delivered discards it.
 import { fieldsOf } from '#src/history.ts';
-import { TaskFailure } from '#src/taskstore.ts';
+import { TaskFailure, type Row } from '#src/taskstore.ts';
 import { TaskVerbs } from '#src/taskverbs.ts';
 
 export { TaskFailure };
@@ -53,13 +53,30 @@ export class FakeTasks extends TaskVerbs {
     if (p.owner !== undefined && !this.isAgent(String(p.owner))) throw new TaskFailure('bad_request', `no agent ${String(p.owner)}`);
     if (p.body !== undefined) this.images(String(p.body), t.body, 'body', agent);
     const waitOn = typeof p.blocked_by === 'number' ? this.find(p.blocked_by).id : null;
+    const parent = typeof p.parent === 'number' ? this.find(p.parent).id : p.no_parent === true ? null : undefined;
+    if (parent !== undefined) this.reparent(t, parent);
     this.change(t, {
+      ...(parent !== undefined ? { parent } : {}),
       ...(waitOn !== null && !t.blockers.some((b) => b.task === waitOn)
         ? { blockers: [...t.blockers, { task: waitOn, reason: '', at: this.now() }] }
         : {}),
       ...(p.owner !== undefined ? { to: String(p.owner) } : {}),
       ...fieldsOf(p),
     });
+  }
+
+  /** As the daemon: the old parent stops waiting on t, an open new one waits on an open t. */
+  private reparent(t: Row, parent: number | null): void {
+    if (parent === t.parent) throw new TaskFailure('refused', `task T${t.id} already sits there - nothing to move`);
+    if (parent !== null && this.below(t.id, this.find(parent)))
+      throw new TaskFailure('refused', `task T${t.id} cannot go under T${parent}: it is that task or sits above it`);
+    const open = (r: Row) => r.state !== 'done' && r.state !== 'discarded';
+    const p = parent === null ? undefined : this.find(parent);
+    if (p?.state === 'discarded') throw new TaskFailure('refused', `task T${p.id} is discarded - a task cannot go under it`);
+    const old = t.parent === null ? undefined : this.find(t.parent);
+    if (old) this.change(old, { blockers: old.blockers.filter((b) => b.task !== t.id) });
+    if (p && open(p) && open(t) && !p.blockers.some((b) => b.task === t.id))
+      this.change(p, { blockers: [...p.blockers, { task: t.id, reason: '', at: this.now() }] });
   }
 
   /** Withdraw takes back a task nobody has started. */

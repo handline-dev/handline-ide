@@ -44,7 +44,7 @@ func TestEditChangesATaskInOneTransactionAndLeavesTheTellingToTheTeller(t *testi
 	if code(r[6]) != "refused" || count(t, db, "SELECT COUNT(*) FROM events WHERE kind = 'block_task'") != 1 {
 		t.Fatalf("a refused part undoes the earlier parts: the second block_task event is not kept: %v", r[6])
 	}
-	if r[7]["result"] == nil || len(f.edited) < 3 || f.edited[len(f.edited)-2].Freed != "worker" {
+	if r[7]["result"] == nil || len(f.edited) < 3 || fmt.Sprint(f.edited[len(f.edited)-2].Freed) != "[worker]" {
 		t.Fatalf("clearing the last wait frees its owner: %v %+v", r[7], f.edited)
 	}
 	if why := r[8]["error"].(map[string]any)["message"]; code(r[8]) != "refused" || why != "T1 cannot go to ops.hand: its brief is sent on crew.asker's behalf, and denied: ops.hand is in another workspace (ops): send it to that workspace, whose lead hands it on" {
@@ -217,7 +217,7 @@ func TestAWaitOnACurrentTaskLetsItsOwnerGoInTheSameWrite(t *testing.T) {
 			t.Fatalf("%d: %v", i, x)
 		}
 	}
-	if len(f.edited) != 2 || f.edited[0].Freed != "" || f.edited[1].Freed != "worker" {
+	if len(f.edited) != 2 || len(f.edited[0].Freed) != 0 || fmt.Sprint(f.edited[1].Freed) != "[worker]" {
 		t.Fatalf("a wait on a task nobody holds frees no one; one on the current task frees its owner: %+v", f.edited)
 	}
 	if n := count(t, db, "SELECT COUNT(*) FROM agent_state WHERE agent = 'worker' AND current_task IS NULL"); n != 1 {
@@ -229,7 +229,7 @@ func TestAWaitOnACurrentTaskLetsItsOwnerGoInTheSameWrite(t *testing.T) {
 	// a child under the lead's current task frees the lead
 	f = &fakeTeller{}
 	r = call(t, mk("manager", f), `{"jsonrpc":"2.0","id":4,"method":"task.new","params":{"owner":"other","title":"review it","body":"b","parent":4,"request_id":"n1"}}`)
-	if r[0]["result"] == nil || len(f.edited) != 1 || f.edited[0].Freed != "manager" {
+	if r[0]["result"] == nil || len(f.edited) != 1 || fmt.Sprint(f.edited[0].Freed) != "[manager]" {
 		t.Fatalf("%v %+v", r[0], f.edited)
 	}
 	if n := count(t, db, "SELECT COUNT(*) FROM agent_state WHERE agent = 'manager' AND current_task IS NULL"); n != 1 {

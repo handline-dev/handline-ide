@@ -21,9 +21,9 @@ import (
 type Edited struct {
 	Task     int64
 	By       string
-	Body     bool   // a body was given: the holder of a doing task is told it changed
-	WasOwner string // the owner before the edit, when an owner was given: a task that changed hands is sent on
-	Freed    string // the owner whose last blocker the edit cleared, or whose current task it blocked: its turn is reconsidered
+	Body     bool     // a body was given: the holder of a doing task is told it changed
+	WasOwner string   // the owner before the edit, when an owner was given: a task that changed hands is sent on
+	Freed    []string // the owners whose last blocker the edit cleared, or whose current task it blocked: their turn is reconsidered
 }
 
 // pyRepr is Python's repr of a string: single quotes unless it holds one and no double quote.
@@ -409,6 +409,18 @@ func editMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, 
 		if err != nil {
 			return nil, err
 		}
+		parent, hasParent, err := optionalTask(p, "parent")
+		if err != nil {
+			return nil, err
+		}
+		noParent, err := optionalBool(p, "no_parent")
+		if err != nil {
+			return nil, err
+		}
+		if noParent && hasParent {
+			return nil, badParam("no_parent and parent together: choose one", "no_parent")
+		}
+		moveParent := hasParent || noParent
 		addTags, err := TagList(p, "add_tags")
 		if err != nil {
 			return nil, err
@@ -427,8 +439,8 @@ func editMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, 
 			pr = n
 		}
 		fields := owner != nil || reporter != nil || title != nil || body != nil || evidence != nil || timeoutS != nil || priority != nil || estimate != nil
-		if !fields && !hasBlocker && !hasUnblock && !hasTags && pr == 0 {
-			return nil, badParam("edit needs an owner, a reporter, a title, a priority, an estimate, a body, an evidence, a time_box, blocked_by, unblock, add_tags, remove_tags or pr", "")
+		if !fields && !hasBlocker && !hasUnblock && !hasTags && pr == 0 && !moveParent {
+			return nil, badParam("edit needs an owner, a reporter, a title, a priority, an estimate, a body, an evidence, a time_box, blocked_by, unblock, add_tags, remove_tags, pr, parent or no_parent", "")
 		}
 		for _, who := range []*string{owner, reporter} {
 			if who != nil && *who != actor.OwnerKey && !contains(paths.ListAgents(home), *who) {
@@ -516,8 +528,10 @@ func editMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, 
 				if why != "" {
 					return nil, refusal(why)
 				}
-				if done.Freed, err = freeHolder(tx, tid); err != nil {
+				if holder, err := freeHolder(tx, tid); err != nil {
 					return nil, err
+				} else if holder != "" {
+					done.Freed = append(done.Freed, holder)
 				}
 				msg := fmt.Sprintf("task T%d now waits on T%d", tid, blocker)
 				msgs = append(msgs, msg)
@@ -526,6 +540,19 @@ func editMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, 
 				} else if !own {
 					tellMsgs = append(tellMsgs, msg)
 				}
+			}
+			var reparent reparented
+			if moveParent {
+				why, m, err := setParent(tx, tid, parent, me)
+				if err != nil {
+					return nil, err
+				}
+				if why != "" {
+					return nil, refusal(why)
+				}
+				reparent = m
+				done.Freed = append(done.Freed, m.freed...)
+				msgs = append(msgs, m.msg)
 			}
 			if hasUnblock {
 				why, err := unblock(tx, tid, unblockOn, me)
@@ -551,7 +578,7 @@ func editMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, 
 					if err != nil {
 						return nil, err
 					}
-					done.Freed = t.Acting
+					done.Freed = append(done.Freed, t.Acting)
 				}
 			}
 			done.Body = body != nil
@@ -571,6 +598,13 @@ func editMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, 
 				if notes, err = tellTask(tx, home, me, strings.Join(tellMsgs, "; "), to...); err != nil {
 					return nil, err
 				}
+			}
+			if len(reparent.owners) > 0 { // a parent starts or stops waiting on it: one line to each parent's owner
+				parents, err := tellTask(tx, home, me, reparent.msg, reparent.owners...)
+				if err != nil {
+					return nil, err
+				}
+				notes = append(notes, parents...)
 			}
 			return accepted(said, nil), nil
 		})

@@ -269,11 +269,14 @@ func (e *Env) Edited(ed taskwrites.Edited) {
 	if ed.WasOwner != "" {
 		e.sendMovedTask(e.DB, ed.Task, ed.WasOwner, ed.By)
 	}
-	if ed.Freed != "" {
-		if changed, _, err := e.AdvanceCurrentTask(e.DB, ed.Freed); err != nil {
-			e.log("  moving %s on after a block or unblock failed: %v", ed.Freed, err)
+	for _, freed := range ed.Freed {
+		if freed == "" { // a task nobody holds
+			continue
+		}
+		if changed, _, err := e.AdvanceCurrentTask(e.DB, freed); err != nil {
+			e.log("  moving %s on after a block or unblock failed: %v", freed, err)
 		} else if changed {
-			e.Push(e.DB, ed.Freed, 0)
+			e.Push(e.DB, freed, 0)
 		}
 	}
 }

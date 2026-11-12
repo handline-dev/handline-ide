@@ -97,7 +97,7 @@ One file per group, generated from `spec/<group>.json`; field types are in `prot
 x-callers on a method, when present, lists the only roles that may call it, whatever the chain says. The agent-identity methods (hook.record, agent.set, task.progress) act as the caller's OWN session, found by peer pid or session token as say already finds its sender: an `agent` argument that is not the caller's own name is refused (gate not_self), and a member device cannot call them (agent.set is also the founder's, who may name any agent).
 
 - **Sender:** say and task.new carry no sender parameter: the daemon sets it. An agent's calls carry its key; the founder's and a device's carry their person's key.
-- **Ownership:** Methods that act on a task by id (edit, merge, discard, reopen, queue, draft) are anyone's: the task's opener and assignee are told, and its history keeps who did it. withdraw, release, memo.edit and memo.delete keep their checks on who may; a refusal is `refused` with the reason.
+- **Ownership:** Methods that act on a task by id (edit, merge, discard, reopen, queue, draft) are anyone's: the task's opener and assignee are told, and its history keeps who did it. withdraw, release, memo.edit and memo.delete keep their checks on who may; a refusal is `refused` with the reason. task.edit blocked_by and parent can make anyone's open task wait; once workspaces have real boundaries they are to be limited to the owner of the waiting task.
 
 ## Agent commands
 

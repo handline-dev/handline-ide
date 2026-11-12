@@ -17,6 +17,7 @@ export function changes(t: Fields, patch: Partial<Fields>, at: string, by: strin
   if ('estimate' in patch) log('estimate', t.estimate ? `${t.estimate} points` : '', patch.estimate ? `${patch.estimate} points` : '');
   if ('time_box' in patch) log('timeout', t.time_box, patch.time_box);
   if ('state' in patch) log('state', t.state, patch.state);
+  if ('parent' in patch) log('parent', t.parent ? `T${t.parent}` : '', patch.parent ? `T${patch.parent}` : '');
   if (patch.blockers && patch.blockers.length > t.blockers.length)
     log('blocked_by', '', `T${patch.blockers.find((b) => !t.blockers.some((o) => o.task === b.task))?.task}`);
   return rows;

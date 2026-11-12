@@ -205,7 +205,10 @@ func (f *fakeTeller) HandedOver(h Handover) string {
 	return "pushed"
 }
 func (f *fakeTeller) Edited(ed Edited) {
-	ed.By, ed.WasOwner, ed.Freed = f.n(ed.By), f.n(ed.WasOwner), f.n(ed.Freed)
+	ed.By, ed.WasOwner = f.n(ed.By), f.n(ed.WasOwner)
+	for i, k := range ed.Freed {
+		ed.Freed[i] = f.n(k)
+	}
 	f.edited = append(f.edited, ed)
 }
 func (f *fakeTeller) TaskSay(tx *sql.Tx, to, body string, within func(rid int64, note string) error) (*Asked, error) {
