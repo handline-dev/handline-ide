@@ -2,6 +2,7 @@ package reads
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -140,6 +141,7 @@ func (e *Env) settingsValues() map[string]any {
 		leases.HeavyMaxKey:              leases.Max(cfg, leases.Heavy),
 		leases.SimulatorMaxKey:          leases.Max(cfg, leases.Simulator), leases.BrowserMaxKey: leases.Max(cfg, leases.Browser),
 		usage.NetworkAddressesKey: hostsSetting(cfg[usage.NetworkAddressesKey]),
+		leases.PortRangeKey:       portRangeSetting(cfg),
 	}
 }
 
@@ -232,4 +234,12 @@ func (e *Env) settingsGet(_ *rpc.Conn, params map[string]any) (any, error) {
 		out["handoff_prompt_own"] = e.ownHandoffPrompts()
 	}
 	return out, nil
+}
+
+// portRangeSetting is port_range as "lo-hi", or nil when unset (a port lease is any free port).
+func portRangeSetting(cfg usage.Config) any {
+	if lo, hi, ok := leases.PortRange(cfg); ok {
+		return fmt.Sprintf("%d-%d", lo, hi)
+	}
+	return nil
 }

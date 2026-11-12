@@ -9,7 +9,7 @@ var usages = map[string][2]string{
 	"progress": {`hl progress [--done N --of M] "<done: ... left: ...>"`, `hl progress --done 3 --of 5 "wiring the gate"`},
 	"load":     {`hl load [--agent <name>]`, `hl load`},
 	"team":     {`hl team [--agent <name>]`, `hl team`},
-	"use":      {`hl use <heavy|simulator|browser> -- <command...>   |   hl use <heavy|simulator|browser> --hold   |   hl use --release [<heavy|simulator|browser>]`, `hl use browser -- npx playwright test`},
+	"use":      {`hl use <heavy|simulator|browser|port> -- <command...>   |   hl use <heavy|simulator|browser|port> --hold   |   hl use --release [<heavy|simulator|browser|port>]`, `hl use browser -- npx playwright test`},
 	"version":  {`hl version`, `hl version`},
 	"handoff":  {`hl handoff slow [--since <span>] [--agent <name>]`, `hl handoff slow --since 7d`},
 	"chat":     {`hl chat search "<text>" [--with <name>] [--since <span>] [--limit N]`, `hl chat search "nav order" --with handline --since 2d`},
