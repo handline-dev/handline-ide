@@ -126,49 +126,47 @@ Work happens on a branch, `base-v2`. It cannot land in parts, because the team r
 
 ## Resource leases
 
-What is there now (`hl use`, `go/scheduler/leases`, `leaseguard.go`): two kinds, `simulator` and `browser`, each with a limit in config (`simulator_max`, `browser_max`, 0 = no limit). An agent runs `hl use <kind> -- <command>` (lease held while the command runs) or `--hold` / `--release`. Asks queue first come first served, up to 30 minutes, then are refused naming the holders. A lease ends when the command exits, on `--release`, at the turn's end (holds) or session's end, or when the `hl use` process and its children are gone. A PreToolUse guard refuses a Bash call that starts a simulator or browser outside `hl use` while the kind has a limit. Leases live in memory only. `heavy_slots` is not built: it is a proposal in `docs/story2-load-research.md` (slots for test and build runs, from idle cores).
+Today: `hl use` and `go/scheduler/leases` lease `simulator` and `browser`, limits `simulator_max` and `browser_max` (0 = none), one FIFO per kind, 30 minutes to wait, state in memory. `heavy_slots` is only a proposal in `docs/story2-load-research.md`. This adds kinds, a time limit, fairness across workspaces and survival of a restart.
 
 ### What is leased
 
-A lease is a claim on something the machine has few of. Three kinds of pool:
-
-| Kind | Pool | Limit |
-|---|---|---|
-| `simulator`, `browser` | counted (as today) | config, 0 = none |
-| `heavy` | counted slots for tests and builds | config, or the live reading in the load research; 0 = none until measured |
-| `port` | a range, e.g. 4000-4999; the lease carries the port number | the range |
-
-`hl use port -- <command>` sets `$HL_PORT` for the command; `hl use port --hold` prints it. Nothing else is leased: disk and memory stay guards, not leases.
+- Counted pools: `simulator`, `browser`, and new `heavy` (a slot for a test or build run; limit from config, later from the live reading in the load research).
+- `port`: a range set in config (`port_range`, e.g. 4000-4999); the lease carries the number, given to the command as `$HL_PORT`. The port is picked free at grant time and may still be taken by another process before the command binds it, so the command retries with a new ask on a bind failure.
+- Disk and memory stay guards, not leases.
 
 ### Who holds, and the scope
 
-The holder is an agent key (people-workspaces keys), with its workspace recorded. The pools belong to the machine, not to a workspace: two workspaces on one Mac share one simulator. Limits are set in the settings (owner only). Queues are fair across workspaces: the next grant goes to the workspace that has held least in the last hour, first come first served inside it, so a busy workspace cannot starve another.
+The holder is an agent key, with its workspace recorded. Pools belong to the machine: two workspaces share one simulator. Limits are owner settings. The next grant goes to the workspace that has held the kind least in the last hour (the manager keeps the hold-seconds per workspace for that hour; lost at restart, which only resets fairness), first come first served inside it.
 
-### When it is given back
+One ask is for one kind. A command that needs two takes them in the fixed order `heavy`, `simulator`, `browser`, `port` (`hl use a b -- cmd` asks in that order and gives all back together); asking out of order is refused. That removes the hold-and-wait cycle.
 
-A lease ends at the first of: the command exits; `hl use --release`; the end of the turn (holds); the end of the session; every process behind it gone (as today); **a time limit**, new. Each kind has a `max_hold` (default simulator 60 min, browser 30, heavy 30, port none). A command's lease is not cut while its process runs unless a hold. A hold past `max_hold` is revoked.
+### Given back
 
-### Taking back what is not returned
+Today's ends stay: the command exits, `--release`, turn end (holds), session end or park, every process behind it gone. New:
 
-1. At 80 % of `max_hold` the holder gets a notice naming the lease and the time left. `hl use --extend` adds one period, once, and only when nobody waits.
-2. At `max_hold` with a waiter in the queue the daemon revokes: it tells the holder, ends the lease, kills the processes that matched the kind for a hold (the kind's patterns in `procOf`, only the holder's own), and grants the next waiter. With no waiter nothing is revoked, and the line in `hl team` says "over time".
-3. A holder whose session is gone or parked loses its leases at once.
-4. At daemon start, holds are dropped (their turns ended with the daemon) and a command's lease is adopted again if its `hl use` pid is alive, else dropped.
-5. A waiter that hits the 30-minute ceiling is refused as today, and the refusal names who holds and for how long.
+- **`max_hold`** per kind, config (simulator 60 min, browser 30, heavy 30, port none), counted from the grant, for commands and holds alike, so a wedged `go test` cannot keep its slot.
+- At 80 % the holder is told how long is left. `hl use --extend` adds one period, up to twice, and is refused while anyone waits.
+- At `max_hold` the lease is revoked when someone waits, else it only shows "over time" and goes the moment someone asks. A waiter is refused at the 30-minute ceiling, so `max_hold` stays at or under it plus the waiter's own wait: the ask's ceiling is `max(30 min, max_hold)` for a kind that has a `max_hold`.
+- Revoking ends the lease and tells the holder. For a command the daemon signals the process group `hl use` started (TERM, then KILL after 10 s). For a hold there is no group to kill: the holder is told to stop and the lease is ended, never a process picked by name. `procOf` stays a display heuristic.
+
+### Restart
+
+Leases are stored in the base (kind, agent, workspace, granted-at, `hl use` pid, port). At start, a command's lease is adopted if its pid is alive and dropped if not. Holds are kept until the holder's next turn ends or `max_hold`, so the pool does not show a running simulator as free.
 
 ### Seen
 
-`hl team` and the app list each pool: held (who, since, workspace), waiting (position), over time. Revocation and refusal are events on the holder's turn.
+`hl team` and the app list each pool: held (who, workspace, since, "over time"), waiting (position). Revocation and refusal are events on the holder's turn.
 
 ### Builder tasks
 
-1. Persist nothing; add `Lease.Workspace` and fairness across workspaces in `leases.Manager` (tests: two workspaces, one starved).
-2. `max_hold`, warning notice, `hl use --extend`, revocation with process kill (needs 1).
-3. `heavy` kind: `hl use heavy -- <cmd>`, guard patterns for test and build commands, limit from config; the live reading is a later follow-up.
-4. `port` kind: range pool, `$HL_PORT`, free-port check before grant.
-5. Daemon start: drop holds, adopt live command leases.
-6. Contract and `hl team` / app lines for the new kinds and "over time"; settings keys.
-Steps 1 and 3-5 are independent; 2 and 6 follow 1.
+1. Store and restart adoption; `Lease.Workspace`; per-workspace fair grant. (go/scheduler/leases)
+2. `max_hold`, warning, `--extend`, revocation (needs 1).
+3. `heavy` kind and its guard patterns.
+4. `port` kind, `port_range`, `$HL_PORT`.
+5. Multi-kind `hl use a b` in the fixed order.
+6. Contract, `hl team` and app lines, settings keys (needs 1, 2).
+
+New limits merge off by default (AGENTS.md): `max_hold` and `heavy` start at 0 = none.
 
 ## Later phases
 
