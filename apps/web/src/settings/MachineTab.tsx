@@ -1,4 +1,5 @@
 // Settings > This Mac: what the machine and the agents use, the simulator and browser limits, and keep-awake. Stop is the one change to an agent. Every write dims its control until the daemon answers; a refusal says why under it.
+import { useNameOf } from '@handline/app-data';
 import { Bot, Clock, Coffee, Cpu, Gauge, Globe, HardDrive, MemoryStick, Smartphone, TriangleAlert, Zap } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { bytesText, loadFull, LOW_DISK_BYTES, memoryLow } from '@handline/app-core';
@@ -58,6 +59,7 @@ function Row({
 }
 
 export function MachineTab() {
+  const nameOf = useNameOf();
   const m = useMachine();
   const service = useService();
   const [refused, setRefused] = useState<{ key: string; text: string } | null>(null);
@@ -133,10 +135,10 @@ export function MachineTab() {
             return (
               <div key={a.name} className={`flex items-center gap-3 text-sm ${m.pending === key ? 'opacity-50' : ''}`}>
                 <Bot size={14} className="shrink-0 text-muted" />
-                <span className="min-w-0 flex-1 truncate">{a.name}</span>
+                <span className="min-w-0 flex-1 truncate">{nameOf(a.name)}</span>
                 <span className="w-24 text-right tabular-nums text-muted">{Math.round(a.cpu_pct)}% of a core</span>
                 <span className="w-16 text-right tabular-nums text-muted">{bytesText(a.rss_bytes)}</span>
-                <Button disabled={m.pending !== null} onClick={() => run(key, () => m.stop(a.name))} aria-label={`Stop ${a.name}`}>
+                <Button disabled={m.pending !== null} onClick={() => run(key, () => m.stop(a.name))} aria-label={`Stop ${nameOf(a.name)}`}>
                   Stop
                 </Button>
               </div>
@@ -158,7 +160,7 @@ export function MachineTab() {
             ...k.held.map((h) => ({
               id: `h${h.lease}`,
               icon: <Bot size={12} />,
-              who: h.agent,
+              who: nameOf(h.agent),
               what: `in use ${sinceText(h.since)}`,
               title: undefined,
             })),
@@ -167,7 +169,7 @@ export function MachineTab() {
               .map((w) => ({
                 id: `w${w.position}`,
                 icon: <Clock size={12} />,
-                who: w.agent,
+                who: nameOf(w.agent),
                 what: `waiting, ${ordinal(w.position)} in line`,
                 title: w.says,
               })),

@@ -219,7 +219,7 @@ export function CommentBox({
                 className="flex h-7 items-center gap-1 rounded-md px-2 text-xs text-muted hover:bg-hover/30 hover:text-fg"
               >
                 <UserRound size={14} />
-                {to ? `Assign to ${to}` : 'Assign'}
+                {to ? `Assign to ${nameOf(to)}` : 'Assign'}
               </button>
             }
           />

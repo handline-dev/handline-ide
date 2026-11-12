@@ -1,6 +1,6 @@
 // What passes between an agent and the founder on a task, in the agent's chat: one card per task. It is answered in the task.
 import { foundersTurn, noteText, type TimelineEntry, type TurnRecord } from '@handline/app-core';
-import { useTask } from '@handline/app-data';
+import { useNameOf, useTask } from '@handline/app-data';
 import { useMe } from '@handline/app-react';
 import type { TranscriptItem } from '@handline/client';
 import { motion } from 'framer-motion';
@@ -51,11 +51,12 @@ export function TaskCommentCard({ last, agent, fade }: { last: Said; agent: stri
   const task = last.task_comment.task;
   const t = useTask(task).data;
   const me = useMe();
+  const nameOf = useNameOf();
   const answer = useAnswerInTask();
   const open = useOpenable(taskOf(task));
   const yours = !!t && foundersTurn(t, me);
   const s = t ? look(t) : null;
-  const who = last.task_comment.kind === 'answer' ? `You → ${agent}` : `${last.task_comment.who} → you`;
+  const who = last.task_comment.kind === 'answer' ? `You → ${nameOf(agent)}` : `${nameOf(last.task_comment.who)} → you`;
   return (
     <motion.div
       data-id={`taskcard:${task}`}
