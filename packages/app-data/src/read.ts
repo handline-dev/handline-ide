@@ -3,9 +3,9 @@ import { useCallback, useMemo, useState } from 'react';
 import { keepPreviousData, useQueries, useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { EMPTY_DIRECTORY, hashNumbers, nameOf, reviewPictures, waitingCount, type Directory } from '@handline/app-core';
 import { useStore } from '@handline/app-react';
-import type { CallParams, InboxItem, Methods, Task } from '@handline/client';
+import type { CallParams, InboxItem, Methods, Task, WorkspaceRule } from '@handline/client';
 import { useData, useFeed, useServes } from '#src/provider.ts';
-import { keyOf, reads, type ReadMethod, type ReadSpec } from '#src/reads.ts';
+import { keyOf, qk, reads, type ReadMethod, type ReadSpec } from '#src/reads.ts';
 
 export const SNAPSHOT_STALE_MS = 30_000;
 
@@ -297,6 +297,49 @@ export function useFoundLogins() {
     enabled: served && open,
     gcTime: 0,
     select: (r) => r.found,
+  });
+}
+/** Each kept rule's place in the rules column; a Record, so a key the contract adds fails to compile until it has one. */
+const RULE_ORDER: Record<WorkspaceRule['key'], number> = {
+  accounts: 0,
+  agent_cap: 1,
+  mode_max: 2,
+  tools_deny: 3,
+  review_required: 4,
+  'lease_max.heavy': 5,
+  'lease_max.simulator': 6,
+  'lease_max.browser': 7,
+  'lease_max.port': 8,
+  land_by: 9,
+  land_check: 10,
+};
+/** Every kept rule's key, in the order the rules column lists them. */
+export const RULE_KEYS = (Object.keys(RULE_ORDER) as WorkspaceRule['key'][]).sort((a, b) => RULE_ORDER[a] - RULE_ORDER[b]);
+
+/** A kept rule as the rules column shows it: one never set on the workspace or the machine has no value and no source. */
+export type RuleRow = { key: WorkspaceRule['key'] } & (
+  (Omit<WorkspaceRule, 'key'> & { set: true }) | { set: false; on: false; value: null; source: null }
+);
+
+/** Each key's row from the rules in force: the daemon lists only the keys set somewhere. */
+export function ruleRows(rules: readonly WorkspaceRule[]): RuleRow[] {
+  const byKey = new Map(rules.map((r) => [r.key, r]));
+  return RULE_KEYS.map((key) => {
+    const r = byKey.get(key);
+    return r ? { ...r, set: true } : { key, set: false, on: false, value: null, source: null };
+  });
+}
+
+/** A workspace's kept rules, every key (ruleRows), or the machine default's without one. No topic feeds them: read when the screen opens and again after workspace.rule.set. */
+export function useWorkspaceRules(workspace?: string) {
+  const store = useStore();
+  const { daemon } = useData();
+  const { served, open } = useServes('workspace.rules');
+  return useQuery({
+    queryKey: qk.rules(daemon, workspace ?? null),
+    queryFn: () => store.client.call('workspace.rules', workspace === undefined ? {} : { workspace }),
+    enabled: served && open,
+    select: (r) => ruleRows(r.rules),
   });
 }
 /** The newest events of the daemon's log, read once when the page opens (the log is not a cache the bridge keeps; a screen that wants it live asks again). */

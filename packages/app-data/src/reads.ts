@@ -49,7 +49,7 @@ export const NOT_QUERIES = [
   'lease.take',
   'lease.release',
   'lease.extend',
-  // The kept rules of a workspace: no screen draws them until the rules screen (after T8963-T8966).
+  // Read by useWorkspaceRules.
   'workspace.rules',
   // `hl launch` asks the daemon for the command it becomes; not a read of state, and no screen calls it.
   'session.launch_prepare',
@@ -92,6 +92,10 @@ export const qk = {
   chatMessagesOf: (d: string, agent: string) => [...resourceKey(d, 'chat.messages'), agent] as const,
   chatMessages: (d: string, agent: string, scope: string) => [...resourceKey(d, 'chat.messages'), agent, scope] as const,
   transcript: (d: string, agent: string) => keyOf(d, 'chat.transcript', { agent }),
+  /** Every workspace's kept rules, the machine default's among them. */
+  allRules: (d: string) => ['d', d, 'workspace.rules'] as const,
+  /** A workspace's kept rules; null for the machine default's. */
+  rules: (d: string, workspace: string | null) => [...qk.allRules(d), workspace] as const,
   /** Everything of this daemon, for a gap or a reconnect. */
   all: (d: string) => ['d', d] as const,
   resource: resourceKey,

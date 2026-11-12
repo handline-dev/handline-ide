@@ -11,6 +11,7 @@ import { FakePairing } from '#src/pairing.ts';
 import { FakeInbox } from '#src/inbox.ts';
 import { FakeWork } from '#src/workroom.ts';
 import { FakeWorkspaces } from '#src/workspaces.ts';
+import { FakeRules } from '#src/workspacerules.ts';
 import { FakeRequests } from '#src/requests.ts';
 import { FakeTasks } from '#src/tasks.ts';
 import { FakeAttachments } from '#src/attachments.ts';
@@ -60,6 +61,8 @@ export class FakeDaemon {
   readonly work = new FakeWork(this, () => this.iso());
   /** workspaces.list and the owner's workspace.create, workspace.set and workspace.delete. */
   readonly spaces = new FakeWorkspaces(this);
+  /** The kept rules: workspace.rules and the owner's workspace.rule.set. */
+  readonly rules = new FakeRules(this);
   /** hello's capabilities.transcript: chat.send takes parent_item. */
   readonly replyItems: boolean;
   readonly serveChat: boolean;
