@@ -17,6 +17,8 @@ const RECENT: RecentFolder[] = [
   { path: '/Users/me/code/garden', name: 'garden', touched_at: '2026-11-06T09:12:00Z' },
   { path: '/Users/me/side/notes-app', name: 'notes-app', touched_at: '2026-10-28T17:40:00Z' },
 ];
+/** A folder on the fake's Mac that is not a repository: folder.init makes it one. */
+export const PLAIN_FOLDER = '/Users/me/side/recipes';
 
 /** A unified diff for one changed file, made up from its counts: the fake has no repository to run git in. */
 const unified = (c: Worktree['changed'][number]): string => {
@@ -192,6 +194,7 @@ export class FakeWorktrees {
   rows: Worktree[] = seed();
   repos: Repo[] = REPOS.map((r) => ({ ...r }));
   recent: RecentFolder[] = RECENT.map((f) => ({ ...f }));
+  plain = [PLAIN_FOLDER];
 
   /** `on` false is a daemon that lists none of these methods. */
   constructor(on: boolean) {
@@ -215,11 +218,16 @@ export class FakeWorktrees {
         return { test_command: 'pnpm test', issues: [{ number: 42, title: 'Dark mode flickers on load' }], todos: 7, uncommitted: 2 };
       }
       case 'folder.init': {
-        // The fake makes no repository: the home folder and above are refused, a known repo is one already, anything else is not there.
+        // The home folder and above are refused, a known repo is one already, the plain folder becomes one, anything else is not there.
         if (typeof p.path !== 'string' || !p.path.startsWith('/'))
           throw new Failure('not_found', `${String(p.path)} is not a folder`, { what: 'path', path: p.path });
         if ('/Users'.startsWith(p.path)) throw refused('state', `${p.path} holds the home folder: choose a project folder inside it`);
         if ([...this.repos, ...this.recent].some((r) => r.path === p.path)) throw refused('state', `${p.path} is already a git repository`);
+        if (this.plain.includes(p.path)) {
+          this.plain = this.plain.filter((f) => f !== p.path);
+          this.recent.unshift({ path: p.path, name: p.path.split('/').pop() ?? p.path, touched_at: new Date().toISOString() });
+          return { accepted: true, said: `git started in ${p.path}`, path: p.path };
+        }
         throw new Failure('not_found', `${p.path} is not a folder`, { what: 'path', path: p.path });
       }
       case 'folder.clone': {

@@ -319,6 +319,10 @@ export const patches: Record<string, Patch> = {
   'task.seen': { quiet: true },
   // A worktree that holds work is refused until the person answers; the screen asks, so no error line is raised.
   'agent.retire': { asks: askedDirty },
+  // A folder made a repository: its facts read again, and it joins the recent git folders.
+  'folder.init': {
+    touches: (d, p) => [keyOf(d, 'repo.facts', { path: as<{ path: string }>(p).path }), qk.resource(d, 'repos.recent')],
+  },
   // A prompt the person answers: a stale one is refused and the card shows the prompt that is open now.
   'prompt.answer': {
     fail: (c, p, e) => {
