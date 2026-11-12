@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { clock } from '#src/format/time.ts';
 import { spring } from '#src/motion.ts';
 import { Markdown } from '#src/ui/Markdown.tsx';
+import type { LineChange } from '@handline/client';
 import { ModalFrame, openModal } from '#src/ui/modal.tsx';
 
 /** Why a conversation began or restarted, as the line says it; a word the daemon adds later shows as it is. */
@@ -58,12 +59,14 @@ export function CompactionLine({
   handoff,
   resumed,
   changed,
+  changed_lines: lines = [],
 }: {
   at: string;
   cause?: string;
   handoff: string | null;
   resumed?: boolean;
   changed?: string;
+  changed_lines?: LineChange[];
 }) {
   const why = causeWords(cause);
   const [shown, setShown] = useState(false);
@@ -99,7 +102,7 @@ export function CompactionLine({
     void openModal((close) =>
       resumed ? (
         <ModalFrame title="Restarted" onClose={() => close()}>
-          <Restart at={at} changes={changes} />
+          <Restart at={at} changes={changes} lines={lines} />
         </ModalFrame>
       ) : (
         <ModalFrame title="Context compacted" size="xl" onClose={() => close()}>
@@ -132,16 +135,38 @@ export function CompactionLine({
 }
 
 /** What a restart changed, one change a line, under when it was. */
-function Restart({ at, changes }: { at: string; changes: string[] }) {
+function Restart({ at, changes, lines }: { at: string; changes: string[]; lines: LineChange[] }) {
+  const shown = new Set(lines.map((l) => l.part));
   return (
     <div className="flex flex-col gap-5 pb-1">
       <Facts rows={[['When', new Date(at).toLocaleString()]]} />
-      <section className="flex flex-col gap-2">
+      <section className="flex flex-col gap-3">
         <h3 className="text-xs font-medium text-muted">What changed</h3>
+        {lines.map((l) => (
+          <div key={l.part} className="flex flex-col gap-1">
+            <div className="text-sm font-medium text-fg">{l.part}</div>
+            <pre className="overflow-x-auto rounded-md bg-hover/40 px-3 py-2 font-mono text-xs leading-5 whitespace-pre-wrap">
+              {l.removed.map((r, i) => (
+                <div key={`-${i}`} className="text-danger">
+                  − {r}
+                </div>
+              ))}
+              {l.added.map((a, i) => (
+                <div key={`+${i}`} className="text-success">
+                  + {a}
+                </div>
+              ))}
+              {!!l.more && <div className="text-muted">and {l.more} more lines</div>}
+            </pre>
+          </div>
+        ))}
+        {/* A change the daemon kept no lines for (a model, or an older daemon) stays a plain line. */}
         <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-fg">
-          {changes.map((c) => (
-            <li key={c}>{c}</li>
-          ))}
+          {changes
+            .filter((c) => !shown.has(c.replace(/ changed$/, '')))
+            .map((c) => (
+              <li key={c}>{c}</li>
+            ))}
         </ul>
       </section>
     </div>
