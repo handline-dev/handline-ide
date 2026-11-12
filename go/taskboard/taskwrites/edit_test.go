@@ -3,11 +3,14 @@ package taskwrites
 import (
 	"fmt"
 	"testing"
+
+	"github.com/handline/handline/go/data/team/teamtest"
 )
 
 func TestEditChangesATaskInOneTransactionAndLeavesTheTellingToTheTeller(t *testing.T) {
 	t.Parallel()
-	db, mk := discardEnv(t)
+	db, home, mk := discardEnvHome(t)
+	hand := teamtest.Key(t, home, "ops.hand")
 	exec(t, db,
 		"INSERT INTO tasks(id, title, owner, opened_by, created_at, priority) VALUES(1, 'old title', 'worker', 'crew.asker', 1, 2), (2, 'wait', 'other', 'manager', 1, 2)",
 		"INSERT INTO requests(id, requester, target, body, state, kind, queue_order, ts) VALUES(10, 'crew.asker', 'worker', 'the brief', 'queued', 'task', 10, 1)",
@@ -26,7 +29,7 @@ func TestEditChangesATaskInOneTransactionAndLeavesTheTellingToTheTeller(t *testi
 		line(7, `"blocked_by":2,`, "m5"),
 		line(8, `"blocked_by":2,"unblock":9,`, "m6"),
 		line(9, `"unblock":2,`, "m7"),
-		line(10, `"owner":"ops.hand",`, "m9"),
+		line(10, `"owner":"`+hand+`",`, "m9"),
 		line(11, `"owner":"other",`, "m8"))
 	if code(r[0]) != "bad_request" || code(r[3]) != "not_found" || code(r[4]) != "bad_request" || code(r[2]) != "refused" {
 		t.Fatalf("%v", r)
