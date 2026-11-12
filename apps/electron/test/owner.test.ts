@@ -14,6 +14,7 @@ import {
   daemonPath,
   markPathTimedOut,
   pathTimedOut,
+  KILL_WAIT_MS,
   RESTART_WINDOW_MS,
   STOP_LIMIT_MS,
   WATCH_MS,
@@ -34,10 +35,18 @@ interface World {
 
 function rig(
   w: World,
-  over: { appBuild?: string | null; gatewayStays?: boolean; neverUp?: boolean; doorUp?: () => Promise<boolean>; attachOnly?: boolean } = {},
+  over: {
+    appBuild?: string | null;
+    gatewayStays?: boolean;
+    neverUp?: boolean;
+    doorUp?: () => Promise<boolean>;
+    attachOnly?: boolean;
+    unkillable?: boolean;
+  } = {},
 ) {
   const spawned: Cmd[] = [];
   const stopped: number[] = [];
+  const killed: number[] = [];
   const clock = { now: 1_000_000 };
   const settle = () => {
     if (w.stoppedAt !== undefined && w.exitsAfter !== null && clock.now >= w.stoppedAt + w.exitsAfter) {
@@ -54,6 +63,10 @@ function rig(
       stopped.push(pid);
       w.stoppedAt = clock.now;
       w.answers = false; // a stopping daemon closes its socket first
+    },
+    killPid: (pid) => {
+      killed.push(pid);
+      if (!over.unkillable) Object.assign(w, { pid: null, answers: false, stoppedAt: undefined });
     },
     stopLeftovers: async () => {
       if (over.gatewayStays) throw new Error('the old gateway (pid 7) on /h/gateway.sock would not stop');
@@ -73,7 +86,7 @@ function rig(
     attachOnly: over.attachOnly,
     polls: 5,
   });
-  return { owner, spawned, stopped, clock, w };
+  return { owner, spawned, stopped, killed, clock, w };
 }
 
 /** Lets the watch loop run until cond holds (each turn is one WATCH_MS on the fake clock). */
@@ -104,7 +117,7 @@ test('a daemon of another build (the app was updated) is stopped and started aga
   assert.deepEqual(r.spawned, [DAEMON]);
 });
 
-test('a lock holder that does not answer within the stop limit is stopped and replaced; one that never exits fails with its pid', async () => {
+test('a lock holder that does not answer within the stop limit is stopped and replaced; one that will not stop is killed and replaced', async () => {
   const r = rig({ pid: 42, answers: false, build: null, exitsAfter: 1000 });
   await r.owner.start();
   r.owner.close();
@@ -115,9 +128,28 @@ test('a lock holder that does not answer within the stop limit is stopped and re
 
   const deaf = rig({ pid: 42, answers: false, build: null, exitsAfter: null });
   await deaf.owner.start();
-  assert.equal(deaf.owner.state, 'failed');
-  assert.match(deaf.owner.reason, /pid 42\) did not stop within 20s/);
-  assert.deepEqual(deaf.spawned, []);
+  deaf.owner.close();
+  assert.deepEqual(deaf.killed, [42]);
+  assert.deepEqual(deaf.spawned, [DAEMON]);
+  assert.equal(deaf.owner.state, 'running');
+
+  const stuck = rig({ pid: 42, answers: false, build: null, exitsAfter: null }, { unkillable: true });
+  await stuck.owner.start();
+  assert.equal(stuck.owner.state, 'failed');
+  assert.match(stuck.owner.reason, /pid 42\) did not stop, even when killed/);
+  assert.ok(stuck.clock.now - 1_000_000 >= 2 * STOP_LIMIT_MS + KILL_WAIT_MS);
+  assert.deepEqual(stuck.spawned, []);
+});
+
+test('a running daemon that holds its lock but stops answering is replaced after the stop limit, with no one asked', async () => {
+  const r = rig({ pid: 42, answers: true, build: 'aaaa111', exitsAfter: null });
+  await r.owner.start();
+  r.w.answers = false; // stuck: the lock is held, the socket is silent
+  await until(() => r.spawned.length === 1 && r.owner.state === 'running');
+  r.owner.close();
+  assert.deepEqual(r.stopped, [42]);
+  assert.deepEqual(r.killed, [42]);
+  assert.ok(r.clock.now - 1_000_000 >= STOP_LIMIT_MS);
 });
 
 test('with nothing running the daemon is started on its own: detached, nothing on its stdin, no stdin pipe flag', async () => {

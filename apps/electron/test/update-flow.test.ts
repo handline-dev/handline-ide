@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { REMIND_MS, UpdateFlow } from '#src/update-flow.ts';
+import { REMIND_MS, RETRY_MAX_MS, RETRY_MS, UpdateFlow } from '#src/update-flow.ts';
 
 test('preparing, ready, failed and idle each say so to the listeners, with the step and the reason', () => {
   const f = new UpdateFlow();
@@ -54,4 +54,27 @@ test('a put-off update is raised again only after a day', () => {
   assert.equal(f.remind(), true);
   assert.equal(f.view.phase, 'ready');
   assert.equal(f.remind(), false);
+});
+
+test('a failed update is tried again by itself after RETRY_MS; anything newer cancels that', () => {
+  const timers: { fn: () => void; ms: number; live: boolean }[] = [];
+  const f = new UpdateFlow(Date.now, (fn, ms) => {
+    const t = { fn, ms, live: true };
+    timers.push(t);
+    return () => (t.live = false);
+  });
+  let tries = 0;
+  f.failed('x', () => tries++);
+  assert.equal(timers[0]!.ms, RETRY_MS);
+  timers[0]!.fn();
+  assert.equal(tries, 1);
+  f.failed('x', () => tries++); // the retry failed too
+  assert.equal(timers[1]!.ms, 2 * RETRY_MS); // a second failure in a row waits twice as long
+  f.preparing('Building (1 of 3)', 0);
+  assert.equal(timers[1]!.live, false);
+  for (let i = 0; i < 5; i++) f.failed('x', () => tries++);
+  assert.equal(timers.at(-1)!.ms, RETRY_MAX_MS);
+  f.idle();
+  f.failed('x', () => tries++);
+  assert.equal(timers.at(-1)!.ms, RETRY_MS);
 });
