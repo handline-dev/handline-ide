@@ -103,21 +103,30 @@ func (e *Env) retired(c *rpc.Conn, ok bool, said string) (any, error) {
 	})
 }
 
-// refuseHeldWork refuses a retire the founder asked for while a worktree of the agent holds work and they gave no answer for it: the
+// refuseHeldWork refuses a retire the founder asked for while a worktree of the agents holds work and they gave no answer for it: the
 // app asks them there and then, and calls again with worktree (save or force; keep leaves the worktree, and so the agent). Nothing is
 // retired. gate dirty, with each worktree's path and what it holds.
-func (e *Env) refuseHeldWork(agent string) error {
-	held, err := worktreeprune.Holding(e.DB, agent)
-	if err != nil || len(held) == 0 {
-		return err
-	}
+func (e *Env) refuseHeldWork(agents ...string) error {
 	var list []any
 	var said []string
-	for _, h := range held {
-		list = append(list, map[string]any{"path": h.Path, "files_changed": h.Files, "commits_ahead": h.Commits})
-		said = append(said, fmt.Sprintf("%s (%d files changed, %d commits not on main)", h.Path, h.Files, h.Commits))
+	for _, agent := range agents {
+		held, err := worktreeprune.Holding(e.DB, agent)
+		if err != nil {
+			return err
+		}
+		for _, h := range held {
+			list = append(list, map[string]any{"path": h.Path, "files_changed": h.Files, "commits_ahead": h.Commits})
+			said = append(said, fmt.Sprintf("%s (%d files changed, %d commits not on main)", h.Path, h.Files, h.Commits))
+		}
 	}
-	r := rpc.Refused(agent+"'s worktrees hold work: "+strings.Join(said, "; ")+". Say save or force in worktree to delete it with them gone.", "dirty", "")
+	if len(list) == 0 {
+		return nil
+	}
+	who := agents[0] + "'s"
+	if len(agents) > 1 {
+		who = "The agents'"
+	}
+	r := rpc.Refused(who+" worktrees hold work: "+strings.Join(said, "; ")+". Say save or force in worktree to delete it with them gone.", "dirty", "")
 	r.Data["worktrees"] = list
 	return r
 }
