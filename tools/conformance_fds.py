@@ -54,48 +54,54 @@ LEAD = "c"  # its team's manager, who a done it files for review waits on
 STATES = ["running", "idle", "queued", "parked", "waiting", "stalled", "no_terminal"]
 
 
-def seed_states(home: Path, daemon: subprocess.Popen, fakes: bool) -> dict[str, str]:
-    """An agent per state word: its row and a stored view, which the daemon serves as it is. The schema is the daemon's,
-    so the views go in once it has made the database. Returns the --var for each."""
+def seed_states(home: Path, fakes: bool) -> dict[str, str]:
+    """An agent per state word: its row and a stored view, which the daemon serves as it is. The schema is the daemon's:
+    call it once wait_served answered. Returns the --var for each."""
     names = {w: f"s.{w}" for w in STATES}
     output_agent = "s.output"
     ask_agent = ASK_AGENT
     order = {"order_a": names["idle"], "order_b": names["running"], **ORDER}
     for n in [*names.values(), NEVER_STARTED, output_agent, ask_agent, DOING_AGENT, AGENT, LEAD, *RETIRE, *ORDER.values(), *TURNS]:
         agent_dir(home, n)
-    for _ in range(200):
-        try:
-            con = sqlite3.connect(home / "db.sqlite", timeout=5)
-            for w, n in [*names.items(), ("idle", NEVER_STARTED)]:
-                view = {"name": n, "role": "seeded by conformance_fds", "model": None, "effort": None, "state": w, "state_detail": "",
-                        "state_since": None, "block": None, "wall_reason": None, "background_since": None, "would_wake": False,
-                        "blocker": None, "account": None, "task": None, "cache_until": None, "has_dialog": w == "waiting",
-                        "parent": None, "needs_you": None}
-                con.execute("INSERT OR REPLACE INTO agent_view(agent, view, updated) VALUES(?, ?, 0)", (n, json.dumps(view)))
-            seed_doing(con)
-            seed_retro(con)
-            seed_tool_items(con, output_agent)
-            seed_session_start(con, output_agent)
-            seed_workroom(home, con)
-            seed_files(home, con)
-            seed_open_question(con, ask_agent)
-            typing = seed_typing_gates(home, con)
-            seed_agents(con, [*names.values(), *([] if fakes else [NEVER_STARTED]), output_agent, ask_agent, DOING_AGENT, AGENT, LEAD, *RETIRE, *ORDER.values(), *typing.values(), *TURNS,
-                              WORKROOM["create_parent"]], {"w": WORKROOM["create_repo"]})
-            keys = rekey(home, con)
-            con.commit()
-            con.close()
-            seeded = {**{f"state_{w}": n for w, n in names.items()}, "output_agent": output_agent, "session_agent": output_agent,
-                    "ask_agent": ask_agent, "never_started_agent": NEVER_STARTED, "triggers_agent": names["idle"], "doing_agent": DOING_AGENT, "view_plain_agent": names["idle"], "retire_agent": RETIRE[0],
-                    "retire_parent": RETIRE[1], "files_agent": FILES_AGENT, **WORKROOM, **typing, **order, "order_rename_to": "o.new",
-                    **{f"turn_{k}": n for k, n in zip("abc", TURNS)}}
-            # an agent's var is its key, as the daemon names it in what it answers; a name it has yet to take stays a name
-            return {k: v if k == "order_rename_to" else keys.get(v, v) for k, v in seeded.items()}
-        except sqlite3.Error:
-            if daemon.poll() is not None:
-                break
-            time.sleep(0.05)
-    raise RuntimeError("the daemon's database did not come up to seed")
+    con = sqlite3.connect(home / "db.sqlite", timeout=5)
+    for w, n in [*names.items(), ("idle", NEVER_STARTED)]:
+        view = {"name": n, "role": "seeded by conformance_fds", "model": None, "effort": None, "state": w, "state_detail": "",
+                "state_since": None, "block": None, "wall_reason": None, "background_since": None, "would_wake": False,
+                "blocker": None, "account": None, "task": None, "cache_until": None, "has_dialog": w == "waiting",
+                "parent": None, "needs_you": None}
+        con.execute("INSERT OR REPLACE INTO agent_view(agent, view, updated) VALUES(?, ?, 0)", (n, json.dumps(view)))
+    seed_doing(con)
+    seed_retro(con)
+    seed_tool_items(con, output_agent)
+    seed_session_start(con, output_agent)
+    seed_workroom(home, con)
+    seed_files(home, con)
+    seed_open_question(con, ask_agent)
+    typing = seed_typing_gates(home, con)
+    seed_agents(con, [*names.values(), *([] if fakes else [NEVER_STARTED]), output_agent, ask_agent, DOING_AGENT, AGENT, LEAD, *RETIRE, *ORDER.values(), *typing.values(), *TURNS,
+                      WORKROOM["create_parent"]], {"w": WORKROOM["create_repo"]})
+    keys = rekey(home, con)
+    con.commit()
+    con.close()
+    seeded = {**{f"state_{w}": n for w, n in names.items()}, "output_agent": output_agent, "session_agent": output_agent,
+            "ask_agent": ask_agent, "never_started_agent": NEVER_STARTED, "triggers_agent": names["idle"], "doing_agent": DOING_AGENT, "view_plain_agent": names["idle"], "retire_agent": RETIRE[0],
+            "retire_parent": RETIRE[1], "files_agent": FILES_AGENT, **WORKROOM, **typing, **order, "order_rename_to": "o.new",
+            **{f"turn_{k}": n for k, n in zip("abc", TURNS)}}
+    # an agent's var is its key, as the daemon names it in what it answers; a name it has yet to take stays a name
+    return {k: v if k == "order_rename_to" else keys.get(v, v) for k, v in seeded.items()}
+
+
+def wait_served(conn: socket.socket, daemon: subprocess.Popen) -> None:
+    """Block until the daemon answers a hello on conn: it serves its pairs only once it has opened and migrated the database."""
+    conn.sendall(json.dumps({"jsonrpc": "2.0", "id": 0, "method": "hello", "params": {"client": "conformance/seed", "protocol": 1}}).encode() + b"\n")
+    got = b""
+    while not got.endswith(b"\n"):
+        chunk = conn.recv(65536)
+        if not chunk:
+            daemon.wait(timeout=10)
+            raise RuntimeError("the daemon exited before it served:\n" + daemon.stderr.read().decode(errors="replace"))
+        got += chunk
+    conn.close()
 
 
 # What agent_create.json and worktree_status.json need: a repo (a git directory with a commit), an agent that works in it, and the
@@ -425,7 +431,8 @@ def main(argv: list[str]) -> int:
         local = taker(pairs)
         rc = 1
         try:
-            seeded = seed_states(home, daemon, fakes)
+            wait_served(local(), daemon)
+            seeded = seed_states(home, fakes)
             if fakes:
                 tick_settled(home)
                 seeded["never_started_agent"] = seed_never_started(home)
