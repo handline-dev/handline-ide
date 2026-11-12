@@ -505,16 +505,25 @@ func (m *Manager) ByID(id string) (Login, bool) {
 func (m *Manager) Close() {
 	m.mu.Lock()
 	m.closing = true
-	var live []*run
+	var live, started []*run
 	for _, r := range m.byID {
 		if r.active() {
 			live = append(live, r)
+		}
+		if r.pid > 0 {
+			started = append(started, r)
 		}
 	}
 	m.mu.Unlock()
 	for _, r := range live {
 		m.end(r, Cancelled, "")
 		m.kill(r)
+	}
+	for _, r := range started { // a killed login's exit handler still reads the account's files: wait it out
+		select {
+		case <-r.ended:
+		case <-time.After(5 * time.Second):
+		}
 	}
 }
 
