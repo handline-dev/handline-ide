@@ -81,7 +81,8 @@ type Manager struct {
 type run struct {
 	id, account string
 	state, url  string
-	reason      string // why it failed, once it has
+	reason      string   // why it failed, once it has
+	out, errs   lastLine // the last line the child printed on stdout, on stderr
 	cmd         *exec.Cmd
 	stdin       io.Writer     // the child's, kept open for the code and closed when the child is reaped
 	pid         int           // the child's, once started; it leads its own process group
@@ -212,11 +213,11 @@ func (m *Manager) launch(r *run) (<-chan string, error) {
 	go func() {
 		defer readers.Done()
 		defer close(urls)
-		firstURL(stdout, urls)
+		firstURL(io.TeeReader(stdout, &r.out), urls)
 	}()
 	go func() {
 		defer readers.Done()
-		_, _ = io.Copy(io.Discard, stderr)
+		_, _ = io.Copy(&r.errs, stderr)
 	}()
 	go func() {
 		readers.Wait() // the pipes must be read out before Wait closes them
@@ -267,7 +268,7 @@ func (m *Manager) exited(r *run, werr error) {
 		return
 	}
 	if werr != nil {
-		m.end(r, Failed, "the login command exited with an error")
+		m.end(r, Failed, failedWhy(r.errs.String(), r.out.String()))
 		return
 	}
 	if in, known := accts.LoginState(r.account); known && !in {
@@ -279,6 +280,65 @@ func (m *Manager) exited(r *run, werr error) {
 		return
 	}
 	m.end(r, Done, "")
+}
+
+// SubscriptionURL is where a person without a Claude subscription gets one.
+const SubscriptionURL = "https://claude.ai/upgrade"
+
+// failedWhy is why a login whose command exited with an error failed, from the last line it printed: stderr's, else stdout's unless that
+// is the login link. A subscription it names is the one thing a person can act on, so that is said with where to get one; any other
+// line is passed on.
+func failedWhy(errs, out string) string {
+	said := errs
+	if said == "" && !strings.Contains(out, "https://") {
+		said = out
+	}
+	switch {
+	case strings.Contains(strings.ToLower(said), "subscription"):
+		return "this needs a Claude Pro or Max subscription: get one at " + SubscriptionURL + ", then log in again"
+	case said != "":
+		return "the login command exited with an error: " + said
+	}
+	return "the login command exited with an error"
+}
+
+// lastLine keeps the last non-blank line written to it, printable and at most 300 characters.
+type lastLine struct {
+	mu        sync.Mutex
+	line, cur []byte
+}
+
+func (l *lastLine) Write(p []byte) (int, error) {
+	l.mu.Lock() // the reader writes while exited may read
+	defer l.mu.Unlock()
+	for _, b := range p {
+		if b != '\n' {
+			if len(l.cur) < 4096 {
+				l.cur = append(l.cur, b)
+			}
+			continue
+		}
+		l.keep()
+	}
+	return len(p), nil
+}
+
+func (l *lastLine) keep() {
+	if t := textsafe.Strip(textsafe.Oneline(string(l.cur))); t != "" {
+		if r := []rune(t); len(r) > 300 {
+			t = string(r[:300])
+		}
+		l.line = []byte(t)
+	}
+	l.cur = l.cur[:0]
+}
+
+// String is the last line, an unfinished one counted.
+func (l *lastLine) String() string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.keep()
+	return string(l.line)
 }
 
 // end settles the login in its final state unless it already has one, says so and logs it. reason is why it failed.
