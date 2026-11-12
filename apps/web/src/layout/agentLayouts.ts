@@ -59,7 +59,7 @@ export function useAgentLayouts() {
     if (how === 'restore' || json === last.current) return void (last.current = json);
     last.current = json;
     if (how === 'push') history.pushState({ nav }, '');
-    else history.replaceState({ nav }, '');
+    else history.replaceState({ ...(history.state as object | null), nav }, ''); // keeps an open modal's mark (ui/backCloses)
   }, [saved]);
   useEffect(() => {
     const back = (e: PopStateEvent) => {

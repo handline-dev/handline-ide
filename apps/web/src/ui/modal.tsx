@@ -1,14 +1,17 @@
 import { Dialog } from '@base-ui/react/dialog';
-import { X } from 'lucide-react';
+import { ArrowLeft, X } from 'lucide-react';
 import { useState, useSyncExternalStore, type ReactNode } from 'react';
 import { useWindowLayer } from '#src/layout/windowLayer.tsx';
 import { Button } from '#src/ui/Button.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { ScrollFade } from '#src/ui/ScrollFade.tsx';
+import { useBackCloses } from '#src/ui/backCloses.ts';
+import { useNarrow } from '#src/ui/narrow.ts';
 
 /** A modal is a full-screen layer: nothing under it moves the window. */
-function Layer({ open }: { open: boolean }) {
+function Layer({ open, onBack }: { open: boolean; onBack: () => void }) {
   useWindowLayer(open);
+  useBackCloses(open, onBack);
   return null;
 }
 
@@ -87,6 +90,7 @@ export function openModal<R>(render: (close: Close<R>) => ReactNode, options: Mo
 
 export function ModalHost() {
   const list = useSyncExternalStore(subscribe, () => entries);
+  const narrow = useNarrow();
   const top = [...list].reverse().find((e) => e.open)?.id;
   return list.map((e) => (
     <Dialog.Root
@@ -102,9 +106,10 @@ export function ModalHost() {
       }}
     >
       <Dialog.Portal>
-        <Layer open={e.open} />
+        {/* Back closes it as Esc would; one that must be answered stays. */}
+        <Layer open={e.open} onBack={() => (e.options.dismissible === false ? undefined : void close(e.id, undefined))} />
         <Dialog.Backdrop className="fixed inset-0 z-50 bg-fg/40 transition-opacity duration-150 data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />
-        <Dialog.Viewport className="fixed inset-0 z-50 flex items-center justify-center p-4">{e.node}</Dialog.Viewport>
+        <Dialog.Viewport className={`fixed inset-0 z-50 flex items-center justify-center ${narrow ? '' : 'p-4'}`}>{e.node}</Dialog.Viewport>
       </Dialog.Portal>
     </Dialog.Root>
   ));
@@ -129,6 +134,28 @@ export function ModalFrame({
   footer?: ReactNode;
   children?: ReactNode;
 }) {
+  // On a phone-sized window every modal fills it.
+  if (useNarrow())
+    return (
+      <Dialog.Popup className="flex size-full flex-col bg-bg text-fg outline-none transition-opacity duration-150 data-[ending-style]:opacity-0 data-[starting-style]:opacity-0">
+        <div className="flex items-center gap-2 border-b border-border px-3 py-2.5">
+          {onClose ? (
+            <IconButton label={modalText.close} onClick={onClose}>
+              <ArrowLeft size={16} />
+            </IconButton>
+          ) : (
+            <span className="size-7" />
+          )}
+          <Dialog.Title className="min-w-0 flex-1 truncate text-center text-sm font-semibold">{title}</Dialog.Title>
+          <span className="size-7" />
+        </div>
+        <ScrollFade className="scrollbar-auto min-h-0 flex-1 px-4 pt-3 pb-4 text-sm">
+          {description && <Dialog.Description className="pb-3 text-sm text-muted">{description}</Dialog.Description>}
+          {children}
+        </ScrollFade>
+        {footer && <div className="flex gap-2 border-t border-border p-4 [&>*]:flex-1 [&>*]:justify-center">{footer}</div>}
+      </Dialog.Popup>
+    );
   return (
     <Dialog.Popup
       className={`flex max-h-full w-full flex-col rounded-md border border-border bg-bg text-fg shadow-popover outline-none transition duration-150 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0 ${widths[size]}`}
