@@ -60,6 +60,7 @@ func (p *Parts) Lifecycle(cfg Config, lc LifecycleConfig) *Lifecycle {
 	uenv := &usage.Env{Home: home, Now: func() float64 { return float64(nowOf(cfg.Now)().UnixNano()) / 1e9 }}
 	accounts := team.Accounts{Home: home}
 	routing := func() *team.Team { t, _ := team.LoadTeam(home); return t }
+	keptRules := &team.KeptBlocks{Q: q}
 	kept, errs := team.MigratePeerRules(home)
 	for _, f := range kept {
 		cfg.Log("  team rules: %s keeps the old reports wording its team changed", f)
@@ -101,7 +102,7 @@ func (p *Parts) Lifecycle(cfg Config, lc LifecycleConfig) *Lifecycle {
 			if err := team.SeedRules(home, t); err != nil {
 				cfg.Log("  team rules: not seeded: %v", err)
 			}
-			return team.Rules(home, agent, t)
+			return team.Rules(home, agent, t, keptRules.Block)
 		},
 		Routing:     routing,
 		McpApproved: team.NewTrust(home).MCPApproved,

@@ -727,7 +727,7 @@ func TestAnAgentIsToldItsTeamFromTheRoster(t *testing.T) {
 		if err := team.SeedRules(home, tm); err != nil {
 			t.Fatal(err)
 		}
-		return team.Rules(home, agent, tm)
+		return team.Rules(home, agent, tm, func(string) string { return "" })
 	}
 	context := func(agent string) string {
 		text, err := r.l.ContextFor(agent)

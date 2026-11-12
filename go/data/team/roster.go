@@ -549,6 +549,9 @@ func (r *Roster) Remove(name string) error {
 			return err
 		}
 		if others == 0 {
+			if err := ClearRules(q, at.ws); err != nil {
+				return err
+			}
 			_, err = q.Exec("DELETE FROM workspaces WHERE id = ?", at.ws)
 		}
 		return err

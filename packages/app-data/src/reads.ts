@@ -50,6 +50,8 @@ export const NOT_QUERIES = [
   'lease.release',
   'lease.extend',
   'lease.get',
+  // The kept rules of a workspace: no screen draws them until the rules screen (after T8963-T8966).
+  'workspace.rules',
   // `hl launch` asks the daemon for the command it becomes; not a read of state, and no screen calls it.
   'session.launch_prepare',
 ] as const;
