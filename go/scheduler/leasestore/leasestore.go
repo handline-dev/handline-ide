@@ -4,8 +4,10 @@ package leasestore
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 
+	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/scheduler/leases"
 )
@@ -80,4 +82,37 @@ func (s Store) WorkspaceOf(agent string) string {
 		return ""
 	}
 	return actor.Key(actor.Workspace, ws)
+}
+
+// WorkspaceMax is the kept rule lease_max.<kind> by workspace key, and the machine's, in one read.
+func (s Store) WorkspaceMax(kind string) (leases.WorkspaceLimits, error) {
+	out := leases.WorkspaceLimits{Own: map[string]leases.Limit{}}
+	key := team.RuleLeaseMax + kind
+	rows, err := s.DB.Query("SELECT workspace, value, set_by FROM workspace_settings WHERE key = ?", key)
+	if err != nil {
+		return out, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var ws int64
+		var raw, by string
+		if err := rows.Scan(&ws, &raw, &by); err != nil {
+			return out, err
+		}
+		var v any
+		if json.Unmarshal([]byte(raw), &v) != nil {
+			continue
+		}
+		n, err := team.ParseRule(key, v)
+		if err != nil {
+			continue // a value this build does not know
+		}
+		l := leases.Limit{N: int(n.(int64)), SetBy: by}
+		if ws == team.MachineRules {
+			out.Machine = l
+		} else {
+			out.Own[actor.Key(actor.Workspace, ws)] = l
+		}
+	}
+	return out, rows.Err()
 }
