@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { agentNameOf, factCards } from '#src/firstrun/FirstRun.tsx';
+import { agentNameOf, factCards } from '#src/onboarding/firstTask.ts';
 
 describe('agentNameOf', () => {
   it('names the agent for its folder', () => {
