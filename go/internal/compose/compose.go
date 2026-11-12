@@ -25,7 +25,8 @@ type Config struct {
 	DB   *sql.DB
 	Home string
 	Log  func(format string, args ...any)
-	Now  func() time.Time
+	// Now is the clock the parts decide by; nil is the wall clock. Rows are stamped by db.Now, which a test sets to the same clock.
+	Now func() time.Time
 	// CLI is the claude binary the usage poll and the plan reads run.
 	CLI string
 	// Env are NAME=value pairs set on every claude the daemon runs.

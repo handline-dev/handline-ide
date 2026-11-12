@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"math"
 	"strings"
-	"time"
 
+	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/store"
@@ -131,7 +131,7 @@ func SetAccount(q actor.Q, name string, set map[string]any) error {
 	all := append([]string{"name", "owner", "created_at"}, cols...)
 	marks := strings.TrimSuffix(strings.Repeat("?, ", len(all)), ", ")
 	_, err = q.Exec("INSERT INTO accounts("+strings.Join(all, ", ")+") VALUES("+marks+") ON CONFLICT(name) DO "+update,
-		append([]any{name, owner, time.Now().Unix()}, vals...)...)
+		append([]any{name, owner, db.Now()}, vals...)...)
 	return err
 }
 

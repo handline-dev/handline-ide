@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/handline/handline/go/kit/atomicfile"
 	"github.com/handline/handline/go/kit/paths"
@@ -208,9 +207,9 @@ func sessionOnFile(path string) string {
 }
 
 // CollectSnapshot pulls agent's snapshot and writes it to its status file; false when there was none to write. A named session that has
-// no transcript yet (a new one, before its first write) gets a snapshot with no context in place of the last session's reading.
-func CollectSnapshot(home, agent, cwd, sessionID string) bool {
-	now := time.Now().Unix()
+// no transcript yet (a new one, before its first write) gets a snapshot with no context in place of the last session's reading. now is
+// unix seconds.
+func CollectSnapshot(home, agent, cwd, sessionID string, now int64) bool {
 	snap := PullSnapshot(home, agent, cwd, sessionID, now)
 	p := paths.AgentStatusFile(home, agent)
 	if snap == nil {
