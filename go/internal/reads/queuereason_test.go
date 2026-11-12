@@ -15,6 +15,12 @@ type fakeDelivery struct {
 	forgotten int64
 	// wakeWait is the walled-wake sentence by agent.
 	wakeWait map[string]string
+	// background is the agents whose session runs background work.
+	background map[string]bool
+}
+
+func (f fakeDelivery) HasBackgroundWork(_ db.Q, agent string) (bool, error) {
+	return f.background[agent], nil
 }
 
 func (f fakeDelivery) WakeWaitReason(_ db.Q, agent string, _ *db.AgentState) (string, error) {

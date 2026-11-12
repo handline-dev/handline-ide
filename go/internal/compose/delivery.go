@@ -27,6 +27,14 @@ func (d queueReasons) WallReason(q db.Q, agent string, row *db.AgentState) (stri
 	return d.p.LC.Env.WallReason(q, agent, row)
 }
 
+// HasBackgroundWork is whether the agent's session, its turn over, still runs background work: the supervisor's own answer.
+func (d queueReasons) HasBackgroundWork(q db.Q, agent string) (bool, error) {
+	if d.p.LC == nil {
+		return false, nil
+	}
+	return d.p.LC.Env.HasBackgroundWork(q, agent)
+}
+
 // ClosedWakeCause is what the next tick wakes a closed agent for: the lifecycle's one list.
 func (d queueReasons) ClosedWakeCause(agent string, row *db.AgentState) (string, error) {
 	if d.p.LC == nil {
