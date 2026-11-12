@@ -3464,8 +3464,8 @@
     "long_trusted": 30,
     "model_id": null,
     "rolled_over": [
-     true,
-     "window rolled over, 7d 30%"
+     false,
+     ""
     ],
     "runway_burn": "",
     "runway_none": "",
@@ -3490,8 +3490,8 @@
     "stale": false,
     "sub_end": null,
     "takes_work": [
-     true,
-     "window rolled over, 7d 30%"
+     false,
+     "5h usage unknown (fail-closed)"
     ],
     "trusted_ctx_pct": null,
     "trusted_ctx_used": null,
@@ -3704,8 +3704,8 @@
     "long_trusted": 29,
     "model_id": null,
     "rolled_over": [
-     true,
-     "window rolled over, 7d 29%"
+     false,
+     ""
     ],
     "runway_burn": "",
     "runway_none": "",
@@ -3730,8 +3730,8 @@
     "stale": false,
     "sub_end": null,
     "takes_work": [
-     true,
-     "window rolled over, 7d 29%"
+     false,
+     "5h usage unknown (fail-closed)"
     ],
     "trusted_ctx_pct": null,
     "trusted_ctx_used": null,
@@ -7566,8 +7566,8 @@
     "long_trusted": null,
     "model_id": null,
     "rolled_over": [
-     true,
-     "window rolled over, ? unknown"
+     false,
+     ""
     ],
     "runway_burn": "",
     "runway_none": "",
@@ -7592,8 +7592,8 @@
     "stale": false,
     "sub_end": null,
     "takes_work": [
-     true,
-     "window rolled over, ? unknown"
+     false,
+     "5h usage unknown (fail-closed)"
     ],
     "trusted_ctx_pct": null,
     "trusted_ctx_used": null,
@@ -9563,8 +9563,8 @@
     "long_trusted": null,
     "model_id": null,
     "rolled_over": [
-     true,
-     "5h 69% (14m old, reset since) - window rolled over"
+     false,
+     ""
     ],
     "runway_burn": "",
     "runway_none": "",
@@ -9589,8 +9589,8 @@
     "stale": false,
     "sub_end": 1800057600.0,
     "takes_work": [
-     true,
-     "5h 69% (14m old, reset since) - window rolled over"
+     false,
+     "5h usage unknown (fail-closed)"
     ],
     "trusted_ctx_pct": null,
     "trusted_ctx_used": null,
@@ -15494,8 +15494,8 @@
     "long_trusted": 1,
     "model_id": null,
     "rolled_over": [
-     true,
-     "5h 100% (14m old, reset since), 7d 1% - window rolled over"
+     false,
+     ""
     ],
     "runway_burn": "",
     "runway_none": "",
@@ -15520,8 +15520,8 @@
     "stale": false,
     "sub_end": 1800057600.0,
     "takes_work": [
-     true,
-     "5h 100% (14m old, reset since), 7d 1% - window rolled over"
+     false,
+     "5h usage unknown (fail-closed)"
     ],
     "trusted_ctx_pct": null,
     "trusted_ctx_used": null,
@@ -22002,8 +22002,8 @@
     "long_trusted": null,
     "model_id": null,
     "rolled_over": [
-     true,
-     "5h 70% (14m old, reset since), 7d 0% (reset since) - window rolled over"
+     false,
+     ""
     ],
     "runway_burn": "",
     "runway_none": "",
@@ -22028,8 +22028,8 @@
     "stale": false,
     "sub_end": null,
     "takes_work": [
-     true,
-     "5h 70% (14m old, reset since), 7d 0% (reset since) - window rolled over"
+     false,
+     "5h usage unknown (fail-closed)"
     ],
     "trusted_ctx_pct": null,
     "trusted_ctx_used": null,
@@ -31042,8 +31042,8 @@
     "long_trusted": 29,
     "model_id": null,
     "rolled_over": [
-     true,
-     "5h 100% (0s old, reset since), 7d 29% - window rolled over"
+     false,
+     ""
     ],
     "runway_burn": "",
     "runway_none": "",
@@ -31068,8 +31068,8 @@
     "stale": false,
     "sub_end": null,
     "takes_work": [
-     true,
-     "5h 100% (0s old, reset since), 7d 29% - window rolled over"
+     false,
+     "5h usage unknown (fail-closed)"
     ],
     "trusted_ctx_pct": 10,
     "trusted_ctx_used": 5000,
@@ -34458,8 +34458,8 @@
     "long_trusted": 71,
     "model_id": null,
     "rolled_over": [
-     true,
-     "5h 90% (14m old, reset since), 7d 71% - window rolled over"
+     false,
+     ""
     ],
     "runway_burn": "",
     "runway_none": "",
@@ -34484,8 +34484,8 @@
     "stale": false,
     "sub_end": null,
     "takes_work": [
-     true,
-     "5h 90% (14m old, reset since), 7d 71% - window rolled over"
+     false,
+     "5h usage unknown (fail-closed)"
     ],
     "trusted_ctx_pct": 92,
     "trusted_ctx_used": null,
@@ -37772,8 +37772,8 @@
     "long_trusted": null,
     "model_id": null,
     "rolled_over": [
-     true,
-     "window rolled over, ? unknown"
+     false,
+     ""
     ],
     "runway_burn": "",
     "runway_none": "",
@@ -37798,8 +37798,8 @@
     "stale": false,
     "sub_end": null,
     "takes_work": [
-     true,
-     "window rolled over, ? unknown"
+     false,
+     "5h usage unknown (fail-closed)"
     ],
     "trusted_ctx_pct": 92,
     "trusted_ctx_used": 5000,
@@ -39039,8 +39039,8 @@
     "long_trusted": null,
     "model_id": null,
     "rolled_over": [
-     true,
-     "5h 101% (10s old, reset since) - window rolled over"
+     false,
+     ""
     ],
     "runway_burn": "",
     "runway_none": "",
@@ -39065,8 +39065,8 @@
     "stale": false,
     "sub_end": null,
     "takes_work": [
-     true,
-     "5h 101% (10s old, reset since) - window rolled over"
+     false,
+     "5h usage unknown (fail-closed)"
     ],
     "trusted_ctx_pct": null,
     "trusted_ctx_used": null,
@@ -40409,8 +40409,8 @@
     "long_trusted": null,
     "model_id": null,
     "rolled_over": [
-     true,
-     "5h 101% (0s old, reset since), 7d 30% (reset since) - window rolled over"
+     false,
+     ""
     ],
     "runway_burn": "",
     "runway_none": "",
@@ -40435,8 +40435,8 @@
     "stale": false,
     "sub_end": null,
     "takes_work": [
-     true,
-     "5h 101% (0s old, reset since), 7d 30% (reset since) - window rolled over"
+     false,
+     "5h usage unknown (fail-closed)"
     ],
     "trusted_ctx_pct": null,
     "trusted_ctx_used": null,
@@ -50437,8 +50437,8 @@
     "long_trusted": 29,
     "model_id": null,
     "rolled_over": [
-     true,
-     "window rolled over, 7d 29%"
+     false,
+     ""
     ],
     "runway_burn": "",
     "runway_none": "",
@@ -50463,8 +50463,8 @@
     "stale": false,
     "sub_end": null,
     "takes_work": [
-     true,
-     "window rolled over, 7d 29%"
+     false,
+     "5h usage unknown (fail-closed)"
     ],
     "trusted_ctx_pct": null,
     "trusted_ctx_used": null,
@@ -50965,8 +50965,8 @@
     "long_trusted": 71,
     "model_id": null,
     "rolled_over": [
-     true,
-     "window rolled over, 7d 71%"
+     false,
+     ""
     ],
     "runway_burn": "",
     "runway_none": "",
@@ -50991,8 +50991,8 @@
     "stale": false,
     "sub_end": null,
     "takes_work": [
-     true,
-     "window rolled over, 7d 71%"
+     false,
+     "5h usage unknown (fail-closed)"
     ],
     "trusted_ctx_pct": null,
     "trusted_ctx_used": null,
@@ -59701,7 +59701,7 @@
     "reasons": [
      [
       "a",
-      "window rolled over, 7d 5% <- picked"
+      "5h 0%, fill 0.8%/min, 2/3 agents, one more agent (0.75%/min) lasts ~1h04m; 7d 5% (resets in 1d1h, 0.06x its weekly pace) <- picked"
      ],
      [
       "b",
@@ -60510,7 +60510,7 @@
      ],
      [
       "b",
-      "window rolled over, 7d 5% <- picked"
+      "5h 0%, fill 0.0%/min, 1/2 agents, one more agent (0.75%/min) lasts ~2h13m; 7d 5% (resets in 4d15h, 0.15x its weekly pace) <- picked"
      ]
     ]
    },
