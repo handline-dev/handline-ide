@@ -185,7 +185,7 @@ func (r *Roster) set(q db.Q, at row, set []yamlcompat.Pair) error {
 				}
 				folder = top
 			}
-			if folder == at.folder || (at.folder != "" && folder == toplevelOr(at.folder)) {
+			if folder == at.folder || (at.folder != "" && real(folder) == real(at.folder)) {
 				continue
 			}
 			if !at.lead && at.folder != "" {

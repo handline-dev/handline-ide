@@ -115,7 +115,7 @@ func TestCreateWhoseStartFailsIsRefusedAndLeavesTheAgentRegistered(t *testing.T)
 func TestCreateAnswersOnceStartedAndAtTheLimitSaysItGoesOn(t *testing.T) {
 	r, _, c := createRig(t)
 	r.ctl.hold = make(chan struct{})
-	r.e.Wait = 50 * time.Millisecond
+	r.e.Wait = time.Second // past registering, which asks git for the folder's checkout
 	m := c.call("agent.create", map[string]any{"name": "slow", "role": "worker", "repo": checkout(t), "request_id": rid("c3")})
 	e, _ := m["error"].(map[string]any)
 	d, _ := e["data"].(map[string]any)
