@@ -142,6 +142,7 @@ export const useWorkspaceSet = (target?: string) => useWrite("workspace.set", ta
 export const useWorkspaceDelete = (target?: string) => useWrite("workspace.delete", target);
 export const useProposalDecide = (target?: string) => useWrite("proposal.decide", target);
 export const useProposalApplyNow = (target?: string) => useWrite("proposal.apply_now", target);
+export const useProposalStop = (target?: string) => useWrite("proposal.stop", target);
 export const useScheduleAdd = (target?: string) => useWrite("schedule.add", target);
 export const useScheduleEdit = (target?: string) => useWrite("schedule.edit", target);
 export const useScheduleRemove = (target?: string) => useWrite("schedule.remove", target);
