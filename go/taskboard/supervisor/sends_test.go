@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/data/db"
-	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/kit/actor"
 )
 
@@ -38,16 +37,6 @@ func TestSayVerbQueuesAndTypesAtOnce(t *testing.T) {
 	}
 	if out := r.say(SayVerbIn{Target: r.k(("bob")), Body: "x"}); out.OK || r.named(out.Msg) != noWho {
 		t.Fatalf("%+v", out)
-	}
-}
-
-func TestSayToAReportWithoutATaskIsRefusedWithTheTaskThatWouldReachIt(t *testing.T) {
-	r := newRig(t)
-	teamtest.Set(t, r.home, "bob", "reports_to", "alice")
-	out := r.say(SayVerbIn{Requester: r.k(("alice")), Target: r.k(("bob")), Body: "fix the bug"})
-	want := "work cannot reach a report by message: make it a task, or comment on the task it has. Try:\n  hl task new --assign bob -t 2h '<title>' 'fix the bug'\n  hl task comment T<n> add '@bob fix the bug'"
-	if out.OK || r.named(out.Msg) != want {
-		t.Fatalf("%q", out.Msg)
 	}
 }
 

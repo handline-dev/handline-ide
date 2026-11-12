@@ -22,10 +22,10 @@ func TestCreateMakesTheWorkspaceItsLeadAndItsRules(t *testing.T) {
 		t.Fatal(err)
 	}
 	d, _ := store.Shared(paths.DBFile(home))
-	var folder, lead, reports string
-	d.QueryRow("SELECT w.folder, a.name, a.reports_to FROM workspaces w JOIN agents a ON a.id = w.lead WHERE w.name = 'shop'").Scan(&folder, &lead, &reports)
-	if folder != repo || lead != names.Lead || reports != "p1" {
-		t.Fatalf("at %s, led by %s reporting to %s", folder, lead, reports)
+	var folder, lead string
+	d.QueryRow("SELECT w.folder, a.name FROM workspaces w JOIN agents a ON a.id = w.lead WHERE w.name = 'shop'").Scan(&folder, &lead)
+	if folder != repo || lead != names.Lead {
+		t.Fatalf("at %s, led by %s", folder, lead)
 	}
 	dir := paths.WorkspaceDir(home, key)
 	if b, err := os.ReadFile(filepath.Join(dir, "base.md")); err != nil || string(b) != DefaultRules {

@@ -24,7 +24,6 @@ func TestQueueAndDraftAreAllOrNone(t *testing.T) {
 	defer db.Close()
 	home := t.TempDir()
 	teamtest.Seed(t, home, "worker", "manager", "other")
-	teamtest.Set(t, home, "worker", "reports_to", "manager")
 	for _, q := range []string{
 		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'a', 'worker', 'manager', 1), (2, 'b', 'worker', 'manager', 1), (3, 'c', 'worker', 'manager', 1)",
 		"UPDATE tasks SET done_evidence = 'x', done_at = 2 WHERE id = 3",

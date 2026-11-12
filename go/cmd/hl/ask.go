@@ -340,11 +340,7 @@ func teamCmd(c *hlclient.Client, args []string) (int, bool) {
 			me = str(a, "name")
 			continue
 		}
-		rel := "peer"
-		if self != "" && str(byKey[self], "reports_to") == k {
-			rel = "contact"
-		}
-		rows = append(rows, row{str(a, "name"), rel, doing(k, lines[k])})
+		rows = append(rows, row{str(a, "name"), "peer", doing(k, lines[k])})
 		names = append(names, str(a, "name"))
 	}
 	w := nameCol(names)

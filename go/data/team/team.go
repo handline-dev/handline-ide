@@ -2,7 +2,6 @@ package team
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/handline/handline/go/data/db"
@@ -57,13 +56,12 @@ type Decision struct {
 type Member struct {
 	Key, Workspace, Name string
 	Lead                 bool
-	ReportsTo            string // the key of the agent it reports to; "" when it reports to a person or to no one
 	Role                 string
 }
 
 // Team is the workspaces and their agents, read from the rows.
 type Team struct {
-	Agents        map[string]Member   // by key (by old name in a FromNames team)
+	Agents        map[string]Member   // by key
 	Teams         map[string][]string // workspace name -> its agents, oldest first
 	leads         map[string]string   // workspace name -> its lead
 	order         []string            // every agent, oldest first
@@ -84,7 +82,7 @@ func LoadTeam(home string) (*Team, error) {
 
 // ReadTeam reads the workspaces and agents tables.
 func ReadTeam(q db.Q) (*Team, error) {
-	rows, err := q.Query(`SELECT a.id, a.name, w.name, COALESCE(w.lead = a.id, 0), COALESCE(a.reports_to, ''), a.role
+	rows, err := q.Query(`SELECT a.id, a.name, w.name, COALESCE(w.lead = a.id, 0), a.role
 		FROM agents a JOIN workspaces w ON w.id = a.workspace ORDER BY a.id`)
 	if err != nil {
 		return nil, err
@@ -94,13 +92,10 @@ func ReadTeam(q db.Q) (*Team, error) {
 	for rows.Next() {
 		var id int64
 		var m Member
-		if err := rows.Scan(&id, &m.Name, &m.Workspace, &m.Lead, &m.ReportsTo, &m.Role); err != nil {
+		if err := rows.Scan(&id, &m.Name, &m.Workspace, &m.Lead, &m.Role); err != nil {
 			return nil, err
 		}
 		m.Key = actor.Key(actor.Agent, id)
-		if actor.IsPerson(m.ReportsTo) {
-			m.ReportsTo = ""
-		}
 		n := m.Key
 		t.Agents[n] = m
 		t.Teams[m.Workspace] = append(t.Teams[m.Workspace], n)
@@ -124,57 +119,12 @@ func (t *Team) Known(agent string) bool {
 	return ok || agent == actor.OwnerKey
 }
 
-// Managers is workspace name -> its lead.
-func (t *Team) Managers() map[string]string {
-	out := make(map[string]string, len(t.leads))
-	for ws, n := range t.leads {
-		out[ws] = n
-	}
-	return out
-}
-
-// ManagerOf is the lead of agent's workspace, or "" when it is in none or is that lead itself.
-func (t *Team) ManagerOf(agent string) string {
-	if lead := t.leads[t.TeamOf(agent)]; lead != agent {
-		return lead
-	}
-	return ""
-}
-
-// SupervisorOf is the agent this one reports to: the one its row names, else its workspace's lead; "" for a lead that reports to a
-// person.
-func (t *Team) SupervisorOf(agent string) string {
-	if t == nil {
-		return ""
-	}
-	if m := t.Agents[agent]; m.ReportsTo != "" {
-		return m.ReportsTo
-	}
-	return t.ManagerOf(agent)
-}
-
-// LeadOf is who agent answers to; "" for none.
-func (t *Team) LeadOf(agent string) string { return t.SupervisorOf(agent) }
-
 // ContactOf is the contact of workspace ws, its lead: work from another workspace comes to it. "" when ws has none.
 func (t *Team) ContactOf(ws string) string {
 	if t == nil {
 		return ""
 	}
 	return t.leads[ws]
-}
-
-// AuditorOf is the agent named auditor in agent's workspace; "" when it has none.
-func (t *Team) AuditorOf(agent string) string {
-	if t == nil {
-		return ""
-	}
-	for _, a := range t.Teams[t.TeamOf(agent)] {
-		if a != agent && t.Agents[a].Name == "auditor" {
-			return a
-		}
-	}
-	return ""
 }
 
 // Task roles (agents.role): a check agent's tasks gate other work (audits, landings); every other agent does work.
@@ -215,25 +165,4 @@ func (t *Team) Route(requester, target string, chainDepth int) Decision {
 		return allow(target + " leads workspace " + to.Workspace)
 	}
 	return Decision{Reason: fmt.Sprintf("denied: %s is in another workspace (%s): send it to that workspace, whose lead hands it on", target, to.Workspace)}
-}
-
-// FromNames is the Team of agents known only by their old names and whom each reports to (an agent's old name, "" for a person), as
-// team.get gives them to hl, which does not open the database.
-func FromNames(parents map[string]string) *Team {
-	t := &Team{Agents: map[string]Member{}, Teams: map[string][]string{}, leads: map[string]string{}, MaxChainDepth: DefaultMaxChainDepth}
-	for n, parent := range parents {
-		ws, agent := SplitLegacy(n)
-		m := Member{Workspace: ws, Name: agent, Lead: agent == "", ReportsTo: parent}
-		t.Agents[n] = m
-		t.Teams[ws] = append(t.Teams[ws], n)
-		t.order = append(t.order, n)
-		if m.Lead {
-			t.leads[ws] = n
-		}
-	}
-	sort.Strings(t.order)
-	for ws := range t.Teams {
-		sort.Strings(t.Teams[ws])
-	}
-	return t
 }

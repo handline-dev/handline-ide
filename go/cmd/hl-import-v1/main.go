@@ -253,21 +253,12 @@ func (im *importer) agents() error {
 			}
 		}
 	}
-	for _, a := range olds { // after every row is there, so a parent of any order has its key
-		reportsTo := im.owner
-		if k, ok := im.keys[team.ParentName(a.name)]; ok {
-			reportsTo = k
-		}
-		if _, err := im.tx.Exec("UPDATE agents SET reports_to = ? WHERE id = ?", reportsTo, idOf(im.keys[a.name])); err != nil {
-			return err
-		}
-	}
 	return nil
 }
 
 // settings writes each agent.yaml key that is an agents column; the rest are said in the report.
 func (im *importer) settings(id int64, a oldAgent, cols []string) error {
-	fixed := []string{"id", "workspace", "name", "owner", "reports_to", "role", "created_at"}
+	fixed := []string{"id", "workspace", "name", "owner", "role", "created_at"}
 	keys := make([]string, 0, len(a.cfg))
 	for k := range a.cfg {
 		keys = append(keys, k)

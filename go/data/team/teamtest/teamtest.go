@@ -4,7 +4,6 @@ package teamtest
 
 import (
 	"database/sql"
-	"fmt"
 	"os"
 	"sort"
 	"strings"
@@ -77,12 +76,8 @@ func add(d *sql.DB, legacy string) error {
 		}
 		agent = "lead"
 	}
-	reportsTo := "p1"
-	if !isLead && lead.Valid {
-		reportsTo = fmt.Sprintf("a%d", lead.Int64)
-	}
-	res, err := d.Exec("INSERT OR IGNORE INTO agents(workspace, name, owner, reports_to, model, effort, weight, created_at) VALUES(?, ?, 'p1', ?, 'sonnet', 'medium', 'light', 0)",
-		wsID, agent, reportsTo)
+	res, err := d.Exec("INSERT OR IGNORE INTO agents(workspace, name, owner, model, effort, weight, created_at) VALUES(?, ?, 'p1', 'sonnet', 'medium', 'light', 0)",
+		wsID, agent)
 	if err != nil {
 		return err
 	}
@@ -94,7 +89,7 @@ func add(d *sql.DB, legacy string) error {
 }
 
 // Set seeds agent (when it is not there yet) and sets its settings, given as key, value pairs of agents columns: repo is its
-// workspace's folder, role its task role, reports_to the old name of the agent it reports to; a nil value is the default.
+// workspace's folder, role its task role; a nil value is the default.
 func Set(t testing.TB, home, agent string, kv ...any) {
 	t.Helper()
 	d := Seed(t, home, agent)
@@ -117,18 +112,6 @@ func Set(t testing.TB, home, agent string, kv ...any) {
 		switch k {
 		case "repo":
 			_, err = d.Exec("UPDATE workspaces SET folder = ? WHERE name = ?", v, ws)
-		case "reports_to":
-			if v == nil {
-				_, err = d.Exec("UPDATE agents SET reports_to = NULL WHERE "+where, args...)
-				break
-			}
-			boss, bossAgent := team.SplitLegacy(v.(string))
-			q := "(SELECT a.id FROM agents a JOIN workspaces w ON w.id = a.workspace WHERE w.name = ? AND a.name = ?)"
-			bossArgs := []any{boss, bossAgent}
-			if bossAgent == "" {
-				q, bossArgs = "(SELECT lead FROM workspaces WHERE name = ?)", []any{boss}
-			}
-			_, err = d.Exec("UPDATE agents SET reports_to = 'a' || "+q+" WHERE "+where, append(bossArgs, args...)...)
 		default:
 			_, err = d.Exec("UPDATE agents SET "+k+" = ? WHERE "+where, append([]any{v}, args...)...)
 		}

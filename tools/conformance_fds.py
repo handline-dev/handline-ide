@@ -223,9 +223,7 @@ def seed_agents(con: sqlite3.Connection, names: list[str], folders: dict[str, st
         ws_id, lead = con.execute("SELECT id, lead FROM workspaces WHERE name = ?", (ws,)).fetchone()
         if not agent and lead:
             continue
-        reports_to = f"a{lead}" if agent and lead else "p1"
-        cur = con.execute("INSERT INTO agents(workspace, name, owner, reports_to, created_at) VALUES(?, ?, 'p1', ?, 0)",
-                          (ws_id, agent or "lead", reports_to))
+        cur = con.execute("INSERT INTO agents(workspace, name, owner, created_at) VALUES(?, ?, 'p1', 0)", (ws_id, agent or "lead"))
         if not agent:
             con.execute("UPDATE workspaces SET lead = ? WHERE id = ?", (cur.lastrowid, ws_id))
 
