@@ -39,3 +39,33 @@ func sameJSON(a, b string) bool {
 	y1, _ := json.Marshal(y)
 	return string(x1) == string(y1)
 }
+
+func TestWorkspaceRulesListsTheRulesInForceAndWhereEachComesFrom(t *testing.T) {
+	t.Parallel()
+	e := testEnv(t)
+	run(t, e, "INSERT INTO workspaces(id, name, folder, created_at) VALUES(5, 'shop', '', 0)")
+	run(t, e, `INSERT INTO workspace_settings(workspace, key, value, set_by, set_at) VALUES(0, 'agent_cap', '3', 'p1', 1), `+
+		`(0, 'tools_deny', '["WebFetch"]', 'p1', 1), (5, 'agent_cap', '0', 'p1', 2)`)
+	got := func(params map[string]any) string {
+		v, err := e.workspaceRules(nil, params)
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, _ := json.Marshal(v)
+		return string(b)
+	}
+	shop := `{"rules":[{"key":"agent_cap","value":0,"on":false,"source":"workspace","set_by":"p1","set_at":2},` +
+		`{"key":"tools_deny","value":["WebFetch"],"on":true,"source":"machine","set_by":"p1","set_at":1}]}`
+	for _, ws := range []string{"shop", "w5"} {
+		if s := got(map[string]any{"workspace": ws}); !sameJSON(s, shop) {
+			t.Errorf("%s: %s", ws, s)
+		}
+	}
+	if s := got(nil); !sameJSON(s, `{"rules":[{"key":"agent_cap","value":3,"on":true,"source":"machine","set_by":"p1","set_at":1},`+
+		`{"key":"tools_deny","value":["WebFetch"],"on":true,"source":"machine","set_by":"p1","set_at":1}]}`) {
+		t.Errorf("the machine's: %s", s)
+	}
+	if _, err := e.workspaceRules(nil, map[string]any{"workspace": "nope"}); err == nil {
+		t.Error("an unknown workspace is not_found")
+	}
+}

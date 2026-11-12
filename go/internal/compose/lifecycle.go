@@ -100,7 +100,7 @@ func (p *Parts) Lifecycle(cfg Config, lc LifecycleConfig) *Lifecycle {
 			if err := team.SeedRules(home, t); err != nil {
 				cfg.Log("  team rules: not seeded: %v", err)
 			}
-			return team.Rules(home, agent, t)
+			return team.Rules(home, agent, t, team.KeptBlock(q))
 		},
 		Routing:     routing,
 		McpApproved: team.NewTrust(home).MCPApproved,
