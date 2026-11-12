@@ -11,7 +11,6 @@ import (
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/gitrun"
 	"github.com/handline/handline/go/kit/names"
-	"github.com/handline/handline/go/kit/paths"
 )
 
 // NotGit is a workspace folder that is no git checkout: the founder may make it one (git init) or name another.
@@ -31,8 +30,11 @@ func Toplevel(folder string) (string, error) {
 		return "", refuse("%s is not a folder", path)
 	}
 	r := gitrun.Run(path, "rev-parse", "--show-toplevel")
-	if r.RC != 0 || strings.TrimSpace(r.Stdout) == "" {
+	if r.RC != 0 && strings.Contains(r.Stderr, "not a git repository") {
 		return "", &NotGit{path}
+	}
+	if r.RC != 0 || strings.TrimSpace(r.Stdout) == "" { // git missing, timed out or refusing the folder: a failure, not an answer
+		return "", fmt.Errorf("git rev-parse in %s: %s", path, strings.TrimSpace(r.Stderr))
 	}
 	top := filepath.Clean(strings.TrimSpace(r.Stdout))
 	if real(path) == top { // the top itself, kept as it was written (/tmp, not /private/tmp)
@@ -52,10 +54,8 @@ func createWorkspace(q db.Q, name, folder string) (int64, string, error) {
 		if err != nil {
 			return 0, "", err
 		}
-		if other, at, err := sharing(q, top, 0); err != nil {
+		if err := sharing(q, top, 0); err != nil {
 			return 0, "", err
-		} else if other != "" {
-			return 0, "", refuse("%s is workspace %s's folder %s, or shares it: a checkout is one workspace's", top, other, at)
 		}
 		folder = top
 	}
@@ -67,24 +67,24 @@ func createWorkspace(q db.Q, name, folder string) (int64, string, error) {
 	return id, folder, err
 }
 
-// sharing is the workspace other than id whose folder is top, holds it or is under it, and that folder; "" when none. The rows are
-// read out and closed before the caller writes in the same transaction.
-func sharing(q db.Q, top string, id int64) (string, string, error) {
+// sharing refuses top when the folder of a workspace other than id is top, holds it or is under it. Its rows are closed before it
+// returns, so the caller may write in the same transaction.
+func sharing(q db.Q, top string, id int64) error {
 	rows, err := q.Query("SELECT name, folder FROM workspaces WHERE folder != '' AND id != ?", id)
 	if err != nil {
-		return "", "", err
+		return err
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var name, at string
 		if err := rows.Scan(&name, &at); err != nil {
-			return "", "", err
+			return err
 		}
 		if within(real(top), real(at)) || within(real(at), real(top)) {
-			return name, at, nil
+			return refuse("%s is workspace %s's folder %s, or shares it: a checkout is one workspace's", top, name, at)
 		}
 	}
-	return "", "", rows.Err()
+	return rows.Err()
 }
 
 // real is folder with its symlinks followed, or as written when it cannot be: /tmp and /private/tmp are one folder.
@@ -101,8 +101,8 @@ func within(path, dir string) bool {
 	return path == dir || strings.HasPrefix(path, dir+string(filepath.Separator))
 }
 
-// Create makes workspace name on folder (the top of its git checkout) with its lead, who reports to the owner, and the workspace's
-// base.md. Returns the workspace's key.
+// Create makes workspace name on folder (the top of its git checkout) with its lead, who reports to the owner, and seeds its rules as
+// a launch would. Returns the workspace's key. Should the folders fail after the rows are in, Register(name) makes them.
 func (r *Roster) Create(name, folder string) (string, error) {
 	if err := requireFounder(); err != nil {
 		return "", err
@@ -115,11 +115,14 @@ func (r *Roster) Create(name, folder string) (string, error) {
 	}
 	var ws int64
 	err := inTx(r.DB, func(q db.Q) error {
-		var err error
-		if ws, _, err = createWorkspace(q, name, folder); err != nil {
+		if at, err := find(q, name); err != nil {
 			return err
+		} else if at.ws != 0 {
+			return refuse("workspace %s exists already", name)
 		}
-		return r.register(q, name, RegisterOpts{}, "") // a bare name is the workspace's lead
+		var err error
+		ws, err = r.register(q, name, RegisterOpts{Repo: folder}, "") // a bare name is the workspace's lead
+		return err
 	})
 	if err != nil {
 		return "", err
@@ -128,17 +131,5 @@ func (r *Roster) Create(name, folder string) (string, error) {
 		return "", err
 	}
 	key := actor.Key(actor.Workspace, ws)
-	return key, writeRules(r.Home, key, name)
-}
-
-// writeRules writes the workspace's base.md when it has none.
-func writeRules(home, key, name string) error {
-	p := filepath.Join(paths.WorkspaceDir(home, key), "base.md")
-	if _, err := os.Stat(p); err == nil {
-		return nil
-	}
-	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
-		return err
-	}
-	return os.WriteFile(p, []byte("# base - "+name+"\n\n(the team's rules: injected into every session of the workspace, so it is fixed overhead.)\n"), 0o644)
+	return key, seedWorkspace(r.Home, key)
 }
