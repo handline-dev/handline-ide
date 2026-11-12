@@ -248,7 +248,7 @@
           "items": {
            "type": "integer"
           },
-          "description": "The requests the discard withdrew with it (a lead's or the founder's), as request ids."
+          "description": "The requests the founder's discard withdrew with it, as request ids."
          },
          "batch": {
           "oneOf": [
@@ -1865,9 +1865,10 @@
        "disk",
        "login",
        "delivery",
-       "undelivered"
+       "undelivered",
+       "notice"
       ],
-      "description": "When each leaves. disk: space is back. login: the account is logged in or woken; one past its end day never warns. delivery (a message of the founder's never seen to arrive): seen to arrive, withdrawn, or their next message to that agent is written. undelivered (a task queued, its delivery refused, its agent with no lead): delivered, given to another or ended."
+      "description": "When each leaves. disk: space is back. login: the account is logged in or woken; one past its end day never warns. delivery (a message of the founder's never seen to arrive): seen to arrive, withdrawn, or their next message to that agent is written. undelivered (a queued task whose delivery was refused, with no agent opener to tell): delivered, given to another or ended. notice (what the board tells the agent that opened a task, given to the founder when no agent opened it, or when the one told has not moved the task in an hour; and an agent's stale background work, which only the founder's idle setting can keep): the task moves or ends; with no task: the agent's stall is cleared, its repo fixed, or (any other) it acts again."
      },
      "account": {
       "type": "string",
@@ -1875,7 +1876,7 @@
      },
      "agent": {
       "type": "string",
-      "description": "delivery, undelivered: the agent it did not reach."
+      "description": "delivery, undelivered: the agent it did not reach. notice: the agent to go to: the one told who did not move the task, else the one the notice is about."
      },
      "ref": {
       "$ref": "#/components/schemas/RequestRef",
@@ -4562,7 +4563,7 @@
   },
   {
    "name": "task.discard",
-   "summary": "Throw away a task that is not done: anyone may, with a reason the opener, assignee and asker are told. A request still open on it refuses an agent, unless the caller leads a team whose tree holds the task (its owner or opener is the lead or reports to it); the founder's discard and such a lead's withdraw each open request and tell its target. tasks in place of task discards a batch in one call, all or none, with one discard_batch event: the one task_batch card in the caller's chat.",
+   "summary": "Throw away a task that is not done: anyone may, with a reason the opener, assignee and asker are told. A request still open on it refuses an agent; the founder's discard withdraws each open request and tells its target. tasks in place of task discards a batch in one call, all or none, with one discard_batch event: the one task_batch card in the caller's chat.",
    "paramStructure": "by-name",
    "params": [
     {

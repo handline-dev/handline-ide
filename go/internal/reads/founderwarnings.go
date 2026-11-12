@@ -3,6 +3,7 @@ package reads
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -38,7 +39,11 @@ func (e *Env) founderWarnings() ([]founderWarning, error) {
 	if err != nil {
 		return nil, err
 	}
-	return append(append(out, lost...), refused...), nil
+	notices, err := e.founderNotices()
+	if err != nil {
+		return nil, err
+	}
+	return append(append(append(out, lost...), refused...), notices...), nil
 }
 
 // loginWarnings is each account the login watch says wants a login or stands stalled, from its rows alone: a read asks no keychain.
@@ -131,4 +136,31 @@ func (e *Env) refusedTasks() ([]founderWarning, error) {
 		return nil
 	})
 	return out, err
+}
+
+// founderNotices is each notice the board kept for the founder (db.FounderNotice), until db.FounderNoticeOver.
+func (e *Env) founderNotices() ([]founderWarning, error) {
+	all, err := db.FounderNotices(e.DB)
+	if err != nil {
+		return nil, err
+	}
+	names := make([]string, 0, len(all))
+	for name := range all {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	var out []founderWarning
+	for _, name := range names {
+		n := all[name]
+		over, err := db.FounderNoticeOver(e.DB, n)
+		if err != nil {
+			return nil, err
+		}
+		if over {
+			continue
+		}
+		view := map[string]any{"kind": "notice", "agent": n.Agent}
+		out = append(out, founderWarning{id: strings.TrimPrefix(name, "founder_"), task: n.Task, since: ts(n.At), view: view, title: n.Text})
+	}
+	return out, nil
 }

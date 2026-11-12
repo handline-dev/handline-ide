@@ -333,12 +333,12 @@ export type SettingsValues = {
   token_prices?: { [key: string]: number };
   /** NEW, no code today: seconds a person or device may hold a terminal's input without typing before the daemon takes it back (see terminal `holder` notice). */
   input_hold_idle_s?: number;
-  /** Tell a queued task's holder when other open tasks have waited on it (blocked by it, or its parent) for blocker_alarm_s, and the holder's lead at blocker_alarm_lead_s; once each per wait, in the digest, never the founder. */
+  /** Tell a queued task's holder when other open tasks have waited on it (blocked by it, or its parent) for blocker_alarm_s, and the queued task's opener at blocker_alarm_opener_s (the founder when no agent opened it, or an hour later if it has not moved); once each per wait. */
   blocker_alarm?: boolean;
   /** Seconds the first open task waiting on a queued task may wait before its holder is told (blocker_alarm). */
   blocker_alarm_s?: number;
-  /** Seconds the first open task waiting on a queued task may wait before its holder's lead is told (blocker_alarm). */
-  blocker_alarm_lead_s?: number;
+  /** Seconds the first open task waiting on a queued task may wait before the queued task's opener is told (blocker_alarm); the founder hears when no agent opened it, or an hour later if it has not moved. */
+  blocker_alarm_opener_s?: number;
   /** How many times a task of a request may be sent back (reopened) before the request shows attention bounced. */
   attention_sent_back?: number;
   /** Seconds a request's open tree may go with no activity before it shows attention quiet. */
@@ -419,12 +419,12 @@ export type SettingsChanges = {
   token_prices?: { [key: string]: number } | null;
   /** NEW, no code today: seconds a person or device may hold a terminal's input without typing before the daemon takes it back (see terminal `holder` notice). null removes the key (back to the default). */
   input_hold_idle_s?: number | null;
-  /** Tell a queued task's holder when other open tasks have waited on it (blocked by it, or its parent) for blocker_alarm_s, and the holder's lead at blocker_alarm_lead_s; once each per wait, in the digest, never the founder. */
+  /** Tell a queued task's holder when other open tasks have waited on it (blocked by it, or its parent) for blocker_alarm_s, and the queued task's opener at blocker_alarm_opener_s (the founder when no agent opened it, or an hour later if it has not moved); once each per wait. */
   blocker_alarm?: boolean;
   /** Seconds the first open task waiting on a queued task may wait before its holder is told (blocker_alarm). null removes the key (back to the default). */
   blocker_alarm_s?: number | null;
-  /** Seconds the first open task waiting on a queued task may wait before its holder's lead is told (blocker_alarm). null removes the key (back to the default). */
-  blocker_alarm_lead_s?: number | null;
+  /** Seconds the first open task waiting on a queued task may wait before the queued task's opener is told (blocker_alarm); the founder hears when no agent opened it, or an hour later if it has not moved. null removes the key (back to the default). */
+  blocker_alarm_opener_s?: number | null;
   /** How many times a task of a request may be sent back (reopened) before the request shows attention bounced. null removes the key (back to the default). */
   attention_sent_back?: number | null;
   /** Seconds a request's open tree may go with no activity before it shows attention quiet. null removes the key (back to the default). */

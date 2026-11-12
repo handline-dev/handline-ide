@@ -56,7 +56,7 @@ Every error is a JSON-RPC error whose `data.code` is the stable string. A refusa
 | `proposal_settled` | proposal.decide, proposal.withdraw: the proposal is already approved, rejected or withdrawn, so there is nothing to decide or take back. The refusal's `proposal` is the proposal as it is now. |
 | `confirm` | chat.cancel: the message was delivered, so cancelling needs confirm true. data.plan says what it would do. |
 | `limit` | attachment.put: the file or the unsent total is over its limit, or too many uploads are open (x-attachments). |
-| `listing` | inbox.queue: the caller may not list that agent's messages. Only the agent itself, its supervisor and the founder may. |
+| `listing` | inbox.queue: the caller may not list that agent's messages. Only the agent itself and the founder may. |
 | `duplicate_title` | task.new: an open task under the same parent, or the parent itself, has nearly the title (same first word, 80% of the shorter title's words, Story prefix, case, punctuation and commit shas ignored). data.task names it; duplicate_ok opens the task anyway. |
 | `open_children` | task.done: the task has open child tasks. The reason names each (number, state, assignee, title), the hint the commands that close one, and the refusal's `children` lists them, so a client can offer to discard them from the same prompt. |
 | `denied` | file.write: the path is one the daemon never writes: under .git, .claude, .github, .husky, .codex, .cursor, .vscode, .devcontainer or a hooks folder (at any depth); a settings.json, settings.local.json, .mcp.json, mcp.json, hooks.json, package.json, .claude.json, tsconfig.json, turbo.json, deno.json, composer.json or lefthook.json; or anything but a .md or .json file. |

@@ -8,7 +8,6 @@ import (
 
 	"github.com/handline/handline/go/agentctl/peerinbox"
 	"github.com/handline/handline/go/data/db"
-	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/kit/actor"
 )
 
@@ -55,12 +54,11 @@ func TestEachOfTheFoundersMessagesLostInOneOpWarns(t *testing.T) {
 	}
 }
 
-// A refused delivery with no lead to tell is a warning under the task; the board says nothing to the founder.
-func TestARefusalWithNoLeadIsKeptAsAWarningAndSaysNothing(t *testing.T) {
+// A refused delivery of a task the founder opened is a warning under the task; the board says nothing to the founder.
+func TestARefusalOfTheFoundersTaskIsKeptAsAWarningAndSaysNothing(t *testing.T) {
 	r := newRig(t)
 	tid := r.newUnroutableTask()
-	teamtest.Set(t, r.home, "eng.bob", "reports_to", nil) // no lead to tell: it reports to no agent
-	r.DB.Exec("UPDATE workspaces SET lead = NULL WHERE name = 'eng'")
+	r.DB.Exec("UPDATE tasks SET opened_by = ? WHERE id = ?", actor.OwnerKey, tid)
 	if _, _, err := r.AdvanceCurrentTask(r.DB, r.k("eng.bob")); err != nil {
 		t.Fatal(err)
 	}

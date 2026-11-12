@@ -25,14 +25,14 @@ func (e *Env) inboxGet(c *rpc.Conn, params map[string]any) (any, error) {
 }
 
 func (e *Env) mayRead(viewer string, r row) bool {
-	return requestref.MayRead(e.DB, e.Home, viewer, r.i("id"), r.str("requester"), r.str("target"))
+	return requestref.MayRead(e.DB, viewer, r.i("id"), r.str("requester"), r.str("target"))
 }
 
 // settledRequest is the request params names and who reads it, held up to wait_s while it is still queued. One the reader may not see is
 // not_found: a request to an agent that the routing table has not passed yet is not that agent's to read, nor is anyone else's.
 func (e *Env) settledRequest(c *rpc.Conn, params map[string]any) (row, string, error) {
 	viewer := requestref.Viewer(c)
-	id, err := requestref.Resolve(e.DB, e.Home, params["id"], viewer, "id")
+	id, err := requestref.Resolve(e.DB, params["id"], viewer, "id")
 	if err != nil {
 		return nil, "", err
 	}

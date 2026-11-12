@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/handline/handline/go/data/db"
-	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/kit/actor"
 )
 
@@ -141,7 +140,7 @@ func TestABlockFreesTheAgentOnTop(t *testing.T) {
 	}
 }
 
-// A lead's discard of a task the founder owns, with alice on top holding it before its delivery reached her, tells alice to stop and moves
+// The founder's discard of a task they own, with alice on top holding it before its delivery reached her, tells alice to stop and moves
 // her on to her next task.
 func TestADiscardStopsTheAgentOnTopAndMovesItOn(t *testing.T) {
 	r := newRig(t)
@@ -149,8 +148,6 @@ func TestADiscardStopsTheAgentOnTopAndMovesItOn(t *testing.T) {
 	for _, a := range []string{r.k("alice"), r.k("carol")} {
 		r.agentUp(a)
 	}
-	// carol leads a workspace, so her discard stops the requests out on the task instead of refusing
-	teamtest.Set(t, r.home, "alice", "reports_to", "carol")
 	tid := r.newTask(actor.OwnerKey, r.k("carol"), "the founder's")
 	r.must(db.PushTurn(r.DB, tid, db.Turn{Agent: r.k("alice"), By: actor.OwnerKey, Since: r.clock}))
 	r.beginOnTop(tid)
@@ -158,13 +155,13 @@ func TestADiscardStopsTheAgentOnTopAndMovesItOn(t *testing.T) {
 	_, err := r.DB.Exec("UPDATE requests SET delivered_at = NULL, state = 'queued' WHERE id IN (SELECT request_id FROM task_requests WHERE task_id = ?)", tid)
 	r.must(err)
 	next := r.newTask("alice", r.k("carol"), "next")
-	r.turnCall("carol", "task.discard", fmt.Sprintf(`{"task":%d,"reason":"not needed","request_id":"d1"}`, tid))
+	r.turnCall(actor.OwnerKey, "task.discard", fmt.Sprintf(`{"task":%d,"reason":"not needed","request_id":"d1"}`, tid))
 	if cur, ok, _ := db.CurrentTask(r.DB, r.k("alice")); !ok || cur != next {
 		t.Fatalf("alice moved on: %d %v", cur, ok)
 	}
 	told := false
 	for _, s := range r.term.typed {
-		told = told || strings.Contains(s, fmt.Sprintf("T%d discarded by @carol - stop work on it", tid))
+		told = told || strings.Contains(s, fmt.Sprintf("T%d discarded by @human - stop work on it", tid))
 	}
 	if !told {
 		t.Fatalf("alice is told to stop: %v", r.term.typed)

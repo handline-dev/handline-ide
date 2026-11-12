@@ -161,7 +161,7 @@ type timeboxPorts struct {
 		BgNoticeS(agent string) int64
 		BgGraceS(agent string) int64
 		BgCheckS(agent string) int64
-		BlockerAlarm() (on bool, holderS, leadS int64)
+		BlockerAlarm() (on bool, holderS, openerS int64)
 	}
 	home string
 }
@@ -170,17 +170,13 @@ func (t timeboxPorts) TaskDoing(q db.Q, task *db.Task) bool {
 	state, err := db.TaskState(q, task)
 	return err == nil && state == "doing"
 }
-func (t timeboxPorts) SupervisorOf(agent string) string {
-	tm, err := team.LoadTeam(t.home)
-	if err != nil || tm == nil {
-		return ""
-	}
-	return tm.SupervisorOf(agent)
-}
 
 func (t timeboxPorts) SendNotice(q db.Q, agent, text string) bool {
 	sent, err := t.env.TypeNotice(q, agent, text)
 	return err == nil && sent
+}
+func (t timeboxPorts) TellAbout(q db.Q, to, agent string, tid int64, text, reason string, now int64) error {
+	return t.env.TellAbout(q, to, agent, tid, text, reason, now)
 }
 func (t timeboxPorts) SendBatch(q db.Q, agent, text string) error {
 	_, err := t.env.Notice(q, agent, text, "timebox")

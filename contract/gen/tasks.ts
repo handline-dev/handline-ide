@@ -55,7 +55,7 @@ export type Task = {
     by: string;
     reason: string;
     at: Timestamp;
-    /** The requests the discard withdrew with it (a lead's or the founder's), as request ids. */
+    /** The requests the founder's discard withdrew with it, as request ids. */
     withdrew?: number[];
     /** The batch it was discarded in, null for a discard of its own. */
     batch?: string | null;
@@ -444,11 +444,11 @@ export type TurnAsk = {
 
 /** What a warning row is about, so a client can draw it and open the right place. It is read from state each time and leaves by itself. */
 export type PendingWarning = {
-  /** When each leaves. disk: space is back. login: the account is logged in or woken; one past its end day never warns. delivery (a message of the founder's never seen to arrive): seen to arrive, withdrawn, or their next message to that agent is written. undelivered (a task queued, its delivery refused, its agent with no lead): delivered, given to another or ended. */
-  kind: "disk" | "login" | "delivery" | "undelivered";
+  /** When each leaves. disk: space is back. login: the account is logged in or woken; one past its end day never warns. delivery (a message of the founder's never seen to arrive): seen to arrive, withdrawn, or their next message to that agent is written. undelivered (a queued task whose delivery was refused, with no agent opener to tell): delivered, given to another or ended. notice (what the board tells the agent that opened a task, given to the founder when no agent opened it, or when the one told has not moved the task in an hour; and an agent's stale background work, which only the founder's idle setting can keep): the task moves or ends; with no task: the agent's stall is cleared, its repo fixed, or (any other) it acts again. */
+  kind: "disk" | "login" | "delivery" | "undelivered" | "notice";
   /** login: the account. */
   account?: string;
-  /** delivery, undelivered: the agent it did not reach. */
+  /** delivery, undelivered: the agent it did not reach. notice: the agent to go to: the one told who did not move the task, else the one the notice is about. */
   agent?: string;
   /** delivery: the message. */
   ref?: RequestRef;

@@ -266,5 +266,8 @@ func (e *Env) SweepNotices(now int64) error {
 	if err := e.SweepDigests(now); err != nil {
 		return err
 	}
-	return e.SweepHeldMemos(now)
+	if err := e.SweepHeldMemos(now); err != nil {
+		return err
+	}
+	return e.SweepNoticeWatches(now)
 }

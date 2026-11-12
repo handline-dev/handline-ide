@@ -16,12 +16,10 @@ import (
 type tbPorts struct {
 	TimeboxPorts
 	doing      map[int64]bool
-	boss       string
-	bosses     map[string]string // an agent's own lead, over boss
-	lead       string
 	sendOK     bool
 	sent       []string // "who: text", typed at once
 	batched    []string // "who: text", for the digest
+	toldAbout  []string // "to reason T<n>/agent: text", through TellAbout
 	said       []string // "who: text", a say that wakes a closed session
 	handed     []string // "T<n> to who: note"
 	handErr    error    // what HandOffHeld answers
@@ -39,7 +37,7 @@ type tbPorts struct {
 	checkS     int64
 	jobs       []string
 	forgotten  *Forgotten
-	alarmOn    bool // blocker_alarm, with 100 s for the holder and 400 s for the lead
+	alarmOn    bool // blocker_alarm, with 100 s for the holder and 400 s for the founder
 }
 
 func (p *tbPorts) HandOffHeld(_ db.Q, tid int64, to, note string) error {
@@ -50,13 +48,7 @@ func (p *tbPorts) HandOffHeld(_ db.Q, tid int64, to, note string) error {
 	p.handed = append(p.handed, fmt.Sprintf("T%d to %s: %s", tid, to, note))
 	return nil
 }
-func (p *tbPorts) TaskDoing(_ db.Q, t *db.Task) bool { return p.doing[t.ID] }
-func (p *tbPorts) SupervisorOf(agent string) string {
-	if s, ok := p.bosses[agent]; ok {
-		return s
-	}
-	return p.boss
-}
+func (p *tbPorts) TaskDoing(_ db.Q, t *db.Task) bool           { return p.doing[t.ID] }
 func (p *tbPorts) BgStale(db.Q, string, int64) bool            { return p.bgStale }
 func (p *tbPorts) BgOwesNothing(db.Q, string) bool             { return p.bgOwes }
 func (p *tbPorts) NeverCloses(string) bool                     { return p.never }
@@ -72,6 +64,14 @@ func (p *tbPorts) NudgeScheduleLen() int                       { return 3 }
 func (p *tbPorts) BlockerAlarm() (bool, int64, int64)          { return p.alarmOn, 100, 400 }
 func (p *tbPorts) ForgottenResolve(db.Q, string, *db.AgentState, int64) *Forgotten {
 	return p.forgotten
+}
+func (p *tbPorts) TellAbout(_ db.Q, to, agent string, tid int64, text, reason string, _ int64) error {
+	about := agent
+	if tid != 0 {
+		about = fmt.Sprintf("T%d", tid)
+	}
+	p.toldAbout = append(p.toldAbout, to+" "+reason+" "+about+": "+text)
+	return nil
 }
 func (p *tbPorts) SendBatch(_ db.Q, who, text string) error {
 	p.batched = append(p.batched, who+": "+text)
@@ -101,9 +101,8 @@ func newTask(t *testing.T, tk *Tick, owner, opener string, timeoutS int64) int64
 	return tid
 }
 
-func TestATaskThatIsDoingStartsItsClockThenTellsItsHolderAndLeadNotItsOpenerPastTheDeadlineAndEachLengthOn(t *testing.T) {
+func TestATaskThatIsDoingStartsItsClockThenTellsItsHolderAndItsOpenerPastTheDeadlineAndEachLengthOn(t *testing.T) {
 	tk, w, b, p := timebox(t)
-	p.boss = "lead"
 	tid := newTask(t, tk, "a", "boss", 100)
 	p.doing[tid] = true
 	b.SweepTaskTimeouts(tk, 1000)
@@ -116,7 +115,7 @@ func TestATaskThatIsDoingStartsItsClockThenTellsItsHolderAndLeadNotItsOpenerPast
 		t.Fatalf("told before the deadline: %v", p.batched)
 	}
 	b.SweepTaskTimeouts(tk, 1200)
-	if len(p.batched) != 2 || !strings.HasPrefix(p.batched[0], "a: T") || !strings.HasPrefix(p.batched[1], "lead: T") || !strings.Contains(p.batched[0], "the work on the thing") ||
+	if len(p.batched) != 1 || !strings.HasPrefix(p.batched[0], "a: T") || !strings.Contains(p.batched[0], "the work on the thing") ||
 		!strings.Contains(p.batched[0], "held by a") || !strings.Contains(p.batched[0], "mark what blocks it") || strings.Contains(p.batched[0], "--timeout") {
 		t.Fatalf("%v", p.batched)
 	}
@@ -131,14 +130,13 @@ func TestATaskThatIsDoingStartsItsClockThenTellsItsHolderAndLeadNotItsOpenerPast
 		t.Fatalf("an overrun clock runs on from its end: %+v", task)
 	}
 	b.SweepTaskTimeouts(tk, 1299)
-	if len(p.batched) != 2 {
+	if len(p.batched) != 1 {
 		t.Fatalf("told again before a further length: %v", p.batched)
 	}
 	b.SweepTaskTimeouts(tk, 1300)
-	if len(p.batched) != 4 {
+	if len(p.batched) != 2 {
 		t.Fatalf("not told again a length after the last notice: %v", p.batched)
 	}
-	p.batched = p.batched[:2]
 	if n := countEvents(t, tk, "a", "task_timeout_exceeded"); n != 2 || !w.logged("past its") {
 		t.Fatalf("the event is on the holder: events %d, log %v", n, w.logs)
 	}
@@ -146,8 +144,18 @@ func TestATaskThatIsDoingStartsItsClockThenTellsItsHolderAndLeadNotItsOpenerPast
 		t.Fatalf("an opener that does not hold the task has %d timeout events", n)
 	}
 	var told string
-	if err := tk.Q.QueryRow("SELECT json_extract(payload, '$.notified') FROM events WHERE kind = 'task_timeout_exceeded' LIMIT 1").Scan(&told); err != nil || told != `["a","lead"]` {
+	if err := tk.Q.QueryRow("SELECT json_extract(payload, '$.notified') FROM events WHERE kind = 'task_timeout_exceeded' LIMIT 1").Scan(&told); err != nil || told != `["a","boss"]` {
 		t.Fatalf("told %q %v", told, err)
+	}
+	if len(p.toldAbout) != 2 || !strings.HasPrefix(p.toldAbout[0], fmt.Sprintf("boss task_timeout T%d: T", tid)) {
+		t.Fatalf("the opener hears of each overrun, watched: %v", p.toldAbout)
+	}
+	own := newTask(t, tk, "a", "a", 100) // opened by its holder: the founder hears
+	p.doing[own] = true
+	b.SweepTaskTimeouts(tk, 2000)
+	b.SweepTaskTimeouts(tk, 2100)
+	if last := p.toldAbout[len(p.toldAbout)-1]; !strings.HasPrefix(last, fmt.Sprintf("%s task_timeout T%d: ", actor.OwnerKey, own)) {
+		t.Fatalf("a task its holder opened goes to the founder: %v", p.toldAbout)
 	}
 }
 
@@ -292,20 +300,20 @@ func TestATaskOpenedByTheFounderTellsOnlyItsHolderAndLogsAnEvent(t *testing.T) {
 	}
 }
 
-func TestStaleBackgroundWorkTellsTheSupervisorOnceAndClearsWhenItIsNoLongerStale(t *testing.T) {
+func TestStaleBackgroundWorkIsToldOnceAndClearsWhenItIsNoLongerStale(t *testing.T) {
 	tk, _, b, p := timebox(t)
-	p.boss, p.bgStale, p.silent, p.since, p.haveSince = "lead", true, 700, 100, true
+	p.bgStale, p.silent, p.since, p.haveSince = true, 700, 100, true
 	b.SweepStaleBackground(tk, 1000)
 	b.SweepStaleBackground(tk, 1100)
-	if len(p.sent) != 1 || !strings.Contains(p.sent[0], "background work for") || countEvents(t, tk, "a", "stale_background") != 1 {
-		t.Fatalf("%v", p.sent)
+	if len(p.sent) != 0 || countEvents(t, tk, "a", "stale_background") != 1 {
+		t.Fatalf("the founder is told, on the board, so no agent is typed at: %v", p.sent)
 	}
 	p.bgStale = false
 	b.SweepStaleBackground(tk, 1200)
 	p.bgStale = true
 	b.SweepStaleBackground(tk, 1300+NoticeRetryS)
-	if len(p.sent) != 2 {
-		t.Fatalf("a later stretch is told again: %v", p.sent)
+	if n := countEvents(t, tk, "a", "stale_background"); n != 2 {
+		t.Fatalf("a later stretch is told again: %d", n)
 	}
 	// An agent set to never close is not told.
 	tk, _, b, p = timebox(t)
@@ -368,7 +376,6 @@ func TestTheBackgroundCheckAsksAnIdleAgentWhichJobsToStopEveryCheckInterval(t *t
 
 func TestAHeadNobodyResolvedTellsItsTasksOpenerOnceItsNudgeScheduleIsUsedUp(t *testing.T) {
 	tk, _, b, p := timebox(t)
-	p.boss = "lead"
 	tid := newTask(t, tk, "a", "asker", 0)
 	if _, err := tk.Q.Exec("INSERT INTO requests(id, ts, requester, target, body, state, edge_ok) VALUES(7, 1, 'asker', 'a', 'x', 'landed', 1), " +
 		"(8, 1, 'lead', 'a', 'y', 'landed', 1)"); err != nil {
@@ -383,11 +390,23 @@ func TestAHeadNobodyResolvedTellsItsTasksOpenerOnceItsNudgeScheduleIsUsedUp(t *t
 	// Blocked on record, or not yet exhausted: nothing, and the mark clears so a later head is told.
 	p.forgotten = &Forgotten{HeadID: 7, Exhausted: false}
 	b.SweepForgottenResolveCapped(tk, 1200)
-	// A head that is no task goes to the supervisor.
+	// A head that is no task goes to the opener of the oldest task waiting for the agent (db.AgentNoticeTo).
 	p.forgotten = &Forgotten{HeadID: 8, IdleS: 100, Exhausted: true}
 	b.SweepForgottenResolveCapped(tk, 1300+NoticeRetryS)
-	if len(p.sent) != 2 || !strings.HasPrefix(p.sent[1], "lead: ") || !strings.Contains(msgtest.IDs(tk.Q, p.sent[1]), "#8") {
+	if len(p.sent) != 2 || !strings.HasPrefix(p.sent[1], "asker: a has been idle 100s on ") {
 		t.Fatalf("%v", p.sent)
+	}
+	// With only a task the founder opened waiting for it, the founder keeps it as a warning about the agent, not that task.
+	if _, err := tk.Q.Exec("UPDATE tasks SET done_evidence = 'x'"); err != nil {
+		t.Fatal(err)
+	}
+	newTask(t, tk, "a", actor.OwnerKey, 0)
+	p.forgotten = &Forgotten{HeadID: 8, Exhausted: false}
+	b.SweepForgottenResolveCapped(tk, 1400) // the mark clears
+	p.forgotten = &Forgotten{HeadID: 8, IdleS: 180, Exhausted: true}
+	b.SweepForgottenResolveCapped(tk, 1500+2*NoticeRetryS)
+	if len(p.sent) != 2 || len(p.toldAbout) != 1 || !strings.HasPrefix(p.toldAbout[0], actor.OwnerKey+" forgotten_resolve a: a has been idle 3m on a message") {
+		t.Fatalf("%v %v", p.sent, p.toldAbout)
 	}
 }
 
@@ -553,9 +572,8 @@ func TestATaskStillHeldAfterTheAskIsHandedOn(t *testing.T) {
 }
 
 // heldAfterAsk sets up agent a closed holding a doing task T1 (opened by opener) that was asked at 1000 and closed again at 1500.
-func heldAfterAsk(t *testing.T, opener string, boss string) (*Tick, *Timebox, *tbPorts, int64) {
+func heldAfterAsk(t *testing.T, opener string) (*Tick, *Timebox, *tbPorts, int64) {
 	tk, _, b, p := timebox(t)
-	p.boss = boss
 	tid := newTask(t, tk, "a", opener, 100)
 	p.doing[tid] = true
 	check(db.SetCurrentTask(tk.Q, "a", tid, true))
@@ -568,7 +586,7 @@ func heldAfterAsk(t *testing.T, opener string, boss string) (*Tick, *Timebox, *t
 
 func TestAHolderThatWorkedAfterTheAskIsNotHandedOnAndIsAskedAnewAtItsNextClose(t *testing.T) {
 	// the ask's own turn is one prompt and one stop: it does not count as work
-	tk, b, p, tid := heldAfterAsk(t, "boss", "lead")
+	tk, b, p, tid := heldAfterAsk(t, "boss")
 	db.AddEventAt(tk.Q, 1010, "a", "UserPromptSubmit")
 	db.AddEventAt(tk.Q, 1020, "a", "Stop")
 	check(b.Sweep(tk, 2000))
@@ -583,7 +601,7 @@ func TestAHolderThatWorkedAfterTheAskIsNotHandedOnAndIsAskedAnewAtItsNextClose(t
 			tk.Q.Exec("UPDATE task_memos SET created_at = 1000")
 		},
 	} {
-		tk, b, p, _ := heldAfterAsk(t, "boss", "lead")
+		tk, b, p, _ := heldAfterAsk(t, "boss")
 		add(tk)
 		check(b.Sweep(tk, 2000))
 		if len(p.handed) != 0 || len(p.said) != 2 {
@@ -597,23 +615,18 @@ func TestAHolderThatWorkedAfterTheAskIsNotHandedOnAndIsAskedAnewAtItsNextClose(t
 	}
 }
 
-func TestAHeldTaskGoesToTheBossWhenItAnswersToTheHolderAndIsNeverHandedToTheFounder(t *testing.T) {
-	tk, b, p, _ := heldAfterAsk(t, "a", "lead")
-	check(b.Sweep(tk, 2000))
-	if len(p.handed) != 1 || !strings.HasPrefix(p.handed[0], "T1 to lead:") {
-		t.Fatalf("a task answering to its holder goes to the boss: %v", p.handed)
-	}
+func TestAHeldTaskAnsweringToTheHolderOrTheFounderIsNeverHandedToTheFounder(t *testing.T) {
 	for _, opener := range []string{actor.OwnerKey, "a"} {
-		tk, b, p, _ := heldAfterAsk(t, opener, "")
+		tk, b, p, _ := heldAfterAsk(t, opener)
 		check(b.Sweep(tk, 2000))
 		if len(p.handed) != 0 || p.handTries != 0 {
-			t.Errorf("opened by %s with no boss: not handed to the founder: %v", opener, p.handed)
+			t.Errorf("opened by %s: not handed to the founder: %v", opener, p.handed)
 		}
 	}
 }
 
 func TestARefusedHandoffIsNotTriedAgainEveryTick(t *testing.T) {
-	tk, b, p, _ := heldAfterAsk(t, "boss", "lead")
+	tk, b, p, _ := heldAfterAsk(t, "boss")
 	p.handErr = fmt.Errorf("refused")
 	check(b.Sweep(tk, 2000))
 	check(b.Sweep(tk, 2030))
@@ -643,9 +656,8 @@ func queuedBlocker(t *testing.T, tk *Tick) (blocker, waiter int64) {
 	return blocker, waiter
 }
 
-func TestAQueuedTaskOthersWaitOnTellsItsHolderThenItsLeadOnceEach(t *testing.T) {
+func TestAQueuedTaskOthersWaitOnTellsItsHolderOnce(t *testing.T) {
 	tk, _, b, p := timebox(t)
-	p.boss = "lead"
 	blocker, waiter := queuedBlocker(t, tk)
 	b.SweepQueuedBlockers(tk, 2000)
 	if len(p.batched) != 0 {
@@ -663,12 +675,19 @@ func TestAQueuedTaskOthersWaitOnTellsItsHolderThenItsLeadOnceEach(t *testing.T) 
 	}
 	b.SweepQueuedBlockers(tk, 1399)
 	if len(p.batched) != 1 {
-		t.Fatalf("the holder is told once, the lead not before blocker_alarm_lead_s: %v", p.batched)
+		t.Fatalf("the holder is told once: %v", p.batched)
+	}
+	b.SweepQueuedBlockers(tk, 1399)
+	if len(p.toldAbout) != 0 {
+		t.Fatalf("the opener is told before blocker_alarm_opener_s: %v", p.toldAbout)
 	}
 	b.SweepQueuedBlockers(tk, 1400)
 	b.SweepQueuedBlockers(tk, 9000)
-	if len(p.batched) != 2 || !strings.HasPrefix(p.batched[1], "lead: T") {
-		t.Fatalf("%v", p.batched)
+	if len(p.batched) != 1 {
+		t.Fatalf("no agent above the holder is told: %v", p.batched)
+	}
+	if len(p.toldAbout) != 1 || !strings.HasPrefix(p.toldAbout[0], fmt.Sprintf("boss queued_blocker T%d: ", blocker)) {
+		t.Fatalf("the opener is told once, watched: %v", p.toldAbout)
 	}
 	if n := countEvents(t, tk, "a", "queued_blocker_alarm"); n != 2 || len(p.sent) != 0 {
 		t.Fatalf("events %d, typed at once %v", n, p.sent)
@@ -684,12 +703,8 @@ func TestAQueuedTaskOthersWaitOnTellsItsHolderThenItsLeadOnceEach(t *testing.T) 
 	}
 	tk.Q.Exec("UPDATE task_blocks SET created_at = 9000 WHERE task_id = ?", other)
 	b.SweepQueuedBlockers(tk, 9100)
-	if len(p.batched) != 3 || !strings.Contains(p.batched[2], fmt.Sprintf("T%d has waited", other)) {
+	if len(p.batched) != 2 || !strings.Contains(p.batched[1], fmt.Sprintf("T%d has waited", other)) {
 		t.Fatalf("a new wait is told anew: %v", p.batched)
-	}
-	b.SweepQueuedBlockers(tk, 9400)
-	if len(p.batched) != 4 || !strings.HasPrefix(p.batched[3], "lead: ") {
-		t.Fatalf("and its lead too: %v", p.batched)
 	}
 	rows, _ := tk.Q.Query("SELECT json_extract(payload, '$.told') FROM events WHERE kind = 'queued_blocker_alarm' ORDER BY id")
 	var told []string
@@ -699,14 +714,14 @@ func TestAQueuedTaskOthersWaitOnTellsItsHolderThenItsLeadOnceEach(t *testing.T) 
 		told = append(told, who)
 	}
 	rows.Close()
-	if strings.Join(told, ",") != "a,lead,a,lead" {
+	if strings.Join(told, ",") != "a,boss,a" {
 		t.Fatalf("each event names whom it told: %v", told)
 	}
 }
 
 func TestAReopenedTaskOthersStillWaitOnIsToldAgainCountingFromTheReopen(t *testing.T) {
 	tk, _, b, p := timebox(t)
-	p.alarmOn, p.boss = true, "lead"
+	p.alarmOn = true
 	blocker, _ := queuedBlocker(t, tk)
 	b.SweepQueuedBlockers(tk, 1100)
 	b.SweepQueuedBlockers(tk, 1400)
@@ -717,12 +732,12 @@ func TestAReopenedTaskOthersStillWaitOnIsToldAgainCountingFromTheReopen(t *testi
 		}
 	}
 	b.SweepQueuedBlockers(tk, 2099)
-	if len(p.batched) != 2 {
+	if len(p.batched) != 1 {
 		t.Fatalf("the reopened wait counts from the reopen: %v", p.batched)
 	}
 	b.SweepQueuedBlockers(tk, 2100)
 	b.SweepQueuedBlockers(tk, 2400)
-	if len(p.batched) != 4 || !strings.Contains(p.batched[2], "waited on it for 100s") || !strings.HasPrefix(p.batched[3], "lead: ") {
+	if len(p.batched) != 2 || !strings.Contains(p.batched[1], "waited on it for 100s") {
 		t.Fatalf("%v", p.batched)
 	}
 	if _, err := tk.Q.Exec("UPDATE tasks SET done_evidence = 'x', done_at = 2450 WHERE id = ?", blocker); err != nil {
@@ -785,9 +800,9 @@ func TestOnlyAQueuedAgentTaskThatSomethingWaitsOnAlarms(t *testing.T) {
 	}
 }
 
-func TestAQueuedChildItsParentWaitsOnAlarmsAndNamesEveryWaiterButNeverTellsTheFounder(t *testing.T) {
+func TestAQueuedChildItsParentWaitsOnAlarmsAndNamesEveryWaiter(t *testing.T) {
 	tk, _, b, p := timebox(t)
-	p.alarmOn = true // no lead: the supervisor is the founder
+	p.alarmOn = true
 	parent := newTask(t, tk, "b", "boss", 0)
 	child, err := db.NewTask(tk.Q, "child", "a", "boss", parent, db.DefaultPriority, "report", 0, "")
 	if err != nil {
@@ -918,7 +933,7 @@ func TestManyWaitersAreNamedThreeThenCounted(t *testing.T) {
 
 func TestADiscardedTaskDropsItsAlarmCursors(t *testing.T) {
 	tk, _, b, p := timebox(t)
-	p.alarmOn, p.boss = true, "lead"
+	p.alarmOn = true
 	blocker, _ := queuedBlocker(t, tk)
 	b.SweepQueuedBlockers(tk, 1400)
 	if _, err := tk.Q.Exec("UPDATE tasks SET discarded_by = 'boss' WHERE id = ?", blocker); err != nil {
@@ -927,7 +942,7 @@ func TestADiscardedTaskDropsItsAlarmCursors(t *testing.T) {
 	b.SweepQueuedBlockers(tk, 1500)
 	var n int
 	tk.Q.QueryRow("SELECT COUNT(*) FROM cursors WHERE name LIKE 'blocker_alarm%'").Scan(&n)
-	if len(p.batched) != 2 || n != 0 {
+	if len(p.batched) != 1 || n != 0 {
 		t.Fatalf("told %v, %d cursors left", p.batched, n)
 	}
 }
@@ -935,7 +950,6 @@ func TestADiscardedTaskDropsItsAlarmCursors(t *testing.T) {
 // A task the founder's turn is on top of is the founder's to act on: its time box tells no agent and stands still until the turn ends.
 func TestATaskUnderTheFoundersTurnRemindsNoAgent(t *testing.T) {
 	tk, _, b, p := timebox(t)
-	p.boss = "lead"
 	tid := newTask(t, tk, "a", "boss", 100)
 	p.doing[tid] = true
 	b.SweepTaskTimeouts(tk, 1000)
@@ -952,36 +966,34 @@ func TestATaskUnderTheFoundersTurnRemindsNoAgent(t *testing.T) {
 	}
 }
 
-// toldHolderThenLead checks that the digest got one notice for holder, about it, then one for lead.
-func toldHolderThenLead(t *testing.T, p *tbPorts, holder, lead string) {
+// toldHolder checks that the digest got one notice, for holder and about it.
+func toldHolder(t *testing.T, p *tbPorts, holder string) {
 	t.Helper()
-	if len(p.batched) != 2 || !strings.HasPrefix(p.batched[0], holder+": ") || !strings.HasPrefix(p.batched[1], lead+": ") || !strings.Contains(p.batched[0], "held by "+holder) {
+	if len(p.batched) != 1 || !strings.HasPrefix(p.batched[0], holder+": ") || !strings.Contains(p.batched[0], "held by "+holder) {
 		t.Fatalf("%v", p.batched)
 	}
 }
 
-// A task owned by o with a on top is a's to act on: past its time box a and a's lead are told, not o or o's lead.
-func TestATaskUnderAnAgentsTurnTellsThatAgentAndItsLead(t *testing.T) {
+// A task owned by o with a on top is a's to act on: past its time box a is told, not o.
+func TestATaskUnderAnAgentsTurnTellsThatAgent(t *testing.T) {
 	tk, _, b, p := timebox(t)
-	p.bosses = map[string]string{"a": "alead", "o": "olead"}
 	tid := newTask(t, tk, "o", "boss", 100)
 	check(db.PushTurn(tk.Q, tid, db.Turn{Agent: "a", By: "o", Since: 900}))
 	p.doing[tid] = true
 	b.SweepTaskTimeouts(tk, 1000)
 	b.SweepTaskTimeouts(tk, 1200)
-	toldHolderThenLead(t, p, "a", "alead")
+	toldHolder(t, p, "a")
 }
 
-// The blocker alarm is about whoever acts on the queued task: an agent on top is told, then its lead, whoever owns it.
+// The blocker alarm is about whoever acts on the queued task: an agent on top is told, whoever owns it.
 func TestTheBlockerAlarmTellsTheAgentOnTop(t *testing.T) {
 	tk, _, b, p := timebox(t)
 	p.alarmOn = true
-	p.bosses = map[string]string{"a": "alead", "c": "clead"}
 	blocker, _ := queuedBlocker(t, tk)
 	check(db.PushTurn(tk.Q, blocker, db.Turn{Agent: "c", By: "a", Since: 900}))
 	b.SweepQueuedBlockers(tk, 1100)
 	b.SweepQueuedBlockers(tk, 1400)
-	toldHolderThenLead(t, p, "c", "clead")
+	toldHolder(t, p, "c")
 	// a task the founder owns with an agent on top alarms that agent
 	tk2, _, b2, p2 := timebox(t)
 	p2.alarmOn = true
