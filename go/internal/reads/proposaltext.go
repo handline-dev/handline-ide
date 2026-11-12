@@ -1,6 +1,7 @@
 package reads
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"sort"
@@ -237,6 +238,15 @@ func members(p flat) []string {
 	return out
 }
 
+// runCommand is a run proposal's command and cwd; the command is kept JSON-encoded, as a proposal file holds no line break.
+func (f flat) runCommand() (command, cwd string) {
+	_, vals := f.sets()
+	if json.Unmarshal([]byte(vals["command"]), &command) != nil {
+		command = vals["command"]
+	}
+	return command, vals["cwd"]
+}
+
 // title is the card's head: `retire a`, `bundle 3 changes`.
 func (f flat) title() string {
 	if f.text("kind") == "bundle" {
@@ -299,6 +309,9 @@ func changeLines(it flat) []string {
 		return []string{fmt.Sprintf("rename %s to %s", addr.Ref(agent), to)}
 	case "retire":
 		return []string{"retire " + addr.Ref(agent)}
+	case "run":
+		command, cwd := it.runCommand()
+		return []string{fmt.Sprintf("run in %s, with its output told to %s: %s", cwd, addr.Ref(agent), command)}
 	}
 	return []string{kind + " " + agent}
 }
