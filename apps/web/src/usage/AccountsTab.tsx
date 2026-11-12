@@ -1,4 +1,5 @@
 // Settings > Accounts: one card per account, its row Usage's, opened in place; several stay open and which is kept.
+import { AiToolsCard } from '#src/settings/AiToolsCard.tsx';
 import { AccountFacts } from '#src/usage/AccountFacts.tsx';
 import { removeAccount, Row } from '#src/usage/AccountParts.tsx';
 import { AccountEmail } from '#src/usage/AccountEmail.tsx';
@@ -51,6 +52,7 @@ export function AccountsTab({ focus }: { focus?: string }) {
               }}
             />
           </div>
+          <AiToolsCard />
           {q.isPending && <RowsLoading rows={6} />}
           {q.isError && <p className="text-sm text-danger">Accounts did not load.</p>}
           {accounts.map((a) => (
