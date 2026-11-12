@@ -13,11 +13,6 @@ const LaunchedRules = "rules"
 
 const rulesPart = "team rules"
 
-// rulesText is the team rules as a launch gives them.
-func (l *Launcher) rulesText(agent string) string {
-	return strings.Join(l.Ports.TeamRules(agent), "\n\n")
-}
-
 // RulesNote is the changed lines of the agent's team rules since the launch row records (all of them when it kept no text), and the
 // record that says it was told, for KeepRulesTold once the note is sent.
 func (l *Launcher) RulesNote(agent string, row *db.AgentState) (note, record string, err error) {
@@ -71,6 +66,7 @@ func rulesHash(rules []string) string { return sha256Hex(strings.Join(rules, "\x
 
 // lineChanges is the lines b adds to a and the ones it takes out, in order, by the longest common subsequence of their non-blank lines.
 func lineChanges(a, b string) (added, removed []string) {
+	added, removed = []string{}, []string{} // [] in JSON, not null
 	la, lb := nonBlank(a), nonBlank(b)
 	n, m := len(la), len(lb)
 	lcs := make([][]int, n+1)
