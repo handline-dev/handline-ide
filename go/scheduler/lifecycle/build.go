@@ -308,7 +308,9 @@ func (l *Launcher) Prepare(site *Site, agent string, extra []string, force bool,
 			return nil, err
 		}
 	}
-	l.Tokens.Record(agent, site.PID) // the proof this session is the agent's
+	if !l.Tokens.Record(agent, site.PID) { // the proof this session is the agent's: without it its hl would not be told from the founder's
+		return nil, fmt.Errorf("the session of %s could not be recorded, so it is not started", agent)
+	}
 	fp, _ := l.Fingerprint(agent)
 	l.recordTerminal(site, agent, env["HANDLINE_ACCOUNT"], fp)
 	gitrun.PointOriginHeadAtMain(site.Cwd) // the session names its main branch from it

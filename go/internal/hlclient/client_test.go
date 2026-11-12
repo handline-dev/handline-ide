@@ -16,6 +16,8 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/internal/contracttest"
+	"github.com/handline/handline/go/kit/paths"
+	"github.com/handline/handline/go/kit/protected"
 	"github.com/handline/handline/go/protocol/pairsock"
 )
 
@@ -315,5 +317,21 @@ func TestAVerbChainNoteRidesOnTheNextHelloOnce(t *testing.T) {
 	}
 	if _, again := d.lines[2]["params"].(map[string]any)["note"]; again {
 		t.Fatalf("the second call's hello carries it again: %v", d.lines[2])
+	}
+}
+
+// An agent's session never says the founder key, even where it can read it: one the daemon cannot trace is anonymous, not the founder.
+func TestAnAgentsSessionHoldsNoFounderKey(t *testing.T) {
+	t.Setenv("HANDLINE_TEST_ROOT", t.TempDir())
+	t.Setenv("HANDLINE_AGENT", "")
+	if err := protected.New(paths.Home()).Put(founderNS, "key", "k1"); err != nil {
+		t.Fatal(err)
+	}
+	if New().Key != "k1" {
+		t.Fatal("the founder's terminal holds it")
+	}
+	t.Setenv("HANDLINE_AGENT", "a5")
+	if k := New().Key; k != "" {
+		t.Fatalf("an agent's session holds %q", k)
 	}
 }
