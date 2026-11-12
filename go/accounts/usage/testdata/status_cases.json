@@ -33248,11 +33248,11 @@
     "age_s": 0.0,
     "assignable": [
      false,
-     "7d usage 100% >= 100%"
+     "7d usage 100% >= 100% - resets 01-18 08:00"
     ],
     "assignable_active1": [
      false,
-     "7d usage 100% >= 100%"
+     "7d usage 100% >= 100% - resets 01-18 08:00"
     ],
     "cost_usd": null,
     "ctx_pct": null,
@@ -33308,7 +33308,7 @@
     "sub_end": null,
     "takes_work": [
      false,
-     "7d usage 100% >= 100%"
+     "7d usage 100% >= 100% - resets 01-18 08:00"
     ],
     "trusted_ctx_pct": null,
     "trusted_ctx_used": null,
@@ -53170,7 +53170,7 @@
      ],
      [
       "c",
-      "7d usage 100% >= 100%"
+      "7d usage 100% >= 100% - resets 01-15 09:23"
      ]
     ]
    },
@@ -53905,7 +53905,7 @@
      ],
      [
       "c",
-      "7d usage 100% >= 100%"
+      "7d usage 100% >= 100% - resets 01-16 09:00"
      ]
     ]
    },
@@ -54369,7 +54369,7 @@
     "reasons": [
      [
       "a",
-      "7d usage 100% >= 100%"
+      "7d usage 100% >= 100% - resets 01-16 09:00"
      ],
      [
       "b",
@@ -55677,7 +55677,7 @@
     "reasons": [
      [
       "a",
-      "7d usage 100% >= 100%"
+      "7d usage 100% >= 100% - resets 01-19 23:06"
      ],
      [
       "b",
@@ -56546,7 +56546,7 @@
     "reasons": [
      [
       "a",
-      "7d usage 100% >= 100%"
+      "7d usage 100% >= 100% - resets 01-15 09:23"
      ],
      [
       "b",
@@ -58512,7 +58512,7 @@
      ],
      [
       "b",
-      "7d usage 100% >= 100%"
+      "7d usage 100% >= 100% - resets 01-16 09:00"
      ],
      [
       "c",
@@ -59055,7 +59055,7 @@
      ],
      [
       "c",
-      "7d usage 100% >= 100%"
+      "7d usage 100% >= 100% - resets 01-15 09:23"
      ]
     ]
    },
@@ -59254,7 +59254,7 @@
     "reasons": [
      [
       "a",
-      "7d usage 100% >= 100%"
+      "7d usage 100% >= 100% - resets 01-15 09:23"
      ],
      [
       "b",
@@ -60677,7 +60677,7 @@
      ],
      [
       "c",
-      "7d usage 100% >= 100%"
+      "7d usage 100% >= 100% - resets 01-19 23:06"
      ],
      [
       "d",
