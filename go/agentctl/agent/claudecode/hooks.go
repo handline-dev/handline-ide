@@ -17,8 +17,9 @@ var Wanted = []string{"SessionStart", "SessionEnd", "Stop", "StopFailure", "Suba
 	"PermissionRequest", "TeammateIdle", "PostToolUse", "PostToolUseFailure", "PreToolUse", "Notification"}
 
 // longHooks are the events whose hook of ours runs longer than the 10 seconds every other one gets, and how long: a permission question
-// waits up to an hour for the founder (permission.ask). An entry of ours with another timeout is put right.
-var longHooks = map[string]int{"PermissionRequest": 3600 + 60}
+// waits up to an hour for the founder (permission.ask), and a push waits for the workspace's land_check (cmd/hl landCheckLimit, 25
+// minutes). An entry of ours with another timeout is put right.
+var longHooks = map[string]int{"PermissionRequest": 3600 + 60, "PreToolUse": 25*60 + 60}
 
 func hookTimeoutS(event string) int {
 	if t, ok := longHooks[event]; ok {

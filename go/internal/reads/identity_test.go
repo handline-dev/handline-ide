@@ -69,3 +69,17 @@ func TestWorkspaceRulesListsTheRulesInForceAndWhereEachComesFrom(t *testing.T) {
 		t.Error("an unknown workspace is not_found")
 	}
 }
+
+func TestWorkspaceRulesFollowsAnAgentToItsWorkspace(t *testing.T) {
+	t.Parallel()
+	e := testEnv(t)
+	run(t, e, "INSERT INTO workspaces(id, name, folder, created_at) VALUES(5, 'shop', '', 0)")
+	run(t, e, `INSERT INTO workspace_settings(workspace, key, value, set_by, set_at) VALUES(5, 'land_by', '"a8"', 'p1', 1)`)
+	v, err := e.workspaceRules(nil, map[string]any{"agent": "nobody"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := json.Marshal(v); string(b) != `{"rules":[]}` {
+		t.Errorf("an agent in no workspace gets the machine's: %s", b)
+	}
+}

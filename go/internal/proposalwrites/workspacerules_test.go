@@ -61,8 +61,8 @@ func TestWorkspaceRuleSetRefusesWhatIsNoRuleAndWhoIsNotTheOwner(t *testing.T) {
 	bobWithKid(t, r)
 	for _, c := range []struct{ params, says string }{
 		{`{"workspace":"bob","key":"agent_cap","value":"x","request_id":"b1"}`, "whole number"},
-		{`{"workspace":"bob","key":"land_by","value":"x","request_id":"b2"}`, "not a kept rule"},
-		{`{"workspace":"bob","key":"land_by","value":null,"request_id":"b3"}`, "not a kept rule"},
+		{`{"workspace":"bob","key":"land_nope","value":"x","request_id":"b2"}`, "not a kept rule"},
+		{`{"workspace":"bob","key":"land_nope","value":null,"request_id":"b3"}`, "not a kept rule"},
 		{`{"workspace":"bob","key":"lease_max.gpu","value":1,"request_id":"b4"}`, "no lease kind gpu"},
 		{`{"workspace":"bob","key":"accounts","value":["nobody"],"request_id":"b5"}`, "no account nobody"},
 		{`{"workspace":"bob","key":"mode_max","value":"bypass","request_id":"b6"}`, "one of plan"},

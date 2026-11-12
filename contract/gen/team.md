@@ -15,7 +15,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `workspace.create` | owner | yes | `name`, `folder`, `account?`, `request_id` | `OperationStarted` | `refused`, `not_found`, `bad_request` | state, not_git | decided: create workspace |
 | `workspace.set` | owner | yes | `workspace`, `name`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | state | decided: rename workspace |
 | `workspace.delete` | owner | yes | `workspace`, `worktree?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | state, dirty, worktree | decided: delete workspace |
-| `workspace.rules` | agent |  | `workspace?` | `{rules}` | `not_found`, `bad_request` |  | not cached |
+| `workspace.rules` | agent |  | `workspace?`, `agent?` | `{rules}` | `not_found`, `bad_request` |  | not cached |
 | `workspace.rule.set` | owner | yes | `workspace?`, `key`, `value`, `request_id` | `Accepted` | `not_found`, `bad_request` |  | decided: set workspace rule |
 | `team.get` | agent |  | none | `{agents, people, workspaces}` |  |  | `team`, snapshot |
 | `proposal.list` | agent |  | `state?` | `{proposals} & ReadCursor` | `bad_request` |  | `proposals`, fed by proposals |

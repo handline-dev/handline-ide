@@ -199,8 +199,10 @@ Today (main, read from `go/scheduler/lifecycle/launch.go` and `rulesnote.go`): `
 | `tools_deny` | tools its agents may not use, added to the global list | launch argv and the PreToolUse guard |
 | `mode_max` | strongest mode an agent of it may be given (`plan` < `default` < `acceptEdits` < `auto`) | agent create and settings write |
 | `review_required` | a task with commits needs a review comment from another agent before `hl task done` | the task.done write |
+| `land_by` | the one agent that may push to a repo's default branch (empty = anyone) | the PreToolUse guard on `git push` |
+| `land_check` | a command that must pass before such a push (empty = none) | the PreToolUse guard, which runs it in the agent's folder and refuses with the end of its output |
 
-New keys merge off (0 or empty = no rule); the founder turns them on. Nothing else is a kept rule until a kept place for it exists: "how work lands" (direct to main or a PR) stays text in `base.md` until the daemon can see a landing.
+New keys merge off (0 or empty = no rule); the founder turns them on. Nothing else is a kept rule until a kept place for it exists. The land guard is advisory, not a sandbox. It reads a Bash `git push` (also behind `cd DIR &&`, `git -C DIR`, `env`/`FOO=1`) that updates the default branch (`origin/HEAD`, else main or master). It does not see a push of another branch, a delete, a dry run, a push wrapped in `sh -c` or a script, or another way to land (`gh pr merge`). A daemon that does not answer within 2 s lets the push through. `land_check` runs before the command does, in the agent's folder, for up to 25 minutes (the PreToolUse hook's timeout), so in `git commit && git push` it sees the tree before the commit.
 
 ### Told when it changes
 

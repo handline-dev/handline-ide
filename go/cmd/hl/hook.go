@@ -1,12 +1,14 @@
 package main
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -88,6 +90,10 @@ func hook(c *hlclient.Client, args []string) (int, bool) {
 		why = session.LeaseGuard(tool, input, func(kind string) int { return leases.Max(usage.LoadConfig(c.Home), kind) },
 			func(kind string) bool { return holds(c, agent, kind) })
 	}
+	if why == "" && session.PushesToGit(tool, input) {
+		cwd, _ := raw["cwd"].(string)
+		why = landGuard(c, agent, tool, input, cwd)
+	}
 	if why == "" && tool == "Agent" {
 		why = subagentStart(c, agent, raw)
 	}
@@ -98,6 +104,59 @@ func hook(c *hlclient.Client, args []string) (int, bool) {
 	fmt.Println(pyjson.PyJSON(map[string]any{"hookSpecificOutput": map[string]any{
 		"hookEventName": "PreToolUse", "permissionDecision": "deny", "permissionDecisionReason": why}}, true, true))
 	return 0, true
+}
+
+// landCheckLimit is how long a land_check may run; the PreToolUse hook's timeout (claudecode.longHooks) is set just past it.
+const landCheckLimit = 25 * time.Minute
+
+// landGuard is the refusal of a git push to the default branch that the workspace's land_by or land_check forbids: the rules are asked
+// of the daemon within 2s, and a daemon that does not answer lets the push through. land_check is run here, in the agent's own folder
+// and environment, and a push waits for it.
+func landGuard(c *hlclient.Client, agent, tool string, input any, cwd string) string {
+	quick := &hlclient.Client{Home: c.Home, Dial: hlclient.Dialer(c.Home, 2*time.Second), As: "hook", Deadline: 2 * time.Second}
+	got, err := quick.Call("workspace.rules", map[string]any{"agent": agent})
+	if err != nil {
+		return ""
+	}
+	var rules session.Land
+	for _, r := range list(got, "rules") {
+		v, _ := r["value"].(string)
+		switch str(r, "key") {
+		case "land_by":
+			rules.By = v
+		case "land_check":
+			rules.Check = v
+		}
+	}
+	if cwd == "" {
+		cwd, _ = os.Getwd()
+	}
+	git := func(dir string, args ...string) string {
+		cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+		out, err := cmd.Output()
+		if err != nil {
+			return ""
+		}
+		return string(out)
+	}
+	check := func(dir, command string) (string, bool) {
+		ctx, cancel := context.WithTimeout(context.Background(), landCheckLimit)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, "sh", "-c", command)
+		cmd.Dir = dir
+		cmd.WaitDelay = 5 * time.Second // a grandchild holding the pipe open does not outlast the limit
+		out, err := cmd.CombinedOutput()
+		lines := strings.Split(strings.TrimRight(string(out), "\n"), "\n")
+		if len(lines) > 30 {
+			lines = lines[len(lines)-30:]
+		}
+		tail := strings.Join(lines, "\n")
+		if ctx.Err() != nil {
+			tail += "\n(stopped after " + landCheckLimit.String() + ")"
+		}
+		return tail, err == nil
+	}
+	return session.LandGuard(tool, input, agent, cwd, rules, git, check)
 }
 
 // subagentStart asks the daemon whether a subagent may start and has it recorded, within 2s: the refusal's reason, or "" to let it
