@@ -504,6 +504,58 @@
      "added_folders",
      "lead"
     ]
+   },
+   "WorkspaceRule": {
+    "type": "object",
+    "description": "A kept rule in force for a workspace (docs/design/people-workspaces.md \"Workspace rules\"): its value, and whether the workspace or the machine default sets it.",
+    "properties": {
+     "key": {
+      "type": "string",
+      "enum": [
+       "accounts",
+       "agent_cap",
+       "lease_max.heavy",
+       "lease_max.simulator",
+       "lease_max.browser",
+       "lease_max.port",
+       "tools_deny",
+       "mode_max",
+       "review_required"
+      ],
+      "description": "The rule's key."
+     },
+     "value": {
+      "description": "accounts and tools_deny: a list of names; agent_cap and lease_max.<kind>: a whole number; mode_max: plan, default, acceptEdits or auto; review_required: true or false. 0, an empty list or name and false are no rule."
+     },
+     "on": {
+      "type": "boolean",
+      "description": "Whether the value is a rule, not 0, empty or false."
+     },
+     "source": {
+      "type": "string",
+      "enum": [
+       "workspace",
+       "machine"
+      ],
+      "description": "workspace: set on it, beating the machine default; machine: the machine default, the value each workspace gets (not a total across the machine)."
+     },
+     "set_by": {
+      "type": "string",
+      "description": "The key of the person who set it."
+     },
+     "set_at": {
+      "type": "integer",
+      "description": "When, unix seconds."
+     }
+    },
+    "required": [
+     "key",
+     "value",
+     "on",
+     "source",
+     "set_by",
+     "set_at"
+    ]
    }
   }
  },
@@ -1070,6 +1122,119 @@
     "state",
     "dirty",
     "worktree"
+   ]
+  },
+  {
+   "name": "workspace.rules",
+   "summary": "The kept rules in force for a workspace, its own beating the machine default's, or with no workspace the machine default's alone. A rule set to 0, empty or false is listed (it still beats the level below) with on false. A rule never set on either is not listed: it is off.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "workspace",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "description": "The workspace's key (w3) or its name, as workspaces.list gives them; absent for the machine default. An unknown one is not_found, what workspace."
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "properties": {
+      "rules": {
+       "type": "array",
+       "items": {
+        "$ref": "#/components/schemas/WorkspaceRule"
+       }
+      }
+     },
+     "required": [
+      "rules"
+     ]
+    }
+   },
+   "x-role": "agent",
+   "x-write": false,
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "x-app-cache": false
+  },
+  {
+   "name": "workspace.rule.set",
+   "summary": "Set or clear a kept rule on a workspace, or with no workspace the machine default. A workspace's value beats the machine default, which beats the built-in: no rule. Agents of the workspace (every agent, for the machine default) are told the rules in force under their team's rules text. An unknown key, a value that is not the key's kind, an account no login has or a lease kind there is none of is bad_request. Owner only.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "workspace",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "description": "The workspace's key (w3) or its name, as workspaces.list gives them; absent for the machine default. An unknown one is not_found, what workspace."
+     }
+    },
+    {
+     "name": "key",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "enum": [
+       "accounts",
+       "agent_cap",
+       "lease_max.heavy",
+       "lease_max.simulator",
+       "lease_max.browser",
+       "lease_max.port",
+       "tools_deny",
+       "mode_max",
+       "review_required"
+      ],
+      "description": "The rule's key."
+     }
+    },
+    {
+     "name": "value",
+     "required": true,
+     "schema": {
+      "description": "The value as WorkspaceRule.value says, or null to clear it, so the level below holds."
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Accepted"
+    }
+   },
+   "x-role": "owner",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "set workspace rule"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
    ]
   },
   {

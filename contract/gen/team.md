@@ -15,6 +15,8 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `workspace.create` | owner | yes | `name`, `folder`, `request_id` | `OperationStarted` | `refused`, `not_found`, `bad_request` | state, not_git | decided: create workspace |
 | `workspace.set` | owner | yes | `workspace`, `name`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | state | decided: rename workspace |
 | `workspace.delete` | owner | yes | `workspace`, `worktree?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | state, dirty, worktree | decided: delete workspace |
+| `workspace.rules` | agent |  | `workspace?` | `{rules}` | `not_found`, `bad_request` |  | not cached |
+| `workspace.rule.set` | owner | yes | `workspace?`, `key`, `value`, `request_id` | `Accepted` | `not_found`, `bad_request` |  | decided: set workspace rule |
 | `team.get` | agent |  | none | `{agents, people, workspaces}` |  |  | `team`, snapshot |
 | `proposal.list` | agent |  | `state?` | `{proposals} & ReadCursor` | `bad_request` |  | `proposals`, fed by proposals |
 | `proposal.decide` | member | yes | `proposal`, `decision`, `note?`, `subject?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | proposal_changed, proposal_settled | decided: decide |
@@ -64,6 +66,14 @@ Rename a workspace: its name is the one thing this changes. Keys never change; t
 ### `workspace.delete`
 
 Delete a workspace: each of its agents is retired as agent.retire retires one, its lead last, and the workspace goes with the lead. The project folder is never touched. Nothing is done when any agent has a session running or an agent of another workspace under it (gate state), a worktree holds work with no worktree answer (gate dirty, every agent's in worktrees), or a worktree cannot go (gate worktree). While it runs, agent.create and the session methods in the workspace are refused (gate state), and it is refused while one of them is under way. Git or the disk failing part way puts back every retire before it, but not a worktree already removed; the call is refused (gate state) naming the step. Owner only.
+
+### `workspace.rules`
+
+The kept rules in force for a workspace, its own beating the machine default's, or with no workspace the machine default's alone. A rule set to 0, empty or false is listed (it still beats the level below) with on false. A rule never set on either is not listed: it is off.
+
+### `workspace.rule.set`
+
+Set or clear a kept rule on a workspace, or with no workspace the machine default. A workspace's value beats the machine default, which beats the built-in: no rule. Agents of the workspace (every agent, for the machine default) are told the rules in force under their team's rules text. An unknown key, a value that is not the key's kind, an account no login has or a lease kind there is none of is bad_request. Owner only.
 
 ### `team.get`
 
