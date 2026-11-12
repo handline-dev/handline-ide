@@ -86,11 +86,12 @@ func (u *UsageAdapter) Pace(acct string) *usage.Pace { return u.Env.PaceNow(acct
 // Headroom is what the account's weekly bucket still holds.
 func (u *UsageAdapter) Headroom(acct string) (float64, bool) { return u.Env.Headroom(acct) }
 
-// ActiveOn is how many agents are mid-turn on the account, agent left out. A count that cannot be read is the cap: no room.
+// ActiveOn is how many agents are mid-turn on the account, agent left out. A count that cannot be read is the unpaced cap, which is no
+// smaller than the paced one: no room against either.
 func (u *UsageAdapter) ActiveOn(q db.Q, acct, agent string) int {
 	by, err := u.Env.ActiveAgents(q, agent)
 	if err != nil {
-		return u.CapOf(acct)
+		return u.CapUnpaced(acct)
 	}
 	return by[acct]
 }
