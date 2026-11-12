@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/handline/handline/go/kit/timefmt"
 )
 
 // Rows of docs/design/account-assignment-scenarios.md on a fake clock: A (window edges), B1/B2/B9 (the cap), C (placement order).
@@ -103,11 +105,9 @@ func TestScenarioAWindowEdges(t *testing.T) {
 	t.Run("A4 week at W, 5h at 0: refused on the week, naming its reset", func(t *testing.T) {
 		w := newWorld(t, map[string]acct{"alpha": {week: WallPct}})
 		picked, why := w.pick([]string{"alpha"}, nil, "")
-		if picked != "" || !strings.HasPrefix(why["alpha"], "7d usage 100% >= 100%") {
-			t.Fatalf("picked %q, alpha: %q", picked, why["alpha"])
-		}
-		if !strings.Contains(why["alpha"], "resets") {
-			t.Skipf("T9060: the reason does not name the reset: %q", why["alpha"])
+		want := "7d usage 100% >= 100% - resets " + timefmt.Stamp(w.now+WeekS/2, timefmt.Short)
+		if picked != "" || why["alpha"] != want {
+			t.Fatalf("picked %q, alpha: %q, want %q", picked, why["alpha"], want)
 		}
 	})
 	t.Run("A5 a subscription ending before the week resets ends the week; once passed, no urgency", func(t *testing.T) {
