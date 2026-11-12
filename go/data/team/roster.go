@@ -287,8 +287,10 @@ func (r *Roster) Registered() ([]string, error) {
 type RegisterOpts struct {
 	Role, Weight, RoleFile, Repo           string
 	Model, Effort, Vendor, Mode, MCPConfig *string
-	ContextTokens, ExtraWorktrees          *int64
-	Chrome, Sandbox                        *bool
+	// Account pins the agent to that account (PinFor).
+	Account                       *string
+	ContextTokens, ExtraWorktrees *int64
+	Chrome, Sandbox               *bool
 }
 
 func strp(s string) *string { return &s }
@@ -428,6 +430,9 @@ func (r *Roster) register(q db.Q, name string, o RegisterOpts, mcp string) (made
 	}
 	if present(o.Vendor) {
 		add("vendor", nilIf(*o.Vendor, DefaultVendor))
+	}
+	if present(o.Account) {
+		add("account", *o.Account)
 	}
 	return made, r.set(q, at, set)
 }

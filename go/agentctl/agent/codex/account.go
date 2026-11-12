@@ -1,5 +1,4 @@
-// Package codex is the Codex CLI vendor (docs/design/codex-support.md): an account keeps its own CODEX_HOME. It registers no
-// launchable Agent yet, so a codex agent is refused at launch until its launch line, screen and hooks are built.
+// Package codex is the Codex CLI vendor (docs/design/codex-support.md): an account keeps its own CODEX_HOME.
 package codex
 
 import (

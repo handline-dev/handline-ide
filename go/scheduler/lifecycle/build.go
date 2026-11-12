@@ -215,7 +215,7 @@ func (l *Launcher) Build(site *Site, agent string, extra []string, force bool, a
 		trusted = l.TrustedEnvironment(cwd)
 	}
 	argv = drv.LaunchArgv(exe, cli.LaunchArgs{
-		Model: modelOf(cfg), Effort: effort, Disallowed: l.disallowed(agent),
+		Cwd: cwd, Model: modelOf(cfg), Effort: effort, Disallowed: l.disallowed(agent),
 		MCPArgs:  append(append([]string{}, mcpArg...), team.MCPConfigArgs(cfg)...),
 		Preamble: preamble, Hide: hide,
 		NoWrite:   noWrite,

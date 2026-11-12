@@ -1587,3 +1587,29 @@ func TestAgentSetKeepsTheRestartModeOfItsChange(t *testing.T) {
 		t.Fatalf("a set with no mode resumes: %v %q", res, mode())
 	}
 }
+
+// An add of a codex agent pins it to the codex account, the only one an unmetered agent can be placed on; a claude agent gets no pin.
+func TestAnAddOfACodexAgentPinsItToTheCodexAccount(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	if _, err := (team.Accounts{Home: r.home}).Add("cx", "codex"); err != nil {
+		t.Fatal(err)
+	}
+	for i, c := range []struct{ name, vendor, pin string }{{"carol", "codex", "cx"}, {"dave", "", ""}} {
+		args := fmt.Sprintf(`{"name":%q,"repo":%q}`, c.name, testfiles.GitCheckout(t))
+		if c.vendor != "" {
+			args = fmt.Sprintf(`{"name":%q,"repo":%q,"vendor":%q}`, c.name, testfiles.GitCheckout(t), c.vendor)
+		}
+		m := r.call("proposal.propose", fmt.Sprintf(`{"kind":"add","args":%s,"why":"onboarding","request_id":"p%d"}`, args, i))
+		if _, ok := m["result"].(map[string]any); !ok {
+			t.Fatalf("%v", m)
+		}
+		cfg, err := team.NewRoster(r.home).Read(r.who(c.name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if pin, _ := cfg["account"].(string); pin != c.pin {
+			t.Errorf("%s: pinned to %q, want %q", c.name, pin, c.pin)
+		}
+	}
+}

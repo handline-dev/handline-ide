@@ -20,6 +20,7 @@ import (
 	"github.com/handline/handline/go/data/agenthost"
 	dbpkg "github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/stream"
+	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/internal/adminwrites"
 	"github.com/handline/handline/go/internal/chatwrites"
 	"github.com/handline/handline/go/internal/debugterm"
@@ -556,9 +557,10 @@ func (d *Daemon) writeRegistrars() []func(*rpc.Server) {
 
 // typing is the env of input.take and release and the session typing methods: who holds each terminal, and the host to type at.
 func (d *Daemon) typing() *sessionrpc.Env {
-	t := term.New(agenthost.Dynamic(d.cfg.Home), claudecode.ScreenFor)
+	screens := team.ScreenFor(d.cfg.Home, d.db, claudecode.ScreenFor)
+	t := term.New(agenthost.Dynamic(d.cfg.Home), screens)
 	if d.cfg.Terminal != nil {
-		t = term.New(d.cfg.Terminal, claudecode.ScreenFor)
+		t = term.New(d.cfg.Terminal, screens)
 	}
 	env := &sessionrpc.Env{DB: d.db, Home: d.cfg.Home, Holds: d.holds, Term: t, Marker: d.tchan.Marker,
 		Wall:          func(agent string) string { why, _ := d.env().WallReason(d.db, agent, nil); return why },
