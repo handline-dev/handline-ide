@@ -2,7 +2,7 @@
 """What a test run left behind. tools/check.sh gives the run a directory of its own and points TMPDIR and TMUX_TMPDIR
 into it, so every temp home, tmux socket and scratch binary the run makes is under it. It is in /tmp, not the per-user
 TMPDIR, so a socket under it still fits in the 104 bytes a socket path holds:
-    run="$(tools/leakcheck.py begin)"      prints the directory; TMPDIR is <run>/tmp, TMUX_TMPDIR <run> itself
+    run="$(tools/leakcheck.py begin $$)"   prints the directory, owned by pid $$; TMPDIR is <run>/tmp, TMUX_TMPDIR <run> itself
     tools/leakcheck.py end [--interrupted] "$run"   exit 1, naming each, when the run left any of:
 - a process whose command line names the directory (a daemon on a temp home, a fake claude, a test binary);
 - a tmux server still answering on a socket under <run>/tmux-<uid>;
@@ -76,7 +76,7 @@ def sweep_kept(root: Path = Path("/tmp")) -> None:
 
 
 def new_run(owner: int, at: Path | None = None) -> Path:
-    """A run's directory, owned by the process owner: the shell that called begin, or this one for run."""
+    """A run's directory, owned by the process owner: the shell begin names, or this one for run."""
     if at is None:
         sweep_kept()
         run = Path(tempfile.mkdtemp(prefix="hlc.", dir="/tmp"))
@@ -89,8 +89,8 @@ def new_run(owner: int, at: Path | None = None) -> Path:
     return run
 
 
-def begin() -> int:
-    print(new_run(os.getppid()))
+def begin(owner: int) -> int:
+    print(new_run(owner))
     return 0
 
 
@@ -155,8 +155,8 @@ def run_one(cmd: list[str], at: Path | None = None) -> int:
 
 
 def main(argv: list[str]) -> int:
-    if argv[:1] == ["begin"]:
-        return begin()
+    if argv[:1] == ["begin"] and len(argv) == 2 and argv[1].isdigit():
+        return begin(int(argv[1]))
     if argv[:1] == ["end"] and len(argv) == 2:
         return end(Path(argv[1]))
     if argv[:2] == ["end", "--interrupted"] and len(argv) == 3:
