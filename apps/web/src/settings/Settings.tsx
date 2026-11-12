@@ -53,9 +53,7 @@ function Frame() {
   }, []);
   return (
     <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-      {/* Over the page, not above it: the menu's grey runs up to the window's top edge. The window buttons sit over the menu only, so the
-          page keeps a thin strip and starts close to the top. */}
-      <LayerDragStrip height="16px" className="absolute inset-x-0 top-0" />
+      {/* Over the menu, not above it: its grey runs up to the window's top edge. */}
       <LayerDragStrip className="absolute left-0 top-0 w-56" />
       <div className="flex min-h-0 flex-1">
         <nav
@@ -88,11 +86,15 @@ function Frame() {
             </button>
           ))}
         </nav>
-        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto" style={{ paddingTop: '16px' }}>
-          {section === 'accounts' && <AccountsTab focus={to.account} />}
-          {section === 'machine' && <MachineTab />}
-          {section === 'devices' && <DevicesTab />}
-        </main>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          {/* Empty tab bar, matching the app's. */}
+          <LayerDragStrip height="40px" className="shrink-0 border-b border-border bg-surface" />
+          <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto pt-4">
+            {section === 'accounts' && <AccountsTab focus={to.account} />}
+            {section === 'machine' && <MachineTab />}
+            {section === 'devices' && <DevicesTab />}
+          </main>
+        </div>
       </div>
     </div>
   );
