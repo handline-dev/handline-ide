@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/actor"
 )

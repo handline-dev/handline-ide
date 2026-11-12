@@ -37,7 +37,9 @@ func (e *Env) retireMethod(c *rpc.Conn, params map[string]any) (any, error) {
 	if !ok {
 		return nil, rpc.Refused("could not confirm whether "+agent+" has a session running just now - try again in a moment.", "state", "")
 	}
-	if deps := e.dependents(agent, everyone); len(deps) > 0 {
+	if deps, err := e.dependents(agent, everyone); err != nil {
+		return nil, err
+	} else if len(deps) > 0 {
 		return nil, rpc.Refused(fmt.Sprintf("%s has agents under it (%s): retire or move them first.", addr.Ref(agent), strings.Join(deps, ", ")), "state", "")
 	}
 	choice, _ := params["worktree"].(string)
@@ -131,16 +133,17 @@ func (e *Env) refuseHeldWork(agents ...string) error {
 	return r
 }
 
-// dependents are the agents that keep agent from retiring: those that hang under its name (agent.x), and, when it is its workspace's
-// contact, the others in that workspace, which would be left with no contact.
-func (e *Env) dependents(agent string, everyone []string) []string {
-	t, _ := team.LoadTeam(e.Home)
-	contact := t != nil && t.ContactOf(t.TeamOf(agent)) == agent
+// dependents are the others in agent's workspace when it is that workspace's contact: they would be left with none.
+func (e *Env) dependents(agent string, everyone []string) ([]string, error) {
+	t, err := team.LoadTeam(e.Home)
+	if err != nil || t.ContactOf(t.TeamOf(agent)) != agent {
+		return nil, err
+	}
 	var out []string
 	for _, n := range everyone {
-		if n != agent && (team.ParentName(n) == agent || contact && t.TeamOf(n) == t.TeamOf(agent)) {
+		if n != agent && t.TeamOf(n) == t.TeamOf(agent) {
 			out = append(out, n)
 		}
 	}
-	return out
+	return out, nil
 }

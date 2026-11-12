@@ -29,7 +29,7 @@ func refusal(t *testing.T, m map[string]any) string {
 func TestAgentRetireRefusesADependedOnAgentAndRetiresOneThatIsNot(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
-	// bob.kid is an agent of bob's workspace, reporting to bob
+	// bob.kid is an agent of bob's workspace, whose contact is bob
 	if _, err := team.NewRoster(r.home).Register("bob.kid", team.RegisterOpts{Role: "r"}); err != nil {
 		t.Fatal(err)
 	}
