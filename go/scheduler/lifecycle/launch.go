@@ -153,10 +153,25 @@ type Launcher struct {
 
 	// pacePassed is each agent a person let past the pace (PassPace), until when.
 	pacePassed sync.Map
-	// placeMu makes choosing an account and holding its slot (wake_reserved) one step: a launch's choice (Build) and a wake's fresh
-	// or cold choice (wake.go). A move's destination and a warm resume's room are still decided before it (T9062). Taken after the agent's lock and the terminal lock, never before them; nothing under it takes
+	// placeMu makes choosing an account and holding its slot (wake_reserved) one step: a launch's choice (Build), a wake's fresh or
+	// cold choice, and the slot of a move or a warm resume, asked again under it (wake.go). Taken after the agent's lock and the terminal lock, never before them; nothing under it takes
 	// another lock, makes a network call or waits (usage.Env.Refresh, the one live read a pick may make, is not set in the daemon).
 	placeMu sync.Mutex
+}
+
+// SlotTaken is why acct has no free slot for agent, "" when it has: agents mid-turn or held on it, agent left out, against its cap, the
+// unpaced one where unpaced or a person let the agent past the pace (as full weighs it).
+func (l *Launcher) SlotTaken(q db.Q, agent, acct string, unpaced bool) string {
+	var limit int
+	if unpaced || l.pacePassedFor(agent) {
+		limit = l.Ports.Usage.CapUnpaced(acct)
+	} else {
+		limit = l.Ports.Usage.CapOf(acct)
+	}
+	if n := l.Ports.Usage.ActiveOn(q, acct, agent); n >= limit {
+		return fmt.Sprintf("%s has no free slot now: %d of %d agents mid-turn or held", acct, n, limit)
+	}
+	return ""
 }
 
 // Placing takes placeMu; the returned func lets it go.
@@ -1447,6 +1462,10 @@ func (p LaunchPort) AccountFor(q db.Q, agent string, resuming bool) string {
 }
 
 func (p LaunchPort) Placing() func() { return p.L.Placing() }
+
+func (p LaunchPort) SlotTaken(q db.Q, agent, acct string, unpaced bool) string {
+	return p.L.SlotTaken(q, agent, acct, unpaced)
+}
 
 func (p LaunchPort) SlowestPaced(q db.Q, agent string, row *db.AgentState, skip string) string {
 	return p.L.SlowestPaced(q, agent, row, skip)

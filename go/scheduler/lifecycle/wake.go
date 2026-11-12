@@ -1,6 +1,7 @@
 package lifecycle
 
 import (
+	"cmp"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/handline/handline/go/accounts/usage"
 	"github.com/handline/handline/go/agentctl/verdict"
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
@@ -493,6 +495,8 @@ func (m *Manager) wakeClosed(agent string, row *db.AgentState, handle, wt string
 	// this launch lands on is the one a session to resume lives under. Keeping the conversation is worth a wait only while its prompt cache
 	// lives; past that a resume pays for its context in full on any account, so it moves rather than waits.
 	session := row.ResumeSession.String
+	// A slot held for this wake is weighed as its wait is: against the unpaced cap for a person's start, a restart or a person waiting.
+	unpaced := o.Person || force || m.personWaiting(agent)
 	rehomed := false
 	moveFrom := ""
 	if movedTo == "" && !warm && session != "" && m.cachePast(agent, session, m.now()) {
@@ -500,7 +504,7 @@ func (m *Manager) wakeClosed(agent string, row *db.AgentState, handle, wt string
 		// gain, else it stays), its own included, taking the session along (so ignore_cache_expiry, which only keeps the session, does not hold it).
 		if to, _ := m.Launch.RoomElsewhere(m.Q, agent, row, nil); to != "" && to != row.Account.String && m.Launch.WorthRepick(row.Account.String, to) {
 			var kept string
-			if kept, rehomed = m.moveElsewhere(agent, session, row.Account.String, to, "its prompt cache has expired"); rehomed {
+			if kept, rehomed, _ = m.moveElsewhere(agent, session, row.Account.String, to, "its prompt cache has expired", unpaced); rehomed {
 				session, movedTo, moveFrom = kept, to, row.Account.String
 			}
 		}
@@ -522,8 +526,9 @@ func (m *Manager) wakeClosed(agent string, row *db.AgentState, handle, wt string
 			to, why := m.Launch.RoomNow(m.Q, agent, row, wait.Account)
 			kept, moved := "", false
 			if to != "" {
-				if kept, moved = m.moveElsewhere(agent, session, wait.Account, to, "started by a person, "+wait.Account+" has no room"); !moved {
-					why = "its handoff could not be read whole"
+				var noRoom string
+				if kept, moved, noRoom = m.moveElsewhere(agent, session, wait.Account, to, "started by a person, "+wait.Account+" has no room", unpaced); !moved {
+					why = cmp.Or(noRoom, "its handoff could not be read whole")
 				}
 			}
 			if !moved {
@@ -540,12 +545,12 @@ func (m *Manager) wakeClosed(agent string, row *db.AgentState, handle, wt string
 		if movedTo == "" && session != "" {
 			to = m.Launch.SlowestPaced(m.Q, agent, row, wait.Account)
 		}
-		kept, moved := "", false
+		kept, moved, noRoom := "", false, ""
 		if to != "" {
-			kept, moved = m.moveElsewhere(agent, session, wait.Account, to, fmt.Sprintf("%s is full", wait.Account))
+			kept, moved, noRoom = m.moveElsewhere(agent, session, wait.Account, to, fmt.Sprintf("%s is full", wait.Account), unpaced)
 		}
 		if !moved {
-			return false, m.Launch.DescribeWakeWait(wait)
+			return false, m.Launch.DescribeWakeWait(wait) + ifTrue(noRoom != "", "; not moved: "+noRoom)
 		}
 		session, movedTo, moveFrom, wait = kept, to, wait.Account, nil
 	}
@@ -566,10 +571,12 @@ func (m *Manager) wakeClosed(agent string, row *db.AgentState, handle, wt string
 		}
 		if elsewhere != "" {
 			why := fmt.Sprintf("pinned to %s at %d%% (%s)", acct, pct, wait.Window)
-			if kept, moved := m.moveElsewhere(agent, session, acct, elsewhere, why); moved {
+			kept, moved, noRoom := m.moveElsewhere(agent, session, acct, elsewhere, why, unpaced)
+			if moved {
 				session, movedTo, moveFrom, rescued = kept, elsewhere, acct, true
 				m.noteSwitch(agent, kind, acct, elsewhere, db.SwitchStarting)
 			}
+			planWhy = cmp.Or(planWhy, noRoom)
 		}
 		if !rescued {
 			// Returned, not logged: this is reached on every retry for as long as the window lasts, and each caller says it in its own
@@ -581,7 +588,7 @@ func (m *Manager) wakeClosed(agent string, row *db.AgentState, handle, wt string
 			return false, msg
 		}
 	}
-	c := closed2{force, warm, cause, restartedBy, movedTo, moveFrom, o.Applying}
+	c := closed2{force, warm, cause, restartedBy, movedTo, moveFrom, o.Applying, unpaced || o.PastFit}
 	return m.launchClosed(agent, row, wt, session, c)
 }
 
@@ -589,7 +596,11 @@ func (m *Manager) wakeClosed(agent string, row *db.AgentState, handle, wt string
 // session it returns (carried), else fresh from the handoff the close took. why is what the log says the agent was stuck on. moved is
 // false when the handoff could not be read whole: it is the fallback should the resume fail, so the agent stays and the wake goes on
 // waiting.
-func (m *Manager) moveElsewhere(agent, session, from, to, why string) (kept string, moved bool) {
+func (m *Manager) moveElsewhere(agent, session, from, to, why string, unpaced bool) (kept string, moved bool, noRoom string) {
+	// The slot on to is held before anything is moved, so a miss changes nothing and a retry starts from the same place.
+	if noRoom = m.holdSlot(agent, to, unpaced); noRoom != "" {
+		return "", false, noRoom
+	}
 	hid := newHandoffID()
 	check(db.StartHandoff(m.Q, hid, agent, session, "pinned", m.now()+states.HandoffDeadlineS))
 	var missing []string
@@ -601,14 +612,26 @@ func (m *Manager) moveElsewhere(agent, session, from, to, why string) (kept stri
 		check(db.AdvanceHandoff(m.Q, hid, "released", "degraded", clip300(gap)))
 		check(db.BumpCounter(m.Q, agent, "throttle_count", 1))
 		m.Log("  %s: handoff degraded (%s); keeping the resume id", agent, gap)
-		return "", false
+		must(db.AddEvent(m.Q, agent, usage.HoldDroppedKind, db.KV{K: "why", V: gap}))
+		return "", false, ""
 	}
 	check(db.AdvanceHandoff(m.Q, hid, "released", "done", ""))
 	check(db.ResetCounter(m.Q, agent, "throttle_count"))
 	kept = m.carried(agent, session)
 	check(db.SetClosed(m.Q, agent, kept))
 	m.Log("  %s: %s - %s on %s", agent, why, ifTrue(kept != "", "resuming")+ifTrue(kept == "", "starting fresh"), to)
-	return kept, true
+	return kept, true, ""
+}
+
+// holdSlot holds a slot on acct for agent under the placement lock, "" when held, else why it has none (SlotTaken). Only the slot: the
+// pace and the walls were weighed when acct was picked.
+func (m *Manager) holdSlot(agent, acct string, unpaced bool) string {
+	defer m.Launch.Placing()()
+	if why := m.Launch.SlotTaken(m.Q, agent, acct, unpaced); why != "" {
+		return why
+	}
+	check(holdOn(m.Q, agent, acct, db.KV{K: "source", V: "move"}))
+	return ""
 }
 
 // recordMove writes the move moveElsewhere decided, once the launch on `to` has happened: a wake that gives up before it has moved nobody.
@@ -643,6 +666,7 @@ type closed2 struct {
 	movedTo            string
 	movedFrom          string // set when moveElsewhere moved it: its moved_account is written at the launch
 	applying           []string
+	unpaced            bool // its slot is weighed against the unpaced cap (wakeAgent's unpaced, or a person's choice past the room test)
 }
 
 // wakeCause is what a wake nobody gave a cause records its start as: a move, else what ended the last session - a fold of a full
@@ -716,23 +740,32 @@ func (m *Manager) launchClosed(agent string, row *db.AgentState, wt, session str
 	cold := c.movedTo == "" && !c.warm && m.cacheExpiredAt(agent, session, m.now()) && m.carried(agent, session) == ""
 	// A fresh start goes where there is room. With none, `hl launch` would refuse and the refusal would count against the agent's wake
 	// attempts, though it is the accounts that are full.
-	// The slot is held from the choice, under the one placement lock, so no other wake or launch sees it free.
-	slot := func() string {
+	// The slot is held from the choice, under the one placement lock. A move moveElsewhere made holds it already; a handoff's move and a
+	// warm resume were weighed before the lock, so their slot is asked again here.
+	slot, noRoom := func() (string, string) {
 		defer m.Launch.Placing()()
 		if c.movedTo == "" && (cold || session == "") && !m.Launch.ChooseAccount(m.Q, agent) {
-			return ""
+			return "", m.Launch.NoRoom(agent)
 		}
 		slot := c.movedTo
 		if slot == "" {
-			slot = m.Launch.AccountFor(m.Q, agent, session != "" && !cold) // "": a resume with nowhere to go (its workspace's accounts rule)
+			if slot = m.Launch.AccountFor(m.Q, agent, session != "" && !cold); slot == "" {
+				return "", m.Launch.NoRoom(agent) // a resume with nowhere to go (its workspace's accounts rule)
+			}
 		}
-		if slot != "" {
-			must(db.AddEventFor(m.Q, agent, slot, "wake_reserved", db.KV{K: "account", V: slot}))
+		if c.movedFrom != "" {
+			return slot, "" // held by moveElsewhere
 		}
-		return slot
+		if c.movedTo != "" || (session != "" && !cold) {
+			if why := m.Launch.SlotTaken(m.Q, agent, slot, c.unpaced); why != "" {
+				return "", why
+			}
+		}
+		check(holdOn(m.Q, agent, slot))
+		return slot, ""
 	}()
 	if slot == "" {
-		return false, m.Launch.NoRoom(agent)
+		return false, noRoom
 	}
 	took := false
 	if cold && must(db.GetHandoff(m.Q, agent)) == "" {
