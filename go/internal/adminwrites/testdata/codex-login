@@ -1,0 +1,4 @@
+#!/bin/sh
+printf "1. Open this link in your browser\n   \033[94mhttps://auth.example/codex/device\033[0m\n"
+printf "2. Enter this one-time code\n   \033[94mAB12-CD3EF\033[0m\n"
+cat > /dev/null
