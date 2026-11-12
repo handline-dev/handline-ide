@@ -82,6 +82,8 @@ func (fakeDelivery) EnforceEdges(db.Q, string) error { return nil }
 type fakeHandoff struct{ Handoff }
 
 // SettleOwedClear panics for "bad": a port that fails by panicking, which the per-agent guard must turn into that agent's stall.
+func (fakeHandoff) RunPendingMove(db.Q, string) bool { return false }
+
 func (fakeHandoff) SettleOwedClear(_ db.Q, agent string) bool {
 	if agent == "bad" {
 		panic(errors.New("config unreadable"))

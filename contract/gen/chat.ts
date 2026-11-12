@@ -80,7 +80,7 @@ export type TranscriptItem = {
   /** Its time and its source's row, so it never changes. An item that arrives in a second a client has read up to can sort before the last one it has: `since` reads from that second and a client drops the ids it already holds. For kind reply it is also what chat.send takes as parent_item. A reply has one of two sources, told apart by the last digit of its number within the second: a structured session's text block (even; the same id on every read and in the live event's `item`) and the answer to a request (odd); each is the same on every read, and chat.transcript lists both. Source numbers within the second: 0 reply, 1 prompt, 2 task event, 3 tool call, 4 session start (its number is the session_starts row), 5 bash command (its number is its place in the session's transcript). */
   id: number;
   at: Timestamp;
-  kind: "reply" | "tool" | "prompt" | "task_event" | "session" | "task_batch" | "bash" | "task_comment";
+  kind: "reply" | "tool" | "prompt" | "task_event" | "session" | "task_batch" | "bash" | "task_comment" | "account_moved" | "move_failed";
   text?: string;
   tool?: string;
   /** For kind tool: the text the tool printed, as the store holds it. Absent when the store holds none. */
@@ -157,6 +157,21 @@ export type TranscriptItem = {
     who: string;
     /** The comment's text as it reads now (edited or not); empty when it was deleted. */
     text: string;
+  };
+  /** Kind account_moved: the agent landed on another account, a line in its own chat. */
+  account_moved?: {
+    from: string;
+    to: string;
+    /** `manual` for a person's move (agent.move, agent.move_now), `policy` for the daemon's. An open set. */
+    cause: string;
+    /** Whether the agent's handoff note was in when the move began; false means the next session starts from the daemon's own record. */
+    note_written: boolean;
+  };
+  /** Kind move_failed: a person's kept move could not run when the turn ended or the note was in, and is dropped, not retried. */
+  move_failed?: {
+    to: string;
+    /** Why, in the daemon's words. */
+    reason: string;
   };
 };
 

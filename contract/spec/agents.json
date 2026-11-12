@@ -503,6 +503,40 @@
       ],
       "description": "The account switch the agent is in, from the limit being reached until the new session has started, written as each step begins; every step is an agent.changed. null when none. Absent from a daemon that does not serve it."
      },
+     "pending_move": {
+      "oneOf": [
+       {
+        "type": "object",
+        "properties": {
+         "to": {
+          "type": "string",
+          "description": "The account it moves to."
+         },
+         "since": {
+          "$ref": "#/components/schemas/Timestamp",
+          "description": "When this phase began."
+         },
+         "phase": {
+          "type": "string",
+          "enum": [
+           "scheduled",
+           "stopping"
+          ],
+          "description": "`scheduled`: it waits for the turn under way to end (agent.move_cancel drops it). `stopping`: agent.move_now stopped the turn and the move waits for the handoff note; too late to cancel. A client draws a phase it does not know as `scheduled`."
+         }
+        },
+        "required": [
+         "to",
+         "since",
+         "phase"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "A person's move (agent.move on an agent mid-turn, or agent.move_now) that has not begun; once it begins it is `account_switch`. It is stored, so it outlives a daemon restart. null when none. Absent from a daemon that does not serve it."
+     },
      "last_to_founder": {
       "oneOf": [
        {
@@ -1682,7 +1716,7 @@
   },
   {
    "name": "agent.move",
-   "summary": "Move an agent to another account.",
+   "summary": "Move an agent to another account. An idle or closed agent moves now (a closed one on its next wake). One mid-turn keeps the move (AgentView.pending_move, phase scheduled) and moves when the turn ends; a second call replaces the account. A pin, another vendor, an account that is not logged in or has no room refuse at the call, and the room test is made again when the turn ends: a move that cannot run then clears itself and leaves a move_failed line in the agent's chat. Refused while another switch of the agent is under way, with its phase named.",
    "paramStructure": "by-name",
    "params": [
     {
@@ -1718,6 +1752,98 @@
    "x-app-write": {
     "kind": "decided",
     "label": "move"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    }
+   ]
+  },
+  {
+   "name": "agent.move_cancel",
+   "summary": "Drop the move an agent keeps for its turn's end (pending_move phase scheduled). Refused when it keeps none, and once agent.move_now has stopped its turn (phase stopping).",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "agent",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/Who"
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Accepted"
+    }
+   },
+   "x-role": "owner",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "cancel move"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    }
+   ]
+  },
+  {
+   "name": "agent.move_now",
+   "summary": "Move an agent now: to `account`, or without it to the account its kept move names. The turn under way is stopped as session.interrupt stops it, the agent is asked for its handoff note, and the move runs once the note is in (or after the daemon's own note wait, on its own record; account_moved says which). A closed agent's next wake starts on the account.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "agent",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/Who"
+     }
+    },
+    {
+     "name": "account",
+     "required": false,
+     "schema": {
+      "type": "string"
+     },
+     "description": "The account to move to; absent, the one agent.move kept."
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Accepted"
+    }
+   },
+   "x-role": "owner",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "move now"
    },
    "x-since": 1,
    "errors": [

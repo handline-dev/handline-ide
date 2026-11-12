@@ -1231,12 +1231,17 @@ func (e *Env) transcriptItems(agent string, tools []transcript.Tool) ([]map[stri
 		placeholders(len(kinds))+") AND "+eventTask+" IN (SELECT id FROM tasks WHERE "+db.ActingSQL("tasks")+" = ?) UNION ALL SELECT id FROM events WHERE kind = '"+
 		batchKind+"' AND agent = ? UNION ALL SELECT id FROM events WHERE kind IN ('task_turn_push', 'task_turn_ask', 'memo_add') AND agent = ? "+
 		"AND (kind != 'memo_add' OR json_extract(payload, '$.now') LIKE '%@human%') UNION ALL SELECT id FROM events WHERE kind = 'task_turn_pop' "+
-		"AND agent = '"+actor.OwnerKey+"' AND json_extract(payload, '$.to') = ?)"+
-		" ORDER BY id DESC LIMIT ?", append(anySlice(kinds), agent, agent, agent, agent, perSource)...)
+		"AND agent = '"+actor.OwnerKey+"' AND json_extract(payload, '$.to') = ? UNION ALL SELECT id FROM events WHERE kind IN ("+
+		placeholders(len(accountKinds))+") AND agent = ?)"+
+		" ORDER BY id DESC LIMIT ?", append(append(append(anySlice(kinds), agent, agent, agent, agent), anySlice(accountKinds)...), agent, perSource)...)
 	if err != nil {
 		return nil, err
 	}
 	for _, ev := range evs {
+		if item, ok := accountItemOf(ev); ok {
+			items = append(items, item)
+			continue
+		}
 		if item, of, ok := commentCardOf(ev); ok {
 			if of == agent {
 				items = append(items, item)

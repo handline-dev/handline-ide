@@ -82,6 +82,8 @@ export const useAccountRemove = (target?: string) => useWrite("account.remove", 
 export const useAgentSet = (target?: string) => useWrite("agent.set", target);
 export const useAgentFold = (target?: string) => useWrite("agent.fold", target);
 export const useAgentMove = (target?: string) => useWrite("agent.move", target);
+export const useAgentMoveCancel = (target?: string) => useWrite("agent.move_cancel", target);
+export const useAgentMoveNow = (target?: string) => useWrite("agent.move_now", target);
 export const useAgentSwitchNow = (target?: string) => useWrite("agent.switch_now", target);
 export const useAgentUnstall = (target?: string) => useWrite("agent.unstall", target);
 export const useAgentForceStart = (target?: string) => useWrite("agent.force_start", target);

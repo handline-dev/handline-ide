@@ -167,6 +167,10 @@ func (t *Tick) supervise(agent string, now int64, actions *[]string, afterHandof
 	if t.Handoff.SettleOwedClear(q, agent) {
 		return
 	}
+	// A person's move kept for the turn's end goes before the work that would start another turn.
+	if t.Handoff.RunPendingMove(q, agent) {
+		return
+	}
 	// Whatever a message could not type at once gets one more try every tick, RUNNING included.
 	t.Messaging.LandingSweep(q, agent)
 	t.Messaging.TellUndelivered(q, agent)

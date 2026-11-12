@@ -3,6 +3,7 @@ package reads
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 	"testing"
@@ -715,6 +716,48 @@ func TestAnUnblockedTaskIsACardInTheChatOfTheAgentItStartsFor(t *testing.T) {
 	for id, want := range map[int64]string{1: bob, 2: cid} {
 		if _, agent, ok, err := e.TaskEventItem(id); err != nil || !ok || agent != want {
 			t.Errorf("event %d is pushed to %q, not %q (%v)", id, agent, want, err)
+		}
+	}
+}
+
+// A move that landed and a person's move that could not run are one line each in the agent's own chat, and the live event is the same item.
+func TestChatTranscriptShowsAnAccountMoveAndAFailedOne(t *testing.T) {
+	t.Parallel()
+	e := testEnv(t)
+	addAgent(t, e, "bob", "")
+	bob := teamtest.Key(t, e.Home, "bob")
+	for _, q := range []string{
+		`INSERT INTO events(id, ts, agent, kind, payload) VALUES(1, 1000, '` + bob + `', 'moved_account', '{"from":"alpha","to":"beta","trigger":"forced","note_written":true}')`,
+		`INSERT INTO events(id, ts, agent, kind, payload) VALUES(2, 1001, '` + bob + `', 'moved_account', '{"from":"beta","to":"alpha","trigger":"usage"}')`,
+		`INSERT INTO events(id, ts, agent, kind, payload) VALUES(3, 1002, '` + bob + `', 'move_failed', '{"to":"gamma","reason":"gamma has no free slot"}')`,
+		`INSERT INTO events(id, ts, agent, kind, payload) VALUES(4, 1003, 'ann', 'moved_account', '{"from":"alpha","to":"beta","trigger":"forced"}')`,
+	} {
+		if _, err := e.DB.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := e.chatTranscript(nil, map[string]any{"agent": bob})
+	if err != nil {
+		t.Fatal(err)
+	}
+	items := got.(map[string]any)["items"].([]any)
+	want := []map[string]any{
+		{"kind": "account_moved", "account_moved": map[string]any{"from": "alpha", "to": "beta", "cause": "manual", "note_written": true}},
+		{"kind": "account_moved", "account_moved": map[string]any{"from": "beta", "to": "alpha", "cause": "policy", "note_written": false}},
+		{"kind": "move_failed", "move_failed": map[string]any{"to": "gamma", "reason": "gamma has no free slot"}},
+	}
+	if len(items) != len(want) {
+		t.Fatalf("%d items: %v", len(items), items)
+	}
+	for i, w := range want {
+		m := items[i].(map[string]any)
+		k := w["kind"].(string)
+		if m["kind"] != k || !reflect.DeepEqual(m[k], w[k]) {
+			t.Fatalf("item %d: %v, want %v", i, m, w)
+		}
+		live, agent, ok, err := e.TaskEventItem(int64(i + 1))
+		if err != nil || !ok || agent != bob || !reflect.DeepEqual(live, m) {
+			t.Fatalf("live item %d: %v %q %v %v", i, live, agent, ok, err)
 		}
 	}
 }

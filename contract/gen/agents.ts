@@ -128,6 +128,15 @@ export type AgentView = {
     /** When a wait ends, null for any other phase. */
     until: Timestamp | null;
   } | null;
+  /** A person's move (agent.move on an agent mid-turn, or agent.move_now) that has not begun; once it begins it is `account_switch`. It is stored, so it outlives a daemon restart. null when none. Absent from a daemon that does not serve it. */
+  pending_move?: {
+    /** The account it moves to. */
+    to: string;
+    /** When this phase began. */
+    since: Timestamp;
+    /** `scheduled`: it waits for the turn under way to end (agent.move_cancel drops it). `stopping`: agent.move_now stopped the turn and the move waits for the handoff note; too late to cancel. A client draws a phase it does not know as `scheduled`. */
+    phase: "scheduled" | "stopping";
+  } | null;
   /** The agent's newest request to the founder; null when it never wrote to them. Absent from a daemon that does not serve it yet. */
   last_to_founder?: {
     /** The whole body of its newest request to the founder (a say, ask or decision), whether or not it was read. */
@@ -356,6 +365,15 @@ export interface AgentsMethods {
   "agent.move": { params: {
   agent: Who;
   account: string;
+  request_id: RequestId;
+}; result: Accepted };
+  "agent.move_cancel": { params: {
+  agent: Who;
+  request_id: RequestId;
+}; result: Accepted };
+  "agent.move_now": { params: {
+  agent: Who;
+  account?: string;
   request_id: RequestId;
 }; result: Accepted };
   "agent.switch_now": { params: {
@@ -599,6 +617,8 @@ export const AGENTS_METHODS: { [K in keyof AgentsMethods]: { role: Role; callers
   "agent.set": { role: "agent", callers: ["agent", "owner"], write: true, since: 1 },
   "agent.fold": { role: "agent", callers: null, write: true, since: 1 },
   "agent.move": { role: "agent", callers: null, write: true, since: 1 },
+  "agent.move_cancel": { role: "owner", callers: null, write: true, since: 1 },
+  "agent.move_now": { role: "owner", callers: null, write: true, since: 1 },
   "agent.switch_now": { role: "owner", callers: null, write: true, since: 1 },
   "agent.unstall": { role: "owner", callers: null, write: true, since: 1 },
   "agent.force_start": { role: "owner", callers: null, write: true, since: 1 },
@@ -647,10 +667,12 @@ export const AGENTS_APP_CACHE: { [K in "agents.list" | "agent.get" | "subagents.
 };
 
 /** x-app-write of each write (x-app in core.json). */
-export const AGENTS_APP_WRITES: { [K in "agent.set" | "agent.fold" | "agent.move" | "agent.switch_now" | "agent.unstall" | "agent.force_start" | "agent.retire" | "agent.create" | "session.start" | "session.wake" | "session.stop" | "session.restart" | "session.compact" | "session.park" | "session.input" | "session.keys" | "session.type" | "session.interrupt" | "prompt.answer" | "input.take" | "input.release" | "say" | "access.grant" | "access.revoke"]: { kind: WriteKind; label: string } | false } = {
+export const AGENTS_APP_WRITES: { [K in "agent.set" | "agent.fold" | "agent.move" | "agent.move_cancel" | "agent.move_now" | "agent.switch_now" | "agent.unstall" | "agent.force_start" | "agent.retire" | "agent.create" | "session.start" | "session.wake" | "session.stop" | "session.restart" | "session.compact" | "session.park" | "session.input" | "session.keys" | "session.type" | "session.interrupt" | "prompt.answer" | "input.take" | "input.release" | "say" | "access.grant" | "access.revoke"]: { kind: WriteKind; label: string } | false } = {
   "agent.set": {"kind": "authored", "label": "set"},
   "agent.fold": {"kind": "decided", "label": "fold"},
   "agent.move": {"kind": "decided", "label": "move"},
+  "agent.move_cancel": {"kind": "decided", "label": "cancel move"},
+  "agent.move_now": {"kind": "decided", "label": "move now"},
   "agent.switch_now": {"kind": "decided", "label": "switch"},
   "agent.unstall": {"kind": "decided", "label": "clear stall"},
   "agent.force_start": {"kind": "decided", "label": "force start"},

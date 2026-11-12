@@ -97,7 +97,7 @@ func TestADeferredHandoffThreeTicksRunningLeavesTheCountersAtZero(t *testing.T) 
 	} {
 		c.setup()
 		for i := 0; i < 3; i++ {
-			if ok, err := g.v.PerformHandoff("a", HandoffTrigger{"usage", "wall"}, ""); !ok || err != nil {
+			if ok, err := g.v.PerformHandoff("a", HandoffTrigger{Kind: "usage", Reason: "wall"}, ""); !ok || err != nil {
 				t.Fatalf("%s round %d: %v %v", c.name, i, ok, err)
 			}
 		}
@@ -179,7 +179,7 @@ func TestAForcedMoveTheRoomTestRefusesLeavesTheSessionAndTheRecordAlone(t *testi
 	g := newTermMoveRig(t)
 	db.SetHandoff(g.m.Q, "a", "earlier record")
 	g.l.roomOn = "has no free slot"
-	if ok, _ := g.v.PerformHandoff("a", HandoffTrigger{"forced", "by hand"}, "beta"); ok {
+	if ok, _ := g.v.PerformHandoff("a", HandoffTrigger{Kind: "forced", Reason: "by hand"}, "beta"); ok {
 		t.Fatal("reported as done")
 	}
 	row := g.row(t)
@@ -194,7 +194,7 @@ func TestAForcedMoveTheRoomTestRefusesLeavesTheSessionAndTheRecordAlone(t *testi
 func TestAnOwedClearIsForcedThroughWhenItsTimeIsUpAndTheRecordSaysWhatWasCutOff(t *testing.T) {
 	g := newTermMoveRig(t)
 	g.bg = "npm test"
-	g.v.PerformHandoff("a", HandoffTrigger{"context", "full"}, "")
+	g.v.PerformHandoff("a", HandoffTrigger{Kind: "context", Reason: "full"}, "")
 	db.SetCursor(g.m.Q, "clear_owed:a", g.m.now()-ClearWaitS-1)
 	if owed, _ := g.v.SettleOwedClear("a"); !owed || len(g.pane.handles) != 1 {
 		t.Fatalf("owed %v closed %v", owed, g.pane.handles)
@@ -277,7 +277,7 @@ func TestAForcedMoveOfAClosedAgentIsOwedToItsNextWake(t *testing.T) {
 func TestADeferredTriggerHoldsMessagesFromTheMomentItIsDeferredUntilItsRowOpens(t *testing.T) {
 	g := newTermMoveRig(t)
 	g.run.status = "busy"
-	if ok, err := g.v.PerformHandoff("a", HandoffTrigger{"usage", "wall"}, ""); !ok || err != nil {
+	if ok, err := g.v.PerformHandoff("a", HandoffTrigger{Kind: "usage", Reason: "wall"}, ""); !ok || err != nil {
 		t.Fatal(ok, err)
 	}
 	if held, _ := db.RestartHeld(g.m.Q, "a", g.m.now()); !held {
@@ -287,7 +287,7 @@ func TestADeferredTriggerHoldsMessagesFromTheMomentItIsDeferredUntilItsRowOpens(
 		t.Fatal("a deferral held past the ceiling")
 	}
 	g.run.status = "idle"
-	if ok, err := g.v.PerformHandoff("a", HandoffTrigger{"usage", "wall"}, ""); !ok || err != nil {
+	if ok, err := g.v.PerformHandoff("a", HandoffTrigger{Kind: "usage", Reason: "wall"}, ""); !ok || err != nil {
 		t.Fatal(ok, err)
 	}
 	if v, _ := db.Cursor(g.m.Q, "handoff_deferred:a"); v != 0 {

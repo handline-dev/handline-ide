@@ -581,6 +581,13 @@ type tickHandoff struct {
 	mv *lifecycle.Mover
 }
 
+func (h tickHandoff) RunPendingMove(_ db.Q, agent string) bool {
+	acted, err := h.mv.RunPendingMove(agent)
+	if err != nil {
+		h.mv.M.Log("  %s: its kept move broke off - %v", agent, err)
+	}
+	return acted
+}
 func (h tickHandoff) SettleOwedClear(_ db.Q, agent string) bool {
 	owed, _ := h.mv.SettleOwedClear(agent)
 	return owed

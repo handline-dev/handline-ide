@@ -304,7 +304,7 @@
       "items": {
        "$ref": "#/components/schemas/CommandRun"
       },
-      "description": "The runs of this message's command blocks, one per block, oldest start first. Absent when none was started. Phone and PC draw 'Running · 4s', 'Done · exit 0 · 3s', 'Failed · exit 1 · 3s' or 'Stopped' from it."
+      "description": "The runs of this message's command blocks, one per block, oldest start first. Absent when none was started. Phone and PC draw 'Running \u00b7 4s', 'Done \u00b7 exit 0 \u00b7 3s', 'Failed \u00b7 exit 1 \u00b7 3s' or 'Stopped' from it."
      }
     },
     "required": [
@@ -346,7 +346,9 @@
        "session",
        "task_batch",
        "bash",
-       "task_comment"
+       "task_comment",
+       "account_moved",
+       "move_failed"
       ]
      },
      "text": {
@@ -618,6 +620,49 @@
        "kind",
        "who",
        "text"
+      ]
+     },
+     "account_moved": {
+      "type": "object",
+      "description": "Kind account_moved: the agent landed on another account, a line in its own chat.",
+      "properties": {
+       "from": {
+        "type": "string"
+       },
+       "to": {
+        "type": "string"
+       },
+       "cause": {
+        "type": "string",
+        "description": "`manual` for a person's move (agent.move, agent.move_now), `policy` for the daemon's. An open set."
+       },
+       "note_written": {
+        "type": "boolean",
+        "description": "Whether the agent's handoff note was in when the move began; false means the next session starts from the daemon's own record."
+       }
+      },
+      "required": [
+       "from",
+       "to",
+       "cause",
+       "note_written"
+      ]
+     },
+     "move_failed": {
+      "type": "object",
+      "description": "Kind move_failed: a person's kept move could not run when the turn ended or the note was in, and is dropped, not retried.",
+      "properties": {
+       "to": {
+        "type": "string"
+       },
+       "reason": {
+        "type": "string",
+        "description": "Why, in the daemon's words."
+       }
+      },
+      "required": [
+       "to",
+       "reason"
       ]
      }
     },

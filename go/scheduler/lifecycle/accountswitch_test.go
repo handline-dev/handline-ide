@@ -34,7 +34,7 @@ func TestAMoveShowsEachStepAsItBegins(t *testing.T) {
 	for _, kind := range []string{"usage", "usage_7d", states.EarlyUsageTrigger, "forced", LoginTrigger} {
 		g := newTermMoveRig(t)
 		seen := watchSwitch(g)
-		if ok, err := g.v.PerformHandoff("a", HandoffTrigger{kind, "wall"}, ""); !ok || err != nil {
+		if ok, err := g.v.PerformHandoff("a", HandoffTrigger{Kind: kind, Reason: "wall"}, ""); !ok || err != nil {
 			t.Fatalf("%s: %v %v", kind, ok, err)
 		}
 		if want := []string{"saving:", "switching:beta", "starting:beta"}; !slices.Equal(*seen, want) {
@@ -50,7 +50,7 @@ func TestAMoveShowsEachStepAsItBegins(t *testing.T) {
 func TestATriggerThatMovesNothingWritesNoSwitch(t *testing.T) {
 	g := newTermMoveRig(t)
 	seen := watchSwitch(g)
-	if _, err := g.v.PerformHandoff("a", HandoffTrigger{"context", "full"}, ""); err != nil {
+	if _, err := g.v.PerformHandoff("a", HandoffTrigger{Kind: "context", Reason: "full"}, ""); err != nil {
 		t.Fatal(err)
 	}
 	if len(*seen) != 0 {
@@ -75,7 +75,7 @@ func TestSavingShowsWhileTheHandoffWaitsAndKeepsItsSince(t *testing.T) {
 		seen := watchSwitch(g)
 		c.setup(g)
 		for range 2 {
-			if ok, err := g.v.PerformHandoff("a", HandoffTrigger{"usage", "wall"}, ""); !ok || err != nil {
+			if ok, err := g.v.PerformHandoff("a", HandoffTrigger{Kind: "usage", Reason: "wall"}, ""); !ok || err != nil {
 				t.Fatalf("%s: %v %v", c.name, ok, err)
 			}
 		}
@@ -90,7 +90,7 @@ func TestOnlyAWallShowsSavingWhenItFiresTooSoon(t *testing.T) {
 	seen := watchSwitch(g)
 	db.StartHandoff(g.m.Q, "h0", "a", "s", "usage", 0)
 	db.AdvanceHandoff(g.m.Q, "h0", "released", "done", "")
-	if _, err := g.v.PerformHandoff("a", HandoffTrigger{states.EarlyUsageTrigger, "early"}, ""); err != nil {
+	if _, err := g.v.PerformHandoff("a", HandoffTrigger{Kind: states.EarlyUsageTrigger, Reason: "early"}, ""); err != nil {
 		t.Fatal(err)
 	}
 	if len(*seen) != 0 {
@@ -111,7 +111,7 @@ func TestAStaleSavingStartsAgainWithItsOwnFacts(t *testing.T) {
 func TestWithNoMoveAWallWaitsAndAnythingElseEndsTheSwitch(t *testing.T) {
 	g := newTermMoveRig(t)
 	g.l.dest, g.l.why = "", "no account can take one more agent"
-	if _, err := g.v.PerformHandoff("a", HandoffTrigger{"usage", "wall"}, ""); err != nil {
+	if _, err := g.v.PerformHandoff("a", HandoffTrigger{Kind: "usage", Reason: "wall"}, ""); err != nil {
 		t.Fatal(err)
 	}
 	row := g.row(t)
@@ -151,7 +151,7 @@ func TestAResumedHandoffAtAWallWaitsToo(t *testing.T) {
 func TestAForcedMoveThatDidNotHappenEndsTheSwitch(t *testing.T) {
 	g := newTermMoveRig(t)
 	g.l.roomOn = "is not a place for it"
-	if _, err := g.v.PerformHandoff("a", HandoffTrigger{"forced", "by hand"}, "beta"); err != nil {
+	if _, err := g.v.PerformHandoff("a", HandoffTrigger{Kind: "forced", Reason: "by hand"}, "beta"); err != nil {
 		t.Fatal(err)
 	}
 	if s, _ := db.GetSwitch(g.m.Q, "a"); s != nil {
@@ -203,7 +203,7 @@ func TestAnAccountASessionCannotStartOnIsLeftOutAndTheNextTriedAtOnce(t *testing
 		left = ex
 		return "gamma"
 	}, "beta")
-	if ok, err := g.v.PerformHandoff("a", HandoffTrigger{"usage", "wall"}, ""); !ok || err != nil {
+	if ok, err := g.v.PerformHandoff("a", HandoffTrigger{Kind: "usage", Reason: "wall"}, ""); !ok || err != nil {
 		t.Fatalf("%v %v", ok, err)
 	}
 	if !slices.Equal(sp.tried, []string{"beta", "gamma"}) || left["beta"] == "" {
@@ -224,7 +224,7 @@ func TestAStartThatMayYetComeUpIsNotFollowedByASecondLaunch(t *testing.T) {
 	g := newTermMoveRig(t)
 	sp := refusing(g, func(map[string]string) string { return "gamma" })
 	sp.slow["beta"] = true
-	g.v.PerformHandoff("a", HandoffTrigger{"usage", "wall"}, "")
+	g.v.PerformHandoff("a", HandoffTrigger{Kind: "usage", Reason: "wall"}, "")
 	if !slices.Equal(sp.tried, []string{"beta"}) {
 		t.Fatalf("%v", sp.tried)
 	}
@@ -234,7 +234,7 @@ func TestTheLoopStopsAtAStall(t *testing.T) {
 	g := newTermMoveRig(t)
 	db.BumpCounter(g.m.Q, "a", "wake_failures", states.MaxFailedAttempts-1)
 	sp := refusing(g, func(map[string]string) string { return "gamma" }, "beta", "gamma")
-	g.v.PerformHandoff("a", HandoffTrigger{"usage", "wall"}, "")
+	g.v.PerformHandoff("a", HandoffTrigger{Kind: "usage", Reason: "wall"}, "")
 	if !slices.Equal(sp.tried, []string{"beta"}) {
 		t.Fatalf("launched past the stall: %v", sp.tried)
 	}
@@ -254,7 +254,7 @@ func TestWhenEveryAccountFailsItRetriesSoon(t *testing.T) {
 		}
 		return "gamma"
 	}, "beta", "gamma")
-	if _, err := g.v.PerformHandoff("a", HandoffTrigger{"usage", "wall"}, ""); err != nil {
+	if _, err := g.v.PerformHandoff("a", HandoffTrigger{Kind: "usage", Reason: "wall"}, ""); err != nil {
 		t.Fatal(err)
 	}
 	row := g.row(t)
@@ -269,7 +269,7 @@ func TestWhenEveryAccountFailsItRetriesSoon(t *testing.T) {
 func TestAPersonsChosenAccountHasNoNext(t *testing.T) {
 	g := newTermMoveRig(t)
 	sp := refusing(g, func(map[string]string) string { return "gamma" }, "beta")
-	g.v.PerformHandoff("a", HandoffTrigger{"forced", "by hand"}, "beta")
+	g.v.PerformHandoff("a", HandoffTrigger{Kind: "forced", Reason: "by hand"}, "beta")
 	if !slices.Equal(sp.tried, []string{"beta"}) {
 		t.Fatalf("%v", sp.tried)
 	}
@@ -280,7 +280,7 @@ func waitingRig(t *testing.T) *termMoveRig {
 	t.Helper()
 	g := newTermMoveRig(t)
 	g.l.dest, g.l.why = "", "no account can take one more agent"
-	if _, err := g.v.PerformHandoff("a", HandoffTrigger{"usage", "wall"}, ""); err != nil {
+	if _, err := g.v.PerformHandoff("a", HandoffTrigger{Kind: "usage", Reason: "wall"}, ""); err != nil {
 		t.Fatal(err)
 	}
 	if s := switchOf(t, g); s.Phase != db.SwitchWaiting {
@@ -348,7 +348,7 @@ func TestALimitDialogOnScreenEndsTheTurnSoTheMoveDoesNotDefer(t *testing.T) {
 	g := newTermMoveRig(t)
 	g.run.status = "waiting"
 	g.v.E.LimitDialogOpen = func(string) bool { return true }
-	if ok, err := g.v.PerformHandoff("a", HandoffTrigger{"usage", "wall"}, ""); !ok || err != nil {
+	if ok, err := g.v.PerformHandoff("a", HandoffTrigger{Kind: "usage", Reason: "wall"}, ""); !ok || err != nil {
 		t.Fatalf("%v %v", ok, err)
 	}
 	if g.row(t).Account.String != "beta" {
@@ -357,9 +357,16 @@ func TestALimitDialogOnScreenEndsTheTurnSoTheMoveDoesNotDefer(t *testing.T) {
 	g = newTermMoveRig(t)
 	g.run.status = "busy"
 	g.v.E.LimitDialogOpen = func(string) bool { return true }
-	g.v.PerformHandoff("a", HandoffTrigger{"forced", "by hand"}, "beta") // a person's order has its own rule
-	if g.row(t).Account.String == "beta" {
-		t.Fatal("the dialog excuses only a wall")
+	g.v.PerformHandoff("a", HandoffTrigger{Kind: "forced", Reason: "by hand"}, "beta") // a person's move waits for the turn, which the dialog ended
+	if g.row(t).Account.String != "beta" {
+		t.Fatalf("a person's move deferred behind the dialog: %+v", g.row(t))
+	}
+	g = newTermMoveRig(t)
+	g.run.status = "busy"
+	g.v.E.LimitDialogOpen = func(string) bool { return true }
+	g.v.PerformHandoff("a", HandoffTrigger{Kind: "context", Reason: "full"}, "")
+	if len(g.pane.handles) != 0 {
+		t.Fatal("the dialog excuses only a wall and a person's move")
 	}
 }
 
@@ -445,7 +452,7 @@ func TestATickMoveThatCannotCloseKeepsTheWait(t *testing.T) {
 	g.l.dest = "beta"
 	before := switchOf(t, g)
 	closes := len(g.pane.handles)
-	if moved, err := g.v.MoveToRoom("a", HandoffTrigger{"usage", "wall"}); moved || err != nil || len(g.pane.handles) != closes+1 {
+	if moved, err := g.v.MoveToRoom("a", HandoffTrigger{Kind: "usage", Reason: "wall"}); moved || err != nil || len(g.pane.handles) != closes+1 {
 		t.Fatalf("%v %v %v", moved, err, g.pane.handles)
 	}
 	if s := switchOf(t, g); s != before {

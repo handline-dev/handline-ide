@@ -16,6 +16,7 @@ agent.force_start.state_gate_refuses_an_agent_the_load_does_not_hold
 agent.get.cold_agent_is_on_no_account
 agent.get.cwd_and_can
 agent.get.needs_you_is_set_while_a_decision_waits
+agent.get.pending_move_is_null_with_no_move_kept
 agent.get.running_agent_is_on_its_account
 agent.get.view_cache_ignored
 agent.get.view_config_error
@@ -25,6 +26,8 @@ agent.get.view_fields_ready
 agent.get.view_fields_walled
 agent.get.view_fire_context
 agent.get.warm_agent_stays_on_its_account
+agent.move_cancel.state_gate_refuses_an_agent_that_keeps_no_move
+agent.move_now.state_gate_refuses_an_agent_that_keeps_no_move
 agent.retire.a_running_agent_answers_once_its_turn_ended_and_it_is_retired
 agent.switch_now.state_gate_refuses_an_agent_that_is_not_waiting
 agent.unstall.state_gate_refuses_an_agent_that_is_not_stalled
