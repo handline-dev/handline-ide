@@ -237,3 +237,52 @@ func TestOneLeaseIsTakenBackPerAskWaiting(t *testing.T) {
 		t.Fatalf("held %+v", h)
 	}
 }
+
+func TestTheReadShowsWorkspacesMaxHoldAndOverTime(t *testing.T) {
+	r := newHoldRig()
+	r.m.WorkspaceOf = func(a string) string { return map[string]string{"a": "w1", "b": "w2"}[a] }
+	read := func() (pool, held, waiting map[string]any) {
+		got, err := r.m.get(nil, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, p := range got.(map[string]any)["kinds"].([]any) {
+			if p := p.(map[string]any); p["kind"] == Browser {
+				pool = p
+			}
+		}
+		if h := pool["held"].([]any); len(h) == 1 {
+			held = h[0].(map[string]any)
+		}
+		if q := pool["queue"].([]any); len(q) == 1 {
+			waiting = q[0].(map[string]any)
+		}
+		return pool, held, waiting
+	}
+	if _, err := r.m.Take(nil, Browser, "a", true, 0, long); err != nil {
+		t.Fatal(err)
+	}
+	r.at(1000 + 500)
+	if _, err := r.m.Extend("a", Browser); err != nil {
+		t.Fatal(err)
+	}
+	blockedOn(t, second(r.m.Take(nil, Browser, "b", false, 8, long)))
+	p, h, w := read()
+	if p["max_hold_min"] != int64(10) || h["workspace"] != "w1" || h["max_hold_at"] != stamp(1000+1200) || h["over_time"] != false ||
+		h["extended"] != 1 || w["workspace"] != "w2" || w["task"] != int64(20) {
+		t.Fatalf("pool %v held %v waiting %v", p, h, w)
+	}
+	r.now = 1000 + 1200 // read before the check takes it back
+	if _, h, _ = read(); h["over_time"] != true {
+		t.Fatalf("not over time at its max_hold: %v", h)
+	}
+	r.at(1000 + 1200)
+	r.now = 1000 + 1200 + 600
+	if _, h, _ = read(); h["reserved_for"] != int64(20) || h["over_time"] != false {
+		t.Fatalf("a reservation is never over time: %v", h)
+	}
+	r.m.Max = func(string) int { return 0 }
+	if p, h, _ = read(); p["max_hold_min"] != int64(0) || h["max_hold_at"] != nil || h["over_time"] != nil {
+		t.Fatalf("with no limit there is no max_hold: %v %v", p, h)
+	}
+}

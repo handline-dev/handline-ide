@@ -883,10 +883,18 @@ type Waiting struct {
 
 // Pool is one kind as the read serves it.
 type Pool struct {
-	Kind  string
-	Max   int
-	Held  []Lease
-	Queue []Waiting
+	Kind    string
+	Max     int
+	MaxHold int64 // its max_hold in seconds, 0 for none (as there is none while Max is 0)
+	Held    []Held
+	Queue   []Waiting
+}
+
+// Held is a lease as the read serves it, with when it reaches its max_hold (0 for none) and whether it is past it.
+type Held struct {
+	Lease
+	MaxHoldAt int64
+	OverTime  bool
 }
 
 // View is every kind, in Kinds' order.
@@ -894,15 +902,20 @@ func (m *Manager) View() []Pool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	limits := m.limits()
+	periods, now := m.periods(limits), m.now()
 	out := make([]Pool, 0, len(Kinds))
 	for _, kind := range Kinds {
-		p := Pool{Kind: kind, Max: limits[kind], Held: []Lease{}, Queue: []Waiting{}}
+		p := Pool{Kind: kind, Max: limits[kind], MaxHold: periods[kind], Held: []Held{}, Queue: []Waiting{}}
 		var who []string
 		for _, l := range m.held {
 			if l.Kind == kind {
-				c := *l
-				c.Pids = append([]int{}, l.Pids...)
-				p.Held = append(p.Held, c)
+				h := Held{Lease: *l}
+				h.Pids = append([]int{}, l.Pids...)
+				if p.MaxHold > 0 {
+					h.MaxHoldAt = l.deadline(p.MaxHold)
+					h.OverTime = !l.Reserved() && now >= h.MaxHoldAt
+				}
+				p.Held = append(p.Held, h)
 				who = append(who, l.Agent)
 			}
 		}

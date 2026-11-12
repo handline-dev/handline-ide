@@ -181,7 +181,7 @@ func run(command []string, env ...string) int {
 
 // leaseText is hl team's lines on the leases: a kind with a limit, a lease held or an ask waiting, each in one line;
 // nothing when no kind has any.
-func leaseText(got obj) string {
+func leaseText(got obj, now time.Time) string {
 	out := ""
 	for _, k := range list(got, "kinds") {
 		held, queue, limit := list(k, "held"), list(k, "queue"), num(k, "max")
@@ -195,10 +195,21 @@ func leaseText(got obj) string {
 			line += ", no limit"
 		}
 		if len(held) > 0 {
-			line += " (" + agentsOf(held) + ")"
+			rows := make([]string, len(held))
+			for i, h := range held {
+				rows[i] = heldText(h, now)
+			}
+			line += " (" + strings.Join(rows, "; ") + ")"
 		}
 		if len(queue) > 0 {
-			line += "; waiting: " + agentsOf(queue)
+			rows := make([]string, len(queue))
+			for i, w := range queue {
+				rows[i] = str(w, "agent") + inWorkspace(w)
+				if t := num(w, "task"); t != 0 {
+					rows[i] += fmt.Sprintf(" for T%d", t)
+				}
+			}
+			line += "; waiting, next first: " + strings.Join(rows, ", ")
 		}
 		out += line + "\n"
 	}
@@ -208,10 +219,28 @@ func leaseText(got obj) string {
 	return out
 }
 
-func agentsOf(rows []obj) string {
-	who := make([]string, len(rows))
-	for i, r := range rows {
-		who[i] = str(r, "agent")
+// heldText is one lease of a pool line: "a in w1 for 12 min, over time" or "reserved for T20 (b) until 14:05".
+func heldText(h obj, now time.Time) string {
+	if t := num(h, "reserved_for"); t != 0 {
+		s := fmt.Sprintf("reserved for T%d (%s%s)", t, str(h, "agent"), inWorkspace(h))
+		if until, err := time.Parse(time.RFC3339, str(h, "until")); err == nil {
+			s += " until " + until.Local().Format("15:04")
+		}
+		return s
 	}
-	return strings.Join(who, ", ")
+	s := str(h, "agent") + inWorkspace(h)
+	if since, err := time.Parse(time.RFC3339, str(h, "since")); err == nil {
+		s += fmt.Sprintf(" for %d min", int(now.Sub(since).Minutes()))
+	}
+	if h["over_time"] == true {
+		s += ", over time"
+	}
+	return s
+}
+
+func inWorkspace(row obj) string {
+	if ws := str(row, "workspace"); ws != "" {
+		return " in " + ws
+	}
+	return ""
 }
