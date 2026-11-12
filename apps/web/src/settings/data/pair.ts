@@ -8,6 +8,18 @@ export function usePairAddresses() {
   return { addresses: q.data?.addresses ?? [], loading: q.isPending, error: q.isError };
 }
 
+/** Makes sure an address is served: network_addresses becomes the hosts listening now plus this one. A no-op when it already listens. */
+export function useOpenAddress() {
+  const set = hooks.useSettingsSet();
+  const q = hooks.useConnectionAddresses();
+  return async (host: string) => {
+    const now = q.data?.addresses ?? [];
+    if (now.find((a) => a.host === host)?.listening) return;
+    const listening = now.filter((a) => a.listening).map((a) => a.host);
+    await set.mutateAsync({ changes: { network_addresses: [...listening, host] } });
+  };
+}
+
 export interface Pairing {
   code: string;
   expiresAt: number;

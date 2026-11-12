@@ -4,7 +4,7 @@ import type { NetworkAddress } from '@handline/client';
 import qrcode from 'qrcode-generator';
 import { useEffect, useMemo, useState } from 'react';
 import { useDevices } from '#src/settings/data/devices.ts';
-import { usePair, usePairAddresses } from '#src/settings/data/pair.ts';
+import { useOpenAddress, usePair, usePairAddresses } from '#src/settings/data/pair.ts';
 import { Button } from '#src/ui/Button.tsx';
 import { useCopy } from '#src/ui/copy.ts';
 import { ModalFrame, openModal } from '#src/ui/modal.tsx';
@@ -42,6 +42,8 @@ function Qr({ text }: { text: string }) {
 function Sheet({ close }: { close: () => void }) {
   const { addresses, loading } = usePairAddresses();
   const pair = usePair();
+  const openAddress = useOpenAddress();
+  const [openError, setOpenError] = useState<string | null>(null);
   const devices = useDevices();
   const [known] = useState(() => new Set(devices.devices.map((d) => d.id)));
   const [chosen, setChosen] = useState<string | null>(null);
@@ -49,7 +51,7 @@ function Sheet({ close }: { close: () => void }) {
   const [left, setLeft] = useState(0);
   const { copied, copy } = useCopy();
   const list = [...addresses].sort((a, b) => ORDER.indexOf(a.kind) - ORDER.indexOf(b.kind));
-  const pick = chosen ?? list.find((a) => a.listening)?.host ?? null;
+  const pick = chosen ?? (list.find((a) => a.listening) ?? list[0])?.host ?? null;
 
   useEffect(() => {
     if (!invite) return;
@@ -68,10 +70,13 @@ function Sheet({ close }: { close: () => void }) {
 
   const make = () => {
     if (!pick) return;
-    pair.start(pick).then(
-      (r) => setInvite({ code: r.code, until: r.expiresAt, uri: r.uri, link: r.link }),
-      () => undefined,
-    );
+    setOpenError(null);
+    openAddress(pick)
+      .then(() => pair.start(pick))
+      .then(
+        (r) => setInvite({ code: r.code, until: r.expiresAt, uri: r.uri, link: r.link }),
+        (e: unknown) => (pair.error ? undefined : setOpenError(String(e))),
+      );
   };
   const live = invite && left > 0;
   return (
@@ -120,18 +125,23 @@ function Sheet({ close }: { close: () => void }) {
                 type="button"
                 role="radio"
                 aria-checked={pick === a.host}
-                disabled={!a.listening}
                 onClick={() => setChosen(a.host)}
-                className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2 text-left text-sm hover:bg-hover disabled:opacity-40 aria-checked:border-accent"
+                className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2 text-left text-sm hover:bg-hover aria-checked:border-accent"
               >
                 <span className="truncate">{a.host}</span>
-                <span className="shrink-0 text-xs text-muted">
-                  {KIND_WORD[a.kind]}
-                  {a.listening ? '' : ' · not open'}
-                </span>
+                <span className="shrink-0 text-xs text-muted">{KIND_WORD[a.kind]}</span>
               </button>
             ))}
           </div>
+          <p className="text-xs text-muted">
+            The address you pick is opened to its network while this computer is on it. On Wi-Fi names and IPs the other device's browser
+            warns about the certificate the first time.
+          </p>
+          {openError && (
+            <p className="text-xs text-danger" role="alert">
+              {openError}
+            </p>
+          )}
           {pair.error && (
             <p className="text-xs text-danger" role="alert">
               {pair.error}
