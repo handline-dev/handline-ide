@@ -26,6 +26,12 @@ type Account interface {
 	CredentialModified(configDir string) *float64
 }
 
+// Sharable is an Account whose login is one file another config dir can link to (codex's auth.json); a CLI whose login is keyed by
+// its config dir (claude's keychain entry) is not one.
+type Sharable interface {
+	CredentialFile() string
+}
+
 var (
 	accountsMu sync.Mutex
 	accounts   = map[string]Account{}
