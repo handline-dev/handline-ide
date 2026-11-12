@@ -286,6 +286,19 @@ export const useMemos = (task: number) => useRead('task.comment.list', { task })
 export const useReviewPictures = (task: number) => reviewPictures(useMemos(task).data?.memos ?? []);
 export const useTaskBoard = () => useRead('task.board', {});
 export const useTrust = () => useRead('trust.list', {});
+/** Logins already on this Mac outside Handline (~/.claude, ~/.codex), for onboarding's AI step: read when the screen opens, not kept. */
+export function useFoundLogins() {
+  const store = useStore();
+  const { daemon } = useData();
+  const { served, open } = useServes('accounts.discover');
+  return useQuery({
+    queryKey: [daemon, 'accounts.discover'],
+    queryFn: () => store.client.call('accounts.discover', {}),
+    enabled: served && open,
+    gcTime: 0,
+    select: (r) => r.found,
+  });
+}
 /** The newest events of the daemon's log, read once when the page opens (the log is not a cache the bridge keeps; a screen that wants it live asks again). */
 export function useRecentEvents(limit: number) {
   const store = useStore();

@@ -26,6 +26,8 @@ export const NOT_QUERIES = [
   'task.memo.list', // the old name of task.comment.list; the screens read the new one
   // An image's bytes are read once per image into an object URL (attachments.ts), not kept as a cache entry.
   'attachment.get',
+  // Logins found on this Mac are read when onboarding's AI step opens (useFoundLogins), not kept.
+  'accounts.discover',
   'terminal.attach',
   'terminal.history',
   'terminal.detach',
