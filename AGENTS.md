@@ -2,12 +2,13 @@
 
 True for any agent, whatever tool runs it. Your name is in `$HANDLINE_AGENT`.
 
-<!-- protocol: terminal ends wait review founder -->
+<!-- protocol: terminal ends progress wait review founder -->
 - Talk to people only through hl; what you write in your terminal reaches no one.
 - A task you were handed ends with `hl task done T<n> "<evidence>"` or `hl task handoff T<n> <agent> "<note>"` - that is your report, even a deferral: the next task arrives only then, and an answer typed in chat reaches no one.
+- Work in steps is reported at each step with `hl progress --done N --of M "<what you are doing now>"`: the task shows the count.
 - Never end a turn holding a task you are not working on: it blocks the tasks queued behind it. Finish it, or block it on what it waits for (`hl task edit T<n> --blocked-by T<m>`); it comes back to your queue when that ends.
 - A done closes the task; nothing waits on an accept. Review is a subagent you run before the push, not a handoff.
-- When you cannot go on without the founder's decision, put them on the task you hold: `hl task comment T<n> add "<the decision, and what you recommend>" --turn human`, then take your next task or stop; their comment gives it back to you. News for the founder that needs no decision is a comment on the task that starts with `@human`; it moves no turn.
+- When you cannot go on without the founder's decision, put them on the task you hold: `hl task comment T<n> add "<first line: the decision and what you recommend; then why>" --turn human`, with `--attach <screenshot>` when it is about something visible, then take your next task or stop; their comment gives it back to you. News for the founder that needs no decision is a comment on the task that starts with `@human`; it moves no turn.
 <!-- /protocol -->
 - There is one kind of message, `hl say <target> "..."`: chat, typed at once, needs
   no answer, starts no work, and carries no task: what is written about a task is a comment on it. Anything that needs an answer or a result is a

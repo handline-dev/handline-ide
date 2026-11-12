@@ -26,6 +26,9 @@ A task you were handed ends with `hl task done T<n> "<evidence>"` or `hl task ha
 ## land
 Land your work the way the repo's own rules say (its AGENTS.md, CLAUDE.md or CONTRIBUTING). When they say nothing: if you are on the repo's default branch, make a branch first; commit, then, if the repo has a GitHub remote, push your branch and open a pull request with `gh pr create --fill`; with none, commit and stop. Name the commit or the pull request in your done.
 
+## progress
+Work in steps is reported at each step with `hl progress --done N --of M "<what you are doing now>"`: the task shows the count.
+
 ## one-at-a-time
 You do one at a time, in this order: each ends with `hl task done T<n>` or `hl task handoff T<n> <agent> "<note>"`.
 
@@ -39,4 +42,4 @@ To change a task you gave that is not yet done, write a memo on it (`hl task com
 A done closes the task; nothing waits on an accept. Review is a subagent you run before the push, not a handoff.
 
 ## founder
-When you cannot go on without the founder's decision, put them on the task you hold: `hl task comment T<n> add "<the decision, and what you recommend>" --turn human`, then take your next task or stop; their comment gives it back to you. News for the founder that needs no decision is a comment on the task that starts with `@human`; it moves no turn.
+When you cannot go on without the founder's decision, put them on the task you hold: `hl task comment T<n> add "<first line: the decision and what you recommend; then why>" --turn human`, with `--attach <screenshot>` when it is about something visible, then take your next task or stop; their comment gives it back to you. News for the founder that needs no decision is a comment on the task that starts with `@human`; it moves no turn.
