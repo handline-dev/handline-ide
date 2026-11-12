@@ -472,7 +472,7 @@ func (m *Manager) Take(done <-chan struct{}, kind, agent string, hold bool, pid 
 	if len(m.queues[kind]) == 0 {
 		limits := m.limits()
 		port, ok := m.free(kind, limits)
-		if !ok && m.revokeOne(kind, m.periods(limits)[kind]) {
+		if !ok && m.revokeOne(kind, agent, m.periods(limits)[kind]) {
 			port, ok = m.free(kind, limits)
 		}
 		if ok {
