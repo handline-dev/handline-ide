@@ -340,6 +340,20 @@ export const SEEDS: Record<string, Seed> = {
   /** The account beta stalled on a billing error: its row shows STALLED and a founder can Wake it. */
   'account-stalled': (d) =>
     void d.accounts.stall('beta', { reason: 'billing_error', detail: 'The turn ended: the organization has a billing problem.' }),
+  /** A task the architect is working, with its session's to-do list: 3 of 5 done, on the fourth. */
+  'task-todo': (d) => {
+    const ago = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
+    task(d, 8871, {
+      id: 8871,
+      from: ME,
+      to: ARCH,
+      title: 'Tasks page: group by owner',
+      body: 'Group the tasks page by owner, newest first in each group.',
+      state: 'doing',
+      created: ago(40),
+      todo: { done: 3, total: 5, current: 'Write the grouping test', updated_at: ago(4) },
+    });
+  },
   ...TURN_SEEDS,
   ...PROPOSAL_SEEDS,
   ...REQUEST_SEEDS,

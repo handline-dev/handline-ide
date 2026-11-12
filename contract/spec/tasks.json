@@ -986,6 +986,43 @@
          }
         ],
         "description": "What the task and its subtasks cost, null when nothing was charged to them."
+       },
+       "todo": {
+        "type": "object",
+        "properties": {
+         "done": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Items checked off. A session can report more than total; a client draws min(done, total)."
+         },
+         "total": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Items on the list."
+         },
+         "current": {
+          "oneOf": [
+           {
+            "type": "string"
+           },
+           {
+            "type": "null"
+           }
+          ],
+          "description": "The item in progress, as its session words it; null when none is."
+         },
+         "updated_at": {
+          "$ref": "#/components/schemas/Timestamp",
+          "description": "When the list last changed."
+         }
+        },
+        "required": [
+         "done",
+         "total",
+         "current",
+         "updated_at"
+        ],
+        "description": "The to-do list of the session working the task now (acting), as it keeps it; not the note task.progress sets. Absent when that session keeps none, on a done or discarded task, and from a daemon that does not send it."
        }
       },
       "required": [
