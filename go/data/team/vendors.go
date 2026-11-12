@@ -74,6 +74,25 @@ func AccountVendor(home, acct string) string {
 	return strings.TrimSpace(string(b))
 }
 
+// PinFor is the account a new agent of vendor is pinned to: the vendor's only account, for a vendor other than the default. "" for the
+// default vendor, or with no or several accounts of the vendor.
+func PinFor(home, vendor string) string {
+	if vendor == "" || vendor == DefaultVendor {
+		return ""
+	}
+	pin := ""
+	for _, a := range paths.ListAccounts(home) {
+		if AccountVendor(home, a) != vendor {
+			continue
+		}
+		if pin != "" {
+			return ""
+		}
+		pin = a
+	}
+	return pin
+}
+
 // AccountConfigDir is the directory the account's config-dir variable names; an error when its vendor has no driver.
 func AccountConfigDir(home, acct string) (string, error) {
 	v := AccountVendor(home, acct)
