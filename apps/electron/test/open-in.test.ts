@@ -28,6 +28,10 @@ function make(over: Partial<OpenInDeps> = {}) {
     worktreeOf: async (a) =>
       a === 'handline.x' ? wt : a === 'handline.file' ? file : a === 'handline.gone' ? path.join(root, 'gone') : null,
     attachOf: async () => ATTACH,
+    missingOf: async () => [
+      { tool: 'git', fix: 'xcode-select --install' },
+      { tool: 'tmux', fix: 'brew install tmux' },
+    ],
     exec: async (f, args) => void calls.push({ file: f, args }),
     exists: async (p) => present.has(p),
     later: (fn) => void timers.push(fn),
@@ -202,4 +206,27 @@ test('quote closes, escapes and reopens a quote, and isAttach takes only the one
   assert.equal(quote('$(x) `y` ;'), "'$(x) `y` ;'");
   assert.equal(isAttach(ATTACH), true);
   assert.equal(isAttach(['tmux', '-L', 'handline-1a2b3c4d', 'attach-session', '-t', 'handline']), true);
+});
+
+test('installTools runs the known install commands from a launcher in Terminal; a command the app does not know runs nothing', async () => {
+  present.add(TERM);
+  const { o, calls } = make();
+  const r = await o.install(top);
+  assert.deepEqual(r, { ok: true });
+  const launcher = calls[0]!.args[2]!;
+  assert.deepEqual(calls[0]!.args.slice(0, 2), ['-a', 'Terminal']);
+  const script = fs.readFileSync(launcher, 'utf8');
+  assert.match(
+    script,
+    /^#!\/bin\/sh\necho '\$ xcode-select --install'\nxcode-select --install\necho '\$ brew install tmux'\nbrew install tmux\n/,
+  );
+  const odd = make({ missingOf: async () => [{ tool: 'x', fix: 'rm -rf ~' }] });
+  assert.equal(code(await odd.o.install(top)), 'unavailable');
+  assert.equal(code(await make({ missingOf: async () => [] }).o.install(top)), 'not_found');
+  assert.equal(code(await make().o.install({ senderFrame: { url: 'https://evil.example/', parent: null } })), 'bad_request');
+  assert.deepEqual(odd.calls, []);
+  const one = make();
+  assert.deepEqual(await one.o.install(top, { tool: 'tmux' }), { ok: true });
+  assert.doesNotMatch(fs.readFileSync(one.calls[0]!.args[2]!, 'utf8'), /xcode-select/);
+  assert.equal(code(await make().o.install(top, { tool: 'tmux', argv: ['rm'] })), 'bad_request');
 });

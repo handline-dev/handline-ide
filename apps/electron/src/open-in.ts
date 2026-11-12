@@ -28,6 +28,8 @@ export interface OpenInDeps {
   worktreeOf(agent: string): Promise<string | null>;
   /** `attach.argv` of terminal.open: the command that attaches to the agent's tmux session; null when there is none. */
   attachOf(agent: string): Promise<string[] | null>;
+  /** daemon.status `missing_tools`: the tools this machine lacks and each one's install command. */
+  missingOf(): Promise<{ tool: string; fix: string }[]>;
   /** Runs a fixed binary with an argument array; rejects when it fails. */
   exec(file: string, args: string[]): Promise<void>;
   /** Whether an app is at this path. */
@@ -48,6 +50,9 @@ export function isAttach(argv: string[]): boolean {
     NAME.test(argv[5]!)
   );
 }
+
+/** The install commands daemon.status can name (go/internal/reads/tools.go); anything else is not run. */
+export const FIXES = new Set(['curl -fsSL https://claude.ai/install.sh | bash', 'xcode-select --install', 'brew install tmux']);
 
 /** One word for sh: in single quotes, a quote inside it closed, escaped and reopened. */
 export const quote = (word: string): string => `'${word.replace(/'/g, `'\\''`)}'`;
@@ -110,16 +115,43 @@ export class OpenIn {
     }
   }
 
+  /** installTools: the missing tools' install commands (or the one `tool`'s), one after another in a Terminal window. */
+  async install(e: Sender, arg?: unknown): Promise<OpenInReply> {
+    if (!fromWindow(e, this.origin)) return fail('bad_request', 'not from the app window');
+    const a = (arg ?? {}) as Record<string, unknown>;
+    if (
+      typeof a !== 'object' ||
+      Array.isArray(a) ||
+      Object.keys(a).some((k) => k !== 'tool') ||
+      (a.tool !== undefined && typeof a.tool !== 'string')
+    )
+      return fail('bad_request', 'installTools takes { tool? }');
+    if (this.deps.platform !== 'darwin') return fail('unavailable', 'Install works on a Mac');
+    if (!(await this.has('terminal'))) return fail('unavailable', 'Terminal is not installed');
+    const missing = await this.deps.missingOf().catch(() => null);
+    if (!missing) return fail('unavailable', 'could not ask the daemon what is missing');
+    const fixes = missing.filter((m) => a.tool === undefined || m.tool === a.tool).map((m) => m.fix);
+    if (!fixes.length) return fail('not_found', 'nothing is missing');
+    if (!fixes.every((f) => FIXES.has(f))) return fail('unavailable', 'an install command is not one the app knows');
+    const lines = fixes.flatMap((f) => [`echo ${quote(`$ ${f}`)}`, f]);
+    return this.launch('handline-install.command', `#!/bin/sh\n${lines.join('\n')}\necho 'Done. Go back to Handline.'\n`);
+  }
+
   /** A launcher file in a folder of its own that runs the attach command, opened by Terminal; the folder goes after a minute. */
   private async claude(agent: string): Promise<OpenInReply> {
     if (!(await this.has('terminal'))) return fail('unavailable', 'Terminal is not installed');
     const argv = await this.deps.attachOf(agent).catch(() => null);
     if (!argv || !isAttach(argv)) return fail('unavailable', `${agent} has no terminal to open`);
+    return this.launch('handline-claude.command', `#!/bin/sh\nexec ${argv.map(quote).join(' ')}\n`);
+  }
+
+  /** A script in a fresh folder, opened by Terminal; the folder goes after a minute, or at once when the open fails. */
+  private async launch(name: string, script: string): Promise<OpenInReply> {
     const dir = await fs.mkdtemp(path.join(this.deps.tmp, 'handline-'));
-    const file = path.join(dir, 'handline-claude.command');
+    const file = path.join(dir, name);
     const drop = () => void fs.rm(dir, { recursive: true, force: true }).catch(() => undefined);
     try {
-      await fs.writeFile(file, `#!/bin/sh\nexec ${argv.map(quote).join(' ')}\n`, { flag: 'wx', mode: 0o700 });
+      await fs.writeFile(file, script, { flag: 'wx', mode: 0o700 });
       await fs.chmod(file, 0o700);
     } catch (err) {
       drop();

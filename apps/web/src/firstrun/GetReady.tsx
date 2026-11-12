@@ -1,8 +1,8 @@
-// First run, step one: the tools agents need (an install command for each one missing), the Claude login (one button; the account is
+// First run, step one: the tools agents need (the missing ones, installed by one button), the Claude login (one button; the account is
 // named for you), and notifications. Continue turns on once logged in.
 import { loginRunning } from '@handline/app-core';
-import { classify, sentence, useAccounts, useStatus, useWrite } from '@handline/app-data';
-import { Bell, Check, TriangleAlert } from 'lucide-react';
+import { classify, sentence, useAccounts, useRead, useStatus, useWrite } from '@handline/app-data';
+import { Bell, Check, Copy, Download, Play, TriangleAlert } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '#src/ui/Button.tsx';
 import { copy } from '#src/ui/copy.ts';
@@ -54,20 +54,7 @@ export function GetReady({ onContinue }: { onContinue: () => void }) {
             Your login shell did not answer in time, so the tools below may be installed already. A restart asks it again.
           </p>
         )}
-        {missing.length ? (
-          missing.map((m) => (
-            <div key={m.tool} className="flex items-center gap-2 text-sm">
-              <TriangleAlert size={14} className="text-warning" />
-              <span className="text-fg">{m.tool} is missing</span>
-              <code className="rounded bg-surface px-1.5 py-0.5 text-xs text-muted">{m.fix}</code>
-              <Button variant="ghost" onClick={() => void copy(m.fix, 'command')}>
-                Copy
-              </Button>
-            </div>
-          ))
-        ) : (
-          <p className="text-sm text-muted">claude, git and tmux are installed.</p>
-        )}
+        {missing.length ? <Missing missing={missing} /> : <p className="text-sm text-muted">claude, git and tmux are installed.</p>}
       </Row>
       <Row done={loggedIn} title="Claude login">
         {add.isError && <p className="text-sm text-danger">{sentence(classify(add.error))}</p>}
@@ -83,9 +70,78 @@ export function GetReady({ onContinue }: { onContinue: () => void }) {
       <Row done={false} title="Notifications" optional>
         <Notifications />
       </Row>
-      <Button variant="primary" className="w-fit" disabled={!loggedIn || missing.length > 0} onClick={onContinue}>
+      <Button variant="primary" className="self-end" disabled={!loggedIn || missing.length > 0} onClick={onContinue}>
         Continue
       </Button>
+    </div>
+  );
+}
+
+/** What each tool is for, in the line that says it is missing. */
+const FOR: Record<string, string> = {
+  claude: 'runs the agents',
+  git: "Apple's command line tools",
+  tmux: 'runs each agent in its own terminal',
+};
+
+/** The missing tools, a line each, and one button that installs them all in Terminal. Without the desktop app, each one's command to copy. */
+function Missing({ missing }: { missing: { tool: string; fix: string }[] }) {
+  const install = shell()?.installTools;
+  const [state, setState] = useState<{ running: boolean; error: string }>({ running: false, error: '' });
+  // A tool landing tells the daemon nothing: while Terminal installs, the list is asked again every few seconds.
+  useRead('daemon.status', {}, { refetchMs: state.running ? 3000 : undefined });
+  const run = (tool?: string) =>
+    void install?.(tool ? { tool } : undefined).then(
+      (r) => setState(r.ok ? { running: true, error: '' } : { running: false, error: r.message }),
+      (e: unknown) => setState({ running: false, error: e instanceof Error ? e.message : String(e) }),
+    );
+  return (
+    <div className="flex flex-col gap-3 rounded-lg border border-border p-3">
+      {missing.map((m) => (
+        <div key={m.tool} className="flex flex-col gap-1 text-sm">
+          <div className="flex items-center gap-2">
+            <TriangleAlert size={14} className="text-warning" />
+            <span className="text-fg">{m.tool} is missing</span>
+            <span className="text-muted">{FOR[m.tool]}</span>
+          </div>
+          <div className="flex items-center gap-2 pl-5">
+            <div className="flex h-8 min-w-0 flex-1 items-center rounded-md border border-border bg-surface pl-2.5">
+              <code className="min-w-0 flex-1 truncate text-xs text-fg">{m.fix}</code>
+              <button
+                type="button"
+                aria-label={`Copy ${m.fix}`}
+                title="Copy"
+                className="flex h-full items-center px-2 text-muted hover:text-fg"
+                onClick={() => void copy(m.fix, 'command')}
+              >
+                <Copy size={13} />
+              </button>
+            </div>
+            {install && (
+              <Button className="h-8" onClick={() => run(m.tool)}>
+                <Play size={12} />
+                Run
+              </Button>
+            )}
+          </div>
+        </div>
+      ))}
+      {install && (
+        <>
+          {missing.length > 1 && (
+            <Button variant="primary" className="h-8 w-full justify-center" disabled={state.running} onClick={() => run()}>
+              <Download size={14} />
+              Install {missing.map((m) => m.tool).join(' and ')}
+            </Button>
+          )}
+          <p className="text-xs text-muted">Run opens Terminal, where you can watch it install.</p>
+          {missing.some((m) => m.tool === 'git') && (
+            <p className="text-xs text-muted">For git, Apple's installer opens its own window: click Install there, then come back here.</p>
+          )}
+          {state.running && <p className="text-xs text-muted">Installing in Terminal. This list updates as each one lands.</p>}
+          {state.error && <p className="text-xs text-danger">{state.error}</p>}
+        </>
+      )}
     </div>
   );
 }

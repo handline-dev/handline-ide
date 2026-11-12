@@ -79,6 +79,8 @@ export interface ShellApi {
   }): Promise<{ ok: true } | Fail<'bad_request' | 'not_found' | 'unavailable'>>;
   /** Which of those this machine has; empty off macOS. */
   openInApps?(): Promise<{ ok: true; apps: ('vscode' | 'terminal' | 'claude')[] } | Fail<'bad_request'>>;
+  /** Runs the missing tools' install commands (daemon.status missing_tools), or one `tool`'s, in a Terminal window; macOS only. Absent in a shell that lacks it. */
+  installTools?(a?: { tool?: string }): Promise<{ ok: true } | Fail<'bad_request' | 'not_found' | 'unavailable'>>;
   /** Edit text in the person's editor and read it back. Absent in a shell that lacks it. */
   compose?(a: {
     text?: string;

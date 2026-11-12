@@ -105,6 +105,9 @@ export class FakeAdmin {
   /** The machine's own needs-you items in daemon.status (a full disk); `setMachineNeeds` of helpers.ts changes them. */
   machineNeeds: MachineNeed[] = [];
 
+  /** DaemonStatus.missing_tools: the tools agents need that this machine lacks; the first-run seed sets them. */
+  missingTools: { tool: string; fix: string }[] = [];
+
   /** daemon.pause on this machine (DaemonStatus.paused), null while new work runs. */
   paused: { since: Timestamp; until: null; machine: { id: string; name: string } } | null = null;
 
