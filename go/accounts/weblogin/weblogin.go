@@ -285,18 +285,21 @@ func (m *Manager) exited(r *run, werr error) {
 // SubscriptionURL is where a person without a Claude subscription gets one.
 const SubscriptionURL = "https://claude.ai/upgrade"
 
-// failedWhy is why a login whose command exited with an error failed, from the last line it printed: stderr's, else stdout's unless that
-// is the login link. A subscription it names is the one thing a person can act on, so that is said with where to get one; any other
-// line is passed on.
+// failedWhy is why a login whose command exited with an error failed, from the last line it printed on stderr, else on stdout.
 func failedWhy(errs, out string) string {
+	if strings.HasPrefix(out, "https://") { // the login link, not a reason
+		out = ""
+	}
 	said := errs
-	if said == "" && !strings.Contains(out, "https://") {
+	if said == "" {
 		said = out
 	}
-	switch {
-	case strings.Contains(strings.ToLower(said), "subscription"):
-		return "this needs a Claude Pro or Max subscription: get one at " + SubscriptionURL + ", then log in again"
-	case said != "":
+	for _, line := range []string{errs, out} {
+		if strings.Contains(strings.ToLower(line), "subscription") {
+			return "this needs a Claude Pro or Max subscription: get one at " + SubscriptionURL + ", then log in again (" + line + ")"
+		}
+	}
+	if said != "" {
 		return "the login command exited with an error: " + said
 	}
 	return "the login command exited with an error"
@@ -309,7 +312,7 @@ type lastLine struct {
 }
 
 func (l *lastLine) Write(p []byte) (int, error) {
-	l.mu.Lock() // the reader writes while exited may read
+	l.mu.Lock()
 	defer l.mu.Unlock()
 	for _, b := range p {
 		if b != '\n' {
@@ -333,7 +336,7 @@ func (l *lastLine) keep() {
 	l.cur = l.cur[:0]
 }
 
-// String is the last line, an unfinished one counted.
+// String is the last line, an unfinished one counted. Call it once the writers are done: it ends the unfinished line.
 func (l *lastLine) String() string {
 	l.mu.Lock()
 	defer l.mu.Unlock()

@@ -37,7 +37,7 @@ func (e *Env) accountAdd(c *rpc.Conn, p map[string]any) (any, error) {
 	var err error
 	if named {
 		_, err = accts.Add(acct, vendor)
-	} else { // account<n>, n one past the accounts there are: the second is account2. A name taken meanwhile moves on to the next.
+	} else { // account<n>; a name in use moves on to the next
 		for n := len(paths.ListAccounts(e.Home)) + 1; ; n++ {
 			acct = fmt.Sprintf("account%d", n)
 			if _, err = accts.Add(acct, vendor); !errors.Is(err, team.ErrAccountExists) {

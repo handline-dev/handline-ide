@@ -1479,7 +1479,7 @@
      "schema": {
       "type": "string",
       "minLength": 1,
-      "description": "The new account's name: one plain line, no slash, not starting with a dot. Omitted, it is account<n>, n one past the accounts there are (the second is account2)."
+      "description": "The new account's name: one plain line, no slash, not starting with a dot. Omitted: account<n>, n the number of accounts plus one, skipping a name in use."
      }
     },
     {
