@@ -104,6 +104,24 @@ func (p *Parts) Lifecycle(cfg Config, lc LifecycleConfig) *Lifecycle {
 			}
 			return team.Rules(home, agent, t, keptRules.Block)
 		},
+		Held: func(agent string) team.Held {
+			t := routing()
+			if t == nil {
+				return team.Held{}
+			}
+			id, ok, err := team.WorkspaceID(q, t.TeamOf(agent))
+			if err != nil || !ok {
+				if err != nil {
+					cfg.Log("  kept rules: not read for %s: %v", agent, err)
+				}
+				return team.Held{}
+			}
+			h, err := team.HeldFor(q, id)
+			if err != nil {
+				cfg.Log("  kept rules: not read for %s: %v", agent, err)
+			}
+			return h
+		},
 		Routing:     routing,
 		McpApproved: team.NewTrust(home).MCPApproved,
 	}}

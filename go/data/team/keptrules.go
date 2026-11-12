@@ -86,6 +86,9 @@ func ParseRule(key string, v any) (any, error) {
 			if s = strings.TrimSpace(s); !ok || s == "" {
 				return nil, fmt.Errorf("%s is a list of names, empty for no rule", key)
 			}
+			if key == RuleToolsDeny && strings.Contains(s, ",") {
+				return nil, fmt.Errorf("%s names one tool each, with no comma: %s", key, s)
+			}
 			if !slices.Contains(out, s) {
 				out = append(out, s)
 			}
@@ -270,4 +273,51 @@ func (k *KeptBlocks) Block(name string) string {
 	}
 	k.last[name] = RulesBlock(rules)
 	return k.last[name]
+}
+
+// Held is the two kept rules a session starts under: tools its agents may not use, and the strongest mode they may be given.
+type Held struct {
+	Deny      []string
+	ModeMax   string // "" for no rule
+	ModeSetBy string
+}
+
+// HeldFor is the tools_deny and mode_max in force for workspace ws.
+func HeldFor(q db.Q, ws int64) (Held, error) {
+	rules, err := KeptRules(q, ws)
+	var h Held
+	for _, r := range rules {
+		switch v := r.Value.(type) {
+		case []string:
+			if r.Key == RuleToolsDeny {
+				h.Deny = v
+			}
+		case string:
+			if r.Key == RuleModeMax {
+				h.ModeMax, h.ModeSetBy = v, r.SetBy
+			}
+		}
+	}
+	return h, err
+}
+
+// ModeOver is whether mode is stronger than the cap.
+func (h Held) ModeOver(mode string) bool {
+	return h.ModeMax != "" && slices.Index(ModeOrder, mode) > slices.Index(ModeOrder, h.ModeMax)
+}
+
+// CapMode is mode, or the cap when mode is stronger.
+func (h Held) CapMode(mode string) string {
+	if h.ModeOver(mode) {
+		return h.ModeMax
+	}
+	return mode
+}
+
+// ModeRefusal is why mode may not be given to an agent of the workspace: "" when it may.
+func (h Held) ModeRefusal(mode string) string {
+	if !h.ModeOver(mode) {
+		return ""
+	}
+	return fmt.Sprintf("mode %s is stronger than mode_max %s, set by %s for its workspace", mode, h.ModeMax, h.ModeSetBy)
 }

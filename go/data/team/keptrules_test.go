@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"os"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -193,5 +194,43 @@ func TestAFailedReadKeepsTheLastKeptRules(t *testing.T) {
 	d.Close()
 	if before == "" || k.Block("shop") != before {
 		t.Fatalf("%q, then %q", before, k.Block("shop"))
+	}
+}
+
+func TestModeMaxRefusesAStrongerModeAtRegisterAndHoldsToolsDeny(t *testing.T) {
+	home, d := keptHome(t)
+	t.Setenv("HANDLINE_AGENT", "")
+	shop, _, _ := WorkspaceID(d, "shop")
+	lab, _, _ := WorkspaceID(d, "lab")
+	r := NewRoster(home)
+	must(t, SetRule(d, shop, RuleModeMax, "acceptEdits", "p1", 1))
+	must(t, SetRule(d, shop, RuleToolsDeny, []string{"WebFetch"}, "p1", 1))
+	if _, err := r.Register("shop.ui", RegisterOpts{Mode: strp("auto")}); err == nil || !strings.Contains(err.Error(), "mode auto is stronger than mode_max acceptEdits, set by p1") {
+		t.Errorf("a stronger mode: %v", err)
+	}
+	if _, err := r.Register("shop.ui", RegisterOpts{Mode: strp("acceptEdits")}); err != nil {
+		t.Errorf("a mode at the cap: %v", err)
+	}
+	if _, err := r.Register("lab.ui", RegisterOpts{Mode: strp("auto")}); err != nil {
+		t.Errorf("another workspace has no cap: %v", err)
+	}
+	h, _ := HeldFor(d, shop)
+	if !reflect.DeepEqual(h.Deny, []string{"WebFetch"}) || h.CapMode("auto") != "acceptEdits" || h.CapMode("plan") != "plan" {
+		t.Errorf("%+v", h)
+	}
+	if h, _ := HeldFor(d, lab); len(h.Deny) != 0 || h.CapMode("auto") != "auto" {
+		t.Errorf("lab: %+v", h)
+	}
+}
+
+func TestModeOrderHoldsEveryMode(t *testing.T) {
+	a, b := slices.Clone(Modes), slices.Clone(ModeOrder)
+	slices.Sort(a)
+	slices.Sort(b)
+	if !slices.Equal(a, b) {
+		t.Errorf("Modes %v and ModeOrder %v differ", Modes, ModeOrder)
+	}
+	if _, err := ParseRule(RuleToolsDeny, []any{"Bash(a,b)"}); err == nil {
+		t.Error("a comma in a denied tool splits it in the argv")
 	}
 }

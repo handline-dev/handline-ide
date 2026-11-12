@@ -159,7 +159,7 @@ func (l *Launcher) Build(site *Site, agent string, extra []string, force bool, a
 		return nil, nil, err
 	}
 	// A vendor with no auto mode never reads `trusted`.
-	chosen := l.Roster.ModeOf(agent, cfg)
+	chosen := l.modeOf(agent, cfg)
 	var mode []string
 	if chosen == team.DefaultMode {
 		mode = drv.AutoModeArgv()
@@ -199,7 +199,7 @@ func (l *Launcher) Build(site *Site, agent string, extra []string, force bool, a
 		trusted = l.TrustedEnvironment(cwd)
 	}
 	argv := drv.LaunchArgv(exe, cli.LaunchArgs{
-		Model: modelOf(cfg), Effort: effort, Disallowed: DisallowedTools,
+		Model: modelOf(cfg), Effort: effort, Disallowed: l.disallowed(agent),
 		MCPArgs:  append(append([]string{}, mcpArg...), team.MCPConfigArgs(cfg)...),
 		Preamble: preamble, Hide: hide,
 		NoWrite:   noWrite,
@@ -227,7 +227,7 @@ func (l *Launcher) Build(site *Site, agent string, extra []string, force bool, a
 	if env == nil {
 		env = map[string]string{}
 	}
-	for k, v := range drv.LaunchEnv(preamble, DisallowedTools, paths.AgentDir(l.Home, agent)) {
+	for k, v := range drv.LaunchEnv(preamble, l.disallowed(agent), paths.AgentDir(l.Home, agent)) {
 		env[k] = v
 	}
 	return argv, env, nil
