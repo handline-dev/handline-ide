@@ -11,7 +11,7 @@ import { PROTOCOL, webSocketTransport } from '@handline/client';
 import { pinnedWebSocketTransport, unixSocketTransport } from '@handline/client-node';
 import { CHANNELS, fromWindow } from '#src/bridge.ts';
 import { Link, pairRemote, plainRemoteHost, helloOf, type OfferInput, type Remote, type Settings, type SettingsFile } from '#src/mode.ts';
-import { commands, daemonPath, detachedSpawn, markPathTimedOut, Owner, pathTimedOut, resolveClaude, type Cmd } from '#src/owner.ts';
+import { commands, daemonEnv, daemonPath, detachedSpawn, markPathTimedOut, Owner, pathTimedOut, resolveClaude, type Cmd } from '#src/owner.ts';
 import { answers, lockHolder, stopLeftovers } from '#src/leftovers.ts';
 import { ensureToken, founderKeyFile, once, TokenFile, type PairDeps } from '#src/pair.ts';
 import { grant } from '#src/grant.ts';
@@ -71,7 +71,7 @@ const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
  * so it keeps running when the app quits. */
 function spawnDetached(cmd: Cmd, log: number, home: string): void {
   markPathTimedOut(home, !!cmd.pathTimedOut);
-  const p = spawn(cmd.file, cmd.args, { ...detachedSpawn(log), env: cmd.path ? { ...process.env, PATH: cmd.path } : process.env });
+  const p = spawn(cmd.file, cmd.args, { ...detachedSpawn(log), env: daemonEnv(process.env, cmd.path) });
   p.on('error', (e) => fs.writeSync(log, `${new Date().toISOString()} app: the daemon did not start: ${e.message}\n`));
   p.unref();
 }

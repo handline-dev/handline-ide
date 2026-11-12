@@ -1186,12 +1186,19 @@ func TestBuildRefusesAnAgentWithNoRow(t *testing.T) {
 	}
 }
 
-// A session that cannot be recorded is not started: its hl could not be told from the founder's. A daemon started from an agent's
-// session is one whose store refuses the record.
+// A daemon started from an agent's session is one whose store refuses the record: the launch is refused before its prompt is taken.
 func TestPrepareRefusesASessionItCannotRecord(t *testing.T) {
 	r := newLaunchRig(t)
+	prompt := filepath.Join(t.TempDir(), "wake.txt")
+	if err := os.WriteFile(prompt, []byte("wake"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	t.Setenv("HANDLINE_AGENT", "a5")
-	if err := r.prepare("ann", nil, false, "", "main", "", ""); err == nil || !strings.Contains(err.Error(), "could not be recorded") {
+	err := r.prepare("ann", nil, false, prompt, "main", "", "")
+	if _, ok := err.(*Refusal); !ok || !strings.Contains(err.Error(), "could not be recorded") {
 		t.Fatalf("%v", err)
+	}
+	if _, err := os.Stat(prompt); err != nil {
+		t.Fatal("the prompt file was used up:", err)
 	}
 }
