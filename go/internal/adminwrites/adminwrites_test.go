@@ -220,6 +220,24 @@ func TestTheLeaseLimitsAreSetAndClearedForTheWholeMachine(t *testing.T) {
 	}
 }
 
+func TestTheMaxHoldsAreWholeMinutesFromZero(t *testing.T) {
+	r := newRig(t)
+	r.result(r.one("settings.set", `{"changes":{"heavy_max_hold_min":45,"simulator_max_hold_min":0,"browser_max_hold_min":20,"port_max_hold_min":5},"request_id":"h1"}`))
+	if got := r.file("config.yaml"); !strings.Contains(got, "heavy_max_hold_min: 45") || !strings.Contains(got, "simulator_max_hold_min: 0") ||
+		!strings.Contains(got, "browser_max_hold_min: 20") || !strings.Contains(got, "port_max_hold_min: 5") {
+		t.Fatalf("%q", got)
+	}
+	for i, bad := range []string{`{"heavy_max_hold_min":-1}`, `{"browser_max_hold_min":"20"}`, `{"browser_max_hold_min":1.5}`} {
+		if r.code(r.one("settings.set", `{"changes":`+bad+`,"request_id":"h`+strconv.Itoa(i+2)+`"}`)) != "bad_request" {
+			t.Fatalf("%s was taken", bad)
+		}
+	}
+	r.result(r.one("settings.set", `{"changes":{"heavy_max_hold_min":null},"request_id":"h9"}`))
+	if got := r.file("config.yaml"); strings.Contains(got, "heavy_max_hold_min") {
+		t.Fatalf("cleared: %q", got)
+	}
+}
+
 func TestThePortRangeIsWrittenAsLoHiAndRefusedOtherwise(t *testing.T) {
 	r := newRig(t)
 	r.result(r.one("settings.set", `{"changes":{"port_range":"4000-4999"},"request_id":"p1"}`))

@@ -393,6 +393,14 @@ export type SettingsValues = {
   browser_max?: number;
   /** The ports a port lease (hl use port) is picked from, as lo-hi (e.g. 4000-4999) with 1024 <= lo <= hi <= 65535: a port no lease holds and that binds at grant time, given to the command as $HL_PORT; over the range an ask waits. Unset, the default, a port lease is any free port the system gives and none waits. */
   port_range?: string | null;
+  /** Minutes a test or build run lease may be held from its grant (time reserved included) before it is taken back for a waiting ask (lease.extend); only while the kind has a limit. 0 is none. Default 30. */
+  heavy_max_hold_min?: number;
+  /** Minutes a simulator lease may be held from its grant (time reserved included) before it is taken back for a waiting ask (lease.extend); only while the kind has a limit. 0 is none. Default 60. */
+  simulator_max_hold_min?: number;
+  /** Minutes a browser lease may be held from its grant (time reserved included) before it is taken back for a waiting ask (lease.extend); only while the kind has a limit. 0 is none. Default 30. */
+  browser_max_hold_min?: number;
+  /** Minutes a port lease may be held from its grant (time reserved included) before it is taken back for a waiting ask (lease.extend); only while the kind has a limit. 0 is none. Default 0. */
+  port_max_hold_min?: number;
   /** Hosts the network listener serves, from connection.addresses, each on the -listen port: a door on each of their addresses, made again within seconds when the setting or the interfaces change (no restart). The web page is served on each. null (the default) serves -listen alone; [] serves none. A host the machine has no address for now is served when it has one again. A write answers unreachable_devices: the paired devices whose host is no longer served. */
   network_addresses?: string[] | null;
 };
@@ -479,6 +487,14 @@ export type SettingsChanges = {
   browser_max?: number | null;
   /** The ports a port lease (hl use port) is picked from, as lo-hi (e.g. 4000-4999) with 1024 <= lo <= hi <= 65535: a port no lease holds and that binds at grant time, given to the command as $HL_PORT; over the range an ask waits. Unset, the default, a port lease is any free port the system gives and none waits. Another value is bad_request (field port_range). null removes the key (back to the default). */
   port_range?: string | null;
+  /** Minutes a test or build run lease may be held from its grant (time reserved included) before it is taken back for a waiting ask (lease.extend); only while the kind has a limit. 0 is none. Default 30. null removes the key (back to the default). */
+  heavy_max_hold_min?: number | null;
+  /** Minutes a simulator lease may be held from its grant (time reserved included) before it is taken back for a waiting ask (lease.extend); only while the kind has a limit. 0 is none. Default 60. null removes the key (back to the default). */
+  simulator_max_hold_min?: number | null;
+  /** Minutes a browser lease may be held from its grant (time reserved included) before it is taken back for a waiting ask (lease.extend); only while the kind has a limit. 0 is none. Default 30. null removes the key (back to the default). */
+  browser_max_hold_min?: number | null;
+  /** Minutes a port lease may be held from its grant (time reserved included) before it is taken back for a waiting ask (lease.extend); only while the kind has a limit. 0 is none. Default 0. null removes the key (back to the default). */
+  port_max_hold_min?: number | null;
   /** Hosts the network listener serves, from connection.addresses, each on the -listen port: a door on each of their addresses, made again within seconds when the setting or the interfaces change (no restart). The web page is served on each. null (the default) serves -listen alone; [] serves none. A host the machine has no address for now is served when it has one again. A write answers unreachable_devices: the paired devices whose host is no longer served. A host this machine cannot be reached on is refused, gate address. A client connected through a host it drops is cut off before the answer; its retry with the same request_id reads it. null removes the key (back to the default). */
   network_addresses?: string[] | null;
 };
@@ -883,9 +899,13 @@ export interface CoreMethods {
       kind: "heavy" | "simulator" | "browser" | "port";
       /** heavy_max, simulator_max or browser_max; for port, the size of port_range, 0 when unset; 0 is no limit. */
       max: number;
+      /** <kind>_max_hold_min while the kind has a limit; 0 is none (always 0 with max 0). */
+      max_hold_min: number;
       held: {
         lease: number;
         agent: string;
+        /** The key of the holder's workspace when granted (w2); absent when it has none. */
+        workspace?: string;
         since: string;
         /** Taken with --hold, rather than for one command. */
         hold: boolean;
@@ -897,16 +917,24 @@ export interface CoreMethods {
         until?: Timestamp;
         /** A port lease: its port. */
         port?: number;
+        /** When it reaches its max_hold, extensions counted; absent when the kind has no max_hold. */
+        max_hold_at?: Timestamp;
+        /** Past max_hold_at and not a reservation: taken back as soon as an ask of its kind waits. Present with max_hold_at. */
+        over_time?: boolean;
+        /** Periods hl use --extend added. Present with max_hold_at. */
+        extended?: number;
       }[];
       queue: {
         agent: string;
         since: string;
-        /** 1 is next. */
+        /** 1 is next. The workspace that held the kind least in the last hour goes first, then first come first served. */
         position: number;
         /** The wait in words, for the agent view: 'waiting for a browser, 2nd in line, held by a and b'. */
         says: string;
         /** The task the ask blocks (its gate waits on this lease); absent for a call held open. */
         task?: number;
+        /** The key of the asker's workspace (w2); absent when it has none. */
+        workspace?: string;
       }[];
     }[];
   } };

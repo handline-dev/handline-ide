@@ -2152,6 +2152,30 @@
       ],
       "description": "The ports a port lease (hl use port) is picked from, as lo-hi (e.g. 4000-4999) with 1024 <= lo <= hi <= 65535: a port no lease holds and that binds at grant time, given to the command as $HL_PORT; over the range an ask waits. Unset, the default, a port lease is any free port the system gives and none waits."
      },
+     "heavy_max_hold_min": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 30,
+      "description": "Minutes a test or build run lease may be held from its grant (time reserved included) before it is taken back for a waiting ask (lease.extend); only while the kind has a limit. 0 is none. Default 30."
+     },
+     "simulator_max_hold_min": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 60,
+      "description": "Minutes a simulator lease may be held from its grant (time reserved included) before it is taken back for a waiting ask (lease.extend); only while the kind has a limit. 0 is none. Default 60."
+     },
+     "browser_max_hold_min": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 30,
+      "description": "Minutes a browser lease may be held from its grant (time reserved included) before it is taken back for a waiting ask (lease.extend); only while the kind has a limit. 0 is none. Default 30."
+     },
+     "port_max_hold_min": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 0,
+      "description": "Minutes a port lease may be held from its grant (time reserved included) before it is taken back for a waiting ask (lease.extend); only while the kind has a limit. 0 is none. Default 0."
+     },
      "network_addresses": {
       "oneOf": [
        {
@@ -2620,6 +2644,54 @@
        }
       ],
       "description": "The ports a port lease (hl use port) is picked from, as lo-hi (e.g. 4000-4999) with 1024 <= lo <= hi <= 65535: a port no lease holds and that binds at grant time, given to the command as $HL_PORT; over the range an ask waits. Unset, the default, a port lease is any free port the system gives and none waits. Another value is bad_request (field port_range). null removes the key (back to the default)."
+     },
+     "heavy_max_hold_min": {
+      "oneOf": [
+       {
+        "type": "integer",
+        "minimum": 0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Minutes a test or build run lease may be held from its grant (time reserved included) before it is taken back for a waiting ask (lease.extend); only while the kind has a limit. 0 is none. Default 30. null removes the key (back to the default)."
+     },
+     "simulator_max_hold_min": {
+      "oneOf": [
+       {
+        "type": "integer",
+        "minimum": 0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Minutes a simulator lease may be held from its grant (time reserved included) before it is taken back for a waiting ask (lease.extend); only while the kind has a limit. 0 is none. Default 60. null removes the key (back to the default)."
+     },
+     "browser_max_hold_min": {
+      "oneOf": [
+       {
+        "type": "integer",
+        "minimum": 0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Minutes a browser lease may be held from its grant (time reserved included) before it is taken back for a waiting ask (lease.extend); only while the kind has a limit. 0 is none. Default 30. null removes the key (back to the default)."
+     },
+     "port_max_hold_min": {
+      "oneOf": [
+       {
+        "type": "integer",
+        "minimum": 0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Minutes a port lease may be held from its grant (time reserved included) before it is taken back for a waiting ask (lease.extend); only while the kind has a limit. 0 is none. Default 0. null removes the key (back to the default)."
      },
      "network_addresses": {
       "oneOf": [
@@ -4347,7 +4419,7 @@
   },
   {
    "name": "lease.get",
-   "summary": "The simulator and browser leases: per kind its limit, who holds each lease (since when, its processes) and who waits, in order.",
+   "summary": "Every lease kind (test or build run, simulator, browser, port): per kind its limit and max_hold, who holds each lease (workspace, since when, its processes, when it reaches its max_hold), what is reserved for which task until when, and who waits, in order.",
    "paramStructure": "by-name",
    "params": [],
    "result": {
@@ -4367,6 +4439,7 @@
         "required": [
          "kind",
          "max",
+         "max_hold_min",
          "held",
          "queue"
         ],
@@ -4384,6 +4457,11 @@
           "type": "integer",
           "minimum": 0,
           "description": "heavy_max, simulator_max or browser_max; for port, the size of port_range, 0 when unset; 0 is no limit."
+         },
+         "max_hold_min": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "<kind>_max_hold_min while the kind has a limit; 0 is none (always 0 with max 0)."
          },
          "held": {
           "type": "array",
@@ -4404,6 +4482,10 @@
             },
             "agent": {
              "type": "string"
+            },
+            "workspace": {
+             "type": "string",
+             "description": "The key of the holder's workspace when granted (w2); absent when it has none."
             },
             "since": {
              "type": "string",
@@ -4431,6 +4513,20 @@
             "port": {
              "type": "integer",
              "description": "A port lease: its port."
+            },
+            "max_hold_at": {
+             "$ref": "#/components/schemas/Timestamp",
+             "description": "When it reaches its max_hold, extensions counted; absent when the kind has no max_hold."
+            },
+            "over_time": {
+             "type": "boolean",
+             "description": "Past max_hold_at and not a reservation: taken back as soon as an ask of its kind waits. Present with max_hold_at."
+            },
+            "extended": {
+             "type": "integer",
+             "minimum": 0,
+             "maximum": 2,
+             "description": "Periods hl use --extend added. Present with max_hold_at."
             }
            }
           }
@@ -4457,7 +4553,7 @@
             "position": {
              "type": "integer",
              "minimum": 1,
-             "description": "1 is next."
+             "description": "1 is next. The workspace that held the kind least in the last hour goes first, then first come first served."
             },
             "says": {
              "type": "string",
@@ -4466,6 +4562,10 @@
             "task": {
              "type": "integer",
              "description": "The task the ask blocks (its gate waits on this lease); absent for a call held open."
+            },
+            "workspace": {
+             "type": "string",
+             "description": "The key of the asker's workspace (w2); absent when it has none."
             }
            }
           }

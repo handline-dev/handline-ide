@@ -73,7 +73,7 @@ hl use --extend: adds one max_hold period to each of the caller's leases of kind
 
 ### `lease.get`
 
-The simulator and browser leases: per kind its limit, who holds each lease (since when, its processes) and who waits, in order.
+Every lease kind (test or build run, simulator, browser, port): per kind its limit and max_hold, who holds each lease (workspace, since when, its processes, when it reaches its max_hold), what is reserved for which task until when, and who waits, in order.
 
 ### `load.get`
 
