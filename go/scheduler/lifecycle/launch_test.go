@@ -1185,3 +1185,13 @@ func TestBuildRefusesAnAgentWithNoRow(t *testing.T) {
 		}
 	}
 }
+
+// A session that cannot be recorded is not started: its hl could not be told from the founder's. A daemon started from an agent's
+// session is one whose store refuses the record.
+func TestPrepareRefusesASessionItCannotRecord(t *testing.T) {
+	r := newLaunchRig(t)
+	t.Setenv("HANDLINE_AGENT", "a5")
+	if err := r.prepare("ann", nil, false, "", "main", "", ""); err == nil || !strings.Contains(err.Error(), "could not be recorded") {
+		t.Fatalf("%v", err)
+	}
+}
