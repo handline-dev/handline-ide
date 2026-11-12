@@ -2128,6 +2128,18 @@
       "default": 0,
       "description": "Most browsers (headless Chrome or Chromium, Playwright) held at once through hl use, over every agent; 0 is no limit, the default. Over it an agent's hl use browser waits its turn (lease.take), and the PreToolUse guard refuses a browser started outside hl use unless the agent holds one; with 0 nothing waits or is refused."
      },
+     "port_range": {
+      "oneOf": [
+       {
+        "type": "string",
+        "pattern": "^[0-9]+-[0-9]+$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "The ports a port lease (hl use port) is picked from, as lo-hi (e.g. 4000-4999): a port no lease holds and that binds at grant time, given to the command as $HL_PORT; over the range an ask waits. Unset, the default, a port lease is any free port the system gives and none waits."
+     },
      "network_addresses": {
       "oneOf": [
        {
@@ -2584,6 +2596,18 @@
        }
       ],
       "description": "Most browsers (headless Chrome or Chromium, Playwright) held at once through hl use, over every agent; 0 is no limit, the default. Over it an agent's hl use browser waits its turn (lease.take), and the PreToolUse guard refuses a browser started outside hl use unless the agent holds one; with 0 nothing waits or is refused. null removes the key (back to the default)."
+     },
+     "port_range": {
+      "oneOf": [
+       {
+        "type": "string",
+        "pattern": "^[0-9]+-[0-9]+$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "The ports a port lease (hl use port) is picked from, as lo-hi (e.g. 4000-4999): a port no lease holds and that binds at grant time, given to the command as $HL_PORT; over the range an ask waits. Unset, the default, a port lease is any free port the system gives and none waits. null removes the key (back to the default)."
      },
      "network_addresses": {
       "oneOf": [
@@ -4034,7 +4058,7 @@
   },
   {
    "name": "lease.take",
-   "summary": "hl use asks for a test or build run, simulator or browser lease. A free one with no ask ahead in line (per kind, the workspace that held the kind least in the last hour first, then first come first served), or one reserved for the agent's current task, is answered at once. Otherwise an agent with a current task is refused with gate lease_wait: its task waits in line on a gate task and comes back when a lease is reserved for it. A call with no current task is held until one is free, refused after 30 minutes naming who holds them.",
+   "summary": "hl use asks for a test or build run, simulator, browser or port lease. A free one with no ask ahead in line (per kind, the workspace that held the kind least in the last hour first, then first come first served), or one reserved for the agent's current task, is answered at once. Otherwise an agent with a current task is refused with gate lease_wait: its task waits in line on a gate task and comes back when a lease is reserved for it. A call with no current task is held until one is free, refused after 30 minutes naming who holds them.",
    "description": "With the kind's limit 0 (heavy_max, simulator_max, browser_max) it is granted at once. A command's lease (hold false) belongs to the calling process, the hl use the command runs under: it is freed by lease.release, by the agent's session end, or within 5 s once that process and every process last seen under it are gone. A hold is freed by lease.release or the agent's turn or session end; the PreToolUse guard lets the agent's own starters of its kind through while it is held. An ask whose caller hangs up leaves the queue. Leases are stored: after a restart a hold is kept until its holder's turn ends, and a command's lease while the hl use process it was granted to runs. A lease reserved for a task waits 10 minutes (lease_claim) for its agent's hl use, then goes to the next ask; its task is not blocked again until its next hl use asks again; an ask or reservation whose task ends or leaves its agent is dropped and its gate closed. Reserved leases count toward the limit; turn and session ends leave them.",
    "paramStructure": "by-name",
    "params": [
@@ -4053,7 +4077,8 @@
       "enum": [
        "heavy",
        "simulator",
-       "browser"
+       "browser",
+       "port"
       ]
      }
     },
@@ -4085,6 +4110,10 @@
        "type": "integer",
        "minimum": 0,
        "description": "How long the ask waited."
+      },
+      "port": {
+       "type": "integer",
+       "description": "A port lease: the port, given to the command as $HL_PORT."
       }
      }
     }
@@ -4136,7 +4165,8 @@
         "enum": [
          "heavy",
          "simulator",
-         "browser"
+         "browser",
+         "port"
         ]
        },
        {
@@ -4210,13 +4240,14 @@
           "enum": [
            "heavy",
            "simulator",
-           "browser"
+           "browser",
+           "port"
           ]
          },
          "max": {
           "type": "integer",
           "minimum": 0,
-          "description": "heavy_max, simulator_max or browser_max; 0 is no limit."
+          "description": "heavy_max, simulator_max or browser_max; for port, the size of port_range; 0 is no limit."
          },
          "held": {
           "type": "array",
@@ -4260,6 +4291,10 @@
             "until": {
              "$ref": "#/components/schemas/Timestamp",
              "description": "A reservation: when it goes to the next ask if not taken."
+            },
+            "port": {
+             "type": "integer",
+             "description": "A port lease: its port."
             }
            }
           }

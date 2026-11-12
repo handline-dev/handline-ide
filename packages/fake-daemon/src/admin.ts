@@ -54,6 +54,7 @@ const DEFAULTS: Settings['values'] = {
   heavy_max: 0,
   simulator_max: 0,
   browser_max: 0,
+  port_range: null,
   network_addresses: null,
   keep_awake: 'off',
   reap_orphans: 'dry',

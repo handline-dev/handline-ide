@@ -31,7 +31,7 @@ func TestTheStoreKeepsLeasesAndNeverReusesAnID(t *testing.T) {
 		t.Fatal(err)
 	}
 	ask := leases.Ask{ID: 3, Kind: leases.Browser, Agent: "a7", Workspace: "w4", Task: 40, Gate: 41, Since: 300}
-	reserved := leases.Lease{ID: 4, Kind: leases.Simulator, Agent: "a7", Workspace: "w4", Since: 400, Task: 42, Until: 1000}
+	reserved := leases.Lease{ID: 4, Kind: leases.Port, Agent: "a7", Workspace: "w4", Since: 400, Task: 42, Until: 1000, Port: 4001}
 	if err := s.AddAsk(ask); err != nil {
 		t.Fatal(err)
 	}

@@ -49,6 +49,17 @@ func TestUseWhoseAskWaitsAsABlockerExits75AndRunsNothing(t *testing.T) {
 	}
 }
 
+func TestUseGivesAPortLeaseToTheCommandAsHLPort(t *testing.T) {
+	r := newRig(t)
+	r.daemon(map[string]string{"lease.take": `{"lease":6,"waited_s":0,"port":4123}`, "lease.release": `{"released":1}`})
+	if out, _, code := r.run(asAgent, "use", "port", "--", "sh", "-c", "echo $HL_PORT"); code != 0 || out != "4123\n" {
+		t.Fatalf("%q %d", out, code)
+	}
+	if out, _, code := r.run(asAgent, "use", "port", "--hold"); code != 0 || !strings.Contains(out, "holding port 4123 (lease 6)") {
+		t.Fatalf("hold: %q %d", out, code)
+	}
+}
+
 func TestUseHoldAndRelease(t *testing.T) {
 	r := newRig(t)
 	calls := r.daemon(map[string]string{"lease.take": `{"lease":5,"waited_s":0}`, "lease.release": `{"released":1}`})
