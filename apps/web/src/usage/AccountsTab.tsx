@@ -120,7 +120,7 @@ function Card({
           aria-expanded={open}
           aria-label={`${open ? 'Close' : 'Open'} ${a.label}`}
           onClick={toggle}
-          className={`flex min-w-0 items-center gap-3 rounded-xl p-4 text-left hover:bg-hover/20 ${out ? '' : '@container flex-1'}`}
+          className={`flex min-w-0 items-center gap-3 rounded-xl p-4 text-left hover:bg-hover/20 ${out ? 'pr-1' : '@container flex-1'}`}
         >
           <ChevronRight size={16} className={`shrink-0 text-muted transition-transform ${open ? 'rotate-90' : ''}`} />
           <AccountFacts account={a} plan={plan} bars={!out} />
@@ -190,8 +190,9 @@ export function Login({
   const started = login.data;
   useEffect(() => {
     if (!started?.url) return;
-    window.open(started.url, '_blank', 'noopener,noreferrer');
-    void openModal((close) => <CodeModal name={a.name} loginId={started.login_id} url={started.url!} close={close} />, {
+    const { url, login_id } = started;
+    window.open(url, '_blank', 'noopener,noreferrer');
+    void openModal((close) => <CodeModal name={a.name} loginId={login_id} url={url} close={close} />, {
       dismissible: false,
     });
   }, [started, a.name]);
@@ -226,24 +227,21 @@ function CodeModal({ name, loginId, url, close }: { name: string; loginId: strin
   const cancel = useWrite('account.login_cancel', name);
   const [code, setCode] = useState('');
   const a = useAccounts().data?.accounts.find((x) => x.name === name);
-  const running = !!a && loginRunning(a);
-  const seen = useRef(false);
+  const ended = a?.login?.login_id === loginId && !loginRunning(a);
   useEffect(() => {
-    if (running) seen.current = true;
-    else if (seen.current) close();
-  }, [running, close]);
+    if (ended) close();
+  }, [ended, close]);
   const stop = () => cancel.mutate({ login_id: loginId }, { onSettled: () => close() });
   const submit = () => {
     if (!code.trim()) return;
     sendCode.mutate({ login_id: loginId, code: code.trim() }, { onSuccess: () => close() });
-    setCode('');
   };
   return (
     <ModalFrame
       title={`Log in to ${a?.label ?? name}`}
       description={
         <>
-          Finish in the browser tab that opened, then paste the code it shows here.{' '}
+          Finish in the browser tab that opened{a?.email ? ` as ${a.email}` : ''}, then paste the code it shows here.{' '}
           <a className="text-accent" href={url} target="_blank" rel="noreferrer">
             Open the login page again
           </a>
