@@ -21,6 +21,8 @@ type Delivery interface {
 	ForgottenResolve(q db.Q, agent string, row *db.AgentState, now int64) (head, idleS int64, found bool, err error)
 	// WakeWaitReason is the sentence for a wake that is due and walled, "" when no wake is due or nothing holds it back.
 	WakeWaitReason(q db.Q, agent string, row *db.AgentState) (string, error)
+	// HasBackgroundWork is whether the agent's session, its turn over, still runs background work.
+	HasBackgroundWork(q db.Q, agent string) (bool, error)
 	// Trigger is what the daemon's next tick would decide for the agent on account (hl triggers).
 	Trigger(q db.Q, agent string, row *db.AgentState, account string) (Trigger, error)
 }

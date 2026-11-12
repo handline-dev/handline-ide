@@ -100,13 +100,13 @@ func loginWord(in, known bool) string {
 
 // accountsList is accounts.list: every account with its login, usage windows, agents, recent moves, label, caps and cycle.
 func (e *Env) accountsList(c *rpc.Conn, params map[string]any) (any, error) {
-	withUsage := false
-	if u, given := params["usage"]; given {
-		b, ok := u.(bool)
-		if !ok {
-			return nil, badParam("usage is true or false", "usage")
-		}
-		withUsage = b
+	withUsage, err := boolParam(params, "usage")
+	if err != nil {
+		return nil, err
+	}
+	withRoster, err := boolParam(params, "roster")
+	if err != nil {
+		return nil, err
 	}
 	// The email is the founder's to see, never an agent's: it would reach their transcripts and what they send.
 	founder := c != nil && c.Caller.Role == "owner"
@@ -115,7 +115,6 @@ func (e *Env) accountsList(c *rpc.Conn, params map[string]any) (any, error) {
 	var loads map[string]*usage.Load
 	var notPicked map[string]any
 	if withUsage {
-		var err error
 		if loads, err = v.ue.ReadAll(e.DB, ""); err != nil {
 			return nil, err
 		}
@@ -126,9 +125,20 @@ func (e *Env) accountsList(c *rpc.Conn, params map[string]any) (any, error) {
 			return nil, err
 		}
 	}
+	var midTurn map[string][]string
+	if withRoster {
+		if midTurn, err = v.ue.ActiveByAccount(e.DB); err != nil {
+			return nil, err
+		}
+	}
 	var accts []any
 	for _, a := range paths.ListAccounts(e.Home) {
 		acct := v.of(a)
+		if withRoster {
+			if err := v.addRoster(acct, a, midTurn); err != nil {
+				return nil, err
+			}
+		}
 		if founder {
 			acct["email"] = nil
 			if email := recorded.Email(a); email != "" {
@@ -145,6 +155,52 @@ func (e *Env) accountsList(c *rpc.Conn, params map[string]any) (any, error) {
 		accts = []any{}
 	}
 	return map[string]any{"accounts": accts}, nil
+}
+
+// addRoster adds agents_assigned, agents_running (ActiveByAccount, what the cap holds to) and agents_background (none mid-turn). An
+// agent mid-turn counts on the account it runs on, whatever its view says.
+func (v *accountView) addRoster(acct map[string]any, a string, midTurn map[string][]string) error {
+	busy := map[string]bool{}
+	for _, ns := range midTurn {
+		for _, n := range ns {
+			busy[n] = true
+		}
+	}
+	assigned, background := len(midTurn[a]), 0
+	for _, n := range v.names {
+		if v.on[n] != a || busy[n] { // mid-turn ones are counted on the account they run on
+			continue
+		}
+		assigned++
+		if v.e.Delivery == nil {
+			continue
+		}
+		bg, err := v.e.Delivery.HasBackgroundWork(v.e.DB, n)
+		if err != nil {
+			return err
+		}
+		if bg {
+			background++
+		}
+	}
+	acct["agents_assigned"], acct["agents_running"] = assigned, len(midTurn[a])
+	if v.e.Delivery != nil {
+		acct["agents_background"] = background
+	}
+	return nil
+}
+
+// boolParam is the boolean param name, false when not given.
+func boolParam(params map[string]any, name string) (bool, error) {
+	u, given := params[name]
+	if !given {
+		return false, nil
+	}
+	b, ok := u.(bool)
+	if !ok {
+		return false, badParam(name+" is true or false", name)
+	}
+	return b, nil
 }
 
 // Account is the spec's Account of one account, as accounts.list shows it; false when there is no such account.

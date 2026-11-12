@@ -46,8 +46,10 @@ export type Account = {
   };
   /** Only with accounts.list `roster: true`. Agents on this account (Account.agents), running or at rest with their prompt cache alive (the figure `hl account list` prints). */
   agents_assigned?: number;
-  /** Only with accounts.list `roster: true`. Those of them that are mid-turn or otherwise running. */
+  /** Only with accounts.list `roster: true`. Agents mid-turn on this account: the count cap_effective holds to. */
   agents_running?: number;
+  /** Only with accounts.list `roster: true`, and absent when the daemon runs no supervisor. Agents on this account at their prompt whose session still runs background work; never in agents_running. */
+  agents_background?: number;
   /** Only with accounts.list `roster: true`. Agents whose config cannot be read and so count on no account; the same on every account, and every figure above is a floor while it is above 0. */
   agents_unplaced?: number;
   /** The login in progress or the last one to end; null when none was started. Reported on the accounts topic as account.changed. Never carries the authorize URL: only the founder's account.login reply has it. */
@@ -269,7 +271,7 @@ export type CostPerDay = {
 
 export interface AccountsMethods {
   "accounts.list": { params: {
-  /** Add each account's agents_assigned, agents_running and agents_unplaced. Default false. */
+  /** Add each account's agents_assigned, agents_running, agents_background and agents_unplaced. Default false. */
   roster?: boolean;
   /** Add each account's plan, windows, ctx_pct, age_s, runway, assignable and assign_reason (what `hl account list` prints beside the windows), pace and not_picked. Default false. */
   usage?: boolean;

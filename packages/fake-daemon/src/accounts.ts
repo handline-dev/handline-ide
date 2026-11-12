@@ -52,7 +52,7 @@ export class FakeAccounts {
 
   private emit(a: Account) {
     // The topic row is the one without the usage fields, as the daemon sends it.
-    const { plan: _p, assignable: _a, assign_reason: _r, not_picked: _np, agents_assigned: _n, agents_running: _g, ...row } = a;
+    const { plan: _p, assignable: _a, assign_reason: _r, not_picked: _np, agents_assigned: _n, agents_running: _g, agents_background: _b, ...row } = a;
     this.host.emit('accounts', 'account.changed', { title: a.label, data: row });
   }
   private agentsOn(account: string): string[] {
@@ -289,6 +289,7 @@ export class FakeAccounts {
         : {}),
       agents_assigned: r.agents_assigned ?? agents.length,
       agents_running: r.agents_running ?? running.length,
+      agents_background: r.agents_background ?? 0,
       cycle: { ...r.cycle },
     };
   }
