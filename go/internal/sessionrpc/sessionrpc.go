@@ -109,6 +109,9 @@ func Register(s *rpc.Server, e *Env) {
 		s.Register("agent.create", rpc.Method{Waits: true, Handler: e.create, Refresh: func(_ *rpc.Conn, reply map[string]any) error {
 			return e.createOutcome(reply)
 		}})
+		s.Register("workspace.create", rpc.Method{Waits: true, Handler: e.workspaceCreate, Refresh: func(_ *rpc.Conn, reply map[string]any) error {
+			return e.createOutcome(reply)
+		}})
 	}
 	if e.Move != nil {
 		s.Register("agent.move", rpc.Method{Handler: e.move})
