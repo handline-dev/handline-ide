@@ -83,7 +83,7 @@ Apply a waiting proposal now: for an applying proposal, interrupt the turn of ea
 
 ### `proposal.stop`
 
-Stop the running command of an approved run proposal: its window is closed and the run ends stopped; the proposing agent is told. Refused (gate state) when the proposal is not kind run or its command is not running.
+The founder stops the running command of an approved run proposal: its window is closed and the run ends stopped; the proposing agent is told. Refused (gate role) for anyone else, and (gate state) when the proposal is not kind run, its command is not running, or its window is no longer the command's.
 
 ### `schedules.list`
 

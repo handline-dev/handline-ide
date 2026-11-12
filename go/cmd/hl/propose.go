@@ -27,6 +27,8 @@ func propose(c *hlclient.Client, args []string) (int, bool) {
 		return proposalSchedule(c, rest)
 	case "bundle":
 		return proposalBundle(c, rest)
+	case "run":
+		return proposalRun(c, rest)
 	case "withdraw":
 		p, ok := parse(rest, nil, nil, nil)
 		if !ok || len(p.pos) != 1 {
@@ -213,6 +215,32 @@ func proposalBundle(c *hlclient.Client, args []string) (int, bool) {
 		"args": map[string]any{"name": fmt.Sprintf("%d changes", len(changes)), "changes": changes}})), true
 }
 
+// proposalRun asks the founder to run a shell command for the asking agent: their approve runs it in a terminal window in --cwd (default
+// the current folder), and the agent is told how it ended, with its last rows.
+func proposalRun(c *hlclient.Client, args []string) (int, bool) {
+	p, ok := parse(args, []string{"--why", "--cwd"}, nil, nil)
+	if !ok || len(p.pos) != 1 {
+		return 0, false
+	}
+	why, problem := proposalWhy(p)
+	if problem != "" {
+		return wrongArgs("%s", problem)
+	}
+	cwd, _ := p.opt("--cwd")
+	cwd, err := filepath.Abs(expandHome(cwd)) // as the folder hl is typed in reads it; none is that folder
+	if err != nil {
+		return wrongArgs("--cwd %s cannot be read: %v", cwd, err)
+	}
+	me := c.AskingAgent()
+	if me == "" {
+		fmt.Println(hlclient.WhoRefusal("propos"))
+		return 1, true
+	}
+	c.NoteVerbChain([]string{"propose", "run"})
+	return said(c.Write("proposal.propose", map[string]any{"kind": "run", "why": why,
+		"args": map[string]any{"name": me, "command": p.pos[0], "cwd": cwd}})), true
+}
+
 // proposalWhy is --why, or what is wrong with it: missing, or naming a message the founder cannot read.
 func proposalWhy(p parsed) (why, problem string) {
 	why, ok := p.opt("--why")
@@ -273,6 +301,29 @@ func proposalList(c *hlclient.Client, args []string) (int, bool) {
 			by = "?"
 		}
 		fmt.Printf("%08x  %s%s%sby %s\n", num(r, "id"), pad(str(r, "kind"), kw), pad(textsafe.Oneline(str(r, "agent")), w), pad(str(r, "state"), 13), textsafe.Oneline(by))
+		if run, ok := r["run"].(map[string]any); ok {
+			fmt.Printf("          %s\n", runLine(run))
+		}
 	}
 	return 0, true
+}
+
+// runLine is a run proposal's command and how its run stands: not started, running, or ended with its exit.
+func runLine(run map[string]any) string {
+	state := str(run, "state")
+	switch state {
+	case "":
+		state = "not started"
+	case "done", "failed":
+		state += fmt.Sprintf(" (exit %d)", num(run, "exit"))
+	}
+	line := fmt.Sprintf("%s in %s: %s", state, textsafe.Oneline(str(run, "cwd")), textsafe.Oneline(str(run, "command")))
+	if risks, _ := run["risks"].([]any); len(risks) > 0 {
+		marks := make([]string, len(risks))
+		for i, m := range risks {
+			marks[i] = fmt.Sprint(m)
+		}
+		line += "  [" + strings.Join(marks, ", ") + "]"
+	}
+	return line
 }
