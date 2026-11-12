@@ -118,7 +118,7 @@ func TestTheDaemonsLauncherNamesTheSettingsALaunchReads(t *testing.T) {
 	env := &supervisor.Env{DB: p.db, Home: home, Log: func(string, ...any) {}}
 	lc := p.Lifecycle(cfgOf(p), LifecycleConfig{Env: env})
 	parts, err := lc.Launch.FingerprintParts("bob") // panicked while the daemon's launcher had no team rules
-	if err != nil || parts["team"] == "" {
+	if _, ok := parts["team rules"]; err != nil || !ok {
 		t.Fatalf("parts %v, err %v", parts, err)
 	}
 }

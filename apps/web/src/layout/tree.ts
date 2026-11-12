@@ -29,7 +29,8 @@ export type Action =
   | { type: 'closeTab'; pane: string; tab: string }
   | { type: 'split'; pane: string; edge: Edge | 'four' }
   | { type: 'closePane'; pane: string }
-  | { type: 'move'; from: string; tab: string; to: Target }
+  /** `tabs`: the tabs moved together, landing in their bar order; `tab` is the one shown after. */
+  | { type: 'move'; from: string; tab: string; tabs?: string[]; to: Target }
   | { type: 'resize'; split: string; ratio: number };
 
 /** Unique across reloads too: layouts are saved. */
@@ -87,10 +88,11 @@ function withoutTab(p: Pane, tab: string): Pane | null {
 }
 
 /** An Empty tab only waits for a choice: anything opened or moved into its pane replaces it. */
-function insert(p: Pane, tab: Tab, index = p.tabs.length): Pane {
+function insert(p: Pane, tab: Tab | Tab[], index = p.tabs.length, active?: string): Pane {
+  const tabs = Array.isArray(tab) ? tab : [tab];
   const before = p.tabs.slice(0, index).filter((t) => t.opens);
   const after = p.tabs.slice(index).filter((t) => t.opens);
-  return { ...p, tabs: [...before, tab, ...after], active: tab.id };
+  return { ...p, tabs: [...before, ...tabs, ...after], active: active ?? tabs[tabs.length - 1].id };
 }
 
 function onPane(root: Node, id: string, f: (p: Pane) => Node | null): Node {
@@ -147,30 +149,31 @@ export function reduce(root: Node, action: Action): Node {
     case 'resize':
       return edit(root, action.split, (n) => (n.kind === 'split' ? { ...n, ratio: clampRatio(action.ratio) } : n)) ?? root;
     case 'move':
-      return move(root, action.from, action.tab, action.to);
+      return move(root, action.from, action.tabs ?? [action.tab], action.tab, action.to);
   }
 }
 
-function move(root: Node, from: string, tabId: string, to: Target): Node {
+function move(root: Node, from: string, ids: string[], shown: string, to: Target): Node {
   const src = findPane(root, from);
-  const tab = src?.tabs.find((t) => t.id === tabId);
-  if (!src || !tab || tab.closable === false || !findPane(root, to.pane)) return root;
+  const group = src?.tabs.filter((t) => ids.includes(t.id) && t.closable !== false) ?? [];
+  if (!src || !group.length || !findPane(root, to.pane)) return root;
+  const active = group.some((t) => t.id === shown) ? shown : group[group.length - 1].id;
+  const moving = new Set(group.map((t) => t.id));
   const edge = to.edge ?? null;
   // Splitting a pane off itself needs another tab to stay behind.
-  if (edge && from === to.pane && src.tabs.length === 1) return root;
+  if (edge && from === to.pane && src.tabs.length === group.length) return root;
 
   if (!edge && from === to.pane) {
-    // Reorder within the bar; the index counts the tabs as they are, the dragged one included.
-    const i = src.tabs.findIndex((t) => t.id === tabId);
+    // Reorder within the bar; the index counts the tabs as they are, the dragged ones included.
     const at = to.index ?? src.tabs.length;
-    const rest = src.tabs.filter((t) => t.id !== tabId);
-    const j = at > i ? at - 1 : at;
-    return onPane(root, from, (p) => ({ ...p, tabs: [...rest.slice(0, j), tab, ...rest.slice(j)], active: tab.id }));
+    const rest = src.tabs.filter((t) => !moving.has(t.id));
+    const j = at - src.tabs.slice(0, at).filter((t) => moving.has(t.id)).length;
+    return onPane(root, from, (p) => ({ ...p, tabs: [...rest.slice(0, j), ...group, ...rest.slice(j)], active }));
   }
 
   // Into the target first (its id survives), then out of the source, which may then disappear.
-  const placed = onPane(root, to.pane, (p) => (edge ? attach(p, edge, pane([tab])) : insert(p, tab, to.index)));
-  return onPane(placed, from, (p) => withoutTab(p, tabId));
+  const placed = onPane(root, to.pane, (p) => (edge ? attach(p, edge, pane(group, active)) : insert(p, group, to.index, active)));
+  return group.reduce<Node>((n, t) => onPane(n, from, (p) => withoutTab(p, t.id)), placed);
 }
 
 /** How many closes Cmd+Shift+T can bring back, per workspace. */

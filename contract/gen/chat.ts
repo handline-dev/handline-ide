@@ -124,7 +124,7 @@ export type TranscriptItem = {
     cause?: string;
     /** The session went on with the same conversation (a restart, not a new conversation). Absent means false. */
     resumed?: boolean;
-    /** What the settings of this start changed from the session before, in words a person reads: `model changed (opus-5-5 -> sonnet-5-5), team changed`. Empty when nothing did. Absent means empty. */
+    /** What the settings of this start changed from the session before, in words a person reads: `model changed (opus-5-5 -> sonnet-5-5), team rules changed (shared/team/handline.md)`. Empty when nothing did. Absent means empty. */
     changed?: string;
   };
   /** For kind bash: a person's ! line as it ran, without the !. */

@@ -1,12 +1,19 @@
-// An Activity line's parts: its round mark, its hover row, and a change in words (the founder's open turn among them).
+// An Activity line's parts: its round mark, its hover row, a comment (the founder's open turn among them), and a change in words.
 import type { ActivityItem } from '@handline/app-core';
 import type { TaskDetail } from '@handline/client';
-import { Check, CircleDot, Hand, Pencil, Send, Trash2, Undo2, UserRound } from 'lucide-react';
+import { isPerson, noteText } from '@handline/app-core';
+import { useMe } from '@handline/app-react';
+import { Check, CircleDot, Hand, MessageSquare, Pencil, Send, Trash2, Undo2, UserRound } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { CopyButton } from '#src/chat/MessageActions.tsx';
+import { Reference } from '#src/chat/ChatLine.tsx';
+import { Actions, CopyButton } from '#src/chat/MessageActions.tsx';
+import { MessageImages } from '#src/chat/MessageImages.tsx';
+import { ReadBy } from '#src/tools/ReadBy.tsx';
+import { showMemo } from '#src/tools/TaskTurn.ts';
 import { clock } from '#src/format/time.ts';
 import { showHistory } from '#src/tools/TaskDiff.tsx';
 import { Markdown } from '#src/ui/Markdown.tsx';
+import { Who } from '#src/ui/Who.tsx';
 
 export type Turn = NonNullable<TaskDetail['turns']>[number];
 
@@ -99,6 +106,52 @@ export function EventRow({ i, fresh, turn }: { i: ActivityItem; fresh: string; t
           }
         >
           {note && <CopyButton text={note} />}
+        </HoverRow>
+      </div>
+    </div>
+  );
+}
+
+/** A comment as a chat line, with the chat's hover row. Outlined and headed Your turn while the founder's turn passed with it is open;
+ * one to the founder otherwise says "→ you". */
+export function CommentRow({
+  i,
+  fresh,
+  turn,
+  quoted,
+  onReply,
+  onEdited,
+}: {
+  i: ActivityItem;
+  fresh: string;
+  turn: boolean;
+  quoted?: string;
+  onReply: (memo: number) => void;
+  onEdited?: () => void;
+}) {
+  const me = useMe();
+  const toYou = i.toFounder || (i.turn === 'push' && isPerson(i.turnTo ?? '', me));
+  return (
+    <div
+      data-memo={i.memo}
+      data-turn-open={turn ? '' : undefined}
+      className={`group flex gap-2.5 rounded-md ring-warning ring-offset-4 ring-offset-bg transition-shadow duration-500 ${turn ? '-mx-3 rounded-lg border border-warning px-3 pt-2' : ''}`}
+    >
+      <Mark icon={turn ? Hand : MessageSquare} />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className={`flex flex-col rounded-md ${fresh}`}>
+          {turn && <span className="font-medium">Your turn</span>}
+          <span className="text-xs font-medium text-muted">
+            {isPerson(i.who, me) ? 'You' : <Who k={i.who} />}
+            {toYou && !turn && <span className="text-accent"> → you</span>}
+          </span>
+          {i.replyTo != null && <Reference text={quoted} onClick={() => showMemo(i.replyTo!)} />}
+          <Markdown text={i.toFounder ? noteText(i.note) : i.note} />
+          {i.images && <MessageImages images={i.images} />}
+        </div>
+        <HoverRow at={i.at} edited={i.edited} onEdited={onEdited}>
+          <Actions text={i.note} onQuote={() => i.memo != null && onReply(i.memo)} />
+          <ReadBy readers={i.readers} />
         </HoverRow>
       </div>
     </div>

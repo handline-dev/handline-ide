@@ -49,7 +49,7 @@ function dropTo(e: DragEvent, to: Target, { root, agent, dispatch, nameOf }: Con
   const drag = readTabDrag(e);
   if (!drag) return;
   e.preventDefault();
-  if ('move' in drag) return dispatch({ type: 'move', from: drag.move.pane, tab: drag.move.tab, to });
+  if ('move' in drag) return dispatch({ type: 'move', from: drag.move.pane, tab: drag.move.tab, tabs: drag.move.tabs, to });
   const opens = canonical(drag.open.opens, agent);
   // A tab already open moves to where it was dropped; a pinned one stays and is shown.
   for (const p of panes(root)) {
@@ -225,7 +225,7 @@ function PaneView({
             onAdd={
               agent ? (kind, how) => pick(kind, (opens) => openFrom({ root, agent, dispatch, nameOf }, pane.id, opens, how)) : undefined
             }
-            onTabDragStart={(tab, e) => startTabDrag(e, { move: { pane: pane.id, tab } })}
+            onTabDragStart={(tab, tabs, e) => startTabDrag(e, { move: { pane: pane.id, tab, tabs } })}
           />
           {line !== null && <InsertLine x={line} />}
         </div>

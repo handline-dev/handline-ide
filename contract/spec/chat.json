@@ -509,7 +509,7 @@
        },
        "changed": {
         "type": "string",
-        "description": "What the settings of this start changed from the session before, in words a person reads: `model changed (opus-5-5 -> sonnet-5-5), team changed`. Empty when nothing did. Absent means empty."
+        "description": "What the settings of this start changed from the session before, in words a person reads: `model changed (opus-5-5 -> sonnet-5-5), team rules changed (shared/team/handline.md)`. Empty when nothing did. Absent means empty."
        }
       },
       "required": [

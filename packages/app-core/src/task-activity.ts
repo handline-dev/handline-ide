@@ -22,9 +22,11 @@ export interface ActivityItem {
   /** A comment's pictures, still kept. */
   images?: { id: string; name: string }[];
   edited: boolean;
-  /** For a turn passed: handed on (push) or given back (pop), and to whom. */
+  /** For a turn passed: handed on (push) or given back (pop), and to whom; on a comment, the turn passed with it. */
   turn?: 'push' | 'pop';
   turnTo?: string;
+  /** A comment whose first word is @human: a word to the founder that passes them no turn. */
+  toFounder?: boolean;
 }
 
 const STATE_WORD: Record<string, string> = {
@@ -69,9 +71,18 @@ function requestLine(e: Entry, nameOf: NameOf): string {
     .join(' → ')} sent a request`;
 }
 
+/** A comment to the founder that passes no turn: its first word is @human. */
+export const isNote = (text: string): boolean => /^\s*@human\b/.test(text);
+/** A note's words without its leading @human. */
+export const noteText = (text: string): string => text.replace(/^\s*@human\s*/, '');
+
 /** The memos as comments and the rest of the timeline as events in words, oldest first; `me` is the person, written "you", and every
  * other who in a line is written out by `nameOf`. */
 export function activityOf(memos: TaskDetail['memos'], timeline: readonly Entry[], me = '', nameOf: NameOf = asIs): ActivityItem[] {
+  // A turn passed with a comment is drawn as that comment, marked with the turn.
+  const passed = new Map(
+    timeline.flatMap((e) => (e.kind === 'turn' && e.turn === 'push' && e.memo != null ? [[e.memo, turnLine(e, me, nameOf).to] as const] : [])),
+  );
   const comments: ActivityItem[] = memos.map((m) => {
     const named = new Set(findImageRefs(m.text).map((r) => r.id));
     return {
@@ -86,14 +97,18 @@ export function activityOf(memos: TaskDetail['memos'], timeline: readonly Entry[
       // A picture the text names is drawn there, in the text: listed again under it, it would show twice.
       images: (m.files ?? []).filter((f) => f.kind === 'image' && !f.gone && !named.has(f.id)).map((f) => ({ id: f.id, name: f.name })),
       edited: !!m.edited_at,
+      toFounder: isNote(m.text),
+      ...(passed.has(m.id) ? { turn: 'push' as const, turnTo: passed.get(m.id) } : {}),
     };
   });
+  const shown = new Set(memos.map((m) => m.id));
   const events = timeline.flatMap((e): ActivityItem[] => {
     const base = { kind: 'event' as const, at: e.at, who: e.who, memo: e.memo, edited: false };
     switch (e.kind) {
       case 'memo':
         return [];
       case 'turn': {
+        if (e.turn === 'push' && e.memo != null && shown.has(e.memo)) return [];
         const { line, to } = turnLine(e, me, nameOf);
         return [{ ...base, line, note: e.text, turn: e.turn === 'pop' ? 'pop' : 'push', turnTo: to }];
       }

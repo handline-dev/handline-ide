@@ -54,6 +54,7 @@ function Readers({ names }: { names: string[] }) {
 export function CommentBox({
   t,
   reply: asked,
+  typing,
   onDrop,
   attach,
   draft,
@@ -63,6 +64,8 @@ export function CommentBox({
 }: {
   t: TaskDetail;
   reply: Reply | null;
+  /** Changed when the box is to take the keys (Answer in task). */
+  typing?: number;
   onDrop: () => void;
   attach: Attachments;
   draft: string;
@@ -181,7 +184,7 @@ export function CommentBox({
         sendLabel={answering ? 'Answer' : undefined}
         onEmpty={answering ? { label: 'Give back', run: () => void giveBack() } : undefined}
         locked={back.pending ? 'Giving it back' : undefined}
-        focusOn={picked}
+        focusOn={picked ?? (typing || undefined)}
         above={
           answering ? (
             <div className="flex flex-col gap-2 text-xs text-muted">

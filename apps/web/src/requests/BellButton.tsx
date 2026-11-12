@@ -9,7 +9,8 @@ import { Popover } from '#src/ui/Popover.tsx';
 const SHOWN = 5;
 
 /** The bell: its number is what waits on the founder, the same as the sidebar's Requests. A click opens a preview of Requests: the
- * first of the founder's turn and the finished ones not yet seen (else the latest), with a way to the whole page. A dot marks unseen results. */
+ * first of the founder's turn, the notes to them (New), and the finished ones not yet seen (else the latest), with a way to the whole
+ * page. A dot marks an unread note or an unseen result. */
 export function BellButton({ bar }: { bar: RefObject<HTMLElement | null> }) {
   const r = useRequests();
   const [open, setOpen] = useState(false);
@@ -27,7 +28,9 @@ export function BellButton({ bar }: { bar: RefObject<HTMLElement | null> }) {
         <button type="button" className="relative flex items-center gap-1" aria-label={`Requests, ${r.count} waiting on you`}>
           <Bell size={14} className={r.count ? 'text-fg' : ''} />
           {r.count > 0 && <span className="text-fg tabular-nums">{r.count}</span>}
-          {r.unseen > 0 && <span aria-label="new results" className="absolute -top-0.5 -right-1 size-1.5 rounded-full bg-accent" />}
+          {(r.unseen > 0 || r.notes.length > 0) && (
+            <span aria-label="new" className="absolute -top-0.5 -right-1 size-1.5 rounded-full bg-accent" />
+          )}
         </button>
       }
     >
@@ -37,6 +40,14 @@ export function BellButton({ bar }: { bar: RefObject<HTMLElement | null> }) {
           r.turn.slice(0, SHOWN).map((p) => <TurnLine key={turnKey(p)} p={p} onOpened={close} />)
         ) : (
           <p className="px-2 text-muted">Nothing waits on you.</p>
+        )}
+        {r.notes.length > 0 && (
+          <>
+            <p className="border-t border-border px-2 pt-2 text-xs font-medium text-muted">New</p>
+            {r.notes.slice(0, SHOWN).map((p) => (
+              <TurnLine key={turnKey(p)} p={p} onOpened={close} />
+            ))}
+          </>
         )}
         {done.length > 0 && (
           <>

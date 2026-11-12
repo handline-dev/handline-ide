@@ -55,25 +55,42 @@ func ProtocolBlock(keys []string) string {
 // RulesFile is the team's rules, its workspace's base.md (docs/design/people-workspaces.md, Disk); ws is its name or key.
 func RulesFile(home, ws string) string { return filepath.Join(paths.WorkspaceDir(home, ws), "base.md") }
 
-// Rules is the rules file of each team the agent is in, as "# Rules for team X\n<text>" (launch._team_rules).
-func Rules(home, agent string, t *Team) []string {
+// teamRules is the rules file of each team the agent is in that has rules, by team name, sorted by name.
+func teamRules(home, agent string, t *Team) (names, files []string) {
 	if t == nil {
-		return nil
+		return nil, nil
 	}
-	names := make([]string, 0, len(t.Teams))
-	for name := range t.Teams {
-		names = append(names, name)
+	for name, members := range t.Teams {
+		b, err := os.ReadFile(RulesFile(home, name))
+		if slices.Contains(members, agent) && err == nil && textsafe.Strip(string(b)) != "" {
+			names = append(names, name)
+		}
 	}
 	slices.Sort(names)
-	var out []string
 	for _, name := range names {
-		b, err := os.ReadFile(RulesFile(home, name))
-		if !slices.Contains(t.Teams[name], agent) || err != nil {
-			continue
+		files = append(files, RulesFile(home, name))
+	}
+	return names, files
+}
+
+// RuleFiles is the rules file of each team the agent is in that has rules, as paths under home.
+func RuleFiles(home, agent string, t *Team) []string {
+	_, files := teamRules(home, agent, t)
+	for i, f := range files {
+		if rel, err := filepath.Rel(home, f); err == nil {
+			files[i] = rel
 		}
-		if text := textsafe.Strip(string(b)); text != "" {
-			out = append(out, fmt.Sprintf("# Rules for team %s\n%s", name, text))
-		}
+	}
+	return files
+}
+
+// Rules is the text of each of the agent's rules files, as "# Rules for team X\n<text>" (launch._team_rules).
+func Rules(home, agent string, t *Team) []string {
+	names, files := teamRules(home, agent, t)
+	out := make([]string, len(files))
+	for i, f := range files {
+		b, _ := os.ReadFile(f)
+		out[i] = fmt.Sprintf("# Rules for team %s\n%s", names[i], textsafe.Strip(string(b)))
 	}
 	return out
 }

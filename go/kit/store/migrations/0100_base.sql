@@ -443,6 +443,7 @@ CREATE TABLE agent_terminals (
 CREATE INDEX requests_touched_at ON requests(COALESCE(state_at, ts));
 CREATE INDEX requests_answered_ts ON requests(ts) WHERE settles IS NOT NULL;
 CREATE UNIQUE INDEX requests_ref ON requests(ref);
+CREATE INDEX requests_memo ON requests(memo_id) WHERE memo_id IS NOT NULL;
 CREATE TRIGGER requests_ref AFTER INSERT ON requests WHEN NEW.ref IS NULL
         BEGIN
           UPDATE requests SET ref = lower(hex(randomblob(6))) WHERE id = NEW.id;

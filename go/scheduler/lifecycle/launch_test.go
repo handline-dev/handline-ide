@@ -1037,6 +1037,46 @@ func TestWhatChangedSaysOldAndNewValues(t *testing.T) {
 	}
 }
 
+// The team's rules and its instructions are named apart, the rules by the files a person edits.
+func TestWhatChangedNamesTheTeamRulesFile(t *testing.T) {
+	r := newLaunchRig(t)
+	rules := "old rules"
+	r.l.Ports.TeamRules = func(string) []string { return []string{rules} }
+	r.l.Ports.Routing = func() *team.Team { return &team.Team{Teams: map[string][]string{"core": {"ann"}, "other": {"bob"}}} }
+	dir := filepath.Join(r.l.Home, "shared", "team")
+	for _, name := range []string{"core", "other"} {
+		if err := os.MkdirAll(dir, 0o755); err != nil || os.WriteFile(filepath.Join(dir, name+".md"), []byte("rules"), 0o644) != nil {
+			t.Fatal(err)
+		}
+	}
+	rec, err := r.l.LaunchRecord("ann")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SetLaunchFingerprint(r.l.Q, "ann", "fp", rec); err != nil {
+		t.Fatal(err)
+	}
+	rules = "new rules"
+	if got, _ := r.l.whatChanged("ann"); got != "team rules changed (shared/team/core.md)" {
+		t.Fatalf("%q", got)
+	}
+	// A session launched when both were one "team" part: its record has neither name, so nothing reads as changed and no one restarts.
+	var old map[string]any
+	if err := json.Unmarshal([]byte(rec), &old); err != nil {
+		t.Fatal(err)
+	}
+	delete(old, "team instructions")
+	delete(old, "team rules")
+	old["team"] = "0badc0de"
+	b, _ := json.Marshal(old)
+	if err := db.SetLaunchFingerprint(r.l.Q, "ann", "fp", string(b)); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := r.l.whatChanged("ann"); got != "" {
+		t.Fatalf("an old record's team part: %q", got)
+	}
+}
+
 // What a launch finds changed is kept on its session start.
 func TestAStartKeepsWhatItsSettingsChanged(t *testing.T) {
 	r := newLaunchRig(t)

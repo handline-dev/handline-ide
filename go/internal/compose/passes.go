@@ -26,7 +26,7 @@ func (p *Parts) passes(cfg Config, tk *tick.Tick) []tick.NamedSweep {
 	lc := p.LC
 	timebox := &tick.Timebox{Ports: timeboxPorts{p: p, env: lc.Env, set: lc.Manager.Settings, home: cfg.Home}}
 	wait := &tick.WaitFor{Decide: waitDecider{lc: lc}, Log: func(s string) { cfg.Log("%s", s) }}
-	apply := &tick.ApplySettings{Ports: settingsPorts{launcher: lc.Launch}}
+	apply := &tick.ApplySettings{Ports: settingsPorts{launcher: lc.Launch, env: lc.Env}}
 	subs := &subscriptions.Env{DB: lc.Env.DB, Home: cfg.Home, Asker: founderAsker{lc.Env}, Tasks: founderCloser{lc.Env, cfg.Home},
 		Plans: vendorPlans{cfg.Home, cfg.CLI}, Now: cfg.Now, Log: cfg.Log}
 	p.plans = append(p.plans, subs)
@@ -94,7 +94,39 @@ func (w waitDecider) RaiseDecision(q db.Q, who, text, source string) error {
 type settingsPorts struct {
 	launcher interface {
 		FingerprintParts(agent string) (map[string]string, error)
+		RulesNote(agent string, row *db.AgentState) (string, string, error)
+		KeepRulesTold(q db.Q, agent, was, record string) error
 	}
+	env *supervisor.Env
+}
+
+func (s settingsPorts) RulesNote(agent string, row *db.AgentState) (string, string, error) {
+	return s.launcher.RulesNote(agent, row)
+}
+
+// TellRules writes the say and the record in one transaction, then tells the say; one held is told by the tick (TellUndelivered).
+func (s settingsPorts) TellRules(agent, note, was, record string) error {
+	tx, err := s.env.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	var rid int64
+	if note != "" {
+		if rid, err = s.env.BoardSay(tx, agent, note, "team rules"); err != nil {
+			return err
+		}
+	}
+	if record != "" {
+		if err := s.launcher.KeepRulesTold(tx, agent, was, record); err != nil {
+			return err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	s.env.After(rid, agent)
+	return nil
 }
 
 func (s settingsPorts) FingerprintParts(agent string) ([]tick.Part, error) {
@@ -215,4 +247,3 @@ func (t timeboxPorts) BgJobs(_ db.Q, agent string, count int, _ int64) []string 
 	}
 	return jobs
 }
-

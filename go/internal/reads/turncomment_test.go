@@ -66,6 +66,25 @@ func TestAnUnreadAtHumanCommentIsANoteNotTheFoundersTurn(t *testing.T) {
 	}
 }
 
+// A note the founder saw as a card in its author's chat is read: the chat seen up to a message at or after the comment.
+func TestANoteSeenInItsAuthorsChatIsRead(t *testing.T) {
+	t.Parallel()
+	e := testEnv(t)
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(2, 'ship', 'amy', 'lead', 1, 'lead')")
+	run(t, e, "INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(8, 2, 'amy', '@human shipped to beta', 20)")
+	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(30, 10, 'amy', 'human', 'before', 'landed', 'say'), "+
+		"(31, 25, 'amy', 'human', 'after', 'landed', 'say')")
+	notes := func() any { return pending(t, e)["counts"].(map[string]any)["notes"] }
+	run(t, e, "INSERT INTO cursors(name, row_id, updated) VALUES('for_you_seen:amy', 30, 1)")
+	if n := notes(); n != 1 {
+		t.Fatalf("the chat seen only before the comment: %v", n)
+	}
+	run(t, e, "UPDATE cursors SET row_id = 31 WHERE name = 'for_you_seen:amy'")
+	if n := notes(); n != 0 {
+		t.Fatalf("the chat seen past the comment: %v", n)
+	}
+}
+
 // The founder's part in a task is a task_comment card in the chat it concerns: the turn put on them in the chat of the agent below, their
 // comment that gave it back in the chat of the agent it went back to, an @human comment in its author's. Each reads the comment as it is now.
 // An @human comment that a turn on the founder hangs on is one card, the turn's, and a question asked again is a turn card too.

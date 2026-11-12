@@ -111,7 +111,7 @@ func (e *Env) heldBy(tid int64, me string, blocked bool) (map[string]any, error)
 		sort.Strings(out)
 		return out, nil
 	}
-	held, err := targets("SELECT DISTINCT r.target FROM requests r JOIN task_requests l ON l.request_id = r.id WHERE l.task_id = ? AND "+asksSQL, tid)
+	held, err := targets("SELECT DISTINCT r.target FROM task_requests l CROSS JOIN requests r ON l.request_id = r.id WHERE l.task_id = ? AND "+asksSQL, tid)
 	if err != nil {
 		return nil, err
 	}

@@ -5,11 +5,19 @@ import { keptScroll } from '#src/ui/keptScroll.ts';
 
 export const GO_TURN = 'handline:go-turn';
 
-/** Asks the open tab of a task to go to its turn; with none open, the mark left for the tab that opens. */
-export function goToTurnOf(task: number) {
+// Tasks whose comment box is to take the keys when the tab goes to the turn.
+const typing = new Set<number>();
+
+/** Asks the open tab of a task to go to its turn, and with `type` to put the keys in its comment box; with none open, the mark left
+ * for the tab that opens. */
+export function goToTurnOf(task: number, type = false) {
   keptScroll.set(`turn:${task}`, 'end');
+  if (type) typing.add(task);
   setTimeout(() => window.dispatchEvent(new CustomEvent(GO_TURN, { detail: task })));
 }
+
+/** Whether the comment box of `task` was asked to take the keys; asked once. */
+export const takeTyping = (task: number) => typing.delete(task);
 
 /** The founder's turn as what the comment box answers: its question, by whoever asked. */
 export function turnReply(t: TaskDetail): Reply | null {
@@ -18,16 +26,20 @@ export function turnReply(t: TaskDetail): Reply | null {
   return { author: turn.by, text: turn.ask, turn: true };
 }
 
-/** When the row that opened the founder's turn now was written: the last turn pushed to them by whoever holds it back. */
-export function openTurnAt(t: TaskDetail, me: string): string | undefined {
+/** The Activity row of the founder's open turn: the comment it was passed with, or for a turn passed with none, when its row was
+ * written (the last push to them by whoever holds it back). */
+export type OpenTurn = { memo: number } | { at: string };
+export function openTurnRow(t: TaskDetail, me: string): OpenTurn | undefined {
   const turn = t.turns?.at(-1);
   if (!turn || !isPerson(turn.agent, me)) return undefined;
-  return t.timeline
+  if (turn.memo != null) return { memo: turn.memo };
+  const at = t.timeline
     .filter((e) => {
       const [by, to] = e.who.split('→').map((s) => s.trim());
       return e.kind === 'turn' && e.turn === 'push' && by === turn.by && isPerson(to ?? '', me);
     })
     .at(-1)?.at;
+  return at ? { at } : undefined;
 }
 
 /** The task's open turn row brought into view, in the task's own tab. */
