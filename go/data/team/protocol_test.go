@@ -48,7 +48,7 @@ func TestDefaultRulesSeedOnlyTheHouseRules(t *testing.T) {
 	if strings.Contains(DefaultRules, "protocol") || strings.Contains(DefaultRules, "## ") {
 		t.Errorf("the seed carries the protocol: %q", DefaultRules)
 	}
-	if !strings.HasPrefix(DefaultRules, "- Keep messages short.") || !strings.HasSuffix(DefaultRules, "does not mean healthy.\n") {
+	if !strings.HasPrefix(DefaultRules, "- Keep messages short.") || !strings.HasSuffix(DefaultRules, "does its own work too.\n") {
 		t.Errorf("seed: %q", DefaultRules)
 	}
 }

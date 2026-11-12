@@ -341,11 +341,8 @@ func teamCmd(c *hlclient.Client, args []string) (int, bool) {
 			continue
 		}
 		rel := "peer"
-		switch {
-		case self != "" && str(a, "reports_to") == self:
-			rel = "your report"
-		case self != "" && str(byKey[self], "reports_to") == k:
-			rel = "your manager"
+		if self != "" && str(byKey[self], "reports_to") == k {
+			rel = "contact"
 		}
 		rows = append(rows, row{str(a, "name"), rel, doing(k, lines[k])})
 		names = append(names, str(a, "name"))

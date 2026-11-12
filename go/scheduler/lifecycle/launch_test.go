@@ -19,7 +19,6 @@ import (
 	"github.com/handline/handline/go/data/states"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/data/team/teamtest"
-	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/yamlcompat"
 	"github.com/handline/handline/go/protocol/sessiontoken"
@@ -730,14 +729,6 @@ func TestAnAgentIsToldItsTeamFromTheRoster(t *testing.T) {
 		}
 		return team.Rules(home, agent, tm)
 	}
-	reportLine := func(text string) string {
-		for _, ln := range strings.Split(text, "\n") {
-			if strings.HasPrefix(ln, "You report to") {
-				return ln
-			}
-		}
-		return ""
-	}
 	context := func(agent string) string {
 		text, err := r.l.ContextFor(agent)
 		if err != nil {
@@ -745,8 +736,8 @@ func TestAnAgentIsToldItsTeamFromTheRoster(t *testing.T) {
 		}
 		return text
 	}
-	culture := []string{"Keep messages short", "no progress or FYI messages", "Never schedule your own wakeup", "You do not implement",
-		"Check main before you assign", "founder's own words", "Finding the bottleneck is your job"}
+	culture := []string{"Keep messages short", "no progress or FYI messages", "Never schedule your own wakeup", "Working with peers",
+		"Check main before you open work", "founder's own words"}
 	// A team that empties its rules file is not seeded again: it gets only the facts.
 	context(loneK)
 	if err := os.Remove(team.RulesFile(home, "lone")); err != nil {
@@ -764,30 +755,36 @@ func TestAnAgentIsToldItsTeamFromTheRoster(t *testing.T) {
 			t.Errorf("%q is written by code, not read from the team file:\n%s", w, scout)
 		}
 	}
-	if !strings.Contains(mgr, "Your reports: `"+keeperK+"`, `"+devK+"`.") || !strings.Contains(mgr, "--blocked-by T<n>") {
-		t.Errorf("a supervisor is not told its reports and how to give them work:\n%s", mgr)
+	// No one reports to anyone: the lead and a member are told the same, bar who the contact is.
+	contact := "The workspace's contact is `" + mgrK + "` (manager): work from another workspace comes to it, and it passes that work to the peer it fits."
+	want := map[string]string{
+		mgrK: "# Your team\nYour peers in workspace `manager`: `" + devK + "` (marina), `" + keeperK + "` (keeper).\n" +
+			"You are the workspace's contact: work from another workspace comes to you. Pass it to the peer it fits, and do your own work too.\n",
+		devK:  "# Your team\nYour peers in workspace `manager`: `" + mgrK + "` (manager), `" + keeperK + "` (keeper).\n" + contact + "\n",
+		loneK: "# Your team\nYou are the workspace's contact: work from another workspace comes to you. Pass it to the peer it fits, and do your own work too.\n",
 	}
-	if strings.Contains(dev, "Your reports") {
-		t.Errorf("a report is told it has reports:\n%s", dev)
+	for k, head := range want {
+		got := r.l.yourTeam(k)
+		if !strings.HasPrefix(got, head+team.Protocol("ends")+"\nGive anyone work with `hl task new --assign <name>") {
+			t.Errorf("%s: the team text does not open with its peers and contact:\n%s", k, got)
+		}
+		if strings.Contains(got, "report to") || strings.Contains(got, "Your reports") || !strings.Contains(got, "--blocked-by T<n>") ||
+			!strings.Contains(got, "hl task discard T<n>") || !strings.Contains(got, "its done goes back to whoever opened the task") {
+			t.Errorf("%s: a reporting line is left, or the work commands are missing:\n%s", k, got)
+		}
+		if strings.Contains(got, "or for the contact when you do not know who") != (k == devK) {
+			t.Errorf("%s: only an agent that is not the contact is pointed at the contact when blocked:\n%s", k, got)
+		}
+		for _, p := range []string{"founder", "land", "progress", "terminal"} {
+			if !strings.Contains(got, team.Protocol(p)) {
+				t.Errorf("%s: the %s line is missing:\n%s", k, p, got)
+			}
+		}
 	}
 	for who, text := range map[string]string{"manager": mgr, "manager.marina": dev, "lone": scout} {
-		line := reportLine(text)
-		bossIsHuman := strings.HasPrefix(line, "You report to `"+actor.OwnerKey+"`")
-		if !strings.Contains(line, "`hl task done T<n>") || !strings.Contains(line, "that is your report") {
-			t.Errorf("%s: the report-to line does not say task done is the report: %s", who, line)
+		if !strings.Contains(text, r.l.yourTeam(map[string]string{"manager": mgrK, "manager.marina": devK, "lone": loneK}[who])) {
+			t.Errorf("%s: the team text is not in the prompt:\n%s", who, text)
 		}
-		if strings.Contains(line, "a task for it: `hl task new --assign") == bossIsHuman || strings.Contains(line, "hl say") {
-			t.Errorf("%s: an agent with a boss must be told a block is a task for it, and no say: %s", who, line)
-		}
-		if !strings.Contains(text, team.Protocol("founder")) {
-			t.Errorf("%s: the founder line is missing:\n%s", who, text)
-		}
-		if !strings.Contains(text, team.Protocol("land")) || !strings.Contains(team.Protocol("land"), "gh pr create") {
-			t.Errorf("%s: the landing line (the repo's rules, else a pull request, else commit and stop) is missing:\n%s", who, text)
-		}
-	}
-	if !strings.HasPrefix(reportLine(dev), "You report to `"+mgrK+"`") || !strings.HasPrefix(reportLine(scout), "You report to `"+actor.OwnerKey+"`") {
-		t.Errorf("wrong boss:\n%s\n---\n%s", dev, scout)
 	}
 	// The founder's words typed at an agent: it is told to answer them with hl say, and the others are not told of typing.
 	r.l.FounderTyped = func(a string) bool { return a == devK }
