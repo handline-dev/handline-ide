@@ -63,7 +63,7 @@ func requestParam(p map[string]any, key string) (int64, error) {
 // refParam is the request p[key] names, by id or ref. One the caller may not read gets missing's answer, so it is told what a missing
 // one is told.
 func (w *writes) refParam(q db.Q, c *rpc.Conn, p map[string]any, key string, missing func(name string) error) (int64, error) {
-	rid, err := requestref.Resolve(q, w.e.Home, p[key], requestref.Viewer(c), key)
+	rid, err := requestref.Resolve(q, p[key], requestref.Viewer(c), key)
 	if name, ok := requestref.Missing(err); ok {
 		return 0, missing(name)
 	}

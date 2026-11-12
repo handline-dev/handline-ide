@@ -53,7 +53,7 @@ func TestResolveTakesAnIdOrARefOnlyForAViewerWhoMayReadIt(t *testing.T) {
 		{"not hex", "zzzzzz", "alice", 0, "bad_request"},
 		{"a boolean", true, "alice", 0, "bad_request"},
 	} {
-		got, err := Resolve(q, home, c.value, c.viewer, "id")
+		got, err := Resolve(q, c.value, c.viewer, "id")
 		if got != c.want || code(err) != c.code {
 			t.Errorf("%s: %d %v, want %d %q", c.name, got, err, c.want, c.code)
 		}

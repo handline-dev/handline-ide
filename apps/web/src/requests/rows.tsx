@@ -2,6 +2,7 @@ import { classify, sentence, useNameOf, useProposals, useTask, useWrite } from '
 import type { PendingRequest, RequestRow } from '@handline/client';
 import { isUnseen, laterKey, requestRow, tomorrowAt9, turnKey, turnRow, type Picked } from '@handline/app-core';
 import {
+  Bell,
   CircleCheck,
   CircleX,
   CircleDashed,
@@ -36,6 +37,7 @@ const WARN: Record<NonNullable<PendingRequest['warning']>['kind'], typeof HardDr
   login: KeyRound,
   delivery: MailWarning,
   undelivered: MailWarning,
+  notice: Bell,
 };
 
 const KIND: Record<PendingRequest['kind'], typeof HardDrive> = {

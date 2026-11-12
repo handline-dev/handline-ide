@@ -4,12 +4,10 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"os"
 
 	"github.com/handline/handline/go/kit/addr"
 
 	"github.com/handline/handline/go/data/db"
-	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/paths"
 )
@@ -43,10 +41,6 @@ func EndReviews(d *sql.DB, home string, tell Teller) (said []string, err error) 
 	if err := rows.Err(); err != nil || len(all) == 0 {
 		return nil, err
 	}
-	tm, err := team.LoadTeam(home)
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return nil, err
-	}
 	agents := paths.ListAgents(home)
 	var failed error
 	for _, r := range all {
@@ -58,7 +52,7 @@ func EndReviews(d *sql.DB, home string, tell Teller) (said []string, err error) 
 				memo += fmt.Sprintf("; it waits on PR #%d", r.pr.Int64)
 			}
 		} else {
-			for _, who := range []string{tm.LeadOf(r.owner), r.reporter, r.opener} {
+			for _, who := range []string{r.reporter, r.opener} {
 				if who != "" {
 					to = who
 					break

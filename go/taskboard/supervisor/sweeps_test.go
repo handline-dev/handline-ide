@@ -43,18 +43,21 @@ func TestSweepHoldsRecordsWhyEachTaskWaitsAndWarnsOnceWhenNothingIsInTheWay(t *t
 	if r.named(raw) != `{"why": "blocked by T3 (alice)", "on": "task", "able": false, "since": 100010}` {
 		t.Fatalf("%s", raw)
 	}
-	// able for five minutes: the owner's lead is told once, the founder never
+	// able for five minutes: each task's opener is told once, an opener that holds it itself leaves it to the founder's warnings
 	r.clock += AbleWarnS
 	r.must(r.SweepHolds(r.clock))
 	r.must(r.SweepHolds(r.clock + 1))
-	var warned, toFounder int
-	r.DB.QueryRow(r.sql("SELECT COUNT(*) FROM requests WHERE target = 'carol' AND body LIKE '%missed delivery%'")).Scan(&warned)
-	r.DB.QueryRow(r.sql("SELECT COUNT(*) FROM requests WHERE target = 'human' AND body LIKE '%missed delivery%'")).Scan(&toFounder)
-	if warned != 1 || toFounder != 0 || !r.logged("T1: waited 5 min for an owner that looks able - its lead told") { // T1 and T3 are both able, only bob has a lead
-		t.Fatalf("%d %v", warned, r.logs)
+	var warned, toLead int
+	r.DB.QueryRow(r.sql("SELECT COUNT(*) FROM requests WHERE target = 'alice' AND body LIKE '%missed delivery%'")).Scan(&warned)
+	r.DB.QueryRow(r.sql("SELECT COUNT(*) FROM requests WHERE target = 'carol' AND body LIKE '%missed delivery%'")).Scan(&toLead)
+	if warned != 1 || toLead != 0 || !r.logged("T1: waited 5 min for an owner that looks able - alice told") { // alice opened T1 for bob, and T3 for herself
+		t.Fatalf("%d %d %v", warned, toLead, r.logs)
+	}
+	if _, ok, _ := db.Meta(r.DB, db.FounderNoticePrefix+"T3"); !ok {
+		t.Fatal("T3 waits on alice, who opened it: the founder is told")
 	}
 	var body string
-	r.DB.QueryRow(r.sql("SELECT body FROM requests WHERE target = 'carol' AND kind = 'say' AND notice >= 1")).Scan(&body)
+	r.DB.QueryRow(r.sql("SELECT body FROM requests WHERE target = 'alice' AND kind = 'say' AND notice >= 1")).Scan(&body)
 	if !strings.HasPrefix(r.named(body), "T1 has waited 5 min for bob, which looks able to take it (nothing is in the way") {
 		t.Fatalf("%q", body)
 	}
@@ -102,7 +105,7 @@ func TestTheMissedDeliveryAlarmSkipsTasksThatWaitOnPurpose(t *testing.T) {
 			r.must(r.SweepHolds(r.clock))
 			r.must(r.SweepHolds(r.clock + AbleWarnS))
 			var warned int
-			r.DB.QueryRow(r.sql("SELECT COUNT(*) FROM requests WHERE target = 'carol' AND body LIKE ?"), fmt.Sprintf("T%d has waited %%", tid)).Scan(&warned)
+			r.DB.QueryRow(r.sql("SELECT COUNT(*) FROM requests WHERE target = 'alice' AND body LIKE ?"), fmt.Sprintf("T%d has waited %%", tid)).Scan(&warned)
 			if (warned == 1) != c.alarm || warned > 1 {
 				t.Fatalf("alarm %v, %d told", c.alarm, warned)
 			}
@@ -381,5 +384,30 @@ func TestADigestLineCutsAHeldNoticesTitleNeverItsFacts(t *testing.T) {
 	spaced := "T12 (" + strings.Repeat("x", keep-1) + " yyyyyyyyyy), " + facts + " Start it."
 	if got := digestSummary(spaced, "msg_x"); !strings.HasPrefix(got, "T12 ("+strings.Repeat("x", keep-1)+"…), ") {
 		t.Errorf("%q", got)
+	}
+}
+
+// A memo held an hour unread is told once to whoever wrote it, who is the one waiting on it; one the founder wrote tells no one.
+func TestAMemoUnreadAnHourIsToldToItsWriterOnce(t *testing.T) {
+	r := newRig(t)
+	tid := r.newTask(r.k("bob"), r.k("carol"), "job")
+	for i, writer := range []string{r.k("alice"), actor.OwnerKey} {
+		mid, err := db.AddMemo(r.DB, tid, writer, fmt.Sprintf("note %d", i))
+		r.must(err)
+		rid, err := db.AddRequest(r.DB, db.NewRequest{Requester: db.NoticeRequester, Target: r.k("bob"), Body: fmt.Sprintf("T1 comment %d", i), Kind: "say", Memo: true})
+		r.must(err)
+		_, err = r.DB.Exec("UPDATE requests SET state = 'landed', landed_at = 1 WHERE id = ?", rid)
+		r.must(err)
+		_, err = r.DB.Exec("INSERT INTO memo_tells(memo_id, reader, request_id) VALUES(?, ?, ?)", mid, r.k("bob"), rid)
+		r.must(err)
+	}
+	r.must(r.SweepHeldMemos(MemoLeadS + 1))
+	r.must(r.SweepHeldMemos(MemoLeadS + 2))
+	var told int
+	r.DB.QueryRow("SELECT COUNT(*) FROM requests WHERE target = ? AND body LIKE '%has not read this comment in an hour%'", r.k("alice")).Scan(&told)
+	var others int
+	r.DB.QueryRow("SELECT COUNT(*) FROM requests WHERE target != ? AND body LIKE '%has not read this comment in an hour%'", r.k("alice")).Scan(&others)
+	if told != 1 || others != 0 {
+		t.Fatalf("alice is told once, no one else: %d %d", told, others)
 	}
 }

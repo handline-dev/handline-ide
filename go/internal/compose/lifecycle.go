@@ -14,6 +14,7 @@ import (
 	"github.com/handline/handline/go/data/states"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/internal/claudetrust"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/lock"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/protocol/sessiontoken"
@@ -172,7 +173,7 @@ func (p *Parts) Lifecycle(cfg Config, lc LifecycleConfig) *Lifecycle {
 		Delivery: lc.Env, Handoff: hp, Term: termPort{tm}, Blocked: noBlocked{}, Launch: launchPort, Spawn: spawns,
 		Agents: agentsPort{home: home, roster: roster, accounts: accounts, env: lc.Env, usage: uenv}, Status: &lifecycle.StatusAdapter{Env: uenv, Q: q},
 		Observe: observer{p: p}, Typing: terminalLock{home: p.home}, TermRun: termRun{p}, Locks: p.Locks, OnLaunch: onLaunch,
-		LoadHeld: forWork, OnStartStall: tellLeadOfStall(home, lc.Env, cfg.Log), WhatChanged: launcher.WhatChanged,
+		LoadHeld: forWork, OnStartStall: tellOpenerOfStall(lc.Env, cfg.Log), WhatChanged: launcher.WhatChanged,
 		Now: func() int64 { return nowOf(cfg.Now)().Unix() }}
 	p.LC = &Lifecycle{Manager: m, Spawns: spawns, Launch: launcher, Handoff: ho, Env: lc.Env, Gate: gate, usage: uenv, roster: roster, term: tm}
 	hp.limit = tickUsage{roster: roster}.ContextLimit
@@ -186,27 +187,30 @@ func (p *Parts) Lifecycle(cfg Config, lc LifecycleConfig) *Lifecycle {
 	return p.LC
 }
 
-// tellLead tells the agent's lead a notice about it: the daemon log alone reaches no one. An agent with no lead is told to no one.
-func tellLead(home string, env *supervisor.Env, log func(string, ...any), q db.Q, agent, text, reason string) {
-	tm, _ := team.LoadTeam(home)
-	lead := tm.LeadOf(agent)
-	if lead == "" {
-		return
+// tellOpener tells a notice about agent to the agent that opened the oldest task waiting for it, else the founder (db.AgentNoticeTo): the
+// daemon log alone reaches no one.
+func tellOpener(env *supervisor.Env, log func(string, ...any), q db.Q, agent, text, reason string) {
+	to, tid, err := db.AgentNoticeTo(q, agent)
+	if actor.IsPerson(to) {
+		tid = 0 // the founder's warning is about the agent: it leaves when the agent is mended, which the task's opener cannot do
 	}
-	if _, err := env.Notice(q, lead, text, reason); err != nil {
-		log("  %s: %s was not told to %s: %v", agent, reason, lead, err)
+	if err == nil {
+		err = env.TellAbout(q, to, agent, tid, text, reason, time.Now().Unix())
+	}
+	if err != nil {
+		log("  %s: %s was not told to %s: %v", agent, reason, to, err)
 	}
 }
 
-// tellLeadOfStall tells the agent's lead that its starts for waiting work failed and it is stalled.
-func tellLeadOfStall(home string, env *supervisor.Env, log func(string, ...any)) func(db.Q, string, string) {
+// tellOpenerOfStall tells that agent's starts for waiting work failed and it is stalled.
+func tellOpenerOfStall(env *supervisor.Env, log func(string, ...any)) func(db.Q, string, string) {
 	return func(q db.Q, agent, why string) {
-		tellLead(home, env, log, q, agent, fmt.Sprintf("%s is STALLED: %d starts for the work waiting for it failed. The last said: %s. "+
+		tellOpener(env, log, q, agent, fmt.Sprintf("%s is STALLED: %d starts for the work waiting for it failed. The last said: %s. "+
 			"Fix that (often its workspace folder), then clear the stall in the app.", agent, states.MaxFailedAttempts, why), "start_stall")
 	}
 }
 
-// CheckRepos tells each agent's lead when the repo its row names is no git checkout, since a start there fails. Once per break: a
+// CheckRepos tells (tellOpener) when the repo its row names is no git checkout, since a start there fails. Once per break: a
 // daemon restart does not tell it again, and a repo fixed and broken again is told again.
 func CheckRepos(q db.Q, home string, env *supervisor.Env, log func(string, ...any)) {
 	roster := team.NewRoster(home)
@@ -231,7 +235,7 @@ func CheckRepos(q db.Q, home string, env *supervisor.Env, log func(string, ...an
 		}
 		if why != "" {
 			log("  %s: repo %s %s", agent, repo, why)
-			tellLead(home, env, log, q, agent, fmt.Sprintf("%s's repo %s %s, so it cannot be started there. Give it the absolute path of a "+
+			tellOpener(env, log, q, agent, fmt.Sprintf("%s's repo %s %s, so it cannot be started there. Give it the absolute path of a "+
 				"git checkout (its workspace folder).", agent, repo, why), "bad_repo")
 		}
 	}

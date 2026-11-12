@@ -85,7 +85,7 @@ func doneMethod(home string, tell Teller, decide CardDecider) func(*rpc.Conn, ma
 		out, err := c.Effect(func(tx *sql.Tx) (map[string]any, error) {
 			if request != nil {
 				var err error
-				*request, err = requestref.Resolve(tx, home, p["request"], requestref.Viewer(c), "request")
+				*request, err = requestref.Resolve(tx, p["request"], requestref.Viewer(c), "request")
 				if name, missing := requestref.Missing(err); missing {
 					return nil, refusal("no request #" + name)
 				}
@@ -186,10 +186,10 @@ func MarkDone(tx *sql.Tx, home, by string, in DoneIn) (*DoneResult, error) {
 		}
 		return nil, refusal(fmt.Sprintf("task T%d is already done (%s)", tid, t.DoneEvidence.String))
 	}
-	if ok, err := mayClose(tx, home, by, t); err != nil {
+	if ok, err := mayClose(tx, by, t); err != nil {
 		return nil, err
 	} else if !ok {
-		return nil, refusal(fmt.Sprintf("task T%d can only be marked done by its assignee (%s), owner (%s), its parent's owner, a lead of its team or the founder", tid, addr.Ref(t.Owner), addr.Ref(t.reporter())))
+		return nil, refusal(fmt.Sprintf("task T%d can only be marked done by its assignee (%s), owner (%s), its parent's owner or the founder", tid, addr.Ref(t.Owner), addr.Ref(t.reporter())))
 	}
 	var mark, via string
 	switch {
@@ -286,8 +286,8 @@ func doneText(tid int64, by, evidence string) string {
 	return strings.TrimRight(fmt.Sprintf("T%d done by %s: %s", tid, who, strings.Join(strings.Fields(evidence), " ")), ": ")
 }
 
-// mayClose is whether by may mark t done: its assignee, owner, the founder, the owner of its parent task, or a lead of its team.
-func mayClose(tx *sql.Tx, home, by string, t *task) (bool, error) {
+// mayClose is whether by may mark t done: its assignee, owner, the founder, or the owner of its parent task.
+func mayClose(tx *sql.Tx, by string, t *task) (bool, error) {
 	if by == t.Owner || by == t.Acting || by == t.reporter() || by == actor.OwnerKey {
 		return true, nil
 	}
@@ -300,7 +300,7 @@ func mayClose(tx *sql.Tx, home, by string, t *task) (bool, error) {
 			return true, nil
 		}
 	}
-	return leadsTreeOf(home, by, t)
+	return false, nil
 }
 
 // shaOnMain is _sha_on_main: the full sha `sha` names in repo when main reaches it, else "" and why. A sha typed by hand that never

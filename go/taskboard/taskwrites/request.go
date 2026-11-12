@@ -23,7 +23,7 @@ const titleMax = 80
 // that agent. A message that is not so is refused, naming why.
 func founderMessage(tx *sql.Tx, home string, c *rpc.Conn, p map[string]any) (int64, *db.Request, error) {
 	me := c.Caller.Actor()
-	rid, err := requestref.Resolve(tx, home, p["request"], me, "request")
+	rid, err := requestref.Resolve(tx, p["request"], me, "request")
 	if name, missing := requestref.Missing(err); missing {
 		return 0, nil, refusal("no request #" + name)
 	}

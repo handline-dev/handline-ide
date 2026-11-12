@@ -436,3 +436,49 @@ func TestALostBashLineWarnsToLookBeforeRunningItAgain(t *testing.T) {
 		t.Fatal(got)
 	}
 }
+
+// A notice no agent could be given is a warning until it is over: a task's once the task moves or ends, an agent's once its stall is cleared.
+func TestAFounderNoticeIsAWarningUntilItsTaskMovesOrItsAgentIsMended(t *testing.T) {
+	t.Parallel()
+	for name, over := range map[string]string{
+		"commented": "INSERT INTO task_memos(task_id, author, body, created_at) VALUES(7, 'bob', 'on it', 300)",
+		"ended":     "UPDATE tasks SET done_evidence = 'x', done_at = 9 WHERE id = 7",
+	} {
+		e := testEnv(t)
+		run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(7, 'the task', 'bob', 'amy', 1, 'amy')")
+		if err := db.NoteFounderNotice(e.DB, db.FounderNotice{Agent: "amy", Task: 7, Reason: "unmoved", Text: "T7: amy was told", At: 200}); err != nil {
+			t.Fatal(err)
+		}
+		r := answerRow(t, e, "machine", "notice:T7")
+		if r == nil || r["task"] != int64(7) || r["ask"] != "T7: amy was told" || r["warning"].(map[string]any)["kind"] != "notice" {
+			t.Fatalf("%s: %v", name, r)
+		}
+		run(t, e, over)
+		if r := answerRow(t, e, "machine", "notice:T7"); r != nil {
+			t.Errorf("%s: it stayed: %v", name, r)
+		}
+	}
+	e := testEnv(t)
+	run(t, e, "INSERT INTO agent_state(agent, state, updated) VALUES('bob', 'STALLED', 1)")
+	if err := db.NoteFounderNotice(e.DB, db.FounderNotice{Agent: "bob", Reason: "start_stall", Text: "bob is STALLED", At: 200}); err != nil {
+		t.Fatal(err)
+	}
+	if answerRow(t, e, "machine", "notice:bob:start_stall") == nil {
+		t.Fatal("a stalled agent with no task is a warning")
+	}
+	run(t, e, "UPDATE agent_state SET state = 'IDLE' WHERE agent = 'bob'")
+	if r := answerRow(t, e, "machine", "notice:bob:start_stall"); r != nil {
+		t.Errorf("it stayed once the stall cleared: %v", r)
+	}
+	run(t, e, `INSERT INTO events(ts, agent, kind, payload) VALUES(200, 'bob', 'bad_repo', '{"repo": "/x"}')`)
+	if err := db.NoteFounderNotice(e.DB, db.FounderNotice{Agent: "bob", Reason: "bad_repo", Text: "bob's repo /x is not a git checkout", At: 200}); err != nil {
+		t.Fatal(err)
+	}
+	if answerRow(t, e, "machine", "notice:bob:bad_repo") == nil {
+		t.Fatal("a bad repo is a warning")
+	}
+	run(t, e, `INSERT INTO events(ts, agent, kind, payload) VALUES(300, 'bob', 'bad_repo', '{"repo": ""}')`)
+	if r := answerRow(t, e, "machine", "notice:bob:bad_repo"); r != nil {
+		t.Errorf("it stayed once the repo was fixed: %v", r)
+	}
+}

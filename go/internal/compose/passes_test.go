@@ -7,7 +7,11 @@ import (
 	"testing"
 
 	"github.com/handline/handline/go/agentctl/agent/claudecode/turns"
+	dbpkg "github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/team/teamtest"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/scheduler/settings"
+	"github.com/handline/handline/go/taskboard/supervisor"
 )
 
 func TestTheBackgroundCheckNamesWhatTheLastStopSaidRuns(t *testing.T) {
@@ -36,10 +40,37 @@ func TestTheBlockerAlarmSettingsReachTheTimebox(t *testing.T) {
 	if on, h, l := ports.BlockerAlarm(); on || h != 3600 || l != 14400 {
 		t.Fatalf("defaults: %v %d %d", on, h, l)
 	}
-	if err := os.WriteFile(filepath.Join(home, "config.yaml"), []byte("blocker_alarm: true\nblocker_alarm_s: 5\nblocker_alarm_lead_s: 7\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(home, "config.yaml"), []byte("blocker_alarm: true\nblocker_alarm_s: 5\nblocker_alarm_opener_s: 7\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if on, h, l := ports.BlockerAlarm(); !on || h != 5 || l != 7 {
 		t.Fatalf("set: %v %d %d", on, h, l)
+	}
+}
+
+// The time box's TellAbout is the supervisor's: an agent gets a notice linked to the task, the founder a warning.
+func TestTheTimeboxTellsThroughTheSupervisor(t *testing.T) {
+	p, home := rig(t)
+	alice, bob := teamtest.Key(t, home, "alice"), teamtest.Key(t, home, "bob")
+	env := &supervisor.Env{DB: p.db, Home: home, Log: func(string, ...any) {}}
+	t.Cleanup(env.Wait)
+	tid, err := dbpkg.NewTask(p.db, "the work", bob, alice, 0, dbpkg.DefaultPriority, "", 0, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ports := timeboxPorts{env: env}
+	if err := ports.TellAbout(p.db, alice, bob, tid, "past its timeout", "task_timeout", 100); err != nil {
+		t.Fatal(err)
+	}
+	var linked int
+	p.db.QueryRow("SELECT COUNT(*) FROM task_requests l JOIN requests r ON r.id = l.request_id WHERE l.task_id = ? AND r.target = ?", tid, alice).Scan(&linked)
+	if linked != 1 {
+		t.Fatalf("alice gets a notice on the task: %d", linked)
+	}
+	if err := ports.TellAbout(p.db, actor.OwnerKey, bob, 0, "stale", "stale_background", 100); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, _ := dbpkg.Meta(p.db, dbpkg.FounderNoticePrefix+bob+":stale_background"); !ok {
+		t.Fatal("the founder gets a warning")
 	}
 }

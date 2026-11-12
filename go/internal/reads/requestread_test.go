@@ -198,7 +198,7 @@ func TestAMessagesImagesReadBackInPartsWithAPathOnlyForAnAgent(t *testing.T) {
 	}
 }
 
-func TestRequestReadIsForTheEndsTheirSupervisorsTheTaskAndTheFounder(t *testing.T) {
+func TestRequestReadIsForTheEndsTheTaskAndTheFounder(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	teamtest.Seed(t, e.Home, "amy", "amy.kid", "bob", "cat", "dan", "eve")
@@ -208,7 +208,7 @@ func TestRequestReadIsForTheEndsTheirSupervisorsTheTaskAndTheFounder(t *testing.
 	run(t, e, "INSERT INTO task_requests(task_id, request_id) VALUES(1, 1)")
 	agent := func(name string) *rpc.Conn { return asAgent(key(name)) }
 	for who, conn := range map[string]*rpc.Conn{"founder": asFounder, "requester": agent("amy.kid"), "target": agent("bob"),
-		"supervisor of the requester": agent("amy"), "assignee of a linked task": agent("dan"), "opener of a linked task": agent("eve")} {
+		"assignee of a linked task": agent("dan"), "opener of a linked task": agent("eve")} {
 		if got, err := e.requestRead(conn, map[string]any{"id": num64(1)}); err != nil || got.(map[string]any)["body"] != "private" {
 			t.Errorf("%s: %v %v", who, got, err)
 		}
@@ -216,14 +216,16 @@ func TestRequestReadIsForTheEndsTheirSupervisorsTheTaskAndTheFounder(t *testing.
 			t.Errorf("%s: inbox.get: %v", who, err)
 		}
 	}
-	// a stranger is told what a missing number is told
+	// a stranger, and the requester's parent agent too, is told what a missing number is told
 	_, missing := e.requestRead(agent("cat"), map[string]any{"id": num64(99)})
 	for _, f := range []func(*rpc.Conn, map[string]any) (any, error){e.requestRead, e.inboxGet} {
-		_, err := f(agent("cat"), map[string]any{"id": num64(1)})
-		var nf, want *rpc.Error
-		if !errors.As(err, &nf) || !errors.As(missing, &want) || nf.Code != "not_found" || nf.Code != want.Code ||
-			strings.ReplaceAll(nf.Message, "1", "9") != strings.ReplaceAll(want.Message, "99", "9") {
-			t.Errorf("a stranger: %v, a missing number: %v", err, missing)
+		for _, who := range []string{"cat", "amy"} {
+			_, err := f(agent(who), map[string]any{"id": num64(1)})
+			var nf, want *rpc.Error
+			if !errors.As(err, &nf) || !errors.As(missing, &want) || nf.Code != "not_found" || nf.Code != want.Code ||
+				strings.ReplaceAll(nf.Message, "1", "9") != strings.ReplaceAll(want.Message, "99", "9") {
+				t.Errorf("%s: %v, a missing number: %v", who, err, missing)
+			}
 		}
 	}
 }

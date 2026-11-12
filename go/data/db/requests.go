@@ -110,7 +110,7 @@ type NewRequest struct {
 	State                   string // "": queued
 	Verdict                 string
 	Notice                  bool
-	// Memo makes it a notice that is a memo's tell (notice 2): its reader's lead is told when it goes unread an hour (UnreadMemosBefore).
+	// Memo makes it a notice that is a memo's tell (notice 2): its writer is told when it goes unread an hour (UnreadMemosBefore).
 	Memo bool
 }
 

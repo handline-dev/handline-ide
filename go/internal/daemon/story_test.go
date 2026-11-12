@@ -6,7 +6,6 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/stream"
-	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/internal/reads"
 	"github.com/handline/handline/go/internal/watcher"
@@ -14,7 +13,7 @@ import (
 	"github.com/handline/handline/go/scheduler/tick"
 )
 
-// storyPorts is the timebox's real ports where the story needs them (the doing test, the lead, a notice written for the digest).
+// storyPorts is the timebox's real ports where the story needs them (the doing test, a notice written for the digest).
 type storyPorts struct {
 	tick.TimeboxPorts
 	d *Daemon
@@ -24,12 +23,8 @@ func (p storyPorts) TaskDoing(q db.Q, t *db.Task) bool {
 	s, err := db.TaskState(q, t)
 	return err == nil && s == "doing"
 }
-func (p storyPorts) SupervisorOf(a string) string {
-	tm, err := team.LoadTeam(p.d.cfg.Home)
-	if err != nil || tm == nil {
-		return ""
-	}
-	return tm.SupervisorOf(a)
+func (p storyPorts) TellAbout(q db.Q, to, agent string, tid int64, text, reason string, now int64) error {
+	return p.d.env().TellAbout(q, to, agent, tid, text, reason, now)
 }
 func (p storyPorts) SendBatch(q db.Q, agent, text string) error {
 	_, err := p.d.env().Notice(q, agent, text, "timebox")
@@ -142,7 +137,7 @@ func TestAStoryTellsTheFounderOneNoticeAndAgentsOnlyWhatTheyMustActOn(t *testing
 		t.Fatalf("bob has nothing to start once the child is done: alice, who gave it, is told once: %v", idle)
 	}
 	if len(timeout) != 2 || timeout[bob] != 1 || timeout[alice] != 1 {
-		t.Fatalf("the timeout goes to its holder and the holder's lead, once each: %v", timeout)
+		t.Fatalf("the timeout goes once to its holder and once to alice, who opened it: %v", timeout)
 	}
 	if total != 7 {
 		t.Fatalf("the story sends %d notices, want 7", total)

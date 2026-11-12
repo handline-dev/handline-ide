@@ -637,7 +637,7 @@ func (m *Manager) closeAgent(agent string, st SessionStatus, o CloseOpts) (bool,
 }
 
 // answerExitDialog: the /exit just typed can raise a dialog offering to stop background work: decline it (Esc keeps the session). Only
-// with stop - the work is stale and its supervisor has had its say - is it answered the other way, and then only by the narrow match; a
+// with stop - the work is stale and the founder has had their say - is it answered the other way, and then only by the narrow match; a
 // dialog that does not match is declined as ever. True when one was declined; a dialog that would not be, or none, is left to the
 // session-still-running report. Stops when the session is gone, or after the wait.
 func (m *Manager) answerExitDialog(agent string, stop bool) bool {
@@ -679,7 +679,7 @@ func (m *Manager) endSession(agent, resume string, st SessionStatus, keepPane, p
 		return false, "no session process; nothing to close"
 	}
 	// Work the session says it still runs is not ours to stop: an agent with background work is not idle, whichever path is closing it -
-	// unless it is stale and its supervisor was told.
+	// unless it is stale and the founder was told.
 	now := m.now()
 	stale := must(m.Delivery.BgMayStop(m.Q, agent, now))
 	running, _ := m.Term.BackgroundWork(handle)

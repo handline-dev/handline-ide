@@ -108,10 +108,10 @@ func (h termHost) WaitIdle(handle string, ms int) bool { return h.t.WaitIdle(han
 func (termHost) Submit(string, string, int) {}
 
 // The orchestration runs were Orca's: tmux has none.
-func (termHost) HasRuns() bool                          { return false }
-func (termHost) RunCurrent() string                     { return "" }
-func (termHost) RunExists(string) bool                  { return false }
-func (termHost) RunUse(string)                          {}
-func (termHost) RunCreate(string) string                { return "" }
-func (termHost) TaskCreate(_, _, _, _, _ string) string { return "" }
-func (termHost) Dispatch(_, _, _ string) string         { return "" }
+func (termHost) HasRuns() bool                       { return false }
+func (termHost) RunCurrent() string                  { return "" }
+func (termHost) RunExists(string) bool               { return false }
+func (termHost) RunUse(string)                       {}
+func (termHost) RunCreate(string) string             { return "" }
+func (termHost) TaskCreate(_, _, _, _ string) string { return "" }
+func (termHost) Dispatch(_, _, _ string) string      { return "" }
