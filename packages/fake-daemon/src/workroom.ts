@@ -119,7 +119,6 @@ export class FakeWork {
       state: 'parked',
       account: typeof p.account === 'string' ? p.account : null,
       task: null,
-      parent: typeof parent === 'string' ? parent : null,
       worktree: `${found.path}.${name}`,
       branch: `agent/${name}`,
       session: null,
@@ -171,17 +170,14 @@ export class FakeWork {
     report({ state: 'done', steps_done: 3, step: null, message: null, result: { agent: fx.name, registered: true } });
   }
 
-  /** The worktree the operation made: a row of worktrees.list, and a child of its parent's. */
+  /** The worktree the operation made: a row of worktrees.list. */
   private addRow(fx: AgentFixture, repo: Repo): void {
-    const { rows } = this.host.admin.worktrees;
-    const parent = rows.find((w) => w.owner === fx.parent);
-    parent?.children.push(fx.worktree);
-    rows.push({
+    this.host.admin.worktrees.rows.push({
       path: fx.worktree,
       repo: repo.name,
       branch: fx.branch,
       owner: fx.name,
-      parent: parent?.path ?? null,
+      parent: null,
       children: [],
       status: 'todo',
       changed: [],

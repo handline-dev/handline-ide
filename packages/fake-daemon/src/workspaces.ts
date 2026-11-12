@@ -108,7 +108,6 @@ export class FakeWorkspaces {
       state: 'parked' as const,
       account: null,
       task: null,
-      parent: null,
       worktree: `${repo.path}.${name}`,
       branch: `agent/${name}`,
       session: null,
@@ -136,14 +135,6 @@ export class FakeWorkspaces {
       throw invalidParams('worktree is save or force', 'worktree');
     this.busy(seg);
     const agents = this.agentsOf(seg);
-    const outside = [...this.host.sessions.values()].filter(
-      (s) => s.fx.parent && agents.includes(s.fx.parent) && segment(s.fx.name) !== seg,
-    );
-    if (outside.length)
-      throw refused(
-        'state',
-        `${outside.map((s) => s.fx.name).join(', ')} of another workspace ${outside.length === 1 ? 'is' : 'are'} under it.`,
-      );
     const held = agents.flatMap((a) => this.host.held.get(a) ?? []);
     if (held.length && !p.worktree) throw refused('dirty', `${ws.name} has work in its worktrees.`, undefined, { worktrees: held });
     for (const a of agents.sort((x, y) => Number(x === seg) - Number(y === seg))) {

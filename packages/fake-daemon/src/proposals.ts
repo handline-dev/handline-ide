@@ -103,7 +103,7 @@ export function teamOf(sessions: Session[], at: string) {
     key: s.fx.name,
     name: s.fx.name,
     role: s.fx.role,
-    reports_to: s.fx.parent,
+    reports_to: null,
     role_file: { path: `${s.fx.worktree}/ROLE.md`, updated: at },
     base_file: { path: `${s.fx.worktree}/base.md`, updated: null },
   }));

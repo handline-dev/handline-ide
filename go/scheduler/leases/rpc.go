@@ -128,12 +128,6 @@ func (m *Manager) get(_ *rpc.Conn, _ map[string]any) (any, error) {
 			if l.Kind == Port {
 				row["port"] = l.Port
 			}
-			if l.Workspace != "" {
-				row["workspace"] = l.Workspace
-			}
-			if l.MaxHoldAt != 0 {
-				row["max_hold_at"], row["over_time"], row["extended"] = stamp(l.MaxHoldAt), l.OverTime, l.Extended
-			}
 			if l.Reserved() {
 				row["reserved_for"], row["until"] = l.Task, stamp(l.Until)
 			}
@@ -145,12 +139,9 @@ func (m *Manager) get(_ *rpc.Conn, _ map[string]any) (any, error) {
 			if w.Task != 0 {
 				row["task"] = w.Task
 			}
-			if w.Workspace != "" {
-				row["workspace"] = w.Workspace
-			}
 			queue = append(queue, row)
 		}
-		pools = append(pools, map[string]any{"kind": p.Kind, "max": p.Max, "max_hold_min": p.MaxHold / 60, "held": held, "queue": queue})
+		pools = append(pools, map[string]any{"kind": p.Kind, "max": p.Max, "held": held, "queue": queue})
 	}
 	return map[string]any{"kinds": pools}, nil
 }

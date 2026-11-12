@@ -1,7 +1,7 @@
 import { classify, sentence, useAccounts, useAgents, useVerbRun } from '@handline/app-data';
 import { useState } from 'react';
 import { VERBS } from '@handline/app-core';
-import { activityOf, holdLine, restarting } from '#src/layout/agentTree.ts';
+import { activityOf, holdLine, restarting } from '#src/layout/agentList.ts';
 import { openSettings } from '#src/settings/open.ts';
 import { useOpenable } from '#src/layout/openable.tsx';
 import { Button } from '#src/ui/Button.tsx';

@@ -24,7 +24,6 @@ export * from '#src/doc-calls.ts';
 export * from '#src/task-changes.ts';
 export * from '#src/chat-read.ts';
 export * from '#src/task-actions.ts';
-export * from '#src/team-board.ts';
 export * from '#src/schedule-editor.ts';
 export * from '#src/field-row.ts';
 export * from '#src/prompt-answer.ts';

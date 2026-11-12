@@ -29,7 +29,7 @@ import { COMPACTING_WORDS, useCompacting, useCompactNow } from '#src/chat/agent/
 import { SwitchWait, useSwitchLock } from '#src/chat/agent/AccountSwitch.tsx';
 import type { Command } from '#src/chat/Suggest.tsx';
 import { useOpenTab } from '#src/layout/openTab.tsx';
-import { restarting } from '#src/layout/agentTree.ts';
+import { restarting } from '#src/layout/agentList.ts';
 import { ModelChip } from '#src/chat/agent/ModelChip.tsx';
 import { StatusLine } from '#src/chat/agent/StatusLine.tsx';
 import { HoldBar } from '#src/chat/agent/HoldBar.tsx';
