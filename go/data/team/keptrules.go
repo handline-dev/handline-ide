@@ -11,6 +11,7 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/actor"
+	"github.com/handline/handline/go/kit/addr"
 )
 
 // The kept rules (docs/design/people-workspaces.md "Workspace rules"): rows of workspace_settings, set by the owner. A workspace's own
@@ -45,6 +46,15 @@ type KeptRule struct {
 	Source string // "workspace" or "machine"
 	SetBy  string
 	SetAt  int64
+}
+
+// Words is the rule as a refusal names it: its key, its value and who set it.
+func (r KeptRule) Words() string {
+	v := fmt.Sprint(r.Value)
+	if list, ok := r.Value.([]string); ok {
+		v = strings.Join(list, ", ")
+	}
+	return fmt.Sprintf("%s %s (set by %s)", r.Key, v, addr.Ref(r.SetBy))
 }
 
 func ruleRank(key string) int {
