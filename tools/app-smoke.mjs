@@ -144,6 +144,10 @@ try {
 } finally {
   dispose({ root, home, debugPort, pids: [...pids] }, { keepFiles: true });
   if (!keep && !failure) fs.rmSync(root, { recursive: true, force: true });
-  else console.error(`kept ${root}`);
+  else {
+    // A failed run keeps its logs and homes to read; the copies of the source tree and the bundles are gigabytes and read nothing.
+    if (!keep) for (const d of ['checkout', 'bundles', 'source']) fs.rmSync(path.join(root, d), { recursive: true, force: true });
+    console.error(`kept ${root}`);
+  }
 }
 process.exit(failure ? 1 : 0);
