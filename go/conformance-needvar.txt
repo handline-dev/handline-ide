@@ -2,6 +2,7 @@
 # --allow-needvar-file reads one per line. The Go task owns this file: delete a line when it supplies the var, so a listed
 # fixture that no longer needs one fails the run. The fakes run (tools/test-go.sh --fakes) reads it too: the fixtures here that need a
 # running agent stay in both runs, since the daemon finds a session only in Claude Code's session files, which the fake does not write.
+account.adopt.makes_a_logged_in_codex_account
 account.login.a_code_after_the_end_is_refused
 account.login.a_codex_login_answers_a_device_code
 account.login.a_second_login_is_refused_while_one_waits
