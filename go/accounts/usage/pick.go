@@ -294,6 +294,9 @@ func stretchReason(st *AccountStatus, ld *Load, lasts float64, pct int, agent st
 // and the shortest window's: it must last to its reset with the newcomer (FiveHourShare), or a while where the reset is unknown, when the
 // fill pct is known. The one test Unfit and the pick share; agent prices the newcomer by its own kind.
 func NoRoom(st *AccountStatus, ld *Load, pct *int, agent string) (string, *float64) {
+	if ld != nil && ld.Cap <= 0 {
+		return fmt.Sprintf("takes no agents: its cap is 0 (%d mid-turn)", ld.Active), nil
+	}
 	if ld != nil && ld.AtCap() {
 		return fmt.Sprintf("at its cap: %d of %d agents mid-turn", ld.Active, ld.Cap), nil
 	}
