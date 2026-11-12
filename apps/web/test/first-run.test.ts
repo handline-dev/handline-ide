@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { agentNameOf, factCards } from '#src/firstrun/FirstRun.tsx';
+import { RpcError } from '@handline/client';
+import { agentNameOf, factCards, notGit } from '#src/firstrun/FirstRun.tsx';
 
 describe('agentNameOf', () => {
   it('names the agent for its folder', () => {
@@ -20,5 +21,14 @@ describe('factCards', () => {
       'Go through 3 TODOs',
       'Tidy 2 uncommitted changes',
     ]);
+  });
+});
+
+describe('notGit', () => {
+  it('is the facts error of a folder that is not a repository, and no other', () => {
+    expect(notGit(new RpcError('not_found', '/x is not a git folder', { what: 'path', path: '/x' }))).toBe(true);
+    expect(notGit(new RpcError('not_found', 'no agent', { what: 'agent' }))).toBe(false);
+    expect(notGit(new RpcError('refused', 'no'))).toBe(false);
+    expect(notGit(new Error('x'))).toBe(false);
   });
 });

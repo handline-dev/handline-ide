@@ -1,6 +1,7 @@
 // First run: with no agent yet the app opens on this full-screen flow: Get ready, the folder to work in, what to do first. The agent is
 // made from the folder (named for it, no role or "Reports to" asked) and its first task goes with it.
 import { classify, hooks, sentence, useAgents, useCreateProgress, useWrite } from '@handline/app-data';
+import { RpcError } from '@handline/client';
 import { FolderGit2, LoaderCircle } from 'lucide-react';
 import { useState } from 'react';
 import { LayerDragStrip, useWindowLayer } from '#src/layout/windowLayer.tsx';
@@ -151,6 +152,27 @@ function ChooseAnother({ onPick }: { onPick: (f: Folder) => void }) {
   );
 }
 
+/** repo.facts on a folder that is not a git repository (or not there; folder.init then says which). */
+export const notGit = (e: unknown) => e instanceof RpcError && e.code === 'not_found' && e.data?.what === 'path';
+
+/** A folder that is not a git repository yet: folder.init makes it one (git init and a first commit), and its facts are read again.
+ * `reading`: that read is on its way, so the folder may be one already. */
+function StartGit({ path, reading }: { path: string; reading: boolean }) {
+  const init = useWrite('folder.init');
+  return (
+    <div className="flex flex-col gap-2 rounded-md border border-border p-3 text-sm">
+      <p className="text-fg">This folder is not a git repository yet. Agents work on git branches, so it needs one.</p>
+      <p className="text-xs text-muted">
+        Start git here makes one, with a first commit of what the folder holds. Secret files like .env stay out.
+      </p>
+      <Button variant="primary" className="w-fit" disabled={init.isPending || reading} onClick={() => init.mutate({ path })}>
+        {init.isPending ? 'Starting git…' : 'Start git here'}
+      </Button>
+      {!!init.error && <p className="text-danger">{sentence(classify(init.error))}</p>}
+    </div>
+  );
+}
+
 function WhatFirst({ folder, onBack, onStarted }: { folder: Folder; onBack: () => void; onStarted: () => void }) {
   const create = useWrite('agent.create');
   const [own, setOwn] = useState('');
@@ -167,39 +189,47 @@ function WhatFirst({ folder, onBack, onStarted }: { folder: Folder; onBack: () =
       { onSuccess: (r) => setOperation((r as { operation: string }).operation) },
     );
   };
-  if (operation) return <Starting operation={operation} task={task} onStarted={onStarted} />;
   const facts = hooks.useRepoFacts({ path: folder.path });
+  if (operation) return <Starting operation={operation} task={task} onStarted={onStarted} />;
   const cards = factCards(facts.data);
+  const bare = notGit(facts.error);
   return (
     <div className="flex flex-col gap-4">
       <h1 className="text-xl font-medium text-fg">What first, in {folder.name}?</h1>
-      {facts.isError && <p className="text-sm text-danger">{sentence(classify(facts.error))}</p>}
-      {[{ title: 'Look around and propose 3 tasks', note: 'Reads only; nothing is changed.', task: LOOK_AROUND }, ...cards].map((c) => (
-        <button
-          key={c.title}
-          type="button"
-          disabled={create.isPending || facts.isError}
-          onClick={() => start(c.task)}
-          className="rounded-md border border-border p-3 text-left hover:bg-hover/30 disabled:opacity-60"
+      {bare ? (
+        <StartGit path={folder.path} reading={facts.isFetching} />
+      ) : (
+        facts.isError && <p className="text-sm text-danger">{sentence(classify(facts.error))}</p>
+      )}
+      {!bare &&
+        [{ title: 'Look around and propose 3 tasks', note: 'Reads only; nothing is changed.', task: LOOK_AROUND }, ...cards].map((c) => (
+          <button
+            key={c.title}
+            type="button"
+            disabled={create.isPending || facts.isError}
+            onClick={() => start(c.task)}
+            className="rounded-md border border-border p-3 text-left hover:bg-hover/30 disabled:opacity-60"
+          >
+            <div className="text-sm font-medium text-fg">{c.title}</div>
+            <div className="text-xs text-muted">{c.note}</div>
+          </button>
+        ))}
+      {!bare && (
+        <form
+          className="flex items-end gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (own.trim()) start(own.trim());
+          }}
         >
-          <div className="text-sm font-medium text-fg">{c.title}</div>
-          <div className="text-xs text-muted">{c.note}</div>
-        </button>
-      ))}
-      <form
-        className="flex items-end gap-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (own.trim()) start(own.trim());
-        }}
-      >
-        <Field label="Or write it">
-          <Input value={own} onChange={(e) => setOwn(e.target.value)} />
-        </Field>
-        <Button type="submit" variant="primary" disabled={!own.trim() || create.isPending || facts.isError}>
-          Start
-        </Button>
-      </form>
+          <Field label="Or write it">
+            <Input value={own} onChange={(e) => setOwn(e.target.value)} />
+          </Field>
+          <Button type="submit" variant="primary" disabled={!own.trim() || create.isPending || facts.isError}>
+            Start
+          </Button>
+        </form>
+      )}
       {!!create.error && <p className="text-sm text-danger">{sentence(classify(create.error))}</p>}
       <Button variant="ghost" className="w-fit" onClick={onBack}>
         Back
