@@ -8,6 +8,7 @@ import (
 
 	"github.com/handline/handline/go/agentctl/verdict"
 	"github.com/handline/handline/go/kit/actor"
+	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/kit/textsafe"
 )
 
@@ -202,7 +203,7 @@ func ChildWait(q Q, agent string) (string, error) {
 	if err != nil || child == nil {
 		return "", err
 	}
-	return "waiting for T" + itoa(child.ID) + " (" + child.Acting + ")", nil
+	return "waiting for T" + itoa(child.ID) + " (" + addr.Ref(child.Acting) + ")", nil
 }
 
 // BlockWait is actions.block_wait: what the agent is held up by when its current task is blocked ("blocked by T<n> (owner), ...").
@@ -217,7 +218,7 @@ func BlockWait(q Q, agent string) (string, error) {
 	}
 	parts := make([]string, len(bs))
 	for i, b := range bs {
-		parts[i] = "T" + itoa(b.ID) + " (" + b.Acting + ")"
+		parts[i] = "T" + itoa(b.ID) + " (" + addr.Ref(b.Acting) + ")"
 	}
 	return "blocked by " + strings.Join(parts, ", "), nil
 }

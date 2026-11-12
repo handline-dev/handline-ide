@@ -13,6 +13,7 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
 	"github.com/handline/handline/go/kit/actor"
+	"github.com/handline/handline/go/kit/addr"
 )
 
 var shellSafe = regexp.MustCompile(`^[A-Za-z0-9_@%+=:,./-]+$`)
@@ -32,8 +33,8 @@ func shlexQuote(s string) string {
 // in the launch's words: "model changed (opus-5-5 -> sonnet-5-5)") and who asked, then who restarted it and how, and the settings it was
 // restarted to apply. A restart usually means something went wrong, so it is told to retry that.
 func RestartNotice(by string, resumed bool, settings []string, changed string) string {
-	who := by
-	if actor.IsPerson(who) {
+	who := addr.Ref(by)
+	if actor.IsPerson(by) {
 		who = "the founder"
 	}
 	line := "---------- restarted"
@@ -151,15 +152,15 @@ func (m *Manager) StartForWork(agent string) (said string, err error) {
 		if asked := len(must(db.QueuedFor(m.Q, agent))); asked > 0 {
 			w = fmt.Sprintf("%d request(s)", asked)
 		}
-		return fmt.Sprintf("%s: %s waiting and it has no terminal - give its workspace a folder, or start it by hand (t)", agent, w), nil
+		return fmt.Sprintf("%s: %s waiting and it has no terminal - give its workspace a folder, or start it by hand (t)", addr.Ref(agent), w), nil
 	}
 	if why := m.loadHeld(agent); why != "" {
-		return fmt.Sprintf("%s: not started - %s", agent, why), nil
+		return fmt.Sprintf("%s: not started - %s", addr.Ref(agent), why), nil
 	}
 	// With no room `hl launch` would refuse in the new terminal, and the refusal would count against the agent though it is the accounts
 	// that are full.
 	if !m.Launch.ChooseAccount(m.Q, agent) {
-		return fmt.Sprintf("%s: not started - %s", agent, m.Launch.NoRoom(agent)), nil
+		return fmt.Sprintf("%s: not started - %s", addr.Ref(agent), m.Launch.NoRoom(agent)), nil
 	}
 	// Each waiting message can ask for a start while the last one's session is still coming up: one start at a time, and a start that
 	// lost the race finds the terminal the winner opened.
@@ -173,7 +174,7 @@ func (m *Manager) StartForWork(agent string) (said string, err error) {
 	}
 	if row != nil && row.WakeFailures >= states.MaxFailedAttempts {
 		if row.State == states.Stalled {
-			return fmt.Sprintf("%s: not started again - %d attempts have failed", agent, row.WakeFailures), nil
+			return fmt.Sprintf("%s: not started again - %d attempts have failed", addr.Ref(agent), row.WakeFailures), nil
 		}
 		// Latched IDLE by a daemon that did not stall it: one more try, which starts it or fails into the stall below with the reason.
 		check(db.ResetCounter(m.Q, agent, "wake_failures"))
@@ -217,7 +218,7 @@ func (m *Manager) StartForWork(agent string) (said string, err error) {
 		}
 		must(db.AddEvent(m.Q, agent, "started_for_work", ev...))
 		m.Log("  %s: started in %s - work was waiting for it", agent, repo)
-		return fmt.Sprintf("%s: started for work waiting - %s", agent, first), nil
+		return fmt.Sprintf("%s: started for work waiting - %s", addr.Ref(agent), first), nil
 	}
 	check(db.BumpCounter(m.Q, agent, "wake_failures", 1))
 	m.Log("  %s: could not start for waiting work: %s", agent, first)
@@ -228,7 +229,7 @@ func (m *Manager) StartForWork(agent string) (said string, err error) {
 			m.OnStartStall(m.Q, agent, first)
 		}
 	}
-	return fmt.Sprintf("%s: could not be started - %s", agent, first), nil
+	return fmt.Sprintf("%s: could not be started - %s", addr.Ref(agent), first), nil
 }
 
 func (m *Manager) writeWakePrompt(agent, text, suffix string) (string, error) {
@@ -237,7 +238,7 @@ func (m *Manager) writeWakePrompt(agent, text, suffix string) (string, error) {
 		return "", err
 	}
 	p := filepath.Join(d, agent+"."+suffix)
-	return p, os.WriteFile(p, []byte(text), 0o644)
+	return p, os.WriteFile(p, []byte(addr.RenderFor(m.Q, agent, text)), 0o644)
 }
 
 // WakeOpts say why and how a session is brought back. Force is a human asking for the session: a closed agent is brought back with

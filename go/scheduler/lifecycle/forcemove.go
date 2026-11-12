@@ -7,6 +7,7 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/kit/paths"
 )
 
@@ -22,28 +23,28 @@ func (v *Mover) ForceMove(agent, dest, by string) (ok bool, said string, err err
 	}
 	here := m.Agents.CurrentAccount(m.Q, agent)
 	if here == dest {
-		return false, fmt.Sprintf("%s is already on %s", agent, dest), nil
+		return false, fmt.Sprintf("%s is already on %s", addr.Ref(agent), dest), nil
 	}
 	row := must(db.GetAgentState(m.Q, agent))
 	if row == nil || !(isClosed(row) || m.sessionAlive(agent)) {
 		return false, agent + " has no session to move", nil
 	}
 	if row.State == states.Handoff || row.State == states.Stalled {
-		return false, fmt.Sprintf("%s is %s", agent, row.State), nil
+		return false, fmt.Sprintf("%s is %s", addr.Ref(agent), row.State), nil
 	}
 	if room, why := v.forcedPlan(agent, dest); room == "" {
-		return false, fmt.Sprintf("%s - not moving %s there", why, agent), nil
+		return false, fmt.Sprintf("%s - not moving %s there", why, addr.Ref(agent)), nil
 	}
 	if isClosed(row) { // nothing to end: the move is owed to the next wake, which starts fresh on dest
 		must(db.AddEvent(m.Q, agent, MoveOwedKind, db.KV{K: "to", V: dest}, db.KV{K: "by", V: by}))
-		return true, fmt.Sprintf("%s is closed: its next wake starts it on %s (moved by %s)", agent, dest, by), nil
+		return true, fmt.Sprintf("%s is closed: its next wake starts it on %s (moved by %s)", addr.Ref(agent), dest, addr.Ref(by)), nil
 	}
 	if _, err := v.PerformHandoff(agent, HandoffTrigger{Kind: "forced", Reason: fmt.Sprintf("forced by %s: %s -> %s", by, here, dest)}, dest); err != nil {
 		return false, "", err
 	}
 	if landed := must(db.GetAgentState(m.Q, agent)); landed == nil || landed.Account.String != dest {
-		return false, fmt.Sprintf("%s did not move (mid-turn, or the new session did not start on %s) - it stays on %s", agent, dest, here), nil
+		return false, fmt.Sprintf("%s did not move (mid-turn, or the new session did not start on %s) - it stays on %s", addr.Ref(agent), dest, here), nil
 	}
 	must(db.AddEvent(m.Q, agent, "forced_move", db.KV{K: "from", V: here}, db.KV{K: "to", V: dest}, db.KV{K: "by", V: by}))
-	return true, fmt.Sprintf("%s moved %s -> %s (forced by %s)", agent, here, dest, by), nil
+	return true, fmt.Sprintf("%s moved %s -> %s (forced by %s)", addr.Ref(agent), here, dest, addr.Ref(by)), nil
 }

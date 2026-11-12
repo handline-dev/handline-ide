@@ -261,3 +261,16 @@ func TestAnAgentWhoseTaskThePauseHoldsSaysSoAndNamesIt(t *testing.T) {
 		t.Fatalf("paused with nothing held is idle: %v", s)
 	}
 }
+
+// A wait line clipped to its cap never shows half a <@key> ref: the cut one is dropped.
+func TestClipDropsARefCutInTwo(t *testing.T) {
+	for in, want := range map[string]string{
+		"blocked by T9001 (<@a12>), T9002 (<@a13>)": "blocked by T9001 (<@a12>), T9002",
+		"blocked by T9001 (<@a12>)":                 "blocked by T9001 (<@a12>)",
+		"waiting for T7 and others to finish here":  "waiting for T7 and others to finish h",
+	} {
+		if got := clip(in, 37); got != want {
+			t.Errorf("%q: %q, want %q", in, got, want)
+		}
+	}
+}

@@ -63,7 +63,7 @@ func releaseMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (an
 				if p.Asked != nil && !p.Asked.OK {
 					return nil, &rpc.CommitThen{Err: refusal(p.Asked.Msg)}
 				}
-				return accepted(fmt.Sprintf("T%d sent back to %s: %s", tid, p.To, why), nil), nil
+				return accepted(fmt.Sprintf("T%d sent back to %s: %s", tid, addr.Ref(p.To), why), nil), nil
 			}
 			if r, err = releaseTask(tx, home, me, tid, reason); err != nil {
 				return nil, err

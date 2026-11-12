@@ -7,6 +7,7 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/internal/outcome"
 	"github.com/handline/handline/go/kit/actor"
+	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/taskboard/supervisor"
 )
@@ -54,7 +55,7 @@ func (w *writes) awaitTyped(c *rpc.Conn, out any, err error) (any, error) {
 			return nil, err
 		}
 		if took {
-			return nil, rpc.Refused(fmt.Sprintf("message %d was not typed into %s's session in time, so it was taken back; send it again", rid, row.Target), "state", "")
+			return nil, rpc.Refused(fmt.Sprintf("message %d was not typed into %s's session in time, so it was taken back; send it again", rid, addr.Ref(row.Target)), "state", "")
 		}
 		if _, err := typed(); err != nil { // typed in the gap: it went
 			return nil, err

@@ -9,6 +9,7 @@ import (
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/internal/fold"
 	"github.com/handline/handline/go/internal/sessionrpc"
+	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/scheduler/lifecycle"
 	"github.com/handline/handline/go/scheduler/loadgate"
 	"github.com/handline/handline/go/scheduler/pause"
@@ -44,7 +45,7 @@ func (c controls) ForceStart(agent string) (bool, string, error) {
 	m := c.lc.Manager
 	why := c.lc.Gate.Held(agent)
 	if pause.IsPaused(why) {
-		return false, "New work is paused, and a force start does not pass it: resume new work, or send " + agent + " a message, which goes.", nil
+		return false, "New work is paused, and a force start does not pass it: resume new work, or send " + addr.Ref(agent) + " a message, which goes.", nil
 	}
 	row, err := db.GetAgentState(m.Q, agent)
 	if err != nil {
@@ -62,10 +63,10 @@ func (c controls) ForceStart(agent string) (bool, string, error) {
 		}
 	}
 	if owed == "" && !c.lc.Launch.Ports.WaitingFor(m.Q, agent) {
-		return false, "Nothing to start: " + agent + " has no work waiting.", nil
+		return false, "Nothing to start: " + addr.Ref(agent) + " has no work waiting.", nil
 	}
 	if why == "" && paced == "" {
-		return false, "Nothing holds " + agent + " back: it starts by itself.", nil
+		return false, "Nothing holds " + addr.Ref(agent) + " back: it starts by itself.", nil
 	}
 	var said []string
 	for _, p := range []struct {
@@ -81,7 +82,7 @@ func (c controls) ForceStart(agent string) (bool, string, error) {
 		}
 		said = append(said, p.what)
 	}
-	return true, "Starting " + agent + " now, even though " + strings.Join(said, " and ") + ".", nil
+	return true, "Starting " + addr.Ref(agent) + " now, even though " + strings.Join(said, " and ") + ".", nil
 }
 
 // Unpass takes back what ForceStart let past, for a start that has not come by the time its caller stopped waiting.
@@ -113,10 +114,10 @@ func (c controls) Start(call sessionrpc.Call, agent, repo, base string) (bool, s
 	}
 	if m.ResumableWithoutTerminal(row) { // closed with a session to resume: resume it, whether or not anything waits
 		ok, why, err := m.WakeAgent(agent, lifecycle.WakeOpts{Force: true, Person: call.Person})
-		return ok, agent + ": " + why, err
+		return ok, addr.Ref(agent) + ": " + why, err
 	}
 	if !m.Launch.ChooseAccount(m.Q, agent) {
-		return false, fmt.Sprintf("%s: not started - %s", agent, m.Launch.NoRoom(agent)), nil
+		return false, fmt.Sprintf("%s: not started - %s", addr.Ref(agent), m.Launch.NoRoom(agent)), nil
 	}
 	if repo == "" { // the agent's own repository, never the folder the daemon happens to run in
 		repo = c.lc.roster.RepoOf(agent)

@@ -6,6 +6,7 @@ import (
 	"github.com/handline/handline/go/agentctl/verdict"
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
+	"github.com/handline/handline/go/kit/addr"
 )
 
 // LaunchRefusedKind is the event of a launch the daemon refused, which says the account or the agent cannot start and that no session is coming.
@@ -83,14 +84,14 @@ func (v *Mover) SwitchNow(agent, dest, by string) (ok bool, said string, err err
 	}
 	if dest == "" {
 		if dest = m.Launch.ClosestRoom(m.Q, agent, row, v.moveExclude(agent, wait.From)); dest == "" {
-			return false, "no account can take " + agent + " now", nil
+			return false, "no account can take " + addr.Ref(agent) + " now", nil
 		}
 	}
 	if dest == wait.From {
-		return false, fmt.Sprintf("%s is already on %s", agent, dest), nil
+		return false, fmt.Sprintf("%s is already on %s", addr.Ref(agent), dest), nil
 	}
 	if why := m.Launch.RoomPastFit(m.Q, agent, row, dest); why != "" {
-		return false, fmt.Sprintf("%s %s - not moving %s there", dest, why, agent), nil
+		return false, fmt.Sprintf("%s %s - not moving %s there", dest, why, addr.Ref(agent)), nil
 	}
 	alive := m.sessionAlive(agent)
 	if !alive && !isClosed(row) {
@@ -110,14 +111,14 @@ func (v *Mover) SwitchNow(agent, dest, by string) (ok bool, said string, err err
 	m.noteSwitch(agent, wait.Cause, wait.From, dest, db.SwitchSwitching)
 	if alive {
 		if closed, why := v.closeFresh(agent); !closed {
-			return false, fmt.Sprintf("%s stays on %s: %s", agent, wait.From, why), nil
+			return false, fmt.Sprintf("%s stays on %s: %s", addr.Ref(agent), wait.From, why), nil
 		}
 	}
 	reason := "switched now by " + by
 	landed, why := v.land(agent, HandoffTrigger{Kind: wait.Cause, Reason: reason}, wait.From, dest, reason, true)
 	if !landed {
-		return false, fmt.Sprintf("%s could not start on %s: %s", agent, dest, clip(why, 120)), nil
+		return false, fmt.Sprintf("%s could not start on %s: %s", addr.Ref(agent), dest, clip(why, 120)), nil
 	}
 	started = true
-	return true, fmt.Sprintf("%s moved %s -> %s (%s)", agent, wait.From, dest, reason), nil
+	return true, fmt.Sprintf("%s moved %s -> %s (%s)", addr.Ref(agent), wait.From, dest, reason), nil
 }

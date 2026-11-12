@@ -106,7 +106,7 @@ func (e *Env) Released(tid int64, why string, retired []taskwrites.Retired) []st
 			} else if changed {
 				e.Push(e.DB, r.Target, 0)
 			}
-			said = append(said, fmt.Sprintf("%s ended; %s told to stop and moved on", db.MsgName(e.DB, r.RID), r.Target))
+			said = append(said, fmt.Sprintf("%s ended; %s told to stop and moved on", db.MsgName(e.DB, r.RID), addr.Ref(r.Target)))
 			continue
 		}
 		if r.Held {
@@ -114,7 +114,7 @@ func (e *Env) Released(tid int64, why string, retired []taskwrites.Retired) []st
 			if r.RID == 0 {
 				said = append(said, r.Target+" told to stop")
 			} else {
-				said = append(said, fmt.Sprintf("%s ended; %s told to stop", db.MsgName(e.DB, r.RID), r.Target))
+				said = append(said, fmt.Sprintf("%s ended; %s told to stop", db.MsgName(e.DB, r.RID), addr.Ref(r.Target)))
 			}
 			continue
 		}
@@ -127,7 +127,7 @@ func (e *Env) Released(tid int64, why string, retired []taskwrites.Retired) []st
 		if err != nil {
 			e.log("  telling after T%d released request %d failed: %v", tid, r.RID, err)
 		}
-		line := fmt.Sprintf("%s to %s retired", db.MsgName(e.DB, r.RID), target)
+		line := fmt.Sprintf("%s to %s retired", db.MsgName(e.DB, r.RID), addr.Ref(target))
 		if len(extra) > 0 {
 			line += " (" + strings.Join(extra, "; ") + ")"
 		}

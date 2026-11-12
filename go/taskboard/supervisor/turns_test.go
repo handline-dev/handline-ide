@@ -101,7 +101,7 @@ func TestAReviewTurnClosesTheTaskOnAPassAndASendBackReturnsItWithTheNote(t *test
 	if turns, _ := db.Turns(r.DB, tid); delivered != 1 || told != 0 || len(turns) != 1 || turns[0].Memo == 0 || turns[0].OnPass != db.TurnOnPassDone {
 		t.Fatalf("delivered %d, told %d, %+v", delivered, told, turns)
 	}
-	r.refusedCall(r.k("bob"), "task.turn.pop", fmt.Sprintf(`{"task":%d,"outcome":"pass","request_id":"x1"}`, tid), "alice's turn")
+	r.refusedCall(r.k("bob"), "task.turn.pop", fmt.Sprintf(`{"task":%d,"outcome":"pass","request_id":"x1"}`, tid), "<@alice>'s turn")
 	r.refusedCall(r.k("alice"), "task.turn.pop", fmt.Sprintf(`{"task":%d,"outcome":"send_back","request_id":"x2"}`, tid), "says why")
 	r.turnCall(r.k("alice"), "task.turn.pop", fmt.Sprintf(`{"task":%d,"outcome":"send_back","note":"the empty list fails","request_id":"b1"}`, tid))
 	if r.acting(tid) != r.k(("bob")) {

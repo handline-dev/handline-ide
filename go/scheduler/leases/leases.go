@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/accounts/usage"
+	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/kit/peer"
 	"github.com/handline/handline/go/scheduler/procload"
 )
@@ -686,9 +687,9 @@ func (m *Manager) heldBy(kind string) string {
 	for _, l := range m.held {
 		switch {
 		case l.Kind == kind && l.Reserved():
-			who = append(who, fmt.Sprintf("reserved for %s's T%d", l.Agent, l.Task))
+			who = append(who, fmt.Sprintf("reserved for %s's T%d", addr.Ref(l.Agent), l.Task))
 		case l.Kind == kind:
-			who = append(who, fmt.Sprintf("%s since %s", l.Agent, time.Unix(l.Since, 0).Format("15:04")))
+			who = append(who, fmt.Sprintf("%s since %s", addr.Ref(l.Agent), time.Unix(l.Since, 0).Format("15:04")))
 		}
 	}
 	if len(who) == 0 {
