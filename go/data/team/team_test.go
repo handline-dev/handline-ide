@@ -3,6 +3,7 @@ package team
 import (
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -52,7 +53,7 @@ func register(t *testing.T, r *Roster, names ...string) {
 func TestRegisterMakesTheWorkspaceAndItsLeadAndReadsBack(t *testing.T) {
 	home := newHome(t)
 	r := NewRoster(home)
-	repo := t.TempDir()
+	repo := checkout(t)
 	if _, err := r.Register("shop", RegisterOpts{Repo: repo, Model: strp("opus")}); err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +106,7 @@ func TestRegisterMakesTheWorkspaceAndItsLeadAndReadsBack(t *testing.T) {
 
 func TestOnlyTheLeadMovesTheWorkspaceFolder(t *testing.T) {
 	r := NewRoster(newHome(t))
-	one, two := t.TempDir(), t.TempDir()
+	one, two := checkout(t), checkout(t)
 	register(t, r, "shop", "shop.ui")
 	if _, err := r.Register("shop.ui", RegisterOpts{Repo: one}); err != nil {
 		t.Fatalf("a workspace with no folder yet takes one from any agent: %v", err)
@@ -338,4 +339,14 @@ func TestTheRosterFindsAnAgentByItsKey(t *testing.T) {
 	if _, err := r.Read("a999"); err == nil {
 		t.Fatal("read a key no agent has")
 	}
+}
+
+// checkout is a new empty git checkout: a workspace's folder is one.
+func checkout(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	if out, err := exec.Command("git", "init", "-q", dir).CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v %s", err, out)
+	}
+	return dir
 }

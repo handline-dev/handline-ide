@@ -1,6 +1,7 @@
 package sessionrpc
 
 import (
+	"os/exec"
 	"strings"
 	"sync"
 	"testing"
@@ -58,7 +59,7 @@ func waitEnded(t *testing.T, r *rig, op string) {
 
 func TestCreateRegistersAndStartsAndTellsEachStep(t *testing.T) {
 	r, sn, c := createRig(t)
-	repo := t.TempDir()
+	repo := checkout(t)
 	got := result(t, c.call("agent.create", map[string]any{"name": "ann.new", "role": "worker", "repo": repo, "parent": "ann", "effort": "high", "request_id": rid("c1")}))
 	op, _ := got["operation"].(string)
 	if got["accepted"] != true || op == "" || got["said"] != "done" || operations.Live(op) {
@@ -91,7 +92,7 @@ func TestCreateRegistersAndStartsAndTellsEachStep(t *testing.T) {
 func TestCreateWhoseStartFailsIsRefusedAndLeavesTheAgentRegistered(t *testing.T) {
 	r, sn, c := createRig(t)
 	r.ctl.ok, r.ctl.said = false, "diverged"
-	repo := t.TempDir()
+	repo := checkout(t)
 	m := c.call("agent.create", map[string]any{"name": "solo", "role": "worker", "repo": repo, "request_id": rid("c2")})
 	e, _ := m["error"].(map[string]any)
 	d, _ := e["data"].(map[string]any)
@@ -115,7 +116,7 @@ func TestCreateAnswersOnceStartedAndAtTheLimitSaysItGoesOn(t *testing.T) {
 	r, _, c := createRig(t)
 	r.ctl.hold = make(chan struct{})
 	r.e.Wait = 50 * time.Millisecond
-	m := c.call("agent.create", map[string]any{"name": "slow", "role": "worker", "repo": t.TempDir(), "request_id": rid("c3")})
+	m := c.call("agent.create", map[string]any{"name": "slow", "role": "worker", "repo": checkout(t), "request_id": rid("c3")})
 	e, _ := m["error"].(map[string]any)
 	d, _ := e["data"].(map[string]any)
 	op, _ := d["operation"].(string)
@@ -131,7 +132,7 @@ func TestCreateAnswersOnceStartedAndAtTheLimitSaysItGoesOn(t *testing.T) {
 
 func TestCreateRefusesWhatItCannotStart(t *testing.T) {
 	r, _, c := createRig(t)
-	repo := t.TempDir()
+	repo := checkout(t)
 	ok := map[string]any{"name": "x", "role": "worker", "repo": repo}
 	with := func(k string, v any, id string) map[string]any {
 		p := map[string]any{"request_id": rid(id)}
@@ -174,7 +175,7 @@ func TestCreateRefusesASecondOfTheNameWhileTheFirstRuns(t *testing.T) {
 	}
 	operations.Begin("held")
 	defer operations.End("held")
-	if g := refused(c.call("agent.create", map[string]any{"name": "busy", "role": "worker", "repo": t.TempDir(), "request_id": rid("b1")})); g != "state" {
+	if g := refused(c.call("agent.create", map[string]any{"name": "busy", "role": "worker", "repo": checkout(t), "request_id": rid("b1")})); g != "state" {
 		t.Fatalf("%q", g)
 	}
 }
@@ -191,7 +192,7 @@ func TestCreatePrunesOnlyItsOwnOldOperations(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	op := result(t, c.call("agent.create", map[string]any{"name": "fresh", "role": "worker", "repo": t.TempDir(), "request_id": rid("p1")}))["operation"].(string)
+	op := result(t, c.call("agent.create", map[string]any{"name": "fresh", "role": "worker", "repo": checkout(t), "request_id": rid("p1")}))["operation"].(string)
 	waitEnded(t, r, op)
 	var n int
 	r.e.DB.QueryRow("SELECT count(*) FROM operations WHERE kind = 'send'").Scan(&n)
@@ -210,4 +211,14 @@ func TestCreateChecksTheNameBeforeEffortAndAccount(t *testing.T) {
 	if f := badField(got); f != "name" {
 		t.Fatalf("field %q", f)
 	}
+}
+
+// checkout is a new empty git checkout: a workspace's folder is one.
+func checkout(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	if out, err := exec.Command("git", "init", "-q", dir).CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v %s", err, out)
+	}
+	return dir
 }

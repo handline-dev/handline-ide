@@ -65,11 +65,13 @@ type NotRegistered struct{ Name string }
 
 func (e *NotRegistered) Error() string { return fmt.Sprintf("agent '%s' is not registered", e.Name) }
 
-// IsRefusal is whether err is a Roster's answer to the caller (a refused value or name, a missing agent), not a failure.
+// IsRefusal is whether err is a Roster's answer to the caller (a refused value or name, a missing agent, a folder that is no checkout),
+// not a failure.
 func IsRefusal(err error) bool {
 	var r *names.Refusal
 	var n *NotRegistered
-	return errors.As(err, &r) || errors.As(err, &n)
+	var g *NotGit
+	return errors.As(err, &r) || errors.As(err, &n) || errors.As(err, &g)
 }
 
 func refuse(format string, a ...any) error { return &names.Refusal{Msg: fmt.Sprintf(format, a...)} }
@@ -176,11 +178,25 @@ func (r *Roster) set(q db.Q, at row, set []yamlcompat.Pair) error {
 	for _, kv := range set {
 		if kv.Key == "repo" {
 			folder, _ := kv.Val.(string)
-			if folder == at.folder {
+			if folder != "" {
+				top, err := Toplevel(folder)
+				if err != nil {
+					return err
+				}
+				folder = top
+			}
+			if folder == at.folder || (at.folder != "" && folder == toplevelOr(at.folder)) {
 				continue
 			}
 			if !at.lead && at.folder != "" {
 				return refuse("repo is the folder of workspace %s (%s): set it on its lead", at.wsName, at.folder)
+			}
+			if folder != "" {
+				if other, there, err := sharing(q, folder, at.ws); err != nil {
+					return err
+				} else if other != "" {
+					return refuse("%s is workspace %s's folder %s, or shares it: a checkout is one workspace's", folder, other, there)
+				}
 			}
 			if _, err := q.Exec("UPDATE workspaces SET folder = ? WHERE id = ?", folder, at.ws); err != nil {
 				return err
@@ -315,7 +331,16 @@ func (r *Roster) Register(name string, o RegisterOpts) (string, error) {
 	if err := inTx(r.DB, func(q db.Q) error { return r.register(q, name, o, mcp) }); err != nil {
 		return "", err
 	}
-	return r.folders(name, o)
+	d, err := r.folders(name, o)
+	if err != nil {
+		return "", err
+	}
+	ws, _ := SplitLegacy(name)
+	key, err := paths.WorkspaceKeyIn(r.DB, ws)
+	if err != nil || key == "" {
+		return d, err
+	}
+	return d, writeRules(r.Home, key, ws)
 }
 
 // register is Register's rows, in one transaction with the name checks.
@@ -331,17 +356,9 @@ func (r *Roster) register(q db.Q, name string, o RegisterOpts, mcp string) error
 	}
 	repo := expandUser(o.Repo)
 	if at.ws == 0 {
-		if err := names.Check(q, names.Workspace, at.wsName, 0); err != nil {
+		if at.ws, at.folder, err = createWorkspace(q, at.wsName, repo); err != nil {
 			return err
 		}
-		res, err := q.Exec("INSERT INTO workspaces(name, folder, created_at) VALUES(?, ?, ?)", at.wsName, repo, now)
-		if err != nil {
-			return err
-		}
-		if at.ws, err = res.LastInsertId(); err != nil {
-			return err
-		}
-		at.folder = repo
 	}
 	isNew := at.id == 0
 	if isNew {
