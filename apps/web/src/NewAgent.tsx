@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Button } from '#src/ui/Button.tsx';
 import { Field, Input, Select } from '#src/ui/Field.tsx';
 import { ModalFrame, openModal, type Close } from '#src/ui/modal.tsx';
+import { Refs } from '#src/ui/refs.tsx';
 
 /** Watches the create the daemon started: its step while it runs, then done (closing with the new agent's key, once the list holds
  * the agent of that dotted name) or failed. */
@@ -82,7 +83,11 @@ function Form({ parent, close }: { parent?: string; close: Close<string> }) {
           ))}
         </Select>
       </Field>
-      {error && <p className="text-sm text-danger">{error}</p>}
+      {error && (
+        <p className="text-sm text-danger">
+          <Refs text={error} />
+        </p>
+      )}
       <div className="flex justify-end gap-2 pt-1">
         <Button onClick={() => close()}>Cancel</Button>
         <Button type="submit" variant="primary" disabled={!ready || create.isPending}>

@@ -4,6 +4,7 @@ import type { Prompt } from '@handline/client';
 import { MessageCircleQuestion, ShieldAlert } from 'lucide-react';
 import { Button } from '#src/ui/Button.tsx';
 import { Input } from '#src/ui/Field.tsx';
+import { Refs } from '#src/ui/refs.tsx';
 
 /** At the end of a chat whose agent waits on a prompt: answer it here, Allow or Deny, or a question's choices. */
 export function PromptCard({ agent }: { agent: string }) {
@@ -37,7 +38,11 @@ function Card({ agent, p }: { agent: string; p: Prompt }) {
         <div className="flex min-w-0 flex-col gap-1">
           <p className="text-fg">{title}</p>
           {p.command && <code className="block truncate rounded bg-surface px-1.5 py-0.5 font-mono text-xs text-fg">{p.command}</code>}
-          {p.reason && <p className="text-muted">{p.reason}</p>}
+          {p.reason && (
+            <p className="text-muted">
+              <Refs text={p.reason} />
+            </p>
+          )}
           {a.changed && <p className="text-xs text-danger">The prompt changed, so nothing was sent.</p>}
         </div>
       </div>

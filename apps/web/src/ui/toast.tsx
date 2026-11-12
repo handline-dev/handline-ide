@@ -3,6 +3,7 @@ import { CircleAlert, Info, X } from 'lucide-react';
 import { useSyncExternalStore, type ReactNode } from 'react';
 import { spring } from '#src/motion.ts';
 import { IconButton } from '#src/ui/IconButton.tsx';
+import { Refs } from '#src/ui/refs.tsx';
 
 /** Toasts: `toast('...')` from anywhere; one <ToastHost /> at the root draws them at the bottom right.
  * Each leaves by itself after `ms` (4s), or by its X. */
@@ -49,7 +50,7 @@ export function ToastHost() {
             className="pointer-events-auto flex w-full items-start gap-2 rounded-lg border border-border bg-bg p-3 text-sm text-fg shadow-popover"
           >
             <span className="mt-0.5 shrink-0">{icons[t.tone]}</span>
-            <span className="flex-1">{t.message}</span>
+            <span className="flex-1">{typeof t.message === 'string' ? <Refs text={t.message} /> : t.message}</span>
             <IconButton size="sm" label="Dismiss" onClick={() => dismiss(t.id)}>
               <X size={12} />
             </IconButton>

@@ -14,6 +14,7 @@ import { Page } from '#src/ui/Page.tsx';
 import { ScrollFade } from '#src/ui/ScrollFade.tsx';
 import { usePersisted } from '#src/persist/kv.ts';
 import { RowsLoading } from '#src/usage/UsageViews.tsx';
+import { Refs } from '#src/ui/refs.tsx';
 
 const why = (e: unknown) => (e ? sentence(classify(e)) : null);
 
@@ -90,7 +91,11 @@ function AddAccount({ names, onAdded }: { names: string[]; onAdded: (name: strin
         <Plus size={14} />
         Add account
       </Button>
-      {!!add.error && <span className="text-xs text-danger">{why(add.error)}</span>}
+      {!!add.error && (
+        <span className="text-xs text-danger">
+          <Refs text={why(add.error)} />
+        </span>
+      )}
     </div>
   );
 }
@@ -159,7 +164,11 @@ function Bottom({ account: a }: { account: Account }) {
           Remove
         </Button>
       </div>
-      {!!save.error && <p className="text-xs text-danger">{why(save.error)}</p>}
+      {!!save.error && (
+        <p className="text-xs text-danger">
+          <Refs text={why(save.error)} />
+        </p>
+      )}
     </div>
   );
 }
@@ -215,8 +224,16 @@ export function Login({
         {login.isPending ? 'Starting…' : a.login_state === 'ok' ? 'Log in again' : 'Log in'}
       </Button>
       {!emailBefore && <AccountEmail account={a} before="as" />}
-      {a.login?.state === 'failed' && <span className="text-danger">Login failed: {a.login.reason}</span>}
-      {!!login.error && <span className="text-danger">{why(login.error)}</span>}
+      {a.login?.state === 'failed' && (
+        <span className="text-danger">
+          Login failed: <Refs text={a.login.reason} />
+        </span>
+      )}
+      {!!login.error && (
+        <span className="text-danger">
+          <Refs text={why(login.error)} />
+        </span>
+      )}
     </div>
   );
 }
