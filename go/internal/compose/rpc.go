@@ -56,6 +56,9 @@ func (c controls) ForceStart(agent string) (bool, string, error) {
 		return false, "", err
 	}
 	paced, pacedWhat := "", "its account is ahead of its weekly pace"
+	if w := c.lc.Launch.WorkspaceWait(m.Q, agent); w != nil {
+		return false, "A force start does not pass " + agent + "'s workspace rule: " + lifecycle.DescribeWakeWait(w) + ".", nil
+	}
 	if w := c.lc.Launch.WakeWait(m.Q, agent, row); w != nil && (w.Pace != nil || w.FiveHour) {
 		paced = lifecycle.DescribeWakeWait(w)
 		if w.FiveHour {

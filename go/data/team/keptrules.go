@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
 )
 
 // The kept rules (docs/design/people-workspaces.md "Workspace rules"): rows of workspace_settings, set by the owner. A workspace's own
@@ -328,4 +329,44 @@ func (h Held) ModeRefusal(mode string) string {
 		return ""
 	}
 	return fmt.Sprintf("mode %s is stronger than mode_max %s, set by %s for its workspace", mode, h.ModeMax, h.ModeSetBy)
+}
+
+// AgentRules is KeptRules of the workspace agent (its key) is in, and that workspace's name.
+func AgentRules(q db.Q, agent string) ([]KeptRule, string, error) {
+	k, id, ok := actor.Parse(agent)
+	if !ok || k != actor.Agent {
+		return nil, "", nil
+	}
+	var ws int64
+	var name string
+	err := q.QueryRow("SELECT w.id, w.name FROM agents a JOIN workspaces w ON w.id = a.workspace WHERE a.id = ?", id).Scan(&ws, &name)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, "", nil
+	} else if err != nil {
+		return nil, "", err
+	}
+	rules, err := KeptRules(q, ws)
+	return rules, name, err
+}
+
+// WorkspaceAgents is every agent (key) of the workspace agent is in, agent too.
+func WorkspaceAgents(q db.Q, agent string) ([]string, error) {
+	k, id, ok := actor.Parse(agent)
+	if !ok || k != actor.Agent {
+		return nil, nil
+	}
+	rows, err := q.Query("SELECT id FROM agents WHERE workspace = (SELECT workspace FROM agents WHERE id = ?)", id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var a int64
+		if err := rows.Scan(&a); err != nil {
+			return nil, err
+		}
+		out = append(out, actor.Key(actor.Agent, a))
+	}
+	return out, rows.Err()
 }
