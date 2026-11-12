@@ -136,7 +136,7 @@ func (p *Parts) Lifecycle(cfg Config, lc LifecycleConfig) *Lifecycle {
 	ho.Note = handoff.NoteEnv{Settings: noteSettings{settings, roster}, Telling: lc.Env, Log: cfg.Log}
 	tm := cfg.Term
 	if tm == nil {
-		tm = newTerm(home)
+		tm = newTerm(home, q)
 	}
 	if cfg.Turns != nil {
 		tm.Turns = cfg.Turns
