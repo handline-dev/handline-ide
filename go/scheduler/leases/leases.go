@@ -168,6 +168,8 @@ type Manager struct {
 	Store Store
 	// WorkspaceOf is agent's workspace key, "" for none; nil puts every agent in one.
 	WorkspaceOf func(agent string) string
+	// WorkspaceMax is the kept rule lease_max.<kind> of every workspace, read once per pass; nil is no rule.
+	WorkspaceMax func(kind string) WorkspaceLimits
 	// Tasks blocks an agent's current task while its ask waits; nil holds every ask's call open instead.
 	Tasks Tasks
 	// Ports is the range port leases are picked from (PortRange); nil or not ok, any free port the system gives.
@@ -317,6 +319,65 @@ func (m *Manager) free(kind string, limits map[string]int) (port int, ok bool) {
 	return 0, n < limits[kind]
 }
 
+// Limit is a kept rule lease_max.<kind>: the most leases of the kind a workspace holds at once (0 for none), and who set it.
+type Limit struct {
+	N     int
+	SetBy string
+}
+
+// WorkspaceLimits is lease_max.<kind> by workspace key, the machine's for a workspace with no row of its own.
+type WorkspaceLimits struct {
+	Machine Limit
+	Own     map[string]Limit
+}
+
+// of is ws's limit; none for an agent with no workspace.
+func (w WorkspaceLimits) of(ws string) Limit {
+	if ws == "" {
+		return Limit{}
+	}
+	if l, ok := w.Own[ws]; ok {
+		return l
+	}
+	return w.Machine
+}
+
+// wsLimits is kind's lease_max by workspace.
+func (m *Manager) wsLimits(kind string) WorkspaceLimits {
+	if m.WorkspaceMax == nil {
+		return WorkspaceLimits{}
+	}
+	return m.WorkspaceMax(kind)
+}
+
+// waitingAhead is whether a waiter for kind is in line that a free lease would go to, one not held back by its workspace's lease_max.
+// The caller holds mu.
+func (m *Manager) waitingAhead(kind string, lim WorkspaceLimits) bool {
+	return slices.ContainsFunc(m.queues[kind], func(w *waiter) bool { return m.wsFull(kind, w.ws, lim) == "" })
+}
+
+// wsFull is why ws may hold no more of kind, its lease_max rule as a clause; "" when it may. A reserved lease counts. The caller holds mu.
+func (m *Manager) wsFull(kind, ws string, lim WorkspaceLimits) string {
+	limit := lim.of(ws)
+	if limit.N <= 0 {
+		return ""
+	}
+	n := 0
+	for _, l := range m.held {
+		if l.Kind == kind && l.Workspace == ws {
+			n++
+		}
+	}
+	if n < limit.N {
+		return ""
+	}
+	by := ""
+	if limit.SetBy != "" {
+		by = " (set by " + limit.SetBy + ")"
+	}
+	return fmt.Sprintf("your workspace holds %d, its kept rule lease_max.%s %d%s", n, kind, limit.N, by)
+}
+
 // grant holds l under a new id from now. The caller holds mu.
 func (m *Manager) grant(l Lease) *Lease {
 	m.next++
@@ -382,8 +443,11 @@ func (m *Manager) promote() {
 		if len(m.queues[kind]) == 0 {
 			continue
 		}
-		granted := map[*waiter]bool{}
+		granted, lim := map[*waiter]bool{}, m.wsLimits(kind)
 		for _, w := range m.inLine(kind) {
+			if m.wsFull(kind, w.ws, lim) != "" { // its workspace is at its own limit; the next in line may not be
+				continue
+			}
 			port, ok := m.free(kind, limits)
 			if !ok {
 				break
@@ -454,7 +518,7 @@ func (b *Blocked) Error() string { return b.Why }
 // in line as a blocker on the task. One with none waits here: past ceiling it is a *Refusal naming the holders, and done closing (the
 // asker hung up) ends the wait with no lease.
 func (m *Manager) Take(done <-chan struct{}, kind, agent string, hold bool, pid int, ceiling time.Duration) (*Lease, error) {
-	ws, task := m.workspaceOf(agent), int64(0)
+	ws, task, lim := m.workspaceOf(agent), int64(0), m.wsLimits(kind)
 	if m.Tasks != nil {
 		task = m.Tasks.Current(agent)
 	}
@@ -469,8 +533,14 @@ func (m *Manager) Take(done <-chan struct{}, kind, agent string, hold bool, pid 
 			return &c, nil
 		}
 	}
-	if len(m.queues[kind]) == 0 {
-		limits := m.limits()
+	limits := m.limits()
+	full := m.wsFull(kind, ws, lim)
+	if full != "" && kind != Port {
+		if _, free := m.free(kind, limits); !free {
+			full += fmt.Sprintf(", and %s", m.heldBy(kind))
+		}
+	}
+	if full == "" && !m.waitingAhead(kind, lim) {
 		port, ok := m.free(kind, limits)
 		if !ok && m.revokeOne(kind, agent, m.periods(limits)[kind]) {
 			port, ok = m.free(kind, limits)
@@ -486,7 +556,7 @@ func (m *Manager) Take(done <-chan struct{}, kind, agent string, hold bool, pid 
 		return nil, &OutOfOrder{why}
 	}
 	if task != 0 {
-		return nil, m.block(kind, agent, ws, task)
+		return nil, m.block(kind, agent, ws, task, full)
 	}
 	w := &waiter{kind: kind, agent: agent, ws: ws, since: m.now(), hold: hold, pid: pid, got: make(chan *Lease, 1)}
 	m.enqueue(w)
@@ -518,20 +588,24 @@ func (m *Manager) Take(done <-chan struct{}, kind, agent string, hold bool, pid 
 		return nil, nil
 	default:
 	}
-	return nil, &Refusal{fmt.Sprintf("Refused: no %s came free in %s; %s. Nothing ran.", Noun(kind), ceiling.Round(time.Minute), m.heldBy(kind))}
+	why := m.heldBy(kind)
+	if full = m.wsFull(kind, ws, lim); full != "" {
+		why = full + ", and " + why
+	}
+	return nil, &Refusal{fmt.Sprintf("Refused: no %s came free in %s; %s. Nothing ran.", Noun(kind), ceiling.Round(time.Minute), why)}
 }
 
 // block puts task's ask for kind in line behind a new gate on the task, or answers the ask already there. Called holding mu; lets it go.
-func (m *Manager) block(kind, agent, ws string, task int64) error {
+func (m *Manager) block(kind, agent, ws string, task int64, full string) error {
 	for _, w := range m.queues[kind] {
 		if w.task == task {
 			m.unlock()
-			return m.blocked(kind, task, w.gate)
+			return m.blocked(kind, task, w.gate, full)
 		}
 	}
 	if m.asking[task] { // another hl use of this task is opening its gate
 		m.unlock()
-		return m.blocked(kind, task, 0)
+		return m.blocked(kind, task, 0, full)
 	}
 	if m.asking == nil {
 		m.asking = map[int64]bool{}
@@ -565,16 +639,21 @@ func (m *Manager) block(kind, agent, ws string, task int64) error {
 		m.drop(id, fmt.Sprintf("T%d now waits for a %s, which comes first", task, Noun(kind)))
 	}
 	m.promote()
-	return m.blocked(kind, task, gate)
+	return m.blocked(kind, task, gate, full)
 }
 
-func (m *Manager) blocked(kind string, task, gate int64) *Blocked {
+// blocked is the ask's answer while it waits; full is its workspace's lease_max clause when that is what holds it back.
+func (m *Manager) blocked(kind string, task, gate int64, full string) *Blocked {
 	on := ""
 	if gate != 0 {
 		on = fmt.Sprintf(" (gate T%d)", gate)
 	}
-	return &Blocked{Task: task, Gate: gate, Why: fmt.Sprintf("No %s is free: T%d now waits for one%s and comes back by itself once one "+
-		"is reserved for it; then run this hl use again. Take your next task. Nothing ran.", Noun(kind), task, on)}
+	none := fmt.Sprintf("No %s is free", Noun(kind))
+	if full != "" {
+		none = fmt.Sprintf("No %s for you yet: %s", Noun(kind), full)
+	}
+	return &Blocked{Task: task, Gate: gate, Why: fmt.Sprintf("%s: T%d now waits for one%s and comes back by itself once one "+
+		"is reserved for it; then run this hl use again. Take your next task. Nothing ran.", none, task, on)}
 }
 
 // unqueue takes w out of its line. The caller holds mu.
