@@ -292,11 +292,17 @@ func (l *Launcher) place(agent string, resuming bool, account string) (string, e
 	if acct == "" {
 		return "", nil
 	}
-	if err := db.EnsureAgentState(l.Q, agent); err != nil { // the held slots are counted from agent_state
-		return "", err
+	return acct, holdOn(l.Q, agent, acct, db.KV{K: "source", V: "launch"})
+}
+
+// holdOn holds a slot on acct for agent (wake_reserved), which usage counts until its Stop or a release. The agent gets its row first:
+// the held slots are counted from agent_state.
+func holdOn(q db.Q, agent, acct string, extra ...db.KV) error {
+	if err := db.EnsureAgentState(q, agent); err != nil {
+		return err
 	}
-	_, err := db.AddEventFor(l.Q, agent, acct, "wake_reserved", db.KV{K: "account", V: acct}, db.KV{K: "source", V: "launch"})
-	return acct, err
+	_, err := db.AddEventFor(q, agent, acct, "wake_reserved", append([]db.KV{{K: "account", V: acct}}, extra...)...)
+	return err
 }
 
 // refused is err, with a refusal kept as launch_refused first.

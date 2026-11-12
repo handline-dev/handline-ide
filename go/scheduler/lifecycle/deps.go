@@ -112,6 +112,8 @@ type Launch interface {
 	AccountFor(q db.Q, agent string, resuming bool) string
 	// Placing holds every other placement off until the returned func is called: the choice and its wake_reserved are one step.
 	Placing() func()
+	// SlotTaken is why acct has no free slot for agent (agent left out of the count; unpaced: against its unpaced cap), "" when it has.
+	SlotTaken(q db.Q, agent, acct string, unpaced bool) string
 	NoRoom(agent string) string
 	// SlowestPaced is the account other than skip with a free slot that is furthest behind its week, "" when none has room.
 	SlowestPaced(q db.Q, agent string, row *db.AgentState, skip string) string
