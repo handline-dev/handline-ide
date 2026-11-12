@@ -155,7 +155,8 @@ func TestProgressNamesNoOneWithoutAnAgent(t *testing.T) {
 }
 
 // daemon answers the rig's runs over socketpairs, no socket file being bound: each method answers its result (an
-// object, `{}` when none is given), or its error when the result starts with "error:" (a refusal by gate g with "error[g]:"). calls is
+// object, `{}` when none is given), or its error when the result starts with "error:" (a refusal by gate g with "error[g]:"); a key
+// "method:kind" answers only the calls with that kind. calls is
 // every message received, hello included.
 func (r *rig) daemon(results map[string]string) (calls func() []map[string]any) {
 	ln := pairsock.NewListener()
@@ -182,6 +183,13 @@ func (r *rig) daemon(results map[string]string) (calls func() []map[string]any) 
 				mu.Unlock()
 				id, _ := json.Marshal(m["id"])
 				result, _ := m["method"].(string)
+				if params, _ := m["params"].(map[string]any); params != nil { // "lease.take:browser" answers that kind's ask only
+					if kind, _ := params["kind"].(string); kind != "" {
+						if _, ok := results[result+":"+kind]; ok {
+							result += ":" + kind
+						}
+					}
+				}
 				answer := `"result":{}`
 				if res, ok := results[result]; ok && strings.HasPrefix(res, "error:") {
 					answer = `"error":{"code":-32000,"message":` + strconv.Quote(res[6:]) + `,"data":{"code":"refused"}}`

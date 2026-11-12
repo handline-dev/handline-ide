@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -91,5 +93,49 @@ func TestLeaseText(t *testing.T) {
 	}
 	if leaseText(obj{"kinds": []any{map[string]any{"kind": "browser", "max": float64(0), "held": []any{}, "queue": []any{}}}}) != "" {
 		t.Fatal("nothing to say says something")
+	}
+}
+
+func TestUseTakesSeveralKindsInTheFixedOrderAndGivesAllBack(t *testing.T) {
+	r := newRig(t)
+	calls := r.daemon(map[string]string{"lease.take:heavy": `{"lease":1,"waited_s":0}`, "lease.take:port": `{"lease":2,"waited_s":0,"port":4100}`,
+		"lease.release": `{"released":1}`})
+	out, _, code := r.run(asAgent, "use", "port", "heavy", "port", "--", "sh", "-c", "echo $HL_PORT")
+	if code != 0 || out != "4100\n" {
+		t.Fatalf("%q %d", out, code)
+	}
+	var seen []string
+	for _, c := range calls() {
+		p := c["params"].(map[string]any)
+		if c["method"] == "lease.take" {
+			seen = append(seen, "take "+p["kind"].(string))
+		} else {
+			seen = append(seen, fmt.Sprintf("release %v", p["lease"]))
+		}
+	}
+	if want := []string{"take heavy", "take port", "release 1", "release 2"}; !slices.Equal(seen, want) {
+		t.Fatalf("calls %q", seen)
+	}
+}
+
+func TestUseWhoseSecondKindWaitsGivesTheFirstBackAndExits75(t *testing.T) {
+	r := newRig(t)
+	why := "No browser is free: T20 now waits for one (gate T1001) and comes back by itself once one is reserved for it; then run this hl use again. Take your next task. Nothing ran."
+	calls := r.daemon(map[string]string{"lease.take:simulator": `{"lease":3,"waited_s":0}`, "lease.take:browser": "error[lease_wait]:" + why,
+		"lease.release": `{"released":1}`})
+	out, _, code := r.run(asAgent, "use", "browser", "simulator", "--", "sh", "-c", "echo ran")
+	if code != BlockedExit || out != why+"\n" {
+		t.Fatalf("%q %d", out, code)
+	}
+	got := calls()
+	if len(got) != 3 || got[2]["method"] != "lease.release" || got[2]["params"].(map[string]any)["lease"] != float64(3) {
+		t.Fatalf("calls %v", got)
+	}
+}
+
+func TestUseHoldsOneKindOnly(t *testing.T) {
+	r := newRig(t)
+	if _, _, code := r.run(asAgent, "use", "simulator", "browser", "--hold"); code != 2 {
+		t.Fatalf("hold of two kinds: %d", code)
 	}
 }

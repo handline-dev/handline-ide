@@ -30,7 +30,7 @@ func agentOf(c *rpc.Conn, params map[string]any) (string, error) {
 	return agent, c.RequireSelf(agent)
 }
 
-// take answers a granted lease: {lease, waited_s, port for a port}; refused with lease_wait or, for a call held open, lease_ceiling.
+// take answers a granted lease: {lease, waited_s, port for a port}; refused with lease_wait, lease_order or, for a call held open, lease_ceiling.
 func (m *Manager) take(c *rpc.Conn, params map[string]any) (any, error) {
 	agent, err := agentOf(c, params)
 	if err != nil {
@@ -51,6 +51,9 @@ func (m *Manager) take(c *rpc.Conn, params map[string]any) (any, error) {
 	l, err := m.Take(c.Done(), kind, agent, hold, pid, CeilingS*time.Second)
 	if r, ok := err.(*Refusal); ok {
 		return nil, rpc.Refused(r.Why, "lease_ceiling", "")
+	}
+	if o, ok := err.(*OutOfOrder); ok {
+		return nil, rpc.Refused(o.Why, "lease_order", "")
 	}
 	if b, ok := err.(*Blocked); ok {
 		return nil, rpc.Refused(b.Why, "lease_wait", "")
