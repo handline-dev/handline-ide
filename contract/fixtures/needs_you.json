@@ -61,7 +61,7 @@
       "id": 2,
       "method": "terminal.open",
       "params": {
-       "agent": "nobody.here"
+       "agent": "a999"
       }
      },
      "error": {
@@ -97,7 +97,7 @@
       "id": 2,
       "method": "terminal.open",
       "params": {
-       "agent": "nobody.here"
+       "agent": "a999"
       }
      },
      "error": {

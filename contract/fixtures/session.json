@@ -25,7 +25,7 @@
       "id": 2,
       "method": "session.start",
       "params": {
-       "agent": "nobody.here",
+       "agent": "a999",
        "request_id": "conf-s-1"
       }
      },
@@ -63,7 +63,7 @@
       "id": 2,
       "method": "session.start",
       "params": {
-       "agent": "nobody.here"
+       "agent": "a999"
       }
      },
      "error": {
@@ -101,7 +101,7 @@
       "id": 2,
       "method": "session.wake",
       "params": {
-       "agent": "nobody.here",
+       "agent": "a999",
        "request_id": "conf-s-1"
       }
      },
@@ -139,7 +139,7 @@
       "id": 2,
       "method": "session.wake",
       "params": {
-       "agent": "nobody.here"
+       "agent": "a999"
       }
      },
      "error": {
@@ -177,7 +177,7 @@
       "id": 2,
       "method": "session.stop",
       "params": {
-       "agent": "nobody.here",
+       "agent": "a999",
        "request_id": "conf-s-1",
        "mode": "close"
       }
@@ -216,7 +216,7 @@
       "id": 2,
       "method": "session.stop",
       "params": {
-       "agent": "nobody.here",
+       "agent": "a999",
        "mode": "close"
       }
      },
@@ -255,7 +255,7 @@
       "id": 2,
       "method": "session.restart",
       "params": {
-       "agent": "nobody.here",
+       "agent": "a999",
        "request_id": "conf-s-1"
       }
      },
@@ -293,7 +293,7 @@
       "id": 2,
       "method": "session.restart",
       "params": {
-       "agent": "nobody.here"
+       "agent": "a999"
       }
      },
      "error": {
@@ -331,7 +331,7 @@
       "id": 2,
       "method": "session.compact",
       "params": {
-       "agent": "nobody.here",
+       "agent": "a999",
        "request_id": "conf-s-compact-1"
       }
      },
@@ -369,7 +369,7 @@
       "id": 2,
       "method": "session.compact",
       "params": {
-       "agent": "nobody.here"
+       "agent": "a999"
       }
      },
      "error": {
@@ -407,7 +407,7 @@
       "id": 2,
       "method": "session.park",
       "params": {
-       "agent": "nobody.here",
+       "agent": "a999",
        "request_id": "conf-s-1"
       }
      },
@@ -445,7 +445,7 @@
       "id": 2,
       "method": "session.park",
       "params": {
-       "agent": "nobody.here"
+       "agent": "a999"
       }
      },
      "error": {
@@ -483,7 +483,7 @@
       "id": 2,
       "method": "agent.fold",
       "params": {
-       "agent": "nobody.here",
+       "agent": "a999",
        "request_id": "conf-f-1"
       }
      },
@@ -521,7 +521,7 @@
       "id": 2,
       "method": "agent.fold",
       "params": {
-       "agent": "nobody.here"
+       "agent": "a999"
       }
      },
      "error": {
@@ -559,7 +559,7 @@
       "id": 2,
       "method": "terminal.close",
       "params": {
-       "agent": "nobody.here",
+       "agent": "a999",
        "request_id": "conf-s-2"
       }
      },
@@ -596,7 +596,7 @@
       "id": 2,
       "method": "terminal.close",
       "params": {
-       "agent": "a.one",
+       "agent": "a1",
        "request_id": "conf-s-3"
       }
      },
@@ -635,7 +635,7 @@
       "id": 2,
       "method": "session.stop",
       "params": {
-       "agent": "a.one",
+       "agent": "a1",
        "mode": "halt",
        "request_id": "conf-s-4"
       }
@@ -675,7 +675,7 @@
       "id": 2,
       "method": "session.stop",
       "params": {
-       "agent": "a.one",
+       "agent": "a1",
        "mode": "exit",
        "fresh": true,
        "request_id": "conf-s-5"
@@ -716,7 +716,7 @@
       "id": 2,
       "method": "session.start",
       "params": {
-       "agent": "a.one",
+       "agent": "a1",
        "account": "main",
        "request_id": "conf-s-6"
       }

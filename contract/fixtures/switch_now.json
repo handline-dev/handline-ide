@@ -25,7 +25,7 @@
       "id": 2,
       "method": "agent.switch_now",
       "params": {
-       "agent": "nobody.here",
+       "agent": "a999",
        "request_id": "conf-sn-1",
        "account": "beta"
       }
@@ -64,7 +64,7 @@
       "id": 2,
       "method": "agent.switch_now",
       "params": {
-       "agent": "nobody.here",
+       "agent": "a999",
        "account": "beta"
       }
      },
@@ -102,7 +102,7 @@
       "id": 2,
       "method": "agent.switch_now",
       "params": {
-       "agent": "a.one",
+       "agent": "a1",
        "request_id": "conf-sn-8",
        "account": "beta"
       }

@@ -42,7 +42,7 @@ func TestAgentRetireRefusesADependedOnAgentAndRetiresOneThatIsNot(t *testing.T) 
 	}
 	// bob.kid is retired: nothing depends on it
 	r.db.Exec("INSERT INTO agent_state(agent, state, updated) VALUES(?, 'idle', 1)", kid)
-	m := r.call("agent.retire", `{"agent":"bob.kid","request_id":"r3"}`)
+	m := r.call("agent.retire", `{"agent":"`+kid+`","request_id":"r3"}`)
 	res, _ := m["result"].(map[string]any)
 	archive := filepath.Join(r.home, "agents", "archive", time.Now().Format("2006-01-02")+"-bob.kid")
 	if res == nil || !strings.HasPrefix(res["said"].(string), "bob.kid is retired; its folder is at "+archive) {
@@ -56,11 +56,11 @@ func TestAgentRetireRefusesADependedOnAgentAndRetiresOneThatIsNot(t *testing.T) 
 	if rows != 0 || strings.Contains(r.rosterText(), "bob.kid") {
 		t.Fatalf("rows %d\n%s", rows, r.rosterText())
 	}
-	again, _ := r.call("agent.retire", `{"agent":"bob.kid","request_id":"r3"}`)["result"].(map[string]any)
+	again, _ := r.call("agent.retire", `{"agent":"`+kid+`","request_id":"r3"}`)["result"].(map[string]any)
 	if again == nil || again["replayed"] != true {
 		t.Fatalf("a retry is the stored reply: %v", again)
 	}
-	if msg := refusal(t, r.call("agent.retire", `{"agent":"bob.kid","request_id":"r4"}`)); !strings.Contains(msg, "no such agent") {
+	if msg := refusal(t, r.call("agent.retire", `{"agent":"`+kid+`","request_id":"r4"}`)); !strings.Contains(msg, "no such agent") {
 		t.Fatal(msg)
 	}
 }
