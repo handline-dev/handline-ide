@@ -212,9 +212,9 @@ func (e *Env) runCreate(op, name, repo, base string, register func() error, call
 		}
 	}()
 	e.progress(op, map[string]any{"step": step, "message": "registering " + name})
-	if err := register(); err != nil {
+	if err := register(); err != nil { // the rows may be in with only the folders failing after them
 		e.progress(op, map[string]any{"state": "failed", "message": fmt.Sprintf("%s failed: %v", step, err),
-			"result": map[string]any{"agent": name, "registered": false}})
+			"result": map[string]any{"agent": name, "registered": paths.AgentKey(e.Home, name) != ""}})
 		return
 	}
 	step = stepStart

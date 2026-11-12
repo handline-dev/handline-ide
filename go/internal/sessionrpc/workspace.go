@@ -42,7 +42,9 @@ func (e *Env) workspaceCreate(c *rpc.Conn, params map[string]any) (any, error) {
 		}
 		return nil, err
 	}
-	if paths.AgentKey(e.Home, name) != "" {
+	if ws, err := paths.WorkspaceKeyIn(e.DB, name); err != nil {
+		return nil, err
+	} else if ws != "" {
 		return nil, rpc.Refused("workspace "+name+" exists already", "state", "")
 	}
 	return e.operate(c, workspaceCreateKind, name, top, "", func() error {
