@@ -520,12 +520,14 @@
        "lease_max.port",
        "tools_deny",
        "mode_max",
-       "review_required"
+       "review_required",
+       "land_by",
+       "land_check"
       ],
       "description": "The rule's key."
      },
      "value": {
-      "description": "accounts and tools_deny: a list of names; agent_cap and lease_max.<kind>: a whole number; mode_max: plan, default, acceptEdits or auto; review_required: true or false. 0, an empty list or name and false are no rule."
+      "description": "accounts and tools_deny: a list of names; agent_cap and lease_max.<kind>: a whole number; mode_max: plan, default, acceptEdits or auto; review_required: true or false; land_by: an agent's name; land_check: a shell command. 0, an empty list or name and false are no rule."
      },
      "on": {
       "type": "boolean",
@@ -1144,6 +1146,14 @@
       "type": "string",
       "description": "The workspace's key (w3) or its name, as workspaces.list gives them; absent for the machine default. An unknown one is not_found, what workspace."
      }
+    },
+    {
+     "name": "agent",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "description": "An agent's name, for the workspace it is in, when workspace is absent; an agent in none is given the machine default."
+     }
     }
    ],
    "result": {
@@ -1203,7 +1213,9 @@
        "lease_max.port",
        "tools_deny",
        "mode_max",
-       "review_required"
+       "review_required",
+       "land_by",
+       "land_check"
       ],
       "description": "The rule's key."
      }

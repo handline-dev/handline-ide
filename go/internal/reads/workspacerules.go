@@ -9,10 +9,17 @@ import (
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
-// workspaceRules is workspace.rules: the kept rules in force for a workspace (its own beating the machine's), or the machine's alone.
+// workspaceRules is workspace.rules: the kept rules in force for a workspace, or for the one an agent is in (its own beating the machine's),
+// or the machine's alone.
 func (e *Env) workspaceRules(c *rpc.Conn, params map[string]any) (any, error) {
 	ws := int64(team.MachineRules)
-	if who, named := params["workspace"].(string); named {
+	who, named := params["workspace"].(string)
+	if agent, _ := params["agent"].(string); !named && agent != "" {
+		if t, err := team.LoadTeam(e.Home); err == nil {
+			who, named = t.TeamOf(agent), t.TeamOf(agent) != ""
+		}
+	}
+	if named {
 		q, arg := "SELECT id FROM workspaces WHERE name = ?", any(who)
 		if k, n, ok := actor.Parse(who); ok && k == actor.Workspace {
 			q, arg = "SELECT id FROM workspaces WHERE id = ?", n

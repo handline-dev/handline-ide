@@ -21,6 +21,8 @@ const (
 	RuleToolsDeny      = "tools_deny"
 	RuleModeMax        = "mode_max"
 	RuleReviewRequired = "review_required"
+	RuleLandBy         = "land_by"
+	RuleLandCheck      = "land_check"
 )
 
 // MachineRules is the workspace number of the machine default.
@@ -30,7 +32,7 @@ const MachineRules = 0
 var ModeOrder = []string{"plan", "default", "acceptEdits", "auto"}
 
 // ruleOrder is the order rules are listed and rendered in; lease_max.<kind> sorts by kind in its place.
-var ruleOrder = []string{RuleAccounts, RuleAgentCap, RuleLeaseMax, RuleToolsDeny, RuleModeMax, RuleReviewRequired}
+var ruleOrder = []string{RuleAccounts, RuleAgentCap, RuleLeaseMax, RuleToolsDeny, RuleModeMax, RuleReviewRequired, RuleLandBy, RuleLandCheck}
 
 // atNextStart are the rules a running session keeps until its next start.
 var atNextStart = []string{RuleToolsDeny, RuleModeMax}
@@ -94,6 +96,12 @@ func ParseRule(key string, v any) (any, error) {
 			}
 		}
 		return out, nil
+	case key == RuleLandBy || key == RuleLandCheck:
+		s, ok := v.(string)
+		if !ok {
+			return nil, fmt.Errorf("%s is text, empty for no rule", key)
+		}
+		return strings.TrimSpace(s), nil
 	case key == RuleModeMax:
 		s, ok := v.(string)
 		if !ok || s != "" && !slices.Contains(ModeOrder, s) {

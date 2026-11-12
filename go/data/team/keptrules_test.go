@@ -35,7 +35,7 @@ func TestARuleValueIsOfItsKeysKind(t *testing.T) {
 		{RuleModeMax, "bypass", nil, "one of plan, default, acceptEdits, auto"},
 		{RuleReviewRequired, true, true, ""},
 		{RuleReviewRequired, 1.0, nil, "true or false"},
-		{"land_by", "x", nil, "not a kept rule"},
+		{"land_nope", "x", nil, "not a kept rule"},
 	} {
 		got, err := ParseRule(c.key, c.in)
 		if c.bad != "" {
@@ -232,5 +232,20 @@ func TestModeOrderHoldsEveryMode(t *testing.T) {
 	}
 	if _, err := ParseRule(RuleToolsDeny, []any{"Bash(a,b)"}); err == nil {
 		t.Error("a comma in a denied tool splits it in the argv")
+	}
+}
+
+func TestLandRulesAreTextAndShownToTheWorkspace(t *testing.T) {
+	for k, want := range map[string]string{RuleLandBy: "a8", RuleLandCheck: "make check"} {
+		if v, err := ParseRule(k, " "+want+" "); err != nil || v != want {
+			t.Errorf("%s: %v %v", k, v, err)
+		}
+		if _, err := ParseRule(k, true); err == nil {
+			t.Errorf("%s takes text", k)
+		}
+	}
+	got := RulesBlock([]KeptRule{{Key: RuleLandBy, Value: "a8"}, {Key: RuleLandCheck, Value: "make check"}})
+	if got != "Kept rules (set by the owner): land_by a8; land_check make check." {
+		t.Error(got)
 	}
 }

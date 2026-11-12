@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -157,9 +158,15 @@ func TestKeepingTheSharedSettingsCurrentWritesWhatPythonWrites(t *testing.T) {
 				s := strings.ReplaceAll(strings.ReplaceAll(string(b), real, "{realhome}"), home, "{home}")
 				after = &s
 			}
-			// Where Go departs from Python: the permission hook waits up to an hour for the founder (permission.ask).
-			want := strings.Replace(str(c.After, "<none>"), "hook PermissionRequest\",\n            \"timeout\": 10",
-				fmt.Sprintf("hook PermissionRequest\",\n            \"timeout\": %d", hookTimeoutS("PermissionRequest")), 1)
+			// Where Go departs from Python: the permission hook waits up to an hour for the founder (permission.ask), and the PreToolUse one for a land_check.
+			want := str(c.After, "<none>")
+			for _, ev := range []string{"PermissionRequest", "PreToolUse"} {
+				want = strings.Replace(want, "hook "+ev+"\",\n            \"timeout\": 10",
+					fmt.Sprintf("hook "+ev+"\",\n            \"timeout\": %d", hookTimeoutS(ev)), 1)
+				// the founder's own entry of ours, with no timeout, is given the longer one too
+				bare := regexp.MustCompile(`(?m)^( *)("command": "hl hook ` + ev + `")$`)
+				want = bare.ReplaceAllString(want, fmt.Sprintf("$1$2,\n$1\"timeout\": %d", hookTimeoutS(ev)))
+			}
 			if str(after, "<none>") != want {
 				t.Errorf("settings\n got  %s\n want %s", str(after, "<none>"), want)
 			}

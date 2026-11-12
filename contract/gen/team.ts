@@ -163,8 +163,8 @@ export type Workspace = {
 /** A kept rule in force for a workspace (docs/design/people-workspaces.md "Workspace rules"): its value, and whether the workspace or the machine default sets it. */
 export type WorkspaceRule = {
   /** The rule's key. */
-  key: "accounts" | "agent_cap" | "lease_max.heavy" | "lease_max.simulator" | "lease_max.browser" | "lease_max.port" | "tools_deny" | "mode_max" | "review_required";
-  /** accounts and tools_deny: a list of names; agent_cap and lease_max.<kind>: a whole number; mode_max: plan, default, acceptEdits or auto; review_required: true or false. 0, an empty list or name and false are no rule. */
+  key: "accounts" | "agent_cap" | "lease_max.heavy" | "lease_max.simulator" | "lease_max.browser" | "lease_max.port" | "tools_deny" | "mode_max" | "review_required" | "land_by" | "land_check";
+  /** accounts and tools_deny: a list of names; agent_cap and lease_max.<kind>: a whole number; mode_max: plan, default, acceptEdits or auto; review_required: true or false; land_by: an agent's name; land_check: a shell command. 0, an empty list or name and false are no rule. */
   value: unknown;
   /** Whether the value is a rule, not 0, empty or false. */
   on: boolean;
@@ -253,6 +253,8 @@ export interface TeamMethods {
   "workspace.rules": { params: {
   /** The workspace's key (w3) or its name, as workspaces.list gives them; absent for the machine default. An unknown one is not_found, what workspace. */
   workspace?: string;
+  /** An agent's name, for the workspace it is in, when workspace is absent; an agent in none is given the machine default. */
+  agent?: string;
 }; result: {
     rules: WorkspaceRule[];
   } };
@@ -260,7 +262,7 @@ export interface TeamMethods {
   /** The workspace's key (w3) or its name, as workspaces.list gives them; absent for the machine default. An unknown one is not_found, what workspace. */
   workspace?: string;
   /** The rule's key. */
-  key: "accounts" | "agent_cap" | "lease_max.heavy" | "lease_max.simulator" | "lease_max.browser" | "lease_max.port" | "tools_deny" | "mode_max" | "review_required";
+  key: "accounts" | "agent_cap" | "lease_max.heavy" | "lease_max.simulator" | "lease_max.browser" | "lease_max.port" | "tools_deny" | "mode_max" | "review_required" | "land_by" | "land_check";
   /** The value as WorkspaceRule.value says, or null to clear it, so the level below holds. */
   value: unknown;
   request_id: RequestId;
