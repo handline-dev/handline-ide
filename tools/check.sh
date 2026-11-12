@@ -63,7 +63,7 @@ group_apps() {
 group_files() {
     needs_node file || return 1
     local r=0 pretty
-    quiet python3 -m unittest tools/test_pr_checks.py tools/test_check_hl_commands.py tools/test_go_modules.py tools/test_app.py || r=1
+    quiet python3 -m unittest tools/test_pr_checks.py tools/test_check_hl_commands.py tools/test_go_modules.py tools/test_app.py tools/test_leakcheck.py || r=1
     python3 tools/check_hl_commands.py || r=1
     node tools/ui-copy-check.mjs || r=1
     [ -n "$base" ] || return "$r"

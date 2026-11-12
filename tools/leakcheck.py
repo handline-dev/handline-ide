@@ -12,7 +12,8 @@ TMPDIR, so a socket under it still fits in the 104 bytes a socket path holds:
   real store, not its own).
 tools/leakcheck.py run [--dir DIR] CMD... does both around one command, and exits 1 if it failed, was stopped or left anything. With --dir
 the run's directory is DIR, emptied first, not a new one: CI's Go job keeps the same TMPDIR each run, as go test's cache needs.
-Nothing is killed or removed when something is left: the run is fixed, not swept. A clean run's directory is removed.
+Nothing is killed or removed when something is left: the run is fixed, not swept. A clean run's directory is removed, and a new
+run removes the kept ones older than a day that no process names: they were for reading, and they fill the disk.
 """
 from __future__ import annotations
 
@@ -34,8 +35,24 @@ def slug(path: Path) -> str:
     return re.sub(r"[^A-Za-z0-9]", "-", str(path))
 
 
+KEEP_S = 24 * 3600
+
+
+def sweep_kept(root: Path = Path("/tmp"), now: float | None = None) -> None:
+    """Removes the runs' directories under root older than KEEP_S that no process's command line names."""
+    now = time.time() if now is None else now
+    old = [p for p in root.glob("hlc.*") if p.is_dir() and now - p.stat().st_mtime > KEEP_S]
+    if not old:
+        return
+    out = subprocess.run(["ps", "-axww", "-o", "command="], capture_output=True, text=True).stdout
+    for p in old:
+        if not any(n in out for n in (str(p.resolve()), str(p.resolve()).removeprefix("/private"))):
+            shutil.rmtree(p, ignore_errors=True)
+
+
 def new_run(at: Path | None = None) -> Path:
     if at is None:
+        sweep_kept()
         run = Path(tempfile.mkdtemp(prefix="hlc.", dir="/tmp"))
     else:
         run = at.resolve()
