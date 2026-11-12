@@ -33,6 +33,8 @@ export class Store {
   author = '';
   /** This browser's device id, when it connects as a paired device (hello's caller). */
   device: string | undefined = undefined;
+  /** The caller's name (hello's caller): what the daemon records as the input holder, a device's name for a device. */
+  callerName = '';
   /** The methods this caller may use, from hello; a screen shows only what the daemon serves. */
   served = new Set<string>();
   /** What the person is told: results of what they did, and events worth knowing about. */
@@ -86,6 +88,7 @@ export class Store {
     this.me = hello.caller.key;
     this.author = hello.caller.key;
     this.device = hello.caller.device;
+    this.callerName = hello.caller.name;
     this.served = new Set([...hello.methods.filter((m) => m.allowed).map((m) => m.name), ...this.client.relayed]);
     this.emit();
     await this.client.subscribe(['agents', 'notifications']);
