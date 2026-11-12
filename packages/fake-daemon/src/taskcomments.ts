@@ -12,7 +12,7 @@ const NAMED = /(?:^|[^A-Za-z0-9._@-])@([A-Za-z0-9][A-Za-z0-9._-]*)/g;
 export interface Pending {
   task: number | null;
   title: string;
-  kind: 'allow' | 'decide' | 'ask' | 'warning' | 'comment';
+  kind: 'allow' | 'decide' | 'ask' | 'warning' | 'comment' | 'note';
   source?: 'task' | 'comment' | 'prompt' | 'proposal' | 'machine';
   id?: string;
   agent?: string | null;
@@ -64,9 +64,9 @@ export class TaskComments extends TaskStore {
   pending(): {
     answer: Pending[];
     comments: Pending[];
-    counts: { answer: number; comments: number; needs_you: number; drafts: number; unseen_results: number };
+    counts: { answer: number; notes: number; comments: number; needs_you: number; drafts: number; unseen_results: number };
   } {
-    const strength = { comment: 0, warning: 1, ask: 2, decide: 3, allow: 4 };
+    const strength = { note: 0, comment: 0, warning: 1, ask: 2, decide: 3, allow: 4 };
     const answer = new Map<string, Pending>();
     for (const i of this.host.inbox.list({ unread: true, limit: 500 }).items) {
       const kind = i.kind === 'ask' ? 'ask' : i.kind === 'decision' ? 'decide' : i.kind === 'prompt' ? 'allow' : null;
@@ -112,8 +112,32 @@ export class TaskComments extends TaskStore {
         first_unread: null,
         last_at: p.created,
       });
+    // The founder's turn on a task is a row to decide, its ask the first line of what was asked.
+    for (const t of this.rows) {
+      if (t.state === 'done' || t.state === 'discarded') continue;
+      const top = t.turns?.at(-1);
+      const v = this.view(t);
+      if (top?.agent === 'human' && !answer.has(`task:${t.id}`))
+        answer.set(`task:${t.id}`, {
+          task: t.id,
+          title: t.title,
+          kind: 'decide',
+          source: 'task',
+          id: String(t.id),
+          agent: top.by,
+          ask: top.ask.split('\n')[0] ?? null,
+          warning: null,
+          items: [],
+          unread: v.unread ?? 0,
+          first_unread: v.first_unread ?? null,
+          last_at: top.since,
+        });
+    }
+    const notes = this.notes(answer);
+    const noted = new Set(notes.map((n) => n.task));
     const comments: Pending[] = [];
     for (const t of this.rows) {
+      if (noted.has(t.id)) continue;
       const v = this.view(t);
       const mine = t.from === 'human' || t.to === 'human';
       if (mine && (v.unread ?? 0) > 0 && !answer.has(`task:${t.id}`) && t.state !== 'discarded')
@@ -130,16 +154,47 @@ export class TaskComments extends TaskStore {
     const newest = (a: Pending, b: Pending) => b.last_at.localeCompare(a.last_at);
     const open = this.rows.filter((r) => r.state !== 'done' && r.state !== 'discarded');
     return {
-      answer: [...answer.values(), ...this.warnings].sort(newest),
+      answer: [...answer.values(), ...this.warnings, ...notes].sort(newest),
       comments: comments.sort(newest),
       counts: {
         answer: answer.size + this.warnings.length,
+        notes: notes.length,
         comments: comments.length,
         needs_you: open.filter((r) => r.state !== 'draft' && (r.to === 'human' || this.waiting(r)?.on === 'founder')).length,
         drafts: open.filter((r) => r.state === 'draft').length,
         unseen_results: this.host.requests.unseen().length,
       },
     };
+  }
+
+  /** As the daemon: the newest `@human` comment by anyone but the founder, unread on its task and in its author's chat, on a task no row
+   * stands for, is a note. */
+  private notes(answer: Map<string, Pending>): Pending[] {
+    const notes: Pending[] = [];
+    for (const t of this.rows) {
+      if (answer.has(`task:${t.id}`) || t.state === 'discarded') continue;
+      const v = this.view(t);
+      const m = (t.memos ?? [])
+        .filter((x) => x.author !== 'human' && x.id > (this.seenUpto.get(t.id) ?? 0) && NAMES_HUMAN.test(x.text))
+        .at(-1);
+      const seen = m && this.host.chat.seenAt(m.author);
+      if (!m || (seen && seen >= m.at)) continue; // seen as a card in its author's chat
+      notes.push({
+        task: t.id,
+        title: t.title,
+        kind: 'note',
+        source: 'comment',
+        id: String(m.id),
+        agent: m.author,
+        ask: m.text.replace(NAMES_HUMAN, ' ').trim().split('\n')[0]!,
+        warning: null,
+        items: [],
+        unread: v.unread ?? 0,
+        first_unread: v.first_unread ?? null,
+        last_at: m.at,
+      });
+    }
+    return notes;
   }
 
   private lastComment(t: Row): string {

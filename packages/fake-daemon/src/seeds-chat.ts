@@ -31,6 +31,20 @@ function solidPng(w: number, h: number): Buffer {
 }
 
 export const CHAT_SEEDS: Record<string, Seed> = {
+  /** Two restarts back to back for changed team rules, as the daemon words them: the chat shows one line. */
+  restarts: (d) => {
+    const iso = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
+    const changed = 'team rules changed (shared/team/handline.md)';
+    for (const [n, min] of [
+      [1, 4],
+      [2, 3],
+    ] as const)
+      d.chat.seedItem(ARCH, {
+        at: iso(min),
+        kind: 'session',
+        session: { id: `r${n}`, started: iso(min), handoff: null, resumed: true, cause: 'settings_applied', changed },
+      });
+  },
   /** ! lines (T8684). */
   bash: (d) => {
     const iso = (min: number) => new Date(Date.now() - min * 60_000).toISOString();

@@ -203,8 +203,8 @@ export function TurnLine({ p, onOpened, until }: { p: PendingRequest; onOpened?:
       }
       focus={login ? () => focusIn('usage', '', login) : undefined}
       onOpen={() => {
-        // The task opens at what it asks of the founder, as the Your turn click does.
-        if (p.task !== null && p.kind !== 'warning') goToTurnOf(p.task);
+        // The task opens at what it asks of the founder, as the Your turn click does; a note opens it where it was read last.
+        if (p.task !== null && p.kind !== 'warning' && p.kind !== 'note') goToTurnOf(p.task);
         onOpened?.();
       }}
     />
@@ -293,7 +293,8 @@ function TurnQuick({ p }: { p: PendingRequest }) {
     );
   }
   const later = laterKey(p);
-  if (!later) return null;
+  // A note is not put off: opening its task reads it.
+  if (!later || p.kind === 'note') return null;
   return (
     <IconButton
       label="Dismiss until tomorrow 09:00"

@@ -902,8 +902,8 @@ func (l *Launcher) worktreesLine(agent string) (string, error) {
 		len(extra)+1, first, strings.Join(extra, ", "), verb), nil
 }
 
-// staticPreamble is the part of ContextFor that a rebuild reproduces byte for byte: everything except the handoff, which is supposed to
-// differ every time this agent is parked; Fingerprint hashes only this part.
+// staticPreamble is the part of ContextFor that a rebuild reproduces byte for byte, but for the team rules: everything except the
+// handoff, which is supposed to differ every time this agent is parked. Fingerprint hashes it; the rules follow it in ContextFor.
 func (l *Launcher) staticPreamble(agent string) (string, error) {
 	d := paths.AgentDir(l.Home, agent)
 	parts := []string{
@@ -928,7 +928,6 @@ func (l *Launcher) staticPreamble(agent string) (string, error) {
 			}
 		}
 	}
-	parts = append(parts, l.Ports.TeamRules(agent)...)
 	return strings.Join(parts, "\n\n"), nil
 }
 
@@ -939,7 +938,7 @@ func (l *Launcher) ContextFor(agent string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	parts := []string{static}
+	parts := append([]string{static}, l.Ports.TeamRules(agent)...)
 	text, err := db.GetHandoff(l.Q, agent)
 	if err != nil {
 		return "", err
@@ -1074,7 +1073,8 @@ const LaunchedAt = "launched_at"
 const LaunchedValues = "values"
 
 // partOrder is the order the parts are written in, as the Python dict keeps it.
-var partOrder = []string{"model", "effort", "mcp config", "browser", "permissions", "sandbox", "ROLE.md", "base.md", "team"}
+// Renaming a part restarts no one: a name the earlier record lacks is skipped.
+var partOrder = []string{"model", "effort", "mcp config", "browser", "permissions", "sandbox", "ROLE.md", "base.md", "team instructions", rulesPart}
 
 // FingerprintParts is what a launch reads from the settings a person edits, one short hash each, named for the person. Recorded at
 // launch beside Fingerprint, and compared by the daemon to name what a running session has not picked up. Not here: what Build reads
@@ -1111,15 +1111,16 @@ func (l *Launcher) FingerprintParts(agent string) (map[string]string, error) {
 		sandbox = SandboxOffPart
 	}
 	return map[string]string{
-		"model":       h(modelOf(cfg)),
-		"effort":      h(l.effortOf(cfg)),
-		"mcp config":  h(l.mcpConfigMaterial() + "\x1e" + mcpTail),
-		"browser":     h(browser),
-		"permissions": h(perm),
-		"sandbox":     sandbox,
-		"ROLE.md":     h(file("ROLE.md")),
-		"base.md":     h(file("base.md")),
-		"team":        h(l.yourTeam(agent) + "\x1e" + strings.Join(l.Ports.TeamRules(agent), "\x1e")),
+		"model":             h(modelOf(cfg)),
+		"effort":            h(l.effortOf(cfg)),
+		"mcp config":        h(l.mcpConfigMaterial() + "\x1e" + mcpTail),
+		"browser":           h(browser),
+		"permissions":       h(perm),
+		"sandbox":           sandbox,
+		"ROLE.md":           h(file("ROLE.md")),
+		"base.md":           h(file("base.md")),
+		"team instructions": h(l.yourTeam(agent)),
+		rulesPart:           rulesHash(l.Ports.TeamRules(agent)),
 	}, nil
 }
 
@@ -1141,6 +1142,8 @@ func (l *Launcher) LaunchRecord(agent string) (string, error) {
 	}
 	v, _ := json.Marshal(values)
 	items = append(items, `"`+LaunchedValues+`": `+string(v))
+	r, _ := json.Marshal(l.rulesText(agent))
+	items = append(items, `"`+LaunchedRules+`": `+string(r))
 	stamp := float64(l.now().UnixNano()) / 1e9
 	items = append(items, `"`+LaunchedAt+`": `+strconv.FormatFloat(stamp, 'f', -1, 64))
 	return "{" + strings.Join(items, ", ") + "}", nil
@@ -1156,8 +1159,8 @@ func (l *Launcher) readableValues(agent string) (map[string]string, error) {
 }
 
 // whatChanged says what this launch's settings change from the session recorded before it, in launch order and in the words a person
-// reads: "model changed (opus-5-5 -> sonnet-5-5), team changed". Nothing for no earlier record. A record from before the values were
-// kept names the setting alone.
+// reads: "model changed (opus-5-5 -> sonnet-5-5), team rules changed (shared/team/handline.md)". Nothing for no earlier record.
+// A record from before the values were kept names the setting alone.
 func (l *Launcher) whatChanged(agent string) (string, error) {
 	row, err := db.GetAgentState(l.Q, agent)
 	if err != nil || row == nil {
@@ -1190,10 +1193,25 @@ func (l *Launcher) whatChanged(agent string) (string, error) {
 		words := k + " changed"
 		if before, ok := was[k]; ok {
 			words += " (" + readable(before) + " -> " + readable(now[k]) + ")"
+		} else if where := l.sourceOf(agent, k); where != "" {
+			words += " (" + where + ")"
 		}
 		changed = append(changed, words)
 	}
 	return strings.Join(changed, ", "), nil
+}
+
+// sourceOf names where a person edits a part that has no value to show.
+func (l *Launcher) sourceOf(agent, part string) string {
+	switch part {
+	case "team instructions":
+		return "team.yaml, the agent list or a Handline update"
+	case rulesPart:
+		if l.Ports.Routing != nil {
+			return strings.Join(team.RuleFiles(l.Home, agent, l.Ports.Routing()), ", ")
+		}
+	}
+	return ""
 }
 
 // WhatChanged is whatChanged for the restart notice, "" when it cannot be read.
@@ -1228,7 +1246,7 @@ func LaunchedAtOf(row *db.AgentState) string {
 }
 
 // Drifted is whether this agent's running session was launched with a different recipe than Build produces now. A recipe that cannot
-// be read is not drift.
+// be read is not drift. The team rules are not in it: a session is told of those (RulesNote), not relaunched.
 func (l *Launcher) Drifted(agent string, row *db.AgentState) bool {
 	fp, err := l.Fingerprint(agent)
 	if err != nil {

@@ -22,6 +22,7 @@ export interface Host {
   uploads: FakeAttachments;
   inbox: FakeInbox;
   requests: FakeRequests;
+  chat: { seenAt(agent: string): string | null };
   script: { proposals: { proposals: readonly Proposal[] } };
 }
 export type Row = Task & {
