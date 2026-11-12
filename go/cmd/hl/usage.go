@@ -57,7 +57,7 @@ var usages = map[string][2]string{
 	"sandbox-repo":     {sandboxRepoUsage, `hl sandbox-repo /code/sea npm`},
 	"device":           {`hl device pair [--name N]`, `hl device pair --name phone`},
 	"workspace":        {`hl workspace <new|rename|delete> ... (the founder's; an agent proposes a team)`, `hl workspace new shop --folder ~/code/shop`},
-	"workspace new":    {`hl workspace new <name> [--folder PATH] (the top of the git checkout PATH is in, default here; its lead starts there)`, `hl workspace new shop --folder ~/code/shop`},
+	"workspace new":    {`hl workspace new <name> [--folder PATH] (default: this folder's git checkout)`, `hl workspace new shop --folder ~/code/shop`},
 	"workspace rename": {`hl workspace rename <workspace> --to <new name>`, `hl workspace rename shop --to store`},
 	"workspace delete": {`hl workspace delete <workspace> [--worktree save|force] (retires its agents, lead last; the project folder stays)`, `hl workspace delete shop --worktree save`},
 	"dev":              {`hl dev on|off|rebuild <team> [--worktree PATH] [--listen ADDR] [--fresh]`, `hl dev on shop`},
