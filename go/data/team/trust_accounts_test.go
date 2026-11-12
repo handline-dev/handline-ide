@@ -406,6 +406,11 @@ func TestAddMakesTheRowFirstAndAFailedAddLeavesNone(t *testing.T) {
 
 // A codex account is logged out with codex's own logout under its CODEX_HOME, never claude's.
 func TestACodexAccountLogsOutWithCodex(t *testing.T) {
+	bin := t.TempDir() // a codex whose login status says logged in: CredentialPresent asks it once auth.json is there
+	if err := os.WriteFile(filepath.Join(bin, "codex"), []byte("#!/bin/sh\necho 'Logged in using ChatGPT' >&2\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	home := newHome(t)
 	a := Accounts{Home: home}
 	acct := accountDir(t, home, "cx")

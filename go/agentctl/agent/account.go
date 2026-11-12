@@ -34,6 +34,12 @@ type Sharable interface {
 	CredentialFile() string
 }
 
+// DeviceCodeLogin is an Account whose web login prints a one-time code after its URL for the person to type there, and takes nothing
+// back: the login ends when the CLI exits.
+type DeviceCodeLogin interface {
+	DeviceCodeLogin() bool
+}
+
 var (
 	accountsMu sync.Mutex
 	accounts   = map[string]Account{}
@@ -90,7 +96,8 @@ func Tools() []Tool {
 	return out
 }
 
-// Run is a subprocess's exit code (-1 when it could not run) and output, with a limit. env nil is this process's.
+// Run is a subprocess's exit code (-1 when it could not run) and output (stdout, then a failed run's stderr), with a limit. env nil is
+// this process's.
 func Run(limit time.Duration, env []string, argv ...string) (int, string) {
 	ctx, cancel := context.WithTimeout(context.Background(), limit)
 	defer cancel()
@@ -104,7 +111,7 @@ func Run(limit time.Duration, env []string, argv ...string) (int, string) {
 		return 0, string(out)
 	}
 	if ee, ok := err.(*exec.ExitError); ok && ctx.Err() == nil {
-		return ee.ExitCode(), string(out)
+		return ee.ExitCode(), string(out) + string(ee.Stderr)
 	}
 	return -1, string(out)
 }

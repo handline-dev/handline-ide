@@ -1,6 +1,7 @@
 // Package weblogin runs an account's login for the web page: the vendor's login command as a plain child with no terminal. The
 // daemon reads the authorize URL off its stdout and answers it; the person opens it elsewhere. The child's output is never kept or
-// logged, only that URL is handed on, and no credential is read: the end of a login is told by the account's credential being there.
+// logged, only that URL is handed on (and a device login's one-time code, to its starter only), and no credential is read: the end of a
+// login is told by the account's credential being there.
 package weblogin
 
 import (
@@ -12,6 +13,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 	"sync"
 	"syscall"
@@ -49,6 +51,9 @@ type Login struct {
 	ID    string
 	State string
 	URL   string // while waiting
+	// DeviceCode is a device login's one-time code, for the person to type at URL: given by Start and ByID only while waiting, never by Of,
+	// Changed or a log.
+	DeviceCode string
 	// Reason is why the login failed, one plain line; empty otherwise.
 	Reason string
 	// Seq numbers the moves of all logins in the order they were made, on a login handed to Changed; it is 0 elsewhere.
@@ -81,6 +86,8 @@ type Manager struct {
 type run struct {
 	id, account string
 	state, url  string
+	givesCode   bool     // a device login: it prints a code to type at its URL and takes none back
+	deviceCode  string   // that code while waiting
 	reason      string   // why it failed, once it has
 	out, errs   lastLine // the last line the child printed on stdout, on stderr
 	cmd         *exec.Cmd
@@ -141,7 +148,7 @@ func (m *Manager) Start(account string) (Login, error) {
 		m.mu.Unlock()
 		return Login{}, &Refusal{account + " is already logging in"}
 	}
-	r := &run{id: newID(), account: account, state: Waiting, ended: make(chan struct{})}
+	r := &run{id: newID(), account: account, state: Waiting, givesCode: team.WebLoginGivesCode(vendor), ended: make(chan struct{})}
 	r.cmd = exec.Command(bin, argv[1:]...)
 	r.cmd.Env = childEnv(vendor, dir)
 	r.cmd.Dir = dir
@@ -152,25 +159,25 @@ func (m *Manager) Start(account string) (Login, error) {
 	m.byID[r.id], m.byAcct[account] = r, r
 	m.mu.Unlock()
 
-	urls, err := m.launch(r)
+	said, err := m.launch(r)
 	if err != nil {
 		m.end(r, Failed, "the login could not be started")
 		return Login{}, &Refusal{"the login could not be started"}
 	}
 	select {
-	case u, open := <-urls:
-		if open && u != "" {
+	case p, open := <-said:
+		if open && p.url != "" {
 			m.mu.Lock()
 			waiting := r.state == Waiting // a child that printed its URL and died at once, was cancelled, or was sent a code is not waiting
 			var moved Login
 			if waiting {
-				r.url = u
+				r.url, r.deviceCode = p.url, p.code
 				moved = m.moved(r)
 			}
 			m.mu.Unlock()
 			if waiting {
 				m.changed(account, moved)
-				return Login{ID: r.id, State: Waiting, URL: u}, nil
+				return Login{ID: r.id, State: Waiting, URL: p.url, DeviceCode: p.code}, nil
 			}
 			return Login{}, &Refusal{"the login ended before it could be answered"}
 		}
@@ -184,8 +191,9 @@ func (m *Manager) Start(account string) (Login, error) {
 	}
 }
 
-// launch starts the child and the goroutines that read it. urls gets the first URL on stdout, and is closed without one when stdout ends.
-func (m *Manager) launch(r *run) (<-chan string, error) {
+// launch starts the child and the goroutines that read it. said gets what the login printed to answer with (printed), and is closed
+// without it when stdout ends.
+func (m *Manager) launch(r *run) (<-chan printed, error) {
 	stdin, err := r.cmd.StdinPipe() // kept open for the code; Wait closes it when the child is reaped
 	if err != nil {
 		return nil, err
@@ -207,13 +215,13 @@ func (m *Manager) launch(r *run) (<-chan string, error) {
 	m.mu.Lock()
 	r.pid = r.cmd.Process.Pid
 	m.mu.Unlock()
-	urls := make(chan string, 1)
+	said := make(chan printed, 1)
 	var readers sync.WaitGroup
 	readers.Add(2)
 	go func() {
 		defer readers.Done()
-		defer close(urls)
-		firstURL(io.TeeReader(stdout, &r.out), urls)
+		defer close(said)
+		readPrinted(io.TeeReader(stdout, &r.out), r.givesCode, said)
 	}()
 	go func() {
 		defer readers.Done()
@@ -236,21 +244,37 @@ func (m *Manager) launch(r *run) (<-chan string, error) {
 			m.kill(r)
 		}
 	}()
-	return urls, nil
+	return said, nil
 }
 
-// firstURL sends the first https:// word on r and then reads the rest out unread.
-func firstURL(r io.Reader, urls chan<- string) {
+// printed is what a login printed to answer with: its URL, and a device login's code.
+type printed struct{ url, code string }
+
+// ansi is a terminal colour or other escape sequence (CSI or OSC), which codex wraps its URL and code in.
+var ansi = regexp.MustCompile(`\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)`)
+
+// deviceCode is a one-time code as codex prints it: groups of capitals and digits joined by dashes (AB12-CD3EF).
+var deviceCode = regexp.MustCompile(`^[A-Z0-9]{4,}(?:-[A-Z0-9]{4,})+$`)
+
+// readPrinted sends the first https:// word on r, with withCode the first code word after it, and then reads the rest out unread.
+func readPrinted(r io.Reader, withCode bool, said chan<- printed) {
 	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 0, 64<<10), 1<<20)
-	sc.Split(bufio.ScanWords)
+	sc.Split(bufio.ScanWords) // a word, not a line: the URL is answered without waiting for its line to end
+	var p printed
 	sent := false
 	for sc.Scan() {
 		if sent {
 			continue
 		}
-		if w := sc.Text(); strings.HasPrefix(w, "https://") && !textsafe.HasUnsafe(w) {
-			urls <- w
+		switch w := ansi.ReplaceAllString(sc.Text(), ""); {
+		case p.url == "" && strings.HasPrefix(w, "https://") && !textsafe.HasUnsafe(w):
+			p.url = w
+		case p.url != "" && withCode && deviceCode.MatchString(w):
+			p.code = w
+		}
+		if p.url != "" && (!withCode || p.code != "") {
+			said <- p
 			sent = true
 		}
 	}
@@ -268,7 +292,11 @@ func (m *Manager) exited(r *run, werr error) {
 		return
 	}
 	if werr != nil {
-		m.end(r, Failed, failedWhy(r.errs.String(), r.out.String()))
+		out := r.out.String()
+		if r.givesCode { // its stdout holds the code, which is for its starter only
+			out = ""
+		}
+		m.end(r, Failed, failedWhy(r.errs.String(), out))
 		return
 	}
 	if in, known := accts.LoginState(r.account); known && !in {
@@ -327,7 +355,7 @@ func (l *lastLine) Write(p []byte) (int, error) {
 }
 
 func (l *lastLine) keep() {
-	if t := textsafe.Strip(textsafe.Oneline(string(l.cur))); t != "" {
+	if t := textsafe.Strip(textsafe.Oneline(ansi.ReplaceAllString(string(l.cur), ""))); t != "" {
 		if r := []rune(t); len(r) > 300 {
 			t = string(r[:300])
 		}
@@ -350,7 +378,7 @@ func (m *Manager) end(r *run, state, reason string) {
 	first := r.active()
 	var moved Login
 	if first {
-		r.state, r.url, r.reason = state, "", reason
+		r.state, r.url, r.deviceCode, r.reason = state, "", "", reason
 		moved = m.moved(r)
 	}
 	m.mu.Unlock()
@@ -431,6 +459,10 @@ func (m *Manager) SendCode(id, code string) error {
 		m.mu.Unlock()
 		return ErrUnknown
 	}
+	if r.givesCode { // the person types the code at the URL; nothing comes back
+		m.mu.Unlock()
+		return &Refusal{"this login takes no code: type the one it gave at its page"}
+	}
 	if r.state != Waiting || r.url == "" || r.stdin == nil || r.reaped { // no URL handed out yet: the person has nothing to take a code from
 		m.mu.Unlock()
 		return &Refusal{"the login is not waiting for a code"}
@@ -458,7 +490,7 @@ func (m *Manager) Of(account string) *Login {
 	return &Login{ID: r.id, State: r.state, URL: r.url, Reason: r.reason}
 }
 
-// ByID is the login with that id.
+// ByID is the login with that id, a device login's code with it, for a retried start.
 func (m *Manager) ByID(id string) (Login, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -466,7 +498,7 @@ func (m *Manager) ByID(id string) (Login, bool) {
 	if r == nil {
 		return Login{}, false
 	}
-	return Login{ID: r.id, State: r.state, URL: r.url, Reason: r.reason}, true
+	return Login{ID: r.id, State: r.state, URL: r.url, DeviceCode: r.deviceCode, Reason: r.reason}, true
 }
 
 // Close kills every login still running: a daemon restart ends the children it started.

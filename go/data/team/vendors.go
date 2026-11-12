@@ -58,6 +58,12 @@ func LoginArgv(vendor string) []string { return facts(vendor).LoginArgv() }
 // WebLoginArgv is the command the daemon runs for a login the web page drives, with no terminal. ok is false for a vendor with no such login.
 func WebLoginArgv(vendor string) (argv []string, ok bool) { return facts(vendor).WebLoginArgv() }
 
+// WebLoginGivesCode is whether the vendor's web login prints a one-time code for the person to type at its URL (agent.DeviceCodeLogin).
+func WebLoginGivesCode(vendor string) bool {
+	d, ok := facts(vendor).(agent.DeviceCodeLogin)
+	return ok && d.DeviceCodeLogin()
+}
+
 // AccountVendor is the vendor an account is an account of. An account that records none predates vendors and is the default's;
 // a file that is there but empty is not a vendor, so it names none and every driver lookup refuses it.
 func AccountVendor(home, acct string) string {
