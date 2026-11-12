@@ -42,8 +42,8 @@ func TestTheStoreKeepsLeasesAndNeverReusesAnID(t *testing.T) {
 	if err != nil || last != 4 || !reflect.DeepEqual(got, []leases.Lease{hold, reserved}) || !reflect.DeepEqual(asks, []leases.Ask{ask}) {
 		t.Fatalf("load: %+v %+v %d %v", got, asks, last, err)
 	}
-	// A reservation taken is put again under its id.
-	reserved.Until, reserved.PID = 0, 77
+	// A reservation taken is put again under its id, and an extension with it.
+	reserved.Until, reserved.PID, reserved.Extended = 0, 77, 2
 	if err := s.Put(reserved); err != nil {
 		t.Fatal(err)
 	}

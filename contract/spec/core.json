@@ -4212,6 +4212,101 @@
    ]
   },
   {
+   "name": "lease.extend",
+   "summary": "hl use --extend: adds one max_hold period to each of the caller's leases of kind (of every kind when kind is absent). Refused, changing nothing, when a lease of the named kind has no max_hold (with no kind, those are passed over), one was extended twice already, would still be past its max_hold, or has an ask of its kind waiting.",
+   "description": "A lease's max_hold (<kind>_max_hold_min in config.yaml; heavy 30, simulator 60, browser 30, port none) counts from its grant (time reserved for a task included) and only while its kind has a limit. At 80 % its agent is told; once past it, the lease is taken back as soon as an ask of its kind waits: a command's hl use gets TERM, which it passes on, and the command's processes are killed 10 s later; a hold's agent is told to stop.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "agent",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/Who"
+     }
+    },
+    {
+     "name": "kind",
+     "required": false,
+     "schema": {
+      "oneOf": [
+       {
+        "type": "string",
+        "enum": [
+         "heavy",
+         "simulator",
+         "browser",
+         "port"
+        ]
+       },
+       {
+        "type": "string",
+        "enum": [
+         ""
+        ]
+       }
+      ]
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "extended"
+     ],
+     "properties": {
+      "extended": {
+       "type": "array",
+       "description": "The leases extended.",
+       "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+         "lease",
+         "kind",
+         "max_hold_at"
+        ],
+        "properties": {
+         "lease": {
+          "type": "integer",
+          "minimum": 1
+         },
+         "kind": {
+          "type": "string",
+          "enum": [
+           "heavy",
+           "simulator",
+           "browser",
+           "port"
+          ]
+         },
+         "max_hold_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the lease now reaches its max_hold."
+         }
+        }
+       }
+      }
+     }
+    }
+   },
+   "x-role": "agent",
+   "x-write": false,
+   "x-app-cache": false,
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ]
+  },
+  {
    "name": "lease.get",
    "summary": "The simulator and browser leases: per kind its limit, who holds each lease (since when, its processes) and who waits, in order.",
    "paramStructure": "by-name",
