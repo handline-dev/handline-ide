@@ -81,7 +81,9 @@ export const noteText = (text: string): string => text.replace(/^\s*@human\s*/, 
 export function activityOf(memos: TaskDetail['memos'], timeline: readonly Entry[], me = '', nameOf: NameOf = asIs): ActivityItem[] {
   // A turn passed with a comment is drawn as that comment, marked with the turn.
   const passed = new Map(
-    timeline.flatMap((e) => (e.kind === 'turn' && e.turn === 'push' && e.memo != null ? [[e.memo, turnLine(e, me, nameOf).to] as const] : [])),
+    timeline.flatMap((e) =>
+      e.kind === 'turn' && e.turn === 'push' && e.memo != null ? [[e.memo, turnLine(e, me, nameOf).to] as const] : [],
+    ),
   );
   const comments: ActivityItem[] = memos.map((m) => {
     const named = new Set(findImageRefs(m.text).map((r) => r.id));
