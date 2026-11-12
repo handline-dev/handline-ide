@@ -228,6 +228,13 @@ func Start(cfg Config) (*Daemon, error) {
 	d.leases.Ports = func() (int, int, bool) { return leases.PortRange(usage.LoadConfig(cfg.Home)) }
 	d.leases.MaxHold = func(kind string) int64 { return leases.MaxHold(usage.LoadConfig(cfg.Home), kind) }
 	d.leases.Tell = d.tellLease
+	d.leases.WorkspaceMax = func(kind string) leases.WorkspaceLimits {
+		lim, err := ls.WorkspaceMax(kind)
+		if err != nil {
+			cfg.Log("lease: reading lease_max.%s: %v", kind, err)
+		}
+		return lim
+	}
 	d.hooks.TurnEnded = func(agent, kind string) {
 		// A hold lasts the turn; a session's end also ends the commands' leases its hl use processes did not give back.
 		if kind == "SessionEnd" {
