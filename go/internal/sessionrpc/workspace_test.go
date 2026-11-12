@@ -7,6 +7,7 @@ import (
 
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/paths"
+	"github.com/handline/handline/go/kit/wslock"
 )
 
 func TestWorkspaceCreateMakesItsLeadOnTheCheckoutTopAndStartsIt(t *testing.T) {
@@ -61,5 +62,24 @@ func TestWorkspaceCreateRefusesBeforeAnyOperation(t *testing.T) {
 	}
 	if len(r.ctl.calls) != 0 || len(sn.got) != 0 {
 		t.Fatalf("no operation started: %v %v", r.ctl.calls, sn.got)
+	}
+}
+
+// While its workspace is being deleted, no agent is started or added there.
+func TestNothingStartsInAWorkspaceBeingDeleted(t *testing.T) {
+	r, _, c := createRig(t)
+	release, ok := wslock.Delete(r.e.Home, paths.WorkspaceKey(r.e.Home, "ann"))
+	if !ok {
+		t.Fatal("free")
+	}
+	defer release()
+	if g := refused(c.call("session.start", map[string]any{"agent": "ann", "request_id": rid("x1")})); g != "state" {
+		t.Errorf("session.start: gate %q", g)
+	}
+	if g := refused(c.call("agent.create", map[string]any{"name": "ann.new", "role": "r", "repo": checkout(t), "parent": "ann", "request_id": rid("x2")})); g != "state" {
+		t.Errorf("agent.create: gate %q", g)
+	}
+	if len(r.ctl.calls) != 0 {
+		t.Fatalf("%v", r.ctl.calls)
 	}
 }
