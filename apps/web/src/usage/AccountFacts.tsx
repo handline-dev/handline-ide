@@ -3,9 +3,6 @@ import type { ReactNode } from 'react';
 import { AccountEmail } from '#src/usage/AccountEmail.tsx';
 import { FIVE_HOURS, UsageBar, WEEK } from '#src/usage/UsageBar.tsx';
 
-/** The most agents a person sets an account to at once. */
-export const MAX_CAP = 8;
-
 /** The day a subscription ends, as "Nov 30"; null when it does not end. */
 function endsOn(a: Account): string | null {
   if (!a.cycle.on || !a.cycle.end) return null;
