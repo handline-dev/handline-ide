@@ -1,3 +1,4 @@
+import { outsideBlockers, subtaskCount } from '#src/tools/subtasks.ts';
 import { activityOf, foundersTurn, taskOutcome, isPerson, turnChain, isSystem, type ActivityItem } from '@handline/app-core';
 import { hooks, useNameOf, useTaskHistory, useTaskSeen, useWrite } from '@handline/app-data';
 import { CommentRow, EventRow, type Turn } from '#src/tools/TaskEvents.tsx';
@@ -119,7 +120,7 @@ export function TaskTab({ id }: { id: number }) {
                 </p>
               )}
               {open &&
-                t.blockers.map((b, i) => (
+                outsideBlockers(t).map((b, i) => (
                   <p key={b.task} className={`flex min-w-0 items-center gap-2 text-sm ${i > 0 ? 'pl-6' : ''}`}>
                     {i === 0 && <Hourglass size={14} className="shrink-0 text-muted" />}
                     <span className="shrink-0 whitespace-nowrap text-muted">Waiting on</span>
@@ -133,7 +134,7 @@ export function TaskTab({ id }: { id: number }) {
               </Flash>
             )}
             {t.subtasks.length > 0 && (
-              <Section title="Sub-tasks">
+              <Section title={['Sub-tasks', subtaskCount(t.subtasks)].filter(Boolean).join(' · ')}>
                 {t.subtasks.map((c) => (
                   <TaskLink key={c.id} id={c.id} title={c.title} state={c} />
                 ))}

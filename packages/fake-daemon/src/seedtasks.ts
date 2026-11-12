@@ -13,6 +13,11 @@ export function seedTasks(tasks: TaskStore, at: string): void {
     title: 'Web UI design',
     state: 'doing',
     priority: 1,
+    // As in the daemon, a parent waits on each open sub-task.
+    blockers: [
+      { task: 1688, reason: '' },
+      { task: 1690, reason: '' },
+    ],
     created: ago(300),
     delivered: ago(240),
     time_box: '8h',
