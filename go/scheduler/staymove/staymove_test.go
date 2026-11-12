@@ -58,3 +58,26 @@ func TestOnlyANeverMeasuredStartTakesTheDefault(t *testing.T) {
 		}
 	}
 }
+
+// Rows A7-A9 of docs/design/account-assignment-scenarios.md: the week wall with work waiting, the cache's edge to the second, and T.
+func TestScenarioAWallRows(t *testing.T) {
+	warm := func(reset, ended float64, cold *float64) Situation {
+		return Situation{WorkWaiting: true, ResetInS: f(reset), ColdStartPct: cold, WindowS: window5h, TurnEndedS: f(ended), CacheLifeS: hour}
+	}
+	for _, c := range []struct {
+		row  string
+		s    Situation
+		move bool
+	}{
+		{"A7 reset in 10m, warm cache: waits", warm(10*minute, minute, nil), false},
+		{"A7 reset in 10m, cold cache: moves", warm(10*minute, hour, nil), true},
+		{"A8 turn ended + reset equal to the cache's life: stays", warm(30*minute, 30*minute, nil), false},
+		{"A8 one second more: moves", warm(30*minute, 30*minute+1, nil), true},
+		{"A9 never measured: T is 39m, so a 38m reset waits", warm(38*minute, 0, nil), false},
+		{"A9 measured 0: T is 0, so it moves", warm(38*minute, 0, f(0)), true},
+	} {
+		if move, why := Decide(c.s); move != c.move {
+			t.Errorf("%s: move %v (%s)", c.row, move, why)
+		}
+	}
+}
