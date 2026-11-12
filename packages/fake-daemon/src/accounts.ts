@@ -4,7 +4,23 @@ import { Failure, invalidParams } from '#src/errors.ts';
 
 /** The code a test daemon's login takes as right; any other ends the login failed. */
 export const GOOD_LOGIN_CODE = 'good-code';
-const VENDORS = ['claude', 'opencode'];
+const VENDORS = ['claude', 'opencode', 'codex'];
+/** The one-time code a fake codex login shows. */
+export const DEVICE_CODE = 'FAKE-1234';
+
+/** A name account.add and account.adopt take: absent, or one plain line with no slash, not starting with a dot. */
+function checkName(name: unknown): void {
+  if (name != null && (typeof name !== 'string' || !name || name.includes('/') || name.startsWith('.')))
+    throw invalidParams('bad account name', 'account');
+}
+
+/** A login found on this Mac outside Handline (accounts.discover). */
+export interface FoundLogin {
+  vendor: string;
+  source: string;
+  logged_in: boolean | null;
+  adoptable: boolean;
+}
 
 /** What the accounts need of the daemon that hosts them: to emit on their topic, and the agents' fixtures. */
 interface Host {
@@ -145,6 +161,10 @@ export class FakeAccounts {
         return this.startLogin(p, accepted);
       case 'account.login_code':
         return (this.giveCode(p), accepted('Code sent.'));
+      case 'accounts.discover':
+        return { found: this.found.map((f) => ({ ...f })) };
+      case 'account.adopt':
+        return this.adopt(p, accepted);
       case 'account.login_cancel':
         return (this.cancelLogin(p), accepted('Cancelled.'));
       case 'account.remove':
@@ -181,22 +201,49 @@ export class FakeAccounts {
     this.emit(this.view(r));
   }
 
-  /** `hl account add --no-login`: the account exists and needs a login. A used name is refused; a bad name or an unknown vendor is a bad param.
-   * No name is account<n>, n one past the accounts there are, moving on past a name in use. */
+  /** `hl account add --no-login`: the account exists and needs a login. A used name is refused; a bad name or an unknown vendor is a bad param. */
   private register(p: Record<string, unknown>, accepted: (said: string, extra?: object) => unknown): unknown {
-    let name = p.account;
+    checkName(p.account);
+    if (p.vendor !== undefined && !VENDORS.includes(String(p.vendor))) throw invalidParams(`no driver for ${String(p.vendor)}`, 'vendor');
+    const name = this.freeName(p.account);
+    this.emit(this.view(this.add({ name, login_state: 'needs_login', vendor: p.vendor === undefined ? 'claude' : String(p.vendor) })));
+    return accepted('Added.', { account: name });
+  }
+
+  /** What accounts.discover finds: a logged-in Claude and Codex at home. A test sets it to show other cases. */
+  found: FoundLogin[] = [
+    { vendor: 'claude', source: '~/.claude', logged_in: true, adoptable: false },
+    { vendor: 'codex', source: '~/.codex', logged_in: true, adoptable: true },
+  ];
+
+  /** account.adopt: a codex account sharing a found codex login, logged in at once. */
+  private adopt(p: Record<string, unknown>, accepted: (said: string, extra?: object) => unknown): unknown {
+    if (p.vendor !== 'codex') throw invalidParams('only a codex login can be shared; add the account and log in', 'vendor');
+    checkName(p.account);
+    const f = this.found.find((x) => x.vendor === 'codex' && x.source === p.source);
+    if (!f) throw new Failure('not_found', `no codex login at ${String(p.source)}`, { what: 'source' });
+    if (f.logged_in !== true) throw new Failure('refused', `${f.source} is not logged in`, { reason: 'not_logged_in', gate: 'state' });
+    const name = this.freeName(p.account);
+    this.emit(this.view(this.add({ name, login_state: 'ok', vendor: 'codex' })));
+    return accepted('Added, using the login in ' + f.source + '.', { account: name });
+  }
+
+  /** The name given (checked by checkName), or account<n> when absent, n one past the accounts there are, moving on past a name in use;
+   * a given name in use is refused. */
+  private freeName(given: unknown): string {
+    let name = given as string | null | undefined;
     if (name == null) {
       let n = this.rows.length + 1;
       while (this.rows.some((x) => x.name === `account${n}`)) n++;
       name = `account${n}`;
     }
-    if (typeof name !== 'string' || !name || name.includes('/') || name.startsWith('.')) throw invalidParams('bad account name', 'account');
-    if (p.vendor !== undefined && !VENDORS.includes(String(p.vendor))) throw invalidParams(`no driver for ${String(p.vendor)}`, 'vendor');
     if (this.rows.some((x) => x.name === name))
       throw new Failure('refused', `account '${name}' already exists`, { reason: 'exists', gate: 'state' });
-    this.emit(this.view(this.add({ name, login_state: 'needs_login', vendor: p.vendor === undefined ? 'claude' : String(p.vendor) })));
-    return accepted('Added.', { account: name });
+    return name;
   }
+
+  /** A codex login ends done this long after it starts, as the CLI exits once the person typed the code. */
+  deviceLoginMs = 3000;
 
   private logins = new Map<string, Account>();
   private loginSeq = 0;
@@ -209,6 +256,13 @@ export class FakeAccounts {
     const login_id = `login-${++this.loginSeq}`;
     this.logins.set(login_id, r);
     this.setLogin(r, login_id, 'waiting');
+    if (r.vendor === 'codex') {
+      // The device flow: the person types the code at the page, and the CLI exits logged in; nothing comes back through the app.
+      const end = () =>
+        this.rows.includes(r) && r.login?.login_id === login_id && r.login.state === 'waiting' && this.setLogin(r, login_id, 'done');
+      setTimeout(end, this.deviceLoginMs).unref();
+      return accepted('Login started.', { login_id, state: 'waiting', url: 'https://auth.example/codex/device', device_code: DEVICE_CODE });
+    }
     return accepted('Login started.', { login_id, state: 'waiting', url: `https://login.example/authorize?login=${login_id}` });
   }
 
@@ -227,7 +281,7 @@ export class FakeAccounts {
   private giveCode(p: Record<string, unknown>): void {
     const r = this.login(p.login_id);
     if (typeof p.code !== 'string' || !p.code) throw invalidParams('a code is needed', 'code');
-    if (r.login!.state !== 'waiting')
+    if (r.login!.state !== 'waiting' || r.vendor === 'codex')
       throw new Failure('refused', 'the login is not waiting for a code', { reason: 'not_waiting', gate: 'state' });
     this.setLogin(r, String(p.login_id), 'code_sent');
     if (p.code === GOOD_LOGIN_CODE) this.setLogin(r, String(p.login_id), 'done');

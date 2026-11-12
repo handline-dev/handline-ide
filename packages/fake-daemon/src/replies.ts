@@ -19,7 +19,8 @@ export class Replies {
       return { ...fresh(kept.result), replayed: true };
     }
     const result = make();
-    this.kept.set(request_id, { params: sig, result });
+    const { device_code: _, ...keep } = result; // a codex login's one-time code is never kept
+    this.kept.set(request_id, { params: sig, result: keep });
     return result;
   }
 }

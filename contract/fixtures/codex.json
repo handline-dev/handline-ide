@@ -1,0 +1,350 @@
+{
+ "fixtures": [
+  {
+   "name": "accounts.discover.lists_the_logins_found",
+   "spec": "accounts.discover",
+   "as": "founder",
+   "about": "The logins already on this Mac, each with its folder, whether it is logged in and whether account.adopt takes it.",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "accounts.discover",
+      "params": {}
+     },
+     "result": {
+      "found": {
+       "$type": "array"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "accounts.discover.an_agent_session_is_refused",
+   "spec": "accounts.discover",
+   "as": "agent",
+   "about": "Only the owner reads what logins are on the Mac.",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "accounts.discover",
+      "params": {}
+     },
+     "error": {
+      "code": -32002,
+      "data": {
+       "code": "refused",
+       "gate": "role"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "account.adopt.a_claude_login_is_bad_request",
+   "spec": "account.adopt",
+   "as": "founder",
+   "about": "A Claude login is keyed by its config folder and cannot be shared: the vendor is bad_request.",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "account.adopt",
+      "params": {
+       "vendor": "claude",
+       "source": "~/.claude",
+       "account": "conf.adopt-claude",
+       "request_id": "conf-ad-1"
+      }
+     },
+     "error": {
+      "code": -32602,
+      "data": {
+       "code": "bad_request",
+       "field": "vendor"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "account.adopt.a_source_not_found_is_not_found",
+   "spec": "account.adopt",
+   "as": "founder",
+   "about": "A source accounts.discover did not answer is not_found, what source.",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "account.adopt",
+      "params": {
+       "vendor": "codex",
+       "source": "/nowhere/.codex",
+       "account": "conf.adopt-none",
+       "request_id": "conf-ad-2"
+      }
+     },
+     "error": {
+      "code": -32001,
+      "data": {
+       "code": "not_found",
+       "what": "source"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "account.adopt.an_agent_session_is_refused",
+   "spec": "account.adopt",
+   "as": "agent",
+   "about": "Only the owner adds an account.",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "account.adopt",
+      "params": {
+       "vendor": "codex",
+       "source": "~/.codex",
+       "account": "conf.adopt-role",
+       "request_id": "conf-ad-3"
+      }
+     },
+     "error": {
+      "code": -32002,
+      "data": {
+       "code": "refused",
+       "gate": "role"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "account.adopt.makes_a_logged_in_codex_account",
+   "spec": "account.adopt",
+   "as": "founder",
+   "about": "Adopting a logged-in codex login makes a codex account that is logged in at once. Needs --var codex_source (a codex login accounts.discover answers, logged in).",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "account.adopt",
+      "params": {
+       "vendor": "codex",
+       "source": "{{codex_source}}",
+       "account": "conf.adopted",
+       "request_id": "conf-ad-4"
+      }
+     },
+     "result": {
+      "accepted": true,
+      "account": "conf.adopted"
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "accounts.list",
+      "params": {}
+     },
+     "result": {
+      "accounts": {
+       "$contains": {
+        "name": "conf.adopted",
+        "vendor": "codex",
+        "login_state": "ok"
+       }
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "account.adopt",
+      "params": {
+       "vendor": "codex",
+       "source": "{{codex_source}}",
+       "account": "conf.adopted",
+       "request_id": "conf-ad-5"
+      }
+     },
+     "error": {
+      "code": -32002,
+      "data": {
+       "code": "refused",
+       "gate": "state"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "account.login.a_codex_login_answers_a_device_code",
+   "spec": "account.login",
+   "as": "founder",
+   "about": "A codex login answers the device page and the code to type there; it takes no code back, so account.login_code is refused (gate state). Needs --var codex_account (a codex account with no login running).",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "account.login",
+      "params": {
+       "account": "{{codex_account}}",
+       "request_id": "conf-cx-1"
+      }
+     },
+     "result": {
+      "accepted": true,
+      "login_id": {
+       "$save": "login_id"
+      },
+      "state": "waiting",
+      "url": {
+       "$type": "string"
+      },
+      "device_code": {
+       "$type": "string"
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "account.login_code",
+      "params": {
+       "login_id": "{{login_id}}",
+       "code": "anything",
+       "request_id": "conf-cx-2"
+      }
+     },
+     "error": {
+      "code": -32002,
+      "data": {
+       "code": "refused",
+       "gate": "state"
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "account.login_cancel",
+      "params": {
+       "login_id": "{{login_id}}",
+       "request_id": "conf-cx-3"
+      }
+     },
+     "result": {
+      "accepted": true
+     }
+    }
+   ]
+  }
+ ]
+}

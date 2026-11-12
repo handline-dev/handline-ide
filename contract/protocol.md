@@ -12,7 +12,7 @@ OpenRPC-shaped. Source of contract/protocol.md and contract/protocol.ts: regener
 - **Concurrency:** Calls on one connection are served concurrently: a call that waits (inbox.list or inbox.get with wait_s, up to 600 s) does not hold up the calls after it, and replies come in the order they finish, matched by id. Calls on one connection that touch the same thing are not ordered by the connection: a client that needs the order waits for the first reply. Stream notifications are never held behind a waiting call.
 - **Network:** The network listener is the only way in for a phone, a browser or another machine, and only a paired device may use it. A connection on it is unpaired until its hello carries a valid device `token`. An unpaired connection may call device.redeem and nothing else: every other call, hello and an unknown method name included, is refused before any handler runs with the one reply `{code: -32002, message: "refused", data: {code: "refused", gate: "unpaired", reason: "not paired"}}`, the same words every time: no method list, no state, no version, no hint, nothing that says why. A token that is revoked or was never issued is the same refusal, so a reply does not say which. The Unix socket is not the network: its roles are proven as below. Conformance: the network transport is the WebSocket over TLS the listener speaks, and a client pins the certificate fingerprint from the pairing uri; fixtures with `as: unpaired` or `as: member` over the network are run against it with `--as unpaired=...` and `--as member=...` sockets that are already past TLS and the pinned check (a socket the harness is given, or a connector function); contract/README.md says what that does and does not show.
 - **Params:** By name only.
-- **Request id:** Every write takes request_id. The daemon keeps each successful reply for 24 hours; a retry with the same id and the same params returns it with replayed:true and repeats nothing. The same id with other params is bad_request. Refusals and errors are not stored: a retry is judged again. Exceptions: chat.send to a structured agent returns the receipt as it is now (see x-delivery); doc.push, account.remove, account.login_code, request.cancel, team.seal, attachment.remove, device.pair and device.redeem keep no reply, so a retry is judged again.
+- **Request id:** Every write takes request_id. The daemon keeps each successful reply for 24 hours; a retry with the same id and the same params returns it with replayed:true and repeats nothing. The same id with other params is bad_request. Refusals and errors are not stored: a retry is judged again. Exceptions: chat.send to a structured agent returns the receipt as it is now (see x-delivery); doc.push, account.remove, account.login_code, request.cancel, team.seal, attachment.remove, device.pair and device.redeem keep no reply, so a retry is judged again; account.login keeps its reply without device_code.
 
 ## Handshake and versions
 
@@ -87,7 +87,7 @@ Every read has x-app-cache and every write x-app-write; false: the app does not 
 One file per group, generated from `spec/<group>.json`; field types are in `protocol.ts`.
 
 - [core](gen/core.md): 25 methods
-- [accounts](gen/accounts.md): 14 methods
+- [accounts](gen/accounts.md): 16 methods
 - [agents](gen/agents.md): 37 methods
 - [chat](gen/chat.md): 26 methods
 - [devices](gen/devices.md): 6 methods

@@ -12,7 +12,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `trust.remove` | owner | yes | `root`, `request_id` | `Accepted` | `not_found` |  | authored: remove folder |
 | `people.list` | agent |  | none | `{people}` | `bad_request` |  | `people`, fed by people |
 | `workspaces.list` | agent |  | none | `{workspaces}` | `bad_request` |  | `workspaces`, fed by workspaces |
-| `workspace.create` | owner | yes | `name`, `folder`, `request_id` | `OperationStarted` | `refused`, `not_found`, `bad_request` | state, not_git | decided: create workspace |
+| `workspace.create` | owner | yes | `name`, `folder`, `account?`, `request_id` | `OperationStarted` | `refused`, `not_found`, `bad_request` | state, not_git | decided: create workspace |
 | `workspace.set` | owner | yes | `workspace`, `name`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | state | decided: rename workspace |
 | `workspace.delete` | owner | yes | `workspace`, `worktree?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | state, dirty, worktree | decided: delete workspace |
 | `team.get` | agent |  | none | `{agents, people, workspaces}` |  |  | `team`, snapshot |

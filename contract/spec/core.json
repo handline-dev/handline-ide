@@ -17,7 +17,7 @@
   "concurrency": "Calls on one connection are served concurrently: a call that waits (inbox.list or inbox.get with wait_s, up to 600 s) does not hold up the calls after it, and replies come in the order they finish, matched by id. Calls on one connection that touch the same thing are not ordered by the connection: a client that needs the order waits for the first reply. Stream notifications are never held behind a waiting call.",
   "network": "The network listener is the only way in for a phone, a browser or another machine, and only a paired device may use it. A connection on it is unpaired until its hello carries a valid device `token`. An unpaired connection may call device.redeem and nothing else: every other call, hello and an unknown method name included, is refused before any handler runs with the one reply `{code: -32002, message: \"refused\", data: {code: \"refused\", gate: \"unpaired\", reason: \"not paired\"}}`, the same words every time: no method list, no state, no version, no hint, nothing that says why. A token that is revoked or was never issued is the same refusal, so a reply does not say which. The Unix socket is not the network: its roles are proven as below. Conformance: the network transport is the WebSocket over TLS the listener speaks, and a client pins the certificate fingerprint from the pairing uri; fixtures with `as: unpaired` or `as: member` over the network are run against it with `--as unpaired=...` and `--as member=...` sockets that are already past TLS and the pinned check (a socket the harness is given, or a connector function); contract/README.md says what that does and does not show.",
   "params": "By name only.",
-  "request_id": "Every write takes request_id. The daemon keeps each successful reply for 24 hours; a retry with the same id and the same params returns it with replayed:true and repeats nothing. The same id with other params is bad_request. Refusals and errors are not stored: a retry is judged again. Exceptions: chat.send to a structured agent returns the receipt as it is now (see x-delivery); doc.push, account.remove, account.login_code, request.cancel, team.seal, attachment.remove, device.pair and device.redeem keep no reply, so a retry is judged again.",
+  "request_id": "Every write takes request_id. The daemon keeps each successful reply for 24 hours; a retry with the same id and the same params returns it with replayed:true and repeats nothing. The same id with other params is bad_request. Refusals and errors are not stored: a retry is judged again. Exceptions: chat.send to a structured agent returns the receipt as it is now (see x-delivery); doc.push, account.remove, account.login_code, request.cancel, team.seal, attachment.remove, device.pair and device.redeem keep no reply, so a retry is judged again; account.login keeps its reply without device_code.",
   "unknown_method": "A method the daemon does not know is JSON-RPC error -32601 with data.code `bad_request` and data.method; a method it knows but the caller's role may not call is `refused`, gate `role`.",
   "idle": "A line begun but not finished within 30 s is dropped with bad_request, and so is a connection that has not said hello within 30 s. After hello, a connection with nothing in flight is closed after 3600 s without a byte. A subscribed or terminal-attached connection has no idle limit (the daemon notices a dead peer by a failed write); the subscribe and terminal tasks must build that. A call that waits (inbox wait_s) is in flight."
  },
@@ -1282,7 +1282,8 @@
       "enum": [
        "claude",
        "git",
-       "tmux"
+       "tmux",
+       "codex"
       ],
       "description": "The tool."
      },
@@ -1395,7 +1396,14 @@
       "items": {
        "$ref": "#/components/schemas/MissingTool"
       },
-      "description": "The tools agents are run with (claude, git, tmux) that this machine lacks, read at each call; absent when none is missing, when the daemon runs no agent side, and on a daemon that does not serve it. No agent can start while one is missing: a client shows each with its fix."
+      "description": "The tools agents are run with (claude, git, tmux, and codex while an account or agent uses it) that this machine lacks, read at each call; absent when none is missing, when the daemon runs no agent side, and on a daemon that does not serve it. No agent can start while claude, git or tmux is missing, and no codex agent while codex is: a client shows each with its fix."
+     },
+     "vendors": {
+      "type": "array",
+      "items": {
+       "$ref": "#/components/schemas/VendorStatus"
+      },
+      "description": "Every vendor this daemon can run agents with, installed or not, for the first-run pick; a client offers only the vendors it supports; absent on a daemon that does not serve it. Unlike missing_tools it says nothing about need: codex is in missing_tools only while an account or agent uses it."
      },
      "paused": {
       "oneOf": [
@@ -3630,6 +3638,34 @@
      "id",
      "name"
     ]
+   },
+   "VendorStatus": {
+    "type": "object",
+    "properties": {
+     "vendor": {
+      "type": "string",
+      "description": "The vendor as account.add takes it: claude, codex, or another the daemon has a driver for."
+     },
+     "binary": {
+      "type": "string",
+      "description": "The command the daemon runs for it, for example \"codex\"."
+     },
+     "installed": {
+      "type": "boolean",
+      "description": "Whether the command is on the daemon's PATH, read at each call."
+     },
+     "fix": {
+      "type": "string",
+      "description": "A shell command that installs it, for a client to show and copy, for example \"npm install -g @openai/codex\"."
+     }
+    },
+    "required": [
+     "vendor",
+     "binary",
+     "installed",
+     "fix"
+    ],
+    "additionalProperties": false
    }
   },
   "errors": {

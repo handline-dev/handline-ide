@@ -11,9 +11,11 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `account.wake` | owner | yes | `account`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | state | authored: wake |
 | `account.read_usage` | owner | yes | `account`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | state | decided: read usage |
 | `account.add` | owner | yes | `account?`, `vendor?`, `request_id` | `Accepted & {account}` | `refused`, `bad_request` | role, state | decided: add account |
-| `account.login` | owner | yes | `account`, `request_id` | `Accepted & {login_id, state, url}` | `refused`, `not_found` | role, state | decided: log in |
+| `account.login` | owner | yes | `account`, `request_id` | `Accepted & {login_id, state, url, device_code}` | `refused`, `not_found` | role, state | decided: log in |
 | `account.login_cancel` | owner | yes | `login_id`, `request_id` | `Accepted` | `refused`, `not_found` | role | decided: cancel login |
 | `account.login_code` | owner | yes | `login_id`, `code`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | role, state | decided: send code |
+| `accounts.discover` | owner |  | none | `{found}` | `refused` |  | not cached |
+| `account.adopt` | owner | yes | `vendor`, `source`, `account?`, `request_id` | `Accepted & {account}` | `refused`, `not_found`, `bad_request` | role, state | decided: use this login |
 | `account.remove` | owner | yes | `account`, `dry_run?`, `confirm?`, `request_id` | `Accepted & {would_remove, plan}` | `refused`, `not_found`, `bad_request` |  | decided: remove |
 | `stats.get` | member |  | `window` | `Stats` | `bad_request` |  | `stats`, snapshot |
 | `stats.outlook` | member |  | `range`, `agent?` | `Outlook` | `bad_request` |  | `outlook`, snapshot |
@@ -46,7 +48,7 @@ Register an account on this machine; it is not logged in until account.login run
 
 ### `account.login`
 
-Start a login on the account; answers the login id and the URL to open. No terminal is opened: the CLI runs without one, its URL is read from its stdout and its code is fed to its stdin by account.login_code. Refused with gate `state` while the account is already logging in; not_found for an unknown account. The end of a login is not a method: the accounts topic reports it in the account's `login`, state waiting, then code_sent after account.login_code, then done, or failed with a `reason`, or cancelled by account.login_cancel. A login that is done leaves login_state ok.
+Start a login on the account; answers the login id, the URL to open and, for codex, the code to type there. No terminal is opened: the CLI runs without one, its URL is read from its stdout and its code is fed to its stdin by account.login_code. Refused with gate `state` while the account is already logging in; not_found for an unknown account. The end of a login is not a method: the accounts topic reports it in the account's `login`, state waiting, then code_sent after account.login_code, then done, or failed with a `reason`, or cancelled by account.login_cancel. A login that is done leaves login_state ok. A codex login (codex login --device-auth) goes from waiting straight to done or failed when the CLI exits, with no code_sent: account.login_code on it is refused, gate `state`.
 
 ### `account.login_cancel`
 
@@ -54,7 +56,15 @@ Stop a login in progress. Idempotent: a login already ended answers accepted. An
 
 ### `account.login_code`
 
-Hand the one-time code from the authorize page to a login waiting for it. The code is never echoed back, never in an event, a log or the request record. Refused with gate `state` when the login is not waiting for a code. An id the daemon never issued is not_found.
+Hand the one-time code from the authorize page to a login waiting for it. The code is never echoed back, never in an event, a log or the request record. Refused with gate `state` when the login is not waiting for a code. An id the daemon never issued is not_found. A codex login never waits for a code, so it is always refused there.
+
+### `accounts.discover`
+
+Logins already on this Mac, outside Handline, that an account could use: ~/.claude and ~/.codex. Read from each vendor's own login check only (claude auth status, codex login status, under that folder): never a credential's content. Owner only.
+
+### `account.adopt`
+
+Make a codex account that uses a codex login already on this Mac (accounts.discover). The account gets its own config folder with only auth.json linked to the source's, so its hooks, instructions and sessions stay out of the person's own folder; it starts logged in as the same login (login_state ok) and the accounts topic sends account.changed. While the link holds, a logout in either logs both out, which a client says before the call; a token refresh that rewrites the file can make the two drift apart, and the account then logs in on its own. Refused, gate `state`, when the source is not logged in or the name is in use; a bad name is bad_request, field account. Nothing is changed on a refusal.
 
 ### `account.remove`
 

@@ -324,7 +324,7 @@ export interface AccountsMethods {
   "account.add": { params: {
   /** The new account's name: one plain line, no slash, not starting with a dot. Omitted: account<n>, n the number of accounts plus one, skipping a name in use. */
   account?: string;
-  /** The tool the account is for; omitted means the default (claude). */
+  /** The tool the account is for: claude, codex, or another the daemon has a driver for; omitted means claude. */
   vendor?: string;
   request_id: RequestId;
 }; result: Accepted & {
@@ -337,8 +337,10 @@ export interface AccountsMethods {
 }; result: Accepted & {
     login_id: string;
     state: "waiting";
-    /** The authorize URL the claude CLI printed; the person opens it and brings the code back with account.login_code. */
+    /** Claude: the authorize URL the CLI printed; the person opens it and brings the code back with account.login_code. Codex: the device page; the person opens it and types device_code there, and nothing comes back. */
     url: string;
+    /** Codex only: the one-time code the CLI printed, for the person to type at url. Absent for claude. Kept in memory for the login only: never in an event, a log, the login row or the kept reply a retry gets. */
+    device_code?: string;
   } };
   "account.login_cancel": { params: {
   login_id: string;
@@ -350,6 +352,31 @@ export interface AccountsMethods {
   code: string;
   request_id: RequestId;
 }; result: Accepted };
+  "accounts.discover": { params: { [key: string]: unknown }; result: {
+    /** One row per folder that exists, claude first; empty when there is none. */
+    found: {
+      /** claude or codex. */
+      vendor: string;
+      /** The folder the login lives in, as ~/.codex; what account.adopt takes. */
+      source: string;
+      /** Whether the vendor's own check says it is logged in; null when it cannot be told. */
+      logged_in: boolean | null;
+      /** Whether account.adopt takes it: true for codex. A Claude login is keyed by its config folder, so a client shows it as found and the account logs in again. */
+      adoptable: boolean;
+    }[];
+  } };
+  "account.adopt": { params: {
+  /** codex. Any other is bad_request, field vendor: a Claude login cannot be shared, so the account is added and logs in. */
+  vendor: string;
+  /** A source accounts.discover answered for that vendor. Another is not_found, what source. */
+  source: string;
+  /** The new account's name, as account.add takes it; omitted: account<n>. */
+  account?: string;
+  request_id: RequestId;
+}; result: Accepted & {
+    /** The name as registered. */
+    account: string;
+  } };
   "account.remove": { params: {
   account: string;
   /** Change nothing: answer `plan` and `would_remove`. A dry run needs no `confirm`. */
@@ -391,6 +418,8 @@ export const ACCOUNTS_METHODS: { [K in keyof AccountsMethods]: { role: Role; cal
   "account.login": { role: "owner", callers: null, write: true, since: 1 },
   "account.login_cancel": { role: "owner", callers: null, write: true, since: 1 },
   "account.login_code": { role: "owner", callers: null, write: true, since: 1 },
+  "accounts.discover": { role: "owner", callers: null, write: false, since: 1 },
+  "account.adopt": { role: "owner", callers: null, write: true, since: 1 },
   "account.remove": { role: "owner", callers: null, write: true, since: 1 },
   "stats.get": { role: "member", callers: null, write: false, since: 1 },
   "stats.outlook": { role: "member", callers: null, write: false, since: 1 },
@@ -399,9 +428,10 @@ export const ACCOUNTS_METHODS: { [K in keyof AccountsMethods]: { role: Role; cal
 };
 
 /** x-app-cache of each read (x-app in core.json). */
-export const ACCOUNTS_APP_CACHE: { [K in "accounts.list" | "status.pick" | "stats.get" | "stats.outlook" | "stats.cost" | "stats.retro"]: { resource: string; id?: string; feed: Topic | null } | false } = {
+export const ACCOUNTS_APP_CACHE: { [K in "accounts.list" | "status.pick" | "accounts.discover" | "stats.get" | "stats.outlook" | "stats.cost" | "stats.retro"]: { resource: string; id?: string; feed: Topic | null } | false } = {
   "accounts.list": {"resource": "accounts", "feed": "accounts"},
   "status.pick": false,
+  "accounts.discover": false,
   "stats.get": {"resource": "stats", "feed": null},
   "stats.outlook": {"resource": "outlook", "feed": null},
   "stats.cost": {"resource": "cost", "feed": null},
@@ -409,7 +439,7 @@ export const ACCOUNTS_APP_CACHE: { [K in "accounts.list" | "status.pick" | "stat
 };
 
 /** x-app-write of each write (x-app in core.json). */
-export const ACCOUNTS_APP_WRITES: { [K in "account.set" | "account.wake" | "account.read_usage" | "account.add" | "account.login" | "account.login_cancel" | "account.login_code" | "account.remove"]: { kind: WriteKind; label: string } | false } = {
+export const ACCOUNTS_APP_WRITES: { [K in "account.set" | "account.wake" | "account.read_usage" | "account.add" | "account.login" | "account.login_cancel" | "account.login_code" | "account.adopt" | "account.remove"]: { kind: WriteKind; label: string } | false } = {
   "account.set": {"kind": "authored", "label": "save account"},
   "account.wake": {"kind": "authored", "label": "wake"},
   "account.read_usage": {"kind": "decided", "label": "read usage"},
@@ -417,5 +447,6 @@ export const ACCOUNTS_APP_WRITES: { [K in "account.set" | "account.wake" | "acco
   "account.login": {"kind": "decided", "label": "log in"},
   "account.login_cancel": {"kind": "decided", "label": "cancel login"},
   "account.login_code": {"kind": "decided", "label": "send code"},
+  "account.adopt": {"kind": "decided", "label": "use this login"},
   "account.remove": {"kind": "decided", "label": "remove"},
 };

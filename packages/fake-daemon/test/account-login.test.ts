@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { type Event, type RpcError } from '@handline/client';
 import { setup } from '#src/helpers.ts';
-import { GOOD_LOGIN_CODE } from '#src/accounts.ts';
+import { DEVICE_CODE, GOOD_LOGIN_CODE } from '#src/accounts.ts';
 
 type Login = { login_id: string; state: string; url: string };
 
@@ -82,5 +82,72 @@ test('a login code is kept in no request record: the same request_id is judged a
     .call('account.login_code', { login_id: login.login_id, code: GOOD_LOGIN_CODE, request_id: 'k2' })
     .catch((e: RpcError) => e)) as RpcError;
   assert.equal(again.data?.gate, 'state');
+  client.close();
+});
+
+test('a codex login answers a device code, takes no code back, and ends done on its own', async () => {
+  const { client, daemon } = setup();
+  await client.start();
+  daemon.accounts.add({ name: 'cx', vendor: 'codex', login_state: 'needs_login' });
+  daemon.accounts.deviceLoginMs = 10;
+  const r = (await client.call('account.login', { account: 'cx', request_id: 'c1' })) as unknown as Login & { device_code: string };
+  assert.deepEqual([r.state, r.device_code], ['waiting', DEVICE_CODE]);
+  const code = await client.call('account.login_code', { login_id: r.login_id, code: 'x', request_id: 'c2' }).catch((e: RpcError) => e);
+  assert.equal((code as RpcError).data?.gate, 'state');
+  await new Promise((done) => setTimeout(done, 40));
+  const row = daemon.accounts.list().accounts.find((a) => a.name === 'cx')!;
+  assert.deepEqual([row.login?.state, row.login_state], ['done', 'ok']);
+  const claude = (await client.call('account.login', { account: 'gamma', request_id: 'c3' })) as Record<string, unknown>;
+  assert.equal(claude.device_code, undefined, 'a claude login has no device code');
+  client.close();
+});
+
+test('daemon.status lists every vendor with whether it is installed and its fix', async () => {
+  const { client } = setup();
+  await client.start();
+  const vendors = (await client.call('daemon.status', {})).vendors as { vendor: string; installed: boolean; fix: string }[];
+  assert.deepEqual(
+    vendors.map((v) => [v.vendor, v.installed]),
+    [
+      ['claude', true],
+      ['codex', false],
+    ],
+  );
+  client.close();
+});
+
+test('a codex device code is kept in no request record, and a login of a removed account never ends done', async () => {
+  const { client, daemon } = setup();
+  await client.start();
+  daemon.accounts.add({ name: 'cx', vendor: 'codex', login_state: 'needs_login' });
+  daemon.accounts.deviceLoginMs = 10;
+  await client.call('account.login', { account: 'cx', request_id: 'd1' });
+  const again = await client.call('account.login', { account: 'cx', request_id: 'd1' });
+  assert.deepEqual([again.replayed, again.device_code], [true, undefined], 'a retry gets the reply without the code');
+  const seen: Event[] = [];
+  client.onEvent((e) => e.topic === 'accounts' && seen.push(e));
+  await client.subscribe(['accounts']);
+  await client.call('account.remove', { account: 'cx', confirm: 'cx', request_id: 'd2' });
+  await new Promise((done) => setTimeout(done, 40));
+  assert.equal(
+    daemon.accounts.list().accounts.find((a) => a.name === 'cx'),
+    undefined,
+  );
+  assert.deepEqual(seen, [], 'nothing is said of an account that is gone');
+  client.close();
+});
+
+test('codex is a missing tool only while it is not installed and an account uses it', async () => {
+  const { client, daemon } = setup();
+  await client.start();
+  const missing = async () => ((await client.call('daemon.status', {})).missing_tools ?? []) as { tool: string }[];
+  assert.deepEqual(await missing(), []);
+  daemon.accounts.add({ name: 'cx', vendor: 'codex', login_state: 'needs_login' });
+  assert.deepEqual(
+    (await missing()).map((m) => m.tool),
+    ['codex'],
+  );
+  daemon.admin.vendors.find((v) => v.vendor === 'codex')!.installed = true;
+  assert.deepEqual(await missing(), []);
   client.close();
 });

@@ -184,6 +184,7 @@ export function statusReply(
   keepAwake = 'off',
   paused: object | null = null,
   missing: readonly { tool: string; fix: string }[] = [],
+  vendors: readonly { vendor: string; binary: string; installed: boolean; fix: string }[] = [],
 ) {
   const by_state: Record<string, number> = {};
   for (const s of sessions.values()) by_state[s.state] = (by_state[s.state] ?? 0) + 1;
@@ -203,6 +204,7 @@ export function statusReply(
     ...(needs.length ? { needs_you: [...needs] } : {}),
     ...(paused ? { paused } : {}),
     ...(missing.length ? { missing_tools: [...missing] } : {}),
+    ...(vendors.length ? { vendors: vendors.map((v) => ({ ...v })) } : {}),
   };
 }
 

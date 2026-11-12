@@ -76,6 +76,7 @@ export const useAccountAdd = (target?: string) => useWrite("account.add", target
 export const useAccountLogin = (target?: string) => useWrite("account.login", target);
 export const useAccountLoginCancel = (target?: string) => useWrite("account.login_cancel", target);
 export const useAccountLoginCode = (target?: string) => useWrite("account.login_code", target);
+export const useAccountAdopt = (target?: string) => useWrite("account.adopt", target);
 export const useAccountRemove = (target?: string) => useWrite("account.remove", target);
 export const useAgentSet = (target?: string) => useWrite("agent.set", target);
 export const useAgentFold = (target?: string) => useWrite("agent.fold", target);
