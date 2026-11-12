@@ -134,6 +134,34 @@ export function CompactionLine({
   );
 }
 
+const FIRST = 8;
+
+/** One part's removed (−) and added (+) lines: the first few, and Show all for the rest the daemon sent. */
+function PartLines({ l }: { l: LineChange }) {
+  const [all, setAll] = useState(false);
+  const rows = [...l.removed.map((t) => ({ t, add: false })), ...l.added.map((t) => ({ t, add: true }))];
+  const shown = all ? rows : rows.slice(0, FIRST);
+  const hidden = rows.length - shown.length;
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="text-sm font-medium text-fg">{l.part}</div>
+      <pre className="max-h-96 overflow-auto rounded-md bg-hover/40 px-3 py-2 font-mono text-xs leading-5 whitespace-pre-wrap">
+        {shown.map((r, i) => (
+          <div key={i} className={r.add ? 'text-success' : 'text-danger'}>
+            {r.add ? '+' : '−'} {r.t}
+          </div>
+        ))}
+        {!!l.more && hidden === 0 && <div className="text-muted">and {l.more} more lines, too many to keep</div>}
+      </pre>
+      {hidden > 0 && (
+        <button type="button" onClick={() => setAll(true)} className="self-start rounded px-1 text-xs text-accent hover:bg-hover">
+          Show all {rows.length + (l.more ?? 0)} lines
+        </button>
+      )}
+    </div>
+  );
+}
+
 /** What a restart changed, one change a line, under when it was. */
 function Restart({ at, changes, lines }: { at: string; changes: string[]; lines: LineChange[] }) {
   const shown = new Set(lines.map((l) => l.part));
@@ -143,22 +171,7 @@ function Restart({ at, changes, lines }: { at: string; changes: string[]; lines:
       <section className="flex flex-col gap-3">
         <h3 className="text-xs font-medium text-muted">What changed</h3>
         {lines.map((l) => (
-          <div key={l.part} className="flex flex-col gap-1">
-            <div className="text-sm font-medium text-fg">{l.part}</div>
-            <pre className="overflow-x-auto rounded-md bg-hover/40 px-3 py-2 font-mono text-xs leading-5 whitespace-pre-wrap">
-              {l.removed.map((r, i) => (
-                <div key={`-${i}`} className="text-danger">
-                  − {r}
-                </div>
-              ))}
-              {l.added.map((a, i) => (
-                <div key={`+${i}`} className="text-success">
-                  + {a}
-                </div>
-              ))}
-              {!!l.more && <div className="text-muted">and {l.more} more lines</div>}
-            </pre>
-          </div>
+          <PartLines key={l.part} l={l} />
         ))}
         {/* A change the daemon kept no lines for (a model, or an older daemon) stays a plain line. */}
         <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-fg">
