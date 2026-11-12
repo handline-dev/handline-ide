@@ -217,6 +217,21 @@ func TestSpawnWithSaysWhyItCannotAndWhatItWouldDo(t *testing.T) {
 	}
 }
 
+// A repository whose default branch is master starts from it, even checked out on another branch: no base given means the repository's own.
+func TestSpawnWithNoBaseBranchesFromTheRepositorysDefault(t *testing.T) {
+	s, _, _ := spawnRig(t)
+	origin := t.TempDir()
+	gitIn(t, origin, "init", "-q", "-b", "master")
+	gitIn(t, origin, "commit", "-q", "--allow-empty", "-m", "one")
+	repo := t.TempDir()
+	gitIn(t, repo, "clone", "-q", origin, ".")
+	gitIn(t, repo, "checkout", "-q", "-b", "feature")
+	ok, said, err := s.SpawnWith("a", repo, SpawnOpts{DryRun: true})
+	if err != nil || !ok || !strings.HasPrefix(said, "would branch from origin/master (fetched)") {
+		t.Fatalf("%v %q %v", ok, said, err)
+	}
+}
+
 func TestEnsureRunRemembersTheRunAndPrefersTheOneTheTerminalIsBoundTo(t *testing.T) {
 	s, h, _ := spawnRig(t)
 	run, err := s.EnsureRun()

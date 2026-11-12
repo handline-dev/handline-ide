@@ -1965,7 +1965,7 @@
      "required": false,
      "schema": {
       "type": "string",
-      "description": "The branch to start from. The worktree takes the side, local or origin/, that leads, and the operation fails when they have diverged."
+      "description": "The branch to start from; absent, the repo's default branch. The worktree takes the side, local or origin/, that leads, and the operation fails when they have diverged."
      }
     },
     {
@@ -2071,7 +2071,8 @@
      "name": "base",
      "required": false,
      "schema": {
-      "type": "string"
+      "type": "string",
+      "description": "The branch a new worktree starts from; absent, the repo's default branch."
      }
     },
     {

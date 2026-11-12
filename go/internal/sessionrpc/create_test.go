@@ -67,7 +67,7 @@ func TestCreateRegistersAndStartsAndTellsEachStep(t *testing.T) {
 	if len(sn.got) > 0 && sn.got[len(sn.got)-1]["state"] == "failed" {
 		t.Fatalf("%v", sn.got[len(sn.got)-1])
 	}
-	if r.ctl.calls[len(r.ctl.calls)-1] != "start ann.new "+repo+" main true" {
+	if r.ctl.calls[len(r.ctl.calls)-1] != "start ann.new "+repo+"  true" {
 		t.Fatalf("started through the session path: %v", r.ctl.calls)
 	}
 	cfg, err := team.NewRoster(r.e.Home).Read("ann.new")

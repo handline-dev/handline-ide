@@ -131,7 +131,7 @@ func TestUnsavedCountsAgainstTheRepositorysDefaultBranch(t *testing.T) {
 	main, wts := repoOn(t, "trunk")
 	gitrun.Run(main, "update-ref", "refs/remotes/origin/trunk", "trunk")
 	gitrun.Run(main, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/trunk")
-	if b := DefaultBranch(wts["ahead"]); b != "trunk" {
+	if b := gitrun.DefaultBranch(wts["ahead"]); b != "trunk" {
 		t.Fatalf("default branch %q", b)
 	}
 	for name, want := range map[string][3]any{"merged": {true, 0, 0}, "ahead": {false, 0, 1}} {

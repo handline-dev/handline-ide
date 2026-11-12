@@ -233,9 +233,6 @@ func (e *Env) start(c *rpc.Conn, params map[string]any) (any, error) {
 			base = s
 		}
 	}
-	if base == "" {
-		base = "main"
-	}
 	return e.run(c, "session.start", params, false, func(call Call, agent string) (map[string]any, error) {
 		return done(e.Controls.Start(call, agent, repo, base))
 	})
