@@ -30,6 +30,7 @@ const KEYS = [
   'heavy_max',
   'simulator_max',
   'browser_max',
+  'port_range',
   'network_addresses',
   'keep_awake',
   'reap_orphans',
