@@ -2,7 +2,8 @@
 // An agent runs, looks at and presses a separate test instance of this worktree's desktop app, never the user's window: it has its own
 // scratch home, data folder, free ports (never 9333) and a DevTools port only it knows. Clicks are the page's own (DevTools input).
 // Usage: app.mjs start [--fake] [--no-build] | shot [--out FILE] | click <css | x,y> | type "<text>" | text <css> | eval "<js>"
-//   | drag-check (clickable things whose middle is an `-webkit-app-region: drag` area) | status | stop [--all]
+//   | drag-check (clickable things whose middle is an `-webkit-app-region: drag` area)
+//   | overflow [width ...] (what runs past the window's right edge at each width; default 480 768 1280) | status | stop [--all]
 import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -42,28 +43,37 @@ function end(s, file) {
 
 // ---- over the DevTools port ----------------------------------------------------------------------------------------------------------
 
-/** One DevTools call on the app's page; returns its result. These helpers throw, never exit: start's catch must end the instance. */
-async function cdp(s, method, params = {}) {
+/** One DevTools socket on the app's page, for the calls `use` makes on it: what a call sets up (an emulated width) lasts as long as its
+ *  socket. These helpers throw, never exit: start's catch must end the instance. */
+async function session(s, use) {
   const pages = await (await fetch(`http://127.0.0.1:${s.debugPort}/json`)).json();
   const page = pages.find((p) => p.type === 'page' && p.url.startsWith(`http://127.0.0.1:${s.webPort}/`));
   if (!page) throw new Error('the app has no page yet (still starting?)');
   const ws = new WebSocket(page.webSocketDebuggerUrl);
   await new Promise((res, rej) => ((ws.onopen = res), (ws.onerror = () => rej(new Error('devtools socket')))));
-  try {
-    return await new Promise((res, rej) => {
+  let id = 0;
+  const call = (method, params = {}) =>
+    new Promise((res, rej) => {
+      const mine = ++id;
       const t = setTimeout(() => rej(new Error('the app did not answer in 15s')), 15_000);
-      ws.onmessage = (m) => {
+      const on = (m) => {
         const r = JSON.parse(m.data);
-        if (r.id !== 1) return;
+        if (r.id !== mine) return;
         clearTimeout(t);
+        ws.removeEventListener('message', on);
         r.error ? rej(new Error(r.error.message)) : res(r.result);
       };
-      ws.send(JSON.stringify({ id: 1, method, params }));
+      ws.addEventListener('message', on);
+      ws.send(JSON.stringify({ id: mine, method, params }));
     });
+  try {
+    return await use(call);
   } finally {
     ws.close();
   }
 }
+/** One DevTools call on the app's page; returns its result. */
+const cdp = (s, method, params = {}) => session(s, (call) => call(method, params));
 async function evaluate(s, expression) {
   const r = await cdp(s, 'Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
   if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description ?? r.exceptionDetails.text);
@@ -83,6 +93,24 @@ async function pointOf(s, target) {
   if (!p.w && !p.h) throw new Error(`${target} has no size on screen`);
   return p;
 }
+
+/** The outermost elements whose box runs past the window's right edge: content a narrow window hides instead of wrapping or cutting. */
+const OVERFLOW_CHECK = `(() => {
+  const w = document.documentElement.clientWidth;
+  const over = new Set([...document.querySelectorAll('body *')].filter((e) => {
+    const r = e.getBoundingClientRect();
+    return r.width > 0 && r.height > 0 && r.right > w + 1;
+  }));
+  const inner = (e) => {
+    for (let p = e.parentElement; p; p = p.parentElement) if (over.has(p)) return true;
+    return false;
+  };
+  return [...over].filter((e) => !inner(e)).map((e) => ({
+    what: e.tagName.toLowerCase() + (e.className && typeof e.className === 'string' ? '.' + e.className.trim().split(/\\s+/).slice(0, 4).join('.') : ''),
+    right: Math.round(e.getBoundingClientRect().right),
+    text: (e.textContent ?? '').trim().replace(/\\s+/g, ' ').slice(0, 50),
+  }));
+})()`;
 
 /** The clickable things whose middle point a window-drag area covers. Chromium builds the drag area from the elements in document order: a
  *  `drag` one adds its box, a `no-drag` one takes its box away, and the last box over a point decides. The same rule, run in the page. */
@@ -233,6 +261,25 @@ const commands = {
       `${found.length} found: a click there starts a window drag, not the button. Release it with -webkit-app-region: no-drag on an element that comes after the drag area in the document: the last one over a point decides.`,
     );
     process.exitCode = 1;
+  },
+  async overflow() {
+    const s = need();
+    const widths = positional().map(Number);
+    if (widths.some((w) => !Number.isInteger(w) || w <= 0)) die('usage: node tools/app.mjs overflow [width ...] (whole pixels)');
+    let bad = 0;
+    await session(s, async (call) => {
+      for (const width of widths.length ? widths : [480, 768, 1280]) {
+        await call('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 0, mobile: false });
+        await new Promise((r) => setTimeout(r, 500));
+        const r = await call('Runtime.evaluate', { expression: OVERFLOW_CHECK, returnByValue: true });
+        if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description ?? r.exceptionDetails.text);
+        const found = r.result.value;
+        bad += found.length;
+        console.log(found.length ? `${width}px: ${found.length} past the right edge` : `${width}px: nothing past the right edge`);
+        for (const f of found) console.log(`  ${f.what} reaches ${f.right}px: "${f.text}"`);
+      }
+    });
+    if (bad) process.exitCode = 1;
   },
   status() {
     const s = readState();

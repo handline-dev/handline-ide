@@ -22,7 +22,7 @@ export function WithSelectionBar({
 }) {
   return (
     <div
-      className={`relative flex min-h-0 flex-col ${className}`}
+      className={`relative flex min-h-0 min-w-0 flex-col ${className}`}
       onKeyDown={(e) => {
         if (e.key !== 'Escape' || count === 0 || e.defaultPrevented) return;
         e.preventDefault();

@@ -115,7 +115,7 @@ export function MarkdownTab({ agent, tab, start = '' }: { agent: string; tab: st
   const isNew = !opened && !named;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <form
         className="flex h-9 shrink-0 items-center gap-2 border-b border-border px-2"
         onSubmit={(e) => {
