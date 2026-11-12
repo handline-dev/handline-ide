@@ -23,7 +23,6 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
 	"github.com/handline/handline/go/data/team"
-	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/kit/gitrun"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/protocol/sessiontoken"
@@ -213,7 +212,7 @@ func (l *Launcher) leftOut(agent, acct string) string {
 	if allowed == nil || slices.Contains(allowed, acct) {
 		return ""
 	}
-	return "is left out by its workspace's rule " + ruleWords(rule)
+	return "is left out by its workspace's rule " + rule.Words()
 }
 
 // rule is the kept rule key in force for agent's workspace and that workspace's name, nil when none is on. One that cannot be read is
@@ -319,15 +318,6 @@ func (l *Launcher) ChooseAccount(agent string, resuming bool, account string) st
 		return l.Ports.CurrentAccount(l.Q, agent)
 	}
 	return l.FindRoom(agent) // a session on an account the rule leaves out is carried to one it names
-}
-
-// ruleWords is a kept rule as a refusal names it: its key, its value and who set it.
-func ruleWords(r *team.KeptRule) string {
-	v := fmt.Sprint(r.Value)
-	if list, ok := r.Value.([]string); ok {
-		v = strings.Join(list, ", ")
-	}
-	return fmt.Sprintf("%s %s (set by %s)", r.Key, v, addr.Ref(r.SetBy))
 }
 
 // WakeWait is a closed agent's wake walled behind an account's 5h or weekly wall, its slots, or its workspace's agent_cap.
@@ -632,7 +622,7 @@ func (l *Launcher) NoRoom(agent string) string {
 			return "no account is registered - add one in the app's Accounts page first"
 		}
 		if allowed, rule := l.accountsRule(agent); allowed != nil {
-			return "no account its workspace's rule " + ruleWords(rule) + " names is logged in"
+			return "no account its workspace's rule " + rule.Words() + " names is logged in"
 		}
 		cmd, _ := l.Ports.Accounts.LoginCommand(named[0])
 		return fmt.Sprintf("no account is logged in. A human has to do this once (Handline never touches credentials):\n\n  %s\n", cmd)
@@ -733,7 +723,7 @@ func WaitClock(w *WakeWait, unknown string) string {
 // DescribeWakeWait is the wording for a wait already computed, so a caller that holds one does not recompute it.
 func DescribeWakeWait(w *WakeWait) string {
 	if w.Workspace != "" {
-		return fmt.Sprintf("waiting for a slot in workspace %s (%d of %d of its agents mid-turn; its rule %s)", w.Workspace, w.Busy, w.Full, ruleWords(w.Rule))
+		return fmt.Sprintf("waiting for a slot in workspace %s (%d of %d of its agents mid-turn; its rule %s)", w.Workspace, w.Busy, w.Full, w.Rule.Words())
 	}
 	if w.Paused {
 		return fmt.Sprintf("waiting for %s: it is paused; resume it in the app's settings", w.Account)
