@@ -38,19 +38,45 @@ def slug(path: Path) -> str:
 KEEP_S = 24 * 3600
 
 
-def sweep_kept(root: Path = Path("/tmp"), now: float | None = None) -> None:
-    """Removes the runs' directories under root older than KEEP_S that no process's command line names."""
-    now = time.time() if now is None else now
-    old = [p for p in root.glob("hlc.*") if p.is_dir() and now - p.stat().st_mtime > KEEP_S]
+def names(run: Path) -> set[str]:
+    """The ways a process may spell run's path: /tmp is /private/tmp on macOS."""
+    return {str(run.resolve()), str(run.resolve()).removeprefix("/private")}
+
+
+def alive(run: Path) -> bool:
+    """Whether the process that owns run (the pid new_run wrote) is still running."""
+    try:
+        os.kill(int((run / "owner").read_text()), 0)
+    except (OSError, ValueError):
+        return False
+    return True
+
+
+def sweep_kept(root: Path = Path("/tmp")) -> None:
+    """Removes the runs' directories under root older than KEEP_S whose owner has exited and that no process names on its command
+    line. Nothing is removed when the processes cannot be listed: a sweep never stops a run from starting."""
+    old = []
+    for p in root.glob("hlc.*"):
+        try:
+            if p.is_dir() and time.time() - p.stat().st_mtime > KEEP_S and not alive(p):
+                old.append(p)
+        except OSError:  # another run's sweep took it
+            continue
     if not old:
         return
-    out = subprocess.run(["ps", "-axww", "-o", "command="], capture_output=True, text=True).stdout
+    try:
+        ps = subprocess.run(["ps", "-axww", "-o", "command="], capture_output=True, text=True)
+    except OSError:
+        return
+    if ps.returncode != 0 or not ps.stdout:
+        return
     for p in old:
-        if not any(n in out for n in (str(p.resolve()), str(p.resolve()).removeprefix("/private"))):
+        if not any(n in ps.stdout for n in names(p)):
             shutil.rmtree(p, ignore_errors=True)
 
 
-def new_run(at: Path | None = None) -> Path:
+def new_run(owner: int, at: Path | None = None) -> Path:
+    """A run's directory, owned by the process owner: the shell that called begin, or this one for run."""
     if at is None:
         sweep_kept()
         run = Path(tempfile.mkdtemp(prefix="hlc.", dir="/tmp"))
@@ -59,19 +85,20 @@ def new_run(at: Path | None = None) -> Path:
         shutil.rmtree(run, ignore_errors=True)
         run.mkdir(parents=True)
     (run / "tmp").mkdir()
+    (run / "owner").write_text(str(owner))
     return run
 
 
 def begin() -> int:
-    print(new_run())
+    print(new_run(os.getppid()))
     return 0
 
 
 def processes(run: Path) -> list[str]:
-    names = {str(run.resolve()), str(run.resolve()).removeprefix("/private")}
+    spelled = names(run)
     out = subprocess.run(["ps", "-axww", "-o", "pid=,command="], capture_output=True, text=True).stdout
     return [line.strip() for line in out.splitlines()
-            if any(n in line for n in names) and str(os.getpid()) != line.split()[0]]
+            if any(n in line for n in spelled) and str(os.getpid()) != line.split()[0]]
 
 
 def tmux_servers(run: Path) -> list[str]:
@@ -109,7 +136,7 @@ def end(run: Path, interrupted: bool = False) -> int:
 def run_one(cmd: list[str], at: Path | None = None) -> int:
     """Off a terminal the command runs in a session of its own, and a signal to this process goes to all of it. On a terminal it
     keeps the terminal, which a step may need (stty, a password prompt), and Ctrl-C reaches all of it there already."""
-    run = new_run(at)
+    run = new_run(os.getpid(), at)
     group = not sys.stdin.isatty()
     child = subprocess.Popen(cmd, env={**os.environ, "TMPDIR": f"{run}/tmp/", "TMUX_TMPDIR": str(run)}, start_new_session=group)
     stopped = []
