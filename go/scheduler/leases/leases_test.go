@@ -2,6 +2,7 @@ package leases
 
 import (
 	"reflect"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -222,5 +223,154 @@ func TestMaxReadsTheConfig(t *testing.T) {
 	cfg := usage.Config{"browser_max": 2, "simulator_max": -1}
 	if Max(cfg, Browser) != 2 || Max(cfg, Simulator) != 0 || Max(usage.Config{}, Browser) != 0 {
 		t.Fatal(Max(cfg, Browser), Max(cfg, Simulator))
+	}
+}
+
+func TestAFreedLeaseGoesToTheWorkspaceThatHeldTheKindLeast(t *testing.T) {
+	now := int64(1000)
+	m := fairManager(1, &now)
+	first, _ := m.Take(nil, Browser, "a1", false, 7, long)
+	now += 600 // w1 held a browser for ten minutes
+	m.Release(first.ID, "a1")
+	held, _ := m.Take(nil, Browser, "c1", false, 7, long)
+	a2 := ask(t, m, nil, "a2", long)
+	b1 := ask(t, m, nil, "b1", long)
+	if q := m.View()[1].Queue; len(q) != 2 || q[0].Agent != "b1" || q[0].Workspace != "w2" || q[1].Agent != "a2" {
+		t.Fatalf("queue: %+v", q)
+	}
+	now += 60
+	m.Release(held.ID, "c1")
+	gb := got(t, b1)
+	if gb.l == nil || gb.l.Agent != "b1" || gb.l.Workspace != "w2" {
+		t.Fatalf("b1: %+v", gb)
+	}
+	none(t, a2)
+	m.Release(gb.l.ID, "b1")
+	if ga := got(t, a2); ga.l == nil || ga.l.Agent != "a2" {
+		t.Fatalf("a2: %+v", ga)
+	}
+}
+
+func TestHoldSecondsOlderThanAnHourDoNotCount(t *testing.T) {
+	now := int64(1000)
+	m := fairManager(1, &now)
+	hold := func(kind, agent string, s int64) {
+		l, _ := m.Take(nil, kind, agent, false, 7, long)
+		now += s
+		m.Release(l.ID, agent)
+	}
+	hold(Browser, "b1", 600)
+	now += fairS // w2's ten minutes are now past the hour
+	hold(Browser, "b1", 60)
+	hold(Browser, "a1", 30)
+	hold(Simulator, "a1", 600) // another kind does not count toward browsers
+	held, _ := m.Take(nil, Browser, "c1", false, 7, long)
+	b1 := ask(t, m, nil, "b1", long)
+	a2 := ask(t, m, nil, "a2", long)
+	m.Release(held.ID, "c1")
+	if ga := got(t, a2); ga.l == nil || ga.l.Agent != "a2" {
+		t.Fatalf("a2: %+v", ga)
+	}
+	none(t, b1)
+}
+
+// fairManager has a limit for every kind and the clock at *now.
+func fairManager(limit int, now *int64) *Manager {
+	ws := map[string]string{"a1": "w1", "a2": "w1", "b1": "w2", "c1": "w3"}
+	return &Manager{Max: func(string) int { return limit }, Now: func() int64 { return *now }, WorkspaceOf: func(a string) string { return ws[a] }}
+}
+
+type memStore struct {
+	rows    map[int64]Lease
+	last    int64
+	removed []int64
+}
+
+func (s *memStore) Load() ([]Lease, int64, error) {
+	var out []Lease
+	for _, l := range s.rows {
+		out = append(out, l)
+	}
+	return out, s.last, nil
+}
+
+func (s *memStore) Add(l Lease) error {
+	s.rows[l.ID], s.last = l, max(s.last, l.ID)
+	return nil
+}
+
+func (s *memStore) Remove(id int64) error {
+	delete(s.rows, id)
+	s.removed = append(s.removed, id)
+	return nil
+}
+
+func TestARestartKeepsHoldsAndLiveCommandsAndDropsTheRest(t *testing.T) {
+	st := &memStore{last: 9, rows: map[int64]Lease{
+		3: {ID: 3, Kind: Simulator, Agent: "a", Workspace: "w1", Since: 900, Hold: true},
+		4: {ID: 4, Kind: Browser, Agent: "a", Workspace: "w1", Since: 950, PID: 7},
+		5: {ID: 5, Kind: Browser, Agent: "b", Workspace: "w2", Since: 960, PID: 8},
+		6: {ID: 6, Kind: Browser, Agent: "b", Workspace: "w2", Since: 970, PID: 9},
+	}}
+	m := manager(1)
+	m.Store = st
+	// pid 7 is lease 4's hl use; pid 8 is a later process that got lease 5's dead one's pid, and 9 is gone.
+	m.Started = func(pid int) (int64, bool) { return map[int]int64{7: 940, 8: 990}[pid], pid != 9 }
+	if err := m.Adopt(); err != nil {
+		t.Fatal(err)
+	}
+	v := m.View()
+	if len(v[0].Held) != 1 || v[0].Held[0].ID != 3 || !v[0].Held[0].Hold || len(v[1].Held) != 1 || v[1].Held[0].ID != 4 ||
+		v[1].Held[0].Workspace != "w1" {
+		t.Fatalf("adopted: %+v", v)
+	}
+	if sort.Slice(st.removed, func(i, j int) bool { return st.removed[i] < st.removed[j] }); !reflect.DeepEqual(st.removed, []int64{5, 6}) {
+		t.Fatalf("removed: %v", st.removed)
+	}
+	// The adopted browser is the one under the limit: another ask waits, and gets a new id once hl use gives it back by its old one.
+	b := ask(t, m, nil, "b", long)
+	if !m.Release(4, "a") {
+		t.Fatal("the adopted lease could not be given back by its id")
+	}
+	gb := got(t, b)
+	if gb.l == nil || gb.l.ID != 10 {
+		t.Fatalf("b: %+v", gb)
+	}
+	if _, ok := st.rows[gb.l.ID]; !ok || len(st.rows) != 2 {
+		t.Fatalf("stored: %+v", st.rows)
+	}
+	m.ReleaseAgent("a", "", true, "the turn ended")
+	if _, ok := st.rows[3]; ok {
+		t.Fatal("the ended hold is still stored")
+	}
+}
+
+func TestALeaseStillHeldCountsTowardItsWorkspace(t *testing.T) {
+	now := int64(1000)
+	m := fairManager(2, &now)
+	m.Take(nil, Browser, "a1", false, 7, long)
+	held, _ := m.Take(nil, Browser, "c1", false, 7, long)
+	now += 600
+	a2 := ask(t, m, nil, "a2", long)
+	b1 := ask(t, m, nil, "b1", long)
+	m.Release(held.ID, "c1")
+	if gb := got(t, b1); gb.l == nil || gb.l.Agent != "b1" {
+		t.Fatalf("b1: %+v", gb)
+	}
+	none(t, a2)
+}
+
+func TestTheLineForgetsALeaseThatEndedOverAnHourAgo(t *testing.T) {
+	now := int64(1000)
+	m := fairManager(1, &now)
+	old, _ := m.Take(nil, Browser, "b1", false, 7, long)
+	now += 600
+	m.Release(old.ID, "b1")
+	m.Take(nil, Browser, "c1", false, 7, long)
+	ask(t, m, nil, "a2", long)
+	ask(t, m, nil, "b1", long)
+	now += fairS + 600 // no lease ends meanwhile, so nothing prunes w2's old ten minutes
+	if q := m.View()[1].Queue; len(q) != 2 || q[0].Agent != "a2" || q[1].Agent != "b1" {
+		t.Fatalf("queue: %+v", q)
 	}
 }

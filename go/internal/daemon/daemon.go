@@ -47,6 +47,7 @@ import (
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/scheduler/access"
 	"github.com/handline/handline/go/scheduler/leases"
+	"github.com/handline/handline/go/scheduler/leasestore"
 	"github.com/handline/handline/go/scheduler/procload"
 	"github.com/handline/handline/go/scheduler/session"
 	"github.com/handline/handline/go/scheduler/settings"
@@ -220,7 +221,9 @@ func Start(cfg Config) (*Daemon, error) {
 		m := dbpkg.SubagentMeta{Description: c.Description, Type: c.Type, Background: c.Background}
 		return (&usage.Env{Home: cfg.Home}).StartSubagent(db, agent, session, time.Now().Unix(), m)
 	}
-	d.leases = &leases.Manager{Log: cfg.Log, Max: func(kind string) int { return leases.Max(usage.LoadConfig(cfg.Home), kind) }}
+	ls := leasestore.Store{DB: db}
+	d.leases = &leases.Manager{Log: cfg.Log, Max: func(kind string) int { return leases.Max(usage.LoadConfig(cfg.Home), kind) },
+		Store: ls, WorkspaceOf: ls.WorkspaceOf}
 	d.hooks.TurnEnded = func(agent, kind string) {
 		// A hold lasts the turn; a session's end also ends the commands' leases its hl use processes did not give back.
 		if kind == "SessionEnd" {
@@ -241,11 +244,15 @@ func Start(cfg Config) (*Daemon, error) {
 		return (&settings.Settings{Home: cfg.Home}).ConfigSeconds("input_hold_idle_s", inputhold.DefaultIdleS)
 	}}
 	d.tchan.Holds = d.holds
-	d.ingestSpool() // what hooks left while no daemon ran, before the first call is served
 	if d.single = lock.TakeSingleton(cfg.Home, daemonLock); d.single == nil {
 		db.Close()
 		return nil, errors.New("another daemon holds this home: not starting a second")
 	}
+	// The stored leases come back before the spool, so a turn that ended while no daemon ran frees its holds.
+	if err := d.leases.Adopt(); err != nil {
+		cfg.Log("  leases: adopting: %v", err)
+	}
+	d.ingestSpool()                                                         // what hooks left while no daemon ran, before the first call is served
 	if home := paths.DBFile(cfg.Home); filepath.Clean(cfg.DBFile) == home { // a -db elsewhere is not the file the home's readers open
 		d.lent = store.Lend(home, db)
 	}
