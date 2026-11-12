@@ -42,12 +42,18 @@ func TestWorkingOnCapturedScreens(t *testing.T) {
 	}
 }
 
-// An interrupted turn ends on "■ Conversation interrupted", which wraps; the composer is back.
-func TestAnInterruptedTurnIsOver(t *testing.T) {
-	tail := []string{"• Ran ls", "", "■ Conversation interrupted - tell the model what to do differently. Something went wrong? Hit `/feedback` to report the",
-		"issue.", "", "      Tip: Press f3 to search this conversation.", "", "› Ask Codex to do anything", "", "  GPT-5.6-Luna low · /w", "  ? for shortcuts"}
-	if w, k := (Screen{}).WorkingOnScreen(tail); w || !k {
-		t.Fatalf("working %v known %v", w, k)
+// A turn is over once the composer is back under its end: "■ Conversation interrupted", which wraps, or from 0.167 how long it
+// worked and the time, in one row.
+func TestATurnEndIsOver(t *testing.T) {
+	for name, tail := range map[string][]string{
+		"interrupted": {"• Ran ls", "", "■ Conversation interrupted - tell the model what to do differently. Something went wrong? Hit `/feedback` to report the",
+			"issue.", "", "      Tip: Press f3 to search this conversation.", "", "› Ask Codex to do anything", "", "  GPT-5.6-Luna low · /w", "  ? for shortcuts"},
+		"0.167 end": {"• Ran python3 probe.py", "  └ unix hello", "", "• unix hello", "", "  Worked for 7s • 00:54", "", "› Ask Codex to do anything", "",
+			"  GPT-6-Luna low · /w · Run probe script", "  ← for agents · ? for shortcuts"},
+	} {
+		if w, k := (Screen{}).WorkingOnScreen(tail); w || !k {
+			t.Errorf("%s: working %v known %v", name, w, k)
+		}
 	}
 }
 

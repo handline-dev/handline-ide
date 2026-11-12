@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -83,6 +84,56 @@ func TestLiveCodexSession(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// A stand-in for the daemon's socket, and a probe the session runs: the socket must answer, the network past the proxy must not.
+	sockDir, err := os.MkdirTemp("", "hlcx") // short: a unix socket path has room for about 100 bytes
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(sockDir) })
+	daemonSock := filepath.Join(sockDir, "d.sock")
+	extra := filepath.Join(root, "extra") // an AllowWrite folder outside the worktree
+	if err := os.Mkdir(extra, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	ln, err := net.Listen("unix", daemonSock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { ln.Close() })
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			c.Write([]byte("hello\n"))
+			c.Close()
+		}
+	}()
+	probe := fmt.Sprintf(`import socket
+s = socket.socket(socket.AF_UNIX)
+try:
+    s.connect(%q); print("unix", s.recv(5).decode())
+except Exception as e:
+    print("unix refused", e)
+try:
+    socket.create_connection(("example.com", 80), 5); print("net open")
+except Exception as e:
+    print("net closed")
+import urllib.request
+try:
+    urllib.request.urlopen("https://api.github.com", timeout=10); print("allowed domain open")
+except Exception as e:
+    print("allowed domain closed", e)
+try:
+    open(%q, "w").write("x"); print("extra writable")
+except Exception as e:
+    print("extra read-only", e)
+`, daemonSock, filepath.Join(extra, "x"))
+	if err := os.WriteFile(filepath.Join(wd, "probe.py"), []byte(probe), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
 	// Start: the launch line in a tmux server of the test's own.
 	sock := fmt.Sprintf("hl-codex-live-%d", os.Getpid())
 	tmux := func(args ...string) (string, error) {
@@ -90,7 +141,7 @@ func TestLiveCodexSession(t *testing.T) {
 		return string(out), err
 	}
 	t.Cleanup(func() { tmux("kill-server") })
-	argv := Driver{}.LaunchArgv(exe, agent.LaunchArgs{Cwd: wd, Effort: "low", Preamble: "You are a test. Answer in as few words as you can."})
+	argv := Driver{Host: agent.Host{Socket: daemonSock}}.LaunchArgv(exe, agent.LaunchArgs{Cwd: wd, Effort: "low", AllowDomains: []string{"*.github.com"}, AllowWrite: []string{extra}, Preamble: "You are a test. Answer in as few words as you can."})
 	start := append([]string{"new-session", "-d", "-P", "-F", "#{pane_id}", "-x", "200", "-y", "50", "-e", "CODEX_HOME=" + codexHome, "-c", wd}, argv...)
 	out, err := tmux(append(start, ";", "set-option", "-g", "remain-on-exit", "on")...)
 	if err != nil {
@@ -115,8 +166,8 @@ func TestLiveCodexSession(t *testing.T) {
 	}
 	waitFor("composer ready to type into", 90*time.Second, func() bool {
 		s := screen()
-		working, known := Screen{}.WorkingOnScreen(s)
-		return Screen{}.ScreenBlocker(s) == nil && known && !working
+		working, _ := Screen{}.WorkingOnScreen(s) // 0.167's start screen draws no header box, so idle there is not known
+		return Screen{}.ScreenBlocker(s) == nil && !working
 	})
 
 	// Message: typed through the delivery port and confirmed from the session file.
@@ -141,7 +192,7 @@ func TestLiveCodexSession(t *testing.T) {
 		OnDelivered: func(_, op string) { delivered <- op },
 		OnFailed:    func(_, _, why string, _ bool) { failed <- why },
 	})
-	const ask = "Reply with exactly the word PONG and nothing else."
+	const ask = "Run the shell command `python3 probe.py` and reply with its output only."
 	if _, err := port.Send("live", "op-1", ask, ""); err != nil {
 		t.Fatalf("send: %v", err)
 	}
@@ -171,10 +222,18 @@ func TestLiveCodexSession(t *testing.T) {
 		return reply != ""
 	})
 	t.Logf("reply %q; hooks seen %v", reply, events)
-	if !strings.Contains(strings.ToUpper(reply), "PONG") {
-		t.Errorf("reply %q has no PONG", reply)
+	for _, want := range []string{"allowed domain open", "extra writable"} {
+		if !strings.Contains(reply, want) {
+			t.Errorf("no %q: %q", want, reply)
+		}
 	}
-	for _, ev := range []string{"SessionStart", "UserPromptSubmit"} {
+	if !strings.Contains(reply, "unix hello") {
+		t.Errorf("the session could not reach the daemon's socket: %q", reply)
+	}
+	if hasProfiles(exe) && !strings.Contains(reply, "net closed") {
+		t.Errorf("a codex with permission profiles reached the network past its allowed domains: %q", reply)
+	}
+	for _, ev := range []string{"SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse"} {
 		if !events[ev] {
 			t.Errorf("no %s hook", ev)
 		}
