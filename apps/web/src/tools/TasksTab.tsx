@@ -67,7 +67,7 @@ export function TasksTab({ agent }: { agent: string | null }) {
                 )}
                 <div className="flex flex-col overflow-hidden rounded-lg border border-border">
                   {g.items.map((t, i) => (
-                    <Row key={t.id} t={t} ruled={i > 0} owner={owner} />
+                    <Row key={t.id} t={t} ruled={i > 0} owner={owner} kids={items.filter((c) => c.parent === t.id).map((c) => c.id)} />
                   ))}
                 </div>
               </section>
@@ -92,21 +92,24 @@ function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; chi
 }
 
 /** A task as the chat's task cards draw one: its state's square, number and title, and a line under it. */
-/** Why it waits, in a few words: on the founder, on tasks by number, or the first clause of the daemon's sentence. */
-function waitWords(t: Task): string | null {
+/** Why it waits, in a few words: on the founder, on tasks by number, on its own open sub-tasks (`kids`, those in the list), or the
+ * first clause of the daemon's sentence. */
+function waitWords(t: Task, kids: number[]): string | null {
   const w = t.waiting;
   if (w?.on === 'founder') return 'Waiting on you';
-  if (w?.tasks.length) return `Waits on ${w.tasks.map((n) => `T${n}`).join(', ')}`;
+  const others = w?.tasks.filter((n) => !kids.includes(n)) ?? [];
+  if (others.length) return `Waits on ${others.map((n) => `T${n}`).join(', ')}`;
+  if (w?.tasks.length) return `${w.tasks.length} sub-task${w.tasks.length > 1 ? 's' : ''} open`;
   const text = w?.text ?? t.block_reason ?? t.hold_reason;
   return text ? text.split(/[,;(]/)[0]!.trim() : null;
 }
 
-function Row({ t, ruled, owner }: { t: Task; ruled: boolean; owner?: string }) {
+function Row({ t, ruled, owner, kids }: { t: Task; ruled: boolean; owner?: string; kids: number[] }) {
   const nameOf = useNameOf();
   const me = useMe();
   const back = useGiveBack();
   const s = look(t);
-  const why = waitWords(t);
+  const why = waitWords(t, kids);
   // The assignee is left out while the list is already that agent's.
   const chain = turnChain(t, me, nameOf);
   const detail = [
