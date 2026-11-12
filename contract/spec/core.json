@@ -138,7 +138,8 @@
    "hl account add|remove|register|cap|cycle|recover|wake (set; the cycle and cap reads are Account.cycle and Account.cap in accounts.list)",
    "hl idle-timeout|idle-background|notice-digest|ignore-cache-expiry (set)",
    "hl dev-mode",
-   "hl device pair|list|revoke (device.pair, devices.list, device.revoke: the daemon's socket, from the founder's terminal)"
+   "hl device pair|list|revoke (device.pair, devices.list, device.revoke: the daemon's socket, from the founder's terminal)",
+   "hl workspace new|rename|delete (workspace.create, workspace.set, workspace.delete; an agent proposes a team)"
   ],
   "needs_a_decision": [
    "hl spawn (a founder's act; it calls session.start, and agent.create serves it to the founder's apps)",
