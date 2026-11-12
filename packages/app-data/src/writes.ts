@@ -320,6 +320,8 @@ export const patches: Record<string, Patch> = {
   ...tasks,
   ...settings,
   ...schedules,
+  // A machine default changes every workspace's rules in force, so every workspace's entry is read again.
+  'workspace.rule.set': { touches: (d) => [qk.allRules(d)] },
   'chat.seen': { quiet: true },
   'task.seen': { quiet: true },
   // A worktree that holds work is refused until the person answers; the screen asks, so no error line is raised.
