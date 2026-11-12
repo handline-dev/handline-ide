@@ -553,7 +553,7 @@ func TestABlockedTaskFreesItsOwnerAndComesBackWithoutPreempting(t *testing.T) {
 	next := r.newTask(r.k("bob"), r.k(("alice")), "the next one")
 	r.must(db.AddBlock(r.DB, held, blocker))
 	r.must(db.SetCurrentTask(r.DB, r.k(("bob")), 0, false)) // as task.edit leaves it
-	r.Edited(taskwrites.Edited{Task: held, By: r.k(("bob")), Freed: r.k(("bob"))})
+	r.Edited(taskwrites.Edited{Task: held, By: r.k(("bob")), Freed: []string{r.k("bob")}})
 	if cur, _, _ := db.CurrentTask(r.DB, r.k(("bob"))); cur != next {
 		t.Fatalf("current is T%d, want T%d at once", cur, next)
 	}

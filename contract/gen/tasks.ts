@@ -302,8 +302,8 @@ export type HistoryRow = {
   at: Timestamp;
   /** Who made the change: an agent's key, or a person's. */
   by: string;
-  /** evidence is a done task's result. assignee is who works the task, owner who it answers to. state is opened, draft, queued, doing, done, discarded, closed, released or merged. blocked_by is a task it waits on, as T<n>. tag is a tag added (was empty) or removed (now empty). */
-  field: "title" | "assignee" | "owner" | "body" | "evidence" | "priority" | "estimate" | "timeout" | "state" | "tag" | "blocked_by" | "merged_into" | "memo";
+  /** evidence is a done task's result. assignee is who works the task, owner who it answers to. state is opened, draft, queued, doing, done, discarded, closed, released or merged. blocked_by is a task it waits on, as T<n>; parent the task it sits under, as T<n>, empty for none. tag is a tag added (was empty) or removed (now empty). */
+  field: "title" | "assignee" | "owner" | "body" | "evidence" | "priority" | "estimate" | "timeout" | "state" | "tag" | "blocked_by" | "parent" | "merged_into" | "memo";
   /** The value before; empty when there was none (a task just opened, a wait just added, a memo just added). */
   was: string;
   /** The value after; empty when it is gone (a wait removed, a memo deleted). */
@@ -874,6 +874,10 @@ export interface TasksMethods {
   blocked_by?: number;
   /** A task number this one no longer waits on; clearing the last one lets its owner's current task advance. */
   unblock?: number;
+  /** A task to move this one under: the old parent stops waiting on it, an open new parent waits on it while it is open (a done one takes it without the wait). Refused (`refused`, nothing changed): itself, a task under it, a discarded parent, its current parent, a wait loop. */
+  parent?: number;
+  /** Move the task to the top: its parent stops waiting on it, and that parent's owner is told. A task already at the top is refused (`refused`). With parent it is `bad_request` on field no_parent. */
+  no_parent?: boolean;
   /** Tags to add; one it has already is left as it is. Each change is a history row. Nobody is told of a tag change. */
   add_tags?: Tag[];
   /** Tags to remove; one it has not got is left as it is. */

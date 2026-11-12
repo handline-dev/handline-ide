@@ -492,7 +492,7 @@ func taskQueue(queued bool) taskCmd {
 
 func taskEdit(c *hlclient.Client, args []string) (int, bool) {
 	p, ok := parse(args, []string{"--assign", "--owner", "--title", "--body", "--body-file", "--priority", "--estimate", "--blocked-by", "--unblock",
-		"--timeout", "--tag", "--untag", "--pr"}, nil, nil)
+		"--timeout", "--tag", "--untag", "--pr", "--parent"}, []string{"--no-parent"}, nil)
 	if !ok || len(p.pos) != 1 {
 		return 0, false
 	}
@@ -504,7 +504,8 @@ func taskEdit(c *hlclient.Client, args []string) (int, bool) {
 	prText, hasPR := p.opt("--pr")
 	pr, err := strconv.ParseInt(strings.TrimPrefix(prText, "#"), 10, 64)
 	points, hasEstimate, ok5 := optEstimate(p)
-	if !ok || !ok1 || !ok2 || !ok3 || !ok4 || !ok5 || hasPR && (err != nil || pr <= 0) {
+	parent, hasParent, ok6 := optTask(p, "--parent")
+	if !ok || !ok1 || !ok2 || !ok3 || !ok4 || !ok5 || !ok6 || hasPR && (err != nil || pr <= 0) || hasParent && p.flags["--no-parent"] {
 		return 0, false
 	}
 	mutating(c, "edit")
@@ -561,6 +562,12 @@ func taskEdit(c *hlclient.Client, args []string) (int, bool) {
 	if hasUnblock {
 		params["unblock"] = unblock
 	}
+	if hasParent {
+		params["parent"] = parent
+	}
+	if p.flags["--no-parent"] {
+		params["no_parent"] = true
+	}
 	if tags := p.tags("--tag"); len(tags) > 0 {
 		params["add_tags"] = tags
 	}
@@ -568,7 +575,7 @@ func taskEdit(c *hlclient.Client, args []string) (int, bool) {
 		params["remove_tags"] = tags
 	}
 	if len(params) == 1 {
-		fmt.Println("edit needs a new assignee, a new owner, a new title, --body, --priority, --estimate, --blocked-by, --unblock, --timeout, --tag, --untag or --pr")
+		fmt.Println("edit needs a new assignee, a new owner, a new title, --body, --priority, --estimate, --blocked-by, --unblock, --timeout, --tag, --untag, --pr, --parent or --no-parent")
 		return 1, true
 	}
 	return said(c.Write("task.edit", params)), true

@@ -216,10 +216,8 @@ func newMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, e
 			}
 			return accepted(fmt.Sprintf("task T%d opened for %s", tid, addr.Ref(owner)), map[string]any{"task": tid}), nil
 		})
-		for _, o := range freed {
-			if err == nil && tell != nil {
-				tell.Edited(Edited{Task: tid, By: me, Freed: o})
-			}
+		if err == nil && tell != nil && len(freed) > 0 {
+			tell.Edited(Edited{Task: tid, By: me, Freed: freed})
 		}
 		if asked != nil && !asked.OK && asked.After != nil {
 			asked.After() // the refusal's writes stood: what follows them still runs
