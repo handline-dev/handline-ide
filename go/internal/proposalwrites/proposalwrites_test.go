@@ -9,6 +9,7 @@ import (
 	"maps"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"slices"
@@ -415,8 +416,7 @@ func TestApproveNeedsTheSubjectTheFounderReadAndAppliesIt(t *testing.T) {
 func TestAddRegistersTheAgentInItsWorkspace(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
-	repo := t.TempDir()
-	os.Mkdir(filepath.Join(repo, ".git"), 0o755)
+	repo := gitDir(t)
 	p, id := r.propose("aaaa0003", "kind", "add", "agent", "eng.carol", "team", "eng", "repo", repo)
 	res := r.decide(id, "approve", p.subject(), "b1")["result"].(map[string]any)
 	said := res["said"].(string)
@@ -999,11 +999,12 @@ func refusedWith(t *testing.T, m map[string]any, want string) {
 	}
 }
 
+// gitDir is a new empty git checkout: a workspace's folder is one.
 func gitDir(t *testing.T) string {
 	t.Helper()
 	d := t.TempDir()
-	if err := os.Mkdir(filepath.Join(d, ".git"), 0o755); err != nil {
-		t.Fatal(err)
+	if out, err := exec.Command("git", "init", "-q", d).CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v %s", err, out)
 	}
 	return d
 }
@@ -1105,8 +1106,7 @@ func TestAnApproveChecksTheRepoAgain(t *testing.T) {
 func TestTheFoundersOwnAddIsAppliedAtOnce(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
-	repo := t.TempDir()
-	os.Mkdir(filepath.Join(repo, ".git"), 0o755)
+	repo := gitDir(t)
 	m := r.call("proposal.propose", fmt.Sprintf(`{"kind":"add","args":{"name":"carol","repo":%q},"why":"we need her","request_id":"f1"}`, repo))
 	res, ok := m["result"].(map[string]any)
 	if !ok {
