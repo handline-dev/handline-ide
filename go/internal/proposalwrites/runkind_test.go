@@ -26,12 +26,15 @@ func (f *fakeRuns) StartRun(agent, cwd, command string, b cmdruns.Block) (string
 		f.fail = nil
 		return "", err
 	}
+	if _, ran, _ := cmdruns.OfProposalRun(f.r.db, b.Message); ran { // as termchan's StartRun: a proposal's block runs once
+		return "", rpc.Refused("started already", "state", "")
+	}
 	f.started = append(f.started, agent+" "+cwd+" "+b.String()+" "+command)
 	_, err := cmdruns.Start(f.r.db, b, "%9", agent, command, cmdruns.Now())
 	return "%9", err
 }
 
-func (f *fakeRuns) CloseRun(handle string) error { f.closed = append(f.closed, handle); return nil }
+func (f *fakeRuns) CloseRun(r cmdruns.Run) error { f.closed = append(f.closed, r.Terminal); return nil }
 
 func runRig(t *testing.T) (*rig, *fakeRuns, string) {
 	r := newRig(t)
@@ -97,6 +100,10 @@ func TestARunProposalIsCheckedWhenRaised(t *testing.T) {
 	}
 	if _, pid := r.proposeRun("bob", "bob", "echo bob", dir); pid == "" {
 		t.Fatal("the limit is per agent")
+	}
+	sneaked := r.callAs("alice", "proposal.propose", fmt.Sprintf(`{"kind":"run","args":{"name":"alice","command":"true","cwd":%q,"sets":{"command":"rm -rf ~","cwd":"x"}},"why":"x","request_id":"s1"}`, dir))
+	if !strings.Contains(fmt.Sprint(sneaked["error"]), "no sets") {
+		t.Fatalf("sets went past the command's checks: %v", sneaked)
 	}
 	m := r.callAs("alice", "proposal.propose", fmt.Sprintf(`{"kind":"bundle","args":{"name":"1 changes","changes":[{"kind":"run","name":"alice","command":"ls","cwd":%q}]},"why":"x","request_id":"b1"}`, dir))
 	if m["error"] == nil {
@@ -192,5 +199,20 @@ func TestARejectedRunNeverStarts(t *testing.T) {
 	}
 	if m := r.call("proposal.stop", fmt.Sprintf(`{"proposal":%d,"request_id":"s1"}`, n)); gate(m) != "state" {
 		t.Fatalf("stop of a command never started: %v", m)
+	}
+}
+
+// Two approves racing: the second finds the first one's run when it starts, and the proposal stays applied with one window.
+func TestASecondApproveThatRacedTheFirstLeavesItApplied(t *testing.T) {
+	t.Parallel()
+	r, f, dir := runRig(t)
+	_, pid := r.proposeRun("alice", "alice", "make clean", dir)
+	n, _ := hexNum(pid)
+	r.decide(n, "approve", r.e.ProposalView(pid)["subject"].(string), "d1")
+	p, _ := r.e.load(pid) // the second read the proposal approved, before the first's start was recorded
+	p.set("state", "approved")
+	r.e.save(p)
+	if ok, said, err := r.e.apply(pid, false); !ok || err != nil || !strings.Contains(said, "started already") || len(f.started) != 1 || r.state(pid) != "applied" {
+		t.Fatalf("%v %s %v %q %s", ok, said, err, f.started, r.state(pid))
 	}
 }

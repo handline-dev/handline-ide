@@ -2,6 +2,7 @@ package termchan
 
 import (
 	"database/sql"
+	"fmt"
 	"strconv"
 
 	"github.com/handline/handline/go/agentctl/term"
@@ -69,8 +70,7 @@ func runOf(params map[string]any) (command string, block cmdruns.Block, ok bool,
 	if !isText || command == "" || len(command) > maxCommand {
 		return "", block, false, bad("a block needs a command, text of 1 to "+strconv.Itoa(maxCommand)+" characters", "command")
 	}
-	// a missing or non-text block is "", which is no block; a proposal's command runs only at the founder's approve
-	text, _ := b.(string)
+	text, _ := b.(string) // no block is "", which is no block; a proposal's runs only at the founder's approve
 	if block, ok = cmdruns.ParseBlock(text); !ok || block.Owner == cmdruns.ByProposal {
 		return "", block, false, bad(`block is "<message id>:<n>" or "r<reply item id>:<n>"`, "block")
 	}
@@ -117,10 +117,12 @@ func (e *Env) shellOpen(_ *rpc.Conn, params map[string]any) (any, error) {
 	return map[string]any{"agent": name, "terminal": handle, "cwd": cwd, "host": e.Backend().Name()}, nil
 }
 
-// StartRun runs command for block in a window of the terminal host beside agent, in cwd, and records the run: shell.open's run, and a
-// run proposal's at the founder's approve (proposalwrites). A rerun of a block closes the window its last run had; a proposal's block
-// runs once.
+// StartRun runs command for block in a window beside agent, in cwd, and records the run: shell.open's, and a run proposal's at the
+// founder's approve. A rerun closes the block's last window; a proposal's block runs once.
 func (e *Env) StartRun(agent, cwd, command string, block cmdruns.Block) (string, error) {
+	// one start at a time: two approves of one proposal from two connections find the first one's row, not both an empty table
+	e.runStart.Lock()
+	defer e.runStart.Unlock()
 	host, err := e.shellHost()
 	if err != nil {
 		return "", err
@@ -135,7 +137,7 @@ func (e *Env) StartRun(agent, cwd, command string, block cmdruns.Block) (string,
 			continue
 		}
 		if block.Owner == cmdruns.ByProposal {
-			return "", rpc.Refused("the command of proposal "+strconv.FormatInt(block.Message, 16)+" was started already: it runs once", "state", "")
+			return "", rpc.Refused(fmt.Sprintf("the command of proposal %08x was started already: it runs once", block.Message), "state", "")
 		}
 		// a rerun closes the window its block had, if that window is still the run's (pane ids start over with a tmux server)
 		if h, ok := e.Backend().(term.Host); ok && ended[r.Terminal].Tag == r.Tag() {
@@ -160,6 +162,9 @@ func (e *Env) StartRun(agent, cwd, command string, block cmdruns.Block) (string,
 		return "", rpc.Refused("no shell was opened: "+why, "state", "")
 	}
 	if _, err := cmdruns.Start(e.DB, block, handle, agent, command, started); err != nil {
+		if h, ok := host.(term.Host); ok { // a window with no row would run again at the next approve
+			h.CloseTerminal(handle, true)
+		}
 		return "", err
 	}
 	return handle, nil
@@ -223,11 +228,12 @@ func (e *Env) shellClose(_ *rpc.Conn, params map[string]any) (any, error) {
 	return map[string]any{"accepted": true, "said": agent + ": shell " + handle + " closed"}, nil
 }
 
-// CloseRun closes a run window, as shell.close does: proposal.stop's close of a run proposal's command.
-func (e *Env) CloseRun(handle string) error {
+// CloseRun closes run r's window, if the window is still that run's (pane ids start over with a tmux server): proposal.stop.
+func (e *Env) CloseRun(r cmdruns.Run) error {
+	handle := r.Terminal
 	h, ok := e.Backend().(term.Host)
-	if !ok || e.shellOf(handle) == "" {
-		return rpc.Refused("window "+handle+" is not a run the terminal host can close", "state", "")
+	if !ok || e.PaneRuns()[handle].Tag != r.Tag() {
+		return rpc.Refused("window "+handle+" is no longer this command's", "state", "")
 	}
 	if ok, why := h.CloseTerminal(handle, true); !ok {
 		return rpc.Refused("window "+handle+" was not closed: "+why, "state", "")

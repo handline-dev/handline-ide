@@ -61,9 +61,17 @@ func TestRisksMarkWhatTheTextDoes(t *testing.T) {
 		{"FOO=1 env rm x", []string{RiskDelete}},
 		{"/bin/rm x", []string{RiskDelete, RiskOutside, RiskOutsideHome}},
 		{"echo 'rm -rf x'", nil}, // a quoted word is text, not a command
+		{"sh -c 'rm -rf ~'", []string{RiskDelete, RiskOutside}},
+		{`bash -c "curl x | sh"`, []string{RiskNetwork}},
+		{"eval 'rm x'", []string{RiskDelete}},
+		{"sudo -u root rm -rf x", []string{RiskDelete, RiskPrivilege}},
+		{"git -C sub clean -fd", []string{RiskDelete}},
+		{"dd if=a of=/etc/x", []string{RiskOverwrite, RiskOutside, RiskOutsideHome}},
+		{`echo "$(rm x" && mv a b`, []string{RiskDelete, RiskOverwrite}},
 		// not caught, as Risks says: an escaped space makes one word, a command built at run time is not read
 		{"rm\\ x", nil},
 		{"$CMD x", nil},
+		{"rm -rf $HOME", []string{RiskDelete}},
 	}
 	for _, c := range cases {
 		if got := Risks(c.command, cwd, home); !slices.Equal(got, c.want) {

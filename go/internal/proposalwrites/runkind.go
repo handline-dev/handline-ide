@@ -27,7 +27,7 @@ const (
 // Runs is what a run proposal needs of the terminal host (termchan.Env).
 type Runs interface {
 	StartRun(agent, cwd, command string, block cmdruns.Block) (string, error)
-	CloseRun(handle string) error
+	CloseRun(r cmdruns.Run) error
 }
 
 // draftRun checks a run proposal's command and cwd and keeps them on prop, or says why not.
@@ -103,6 +103,10 @@ func (e *Env) startRun(prop *Prop) (bool, string, error) {
 		return false, fmt.Sprintf("cwd %s is not a folder any more", cwd), nil
 	}
 	handle, err := e.Runs.StartRun(prop.str("agent"), cwd, command, prop.runBlock())
+	if ran, rerr := e.started(prop); err != nil && rerr == nil && ran {
+		// a second approve that raced the first: that one started it, and this one leaves its record as it is
+		return true, "its command was started already; you are told how it ends", nil
+	}
 	if err != nil {
 		var re *rpc.Error
 		if errors.As(err, &re) {
@@ -120,6 +124,9 @@ func (e *Env) stopMethod(c *rpc.Conn, params map[string]any) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	if c.Caller.Actor() != actor.OwnerKey {
+		return nil, rpc.Refused("a proposal's command is the founder's to stop", "role", "")
+	}
 	if prop.kind() != "run" {
 		return nil, rpc.Refused(fmt.Sprintf("proposal %s is not a run: there is no command to stop", prop.id()), "state", "")
 	}
@@ -133,7 +140,7 @@ func (e *Env) stopMethod(c *rpc.Conn, params map[string]any) (any, error) {
 	if e.Runs == nil {
 		return nil, rpc.Refused("this daemon cannot close a window (no terminal host)", "unsupported", "")
 	}
-	if err := e.Runs.CloseRun(r.Terminal); err != nil {
+	if err := e.Runs.CloseRun(r); err != nil {
 		return nil, err
 	}
 	return c.Effect(func(*sql.Tx) (map[string]any, error) {
