@@ -3,6 +3,7 @@ package team
 import (
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -12,6 +13,7 @@ import (
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/kit/storetest"
+	"github.com/handline/handline/go/kit/testfiles"
 	"github.com/handline/handline/go/kit/yamlcompat"
 )
 
@@ -52,7 +54,7 @@ func register(t *testing.T, r *Roster, names ...string) {
 func TestRegisterMakesTheWorkspaceAndItsLeadAndReadsBack(t *testing.T) {
 	home := newHome(t)
 	r := NewRoster(home)
-	repo := t.TempDir()
+	repo := testfiles.GitCheckout(t)
 	if _, err := r.Register("shop", RegisterOpts{Repo: repo, Model: strp("opus")}); err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +107,7 @@ func TestRegisterMakesTheWorkspaceAndItsLeadAndReadsBack(t *testing.T) {
 
 func TestOnlyTheLeadMovesTheWorkspaceFolder(t *testing.T) {
 	r := NewRoster(newHome(t))
-	one, two := t.TempDir(), t.TempDir()
+	one, two := testfiles.GitCheckout(t), testfiles.GitCheckout(t)
 	register(t, r, "shop", "shop.ui")
 	if _, err := r.Register("shop.ui", RegisterOpts{Repo: one}); err != nil {
 		t.Fatalf("a workspace with no folder yet takes one from any agent: %v", err)
@@ -338,4 +340,9 @@ func TestTheRosterFindsAnAgentByItsKey(t *testing.T) {
 	if _, err := r.Read("a999"); err == nil {
 		t.Fatal("read a key no agent has")
 	}
+}
+
+func runGit(dir string, args ...string) (string, error) {
+	out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).CombinedOutput()
+	return string(out), err
 }

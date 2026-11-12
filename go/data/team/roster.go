@@ -65,11 +65,13 @@ type NotRegistered struct{ Name string }
 
 func (e *NotRegistered) Error() string { return fmt.Sprintf("agent '%s' is not registered", e.Name) }
 
-// IsRefusal is whether err is a Roster's answer to the caller (a refused value or name, a missing agent), not a failure.
+// IsRefusal is whether err is a Roster's answer to the caller (a refused value or name, a missing agent, a folder that is no checkout),
+// not a failure.
 func IsRefusal(err error) bool {
 	var r *names.Refusal
 	var n *NotRegistered
-	return errors.As(err, &r) || errors.As(err, &n)
+	var g *NotGit
+	return errors.As(err, &r) || errors.As(err, &n) || errors.As(err, &g)
 }
 
 func refuse(format string, a ...any) error { return &names.Refusal{Msg: fmt.Sprintf(format, a...)} }
@@ -176,11 +178,23 @@ func (r *Roster) set(q db.Q, at row, set []yamlcompat.Pair) error {
 	for _, kv := range set {
 		if kv.Key == "repo" {
 			folder, _ := kv.Val.(string)
-			if folder == at.folder {
-				continue
+			if folder == at.folder || (folder != "" && at.folder != "" && real(folder) == real(at.folder)) {
+				continue // unchanged: a settings save sends the folder back as it is
 			}
 			if !at.lead && at.folder != "" {
 				return refuse("repo is the folder of workspace %s (%s): set it on its lead", at.wsName, at.folder)
+			}
+			if folder != "" {
+				top, err := Toplevel(folder)
+				if err != nil {
+					return err
+				}
+				if folder = top; folder == at.folder {
+					continue
+				}
+				if err := sharing(q, folder, at.ws); err != nil {
+					return err
+				}
 			}
 			if _, err := q.Exec("UPDATE workspaces SET folder = ? WHERE id = ?", folder, at.ws); err != nil {
 				return err
@@ -312,36 +326,39 @@ func (r *Roster) Register(name string, o RegisterOpts) (string, error) {
 	if r.err != nil {
 		return "", r.err
 	}
-	if err := inTx(r.DB, func(q db.Q) error { return r.register(q, name, o, mcp) }); err != nil {
+	var made int64
+	if err := inTx(r.DB, func(q db.Q) error {
+		var err error
+		made, err = r.register(q, name, o, mcp)
+		return err
+	}); err != nil {
 		return "", err
 	}
-	return r.folders(name, o)
+	d, err := r.folders(name, o)
+	if err != nil || made == 0 {
+		return d, err
+	}
+	return d, seedWorkspace(r.Home, actor.Key(actor.Workspace, made))
 }
 
-// register is Register's rows, in one transaction with the name checks.
-func (r *Roster) register(q db.Q, name string, o RegisterOpts, mcp string) error {
+// register is Register's rows, in one transaction with the name checks. made is the id of the workspace it made, 0 when it made none.
+func (r *Roster) register(q db.Q, name string, o RegisterOpts, mcp string) (made int64, err error) {
 	at, err := find(q, name)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	now := time.Now().Unix()
 	owner, err := actor.Owner(q)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	repo := expandUser(o.Repo)
 	if at.ws == 0 {
-		if err := names.Check(q, names.Workspace, at.wsName, 0); err != nil {
-			return err
+		if at.ws, at.folder, err = createWorkspace(q, at.wsName, repo); err != nil {
+			return 0, err
 		}
-		res, err := q.Exec("INSERT INTO workspaces(name, folder, created_at) VALUES(?, ?, ?)", at.wsName, repo, now)
-		if err != nil {
-			return err
-		}
-		if at.ws, err = res.LastInsertId(); err != nil {
-			return err
-		}
-		at.folder = repo
+		made = at.ws
+		repo = at.folder // resolved: set finds it unchanged
 	}
 	isNew := at.id == 0
 	if isNew {
@@ -351,29 +368,29 @@ func (r *Roster) register(q db.Q, name string, o RegisterOpts, mcp string) error
 		if isLead {
 			agent = names.Lead
 		} else if lead, err := find(q, at.wsName); err != nil {
-			return err
+			return 0, err
 		} else if lead.id != 0 {
 			reportsTo = actor.Key(actor.Agent, lead.id)
 		}
 		if err := names.Check(q, names.Agent, agent, at.ws); err != nil {
-			return err
+			return 0, err
 		}
 		res, err := q.Exec(`INSERT INTO agents(workspace, name, owner, reports_to, model, effort, weight, created_at)
 			VALUES(?, ?, ?, ?, ?, ?, ?, ?)`, at.ws, agent, owner, reportsTo, DefaultModel, DefaultEffort, "light", now)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		if at.id, err = res.LastInsertId(); err != nil {
-			return err
+			return 0, err
 		}
 		if isLead {
 			if _, err := q.Exec("UPDATE workspaces SET lead = ? WHERE id = ?", at.id, at.ws); err != nil {
-				return err
+				return 0, err
 			}
 			// the workspace's agents registered before it reported to the owner, having no lead to report to
 			lead := actor.Key(actor.Agent, at.id)
 			if _, err := q.Exec("UPDATE agents SET reports_to = ? WHERE workspace = ? AND id != ? AND reports_to = ?", lead, at.ws, at.id, owner); err != nil {
-				return err
+				return 0, err
 			}
 			at.lead = true
 		}
@@ -413,7 +430,7 @@ func (r *Roster) register(q db.Q, name string, o RegisterOpts, mcp string) error
 	if present(o.Vendor) {
 		add("vendor", nilIf(*o.Vendor, DefaultVendor))
 	}
-	return r.set(q, at, set)
+	return made, r.set(q, at, set)
 }
 
 func nilIf(s, def string) any {
