@@ -62,13 +62,8 @@ export const saveOpenAtLogin =
     applyOpenAtLogin(app, app.isPackaged, on);
   };
 
-/** What the tray's menu shows of the update flow. */
-export const trayUpdate = (flow: UpdateFlow): TrayUpdate => ({
-  phase: flow.view.phase,
-  reason: flow.view.reason,
-  restart: () => flow.act('restart'),
-  retry: () => flow.act('retry'),
-});
+/** What the tray reads of the update flow. */
+export const trayUpdate = (flow: UpdateFlow): TrayUpdate => ({ phase: flow.view.phase });
 
 /** Follow-main mode as the tray shows it. */
 export const trayFollow = (f: Follower): TrayFollow => ({

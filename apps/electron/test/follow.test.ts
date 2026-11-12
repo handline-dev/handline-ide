@@ -234,38 +234,27 @@ test('a failed build is shown with the command output behind it, nothing relaunc
 const actions = {
   open: () => undefined,
   inbox: () => undefined,
-  startDaemon: () => undefined,
   setOpenAtLogin: () => undefined,
   quit: () => undefined,
   copy: () => undefined,
 };
 
-test('the menu says what the update flow says: updating, ready to restart, not updated; the commit is a detail', () => {
+test('the menu leaves updates to the app: no update lines, a failed one is trouble; the commit is a detail', () => {
   const base = { sha: 'aaa1111ffff', next: null, reason: '', check: () => undefined, restart: () => undefined };
-  const upd = (phase: 'idle' | 'preparing' | 'ready' | 'later' | 'failed', reason = '') => ({
-    phase,
-    reason,
-    restart: () => undefined,
-    retry: () => undefined,
-  });
-  const labels = (update: ReturnType<typeof upd>, details = false) =>
-    trayMenu('running', '', actions, {
+  const menu = (phase: 'idle' | 'preparing' | 'ready' | 'later' | 'failed', details = false) =>
+    trayMenu('running', actions, {
       unread: 0,
       working: 0,
       openAtLogin: true,
       remote: null,
       details,
-      update,
+      update: { phase },
       follow: { ...base, state: 'current' },
     }).map((i) => i.label ?? '-');
-  assert.ok(!labels(upd('idle')).some((l) => /main|update|restart/i.test(l)));
-  assert.ok(labels(upd('idle'), true).includes('Handline is on main aaa1111'));
-  assert.ok(labels(upd('preparing')).includes('Updating Handline…'));
-  assert.ok(labels(upd('ready')).includes('Handline is ready to restart') && labels(upd('ready')).includes('Restart now'));
-  assert.ok(labels(upd('later')).includes('Restart now'));
-  assert.ok(
-    labels(upd('failed', 'vite failed')).includes('Handline was not updated: vite failed') && labels(upd('failed')).includes('Try again'),
-  );
+  for (const p of ['idle', 'preparing', 'ready', 'later'] as const)
+    assert.ok(!menu(p).some((l) => /main|update|restart|try again/i.test(l)));
+  assert.ok(menu('idle', true).includes('Handline is on main aaa1111'));
+  assert.equal(menu('failed')[0], 'Handline needs attention');
 });
 
 // fs.watch can start and then deliver nothing (macOS with an overloaded fseventsd); a bare watch on the same folder tells that from a bug in watchMain.

@@ -174,7 +174,7 @@ export class Owner {
     });
   }
 
-  /** The tray's Stop daemon: it stays stopped until it is started again. */
+  /** Stops the daemon: it stays stopped until it is started again. */
   stop(): Promise<void> {
     return this.one(async () => {
       try {

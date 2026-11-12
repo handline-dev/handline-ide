@@ -123,7 +123,7 @@ test('a restart that fails leaves the app running and the notice failed with the
   await u.check();
   flow.act('restart');
   await new Promise((r) => setImmediate(r));
-  assert.deepEqual([flow.view.phase, flow.view.reason, s.restarts], ['failed', 'the relaunch failed', 0]);
+  assert.deepEqual([flow.view.phase, flow.view.reason, s.restarts], ['failed', 'The update did not finish.', 0]);
   s.fail = '';
   flow.act('retry');
   await new Promise((r) => setImmediate(r));

@@ -17,6 +17,14 @@ export const UPDATE_ACTS: readonly UpdateAct[] = ['restart', 'later', 'retry', '
 /** A Later is asked about again after this long (an update that is still waiting is raised once a day, never as a second window). */
 export const REMIND_MS = 24 * 3_600_000;
 
+/** A failure in plain words; the raw text stays in the log (Details). */
+export function plainReason(raw: string): string {
+  if (/ENOSPC|no space left/i.test(raw)) return 'The disk is full.';
+  if (/ENOTFOUND|ECONNREFUSED|ECONNRESET|ETIMEDOUT|EAI_AGAIN/.test(raw)) return 'Handline could not reach the internet.';
+  if (/EACCES|EPERM|permission denied/i.test(raw)) return 'Handline was not allowed to write its files.';
+  return 'The update did not finish.';
+}
+
 export class UpdateFlow {
   view: UpdateView = { phase: 'idle', step: '', fraction: 0, reason: '' };
   /** The command output behind a failure, for "Details". */
@@ -51,8 +59,8 @@ export class UpdateFlow {
   }
   failed(reason: string, retry: () => void, log = ''): void {
     this.retryFn = retry;
-    this.log = log;
-    this.set({ phase: 'failed', step: '', fraction: 0, reason });
+    this.log = log || reason;
+    this.set({ phase: 'failed', step: '', fraction: 0, reason: plainReason(reason) });
   }
   /** "Later": the toast goes and the bell keeps the row. Only a ready update can be put off. */
   later(): void {
