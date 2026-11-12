@@ -25,8 +25,8 @@ const (
 var (
 	optionRE  = regexp.MustCompile(`^\s*(?:[›>] )?(\d+)\.\s+\S`)
 	workingRE = regexp.MustCompile(`^• Working \(.*esc to interrupt\)`)
-	// A finished turn ends with the time it ended on a line of its own.
-	endedRE = regexp.MustCompile(`^\s*\d{1,2}:\d{2}(?:\s*[AP]M)?\s*$`)
+	// A finished turn ends with the time it ended on a line of its own; from 0.167, after how long it worked ("Worked for 7s • 00:54").
+	endedRE = regexp.MustCompile(`^\s*(?:Worked for .* • )?\d{1,2}:\d{2}(?:\s*[AP]M)?\s*$`)
 )
 
 // composer is the row of the composer among tail's bottom rows, -1 when none is drawn (a dialog, or not codex's screen). A dialog's
