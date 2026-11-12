@@ -8,6 +8,8 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `repos.list` | member |  | none | `{repos}` |  |  | `repos`, snapshot |
 | `repos.recent` | member |  | none | `{folders}` |  |  | `recent_repos`, snapshot |
 | `repo.facts` | member |  | `path` | `RepoFacts` | `not_found` |  | `repo_facts`, snapshot |
+| `folder.init` | owner | yes | `path`, `request_id` | `Accepted & {path}` | `refused`, `not_found`, `bad_request` | state | decided: start git |
+| `folder.clone` | owner | yes | `url`, `path?`, `request_id` | `Accepted & {path}` | `refused`, `bad_request` | state | decided: clone |
 | `worktrees.list` | member |  | `repo?`, `owner?` | `{worktrees}` |  |  | `worktrees`, snapshot |
 | `worktree.diff` | member |  | `path`, `file?`, `against?` | `{path, file, diff, truncated, against, base_ref}` | `not_found` |  | `worktree-diff`, snapshot |
 | `files.list` | member |  | `agent`, `query?`, `limit?` | `{files, more}` | `bad_request`, `not_found` |  | `files`, snapshot |
@@ -30,6 +32,14 @@ Git folders under the person's home not in repos.list, for the first-run repo pi
 ### `repo.facts`
 
 Facts of a git folder for the first-run cards, within 4 s: a part not done by then is null or 0.
+
+### `folder.init`
+
+Make a folder on this Mac a git repository, for the first-run folder pick: git init, then a first commit of everything it holds but secrets. The call answers once git is done; hanging up stops it. Owner only. The branch is git's init.defaultBranch, main when none is set. Common secret files (.env, keys, certificates) are left out through .git/info/exclude, never a file of the folder. With no user.name or user.email set, the commit is the Mac user's. All or nothing: when the commit fails the .git made is removed. Refused (gate state), with the reason: the folder already holds a .git, sits inside another repository, is the home folder or above it, or git failed.
+
+### `folder.clone`
+
+Clone a repository into a folder that does not exist yet or is empty, for the first-run folder pick. The call answers once git is done; hanging up stops it. Owner only. Over https, ssh or git only. Neither git nor ssh asks for anything: a repository that needs a password or a host key the Mac does not already have is refused. Refused (gate state), with git's words: path is a folder that is not empty (a name taken by another folder is refused, never given a suffix), git failed, or it ran past 7 minutes; the folder is then not made. said names the url without any user or password in it.
 
 ### `worktrees.list`
 

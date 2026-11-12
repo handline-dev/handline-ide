@@ -1,0 +1,241 @@
+{
+ "fixtures": [
+  {
+   "name": "folder.init.an_agent_session_is_refused_by_role",
+   "spec": "folder.init",
+   "about": "An owner's write: a call from an agent session is refused, gate role.",
+   "as": "agent",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "folder.init",
+      "params": {
+       "path": "/",
+       "request_id": "conf-fi-1"
+      }
+     },
+     "error": {
+      "code": -32002,
+      "data": {
+       "code": "refused",
+       "gate": "role"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "folder.init.not_a_folder",
+   "spec": "folder.init",
+   "about": "A path that is no folder is not_found, what path.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "folder.init",
+      "params": {
+       "path": "/nonexistent/handline-conformance",
+       "request_id": "conf-fi-2"
+      }
+     },
+     "error": {
+      "code": -32001,
+      "data": {
+       "code": "not_found",
+       "what": "path"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "folder.init.above_home_is_refused",
+   "spec": "folder.init",
+   "about": "The disk's root holds the home folder: refused, gate state, and nothing is made.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "folder.init",
+      "params": {
+       "path": "/",
+       "request_id": "conf-fi-3"
+      }
+     },
+     "error": {
+      "code": -32002,
+      "data": {
+       "code": "refused",
+       "gate": "state"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "folder.clone.an_agent_session_is_refused_by_role",
+   "spec": "folder.clone",
+   "about": "An owner's write: a call from an agent session is refused, gate role.",
+   "as": "agent",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "folder.clone",
+      "params": {
+       "url": "https://example.invalid/r.git",
+       "path": "/",
+       "request_id": "conf-fc-1"
+      }
+     },
+     "error": {
+      "code": -32002,
+      "data": {
+       "code": "refused",
+       "gate": "role"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "folder.clone.ext_is_bad_request",
+   "spec": "folder.clone",
+   "about": "A transport that runs a command (ext::) is bad_request, field url; nothing runs.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "folder.clone",
+      "params": {
+       "url": "ext::sh -c touch% /tmp/handline-conformance-ext",
+       "path": "/nonexistent/handline-conformance",
+       "request_id": "conf-fc-2"
+      }
+     },
+     "error": {
+      "code": -32602,
+      "data": {
+       "code": "bad_request",
+       "field": "url"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "folder.clone.a_full_folder_is_refused",
+   "spec": "folder.clone",
+   "about": "A path that is a folder holding files is refused, gate state, before git runs.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "folder.clone",
+      "params": {
+       "url": "https://example.invalid/r.git",
+       "path": "/",
+       "request_id": "conf-fc-3"
+      }
+     },
+     "error": {
+      "code": -32002,
+      "data": {
+       "code": "refused",
+       "gate": "state"
+      }
+     }
+    }
+   ]
+  }
+ ]
+}

@@ -110,6 +110,8 @@ export const useAnswerRemove = (target?: string) => useWrite("answer.remove", ta
 export const useDevicePair = (target?: string) => useWrite("device.pair", target);
 export const useDeviceRevoke = (target?: string) => useWrite("device.revoke", target);
 export const useDeviceRename = (target?: string) => useWrite("device.rename", target);
+export const useFolderInit = (target?: string) => useWrite("folder.init", target);
+export const useFolderClone = (target?: string) => useWrite("folder.clone", target);
 export const useFileWrite = (target?: string) => useWrite("file.write", target);
 export const useWorktreeSetStatus = (target?: string) => useWrite("worktree.set_status", target);
 export const useTaskNew = (target?: string) => useWrite("task.new", target);
