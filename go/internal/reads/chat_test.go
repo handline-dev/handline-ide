@@ -114,7 +114,7 @@ func TestChatTranscriptListsTheConversationsAnAgentBeganAmongItsItems(t *testing
 		`INSERT INTO session_starts(id, agent, ts, session_id, cause, resumed, text, prompt) VALUES(3, '` + bob + `', 1003, 's2', 'context_full', 0, 'the handoff', '')`,
 		`INSERT INTO session_starts(id, agent, ts, session_id, cause, resumed, text, prompt) VALUES(4, '` + bob + `', 1004, NULL, 'start', 0, '', '')`,
 		`INSERT INTO session_starts(id, agent, ts, session_id, cause, resumed, text, prompt) VALUES(5, 'ann', 1000, 's9', 'launch', 0, '', '')`,
-		`INSERT INTO session_starts(id, agent, ts, session_id, cause, resumed, text, prompt, changed) VALUES(6, '` + bob + `', 1005, 's2', 'settings_applied', 1, 'a record, not given to it', '', 'model changed (opus-5-5 -> sonnet-5-5)')`,
+		`INSERT INTO session_starts(id, agent, ts, session_id, cause, resumed, text, prompt, changed, changed_lines) VALUES(6, '` + bob + `', 1005, 's2', 'settings_applied', 1, 'a record, not given to it', '', 'model changed (opus-5-5 -> sonnet-5-5)', '[{"part":"team rules","added":["- reply in Korean"],"removed":[]}]')`,
 		`INSERT INTO session_starts(id, agent, ts, session_id, cause, resumed, text, prompt) VALUES(7, '` + bob + `', 1006, 's2', 'restart', 1, '', '')`,
 		`INSERT INTO session_starts(id, agent, ts, session_id, cause, resumed, text, prompt) VALUES(8, '` + bob + `', 1007, 's2', 'move', 1, '', '')`,
 		`INSERT INTO session_starts(id, agent, ts, session_id, cause, resumed, text, prompt) VALUES(9, '` + bob + `', 1008, 's2', 'idle_close', 1, '', '')`,
@@ -147,8 +147,11 @@ func TestChatTranscriptListsTheConversationsAnAgentBeganAmongItsItems(t *testing
 	if restart["cause"] != "settings_applied" || restart["resumed"] != true || restart["handoff"] != nil || restart["changed"] != "model changed (opus-5-5 -> sonnet-5-5)" {
 		t.Fatalf("%v", restart)
 	}
+	if b, _ := json.Marshal(restart["changed_lines"]); string(b) != `[{"added":["- reply in Korean"],"part":"team rules","removed":[]}]` {
+		t.Fatalf("changed_lines: %s", b)
+	}
 	first, second := sessions[0]["session"].(map[string]any), sessions[1]["session"].(map[string]any)
-	if second["resumed"] != false || second["changed"] != "" {
+	if _, ok := second["changed_lines"]; ok || second["resumed"] != false || second["changed"] != "" {
 		t.Fatalf("%v", second)
 	}
 	if sessions[0]["id"] != int64(1000_400_001) || first["id"] != "s1" || first["cause"] != "launch" || first["handoff"] != nil || first["started"] != "1970-01-01T00:16:40Z" {

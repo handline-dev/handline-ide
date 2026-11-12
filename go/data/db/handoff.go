@@ -111,14 +111,15 @@ func clip(s string, n int) string {
 }
 
 // NoteSessionStart is db.note_session_start: keep that a session was started, why and what it was given; only the oldest beyond
-// SessionStartsKept go. A fresh launch has no session id yet (BindSessionStart). changed says in words what its settings changed.
-func NoteSessionStart(q Q, agent, cause string, resumed bool, sessionID, text, prompt, actor, changed string) (int64, error) {
+// SessionStartsKept go. A fresh launch has no session id yet (BindSessionStart). changed says in words what its settings changed, and
+// changedLines (JSON, "" for none) which lines of its text parts.
+func NoteSessionStart(q Q, agent, cause string, resumed bool, sessionID, text, prompt, actor, changed, changedLines string) (int64, error) {
 	r := 0
 	if resumed {
 		r = 1
 	}
-	res, err := q.Exec("INSERT INTO session_starts(agent, ts, session_id, cause, resumed, text, prompt, actor, changed) VALUES(?,?,?,?,?,?,?,?,?)",
-		agent, Now(), nullStr(sessionID), cause, r, clip(text, SessionTextMaxChars), clip(prompt, SessionTextMaxChars), clip(actor, 80), changed)
+	res, err := q.Exec("INSERT INTO session_starts(agent, ts, session_id, cause, resumed, text, prompt, actor, changed, changed_lines) VALUES(?,?,?,?,?,?,?,?,?,?)",
+		agent, Now(), nullStr(sessionID), cause, r, clip(text, SessionTextMaxChars), clip(prompt, SessionTextMaxChars), clip(actor, 80), changed, changedLines)
 	if err != nil {
 		return 0, err
 	}

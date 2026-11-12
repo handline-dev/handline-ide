@@ -33,5 +33,10 @@
   "version": 106,
   "name": "drop_reports_to",
   "additive": false
+ },
+ {
+  "version": 107,
+  "name": "session_changed_lines",
+  "additive": true
  }
 ]
