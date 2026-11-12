@@ -43,9 +43,10 @@ export const NOT_QUERIES = [
   'request.read',
   // `hl hook PermissionRequest`: an agent's session waiting on the founder's answer, which the app gives through prompt.answer.
   'permission.ask',
-  // `hl use`: an agent's wait for a simulator or browser, and its giving back; `hl team` and the hook read lease.get. No screen yet.
+  // `hl use`: an agent's wait for a lease, its giving back and --extend; `hl team` and the hook read lease.get. No screen yet.
   'lease.take',
   'lease.release',
+  'lease.extend',
   'lease.get',
   // `hl launch` asks the daemon for the command it becomes; not a read of state, and no screen calls it.
   'session.launch_prepare',

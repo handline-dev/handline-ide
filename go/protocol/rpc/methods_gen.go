@@ -13,6 +13,7 @@ var specMethods = []SpecMethod{
 	{Name: "daemon.resume", Role: "owner", Write: true, Since: 1, Callers: nil, Params: []SpecParam{{Name: "request_id", Type: "string", Required: true}}, Result: "Accepted"},
 	{Name: "lease.take", Role: "agent", Write: false, Since: 1, Callers: nil, Params: []SpecParam{{Name: "agent", Type: "string", Required: true, Who: true}, {Name: "kind", Type: "string", Required: true}, {Name: "hold", Type: "bool", Required: false}}, Result: ""},
 	{Name: "lease.release", Role: "agent", Write: false, Since: 1, Callers: nil, Params: []SpecParam{{Name: "agent", Type: "string", Required: true, Who: true}, {Name: "lease", Type: "json.Number", Required: false}, {Name: "kind", Type: "any", Required: false}}, Result: ""},
+	{Name: "lease.extend", Role: "agent", Write: false, Since: 1, Callers: nil, Params: []SpecParam{{Name: "agent", Type: "string", Required: true, Who: true}, {Name: "kind", Type: "any", Required: false}}, Result: ""},
 	{Name: "lease.get", Role: "agent", Write: false, Since: 1, Callers: nil, Params: []SpecParam{}, Result: ""},
 	{Name: "load.get", Role: "agent", Write: false, Since: 1, Callers: nil, Params: []SpecParam{{Name: "minutes", Type: "json.Number", Required: false}, {Name: "agent", Type: "string", Required: false, Who: true}}, Result: ""},
 	{Name: "events.feed", Role: "agent", Write: false, Since: 1, Callers: nil, Params: []SpecParam{{Name: "since", Type: "json.Number", Required: false}, {Name: "topics", Type: "[]any", Required: false}, {Name: "limit", Type: "json.Number", Required: false}}, Result: ""},
