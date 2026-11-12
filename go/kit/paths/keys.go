@@ -187,10 +187,10 @@ func WorkspaceDir(home, who string) string {
 	return filepath.Join(home, "workspaces", Unregistered, who)
 }
 
-// WhoKey is the key a who param's word stands for: human (or founder) is the owner, a key is itself, an agent's old name its key. A
-// word none of these is, or a home whose database cannot be read, gives the word back.
+// WhoKey is the key a who param's word stands for: human is the owner, a key is itself, an agent's dotted name its key. A word
+// none of these is, or a home whose database cannot be read, gives the word back.
 func WhoKey(home, word string) string {
-	if word == "human" || word == "founder" {
+	if word == "human" {
 		if d, _ := store.SharedIfThere(DBFile(home)); d != nil {
 			if k, err := actor.Owner(d); err == nil && k != "" {
 				return k

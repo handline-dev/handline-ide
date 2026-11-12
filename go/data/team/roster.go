@@ -539,7 +539,7 @@ func (r *Roster) Remove(name string) error {
 }
 
 // Rename gives the agent old the name new, within its workspace (ws.a to ws.b). A lead's name is its workspace's, so renaming a lead
-// renames a workspace, which only one with no other agent may do while they are named by old dotted names (until base-v2 1b).
+// renames a workspace, which only one with no other agent may do while they are named by dotted names.
 func (r *Roster) Rename(old, new string) error {
 	if r.err != nil {
 		return r.err
