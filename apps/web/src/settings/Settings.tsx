@@ -8,6 +8,7 @@ import { MachineTab } from '#src/settings/MachineTab.tsx';
 import { AccountsTab } from '#src/usage/AccountsTab.tsx';
 import { usePersisted } from '#src/persist/kv.ts';
 import { CONTROLS_STRIP, LayerDragStrip, useWindowLayer } from '#src/layout/windowLayer.tsx';
+import { useBackCloses } from '#src/ui/backCloses.ts';
 import { closeSettings, settingsTarget, useSettingsOpen } from '#src/settings/open.ts';
 
 const SECTIONS = ['accounts', 'machine', 'devices'] as const;
@@ -20,6 +21,7 @@ const MENU: Record<Section, { word: string; icon: ReactNode }> = {
 
 export function Settings() {
   const open = useSettingsOpen();
+  useBackCloses(open, closeSettings);
   return (
     <AnimatePresence>
       {open && (

@@ -6,7 +6,9 @@ import { closeOnboarding, useOnboarding, useOnboardingOpen } from '#src/onboardi
 import { STEPS, type StepId } from '#src/onboarding/data/steps.ts';
 import { AgentStep } from '#src/onboarding/AgentStep.tsx';
 import { AiStep, NotifyStep, ProjectStep, ToolsStep } from '#src/onboarding/Steps.tsx';
-import { NavContext, useNarrow, type Nav } from '#src/onboarding/StepView.tsx';
+import { NavContext, type Nav } from '#src/onboarding/StepView.tsx';
+import { useBackCloses } from '#src/ui/backCloses.ts';
+import { useNarrow } from '#src/ui/narrow.ts';
 
 export const STEP_NAME: Record<StepId, { title: string; note: string }> = {
   ai: { title: 'AI tools', note: 'Claude Code, Codex' },
@@ -24,7 +26,7 @@ export function Onboarding() {
   return (
     <Dialog.Root open={open} onOpenChange={(o) => !o && closeOnboarding()}>
       <Dialog.Portal>
-        <Layer open={open} />
+        <Layer open={open} step={ob.step} goTo={ob.goTo} />
         <Dialog.Backdrop className="fixed inset-0 z-50 bg-fg/40 transition-opacity duration-150 data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />
         <Dialog.Viewport className={`fixed inset-0 z-50 flex items-center justify-center ${narrow ? '' : 'p-4'}`}>
           <Body ob={ob} />
@@ -34,8 +36,10 @@ export function Onboarding() {
   );
 }
 
-function Layer({ open }: { open: boolean }) {
+/** Back goes one step back, and closes it on the first step. */
+function Layer({ open, step, goTo }: { open: boolean; step: number; goTo: (step: number) => void }) {
   useWindowLayer(open);
+  useBackCloses(open, () => (step > 0 ? goTo(step - 1) : void closeOnboarding()));
   return null;
 }
 

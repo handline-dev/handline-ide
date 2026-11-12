@@ -1,19 +1,12 @@
 // One onboarding step's page (wide and narrow) and the moves between steps it offers.
 import { Dialog } from '@base-ui/react/dialog';
 import { ArrowLeft, X } from 'lucide-react';
-import { createContext, useContext, useSyncExternalStore, type ReactNode } from 'react';
+import { createContext, useContext, type ReactNode } from 'react';
+import { useNarrow } from '#src/ui/narrow.ts';
 import { closeOnboarding } from '#src/onboarding/data/progress.ts';
 import { STEPS } from '#src/onboarding/data/steps.ts';
 import { Button } from '#src/ui/Button.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
-
-const NARROW = '(max-width: 759px)';
-const subscribeNarrow = (l: () => void) => {
-  const m = matchMedia(NARROW);
-  m.addEventListener('change', l);
-  return () => m.removeEventListener('change', l);
-};
-export const useNarrow = () => useSyncExternalStore(subscribeNarrow, () => matchMedia(NARROW).matches);
 
 /** The primary button of a step: its words, and what it does. */
 export type Primary = { label: ReactNode; onClick: () => void; disabled?: boolean };
