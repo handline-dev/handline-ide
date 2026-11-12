@@ -2,8 +2,13 @@ package main
 
 import (
 	"database/sql"
+	"github.com/handline/handline/go/agentctl/agent"
+	"github.com/handline/handline/go/agentctl/agent/claudecode"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
+	"slices"
 	"strings"
 	"testing"
 
@@ -61,6 +66,13 @@ func oldHome(t *testing.T) string {
 }
 
 func TestImportWritesTheNewHome(t *testing.T) {
+	var logins []string
+	real := copyLogin
+	t.Cleanup(func() { copyLogin = real })
+	copyLogin = func(oldDir, newDir string) (bool, error) {
+		logins = append(logins, oldDir+" > "+newDir)
+		return true, nil
+	}
 	from := oldHome(t)
 	to := filepath.Join(t.TempDir(), "new")
 	log, err := os.CreateTemp(t.TempDir(), "log")
@@ -69,6 +81,10 @@ func TestImportWritesTheNewHome(t *testing.T) {
 	}
 	if err := run(from, to, "Ron", log); err != nil {
 		t.Fatal(err)
+	}
+	// the login is under the account's path before the old home was moved aside, the new home's own path
+	if want := filepath.Join(to, "accounts/alpha/.claude") + " > " + filepath.Join(to, "accounts/c1/.claude"); !slices.Equal(logins, []string{want}) {
+		t.Errorf("logins copied: %v, want %s", logins, want)
 	}
 	d, err := sql.Open("sqlite", "file:"+filepath.Join(to, "db.sqlite")+"?mode=ro")
 	if err != nil {
@@ -150,5 +166,32 @@ func TestImportRefusesANewHomeThatHoldsAnything(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(to, "db.sqlite")); err == nil {
 		t.Fatal("a refused import wrote a database")
+	}
+}
+
+func TestCopyLoginCopiesTheKeychainItem(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("the Keychain is macOS's")
+	}
+	dir := t.TempDir()
+	from, to := filepath.Join(dir, "a", ".claude"), filepath.Join(dir, "b", ".claude")
+	user := agent.UserName()
+	for _, d := range []string{from, to} {
+		t.Cleanup(func() {
+			exec.Command("security", "delete-generic-password", "-a", user, "-s", claudecode.KeychainService(d)).Run()
+		})
+	}
+	if out, err := exec.Command("security", "add-generic-password", "-a", user, "-s", claudecode.KeychainService(from), "-w", `{"k":"v 1"}`).CombinedOutput(); err != nil {
+		t.Fatalf("%v %s", err, out)
+	}
+	if found, err := copyLogin(from, to); !found || err != nil {
+		t.Fatalf("copyLogin: %v %v", found, err)
+	}
+	got, err := exec.Command("security", "find-generic-password", "-a", user, "-s", claudecode.KeychainService(to), "-w").Output()
+	if err != nil || strings.TrimSpace(string(got)) != `{"k":"v 1"}` {
+		t.Fatalf("copied item: %q %v", got, err)
+	}
+	if found, err := copyLogin(filepath.Join(dir, "none"), to); found || err != nil {
+		t.Errorf("no login: found %v, err %v", found, err)
 	}
 }
