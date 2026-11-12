@@ -20,6 +20,7 @@ const view = (over: Partial<TrayView> = {}): TrayView => ({
   ...over,
 });
 const labels = (s: State, v = view(), a = actions) => trayMenu(s, a, v).map((i) => i.label ?? '-');
+const upd = (phase: NonNullable<TrayView['update']>['phase']) => ({ phase, restart: () => calls.push('update-restart') });
 const follow = (over: Partial<TrayFollow> = {}): TrayFollow => ({
   sha: 'aaa1111ffff',
   state: 'current',
@@ -59,7 +60,7 @@ test('a stopped daemon or a failed update: "Handline needs attention" first, whi
   for (const [s, v] of [
     ['stopped', view()],
     ['failed', view()],
-    ['running', view({ update: { phase: 'failed' } })],
+    ['running', view({ update: upd('failed') })],
   ] as const) {
     const items = trayMenu(s, actions, v);
     assert.equal(items[0]!.label, 'Handline needs attention');
@@ -84,10 +85,18 @@ test('items waiting on the person add Needs you, which opens the Inbox, and a re
   assert.equal(trayIcon('running', view({ unread: 3 })), 'turn');
 });
 
-test('a ready update is a blue dot and no menu line: the app offers the restart', () => {
-  assert.equal(trayIcon('running', view({ update: { phase: 'later' } })), 'update');
-  assert.equal(trayIcon('running', view({ update: { phase: 'idle' } })), 'plain');
-  assert.ok(!labels('running', view({ update: { phase: 'ready' } })).some((x) => /restart|update/i.test(x)));
+test('a ready (or put-off) update is a blue dot and Restart to update under Open, which restarts', () => {
+  for (const phase of ['ready', 'later'] as const) {
+    const v = view({ update: upd(phase) });
+    assert.equal(trayIcon('running', v), 'update');
+    assert.deepEqual(labels('running', v).slice(2, 4), ['Open Handline', 'Restart to update']);
+    trayMenu('running', actions, v).find((i) => i.label === 'Restart to update')!.click!();
+    assert.equal(calls.pop(), 'update-restart');
+  }
+  for (const phase of ['idle', 'preparing'] as const) {
+    assert.equal(trayIcon('running', view({ update: upd(phase) })), 'plain');
+    assert.ok(!labels('running', view({ update: upd(phase) })).includes('Restart to update'));
+  }
 });
 
 test('Option adds the daemon’s address and build and the commit, which copy on a click; no mode words anywhere', () => {
