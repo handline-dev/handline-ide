@@ -51,10 +51,10 @@ function dropTo(e: DragEvent, to: Target, { root, agent, dispatch, nameOf }: Con
   e.preventDefault();
   if ('move' in drag) return dispatch({ type: 'move', from: drag.move.pane, tab: drag.move.tab, tabs: drag.move.tabs, to });
   const opens = canonical(drag.open.opens, agent);
-  // A tab already open moves to where it was dropped; a pinned one stays and is shown.
+  // A tab already open, pinned or not, moves to where it was dropped.
   for (const p of panes(root)) {
     const tab = p.tabs.find((t) => t.opens === opens);
-    if (tab && tab.closable !== false) return dispatch({ type: 'move', from: p.id, tab: tab.id, to });
+    if (tab) return dispatch({ type: 'move', from: p.id, tab: tab.id, to });
   }
   if (isOpen(root, opens)) {
     toast(opens === 'chat' ? "This is this agent's own chat, already open here." : `${labelOf(opens, nameOf)} is already open here.`, {

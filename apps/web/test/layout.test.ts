@@ -97,7 +97,7 @@ describe('layout tree', () => {
     expect(findPane(root, low.id)!.active).toBe(b.id);
   });
 
-  it('will not split a pane off itself with its only tab, nor move a pinned tab', () => {
+  it('will not split a pane off itself with its only tab; a pinned tab moves like any other', () => {
     const p = only(initial());
     let root = run(p, { type: 'split', pane: p.id, edge: 'right' });
     const right = panes(root)[1];
@@ -105,7 +105,9 @@ describe('layout tree', () => {
     const before = root;
     const tasks = findPane(root, right.id)!.tabs[0];
     expect(run(root, { type: 'move', from: right.id, tab: tasks.id, to: { pane: right.id, edge: 'down' } })).toBe(before);
-    expect(run(root, { type: 'move', from: p.id, tab: p.tabs[0].id, to: { pane: right.id } })).toBe(before);
+    const moved = run(root, { type: 'move', from: p.id, tab: p.tabs[0].id, to: { pane: right.id } });
+    expect(panes(moved).map(titles)).toEqual([['Tasks', 'Chat']]);
+    expect(findPane(moved, right.id)!.tabs[1].closable).toBe(false);
   });
 
   it('opens a dragged-in thing (a sidebar agent) at an edge', () => {
