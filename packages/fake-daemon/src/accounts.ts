@@ -172,9 +172,15 @@ export class FakeAccounts {
     this.emit(this.view(r));
   }
 
-  /** `hl account add --no-login`: the account exists and needs a login. A used name is refused; a bad name or an unknown vendor is a bad param. */
+  /** `hl account add --no-login`: the account exists and needs a login. A used name is refused; a bad name or an unknown vendor is a bad param.
+   * No name is account<n>, n one past the accounts there are, moving on past a name in use. */
   private register(p: Record<string, unknown>, accepted: (said: string, extra?: object) => unknown): unknown {
-    const name = p.account;
+    let name = p.account;
+    if (name === undefined) {
+      let n = this.rows.length + 1;
+      while (this.rows.some((x) => x.name === `account${n}`)) n++;
+      name = `account${n}`;
+    }
     if (typeof name !== 'string' || !name || name.includes('/') || name.startsWith('.')) throw invalidParams('bad account name', 'account');
     if (p.vendor !== undefined && !VENDORS.includes(String(p.vendor))) throw invalidParams(`no driver for ${String(p.vendor)}`, 'vendor');
     if (this.rows.some((x) => x.name === name))
