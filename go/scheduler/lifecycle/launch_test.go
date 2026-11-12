@@ -31,14 +31,14 @@ type fakeDriver struct {
 	cli.Account
 }
 
-func (d fakeDriver) Name() string                     { return d.vendor }
-func (fakeDriver) IsResume(extra []string) bool       { return len(extra) > 0 && extra[0] == "--resume" }
-func (fakeDriver) Screen() term.Driver                { return term.Blind{} }
-func (fakeDriver) Binary() string                     { return "/bin/vendor" }
-func (fakeDriver) Hooks() cli.Hooks                   { return nil }
-func (fakeDriver) Deliver(cli.DeliverEnv) cli.Port    { return nil }
-func (fakeDriver) AutoModeArgv() []string             { return []string{"--permission-mode", "auto"} }
-func (fakeDriver) PermissionModeArgv(string) []string { return nil }
+func (d fakeDriver) Name() string                       { return d.vendor }
+func (fakeDriver) IsResume(extra []string) bool         { return len(extra) > 0 && extra[0] == "--resume" }
+func (fakeDriver) Screen() term.Driver                  { return term.Blind{} }
+func (fakeDriver) Binary() string                       { return "/bin/vendor" }
+func (fakeDriver) Hooks() cli.Hooks                     { return nil }
+func (fakeDriver) Deliver(cli.DeliverEnv) cli.Port      { return nil }
+func (fakeDriver) AutoModeArgv() []string               { return []string{"--permission-mode", "auto"} }
+func (fakeDriver) PermissionModeArgv(m string) []string { return []string{"--permission-mode", m} }
 func (fakeDriver) LaunchArgv(exe string, o cli.LaunchArgs) []string {
 	return []string{exe, "--effort", o.Effort, "--disallowed", o.Disallowed}
 }
@@ -1197,5 +1197,25 @@ func TestPrepareRefusesASessionItCannotRecord(t *testing.T) {
 	}
 	if _, err := os.Stat(prompt); err != nil {
 		t.Fatal("the prompt file was used up:", err)
+	}
+}
+
+func TestBuildAddsTheWorkspacesDeniedToolsAndHoldsTheModeToItsCap(t *testing.T) {
+	r := newLaunchRig(t)
+	r.l.Ports.CurrentAccount = func(db.Q, string) string { return "main" }
+	base, _ := r.l.Fingerprint("ann")
+	r.l.Ports.Held = func(string) team.Held {
+		return team.Held{Deny: []string{"WebFetch", "Bash(rm:*)"}, ModeMax: "plan", ModeSetBy: "p1"}
+	}
+	argv, _, err := r.build("ann", nil, false, "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := strings.Join(argv, " ")
+	if !strings.Contains(got, "--disallowed "+DisallowedTools+",WebFetch,Bash(rm:*)") || !strings.Contains(got, "--permission-mode plan") || strings.Contains(got, "--permission-mode auto") {
+		t.Fatalf("%s", got)
+	}
+	if now, _ := r.l.Fingerprint("ann"); now == base {
+		t.Error("a rule that changes what a session starts with leaves its fingerprint as it was")
 	}
 }

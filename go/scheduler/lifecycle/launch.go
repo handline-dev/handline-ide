@@ -115,6 +115,8 @@ type LaunchPorts struct {
 	WaitingFor func(q db.Q, agent string) bool
 	// TeamRules is the rules of each team the agent is in (team.Rules): its base.md text and its kept rules.
 	TeamRules func(agent string) []string
+	// Held is the agent's workspace's tools_deny and mode_max; nil: none.
+	Held func(agent string) team.Held
 	// Routing is the roster; nil when there is none.
 	Routing func() *team.Team
 	// McpApproved is trust.mcp_approved for the launch's working directory.
@@ -1038,8 +1040,26 @@ func modelOf(cfg team.Config) string {
 	return ""
 }
 
+// held is the kept rules the agent's sessions start under.
+func (l *Launcher) held(agent string) team.Held {
+	if l.Ports.Held == nil {
+		return team.Held{}
+	}
+	return l.Ports.Held(agent)
+}
+
+// disallowed is the global disallowed-tools list with the workspace's tools_deny added.
+func (l *Launcher) disallowed(agent string) string {
+	return strings.Join(append([]string{DisallowedTools}, l.held(agent).Deny...), ",")
+}
+
+// modeOf is the agent's mode, held down to its workspace's mode_max.
+func (l *Launcher) modeOf(agent string, cfg team.Config) string {
+	return l.held(agent).CapMode(l.Roster.ModeOf(agent, cfg))
+}
+
 func (l *Launcher) plainMode(agent string, cfg team.Config) bool {
-	m := l.Roster.ModeOf(agent, cfg)
+	m := l.modeOf(agent, cfg)
 	return m == team.DefaultMode
 }
 
@@ -1056,9 +1076,9 @@ func (l *Launcher) Fingerprint(agent string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	material := strings.Join([]string{modelOf(cfg), l.effortOf(cfg), DisallowedTools, l.mcpConfigMaterial(), static}, "\x1e")
+	material := strings.Join([]string{modelOf(cfg), l.effortOf(cfg), l.disallowed(agent), l.mcpConfigMaterial(), static}, "\x1e")
 	if !l.plainMode(agent, cfg) {
-		material += "\x1emode:" + l.Roster.ModeOf(agent, cfg) // only when not the default, like chrome
+		material += "\x1emode:" + l.modeOf(agent, cfg) // only when not the default, like chrome
 	}
 	if !l.Roster.SandboxOn(agent, cfg) {
 		material += "\x1esandbox-off"
@@ -1112,9 +1132,9 @@ func (l *Launcher) FingerprintParts(agent string) (map[string]string, error) {
 	if team.Chrome(cfg) {
 		browser = "on"
 	}
-	perm := DisallowedTools
+	perm := l.disallowed(agent)
 	if !l.plainMode(agent, cfg) {
-		perm += "\x1emode:" + l.Roster.ModeOf(agent, cfg)
+		perm += "\x1emode:" + l.modeOf(agent, cfg)
 	}
 	sandbox := h("")
 	if !l.Roster.SandboxOn(agent, cfg) {

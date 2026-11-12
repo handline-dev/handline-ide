@@ -360,6 +360,15 @@ func (r *Roster) register(q db.Q, name string, o RegisterOpts, mcp string) (made
 		made = at.ws
 		repo = at.folder // resolved: set finds it unchanged
 	}
+	if o.Mode != nil {
+		held, err := HeldFor(q, at.ws)
+		if err != nil {
+			return 0, err
+		}
+		if said := held.ModeRefusal(*o.Mode); said != "" {
+			return 0, refuse("%s", said)
+		}
+	}
 	isNew := at.id == 0
 	if isNew {
 		_, agent := SplitLegacy(name)
