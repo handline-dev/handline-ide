@@ -993,12 +993,12 @@
          "done": {
           "type": "integer",
           "minimum": 0,
-          "description": "Items checked off. A session can report more than total; a client draws min(done, total)."
+          "description": "Steps done."
          },
          "total": {
           "type": "integer",
-          "minimum": 0,
-          "description": "Items on the list."
+          "minimum": 1,
+          "description": "Steps in all; at least 1 and never under done."
          },
          "current": {
           "oneOf": [
@@ -1009,11 +1009,11 @@
             "type": "null"
            }
           ],
-          "description": "The item in progress, as its session words it; null when none is."
+          "description": "The note given with the count."
          },
          "updated_at": {
           "$ref": "#/components/schemas/Timestamp",
-          "description": "When the list last changed."
+          "description": "When the count was given."
          }
         },
         "required": [
@@ -1022,7 +1022,7 @@
          "current",
          "updated_at"
         ],
-        "description": "The to-do list of the session working the task now (acting), as it keeps it; not the note task.progress sets. Absent when that session keeps none, on a done or discarded task, and from a daemon that does not send it."
+        "description": "The step count given with the newest progress note of the agent working the task; absent when that note had none, on a done or discarded task, and from older daemons."
        }
       },
       "required": [
@@ -3007,6 +3007,24 @@
      }
     },
     {
+     "name": "done",
+     "required": false,
+     "schema": {
+      "type": "integer",
+      "minimum": 0
+     },
+     "description": "Steps done; with total, both or neither, 0 <= done <= total and total >= 1, else bad_request. It goes on the task named, else the one held; a note without it clears the count."
+    },
+    {
+     "name": "total",
+     "required": false,
+     "schema": {
+      "type": "integer",
+      "minimum": 1
+     },
+     "description": "Steps in all, at least 1, given with done."
+    },
+    {
      "name": "request_id",
      "required": true,
      "schema": {
@@ -3030,6 +3048,9 @@
     },
     {
      "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
     }
    ],
    "x-gates": [

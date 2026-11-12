@@ -219,15 +219,15 @@ export type TaskDetail = Task & {
     /** Dollars by model. */
     by_model: { [key: string]: number };
   } | null;
-  /** The to-do list of the session working the task now (acting), as it keeps it; not the note task.progress sets. Absent when that session keeps none, on a done or discarded task, and from a daemon that does not send it. */
+  /** The step count given with the newest progress note of the agent working the task; absent when that note had none, on a done or discarded task, and from older daemons. */
   todo?: {
-    /** Items checked off. A session can report more than total; a client draws min(done, total). */
+    /** Steps done. */
     done: number;
-    /** Items on the list. */
+    /** Steps in all; at least 1 and never under done. */
     total: number;
-    /** The item in progress, as its session words it; null when none is. */
+    /** The note given with the count. */
     current: string | null;
-    /** When the list last changed. */
+    /** When the count was given. */
     updated_at: Timestamp;
   };
 };
@@ -635,6 +635,8 @@ export interface TasksMethods {
   "task.progress": { params: {
   task?: number;
   note: string;
+  done?: number;
+  total?: number;
   request_id: RequestId;
 }; result: Accepted };
   "task.begin": { params: {

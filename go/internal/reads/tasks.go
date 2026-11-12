@@ -826,6 +826,15 @@ func (e *Env) taskGet(c *rpc.Conn, params map[string]any) (any, error) {
 		return nil, err
 	}
 	task["body"] = first.str("body")
+	if st := b.state(t); st != "done" && st != "discarded" {
+		todo, err := db.ReadTaskTodo(e.DB, *tid)
+		if err != nil {
+			return nil, err
+		}
+		if todo != nil && todo.By == t.str("acting") {
+			task["todo"] = map[string]any{"done": todo.Done, "total": todo.Total, "current": todo.Current, "updated_at": ts(todo.UpdatedAt)}
+		}
+	}
 	if task["turns"], err = e.turnsOf(*tid, true); err != nil {
 		return nil, err
 	}

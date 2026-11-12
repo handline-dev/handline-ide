@@ -6,7 +6,7 @@ var usages = map[string][2]string{
 	"read":     {`hl read <msg> [--wait] [--timeout <span>]`, `hl read msg_1a2b3c4`},
 	"inbox":    {`hl inbox [--all] [--wait] [--timeout <span>]`, `hl inbox --all`},
 	"withdraw": {`hl withdraw <msg> [--reason "<why>"]`, `hl withdraw msg_1a2b3c4 --reason "sent to the wrong agent"`},
-	"progress": {`hl progress "<done: ... left: ...>"`, `hl progress "done: parser; left: tests"`},
+	"progress": {`hl progress [--done N --of M] "<done: ... left: ...>"`, `hl progress --done 3 --of 5 "wiring the gate"`},
 	"load":     {`hl load [--agent <name>]`, `hl load`},
 	"team":     {`hl team [--agent <name>]`, `hl team`},
 	"use":      {`hl use <heavy|simulator|browser> -- <command...>   |   hl use <heavy|simulator|browser> --hold   |   hl use --release [<heavy|simulator|browser>]`, `hl use browser -- npx playwright test`},
