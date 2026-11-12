@@ -58,6 +58,8 @@ Follow these steps to sign in with ChatGPT using device code authorization:
 
 **Sandbox and the socket (V5):** under `-s workspace-write` a command cannot connect to the daemon's socket (checked with `codex sandbox`), so every `hl` would fail; `-c sandbox_workspace_write.network_access=true` lets it through, and with it the whole network: codex 0.157 has no socket-only allowance that its sandbox honours (`network.allow_unix_sockets` and `network.allowed_domains` changed nothing under `codex sandbox`), so a codex agent's commands are not held to its allowed domains. A message typed mid-turn is taken in, and every typed message shows in the session file as a `response_item` user message, which is how its delivery is confirmed.
 
+**Socket only (codex 0.167+):** a permission profile takes the place of `-s`: `default_permissions="handline"`, `features.network_proxy=true`, `permissions.handline.extends=":workspace"`, `permissions.handline.network.enabled=true`, `.domains` the allowed domains and `.unix_sockets` the daemon's socket, each `"allow"`. Commands then reach the socket and, through codex's proxy, only those domains; a direct connection fails. `-s` on the line wins over the profile, so it is left off. The launch line checks `codex --version` and keeps the V5 line below 0.167 and for WeakerNetwork.
+
 **Session file:** `$CODEX_HOME/sessions/YYYY/MM/DD/rollout-<local time>-<session id>.jsonl`. Its first line is `{"type":"session_meta","payload":{"session_id","cwd",...}}`, Every hook passes the path as `transcript_path`, so the folder scan in decision 6 is only the fallback before the first hook.
 
 ## Contract (additive; clients ignore unknown fields)
