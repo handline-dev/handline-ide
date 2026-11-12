@@ -34,7 +34,7 @@ export type Row = Task & {
   blockers: { task: number; reason: string; at?: string }[];
   clock?: TaskClock | null;
   /** The working session's to-do list; task.get serves it, and leaves it out when there is none. */
-  progress?: TaskDetail['progress'];
+  todo?: TaskDetail['todo'];
   /** What task.time answers for it when it is not the plain queued-then-working of its delivery. */
   segments?: TimeSegment[];
   /** Story points; task.time serves it. */
@@ -136,7 +136,7 @@ export class TaskStore {
     return t.to === 'human' ? { on: 'founder', text: 'needs you', tasks: [], since: t.created } : null;
   }
   protected view(row: Row): Task {
-    const { body: _body, memos: _memos, notes: _notes, blockers, clock, estimate: _estimate, progress: _progress, ...t } = row;
+    const { body: _body, memos: _memos, notes: _notes, blockers, clock, estimate: _estimate, todo: _todo, ...t } = row;
     const ended = t.state === 'done' || t.state === 'discarded';
     const fresh = (row.memos ?? []).filter((m) => m.author !== 'human' && m.id > (this.seenUpto.get(row.id) ?? 0));
     return {
@@ -269,7 +269,7 @@ export class TaskStore {
         t.state === 'discarded' ? { by: t.from, reason: t.hold_reason ?? '', at: t.done ?? this.now(), withdrew: [], batch: null } : null,
       merged_into: null,
       time: t.state === 'done' || t.state === 'discarded' ? null : (t.clock ?? null),
-      ...(t.progress && t.state !== 'done' && t.state !== 'discarded' ? { progress: t.progress } : {}),
+      ...(t.todo && t.state !== 'done' && t.state !== 'discarded' ? { todo: t.todo } : {}),
       parent_title: this.rows.find((r) => r.id === t.parent)?.title ?? null,
       subtasks: this.rows.filter((r) => r.parent === t.id).map((r) => ({ id: r.id, title: r.title, owner: r.to, ...this.look(r.id) })),
       timeline: [
