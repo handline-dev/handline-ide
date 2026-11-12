@@ -2108,6 +2108,12 @@
       "default": "dry",
       "description": "What the daemon does with work its agents left running after its parent died (headless Chrome, vitest, vite, a go test binary, yes, Electron) that has run 30 minutes under a worktree: dry (the default) only logs and records an orphan_would_stop event every 10 minutes; on stops it and records orphan_stopped; off does nothing. Nothing outside a worktree is touched."
      },
+     "heavy_max": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 0,
+      "description": "Most test or build runs (go test, cargo, xcodebuild, vitest and the like) held at once through hl use, over every agent; 0 is no limit, the default. Over it an agent's hl use heavy waits its turn (lease.take), and the PreToolUse guard refuses a test or build command run outside hl use unless the agent holds one; with 0 nothing waits or is refused. A script that runs tests inside (tools/check.sh) is not read."
+     },
      "simulator_max": {
       "type": "integer",
       "minimum": 0,
@@ -2540,6 +2546,18 @@
        }
       ],
       "description": "What the daemon does with work its agents left running after its parent died (headless Chrome, vitest, vite, a go test binary, yes, Electron) that has run 30 minutes under a worktree: dry (the default) only logs and records an orphan_would_stop event every 10 minutes; on stops it and records orphan_stopped; off does nothing. Nothing outside a worktree is touched."
+     },
+     "heavy_max": {
+      "oneOf": [
+       {
+        "type": "integer",
+        "minimum": 0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Most test or build runs (go test, cargo, xcodebuild, vitest and the like) held at once through hl use, over every agent; 0 is no limit, the default. Over it an agent's hl use heavy waits its turn (lease.take), and the PreToolUse guard refuses a test or build command run outside hl use unless the agent holds one; with 0 nothing waits or is refused. A script that runs tests inside (tools/check.sh) is not read. null removes the key (back to the default)."
      },
      "simulator_max": {
       "oneOf": [
@@ -4014,8 +4032,8 @@
   },
   {
    "name": "lease.take",
-   "summary": "hl use asks for a simulator or browser lease: the call is held until one is free and nobody asked before (first come first served per kind), then answers the lease. Refused after 30 minutes, naming who holds them.",
-   "description": "With the kind's limit 0 (simulator_max, browser_max) it is granted at once. A command's lease (hold false) belongs to the calling process, the hl use the command runs under: it is freed by lease.release, by the agent's session end, or within 5 s once that process and every process last seen under it are gone. A hold is freed by lease.release or the agent's turn or session end; the PreToolUse guard lets the agent's own starters of its kind through while it is held. An ask whose caller hangs up leaves the queue. Leases are kept in the daemon's memory: a restart frees them all.",
+   "summary": "hl use asks for a test or build run, simulator or browser lease: the call is held until one is free and no ask is ahead in line (per kind, the workspace that held the kind least in the last hour first, then first come first served), then answers the lease. Refused after 30 minutes, naming who holds them.",
+   "description": "With the kind's limit 0 (heavy_max, simulator_max, browser_max) it is granted at once. A command's lease (hold false) belongs to the calling process, the hl use the command runs under: it is freed by lease.release, by the agent's session end, or within 5 s once that process and every process last seen under it are gone. A hold is freed by lease.release or the agent's turn or session end; the PreToolUse guard lets the agent's own starters of its kind through while it is held. An ask whose caller hangs up leaves the queue. Leases are stored: after a restart a hold is kept until its holder's turn ends, and a command's lease while the hl use process it was granted to runs.",
    "paramStructure": "by-name",
    "params": [
     {
@@ -4031,6 +4049,7 @@
      "schema": {
       "type": "string",
       "enum": [
+       "heavy",
        "simulator",
        "browser"
       ]
@@ -4109,6 +4128,7 @@
        {
         "type": "string",
         "enum": [
+         "heavy",
          "simulator",
          "browser"
         ]
@@ -4182,6 +4202,7 @@
          "kind": {
           "type": "string",
           "enum": [
+           "heavy",
            "simulator",
            "browser"
           ]
@@ -4189,7 +4210,7 @@
          "max": {
           "type": "integer",
           "minimum": 0,
-          "description": "simulator_max or browser_max; 0 is no limit."
+          "description": "heavy_max, simulator_max or browser_max; 0 is no limit."
          },
          "held": {
           "type": "array",

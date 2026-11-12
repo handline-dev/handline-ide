@@ -120,7 +120,7 @@ func run(command []string) int {
 	return 0
 }
 
-// leaseText is hl team's lines on the simulators and browsers: a kind with a limit, a lease held or an ask waiting, each in one line;
+// leaseText is hl team's lines on the leases: a kind with a limit, a lease held or an ask waiting, each in one line;
 // nothing when no kind has any.
 func leaseText(got obj) string {
 	out := ""
@@ -129,7 +129,7 @@ func leaseText(got obj) string {
 		if len(held) == 0 && len(queue) == 0 && limit == 0 {
 			continue
 		}
-		line := fmt.Sprintf("%ss: %d held", str(k, "kind"), len(held))
+		line := fmt.Sprintf("%ss: %d held", leases.Noun(str(k, "kind")), len(held))
 		if limit > 0 {
 			line += fmt.Sprintf(" of %d", limit)
 		} else {
@@ -144,7 +144,7 @@ func leaseText(got obj) string {
 		out += line + "\n"
 	}
 	if out != "" {
-		out = "\n" + out + "`hl use <simulator|browser> -- <command>` waits for one and gives it back when the command exits.\n"
+		out = "\n" + out + "`hl use <heavy|simulator|browser> -- <command>` waits for one and gives it back when the command exits.\n"
 	}
 	return out
 }

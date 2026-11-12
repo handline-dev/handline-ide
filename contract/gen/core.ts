@@ -383,6 +383,8 @@ export type SettingsValues = {
   keep_awake?: "off" | "on" | "working";
   /** What the daemon does with work its agents left running after its parent died (headless Chrome, vitest, vite, a go test binary, yes, Electron) that has run 30 minutes under a worktree: dry (the default) only logs and records an orphan_would_stop event every 10 minutes; on stops it and records orphan_stopped; off does nothing. Nothing outside a worktree is touched. */
   reap_orphans?: "dry" | "on" | "off";
+  /** Most test or build runs (go test, cargo, xcodebuild, vitest and the like) held at once through hl use, over every agent; 0 is no limit, the default. Over it an agent's hl use heavy waits its turn (lease.take), and the PreToolUse guard refuses a test or build command run outside hl use unless the agent holds one; with 0 nothing waits or is refused. A script that runs tests inside (tools/check.sh) is not read. */
+  heavy_max?: number;
   /** Most simulators (iOS Simulator, Android emulator) held at once through hl use, over every agent; 0 is no limit, the default. Over it an agent's hl use simulator waits its turn (lease.take), and the PreToolUse guard refuses a simulator started outside hl use unless the agent holds one; with 0 nothing waits or is refused. */
   simulator_max?: number;
   /** Most browsers (headless Chrome or Chromium, Playwright) held at once through hl use, over every agent; 0 is no limit, the default. Over it an agent's hl use browser waits its turn (lease.take), and the PreToolUse guard refuses a browser started outside hl use unless the agent holds one; with 0 nothing waits or is refused. */
@@ -465,6 +467,8 @@ export type SettingsChanges = {
   keep_awake?: ("off" | "on" | "working") | null;
   /** What the daemon does with work its agents left running after its parent died (headless Chrome, vitest, vite, a go test binary, yes, Electron) that has run 30 minutes under a worktree: dry (the default) only logs and records an orphan_would_stop event every 10 minutes; on stops it and records orphan_stopped; off does nothing. Nothing outside a worktree is touched. */
   reap_orphans?: ("dry" | "on" | "off") | null;
+  /** Most test or build runs (go test, cargo, xcodebuild, vitest and the like) held at once through hl use, over every agent; 0 is no limit, the default. Over it an agent's hl use heavy waits its turn (lease.take), and the PreToolUse guard refuses a test or build command run outside hl use unless the agent holds one; with 0 nothing waits or is refused. A script that runs tests inside (tools/check.sh) is not read. null removes the key (back to the default). */
+  heavy_max?: number | null;
   /** Most simulators (iOS Simulator, Android emulator) held at once through hl use, over every agent; 0 is no limit, the default. Over it an agent's hl use simulator waits its turn (lease.take), and the PreToolUse guard refuses a simulator started outside hl use unless the agent holds one; with 0 nothing waits or is refused. null removes the key (back to the default). */
   simulator_max?: number | null;
   /** Most browsers (headless Chrome or Chromium, Playwright) held at once through hl use, over every agent; 0 is no limit, the default. Over it an agent's hl use browser waits its turn (lease.take), and the PreToolUse guard refuses a browser started outside hl use unless the agent holds one; with 0 nothing waits or is refused. null removes the key (back to the default). */
@@ -826,7 +830,7 @@ export interface CoreMethods {
 }; result: Accepted };
   "lease.take": { params: {
   agent: Who;
-  kind: "simulator" | "browser";
+  kind: "heavy" | "simulator" | "browser";
   /** A lease kept across commands (hl use <kind> --hold) rather than one for the calling process. */
   hold?: boolean;
 }; result: {
@@ -838,15 +842,15 @@ export interface CoreMethods {
   "lease.release": { params: {
   agent: Who;
   lease?: number;
-  kind?: ("simulator" | "browser") | "";
+  kind?: ("heavy" | "simulator" | "browser") | "";
 }; result: {
     /** How many leases were given back. */
     released: number;
   } };
   "lease.get": { params: { [key: string]: unknown }; result: {
     kinds: {
-      kind: "simulator" | "browser";
-      /** simulator_max or browser_max; 0 is no limit. */
+      kind: "heavy" | "simulator" | "browser";
+      /** heavy_max, simulator_max or browser_max; 0 is no limit. */
       max: number;
       held: {
         lease: number;

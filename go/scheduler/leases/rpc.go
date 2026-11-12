@@ -38,7 +38,7 @@ func (m *Manager) take(c *rpc.Conn, params map[string]any) (any, error) {
 	}
 	kind, _ := params["kind"].(string)
 	if !Known(kind) {
-		return nil, bad("kind is simulator or browser", "kind")
+		return nil, bad("kind is heavy, simulator or browser", "kind")
 	}
 	hold, _ := params["hold"].(bool)
 	pid := 0
@@ -73,7 +73,7 @@ func (m *Manager) release(c *rpc.Conn, params map[string]any) (any, error) {
 	}
 	kind, _ := params["kind"].(string)
 	if kind != "" && !Known(kind) {
-		return nil, bad("kind is simulator or browser", "kind")
+		return nil, bad("kind is heavy, simulator or browser", "kind")
 	}
 	return map[string]any{"released": m.ReleaseAgent(agent, kind, false, "released")}, nil
 }

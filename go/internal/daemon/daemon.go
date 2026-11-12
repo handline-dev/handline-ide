@@ -139,7 +139,7 @@ type Daemon struct {
 	tchan     *termchan.Env     // the terminal channel and the input hold
 	res       *sysres.Sampler   // what the machine and each agent use; nil when the daemon does not watch
 	load      *procload.Tracker // every process and whose it is; nil when the daemon does not watch
-	leases    *leases.Manager   // the simulator and browser leases
+	leases    *leases.Manager   // the test or build run, simulator and browser leases
 	holds     *inputhold.Store  // who holds each terminal's input
 	single    *lock.Hold        // the daemon singleton, held while this daemon runs
 	stop      chan struct{}     // closed by Close: the spool loop ends

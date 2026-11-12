@@ -40,6 +40,16 @@ func ask(t *testing.T, m *Manager, done <-chan struct{}, agent string, ceiling t
 	return out
 }
 
+// pool is kind's pool on the read.
+func pool(m *Manager, kind string) Pool {
+	for _, p := range m.View() {
+		if p.Kind == kind {
+			return p
+		}
+	}
+	return Pool{}
+}
+
 func queued(m *Manager, kind string) int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -73,7 +83,7 @@ func TestNoLimitGrantsEveryAsk(t *testing.T) {
 			t.Fatalf("%s: %v %v", a, l, err)
 		}
 	}
-	if v := m.View()[1]; len(v.Held) != 3 || len(v.Queue) != 0 || v.Max != 0 {
+	if v := pool(m, Browser); len(v.Held) != 3 || len(v.Queue) != 0 || v.Max != 0 {
 		t.Fatalf("view: %+v", v)
 	}
 }
@@ -86,7 +96,7 @@ func TestQueueIsFirstComeFirstServed(t *testing.T) {
 	}
 	b := ask(t, m, nil, "b", long)
 	c := ask(t, m, nil, "c", long)
-	if v := m.View()[1]; len(v.Queue) != 2 || v.Queue[0].Says != "waiting for a browser, 1st in line, held by a" ||
+	if v := pool(m, Browser); len(v.Queue) != 2 || v.Queue[0].Says != "waiting for a browser, 1st in line, held by a" ||
 		v.Queue[1].Says != "waiting for a browser, 2nd in line, held by a" {
 		t.Fatalf("queue: %+v", v.Queue)
 	}
@@ -136,7 +146,7 @@ func TestHangingUpLeavesTheQueue(t *testing.T) {
 		t.Fatal("still queued")
 	}
 	m.Release(first.ID, "a")
-	if v := m.View()[1]; len(v.Held) != 0 {
+	if v := pool(m, Browser); len(v.Held) != 0 {
 		t.Fatalf("a lease went to nobody: %+v", v.Held)
 	}
 }
@@ -160,13 +170,13 @@ func TestTurnEndFreesHoldsAndSessionEndFreesAll(t *testing.T) {
 	if n := m.ReleaseAgent("a", "", true, "the turn ended"); n != 1 {
 		t.Fatalf("turn end freed %d", n)
 	}
-	if v := m.View(); len(v[0].Held) != 0 || len(v[1].Held) != 2 {
-		t.Fatalf("after the turn: %+v", v)
+	if len(pool(m, Simulator).Held) != 0 || len(pool(m, Browser).Held) != 2 {
+		t.Fatalf("after the turn: %+v", m.View())
 	}
 	if n := m.ReleaseAgent("a", "", false, "the session ended"); n != 1 {
 		t.Fatalf("session end freed %d", n)
 	}
-	if v := m.View()[1]; len(v.Held) != 1 || v.Held[0].Agent != "b" {
+	if v := pool(m, Browser); len(v.Held) != 1 || v.Held[0].Agent != "b" {
 		t.Fatalf("after the session: %+v", v.Held)
 	}
 }
@@ -179,7 +189,7 @@ func TestCheckFreesACommandsLeaseOnceItsProcessesAreGone(t *testing.T) {
 	b := ask(t, m, nil, "b", long)
 	procs := []procload.Proc{{PID: 7, PPID: 1, Agent: "a"}, {PID: 8, PPID: 7, Cmd: "chrome --headless"}}
 	m.Check(procs)
-	if v := m.View()[1]; len(v.Held) != 1 || !reflect.DeepEqual(v.Held[0].Pids, []int{7, 8}) {
+	if v := pool(m, Browser); len(v.Held) != 1 || !reflect.DeepEqual(v.Held[0].Pids, []int{7, 8}) {
 		t.Fatalf("held: %+v", v.Held)
 	}
 	// hl use was killed; the browser it started still runs, and holds the lease.
@@ -198,7 +208,7 @@ func TestAHoldOutlivesItsProcesses(t *testing.T) {
 	m.Alive = func(int) bool { return false }
 	m.Take(nil, Browser, "a", true, 0, long)
 	m.Check([]procload.Proc{{PID: 9, Agent: "a", Cmd: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"}, {PID: 10, Agent: "b", Cmd: "chrome"}})
-	if v := m.View()[1]; len(v.Held) != 1 || !reflect.DeepEqual(v.Held[0].Pids, []int{9}) {
+	if v := pool(m, Browser); len(v.Held) != 1 || !reflect.DeepEqual(v.Held[0].Pids, []int{9}) {
 		t.Fatalf("held: %+v", v.Held)
 	}
 	m.Check(nil) // between two commands
@@ -235,7 +245,7 @@ func TestAFreedLeaseGoesToTheWorkspaceThatHeldTheKindLeast(t *testing.T) {
 	held, _ := m.Take(nil, Browser, "c1", false, 7, long)
 	a2 := ask(t, m, nil, "a2", long)
 	b1 := ask(t, m, nil, "b1", long)
-	if q := m.View()[1].Queue; len(q) != 2 || q[0].Agent != "b1" || q[0].Workspace != "w2" || q[1].Agent != "a2" {
+	if q := pool(m, Browser).Queue; len(q) != 2 || q[0].Agent != "b1" || q[0].Workspace != "w2" || q[1].Agent != "a2" {
 		t.Fatalf("queue: %+v", q)
 	}
 	now += 60
@@ -319,10 +329,9 @@ func TestARestartKeepsHoldsAndLiveCommandsAndDropsTheRest(t *testing.T) {
 	if err := m.Adopt(); err != nil {
 		t.Fatal(err)
 	}
-	v := m.View()
-	if len(v[0].Held) != 1 || v[0].Held[0].ID != 3 || !v[0].Held[0].Hold || len(v[1].Held) != 1 || v[1].Held[0].ID != 4 ||
-		v[1].Held[0].Workspace != "w1" {
-		t.Fatalf("adopted: %+v", v)
+	sim, br := pool(m, Simulator), pool(m, Browser)
+	if len(sim.Held) != 1 || sim.Held[0].ID != 3 || !sim.Held[0].Hold || len(br.Held) != 1 || br.Held[0].ID != 4 || br.Held[0].Workspace != "w1" {
+		t.Fatalf("adopted: %+v", m.View())
 	}
 	if sort.Slice(st.removed, func(i, j int) bool { return st.removed[i] < st.removed[j] }); !reflect.DeepEqual(st.removed, []int64{5, 6}) {
 		t.Fatalf("removed: %v", st.removed)
@@ -370,7 +379,7 @@ func TestTheLineForgetsALeaseThatEndedOverAnHourAgo(t *testing.T) {
 	ask(t, m, nil, "a2", long)
 	ask(t, m, nil, "b1", long)
 	now += fairS + 600 // no lease ends meanwhile, so nothing prunes w2's old ten minutes
-	if q := m.View()[1].Queue; len(q) != 2 || q[0].Agent != "a2" || q[1].Agent != "b1" {
+	if q := pool(m, Browser).Queue; len(q) != 2 || q[0].Agent != "a2" || q[1].Agent != "b1" {
 		t.Fatalf("queue: %+v", q)
 	}
 }

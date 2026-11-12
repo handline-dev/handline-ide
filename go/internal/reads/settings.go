@@ -137,6 +137,7 @@ func (e *Env) settingsValues() map[string]any {
 		settings.ClearPastBackgroundKey: s.Flag(settings.ClearPastBackgroundKey, false),
 		settings.TranscriptRowsKey:      s.Flag(settings.TranscriptRowsKey, false),
 		settings.RefsNeedGrantKey:       s.Flag(settings.RefsNeedGrantKey, false),
+		leases.HeavyMaxKey:              leases.Max(cfg, leases.Heavy),
 		leases.SimulatorMaxKey:          leases.Max(cfg, leases.Simulator), leases.BrowserMaxKey: leases.Max(cfg, leases.Browser),
 		usage.NetworkAddressesKey: hostsSetting(cfg[usage.NetworkAddressesKey]),
 	}

@@ -51,6 +51,7 @@ const DEFAULTS: Settings['values'] = {
   load_per_core_pct: 0,
   ram_free_min_pct: 0,
   disk_free_min_gb: 0,
+  heavy_max: 0,
   simulator_max: 0,
   browser_max: 0,
   network_addresses: null,

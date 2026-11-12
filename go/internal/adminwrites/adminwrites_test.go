@@ -201,8 +201,9 @@ func TestTheLoadLimitsAreWholeNumbersForTheWholeMachine(t *testing.T) {
 
 func TestTheLeaseLimitsAreSetAndClearedForTheWholeMachine(t *testing.T) {
 	r := newRig(t)
-	r.result(r.one("settings.set", `{"changes":{"simulator_max":1,"browser_max":2},"request_id":"m1"}`))
-	if got := r.file("config.yaml"); !strings.Contains(got, "simulator_max: 1") || !strings.Contains(got, "browser_max: 2") {
+	r.result(r.one("settings.set", `{"changes":{"heavy_max":3,"simulator_max":1,"browser_max":2},"request_id":"m1"}`))
+	if got := r.file("config.yaml"); !strings.Contains(got, "heavy_max: 3") || !strings.Contains(got, "simulator_max: 1") ||
+		!strings.Contains(got, "browser_max: 2") {
 		t.Fatalf("%q", got)
 	}
 	for i, bad := range []string{`{"browser_max":-1}`, `{"simulator_max":"2"}`} {
