@@ -5,14 +5,16 @@ import { goPage } from '#src/layout/openTab.tsx';
 import { useRequests } from '#src/requests/data.ts';
 import { RequestLine, TurnLine } from '#src/requests/rows.tsx';
 import { Popover } from '#src/ui/Popover.tsx';
+import { UpdateRow, updateReady, useShellUpdate } from '#src/sidebar/UpdateButton.tsx';
 
 const SHOWN = 5;
 
 /** The bell: its number is what waits on the founder, the same as the sidebar's Requests. A click opens a preview of Requests: the
  * first of the founder's turn, the notes to them (New), and the finished ones not yet seen (else the latest), with a way to the whole
- * page. A dot marks an unread note or an unseen result. */
+ * page. A desktop update under way leads the list. A dot marks an unread note, an unseen result or a ready update. */
 export function BellButton({ bar }: { bar: RefObject<HTMLElement | null> }) {
   const r = useRequests();
+  const update = useShellUpdate();
   const [open, setOpen] = useState(false);
   const close = () => setOpen(false);
   const unseen = r.done.filter(isUnseen);
@@ -28,14 +30,20 @@ export function BellButton({ bar }: { bar: RefObject<HTMLElement | null> }) {
         <button type="button" className="relative flex items-center gap-1" aria-label={`Requests, ${r.count} waiting on you`}>
           <Bell size={14} className={r.count ? 'text-fg' : ''} />
           {r.count > 0 && <span className="text-fg tabular-nums">{r.count}</span>}
-          {(r.unseen > 0 || r.notes.length > 0) && (
+          {(r.unseen > 0 || r.notes.length > 0 || updateReady(update)) && (
             <span aria-label="new" className="absolute -top-0.5 -right-1 size-1.5 rounded-full bg-accent" />
           )}
         </button>
       }
     >
       <div className="-m-2 flex w-96 flex-col gap-2">
-        <p className="px-2 pt-1 text-xs font-medium text-muted">Your turn</p>
+        {update && (
+          <>
+            <p className="px-2 pt-1 text-xs font-medium text-muted">Update</p>
+            <UpdateRow u={update} />
+          </>
+        )}
+        <p className={`px-2 pt-1 text-xs font-medium text-muted ${update ? 'border-t border-border pt-2' : ''}`}>Your turn</p>
         {!r.loaded ? null : r.turn.length ? (
           r.turn.slice(0, SHOWN).map((p) => <TurnLine key={turnKey(p)} p={p} onOpened={close} />)
         ) : (

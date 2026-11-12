@@ -27,9 +27,10 @@ export interface TrayActions {
 /** What the menu-bar icon shows: nothing extra, a red dot (items wait on the person), a blue dot (an update is ready) or the yellow icon (trouble). */
 export type TrayIcon = 'plain' | 'turn' | 'update' | 'trouble';
 
-/** The update flow as the menu-bar icon reads it: a ready update is a blue dot, a failed one trouble. */
+/** The update flow as the tray reads it: a ready update is a blue dot and a Restart to update item, a failed one trouble. */
 export interface TrayUpdate {
   phase: UpdatePhase;
+  restart(): void;
 }
 
 /** Follow-main mode: the commit the app runs, whether main has moved, and what the tray offers. */
@@ -59,6 +60,8 @@ export interface TrayView {
   follow?: TrayFollow;
 }
 
+const ready = (u: TrayUpdate) => u.phase === 'ready' || u.phase === 'later';
+
 const agents = (n: number) => `${n} agent${n === 1 ? '' : 's'}`;
 
 /** Something the person should know about: this Mac's daemon is not running, or an update failed. The app says what and why. */
@@ -77,7 +80,7 @@ export function statusLine(state: DaemonState, v: Pick<TrayView, 'working' | 're
 export function trayIcon(state: DaemonState, v: TrayView): TrayIcon {
   if (trouble(state, v)) return 'trouble';
   if (v.unread > 0) return 'turn';
-  return v.update?.phase === 'ready' || v.update?.phase === 'later' ? 'update' : 'plain';
+  return v.update && ready(v.update) ? 'update' : 'plain';
 }
 
 /** What Option shows and the usual menu leaves out: the daemon's address and build, and the commit the app follows. They copy on a click. */
@@ -98,6 +101,7 @@ export function trayMenu(state: DaemonState, a: TrayActions, v: TrayView): TrayI
     { type: 'separator' },
   ];
   items.push({ label: 'Open Handline', click: a.open });
+  if (v.update && ready(v.update)) items.push({ label: 'Restart to update', click: v.update.restart });
   if (v.unread > 0) items.push({ label: `Needs you · ${badgeText(v.unread)}`, click: a.inbox });
   items.push({ type: 'separator' });
   items.push({ label: 'Open at login', type: 'checkbox', checked: v.openAtLogin, click: () => a.setOpenAtLogin(!v.openAtLogin) });

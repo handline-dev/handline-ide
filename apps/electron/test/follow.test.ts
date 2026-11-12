@@ -239,7 +239,7 @@ const actions = {
   copy: () => undefined,
 };
 
-test('the menu leaves updates to the app: no update lines, a failed one is trouble; the commit is a detail', () => {
+test('the menu says an update only once it is ready (Restart to update); a failed one is trouble; the commit is a detail', () => {
   const base = { sha: 'aaa1111ffff', next: null, reason: '', check: () => undefined, restart: () => undefined };
   const menu = (phase: 'idle' | 'preparing' | 'ready' | 'later' | 'failed', details = false) =>
     trayMenu('running', actions, {
@@ -248,11 +248,11 @@ test('the menu leaves updates to the app: no update lines, a failed one is troub
       openAtLogin: true,
       remote: null,
       details,
-      update: { phase },
+      update: { phase, restart: () => undefined },
       follow: { ...base, state: 'current' },
     }).map((i) => i.label ?? '-');
-  for (const p of ['idle', 'preparing', 'ready', 'later'] as const)
-    assert.ok(!menu(p).some((l) => /main|update|restart|try again/i.test(l)));
+  for (const p of ['idle', 'preparing'] as const) assert.ok(!menu(p).some((l) => /main|update|restart|try again/i.test(l)));
+  for (const p of ['ready', 'later'] as const) assert.ok(menu(p).includes('Restart to update'));
   assert.ok(menu('idle', true).includes('Handline is on main aaa1111'));
   assert.equal(menu('failed')[0], 'Handline needs attention');
 });
