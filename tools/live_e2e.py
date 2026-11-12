@@ -381,11 +381,11 @@ def seed(d: Daemon, home: Path, account: dict, work: Path) -> None:
     con = sqlite3.connect(home / "db.sqlite", timeout=10)
     owner = con.execute("SELECT 'p' || id FROM people WHERE role = 'owner' ORDER BY id LIMIT 1").fetchone()[0]
     ws = con.execute("INSERT INTO workspaces(name, folder, created_at) VALUES(?, ?, 0)", (workspace, str(work))).lastrowid
-    lead = con.execute("INSERT INTO agents(workspace, name, owner, reports_to, model, effort, weight, mode, created_at) "
-                       "VALUES(?, 'lead', ?, ?, 'haiku', 'medium', 'light', 'default', 0)", (ws, owner, owner)).lastrowid
+    lead = con.execute("INSERT INTO agents(workspace, name, owner, model, effort, weight, mode, created_at) "
+                       "VALUES(?, 'lead', ?, 'haiku', 'medium', 'light', 'default', 0)", (ws, owner)).lastrowid
     con.execute("UPDATE workspaces SET lead = ? WHERE id = ?", (lead, ws))
-    agent_id = con.execute("INSERT INTO agents(workspace, name, owner, reports_to, model, effort, weight, mode, created_at) "
-                      "VALUES(?, ?, ?, ?, 'haiku', 'medium', 'light', 'default', 0)", (ws, name, owner, f"a{lead}")).lastrowid
+    agent_id = con.execute("INSERT INTO agents(workspace, name, owner, model, effort, weight, mode, created_at) "
+                      "VALUES(?, ?, ?, 'haiku', 'medium', 'light', 'default', 0)", (ws, name, owner)).lastrowid
     con.execute("INSERT OR REPLACE INTO agent_state(agent, state, updated, worktree) VALUES(?, 'IDLE', 0, ?)", (AGENT, str(work)))
     con.commit()
     con.close()

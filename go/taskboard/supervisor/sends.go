@@ -5,10 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/handline/handline/go/kit/addr"
 
 	"github.com/handline/handline/go/data/db"
-	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/actor"
 )
 
@@ -85,12 +83,6 @@ func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'"'"'`) + "'"
 }
 
-// isReportOf: is target one of me's reports, by reports_to in the roster? An unreadable roster refuses nothing here.
-func (e *Env) isReportOf(me, target string) bool {
-	t, err := team.LoadTeam(e.Home)
-	return err == nil && t.SupervisorOf(target) == me
-}
-
 // sayCmd is a `hl say` line ready to paste: the body as sent, quoted, with the flags that would have worked.
 func sayCmd(q db.Q, target, body string, parent int64, flags ...string) string {
 	parts := []string{"hl say", target, shellQuote(body)}
@@ -139,11 +131,6 @@ func (e *Env) SayVerb(q *sql.Tx, in SayVerbIn) (out *SayVerbOut, err error) {
 		if named := db.MessageNamedIn(q, body); named != "" {
 			return fail(fmt.Sprintf("not sent: this names a message (%s), and the founder sees no message ids - say in words what that message was about", named))
 		}
-	}
-	if in.Parent == 0 && e.isReportOf(me, target) {
-		word := addr.Address(q, me, target)
-		return fail("work cannot reach a report by message: make it a task, or comment on the task it has. Try:\n  " +
-			fmt.Sprintf("hl task new --assign %s -t 2h '<title>' %s\n  hl task comment T<n> add %s", word, shellQuote(body), shellQuote("@"+word+" "+body)))
 	}
 	within := in.Effect
 	var parent *db.Request

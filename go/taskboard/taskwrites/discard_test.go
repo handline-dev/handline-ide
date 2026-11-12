@@ -92,12 +92,8 @@ func discardEnvHome(t *testing.T) (*sql.DB, string, func(agent string, tell ...T
 	t.Cleanup(func() { db.Close() })
 	home := t.TempDir()
 	teamtest.Seed(t, home, "gp", "worker", "other", "manager")
-	teamtest.Set(t, home, "worker", "reports_to", "manager")
-	teamtest.Set(t, home, "other", "reports_to", "manager")
 	// crew.asker and crew.mate share a workspace and lead none; ops.hand is an agent of another workspace, not its lead.
 	teamtest.Seed(t, home, "crew.asker", "crew.mate", "ops.hand")
-	teamtest.Set(t, home, "crew.asker", "reports_to", "manager")
-	teamtest.Set(t, home, "crew.mate", "reports_to", "manager")
 	homes.Store(db, home)
 	return db, home, func(agent string, tell ...Teller) *rpc.Server {
 		s := rpc.NewServer(auth{as(t, home, agent)}, "x", store.LatestVersion(), "local", func(string, ...any) {})

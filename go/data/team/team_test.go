@@ -62,10 +62,10 @@ func TestRegisterMakesTheWorkspaceAndItsLeadAndReadsBack(t *testing.T) {
 		t.Fatal(err)
 	}
 	d, _ := store.Shared(paths.DBFile(home))
-	var ws, folder, lead, owner, reports string
-	d.QueryRow("SELECT w.name, w.folder, a.name, a.owner, a.reports_to FROM workspaces w JOIN agents a ON a.id = w.lead").Scan(&ws, &folder, &lead, &owner, &reports)
-	if ws != "shop" || folder != repo || lead != names.Lead || owner != "p1" || reports != "p1" {
-		t.Fatalf("workspace %s at %s led by %s, owned by %s, reporting to %s", ws, folder, lead, owner, reports)
+	var ws, folder, lead, owner string
+	d.QueryRow("SELECT w.name, w.folder, a.name, a.owner FROM workspaces w JOIN agents a ON a.id = w.lead").Scan(&ws, &folder, &lead, &owner)
+	if ws != "shop" || folder != repo || lead != names.Lead || owner != "p1" {
+		t.Fatalf("workspace %s at %s led by %s, owned by %s", ws, folder, lead, owner)
 	}
 	cfg, err := r.Read("shop.ui")
 	if err != nil {
@@ -92,8 +92,8 @@ func TestRegisterMakesTheWorkspaceAndItsLeadAndReadsBack(t *testing.T) {
 	}
 	tm, _ := LoadTeam(home)
 	k := keyer(home)
-	if tm.SupervisorOf(k("shop.ui")) != k("shop") || tm.SupervisorOf(k("shop")) != "" {
-		t.Fatalf("shop.ui reports to %q, shop to %q", tm.SupervisorOf("shop.ui"), tm.SupervisorOf("shop"))
+	if tm.ContactOf("shop") != k("shop") || tm.TeamOf(k("shop.ui")) != "shop" {
+		t.Fatalf("shop's contact %q, shop.ui's workspace %q", tm.ContactOf("shop"), tm.TeamOf(k("shop.ui")))
 	}
 	for _, f := range []string{"ROLE.md", "base.md", "memory"} {
 		if _, err := os.Stat(filepath.Join(paths.AgentDir(home, "shop.ui"), f)); err != nil {
@@ -189,33 +189,39 @@ func TestRouteFollowsWorkspaces(t *testing.T) {
 	}
 }
 
-func TestLeadAuditorAndRoleOfAnAgent(t *testing.T) {
+// Agents are peers: no row says whom an agent reports to.
+func TestAgentsHaveNoReportsToColumn(t *testing.T) {
+	home := newHome(t)
+	register(t, NewRoster(home), "web", "web.dev")
+	d, _ := store.Shared(paths.DBFile(home))
+	var n int
+	if err := d.QueryRow("SELECT COUNT(*) FROM pragma_table_info('agents') WHERE name = 'reports_to'").Scan(&n); err != nil || n != 0 {
+		t.Fatalf("reports_to columns %d, %v", n, err)
+	}
+}
+
+func TestContactAndRoleOfAnAgent(t *testing.T) {
 	home := newHome(t)
 	r := NewRoster(home)
-	register(t, r, "web", "web.dev", "web.auditor", "web.review", "ops", "ops.dev")
+	register(t, r, "web", "web.dev", "web.auditor", "ops", "ops.dev")
 	d, _ := store.Shared(paths.DBFile(home))
-	// web.review reports to web.dev, not the lead; web.auditor's tasks gate others.
-	d.Exec("UPDATE agents SET reports_to = (SELECT 'a' || id FROM agents WHERE name = 'dev' AND workspace = 1) WHERE name = 'review'")
 	d.Exec("UPDATE agents SET role = 'check' WHERE name = 'auditor'")
 	tm, _ := LoadTeam(home)
 	k := keyer(home)
-	for _, c := range []struct{ agent, lead, auditor, role string }{
-		{"web.dev", "web", "web.auditor", RoleWork},
-		{"web.review", "web.dev", "web.auditor", RoleWork},
-		{"web.auditor", "web", "", RoleCheck},
-		{"ops.dev", "ops", "", RoleWork},
-		{"web", "", "web.auditor", RoleWork},
-	} {
-		if l, a, ro := tm.LeadOf(k(c.agent)), tm.AuditorOf(k(c.agent)), tm.TaskRole(k(c.agent)); l != k(c.lead) || a != k(c.auditor) || ro != c.role {
-			t.Errorf("%s: lead %q auditor %q role %s, want %q %q %s", c.agent, l, a, ro, c.lead, c.auditor, c.role)
+	for _, c := range []struct{ agent, role string }{{"web.dev", RoleWork}, {"web.auditor", RoleCheck}, {"web", RoleWork}} {
+		if ro := tm.TaskRole(k(c.agent)); ro != c.role {
+			t.Errorf("%s: role %s, want %s", c.agent, ro, c.role)
 		}
 	}
-	if tm.ManagerOf(k("web.review")) != k("web") || tm.TeamOf(k("ops.dev")) != "ops" || strings.Join(tm.Members("ops"), ",") != k("ops")+","+k("ops.dev") {
-		t.Error("manager, workspace or members")
+	if tm.ContactOf("web") != k("web") || tm.ContactOf("ops") != k("ops") || tm.ContactOf("none") != "" {
+		t.Error("contacts")
+	}
+	if tm.TeamOf(k("ops.dev")) != "ops" || strings.Join(tm.Members("ops"), ",") != k("ops")+","+k("ops.dev") {
+		t.Error("workspace or members")
 	}
 	var none *Team
-	if none.LeadOf("web.dev") != "" || none.AuditorOf("web.dev") != "" || none.TaskRole("web.auditor") != RoleWork {
-		t.Error("no team: no lead, no auditor, work")
+	if none.ContactOf("web") != "" || none.TaskRole("web.auditor") != RoleWork {
+		t.Error("no team: no contact, work")
 	}
 	empty, err := LoadTeam(t.TempDir())
 	if err != nil || len(empty.Agents) != 0 || len(paths.ListAgents(t.TempDir())) != 0 {
@@ -270,13 +276,6 @@ func TestRemoveAndRename(t *testing.T) {
 	}
 }
 
-func TestFromNamesRoutesAsTheRowsDo(t *testing.T) {
-	tm := FromNames(map[string]string{"shop": "", "shop.ui": "shop", "blog": "", "blog.writer": "blog"})
-	if !tm.Route("shop.ui", "blog", 0).Allowed || tm.Route("shop.ui", "blog.writer", 0).Allowed || tm.SupervisorOf("blog.writer") != "blog" {
-		t.Fatal("FromNames")
-	}
-}
-
 // accountDir gives the account named name a row in home's database, when it has none, and is its folder, which the caller makes.
 func accountDir(t *testing.T, home, name string) string {
 	t.Helper()
@@ -290,30 +289,6 @@ func accountDir(t *testing.T, home, name string) string {
 	}
 	t.Cleanup(func() { store.ForgetShared(paths.DBFile(home)) })
 	return paths.AccountDir(home, name)
-}
-
-func TestAnAgentRegisteredBeforeItsLeadReportsToTheLeadOnceItComes(t *testing.T) {
-	home := newHome(t)
-	r := NewRoster(home)
-	register(t, r, "shop.ui", "shop")
-	var reports string
-	var lead int64
-	if err := r.DB.QueryRow("SELECT a.reports_to, w.lead FROM agents a JOIN workspaces w ON w.id = a.workspace WHERE a.name = 'ui'").Scan(&reports, &lead); err != nil {
-		t.Fatal(err)
-	}
-	if reports != actor.Key(actor.Agent, lead) {
-		t.Fatalf("shop.ui reports to %q, its lead is a%d", reports, lead)
-	}
-}
-
-func TestTheAuditorOfATeamFromNames(t *testing.T) {
-	tm := FromNames(map[string]string{"shop": "", "shop.ui": "shop", "shop.auditor": "shop"})
-	if a := tm.AuditorOf("shop.ui"); a != "shop.auditor" {
-		t.Fatalf("auditor of shop.ui: %q", a)
-	}
-	if a := tm.AuditorOf("shop.auditor"); a != "" {
-		t.Fatalf("the auditor audits itself: %q", a)
-	}
 }
 
 func TestARosterOfAHomeWithNoDatabaseMakesNone(t *testing.T) {

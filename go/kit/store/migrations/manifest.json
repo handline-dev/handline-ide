@@ -28,5 +28,10 @@
   "version": 105,
   "name": "workspace_settings",
   "additive": true
+ },
+ {
+  "version": 106,
+  "name": "drop_reports_to",
+  "additive": false
  }
 ]

@@ -98,8 +98,6 @@ func TestImportWritesTheNewHome(t *testing.T) {
 	for q, want := range map[string]string{
 		"SELECT name FROM agents WHERE id = " + lead[1:]:                                                       "lead",
 		"SELECT folder FROM workspaces WHERE name = 'shop'":                                                    "/src/shop",
-		"SELECT reports_to FROM agents WHERE id = " + lead[1:]:                                                 "p1",
-		"SELECT reports_to FROM agents WHERE id = " + ui[1:]:                                                   lead,
 		"SELECT role || model || context_tokens || enabled FROM agents WHERE id = " + ui[1:]:                   "checksonnet6000001",
 		"SELECT sandbox FROM agents WHERE id = " + lead[1:]:                                                    "0",
 		"SELECT COUNT(*) FROM agents":                                                                          "3",

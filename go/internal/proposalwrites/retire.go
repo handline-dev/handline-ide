@@ -131,12 +131,14 @@ func (e *Env) refuseHeldWork(agents ...string) error {
 	return r
 }
 
-// dependents are the other agents that report to agent (its row's reports_to) or hang under its name (agent.x).
+// dependents are the agents that keep agent from retiring: those that hang under its name (agent.x), and, when it is its workspace's
+// contact, the others in that workspace, which would be left with no contact.
 func (e *Env) dependents(agent string, everyone []string) []string {
 	t, _ := team.LoadTeam(e.Home)
+	contact := t != nil && t.ContactOf(t.TeamOf(agent)) == agent
 	var out []string
 	for _, n := range everyone {
-		if n != agent && (team.ParentName(n) == agent || t.SupervisorOf(n) == agent) {
+		if n != agent && (team.ParentName(n) == agent || contact && t.TeamOf(n) == t.TeamOf(agent)) {
 			out = append(out, n)
 		}
 	}

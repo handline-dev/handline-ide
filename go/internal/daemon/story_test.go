@@ -6,7 +6,6 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/stream"
-	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/internal/reads"
 	"github.com/handline/handline/go/internal/watcher"
 	"github.com/handline/handline/go/kit/actor"
@@ -44,7 +43,6 @@ func (h storyHost) Agents() []string { return h.agents }
 // counts what each recipient is told.
 func TestAStoryTellsTheFounderOneNoticeAndAgentsOnlyWhatTheyMustActOn(t *testing.T) {
 	d, _ := tellDaemon(t, true)
-	teamtest.Set(t, d.cfg.Home, "bob", "reports_to", "alice")
 	alice, bob := key(t, d, "alice"), key(t, d, "bob")
 	var entries []stream.Entry
 	notes := &watcher.Notifications{Reads: &reads.Env{DB: d.db, Home: d.cfg.Home}}

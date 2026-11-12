@@ -82,7 +82,6 @@ type Env struct {
 	Agents    func() []string
 	Config    func(agent string) (model, effort string, ok bool)
 	Account   func(agent string) (string, error)
-	Parent    func(agent string) string
 	CacheLeft func(agent string, now float64) (left float64, ok bool, err error)
 	CtxPct    func(agent, account string) *int // nil: no trusted reading
 	// PaneRuns is whether the terminal pane agent's row names is up with something other than its shell in front: the launch typed into a
@@ -462,12 +461,7 @@ func (e *Env) Compute(agent string) (view map[string]any, err error) {
 			doing = map[string]any{"text": text, "at": stamp(at)}
 		}
 	}
-	var parent any
-	if e.Parent != nil {
-		if p := e.Parent(agent); p != "" {
-			parent = p
-		}
-	}
+	var parent any // agents are peers; parent stays null until clients stop reading it
 	st := e.status(agent, row, state, detail, handoff, now)
 	jobs := e.jobs(agent, now)
 	if st.Reason == status.Background && len(jobs) > 0 {
