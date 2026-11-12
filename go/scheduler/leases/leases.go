@@ -25,10 +25,11 @@ const (
 	Heavy     = "heavy"     // a test or build run
 	Simulator = "simulator" // iOS Simulator, Android emulator
 	Browser   = "browser"   // Chrome or Chromium for shots, Playwright, CDP
+	Port      = "port"      // a TCP port for a server the command starts, given to it as $HL_PORT
 )
 
 // Kinds are every kind, in the order the read lists them.
-var Kinds = []string{Heavy, Simulator, Browser}
+var Kinds = []string{Heavy, Simulator, Browser, Port}
 
 // The config.yaml keys of each kind's limit: the most leases held at once, 0 for no limit.
 const (
@@ -58,7 +59,9 @@ func Noun(kind string) string {
 func MaxKey(kind string) string { return kind + "_max" }
 
 // Known is whether kind is a kind of lease.
-func Known(kind string) bool { return kind == Heavy || kind == Simulator || kind == Browser }
+func Known(kind string) bool {
+	return kind == Heavy || kind == Simulator || kind == Browser || kind == Port
+}
 
 // Max is kind's limit in cfg: 0 (no limit) when it is absent or not a whole number above 0.
 func Max(cfg usage.Config, kind string) int {
@@ -88,6 +91,7 @@ type Lease struct {
 	Hold      bool   // taken with --hold: no command stands behind it
 	PID       int    // the hl use process the command runs under; 0 for a hold or a reservation
 	Pids      []int  // its processes at the last sample
+	Port      int    // a port lease's number
 	Task      int64  // a reservation's task
 	Until     int64  // a reservation's claim deadline, epoch seconds; 0 once taken
 }
@@ -161,6 +165,10 @@ type Manager struct {
 	WorkspaceOf func(agent string) string
 	// Tasks blocks an agent's current task while its ask waits; nil holds every ask's call open instead.
 	Tasks Tasks
+	// Ports is the range port leases are picked from (PortRange); nil or not ok, any free port the system gives.
+	Ports func() (lo, hi int, ok bool)
+	// PortFree is whether a port binds now; nil tries it.
+	PortFree func(port int) bool
 
 	mu     sync.Mutex
 	next   int64
@@ -269,16 +277,24 @@ func (m *Manager) logf(format string, args ...any) {
 func (m *Manager) limits() map[string]int {
 	out := map[string]int{}
 	for _, kind := range Kinds {
-		if m.Max != nil {
+		if m.Max != nil && kind != Port {
 			out[kind] = m.Max(kind)
 		}
+	}
+	if lo, hi, ok := m.portRange(); ok {
+		out[Port] = hi - lo + 1
 	}
 	return out
 }
 
-func (m *Manager) free(kind string, limits map[string]int) bool {
+// free is whether a lease of kind can be granted now, and for a port the port to grant.
+func (m *Manager) free(kind string, limits map[string]int) (port int, ok bool) {
+	if kind == Port { // a port another process took is not free either
+		port = m.pickPort()
+		return port, port != 0
+	}
 	if limits[kind] <= 0 {
-		return true
+		return 0, true
 	}
 	n := 0
 	for _, l := range m.held {
@@ -286,7 +302,7 @@ func (m *Manager) free(kind string, limits map[string]int) bool {
 			n++
 		}
 	}
-	return n < limits[kind]
+	return 0, n < limits[kind]
 }
 
 // grant holds l under a new id from now. The caller holds mu.
@@ -351,20 +367,21 @@ func (m *Manager) promote() {
 	}
 	limits := m.limits()
 	for _, kind := range Kinds {
-		if len(m.queues[kind]) == 0 || !m.free(kind, limits) {
+		if len(m.queues[kind]) == 0 {
 			continue
 		}
 		granted := map[*waiter]bool{}
 		for _, w := range m.inLine(kind) {
-			if !m.free(kind, limits) {
+			port, ok := m.free(kind, limits)
+			if !ok {
 				break
 			}
 			granted[w] = true
 			if w.got != nil {
-				w.got <- m.grant(Lease{Kind: w.kind, Agent: w.agent, Workspace: w.ws, Hold: w.hold, PID: w.pid})
+				w.got <- m.grant(Lease{Kind: w.kind, Agent: w.agent, Workspace: w.ws, Hold: w.hold, PID: w.pid, Port: port})
 				continue
 			}
-			l := m.grant(Lease{Kind: w.kind, Agent: w.agent, Workspace: w.ws, Task: w.task, Until: m.now() + ClaimS})
+			l := m.grant(Lease{Kind: w.kind, Agent: w.agent, Workspace: w.ws, Task: w.task, Until: m.now() + ClaimS, Port: port})
 			m.forget(w.id)
 			m.logf("lease: %s (lease %d) reserved for %s's T%d", w.kind, l.ID, w.agent, w.task)
 			gate, kind := w.gate, w.kind
@@ -413,10 +430,12 @@ func (m *Manager) Take(done <-chan struct{}, kind, agent string, hold bool, pid 
 			return &c, nil
 		}
 	}
-	if len(m.queues[kind]) == 0 && m.free(kind, m.limits()) {
-		l := m.grant(Lease{Kind: kind, Agent: agent, Workspace: ws, Hold: hold, PID: pid})
-		m.unlock()
-		return l, nil
+	if len(m.queues[kind]) == 0 {
+		if port, ok := m.free(kind, m.limits()); ok {
+			l := m.grant(Lease{Kind: kind, Agent: agent, Workspace: ws, Hold: hold, PID: pid, Port: port})
+			m.unlock()
+			return l, nil
+		}
 	}
 	if task != 0 {
 		return nil, m.block(kind, agent, ws, task)
@@ -637,8 +656,9 @@ func (m *Manager) Check(procs []procload.Proc) {
 		}
 		if l.Hold {
 			l.Pids = nil
+			re := procOf[l.Kind] // nil for a port: no process looks like one
 			for _, p := range procs {
-				if !p.Gone && p.Agent == l.Agent && procOf[l.Kind].MatchString(p.Cmd) {
+				if !p.Gone && p.Agent == l.Agent && re != nil && re.MatchString(p.Cmd) {
 					l.Pids = append(l.Pids, p.PID)
 				}
 			}

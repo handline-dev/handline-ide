@@ -30,7 +30,7 @@ func agentOf(c *rpc.Conn, params map[string]any) (string, error) {
 	return agent, c.RequireSelf(agent)
 }
 
-// take holds the call until a lease is granted: {lease, waited_s}; refused after CeilingS with who holds them.
+// take answers a granted lease: {lease, waited_s, port for a port}; refused with lease_wait or, for a call held open, lease_ceiling.
 func (m *Manager) take(c *rpc.Conn, params map[string]any) (any, error) {
 	agent, err := agentOf(c, params)
 	if err != nil {
@@ -38,7 +38,7 @@ func (m *Manager) take(c *rpc.Conn, params map[string]any) (any, error) {
 	}
 	kind, _ := params["kind"].(string)
 	if !Known(kind) {
-		return nil, bad("kind is heavy, simulator or browser", "kind")
+		return nil, bad("kind is heavy, simulator, browser or port", "kind")
 	}
 	hold, _ := params["hold"].(bool)
 	pid := 0
@@ -58,7 +58,11 @@ func (m *Manager) take(c *rpc.Conn, params map[string]any) (any, error) {
 	if err != nil || l == nil {
 		return nil, err
 	}
-	return map[string]any{"lease": l.ID, "waited_s": l.Since - asked}, nil
+	out := map[string]any{"lease": l.ID, "waited_s": max(l.Since-asked, 0)}
+	if l.Kind == Port {
+		out["port"] = l.Port
+	}
+	return out, nil
 }
 
 // release ends one lease of the caller, or with no lease every one of kind (every kind when absent): {released: n}.
@@ -76,7 +80,7 @@ func (m *Manager) release(c *rpc.Conn, params map[string]any) (any, error) {
 	}
 	kind, _ := params["kind"].(string)
 	if kind != "" && !Known(kind) {
-		return nil, bad("kind is heavy, simulator or browser", "kind")
+		return nil, bad("kind is heavy, simulator, browser or port", "kind")
 	}
 	return map[string]any{"released": m.ReleaseAgent(agent, kind, false, "released")}, nil
 }
@@ -91,6 +95,9 @@ func (m *Manager) get(_ *rpc.Conn, _ map[string]any) (any, error) {
 				pids = append(pids, pid)
 			}
 			row := map[string]any{"lease": l.ID, "agent": l.Agent, "since": stamp(l.Since), "hold": l.Hold, "pids": pids}
+			if l.Kind == Port {
+				row["port"] = l.Port
+			}
 			if l.Reserved() {
 				row["reserved_for"], row["until"] = l.Task, stamp(l.Until)
 			}

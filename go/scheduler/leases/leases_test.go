@@ -22,16 +22,27 @@ type asked struct {
 	err error
 }
 
-// ask starts Take beside the test and waits until it is queued.
+// ask starts Take of a browser beside the test and waits until it is queued.
 func ask(t *testing.T, m *Manager, done <-chan struct{}, agent string, ceiling time.Duration) <-chan asked {
 	t.Helper()
-	before := queued(m, Browser)
+	return askFor(t, m, done, Browser, agent, false, ceiling)
+}
+
+// askKind is ask for a hold of kind.
+func askKind(t *testing.T, m *Manager, kind, agent string) <-chan asked {
+	t.Helper()
+	return askFor(t, m, nil, kind, agent, true, long)
+}
+
+func askFor(t *testing.T, m *Manager, done <-chan struct{}, kind, agent string, hold bool, ceiling time.Duration) <-chan asked {
+	t.Helper()
+	before := queued(m, kind)
 	out := make(chan asked, 1)
 	go func() {
-		l, err := m.Take(done, Browser, agent, false, 7, ceiling)
+		l, err := m.Take(done, kind, agent, hold, 7, ceiling)
 		out <- asked{l, err}
 	}()
-	for i := 0; queued(m, Browser) == before; i++ {
+	for i := 0; queued(m, kind) == before; i++ {
 		if i > 2000 {
 			t.Fatalf("%s never queued", agent)
 		}
