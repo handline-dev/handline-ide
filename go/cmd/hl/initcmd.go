@@ -3,85 +3,24 @@ package main
 import (
 	"fmt"
 	"os"
-	"os/exec"
-	"path/filepath"
 
-	"github.com/handline/handline/go/agentctl/agent/claudecode"
-	_ "github.com/handline/handline/go/agentctl/agent/vendors"
-	"github.com/handline/handline/go/data/agenthost"
+	"github.com/handline/handline/go/data/homeinit"
 	"github.com/handline/handline/go/internal/hlclient"
 	"github.com/handline/handline/go/kit/paths"
 )
 
-// initCmd is `hl init` (setup.cmd_init): the home and its folders, the shared settings Handline keeps, its event hooks, a sandboxed agent let
-// write under the home, reach the daemon's socket and run the read-only commands without asking, and the home kept in git.
+// initCmd is `hl init` (setup.cmd_init): the home set up by hand, which the daemon also does at start. A home already set up is left alone.
 func initCmd(c *hlclient.Client, args []string) (int, bool) {
 	if len(args) != 0 {
 		fmt.Fprintln(os.Stderr, "usage: hl init")
 		return 2, true
 	}
-	h := c.Home
-	for _, d := range []string{h, filepath.Join(h, "agents"), filepath.Join(h, "accounts")} {
-		if err := os.MkdirAll(d, 0o755); err != nil {
-			fmt.Fprintln(os.Stderr, "hl init:", err)
-			return 1, true
-		}
-	}
-	hooks := claudecode.Hooks{Host: agenthost.Host(h)}
-	if err := hooks.EnsureShared(); err != nil {
+	say := func(format string, a ...any) { fmt.Printf(format+"\n", a...) }
+	if err := homeinit.Setup(c.Home, paths.HlExe(), say); err != nil {
 		fmt.Fprintln(os.Stderr, "hl init:", err)
 		return 1, true
 	}
-	if ignore := filepath.Join(h, ".gitignore"); !exists(ignore) {
-		_ = os.WriteFile(ignore, []byte("accounts/\ndb.sqlite\nlocks/\nlogs/\n*.tmp\n"), 0o644)
-	}
-	if cfg := paths.ConfigFile(h); !exists(cfg) {
-		_ = os.WriteFile(cfg, []byte("version: 1\n"), 0o644)
-	}
-	if err := hooks.Install(paths.HlExe()); err != nil {
-		fmt.Fprintln(os.Stderr, "hl init:", err)
-		return 1, true
-	}
-	fmt.Println("installed Handline event hooks")
-	changed, blockers, err := hooks.AllowHomeWrites()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "hl init:", err)
-		return 1, true
-	}
-	if changed {
-		fmt.Printf("sandbox: agents may write under %s\n", h)
-	}
-	for _, e := range blockers {
-		fmt.Printf("sandbox: denyWrite '%s' holds %s and still blocks agents from it; remove it from %s if that is not what you want\n",
-			e, h, hooks.Target())
-	}
-	if before := readFile(hooks.Target()); hooks.AllowHomeSocket() == nil && readFile(hooks.Target()) != before {
-		fmt.Printf("sandbox: agents may connect to %s\n", paths.SocketFile(h))
-	}
-	if added, err := hooks.AllowSafeCommands(); err == nil && added {
-		fmt.Printf("permissions: safe commands run without asking (%s)\n", hooks.Target())
-	}
-	// The whole home is kept in git, so digest generations, rollback and change history come for free; accounts/ stays ignored.
-	if git, err := exec.LookPath("git"); err == nil && !exists(filepath.Join(h, ".git")) {
-		env := append(os.Environ(), "GIT_AUTHOR_NAME=handline", "GIT_COMMITTER_NAME=handline", "GIT_AUTHOR_EMAIL=handline@localhost", "GIT_COMMITTER_EMAIL=handline@localhost")
-		for _, a := range [][]string{{"init", "-q"}, {"add", "-A"}, {"commit", "-q", "-m", "Handline init"}} {
-			cmd := exec.Command(git, a...)
-			cmd.Dir, cmd.Env = h, env
-			_ = cmd.Run()
-		}
-		fmt.Printf("initialized git repo in %s\n", h)
-	}
-	fmt.Printf("initialized %s\n", h)
+	fmt.Printf("initialized %s\n", c.Home)
 	fmt.Println("next: add an account in the app's Accounts page - it registers the account and logs it in")
 	return 0, true
-}
-
-func exists(p string) bool {
-	_, err := os.Stat(p)
-	return err == nil
-}
-
-func readFile(p string) string {
-	b, _ := os.ReadFile(p)
-	return string(b)
 }

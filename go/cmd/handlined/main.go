@@ -18,6 +18,7 @@ import (
 
 	"github.com/handline/handline/go/agentctl/agent/claudecode/turns"
 	dbpkg "github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/homeinit"
 	"github.com/handline/handline/go/internal/compose"
 	"github.com/handline/handline/go/internal/daemon"
 	"github.com/handline/handline/go/internal/housekeeping"
@@ -126,6 +127,9 @@ func main() {
 	homeDir, err := resolveHome(*home, *allowReal)
 	if err != nil {
 		log.Fatalf("handlined: %v", err)
+	}
+	if err := homeinit.Setup(homeDir, paths.HlExe(), func(f string, a ...any) { log.Printf("handlined: "+f, a...) }); err != nil {
+		log.Printf("handlined: setting the home up failed (run `hl init` to see why): %v", err)
 	}
 	cfg := daemon.Config{Home: homeDir, DBFile: *db, SocketFile: *sock, Listen: *listen, CertFile: *cert, KeyFile: *key, Log: log.Printf,
 		WebDir: *web, Advertise: *advertise, EnsureFounderKey: sessiontoken.New(homeDir).EnsureFounderKey}
