@@ -23,6 +23,7 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/gitrun"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/protocol/sessiontoken"
@@ -943,10 +944,16 @@ func (l *Launcher) ContextFor(agent string) (string, error) {
 	if text != "" {
 		parts = append(parts, "# Where you left off (your handoff)\nYou were interrupted and resumed. This is your own record.\n"+strings.TrimSpace(text))
 	}
-	lead := ""
-	if l.Ports.Routing != nil {
+	// the agent the handoff lists messages with: the opener of the oldest task it holds, else its workspace's contact
+	lead, _, err := db.AgentNoticeTo(l.Q, agent)
+	if err != nil {
+		return "", err
+	}
+	if actor.IsPerson(lead) && l.Ports.Routing != nil {
 		if t := l.Ports.Routing(); t != nil {
-			lead = t.SupervisorOf(agent)
+			if c := t.ContactOf(t.TeamOf(agent)); c != agent {
+				lead = c
+			}
 		}
 	}
 	where, err := handoff.WhereText(l.Q, agent, lead, text, l.now())

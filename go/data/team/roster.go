@@ -373,19 +373,14 @@ func (r *Roster) register(q db.Q, name string, o RegisterOpts, mcp string) (made
 	if isNew {
 		_, agent := SplitLegacy(name)
 		isLead := agent == ""
-		reportsTo := owner
 		if isLead {
 			agent = names.Lead
-		} else if lead, err := find(q, at.wsName); err != nil {
-			return 0, err
-		} else if lead.id != 0 {
-			reportsTo = actor.Key(actor.Agent, lead.id)
 		}
 		if err := names.Check(q, names.Agent, agent, at.ws); err != nil {
 			return 0, err
 		}
-		res, err := q.Exec(`INSERT INTO agents(workspace, name, owner, reports_to, model, effort, weight, created_at)
-			VALUES(?, ?, ?, ?, ?, ?, ?, ?)`, at.ws, agent, owner, reportsTo, DefaultModel, DefaultEffort, "light", now)
+		res, err := q.Exec(`INSERT INTO agents(workspace, name, owner, model, effort, weight, created_at)
+			VALUES(?, ?, ?, ?, ?, ?, ?)`, at.ws, agent, owner, DefaultModel, DefaultEffort, "light", now)
 		if err != nil {
 			return 0, err
 		}
@@ -394,11 +389,6 @@ func (r *Roster) register(q db.Q, name string, o RegisterOpts, mcp string) (made
 		}
 		if isLead {
 			if _, err := q.Exec("UPDATE workspaces SET lead = ? WHERE id = ?", at.id, at.ws); err != nil {
-				return 0, err
-			}
-			// the workspace's agents registered before it reported to the owner, having no lead to report to
-			lead := actor.Key(actor.Agent, at.id)
-			if _, err := q.Exec("UPDATE agents SET reports_to = ? WHERE workspace = ? AND id != ? AND reports_to = ?", lead, at.ws, at.id, owner); err != nil {
 				return 0, err
 			}
 			at.lead = true

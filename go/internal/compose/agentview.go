@@ -81,13 +81,6 @@ func (p *Parts) agentView(cfg Config, terminals bool, tu tickUsage) *agentview.E
 			return model, effort, true
 		},
 		Account: func(agent string) (string, error) { return team.CurrentAccount(q, agent) },
-		Parent: func(agent string) string {
-			tm, err := team.LoadTeam(home)
-			if err != nil || tm == nil {
-				return ""
-			}
-			return tm.SupervisorOf(agent)
-		},
 		CacheLeft: func(agent string, now float64) (float64, bool, error) {
 			acct, _ := team.CurrentAccount(q, agent)
 			c := handoff.ReadClock(tu.ReadForAgent(agent, acct).TranscriptPath)

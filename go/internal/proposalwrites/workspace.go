@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
 	"time"
 
@@ -12,7 +11,6 @@ import (
 	"github.com/handline/handline/go/internal/worktreeprune"
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/addr"
-	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/wslock"
 	"github.com/handline/handline/go/protocol/rpc"
 )
@@ -153,18 +151,6 @@ func (e *Env) workspaceDelete(c *rpc.Conn, params map[string]any) (any, error) {
 	}
 	if len(running) > 0 {
 		return nil, rpc.Refused(fmt.Sprintf("%s has sessions running (%s): stop them first. Nothing was deleted.", w.name, strings.Join(running, ", ")), "state", "")
-	}
-	everyone := paths.ListAgents(e.Home)
-	for _, a := range w.agents { // every refusal before the first removal: what is left to fail part way is git or the disk
-		var outside []string
-		for _, d := range e.dependents(a, everyone) {
-			if !slices.Contains(w.agents, d) {
-				outside = append(outside, d)
-			}
-		}
-		if len(outside) > 0 {
-			return nil, rpc.Refused(fmt.Sprintf("%s has agents of other workspaces under it (%s): retire or move them first. Nothing was deleted.", addr.Ref(a), strings.Join(outside, ", ")), "state", "")
-		}
 	}
 	if choice == "" {
 		if err := e.refuseHeldWork(w.agents...); err != nil {

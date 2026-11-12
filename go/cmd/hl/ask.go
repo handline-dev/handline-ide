@@ -327,13 +327,17 @@ func teamCmd(c *hlclient.Client, args []string) (int, bool) {
 			lines[str(a, "key")] = a
 		}
 	}
+	contacts := map[string]bool{} // each workspace's lead, which takes the work that comes from other workspaces
+	if got, err := c.Call("workspaces.list", nil); err == nil {
+		for _, w := range list(got, "workspaces") {
+			if l := str(w, "lead"); l != "" {
+				contacts[l] = true
+			}
+		}
+	}
 	type row struct{ name, rel, doing string }
 	var rows []row
 	var names []string
-	byKey := map[string]map[string]any{}
-	for _, a := range list(got, "agents") {
-		byKey[str(a, "key")] = a
-	}
 	for _, a := range list(got, "agents") {
 		k := str(a, "key")
 		if k == self {
@@ -341,7 +345,7 @@ func teamCmd(c *hlclient.Client, args []string) (int, bool) {
 			continue
 		}
 		rel := "peer"
-		if self != "" && str(byKey[self], "reports_to") == k {
+		if contacts[k] {
 			rel = "contact"
 		}
 		rows = append(rows, row{str(a, "name"), rel, doing(k, lines[k])})

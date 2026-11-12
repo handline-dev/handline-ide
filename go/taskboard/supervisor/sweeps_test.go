@@ -8,15 +8,11 @@ import (
 	"testing"
 
 	"github.com/handline/handline/go/data/db"
-	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/kit/actor"
 )
 
-// carolLeadsBob makes carol the lead of bob's team.
-func (r *rig) carolLeadsBob() {
-	r.register("carol")
-	teamtest.Set(r.t, r.home, "bob", "reports_to", "carol")
-}
+// carolLeadsBob registers carol beside bob.
+func (r *rig) carolLeadsBob() { r.register("carol") }
 
 func TestSweepHoldsRecordsWhyEachTaskWaitsAndWarnsOnceWhenNothingIsInTheWay(t *testing.T) {
 	r := newRig(t)

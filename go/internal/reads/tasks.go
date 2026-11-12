@@ -68,9 +68,6 @@ func (b *board) teamOf(home string) *team.Team {
 	return b.team
 }
 
-// leadOf is team.LeadOf of the board's team file.
-func (b *board) leadOf(home, agent string) string { return b.teamOf(home).LeadOf(agent) }
-
 func (e *Env) loadBoard() (*board, error) {
 	b := &board{begun: map[int64]bool{}, sent: map[int64]bool{}, blocked: map[int64]bool{}, current: map[string]int64{}}
 	if p, err := db.GetPause(e.DB, time.Now()); err != nil {
