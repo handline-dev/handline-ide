@@ -9,6 +9,7 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/kit/paths"
 )
 
 // A session launched with some rules is told the lines that changed; once that is kept it is not told again, and the rules are no
@@ -18,10 +19,11 @@ func TestARulesChangeIsToldOnceAndIsNoDrift(t *testing.T) {
 	rules := "# Rules for team core\n- keep it short\n- reply in English"
 	r.l.Ports.TeamRules = func(string) []string { return []string{rules} }
 	r.l.Ports.Routing = func() *team.Team { return &team.Team{Teams: map[string][]string{"core": {"ann"}}} }
-	dir := filepath.Join(r.l.Home, "shared", "team")
-	if err := os.MkdirAll(dir, 0o755); err != nil || os.WriteFile(filepath.Join(dir, "core.md"), []byte("x"), 0o644) != nil {
+	f := team.RulesFile(r.l.Home, "core")
+	if err := os.MkdirAll(filepath.Dir(f), 0o755); err != nil || os.WriteFile(f, []byte("x"), 0o644) != nil {
 		t.Fatal(err)
 	}
+	core, _ := filepath.Rel(r.l.Home, f)
 	rec, err := r.l.LaunchRecord("ann")
 	if err != nil {
 		t.Fatal(err)
@@ -46,7 +48,7 @@ func TestARulesChangeIsToldOnceAndIsNoDrift(t *testing.T) {
 	}
 	was := row()
 	note, kept, err := r.l.RulesNote("ann", was)
-	want := "Your team rules changed (shared/team/core.md). Your session goes on; follow the new rules from now.\n\nAdded:\n+ - reply in Korean\n\nRemoved:\n- - reply in English"
+	want := "Your team rules changed (" + core + "). Your session goes on; follow the new rules from now.\n\nAdded:\n+ - reply in Korean\n\nRemoved:\n- - reply in English"
 	if err != nil || note != want {
 		t.Fatalf("%q, %v", note, err)
 	}
@@ -97,7 +99,7 @@ func TestTheFingerprintLeavesOutTheRulesAlone(t *testing.T) {
 	if after, _ := r.l.Fingerprint("ann"); after != before {
 		t.Fatal("the rules moved the fingerprint")
 	}
-	if err := os.WriteFile(filepath.Join(r.l.Home, "agents", "ann", "ROLE.md"), []byte("a new role"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(paths.AgentDir(r.l.Home, "ann"), "ROLE.md"), []byte("a new role"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if after, _ := r.l.Fingerprint("ann"); after == before {

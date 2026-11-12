@@ -1043,12 +1043,13 @@ func TestWhatChangedNamesTheTeamRulesFile(t *testing.T) {
 	rules := "old rules"
 	r.l.Ports.TeamRules = func(string) []string { return []string{rules} }
 	r.l.Ports.Routing = func() *team.Team { return &team.Team{Teams: map[string][]string{"core": {"ann"}, "other": {"bob"}}} }
-	dir := filepath.Join(r.l.Home, "shared", "team")
 	for _, name := range []string{"core", "other"} {
-		if err := os.MkdirAll(dir, 0o755); err != nil || os.WriteFile(filepath.Join(dir, name+".md"), []byte("rules"), 0o644) != nil {
+		f := team.RulesFile(r.l.Home, name)
+		if err := os.MkdirAll(filepath.Dir(f), 0o755); err != nil || os.WriteFile(f, []byte("rules"), 0o644) != nil {
 			t.Fatal(err)
 		}
 	}
+	core, _ := filepath.Rel(r.l.Home, team.RulesFile(r.l.Home, "core"))
 	rec, err := r.l.LaunchRecord("ann")
 	if err != nil {
 		t.Fatal(err)
@@ -1057,7 +1058,7 @@ func TestWhatChangedNamesTheTeamRulesFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	rules = "new rules"
-	if got, _ := r.l.whatChanged("ann"); got != "team rules changed (shared/team/core.md)" {
+	if got, _ := r.l.whatChanged("ann"); got != "team rules changed ("+core+")" {
 		t.Fatalf("%q", got)
 	}
 	// A session launched when both were one "team" part: its record has neither name, so nothing reads as changed and no one restarts.

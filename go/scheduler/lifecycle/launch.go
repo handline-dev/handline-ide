@@ -1159,7 +1159,7 @@ func (l *Launcher) readableValues(agent string) (map[string]string, error) {
 }
 
 // whatChanged says what this launch's settings change from the session recorded before it, in launch order and in the words a person
-// reads: "model changed (opus-5-5 -> sonnet-5-5), team rules changed (shared/team/handline.md)". Nothing for no earlier record.
+// reads: "model changed (opus-5-5 -> sonnet-5-5), team rules changed (workspaces/w1/base.md)". Nothing for no earlier record.
 // A record from before the values were kept names the setting alone.
 func (l *Launcher) whatChanged(agent string) (string, error) {
 	row, err := db.GetAgentState(l.Q, agent)

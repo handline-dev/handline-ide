@@ -43,13 +43,17 @@ var (
 // keychainAccountRe is the names Claude Code uses verbatim; others become "claude-code-user".
 var keychainAccountRe = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
 
+// KeychainAccount is the account name Claude Code keeps its Keychain items under: the user's name, or "claude-code-user".
+func KeychainAccount() string {
+	if name := agent.UserName(); keychainAccountRe.MatchString(name) {
+		return name
+	}
+	return "claude-code-user"
+}
+
 // keychainFind is the security command that finds the item an agent's claude reads: the account's service under the user's name.
 func keychainFind(configDir string) []string {
-	name := agent.UserName()
-	if !keychainAccountRe.MatchString(name) {
-		name = "claude-code-user"
-	}
-	return []string{"security", "find-generic-password", "-a", name, "-s", KeychainService(configDir)}
+	return []string{"security", "find-generic-password", "-a", KeychainAccount(), "-s", KeychainService(configDir)}
 }
 
 // CredentialPresent is a file's existence or, on macOS, the keychain item's presence, asked without -w so the secret is never read.

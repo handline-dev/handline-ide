@@ -17,7 +17,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"slices"
 	"sort"
@@ -25,7 +24,6 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/accounts/usage"
-	"github.com/handline/handline/go/agentctl/agent"
 	"github.com/handline/handline/go/agentctl/agent/claudecode"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/actor"
@@ -623,7 +621,7 @@ func (im *importer) files() error {
 		if err := clone(filepath.Join(im.from, "accounts", name), filepath.Join(im.to, "accounts", k)); err != nil {
 			return err
 		}
-		// the login is under the folder's path before the old home was moved aside: the new home's own path
+		// v1 ran from <to>, so its login is keyed by <to>/accounts/<name>
 		was := filepath.Join(im.to, "accounts", name, ".claude")
 		if found, err := copyLogin(was, filepath.Join(im.to, "accounts", k, ".claude")); err != nil {
 			return fmt.Errorf("account %s: %w", name, err)
@@ -710,34 +708,44 @@ func (im *importer) report() {
 	fmt.Fprintf(im.out, "left behind in %s: %s\n", im.from, strings.Join(left, " "))
 }
 
-// clone copies src to dst as an APFS clone, keeping links and modes; a src that is not there is nothing to copy.
-// copyLogin copies the account's Claude login to its new folder, and says whether there was one: on macOS the login is a
-// Keychain item named by the folder's path, so a moved folder is logged out. The old item stays, for going back. The secret
-// goes to security on stdin, never argv. A file login (.credentials.json) moves with the folder.
+// copyLogin copies a Claude login to a moved account folder and says whether there was one: on macOS it is a Keychain item named
+// by the folder's path. The old item stays, for going back.
 var copyLogin = func(oldDir, newDir string) (bool, error) {
 	if runtime.GOOS != "darwin" {
 		return true, nil
 	}
 	if _, err := os.Stat(filepath.Join(newDir, ".credentials.json")); err == nil {
-		return true, nil
+		return true, nil // a file login moved with the folder
 	}
-	user := agent.UserName()
-	if !regexp.MustCompile(`^[a-zA-Z0-9._-]+$`).MatchString(user) {
-		user = "claude-code-user" // Claude Code's own name for a user name it cannot use
-	}
+	user := claudecode.KeychainAccount()
 	secret, err := exec.Command("security", "find-generic-password", "-a", user, "-s", claudecode.KeychainService(oldDir), "-w").Output()
-	if err != nil {
+	var exit *exec.ExitError
+	if errors.As(err, &exit) && exit.ExitCode() == 44 { // errSecItemNotFound
 		return false, nil
 	}
+	if err != nil {
+		return false, fmt.Errorf("reading the Keychain login: %w", err)
+	}
+	add := fmt.Sprintf("add-generic-password -U -a %s -s \"%s\" -X %s\n", user, claudecode.KeychainService(newDir),
+		hex.EncodeToString(bytes.TrimRight(secret, "\n")))
+	// the secret goes on stdin, out of argv; security -i reads a line of at most 4096 bytes, so a longer one goes in argv
 	cmd := exec.Command("security", "-i")
-	cmd.Stdin = strings.NewReader(fmt.Sprintf("add-generic-password -U -a %s -s \"%s\" -X %s\n", user, claudecode.KeychainService(newDir),
-		hex.EncodeToString(bytes.TrimRight(secret, "\n"))))
-	if out, err := cmd.CombinedOutput(); err != nil || len(bytes.TrimSpace(out)) > 0 {
-		return false, fmt.Errorf("keychain login not copied: %v %s", err, out)
+	cmd.Stdin = strings.NewReader(add)
+	if len(add) > 4000 {
+		cmd = exec.Command("security", "add-generic-password", "-U", "-a", user, "-s", claudecode.KeychainService(newDir), "-w",
+			string(bytes.TrimRight(secret, "\n")))
+	}
+	out, err := cmd.CombinedOutput()
+	if err == nil && len(bytes.TrimSpace(out)) > 0 {
+		err = errors.New(string(bytes.TrimSpace(out)))
+	}
+	if err != nil {
+		return false, fmt.Errorf("copying the Keychain login: %w", err)
 	}
 	return true, nil
 }
 
+// clone copies src to dst as an APFS clone, keeping links and modes; a src that is not there is nothing to copy.
 func clone(src, dst string) error {
 	if _, err := os.Lstat(src); errors.Is(err, os.ErrNotExist) {
 		return nil
