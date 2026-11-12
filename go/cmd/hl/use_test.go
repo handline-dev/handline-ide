@@ -75,7 +75,7 @@ func TestUseHoldAndRelease(t *testing.T) {
 	if got[0]["params"].(map[string]any)["hold"] != true || got[1]["method"] != "lease.release" || got[1]["params"].(map[string]any)["kind"] != "" {
 		t.Fatalf("calls %v", got)
 	}
-	for _, bad := range [][]string{{"use", "gpu", "--", "x"}, {"use", "browser"}, {"use", "--hold"}, {"use", "browser", "--hold", "--", "x"}} {
+	for _, bad := range [][]string{{"use", "gpu", "--", "x"}, {"use", "browser"}, {"use", "--hold"}, {"use", "browser", "--hold", "--", "x"}, {"use", "--extend", "--hold"}, {"use", "--extend", "--", "x"}} {
 		if _, _, code := r.run(asAgent, bad...); code != 2 {
 			t.Errorf("%v: %d", bad, code)
 		}
@@ -137,5 +137,17 @@ func TestUseHoldsOneKindOnly(t *testing.T) {
 	r := newRig(t)
 	if _, _, code := r.run(asAgent, "use", "simulator", "browser", "--hold"); code != 2 {
 		t.Fatalf("hold of two kinds: %d", code)
+	}
+}
+
+func TestUseExtendSaysWhereEachLeaseNowRuns(t *testing.T) {
+	r := newRig(t)
+	calls := r.daemon(map[string]string{"lease.extend": `{"extended":[{"lease":5,"kind":"simulator","max_hold_at":"2026-11-12T16:00:00Z"}]}`})
+	out, _, code := r.run(asAgent, "use", "--extend", "simulator")
+	if code != 0 || out != "lease 5 (simulator) now runs to 2026-11-12T16:00:00Z\n" {
+		t.Fatalf("%q %d", out, code)
+	}
+	if got := calls(); len(got) != 1 || got[0]["params"].(map[string]any)["kind"] != "simulator" {
+		t.Fatalf("calls %v", got)
 	}
 }
