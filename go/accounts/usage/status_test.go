@@ -307,7 +307,8 @@ func TestStatusMatchesPython(t *testing.T) {
 }
 
 // The fixture was frozen from the Python daemon. Where it and docs/design/account-assignment-scenarios.md differ, the table decides
-// and the case's expectation is the Go answer: fuzz-35, fuzz-48 and fuzz-56 (row A6, T9056).
+// and the case's expectation is the Go answer: row A6 (T9056, three picks) and row A3 (T9057, a fresh 5h reading past its reset
+// rolls over; picks and status cases), named in those commits.
 func TestPickMatchesPython(t *testing.T) {
 	f := loadFixture(t)
 	for _, p := range f.Picks {
