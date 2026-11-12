@@ -58,7 +58,7 @@ function Frame() {
       <div className="flex min-h-0 flex-1">
         <nav
           aria-label="Settings"
-          className="flex w-56 shrink-0 flex-col gap-0.5 bg-surface px-2"
+          className="flex w-56 shrink-0 flex-col gap-0.5 border-r border-border bg-surface px-2"
           style={{ paddingTop: `calc(${CONTROLS_STRIP} + 6px)` }}
         >
           {/* Where the sidebar's top was, as Linear and Mattermost do it: out from the corner you came in by. */}

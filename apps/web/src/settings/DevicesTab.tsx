@@ -26,25 +26,11 @@ export const sortDevices = (list: Row[]): Row[] =>
 function seen(d: Row) {
   if (d.connected) return <span className="text-fg">Connected</span>;
   if (!d.last_seen) return <span className="text-muted">Never seen</span>;
-  return (
-    <span className={d.stale ? 'text-warning' : 'text-muted'}>
-      Seen {ago(d.last_seen)} ago
-    </span>
-  );
+  return <span className={d.stale ? 'text-warning' : 'text-muted'}>Seen {ago(d.last_seen)} ago</span>;
 }
 
 /** The confirm waits for the daemon: it stays, dimmed, until the answer, and a refusal says why in it. */
-function RevokeConfirm({
-  title,
-  text,
-  go,
-  close,
-}: {
-  title: string;
-  text: string;
-  go: () => Promise<unknown>;
-  close: () => void;
-}) {
+function RevokeConfirm({ title, text, go, close }: { title: string; text: string; go: () => Promise<unknown>; close: () => void }) {
   const [busy, setBusy] = useState(false);
   const [why, setWhy] = useState('');
   return (
@@ -92,7 +78,9 @@ function DeviceRow({ d, pending, revoke }: { d: Row; pending: boolean; revoke: (
           <span className="[overflow-wrap:anywhere]">{d.name}</span>
           {d.current && <span className="rounded-full border border-border px-2 text-xs text-muted">This device</span>}
         </div>
-        {(d.kind || d.client) && <div className="text-xs text-muted">{[d.kind && KIND_WORD[d.kind], d.client].filter(Boolean).join(' · ')}</div>}
+        {(d.kind || d.client) && (
+          <div className="text-xs text-muted">{[d.kind && KIND_WORD[d.kind], d.client].filter(Boolean).join(' · ')}</div>
+        )}
       </div>
       <span className="shrink-0">{seen(d)}</span>
       <Button
