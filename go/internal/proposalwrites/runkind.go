@@ -11,6 +11,7 @@ import (
 
 	"github.com/handline/handline/go/internal/cmdruns"
 	"github.com/handline/handline/go/kit/actor"
+	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/kit/pyjson"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/scheduler/worktreepaths"
@@ -33,7 +34,7 @@ type Runs interface {
 // draftRun checks a run proposal's command and cwd and keeps them on prop, or says why not.
 func (e *Env) draftRun(asker, agent string, args map[string]any, prop *Prop) string {
 	if asker != agent && !actor.IsPerson(asker) {
-		return fmt.Sprintf("an agent proposes its own commands: name yourself, not %s", agent)
+		return fmt.Sprintf("an agent proposes its own commands: name yourself, not %s", addr.Ref(agent))
 	}
 	command := argStr(args, "command")
 	if command == "" || len(command) > maxRunCommand || strings.ContainsRune(command, 0) {
@@ -65,7 +66,7 @@ func (e *Env) draftRun(asker, agent string, args map[string]any, prop *Prop) str
 		}
 	}
 	if open >= maxOpenRuns {
-		return fmt.Sprintf("%s has %d run proposals waiting for the founder: wait for those or withdraw one", agent, open)
+		return fmt.Sprintf("%s has %d run proposals waiting for the founder: wait for those or withdraw one", addr.Ref(agent), open)
 	}
 	prop.set("set.command", pyjson.PyJSON(command, false, true)) // a proposal file holds no line break
 	prop.set("set.cwd", cwd)

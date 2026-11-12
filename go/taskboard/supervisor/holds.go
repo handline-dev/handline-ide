@@ -136,7 +136,7 @@ func (e *Env) taskReason(q db.Q, t *db.Task, now int64) (why, cause string, able
 		return "waits on its child " + taskNames(kids), "task", false, true
 	}
 	if !e.registered(agent) {
-		return agent + " is not registered - nothing will take it", "owner", false, true
+		return addr.Ref(agent) + " is not registered - nothing will take it", "owner", false, true
 	}
 	holds := must(db.HoldsCurrent(q, t))
 	if !holds || (req == nil && must(db.CurrentTaskStillAsking(q, agent))) {
@@ -189,7 +189,7 @@ func (e *Env) ownerCause(q db.Q, agent string) string {
 func taskNames(ts []*db.Task) string {
 	parts := make([]string, len(ts))
 	for i, t := range ts {
-		parts[i] = fmt.Sprintf("T%d (%s)", t.ID, t.Acting)
+		parts[i] = fmt.Sprintf("T%d (%s)", t.ID, addr.Ref(t.Acting))
 	}
 	return strings.Join(parts, ", ")
 }

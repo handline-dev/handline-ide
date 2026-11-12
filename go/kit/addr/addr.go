@@ -294,6 +294,16 @@ func Render(q Q, r Who, text string) string {
 	})
 }
 
+// RenderFor is Render for the reader whose key is reader: for text written for one reader that no rpc reply or delivery renders (a
+// prompt file, a system prompt).
+func RenderFor(q Q, reader, text string) string {
+	r, err := Of(q, reader, "")
+	if err != nil {
+		return text
+	}
+	return Render(q, r, text)
+}
+
 // Mentions is text as it is stored: each @word that resolves for writer becomes <@key>. An @word that does not resolve stays text.
 func Mentions(q Q, writer Who, text string) (string, error) {
 	var failed error

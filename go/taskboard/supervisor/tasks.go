@@ -606,7 +606,7 @@ func (e *Env) SweepHeldMemos(now int64) (err error) {
 		}
 		check(db.SetCursor(q, key, 1))
 		if writer := must(db.MemoWriter(q, r.ID)); writer != r.Target && !actor.IsPerson(writer) && e.registered(writer) {
-			must(e.Notice(q, writer, fmt.Sprintf("%s has not read this comment in an hour, held for its next digest (%s): %s", r.Target, db.MsgName(q, r.ID), r.Body), "memo unread 1h"))
+			must(e.Notice(q, writer, fmt.Sprintf("%s has not read this comment in an hour, held for its next digest (%s): %s", addr.Ref(r.Target), db.MsgName(q, r.ID), r.Body), "memo unread 1h"))
 		}
 	}
 	return nil

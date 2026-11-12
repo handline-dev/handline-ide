@@ -8,6 +8,7 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
 	"github.com/handline/handline/go/kit/actor"
+	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/kit/timefmt"
 )
 
@@ -144,7 +145,7 @@ func (b *Timebox) SweepTaskTimeouts(t *Tick, now int64) {
 		text := fmt.Sprintf("T%d (%s), held by %s, has been doing past its %s timeout.%s Do it, hand it on (`hl task handoff T%d <agent> \"<note>\"`), "+
 			"mark what blocks it (`hl task edit T%d --blocked-by T<n>`), or put the founder on it if only they can decide (`hl task comment T%d add \"<the decision, and what you recommend>\" --turn human`). "+
 			"`hl task release T%d \"<reason>\"` takes it back.",
-			tid, title, row.Acting, timefmt.Ago(box), behindLine(t, row.Acting, tid), tid, tid, tid, tid)
+			tid, title, addr.Ref(row.Acting), timefmt.Ago(box), behindLine(t, row.Acting, tid), tid, tid, tid, tid)
 		var notified []string
 		if !actor.IsPerson(row.Acting) {
 			opener := db.NoticeTo(row, row.Acting)
@@ -191,7 +192,7 @@ func (b *Timebox) SweepQueuedBlockers(t *Tick, now int64) {
 		since = max(since, reopened)
 		text := fmt.Sprintf("T%d (%s), held by %s, is queued, and %s %s waited on it for %s. Start it, close it if its work is done "+
 			"(`hl task done T%d \"<evidence>\"`), or hand it on (`hl task handoff T%d <agent> \"<note>\"`).",
-			tid, shortTitle(row.Title), row.Acting, waitNames(waiters), waitVerb(waiters, "has", "have"), timefmt.Ago(now-since), tid, tid)
+			tid, shortTitle(row.Title), addr.Ref(row.Acting), waitNames(waiters), waitVerb(waiters, "has", "have"), timefmt.Ago(now-since), tid, tid)
 		for _, level := range []struct {
 			key, who string
 			afterS   int64
@@ -301,7 +302,7 @@ func (b *Timebox) SweepStaleBackground(t *Tick, now int64) {
 		}
 		text := fmt.Sprintf("%s has had background work for %s and shown nothing for %s. In %s its session may be closed, which stops that work, "+
 			"unless it shows activity or its idle timeout is set to never in the app's settings.",
-			agent, timefmt.Ago(now-since), timefmt.Ago(silent), timefmt.Ago(b.Ports.StaleBgVetoS()))
+			addr.Ref(agent), timefmt.Ago(now-since), timefmt.Ago(silent), timefmt.Ago(b.Ports.StaleBgVetoS()))
 		if b.tell(t, actor.OwnerKey, agent, 0, "stale_background", text, now) {
 			check(db.SetCursor(t.Q, key, now))
 			must(db.AddEvent(t.Q, agent, "stale_background", db.KV{K: "told", V: actor.OwnerKey}, db.KV{K: "silent_s", V: silent}))
@@ -450,13 +451,14 @@ func (b *Timebox) SweepForgottenResolveCapped(t *Tick, now int64) {
 			more = fmt.Sprintf(" with %d more waiting behind it", found.Behind)
 		}
 		var look string
+		typed := addr.Address(t.Q, who, agent) // the word who can type for it
 		if found.Task != nil {
 			look = fmt.Sprintf("Look at it: %stake it back with `hl task release T%d \"<reason>\"`, or ask %s by message (`hl say %s \"...\"`).",
-				read, found.Task.ID, agent, agent)
+				read, found.Task.ID, addr.Ref(agent), typed)
 		} else {
-			look = fmt.Sprintf("Look at it: %smessage %s (`hl say %s \"...\"`).", read, agent, agent)
+			look = fmt.Sprintf("Look at it: %smessage %s (`hl say %s \"...\"`).", read, addr.Ref(agent), typed)
 		}
-		text := fmt.Sprintf("%s has been idle %s on %s %s%s. %s", agent, timefmt.Ago(found.IdleS), on, after, more, look)
+		text := fmt.Sprintf("%s has been idle %s on %s %s%s. %s", addr.Ref(agent), timefmt.Ago(found.IdleS), on, after, more, look)
 		if b.tell(t, who, agent, about, "forgotten_resolve", text, now) {
 			check(db.SetCursor(t.Q, toldKey, found.HeadID))
 			must(db.AddEvent(t.Q, agent, "forgotten_resolve_capped", db.KV{K: "request_id", V: found.HeadID}, db.KV{K: "idle_s", V: found.IdleS}, db.KV{K: "told", V: who}))

@@ -404,3 +404,23 @@ func TestARestartOwedIsFinishedByTheNextWakeAndBacksOff(t *testing.T) {
 		t.Fatal("still owed after a wake")
 	}
 }
+
+// The wake prompt is a file no rpc renders: the names in it are written out for the agent reading it.
+func TestTheWakePromptWritesNamesOutForItsAgent(t *testing.T) {
+	m, _, _ := newManager(t)
+	for _, q := range []string{
+		"INSERT INTO workspaces(id, name, folder, created_at) VALUES(1, 'shop', '', 0)",
+		"INSERT INTO agents(id, workspace, name, owner, created_at) VALUES(1, 1, 'lead', 'p1', 0), (2, 1, 'designer', 'p1', 0)",
+	} {
+		if _, err := m.Q.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	p, err := m.writeWakePrompt("a2", "T9 handed to you by <@a1>", "txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(p); string(b) != "T9 handed to you by @lead" {
+		t.Fatalf("%q", b)
+	}
+}

@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/kit/gitrun"
 	"github.com/handline/handline/go/protocol/rpc"
 )
@@ -44,7 +45,7 @@ func (e *Env) list(_ *rpc.Conn, p map[string]any) (any, error) {
 	}
 	root, err := os.OpenRoot(wt)
 	if err != nil {
-		return nil, rpc.NotFoundError("the worktree of " + agent + " is gone")
+		return nil, rpc.NotFoundError("the worktree of " + addr.Ref(agent) + " is gone")
 	}
 	defer root.Close()
 	r := gitrun.Run(wt, "ls-files", "-z", "--cached", "--others", "--exclude-standard")

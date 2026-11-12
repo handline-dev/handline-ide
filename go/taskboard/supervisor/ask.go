@@ -238,7 +238,7 @@ func (e *Env) Ask(q db.Q, in AskIn) (out *AskOut, err error) {
 	if in.OnBehalfOf {
 		check(db.RecordForward(q, in.Forward.Task, rid, in.Forward.Carries, in.Forward.From, in.Target))
 	}
-	msg := fmt.Sprintf("queued as %s for %s", db.MsgName(q, rid), in.Target)
+	msg := fmt.Sprintf("queued as %s for %s", db.MsgName(q, rid), addr.Ref(in.Target))
 	if in.Within != nil {
 		if err := in.Within(q, rid, msg); err != nil {
 			return nil, err

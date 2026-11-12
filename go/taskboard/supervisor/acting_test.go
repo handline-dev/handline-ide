@@ -105,12 +105,12 @@ func TestACommentTellsTheAgentOnTop(t *testing.T) {
 // The agent on top may start the task and keep progress on it; its owner may do neither.
 func TestTheAgentOnTopStartsTheTaskAndKeepsItsProgress(t *testing.T) {
 	r, tid := turnRig(t)
-	r.refusedCall("bob", "task.start", fmt.Sprintf(`{"task":%d,"request_id":"s0"}`, tid), "alice's")
+	r.refusedCall("bob", "task.start", fmt.Sprintf(`{"task":%d,"request_id":"s0"}`, tid), "<@alice>'s")
 	r.turnCall("alice", "task.start", fmt.Sprintf(`{"task":%d,"request_id":"s1"}`, tid))
 	if cur, ok, _ := db.CurrentTask(r.DB, r.k("alice")); !ok || cur != tid {
 		t.Fatalf("alice holds %d %v", cur, ok)
 	}
-	r.refusedCall("bob", "task.progress", fmt.Sprintf(`{"task":%d,"note":"x","request_id":"g0"}`, tid), "alice's")
+	r.refusedCall("bob", "task.progress", fmt.Sprintf(`{"task":%d,"note":"x","request_id":"g0"}`, tid), "<@alice>'s")
 	r.turnCall("alice", "task.progress", fmt.Sprintf(`{"task":%d,"note":"done: read it","request_id":"g1"}`, tid))
 }
 

@@ -157,3 +157,14 @@ func TestAddressIsAWordThatResolvesBack(t *testing.T) {
 		}
 	}
 }
+
+// RenderFor writes the refs out for the reader by its key: its own workspace's agents by name, another's lead by its workspace.
+func TestRenderForWritesRefsOutForOneReader(t *testing.T) {
+	db := seed(t)
+	if got := RenderFor(db, "a4", "blocked by T7 (<@a3>)"); got != "blocked by T7 (@lead)" {
+		t.Errorf("%q", got)
+	}
+	if got := RenderFor(db, "a1", "T7 (<@a3>)"); got != "T7 (@blog)" {
+		t.Errorf("shop's lead: %q", got)
+	}
+}

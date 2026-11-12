@@ -305,7 +305,7 @@ func (e *Env) deliveryUnknown(q db.Q, agent, op, outcome, advice string) {
 			continue
 		}
 		told[row.Requester] = true
-		must(e.Notice(q, row.Requester, fmt.Sprintf("%s to %s %s. It is not sent again; %s.", row.Name(q), agent, outcome, advice), "delivery unknown"))
+		must(e.Notice(q, row.Requester, fmt.Sprintf("%s to %s %s. It is not sent again; %s.", row.Name(q), addr.Ref(agent), outcome, advice), "delivery unknown"))
 	}
 }
 

@@ -22,7 +22,7 @@ func (e *Env) WithdrawWrite(q db.Q, after *After, rid int64, requester, reason s
 		return false, fmt.Sprintf("request %d does not exist", rid), nil
 	}
 	if row.Requester != requester {
-		return false, fmt.Sprintf("%s is %s -> %s, not yours to withdraw", db.MsgName(q, rid), row.Requester, row.Target), nil
+		return false, fmt.Sprintf("%s is %s -> %s, not yours to withdraw", db.MsgName(q, rid), addr.Ref(row.Requester), addr.Ref(row.Target)), nil
 	}
 	if row.State != "queued" && !(row.State == "landed" && row.DeliveredAt.Valid) {
 		return false, fmt.Sprintf("%s is already %s - nothing to withdraw", db.MsgName(q, rid), row.State), nil
@@ -44,7 +44,7 @@ func (e *Env) WithdrawWrite(q db.Q, after *After, rid int64, requester, reason s
 	if reason != "" {
 		verdict = "withdrawn: " + reason
 	}
-	said := fmt.Sprintf("request %s to %s withdrawn", db.MsgName(q, rid), row.Target)
+	said := fmt.Sprintf("request %s to %s withdrawn", db.MsgName(q, rid), addr.Ref(row.Target))
 	if !must(db.RetireIfUndelivered(q, rid, "withdrawn", verdict)) {
 		return false, tooLate, nil // a delivery landed between the read and the write
 	}
@@ -140,7 +140,7 @@ func (e *Env) CancelWrite(q db.Q, after *After, rid int64, effect func(q db.Q, m
 	must(db.AddEvent(q, actor.OwnerKey, "cancel", db.KV{K: "request_id", V: rid}, db.KV{K: "target", V: row.Target}, db.KV{K: "requester", V: row.Requester},
 		db.KV{K: "delivered", V: row.DeliveredAt.Valid && row.DeliveredAt.Int64 != 0}))
 	if effect != nil {
-		if err := effect(q, fmt.Sprintf("%s to %s cancelled", db.MsgName(q, rid), row.Target)); err != nil {
+		if err := effect(q, fmt.Sprintf("%s to %s cancelled", db.MsgName(q, rid), addr.Ref(row.Target))); err != nil {
 			return nil, false, "", err
 		}
 	}
@@ -153,7 +153,7 @@ func (e *Env) CancelTell(q db.Q, p *CancelPlan) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	out := fmt.Sprintf("%s to %s cancelled", db.MsgName(q, p.RID), target)
+	out := fmt.Sprintf("%s to %s cancelled", db.MsgName(q, p.RID), addr.Ref(target))
 	if len(said) > 0 {
 		out += " (" + strings.Join(said, "; ") + ")"
 	}
@@ -190,7 +190,7 @@ func (e *Env) RetireTell(q db.Q, p *RetirePlan) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	out := fmt.Sprintf("%s to %s retired", db.MsgName(q, p.RID), target)
+	out := fmt.Sprintf("%s to %s retired", db.MsgName(q, p.RID), addr.Ref(target))
 	if len(said) > 0 {
 		out += " (" + strings.Join(said, "; ") + ")"
 	}

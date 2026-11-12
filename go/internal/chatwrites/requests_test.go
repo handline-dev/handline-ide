@@ -7,6 +7,7 @@ import (
 
 	"github.com/handline/handline/go/agentctl/delivery"
 	dbpkg "github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/taskboard/msgtest"
 	"github.com/handline/handline/go/taskboard/supervisor"
 )
@@ -36,7 +37,7 @@ func TestWithdrawTakesBackTheCallersOwnUndeliveredRequestAndSaysWhyNot(t *testin
 		t.Fatalf("another's request is refused in the reply: %v", res)
 	}
 	res := withdraw(1, mine, `,"reason":"asked the wrong one"`, "w2")
-	if res["ok"] != true || msgtest.IDs(r.db, res["said"].(string)) != fmt.Sprintf("request #%d to %s withdrawn", mine, r.k("bob")) || r.state(mine) != "withdrawn" {
+	if res["ok"] != true || msgtest.IDs(r.db, res["said"].(string)) != fmt.Sprintf("request #%d to %s withdrawn", mine, addr.Ref(r.k("bob"))) || r.state(mine) != "withdrawn" {
 		t.Fatalf("%v %s", res, r.state(mine))
 	}
 	if r.count("SELECT COUNT(*) FROM events WHERE agent = ? AND kind = 'withdraw' AND payload LIKE '%asked the wrong one%'", r.k("alice")) != 1 {
@@ -78,7 +79,7 @@ func TestCancelPlansWithoutWritingAndClosesAnyQueuedRequest(t *testing.T) {
 	const written = "SELECT COUNT(*) FROM events WHERE kind != 'founder_key'" // each call's hello records its key; the call is what is checked
 	events := r.count(written)
 	plan := cancel(rid, `,"dry_run":true`, "c1")
-	if plan["ok"] != true || !strings.HasPrefix(msgtest.IDs(r.db, plan["plan"].(string)), fmt.Sprintf("cancel #%d (delivered to %s)", rid, r.k("bob"))) {
+	if plan["ok"] != true || !strings.HasPrefix(msgtest.IDs(r.db, plan["plan"].(string)), fmt.Sprintf("cancel #%d (delivered to %s)", rid, addr.Ref(r.k("bob")))) {
 		t.Fatalf("%v", plan)
 	}
 	if r.state(rid) != "queued" || r.count(written) != events {
@@ -102,7 +103,7 @@ func TestCancelPlansWithoutWritingAndClosesAnyQueuedRequest(t *testing.T) {
 		t.Fatalf("%v", res)
 	}
 	own := r.request("human", "alice", "never mind")
-	if res := cancel(own, "", "c5"); res["ok"] != true || msgtest.IDs(r.db, res["said"].(string)) != fmt.Sprintf("request #%d to %s withdrawn", own, r.k("alice")) || r.state(own) != "withdrawn" {
+	if res := cancel(own, "", "c5"); res["ok"] != true || msgtest.IDs(r.db, res["said"].(string)) != fmt.Sprintf("request #%d to %s withdrawn", own, addr.Ref(r.k("alice"))) || r.state(own) != "withdrawn" {
 		t.Fatalf("the founder's own undelivered request is withdrawn: %v", res)
 	}
 	r.refusedWith(r.one(r.server("alice"), "request.cancel", fmt.Sprintf(`{"id":%d,"request_id":"c6"}`, r.request("alice", "bob", "x"))), "role")

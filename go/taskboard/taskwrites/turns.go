@@ -99,7 +99,7 @@ func turnRefusal(t *task, tid int64, by string) string {
 	case t.done() || t.DiscardedBy.Valid && t.DiscardedBy.String != "":
 		return fmt.Sprintf("task T%d is already finished", tid)
 	case by != actor.OwnerKey && by != t.Acting:
-		return fmt.Sprintf("T%d is %s's turn: only it, or the founder, moves its turns", tid, t.Acting)
+		return fmt.Sprintf("T%d is %s's turn: only it, or the founder, moves its turns", tid, addr.Ref(t.Acting))
 	}
 	return ""
 }
@@ -156,7 +156,7 @@ func (p Popped) said() string {
 	if p.Done != nil {
 		return p.Done.Said
 	}
-	return fmt.Sprintf("T%d is %s's turn again", p.Task, p.To)
+	return fmt.Sprintf("T%d is %s's turn again", p.Task, addr.Ref(p.To))
 }
 
 // tell is what a committed pop leaves: the task's done told, or the agent below moved on to it.
@@ -237,7 +237,7 @@ func popTurn(tx *sql.Tx, home string, tell Teller, tid int64, by, outcome, note 
 	if tell == nil {
 		return Popped{}, fmt.Errorf("task.turn.pop needs the supervisor to route its ask")
 	}
-	body := fmt.Sprintf("T%d is your turn again: %s %s it: %s", tid, top.Agent, word, t.Title)
+	body := fmt.Sprintf("T%d is your turn again: %s %s it: %s", tid, addr.Ref(top.Agent), word, t.Title)
 	ask := textsafe.Oneline(top.Ask)
 	switch { // the founder ending their own turn answers the task's open question
 	case by == actor.OwnerKey && actor.IsPerson(top.Agent) && memo != 0:
