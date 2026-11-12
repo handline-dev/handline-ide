@@ -67,6 +67,7 @@ Every error is a JSON-RPC error whose `data.code` is the stable string. A refusa
 | `access_needed` | chat.send: a ref is outside what the agent may read and chat_refs_need_grant is on (x-access). data.agent and data.paths name them. |
 | `behind` | doc.push: the version is not the doc's current one. Nothing was taken; data.version is the current one. |
 | `reopen` | doc.push, doc.pull: the doc id is not the loaded copy, or the version is older than the kept updates. Open the doc again. |
+| `not_git` | The folder is in no git checkout: a workspace's folder is one. The founder makes it one (git init) or chooses another folder. |
 
 ## App cache and writes
 
@@ -89,7 +90,7 @@ One file per group, generated from `spec/<group>.json`; field types are in `prot
 - [devices](gen/devices.md): 6 methods
 - [repos](gen/repos.md): 15 methods
 - [tasks](gen/tasks.md): 40 methods
-- [team](gen/team.md): 15 methods
+- [team](gen/team.md): 18 methods
 - [terminal](gen/terminal.md): 9 methods
 
 ## Who the caller is

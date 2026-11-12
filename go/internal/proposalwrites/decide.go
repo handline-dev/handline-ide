@@ -45,7 +45,7 @@ func (e *Env) logf(format string, args ...any) {
 	}
 }
 
-// Register adds proposal.decide, agent.set, proposal.withdraw and agent.retire to the server's table.
+// Register adds proposal.decide, agent.set, proposal.withdraw, agent.retire, workspace.set and workspace.delete to the server's table.
 func Register(s *rpc.Server, e *Env) {
 	s.Register("proposal.decide", rpc.Method{Waits: true, Handler: e.decideMethod})
 	s.Register("agent.set", rpc.Method{Handler: e.agentSetMethod})
@@ -53,6 +53,8 @@ func Register(s *rpc.Server, e *Env) {
 	s.Register("proposal.apply_now", rpc.Method{Waits: true, Handler: e.applyNowMethod})
 	s.Register("proposal.withdraw", rpc.Method{Handler: e.withdrawMethod})
 	s.Register("agent.retire", rpc.Method{Waits: true, Handler: e.retireMethod})
+	s.Register("workspace.set", rpc.Method{Handler: e.workspaceSet})
+	s.Register("workspace.delete", rpc.Method{Waits: true, Handler: e.workspaceDelete})
 }
 
 const decisionsNS = "proposal-decisions"

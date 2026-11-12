@@ -1,5 +1,6 @@
 // Generated from contract/spec/ by contract/generate.py; do not edit.
 /* eslint-disable */
+import type { OperationStarted } from './agents.ts';
 import type { Accepted, ReadCursor, RequestId, Role, Timestamp, Topic, Who, WriteKind } from './core.ts';
 
 export type TeamAgent = {
@@ -189,6 +190,27 @@ export interface TeamMethods {
   "workspaces.list": { params: { [key: string]: unknown }; result: {
     workspaces: Workspace[];
   } };
+  "workspace.create": { params: {
+  /** The workspace's name: lowercase letters, digits and -, 1 to 32 long, starting with a letter, used by no workspace and no person's handle. A dot or a slash is bad_request, field name; another name the rules refuse fails the operation with the reason. */
+  name: string;
+  /** The project folder, an absolute path (~ is the home folder). */
+  folder: string;
+  request_id: RequestId;
+}; result: OperationStarted };
+  "workspace.set": { params: {
+  /** The workspace's key (w3) or its name, as workspaces.list gives them. An unknown one is not_found, what workspace. */
+  workspace: string;
+  /** The new name, by workspace.create's rules. */
+  name: string;
+  request_id: RequestId;
+}; result: Accepted };
+  "workspace.delete": { params: {
+  /** The workspace's key (w3) or its name, as workspaces.list gives them. An unknown one is not_found, what workspace. */
+  workspace: string;
+  /** The founder's answer for every worktree of the workspace's agents that holds work, as agent.retire's save and force. keep, which would keep an agent, is bad_request, field worktree, as is any other word. */
+  worktree?: "save" | "force";
+  request_id: RequestId;
+}; result: Accepted };
   "team.get": { params: { [key: string]: unknown }; result: {
     agents: TeamAgent[];
     people: {
@@ -255,6 +277,9 @@ export const TEAM_METHODS: { [K in keyof TeamMethods]: { role: Role; callers: Ro
   "trust.remove": { role: "owner", callers: null, write: true, since: 1 },
   "people.list": { role: "agent", callers: null, write: false, since: 1 },
   "workspaces.list": { role: "agent", callers: null, write: false, since: 1 },
+  "workspace.create": { role: "owner", callers: null, write: true, since: 1 },
+  "workspace.set": { role: "owner", callers: null, write: true, since: 1 },
+  "workspace.delete": { role: "owner", callers: null, write: true, since: 1 },
   "team.get": { role: "agent", callers: null, write: false, since: 1 },
   "proposal.list": { role: "agent", callers: null, write: false, since: 1 },
   "proposal.decide": { role: "member", callers: null, write: true, since: 1 },
@@ -276,11 +301,14 @@ export const TEAM_APP_CACHE: { [K in "trust.list" | "people.list" | "workspaces.
 };
 
 /** x-app-write of each write (x-app in core.json). */
-export const TEAM_APP_WRITES: { [K in "proposal.propose" | "proposal.withdraw" | "trust.propose" | "trust.remove" | "proposal.decide" | "proposal.apply_now" | "schedule.add" | "schedule.edit" | "schedule.remove"]: { kind: WriteKind; label: string } | false } = {
+export const TEAM_APP_WRITES: { [K in "proposal.propose" | "proposal.withdraw" | "trust.propose" | "trust.remove" | "workspace.create" | "workspace.set" | "workspace.delete" | "proposal.decide" | "proposal.apply_now" | "schedule.add" | "schedule.edit" | "schedule.remove"]: { kind: WriteKind; label: string } | false } = {
   "proposal.propose": false,
   "proposal.withdraw": {"kind": "decided", "label": "withdraw"},
   "trust.propose": false,
   "trust.remove": {"kind": "authored", "label": "remove folder"},
+  "workspace.create": {"kind": "decided", "label": "create workspace"},
+  "workspace.set": {"kind": "decided", "label": "rename workspace"},
+  "workspace.delete": {"kind": "decided", "label": "delete workspace"},
   "proposal.decide": {"kind": "decided", "label": "decide"},
   "proposal.apply_now": {"kind": "decided", "label": "apply now"},
   "schedule.add": {"kind": "authored", "label": "add schedule"},

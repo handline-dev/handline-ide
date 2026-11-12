@@ -93,10 +93,25 @@ func (e *Env) create(c *rpc.Conn, params map[string]any) (any, error) {
 		repo = abs
 	}
 
+	opts := team.RegisterOpts{Role: role, Repo: repo}
+	if model != "" {
+		opts.Model = &model
+	}
+	if effort != "" {
+		opts.Effort = &effort
+	}
+	return e.operate(c, createKind, name, repo, base, func() error {
+		_, err := e.Roster.Register(name, opts)
+		return err
+	})
+}
+
+// operate runs register and then starts agent name as operation kind (agent.create, workspace.create), and answers once it ended.
+func (e *Env) operate(c *rpc.Conn, kind, name, repo, base string, register func() error) (any, error) {
 	op := newOperationID()
 	operations.Begin(op) // before the row exists, so nothing reads a running row of a live operation as dead
 	result, err := c.Effect(func(tx *sql.Tx) (map[string]any, error) {
-		rows, qerr := tx.Query("SELECT id FROM operations WHERE kind = ? AND agent = ? AND state = 'running'", createKind, name)
+		rows, qerr := tx.Query("SELECT id FROM operations WHERE kind = ? AND agent = ? AND state = 'running'", kind, name)
 		if qerr != nil {
 			return nil, qerr
 		}
@@ -116,11 +131,11 @@ func (e *Env) create(c *rpc.Conn, params map[string]any) (any, error) {
 			}
 		}
 		now := e.now().Unix()
-		if _, qerr = tx.Exec("DELETE FROM operations WHERE kind = ? AND updated_at < ?", createKind, now-int64(createKeep/time.Second)); qerr != nil {
+		if _, qerr = tx.Exec("DELETE FROM operations WHERE kind = ? AND updated_at < ?", kind, now-int64(createKeep/time.Second)); qerr != nil {
 			return nil, qerr
 		}
 		if _, qerr = tx.Exec("INSERT INTO operations(id, kind, state, step, steps_done, steps_total, message, agent, created_at, updated_at) "+
-			"VALUES(?, ?, 'running', NULL, 0, ?, ?, ?, ?, ?)", op, createKind, createSteps, "creating "+name, name, now, now); qerr != nil {
+			"VALUES(?, ?, 'running', NULL, 0, ?, ?, ?, ?, ?)", op, kind, createSteps, "creating "+name, name, now, now); qerr != nil {
 			return nil, qerr
 		}
 		return map[string]any{"accepted": true, "said": "creating " + name, "operation": op}, nil
@@ -130,15 +145,8 @@ func (e *Env) create(c *rpc.Conn, params map[string]any) (any, error) {
 		return nil, err
 	}
 	e.announce(op)
-	opts := team.RegisterOpts{Role: role, Repo: repo}
-	if model != "" {
-		opts.Model = &model
-	}
-	if effort != "" {
-		opts.Effort = &effort
-	}
 	ran := make(chan struct{})
-	go func() { defer close(ran); e.runCreate(op, name, repo, base, opts, callOf(c)) }()
+	go func() { defer close(ran); e.runCreate(op, name, repo, base, register, callOf(c)) }()
 	if _, err := outcome.Wait(e.Wait, c.Done(), func() (bool, error) {
 		select {
 		case <-ran:
@@ -185,7 +193,7 @@ func (e *Env) createOutcome(reply map[string]any) error {
 	return r
 }
 
-func (e *Env) runCreate(op, name, repo, base string, opts team.RegisterOpts, call Call) {
+func (e *Env) runCreate(op, name, repo, base string, register func() error, call Call) {
 	step := stepRegister
 	defer operations.End(op)
 	defer func() {
@@ -195,7 +203,7 @@ func (e *Env) runCreate(op, name, repo, base string, opts team.RegisterOpts, cal
 		}
 	}()
 	e.progress(op, map[string]any{"step": step, "message": "registering " + name})
-	if _, err := e.Roster.Register(name, opts); err != nil {
+	if err := register(); err != nil {
 		e.progress(op, map[string]any{"state": "failed", "message": fmt.Sprintf("%s failed: %v", step, err),
 			"result": map[string]any{"agent": name, "registered": false}})
 		return
