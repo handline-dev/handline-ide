@@ -818,13 +818,9 @@ func (l *Launcher) Confinement(agent, worktree string, tr Transcripts) (hide, no
 	return hide, append(l.MainRefFiles(worktree), roster...), nil
 }
 
-// HiddenTranscripts are the transcript folders agent may not read: every other agent's except its own and its reports', in every
-// account of this vendor, since an agent moves between accounts. Only agents with a worktree on record can be named.
+// HiddenTranscripts are the transcript folders agent may not read: every other agent's, in every account of this vendor, since an agent
+// moves between accounts. Only agents with a worktree on record can be named.
 func (l *Launcher) HiddenTranscripts(agent string, drv Transcripts) ([]string, error) {
-	var tm *team.Team
-	if l.Ports.Routing != nil {
-		tm = l.Ports.Routing()
-	}
 	rows, err := db.AllAgentStates(l.Q)
 	if err != nil {
 		return nil, err
@@ -837,7 +833,7 @@ func (l *Launcher) HiddenTranscripts(agent string, drv Transcripts) ([]string, e
 	}
 	var out []string
 	for _, r := range rows {
-		if r.Agent == agent || tm.SupervisorOf(r.Agent) == agent || r.Worktree.String == "" {
+		if r.Agent == agent || r.Worktree.String == "" {
 			continue
 		}
 		first := r.Worktree.String

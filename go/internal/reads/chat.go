@@ -829,7 +829,7 @@ func (e *Env) locateMessage(mid int64, agent string, everyone bool) (located, er
 }
 
 func (e *Env) chatLocate(c *rpc.Conn, params map[string]any) (any, error) {
-	mid, err := requestref.Resolve(e.DB, e.Home, params["request"], requestref.Viewer(c), "request")
+	mid, err := requestref.Resolve(e.DB, params["request"], requestref.Viewer(c), "request")
 	if err != nil {
 		return nil, err
 	}

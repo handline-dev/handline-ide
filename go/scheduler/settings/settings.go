@@ -45,18 +45,18 @@ const (
 	AttentionSentBack    = 2
 )
 
-// The blocker alarm: a queued task another open task has waited on this long tells its holder, and this long its holder's lead. Off by default.
+// The blocker alarm: a queued task another open task has waited on this long tells its holder, and this long the task's opener. Off by default.
 const (
-	BlockerAlarmKey     = "blocker_alarm"
-	BlockerAlarmHoldKey = "blocker_alarm_s"
-	BlockerAlarmHoldS   = 3600
-	BlockerAlarmLeadKey = "blocker_alarm_lead_s"
-	BlockerAlarmLeadS   = 4 * 3600
+	BlockerAlarmKey       = "blocker_alarm"
+	BlockerAlarmHoldKey   = "blocker_alarm_s"
+	BlockerAlarmHoldS     = 3600
+	BlockerAlarmOpenerKey = "blocker_alarm_opener_s"
+	BlockerAlarmOpenerS   = 4 * 3600
 )
 
 // BlockerAlarm is whether the blocker alarm is on and its two thresholds.
-func (s *Settings) BlockerAlarm() (on bool, holderS, leadS int64) {
-	return s.Flag(BlockerAlarmKey, false), s.ConfigSeconds(BlockerAlarmHoldKey, BlockerAlarmHoldS), s.ConfigSeconds(BlockerAlarmLeadKey, BlockerAlarmLeadS)
+func (s *Settings) BlockerAlarm() (on bool, holderS, openerS int64) {
+	return s.Flag(BlockerAlarmKey, false), s.ConfigSeconds(BlockerAlarmHoldKey, BlockerAlarmHoldS), s.ConfigSeconds(BlockerAlarmOpenerKey, BlockerAlarmOpenerS)
 }
 
 // Settings is how long an idle agent's session may sit before it is closed, the background times and the cache-expiry switch: config.yaml's

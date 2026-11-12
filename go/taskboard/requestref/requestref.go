@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/handline/handline/go/data/db"
-	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/protocol/rpc"
 )
@@ -28,14 +27,10 @@ func Viewer(c *rpc.Conn) string {
 	return actor.OwnerKey
 }
 
-// MayRead is whether viewer may read request id: the founder, its requester or target, either one's supervisor, the assignee, owner or
-// opener of a task linked to it, and the target of a message the founder sent under one of the founder's own (a quote).
-func MayRead(q db.Q, home, viewer string, id int64, requester, target string) bool {
+// MayRead is whether viewer may read request id: the founder, its requester or target, the assignee, owner or opener of a task linked
+// to it, and the target of a message the founder sent under one of the founder's own (a quote).
+func MayRead(q db.Q, viewer string, id int64, requester, target string) bool {
 	if viewer == actor.OwnerKey || viewer == requester || viewer == target {
-		return true
-	}
-	t, _ := team.LoadTeam(home)
-	if t.SupervisorOf(requester) == viewer || t.SupervisorOf(target) == viewer {
 		return true
 	}
 	var linked int
@@ -48,11 +43,11 @@ func MayRead(q db.Q, home, viewer string, id int64, requester, target string) bo
 // Resolve is the id of the request value names in field: a JSON integer is an id; a string is msg_<hash> or the bare hash, a prefix of its
 // ref of at least MinPrefix characters matched only among the requests viewer may read. A #<n> names a pull request and is refused. One
 // viewer may not read is not_found, like one that does not exist.
-func Resolve(q db.Q, home string, value any, viewer, field string) (int64, error) {
+func Resolve(q db.Q, value any, viewer, field string) (int64, error) {
 	if id, ok := rpc.AsInt(value); ok {
 		var requester, target string
 		err := q.QueryRow("SELECT requester, target FROM requests WHERE id = ?", id).Scan(&requester, &target)
-		if err != nil || !MayRead(q, home, viewer, id, requester, target) {
+		if err != nil || !MayRead(q, viewer, id, requester, target) {
 			n := strconv.FormatInt(id, 10)
 			return 0, noRequest(n, n)
 		}
@@ -91,7 +86,7 @@ func Resolve(q db.Q, home string, value any, viewer, field string) (int64, error
 	}
 	var found []int64
 	for _, c := range all {
-		if MayRead(q, home, viewer, c.id, c.requester, c.target) {
+		if MayRead(q, viewer, c.id, c.requester, c.target) {
 			found = append(found, c.id)
 		}
 	}

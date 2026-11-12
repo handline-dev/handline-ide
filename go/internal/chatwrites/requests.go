@@ -19,7 +19,7 @@ func (w *writes) registerRequests(s *rpc.Server) {
 
 // withdrawRequest is the caller taking back a request of its own before it is delivered. A refusal is a reply, with ok false.
 func (w *writes) withdrawRequest(c *rpc.Conn, p map[string]any) (any, error) {
-	rid, err := requestref.Resolve(w.e.DB, w.e.Home, p["id"], requestref.Viewer(c), "id")
+	rid, err := requestref.Resolve(w.e.DB, p["id"], requestref.Viewer(c), "id")
 	if name, missing := requestref.Missing(err); missing {
 		return map[string]any{"ok": false, "said": "request " + name + " does not exist"}, nil
 	}
@@ -57,7 +57,7 @@ func (w *writes) cancelRequest(c *rpc.Conn, p map[string]any) (any, error) {
 			return nil, badParam("dry_run is true or false", "dry_run")
 		}
 	}
-	rid, err := requestref.Resolve(w.e.DB, w.e.Home, p["id"], requestref.Viewer(c), "id")
+	rid, err := requestref.Resolve(w.e.DB, p["id"], requestref.Viewer(c), "id")
 	if _, missing := requestref.Missing(err); missing && dry {
 		return map[string]any{"ok": false, "plan": "that message is gone"}, nil
 	} else if missing {

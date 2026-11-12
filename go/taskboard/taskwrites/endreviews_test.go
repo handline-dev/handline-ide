@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// A task an older daemon left in review is moved once at start: one not accepted goes to its owner's lead with its answer as a memo; an
+// A task an older daemon left in review is moved once at start: one not accepted goes to its reporter, else its opener, with its answer as a memo; an
 // accepted one stays with its owner, queued, the memo naming its PR. A second start finds nothing to move.
 func TestEndReviewsMovesEachTaskLeftInReview(t *testing.T) {
 	t.Parallel()
@@ -21,20 +21,20 @@ func TestEndReviewsMovesEachTaskLeftInReview(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if named(sdb, fmt.Sprint(said)) != "[T1 left review: handed to lead T2 left review: queued with w]" {
+	if named(sdb, fmt.Sprint(said)) != "[T1 left review: handed to boss T2 left review: queued with w]" {
 		t.Fatalf("%q", said)
 	}
 	if count(t, sdb, "SELECT COUNT(*) FROM tasks WHERE id IN (1, 2) AND reported_at IS NULL AND report IS NULL AND accepted_by IS NULL") != 2 {
 		t.Fatal("the answers are cleared")
 	}
-	if count(t, sdb, "SELECT COUNT(*) FROM tasks WHERE id = 1 AND owner = 'lead'") != 1 || count(t, sdb, "SELECT COUNT(*) FROM tasks WHERE id = 2 AND owner = 'w'") != 1 {
-		t.Fatal("T1 goes to the lead, T2 stays")
+	if count(t, sdb, "SELECT COUNT(*) FROM tasks WHERE id = 1 AND owner = 'boss'") != 1 || count(t, sdb, "SELECT COUNT(*) FROM tasks WHERE id = 2 AND owner = 'w'") != 1 {
+		t.Fatal("T1 goes to its opener, T2 stays")
 	}
 	if count(t, sdb, "SELECT COUNT(*) FROM task_memos WHERE task_id = 1 AND author = 'daemon' AND body LIKE '%built it%'") != 1 ||
 		count(t, sdb, "SELECT COUNT(*) FROM task_memos WHERE task_id = 2 AND body LIKE '%accepted by %; it waits on PR #12%'") != 1 {
 		t.Fatal("each answer is kept as a memo")
 	}
-	if len(f.handed) != 1 || f.handed[0].To != "lead" || f.handed[0].By != "daemon" {
+	if len(f.handed) != 1 || f.handed[0].To != "boss" || f.handed[0].By != "daemon" {
 		t.Fatalf("%+v", f.handed)
 	}
 	if again, err := EndReviews(sdb, home, f); err != nil || len(again) != 0 {

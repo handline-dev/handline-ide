@@ -66,7 +66,7 @@ func (w *writes) idList(c *rpc.Conn, p map[string]any) ([]int64, error) {
 	seen := map[int64]bool{}
 	var ids []int64
 	for _, v := range list {
-		n, err := requestref.Resolve(w.e.DB, w.e.Home, v, requestref.Viewer(c), "ids")
+		n, err := requestref.Resolve(w.e.DB, v, requestref.Viewer(c), "ids")
 		if name, missing := requestref.Missing(err); missing {
 			return nil, noItemNamed(name)
 		}
