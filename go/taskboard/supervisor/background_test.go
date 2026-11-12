@@ -212,3 +212,25 @@ func mustState(r *rig, agent string) *db.AgentState {
 	r.must(err)
 	return s
 }
+
+func TestTasksBlockedOnTheAgentsOwnAsksDoNotHoldItsNextTaskOrHideItsForgottenResolve(t *testing.T) {
+	r := newRig(t)
+	r.agentUp("bob")
+	first, second := r.task("bob", "alice", "one"), r.task("bob", "alice", "two")
+	third := r.task("bob", "alice", "three")
+	// bob asked alice something for each of the first two: they wait on the answers.
+	for _, rid := range []int64{first, second} {
+		ask := r.ask("bob", "alice", "which way?", "ask")
+		tasks, err := db.TasksForRequest(r.DB, rid)
+		r.must(err)
+		r.must(db.LinkRequest(r.DB, tasks[0].ID, ask))
+	}
+	r.DeliverQueued(r.DB, r.k("bob"))
+	if h, _ := db.GetRequest(r.DB, third); h == nil || !h.DeliveredAt.Valid {
+		t.Fatalf("both tasks ahead are blocked, so the third is delivered: %+v", h)
+	}
+	row, _ := db.GetAgentState(r.DB, r.k("bob"))
+	if f := r.forgottenResolve(r.DB, r.k("bob"), row, r.clock); f == nil || f.Head.ID != third {
+		t.Fatalf("the asks that block the tasks ahead are not a wait on the third: %+v", f)
+	}
+}

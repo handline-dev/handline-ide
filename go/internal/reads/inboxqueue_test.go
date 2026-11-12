@@ -127,6 +127,24 @@ func TestInboxQueueOfAnAgentPrintsAsHlInboxDid(t *testing.T) {
 	printsAs(t, e, "bob", "agent-only-a-say") // only a say left: no head
 }
 
+func TestInboxQueueOfAnAgentShowsFirstWhatItCanActOn(t *testing.T) {
+	t.Parallel()
+	e := testEnv(t)
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'held up', 'bob', 'cy', 1), (2, 'free', 'bob', 'cy', 1), (9, 'first', 'amy', 'cy', 1)")
+	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok, queue_order) VALUES"+
+		"(1, 1, 'cy', 'bob', 'T1 handed to you', 'landed', 'task', 1, 1), (2, 2, 'cy', 'bob', 'T2 handed to you', 'queued', 'task', 1, 2)")
+	run(t, e, "INSERT INTO task_requests(task_id, request_id) VALUES(1, 1), (2, 2)")
+	run(t, e, "INSERT INTO task_blocks(task_id, blocks_on, created_at) VALUES(1, 9, 1)")
+	head := func() any { return queueOf(t, e, asBob, nil)["head"].(map[string]any)["id"] }
+	if got := head(); got != int64(2) {
+		t.Fatalf("T1 waits on T9, so the head is T2's delivery: %v", got)
+	}
+	run(t, e, "INSERT INTO task_blocks(task_id, blocks_on, created_at) VALUES(2, 9, 1)")
+	if got := head(); got != int64(1) {
+		t.Fatalf("with everything blocked the oldest still shows: %v", got)
+	}
+}
+
 func TestInboxQueueOfTheFounderPrintsAsHlInboxDid(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)

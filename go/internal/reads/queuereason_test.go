@@ -138,3 +138,22 @@ func TestQueueReasonSaysTheHeadsOwnTaskIsBlocked(t *testing.T) {
 		t.Errorf("the line the blocked head hands the queue to is the effective head: %q", got)
 	}
 }
+
+func TestQueueReasonSaysABlockedRequestIsHeldByItsOwnTaskWhereverItSits(t *testing.T) {
+	t.Parallel()
+	e := testEnv(t)
+	addAgent(t, e, "bob", "")
+	state(t, e, "IDLE", nil)
+	for id := int64(1); id <= 3; id++ {
+		queue(t, e, id, "task")
+		run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(?, 't', ?, 'amy', 1)", id, bobKey(t, e))
+		run(t, e, "INSERT INTO task_requests(task_id, request_id) VALUES(?, ?)", id, id)
+	}
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(9, 'first', 'amy', 'amy', 1)")
+	run(t, e, "INSERT INTO task_blocks(task_id, blocks_on, created_at) VALUES(1, 9, 1), (2, 9, 1)")
+	for id, want := range map[int64]string{1: "its own task is blocked", 2: "its own task is blocked", 3: "waiting for the agent"} {
+		if got, err := e.QueueReason(bobKey(t, e), id); err != nil || got != want {
+			t.Errorf("#%d: %q %v, want %q", id, got, err, want)
+		}
+	}
+}

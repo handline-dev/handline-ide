@@ -28,19 +28,34 @@ func HeadTaskBlocked(q Q, agent string, head *Request) (bool, error) {
 	return false, nil
 }
 
-// EffectiveHead is HeadOfQueue unless it is blocked on record: then the next request behind it, so the one-at-a-time rule falls on
-// whatever the agent can actually act on. Only one level.
+// EffectiveHead is HeadOfQueue past every head whose task is blocked on record, so the one-at-a-time rule falls on whatever the agent
+// can actually act on. nil when nothing can be acted on.
 func EffectiveHead(q Q, agent string) (*Request, error) {
-	head, err := HeadOfQueue(q, agent, 0)
-	if err != nil || head == nil {
-		return head, err
-	}
-	blocked, err := HeadTaskBlocked(q, agent, head)
+	return firstUnblocked(q, agent, func(r *Request) bool { return r.Kind.String != "say" })
+}
+
+// EffectiveTaskHead is TaskHead past every task delivery whose task is blocked on record.
+func EffectiveTaskHead(q Q, agent string) (*Request, error) {
+	return firstUnblocked(q, agent, func(r *Request) bool { return r.Kind.String == "task" })
+}
+
+// firstUnblocked is the first queued request keep takes whose task is not blocked; as firstOf, one whose edge is unchecked stops the
+// walk.
+func firstUnblocked(q Q, agent string, keep func(*Request) bool) (*Request, error) {
+	rows, err := QueuedFor(q, agent)
 	if err != nil {
 		return nil, err
 	}
-	if blocked {
-		return HeadOfQueue(q, agent, head.ID)
+	for _, r := range rows {
+		if !keep(r) {
+			continue
+		}
+		if r.EdgeOK.Int64 == 0 {
+			return nil, nil
+		}
+		if blocked, err := HeadTaskBlocked(q, agent, r); err != nil || !blocked {
+			return r, err
+		}
 	}
-	return head, nil
+	return nil, nil
 }

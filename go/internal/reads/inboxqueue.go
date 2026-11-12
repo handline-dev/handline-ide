@@ -100,7 +100,10 @@ func (e *Env) newestWaiting(whose string) (int64, error) {
 
 func (e *Env) agentQueue(whose string, newest int64, all bool) (any, error) {
 	out := map[string]any{"whose": whose, "newest": newest, "head": nil}
-	first, err := db.HeadOfQueue(e.DB, whose, 0)
+	first, err := db.EffectiveHead(e.DB, whose) // a request whose task is blocked does not hold the queue
+	if err == nil && first == nil {
+		first, err = db.HeadOfQueue(e.DB, whose, 0) // nothing it can act on yet: the oldest still shows
+	}
 	if err != nil {
 		return nil, err
 	}

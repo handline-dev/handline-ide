@@ -311,3 +311,36 @@ func TestOnlyATaskRequestEndsTheIdleProgressNote(t *testing.T) {
 		t.Fatalf("a task request left the note: %q", note())
 	}
 }
+
+func TestAHeadWhoseTaskIsBlockedDoesNotHoldTheQueue(t *testing.T) {
+	q := open(t)
+	// b holds T1 (delivered, now waiting on T9) and T2 (queued, also waiting on T9); T3 is free behind them.
+	for _, s := range []string{
+		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'one', 'b', 'a', 1), (2, 'two', 'b', 'a', 1), (3, 'three', 'b', 'a', 1), (9, 'nine', 'c', 'a', 1)",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok, queue_order) VALUES" +
+			"(11, 1, 'a', 'b', 'T1', 'landed', 'task', 1, 11), (12, 2, 'a', 'b', 'T2', 'queued', 'task', 1, 12), (13, 3, 'a', 'b', 'T3', 'queued', 'task', 1, 13)",
+		"INSERT INTO task_requests(task_id, request_id) VALUES(1, 11), (2, 12), (3, 13)",
+		"INSERT INTO task_blocks(task_id, blocks_on, created_at) VALUES(1, 9, 1), (2, 9, 1)",
+	} {
+		if _, err := q.Exec(s); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for name, head := range map[string]func(Q, string) (*Request, error){"EffectiveHead": EffectiveHead, "EffectiveTaskHead": EffectiveTaskHead} {
+		if h, err := head(q, "b"); err != nil || h == nil || h.ID != 13 {
+			t.Fatalf("%s: T1 and T2 wait on T9, so T3 is what b can act on: %+v %v", name, h, err)
+		}
+	}
+	if _, err := q.Exec("DELETE FROM task_blocks WHERE task_id = 2"); err != nil {
+		t.Fatal(err)
+	}
+	if h, _ := EffectiveHead(q, "b"); h == nil || h.ID != 12 {
+		t.Fatalf("T2 is free again and comes first: %+v", h)
+	}
+	if _, err := q.Exec("UPDATE requests SET edge_ok = 0 WHERE id = 12"); err != nil {
+		t.Fatal(err)
+	}
+	if h, _ := EffectiveHead(q, "b"); h != nil {
+		t.Fatalf("a request whose route is not checked yet stops the walk, as for the plain head: %+v", h)
+	}
+}
