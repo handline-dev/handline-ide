@@ -57710,15 +57710,15 @@
    ],
    "config": {},
    "expect": {
-    "picked": "b",
+    "picked": "a",
     "reasons": [
      [
       "a",
-      "5h 0%, fill 0.1%/min, 0/3 agents, one more agent (0.60%/min) lasts ~2h22m; 7d 30% (resets in 1d1h, 0.35x its weekly pace)"
+      "5h 0%, fill 0.1%/min, 0/3 agents, one more agent (0.60%/min) lasts ~2h22m; 7d 30% (resets in 1d1h, 0.35x its weekly pace) <- picked"
      ],
      [
       "b",
-      "5h 95% (25m old, reset since), 7d 60% - stale, window rolled over <- picked"
+      "5h 95% (25m old, reset since), 7d 60% - stale, window rolled over"
      ],
      [
       "c",
@@ -59411,15 +59411,15 @@
    ],
    "config": {},
    "expect": {
-    "picked": "b",
+    "picked": "a",
     "reasons": [
      [
       "a",
-      "5h 20%, fill 0.1%/min, 2/3 agents, one more agent (0.75%/min) lasts ~1h34m; 7d 92% (resets in 4d15h, 2.72x its weekly pace)"
+      "5h 20%, fill 0.1%/min, 2/3 agents, one more agent (0.75%/min) lasts ~1h34m; 7d 92% (resets in 4d15h, 2.72x its weekly pace) <- picked"
      ],
      [
       "b",
-      "5h 80% (8h old, reset since), 7d 60% - stale, window rolled over <- picked"
+      "5h 80% (8h old, reset since), 7d 60% - stale, window rolled over"
      ],
      [
       "c",
@@ -60502,15 +60502,15 @@
    ],
    "config": {},
    "expect": {
-    "picked": "a",
+    "picked": "b",
     "reasons": [
      [
       "a",
-      "5h 0% (25m old), 7d 30% - stale but idle <- picked"
+      "5h 0% (25m old), 7d 30% - stale but idle"
      ],
      [
       "b",
-      "5h 0%, fill 0.0%/min, 1/2 agents, one more agent (0.75%/min) lasts ~2h13m; 7d 5% (resets in 4d15h, 0.15x its weekly pace)"
+      "5h 0%, fill 0.0%/min, 1/2 agents, one more agent (0.75%/min) lasts ~2h13m; 7d 5% (resets in 4d15h, 0.15x its weekly pace) <- picked"
      ]
     ]
    },
