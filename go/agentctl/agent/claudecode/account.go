@@ -15,11 +15,13 @@ import (
 func init() {
 	agent.Register(Driver{})
 	agent.RegisterAgent("claude", func(h agent.Host) agent.Agent { return Driver{h} })
+	agent.RegisterTool(agent.Tool{Vendor: "claude", Command: "claude", Fix: "curl -fsSL https://claude.ai/install.sh | bash"}) // the native installer
 }
 
 func (Driver) ConfigDirName() string { return ".claude" }
 func (Driver) ConfigDirEnv() string  { return "CLAUDE_CONFIG_DIR" }
 func (Driver) LoginArgv() []string   { return []string{"claude", "/login"} }
+func (Driver) LogoutArgv() []string  { return []string{"claude", "auth", "logout"} }
 
 // WebLoginArgv prints the authorize URL and reads the code on stdin.
 func (Driver) WebLoginArgv() ([]string, bool) { return []string{"claude", "auth", "login"}, true }

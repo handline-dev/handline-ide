@@ -403,3 +403,30 @@ func TestAddMakesTheRowFirstAndAFailedAddLeavesNone(t *testing.T) {
 		t.Fatal("a failed add left its row")
 	}
 }
+
+// A codex account is logged out with codex's own logout under its CODEX_HOME, never claude's.
+func TestACodexAccountLogsOutWithCodex(t *testing.T) {
+	home := newHome(t)
+	a := Accounts{Home: home}
+	acct := accountDir(t, home, "cx")
+	if err := os.MkdirAll(acct, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(acct, "vendor"), []byte("codex\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(acct, ".codex")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if argv, _ := a.LogoutArgv("cx"); argv != nil {
+		t.Fatalf("not logged in: %v", argv)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "auth.json"), []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	argv, env := a.LogoutArgv("cx")
+	if strings.Join(argv, " ") != "codex logout" || env["CODEX_HOME"] != dir {
+		t.Fatalf("%v %v", argv, env)
+	}
+}

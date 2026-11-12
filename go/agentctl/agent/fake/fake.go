@@ -43,6 +43,7 @@ func (Agent) Name() string                                { return Vendor }
 func (Agent) ConfigDirName() string                       { return ".fake" }
 func (Agent) ConfigDirEnv() string                        { return "HANDLINE_FAKE_CONFIG_DIR" }
 func (Agent) LoginArgv() []string                         { return []string{"true"} }
+func (Agent) LogoutArgv() []string                        { return []string{"true"} }
 func (Agent) WebLoginArgv() ([]string, bool)              { return nil, false }
 func (Agent) CredentialPresent(string) (bool, bool)       { return true, true }
 func (Agent) CredentialModified(string) *float64          { return nil }
