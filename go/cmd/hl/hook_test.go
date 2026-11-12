@@ -132,6 +132,24 @@ func TestAStopIsLetThroughAndRecorded(t *testing.T) {
 	}
 }
 
+// codex's Esc fires Interrupt: it is recorded as the Stop that ends a turn.
+func TestAnInterruptIsRecordedAsAStop(t *testing.T) {
+	r := hookRig(t, false)
+	calls := r.daemon(nil)
+	if out, _, _ := r.runIn(`{"hook_event_name": "Interrupt", "session_id": "s1"}`, asAgent, "hook", "Interrupt"); out != "{}\n" {
+		t.Fatalf("%q", out)
+	}
+	var kinds []any
+	for _, c := range calls() {
+		if c["method"] == "hook.record" {
+			kinds = append(kinds, c["params"].(map[string]any)["kind"])
+		}
+	}
+	if len(kinds) != 1 || kinds[0] != "Stop" {
+		t.Fatalf("%v", kinds)
+	}
+}
+
 func TestNotificationReachesTheDaemon(t *testing.T) {
 	r := hookRig(t, false)
 	calls := r.daemon(nil)

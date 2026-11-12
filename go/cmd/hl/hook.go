@@ -55,6 +55,9 @@ func hook(c *hlclient.Client, args []string) (int, bool) {
 	if ev, _ := raw["hook_event_name"].(string); ev != "" {
 		event = ev // the payload's own name, as Python took it
 	}
+	if event == "Interrupt" {
+		event = "Stop" // codex's Esc ends the turn, as Claude Code's Stop does
+	}
 	agent := hlclient.Agent()
 	if agent == "" || sessiontoken.New(c.Home).Nested(0) {
 		fmt.Println("{}")
