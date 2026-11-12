@@ -309,6 +309,30 @@ func TestExitWithoutTheCredentialOrWithAnErrorFails(t *testing.T) {
 	}
 }
 
+// A login that exits with an error says what the command said last: stderr's line, else stdout's unless it is the link. A line that names a
+// subscription is the one a person can act on, so it says where to get one.
+func TestAFailedExitSaysWhatTheCommandSaid(t *testing.T) {
+	for name, tc := range map[string]struct{ script, reason string }{
+		"no subscription": {"echo " + fakeURL + "\nsleep 0.2\necho 'Error: Your account does not have an active Claude subscription.' >&2\nexit 1\n",
+			"this needs a Claude Pro or Max subscription: get one at " + SubscriptionURL + ", then log in again"},
+		"another error, its colour codes dropped": {"echo " + fakeURL + "\nsleep 0.2\necho 'boom: \033[31mtoken exchange failed' >&2\nexit 1\n",
+			"the login command exited with an error: boom: token exchange failed"},
+		"stdout only": {"echo " + fakeURL + "\nsleep 0.2\necho 'rate limited, try later'\nexit 1\n",
+			"the login command exited with an error: rate limited, try later"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			r := newRig(t, tc.script)
+			if _, err := r.m.Start("main"); err != nil {
+				t.Fatal(err)
+			}
+			r.settles("main", Failed)
+			if got := r.m.Of("main").Reason; got != tc.reason {
+				t.Fatalf("%q", got)
+			}
+		})
+	}
+}
+
 // logged is what the rig's Manager logs from now on.
 func (r *rig) logged() func() []string {
 	var mu sync.Mutex
