@@ -62,9 +62,12 @@ func (l *Launcher) Build(site *Site, agent string, extra []string, force bool, a
 		return nil, nil, refuse("agent '%s': %v", agent, err)
 	}
 	resuming := drv.IsResume(extra)
+	if why := l.leftOut(agent, account); why != "" {
+		return nil, nil, refuse("agent '%s': account '%s' %s", agent, account, why)
+	}
 	acct := l.ChooseAccount(agent, resuming, account)
 	if acct == "" {
-		if resuming {
+		if resuming && l.Ports.CurrentAccount(l.Q, agent) == "" {
 			return nil, nil, refuse("agent '%s' has no recorded session to resume", agent)
 		}
 		return nil, nil, refuse("agent '%s': %s", agent, l.NoRoom(agent))
