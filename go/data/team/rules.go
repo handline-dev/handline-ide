@@ -111,31 +111,36 @@ func SeedRules(home string, t *Team) error {
 		if k == "" {
 			continue // no workspace row: nothing is written under .unregistered
 		}
-		dir := filepath.Join(home, "workspaces", k)
-		marker := filepath.Join(dir, ".seeded")
-		if _, err := os.Stat(marker); err == nil {
-			continue
-		} else if !errors.Is(err, fs.ErrNotExist) {
-			return err
-		}
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return err
-		}
-		f, err := os.OpenFile(filepath.Join(dir, "base.md"), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
-		if err == nil {
-			_, err = f.WriteString(DefaultRules)
-			if cerr := f.Close(); err == nil {
-				err = cerr
-			}
-		} else if os.IsExist(err) {
-			err = nil // a team that already wrote its own rules keeps them
-		}
-		if err != nil {
-			return err
-		}
-		if err := os.WriteFile(marker, nil, 0o644); err != nil {
+		if err := seedWorkspace(home, k); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// seedWorkspace is SeedRules for the workspace whose key is k.
+func seedWorkspace(home, k string) error {
+	dir := filepath.Join(home, "workspaces", k)
+	marker := filepath.Join(dir, ".seeded")
+	if _, err := os.Stat(marker); err == nil {
+		return nil
+	} else if !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	f, err := os.OpenFile(filepath.Join(dir, "base.md"), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if err == nil {
+		_, err = f.WriteString(DefaultRules)
+		if cerr := f.Close(); err == nil {
+			err = cerr
+		}
+	} else if os.IsExist(err) {
+		err = nil // a team that already wrote its own rules keeps them
+	}
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(marker, nil, 0o644)
 }

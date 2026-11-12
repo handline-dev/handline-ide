@@ -25,6 +25,7 @@ import (
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/kit/storetest"
+	"github.com/handline/handline/go/kit/testfiles"
 	"github.com/handline/handline/go/kit/yamlcompat"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/scheduler/loadgate"
@@ -415,8 +416,7 @@ func TestApproveNeedsTheSubjectTheFounderReadAndAppliesIt(t *testing.T) {
 func TestAddRegistersTheAgentInItsWorkspace(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
-	repo := t.TempDir()
-	os.Mkdir(filepath.Join(repo, ".git"), 0o755)
+	repo := testfiles.GitCheckout(t)
 	p, id := r.propose("aaaa0003", "kind", "add", "agent", "eng.carol", "team", "eng", "repo", repo)
 	res := r.decide(id, "approve", p.subject(), "b1")["result"].(map[string]any)
 	said := res["said"].(string)
@@ -999,19 +999,10 @@ func refusedWith(t *testing.T, m map[string]any, want string) {
 	}
 }
 
-func gitDir(t *testing.T) string {
-	t.Helper()
-	d := t.TempDir()
-	if err := os.Mkdir(filepath.Join(d, ".git"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	return d
-}
-
 func TestProposeRenameTeamAndBundleAreDraftedAsTheOldCLIDraftsThem(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
-	rr, ss := gitDir(t), gitDir(t)
+	rr, ss := testfiles.GitCheckout(t), testfiles.GitCheckout(t)
 	paths := strings.NewReplacer(`"/r"`, fmt.Sprintf("%q", rr), `"/s"`, fmt.Sprintf("%q", ss))
 	call := func(rid, params string) map[string]any {
 		return r.callAs("alice", "proposal.propose", fmt.Sprintf(`{%s,"request_id":%q}`, paths.Replace(params), rid))
@@ -1078,7 +1069,7 @@ func TestAPairedDeviceSetsAnotherAgentsModelAndEffort(t *testing.T) {
 func TestAnApproveChecksTheRepoAgain(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
-	gone := gitDir(t)
+	gone := testfiles.GitCheckout(t)
 	os.RemoveAll(gone)
 	for i, c := range []struct{ kind, repo, want string }{
 		{"add", "handline/handline", "repo handline/handline is not an absolute path"},
@@ -1088,7 +1079,7 @@ func TestAnApproveChecksTheRepoAgain(t *testing.T) {
 		id := fmt.Sprintf("aaab000%d", i)
 		fields := []string{"kind", c.kind, "agent", "carol", "repo", c.repo}
 		if c.kind == "team" {
-			fields = append(fields, "members", "carol.a", "repo.carol.a", gitDir(t))
+			fields = append(fields, "members", "carol.a", "repo.carol.a", testfiles.GitCheckout(t))
 		}
 		p, n := r.propose(id, fields...)
 		res := r.decide(n, "approve", p.subject(), "d"+id)
@@ -1105,8 +1096,7 @@ func TestAnApproveChecksTheRepoAgain(t *testing.T) {
 func TestTheFoundersOwnAddIsAppliedAtOnce(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
-	repo := t.TempDir()
-	os.Mkdir(filepath.Join(repo, ".git"), 0o755)
+	repo := testfiles.GitCheckout(t)
 	m := r.call("proposal.propose", fmt.Sprintf(`{"kind":"add","args":{"name":"carol","repo":%q},"why":"we need her","request_id":"f1"}`, repo))
 	res, ok := m["result"].(map[string]any)
 	if !ok {
@@ -1291,7 +1281,7 @@ func TestAFoundersProposalLeftWaitingIsListedAndApprovable(t *testing.T) {
 func TestAProposedRepoIsKeptAbsoluteAndMustBeAGitCheckout(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
-	base := gitDir(t)
+	base := testfiles.GitCheckout(t)
 	for _, sub := range []string{"app", "lib"} {
 		if err := os.MkdirAll(filepath.Join(base, sub, ".git"), 0o755); err != nil {
 			t.Fatal(err)

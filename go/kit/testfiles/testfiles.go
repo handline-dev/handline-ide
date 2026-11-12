@@ -3,6 +3,7 @@ package testfiles
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 )
@@ -19,4 +20,14 @@ func Write(t testing.TB, dir string, files map[string]string) {
 			t.Fatal(err)
 		}
 	}
+}
+
+// GitCheckout is a new empty git checkout in a test's temporary folder.
+func GitCheckout(t testing.TB) string {
+	t.Helper()
+	dir := t.TempDir()
+	if out, err := exec.Command("git", "init", "-q", dir).CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v %s", err, out)
+	}
+	return dir
 }
