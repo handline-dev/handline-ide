@@ -17,6 +17,8 @@ type Account interface {
 	ConfigDirEnv() string
 	// LoginArgv is the command a human runs to log in.
 	LoginArgv() []string
+	// LogoutArgv is the CLI's own logout, run with ConfigDirEnv set: it removes the credential, Handline never touches it.
+	LogoutArgv() []string
 	// WebLoginArgv is the command the daemon runs for a login the web page drives, with no terminal; ok is false for a CLI with none.
 	WebLoginArgv() (argv []string, ok bool)
 	// CredentialPresent is whether the config dir holds a login; known is false when this process cannot tell (a sandboxed one
@@ -55,6 +57,30 @@ func Names() []string {
 		out = append(out, n)
 	}
 	sort.Strings(out)
+	return out
+}
+
+// Tool is a vendor's CLI as the install check reads it: the command looked up on PATH and the shell command that installs it.
+type Tool struct{ Vendor, Command, Fix string }
+
+var tools = map[string]Tool{} // under accountsMu
+
+// RegisterTool makes a vendor's CLI one the install check lists; each vendor a founder may pick does so as it loads.
+func RegisterTool(t Tool) {
+	accountsMu.Lock()
+	tools[t.Vendor] = t
+	accountsMu.Unlock()
+}
+
+// Tools is the registered vendors' CLIs, by vendor.
+func Tools() []Tool {
+	accountsMu.Lock()
+	defer accountsMu.Unlock()
+	out := make([]Tool, 0, len(tools))
+	for _, t := range tools {
+		out = append(out, t)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Vendor < out[j].Vendor })
 	return out
 }
 

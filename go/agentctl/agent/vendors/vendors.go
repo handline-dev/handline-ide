@@ -4,5 +4,6 @@ package vendors
 
 import (
 	_ "github.com/handline/handline/go/agentctl/agent/claudecode"
+	_ "github.com/handline/handline/go/agentctl/agent/codex"
 	_ "github.com/handline/handline/go/agentctl/agent/opencode"
 )
