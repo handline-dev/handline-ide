@@ -1,4 +1,7 @@
 import { ListLoading } from '#src/ui/Loading.tsx';
+import { useLeaseWaits } from '#src/tools/leaseWait.ts';
+import { LeaseIcon } from '#src/tools/LeaseIcon.tsx';
+import { Fragment, type ReactNode } from 'react';
 import type { Task } from '@handline/client';
 import { foundersTurn, turnChain } from '@handline/app-core';
 import { classify, sentence, useGiveBack, useNameOf, useTasks } from '@handline/app-data';
@@ -109,7 +112,14 @@ function Row({ t, ruled, owner, kids }: { t: Task; ruled: boolean; owner?: strin
   const me = useMe();
   const back = useGiveBack();
   const s = look(t);
-  const why = waitWords(t, kids);
+  const lease = useLeaseWaits().get(t.id);
+  const why: ReactNode = lease ? (
+    <>
+      <LeaseIcon kind={lease.kind} /> {lease.text}
+    </>
+  ) : (
+    waitWords(t, kids)
+  );
   // The assignee is left out while the list is already that agent's.
   const chain = turnChain(t, me, nameOf);
   const detail = [
@@ -130,7 +140,14 @@ function Row({ t, ruled, owner, kids }: { t: Task; ruled: boolean; owner?: strin
             <span className="mr-1 text-muted">T{t.id}</span>
             <span className={`font-medium ${t.state === 'discarded' ? 'text-muted line-through' : 'text-fg'}`}>{t.title}</span>
           </div>
-          <div className="truncate text-xs text-muted">{detail.filter(Boolean).join(' · ')}</div>
+          <div className="truncate text-xs text-muted">
+            {detail.filter(Boolean).map((d, i) => (
+              <Fragment key={i}>
+                {i > 0 && ' · '}
+                {d}
+              </Fragment>
+            ))}
+          </div>
         </div>
       </button>
       {foundersTurn(t, me) && (

@@ -254,6 +254,14 @@ export class FakeAdmin {
     return this.values.keep_awake ?? 'off';
   }
 
+  /** The task each waiting agent's ask blocks; a waiter without one is a call held open. */
+  private leaseTasks: Record<string, number> = {};
+  /** One simulator, held by the first agent, and `task` of the second waiting in line for it. */
+  waitForSimulator(task: number): void {
+    this.values.simulator_max = 1;
+    this.leaseTasks[AGENTS[1]!] = task;
+  }
+
   /** Fixed holders and waiters; the limits are the settings'. */
   leases() {
     const since = this.now();
@@ -261,7 +269,13 @@ export class FakeAdmin {
       kind: k,
       max,
       held: held.map((agent, i) => ({ lease: i + 1, agent, since, hold: false, pids: [] })),
-      queue: queue.map((agent, i) => ({ agent, since, position: i + 1, says: `waiting for a ${k}, number ${i + 1} in line` })),
+      queue: queue.map((agent, i) => ({
+        agent,
+        since,
+        position: i + 1,
+        says: `waiting for a ${k}, number ${i + 1} in line`,
+        ...(this.leaseTasks[agent] ? { task: this.leaseTasks[agent] } : {}),
+      })),
     });
     const { simulator_max = 0, browser_max = 0 } = this.values;
     return {
