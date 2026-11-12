@@ -53,7 +53,7 @@ func (e *Env) headTaskBlocked(q db.Q, agent string, head *db.Request) bool {
 	return must(db.HeadTaskBlocked(q, agent, head))
 }
 
-// EffectiveHead is db.EffectiveHead: db.head_of_queue unless it is blocked on record, then the next request behind it.
+// EffectiveHead is db.EffectiveHead: the first request past every blocked head.
 func (e *Env) effectiveHead(q db.Q, agent string) *db.Request {
 	return must(db.EffectiveHead(q, agent))
 }
@@ -69,13 +69,9 @@ func (e *Env) effectiveHeadOrMarked(q db.Q, agent string) *db.Request {
 	return nil
 }
 
-// EffectiveTaskHead is db.task_head unless it is blocked on record: then the next task behind it.
+// EffectiveTaskHead is db.EffectiveTaskHead: the first task delivery past every blocked one.
 func (e *Env) effectiveTaskHead(q db.Q, agent string) *db.Request {
-	head := must(db.TaskHead(q, agent, 0))
-	if head != nil && e.headTaskBlocked(q, agent, head) {
-		return must(db.TaskHead(q, agent, head.ID))
-	}
-	return head
+	return must(db.EffectiveTaskHead(q, agent))
 }
 
 // held says once per reason why head is not typed at the agent yet; always false, the delivery's answer.

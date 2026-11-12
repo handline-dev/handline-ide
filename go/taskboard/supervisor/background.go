@@ -213,15 +213,20 @@ func (e *Env) bgHolds(q db.Q, agent string, now int64) bool {
 }
 
 // waitingOnAsk: does the agent have an open ask it may be waiting on instead of head? Not the ones that are why a task ahead of head is
-// blocked: head stands in for that task, so the agent is meant to be working it while they are open.
+// blocked: head stands in for those tasks, so the agent is meant to be working it while they are open.
 func (e *Env) waitingOnAsk(q db.Q, agent string, head *db.Request) bool {
 	asks := map[int64]bool{}
 	for _, id := range must(db.OpenAskIDs(q, agent)) {
 		asks[id] = true
 	}
-	trueHead := must(db.TaskHead(q, agent, 0))
-	if len(asks) > 0 && trueHead != nil && trueHead.ID != head.ID && e.headTaskBlocked(q, agent, trueHead) {
-		for _, t := range must(db.TasksForRequest(q, trueHead.ID)) {
+	for _, ahead := range must(db.QueuedFor(q, agent)) {
+		if len(asks) == 0 || ahead.ID == head.ID {
+			break
+		}
+		if ahead.Kind.String != "task" || !e.headTaskBlocked(q, agent, ahead) {
+			continue
+		}
+		for _, t := range must(db.TasksForRequest(q, ahead.ID)) {
 			for _, r := range must(db.TaskRequests(q, t.ID)) {
 				delete(asks, r.ID)
 			}

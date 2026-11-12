@@ -46,10 +46,8 @@ func (e *Env) QueueReason(agent string, rid int64) (string, error) {
 	if req != nil && req.TellsNow() {
 		return e.deliveryState(agent, "sending now")
 	}
-	if head, err := db.HeadOfQueue(e.DB, agent, 0); err != nil {
-		return "", err
-	} else if head != nil && head.ID == rid {
-		if blocked, err := db.HeadTaskBlocked(e.DB, agent, head); err != nil || blocked {
+	if req != nil {
+		if blocked, err := db.HeadTaskBlocked(e.DB, agent, req); err != nil || blocked {
 			return "its own task is blocked", err
 		}
 	}
