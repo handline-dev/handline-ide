@@ -181,6 +181,19 @@ describe('activityOf', () => {
   });
 });
 
+describe('restarting', () => {
+  it('is a settings change or an asked restart under way, not a move or a full context', async () => {
+    const { restarting } = await import('#src/layout/agentTree.ts');
+    const h = (cause: string) => ({ handoff: { cause, phase: 'waiting' as const, since: '' } });
+    expect([restarting(h('settings_applied')), restarting(h('restart')), restarting(h('move')), restarting({})]).toEqual([
+      true,
+      true,
+      false,
+      false,
+    ]);
+  });
+});
+
 describe('holdLine', () => {
   const status = (state: string, reason: string, text: string, tasks: number[] = []) => ({
     state,

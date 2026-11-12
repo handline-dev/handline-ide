@@ -18,7 +18,7 @@ import {
   useNameOf,
   useVerbRun,
 } from '@handline/app-data';
-import { VERBS } from '@handline/app-core';
+import { handoffLine, VERBS } from '@handline/app-core';
 import { useMe, useNearEnd } from '@handline/app-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { spring } from '#src/motion.ts';
@@ -29,6 +29,7 @@ import { COMPACTING_WORDS, useCompacting, useCompactNow } from '#src/chat/agent/
 import { SwitchWait, useSwitchLock } from '#src/chat/agent/AccountSwitch.tsx';
 import type { Command } from '#src/chat/Suggest.tsx';
 import { useOpenTab } from '#src/layout/openTab.tsx';
+import { restarting } from '#src/layout/agentTree.ts';
 import { ModelChip } from '#src/chat/agent/ModelChip.tsx';
 import { StatusLine } from '#src/chat/agent/StatusLine.tsx';
 import { HoldBar } from '#src/chat/agent/HoldBar.tsx';
@@ -281,6 +282,9 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
   const view = useAgents().data?.agents.find((a) => a.key === agent);
   const doing = view?.doing?.text;
   const held = view?.task;
+  // A restart under way takes the turn's row: what it is doing now, short; why is in the Restarted line it leaves.
+  const restart = view?.handoff && restarting(view) ? `Restarting · ${handoffLine(view.handoff).what.toLowerCase()}…` : null;
+  const busy = chat.working.turn_running || !!restart;
   const now = useNow();
   const stream = useRef<HTMLDivElement>(null);
   const content = useRef<HTMLDivElement>(null);
@@ -389,14 +393,13 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
             )}
           </AnimatePresence>
           {/* The dots' row is always there, so turning them on or off does not move the chat. */}
-          <div
-            className={`h-5 transition-opacity ${chat.working.turn_running ? 'opacity-100' : 'opacity-0'}`}
-            aria-hidden={!chat.working.turn_running}
-          >
+          <div className={`h-5 transition-opacity ${busy ? 'opacity-100' : 'opacity-0'}`} aria-hidden={!busy}>
             <span className="flex items-center gap-2">
               <Dots />
               {/* The held task, this turn's minutes, then its newest tool call (AgentView.task, .doing). */}
               <span className="min-w-0 truncate text-xs text-muted">
+                {restart && <span className="font-medium text-fg">{restart}</span>}
+                {restart && (held || doing) && ' · '}
                 {held && (
                   <span className="font-medium text-fg">
                     T{held.id} · {turnMinutes(chat.working.since, now)}

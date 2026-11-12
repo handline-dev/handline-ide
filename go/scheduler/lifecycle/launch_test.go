@@ -1290,3 +1290,21 @@ func TestBuildAddsTheWorkspacesDeniedToolsAndHoldsTheModeToItsCap(t *testing.T) 
 		t.Error("a rule that changes what a session starts with leaves its fingerprint as it was")
 	}
 }
+
+// A session start keeps what the agent was given: its handoff and the daemon's record under it, so the chat's handoff shows both.
+func TestAStartKeepsTheHandoffAndTheDaemonsRecord(t *testing.T) {
+	r := newLaunchRig(t)
+	if err := db.SetHandoff(r.l.Q, "ann", "# handoff · ann\nbranch: x"); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.l.keepWhatItStartsWith(&Site{}, "ann", nil, "", "move", "the daemon"); err != nil {
+		t.Fatal(err)
+	}
+	var text string
+	if err := r.l.Q.QueryRow("SELECT text FROM session_starts WHERE agent = 'ann'").Scan(&text); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(text, "# handoff · ann\nbranch: x\n\n# Where you were (the daemon's record)") {
+		t.Fatalf("%q", text)
+	}
+}
