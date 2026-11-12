@@ -1475,11 +1475,11 @@
    "params": [
     {
      "name": "account",
-     "required": true,
+     "required": false,
      "schema": {
       "type": "string",
       "minLength": 1,
-      "description": "The new account's name: one plain line, no slash, not starting with a dot."
+      "description": "The new account's name: one plain line, no slash, not starting with a dot. Omitted, it is account<n>, n one past the accounts there are (the second is account2)."
      }
     },
     {
