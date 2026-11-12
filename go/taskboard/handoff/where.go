@@ -134,7 +134,7 @@ func messageLines(q db.Q, agent, lead string) ([]string, error) {
 }
 
 // WhereText is the daemon's own account of where agent was, put under its handoff at every fresh start, or in its place when there is
-// none: its open tasks with each one's last memo, its last messages with the founder and its lead (lead; "" when that is the founder),
+// none: its open tasks with each one's last memo, its last messages with the founder and lead (the agent it works with; "" for none),
 // and, with no record (the handoff it is given), its last progress note. All of it is already in the database, so it is there however
 // the last session ended.
 func WhereText(q db.Q, agent, lead, record string, now time.Time) (string, error) {
