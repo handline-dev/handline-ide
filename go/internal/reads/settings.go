@@ -135,6 +135,7 @@ func (e *Env) settingsValues() map[string]any {
 		usage.LaunchHoldKey: pace.On, usage.PaceTargetKey: pace.Target, usage.PaceBurstKey: pace.Burst,
 		usage.SubagentGuardKey:          s.Flag(usage.SubagentGuardKey, false),
 		usage.MoveBeforeKey:             s.Percent(usage.MoveBeforeKey),
+		usage.SplitKey:                  usage.SplitOf(cfg),
 		settings.ClearPastBackgroundKey: s.Flag(settings.ClearPastBackgroundKey, false),
 		settings.TranscriptRowsKey:      s.Flag(settings.TranscriptRowsKey, false),
 		settings.RefsNeedGrantKey:       s.Flag(settings.RefsNeedGrantKey, false),

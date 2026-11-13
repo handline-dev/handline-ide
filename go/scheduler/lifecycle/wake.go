@@ -499,7 +499,7 @@ func (m *Manager) wakeClosed(agent string, row *db.AgentState, handle, wt string
 	unpaced := o.Person || force || m.personWaiting(agent)
 	rehomed := false
 	moveFrom := ""
-	if movedTo == "" && !warm && session != "" && m.cachePast(agent, session, m.now()) {
+	if movedTo == "" && !warm && session != "" && m.cachePast(agent, session, m.now()) && !m.Launch.ManualSplit() {
 		// Past its cache's life the agent is on no account: it goes to the one whose unused week runs out soonest that has room (a clear
 		// gain, else it stays), its own included, taking the session along (so ignore_cache_expiry, which only keeps the session, does not hold it).
 		if to, _ := m.Launch.RoomElsewhere(m.Q, agent, row, nil); to != "" && to != row.Account.String && m.Launch.WorthRepick(row.Account.String, to) {

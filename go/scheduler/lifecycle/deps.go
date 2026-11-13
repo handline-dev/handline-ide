@@ -128,6 +128,8 @@ type Launch interface {
 	// WorthRepick is whether a closed agent's cold wake should land on to instead of its own account: to's unused week runs out faster by
 	// usage.RepickGain, or one of them cannot be read.
 	WorthRepick(own, to string) bool
+	// ManualSplit is account_split manual: the daemon moves no agent off its account (a person's move still goes).
+	ManualSplit() bool
 	// RoomNow is a person's start off skip: the account with the most headroom, no older waiter ahead of it.
 	RoomNow(q db.Q, agent string, row *db.AgentState, skip string) (account, why string)
 }

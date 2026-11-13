@@ -32,6 +32,7 @@ const (
 	line   = "line"
 	awake  = "off, on or working"
 	reaper = "dry, on or off"
+	split  = "auto or manual"
 	hosts  = "hosts"
 	ports  = "lo-hi"
 )
@@ -53,7 +54,7 @@ var settingKinds = map[string]string{"active_cap": int1, "park_timeout_s": int0,
 	"push_prompt_asked": flag_, "push_task_done": flag_, "push_stall": flag_, "push_account_out": flag_,
 	keepawake.Key: awake, housekeeping.OrphansKey: reaper,
 	loadgate.AgentCapKey: int0, loadgate.LoadPctKey: int0, loadgate.RAMFreePctKey: pct, loadgate.DiskFreeGBKey: int0,
-	usage.LaunchHoldKey: flag_, usage.PaceTargetKey: tgt, usage.PaceBurstKey: burst, usage.SubagentGuardKey: flag_, usage.MoveBeforeKey: pct,
+	usage.LaunchHoldKey: flag_, usage.PaceTargetKey: tgt, usage.PaceBurstKey: burst, usage.SubagentGuardKey: flag_, usage.MoveBeforeKey: pct, usage.SplitKey: split,
 	settings.ClearPastBackgroundKey: flag_, settings.TranscriptRowsKey: flag_, settings.RefsNeedGrantKey: flag_,
 	leases.HeavyMaxKey: int0, leases.SimulatorMaxKey: int0, leases.BrowserMaxKey: int0, leases.PortRangeKey: ports,
 	usage.NetworkAddressesKey: hosts}
@@ -108,6 +109,10 @@ func settingValue(key string, v any) (any, error) {
 		}
 	case awake:
 		if m, ok := v.(string); ok && (m == keepawake.Off || m == keepawake.On || m == keepawake.Working) {
+			return m, nil
+		}
+	case split:
+		if m, ok := v.(string); ok && (m == usage.SplitAuto || m == usage.SplitManual) {
 			return m, nil
 		}
 	case reaper:

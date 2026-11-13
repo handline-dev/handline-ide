@@ -78,6 +78,8 @@ type UsagePort interface {
 	// PaceShare is how many times over the account's shorter-lasting window lasts to its reset with agent started on it (1 or more: it
 	// lasts; usage.Predict); ok false where that cannot be told or the launch pace hold is off, which holds nothing.
 	PaceShare(q db.Q, acct, agent string) (float64, bool)
+	// ManualSplit is account_split manual: the daemon places and moves no agent; each stays on its account and waits at its wall.
+	ManualSplit() bool
 	// Headroom is what the account's weekly bucket still holds as a share of the week's quota, ok false when the pace cannot be read. The
 	// larger, the slower-paced.
 	Headroom(acct string) (float64, bool)
@@ -268,6 +270,25 @@ func (l *Launcher) PinOf(agent string) string {
 	return strings.TrimSpace(pin)
 }
 
+// heldTo is the one account the agent may start on, "" for any: its pin, else with account_split manual the account it is on. An agent
+// on no account yet, or on one it cannot use at all (another vendor's, left out, logged out or paused), is placed as in auto.
+func (l *Launcher) heldTo(agent string) string {
+	if pin := l.PinOf(agent); pin != "" || !l.Ports.Usage.ManualSplit() {
+		return pin
+	}
+	own := l.Ports.CurrentAccount(l.Q, agent)
+	if own == "" || l.unusable(agent, own) {
+		return ""
+	}
+	return own
+}
+
+// unusable is whether agent cannot run on acct whatever its room: another vendor's, left out by its workspace, logged out or paused.
+func (l *Launcher) unusable(agent, acct string) bool {
+	return l.Ports.Vendors.AccountVendor(acct) != l.Ports.Vendors.AgentVendor(agent) || l.leftOut(agent, acct) != "" ||
+		!slices.Contains(l.mayStartAccounts(agent), acct) || l.Ports.Usage.Read(acct).Paused
+}
+
 // pinnedWhy is why the account the agent is pinned to cannot take it now, "" when it can. The account must be the agent's vendor's and
 // logged in. One whose vendor reports no usage takes it with no room test; one that reports usage is held to its room as any account is.
 func (l *Launcher) pinnedWhy(agent, pin string) string {
@@ -293,7 +314,7 @@ func (l *Launcher) pinnedWhy(agent, pin string) string {
 // FindRoom is the account that can take this agent's next session, "" for none: the account it is pinned to, else the best of the
 // logged-in ones, and failing that one nothing says is a bad place to start. An account whose vendor reports no usage is never picked here.
 func (l *Launcher) FindRoom(agent string) string {
-	if pin := l.PinOf(agent); pin != "" {
+	if pin := l.heldTo(agent); pin != "" {
 		if l.pinnedWhy(agent, pin) != "" {
 			return ""
 		}
@@ -464,6 +485,9 @@ func (l *Launcher) fiveHourHold(q db.Q, agent string) *WakeWait {
 // start, take this vendor, fit, and have a free slot the way a resume's wait judges it (the others mid-turn plus the older closed agents
 // waiting there, so a move does not jump their queue), the one furthest behind its week. "" when none has room.
 func (l *Launcher) SlowestPaced(q db.Q, agent string, row *db.AgentState, skip string) string {
+	if l.Ports.Usage.ManualSplit() && !l.Ports.Usage.Read(skip).Paused {
+		return ""
+	}
 	best, _ := l.RoomElsewhere(q, agent, row, map[string]string{skip: ""})
 	return best
 }
@@ -1543,6 +1567,8 @@ func (p LaunchPort) AccountFor(q db.Q, agent string, resuming bool) string {
 }
 
 func (p LaunchPort) Placing() func() { return p.L.Placing() }
+
+func (p LaunchPort) ManualSplit() bool { return p.L.Ports.Usage.ManualSplit() }
 
 func (p LaunchPort) SlotTaken(q db.Q, agent, acct string, unpaced bool) string {
 	return p.L.SlotTaken(q, agent, acct, unpaced)
