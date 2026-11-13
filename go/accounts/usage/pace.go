@@ -141,9 +141,10 @@ const (
 	PaceBurstKey      = "pace_burst_pct"
 	DefaultPaceTarget = 98
 	DefaultPaceBurst  = 10
-	// MoveBeforeKey is the percent of a window at which an idle agent with work waiting moves to an account with room before it reaches
-	// the wall (tick.moveBeforeWall); 0, the default, moves only at the wall.
-	MoveBeforeKey = "usage_move_before_pct"
+	// MoveBeforeKey is the percent of the 5-hour window at which an idle agent with work waiting moves to an account with room before it
+	// reaches the wall (tick.earlyTrigger), MoveBeforeDefault when unset; its week moves at tick.MoveBeforeWeekPct. 0 moves only at the wall.
+	MoveBeforeKey     = "usage_move_before_pct"
+	MoveBeforeDefault = 90
 	// SplitKey is how agents are spread over accounts: SplitAuto, the default, places and moves them; SplitManual never does, and an
 	// agent stays on the account it is on and waits at its wall (a person's move still goes).
 	SplitKey    = "account_split"

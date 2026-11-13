@@ -488,29 +488,30 @@ func (t *Tick) handOff(agent string, trig Trigger, dest string, actions *[]strin
 	}
 }
 
-// earlyTrigger fires once the agent's account is at usage_move_before_pct of its 5-hour or weekly window and MovePlan picks an account
-// still under it, which is dest. Off at 0, and never on an assumed account.
+// MoveBeforeWeekPct is the percent of its week at which an idle agent with work waiting moves early, while usage_move_before_pct is on.
+const MoveBeforeWeekPct = 98
+
+// earlyTrigger fires once the agent's account is at usage_move_before_pct of its 5-hour window or MoveBeforeWeekPct of its week, and
+// MovePlan picks an account under both, which is dest. Off at 0, and never on an assumed account.
 func (t *Tick) earlyTrigger(agent string, reading *AccountReading, st Status) (Trigger, string) {
 	pct := t.Config.MoveBeforePct()
 	if pct <= 0 || reading == nil || reading.Source == "assumed" {
 		return Trigger{}, ""
 	}
-	at := func(v *int) bool { return v != nil && *v >= pct }
-	window, v := "5h", st.ShortTrusted
-	if !at(v) {
-		window, v = "weekly", st.LongTrusted
-	}
-	if !at(v) || !t.Handoff.Movable(states.EarlyUsageTrigger) {
+	at := func(v *int, line int) bool { return v != nil && *v >= line }
+	over := func(s Status) bool { return at(s.ShortTrusted, pct) || at(s.LongTrusted, MoveBeforeWeekPct) }
+	if !over(st) || !t.Handoff.Movable(states.EarlyUsageTrigger) {
 		return Trigger{}, ""
 	}
 	dest, _ := t.Handoff.MovePlan(t.Q, agent, states.EarlyUsageTrigger)
-	if dest == "" {
+	if dest == "" || over(t.Usage.ReadForAgent(agent, dest)) {
 		return Trigger{}, ""
 	}
-	if there := t.Usage.ReadForAgent(agent, dest); at(there.ShortTrusted) || at(there.LongTrusted) {
-		return Trigger{}, ""
+	why := fmt.Sprintf("5h window %d%% >= usage_move_before_pct %d", *st.ShortTrusted, pct)
+	if !at(st.ShortTrusted, pct) {
+		why = fmt.Sprintf("weekly window %d%% >= %d", *st.LongTrusted, MoveBeforeWeekPct)
 	}
-	return Trigger{true, states.EarlyUsageTrigger, fmt.Sprintf("%s window %d%% >= usage_move_before_pct %d", window, *v, pct)}, dest
+	return Trigger{true, states.EarlyUsageTrigger, why}, dest
 }
 
 // StartWaiting is, at daemon start, bringing up at once every agent that has work waiting and no session: the tick would, but only after

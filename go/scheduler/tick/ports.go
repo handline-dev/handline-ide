@@ -148,6 +148,6 @@ type Config interface {
 	AgentConfig(agent string) map[string]any
 	// Seconds is idle_close.config_seconds: the setting's value in seconds or the default.
 	Seconds(key string, def int64) int64
-	// MoveBeforePct is usage_move_before_pct (usage.MoveBeforeKey); 0 is off.
+	// MoveBeforePct is usage_move_before_pct (usage.MoveBeforeKey), the 5-hour window's; 0 is off.
 	MoveBeforePct() int
 }

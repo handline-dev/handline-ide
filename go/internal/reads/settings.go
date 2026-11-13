@@ -134,7 +134,7 @@ func (e *Env) settingsValues() map[string]any {
 		keepawake.Key: keepawake.ModeOf(cfg), housekeeping.OrphansKey: housekeeping.OrphansModeOf(cfg),
 		usage.LaunchHoldKey: pace.On, usage.PaceTargetKey: pace.Target, usage.PaceBurstKey: pace.Burst,
 		usage.SubagentGuardKey:          s.Flag(usage.SubagentGuardKey, false),
-		usage.MoveBeforeKey:             s.Percent(usage.MoveBeforeKey),
+		usage.MoveBeforeKey:             s.PercentOr(usage.MoveBeforeKey, usage.MoveBeforeDefault),
 		usage.SplitKey:                  usage.SplitOf(cfg),
 		settings.ClearPastBackgroundKey: s.Flag(settings.ClearPastBackgroundKey, false),
 		settings.TranscriptRowsKey:      s.Flag(settings.TranscriptRowsKey, false),
