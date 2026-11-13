@@ -1,3 +1,5 @@
+import { useAgents, useNameOf } from '@handline/app-data';
+import { activityOf } from '#src/layout/agentList.ts';
 import type { Account } from '@handline/client';
 import type { ReactNode } from 'react';
 import { AccountEmail } from '#src/usage/AccountEmail.tsx';
@@ -60,21 +62,38 @@ export function AccountFacts({
   );
 }
 
-/** The agents on an account: how many it carries, and under it how many are working now. The daemon sets no cap: it places a new
- * start by the account's 5-hour burn. */
+/** The agents on an account as initial circles, filled while one works (its sidebar mark), and how many work over them. */
 function AgentsBar({ account: a }: { account: Account }) {
-  const n = a.agents.length;
+  const nameOf = useNameOf();
+  const views = new Map((useAgents().data?.agents ?? []).map((x) => [x.key, x]));
+  const working = (k: string) => {
+    const v = views.get(k);
+    return !!v && activityOf(v) === 'working';
+  };
+  const busy = a.agents.filter(working).length;
   return (
     <div className="flex flex-col gap-1">
       <div className="flex justify-between gap-6 text-xs">
         <span className="text-muted">Agents</span>
-        <span className="text-fg tabular-nums" title={a.agents.join(', ')}>
-          {n}
-        </span>
+        {a.agents.length > 0 && <span className="text-fg tabular-nums">{a.paused ? 'moves next turn' : `${busy} working`}</span>}
       </div>
-      <span className="truncate text-xs text-muted">
-        {a.paused ? (n ? 'moves next turn' : 'paused') : a.agents_running !== undefined ? `${a.agents_running} working` : ' '}
-      </span>
+      {a.agents.length ? (
+        <div className="flex">
+          {a.agents.map((k) => (
+            <span
+              key={k}
+              title={`${nameOf(k)}${working(k) ? ' · working' : ''}`}
+              className={`-mr-1 grid size-6 place-items-center rounded-full border-2 border-bg text-xs font-medium uppercase ${
+                working(k) ? 'bg-accent text-accent-fg' : 'bg-hover text-muted'
+              }`}
+            >
+              {nameOf(k).slice(0, 1)}
+            </span>
+          ))}
+        </div>
+      ) : (
+        <span className="text-xs text-muted">{a.paused ? 'paused' : 'No agents'}</span>
+      )}
     </div>
   );
 }
