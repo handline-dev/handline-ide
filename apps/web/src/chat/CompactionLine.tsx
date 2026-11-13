@@ -6,6 +6,10 @@ import { spring } from '#src/motion.ts';
 import { Markdown } from '#src/ui/Markdown.tsx';
 import type { LineChange } from '@handline/client';
 import { ModalFrame, openModal } from '#src/ui/modal.tsx';
+import { textOf } from '#src/layout/kinds.tsx';
+import { useOpenTab } from '#src/layout/openTab.tsx';
+import { write } from '#src/persist/kv.ts';
+import { textKey } from '#src/tools/TextTab.tsx';
 
 /** Why a conversation began or restarted, as the line says it; a word the daemon adds later shows as it is. */
 const causes: Record<string, string> = {
@@ -102,7 +106,7 @@ export function CompactionLine({
     void openModal((close) =>
       resumed ? (
         <ModalFrame title="Restarted" onClose={() => close()}>
-          <Restart at={at} changes={changes} lines={lines} />
+          <Restart at={at} changes={changes} lines={lines} close={() => close()} />
         </ModalFrame>
       ) : (
         <ModalFrame title="Context compacted" size="xl" onClose={() => close()}>
@@ -136,9 +140,17 @@ export function CompactionLine({
 
 const FIRST = 8;
 
-/** One part's removed (−) and added (+) lines: the first few, and Show all for the rest the daemon sent. */
-function PartLines({ l }: { l: LineChange }) {
+/** One part's removed (−) and added (+) lines, the first few. Show all opens the part's whole text in a tab beside when the daemon
+ * kept it, else unfolds the rest of the lines here. */
+function PartLines({ l, at, close }: { l: LineChange; at: string; close: () => void }) {
   const [all, setAll] = useState(false);
+  const openTab = useOpenTab();
+  const whole = () => {
+    const opens = textOf(at, l.part);
+    write(textKey(opens.slice(5)), l.text);
+    close();
+    openTab(opens, 'side');
+  };
   const rows = [...l.removed.map((t) => ({ t, add: false })), ...l.added.map((t) => ({ t, add: true }))];
   const shown = all ? rows : rows.slice(0, FIRST);
   const hidden = rows.length - shown.length;
@@ -153,17 +165,23 @@ function PartLines({ l }: { l: LineChange }) {
         ))}
         {!!l.more && hidden === 0 && <div className="text-muted">and {l.more} more lines, too many to keep</div>}
       </pre>
-      {hidden > 0 && (
-        <button type="button" onClick={() => setAll(true)} className="self-start rounded px-1 text-xs text-accent hover:bg-hover">
-          Show all {rows.length + (l.more ?? 0)} lines
+      {l.text != null ? (
+        <button type="button" onClick={whole} className="self-start rounded px-1 text-xs text-accent hover:bg-hover">
+          Show all
         </button>
+      ) : (
+        hidden > 0 && (
+          <button type="button" onClick={() => setAll(true)} className="self-start rounded px-1 text-xs text-accent hover:bg-hover">
+            Show all {rows.length + (l.more ?? 0)} lines
+          </button>
+        )
       )}
     </div>
   );
 }
 
 /** What a restart changed, one change a line, under when it was. */
-function Restart({ at, changes, lines }: { at: string; changes: string[]; lines: LineChange[] }) {
+function Restart({ at, changes, lines, close }: { at: string; changes: string[]; lines: LineChange[]; close: () => void }) {
   const shown = new Set(lines.map((l) => l.part));
   return (
     <div className="flex flex-col gap-5 pb-1">
@@ -171,7 +189,7 @@ function Restart({ at, changes, lines }: { at: string; changes: string[]; lines:
       <section className="flex flex-col gap-3">
         <h3 className="text-xs font-medium text-muted">What changed</h3>
         {lines.map((l) => (
-          <PartLines key={l.part} l={l} />
+          <PartLines key={l.part} l={l} at={at} close={close} />
         ))}
         {/* A change the daemon kept no lines for (a model, or an older daemon) stays a plain line. */}
         <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-fg">

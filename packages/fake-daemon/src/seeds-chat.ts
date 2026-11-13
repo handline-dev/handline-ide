@@ -65,6 +65,7 @@ export const CHAT_SEEDS: Record<string, Seed> = {
             part: 'team rules',
             added: ['- 대표님께 화면을 보일 때는 첨부 이미지로 보낸다.'],
             removed: ['- 대표님께 화면을 보일 때는 아티팩트 링크로 보낸다.'],
+            text: '# Rules for team handline\n\n- Keep messages short.\n- 대표님께 화면을 보일 때는 첨부 이미지로 보낸다.\n- PR 없이 main에 직접 올린다.\n',
           },
           {
             part: 'team instructions',
