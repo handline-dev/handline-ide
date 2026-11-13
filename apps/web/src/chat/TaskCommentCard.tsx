@@ -1,10 +1,10 @@
-// What passes between an agent and the founder on a task, in the agent's chat: one card per task. It is answered in the task.
+// What passes between an agent and the founder on a task, in the agent's chat: one block per run of talk. It is answered in the task.
 import { foundersTurn, noteText, type TimelineEntry, type TurnRecord } from '@handline/app-core';
 import { useNameOf, useTask } from '@handline/app-data';
 import { useMe } from '@handline/app-react';
 import type { TranscriptItem } from '@handline/client';
 import { motion } from 'framer-motion';
-import { Hand } from 'lucide-react';
+import { Hand, ListChecks } from 'lucide-react';
 import { clock } from '#src/format/time.ts';
 import { taskOf } from '#src/layout/kinds.tsx';
 import { useOpenable } from '#src/layout/openable.tsx';
@@ -12,24 +12,32 @@ import { useOpenTab } from '#src/layout/openTab.tsx';
 import { spring } from '#src/motion.ts';
 import { goToTurnOf } from '#src/tools/TaskTurn.ts';
 import { Button } from '#src/ui/Button.tsx';
-import { look } from '#src/ui/taskLook.tsx';
 
 type Said = TranscriptItem & { task_comment: NonNullable<TranscriptItem['task_comment']> };
 type Entry = TimelineEntry | TurnRecord;
 const said = (e: Entry): Said | undefined =>
   e.kind === 'item' && e.item.task_comment ? { ...e.item, task_comment: e.item.task_comment } : undefined;
 
-/** Each task's card is drawn at its newest line: the task's older lines leave the stream. */
-export function taskCards(entries: Entry[]): Entry[] {
-  const newest = new Map<number, number>();
-  for (const e of entries) {
+/** The talk on a task, in runs: lines next to each other on one task are one block, drawn at its first line; `blocks` holds each
+ * block's lines by that line's id. */
+export function taskBlocks(entries: Entry[]): { shown: Entry[]; blocks: Map<number, Said[]> } {
+  const blocks = new Map<number, Said[]>();
+  let open: Said[] | null = null;
+  const shown = entries.filter((e) => {
     const i = said(e);
-    if (i) newest.set(i.task_comment.task, i.id);
-  }
-  return entries.filter((e) => {
-    const i = said(e);
-    return !i || newest.get(i.task_comment.task) === i.id;
+    if (!i) {
+      open = null;
+      return true;
+    }
+    if (open && open[0]!.task_comment.task === i.task_comment.task) {
+      open.push(i);
+      return false;
+    }
+    open = [i];
+    blocks.set(i.id, open);
+    return true;
   });
+  return { shown, blocks };
 }
 
 /** Opens the task beside the chat, at the founder's turn, with the comment box ready to write in. */
@@ -46,80 +54,52 @@ const firstLine = (body: string) =>
     .split('\n')
     .find((l) => l.trim()) ?? '';
 
-/** A task's card with its newest line; on the founder's turn, tinted with a hand and Answer in task. The time shows on hover. */
-export function TaskCommentCard({ last, agent, fade }: { last: Said; agent: string; fade: boolean }) {
-  const task = last.task_comment.task;
+/** A task's run of talk: its title, then one line per comment, who to whom and when over its first line. On the founder's turn,
+ * Answer in task on the task's newest block. */
+export function TaskCommentCard({ lines, latest, agent, fade }: { lines: Said[]; latest: boolean; agent: string; fade: boolean }) {
+  const task = lines[0]!.task_comment.task;
   const t = useTask(task).data;
   const me = useMe();
   const nameOf = useNameOf();
   const answer = useAnswerInTask();
   const open = useOpenable(taskOf(task));
-  const yours = !!t && foundersTurn(t, me);
-  const s = t ? look(t) : null;
-  const who = last.task_comment.kind === 'answer' ? `You → ${nameOf(agent)}` : `${nameOf(last.task_comment.who)} → you`;
+  const yours = latest && !!t && foundersTurn(t, me);
   return (
     <motion.div
-      data-id={`taskcard:${task}`}
+      data-id={`taskcard:${task}:${lines[0]!.id}`}
       initial={fade ? { opacity: 0 } : false}
       animate={{ opacity: 1 }}
       transition={spring}
-      className="group flex w-full min-w-0 flex-col items-start"
+      className="my-3 flex w-full min-w-0 gap-2.5 text-sm"
     >
-      <div
-        style={{ maxWidth: 'min(100%, 37.5rem)' }}
-        className={`w-full overflow-hidden rounded-lg text-sm ${
-          yours ? 'border border-warning/40 bg-warning/10' : 'border border-border bg-bg'
-        }`}
-      >
-        {yours ? (
-          <div className="flex gap-3 py-2.5 pr-3 pl-3">
-            <Hand size={28} strokeWidth={1.75} className="mt-0.5 shrink-0 text-warning" aria-hidden />
-            <div className="min-w-0 flex-1">
-              <div className="flex min-w-0 items-baseline">
-                <span className="shrink-0 font-semibold text-warning">Your turn</span>
-                <span className="shrink-0 whitespace-pre text-muted"> on T{task} · </span>
-                <button
-                  type="button"
-                  {...open}
-                  className="min-w-0 truncate rounded-sm font-medium text-fg outline-none hover:underline focus-visible:ring-2 focus-visible:ring-accent"
-                >
-                  {t?.title ?? ''}
-                </button>
-              </div>
-              <p className="mt-0.5 line-clamp-2 text-fg">{firstLine(last.task_comment.text)}</p>
-              <div className="mt-2 flex justify-end">
-                <Button variant="primary" onClick={() => answer(task)}>
-                  Answer in task
-                </Button>
-              </div>
-            </div>
+      <ListChecks size={16} className="mt-0.5 shrink-0 text-muted" aria-hidden />
+      <div className="flex min-w-0 flex-1 flex-col gap-2.5">
+        <button
+          type="button"
+          {...open}
+          className="min-w-0 self-start truncate rounded-sm text-left outline-none hover:bg-hover/30 focus-visible:ring-2 focus-visible:ring-accent"
+        >
+          <span className="mr-1.5 text-muted">T{task}</span>
+          <span className="font-medium text-fg">{t?.title ?? ''}</span>
+        </button>
+        {lines.map((l) => (
+          <div key={l.id} className="flex min-w-0 flex-col">
+            <span className="text-xs text-muted">
+              {l.task_comment.kind === 'answer' ? `You → ${nameOf(agent)}` : `${nameOf(l.task_comment.who)} → you`} · {clock(l.at)}
+            </span>
+            <span className="truncate text-fg">{firstLine(l.task_comment.text)}</span>
           </div>
-        ) : (
-          <button
-            type="button"
-            {...open}
-            className="flex w-full gap-2.5 px-3 py-2 text-left outline-none hover:bg-hover/30 focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset"
-          >
-            <span className={`mt-0.5 grid size-5 shrink-0 place-items-center rounded-md text-accent-fg ${s?.tone ?? 'bg-surface'}`}>
-              {s && <s.icon size={12} strokeWidth={3} />}
-            </span>
-            <span className="min-w-0">
-              <span className="block truncate">
-                <span className="mr-1 text-muted">T{task}</span>
-                <span className="font-medium text-fg">{t?.title ?? ''}</span>
-              </span>
-              <span className="block truncate text-xs text-muted">{who}</span>
-              <span className="mt-0.5 line-clamp-2 block text-fg">{firstLine(last.task_comment.text)}</span>
-            </span>
-          </button>
+        ))}
+        {yours && (
+          <div className="flex items-center gap-2">
+            <Hand size={14} className="text-warning" aria-hidden />
+            <span className="font-medium text-warning">Your turn</span>
+            <Button variant="primary" onClick={() => answer(task)}>
+              Answer in task
+            </Button>
+          </div>
         )}
       </div>
-      <time
-        dateTime={last.at}
-        className="mb-2 flex h-6 items-center text-xs text-muted opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
-      >
-        {clock(last.at)}
-      </time>
     </motion.div>
   );
 }

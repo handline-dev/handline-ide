@@ -97,6 +97,7 @@ export const TURN_SEEDS: Record<string, Seed> = {
       [30, 13, 'answer', ME, 'Each agent, but show me both first.'],
       [10, 14, 'note', ARCH, '@human Both are drawn in the attached shots; picking one next.'],
       [3, 15, 'turn', ARCH, again],
+      [2, 17, 'note', ARCH, '@human Shots for A and B are in the task.'],
     ] as const;
     for (const [min, memo, kind, who, text] of lines)
       d.chat.seedItem(ARCH, { at: iso(min), kind: 'task_comment', text, task_comment: { task: 8830, memo, kind, who, text } });

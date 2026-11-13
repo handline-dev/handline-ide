@@ -42,7 +42,7 @@ import { ChatLine, drawsNothing, type Reply } from '#src/chat/ChatLine.tsx';
 import { CornerDownRight, FoldVertical, Square, SquareTerminal, X } from 'lucide-react';
 import { ChatSkeleton } from '#src/chat/ChatSkeleton.tsx';
 import { TurnRecord } from '#src/chat/TurnRecord.tsx';
-import { TaskCommentCard, taskCards } from '#src/chat/TaskCommentCard.tsx';
+import { TaskCommentCard, taskBlocks } from '#src/chat/TaskCommentCard.tsx';
 import { Composer } from '#src/chat/Composer.tsx';
 import { MarkReply, markInto } from '#src/chat/MessageImages.tsx';
 import { Dots } from '#src/chat/Dots.tsx';
@@ -185,6 +185,18 @@ const noticeKind = (body: string) => (/^T\d+\s+handed\b/i.test(body) ? 'handoff'
     their notice; `key` names its newest notice, so the reader's line is found again when an older page lands. */
 type Card = { id: string; key: string; events: TaskEvent[] };
 
+/** A task's talk block already says where it stands: a notice about that task next to it is dropped, and a card left empty with it. */
+function besideTalk(rows: (TimelineEntry | Turn | Card)[]): (TimelineEntry | Turn | Card)[] {
+  const talk = (r?: TimelineEntry | Turn | Card) =>
+    r && 'kind' in r && r.kind === 'item' && r.item.task_comment ? `T${r.item.task_comment.task}` : null;
+  return rows.flatMap((r, i): (TimelineEntry | Turn | Card)[] => {
+    if (!('events' in r)) return [r];
+    const near = new Set([talk(rows[i - 1]), talk(rows[i + 1])]);
+    const events = r.events.filter((e) => !near.has(e.id));
+    return events.length ? [{ ...r, events }] : [];
+  });
+}
+
 /** The entries, with each run of task notices gathered into one card's rows. */
 function runs(
   entries: (TimelineEntry | Turn)[],
@@ -325,8 +337,9 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
   // The words of each loaded message, for the line above a reply.
   const words = new Map(entries.flatMap((e) => (e.kind === 'message' ? [[e.message.id, e.message.body] as const] : [])));
   const tasks = useTaskActivity(agent);
-  // What passed between the agent and the founder on a task: one card per task, drawn at its newest line.
-  const shown = taskCards(foldTurns(entries));
+  // What passed between the agent and the founder on a task: one block per run of talk on it.
+  const { shown, blocks } = taskBlocks(foldTurns(entries));
+  const newest = new Map([...blocks].map(([id, b]) => [b[0]!.task_comment.task, id]));
   const top = useNearEnd<HTMLDivElement, HTMLDivElement>(stream, chat.loadOlder, chat.hasOlder && !chat.loadingOlder, {
     atTop: true,
     margin: 400,
@@ -357,7 +370,7 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
           <AnimatePresence initial={false}>
             {/* Task notices in a row are one card, as the live task card is (TaskActivity). Only lines after the last one known fade in:
                 an older page lands as one still block. */}
-            {runs(shown, agent, me, nameOf, tasks).map((r, i, all) =>
+            {besideTalk(runs(shown, agent, me, nameOf, tasks)).map((r, i, all) =>
               'events' in r ? (
                 <motion.div
                   key={r.id}
@@ -372,7 +385,8 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
               ) : r.kind === 'item' && r.item.task_comment ? (
                 <TaskCommentCard
                   key={`item:${r.id}`}
-                  last={{ ...r.item, task_comment: r.item.task_comment }}
+                  lines={blocks.get(r.id) ?? [{ ...r.item, task_comment: r.item.task_comment }]}
+                  latest={newest.get(r.item.task_comment.task) === r.id}
                   agent={agent}
                   fade={i > known(all)}
                 />
