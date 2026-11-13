@@ -199,17 +199,37 @@ func (v *Mover) forcedPlan(agent, dest string) (string, string) {
 	return dest, "it has room"
 }
 
-// closeFresh ends the session with no resume id: a session id lives under one account's config directory, and a cleared context is a
-// session that is not resumed. Close errors while any process of the group lives, and that is the proof.
-func (v *Mover) closeFresh(agent string) (bool, string) {
+// closeFor ends the session for a handoff of kind. At a wall the conversation is kept while it is small enough to read again (carried):
+// the next start resumes it, on this account after its reset or on the one it moves to (carrySession copies it there), and is told to
+// carry on. Any other handoff closes it with no resume id: a cleared context is a session that is not resumed. Close errors while any
+// process of the group lives, and that is the proof.
+func (v *Mover) closeFor(agent, kind string) (bool, string) {
 	m := v.M
 	here := m.Agents.CurrentAccount(m.Q, agent)
 	st := m.Status.ReadForAgent(agent, here)
-	ok, why := m.endForMove(agent, st)
-	if ok {
-		m.afterFreshClose(agent)
+	if !usageTrigger(kind) || st.SessionID == "" || m.carried(agent, st.SessionID) == "" {
+		ok, why := m.endForMove(agent, st)
+		if ok {
+			m.afterFreshClose(agent)
+		}
+		return ok, why
+	}
+	ok, why := m.endTerminalByPane(agent, st.SessionID, st)
+	if row := must(db.GetAgentState(m.Q, agent)); ok && isClosed(row) {
+		check(db.SetCursor(m.Q, wallCutKey(agent), row.ClosedAt.Int64))
+		m.Handoff.ClearNote(m.Q, agent)
 	}
 	return ok, why
+}
+
+// wallCutKey marks an agent whose session a wall closed with its conversation kept (closeFor): the mark is that close's closed_at.
+func wallCutKey(agent string) string { return "wall_cut:" + agent }
+
+// wallCut is whether the agent is still closed by the wall close that kept its conversation: closed then, with the session to resume.
+// A later close, a session up again (closed_at cleared) or a resume id forgotten ends it, whichever path did it.
+func (m *Manager) wallCut(agent string, row *db.AgentState) bool {
+	at := must(db.Cursor(m.Q, wallCutKey(agent)))
+	return at != 0 && row != nil && row.ResumeSession.String != "" && row.ClosedAt.Int64 == at
 }
 
 // moveToRoom puts the agent's next session on an account that has room. (moved, retrySoon); retrySoon is meaningful only when not moved:
@@ -239,7 +259,7 @@ func (v *Mover) moveToRoom(agent string, t HandoffTrigger, dest string) (moved, 
 	}
 	waited := must(db.GetSwitch(m.Q, agent))
 	m.noteSwitch(agent, t.Kind, here, there, db.SwitchSwitching)
-	if ok, why := v.closeFresh(agent); !ok {
+	if ok, why := v.closeFor(agent, t.Kind); !ok {
 		v.log("  %s: staying on %s - %s", agent, here, why)
 		if waited != nil && waited.Phase == db.SwitchWaiting { // the tick's try off a parked account: the wait goes on
 			check(db.SetSwitch(m.Q, *waited))
@@ -431,7 +451,7 @@ func (v *Mover) perform(agent string, t HandoffTrigger, dest string) bool {
 		check(db.SetAgentState(m.Q, agent, states.Idle, 0, "forced move did not happen"))
 		return false
 	}
-	cleared, why := v.reclaim(agent)
+	cleared, why := v.reclaim(agent, t.Kind)
 	if !cleared && v.clearOwed(agent) != 0 {
 		// Background work holds the close off and the agent was told: a wait, not a failure.
 		released(why)
@@ -452,23 +472,22 @@ func (v *Mover) clearOwed(agent string) int64 { return must(db.Cursor(v.M.Q, "cl
 // ClearNotice is what the agent is told when its clear waits for background work (delivery.CLEAR_NOTICE).
 const ClearNotice = "handline: your context is full (%s), so this session will be cleared in %d minutes. No reply is needed. Before then: 1. Stop your background shells. Anything still running at that time is cut off. 2. If you were waiting on a result, write what was running and what is left in: hl progress \"done: ... left: ...\" - the next session starts from that note. 3. Do not start new work or new background jobs. When your background work has ended, the clear happens at once."
 
-// reclaim returns the context: the session is closed with no resume id and the park's wake starts a fresh one from the record. Work the
-// session still runs is cut off by the close, so it is owed: the agent is told once and the close comes when the work ends or its time is
-// up.
-func (v *Mover) reclaim(agent string) (bool, string) {
+// reclaim returns the context: the session is closed (closeFor kind) and the park's wake starts the next one. Work the session still runs
+// is cut off by the close, so it is owed: the agent is told once and the close comes when the work ends or its time is up.
+func (v *Mover) reclaim(agent, kind string) (bool, string) {
 	m := v.M
 	if !m.sessionAlive(agent) {
 		return false, "no session process; nothing to close"
 	}
 	running := v.E.BackgroundWork(m.Q, agent)
 	if running == "" {
-		return v.closeNow(agent)
+		return v.closeNow(agent, kind)
 	}
 	now := m.now()
 	since := v.clearOwed(agent)
 	if last := must2opt(db.LastActivity(m.Q, agent)); last != 0 && now-last >= states.PromptCacheS {
 		v.log("  %s: background work is running (%s) but its cache has lapsed - closing", agent, running)
-		return v.closeNow(agent)
+		return v.closeNow(agent, kind)
 	}
 	owed := fmt.Sprintf("background work is running (%s); the close is owed", running)
 	if since == 0 {
@@ -486,7 +505,7 @@ func (v *Mover) reclaim(agent string) (bool, string) {
 		return false, owed
 	}
 	v.log("  %s: %d min are up with background work still running (%s) - closing", agent, ClearWaitS/60, running)
-	ok, why := v.closeNow(agent)
+	ok, why := v.closeNow(agent, kind)
 	if ok || must(db.Cursor(m.Q, orphanKey(agent))) != 0 { // a session that outlives its pane is cut off when it ends
 		rec := must(db.GetHandoff(m.Q, agent))
 		check(db.SetHandoff(m.Q, agent, fmt.Sprintf("%s\n\n## Cut off by the clear\nThis session was cleared with background work still running (%s); it was told %s earlier and asked to stop it. That work is gone - rerun it if it still matters.\n", rec, running, timefmt.Ago(now-since))))
@@ -501,8 +520,8 @@ func must2opt(v int64, ok bool, err error) int64 {
 	return v
 }
 
-func (v *Mover) closeNow(agent string) (bool, string) {
-	ok, why := v.closeFresh(agent)
+func (v *Mover) closeNow(agent, kind string) (bool, string) {
+	ok, why := v.closeFor(agent, kind)
 	if ok {
 		check(db.ClearCursor(v.M.Q, "clear_owed:"+agent))
 	}
@@ -545,7 +564,7 @@ func (v *Mover) SettleOwedClear(agent string) (owed bool, err error) {
 	if busy(agent) {
 		return true, nil
 	}
-	cleared, why := v.reclaim(agent)
+	cleared, why := v.reclaim(agent, must(db.LastHandoffTrigger(m.Q, agent)))
 	if !cleared {
 		v.log("  %s: its clear is owed and holds all it is told - %s", agent, ifTrue(why != "", why)+ifTrue(why == "", "the close did not go"))
 		return true, nil

@@ -62,6 +62,7 @@ type WakePromptIn struct {
 	Cold        bool
 	ContextFull bool   // the last session ended with its context full
 	Waiting     string // what was waiting for a resume, "" for none
+	WallCut     bool   // a wall closed the session mid-work with its conversation kept (wallCutKey)
 	RestartNote string
 }
 
@@ -89,6 +90,12 @@ func (m *Manager) WakePrompt(agent string, resumed bool, in WakePromptIn) (text 
 		parts = append(parts, in.RestartNote)
 	}
 	switch {
+	case resumed && in.WallCut:
+		where := "The limit has reset"
+		if in.MovedTo != "" {
+			where = "This conversation now runs on " + in.MovedTo
+		}
+		return joinNonEmpty(in.RestartNote, where+"; your last turn stopped at the usage limit. Carry on where you stopped.", in.Waiting), nil
 	case resumed:
 		return joinNonEmpty(in.RestartNote, in.Waiting), nil
 	case in.MovedTo != "":
@@ -821,6 +828,7 @@ func (m *Manager) launchClosed(agent string, row *db.AgentState, wt, session str
 			restartNote = RestartNotice(c.restartedBy, resume, c.applying, changed)
 		}
 		text, err := m.WakePrompt(agent, resume, WakePromptIn{WasClosed: closed, MovedTo: c.movedTo, Cold: cold, ContextFull: why0 == "context_full", Waiting: waiting.text,
+			WallCut:     m.wallCut(agent, must(db.GetAgentState(m.Q, agent))),
 			RestartNote: restartNote})
 		check(err)
 		pf, err := m.writeWakePrompt(agent, text, "txt")
@@ -892,6 +900,7 @@ func (m *Manager) launchClosed(agent string, row *db.AgentState, wt, session str
 	}
 	must(db.AddEvent(m.Q, agent, "wake", payload...))
 	check(db.ClearHandoff(m.Q, agent))
+	check(db.ClearCursor(m.Q, wallCutKey(agent)))
 	how := ""
 	switch {
 	case resumed:

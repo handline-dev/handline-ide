@@ -206,7 +206,8 @@ func TestAnAccountASessionCannotStartOnIsLeftOutAndTheNextTriedAtOnce(t *testing
 	if ok, err := g.v.PerformHandoff("a", HandoffTrigger{Kind: "usage", Reason: "wall"}, ""); !ok || err != nil {
 		t.Fatalf("%v %v", ok, err)
 	}
-	if !slices.Equal(sp.tried, []string{"beta", "gamma"}) || left["beta"] == "" {
+	// At a wall each account is tried with the conversation, then fresh (wakeAgent's fallback).
+	if !slices.Equal(sp.tried, []string{"beta", "beta", "gamma"}) || left["beta"] == "" {
 		t.Fatalf("tried %v left %v", sp.tried, left)
 	}
 	if _, ok := left["acct"]; !ok {
@@ -220,12 +221,12 @@ func TestAnAccountASessionCannotStartOnIsLeftOutAndTheNextTriedAtOnce(t *testing
 	}
 }
 
-func TestAStartThatMayYetComeUpIsNotFollowedByASecondLaunch(t *testing.T) {
+func TestAStartThatMayYetComeUpIsNotFollowedByALaunchOnAnotherAccount(t *testing.T) {
 	g := newTermMoveRig(t)
 	sp := refusing(g, func(map[string]string) string { return "gamma" })
 	sp.slow["beta"] = true
 	g.v.PerformHandoff("a", HandoffTrigger{Kind: "usage", Reason: "wall"}, "")
-	if !slices.Equal(sp.tried, []string{"beta"}) {
+	if !slices.Equal(sp.tried, []string{"beta", "beta"}) {
 		t.Fatalf("%v", sp.tried)
 	}
 }
@@ -235,7 +236,7 @@ func TestTheLoopStopsAtAStall(t *testing.T) {
 	db.BumpCounter(g.m.Q, "a", "wake_failures", states.MaxFailedAttempts-1)
 	sp := refusing(g, func(map[string]string) string { return "gamma" }, "beta", "gamma")
 	g.v.PerformHandoff("a", HandoffTrigger{Kind: "usage", Reason: "wall"}, "")
-	if !slices.Equal(sp.tried, []string{"beta"}) {
+	if !slices.Equal(sp.tried, []string{"beta", "beta"}) {
 		t.Fatalf("launched past the stall: %v", sp.tried)
 	}
 	if row := g.row(t); row.State != states.Stalled {
@@ -258,7 +259,7 @@ func TestWhenEveryAccountFailsItRetriesSoon(t *testing.T) {
 		t.Fatal(err)
 	}
 	row := g.row(t)
-	if !slices.Equal(sp.tried, []string{"beta", "gamma"}) {
+	if !slices.Equal(sp.tried, []string{"beta", "beta", "gamma", "gamma"}) {
 		t.Fatalf("%v", sp.tried)
 	}
 	if states.ParkReason(row) != verdict.ParkMoving || row.State != states.Parked {
