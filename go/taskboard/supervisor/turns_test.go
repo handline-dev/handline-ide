@@ -213,6 +213,31 @@ func TestTheFoundersAnswerReachesAHolderWhoseTaskWaits(t *testing.T) {
 	}
 }
 
+// The founder's answer reaches a turn holder who is not the task's owner (T9082), as it reaches the owner, blocked or not.
+func TestTheFoundersAnswerReachesATurnHolderWhoIsNotTheOwner(t *testing.T) {
+	for _, blocked := range []bool{false, true} {
+		t.Run(fmt.Sprintf("blocked %v", blocked), func(t *testing.T) {
+			r := newRig(t)
+			r.bigTeam()
+			for _, a := range []string{r.k("bob"), r.k("carol")} {
+				r.agentUp(a)
+			}
+			tid := r.beginCurrent(r.k("bob"), r.k(("alice")), "the review")
+			r.turnCall(r.k("bob"), "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"over to you","turn":"carol","request_id":"p1"}`, tid))
+			if blocked {
+				blocker := r.newTask(r.k("alice"), r.k(("bob")), "first this")
+				r.turnCall(r.k("carol"), "task.edit", fmt.Sprintf(`{"task":%d,"blocked_by":%d,"request_id":"e1"}`, tid, blocker))
+			}
+			r.turnCall(r.k("carol"), "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"ship the beta?","turn":"human","request_id":"p2"}`, tid))
+			r.term.typed = nil
+			r.turnCall(r.k("human"), "task.turn.pop", fmt.Sprintf(`{"task":%d,"outcome":"pass","note":"yes, ship it","request_id":"o1"}`, tid))
+			if !strings.Contains(r.term.last(), "yes, ship it") {
+				t.Fatalf("the founder's answer was not typed to carol: %q", r.term.typed)
+			}
+		})
+	}
+}
+
 // Retiring an agent takes its turns off: the top one goes back to the agent below, a lower one just goes.
 func TestRetiringAnAgentTakesItsTurnsOff(t *testing.T) {
 	r := newRig(t)

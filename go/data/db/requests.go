@@ -25,12 +25,12 @@ func onEvent(expr string) string { return strings.Replace(expr, "payload", "e.pa
 var reasonSQL = "(SELECT json_extract(e.payload, '$.reason') FROM events e WHERE e.kind = 'request_reason' AND " + onEvent(eventRequest) +
 	" = requests.id ORDER BY e.id DESC LIMIT 1) AS reason"
 
-// leftoverDelivery describes a task delivery whose task has ended or gone to someone else: nothing can be done with it, so
-// nothing that hands requests out or counts them reads it.
-const leftoverDelivery = "(requests.kind = 'task' AND EXISTS (SELECT 1 FROM task_requests l0 WHERE l0.request_id = requests.id) " +
+// leftoverDelivery is a task delivery whose tasks have all ended or are neither owned nor acted on by its target: nothing can be done with
+// it, so nothing that hands requests out or counts them reads it.
+var leftoverDelivery = "(requests.kind = 'task' AND EXISTS (SELECT 1 FROM task_requests l0 WHERE l0.request_id = requests.id) " +
 	"AND NOT EXISTS (SELECT 1 FROM task_requests l JOIN tasks t ON t.id = l.task_id " +
 	"WHERE l.request_id = requests.id AND t.done_evidence IS NULL AND t.discarded_by IS NULL " +
-	"AND t.owner = requests.target))"
+	"AND requests.target IN (t.owner, " + ActingSQL("t") + ")))"
 
 // heldDelivery is a task delivery that landed unanswered: the task its target still holds, kept in its queue.
 const heldDelivery = "(requests.state = 'landed' AND requests.kind = 'task' AND requests.queue_order IS NOT NULL " +
