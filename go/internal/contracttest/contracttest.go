@@ -6,15 +6,31 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"runtime"
 	"testing"
 )
+
+// Root is the repository root, found by walking up from the test's folder (a build with -trimpath hides where the source was).
+func Root(t testing.TB) string {
+	t.Helper()
+	dir, err := os.Getwd()
+	for err == nil {
+		if _, e := os.Stat(filepath.Join(dir, "contract", "spec")); e == nil {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
+	}
+	t.Fatal("no contract/spec above the test's folder")
+	return ""
+}
 
 // Spec is contract/spec/*.json joined: the methods one list, the components one map per kind, every other key as it is.
 func Spec(t testing.TB) []byte {
 	t.Helper()
-	_, here, _, _ := runtime.Caller(0)
-	files, err := filepath.Glob(filepath.Join(filepath.Dir(here), "..", "..", "..", "contract", "spec", "*.json"))
+	files, err := filepath.Glob(filepath.Join(Root(t), "contract", "spec", "*.json"))
 	if err != nil || len(files) == 0 {
 		t.Fatalf("contract/spec: %v, %d files", err, len(files))
 	}

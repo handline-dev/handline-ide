@@ -7,7 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/handline/handline/go/data/team"
@@ -35,8 +35,11 @@ func Require(t *testing.T) {
 func Pick(t *testing.T) Account {
 	t.Helper()
 	Require(t)
-	_, here, _, _ := runtime.Caller(0)
-	script := filepath.Join(filepath.Dir(here), "..", "..", "..", "tools", "live_account.py")
+	top, err := exec.Command("git", "rev-parse", "--show-toplevel").Output() // not runtime.Caller: -trimpath hides the source's folder
+	if err != nil {
+		t.Fatal(err)
+	}
+	script := filepath.Join(strings.TrimSpace(string(top)), "tools", "live_account.py")
 	out, err := exec.Command("python3", script).Output()
 	if err != nil {
 		if ee, ok := err.(*exec.ExitError); ok {
