@@ -178,9 +178,10 @@ func (p Popped) tell(tell Teller) {
 }
 
 // popTurn takes the top turn off task tid in tx: a pass or a send-back (with a note) by the agent whose turn it is or the founder. The task
-// goes back to the one below, at the front of its queue, with the note as a comment: memo, the founder's comment the note already is, or
-// one the pop writes (0). That return is the comment's tell to the one below. A pass of a turn pushed with on_pass "done" closes the task
-// instead, by that turn's agent through the done gates; when a gate refuses, the turn still comes off with the refusal added to its note.
+// goes back to the one below, at the front of its queue (the founder's answer typed at once), with the note as a comment: memo, the
+// founder's comment the note already is, or one the pop writes (0). That return is the comment's tell to the one below. A pass of a turn
+// pushed with on_pass "done" closes the task instead, by that turn's agent through the done gates; when a gate refuses, the turn still
+// comes off with the refusal added to its note.
 // Popped.Asked not OK is a refused return: nothing changed.
 func popTurn(tx *sql.Tx, home string, tell Teller, tid int64, by, outcome, note string, memo int64) (Popped, error) {
 	t, err := getTask(tx, tid)
@@ -239,12 +240,13 @@ func popTurn(tx *sql.Tx, home string, tell Teller, tid int64, by, outcome, note 
 	}
 	body := fmt.Sprintf("T%d is your turn again: %s %s it: %s", tid, addr.Ref(top.Agent), word, t.Title)
 	ask := textsafe.Oneline(top.Ask)
-	switch { // the founder ending their own turn answers the task's open question
-	case by == actor.OwnerKey && actor.IsPerson(top.Agent) && memo != 0:
+	answer := by == actor.OwnerKey && actor.IsPerson(top.Agent) // the founder ending their own turn answers the task's open question
+	switch {
+	case answer && memo != 0:
 		body = fmt.Sprintf("T%d 질문에 대표님 댓글 %d: %s / 지금 질문 칸: %s", tid, memo, textsafe.Oneline(note), ask)
-	case by == actor.OwnerKey && actor.IsPerson(top.Agent) && note != "":
+	case answer && note != "":
 		body = fmt.Sprintf("T%d 질문에 대표님 답: %s / 지금 질문 칸: %s", tid, textsafe.Oneline(note), ask)
-	case by == actor.OwnerKey && actor.IsPerson(top.Agent):
+	case answer:
 		body = fmt.Sprintf("T%d 대표님이 질문 칸을 넘김 / 지금 질문 칸: %s", tid, ask)
 	case note != "":
 		body += "\n\n" + note
@@ -252,7 +254,10 @@ func popTurn(tx *sql.Tx, home string, tell Teller, tid int64, by, outcome, note 
 	// System: the task goes back to an agent that already had it, so no team edge is asked for
 	asked, err := tell.TaskAsk(tx, AskReq{From: by, To: below, Kind: "task", System: true, Body: body, Within: func(rid int64) error {
 		h.RID = rid
-		return shiftTask(tx, tell, &h, "turn "+word, false, pop)
+		if err := shiftTask(tx, tell, &h, "turn "+word, answer, pop); err != nil || !answer {
+			return err
+		}
+		return db.PromoteToFront(tx, rid) // the founder's answer is typed at once, as their @-mention is, and still heads the queue
 	}})
 	return Popped{Handover: h, Asked: asked}, err
 }

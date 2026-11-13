@@ -13,8 +13,8 @@ import (
 // Getting a request or an answer to the agent now, rather than at the next daemon tick (team/ask.py push, daemon/messaging.py).
 
 // Push gets the request to the agent now. rid, when it names a message (anything but a task), is typed at once (TellNow), and so is a task
-// marked send-now (a handoff); any other task goes out with the next batch. Everything here is the daemon's own function, so a request
-// delivered by the sender and one delivered by the tick are the same delivery; the daemon stays the safety net.
+// marked send-now (a handoff, the founder's answer); any other task goes out with the next batch. Everything here is the daemon's own
+// function, so a request delivered by the sender and one delivered by the tick are the same delivery; the daemon stays the safety net.
 func (e *Env) Push(q db.Q, target string, rid int64) (out string) {
 	defer e.guard("telling "+target, &out)
 	if actor.IsPerson(target) {
@@ -33,7 +33,7 @@ func (e *Env) PushHere(q db.Q, target string, rid int64) (out string) {
 	if rid != 0 {
 		sent = must(db.GetRequest(q, rid))
 	}
-	if sent != nil && (sent.Kind.String != "task" || sent.SendNow.Valid) { // a marked task is a handoff
+	if sent != nil && (sent.Kind.String != "task" || sent.SendNow.Valid) { // a marked task is a handoff or the founder's answer
 		told := must(e.TellNow(q, rid))
 		if told == "typed" || told == "sent" { // sent: written to a structured agent's session
 			return "  delivered to " + target

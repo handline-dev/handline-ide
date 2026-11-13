@@ -6,7 +6,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/handline/handline/go/agentctl/delivery"
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/states"
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/taskboard/taskwrites"
 )
@@ -235,6 +237,48 @@ func TestTheFoundersAnswerReachesATurnHolderWhoIsNotTheOwner(t *testing.T) {
 				t.Fatalf("the founder's answer was not typed to carol: %q", r.term.typed)
 			}
 		})
+	}
+}
+
+// The founder's answer joins a busy holder's running turn, as their @-mention does, and heads its queue (T9083); an agent's pass waits for
+// the turn to end.
+func TestTheFoundersAnswerJoinsABusyHoldersTurn(t *testing.T) {
+	r := newRig(t)
+	r.bigTeam()
+	r.agentUp(r.k("alice"))
+	r.agentUp(r.k("bob"))
+	tid := r.beginCurrent(r.k("bob"), r.k("alice"), "the beta")
+	r.must(db.SetAgentState(r.DB, r.k("bob"), states.Running, 0, ""))
+	r.task(r.k("bob"), r.k("alice"), "other work") // older, not yet told
+	pop := func(by, note string) *db.Request {
+		r.turnCall(r.k("bob"), "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"over to you","turn":%q,"request_id":"p%s"}`, tid, by, note))
+		r.term.typed, r.term.modes = nil, nil
+		r.turnCall(r.k(by), "task.turn.pop", fmt.Sprintf(`{"task":%d,"outcome":"pass","note":%q,"request_id":"o%s"}`, tid, note, note))
+		r.clock += BatchEveryS
+		_, err := r.DeliverQueued(r.DB, r.k("bob"))
+		r.must(err)
+		var rid int64
+		r.must(r.DB.QueryRow("SELECT MAX(request_id) FROM task_requests WHERE task_id = ?", tid).Scan(&rid))
+		return must(db.GetRequest(r.DB, rid))
+	}
+	modeOf := func(text string) delivery.Delivery {
+		for i, typed := range r.term.typed {
+			if strings.Contains(typed, text) {
+				return r.term.modes[i]
+			}
+		}
+		return ""
+	}
+	answer := pop("human", "ship it")
+	if m := modeOf("ship it"); m != delivery.Now {
+		t.Fatalf("the founder's answer did not join bob's turn: %q %q", m, r.term.typed)
+	}
+	if head, _ := db.HeadOfQueue(r.DB, r.k("bob"), 0); head == nil || head.ID != answer.ID {
+		t.Fatalf("the older task, not the founder's answer, heads bob's queue: %+v", head)
+	}
+	pop("alice", "looks fine")
+	if m := modeOf("looks fine"); m != delivery.Queue {
+		t.Fatalf("an agent's pass is not held for the end of bob's turn: %q %q", m, r.term.typed)
 	}
 }
 
