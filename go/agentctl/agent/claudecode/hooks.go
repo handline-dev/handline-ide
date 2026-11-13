@@ -32,9 +32,18 @@ func hookTimeoutS(event string) int {
 var matchers = map[string]string{"PreToolUse": "Write|Edit|MultiEdit|NotebookEdit|Bash|Agent", "Notification": "permission_prompt"}
 
 var (
-	oldStatusLines     = []string{"statusline.sh", "statusline-collect.sh"}
-	quietNotifications = []string{"inputNeededNotifEnabled", "agentPushNotifEnabled"}
-	ide_aMarkers        = []string{"ide_a/agent-hooks", ".ide_a/agent-hooks", "IDE_A_AGENT_HOOK", "ide_a-hook"}
+	oldStatusLines = []string{"statusline.sh", "statusline-collect.sh"}
+	// defaults are written into the shared settings when the file has no such key (transcripts: 7 days, not Claude Code's 30).
+	defaults = []struct {
+		key string
+		val any
+	}{
+		{"autoContinueAtUsageLimit", false},
+		{"inputNeededNotifEnabled", false},
+		{"agentPushNotifEnabled", false},
+		{"cleanupPeriodDays", 7},
+	}
+	ide_aMarkers = []string{"ide_a/agent-hooks", ".ide_a/agent-hooks", "IDE_A_AGENT_HOOK", "ide_a-hook"}
 )
 
 // Hooks is the shared settings file every account's settings.json links to (claude_hooks.py), under the program's home.
@@ -76,8 +85,8 @@ func (h Hooks) write(data *Object) error {
 	return writeAtomic(h.Target(), Dumps(data, 2, false)+"\n")
 }
 
-// EnsureShared makes shared/.claude and its settings: Handline's old status line taken out, Claude Code's auto-continue and
-// its notifications off unless the file says otherwise (claude_hooks.ensure_shared).
+// EnsureShared makes shared/.claude and its settings: Handline's old status line taken out, and each of defaults set
+// unless the file says otherwise (claude_hooks.ensure_shared).
 func (h Hooks) EnsureShared() error {
 	_, statErr := os.Stat(h.Target())
 	current, err := h.readObject()
@@ -100,9 +109,9 @@ func (h Hooks) EnsureShared() error {
 			changed = true
 		}
 	}
-	for _, k := range append([]string{"autoContinueAtUsageLimit"}, quietNotifications...) {
-		if _, has := current.Get(k); !has {
-			current.Set(k, false)
+	for _, d := range defaults {
+		if _, has := current.Get(d.key); !has {
+			current.Set(d.key, d.val)
 			changed = true
 		}
 	}
