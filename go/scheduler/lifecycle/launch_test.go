@@ -1121,19 +1121,29 @@ func TestWhatChangedSaysTheLinesOfTheTextParts(t *testing.T) {
 	os.WriteFile(role, []byte("builds\nreviews\ntests"), 0o644)
 	_, lines, err := r.l.whatChanged("ann")
 	want := []LineChange{
-		{Part: "ROLE.md", Added: []string{"tests"}, Removed: []string{}},
-		{Part: "team rules", Added: []string{"- reply in Korean"}, Removed: []string{"- reply in English"}},
+		{Part: "ROLE.md", Added: []string{"tests"}, Removed: []string{}, Text: "builds\nreviews\ntests"},
+		{Part: "team rules", Added: []string{"- reply in Korean"}, Removed: []string{"- reply in English"}, Text: rules},
 	}
 	if err != nil || !reflect.DeepEqual(lines, want) {
 		t.Fatalf("%+v %v", lines, err)
 	}
-	// Lines are kept in order up to changedBytesMax over the whole start (ROLE.md's 5 bytes first) and every line after counted.
+	// Lines are kept in order up to changedBytesMax over the whole start (ROLE.md's 5 bytes first) and every line after counted;
+	// a whole text past textBytesMax is not kept, and the parts after it still are.
 	line := strings.Repeat("x", 1000)
-	os.WriteFile(filepath.Join(paths.AgentDir(r.l.Home, "ann"), "base.md"), []byte(strings.Repeat(line+"\n", 100)), 0o644)
+	n := textBytesMax/1000 + 1
+	os.WriteFile(filepath.Join(paths.AgentDir(r.l.Home, "ann"), "base.md"), []byte(strings.Repeat(line+"\n", n)), 0o644)
 	_, lines, _ = r.l.whatChanged("ann")
-	if len(lines) != 3 || lines[1].Part != "base.md" || len(lines[1].Added) != changedBytesMax/1000 || lines[1].More != 100-changedBytesMax/1000 ||
+	if len(lines) != 3 || lines[1].Part != "base.md" || len(lines[1].Added) != changedBytesMax/1000 || lines[1].More != n-changedBytesMax/1000 ||
 		len(lines[2].Added)+len(lines[2].Removed) != 0 || lines[2].More != 2 {
 		t.Fatalf("%d %d %+v", len(lines[1].Added), lines[1].More, lines[2])
+	}
+	if lines[0].Text != "builds\nreviews\ntests" || lines[1].Text != "" || lines[2].Text != rules {
+		t.Fatalf("texts kept: %q %d %q", lines[0].Text, len(lines[1].Text), lines[2].Text)
+	}
+	// Texts that fill textBytesMax exactly are all kept.
+	os.WriteFile(filepath.Join(paths.AgentDir(r.l.Home, "ann"), "base.md"), []byte(strings.Repeat("y", textBytesMax-len(lines[0].Text)-len(rules))), 0o644)
+	if _, lines, _ = r.l.whatChanged("ann"); lines[1].Text == "" || lines[2].Text != rules {
+		t.Fatalf("an exact fit: %d %q", len(lines[1].Text), lines[2].Text)
 	}
 	var old map[string]any
 	if err := json.Unmarshal([]byte(rec), &old); err != nil {
@@ -1170,7 +1180,7 @@ func TestAStartKeepsWhatItsSettingsChanged(t *testing.T) {
 		t.Fatal(err)
 	}
 	if changed != "model changed (m1 -> m2), base.md changed" || resumed != 1 ||
-		lines != `[{"part":"base.md","added":["a new line"],"removed":[]}]` {
+		lines != `[{"part":"base.md","added":["a new line"],"removed":[],"text":"a new line"}]` {
 		t.Fatalf("%q %q %d", changed, lines, resumed)
 	}
 }
