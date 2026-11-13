@@ -2,6 +2,7 @@ package taskwrites
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -64,6 +65,30 @@ func TestEachTaskIsTaggedWithTheFounderRequestItServes(t *testing.T) {
 	ok(call(t, mk("", &fakeTeller{}), newTask(2, "for manager", `,"reporter":"manager"`)))
 	check("for the founder", idOf("for the founder"))
 	check("for manager", nil)
+
+	// request names the task whose founder request the new one serves, instead of the held request's default parent; refused for a task
+	// that serves none, and with parent.
+	exec(t, db, "INSERT INTO tasks(id, title, owner, opened_by, created_at, request, from_request) VALUES(50, 'founder asked', 'other', 'p1', 1, 50, 7)",
+		"UPDATE agent_state SET current_task = 50 WHERE agent = 'manager'",
+		// a founder's top message in manager's turn, which the turn rule would make the task's own request (and its turn_origin)
+		"INSERT INTO requests(id, requester, target, body, state, kind, ts, landed_at, founder_auth) VALUES(60, 'p1', 'manager', 'm', 'landed', 'say', 1, 1, 1)")
+	ok(call(t, mk("manager", &fakeTeller{}), newTask(2, "relayed", `,"request":`+fmt.Sprint(idOf("serves 3")))))
+	check("relayed", 3)
+	var relayedParent, relayedOrigin any
+	db.QueryRow("SELECT parent_task, turn_origin FROM tasks WHERE title = 'relayed'").Scan(&relayedParent, &relayedOrigin)
+	if relayedParent != nil || relayedOrigin != nil {
+		t.Errorf("relayed hangs under the held request or claims the turn's message: parent %v turn_origin %v", relayedParent, relayedOrigin)
+	}
+	for extra, want := range map[string]string{
+		`,"request":` + fmt.Sprint(idOf("own work")): "serves no founder request",
+		`,"request":3,"parent":3`:                    "request and parent together",
+		`,"request":99999`:                           "there is no T99999",
+	} {
+		if r := call(t, mk("manager", &fakeTeller{}), newTask(2, "refused", extra)); !strings.Contains(fmt.Sprint(r[0]), want) {
+			t.Errorf("%s: %v, want %q", extra, r[0], want)
+		}
+	}
+	exec(t, db, "UPDATE agent_state SET current_task = 3 WHERE agent = 'manager'")
 
 	// a blocker that serves another request stays in it.
 	exec(t, db, "INSERT INTO tasks(id, title, owner, opened_by, created_at, request) VALUES(200, 'other audit', 'other', 'p1', 1, 200)")

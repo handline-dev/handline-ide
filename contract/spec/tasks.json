@@ -2638,6 +2638,14 @@
      }
     },
     {
+     "name": "request",
+     "required": false,
+     "schema": {
+      "type": "integer",
+      "description": "The task serves this task's founder request (Task.request). Refused when that task serves none, and with parent; it then gets no default parent."
+     }
+    },
+    {
      "name": "duplicate_ok",
      "required": false,
      "schema": {

@@ -34,6 +34,8 @@ func TestEachTaskWriteSendsItsMethodAndParams(t *testing.T) {
 		{"", []string{"task", "new", "--assign", "b.two", "-t", "90m", "  A  title ", "  the body  ", "--parent", "T5",
 			"--blocked-by=t6", "--priority", "p1", "--expects", "SHA"},
 			[]string{`task.new {"blocked_by":6,"body":"the body","owner":"b.two","parent":5,"priority":1,"time_box":"5400s","title":"A  title"}`}},
+		{"", []string{"task", "new", "--assign", "b.two", "-t", "1h", "x", "--request", "T9081"},
+			[]string{`task.new {"owner":"b.two","request":9081,"time_box":"3600s","title":"x"}`}},
 		{"from stdin\n", []string{"task", "new", "--assign", "human", "-t", "2h", "x", "--file", "-"},
 			[]string{`task.new {"body":"from stdin","owner":"human","time_box":"7200s","title":"x"}`}},
 		{"", []string{"task", "new", "--assign", "b.two", "-t", "1h", "x", "--owner", "human"},

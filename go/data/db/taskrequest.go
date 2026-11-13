@@ -7,7 +7,8 @@ import (
 )
 
 // A task's request (tasks.request) is the founder request it serves: the number of that request's own task, NULL for an agent's own work.
-// It is set from the founder's words only: when the task is made, and when a task of the request is made to wait on it. tasks.turn_origin
+// It is set from the founder's words only: when the task is made, when a task of the request is made to wait on it, and when an agent opens
+// work from his comment another agent passed it (task.new request). tasks.turn_origin
 // is the founder's message a task became a request from in that message's turn (turnRequest).
 
 // SetTaskRequest gives the new task tid its request, by the first rule that holds: a task with no parent that answers to the founder (its
