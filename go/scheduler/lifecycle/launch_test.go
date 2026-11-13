@@ -795,7 +795,8 @@ func TestAnAgentIsToldItsTeamFromTheRoster(t *testing.T) {
 	// The founder's words typed at an agent: it is told to answer them with hl say, and the others are not told of typing.
 	r.l.FounderTyped = func(a string) bool { return a == devK }
 	if typed, other := r.l.yourTeam(devK), r.l.yourTeam(mgrK); !strings.Contains(typed, "answer with `hl say` too; your terminal text is not shown") ||
-		!strings.Contains(typed, "what you write in your terminal reaches no one") || strings.Contains(other, "type straight into your terminal") {
+		!strings.Contains(typed, "what you write in your terminal reaches no one") ||
+		!strings.Contains(typed, "delivery of a task comment is not typing: answer it on that task") || strings.Contains(other, "type straight into your terminal") {
 		t.Errorf("typed:\n%s\n---\nnot typed:\n%s", typed, other)
 	}
 }

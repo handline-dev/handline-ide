@@ -179,6 +179,13 @@ func TestTheExportedReadersAnswerTheirValueWhenNothingFails(t *testing.T) {
 	if v, err := states.AnswerVerb(r.DB, head); err != nil || r.ids(v) != "answer with `hl say alice --parent #1 \"<answer>\"`" {
 		t.Fatalf("%q %v", v, err)
 	}
+	// The founder's message: answered in chat, and a decision for them goes on its task, not in chat.
+	fromFounder := *head
+	fromFounder.Requester = r.k("human")
+	if v, err := states.AnswerVerb(r.DB, &fromFounder); err != nil || !strings.HasPrefix(v, "answer the founder now") ||
+		!strings.Contains(v, "goes on the task it is about with `--turn human`") {
+		t.Fatalf("%q %v", v, err)
+	}
 	if v, err := TellText(r.DB, head, 1, nil, false, nil, ""); err != nil || !strings.HasPrefix(r.ids(v), "#1 from alice, waiting for you:\nq\n") {
 		t.Fatalf("%q %v", v, err)
 	}
