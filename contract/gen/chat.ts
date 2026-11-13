@@ -343,6 +343,8 @@ export type LineChange = {
   removed: string[];
   /** How many more added and removed lines there were than are listed. Absent means 0. */
   more?: number;
+  /** The part's whole text at this start. Absent when the part is now empty or its text did not fit the start's 256 KiB (kept in order over its parts). */
+  text?: string;
 };
 
 export interface ChatMethods {
