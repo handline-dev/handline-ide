@@ -4,7 +4,8 @@ import { useNameOf, useTask } from '@handline/app-data';
 import { useMe } from '@handline/app-react';
 import type { TranscriptItem } from '@handline/client';
 import { motion } from 'framer-motion';
-import { Hand, ListChecks } from 'lucide-react';
+import { Hand } from 'lucide-react';
+import { look } from '#src/ui/taskLook.tsx';
 import { clock } from '#src/format/time.ts';
 import { taskOf } from '#src/layout/kinds.tsx';
 import { useOpenable } from '#src/layout/openable.tsx';
@@ -64,6 +65,7 @@ export function TaskCommentCard({ lines, latest, agent, fade }: { lines: Said[];
   const open = useOpenable(taskOf(task));
   const yours = latest && !!t && foundersTurn(t, me);
   const asked = yours ? t.turns?.at(-1)?.memo : undefined;
+  const s = t ? look(t) : null;
   return (
     <motion.div
       data-id={`taskcard:${task}:${lines[0]!.id}`}
@@ -79,7 +81,10 @@ export function TaskCommentCard({ lines, latest, agent, fade }: { lines: Said[];
         title={yours ? `Answer in T${task}` : undefined}
         className="-mx-2 flex min-w-0 flex-1 gap-2.5 rounded-md px-2 py-1.5 text-left text-sm outline-none hover:bg-hover/30 focus-visible:ring-2 focus-visible:ring-accent"
       >
-        <ListChecks size={16} className="mt-0.5 shrink-0 text-muted" aria-hidden />
+        {/* The task's state square, as a task notice row has it (TaskActivity). */}
+        <span className={`mt-0.5 grid size-5 shrink-0 place-items-center rounded-md text-accent-fg ${s?.tone ?? 'bg-surface'}`}>
+          {s && <s.icon size={12} strokeWidth={3} />}
+        </span>
         <span className="flex min-w-0 flex-1 flex-col gap-2.5">
           <span className="truncate">
             <span className="mr-1.5 text-muted">T{task}</span>
