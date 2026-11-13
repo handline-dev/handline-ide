@@ -53,6 +53,7 @@ export const TURN_SEEDS: Record<string, Seed> = {
     d.tasks.verbs = true; // the founder can answer or give the turn back
     d.tasks.seed({
       id: 8830,
+      my_request: true,
       from: ME,
       to: ARCH,
       title: 'Bell: how a pause is counted',
