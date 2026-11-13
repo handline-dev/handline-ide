@@ -160,6 +160,7 @@ type transcript struct {
 // IngestTokens is tokenlog.ingest: read what the account's transcripts gained since the last call, up to budget bytes, and record it.
 // It answers the lines that parsed as a call, which is more than the rows written when one streamed over several. A file is read from
 // where it stopped, and only up to its last whole line. Only regular files are read: a link is not followed out of the projects tree.
+// The read position of a file that is gone is dropped, unless part of the tree could not be read.
 func (e *Env) IngestTokens(q db.Q, acct string, budget int) (int, error) {
 	if team.AccountVendor(e.Home, acct) != team.DefaultVendor {
 		return 0, nil
@@ -186,15 +187,22 @@ func (e *Env) IngestTokens(q db.Q, acct string, budget int) (int, error) {
 		return 0, err
 	}
 	var todo []transcript
+	seen, partial := map[string]bool{}, false
 	_ = filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
-		if err != nil || !d.Type().IsRegular() || !strings.HasSuffix(p, ".jsonl") {
+		if err != nil {
+			partial = true
 			return nil
 		}
-		info, err := d.Info()
-		if err != nil {
+		if !d.Type().IsRegular() || !strings.HasSuffix(p, ".jsonl") {
 			return nil
 		}
 		key, _ := filepath.Rel(root, p)
+		info, err := d.Info()
+		if err != nil {
+			partial = true
+			return nil
+		}
+		seen[key] = true
 		var done int64
 		if f, ok := num(kept[key]); ok {
 			done = int64(f)
@@ -205,6 +213,13 @@ func (e *Env) IngestTokens(q db.Q, acct string, budget int) (int, error) {
 		}
 		return nil
 	})
+	if !partial {
+		for key := range kept {
+			if !seen[key] {
+				delete(kept, key)
+			}
+		}
+	}
 	sort.Slice(todo, func(i, j int) bool {
 		if todo[i].mtime != todo[j].mtime {
 			return todo[i].mtime > todo[j].mtime

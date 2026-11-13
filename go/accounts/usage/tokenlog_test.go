@@ -143,3 +143,38 @@ func TestIngestPassesOverARecordLongerThanTheLimit(t *testing.T) {
 		t.Fatalf("the next tick starts after it: %d", n)
 	}
 }
+
+func TestIngestDropsTheReadPositionOfAFileThatIsGone(t *testing.T) {
+	e, q, dir := tokenEnv(t)
+	gone, kept := filepath.Join(dir, "gone.jsonl"), filepath.Join(dir, "kept.jsonl")
+	os.WriteFile(gone, []byte(callLine+"\n"), 0o644)
+	os.WriteFile(kept, []byte(strings.Replace(callLine, `"r1"`, `"r2"`, 1)+"\n"), 0o644)
+	if n, _ := e.IngestTokens(q, "a", BytesPerTick); n != 2 {
+		t.Fatalf("%d", n)
+	}
+	ts := time.Now().Add(-(BackfillDays + 1) * 24 * time.Hour)
+	os.Chtimes(kept, ts, ts) // too old to be picked up again if its position were lost
+	positions := func() string {
+		raw, _, _ := db.Meta(q, offsetsMeta+"a")
+		return raw
+	}
+	locked := filepath.Join(dir, "..", "locked")
+	os.MkdirAll(locked, 0o755)
+	os.Chmod(locked, 0)
+	t.Cleanup(func() { os.Chmod(locked, 0o755) })
+	os.Remove(gone)
+	e.IngestTokens(q, "a", BytesPerTick)
+	if raw := positions(); !strings.Contains(raw, "gone.jsonl") {
+		t.Fatalf("a tree read only in part drops nothing: %s", raw)
+	}
+	os.Chmod(locked, 0o755)
+	e.IngestTokens(q, "a", BytesPerTick)
+	if raw := positions(); strings.Contains(raw, "gone.jsonl") || !strings.Contains(raw, "kept.jsonl") {
+		t.Fatalf("only the deleted file's position goes: %s", raw)
+	}
+	os.WriteFile(kept, []byte(strings.Replace(callLine, `"r1"`, `"r2"`, 1)+"\n"+strings.Replace(callLine, `"r1"`, `"r3"`, 1)+"\n"), 0o644)
+	os.Chtimes(kept, ts, ts)
+	if n, _ := e.IngestTokens(q, "a", BytesPerTick); n != 1 {
+		t.Fatalf("a kept file still reads on from where it stopped: %d", n)
+	}
+}
