@@ -266,3 +266,28 @@ func TestPromptArgvEndsOptions(t *testing.T) {
 		t.Fatalf("PromptArgv = %q, want %q", got, want)
 	}
 }
+
+// The founder's own transcript period stays, whatever it is.
+func TestTranscriptsAreKeptSevenDaysByDefault(t *testing.T) {
+	for before, want := range map[string]string{
+		`{}`: `"cleanupPeriodDays": 7`, `{"cleanupPeriodDays": 30}`: `"cleanupPeriodDays": 30`, `{"cleanupPeriodDays": null}`: `"cleanupPeriodDays": null`,
+	} {
+		h := hooksAt(t.TempDir())
+		if err := os.MkdirAll(filepath.Dir(h.Target()), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(h.Target(), []byte(before), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := h.EnsureShared(); err != nil {
+			t.Fatal(err)
+		}
+		b, err := os.ReadFile(h.Target())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Count(string(b), `"cleanupPeriodDays"`) != 1 || !strings.Contains(string(b), want) {
+			t.Errorf("from %q: %s", before, b)
+		}
+	}
+}
