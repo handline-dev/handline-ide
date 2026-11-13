@@ -47,6 +47,7 @@ func TestWhatWakesAClosedAgentIsWhatItsWakePromptCarries(t *testing.T) {
 		_, err := dbpkg.AddRequest(d, dbpkg.NewRequest{Requester: "sys", Target: alice, Body: body, Kind: "say"})
 		must(t, err)
 	}
+	const answered = "the founder's answer on a blocked task it holds"
 	for name, shape := range map[string]func(*testing.T, q){
 		// nothing to wake it for: its session has the task it holds
 		"only the task it holds":         func(t *testing.T, d q) { held(t, d, "the one it holds") },
@@ -62,6 +63,15 @@ func TestWhatWakesAClosedAgentIsWhatItsWakePromptCarries(t *testing.T) {
 			tid, _ := task(t, d, "was blocked")
 			blockOn(t, d, tid)
 			_, err := d.Exec("UPDATE task_blocks SET dormant = 1 WHERE task_id = ?", tid)
+			must(t, err)
+		},
+		// T9080: the founder answered alice's question on a task that waits on another
+		answered: func(t *testing.T, d q) {
+			tid := held(t, d, "blocked")
+			blockOn(t, d, tid)
+			_, rid := task(t, d, "the answer")
+			must(t, dbpkg.LinkRequest(d, tid, rid))
+			_, err := dbpkg.AddEvent(d, "p1", "task_turn_pop", dbpkg.KV{K: "task_id", V: tid}, dbpkg.KV{K: "agent", V: "p1"}, dbpkg.KV{K: "request_id", V: rid})
 			must(t, err)
 		},
 		// 10-19 17:28: the head held and blocked, a held task behind it, then the say that woke it
@@ -86,6 +96,9 @@ func TestWhatWakesAClosedAgentIsWhatItsWakePromptCarries(t *testing.T) {
 			must(t, err)
 			if (cause != "") != ok {
 				t.Fatalf("the tick's cause %q, the prompt has something: %v", cause, ok)
+			}
+			if name == answered && cause == "" {
+				t.Fatal("the founder's answer woke nothing")
 			}
 		})
 	}
