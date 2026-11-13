@@ -67,7 +67,7 @@ test('a comment lists the image files its text does not name; one it names is dr
   assert.deepEqual(activityOf([memo], [])[0]!.images, [{ id: 'bbb', name: 'other.png' }]);
 });
 
-test('a turn passed or a handoff reads by who it went to, the person as you; a delivery the daemon made says why', () => {
+test('a turn passed or a handoff reads by who it went to, the person as you; the person giving it back is no line; a delivery the daemon made says why', () => {
   const turn = (who: string, text: string, at: string) => ({ ...e('turn', who, text, at), turn: text ? 'push' : 'pop' }) as const;
   const a = activityOf(
     [],
@@ -86,7 +86,6 @@ test('a turn passed or a handoff reads by who it went to, the person as you; a d
     a.map((i) => [i.line, i.note, i.turnTo]),
     [
       ['handline.ui asked you', 'Which one?', 'human'],
-      ['You gave the turn back to handline.ui', '', 'handline.ui'],
       ['handline.ui gave the turn to handline.pc', 'Look at this', 'handline.pc'],
       ['handline.pc asked you', '', 'human'],
       ['handline.pc assigned you', 'Pick one', undefined],
@@ -94,4 +93,14 @@ test('a turn passed or a handoff reads by who it went to, the person as you; a d
       ['It went again to handline.ux, its new holder', 'landed  T1', undefined],
     ],
   );
+});
+
+test("the person's comment that gives the turn back is headed with whom it went to", () => {
+  const memo = { id: 7, author: 'human', at: '2026-01-01T00:00:02Z', text: 'Go.' } as unknown as Parameters<typeof activityOf>[0][number];
+  const [c, ...rest] = activityOf(
+    [memo],
+    [{ ...e('turn', 'human → handline.ui', '', '2026-01-01T00:00:02Z'), memo: 7, turn: 'pop' }],
+    'human',
+  );
+  assert.deepEqual([c!.turn, c!.turnTo, rest.length], ['pop', 'handline.ui', 0]);
 });

@@ -204,7 +204,15 @@ export function CommentBox({
             )
           )
         }
-        placeholder={to ? `Comment and assign to ${nameOf(to)}` : answering ? `Your answer to ${nameOf(turn.by)}` : `Comment on T${t.id}`}
+        placeholder={
+          to
+            ? `Comment and assign to ${nameOf(to)}`
+            : answering
+              ? `Your answer to ${nameOf(turn.by)}`
+              : t.to
+                ? `Reply to ${nameOf(t.to)} on T${t.id}`
+                : `Comment on T${t.id}`
+        }
         draft={draft}
         setDraft={setDraft}
         attach={attach}
