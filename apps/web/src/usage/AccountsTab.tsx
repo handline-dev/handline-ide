@@ -5,7 +5,7 @@ import { removeAccount, Row } from '#src/usage/AccountParts.tsx';
 import { AccountEmail } from '#src/usage/AccountEmail.tsx';
 import type { Account } from '@handline/client';
 import { loginRunning } from '@handline/app-core';
-import { classify, sentence, useAccounts, useAccountUsage, useWrite } from '@handline/app-data';
+import { classify, sentence, useAccounts, useAccountUsage, useSettings, useWrite } from '@handline/app-data';
 import { ChevronRight, LoaderCircle, Pause, Play, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '#src/ui/Button.tsx';
@@ -16,6 +16,47 @@ import { ScrollFade } from '#src/ui/ScrollFade.tsx';
 import { usePersisted } from '#src/persist/kv.ts';
 import { RowsLoading } from '#src/usage/UsageViews.tsx';
 import { Refs } from '#src/ui/refs.tsx';
+
+/** Whether the daemon places and moves agents across the accounts (auto, the default) or leaves them where the person put them, waiting
+ * at a wall for its reset (manual): the daemon's account_split setting. */
+function SplitSetting() {
+  const settings = useSettings();
+  const save = useWrite('settings.set');
+  const manual = (settings.data?.values as Record<string, unknown> | undefined)?.account_split === 'manual';
+  const pick = (v: 'auto' | 'manual') => save.mutate({ changes: { account_split: v } as never });
+  return (
+    <section className="flex items-center justify-between gap-6 rounded-lg border border-border px-4 py-3">
+      <div className="min-w-0">
+        <h2 className="text-sm font-medium text-fg">계정 나누기</h2>
+        <p className="text-xs text-muted">
+          {manual
+            ? '에이전트를 둔 계정에 그대로 둡니다. 한도에 닿으면 초기화를 기다렸다가 같은 대화를 이어갑니다.'
+            : '새로 시작하는 에이전트를 여유 있는 계정에 두고, 한도에 가까우면 턴이 끝난 뒤 옮깁니다.'}
+        </p>
+        {!!save.error && (
+          <p className="text-xs text-danger" role="alert">
+            {sentence(classify(save.error))}
+          </p>
+        )}
+      </div>
+      <div role="radiogroup" aria-label="계정 나누기" className="flex shrink-0 rounded-md bg-hover/40 p-0.5 text-sm">
+        {(['auto', 'manual'] as const).map((v) => (
+          <button
+            key={v}
+            type="button"
+            role="radio"
+            aria-checked={manual === (v === 'manual')}
+            disabled={!settings.isSuccess || save.isPending}
+            onClick={() => pick(v)}
+            className={`rounded px-3 py-1 ${manual === (v === 'manual') ? 'bg-bg font-medium text-fg shadow-sm' : 'text-muted hover:text-fg'}`}
+          >
+            {v === 'auto' ? '자동' : '수동'}
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
 
 const why = (e: unknown) => (e ? sentence(classify(e)) : null);
 
@@ -53,6 +94,7 @@ export function AccountsTab({ focus }: { focus?: string }) {
             />
           </div>
           <AiToolsCard />
+          <SplitSetting />
           {q.isPending && <RowsLoading rows={6} />}
           {q.isError && <p className="text-sm text-danger">Accounts did not load.</p>}
           {accounts.map((a) => (
