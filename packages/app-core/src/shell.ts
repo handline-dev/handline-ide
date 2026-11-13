@@ -18,7 +18,6 @@ export const PAGE_SETTINGS = [
   'push_task_done',
   'push_stall',
   'push_account_out',
-  'launch_pace_hold',
   'pace_target_pct',
   'pace_burst_pct',
   // the status bar's resource area

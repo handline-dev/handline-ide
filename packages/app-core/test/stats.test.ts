@@ -91,7 +91,7 @@ test('a pace number is a whole number inside its range, empty clears it, anythin
 
 test('the pace rows are the target and the burst, and a daemon without the keys has none', () => {
   assert.deepEqual(paceFields({}), []);
-  const rows = paceFields({ launch_pace_hold: true, pace_target_pct: 98, pace_burst_pct: 10 });
+  const rows = paceFields({ pace_target_pct: 98, pace_burst_pct: 10 });
   assert.deepEqual(
     rows.map((r) => [r.label, r.current]),
     [

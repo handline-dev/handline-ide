@@ -20,7 +20,6 @@ const KEYS = [
   'push_task_done',
   'push_stall',
   'push_account_out',
-  'launch_pace_hold',
   'account_split',
   'pace_target_pct',
   'pace_burst_pct',

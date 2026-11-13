@@ -25,7 +25,7 @@ test('settings.get gives the Go pace defaults and pace_target_pct reads back aft
   const { client } = setup();
   await client.start();
   const v = (await client.call('settings.get', {})).values;
-  assert.deepEqual([v.launch_pace_hold, v.pace_target_pct, v.pace_burst_pct], [false, 98, 10]);
+  assert.deepEqual([v.pace_target_pct, v.pace_burst_pct], [98, 10]);
   await client.call('settings.set', { changes: { pace_target_pct: 90 }, request_id: 'm1-a' });
   assert.equal((await client.call('settings.get', {})).values.pace_target_pct, 90);
   await client.call('settings.set', { changes: { pace_target_pct: null }, request_id: 'm1-b' });
