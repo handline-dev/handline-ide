@@ -18,7 +18,7 @@ import {
   useNameOf,
   useVerbRun,
 } from '@handline/app-data';
-import { handoffLine, VERBS } from '@handline/app-core';
+import { restartingLine, VERBS } from '@handline/app-core';
 import { useMe, useNearEnd } from '@handline/app-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { spring } from '#src/motion.ts';
@@ -282,8 +282,8 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
   const view = useAgents().data?.agents.find((a) => a.key === agent);
   const doing = view?.doing?.text;
   const held = view?.task;
-  // A restart under way takes the turn's row: what it is doing now, short; why is in the Restarted line it leaves.
-  const restart = view?.handoff && restarting(view) ? `Restarting · ${handoffLine(view.handoff).what.toLowerCase()}…` : null;
+  // A restart under way takes the turn's row, in the sidebar's words.
+  const restart = view?.handoff && restarting(view) ? restartingLine(view.handoff) : null;
   const busy = chat.working.turn_running || !!restart;
   const now = useNow();
   const stream = useRef<HTMLDivElement>(null);

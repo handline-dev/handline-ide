@@ -212,9 +212,9 @@ describe('holdLine', () => {
     const h = { cause: 'settings_applied', settings: ['model'], since: '2026-11-08T12:00:00Z' };
     const waiting = { state: 'running', has_dialog: false, handoff: { ...h, phase: 'waiting' as const } };
     expect(activityOf(waiting)).toBe('working');
-    expect(holdLine(waiting)).toBe('Restarting: model changed. Waiting for its turn to end…');
+    expect(holdLine(waiting)).toBe('Waiting for its turn to end, then restarts: model changed');
     const starting = { state: 'idle', has_dialog: false, handoff: { ...h, phase: 'starting' as const } };
-    expect(holdLine(starting)).toBe('Restarting: model changed. Starting a new session…');
+    expect(holdLine(starting)).toBe('Starting a new session to restart: model changed');
     expect(holdLine({ ...starting, handoff: { ...starting.handoff, cause: 'context_full' } })).toBeNull();
   });
 });

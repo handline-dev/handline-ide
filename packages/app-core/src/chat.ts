@@ -460,10 +460,10 @@ export function restartShown(h: { since: string }, items: TranscriptItem[]): boo
   return !items.some((i) => i.kind === 'session' && Date.parse(i.at) >= since);
 }
 
-/** The live restart line: `Restarting: context full. Writing the handoff…`, `Restarting: model changed. Waiting for its turn to end…`. */
+/** The live restart line, sidebar and chat alike, what happens now first: `Waiting for its turn to end, then restarts: model changed`. */
 export function restartingLine(h: { cause: string; phase: HandoffPhase; settings?: string[] }): string {
   const { why, what } = handoffLine(h);
-  return `Restarting: ${why.charAt(0).toLowerCase()}${why.slice(1)}. ${what}…`;
+  return `${what}${h.phase === 'waiting' ? ', then restarts' : ' to restart'}: ${why.charAt(0).toLowerCase()}${why.slice(1)}`;
 }
 
 /** The tool steps of the agent's current turn: those after its last reply and the last message in the chat, whichever is later. Once the turn is over (`running` false) its reply closes it, not opens the next: the steps are those after the last message. */
