@@ -182,6 +182,37 @@ func TestTheFoundersPassTellsTheHolderTheQuestion(t *testing.T) {
 	}
 }
 
+// The founder's answer reaches a holder idle on a task that waits on another (T9080); an agent's pass on it still waits for the blocker.
+func TestTheFoundersAnswerReachesAHolderWhoseTaskWaits(t *testing.T) {
+	r := newRig(t)
+	r.bigTeam()
+	r.agentUp(r.k("alice"))
+	r.agentUp(r.k("bob"))
+	tid := r.beginCurrent(r.k("bob"), r.k(("alice")), "the research")
+	var rid int64
+	r.must(r.DB.QueryRow("SELECT request_id FROM task_requests WHERE task_id = ?", tid).Scan(&rid))
+	r.must(db.MarkLanded(r.DB, rid)) // bob's session has the task
+	blocker := r.newTask(r.k("carol"), r.k(("bob")), "first this")
+	r.turnCall(r.k("bob"), "task.edit", fmt.Sprintf(`{"task":%d,"blocked_by":%d,"request_id":"e1"}`, tid, blocker))
+	r.turnCall(r.k("bob"), "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"merge the three?","turn":"human","request_id":"p1"}`, tid))
+	r.term.typed = nil
+	r.turnCall(r.k("human"), "task.turn.pop", fmt.Sprintf(`{"task":%d,"outcome":"pass","note":"why merge them?","request_id":"o1"}`, tid))
+	_, err := r.DeliverQueued(r.DB, r.k(("bob")))
+	r.must(err)
+	if !strings.Contains(r.term.last(), "why merge them?") {
+		t.Fatalf("the founder's answer was not typed to bob: %q", r.term.last())
+	}
+	r.turnCall(r.k("bob"), "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"check this","turn":"alice","request_id":"p2"}`, tid))
+	r.term.typed = nil
+	r.clock += BatchEveryS
+	r.turnCall(r.k("alice"), "task.turn.pop", fmt.Sprintf(`{"task":%d,"outcome":"pass","note":"looks fine","request_id":"o2"}`, tid))
+	_, err = r.DeliverQueued(r.DB, r.k(("bob")))
+	r.must(err)
+	if strings.Contains(r.term.last(), "looks fine") {
+		t.Fatalf("an agent's pass on a waiting task was typed: %q", r.term.last())
+	}
+}
+
 // Retiring an agent takes its turns off: the top one goes back to the agent below, a lower one just goes.
 func TestRetiringAnAgentTakesItsTurnsOff(t *testing.T) {
 	r := newRig(t)
