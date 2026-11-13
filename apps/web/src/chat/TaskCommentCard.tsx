@@ -11,7 +11,6 @@ import { useOpenable } from '#src/layout/openable.tsx';
 import { useOpenTab } from '#src/layout/openTab.tsx';
 import { spring } from '#src/motion.ts';
 import { goToTurnOf } from '#src/tools/TaskTurn.ts';
-import { Button } from '#src/ui/Button.tsx';
 
 type Said = TranscriptItem & { task_comment: NonNullable<TranscriptItem['task_comment']> };
 type Entry = TimelineEntry | TurnRecord;
@@ -54,8 +53,8 @@ const firstLine = (body: string) =>
     .split('\n')
     .find((l) => l.trim()) ?? '';
 
-/** A task's run of talk: its title, then one line per comment, who to whom and when over its first line. On the founder's turn,
- * Answer in task on the task's newest block. */
+/** A task's run of talk: its title, then one line per comment, who to whom and when over its first line. The question the founder
+ * owes an answer reads "asks you" in the turn's color; the whole block is one click, to that question in the task when there is one. */
 export function TaskCommentCard({ lines, latest, agent, fade }: { lines: Said[]; latest: boolean; agent: string; fade: boolean }) {
   const task = lines[0]!.task_comment.task;
   const t = useTask(task).data;
@@ -64,42 +63,47 @@ export function TaskCommentCard({ lines, latest, agent, fade }: { lines: Said[];
   const answer = useAnswerInTask();
   const open = useOpenable(taskOf(task));
   const yours = latest && !!t && foundersTurn(t, me);
+  const asked = yours ? t.turns?.at(-1)?.memo : undefined;
   return (
     <motion.div
       data-id={`taskcard:${task}:${lines[0]!.id}`}
       initial={fade ? { opacity: 0 } : false}
       animate={{ opacity: 1 }}
       transition={spring}
-      className="my-3 flex w-full min-w-0 gap-2.5 text-sm"
+      className="my-3 flex w-full min-w-0"
     >
-      <ListChecks size={16} className="mt-0.5 shrink-0 text-muted" aria-hidden />
-      <div className="flex min-w-0 flex-1 flex-col gap-2.5">
-        <button
-          type="button"
-          {...open}
-          className="min-w-0 self-start truncate rounded-sm text-left outline-none hover:bg-hover/30 focus-visible:ring-2 focus-visible:ring-accent"
-        >
-          <span className="mr-1.5 text-muted">T{task}</span>
-          <span className="font-medium text-fg">{t?.title ?? ''}</span>
-        </button>
-        {lines.map((l) => (
-          <div key={l.id} className="flex min-w-0 flex-col">
-            <span className="text-xs text-muted">
-              {l.task_comment.kind === 'answer' ? `You → ${nameOf(agent)}` : `${nameOf(l.task_comment.who)} → you`} · {clock(l.at)}
-            </span>
-            <span className="truncate text-fg">{firstLine(l.task_comment.text)}</span>
-          </div>
-        ))}
-        {yours && (
-          <div className="flex items-center gap-2">
-            <Hand size={14} className="text-warning" aria-hidden />
-            <span className="font-medium text-warning">Your turn</span>
-            <Button variant="primary" onClick={() => answer(task)}>
-              Answer in task
-            </Button>
-          </div>
-        )}
-      </div>
+      <button
+        type="button"
+        {...open}
+        onClick={yours ? () => answer(task) : open.onClick}
+        title={yours ? `Answer in T${task}` : undefined}
+        className="-mx-2 flex min-w-0 flex-1 gap-2.5 rounded-md px-2 py-1.5 text-left text-sm outline-none hover:bg-hover/30 focus-visible:ring-2 focus-visible:ring-accent"
+      >
+        <ListChecks size={16} className="mt-0.5 shrink-0 text-muted" aria-hidden />
+        <span className="flex min-w-0 flex-1 flex-col gap-2.5">
+          <span className="truncate">
+            <span className="mr-1.5 text-muted">T{task}</span>
+            <span className="font-medium text-fg">{t?.title ?? ''}</span>
+          </span>
+          {lines.map((l) => {
+            const ask = asked != null && l.task_comment.memo === asked;
+            return (
+              <span key={l.id} className="flex min-w-0 flex-col">
+                <span className={`flex items-center gap-1 text-xs ${ask ? 'font-medium text-warning' : 'text-muted'}`}>
+                  {ask && <Hand size={12} aria-hidden />}
+                  {l.task_comment.kind === 'answer'
+                    ? `You → ${nameOf(agent)}`
+                    : ask
+                      ? `${nameOf(l.task_comment.who)} asks you`
+                      : `${nameOf(l.task_comment.who)} → you`}{' '}
+                  · {clock(l.at)}
+                </span>
+                <span className="truncate text-fg">{firstLine(l.task_comment.text)}</span>
+              </span>
+            );
+          })}
+        </span>
+      </button>
     </motion.div>
   );
 }
