@@ -30,8 +30,18 @@ export type Task = {
   state: string;
   time_box: Duration | null;
   parent: number | null;
-  /** The founder request the task serves, as the number of that request's own task; null for an agent's own work. Set when the task is made (db.SetTaskRequest). Absent from a daemon that does not send it. */
+  /** The founder request the task serves, as the number of that request's own task; null for an agent's own work. Set from the founder's words only, when the task is made (db.SetTaskRequest): a task the founder opened or that answers to him, its parent's, or the one his message or comment in the opener's turn makes; never the request of the task its opener holds. Absent from a daemon that does not send it. */
   request?: number | null;
+  /** The task is a founder request of its own (request is its own number): what the founder opened or his words opened, not a task under one. Absent from a daemon that does not send it. */
+  my_request?: boolean;
+  /** The founder's newest decision on the task: a turn of his he gave back with a comment. null for none. Absent from a daemon that does not send it. */
+  decided?: {
+    at: Timestamp;
+    /** The ask of the turn the founder was given: its own text, else the comment it was pushed with, as it reads now; empty when neither. Already stripped of control characters. */
+    ask: string;
+    /** The comment the founder gave the turn back with, as it reads now. Already stripped of control characters. */
+    answer: string;
+  } | null;
   /** work or check: check when the owner's row says role: check (an audit or landing agent, whose tasks gate other work), else work. Read from the owner's row when the task is read, not stored. Absent from a daemon that does not send it. */
   role?: "work" | "check";
   created: Timestamp;
@@ -471,6 +481,10 @@ export interface TasksMethods {
   under?: number;
   /** The tasks that serve this request (Task.request) and every task below its own, done and discarded included (all is implied); still within the caller's scope, newest first and paged as without it. */
   request?: number;
+  /** Only the founder's requests (Task.my_request); with the other filters, open only unless all or a closed state is asked. */
+  my_requests?: boolean;
+  /** Only the tasks the founder decided on since then (a turn of his given back with a comment; Task.decided), open and closed alike (all is implied); within the caller's scope, newest first by id and paged as without it. */
+  decided_since?: Timestamp;
   /** Only these tasks, at most 200, newest id first (all is implied; the caller's scope still holds). An id that is not found or out of scope is left out, never an error. limit defaults to the number of ids. Not with before, cursor or order closed: bad_request. */
   ids?: number[];
   /** Return rows older than this id. Not with order closed: that pages by cursor. */

@@ -40,17 +40,18 @@ func TestEachTaskIsTaggedWithTheFounderRequestItServes(t *testing.T) {
 	}
 
 	ok(call(t, mk("", &fakeTeller{}), newTask(2, "founder's", "")))
-	ok(call(t, mk("manager", &fakeTeller{}), newTask(2, "child", `,"parent":2`), newTask(3, "held", `,"no_parent":true`)))
+	ok(call(t, mk("manager", &fakeTeller{}), newTask(2, "child", `,"parent":2`), newTask(3, "held", `,"no_parent":true`), newTask(4, "serves 3", `,"parent":3`)))
 	ok(call(t, mk("other", &fakeTeller{}), newTask(2, "own work", "")))
 	check("founder's", idOf("founder's")) // its own
 	check("child", nil)                   // its parent's, none
-	check("held", 3)                      // the held task's
+	check("held", nil)                    // not the held task's: an agent's own work
+	check("serves 3", 3)                  // its parent's
 	check("own work", nil)                // none
 
 	// a task of request 3 made to wait on a later task of none brings it in; an earlier task of none stays as it is.
 	exec(t, db, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(100, 'audit', 'other', 'gp', 1)")
 	ok(call(t, mk("manager", &fakeTeller{}),
-		line("task.edit", 2, fmt.Sprintf(`"task":%d,"blocked_by":100`, idOf("held")), "e1"),
+		line("task.edit", 2, fmt.Sprintf(`"task":%d,"blocked_by":100`, idOf("serves 3")), "e1"),
 		line("task.edit", 3, `"task":3,"blocked_by":2`, "e2")))
 	check("audit", 3)
 	check("ops", nil)
@@ -66,20 +67,11 @@ func TestEachTaskIsTaggedWithTheFounderRequestItServes(t *testing.T) {
 
 	// a blocker that serves another request stays in it.
 	exec(t, db, "INSERT INTO tasks(id, title, owner, opened_by, created_at, request) VALUES(200, 'other audit', 'other', 'p1', 1, 200)")
-	ok(call(t, mk("manager", &fakeTeller{}), line("task.edit", 2, fmt.Sprintf(`"task":%d,"blocked_by":200`, idOf("held")), "e3")))
+	ok(call(t, mk("manager", &fakeTeller{}), line("task.edit", 2, fmt.Sprintf(`"task":%d,"blocked_by":200`, idOf("serves 3")), "e3")))
 	check("other audit", 200)
-
-	// a held task that is done or discarded gives no request.
-	for i, end := range []string{"done_evidence = 'ok'", "discarded_by = 'gp'"} {
-		exec(t, db, "UPDATE tasks SET done_evidence = NULL, discarded_by = NULL WHERE id = 3", "UPDATE tasks SET "+end+" WHERE id = 3",
-			"UPDATE agent_state SET current_task = 3 WHERE agent = 'manager'")
-		title := fmt.Sprintf("after the end %d", i)
-		ok(call(t, mk("manager", &fakeTeller{}), newTask(2, title, `,"no_parent":true`)))
-		check(title, nil)
-	}
 }
 
-// Rule a: an agent's task opened in the turn that brought a founder's message, when no parent or held task gives it a request.
+// Rule a: an agent's task opened in the turn that brought a founder's message, when no parent gives it a request; the held task gives none.
 func TestATaskOpenedInTheTurnOfAFounderMessageIsItsRequest(t *testing.T) {
 	db, mk := discardEnv(t)
 	exec(t, db,
@@ -99,18 +91,19 @@ func TestATaskOpenedInTheTurnOfAFounderMessageIsItsRequest(t *testing.T) {
 		db.QueryRow("SELECT request, turn_origin, from_request, parent_task FROM tasks WHERE title = ?", title).Scan(&req, &origin, &from, &parent)
 		return fmt.Sprint(req, origin, from, parent)
 	}
-	for _, c := range []struct{ agent, title string }{{"manager", "first"}, {"manager", "second"}, {"other", "held wins"}, {"gp", "already a task"}} {
+	for _, c := range []struct{ agent, title string }{{"manager", "first"}, {"manager", "second"}, {"other", "held gives none"}, {"gp", "already a task"}} {
 		if r := call(t, mk(c.agent, &fakeTeller{}), newTask(2, c.title)); r[0]["error"] != nil {
 			t.Fatalf("%v", r[0])
 		}
 	}
-	var first int64
+	var first, held int64
 	db.QueryRow(keyed(db, "SELECT id FROM tasks WHERE title = 'first'")).Scan(&first)
+	db.QueryRow(keyed(db, "SELECT id FROM tasks WHERE title = 'held gives none'")).Scan(&held)
 	for title, want := range map[string]string{
-		"first":          fmt.Sprintf("%d 7 <nil> <nil>", first), // a root, from 7 by turn_origin; from_request untouched
-		"second":         fmt.Sprintf("%d <nil> <nil> <nil>", first),
-		"held wins":      "3 <nil> <nil> <nil>",
-		"already a task": "4 <nil> <nil> <nil>",
+		"first":           fmt.Sprintf("%d 7 <nil> <nil>", first), // a root, from 7 by turn_origin; from_request untouched
+		"second":          fmt.Sprintf("%d <nil> <nil> <nil>", first),
+		"held gives none": fmt.Sprintf("%d 8 <nil> <nil>", held), // its turn's message 8, not held T3's request
+		"already a task":  "4 <nil> <nil> <nil>",
 	} {
 		if got := row(title); got != want {
 			t.Errorf("%s: request turn_origin from_request parent = %s, want %s", title, got, want)

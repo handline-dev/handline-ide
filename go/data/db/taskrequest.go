@@ -7,12 +7,13 @@ import (
 )
 
 // A task's request (tasks.request) is the founder request it serves: the number of that request's own task, NULL for an agent's own work.
-// It is set when the task is made and when a task of the request is made to wait on it. tasks.turn_origin is the founder's message a task
-// became a request from in that message's turn (turnRequest).
+// It is set from the founder's words only: when the task is made, and when a task of the request is made to wait on it. tasks.turn_origin
+// is the founder's message a task became a request from in that message's turn (turnRequest).
 
 // SetTaskRequest gives the new task tid its request, by the first rule that holds: a task with no parent that answers to the founder (its
-// reporter, else its opener) is a request of its own; a task with a parent serves its parent's; then, for a task an agent opens, the request
-// of the open task it holds, and, for one it opens for an agent, the request its turn's founder message makes (turnRequest).
+// reporter, else its opener) is a request of its own; a task with a parent serves its parent's; a task an agent opens serves the request
+// its turn's founder message or comment makes (turnRequest). The task the agent holds gives none: an agent's own work done while holding a
+// request is not that request's.
 func SetTaskRequest(q Q, tid int64) error {
 	var parent sql.NullInt64
 	var openedBy, owner string
@@ -28,15 +29,10 @@ func SetTaskRequest(q Q, tid int64) error {
 		if err := q.QueryRow("SELECT request FROM tasks WHERE id = ?", parent.Int64).Scan(&req); err != nil {
 			return err
 		}
-	case openedBy != actor.OwnerKey:
+	case openedBy != actor.OwnerKey && owner != actor.OwnerKey && owner != Gate:
 		var err error
-		if req, err = heldRequest(q, openedBy); err != nil {
+		if req, err = turnRequest(q, tid, openedBy); err != nil {
 			return err
-		}
-		if !req.Valid && owner != actor.OwnerKey && owner != Gate {
-			if req, err = turnRequest(q, tid, openedBy); err != nil {
-				return err
-			}
 		}
 	}
 	if !req.Valid {
@@ -46,32 +42,29 @@ func SetTaskRequest(q Q, tid int64) error {
 	return err
 }
 
-// heldRequest is the request of the open task agent holds, if it has one.
-func heldRequest(q Q, agent string) (sql.NullInt64, error) {
-	var req sql.NullInt64
-	held, ok, err := CurrentTask(q, agent)
-	if err != nil || !ok {
-		return req, err
-	}
-	err = q.QueryRow("SELECT request FROM tasks WHERE id = ? AND done_evidence IS NULL AND discarded_by IS NULL", held).Scan(&req)
-	if err == sql.ErrNoRows {
-		err = nil
-	}
-	return req, err
-}
+// turnStart is when agent's turn began: its last Stop, 0 for none.
+const turnStart = "COALESCE((SELECT MAX(ts) FROM events WHERE agent = ?1 AND kind IN ('Stop', 'StopFailure')), 0)"
 
-// turnRequest is the request of task tid, opened by agent in a turn that brought a founder's message (one typed to it since its last Stop):
-// the request of the task that holds the message's thread (its top message made a task, or gave a task its turn_origin); else, when the
-// message is a thread's top, tid's own, with the message as its turn_origin; else none.
+// turnRequest is the request of task tid, opened by agent in a turn that brought the founder's words (typed to it since its last Stop), by
+// the newest of them. A comment of the founder's is its task's request, none when that task serves none. A message is the request of the
+// task that holds its thread (its top message made a task, or gave a task its turn_origin); else, when the message is a thread's top, tid's
+// own, with the message as its turn_origin; else none.
 func turnRequest(q Q, tid int64, agent string) (sql.NullInt64, error) {
 	var req sql.NullInt64
 	var rid, top int64
-	err := q.QueryRow("SELECT id FROM requests WHERE requester = ? AND target = ? AND kind = 'say' AND founder_auth >= 1 "+
-		"AND landed_at >= COALESCE((SELECT MAX(ts) FROM events WHERE agent = ? AND kind IN ('Stop', 'StopFailure')), 0) "+
-		"ORDER BY id DESC LIMIT 1", actor.OwnerKey, agent, agent).Scan(&rid)
+	var memoTask sql.NullInt64
+	const memoTaskSQL = "(SELECT m.task_id FROM memo_tells t JOIN task_memos m ON m.id = t.memo_id WHERE t.request_id = r.id AND t.reader = ?1 " +
+		"AND m.author = ?2 ORDER BY m.id DESC LIMIT 1)"
+	err := q.QueryRow("SELECT r.id, "+memoTaskSQL+" FROM requests r WHERE r.target = ?1 AND r.landed_at >= "+turnStart+
+		" AND ((r.requester = ?2 AND r.kind = 'say' AND r.founder_auth >= 1) OR "+memoTaskSQL+" IS NOT NULL) ORDER BY r.landed_at DESC, r.id DESC LIMIT 1",
+		agent, actor.OwnerKey).Scan(&rid, &memoTask)
 	if err == sql.ErrNoRows {
 		return req, nil
 	} else if err != nil {
+		return req, err
+	}
+	if memoTask.Valid {
+		err = q.QueryRow("SELECT request FROM tasks WHERE id = ?", memoTask.Int64).Scan(&req)
 		return req, err
 	}
 	if err := q.QueryRow("WITH RECURSIVE up(id, parent) AS (SELECT id, parent_id FROM requests WHERE id = ? "+

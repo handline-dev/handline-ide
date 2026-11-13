@@ -8,12 +8,18 @@ import (
 )
 
 // The turn rule (turnRequest), case by case: manager's last Stop was at 10, and T1 holds founder message 1 (a top-level one) by from_request.
+// A comment's tell is a sys message.
 // Each case adds requests, events and links, then opens a task by manager for owner (worker unless named) and reads its request:
 // "own" for a request of its own, "T1" for T1's, "" for none.
 func TestTheTurnRuleTakesTheNewestFounderMessageOfTheTurn(t *testing.T) {
 	msg := func(id int, requester, kind string, at, auth int, parent string) string {
 		return fmt.Sprintf("INSERT INTO requests(id, requester, target, body, state, kind, ts, landed_at, founder_auth, parent_id) "+
 			"VALUES(%d, '%s', 'manager', 'm', 'landed', '%s', %d, %d, %d, %s)", id, requester, kind, at, at, auth, parent)
+	}
+	// comment is the founder's (or another's) comment on T1, told to manager by request id at landed.
+	comment := func(id int, author string, at int) []string {
+		return []string{msg(id, "sys", "say", at, 0, "NULL"), fmt.Sprintf("INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(%d, 1, '%s', 'c', %d)", id, author, at),
+			fmt.Sprintf("INSERT INTO memo_tells(memo_id, reader, request_id) VALUES(%d, 'manager', %d)", id, id)}
 	}
 	for _, c := range []struct {
 		name, owner, want string
@@ -30,6 +36,11 @@ func TestTheTurnRuleTakesTheNewestFounderMessageOfTheTurn(t *testing.T) {
 		{"a founder's task ask, not a say", "", "", []string{msg(5, actor.OwnerKey, "task", 11, 1, "NULL")}},
 		{"words the founder's connection did not send", "", "", []string{msg(5, actor.OwnerKey, "say", 11, 0, "NULL")}},
 		{"a reply in a thread linked to T1", "", "T1", []string{msg(5, actor.OwnerKey, "say", 3, 1, "NULL"), "INSERT INTO task_requests(task_id, request_id) VALUES(1, 5)", msg(6, actor.OwnerKey, "say", 11, 1, "5")}},
+		{"a founder comment on T1 told in the turn", "", "T1", comment(7, actor.OwnerKey, 11)},
+		{"a founder comment on T1 told before the last Stop", "", "", comment(7, actor.OwnerKey, 9)},
+		{"an agent's comment on T1", "", "", comment(7, "gp", 11)},
+		{"the newest of two: a comment after a free message", "", "T1", append([]string{msg(5, actor.OwnerKey, "say", 11, 1, "NULL")}, comment(7, actor.OwnerKey, 12)...)},
+		{"the newest of two: a free message after a comment", "", "own", append(comment(7, actor.OwnerKey, 11), msg(5, actor.OwnerKey, "say", 12, 1, "NULL"))},
 		{"a task for the founder", actor.OwnerKey, "", []string{msg(5, actor.OwnerKey, "say", 11, 1, "NULL")}},
 		{"a gate", Gate, "", []string{msg(5, actor.OwnerKey, "say", 11, 1, "NULL")}},
 	} {
