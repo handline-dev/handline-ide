@@ -271,8 +271,15 @@ func (m *Manager) recordDue(agent string) bool {
 	return row != nil && row.WakeAt.Valid && row.WakeAt.Int64 != 0 && row.WakeAt.Int64 <= m.now()
 }
 
+// wallCutDue: a wall closed this agent mid-work with its conversation kept, and it is to start now: its park has run out, or it has none
+// (a move's start).
+func (m *Manager) wallCutDue(agent string) bool {
+	row := must(db.GetAgentState(m.Q, agent))
+	return m.wallCut(agent, row) && (row.WakeAt.Int64 == 0 || row.WakeAt.Int64 <= m.now())
+}
+
 func (m *Manager) waitingFor(agent string) bool {
-	return m.recordDue(agent) || must(m.Delivery.EffectiveHead(m.Q, agent)) != nil ||
+	return m.recordDue(agent) || m.wallCutDue(agent) || must(m.Delivery.EffectiveHead(m.Q, agent)) != nil ||
 		len(must(db.SendNowPending(m.Q, agent))) > 0 || len(must(db.ListPending(m.Q, agent))) > 0
 }
 

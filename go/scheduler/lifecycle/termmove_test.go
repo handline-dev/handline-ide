@@ -74,23 +74,93 @@ func newTermMoveRig(t *testing.T) *termMoveRig {
 	return &termMoveRig{moveRig: g, run: run, pane: pane, sp: sp, d: d}
 }
 
-func TestATerminalAgentAtTheWallIsClosedByItsPaneAndRelaunchedFreshOnTheOtherAccount(t *testing.T) {
+func TestATerminalAgentAtTheWallIsClosedByItsPaneAndResumesItsConversationOnTheOtherAccount(t *testing.T) {
+	for _, kind := range []string{"usage", "usage_7d"} {
+		g := newTermMoveRig(t)
+		if ok, err := g.v.PerformHandoff("a", HandoffTrigger{Kind: kind, Reason: "wall"}, ""); !ok || err != nil {
+			t.Fatalf("%s: %v %v", kind, ok, err)
+		}
+		if len(g.pane.handles) != 1 || g.pane.handles[0] != "t1" || len(g.sp.startedIn) != 1 || g.sp.startedIn[0] != "a@/wt" {
+			t.Fatalf("%s: closed %v started %v", kind, g.pane.handles, g.sp.startedIn)
+		}
+		if len(g.pane.relaunched) != 0 {
+			t.Fatalf("%s: nothing is typed into the old pane: %v", kind, g.pane.relaunched)
+		}
+		if !strings.Contains(g.sp.cmds[0], "--resume sess-1") {
+			t.Fatalf("%s: not the same conversation: %q", kind, g.sp.cmds[0])
+		}
+		if row := g.row(t); row.Account.String != "beta" || isClosed(row) {
+			t.Fatalf("%s: %+v", kind, row)
+		}
+		if c, _ := db.Cursor(g.m.Q, wallCutKey("a")); c != 0 {
+			t.Fatalf("%s: the wall mark outlived the wake", kind)
+		}
+	}
+}
+
+func TestAMoveThatIsNotAWallOrAConversationTooBigToReadAgainStartsFresh(t *testing.T) {
+	for name, c := range map[string]struct {
+		kind string
+		ctx  int64
+	}{
+		"early":    {states.EarlyUsageTrigger, 0},
+		"login":    {LoginTrigger, 0},
+		"context":  {"context", 0},
+		"too big":  {"usage", ResumeMaxContext},
+		"just fit": {"usage", ResumeMaxContext - 1},
+	} {
+		g := newTermMoveRig(t)
+		g.m.Handoff = fakeHandoff{ctx: c.ctx}
+		if _, err := g.v.PerformHandoff("a", HandoffTrigger{Kind: c.kind, Reason: name}, ""); err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		resumed := len(g.sp.cmds) > 0 && strings.Contains(g.sp.cmds[0], "--resume")
+		if resumed != (name == "just fit") {
+			t.Fatalf("%s: resumed %v: %v", name, resumed, g.sp.cmds)
+		}
+	}
+}
+
+func TestAWallWithNowhereToGoKeepsTheConversationForTheResetAndOwesItTheWake(t *testing.T) {
 	g := newTermMoveRig(t)
-	if ok, err := g.v.PerformHandoff("a", HandoffTrigger{Kind: "usage", Reason: "5h wall"}, ""); !ok || err != nil {
+	g.l.dest = ""
+	if ok, err := g.v.PerformHandoff("a", HandoffTrigger{Kind: "usage", Reason: "wall"}, ""); !ok || err != nil {
 		t.Fatalf("%v %v", ok, err)
 	}
-	if len(g.pane.handles) != 1 || g.pane.handles[0] != "t1" || len(g.sp.startedIn) != 1 || g.sp.startedIn[0] != "a@/wt" {
-		t.Fatalf("closed %v started %v", g.pane.handles, g.sp.startedIn)
-	}
-	if len(g.pane.relaunched) != 0 {
-		t.Fatalf("nothing is typed into the old pane: %v", g.pane.relaunched)
-	}
 	row := g.row(t)
-	if row.Account.String != "beta" || isClosed(row) || row.ResumeSession.String != "" {
-		t.Fatalf("%+v", row)
+	if !isClosed(row) || row.ResumeSession.String != "sess-1" || row.State != states.Parked || len(g.sp.startedIn) != 0 {
+		t.Fatalf("%+v %v", row, g.sp.startedIn)
 	}
-	if _, ok, _ := db.LastEventID(g.m.Q, "a", "terminal_closed"); !ok {
-		t.Fatal("no terminal_closed event")
+	g.d.waitingMsg = ""
+	if g.m.waitingFor("a") {
+		t.Fatal("owed its wake before its park is up")
+	}
+	due := func(t *testing.T) *termMoveRig {
+		t.Helper()
+		g := newTermMoveRig(t)
+		g.l.dest = ""
+		g.v.PerformHandoff("a", HandoffTrigger{Kind: "usage", Reason: "wall"}, "")
+		g.d.waitingMsg = ""
+		row := g.row(t)
+		db.SetParked(g.m.Q, "a", states.Parked, 1, row.ParkReason.String, row.Detail.String)
+		return g
+	}
+	if g := due(t); !g.m.waitingFor("a") {
+		t.Fatal("the cut turn is not owed its wake at the reset")
+	}
+	// The mark ends however the close it belongs to ends: a session up again, a fresh close, a later close.
+	for name, end := range map[string]func(g *termMoveRig){
+		"up":    func(g *termMoveRig) { db.ClearClosed(g.m.Q, "a") },
+		"fresh": func(g *termMoveRig) { g.m.afterFreshClose("a") },
+		"later close": func(g *termMoveRig) {
+			g.m.Q.Exec("UPDATE agent_state SET closed_at = closed_at + 60 WHERE agent = 'a'")
+		},
+	} {
+		g := due(t)
+		end(g)
+		if g.m.wallCutDue("a") {
+			t.Fatalf("%s: the mark outlived its close", name)
+		}
 	}
 }
 

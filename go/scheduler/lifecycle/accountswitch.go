@@ -110,7 +110,7 @@ func (v *Mover) SwitchNow(agent, dest, by string) (ok bool, said string, err err
 	}()
 	m.noteSwitch(agent, wait.Cause, wait.From, dest, db.SwitchSwitching)
 	if alive {
-		if closed, why := v.closeFresh(agent); !closed {
+		if closed, why := v.closeFor(agent, "forced"); !closed {
 			return false, fmt.Sprintf("%s stays on %s: %s", addr.Ref(agent), wait.From, why), nil
 		}
 	}

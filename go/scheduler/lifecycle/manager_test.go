@@ -359,6 +359,14 @@ func TestWakePromptByCase(t *testing.T) {
 	if got != "Restarted.\n\nmsg" {
 		t.Fatalf("%q", got)
 	}
+	got, _ = m.WakePrompt("a", true, WakePromptIn{WallCut: true, MovedTo: "beta", Waiting: "msg"})
+	if got != "This conversation now runs on beta; your last turn stopped at the usage limit. Carry on where you stopped.\n\nmsg" {
+		t.Fatalf("%q", got)
+	}
+	got, _ = m.WakePrompt("a", true, WakePromptIn{WallCut: true})
+	if !strings.HasPrefix(got, "The limit has reset;") {
+		t.Fatalf("%q", got)
+	}
 	got, _ = m.WakePrompt("a", false, WakePromptIn{MovedTo: "beta"})
 	if !strings.Contains(got, "started on beta") || strings.Contains(got, "Your request") {
 		t.Fatalf("%q", got)
