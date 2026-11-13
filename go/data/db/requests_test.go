@@ -312,25 +312,36 @@ func TestOnlyATaskRequestEndsTheIdleProgressNote(t *testing.T) {
 	}
 }
 
-func TestAHeadWhoseTaskIsBlockedDoesNotHoldTheQueue(t *testing.T) {
-	q := open(t)
-	// b holds T1 (delivered, now waiting on T9) and T2 (queued, also waiting on T9); T3 is free behind them.
-	for _, s := range []string{
-		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'one', 'b', 'a', 1), (2, 'two', 'b', 'a', 1), (3, 'three', 'b', 'a', 1), (9, 'nine', 'c', 'a', 1)",
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok, queue_order) VALUES" +
-			"(11, 1, 'a', 'b', 'T1', 'landed', 'task', 1, 11), (12, 2, 'a', 'b', 'T2', 'queued', 'task', 1, 12), (13, 3, 'a', 'b', 'T3', 'queued', 'task', 1, 13)",
-		"INSERT INTO task_requests(task_id, request_id) VALUES(1, 11), (2, 12), (3, 13)",
-		"INSERT INTO task_blocks(task_id, blocks_on, created_at) VALUES(1, 9, 1), (2, 9, 1)",
-	} {
+// seed runs each statement on q.
+func seed(t *testing.T, q Q, stmts ...string) {
+	t.Helper()
+	for _, s := range stmts {
 		if _, err := q.Exec(s); err != nil {
 			t.Fatal(err)
 		}
 	}
+}
+
+// headsAre: EffectiveHead and EffectiveTaskHead both pick request want for agent.
+func headsAre(t *testing.T, q Q, agent string, want int64, why string) {
+	t.Helper()
 	for name, head := range map[string]func(Q, string) (*Request, error){"EffectiveHead": EffectiveHead, "EffectiveTaskHead": EffectiveTaskHead} {
-		if h, err := head(q, "b"); err != nil || h == nil || h.ID != 13 {
-			t.Fatalf("%s: T1 and T2 wait on T9, so T3 is what b can act on: %+v %v", name, h, err)
+		if h, err := head(q, agent); err != nil || h == nil || h.ID != want {
+			t.Fatalf("%s: %s: %+v %v", name, why, h, err)
 		}
 	}
+}
+
+func TestAHeadWhoseTaskIsBlockedDoesNotHoldTheQueue(t *testing.T) {
+	q := open(t)
+	// b holds T1 (delivered, now waiting on T9) and T2 (queued, also waiting on T9); T3 is free behind them.
+	seed(t, q,
+		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'one', 'b', 'a', 1), (2, 'two', 'b', 'a', 1), (3, 'three', 'b', 'a', 1), (9, 'nine', 'c', 'a', 1)",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok, queue_order) VALUES"+
+			"(11, 1, 'a', 'b', 'T1', 'landed', 'task', 1, 11), (12, 2, 'a', 'b', 'T2', 'queued', 'task', 1, 12), (13, 3, 'a', 'b', 'T3', 'queued', 'task', 1, 13)",
+		"INSERT INTO task_requests(task_id, request_id) VALUES(1, 11), (2, 12), (3, 13)",
+		"INSERT INTO task_blocks(task_id, blocks_on, created_at) VALUES(1, 9, 1), (2, 9, 1)")
+	headsAre(t, q, "b", 13, "T1 and T2 wait on T9, so T3 is what b can act on")
 	if _, err := q.Exec("DELETE FROM task_blocks WHERE task_id = 2"); err != nil {
 		t.Fatal(err)
 	}
@@ -343,4 +354,20 @@ func TestAHeadWhoseTaskIsBlockedDoesNotHoldTheQueue(t *testing.T) {
 	if h, _ := EffectiveHead(q, "b"); h != nil {
 		t.Fatalf("a request whose route is not checked yet stops the walk, as for the plain head: %+v", h)
 	}
+}
+
+func TestAPersonsAnswerOnABlockedTaskIsNotHeld(t *testing.T) {
+	q := open(t)
+	// T1 waits on T9. b, its owner, has a landed answer (19), an agent's pass (21), a plain founder request (22) and the founder's new
+	// answer (23) on it.
+	seed(t, q,
+		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'one', 'b', 'a', 1), (9, 'nine', 'c', 'a', 1)",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok, queue_order, landed_at) VALUES"+
+			"(19, 1, 'p1', 'b', 'old answer', 'landed', 'task', 1, 19, 1), (21, 2, 'p1', 'b', 'alice passed', 'queued', 'task', 1, 21, NULL), "+
+			"(22, 3, 'p1', 'b', 'founder, no turn', 'queued', 'task', 1, 22, NULL), (23, 4, 'p1', 'b', 'answer', 'queued', 'task', 1, 23, NULL)",
+		"INSERT INTO task_requests(task_id, request_id) VALUES(1, 19), (1, 21), (1, 22), (1, 23)",
+		"INSERT INTO task_blocks(task_id, blocks_on, created_at) VALUES(1, 9, 1)",
+		`INSERT INTO events(ts, agent, kind, payload) VALUES(1, 'p1', 'task_turn_pop', '{"task_id": 1, "agent": "p1", "request_id": 19}'), `+
+			`(2, 'p1', 'task_turn_pop', '{"task_id": 1, "agent": "alice", "request_id": 21}'), (4, 'p1', 'task_turn_pop', '{"task_id": 1, "agent": "p1", "request_id": 23}')`)
+	headsAre(t, q, "b", 23, "the landed answer, the founder ending alice's turn and a request no turn sent wait on T9; the founder's new answer does not")
 }
