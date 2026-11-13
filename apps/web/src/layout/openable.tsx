@@ -1,10 +1,9 @@
-// The one way anything opens a tab: a click opens it here; Cmd+click (Ctrl+click off the Mac), a middle click or Cmd+Enter beside;
-// a drag onto a tab bar, a pane or a pane's edge; a right-click offers Open, Open to the side, Open below and a copy (openItems).
+// The one way anything opens a tab: clicks and keys by howOf, a drag onto a tab bar or pane, and a right-click menu (openItems).
 // Every element that opens a tab takes its props from useOpenable, so a new one gets all of it.
 import { Menu as M } from '@base-ui/react/menu';
 import { Copy, ExternalLink, PanelBottom, PanelRight, SquareArrowOutUpRight } from 'lucide-react';
 import { useEffect, useState, type DragEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
-import { howOf, useOpenTab, type How } from '#src/layout/openTab.tsx';
+import { howOf, inPane, useOpenTab, type Gesture } from '#src/layout/openTab.tsx';
 import { openItems, type OpenItem } from '#src/layout/openItems.ts';
 import { copy } from '#src/ui/copy.ts';
 import { startTabDrag } from '#src/ui/dnd.tsx';
@@ -13,7 +12,7 @@ import { floatingSurface } from '#src/ui/Popover.tsx';
 
 type Options = {
   /** Runs before an open by click, key or menu; not on a drag, which may come to nothing. */
-  onOpen?: (how: How) => void;
+  onOpen?: (how: Gesture) => void;
   /** Says what the tab shows once open, a file or an account; runs before every open, a drag's as it starts. */
   focus?: () => void;
   /** In place of a plain open: the sidebar shows an agent's workspace; a row that opens no tab opens what it is about. */
@@ -25,12 +24,18 @@ type Options = {
 /** Opens `opens` the app's way, with the options' extras. */
 function useGo(opens: string | null, { onOpen, focus, here }: Options) {
   const openTab = useOpenTab();
-  return (how: How) => {
+  return (how: Gesture) => {
     focus?.();
     onOpen?.(how);
     if (here && (how === 'here' || !opens)) here();
-    else if (opens) openTab(opens, how);
+    else if (opens) openTab(opens, inPane(how));
   };
+}
+
+/** Opens `opens` in a new tab, for a button that does only that (a Requests row's new-tab icon). */
+export function useNewTab(opens: string | null, options: Options = {}) {
+  const go = useGo(opens, options);
+  return () => go('tab');
 }
 
 /** The props that make an element open `opens` (null: it opens no tab, only `here`). Plain Enter on a button or a link with an href
@@ -42,14 +47,14 @@ export function useOpenable(opens: string | null, options: Options = {}) {
     onAuxClick: (e: MouseEvent) => {
       if (e.button !== 1) return;
       e.preventDefault();
-      go('side');
+      go('tab');
     },
     onKeyDown: (e: KeyboardEvent) => {
       if (e.key !== 'Enter') return;
-      const side = e.metaKey || e.ctrlKey;
-      if (!side && clicksOnEnter(e.currentTarget)) return;
+      const how = howOf(e);
+      if (how === 'here' && clicksOnEnter(e.currentTarget)) return;
       e.preventDefault();
-      go(side ? 'side' : 'here');
+      go(how);
     },
     ...(opens && {
       draggable: true,
@@ -72,14 +77,14 @@ export function useOpenable(opens: string | null, options: Options = {}) {
 
 const clicksOnEnter = (el: Element) => el instanceof HTMLButtonElement || (el instanceof HTMLAnchorElement && !!el.href);
 
-function runItem(item: OpenItem, go: (how: How) => void) {
+function runItem(item: OpenItem, go: (how: Gesture) => void) {
   if (item.id === 'copy') void copy(item.text, item.name, { say: true });
   else if (item.id === 'browser') window.open(item.url, '_blank', 'noopener,noreferrer');
   else go(item.id);
 }
 
 const ICON: Record<OpenItem['id'], ReactNode> = {
-  here: <SquareArrowOutUpRight size={14} />,
+  tab: <SquareArrowOutUpRight size={14} />,
   side: <PanelRight size={14} />,
   below: <PanelBottom size={14} />,
   copy: <Copy size={14} />,
@@ -90,6 +95,7 @@ function Items({ items, run }: { items: OpenItem[]; run: (item: OpenItem) => voi
   return items.map((item) => (
     <MenuItem key={`${item.id}:${item.label}`} icon={ICON[item.id]} onClick={() => run(item)}>
       {item.label}
+      {'shortcut' in item && item.shortcut && <span className="ml-6 text-xs text-muted">{item.shortcut}</span>}
     </MenuItem>
   ));
 }

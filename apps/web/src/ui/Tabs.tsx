@@ -1,4 +1,4 @@
-import { howOf, type How } from '#src/layout/openTab.tsx';
+import { howOf, inPane, type How } from '#src/layout/openTab.tsx';
 import { Plus, X } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { clickPick, dragged, noPick, type Pick } from '#src/ui/tabPick.ts';
@@ -224,7 +224,7 @@ export function TabBar({
           }
         >
           {newTabKinds.map((k) => (
-            <MenuItem key={k.kind} icon={k.icon} onClick={(e) => onAdd(k.kind, howOf(e))}>
+            <MenuItem key={k.kind} icon={k.icon} onClick={(e) => onAdd(k.kind, inPane(howOf(e)))}>
               {k.label}
             </MenuItem>
           ))}

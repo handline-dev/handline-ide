@@ -149,7 +149,7 @@ function Row({ t, task, ruled }: { t: Touched; task?: Task; ruled: boolean }) {
       transition={spring}
       className="overflow-hidden"
     >
-      {/* A click opens the task, whose Activity has every change; Cmd+click beside. */}
+      {/* A click opens the task, whose Activity has every change. */}
       <button
         type="button"
         {...useOpenable(taskOf(Number(t.id.slice(1))))}

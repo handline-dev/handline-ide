@@ -16,6 +16,7 @@ import {
   ShieldQuestion,
   Signpost,
   X,
+  SquareArrowOutUpRight,
 } from 'lucide-react';
 import { useState, type MouseEvent, type ReactNode } from 'react';
 import { RowMenu, usePick, useRowActions } from '#src/requests/RowMenu.tsx';
@@ -26,8 +27,8 @@ import { ago } from '#src/format/time.ts';
 import { focusIn } from '#src/layout/focus.ts';
 import type { TaskRequest } from '#src/requests/data.ts';
 import { chatOf, taskOf } from '#src/layout/kinds.tsx';
-import { useOpenable } from '#src/layout/openable.tsx';
-import type { How } from '#src/layout/openTab.tsx';
+import { useNewTab, useOpenable } from '#src/layout/openable.tsx';
+import type { Gesture } from '#src/layout/openTab.tsx';
 import { openSettings } from '#src/settings/open.ts';
 import { goToTurnOf } from '#src/tools/TaskTurn.ts';
 import { failedLine } from '#src/ui/taskLook.tsx';
@@ -93,7 +94,7 @@ function Line({
   meta: string;
   /** The tab the row opens; null for a row that opens no tab, only `here`. */
   opens: string | null;
-  onOpen?: (how: How) => void;
+  onOpen?: (how: Gesture) => void;
   focus?: () => void;
   here?: () => void;
   /** Shown at the row's end while the pointer is on it: a dismiss, or a proposal's answer. */
@@ -111,6 +112,7 @@ function Line({
   const picking = !!pick?.picked.size;
   // In Requests the row has its own menu (RowMenu), with the open items at its top.
   const open = useOpenable(opens, { onOpen, focus, here, menu: !pick });
+  const newTab = useNewTab(opens, { onOpen, focus, here });
   const line = (
     // The check box sits beside the row's button, not inside it: a box in a button is no box to the keyboard.
     <div
@@ -147,9 +149,14 @@ function Line({
           <span className="line-clamp-2 text-xs break-words text-muted">{meta}</span>
         </span>
       </button>
-      {trailing && (
+      {(trailing || (opens && !picking)) && (
         <span className="absolute top-1.5 right-1.5 hidden items-center gap-1 rounded-md bg-surface group-hover/line:flex group-focus-within/line:flex">
           {trailing}
+          {opens && !picking && (
+            <IconButton className="size-6!" label="Open in new tab" onClick={newTab}>
+              <SquareArrowOutUpRight size={14} />
+            </IconButton>
+          )}
         </span>
       )}
     </div>
