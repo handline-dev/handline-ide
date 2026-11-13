@@ -3,6 +3,7 @@ import { Chat } from '#src/chat/Chat.tsx';
 import { Changes } from '#src/changes/Changes.tsx';
 import { MarkdownTab } from '#src/tools/MarkdownTab.tsx';
 import { TaskTab } from '#src/tools/TaskTab.tsx';
+import { TextTab } from '#src/tools/TextTab.tsx';
 import { TasksTab } from '#src/tools/TasksTab.tsx';
 import { RequestsTab } from '#src/requests/RequestsTab.tsx';
 import { ShellTab, TerminalTab } from '#src/tools/TerminalTab.tsx';
@@ -279,6 +280,7 @@ function PaneView({
               {current?.opens?.startsWith('file:') && agent && (
                 <MarkdownTab key={current.id} agent={agent} tab={current.id} start={current.opens.slice(5)} />
               )}
+              {current?.opens?.startsWith('text:') && <TextTab key={current.opens} id={current.opens.slice(5)} />}
               {current?.opens === 'usage' && <Usage />}
               {current?.opens === 'requests' && <RequestsTab />}
               {current?.opens === 'tasks' && <TasksTab agent={agent ?? null} />}

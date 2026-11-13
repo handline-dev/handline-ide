@@ -4,7 +4,12 @@ import { useState } from 'react';
 import { clock } from '#src/format/time.ts';
 import { spring } from '#src/motion.ts';
 import { Markdown } from '#src/ui/Markdown.tsx';
+import type { LineChange } from '@handline/client';
 import { ModalFrame, openModal } from '#src/ui/modal.tsx';
+import { textOf } from '#src/layout/kinds.tsx';
+import { useOpenTab } from '#src/layout/openTab.tsx';
+import { names, write } from '#src/persist/kv.ts';
+import { textKey } from '#src/tools/TextTab.tsx';
 
 /** Why a conversation began or restarted, as the line says it; a word the daemon adds later shows as it is. */
 const causes: Record<string, string> = {
@@ -58,12 +63,14 @@ export function CompactionLine({
   handoff,
   resumed,
   changed,
+  changed_lines: lines = [],
 }: {
   at: string;
   cause?: string;
   handoff: string | null;
   resumed?: boolean;
   changed?: string;
+  changed_lines?: LineChange[];
 }) {
   const why = causeWords(cause);
   const [shown, setShown] = useState(false);
@@ -99,7 +106,7 @@ export function CompactionLine({
     void openModal((close) =>
       resumed ? (
         <ModalFrame title="Restarted" onClose={() => close()}>
-          <Restart at={at} changes={changes} />
+          <Restart at={at} changes={changes} lines={lines} close={() => close()} />
         </ModalFrame>
       ) : (
         <ModalFrame title="Context compacted" size="xl" onClose={() => close()}>
@@ -131,17 +138,68 @@ export function CompactionLine({
   );
 }
 
+const FIRST = 8;
+
+/** One part's removed (−) and added (+) lines; Show all opens its whole text beside, or unfolds the rest here. */
+function PartLines({ l, at, close }: { l: LineChange; at: string; close: () => void }) {
+  const [all, setAll] = useState(false);
+  const openTab = useOpenTab();
+  const whole = () => {
+    const opens = textOf(at, l.part);
+    const key = textKey(opens.slice(5));
+    // Keep only the latest whole text: each is up to 256 KiB.
+    for (const n of names(textKey(''))) if (n !== key) write(n, undefined);
+    write(key, l.text);
+    close();
+    openTab(opens, 'side');
+  };
+  const rows = [...l.removed.map((t) => ({ t, add: false })), ...l.added.map((t) => ({ t, add: true }))];
+  const shown = all ? rows : rows.slice(0, FIRST);
+  const hidden = rows.length - shown.length;
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="text-sm font-medium text-fg">{l.part}</div>
+      <pre className="max-h-96 overflow-auto rounded-md bg-hover/40 px-3 py-2 font-mono text-xs leading-5 whitespace-pre-wrap">
+        {shown.map((r, i) => (
+          <div key={i} className={r.add ? 'text-success' : 'text-danger'}>
+            {r.add ? '+' : '−'} {r.t}
+          </div>
+        ))}
+        {!!l.more && <div className="text-muted">and {l.more} more lines, too many to keep</div>}
+      </pre>
+      {l.text != null ? (
+        <button type="button" onClick={whole} className="self-start rounded px-1 text-xs text-accent hover:bg-hover">
+          Show all
+        </button>
+      ) : (
+        hidden > 0 && (
+          <button type="button" onClick={() => setAll(true)} className="self-start rounded px-1 text-xs text-accent hover:bg-hover">
+            Show all {rows.length + (l.more ?? 0)} lines
+          </button>
+        )
+      )}
+    </div>
+  );
+}
+
 /** What a restart changed, one change a line, under when it was. */
-function Restart({ at, changes }: { at: string; changes: string[] }) {
+function Restart({ at, changes, lines, close }: { at: string; changes: string[]; lines: LineChange[]; close: () => void }) {
+  const shown = new Set(lines.map((l) => l.part));
   return (
     <div className="flex flex-col gap-5 pb-1">
       <Facts rows={[['When', new Date(at).toLocaleString()]]} />
-      <section className="flex flex-col gap-2">
+      <section className="flex flex-col gap-3">
         <h3 className="text-xs font-medium text-muted">What changed</h3>
+        {lines.map((l) => (
+          <PartLines key={l.part} l={l} at={at} close={close} />
+        ))}
+        {/* A change the daemon kept no lines for (a model, or an older daemon) stays a plain line. */}
         <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-fg">
-          {changes.map((c) => (
-            <li key={c}>{c}</li>
-          ))}
+          {changes
+            .filter((c) => ![...shown].some((p) => c === `${p} changed` || c.startsWith(`${p} changed `)))
+            .map((c, i) => (
+              <li key={i}>{c}</li>
+            ))}
         </ul>
       </section>
     </div>
