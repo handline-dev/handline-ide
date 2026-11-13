@@ -375,7 +375,7 @@ export type SettingsValues = {
   subagent_pace_guard?: boolean;
   /** How agents are spread over the accounts: auto, the default, places each new start and moves an agent off an account near its wall; manual never does: an agent stays on the account it is on, waits at its wall for the reset and goes on with the same conversation. A person's move (agent.move) goes in both. Applied at the next start or move, without a restart. */
   account_split?: "auto" | "manual";
-  /** When an idle agent's account reaches this percent of its 5-hour or weekly window and work is waiting for it, the agent moves to an account still under it that has room, before the work starts a turn; 0 is off, the default, and an agent moves only at the wall. */
+  /** When an idle agent's account reaches this percent of its 5-hour window, or 98% of its week, and work is waiting for it, the agent moves to an account under both that has room, before the work starts a turn; 90 by default; 0 is off, and an agent moves only at the wall. */
   usage_move_before_pct?: number;
   /** Let a context clear go ahead when the agent's turn has ended and only background work keeps its session busy: it is told, and the work is cut off after 5 minutes as for any clear. Off: the clear waits for that work with no limit. */
   context_clear_past_background?: boolean;
@@ -463,7 +463,7 @@ export type SettingsChanges = {
   subagent_pace_guard?: boolean;
   /** How agents are spread over the accounts: auto, the default, places each new start and moves an agent off an account near its wall; manual never does: an agent stays on the account it is on, waits at its wall for the reset and goes on with the same conversation. A person's move (agent.move) goes in both. Applied at the next start or move, without a restart. null removes the key (back to the default). */
   account_split?: ("auto" | "manual") | null;
-  /** When an idle agent's account reaches this percent of its 5-hour or weekly window and work is waiting for it, the agent moves to an account still under it that has room, before the work starts a turn; 0 is off, the default, and an agent moves only at the wall. null removes the key (back to the default). */
+  /** When an idle agent's account reaches this percent of its 5-hour window, or 98% of its week, and work is waiting for it, the agent moves to an account under both that has room, before the work starts a turn; 90 by default; 0 is off, and an agent moves only at the wall. null removes the key (back to the default). */
   usage_move_before_pct?: number | null;
   /** Let a context clear go ahead when the agent's turn has ended and only background work keeps its session busy: it is told, and the work is cut off after 5 minutes as for any clear. Off: the clear waits for that work with no limit. */
   context_clear_past_background?: boolean;

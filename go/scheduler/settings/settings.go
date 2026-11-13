@@ -123,12 +123,12 @@ func (s *Settings) ConfigSeconds(key string, def int64) int64 {
 	return def
 }
 
-// Percent is a whole percent from 1 to 100 from config.yaml, or 0 when it is absent or not one.
-func (s *Settings) Percent(key string) int {
-	if n, ok := positive(s.config()[key]); ok && n <= 100 {
+// PercentOr is a whole percent from 0 to 100 from config.yaml, or def when it is absent or not one.
+func (s *Settings) PercentOr(key string, def int) int {
+	if n, ok := nonNegative(s.config()[key]); ok && n <= 100 {
 		return int(n)
 	}
-	return 0
+	return def
 }
 
 // Flag is a true/false setting from config.yaml, or def when it is absent or not one.

@@ -2093,8 +2093,8 @@
       "type": "integer",
       "minimum": 0,
       "maximum": 100,
-      "default": 0,
-      "description": "When an idle agent's account reaches this percent of its 5-hour or weekly window and work is waiting for it, the agent moves to an account still under it that has room, before the work starts a turn; 0 is off, the default, and an agent moves only at the wall."
+      "default": 90,
+      "description": "When an idle agent's account reaches this percent of its 5-hour window, or 98% of its week, and work is waiting for it, the agent moves to an account under both that has room, before the work starts a turn; 90 by default; 0 is off, and an agent moves only at the wall."
      },
      "context_clear_past_background": {
       "type": "boolean",
@@ -2551,7 +2551,7 @@
         "type": "null"
        }
       ],
-      "description": "When an idle agent's account reaches this percent of its 5-hour or weekly window and work is waiting for it, the agent moves to an account still under it that has room, before the work starts a turn; 0 is off, the default, and an agent moves only at the wall. null removes the key (back to the default)."
+      "description": "When an idle agent's account reaches this percent of its 5-hour window, or 98% of its week, and work is waiting for it, the agent moves to an account under both that has room, before the work starts a turn; 90 by default; 0 is off, and an agent moves only at the wall. null removes the key (back to the default)."
      },
      "context_clear_past_background": {
       "type": "boolean",

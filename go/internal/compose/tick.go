@@ -745,7 +745,9 @@ func (c tickConfig) AgentConfig(agent string) map[string]any {
 	return cfg
 }
 func (c tickConfig) Seconds(key string, def int64) int64 { return c.set.ConfigSeconds(key, def) }
-func (c tickConfig) MoveBeforePct() int                  { return c.set.Percent(usage.MoveBeforeKey) }
+func (c tickConfig) MoveBeforePct() int {
+	return c.set.PercentOr(usage.MoveBeforeKey, usage.MoveBeforeDefault)
+}
 
 // releaseWorktreeLocks lets go of every lock a session that is gone took (worktreelock.Release), over each linked worktree of the
 // repositories the agents work in, read from the repository: a retired agent's is let go too, and so is one whose folder was deleted.

@@ -54,6 +54,15 @@ func TestSettingsReadTheAgentsOwnThenTheGlobalThenTheDefault(t *testing.T) {
 	}
 }
 
+func TestPercentOrIsAWholePercentOrTheDefault(t *testing.T) {
+	s := settingsWith(t, "zero: 0\nfull: 100\nover: 101\nneg: -1\nword: x\n")
+	for key, want := range map[string]int{"zero": 0, "full": 100, "over": 90, "neg": 90, "word": 90, "absent": 90} {
+		if got := s.PercentOr(key, 90); got != want {
+			t.Fatalf("%s: %d, want %d", key, got, want)
+		}
+	}
+}
+
 func TestSetFlagKeepsTheOtherSettingsAndRefusesToOverwriteWhatIsNotAMapping(t *testing.T) {
 	s := settingsWith(t, "park_timeout_s: 7\nignore_cache_expiry: false\n")
 	if s.Flag("ignore_cache_expiry", true) {

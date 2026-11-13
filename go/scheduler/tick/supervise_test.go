@@ -267,9 +267,13 @@ func TestAnIdleAgentPastUsageMoveBeforePctIsHandedOffBeforeItsWorkIsDelivered(t 
 	if actions := supervise(tk, "a"); !w.did("handoff a usage_early other") || !w.did("queued") {
 		t.Fatalf("%v %v", actions, w.calls)
 	}
-	tk, w = setup(Status{ShortTrusted: pct(10), LongTrusted: pct(95)})
+	tk, w = setup(Status{ShortTrusted: pct(90)})
 	if actions := supervise(tk, "a"); !w.did("handoff a usage_early other") {
-		t.Fatalf("the weekly window past the setting did not hand it off: %v %v", actions, w.calls)
+		t.Fatalf("the 5-hour window at the setting did not hand it off: %v %v", actions, w.calls)
+	}
+	tk, w = setup(Status{ShortTrusted: pct(10), LongTrusted: pct(MoveBeforeWeekPct)})
+	if actions := supervise(tk, "a"); !w.did("handoff a usage_early other") {
+		t.Fatalf("the week at MoveBeforeWeekPct did not hand it off: %v %v", actions, w.calls)
 	}
 	// Waiting on the note its handoff asked for, the work waits and nothing is handed off again.
 	tk, w = setup(Status{ShortTrusted: pct(92)})
@@ -307,11 +311,15 @@ func TestAnIdleAgentPastUsageMoveBeforePctIsHandedOffBeforeItsWorkIsDelivered(t 
 	}
 	// Off, under the setting, on a guessed account, nowhere to go, or a destination as full: it stays and its work is delivered.
 	cases := map[string]func(*world){
-		"off":       func(w *world) { w.moveBefore = 0 },
-		"under":     func(w *world) { w.status = Status{ShortTrusted: pct(89), LongTrusted: pct(40)} },
+		"off":        func(w *world) { w.moveBefore = 0 },
+		"under":      func(w *world) { w.status = Status{ShortTrusted: pct(89), LongTrusted: pct(40)} },
+		"week under": func(w *world) { w.status = Status{ShortTrusted: pct(89), LongTrusted: pct(MoveBeforeWeekPct - 1)} },
+		"dest week": func(w *world) {
+			w.statusOf["other"] = Status{ShortTrusted: pct(20), LongTrusted: pct(MoveBeforeWeekPct)}
+		},
 		"assumed":   func(w *world) { w.reading.Source = "assumed" },
 		"no room":   func(w *world) { w.movePlan = "" },
-		"dest full": func(w *world) { w.statusOf["other"] = Status{ShortTrusted: pct(91)} },
+		"dest full": func(w *world) { w.statusOf["other"] = Status{ShortTrusted: pct(90)} },
 	}
 	for name, change := range cases {
 		tk, w := setup(Status{ShortTrusted: pct(92), LongTrusted: pct(40)})
