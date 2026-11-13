@@ -74,3 +74,41 @@ func TestTheTurnRuleTakesTheNewestFounderMessageOfTheTurn(t *testing.T) {
 		})
 	}
 }
+
+// A founder comment on agent work (T1 serves no request) told in manager's turn: the first task manager opens from it is a request of its
+// own, from the tell, and the second serves the first.
+func TestAFounderCommentOnAgentWorkStartsARequest(t *testing.T) {
+	q := open(t)
+	for _, s := range []string{
+		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'agent work', 'manager', 'manager', 1)",
+		"INSERT INTO events(ts, agent, kind) VALUES(10, 'manager', 'Stop')",
+		"INSERT INTO requests(id, requester, target, body, state, kind, ts, landed_at) VALUES(5, 'sys', 'manager', 'm', 'landed', 'say', 11, 11)",
+		"INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(7, 1, '" + actor.OwnerKey + "', 'ok, build it', 11)",
+		"INSERT INTO memo_tells(memo_id, reader, request_id) VALUES(7, 'manager', 5)",
+	} {
+		if _, err := q.Exec(s); err != nil {
+			t.Fatalf("%s: %v", s, err)
+		}
+	}
+	row := func(tid int64) string {
+		var req, origin any
+		if err := q.QueryRow("SELECT request, turn_origin FROM tasks WHERE id = ?", tid).Scan(&req, &origin); err != nil {
+			t.Fatal(err)
+		}
+		return fmt.Sprint(req, " ", origin)
+	}
+	first, err := NewTask(q, "first", "worker", "manager", 0, DefaultPriority, "report", 0, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := NewTask(q, "second", "worker", "manager", 0, DefaultPriority, "report", 0, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := row(first), fmt.Sprintf("%d 5", first); got != want {
+		t.Errorf("first: request turn_origin %s, want %s", got, want)
+	}
+	if got, want := row(second), fmt.Sprintf("%d <nil>", first); got != want {
+		t.Errorf("second: request turn_origin %s, want %s", got, want)
+	}
+}

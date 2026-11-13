@@ -58,3 +58,22 @@ func TestAMessageATurnMadeARequestIsListedOnce(t *testing.T) {
 		t.Errorf("one row, T1, from msg 7: %v", rows)
 	}
 }
+
+// A request a founder's comment started has the comment's tell as turn_origin (a sys message, or the task's return that carried it): its row
+// names no message.
+func TestARequestAFounderCommentStartedNamesNoMessage(t *testing.T) {
+	t.Parallel()
+	for _, tell := range []string{"'sys', 'lead', 'tell', 'landed', 'say'", "'p1', 'lead', 'back to you', 'landed', 'task'"} {
+		e := testEnv(t)
+		now := time.Now().Unix()
+		run(t, e, "INSERT INTO requests(id, ref, ts, requester, target, body, state, kind) VALUES(7, 'aaaaaaaaaaa7', "+itoa(now-100)+", "+tell+")")
+		run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, request, turn_origin) VALUES(1, 'from the comment', 'dev', 'lead', "+itoa(now-90)+", 1, 7)")
+		rows, err := e.RequestRows(now)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(rows) != 1 || rows[0]["task"] != int64(1) || rows[0]["ref"] != nil || rows[0]["origin"] != nil {
+			t.Errorf("%s: one row, T1, no message: %v", tell, rows)
+		}
+	}
+}

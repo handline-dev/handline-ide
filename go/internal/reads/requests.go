@@ -135,9 +135,9 @@ func (e *Env) RequestRows(clock int64) ([]map[string]any, error) {
 				row["attention"] = a
 			}
 		}
-		if rid := r.i("origin"); rid != 0 {
-			row["ref"] = origins[rid].ref
-			row["origin"] = origins[rid].agent
+		if o, ok := origins[r.i("origin")]; ok {
+			row["ref"] = o.ref
+			row["origin"] = o.agent
 		}
 		out = append(out, row)
 	}
@@ -272,9 +272,10 @@ func (e *Env) unseenResults(clock int64) (int, error) {
 type origin struct{ ref, agent string }
 
 // originAgents is, by message, the ref and the agent it was sent to, for the requests made from a message (from_request or turn_origin).
+// A request started by a founder's comment has its tell (no message of his) as turn_origin, so none.
 func (e *Env) originAgents() (map[int64]origin, error) {
-	rows, err := query(e.DB, "SELECT id, ref, target FROM requests WHERE id IN (SELECT from_request FROM tasks WHERE from_request IS NOT NULL) "+
-		"OR id IN (SELECT turn_origin FROM tasks WHERE turn_origin IS NOT NULL)")
+	rows, err := query(e.DB, "SELECT id, ref, target FROM requests WHERE (id IN (SELECT from_request FROM tasks WHERE from_request IS NOT NULL) "+
+		"OR id IN (SELECT turn_origin FROM tasks WHERE turn_origin IS NOT NULL)) AND requester = ? AND kind = 'say'", actor.OwnerKey)
 	if err != nil {
 		return nil, err
 	}

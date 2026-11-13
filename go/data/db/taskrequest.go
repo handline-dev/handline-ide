@@ -8,8 +8,8 @@ import (
 
 // A task's request (tasks.request) is the founder request it serves: the number of that request's own task, NULL for an agent's own work.
 // It is set from the founder's words only: when the task is made, when a task of the request is made to wait on it, and when an agent opens
-// work from his comment another agent passed it (task.new request). tasks.turn_origin
-// is the founder's message a task became a request from in that message's turn (turnRequest).
+// work from his comment another agent passed it (task.new request). tasks.turn_origin is the founder's message, or his comment's tell, a task
+// became a request from in that turn (turnRequest).
 
 // SetTaskRequest gives the new task tid its request, by the first rule that holds: a task with no parent that answers to the founder (its
 // reporter, else its opener) is a request of its own; a task with a parent serves its parent's; a task an agent opens serves the request
@@ -47,9 +47,10 @@ func SetTaskRequest(q Q, tid int64) error {
 const turnStart = "COALESCE((SELECT MAX(ts) FROM events WHERE agent = ?1 AND kind IN ('Stop', 'StopFailure')), 0)"
 
 // turnRequest is the request of task tid, opened by agent in a turn that brought the founder's words (typed to it since its last Stop), by
-// the newest of them. A comment of the founder's is its task's request, none when that task serves none. A message is the request of the
-// task that holds its thread (its top message made a task, or gave a task its turn_origin); else, when the message is a thread's top, tid's
-// own, with the message as its turn_origin; else none.
+// the newest of them. A comment of the founder's is its task's request; on a task that serves none, the first task opened from its tell is
+// a request of its own (turn_origin the tell) and later ones serve it. A message is the request of the task that holds its thread (its top
+// message made a task, or gave a task its turn_origin); else, when the message is a thread's top, tid's own, with the message as its
+// turn_origin; else none.
 func turnRequest(q Q, tid int64, agent string) (sql.NullInt64, error) {
 	var req sql.NullInt64
 	var rid, top int64
@@ -65,8 +66,13 @@ func turnRequest(q Q, tid int64, agent string) (sql.NullInt64, error) {
 		return req, err
 	}
 	if memoTask.Valid {
-		err = q.QueryRow("SELECT request FROM tasks WHERE id = ?", memoTask.Int64).Scan(&req)
-		return req, err
+		if err := q.QueryRow("SELECT request FROM tasks WHERE id = ?", memoTask.Int64).Scan(&req); err != nil || req.Valid {
+			return req, err
+		}
+		if err := q.QueryRow("SELECT request FROM tasks WHERE turn_origin = ? ORDER BY id LIMIT 1", rid).Scan(&req); err != sql.ErrNoRows {
+			return req, err
+		}
+		return startRequest(q, tid, rid)
 	}
 	if err := q.QueryRow("WITH RECURSIVE up(id, parent) AS (SELECT id, parent_id FROM requests WHERE id = ? "+
 		"UNION SELECT r.id, r.parent_id FROM requests r JOIN up ON r.id = up.parent) SELECT id FROM up WHERE parent IS NULL", rid).Scan(&top); err != nil {
@@ -80,8 +86,13 @@ func turnRequest(q Q, tid int64, agent string) (sql.NullInt64, error) {
 	if top != rid {
 		return req, nil
 	}
+	return startRequest(q, tid, rid)
+}
+
+// startRequest makes task tid a request of its own, from the founder's words rid (its turn_origin).
+func startRequest(q Q, tid, rid int64) (sql.NullInt64, error) {
 	if _, err := q.Exec("UPDATE tasks SET turn_origin = ? WHERE id = ?", rid, tid); err != nil {
-		return req, err
+		return sql.NullInt64{}, err
 	}
 	return sql.NullInt64{Int64: tid, Valid: true}, nil
 }
