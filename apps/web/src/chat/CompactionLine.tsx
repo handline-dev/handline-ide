@@ -8,7 +8,7 @@ import type { LineChange } from '@handline/client';
 import { ModalFrame, openModal } from '#src/ui/modal.tsx';
 import { textOf } from '#src/layout/kinds.tsx';
 import { useOpenTab } from '#src/layout/openTab.tsx';
-import { write } from '#src/persist/kv.ts';
+import { names, write } from '#src/persist/kv.ts';
 import { textKey } from '#src/tools/TextTab.tsx';
 
 /** Why a conversation began or restarted, as the line says it; a word the daemon adds later shows as it is. */
@@ -140,14 +140,16 @@ export function CompactionLine({
 
 const FIRST = 8;
 
-/** One part's removed (−) and added (+) lines, the first few. Show all opens the part's whole text in a tab beside when the daemon
- * kept it, else unfolds the rest of the lines here. */
+/** One part's removed (−) and added (+) lines; Show all opens its whole text beside, or unfolds the rest here. */
 function PartLines({ l, at, close }: { l: LineChange; at: string; close: () => void }) {
   const [all, setAll] = useState(false);
   const openTab = useOpenTab();
   const whole = () => {
     const opens = textOf(at, l.part);
-    write(textKey(opens.slice(5)), l.text);
+    const key = textKey(opens.slice(5));
+    // Keep only the latest whole text: each is up to 256 KiB.
+    for (const n of names(textKey(''))) if (n !== key) write(n, undefined);
+    write(key, l.text);
     close();
     openTab(opens, 'side');
   };
@@ -163,7 +165,7 @@ function PartLines({ l, at, close }: { l: LineChange; at: string; close: () => v
             {r.add ? '+' : '−'} {r.t}
           </div>
         ))}
-        {!!l.more && hidden === 0 && <div className="text-muted">and {l.more} more lines, too many to keep</div>}
+        {!!l.more && <div className="text-muted">and {l.more} more lines, too many to keep</div>}
       </pre>
       {l.text != null ? (
         <button type="button" onClick={whole} className="self-start rounded px-1 text-xs text-accent hover:bg-hover">
@@ -194,9 +196,9 @@ function Restart({ at, changes, lines, close }: { at: string; changes: string[];
         {/* A change the daemon kept no lines for (a model, or an older daemon) stays a plain line. */}
         <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-fg">
           {changes
-            .filter((c) => !shown.has(c.replace(/ changed$/, '')))
-            .map((c) => (
-              <li key={c}>{c}</li>
+            .filter((c) => ![...shown].some((p) => c === `${p} changed` || c.startsWith(`${p} changed `)))
+            .map((c, i) => (
+              <li key={i}>{c}</li>
             ))}
         </ul>
       </section>
