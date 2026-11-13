@@ -27,7 +27,7 @@ function SplitSetting() {
   return (
     <section className="flex items-center justify-between gap-6 rounded-lg border border-border px-4 py-3">
       <div className="min-w-0">
-        <h2 className="text-sm font-medium text-fg">계정 나누기</h2>
+        <h3 className="text-sm text-fg">계정 나누기</h3>
         <p className="text-xs text-muted">
           {manual
             ? '에이전트를 둔 계정에 그대로 둡니다. 한도에 닿으면 초기화를 기다렸다가 같은 대화를 이어갑니다.'
@@ -94,7 +94,9 @@ export function AccountsTab({ focus }: { focus?: string }) {
             />
           </div>
           <AiToolsCard />
+          <h2 className="pt-4 text-sm font-medium text-fg">Splitting work</h2>
           <SplitSetting />
+          <h2 className="pt-4 text-sm font-medium text-fg">Claude accounts</h2>
           {q.isPending && <RowsLoading rows={6} />}
           {q.isError && <p className="text-sm text-danger">Accounts did not load.</p>}
           {accounts.map((a) => (
