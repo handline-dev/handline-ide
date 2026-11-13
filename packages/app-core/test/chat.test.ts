@@ -398,18 +398,18 @@ test('the restart line ends where the New session line begins, never both', () =
   assert.equal(restartShown({ since }, [session('2026-10-18T20:55:45.000Z')]), false);
 });
 
-test('the live restart line reads as one sentence', () => {
-  assert.equal(restartingLine({ cause: 'context_full', phase: 'writing' }), 'Restarting: context full. Writing the handoff…');
-  assert.equal(restartingLine({ cause: 'context_full', phase: 'starting' }), 'Restarting: context full. Starting a new session…');
+test('the live restart line says what happens now first, then why', () => {
+  assert.equal(restartingLine({ cause: 'context_full', phase: 'writing' }), 'Writing the handoff to restart: context full');
+  assert.equal(restartingLine({ cause: 'context_full', phase: 'starting' }), 'Starting a new session to restart: context full');
   assert.equal(
     restartingLine({ cause: 'settings_applied', phase: 'waiting', settings: ['model'] }),
-    'Restarting: model changed. Waiting for its turn to end…',
+    'Waiting for its turn to end, then restarts: model changed',
   );
   assert.equal(
     restartingLine({ cause: 'settings_applied', phase: 'starting', settings: ['model', 'effort'] }),
-    'Restarting: model, effort changed. Starting a new session…',
+    'Starting a new session to restart: model, effort changed',
   );
-  assert.equal(restartingLine({ cause: 'restart', phase: 'starting' }), 'Restarting: restart asked. Starting a new session…');
+  assert.equal(restartingLine({ cause: 'restart', phase: 'starting' }), 'Starting a new session to restart: restart asked');
 });
 
 test('a permission request is a tool step: Activity lists it under tools, Chat keeps only other dialogs', () => {

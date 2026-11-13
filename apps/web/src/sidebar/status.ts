@@ -5,10 +5,10 @@ import { useKeyed } from '#src/settings/data/keyed.ts';
 
 export type Level = 'ok' | 'near' | 'held' | 'down';
 
-/** The highest weekly use over the accounts, or null when none reports one. */
+/** Mean weekly use over the accounts that report one, or null when none does. */
 export const weekUsagePct = (accounts: { weekly: { used_pct: number } | null }[]): number | null => {
   const used = accounts.flatMap((a) => (a.weekly ? [a.weekly.used_pct] : []));
-  return used.length ? Math.round(Math.max(...used)) : null;
+  return used.length ? Math.round(used.reduce((a, b) => a + b, 0) / used.length) : null;
 };
 
 export function useStatusRow() {
