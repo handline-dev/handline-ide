@@ -47,7 +47,9 @@ export const shellHandle = (kind: string) => (kind.startsWith('shell:') ? kind.s
 export const taskOf = (id: number) => `task:${id}`;
 export const webOf = (url: string) => `web:${url}`;
 export const fileOf = (path: string) => `file:${path}`;
-export const opened = (kind: string, prefix: 'task' | 'web' | 'file') =>
+/** A text kept in this browser (tools/TextTab): `text:<when>/<name>`, titled by its name. */
+export const textOf = (when: string, name: string) => `text:${when}/${name}`;
+export const opened = (kind: string, prefix: 'task' | 'web' | 'file' | 'text') =>
   kind.startsWith(`${prefix}:`) ? kind.slice(prefix.length + 1) : null;
 const onThing = (kind: string): { label: string; icon: ReactNode } | null => {
   if (shellHandle(kind)) return kinds.newshell;
@@ -65,6 +67,8 @@ const onThing = (kind: string): { label: string; icon: ReactNode } | null => {
   }
   const file = opened(kind, 'file');
   if (file) return { label: file.split('/').pop() ?? file, icon: kinds.markdown.icon };
+  const text = opened(kind, 'text');
+  if (text) return { label: text.slice(text.indexOf('/') + 1), icon: kinds.markdown.icon };
   return null;
 };
 
