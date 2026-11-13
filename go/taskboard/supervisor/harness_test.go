@@ -22,6 +22,7 @@ import (
 type fakeTerm struct {
 	mu         sync.Mutex
 	typed      []string
+	modes      []delivery.Delivery // how each Send was asked to write: at once, or behind a running turn
 	typeable   bool
 	blocker    *term.Blocker
 	background string
@@ -205,10 +206,11 @@ type sessionAgents struct {
 
 func (a *sessionAgents) Structured(agent string) bool { return !a.noPeer[agent] }
 func (a *sessionAgents) Live(agent string) bool       { return a.live[agent] }
-func (a *sessionAgents) Send(_, _, text string, _ delivery.Delivery) (delivery.Receipt, error) {
+func (a *sessionAgents) Send(_, _, text string, d delivery.Delivery) (delivery.Receipt, error) {
 	a.r.term.mu.Lock()
 	defer a.r.term.mu.Unlock()
 	a.r.term.record(text)
+	a.r.term.modes = append(a.r.term.modes, d)
 	return delivery.Receipt{State: delivery.Sent}, nil
 }
 func (a *sessionAgents) Withdraw(string, string) (delivery.Receipt, bool, error) {
