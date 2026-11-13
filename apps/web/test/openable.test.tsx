@@ -37,7 +37,7 @@ const mouse = (over: Partial<MouseEvent> = {}) => ({ button: 0, preventDefault()
 
 describe('openItems', () => {
   it('offers the three ways to open, and a task its T-number to copy', () => {
-    expect(openItems('task:8503').map((i) => i.label)).toEqual(['Open', 'Open to the side', 'Open below', 'Copy T8503']);
+    expect(openItems('task:8503').map((i) => i.label)).toEqual(['Open in new tab', 'Open to the side', 'Open below', 'Copy T8503']);
   });
   it('a web page copies its link and opens in the browser', () => {
     const items = openItems('web:https://example.com/a');
@@ -53,30 +53,35 @@ describe('openItems', () => {
 });
 
 describe('useOpenable', () => {
-  it('a click opens here; Cmd, Ctrl or a middle click beside', () => {
-    const { out, opened } = mount(() => useOpenable('task:1'));
+  it('a click opens here; Cmd, Ctrl or a middle click a new tab; Option beside', () => {
+    const here = vi.fn();
+    const { out, opened } = mount(() => useOpenable('task:1', { here }));
     out.current.onClick(mouse());
     out.current.onClick(mouse({ metaKey: true }));
     out.current.onClick(mouse({ ctrlKey: true }));
     out.current.onAuxClick(mouse({ button: 1 }));
     out.current.onAuxClick(mouse({ button: 2 }));
+    out.current.onClick(mouse({ altKey: true }));
+    expect(here).toHaveBeenCalledOnce();
     expect(opened).toEqual([
       ['task:1', 'here'],
-      ['task:1', 'side'],
-      ['task:1', 'side'],
+      ['task:1', 'here'],
+      ['task:1', 'here'],
       ['task:1', 'side'],
     ]);
   });
 
-  it('Cmd+Enter opens beside; plain Enter is a button’s own click, but opens a div', () => {
+  it('Option+Enter opens beside, Cmd+Enter a new tab; plain Enter is a button’s own click, but opens a div', () => {
     const { out, opened } = mount(() => useOpenable('diff'));
     const key = (target: Element, over: Partial<KeyboardEvent> = {}) =>
       ({ key: 'Enter', currentTarget: target, preventDefault() {}, ...over }) as unknown as KeyboardEvent;
+    out.current.onKeyDown(key(document.createElement('button'), { altKey: true }));
     out.current.onKeyDown(key(document.createElement('button'), { metaKey: true }));
     out.current.onKeyDown(key(document.createElement('button')));
     out.current.onKeyDown(key(document.createElement('div')));
     expect(opened).toEqual([
       ['diff', 'side'],
+      ['diff', 'here'],
       ['diff', 'here'],
     ]);
   });
@@ -87,7 +92,7 @@ describe('useOpenable', () => {
     const focus = vi.fn();
     const { out, opened } = mount(() => useOpenable('chat:a', { here, onOpen, focus }));
     out.current.onClick(mouse());
-    out.current.onClick(mouse({ metaKey: true }));
+    out.current.onClick(mouse({ altKey: true }));
     expect(here).toHaveBeenCalledOnce();
     expect(opened).toEqual([['chat:a', 'side']]);
     const setData = vi.fn();

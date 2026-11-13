@@ -25,7 +25,7 @@ const GROUPS: { title: string; has: (t: Task) => boolean }[] = [
 ];
 
 /** The tasks: open ones grouped by what they are doing, drafts, or the closed ones; in an agent's pane, that agent's by default.
- * A row opens the task in this pane, Cmd+click beside. */
+ * A row opens the task in this pane. */
 export function TasksTab({ agent }: { agent: string | null }) {
   const [show, setShow] = useTabState<Show>('show', 'open');
   const [only, setOnly] = useTabState('only', true);

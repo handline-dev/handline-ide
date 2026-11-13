@@ -8,7 +8,12 @@ vi.mock('@handline/app-data', () => ({
   useWrite: () => ({ mutateAsync, isPending: false }),
   useDirectory: () => ({ agents: [], people: [], workspaces: [] }),
 }));
-vi.mock('#src/layout/openTab.tsx', () => ({ useOpenTab: () => openTab, howOf: () => 'here' }));
+vi.mock('#src/layout/openTab.tsx', () => ({
+  useOpenTab: () => openTab,
+  howOf: () => 'here',
+  inPane: (g: string) => (g === 'tab' ? 'here' : g),
+  SHORTCUT: {},
+}));
 
 const { CommandsOf } = await import('#src/chat/CommandBlock.tsx');
 const { Markdown } = await import('#src/ui/Markdown.tsx');

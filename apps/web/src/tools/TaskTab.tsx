@@ -198,7 +198,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-/** A task by its number and title, its state pill first when given; a click opens it, Cmd+click beside. */
+/** A task by its number and title, its state pill first when given; a click opens it. */
 function TaskLink({ id, title, state }: { id: number; title?: string; state?: Lookable }) {
   return (
     <button type="button" {...useOpenable(taskOf(id))} className="min-w-0 truncate rounded-sm text-left hover:bg-hover/30">

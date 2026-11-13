@@ -1,17 +1,18 @@
 // What a right-click on anything that opens a tab offers, from what it opens. Pure.
 import { opened } from '#src/layout/kinds.tsx';
+import { SHORTCUT } from '#src/layout/openTab.tsx';
 
 export type OpenItem =
-  | { id: 'here' | 'side' | 'below'; label: string }
+  | { id: 'tab' | 'side' | 'below'; label: string; shortcut?: string }
   | { id: 'copy'; label: string; text: string; name: string }
   | { id: 'browser'; label: string; url: string };
 
-/** Open, Open to the side, Open below; then a way to copy what it names (a task's T-number, a link, a file's path), and a web
+/** The three ways to open, with their shortcuts; then a way to copy what it names (a task's T-number, a link, a file's path), and a web
  * page also opens in the browser. */
 export function openItems(opens: string): OpenItem[] {
   const items: OpenItem[] = [
-    { id: 'here', label: 'Open' },
-    { id: 'side', label: 'Open to the side' },
+    { id: 'tab', label: 'Open in new tab', shortcut: SHORTCUT.tab },
+    { id: 'side', label: 'Open to the side', shortcut: SHORTCUT.side },
     { id: 'below', label: 'Open below' },
   ];
   const task = opened(opens, 'task');
