@@ -60,30 +60,20 @@ export function AccountFacts({
   );
 }
 
-/** The agents on an account, as the room it has: one segment per agent it may carry, filled for each one running. A segment the daemon
- * took away for a while is faint, and the line under it says how many were set. */
+/** The agents on an account: how many it carries, and under it how many are working now. The daemon sets no cap: it places a new
+ * start by the account's 5-hour burn. */
 function AgentsBar({ account: a }: { account: Account }) {
-  const set = capSet(a);
-  const room = Math.max(a.cap_effective, 0);
   const n = a.agents.length;
-  const lowered = !a.paused && a.cap_effective < set;
-  const parts = Math.max(set, n, 1);
   return (
     <div className="flex flex-col gap-1">
       <div className="flex justify-between gap-6 text-xs">
         <span className="text-muted">Agents</span>
-        <span className="text-fg tabular-nums" title={a.agents.join(', ')}>{`${n} / ${a.paused ? set : room}`}</span>
-      </div>
-      <div className="flex h-1.5 gap-0.5" aria-hidden>
-        {Array.from({ length: parts }, (_, i) => (
-          <div
-            key={i}
-            className={`flex-1 rounded-full ${i < n ? 'bg-fg/70' : !a.paused && i >= room ? 'border border-dashed border-border' : 'bg-border'}`}
-          />
-        ))}
+        <span className="text-fg tabular-nums" title={a.agents.join(', ')}>
+          {n}
+        </span>
       </div>
       <span className="truncate text-xs text-muted">
-        {a.paused ? (n ? 'moves next turn' : 'paused') : lowered ? `lowered from ${set}` : ' '}
+        {a.paused ? (n ? 'moves next turn' : 'paused') : a.agents_running !== undefined ? `${a.agents_running} working` : ' '}
       </span>
     </div>
   );
