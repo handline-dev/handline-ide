@@ -14,6 +14,7 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/actor"
+	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/scheduler/settings"
 	"github.com/handline/handline/go/taskboard/attachments"
@@ -202,6 +203,14 @@ func (e *Env) tasksList(c *rpc.Conn, params map[string]any) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	mine, err := optBool(params, "my_requests") // the founder's requests: tasks that are a request of their own
+	if err != nil {
+		return nil, err
+	}
+	decidedSince, err := optTime(params, "decided_since") // tasks the founder answered a turn of since then, open or closed
+	if err != nil {
+		return nil, err
+	}
 	before, err := optInt(params, "before")
 	if err != nil {
 		return nil, err
@@ -270,7 +279,7 @@ func (e *Env) tasksList(c *rpc.Conn, params map[string]any) (any, error) {
 		where = append(where, sql)
 		args = append(args, a...)
 	}
-	if !(withEnded || ids != nil || under != nil || request != nil || (state != nil && (*state == "done" || *state == "discarded" || *state == "closed"))) {
+	if !(withEnded || ids != nil || under != nil || request != nil || decidedSince != nil || (state != nil && (*state == "done" || *state == "discarded" || *state == "closed"))) {
 		cond(openTask)
 	}
 	if state != nil {
@@ -307,6 +316,12 @@ func (e *Env) tasksList(c *rpc.Conn, params map[string]any) (any, error) {
 	}
 	if request != nil {
 		cond("id IN ("+requestTreeSQL+")", *request, *request)
+	}
+	if mine {
+		cond("request = id")
+	}
+	if decidedSince != nil {
+		cond("id IN (SELECT "+eventTask+" FROM events WHERE kind = 'task_turn_pop' AND agent = ? AND ts >= ? AND "+decisionSQL+")", actor.OwnerKey, *decidedSince)
 	}
 	if ids != nil {
 		cond("id IN ("+placeholders(len(ids))+")", ids...)
@@ -582,11 +597,42 @@ func (e *Env) taskOf(t row, state string, b *board) (map[string]any, error) {
 		d["batch"] = p["batch"]
 		task["discarded"] = d
 	}
+	if task["decided"], err = e.decidedOf(t.i("id")); err != nil {
+		return nil, err
+	}
+	task["my_request"] = t.set("request") && t.i("request") == t.i("id")
 	task["mismatch"] = taskMismatch(t, state, reqs)
 	if t.i("timeout_s") != 0 {
 		task["time_box"] = duration(t.i("timeout_s"))
 	}
 	return task, nil
+}
+
+// decisionSQL is, on a task_turn_pop event row the founder wrote, whether it is a decision: a turn of his own given back with a comment. A pass
+// that closes the task (on_pass done) carries no comment, so it is none.
+const decisionSQL = "json_valid(payload) AND json_extract(payload, '$.agent') = '" + actor.OwnerKey + "' AND COALESCE(json_extract(payload, '$.memo'), 0) != 0"
+
+// decidedOf is the founder's newest decision on task tid (Task.decided): when, the ask of the turn the founder was given (its own text, else
+// the comment pushed with it), and the comment the founder gave it back with, as each reads now; nil for none.
+func (e *Env) decidedOf(tid int64) (any, error) {
+	pop, err := queryOne(e.DB, "SELECT id, ts, (SELECT body FROM task_memos WHERE id = json_extract(payload, '$.memo')) AS answer FROM events "+
+		"WHERE kind = 'task_turn_pop' AND "+eventTask+" = ? AND agent = ? AND "+decisionSQL+" ORDER BY id DESC LIMIT 1", tid, actor.OwnerKey)
+	if err != nil || pop == nil {
+		return nil, err
+	}
+	push, err := queryOne(e.DB, "SELECT json_extract(payload, '$.ask') AS ask, (SELECT body FROM task_memos WHERE id = json_extract(payload, '$.memo')) "+
+		"AS memo_body FROM events WHERE kind IN ('task_turn_push', 'task_turn_ask') AND "+eventTask+" = ? AND id < ? AND "+
+		"? IN (json_extract(payload, '$.to'), json_extract(payload, '$.agent')) ORDER BY id DESC LIMIT 1", tid, pop.i("id"), actor.OwnerKey)
+	if err != nil {
+		return nil, err
+	}
+	ask := ""
+	if push != nil {
+		if ask = push.str("ask"); ask == "" {
+			ask = push.str("memo_body")
+		}
+	}
+	return map[string]any{"at": ts(pop["ts"]), "ask": textsafe.Text(ask), "answer": textsafe.Text(pop.str("answer"))}, nil
 }
 
 // mapOrNil is m, or an untyped nil for a nil map, which would not read as nil.

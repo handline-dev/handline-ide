@@ -5,7 +5,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 
 | Method | Role | Write | Params | Result | Errors | Gates | App |
 |---|---|---|---|---|---|---|---|
-| `tasks.list` | agent |  | `owner?`, `acting?`, `reporter?`, `from?`, `state?`, `tags?`, `parent?`, `under?`, `request?`, `ids?`, `before?`, `order?`, `cursor?`, `limit?`, `all?`, `everyone?`, `my_turn?`, `reason_gaps?` | `{items, more, reason_gaps, next} & ReadCursor` |  |  | `tasks`, fed by tasks |
+| `tasks.list` | agent |  | `owner?`, `acting?`, `reporter?`, `from?`, `state?`, `tags?`, `parent?`, `under?`, `request?`, `my_requests?`, `decided_since?`, `ids?`, `before?`, `order?`, `cursor?`, `limit?`, `all?`, `everyone?`, `my_turn?`, `reason_gaps?` | `{items, more, reason_gaps, next} & ReadCursor` |  |  | `tasks`, fed by tasks |
 | `task.get` | agent |  | `task` | `TaskDetail & ReadCursor` | `not_found` |  | `task` by task, fed by tasks |
 | `task.history` | agent |  | `task` | `{task, rows}` | `not_found`, `bad_request` |  | `task-history` by task, snapshot |
 | `task.time` | agent |  | `task` | `{task, start, end, segments, estimate, expected, box} & ReadCursor` | `not_found`, `bad_request` |  | `task-time` by task, fed by tasks |

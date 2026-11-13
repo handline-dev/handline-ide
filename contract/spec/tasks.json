@@ -131,7 +131,40 @@
         "type": "null"
        }
       ],
-      "description": "The founder request the task serves, as the number of that request's own task; null for an agent's own work. Set when the task is made (db.SetTaskRequest). Absent from a daemon that does not send it."
+      "description": "The founder request the task serves, as the number of that request's own task; null for an agent's own work. Set from the founder's words only, when the task is made (db.SetTaskRequest): a task the founder opened or that answers to him, its parent's, or the one his message or comment in the opener's turn makes; never the request of the task its opener holds. Absent from a daemon that does not send it."
+     },
+     "my_request": {
+      "type": "boolean",
+      "description": "The task is a founder request of its own (request is its own number): what the founder opened or his words opened, not a task under one. Absent from a daemon that does not send it."
+     },
+     "decided": {
+      "oneOf": [
+       {
+        "type": "object",
+        "properties": {
+         "at": {
+          "$ref": "#/components/schemas/Timestamp"
+         },
+         "ask": {
+          "type": "string",
+          "description": "The ask of the turn the founder was given: its own text, else the comment it was pushed with, as it reads now; empty when neither. Already stripped of control characters."
+         },
+         "answer": {
+          "type": "string",
+          "description": "The comment the founder gave the turn back with, as it reads now. Already stripped of control characters."
+         }
+        },
+        "required": [
+         "at",
+         "ask",
+         "answer"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "The founder's newest decision on the task: a turn of his he gave back with a comment. null for none. Absent from a daemon that does not send it."
      },
      "role": {
       "type": "string",
@@ -1965,6 +1998,22 @@
      "schema": {
       "type": "integer",
       "description": "The tasks that serve this request (Task.request) and every task below its own, done and discarded included (all is implied); still within the caller's scope, newest first and paged as without it."
+     }
+    },
+    {
+     "name": "my_requests",
+     "required": false,
+     "schema": {
+      "type": "boolean",
+      "description": "Only the founder's requests (Task.my_request); with the other filters, open only unless all or a closed state is asked."
+     }
+    },
+    {
+     "name": "decided_since",
+     "required": false,
+     "schema": {
+      "$ref": "#/components/schemas/Timestamp",
+      "description": "Only the tasks the founder decided on since then (a turn of his given back with a comment; Task.decided), open and closed alike (all is implied); within the caller's scope, newest first by id and paged as without it."
      }
     },
     {
