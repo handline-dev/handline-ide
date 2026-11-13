@@ -13,7 +13,6 @@ test('every change the settings field builders write passes the shell bridge', a
     host_active_cap: 1,
     load_per_core_pct: 1,
     ram_free_min_pct: 1,
-    launch_pace_hold: true,
     pace_target_pct: 1,
     pace_burst_pct: 1,
   };

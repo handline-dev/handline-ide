@@ -44,7 +44,6 @@ const DEFAULTS: Settings['values'] = {
   push_task_done: true,
   push_stall: true,
   push_account_out: true,
-  launch_pace_hold: false,
   account_split: 'auto',
   pace_target_pct: 98,
   pace_burst_pct: 10,

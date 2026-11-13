@@ -143,8 +143,8 @@ export const parseRange =
   };
 
 /** The pacing rows of the Settings page, on the PC and the phone: the target the week is paced to and the burst allowed over the line. A daemon that has none of the keys does not pace: no rows. */
-export const paceFields = (v: { launch_pace_hold?: boolean; pace_target_pct?: number; pace_burst_pct?: number }) => {
-  if (v.launch_pace_hold === undefined && v.pace_target_pct === undefined && v.pace_burst_pct === undefined) return [];
+export const paceFields = (v: { pace_target_pct?: number; pace_burst_pct?: number }) => {
+  if (v.pace_target_pct === undefined && v.pace_burst_pct === undefined) return [];
   const field = (
     label: string,
     hint: string,
@@ -165,7 +165,7 @@ export const paceFields = (v: { launch_pace_hold?: boolean; pace_target_pct?: nu
     field('Pace target', "The share of its week an account may have used by the week's end", v.pace_target_pct, 50, 100, (x) => ({
       pace_target_pct: x,
     })),
-    field('Pace burst', 'Points over the pace line before an account starts no new turn', v.pace_burst_pct, 0, 50, (x) => ({
+    field('Pace burst', 'Points over the pace line before an account shows as over pace', v.pace_burst_pct, 0, 50, (x) => ({
       pace_burst_pct: x,
     })),
   ];
