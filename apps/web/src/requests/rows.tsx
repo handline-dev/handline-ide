@@ -87,6 +87,10 @@ function Line({
   row,
   trailing,
   hint,
+  lead,
+  who,
+  wait,
+  answers,
 }: {
   title: string;
   /** Where a click lands, shown while the pointer rests on the row. */
@@ -102,6 +106,12 @@ function Line({
   mark?: boolean;
   icon: ReactNode;
   row: Picked;
+  /** In Requests' own list: the task number (or HR) in its own column, who asked after the title, the wait at the end, and answers
+   * always shown under it. */
+  lead?: string;
+  who?: string;
+  wait?: string;
+  answers?: ReactNode;
 }) {
   const pick = usePick();
   const picked = !!pick?.picked.has(row.key);
@@ -116,7 +126,7 @@ function Line({
   const line = (
     // The check box sits beside the row's button, not inside it: a box in a button is no box to the keyboard.
     <div
-      className={`group/line relative flex rounded-md ${picked ? 'bg-selected' : 'hover:bg-hover/30'} ${hinted} ${busy ? 'pointer-events-none opacity-50' : ''}`}
+      className={`group/line relative flex ${lead !== undefined ? 'border-b border-border' : 'rounded-md'} ${picked ? 'bg-selected' : 'hover:bg-hover/30'} ${hinted} ${busy ? 'pointer-events-none opacity-50' : ''}`}
     >
       {pick && (
         <input
@@ -138,17 +148,28 @@ function Line({
         onAuxClick={picking ? undefined : open.onAuxClick}
         onKeyDown={picking ? undefined : open.onKeyDown}
         title={hint}
-        className="flex w-full gap-2.5 px-2 py-1.5 text-left"
+        className={`flex w-full gap-2.5 text-left ${lead !== undefined ? 'px-2 py-3' : 'px-2 py-1.5'}`}
       >
-        <span className={`relative mt-0.5 grid size-4 shrink-0 place-items-center ${pick && !picking ? 'group-hover/line:invisible' : ''}`}>
-          {icon}
-          {mark && <span className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-accent" />}
-        </span>
-        <span className="flex min-w-0 flex-1 flex-col">
-          <span className="truncate text-fg">{title}</span>
-          <span className="line-clamp-2 text-xs break-words text-muted">{meta}</span>
+        {lead !== undefined ? (
+          <span className={`w-14 shrink-0 text-muted tabular-nums ${pick && !picking ? 'group-hover/line:invisible' : ''}`}>{lead}</span>
+        ) : (
+          <span
+            className={`relative mt-0.5 grid size-4 shrink-0 place-items-center ${pick && !picking ? 'group-hover/line:invisible' : ''}`}
+          >
+            {icon}
+            {mark && <span className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-accent" />}
+          </span>
+        )}
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="flex min-w-0 items-baseline gap-2">
+            <span className={`truncate text-fg ${lead !== undefined ? 'font-medium' : ''}`}>{title}</span>
+            {who && <span className="shrink-0 text-muted">{who}</span>}
+            {wait && <span className="ml-auto shrink-0 pl-3 text-xs text-muted tabular-nums">{wait}</span>}
+          </span>
+          <span className={`line-clamp-2 break-words text-muted ${lead !== undefined ? '' : 'text-xs'}`}>{meta}</span>
         </span>
       </button>
+      {answers && <span className="absolute right-2 bottom-2 flex items-center gap-2">{answers}</span>}
       {(trailing || (opens && !picking)) && (
         <span className="absolute top-1.5 right-1.5 hidden items-center gap-1 rounded-md bg-surface group-hover/line:flex group-focus-within/line:flex">
           {trailing}
@@ -183,7 +204,7 @@ function turnOpens(p: PendingRequest): string | null {
 }
 
 /** Something waiting on the founder: what is asked, who asks (an agent, or the daemon itself), how long ago. */
-export function TurnLine({ p, onOpened, until }: { p: PendingRequest; onOpened?: () => void; until?: string }) {
+export function TurnLine({ p, onOpened, until, full }: { p: PendingRequest; onOpened?: () => void; until?: string; full?: boolean }) {
   const nameOf = useNameOf();
   const refs = useRefs();
   const daemon = p.kind === 'warning' || p.agent === null;
@@ -195,18 +216,30 @@ export function TurnLine({ p, onOpened, until }: { p: PendingRequest; onOpened?:
       row={turnRow(p)}
       title={refs(p.title)}
       icon={turnIcon(p)}
-      meta={[
-        until ? `back ${until}` : ASK[p.kind],
-        daemon ? 'daemon' : nameOf(p.agent!),
-        p.task !== null && `T${p.task}`,
-        p.ask && refs(p.ask),
-        ago(p.last_at),
-      ]
-        .filter(Boolean)
-        .join(' · ')}
+      {...(full && {
+        lead: p.source === 'proposal' ? 'HR' : p.task !== null ? `T${p.task}` : '',
+        who: daemon ? 'daemon' : nameOf(p.agent!),
+        wait: until ? `back ${until}` : ago(p.last_at),
+        answers: p.source === 'proposal' ? <TurnQuick p={p} /> : undefined,
+      })}
+      meta={
+        full
+          ? p.ask
+            ? refs(p.ask)
+            : ASK[p.kind]
+          : [
+              until ? `back ${until}` : ASK[p.kind],
+              daemon ? 'daemon' : nameOf(p.agent!),
+              p.task !== null && `T${p.task}`,
+              p.ask && refs(p.ask),
+              ago(p.last_at),
+            ]
+              .filter(Boolean)
+              .join(' · ')
+      }
       opens={opens}
       here={opens ? undefined : openSettings}
-      trailing={<TurnQuick p={p} />}
+      trailing={full && p.source === 'proposal' ? undefined : <TurnQuick p={p} />}
       hint={
         p.task !== null && (p.kind === 'ask' || p.kind === 'decide')
           ? `Opens T${p.task} at ${p.agent ? `${nameOf(p.agent)}'s` : 'its'} question in Activity`
@@ -289,6 +322,9 @@ function TurnQuick({ p }: { p: PendingRequest }) {
       );
     return (
       <>
+        <Button disabled={decide.isPending} onClick={() => answer('reject')}>
+          Deny
+        </Button>
         <Button
           variant="primary"
           disabled={decide.isPending || !listed || changed}
@@ -296,9 +332,6 @@ function TurnQuick({ p }: { p: PendingRequest }) {
           onClick={() => answer('approve')}
         >
           Allow
-        </Button>
-        <Button disabled={decide.isPending} onClick={() => answer('reject')}>
-          Deny
         </Button>
       </>
     );

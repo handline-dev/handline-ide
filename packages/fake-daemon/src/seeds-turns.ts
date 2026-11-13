@@ -107,6 +107,7 @@ export const TURN_SEEDS: Record<string, Seed> = {
       to: ME,
       title: 'Pick the bell sound',
       state: 'doing',
+      decided: { at: iso(5), ask: 'Which sound should the bell play?', answer: 'The soft one.' },
       created: iso(20),
       body: 'The bell needs a sound for a pause.',
       memos: [{ id: 15, at: iso(5), author: ME, text: 'The soft one.', task: 8831 }],
