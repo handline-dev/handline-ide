@@ -1,8 +1,20 @@
 package db
 
+import (
+	"database/sql"
+
+	"github.com/handline/handline/go/kit/actor"
+)
+
 // HeadTaskBlocked is delivery.head_task_blocked: is the head's own task on record as waited on, blocked by another open task or
-// held up on an ask the agent itself sent that is linked to the same task. A head with no task is never this.
+// held up on an ask the agent itself sent that is linked to the same task. A head with no task is never this, nor a person's answer not yet
+// landed: the holder reads it now, whatever the task waits on.
 func HeadTaskBlocked(q Q, agent string, head *Request) (bool, error) {
+	if !head.LandedAt.Valid {
+		if yes, err := answersAPerson(q, head.ID); yes || err != nil {
+			return false, err
+		}
+	}
 	tasks, err := TasksForRequest(q, head.ID)
 	if err != nil {
 		return false, err
@@ -26,6 +38,16 @@ func HeadTaskBlocked(q Q, agent string, head *Request) (bool, error) {
 		}
 	}
 	return false, nil
+}
+
+// answersAPerson: request rid is the task's return a person's own turn ending sent (a task_turn_pop of their turn): their answer.
+func answersAPerson(q Q, rid int64) (bool, error) {
+	var turn string
+	err := q.QueryRow("SELECT COALESCE(json_extract(payload, '$.agent'), '') FROM events WHERE kind = 'task_turn_pop' AND "+eventRequest+" = ? LIMIT 1", rid).Scan(&turn)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	return actor.IsPerson(turn), err
 }
 
 // EffectiveHead is HeadOfQueue past every head whose task is blocked on record, so the one-at-a-time rule falls on whatever the agent

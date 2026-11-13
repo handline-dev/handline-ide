@@ -47,8 +47,7 @@ func (e *Env) EnforceEdges(q db.Q, agent string) (ok bool, err error) {
 	return true, nil
 }
 
-// HeadTaskBlocked is delivery.head_task_blocked: is the head's own task on record as waited on, blocked by another open task or
-// held up on an ask the agent itself sent that is linked to the same task. A head with no task is never this.
+// headTaskBlocked is db.HeadTaskBlocked.
 func (e *Env) headTaskBlocked(q db.Q, agent string, head *db.Request) bool {
 	return must(db.HeadTaskBlocked(q, agent, head))
 }
