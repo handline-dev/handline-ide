@@ -592,6 +592,8 @@ export interface TasksMethods {
   parent?: number;
   /** Do not hang the task under the caller's current request. Refused with parent. */
   no_parent?: boolean;
+  /** The task serves this task's founder request (Task.request). Refused when that task serves none, and with parent; it then gets no default parent. */
+  request?: number;
   /** Open the task even when an open task under the same parent, or the parent itself, has nearly its title (gate duplicate_title). */
   duplicate_ok?: boolean;
   /** Cannot be worked until this task closes. */

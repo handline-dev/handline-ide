@@ -3,6 +3,7 @@ package taskwrites
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -160,6 +161,13 @@ func newMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, e
 		if noParent && hasParent {
 			return nil, badParam("no_parent and parent together: choose one", "no_parent")
 		}
+		serves, hasServes, err := optionalTask(p, "request")
+		if err != nil {
+			return nil, err
+		}
+		if hasServes && hasParent {
+			return nil, badParam("request and parent together: a sub-task serves its parent's request; choose one", "request")
+		}
 		if actor.IsPerson(owner) && c.Caller.Role != "owner" {
 			return nil, refusal(newForFounder)
 		}
@@ -191,7 +199,18 @@ func newMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, e
 				return nil, err
 			}
 			var err error
-			if !hasParent && !noParent && owner != db.Gate {
+			req := sql.NullInt64{}
+			if hasServes {
+				if err := tx.QueryRow("SELECT request FROM tasks WHERE id = ?", serves).Scan(&req); errors.Is(err, sql.ErrNoRows) {
+					return nil, refusal(fmt.Sprintf("there is no T%d", serves))
+				} else if err != nil {
+					return nil, err
+				}
+				if !req.Valid {
+					return nil, refusal(fmt.Sprintf("T%d serves no founder request: open the task without --request", serves))
+				}
+			}
+			if !hasParent && !noParent && !hasServes && owner != db.Gate {
 				if parent, err = requestHeld(tx, me); err != nil {
 					return nil, err
 				}
@@ -199,7 +218,7 @@ func newMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, e
 			}
 			tid, asked, err = OpenTask(tx, tell, me, NewIn{Owner: owner, Title: clean, Body: body, Secs: secs, Prio: prio, Estimate: points, Expects: expects,
 				Parent: parent, HasParent: hasParent, Blocker: blocker, HasBlocker: hasBlocker, Reporter: reporter, UI: ui, DuplicateOK: duplicateOK, Tags: tags,
-				Watch: watched})
+				Watch: watched, Request: req})
 			if err != nil {
 				return nil, err
 			}
@@ -271,9 +290,10 @@ type NewIn struct {
 	Parent, Blocker    int64
 	HasParent          bool
 	HasBlocker         bool
-	UI                 bool      // the task shows something on a screen (a label; done never requires a screenshot)
-	DuplicateOK        bool      // open it even when an open task under the parent has nearly its title
-	Watch              *db.Watch // what a gate (Owner db.Gate) watches; nil for any other owner
+	UI                 bool          // the task shows something on a screen (a label; done never requires a screenshot)
+	DuplicateOK        bool          // open it even when an open task under the parent has nearly its title
+	Request            sql.NullInt64 // the founder request it serves, given (task.new request); else SetTaskRequest finds it
+	Watch              *db.Watch     // what a gate (Owner db.Gate) watches; nil for any other owner
 }
 
 // watchParam is task.new's watch {vendor, target, until?}: required with owner gate, refused with any other.
@@ -367,7 +387,7 @@ func OpenTask(tx *sql.Tx, tell Teller, me string, in NewIn) (tid int64, asked *A
 		if reporter == me {
 			reporter = ""
 		}
-		if tid, err = db.NewTask(tx, clean, owner, me, parent, prio, expects, secs, reporter); err != nil {
+		if tid, err = db.NewTaskServing(tx, clean, owner, me, parent, prio, expects, secs, reporter, in.Request); err != nil {
 			return err
 		}
 		if in.Estimate != 0 {

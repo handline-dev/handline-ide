@@ -128,6 +128,12 @@ func TaskBlockers(q Q, tid int64) ([]*Task, error) {
 
 // NewTask is db.new_task, with the request it serves (SetTaskRequest). The clock of timeoutS starts when the task is doing, so timeout_at stays NULL. A reporter of "" is the opener.
 func NewTask(q Q, title, owner, openedBy string, parent int64, priority int64, expects string, timeoutS int64, reporter string) (int64, error) {
+	return NewTaskServing(q, title, owner, openedBy, parent, priority, expects, timeoutS, reporter, sql.NullInt64{})
+}
+
+// NewTaskServing is NewTask serving request when it is valid (task.new's request), in place of the one SetTaskRequest would find.
+func NewTaskServing(q Q, title, owner, openedBy string, parent int64, priority int64, expects string, timeoutS int64, reporter string,
+	request sql.NullInt64) (int64, error) {
 	var p, e, ts, r any
 	if parent != 0 {
 		p = parent
@@ -149,6 +155,10 @@ func NewTask(q Q, title, owner, openedBy string, parent int64, priority int64, e
 	tid, err := res.LastInsertId()
 	if err != nil {
 		return 0, err
+	}
+	if request.Valid {
+		_, err = q.Exec("UPDATE tasks SET request = ? WHERE id = ?", request, tid)
+		return tid, err
 	}
 	return tid, SetTaskRequest(q, tid)
 }

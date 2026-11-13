@@ -121,7 +121,7 @@ func oneTask(args []string) (int, bool) {
 }
 
 func taskNew(c *hlclient.Client, args []string) (int, bool) {
-	p, ok := parse(args, []string{"--file", "--assign", "--owner", "--parent", "--blocked-by", "--priority", "--estimate", "--expects", "--timeout", "--tag"},
+	p, ok := parse(args, []string{"--file", "--assign", "--owner", "--parent", "--request", "--blocked-by", "--priority", "--estimate", "--expects", "--timeout", "--tag"},
 		[]string{"--duplicate-ok", "--no-parent"}, map[string]string{"-t": "--timeout"})
 	if !ok {
 		return 0, false
@@ -133,11 +133,12 @@ func taskNew(c *hlclient.Client, args []string) (int, bool) {
 	assignee, hasAssign := p.opt("--assign")
 	accountable, hasOwner := p.opt("--owner")
 	parent, hasParent, ok1 := optTask(p, "--parent")
+	serves, hasServes, ok6 := optTask(p, "--request")
 	blocked, hasBlocked, ok2 := optTask(p, "--blocked-by")
 	prio, hasPrio, ok3 := optPriority(p, "--priority")
 	timeout, hasTimeout, ok4 := optTimeout(p, "--timeout")
 	points, hasEstimate, ok5 := optEstimate(p)
-	if !ok1 || !ok2 || !ok3 || !ok4 || !ok5 || (hasEstimate && points == nil) { // --expects is accepted and ignored
+	if !ok1 || !ok2 || !ok3 || !ok4 || !ok5 || !ok6 || (hasEstimate && points == nil) { // --expects is accepted and ignored
 		return 0, false
 	}
 	mutating(c, "new")
@@ -170,6 +171,9 @@ func taskNew(c *hlclient.Client, args []string) (int, bool) {
 		}
 		if hasParent {
 			parts = append(parts, fmt.Sprintf("--parent T%d", parent))
+		}
+		if hasServes {
+			parts = append(parts, fmt.Sprintf("--request T%d", serves))
 		}
 		if hasBlocked {
 			parts = append(parts, fmt.Sprintf("--blocked-by T%d", blocked))
@@ -220,6 +224,9 @@ func taskNew(c *hlclient.Client, args []string) (int, bool) {
 	}
 	if hasParent {
 		params["parent"] = parent
+	}
+	if hasServes {
+		params["request"] = serves
 	}
 	if p.flags["--duplicate-ok"] {
 		params["duplicate_ok"] = true
