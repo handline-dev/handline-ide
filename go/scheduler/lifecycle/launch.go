@@ -1235,6 +1235,9 @@ const LaunchedTexts = "texts"
 // changedBytesMax is how many bytes of changed lines a start keeps, in order over all its parts; More counts the lines past it.
 const changedBytesMax = 32 << 10
 
+// textBytesMax is how many bytes of whole part texts a start keeps over all its changed parts, in order; a part that does not fit has no Text.
+const textBytesMax = 256 << 10
+
 // partOrder is the order the parts are written in, as the Python dict keeps it.
 // Renaming a part restarts no one: a name the earlier record lacks is skipped.
 var partOrder = []string{"model", "effort", "mcp config", "browser", "permissions", "sandbox", "ROLE.md", "base.md", "team instructions", rulesPart}
@@ -1339,12 +1342,13 @@ func (l *Launcher) readableValues(agent string) (map[string]string, error) {
 }
 
 // LineChange is the lines a launch adds to one text part, and the ones it takes out, since the session recorded before it: at most
-// changedBytesMax over all of a start's parts, More the rest.
+// changedBytesMax over all of a start's parts, More the rest. Text is the part's whole text as this launch starts with it.
 type LineChange struct {
 	Part    string   `json:"part"`
 	Added   []string `json:"added"`
 	Removed []string `json:"removed"`
 	More    int      `json:"more,omitempty"`
+	Text    string   `json:"text,omitempty"`
 }
 
 // whatChanged says what this launch's settings change from the session recorded before it, in launch order and in the words a person
@@ -1381,6 +1385,7 @@ func (l *Launcher) whatChanged(agent string) (string, []LineChange, error) {
 	}
 	var changed []string
 	var lines []LineChange
+	textBudget := textBytesMax
 	budget := changedBytesMax // once a line does not fit, it and every line after it are counted, so what is kept has no gaps
 	keep := func(side []string) (kept []string, more int) {
 		kept = []string{}
@@ -1417,6 +1422,10 @@ func (l *Launcher) whatChanged(agent string) (string, []LineChange, error) {
 				c.Added, ma = keep(added)
 				c.Removed, mr = keep(removed)
 				c.More = ma + mr
+				if len(nowText[k]) <= textBudget {
+					c.Text = nowText[k]
+					textBudget -= len(c.Text)
+				}
 				lines = append(lines, c)
 			}
 		}
