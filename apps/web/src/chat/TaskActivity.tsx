@@ -49,7 +49,7 @@ type Touched = { id: string; events: TaskEvent[] };
 const SHOWN = 2;
 const FOLD_FROM = 4;
 
-/** An agent's task changes, drawn as the task talk is (TaskCommentCard), no box: one row per task, where it stands now; a task changed again changes its row in place. */
+/** An agent's task changes in one card: one row per task, where it stands now; a task changed again changes its row in place. */
 export function TaskActivity({ events }: { events: TaskEvent[] }) {
   const [open, setOpen] = useState(false);
   // Each task's state now, kept current by the tasks feed.
@@ -78,7 +78,7 @@ export function TaskActivity({ events }: { events: TaskEvent[] }) {
         // Already there when the chat opens, it just shows; a card that comes later fades in with its line (the stream's AnimatePresence).
         initial={false}
         style={{ maxWidth: 'min(100%, 37.5rem)' }}
-        className="-mx-2 overflow-hidden text-sm"
+        className="overflow-hidden rounded-lg border border-border bg-bg text-sm"
       >
         {older.length > 0 && (
           <>
@@ -87,7 +87,7 @@ export function TaskActivity({ events }: { events: TaskEvent[] }) {
               type="button"
               aria-expanded={open}
               onClick={() => setOpen(!open)}
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-muted hover:bg-hover/30"
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-muted hover:bg-hover/30"
             >
               <span className="flex">
                 {older.map((t) => (
@@ -109,14 +109,14 @@ export function TaskActivity({ events }: { events: TaskEvent[] }) {
               className="overflow-hidden"
             >
               {older.map((t) => (
-                <Row key={t.id} t={t} task={now.get(t.id)} />
+                <Row key={t.id} t={t} task={now.get(t.id)} ruled />
               ))}
             </motion.div>
           </>
         )}
         <AnimatePresence initial={false}>
-          {recent.map((t) => (
-            <Row key={t.id} t={t} task={now.get(t.id)} />
+          {recent.map((t, i) => (
+            <Row key={t.id} t={t} task={now.get(t.id)} ruled={i > 0 || older.length > 0} />
           ))}
         </AnimatePresence>
       </motion.div>
@@ -130,7 +130,7 @@ export function TaskActivity({ events }: { events: TaskEvent[] }) {
   );
 }
 
-function Row({ t, task }: { t: Touched; task?: Task }) {
+function Row({ t, task, ruled }: { t: Touched; task?: Task; ruled: boolean }) {
   const s = task ? look(task) : null;
   const nameOf = useNameOf();
   const me = useMe();
@@ -153,7 +153,7 @@ function Row({ t, task }: { t: Touched; task?: Task }) {
       <button
         type="button"
         {...useOpenable(taskOf(Number(t.id.slice(1))))}
-        className="flex w-full gap-2.5 rounded-md px-2 py-1.5 text-left hover:bg-hover/30"
+        className={`flex w-full gap-2.5 px-3 py-2 text-left hover:bg-hover/30 ${ruled ? 'border-t border-border' : ''}`}
       >
         <span
           className={`mt-0.5 grid size-5 shrink-0 place-items-center rounded-md text-accent-fg transition-colors duration-500 motion-reduce:transition-none ${s?.tone ?? 'bg-surface'}`}
