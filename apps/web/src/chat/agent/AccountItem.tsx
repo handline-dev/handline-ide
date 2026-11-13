@@ -46,7 +46,7 @@ export function AccountItem({ agent, account, fire }: { agent: string; account: 
         <UsageBar name="Week" span={WEEK} w={mine?.weekly ?? null} age={mine?.age_s} />
       </div>
       {mine?.email && <MenuFact name="Email">{mine.email}</MenuFact>}
-      {mine && <MenuFact name="Agents on it">{`${mine.agents.length} (up to ${mine.cap_effective} at once)`}</MenuFact>}
+      {mine && <MenuFact name="Agents on it">{mine.agents.length}</MenuFact>}
       {moves.length > 0 && (
         <>
           <MenuRule />
