@@ -79,10 +79,10 @@ export const noteText = (text: string): string => text.replace(/^\s*@human\s*/, 
 /** The memos as comments and the rest of the timeline as events in words, oldest first; `me` is the person, written "you", and every
  * other who in a line is written out by `nameOf`. */
 export function activityOf(memos: TaskDetail['memos'], timeline: readonly Entry[], me = '', nameOf: NameOf = asIs): ActivityItem[] {
-  // A turn passed with a comment is drawn as that comment, marked with the turn.
+  // A turn passed or given back with a comment is drawn as that comment, headed with whom it went to.
   const passed = new Map(
     timeline.flatMap((e) =>
-      e.kind === 'turn' && e.turn === 'push' && e.memo != null ? [[e.memo, turnLine(e, me, nameOf).to] as const] : [],
+      e.kind === 'turn' && e.memo != null ? [[e.memo, { to: turnLine(e, me, nameOf).to, turn: e.turn }] as const] : [],
     ),
   );
   const comments: ActivityItem[] = memos.map((m) => {
@@ -100,7 +100,9 @@ export function activityOf(memos: TaskDetail['memos'], timeline: readonly Entry[
       images: (m.files ?? []).filter((f) => f.kind === 'image' && !f.gone && !named.has(f.id)).map((f) => ({ id: f.id, name: f.name })),
       edited: !!m.edited_at,
       toFounder: isNote(m.text),
-      ...(passed.has(m.id) ? { turn: 'push' as const, turnTo: passed.get(m.id) } : {}),
+      ...(passed.has(m.id)
+        ? { turn: passed.get(m.id)!.turn === 'pop' ? ('pop' as const) : ('push' as const), turnTo: passed.get(m.id)!.to }
+        : {}),
     };
   });
   const shown = new Set(memos.map((m) => m.id));
@@ -110,7 +112,9 @@ export function activityOf(memos: TaskDetail['memos'], timeline: readonly Entry[
       case 'memo':
         return [];
       case 'turn': {
-        if (e.turn === 'push' && e.memo != null && shown.has(e.memo)) return [];
+        if (e.memo != null && shown.has(e.memo)) return [];
+        // The person giving the turn back says nothing new: their comment is the answer.
+        if (e.turn === 'pop' && isPerson(e.who.split('→')[0]?.trim() ?? '', me)) return [];
         const { line, to } = turnLine(e, me, nameOf);
         return [{ ...base, line, note: e.text, turn: e.turn === 'pop' ? 'pop' : 'push', turnTo: to }];
       }

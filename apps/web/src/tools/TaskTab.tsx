@@ -5,9 +5,9 @@ import { activityOf, foundersTurn, taskOutcome, isPerson, turnChain, isSystem, t
 import { hooks, useNameOf, useTaskHistory, useTaskSeen, useWrite } from '@handline/app-data';
 import { CommentRow, EventRow, type Turn } from '#src/tools/TaskEvents.tsx';
 import { useMe } from '@handline/app-react';
-import { Check, ChevronDown, Ellipsis, Hourglass, RotateCcw, Trash2 } from 'lucide-react';
+import { Check, Ellipsis, Hourglass, RotateCcw, Trash2 } from 'lucide-react';
 import { look, TaskState, type Lookable } from '#src/ui/taskLook.tsx';
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { ago } from '#src/format/time.ts';
 import { taskOf } from '#src/layout/kinds.tsx';
 import { useOpenable } from '#src/layout/openable.tsx';
@@ -84,7 +84,7 @@ export function TaskTab({ id }: { id: number }) {
   return (
     <FileDropArea take={attach.add} className="flex min-h-0 min-w-0 flex-1 flex-col">
       <MarkReply.Provider value={{ add: addMarked, label: 'Add to comment' }}>
-        <ScrollFade keep={`task:${id}`} data-task-scroll={id} className="min-h-0 flex-1">
+        <ScrollFade keep={`task:${id}`} fromEnd data-task-scroll={id} className="min-h-0 flex-1">
           <Page className="flex flex-col gap-6 py-4 text-base text-fg">
             <header className="flex flex-col gap-3">
               <div className="flex items-start gap-3">
@@ -158,6 +158,7 @@ export function TaskTab({ id }: { id: number }) {
               task={t.id}
               open={mine ? openTurnRow(t, me) : undefined}
               turn={turn}
+              holder={t.to}
               onReply={(id) => setReplyTo(t.memos.find((m) => m.id === id) ?? null)}
               items={activityOf(t.memos, t.timeline, me, nameOf).filter((i) => !isSystem(i.who))}
             />
@@ -258,25 +259,22 @@ function toBottom(id: number) {
 /** A line's key: a comment by its number and words, so an edit draws it again; an event by its time and words. */
 const keyOf = (i: ActivityItem) => (i.kind === 'comment' ? `c${i.memo}:${i.note}` : `e${i.at}${i.line}`);
 
-/** How many of the latest lines show before Earlier is opened. */
-const SHOWN = 5;
-
-/** Comments and changes in one list, oldest first: the last five, and Earlier opens the rest above them; the founder's open turn
- * (`open`) shows however old. */
+/** Comments and changes in one list, oldest first, all shown; the page opens at the newest. */
 function Activity({
   task,
   items,
   open,
   turn,
   onReply,
+  holder,
 }: {
+  holder?: string;
   task: number;
   items: ActivityItem[];
   open?: OpenTurn;
   turn?: Turn;
   onReply: (memo: number) => void;
 }) {
-  const [all, setAll] = useTabState('earlier', false);
   // The texts an edited comment had: its history rows. Its 'edited' mark opens them in a window.
   const rows = useTaskHistory(task).data?.rows;
   const earlierOf = (memo?: number | null) =>
@@ -287,39 +285,11 @@ function Activity({
   const me = useMe();
   const isOpen = (i: ActivityItem) =>
     !!open && i.turn === 'push' && ('memo' in open ? i.memo === open.memo : i.at === open.at) && isPerson(i.turnTo ?? '', me);
-  const at = items.findIndex(isOpen);
-  const shown = all ? items : items.slice(Math.min(Math.max(0, items.length - SHOWN), at < 0 ? Infinity : at));
-  const hidden = items.length - shown.length;
-  // The line that was first when Earlier was clicked, and where it stood: the older ones come in above it, and it stays put.
-  const list = useRef<HTMLDivElement>(null);
-  const kept = useRef<{ el: Element; top: number } | null>(null);
-  useLayoutEffect(() => {
-    const k = kept.current;
-    kept.current = null;
-    if (!k) return;
-    let box = k.el.parentElement;
-    while (box && !/(auto|scroll)/.test(getComputedStyle(box).overflowY)) box = box.parentElement;
-    if (box) box.scrollTop += k.el.getBoundingClientRect().top - k.top;
-  }, [all]);
   if (!items.length) return null;
   return (
     <Section title="Activity">
-      {hidden > 0 && (
-        <button
-          type="button"
-          onClick={() => {
-            const el = list.current?.firstElementChild;
-            if (el) kept.current = { el, top: el.getBoundingClientRect().top };
-            setAll(true);
-          }}
-          className="flex w-fit items-center gap-1 rounded-sm text-xs text-muted hover:bg-hover/30"
-        >
-          <ChevronDown size={12} />
-          Earlier {hidden}
-        </button>
-      )}
-      <div ref={list} className="flex flex-col">
-        {shown.map((i) =>
+      <div className="flex flex-col">
+        {items.map((i) =>
           i.kind === 'comment' ? (
             <CommentRow
               key={keyOf(i)}
@@ -328,6 +298,7 @@ function Activity({
               turn={isOpen(i)}
               quoted={i.replyTo != null ? items.find((r) => r.memo === i.replyTo)?.note : undefined}
               onReply={onReply}
+              holder={holder}
               onEdited={
                 i.memo != null && earlierOf(i.memo).length
                   ? () =>

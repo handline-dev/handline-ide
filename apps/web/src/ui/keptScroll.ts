@@ -17,16 +17,20 @@ export const keptScroll = {
   },
 };
 
-/** Keeps `ref`'s scroll offset under `key`: put back when it mounts, and again as its content grows in, until the person scrolls. */
-export function useKeptScroll(ref: RefObject<HTMLElement | null>, key: string | undefined) {
+/** Keeps `ref`'s scroll offset under `key`: put back when it mounts, and again as its content grows in, until the person scrolls.
+ * With `fromEnd`, an area with nothing kept opens at its end. */
+export function useKeptScroll(ref: RefObject<HTMLElement | null>, key: string | undefined, fromEnd = false) {
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el || !key) return;
     const at = kept.get(key);
+    const end = fromEnd && at === undefined;
     const want = typeof at === 'number' ? at : 0;
-    let settled = want === 0;
+    let settled = want === 0 && !end;
     const restore = () => {
       if (settled) return;
+      // At the end, it follows the content as it grows in, until the person scrolls or the time runs out.
+      if (end) return void (el.scrollTop = el.scrollHeight);
       el.scrollTop = want;
       // Done once the content is tall enough to hold the offset.
       if (Math.abs(el.scrollTop - want) < 1) settled = true;
@@ -50,5 +54,5 @@ export function useKeptScroll(ref: RefObject<HTMLElement | null>, key: string | 
       el.removeEventListener('touchstart', mine);
       el.removeEventListener('keydown', mine);
     };
-  }, [ref, key]);
+  }, [ref, key, fromEnd]);
 }

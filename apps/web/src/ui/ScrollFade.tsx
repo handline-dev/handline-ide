@@ -51,11 +51,18 @@ export function useScrollFade(ref: RefObject<HTMLElement | null>): CSSProperties
   };
 }
 
-/** A scroll area whose edges fade while there is more to scroll that way. With `keep`, it is found where it was left (ui/keptScroll). */
-export function ScrollFade({ className = '', style, children, keep, ...props }: ComponentProps<'div'> & { keep?: string }) {
+/** A scroll area whose edges fade while there is more to scroll that way. With `keep`, it is found where it was left (ui/keptScroll); with `fromEnd`, first opened at its end. */
+export function ScrollFade({
+  className = '',
+  style,
+  children,
+  keep,
+  fromEnd,
+  ...props
+}: ComponentProps<'div'> & { keep?: string; fromEnd?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   const fade = useScrollFade(ref);
-  useKeptScroll(ref, keep);
+  useKeptScroll(ref, keep, fromEnd);
   return (
     <div ref={ref} className={`overflow-auto ${className}`} style={{ ...fade, ...style }} {...props}>
       {children}

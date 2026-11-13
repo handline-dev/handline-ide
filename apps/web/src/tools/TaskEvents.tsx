@@ -121,7 +121,9 @@ export function CommentRow({
   quoted,
   onReply,
   onEdited,
+  holder,
 }: {
+  holder?: string;
   i: ActivityItem;
   fresh: string;
   turn: boolean;
@@ -130,7 +132,10 @@ export function CommentRow({
   onEdited?: () => void;
 }) {
   const me = useMe();
-  const toYou = i.toFounder || (i.turn === 'push' && isPerson(i.turnTo ?? '', me));
+  const mine = isPerson(i.who, me);
+  const toYou = !mine && (i.toFounder || (!!i.turn && isPerson(i.turnTo ?? '', me)));
+  // Whom the comment went to: the turn passed with it, or the task's holder.
+  const to = toYou ? 'you' : mine ? i.turnTo || holder : undefined;
   return (
     <div
       data-memo={i.memo}
@@ -142,16 +147,21 @@ export function CommentRow({
         <div className={`flex flex-col rounded-md ${fresh}`}>
           {turn && <span className="font-medium">Your turn</span>}
           <span className="text-xs font-medium text-muted">
-            {isPerson(i.who, me) ? 'You' : <Who k={i.who} />}
-            {toYou && !turn && <span className="text-accent"> → you</span>}
+            {mine ? 'You' : <Who k={i.who} />}
+            {to && !turn && (
+              <>
+                <span className="font-normal"> → </span>
+                {to === 'you' ? <span className="text-accent">you</span> : <Who k={to} />}
+              </>
+            )}
           </span>
           {i.replyTo != null && <Reference text={quoted} onClick={() => showMemo(i.replyTo!)} />}
           <Markdown text={i.toFounder ? noteText(i.note) : i.note} />
           {i.images && <MessageImages images={i.images} />}
+          <ReadBy readers={i.readers} />
         </div>
         <HoverRow at={i.at} edited={i.edited} onEdited={onEdited}>
           <Actions text={i.note} onQuote={() => i.memo != null && onReply(i.memo)} />
-          <ReadBy readers={i.readers} />
         </HoverRow>
       </div>
     </div>
