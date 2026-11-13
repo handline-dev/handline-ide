@@ -371,3 +371,19 @@ func TestAPersonsAnswerOnABlockedTaskIsNotHeld(t *testing.T) {
 			`(2, 'p1', 'task_turn_pop', '{"task_id": 1, "agent": "alice", "request_id": 21}'), (4, 'p1', 'task_turn_pop', '{"task_id": 1, "agent": "p1", "request_id": 23}')`)
 	headsAre(t, q, "b", 23, "the landed answer, the founder ending alice's turn and a request no turn sent wait on T9; the founder's new answer does not")
 }
+
+func TestATaskDeliveryCountsForItsOwnerAndItsActingTurnHolderOnly(t *testing.T) {
+	q := open(t)
+	// T1 is a's; c holds its top turn, b a turn below it.
+	seed(t, q,
+		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'one', 'a', 'a', 1)",
+		"INSERT INTO task_turns(task_id, pos, agent, pushed_by, since) VALUES(1, 1, 'b', 'a', 1), (1, 2, 'c', 'b', 1)",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok, queue_order) VALUES"+
+			"(11, 1, 'p1', 'a', 'to a', 'queued', 'task', 1, 11), (12, 1, 'p1', 'b', 'to b', 'queued', 'task', 1, 12), (13, 1, 'p1', 'c', 'to c', 'queued', 'task', 1, 13)",
+		"INSERT INTO task_requests(task_id, request_id) VALUES(1, 11), (1, 12), (1, 13)")
+	for agent, want := range map[string]int{"a": 1, "b": 0, "c": 1} {
+		if rows, err := QueuedFor(q, agent); err != nil || len(rows) != want {
+			t.Fatalf("%s: %d queued, want %d (%v)", agent, len(rows), want, err)
+		}
+	}
+}
