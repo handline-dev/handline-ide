@@ -69,7 +69,10 @@ type fakeUsage struct {
 	share   map[string]float64 // FiveHourShare by account; unlisted is unknown
 	urgent  map[string]float64 // Urgency by account; unlisted is unknown
 	reasons []usage.Reason     // PickReasons
+	manual  bool               // account_split manual
 }
+
+func (u fakeUsage) ManualSplit() bool { return u.manual }
 
 func (u fakeUsage) CapOf(string) int { return u.cap }
 func (u fakeUsage) CapUnpaced(string) int {

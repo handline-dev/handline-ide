@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/handline/handline/go/accounts/usage"
 	"github.com/handline/handline/go/taskboard/handoff"
 )
 
@@ -47,6 +48,19 @@ func TestHandoffPromptSettingRefusesAShortPromptAndTakesABlankOne(t *testing.T) 
 	for _, blank := range []string{"", " \n \r\n "} {
 		if v, err := settingValue(handoff.PromptKey, blank); err != nil || v != "" {
 			t.Fatalf("a blank prompt %q means the built-in: %v, %v", blank, v, err)
+		}
+	}
+}
+
+func TestAccountSplitTakesAutoOrManual(t *testing.T) {
+	for _, m := range []string{usage.SplitAuto, usage.SplitManual} {
+		if v, err := settingValue(usage.SplitKey, m); err != nil || v != m {
+			t.Fatalf("%s: %v %v", m, v, err)
+		}
+	}
+	for _, bad := range []any{"Manual", "", true} {
+		if _, err := settingValue(usage.SplitKey, bad); err == nil {
+			t.Fatalf("%v was taken", bad)
 		}
 	}
 }

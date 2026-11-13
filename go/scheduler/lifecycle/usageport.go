@@ -80,6 +80,9 @@ func (u *UsageAdapter) PaceShare(q db.Q, acct, agent string) (float64, bool) {
 	return u.Env.Predict(q, acct, agent, agent).Share()
 }
 
+// ManualSplit is usage.ManualSplit of the config now.
+func (u *UsageAdapter) ManualSplit() bool { return usage.ManualSplit(u.Env.CurrentConfig()) }
+
 // Pace is the account's weekly pace now.
 func (u *UsageAdapter) Pace(acct string) *usage.Pace { return u.Env.PaceNow(acct) }
 

@@ -2080,6 +2080,15 @@
       "description": "Refuse a subagent (the Agent tool) when one more would take the agent's account to its 5-hour or weekly limit before that window resets (subagent.start). Off: every start is recorded and none is refused. Off by default until the founder turns it on.",
       "default": false
      },
+     "account_split": {
+      "type": "string",
+      "enum": [
+       "auto",
+       "manual"
+      ],
+      "default": "auto",
+      "description": "How agents are spread over the accounts: auto, the default, places each new start and moves an agent off an account near its wall; manual never does: an agent stays on the account it is on, waits at its wall for the reset and goes on with the same conversation. A person's move (agent.move) goes in both. Applied at the next start or move, without a restart."
+     },
      "usage_move_before_pct": {
       "type": "integer",
       "minimum": 0,
@@ -2515,6 +2524,21 @@
      "subagent_pace_guard": {
       "type": "boolean",
       "description": "Refuse a subagent (the Agent tool) when one more would take the agent's account to its 5-hour or weekly limit before that window resets (subagent.start). Off: every start is recorded and none is refused. Off by default until the founder turns it on."
+     },
+     "account_split": {
+      "oneOf": [
+       {
+        "type": "string",
+        "enum": [
+         "auto",
+         "manual"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "How agents are spread over the accounts: auto, the default, places each new start and moves an agent off an account near its wall; manual never does: an agent stays on the account it is on, waits at its wall for the reset and goes on with the same conversation. A person's move (agent.move) goes in both. Applied at the next start or move, without a restart. null removes the key (back to the default)."
      },
      "usage_move_before_pct": {
       "oneOf": [
