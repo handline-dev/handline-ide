@@ -7,7 +7,8 @@ import { useDevices } from '#src/settings/data/devices.ts';
 import { useOpenAddress, usePair, usePairAddresses } from '#src/settings/data/pair.ts';
 import { Button } from '#src/ui/Button.tsx';
 import { useCopy } from '#src/ui/copy.ts';
-import { ModalFrame, openModal } from '#src/ui/modal.tsx';
+import { openModal } from '#src/ui/modal.tsx';
+import { StepModal } from '#src/ui/StepModal.tsx';
 import { toast } from '#src/ui/toast.tsx';
 
 const KIND_WORD: Record<NetworkAddress['kind'], string> = {
@@ -79,80 +80,85 @@ function Sheet({ close }: { close: () => void }) {
       );
   };
   const live = invite && left > 0;
-  return (
-    <ModalFrame
-      title="Connect a device"
-      size="lg"
-      onClose={close}
-      description="Anyone with the code for 5 minutes gets full control of this computer's agents. It works once."
-    >
-      {live ? (
-        <div className="flex flex-wrap items-start gap-5 pb-4">
-          <Qr text={invite.link ?? invite.uri} />
-          <div className="flex min-w-56 flex-1 flex-col gap-2">
-            <span className="text-xs text-muted">Code</span>
-            <code className="text-2xl font-semibold tracking-widest tabular-nums">{invite.code}</code>
-            {invite.link && (
-              <>
-                <span className="text-xs text-muted">Or open this on the other device</span>
-                <code className="rounded-md bg-surface px-3 py-2 text-xs [overflow-wrap:anywhere]">{invite.link}</code>
-                <Button className="w-fit" onClick={() => copy(invite.link!, 'the link')}>
-                  {copied ? 'Copied' : 'Copy link'}
-                </Button>
-              </>
-            )}
-            <span className="text-xs text-muted">
-              Valid for <b className="tabular-nums text-fg">{clock(left)}</b>
-            </span>
-          </div>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-3 pb-4">
-          {invite && (
-            <p className="text-sm" role="status">
-              This invite expired.
-            </p>
-          )}
-          <p className="text-sm text-muted">Pick the address the other device will connect to.</p>
-          {loading && <p className="text-sm text-muted">Looking for addresses…</p>}
-          {!loading && list.length === 0 && (
-            <p className="text-sm text-muted">No address is open to other devices: the app listens on this computer only.</p>
-          )}
-          <div role="radiogroup" aria-label="Address to share" className="flex flex-col gap-1">
-            {list.map((a) => (
-              <button
-                key={a.host}
-                type="button"
-                role="radio"
-                aria-checked={pick === a.host}
-                onClick={() => setChosen(a.host)}
-                className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2 text-left text-sm hover:bg-hover aria-checked:border-accent"
-              >
-                <span className="truncate">{a.host}</span>
-                <span className="shrink-0 text-xs text-muted">{KIND_WORD[a.kind]}</span>
-              </button>
-            ))}
-          </div>
-          <p className="text-xs text-muted">
-            The address you pick is opened to its network while this computer is on it. On Wi-Fi names and IPs the other device's browser
-            warns about the certificate the first time.
-          </p>
-          {openError && (
-            <p className="text-xs text-danger" role="alert">
-              {openError}
-            </p>
-          )}
-          {pair.error && (
-            <p className="text-xs text-danger" role="alert">
-              {pair.error}
-            </p>
-          )}
-          <Button variant="primary" className="w-fit" disabled={!pick || pair.pending} onClick={make}>
-            {pair.pending ? 'Making a code…' : invite ? 'New code' : 'Make a code'}
-          </Button>
-        </div>
+  const pickPage = (
+    <div className="flex flex-col gap-3">
+      {invite && (
+        <p className="text-sm" role="status">
+          This invite expired.
+        </p>
       )}
-    </ModalFrame>
+      <p className="text-sm text-muted">Pick the address the other device will connect to.</p>
+      {loading && <p className="text-sm text-muted">Looking for addresses…</p>}
+      {!loading && list.length === 0 && (
+        <p className="text-sm text-muted">No address is open to other devices: the app listens on this computer only.</p>
+      )}
+      <div role="radiogroup" aria-label="Address to share" className="flex flex-col gap-1">
+        {list.map((a) => (
+          <button
+            key={a.host}
+            type="button"
+            role="radio"
+            aria-checked={pick === a.host}
+            onClick={() => setChosen(a.host)}
+            className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2 text-left text-sm hover:bg-hover aria-checked:border-accent"
+          >
+            <span className="truncate">{a.host}</span>
+            <span className="shrink-0 text-xs text-muted">{KIND_WORD[a.kind]}</span>
+          </button>
+        ))}
+      </div>
+      {openError && (
+        <p className="text-xs text-danger" role="alert">
+          {openError}
+        </p>
+      )}
+      {pair.error && (
+        <p className="text-xs text-danger" role="alert">
+          {pair.error}
+        </p>
+      )}
+    </div>
+  );
+  const codePage = live && (
+    <div className="flex flex-wrap items-start gap-5">
+      <Qr text={invite.link ?? invite.uri} />
+      <div className="flex min-w-56 flex-1 flex-col gap-2">
+        <span className="text-xs text-muted">Code</span>
+        <code className="text-2xl font-semibold tracking-widest tabular-nums">{invite.code}</code>
+        {invite.link && (
+          <>
+            <span className="text-xs text-muted">Or open this on the other device</span>
+            <code className="rounded-md bg-surface px-3 py-2 text-xs [overflow-wrap:anywhere]">{invite.link}</code>
+            <Button className="w-fit" onClick={() => copy(invite.link!, 'the link')}>
+              {copied ? 'Copied' : 'Copy link'}
+            </Button>
+          </>
+        )}
+        <span className="text-xs text-muted">
+          Valid for <b className="tabular-nums text-fg">{clock(left)}</b>
+        </span>
+        <span className="text-xs text-muted">The other device shows a certificate warning the first time.</span>
+      </div>
+    </div>
+  );
+  return (
+    <StepModal
+      title="Connect a device"
+      description="Anyone with the code for 5 minutes gets full control of this computer's agents. It works once."
+      onClose={close}
+      step={live ? 1 : 0}
+      steps={[
+        {
+          body: pickPage,
+          next: {
+            label: pair.pending ? 'Making a code…' : invite ? 'New code' : 'Make a code',
+            onClick: make,
+            disabled: !pick || pair.pending,
+          },
+        },
+        { body: codePage, back: { label: 'Back', onClick: () => setInvite(null) }, next: { label: 'Done', onClick: close } },
+      ]}
+    />
   );
 }
 
