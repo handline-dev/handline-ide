@@ -3,7 +3,8 @@ import type { ActivityItem } from '@handline/app-core';
 import type { TaskDetail } from '@handline/client';
 import { isPerson, noteText } from '@handline/app-core';
 import { useMe } from '@handline/app-react';
-import { Check, CircleDot, Hand, MessageSquare, Pencil, Send, Trash2, Undo2, UserRound } from 'lucide-react';
+import { useNameOf } from '@handline/app-data';
+import { Check, CircleDot, Hand, Pencil, Send, Trash2, Undo2, UserRound } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Reference } from '#src/chat/ChatLine.tsx';
 import { Actions, CopyButton } from '#src/chat/MessageActions.tsx';
@@ -13,7 +14,6 @@ import { showMemo } from '#src/tools/TaskTurn.ts';
 import { clock } from '#src/format/time.ts';
 import { showHistory } from '#src/tools/TaskDiff.tsx';
 import { Markdown } from '#src/ui/Markdown.tsx';
-import { Who } from '#src/ui/Who.tsx';
 
 export type Turn = NonNullable<TaskDetail['turns']>[number];
 
@@ -112,8 +112,19 @@ export function EventRow({ i, fresh, turn }: { i: ActivityItem; fresh: string; t
   );
 }
 
-/** A comment as a chat line, with the chat's hover row. Outlined and headed Your turn while the founder's turn passed with it is open;
- * one to the founder otherwise says "→ you". */
+/** A writer's initial in a circle: the founder's blue, an agent's gray. */
+function Avatar({ name, mine }: { name: string; mine: boolean }) {
+  return (
+    <span
+      className={`grid size-6 shrink-0 place-items-center rounded-full text-xs font-semibold text-white ${mine ? 'bg-accent' : 'bg-muted'}`}
+    >
+      {(name[0] ?? '?').toUpperCase()}
+    </span>
+  );
+}
+
+/** A comment as a chat line, headed by its writer and time; whom it went to is an @mention before the text. While the founder's turn
+ * passed with it is open, it sits on a soft warm ground marked Waiting for you. */
 export function CommentRow({
   i,
   fresh,
@@ -132,37 +143,42 @@ export function CommentRow({
   onEdited?: () => void;
 }) {
   const me = useMe();
+  const nameOf = useNameOf();
   const mine = isPerson(i.who, me);
   const toYou = !mine && (i.toFounder || (!!i.turn && isPerson(i.turnTo ?? '', me)));
   // Whom the comment went to: the turn passed with it, or the task's holder.
   const to = toYou ? 'you' : mine ? i.turnTo || holder : undefined;
+  const name = mine ? 'You' : nameOf(i.who);
   return (
     <div
       data-memo={i.memo}
       data-turn-open={turn ? '' : undefined}
-      className={`group flex gap-2.5 rounded-md ring-warning ring-offset-4 ring-offset-bg transition-shadow duration-500 ${turn ? '-mx-3 rounded-lg border border-warning px-3 pt-2' : ''}`}
+      className={`group flex gap-2.5 rounded-md ring-warning ring-offset-4 ring-offset-bg transition-shadow duration-500 ${turn ? 'relative -mx-3 mb-3 rounded-lg bg-warning/10 px-3 py-2' : ''}`}
     >
-      <Mark icon={turn ? Hand : MessageSquare} />
+      <Avatar name={name} mine={mine} />
       <div className="flex min-w-0 flex-1 flex-col">
         <div className={`flex flex-col rounded-md ${fresh}`}>
-          {turn && <span className="font-medium">Your turn</span>}
-          <span className="text-xs font-medium text-muted">
-            {mine ? 'You' : <Who k={i.who} />}
-            {to && !turn && (
-              <>
-                <span className="font-normal"> → </span>
-                {to === 'you' ? <span className="text-accent">you</span> : <Who k={to} />}
-              </>
-            )}
+          <span className="flex items-baseline gap-2 text-sm">
+            <span className="font-medium">{name}</span>
+            <time dateTime={i.at} title={i.at} className="text-xs text-muted">
+              {clock(i.at)}
+            </time>
+            {turn && <span className="text-xs font-medium text-warning">Waiting for you</span>}
           </span>
           {i.replyTo != null && <Reference text={quoted} onClick={() => showMemo(i.replyTo!)} />}
-          <Markdown text={i.toFounder ? noteText(i.note) : i.note} />
+          <div className="min-w-0">
+            {to && <span className="float-left mr-1.5 rounded bg-accent/10 px-1 text-sm text-accent">@{to === 'you' ? 'You' : nameOf(to)}</span>}
+            <Markdown text={i.toFounder ? noteText(i.note) : i.note} />
+          </div>
           {i.images && <MessageImages images={i.images} />}
           <ReadBy readers={i.readers} />
         </div>
-        <HoverRow at={i.at} edited={i.edited} onEdited={onEdited}>
-          <Actions text={i.note} onQuote={() => i.memo != null && onReply(i.memo)} />
-        </HoverRow>
+        {/* On the warm ground the buttons sit at its top right on hover, so no empty row closes the box. */}
+        <div className={turn ? 'absolute top-1.5 right-3' : ''}>
+          <HoverRow at={i.at} edited={i.edited} onEdited={onEdited}>
+            <Actions text={i.note} onQuote={() => i.memo != null && onReply(i.memo)} />
+          </HoverRow>
+        </div>
       </div>
     </div>
   );
