@@ -91,7 +91,12 @@ function Line({
   who,
   wait,
   answers,
+  onPick,
+  chosen,
 }: {
+  /** A plain click calls this instead of opening; `chosen` marks the shown row. */
+  onPick?: () => void;
+  chosen?: boolean;
   title: string;
   /** Where a click lands, shown while the pointer rests on the row. */
   hint?: string;
@@ -126,7 +131,7 @@ function Line({
   const line = (
     // The check box sits beside the row's button, not inside it: a box in a button is no box to the keyboard.
     <div
-      className={`group/line relative flex ${lead !== undefined ? 'border-b border-border' : 'rounded-md'} ${picked ? 'bg-selected' : 'hover:bg-hover/30'} ${hinted} ${busy ? 'pointer-events-none opacity-50' : ''}`}
+      className={`group/line relative flex ${lead !== undefined ? 'border-b border-border' : 'rounded-md'} ${picked || chosen ? 'bg-selected' : 'hover:bg-hover/30'} ${hinted} ${busy ? 'pointer-events-none opacity-50' : ''}`}
     >
       {pick && (
         <input
@@ -143,6 +148,7 @@ function Line({
         // While rows are picked, a click picks more and the other ways to open wait.
         onClick={(e: MouseEvent<HTMLButtonElement>) => {
           if (pick && (e.shiftKey || picking)) return pick.toggle(row);
+          if (onPick && !e.metaKey && !e.ctrlKey && !e.altKey) return onPick();
           open.onClick(e);
         }}
         onAuxClick={picking ? undefined : open.onAuxClick}
@@ -204,7 +210,21 @@ function turnOpens(p: PendingRequest): string | null {
 }
 
 /** Something waiting on the founder: what is asked, who asks (an agent, or the daemon itself), how long ago. */
-export function TurnLine({ p, onOpened, until, full }: { p: PendingRequest; onOpened?: () => void; until?: string; full?: boolean }) {
+export function TurnLine({
+  p,
+  onOpened,
+  until,
+  full,
+  onPick,
+  chosen,
+}: {
+  p: PendingRequest;
+  onOpened?: () => void;
+  until?: string;
+  full?: boolean;
+  onPick?: () => void;
+  chosen?: boolean;
+}) {
   const nameOf = useNameOf();
   const refs = useRefs();
   const daemon = p.kind === 'warning' || p.agent === null;
@@ -214,6 +234,8 @@ export function TurnLine({ p, onOpened, until, full }: { p: PendingRequest; onOp
     <Line
       mark
       row={turnRow(p)}
+      onPick={onPick}
+      chosen={chosen}
       title={refs(p.title)}
       icon={turnIcon(p)}
       {...(full && {
