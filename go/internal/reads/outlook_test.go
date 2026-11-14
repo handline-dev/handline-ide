@@ -168,45 +168,6 @@ func TestOutlookRefusesARangeItDoesNotList(t *testing.T) {
 	}
 }
 
-func TestAccountsListShowsTheConfiguredCapNoneWhilePausedAndNothingShrunkByThePace(t *testing.T) {
-	t.Parallel()
-	e := testEnv(t)
-	now := time.Now().Unix()
-	for acct, used := range map[string]int{"fast": 95, "slow": 5} {
-		p := paths.StatusFile(e.Home, teamtest.Account(t, e.Home, acct))
-		os.MkdirAll(filepath.Dir(p), 0o755)
-		body := fmt.Sprintf(`{"collected_at": %d, "windows": [{"minutes": 300, "used_percent": 1, "resets_at": %d, "observed_at": %d, "carried": false, "lost": false},`+
-			`{"minutes": 10080, "used_percent": %d, "resets_at": %d, "observed_at": %d, "carried": false, "lost": false}]}`,
-			now, now+3600, now, used, now+6*86400, now)
-		os.WriteFile(p, []byte(body), 0o644)
-	}
-	caps := func() string {
-		got, err := e.accountsList(nil, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-		b, _ := json.Marshal(got)
-		var out struct {
-			Accounts []struct {
-				Name          string
-				Cap_effective int
-			}
-		}
-		json.Unmarshal(b, &out)
-		return fmt.Sprint(out.Accounts)
-	}
-	os.WriteFile(filepath.Join(e.Home, "config.yaml"), []byte("launch_pace_hold: true\n"), 0o644)
-	if got := caps(); got != "[{fast 2} {slow 2}]" {
-		t.Fatalf("an account far past its pace line still shows the configured cap, %s", got)
-	}
-	if _, err := e.DB.Exec("UPDATE accounts SET paused = 1 WHERE name = 'slow'"); err != nil {
-		t.Fatal(err)
-	}
-	if got := caps(); got != "[{fast 2} {slow 0}]" {
-		t.Fatalf("a paused account shows none, %s", got)
-	}
-}
-
 // outlookWithUse seeds two accounts whose week rose by 20 and 10 points, and two agents of the group grp who spent on them: grp.one $6 of
 // a's $8 and $2 of b's $2, grp.two $2 of a's $8.
 func outlookWithUse(t *testing.T) (*Env, time.Time) {

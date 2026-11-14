@@ -16,9 +16,6 @@ import (
 	"github.com/handline/handline/go/kit/yamlcompat"
 )
 
-// DefaultActiveCap is session/triggers.DEFAULT_ACTIVE_CAP.
-const DefaultActiveCap = 2
-
 // Config is config.yaml as the readers see it, with each account's settings from its row (AccountKeys); one that cannot be read
 // is empty but for the rows.
 type Config map[string]any
@@ -69,35 +66,6 @@ func orNil(m Config, err error) (Config, bool) {
 		return nil, false
 	}
 	return m, true
-}
-
-func posInt(v any) (int, bool) {
-	switch n := v.(type) {
-	case int:
-		return n, n >= 1
-	case int64:
-		return int(n), n >= 1
-	}
-	return 0, false
-}
-
-// OwnCap is the cap set for this account alone.
-func (c Config) OwnCap(acct string) (int, bool) { return posInt(c["active_cap_"+acct]) }
-
-// DefaultCap is the cap of an account with none of its own.
-func (c Config) DefaultCap() int {
-	if n, ok := posInt(c["active_cap"]); ok {
-		return n
-	}
-	return DefaultActiveCap
-}
-
-// CapOf is the cap in force for the account.
-func (c Config) CapOf(acct string) int {
-	if n, ok := c.OwnCap(acct); ok {
-		return n
-	}
-	return c.DefaultCap()
 }
 
 // LabelOf is the name the screens show for an account.

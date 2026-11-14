@@ -114,7 +114,7 @@ func (e *Env) agentReason(q db.Q, agent string, now int64) (string, bool) {
 	return "", true
 }
 
-// TaskReason is why the task, queued or doing, has not been given to its owner, its cause (task, wall, cap or owner), and whether the owner
+// TaskReason is why the task, queued or doing, has not been given to its owner, its cause (task, wall, full or owner), and whether the owner
 // looks able to take it. ok false when it has been (typed, or nothing is waiting to type).
 func (e *Env) taskReason(q db.Q, t *db.Task, now int64) (why, cause string, able, ok bool) {
 	tid, agent := t.ID, t.Acting
@@ -174,7 +174,7 @@ func (e *Env) taskReason(q db.Q, t *db.Task, now int64) (why, cause string, able
 	return states.Ready, "owner", true, true
 }
 
-// ownerCause is the cause of a wait on the owner itself: wall when its account is at a usage limit, cap when the account has no free slot,
+// ownerCause is the cause of a wait on the owner itself: wall when its account is at a usage limit, full when nothing may start there,
 // else owner.
 func (e *Env) ownerCause(q db.Q, agent string) string {
 	if e.wallReason(q, agent, nil) != "" {

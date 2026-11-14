@@ -3,7 +3,6 @@ import type { Account } from '@handline/client';
 
 export interface AccountChange {
   label?: string;
-  cap?: number;
   recover?: boolean;
   paused?: boolean;
   cycle?: boolean;
@@ -14,12 +13,9 @@ export function accountAfter(a: Account, c: AccountChange): Account {
   const next: Account = {
     ...a,
     ...(c.label !== undefined ? { label: c.label || a.name } : {}),
-    ...(c.cap !== undefined ? { cap: c.cap, cap_effective: c.cap } : {}),
     ...(c.recover !== undefined ? { recover: c.recover } : {}),
     ...(c.paused !== undefined ? { paused: c.paused } : {}),
   };
-  // A paused account takes no new agent, whatever its cap; a resume's cap in force comes back with the refetch.
-  if (next.paused) next.cap_effective = 0;
   if (c.cycle === undefined && c.cycle_end === undefined) return next;
   // A date alone turns the cycle on, as the daemon does; null clears it, so the account ends only when its login drops.
   const was = a.cycle;

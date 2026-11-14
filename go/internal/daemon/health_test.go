@@ -44,13 +44,13 @@ func TestTheHealthCheckTellsAChangeOnceAndNothingElse(t *testing.T) {
 	}
 	pause.Clear(d.db)
 	teamtest.Seed(t, d.cfg.Home, "bob")
-	if _, err := d.db.Exec(`INSERT INTO agent_view(agent, view, updated) VALUES(?, '{"state":"queued","status":{"state":"stopped","reason":"cap","text":"waiting for a slot"}}', 1)`, teamtest.Key(t, d.cfg.Home, "bob")); err != nil {
+	if _, err := d.db.Exec(`INSERT INTO agent_view(agent, view, updated) VALUES(?, '{"state":"queued","status":{"state":"stopped","reason":"full","text":"waiting for a slot"}}', 1)`, teamtest.Key(t, d.cfg.Home, "bob")); err != nil {
 		t.Fatal(err)
 	}
 	if !d.checkHealth() {
 		t.Fatal("an agent an account holds was not told")
 	}
-	if level, text := healthOfStatus(f.statusEvent(5 * time.Second)); level != "held" || text != "1 agent waits for an account: no free slot" {
+	if level, text := healthOfStatus(f.statusEvent(5 * time.Second)); level != "held" || text != "1 agent waits for an account: no room to start" {
 		t.Fatalf("%s %q", level, text)
 	}
 }

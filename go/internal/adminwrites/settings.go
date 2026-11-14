@@ -46,7 +46,7 @@ const LineMax = 4000
 // PromptMin is the shortest handoff prompt kept, in characters; a blank one means the built-in.
 const PromptMin = 20
 
-var settingKinds = map[string]string{"active_cap": int1, "park_timeout_s": int0, "handoff_note": flag_,
+var settingKinds = map[string]string{"park_timeout_s": int0, "handoff_note": flag_,
 	"ignore_cache_expiry": flag_, "dev_mode": flag_, "bg_notice_s": int1, "bg_grace_s": int1, "bg_check_s": int1, "notice_digest_s": int1,
 	"input_hold_idle_s": int1, handoff.PromptKey: line,
 	settings.AttentionWaitKey: int1, settings.AttentionQuietKey: int1, settings.AttentionSentBackKey: int1,

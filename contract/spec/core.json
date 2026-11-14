@@ -135,7 +135,7 @@
    "hl unstall",
    "hl propose approve|reject|apply|relabel|rehome|links",
    "hl trust remove|apply|mcp",
-   "hl account add|remove|register|cap|cycle|recover|wake (set; the cycle and cap reads are Account.cycle and Account.cap in accounts.list)",
+   "hl account add|remove|register|cycle|recover|wake (set; the cycle read is Account.cycle in accounts.list)",
    "hl idle-timeout|idle-background|notice-digest|ignore-cache-expiry (set)",
    "hl dev-mode",
    "hl device pair|list|revoke (device.pair, devices.list, device.revoke: the daemon's socket, from the founder's terminal)",
@@ -304,8 +304,8 @@
    "preparing": "Has work and the daemon starts or sends it at its next tick; nothing stands in the way. Reasons: work, restart, retry.",
    "starting": "A launch is in progress (agents). Reason: launch.",
    "running": "Working: a turn runs, a hand-off is moving, background work runs, or a task is with an owner that has it. Reasons: turn, watch, handoff, background.",
-   "waiting": "Held by something the daemon names: a person, another task, the owner, a clock, an account move, the machine's load, an account's pace, the founder's pause. Reasons: you, opener, task, owner, clock, move, load, pace, paused.",
-   "stopped": "Will not go on by itself: no account has room (until the reset when it is known) or a person must unstall it. Reasons: wall, cap, stalled.",
+   "waiting": "Held by something the daemon names: a person, another task, the owner, a clock, an account move, the machine's load, the founder's pause. Reasons: you, opener, task, owner, clock, move, load, paused.",
+   "stopped": "Will not go on by itself: no account has room (until the reset when it is known), nothing may start where it would run, or a person must unstall it. Reasons: wall, full, stalled.",
    "idle": "At its prompt with nothing to do (agents). Reason: none.",
    "off": "Registered with no terminal and nothing waiting for it (agents). Reason: none.",
    "done": "Closed (tasks). Reasons: done (its owner finished it), discarded."
@@ -326,10 +326,9 @@
    "clock": "Waits for a time: until says when.",
    "move": "An account move is settling.",
    "load": "The machine is over a load limit (host_active_cap, load_per_core_pct, ram_free_min_pct): the daemon starts none of its work until it is under, by itself; text names the limit that tripped. agent.force_start lets it go once. A message the person sends (the founder's or a paired device's) is never held by it: its agent wakes at once, and load_limit_passed is recorded in agent.timeline within 10 s of the send; the limit holds only agents' work and the daemon's own, and for at most 10 minutes: work held that long goes once, and load_limit_passed (by: ceiling) is recorded. A message held by the load is not a stuck delivery: no heal step or stuck card is made for it.",
-   "pace": "No longer given: no pace holds a start. It goes from this contract once the app stops naming it.",
    "paused": "Paused (daemon.pause): the daemon starts none of an agent's work and none of its own; a turn already running goes to its end. A turn a person starts (a message a person sends, a person's own start or wake) and a restart are never held. A message an agent or the daemon sends waits too, unless its agent is mid-turn. Clocks keep running: a task's timeout and a gate's watch go on while paused, and only the turns they would start wait. It goes on at daemon.resume, or by itself at the pause's until; until is that time, null when there is none. agent.force_start does not pass it. A task is held the same way, mid-turn too, unless the founder sent it. When the pause is what keeps queued tasks from their agent, the agent's status is waiting, reason paused, with those tasks in tasks, oldest first, whether its session is up or not: task.send_now lets one of them go while the pause stays, daemon.resume lets everything go.",
    "wall": "The account it would run on is at a usage limit; until is when the window rolls over, null when not known.",
-   "cap": "No account has a free slot; it starts when a running turn ends.",
+   "full": "Nothing may start where it would run: its workspace has its agent_cap mid-turn, or its account is paused; it starts when a turn there ends or the account is resumed.",
    "stalled": "Stopped until a person unstalls it; text says why it stopped.",
    "none": "Nothing to say beyond the state.",
    "done": "Its owner finished it.",
@@ -1521,7 +1520,7 @@
      "text",
      "since"
     ],
-    "description": "The machine's state in one line. held, the first that applies: the founder's pause (daemon.pause); the load holding starts (Resources.start_hold, by its own rules); any needs_you item; any agent whose status reason is cap, wall or pace, with the count in text. near, when nothing holds: the load per core at least its limit less 10 percentage points (load_per_core_pct), or free memory less than its limit plus 10 (ram_free_min_pct), when that limit is set; never before the first measure. host_active_cap is never near: at it, starts are held. status.changed is told within 10 s of a change of level or text."
+    "description": "The machine's state in one line. held, the first that applies: the founder's pause (daemon.pause); the load holding starts (Resources.start_hold, by its own rules); any needs_you item; any agent whose status reason is full or wall, with the count in text. near, when nothing holds: the load per core at least its limit less 10 percentage points (load_per_core_pct), or free memory less than its limit plus 10 (ram_free_min_pct), when that limit is set; never before the first measure. host_active_cap is never near: at it, starts are held. status.changed is told within 10 s of a change of level or text."
    },
    "Repo": {
     "type": "object",
@@ -1906,12 +1905,6 @@
     "type": "object",
     "additionalProperties": false,
     "properties": {
-     "active_cap": {
-      "type": "integer",
-      "minimum": 1,
-      "default": 2,
-      "description": "The cap shown for an account with none of its own (Account.cap_effective). It limits nothing. Kept until the app stops reading it."
-     },
      "park_timeout_s": {
       "type": "integer",
       "minimum": 0,
@@ -2004,7 +1997,7 @@
       "type": "integer",
       "minimum": 1,
       "default": 3600,
-      "description": "Seconds an open task of a request may wait on cap, wall or owner before the request shows attention waiting (RequestRow.attention)."
+      "description": "Seconds an open task of a request may wait on full, wall or owner before the request shows attention waiting (RequestRow.attention)."
      },
      "handoff_prompt": {
       "type": "string",
@@ -2055,11 +2048,6 @@
       "minimum": 0,
       "default": 0,
       "description": "Least free disk on the volume the daemon home is on, in GB; 0 is off, the default. The disk needs-you item uses it as its floor when it is set, else 10 GB."
-     },
-     "launch_pace_hold": {
-      "type": "boolean",
-      "default": false,
-      "description": "No longer read or written: no pace holds a start. settings.set refuses it; it goes from this contract once the app stops naming it."
      },
      "pace_target_pct": {
       "type": "integer",
@@ -2177,24 +2165,12 @@
       "description": "Hosts the network listener serves, from connection.addresses, each on the -listen port: a door on each of their addresses, made again within seconds when the setting or the interfaces change (no restart). The web page is served on each. null (the default) serves -listen alone; [] serves none. A host the machine has no address for now is served when it has one again. A write answers unreachable_devices: the paired devices whose host is no longer served."
      }
     },
-    "description": "Every global setting by its config.yaml name, with its default; every one is the founder's to set. Per-account keys (label, cap, usage recovery, cycle) are account.set; per-agent keys are agent.set and schedule.*; a key marked Per agent also takes `agent` in settings.set."
+    "description": "Every global setting by its config.yaml name, with its default; every one is the founder's to set. Per-account keys (label, usage recovery, cycle) are account.set; per-agent keys are agent.set and schedule.*; a key marked Per agent also takes `agent` in settings.set."
    },
    "SettingsChanges": {
     "type": "object",
     "additionalProperties": false,
     "properties": {
-     "active_cap": {
-      "oneOf": [
-       {
-        "type": "integer",
-        "minimum": 1
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "description": "The cap shown for an account with none of its own (Account.cap_effective). It limits nothing. Kept until the app stops reading it. null removes the key (back to the default)."
-     },
      "park_timeout_s": {
       "oneOf": [
        {
@@ -2377,7 +2353,7 @@
         "type": "null"
        }
       ],
-      "description": "Seconds an open task of a request may wait on cap, wall or owner before the request shows attention waiting (RequestRow.attention). null removes the key (back to the default)."
+      "description": "Seconds an open task of a request may wait on full, wall or owner before the request shows attention waiting (RequestRow.attention). null removes the key (back to the default)."
      },
      "handoff_prompt": {
       "oneOf": [
@@ -2483,17 +2459,6 @@
        }
       ],
       "description": "Least free disk on the volume the daemon home is on, in GB; 0 is off, the default. The disk needs-you item uses it as its floor when it is set, else 10 GB. null removes the key (back to the default)."
-     },
-     "launch_pace_hold": {
-      "oneOf": [
-       {
-        "type": "boolean"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "description": "No longer read or written: no pace holds a start. settings.set refuses it; it goes from this contract once the app stops naming it."
      },
      "pace_target_pct": {
       "oneOf": [

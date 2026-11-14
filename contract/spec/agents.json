@@ -336,7 +336,7 @@
             "type": "null"
            }
           ],
-          "description": "When that window rolls over, as unix seconds: the shortest walled window, the longest when only that stands. Null when the reset is not known or the wait is for a slot (the account is at its cap), not a window."
+          "description": "When that window rolls over, as unix seconds: the shortest walled window, the longest when only that stands. Null when the reset is not known or the wait is not for a window (status reason full)."
          },
          "assumed": {
           "type": "boolean",

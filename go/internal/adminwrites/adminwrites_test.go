@@ -161,20 +161,20 @@ func TestSchedulesAreAddedEditedMovedAndRemovedByTheirId(t *testing.T) {
 
 func TestSettingsSetWritesEveryKeyOrNoneAndClearsOnNull(t *testing.T) {
 	r := newRig(t)
-	os.WriteFile(filepath.Join(r.home, "config.yaml"), []byte("active_cap: 3\ndev_mode: true\n"), 0o644)
+	os.WriteFile(filepath.Join(r.home, "config.yaml"), []byte("push_task_done: true\ndev_mode: true\n"), 0o644)
 	res := r.result(r.one("settings.set", `{"changes":{"bg_notice_s":120,"dev_mode":null},"request_id":"t1"}`))
 	if res["said"] != "bg_notice_s set, dev_mode cleared" {
 		t.Fatalf("%v", res)
 	}
-	if got := r.file("config.yaml"); !strings.Contains(got, "active_cap: 3") || !strings.Contains(got, "bg_notice_s: 120") || strings.Contains(got, "dev_mode") {
+	if got := r.file("config.yaml"); !strings.Contains(got, "push_task_done: true") || !strings.Contains(got, "bg_notice_s: 120") || strings.Contains(got, "dev_mode") {
 		t.Fatalf("the other settings stay: %q", got)
 	}
 	before := r.file("config.yaml")
-	if r.code(r.one("settings.set", `{"changes":{"bg_notice_s":5,"active_cap":0},"request_id":"t2"}`)) != "bad_request" || r.file("config.yaml") != before {
+	if r.code(r.one("settings.set", `{"changes":{"bg_notice_s":5,"input_hold_idle_s":0},"request_id":"t2"}`)) != "bad_request" || r.file("config.yaml") != before {
 		t.Fatal("nothing is written if any key is refused")
 	}
-	if r.code(r.one("settings.set", `{"changes":{"active_cap":2},"agent":"alice","request_id":"t3"}`)) != "bad_request" {
-		t.Fatal("active_cap has no per-agent value")
+	if r.code(r.one("settings.set", `{"changes":{"input_hold_idle_s":2},"agent":"alice","request_id":"t3"}`)) != "bad_request" {
+		t.Fatal("input_hold_idle_s has no per-agent value")
 	}
 	r.result(r.one("settings.set", `{"changes":{"park_timeout_s":60},"agent":"alice","request_id":"t4"}`))
 	if r.setting("alice", "park_timeout_s") != "60" {
@@ -291,25 +291,25 @@ func TestTheHandoffPromptIsOneLineOfTextGloballyOrForOneAgent(t *testing.T) {
 
 func TestAccountSetWritesConfigAndRefusesWhatNeedsTheProfile(t *testing.T) {
 	r := newRig(t)
-	if r.code(r.one("account.set", `{"account":"nobody","cap":2,"request_id":"a1"}`)) != "not_found" {
+	if r.code(r.one("account.set", `{"account":"nobody","label":"X","request_id":"a1"}`)) != "not_found" {
 		t.Fatal("no such account")
 	}
-	res := r.result(r.one("account.set", `{"account":"main","label":"Work","cap":4,"recover":false,"cycle_end":"2030-01-31","request_id":"a3"}`))
-	if res["said"] != "alias Work; main: at most 4 agents mid-turn; usage recovery off; main: last day 2030-01-31" {
+	res := r.result(r.one("account.set", `{"account":"main","label":"Work","recover":false,"cycle_end":"2030-01-31","request_id":"a3"}`))
+	if res["said"] != "alias Work; usage recovery off; main: last day 2030-01-31" {
 		t.Fatalf("%v", res)
 	}
-	want := map[string]any{"label": "Work", "active_cap": int64(4), "usage_recover": false, "month_cycle": true, "sub_end": "2030-01-31"}
+	want := map[string]any{"label": "Work", "usage_recover": false, "month_cycle": true, "sub_end": "2030-01-31"}
 	if got := r.account("main"); fmt.Sprint(got) != fmt.Sprint(want) {
 		t.Fatalf("row %v, want %v", got, want)
 	}
 	if r.file("config.yaml") != "" {
 		t.Fatal("an account's settings are not written to config.yaml")
 	}
-	if r.result(r.one("account.set", `{"account":"main","cap":4,"request_id":"a4"}`))["said"] != "nothing changed" {
+	if r.result(r.one("account.set", `{"account":"main","label":"Work","request_id":"a4"}`))["said"] != "nothing changed" {
 		t.Fatal("what is already so changes nothing")
 	}
 	r.result(r.one("account.set", `{"account":"main","label":"","recover":true,"cycle_end":null,"request_id":"a5"}`))
-	if got := r.account("main"); fmt.Sprint(got) != fmt.Sprint(map[string]any{"active_cap": int64(4), "month_cycle": true}) {
+	if got := r.account("main"); fmt.Sprint(got) != fmt.Sprint(map[string]any{"month_cycle": true}) {
 		t.Fatalf("a cleared alias, end day and recovery go back to the default: %v", got)
 	}
 	if r.code(r.one("account.set", `{"account":"main","cycle":true,"request_id":"a6"}`)) != "refused" || r.account("main")["month_cycle"] != true {

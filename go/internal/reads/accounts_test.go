@@ -357,8 +357,8 @@ func TestAccountsListSaysAPausedAccountIsPausedAndTakesNoAgent(t *testing.T) {
 	}
 	rest, good := rows["rest"], rows["good"]
 	np, _ := rest["not_picked"].(map[string]any)
-	if rest["paused"] != true || rest["cap_effective"] != 0 || np["kind"] != "paused" {
-		t.Errorf("rest: paused %v, cap_effective %v, not_picked %v", rest["paused"], rest["cap_effective"], rest["not_picked"])
+	if rest["paused"] != true || np["kind"] != "paused" {
+		t.Errorf("rest: paused %v, not_picked %v", rest["paused"], rest["not_picked"])
 	}
 	if good["paused"] != false || good["not_picked"] != nil {
 		t.Errorf("good: paused %v, not_picked %v", good["paused"], good["not_picked"])
@@ -375,9 +375,6 @@ func TestAccountsListRosterCountsMidTurnAsTheCapDoesAndBackgroundWorkApart(t *te
 	os.MkdirAll(dir, 0o755)
 	os.WriteFile(filepath.Join(dir, "status.json"), []byte(fmt.Sprintf(`{"collected_at": %d, "windows": [{"minutes": 300, "used_percent": 10, "resets_at": %d, "observed_at": %d}, {"minutes": 10080, "used_percent": 10, "resets_at": %d, "observed_at": %d}]}`, now-5, now+3600, now-5, now+90000, now-5)), 0o644)
 	os.WriteFile(filepath.Join(dir, ".credentials.json"), []byte("{}"), 0o600)
-	if err := usage.SetAccount(e.DB, "alpha", map[string]any{"active_cap": 2}); err != nil {
-		t.Fatal(err)
-	}
 	bg := map[string]bool{}
 	for i, n := range []string{"ann", "bob", "cal", "dee", "eve", "fay", "gus"} {
 		addAgent(t, e, n, "")
@@ -416,8 +413,8 @@ func TestAccountsListRosterCountsMidTurnAsTheCapDoesAndBackgroundWorkApart(t *te
 	if b["agents_assigned"] != 1 || b["agents_running"] != 1 || b["agents_background"] != 0 {
 		t.Fatalf("beta: assigned %v running %v background %v", b["agents_assigned"], b["agents_running"], b["agents_background"])
 	}
-	if a["agents_assigned"] != 7 || a["agents_running"] != 3 || a["agents_background"] != 4 || a["cap_effective"] != 2 {
-		t.Fatalf("assigned %v running %v background %v cap %v", a["agents_assigned"], a["agents_running"], a["agents_background"], a["cap_effective"])
+	if a["agents_assigned"] != 7 || a["agents_running"] != 3 || a["agents_background"] != 4 {
+		t.Fatalf("assigned %v running %v background %v", a["agents_assigned"], a["agents_running"], a["agents_background"])
 	}
 	by, err := e.usageEnv().ActiveByAccount(e.DB)
 	if err != nil || len(by["alpha"]) != a["agents_running"] {

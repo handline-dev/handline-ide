@@ -38,5 +38,10 @@
   "version": 107,
   "name": "session_changed_lines",
   "additive": true
+ },
+ {
+  "version": 108,
+  "name": "drop_account_cap",
+  "additive": false
  }
 ]

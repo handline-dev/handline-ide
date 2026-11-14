@@ -115,8 +115,8 @@ func TestAWaitOnTheOwnerIsFiledUnderItsAccountsWallOrCap(t *testing.T) {
 	if c := r.ownerCause(r.DB, r.k(("bob"))); c != "owner" {
 		t.Fatalf("nothing holds the account: %q", c)
 	}
-	r.life.wait = "cap"
-	if c := r.ownerCause(r.DB, r.k(("bob"))); c != "cap" {
+	r.life.wait = "full"
+	if c := r.ownerCause(r.DB, r.k(("bob"))); c != "full" {
 		t.Fatalf("no free slot: %q", c)
 	}
 	r.Waits = fakeWaits{limit: map[string]bool{r.k(("bob")): true}}
