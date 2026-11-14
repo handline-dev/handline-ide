@@ -74,7 +74,7 @@ func TestEachAgentIsServedWithItsStateAndReason(t *testing.T) {
 		{"nap", "waiting", "clock", "wakes at " + timefmt.Stamp(9000, timefmt.Clock), "1970-01-01T02:30:00Z", nil},
 		{"move", "waiting", "move", "moving to another account", nil, nil},
 		{"walled", "stopped", "wall", "waiting for a's 5h window (100%, rolls over 04:00)", "1970-01-01T02:00:00Z", nil},
-		{"full", "stopped", "cap", "waiting for a: it is paused; resume it in the app's settings", nil, nil},
+		{"full", "stopped", "full", "waiting for a: it is paused; resume it in the app's settings", nil, nil},
 		{"held", "waiting", "task", "blocked by T2 (other)", nil, []any{float64(2)}},
 		{"bg", "running", "background", "background work", nil, nil},
 		{"loaded", "waiting", "load", "held: machine load - 9% of memory free, limit 10%", nil, nil},
@@ -123,7 +123,7 @@ func TestAClosedAgentWithWorkWaitingIsQueuedAndSaysTheLoadHoldsIt(t *testing.T) 
 	check("harbor", "queued", "waiting", "load", load)
 	check("quiet", "no_terminal", "off", "none", "no terminal")
 	load = ""
-	check("harbor", "queued", "stopped", "cap", "waiting for a slot on beta (3 of 3 mid-turn)")
+	check("harbor", "queued", "stopped", "full", "waiting for a slot on beta (3 of 3 mid-turn)")
 	r.env.Walled = func(string, *db.AgentState) *Wall { return nil }
 	check("harbor", "queued", "preparing", "work", "Starting in a moment")
 }

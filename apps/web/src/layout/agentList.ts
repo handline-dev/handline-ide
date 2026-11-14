@@ -21,8 +21,8 @@ export function activityOf(a: Pick<AgentLike, keyof DotFacts>): Activity {
   if (dot === 'waking') return 'waking';
   if (dot === 'parked' || dot === 'none') return 'asleep';
   if (dot === 'waiting') return 'you';
-  // A usage wall or the account cap ends by itself, so it is a wait too.
-  if (dot === 'blocked') return a.status?.state === 'waiting' || ['wall', 'cap'].includes(a.status?.reason ?? '') ? 'held' : 'error';
+  // A usage wall, a full workspace or a paused account is a wait, not an error.
+  if (dot === 'blocked') return a.status?.state === 'waiting' || ['wall', 'full'].includes(a.status?.reason ?? '') ? 'held' : 'error';
   return 'resting';
 }
 

@@ -4,7 +4,6 @@ import { type RpcError } from '@handline/client';
 import { setup } from '#src/helpers.ts';
 
 const KEYS = [
-  'active_cap',
   'park_timeout_s',
   'handoff_note',
   'ignore_cache_expiry',

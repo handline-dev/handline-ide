@@ -4,7 +4,7 @@ import type { RpcError } from '@handline/client';
 import { applySeeds } from '#src/seeds.ts';
 import { setup } from '#src/helpers.ts';
 
-test('accounts.list gives alpha ahead of its pace line, beta behind it and gamma over it with a back_at', async () => {
+test('accounts.list gives alpha ahead of its pace line, beta behind it and gamma over it', async () => {
   const { client } = setup();
   await client.start();
   const by = Object.fromEntries((await client.call('accounts.list', { usage: true })).accounts.map((a) => [a.name, a.pace]));
@@ -15,9 +15,6 @@ test('accounts.list gives alpha ahead of its pace line, beta behind it and gamma
   assert.ok(by.alpha!.used_pct > by.alpha!.line_pct && by.alpha!.used_pct - by.alpha!.line_pct <= 10);
   assert.ok(by.beta!.used_pct <= by.beta!.line_pct);
   assert.ok(by.gamma!.used_pct - by.gamma!.line_pct > 10);
-  assert.equal(by.alpha?.back_at, null);
-  assert.equal(by.beta?.back_at, null);
-  assert.ok(Date.parse(by.gamma!.back_at!) > Date.now());
   client.close();
 });
 

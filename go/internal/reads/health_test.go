@@ -21,19 +21,19 @@ func TestHealthIsHeldByTheFirstCauseThenNearASetLimitThenOK(t *testing.T) {
 	}{
 		{"nothing", healthIn{limits: limits, m: calm}, "ok", ""},
 		{"no measure yet", healthIn{limits: limits}, "ok", ""},
-		{"paused first", healthIn{paused: "P", startHold: "L", needs: []string{"D"}, waiting: []string{"cap"}, m: calm}, "held", "P"},
-		{"then the load", healthIn{startHold: "L", needs: []string{"D"}, waiting: []string{"cap"}}, "held", "L"},
-		{"then a need", healthIn{needs: []string{"D", "E"}, waiting: []string{"cap"}}, "held", "D"},
+		{"paused first", healthIn{paused: "P", startHold: "L", needs: []string{"D"}, waiting: []string{"full"}, m: calm}, "held", "P"},
+		{"then the load", healthIn{startHold: "L", needs: []string{"D"}, waiting: []string{"full"}}, "held", "L"},
+		{"then a need", healthIn{needs: []string{"D", "E"}, waiting: []string{"full"}}, "held", "D"},
 		{"one agent waits", healthIn{waiting: []string{"wall"}}, "held", "1 agent waits for an account: a usage limit"},
-		{"two wait", healthIn{waiting: []string{"pace", "cap"}}, "held", "2 agents wait for an account: the weekly pace"},
-		{"three wait", healthIn{waiting: []string{"cap", "wall", "pace"}}, "held", "3 agents wait for an account: no free slot"},
+		{"two wait", healthIn{waiting: []string{"wall", "full"}}, "held", "2 agents wait for an account: a usage limit"},
+		{"three wait", healthIn{waiting: []string{"full", "wall", "full"}}, "held", "3 agents wait for an account: no room to start"},
 		{"load just near", healthIn{limits: limits, m: machine(5.6, 50)}, "near", "The computer's load is near its limit of 150% per core."},
 		{"load not near", healthIn{limits: limits, m: machine(5.56, 50)}, "ok", ""},
 		{"load limit off", healthIn{limits: loadgate.Limits{RAMFreePct: 10}, m: machine(40, 50)}, "ok", ""},
 		{"memory just near", healthIn{limits: limits, m: machine(1, 19)}, "near", "Free memory is near its limit of 10%."},
 		{"memory not near", healthIn{limits: limits, m: machine(1, 20)}, "ok", ""},
 		{"memory limit off", healthIn{limits: loadgate.Limits{LoadPct: 150}, m: machine(1, 1)}, "ok", ""},
-		{"held beats near", healthIn{waiting: []string{"cap"}, limits: limits, m: machine(40, 1)}, "held", "1 agent waits for an account: no free slot"},
+		{"held beats near", healthIn{waiting: []string{"full"}, limits: limits, m: machine(40, 1)}, "held", "1 agent waits for an account: no room to start"},
 	}
 	for _, c := range cases {
 		if level, text := healthOf(c.in); level != c.level || text != c.text {
@@ -72,13 +72,13 @@ func TestANeedIsSaidInALineThatStaysWhileItDoes(t *testing.T) {
 	}
 }
 
-// Health counts an agent whose status reason is cap, wall or pace, each alone, and no other reason; its text has no figure.
+// Health counts an agent whose status reason is full or wall, each alone, and no other reason; its text has no figure.
 func TestHealthCountsAnAgentWaitingOnEachAccountReason(t *testing.T) {
-	for reason, line := range map[string]string{"cap": "no free slot", "wall": "a usage limit", "pace": "the weekly pace", "load": ""} {
+	for reason, line := range map[string]string{"full": "no room to start", "wall": "a usage limit", "pace": "", "load": ""} {
 		e := testEnv(t)
 		teamtest.Seed(t, e.Home, "bob")
 		run(t, e, `INSERT INTO agent_view(agent, view, updated) VALUES(?, ?, 1)`, teamtest.Key(t, e.Home, "bob"),
-			`{"status":{"state":"stopped","reason":"`+reason+`","text":"ahead of pace by 12%"}}`)
+			`{"status":{"state":"stopped","reason":"`+reason+`","text":"until 04:00 (12%)"}}`)
 		h, err := e.Health()
 		if err != nil {
 			t.Fatal(err)

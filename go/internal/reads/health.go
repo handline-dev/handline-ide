@@ -96,12 +96,11 @@ func needLine(n map[string]any) string {
 	return t
 }
 
-// accountWait is what an agent waits on, by its status reason, said without the status text's figures (how far ahead of pace, until
-// when), so the topic is not told each time they move.
+// accountWait is what an agent waits on, by its status reason, said without the status text's figures (until when), so the
+// topic is not told each time they move.
 var accountWait = map[string]string{
-	status.Cap:  "no free slot",
+	status.Full: "no room to start",
 	status.Wall: "a usage limit",
-	status.Pace: "the weekly pace",
 }
 
 func (h Health) view() map[string]any {

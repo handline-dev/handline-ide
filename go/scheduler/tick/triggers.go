@@ -20,8 +20,6 @@ const (
 	PollS = 30
 	// MinStretchS is the least stretch of an account's life worth beginning a session for.
 	MinStretchS = 30 * 60
-	// DefaultActiveCap is the most agents mid-turn on one account at once (Pro); set per account in config.
-	DefaultActiveCap = 2
 )
 
 // Trigger is whether an agent should be handed off now, and why.

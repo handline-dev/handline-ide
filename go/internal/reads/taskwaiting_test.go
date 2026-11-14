@@ -11,9 +11,9 @@ func TestATaskWaitsOnTheCauseTheSweepStored(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(1, 'q', 'bob', 'alice', 1, 'alice')")
-	run(t, e, `INSERT INTO meta(name, value, updated) VALUES('taskhold:1', '{"why": "waiting for a slot on a (2 of 2 mid-turn)", "on": "cap", "able": false, "since": 1792000000}', 0)`)
+	run(t, e, `INSERT INTO meta(name, value, updated) VALUES('taskhold:1', '{"why": "waiting for a slot on a (2 of 2 mid-turn)", "on": "full", "able": false, "since": 1792000000}', 0)`)
 	task, _ := clockOf(t, e, 1)
-	want := map[string]any{"on": "cap", "text": "waiting for a slot on a (2 of 2 mid-turn)", "tasks": []int64{}, "since": ts(int64(1792000000))}
+	want := map[string]any{"on": "full", "text": "waiting for a slot on a (2 of 2 mid-turn)", "tasks": []int64{}, "since": ts(int64(1792000000))}
 	if !reflect.DeepEqual(task["waiting"], want) {
 		t.Fatalf("%v", task["waiting"])
 	}

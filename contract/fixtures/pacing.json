@@ -181,7 +181,7 @@
   {
    "name": "accounts.list.usage_carries_the_pace",
    "spec": "accounts.list",
-   "about": "With usage, every account has pace: null when its week is unknown, else its state, line, use, rate and back_at.",
+   "about": "With usage, every account has pace: null when its week is unknown, else its state, line, use and rate.",
    "as": "founder",
    "steps": [
     {
@@ -234,16 +234,6 @@
            },
            "rate_pct_h": {
             "$type": "number"
-           },
-           "back_at": {
-            "$oneOf": [
-             {
-              "$type": "timestamp"
-             },
-             {
-              "$type": "null"
-             }
-            ]
            }
           }
          ]

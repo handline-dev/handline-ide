@@ -32,20 +32,17 @@ const HOUR = 3_600_000;
 const PACE_TARGET = 98;
 const PACE_BURST = 10;
 
-/** An account's pace as the daemon computes it for a weekly reading of `used` percent that resets `resetIn` hours from `now`, at the default settings. */
-function paceOf(used: number, resetIn: number, now: number): NonNullable<Account['pace']> {
+/** An account's pace as the daemon computes it for a weekly reading of `used` percent that resets `resetIn` hours from now, at the default settings. */
+function paceOf(used: number, resetIn: number): NonNullable<Account['pace']> {
   const week = 168;
   const line = (PACE_TARGET * (week - resetIn)) / week;
   const ahead = used - line;
   const state = ahead <= 0 ? 'behind' : ahead <= PACE_BURST ? 'ahead' : 'over';
-  // With no further use the line reaches used less the burst at this point of the week, or never: then the week's end.
-  const back = Math.min(resetIn, ((used - PACE_BURST) / PACE_TARGET) * week - (week - resetIn));
   return {
     state,
     line_pct: line,
     used_pct: used,
     rate_pct_h: Math.max(0, (PACE_TARGET - used) / resetIn),
-    back_at: state === 'over' ? new Date(now + back * HOUR).toISOString() : null,
   };
 }
 
@@ -95,8 +92,6 @@ export class FakeAccounts {
       moves: [],
       label: a.name,
       vendor: 'claude',
-      cap: null,
-      cap_effective: 4,
       recover: false,
       paused: false,
       cycle: { on: false, end: null, end_is_default: true },
@@ -115,8 +110,7 @@ export class FakeAccounts {
       email: 'alpha@example.com',
       five_hour: { used_pct: 41, resets_at: at(2.2), source: 'measured' },
       weekly: { used_pct: 62, resets_at: at(70), source: 'measured' },
-      pace: paceOf(62, 70, now),
-      cap: 4,
+      pace: paceOf(62, 70),
       label: 'alpha',
       plan: 'pro',
       assignable: true,
@@ -129,7 +123,7 @@ export class FakeAccounts {
       email: 'review.team@example.com',
       five_hour: { used_pct: 88, resets_at: at(1), source: 'measured' },
       weekly: { used_pct: 30, resets_at: at(100), source: 'estimated' },
-      pace: paceOf(30, 100, now),
+      pace: paceOf(30, 100),
       cycle: { on: true, end: '2026-10-28', end_is_default: false },
       plan: 'pro',
       assignable: false,
@@ -143,7 +137,7 @@ export class FakeAccounts {
       email: 'gamma.work@example.com',
       five_hour: null,
       weekly: null,
-      pace: paceOf(97, 50, now),
+      pace: paceOf(97, 50),
       not_picked: { kind: 'login', text: 'not logged in' },
     });
   }
@@ -185,10 +179,6 @@ export class FakeAccounts {
   set(p: Record<string, unknown>): void {
     const r = this.find(p.account);
     if (typeof p.label === 'string') r.label = p.label || r.name;
-    if (typeof p.cap === 'number') {
-      r.cap = p.cap;
-      r.cap_effective = p.cap;
-    }
     if (typeof p.recover === 'boolean') r.recover = p.recover;
     if (typeof p.paused === 'boolean') r.paused = p.paused;
     if (typeof p.cycle === 'boolean') r.cycle = { ...r.cycle, on: p.cycle };
@@ -342,10 +332,9 @@ export class FakeAccounts {
     return {
       ...r,
       agents,
-      // A paused account takes no new agent, as the daemon's cap in force says.
+      // A paused account takes no new agent.
       ...(r.paused
         ? {
-            cap_effective: 0,
             assignable: false,
             not_picked: { kind: 'paused', text: `paused - not picked; resume it in the app's settings for ${r.name}` },
           }

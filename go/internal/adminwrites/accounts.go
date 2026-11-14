@@ -16,21 +16,10 @@ import (
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
-// account.set: an account's cap, alias, usage recovery, month cycle and pause, in its row; account.wake ends its stall. account.set
+// account.set: an account's alias, usage recovery, month cycle and pause, in its row; account.wake ends its stall. account.set
 // writes what a retry writes again. settings.trust stays with the Python daemon; account.add and account.remove are in accountadmin.go.
 
 const labelMax = 40
-
-func capParam(p map[string]any) (n int64, given bool, err error) {
-	if p["cap"] == nil {
-		return 0, false, nil
-	}
-	n, ok := rpc.AsInt(p["cap"])
-	if !ok || n < 1 {
-		return 0, false, badParam("cap is a whole number, at least 1", "cap")
-	}
-	return n, true, nil
-}
 
 func flagParam(p map[string]any, key string) (v, given bool, err error) {
 	if p[key] == nil {
@@ -45,10 +34,6 @@ func flagParam(p map[string]any, key string) (v, given bool, err error) {
 
 func (e *Env) accountSet(c *rpc.Conn, p map[string]any) (any, error) {
 	acct, err := e.accountNamed(p)
-	if err != nil {
-		return nil, err
-	}
-	n, hasCap, err := capParam(p)
 	if err != nil {
 		return nil, err
 	}
@@ -94,10 +79,6 @@ func (e *Env) accountSet(c *rpc.Conn, p map[string]any) (any, error) {
 			cfg.set("label_"+acct, nil)
 			said = append(said, "alias cleared")
 		}
-	}
-	if hasCap && !ownCapIs(cfg, acct, n) {
-		cfg.set("active_cap_"+acct, n)
-		said = append(said, fmt.Sprintf("%s: at most %d agents mid-turn", acct, n))
 	}
 	if hasRecover && recover != (cfg.get("usage_recover_"+acct) != false) {
 		if recover {
@@ -238,16 +219,6 @@ func currentLabel(cfg *accountRow, acct string) string {
 		}
 	}
 	return ""
-}
-
-func ownCapIs(cfg *accountRow, acct string, n int64) bool {
-	switch v := cfg.get("active_cap_" + acct).(type) {
-	case int64:
-		return v == n
-	case int:
-		return int64(v) == n
-	}
-	return false
 }
 
 // account.login starts the vendor's login as a child with no terminal and answers the URL it printed. The code comes later, by

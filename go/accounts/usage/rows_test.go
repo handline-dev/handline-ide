@@ -16,20 +16,20 @@ func TestAccountSettingsComeFromTheRowAndAnUnreadableRowIsNotDefaults(t *testing
 		t.Fatal(err)
 	}
 	defer d.Close()
-	if err := os.WriteFile(filepath.Join(home, "config.yaml"), []byte("paused_main: true\nactive_cap: 3\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(home, "config.yaml"), []byte("paused_main: true\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if cfg := LoadConfig(home); cfg.Paused("main") || cfg.DefaultCap() != 3 {
+	if cfg := LoadConfig(home); cfg.Paused("main") {
 		t.Fatalf("config.yaml says nothing of an account: %v", cfg)
 	}
-	if err := SetAccount(d, "main", map[string]any{"paused": true, "active_cap": float64(4)}); err != nil {
+	if err := SetAccount(d, "main", map[string]any{"paused": true, "label": "Main"}); err != nil {
 		t.Fatal(err)
 	}
 	if cfg, ok := LoadConfigOrNil(home); !ok || !cfg.Paused("main") {
 		t.Fatalf("the row's pause: %v %v", cfg, ok)
 	}
-	if n, _ := LoadConfig(home).OwnCap("main"); n != 4 {
-		t.Fatalf("a whole number from JSON is a cap: %d", n)
+	if got := LoadConfig(home).LabelOf("main"); got != "Main" {
+		t.Fatalf("the row's label: %q", got)
 	}
 	if _, err := d.Exec("DROP TABLE accounts"); err != nil {
 		t.Fatal(err)
@@ -50,9 +50,7 @@ func TestSetAccountWritesNothingForABadColumnOrValue(t *testing.T) {
 	}
 	for _, set := range []map[string]any{
 		{"paused": true, "owner": "p2"},
-		{"paused": true, "active_cap": 4.5},
-		{"paused": true, "active_cap": 1e20},
-		{"paused": true, "active_cap": "4"},
+		{"paused": true, "active_cap": 4},
 		{"paused": true, "month_cycle": "yes"},
 		{"paused": true, "label": 7},
 	} {

@@ -237,7 +237,7 @@ func TestAWakeHeldByItsWorkspacesCapIsACapAndNoAccountsWall(t *testing.T) {
 	dbpkg.SetAgentState(d, bob, states.Running, 0, "")
 	dbpkg.SetAccount(d, bob, "a1", "")
 	row, _ := dbpkg.GetAgentState(d, alice)
-	if w, err := (lifecycleStarter{m: lc.Manager}).AccountWait(d, alice); err != nil || w != "cap" {
+	if w, err := (lifecycleStarter{m: lc.Manager}).AccountWait(d, alice); err != nil || w != "full" {
 		t.Fatalf("%q %v", w, err)
 	}
 	if w, err := (queueReasons{p}).Wall(d, alice, row); err != nil || w != nil {

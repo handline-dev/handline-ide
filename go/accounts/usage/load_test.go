@@ -167,14 +167,13 @@ func TestCostsPriceAnAgentByItsModelsDollarsOverTheAccountsFactor(t *testing.T) 
 	}
 }
 
-func TestReadAllGivesEveryAccountItsCapAndTheBurnOfItsAgents(t *testing.T) {
+func TestReadAllGivesEveryAccountTheBurnOfItsAgents(t *testing.T) {
 	q := openDB(t)
 	home := t.TempDir()
 	e := testEnv(home, clock)
 	for _, a := range []string{"a", "b"} {
 		os.MkdirAll(teamtest.AccountDir(t, home, a), 0o755)
 	}
-	writeConfig(t, home, map[string]any{"active_cap": 3, "active_cap_b": 1})
 	seedCosts(t, q, 0.6, 5, map[string]AccountFactors{"b": {Short: Factor{USDPerPct: 0.4, Source: FactorOwn}}})
 	setAgent(t, q, "run", "RUNNING", "b")
 	loads, err := e.ReadAll(q, "")

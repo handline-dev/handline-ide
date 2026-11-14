@@ -36,7 +36,7 @@ func TestEachTaskIsServedWithItsStateAndReason(t *testing.T) {
 	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(1, 1792000000, 'bob', 'p1', 'ok?', 'queued', 'ask', 1)")
 	run(t, e, "INSERT INTO task_requests(task_id, request_id) VALUES(9, 1)")
 	for tid, rec := range map[int]string{
-		10: `{"why": "waiting for a slot on a (2 of 2 mid-turn)", "on": "cap", "able": false, "since": 1792000000}`,
+		10: `{"why": "waiting for a slot on a (2 of 2 mid-turn)", "on": "full", "able": false, "since": 1792000000}`,
 		11: `{"why": "waiting for a's 5h window (100%, rolls over 04:00)", "on": "wall", "able": false, "since": 1792000000}`,
 		12: `{"why": "bob is mid-turn", "on": "owner", "able": false, "since": 1792000000}`,
 		13: fmt.Sprintf(`{"why": %q, "on": "owner", "able": true, "since": 1792000000}`, states.Ready),
@@ -58,7 +58,7 @@ func TestEachTaskIsServedWithItsStateAndReason(t *testing.T) {
 		{7, "done", "discarded", "discarded: dup", nil, ts(int64(4)), nil},
 		{8, "waiting", "task", "blocked by T3", nil, since, []int64{3}},
 		{9, "waiting", "you", "needs you", nil, since, nil},
-		{10, "stopped", "cap", "waiting for a slot on a (2 of 2 mid-turn)", nil, since, nil},
+		{10, "stopped", "full", "waiting for a slot on a (2 of 2 mid-turn)", nil, since, nil},
 		{11, "stopped", "wall", "waiting for a's 5h window (100%, rolls over 04:00)", ts(int64(1700)), since, nil},
 		{12, "waiting", "owner", "bob is mid-turn", nil, since, nil},
 		{13, "preparing", "work", "bob gets it at the next tick", nil, since, nil},
