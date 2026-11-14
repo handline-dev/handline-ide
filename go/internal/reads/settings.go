@@ -114,7 +114,7 @@ func (e *Env) settingsValues() map[string]any {
 		}
 	}
 	return map[string]any{
-		"active_cap": cfg.DefaultCap(), "park_timeout_s": park, "handoff_note": s.Flag("handoff_note", true), "ignore_cache_expiry": cfg["ignore_cache_expiry"] == true,
+		"park_timeout_s": park, "handoff_note": s.Flag("handoff_note", true), "ignore_cache_expiry": cfg["ignore_cache_expiry"] == true,
 		"dev_mode":    DevMode(cfg),
 		"bg_notice_s": s.ConfigSeconds("bg_notice_s", bgNotice), "bg_grace_s": s.ConfigSeconds("bg_grace_s", settings.BgGraceS),
 		"bg_check_s": s.ConfigSeconds("bg_check_s", settings.BgCheckS), "notice_digest_s": s.ConfigSeconds("notice_digest_s", settings.NoticeDigestS),

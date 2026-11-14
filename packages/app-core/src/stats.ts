@@ -39,13 +39,6 @@ export const spentText = (r: Pick<UseLine, 'weekPct' | 'cost'>): string => {
 
 export const INVALID = Symbol('invalid');
 
-/** The default cap field: empty clears it (null, back to the default), a whole number from 1 is sent, anything else is not. */
-export function parseCap(text: string): number | null | typeof INVALID {
-  const t = text.trim();
-  if (t === '') return null;
-  return /^\d+$/.test(t) && Number(t) >= 1 ? Number(t) : INVALID;
-}
-
 /** The idle close field is whole minutes, stored as seconds; 0 is never, empty clears it. */
 export function parseMinutes(text: string): number | null | typeof INVALID {
   const t = text.trim();
@@ -67,16 +60,6 @@ export function parseLimit(text: string): number | null | typeof INVALID {
 }
 const limitOf = (n: number | undefined): string => (n === undefined ? '' : n === 0 ? 'no limit' : String(n));
 export const minutesOf = (seconds: number | undefined): string => (seconds === undefined ? '' : String(Math.round(seconds / 60)));
-
-/** The default cap field of the Settings page, on the PC and the phone: everything but the words around it and the layout. */
-export const capField = (activeCap: number | undefined) => ({
-  label: 'Default cap',
-  unit: 'agents',
-  current: activeCap === undefined ? '' : String(activeCap),
-  parse: parseCap,
-  change: (n: number | null): PageSettings => ({ active_cap: n }),
-  allowed: 'a whole number from 1, or empty for the default',
-});
 
 /** The idle close field, likewise. */
 export const idleField = (parkTimeoutS: number | undefined) => ({
@@ -129,44 +112,6 @@ export const limitFields = (v: { host_active_cap?: number; load_per_core_pct?: n
     ),
     field('Least free memory', 'Under this share of memory free, no new work starts', '%', v.ram_free_min_pct, 'ram_free_min_pct', (x) => ({
       ram_free_min_pct: x,
-    })),
-  ];
-};
-
-/** A whole number from `min` to `max`; empty clears it (null, back to the default), anything out of range is not sent. */
-export const parseRange =
-  (min: number, max: number) =>
-  (text: string): number | null | typeof INVALID => {
-    const t = text.trim();
-    if (t === '') return null;
-    return /^\d+$/.test(t) && Number(t) >= min && Number(t) <= max ? Number(t) : INVALID;
-  };
-
-/** The pacing rows of the Settings page, on the PC and the phone: the target the week is paced to and the burst allowed over the line. A daemon that has none of the keys does not pace: no rows. */
-export const paceFields = (v: { pace_target_pct?: number; pace_burst_pct?: number }) => {
-  if (v.pace_target_pct === undefined && v.pace_burst_pct === undefined) return [];
-  const field = (
-    label: string,
-    hint: string,
-    n: number | undefined,
-    min: number,
-    max: number,
-    change: (x: number | null) => PageSettings,
-  ) => ({
-    label,
-    hint,
-    unit: '%',
-    current: n === undefined ? '' : String(n),
-    parse: parseRange(min, max),
-    change,
-    allowed: `a whole number from ${min} to ${max}, or empty for the default`,
-  });
-  return [
-    field('Pace target', "The share of its week an account may have used by the week's end", v.pace_target_pct, 50, 100, (x) => ({
-      pace_target_pct: x,
-    })),
-    field('Pace burst', 'Points over the pace line before an account shows as over pace', v.pace_burst_pct, 0, 50, (x) => ({
-      pace_burst_pct: x,
     })),
   ];
 };

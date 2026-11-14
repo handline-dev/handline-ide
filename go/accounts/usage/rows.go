@@ -3,7 +3,6 @@ package usage
 import (
 	"database/sql"
 	"fmt"
-	"math"
 	"strings"
 
 	"github.com/handline/handline/go/data/db"
@@ -15,7 +14,7 @@ import (
 // AccountKeys are the per-account settings, by the prefix Config keys them under (prefix + account name) and the accounts column
 // that holds them. They come from the account's row, never from config.yaml.
 var AccountKeys = []struct{ Prefix, Column string }{
-	{"label_", "label"}, {"active_cap_", "active_cap"}, {"paused_", "paused"},
+	{"label_", "label"}, {"paused_", "paused"},
 	{"usage_recover_", "usage_recover"}, {"month_cycle_", "month_cycle"}, {"sub_end_", "sub_end"},
 }
 
@@ -67,7 +66,7 @@ func withAccountRows(home string, m Config) (Config, error) {
 func ReadAccountRows(q interface {
 	Query(string, ...any) (*sql.Rows, error)
 }) (map[string]map[string]any, error) {
-	rows, err := q.Query("SELECT name, label, active_cap, paused, usage_recover, month_cycle, sub_end FROM accounts")
+	rows, err := q.Query("SELECT name, label, paused, usage_recover, month_cycle, sub_end FROM accounts")
 	if err != nil {
 		return nil, err
 	}
@@ -76,17 +75,14 @@ func ReadAccountRows(q interface {
 	for rows.Next() {
 		var name string
 		var label, subEnd sql.NullString
-		var capN, recover, cycle sql.NullInt64
+		var recover, cycle sql.NullInt64
 		var paused bool
-		if err := rows.Scan(&name, &label, &capN, &paused, &recover, &cycle, &subEnd); err != nil {
+		if err := rows.Scan(&name, &label, &paused, &recover, &cycle, &subEnd); err != nil {
 			return nil, err
 		}
 		set := map[string]any{}
 		if label.Valid {
 			set["label"] = label.String
-		}
-		if capN.Valid {
-			set["active_cap"] = capN.Int64
 		}
 		if paused {
 			set["paused"] = true
@@ -135,7 +131,7 @@ func SetAccount(q actor.Q, name string, set map[string]any) error {
 	return err
 }
 
-// columnValue is v as col stores it: text for label and sub_end, a whole number of at least 1 for active_cap, 0 or 1 for the flags;
+// columnValue is v as col stores it: text for label and sub_end, 0 or 1 for the flags;
 // nil is NULL but for paused, whose default is 0.
 func columnValue(col string, v any) (any, error) {
 	if prefixOf(col) == "" {
@@ -151,13 +147,6 @@ func columnValue(col string, v any) (any, error) {
 	case "label", "sub_end":
 		if s, ok := v.(string); ok {
 			return s, nil
-		}
-	case "active_cap":
-		if f, ok := v.(float64); ok && f == math.Trunc(f) && f >= 1 && f <= math.MaxInt32 { // a number read from JSON
-			v = int64(f)
-		}
-		if n, ok := posInt(v); ok {
-			return n, nil
 		}
 	default:
 		if b, ok := v.(bool); ok {

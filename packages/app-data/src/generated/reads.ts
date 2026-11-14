@@ -91,8 +91,6 @@ export const EVENT_REQUIRED: Record<string, readonly string[]> = {
     "moves",
     "label",
     "vendor",
-    "cap",
-    "cap_effective",
     "recover",
     "cycle"
   ],

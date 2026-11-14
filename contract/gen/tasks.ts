@@ -108,7 +108,7 @@ export type Task = {
 
 /** Why a task waits (Task.waiting). */
 export type TaskWaiting = {
-  /** The cause, one word of an open set (a client shows text for a word it does not know): task (behind its open blockers, tasks names them), founder (an open request to the founder on the task), cap (the owner's account has no free slot), wall (the owner's account is at a usage limit), owner (the owner is busy: mid-turn, a dialog, closed, another task ahead), host (reserved: the host is full; not sent until the host cap exists). */
+  /** The cause, one word of an open set (a client shows text for a word it does not know): task (behind its open blockers, tasks names them), founder (an open request to the founder on the task), full (nothing may start for the owner: its workspace is at its agent_cap or its account is paused), wall (the owner's account is at a usage limit), owner (the owner is busy: mid-turn, a dialog, closed, another task ahead), host (reserved: the host is full; not sent until the host cap exists). */
   on: string;
   /** The line every view shows for it: `blocked by T<n>`, `needs you`, else the daemon's own reason. */
   text: string;

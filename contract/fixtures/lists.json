@@ -664,9 +664,6 @@
        }
       },
       "values": {
-       "active_cap": {
-        "$type": "integer"
-       },
        "park_timeout_s": {
         "$type": "integer"
        }

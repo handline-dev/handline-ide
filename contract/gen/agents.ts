@@ -90,7 +90,7 @@ export type AgentView = {
   wall?: {
     /** The account whose window the wake waits on. */
     account: string;
-    /** When that window rolls over, as unix seconds: the shortest walled window, the longest when only that stands. Null when the reset is not known or the wait is for a slot (the account is at its cap), not a window. */
+    /** When that window rolls over, as unix seconds: the shortest walled window, the longest when only that stands. Null when the reset is not known or the wait is not for a window (status reason full). */
     clock: number | null;
     /** The account is a guess (nothing has confirmed the one the resume is tied to), not the account itself. */
     assumed: boolean;

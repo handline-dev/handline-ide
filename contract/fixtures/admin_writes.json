@@ -26,7 +26,7 @@
       "method": "account.set",
       "params": {
        "account": "no.such.account",
-       "cap": 2,
+       "label": "Main",
        "request_id": "conf-w2-4"
       }
      },
@@ -66,7 +66,6 @@
       "method": "account.set",
       "params": {
        "account": "{{account}}",
-       "cap": 2,
        "label": "two\nlines",
        "request_id": "conf-w2-5"
       }
@@ -146,7 +145,7 @@
       "method": "account.set",
       "params": {
        "account": "{{account}}",
-       "cap": 2,
+       "label": "Main",
        "request_id": "conf-w2-7"
       }
      },
@@ -163,7 +162,7 @@
   {
    "name": "account.set.sets_the_fields_it_is_given",
    "spec": "account.set",
-   "about": "Alias and cap in one call; the fields not given are left alone.",
+   "about": "Alias and usage recovery in one call; the fields not given are left alone.",
    "as": "founder",
    "steps": [
     {
@@ -187,7 +186,7 @@
       "params": {
        "account": "{{account}}",
        "label": "Main",
-       "cap": 2,
+       "recover": true,
        "request_id": "conf-w2-8"
       }
      },
@@ -1371,7 +1370,7 @@
       "params": {
        "agent": "{{schedule_agent}}",
        "changes": {
-        "active_cap": 2
+        "input_hold_idle_s": 2
        },
        "request_id": "conf-w2-28"
       }

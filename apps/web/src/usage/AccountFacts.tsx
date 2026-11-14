@@ -11,9 +11,6 @@ function endsOn(a: Account): string | null {
   return new Date(`${a.cycle.end}T00:00`).toLocaleDateString('en', { month: 'short', day: 'numeric' });
 }
 
-/** The most agents the founder set, before the daemon lowered it for a while. */
-export const capSet = (a: Account) => a.cap ?? a.cap_effective;
-
 /** The row both Usage and Settings draw for an account; `bars` off leaves its name alone, for a row whose Log in button names the email. */
 export function AccountFacts({
   account: a,

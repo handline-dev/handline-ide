@@ -106,13 +106,7 @@ export function capacityOf(accounts: Account[]): { word: Capacity; left: number;
 /** A login the daemon has not ended: the URL (when this app started it) and the code box belong to it. */
 export const loginRunning = (a: Account): boolean => a.login?.state === 'waiting' || a.login?.state === 'code_sent';
 
-/** Agents working on the account now over the most it takes at once; before the usage read arrives only the cap is known. */
-export const agentsLine = (account: Pick<Account, 'agents_running' | 'cap_effective'>): string =>
-  account.agents_running === undefined
-    ? `up to ${account.cap_effective} at once`
-    : `${account.agents_running} of ${account.cap_effective} working`;
-
-/** Where an account stands against its pace, in words (`short` for a one-word row form); null for pacing off or an account with no pace. */
+/** Where an account stands against its pace, in words (`short` for a one-word row form); null for an account with no pace. */
 export function paceLine(account: Pick<Account, 'pace'>, short = false): string | null {
   switch (account.pace?.state) {
     case 'behind':

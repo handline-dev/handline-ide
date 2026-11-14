@@ -169,8 +169,6 @@ export function accountsReply(names: string[] | null, sessions: Session[]) {
     weekly: null,
     agents: sessions.filter((s) => s.fx.account === name).map((s) => s.fx.name),
     moves: [],
-    cap: null,
-    cap_effective: 3,
     recover: false,
   }));
   return { accounts };

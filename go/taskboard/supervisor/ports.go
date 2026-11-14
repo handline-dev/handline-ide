@@ -70,8 +70,8 @@ type Lifecycle interface {
 	// StartForWork starts an agent that has no terminal because work is waiting; the words for the log.
 	StartForWork(q db.Q, agent string) string
 	WakeAgent(q db.Q, agent string) (ok bool, why string)
-	// AccountWait is what holds back waking the agent on its account: "wall" at a usage limit, "cap" with no free slot (on its
-	// account or in its workspace), "" for neither.
+	// AccountWait is what holds back waking the agent on its account: "wall" at a usage limit, "full" when nothing may start (its
+	// account is paused or its workspace is at its agent_cap), "" for neither.
 	AccountWait(q db.Q, agent string) (string, error)
 }
 

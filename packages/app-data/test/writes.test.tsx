@@ -86,7 +86,7 @@ const inboxItem = (id: number) => ({
 });
 const inboxSeed: [Key, unknown][] = [[qk.inbox(D), { items: [inboxItem(1), inboxItem(2)], more: false }]];
 const memoSeed: [Key, unknown][] = [[qk.memos(D, 7), { memos: [{ id: 1, task: 7, author: 'me', at: 't', text: 'old' }] }]];
-const account = { name: 'x', label: 'x', cap: null, cap_effective: 3, recover: false };
+const account = { name: 'x', label: 'x', recover: false };
 const settingsSeed: [Key, unknown][] = [[['d', D, 'settings'], { values: { idle_close: '5' }, trust_folders: [], overrides: {} }]];
 const schedSeed: [Key, unknown][] = [
   [

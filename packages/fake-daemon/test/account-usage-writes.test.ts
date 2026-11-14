@@ -25,10 +25,9 @@ test('account.set paused lists the account paused, with no new agent and not pic
   const row = () => daemon.accounts.list().accounts.find((a) => a.name === 'alpha')!;
   await client.call('account.set', { account: 'alpha', paused: true, request_id: 'p1' });
   assert.equal(row().paused, true);
-  assert.equal(row().cap_effective, 0);
   assert.equal(row().not_picked?.kind, 'paused');
   await client.call('account.set', { account: 'alpha', paused: false, request_id: 'p2' });
   assert.equal(row().paused, false);
-  assert.notEqual(row().cap_effective, 0);
+  assert.notEqual(row().not_picked?.kind, 'paused');
   client.close();
 });

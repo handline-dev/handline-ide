@@ -62,7 +62,7 @@ func TestAWaitOnAClosedAgentIsFiledUnderCapWhenItsAccountIsPausedAndWallAtItsLim
 	if _, err := d.Exec("UPDATE accounts SET paused = 1 WHERE name = 'a1'"); err != nil {
 		t.Fatal(err)
 	}
-	check("cap", "cap") // nothing starts on a paused account
+	check("full", "full") // nothing starts on a paused account
 	d.Exec("UPDATE accounts SET paused = 0 WHERE name = 'a1'")
 	atPct(t, home, "a1", 100)
 	check("wall", "wall")

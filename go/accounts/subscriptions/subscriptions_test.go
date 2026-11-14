@@ -108,7 +108,7 @@ func (w *world) agent(name, account string) {
 // a mapping is written as it is.
 func (w *world) config(text string) {
 	w.t.Helper()
-	if _, err := w.DB.Exec("UPDATE accounts SET label = NULL, active_cap = NULL, paused = 0, usage_recover = NULL, month_cycle = NULL, sub_end = NULL"); err != nil {
+	if _, err := w.DB.Exec("UPDATE accounts SET label = NULL, paused = 0, usage_recover = NULL, month_cycle = NULL, sub_end = NULL"); err != nil {
 		w.t.Fatal(err)
 	}
 	v, err := yamlcompat.Parse(text)

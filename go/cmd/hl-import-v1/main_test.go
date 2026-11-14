@@ -27,7 +27,7 @@ func oldHome(t *testing.T) string {
 		"agents/home/agent.yaml":        "name: home\nrepo: /src/home\n",
 		"agents/shop.gone/inbox/x":      "", // no agent.yaml: no agent now
 		"accounts/alpha/identity.json":  "{}",
-		"config.yaml":                   "version: 1\nactive_cap: 2\nactive_cap_alpha: 3\nmonth_cycle_alpha: false\n",
+		"config.yaml":                   "version: 1\nkeep_awake: on\nmonth_cycle_alpha: false\n",
 		"team.yaml":                     "agents:\n  shop.ui: { role: check }\n",
 		"shared/team/shop.md":           "shop rules\n",
 		"shared/team/shop.sub.md":       "sub rules\n",
@@ -96,21 +96,21 @@ func TestImportWritesTheNewHome(t *testing.T) {
 	lead := "a" + one("SELECT lead FROM workspaces WHERE name = 'shop'")
 	home := "a" + one("SELECT lead FROM workspaces WHERE name = 'home'")
 	for q, want := range map[string]string{
-		"SELECT name FROM agents WHERE id = " + lead[1:]:                                                       "lead",
-		"SELECT folder FROM workspaces WHERE name = 'shop'":                                                    "/src/shop",
-		"SELECT role || model || context_tokens || enabled FROM agents WHERE id = " + ui[1:]:                   "checksonnet6000001",
-		"SELECT sandbox FROM agents WHERE id = " + lead[1:]:                                                    "0",
-		"SELECT COUNT(*) FROM agents":                                                                          "3",
-		"SELECT owner || ' ' || opened_by || ' ' || parent_task FROM tasks WHERE id = 7":                       ui + " p1 9",
-		"SELECT owner || ' ' || opened_by FROM tasks WHERE id = 9":                                             "shop.gone sys",
-		"SELECT author FROM task_memos WHERE id = 3":                                                           lead,
-		"SELECT body FROM task_memos WHERE id = 3":                                                             "ask <@" + ui + ">. and <@p1>, not a@shop.ui or @nobody",
-		"SELECT requester || ' ' || target || ' ' || body FROM requests WHERE id = 5":                          "p1 " + lead + " hi <@" + home + ">",
-		"SELECT requester FROM requests WHERE id = 6":                                                          "sys",
-		"SELECT person || ' ' || nav FROM prefs":                                                               `p1 {"hidden":["idle"],"layout":"tree","pins":["` + ui + `"]}`,
-		"SELECT person FROM devices WHERE id = 'dev_1'":                                                        "p1",
-		"SELECT agent || ' ' || state || ' ' || worktree FROM agent_state":                                     ui + " IDLE /src/shop.worktrees/shop.ui",
-		"SELECT name || ' ' || label || ' ' || active_cap || ' ' || month_cycle || ' ' || owner FROM accounts": "alpha alpha 3 0 p1",
+		"SELECT name FROM agents WHERE id = " + lead[1:]:                                     "lead",
+		"SELECT folder FROM workspaces WHERE name = 'shop'":                                  "/src/shop",
+		"SELECT role || model || context_tokens || enabled FROM agents WHERE id = " + ui[1:]: "checksonnet6000001",
+		"SELECT sandbox FROM agents WHERE id = " + lead[1:]:                                  "0",
+		"SELECT COUNT(*) FROM agents":                                                        "3",
+		"SELECT owner || ' ' || opened_by || ' ' || parent_task FROM tasks WHERE id = 7":     ui + " p1 9",
+		"SELECT owner || ' ' || opened_by FROM tasks WHERE id = 9":                           "shop.gone sys",
+		"SELECT author FROM task_memos WHERE id = 3":                                         lead,
+		"SELECT body FROM task_memos WHERE id = 3":                                           "ask <@" + ui + ">. and <@p1>, not a@shop.ui or @nobody",
+		"SELECT requester || ' ' || target || ' ' || body FROM requests WHERE id = 5":        "p1 " + lead + " hi <@" + home + ">",
+		"SELECT requester FROM requests WHERE id = 6":                                        "sys",
+		"SELECT person || ' ' || nav FROM prefs":                                             `p1 {"hidden":["idle"],"layout":"tree","pins":["` + ui + `"]}`,
+		"SELECT person FROM devices WHERE id = 'dev_1'":                                      "p1",
+		"SELECT agent || ' ' || state || ' ' || worktree FROM agent_state":                   ui + " IDLE /src/shop.worktrees/shop.ui",
+		"SELECT name || ' ' || label || ' ' || month_cycle || ' ' || owner FROM accounts":    "alpha alpha 0 p1",
 	} {
 		if got := one(q); got != want {
 			t.Errorf("%s = %q, want %q", q, got, want)
@@ -121,7 +121,7 @@ func TestImportWritesTheNewHome(t *testing.T) {
 		"accounts/c1/identity.json":        "{}",
 		"workspaces/w2/base.md":            "shop rules\n",
 		"attachments/a.png":                "png",
-		"config.yaml":                      "version: 1\nactive_cap: 2\n",
+		"config.yaml":                      "version: 1\nkeep_awake: on\n",
 	}
 	if one("SELECT id FROM workspaces WHERE name = 'shop'") != "2" {
 		t.Fatal("workspaces are made by name, home before shop")
