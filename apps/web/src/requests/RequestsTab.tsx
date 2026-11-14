@@ -1,8 +1,11 @@
 // Requests: what waits on the founder (their turn, notes, rows put off) and what they decided today. Their requests in progress and
 // finished are in Tasks (My requests). The bell's popover previews the turn and the finished.
 import { ListLoading } from '#src/ui/Loading.tsx';
-import { useEffect, useState, type ReactNode } from 'react';
-import type { Task } from '@handline/client';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { ChevronDown, ChevronUp } from 'lucide-react';
+import type { PendingRequest, Task } from '@handline/client';
+import { TaskTab } from '#src/tools/TaskTab.tsx';
+import { IconButton } from '#src/ui/IconButton.tsx';
 import { useNameOf, useTasks } from '@handline/app-data';
 import { clock } from '#src/format/time.ts';
 import { taskOf } from '#src/layout/kinds.tsx';
@@ -11,7 +14,6 @@ import { laterWords, pickAllState, turnKey, turnRow, type Picked } from '@handli
 import { useRequests } from '#src/requests/data.ts';
 import { BulkButtons, PickProvider, usePick } from '#src/requests/RowMenu.tsx';
 import { TurnLine } from '#src/requests/rows.tsx';
-import { Page } from '#src/ui/Page.tsx';
 import { ScrollFade } from '#src/ui/ScrollFade.tsx';
 import { selectionRoom, WithSelectionBar } from '#src/ui/SelectionBar.tsx';
 
@@ -80,39 +82,90 @@ function Requests() {
     .join('|');
   useEffect(() => pick?.keep(new Set(listed.split('|'))), [listed]); // eslint-disable-line react-hooks/exhaustive-deps
   const n = pick?.picked.size ?? 0;
+  // The rows with a task, in list order: the split view steps through them.
+  const withTask = [...r.turn, ...r.notes, ...r.later.map((x) => x.p)].filter((p) => p.task !== null);
+  const [{ key: chosenKey, at: lastAt }, setChosen] = useState<{ key: string | null; at: number }>({ key: null, at: 0 });
+  const found = withTask.findIndex((p) => turnKey(p) === chosenKey);
+  // A shown row that left the list (answered, put off) gives way to the one after it.
+  const at = found >= 0 ? found : Math.min(lastAt, Math.max(0, withTask.length - 1));
+  const chosen: PendingRequest | undefined = withTask[at];
+  const step = (d: number) => {
+    const next = withTask[at + d];
+    if (next) setChosen({ key: turnKey(next), at: at + d });
+  };
+  const stepRef = useRef(step);
+  useEffect(() => {
+    stepRef.current = step;
+  });
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t?.closest('input, textarea, select') || t?.isContentEditable || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === 'j') stepRef.current(1);
+      else if (e.key === 'k') stepRef.current(-1);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+  const line = (p: PendingRequest, until?: string) => (
+    <TurnLine
+      key={turnKey(p)}
+      p={p}
+      until={until}
+      full
+      chosen={chosen === p}
+      onPick={p.task !== null ? () => setChosen({ key: turnKey(p), at: withTask.indexOf(p) }) : undefined}
+    />
+  );
   return (
-    <WithSelectionBar count={n} onClear={() => pick?.clear()} actions={<BulkButtons />} className="flex-1">
-      <ScrollFade keep="requests" className={`min-h-0 flex-1 ${selectionRoom(n)}`}>
-        <Page className="flex flex-col gap-6 py-4 text-sm">
-          {r.failed && <p className="px-2 text-danger">Requests did not load.</p>}
-          {!r.loaded && !r.failed && <ListLoading label="Loading requests" />}
-          {r.loaded && (
-            <>
-              <Section title="Your turn" rows={rows.turn} empty="Nothing waits on you.">
-                {r.turn.map((p) => (
-                  <TurnLine key={turnKey(p)} p={p} full />
-                ))}
-              </Section>
-              {r.notes.length > 0 && (
-                <Section title="Notes" rows={rows.notes} empty="">
-                  {r.notes.map((p) => (
-                    <TurnLine key={turnKey(p)} p={p} full />
-                  ))}
+    <div className="flex min-h-0 flex-1">
+      <WithSelectionBar count={n} onClear={() => pick?.clear()} actions={<BulkButtons />} className="w-104 shrink-0 border-r border-border">
+        <ScrollFade keep="requests" className={`min-h-0 flex-1 ${selectionRoom(n)}`}>
+          <div className="flex flex-col gap-6 px-3 py-4 text-sm">
+            {r.failed && <p className="px-2 text-danger">Requests did not load.</p>}
+            {!r.loaded && !r.failed && <ListLoading label="Loading requests" />}
+            {r.loaded && (
+              <>
+                <Section title="Your turn" rows={rows.turn} empty="Nothing waits on you.">
+                  {r.turn.map((p) => line(p))}
                 </Section>
-              )}
-              {r.later.length > 0 && (
-                <Section title="Later" rows={rows.later} empty="">
-                  {r.later.map(({ p, at }) => (
-                    <TurnLine key={turnKey(p)} p={p} until={laterWords(at)} full />
-                  ))}
-                </Section>
-              )}
-              <Decided />
-            </>
-          )}
-        </Page>
-      </ScrollFade>
-    </WithSelectionBar>
+                {r.notes.length > 0 && (
+                  <Section title="Notes" rows={rows.notes} empty="">
+                    {r.notes.map((p) => line(p))}
+                  </Section>
+                )}
+                {r.later.length > 0 && (
+                  <Section title="Later" rows={rows.later} empty="">
+                    {r.later.map(({ p, at: back }) => line(p, laterWords(back)))}
+                  </Section>
+                )}
+                <Decided />
+              </>
+            )}
+          </div>
+        </ScrollFade>
+      </WithSelectionBar>
+      <div className="flex min-w-0 flex-1 flex-col">
+        {chosen && chosen.task !== null ? (
+          <>
+            <div className="flex h-9 shrink-0 items-center justify-end gap-1 border-b border-border px-3 text-xs text-muted tabular-nums">
+              <span className="mr-1">
+                {at + 1} / {withTask.length}
+              </span>
+              <IconButton label="Previous (k)" onClick={() => step(-1)} disabled={at === 0}>
+                <ChevronUp size={14} />
+              </IconButton>
+              <IconButton label="Next (j)" onClick={() => step(1)} disabled={at === withTask.length - 1}>
+                <ChevronDown size={14} />
+              </IconButton>
+            </div>
+            <TaskTab key={chosen.task} id={chosen.task} />
+          </>
+        ) : (
+          r.loaded && <p className="m-auto text-sm text-muted">No task to show.</p>
+        )}
+      </div>
+    </div>
   );
 }
 
