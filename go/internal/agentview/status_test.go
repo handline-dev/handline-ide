@@ -14,7 +14,7 @@ import (
 )
 
 func TestEachAgentIsServedWithItsStateAndReason(t *testing.T) {
-	r := newRig(t, "run", "ask", "crash", "idle", "gone", "work", "nap", "move", "walled", "full", "paced", "held", "bg", "loaded")
+	r := newRig(t, "run", "ask", "crash", "idle", "gone", "work", "nap", "move", "walled", "full", "held", "bg", "loaded")
 	r.state(t, "run", states.Running, "")
 	r.sess.alive["run"], r.sess.busy["run"] = true, true
 	r.state(t, "ask", states.Idle, "")
@@ -30,7 +30,6 @@ func TestEachAgentIsServedWithItsStateAndReason(t *testing.T) {
 	r.moving(t, "move")
 	r.state(t, "walled", states.Queued, "")
 	r.state(t, "full", states.Queued, "")
-	r.state(t, "paced", states.Queued, "")
 	r.state(t, "held", states.Idle, "")
 	r.sess.alive["held"] = true
 	r.state(t, "bg", states.Idle, "")
@@ -56,9 +55,7 @@ func TestEachAgentIsServedWithItsStateAndReason(t *testing.T) {
 		case "walled":
 			return &Wall{Text: "waiting for a's 5h window (100%, rolls over 04:00)", Reset: 7200}
 		case "full":
-			return &Wall{Text: "waiting for a slot on a (2 of 2 mid-turn)", Slot: true}
-		case "paced":
-			return &Wall{Text: "waiting for a's weekly pace: 60% used, 20 points ahead of its line (40%)", Slot: true, Pace: true, Reset: 3600}
+			return &Wall{Text: "waiting for a: it is paused; resume it in the app's settings", Slot: true}
 		}
 		return nil
 	}
@@ -77,8 +74,7 @@ func TestEachAgentIsServedWithItsStateAndReason(t *testing.T) {
 		{"nap", "waiting", "clock", "wakes at " + timefmt.Stamp(9000, timefmt.Clock), "1970-01-01T02:30:00Z", nil},
 		{"move", "waiting", "move", "moving to another account", nil, nil},
 		{"walled", "stopped", "wall", "waiting for a's 5h window (100%, rolls over 04:00)", "1970-01-01T02:00:00Z", nil},
-		{"full", "stopped", "cap", "waiting for a slot on a (2 of 2 mid-turn)", nil, nil},
-		{"paced", "waiting", "pace", "waiting for a's weekly pace: 60% used, 20 points ahead of its line (40%)", "1970-01-01T01:00:00Z", nil},
+		{"full", "stopped", "cap", "waiting for a: it is paused; resume it in the app's settings", nil, nil},
 		{"held", "waiting", "task", "blocked by T2 (other)", nil, []any{float64(2)}},
 		{"bg", "running", "background", "background work", nil, nil},
 		{"loaded", "waiting", "load", "held: machine load - 9% of memory free, limit 10%", nil, nil},

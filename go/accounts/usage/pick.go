@@ -1,13 +1,16 @@
 package usage
 
 import (
+	"cmp"
 	"fmt"
 	"math"
+	"slices"
 	"sort"
 	"time"
 
 	"github.com/handline/handline/go/agentctl/verdict"
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/states"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/timefmt"
@@ -284,32 +287,16 @@ func perMin(rate float64, places int) string { return fmt.Sprintf("%.*f%%/min", 
 func stretchReason(st *AccountStatus, ld *Load, lasts float64, pct int, agent string) string {
 	agents := ""
 	if ld != nil {
-		agents = fmt.Sprintf(", %d/%d agents", ld.Active, ld.Cap)
+		agents = fmt.Sprintf(", %d agents", ld.Active)
 	}
 	return fmt.Sprintf("%s %d%%, fill %s%s, one more agent (%s) lasts ~%s", st.Short.Label(), pct, perMin(loadBurn(ld), 1), agents,
 		perMin(AgentBurn(ld, agent), 2), spanF(lasts))
 }
 
-// NoRoom is (why it cannot take one more agent, how long it would last): the cap, then, with the launch pace hold on, the week's stretch
-// and the shortest window's: it must last to its reset with the newcomer (FiveHourShare), or a while where the reset is unknown, when the
-// fill pct is known. The one test Unfit and the pick share; agent prices the newcomer by its own kind.
-func NoRoom(st *AccountStatus, ld *Load, pct *int, agent string) (string, *float64) {
-	if ld != nil && ld.Cap <= 0 {
-		return fmt.Sprintf("takes no agents: its cap is 0 (%d mid-turn)", ld.Active), nil
-	}
-	if ld != nil && ld.AtCap() {
-		return fmt.Sprintf("at its cap: %d of %d agents mid-turn", ld.Active, ld.Cap), nil
-	}
-	if ld == nil || !ld.Hold { // the launch pace hold is off: the stretch is shown, and holds nothing
-		if pct == nil {
-			return "", nil
-		}
-		lasts := StretchS(float64(ShortBlock-*pct), loadBurn(ld), AgentBurn(ld, agent))
-		return "", &lasts
-	}
-	if weekly := NoLongRoom(st, ld, agent); weekly != "" {
-		return weekly, nil
-	}
+// ShortFit is (why the shortest window would not last to its reset with one more agent, how long it would last), "" when it would or
+// the fill pct is unknown: with the reset known and the newcomer's cost measured, FiveHourShare; without, a stretch of MinStretchS. A
+// start is never held on it: the pick puts an account that fits first. agent prices the newcomer by its own kind.
+func ShortFit(st *AccountStatus, ld *Load, pct *int, agent string) (string, *float64) {
 	if pct == nil {
 		return "", nil
 	}
@@ -327,9 +314,9 @@ func NoRoom(st *AccountStatus, ld *Load, pct *int, agent string) (string, *float
 	return "", &lasts
 }
 
-// fitFacts are the two things Fit asks of what is known: a reading at the wall (a stale one too, while its window lasts), and no room
-// on a fresh fill. A missing or stale reading is the account nobody has run on lately, and the session about to start writes a fresh one.
-func fitFacts(st *AccountStatus, ld *Load, agent string) (wall, noRoom string) {
+// wallFact is what Fit asks of what is known: a reading at the wall (a stale one too, while its window lasts). A missing or stale reading
+// is the account nobody has run on lately, and the session about to start writes a fresh one.
+func wallFact(st *AccountStatus) string {
 	pct, week := st.ShortTrusted(), st.LongTrusted()
 	full := pct != nil && *pct >= ShortBlock
 	// A stale reading at the wall is still a floor until its window has rolled over, but one older than the window cannot describe it.
@@ -342,35 +329,21 @@ func fitFacts(st *AccountStatus, ld *Load, agent string) (wall, noRoom string) {
 		}
 	}
 	if full {
-		return fmt.Sprintf("%s usage at the wall (%d%%)", st.Short.Label(), *st.Short.Pct), ""
+		return fmt.Sprintf("%s usage at the wall (%d%%)", st.Short.Label(), *st.Short.Pct)
 	}
 	if week != nil && *week >= LongBlock {
-		return fmt.Sprintf("%s usage %d%% at the wall", st.Long.Label(), *week), ""
+		return fmt.Sprintf("%s usage %d%% at the wall", st.Long.Label(), *week)
 	}
-	if pct != nil && !st.Stale() {
-		why, _ := NoRoom(st, ld, pct, agent)
-		return "", why
-	}
-	why, _ := NoRoom(st, ld, nil, agent)
-	return "", why
+	return ""
 }
 
-// Unfit is why a session should not be started here, when what is known says so ("" otherwise): the first reason verdict.Admit
-// gives against its Fits tier.
-func Unfit(st *AccountStatus, ld *Load, agent string) string {
-	wall, noRoom := fitFacts(st, ld, agent)
-	a := verdict.Admit(verdict.Account{Assignable: true, Wall: wall, NoRoomFit: noRoom})
-	if a.Fits {
-		return ""
-	}
-	return a.Reasons[0]
-}
+// Unfit is why a session should not be started here, when what is known says so ("" otherwise): its wall.
+func Unfit(st *AccountStatus) string { return wallFact(st) }
 
 // FitAdmission is verdict.Admit's Fits tier for one account: not this vendor's, then what is known of its reading. The pick's own
 // tiers are left to Pick.
-func (e *Env) FitAdmission(acct, vendor, agent string, ld *Load) verdict.Admission {
-	wall, noRoom := fitFacts(e.Read(acct), ld, agent)
-	return verdict.Admit(verdict.Account{NotFor: e.NotFor(acct, vendor), Assignable: true, Wall: wall, NoRoomFit: noRoom})
+func (e *Env) FitAdmission(acct, vendor string) verdict.Admission {
+	return verdict.Admit(verdict.Account{NotFor: e.NotFor(acct, vendor), Assignable: true, Wall: wallFact(e.Read(acct))})
 }
 
 // AccountVerdict is whether a session may start on this account and the sentence for it. ranked is Pick's reasons for this account's
@@ -397,7 +370,7 @@ func (e *Env) AccountVerdict(name string, st *AccountStatus, ld *Load, ranked []
 			break
 		}
 	}
-	return allowed && Unfit(st, ld, "") == "", why
+	return allowed && Unfit(st) == "", why
 }
 
 // Reason is one account's line in a pick: why it was refused, or where it ranks. Kind is what refused it, "" for a candidate.
@@ -410,8 +383,8 @@ const (
 	KindFiveHourCap = "five_hour_cap"
 	KindLogin       = "login"
 	KindPaused      = "paused"
-	KindHeld        = "held" // the agent cap or the launch pace hold
 	KindOther       = "other"
+	KindUnfit       = "unfit" // may take work, but another account fits a new start (startUnfit)
 )
 
 // StaleEndNote is added to an ended account's reason while it is logged in and its usage reads fresh: the subscription was likely
@@ -538,7 +511,10 @@ func (e *Env) Pick(q db.Q, o PickOpts) (string, []Reason, error) {
 		st    *AccountStatus
 		ld    *Load
 		lasts *float64
+		unfit string // why it is not a first choice for a new start (startUnfit), "" when it is
+		room  int
 	}
+	moveBefore := MoveBeforeOf(e.config())
 	var usable []cand
 	var blank []string
 	refreshLeft := LiveRefreshMaxPerCall
@@ -571,33 +547,21 @@ func (e *Env) Pick(q db.Q, o PickOpts) (string, []Reason, error) {
 		facts.Assignable, facts.AssignWhy, kind = st.takesWork(active)
 		facts.NoReading = !st.Exists
 		var lasts *float64
+		var fill *int
+		var unfit string
 		if facts.Assignable {
-			// A stale account whose window has rolled over reads as a fresh one; a stale one still inside its window is judged on the
-			// floor it was admitted on, not on a fill of 0, which would prefer the account we cannot see over one we can see has room.
-			pct := 0
-			if t := st.ShortTrusted(); t != nil {
-				pct = *t
-			} else if ok, _ := st.IdleFloor(active); ok {
-				pct = *st.Short.Pct
-			}
-			var fill *int
-			if rolled, _ := st.RolledOver(); !rolled {
-				fill = &pct
-			}
-			facts.NoRoom, lasts = NoRoom(st, ld, fill, o.Agent)
+			fill = startFill(st, active)
+			unfit, lasts = startUnfit(st, ld, fill, o.Agent, moveBefore)
 		}
 		switch a := verdict.Admit(facts); {
 		case a.Best:
-			usable = append(usable, cand{n, st, ld, lasts})
+			usable = append(usable, cand{n, st, ld, lasts, unfit, room(st, fill)})
 		case a.NeverRun && o.Bootstrap:
 			blank = append(blank, n)
 			reasons = append(reasons, Reason{n, a.Reasons[0] + " (bootstrap candidate, used only if nothing else qualifies)", ""})
 		case a.NeverRun:
 			reasons = append(reasons, Reason{n, facts.AssignWhy, KindOther})
 		default:
-			if facts.Assignable { // refused on its room: the cap or the pace hold
-				kind = KindHeld
-			}
 			reasons = append(reasons, Reason{n, a.Reasons[0], kind})
 		}
 	}
@@ -607,6 +571,38 @@ func (e *Env) Pick(q db.Q, o PickOpts) (string, []Reason, error) {
 		}
 		return "", reasons, nil
 	}
+	unfitReasons := func(reasons []Reason, rest []cand) []Reason {
+		for _, c := range rest {
+			reasons = append(reasons, Reason{c.name, c.unfit, KindUnfit})
+		}
+		return reasons
+	}
+	var fit, rest []cand
+	for _, c := range usable {
+		if c.unfit == "" {
+			fit = append(fit, c)
+		} else {
+			rest = append(rest, c)
+		}
+	}
+	if len(fit) == 0 && len(blank) > 0 {
+		// A never-run account has its whole window, more than any account that does not fit.
+		return blank[0], sortedByCandidate(unfitReasons(reasons, rest), names), nil
+	}
+	if len(fit) == 0 {
+		// None fits: the start is not held but goes where the most is left under the wall, the 5-hour window's or the week's.
+		slices.SortStableFunc(rest, func(a, b cand) int { return cmp.Or(cmp.Compare(b.room, a.room), cmp.Compare(a.name, b.name)) })
+		for i, c := range rest {
+			why := c.unfit + fmt.Sprintf("; %d%% left under its wall", c.room)
+			if i == 0 {
+				why += " - no account fits, so the most room <- picked"
+			}
+			reasons = append(reasons, Reason{c.name, why, ""})
+		}
+		return rest[0].name, sortedByCandidate(reasons, names), nil
+	}
+	reasons = unfitReasons(reasons, rest)
+	usable = fit
 	type keyed struct {
 		cand
 		bucket   float64
@@ -667,10 +663,67 @@ func (e *Env) Pick(q db.Q, o PickOpts) (string, []Reason, error) {
 	for _, k := range keys {
 		reasons = append(reasons, Reason{k.name, pickReason(k.st, k.ld, k.lasts, k.name == picked, o.Agent), ""})
 	}
+	return picked, sortedByCandidate(reasons, names), nil
+}
+
+// sortedByCandidate is reasons in the order of names, the candidates.
+func sortedByCandidate(reasons []Reason, names []string) []Reason {
 	order := map[string]int{}
 	for i, n := range names {
 		order[n] = i
 	}
 	sort.SliceStable(reasons, func(i, j int) bool { return order[reasons[i].Account] < order[reasons[j].Account] })
-	return picked, reasons, nil
+	return reasons
+}
+
+// startUnfit is why an account that may take work is not a first choice for a new start, "" when it is: at or past the lines an agent
+// moves off early (moveBefore of the 5-hour window, 0 off; MoveBeforeWeekPct of the week), or its 5-hour window would not last to its
+// reset with one more agent (ShortFit). Also how long that window would last.
+func startUnfit(st *AccountStatus, ld *Load, pct *int, agent string, moveBefore int) (string, *float64) {
+	why, lasts := ShortFit(st, ld, pct, agent)
+	if pct != nil && moveBefore > 0 && *pct >= moveBefore {
+		why = fmt.Sprintf("%s %d%%, at or past %d%%, where agents move off", st.Short.Label(), *pct, moveBefore)
+	} else if week := st.LongTrusted(); week != nil && *week >= states.MoveBeforeWeekPct {
+		why = fmt.Sprintf("%s %d%%, at or past %d%%, where agents move off", st.Long.Label(), *week, states.MoveBeforeWeekPct)
+	}
+	return why, lasts
+}
+
+// room is what is left under the account's nearer wall in points: min(100 - fill, 100 - weekly use), a nil fill or unknown week as 0 used.
+func room(st *AccountStatus, fill *int) int {
+	left := func(v *int) int {
+		if v == nil {
+			return 100
+		}
+		return 100 - *v
+	}
+	return min(left(fill), left(st.LongTrusted()))
+}
+
+// startFill is the 5-hour fill a new start is judged on, nil once the window has rolled over (a fresh one). A stale reading still inside
+// its window counts at the floor it was admitted on, not 0, which would prefer the account we cannot see over one we can see has room.
+func startFill(st *AccountStatus, active int) *int {
+	if rolled, _ := st.RolledOver(); rolled {
+		return nil
+	}
+	pct := 0
+	if t := st.ShortTrusted(); t != nil {
+		pct = *t
+	} else if ok, _ := st.IdleFloor(active); ok {
+		pct = *st.Short.Pct
+	}
+	return &pct
+}
+
+// StartFit is Pick's test of one account for agent's start: why it is not a first choice (startUnfit), "" when it is, and its room
+// under its nearer wall. A move ranks by it as a new start does, so the tick does not move the agent off again at once.
+func (e *Env) StartFit(acct, agent string, ld *Load) (string, int) {
+	st := e.Read(acct)
+	active := 0
+	if ld != nil {
+		active = ld.Active
+	}
+	fill := startFill(st, active)
+	unfit, _ := startUnfit(st, ld, fill, agent, MoveBeforeOf(e.config()))
+	return unfit, room(st, fill)
 }

@@ -170,7 +170,9 @@ func (v *Mover) plan(agent, kind string, starting bool) (dest, why string, rooml
 		}
 	}
 	row := must(db.GetAgentState(m.Q, agent))
-	dest, why = m.Launch.RoomElsewhere(m.Q, agent, row, v.moveExclude(agent, here))
+	// A usage move goes only where the agent fits; with none an early move stays and a walled agent waits for its reset, at most the
+	// soonest 5-hour reset. A move off an account it cannot run on takes the most room.
+	dest, why = m.Launch.RoomElsewhere(m.Q, agent, row, v.moveExclude(agent, here), !outTrigger(kind))
 	if dest == "" {
 		return "", why, true
 	}
@@ -282,7 +284,7 @@ func (v *Mover) moveToRoom(agent string, t HandoffTrigger, dest string) (moved, 
 		failed[there] = wakeWhy
 		exclude := v.moveExclude(agent, here)
 		maps.Copy(exclude, failed)
-		if there, _ = m.Launch.RoomElsewhere(m.Q, agent, must(db.GetAgentState(m.Q, agent)), exclude); there == "" {
+		if there, _ = m.Launch.RoomElsewhere(m.Q, agent, must(db.GetAgentState(m.Q, agent)), exclude, !outTrigger(t.Kind)); there == "" {
 			return false, true
 		}
 	}

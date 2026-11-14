@@ -17,7 +17,7 @@ func TestAdmitGivesEachTierAndEveryReasonAgainstTheAccount(t *testing.T) {
 			Admission{Reasons: []string{"the account it leaves"}}},
 		{"another vendor's", Account{NotFor: "an opencode account", Assignable: true, NoReading: true},
 			Admission{Reasons: []string{"an opencode account"}}},
-		{"a fresh reading with room is the best and fits", Account{Assignable: true},
+		{"a fresh reading is the best and fits", Account{Assignable: true},
 			Admission{Best: true, Fits: true}},
 		{"never run: the first fallback, and nothing known is against it", Account{AssignWhy: "no status.json", NoReading: true},
 			Admission{NeverRun: true, Fits: true, Reasons: []string{"no reading yet - a session has never run on it"}}},
@@ -26,10 +26,6 @@ func TestAdmitGivesEachTierAndEveryReasonAgainstTheAccount(t *testing.T) {
 		{"at the wall: neither tier, one reason when both say it",
 			Account{AssignWhy: "5h usage at the wall (97%)", Wall: "5h usage at the wall (97%)"},
 			Admission{Reasons: []string{"5h usage at the wall (97%)"}}},
-		{"room on the ranked fill but not on the fresh one", Account{Assignable: true, NoRoomFit: "at its cap: 2 of 2 agents mid-turn"},
-			Admission{Best: true, OnlyNoRoomFit: true, Reasons: []string{"at its cap: 2 of 2 agents mid-turn"}}},
-		{"no room on either fill: both reasons", Account{Assignable: true, NoRoom: "short of its reset", NoRoomFit: "at its cap"},
-			Admission{OnlyNoRoomFit: true, Reasons: []string{"short of its reset", "at its cap"}}},
 	} {
 		if got := Admit(c.in); !reflect.DeepEqual(got, c.want) {
 			t.Errorf("%s:\n got %+v\nwant %+v", c.name, got, c.want)
@@ -40,24 +36,5 @@ func TestAdmitGivesEachTierAndEveryReasonAgainstTheAccount(t *testing.T) {
 	}
 	if !(Account{NotFor: "x"}).Outright() || !(Account{Excluded: true}).Outright() || (Account{AssignWhy: "stale"}).Outright() {
 		t.Error("Outright is removing, set aside or another vendor's, nothing about a reading")
-	}
-}
-
-func TestOnlyARoomTestShortfallLeavesAPersonsChoiceOpen(t *testing.T) {
-	for _, c := range []struct {
-		name string
-		in   Account
-		want bool
-	}{
-		{"short of room", Account{Assignable: true, NoRoomFit: "short of its reset"}, true},
-		{"at a wall too", Account{Assignable: true, Wall: "at the wall", NoRoomFit: "short of its reset"}, false},
-		{"nothing against it", Account{Assignable: true}, false},
-		{"another vendor's", Account{NotFor: "not this vendor's", NoRoomFit: "short of its reset"}, false},
-		{"being removed", Account{Removing: true, NoRoomFit: "short of its reset"}, false},
-		{"set aside", Account{Excluded: true, NoRoomFit: "short of its reset"}, false},
-	} {
-		if got := Admit(c.in).OnlyNoRoomFit; got != c.want {
-			t.Errorf("%s: %v", c.name, got)
-		}
 	}
 }

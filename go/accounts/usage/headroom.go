@@ -130,28 +130,6 @@ func ahead(last windowPoint, pace float64, now, t, period int64) float64 {
 	return 100 - min(100, used)
 }
 
-// aheadSplit is ahead with one pace until the window's reset and another after it.
-func aheadSplit(last windowPoint, before, after float64, now, t, period int64) float64 {
-	if last.Reset != 0 && t >= last.Reset {
-		return ahead(last, after, now, t, period)
-	}
-	return ahead(last, before, now, t, period)
-}
-
-// capWeek is the week's use per second held to the pace line: until its reset, no more than what reaches Target at its end (the
-// reset, or end when that comes first); in the weeks after, no more than Target spread over the week.
-func (p *Paced) capWeek(last windowPoint, used float64, now int64, end float64) (before, after float64) {
-	before, after = used, min(used, p.Target/float64(WeekS))
-	stop := float64(last.Reset)
-	if end != 0 && (stop == 0 || end < stop) {
-		stop = end
-	}
-	if stop > float64(now) {
-		before = min(used, max(0, p.Target-last.Used)/(stop-float64(now)))
-	}
-	return before, after
-}
-
 // resetsAhead are a window's resets from after now to to: the one its last point names and, while it is used, one each period after.
 func resetsAhead(last windowPoint, pace float64, now, to, period int64, window string) []HeadroomReset {
 	var out []HeadroomReset
@@ -173,40 +151,16 @@ func leftOf(v float64) *float64 { return &v }
 // looking ahead nothing left. An account whose last reading is stale has no guess, and the average ahead leaves it out. An account that
 // could not be used (loggedOut; outSince is from when, for one that cannot now) has nothing left then, and ahead.
 func HeadroomOver(rows []sampleRow, now, from, to, step int64, ends, outSince map[string]float64) HeadroomSpan {
-	return headroomOver(rows, now, from, to, step, ends, outSince, nil)
+	return headroomOver(rows, now, from, to, step, ends, outSince, false)
 }
 
-// Paced is how stats.outlook's by_account guesses: each window at its use over the last day, and an account whose last reading is stale
-// keeps it until its reset. With On, an account's week goes at no more than its pace line's rate (to Target at the end of its week)
-// and its 5h window at no more than that over Ratio, its measured weekly-to-5h ratio, and each point has its Line.
-type Paced struct {
-	On     bool
-	Target float64
-	Ratio  func(acct string) (float64, bool)
+// HeadroomKeepStale is HeadroomOver as stats.outlook's by_account guesses: each window at its use over the last day, and an account whose last
+// reading is stale keeps it until its reset.
+func HeadroomKeepStale(rows []sampleRow, now, from, to, step int64, ends, outSince map[string]float64) HeadroomSpan {
+	return headroomOver(rows, now, from, to, step, ends, outSince, true)
 }
 
-// HeadroomPaced is HeadroomOver as Paced guesses it, with each point's pace line.
-func HeadroomPaced(rows []sampleRow, now, from, to, step int64, ends, outSince map[string]float64, p Paced) HeadroomSpan {
-	return headroomOver(rows, now, from, to, step, ends, outSince, &p)
-}
-
-// lineLeft is what the pace line leaves of the week at t, for the week that resets at reset and ends at end (0: the reset); nil with
-// pacing off.
-func (p *Paced) lineLeft(t, reset int64, end float64) *float64 {
-	if !p.On || reset == 0 {
-		return nil
-	}
-	start, stop := float64(reset-WeekS), float64(reset)
-	if end != 0 && end < stop {
-		stop = end
-	}
-	if stop <= start {
-		return nil
-	}
-	return leftOf(100 - p.Target*min(1, max(0, (float64(t)-start)/(stop-start))))
-}
-
-func headroomOver(rows []sampleRow, now, from, to, step int64, ends, outSince map[string]float64, paced *Paced) HeadroomSpan {
+func headroomOver(rows []sampleRow, now, from, to, step int64, ends, outSince map[string]float64, keepStale bool) HeadroomSpan {
 	fives, weeks := map[string][]windowPoint{}, map[string][]windowPoint{}
 	for _, r := range rows {
 		a, _ := r["account"].(string)
@@ -246,21 +200,9 @@ func headroomOver(rows []sampleRow, now, from, to, step int64, ends, outSince ma
 		lastF, lastW := f[len(f)-1], w[len(w)-1]
 		fresh := now-lastF.TS <= OutlookMaxAgeS && !(ended && float64(now) >= end)
 		paceF, paceW := usedPerS(f, now-headroomPaceS), pace(toWeekPoints(w))
-		weekEnd := 0.0
-		if ended {
-			weekEnd = end
-		}
-		paceWAfter := paceW
-		if paced != nil {
+		if keepStale {
 			fresh = !(ended && float64(now) >= end)
 			paceW = usedPerS(w, now-headroomPaceS)
-			paceWAfter = paceW
-			if paced.On {
-				paceW, paceWAfter = paced.capWeek(lastW, paceW, now, weekEnd)
-				if r, ok := paced.Ratio(a); ok && r > 0 {
-					paceF = min(paceF, paceW/r)
-				}
-			}
 		}
 		for t := from; t <= to; t += step {
 			p := HeadroomPoint{At: t}
@@ -273,9 +215,6 @@ func headroomOver(rows []sampleRow, now, from, to, step int64, ends, outSince ma
 					if fp.Out {
 						p.Five, p.Week = leftOf(0), leftOf(0)
 					}
-					if paced != nil {
-						p.Line = paced.lineLeft(t, wp.Reset, weekEnd)
-					}
 				}
 				h.Past = append(h.Past, p)
 				continue
@@ -283,14 +222,7 @@ func headroomOver(rows []sampleRow, now, from, to, step int64, ends, outSince ma
 			case gone, outNow:
 				p.Five, p.Week = leftOf(0), leftOf(0)
 			default:
-				p.Five, p.Week = leftOf(ahead(lastF, paceF, now, t, fiveS)), leftOf(aheadSplit(lastW, paceW, paceWAfter, now, t, WeekS))
-				if paced != nil {
-					reset := lastW.Reset
-					for reset != 0 && t >= reset {
-						reset += WeekS
-					}
-					p.Line = paced.lineLeft(t, reset, weekEnd)
-				}
+				p.Five, p.Week = leftOf(ahead(lastF, paceF, now, t, fiveS)), leftOf(ahead(lastW, paceW, now, t, WeekS))
 			}
 			h.Future = append(h.Future, p)
 		}

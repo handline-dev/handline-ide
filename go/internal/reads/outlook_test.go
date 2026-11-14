@@ -168,7 +168,7 @@ func TestOutlookRefusesARangeItDoesNotList(t *testing.T) {
 	}
 }
 
-func TestAccountsListShowsTheCapShrunkByThePaceOnlyWithTheLaunchHoldOn(t *testing.T) {
+func TestAccountsListShowsTheConfiguredCapNoneWhilePausedAndNothingShrunkByThePace(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	now := time.Now().Unix()
@@ -195,12 +195,15 @@ func TestAccountsListShowsTheCapShrunkByThePaceOnlyWithTheLaunchHoldOn(t *testin
 		json.Unmarshal(b, &out)
 		return fmt.Sprint(out.Accounts)
 	}
-	if got := caps(); got != "[{fast 2} {slow 2}]" {
-		t.Fatalf("the hold off by default: no cap shrinks, %s", got)
-	}
 	os.WriteFile(filepath.Join(e.Home, "config.yaml"), []byte("launch_pace_hold: true\n"), 0o644)
-	if got := caps(); got != "[{fast 0} {slow 2}]" {
-		t.Fatalf("the hold on: an account far past its pace line takes none, %s", got)
+	if got := caps(); got != "[{fast 2} {slow 2}]" {
+		t.Fatalf("an account far past its pace line still shows the configured cap, %s", got)
+	}
+	if _, err := e.DB.Exec("UPDATE accounts SET paused = 1 WHERE name = 'slow'"); err != nil {
+		t.Fatal(err)
+	}
+	if got := caps(); got != "[{fast 2} {slow 0}]" {
+		t.Fatalf("a paused account shows none, %s", got)
 	}
 }
 

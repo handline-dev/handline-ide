@@ -10,7 +10,6 @@ import (
 	"slices"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/handline/handline/go/accounts/usage"
 	cli "github.com/handline/handline/go/agentctl/agent"
@@ -58,37 +57,22 @@ type fakeUsage struct {
 	st      AccountStatus
 	by      map[string]AccountStatus
 	pick    string
-	cap     int
-	unpaced int // 0: cap
-	pace    *usage.Pace
 	others  int
 	exclude *string        // the agent ActiveOn was asked to leave out
 	active  map[string]int // agents mid-turn by account, over others
 	midTurn []string       // the agents MidTurn names
 	head    map[string]float64
-	share   map[string]float64 // FiveHourShare by account; unlisted is unknown
 	urgent  map[string]float64 // Urgency by account; unlisted is unknown
 	reasons []usage.Reason     // PickReasons
 	manual  bool               // account_split manual
+	unfit   map[string]int     // StartFit: room of each account that does not fit
 }
 
 func (u fakeUsage) ManualSplit() bool { return u.manual }
 
-func (u fakeUsage) CapOf(string) int { return u.cap }
-func (u fakeUsage) CapUnpaced(string) int {
-	if u.unpaced != 0 {
-		return u.unpaced
-	}
-	return u.cap
-}
-func (u fakeUsage) Pace(string) *usage.Pace { return u.pace }
 func (u fakeUsage) Urgency(acct string) (float64, bool) {
 	v, ok := u.urgent[acct]
 	return v, ok
-}
-func (u fakeUsage) PaceShare(_ db.Q, acct, _ string) (float64, bool) {
-	share, ok := u.share[acct]
-	return share, ok
 }
 func (u fakeUsage) Headroom(acct string) (float64, bool) {
 	h, ok := u.head[acct]
@@ -98,11 +82,19 @@ func (u fakeUsage) MidTurn(_ db.Q, agent string) []string {
 	return slices.DeleteFunc(slices.Clone(u.midTurn), func(a string) bool { return a == agent })
 }
 
-func (u fakeUsage) ActiveOn(_ db.Q, acct, agent string) int {
+func (u fakeUsage) ActiveOn(_ db.Q, acct, agent string) (int, error) {
 	if u.exclude != nil {
 		*u.exclude = agent
 	}
-	return u.others + u.active[acct]
+	return u.others + u.active[acct], nil
+}
+
+// StartFit: an account listed in unfit does not fit, with its room; any other fits.
+func (u fakeUsage) StartFit(acct, _ string) (string, int) {
+	if r, ok := u.unfit[acct]; ok {
+		return "unfit", r
+	}
+	return "", 100
 }
 
 func (u fakeUsage) Read(acct string) AccountStatus {
@@ -117,14 +109,11 @@ func (u fakeUsage) PickAccount([]string, string) string         { return u.pick 
 func (u fakeUsage) PickReasons([]string, string) []usage.Reason { return u.reasons }
 func (fakeUsage) NotFor(string, string) bool                    { return false }
 
-// Admit hands verdict.Admit the facts the fixtures stand for: a trusted fill at the block is the wall, a five-hour share under 1 is no room.
+// Admit hands verdict.Admit the facts the fixtures stand for: a trusted fill at the block is the wall.
 func (u fakeUsage) Admit(acct, _, _ string) verdict.Admission {
 	in := verdict.Account{Assignable: true}
 	if st := u.Read(acct); st.ShortTrusted != nil && *st.ShortTrusted >= u.ShortBlock() {
 		in.Wall = fmt.Sprintf("5h usage at the wall (%d%%)", *st.ShortTrusted)
-	}
-	if share, ok := u.share[acct]; ok && share < 1 {
-		in.NoRoomFit = "short of its reset"
 	}
 	return verdict.Admit(in)
 }
@@ -403,6 +392,12 @@ func TestAWalledWakeNamesTheAccountThatFreesFirst(t *testing.T) {
 	if got := r.l.RoomOn(r.l.Q, "ann", row, "a"); got != "is not a place for it: 5h usage at the wall (97%)" {
 		t.Fatal(got)
 	}
+	// A start with every account paused waits on one, as at a wall, rather than being refused at the launch.
+	r.l.Ports.Usage = fakeUsage{by: map[string]AccountStatus{"a": {Exists: true, Paused: true}, "b": {Exists: true, Paused: true}}}
+	if pw := r.l.WakeWait(r.l.Q, "ann", row); pw == nil || !pw.Paused {
+		t.Fatalf("every account paused: %+v", pw)
+	}
+	r.l.Ports.Usage = fakeUsage{by: map[string]AccountStatus{"a": walled(97, 2000), "b": walled(99, 1000)}}
 	if got := r.l.WakeWaitReason(r.l.Q, "ann", row); got != DescribeWakeWait(w) {
 		t.Fatal(got)
 	}
@@ -521,201 +516,57 @@ func (d hidingDriver) LaunchArgv(exe string, o cli.LaunchArgs) []string {
 	return d.fakeDriver.LaunchArgv(exe, o)
 }
 
-func TestAResumeWaitsForASlotOnItsOwnAccountWhenTheOthersAndOlderWaitersFillIt(t *testing.T) {
+// No cap: however many are on its own account, a resume waits there only while it is paused.
+func TestAResumeWaitsOnItsOwnAccountOnlyWhileItIsPaused(t *testing.T) {
 	r := newLaunchRig(t)
-	var left string
 	r.l.Ports.AccountReading = func(db.Q, string) (string, string, bool) { return "a", "recorded", true }
-	r.l.Ports.CurrentAccount = func(_ db.Q, agent string) string {
-		if agent == "elsewhere" {
-			return "b"
-		}
-		return "a"
-	}
-	r.l.Ports.WaitingFor = func(_ db.Q, agent string) bool { return agent != "quiet" }
 	q := r.l.Q
 	db.SetAgentState(q, "ann", states.Idle, 0, "")
 	db.SetClosed(q, "ann", "s-ann")
-	older := func(agent, state string, failures int) {
-		db.SetAgentState(q, agent, state, 0, "")
-		db.SetClosed(q, agent, "s-"+agent)
-		for i := 0; i < failures; i++ {
-			db.BumpCounter(q, agent, "wake_failures", 1)
-		}
-		q.Exec("UPDATE agent_state SET closed_at = 1 WHERE agent = ?", agent)
-	}
-	q.Exec("UPDATE agent_state SET closed_at = 10 WHERE agent = 'ann'")
 	row, _ := db.GetAgentState(q, "ann")
-	wait := func(cap, others int) *WakeWait {
-		r.l.Ports.Usage = fakeUsage{st: AccountStatus{Exists: true}, cap: cap, others: others, exclude: &left}
-		return r.l.WakeWait(q, "ann", row)
-	}
-	if w := wait(2, 2); w == nil || w.Full != 2 || w.Busy != 2 || w.Older != 0 || w.Account != "a" {
-		t.Fatalf("a full account (busy fill the cap): %+v", w)
-	}
-	if left != "ann" {
-		t.Fatalf("the agent placed is left out of the count: %q", left)
-	}
-	if wait(2, 1) != nil {
-		t.Fatal("a free slot is no wait")
-	}
-	older("elsewhere", states.Idle, 0)
-	if wait(2, 1) != nil {
-		t.Fatal("an older waiter for another account takes no slot here")
-	}
-	older("bob", states.Idle, 0)
-	older("quiet", states.Idle, 0)
-	older("stuck", states.Stalled, 0)
-	older("failing", states.Idle, states.MaxFailedAttempts)
-	w := wait(2, 1)
-	if w == nil || w.Full != 2 || w.Busy != 1 || w.Older != 1 {
-		t.Fatalf("one older waiter takes the free slot (not stalled, not exhausted, not unwanted): %+v", w)
-	}
-	if got := DescribeWakeWait(w); got != "waiting for a slot on a (1 of 2 mid-turn, 1 older waiting go first)" {
-		t.Fatal(got)
-	}
-	if got := DescribeWakeWait(&WakeWait{Account: "a", Slot: true, Full: 2, Busy: 2}); got != "waiting for a slot on a (2 of 2 mid-turn)" {
-		t.Fatal(got)
-	}
-	if wait(3, 1) != nil {
-		t.Fatal("room for the agent and the older waiter")
-	}
-	pace := &usage.Pace{State: usage.PaceOver, Line: 40, Used: 60}
-	r.l.Ports.Usage = fakeUsage{st: AccountStatus{Exists: true}, cap: 0, unpaced: 3, others: 1, pace: pace}
-	if w := r.l.WakeWait(q, "ann", row); w == nil || w.Pace != pace {
-		t.Fatalf("a slot only the pace holds says so: %+v", w)
-	} else if got := DescribeWakeWait(w); got != "waiting for a's weekly pace: 60% used, 20 points ahead of its line (40%)" {
-		t.Fatal(got)
-	}
-	r.l.Ports.Usage = fakeUsage{st: AccountStatus{Exists: true}, cap: 0, unpaced: 3, others: 2, pace: pace}
-	if w := r.l.WakeWait(q, "ann", row); w == nil || w.Pace != nil {
-		t.Fatalf("a slot the others fill is not the pace's: %+v", w)
-	}
-	r.l.Ports.Usage = fakeUsage{st: AccountStatus{Exists: true}, cap: 0, unpaced: 3, others: 1, pace: pace}
-	r.l.PassPace("ann")
+	r.l.Ports.Usage = fakeUsage{st: AccountStatus{Exists: true}, others: 9}
 	if w := r.l.WakeWait(q, "ann", row); w != nil {
-		t.Fatalf("a person's force start lets it past the pace: %+v", w)
+		t.Fatalf("nine agents on it held the resume: %+v", w)
 	}
-	r.l.Now = func() time.Time { return time.Now().Add(PacePassFor + time.Second) }
-	if w := r.l.WakeWait(q, "ann", row); w == nil || w.Pace == nil {
-		t.Fatalf("the pass is for one start, not for good: %+v", w)
-	}
-	r.l.Now = nil
-	// An account that would run out before it resets has a cap of none: nothing is free however quiet it is, and the wait says why.
-	w = wait(0, 0)
-	if w == nil || !w.Slot || w.Full != 0 {
-		t.Fatalf("a cap of none is a full account: %+v", w)
-	}
-	if got := DescribeWakeWait(w); got != "waiting for a: it would run out before it resets and takes no new agent" {
-		t.Fatal(got)
+	r.l.Ports.Usage = fakeUsage{st: AccountStatus{Exists: true, Paused: true}}
+	if w := r.l.WakeWait(q, "ann", row); w == nil || !w.Paused {
+		t.Fatalf("a paused account held nothing: %+v", w)
 	}
 }
 
-func TestAColdWakeMovesToTheSlowestPacedAccountWithRoomNotItsOwnNorOneWithOlderWaiters(t *testing.T) {
+// A move off its own account goes to the other account with the most headroom (no week can be read here), never a walled or paused one;
+// no older waiter is counted ahead, and how many are on an account holds nothing.
+func TestAMoveGoesToTheMostHeadroomPastWallsAndPausesNotPastAnyCount(t *testing.T) {
 	r := newLaunchRig(t)
 	pct := 10
 	ok := AccountStatus{Exists: true, ShortTrusted: &pct}
 	hot := AccountStatus{Exists: true, ShortTrusted: func() *int { n := 99; return &n }()}
 	r.l.Ports.Accounts = fakeAccounts{true}
-	r.l.Ports.CurrentAccount = func(_ db.Q, agent string) string {
-		if agent == "waiting-on-b" {
-			return "b"
-		}
-		return "a"
-	}
+	r.l.Ports.CurrentAccount = func(db.Q, string) string { return "a" }
 	r.l.Ports.WaitingFor = func(db.Q, string) bool { return true }
-	r.l.Ports.Usage = fakeUsage{st: ok, cap: 1, by: map[string]AccountStatus{"walled": hot},
-		head: map[string]float64{"a": 0.99, "b": 0.9, "c": 0.5, "ahead": 0.02, "walled": 0.95}}
+	r.l.Ports.Usage = fakeUsage{st: ok, by: map[string]AccountStatus{"walled": hot, "paused": {Exists: true, ShortTrusted: &pct, Paused: true}},
+		head: map[string]float64{"a": 0.99, "walled": 0.95, "paused": 0.95, "b": 0.9, "c": 0.5}, others: 9}
 	home, q := r.l.Home, r.l.Q
-	for _, a := range []string{"a", "b", "c", "ahead", "walled"} {
+	for _, a := range []string{"a", "b", "c", "walled", "paused"} {
 		os.MkdirAll(teamtest.AccountDir(t, home, a), 0o755)
 	}
 	db.SetAgentState(q, "ann", states.Idle, 0, "")
 	db.SetClosed(q, "ann", "s-ann")
-	db.SetAgentState(q, "waiting-on-b", states.Idle, 0, "")
-	db.SetClosed(q, "waiting-on-b", "s-b")
-	q.Exec("UPDATE agent_state SET closed_at = 10 WHERE agent = 'ann'")
-	q.Exec("UPDATE agent_state SET closed_at = 1 WHERE agent = 'waiting-on-b'")
 	row, _ := db.GetAgentState(q, "ann")
-	// "a" has the most headroom but is ann's own, "b" the next but an older closed agent is waiting for its one slot, "walled" does not fit.
-	if got := r.l.SlowestPaced(q, "ann", row, "a"); got != "c" {
-		t.Fatalf("the furthest behind among the other accounts with a free slot: %q", got)
+	if got := r.l.SlowestPaced(q, "ann", row, "a"); got != "b" {
+		t.Fatalf("the most headroom among the others that can take it: %q", got)
 	}
-	r.l.Ports.Usage = fakeUsage{st: ok, cap: 1, by: map[string]AccountStatus{"walled": hot}, head: map[string]float64{"a": 0.99, "b": 0.9}}
-	for _, a := range []string{"c", "ahead", "walled"} {
+	if got, why := r.l.RoomNow(q, "ann", row, "a"); got != "b" {
+		t.Fatalf("a person's start: %q %s", got, why)
+	}
+	if why := r.l.RoomOn(q, "ann", row, "paused"); why != "is paused" {
+		t.Fatalf("a move onto a paused account: %q", why)
+	}
+	for _, a := range []string{"b", "c"} {
 		os.RemoveAll(teamtest.AccountDir(t, home, a))
 	}
-	if got := r.l.SlowestPaced(q, "ann", row, "a"); got != "" {
-		t.Fatalf("an account an older waiter holds the slot of is not room, and the agent's own is left out: %q", got)
-	}
-}
-
-func TestAPersonsStartGoesToTheAccountItWasLastOnElseTheMostHeadroomAndQueuesBehindNobody(t *testing.T) {
-	r := newLaunchRig(t)
-	pct := 10
-	hot := AccountStatus{Exists: true, ShortTrusted: func() *int { n := 99; return &n }()}
-	r.l.Ports.Accounts = fakeAccounts{true}
-	r.l.Ports.CurrentAccount = func(_ db.Q, agent string) string {
-		if agent == "waiting-on-b" {
-			return "b"
-		}
-		return "a"
-	}
-	r.l.Ports.WaitingFor = func(db.Q, string) bool { return true }
-	r.l.Ports.Usage = fakeUsage{st: AccountStatus{Exists: true, ShortTrusted: &pct}, cap: 1, by: map[string]AccountStatus{"walled": hot},
-		head: map[string]float64{"a": 0.99, "b": 0.9, "c": 0.5, "walled": 0.95}}
-	home, q := r.l.Home, r.l.Q
-	for _, a := range []string{"a", "b", "c", "walled"} {
-		os.MkdirAll(teamtest.AccountDir(t, home, a), 0o755)
-	}
-	db.SetAgentState(q, "ann", states.Idle, 0, "")
-	db.SetClosed(q, "ann", "s-ann")
-	db.SetAgentState(q, "waiting-on-b", states.Idle, 0, "")
-	db.SetClosed(q, "waiting-on-b", "s-b")
-	q.Exec("UPDATE agent_state SET closed_at = 10 WHERE agent = 'ann'")
-	q.Exec("UPDATE agent_state SET closed_at = 1 WHERE agent = 'waiting-on-b'")
-	row, _ := db.GetAgentState(q, "ann")
-	if got, why := r.l.RoomNow(q, "ann", row, "a"); got != "b" {
-		t.Fatalf("the most headroom, the older waiter on b not ahead of a person: %q %s", got, why)
-	}
-	r.l.Ports.Usage = fakeUsage{st: AccountStatus{Exists: true, ShortTrusted: &pct}, cap: 0}
-	if got, why := r.l.RoomNow(q, "ann", row, "a"); got != "" || !strings.HasPrefix(why, "no account can take one more agent") {
-		t.Fatalf("nowhere has room: %q %s", got, why)
-	}
-	// Only the pace holds every slot: the daemon's move waits, a person's start goes where the most headroom is.
-	r.l.Ports.Usage = fakeUsage{st: AccountStatus{Exists: true, ShortTrusted: &pct}, cap: 0, unpaced: 2, head: map[string]float64{"a": 0.1, "b": 0.5}}
-	if got, _ := r.l.RoomElsewhere(q, "ann", row, map[string]string{"a": ""}); got != "" {
-		t.Fatalf("the pace holds the daemon's move: %q", got)
-	}
-	if got, why := r.l.RoomNow(q, "ann", row, "a"); got != "b" {
-		t.Fatalf("a person's start is not held by the pace: %q %s", got, why)
-	}
-}
-
-func TestAnOpenAgentsMoveDoesNotTakeTheSlotAnOlderClosedWaiterHolds(t *testing.T) { // E4
-	r := newLaunchRig(t)
-	pct := 10
-	r.l.Ports.Accounts = fakeAccounts{true}
-	r.l.Ports.CurrentAccount = func(_ db.Q, agent string) string {
-		if agent == "waiting-on-b" {
-			return "b"
-		}
-		return "a"
-	}
-	r.l.Ports.WaitingFor = func(db.Q, string) bool { return true }
-	r.l.Ports.Usage = fakeUsage{st: AccountStatus{Exists: true, ShortTrusted: &pct}, cap: 1, head: map[string]float64{"a": 0.9, "b": 0.9}}
-	for _, a := range []string{"a", "b"} {
-		os.MkdirAll(teamtest.AccountDir(t, r.l.Home, a), 0o755)
-	}
-	q := r.l.Q
-	db.SetAgentState(q, "ann", states.Idle, 0, "") // open: never closed
-	db.SetAgentState(q, "waiting-on-b", states.Idle, 0, "")
-	db.SetClosed(q, "waiting-on-b", "s-b")
-	row, _ := db.GetAgentState(q, "ann")
-	if got, why := r.l.RoomElsewhere(q, "ann", row, map[string]string{"a": "its own"}); got != "" {
-		t.Fatalf("took the slot a closed agent waits for: %q %s", got, why)
-	}
-	if why := r.l.RoomOn(q, "ann", row, "b"); why == "" {
-		t.Fatal("a forced move to b was allowed past the waiter")
+	if got, why := r.l.RoomElsewhere(q, "ann", row, map[string]string{"a": ""}, false); got != "" || !strings.HasPrefix(why, "no account can take one more agent") {
+		t.Fatalf("only walled and paused left: %q %s", got, why)
 	}
 }
 
@@ -920,59 +771,6 @@ func TestAFreshStartListsMessagesWithItsTasksOpener(t *testing.T) {
 	}
 }
 
-func TestAStartIsHeldOnlyWhenNoAccountLastsToItsFiveHourReset(t *testing.T) {
-	r := newLaunchRig(t)
-	for _, a := range []string{"a", "b"} {
-		if err := os.MkdirAll(teamtest.AccountDir(t, r.l.Home, a), 0o755); err != nil {
-			t.Fatal(err)
-		}
-	}
-	r.l.Ports.AccountReading = func(db.Q, string) (string, string, bool) { return "a", "recorded", true }
-	r.l.Ports.CurrentAccount = func(db.Q, string) string { return "a" }
-	r.l.Now = func() time.Time { return time.Unix(1000, 0) }
-	q := r.l.Q
-	db.SetAgentState(q, "ann", states.Idle, 0, "")
-	db.SetClosed(q, "ann", "s-ann")
-	row, _ := db.GetAgentState(q, "ann")
-	resets := map[string]AccountStatus{"a": {Exists: true, ShortReset: 5000}, "b": {Exists: true, ShortReset: 3000}}
-	for _, c := range []struct {
-		name  string
-		share map[string]float64
-		held  bool
-	}{
-		{"every account short of its reset", map[string]float64{"a": 0.5, "b": 0.9}, true},
-		{"the other account lasts", map[string]float64{"a": 0.5, "b": 1.2}, false},
-		{"its own account lasts", map[string]float64{"a": 1, "b": 0.5}, false},
-		{"nothing is known", nil, false},
-	} {
-		r.l.Ports.Usage = fakeUsage{st: AccountStatus{Exists: true}, by: resets, cap: 2, share: c.share}
-		for _, resume := range []bool{true, false} {
-			row.ResumeSession.String = map[bool]string{true: "s-ann"}[resume]
-			w := r.l.WakeWait(q, "ann", row)
-			// A resume is held on its own account's share even when the other lasts (the wake then moves it); a start only when none does.
-			want := c.held || (resume && c.share["a"] != 0 && c.share["a"] < 1)
-			if (w != nil && w.FiveHour) != want {
-				t.Errorf("%s, resume %v: %+v, held want %v", c.name, resume, w, want)
-			}
-			if w != nil && w.FiveHour && w.Reset != 3000 {
-				t.Errorf("%s: until %d, want the earliest reset among the accounts, 3000", c.name, w.Reset)
-			}
-		}
-	}
-	r.l.Ports.Usage = fakeUsage{st: AccountStatus{Exists: true}, by: resets, cap: 2, share: map[string]float64{"a": 0.5, "b": 0.9}}
-	r.l.PassPace("ann")
-	row.ResumeSession.String = ""
-	if w := r.l.WakeWait(q, "ann", row); w != nil {
-		t.Errorf("a start let past the hold is not held: %+v", w)
-	}
-	if got := r.l.FindRoom("ann"); got == "" {
-		t.Error("and it still has an account to go to")
-	}
-	if got := DescribeWakeWait(&WakeWait{FiveHour: true, Reset: 3000}); !strings.HasPrefix(got, "Held so Claude's 5-hour limit lasts until it starts over at ") || !strings.HasSuffix(got, ". This starts then.") {
-		t.Errorf("the card says what is held and when: %q", got)
-	}
-}
-
 func TestAMoveGoesWhereTheWeekRunsOutFirstAndAColdRepickNeedsAClearGain(t *testing.T) {
 	r := newLaunchRig(t)
 	for _, a := range []string{"a", "b", "c"} {
@@ -985,16 +783,28 @@ func TestAMoveGoesWhereTheWeekRunsOutFirstAndAColdRepickNeedsAClearGain(t *testi
 	db.SetClosed(q, "ann", "s-ann")
 	row, _ := db.GetAgentState(q, "ann")
 	// a has the most headroom against its pace line but its week lasts longest; c's week runs out first.
-	r.l.Ports.Usage = fakeUsage{st: AccountStatus{Exists: true}, cap: 2, head: map[string]float64{"a": 0.3, "b": 0.1, "c": 0.05},
+	r.l.Ports.Usage = fakeUsage{st: AccountStatus{Exists: true}, head: map[string]float64{"a": 0.3, "b": 0.1, "c": 0.05},
 		urgent: map[string]float64{"a": 0.8, "b": 1.5, "c": 2.4}}
-	if got, why := r.l.RoomElsewhere(q, "ann", row, map[string]string{"x": "not here"}); got != "c" {
+	if got, why := r.l.RoomElsewhere(q, "ann", row, map[string]string{"x": "not here"}, false); got != "c" {
 		t.Errorf("the account whose unused week runs out first: %q %q", got, why)
 	}
-	if got, _ := r.l.RoomElsewhere(q, "ann", row, map[string]string{"c": "full"}); got != "b" {
+	if got, _ := r.l.RoomElsewhere(q, "ann", row, map[string]string{"c": "full"}, false); got != "b" {
 		t.Errorf("then the next: %q", got)
 	}
-	r.l.Ports.Usage = fakeUsage{st: AccountStatus{Exists: true}, cap: 2, head: map[string]float64{"a": 0.3, "b": 0.1}}
-	if got, _ := r.l.RoomElsewhere(q, "ann", row, nil); got != "a" {
+	// As a new start: c's week is the most urgent, but past the move lines it is not a first choice while b fits.
+	r.l.Ports.Usage = fakeUsage{st: AccountStatus{Exists: true}, urgent: map[string]float64{"a": 0.8, "b": 1.5, "c": 2.4},
+		unfit: map[string]int{"a": 20, "c": 5}}
+	if got, why := r.l.RoomElsewhere(q, "ann", row, nil, false); got != "b" {
+		t.Errorf("the one that fits, before a more urgent one that does not: %q %q", got, why)
+	}
+	if got, _ := r.l.RoomElsewhere(q, "ann", row, map[string]string{"b": "full"}, false); got != "a" {
+		t.Errorf("none fits: the most room under its wall: %q", got)
+	}
+	if got, why := r.l.RoomElsewhere(q, "ann", row, map[string]string{"b": "full"}, true); got != "" || !strings.Contains(why, "a: unfit") {
+		t.Errorf("a usage move with none that fits goes nowhere: %q %q", got, why)
+	}
+	r.l.Ports.Usage = fakeUsage{st: AccountStatus{Exists: true}, head: map[string]float64{"a": 0.3, "b": 0.1}}
+	if got, _ := r.l.RoomElsewhere(q, "ann", row, nil, false); got != "a" {
 		t.Errorf("with no week readable, the most headroom as before: %q", got)
 	}
 	r.l.Ports.Usage = fakeUsage{st: AccountStatus{Exists: true}, urgent: map[string]float64{"a": 1.0, "b": 1.4, "c": 1.6}}
@@ -1189,20 +999,19 @@ func TestAStartKeepsWhatItsSettingsChanged(t *testing.T) {
 	}
 }
 
-// pastFitRig has five accounts: c short only of the room test with the most headroom of those; d short too with less; walled at its wall, short
-// with the most headroom of all; full with no slot; own, the one left out.
+// pastFitRig has five accounts: c with the most headroom of those a person may choose; d with less; walled at its wall, with the most
+// headroom of all; paused; own, the one left out.
 func pastFitRig(t *testing.T) (*launchRig, *db.AgentState) {
 	t.Helper()
 	r := newLaunchRig(t)
 	hot := AccountStatus{Exists: true, ShortTrusted: func() *int { n := 99; return &n }()}
 	r.l.Ports.Accounts = fakeAccounts{true}
-	r.l.Ports.CurrentAccount = func(db.Q, string) string { return "full" }
+	r.l.Ports.CurrentAccount = func(db.Q, string) string { return "paused" }
 	r.l.Ports.WaitingFor = func(db.Q, string) bool { return false }
 	pct := 10
-	r.l.Ports.Usage = fakeUsage{st: AccountStatus{Exists: true, ShortTrusted: &pct}, cap: 1, by: map[string]AccountStatus{"walled": hot},
-		head:  map[string]float64{"c": 0.5, "d": 0.2, "walled": 0.9, "full": 0.8, "own": 0.95},
-		share: map[string]float64{"c": 0.5, "d": 0.5, "walled": 0.5, "own": 0.5}, active: map[string]int{"full": 1}}
-	for _, a := range []string{"c", "d", "walled", "full", "own"} {
+	r.l.Ports.Usage = fakeUsage{st: AccountStatus{Exists: true, ShortTrusted: &pct}, by: map[string]AccountStatus{"walled": hot,
+		"paused": {Exists: true, ShortTrusted: &pct, Paused: true}}, head: map[string]float64{"c": 0.5, "d": 0.2, "walled": 0.9, "paused": 0.8, "own": 0.95}}
+	for _, a := range []string{"c", "d", "walled", "paused", "own"} {
 		os.MkdirAll(teamtest.AccountDir(t, r.l.Home, a), 0o755)
 	}
 	db.SetAgentState(r.l.Q, "ann", states.Idle, 0, "")
@@ -1210,13 +1019,13 @@ func pastFitRig(t *testing.T) (*launchRig, *db.AgentState) {
 	return r, row
 }
 
-func TestTheClosestAccountIsShortOnlyOfTheRoomTest(t *testing.T) {
+func TestTheClosestAccountIsTheMostHeadroomAPersonMayChoose(t *testing.T) {
 	r, row := pastFitRig(t)
 	if got := r.l.ClosestRoom(r.l.Q, "ann", row, map[string]string{"own": ""}); got != "c" {
-		t.Fatalf("most headroom past a wall, a full account and the one left out: %q", got)
+		t.Fatalf("most headroom past a wall, a paused account and the one left out: %q", got)
 	}
 	if got := r.l.ClosestRoom(r.l.Q, "ann", row, map[string]string{"own": "", "c": "", "d": ""}); got != "" {
-		t.Fatalf("nothing past a wall or a full account: %q", got)
+		t.Fatalf("nothing past a wall or a paused account: %q", got)
 	}
 }
 
@@ -1231,9 +1040,9 @@ func TestAPinOffersNothingAndRefusesAnotherAccount(t *testing.T) {
 	}
 }
 
-func TestAPersonsChoicePastTheFitStillMeetsTheWallAndTheSlot(t *testing.T) {
+func TestAPersonsChoiceStillMeetsTheWallAndThePause(t *testing.T) {
 	r, row := pastFitRig(t)
-	for acct, ok := range map[string]bool{"c": true, "walled": false, "full": false, "nowhere": false} {
+	for acct, ok := range map[string]bool{"c": true, "walled": false, "paused": false, "nowhere": false} {
 		if why := r.l.RoomPastFit(r.l.Q, "ann", row, acct); (why == "") != ok {
 			t.Errorf("%s: %q", acct, why)
 		}
@@ -1248,13 +1057,12 @@ func TestAResumeOntoAPausedAccountWaitsAndSaysItIsPaused(t *testing.T) {
 	db.SetAgentState(q, "ann", states.Idle, 0, "")
 	db.SetClosed(q, "ann", "s-ann")
 	row, _ := db.GetAgentState(q, "ann")
-	// The pace's five-hour share would otherwise answer first, and a person's start clears that wait.
-	r.l.Ports.Usage = fakeUsage{st: AccountStatus{Exists: true, Paused: true}, cap: 4, share: map[string]float64{"a": 0.5}}
+	r.l.Ports.Usage = fakeUsage{st: AccountStatus{Exists: true, Paused: true}}
 	w := r.l.WakeWait(q, "ann", row)
-	if w == nil || !w.Paused || w.FiveHour || DescribeWakeWait(w) != "waiting for a: it is paused; resume it in the app's settings" {
+	if w == nil || !w.Paused || DescribeWakeWait(w) != "waiting for a: it is paused; resume it in the app's settings" {
 		t.Fatalf("%+v", w)
 	}
-	r.l.Ports.Usage = fakeUsage{st: AccountStatus{Exists: true}, cap: 4}
+	r.l.Ports.Usage = fakeUsage{st: AccountStatus{Exists: true}}
 	if w := r.l.WakeWait(q, "ann", row); w != nil {
 		t.Fatalf("resumed, the account takes it: %+v", w)
 	}

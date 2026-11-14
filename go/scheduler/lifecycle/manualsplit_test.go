@@ -16,7 +16,7 @@ func (manualLaunch) ManualSplit() bool { return true }
 // agent, on none yet, is placed as in auto.
 func TestManualSplitKeepsAnAgentOnItsAccount(t *testing.T) {
 	r := pinRig(t, "")
-	r.l.Ports.Usage = fakeUsage{st: AccountStatus{Exists: true}, pick: "b", cap: 9, manual: true}
+	r.l.Ports.Usage = fakeUsage{st: AccountStatus{Exists: true}, pick: "b", manual: true}
 	if got := r.l.FindRoom("ann"); got != "b" {
 		t.Fatalf("a new agent is placed by the pick: %q", got)
 	}
@@ -35,7 +35,7 @@ func TestManualSplitKeepsAnAgentOnItsAccount(t *testing.T) {
 		t.Fatalf("an account it cannot use (logged out) is not kept: %q", got)
 	}
 	r.l.Ports.CurrentAccount = func(db.Q, string) string { return "a" }
-	r.l.Ports.Usage = fakeUsage{st: AccountStatus{Exists: true}, by: map[string]AccountStatus{"a": {Exists: true, Paused: true}}, pick: "b", cap: 9, manual: true}
+	r.l.Ports.Usage = fakeUsage{st: AccountStatus{Exists: true}, by: map[string]AccountStatus{"a": {Exists: true, Paused: true}}, pick: "b", manual: true}
 	if got := r.l.FindRoom("ann"); got != "b" {
 		t.Fatalf("a paused account is not kept: %q", got)
 	}

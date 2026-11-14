@@ -193,15 +193,9 @@ func (e *Env) kindOf(agent string) (string, string, bool) {
 type Load struct {
 	Account string
 	Active  int      // agents mid-turn on it
-	Cap     int      // most agents mid-turn at once
 	Burn    *float64 // percent of the shortest window per second (Costs.Burn); nil unknown
 	Costs   *Costs
-	// Hold: the launch pace hold is on (LaunchHoldOn), so a prediction that runs a window out keeps a start off the account.
-	Hold bool
 }
-
-// AtCap: the account has as many agents mid-turn as it may.
-func (l *Load) AtCap() bool { return l.Active >= l.Cap }
 
 // HoldDroppedKind lets go a slot held for a start that will not happen. It is not wake_dropped, which a start's waiter reads as the
 // wake's own answer: a resume refused before a fresh retry starts the agent must not read as not started.
@@ -295,11 +289,10 @@ func (e *Env) ReadAll(q db.Q, exclude string) (map[string]*Load, error) {
 	out := map[string]*Load{}
 	for _, a := range paths.ListAccounts(e.Home) {
 		on := without(by[a], exclude)
-		l := &Load{Account: a, Active: len(on), Costs: costs, Hold: LaunchHoldOn(e.config())}
+		l := &Load{Account: a, Active: len(on), Costs: costs}
 		if b, ok := costs.Burn(a, on); ok {
 			l.Burn = &b
 		}
-		l.Cap = e.capWith(a, costs, l.Burn)
 		out[a] = l
 	}
 	return out, nil

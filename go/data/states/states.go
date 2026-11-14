@@ -44,6 +44,9 @@ const (
 	ByHandMark = "by hand"
 	// EarlyUsageTrigger is a handoff short of the wall, at usage_move_before_pct: a move to an account with room, never a wait for a reset.
 	EarlyUsageTrigger = "usage_early"
+	// MoveBeforeWeekPct is the percent of its week at which an idle agent with work waiting moves early (while usage_move_before_pct is
+	// on), and past which a new start goes elsewhere when another account fits.
+	MoveBeforeWeekPct = 98
 	// FoldKind is the event the tick writes when it closes an idle session fresh for its full context, and the cost-pilot switch for it.
 	FoldKind = "idle_fold"
 	// CompactAskedKind is the event session.compact writes: the tick hands the agent off as for a full context until a handoff or a new

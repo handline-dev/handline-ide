@@ -2,7 +2,6 @@ package lifecycle
 
 import (
 	"crypto/sha256"
-	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -21,7 +20,6 @@ import (
 	cli "github.com/handline/handline/go/agentctl/agent"
 	"github.com/handline/handline/go/agentctl/verdict"
 	"github.com/handline/handline/go/data/db"
-	"github.com/handline/handline/go/data/states"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/gitrun"
@@ -66,27 +64,19 @@ type UsagePort interface {
 	// Admit is verdict.Admit's Fits tier for the account: nothing known says it is a bad place to start. A stale or missing reading
 	// is the account nobody has run on lately, and the session about to start is the only thing that writes a fresh one.
 	Admit(acct, agent, vendor string) verdict.Admission
-	// CapOf is how many agents the account may have mid-turn at once: the configured cap, shrunk where its current burn would hit the
-	// week's block before it resets and, with pacing on, where it runs ahead of its weekly pace line.
-	CapOf(acct string) int
-	// CapUnpaced is CapOf without the pace: what a person's own start is held to.
-	CapUnpaced(acct string) int
-	// Pace is the account's weekly pace, nil when its week is not known.
-	Pace(acct string) *usage.Pace
 	// Urgency is the account's unused weekly use per hour left (usage.Urgency); ok false where its week cannot be read.
 	Urgency(acct string) (float64, bool)
-	// PaceShare is how many times over the account's shorter-lasting window lasts to its reset with agent started on it (1 or more: it
-	// lasts; usage.Predict); ok false where that cannot be told or the launch pace hold is off, which holds nothing.
-	PaceShare(q db.Q, acct, agent string) (float64, bool)
 	// ManualSplit is account_split manual: the daemon places and moves no agent; each stays on its account and waits at its wall.
 	ManualSplit() bool
 	// Headroom is what the account's weekly bucket still holds as a share of the week's quota, ok false when the pace cannot be read. The
 	// larger, the slower-paced.
 	Headroom(acct string) (float64, bool)
 	// ActiveOn is how many agents are mid-turn on the account, agent itself left out (load.active_agents with exclude): one counted
-	// from its wake_reserved event until its Stop counts too. PickAccount and Fit leave agent out of the load the same way
-	// (load.read_all(exclude=agent)), so a placement is not refused for the slot the agent being placed holds.
-	ActiveOn(q db.Q, acct, agent string) int
+	// from its wake_reserved event until its Stop counts too. The pick spreads similar accounts by it.
+	ActiveOn(q db.Q, acct, agent string) (int, error)
+	// StartFit is the pick's test of the account for agent's start: why it is not a first choice ("" when it is), and the points left
+	// under its nearer wall. A move ranks by it as a new start does.
+	StartFit(acct, agent string) (unfit string, room int)
 	// MidTurn is every agent mid-turn on any account, agent left out, as ActiveOn counts them; nil when it cannot be read.
 	MidTurn(q db.Q, agent string) []string
 }
@@ -153,47 +143,16 @@ type Launcher struct {
 	// FounderTyped says the founder's words are typed at agent (supervisor.Env.FounderTyped); nil is never.
 	FounderTyped func(agent string) bool
 
-	// pacePassed is each agent a person let past the pace (PassPace), until when.
-	pacePassed sync.Map
 	// placeMu makes choosing an account and holding its slot (wake_reserved) one step: a launch's choice (Build), a wake's fresh or
 	// cold choice, and the slot of a move or a warm resume, asked again under it (wake.go). Taken after the agent's lock and the terminal lock, never before them; nothing under it takes
 	// another lock, makes a network call or waits (usage.Env.Refresh, the one live read a pick may make, is not set in the daemon).
 	placeMu sync.Mutex
 }
 
-// SlotTaken is why acct has no free slot for agent, "" when it has: agents mid-turn or held on it, agent left out, against its cap, the
-// unpaced one where unpaced or a person let the agent past the pace (as full weighs it).
-func (l *Launcher) SlotTaken(q db.Q, agent, acct string, unpaced bool) string {
-	var limit int
-	if unpaced || l.pacePassedFor(agent) {
-		limit = l.Ports.Usage.CapUnpaced(acct)
-	} else {
-		limit = l.Ports.Usage.CapOf(acct)
-	}
-	if n := l.Ports.Usage.ActiveOn(q, acct, agent); n >= limit {
-		return fmt.Sprintf("%s has no free slot now: %d of %d agents mid-turn or held", acct, n, limit)
-	}
-	return ""
-}
-
 // Placing takes placeMu; the returned func lets it go.
 func (l *Launcher) Placing() func() {
 	l.placeMu.Lock()
 	return l.placeMu.Unlock
-}
-
-// PacePassFor is how long a force start lets an agent past the pace: long enough for the start it asked for.
-const PacePassFor = 2 * time.Minute
-
-// PassPace lets agent's next start past its account's pace (a person's force start).
-func (l *Launcher) PassPace(agent string) { l.pacePassed.Store(agent, l.now().Add(PacePassFor)) }
-
-// UnpassPace takes back a PassPace the start has not used yet.
-func (l *Launcher) UnpassPace(agent string) { l.pacePassed.Delete(agent) }
-
-func (l *Launcher) pacePassedFor(agent string) bool {
-	until, ok := l.pacePassed.Load(agent)
-	return ok && l.now().Before(until.(time.Time))
 }
 
 func (l *Launcher) warn(format string, a ...any) {
@@ -326,21 +285,11 @@ func (l *Launcher) FindRoom(agent string) string {
 	}
 	vendor := l.Ports.Vendors.AgentVendor(agent)
 	for _, a := range candidates {
-		if l.Ports.Usage.Admit(a, agent, vendor).Fits {
+		if l.Ports.Usage.Admit(a, agent, vendor).Fits && l.paused(a, false) == nil {
 			return a
 		}
 	}
-	// A start a person let past the hold (force start) goes where the week has the most room, though the 5-hour window will not last.
-	if !l.pacePassedFor(agent) {
-		return ""
-	}
-	best, most := "", math.Inf(-1)
-	for _, a := range candidates {
-		if h, _ := l.Ports.Usage.Headroom(a); !l.Ports.Usage.NotFor(a, vendor) && h > most {
-			best, most = a, h
-		}
-	}
-	return best
+	return ""
 }
 
 // ChooseAccount is which account this launch runs on, "" when there is none. The moment a session is made is the only moment its
@@ -376,19 +325,14 @@ type WakeWait struct {
 	Assumed bool
 	Window  string // the walled window's length as a person says it
 	IsLong  bool   // the longest window, not the shortest
-	// Slot: no wall, no slot - the account is full. Full is its cap now (0 when it would run out before it resets), Busy the others mid-turn on it,
-	// Older the closed agents the daemon wakes first. Unpaced is the cap without the pace; Pace is set when only the pace keeps the slot.
-	Slot                       bool
-	Full, Busy, Older, Unpaced int
-	Pace                       *usage.Pace
-	// FiveHour: a slot is free but no account the agent may run on would last to its 5-hour reset with it. Reset is the earliest of
-	// those resets. The daemon's own starts wait for it; a person's and a force start go.
-	FiveHour bool
+	// Slot: no wall, but nothing may start - the account is paused (Paused) or the workspace is at its agent_cap (Workspace).
+	Slot bool
 	// Paused: the account is paused, so nothing starts on it until it is resumed.
 	Paused bool
 	// Workspace: the agent's workspace has Busy of its agent_cap (Full) mid-turn, Rule saying so; no account is in question.
-	Workspace string
-	Rule      *team.KeptRule
+	Full, Busy int
+	Workspace  string
+	Rule       *team.KeptRule
 }
 
 // wall is the window this account is walled behind, the shortest first: an account walled on both reports the shortest one's rollover,
@@ -404,121 +348,39 @@ func (l *Launcher) wall(acct string, assumed bool) *WakeWait {
 	return nil
 }
 
-// full is a resume's wait for a slot on its own account, where it is not moved: none is left once the others on it (agent itself left out)
-// fill the cap, or older closed agents waiting for the same account would take what is free. Oldest waiter first; queue false (a person's
-// start) counts no waiter and is not held by the pace.
-func (l *Launcher) full(q db.Q, agent string, row *db.AgentState, acct string, assumed, queue bool) (*WakeWait, error) {
+// paused is the wait of a start on acct while it is paused, nil when it is not.
+func (l *Launcher) paused(acct string, assumed bool) *WakeWait {
 	if l.Ports.Usage.Read(acct).Paused {
-		return &WakeWait{Account: acct, Assumed: assumed, Window: "slot", Slot: true, Paused: true}, nil
+		return &WakeWait{Account: acct, Assumed: assumed, Window: "slot", Slot: true, Paused: true}
 	}
-	cap, unpaced, others := l.Ports.Usage.CapOf(acct), l.Ports.Usage.CapUnpaced(acct), l.Ports.Usage.ActiveOn(q, acct, agent)
-	if !queue || l.pacePassedFor(agent) {
-		cap = unpaced
-	} else if share, ok := l.Ports.Usage.PaceShare(q, acct, agent); ok && share < 1 {
-		return &WakeWait{Account: acct, Assumed: assumed, Window: "slot", Slot: true, FiveHour: true, Reset: l.earliestFiveHourReset(agent, acct),
-			Busy: others, Unpaced: unpaced}, nil
-	}
-	var rows []*db.AgentState
-	if queue {
-		var err error
-		if rows, err = db.AllAgentStates(q); err != nil {
-			return nil, err
-		}
-	}
-	older := 0
-	for _, r := range rows {
-		if r.Agent == agent || r.ClosedAt.Int64 == 0 || r.ResumeSession.String == "" || r.State == states.Stalled || r.WakeFailures >= states.MaxFailedAttempts {
-			continue
-		}
-		if r.ClosedAt.Int64 > row.ClosedAt.Int64 || (r.ClosedAt.Int64 == row.ClosedAt.Int64 && r.Agent >= agent) {
-			continue
-		}
-		if l.Ports.CurrentAccount(q, r.Agent) == acct && l.Ports.WaitingFor(q, r.Agent) {
-			older++
-		}
-	}
-	if others+older < cap {
-		return nil, nil
-	}
-	w := &WakeWait{Account: acct, Assumed: assumed, Window: "slot", Slot: true, Full: cap, Busy: others, Older: older, Unpaced: unpaced}
-	if others+older < unpaced {
-		w.Pace = l.Ports.Usage.Pace(acct)
-	}
-	return w, nil
+	return nil
 }
 
-// earliestFiveHourReset is when the first 5-hour window rolls over among the accounts agent may run on, own when none says.
-func (l *Launcher) earliestFiveHourReset(agent, own string) int64 {
-	vendor, now := l.Ports.Vendors.AgentVendor(agent), l.now().Unix()
-	var first int64
-	for _, a := range l.mayStartAccounts(agent) {
-		if r := l.Ports.Usage.Read(a).ShortReset; r > now && !l.Ports.Usage.NotFor(a, vendor) && (first == 0 || r < first) {
-			first = r
-		}
-	}
-	if first == 0 {
-		first = l.Ports.Usage.Read(own).ShortReset
-	}
-	return first
-}
-
-// fiveHourHold is the wait of a start with no session when no account would last to its reset with it: nil when some account's 5-hour
-// window is not what keeps it out.
-func (l *Launcher) fiveHourHold(q db.Q, agent string) *WakeWait {
-	vendor, short := l.Ports.Vendors.AgentVendor(agent), ""
-	for _, a := range l.mayStartAccounts(agent) {
-		if l.Ports.Usage.NotFor(a, vendor) {
-			continue
-		}
-		if share, ok := l.Ports.Usage.PaceShare(q, a, agent); !ok || share >= 1 {
-			return nil
-		}
-		short = a
-	}
-	if short == "" {
-		return nil
-	}
-	return &WakeWait{Account: short, Window: "slot", Slot: true, FiveHour: true, Reset: l.earliestFiveHourReset(agent, short)}
-}
-
-// SlowestPaced is the account a closed agent moves to when its own (skip) is full: of the other accounts that may
-// start, take this vendor, fit, and have a free slot the way a resume's wait judges it (the others mid-turn plus the older closed agents
-// waiting there, so a move does not jump their queue), the one furthest behind its week. "" when none has room.
+// SlowestPaced is the account a closed agent moves to when its own (skip) cannot take it: of the other accounts that may start, take this
+// vendor, fit and are not paused, the one whose week runs out soonest. "" when none can.
 func (l *Launcher) SlowestPaced(q db.Q, agent string, row *db.AgentState, skip string) string {
 	if l.Ports.Usage.ManualSplit() && !l.Ports.Usage.Read(skip).Paused {
 		return ""
 	}
-	best, _ := l.RoomElsewhere(q, agent, row, map[string]string{skip: ""})
+	best, _ := l.RoomElsewhere(q, agent, row, map[string]string{skip: ""}, false)
 	return best
-}
-
-// asWaiter is the row of an agent about to be placed: an open one is newer than every closed agent waiting for a slot, so none of them is
-// passed over for it.
-func asWaiter(row *db.AgentState) *db.AgentState {
-	if row == nil || row.ClosedAt.Valid && row.ClosedAt.Int64 != 0 {
-		return row
-	}
-	c := *row
-	c.ClosedAt = sql.NullInt64{Int64: math.MaxInt64, Valid: true}
-	return &c
 }
 
 // RoomElsewhere is SlowestPaced with a reason for each account passed over: exclude names the accounts left out and why. The second result
 // is why no account has room, "" when one does. A move to an account is held to this same test, so a wake and a handoff cannot disagree.
-func (l *Launcher) RoomElsewhere(q db.Q, agent string, row *db.AgentState, exclude map[string]string) (string, string) {
-	return l.roomElsewhere(q, agent, row, exclude, true)
+func (l *Launcher) RoomElsewhere(q db.Q, agent string, row *db.AgentState, exclude map[string]string, fitOnly bool) (string, string) {
+	return l.roomElsewhere(q, agent, row, exclude, fitOnly)
 }
 
-// ClosestRoom is the account with the most headroom of those short only of the room test, with no older closed agent counted ahead: what a
-// person is offered when no account has room. "" when a wall, a full account or a pin rules them all out.
+// ClosestRoom is the account with the most headroom of those a person may choose: what a person is offered when no account has room. ""
+// when a wall, a paused account or a pin rules them all out.
 func (l *Launcher) ClosestRoom(q db.Q, agent string, row *db.AgentState, exclude map[string]string) string {
 	if l.PinOf(agent) != "" {
 		return ""
 	}
-	row = asWaiter(row)
 	best, most := "", math.Inf(-1)
 	for _, a := range l.mayStartAccounts(agent) {
-		if _, skip := exclude[a]; skip || !l.pastFit(q, agent, row, a) {
+		if _, skip := exclude[a]; skip || !l.pastFit(agent, a) {
 			continue
 		}
 		h, ok := l.Ports.Usage.Headroom(a)
@@ -532,14 +394,9 @@ func (l *Launcher) ClosestRoom(q db.Q, agent string, row *db.AgentState, exclude
 	return best
 }
 
-// pastFit is whether a person may put agent on acct though it may not last: no wall, nothing outright against it, and a free slot.
-func (l *Launcher) pastFit(q db.Q, agent string, row *db.AgentState, acct string) bool {
-	adm := l.Ports.Usage.Admit(acct, agent, l.Ports.Vendors.AgentVendor(agent))
-	if !adm.Fits && !adm.OnlyNoRoomFit {
-		return false
-	}
-	w, err := l.full(q, agent, row, acct, false, false)
-	return err == nil && w == nil
+// pastFit is whether a person may put agent on acct: no wall, nothing outright against it, and not paused.
+func (l *Launcher) pastFit(agent, acct string) bool {
+	return l.Ports.Usage.Admit(acct, agent, l.Ports.Vendors.AgentVendor(agent)).Fits && l.paused(acct, false) == nil
 }
 
 // RoomPastFit is why agent cannot go on acct by a person's choice past the room test, "" when it can.
@@ -553,8 +410,8 @@ func (l *Launcher) RoomPastFit(q db.Q, agent string, row *db.AgentState, acct st
 	if !slices.Contains(l.mayStartAccounts(agent), acct) {
 		return "is not logged in or may not start"
 	}
-	if !l.pastFit(q, agent, asWaiter(row), acct) {
-		return "is at a limit or has no free slot"
+	if !l.pastFit(agent, acct) {
+		return "is at a limit or paused"
 	}
 	return ""
 }
@@ -567,19 +424,18 @@ func (l *Launcher) WorthRepick(own, to string) bool {
 	return !okA || !okB || b-a >= usage.RepickGain
 }
 
-// RoomNow is a person's start off skip, where it does not wait its turn: the account with the most headroom on both its 5h and weekly
-// window, with no older closed agent counted ahead of it.
+// RoomNow is a person's start off skip: RoomElsewhere.
 func (l *Launcher) RoomNow(q db.Q, agent string, row *db.AgentState, skip string) (string, string) {
 	return l.roomElsewhere(q, agent, row, map[string]string{skip: ""}, false)
 }
 
-func (l *Launcher) roomElsewhere(q db.Q, agent string, row *db.AgentState, exclude map[string]string, queue bool) (string, string) {
+func (l *Launcher) roomElsewhere(q db.Q, agent string, row *db.AgentState, exclude map[string]string, fitOnly bool) (string, string) {
 	if pin := l.PinOf(agent); pin != "" {
 		return "", "it is pinned to " + pin
 	}
-	row = asWaiter(row)
 	vendor := l.Ports.Vendors.AgentVendor(agent)
 	best, most := "", math.Inf(-1)
+	roomiest, roomMost := "", -1
 	var passed []string
 	var ranked []usage.Ranked
 	for _, a := range l.mayStartAccounts(agent) {
@@ -590,8 +446,16 @@ func (l *Launcher) roomElsewhere(q db.Q, agent string, row *db.AgentState, exclu
 			passed = append(passed, a+": "+strings.Join(adm.Reasons, ", "))
 			continue
 		}
-		if w, err := l.full(q, agent, row, a, false, queue); err != nil || w != nil {
-			passed = append(passed, a+": no free slot")
+		if l.paused(a, false) != nil {
+			passed = append(passed, a+": paused")
+			continue
+		}
+		// As the pick: an account that fits first; where none does, the one with the most room under its wall (not for fitOnly).
+		if unfit, room := l.Ports.Usage.StartFit(a, agent); unfit != "" {
+			passed = append(passed, a+": "+unfit)
+			if !fitOnly && room > roomMost {
+				roomiest, roomMost = a, room
+			}
 			continue
 		}
 		h, ok := l.Ports.Usage.Headroom(a)
@@ -601,12 +465,19 @@ func (l *Launcher) roomElsewhere(q db.Q, agent string, row *db.AgentState, exclu
 		if h > most {
 			best, most = a, h
 		}
+		active, err := l.Ports.Usage.ActiveOn(q, a, agent)
+		if err != nil {
+			return "", "the agents mid-turn cannot be read: " + err.Error()
+		}
 		u, known := l.Ports.Usage.Urgency(a)
-		ranked = append(ranked, usage.Ranked{Name: a, Urgency: u, Known: known, Active: l.Ports.Usage.ActiveOn(q, a, agent)})
+		ranked = append(ranked, usage.Ranked{Name: a, Urgency: u, Known: known, Active: active})
 	}
 	// The week that runs out soonest first, similar ones spread by agents mid-turn; the most headroom only where no week can be read.
 	if b, ok := usage.BestByUrgency(ranked); ok {
 		best = b.Name
+	}
+	if best == "" {
+		best = roomiest
 	}
 	if best == "" {
 		return "", "no account can take one more agent (" + strings.Join(passed, "; ") + ")"
@@ -622,7 +493,6 @@ func (l *Launcher) RoomOn(q db.Q, agent string, row *db.AgentState, acct string)
 	if why := l.leftOut(agent, acct); why != "" {
 		return why
 	}
-	row = asWaiter(row)
 	for _, a := range l.mayStartAccounts(agent) {
 		if a != acct {
 			continue
@@ -630,15 +500,16 @@ func (l *Launcher) RoomOn(q db.Q, agent string, row *db.AgentState, acct string)
 		if adm := l.Ports.Usage.Admit(a, agent, l.Ports.Vendors.AgentVendor(agent)); !adm.Fits {
 			return "is not a place for it: " + strings.Join(adm.Reasons, ", ")
 		}
-		if w, err := l.full(q, agent, row, a, false, true); err != nil || w != nil {
-			return "has no free slot"
+		if l.paused(a, false) != nil {
+			return "is paused"
 		}
 		return ""
 	}
 	return "is not logged in or may not start"
 }
 
-// FreesFirst is, for an agent no account has room for, the walled account whose wall lifts first; nil when none is walled.
+// FreesFirst is, for an agent no account has room for, the walled account whose wall lifts first, else a paused one (when it is resumed
+// cannot be told); nil when none is walled or paused.
 func (l *Launcher) FreesFirst(agent string) *WakeWait {
 	vendor := l.Ports.Vendors.AgentVendor(agent)
 	var best *WakeWait
@@ -652,7 +523,11 @@ func (l *Launcher) FreesFirst(agent string) *WakeWait {
 		if l.Ports.Usage.NotFor(a, vendor) {
 			continue
 		}
-		if w := l.wall(a, false); w != nil && (best == nil || rank(w) < rank(best)) {
+		w := l.wall(a, false)
+		if w == nil {
+			w = l.paused(a, false)
+		}
+		if w != nil && (best == nil || rank(w) < rank(best)) {
 			best = w
 		}
 	}
@@ -711,18 +586,12 @@ func (l *Launcher) WakeWait(q db.Q, agent string, row *db.AgentState) *WakeWait 
 		if w := l.wall(acct, source == "assumed"); w != nil {
 			return w
 		}
-		return must(l.full(q, agent, row, acct, source == "assumed", true))
+		return l.paused(acct, source == "assumed")
 	}
 	if l.ChooseAccount(agent, false, "") != "" {
 		return nil
 	}
-	if w := l.FreesFirst(agent); w != nil {
-		return w
-	}
-	if l.pacePassedFor(agent) {
-		return nil
-	}
-	return l.fiveHourHold(q, agent)
+	return l.FreesFirst(agent)
 }
 
 // WorkspaceWait is the wait of agent's workspace at its agent_cap: as many of its other agents mid-turn as the rule allows, nil when
@@ -777,23 +646,6 @@ func DescribeWakeWait(w *WakeWait) string {
 	}
 	if w.Paused {
 		return fmt.Sprintf("waiting for %s: it is paused; resume it in the app's settings", w.Account)
-	}
-	if w.FiveHour {
-		return fmt.Sprintf("Held so Claude's 5-hour limit lasts until it starts over at %s. This starts then.", WaitClock(w, "a later time"))
-	}
-	if w.Pace != nil {
-		return fmt.Sprintf("waiting for %s's weekly pace: %d%% used, %.0f points ahead of its line (%.0f%%)", w.Account, w.Pace.Used,
-			float64(w.Pace.Used)-w.Pace.Line, w.Pace.Line)
-	}
-	if w.Slot && w.Full == 0 {
-		return fmt.Sprintf("waiting for %s: it would run out before it resets and takes no new agent", w.Account)
-	}
-	if w.Slot {
-		first := ""
-		if w.Older > 0 {
-			first = fmt.Sprintf(", %d older waiting go first", w.Older)
-		}
-		return fmt.Sprintf("waiting for a slot on %s (%d of %d mid-turn%s)", w.Account, w.Busy, w.Full, first)
 	}
 	who := w.Account
 	if w.Assumed {
@@ -1570,16 +1422,12 @@ func (p LaunchPort) Placing() func() { return p.L.Placing() }
 
 func (p LaunchPort) ManualSplit() bool { return p.L.Ports.Usage.ManualSplit() }
 
-func (p LaunchPort) SlotTaken(q db.Q, agent, acct string, unpaced bool) string {
-	return p.L.SlotTaken(q, agent, acct, unpaced)
-}
-
 func (p LaunchPort) SlowestPaced(q db.Q, agent string, row *db.AgentState, skip string) string {
 	return p.L.SlowestPaced(q, agent, row, skip)
 }
 
-func (p LaunchPort) RoomElsewhere(q db.Q, agent string, row *db.AgentState, exclude map[string]string) (string, string) {
-	return p.L.RoomElsewhere(q, agent, row, exclude)
+func (p LaunchPort) RoomElsewhere(q db.Q, agent string, row *db.AgentState, exclude map[string]string, fitOnly bool) (string, string) {
+	return p.L.RoomElsewhere(q, agent, row, exclude, fitOnly)
 }
 
 func (p LaunchPort) ClosestRoom(q db.Q, agent string, row *db.AgentState, exclude map[string]string) string {

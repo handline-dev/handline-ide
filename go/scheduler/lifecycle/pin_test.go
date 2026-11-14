@@ -51,7 +51,7 @@ func TestAPinnedAgentRunsOnlyOnItsAccountAndNothingMovesIt(t *testing.T) {
 	if why := r.l.RoomOn(r.l.Q, "ann", nil, "b"); !strings.Contains(why, "pinned to") {
 		t.Fatalf("a person's move elsewhere: %q", why)
 	}
-	if dest, why := r.l.RoomElsewhere(r.l.Q, "ann", nil, nil); dest != "" || why != "it is pinned to a" {
+	if dest, why := r.l.RoomElsewhere(r.l.Q, "ann", nil, nil, false); dest != "" || why != "it is pinned to a" {
 		t.Fatalf("the mover: %q %q", dest, why)
 	}
 	if got := pinRig(t, "").l.FindRoom("ann"); got != "b" {

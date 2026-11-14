@@ -10,13 +10,12 @@ import (
 	"github.com/handline/handline/go/scheduler/pause"
 )
 
-// Wall is what holds back a wake that is due: the account it would wake on is at a usage limit, or no account has a free slot.
+// Wall is what holds back a wake that is due: the account it would wake on is at a usage limit, or paused, or its workspace is full (Slot).
 type Wall struct {
 	Text string
-	// Reset is when the walled window rolls over, or for Pace when the account's line catches up, unix seconds; 0 for a slot or when it
-	// is not known. Pace: only the account's weekly pace keeps a slot.
-	Reset      int64
-	Slot, Pace bool
+	// Reset is when the walled window rolls over, unix seconds; 0 for a slot or when it is not known.
+	Reset int64
+	Slot  bool
 }
 
 // status is the view's x-status, from the wire word and its detail and the facts they were made from.
@@ -63,11 +62,6 @@ func (e *Env) status(agent string, row *db.AgentState, state, detail string, han
 		if w := e.Walled(agent, row); w != nil {
 			if why := loadHeld(); why != "" { // the wake asks the load before an account
 				return held(why)
-			}
-			if w.Pace {
-				s := at(status.Waiting, status.Pace, w.Text)
-				s.Until = w.Reset
-				return s
 			}
 			if w.Slot {
 				return at(status.Stopped, status.Cap, w.Text)

@@ -234,9 +234,14 @@ func (v *accountView) of(a string) map[string]any {
 			on = append(on, n)
 		}
 	}
+	// cap and cap_effective limit nothing any more; they stay for the app until it stops reading them (0 effective still says paused).
 	var cap any
 	if n, ok := cfg.OwnCap(a); ok {
 		cap = n
+	}
+	capEffective := cfg.CapOf(a)
+	if cfg.Paused(a) {
+		capEffective = 0
 	}
 	var end any
 	if d := cfg.EndDate(a); d != "" {
@@ -244,7 +249,7 @@ func (v *accountView) of(a string) map[string]any {
 	}
 	acct := map[string]any{
 		"name": a, "login_state": loginWord(in, known), "five_hour": windowView(st.Short), "weekly": windowView(st.Long),
-		"agents": on, "moves": e.accountMoves(a), "label": cfg.LabelOf(a), "vendor": team.AccountVendor(e.Home, a), "cap": cap, "cap_effective": v.ue.CapNow(e.DB, a),
+		"agents": on, "moves": e.accountMoves(a), "label": cfg.LabelOf(a), "vendor": team.AccountVendor(e.Home, a), "cap": cap, "cap_effective": capEffective,
 		"recover": cfg.RecoverEnabled(a), "paused": cfg.Paused(a),
 		"cycle": map[string]any{"on": cfg.CycleOn(a), "end": end, "end_is_default": cfg.EndIsDefault(a)}}
 	if l := e.loginOf(a); l != nil {
@@ -304,7 +309,7 @@ func (v *accountView) addUsage(acct map[string]any, a string, ld *usage.Load) {
 	}
 	allowed, why := st.TakesWork(active)
 	if allowed {
-		if bad := usage.Unfit(st, ld, ""); bad != "" {
+		if bad := usage.Unfit(st); bad != "" {
 			allowed, why = false, bad
 		}
 	}
@@ -338,11 +343,7 @@ func paceOf(p *usage.Pace) any {
 	if p == nil {
 		return nil
 	}
-	var back any
-	if p.BackAt != 0 {
-		back = ts(p.BackAt)
-	}
-	return map[string]any{"state": p.State, "line_pct": p.Line, "used_pct": p.Used, "rate_pct_h": p.RateH, "back_at": back}
+	return map[string]any{"state": p.State, "line_pct": p.Line, "used_pct": p.Used, "rate_pct_h": p.RateH, "back_at": nil}
 }
 
 // loginOf is the account's latest web login as the accounts topic shows it, nil when none was started. It never has the authorize URL: only the founder's account.login reply does.

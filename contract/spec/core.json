@@ -326,7 +326,7 @@
    "clock": "Waits for a time: until says when.",
    "move": "An account move is settling.",
    "load": "The machine is over a load limit (host_active_cap, load_per_core_pct, ram_free_min_pct): the daemon starts none of its work until it is under, by itself; text names the limit that tripped. agent.force_start lets it go once. A message the person sends (the founder's or a paired device's) is never held by it: its agent wakes at once, and load_limit_passed is recorded in agent.timeline within 10 s of the send; the limit holds only agents' work and the daemon's own, and for at most 10 minutes: work held that long goes once, and load_limit_passed (by: ceiling) is recorded. A message held by the load is not a stuck delivery: no heal step or stuck card is made for it.",
-   "pace": "Every account it may run on has no free slot only because of its weekly pace (Account.pace; without the launch pace hold one would have room), or none would last to its 5-hour reset with one more agent on it: the daemon starts it when a slot frees, a line catches up or a 5-hour window starts over, by itself, and a start goes to the account furthest behind its line. text names the account and how far ahead it is for the pace, and names no account for the 5-hour limit; until is the earliest back_at, or the earliest 5-hour reset, null when not known. A turn a person starts (a message a person sends, a person's own start or wake) and a restart are never held. agent.force_start lets it go once.",
+   "pace": "No longer given: no pace holds a start. It goes from this contract once the app stops naming it.",
    "paused": "Paused (daemon.pause): the daemon starts none of an agent's work and none of its own; a turn already running goes to its end. A turn a person starts (a message a person sends, a person's own start or wake) and a restart are never held. A message an agent or the daemon sends waits too, unless its agent is mid-turn. Clocks keep running: a task's timeout and a gate's watch go on while paused, and only the turns they would start wait. It goes on at daemon.resume, or by itself at the pause's until; until is that time, null when there is none. agent.force_start does not pass it. A task is held the same way, mid-turn too, unless the founder sent it. When the pause is what keeps queued tasks from their agent, the agent's status is waiting, reason paused, with those tasks in tasks, oldest first, whether its session is up or not: task.send_now lets one of them go while the pause stays, daemon.resume lets everything go.",
    "wall": "The account it would run on is at a usage limit; until is when the window rolls over, null when not known.",
    "cap": "No account has a free slot; it starts when a running turn ends.",
@@ -1910,7 +1910,7 @@
       "type": "integer",
       "minimum": 1,
       "default": 2,
-      "description": "Default cap: most agents mid-turn at once on an account with no cap of its own."
+      "description": "The cap shown for an account with none of its own (Account.cap_effective). It limits nothing. Kept until the app stops reading it."
      },
      "park_timeout_s": {
       "type": "integer",
@@ -2059,7 +2059,7 @@
      "launch_pace_hold": {
       "type": "boolean",
       "default": false,
-      "description": "Turn on every hold the pace prediction makes on a start (usage Predict): an account ahead of its weekly pace line (Account.pace) starts fewer turns, and one ahead by more than pace_burst_pct starts none (status reason pace); the cap shrinks where the agents mid-turn would reach the week's block before it ends; and a start waits when one more agent would run the 5-hour window or the week out before its reset. The prediction prices each agent mid-turn at its model's dollar pace over the account's factors (Account.factors). A turn a person starts is never held, and a running turn is never stopped. Off by default: the prediction is still read and shown, and holds nothing; only the windows' walls hold work."
+      "description": "No longer read or written: no pace holds a start. settings.set refuses it; it goes from this contract once the app stops naming it."
      },
      "pace_target_pct": {
       "type": "integer",
@@ -2073,7 +2073,7 @@
       "minimum": 0,
       "maximum": 50,
       "default": 10,
-      "description": "How far, in points of the week, an account may run ahead of its pace line. Inside it the account's cap shrinks in step; past it the account starts no new turn."
+      "description": "How far, in points of the week, an account may run ahead of its pace line and read as ahead rather than over (Account.pace.state). It holds no start."
      },
      "subagent_pace_guard": {
       "type": "boolean",
@@ -2193,7 +2193,7 @@
         "type": "null"
        }
       ],
-      "description": "Default cap: most agents mid-turn at once on an account with no cap of its own. null removes the key (back to the default)."
+      "description": "The cap shown for an account with none of its own (Account.cap_effective). It limits nothing. Kept until the app stops reading it. null removes the key (back to the default)."
      },
      "park_timeout_s": {
       "oneOf": [
@@ -2493,7 +2493,7 @@
         "type": "null"
        }
       ],
-      "description": "Turn on every hold the pace prediction makes on a start (usage Predict): an account ahead of its weekly pace line (Account.pace) starts fewer turns, and one ahead by more than pace_burst_pct starts none (status reason pace); the cap shrinks where the agents mid-turn would reach the week's block before it ends; and a start waits when one more agent would run the 5-hour window or the week out before its reset. The prediction prices each agent mid-turn at its model's dollar pace over the account's factors (Account.factors). A turn a person starts is never held, and a running turn is never stopped. Off by default: the prediction is still read and shown, and holds nothing; only the windows' walls hold work."
+      "description": "No longer read or written: no pace holds a start. settings.set refuses it; it goes from this contract once the app stops naming it."
      },
      "pace_target_pct": {
       "oneOf": [
@@ -2519,7 +2519,7 @@
         "type": "null"
        }
       ],
-      "description": "How far, in points of the week, an account may run ahead of its pace line. Inside it the account's cap shrinks in step; past it the account starts no new turn. null removes the key (back to the default)."
+      "description": "How far, in points of the week, an account may run ahead of its pace line and read as ahead rather than over (Account.pace.state). It holds no start. null removes the key (back to the default)."
      },
      "subagent_pace_guard": {
       "type": "boolean",

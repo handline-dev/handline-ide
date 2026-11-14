@@ -54,7 +54,7 @@ var settingKinds = map[string]string{"active_cap": int1, "park_timeout_s": int0,
 	"push_prompt_asked": flag_, "push_task_done": flag_, "push_stall": flag_, "push_account_out": flag_,
 	keepawake.Key: awake, housekeeping.OrphansKey: reaper,
 	loadgate.AgentCapKey: int0, loadgate.LoadPctKey: int0, loadgate.RAMFreePctKey: pct, loadgate.DiskFreeGBKey: int0,
-	usage.LaunchHoldKey: flag_, usage.PaceTargetKey: tgt, usage.PaceBurstKey: burst, usage.SubagentGuardKey: flag_, usage.MoveBeforeKey: pct, usage.SplitKey: split,
+	usage.PaceTargetKey: tgt, usage.PaceBurstKey: burst, usage.SubagentGuardKey: flag_, usage.MoveBeforeKey: pct, usage.SplitKey: split,
 	settings.ClearPastBackgroundKey: flag_, settings.TranscriptRowsKey: flag_, settings.RefsNeedGrantKey: flag_,
 	leases.HeavyMaxKey: int0, leases.SimulatorMaxKey: int0, leases.BrowserMaxKey: int0, leases.PortRangeKey: ports,
 	usage.NetworkAddressesKey: hosts}

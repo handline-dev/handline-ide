@@ -22,7 +22,7 @@ func TestPickGivesEachRefusalItsKindAndACandidateNone(t *testing.T) {
 	for n, st := range map[string]map[string]any{
 		"ended": at(fresh, 10, 10, false), "endedstale": at(old, 10, 10, false), "endedout": at(fresh, 10, 10, false),
 		"five": at(fresh, 100, 10, false), "fivecapped": at(fresh, 100, 10, false), "week": at(fresh, 10, 100, false),
-		"weekold": at(old, 10, 100, false), "lost": at(fresh, 10, 10, true), "capped": at(fresh, 10, 10, false),
+		"weekold": at(old, 10, 100, false), "lost": at(fresh, 10, 10, true), "busy": at(fresh, 10, 10, false),
 		"ok": at(fresh, 10, 10, false), "stale": at(old, 10, 10, false), "removing": at(fresh, 10, 10, false),
 	} {
 		writeStatus(t, home, n, st)
@@ -46,10 +46,10 @@ func TestPickGivesEachRefusalItsKindAndACandidateNone(t *testing.T) {
 	}
 	writeConfig(t, home, cfg)
 	e.LoginState = func(a string) (bool, bool) { return a != "endedout", true }
-	loads := map[string]*Load{"capped": {Account: "capped", Active: 2, Cap: 2}, "fivecapped": {Account: "fivecapped", Active: 2, Cap: 2}}
+	loads := map[string]*Load{"busy": {Account: "busy", Active: 9}, "fivecapped": {Account: "fivecapped", Active: 2}}
 	want := map[string]string{"ended": KindEnded, "endedstale": KindEnded, "endedout": KindEnded, "endednofile": KindEnded,
 		"five": KindFiveHourCap, "fivecapped": KindFiveHourCap, "week": KindWeekCap, "weekold": KindWeekCap, "lost": KindOther,
-		"capped": KindHeld, "ok": "", "stale": KindOther, "removing": KindOther, "blank": "",
+		"busy": "", "ok": "", "stale": KindOther, "removing": KindOther, "blank": "",
 		"carriedold": KindOther, "shortlost": KindOther, "idlenear": KindOther, "unmetered": KindOther}
 	var names []string
 	for n := range want {
@@ -119,14 +119,8 @@ func TestAPausedAccountTakesNoAgentUntilItIsResumed(t *testing.T) {
 	if picked != "busy" || kinds["rest"] != KindPaused || kinds["both"] != KindEnded || kinds["quiet"] != KindPaused {
 		t.Fatalf("paused: picked %q, kinds %v (an ended account says ended first)", picked, kinds)
 	}
-	if n := e.CapNow(openDB(t), "rest"); n != 0 {
-		t.Errorf("a paused account's cap in force is %d, want 0", n)
-	}
 	writeConfig(t, home, map[string]any{})
 	if picked, kinds = pick(); picked != "rest" || kinds["rest"] != "" {
 		t.Errorf("resumed: picked %q, kinds %v", picked, kinds)
-	}
-	if e.CapNow(openDB(t), "rest") == 0 {
-		t.Error("a resumed account's cap in force is still 0")
 	}
 }

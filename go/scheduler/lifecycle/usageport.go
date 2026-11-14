@@ -53,50 +53,33 @@ func (u *UsageAdapter) PickReasons(candidates []string, agent string) []usage.Re
 	return reasons
 }
 
-// Admit is the Fits tier of verdict.Admit for the account. A load that cannot be read says nothing is fit.
+// Admit is the Fits tier of verdict.Admit for the account.
 func (u *UsageAdapter) Admit(acct, agent, vendor string) verdict.Admission {
-	loads, err := u.Env.ReadAll(u.Q, agent)
-	if err != nil {
-		return verdict.Admission{Reasons: []string{"its load cannot be read: " + err.Error()}}
-	}
-	return u.Env.FitAdmission(acct, vendor, agent, loads[acct])
+	return u.Env.FitAdmission(acct, vendor)
 }
-
-// CapOf is how many agents the account may have mid-turn at once, shrunk where it would be cut off before a reset.
-func (u *UsageAdapter) CapOf(acct string) int { return u.Env.CapNow(u.Q, acct) }
-
-// CapUnpaced is CapOf without the pace.
-func (u *UsageAdapter) CapUnpaced(acct string) int { return u.Env.CapUnpaced(u.Q, acct) }
 
 // Urgency is usage.Urgency of the account.
 func (u *UsageAdapter) Urgency(acct string) (float64, bool) { return usage.Urgency(u.Env.Read(acct)) }
 
-// PaceShare is usage.Prediction.Share of the account with agent started on it, with the launch pace hold on; ok false when unknown or
-// the hold is off, which holds nothing.
-func (u *UsageAdapter) PaceShare(q db.Q, acct, agent string) (float64, bool) {
-	if !usage.LaunchHoldOn(u.Env.CurrentConfig()) {
-		return 1, false
-	}
-	return u.Env.Predict(q, acct, agent, agent).Share()
-}
-
 // ManualSplit is usage.ManualSplit of the config now.
 func (u *UsageAdapter) ManualSplit() bool { return usage.ManualSplit(u.Env.CurrentConfig()) }
-
-// Pace is the account's weekly pace now.
-func (u *UsageAdapter) Pace(acct string) *usage.Pace { return u.Env.PaceNow(acct) }
 
 // Headroom is what the account's weekly bucket still holds.
 func (u *UsageAdapter) Headroom(acct string) (float64, bool) { return u.Env.Headroom(acct) }
 
-// ActiveOn is how many agents are mid-turn on the account, agent left out. A count that cannot be read is the unpaced cap, which is no
-// smaller than the paced one: no room against either.
-func (u *UsageAdapter) ActiveOn(q db.Q, acct, agent string) int {
+// ActiveOn is how many agents are mid-turn on the account, agent left out.
+func (u *UsageAdapter) ActiveOn(q db.Q, acct, agent string) (int, error) {
 	by, err := u.Env.ActiveAgents(q, agent)
+	return by[acct], err
+}
+
+// StartFit is usage's start test of the account for agent; a load that cannot be read fits nothing and leaves no room.
+func (u *UsageAdapter) StartFit(acct, agent string) (string, int) {
+	loads, err := u.Env.ReadAll(u.Q, agent)
 	if err != nil {
-		return u.CapUnpaced(acct)
+		return "its load cannot be read: " + err.Error(), -1
 	}
-	return by[acct]
+	return u.Env.StartFit(acct, agent, loads[acct])
 }
 
 // MidTurn is every agent mid-turn, agent left out; nil when the count cannot be read.

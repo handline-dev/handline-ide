@@ -28,10 +28,12 @@ type moveLaunch struct {
 	lastAccount     string
 	q               db.Q
 	asked           int
+	fitOnly         []bool // what each RoomElsewhere was asked
 }
 
-func (l *moveLaunch) RoomElsewhere(_ db.Q, _ string, _ *db.AgentState, ex map[string]string) (string, string) {
+func (l *moveLaunch) RoomElsewhere(_ db.Q, _ string, _ *db.AgentState, ex map[string]string, fitOnly bool) (string, string) {
 	l.excluded = ex
+	l.fitOnly = append(l.fitOnly, fitOnly)
 	if l.asked++; l.asked > 1 && l.next != nil {
 		return l.next(ex), l.why
 	}
@@ -311,6 +313,22 @@ func TestAParkIsByHandFirstThenMovingThenAWall(t *testing.T) {
 	} {
 		if got := parkReason(c.kind, c.short); got != c.want {
 			t.Errorf("%s short=%v: %q, want %q", c.kind, c.short, got, c.want)
+		}
+	}
+}
+
+// A usage move goes only where the agent fits: with none, a walled agent waits for its reset (roomless) and is not moved where it would not
+// last. A move off an account it cannot run on takes the most room.
+func TestAUsageMoveGoesOnlyWhereItFitsAndAMoveOffAnUnusableAccountTakesTheMostRoom(t *testing.T) {
+	for _, kind := range []string{"usage", "usage_7d", PausedTrigger, LoginTrigger, EndedTrigger} {
+		g := newTermMoveRig(t)
+		g.l.dest, g.l.why = "", "no account fits"
+		dest, _, roomless := g.v.plan("a", kind, true)
+		if want := !outTrigger(kind); len(g.l.fitOnly) != 1 || g.l.fitOnly[0] != want {
+			t.Fatalf("%s: asked fitOnly %v, want %v", kind, g.l.fitOnly, want)
+		}
+		if usageTrigger(kind) && (dest != "" || !roomless) {
+			t.Fatalf("%s with no account that fits: moved to %q (roomless %v), want a wait for the reset", kind, dest, roomless)
 		}
 	}
 }
