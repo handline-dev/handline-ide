@@ -110,7 +110,7 @@ func (a *attention) of(root int64, tree []requestNode, last int64, cards map[int
 		if n.blocked || cards[n.id] || !held || h.since == 0 || a.clock-h.since < a.waitS {
 			continue
 		}
-		if h.on == "cap" || h.on == "wall" || h.on == "owner" {
+		if h.on == "full" || h.on == "wall" || h.on == "owner" {
 			return say(attnWaiting, n.id, fmt.Sprintf("T%d waiting on %s", n.id, h.on)), nil
 		}
 	}

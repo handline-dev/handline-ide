@@ -27,13 +27,9 @@ export type Account = {
   label: string;
   /** The tool the account is for (`claude`, `opencode`, ...), as account.add set it. */
   vendor: string;
-  /** The account's own cap as set; null follows active_cap. It limits nothing: any number of agents may run on an account. Kept until the app stops reading it. */
-  cap: number | null;
-  /** cap, else the active_cap setting; 0 while the account is paused. It limits nothing. Kept until the app stops reading it. */
-  cap_effective: number;
   /** Whether a dead usage read may spend one real turn to fix itself (hl account recover). */
   recover: boolean;
-  /** Paused by the founder (account.set paused): no agent starts on it (cap_effective 0), and its agents move off at their next turn when another account has room. Absent: not paused. */
+  /** Paused by the founder (account.set paused): no agent starts on it, and its agents move off at their next turn when another account has room. Absent: not paused. */
   paused?: boolean;
   /** The Anthropic account's email, kept from its last login so it shows after the login drops; null when none was kept. Given to the founder's app only, never to an agent. */
   email?: string | null;
@@ -86,8 +82,8 @@ export type Account = {
   assign_reason?: string;
   /** Only with accounts.list `usage: true`. Why the daemon's pick for its vendor would not choose it now; null while it is a candidate. When the pick chooses none, a start may still fall back to a refused account. assign_reason says whether one more agent may start on it; not_picked says why the pick passes it over. A client shows not_picked. */
   not_picked?: {
-    /** What keeps new work off it: its subscription end day has passed, the founder paused it, its weekly or 5-hour window is at the wall, it is not logged in (which wins over the rest), the agent cap or the launch pace hold, or something else (a stale, lost or unreadable reading). */
-    kind: "subscription_ended" | "paused" | "week_cap" | "five_hour_cap" | "login" | "held" | "other";
+    /** What keeps new work off it: its subscription end day has passed, the founder paused it, its weekly or 5-hour window is at the wall, it is not logged in (which wins over the rest), it may take work but another account fits a new start better, or something else (a stale, lost or unreadable reading). */
+    kind: "subscription_ended" | "paused" | "week_cap" | "five_hour_cap" | "login" | "unfit" | "other";
     /** The daemon's reason in words, as `hl status` prints it. An ended account that is logged in with a fresh reading adds that its end day may be out of date. */
     text: string;
   } | null;
@@ -101,17 +97,16 @@ export type Account = {
     detail: string;
     since: Timestamp;
   } | null;
-  /** Only with accounts.list `usage: true`. The account's weekly pace (settings pace_target_pct, pace_burst_pct), shown only: it holds no start. Judged on its last weekly reading, which is kept until its weekly reset even when it is stale. null when it has no weekly reading or its reset is not known. back_at: always null now; it goes from this contract once the app stops naming it. */
+  /** Only with accounts.list `usage: true`. The account's weekly pace (settings pace_target_pct, pace_burst_pct), shown only: it holds no start. Judged on its last weekly reading, which is kept until its weekly reset even when it is stale. null when it has no weekly reading or its reset is not known. */
   pace?: {
-    /** behind: used_pct is at or under line_pct. ahead: over the line by at most pace_burst_pct points. over: further ahead. off: never sent now. The pace holds no start. */
-    state: "behind" | "ahead" | "over" | "off";
+    /** behind: used_pct is at or under line_pct. ahead: over the line by at most pace_burst_pct points. over: further ahead. The pace holds no start. */
+    state: "behind" | "ahead" | "over";
     /** Where the line is now: pace_target_pct x (now - start) / (end - start), where start is its weekly reset less 7 days and end is that reset or the subscription end, whichever comes first. */
     line_pct: number;
     /** The weekly window's used percent the pace is judged on: the last weekly reading, kept until its reset. */
     used_pct: number;
     /** Points of the week per hour the account may use from now to reach pace_target_pct at the end of its week: (pace_target_pct - used_pct) / hours left; 0 at or past the target. */
     rate_pct_h: number;
-    back_at: Timestamp | null;
   } | null;
   /** Only with accounts.list `usage: true`. What a point of each window costs on this account in API-equivalent dollars, learned from stretches of live readings over which the figure rose 5 points or more: the account's priced token calls in the stretch over the rise. Recomputed every 10 minutes from the last 7 days. null before the daemon has read the account. */
   factors?: {
@@ -303,7 +298,6 @@ export interface AccountsMethods {
   account: string;
   /** Alias, one plain line; empty clears. */
   label?: string;
-  cap?: number;
   recover?: boolean;
   /** Pause or resume the account. */
   paused?: boolean;

@@ -209,7 +209,7 @@ export type DaemonKeepAwake = {
   since?: Timestamp;
 };
 
-/** The machine's state in one line. held, the first that applies: the founder's pause (daemon.pause); the load holding starts (Resources.start_hold, by its own rules); any needs_you item; any agent whose status reason is cap, wall or pace, with the count in text. near, when nothing holds: the load per core at least its limit less 10 percentage points (load_per_core_pct), or free memory less than its limit plus 10 (ram_free_min_pct), when that limit is set; never before the first measure. host_active_cap is never near: at it, starts are held. status.changed is told within 10 s of a change of level or text. */
+/** The machine's state in one line. held, the first that applies: the founder's pause (daemon.pause); the load holding starts (Resources.start_hold, by its own rules); any needs_you item; any agent whose status reason is full or wall, with the count in text. near, when nothing holds: the load per core at least its limit less 10 percentage points (load_per_core_pct), or free memory less than its limit plus 10 (ram_free_min_pct), when that limit is set; never before the first measure. host_active_cap is never near: at it, starts are held. status.changed is told within 10 s of a change of level or text. */
 export type DaemonHealth = {
   /** held: something holds new work back now. near: nothing does, but a machine limit that is set is close. ok: neither. A client with no connection shows down itself; the daemon never says it. */
   level: "ok" | "near" | "held";
@@ -311,10 +311,8 @@ export type Listener = {
 /** Chosen by the caller; unique per intended action. */
 export type RequestId = string;
 
-/** Every global setting by its config.yaml name, with its default; every one is the founder's to set. Per-account keys (label, cap, usage recovery, cycle) are account.set; per-agent keys are agent.set and schedule.*; a key marked Per agent also takes `agent` in settings.set. */
+/** Every global setting by its config.yaml name, with its default; every one is the founder's to set. Per-account keys (label, usage recovery, cycle) are account.set; per-agent keys are agent.set and schedule.*; a key marked Per agent also takes `agent` in settings.set. */
 export type SettingsValues = {
-  /** The cap shown for an account with none of its own (Account.cap_effective). It limits nothing. Kept until the app stops reading it. */
-  active_cap?: number;
   /** Idle close, seconds; 0 never. The UI shows whole minutes. Per agent with `agent`. */
   park_timeout_s?: number;
   /** Agents write a note for the next session before a close or move. */
@@ -345,7 +343,7 @@ export type SettingsValues = {
   attention_sent_back?: number;
   /** Seconds a request's open tree may go with no activity before it shows attention quiet. */
   attention_quiet_s?: number;
-  /** Seconds an open task of a request may wait on cap, wall or owner before the request shows attention waiting (RequestRow.attention). */
+  /** Seconds an open task of a request may wait on full, wall or owner before the request shows attention waiting (RequestRow.attention). */
   attention_wait_s?: number;
   /** The prompt typed at an agent to write its handoff note, one line; {path} is the note's file and {max} its size limit (3000). Without {path} the path is added on a line of its own. Line breaks are joined into one space; under 20 characters after trimming is bad_request (blank means the built-in). settings.get shows the built-in prompt when none is set. Per agent. */
   handoff_prompt?: string;
@@ -365,8 +363,6 @@ export type SettingsValues = {
   ram_free_min_pct?: number;
   /** Least free disk on the volume the daemon home is on, in GB; 0 is off, the default. The disk needs-you item uses it as its floor when it is set, else 10 GB. */
   disk_free_min_gb?: number;
-  /** No longer read or written: no pace holds a start. settings.set refuses it; it goes from this contract once the app stops naming it. */
-  launch_pace_hold?: boolean;
   /** Where each account's pace line ends: its weekly usage, in percent, at the end of its week (its weekly reset, or its subscription end when that comes first). Under 100 because a reading lags by minutes. */
   pace_target_pct?: number;
   /** How far, in points of the week, an account may run ahead of its pace line and read as ahead rather than over (Account.pace.state). It holds no start. */
@@ -401,8 +397,6 @@ export type SettingsValues = {
 
 /** settings.set's changes: any of SettingsValues' keys; null removes one. */
 export type SettingsChanges = {
-  /** The cap shown for an account with none of its own (Account.cap_effective). It limits nothing. Kept until the app stops reading it. null removes the key (back to the default). */
-  active_cap?: number | null;
   /** Idle close, seconds; 0 never. The UI shows whole minutes. Per agent with `agent`. null removes the key (back to the default). */
   park_timeout_s?: number | null;
   /** Agents write a note for the next session before a close or move. null removes the key (back to the default). */
@@ -433,7 +427,7 @@ export type SettingsChanges = {
   attention_sent_back?: number | null;
   /** Seconds a request's open tree may go with no activity before it shows attention quiet. null removes the key (back to the default). */
   attention_quiet_s?: number | null;
-  /** Seconds an open task of a request may wait on cap, wall or owner before the request shows attention waiting (RequestRow.attention). null removes the key (back to the default). */
+  /** Seconds an open task of a request may wait on full, wall or owner before the request shows attention waiting (RequestRow.attention). null removes the key (back to the default). */
   attention_wait_s?: number | null;
   /** The prompt typed at an agent to write its handoff note, one line; {path} is the note's file and {max} its size limit (3000). Without {path} the path is added on a line of its own. settings.get shows the built-in prompt when none is set. Per agent. An empty string is the built-in prompt; null removes the key (back to the default). */
   handoff_prompt?: string | null;
@@ -453,8 +447,6 @@ export type SettingsChanges = {
   ram_free_min_pct?: number | null;
   /** Least free disk on the volume the daemon home is on, in GB; 0 is off, the default. The disk needs-you item uses it as its floor when it is set, else 10 GB. null removes the key (back to the default). */
   disk_free_min_gb?: number | null;
-  /** No longer read or written: no pace holds a start. settings.set refuses it; it goes from this contract once the app stops naming it. */
-  launch_pace_hold?: boolean | null;
   /** Where each account's pace line ends: its weekly usage, in percent, at the end of its week (its weekly reset, or its subscription end when that comes first). Under 100 because a reading lags by minutes. null removes the key (back to the default). */
   pace_target_pct?: number | null;
   /** How far, in points of the week, an account may run ahead of its pace line and read as ahead rather than over (Account.pace.state). It holds no start. null removes the key (back to the default). */
@@ -1292,7 +1284,7 @@ export const STATE_WORDS = ["running", "idle", "queued", "starting", "parked", "
 
 /** x-status: the state and reason every agent and task carries; open sets for a client, which shows `text` for a word it does not know. */
 export const STATUS_STATES = ["preparing", "starting", "running", "waiting", "stopped", "idle", "off", "done"] as const;
-export const STATUS_REASONS = ["work", "restart", "retry", "launch", "turn", "watch", "handoff", "background", "you", "opener", "task", "owner", "clock", "move", "load", "pace", "paused", "wall", "cap", "stalled", "none", "done", "discarded"] as const;
+export const STATUS_REASONS = ["work", "restart", "retry", "launch", "turn", "watch", "handoff", "background", "you", "opener", "task", "owner", "clock", "move", "load", "paused", "wall", "full", "stalled", "none", "done", "discarded"] as const;
 
 export const ROLE_ORDER: Role[] = ["anonymous", "agent", "member", "owner"];
 

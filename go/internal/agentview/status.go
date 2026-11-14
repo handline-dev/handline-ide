@@ -64,7 +64,7 @@ func (e *Env) status(agent string, row *db.AgentState, state, detail string, han
 				return held(why)
 			}
 			if w.Slot {
-				return at(status.Stopped, status.Cap, w.Text)
+				return at(status.Stopped, status.Full, w.Text)
 			}
 			s := at(status.Stopped, status.Wall, w.Text)
 			s.Until = w.Reset

@@ -46,8 +46,8 @@ func (e *Env) statusOf(t row, state string, waiting map[string]any, since int64)
 		return s, nil
 	case "founder":
 		return at(status.Waiting, status.You, text, since), nil
-	case "cap":
-		return at(status.Stopped, status.Cap, text, since), nil
+	case "full":
+		return at(status.Stopped, status.Full, text, since), nil
 	case "wall":
 		s := at(status.Stopped, status.Wall, text, since)
 		if e.Delivery != nil {

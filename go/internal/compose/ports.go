@@ -134,7 +134,7 @@ func (l lifecycleStarter) AccountWait(q db.Q, agent string) (string, error) {
 	case w == nil:
 		return "", nil
 	case w.Slot:
-		return "cap", nil
+		return "full", nil
 	}
 	return "wall", nil
 }

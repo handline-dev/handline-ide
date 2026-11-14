@@ -160,7 +160,7 @@ Every `hl` command an agent runs today and the method that serves it.
 
 Agent commands the spec does not keep at agent role, for the founder to decide. Each is founder-only or a person's act today, or is not a daemon call.
 
-- **Founder only today:** `hl cancel`; `hl unstall`; `hl propose approve|reject|apply|relabel|rehome|links`; `hl trust remove|apply|mcp`; `hl account add|remove|register|cap|cycle|recover|wake (set; the cycle and cap reads are Account.cycle and Account.cap in accounts.list)`; `hl idle-timeout|idle-background|notice-digest|ignore-cache-expiry (set)`; `hl dev-mode`; `hl device pair|list|revoke (device.pair, devices.list, device.revoke: the daemon's socket, from the founder's terminal)`; `hl workspace new|rename|delete (workspace.create, workspace.set, workspace.delete; an agent proposes a team)`
+- **Founder only today:** `hl cancel`; `hl unstall`; `hl propose approve|reject|apply|relabel|rehome|links`; `hl trust remove|apply|mcp`; `hl account add|remove|register|cycle|recover|wake (set; the cycle read is Account.cycle in accounts.list)`; `hl idle-timeout|idle-background|notice-digest|ignore-cache-expiry (set)`; `hl dev-mode`; `hl device pair|list|revoke (device.pair, devices.list, device.revoke: the daemon's socket, from the founder's terminal)`; `hl workspace new|rename|delete (workspace.create, workspace.set, workspace.delete; an agent proposes a team)`
 - **Needs a decision:** `hl spawn (a founder's act; it calls session.start, and agent.create serves it to the founder's apps)`; `hl agent register (a roster change, founder)`
 - **Not daemon methods:** `hl init`; `hl login`; `hl launch`; `hl doctor`; `hl hooks`; `hl go`; `hl sandbox-repo`; `hl install-hooks`; `hl backup`; `hl venv`; `hl bridge`; `hl top`; `hl watch`; `hl guide`; `hl withdraw`; `hl memory migrate`; `hl task note (suppressed)`
 
@@ -226,8 +226,8 @@ Every agent (AgentView.status) and every task (Task.status) carries one status: 
 | `preparing` | Has work and the daemon starts or sends it at its next tick; nothing stands in the way. Reasons: work, restart, retry. |
 | `starting` | A launch is in progress (agents). Reason: launch. |
 | `running` | Working: a turn runs, a hand-off is moving, background work runs, or a task is with an owner that has it. Reasons: turn, watch, handoff, background. |
-| `waiting` | Held by something the daemon names: a person, another task, the owner, a clock, an account move, the machine's load, an account's pace, the founder's pause. Reasons: you, opener, task, owner, clock, move, load, pace, paused. |
-| `stopped` | Will not go on by itself: no account has room (until the reset when it is known) or a person must unstall it. Reasons: wall, cap, stalled. |
+| `waiting` | Held by something the daemon names: a person, another task, the owner, a clock, an account move, the machine's load, the founder's pause. Reasons: you, opener, task, owner, clock, move, load, paused. |
+| `stopped` | Will not go on by itself: no account has room (until the reset when it is known), nothing may start where it would run, or a person must unstall it. Reasons: wall, full, stalled. |
 | `idle` | At its prompt with nothing to do (agents). Reason: none. |
 | `off` | Registered with no terminal and nothing waiting for it (agents). Reason: none. |
 | `done` | Closed (tasks). Reasons: done (its owner finished it), discarded. |
@@ -249,10 +249,9 @@ Every agent (AgentView.status) and every task (Task.status) carries one status: 
 | `clock` | Waits for a time: until says when. |
 | `move` | An account move is settling. |
 | `load` | The machine is over a load limit (host_active_cap, load_per_core_pct, ram_free_min_pct): the daemon starts none of its work until it is under, by itself; text names the limit that tripped. agent.force_start lets it go once. A message the person sends (the founder's or a paired device's) is never held by it: its agent wakes at once, and load_limit_passed is recorded in agent.timeline within 10 s of the send; the limit holds only agents' work and the daemon's own, and for at most 10 minutes: work held that long goes once, and load_limit_passed (by: ceiling) is recorded. A message held by the load is not a stuck delivery: no heal step or stuck card is made for it. |
-| `pace` | No longer given: no pace holds a start. It goes from this contract once the app stops naming it. |
 | `paused` | Paused (daemon.pause): the daemon starts none of an agent's work and none of its own; a turn already running goes to its end. A turn a person starts (a message a person sends, a person's own start or wake) and a restart are never held. A message an agent or the daemon sends waits too, unless its agent is mid-turn. Clocks keep running: a task's timeout and a gate's watch go on while paused, and only the turns they would start wait. It goes on at daemon.resume, or by itself at the pause's until; until is that time, null when there is none. agent.force_start does not pass it. A task is held the same way, mid-turn too, unless the founder sent it. When the pause is what keeps queued tasks from their agent, the agent's status is waiting, reason paused, with those tasks in tasks, oldest first, whether its session is up or not: task.send_now lets one of them go while the pause stays, daemon.resume lets everything go. |
 | `wall` | The account it would run on is at a usage limit; until is when the window rolls over, null when not known. |
-| `cap` | No account has a free slot; it starts when a running turn ends. |
+| `full` | Nothing may start where it would run: its workspace has its agent_cap mid-turn, or its account is paused; it starts when a turn there ends or the account is resumed. |
 | `stalled` | Stopped until a person unstalls it; text says why it stopped. |
 | `none` | Nothing to say beyond the state. |
 | `done` | Its owner finished it. |

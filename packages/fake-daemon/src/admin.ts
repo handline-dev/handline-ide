@@ -26,9 +26,8 @@ const ADMIN =
 /** The built-in handoff prompt (go/taskboard/handoff/note.go AskTemplate). */
 const BUILTIN_HANDOFF =
   "Write your handoff to {path} now, while your prompt cache is warm, with one Write (replace what is there), then stop and run nothing else. The next session of you, if it starts fresh, reads it first: copy yourself into it. At most {max} characters, about 30 lines, only what `hl` and your memory cannot tell it: (1) what you were deciding and why; (2) what you meant to do next; (3) promises or doubts not yet on any task; (4) the founder's preferences and the pitfalls you learned this session; (5) who you wait on, as T<n>/#<n> numbers only; (6) what slowed you down: one line each, starting with 'Slowed:', naming the command, tool, rule or T number and what it cost (retries, a wait, a refusal), or 'Slowed: none' if nothing did. Do not restate what a task or message holds; cite its T or # number. A lasting lesson or preference goes to your memory first, not here. If there is nothing, write the single word: nothing.";
-/** Every settings value at the Go daemon's default (go/internal/reads/settings.go), except active_cap: the fake keeps 4. */
+/** Every settings value at the Go daemon's default (go/internal/reads/settings.go). */
 const DEFAULTS: Settings['values'] = {
-  active_cap: 4,
   park_timeout_s: 1800,
   handoff_note: true,
   ignore_cache_expiry: false,
@@ -312,8 +311,6 @@ export class FakeAdmin {
         if (value && value.length < 20) throw badRequest('Too short to guide a note. Leave it blank for the built-in.', 'handoff_prompt');
         if (!value) value = null;
       }
-      if (key === 'active_cap' && value !== null && (!Number.isInteger(value) || (value as number) < 1))
-        throw badRequest('active_cap is a whole number from 1', 'active_cap');
       if (key === 'park_timeout_s' && value !== null && (!Number.isInteger(value) || (value as number) < 0))
         throw badRequest('park_timeout_s is a whole number of seconds, 0 for never', 'park_timeout_s');
       if (key === 'keep_awake' && value !== null && value !== 'off' && value !== 'on' && value !== 'working')

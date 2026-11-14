@@ -198,7 +198,7 @@ test('settings: only get and set with checked arguments reach the daemon, and on
   });
   const evil: Sender = { senderFrame: { url: 'https://evil.example/', parent: null } };
   assert.equal((await s.get(evil, {})).ok, false);
-  assert.equal((await s.set(evil, { changes: { active_cap: 3 } })).ok, false);
+  assert.equal((await s.set(evil, { changes: { park_timeout_s: 3 } })).ok, false);
   const badSet = [
     undefined,
     null,
@@ -207,12 +207,12 @@ test('settings: only get and set with checked arguments reach the daemon, and on
     { changes: [] },
     { changes: { 'Bad Key': 1 } },
     { changes: { dev_mode: true } }, // a daemon setting the page does not edit
-    { changes: { active_cap: 3, input_hold_idle_s: 5 } },
-    { changes: { active_cap: {} } },
-    { changes: { active_cap: Infinity } },
-    { changes: { active_cap: 3 }, method: 'agent.remove' },
-    { changes: { active_cap: 3 }, agent: '' },
-    { changes: { active_cap: 3 }, agent: 7 },
+    { changes: { park_timeout_s: 3, input_hold_idle_s: 5 } },
+    { changes: { park_timeout_s: {} } },
+    { changes: { park_timeout_s: Infinity } },
+    { changes: { park_timeout_s: 3 }, method: 'agent.remove' },
+    { changes: { park_timeout_s: 3 }, agent: '' },
+    { changes: { park_timeout_s: 3 }, agent: 7 },
   ];
   for (const a of badSet) assert.deepEqual({ ...(await s.set(top, a)), message: '' }, { ok: false, code: 'bad_request', message: '' });
   for (const a of [[], 'x', { agent: 7 }, { extra: 1 }])
@@ -220,11 +220,11 @@ test('settings: only get and set with checked arguments reach the daemon, and on
   assert.deepEqual(calls, []);
   assert.equal((await s.get(top, undefined)).ok, true);
   assert.equal((await s.get(top, { agent: 'a.b' })).ok, true);
-  assert.equal((await s.set(top, { changes: { active_cap: 3, handoff_note: null }, agent: 'a.b' })).ok, true);
+  assert.equal((await s.set(top, { changes: { park_timeout_s: 3, handoff_note: null }, agent: 'a.b' })).ok, true);
   assert.deepEqual(calls, [
     ['get', undefined],
     ['get', 'a.b'],
-    ['set', { active_cap: 3, handoff_note: null }, 'a.b'],
+    ['set', { park_timeout_s: 3, handoff_note: null }, 'a.b'],
   ]);
 });
 
@@ -232,7 +232,7 @@ test('settings: a daemon refusal comes back as a result, never a throw', async (
   const refuse = Object.assign(new Error('not allowed'), { code: 'refused' });
   const s = new Settings(ORIGIN, { get: () => Promise.reject(refuse), set: () => Promise.reject(new Error('down')) });
   assert.deepEqual(await s.get(top, {}), { ok: false, code: 'refused', message: 'not allowed' });
-  assert.deepEqual(await s.set(top, { changes: { active_cap: 1 } }), { ok: false, code: 'unavailable', message: 'down' });
+  assert.deepEqual(await s.set(top, { changes: { park_timeout_s: 1 } }), { ok: false, code: 'unavailable', message: 'down' });
 });
 
 test('the page sees and links the carried hl only from the window, and a refusal comes back as a sentence', () => {

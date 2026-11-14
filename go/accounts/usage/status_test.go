@@ -16,7 +16,7 @@ import (
 	"github.com/handline/handline/go/kit/storetest"
 )
 
-// status_cases.json is what the Python status module says about each case (tools/gen_usage_fixtures.py); the Go port must say the same.
+// status_cases.json is what the Python status module said about each case (its generator is gone; edit it by hand); the Go port must say the same.
 
 type fixture struct {
 	Now   int64        `json:"now"`
@@ -78,7 +78,7 @@ func writeConfig(t *testing.T, home string, cfg map[string]any) {
 		t.Fatal(err)
 	}
 	defer d.Close()
-	if _, err := d.Exec("UPDATE accounts SET label = NULL, active_cap = NULL, paused = 0, usage_recover = NULL, month_cycle = NULL, sub_end = NULL"); err != nil {
+	if _, err := d.Exec("UPDATE accounts SET label = NULL, paused = 0, usage_recover = NULL, month_cycle = NULL, sub_end = NULL"); err != nil {
 		t.Fatal(err)
 	}
 	var lines []string

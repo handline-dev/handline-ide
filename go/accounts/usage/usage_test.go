@@ -35,10 +35,10 @@ func TestStatusReadsBothShapes(t *testing.T) {
 	}
 }
 
-func TestCapsLabelsAndEnd(t *testing.T) {
-	c := Config{"active_cap": int64(3), "active_cap_a": int64(0), "label_a": " ", "sub_end_a": "2026-10-22", "month_cycle_b": true}
-	if c.CapOf("a") != 3 || c.LabelOf("a") != "a" || c.CapOf("z") != 3 || (Config{}).DefaultCap() != DefaultActiveCap {
-		t.Fatal("caps and labels")
+func TestLabelsAndEnd(t *testing.T) {
+	c := Config{"label_a": " ", "sub_end_a": "2026-10-22", "month_cycle_b": true}
+	if c.LabelOf("a") != "a" {
+		t.Fatal("a blank label is the name")
 	}
 	if got := c.EndDate("a"); got != "2026-10-22" {
 		t.Fatalf("a typed end counts without the switch: %q", got)

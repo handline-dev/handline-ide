@@ -114,29 +114,13 @@
       "type": "string",
       "description": "The tool the account is for (`claude`, `opencode`, ...), as account.add set it."
      },
-     "cap": {
-      "oneOf": [
-       {
-        "type": "integer",
-        "minimum": 1
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "description": "The account's own cap as set; null follows active_cap. It limits nothing: any number of agents may run on an account. Kept until the app stops reading it."
-     },
-     "cap_effective": {
-      "type": "integer",
-      "description": "cap, else the active_cap setting; 0 while the account is paused. It limits nothing. Kept until the app stops reading it."
-     },
      "recover": {
       "type": "boolean",
       "description": "Whether a dead usage read may spend one real turn to fix itself (hl account recover)."
      },
      "paused": {
       "type": "boolean",
-      "description": "Paused by the founder (account.set paused): no agent starts on it (cap_effective 0), and its agents move off at their next turn when another account has room. Absent: not paused."
+      "description": "Paused by the founder (account.set paused): no agent starts on it, and its agents move off at their next turn when another account has room. Absent: not paused."
      },
      "email": {
       "oneOf": [
@@ -345,8 +329,8 @@
         "properties": {
          "kind": {
           "type": "string",
-          "enum": ["subscription_ended", "paused", "week_cap", "five_hour_cap", "login", "held", "other"],
-          "description": "What keeps new work off it: its subscription end day has passed, the founder paused it, its weekly or 5-hour window is at the wall, it is not logged in (which wins over the rest), the agent cap or the launch pace hold, or something else (a stale, lost or unreadable reading)."
+          "enum": ["subscription_ended", "paused", "week_cap", "five_hour_cap", "login", "unfit", "other"],
+          "description": "What keeps new work off it: its subscription end day has passed, the founder paused it, its weekly or 5-hour window is at the wall, it is not logged in (which wins over the rest), it may take work but another account fits a new start better, or something else (a stale, lost or unreadable reading)."
          },
          "text": {
           "type": "string",
@@ -406,10 +390,9 @@
           "enum": [
            "behind",
            "ahead",
-           "over",
-           "off"
+           "over"
           ],
-          "description": "behind: used_pct is at or under line_pct. ahead: over the line by at most pace_burst_pct points. over: further ahead. off: never sent now. The pace holds no start."
+          "description": "behind: used_pct is at or under line_pct. ahead: over the line by at most pace_burst_pct points. over: further ahead. The pace holds no start."
          },
          "line_pct": {
           "type": "number",
@@ -423,31 +406,20 @@
           "type": "number",
           "minimum": 0,
           "description": "Points of the week per hour the account may use from now to reach pace_target_pct at the end of its week: (pace_target_pct - used_pct) / hours left; 0 at or past the target."
-         },
-         "back_at": {
-          "oneOf": [
-           {
-            "$ref": "#/components/schemas/Timestamp"
-           },
-           {
-            "type": "null"
-           }
-          ]
          }
         },
         "required": [
          "state",
          "line_pct",
          "used_pct",
-         "rate_pct_h",
-         "back_at"
+         "rate_pct_h"
         ]
        },
        {
         "type": "null"
        }
       ],
-      "description": "Only with accounts.list `usage: true`. The account's weekly pace (settings pace_target_pct, pace_burst_pct), shown only: it holds no start. Judged on its last weekly reading, which is kept until its weekly reset even when it is stale. null when it has no weekly reading or its reset is not known. back_at: always null now; it goes from this contract once the app stops naming it."
+      "description": "Only with accounts.list `usage: true`. The account's weekly pace (settings pace_target_pct, pace_burst_pct), shown only: it holds no start. Judged on its last weekly reading, which is kept until its weekly reset even when it is stale. null when it has no weekly reading or its reset is not known."
      },
      "factors": {
       "oneOf": [
@@ -542,8 +514,6 @@
      "moves",
      "label",
      "vendor",
-     "cap",
-     "cap_effective",
      "recover",
      "cycle"
     ]
@@ -1128,7 +1098,7 @@
  "methods": [
   {
    "name": "accounts.list",
-   "summary": "Accounts with login state, use, cap, agents, recent moves.",
+   "summary": "Accounts with login state, use, agents, recent moves.",
    "paramStructure": "by-name",
    "params": [
     {
@@ -1277,7 +1247,7 @@
   },
   {
    "name": "account.set",
-   "summary": "The account Settings form in one call: alias, cap, usage recovery, the month cycle and pause; nothing is written if any is refused.",
+   "summary": "The account Settings form in one call: alias, usage recovery, the month cycle and pause; nothing is written if any is refused.",
    "paramStructure": "by-name",
    "params": [
     {
@@ -1294,14 +1264,6 @@
       "type": "string",
       "maxLength": 40,
       "description": "Alias, one plain line; empty clears."
-     }
-    },
-    {
-     "name": "cap",
-     "required": false,
-     "schema": {
-      "type": "integer",
-      "minimum": 1
      }
     },
     {
@@ -1375,7 +1337,7 @@
      "$ref": "#/components/errors/bad_request"
     }
    ],
-   "description": "Fields not given are left alone. Chosen over set_cycle_on/set_cycle_end methods because the UI saves these together and the CLI twins (cap, cycle, recover, alias) each write one of these fields."
+   "description": "Fields not given are left alone. Chosen over set_cycle_on/set_cycle_end methods because the UI saves these together and the CLI twins (cycle, recover, alias) each write one of these fields."
   },
   {
    "name": "account.wake",

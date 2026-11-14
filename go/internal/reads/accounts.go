@@ -98,7 +98,7 @@ func loginWord(in, known bool) string {
 	return "needs_login"
 }
 
-// accountsList is accounts.list: every account with its login, usage windows, agents, recent moves, label, caps and cycle.
+// accountsList is accounts.list: every account with its login, usage windows, agents, recent moves, label and cycle.
 func (e *Env) accountsList(c *rpc.Conn, params map[string]any) (any, error) {
 	withUsage, err := optBool(params, "usage")
 	if err != nil {
@@ -157,7 +157,7 @@ func (e *Env) accountsList(c *rpc.Conn, params map[string]any) (any, error) {
 	return map[string]any{"accounts": accts}, nil
 }
 
-// addRoster adds agents_assigned, agents_running (ActiveByAccount, what the cap holds to) and agents_background (none mid-turn). An
+// addRoster adds agents_assigned, agents_running (ActiveByAccount) and agents_background (none mid-turn). An
 // agent mid-turn counts on the account it runs on, whatever its view says.
 func (v *accountView) addRoster(acct map[string]any, a string, midTurn map[string][]string) error {
 	busy := map[string]bool{}
@@ -234,22 +234,13 @@ func (v *accountView) of(a string) map[string]any {
 			on = append(on, n)
 		}
 	}
-	// cap and cap_effective limit nothing any more; they stay for the app until it stops reading them (0 effective still says paused).
-	var cap any
-	if n, ok := cfg.OwnCap(a); ok {
-		cap = n
-	}
-	capEffective := cfg.CapOf(a)
-	if cfg.Paused(a) {
-		capEffective = 0
-	}
 	var end any
 	if d := cfg.EndDate(a); d != "" {
 		end = d
 	}
 	acct := map[string]any{
 		"name": a, "login_state": loginWord(in, known), "five_hour": windowView(st.Short), "weekly": windowView(st.Long),
-		"agents": on, "moves": e.accountMoves(a), "label": cfg.LabelOf(a), "vendor": team.AccountVendor(e.Home, a), "cap": cap, "cap_effective": capEffective,
+		"agents": on, "moves": e.accountMoves(a), "label": cfg.LabelOf(a), "vendor": team.AccountVendor(e.Home, a),
 		"recover": cfg.RecoverEnabled(a), "paused": cfg.Paused(a),
 		"cycle": map[string]any{"on": cfg.CycleOn(a), "end": end, "end_is_default": cfg.EndIsDefault(a)}}
 	if l := e.loginOf(a); l != nil {
@@ -343,7 +334,7 @@ func paceOf(p *usage.Pace) any {
 	if p == nil {
 		return nil
 	}
-	return map[string]any{"state": p.State, "line_pct": p.Line, "used_pct": p.Used, "rate_pct_h": p.RateH, "back_at": nil}
+	return map[string]any{"state": p.State, "line_pct": p.Line, "used_pct": p.Used, "rate_pct_h": p.RateH}
 }
 
 // loginOf is the account's latest web login as the accounts topic shows it, nil when none was started. It never has the authorize URL: only the founder's account.login reply does.

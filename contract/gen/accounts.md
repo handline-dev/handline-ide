@@ -7,7 +7,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 |---|---|---|---|---|---|---|---|
 | `accounts.list` | agent |  | `roster?`, `usage?` | `{accounts} & ReadCursor` | `bad_request` |  | `accounts`, fed by accounts |
 | `status.pick` | agent |  | none | `{picked, candidates, agent_costs, agent_pace_usd}` |  |  | not cached |
-| `account.set` | owner | yes | `account`, `label?`, `cap?`, `recover?`, `paused?`, `cycle?`, `cycle_end?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | authored: save account |
+| `account.set` | owner | yes | `account`, `label?`, `recover?`, `paused?`, `cycle?`, `cycle_end?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | authored: save account |
 | `account.wake` | owner | yes | `account`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | state | authored: wake |
 | `account.read_usage` | owner | yes | `account`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | state | decided: read usage |
 | `account.add` | owner | yes | `account?`, `vendor?`, `request_id` | `Accepted & {account}` | `refused`, `bad_request` | role, state | decided: add account |
@@ -24,7 +24,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 
 ### `accounts.list`
 
-Accounts with login state, use, cap, agents, recent moves.
+Accounts with login state, use, agents, recent moves.
 
 ### `status.pick`
 
@@ -32,7 +32,7 @@ Which account the next agent would be placed on, each account's reason, and what
 
 ### `account.set`
 
-The account Settings form in one call: alias, cap, usage recovery, the month cycle and pause; nothing is written if any is refused. Fields not given are left alone. Chosen over set_cycle_on/set_cycle_end methods because the UI saves these together and the CLI twins (cap, cycle, recover, alias) each write one of these fields.
+The account Settings form in one call: alias, usage recovery, the month cycle and pause; nothing is written if any is refused. Fields not given are left alone. Chosen over set_cycle_on/set_cycle_end methods because the UI saves these together and the CLI twins (cycle, recover, alias) each write one of these fields.
 
 ### `account.wake`
 

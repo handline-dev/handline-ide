@@ -5,7 +5,6 @@ import type { Methods, SettingsChanges } from '@handline/client';
 
 /** The settings the Settings page and the status bar's resource area edit, the only keys the shell sets on its behalf (the other daemon settings are not the page's to change). */
 export const PAGE_SETTINGS = [
-  'active_cap',
   'park_timeout_s',
   'handoff_note',
   'handoff_prompt',
@@ -18,8 +17,6 @@ export const PAGE_SETTINGS = [
   'push_task_done',
   'push_stall',
   'push_account_out',
-  'pace_target_pct',
-  'pace_burst_pct',
   // the status bar's resource area
   'host_active_cap',
   'keep_awake',
