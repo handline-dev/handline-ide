@@ -85,6 +85,10 @@ export function activityOf(memos: TaskDetail['memos'], timeline: readonly Entry[
       e.kind === 'turn' && e.memo != null ? [[e.memo, { to: turnLine(e, me, nameOf).to, turn: e.turn }] as const] : [],
     ),
   );
+  const passedWith = (id: number): Pick<ActivityItem, 'turn' | 'turnTo'> => {
+    const p = passed.get(id);
+    return p ? { turn: p.turn === 'pop' ? 'pop' : 'push', turnTo: p.to } : {};
+  };
   const comments: ActivityItem[] = memos.map((m) => {
     const named = new Set(findImageRefs(m.text).map((r) => r.id));
     return {
@@ -100,9 +104,7 @@ export function activityOf(memos: TaskDetail['memos'], timeline: readonly Entry[
       images: (m.files ?? []).filter((f) => f.kind === 'image' && !f.gone && !named.has(f.id)).map((f) => ({ id: f.id, name: f.name })),
       edited: !!m.edited_at,
       toFounder: isNote(m.text),
-      ...(passed.has(m.id)
-        ? { turn: passed.get(m.id)!.turn === 'pop' ? ('pop' as const) : ('push' as const), turnTo: passed.get(m.id)!.to }
-        : {}),
+      ...passedWith(m.id),
     };
   });
   const shown = new Set(memos.map((m) => m.id));
