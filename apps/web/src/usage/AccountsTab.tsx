@@ -27,11 +27,11 @@ function SplitSetting() {
   return (
     <section className="flex items-center justify-between gap-6 rounded-lg border border-border px-4 py-3">
       <div className="min-w-0">
-        <h3 className="text-sm text-fg">계정 나누기</h3>
+        <h3 className="text-sm text-fg">Split work</h3>
         <p className="text-xs text-muted">
           {manual
-            ? '에이전트를 둔 계정에 그대로 둡니다. 한도에 닿으면 초기화를 기다렸다가 같은 대화를 이어갑니다.'
-            : '새로 시작하는 에이전트를 여유 있는 계정에 두고, 한도에 가까우면 턴이 끝난 뒤 옮깁니다.'}
+            ? 'Agents stay on the account they started on. At the limit, they wait for the reset and pick up the same conversation.'
+            : 'New agents start on the account with the most room; near the limit, an agent moves after its turn ends.'}
         </p>
         {!!save.error && (
           <p className="text-xs text-danger" role="alert">
@@ -39,7 +39,7 @@ function SplitSetting() {
           </p>
         )}
       </div>
-      <div role="radiogroup" aria-label="계정 나누기" className="flex shrink-0 rounded-md bg-hover/40 p-0.5 text-sm">
+      <div role="radiogroup" aria-label="Split work" className="flex shrink-0 rounded-md bg-hover/40 p-0.5 text-sm">
         {(['auto', 'manual'] as const).map((v) => (
           <button
             key={v}
@@ -50,7 +50,7 @@ function SplitSetting() {
             onClick={() => pick(v)}
             className={`rounded px-3 py-1 ${manual === (v === 'manual') ? 'bg-bg font-medium text-fg shadow-sm' : 'text-muted hover:text-fg'}`}
           >
-            {v === 'auto' ? '자동' : '수동'}
+            {v === 'auto' ? 'Auto' : 'Manual'}
           </button>
         ))}
       </div>
