@@ -66,7 +66,7 @@ export function Mark({ icon: Icon }: { icon: typeof Check }) {
   );
 }
 
-/** A change in words, and the text behind it. The founder's open turn (`turn`) is outlined, headed Your turn, and reads the question
+/** A change in words, and the text behind it. The founder's open turn (`turn`) sits on the warm ground marked Waiting for you, as an open comment does, and reads the question
  * as it now is, with its older texts behind "edited"; answered, it stays as a plain row. */
 export function EventRow({ i, fresh, turn }: { i: ActivityItem; fresh: string; turn?: Turn }) {
   const note = turn?.ask || i.note;
@@ -74,14 +74,14 @@ export function EventRow({ i, fresh, turn }: { i: ActivityItem; fresh: string; t
   return (
     <div
       data-turn-open={turn ? '' : undefined}
-      className={`group flex gap-2.5 text-xs text-muted ${turn ? '-mx-3 rounded-lg border border-warning px-3 pt-2' : ''}`}
+      className={`group flex gap-2.5 text-xs text-muted ${turn ? '-mx-3 rounded-lg bg-warning/10 px-3 pt-2' : ''}`}
     >
       <Mark icon={eventIcon(i)} />
       <div className="flex min-w-0 flex-1 flex-col pt-0.5">
         <div className={`flex flex-col rounded-md ${fresh}`}>
           {turn ? (
             <span className="font-medium text-fg">
-              Your turn · <span className="font-normal text-muted">{i.line}</span>
+              <span className="font-normal text-muted">{i.line}</span> <span className="text-warning">Waiting for you</span>
             </span>
           ) : (
             <span>{i.line}</span>
@@ -116,7 +116,7 @@ export function EventRow({ i, fresh, turn }: { i: ActivityItem; fresh: string; t
 function Avatar({ name, mine }: { name: string; mine: boolean }) {
   return (
     <span
-      className={`grid size-6 shrink-0 place-items-center rounded-full text-xs font-semibold text-white ${mine ? 'bg-accent' : 'bg-muted'}`}
+      className={`grid size-6 shrink-0 place-items-center rounded-full text-xs font-semibold text-accent-fg ${mine ? 'bg-accent' : 'bg-muted'}`}
     >
       {(name[0] ?? '?').toUpperCase()}
     </span>
@@ -153,7 +153,7 @@ export function CommentRow({
     <div
       data-memo={i.memo}
       data-turn-open={turn ? '' : undefined}
-      className={`group flex gap-2.5 rounded-md ring-warning ring-offset-4 ring-offset-bg transition-shadow duration-500 ${turn ? 'relative -mx-3 mb-3 rounded-lg bg-warning/10 px-3 py-2' : ''}`}
+      className={`group relative flex gap-2.5 rounded-md pb-3 ring-warning ring-offset-4 ring-offset-bg transition-shadow duration-500 ${turn ? '-mx-3 mb-3 rounded-lg bg-warning/10 px-3 pt-2 pb-2' : ''}`}
     >
       <Avatar name={name} mine={mine} />
       <div className="flex min-w-0 flex-1 flex-col">
@@ -163,6 +163,14 @@ export function CommentRow({
             <time dateTime={i.at} title={i.at} className="text-xs text-muted">
               {clock(i.at)}
             </time>
+            {i.edited &&
+              (onEdited ? (
+                <button type="button" onClick={onEdited} className="text-xs text-muted underline decoration-dotted hover:text-fg">
+                  edited
+                </button>
+              ) : (
+                <span className="text-xs text-muted">edited</span>
+              ))}
             {turn && <span className="text-xs font-medium text-warning">Waiting for you</span>}
           </span>
           {i.replyTo != null && <Reference text={quoted} onClick={() => showMemo(i.replyTo!)} />}
@@ -173,11 +181,9 @@ export function CommentRow({
           {i.images && <MessageImages images={i.images} />}
           <ReadBy readers={i.readers} />
         </div>
-        {/* On the warm ground the buttons sit at its top right on hover, so no empty row closes the box. */}
-        <div className={turn ? 'absolute top-1.5 right-3' : ''}>
-          <HoverRow at={i.at} edited={i.edited} onEdited={onEdited}>
-            <Actions text={i.note} onQuote={() => i.memo != null && onReply(i.memo)} />
-          </HoverRow>
+        {/* As in Slack: the buttons float at the comment's top right on hover, over it, so nothing moves. */}
+        <div className={`absolute ${turn ? 'top-1.5 right-3' : 'top-0 right-0'} flex items-center gap-1.5 text-xs text-muted opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100`}>
+          <Actions text={i.note} onQuote={() => i.memo != null && onReply(i.memo)} />
         </div>
       </div>
     </div>
