@@ -27,9 +27,9 @@ export type Account = {
   label: string;
   /** The tool the account is for (`claude`, `opencode`, ...), as account.add set it. */
   vendor: string;
-  /** The account's own cap: most agents mid-turn at once; null follows active_cap. */
+  /** The account's own cap as set; null follows active_cap. It limits nothing: any number of agents may run on an account. Kept until the app stops reading it. */
   cap: number | null;
-  /** The cap in force: cap, else the active_cap setting; with launch_pace_hold on, shrunk where the agents mid-turn would reach the week's block before it ends, and by the account's pace (Account.pace). */
+  /** cap, else the active_cap setting; 0 while the account is paused. It limits nothing. Kept until the app stops reading it. */
   cap_effective: number;
   /** Whether a dead usage read may spend one real turn to fix itself (hl account recover). */
   recover: boolean;
@@ -46,7 +46,7 @@ export type Account = {
   };
   /** Only with accounts.list `roster: true`. Agents on this account (Account.agents), running or at rest with their prompt cache alive (the figure `hl account list` prints). */
   agents_assigned?: number;
-  /** Only with accounts.list `roster: true`. Agents mid-turn on this account: the count cap_effective holds to. */
+  /** Only with accounts.list `roster: true`. Agents mid-turn on this account. */
   agents_running?: number;
   /** Only with accounts.list `roster: true`, and absent when the daemon runs no supervisor. Agents on this account at their prompt whose session still runs background work; never in agents_running. */
   agents_background?: number;
@@ -101,9 +101,9 @@ export type Account = {
     detail: string;
     since: Timestamp;
   } | null;
-  /** Only with accounts.list `usage: true`. The account's weekly pace (settings launch_pace_hold, pace_target_pct, pace_burst_pct), judged on its last weekly reading, which is kept until its weekly reset even when it is stale. null when it has no weekly reading or its reset is not known; a null pace does not shrink the cap. back_at: for state over, when the line will have caught up to within pace_burst_pct of used_pct at no further use, or the end of its week when the line never gets there; else null. */
+  /** Only with accounts.list `usage: true`. The account's weekly pace (settings pace_target_pct, pace_burst_pct), shown only: it holds no start. Judged on its last weekly reading, which is kept until its weekly reset even when it is stale. null when it has no weekly reading or its reset is not known. back_at: always null now; it goes from this contract once the app stops naming it. */
   pace?: {
-    /** behind: used_pct is at or under line_pct, and the cap is not shrunk for pace. ahead: over the line by at most pace_burst_pct points; the pace cap is ceil(C x (line_pct + pace_burst_pct - used_pct) / pace_burst_pct), at least 1, where C is cap, else the active_cap setting. over: further ahead; the pace cap is 0 and the account starts no new turn. off: launch_pace_hold is off; the figures are still given. cap_effective is the smallest of C, the wall-cutoff cap and the pace cap. */
+    /** behind: used_pct is at or under line_pct. ahead: over the line by at most pace_burst_pct points. over: further ahead. off: never sent now. The pace holds no start. */
     state: "behind" | "ahead" | "over" | "off";
     /** Where the line is now: pace_target_pct x (now - start) / (end - start), where start is its weekly reset less 7 days and end is that reset or the subscription end, whichever comes first. */
     line_pct: number;
@@ -180,7 +180,7 @@ export type Outlook = {
     at: Timestamp;
     left_pct: number | null;
   }[];
-  /** A guess. With launch_pace_hold on, each account's week goes at the smaller of its pace (Account.pace rate_pct_h, which ends at pace_target_pct) and its use over the last day; with pacing off, at its use over the last day. A week that resets starts again from nothing used. An account whose last reading is stale or at a wall keeps that reading until its reset and is not left out. An account that cannot be used now (its login gone or expired) counts as 0 ahead. Kept apart from `past`, never joined to it. */
+  /** A guess. Each account's week goes at its use over the last day. A week that resets starts again from nothing used. An account whose last reading is stale or at a wall keeps that reading until its reset and is not left out. An account that cannot be used now (its login gone or expired) counts as 0 ahead. Kept apart from `past`, never joined to it. */
   future: {
     at: Timestamp;
     left_pct: number | null;
@@ -217,7 +217,7 @@ export type Outlook = {
       week_left: number | null;
       line_left: number | null;
     }[];
-    /** The guess of `future` for this account, at the same points. The 5h window starts again from nothing at each reset, so its line is a saw; it goes at its use over the last day, and with launch_pace_hold on at no more than the paced week rate converted to the 5h window by the account's factors (Account.factors: its 5-hour factor over its week factor). */
+    /** The guess of `future` for this account, at the same points. The 5h window starts again from nothing at each reset, so its line is a saw; it goes at its use over the last day. */
     future: {
       at: Timestamp;
       five_left: number | null;

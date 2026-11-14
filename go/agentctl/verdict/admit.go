@@ -12,9 +12,7 @@ type Account struct {
 	Assignable bool
 	AssignWhy  string
 	NoReading  bool   // no status file at all: no session has ever run on it
-	NoRoom     string // why it cannot take one more agent, on the fill the pick ranks it by
 	Wall       string // a reading that says it is at its 5-hour or weekly wall, stale readings included while their window lasts
-	NoRoomFit  string // why it cannot take one more agent, judged on a fresh fill only (a stale one is unknown, not against it)
 }
 
 // Admission is Admit's answer. Best: it may start and the pick ranks it. NeverRun: it has never run, so nothing can rank it, and
@@ -22,9 +20,7 @@ type Account struct {
 // against it, in the order the rules ask; empty when every tier admits it.
 type Admission struct {
 	Best, NeverRun, Fits bool
-	// OnlyNoRoomFit: all that keeps it from Fits is NoRoomFit, so a person may still choose it. No wall and nothing outright stands against it.
-	OnlyNoRoomFit bool
-	Reasons       []string
+	Reasons              []string
 }
 
 // Outright is whether the account is refused before any reading is looked at: being removed, set aside, or not for this vendor.
@@ -34,9 +30,9 @@ func (a Account) Outright() bool { return a.Removing || a.Excluded || a.NotFor !
 func (a Admission) OK() bool { return a.Best || a.NeverRun || a.Fits }
 
 // Admit is the one rule set for whether an agent's session may start on an account. Being removed, set aside or another vendor's
-// refuses it outright. Otherwise the pick needs a reading that admits work and room on its fill. A never-run account has no
+// refuses it outright. Otherwise the pick needs a reading that admits work. A never-run account has no
 // reading, which is not a reason against it: the session that starts there writes the first one. Fits asks only what is known:
-// a missing or stale reading does not count against it, a reading at the wall or out of room does.
+// a missing or stale reading does not count against it, a reading at the wall does.
 func Admit(a Account) Admission {
 	switch {
 	case a.Removing:
@@ -53,18 +49,12 @@ func Admit(a Account) Admission {
 		out.Reasons = append(out.Reasons, "no reading yet - a session has never run on it")
 	case !a.Assignable:
 		out.Reasons = append(out.Reasons, a.AssignWhy)
-	case a.NoRoom != "":
-		out.Reasons = append(out.Reasons, a.NoRoom)
 	default:
 		out.Best = true
 	}
-	switch {
-	case a.Wall != "":
+	if a.Wall != "" {
 		out.Reasons = appendNew(out.Reasons, a.Wall)
-	case a.NoRoomFit != "":
-		out.Reasons = appendNew(out.Reasons, a.NoRoomFit)
-		out.OnlyNoRoomFit = true
-	default:
+	} else {
 		out.Fits = true
 	}
 	return out

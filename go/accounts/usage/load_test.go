@@ -182,7 +182,7 @@ func TestReadAllGivesEveryAccountItsCapAndTheBurnOfItsAgents(t *testing.T) {
 		t.Fatal(err)
 	}
 	a, b := loads["a"], loads["b"]
-	if a.Cap != 3 || b.Cap != 1 || a.Burn != nil || b.Burn == nil || math.Abs(*b.Burn-1.5/60) > 1e-12 || b.Active != 1 || !b.AtCap() || a.AtCap() {
+	if a.Burn != nil || b.Burn == nil || math.Abs(*b.Burn-1.5/60) > 1e-12 || b.Active != 1 {
 		t.Fatalf("%+v %+v", a, b)
 	}
 	if loads, _ := e.ReadAll(q, "run"); loads["b"].Active != 0 || *loads["b"].Burn != 0 {
@@ -240,7 +240,7 @@ func TestAccountVerdictSaysWhyAnAccountCannotTakeWork(t *testing.T) {
 		map[string]any{"minutes": 300, "used_percent": 10, "resets_at": clock + 3600, "observed_at": clock - 5},
 		map[string]any{"minutes": 10080, "used_percent": 10, "resets_at": clock + 90000, "observed_at": clock - 5}}})
 	st := e.Read("a")
-	ld := &Load{Account: "a", Active: 0, Cap: 2}
+	ld := &Load{Account: "a", Active: 0}
 	if ok, why := e.AccountVerdict("a", st, ld, nil, false); ok || why != "not logged in" {
 		t.Fatalf("%v %q", ok, why)
 	}
@@ -250,8 +250,8 @@ func TestAccountVerdictSaysWhyAnAccountCannotTakeWork(t *testing.T) {
 	if ok, why := e.AccountVerdict("a", st, ld, []Reason{{"a", "ranked", ""}}, true); !ok || why != "ranked" {
 		t.Fatalf("%v %q", ok, why)
 	}
-	if ok, why := e.AccountVerdict("a", st, &Load{Account: "a", Active: 2, Cap: 2}, nil, true); ok || why != "5h 10%" {
-		t.Fatalf("an account at its cap is allowed by usage and unfit: %v %q", ok, why)
+	if ok, why := e.AccountVerdict("a", st, &Load{Account: "a", Active: 9}, nil, true); !ok || why != "5h 10%" {
+		t.Fatalf("an account with many agents on it still takes one: %v %q", ok, why)
 	}
 	os.WriteFile(filepath.Join(teamtest.AccountDir(t, home, "a"), "vendor"), []byte("nonesuch\n"), 0o644)
 	if ok, why := e.AccountVerdict("a", st, ld, nil, true); ok || why == "" {

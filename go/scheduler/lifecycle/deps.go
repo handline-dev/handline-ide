@@ -112,18 +112,17 @@ type Launch interface {
 	AccountFor(q db.Q, agent string, resuming bool) string
 	// Placing holds every other placement off until the returned func is called: the choice and its wake_reserved are one step.
 	Placing() func()
-	// SlotTaken is why acct has no free slot for agent (agent left out of the count; unpaced: against its unpaced cap), "" when it has.
-	SlotTaken(q db.Q, agent, acct string, unpaced bool) string
 	NoRoom(agent string) string
-	// SlowestPaced is the account other than skip with a free slot that is furthest behind its week, "" when none has room.
+	// SlowestPaced is the account other than skip that can take the agent and whose week runs out soonest, "" when none can.
 	SlowestPaced(q db.Q, agent string, row *db.AgentState, skip string) string
 	// RoomElsewhere is the same pick with every account in exclude left out (name -> why); the second result says why none has room.
-	RoomElsewhere(q db.Q, agent string, row *db.AgentState, exclude map[string]string) (account, why string)
+	// fitOnly takes only an account that fits, with no most-room fallback: a usage move does not go where it would not last.
+	RoomElsewhere(q db.Q, agent string, row *db.AgentState, exclude map[string]string, fitOnly bool) (account, why string)
 	// RoomOn is why acct cannot take the agent, "" when it can.
 	RoomOn(q db.Q, agent string, row *db.AgentState, acct string) string
-	// ClosestRoom is, when no account has room, the account closest to it: no wall and a free slot, only short of the room test. "" for none.
+	// ClosestRoom is, when no account has room, the account closest to it: no wall and not paused, only short of the room test. "" for none.
 	ClosestRoom(q db.Q, agent string, row *db.AgentState, exclude map[string]string) string
-	// RoomPastFit is RoomOn for a person who chose acct knowing it has little room: it still refuses a wall, a full account and a pin.
+	// RoomPastFit is RoomOn for a person who chose acct knowing it has little room: it still refuses a wall, a paused account and a pin.
 	RoomPastFit(q db.Q, agent string, row *db.AgentState, acct string) string
 	// WorthRepick is whether a closed agent's cold wake should land on to instead of its own account: to's unused week runs out faster by
 	// usage.RepickGain, or one of them cannot be read.

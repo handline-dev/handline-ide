@@ -348,7 +348,7 @@ func (s *AccountStatus) weekWall(week int) string {
 }
 
 // TakesWork: may a session be started here: assignable, or a rolled-over stale account, and under the weekly wall. The usage half of
-// the question; Unfit adds the cap and the stretch.
+// the question; Unfit adds the stretch.
 func (s *AccountStatus) TakesWork(active int) (bool, string) {
 	ok, why, _ := s.takesWork(active)
 	return ok, why

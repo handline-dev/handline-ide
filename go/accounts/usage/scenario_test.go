@@ -8,7 +8,8 @@ import (
 	"github.com/handline/handline/go/kit/timefmt"
 )
 
-// Rows of docs/design/account-assignment-scenarios.md on a fake clock: A (window edges), B1/B2/B9 (the cap), C (placement order).
+// Rows of docs/design/account-assignment-scenarios.md on a fake clock: A (window edges), B (no cap), C (placement order), D (a new start:
+// an account that fits first, else the most room).
 // Each case names its row. now is moved by hand; nothing sleeps.
 
 // acct is one account's reading as a scenario states it: percents and seconds from the clock to each reset.
@@ -51,7 +52,7 @@ func newWorld(t *testing.T, accts map[string]acct) *world {
 	return w
 }
 
-// pick is Pick over names with these loads; an account missing from loads has none mid-turn and cap 2.
+// pick is Pick over names with these loads; an account missing from loads has none mid-turn.
 func (w *world) pick(names []string, loads map[string]*Load, agent string) (string, map[string]string) {
 	w.t.Helper()
 	all := map[string]*Load{}
@@ -59,7 +60,7 @@ func (w *world) pick(names []string, loads map[string]*Load, agent string) (stri
 		if l, ok := loads[n]; ok {
 			all[n] = l
 		} else {
-			all[n] = &Load{Account: n, Cap: 2}
+			all[n] = &Load{Account: n}
 		}
 	}
 	picked, reasons, err := w.env.Pick(openDB(w.t), PickOpts{Candidates: names, Load: all, Agent: agent})
@@ -74,13 +75,12 @@ func (w *world) pick(names []string, loads map[string]*Load, agent string) (stri
 }
 
 func TestScenarioAWindowEdges(t *testing.T) {
-	t.Run("A1 5h at W-1 and one agent costs more than its last point: no room, beta takes it", func(t *testing.T) {
+	t.Run("A1 5h at W-1 and one agent costs more than its last point: it does not fit, beta takes it", func(t *testing.T) {
 		w := newWorld(t, map[string]acct{"alpha": {short: WallPct - 1}, "beta": {short: 10}})
 		costly := costsAt([]float64{0.01}, map[string]float64{"*": 0.1}, "alpha", "beta") // 1 point lasts 100 s
-		loads := map[string]*Load{"alpha": {Account: "alpha", Cap: 2, Costs: costly, Hold: true},
-			"beta": {Account: "beta", Cap: 2, Costs: costly, Hold: true}}
+		loads := map[string]*Load{"alpha": {Account: "alpha", Costs: costly}, "beta": {Account: "beta", Costs: costly}}
 		picked, why := w.pick([]string{"alpha", "beta"}, loads, "")
-		if picked != "beta" || !strings.Contains(why["alpha"], "under the 30m a start is worth") {
+		if picked != "beta" || why["alpha"] == "" {
 			t.Fatalf("picked %q, alpha: %q", picked, why["alpha"])
 		}
 	})
@@ -189,26 +189,14 @@ func TestScenarioAWindowEdges(t *testing.T) {
 	})
 }
 
-func TestScenarioBCap(t *testing.T) {
-	st := newWorld(t, map[string]acct{"alpha": {short: 10}}).env.Read("alpha")
-	for _, c := range []struct {
-		row          string
-		active, cap_ int
-		want         string
-	}{
-		{"B1 one of two", 1, 2, ""},
-		{"B1 two of two", 2, 2, "at its cap: 2 of 2 agents mid-turn"},
-		{"B2 three of two: over, the count as it is", 3, 2, "at its cap: 3 of 2 agents mid-turn"},
-	} {
-		if got := Unfit(st, &Load{Account: "alpha", Active: c.active, Cap: c.cap_}, ""); got != c.want {
-			t.Errorf("%s: %q, want %q", c.row, got, c.want)
-		}
+func TestScenarioBNoCap(t *testing.T) {
+	w := newWorld(t, map[string]acct{"alpha": {short: 10}})
+	if got := Unfit(w.env.Read("alpha")); got != "" {
+		t.Fatalf("%q", got)
 	}
-	t.Run("B9 cap 0 takes nothing, and says so rather than 0 of 0", func(t *testing.T) {
-		if got := Unfit(st, &Load{Account: "alpha", Cap: 0}, ""); got != "takes no agents: its cap is 0 (0 mid-turn)" {
-			t.Fatalf("%q", got)
-		}
-	})
+	if picked, why := w.pick([]string{"alpha"}, map[string]*Load{"alpha": {Account: "alpha", Active: 9}}, ""); picked != "alpha" {
+		t.Fatalf("nine agents on it kept a start off: %v", why)
+	}
 }
 
 func TestScenarioCOrder(t *testing.T) {
@@ -222,7 +210,7 @@ func TestScenarioCOrder(t *testing.T) {
 	t.Run("C2 inside the band: fewest mid-turn, then more urgent, then name", func(t *testing.T) {
 		w := newWorld(t, map[string]acct{"a": {week: 50, weekReset: 10 * 3600}, "b": {week: 51, weekReset: 10 * 3600},
 			"c": {week: 51, weekReset: 10 * 3600}})
-		busy := map[string]*Load{"a": {Account: "a", Active: 1, Cap: 4}}
+		busy := map[string]*Load{"a": {Account: "a", Active: 1}}
 		if picked, _ := w.pick([]string{"a", "b", "c"}, busy, ""); picked != "b" { // a is busier; b and c tie, b by name
 			t.Fatalf("fewest mid-turn, then name: picked %q", picked)
 		}
@@ -289,4 +277,66 @@ func TestScenarioE6ATickOnTheResetSecondHasOneAnswer(t *testing.T) {
 			t.Fatalf("the second before the reset took alpha at its wall: %q", a)
 		}
 	}
+}
+
+// A new start goes to an account that fits (under the move lines, its 5-hour window lasting to its reset with one more agent), the most
+// urgent week first; with none, to the one with the most room under its nearer wall; it waits only when every account is at a wall.
+func TestScenarioDNewStart(t *testing.T) {
+	t.Run("D1 one that fits goes first, though another's week is more urgent", func(t *testing.T) {
+		w := newWorld(t, map[string]acct{"urgent": {short: 90, week: 60, weekReset: 3600}, "calm": {short: 10, week: 10}})
+		picked, why := w.pick([]string{"urgent", "calm"}, nil, "")
+		if picked != "calm" || !strings.Contains(why["urgent"], "at or past 90%, where agents move off") {
+			t.Fatalf("picked %q %v", picked, why)
+		}
+	})
+	t.Run("D2 none fits: the most room under its nearer wall, the 5-hour window's or the week's", func(t *testing.T) {
+		w := newWorld(t, map[string]acct{"five": {short: 95, week: 10}, "week": {short: 10, week: 99}, "both": {short: 92, week: 50}})
+		picked, why := w.pick([]string{"five", "week", "both"}, nil, "")
+		if picked != "both" || !strings.Contains(why["both"], "8% left under its wall - no account fits, so the most room <- picked") {
+			t.Fatalf("picked %q %v", picked, why)
+		}
+	})
+	t.Run("D3 the same room: by name", func(t *testing.T) {
+		w := newWorld(t, map[string]acct{"b": {short: 95}, "a": {short: 95}})
+		if picked, why := w.pick([]string{"b", "a"}, nil, ""); picked != "a" {
+			t.Fatalf("picked %q %v", picked, why)
+		}
+	})
+	t.Run("D4 every account at a wall: nothing", func(t *testing.T) {
+		w := newWorld(t, map[string]acct{"a": {short: WallPct}, "b": {week: WallPct}})
+		if picked, why := w.pick([]string{"a", "b"}, nil, ""); picked != "" {
+			t.Fatalf("picked %q %v", picked, why)
+		}
+	})
+	t.Run("D6 none fits but one was never run: the never-run one, which has its whole window", func(t *testing.T) {
+		w := newWorld(t, map[string]acct{"full": {short: 95, week: 10}})
+		names := []string{"full", "fresh"}
+		picked, _, err := w.env.Pick(openDB(t), PickOpts{Candidates: names, Load: map[string]*Load{}, Bootstrap: true})
+		if err != nil || picked != "fresh" {
+			t.Fatalf("picked %q (%v)", picked, err)
+		}
+	})
+	t.Run("D5 the lines: the 5-hour window's at usage_move_before_pct (0 off), the week's at 98", func(t *testing.T) {
+		for _, c := range []struct {
+			name        string
+			config      map[string]any
+			short, week int
+			over        bool
+		}{
+			{"5h one under the default", nil, 89, 10, false},
+			{"5h at the default", nil, 90, 10, true},
+			{"5h at a line set to 50", map[string]any{MoveBeforeKey: 50}, 60, 10, true},
+			{"5h line off", map[string]any{MoveBeforeKey: 0}, 95, 10, false},
+			{"week one under", nil, 10, 97, false},
+			{"week at 98", nil, 10, 98, true},
+		} {
+			w := newWorld(t, map[string]acct{"a": {short: c.short, week: c.week}})
+			if c.config != nil {
+				writeConfig(t, w.home, c.config)
+			}
+			if _, why := w.pick([]string{"a"}, nil, ""); strings.Contains(why["a"], "where agents move off") != c.over {
+				t.Errorf("%s: %q", c.name, why["a"])
+			}
+		}
+	})
 }

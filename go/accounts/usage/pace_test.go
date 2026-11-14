@@ -42,57 +42,12 @@ func TestTheBucketHoldsTheWeeksElapsedShareAndABurstLessWhatIsSpent(t *testing.T
 	}
 }
 
-func TestWithTheLaunchHoldOffByDefaultAFastPaceKeepsTheFullCap(t *testing.T) {
-	q := openDB(t)
-	home := t.TempDir()
-	e := testEnv(home, clock)
-	writeConfig(t, home, map[string]any{"active_cap": 4})
-	os.MkdirAll(teamtest.AccountDir(t, home, "ahead"), 0o755)
-	weekAt(t, home, "ahead", 80) // far ahead of its week: 80% spent half way through
-	loads, err := e.ReadAll(q, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := loads["ahead"].Cap; got != 4 || loads["ahead"].Hold {
-		t.Errorf("cap %d hold %v, want the configured 4 and no hold", got, loads["ahead"].Hold)
-	}
-	if got := e.CapNow(q, "ahead"); got != 4 {
-		t.Errorf("CapNow %d, want 4", got)
-	}
-}
-
-func TestAHighFiveHourBurnDoesNotLowerTheCap(t *testing.T) {
-	q := openDB(t)
-	home := t.TempDir()
-	e := testEnv(home, clock)
-	writeConfig(t, home, map[string]any{"active_cap": 4, LaunchHoldKey: true})
-	os.MkdirAll(teamtest.AccountDir(t, home, "hot"), 0o755)
-	weekAt(t, home, "hot", 20) // behind its week
-	// 5h at 10%: 90 points left, the reset an hour off. An agent at $3/min on $1 a point fills 3%/min, the block in 30 minutes: a start
-	// is held for it (Predict), the cap is not shrunk.
-	seedCosts(t, q, 3, 5, map[string]AccountFactors{"hot": {Short: Factor{USDPerPct: 1, Source: FactorOwn}, Long: Factor{USDPerPct: 1000, Source: FactorOwn}}})
-	setAgent(t, q, "x", "RUNNING", "hot")
-	loads, err := e.ReadAll(q, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := loads["hot"].Cap; got != 4 {
-		t.Fatalf("cap %d, want 4: the 5-hour burn is the start's gate, not the cap's", got)
-	}
-	if got := e.CapNow(q, "hot"); got != 4 {
-		t.Fatalf("CapNow %d, want 4", got)
-	}
-	if p := e.Predict(q, "hot", "", ""); !p.ShortKnown || p.Short >= 1 {
-		t.Fatalf("the start is held on the 5-hour window: %+v", p)
-	}
-}
-
-func TestCutoffShareJudgesTheWeekAndFiveHourShareTheShortestWindow(t *testing.T) {
+func TestWeekShareJudgesTheWeekAndFiveHourShareTheShortestWindow(t *testing.T) {
 	home := t.TempDir()
 	e := testEnv(home, clock)
 	accountAt(t, home, 50, 60, 90, 86400)
 	st, now := e.Read("a"), float64(clock)
-	if got := CutoffShare(st, 0, 0, false, now); got != 1 {
+	if got, _ := WeekShare(st, 0, 0, false, now); got != 1 {
 		t.Fatalf("no burn, no risk: %v", got)
 	}
 	// 50 points over an hour: 0.5/60 %/s lasts 100 minutes, past the reset: share 100/60.
@@ -112,20 +67,8 @@ func TestCutoffShareJudgesTheWeekAndFiveHourShareTheShortestWindow(t *testing.T)
 		t.Fatal("no reset is no projection")
 	}
 	// The week: 10 points over a day, at a tenth of the shortest window's burn: 0.05%/min runs out in 200 minutes.
-	if got := CutoffShare(st, 0.5/60, 0.1, true, now); got < 0.138 || got > 0.139 {
+	if got, _ := WeekShare(st, 0.5/60, 0.1, true, now); got < 0.138 || got > 0.139 {
 		t.Fatalf("the week cut off first: %v", got)
-	}
-}
-
-func TestCutoffCapRoundsUpSoAnyShareLeftKeepsOneSlot(t *testing.T) {
-	for _, c := range []struct {
-		base int
-		s    float64
-		want int
-	}{{2, 2, 2}, {2, 1, 2}, {2, 0.5, 1}, {2, 0.01, 1}, {2, 0, 0}, {3, 0.5, 2}, {4, 0.9, 4}} {
-		if got := CutoffCap(c.base, c.s); got != c.want {
-			t.Errorf("CutoffCap(%d, %v) = %d, want %d", c.base, c.s, got, c.want)
-		}
 	}
 }
 
@@ -141,58 +84,37 @@ func TestHeadroomIsTheTighterOfThe5hAndTheWeeklyBucket(t *testing.T) {
 	}
 }
 
-func TestThePaceLineShrinksTheCapInStepWithTheBurstAndStopsItPastIt(t *testing.T) {
-	q := openDB(t)
+func TestThePaceStateIsWhereTheWeekStandsAgainstItsLine(t *testing.T) {
 	home := t.TempDir()
 	e := testEnv(home, clock)
-	writeConfig(t, home, map[string]any{"active_cap": 4, LaunchHoldKey: true})
 	os.MkdirAll(teamtest.AccountDir(t, home, "a"), 0o755)
-	// Half the week gone: the line is at 49 (98 x 1/2).
+	// Half the week gone: the line is at 49 (98 x 1/2), the burst 10 points over it.
 	for _, c := range []struct {
 		used  int
 		state string
-		cap   int
-	}{{40, PaceBehind, 4}, {49, PaceBehind, 4}, {54, PaceAhead, 2}, {58, PaceAhead, 1}, {59, PaceAhead, 1}, {60, PaceOver, 0}} {
+	}{{40, PaceBehind}, {49, PaceBehind}, {54, PaceAhead}, {59, PaceAhead}, {60, PaceOver}} {
 		weekAt(t, home, "a", c.used)
-		p := e.PaceNow("a")
-		if p == nil || p.State != c.state || p.Line != 49 || p.Used != c.used {
+		if p := e.PaceNow("a"); p == nil || p.State != c.state || p.Line != 49 || p.Used != c.used {
 			t.Fatalf("used %d: pace %+v, want %s on a line of 49", c.used, p, c.state)
-		}
-		if got := e.CapNow(q, "a"); got != c.cap {
-			t.Errorf("used %d (%s): cap %d, want %d", c.used, c.state, got, c.cap)
-		}
-		if got := e.CapUnpaced(q, "a"); got != 4 {
-			t.Errorf("used %d: unpaced cap %d, want the configured 4", c.used, got)
 		}
 	}
 }
 
-func TestAnAccountOverItsLineIsBackWhenTheLineCatchesUpAndItsRateEndsAtTheTarget(t *testing.T) {
+func TestAnAccountsRateEndsAtTheTarget(t *testing.T) {
 	home := t.TempDir()
 	e := testEnv(home, clock)
-	writeConfig(t, home, map[string]any{LaunchHoldKey: true})
 	os.MkdirAll(teamtest.AccountDir(t, home, "a"), 0o755)
 	weekAt(t, home, "a", 79)
 	p := e.PaceNow("a")
 	if p == nil || p.State != PaceOver {
 		t.Fatalf("79%% half way through: %+v, want over", p)
 	}
-	// The line reaches 79-10=69 at 69/98 of the week; half a week is gone.
-	start := float64(clock + WeekS/2 - WeekS)
-	if want := int64(start + 69.0/98*WeekS + 1); p.BackAt < want-1 || p.BackAt > want {
-		t.Errorf("back at %d, want about %d", p.BackAt, want)
-	}
 	if want := (98.0 - 79) / (WeekS / 2 / 3600); p.RateH < want-1e-9 || p.RateH > want+1e-9 {
 		t.Errorf("rate %v, want %v points an hour", p.RateH, want)
 	}
 	weekAt(t, home, "a", 99)
-	if p := e.PaceNow("a"); p.RateH != 0 || p.BackAt == 0 {
-		t.Errorf("past the target: rate %v back %d, want 0 and a time", p.RateH, p.BackAt)
-	}
-	writeConfig(t, home, map[string]any{"pace_burst_pct": 0, LaunchHoldKey: true})
-	weekAt(t, home, "a", 100)
-	if p := e.PaceNow("a"); p.BackAt != int64(clock+WeekS/2) {
-		t.Errorf("a line that never gets there: back %d, want the week's end %d", p.BackAt, int64(clock+WeekS/2))
+	if p := e.PaceNow("a"); p.RateH != 0 {
+		t.Errorf("past the target: rate %v, want 0", p.RateH)
 	}
 	// A reading days old still holds until its reset.
 	writeStatus(t, home, "a", map[string]any{"collected_at": clock - 2*86400, "windows": []any{
@@ -200,10 +122,6 @@ func TestAnAccountOverItsLineIsBackWhenTheLineCatchesUpAndItsRateEndsAtTheTarget
 		map[string]any{"minutes": 10080, "used_percent": 79, "resets_at": clock + WeekS/2, "observed_at": clock - 2*86400}}})
 	if p := e.PaceNow("a"); p == nil || p.Used != 79 {
 		t.Errorf("a stale weekly reading: %+v, want it judged", p)
-	}
-	writeConfig(t, home, map[string]any{"pacing": false})
-	if p := e.PaceNow("a"); p == nil || p.State != PaceOff || p.BackAt != 0 {
-		t.Errorf("pacing off: %+v, want off with the figures", p)
 	}
 	writeStatus(t, home, "a", map[string]any{"collected_at": clock - 5, "windows": []any{}})
 	if p := e.PaceNow("a"); p != nil {
@@ -213,32 +131,16 @@ func TestAnAccountOverItsLineIsBackWhenTheLineCatchesUpAndItsRateEndsAtTheTarget
 
 func TestPaceSettingsOutOfRangeFallBackToTheirDefaults(t *testing.T) {
 	if ps := PaceSettingsOf(Config{}); ps != (PaceSettings{Target: 98, Burst: 10}) {
-		t.Errorf("defaults, the hold off: %+v", ps)
+		t.Errorf("defaults: %+v", ps)
 	}
-	if ps := PaceSettingsOf(Config{LaunchHoldKey: true, "pace_target_pct": 120, "pace_burst_pct": 5}); ps != (PaceSettings{On: true, Target: 98, Burst: 5}) {
+	if ps := PaceSettingsOf(Config{"pace_target_pct": 120, "pace_burst_pct": 5}); ps != (PaceSettings{Target: 98, Burst: 5}) {
 		t.Errorf("set: %+v", ps)
-	}
-}
-
-// The pace cap is figured on the founder's cap, not on what the cut-off risk left of it, and the smaller of the two is in force.
-func TestThePaceCapIsFiguredOnTheFoundersCapAndTheSmallestCapIsInForce(t *testing.T) {
-	q := openDB(t)
-	home := t.TempDir()
-	e := testEnv(home, clock)
-	writeConfig(t, home, map[string]any{"active_cap": 4, LaunchHoldKey: true})
-	os.MkdirAll(teamtest.AccountDir(t, home, "a"), 0o755)
-	weekAt(t, home, "a", 56) // 7 points ahead of a line at 49: ceil(4 x 3/10) = 2
-	if got := e.CapUnpaced(q, "a"); got != 4 {
-		t.Fatalf("the unpaced cap: %d, want the founder's 4", got)
-	}
-	if got := e.CapNow(q, "a"); got != 2 {
-		t.Errorf("cap %d, want 2: the pace on the founder's 4", got)
 	}
 }
 
 func TestAWeekPastItsResetOrItsSubscriptionsEndIsPacedAsSuch(t *testing.T) {
 	now, used := float64(clock), 60
-	ps := PaceSettings{On: true, Target: 98, Burst: 10}
+	ps := PaceSettings{Target: 98, Burst: 10}
 	st := &AccountStatus{AsOf: &now, Long: AcctWindow{Minutes: 10080, Pct: &used, Reset: int64(now) - 10}}
 	if p := PaceOf(st, now, ps); p != nil {
 		t.Errorf("a reading whose reset has passed: %+v, want none", p)
@@ -249,8 +151,8 @@ func TestAWeekPastItsResetOrItsSubscriptionsEndIsPacedAsSuch(t *testing.T) {
 	}
 }
 
-// The 5-hour gate prices the newcomer at its measured cost: 0.159 %/min, never the starting value; with the launch hold off nothing holds.
-func TestAStartIsHeldOnTheFiveHourWindowOnlyWhenTheMeasuredCostWouldRunItOut(t *testing.T) {
+// The 5-hour test prices the newcomer at its measured cost: 0.159 %/min, never the starting value.
+func TestAStartFailsTheFiveHourTestOnlyWhenTheMeasuredCostWouldRunItOut(t *testing.T) {
 	home := t.TempDir()
 	e := testEnv(home, clock)
 	var rows []float64
@@ -263,21 +165,20 @@ func TestAStartIsHeldOnTheFiveHourWindowOnlyWhenTheMeasuredCostWouldRunItOut(t *
 		used, resets int // percent used, minutes to the reset
 		fillPerMin   float64
 		costs        *Costs
-		hold, held   bool
+		unfit        bool
 	}{
-		{"an empty account early in its window", 0, 280, 0, measured, true, false},
-		{"30% used with 93 minutes left and nothing running", 30, 93, 0, measured, true, false},
-		{"70% used, 2 hours left, 0.2%/min already running", 70, 120, 0.2, measured, true, true},
-		{"a fresh window that three agents are filling fast", 0, 280, 0.45, measured, true, true},
-		{"the same with the launch hold off", 0, 280, 0.45, measured, false, false},
-		{"only the starting value is known: nothing is held on a guess", 0, 280, 0.45, costsAt(nil, nil, "a"), true, false},
+		{"an empty account early in its window", 0, 280, 0, measured, false},
+		{"30% used with 93 minutes left and nothing running", 30, 93, 0, measured, false},
+		{"70% used, 2 hours left, 0.2%/min already running", 70, 120, 0.2, measured, true},
+		{"a fresh window that three agents are filling fast", 0, 280, 0.45, measured, true},
+		{"only the starting value is known: it fits on a guess", 0, 280, 0.45, costsAt(nil, nil, "a"), false},
 	} {
 		accountAt(t, home, c.used, int64(c.resets), 5, WeekS/2)
 		burn := c.fillPerMin / 60
-		ld := &Load{Account: "a", Cap: 4, Burn: &burn, Costs: c.costs, Hold: c.hold}
+		ld := &Load{Account: "a", Burn: &burn, Costs: c.costs}
 		pct := c.used
-		if why, _ := NoRoom(e.Read("a"), ld, &pct, ""); (why != "") != c.held {
-			t.Errorf("%s: %q, held want %v", c.name, why, c.held)
+		if why, _ := ShortFit(e.Read("a"), ld, &pct, ""); (why != "") != c.unfit {
+			t.Errorf("%s: %q, unfit want %v", c.name, why, c.unfit)
 		}
 	}
 }

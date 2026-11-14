@@ -28,7 +28,6 @@
      },
      "result": {
       "values": {
-       "launch_pace_hold": false,
        "pace_target_pct": 98,
        "pace_burst_pct": 10
       }
@@ -93,7 +92,7 @@
   {
    "name": "settings.set.pace_keys_set_and_null_resets_them",
    "spec": "settings.set",
-   "about": "launch_pace_hold and pace_burst_pct are set, read back, then null puts them back to their defaults.",
+   "about": "pace_target_pct and pace_burst_pct are set, read back, then null puts them back to their defaults.",
    "as": "founder",
    "steps": [
     {
@@ -116,7 +115,7 @@
       "method": "settings.set",
       "params": {
        "changes": {
-        "launch_pace_hold": true,
+        "pace_target_pct": 90,
         "pace_burst_pct": 5
        },
        "request_id": "conf-pace-2"
@@ -138,7 +137,7 @@
      },
      "result": {
       "values": {
-       "launch_pace_hold": true,
+       "pace_target_pct": 90,
        "pace_burst_pct": 5
       }
      }
@@ -150,7 +149,7 @@
       "method": "settings.set",
       "params": {
        "changes": {
-        "launch_pace_hold": null,
+        "pace_target_pct": null,
         "pace_burst_pct": null
        },
        "request_id": "conf-pace-3"
@@ -172,7 +171,7 @@
      },
      "result": {
       "values": {
-       "launch_pace_hold": false,
+       "pace_target_pct": 98,
        "pace_burst_pct": 10
       }
      }

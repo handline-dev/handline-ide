@@ -313,7 +313,7 @@ export type RequestId = string;
 
 /** Every global setting by its config.yaml name, with its default; every one is the founder's to set. Per-account keys (label, cap, usage recovery, cycle) are account.set; per-agent keys are agent.set and schedule.*; a key marked Per agent also takes `agent` in settings.set. */
 export type SettingsValues = {
-  /** Default cap: most agents mid-turn at once on an account with no cap of its own. */
+  /** The cap shown for an account with none of its own (Account.cap_effective). It limits nothing. Kept until the app stops reading it. */
   active_cap?: number;
   /** Idle close, seconds; 0 never. The UI shows whole minutes. Per agent with `agent`. */
   park_timeout_s?: number;
@@ -365,11 +365,11 @@ export type SettingsValues = {
   ram_free_min_pct?: number;
   /** Least free disk on the volume the daemon home is on, in GB; 0 is off, the default. The disk needs-you item uses it as its floor when it is set, else 10 GB. */
   disk_free_min_gb?: number;
-  /** Turn on every hold the pace prediction makes on a start (usage Predict): an account ahead of its weekly pace line (Account.pace) starts fewer turns, and one ahead by more than pace_burst_pct starts none (status reason pace); the cap shrinks where the agents mid-turn would reach the week's block before it ends; and a start waits when one more agent would run the 5-hour window or the week out before its reset. The prediction prices each agent mid-turn at its model's dollar pace over the account's factors (Account.factors). A turn a person starts is never held, and a running turn is never stopped. Off by default: the prediction is still read and shown, and holds nothing; only the windows' walls hold work. */
+  /** No longer read or written: no pace holds a start. settings.set refuses it; it goes from this contract once the app stops naming it. */
   launch_pace_hold?: boolean;
   /** Where each account's pace line ends: its weekly usage, in percent, at the end of its week (its weekly reset, or its subscription end when that comes first). Under 100 because a reading lags by minutes. */
   pace_target_pct?: number;
-  /** How far, in points of the week, an account may run ahead of its pace line. Inside it the account's cap shrinks in step; past it the account starts no new turn. */
+  /** How far, in points of the week, an account may run ahead of its pace line and read as ahead rather than over (Account.pace.state). It holds no start. */
   pace_burst_pct?: number;
   /** Refuse a subagent (the Agent tool) when one more would take the agent's account to its 5-hour or weekly limit before that window resets (subagent.start). Off: every start is recorded and none is refused. Off by default until the founder turns it on. */
   subagent_pace_guard?: boolean;
@@ -401,7 +401,7 @@ export type SettingsValues = {
 
 /** settings.set's changes: any of SettingsValues' keys; null removes one. */
 export type SettingsChanges = {
-  /** Default cap: most agents mid-turn at once on an account with no cap of its own. null removes the key (back to the default). */
+  /** The cap shown for an account with none of its own (Account.cap_effective). It limits nothing. Kept until the app stops reading it. null removes the key (back to the default). */
   active_cap?: number | null;
   /** Idle close, seconds; 0 never. The UI shows whole minutes. Per agent with `agent`. null removes the key (back to the default). */
   park_timeout_s?: number | null;
@@ -453,11 +453,11 @@ export type SettingsChanges = {
   ram_free_min_pct?: number | null;
   /** Least free disk on the volume the daemon home is on, in GB; 0 is off, the default. The disk needs-you item uses it as its floor when it is set, else 10 GB. null removes the key (back to the default). */
   disk_free_min_gb?: number | null;
-  /** Turn on every hold the pace prediction makes on a start (usage Predict): an account ahead of its weekly pace line (Account.pace) starts fewer turns, and one ahead by more than pace_burst_pct starts none (status reason pace); the cap shrinks where the agents mid-turn would reach the week's block before it ends; and a start waits when one more agent would run the 5-hour window or the week out before its reset. The prediction prices each agent mid-turn at its model's dollar pace over the account's factors (Account.factors). A turn a person starts is never held, and a running turn is never stopped. Off by default: the prediction is still read and shown, and holds nothing; only the windows' walls hold work. */
+  /** No longer read or written: no pace holds a start. settings.set refuses it; it goes from this contract once the app stops naming it. */
   launch_pace_hold?: boolean | null;
   /** Where each account's pace line ends: its weekly usage, in percent, at the end of its week (its weekly reset, or its subscription end when that comes first). Under 100 because a reading lags by minutes. null removes the key (back to the default). */
   pace_target_pct?: number | null;
-  /** How far, in points of the week, an account may run ahead of its pace line. Inside it the account's cap shrinks in step; past it the account starts no new turn. null removes the key (back to the default). */
+  /** How far, in points of the week, an account may run ahead of its pace line and read as ahead rather than over (Account.pace.state). It holds no start. null removes the key (back to the default). */
   pace_burst_pct?: number | null;
   /** Refuse a subagent (the Agent tool) when one more would take the agent's account to its 5-hour or weekly limit before that window resets (subagent.start). Off: every start is recorded and none is refused. Off by default until the founder turns it on. */
   subagent_pace_guard?: boolean;

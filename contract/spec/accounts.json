@@ -124,11 +124,11 @@
         "type": "null"
        }
       ],
-      "description": "The account's own cap: most agents mid-turn at once; null follows active_cap."
+      "description": "The account's own cap as set; null follows active_cap. It limits nothing: any number of agents may run on an account. Kept until the app stops reading it."
      },
      "cap_effective": {
       "type": "integer",
-      "description": "The cap in force: cap, else the active_cap setting; with launch_pace_hold on, shrunk where the agents mid-turn would reach the week's block before it ends, and by the account's pace (Account.pace)."
+      "description": "cap, else the active_cap setting; 0 while the account is paused. It limits nothing. Kept until the app stops reading it."
      },
      "recover": {
       "type": "boolean",
@@ -187,7 +187,7 @@
      "agents_running": {
       "type": "integer",
       "minimum": 0,
-      "description": "Only with accounts.list `roster: true`. Agents mid-turn on this account: the count cap_effective holds to."
+      "description": "Only with accounts.list `roster: true`. Agents mid-turn on this account."
      },
      "agents_background": {
       "type": "integer",
@@ -409,7 +409,7 @@
            "over",
            "off"
           ],
-          "description": "behind: used_pct is at or under line_pct, and the cap is not shrunk for pace. ahead: over the line by at most pace_burst_pct points; the pace cap is ceil(C x (line_pct + pace_burst_pct - used_pct) / pace_burst_pct), at least 1, where C is cap, else the active_cap setting. over: further ahead; the pace cap is 0 and the account starts no new turn. off: launch_pace_hold is off; the figures are still given. cap_effective is the smallest of C, the wall-cutoff cap and the pace cap."
+          "description": "behind: used_pct is at or under line_pct. ahead: over the line by at most pace_burst_pct points. over: further ahead. off: never sent now. The pace holds no start."
          },
          "line_pct": {
           "type": "number",
@@ -447,7 +447,7 @@
         "type": "null"
        }
       ],
-      "description": "Only with accounts.list `usage: true`. The account's weekly pace (settings launch_pace_hold, pace_target_pct, pace_burst_pct), judged on its last weekly reading, which is kept until its weekly reset even when it is stale. null when it has no weekly reading or its reset is not known; a null pace does not shrink the cap. back_at: for state over, when the line will have caught up to within pace_burst_pct of used_pct at no further use, or the end of its week when the line never gets there; else null."
+      "description": "Only with accounts.list `usage: true`. The account's weekly pace (settings pace_target_pct, pace_burst_pct), shown only: it holds no start. Judged on its last weekly reading, which is kept until its weekly reset even when it is stale. null when it has no weekly reading or its reset is not known. back_at: always null now; it goes from this contract once the app stops naming it."
      },
      "factors": {
       "oneOf": [
@@ -750,7 +750,7 @@
         "left_pct"
        ]
       },
-      "description": "A guess. With launch_pace_hold on, each account's week goes at the smaller of its pace (Account.pace rate_pct_h, which ends at pace_target_pct) and its use over the last day; with pacing off, at its use over the last day. A week that resets starts again from nothing used. An account whose last reading is stale or at a wall keeps that reading until its reset and is not left out. An account that cannot be used now (its login gone or expired) counts as 0 ahead. Kept apart from `past`, never joined to it."
+      "description": "A guess. Each account's week goes at its use over the last day. A week that resets starts again from nothing used. An account whose last reading is stale or at a wall keeps that reading until its reset and is not left out. An account that cannot be used now (its login gone or expired) counts as 0 ahead. Kept apart from `past`, never joined to it."
      },
      "runway": {
       "type": "array",
@@ -960,7 +960,7 @@
            "line_left"
           ]
          },
-         "description": "The guess of `future` for this account, at the same points. The 5h window starts again from nothing at each reset, so its line is a saw; it goes at its use over the last day, and with launch_pace_hold on at no more than the paced week rate converted to the 5h window by the account's factors (Account.factors: its 5-hour factor over its week factor)."
+         "description": "The guess of `future` for this account, at the same points. The 5h window starts again from nothing at each reset, so its line is a saw; it goes at its use over the last day."
         },
         "resets": {
          "type": "array",

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"slices"
 	"sync"
 	"testing"
 
@@ -16,8 +15,8 @@ import (
 	"github.com/handline/handline/go/protocol/sessiontoken"
 )
 
-// Rows E1 and E2 of docs/design/account-assignment-scenarios.md: placements racing for slots, on the real Launcher and usage
-// adapter, the clock fixed at usageNow. No sleeps: the racers start together off a closed channel.
+// Rows E1 and E2 of docs/design/account-assignment-scenarios.md: placements racing, on the real Launcher and usage adapter, the clock
+// fixed at usageNow. No sleeps: the racers start together off a closed channel.
 
 type placeRig struct {
 	l *Launcher
@@ -25,7 +24,7 @@ type placeRig struct {
 	q db.Q
 }
 
-// newPlaceRig is accounts (cap 2 each) with one agent running on each, and agents x and y to place.
+// newPlaceRig is accounts with one agent running on each, and agents x and y to place.
 func newPlaceRig(t *testing.T, accounts ...string) *placeRig {
 	t.Helper()
 	was := db.Now
@@ -88,17 +87,17 @@ func (r *placeRig) race(t *testing.T) map[string]string {
 
 const raceRounds = 200
 
-func TestTwoPlacementsForOneFreeSlotPlaceOne(t *testing.T) { // E1
+func TestTwoPlacementsOnOneAccountBothGo(t *testing.T) { // E1: no cap
 	r := newPlaceRig(t, "alpha")
 	for i := range raceRounds {
-		got := r.race(t)
-		if n := btoi(got["x"] == "alpha") + btoi(got["y"] == "alpha"); n != 1 || got["x"]+got["y"] != "alpha" {
-			t.Fatalf("round %d: %v - exactly one may take alpha's one free slot, the other none", i, got)
+		if got := r.race(t); got["x"] != "alpha" || got["y"] != "alpha" {
+			t.Fatalf("round %d: %v - both start, however many are on it", i, got)
 		}
 	}
 }
 
-func TestTwoPlacementsForTwoAccountsWithOneSlotEachPlaceOneEach(t *testing.T) { // E2
+// Each placement sees the other's hold under the placement lock, so two at once spread over two like accounts.
+func TestTwoPlacementsForTwoLikeAccountsPlaceOneEach(t *testing.T) { // E2
 	r := newPlaceRig(t, "alpha", "beta")
 	for i := range raceRounds {
 		got := r.race(t)
@@ -121,14 +120,14 @@ func TestAHeldSlotCountsUntilItsLookBackEndsThenGoes(t *testing.T) {
 		want  int
 	}{{usage.WakeReserveS - 1, 2}, {usage.WakeReserveS, 1}} {
 		now = usageNow + c.after
-		if n := r.u.ActiveOn(r.q, "alpha", ""); n != c.want {
+		if n := activeOn(t, r.u, r.q, "alpha", ""); n != c.want {
 			t.Fatalf("+%d s: %d mid-turn on alpha, want %d", c.after, n, c.want)
 		}
 	}
 	// A session that has reported counts by its state, whatever the age of its hold.
 	db.SetAgentState(r.q, "x", states.Running, 0, "")
 	db.SetAccount(r.q, "x", "alpha", "")
-	if n := r.u.ActiveOn(r.q, "alpha", ""); n != 2 {
+	if n := activeOn(t, r.u, r.q, "alpha", ""); n != 2 {
 		t.Fatalf("running: %d", n)
 	}
 }
@@ -148,16 +147,9 @@ func TestALaunchRefusedPastItsHoldLetsTheSlotGo(t *testing.T) {
 	if _, _, ok, _ := db.LastEvent(r.q, "x", "wake_dropped"); ok {
 		t.Fatal("wake_dropped is the wake's own answer, not a launch's")
 	}
-	if n := r.u.ActiveOn(r.q, "alpha", ""); n != 1 {
+	if n := activeOn(t, r.u, r.q, "alpha", ""); n != 1 {
 		t.Fatalf("%d mid-turn on alpha: the refused launch still holds a slot", n)
 	}
-}
-
-func btoi(b bool) int {
-	if b {
-		return 1
-	}
-	return 0
 }
 
 // lockedLaunch is a Launch whose decisions and the hold they lead to must all fall inside one Placing.
@@ -275,151 +267,4 @@ func (r *placeRig) raceEach(t *testing.T, places map[string]func() string) map[s
 		}
 	}
 	return got
-}
-
-func TestTwoMovesToOneFreeSlotHoldOne(t *testing.T) {
-	r := newPlaceRig(t, "alpha")
-	m := r.manager()
-	move := func(a string) func() string {
-		return func() string {
-			if m.holdSlot(a, "alpha", false) == "" {
-				return "alpha"
-			}
-			return ""
-		}
-	}
-	for i := range raceRounds {
-		if got := r.raceEach(t, map[string]func() string{"x": move("x"), "y": move("y")}); got["x"]+got["y"] != "alpha" {
-			t.Fatalf("round %d: %v - exactly one move may hold alpha's one free slot", i, got)
-		}
-	}
-}
-
-func TestAMoveAndALaunchForOneFreeSlotHoldOne(t *testing.T) {
-	r := newPlaceRig(t, "alpha")
-	m := r.manager()
-	for i := range raceRounds {
-		got := r.raceEach(t, map[string]func() string{
-			"x": func() string {
-				if m.holdSlot("x", "alpha", false) == "" {
-					return "alpha"
-				}
-				return ""
-			},
-			"y": func() string {
-				acct, err := r.l.place("y", false, "")
-				if err != nil {
-					t.Error(err)
-				}
-				return acct
-			},
-		})
-		if got["x"]+got["y"] != "alpha" {
-			t.Fatalf("round %d: %v - a move and a launch may not both take alpha's one free slot", i, got)
-		}
-	}
-}
-
-func TestASlotIsWeighedAgainstThePacedCapUnlessTheWakeIsUnpaced(t *testing.T) {
-	r := newLaunchRig(t)
-	r.l.Ports.Usage = fakeUsage{cap: 1, unpaced: 2, active: map[string]int{"alpha": 1}}
-	if got, want := r.l.SlotTaken(r.l.Q, "ann", "alpha", false), "alpha has no free slot now: 1 of 1 agents mid-turn or held"; got != want {
-		t.Fatalf("paced: %q, want %q", got, want)
-	}
-	if got := r.l.SlotTaken(r.l.Q, "ann", "alpha", true); got != "" {
-		t.Fatalf("unpaced (a person's start, a restart, a person waiting): %q", got)
-	}
-	r.l.PassPace("ann")
-	if got := r.l.SlotTaken(r.l.Q, "ann", "alpha", false); got != "" {
-		t.Fatalf("let past the pace: %q", got)
-	}
-}
-
-// noSlotLaunch has a place for a person's start (RoomNow) whose slot is gone by the time it is held.
-type noSlotLaunch struct{ fullLaunch }
-
-func (noSlotLaunch) RoomNow(db.Q, string, *db.AgentState, string) (string, string) { return "b", "" }
-func (noSlotLaunch) SlotTaken(_ db.Q, _, acct string, _ bool) string {
-	return acct + " has no free slot now: 2 of 2 agents mid-turn or held"
-}
-
-func TestAPersonsMoveWhoseSlotIsGoneSaysWhereAndHoldsNothing(t *testing.T) {
-	m, d, tm := newManager(t)
-	d.waitingMsg, d.tookPrompt, tm.launchOK = "Here is your request.", true, true
-	m.Launch = noSlotLaunch{}
-	db.SetTerminal(m.Q, "a", "t1", "/wt")
-	db.SetClosed(m.Q, "a", "sess-1")
-	want := DescribeWakeWait(&WakeWait{Account: "a", Window: "slot", Slot: true, Full: 2, Busy: 2, Unpaced: 2}) +
-		"; not moved: b has no free slot now: 2 of 2 agents mid-turn or held"
-	handoffs := func() (n int) {
-		if err := m.Q.QueryRow("SELECT COUNT(*) FROM handoff WHERE agent = 'a'").Scan(&n); err != nil {
-			t.Fatal(err)
-		}
-		return n
-	}
-	for try := range 2 { // a retry finds what the first miss left: nothing moved, no handoff added
-		ok, said, err := m.WakeAgentLocked("a", WakeOpts{Force: true, Person: true})
-		if err != nil || ok || said != want || len(tm.relaunched) != 0 {
-			t.Fatalf("try %d: %v %q %v", try, ok, said, err)
-		}
-		for _, kind := range []string{"wake_reserved", usage.HoldDroppedKind} {
-			if _, _, held, _ := db.LastEvent(m.Q, "a", kind); held {
-				t.Fatalf("try %d: a miss wrote %s", try, kind)
-			}
-		}
-		if n := handoffs(); n != 0 {
-			t.Fatalf("try %d: %d handoffs", try, n)
-		}
-		if row := must(db.GetAgentState(m.Q, "a")); row.ResumeSession.String != "sess-1" {
-			t.Fatalf("try %d: the miss changed the session to resume: %q", try, row.ResumeSession.String)
-		}
-	}
-}
-
-// A handoff's move (MovedTo) and a warm resume were weighed before the lock; their slot is asked again under it.
-func TestAMovedOrWarmWakeWhoseSlotIsGoneUnderTheLockHoldsNothing(t *testing.T) {
-	for _, c := range []struct {
-		name string
-		o    WakeOpts
-		sess string
-		want string
-	}{
-		{"a handoff's move", WakeOpts{Force: true, MovedTo: "b"}, "sess-1", "b has no free slot now: 2 of 2 agents mid-turn or held"},
-		{"a warm resume", WakeOpts{Force: true, Warm: true}, "sess-1", "resume-acct has no free slot now: 2 of 2 agents mid-turn or held"},
-	} {
-		t.Run(c.name, func(t *testing.T) {
-			m, d, tm := newManager(t)
-			d.waitingMsg, d.tookPrompt, tm.launchOK = "Here is your request.", true, true
-			var held bool
-			var missed []string
-			m.Launch = slotGoneLaunch{lockedLaunch{q: m.Q, held: &held, missed: &missed}}
-			db.SetTerminal(m.Q, "a", "t1", "/wt")
-			db.SetClosed(m.Q, "a", c.sess)
-			db.AddEvent(m.Q, "a", "Stop")
-			ok, said, err := m.WakeAgentLocked("a", c.o)
-			if err != nil || ok || said != c.want {
-				t.Fatalf("%v %q %v", ok, said, err)
-			}
-			if _, _, ok, _ := db.LastEvent(m.Q, "a", "wake_reserved"); ok {
-				t.Fatal("a slot that was gone was held")
-			}
-			if slices.Contains(missed, "SlotTaken outside the lock") {
-				t.Fatal(missed)
-			}
-		})
-	}
-}
-
-type slotGoneLaunch struct{ lockedLaunch }
-
-func (l slotGoneLaunch) Placing() func() {
-	*l.held = true
-	return func() { *l.held = false }
-}
-
-func (l slotGoneLaunch) SlotTaken(_ db.Q, _, acct string, _ bool) string {
-	if !*l.held {
-		*l.missed = append(*l.missed, "SlotTaken outside the lock")
-	}
-	return acct + " has no free slot now: 2 of 2 agents mid-turn or held"
 }

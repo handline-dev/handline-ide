@@ -3,7 +3,6 @@ package compose
 import (
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
@@ -56,44 +55,24 @@ func (c controls) ForceStart(agent string) (bool, string, error) {
 	if err != nil {
 		return false, "", err
 	}
-	paced, pacedWhat := "", "its account is ahead of its weekly pace"
 	if w := c.lc.Launch.WorkspaceWait(m.Q, agent); w != nil {
 		return false, "A force start does not pass " + agent + "'s workspace rule: " + lifecycle.DescribeWakeWait(w) + ".", nil
-	}
-	if w := c.lc.Launch.WakeWait(m.Q, agent, row); w != nil && (w.Pace != nil || w.FiveHour) {
-		paced = lifecycle.DescribeWakeWait(w)
-		if w.FiveHour {
-			pacedWhat = "Claude's 5-hour limit would run out before it starts over"
-		}
 	}
 	if owed == "" && !c.lc.Launch.Ports.WaitingFor(m.Q, agent) {
 		return false, "Nothing to start: " + addr.Ref(agent) + " has no work waiting.", nil
 	}
-	if why == "" && paced == "" {
+	if why == "" {
 		return false, "Nothing holds " + addr.Ref(agent) + " back: it starts by itself.", nil
 	}
-	var said []string
-	for _, p := range []struct {
-		held, kind, what string
-		pass             func(string)
-	}{{why, "load_limit_passed", loadgate.Cause(why), c.lc.Gate.Pass}, {paced, "pace_passed", pacedWhat, c.lc.Launch.PassPace}} {
-		if p.held == "" {
-			continue
-		}
-		p.pass(agent)
-		if _, err := db.AddEvent(m.Q, agent, p.kind, db.KV{K: "held", V: p.held}); err != nil {
-			return false, "", err
-		}
-		said = append(said, p.what)
+	c.lc.Gate.Pass(agent)
+	if _, err := db.AddEvent(m.Q, agent, "load_limit_passed", db.KV{K: "held", V: why}); err != nil {
+		return false, "", err
 	}
-	return true, "Starting " + addr.Ref(agent) + " now, even though " + strings.Join(said, " and ") + ".", nil
+	return true, "Starting " + addr.Ref(agent) + " now, even though " + loadgate.Cause(why) + ".", nil
 }
 
 // Unpass takes back what ForceStart let past, for a start that has not come by the time its caller stopped waiting.
-func (c controls) Unpass(agent string) {
-	c.lc.Gate.Unpass(agent)
-	c.lc.Launch.UnpassPace(agent)
-}
+func (c controls) Unpass(agent string) { c.lc.Gate.Unpass(agent) }
 
 // controls is sessionrpc.Controls over the lifecycle manager.
 type controls struct {

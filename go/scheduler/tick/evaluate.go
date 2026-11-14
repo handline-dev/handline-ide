@@ -488,10 +488,7 @@ func (t *Tick) handOff(agent string, trig Trigger, dest string, actions *[]strin
 	}
 }
 
-// MoveBeforeWeekPct is the percent of its week at which an idle agent with work waiting moves early, while usage_move_before_pct is on.
-const MoveBeforeWeekPct = 98
-
-// earlyTrigger fires once the agent's account is at usage_move_before_pct of its 5-hour window or MoveBeforeWeekPct of its week, and
+// earlyTrigger fires once the agent's account is at usage_move_before_pct of its 5-hour window or states.MoveBeforeWeekPct of its week, and
 // MovePlan picks an account under both, which is dest. Off at 0, and never on an assumed account.
 func (t *Tick) earlyTrigger(agent string, reading *AccountReading, st Status) (Trigger, string) {
 	pct := t.Config.MoveBeforePct()
@@ -499,7 +496,7 @@ func (t *Tick) earlyTrigger(agent string, reading *AccountReading, st Status) (T
 		return Trigger{}, ""
 	}
 	at := func(v *int, line int) bool { return v != nil && *v >= line }
-	over := func(s Status) bool { return at(s.ShortTrusted, pct) || at(s.LongTrusted, MoveBeforeWeekPct) }
+	over := func(s Status) bool { return at(s.ShortTrusted, pct) || at(s.LongTrusted, states.MoveBeforeWeekPct) }
 	if !over(st) || !t.Handoff.Movable(states.EarlyUsageTrigger) {
 		return Trigger{}, ""
 	}
@@ -509,7 +506,7 @@ func (t *Tick) earlyTrigger(agent string, reading *AccountReading, st Status) (T
 	}
 	why := fmt.Sprintf("5h window %d%% >= usage_move_before_pct %d", *st.ShortTrusted, pct)
 	if !at(st.ShortTrusted, pct) {
-		why = fmt.Sprintf("weekly window %d%% >= %d", *st.LongTrusted, MoveBeforeWeekPct)
+		why = fmt.Sprintf("weekly window %d%% >= %d", *st.LongTrusted, states.MoveBeforeWeekPct)
 	}
 	return Trigger{true, states.EarlyUsageTrigger, why}, dest
 }

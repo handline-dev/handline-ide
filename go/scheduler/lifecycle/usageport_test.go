@@ -55,18 +55,15 @@ func TestTheUsageAdapterPicksTheAccountFurthestBehindItsPaceAndCountsLoadWithout
 	if got := u.PickAccount([]string{}, ""); got != "" {
 		t.Fatalf("no candidate picks nobody: %q", got)
 	}
-	// "soon" is full of agents; the one being placed holds one of the slots and is left out of the count
+	// Two agents on "soon" keep no start off it; the one being placed is left out of the count.
 	for _, a := range []string{"w1", "w2"} {
 		db.SetAgentState(q, a, states.Running, 0, "")
 		db.SetAccount(q, a, "soon", "")
 	}
-	if got := u.PickAccount([]string{"soon", "later"}, ""); got != "later" {
-		t.Fatalf("soon is at its cap: %q", got)
+	if got := u.PickAccount([]string{"soon", "later"}, ""); got != "soon" {
+		t.Fatalf("no cap: %q", got)
 	}
-	if got := u.PickAccount([]string{"soon", "later"}, "w1"); got != "soon" {
-		t.Fatalf("the agent being placed holds one of the slots: %q", got)
-	}
-	if n := u.ActiveOn(q, "soon", "w1"); n != 1 {
+	if n := activeOn(t, u, q, "soon", "w1"); n != 1 {
 		t.Fatalf("%d", n)
 	}
 	db.SetAgentState(q, "w3", states.Running, 0, "")
@@ -75,11 +72,8 @@ func TestTheUsageAdapterPicksTheAccountFurthestBehindItsPaceAndCountsLoadWithout
 		t.Fatalf("mid-turn on every account, the agent left out: %v", got)
 	}
 	db.SetAgentState(q, "w3", states.Idle, 0, "")
-	if u.CapOf("soon") != usage.DefaultActiveCap {
-		t.Fatalf("%d", u.CapOf("soon"))
-	}
-	if !u.Admit("soon", "w1", "claude").Fits || u.Admit("soon", "", "claude").Fits {
-		t.Fatalf("fit: with the agent left out soon has a free slot; without, it is at its cap")
+	if !u.Admit("soon", "w1", "claude").Fits || !u.Admit("soon", "", "claude").Fits {
+		t.Fatalf("fit, however many are on it")
 	}
 	if adm := u.Admit("soon", "w1", "opencode"); adm.Fits || len(adm.Reasons) != 1 {
 		t.Fatalf("another vendor's account does not fit, with its reason: %+v", adm)
@@ -93,25 +87,22 @@ func TestTheUsageAdapterPicksTheAccountFurthestBehindItsPaceAndCountsLoadWithout
 	}
 }
 
-func TestAnAccountIsNotFitWhenItsLoadCannotBeRead(t *testing.T) {
+func TestALoadNobodyCanReadPicksNothing(t *testing.T) {
 	env := usageHome(t, map[string]map[string]any{"a": liveAccount(5, 5, 90000)})
 	q := openDB(t)
 	u := &UsageAdapter{Env: env, Q: q}
-	if !u.Admit("a", "", "claude").Fits {
-		t.Fatal("an account with room is fit")
-	}
 	q.(interface{ Close() error }).Close()
-	if adm := u.Admit("a", "", "claude"); adm.Fits || len(adm.Reasons) == 0 {
-		t.Fatalf("fit with a load nobody could read: %+v", adm)
-	}
 	if r := u.PickReasons([]string{"a"}, ""); r != nil {
 		t.Fatalf("reasons from a load nobody could read: %v", r)
 	}
 	if got := u.PickAccount([]string{"a"}, ""); got != "" {
 		t.Fatalf("a pick on an unreadable load: %q", got)
 	}
-	if n := u.ActiveOn(q, "a", ""); n != u.CapOf("a") {
-		t.Fatalf("an unreadable count is the cap: %d", n)
+	if _, err := u.ActiveOn(q, "a", ""); err == nil {
+		t.Fatal("an unreadable count read without an error")
+	}
+	if why, room := u.StartFit("a", ""); why == "" || room >= 0 {
+		t.Fatalf("an unreadable load fits: %q, room %d", why, room)
 	}
 	if got := u.MidTurn(q, ""); got != nil {
 		t.Fatalf("an unreadable count names nobody: %v", got)
@@ -132,4 +123,14 @@ func TestTheUsageAdapterReadsWhichAccountIsPaused(t *testing.T) {
 	if !u.Read("rest").Paused || u.Read("on").Paused {
 		t.Fatalf("rest %+v, on %+v", u.Read("rest"), u.Read("on"))
 	}
+}
+
+// activeOn is u.ActiveOn, failing the test on a count that cannot be read.
+func activeOn(t *testing.T, u *UsageAdapter, q db.Q, acct, agent string) int {
+	t.Helper()
+	n, err := u.ActiveOn(q, acct, agent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return n
 }

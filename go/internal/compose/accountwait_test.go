@@ -8,9 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/handline/handline/go/accounts/usage"
 	dbpkg "github.com/handline/handline/go/data/db"
-	"github.com/handline/handline/go/data/states"
 	"github.com/handline/handline/go/data/team/teamtest"
 )
 
@@ -29,7 +27,7 @@ func atPct(t *testing.T, home, acct string, pct int) {
 
 // A closed agent's wait on its own account, read through the daemon's launcher: AccountWait's word, and the cause a task waiting on the
 // agent is filed under (Task.waiting.on).
-func TestAWaitOnAClosedAgentIsFiledUnderCapWhenItsAccountIsFullAndWallAtItsLimit(t *testing.T) {
+func TestAWaitOnAClosedAgentIsFiledUnderCapWhenItsAccountIsPausedAndWallAtItsLimit(t *testing.T) {
 	p, lc, env, _ := wired(t)
 	alice := teamtest.Key(t, p.home, "alice")
 	d, home := p.db, p.home
@@ -61,12 +59,11 @@ func TestAWaitOnAClosedAgentIsFiledUnderCapWhenItsAccountIsFullAndWallAtItsLimit
 	}
 	atPct(t, home, "a1", 10)
 	check("", "owner")
-	for i := range usage.DefaultActiveCap {
-		other := fmt.Sprint("busy", i)
-		dbpkg.SetAgentState(d, other, states.Running, 0, "")
-		dbpkg.SetAccount(d, other, "a1", "")
+	if _, err := d.Exec("UPDATE accounts SET paused = 1 WHERE name = 'a1'"); err != nil {
+		t.Fatal(err)
 	}
-	check("cap", "cap") // the others mid-turn on a1 fill its cap
+	check("cap", "cap") // nothing starts on a paused account
+	d.Exec("UPDATE accounts SET paused = 0 WHERE name = 'a1'")
 	atPct(t, home, "a1", 100)
 	check("wall", "wall")
 }

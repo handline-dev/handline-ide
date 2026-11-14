@@ -7,8 +7,7 @@ import (
 )
 
 // An account's weekly pace: a token bucket on the week, refilled linearly (the week's quota is spent as the week passes) with a 10% burst
-// on top. The tokens an account has order the accounts a move picks from. With launch_pace_hold on, its cap shrinks for the risk of a
-// cut-off (CutoffShare) and for running ahead of its pace line (PaceOf).
+// on top. The tokens an account has order the accounts a move picks from; the pace line (PaceOf) is shown, and holds nothing.
 const (
 	WeekS     = 7 * 86400
 	PaceBurst = 0.10 // the share of the week's quota that may be spent ahead of the clock
@@ -62,87 +61,14 @@ func WeekShare(st *AccountStatus, burn, longPerShort float64, haveRatio bool, no
 	return 1, true
 }
 
-// CutoffShare is the share of its burn the account can keep up until the week ends without reaching its block, at most 1: 1 is no risk
-// of an agent being cut off mid-work, and so is a week that cannot be judged.
-func CutoffShare(st *AccountStatus, burn, longPerShort float64, haveRatio bool, now float64) float64 {
-	share, _ := WeekShare(st, burn, longPerShort, haveRatio, now)
-	return math.Min(1, share)
-}
-
-// CutoffCap is the cap shrunk to the share of the burn the account can keep up: all of it with no risk, none with nothing left, and in
-// between that share of it (rounded up, so an account with anything left still takes one agent). The founder's cap stays the most.
-func CutoffCap(base int, share float64) int {
-	switch {
-	case share <= 0:
-		return 0
-	case share >= 1:
-		return base
-	}
-	return int(math.Ceil(float64(base) * share))
-}
-
-// CapNow is the cap in force for the account now: the configured one, shrunk with the launch pace hold on where the account's burn would
-// cut it off before the week ends or it runs ahead of its pace line.
-func (e *Env) CapNow(q db.Q, acct string) int {
-	costs, burn := e.costsAndBurn(q, acct)
-	return e.capWith(acct, costs, burn)
-}
-
-// CapUnpaced is CapNow without the pace line: what a person's own start and a restart are held to.
-func (e *Env) CapUnpaced(q db.Q, acct string) int {
-	costs, burn := e.costsAndBurn(q, acct)
-	return e.cutoffCap(e.config(), acct, e.Read(acct), costs, burn)
-}
-
-// costsAndBurn are the costs (nil when unread) and the account's burn with the agents mid-turn on it (nil when unknown).
-func (e *Env) costsAndBurn(q db.Q, acct string) (*Costs, *float64) {
-	costs, err := e.LoadCosts(q)
-	if err != nil {
-		return nil, nil
-	}
-	by, err := e.ActiveByAccount(q)
-	if err != nil {
-		return costs, nil
-	}
-	if b, ok := costs.Burn(acct, by[acct]); ok {
-		return costs, &b
-	}
-	return costs, nil
-}
-
-func (e *Env) capWith(acct string, costs *Costs, burn *float64) int {
-	cfg, st := e.config(), e.Read(acct)
-	c := e.cutoffCap(cfg, acct, st, costs, burn)
-	ps := PaceSettingsOf(cfg)
-	if p := PaceOf(st, e.now(), ps); p != nil {
-		c = min(c, p.Cap(cfg.CapOf(acct), ps))
-	}
-	return c
-}
-
-func (e *Env) cutoffCap(cfg Config, acct string, st *AccountStatus, costs *Costs, burn *float64) int {
-	if cfg.Paused(acct) {
-		return 0
-	}
-	base := cfg.CapOf(acct)
-	if burn == nil || costs == nil || !LaunchHoldOn(cfg) {
-		return base
-	}
-	ratio, haveRatio := costs.LongPerShort(acct)
-	return CutoffCap(base, CutoffShare(st, *burn, ratio, haveRatio, e.now()))
-}
-
-// The pacing settings' config.yaml keys and defaults (settings.set). LaunchHoldKey turns on every hold the prediction makes on a start:
-// the pace line, the cap shrunk for a cut-off and the hold on a window that runs out first (Predict). Off by default: off, the
-// prediction is still read and shown, and holds nothing.
+// The pace line's config.yaml keys and defaults (settings.set): where the line ends in the week, and how far ahead of it is "ahead".
 const (
-	LaunchHoldKey     = "launch_pace_hold"
 	PaceTargetKey     = "pace_target_pct"
 	PaceBurstKey      = "pace_burst_pct"
 	DefaultPaceTarget = 98
 	DefaultPaceBurst  = 10
 	// MoveBeforeKey is the percent of the 5-hour window at which an idle agent with work waiting moves to an account with room before it
-	// reaches the wall (tick.earlyTrigger), MoveBeforeDefault when unset; its week moves at tick.MoveBeforeWeekPct. 0 moves only at the wall.
+	// reaches the wall (tick.earlyTrigger), MoveBeforeDefault when unset; its week moves at states.MoveBeforeWeekPct. 0 moves only at the wall.
 	MoveBeforeKey     = "usage_move_before_pct"
 	MoveBeforeDefault = 90
 	// SplitKey is how agents are spread over accounts: SplitAuto, the default, places and moves them; SplitManual never does, and an
@@ -151,6 +77,14 @@ const (
 	SplitAuto   = "auto"
 	SplitManual = "manual"
 )
+
+// MoveBeforeOf is usage_move_before_pct from config, a whole percent 0 to 100, MoveBeforeDefault when unset or not one.
+func MoveBeforeOf(cfg Config) int {
+	if n, ok := wholeIn(cfg[MoveBeforeKey], 0, 100); ok {
+		return n
+	}
+	return MoveBeforeDefault
+}
 
 // ManualSplit is whether config says account_split manual.
 func ManualSplit(cfg Config) bool { return cfg[SplitKey] == SplitManual }
@@ -163,19 +97,15 @@ func SplitOf(cfg Config) string {
 	return SplitAuto
 }
 
-// PaceSettings is how accounts are paced: On holds them to their line, which ends at Target percent of the week; Burst is how many
-// points ahead of it an account may run.
+// PaceSettings is the pace line: it ends at Target percent of the week; Burst is how many points ahead of it is still on it. Neither
+// holds a start.
 type PaceSettings struct {
-	On            bool
 	Target, Burst int
 }
 
-// LaunchHoldOn is whether config turns the launch pace hold on.
-func LaunchHoldOn(cfg Config) bool { return cfg[LaunchHoldKey] == true }
-
 // PaceSettingsOf reads them from config, each at its default when unset or out of range.
 func PaceSettingsOf(cfg Config) PaceSettings {
-	ps := PaceSettings{On: LaunchHoldOn(cfg), Target: DefaultPaceTarget, Burst: DefaultPaceBurst}
+	ps := PaceSettings{Target: DefaultPaceTarget, Burst: DefaultPaceBurst}
 	if n, ok := wholeIn(cfg[PaceTargetKey], 50, 100); ok {
 		ps.Target = n
 	}
@@ -203,16 +133,14 @@ const (
 	PaceBehind = "behind"
 	PaceAhead  = "ahead"
 	PaceOver   = "over"
-	PaceOff    = "off"
 )
 
-// Pace is an account's weekly use against its pace line (Account.pace). BackAt is unix seconds, 0 for none.
+// Pace is an account's weekly use against its pace line (Account.pace).
 type Pace struct {
-	State  string
-	Line   float64
-	Used   int
-	RateH  float64
-	BackAt int64
+	State string
+	Line  float64
+	Used  int
+	RateH float64
 }
 
 // PaceOf is the account's pace now, judged on its last weekly reading, which holds until its reset even when stale; nil with no reading
@@ -236,31 +164,14 @@ func PaceOf(st *AccountStatus, now float64, ps PaceSettings) *Pace {
 	}
 	ahead := float64(*used) - p.Line
 	switch {
-	case !ps.On:
-		p.State = PaceOff
 	case ahead <= 0:
 		p.State = PaceBehind
 	case ahead <= float64(ps.Burst):
 		p.State = PaceAhead
 	default:
 		p.State = PaceOver
-		// With no further use the line reaches used less the burst at this point of the week, or never: then the week's end.
-		back := math.Min(end, start+(float64(*used)-float64(ps.Burst))/target*(end-start))
-		p.BackAt = int64(math.Ceil(back))
 	}
 	return p
-}
-
-// Cap is base shrunk for the pace: all of it behind the line (or with pacing off), none past the burst, and in between in step with
-// the burst left, at least 1.
-func (p *Pace) Cap(base int, ps PaceSettings) int {
-	switch p.State {
-	case PaceAhead:
-		return max(1, int(math.Ceil(float64(base)*(p.Line+float64(ps.Burst)-float64(p.Used))/float64(ps.Burst))))
-	case PaceOver:
-		return 0
-	}
-	return base
 }
 
 // Prediction is whether an account's windows outlast their resets with one more agent on it: how many times over each lasts to its reset

@@ -231,15 +231,7 @@ func (e *Env) outlookAt(name string, hours int, clock time.Time, pick *string) (
 // rows are the samples from at least a day back.
 func (e *Env) outlookByAccount(ue *usage.Env, cfg usage.Config, rows usage.Samples, now int64, hours int, ends, outSince map[string]float64) ([]any, []usage.OutlookPoint, error) {
 	span := int64(hours) * 3600
-	costs, _ := ue.LoadCosts(e.DB) // unread costs leave the 5h guess unpaced
-	ps := usage.PaceSettingsOf(cfg)
-	paced := usage.Paced{On: ps.On, Target: float64(ps.Target), Ratio: func(a string) (float64, bool) {
-		if costs == nil {
-			return 0, false
-		}
-		return costs.LongPerShort(a)
-	}}
-	h := usage.HeadroomPaced(rows, now, now-span, now+span, max(900, span*2/usage.OutlookPoints), ends, outSince, paced)
+	h := usage.HeadroomKeepStale(rows, now, now-span, now+span, max(900, span*2/usage.OutlookPoints), ends, outSince)
 	byAccount := []any{}
 	var future []usage.OutlookPoint
 	for _, a := range h.Accounts {

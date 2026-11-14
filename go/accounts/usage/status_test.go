@@ -19,14 +19,12 @@ import (
 // status_cases.json is what the Python status module says about each case (tools/gen_usage_fixtures.py); the Go port must say the same.
 
 type fixture struct {
-	Now   int64         `json:"now"`
-	Cases []statusCase  `json:"cases"`
-	Picks []pickFixture `json:"picks"`
+	Now   int64        `json:"now"`
+	Cases []statusCase `json:"cases"`
 }
 
 type loadSpec struct {
 	Active  int                `json:"active"`
-	Cap     int                `json:"cap"`
 	Burn    *float64           `json:"burn"`
 	Samples []float64          `json:"samples"`
 	Ratios  map[string]float64 `json:"ratios"`
@@ -38,29 +36,6 @@ type statusCase struct {
 	Config map[string]any `json:"config"`
 	Load   loadSpec       `json:"load"`
 	Expect map[string]any `json:"expect"`
-}
-
-type pickFixture struct {
-	Name     string `json:"name"`
-	Accounts map[string]struct {
-		Status any      `json:"status"`
-		Load   loadSpec `json:"load"`
-		Vendor string   `json:"vendor"`
-	} `json:"accounts"`
-	Candidates []string       `json:"candidates"`
-	Config     map[string]any `json:"config"`
-	Removing   []string       `json:"removing"`
-	Opts       struct {
-		Candidates []string          `json:"candidates"`
-		Bootstrap  bool              `json:"bootstrap"`
-		Exclude    map[string]string `json:"exclude"`
-		Prefer     string            `json:"prefer"`
-		Vendor     string            `json:"vendor"`
-	} `json:"opts"`
-	Expect struct {
-		Picked  string     `json:"picked"`
-		Reasons [][]string `json:"reasons"`
-	} `json:"expect"`
 }
 
 func loadFixture(t *testing.T) fixture {
@@ -137,7 +112,7 @@ func testEnv(home string, now int64) *Env {
 
 // load is the fixture's load with the launch pace hold on, as the Python daemon always held.
 func (s loadSpec) load(acct string, e *Env) *Load {
-	return &Load{Account: acct, Active: s.Active, Cap: capOr2(s.Cap), Burn: s.Burn, Costs: costsAt(s.Samples, s.Ratios, acct), Hold: true}
+	return &Load{Account: acct, Active: s.Active, Burn: s.Burn, Costs: costsAt(s.Samples, s.Ratios, acct)}
 }
 
 func winOut(w AcctWindow) map[string]any {
@@ -222,7 +197,7 @@ func describeGo(st *AccountStatus, ld *Load, now float64) map[string]any {
 		"rolled_over": []any{roOK, roWhy}, "idle_floor": []any{ifOK, ifWhy}, "last_known": st.LastKnown(),
 		"shown_short": []any{ip(shown), mark}, "window_report": st.WindowReport(),
 		"short_headroom": ip(st.ShortHeadroom()), "long_headroom": ip(st.LongHeadroom()),
-		"long_pace": paceOut, "unfit": emptyNil(Unfit(st, ld, "")), "unfit_agent": emptyNil(Unfit(st, ld, "")),
+		"long_pace":       paceOut,
 		"trusted_ctx_pct": ip(st.TrustedCtxPct()), "trusted_ctx_used": trustedUsed, "ctx_pct": ip(st.CtxPct), "ctx_used": ctxUsed,
 		"session_id": sessionID, "model_id": modelID, "cost_usd": cost,
 		"sub_end": subEnd, "last_week_first": st.LastWeekFirst,
@@ -234,21 +209,6 @@ func describeGo(st *AccountStatus, ld *Load, now float64) map[string]any {
 		out[r.key] = RunwayOf(st, r.burn, now, ld).Describe()
 	}
 	return out
-}
-
-// capOr2: a fixture that names no cap gets the Python generator's default.
-func capOr2(n int) int {
-	if n == 0 {
-		return 2
-	}
-	return n
-}
-
-func emptyNil(s string) any {
-	if s == "" {
-		return nil
-	}
-	return s
 }
 
 func ptr[T any](v T) *T { return &v }
@@ -294,6 +254,9 @@ func TestStatusMatchesPython(t *testing.T) {
 			st := e.Read("a")
 			got := normalized(t, describeGo(st, c.Load.load("a", e), float64(f.Now)))
 			want := normalized(t, c.Expect)
+			// Python's unfit was the cap and the launch hold; neither keeps a start off since T9103 (Unfit is the wall alone).
+			delete(want.(map[string]any), "unfit")
+			delete(want.(map[string]any), "unfit_agent")
 			if !reflect.DeepEqual(got, want) {
 				g, w := got.(map[string]any), want.(map[string]any)
 				for k := range w {
@@ -301,43 +264,6 @@ func TestStatusMatchesPython(t *testing.T) {
 						t.Errorf("%s: go %v, python %v", k, g[k], w[k])
 					}
 				}
-			}
-		})
-	}
-}
-
-// The fixture was frozen from Python; where it and the scenario table differ, the table decides (T9056, T9057, T9060).
-func TestPickMatchesPython(t *testing.T) {
-	f := loadFixture(t)
-	for _, p := range f.Picks {
-		t.Run(p.Name, func(t *testing.T) {
-			home := t.TempDir()
-			e := testEnv(home, f.Now)
-			writeConfig(t, home, p.Config)
-			loads := map[string]*Load{}
-			for _, n := range p.Candidates {
-				a := p.Accounts[n]
-				writeStatus(t, home, n, a.Status)
-				if a.Vendor != "" {
-					os.WriteFile(filepath.Join(teamtest.AccountDir(t, home, n), "vendor"), []byte(a.Vendor+"\n"), 0o644)
-				}
-				loads[n] = a.Load.load(n, e)
-			}
-			for _, n := range p.Removing {
-				os.WriteFile(filepath.Join(teamtest.AccountDir(t, home, n), ".removing"), nil, 0o644)
-			}
-			cands := p.Candidates
-			picked, reasons, err := e.Pick(openDB(t), PickOpts{Candidates: cands, Bootstrap: p.Opts.Bootstrap, Exclude: p.Opts.Exclude, Load: loads,
-				Prefer: p.Opts.Prefer, Vendor: p.Opts.Vendor})
-			if err != nil {
-				t.Fatal(err)
-			}
-			var got [][]string
-			for _, r := range reasons {
-				got = append(got, []string{r.Account, r.Why})
-			}
-			if picked != p.Expect.Picked || !reflect.DeepEqual(got, p.Expect.Reasons) {
-				t.Errorf("go picked %q %v\npython picked %q %v", picked, got, p.Expect.Picked, p.Expect.Reasons)
 			}
 		})
 	}
