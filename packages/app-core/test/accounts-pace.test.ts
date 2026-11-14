@@ -3,8 +3,7 @@ import assert from 'node:assert/strict';
 import type { Account } from '@handline/client';
 import { paceLine } from '#src/index.ts';
 
-const pace = (state: string) =>
-  ({ pace: { state, line_pct: 50, used_pct: 55, rate_pct_h: 0.3, back_at: null } }) as Pick<Account, 'pace'>;
+const pace = (state: string) => ({ pace: { state, line_pct: 50, used_pct: 55, rate_pct_h: 0.3, back_at: null } }) as Pick<Account, 'pace'>;
 
 test('paceLine says where each pace state stands, as a plain fact', () => {
   assert.equal(paceLine(pace('behind')), 'on track');

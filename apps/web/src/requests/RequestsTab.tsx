@@ -125,7 +125,7 @@ function Decided() {
   });
   const q = useTasks({ decided_since: since });
   const nameOf = useNameOf();
-  const items = (q.data?.items ?? []).filter((t) => t.decided).sort((a, b) => b.decided!.at.localeCompare(a.decided!.at));
+  const items = (q.data?.items ?? []).filter(isDecided).sort((a, b) => b.decided.at.localeCompare(a.decided.at));
   if (!items.length) return <Section title="Decided today" rows={[]} empty={q.isPending ? '' : 'Nothing decided today.'} />;
   return (
     <section className="flex flex-col">
@@ -141,7 +141,10 @@ function Decided() {
   );
 }
 
-function DecidedLine({ t, who }: { t: Task; who: string }) {
+type DecidedTask = Task & { decided: NonNullable<Task['decided']> };
+const isDecided = (t: Task): t is DecidedTask => !!t.decided;
+
+function DecidedLine({ t, who }: { t: DecidedTask; who: string }) {
   const open = useOpenable(taskOf(t.id));
   const after = t.state === 'done' ? 'done' : t.state === 'discarded' ? 'discarded' : `${who} is on it`;
   return (
@@ -151,10 +154,10 @@ function DecidedLine({ t, who }: { t: Task; who: string }) {
         <span className="flex min-w-0 items-baseline gap-2">
           <span className="truncate font-medium text-fg">{t.title}</span>
           <span className="shrink-0 text-muted">{who}</span>
-          <span className="ml-auto shrink-0 pl-3 text-xs text-muted tabular-nums">{clock(t.decided!.at)}</span>
+          <span className="ml-auto shrink-0 pl-3 text-xs text-muted tabular-nums">{clock(t.decided.at)}</span>
         </span>
         <span className="truncate text-muted">
-          You “{t.decided!.answer.replace(/\s+/g, ' ')}” → {after}
+          You “{t.decided.answer.replace(/\s+/g, ' ')}” → {after}
         </span>
       </span>
     </button>

@@ -175,14 +175,17 @@ export function CommentRow({
           </span>
           {i.replyTo != null && <Reference text={quoted} onClick={() => showMemo(i.replyTo!)} />}
           <div className="min-w-0">
-            {to && <span className="float-left mr-1.5 rounded bg-accent/10 px-1 text-sm text-accent">@{to === 'you' ? 'You' : nameOf(to)}</span>}
+            {to && (
+              <span className="float-left mr-1.5 rounded bg-accent/10 px-1 text-sm text-accent">@{to === 'you' ? 'You' : nameOf(to)}</span>
+            )}
             <Markdown text={i.toFounder ? noteText(i.note) : i.note} />
           </div>
           {i.images && <MessageImages images={i.images} />}
           <ReadBy readers={i.readers} />
         </div>
-        {/* As in Slack: the buttons float at the comment's top right on hover, over it, so nothing moves. */}
-        <div className={`absolute ${turn ? 'top-1.5 right-3' : 'top-0 right-0'} flex items-center gap-1.5 text-xs text-muted opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100`}>
+        <div
+          className={`absolute ${turn ? 'top-1.5 right-3' : 'top-0 right-0'} flex items-center gap-1.5 text-xs text-muted opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100`}
+        >
           <Actions text={i.note} onQuote={() => i.memo != null && onReply(i.memo)} />
         </div>
       </div>
