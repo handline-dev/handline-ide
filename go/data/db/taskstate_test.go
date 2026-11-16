@@ -1,6 +1,7 @@
 package db
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/handline/handline/go/kit/actor"
@@ -123,16 +124,33 @@ func TestWaitsAndTheCurrentTask(t *testing.T) {
 func TestMemoSummaryAndHandoffRecord(t *testing.T) {
 	q := open(t)
 	tid := seedTask(t, q, "b", "a")
-	if s, _ := MemoSummary(q, tid, 500); s != "" {
+	if s, _ := MemoSummary(q, tid, "a", 0, 500); s != "" {
 		t.Fatal(s)
 	}
-	q.Exec("INSERT INTO task_memos(task_id, author, body, created_at) VALUES(?, 'a', 'first\nline', 1759900000.123)", tid)
-	s, _ := MemoSummary(q, tid, 500)
-	if s == "" || s[:11] != "Comments - " || len(s) < 20 {
-		t.Fatal(s)
+	long := strings.Repeat("x", 300)
+	for _, m := range [][2]string{{"a", "first\nline"}, {"b", long}, {"human", "older"}, {"human", "newest"}} {
+		q.Exec("INSERT INTO task_memos(task_id, author, body, created_at) VALUES(?, ?, ?, 1759900000.123)", tid, m[0], m[1])
 	}
-	if cut, _ := MemoSummary(q, tid, 12); len([]rune(cut)) != 13 {
-		t.Fatalf("%q", cut)
+	// after the receiver's own last comment: all of them, uncut, newest last
+	s, _ := MemoSummary(q, tid, "a", 0, 50)
+	if !strings.HasPrefix(s, "Comments, newest last (1 earlier: hl task show T1):\ncomment 2 b ") || !strings.Contains(s, long) ||
+		!strings.HasSuffix(s, ": newest") || strings.Count(s, "\n") != 3 {
+		t.Fatalf("%q", s)
+	}
+	// a fresh start: the newest that fit, and always the newest
+	if s, _ := MemoSummary(q, tid, "c", 0, 80); !strings.HasPrefix(s, "Comments, newest last (2 earlier: hl task show T1):\ncomment 3 ") || !strings.HasSuffix(s, ": newest") {
+		t.Fatalf("%q", s)
+	}
+	if s, _ := MemoSummary(q, tid, "c", 0, 1); !strings.HasPrefix(s, "Comments, newest last (3 earlier") || strings.Count(s, "\n") != 1 {
+		t.Fatalf("%q", s)
+	}
+	if s, _ := MemoSummary(q, tid, "human", 0, 500); s != "Comments: 4, none since yours (hl task show T1)" {
+		t.Fatalf("%q", s)
+	}
+	// what the delivery already carries is left out
+	q.Exec("INSERT INTO memo_tells(memo_id, reader, request_id) VALUES(4, 'a', 9)")
+	if s, _ := MemoSummary(q, tid, "a", 9, 500); strings.Contains(s, ": newest") || !strings.HasSuffix(s, ": older") {
+		t.Fatalf("%q", s)
 	}
 
 	if h, _ := GetHandoff(q, "a"); h != "" {

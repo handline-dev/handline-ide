@@ -143,8 +143,9 @@ func tellText(q db.Q, head *db.Request, depth int, aheadOf *db.Request, parked b
 			}
 			body = strings.Join(lines, "\n")
 		}
-		// A reply to an earlier request is a verdict or an answer: cut, it hides the verdict.
-		whole := head.ParentID.Valid || digest
+		// A reply to an earlier request is a verdict or an answer, and a comment's tell its words (left out of the comments below): cut,
+		// either hides them.
+		whole := head.ParentID.Valid || digest || must(db.CarriesMemo(q, head.ID, head.Target))
 		shown = body
 		if !whole && utf8.RuneCountInString(body) > 400 {
 			shown = string([]rune(body)[:400]) + "…"
@@ -156,8 +157,8 @@ func tellText(q db.Q, head *db.Request, depth int, aheadOf *db.Request, parked b
 	}
 	if head.Kind.String == "task" {
 		if t := taskOf(q, head); t != nil {
-			if memos := must(db.MemoSummary(q, t.ID, 500)); memos != "" {
-				shown += " " + memos
+			if memos := must(db.MemoSummary(q, t.ID, head.Target, head.ID, 500)); memos != "" {
+				shown += "\n" + memos
 			}
 		}
 	}

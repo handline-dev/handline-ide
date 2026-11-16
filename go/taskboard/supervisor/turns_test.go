@@ -71,7 +71,7 @@ func TestTheFoundersTurnFreesTheAgentsSlotAndTheirCommentGivesItBack(t *testing.
 	r.refusedCall(r.k("human"), "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"mine","turn":"human","request_id":"p3"}`, held), "to yourself")
 	r.refusedCall(r.k("bob"), "task.comment.delete", fmt.Sprintf(`{"task":%d,"memo":%d,"request_id":"d1"}`, held, turns[0].Memo), "what a turn")
 	// the founder's comment passes it: bob acts again, told with the comment
-	r.turnCall(r.k("human"), "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"now","request_id":"c1"}`, held))
+	r.turnCall(r.k("human"), "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"now `+strings.Repeat("x", 500)+`","request_id":"c1"}`, held))
 	if r.acting(held) != r.k(("bob")) {
 		t.Fatalf("acting %q", r.acting(held))
 	}
@@ -79,9 +79,14 @@ func TestTheFoundersTurnFreesTheAgentsSlotAndTheirCommentGivesItBack(t *testing.
 		t.Fatalf("%+v", turns)
 	}
 	var back string
-	r.must(r.DB.QueryRow(r.sql("SELECT body FROM requests r JOIN task_requests l ON l.request_id = r.id WHERE l.task_id = ? AND r.target = 'bob' ORDER BY r.id DESC LIMIT 1"), held).Scan(&back))
-	if back != "T1 질문에 대표님 댓글 2: now / 지금 질문 칸: beta now or after the fix? I recommend now" {
+	var rid int64
+	r.must(r.DB.QueryRow(r.sql("SELECT r.id, body FROM requests r JOIN task_requests l ON l.request_id = r.id WHERE l.task_id = ? AND r.target = 'bob' ORDER BY r.id DESC LIMIT 1"), held).Scan(&rid, &back))
+	// the answer names bob's question by its comment, not its text, and the comments under it leave out the answer it already carries
+	if back != "T1 댓글 1 질문에 대표님 댓글 2: now "+strings.Repeat("x", 500) {
 		t.Fatalf("%q", back)
+	}
+	if got := tellText(r.DB, mustReq(r, rid), 1, nil, false, nil, ""); !strings.Contains(got, back) || strings.Contains(got, "beta now") || strings.Contains(got, "comment 2") {
+		t.Fatalf("%q", got)
 	}
 }
 
@@ -174,12 +179,12 @@ func TestTheFoundersPassTellsTheHolderTheQuestion(t *testing.T) {
 	}
 	r.turnCall(r.k("bob"), "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"beta now?","turn":"human","request_id":"p1"}`, tid))
 	r.turnCall(r.k("human"), "task.turn.pop", fmt.Sprintf(`{"task":%d,"outcome":"pass","note":"좋아 진행","request_id":"o1"}`, tid))
-	if got, want := last(), fmt.Sprintf("T%d 질문에 대표님 답: 좋아 진행 / 지금 질문 칸: beta now?", tid); got != want {
+	if got, want := last(), fmt.Sprintf("T%d 댓글 1 질문에 대표님 답: 좋아 진행", tid); got != want {
 		t.Fatalf("%q, want %q", got, want)
 	}
 	r.turnCall(r.k("bob"), "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"and the phone?","turn":"human","request_id":"p2"}`, tid))
 	r.turnCall(r.k("human"), "task.turn.pop", fmt.Sprintf(`{"task":%d,"outcome":"pass","request_id":"o2"}`, tid))
-	if got, want := last(), fmt.Sprintf("T%d 대표님이 질문 칸을 넘김 / 지금 질문 칸: and the phone?", tid); got != want {
+	if got, want := last(), fmt.Sprintf("T%d 댓글 3 질문을 대표님이 넘김", tid); got != want {
 		t.Fatalf("%q, want %q", got, want)
 	}
 }
@@ -417,7 +422,7 @@ func TestTheFoundersPassIsTheirCommentsTellAndTheTaskStillMoves(t *testing.T) {
 	r.agentUp("ops.bob")
 	held := r.beginCurrent("ops.bob", "eng.alice", "ship it")
 	r.turnCall("ops.bob", "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"now?","turn":"human","request_id":"p1"}`, held))
-	r.turnCall(r.k("human"), "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"now","request_id":"c1"}`, held))
+	r.turnCall(r.k("human"), "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"now `+strings.Repeat("x", 500)+`","request_id":"c1"}`, held))
 	var rid, told int64
 	var from string
 	r.must(r.DB.QueryRow(r.sql("SELECT r.id, r.requester FROM requests r JOIN task_requests l ON l.request_id = r.id WHERE l.task_id = ? AND r.target = 'ops.bob' ORDER BY r.id DESC LIMIT 1"), held).Scan(&rid, &from))

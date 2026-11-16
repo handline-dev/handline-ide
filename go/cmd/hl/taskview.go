@@ -155,6 +155,9 @@ func detailLines(t obj, now float64, home string) []string {
 		}
 		out = append(out, line)
 	}
+	if s := str(t, "state"); s != "done" && s != "discarded" {
+		out = append(out, nowLines(t)...)
+	}
 	body := str(t, "body")
 	if body == "" {
 		body = "(none)"
@@ -202,6 +205,60 @@ func detailLines(t obj, now float64, home string) []string {
 		for _, a := range as {
 			out = append(out, fmt.Sprintf("  %s  %s %s -> %s, by %s", stamp(a["at"]), str(a, "what"), str(a, "from"), str(a, "to"), str(a, "by")))
 		}
+	}
+	return out
+}
+
+// nowLines is where the task stands, ahead of its history: who holds it and whose turn it is, the open question by its comment,
+// the founder's comments since it (since the holder's last comment when none is open), and the open child tasks and blockers.
+func nowLines(t obj) []string {
+	holder, acting := str(t, "to"), str(t, "acting")
+	if acting == "" {
+		acting = holder
+	}
+	out := []string{"", "now", "  holder " + holder + "   turn " + acting}
+	var asked int64 // the comment the founder's comments are counted from
+	if turns := list(t, "turns"); len(turns) > 0 {
+		top := turns[len(turns)-1]
+		q := "  open question to " + str(top, "agent") + " from " + str(top, "by")
+		if given(top, "memo") {
+			asked = num(top, "memo")
+			q += fmt.Sprintf(": comment %d", asked)
+		}
+		out = append(out, q)
+	}
+	memos := list(t, "memos")
+	if asked == 0 {
+		for _, m := range memos {
+			if str(m, "author") == holder {
+				asked = num(m, "id")
+			}
+		}
+	}
+	var said []string
+	for _, m := range memos {
+		if num(m, "id") > asked && str(m, "author") == "human" {
+			said = append(said, fmt.Sprint(num(m, "id")))
+		}
+	}
+	if len(said) > 0 {
+		out = append(out, "  founder since: comment "+strings.Join(said, ", "))
+	}
+	var kids []string
+	for _, k := range list(t, "subtasks") {
+		if s := str(k, "state"); s != "done" && s != "discarded" {
+			kids = append(kids, fmt.Sprintf("T%d (%s, %s)", num(k, "id"), str(k, "owner"), s))
+		}
+	}
+	if len(kids) > 0 {
+		out = append(out, "  open children: "+strings.Join(kids, ", "))
+	}
+	var bs []string
+	for _, b := range list(t, "blockers") {
+		bs = append(bs, fmt.Sprintf("T%d (%s)", num(b, "task"), str(b, "owner")))
+	}
+	if len(bs) > 0 {
+		out = append(out, "  waiting on: "+strings.Join(bs, ", "))
 	}
 	return out
 }

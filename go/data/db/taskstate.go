@@ -2,6 +2,7 @@ package db
 
 import (
 	"database/sql"
+	"fmt"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -330,37 +331,57 @@ func neverReached(state string) bool {
 	return false
 }
 
-// MemoSummary is actions.memo_summary: the task's memos in one short line for a delivery or a start; "" when it has none.
-func MemoSummary(q Q, tid int64, cap int) (string, error) {
-	rows, err := q.Query("SELECT author, body, created_at, edited_at FROM task_memos WHERE task_id = ? ORDER BY id", tid)
+// MemoSummary is task tid's comments for a delivery to receiver or its start, one per line, each whole, newest last; "" when it has none.
+// They are the comments after receiver's own last one; with none of its own, the newest that fit cap runes (always the newest). The
+// comments left out are only counted. Comments that request told already carried to receiver are left out uncounted (told 0: none).
+func MemoSummary(q Q, tid int64, receiver string, told int64, cap int) (string, error) {
+	rows, err := q.Query("SELECT id, author, body, created_at, edited_at FROM task_memos m WHERE task_id = ? AND NOT EXISTS "+
+		"(SELECT 1 FROM memo_tells WHERE memo_id = m.id AND reader = ? AND request_id = ?) ORDER BY id", tid, receiver, told)
 	if err != nil {
 		return "", err
 	}
 	defer rows.Close()
-	var parts []string
+	var lines []string
+	own := -1 // the index of receiver's last comment
 	for rows.Next() {
+		var id int64
 		var author, body string
 		var created float64 // a memo's stamp carries a fraction: Python writes time.time()
 		var edited sql.NullFloat64
-		if err := rows.Scan(&author, &body, &created, &edited); err != nil {
+		if err := rows.Scan(&id, &author, &body, &created, &edited); err != nil {
 			return "", err
 		}
 		at := created
 		if edited.Valid && edited.Float64 != 0 {
 			at = edited.Float64
 		}
-		line := textsafe.Oneline(body)
-		if utf8.RuneCountInString(line) > 160 {
-			line = string([]rune(line)[:160])
+		if author == receiver {
+			own = len(lines)
 		}
-		parts = append(parts, author+" "+time.Unix(int64(at), 0).Format("01-02 15:04")+": "+line)
+		lines = append(lines, fmt.Sprintf("comment %d %s %s: %s", id, author, time.Unix(int64(at), 0).Format("01-02 15:04"), textsafe.Oneline(body)))
 	}
-	if err := rows.Err(); err != nil || len(parts) == 0 {
+	if err := rows.Err(); err != nil || len(lines) == 0 {
 		return "", err
 	}
-	text := "Comments - " + strings.Join(parts, " | ")
-	if utf8.RuneCountInString(text) <= cap {
-		return text, nil
+	from := own + 1
+	if own < 0 {
+		from = len(lines) - 1
+		for n := utf8.RuneCountInString(lines[from]); from > 0; from-- {
+			if n += utf8.RuneCountInString(lines[from-1]) + 1; n > cap {
+				break
+			}
+		}
 	}
-	return strings.TrimRight(string([]rune(text)[:cap]), " \t\n\r") + "…", nil
+	return summary(tid, lines[from:], from), nil
+}
+
+func summary(tid int64, shown []string, earlier int) string {
+	head := "Comments, newest last"
+	switch {
+	case len(shown) == 0:
+		return fmt.Sprintf("Comments: %d, none since yours (hl task show T%d)", earlier, tid)
+	case earlier > 0:
+		head += fmt.Sprintf(" (%d earlier: hl task show T%d)", earlier, tid)
+	}
+	return head + ":\n" + strings.Join(shown, "\n")
 }

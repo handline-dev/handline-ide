@@ -25,7 +25,7 @@ func TestMemosAreAddedReadEditedAndDeletedWithAFractionalStamp(t *testing.T) {
 	if m, _ := GetMemo(q, mid); m.Body != "second" || !m.EditedAt.Valid || m.EditedAt.Float64 != 1000 {
 		t.Fatalf("%+v", m)
 	}
-	if s, _ := MemoSummary(q, tid, 500); s == "" {
+	if s, _ := MemoSummary(q, tid, "", 0, 500); s == "" {
 		t.Fatal("a fractional stamp breaks the summary")
 	}
 	if err := DeleteMemo(q, mid, "w"); err != nil {
