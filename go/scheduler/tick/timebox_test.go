@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/taskboard/msgtest"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -77,9 +78,9 @@ func (p *tbPorts) SendBatch(_ db.Q, who, text string) error {
 	p.batched = append(p.batched, who+": "+text)
 	return nil
 }
-func (p *tbPorts) SayNow(_ db.Q, who, text string) error {
+func (p *tbPorts) SayNow(q db.Q, who, text string) (int64, error) {
 	p.said = append(p.said, who+": "+text)
-	return nil
+	return db.AddRequest(q, db.NewRequest{Requester: db.NoticeRequester, Target: who, Body: text, Kind: "say"})
 }
 func (p *tbPorts) SendNotice(_ db.Q, who, text string) bool {
 	p.sent = append(p.sent, who+": "+text)
@@ -1080,5 +1081,51 @@ func TestAnOpenAskOfTheFounderStopsTheClock(t *testing.T) {
 	check(tk.Q.QueryRow("SELECT timeout_left FROM tasks WHERE id = ?", tid).Scan(&left))
 	if left.Int64 != 80 || len(p.batched) != 0 {
 		t.Fatalf("the ask ran the clock: %v %v", left, p.batched)
+	}
+}
+
+// An ask about a held task that the closed agent has not been given yet is taken back once the task ends or moves on, and the task
+// counts as never asked; notices folded into one stay.
+func TestAHeldAskStillQueuedWhenItsTaskEndsIsTakenBack(t *testing.T) {
+	tk, w, b, p := timebox(t)
+	w.agents = []string{"a", "b", "c", "d"}
+	ask := func(agent string) (int64, int64) {
+		tid := newTask(t, tk, agent, "boss", 100)
+		p.doing[tid] = true
+		check(db.SetCurrentTask(tk.Q, agent, tid, true))
+		check(db.SetAgentState(tk.Q, agent, states.Idle, 0, ""))
+		tk.Q.Exec("UPDATE agent_state SET closed_at = ? WHERE agent = ?", int64(500), agent)
+		b.SweepHeldTaskAfterClose(tk, 1000)
+		return tid, must(db.Cursor(tk.Q, heldAskPrefix+strconv.FormatInt(tid, 10)))
+	}
+	ended, plain := ask("a")
+	kept, folded := ask("b")
+	held, still := ask("c")
+	moved, handed := ask("d")
+	if plain == 0 || folded == 0 || still == 0 || handed == 0 || len(p.said) != 4 {
+		t.Fatalf("%d %d %d %d %v", plain, folded, still, handed, p.said)
+	}
+	tk.Q.Exec("UPDATE requests SET body = body || ? WHERE id = ?", "\n\n"+db.DigestHead+"1 result", folded)
+	p.doing[ended], p.doing[kept] = false, false
+	check(db.PushTurn(tk.Q, moved, db.Turn{Agent: "e", By: "d", Since: 1050}))
+	b.SweepHeldTaskAfterClose(tk, 1100)
+	state := func(rid int64) string { r := must(db.GetRequest(tk.Q, rid)); return r.State + " " + r.Body }
+	for _, rid := range []int64{plain, handed} {
+		if got := state(rid); !strings.HasPrefix(got, "withdrawn ") {
+			t.Fatalf("an ask alone is withdrawn: %q", got)
+		}
+	}
+	if got := state(folded); got != "queued "+db.DigestHead+"1 result" {
+		t.Fatalf("the notices stay queued without the ask: %q", got)
+	}
+	if got := state(still); !strings.HasPrefix(got, "queued You hold T") {
+		t.Fatalf("an ask of a task still doing stays: %q", got)
+	}
+	cursor := func(prefix string, tid int64) int64 { return must(db.Cursor(tk.Q, prefix+strconv.FormatInt(tid, 10))) }
+	if cursor(heldAskPrefix, ended) != 0 || cursor("held_asked:", ended) != 0 || cursor("held_asked:", moved) != 0 {
+		t.Fatal("a task whose ask was taken back counts as never asked")
+	}
+	if cursor(heldAskPrefix, held) == 0 || cursor("held_asked:", held) == 0 {
+		t.Fatal("an ask still standing keeps its cursors")
 	}
 }

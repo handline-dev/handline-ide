@@ -158,6 +158,25 @@ func CursorUpdated(q Q, name string) (int64, bool, error) {
 	return at, err == nil, err
 }
 
+// CursorsWithPrefix is every cursor whose name starts with prefix: its row id by name.
+func CursorsWithPrefix(q Q, prefix string) (map[string]int64, error) {
+	rows, err := q.Query("SELECT name, row_id FROM cursors WHERE name >= ? AND name < ?", prefix, prefix+"\U0010FFFF")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]int64{}
+	for rows.Next() {
+		var name string
+		var id int64
+		if err := rows.Scan(&name, &id); err != nil {
+			return nil, err
+		}
+		out[name] = id
+	}
+	return out, rows.Err()
+}
+
 // ClearCursor is db.clear_cursor.
 func ClearCursor(q Q, name string) error {
 	_, err := q.Exec("DELETE FROM cursors WHERE name = ?", name)
