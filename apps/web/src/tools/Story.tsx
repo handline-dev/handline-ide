@@ -1,39 +1,56 @@
 // A story: a task with sub-tasks. Left, its comments as a chat with whoever holds it; right, the graph of its sub-tasks and Run.
-import { foundersTurn, taskGraph, type GraphNode } from '@handline/app-core';
+import { taskGraph, type GraphNode } from '@handline/app-core';
 import { useNameOf, useTasks, useWrite } from '@handline/app-data';
 import { useMe } from '@handline/app-react';
 import type { Task, TaskDetail } from '@handline/client';
 import { Play } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { taskOf } from '#src/layout/kinds.tsx';
-import { useOpenable } from '#src/layout/openable.tsx';
+import { useTabState } from '#src/persist/tabState.ts';
+import { SubTask } from '#src/tools/StorySub.tsx';
+import { startsAfter, wordOf, type Sub, type Word } from '#src/tools/storyWords.ts';
 import { Button } from '#src/ui/Button.tsx';
 import { ModalFrame, openModal } from '#src/ui/modal.tsx';
+import { ScrollFade } from '#src/ui/ScrollFade.tsx';
 import { sayRefusal } from '#src/ui/refusal.tsx';
 import { look } from '#src/ui/taskLook.tsx';
 import { Avatar } from '#src/tools/TaskEvents.tsx';
 
 const BOX = { w: 200, h: 128 };
 
-export function Story({ t, chat }: { t: TaskDetail; chat: ReactNode }) {
-  const name = useNameOf()(t.to);
+export function Story({ t, chat }: { t: TaskDetail; chat: (task: number) => ReactNode }) {
+  const nameOf = useNameOf();
+  // The sub-task opened from its node; its comments take the chat's place.
+  const [picked, setPicked] = useTabState<number | null>('sub', null);
+  const sub = t.subtasks.find((x) => x.id === picked) ?? null;
+  const name = nameOf(sub ? sub.owner : t.to);
   return (
     <div className="flex min-h-0 min-w-0 flex-1">
       <div className="flex min-h-0 min-w-0 basis-2/5 flex-col border-r border-border">
         <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-4 text-sm font-semibold">
           <Avatar name={name} mine={false} />
           {name}
+          {sub && <span className="font-normal text-muted">on T{sub.id}</span>}
         </div>
-        {chat}
+        {chat(sub?.id ?? t.id)}
       </div>
-      <Plan parent={t.id} />
+      {sub ? <SubTask key={sub.id} sub={sub} story={t} onPick={setPicked} /> : <Plan parent={t.id} subs={t.subtasks} onPick={setPicked} />}
     </div>
   );
 }
 
-const startsAfter = (t: Task, open: Set<number>) => (t.blocked_by ?? []).filter((n) => open.has(n));
+/** A story's chat column: the comments, then the box. */
+export function storyChat(activity: ReactNode, box: ReactNode, id: number) {
+  return (
+    <>
+      <ScrollFade keep={`task:${id}`} fromEnd data-task-scroll={id} className="min-h-0 flex-1">
+        <div className="px-4 py-4 text-base text-fg">{activity}</div>
+      </ScrollFade>
+      {box}
+    </>
+  );
+}
 
-function Plan({ parent }: { parent: number }) {
+function Plan({ parent, subs, onPick }: { parent: number; subs: Sub[]; onPick: (id: number) => void }) {
   const me = useMe();
   const kids = [...(useTasks({ parent }).data?.items ?? [])].sort((a, b) => a.id - b.id);
   const [box, fit] = useFit();
@@ -43,18 +60,25 @@ function Plan({ parent }: { parent: number }) {
   // Only a sub-task not yet done or discarded holds another back.
   const open = new Set(kids.filter((x) => !['done', 'discarded'].includes(x.state)).map((x) => x.id));
   const drafts = kids.filter((x) => x.state === 'draft');
-  const ready = (x: Task) => x.state !== 'done' && foundersTurn(x, me);
-  const waiting = (x: Task) => !ready(x) && x.state !== 'done' && look(x).word === 'Waiting';
+  const subOf = new Map(subs.map((x) => [x.id, x]));
+  const word = (x: Task) => wordOf(x, subOf.get(x.id), me, open);
+  const ready = (x: Task) => word(x).kind === 'you';
+  const waiting = (x: Task) => word(x).kind === 'waiting';
   const tally = (label: string, f: (x: Task) => boolean) => {
     const n = kids.filter(f).length;
     return n ? `${n} ${label}` : null;
   };
   const head =
     drafts.length === kids.length
-      ? ['Draft', `${kids.length} tasks`]
+      ? [
+          'Draft',
+          `${kids.length} tasks`,
+          `${subs.filter((x) => x.plan_state === 'ok').length} of ${kids.length} plans OK`,
+          tally('for you', ready),
+        ]
       : [
           `${kids.filter((x) => x.state === 'done').length}/${kids.length} merged`,
-          tally('ready for you', ready),
+          tally('for you', ready),
           tally('up next', (x) => x.state === 'queued' && !waiting(x)),
           tally('working', (x) => x.state === 'doing' && !ready(x) && !waiting(x)),
           tally('waiting', waiting),
@@ -88,7 +112,7 @@ function Plan({ parent }: { parent: number }) {
               ))}
             </svg>
             {g.nodes.map((n) => (
-              <Node key={n.id} n={n} t={byId.get(n.id)!} ready={ready(byId.get(n.id)!)} open={open} />
+              <Node key={n.id} n={n} t={byId.get(n.id)!} word={word(byId.get(n.id)!)} onPick={onPick} />
             ))}
           </div>
         </div>
@@ -106,23 +130,17 @@ function Plan({ parent }: { parent: number }) {
   );
 }
 
-function Node({ n, t, ready, open }: { n: GraphNode; t: Task; ready: boolean; open: Set<number> }) {
-  const go = useOpenable(taskOf(n.id));
+function Node({ n, t, word, onPick }: { n: GraphNode; t: Task; word: Word; onPick: (id: number) => void }) {
   const who = useNameOf()(t.to);
   const s = look(t);
-  const after = startsAfter(t, open);
   const draft = t.state === 'draft';
-  const word = ready
-    ? 'Ready for you'
-    : s.word === 'Waiting' && after.length
-      ? `Waiting on ${after.map((x) => `T${x}`).join(', ')}`
-      : s.word;
+  const ready = word.kind === 'you';
   return (
     <button
       type="button"
-      {...go}
+      onClick={() => onPick(n.id)}
       style={{ left: n.x, top: n.y, width: n.w, height: n.h }}
-      className={`absolute flex flex-col gap-1 rounded-md border p-3 text-left hover:bg-hover/30 ${draft ? 'border-dashed border-border' : ready ? 'border-warning bg-warning/10' : 'border-border bg-bg'}`}
+      className={`absolute flex flex-col gap-1 rounded-md border p-3 text-left hover:bg-hover/30 ${draft ? 'border-dashed' : ''} ${ready ? 'border-warning bg-warning/10' : 'border-border bg-bg'}`}
     >
       <span className="text-xs text-muted">T{n.id}</span>
       <span className="line-clamp-2 shrink-0 text-sm font-semibold text-fg">{n.title}</span>
@@ -130,12 +148,10 @@ function Node({ n, t, ready, open }: { n: GraphNode; t: Task; ready: boolean; op
         <Avatar name={who} mine={false} />
         {who}
       </span>
-      {!draft && (
-        <span className={`mt-auto flex items-center gap-1 text-xs ${ready ? 'text-warning' : 'text-muted'}`}>
-          <s.icon size={12} />
-          {word}
-        </span>
-      )}
+      <span className={`mt-auto flex items-center gap-1 text-xs ${ready ? 'text-warning' : 'text-muted'}`}>
+        {!draft && <s.icon size={12} />}
+        {word.text}
+      </span>
     </button>
   );
 }

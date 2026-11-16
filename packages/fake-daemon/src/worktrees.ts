@@ -18,10 +18,22 @@ const RECENT: RecentFolder[] = [
   { path: '/Users/me/side/notes-app', name: 'notes-app', touched_at: '2026-10-28T17:40:00Z' },
 ];
 
+/** Lines a made-up diff shows, code for code files and prose for the rest, so it reads like a real one. */
+const CODE = [
+  "import { useChats } from '@handline/app-data';",
+  'export function UnreadBadge({ count }: { count: number }) {',
+  '  if (!count) return null;',
+  '  return <span className="rounded-full bg-danger px-1.5 text-xs text-bg">{count}</span>;',
+  '}',
+  'const unread = chats.filter((c) => c.unread > 0).length;',
+];
+const PROSE = ['## Unread chats', 'A chat counts as unread until its newest message is seen.', 'The badge shows the count, up to 99.'];
+
 /** A unified diff for one changed file, made up from its counts: the fake has no repository to run git in. */
 const unified = (c: Worktree['changed'][number]): string => {
-  const add = Array.from({ length: Math.min(c.added, 6) }, (_, i) => `+added line ${i + 1}`);
-  const del = Array.from({ length: Math.min(c.deleted, 6) }, (_, i) => `-removed line ${i + 1}`);
+  const pool = /\.(tsx?|go|js)$/.test(c.path) ? CODE : PROSE;
+  const add = Array.from({ length: Math.min(c.added, 6) }, (_, i) => `+${pool[i % pool.length]}`);
+  const del = Array.from({ length: Math.min(c.deleted, 6) }, (_, i) => `-${pool[(i + 3) % pool.length]}`);
   const head = [
     `diff --git a/${c.path} b/${c.path}`,
     ...(c.status === 'A' ? ['new file mode 100644'] : c.status === 'D' ? ['deleted file mode 100644'] : []),
@@ -31,7 +43,7 @@ const unified = (c: Worktree['changed'][number]): string => {
     `--- ${c.status === 'A' ? '/dev/null' : `a/${c.path}`}`,
     `+++ ${c.status === 'D' ? '/dev/null' : `b/${c.path}`}`,
     `@@ -1,${c.deleted} +1,${c.added} @@`,
-    ' context line',
+    ` ${c.path.endsWith('.md') ? '# Notes' : "import { useMemo } from 'react';"}`,
     ...del,
     ...add,
     '',

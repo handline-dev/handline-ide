@@ -3,6 +3,7 @@
 // and Ready for the founder, one sent back once and being worked again.
 import type { FakeDaemon } from '#src/daemon.ts';
 import type { PlanVersion } from '#src/planview.ts';
+import { AFTER_JPG, BEFORE_JPG } from '#src/seedpictures.ts';
 import { DEMO_MP4 } from '#src/seedvideo.ts';
 
 type Seed = (d: FakeDaemon) => void;
@@ -56,7 +57,7 @@ function storyDrafts(iso: (min: number) => string): Draft[] {
           v(
             AUD,
             20,
-            'Change: chat.search reads the index, newest first, 50 at a time.\nFiles: go/internal/reads/chatsearch.go, contract/spec/chat.json\nDone: a fixture finds a message by a word, and pages.\nStarts after: the index.',
+            'Change: chat.search reads the index, newest first, 50 at a time.\nFiles: go/internal/reads/chatsearch.go\nDone: a fixture finds a message by a word.',
           ),
         ],
         ok: null,
@@ -158,7 +159,6 @@ export const STORY_SEEDS: Record<string, Seed> = {
   'story-review': (d) => {
     const iso = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
     d.tasks.verbs = true;
-    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
     const [story, ready, redo] = [9410, 9411, 9412];
     d.tasks.seed({
       id: story,
@@ -183,7 +183,11 @@ export const STORY_SEEDS: Record<string, Seed> = {
       plan: { versions: [{ by: to, at: iso(min - 10), text: `Change: ${title.toLowerCase()}.` }], ok: { by: ME, at: iso(min - 20) } },
     });
     d.tasks.seed({ ...sub(ready, TERM, 'Count unread chats', 150), state: 'doing' });
-    const [before, after, poster] = [d.uploads.add('before.png', png), d.uploads.add('after.png', png), d.uploads.add('badge.png', png)];
+    const [before, after, poster] = [
+      d.uploads.add('before.jpg', BEFORE_JPG),
+      d.uploads.add('after.jpg', AFTER_JPG),
+      d.uploads.add('badge.jpg', AFTER_JPG),
+    ];
     const video = { ...d.uploads.memoFile(d.uploads.add('badge.mp4', DEMO_MP4, 'video/mp4').id), poster: poster.id };
     const files = [before, after, poster].map((f) => d.uploads.memoFile(f.id)).concat(video);
     const result = 'Done: the count comes from chat.list. Changed from the plan: nothing. Before and after, and the badge counting up.';

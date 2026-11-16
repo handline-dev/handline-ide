@@ -23,30 +23,76 @@ function SplitSetting() {
   const settings = useSettings();
   const save = useWrite('settings.set');
   const manual = (settings.data?.values as Record<string, unknown> | undefined)?.account_split === 'manual';
-  const pick = (v: 'auto' | 'manual') => save.mutate({ changes: { account_split: v } as never });
+  return (
+    <AutoManual
+      name="Split work"
+      manual={manual}
+      about={
+        manual
+          ? 'Agents stay on the account they started on. At the limit, they wait for the reset and pick up the same conversation.'
+          : 'New agents start on the account with the most room; near the limit, an agent moves after its turn ends.'
+      }
+      ready={settings.isSuccess}
+      save={save}
+      pick={(v) => save.mutate({ changes: { account_split: v } as never })}
+    />
+  );
+}
+
+/** Plans for a story's drafts: auto asks each draft's agent for its plan once it is free, manual only when asked; with what a plan costs. */
+function PlansSetting() {
+  const settings = useSettings();
+  const save = useWrite('settings.set');
+  const manual = settings.data?.values.plans === 'manual';
+  const cost = settings.data?.plan_cost_usd;
+  const each = cost == null ? 'A plan costs its agent a turn of reading.' : `A plan costs about ${'$'}${cost.toFixed(2)}.`;
+  return (
+    <AutoManual
+      name="Plans"
+      manual={manual}
+      about={`${manual ? 'A draft gets a plan when you ask for one.' : 'Each draft gets a plan as soon as its agent is free.'} ${each}`}
+      ready={settings.isSuccess}
+      save={save}
+      pick={(v) => save.mutate({ changes: { plans: v } })}
+    />
+  );
+}
+
+/** A setting of two choices, Auto and Manual: its name, what the choice made does, and the two. */
+function AutoManual({
+  name,
+  manual,
+  about,
+  ready,
+  save,
+  pick,
+}: {
+  name: string;
+  manual: boolean;
+  about: string;
+  ready: boolean;
+  save: { isPending: boolean; error: unknown };
+  pick: (v: 'auto' | 'manual') => void;
+}) {
   return (
     <section className="flex items-center justify-between gap-6 rounded-lg border border-border px-4 py-3">
       <div className="min-w-0">
-        <h3 className="text-sm text-fg">Split work</h3>
-        <p className="text-xs text-muted">
-          {manual
-            ? 'Agents stay on the account they started on. At the limit, they wait for the reset and pick up the same conversation.'
-            : 'New agents start on the account with the most room; near the limit, an agent moves after its turn ends.'}
-        </p>
+        <h3 className="text-sm text-fg">{name}</h3>
+        <p className="text-xs text-muted">{about}</p>
         {!!save.error && (
           <p className="text-xs text-danger" role="alert">
             {sentence(classify(save.error))}
           </p>
         )}
       </div>
-      <div role="radiogroup" aria-label="Split work" className="flex shrink-0 rounded-md bg-hover/40 p-0.5 text-sm">
+      <div role="radiogroup" aria-label={name} className="flex shrink-0 rounded-md bg-hover/40 p-0.5 text-sm">
         {(['auto', 'manual'] as const).map((v) => (
           <button
             key={v}
             type="button"
             role="radio"
             aria-checked={manual === (v === 'manual')}
-            disabled={!settings.isSuccess || save.isPending}
+            disabled={!ready || save.isPending}
             onClick={() => pick(v)}
             className={`rounded px-3 py-1 ${manual === (v === 'manual') ? 'bg-bg font-medium text-fg shadow-sm' : 'text-muted hover:text-fg'}`}
           >
@@ -96,6 +142,7 @@ export function AccountsTab({ focus }: { focus?: string }) {
           <AiToolsCard />
           <h2 className="pt-4 text-sm font-medium text-fg">Splitting work</h2>
           <SplitSetting />
+          <PlansSetting />
           <h2 className="pt-4 text-sm font-medium text-fg">Claude accounts</h2>
           {q.isPending && <RowsLoading rows={6} />}
           {q.isError && <p className="text-sm text-danger">Accounts did not load.</p>}

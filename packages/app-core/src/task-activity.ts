@@ -19,8 +19,8 @@ export interface ActivityItem {
   replyTo?: number | null;
   /** For a founder's comment: where its tell stands with each agent it was told to. */
   readers?: TaskDetail['memos'][number]['readers'];
-  /** A comment's pictures, still kept. */
-  images?: { id: string; name: string }[];
+  /** A comment's pictures, still kept; `play` on a video's poster. */
+  images?: { id: string; name: string; play?: boolean }[];
   edited: boolean;
   /** For a turn passed: handed on (push) or given back (pop), and to whom; on a comment, the turn passed with it. */
   turn?: 'push' | 'pop';
@@ -101,7 +101,9 @@ export function activityOf(memos: TaskDetail['memos'], timeline: readonly Entry[
       replyTo: m.reply_to ?? null,
       readers: m.readers,
       // A picture the text names is drawn there, in the text: listed again under it, it would show twice.
-      images: (m.files ?? []).filter((f) => f.kind === 'image' && !f.gone && !named.has(f.id)).map((f) => ({ id: f.id, name: f.name })),
+      images: (m.files ?? [])
+        .filter((f) => f.kind === 'image' && !f.gone && !named.has(f.id))
+        .map((f) => ({ id: f.id, name: f.name, ...(m.files?.some((v) => v.poster === f.id) ? { play: true } : {}) })),
       edited: !!m.edited_at,
       toFounder: isNote(m.text),
       ...passedWith(m.id),
