@@ -1,4 +1,4 @@
-// The writes and the in-flight mark of the agent verbs (wake, interrupt, restart, close, park, fold, move account, clear stall), shared by the web menu and the phone's.
+// The writes of the agent verbs (wake, interrupt, restart, close, park, fold, move account, clear stall), shared by the web menu and the phone's.
 import { callOf, type Verb, type WorktreeAnswer } from '@handline/app-core';
 import { useWrite } from '#src/write.ts';
 

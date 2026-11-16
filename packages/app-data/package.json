@@ -2,7 +2,7 @@
   "name": "@handline/app-data",
   "private": true,
   "type": "module",
-  "description": "The apps' shared server state: React Query over the daemon client, the event bridge, optimistic writes with rollback, and the loading skeleton",
+  "description": "The apps' shared server state: React Query over the daemon client, the event bridge, and optimistic writes with rollback",
   "exports": {
     ".": "./src/index.ts"
   },
@@ -19,7 +19,6 @@
     "@handline/app-core": "workspace:*",
     "@handline/app-react": "workspace:*",
     "@handline/client": "workspace:*",
-    "@handline/tokens": "workspace:*",
     "@tanstack/react-query": "^5.104.1"
   },
   "devDependencies": {
