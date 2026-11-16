@@ -3,7 +3,7 @@
 import type { ChatMessage, Receipt } from '@handline/client';
 import { knownAttachments } from '#src/attachments.ts';
 import { classify, sentence } from '#src/errors.ts';
-import { edit, mapPages, provisionalId, takeOver, type Ctx, type Pages } from '#src/cache.ts';
+import { edit, mapPages, provisionalId, type Ctx, type Pages } from '#src/cache.ts';
 import { qk } from '#src/reads.ts';
 import { forgetOperation, laterReceipt, rememberOperation, type SendTask } from '#src/send-ops.ts';
 import { patchMessage, type MsgPage, type TrPage } from '#src/chat-events.ts';
@@ -123,11 +123,7 @@ export const chatWrites: Record<string, Patch> = {
         return mapPages(d, (page) => ({
           ...page,
           messages: page.messages.flatMap((m) =>
-            m.id < 0 && m.to === agent && m.body === body && m.state !== 'failed'
-              ? has
-                ? []
-                : (takeOver(request, m.id), [{ ...m, id: request }])
-              : [m],
+            m.id < 0 && m.to === agent && m.body === body && m.state !== 'failed' ? (has ? [] : [{ ...m, id: request }]) : [m],
           ),
         }));
       });

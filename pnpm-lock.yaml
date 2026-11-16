@@ -250,9 +250,6 @@ importers:
       '@handline/client':
         specifier: workspace:*
         version: link:../client
-      '@handline/tokens':
-        specifier: workspace:*
-        version: link:../tokens
       '@tanstack/react-query':
         specifier: ^5.104.1
         version: 5.104.1(react@19.2.3)

@@ -16,7 +16,7 @@ async function connected() {
 }
 
 describe('the agent verb hooks, against the fake daemon', () => {
-  it('runs a verb as a decided write: the daemon has done it', async () => {
+  it('runs a verb: the daemon has done it', async () => {
     const { store, daemon } = await connected();
     const v = probe(() => ({ run: useVerbRun(ARCH) }));
     await mount(store, v.node);

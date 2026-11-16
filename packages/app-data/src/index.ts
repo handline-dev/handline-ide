@@ -8,7 +8,6 @@ export * from '#src/provider.ts';
 export * from '#src/read.ts';
 export * from '#src/reads.ts';
 export * from '#src/send-ops.ts';
-export * from '#src/skeleton.ts';
 export * from '#src/verbs.ts';
 export * from '#src/write.ts';
 export * from '#src/write-spec.ts';

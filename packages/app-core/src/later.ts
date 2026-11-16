@@ -1,11 +1,11 @@
-// Later: the person puts an item of Requests off until a time or until a task is done (NavPrefs.later, by `kind:id` of the For you item). Pure.
+// Later: the person puts an item of Requests off until a time or until a task is done (NavPrefs.later, by the `source:id` of its requests.pending row). Pure.
 import type { PendingRequest } from '@handline/client';
 import { taskRef } from '#src/tasks.ts';
 
 /** Why an item is out of its group and when it returns: at `until` (ISO time), or when the task `after_task` ends. */
 export type LaterAt = { until: string } | { after_task: number };
 
-/** The same key of a row of the founder's turn (a row of requests.pending), or null for one that cannot be put off. */
+/** The key of a row of the founder's turn (a row of requests.pending), or null for one that cannot be put off. */
 export const laterKey = (p: PendingRequest): string | null =>
   p.source && p.id && p.source !== 'prompt' && p.source !== 'proposal' ? `${p.source}:${p.id}` : null;
 
@@ -15,7 +15,6 @@ export const laterHolds = (l: LaterAt | null | undefined, now: number, open: (ta
 
 const at = (d: Date, hour: number): Date => (d.setHours(hour, 0, 0, 0), d);
 
-/** The quick choices of the Later menu from `now`: this afternoon 15:00 (only before it), tomorrow 09:00, next Monday 09:00. */
 /** Tomorrow 09:00 from `now`, as an ISO time. */
 export function tomorrowAt9(now: number): string {
   const t = at(new Date(now), 9);
@@ -23,6 +22,7 @@ export function tomorrowAt9(now: number): string {
   return t.toISOString();
 }
 
+/** The quick choices of the Later menu from `now`: this afternoon 15:00 (only before it), tomorrow 09:00, next Monday 09:00. */
 export function laterChoices(now: number): { label: string; until: string }[] {
   const d = new Date(now);
   const afternoon = at(new Date(now), 15);
