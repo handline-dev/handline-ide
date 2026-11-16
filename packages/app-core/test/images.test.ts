@@ -1,27 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { findImageRefs, fitLongEdge, imageRef, insertImageRef, titleFromNote, withImages } from '#src/images.ts';
-
-test('the long edge shrinks to 2048 and keeps the shape', () => {
-  assert.deepEqual(fitLongEdge(4096, 2048), { width: 2048, height: 1024 });
-  assert.deepEqual(fitLongEdge(1000, 3000), { width: 683, height: 2048 });
-  assert.equal(fitLongEdge(2048, 100), null);
-});
+import { findImageRefs, imageRef, withImages } from '#src/images.ts';
 
 test('an image is named with the attachment scheme and a clean caption', () => {
   assert.equal(imageRef('9f2c41d0a7b3e6c8', 'login [x]'), '![login  x](attachment:9f2c41d0a7b3e6c8)');
-});
-
-test('the line goes on its own at the cursor', () => {
-  assert.equal(insertImageRef('abcdef', 3, 'R'), 'abc\nR\ndef');
-  assert.equal(insertImageRef('abc', null, 'R'), 'abc\nR');
-  assert.equal(insertImageRef('', 0, 'R'), 'R');
-});
-
-test('a capture note carries one reference per image and a title from its first line', () => {
-  assert.equal(withImages(' look ', ['a1', 'b2']), 'look\n![capture](attachment:a1)\n![capture](attachment:b2)');
-  assert.equal(titleFromNote('', 'Capture'), 'Capture');
-  assert.equal(titleFromNote('x'.repeat(80), 'C').length, 60);
 });
 
 test('image references are found with their caption and id', () => {
@@ -34,4 +16,8 @@ test('image references are found with their caption and id', () => {
     ],
   );
   assert.deepEqual(findImageRefs('![x](http://a/b.png)'), []);
+});
+
+test('a capture note carries one reference per image', () => {
+  assert.equal(withImages(' look ', ['a1', 'b2']), 'look\n![capture](attachment:a1)\n![capture](attachment:b2)');
 });

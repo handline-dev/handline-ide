@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { AgentView, InboxItem, Task } from '@handline/client';
-import { inboxGroup, messageRows, myTurn, reviewPictures, changeAsked, turnAgents } from '#src/my-turn.ts';
+import { messageRows, myTurn, reviewPictures } from '#src/my-turn.ts';
 
 const item = (o: Partial<InboxItem>): InboxItem =>
   ({
@@ -79,15 +79,6 @@ test('a dialog needs_you has only Open terminal, and a permission one is not dou
     cards.find((c) => c.agent === 'd')!.actions.map((a) => a.type),
     ['terminal'],
   );
-});
-
-test('inboxGroup: decision and ask are decisions, a permission prompt is an approval, the rest is FYI', () => {
-  const g = (o: Partial<InboxItem>) => inboxGroup(item(o));
-  assert.equal(g({ kind: 'decision' }), 'decisions');
-  assert.equal(g({ kind: 'ask' }), 'decisions');
-  assert.equal(g({ kind: 'prompt', prompt: { kind: 'permission' } as InboxItem['prompt'] }), 'approvals');
-  assert.equal(g({ kind: 'ask', prompt: { kind: 'permission' } as InboxItem['prompt'] }), 'approvals');
-  for (const kind of ['say', 'result', 'report', 'block', 'refused']) assert.equal(g({ kind }), 'fyi');
 });
 
 test("a daemon stall's card uses the daemon's title and sentence, not one built from its kind", () => {
@@ -207,21 +198,6 @@ test('a worktree-removal decision has three answers, not Done', () => {
   assert.equal(card.primary, 4);
 });
 
-test('the pictures of a review come from the first comment: named in its text, else its image files', () => {
-  assert.deepEqual(reviewPictures([]), []);
-  const named = { id: 2, parts: [{ text: 'see' }, { image: { id: 'a', name: 'one.png' } }, { image: { id: 'b' }, gone: true }] };
-  assert.deepEqual(reviewPictures([{ id: 9, parts: [{ image: { id: 'z' } }] }, named]), [{ id: 'a', name: 'one.png' }]);
-  const filed = {
-    id: 3,
-    files: [
-      { id: 'f', kind: 'image', name: 'x.png' },
-      { id: 'g', kind: 'markdown' },
-    ],
-  };
-  assert.deepEqual(reviewPictures([filed]), [{ id: 'f', name: 'x.png' }]);
-  assert.equal(changeAsked(' wider '), 'Change asked: wider');
-});
-
 test('an open task given to the person is a card; one an unread item already stands for is counted once', () => {
   const tasks = [
     task({ id: 1, to: 'human' }),
@@ -238,20 +214,6 @@ test('an open task given to the person is a card; one an unread item already sta
     cards.find((c) => c.key === 'task:1')!.actions.map((a) => a.type),
     ['done_task', 'open'],
   );
-});
-
-test('the agents of My turn are the ones its cards name', () => {
-  const cards = myTurn({
-    items: [],
-    agents: [
-      agent({
-        key: 'b',
-        needs_you: { kind: 'dialog', since: '2026-10-15T00:00:00Z', title: 'Waiting at a dialog', text: null } as AgentView['needs_you'],
-      }),
-    ],
-    tasks: [task({ id: 5, to: 'human', from: 'c' })],
-  });
-  assert.deepEqual([...turnAgents(cards)], ['b']);
 });
 
 test('a permission card is titled by what is asked, not the raw command line, which is its detail', () => {
@@ -346,4 +308,18 @@ test('a mention in the middle of a sentence leaves the sentence its colon', () =
   const ask = item({ id: 9, kind: 'ask', task: 5, memo: 77, body: 'Second look please @human: the margin is now 24 px.' });
   const [c] = myTurn({ items: [ask], agents: [], tasks: [task({ id: 5, to: 'human' })], me: 'human' });
   assert.equal(c!.detail, 'Second look please: the margin is now 24 px.');
+});
+
+test('the pictures of a review come from the first comment: named in its text, else its image files', () => {
+  assert.deepEqual(reviewPictures([]), []);
+  const named = { id: 2, parts: [{ text: 'see' }, { image: { id: 'a', name: 'one.png' } }, { image: { id: 'b' }, gone: true }] };
+  assert.deepEqual(reviewPictures([{ id: 9, parts: [{ image: { id: 'z' } }] }, named]), [{ id: 'a', name: 'one.png' }]);
+  const filed = {
+    id: 3,
+    files: [
+      { id: 'f', kind: 'image', name: 'x.png' },
+      { id: 'g', kind: 'markdown' },
+    ],
+  };
+  assert.deepEqual(reviewPictures([filed]), [{ id: 'f', name: 'x.png' }]);
 });

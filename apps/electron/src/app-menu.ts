@@ -1,7 +1,7 @@
 // The application menu as plain data, so a test can read it; main.ts hands it to Electron's Menu.
 import type { MenuItemConstructorOptions } from 'electron';
 
-/** The screens the Go menu opens, with the page route each one is (routeOfTarget in app-core). */
+/** The screens the Go menu opens, with the page route each one is. */
 export const GO_SCREENS = [
   { label: 'Agents', screen: 'team', key: '1' },
   { label: 'Requests', screen: 'requests', key: '2' },

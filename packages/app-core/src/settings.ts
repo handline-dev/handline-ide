@@ -1,4 +1,4 @@
-// The fields of an agent's settings page (the bridge's agent_settings.py), what each takes, and who may change it.
+// An agent's settings fields (the bridge's agent_settings.py): what each takes, and who may change it.
 import type { AgentSettingValues } from '@handline/client';
 
 export type FieldKey = keyof AgentSettingValues;
@@ -16,23 +16,6 @@ export interface Field {
 }
 
 export const MODELS = ['opus', 'sonnet', 'haiku'];
-export const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'];
-export const MODES = ['default', 'auto', 'acceptEdits', 'plan'];
-export const BROWSERS = ['off', 'chrome', 'playwright'];
-
-export const FIELDS: Field[] = [
-  { key: 'model', label: 'model', section: 'model', kind: 'model', options: MODELS },
-  { key: 'effort', label: 'effort', section: 'model', kind: 'select', options: EFFORTS },
-  { key: 'weight', label: 'weight', section: 'model', kind: 'select', options: ['light', 'heavy'] },
-  { key: 'context_k', label: 'hand off at', section: 'model', kind: 'number', unit: 'k tokens' },
-  { key: 'handoff_note', label: 'handoff note', section: 'model', kind: 'select', options: ['default', 'on', 'off'] },
-  { key: 'repo', label: 'repo', section: 'work', kind: 'text' },
-  { key: 'mode', label: 'mode', section: 'session', kind: 'select', options: MODES, note: 'from the next launch' },
-  { key: 'sandbox', label: 'sandbox', section: 'session', kind: 'switch', note: 'off stays off until turned on again' },
-  { key: 'browser', label: 'browser', section: 'browser', kind: 'select', options: BROWSERS, note: 'from the next launch' },
-  { key: 'browser_sites', label: 'sites', section: 'browser', kind: 'sites' },
-  { key: 'idle_close', label: 'idle close', section: 'browser', kind: 'number', unit: 'min, 0 = never' },
-];
 
 /** The keys an agent may change on itself; every other one is the founder's. */
 export const OWN_KEYS: ReadonlySet<FieldKey> = new Set<FieldKey>(['model', 'effort', 'context_k', 'handoff_note']);
@@ -60,14 +43,3 @@ export const DANGER: Partial<Record<FieldKey, { to: string; title: string; text:
     go: 'Turn off',
   },
 };
-
-const pad = (n: string) => n.padStart(2, '0');
-/** A cron line in words for the common shapes; null for the rest. */
-export function cronWords(cron: string): string | null {
-  const m = cron.trim().match(/^(\d{1,2}) (\d{1,2}) \* \* (\*|1-5)$/);
-  if (!m) return null;
-  return `every ${m[3] === '*' ? 'day' : 'weekday'} ${pad(m[2]!)}:${pad(m[1]!)}`;
-}
-
-/** The unit shown with the field; what follows its comma ("min, 0 = never") is the hint. */
-export const fieldUnit = (f: Field): string | undefined => f.unit?.split(',')[0]?.trim();

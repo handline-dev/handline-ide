@@ -23,6 +23,3 @@ export function dotOfStatus(s: Pick<Status, 'state' | 'reason'>): Dot | null {
       return null;
   }
 }
-
-/** The states whose text explains why a task is held: a running or done task needs no warning line. */
-export const HELD = ['waiting', 'stopped'];

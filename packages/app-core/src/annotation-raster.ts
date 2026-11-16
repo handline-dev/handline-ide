@@ -71,8 +71,6 @@ export function parseColor(hex: string): [number, number, number] {
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
 
-export const blankBitmap = (width: number, height: number): Bitmap => ({ width, height, data: new Uint8ClampedArray(width * height * 4) });
-
 function disc(b: Bitmap, cx: number, cy: number, r: number, rgb: [number, number, number]) {
   const x0 = Math.max(0, Math.floor(cx - r));
   const x1 = Math.min(b.width - 1, Math.ceil(cx + r));

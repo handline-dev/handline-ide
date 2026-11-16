@@ -1,4 +1,4 @@
-// The surface between the web app and the desktop shell (docs/electron-bridge.md): types and the one table from an event's target to a route.
+// The surface between the web app and the desktop shell (docs/electron-bridge.md): its types and the settings keys the page may set.
 // Pure, no DOM: the shell's preload and the web app both import it.
 
 import type { Methods, SettingsChanges } from '@handline/client';
@@ -181,33 +181,4 @@ export interface ShellApi {
   }): Promise<{ ok: true; result: Methods['settings.set']['result'] } | Fail<'bad_request' | 'refused' | 'unavailable'>>;
   /** A notice was clicked. Returns the way to stop listening. */
   onNavigate(cb: (to: NavigateTo) => void): () => void;
-}
-
-/**
- * The route a notice's target lands on, or null when there is none to go to (no target, an empty id, the string `None` the daemon
- * emits for a task_done without a task, or a screen this does not know).
- */
-export function routeOfTarget(target: { screen: string; id: string } | null): string | null {
-  // Pages with no id: the tray's Inbox and Settings lines.
-  if (target?.screen === 'inbox') return '#/my-turn';
-  if (target?.screen === 'settings') return '#/settings';
-  // The application menu's Go entries.
-  if (target?.screen === 'team') return '#/team';
-  if (target?.screen === 'requests') return '#/requests';
-  if (target?.screen === 'tasks' && !target.id) return '#/tasks';
-  if (target?.screen === 'stats') return '#/stats';
-  if (!target || !target.id || target.id === 'None') return null;
-  const id = encodeURIComponent(target.id);
-  switch (target.screen) {
-    case 'agent':
-      return `#/agents/${id}`;
-    case 'task':
-      return `#/tasks/${id}`;
-    case 'account':
-      return `#/accounts/${id}`;
-    case 'proposals':
-      return `#/team/proposals/${id}`;
-    default:
-      return null;
-  }
 }
