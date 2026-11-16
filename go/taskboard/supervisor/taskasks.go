@@ -66,7 +66,7 @@ func (e *Env) sendAsk(a *db.TaskAsk, t *db.Task) {
 				panic(r)
 			}
 		}()
-		body := askText(a, t)
+		body := askText(a, t, must(db.StoryBranch(tx, t.ID)))
 		if rows := must(db.PendingNotices(tx, a.To)); len(rows) > 0 {
 			body += "\n\n" + DigestText(tx, rows)
 			check(db.MarkNoticesDigested(tx, requestIDs(rows)))
@@ -93,7 +93,7 @@ func shortTitle(title string) string {
 }
 
 // askText is what the agent is typed for an ask.
-func askText(a *db.TaskAsk, t *db.Task) string {
+func askText(a *db.TaskAsk, t *db.Task, branch string) string {
 	n, title := t.ID, shortTitle(t.Title)
 	if a.Kind == db.PlanAskKind {
 		return fmt.Sprintf("Write the plan for T%d (%s). Read its brief (`hl task show T%d`) and the code it touches, and change nothing: no edits, "+
@@ -102,12 +102,20 @@ func askText(a *db.TaskAsk, t *db.Task) string {
 			"goes on the task: `hl task comment T%d add \"<question>\" --turn human`. Then go back to what you were doing; T%d itself comes to "+
 			"you when it is run.", n, title, n, n, n, n)
 	}
+	where := fmt.Sprintf("Commit them on a branch of T%d's own, made from origin/main", n) // a task that is not a story's sub-task
+	if branch != "" {
+		where = branchLine(branch)
+	}
 	note := ""
 	if a.Note != "" {
 		note = " Which part: " + a.Note
 	}
 	return fmt.Sprintf("Write the core logic of T%d (%s): only its key function and that function's test, nothing around them.%s Read "+
-		"`hl task show T%d` first. Commit them in your worktree on a branch of T%d's own, made from origin/main; do not merge or push it, "+
-		"and leave the worktree on that branch, which is where its diff is read. Then say on the task what you wrote: `hl task comment T%d "+
-		"add \"<what, and the branch>\"`. When T%d is run, carry on from that branch.", n, title, note, n, n, n, n)
+		"`hl task show T%d` first. %s; do not merge or push it. Then say on the task what you wrote: `hl task comment T%d add \"<what>\"`. "+
+		"When T%d is run, carry on from that branch.", n, title, note, n, where, n, n)
+}
+
+// branchLine is how a story's sub-task's agent is told where to commit it.
+func branchLine(branch string) string {
+	return fmt.Sprintf("Commit on branch %s (made from origin/main; if it exists, carry on from it)", branch)
 }

@@ -109,6 +109,8 @@ export interface ReposMethods {
   file?: string;
   /** head (absent): against HEAD. base: against the merge-base with the base branch, so the branch's commits show too; no base ref answers as head. */
   against?: "head" | "base";
+  /** A branch of the worktree's repo (TaskDetail.branch): the diff is its commits against their merge-base with the base branch, nothing uncommitted; against is base (head is bad_request). No such branch: not_found (what branch); no base ref: refused. */
+  branch?: string;
 }; result: {
     path: string;
     file: string | null;

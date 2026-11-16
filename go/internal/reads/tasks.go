@@ -898,6 +898,9 @@ func (e *Env) taskGet(c *rpc.Conn, params map[string]any) (any, error) {
 	if task["review"], err = e.reviewOf(*tid); err != nil {
 		return nil, err
 	}
+	if task["branch"], err = e.branchOf(*tid); err != nil {
+		return nil, err
+	}
 	spent, err := e.usageEnv().TaskSpend(e.DB, []int64{*tid})
 	if err != nil {
 		return nil, err
