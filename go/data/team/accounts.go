@@ -474,6 +474,15 @@ func (a Accounts) EnvFrom(base map[string]string, acct, agent string) map[string
 			delete(env, k)
 		}
 	}
+	// Started inside a Claude Code session (CLAUDECODE), every CLAUDE* variable is the host's: its child-session marker turns
+	// transcript saving off, so the session writes no sessions/<pid>.json. The config dir is set below.
+	if _, inside := env["CLAUDECODE"]; inside {
+		for k := range env {
+			if strings.HasPrefix(k, "CLAUDE") && k != "CLAUDE_CONFIG_DIR" {
+				delete(env, k)
+			}
+		}
+	}
 	vendor := AccountVendor(a.Home, acct)
 	if dir, err := AccountConfigDir(a.Home, acct); err == nil {
 		env[ConfigDirEnv(vendor)] = dir
