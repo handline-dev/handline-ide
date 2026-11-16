@@ -66,13 +66,13 @@ const thin = (ps: Point[]): Point[] => {
 /** What a pointer path is: a tap (it stayed within `slop`), a loop (it came back near where it began after going round), or a drag from start to end. */
 export function classifyGesture(path: Point[], slop: number, radius: number): Pick<Mark, 'kind' | 'rect' | 'points'> {
   const box = rectOf(path);
-  const first = path[0]!,
+  const first = path[0],
     last = path.at(-1)!;
   if (Math.max(box.w, box.h) < slop) {
     return { kind: 'pin', rect: round({ x: first.x - radius, y: first.y - radius, w: radius * 2, h: radius * 2 }) };
   }
   const diag = Math.hypot(box.w, box.h);
-  const length = path.slice(1).reduce((n, p, i) => n + Math.hypot(p.x - path[i]!.x, p.y - path[i]!.y), 0);
+  const length = path.slice(1).reduce((n, p, i) => n + Math.hypot(p.x - path[i].x, p.y - path[i].y), 0);
   if (Math.hypot(last.x - first.x, last.y - first.y) <= diag * 0.35 && length >= diag * 1.8) {
     return { kind: 'area', rect: round(box), points: thin(path) };
   }

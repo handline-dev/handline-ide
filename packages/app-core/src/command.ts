@@ -7,7 +7,7 @@ export const isCommandLang = (lang: string): boolean => COMMAND_LANGS.has(lang.t
 /** The command after `! `, Claude Code's way for an agent to ask the person to run one (a login, a password prompt), or null. */
 export function bangOf(text: string): string | null {
   const m = /^! +(\S.*)$/.exec(text.trim());
-  return m ? m[1]!.trim() : null;
+  return m ? m[1].trim() : null;
 }
 
 /** Inline `! <command>` spans are numbered from this, apart from the fences, so a span never takes or moves a fence's run. */
@@ -19,7 +19,7 @@ export const BANG_FROM = 1000;
  * so a change to what counts as a command moves no run. */
 export function commandOf(lang: string, text: string): string | null {
   const lines = text.split('\n').filter((x) => x.trim());
-  const bang = lang.trim() === '' && lines.length === 1 ? bangOf(lines[0]!) : null;
+  const bang = lang.trim() === '' && lines.length === 1 ? bangOf(lines[0]) : null;
   if (bang) return bang;
   if (isCommandLang(lang)) {
     const prompted = lines.length > 0 && lines.every((x) => /^\$ /.test(x));

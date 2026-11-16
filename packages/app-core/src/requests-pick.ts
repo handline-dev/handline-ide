@@ -82,7 +82,7 @@ export function pickAllState(shown: Picked[], picked: ReadonlyMap<string, Picked
 export function refusalLine(message: string): { text: string; open: number | null } {
   const kids = /task T(\d+) still has open child tasks \(([^)]*)\)/.exec(message);
   if (kids) {
-    const first = /T(\d+)/.exec(kids[2]!);
+    const first = /T(\d+)/.exec(kids[2]);
     return { text: `T${kids[1]} has sub-tasks still open (${kids[2]})`, open: first ? Number(first[1]) : null };
   }
   return { text: message, open: null };
