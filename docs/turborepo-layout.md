@@ -17,7 +17,7 @@ Written against main @2f7de798. Choices not yet confirmed by the founder: repo-r
 | Web | **React + Vite, a static SPA** | RN is React, so hooks and state code are shared only if the web is React too. No SSR is needed: the page talks to a daemon. Replaces the no-framework, no-build `web/ui/`. |
 | Sharing level | **logic and tokens shared; screens written twice** | `react-native-web` would share screens but ties the web's layout to RN primitives; the terminal grid and the PC layout want DOM. Revisit per screen later; nothing here blocks it. |
 | Server state | **React Query** (`@tanstack/react-query` v5) in a **new package `@handline/app-data`**, shared by `apps/web` and `apps/mobile` | One tested place for reads, loading and error states, event-driven freshness and optimistic writes (§8), so a screen cannot do them by hand and differ. A new package, not `app-react`: that one has no dependency but `react`, and the store-only consumers should stay light. |
-| Loading | **skeleton screens**, never spinners or blank panes; one shared `Skeleton` in `app-data` (§8.6) | Founder rule. |
+| Loading | **skeleton screens**, never spinners or blank panes; each view draws its own (§8.6) | Founder rule. |
 | Packages | **source-only ("just-in-time")**: `exports` points at `.ts`, no build step per package | Keeps the current Node type-stripping tests; Vite and Metro compile the source themselves. |
 
 ## 2. Layout
@@ -32,7 +32,7 @@ packages/
   fake-daemon/      @handline/fake-daemon scripted daemon + ws server (Node only: tests, dev)
   app-core/         @handline/app-core    Store, pure screen decisions; no React, no DOM, no RN
   app-react/        @handline/app-react   DaemonProvider, useStore and selector hooks; React only
-  app-data/         @handline/app-data    React Query hooks over the client, event bridge, write table, Skeleton (§8); React + @tanstack/react-query
+  app-data/         @handline/app-data    React Query hooks over the client, event bridge, write table (§8); React + @tanstack/react-query
   tokens/           @handline/tokens      colors, spacing, type scale, breakpoints as TS constants
   config/           @handline/config      base tsconfigs
 contract/           @handline/contract    protocol.ts / protocol.json stay put; a package.json joins them to the workspace
@@ -49,7 +49,7 @@ Imports name a package (`@handline/app-core`) or a path inside the same package 
 |---|---|---|
 | JSON-RPC client, reconnect, cursors, terminal views | `web/src/client.ts`, `transport.ts` | WebSocket construction details (certificate trust: browser uses the page's origin, RN uses the pinned fingerprint) |
 | Store (what stays after §8): connection, who I am, capabilities, the error toast, notes, open-agent page, terminal view | `web/ui/store.ts` and `web/mobile/store.ts` (two near-copies today) | Persistence of the paired daemon (web: `localStorage`; mobile: secure store) |
-| Server state: queries, event bridge, writes with optimistic updates, `Skeleton` and the per-view skeleton specs | the store's `agents`, `details`, `refresh`, `act` today | Only how a skeleton box is drawn (web `div`, mobile `View`) |
+| Server state: queries, event bridge, writes with optimistic updates | the store's `agents`, `details`, `refresh`, `act` today | - |
 | Screen decisions: `dotOf`, `railGroups`, `ago`, `DAEMON_KEYS`, `KEY_STRIP`, which screens exist | `web/ui/model.ts`, `web/mobile/store.ts` | Layout, navigation (web: router; mobile: Expo Router), gestures, safe areas |
 | Terminal grid logic: view to lines and cells | `web/ui/terminal-pane.ts` (the DOM part stays) | Rendering (web: `<pre>`; mobile: monospace `<Text>`) and typing (web: hidden textarea + IME events; mobile: `TextInput` + key strip) |
 | Tokens and breakpoints | `web/ui/style.css` | Where they land (web: CSS variables from the constants; mobile: used directly) |
@@ -210,7 +210,7 @@ Rules for both: the write is idempotent through the `request_id` the client adds
 
 ### 8.6 Skeleton
 
-`Skeleton` is one shared component with the shapes of every view in `packages/app-data/skeletons`: a spec is a small tree of `box` (width, height, radius), `row`, `col` and `repeat`, drawn through a `Box` primitive each app gives the provider (web `div`, mobile `View`). The specs are shared, so the phone and the PC agree on shape; the per-view list is in `docs/web-main-view.md` §9 and `docs/pc-app-gaps.md` §4.
+Each view draws its own skeleton (the web's in its components, e.g. the Terminal tab); the per-view list is in `docs/web-main-view.md` §9 and `docs/pc-app-gaps.md` §4.
 - Shown only on **first load** (loading, no data); a refetch keeps the data and shows the quiet marker.
 - **Same size as the real content**: a skeleton row takes its height and gaps from `@handline/tokens`, the same constants the real row uses, so nothing shifts when data arrives.
 - **150 ms delay** before it appears (a fast answer shows no flash) and **at least 300 ms** once shown.

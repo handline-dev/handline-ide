@@ -1,4 +1,4 @@
-// The person's nav prefs (the daemon's, on every device) and this device's open tabs (this app run only).
+// The person's nav prefs (the daemon's, on every device).
 import { useRef } from 'react';
 import { movePin, navOf, togglePin } from '@handline/app-core';
 import { useQueryClient } from '@tanstack/react-query';

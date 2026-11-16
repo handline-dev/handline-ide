@@ -1,15 +1,13 @@
 // Opens the daemon: a listener that wants a device token gets the pairing screen until this browser holds one.
 import { Store, type KV, type ShellDaemon } from '@handline/app-core';
 import { shell } from '#src/shell.ts';
-import { DataProvider, SKELETON_CSS, type BoxComponent } from '@handline/app-data';
+import { DataProvider } from '@handline/app-data';
 import { DaemonProvider } from '@handline/app-react';
 import { DaemonClient, webSocketTransport } from '@handline/client';
 import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { browserStorage, daemonUrl } from '#src/connection/daemon.ts';
 import { deviceName, forgetToken, inviteCode, loadToken, needsToken, pairWith, tokenRefused } from '#src/connection/pairing.ts';
 import { Button } from '#src/ui/Button.tsx';
-
-const Box: BoxComponent = (p) => <div {...p} />;
 
 export function Connect({ children }: { children: ReactNode }) {
   const [storage] = useState(browserStorage);
@@ -53,10 +51,7 @@ export function Connect({ children }: { children: ReactNode }) {
   if (needsToken(url) && !token) return <Pair url={url} storage={storage} lost={lost} onPaired={setToken} />;
   return (
     <DaemonProvider store={store} where={url} connect>
-      <DataProvider daemonId={url} box={Box}>
-        <style>{SKELETON_CSS}</style>
-        {children}
-      </DataProvider>
+      <DataProvider daemonId={url}>{children}</DataProvider>
     </DaemonProvider>
   );
 }

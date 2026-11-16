@@ -1,5 +1,5 @@
 // The data layer's root: the query client, which daemon the keys belong to, and the event bridge that keeps the cache current.
-import { createContext, createElement, useContext, useEffect, useState, type ComponentType, type ReactNode } from 'react';
+import { createContext, createElement, useContext, useEffect, useState, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useSelected, useStore } from '@handline/app-react';
 import type { Topic } from '@handline/client';
@@ -8,12 +8,8 @@ import { readAway } from '#src/away.ts';
 import { placesHeld } from '#src/chat.ts';
 import { retryDelay, retryRead } from '#src/errors.ts';
 
-/** What draws a skeleton box: each app gives its own (a `div` on the web, a `View` on the phone). */
-export type BoxComponent = ComponentType<{ style: Record<string, unknown>; children?: ReactNode } & Record<string, unknown>>;
-
 interface Data {
   daemon: string;
-  box: BoxComponent | null;
 }
 const DataContext = createContext<Data | null>(null);
 
@@ -34,8 +30,8 @@ export const makeQueryClient = () =>
  * A gap in the event stream and a reconnect make every active query read again; the events in between are cache edits.
  * A reconnect does not replay what was missed: the open screens read again and the events after the read are the changes since.
  */
-export function DataProvider(props: { daemonId: string; box?: BoxComponent; client?: QueryClient; children?: ReactNode }) {
-  const { daemonId, box = null } = props;
+export function DataProvider(props: { daemonId: string; client?: QueryClient; children?: ReactNode }) {
+  const { daemonId } = props;
   const store = useStore();
   const [queries] = useState(() => props.client ?? makeQueryClient());
   useEffect(() => {
@@ -45,7 +41,7 @@ export function DataProvider(props: { daemonId: string; box?: BoxComponent; clie
       store.client.onGap(() => resync(queries, daemonId)),
       store.client.onResume((r) => {
         resume(queries, daemonId, placesHeld(queries));
-        void readAway(store.client, queries, daemonId, r.from, store.notices);
+        void readAway(store.client, r.from, store.notices);
       }),
     ];
     return () => {
@@ -56,7 +52,7 @@ export function DataProvider(props: { daemonId: string; box?: BoxComponent; clie
   return createElement(
     QueryClientProvider,
     { client: queries },
-    createElement(DataContext.Provider, { value: { daemon: daemonId, box } }, props.children),
+    createElement(DataContext.Provider, { value: { daemon: daemonId } }, props.children),
   );
 }
 

@@ -4,7 +4,7 @@ import type { QueryClient } from '@tanstack/react-query';
 import { DaemonProvider } from '@handline/app-react';
 import { Store } from '@handline/app-core';
 import { METHODS, RpcError, type DaemonClient, type Event as WireEvent } from '@handline/client';
-import { DataProvider, makeQueryClient, type BoxComponent } from '#src/index.ts';
+import { DataProvider, makeQueryClient } from '#src/index.ts';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -70,13 +70,13 @@ let root: Root | null = null;
 let host: HTMLElement | null = null;
 
 /** Renders `children` under a DaemonProvider (not started) and a DataProvider on a fresh query client. */
-export async function mount(store: Store, children: ReactNode, client: QueryClient = makeQueryClient(), box?: BoxComponent) {
+export async function mount(store: Store, children: ReactNode, client: QueryClient = makeQueryClient()) {
   host = document.body.appendChild(document.createElement('div'));
   root = createRoot(host);
   await act(async () => {
     root!.render(
       <DaemonProvider store={store} connect={false}>
-        <DataProvider daemonId={DAEMON} client={client} box={box}>
+        <DataProvider daemonId={DAEMON} client={client}>
           {children}
         </DataProvider>
       </DaemonProvider>,
