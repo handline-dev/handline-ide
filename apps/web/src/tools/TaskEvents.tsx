@@ -113,7 +113,7 @@ export function EventRow({ i, fresh, turn }: { i: ActivityItem; fresh: string; t
 }
 
 /** A writer's initial in a circle: the founder's blue, an agent's gray. */
-function Avatar({ name, mine }: { name: string; mine: boolean }) {
+export function Avatar({ name, mine }: { name: string; mine: boolean }) {
   return (
     <span
       className={`grid size-6 shrink-0 place-items-center rounded-full text-xs font-semibold text-accent-fg ${mine ? 'bg-accent' : 'bg-muted'}`}

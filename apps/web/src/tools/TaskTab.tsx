@@ -20,6 +20,7 @@ import { Fields } from '#src/tools/TaskFields.tsx';
 import { GO_TURN, goToTurn, openTurnRow, takeTyping, type OpenTurn } from '#src/tools/TaskTurn.ts';
 import { showHistory } from '#src/tools/TaskDiff.tsx';
 import { CommentBox, type Reply } from '#src/tools/TaskComment.tsx';
+import { Story } from '#src/tools/Story.tsx';
 import { useAttachments } from '#src/chat/attachments.tsx';
 import { FileDropArea } from '#src/ui/fileDrop.tsx';
 import { Page } from '#src/ui/Page.tsx';
@@ -81,6 +82,49 @@ export function TaskTab({ id }: { id: number }) {
   const mine = open && foundersTurn(t, me);
   const chain = turnChain(t, me, nameOf);
   const turn = t.turns?.at(-1);
+  const activity = (bare = false) => (
+    <Activity
+      bare={bare}
+      task={t.id}
+      open={mine ? openTurnRow(t, me) : undefined}
+      turn={turn}
+      holder={t.to}
+      onReply={(id) => setReplyTo(t.memos.find((m) => m.id === id) ?? null)}
+      items={activityOf(t.memos, t.timeline, me, nameOf).filter((i) => !isSystem(i.who))}
+    />
+  );
+  const box = (
+    <CommentBox
+      t={t}
+      reply={replyTo}
+      typing={typing}
+      onDrop={() => setReplyTo(null)}
+      attach={attach}
+      draft={draft}
+      setDraft={setDraft}
+      onMarked={addMarked}
+      onSent={() => toBottom(id)}
+    />
+  );
+  // A task with sub-tasks is a story: its comments as a chat beside the graph of its sub-tasks.
+  if (t.subtasks.length)
+    return (
+      <FileDropArea take={attach.add} className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <MarkReply.Provider value={{ add: addMarked, label: 'Add to comment' }}>
+          <Story
+            t={t}
+            chat={
+              <>
+                <ScrollFade keep={`task:${id}`} fromEnd data-task-scroll={id} className="min-h-0 flex-1">
+                  <div className="px-4 py-4 text-base text-fg">{activity(true)}</div>
+                </ScrollFade>
+                {box}
+              </>
+            }
+          />
+        </MarkReply.Provider>
+      </FileDropArea>
+    );
   return (
     <FileDropArea take={attach.add} className="flex min-h-0 min-w-0 flex-1 flex-col">
       <MarkReply.Provider value={{ add: addMarked, label: 'Add to comment' }}>
@@ -154,27 +198,10 @@ export function TaskTab({ id }: { id: number }) {
                 </Flash>
               </Section>
             )}
-            <Activity
-              task={t.id}
-              open={mine ? openTurnRow(t, me) : undefined}
-              turn={turn}
-              holder={t.to}
-              onReply={(id) => setReplyTo(t.memos.find((m) => m.id === id) ?? null)}
-              items={activityOf(t.memos, t.timeline, me, nameOf).filter((i) => !isSystem(i.who))}
-            />
+            {activity()}
           </Page>
         </ScrollFade>
-        <CommentBox
-          t={t}
-          reply={replyTo}
-          typing={typing}
-          onDrop={() => setReplyTo(null)}
-          attach={attach}
-          draft={draft}
-          setDraft={setDraft}
-          onMarked={addMarked}
-          onSent={() => toBottom(id)}
-        />
+        {box}
       </MarkReply.Provider>
     </FileDropArea>
   );
@@ -190,10 +217,10 @@ function Flash({ text, children }: { text: string; children: ReactNode }) {
   );
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+function Section({ title, children }: { title: string | null; children: ReactNode }) {
   return (
     <section className="flex flex-col gap-2">
-      <h2 className="text-sm font-semibold text-muted">{title}</h2>
+      {title && <h2 className="text-sm font-semibold text-muted">{title}</h2>}
       {children}
     </section>
   );
@@ -267,8 +294,11 @@ function Activity({
   turn,
   onReply,
   holder,
+  bare,
 }: {
   holder?: string;
+  /** No Activity heading: the story's chat is only this. */
+  bare?: boolean;
   task: number;
   items: ActivityItem[];
   open?: OpenTurn;
@@ -287,7 +317,7 @@ function Activity({
     !!open && i.turn === 'push' && ('memo' in open ? i.memo === open.memo : i.at === open.at) && isPerson(i.turnTo ?? '', me);
   if (!items.length) return null;
   return (
-    <Section title="Activity">
+    <Section title={bare ? null : 'Activity'}>
       <div className="flex flex-col">
         {items.map((i) =>
           i.kind === 'comment' ? (
