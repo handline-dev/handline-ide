@@ -141,6 +141,8 @@ export const useTaskEdit = (target?: string) => useWrite("task.edit", target);
 export const useTaskAsk = (target?: string) => useWrite("task.ask", target);
 export const useTaskPlan = (target?: string) => useWrite("task.plan", target);
 export const useTaskPlanOk = (target?: string) => useWrite("task.plan_ok", target);
+export const useTaskOk = (target?: string) => useWrite("task.ok", target);
+export const useTaskRedo = (target?: string) => useWrite("task.redo", target);
 export const useTaskPlanAsk = (target?: string) => useWrite("task.plan_ask", target);
 export const useTaskCoreAsk = (target?: string) => useWrite("task.core_ask", target);
 export const useProposalWithdraw = (target?: string) => useWrite("proposal.withdraw", target);

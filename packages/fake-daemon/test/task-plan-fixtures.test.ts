@@ -1,4 +1,4 @@
-// contract/fixtures/task_plan.json against the fake over Unix sockets, one for the founder and one for an agent, through the conformance
+// contract/fixtures/task_plan.json and task_review.json against the fake over Unix sockets, one for the founder and one for an agent, through the conformance
 // harness every daemon runs.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -14,7 +14,7 @@ import { serveSocket } from '#src/serve.ts';
 
 const ROOT = join(import.meta.dirname, '..', '..', '..');
 
-test('every case of task_plan.json passes on the fake', async () => {
+test('every case of task_plan.json and task_review.json passes on the fake', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'fk-'));
   const [sock, agentSock] = [join(dir, 's'), join(dir, 'a')];
   const daemon = new FakeDaemon();
@@ -36,6 +36,7 @@ test('every case of task_plan.json passes on the fake', async () => {
         '--var',
         'founder_key=x',
         join(ROOT, 'contract/fixtures/task_plan.json'),
+        join(ROOT, 'contract/fixtures/task_review.json'),
       ],
       { stdio: ['ignore', 'pipe', 'pipe'] },
     );

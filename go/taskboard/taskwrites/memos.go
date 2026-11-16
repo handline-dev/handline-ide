@@ -86,6 +86,8 @@ func Register(s *rpc.Server, home string, tell Teller, decide CardDecider) {
 	s.Register("task.ask", rpc.Method{Handler: askMethod(home, tell)})
 	s.Register("task.plan", rpc.Method{Handler: planMethod})
 	s.Register("task.plan_ok", rpc.Method{Handler: planOKMethod})
+	s.Register("task.ok", rpc.Method{Handler: okMethod(home, tell)})
+	s.Register("task.redo", rpc.Method{Handler: redoMethod(home, tell)})
 	s.Register("task.plan_ask", rpc.Method{Handler: planAskMethod})
 	s.Register("task.core_ask", rpc.Method{Handler: coreAskMethod})
 	s.Register("task.start", rpc.Method{Handler: start})
@@ -217,7 +219,10 @@ func memoAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, err
 			return nil, err
 		}
 		store := attachments.New(home)
-		var files []attachments.Info
+		files, err := store.AddFiles(c.Server().DB, home, c.Caller.Actor(), c.Caller.Role == "owner", paths) // read before the write: a video is large
+		if err != nil {
+			return nil, err
+		}
 		var added int64
 		var popped *Popped // the founder's comment that ended the founder's turn
 		var pushed Handover
@@ -272,9 +277,6 @@ func memoAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, err
 					}
 					popped = &p
 				}
-			}
-			if files, err = store.AddFiles(tx, home, c.Caller.Actor(), c.Caller.Role == "owner", paths); err != nil {
-				return nil, err
 			}
 			if err := store.AttachMemo(tx, mid, files); err != nil {
 				return nil, err

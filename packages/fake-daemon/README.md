@@ -33,6 +33,7 @@ A name that does not exist is an error.
 | `bash` | ! lines on `handline.architect`: with output, cut output, stderr, no output, lost, typed at the terminal, still running (T8684). |
 | `chat-long` | 120 messages with `handline.architect` (four pages), every seventh with a picture. |
 | `story` | T9400, a story the founder worked out with `handline.architect` in its comments, and five drafts under it (T9401-T9405), each waiting on the one it starts after: one plan OK, two to read (T9402 in its second version), one being written, one whose plan put a question to the founder. <!-- local-ref-ok --> |
+| `story-review` | T9410, a story whose sub-tasks were run: T9411 Ready for you (the founder's turn on its result comment, which carries before and after pictures and a playable video with its poster), and T9412 working again after one Redo. `task.ok` and `task.redo` answer a Ready one. <!-- local-ref-ok --> |
 | `account-stalled` | The account `beta` stalled (`billing_error`): the Usage list shows STALLED and its reason, and `account.wake` ends it. |
 
 Switch on:

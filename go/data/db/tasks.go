@@ -2,6 +2,7 @@ package db
 
 import (
 	"database/sql"
+	"errors"
 	"strings"
 
 	"github.com/handline/handline/go/agentctl/verdict"
@@ -595,4 +596,15 @@ func HolderOf(owner string) verdict.Holder {
 		return verdict.GateHolds
 	}
 	return verdict.AgentHolds
+}
+
+// TaskBrief is the task's first linked request, the one that carries its brief when its opener wrote it (requester is OpenedBy);
+// rid 0 when none is linked.
+func TaskBrief(q Q, tid int64) (rid int64, requester, body string, err error) {
+	err = q.QueryRow("SELECT r.id, r.requester, COALESCE(r.body, '') FROM task_requests l JOIN requests r ON r.id = l.request_id "+
+		"WHERE l.task_id = ? ORDER BY l.rowid LIMIT 1", tid).Scan(&rid, &requester, &body)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, "", "", nil
+	}
+	return rid, requester, body, err
 }

@@ -143,9 +143,9 @@ func tellText(q db.Q, head *db.Request, depth int, aheadOf *db.Request, parked b
 			}
 			body = strings.Join(lines, "\n")
 		}
-		// A reply to an earlier request is a verdict or an answer, and a comment's tell its words (left out of the comments below): cut,
-		// either hides them.
-		whole := head.ParentID.Valid || digest || must(db.CarriesMemo(q, head.ID, head.Target))
+		// A reply to an earlier request is a verdict or an answer, a comment's tell its words (left out of the comments below), and a story's
+		// delivery its plan: a cut would hide any of them.
+		whole := head.ParentID.Valid || digest || must(db.CarriesMemo(q, head.ID, head.Target)) || must(db.CarriesPlan(q, head.ID))
 		shown = body
 		if !whole && utf8.RuneCountInString(body) > 400 {
 			shown = string([]rune(body)[:400]) + "…"

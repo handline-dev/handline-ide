@@ -17,11 +17,21 @@ import (
 
 const Markdown = "text/markdown"
 
-var byExt = map[string]string{".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp", ".md": Markdown}
+var byExt = map[string]string{".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp", ".md": Markdown,
+	".mp4": "video/mp4", ".mov": "video/quicktime"}
+
+// videos are the video types a memo carries, checked by their first bytes, by the extension they are stored with.
+var videos = map[string]string{"video/mp4": "mp4", "video/quicktime": "mov"}
+
+// MaxVideo is the bytes of one video a memo carries.
+const MaxVideo = 100 << 20
 
 func ext(mime string) string {
 	if mime == Markdown {
 		return "md"
+	}
+	if e, ok := videos[mime]; ok {
+		return e
 	}
 	return kinds[mime]
 }
@@ -45,7 +55,7 @@ func endingFor(name string, head []byte) string {
 	switch {
 	case e == "" || len(e) > 8 || strings.Trim(e, "abcdefghijklmnopqrstuvwxyz0123456789") != "":
 		return "bin"
-	case e == "png" || e == "jpg" || e == "jpeg" || e == "gif" || e == "webp":
+	case e == "png" || e == "jpg" || e == "jpeg" || e == "gif" || e == "webp" || e == "mp4" || e == "mov":
 		return "bin"
 	case e == "pdf" && !bytes.HasPrefix(head, []byte("%PDF-")):
 		return "bin"
@@ -53,15 +63,20 @@ func endingFor(name string, head []byte) string {
 	return e
 }
 
-// FileMime checks an image by its first bytes, not only its ending.
+// FileMime checks an image or a video by its first bytes, not only its ending.
 func FileMime(name string, b []byte) (string, error) {
 	mime, ok := byExt[strings.ToLower(filepath.Ext(name))]
+	_, video := videos[mime]
 	switch {
 	case !ok:
-		return "", badParam(name+" is not a PNG, JPEG, GIF, WebP or .md file", "files")
+		return "", badParam(name+" is not a PNG, JPEG, GIF, WebP, MP4, MOV or .md file", "files")
 	case mime == Markdown:
 		if !utf8.Valid(b) || bytes.IndexByte(b, 0) >= 0 {
 			return "", badParam(name+" is not text", "files")
+		}
+	case video:
+		if !isVideo(b) {
+			return "", badParam(name+" is not "+mime+" by its first bytes", "files")
 		}
 	case Sniff(b) != mime:
 		return "", badParam(name+" is not "+mime+" by its first bytes", "files")
@@ -114,7 +129,11 @@ func (s *Store) AddFiles(q db.Q, home, by string, founder bool, paths []string) 
 	}
 	out := make([]Info, 0, len(paths))
 	for _, path := range paths {
-		b, err := ReadUnder(path, roots, MaxImage, "file", "files")
+		max := int64(MaxImage)
+		if _, video := videos[byExt[strings.ToLower(filepath.Ext(path))]]; video {
+			max = MaxVideo
+		}
+		b, err := ReadUnder(path, roots, max, "file", "files")
 		if err != nil {
 			return nil, err
 		}
@@ -128,13 +147,41 @@ func (s *Store) AddFiles(q db.Q, home, by string, founder bool, paths []string) 
 		}
 		out = append(out, info)
 	}
+	posters(out)
 	return out, nil
+}
+
+// isVideo is whether b begins as an MP4 or QuickTime file does: an ftyp box first, or for an older QuickTime one of its top-level boxes.
+func isVideo(b []byte) bool {
+	if len(b) < 8 {
+		return false
+	}
+	switch string(b[4:8]) {
+	case "ftyp", "moov", "mdat", "wide", "free":
+		return true
+	}
+	return false
+}
+
+// posters gives each video the image sent with it under the same name (demo.mp4 and demo.png) as its poster, the frame its thumbnail shows.
+func posters(files []Info) {
+	stem := func(name string) string { return strings.TrimSuffix(name, filepath.Ext(name)) }
+	for i, v := range files {
+		if _, video := videos[v.Mime]; !video {
+			continue
+		}
+		for _, im := range files {
+			if _, image := kinds[im.Mime]; image && stem(im.Name) == stem(v.Name) {
+				files[i].Poster = im.ID
+			}
+		}
+	}
 }
 
 // AddImages is AddFiles for a message: only images, which a chat shows.
 func (s *Store) AddImages(q db.Q, home, by string, founder bool, paths []string) ([]Info, error) {
 	for _, p := range paths {
-		if strings.EqualFold(filepath.Ext(p), ".md") {
+		if _, image := kinds[byExt[strings.ToLower(filepath.Ext(p))]]; !image {
 			return nil, badParam(p+" is not an image: a message carries PNG, JPEG, GIF or WebP files", "files")
 		}
 	}
@@ -203,6 +250,12 @@ func (s *Store) FileMap(in Info, withPath bool) map[string]any {
 		kind = "markdown"
 	}
 	m := map[string]any{"id": in.ID, "kind": kind, "name": in.Name, "mime": in.Mime, "bytes": in.Bytes}
+	if _, video := videos[in.Mime]; video {
+		m["kind"], m["poster"] = "video", nil
+		if in.Poster != "" {
+			m["poster"] = in.Poster
+		}
+	}
 	if _, err := s.Lookup(in.ID); err != nil {
 		m["gone"] = true
 		if s.Removed(in.ID) {

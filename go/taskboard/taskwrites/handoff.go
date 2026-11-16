@@ -13,6 +13,7 @@ import (
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/protocol/rpc"
+	"github.com/handline/handline/go/taskboard/attachments"
 )
 
 // Asked is the answer to a handoff's ask. A refusal has OK false and its writes (a denied row) stand. After runs once the transaction has
@@ -93,24 +94,44 @@ func handoffMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (an
 			e.Data = map[string]any{"what": "agent", "name": to}
 			return nil, e
 		}
+		paths, err := attachments.FilePaths(p)
+		if err != nil {
+			return nil, err
+		}
 		me := c.Caller.Actor()
 		said := strings.TrimSpace(textsafe.Text(note))
 		toFounder := actor.IsPerson(to) && me != actor.OwnerKey // an agent's handoff to the founder is the founder's turn, hung on the note as a comment
 		if toFounder && said == "" {
 			return nil, badParam("a handoff to the founder says what they decide, and what you recommend", "note")
 		}
+		store := attachments.New(home)
+		files, err := store.AddFiles(c.Server().DB, home, me, false, paths) // read before the write: a video is large; one never linked is swept
+		if err != nil {
+			return nil, err
+		}
 		var (
-			h     Handover
-			asked *Asked
-			msg   string
-			memo  int64
+			h      Handover
+			asked  *Asked
+			msg    string
+			memo   int64
+			landBy string // a story's sub-task held back from it: Ready for the founder
 		)
 		out, err := c.Effect(func(tx *sql.Tx) (map[string]any, error) {
 			if err := claimImages(tx, home, me, said, "", "note"); err != nil {
 				return nil, err
 			}
 			var err error
-			if toFounder { // the task stays the agent's
+			if landBy, err = readyFor(tx, tid, me, to); err != nil {
+				return nil, err
+			}
+			if landBy != "" && said == "" {
+				return nil, refusal(fmt.Sprintf("T%d is a story's sub-task: it goes to the founder before %s, so say in note what you did; they read it as its result",
+					tid, addr.Ref(landBy)))
+			}
+			if len(files) > 0 && !toFounder && landBy == "" {
+				return nil, badParam("files go with a note the founder reads: a handoff to them, or a story's sub-task finished", "files")
+			}
+			if toFounder || landBy != "" { // the task stays the agent's
 				if ok, err := hasTask(tx, tid); err != nil || !ok {
 					if err != nil {
 						return nil, err
@@ -120,7 +141,12 @@ func handoffMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (an
 				if memo, err = db.AddMemo(tx, tid, me, said); err != nil {
 					return nil, err
 				}
-				h, asked, err = pushTurn(tx, tell, tid, me, actor.OwnerKey, said, memo, "", "")
+				if err := store.AttachMemo(tx, memo, files); err != nil {
+					return nil, err
+				}
+				if h, asked, err = pushTurn(tx, tell, tid, me, actor.OwnerKey, said, memo, "", ""); err == nil && landBy != "" && asked.OK && !asked.Reask {
+					err = db.AddReady(tx, tid, me, landBy, memo)
+				}
 			} else {
 				h, asked, err = handOff(tx, tell, tid, me, to, said, agents, false)
 			}
@@ -134,6 +160,10 @@ func handoffMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (an
 			if asked.Reask { // already on the founder's turn: it moved to this note, nothing is handed over
 				return accepted(fmt.Sprintf("T%d: %s", tid, msg), nil), nil
 			}
+			if landBy != "" {
+				msg = fmt.Sprintf("T%d is Ready for the founder (comment %d): \"OK, merge\" hands it to %s, \"Redo\" sends it back to you", tid, memo, addr.Ref(landBy))
+				return accepted(msg, nil), nil
+			}
 			return accepted(fmt.Sprintf("T%d handed to %s: %s", tid, addr.Ref(to), msg), nil), nil
 		})
 		if asked != nil && !asked.OK && asked.After != nil {
@@ -145,11 +175,15 @@ func handoffMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (an
 		if !asked.Reask {
 			h.After = asked.After
 			if tail := tell.HandedOver(h); tail != "" {
-				out["said"] = fmt.Sprintf("T%d handed to %s: %s\n%s", tid, addr.Ref(to), msg, tail)
+				out["said"] = out["said"].(string) + "\n" + tail
 			}
 		}
 		if memo != 0 {
-			tell.MemoChanged(tid, memo, me, "added", said, false, nil)
+			told := said
+			if lines := store.FileLines(files); lines != "" {
+				told += "\n" + lines
+			}
+			tell.MemoChanged(tid, memo, me, "added", told, false, nil)
 		}
 		return out, nil
 	}

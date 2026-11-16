@@ -98,3 +98,40 @@ test('story seeds a story with five drafts, their plans in every state a node sh
   assert.equal((await client.call('task.get', { task: 9402 })).plan_state, 'ok');
   client.close();
 });
+
+test('story-review seeds a sub-task Ready for you with pictures and a video, and one working after a Redo; OK and Redo answer it', async () => {
+  const { client, daemon } = setup();
+  applySeeds(daemon, 'story-review');
+  await client.start();
+  const story = await client.call('task.get', { task: 9410 });
+  assert.deepEqual(
+    story.subtasks.map((s) => [s.id, s.review?.ready, s.review?.redo]),
+    [
+      [9411, true, 0],
+      [9412, false, 1],
+    ],
+  );
+  const ready = await client.call('task.get', { task: 9411 });
+  assert.equal(ready.turns?.at(-1)?.agent, 'human');
+  const files = ready.memos.find((m) => m.id === ready.review?.memo)?.files ?? [];
+  const video = files.find((f) => f.kind === 'video');
+  assert.deepEqual(
+    files.map((f) => f.kind),
+    ['image', 'image', 'image', 'video'],
+  );
+  assert.equal(video?.poster, files[2]?.id);
+  const got = await client.call('attachment.get', { id: video!.id });
+  assert.equal(Buffer.from(got.data, 'base64').subarray(4, 8).toString(), 'ftyp');
+
+  await assert.rejects(client.call('task.ok', { task: 9412, request_id: 'ok-9412' }), /not Ready/);
+  await assert.rejects(client.call('task.redo', { task: 9411, note: ' ', request_id: 'redo-0' }), /note/);
+  await client.call('task.redo', { task: 9411, note: 'Make the badge round.', request_id: 'redo-9411' });
+  const back = await client.call('task.get', { task: 9411 });
+  assert.deepEqual([back.review?.ready, back.review?.redo, back.turns?.length ?? 0], [false, 1, 0]);
+
+  daemon.tasks.find(9412).review = { ...daemon.tasks.find(9412).review!, ready: true };
+  await client.call('task.ok', { task: 9412, request_id: 'ok-9412b' });
+  const merged = await client.call('task.get', { task: 9412 });
+  assert.deepEqual([merged.to, merged.review?.ok, merged.review?.ready], ['handline.architect', true, false]); // local-ref-ok
+  client.close();
+});

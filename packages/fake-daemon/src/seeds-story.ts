@@ -1,7 +1,9 @@
 // A story for the Story screen: a goal the founder worked out with the lead in its comments, and five drafts under it, each waiting
-// on the one it starts after, their plans in every state a node shows.
+// on the one it starts after, their plans in every state a node shows. story-review is a story whose sub-tasks were run: one finished
+// and Ready for the founder, one sent back once and being worked again.
 import type { FakeDaemon } from '#src/daemon.ts';
 import type { PlanVersion } from '#src/planview.ts';
+import { DEMO_MP4 } from '#src/seedvideo.ts';
 
 type Seed = (d: FakeDaemon) => void;
 
@@ -150,5 +152,48 @@ export const STORY_SEEDS: Record<string, Seed> = {
         ...(t.id === 9405 ? question : {}),
       });
     }
+  },
+
+  /** A story with two sub-tasks run: one Ready for you with before and after pictures and a video, one working again after a Redo. */
+  'story-review': (d) => {
+    const iso = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
+    d.tasks.verbs = true;
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+    const [story, ready, redo] = [9410, 9411, 9412];
+    d.tasks.seed({
+      id: story,
+      my_request: true,
+      from: ME,
+      to: ARCH,
+      title: 'Story: a badge for unread chats',
+      state: 'doing',
+      created: iso(200),
+      body: 'Show how many chats are unread.',
+      blockers: [ready, redo].map((task) => ({ task, reason: '' })),
+    });
+    const sub = (id: number, to: string, title: string, min: number) => ({
+      id,
+      from: ARCH,
+      to,
+      title,
+      parent: story,
+      created: iso(min),
+      body: `${title}. Part of T${story}.`,
+      blockers: [],
+      plan: { versions: [{ by: to, at: iso(min - 10), text: `Change: ${title.toLowerCase()}.` }], ok: { by: ME, at: iso(min - 20) } },
+    });
+    d.tasks.seed({ ...sub(ready, TERM, 'Count unread chats', 150), state: 'doing' });
+    const [before, after, poster] = [d.uploads.add('before.png', png), d.uploads.add('after.png', png), d.uploads.add('badge.png', png)];
+    const video = { ...d.uploads.memoFile(d.uploads.add('badge.mp4', DEMO_MP4, 'video/mp4').id), poster: poster.id };
+    const files = [before, after, poster].map((f) => d.uploads.memoFile(f.id)).concat(video);
+    const result = 'Done: the count comes from chat.list. Changed from the plan: nothing. Before and after, and the badge counting up.';
+    const memo = d.tasks.memoWithFiles(ready, TERM, result, files);
+    d.tasks.turnPush(ready, memo, result, TERM);
+    d.tasks.find(ready).review = { ready: true, land_by: ARCH, memo, at: iso(5), redo: 0, ok: false };
+
+    d.tasks.seed({ ...sub(redo, AUD, 'Draw the badge on the chat list', 140), state: 'doing' });
+    const first = d.tasks.memo({ task: redo, text: 'Done: a red badge on each chat row.' }, 'add', AUD, true);
+    d.tasks.memo({ task: redo, text: 'Redo: the badge covers the agent name on the phone.' }, 'add', ME);
+    d.tasks.find(redo).review = { ready: false, land_by: ARCH, memo: first, at: iso(30), redo: 1, ok: false };
   },
 };

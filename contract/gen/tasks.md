@@ -11,7 +11,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `task.time` | agent |  | `task` | `{task, start, end, segments, estimate, expected, box} & ReadCursor` | `not_found`, `bad_request` |  | `task-time` by task, fed by tasks |
 | `task.shot` | member |  | `task`, `n`, `offset?` | `{mime, bytes, offset, data, done}` | `not_found`, `bad_request` |  | not cached |
 | `task.new` | agent | yes | `owner`, `reporter?`, `title`, `body?`, `time_box?`, `parent?`, `no_parent?`, `request?`, `duplicate_ok?`, `blocked_by?`, `watch?`, `priority?`, `estimate?`, `tags?`, `expects?`, `ui?`, `draft?`, `request_id` | `Accepted & {task}` | `refused` | duplicate_title | authored: new task |
-| `task.handoff` | agent | yes | `task`, `to`, `note?`, `request_id` | `Accepted` | `refused`, `not_found` |  | not from the app |
+| `task.handoff` | agent | yes | `task`, `to`, `note?`, `files?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | not from the app |
 | `task.turn.pop` | agent | yes | `task`, `outcome`, `note?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | decided: give back |
 | `task.done` | agent | yes | `task`, `evidence?`, `request?`, `repo?`, `reason?`, `commit?`, `shots?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | open_children | authored: done |
 | `task.reopen` | agent | yes | `task`, `note?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | authored: reopen |
@@ -47,6 +47,8 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `task.ask` | member | yes | `task`, `to`, `text`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | decided: ask |
 | `task.plan` | agent | yes | `task`, `text`, `request_id` | `Accepted & {version}` | `refused`, `not_found`, `bad_request` |  | decided: plan |
 | `task.plan_ok` | member | yes | `task`, `ok?`, `version?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | decided: plan OK |
+| `task.ok` | member | yes | `task`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | decided: OK, merge |
+| `task.redo` | member | yes | `task`, `note`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | decided: Redo |
 | `task.plan_ask` | member | yes | `task`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | decided: ask for a plan |
 | `task.core_ask` | member | yes | `task`, `note?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | decided: ask for core logic |
 
@@ -76,7 +78,7 @@ Create a task. The founder or a member device opens one for an agent only, and i
 
 ### `task.handoff`
 
-Hand a task to another agent. Anyone may hand an open task on, not only its owner (the asker takes a task back so). It moves who acts on the task: its owner, or with turns open the agent of its top turn; it is refused to an agent that is the owner below the turns or already has a turn on it. task.history's row names who made the move (by). An agent's handoff to `human` adds the note as a comment and puts the founder's turn on it (Turn.memo), as task.comment.add with turn human does; it needs a note. The task stays the agent's and waits on the founder. The founder may hand a task to `human`.
+Hand a task to another agent. Anyone may hand an open task on, not only its owner (the asker takes a task back so). It moves who acts on the task: its owner, or with turns open the agent of its top turn; it is refused to an agent that is the owner below the turns or already has a turn on it. task.history's row names who made the move (by). An agent's handoff to `human` adds the note as a comment and puts the founder's turn on it (Turn.memo), as task.comment.add with turn human does; it needs a note. The task stays the agent's and waits on the founder. The founder may hand a task to `human`. A story's sub-task (opened as a draft) that its assignee hands to its workspace's land_by agent does not go there: it is Ready for the founder (TaskDetail.review), the note a comment carrying the result with any files and the founder's turn on it, until task.ok hands it on or task.redo sends it back; it needs a note. That holds until the founder's newest verdict is OK. While it is Ready, an agent's handoff of it is refused.
 
 ### `task.turn.pop`
 
@@ -217,6 +219,14 @@ The task's assignee keeps a new version of its plan (TaskDetail.plan). A new ver
 ### `task.plan_ok`
 
 The founder marks the task's plan as it stands OK, or with ok false takes that back. It is a plan_ok event on the task naming the version, so a newer version, or a change of the task's brief or assignee, clears it. Refused (`refused`): a task with no plan, one that has ended, and a plan already in that state.
+
+### `task.ok`
+
+"OK, merge": the founder's verdict on a story's sub-task that is Ready. Their turn on it comes off and it is handed to the land_by agent it waited for (TaskDetail.review.land_by), with the agent's result as the note, as the agent's own handoff would have been. A task_verdict event (ok) records it. Refused (`refused`): a task that is not Ready now (never finished, already answered, or its founder's turn passed by a comment); an agent caller (gate role).
+
+### `task.redo`
+
+"Redo": the founder sends a story's sub-task that is Ready back to its assignee with a note, kept as their comment; the agent is typed it at once. A task_verdict event (redo) records it, and TaskDetail.review.redo counts them. The agent's next finish is Ready again. Bad request (`bad_request`, field note): no note. Refused (`refused`): a task that is not Ready now; an agent caller (gate role).
 
 ### `task.plan_ask`
 

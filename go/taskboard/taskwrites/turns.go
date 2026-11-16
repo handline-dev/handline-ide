@@ -184,6 +184,11 @@ func (p Popped) tell(tell Teller) {
 // comes off with the refusal added to its note.
 // Popped.Asked not OK is a refused return: nothing changed.
 func popTurn(tx *sql.Tx, home string, tell Teller, tid int64, by, outcome, note string, memo int64) (Popped, error) {
+	return popTurnTold(tx, home, tell, tid, by, outcome, note, memo, "")
+}
+
+// popTurnTold is popTurn with the words the agent below is typed, told; "" for popTurn's own.
+func popTurnTold(tx *sql.Tx, home string, tell Teller, tid int64, by, outcome, note string, memo int64, told string) (Popped, error) {
 	t, err := getTask(tx, tid)
 	if err != nil {
 		return Popped{}, err
@@ -246,6 +251,8 @@ func popTurn(tx *sql.Tx, home string, tell Teller, tid int64, by, outcome, note 
 		question = fmt.Sprintf("T%d 댓글 %d 질문", tid, top.Memo)
 	}
 	switch {
+	case told != "":
+		body = told
 	case answer && memo != 0:
 		body = fmt.Sprintf("%s에 대표님 댓글 %d: %s", question, memo, textsafe.Oneline(note))
 	case answer && note != "":

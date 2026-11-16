@@ -895,6 +895,9 @@ func (e *Env) taskGet(c *rpc.Conn, params map[string]any) (any, error) {
 	if err := e.planOf(*tid, task); err != nil {
 		return nil, err
 	}
+	if task["review"], err = e.reviewOf(*tid); err != nil {
+		return nil, err
+	}
 	spent, err := e.usageEnv().TaskSpend(e.DB, []int64{*tid})
 	if err != nil {
 		return nil, err
@@ -979,6 +982,9 @@ func (e *Env) taskGet(c *rpc.Conn, params map[string]any) (any, error) {
 		}
 		item["id"], item["title"], item["owner"] = k.i("id"), k.str("title"), k.str("owner")
 		if item["plan_state"], _, _, err = db.PlanState(e.DB, k.i("id")); err != nil {
+			return nil, err
+		}
+		if item["review"], err = e.reviewOf(k.i("id")); err != nil {
 			return nil, err
 		}
 		subs = append(subs, item)

@@ -811,6 +811,51 @@
               "ok"
              ],
              "description": "As TaskDetail.plan_state, for the sub-task."
+            },
+            "review": {
+             "oneOf": [
+              {
+               "type": "object",
+               "properties": {
+                "ready": {
+                 "type": "boolean",
+                 "description": "True while it waits for the founder's verdict: the founder's turn its Ready put on is still on top (a plain comment by the founder passes that turn, and the agent works on)."
+                },
+                "land_by": {
+                 "type": "string",
+                 "description": "The land_by agent \"OK, merge\" hands it to (task.ok)."
+                },
+                "memo": {
+                 "type": "integer",
+                 "description": "The comment that carries the agent's result, with its files (pictures, a video and its poster), of the newest Ready."
+                },
+                "at": {
+                 "$ref": "#/components/schemas/Timestamp"
+                },
+                "redo": {
+                 "type": "integer",
+                 "minimum": 0,
+                 "description": "How many times the founder sent it back (task.redo)."
+                },
+                "ok": {
+                 "type": "boolean",
+                 "description": "True when the founder's newest verdict is OK: it went to land_by, and its next finish goes there as asked."
+                }
+               },
+               "required": [
+                "ready",
+                "land_by",
+                "memo",
+                "at",
+                "redo",
+                "ok"
+               ]
+              },
+              {
+               "type": "null"
+              }
+             ],
+             "description": "As TaskDetail.review, for the sub-task."
             }
            },
            "required": [
@@ -818,7 +863,8 @@
             "title",
             "owner",
             "state",
-            "plan_state"
+            "plan_state",
+            "review"
            ]
           },
           {
@@ -1255,6 +1301,51 @@
          }
         ],
         "description": "The newest ask for the task's core logic (task.core_ask); null when none was made. Once it is sent, the assignee's worktree holds the code on the task's own branch: worktree.diff with against base shows it."
+       },
+       "review": {
+        "oneOf": [
+         {
+          "type": "object",
+          "properties": {
+           "ready": {
+            "type": "boolean",
+            "description": "True while it waits for the founder's verdict: the founder's turn its Ready put on is still on top (a plain comment by the founder passes that turn, and the agent works on)."
+           },
+           "land_by": {
+            "type": "string",
+            "description": "The land_by agent \"OK, merge\" hands it to (task.ok)."
+           },
+           "memo": {
+            "type": "integer",
+            "description": "The comment that carries the agent's result, with its files (pictures, a video and its poster), of the newest Ready."
+           },
+           "at": {
+            "$ref": "#/components/schemas/Timestamp"
+           },
+           "redo": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "How many times the founder sent it back (task.redo)."
+           },
+           "ok": {
+            "type": "boolean",
+            "description": "True when the founder's newest verdict is OK: it went to land_by, and its next finish goes there as asked."
+           }
+          },
+          "required": [
+           "ready",
+           "land_by",
+           "memo",
+           "at",
+           "redo",
+           "ok"
+          ]
+         },
+         {
+          "type": "null"
+         }
+        ],
+        "description": "How a story's sub-task (one opened as a draft) stands with the founder: when its assignee finishes it, by handing it to its workspace's land_by agent, it is Ready for the founder instead (a task_ready event); OK and Redo are task_verdict events. null when it was never Ready."
        }
       },
       "required": [
@@ -1276,7 +1367,8 @@
        "plan_state",
        "plan",
        "plan_ask",
-       "core_ask"
+       "core_ask",
+       "review"
       ]
      }
     ]
@@ -1510,7 +1602,7 @@
    },
    "MemoFile": {
     "type": "object",
-    "description": "A file a memo carries (task.memo.add files): an image or a Markdown text, kept on the daemon's machine like an attached image and read with attachment.get by its id.",
+    "description": "A file a memo carries (task.memo.add files): an image, a Markdown text, or an MP4 or QuickTime video, kept on the daemon's machine like an attached image and read with attachment.get by its id.",
     "properties": {
      "id": {
       "$ref": "#/components/schemas/AttachmentId"
@@ -1519,7 +1611,8 @@
       "type": "string",
       "enum": [
        "image",
-       "markdown"
+       "markdown",
+       "video"
       ]
      },
      "name": {
@@ -1534,7 +1627,9 @@
        "image/jpeg",
        "image/gif",
        "image/webp",
-       "text/markdown"
+       "text/markdown",
+       "video/mp4",
+       "video/quicktime"
       ]
      },
      "bytes": {
@@ -1551,6 +1646,17 @@
      "removed": {
       "type": "boolean",
       "description": "true when the founder deleted the file (attachment.remove), always with gone: the client says it was deleted."
+     },
+     "poster": {
+      "oneOf": [
+       {
+        "$ref": "#/components/schemas/AttachmentId"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "For a video only: the image sent with it under the same name (demo.mp4 and demo.png), which a client shows as its thumbnail; null when none was. attachment.get serves no thumbnail of a video itself."
      }
     },
     "required": [
@@ -3009,6 +3115,18 @@
      }
     },
     {
+     "name": "files",
+     "required": false,
+     "schema": {
+      "type": "array",
+      "maxItems": 6,
+      "items": {
+       "type": "string"
+      },
+      "description": "As task.comment.add's files, carried by the comment the note becomes: only on a handoff to `human` or on a story's sub-task finished (Ready); on any other handoff they are bad_request (field files)."
+     }
+    },
+    {
      "name": "request_id",
      "required": true,
      "schema": {
@@ -3032,9 +3150,12 @@
     },
     {
      "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
     }
    ],
-   "description": "Anyone may hand an open task on, not only its owner (the asker takes a task back so). It moves who acts on the task: its owner, or with turns open the agent of its top turn; it is refused to an agent that is the owner below the turns or already has a turn on it. task.history's row names who made the move (by). An agent's handoff to `human` adds the note as a comment and puts the founder's turn on it (Turn.memo), as task.comment.add with turn human does; it needs a note. The task stays the agent's and waits on the founder. The founder may hand a task to `human`."
+   "description": "Anyone may hand an open task on, not only its owner (the asker takes a task back so). It moves who acts on the task: its owner, or with turns open the agent of its top turn; it is refused to an agent that is the owner below the turns or already has a turn on it. task.history's row names who made the move (by). An agent's handoff to `human` adds the note as a comment and puts the founder's turn on it (Turn.memo), as task.comment.add with turn human does; it needs a note. The task stays the agent's and waits on the founder. The founder may hand a task to `human`. A story's sub-task (opened as a draft) that its assignee hands to its workspace's land_by agent does not go there: it is Ready for the founder (TaskDetail.review), the note a comment carrying the result with any files and the founder's turn on it, until task.ok hands it on or task.redo sends it back; it needs a note. That holds until the founder's newest verdict is OK. While it is Ready, an agent's handoff of it is refused."
   },
   {
    "name": "task.turn.pop",
@@ -3797,7 +3918,7 @@
       "items": {
        "type": "string"
       },
-      "description": "Absolute paths of files the memo carries (Memo.files): PNG, JPEG, GIF or WebP images and .md Markdown, at most 10 MiB each. The daemon reads each and keeps a copy under its home. An agent may name only files under its worktree, its folder or the scratch folder; the founder any. A path outside those, a file of another type, an image whose first bytes do not match its ending, or a .md that is not text is bad_request (field files)."
+      "description": "Absolute paths of files the memo carries (Memo.files): PNG, JPEG, GIF or WebP images, .md Markdown, at most 10 MiB each, and MP4 or MOV videos, at most 100 MiB each (an image with the same name is the video's poster, MemoFile.poster). The daemon reads each and keeps a copy under its home. An agent may name only files under its worktree, its folder or the scratch folder; the founder any. A path outside those, a file of another type, an image or video whose first bytes do not match its ending, or a .md that is not text is bad_request (field files)."
      }
     },
     {
@@ -5372,6 +5493,107 @@
     }
    ],
    "description": "Refused (`refused`): a task with no plan, one that has ended, and a plan already in that state."
+  },
+  {
+   "name": "task.ok",
+   "summary": "\"OK, merge\": the founder's verdict on a story's sub-task that is Ready. Their turn on it comes off and it is handed to the land_by agent it waited for (TaskDetail.review.land_by), with the agent's result as the note, as the agent's own handoff would have been. A task_verdict event (ok) records it.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "task",
+     "required": true,
+     "schema": {
+      "type": "integer"
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Accepted"
+    }
+   },
+   "x-role": "member",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "OK, merge"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "description": "Refused (`refused`): a task that is not Ready now (never finished, already answered, or its founder's turn passed by a comment); an agent caller (gate role)."
+  },
+  {
+   "name": "task.redo",
+   "summary": "\"Redo\": the founder sends a story's sub-task that is Ready back to its assignee with a note, kept as their comment; the agent is typed it at once. A task_verdict event (redo) records it, and TaskDetail.review.redo counts them. The agent's next finish is Ready again.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "task",
+     "required": true,
+     "schema": {
+      "type": "integer"
+     }
+    },
+    {
+     "name": "note",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "minLength": 1,
+      "description": "What to change. Markdown."
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Accepted"
+    }
+   },
+   "x-role": "member",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "Redo"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "description": "Bad request (`bad_request`, field note): no note. Refused (`refused`): a task that is not Ready now; an agent caller (gate role)."
   },
   {
    "name": "task.plan_ask",

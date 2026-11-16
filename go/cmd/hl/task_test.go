@@ -56,6 +56,8 @@ func TestEachTaskWriteSendsItsMethodAndParams(t *testing.T) {
 		{"", []string{"task", "begin", "t", "--chat", "msg_0102030"},
 			[]string{`task.begin {"expects":"report","message":"0102030","title":"t"}`}},
 		{"", []string{"task", "handoff", "T3", "b.two", "the note"}, []string{`task.handoff {"note":"the note","task":3,"to":"b.two"}`}},
+		{"", []string{"task", "handoff", "T3", "b.two", "built", "--attach", "/x/a.png", "--attach", "/x/a.mp4"},
+			[]string{`task.handoff {"files":["/x/a.png","/x/a.mp4"],"note":"built","task":3,"to":"b.two"}`}},
 		{"piped note", []string{"task", "handoff", "T3", "b.two"}, []string{`task.handoff {"note":"piped note","task":3,"to":"b.two"}`}},
 		{"", []string{"task", "start", "T3"}, []string{`task.start {"task":3}`}},
 		{"", []string{"task", "note", "T3", "hi"}, []string{`task.comment.add {"task":3,"text":"hi"}`}},

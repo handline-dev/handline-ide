@@ -1,0 +1,173 @@
+{
+ "fixtures": [
+  {
+   "name": "task.ok.only_a_ready_task",
+   "spec": "task.ok",
+   "as": "agent",
+   "with": {
+    "boss": "founder"
+   },
+   "about": "A task that was never Ready has review null; OK and Redo of it are refused, a Redo with no note is bad_request (field note) and an agent's OK is refused at the role gate.",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1
+      }
+     },
+     "result": {
+      "caller": {
+       "name": {
+        "$save": "me"
+       }
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {},
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "task.new",
+      "params": {
+       "owner": "{{me}}",
+       "title": "a step of a story",
+       "draft": true,
+       "request_id": "conf-review-1"
+      }
+     },
+     "result": {
+      "accepted": true,
+      "task": {
+       "$save": "tid"
+      }
+     },
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "task.get",
+      "params": {
+       "task": "{{tid}}"
+      }
+     },
+     "result": {
+      "review": null
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "task.ok",
+      "params": {
+       "task": "{{tid}}",
+       "request_id": "conf-review-2"
+      }
+     },
+     "error": {
+      "code": -32002,
+      "data": {
+       "code": "refused"
+      }
+     },
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "task.redo",
+      "params": {
+       "task": "{{tid}}",
+       "note": "again",
+       "request_id": "conf-review-3"
+      }
+     },
+     "error": {
+      "code": -32002,
+      "data": {
+       "code": "refused"
+      }
+     },
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "task.redo",
+      "params": {
+       "task": "{{tid}}",
+       "note": " ",
+       "request_id": "conf-review-4"
+      }
+     },
+     "error": {
+      "code": -32602,
+      "data": {
+       "code": "bad_request",
+       "field": "note"
+      }
+     },
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "task.ok",
+      "params": {
+       "task": 99999999,
+       "request_id": "conf-review-5"
+      }
+     },
+     "error": {
+      "code": -32001,
+      "data": {
+       "code": "not_found"
+      }
+     },
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "task.ok",
+      "params": {
+       "task": "{{tid}}",
+       "request_id": "conf-review-6"
+      }
+     },
+     "error": {
+      "code": -32002,
+      "data": {
+       "code": "refused",
+       "gate": "role"
+      }
+     }
+    }
+   ]
+  }
+ ]
+}

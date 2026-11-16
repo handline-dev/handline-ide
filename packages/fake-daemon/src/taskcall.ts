@@ -62,6 +62,10 @@ export function taskCall(
         return (tasks.askPlan(p, person), ok('Asked for a plan.'));
       case 'task.core_ask':
         return (tasks.askCore(p, person), ok('Asked for the core logic.'));
+      case 'task.ok':
+        return ok(tasks.ok(p));
+      case 'task.redo':
+        return ok('Sent back.', { memo: tasks.redo(p, person) });
       case 'task.done':
         return ok(tasks.done(p));
       case 'task.reopen':

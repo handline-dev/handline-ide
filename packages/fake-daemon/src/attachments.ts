@@ -83,7 +83,9 @@ export class FakeAttachments {
   memoFile(id: string): MemoFile {
     const f = this.files.get(id);
     if (!f) throw new Failure('not_found', 'That file is gone.');
-    return { id, kind: f.mime === 'text/markdown' ? 'markdown' : 'image', name: f.name, mime: f.mime as MemoFile['mime'], bytes: f.bytes };
+    const mime = f.mime as MemoFile['mime'];
+    if (mime.startsWith('video/')) return { id, kind: 'video', name: f.name, mime, bytes: f.bytes, poster: null };
+    return { id, kind: mime === 'text/markdown' ? 'markdown' : 'image', name: f.name, mime, bytes: f.bytes };
   }
 
   put(p: Record<string, unknown>): { upload: string; received: number; attachment?: Attachment } {
@@ -125,9 +127,8 @@ export class FakeAttachments {
     return { upload: id, received: up.received, attachment };
   }
 
-  /** An image the daemon already holds, as a seed needs one without an upload. */
-  add(name: string, data: Buffer): Attachment {
-    const mime = typeOf(data);
+  /** An image (or, mime given, another file) the daemon already holds, as a seed needs one without an upload. */
+  add(name: string, data: Buffer, mime = typeOf(data)): Attachment {
     if (!mime) throw new Error(`${name} is not an image`);
     const attachment: Attachment = { id: newId(), name, mime, bytes: data.length };
     this.files.set(attachment.id, { ...attachment, data, sent: false });

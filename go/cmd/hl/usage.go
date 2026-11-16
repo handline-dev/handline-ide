@@ -16,11 +16,12 @@ var usages = map[string][2]string{
 	"task":     {`hl task <new|show|list|board|done|handoff|pass|back|edit|comment|begin|start|reopen|release|discard|accept|reject|queue|draft|plan|merge|request> ...`, `hl task show T12`}, // local-ref-ok: the usage example
 	"task new": {`hl task new --assign <agent> -t <span> "<title>" "<body>" [--owner <agent>] [--parent T<n> | --no-parent (while your task is a request, a new task hangs under it unless you say this)] [--request T<n> (serve T<n>'s founder request)] [--blocked-by T<n>] [--priority 1-5] [--estimate N] [--expects report|decision] [--tag T] [--file PATH] [--draft (kept for its assignee's plan; nobody is asked until it is queued)]`,
 		`hl task new --assign pc -t 2h "Fix the sidebar" "The badge overlaps the name"`},
-	"task show":    {`hl task show T<n>`, `hl task show T12`},
-	"task list":    {`hl task list [--assign <agent>] [--owner <agent>] [--state <state>] [--tag T] [--all] [--everyone]`, `hl task list --state doing`},
-	"task board":   {`hl task board [--everyone]`, `hl task board`},
-	"task done":    {`hl task done T<n> "<evidence>" [--request <msg>] [--repo PATH] [--commit SHA] [--shot FILE]`, `hl task done T12 "PR #400 (sha 1a2b3c4), tests green"`},
-	"task handoff": {`hl task handoff T<n> <agent> "<note>" [--file PATH] (gives the task away; the founder's decision is hl task comment T<n> add "..." --turn human)`, `hl task handoff T12 builder "the parser half is yours"`},
+	"task show":  {`hl task show T<n>`, `hl task show T12`},
+	"task list":  {`hl task list [--assign <agent>] [--owner <agent>] [--state <state>] [--tag T] [--all] [--everyone]`, `hl task list --state doing`},
+	"task board": {`hl task board [--everyone]`, `hl task board`},
+	"task done":  {`hl task done T<n> "<evidence>" [--request <msg>] [--repo PATH] [--commit SHA] [--shot FILE]`, `hl task done T12 "PR #400 (sha 1a2b3c4), tests green"`},
+	"task handoff": {`hl task handoff T<n> <agent> "<note>" [--file PATH] [--attach FILE] (gives the task away; the founder's decision is hl task comment T<n> add "..." --turn human;` +
+		` a story's sub-task handed to the land_by agent waits for the founder's OK first, the note and --attach files, pictures or an MP4/MOV video with a same-named picture as its poster, its result)`, `hl task handoff T12 builder "the parser half is yours"`},
 	"task turn": {`hl task turn ... is gone: hl task comment T<n> add "<text>" --turn <agent|human> [--done "<evidence>"]`,
 		`hl task comment T12 add "Ship to beta now, or after the fix? I recommend now." --turn human`},
 	"task pass": {`hl task pass T<n> ["<note>"] (your turn is done; the task goes back to the one below)`, `hl task pass T12 "reviewed: fine"`},

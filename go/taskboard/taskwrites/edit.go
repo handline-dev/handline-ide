@@ -163,14 +163,11 @@ func editTask(tx *sql.Tx, tid int64, by string, home string, owner, reporter, ti
 	var bodyRID int64
 	if body != nil {
 		text := strings.TrimSpace(textsafe.Text(*body))
-		var rid int64
-		var requester, old string
-		err := tx.QueryRow("SELECT r.id, r.requester, COALESCE(r.body, '') FROM task_requests l JOIN requests r ON r.id = l.request_id "+
-			"WHERE l.task_id = ? ORDER BY l.rowid LIMIT 1", tid).Scan(&rid, &requester, &old)
-		if err != nil && err != sql.ErrNoRows {
+		rid, requester, old, err := db.TaskBrief(tx, tid)
+		if err != nil {
 			return "", "", err
 		}
-		if err == sql.ErrNoRows || requester != t.OpenedBy {
+		if rid == 0 || requester != t.OpenedBy {
 			return fmt.Sprintf("task T%d has no brief its opener wrote to edit - a task begun from a message, or linked to someone else's request, keeps those words as they are", tid), "", nil
 		}
 		if text != strings.TrimSpace(old) {

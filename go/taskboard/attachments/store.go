@@ -56,6 +56,8 @@ type Info struct {
 	Height int `json:"height,omitempty"`
 	// Files is how many files a folder holds.
 	Files int `json:"files,omitempty"`
+	// Poster is the id of the image a video was sent with to show as its thumbnail (posters); a memo's file only.
+	Poster string `json:"poster,omitempty"`
 }
 
 // Map is the Info as a member of a reply; width and height only when known.

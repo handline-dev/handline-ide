@@ -14,14 +14,7 @@ func TestATaskGetCarriesItsPlanItsOKAndTheAsksForThem(t *testing.T) {
 	addAgent(t, e, "bob", "")
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'story', 'amy', 'p1', 1), (2, 'a', 'bob', 'amy', 1), (3, 'b', 'bob', 'amy', 1)")
 	run(t, e, "UPDATE tasks SET parent_task = 1 WHERE id IN (2, 3)")
-	get := func(tid int64) map[string]any {
-		t.Helper()
-		got, err := e.taskGet(nil, map[string]any{"task": json.Number(itoa(tid))})
-		if err != nil {
-			t.Fatal(err)
-		}
-		return got.(map[string]any)
-	}
+	get := func(tid int64) map[string]any { return taskDetail(t, e, tid) }
 	if g := get(2); g["plan_state"] != "none" || g["plan"] != nil || g["plan_ask"] != nil || g["core_ask"] != nil {
 		t.Fatalf("%v %v %v %v", g["plan_state"], g["plan"], g["plan_ask"], g["core_ask"])
 	}
@@ -72,4 +65,14 @@ func TestATaskGetCarriesItsPlanItsOKAndTheAsksForThem(t *testing.T) {
 	if subs[0].(map[string]any)["plan_state"] != "ok" || subs[1].(map[string]any)["plan_state"] != "none" {
 		t.Fatalf("%v", subs)
 	}
+}
+
+// taskDetail is task.get of task tid as the founder reads it.
+func taskDetail(t *testing.T, e *Env, tid int64) map[string]any {
+	t.Helper()
+	got, err := e.taskGet(nil, map[string]any{"task": json.Number(itoa(tid))})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return got.(map[string]any)
 }
