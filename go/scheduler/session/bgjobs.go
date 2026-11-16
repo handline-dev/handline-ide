@@ -152,8 +152,3 @@ func CutLine(s string, n int) string {
 	}
 	return s
 }
-
-// Line is the job in one line: its command, cut to CommandWidth, and how long it has run.
-func (j BgJob) Line(now int64, ago func(secs int64) string) string {
-	return "`" + CutLine(j.Command, CommandWidth) + "` for " + ago(max(0, now-j.Started))
-}

@@ -89,19 +89,6 @@ func TestRunningListsTheJobsWithNoExitLine(t *testing.T) {
 	}
 }
 
-func TestLineCutsAndCountsTheTime(t *testing.T) {
-	ago := func(s int64) string { return fmt.Sprintf("%ds", s) }
-	j := BgJob{Command: "a \n  b", Started: 90}
-	if got := j.Line(100, ago); got != "`a b` for 10s" {
-		t.Errorf("got %q", got)
-	}
-	long := BgJob{Command: strings.Repeat("é", 150), Started: 100}
-	want := "`" + strings.Repeat("é", 99) + "…` for 0s"
-	if got := long.Line(50, ago); got != want {
-		t.Errorf("got %q", got)
-	}
-}
-
 func TestAJobsLabelIsItsDescriptionElseItsCommand(t *testing.T) {
 	if l := (BgJob{Command: "tools/check.sh > x", Description: "Run the full check"}).Label(); l != "Run the full check" {
 		t.Fatal(l)
