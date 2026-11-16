@@ -1,6 +1,6 @@
 import { ByteTerminalView, toBase64, type ByteListener } from '#src/byte-terminal-view.ts';
 import type { CallParams } from '#src/client.ts';
-import type { MethodName, Methods, Notifications, TerminalBytesSnapshot } from '#src/protocol.ts';
+import type { MethodName, Methods, Notifications } from '#src/protocol.ts';
 
 /** The key a pane watched by handle is kept under; no agent name holds a NUL. */
 export const paneKey = (handle: string): string => `\0pane:${handle}`;
@@ -74,7 +74,7 @@ export class BytesChannel {
       v.pane ? { terminal: v.pane, format: 'bytes', history: 2000 } : { agent: v.agent, format: 'bytes', history: 2000 },
     );
     if (snap.format !== 'bytes') throw new Error('the daemon answered a bytes attach with text');
-    v.setSnapshot(snap as TerminalBytesSnapshot);
+    v.setSnapshot(snap);
   }
   /** Attaches again and repaints from the new snapshot; a refusal is shown by the view, not thrown. */
   async resync(v: ByteTerminalView, connecting = false): Promise<void> {

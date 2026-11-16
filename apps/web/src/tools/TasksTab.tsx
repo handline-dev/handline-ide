@@ -155,7 +155,7 @@ function waitWords(t: Task, kids: number[]): string | null {
   if (others.length) return `Waits on ${others.map((n) => `T${n}`).join(', ')}`;
   if (w?.tasks.length) return `${w.tasks.length} sub-task${w.tasks.length > 1 ? 's' : ''} open`;
   const text = w?.text ?? t.block_reason ?? t.hold_reason;
-  return text ? text.split(/[,;(]/)[0]!.trim() : null;
+  return text ? text.split(/[,;(]/)[0].trim() : null;
 }
 
 function Row({ t, ruled, owner, kids, dot }: { t: Task; ruled: boolean; owner?: string; kids: number[]; dot?: boolean }) {

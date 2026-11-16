@@ -46,7 +46,7 @@ function Layer({ open, step, goTo }: { open: boolean; step: number; goTo: (step:
 function Body({ ob }: { ob: ReturnType<typeof useOnboarding> }) {
   const narrow = useNarrow();
   const index = ob.step;
-  const id = STEPS[index]!;
+  const id = STEPS[index];
   const last = index === STEPS.length - 1;
   const nav: Nav = {
     index,

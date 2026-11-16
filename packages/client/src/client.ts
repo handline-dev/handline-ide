@@ -188,11 +188,11 @@ export class DaemonClient {
 
   /** Calls a method. Writes get a request_id here unless the caller gave one. */
   async call<M extends MethodName>(method: M, params: CallParams<M>): Promise<Methods[M]['result']> {
-    const relayed = this.opts.relay?.[method] as ((p: CallParams<M>) => Promise<Methods[M]['result']>) | undefined;
+    const relayed = this.opts.relay?.[method];
     if (relayed) return relayed(params);
     if (this.closing) throw new RpcError('transport', 'client closed');
     if (this.state !== 'open') await new Promise<void>((ok, fail) => this.waitingForOpen.push({ ok, fail }));
-    let p: Record<string, unknown> = params as Record<string, unknown>;
+    let p: Record<string, unknown> = params;
     if (METHODS[method].write && p.request_id === undefined) {
       p = { ...p, request_id: this.opts.newRequestId?.() ?? `${this.opts.client}-${Date.now().toString(36)}-${++this.requestCounter}` };
     }

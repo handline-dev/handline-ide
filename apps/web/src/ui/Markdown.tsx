@@ -102,7 +102,7 @@ function joinPictures(tokens: Token[]): Token[] {
   const out: Token[] = [];
   for (const t of tokens) {
     let at = out.length - 1;
-    while (at >= 0 && out[at]!.type === 'space') at--;
+    while (at >= 0 && out[at].type === 'space') at--;
     const last = out[at];
     if (picturesOnly(t) && last && endsInPictures(last)) {
       out.splice(at, out.length - at, {
