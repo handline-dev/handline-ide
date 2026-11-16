@@ -159,11 +159,11 @@ The open permission prompts and dialogs.
 
 ### `prompt.answer`
 
-Answer the prompt the caller saw; if it changed nothing is sent. For a structured agent's permission prompt the choice is one of its option keys, allow or deny; yes, no or esc is bad_request (field choice). No terminal lock or input hold applies. A prompt whose source is hook is answered the same way, allow or deny, through the call that is waiting on it (permission.ask).
+Answer the prompt the caller saw; if it changed nothing is sent. For a structured agent's permission prompt the choice is one of its option keys, allow or deny; yes, no or esc is bad_request (field choice). No terminal lock or input hold applies. A prompt whose source is hook is answered the same way, allow or deny, through the call that is waiting on it (permission.ask); one that also offers always (a read of another agent's memory or a transcript) takes it too, from the owner only (refused, field role, for anyone else): allowed, and the agents folder and every Claude account's transcripts are kept as the agent's always grants, which its next session reads with (it restarts at its next idle to take them).
 
 ### `permission.ask`
 
-An agent's session asks the founder whether it may run a tool call, and waits for the answer. Called by `hl hook PermissionRequest`. Raises a Prompt of kind permission, source hook, with options allow and deny, and holds the call until prompt.answer answers it, the caller hangs up, or an hour passes. One such prompt per agent is open at a time; a second call waits for the first to close. Nothing is typed into the agent's terminal. Refused for a caller that is not an agent's session.
+An agent's session asks the founder whether it may run a tool call, and waits for the answer. Called by `hl hook PermissionRequest`. Raises a Prompt of kind permission, source hook, with options allow and deny (and always between them, for a Read, Grep or Glob of another agent's memory or a transcript), and holds the call until prompt.answer answers it, the caller hangs up, or an hour passes. One such prompt per agent is open at a time; a second call waits for the first to close. Nothing is typed into the agent's terminal. Refused for a caller that is not an agent's session.
 
 ### `input.take`
 

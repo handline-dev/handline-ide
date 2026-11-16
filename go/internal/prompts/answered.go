@@ -6,7 +6,9 @@ import "github.com/handline/handline/go/protocol/rpc"
 // once the prompt closes: Allowed or Denied, a deny's reason as the note, and who answered.
 func (e *Env) recordAnswer(c *rpc.Conn, b *Block, pick Choice) error {
 	label, note := "Denied", pick.Note
-	if pick.Yes {
+	if pick.Always {
+		label, note = "Allowed always", ""
+	} else if pick.Yes {
 		label, note = "Allowed", ""
 	}
 	by, _ := c.Caller.Info["name"].(string)

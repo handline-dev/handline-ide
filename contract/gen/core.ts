@@ -106,7 +106,7 @@ export type Prompt = {
   since: Timestamp;
   /** Several options may be picked, then submitted: prompt.answer takes `choice` as an array of PromptOption.key. Absent means false, as for every other prompt, where an array is bad_request. */
   multi?: boolean;
-  /** hook: asked through permission.ask, answered allow or deny with no terminal typed into. Absent for a prompt read from the agent's screen. */
+  /** hook: asked through permission.ask, answered allow or deny (or always, where offered) with no terminal typed into. Absent for a prompt read from the agent's screen. */
   source?: "hook";
 };
 

@@ -42,6 +42,8 @@ type LaunchArgs struct {
 	ExtraDirs                 []string
 	// ReadAllow are files and folders the session may read with its file tools without asking: the attachments folder and the founder's grants.
 	ReadAllow []string
+	// AskRead is the part of Hide whose Read tool asks the founder instead of refusing; Bash is refused all of Hide.
+	AskRead []string
 	// AllowWrite and AllowDomains are what a sandboxed session may write beyond its worktrees and reach on the network.
 	AllowWrite, AllowDomains []string
 	// CacheDir is a sandboxed session's own build caches (claude.CacheEnv), which it may write too.
