@@ -9,7 +9,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { daemonsOf, dispose, listening, scratch, sleep, startApp, until } from './app-instance.mjs';
+import { daemonsOf, dispose, disposeOnSignal, listening, scratch, sleep, startApp, until } from './app-instance.mjs';
 
 const top = path.resolve(import.meta.dirname, '..');
 const keep = process.argv.includes('--keep');
@@ -27,6 +27,11 @@ let failure = null;
 const pids = new Set();
 
 const daemons = () => daemonsOf(root);
+// A failed or stopped run keeps its logs and homes to read; the copies of the source tree and the bundles are gigabytes and read nothing.
+const trim = () => {
+  for (const d of ['checkout', 'bundles', 'source']) fs.rmSync(path.join(root, d), { recursive: true, force: true });
+};
+disposeOnSignal(() => ({ root, home, debugPort, pids: [...pids] }), () => !keep && trim());
 
 /** One call in the page, over the DevTools port: the app's own answer, as the window would get it. */
 async function inPage(expression) {
@@ -145,8 +150,7 @@ try {
   dispose({ root, home, debugPort, pids: [...pids] }, { keepFiles: true });
   if (!keep && !failure) fs.rmSync(root, { recursive: true, force: true });
   else {
-    // A failed run keeps its logs and homes to read; the copies of the source tree and the bundles are gigabytes and read nothing.
-    if (!keep) for (const d of ['checkout', 'bundles', 'source']) fs.rmSync(path.join(root, d), { recursive: true, force: true });
+    if (!keep) trim();
     console.error(`kept ${root}`);
   }
 }
