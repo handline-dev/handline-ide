@@ -164,6 +164,7 @@ func detailLines(t obj, now float64, home string) []string {
 	}
 	out = append(out, "", "brief", body)
 	out = append(out, pathLines(list(t, "body_parts"), "")...)
+	out = append(out, planLines(t)...)
 	if memos := list(t, "memos"); len(memos) > 0 {
 		out = append(out, "", "comments")
 		for _, m := range memos {
@@ -191,7 +192,11 @@ func detailLines(t obj, now float64, home string) []string {
 	if ks := list(t, "subtasks"); len(ks) > 0 {
 		out = append(out, "", "child tasks")
 		for _, k := range ks {
-			out = append(out, fmt.Sprintf("  T%d (%s, %s)  %s", num(k, "id"), str(k, "owner"), str(k, "state"), str(k, "title")))
+			plan := ""
+			if w := planWords[str(k, "plan_state")]; w != "" {
+				plan = ", " + w
+			}
+			out = append(out, fmt.Sprintf("  T%d (%s, %s%s)  %s", num(k, "id"), str(k, "owner"), str(k, "state"), plan, str(k, "title")))
 		}
 	}
 	if hs := list(t, "handoffs"); len(hs) > 0 {
@@ -601,4 +606,37 @@ func fit100(line string) string {
 		return line
 	}
 	return string(r[:99]) + "…"
+}
+
+// planWords are TaskDetail.plan_state as hl task show writes it; none says nothing.
+var planWords = map[string]string{"asked": "plan asked", "writing": "writing its plan", "written": "plan to read", "ok": "plan OK"}
+
+// planLines are a task's plan block: the plan with its version and whether the founder marked it OK, or where the ask for one stands.
+func planLines(t obj) []string {
+	var out []string
+	if p, ok := t["plan"].(obj); ok {
+		head := fmt.Sprintf("plan (version %d, by %s %s", num(p, "version"), str(p, "by"), stamp(p["at"]))
+		if mark, ok := p["ok"].(obj); ok {
+			head += fmt.Sprintf("; OK by %s %s", str(mark, "by"), stamp(mark["at"]))
+		}
+		out = append(out, "", head+")", str(p, "text"))
+	}
+	if a, ok := t["plan_ask"].(obj); ok {
+		line := fmt.Sprintf("plan asked of %s %s, waiting until it is done with what it was doing", str(a, "to"), stamp(a["at"]))
+		if a["sent_at"] != nil {
+			line = fmt.Sprintf("plan asked of %s, sent %s: being written", str(a, "to"), stamp(a["sent_at"]))
+		}
+		out = append(out, "", line)
+	}
+	if a, ok := t["core_ask"].(obj); ok {
+		line := fmt.Sprintf("core logic asked of %s %s", str(a, "to"), stamp(a["at"]))
+		if a["sent_at"] != nil {
+			line += ", sent " + stamp(a["sent_at"])
+		}
+		if note := str(a, "note"); note != "" {
+			line += ": " + note
+		}
+		out = append(out, "", line)
+	}
+	return out
 }

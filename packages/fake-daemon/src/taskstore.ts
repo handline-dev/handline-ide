@@ -1,6 +1,7 @@
 // The fake daemon's task rows: what tasks.list and task.get answer, and the one place a row changes and the tasks topic is told.
 import type { FakeInbox } from '#src/inbox.ts';
 import type { FakeRequests } from '#src/requests.ts';
+import { planFields, planState, type PlanRow } from '#src/planview.ts';
 import type { HistoryRow, Memo, Proposal, Task, TaskClock, TaskDetail, TaskLook, TimeSegment } from '@handline/contract';
 import { seedTasks } from '#src/seedtasks.ts';
 import { changes } from '#src/history.ts';
@@ -25,23 +26,24 @@ export interface Host {
   chat: { seenAt(agent: string): string | null };
   script: { proposals: { proposals: readonly Proposal[] } };
 }
-export type Row = Task & {
-  body: string;
-  memos?: Memo[];
-  notes?: { at: string; who: string; text: string }[]; // the notes it was sent back with
-  turnLog?: { at: string; who: string; text: string; turn: 'push' | 'pop'; memo?: number }[]; // turns pushed (`by → to`, the ask) and given back (`from → to`)
-  handoffLog?: { at: string; who: string; text: string }[]; // handoffs (`from → to`, the note)
-  blockers: { task: number; reason: string; at?: string }[];
-  clock?: TaskClock | null;
-  /** The working session's to-do list; task.get serves it, and leaves it out when there is none. */
-  todo?: TaskDetail['todo'];
-  /** What task.time answers for it when it is not the plain queued-then-working of its delivery. */
-  segments?: TimeSegment[];
-  /** Story points; task.time serves it. */
-  estimate?: number | null;
-  /** What changed, oldest first; task.history answers it newest first. */
-  history?: HistoryRow[];
-};
+export type Row = Task &
+  PlanRow & {
+    body: string;
+    memos?: Memo[];
+    notes?: { at: string; who: string; text: string }[]; // the notes it was sent back with
+    turnLog?: { at: string; who: string; text: string; turn: 'push' | 'pop'; memo?: number }[]; // turns pushed (`by → to`, the ask) and given back (`from → to`)
+    handoffLog?: { at: string; who: string; text: string }[]; // handoffs (`from → to`, the note)
+    blockers: { task: number; reason: string; at?: string }[];
+    clock?: TaskClock | null;
+    /** The working session's to-do list; task.get serves it, and leaves it out when there is none. */
+    todo?: TaskDetail['todo'];
+    /** What task.time answers for it when it is not the plain queued-then-working of its delivery. */
+    segments?: TimeSegment[];
+    /** Story points; task.time serves it. */
+    estimate?: number | null;
+    /** What changed, oldest first; task.history answers it newest first. */
+    history?: HistoryRow[];
+  };
 
 /** `@human` in a comment: at the start or after a character that is not part of a name. */
 export class TaskStore {
@@ -254,6 +256,7 @@ export class TaskStore {
     return {
       ...this.view(t),
       body: t.body,
+      ...planFields(t),
       ...(bodyParts ? { body_parts: bodyParts } : {}),
       deliveries: t.delivered ? [{ at: t.delivered, how: 'typed', outcome: 'delivered' }] : [],
       events: [{ topic: 'tasks', type: 'task.opened', at: t.created, actor: null, agent: t.to, title: t.title, target: null, data: {} }],
@@ -271,7 +274,9 @@ export class TaskStore {
       time: t.state === 'done' || t.state === 'discarded' ? null : (t.clock ?? null),
       ...(t.todo && t.state !== 'done' && t.state !== 'discarded' ? { todo: t.todo } : {}),
       parent_title: this.rows.find((r) => r.id === t.parent)?.title ?? null,
-      subtasks: this.rows.filter((r) => r.parent === t.id).map((r) => ({ id: r.id, title: r.title, owner: r.to, ...this.look(r.id) })),
+      subtasks: this.rows
+        .filter((r) => r.parent === t.id)
+        .map((r) => ({ id: r.id, title: r.title, owner: r.to, plan_state: planState(r), ...this.look(r.id) })),
       timeline: [
         ...(t.memos ?? []).map((m) =>
           withParts({ at: m.at, who: m.author, kind: 'memo' as const, text: m.text, memo: m.id, edited_at: m.edited_at ?? null }, m.text),

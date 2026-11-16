@@ -54,6 +54,14 @@ export function taskCall(
         if (typeof p.text !== 'string' || !p.text.trim()) throw invalidParams('text is the question, not empty', 'text');
         return ok('Asked.', { request: ask(tasks.find(p.task).id, p.to, p.text.trim()) });
       }
+      case 'task.plan':
+        return ok('The plan is kept.', { version: tasks.writePlan(p, person) });
+      case 'task.plan_ok':
+        return (tasks.markPlan(p, person), ok(p.ok === false ? 'The plan is no longer OK.' : 'The plan is OK.'));
+      case 'task.plan_ask':
+        return (tasks.askPlan(p, person), ok('Asked for a plan.'));
+      case 'task.core_ask':
+        return (tasks.askCore(p, person), ok('Asked for the core logic.'));
       case 'task.done':
         return ok(tasks.done(p));
       case 'task.reopen':

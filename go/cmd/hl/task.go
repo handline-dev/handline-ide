@@ -21,7 +21,7 @@ var taskCmds = map[string]taskCmd{
 	"comment": taskMemo, "memo": taskMemo, "show": taskShow, "list": taskList, "queue": taskQueue(true), "draft": taskQueue(false),
 	"edit": taskEdit, "merge": taskMerge, "done": taskDone, "reopen": taskReopen, "release": taskRelease,
 	"discard": taskDiscard, "board": taskBoard, "wait": taskWait, "request": taskRequest,
-	"turn": taskTurnGone, "pass": taskPop("pass"), "back": taskPop("send_back"),
+	"turn": taskTurnGone, "pass": taskPop("pass"), "back": taskPop("send_back"), "plan": taskPlan,
 }
 
 // taskReads are the subcommands that change nothing, so no verb_chain is recorded for them (parser._TASK_READS).
@@ -122,7 +122,7 @@ func oneTask(args []string) (int, bool) {
 
 func taskNew(c *hlclient.Client, args []string) (int, bool) {
 	p, ok := parse(args, []string{"--file", "--assign", "--owner", "--parent", "--request", "--blocked-by", "--priority", "--estimate", "--expects", "--timeout", "--tag"},
-		[]string{"--duplicate-ok", "--no-parent"}, map[string]string{"-t": "--timeout"})
+		[]string{"--duplicate-ok", "--no-parent", "--draft"}, map[string]string{"-t": "--timeout"})
 	if !ok {
 		return 0, false
 	}
@@ -233,6 +233,9 @@ func taskNew(c *hlclient.Client, args []string) (int, bool) {
 	}
 	if p.flags["--no-parent"] {
 		params["no_parent"] = true
+	}
+	if p.flags["--draft"] {
+		params["draft"] = true
 	}
 	if hasBlocked {
 		params["blocked_by"] = blocked
@@ -464,6 +467,38 @@ func taskMemo(c *hlclient.Client, args []string) (int, bool) {
 		return said(c.Write("task.comment.edit", map[string]any{"task": tid, "memo": mid, "text": rest[1]})), true
 	}
 	return said(c.Write("task.comment.delete", map[string]any{"task": tid, "memo": mid})), true
+}
+
+// taskPlan is hl task plan: the assignee keeps the task's plan from a file (--file PATH, - for stdin), or the founder marks it OK (--ok) or
+// takes the OK back (--not-ok).
+func taskPlan(c *hlclient.Client, args []string) (int, bool) {
+	p, ok := parse(args, []string{"--file"}, []string{"--ok", "--not-ok"}, nil)
+	if !ok || len(p.pos) != 1 {
+		return 0, false
+	}
+	tid, ok := taskRef(p.pos[0])
+	if !ok {
+		return 0, false
+	}
+	file, hasFile := p.opt("--file")
+	mark := p.flags["--ok"] || p.flags["--not-ok"]
+	if hasFile == mark || p.flags["--ok"] && p.flags["--not-ok"] {
+		fmt.Printf("give the plan with --file PATH, or mark it with --ok or --not-ok:\n  hl task plan T%d --file plan.md\n", tid)
+		return 1, true
+	}
+	mutating(c, "plan")
+	if mark {
+		return said(c.Write("task.plan_ok", map[string]any{"task": tid, "ok": p.flags["--ok"]})), true
+	}
+	if !asking(c, "write a plan") {
+		return 1, true
+	}
+	text, why := textArg(nil, file, "the plan")
+	if why != "" {
+		fmt.Println(why)
+		return 1, true
+	}
+	return said(c.Write("task.plan", map[string]any{"task": tid, "text": text})), true
 }
 
 func taskQueue(queued bool) taskCmd {

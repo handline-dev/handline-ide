@@ -14,6 +14,7 @@ import (
 	"github.com/handline/handline/go/scheduler/cronspec"
 	"github.com/handline/handline/go/scheduler/keepawake"
 	"github.com/handline/handline/go/scheduler/schedules"
+	"github.com/handline/handline/go/scheduler/settings"
 	"github.com/handline/handline/go/scheduler/tick"
 	"github.com/handline/handline/go/taskboard/supervisor"
 	"github.com/handline/handline/go/taskboard/taskwrites"
@@ -51,6 +52,9 @@ func (p *Parts) passes(cfg Config, tk *tick.Tick) []tick.NamedSweep {
 		{Name: "notice-digest", Run: func(q db.Q, now int64) error { return lc.Env.SweepNotices(now) }},
 		{Name: "task-queue", Run: func(q db.Q, now int64) error { return lc.Env.SweepTaskQueue(now) }},
 		{Name: "task-holds", Run: func(q db.Q, now int64) error { return lc.Env.SweepHolds(now) }},
+		{Name: "task-asks", Run: func(db.Q, int64) error {
+			return lc.Env.SweepTaskAsks((&settings.Settings{Home: cfg.Home}).Plans() == settings.PlansAuto)
+		}},
 		{Name: "said-and-stopped", Run: func(db.Q, int64) error { return lc.Env.SweepSaidAndStopped() }},
 		{Name: "subscriptions", Run: func(q db.Q, now int64) error { return subs.Sweep() }},
 		{Name: "wait-for", Run: func(q db.Q, now int64) error { return wait.Sweep(q, now) }},

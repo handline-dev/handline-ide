@@ -331,6 +331,19 @@ func LoadDollarPace(q db.Q) (*DollarPace, error) {
 	return p, nil
 }
 
+// AgentUSD is what the agent's calls in (lo, hi] cost.
+func (e *Env) AgentUSD(q db.Q, agent string, lo, hi int64) (float64, error) {
+	by, err := priced(q, e.prices(), "SELECT "+pricedCols+" FROM token_calls WHERE agent = ? AND ts > ? AND ts <= ? ORDER BY ts, rowid", agent, lo, hi)
+	if err != nil {
+		return 0, err
+	}
+	usd := 0.0
+	for _, c := range by[agent] {
+		usd += c.USD
+	}
+	return usd, nil
+}
+
 // Spend is what a task cost: dollars, minutes of work, and the dollars by agent and by model.
 type Spend struct {
 	USD      float64            `json:"usd"`

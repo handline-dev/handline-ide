@@ -43,6 +43,10 @@ func TestEachTaskWriteSendsItsMethodAndParams(t *testing.T) {
 		{"", []string{"task", "new", "--assign", "b.two", "-t", "1h", "x"},
 			[]string{`task.new {"owner":"b.two","time_box":"3600s","title":"x"}`}},
 		{"", []string{"task", "new", "--assign", "b.two", "x"}, []string{`task.new {"owner":"b.two","title":"x"}`}},
+		{"", []string{"task", "new", "--assign", "b.two", "x", "--draft"}, []string{`task.new {"draft":true,"owner":"b.two","title":"x"}`}},
+		{"the plan\n", []string{"task", "plan", "T3", "--file", "-"}, []string{`task.plan {"task":3,"text":"the plan\n"}`}},
+		{"", []string{"task", "plan", "T3", "--ok"}, []string{`task.plan_ok {"ok":true,"task":3}`}},
+		{"", []string{"task", "plan", "T3", "--not-ok"}, []string{`task.plan_ok {"ok":false,"task":3}`}},
 		{"", []string{"task", "new", "--assign", "b.two", "x", "--tag", "fe", "--tag", "be, ops"},
 			[]string{`task.new {"owner":"b.two","tags":["fe","be","ops"],"title":"x"}`}},
 		{"", []string{"task", "begin", "t", "--chat", "7", "--why", "w"},
@@ -154,6 +158,8 @@ func TestTaskRefusalsBeforeAnyCall(t *testing.T) {
 			"  hl task edit T3 --assign b.two\nTo change only who answers for it, name the assignee it keeps:\n  hl task edit T3 --owner b.two --assign <its assignee>\n"},
 		{asAgent, []string{"task", "edit", "T3"}, "edit needs a new assignee, a new owner, a new title, --body, --priority, --estimate, --blocked-by, --unblock, --timeout, --tag, --untag, --pr, --parent or --no-parent\n"},
 		{asAgent, []string{"task", "memo", "T3", "add"}, "add takes the comment text\n"},
+		{asAgent, []string{"task", "plan", "T3"}, "give the plan with --file PATH, or mark it with --ok or --not-ok:\n  hl task plan T3 --file plan.md\n"},
+		{asAgent, []string{"task", "plan", "T3", "--ok", "--file", "p"}, "give the plan with --file PATH, or mark it with --ok or --not-ok:\n  hl task plan T3 --file plan.md\n"},
 		{asAgent, []string{"task", "memo", "T3", "delete", "4", "--now"}, "--now goes with add\n"},
 		{asAgent, []string{"task", "memo", "T3", "edit", "4"}, "edit takes the comment id, then the new text\n"},
 		{nil, []string{"task", "start", "T3"}, "cannot tell who is start a tasking this: HANDLINE_AGENT is unset and this is not an " +
@@ -308,6 +314,26 @@ func TestTaskShowSaysWhatTheTaskSpentByAgentMostFirst(t *testing.T) {
 	}
 	if got := spendLine(obj{"spend": nil}); got != "" {
 		t.Errorf("nothing charged prints nothing: %q", got)
+	}
+}
+
+func TestTaskShowPrintsThePlanAndWhereItsAsksStand(t *testing.T) {
+	task := obj{"id": float64(7), "title": "t", "to": "w", "state": "draft",
+		"plan":     obj{"text": "change x", "by": "w", "at": "2026-11-16T10:00:00Z", "version": float64(2), "ok": obj{"by": "human", "at": "2026-11-16T11:00:00Z"}},
+		"core_ask": obj{"to": "w", "at": "2026-11-16T12:00:00Z", "sent_at": nil, "note": "the parser"},
+		"subtasks": []any{obj{"id": float64(8), "owner": "x", "state": "draft", "plan_state": "written", "title": "a"},
+			obj{"id": float64(9), "owner": "y", "state": "draft", "plan_state": "none", "title": "b"}},
+	}
+	got := strings.Join(detailLines(task, 0, ""), "\n")
+	for _, want := range []string{"\nplan (version 2, by w ", "; OK by human ", ")\nchange x\n", "\ncore logic asked of w ", ": the parser",
+		"  T8 (x, draft, plan to read)  a", "  T9 (y, draft)  b"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("no %q in\n%s", want, got)
+		}
+	}
+	asked := obj{"id": float64(7), "title": "t", "to": "w", "state": "draft", "plan_ask": obj{"to": "w", "at": "2026-11-16T10:00:00Z", "sent_at": "2026-11-16T10:05:00Z"}}
+	if got := strings.Join(detailLines(asked, 0, ""), "\n"); !strings.Contains(got, "plan asked of w, sent ") || !strings.Contains(got, ": being written") {
+		t.Errorf("%s", got)
 	}
 }
 

@@ -32,6 +32,7 @@ var taskExtras = []struct {
 		"WHERE " + taskLooked + " GROUP BY l.task_id", true},
 	{"SELECT task_id, COUNT(*) FROM task_blocks WHERE dormant = 0 GROUP BY task_id", false},
 	{"SELECT task_id, COUNT(*), group_concat(agent), MAX(since) FROM task_turns GROUP BY task_id", false},
+	{db.PlanEventsSQL, false}, // a plan written or marked OK, an ask for one made or sent
 	// the founder's read marker of a task: reading its comments changes its unread count
 	{"SELECT CAST(substr(name, length('" + db.SeenPrefix + "') + 1) AS INTEGER), row_id FROM cursors WHERE name LIKE '" + db.SeenPrefix + "%'", false},
 }

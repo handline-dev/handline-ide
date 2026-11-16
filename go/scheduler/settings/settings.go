@@ -54,6 +54,22 @@ const (
 	BlockerAlarmOpenerS   = 4 * 3600
 )
 
+// Plans: auto, the default, asks a draft's assignee for its plan as soon as the draft has one and no plan; manual waits for someone to ask
+// (task.plan_ask). A plan costs the assignee a turn of reading.
+const (
+	PlansKey    = "plans"
+	PlansAuto   = "auto"
+	PlansManual = "manual"
+)
+
+// Plans is the plans setting, auto unless config.yaml says manual.
+func (s *Settings) Plans() string {
+	if s.config()[PlansKey] == PlansManual {
+		return PlansManual
+	}
+	return PlansAuto
+}
+
 // BlockerAlarm is whether the blocker alarm is on and its two thresholds.
 func (s *Settings) BlockerAlarm() (on bool, holderS, openerS int64) {
 	return s.Flag(BlockerAlarmKey, false), s.ConfigSeconds(BlockerAlarmHoldKey, BlockerAlarmHoldS), s.ConfigSeconds(BlockerAlarmOpenerKey, BlockerAlarmOpenerS)

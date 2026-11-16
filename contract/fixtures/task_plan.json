@@ -1,0 +1,603 @@
+{
+ "fixtures": [
+  {
+   "name": "task.plan.assignee_writes_founder_marks_ok",
+   "spec": "task.plan",
+   "as": "agent",
+   "with": {
+    "boss": "founder"
+   },
+   "about": "A draft for the caller keeps its brief and is a draft; its assignee writes the plan (a second identical one is refused), the founder marks it OK, a new version clears the OK and keeps the old one, and an OK of the version before it is refused.",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1
+      }
+     },
+     "result": {
+      "caller": {
+       "name": {
+        "$save": "me"
+       }
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {},
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "task.new",
+      "params": {
+       "owner": "{{me}}",
+       "title": "a drafted step of a story",
+       "body": "the brief of the draft",
+       "draft": true,
+       "request_id": "conf-plan-1"
+      }
+     },
+     "result": {
+      "accepted": true,
+      "task": {
+       "$save": "tid"
+      }
+     },
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "task.get",
+      "params": {
+       "task": "{{tid}}"
+      }
+     },
+     "result": {
+      "state": "draft",
+      "body": "the brief of the draft",
+      "plan": null,
+      "plan_state": {
+       "$oneOf": [
+        "none",
+        "asked",
+        "writing"
+       ]
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "task.plan_ok",
+      "params": {
+       "task": "{{tid}}",
+       "request_id": "conf-plan-2"
+      }
+     },
+     "error": {
+      "code": -32002,
+      "data": {
+       "code": "refused"
+      }
+     },
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "task.plan",
+      "params": {
+       "task": "{{tid}}",
+       "text": "change the parser",
+       "request_id": "conf-plan-3"
+      }
+     },
+     "result": {
+      "accepted": true,
+      "version": 1
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "task.plan",
+      "params": {
+       "task": "{{tid}}",
+       "text": "change the parser",
+       "request_id": "conf-plan-4"
+      }
+     },
+     "error": {
+      "code": -32002,
+      "data": {
+       "code": "refused"
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "task.plan",
+      "params": {
+       "task": "{{tid}}",
+       "text": "change the parser",
+       "request_id": "conf-plan-5"
+      }
+     },
+     "error": {
+      "code": -32002,
+      "data": {
+       "code": "refused"
+      }
+     },
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "task.plan_ok",
+      "params": {
+       "task": "{{tid}}",
+       "request_id": "conf-plan-6"
+      }
+     },
+     "result": {
+      "accepted": true
+     },
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "method": "task.get",
+      "params": {
+       "task": "{{tid}}"
+      }
+     },
+     "result": {
+      "plan_state": "ok",
+      "plan_ask": null,
+      "plan": {
+       "text": "change the parser",
+       "by": "{{me}}",
+       "version": 1,
+       "ok": {
+        "by": {
+         "$type": "string"
+        },
+        "at": {
+         "$type": "timestamp"
+        }
+       }
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "method": "task.plan",
+      "params": {
+       "task": "{{tid}}",
+       "text": "change the parser and its test",
+       "request_id": "conf-plan-7"
+      }
+     },
+     "result": {
+      "accepted": true,
+      "version": 2
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 11,
+      "method": "task.get",
+      "params": {
+       "task": "{{tid}}"
+      }
+     },
+     "result": {
+      "plan_state": "written",
+      "plan": {
+       "text": "change the parser and its test",
+       "version": 2,
+       "ok": null,
+       "versions": [
+        {
+         "text": "change the parser",
+         "by": "{{me}}",
+         "at": {
+          "$type": "timestamp"
+         }
+        },
+        {
+         "text": "change the parser and its test",
+         "by": "{{me}}",
+         "at": {
+          "$type": "timestamp"
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 13,
+      "method": "task.plan_ok",
+      "params": {
+       "task": "{{tid}}",
+       "version": 1,
+       "request_id": "conf-plan-9"
+      }
+     },
+     "error": {
+      "code": -32002,
+      "data": {
+       "code": "refused"
+      }
+     },
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 12,
+      "method": "task.plan_ok",
+      "params": {
+       "task": "{{tid}}",
+       "request_id": "conf-plan-8"
+      }
+     },
+     "error": {
+      "code": -32002,
+      "data": {
+       "code": "refused",
+       "gate": "role"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "task.plan.text_and_task_are_checked",
+   "spec": "task.plan",
+   "as": "agent",
+   "about": "The plan is text and not empty, and its task exists.",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "task.plan",
+      "params": {
+       "task": 1,
+       "text": " ",
+       "request_id": "conf-plan-t1"
+      }
+     },
+     "error": {
+      "code": -32602,
+      "data": {
+       "code": "bad_request",
+       "field": "text"
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "task.plan",
+      "params": {
+       "task": "1",
+       "text": "x",
+       "request_id": "conf-plan-t2"
+      }
+     },
+     "error": {
+      "code": -32602,
+      "data": {
+       "code": "bad_request",
+       "field": "task"
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "task.plan",
+      "params": {
+       "task": 99999999,
+       "text": "x",
+       "request_id": "conf-plan-t3"
+      }
+     },
+     "error": {
+      "code": -32001,
+      "data": {
+       "code": "not_found"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "task.core_ask.waits_behind_the_assignee",
+   "spec": "task.core_ask",
+   "as": "agent",
+   "with": {
+    "boss": "founder"
+   },
+   "about": "The founder asks a draft's assignee for its core logic with a note: task.get shows the ask with its note; a second before the first is sent is refused; an ok that is not true or false is bad_request; a task that does not exist is not_found.",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1
+      }
+     },
+     "result": {
+      "caller": {
+       "name": {
+        "$save": "me"
+       }
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {},
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "task.new",
+      "params": {
+       "owner": "{{me}}",
+       "title": "a step whose core comes first",
+       "draft": true,
+       "request_id": "conf-core-1"
+      }
+     },
+     "result": {
+      "accepted": true,
+      "task": {
+       "$save": "tid"
+      }
+     },
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "task.core_ask",
+      "params": {
+       "task": "{{tid}}",
+       "note": "the tokenizer",
+       "request_id": "conf-core-2"
+      }
+     },
+     "result": {
+      "accepted": true
+     },
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "task.get",
+      "params": {
+       "task": "{{tid}}"
+      }
+     },
+     "result": {
+      "core_ask": {
+       "note": "the tokenizer",
+       "to": "{{me}}",
+       "at": {
+        "$type": "timestamp"
+       },
+       "sent_at": {
+        "$any": true
+       }
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "task.core_ask",
+      "params": {
+       "task": "{{tid}}",
+       "note": 3,
+       "request_id": "conf-core-3"
+      }
+     },
+     "error": {
+      "code": -32602,
+      "data": {
+       "code": "bad_request",
+       "field": "note"
+      }
+     },
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "task.plan_ok",
+      "params": {
+       "task": "{{tid}}",
+       "ok": "yes",
+       "request_id": "conf-core-4"
+      }
+     },
+     "error": {
+      "code": -32602,
+      "data": {
+       "code": "bad_request",
+       "field": "ok"
+      }
+     },
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "task.plan_ask",
+      "params": {
+       "task": 99999999,
+       "request_id": "conf-core-5"
+      }
+     },
+     "error": {
+      "code": -32001,
+      "data": {
+       "code": "not_found"
+      }
+     },
+     "on": "boss"
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "task.core_ask",
+      "params": {
+       "task": "{{tid}}",
+       "request_id": "conf-core-6"
+      }
+     },
+     "error": {
+      "code": -32002,
+      "data": {
+       "code": "refused",
+       "gate": "role"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "task.new.draft_is_for_an_agent",
+   "spec": "task.new",
+   "as": "founder",
+   "about": "Only an agent's task is a draft: one for the founder is refused, and draft is true or false.",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "task.new",
+      "params": {
+       "owner": "human",
+       "title": "a draft of my own",
+       "draft": true,
+       "request_id": "conf-draft-1"
+      }
+     },
+     "error": {
+      "code": -32002,
+      "data": {
+       "code": "refused"
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "task.new",
+      "params": {
+       "owner": "human",
+       "title": "a draft of my own",
+       "draft": "yes",
+       "request_id": "conf-draft-2"
+      }
+     },
+     "error": {
+      "code": -32602,
+      "data": {
+       "code": "bad_request",
+       "field": "draft"
+      }
+     }
+    }
+   ]
+  }
+ ]
+}
