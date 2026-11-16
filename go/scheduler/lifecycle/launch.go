@@ -797,31 +797,43 @@ type Transcripts interface {
 	TranscriptDir(configDir, worktree string) (string, bool)
 }
 
-// Confinement is what a session of agent may not read (hide) and may not write (noWrite) beyond the sandbox's own limits: other agents'
-// transcripts and memories and the key folders, and the files that move the main branch or say who the agents are. worktree is where
-// the session runs. A transcript or memory folder one of the founder's grants holds is not hidden, and lifted is those grants; the
-// key folders are hidden whatever is granted.
-func (l *Launcher) Confinement(agent, worktree string, tr Transcripts, granted []string) (hide, noWrite, lifted []string, err error) {
-	hide, err = l.HiddenTranscripts(agent, tr)
+// Confined is what a session may not read or write beyond the sandbox's own limits.
+type Confined struct {
+	// Hide is what it may not read: other agents' transcripts and memories, and the key folders. AskRead is the part of Hide, the
+	// transcripts and memories, whose Read tool asks the founder instead of refusing.
+	Hide, AskRead []string
+	// NoWrite is the files that move the main branch or say who the agents are.
+	NoWrite []string
+	// Lifted is the founder's grants that took a transcript or memory folder out of Hide.
+	Lifted []string
+}
+
+// Confinement is what a session of agent, running in worktree, may not read or write. A transcript or memory folder one of granted
+// holds is not hidden; the key folders are hidden whatever is granted.
+func (l *Launcher) Confinement(agent, worktree string, tr Transcripts, granted []string) (Confined, error) {
+	var c Confined
+	hide, err := l.HiddenTranscripts(agent, tr)
 	if err != nil {
-		return nil, nil, nil, err
+		return c, err
 	}
 	memories, err := l.HiddenMemories(agent)
 	if err != nil {
-		return nil, nil, nil, err
+		return c, err
 	}
 	roster, err := l.RosterFiles()
 	if err != nil {
-		return nil, nil, nil, err
+		return c, err
 	}
 	hide = append(hide, memories...)
 	for _, g := range granted {
 		if len(access.Outside([]string{g}, hide)) < len(hide) {
-			lifted = append(lifted, g)
+			c.Lifted = append(c.Lifted, g)
 		}
 	}
-	hide = append(access.Outside(lifted, hide), l.Tokens.HiddenFolders()...)
-	return hide, append(l.MainRefFiles(worktree), roster...), lifted, nil
+	c.AskRead = access.Outside(c.Lifted, hide)
+	c.Hide = append(append([]string{}, c.AskRead...), l.Tokens.HiddenFolders()...)
+	c.NoWrite = append(l.MainRefFiles(worktree), roster...)
+	return c, nil
 }
 
 // HiddenTranscripts are the transcript folders agent may not read: every other agent's, in every account of this vendor, since an agent
@@ -1159,6 +1171,14 @@ func (l *Launcher) partsOf(agent string, texts map[string]string, rules []string
 	if !l.plainMode(agent, cfg) {
 		perm += "\x1emode:" + l.modeOf(agent, cfg)
 	}
+	// A kept grant lifts a hide only at launch, so a new one restarts the session at its next idle, as a settings change does.
+	kept, err := l.keptGrants(agent)
+	if err != nil {
+		return nil, err
+	}
+	if kept != "" {
+		perm += "\x1egrants:" + kept
+	}
 	sandbox := h("")
 	if !l.Roster.SandboxOn(agent, cfg) {
 		sandbox = SandboxOffPart
@@ -1175,6 +1195,21 @@ func (l *Launcher) partsOf(agent string, texts map[string]string, rules []string
 		"team instructions": h(texts["team instructions"]),
 		rulesPart:           rulesHash(rules),
 	}, nil
+}
+
+// keptGrants is the agent's always grants, in the order kept; "" for none.
+func (l *Launcher) keptGrants(agent string) (string, error) {
+	gs, err := access.Grants(l.Q, agent)
+	if err != nil {
+		return "", err
+	}
+	var kept []string
+	for _, g := range gs {
+		if g.Scope == "always" {
+			kept = append(kept, g.Path)
+		}
+	}
+	return strings.Join(kept, "\x1f"), nil
 }
 
 // texts are ROLE.md, base.md, the team instructions and the team rules as the next launch gives them, and the rules as read.

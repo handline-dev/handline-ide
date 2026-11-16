@@ -767,7 +767,7 @@
   "what": "How the apps drive and watch an agent that AgentView.structured marks. It has no terminal: everything below is a chat, session or prompt call.",
   "watch": "chat.transcript and chat.messages draw the conversation and each message's receipt. Both stay readable while its session is closed.",
   "detail": "agent.get: terminal null, session_open true while its session is live, input_holders [].",
-  "controls": "session.start, wake, restart, park, stop (exit and close are the same; kill is for a person) and interrupt (refused, gate state, when no turn runs); prompt.answer takes allow or deny; chat.send, chat.send_now and chat.cancel as in Delivery.",
+  "controls": "session.start, wake, restart, park, stop (exit and close are the same; kill is for a person) and interrupt (refused, gate state, when no turn runs); prompt.answer takes allow or deny (or always, where offered); chat.send, chat.send_now and chat.cancel as in Delivery.",
   "never": "A client does not send session.input, session.keys, session.type, input.take, input.release or terminal.attach for a structured agent, and shows no terminal tab, holder, key strip or Take control. The Go daemon does not serve the first five at all; a daemon that does refuses a structured agent (gate unsupported). terminal.attach with agent is not_found (terminal): it has no terminal."
  },
  "x-attachments": {
@@ -1118,7 +1118,7 @@
       "enum": [
        "hook"
       ],
-      "description": "hook: asked through permission.ask, answered allow or deny with no terminal typed into. Absent for a prompt read from the agent's screen."
+      "description": "hook: asked through permission.ask, answered allow or deny (or always, where offered) with no terminal typed into. Absent for a prompt read from the agent's screen."
      }
     },
     "required": [

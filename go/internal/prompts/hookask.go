@@ -10,6 +10,7 @@ import (
 	"github.com/handline/handline/go/internal/hooks"
 	"github.com/handline/handline/go/kit/pyjson"
 	"github.com/handline/handline/go/protocol/rpc"
+	"github.com/handline/handline/go/scheduler/access"
 )
 
 // HookWaitS is how long a permission question from the PermissionRequest hook waits for the founder. With no answer by then the hook
@@ -42,6 +43,12 @@ func (w *hookWaits) add(id int64) chan Decision {
 	return ch
 }
 
+func (w *hookWaits) waiting(id int64) bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.by[id] != nil
+}
+
 func (w *hookWaits) take(id int64) chan Decision {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -52,6 +59,34 @@ func (w *hookWaits) take(id int64) chan Decision {
 
 // IsHook is whether the row was raised by the hook.
 func (b *Block) IsHook() bool { return b.Detail["source"] == HookSource }
+
+// keepGrants keeps each of grant as agent's always grant, all or none.
+func (e *Env) keepGrants(agent string, grant []string) error {
+	tx, err := e.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	now := e.now().Unix()
+	for _, g := range grant {
+		if _, err := access.Put(tx, agent, g, "always", now); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+// Grant is the folders an "Allow always" of this hook question stores as grants; nil when it offers none.
+func (b *Block) Grant() []string {
+	list, _ := b.Detail["grant"].([]any)
+	var out []string
+	for _, g := range list {
+		if s, ok := g.(string); ok {
+			out = append(out, s)
+		}
+	}
+	return out
+}
 
 // AskPermission raises agent's permission question as a prompt row and waits for the founder's answer: answered false when ctx ends or
 // HookWaitS passes first. A question already waiting for the same agent is waited out first, as a screen shows one at a time.
@@ -69,6 +104,9 @@ func (e *Env) AskPermission(ctx context.Context, agent, tool string, input map[s
 	}
 	detail := map[string]any{"agent": agent, "vendor": e.vendorOf(agent), "source": HookSource, "tool": tool, "command": command,
 		"reason": reason, "title": title, "lines": panel}
+	if grant := e.ReadGrant(tool, input); grant != nil {
+		detail["grant"] = grant
+	}
 	var since int64 // the agent's latest event now: a turn event after it means the agent has moved on from this question
 	_ = e.DB.QueryRow("SELECT COALESCE(MAX(id), 0) FROM events WHERE agent = ?", agent).Scan(&since)
 	var id, opened int64
@@ -132,11 +170,22 @@ func (e *Env) AskPermission(ctx context.Context, agent, tool string, input map[s
 
 // answerHook hands the founder's choice to the call waiting on row.
 func (e *Env) answerHook(row *Block, c Choice) (bool, string) {
+	if !e.hooks.waiting(row.ID) {
+		return e.record(row, false, row.Agent+": the question is no longer waiting - nothing sent")
+	}
+	if c.Always { // kept whole before the call is let go, so a failure leaves the question to answer again
+		if err := e.keepGrants(row.Agent, row.Grant()); err != nil {
+			return e.record(row, false, row.Agent+": the grant was not kept - nothing sent: "+err.Error())
+		}
+	}
 	ch := e.hooks.take(row.ID)
 	if ch == nil {
 		return e.record(row, false, row.Agent+": the question is no longer waiting - nothing sent")
 	}
 	ch <- Decision{Allow: c.Yes, Note: c.Note}
+	if c.Always {
+		return e.record(row, true, row.Agent+": allowed always, from its next session")
+	}
 	if c.Yes {
 		return e.record(row, true, row.Agent+": allowed")
 	}

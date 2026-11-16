@@ -1135,7 +1135,8 @@ func TestAStartKeepsTheHandoffAndTheDaemonsRecord(t *testing.T) {
 }
 
 // A founder's grant of another agent's memory folder, or of a folder above it, takes that folder out of what the session is hidden
-// from, and is named as lifted; a folder no grant holds stays hidden, and the key folders stay hidden under a grant of everything.
+// from, and is named as lifted. A folder no grant holds stays hidden, its Read tool asking the founder; the key folders stay hidden
+// and refused under a grant of everything.
 func TestAGrantLiftsTheHideOfAnotherAgentsMemoryButNeverOfTheKeyFolders(t *testing.T) {
 	r := newLaunchRig(t)
 	teamtest.Set(t, r.l.Home, "bob", "vendor", "claude")
@@ -1148,19 +1149,19 @@ func TestAGrantLiftsTheHideOfAnotherAgentsMemoryButNeverOfTheKeyFolders(t *testi
 	bob, cy := memories[0], memories[1]
 	keys := r.l.Tokens.HiddenFolders()
 
-	hide, _, lifted, err := r.l.Confinement("ann", "", drv, nil)
-	if err != nil || !slices.Contains(hide, bob) || !slices.Contains(hide, cy) || lifted != nil {
-		t.Fatalf("no grant: hide %v, lifted %v, %v", hide, lifted, err)
+	c, err := r.l.Confinement("ann", "", drv, nil)
+	if err != nil || !slices.Equal(c.AskRead, memories) || !slices.Equal(c.Hide, append(slices.Clone(memories), keys...)) || c.Lifted != nil {
+		t.Fatalf("no grant: %+v, %v", c, err)
 	}
 	for _, g := range []string{bob, filepath.Dir(bob)} {
-		hide, _, lifted, _ = r.l.Confinement("ann", "", drv, []string{g, "/unrelated"})
-		if slices.Contains(hide, bob) || !slices.Contains(hide, cy) || !slices.Equal(lifted, []string{g}) {
-			t.Errorf("grant %s: hide %v, lifted %v", g, hide, lifted)
+		c, _ = r.l.Confinement("ann", "", drv, []string{g, "/unrelated"})
+		if slices.Contains(c.Hide, bob) || !slices.Equal(c.AskRead, []string{cy}) || !slices.Equal(c.Lifted, []string{g}) {
+			t.Errorf("grant %s: %+v", g, c)
 		}
 	}
-	hide, _, _, _ = r.l.Confinement("ann", "", drv, []string{"/"})
-	if slices.Contains(hide, bob) || slices.Contains(hide, cy) || !slices.Equal(hide, keys) {
-		t.Fatalf("a grant of / hid %v, want only the key folders %v", hide, keys)
+	c, _ = r.l.Confinement("ann", "", drv, []string{"/"})
+	if !slices.Equal(c.Hide, keys) || len(c.AskRead) != 0 {
+		t.Fatalf("a grant of /: %+v, want only the key folders %v hidden and none asked", c, keys)
 	}
 }
 
@@ -1173,5 +1174,26 @@ func TestTheTrustedLinesNameTheReadGrantOnlyWhenThereIsOne(t *testing.T) {
 	lines := strings.Join(r.l.TrustedEnvironment("", []string{"/agents/bob/memory"}), "\n")
 	if !strings.Contains(lines, "The founder granted this agent read access to /agents/bob/memory") {
 		t.Fatalf("%s", lines)
+	}
+}
+
+// A kept grant is a settings change: it changes the permissions part, so the session restarts to take it; a once grant does not.
+func TestAnAlwaysGrantChangesThePermissionsPartAndAOnceGrantDoesNot(t *testing.T) {
+	r := newLaunchRig(t)
+	part := func() string {
+		parts, err := r.l.FingerprintParts("ann")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return parts["permissions"]
+	}
+	before := part()
+	access.Put(r.l.Q, "ann", "/once", "once", 1)
+	if part() != before {
+		t.Fatal("a once grant changed the permissions part")
+	}
+	access.Put(r.l.Q, "ann", "/agents", "always", 2)
+	if part() == before {
+		t.Fatal("an always grant left the permissions part as it was")
 	}
 }

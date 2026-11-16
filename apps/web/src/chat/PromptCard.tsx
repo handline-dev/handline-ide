@@ -23,8 +23,7 @@ function Card({ agent, p }: { agent: string; p: Prompt }) {
   const a = usePromptAnswer(agent, p, undefined);
   const permission = p.kind === 'permission';
   const title = permission ? `Allow ${p.tool ?? 'this'}?` : a.question ? (questionText(p) ?? 'Question') : 'The agent asks';
-  const label = (o: (typeof a.opts)[number]) =>
-    permission ? (o.answer === 'yes' ? 'Allow' : o.answer === 'no' ? 'Deny' : o.label) : o.label;
+  const label = (o: (typeof a.opts)[number]) => (permission ? (o.key === 'yes' ? 'Allow' : o.key === 'no' ? 'Deny' : o.label) : o.label);
   return (
     <div
       className={`mt-2 flex max-w-150 flex-col gap-3 rounded-lg border border-border p-3 text-sm ${a.answering ? 'pointer-events-none opacity-60' : ''}`}

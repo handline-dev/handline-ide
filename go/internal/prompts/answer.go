@@ -2,10 +2,11 @@ package prompts
 
 import "fmt"
 
-// Choice is what Answer hands a hook's question: Yes allows it, otherwise it is denied, with Note as the reason.
+// Choice is what Answer hands a hook's question: Yes allows it, otherwise it is denied, with Note as the reason. Always also keeps
+// the question's grant (Block.Grant).
 type Choice struct {
-	Yes  bool
-	Note string
+	Yes, Always bool
+	Note        string
 }
 
 // Answer answers the question of block blockID with choice. Only the hook's questions are answered here: they are the only prompt rows

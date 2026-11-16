@@ -44,6 +44,8 @@ type LaunchArgs struct {
 	ReadAllow []string
 	// LandPush lets the session run `git push origin HEAD:main` without asking: it is the workspace's land_by agent.
 	LandPush bool
+	// AskRead is the part of Hide whose Read tool asks the founder instead of refusing; Bash is refused all of Hide.
+	AskRead []string
 	// AllowWrite and AllowDomains are what a sandboxed session may write beyond its worktrees and reach on the network.
 	AllowWrite, AllowDomains []string
 	// CacheDir is a sandboxed session's own build caches (claude.CacheEnv), which it may write too.
