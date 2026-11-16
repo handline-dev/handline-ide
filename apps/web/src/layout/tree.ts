@@ -11,7 +11,8 @@ export type Tab = {
   /** false pins the tab: it cannot be closed or dragged. */
   closable?: boolean;
 };
-export type Pane = { kind: 'pane'; id: string; tabs: Tab[]; active: string };
+/** `seen`: tabs shown before `active`, newest last; a tab that leaves gives way to the last of them. */
+export type Pane = { kind: 'pane'; id: string; tabs: Tab[]; active: string; seen?: string[] };
 export type Split = { kind: 'split'; id: string; axis: 'x' | 'y'; ratio: number; a: Node; b: Node };
 export type Node = Pane | Split;
 
@@ -79,12 +80,28 @@ function attach(at: Pane, edge: Edge | 'four', added: Pane): Node {
   }
 }
 
-/** Removes a tab; the neighbour becomes active, and a pane left with no tabs is removed. */
+/** Removes a tab; the one shown before it becomes active (else its neighbour), and a pane left with no tabs is removed. */
 function withoutTab(p: Pane, tab: string): Pane | null {
   const i = p.tabs.findIndex((t) => t.id === tab);
   const rest = p.tabs.filter((t) => t.id !== tab);
   if (!rest.length) return null;
-  return { ...p, tabs: rest, active: p.active === tab ? (rest[i] ?? rest[i - 1]).id : p.active };
+  if (p.active !== tab) return { ...p, tabs: rest };
+  const back = [...(p.seen ?? [])].reverse().find((id) => rest.some((t) => t.id === id));
+  return { ...p, tabs: rest, active: back ?? (rest[i] ?? rest[i - 1]).id };
+}
+
+/** Each pane of `after` whose active tab changed from `before` keeps the one it left in `seen`. */
+function remember(before: Node, after: Node): Node {
+  const was = new Map(panes(before).map((p) => [p.id, p.active]));
+  const walk = (n: Node): Node => {
+    if (n.kind === 'split') return { ...n, a: walk(n.a), b: walk(n.b) };
+    const prev = was.get(n.id);
+    const ids = new Set(n.tabs.map((t) => t.id));
+    const seen = [...(n.seen ?? []), ...(prev && prev !== n.active ? [prev] : [])];
+    const kept = seen.filter((id, k) => ids.has(id) && id !== n.active && seen.lastIndexOf(id) === k);
+    return kept.length === (n.seen?.length ?? 0) && kept.every((id, k) => n.seen?.[k] === id) ? n : { ...n, seen: kept };
+  };
+  return after === before ? after : walk(after);
 }
 
 /** An Empty tab only waits for a choice: anything opened or moved into its pane replaces it. */
@@ -110,6 +127,10 @@ export function whereTo(root: Node, from: string, how: 'here' | 'side' | 'below'
 }
 
 export function reduce(root: Node, action: Action): Node {
+  return remember(root, change(root, action));
+}
+
+function change(root: Node, action: Action): Node {
   switch (action.type) {
     case 'select':
       return onPane(root, action.pane, (p) => ({ ...p, active: action.tab }));

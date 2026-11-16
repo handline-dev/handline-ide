@@ -35,6 +35,18 @@ describe('layout tree', () => {
     expect(root.kind).toBe('pane');
   });
 
+  it('a tab moved out gives its pane back to the tab shown before it, not its neighbour', () => {
+    const p = only(initial());
+    const chat = p.tabs[0].id;
+    let root = run(p, open(p.id, 'Task1'), { type: 'select', pane: p.id, tab: chat }, open(p.id, 'Task2'));
+    const task2 = only(root).tabs[2].id;
+    root = run(root, { type: 'move', from: p.id, tab: task2, to: { pane: p.id, edge: 'right' } });
+    expect(findPane(root, p.id)?.active).toBe(chat);
+    root = run(root, open(p.id, 'Task3'));
+    root = run(root, { type: 'closeTab', pane: p.id, tab: findPane(root, p.id)!.tabs[2].id });
+    expect(findPane(root, p.id)?.active).toBe(chat);
+  });
+
   it('opens at an index, and reorders within a bar', () => {
     const p = only(initial());
     let root = run(p, open(p.id, 'A'), open(p.id, 'B'), open(p.id, 'C', 1));
