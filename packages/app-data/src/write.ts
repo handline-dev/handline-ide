@@ -1,7 +1,7 @@
 // `useWrite`: the one door every UI write goes through (docs/turborepo-layout.md §8.5). An authored write edits the cache first and puts
 // it back if the daemon refuses; a decided write leaves the cache alone and is shown by its pending mark.
 import { useCallback, useRef } from 'react';
-import { useIsMutating, useMutation, useMutationState, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { useMutation, useMutationState, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useStore } from '@handline/app-react';
 import type { AgentDetail, AgentView, CallParams, MethodName, Methods } from '@handline/client';
 import { useData } from '#src/provider.ts';
@@ -122,19 +122,3 @@ export function usePending<M extends WriteMethod>(method: M): CallParams<M>[] {
     select: (m) => m.state.variables as CallParams<M>,
   });
 }
-
-/** The variables of the writes now in flight for any of these methods. */
-export function usePendingAny(methods: readonly WriteMethod[]): Record<string, unknown>[] {
-  const { daemon } = useData();
-  return useMutationState({
-    filters: {
-      status: 'pending',
-      predicate: (m) => m.options.mutationKey?.[1] === daemon && methods.includes(m.options.mutationKey?.[2] as WriteMethod),
-    },
-    select: (m) => m.state.variables as Record<string, unknown>,
-  });
-}
-
-/** True while a write is in flight (the desktop shell holds back a restart over it); the notes that messages were seen or read lose nothing if cut off. */
-export const useBusy = (): boolean =>
-  useIsMutating({ predicate: (m) => !['chat.seen', 'task.seen', 'inbox.mark_read'].includes(String(m.options.mutationKey?.at(-1))) }) > 0;

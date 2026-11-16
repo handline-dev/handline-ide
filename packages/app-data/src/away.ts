@@ -1,9 +1,7 @@
 // What a notice-raising event did while the connection was down: counted once on reconnect, shown as one line, never replayed as toasts.
-import { useCallback } from 'react';
-import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { type QueryClient } from '@tanstack/react-query';
 import type { Notices } from '@handline/app-core';
 import type { DaemonClient } from '@handline/client';
-import { useData } from '#src/provider.ts';
 
 export interface Away {
   count: number;
@@ -28,16 +26,3 @@ export async function readAway(
   if (feed && feed.events.length)
     qc.setQueryData<Away>(awayKey(d), { count: feed.events.length, more: feed.events.length >= LIMIT || feed.gap });
 }
-
-/** The notices missed while away, or null; `dismiss` clears the line. */
-export function useAway(): { away: Away | null; dismiss: () => void } {
-  const qc = useQueryClient();
-  const { daemon } = useData();
-  const { data } = useQuery({ queryKey: awayKey(daemon), queryFn: () => null as Away | null, enabled: false, staleTime: Infinity });
-  const dismiss = useCallback(() => qc.setQueryData(awayKey(daemon), null), [qc, daemon]);
-  return { away: data ?? null, dismiss };
-}
-
-/** The one line: "3 notices while you were away" (a floor when `more`). */
-export const awayLine = (a: Away): string =>
-  `${a.count}${a.more ? '+' : ''} ${a.count === 1 && !a.more ? 'notice' : 'notices'} while you were away`;

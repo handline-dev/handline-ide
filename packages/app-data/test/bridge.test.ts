@@ -2,7 +2,7 @@ import { QueryClient } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Event as WireEvent } from '@handline/client';
 import { EVENT_REQUIRED } from '#src/generated/reads.ts';
-import { applyEvent, awayLine, createBridge, qk, resume, resync, writes, type Ctx } from '#src/index.ts';
+import { applyEvent, createBridge, qk, resume, resync, writes, type Ctx } from '#src/index.ts';
 
 const D = 'd1';
 let qc: QueryClient;
@@ -256,14 +256,6 @@ describe('resume', () => {
     expect(qc.getQueryData<{ pageParams: unknown[] }>(key('a'))!.pageParams).toHaveLength(1);
     expect(qc.getQueryData<{ pages: unknown[] }>(key('b'))!.pages).toHaveLength(3);
     expect(stale(key('a'))).toBe(true);
-  });
-});
-
-describe('the line for what was missed', () => {
-  it('counts, and is a floor when the feed was cut', () => {
-    expect(awayLine({ count: 1, more: false })).toBe('1 notice while you were away');
-    expect(awayLine({ count: 3, more: false })).toBe('3 notices while you were away');
-    expect(awayLine({ count: 100, more: true })).toBe('100+ notices while you were away');
   });
 });
 
