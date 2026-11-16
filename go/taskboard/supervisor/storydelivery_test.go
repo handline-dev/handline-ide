@@ -1,6 +1,7 @@
 package supervisor
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -32,12 +33,32 @@ func TestRunDeliversAStorysSubTaskWithItsPlan(t *testing.T) {
 	if sent == nil {
 		t.Fatal("not delivered")
 	}
-	want := "Plan, version 2 (OK by the founder):\nchange badge.tsx and its test\n\nIn your result, say what you changed from the plan."
+	want := "Plan, version 2 (OK by the founder):\nchange badge.tsx and its test\n\nCommit on branch bob-T1 (made from origin/main; if it exists, " +
+		"carry on from it). In your result, say what you changed from the plan."
 	if !strings.HasPrefix(sent.Body, strings.TrimSpace(brief)+"\n\n") || !strings.HasSuffix(sent.Body, want) {
 		t.Fatalf("%q", sent.Body)
 	}
 	if got := tellText(r.DB, sent, 1, nil, false, nil, ""); !strings.Contains(got, want) {
 		t.Fatalf("the plan was cut off the typed delivery: %q", got)
+	}
+
+	// a story's sub-task with no plan goes out as its title and its branch, now its new assignee's; its core ask names that branch too
+	bare, _ := db.NewTask(r.DB, "bare part", r.k("bob"), r.k("alice"), 0, db.DefaultPriority, "", 0, "")
+	_, err = db.AddEvent(r.DB, r.k("alice"), "task_new", db.KV{K: "task_id", V: bare}, db.KV{K: "draft", V: true})
+	r.must(err)
+	_, err = r.DB.Exec("UPDATE tasks SET owner = ? WHERE id = ?", r.k("alice"), bare)
+	r.must(err)
+	row, _ = db.GetTask(r.DB, bare)
+	branch := fmt.Sprintf("alice-T%d", bare)
+	if body, plan := queuedBody(r.DB, row); body != "bare part\n\nCommit on branch "+branch+" (made from origin/main; if it exists, carry on from it)." || plan != 0 {
+		t.Fatalf("%q %d", body, plan)
+	}
+	if got := askText(&db.TaskAsk{Kind: db.CoreAskKind}, row, branch); !strings.Contains(got, "Commit on branch "+branch+" (made from origin/main; "+
+		"if it exists, carry on from it); do not merge or push it.") || strings.Contains(got, "leave the worktree") {
+		t.Fatalf("%q", got)
+	}
+	if got := askText(&db.TaskAsk{Kind: db.CoreAskKind}, row, ""); !strings.Contains(got, "Commit them on a branch of T") {
+		t.Fatalf("a task that is not a story's sub-task: %q", got)
 	}
 
 	// a task not opened as a draft goes out as its title, plan or not

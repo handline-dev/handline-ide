@@ -1300,7 +1300,7 @@
           "type": "null"
          }
         ],
-        "description": "The newest ask for the task's core logic (task.core_ask); null when none was made. Once it is sent, the assignee's worktree holds the code on the task's own branch: worktree.diff with against base shows it."
+        "description": "The newest ask for the task's core logic (task.core_ask); null when none was made. Once it is sent, the assignee commits the code on the task's branch (TaskDetail.branch): worktree.diff with that branch shows it."
        },
        "review": {
         "oneOf": [
@@ -1346,6 +1346,31 @@
          }
         ],
         "description": "How a story's sub-task (one opened as a draft) stands with the founder: when its assignee finishes it, by handing it to its workspace's land_by agent, it is Ready for the founder instead (a task_ready event); OK and Redo are task_verdict events. null when it was never Ready."
+       },
+       "branch": {
+        "oneOf": [
+         {
+          "type": "object",
+          "properties": {
+           "name": {
+            "type": "string",
+            "description": "<assignee>-T<n> by the assignee's name (a lead by its workspace's), e.g. ui-T9132; it follows a new assignee. Its core ask and its delivery tell the agent to commit there."
+           },
+           "exists": {
+            "type": "boolean",
+            "description": "Whether the branch exists yet in the assignee's worktree repo."
+           }
+          },
+          "required": [
+           "name",
+           "exists"
+          ]
+         },
+         {
+          "type": "null"
+         }
+        ],
+        "description": "The branch a story's sub-task (one opened as a draft) is committed on: worktree.diff with it reads the task's code whatever the worktree has checked out. null for any other task, or one no agent owns."
        }
       },
       "required": [
@@ -1368,7 +1393,8 @@
        "plan",
        "plan_ask",
        "core_ask",
-       "review"
+       "review",
+       "branch"
       ]
      }
     ]

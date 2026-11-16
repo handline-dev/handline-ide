@@ -45,6 +45,8 @@ export type Row = Task &
     history?: HistoryRow[];
     /** How a story's sub-task stands with the founder (TaskDetail.review); a seed makes one Ready. */
     review?: TaskDetail['review'];
+    /** A story's sub-task's branch (TaskDetail.branch); a seed sets it. */
+    branch?: TaskDetail['branch'];
   };
 
 /** `@human` in a comment: at the start or after a character that is not part of a name. */
@@ -260,6 +262,7 @@ export class TaskStore {
       body: t.body,
       ...planFields(t),
       review: t.review ?? null,
+      branch: t.branch ?? null,
       ...(bodyParts ? { body_parts: bodyParts } : {}),
       deliveries: t.delivered ? [{ at: t.delivered, how: 'typed', outcome: 'delivered' }] : [],
       events: [{ topic: 'tasks', type: 'task.opened', at: t.created, actor: null, agent: t.to, title: t.title, target: null, data: {} }],

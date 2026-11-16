@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sort"
 )
 
@@ -375,4 +376,21 @@ func CarriesPlan(q Q, rid int64) (bool, error) {
 	var n int
 	err := q.QueryRow("SELECT COUNT(*) FROM events WHERE kind = ? AND "+eventRequest+" = ?", PlanSentKind, rid).Scan(&n)
 	return n > 0, err
+}
+
+// StoryBranch is the branch a story's sub-task is committed on, <assignee>-T<n> by the name of the agent that owns it (a lead by its
+// workspace's), so it follows a new assignee; "" for a task not opened as a draft or not owned by an agent.
+func StoryBranch(q Q, tid int64) (string, error) {
+	if draft, err := OpenedAsDraft(q, tid); err != nil || !draft {
+		return "", err
+	}
+	var name string
+	err := q.QueryRow("SELECT CASE WHEN w.lead = a.id THEN w.name ELSE a.name END FROM tasks t JOIN agents a ON 'a' || a.id = t.owner "+
+		"JOIN workspaces w ON w.id = a.workspace WHERE t.id = ?", tid).Scan(&name)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	} else if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%s-T%d", name, tid), nil
 }

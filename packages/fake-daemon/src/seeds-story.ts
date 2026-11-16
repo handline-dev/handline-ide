@@ -194,6 +194,15 @@ export const STORY_SEEDS: Record<string, Seed> = {
     const memo = d.tasks.memoWithFiles(ready, TERM, result, files);
     d.tasks.turnPush(ready, memo, result, TERM);
     d.tasks.find(ready).review = { ready: true, land_by: ARCH, memo, at: iso(5), redo: 0, ok: false };
+    // its code is on its own branch, whatever the worktree has checked out since
+    const branch = `term-build-T${ready}`;
+    d.tasks.find(ready).branch = { name: branch, exists: true };
+    d.admin.worktrees.branches['/work/handline.term-build'] = {
+      [branch]: [
+        { path: 'packages/app-data/src/unread.ts', status: 'A', added: 42, deleted: 0 },
+        { path: 'packages/app-data/src/chats.ts', status: 'M', added: 5, deleted: 2 },
+      ],
+    };
 
     d.tasks.seed({ ...sub(redo, AUD, 'Draw the badge on the chat list', 140), state: 'doing' });
     const first = d.tasks.memo({ task: redo, text: 'Done: a red badge on each chat row.' }, 'add', AUD, true);

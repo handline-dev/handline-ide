@@ -67,14 +67,7 @@ func TestTheDiffOfAWholeWorktreeIncludesUntrackedFilesButNotIgnoredOnes(t *testi
 	t.Parallel()
 	e := testEnv(t)
 	prAgent(t, e, "w", "")
-	row, _ := queryOne(e.DB, "SELECT worktree FROM agent_state WHERE agent = ?", teamtest.Key(t, e.Home, "w"))
-	dir := row.str("worktree")
-	git := func(args ...string) {
-		t.Helper()
-		if out, err := exec.Command("git", append([]string{"-C", dir, "-c", "user.name=t", "-c", "user.email=t@t"}, args...)...).CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %v %s", args, err, out)
-		}
-	}
+	dir, git := agentGit(t, e, "w")
 	write := func(name, text string) {
 		t.Helper()
 		if err := os.WriteFile(filepath.Join(dir, name), []byte(text), 0o644); err != nil {
@@ -354,5 +347,18 @@ func TestTheDiffAgainstBaseShowsTheBranchsCommitsAndTheUncommittedWork(t *testin
 	}
 	if _, err := e.worktreeDiff(nil, map[string]any{"path": dir, "against": "main~1"}); err == nil {
 		t.Fatal("another value is bad_request")
+	}
+}
+
+// agentGit is the worktree of agent name (prAgent's) and a git that runs in it, failing the test on an error.
+func agentGit(t *testing.T, e *Env, name string) (string, func(args ...string)) {
+	t.Helper()
+	row, _ := queryOne(e.DB, "SELECT worktree FROM agent_state WHERE agent = ?", teamtest.Key(t, e.Home, name))
+	dir := row.str("worktree")
+	return dir, func(args ...string) {
+		t.Helper()
+		if out, err := exec.Command("git", append([]string{"-C", dir, "-c", "user.name=t", "-c", "user.email=t@t"}, args...)...).CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v %s", args, err, out)
+		}
 	}
 }
