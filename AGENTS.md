@@ -138,6 +138,8 @@ agent (ROLE.md, base.md); this file does not repeat them.
   finish UI work. When the founder must look, write the review memo (above).
 - Language: agents write to each other, write tasks, code and comments in
   English. Only a reply to the founder may be in Korean.
+  The app's own text (labels, buttons, messages) is English; a Korean memo
+  quotes screen text in English, as the screen will show it.
 - Run `hl` as its own Bash call with literal text: no `$(...)`, no `$VAR`, no
   `&&`, `;` or pipe. A value such as a sha comes from a separate call first.
 - Permission prompts: edit files with the Edit tool, never `sed -i`, which can
