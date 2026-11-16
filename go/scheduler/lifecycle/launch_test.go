@@ -1133,3 +1133,45 @@ func TestAStartKeepsTheHandoffAndTheDaemonsRecord(t *testing.T) {
 		t.Fatalf("%q", text)
 	}
 }
+
+// A founder's grant of another agent's memory folder, or of a folder above it, takes that folder out of what the session is hidden
+// from, and is named as lifted; a folder no grant holds stays hidden, and the key folders stay hidden under a grant of everything.
+func TestAGrantLiftsTheHideOfAnotherAgentsMemoryButNeverOfTheKeyFolders(t *testing.T) {
+	r := newLaunchRig(t)
+	teamtest.Set(t, r.l.Home, "bob", "vendor", "claude")
+	teamtest.Set(t, r.l.Home, "cy", "vendor", "claude")
+	drv := fakeDriver{vendor: "claude"}
+	memories, err := r.l.HiddenMemories("ann")
+	if err != nil || len(memories) != 2 {
+		t.Fatalf("%v %v", memories, err)
+	}
+	bob, cy := memories[0], memories[1]
+	keys := r.l.Tokens.HiddenFolders()
+
+	hide, _, lifted, err := r.l.Confinement("ann", "", drv, nil)
+	if err != nil || !slices.Contains(hide, bob) || !slices.Contains(hide, cy) || lifted != nil {
+		t.Fatalf("no grant: hide %v, lifted %v, %v", hide, lifted, err)
+	}
+	for _, g := range []string{bob, filepath.Dir(bob)} {
+		hide, _, lifted, _ = r.l.Confinement("ann", "", drv, []string{g, "/unrelated"})
+		if slices.Contains(hide, bob) || !slices.Contains(hide, cy) || !slices.Equal(lifted, []string{g}) {
+			t.Errorf("grant %s: hide %v, lifted %v", g, hide, lifted)
+		}
+	}
+	hide, _, _, _ = r.l.Confinement("ann", "", drv, []string{"/"})
+	if slices.Contains(hide, bob) || slices.Contains(hide, cy) || !slices.Equal(hide, keys) {
+		t.Fatalf("a grant of / hid %v, want only the key folders %v", hide, keys)
+	}
+}
+
+// The classifier is told of a read grant only when the agent holds one.
+func TestTheTrustedLinesNameTheReadGrantOnlyWhenThereIsOne(t *testing.T) {
+	r := newLaunchRig(t)
+	if lines := strings.Join(r.l.TrustedEnvironment("", nil), "\n"); strings.Contains(lines, "granted") {
+		t.Fatalf("no grant, yet: %s", lines)
+	}
+	lines := strings.Join(r.l.TrustedEnvironment("", []string{"/agents/bob/memory"}), "\n")
+	if !strings.Contains(lines, "The founder granted this agent read access to /agents/bob/memory") {
+		t.Fatalf("%s", lines)
+	}
+}
