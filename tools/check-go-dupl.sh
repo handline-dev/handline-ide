@@ -7,8 +7,8 @@
 #   tools/check-go-dupl.sh --list [dir]   the clone groups, most copied lines first: the cleanup queue
 here="$(cd "$(dirname "$0")" && pwd)"
 TOKENS=50
-CODE_MAX=39
-TESTS_MAX=37
+CODE_MAX=35
+TESTS_MAX=34
 AGENTCTL_CODE_MAX=0
 AGENTCTL_TESTS_MAX=2
 KIT_CODE_MAX=0
@@ -21,8 +21,8 @@ ACCOUNTS_CODE_MAX=5
 ACCOUNTS_TESTS_MAX=0
 TASKBOARD_CODE_MAX=4
 TASKBOARD_TESTS_MAX=10
-SCHEDULER_CODE_MAX=8
-SCHEDULER_TESTS_MAX=5
+SCHEDULER_CODE_MAX=4
+SCHEDULER_TESTS_MAX=2
 
 list=
 [ "${1:-}" = "--list" ] && { list=1; shift; }
