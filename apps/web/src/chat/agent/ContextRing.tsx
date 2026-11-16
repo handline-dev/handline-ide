@@ -132,7 +132,7 @@ function CompactAt({ agent, point }: { agent: string; point: number | null }) {
         {/* A point in force that is not one of the usual: its own segment, selected. */}
         {custom && (
           <button type="button" role="radio" aria-checked onClick={() => undefined} className={seg}>
-            {tokens(chosen! * 1000)}
+            {tokens(chosen * 1000)}
           </button>
         )}
         {/* Any other point, always there: a click turns it into a field. */}

@@ -33,7 +33,7 @@ export function useRequests() {
     /** @human comments the founder has not read: news that asks nothing. */
     notes: all.filter((p) => !held(p) && p.kind === 'note'),
     /** Rows put off for later, each with when it comes back. */
-    later: all.filter(held).map((p) => ({ p, at: later[laterKey(p)!]! })),
+    later: all.filter(held).map((p) => ({ p, at: later[laterKey(p)!] })),
     doing: rows.filter((r) => !FINISHED.has(r.status)),
     done: rows.filter((r) => FINISHED.has(r.status)),
     count: turn.length,

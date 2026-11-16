@@ -74,7 +74,7 @@ export function OnboardingTab({ go }: { go: (s: Section) => void }) {
               </div>
               {PAGE[id] && (
                 <button type="button" className="shrink-0 text-xs text-accent hover:underline" onClick={() => go(PAGE[id]!.section)}>
-                  Open {PAGE[id]!.word}
+                  Open {PAGE[id].word}
                   <ArrowRight size={12} className="ml-1 inline" />
                 </button>
               )}
@@ -94,7 +94,7 @@ export function OnboardingTab({ go }: { go: (s: Section) => void }) {
             Continue onboarding
             <ArrowRight size={14} />
           </Button>
-          <span className="text-xs text-muted">Opens where you left off: {TITLE[STEPS[o.resumeStep]!]}.</span>
+          <span className="text-xs text-muted">Opens where you left off: {TITLE[STEPS[o.resumeStep]]}.</span>
         </div>
       )}
     </SettingsPage>

@@ -25,7 +25,7 @@ export function AgentStep() {
   ];
   const [card, setCard] = useState(0);
   const [own, setOwn] = useState('');
-  const task = own.trim() || (cards[card] ?? cards[0]!).task;
+  const task = own.trim() || (cards[card] ?? cards[0]).task;
   const create = useWrite('agent.create');
   const [operation, setOperation] = useState<string | null>(null);
   const [startFailed, setStartFailed] = useState(false);

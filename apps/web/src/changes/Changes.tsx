@@ -14,7 +14,7 @@ function byFile(diff: string): FileDiff[] {
   const files: FileDiff[] = [];
   for (const line of diff.split('\n')) {
     const head = /^diff --git a\/.+ b\/(.+)$/.exec(line);
-    if (head) files.push({ path: head[1]!, lines: [] });
+    if (head) files.push({ path: head[1], lines: [] });
     else if (files.length && !/^(index |--- |\+\+\+ |new file|deleted file|similarity|rename |old mode|new mode)/.test(line))
       files.at(-1)!.lines.push(line);
   }

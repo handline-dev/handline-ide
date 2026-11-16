@@ -70,7 +70,7 @@ export function TaskActivity({ events }: { events: TaskEvent[] }) {
   const recent = folds ? touched.slice(-SHOWN) : touched;
   // On hover, the time under the card, in a row the size of the one under a message: one change's time, or the first to the last.
   const ats = events.flatMap((e) => (e.at ? [e.at] : []));
-  const when = ats.length ? (clock(ats[0]!) === clock(ats.at(-1)!) ? clock(ats[0]!) : `${clock(ats[0]!)} ~ ${clock(ats.at(-1)!)}`) : '';
+  const when = ats.length ? (clock(ats[0]) === clock(ats.at(-1)!) ? clock(ats[0]) : `${clock(ats[0])} ~ ${clock(ats.at(-1)!)}`) : '';
   return (
     <div className="group flex w-full min-w-0 flex-col items-start">
       <motion.div
@@ -251,7 +251,7 @@ const listen = (f: () => void) => {
 export function useTaskActivity(agent: string): TaskEvent[] {
   useFeed('tasks', true);
   useTaskChanges((t, now) => {
-    const by = now[0]!.by;
+    const by = now[0].by;
     const ev = fromRow(t.id, t.title, now);
     if (!ev) return;
     const list = made.get(by) ?? [];

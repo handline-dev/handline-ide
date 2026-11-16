@@ -364,7 +364,7 @@ export function Workspace({
     const close = (e: KeyboardEvent) => {
       if (!isCloseChord(e) || document.querySelector('[role="dialog"], [role="alertdialog"]')) return; // nothing closes behind a modal
       const all = panes(root);
-      const p = all.find((x) => x.id === lastPane) ?? all[0]!;
+      const p = all.find((x) => x.id === lastPane) ?? all[0];
       e.preventDefault();
       closeShells(p.tabs.filter((t) => t.id === p.active));
       dispatch({ type: 'closeTab', pane: p.id, tab: p.active });
@@ -372,7 +372,7 @@ export function Workspace({
     const reopen = (e: KeyboardEvent) => {
       if (!isReopenChord(e) || document.querySelector('[role="dialog"], [role="alertdialog"]')) return;
       e.preventDefault();
-      reopenClosed(lastPane ?? panes(root)[0]!.id);
+      reopenClosed(lastPane ?? panes(root)[0].id);
     };
     addEventListener('keydown', reopen);
     addEventListener('keydown', close);
@@ -395,7 +395,7 @@ export function Workspace({
     };
   }, []);
   // Opened from outside a pane (the sidebar): from the first pane.
-  useEffect(() => setShownWorkspace((opens, how) => openFrom({ root, agent, dispatch, nameOf }, panes(root)[0]!.id, opens, how)));
+  useEffect(() => setShownWorkspace((opens, how) => openFrom({ root, agent, dispatch, nameOf }, panes(root)[0].id, opens, how)));
   return <div className="flex min-h-0 min-w-0 flex-1">{render(root, true)}</div>;
 }
 

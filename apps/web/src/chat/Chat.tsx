@@ -229,7 +229,7 @@ function runs(
     } else out.push({ id: `tasks:after:${last ? `${last.kind}:${last.id}` : ''}`, key, events: rows });
   };
   const until = (at: string) => {
-    while (heard.length && Date.parse(heard[0]!.at ?? '') <= Date.parse(at)) {
+    while (heard.length && Date.parse(heard[0].at ?? '') <= Date.parse(at)) {
       const ev = heard.shift()!;
       add([ev], `tasks:${ev.key}`);
     }
@@ -329,12 +329,12 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
           ? r.items.map((i) => `item:${i.id}`)
           : [`${r.kind}:${r.id}`],
     );
-    for (let i = at.length - 1; i >= 0; i--) if (at[i]!.includes(tail.before ?? '')) return i;
+    for (let i = at.length - 1; i >= 0; i--) if (at[i].includes(tail.before ?? '')) return i;
     // Not drawn: a task's newer comment moved its card to the end, so the rows that start above that line are the known ones.
     const pos = new Map(entries.map((e, n) => [`${e.kind}:${e.id}`, n]));
     const before = pos.get(tail.before ?? '');
     if (before === undefined) return Infinity;
-    for (let i = at.length - 1; i >= 0; i--) if (Math.min(...at[i]!.map((k) => pos.get(k) ?? Infinity)) <= before) return i;
+    for (let i = at.length - 1; i >= 0; i--) if (Math.min(...at[i].map((k) => pos.get(k) ?? Infinity)) <= before) return i;
     return -1;
   };
   // The words of each loaded message, for the line above a reply.

@@ -30,7 +30,7 @@ export function useWrite<M extends WriteMethod>(method: M, target?: string) {
   const store = useStore();
   const qc = useQueryClient();
   const { daemon } = useData();
-  const spec = writes[method] as WriteSpec;
+  const spec = writes[method];
   const ctx = (): Parameters<NonNullable<WriteSpec['patch']>>[0] => ({
     qc,
     d: daemon,
