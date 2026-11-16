@@ -40,7 +40,7 @@ export function nameOf(d: Directory, key: string): string {
 const REF = /<@([a-z]+[0-9]*)>/g;
 
 /** The keys text names with `<@key>`, in order. */
-export const refsIn = (text: string): string[] => [...text.matchAll(REF)].map((m) => m[1]!);
+export const refsIn = (text: string): string[] => [...text.matchAll(REF)].map((m) => m[1]);
 
 /** Text as the screens show it: each stored `<@key>` is `@` and its name. */
 export const renderRefs = (d: Directory, text: string): string =>
@@ -67,7 +67,7 @@ export function byWorkspace<A extends Pick<AgentView, 'key' | 'workspace'>>(
   agents: readonly A[],
 ): { workspace: Workspace | null; agents: A[] }[] {
   const groups = d.workspaces.map((w) => ({
-    workspace: w as Workspace | null,
+    workspace: w,
     agents: agents.filter((a) => a.workspace === w.key).sort((x, y) => Number(y.key === w.lead) - Number(x.key === w.lead)),
   }));
   const known = new Set(d.workspaces.map((w) => w.key));

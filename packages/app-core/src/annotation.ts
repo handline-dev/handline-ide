@@ -116,7 +116,7 @@ export function shapesToSvg(shapes: readonly Shape[], width: number, height: num
         { type: 'text', x: s.at.x, y: s.at.y, fontSize: Number(num(s.size / CAP_HEIGHT)), fill: s.color, text: s.text.toUpperCase() },
       ];
     let d: string;
-    if (s.kind === 'pen') d = s.points.length === 1 ? poly([s.points[0]!, s.points[0]!]) : poly(s.points);
+    if (s.kind === 'pen') d = s.points.length === 1 ? poly([s.points[0], s.points[0]]) : poly(s.points);
     else if (s.kind === 'ellipse') d = `${poly(ellipsePoints(s.from, s.to))}Z`;
     else if (s.kind === 'box') d = `${poly([s.from, { x: s.to.x, y: s.from.y }, s.to, { x: s.from.x, y: s.to.y }])}Z`;
     else

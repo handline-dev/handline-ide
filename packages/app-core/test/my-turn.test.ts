@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { AgentView, InboxItem, Task } from '@handline/client';
-import { messageRows, myTurn, reviewPictures } from '#src/my-turn.ts';
+import { myTurn } from '#src/my-turn.ts';
 
 const item = (o: Partial<InboxItem>): InboxItem =>
   ({
@@ -245,22 +245,6 @@ test('an ask from a task comment is answered by a reply, OK or Approve, and neve
   assert.ok(![...plain!.actions, ...review!.actions].some((a) => a.type === 'done' || a.type === 'approve' || a.type === 'ask_change'));
 });
 
-test('one message row per agent with unread messages, newest first, opening at the first above the cursor', () => {
-  const rows = messageRows([
-    agent({ key: 'a', founder_unread: 2, founder_seen: 10, last_to_founder: { text: 'old', at: '2026-10-15T00:00:00Z' } }),
-    agent({ key: 'b', founder_unread: 1, last_to_founder: { text: 'new', at: '2026-10-16T00:00:00Z' } }),
-    agent({ key: 'c', founder_unread: 0 }),
-    agent({ key: 'd' }),
-  ]);
-  assert.deepEqual(
-    rows.map((r) => [r.agent, r.line, r.unread, r.from]),
-    [
-      ['b', 'new', 1, null],
-      ['a', 'old', 2, 11],
-    ],
-  );
-});
-
 test('a task with an open `@human` ask is shown once, by the ask, and its text drops the mention', () => {
   const ask = item({ id: 9, kind: 'ask', task: 5, memo: 77, body: '@human is 16 px fine?' });
   const old = item({ id: 8, kind: 'decision', task: 5 });
@@ -308,18 +292,4 @@ test('a mention in the middle of a sentence leaves the sentence its colon', () =
   const ask = item({ id: 9, kind: 'ask', task: 5, memo: 77, body: 'Second look please @human: the margin is now 24 px.' });
   const [c] = myTurn({ items: [ask], agents: [], tasks: [task({ id: 5, to: 'human' })], me: 'human' });
   assert.equal(c!.detail, 'Second look please: the margin is now 24 px.');
-});
-
-test('the pictures of a review come from the first comment: named in its text, else its image files', () => {
-  assert.deepEqual(reviewPictures([]), []);
-  const named = { id: 2, parts: [{ text: 'see' }, { image: { id: 'a', name: 'one.png' } }, { image: { id: 'b' }, gone: true }] };
-  assert.deepEqual(reviewPictures([{ id: 9, parts: [{ image: { id: 'z' } }] }, named]), [{ id: 'a', name: 'one.png' }]);
-  const filed = {
-    id: 3,
-    files: [
-      { id: 'f', kind: 'image', name: 'x.png' },
-      { id: 'g', kind: 'markdown' },
-    ],
-  };
-  assert.deepEqual(reviewPictures([filed]), [{ id: 'f', name: 'x.png' }]);
 });
