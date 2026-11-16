@@ -239,15 +239,19 @@ func popTurn(tx *sql.Tx, home string, tell Teller, tid int64, by, outcome, note 
 		return Popped{}, fmt.Errorf("task.turn.pop needs the supervisor to route its ask")
 	}
 	body := fmt.Sprintf("T%d is your turn again: %s %s it: %s", tid, addr.Ref(top.Agent), word, t.Title)
-	ask := textsafe.Oneline(top.Ask)
 	answer := by == actor.OwnerKey && actor.IsPerson(top.Agent) // the founder ending their own turn answers the task's open question
+	// the receiver asked the question, so it is named by its comment, not repeated
+	question := fmt.Sprintf("T%d 질문", tid)
+	if top.Memo != 0 {
+		question = fmt.Sprintf("T%d 댓글 %d 질문", tid, top.Memo)
+	}
 	switch {
 	case answer && memo != 0:
-		body = fmt.Sprintf("T%d 질문에 대표님 댓글 %d: %s / 지금 질문 칸: %s", tid, memo, textsafe.Oneline(note), ask)
+		body = fmt.Sprintf("%s에 대표님 댓글 %d: %s", question, memo, textsafe.Oneline(note))
 	case answer && note != "":
-		body = fmt.Sprintf("T%d 질문에 대표님 답: %s / 지금 질문 칸: %s", tid, textsafe.Oneline(note), ask)
+		body = fmt.Sprintf("%s에 대표님 답: %s", question, textsafe.Oneline(note))
 	case answer:
-		body = fmt.Sprintf("T%d 대표님이 질문 칸을 넘김 / 지금 질문 칸: %s", tid, ask)
+		body = question + "을 대표님이 넘김"
 	case note != "":
 		body += "\n\n" + note
 	}

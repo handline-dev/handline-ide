@@ -310,3 +310,24 @@ func TestTaskShowSaysWhatTheTaskSpentByAgentMostFirst(t *testing.T) {
 		t.Errorf("nothing charged prints nothing: %q", got)
 	}
 }
+
+func TestTaskShowOpensWithWhereItStandsNow(t *testing.T) {
+	memo := func(id float64, author string) obj { return obj{"id": id, "author": author, "text": "x"} }
+	open := obj{"id": float64(7), "title": "t", "to": "w", "acting": "human",
+		"turns":    []any{obj{"agent": "human", "by": "w", "memo": float64(3)}},
+		"memos":    []any{memo(1, "human"), memo(3, "w")},
+		"subtasks": []any{obj{"id": float64(8), "owner": "x", "state": "doing"}, obj{"id": float64(9), "owner": "y", "state": "done"}},
+		"blockers": []any{obj{"task": float64(5), "owner": "z"}},
+	}
+	got := strings.Join(detailLines(open, 0, ""), "\n")
+	want := "\n\nnow\n  holder w   turn human\n  open question to human from w: comment 3\n  open children: T8 (x, doing)\n  waiting on: T5 (z)\n\nbrief"
+	if !strings.Contains(got, want) {
+		t.Fatalf("no %q in\n%s", want, got)
+	}
+	// answered: the founder's comments since the holder's last one
+	answered := obj{"id": float64(7), "title": "t", "to": "w", "memos": []any{memo(1, "human"), memo(3, "w"), memo(4, "human"), memo(5, "human")}}
+	got = strings.Join(detailLines(answered, 0, ""), "\n")
+	if want := "now\n  holder w   turn w\n  founder since: comment 4, 5\n\nbrief"; !strings.Contains(got, want) {
+		t.Fatalf("no %q in\n%s", want, got)
+	}
+}

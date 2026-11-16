@@ -103,6 +103,13 @@ func LinkMemoTell(q Q, mid int64, reader string, rid int64) error {
 	return err
 }
 
+// CarriesMemo is whether request rid is reader's tell of a comment: the comment is in its body.
+func CarriesMemo(q Q, rid int64, reader string) (bool, error) {
+	var n int
+	err := q.QueryRow("SELECT COUNT(*) FROM memo_tells WHERE request_id = ? AND reader = ?", rid, reader).Scan(&n)
+	return n > 0, err
+}
+
 // keepReturnTell is LinkMemoTell's rule for a reader already told: a return that reached it stays its tell.
 var keepReturnTell = " ON CONFLICT(memo_id, reader) DO UPDATE SET request_id = excluded.request_id WHERE (SELECT kind != 'task' OR " +
 	NeverReached("") + " FROM requests WHERE id = memo_tells.request_id) IS NOT 0"

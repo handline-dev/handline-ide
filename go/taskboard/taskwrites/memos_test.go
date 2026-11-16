@@ -198,7 +198,7 @@ func TestStartMakesATaskTheOwnersCurrentOneAndPutsItsRequestFirst(t *testing.T) 
 		t.Fatalf("a done task has nothing to start: %v", r[1])
 	}
 	said := r[2]["result"].(map[string]any)["said"].(string)
-	if !strings.HasPrefix(said, "T2 is now worker's current task; T1 goes back to queued (your `hl progress` note is kept)\nComments - manager ") ||
+	if !strings.HasPrefix(said, "T2 is now worker's current task; T1 goes back to queued (your `hl progress` note is kept)\nComments, newest last:\ncomment 1 manager ") ||
 		!strings.HasSuffix(said, ": mind the lock") {
 		t.Fatalf("%q", said)
 	}
