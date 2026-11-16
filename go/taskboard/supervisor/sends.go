@@ -3,7 +3,6 @@ package supervisor
 import (
 	"database/sql"
 	"fmt"
-	"strings"
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/actor"
@@ -62,33 +61,6 @@ func (e *Env) after(rid int64, target string) {
 		return
 	}
 	e.background(fmt.Sprintf("telling %s about request %d", target, rid), func() { e.tell(rid, target) })
-}
-
-// shellQuote is shlex.quote.
-func shellQuote(s string) string {
-	if s == "" {
-		return "''"
-	}
-	safe := true
-	for _, c := range s {
-		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || strings.ContainsRune("@%+=:,./-_", c)) {
-			safe = false
-			break
-		}
-	}
-	if safe {
-		return s
-	}
-	return "'" + strings.ReplaceAll(s, "'", `'"'"'`) + "'"
-}
-
-// sayCmd is a `hl say` line ready to paste: the body as sent, quoted, with the flags that would have worked.
-func sayCmd(q db.Q, target, body string, parent int64, flags ...string) string {
-	parts := []string{"hl say", target, shellQuote(body)}
-	if parent != 0 {
-		parts = append(parts, "--parent "+db.MsgName(q, parent))
-	}
-	return strings.Join(append(parts, flags...), " ")
 }
 
 // SayVerbIn is the `say` verb's arguments.

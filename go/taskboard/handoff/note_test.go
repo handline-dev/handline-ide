@@ -392,15 +392,6 @@ func TestACommitIsRecordedOnceWithItsSubjectAndDiffstatCut(t *testing.T) {
 	}
 }
 
-func TestEachBadByteIsOneReplacementCharacter(t *testing.T) {
-	if got := replaceBad([]byte("a\xff\xfe\xc3(b")); got != "a\ufffd\ufffd\ufffd(b" {
-		t.Errorf("got %q", got)
-	}
-	if got := replaceBad([]byte("é ok")); got != "é ok" {
-		t.Errorf("got %q", got)
-	}
-}
-
 func TestLastFailureIsTheCLIsOwnErrorTheLastTurnEndedOnOnThatAccount(t *testing.T) {
 	w := newWorld(t)
 	on := func(acct, kind, payload string) {

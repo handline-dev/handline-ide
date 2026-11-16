@@ -71,13 +71,6 @@ func TestADigestReadsLikePython(t *testing.T) {
 	}
 }
 
-func TestAnItemThatSaysAHeadingWordIsNotMigrated(t *testing.T) {
-	text := "## 완료\n- 완료 means done\n- ## 완료\n"
-	if got := MigrateText(text); got != "## Done\n- 완료 means done\n- ## 완료\n" {
-		t.Errorf("got %q", got)
-	}
-}
-
 func TestValidateAgreesWithPython(t *testing.T) {
 	c := load(t)
 	d := ParseDigest(c.Korean)
@@ -116,5 +109,12 @@ func TestRenderParseRoundTrips(t *testing.T) {
 	}
 	if ParseDigest("").Items("done") == nil {
 		t.Error("an empty digest has no sections")
+	}
+}
+
+func TestAnItemThatSaysAHeadingWordIsNotMigrated(t *testing.T) {
+	text := "## 완료\n- 완료 means done\n- ## 완료\n"
+	if got := MigrateText(text); got != "## Done\n- 완료 means done\n- ## 완료\n" {
+		t.Errorf("got %q", got)
 	}
 }

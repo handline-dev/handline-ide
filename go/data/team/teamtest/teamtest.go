@@ -1,4 +1,4 @@
-// Package teamtest seeds a test home's workspaces and agents as rows, named by their old dotted names (team.LegacyName): a bare name is
+// Package teamtest seeds a test home's workspaces and agents as rows, named by their old dotted names: a bare name is
 // a workspace's lead, ws.agent an agent of workspace ws.
 package teamtest
 

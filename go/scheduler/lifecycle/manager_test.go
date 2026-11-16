@@ -39,15 +39,11 @@ func (f *fakeDelivery) EffectiveHead(db.Q, string) (*db.Request, error) {
 func (f *fakeDelivery) HeadTaskBlocked(q db.Q, agent string, head *db.Request) (bool, error) {
 	return db.HeadTaskBlocked(q, agent, head)
 }
-func (f *fakeDelivery) TypeGate(db.Q, string, string, bool, bool) (string, error) {
-	return "", nil
-}
-func (f *fakeDelivery) MarkTyped(db.Q, string, map[string]any) error { return nil }
-func (f *fakeDelivery) SessionPresent(string) (bool, error)          { return f.sessionUp, nil }
-func (f *fakeDelivery) WaitSessionGone(string) bool                  { return f.gone }
-func (f *fakeDelivery) SessionStillDrawn(string, bool) bool          { return false }
-func (f *fakeDelivery) PastDialog(db.Q, string) (string, error)      { return "", nil }
-func (f *fakeDelivery) EnforceEdges(db.Q, string) (bool, error)      { return true, nil }
+func (f *fakeDelivery) SessionPresent(string) (bool, error)     { return f.sessionUp, nil }
+func (f *fakeDelivery) WaitSessionGone(string) bool             { return f.gone }
+func (f *fakeDelivery) SessionStillDrawn(string, bool) bool     { return false }
+func (f *fakeDelivery) PastDialog(db.Q, string) (string, error) { return "", nil }
+func (f *fakeDelivery) EnforceEdges(db.Q, string) (bool, error) { return true, nil }
 func (f *fakeDelivery) WaitingPrompt(db.Q, string) (string, func(string) error, bool, error) {
 	return f.waitingMsg, func(s string) error { f.told = append(f.told, s); return nil }, f.waitingMsg != "", nil
 }
@@ -75,18 +71,13 @@ func (fakeHandoff) MemoryLine(string) string                              { retu
 
 type fakeTerm struct {
 	Terminal
-	relaunched  []string
-	busy        bool
-	resumedWith []string
-	launchOK    bool
-	closedPane  bool
+	relaunched []string
+	busy       bool
+	launchOK   bool
+	closedPane bool
 }
 
-func (f *fakeTerm) TypeableNow(string) bool { return !f.busy }
-func (f *fakeTerm) ResumeWith(_, p string) (bool, string) {
-	f.resumedWith = append(f.resumedWith, p)
-	return true, "typed the pointer"
-}
+func (f *fakeTerm) TypeableNow(string) bool            { return !f.busy }
 func (*fakeTerm) Available() bool                      { return true }
 func (f *fakeTerm) WaitIdle(string) bool               { return !f.busy }
 func (*fakeTerm) WaitDrawn(string) bool                { return true }

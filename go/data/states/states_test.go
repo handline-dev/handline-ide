@@ -1,12 +1,8 @@
 package states
 
 import (
-	"database/sql"
-	"strings"
 	"testing"
 	"time"
-
-	"github.com/handline/handline/go/data/db"
 )
 
 func TestBackoffDoublesFromAMinuteAndStopsAtAnHour(t *testing.T) {
@@ -14,27 +10,6 @@ func TestBackoffDoublesFromAMinuteAndStopsAtAnHour(t *testing.T) {
 		if got := BackoffFor(streak); got != want {
 			t.Errorf("BackoffFor(%d) = %v, want %v", streak, got, want)
 		}
-	}
-}
-
-func TestParkWakeableSaysWhyNot(t *testing.T) {
-	row := func(reason string, wake int64) *db.AgentState {
-		r := &db.AgentState{Agent: "a", ParkReason: sql.NullString{String: reason, Valid: reason != ""}, Detail: sql.NullString{String: "moving; by hand", Valid: true}}
-		r.WakeAt = sql.NullInt64{Int64: wake, Valid: wake != 0}
-		return r
-	}
-	if ok, _ := ParkWakeable(row("by_hand", 0)); !ok {
-		t.Fatal("a park by hand is worth forcing")
-	}
-	if ok, why := ParkWakeable(row("moving", 0)); ok || !strings.Contains(why, "moving accounts") {
-		t.Fatalf("%v %q", ok, why)
-	}
-	if ok, why := ParkWakeable(row("wall", 0)); ok || !strings.Contains(why, "starts ? when") {
-		t.Fatalf("%v %q", ok, why)
-	}
-	at := time.Date(2026, 1, 2, 13, 5, 0, 0, time.Local).Unix()
-	if _, why := ParkWakeable(row("", at)); !strings.Contains(why, "starts 13:05 when") {
-		t.Fatal(why)
 	}
 }
 

@@ -20,15 +20,7 @@ const (
 )
 
 // The roster, proposals and session creation name an agent by its dotted name: its workspace's name for the lead, else
-// workspace.agent: LegacyName, SplitLegacy and paths.LegacyNameSQL.
-
-// LegacyName is the old dotted name of agent name in workspace ws; lead is whether it is the workspace's lead.
-func LegacyName(ws, name string, lead bool) string {
-	if lead {
-		return ws
-	}
-	return ws + "." + name
-}
+// workspace.agent: SplitLegacy and paths.LegacyNameSQL.
 
 // SplitLegacy is the workspace and agent name an old dotted name stands for; agent is "" for a bare workspace name, the lead.
 func SplitLegacy(legacy string) (ws, agent string) {

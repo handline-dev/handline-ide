@@ -46,51 +46,42 @@ func (a *typedAt) said(agent string) string {
 // The ports a structured-only daemon has no screen for: nothing is on a screen, so every telling goes through the agent port.
 type noScreen struct{}
 
-func (noScreen) Available() bool                             { return false }
-func (noScreen) Missing() string                             { return "no terminal" }
-func (noScreen) Alive(string) bool                           { return false }
-func (noScreen) TypeableNow(string) bool                     { return false }
-func (noScreen) ScreenBlocker(string) *term.Blocker          { return nil }
-func (noScreen) SessionOnScreen(string) (bool, bool)         { return false, false }
-func (noScreen) ComposerOnScreen(string) (string, bool)      { return "", false }
-func (noScreen) IsTextTyped(string, string) bool             { return false }
-func (noScreen) BackgroundWork(string) (string, bool)        { return "", false }
-func (noScreen) LastTail(string) []string                    { return nil }
-func (noScreen) Send(string, string, bool) (bool, string)    { return false, "no terminal" }
-func (noScreen) SendToSession(string, string) (bool, string) { return false, "no terminal" }
-func (noScreen) SendCtrlC(string)                            {}
-func (noScreen) ClearContext(string) (bool, string)          { return false, "no terminal" }
-func (noScreen) ClearCommand(string) string                  { return "/clear" }
+func (noScreen) Available() bool                          { return false }
+func (noScreen) Missing() string                          { return "no terminal" }
+func (noScreen) Alive(string) bool                        { return false }
+func (noScreen) TypeableNow(string) bool                  { return false }
+func (noScreen) ScreenBlocker(string) *term.Blocker       { return nil }
+func (noScreen) SessionOnScreen(string) (bool, bool)      { return false, false }
+func (noScreen) BackgroundWork(string) (string, bool)     { return "", false }
+func (noScreen) Send(string, string, bool) (bool, string) { return false, "no terminal" }
 
 // wiredPorts is every other port as an agent with no screen, no limit and nothing in the way: the telling layer can call it. live is
 // the agents with a session, by key.
 type wiredPorts struct{ live map[string]bool }
 
-func (w wiredPorts) LiveSessions() (map[string]bool, bool)                           { return w.live, true }
-func (wiredPorts) PastDialog(db.Q, string, bool) (string, string)                    { return "", "" }
-func (wiredPorts) Reason(kind, detail string) string                                 { return kind + ": " + detail }
-func (wiredPorts) DecisionAfterS() int64                                             { return 600 }
-func (wiredPorts) WaitingOnPrompt(db.Q, *db.AgentState) bool                         { return false }
-func (wiredPorts) AtLimit(db.Q, string) bool                                         { return false }
-func (wiredPorts) NoticeDigestS(string) int64                                        { return 900 }
-func (wiredPorts) CloseTimeoutS(string) int64                                        { return 600 }
-func (wiredPorts) Never() int64                                                      { return -1 }
-func (wiredPorts) BgGraceS(string) int64                                             { return 300 }
-func (wiredPorts) ConfigSeconds(_ string, def int64) int64                           { return def }
-func (wiredPorts) FooterCount(string) int                                            { return 1 }
-func (wiredPorts) LiveSession(db.Q, string) string                                   { return "s1" }
-func (wiredPorts) ContextUse(db.Q, string) (int64, int64)                            { return 5000, 200000 }
-func (wiredPorts) KeepsTranscripts(string) bool                                      { return false }
-func (wiredPorts) FindTranscript(string, string) string                              { return "" }
-func (wiredPorts) MovableTrigger(string) bool                                        { return false }
-func (wiredPorts) CacheLeft(string, int64) (int64, bool)                             { return 0, false }
-func (wiredPorts) StartForWork(db.Q, string) string                                  { return "" }
-func (wiredPorts) WakeAgent(db.Q, string) (bool, string)                             { return false, "" }
-func (wiredPorts) AccountWait(db.Q, string) (string, error)                          { return "", nil }
-func (wiredPorts) QueuedOrIdle(db.Q, string, string) error                           { return nil }
-func (wiredPorts) Marker(db.Q, string, string, map[string]any)                       {}
-func (wiredPorts) RecordScreenSample(db.Q, string, *db.AgentState, string, []string) {}
-func (wiredPorts) OpenProposalOf(int64) string                                       { return "" }
+func (w wiredPorts) LiveSessions() (map[string]bool, bool)        { return w.live, true }
+func (wiredPorts) PastDialog(db.Q, string, bool) (string, string) { return "", "" }
+func (wiredPorts) Reason(kind, detail string) string              { return kind + ": " + detail }
+func (wiredPorts) DecisionAfterS() int64                          { return 600 }
+func (wiredPorts) WaitingOnPrompt(db.Q, *db.AgentState) bool      { return false }
+func (wiredPorts) AtLimit(db.Q, string) bool                      { return false }
+func (wiredPorts) NoticeDigestS(string) int64                     { return 900 }
+func (wiredPorts) CloseTimeoutS(string) int64                     { return 600 }
+func (wiredPorts) Never() int64                                   { return -1 }
+func (wiredPorts) BgGraceS(string) int64                          { return 300 }
+func (wiredPorts) ConfigSeconds(_ string, def int64) int64        { return def }
+func (wiredPorts) FooterCount(string) int                         { return 1 }
+func (wiredPorts) LiveSession(db.Q, string) string                { return "s1" }
+func (wiredPorts) ContextUse(db.Q, string) (int64, int64)         { return 5000, 200000 }
+func (wiredPorts) KeepsTranscripts(string) bool                   { return false }
+func (wiredPorts) FindTranscript(string, string) string           { return "" }
+func (wiredPorts) MovableTrigger(string) bool                     { return false }
+func (wiredPorts) CacheLeft(string, int64) (int64, bool)          { return 0, false }
+func (wiredPorts) StartForWork(db.Q, string) string               { return "" }
+func (wiredPorts) WakeAgent(db.Q, string) (bool, string)          { return false, "" }
+func (wiredPorts) AccountWait(db.Q, string) (string, error)       { return "", nil }
+func (wiredPorts) QueuedOrIdle(db.Q, string, string) error        { return nil }
+func (wiredPorts) OpenProposalOf(int64) string                    { return "" }
 func (wiredPorts) Answered(db.Q, string, *db.Request, string) (string, string, error) {
 	return "", "", nil
 }

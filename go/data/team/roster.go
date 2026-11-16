@@ -271,18 +271,6 @@ func (r *Roster) RepoOf(name string) string {
 	return at.folder
 }
 
-// Registered is the old names of every agent, oldest first.
-func (r *Roster) Registered() ([]string, error) {
-	if r.err != nil {
-		return nil, r.err
-	}
-	t, err := ReadTeam(r.DB)
-	if err != nil {
-		return nil, err
-	}
-	return append([]string(nil), t.order...), nil
-}
-
 // RegisterOpts is what Register is asked to set; a nil field is left as it is.
 type RegisterOpts struct {
 	Role, Weight, RoleFile, Repo           string

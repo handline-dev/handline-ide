@@ -56,18 +56,6 @@ func ParseSpan(text string) (int64, error) {
 	return n * unit, nil
 }
 
-// AgoShort is how long since ts, in whole d, h or m.
-func AgoShort(ts int64, now time.Time) string {
-	secs := max(int64(0), now.Unix()-ts)
-	switch {
-	case secs >= 86400:
-		return fmt.Sprintf("%dd", secs/86400)
-	case secs >= 3600:
-		return fmt.Sprintf("%dh", secs/3600)
-	}
-	return fmt.Sprintf("%dm", secs/60)
-}
-
 // Layouts for Stamp: the date and time, the month, day and time, and the clock (handline/infra/timefmt.py DATE_TIME, SHORT, CLOCK).
 const (
 	DateTime = "2006-01-02 15:04"

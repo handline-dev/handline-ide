@@ -1,7 +1,6 @@
 package housekeeping
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -58,11 +57,6 @@ func (f *FDs) limit() uint64 {
 		return 1 << 20
 	}
 	return uint64(r.Cur)
-}
-
-// IsExhaustion is whether err is the process or the machine being out of descriptors.
-func IsExhaustion(err error) bool {
-	return errors.Is(err, syscall.EMFILE) || errors.Is(err, syscall.ENFILE)
 }
 
 func (f *FDs) listed() ([]int, error) {
@@ -142,14 +136,6 @@ func (f *FDs) Check() int {
 		f.Log("  fds: near the limit - " + strings.Join(parts, ", "))
 	}
 	return n
-}
-
-// SayExhaustion says that the process ran out of descriptors while doing something, at most once a minute so a spell of it does not become
-// the log.
-func (f *FDs) SayExhaustion(err error, doing string) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.sayExhaustion(err, doing)
 }
 
 func (f *FDs) sayExhaustion(err error, doing string) {

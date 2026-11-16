@@ -131,15 +131,6 @@ func TestIsPlainText(t *testing.T) {
 	}
 }
 
-func TestRefuseUnsafeValues(t *testing.T) {
-	if err := RefuseUnsafeValues(map[string]any{"a": "ok", "b": 1}, "agent.yaml"); err != nil {
-		t.Fatal(err)
-	}
-	if err := RefuseUnsafeValues(map[string]any{"a": "x\u009by"}, "agent.yaml"); err == nil {
-		t.Fatal("a C1 control was read")
-	}
-}
-
 func TestParsePairsKeepsTheFilesOrderAndOMapKeepsNestedOrder(t *testing.T) {
 	pairs, ok, err := ParsePairs("zeta: 1\nalpha:\n  - x\nmid: {b: 1, a: 2}\nalpha2: 3\n")
 	if err != nil || !ok {

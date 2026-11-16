@@ -23,9 +23,6 @@ const (
 	FoldTimeout = 180 * time.Second
 	openTimeout = 60 * time.Second
 	askTimeout  = 60 * time.Second
-	// RecoverModel and RecoverPrompt are the turn that makes the CLI renew its token: spent, never read.
-	RecoverModel  = "haiku"
-	RecoverPrompt = "hi"
 )
 
 // CLI is the part of a structured session the meter uses.

@@ -118,11 +118,11 @@ func TestExhaustionIsSaidAtMostOnceAMinute(t *testing.T) {
 	var lines []string
 	now := time.Unix(1000, 0)
 	f := &FDs{Log: func(s string) { lines = append(lines, s) }, Now: func() time.Time { return now }}
-	f.SayExhaustion(syscall.EMFILE, "accepting")
-	f.SayExhaustion(syscall.EMFILE, "accepting")
+	f.sayExhaustion(syscall.EMFILE, "accepting")
+	f.sayExhaustion(syscall.EMFILE, "accepting")
 	now = now.Add(61 * time.Second)
-	f.SayExhaustion(syscall.EMFILE, "accepting")
-	if len(lines) != 2 || !IsExhaustion(syscall.EMFILE) || IsExhaustion(syscall.ENOENT) {
+	f.sayExhaustion(syscall.EMFILE, "accepting")
+	if len(lines) != 2 {
 		t.Fatalf("%q", lines)
 	}
 }

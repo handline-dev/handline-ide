@@ -20,7 +20,6 @@ const (
 	EndedTrigger  = "ended"
 	PausedTrigger = "paused"
 	ClearWaitS    = 300
-	handoffReason = "handoff"
 )
 
 // MovableTrigger is handoff.MOVABLE_TRIGGERS.

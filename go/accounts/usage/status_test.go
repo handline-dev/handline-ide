@@ -107,7 +107,7 @@ func writeConfig(t *testing.T, home string, cfg map[string]any) {
 
 func testEnv(home string, now int64) *Env {
 	return &Env{Home: home, Now: func() float64 { return float64(now) },
-		LoginState: func(string) (bool, bool) { return true, true }, PlanKey: func(string) string { return "" }}
+		LoginState: func(string) (bool, bool) { return true, true }}
 }
 
 // load is the fixture's load with the launch pace hold on, as the Python daemon always held.

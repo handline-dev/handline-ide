@@ -436,21 +436,6 @@ func TestAddRegistersTheAgentInItsWorkspace(t *testing.T) {
 	}
 }
 
-// approveBundle raises changes as one bundle from alice and approves it; the error reply, or nil.
-func (r *rig) approveBundle(changes string) any {
-	r.t.Helper()
-	m := r.callAs("alice", "proposal.propose", `{"kind":"bundle","args":{"name":"changes","changes":[`+changes+`]},"why":"w","request_id":"p1"}`)
-	n, ok := m["result"].(map[string]any)["proposal"].(float64)
-	if !ok {
-		r.t.Fatalf("proposed: %v", m)
-	}
-	p, err := r.e.load(fmt.Sprintf("%08x", int64(n)))
-	if err != nil {
-		r.t.Fatal(err)
-	}
-	return r.decide(int64(n), "approve", p.subject(), "d1")["error"]
-}
-
 func TestADiffThatFailsHalfwayPutsEverythingBack(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)

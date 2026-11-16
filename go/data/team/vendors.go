@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 
 	"github.com/handline/handline/go/agentctl/agent"
@@ -119,8 +118,6 @@ func inTestRoot() bool { r, _ := paths.Getenv("TEST_ROOT"); return r != "" }
 func CredentialPresent(vendor, configDir string) (present, known bool) {
 	return facts(vendor).CredentialPresent(configDir)
 }
-
-func isDarwin() bool { return runtime.GOOS == "darwin" }
 
 // yamlFloat is a float as Python's json.dumps writes it.
 func yamlFloat(f float64) string { return yamlcompat.FloatRepr(f) }
