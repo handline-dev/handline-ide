@@ -22,7 +22,7 @@ export const STATE: Record<string, { icon: (p: LucideProps) => ReactNode; tone: 
 export const failedLine = (evidence: string | null | undefined, title?: string | null): string | null => {
   const o = taskOutcome(evidence, title);
   if (o.verdict !== 'FAIL') return null;
-  const line = o.rest.split('\n')[0]!.trim();
+  const line = o.rest.split('\n')[0].trim();
   return line ? `Failed: ${line}` : 'Failed';
 };
 export type Lookable = {

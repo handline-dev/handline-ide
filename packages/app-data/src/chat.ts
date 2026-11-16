@@ -91,7 +91,7 @@ function chatQueries(store: ReturnType<typeof useStore>, daemon: string, agent: 
         (p, items) => ({ ...p, items }),
       ),
       queryFn: ({ pageParam }) => store.client.call('chat.transcript', { agent, before: pageParam, limit: PAGE }),
-      getNextPageParam: (last: TrPage) => (last.more && last.items.length ? last.items[0]!.id : undefined),
+      getNextPageParam: (last: TrPage) => (last.more && last.items.length ? last.items[0].id : undefined),
     }),
   ] as const;
 }

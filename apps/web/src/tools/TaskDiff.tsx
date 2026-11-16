@@ -20,17 +20,16 @@ export function diffLines(a: string, b: string): Line[] {
   const y = b.split('\n');
   const lcs = Array.from({ length: x.length + 1 }, () => new Array<number>(y.length + 1).fill(0));
   for (let i = x.length - 1; i >= 0; i--)
-    for (let j = y.length - 1; j >= 0; j--)
-      lcs[i]![j] = x[i] === y[j] ? lcs[i + 1]![j + 1]! + 1 : Math.max(lcs[i + 1]![j]!, lcs[i]![j + 1]!);
+    for (let j = y.length - 1; j >= 0; j--) lcs[i][j] = x[i] === y[j] ? lcs[i + 1][j + 1] + 1 : Math.max(lcs[i + 1][j], lcs[i][j + 1]);
   const out: Line[] = [];
   let i = 0;
   let j = 0;
   while (i < x.length || j < y.length) {
     if (i < x.length && j < y.length && x[i] === y[j]) {
-      out.push({ kind: 'same', text: x[i++]! });
+      out.push({ kind: 'same', text: x[i++] });
       j++;
-    } else if (j >= y.length || (i < x.length && lcs[i + 1]![j]! >= lcs[i]![j + 1]!)) out.push({ kind: 'del', text: x[i++]! });
-    else out.push({ kind: 'add', text: y[j++]! });
+    } else if (j >= y.length || (i < x.length && lcs[i + 1][j] >= lcs[i][j + 1])) out.push({ kind: 'del', text: x[i++] });
+    else out.push({ kind: 'add', text: y[j++] });
   }
   return out;
 }
@@ -67,7 +66,7 @@ function History({ versions }: { versions: Version[] }) {
         {from === to ? (
           <span className="px-3 py-2 font-sans text-sm text-muted">Pick two different versions.</span>
         ) : (
-          diffLines(versions[from]!.text, versions[to]!.text).map((l, k) => (
+          diffLines(versions[from].text, versions[to].text).map((l, k) => (
             <span key={k} className={`flex whitespace-pre-wrap ${TONE[l.kind]}`}>
               <span aria-hidden className="w-7 shrink-0 text-center select-none">
                 {MARK[l.kind]}

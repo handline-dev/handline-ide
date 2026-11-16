@@ -43,7 +43,7 @@ export class TerminalView {
       ...this.history.map((text, i) => ({ text, spans: this.historySpans[i] })),
       ...this.frame.map((text, i) => ({ text, spans: this.frameSpans[i] })),
     ];
-    while (all.length && all[all.length - 1]!.text === '') all.pop();
+    while (all.length && all[all.length - 1].text === '') all.pop();
     return all;
   }
   /** True when the notice is the next one; false means a notice was missed and the view must reattach. */

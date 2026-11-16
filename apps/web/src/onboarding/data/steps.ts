@@ -31,9 +31,9 @@ export function stepsDone(f: Facts): Record<StepId, boolean> {
 /** Where Continue opens: the step the person left at when it is still not done, else the first step not done after it, else the first not done. */
 export function resumeAt(done: Record<StepId, boolean>, left: number): number {
   const at = Math.min(Math.max(left, 0), STEPS.length - 1);
-  if (!done[STEPS[at]!]) return at;
+  if (!done[STEPS[at]]) return at;
   const order = [...STEPS.keys()].slice(at + 1).concat([...STEPS.keys()].slice(0, at));
-  return order.find((i) => !done[STEPS[i]!]) ?? at;
+  return order.find((i) => !done[STEPS[i]]) ?? at;
 }
 
 /** ready: logged in; logging_in: a browser tab or device code is waiting; found: a login outside Handline on this Mac; none: nothing yet. */

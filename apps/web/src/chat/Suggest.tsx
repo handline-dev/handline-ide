@@ -61,7 +61,7 @@ export function useSuggest(draft: string, setDraft: (v: string) => void, command
     if (!entries.length || e.nativeEvent.isComposing) return false;
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') setAt((sel + (e.key === 'ArrowDown' ? 1 : entries.length - 1)) % entries.length);
     else if (e.key === 'Enter' || e.key === 'Tab') {
-      entries[sel]!.pick();
+      entries[sel].pick();
       setAt(0);
     } else if (e.key === 'Escape') setShut(draft);
     else return false;

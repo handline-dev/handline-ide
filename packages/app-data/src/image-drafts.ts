@@ -48,7 +48,7 @@ export function useImageDrafts(max = MAX_PER_MESSAGE, agent?: string, anyFile = 
     l.aborted = false;
     const { src } = l;
     patch(key, { progress: 0, error: undefined });
-    upload(src.blob, src.name, src.mime as Attachment['mime'], (sent, total) => patch(key, { progress: sent / total }), l).then(
+    upload(src.blob, src.name, src.mime, (sent, total) => patch(key, { progress: sent / total }), l).then(
       (attachment) => !l.aborted && (rememberAttachment(attachment), patch(key, { attachment, progress: 1 })),
       (e) => !l.aborted && patch(key, { error: sentence(classify(e)) }),
     );

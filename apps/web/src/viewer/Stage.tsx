@@ -200,8 +200,8 @@ export function Stage({ url, name, marking, marks, from = 0, dispatch, image, on
       },
       // A mouse wheel zooms; a trackpad pinch arrives as onPinch (ctrl + wheel).
       onWheel: ({ event, delta: [, dy], pinching }) => {
-        if (pinching || (event as WheelEvent).ctrlKey) return;
-        const p = local((event as WheelEvent).clientX, (event as WheelEvent).clientY);
+        if (pinching || event.ctrlKey) return;
+        const p = local(event.clientX, event.clientY);
         zoomTo(at.s * Math.exp(-dy * 0.002), p.x, p.y);
       },
     },
