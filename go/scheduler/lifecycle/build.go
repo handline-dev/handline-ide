@@ -225,6 +225,7 @@ func (l *Launcher) Build(site *Site, agent string, extra []string, force bool, a
 		MemoryDir: memoryDir, Trusted: trusted, Chrome: team.Chrome(cfg),
 		SandboxOff:  !sandboxed,
 		MCPApproved: approved, ExtraDirs: extraDirs, ReadAllow: append([]string{filepath.Join(l.Home, "attachments")}, granted...),
+		LandPush:   l.held(agent).LandBy == agent,
 		AllowWrite: allowWrite, AllowDomains: allowDomains, CacheDir: cacheDir,
 		WeakerNetwork: allowed.WeakerNetwork, Excluded: allowed.Excluded,
 	})

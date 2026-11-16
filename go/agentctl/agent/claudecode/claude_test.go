@@ -223,6 +223,17 @@ func TestReadAllowAllowsThePathAndWhatIsUnderIt(t *testing.T) {
 	}
 }
 
+// The land_by agent's push runs without asking by its exact text, and nobody else's does.
+func TestLandPushAllowsOnlyTheExactPushCommand(t *testing.T) {
+	has := func(landPush bool) bool {
+		argv := (Driver{}).LaunchArgv("/bin/claude", agent.LaunchArgs{Effort: "high", Disallowed: "Task", LandPush: landPush})
+		return strings.Contains(argv[len(argv)-1], `"Bash(git push origin HEAD:main)"`)
+	}
+	if !has(true) || has(false) {
+		t.Fatal("the rule is for the lander's launch only")
+	}
+}
+
 // Both keychain reads ask with keychainFind.
 func TestBothKeychainReadsUseKeychainFind(t *testing.T) {
 	t.Setenv("USER", "ron")
