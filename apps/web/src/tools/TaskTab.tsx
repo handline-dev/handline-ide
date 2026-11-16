@@ -3,7 +3,7 @@ import { useLeaseWaits } from '#src/tools/leaseWait.ts';
 import { LeaseIcon } from '#src/tools/LeaseIcon.tsx';
 import { activityOf, foundersTurn, taskOutcome, isPerson, turnChain, isSystem, type ActivityItem } from '@handline/app-core';
 import { hooks, useNameOf, useTaskHistory, useTaskSeen, useWrite } from '@handline/app-data';
-import { CommentRow, EventRow, type Turn } from '#src/tools/TaskEvents.tsx';
+import { CommentRow, EventRow, ReadyTurn, type Turn } from '#src/tools/TaskEvents.tsx';
 import { useMe } from '@handline/app-react';
 import { Check, Ellipsis, Hourglass, RotateCcw, Trash2 } from 'lucide-react';
 import { look, TaskState, type Lookable } from '#src/ui/taskLook.tsx';
@@ -20,7 +20,7 @@ import { Fields } from '#src/tools/TaskFields.tsx';
 import { GO_TURN, goToTurn, openTurnRow, takeTyping, type OpenTurn } from '#src/tools/TaskTurn.ts';
 import { showHistory } from '#src/tools/TaskDiff.tsx';
 import { CommentBox, type Reply } from '#src/tools/TaskComment.tsx';
-import { Story } from '#src/tools/Story.tsx';
+import { Story, storyChat } from '#src/tools/Story.tsx';
 import { useAttachments } from '#src/chat/attachments.tsx';
 import { FileDropArea } from '#src/ui/fileDrop.tsx';
 import { Page } from '#src/ui/Page.tsx';
@@ -111,17 +111,7 @@ export function TaskTab({ id }: { id: number }) {
     return (
       <FileDropArea take={attach.add} className="flex min-h-0 min-w-0 flex-1 flex-col">
         <MarkReply.Provider value={{ add: addMarked, label: 'Add to comment' }}>
-          <Story
-            t={t}
-            chat={
-              <>
-                <ScrollFade keep={`task:${id}`} fromEnd data-task-scroll={id} className="min-h-0 flex-1">
-                  <div className="px-4 py-4 text-base text-fg">{activity(true)}</div>
-                </ScrollFade>
-                {box}
-              </>
-            }
-          />
+          <Story t={t} chat={(n) => (n === id ? storyChat(activity(true), box, id) : <TaskChat key={n} id={n} />)} />
         </MarkReply.Provider>
       </FileDropArea>
     );
@@ -203,6 +193,53 @@ export function TaskTab({ id }: { id: number }) {
         </ScrollFade>
         {box}
       </MarkReply.Provider>
+    </FileDropArea>
+  );
+}
+
+/** A sub-task's comments as the story's chat, opened from its node. */
+function TaskChat({ id }: { id: number }) {
+  const t = hooks.useTaskGet({ task: id }).data;
+  const me = useMe();
+  const nameOf = useNameOf();
+  const [replyTo, setReplyTo] = useTabState<Reply | null>(`reply:${id}`, null);
+  const attach = useAttachments(`task:${id}`);
+  const [draft, setDraft] = useDraft(`task:${id}`);
+  if (!t) return <TaskLoading id={id} />;
+  const items = activityOf(t.memos, t.timeline, me, nameOf).filter((i) => !isSystem(i.who));
+  const mine = !CLOSED.includes(t.state) && foundersTurn(t, me);
+  return (
+    <FileDropArea take={attach.add} className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <ReadyTurn.Provider value={!!t.review?.ready}>
+        <MarkReply.Provider value={{ add: markInto(attach, setDraft), label: 'Add to comment' }}>
+          {storyChat(
+            !items.length ? (
+              <p className="text-sm text-muted">No comments yet.</p>
+            ) : (
+              <Activity
+                bare
+                task={t.id}
+                open={mine ? openTurnRow(t, me) : undefined}
+                turn={t.turns?.at(-1)}
+                holder={t.to}
+                onReply={(m) => setReplyTo(t.memos.find((x) => x.id === m) ?? null)}
+                items={items}
+              />
+            ),
+            <CommentBox
+              t={t}
+              reply={replyTo}
+              onDrop={() => setReplyTo(null)}
+              attach={attach}
+              draft={draft}
+              setDraft={setDraft}
+              onMarked={markInto(attach, setDraft)}
+              onSent={() => toBottom(id)}
+            />,
+            id,
+          )}
+        </MarkReply.Provider>
+      </ReadyTurn.Provider>
     </FileDropArea>
   );
 }

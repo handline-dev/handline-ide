@@ -5,7 +5,7 @@ import { isPerson, noteText } from '@handline/app-core';
 import { useMe } from '@handline/app-react';
 import { useNameOf } from '@handline/app-data';
 import { Check, CircleDot, Hand, Pencil, Send, Trash2, Undo2, UserRound } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { createContext, useContext, type ReactNode } from 'react';
 import { Reference } from '#src/chat/ChatLine.tsx';
 import { Actions, CopyButton } from '#src/chat/MessageActions.tsx';
 import { MessageImages } from '#src/chat/MessageImages.tsx';
@@ -66,9 +66,14 @@ export function Mark({ icon: Icon }: { icon: typeof Check }) {
   );
 }
 
+/** True on a story's sub-task that waits for the founder's verdict: its open turn reads Ready for you, its pictures small. */
+export const ReadyTurn = createContext(false);
+
 /** A change in words, and the text behind it. The founder's open turn (`turn`) sits on the warm ground marked Waiting for you, as an open comment does, and reads the question
  * as it now is, with its older texts behind "edited"; answered, it stays as a plain row. */
 export function EventRow({ i, fresh, turn }: { i: ActivityItem; fresh: string; turn?: Turn }) {
+  const ready = useContext(ReadyTurn);
+  const word = ready ? 'Ready for you' : 'Waiting for you';
   const note = turn?.ask || i.note;
   const earlier = turn?.earlier ?? [];
   return (
@@ -81,7 +86,7 @@ export function EventRow({ i, fresh, turn }: { i: ActivityItem; fresh: string; t
         <div className={`flex flex-col rounded-md ${fresh}`}>
           {turn ? (
             <span className="font-medium text-fg">
-              <span className="font-normal text-muted">{i.line}</span> <span className="text-warning">Waiting for you</span>
+              <span className="font-normal text-muted">{i.line}</span> <span className="text-warning">{word}</span>
             </span>
           ) : (
             <span>{i.line}</span>
@@ -144,6 +149,8 @@ export function CommentRow({
 }) {
   const me = useMe();
   const nameOf = useNameOf();
+  const ready = useContext(ReadyTurn);
+  const word = ready ? 'Ready for you' : 'Waiting for you';
   const mine = isPerson(i.who, me);
   const toYou = !mine && (i.toFounder || (!!i.turn && isPerson(i.turnTo ?? '', me)));
   // Whom the comment went to: the turn passed with it, or the task's holder.
@@ -171,7 +178,7 @@ export function CommentRow({
               ) : (
                 <span className="text-xs text-muted">edited</span>
               ))}
-            {turn && <span className="text-xs font-medium text-warning">Waiting for you</span>}
+            {turn && <span className="text-xs font-medium text-warning">{word}</span>}
           </span>
           {i.replyTo != null && <Reference text={quoted} onClick={() => showMemo(i.replyTo!)} />}
           <div className="min-w-0">
@@ -180,7 +187,7 @@ export function CommentRow({
             )}
             <Markdown text={i.toFounder ? noteText(i.note) : i.note} />
           </div>
-          {i.images && <MessageImages images={i.images} />}
+          {i.images && <MessageImages images={i.images} small={turn && ready} />}
           <ReadBy readers={i.readers} />
         </div>
         <div
