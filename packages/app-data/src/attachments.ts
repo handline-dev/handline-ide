@@ -31,7 +31,7 @@ type ReadMime = Mime | 'text/markdown';
 
 /** Why a file cannot be attached, before anything is sent; null when it can. */
 export function whyNotImage(f: { type: string; size: number; name: string }): string | null {
-  if (!IMAGE_TYPES.includes(f.type as Mime)) return `${f.name}: only PNG, JPEG, GIF and WebP images`;
+  if (!IMAGE_TYPES.includes(f.type)) return `${f.name}: only PNG, JPEG, GIF and WebP images`;
   if (f.size > MAX_IMAGE) return `${f.name}: an image is at most 10 MB`;
   if (f.size === 0) return `${f.name}: the file is empty`;
   return null;
@@ -39,7 +39,7 @@ export function whyNotImage(f: { type: string; size: number; name: string }): st
 
 /** Why a file of any type cannot be attached (attachment.put keeps any type as sent; images are checked by their bytes); null when it can. */
 export function whyNotFile(f: { type: string; size: number; name: string }): string | null {
-  if (IMAGE_TYPES.includes(f.type as Mime)) return whyNotImage(f);
+  if (IMAGE_TYPES.includes(f.type)) return whyNotImage(f);
   if (f.size > MAX_IMAGE) return `${f.name}: a file is at most 10 MB`;
   if (f.size === 0) return `${f.name}: the file is empty`;
   return null;

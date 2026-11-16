@@ -370,7 +370,7 @@ function Activity({
                 i.memo != null && earlierOf(i.memo).length
                   ? () =>
                       showHistory('Versions of this comment', [
-                        { text: earlierOf(i.memo)[0]!.was, at: i.at, by: i.who },
+                        { text: earlierOf(i.memo)[0].was, at: i.at, by: i.who },
                         ...earlierOf(i.memo).map((r) => ({ text: r.now, at: r.at, by: r.by })),
                       ])
                   : undefined

@@ -44,7 +44,7 @@ export function StepModal({
     ro.observe(page);
     return () => ro.disconnect();
   }, [page]);
-  const { back, next } = steps[step]!;
+  const { back, next } = steps[step];
   const x = still ? 0 : 32;
   const duration = still ? 0 : 0.15;
   return (
@@ -87,7 +87,7 @@ export function StepModal({
             exit="out"
             transition={{ duration }}
           >
-            {steps[step]!.body}
+            {steps[step].body}
           </motion.div>
         </AnimatePresence>
       </motion.div>

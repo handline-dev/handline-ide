@@ -41,7 +41,7 @@ export function holdLine(a: Pick<AgentLike, keyof DotFacts> & Partial<Parameters
   const tasks = a.status?.reason === 'task' ? a.status.tasks : [];
   if (tasks.length) return `Waiting on ${tasks.map((t) => `T${t}`).join(', ')}`;
   const line = a.status?.text.trim() || whyOf({ blocker: a.blocker, wall_reason: a.wall_reason, state_detail: a.state_detail ?? '' });
-  return line ? line[0]!.toUpperCase() + line.slice(1) : null;
+  return line ? line[0].toUpperCase() + line.slice(1) : null;
 }
 
 /** Splits the list for the sidebar: the pinned agents in pin order, and the rest as they stood. */

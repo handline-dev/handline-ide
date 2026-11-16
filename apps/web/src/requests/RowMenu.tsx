@@ -93,14 +93,14 @@ export function useRowActions() {
     const refused = () => settled.filter((s) => s.status === 'rejected').length;
     for (let left = refused(), before = rows.length; again && left > 0 && left < before; before = left, left = refused()) {
       const retried = await Promise.allSettled(rows.map((r, i) => (settled[i]?.status === 'rejected' ? r.run() : undefined)));
-      settled = settled.map((s, i) => (s.status === 'rejected' ? retried[i]! : s));
+      settled = settled.map((s, i) => (s.status === 'rejected' ? retried[i] : s));
     }
     pick?.setBusy(keys, false);
     const failed = rows.flatMap((r, i) => {
       const s = settled[i];
       return s?.status === 'rejected' ? [{ r, why: s.reason as unknown }] : [];
     });
-    if (failed.length === 1) sayRefusal(failed[0]!.why);
+    if (failed.length === 1) sayRefusal(failed[0].why);
     else if (failed.length) toast(`${failed.length} of ${rows.length} could not be ${what}.`, { tone: 'warning' });
     return failed.flatMap((f) => f.r.keys);
   };

@@ -78,12 +78,12 @@ export function ClockBar({ t, left, total }: { t: TaskDetail; left: number; tota
   const boxLeft = box?.left_s ?? left;
   const boxLength = box?.length_s ?? total;
   const parts = [
-    ...(box ? [] : [{ key: 'used', word: 'Used', seconds: Math.max(0, total - left), tone: SERIES[0]! }]),
+    ...(box ? [] : [{ key: 'used', word: 'Used', seconds: Math.max(0, total - left), tone: SERIES[0] }]),
     ...(box?.worked ?? []).map((w, i) => ({
       key: `agent:${w.agent}`,
       word: nameOf(w.agent),
       seconds: w.seconds,
-      tone: SERIES[i % SERIES.length]!,
+      tone: SERIES[i % SERIES.length],
     })),
     ...(box && box.waking_s > 0 ? [{ key: 'starting', word: 'Waking up', seconds: box.waking_s, tone: WAKING }] : []),
     ...(boxLeft > 0 ? [{ key: 'left', word: 'Left', seconds: boxLeft, tone: LEFT }] : []),
@@ -106,7 +106,7 @@ export function ClockBar({ t, left, total }: { t: TaskDetail; left: number; tota
             <span className="text-xs text-muted">
               {/* One kind says itself; several get their total first. */}
               {paused.length === 1
-                ? `Paused, ${PAUSED[paused[0]!.label]} ${length(still)}`
+                ? `Paused, ${PAUSED[paused[0].label]} ${length(still)}`
                 : `Paused ${length(still)} · ${paused.map((x) => `${PAUSED[x.label]} ${length(x.seconds)}`).join(' · ')}`}
             </span>
           )}

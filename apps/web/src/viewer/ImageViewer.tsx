@@ -9,7 +9,6 @@ import {
   markData,
   marksReducer,
   marksToShapes,
-  type Bitmap,
   type Mark,
   type MarksAction,
   type MarksState,
@@ -40,7 +39,7 @@ async function drawn(img: HTMLImageElement, marks: Mark[], from: number): Promis
   g.drawImage(img, 0, 0);
   const src = g.getImageData(0, 0, c.width, c.height);
   const shapes = marksToShapes(marks, Math.max(3, Math.round(c.width / 250)), false, from);
-  const out = exportAnnotated({ width: src.width, height: src.height, data: src.data } as Bitmap, shapes);
+  const out = exportAnnotated({ width: src.width, height: src.height, data: src.data }, shapes);
   g.putImageData(new ImageData(out.data as Uint8ClampedArray<ArrayBuffer>, out.width, out.height), 0, 0);
   return new Promise((ok) => c.toBlob(ok, 'image/png'));
 }
@@ -65,7 +64,7 @@ export function ImageViewer({
   doneLabel?: string;
 }) {
   const [at, setAt] = useState(Math.min(start, pictures.length - 1));
-  const pic = pictures[at]!;
+  const pic = pictures[at];
   const full = useAttachmentUrl(pic.id ?? '', false);
   const url = pic.url ?? full.url;
   const canMark = !!onMarked;
@@ -97,8 +96,8 @@ export function ImageViewer({
       const m = keptMarks(states[i]?.marks ?? []);
       const img = images.current[i];
       if (!m.length || !img) continue;
-      const blob = await drawn(img, states[i]!.marks, fromOf(i));
-      if (blob) out.push({ picture: p, marks: m, image: blob, text: linesOf(states[i]!.marks, fromOf(i)) });
+      const blob = await drawn(img, states[i].marks, fromOf(i));
+      if (blob) out.push({ picture: p, marks: m, image: blob, text: linesOf(states[i].marks, fromOf(i)) });
     }
     onMarked?.(out);
     onClose();

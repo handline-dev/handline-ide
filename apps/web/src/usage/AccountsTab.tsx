@@ -34,7 +34,7 @@ function SplitSetting() {
       }
       ready={settings.isSuccess}
       save={save}
-      pick={(v) => save.mutate({ changes: { account_split: v } as never })}
+      pick={(v) => save.mutate({ changes: { account_split: v } })}
     />
   );
 }

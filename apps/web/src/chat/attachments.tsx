@@ -64,7 +64,7 @@ export function useAttachments(agent: string) {
       })),
     );
     keys.forEach((k, i) =>
-      kept.set(`u${k}`, keepEntry(agent, { kind: 'file', name: files[i]!.name, files: [{ path: files[i]!.name, file: files[i]! }] })),
+      kept.set(`u${k}`, keepEntry(agent, { kind: 'file', name: files[i].name, files: [{ path: files[i].name, file: files[i] }] })),
     );
     const more = dropped
       .filter((d) => d.kind === 'folder')

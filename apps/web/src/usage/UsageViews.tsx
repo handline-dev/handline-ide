@@ -286,8 +286,8 @@ export function CostPerDay({ range }: { range: CostRange }) {
       </div>
     );
   const { agents, sums, all } = costByAgent(o);
-  const order = agents.map((a, i) => ({ a, sum: sums[i]! })).sort((x, y) => y.sum - x.sum);
-  const tone = new Map(order.map((x, i) => [x.a, SERIES[i % SERIES.length]!]));
+  const order = agents.map((a, i) => ({ a, sum: sums[i] })).sort((x, y) => y.sum - x.sum);
+  const tone = new Map(order.map((x, i) => [x.a, SERIES[i % SERIES.length]]));
   const dayTotal = (d: (typeof o.cost_per_day)[number]) => agents.reduce((n, a) => n + (d.agents[a] ?? 0), 0);
   const top = Math.max(1, ...o.cost_per_day.map(dayTotal));
   return (
@@ -316,7 +316,7 @@ export function CostPerDay({ range }: { range: CostRange }) {
         ))}
         {hover &&
           (() => {
-            const d = o.cost_per_day[hover.day]!;
+            const d = o.cost_per_day[hover.day];
             const at = ((hover.day + 0.5) / o.cost_per_day.length) * 100;
             return (
               <div
