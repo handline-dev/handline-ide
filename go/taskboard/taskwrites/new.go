@@ -142,6 +142,13 @@ func newMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, e
 		if err != nil {
 			return nil, err
 		}
+		draft, err := optionalBool(p, "draft")
+		if err != nil {
+			return nil, err
+		}
+		if draft && (actor.IsPerson(owner) || owner == db.Gate) {
+			return nil, refusal("only an agent's task can be a draft: a draft waits for its assignee's plan and for someone to queue it")
+		}
 		duplicateOK := false
 		if v := p["duplicate_ok"]; v != nil {
 			b, isBool := v.(bool)
@@ -218,7 +225,7 @@ func newMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, e
 			}
 			tid, asked, err = OpenTask(tx, tell, me, NewIn{Owner: owner, Title: clean, Body: body, Secs: secs, Prio: prio, Estimate: points, Expects: expects,
 				Parent: parent, HasParent: hasParent, Blocker: blocker, HasBlocker: hasBlocker, Reporter: reporter, UI: ui, DuplicateOK: duplicateOK, Tags: tags,
-				Watch: watched, Request: req})
+				Watch: watched, Request: req, Draft: draft})
 			if err != nil {
 				return nil, err
 			}
@@ -294,6 +301,7 @@ type NewIn struct {
 	DuplicateOK        bool          // open it even when an open task under the parent has nearly its title
 	Request            sql.NullInt64 // the founder request it serves, given (task.new request); else SetTaskRequest finds it
 	Watch              *db.Watch     // what a gate (Owner db.Gate) watches; nil for any other owner
+	Draft              bool          // opened as a draft: its brief is kept and nobody is asked until it is queued
 }
 
 // watchParam is task.new's watch {vendor, target, until?}: required with owner gate, refused with any other.
@@ -400,7 +408,7 @@ func OpenTask(tx *sql.Tx, tell Teller, me string, in NewIn) (tid int64, asked *A
 				return err
 			}
 		}
-		if me == actor.OwnerKey { // the founder's own task needs no one's approval
+		if me == actor.OwnerKey && !in.Draft { // the founder's own task needs no one's approval
 			if _, err := db.SetTaskQueued(tx, tid, actor.OwnerKey); err != nil {
 				return err
 			}
@@ -412,12 +420,15 @@ func OpenTask(tx *sql.Tx, tell Teller, me string, in NewIn) (tid int64, asked *A
 		}
 		if _, held, err := db.CurrentTask(tx, owner); err != nil {
 			return err
-		} else if !actor.IsPerson(owner) && owner != db.Gate && !held {
+		} else if !actor.IsPerson(owner) && owner != db.Gate && !held && !in.Draft {
 			if err := db.SetCurrentTask(tx, owner, tid, true); err != nil {
 				return err
 			}
 		}
 		payload := []kv{{"task_id", tid}, {"request_id", rid}, {"owner", owner}, {"expects", expects}}
+		if in.Draft {
+			payload = append(payload, kv{"draft", true})
+		}
 		if len(in.Tags) > 0 {
 			payload = append(payload, kv{"tags", in.Tags})
 		}
@@ -459,6 +470,17 @@ func OpenTask(tx *sql.Tx, tell Teller, me string, in NewIn) (tid int64, asked *A
 			return 0, nil, err
 		}
 		return tid, &Asked{OK: true, Msg: "watching " + in.Watch.Label}, nil
+	}
+	if in.Draft {
+		// The brief is a request withdrawn from the start, so nobody is asked; task.queue delivers the task.
+		rid, err := db.AddRequest(tx, db.NewRequest{Requester: me, Target: owner, Body: body, Kind: "task", State: "withdrawn"})
+		if err != nil {
+			return 0, nil, err
+		}
+		if err := open(rid); err != nil {
+			return 0, nil, err
+		}
+		return tid, &Asked{OK: true, Msg: fmt.Sprintf("a draft: %s is not asked until it is queued (`hl task queue T%d`)", addr.Ref(owner), tid)}, nil
 	}
 	if me == actor.OwnerKey && actor.IsPerson(owner) {
 		// A todo of the founder's own: routing has no founder-to-founder edge, so its brief is written as the request any task to the

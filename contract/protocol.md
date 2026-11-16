@@ -92,7 +92,7 @@ One file per group, generated from `spec/<group>.json`; field types are in `prot
 - [chat](gen/chat.md): 26 methods
 - [devices](gen/devices.md): 6 methods
 - [repos](gen/repos.md): 15 methods
-- [tasks](gen/tasks.md): 40 methods
+- [tasks](gen/tasks.md): 44 methods
 - [team](gen/team.md): 21 methods
 - [terminal](gen/terminal.md): 9 methods
 
@@ -155,6 +155,7 @@ Every `hl` command an agent runs today and the method that serves it.
 | `hl account list` | `accounts.list` |
 | `hl memory status` | `memory.status` |
 | `hl task request` | `task.request` |
+| `hl task plan` | `task.plan` |
 
 ## Dropped from agents on purpose
 

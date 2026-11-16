@@ -177,6 +177,8 @@ export type TaskDetail = Task & {
     title: string;
     owner: string;
     state: string;
+    /** As TaskDetail.plan_state, for the sub-task. */
+    plan_state: "none" | "asked" | "writing" | "written" | "ok";
   } & TaskLook)[];
   /** What happened on the task as one list, oldest first: its memos, its handoffs (a handoff's note is its entry, not a second one), the requests linked to it, the edits of its brief, its marks done and each time it was sent back. Overlaps `events`, `memos`, `handoffs` and `deliveries`, which stay. */
   timeline: {
@@ -240,6 +242,50 @@ export type TaskDetail = Task & {
     /** When the count was given. */
     updated_at: Timestamp;
   };
+  /** How the task's plan stands: none (no plan and none asked); asked (an ask waits for its agent to finish what it was doing); writing (the ask was sent and no plan has come since); written (a plan the founder has not marked OK); ok. A newer ask than the plan (its brief or assignee changed, or someone asked again) reads asked or writing until the new version comes. */
+  plan_state: "none" | "asked" | "writing" | "written" | "ok";
+  /** The task's plan, written by its assignee (task.plan); null when it has none. Kept in the task's events, as the brief's edits are. */
+  plan: {
+    /** The plan as it stands, Markdown: what will change, in which files, how it will be shown done, what is left out, what it starts after. */
+    text: string;
+    by: string;
+    at: Timestamp;
+    /** How many versions it has had; the newest is this one. */
+    version: number;
+    /** The founder's OK of this version (task.plan_ok); null when it has none. A new version, or a change of the task's brief or assignee after it, clears it. */
+    ok: {
+      by: string;
+      at: Timestamp;
+    } | null;
+    /** Every version, oldest first; the last is `text`. A client marks the lines that changed from the one before it. */
+    versions: {
+      text: string;
+      by: string;
+      at: Timestamp;
+    }[];
+  } | null;
+  /** The ask for a plan that the plan has not answered yet (plan_state asked or writing); null otherwise. */
+  plan_ask: {
+    at: Timestamp;
+    /** Who asked: the founder's key, or `sys` for the plans setting's own ask. */
+    by: string;
+    /** The agent asked: the task's assignee when it was asked. */
+    to: string;
+    /** When it was typed to the agent; null while it waits behind what that agent was doing when asked. */
+    sent_at: Timestamp | null;
+  } | null;
+  /** The newest ask for the task's core logic (task.core_ask); null when none was made. Once it is sent, the assignee's worktree holds the code on the task's own branch: worktree.diff with against base shows it. */
+  core_ask: {
+    at: Timestamp;
+    /** Who asked: the founder's key, or `sys` for the plans setting's own ask. */
+    by: string;
+    /** The agent asked: the task's assignee when it was asked. */
+    to: string;
+    /** When it was typed to the agent; null while it waits behind what that agent was doing when asked. */
+    sent_at: Timestamp | null;
+    /** Which part the founder asked for; null when none was given. */
+    note: string | null;
+  } | null;
 };
 
 /** An event as task.get lists it: the fields of Event but no cursor, because task events are not on the stream and have no position in it. */
@@ -609,6 +655,8 @@ export interface TasksMethods {
   expects?: Expects;
   /** The task shows something on a screen. A label only: task.done takes a screenshot (shots) but never requires one. */
   ui?: boolean;
+  /** Open the task as a draft (state draft) for an agent: its brief is kept, nobody is told or asked, and it does not become its assignee's current task. task.queue runs it. With the plans setting auto, its assignee is asked for a plan (TaskDetail.plan) once it is free, and again when its brief or assignee changes; a plan ask still waiting is dropped once the task is queued. Refused (`refused`) for a task owned by the founder or a gate. A founder's draft stays a draft too. */
+  draft?: boolean;
   request_id: RequestId;
 }; result: Accepted & {
     task: number;
@@ -911,6 +959,32 @@ export interface TasksMethods {
   text: string;
   request_id: RequestId;
 }; result: Accepted };
+  "task.plan": { params: {
+  task: number;
+  /** The plan, Markdown; not empty. */
+  text: string;
+  request_id: RequestId;
+}; result: Accepted & {
+    version: number;
+  } };
+  "task.plan_ok": { params: {
+  task: number;
+  /** Default true. */
+  ok?: boolean;
+  /** The version the founder read (TaskDetail.plan.version); refused (`refused`) when the plan has moved past it. */
+  version?: number;
+  request_id: RequestId;
+}; result: Accepted };
+  "task.plan_ask": { params: {
+  task: number;
+  request_id: RequestId;
+}; result: Accepted };
+  "task.core_ask": { params: {
+  task: number;
+  /** Which part to write, in the founder's words. */
+  note?: string;
+  request_id: RequestId;
+}; result: Accepted };
 }
 
 export const TASKS_METHODS: { [K in keyof TasksMethods]: { role: Role; callers: Role[] | null; write: boolean; since: number } } = {
@@ -954,6 +1028,10 @@ export const TASKS_METHODS: { [K in keyof TasksMethods]: { role: Role; callers: 
   "task.withdraw": { role: "agent", callers: null, write: true, since: 1 },
   "task.edit": { role: "agent", callers: null, write: true, since: 1 },
   "task.ask": { role: "member", callers: null, write: true, since: 1 },
+  "task.plan": { role: "agent", callers: null, write: true, since: 1 },
+  "task.plan_ok": { role: "member", callers: null, write: true, since: 1 },
+  "task.plan_ask": { role: "member", callers: null, write: true, since: 1 },
+  "task.core_ask": { role: "member", callers: null, write: true, since: 1 },
 };
 
 /** x-app-cache of each read (x-app in core.json). */
@@ -972,7 +1050,7 @@ export const TASKS_APP_CACHE: { [K in "tasks.list" | "task.get" | "task.history"
 };
 
 /** x-app-write of each write (x-app in core.json). */
-export const TASKS_APP_WRITES: { [K in "task.new" | "task.handoff" | "task.turn.pop" | "task.done" | "task.reopen" | "task.progress" | "task.begin" | "task.start" | "task.seen" | "task.comment.add" | "task.memo.add" | "task.comment.edit" | "task.memo.edit" | "task.comment.delete" | "task.comment.send_now" | "task.send_now" | "task.memo.delete" | "task.view.save" | "task.view.delete" | "task.queue" | "task.draft" | "task.merge" | "task.release" | "task.request" | "task.wait" | "task.discard" | "task.withdraw" | "task.edit" | "task.ask"]: { kind: WriteKind; label: string } | false } = {
+export const TASKS_APP_WRITES: { [K in "task.new" | "task.handoff" | "task.turn.pop" | "task.done" | "task.reopen" | "task.progress" | "task.begin" | "task.start" | "task.seen" | "task.comment.add" | "task.memo.add" | "task.comment.edit" | "task.memo.edit" | "task.comment.delete" | "task.comment.send_now" | "task.send_now" | "task.memo.delete" | "task.view.save" | "task.view.delete" | "task.queue" | "task.draft" | "task.merge" | "task.release" | "task.request" | "task.wait" | "task.discard" | "task.withdraw" | "task.edit" | "task.ask" | "task.plan" | "task.plan_ok" | "task.plan_ask" | "task.core_ask"]: { kind: WriteKind; label: string } | false } = {
   "task.new": {"kind": "authored", "label": "new task"},
   "task.handoff": false,
   "task.turn.pop": {"kind": "decided", "label": "give back"},
@@ -1002,4 +1080,8 @@ export const TASKS_APP_WRITES: { [K in "task.new" | "task.handoff" | "task.turn.
   "task.withdraw": {"kind": "authored", "label": "withdraw"},
   "task.edit": {"kind": "authored", "label": "edit"},
   "task.ask": {"kind": "decided", "label": "ask"},
+  "task.plan": {"kind": "decided", "label": "plan"},
+  "task.plan_ok": {"kind": "decided", "label": "plan OK"},
+  "task.plan_ask": {"kind": "decided", "label": "ask for a plan"},
+  "task.core_ask": {"kind": "decided", "label": "ask for core logic"},
 };

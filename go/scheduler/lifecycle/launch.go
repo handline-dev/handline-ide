@@ -1023,7 +1023,8 @@ func (l *Launcher) yourTeam(agent string) string {
 	switch contact {
 	case "":
 	case agent:
-		lines = append(lines, "You are the workspace's contact: work from another workspace comes to you. Pass it to the peer it fits, and do your own work too.")
+		lines = append(lines, "You are the workspace's contact: work from another workspace comes to you. Pass it to the peer it fits, and do your own work too.",
+			team.Protocol("story"))
 	default:
 		lines = append(lines, "The workspace's contact is "+label(contact)+": work from another workspace comes to it, and it passes that work to the peer it fits.")
 	}

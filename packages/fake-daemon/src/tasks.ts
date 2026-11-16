@@ -1,12 +1,13 @@
 // The fake daemon's tasks: the rows `tasks.list` and `task.get` answer and the writes that change them, on the tasks topic.
 // A task the founder asks for starts as `queued`; withdrawing or cancelling one that has not been delivered discards it.
+import { invalidParams } from '#src/errors.ts';
 import { fieldsOf } from '#src/history.ts';
 import { TaskFailure, type Row } from '#src/taskstore.ts';
-import { TaskVerbs } from '#src/taskverbs.ts';
+import { TaskPlans } from '#src/taskplans.ts';
 
 export { TaskFailure };
 
-export class FakeTasks extends TaskVerbs {
+export class FakeTasks extends TaskPlans {
   /** The methods this fake answers: the basic ones, and the verbs of the daemon's plan (D3) only when asked for. */
   serves(method: string): boolean {
     return BASIC.has(method) || (this.verbs && VERBS.has(method));
@@ -19,6 +20,12 @@ export class FakeTasks extends TaskVerbs {
     const owner = String(p.owner ?? '');
     if (owner !== 'human' && !this.isAgent(owner)) throw new TaskFailure('bad_request', `no agent ${owner}`);
     if (typeof p.title !== 'string' || !p.title.trim()) throw new TaskFailure('bad_request', 'a task needs a title');
+    if (p.draft !== undefined && typeof p.draft !== 'boolean') throw invalidParams('draft is true or false', 'draft');
+    if (p.draft === true && owner === 'human')
+      throw new TaskFailure(
+        'refused',
+        "only an agent's task can be a draft: a draft waits for its assignee's plan and for someone to queue it",
+      );
     this.images(String(p.body ?? ''), '', 'body', agent);
     const id = this.nextId++;
     this.seed({
@@ -27,7 +34,7 @@ export class FakeTasks extends TaskVerbs {
       to: owner,
       title: p.title,
       body: String(p.body ?? ''),
-      state: 'queued',
+      state: p.draft === true ? 'draft' : 'queued',
       time_box: String(p.time_box ?? '2h'),
       clock: { length_s: 7200, default: p.time_box === undefined, start: null, end: null, overdue_since: null, told: 0, left_s: null },
       priority: (p.priority as 1 | 2 | 3 | undefined) ?? undefined,
@@ -104,6 +111,10 @@ const BASIC = new Set([
   'task.withdraw',
   'task.discard',
   'task.ask',
+  'task.plan',
+  'task.plan_ok',
+  'task.plan_ask',
+  'task.core_ask',
 ]);
 const VERBS = new Set([
   'task.done',

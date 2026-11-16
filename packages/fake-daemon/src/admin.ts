@@ -44,6 +44,7 @@ const DEFAULTS: Settings['values'] = {
   push_stall: true,
   push_account_out: true,
   account_split: 'auto',
+  plans: 'auto',
   pace_target_pct: 98,
   pace_burst_pct: 10,
   host_active_cap: 0,
@@ -295,6 +296,7 @@ export class FakeAdmin {
       values,
       handoff_prompt_default: BUILTIN_HANDOFF,
       handoff_prompt_own: [...this.handoffOwn],
+      plan_cost_usd: 0.42, // what the Plans setting shows beside it
     } as unknown as Settings;
   }
 

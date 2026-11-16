@@ -264,6 +264,8 @@ export type Settings = {
   handoff_prompt_default?: string;
   /** Without settings.get `agent`: the agents whose row sets a handoff prompt of their own, which the global one does not reach. */
   handoff_prompt_own?: Who[];
+  /** What a plan has cost: the mean, over the newest 20 plans written to answer a sent ask, of what the assignee's calls cost from the ask's delivery to the plan. null before any. Shown beside the plans setting. */
+  plan_cost_usd: number | null;
 };
 
 /** One terminal row: plain text, no escapes; in format `styled` also its style runs. */
@@ -371,6 +373,8 @@ export type SettingsValues = {
   subagent_pace_guard?: boolean;
   /** How agents are spread over the accounts: auto, the default, places each new start and moves an agent off an account near its wall; manual never does: an agent stays on the account it is on, waits at its wall for the reset and goes on with the same conversation. A person's move (agent.move) goes in both. Applied at the next start or move, without a restart. */
   account_split?: "auto" | "manual";
+  /** Plans for drafts: auto, the default, asks a draft's assignee for its plan as soon as the draft is opened, and again when its brief or assignee changes; manual asks only when someone presses for it (task.plan_ask). A plan costs its assignee a turn of reading (Settings.plan_cost_usd). */
+  plans?: "auto" | "manual";
   /** When an idle agent's account reaches this percent of its 5-hour window, or 98% of its week, and work is waiting for it, the agent moves to an account under both that has room, before the work starts a turn; 90 by default; 0 is off, and an agent moves only at the wall. */
   usage_move_before_pct?: number;
   /** Let a context clear go ahead when the agent's turn has ended and only background work keeps its session busy: it is told, and the work is cut off after 5 minutes as for any clear. Off: the clear waits for that work with no limit. */
@@ -455,6 +459,8 @@ export type SettingsChanges = {
   subagent_pace_guard?: boolean;
   /** How agents are spread over the accounts: auto, the default, places each new start and moves an agent off an account near its wall; manual never does: an agent stays on the account it is on, waits at its wall for the reset and goes on with the same conversation. A person's move (agent.move) goes in both. Applied at the next start or move, without a restart. null removes the key (back to the default). */
   account_split?: ("auto" | "manual") | null;
+  /** Plans for drafts: auto, the default, asks a draft's assignee for its plan as soon as the draft is opened, and again when its brief or assignee changes; manual asks only when someone presses for it (task.plan_ask). A plan costs its assignee a turn of reading (Settings.plan_cost_usd). null removes the key (back to the default). */
+  plans?: ("auto" | "manual") | null;
   /** When an idle agent's account reaches this percent of its 5-hour window, or 98% of its week, and work is waiting for it, the agent moves to an account under both that has room, before the work starts a turn; 90 by default; 0 is off, and an agent moves only at the wall. null removes the key (back to the default). */
   usage_move_before_pct?: number | null;
   /** Let a context clear go ahead when the agent's turn has ended and only background work keeps its session busy: it is told, and the work is cut off after 5 minutes as for any clear. Off: the clear waits for that work with no limit. */

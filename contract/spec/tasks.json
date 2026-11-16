@@ -800,13 +800,25 @@
             },
             "state": {
              "type": "string"
+            },
+            "plan_state": {
+             "type": "string",
+             "enum": [
+              "none",
+              "asked",
+              "writing",
+              "written",
+              "ok"
+             ],
+             "description": "As TaskDetail.plan_state, for the sub-task."
             }
            },
            "required": [
             "id",
             "title",
             "owner",
-            "state"
+            "state",
+            "plan_state"
            ]
           },
           {
@@ -1056,6 +1068,193 @@
          "updated_at"
         ],
         "description": "The step count given with the newest progress note of the agent working the task; absent when that note had none, on a done or discarded task, and from older daemons."
+       },
+       "plan_state": {
+        "type": "string",
+        "enum": [
+         "none",
+         "asked",
+         "writing",
+         "written",
+         "ok"
+        ],
+        "description": "How the task's plan stands: none (no plan and none asked); asked (an ask waits for its agent to finish what it was doing); writing (the ask was sent and no plan has come since); written (a plan the founder has not marked OK); ok. A newer ask than the plan (its brief or assignee changed, or someone asked again) reads asked or writing until the new version comes."
+       },
+       "plan": {
+        "oneOf": [
+         {
+          "type": "object",
+          "properties": {
+           "text": {
+            "type": "string",
+            "description": "The plan as it stands, Markdown: what will change, in which files, how it will be shown done, what is left out, what it starts after."
+           },
+           "by": {
+            "type": "string"
+           },
+           "at": {
+            "$ref": "#/components/schemas/Timestamp"
+           },
+           "version": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "How many versions it has had; the newest is this one."
+           },
+           "ok": {
+            "oneOf": [
+             {
+              "type": "object",
+              "properties": {
+               "by": {
+                "type": "string"
+               },
+               "at": {
+                "$ref": "#/components/schemas/Timestamp"
+               }
+              },
+              "required": [
+               "by",
+               "at"
+              ]
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "description": "The founder's OK of this version (task.plan_ok); null when it has none. A new version, or a change of the task's brief or assignee after it, clears it."
+           },
+           "versions": {
+            "type": "array",
+            "items": {
+             "type": "object",
+             "properties": {
+              "text": {
+               "type": "string"
+              },
+              "by": {
+               "type": "string"
+              },
+              "at": {
+               "$ref": "#/components/schemas/Timestamp"
+              }
+             },
+             "required": [
+              "text",
+              "by",
+              "at"
+             ]
+            },
+            "description": "Every version, oldest first; the last is `text`. A client marks the lines that changed from the one before it."
+           }
+          },
+          "required": [
+           "text",
+           "by",
+           "at",
+           "version",
+           "ok",
+           "versions"
+          ]
+         },
+         {
+          "type": "null"
+         }
+        ],
+        "description": "The task's plan, written by its assignee (task.plan); null when it has none. Kept in the task's events, as the brief's edits are."
+       },
+       "plan_ask": {
+        "oneOf": [
+         {
+          "type": "object",
+          "properties": {
+           "at": {
+            "$ref": "#/components/schemas/Timestamp"
+           },
+           "by": {
+            "type": "string",
+            "description": "Who asked: the founder's key, or `sys` for the plans setting's own ask."
+           },
+           "to": {
+            "type": "string",
+            "description": "The agent asked: the task's assignee when it was asked."
+           },
+           "sent_at": {
+            "oneOf": [
+             {
+              "$ref": "#/components/schemas/Timestamp"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "description": "When it was typed to the agent; null while it waits behind what that agent was doing when asked."
+           }
+          },
+          "required": [
+           "at",
+           "by",
+           "to",
+           "sent_at"
+          ]
+         },
+         {
+          "type": "null"
+         }
+        ],
+        "description": "The ask for a plan that the plan has not answered yet (plan_state asked or writing); null otherwise."
+       },
+       "core_ask": {
+        "oneOf": [
+         {
+          "type": "object",
+          "properties": {
+           "at": {
+            "$ref": "#/components/schemas/Timestamp"
+           },
+           "by": {
+            "type": "string",
+            "description": "Who asked: the founder's key, or `sys` for the plans setting's own ask."
+           },
+           "to": {
+            "type": "string",
+            "description": "The agent asked: the task's assignee when it was asked."
+           },
+           "sent_at": {
+            "oneOf": [
+             {
+              "$ref": "#/components/schemas/Timestamp"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "description": "When it was typed to the agent; null while it waits behind what that agent was doing when asked."
+           },
+           "note": {
+            "oneOf": [
+             {
+              "type": "string"
+             },
+             {
+              "type": "null"
+             }
+            ],
+            "description": "Which part the founder asked for; null when none was given."
+           }
+          },
+          "required": [
+           "at",
+           "by",
+           "to",
+           "sent_at",
+           "note"
+          ]
+         },
+         {
+          "type": "null"
+         }
+        ],
+        "description": "The newest ask for the task's core logic (task.core_ask); null when none was made. Once it is sent, the assignee's worktree holds the code on the task's own branch: worktree.diff with against base shows it."
        }
       },
       "required": [
@@ -1073,7 +1272,11 @@
        "parent_title",
        "subtasks",
        "timeline",
-       "people"
+       "people",
+       "plan_state",
+       "plan",
+       "plan_ask",
+       "core_ask"
       ]
      }
     ]
@@ -2722,6 +2925,14 @@
      "schema": {
       "type": "boolean",
       "description": "The task shows something on a screen. A label only: task.done takes a screenshot (shots) but never requires one."
+     }
+    },
+    {
+     "name": "draft",
+     "required": false,
+     "schema": {
+      "type": "boolean",
+      "description": "Open the task as a draft (state draft) for an agent: its brief is kept, nobody is told or asked, and it does not become its assignee's current task. task.queue runs it. With the plans setting auto, its assignee is asked for a plan (TaskDetail.plan) once it is free, and again when its brief or assignee changes; a plan ask still waiting is dropped once the task is queued. Refused (`refused`) for a task owned by the founder or a gate. A founder's draft stays a draft too."
      }
     },
     {
@@ -5028,6 +5239,239 @@
      "$ref": "#/components/errors/bad_request"
     }
    ]
+  },
+  {
+   "name": "task.plan",
+   "summary": "The task's assignee keeps a new version of its plan (TaskDetail.plan). A new version clears the founder's OK and answers the ask for a plan.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "task",
+     "required": true,
+     "schema": {
+      "type": "integer"
+     }
+    },
+    {
+     "name": "text",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "description": "The plan, Markdown; not empty."
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "allOf": [
+      {
+       "$ref": "#/components/schemas/Accepted"
+      },
+      {
+       "type": "object",
+       "properties": {
+        "version": {
+         "type": "integer",
+         "minimum": 1
+        }
+       },
+       "required": [
+        "version"
+       ]
+      }
+     ]
+    }
+   },
+   "x-role": "agent",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "plan"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "description": "Refused (`refused`): a caller that is not the assignee, a task that has ended or that no agent works, and a text the plan already reads."
+  },
+  {
+   "name": "task.plan_ok",
+   "summary": "The founder marks the task's plan as it stands OK, or with ok false takes that back. It is a plan_ok event on the task naming the version, so a newer version, or a change of the task's brief or assignee, clears it.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "task",
+     "required": true,
+     "schema": {
+      "type": "integer"
+     }
+    },
+    {
+     "name": "ok",
+     "required": false,
+     "schema": {
+      "type": "boolean",
+      "description": "Default true."
+     }
+    },
+    {
+     "name": "version",
+     "required": false,
+     "schema": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The version the founder read (TaskDetail.plan.version); refused (`refused`) when the plan has moved past it."
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Accepted"
+    }
+   },
+   "x-role": "member",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "plan OK"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "description": "Refused (`refused`): a task with no plan, one that has ended, and a plan already in that state."
+  },
+  {
+   "name": "task.plan_ask",
+   "summary": "Ask the task's assignee for its plan (the button of the plans setting manual, or a plan asked again). The ask waits until the agent is no longer doing the task it was doing, then is typed to it (TaskDetail.plan_ask): it reads and changes nothing, and keeps the plan with task.plan.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "task",
+     "required": true,
+     "schema": {
+      "type": "integer"
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Accepted"
+    }
+   },
+   "x-role": "member",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "ask for a plan"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "description": "Refused (`refused`): a task that has ended or that no agent works, and one whose plan ask has not been sent yet (plan_state asked); a sent one (writing) may be asked again. With the plans setting auto the daemon asks on its own for every task opened as a draft (task.new draft) that an agent works and that has no plan written since its brief or its assignee last changed. An agent with a plan ask sent in the last hour and unanswered gets no other ask until it answers."
+  },
+  {
+   "name": "task.core_ask",
+   "summary": "Ask the task's assignee to write only its key function and that function's test, committed on a branch of the task's own in its worktree, not merged, and to say so in a comment. The ask waits as task.plan_ask's does (TaskDetail.core_ask). The code is read with worktree.diff; when the task is run its assignee carries on from that branch.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "task",
+     "required": true,
+     "schema": {
+      "type": "integer"
+     }
+    },
+    {
+     "name": "note",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "description": "Which part to write, in the founder's words."
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Accepted"
+    }
+   },
+   "x-role": "member",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "ask for core logic"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "description": "Refused (`refused`): a task that has ended or that no agent works, and one with a core-logic ask that has not been sent yet."
   }
  ]
 }

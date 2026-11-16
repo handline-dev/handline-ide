@@ -13,8 +13,8 @@ var usages = map[string][2]string{
 	"version":  {`hl version`, `hl version`},
 	"handoff":  {`hl handoff slow [--since <span>] [--agent <name>]`, `hl handoff slow --since 7d`},
 	"chat":     {`hl chat search "<text>" [--with <name>] [--since <span>] [--limit N]`, `hl chat search "nav order" --with handline --since 2d`},
-	"task":     {`hl task <new|show|list|board|done|handoff|pass|back|edit|comment|begin|start|reopen|release|discard|accept|reject|queue|draft|merge|request> ...`, `hl task show T12`},
-	"task new": {`hl task new --assign <agent> -t <span> "<title>" "<body>" [--owner <agent>] [--parent T<n> | --no-parent (while your task is a request, a new task hangs under it unless you say this)] [--request T<n> (serve T<n>'s founder request)] [--blocked-by T<n>] [--priority 1-5] [--estimate N] [--expects report|decision] [--tag T] [--file PATH]`,
+	"task":     {`hl task <new|show|list|board|done|handoff|pass|back|edit|comment|begin|start|reopen|release|discard|accept|reject|queue|draft|plan|merge|request> ...`, `hl task show T12`}, // local-ref-ok: the usage example
+	"task new": {`hl task new --assign <agent> -t <span> "<title>" "<body>" [--owner <agent>] [--parent T<n> | --no-parent (while your task is a request, a new task hangs under it unless you say this)] [--request T<n> (serve T<n>'s founder request)] [--blocked-by T<n>] [--priority 1-5] [--estimate N] [--expects report|decision] [--tag T] [--file PATH] [--draft (kept for its assignee's plan; nobody is asked until it is queued)]`,
 		`hl task new --assign pc -t 2h "Fix the sidebar" "The badge overlaps the name"`},
 	"task show":    {`hl task show T<n>`, `hl task show T12`},
 	"task list":    {`hl task list [--assign <agent>] [--owner <agent>] [--state <state>] [--tag T] [--all] [--everyone]`, `hl task list --state doing`},
@@ -41,6 +41,7 @@ var usages = map[string][2]string{
 	"task note":        {`hl task note T<n> "<text>"`, `hl task note T12 "the phone needs it too"`},
 	"task queue":       {`hl task queue T<n> [T<m> ...]`, `hl task queue T12`},
 	"task draft":       {`hl task draft T<n> [T<m> ...]`, `hl task draft T12`},
+	"task plan":        {`hl task plan T<n> (--file PATH | --ok | --not-ok)`, `hl task plan T12 --file plan.md`}, // local-ref-ok: the usage example
 	"task merge":       {`hl task merge T<n> T<m> [...]`, `hl task merge T12 T13`},
 	"hook":             {`hl hook <event>`, `hl hook Stop`},
 	"propose":          {`hl propose <add|retire|rename|team|context|schedule|bundle|run|list|withdraw> ...`, `hl propose run "rm -r build" --cwd . --why "frees 2 GB"`},

@@ -10,7 +10,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `task.history` | agent |  | `task` | `{task, rows}` | `not_found`, `bad_request` |  | `task-history` by task, snapshot |
 | `task.time` | agent |  | `task` | `{task, start, end, segments, estimate, expected, box} & ReadCursor` | `not_found`, `bad_request` |  | `task-time` by task, fed by tasks |
 | `task.shot` | member |  | `task`, `n`, `offset?` | `{mime, bytes, offset, data, done}` | `not_found`, `bad_request` |  | not cached |
-| `task.new` | agent | yes | `owner`, `reporter?`, `title`, `body?`, `time_box?`, `parent?`, `no_parent?`, `request?`, `duplicate_ok?`, `blocked_by?`, `watch?`, `priority?`, `estimate?`, `tags?`, `expects?`, `ui?`, `request_id` | `Accepted & {task}` | `refused` | duplicate_title | authored: new task |
+| `task.new` | agent | yes | `owner`, `reporter?`, `title`, `body?`, `time_box?`, `parent?`, `no_parent?`, `request?`, `duplicate_ok?`, `blocked_by?`, `watch?`, `priority?`, `estimate?`, `tags?`, `expects?`, `ui?`, `draft?`, `request_id` | `Accepted & {task}` | `refused` | duplicate_title | authored: new task |
 | `task.handoff` | agent | yes | `task`, `to`, `note?`, `request_id` | `Accepted` | `refused`, `not_found` |  | not from the app |
 | `task.turn.pop` | agent | yes | `task`, `outcome`, `note?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | decided: give back |
 | `task.done` | agent | yes | `task`, `evidence?`, `request?`, `repo?`, `reason?`, `commit?`, `shots?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | open_children | authored: done |
@@ -45,6 +45,10 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `task.withdraw` | agent | yes | `task`, `request_id` | `Accepted` | `refused`, `not_found` |  | authored: withdraw |
 | `task.edit` | agent | yes | `task`, `owner?`, `reporter?`, `title?`, `body?`, `evidence?`, `time_box?`, `priority?`, `estimate?`, `blocked_by?`, `unblock?`, `parent?`, `no_parent?`, `add_tags?`, `remove_tags?`, `request_id`, `pr?` | `Accepted` | `refused`, `not_found` |  | authored: edit |
 | `task.ask` | member | yes | `task`, `to`, `text`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | decided: ask |
+| `task.plan` | agent | yes | `task`, `text`, `request_id` | `Accepted & {version}` | `refused`, `not_found`, `bad_request` |  | decided: plan |
+| `task.plan_ok` | member | yes | `task`, `ok?`, `version?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | decided: plan OK |
+| `task.plan_ask` | member | yes | `task`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | decided: ask for a plan |
+| `task.core_ask` | member | yes | `task`, `note?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | decided: ask for core logic |
 
 ### `tasks.list`
 
@@ -205,4 +209,20 @@ Change a task: owner (an agent giving it to `human` is refused, as task.handoff 
 ### `task.ask`
 
 The founder asks an agent a question about a task: a message linked to the task, whose holder does not change. The agent's reply joins the task.
+
+### `task.plan`
+
+The task's assignee keeps a new version of its plan (TaskDetail.plan). A new version clears the founder's OK and answers the ask for a plan. Refused (`refused`): a caller that is not the assignee, a task that has ended or that no agent works, and a text the plan already reads.
+
+### `task.plan_ok`
+
+The founder marks the task's plan as it stands OK, or with ok false takes that back. It is a plan_ok event on the task naming the version, so a newer version, or a change of the task's brief or assignee, clears it. Refused (`refused`): a task with no plan, one that has ended, and a plan already in that state.
+
+### `task.plan_ask`
+
+Ask the task's assignee for its plan (the button of the plans setting manual, or a plan asked again). The ask waits until the agent is no longer doing the task it was doing, then is typed to it (TaskDetail.plan_ask): it reads and changes nothing, and keeps the plan with task.plan. Refused (`refused`): a task that has ended or that no agent works, and one whose plan ask has not been sent yet (plan_state asked); a sent one (writing) may be asked again. With the plans setting auto the daemon asks on its own for every task opened as a draft (task.new draft) that an agent works and that has no plan written since its brief or its assignee last changed. An agent with a plan ask sent in the last hour and unanswered gets no other ask until it answers.
+
+### `task.core_ask`
+
+Ask the task's assignee to write only its key function and that function's test, committed on a branch of the task's own in its worktree, not merged, and to say so in a comment. The ask waits as task.plan_ask's does (TaskDetail.core_ask). The code is read with worktree.diff; when the task is run its assignee carries on from that branch. Refused (`refused`): a task that has ended or that no agent works, and one with a core-logic ask that has not been sent yet.
 

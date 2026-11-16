@@ -615,13 +615,14 @@ func TestAnAgentIsToldItsTeamFromTheRoster(t *testing.T) {
 			t.Errorf("%q is written by code, not read from the team file:\n%s", w, scout)
 		}
 	}
-	// No one reports to anyone: the lead and a member are told the same, bar who the contact is.
+	// No one reports to anyone: the lead and a member are told the same, bar who the contact is and the contact's rule for a story.
 	contact := "The workspace's contact is `" + mgrK + "` (manager): work from another workspace comes to it, and it passes that work to the peer it fits."
+	lead := "You are the workspace's contact: work from another workspace comes to you. Pass it to the peer it fits, and do your own work too.\n" +
+		team.Protocol("story") + "\n"
 	want := map[string]string{
-		mgrK: "# Your team\nYour peers in workspace `manager`: `" + devK + "` (marina), `" + keeperK + "` (keeper).\n" +
-			"You are the workspace's contact: work from another workspace comes to you. Pass it to the peer it fits, and do your own work too.\n",
+		mgrK:  "# Your team\nYour peers in workspace `manager`: `" + devK + "` (marina), `" + keeperK + "` (keeper).\n" + lead,
 		devK:  "# Your team\nYour peers in workspace `manager`: `" + mgrK + "` (manager), `" + keeperK + "` (keeper).\n" + contact + "\n",
-		loneK: "# Your team\nYou are the workspace's contact: work from another workspace comes to you. Pass it to the peer it fits, and do your own work too.\n",
+		loneK: "# Your team\n" + lead,
 	}
 	for k, head := range want {
 		got := r.l.yourTeam(k)

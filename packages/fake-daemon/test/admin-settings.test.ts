@@ -20,6 +20,7 @@ const KEYS = [
   'push_stall',
   'push_account_out',
   'account_split',
+  'plans',
   'pace_target_pct',
   'pace_burst_pct',
   'host_active_cap',

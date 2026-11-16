@@ -73,3 +73,28 @@ test('chat-actions: the open task the founder owns has a body, a time box, two c
   assert.ok(t.body.includes('three steps'));
   client.close();
 });
+
+test('story seeds a story with five drafts, their plans in every state a node shows', async () => {
+  const { client, daemon } = setup();
+  applySeeds(daemon, 'story');
+  await client.start();
+  const story = await client.call('task.get', { task: 9400 });
+  assert.deepEqual(
+    story.subtasks.map((s) => [s.id, s.state, s.plan_state]),
+    [
+      [9401, 'draft', 'ok'],
+      [9402, 'draft', 'written'],
+      [9403, 'draft', 'written'],
+      [9404, 'draft', 'writing'],
+      [9405, 'draft', 'written'],
+    ],
+  );
+  const changed = await client.call('task.get', { task: 9402 });
+  assert.equal(changed.plan?.versions.length, 2);
+  const asked = await client.call('task.get', { task: 9405 });
+  assert.equal(asked.turns?.at(-1)?.agent, 'human');
+  assert.equal((await client.call('task.get', { task: 9403 })).blockers[0]?.task, 9402);
+  await client.call('task.plan_ok', { task: 9402, request_id: 'ok-9402' });
+  assert.equal((await client.call('task.get', { task: 9402 })).plan_state, 'ok');
+  client.close();
+});
