@@ -31,7 +31,7 @@ func usageHome(t *testing.T, accounts map[string]map[string]any) *usage.Env {
 		}
 	}
 	return &usage.Env{Home: home, Now: func() float64 { return float64(usageNow) },
-		LoginState: func(string) (bool, bool) { return true, true }, PlanKey: func(string) string { return "" },
+		LoginState:  func(string) (bool, bool) { return true, true },
 		AgentConfig: func(string) (team.Config, error) { return team.Config{}, nil }}
 }
 

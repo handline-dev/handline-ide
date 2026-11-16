@@ -622,8 +622,6 @@ func (d *Daemon) newServer(transport string) *rpc.Server {
 	leases.Register(s, d.leases)
 	s.Register("connection.get", rpc.Method{Handler: d.connectionGet})
 	s.Register("connection.addresses", rpc.Method{Handler: d.connectionAddresses, Read: true})
-	if transport == "local" { // a paired device does not choose the binary this machine runs
-	}
 	stream.StampCursor(s, d.hub.Log)
 	return s
 }

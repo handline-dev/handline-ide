@@ -26,10 +26,6 @@ type fakeTerm struct {
 	typeable   bool
 	blocker    *term.Blocker
 	background string
-	box        string
-	boxKnown   bool
-	sendFails  bool
-	ctrlC      int
 	db         db.Q                // set: last reads each message name back as #<id> (msgtest.IDs)
 	name       func(string) string // set: what is typed is kept with its keys read back as names (keys_test.go)
 }
@@ -37,20 +33,15 @@ type fakeTerm struct {
 // ids is text with each message name read back as #<id>.
 func (r *rig) ids(text string) string { return msgtest.IDs(r.DB, r.named(text)) }
 
-func newFakeTerm() *fakeTerm { return &fakeTerm{typeable: true, boxKnown: true} }
+func newFakeTerm() *fakeTerm { return &fakeTerm{typeable: true} }
 
-func (f *fakeTerm) Available() bool                        { return true }
-func (f *fakeTerm) Missing() string                        { return "no terminal host" }
-func (f *fakeTerm) Alive(string) bool                      { return true }
-func (f *fakeTerm) TypeableNow(string) bool                { return f.typeable }
-func (f *fakeTerm) ScreenBlocker(string) *term.Blocker     { return f.blocker }
-func (f *fakeTerm) SessionOnScreen(string) (bool, bool)    { return true, true }
-func (f *fakeTerm) ComposerOnScreen(string) (string, bool) { return f.box, f.boxKnown }
-func (f *fakeTerm) IsTextTyped(box, text string) bool {
-	return box != "" && strings.Contains(box, text)
-}
+func (f *fakeTerm) Available() bool                      { return true }
+func (f *fakeTerm) Missing() string                      { return "no terminal host" }
+func (f *fakeTerm) Alive(string) bool                    { return true }
+func (f *fakeTerm) TypeableNow(string) bool              { return f.typeable }
+func (f *fakeTerm) ScreenBlocker(string) *term.Blocker   { return f.blocker }
+func (f *fakeTerm) SessionOnScreen(string) (bool, bool)  { return true, true }
 func (f *fakeTerm) BackgroundWork(string) (string, bool) { return f.background, true }
-func (f *fakeTerm) LastTail(string) []string             { return []string{"tail"} }
 func (f *fakeTerm) record(text string) {
 	if f.name != nil {
 		text = f.name(text)
@@ -64,18 +55,6 @@ func (f *fakeTerm) Send(_, text string, _ bool) (bool, string) {
 	f.record(text)
 	return true, ""
 }
-func (f *fakeTerm) SendToSession(_, text string) (bool, string) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if f.sendFails {
-		return false, "pane gone"
-	}
-	f.record(text)
-	return true, ""
-}
-func (f *fakeTerm) SendCtrlC(string)                   { f.ctrlC++ }
-func (f *fakeTerm) ClearContext(string) (bool, string) { return true, "cleared" }
-func (f *fakeTerm) ClearCommand(string) string         { return "/clear" }
 func (f *fakeTerm) last() string {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -246,24 +225,6 @@ func (r *rig) logged(sub string) bool {
 }
 
 var _ = sql.ErrNoRows
-
-var blockerOf = term.Blocker{Kind: "dialog", Title: "Trust this folder?"}
-
-// flipTerm shows no blocker for the first `after` reads and then the blocker.
-type flipTerm struct {
-	*fakeTerm
-	after int
-	then  *term.Blocker
-	reads int
-}
-
-func (f *flipTerm) ScreenBlocker(h string) *term.Blocker {
-	f.reads++
-	if f.reads > f.after {
-		return f.then
-	}
-	return f.fakeTerm.ScreenBlocker(h)
-}
 
 type fakeProposals struct{}
 

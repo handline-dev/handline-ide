@@ -18,8 +18,6 @@ const (
 	WallPct = 100
 	// PollS is how often the daemon looks.
 	PollS = 30
-	// MinStretchS is the least stretch of an account's life worth beginning a session for.
-	MinStretchS = 30 * 60
 )
 
 // Trigger is whether an agent should be handed off now, and why.

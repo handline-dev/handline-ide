@@ -2,7 +2,6 @@ package timefmt
 
 import (
 	"testing"
-	"time"
 )
 
 func TestSpanAndAgo(t *testing.T) {
@@ -26,15 +25,6 @@ func TestParseSpan(t *testing.T) {
 	for _, bad := range []string{"90", "m", "0m", "-1h", "1.5h", "2w", "", "1 h"} {
 		if _, err := ParseSpan(bad); err == nil {
 			t.Errorf("%q was taken", bad)
-		}
-	}
-}
-
-func TestAgoShort(t *testing.T) {
-	now := time.Unix(1_000_000, 0)
-	for ago, want := range map[int64]string{30: "0m", 3000: "50m", 7300: "2h", 90000: "1d", -5: "0m"} {
-		if got := AgoShort(now.Unix()-ago, now); got != want {
-			t.Errorf("%d: %s", ago, got)
 		}
 	}
 }

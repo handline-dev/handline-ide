@@ -13,8 +13,7 @@ import (
 	"github.com/handline/handline/go/agentctl/term"
 )
 
-func (Tmux) ServesBytes() bool  { return true }
-func (Tmux) ServesStyled() bool { return true }
+func (Tmux) ServesBytes() bool { return true }
 
 // ControlCommand is the program, with its arguments, that gives the daemon a control-mode window onto the tmux server.
 func (t Tmux) ControlCommand() []string {

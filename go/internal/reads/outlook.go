@@ -190,10 +190,7 @@ func (e *Env) outlookAt(name string, hours int, clock time.Time, pick *string) (
 	rows := usage.SamplesFrom(all, now-span-usage.OutlookMaxAgeS)
 	ends, outSince := e.accountEnds(cfg, rows, clock)
 	out := usage.WeeklyOutlook(rows, now, hours, ends, outSince)
-	byAccount, future, err := e.outlookByAccount(ue, cfg, all, now, hours, ends, outSince)
-	if err != nil {
-		return nil, err
-	}
+	byAccount, future := outlookByAccount(all, now, hours, ends, outSince)
 	cost, uses, err := usage.CallCosts(e.DB, firstDay(clock, hours), now-span, now, usage.PricesFromConfig(cfg), usage.WeekConsumed(rows, now-span, now))
 	if err != nil {
 		return nil, err
@@ -229,7 +226,7 @@ func (e *Env) outlookAt(name string, hours int, clock time.Time, pick *string) (
 
 // outlookByAccount is stats.outlook's by_account, and its future: the accounts' weekly guess averaged, each going as usage.Paced does.
 // rows are the samples from at least a day back.
-func (e *Env) outlookByAccount(ue *usage.Env, cfg usage.Config, rows usage.Samples, now int64, hours int, ends, outSince map[string]float64) ([]any, []usage.OutlookPoint, error) {
+func outlookByAccount(rows usage.Samples, now int64, hours int, ends, outSince map[string]float64) ([]any, []usage.OutlookPoint) {
 	span := int64(hours) * 3600
 	h := usage.HeadroomKeepStale(rows, now, now-span, now+span, max(900, span*2/usage.OutlookPoints), ends, outSince)
 	byAccount := []any{}
@@ -260,5 +257,5 @@ func (e *Env) outlookByAccount(ue *usage.Env, cfg usage.Config, rows usage.Sampl
 			future[i].Left = &avg
 		}
 	}
-	return byAccount, future, nil
+	return byAccount, future
 }

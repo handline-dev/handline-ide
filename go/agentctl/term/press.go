@@ -181,11 +181,6 @@ func (t *Term) pressDialog(handle string, pick func(*Dialog) (string, string), k
 	return StillOpen, dialog.Title, "the dialog is still on screen after " + keyName
 }
 
-// PressOption presses option number of the dialog on screen now, if it has one, and checks that the dialog went.
-func (t *Term) PressOption(handle string, number int) (string, string, string) {
-	return t.pressDialog(handle, func(d *Dialog) (string, string) { return digitKey(d, number) }, "option "+strconv.Itoa(number), true)
-}
-
 // DeclineDialog presses Esc on the dialog on this terminal's screen, if and only if the screen just read says that declines it.
 // Never on a truncated read: this is the daemon choosing on its own.
 func (t *Term) DeclineDialog(handle string) (string, string, string) {
@@ -472,18 +467,6 @@ func (t *Term) TrustPromptGone(handle string) bool {
 	return !shown
 }
 
-// ConfirmTrust presses the vendor's trust answer, blind to which folder is on screen: callers decide whether to press it.
-func (t *Term) ConfirmTrust(handle string) (bool, string) {
-	if ok, out := t.Send(handle, t.driver(handle).TrustAnswer(), false); !ok {
-		return false, "could not accept the trust dialog: " + Cut(out, 200)
-	}
-	ok, out := t.Send(handle, "", true)
-	if !ok {
-		return false, "could not confirm the trust prompt: " + Cut(out, 200)
-	}
-	return true, "trusted"
-}
-
 // ---- reading a screen the other ways
 
 // SessionOnScreen is whether an agent's session is at this terminal: as its hooks and process say when they know (SessionByHooks), else
@@ -597,9 +580,6 @@ func (t *Term) TurnShown(handle string) (shown, ok bool) {
 	}
 	return d.TurnOnScreen(scr.Tail), true
 }
-
-// ModalOpen is whether a modal is on the agent's screen, where typed text would answer it.
-func (t *Term) ModalOpen(handle string) bool { return t.ScreenBlocker(handle) != nil }
 
 // DialogUp is the dialog at handle that waits on a person. On a settled turn only the session picker counts: no hook reports it.
 func (t *Term) DialogUp(handle string) *Blocker {

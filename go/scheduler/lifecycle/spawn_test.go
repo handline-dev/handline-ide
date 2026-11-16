@@ -1,7 +1,6 @@
 package lifecycle
 
 import (
-	"database/sql"
 	"errors"
 	"fmt"
 	"os/exec"
@@ -136,8 +135,6 @@ func TestPromptLandedWaitsForTheAgentsOwnHook(t *testing.T) {
 		t.Fatal("the hook was not believed")
 	}
 }
-
-func ns(s string) sql.NullString { return sql.NullString{String: s, Valid: s != ""} }
 
 type runHost struct {
 	fakeHost

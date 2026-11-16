@@ -20,18 +20,6 @@ func (w *writes) registerMessages(s *rpc.Server) {
 	s.Register("progress.get", rpc.Method{Handler: w.progressGet})
 }
 
-// numberParam is an optional integer, never a boolean; 0 is none.
-func numberParam(p map[string]any, key string) (int64, error) {
-	if p[key] == nil {
-		return 0, nil
-	}
-	n, ok := rpc.AsInt(p[key])
-	if !ok {
-		return 0, badParam(key+" is a number", key)
-	}
-	return n, nil
-}
-
 // sender is who a message is from and who is typing it: an agent is itself; the founder and a device are the person.
 func sender(c *rpc.Conn) (me string, speaker *string) {
 	me = c.Caller.Actor()

@@ -37,9 +37,6 @@ type Forgotten struct {
 	Exhausted bool // delivery.nudge_exhausted: the nudge schedule is used up
 }
 
-// BgJob is one running background job as bgjobs reports it.
-type BgJob struct{ Line string }
-
 // TimeboxPorts are the foreign calls the notices make: the board's actions, delivery's background bookkeeping, and the idle-close settings.
 type TimeboxPorts interface {
 	// TaskDoing is actions.task_state(row) == "doing".

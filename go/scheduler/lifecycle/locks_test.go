@@ -20,6 +20,23 @@ func (f fakeProcs) ProcessEnv(pid int) (string, bool) {
 	return e, ok
 }
 
+func TestRunningElsewhereIsTheHoldersPidOrTheTableOrNone(t *testing.T) {
+	home := t.TempDir()
+	l := &Locks{Home: home, PID: 1, Procs: fakeProcs{rows: []session.Process{{PID: 40, Command: "/x/hl daemon"}}, envs: map[int]string{40: "HANDLINE_HOME=" + home}}}
+	if pid, ok := l.RunningElsewhere(); ok || pid != 0 {
+		t.Fatalf("no lock held: %d %v", pid, ok)
+	}
+	h := lock.TakeSingleton(home, DaemonLock)
+	if h == nil {
+		t.Fatal("no hold")
+	}
+	defer h.Release()
+	// the same process holds it in this test, so flock by a second description reports it held with our pid
+	if pid, ok := l.RunningElsewhere(); !ok || pid != os.Getpid() {
+		t.Fatalf("held: %d %v", pid, ok)
+	}
+}
+
 func TestOnlyTheProgramAtTheFrontOfTheLineIsADaemon(t *testing.T) {
 	home := t.TempDir()
 	l := &Locks{Home: home, PID: 1, Procs: fakeProcs{rows: []session.Process{
@@ -55,22 +72,5 @@ func TestHomeIsComparedAsADirectoryNotASpelling(t *testing.T) {
 	l := &Locks{Home: home, PID: 1, Procs: fakeProcs{rows: []session.Process{{PID: 30, Command: "/x/hl daemon"}}, envs: map[int]string{30: "HANDLINE_HOME=" + link}}}
 	if got := l.ProcessList(); len(got) != 1 {
 		t.Fatalf("%v", got)
-	}
-}
-
-func TestRunningElsewhereIsTheHoldersPidOrTheTableOrNone(t *testing.T) {
-	home := t.TempDir()
-	l := &Locks{Home: home, PID: 1, Procs: fakeProcs{rows: []session.Process{{PID: 40, Command: "/x/hl daemon"}}, envs: map[int]string{40: "HANDLINE_HOME=" + home}}}
-	if pid, ok := l.RunningElsewhere(); ok || pid != 0 {
-		t.Fatalf("no lock held: %d %v", pid, ok)
-	}
-	h := lock.TakeSingleton(home, DaemonLock)
-	if h == nil {
-		t.Fatal("no hold")
-	}
-	defer h.Release()
-	// the same process holds it in this test, so flock by a second description reports it held with our pid
-	if pid, ok := l.RunningElsewhere(); !ok || pid != os.Getpid() {
-		t.Fatalf("held: %d %v", pid, ok)
 	}
 }

@@ -74,19 +74,6 @@ func (s *Store) Get(namespace, name string) (string, bool) {
 	return string(b), true
 }
 
-// WrittenAt is when the entry was last written; ok is false when there is none or it cannot be read.
-func (s *Store) WrittenAt(namespace, name string) (float64, bool) {
-	p, err := s.entry(namespace, name)
-	if err != nil {
-		return 0, false
-	}
-	st, err := os.Stat(p)
-	if err != nil {
-		return 0, false
-	}
-	return float64(st.ModTime().UnixNano()) / 1e9, true
-}
-
 // IsOff is whether the founder recorded off. A store that cannot be read or holds no entry is not off: a gate that reads it
 // stays on, so a sandbox can never switch one off by hiding the store.
 func (s *Store) IsOff(namespace, name string) bool {
