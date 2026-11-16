@@ -16,49 +16,10 @@ export function bytesText(n: number): string {
 /** The limits the daemon holds new starts at, as settings.get keeps them: 150 is 1.5 load per core, 10 is 10% memory free, 0 is never. */
 export type Limits = { load_per_core_pct: number; ram_free_min_pct: number };
 export const DEFAULT_LIMITS: Limits = { load_per_core_pct: 0, ram_free_min_pct: 0 };
-export const LOAD_PRESETS = [
-  { label: 'Gentle', pct: 100 },
-  { label: 'Normal', pct: 150 },
-  { label: 'Busy', pct: 200 },
-  { label: 'Max', pct: 300 },
-  { label: 'Never', pct: 0 },
-] as const;
-export const MEMORY_PRESETS = [
-  { label: '5%', pct: 5 },
-  { label: '10%', pct: 10 },
-  { label: '20%', pct: 20 },
-  { label: 'Never', pct: 0 },
-] as const;
 
 /** Whether the load is at the limit where the daemon holds new starts; a limit of 0 never holds. */
 export const loadFull = (r: Resources, limitPct: number): boolean => limitPct > 0 && r.machine.load_per_core * 100 >= limitPct;
 export const memoryLow = (r: Resources, floorPct: number): boolean => floorPct > 0 && r.machine.ram_free_pct < floorPct;
-
-/** The memory free, in bytes and as a share: "12 GB free (37%)" is the one way the app says it. */
-export const memoryFree = (r: Resources): string => `${bytesText(r.machine.ram_free_bytes)} free (${r.machine.ram_free_pct}%)`;
-
-/** One line of what is chosen and what it does now: "Now 2.8 → new starts wait." */
-export function limitSentence(now: string, held: boolean, never: boolean): string {
-  if (never) return 'No limit: new starts are never held.';
-  return `Now ${now} → ${held ? 'new starts wait.' : 'starts go.'}`;
-}
-
-export type ResourceCell = { kind: 'cpu' | 'memory' | 'disk'; text: string; warn: boolean };
-
-/** The status bar's cells: what the agents use of the CPU, the memory free and the disk left. A cell that is over its limit says so in words (Load full, Memory low, Low), so red is never alone. Null until the daemon has measured. */
-export function resourceCells(r: Resources | null | undefined, limits: Limits = DEFAULT_LIMITS): ResourceCell[] | null {
-  if (!r) return null;
-  const m = r.machine;
-  const agentsPct = m.cores ? Math.round(r.agents_total.cpu_pct / m.cores) : 0;
-  const full = loadFull(r, limits.load_per_core_pct);
-  const low = memoryLow(r, limits.ram_free_min_pct);
-  const diskLow = m.disk_free_bytes < LOW_DISK_BYTES;
-  return [
-    { kind: 'cpu', text: `CPU ${agentsPct}%${full ? ' · Load full' : ''}`, warn: full },
-    { kind: 'memory', text: `${low ? 'Memory low' : 'Memory'} ${bytesText(m.ram_free_bytes)} free`, warn: low },
-    { kind: 'disk', text: `Disk ${bytesText(m.disk_free_bytes)} left${diskLow ? ' · Low' : ''}`, warn: diskLow },
-  ];
-}
 
 export type UseRow = { agent: string; cpu: string; memory: string; cpuPct: number; rss: number };
 

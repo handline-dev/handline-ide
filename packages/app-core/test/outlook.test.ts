@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { axisTicks, guessLine, lostAtLastReset, lostByAccount, weekResets } from '#src/outlook.ts';
+import type { Outlook } from '@handline/client';
+import { axisTicks, costByAgent, guessLine, lostAtLastReset, lostByAccount, weekResets } from '#src/outlook.ts';
 
 const p = (at: string, left_pct: number | null) => ({ at, left_pct });
 
@@ -81,4 +82,17 @@ describe('axisTicks', () => {
     );
   });
   it('is empty for an empty span', () => assert.deepEqual(axisTicks(5, 5), []));
+});
+
+describe('costByAgent', () => {
+  it('sums each agent over the days, agents in first-seen order', () => {
+    const o = {
+      cost_per_day: [
+        { day: 'd1', agents: { a: 1, b: 2 } },
+        { day: 'd2', agents: { a: 3 } },
+      ],
+    } as unknown as Outlook;
+    assert.deepEqual(costByAgent(o), { agents: ['a', 'b'], sums: [4, 2], all: 6 });
+    assert.equal(costByAgent({ cost_per_day: [] } as unknown as Outlook).all, 0);
+  });
 });

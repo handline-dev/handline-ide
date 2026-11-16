@@ -2,7 +2,7 @@
   "name": "@handline/app-core",
   "private": true,
   "type": "module",
-  "description": "What the apps share and React does not: the store, screen decisions, key tables, the pane workspace. No React, no DOM, no React Native",
+  "description": "What the apps share and React does not: the store and screen decisions. No React, no DOM, no React Native",
   "exports": {
     ".": "./src/index.ts"
   },

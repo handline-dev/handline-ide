@@ -1,17 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  classifyGesture,
-  initialMarks,
-  keptMarks,
-  markData,
-  markLines,
-  markText,
-  marksReducer,
-  marksToShapes,
-  type MarksAction,
-} from '#src/marks.ts';
-import { blankBitmap, exportAnnotated } from '#src/annotation-raster.ts';
+import { classifyGesture, initialMarks, keptMarks, markData, marksReducer, marksToShapes, type MarksAction } from '#src/marks.ts';
+import { exportAnnotated } from '#src/annotation-raster.ts';
 
 const run = (...actions: MarksAction[]) => actions.reduce(marksReducer, initialMarks());
 const gesture = (...ps: [number, number][]): MarksAction[] => [
@@ -135,46 +125,25 @@ test('a cancelled gesture leaves nothing, and the sizes follow the picture', () 
   assert.deepEqual([pin.marks[0]!.kind, pin.marks[0]!.rect.w], ['pin', 80]);
 });
 
-test('the message is the note, the numbered lines and each kept mark as data; with no kept mark it is the note alone', () => {
-  const s = run(
-    ...gesture([10, 10], [10, 10]),
-    { type: 'memo', id: 1, text: 'Tab label\nis cut off' },
-    ...gesture([50, 50], [120, 90]),
-    { type: 'memo', id: 2, text: '' },
-    ...gesture(...circle(100, 100, 40)),
-    { type: 'memo', id: 3, text: 'This text is too small' },
-  );
-  const text = markText('Two things', s.marks);
-  const [note, one, two, fence, json] = text.split('\n');
-  assert.deepEqual([note, one, two, fence], ['Two things', '1. Tab label is cut off', '2. This text is too small', '```marks']);
-  assert.deepEqual(JSON.parse(json!), [
-    { n: 1, shape: 'pin', x: -6, y: -6, w: 32, h: 32, text: 'Tab label is cut off' },
-    { n: 2, shape: 'area', x: 60, y: 60, w: 80, h: 80, text: 'This text is too small' },
-  ]);
-  assert.equal(markText(' just a note ', run(...gesture([1, 1], [1, 1])).marks), 'just a note');
-});
-
 test('the marked picture draws only the kept marks, in red, and a ring leaves its inside alone', () => {
   const s = run(...gesture([40, 40], [40, 40]), { type: 'memo', id: 1, text: 'here' }, ...gesture([5, 5], [20, 20]));
   const shapes = marksToShapes(s.marks, 2);
   assert.equal(shapes.filter((x) => x.kind === 'text').length, 1); // one number: the empty memo's mark is left out
-  const out = exportAnnotated(blankBitmap(100, 100), shapes);
+  const out = exportAnnotated({ width: 100, height: 100, data: new Uint8ClampedArray(100 * 100 * 4) }, shapes);
   const px = (x: number, y: number) => Array.from(out.data.slice((y * 100 + x) * 4, (y * 100 + x) * 4 + 4));
   assert.deepEqual(px(24, 40), [229, 50, 45, 255]);
   assert.deepEqual(px(40, 40), [0, 0, 0, 0]);
   assert.deepEqual(px(10, 10), [0, 0, 0, 0]); // the dropped mark's box is not drawn
 });
 
-test('the numbers of a second picture continue from the marks kept on the first, and close up when the first loses one', () => {
+test('the numbers of a second picture continue from the marks kept on the first', () => {
   const one = (text: string, at: number) => run(...gesture([at, at], [at, at]), { type: 'memo', id: 1, text }).marks;
   const first = [...one('a', 10), { ...one('b', 40)[0]!, id: 2 }];
   const second = one('c', 70);
-  assert.equal(markLines(second, keptMarks(first).length), '3. c');
   assert.deepEqual(
-    markData(second, 2).map((d) => d.n),
+    markData(second, keptMarks(first).length).map((d) => d.n),
     [3],
   );
-  assert.equal(markLines(second, keptMarks(first.slice(1)).length), '2. c');
   const texts = marksToShapes(second, 2, false, 2).flatMap((s) => (s.kind === 'text' ? [s.text] : []));
   assert.deepEqual(texts, ['3']);
 });

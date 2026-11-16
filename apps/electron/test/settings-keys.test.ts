@@ -1,22 +1,17 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { idleField, limitFields, DEFAULT_LIMITS, type PageSettings } from '@handline/app-core';
+import { DEFAULT_LIMITS, type PageSettings } from '@handline/app-core';
 import { Settings, type Sender } from '#src/bridge.ts';
 
 const ORIGIN = 'http://127.0.0.1:1';
 const window: Sender = { senderFrame: { url: `${ORIGIN}/`, parent: null } };
 
-test('every change the settings field builders write passes the shell bridge', async () => {
+test('the idle close and machine limit changes the Settings page writes pass the shell bridge', async () => {
   const sent: unknown[] = [];
   const s = new Settings(ORIGIN, { get: async () => ({}) as never, set: async (c) => (sent.push(c), { accepted: true } as never) });
-  const all = {
-    host_active_cap: 1,
-    load_per_core_pct: 1,
-    ram_free_min_pct: 1,
-  };
   const changes: PageSettings[] = [
-    idleField(60).change(0),
-    ...limitFields(all).map((f) => f.change(null)),
+    { park_timeout_s: 0 },
+    ...(['host_active_cap', 'load_per_core_pct', 'ram_free_min_pct'] as const).map((k) => ({ [k]: null }) as PageSettings),
     ...Object.keys(DEFAULT_LIMITS).map((k) => ({ [k]: 1 }) as PageSettings),
     { keep_awake: 'on' } as unknown as PageSettings,
   ];

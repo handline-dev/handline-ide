@@ -78,16 +78,6 @@ export function aboutOf(e: Pick<WireEvent, 'type' | 'agent' | 'data'>): NoticeAb
   }
 }
 
-/** The page a notice opens: its proposal, its account, its task, else the agent's chat; null for one that points nowhere (a failure). */
-export function targetOf(n: Pick<Notice, 'about'>): string | null {
-  const a = n.about;
-  if (!a) return null;
-  if (a.proposal != null) return `#/team/proposals/${a.proposal}`;
-  if (a.account) return `#/accounts/${encodeURIComponent(a.account)}`;
-  if (a.task != null) return `#/tasks/${a.task}`;
-  return a.agent ? `#/agents/${encodeURIComponent(a.agent)}` : null;
-}
-
 export const MERGE_MS = 60_000;
 /** News goes by itself after this long; a need and a failure stay until the person opens or closes them. */
 export const NEWS_MS = 6000;
