@@ -218,7 +218,11 @@ func TestModeMaxRefusesAStrongerModeAtRegisterAndHoldsToolsDeny(t *testing.T) {
 	if !reflect.DeepEqual(h.Deny, []string{"WebFetch"}) || h.CapMode("auto") != "acceptEdits" || h.CapMode("plan") != "plan" {
 		t.Errorf("%+v", h)
 	}
-	if h, _ := HeldFor(d, lab); len(h.Deny) != 0 || h.CapMode("auto") != "auto" {
+	must(t, SetRule(d, shop, RuleLandBy, "shop.lander", "p1", 1))
+	if h, _ := HeldFor(d, shop); h.LandBy != "shop.lander" {
+		t.Errorf("land_by: %+v", h)
+	}
+	if h, _ := HeldFor(d, lab); len(h.Deny) != 0 || h.LandBy != "" || h.CapMode("auto") != "auto" {
 		t.Errorf("lab: %+v", h)
 	}
 }

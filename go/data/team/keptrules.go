@@ -299,9 +299,10 @@ type Held struct {
 	Deny      []string
 	ModeMax   string // "" for no rule
 	ModeSetBy string
+	LandBy    string // the one agent that pushes to a default branch, "" for no rule
 }
 
-// HeldFor is the tools_deny and mode_max in force for workspace ws.
+// HeldFor is the tools_deny, mode_max and land_by in force for workspace ws.
 func HeldFor(q db.Q, ws int64) (Held, error) {
 	rules, err := KeptRules(q, ws)
 	var h Held
@@ -312,8 +313,11 @@ func HeldFor(q db.Q, ws int64) (Held, error) {
 				h.Deny = v
 			}
 		case string:
-			if r.Key == RuleModeMax {
+			switch r.Key {
+			case RuleModeMax:
 				h.ModeMax, h.ModeSetBy = v, r.SetBy
+			case RuleLandBy:
+				h.LandBy = v
 			}
 		}
 	}

@@ -148,6 +148,10 @@ func (Driver) LaunchArgv(exe string, o agent.LaunchArgs) []string {
 		p = strings.TrimRight(p, "/")
 		allow = append(allow, "Read(/"+p+")", "Read(/"+p+"/**)") // a file outside the worktree asks, unless a rule allows it
 	}
+	if o.LandPush {
+		// By exact text, so --force, another branch or a compound command still asks; the land guard still runs on it.
+		allow = append(allow, "Bash(git push origin HEAD:main)")
+	}
 	perms := NewObject()
 	if len(allow) > 0 {
 		perms.Set("allow", allow)
