@@ -16,7 +16,6 @@ import (
 	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/kit/lock"
-	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/storetest"
 	"github.com/handline/handline/go/protocol/rpc"
 )
@@ -87,9 +86,6 @@ func newRig(t *testing.T) *rig {
 	}
 	return r
 }
-
-// who is a who word's key, as the daemon's server resolves it.
-func (r *rig) who(w string) string { return paths.WhoKey(r.e.Home, w) }
 
 type conn struct {
 	name string

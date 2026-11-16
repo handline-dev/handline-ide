@@ -299,14 +299,6 @@ func (t *Term) ComposerOnScreen(handle string) (string, bool) {
 	return ComposerText(scr.Tail)
 }
 
-// LastTail is the rows the terminal draws now, nil when its screen could not be read.
-func (t *Term) LastTail(handle string) []string {
-	if scr := t.screen(handle, 40); scr != nil {
-		return scr.Tail
-	}
-	return nil
-}
-
 // Missing is why the host cannot be used, for a refusal that names it.
 func (t *Term) Missing() string {
 	if t.Backend.Available() {

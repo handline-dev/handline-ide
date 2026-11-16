@@ -73,34 +73,6 @@ func TestADatabaseWithNoStepsIsRefused(t *testing.T) {
 	}
 }
 
-// masterOf maps each table, index and trigger to its normalised sql; sqlite's own tables are left out.
-func masterOf(t *testing.T, db *sql.DB) map[string]string {
-	t.Helper()
-	rows, err := db.Query("SELECT type, name, COALESCE(sql, '') FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer rows.Close()
-	out := map[string]string{}
-	for rows.Next() {
-		var typ, name, def string
-		rows.Scan(&typ, &name, &def)
-		out[typ+" "+name] = strings.Join(strings.Fields(withoutComments(def)), " ")
-	}
-	return out
-}
-
-func withoutComments(sql string) string {
-	var out []string
-	for _, line := range strings.Split(sql, "\n") {
-		if i := strings.Index(line, "--"); i >= 0 && !strings.ContainsAny(line[:i], "'\"") {
-			line = line[:i]
-		}
-		out = append(out, line)
-	}
-	return strings.Join(out, "\n")
-}
-
 func versions(t *testing.T, db *sql.DB) []int {
 	t.Helper()
 	rows, err := db.Query("SELECT version FROM schema_version ORDER BY version")
@@ -275,43 +247,4 @@ func TestConcurrentOpensOfANewDatabaseMakeItOnce(t *testing.T) {
 	if got := versions(t, db); len(got) != LatestVersion()-baseVersion+1 {
 		t.Fatalf("versions %v", got)
 	}
-}
-
-// refilled is column of each agent once migration has filled it from rows (agent: state, detail, and the column's value before, "" for
-// none).
-func refilled(t *testing.T, migration, column string, rows map[string][3]string) map[string]string {
-	t.Helper()
-	db, err := Open(filepath.Join(t.TempDir(), "db.sqlite"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-	for agent, c := range rows {
-		before := any(nil)
-		if c[2] != "" {
-			before = c[2]
-		}
-		if _, err := db.Exec("INSERT INTO agent_state(agent, state, detail, updated) VALUES(?, ?, ?, 0)", agent, c[0], c[1]); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := db.Exec("UPDATE agent_state SET "+column+" = ? WHERE agent = ?", before, agent); err != nil {
-			t.Fatal(err)
-		}
-	}
-	b, err := migrationFiles.ReadFile("migrations/" + migration)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := db.Exec(string(b)); err != nil {
-		t.Fatal(err)
-	}
-	got := map[string]string{}
-	res, _ := db.Query("SELECT agent, COALESCE(" + column + ", '') FROM agent_state")
-	defer res.Close()
-	for res.Next() {
-		var a, k string
-		res.Scan(&a, &k)
-		got[a] = k
-	}
-	return got
 }

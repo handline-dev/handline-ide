@@ -266,13 +266,6 @@ func (e *Env) doRename(p step) (bool, string, error) {
 	return true, fmt.Sprintf("%s is now %s.", label, new), nil
 }
 
-func pyStr(v any) string {
-	if v == nil {
-		return "None"
-	}
-	return fmt.Sprint(v)
-}
-
 // ---------------------------------------------------------------- settings, context, schedule, global
 
 // idleClose is the idle close time of an agent, in the minutes the settings form takes.

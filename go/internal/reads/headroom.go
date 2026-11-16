@@ -38,11 +38,3 @@ func headroomWindows(ps []usage.HeadroomPoint, line bool) []any {
 	}
 	return out
 }
-
-// rounded is v to one decimal, nil for an unknown figure.
-func rounded(v *float64) any {
-	if v == nil {
-		return nil
-	}
-	return round(*v, 1)
-}

@@ -302,21 +302,6 @@ func TestLandingTakesATypedLineAsLandedWhereTheVendorKeepsNoTranscript(t *testin
 	}
 }
 
-func TestLandingStateNamesWhereARequestIs(t *testing.T) {
-	var row db.Request
-	if LandingState(&row) != "queued" {
-		t.Fatal()
-	}
-	row.TypedAt.Valid, row.TypedAt.Int64 = true, 5
-	if LandingState(&row) != "typed" {
-		t.Fatal()
-	}
-	row.LandedAt.Valid, row.LandedAt.Int64 = true, 6
-	if LandingState(&row) != "delivered" {
-		t.Fatal()
-	}
-}
-
 func TestAHeldMemoWaitsForTheSameWindowAsAnyNotice(t *testing.T) {
 	r := newRig(t)
 	r.agentUp(r.k("bob"))

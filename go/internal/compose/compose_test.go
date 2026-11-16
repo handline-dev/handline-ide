@@ -124,11 +124,6 @@ func TestTheDaemonsLauncherNamesTheSettingsALaunchReads(t *testing.T) {
 	}
 }
 
-type tells struct {
-	mu   sync.Mutex
-	logs []string
-}
-
 func TestOneSetOfLocksServesTheManagerAndTheSpawns(t *testing.T) {
 	p, _ := rig(t)
 	if p.Locks == nil {

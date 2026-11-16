@@ -15,8 +15,7 @@ import (
 // Item sources of chat.transcript's ids, and the id itself: the time in seconds, a source, and a number within it.
 const (
 	ItemReply   = 0
-	ItemPrompt  = 1
-	ItemTool    = 3 // 2 is the task events'; a tool item takes its tool_use event's seq
+	ItemTool    = 3 // 1 is the prompts', 2 the task events'; a tool item takes its tool_use event's seq
 	ItemSession = 4 // a session start; its number is the session_starts row
 	ItemBash    = 5 // a person's ! line; its number is its place in the session's transcript
 )

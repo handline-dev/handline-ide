@@ -12,7 +12,7 @@ import (
 func burnEnv(t *testing.T) (*Env, db.Q, *int64) {
 	t.Helper()
 	now := clock
-	e := &Env{Home: t.TempDir(), Now: func() float64 { return float64(now) }, PlanKey: func(string) string { return "pro" }}
+	e := &Env{Home: t.TempDir(), Now: func() float64 { return float64(now) }}
 	e.AgentConfig = func(agent string) (team.Config, error) {
 		if agent == "gone" {
 			return nil, os.ErrNotExist

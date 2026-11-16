@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"sync"
 	"time"
 )
 
@@ -16,56 +15,6 @@ type Op struct {
 	Text     string
 	Delivery Delivery
 	State    State
-}
-
-// Ledger keeps the sends of one agent. Put inserts or updates by ID. Pending is the operations still Queued or Sent, oldest first.
-type Ledger interface {
-	Get(op string) (*Op, error)
-	Put(o Op) error
-	Pending() ([]Op, error)
-}
-
-// MemLedger is a Ledger in memory, for tests and for a session started without a database.
-type MemLedger struct {
-	mu  sync.Mutex
-	ops []Op
-}
-
-func (l *MemLedger) Get(id string) (*Op, error) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	for i := range l.ops {
-		if l.ops[i].ID == id {
-			o := l.ops[i]
-			return &o, nil
-		}
-	}
-	return nil, nil
-}
-
-func (l *MemLedger) Put(o Op) error {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	for i := range l.ops {
-		if l.ops[i].ID == o.ID {
-			l.ops[i] = o
-			return nil
-		}
-	}
-	l.ops = append(l.ops, o)
-	return nil
-}
-
-func (l *MemLedger) Pending() ([]Op, error) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	var out []Op
-	for _, o := range l.ops {
-		if o.State == Queued || o.State == Sent {
-			out = append(out, o)
-		}
-	}
-	return out, nil
 }
 
 // DBLedger keeps an agent's sends in the operations table (kind "send"), so it needs no schema step of its own: the id is

@@ -18,9 +18,8 @@ const (
 	// TruncatedTitle is what ParseDialog shows as the title when a dialog is real but its own top rule and title are still
 	// off-screen at the widest read: a stand-in that says so, never a guess dressed up as the real one.
 	TruncatedTitle = "(command not fully shown - its start is off-screen)"
-	// Escape and CtrlC are the bytes a key press sends. Esc was checked on live Claude Code dialogs that closed on the next read.
+	// Escape is the byte the Esc key sends. Esc was checked on live Claude Code dialogs that closed on the next read.
 	Escape = "\x1b"
-	CtrlC  = "\x03"
 )
 
 // A dialog's panel opens with a rule; the title is the first line under it. The exit confirmation draws it with U+2594, the
@@ -301,20 +300,4 @@ func digitKey(d *Dialog, number int) (string, string) {
 		}
 	}
 	return "", "the dialog has no option " + strconv.Itoa(number)
-}
-
-// Context is the panel's own lines the modal does not already show as title or option buttons.
-func Context(d *Dialog) []string {
-	shown := map[string]bool{strings.TrimSpace(d.Title): true}
-	for _, o := range d.Options {
-		shown[strings.TrimSpace(o.Label)] = true
-	}
-	out := []string{}
-	for _, ln := range d.Body {
-		t := strings.TrimSpace(ln)
-		if !shown[t] && !numberedRE.MatchString(t) {
-			out = append(out, oneline.Oneline(ln))
-		}
-	}
-	return out
 }

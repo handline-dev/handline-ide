@@ -103,14 +103,6 @@ func TestNotifyCancelledVerbOnlyForADeliveredRequestClosedUnderIt(t *testing.T) 
 	_ = plan
 }
 
-func TestShellQuoteMatchesPythons(t *testing.T) {
-	for in, want := range map[string]string{"": "''", "plain": "plain", "two words": "'two words'", "it's": `'it'"'"'s'`, "a/b-c_d.e": "a/b-c_d.e", "$x": "'$x'"} {
-		if got := shellQuote(in); got != want {
-			t.Errorf("%q = %q, want %q", in, got, want)
-		}
-	}
-}
-
 func TestMemoEditAndDeleteAreForTheAuthorOrTheFounder(t *testing.T) {
 	r := newRig(t)
 	tid := r.newTask(r.k("bob"), r.k(("alice")), "job")

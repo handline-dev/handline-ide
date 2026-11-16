@@ -24,8 +24,6 @@ type Env struct {
 	Metered func(acct string) bool
 	// LoginState is whether the account has credentials; known false is a process that cannot tell. nil: team.Accounts{Home}.
 	LoginState func(acct string) (loggedIn, known bool)
-	// PlanKey is the plan weekly figures are pooled by. nil: the recorded subscription type.
-	PlanKey func(acct string) string
 	// AgentConfig is an agent's settings. nil: the roster of Home.
 	AgentConfig func(agent string) (team.Config, error)
 	// Refresh asks the account fresh and records the answer, reporting whether it did (usage_api.read + record). nil: never asks.
@@ -67,14 +65,6 @@ func (e *Env) loginState(acct string) (bool, bool) {
 		return e.LoginState(acct)
 	}
 	return team.Accounts{Home: e.Home}.LoginState(acct)
-}
-
-func (e *Env) planKey(acct string) string {
-	if e.PlanKey != nil {
-		return e.PlanKey(acct)
-	}
-	plan, _ := team.Accounts{Home: e.Home}.RecordedSubscriptionType(acct)
-	return plan
 }
 
 func (e *Env) agentConfig(agent string) (team.Config, error) {

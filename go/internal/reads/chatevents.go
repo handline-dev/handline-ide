@@ -24,9 +24,6 @@ type ChatRequests struct{ ch *chat }
 // ChatRequests starts a pass; one that outlives a change of the board shows the board as it was.
 func (e *Env) ChatRequests() *ChatRequests { return &ChatRequests{&chat{e: e}} }
 
-// ChatRequest reads request id whether or not any chat draws it; nil when there is none.
-func (e *Env) ChatRequest(id int64) (*ChatRequest, error) { return e.ChatRequests().Get(id) }
-
 // Get is ChatRequest within the pass.
 func (p *ChatRequests) Get(id int64) (*ChatRequest, error) {
 	ch := p.ch
