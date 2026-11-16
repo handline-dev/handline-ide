@@ -1,5 +1,4 @@
-// The agent verbs of the bridge's AGENT_KEYS (tui.py): which apply to a row, which ask first, and what each is called while it runs.
-import type { AgentDetail, AgentView } from '@handline/client';
+// The agent verbs of the bridge's AGENT_KEYS (tui.py): each one's words and the call it makes.
 
 export type VerbId = 'interrupt' | 'close' | 'restart' | 'restart_fresh' | 'park' | 'fold' | 'move' | 'clear_stall' | 'force_start';
 
@@ -44,38 +43,6 @@ export const VERBS: Record<VerbId, Verb> = Object.fromEntries([
   V('force_start', 'Start now', 'agent.force_start', 'starting…', 'Starts this work now, once, even though it is being held.'),
   V('clear_stall', 'Wake it', 'agent.unstall', 'waking…', 'The stall is cleared and the agent is woken.'),
 ] as [VerbId, Verb][]) as Record<VerbId, Verb>;
-
-/** The bridge's CONFIRM (close, restart, park, fold) with restart fresh as a restart (a person never wakes an agent by hand: a message does). */
-export const CONFIRM_VERBS: ReadonlySet<VerbId> = new Set([
-  'close',
-  'restart',
-  'restart_fresh',
-  'park',
-  'fold',
-  'clear_stall',
-  'force_start',
-]);
-export const needsAsk = (id: VerbId): boolean => CONFIRM_VERBS.has(id);
-
-/** The verbs that apply to this row now, in menu order. A verb that does not apply is absent, not greyed. */
-export function verbsOf(a: AgentView, d: Pick<AgentDetail, 'session_open' | 'session_id' | 'structured'>): Verb[] {
-  const ids: VerbId[] = [];
-  // Interrupt ends a running turn, so it is listed for a structured agent only while one runs (a terminal agent has it in the stop menu).
-  if (d.structured && d.session_open && (a.state === 'running' || a.state === 'waiting')) ids.push('interrupt');
-  const stalled = a.state === 'stalled';
-  if (stalled) ids.push('clear_stall');
-  if (a.status?.reason === 'load') ids.push('force_start');
-  if (d.session_open) ids.push('restart', 'restart_fresh', 'close', 'park', 'fold');
-  ids.push('move');
-  return ids.map((id) => VERBS[id]);
-}
-
-/** The consequence the confirmation states; a structured agent has no terminal to keep. */
-export const askOf = (v: Verb, d: Pick<AgentDetail, 'structured'>): string | undefined =>
-  v.id === 'close' && d.structured ? 'Its session ends; the worktree and account stay.' : v.ask;
-
-/** Whether a verb asks first on this row: the confirm set. */
-export const asks = (v: Verb): boolean => needsAsk(v.id);
 
 /** The call a verb makes. */
 export function callOf(v: Verb, agent: string, account?: string): { method: Verb['method']; params: Record<string, unknown> } {

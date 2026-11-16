@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { activityOf, foldEvents, noteHead, noteIsLong, NOTE_LINES } from '#src/task-activity.ts';
+import { activityOf } from '#src/task-activity.ts';
 
 const e = (kind: string, who: string, text: string, at: string, memo: number | null = null) =>
   ({ at, who, kind, text, memo, edited_at: null }) as Parameters<typeof activityOf>[1][number];
@@ -28,29 +28,6 @@ test('entries become comments and events in words, a handoff one line with its n
   );
   assert.equal(a[1]!.note, 'Over to you');
   assert.equal(a[2]!.memo, 7);
-});
-
-test('only the last three events show until the rest are asked for, comments always', () => {
-  const a = activityOf(
-    [{ id: 1, task: 1, author: 'y', at: '2026-01-01T00:00:00Z', text: 'hi' }],
-    [1, 2, 3, 4, 5].map((n) => e('state', 'x', 'a -> doing', `2026-01-01T00:00:0${n}Z`)),
-  );
-  const shut = foldEvents(a, false);
-  assert.equal(shut.hidden, 2);
-  assert.equal(shut.items.length, 4);
-  assert.equal(shut.items.filter((i) => i.kind === 'comment').length, 1);
-  assert.deepEqual([foldEvents(a, true).hidden, foldEvents(a, true).items.length], [0, 6]);
-});
-
-test('noteHead cuts by lines and by characters at a word, and leaves a short note whole', () => {
-  assert.equal(noteHead('short\nnote'), 'short\nnote');
-  const lines = Array.from({ length: 12 }, (_, i) => `line ${i + 1}`).join('\n');
-  assert.equal(noteHead(lines).split('\n').length, NOTE_LINES);
-  const para = Array.from({ length: 140 }, (_, i) => `word${i}`).join(' ');
-  assert.ok(noteIsLong(para));
-  const head = noteHead(para);
-  assert.ok(head.length <= NOTE_LINES * 80 + 1 && head.endsWith('…') && !head.endsWith(' …'));
-  assert.ok(para.startsWith(head.slice(0, -1)) && /^word\d+$/.test(head.slice(0, -1).split(' ').pop()!));
 });
 
 test('a comment lists the image files its text does not name; one it names is drawn in place, not again', () => {

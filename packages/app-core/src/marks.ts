@@ -1,5 +1,5 @@
 // Memo marks on a capture, with no platform in it: one gesture on the picture is one mark (a tap pins a circle, a drag draws a box, a loop
-// marks an area), its memo opens at the mark, and what goes to the agent is the numbered lines plus each mark's shape and pixel rect.
+// marks an area), its memo opens at the mark, and each kept mark's number, shape and pixel rect (`markData`).
 // A view feeds points in image pixels; `annotation.ts` and `annotation-raster.ts` draw the shapes `marksToShapes` makes of the marks.
 import { textSize, type Point, type Shape } from '#src/annotation.ts';
 
@@ -131,22 +131,6 @@ export interface MarkData extends MarkRect {
 /** `from` is how many kept marks the pictures before this one carry: a message's numbers continue across its pictures. */
 export const markData = (marks: readonly Mark[], from = 0): MarkData[] =>
   keptMarks(marks).map((m, i) => ({ n: from + i + 1, shape: m.kind, ...m.rect, text: m.text.trim().replace(/\s*\n\s*/g, ' ') }));
-
-/** The kept marks as the lines that go into a message box: `1. words`, one per mark. */
-export const markLines = (marks: readonly Mark[], from = 0): string =>
-  markData(marks, from)
-    .map((d) => `${d.n}. ${d.text}`)
-    .join('\n');
-
-/**
- * The words of the message: the person's note, one `n. words` line per kept mark, and the marks' shapes and rects as a `marks` block so a later
- * agent can crop. The pictures are named beside it by the sender (`withImages`).
- */
-export function markText(note: string, marks: readonly Mark[]): string {
-  const data = markData(marks);
-  if (!data.length) return note.trim();
-  return [note.trim(), markLines(marks), '```marks', JSON.stringify(data), '```'].filter(Boolean).join('\n');
-}
 
 export const MARK_COLOR = '#e5322d';
 

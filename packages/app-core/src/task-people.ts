@@ -54,6 +54,3 @@ export function assignGroups(t: PeopleTask, agents: readonly PeopleAgent[], me: 
     { key: 'rest' as const, label: 'Other teams', names: rest },
   ].filter((g) => g.names.length);
 }
-
-/** The reply chips: the people the task names, other than the person looking. */
-export const replyTargets = (t: PeopleTask, me: string): string[] => involved(t).filter((n) => n !== me && n !== 'human');

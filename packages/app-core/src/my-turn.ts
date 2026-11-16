@@ -31,8 +31,6 @@ export type CardAction =
 
 export type WorktreeAnswer = 'keep' | 'save' | 'force';
 export const WORKTREE_TAG = 'worktree-removal';
-/** What the daemon takes as the answer to a worktree-removal task. */
-export const WORKTREE_WORDS: Record<WorktreeAnswer, string> = { keep: '3', save: '1', force: '2 yes' };
 
 export interface Card {
   key: string;
@@ -75,7 +73,6 @@ const NO_PRIORITY = 4;
 export const REVIEW_TAG = 'review';
 /** What a review card closes its task with. */
 export const APPROVED = 'Approved';
-export const changeAsked = (text: string) => `Change asked: ${text.trim()}`;
 
 /** The pictures of a review: the images the first comment names, as attachment ids with the name to show. */
 export function reviewPictures(
@@ -91,9 +88,6 @@ export function reviewPictures(
 }
 const ms = (iso: string | null | undefined) => (iso ? Date.parse(iso) : NaN);
 const at = (iso: string | null | undefined) => (Number.isFinite(ms(iso)) ? ms(iso) : 0);
-
-/** The agents that have a card in the person's turn: the filter that reads 'My turn'. */
-export const turnAgents = (cards: readonly Card[]): Set<string> => new Set(cards.flatMap((c) => (c.agent ? [c.agent] : [])));
 
 /** The open tasks given to the person that no unread item already stands for; a task leaves when it is done, discarded or handed on. */
 function taskCards(
@@ -339,12 +333,4 @@ export function messageRows(agents: readonly AgentView[]): MessageRow[] {
       from: a.founder_seen === undefined ? null : a.founder_seen + 1,
     }))
     .sort((x, y) => y.at - x.at || x.agent.localeCompare(y.agent));
-}
-
-export type InboxGroup = 'decisions' | 'approvals' | 'fyi';
-
-/** The Inbox's three groups (docs/story9-my-turn.md 9-2), mapped on the client from `kind` and `prompt`: questions the agent cannot go on without, permission prompts, everything else. */
-export function inboxGroup(i: Pick<InboxItem, 'kind' | 'prompt'>): InboxGroup {
-  if (i.prompt?.kind === 'permission') return 'approvals';
-  return KINDS[i.kind] ? 'decisions' : 'fyi';
 }
