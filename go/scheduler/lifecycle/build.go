@@ -197,7 +197,11 @@ func (l *Launcher) Build(site *Site, agent string, extra []string, force bool, a
 	if err != nil {
 		return nil, nil, err
 	}
-	hide, noWrite, err := l.Confinement(agent, cwd, drv)
+	granted, err := access.ForLaunch(l.Q, agent, resuming)
+	if err != nil {
+		return nil, nil, err
+	}
+	hide, noWrite, lifted, err := l.Confinement(agent, cwd, drv, granted)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -209,13 +213,9 @@ func (l *Launcher) Build(site *Site, agent string, extra []string, force bool, a
 		allowWrite, allowDomains, cacheDir = l.SandboxAllowWrite(agent), team.SandboxDomains(cfg), l.SandboxCacheDir(agent)
 		allowed = l.Roster.RepoAllowancesOf(cfg)
 	}
-	granted, err := access.ForLaunch(l.Q, agent, resuming)
-	if err != nil {
-		return nil, nil, err
-	}
 	var trusted []string
 	if len(mode) > 0 && chosen == team.DefaultMode {
-		trusted = l.TrustedEnvironment(cwd)
+		trusted = l.TrustedEnvironment(cwd, lifted)
 	}
 	argv = drv.LaunchArgv(exe, cli.LaunchArgs{
 		Cwd: cwd, Model: modelOf(cfg), Effort: effort, Disallowed: l.disallowed(agent),

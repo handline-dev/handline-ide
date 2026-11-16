@@ -25,6 +25,7 @@ import (
 	"github.com/handline/handline/go/kit/gitrun"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/protocol/sessiontoken"
+	"github.com/handline/handline/go/scheduler/access"
 	"github.com/handline/handline/go/scheduler/worktreepaths"
 	"github.com/handline/handline/go/taskboard/handoff"
 )
@@ -756,9 +757,14 @@ func (l *Launcher) HiddenMemories(agent string) ([]string, error) {
 var githubRemote = regexp.MustCompile(`github\.com[:/]([\w.-]+/[\w.-]+?)(?:\.git)?\s`)
 
 // TrustedEnvironment is what the permission classifier should count as the team's own, as the prose it reads: the state folder, this
-// worktree and its repository, and the GitHub repos its remotes name. Anything else stays outside the boundary.
-func (l *Launcher) TrustedEnvironment(worktree string) []string {
+// worktree and its repository, the GitHub repos its remotes name, and the other agents' folders the founder granted it (readGranted).
+// Anything else stays outside the boundary.
+func (l *Launcher) TrustedEnvironment(worktree string, readGranted []string) []string {
 	lines := []string{fmt.Sprintf("The team's state folder %s and everything under it is the team's own: reading and writing it, and running `hl`, is routine.", l.Home)}
+	if len(readGranted) > 0 {
+		lines = append(lines, "The founder granted this agent read access to "+strings.Join(readGranted, ", ")+
+			", other agents' memories and transcripts included: reading them, with the Read tool or a shell command, is sanctioned.")
+	}
 	if worktree == "" {
 		return lines
 	}
@@ -793,22 +799,29 @@ type Transcripts interface {
 
 // Confinement is what a session of agent may not read (hide) and may not write (noWrite) beyond the sandbox's own limits: other agents'
 // transcripts and memories and the key folders, and the files that move the main branch or say who the agents are. worktree is where
-// the session runs.
-func (l *Launcher) Confinement(agent, worktree string, tr Transcripts) (hide, noWrite []string, err error) {
+// the session runs. A transcript or memory folder one of the founder's grants holds is not hidden, and lifted is those grants; the
+// key folders are hidden whatever is granted.
+func (l *Launcher) Confinement(agent, worktree string, tr Transcripts, granted []string) (hide, noWrite, lifted []string, err error) {
 	hide, err = l.HiddenTranscripts(agent, tr)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	memories, err := l.HiddenMemories(agent)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	roster, err := l.RosterFiles()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	hide = append(append(hide, memories...), l.Tokens.HiddenFolders()...)
-	return hide, append(l.MainRefFiles(worktree), roster...), nil
+	hide = append(hide, memories...)
+	for _, g := range granted {
+		if len(access.Outside([]string{g}, hide)) < len(hide) {
+			lifted = append(lifted, g)
+		}
+	}
+	hide = append(access.Outside(lifted, hide), l.Tokens.HiddenFolders()...)
+	return hide, append(l.MainRefFiles(worktree), roster...), lifted, nil
 }
 
 // HiddenTranscripts are the transcript folders agent may not read: every other agent's, in every account of this vendor, since an agent
