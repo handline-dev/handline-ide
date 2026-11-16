@@ -254,6 +254,33 @@ func TestEnvFromDropsTheOldPrefixAndKeepsHandlines(t *testing.T) {
 	}
 }
 
+func TestEnvFromDropsAHostClaudeSessionsVariables(t *testing.T) {
+	home := newHome(t)
+	a := Accounts{Home: home}
+	account(t, home, "alpha")
+	host := map[string]string{"CLAUDECODE": "1", "CLAUDE_CODE_CHILD_SESSION": "1", "CLAUDE_CODE_SESSION_ID": "host",
+		"CLAUDE_CODE_ENTRYPOINT": "claude-desktop", "CLAUDE_EFFORT": "low", "CLAUDE_PID": "7", "CLAUDE_AGENT_SDK_VERSION": "1",
+		"PATH": "/bin"}
+	env := a.EnvFrom(host, "alpha", "worker")
+	for k := range env {
+		if strings.HasPrefix(k, "CLAUDE") && k != "CLAUDE_CONFIG_DIR" {
+			t.Errorf("%s was carried into the new session", k)
+		}
+	}
+	if env["CLAUDE_CONFIG_DIR"] != filepath.Join(accountDir(t, home, "alpha"), ".claude") || env["PATH"] != "/bin" {
+		t.Fatalf("%v", env)
+	}
+	if host["CLAUDECODE"] != "1" {
+		t.Fatal("the caller's environment was changed")
+	}
+
+	// Outside a Claude Code session a CLAUDE_CODE_ setting is the user's own.
+	own := a.EnvFrom(map[string]string{"CLAUDE_CODE_MAX_OUTPUT_TOKENS": "9"}, "alpha", "worker")
+	if own["CLAUDE_CODE_MAX_OUTPUT_TOKENS"] != "9" {
+		t.Fatalf("the user's own setting went: %v", own)
+	}
+}
+
 func TestUsersOfAndRemovePlan(t *testing.T) {
 	home := newHome(t)
 	a := Accounts{Home: home}
