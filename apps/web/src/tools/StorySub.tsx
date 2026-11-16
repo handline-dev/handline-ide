@@ -1,10 +1,11 @@
 // A story's sub-task opened from its node: back to the Plan, the next one for you, and its Plan, Code and Result with the founder's verdicts.
 import type { MemoFile, TaskDetail } from '@handline/client';
-import { hooks, useAttachmentUrl, useNameOf, useWorktrees, useWrite } from '@handline/app-data';
+import { hooks, useAttachmentUrl, useNameOf, useWrite } from '@handline/app-data';
 import { useMe } from '@handline/app-react';
 import { Check, ChevronLeft, ChevronRight, Play } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
-import { Changes } from '#src/changes/Changes.tsx';
+import { playVideo } from '#src/viewer/VideoPlayer.tsx';
+import { Changes, diffCounts, useBranchDiff } from '#src/changes/Changes.tsx';
 import { clock } from '#src/format/time.ts';
 import { useTabState } from '#src/persist/tabState.ts';
 import { Avatar } from '#src/tools/TaskEvents.tsx';
@@ -30,8 +31,9 @@ export function SubTask({ sub, story, onPick }: { sub: Sub; story: TaskDetail; o
   const rest = story.subtasks.filter((x) => x.id !== sub.id);
   const after = [...rest.filter((x) => x.id > sub.id), ...rest.filter((x) => x.id < sub.id)];
   const next = after.find((x) => x.review?.ready || (x.state === 'draft' && x.plan_state === 'written')) ?? after[0];
-  const code = !!t.core_ask?.sent_at || t.state !== 'draft';
-  const shown: Tab = tab ?? (t.review ? 'result' : 'plan');
+  const code = !!t.branch?.exists;
+  const first: Tab = t.review ? 'result' : 'plan';
+  const shown: Tab = tab === 'code' && !code ? first : (tab ?? first);
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <div className="flex h-12 shrink-0 items-center justify-between border-b border-border px-4 text-sm">
@@ -87,9 +89,9 @@ export function SubTask({ sub, story, onPick }: { sub: Sub; story: TaskDetail; o
         </div>
       </div>
       {shown === 'plan' && <PlanTab t={t} open={open} />}
-      {shown === 'code' && (
+      {shown === 'code' && t.branch?.exists && (
         <div className="flex min-h-0 flex-1 flex-col">
-          <Changes agent={t.to} />
+          <Changes agent={t.to} branch={t.branch.name} />
         </div>
       )}
       {shown === 'result' && t.review && <ResultTab t={t} onCode={() => setTab('code')} />}
@@ -238,8 +240,9 @@ function ResultTab({ t, onCode }: { t: TaskDetail; onCode: () => void }) {
   const posters = new Set(files.map((f) => f.poster).filter(Boolean));
   const pictures = files.filter((f) => f.kind === 'image' && !posters.has(f.id));
   const videos = files.filter((f) => f.kind === 'video');
-  const changed = useWorktrees({ owner: t.to }).data?.worktrees[0]?.changed ?? [];
-  const sum = (k: 'added' | 'deleted') => changed.reduce((n, f) => n + (f[k] ?? 0), 0);
+  const diff = useBranchDiff(t.to, t.branch?.exists ? t.branch.name : null).data;
+  const changed = diff ? diffCounts(diff.diff) : [];
+  const sum = (k: 'added' | 'deleted') => changed.reduce((n, f) => n + f[k], 0);
   return (
     <ScrollFade className="min-h-0 flex-1">
       <div className="flex flex-col gap-5 px-6 py-5 text-sm">
@@ -290,21 +293,14 @@ function Framed({ f }: { f: MemoFile }) {
 }
 
 function Video({ f }: { f: MemoFile }) {
-  const src = useAttachmentUrl(f.id, false).url;
-
-  const [on, setOn] = useState(false);
   return (
     <figure className="flex flex-col gap-1">
-      {on && src ? (
-        <video src={src} controls autoPlay className="h-37 w-full rounded-md border border-border bg-fg" />
-      ) : (
-        <button type="button" onClick={() => setOn(true)} className="relative overflow-hidden rounded-md border border-border">
-          {f.poster ? <Poster id={f.poster} /> : <div className="h-37 bg-hover/30" />}
-          <span className="absolute inset-0 m-auto flex size-12 items-center justify-center rounded-full bg-fg/60 text-bg">
-            <Play size={20} />
-          </span>
-        </button>
-      )}
+      <button type="button" onClick={() => playVideo(f.id, f.name)} className="relative overflow-hidden rounded-md border border-border">
+        {f.poster ? <Poster id={f.poster} /> : <div className="h-37 bg-hover/30" />}
+        <span className="absolute inset-0 m-auto flex size-12 items-center justify-center rounded-full bg-fg/60 text-bg">
+          <Play size={20} />
+        </span>
+      </button>
       <figcaption className="text-xs text-muted">{f.name}</figcaption>
     </figure>
   );

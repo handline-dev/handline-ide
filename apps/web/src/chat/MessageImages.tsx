@@ -2,6 +2,7 @@ import { useAttachmentUrl } from '@handline/app-data';
 import { Play } from 'lucide-react';
 import { createContext, useContext, useState } from 'react';
 import type { Attachments } from '#src/chat/attachments.tsx';
+import { playVideo } from '#src/viewer/VideoPlayer.tsx';
 import { ImageViewer, type MarkedPicture, type Picture } from '#src/viewer/ImageViewer.tsx';
 
 /** Where a picture marked up from a chat or a task goes: the box below, its marked copy attached and its comments written in. */
@@ -23,7 +24,13 @@ export function markInto(attach: Attachments, setDraft: (f: (d: string) => strin
 
 /** A message's pictures as thumbnails; a click opens them in the viewer, where they can be marked up into the box below. `small`
  * halves them, for a result whose pictures are shown larger beside it. */
-export function MessageImages({ images, small = false }: { images: { id: string; name: string; play?: boolean }[]; small?: boolean }) {
+export function MessageImages({
+  images,
+  small = false,
+}: {
+  images: { id: string; name: string; video?: { id: string; name: string } }[];
+  small?: boolean;
+}) {
   const [open, setOpen] = useState<number | null>(null);
   const reply = useContext(MarkReply);
   if (!images.length) return null;
@@ -31,7 +38,14 @@ export function MessageImages({ images, small = false }: { images: { id: string;
   return (
     <div className="flex max-w-150 flex-wrap gap-2">
       {images.map((a, i) => (
-        <Thumb key={a.id} id={a.id} name={a.name} play={a.play} small={small} onOpen={() => setOpen(i)} />
+        <Thumb
+          key={a.id}
+          id={a.id}
+          name={a.name}
+          play={!!a.video}
+          small={small}
+          onOpen={() => (a.video ? playVideo(a.video.id, a.video.name) : setOpen(i))}
+        />
       ))}
       {open !== null && (
         <ImageViewer pictures={pictures} start={open} onClose={() => setOpen(null)} onMarked={reply?.add} doneLabel={reply?.label} />

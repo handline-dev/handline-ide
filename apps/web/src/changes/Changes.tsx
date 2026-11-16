@@ -30,16 +30,31 @@ const tone = (line: string) =>
         ? 'bg-danger/10 text-fg'
         : 'text-fg';
 
+/** Each file of a diff with the lines it adds and removes, counted from the diff itself. */
+export const diffCounts = (diff: string) =>
+  byFile(diff).map((f) => ({
+    path: f.path,
+    added: f.lines.filter((l) => l.startsWith('+')).length,
+    deleted: f.lines.filter((l) => l.startsWith('-')).length,
+  }));
+
+/** A branch's commits in the agent's worktree repo against their merge-base with the base branch, whatever it has checked out. */
+export function useBranchDiff(agent: string, branch: string | null) {
+  const path = useAgentDetail(agent).data?.worktree?.path ?? '';
+  return useRead('worktree.diff', { path, against: 'base', branch: branch ?? '' }, { enabled: path !== '' && !!branch });
+}
+
 /** The agent's worktree changes against its base: the branch, each changed file with its lines added and removed, and the diff
- * under it, folded per file. */
-export function Changes({ agent }: { agent: string }) {
+ * under it, folded per file. With `branch`, that branch's commits alone (a task's code), with no Uncommitted view. */
+export function Changes({ agent, branch }: { agent: string; branch?: string }) {
   const detail = useAgentDetail(agent).data;
   const path = detail?.worktree?.path ?? '';
-  const changed = useWorktrees({ owner: agent }).data?.worktrees.find((w) => w.path === path)?.changed ?? [];
-  const [against, setAgainst] = useTabState<'head' | 'base'>('against', 'base');
+  const worktreeChanged = useWorktrees({ owner: agent }).data?.worktrees.find((w) => w.path === path)?.changed ?? [];
+  const [picked, setAgainst] = useTabState<'head' | 'base'>('against', 'base');
+  const against = branch ? 'base' : picked;
   // The files folded shut; the rest are open. A fold drops the paths no longer in the diff, so the list never outgrows it.
   const [shut, setShut] = useTabState<string[]>('shut', []);
-  const diff = useRead('worktree.diff', { path, against }, { enabled: path !== '' });
+  const diff = useRead('worktree.diff', { path, against, ...(branch ? { branch } : {}) }, { enabled: path !== '' });
   const box = useRef<HTMLDivElement>(null);
   // A file asked for from the branch card comes to the top of the view, opened.
   const show = useCallback((file: string) => {
@@ -51,23 +66,26 @@ export function Changes({ agent }: { agent: string }) {
   if (!detail) return <p className="p-4 text-sm text-muted">Loading…</p>;
   if (!detail.worktree) return <p className="p-4 text-sm text-muted">This agent has no worktree.</p>;
   const files = diff.data ? byFile(diff.data.diff) : [];
+  const changed = branch ? diffCounts(diff.data?.diff ?? '') : worktreeChanged;
   const counts = new Map(changed.map((f) => [f.path, f]));
   return (
     <ScrollFade keep={`changes:${agent}`} className="min-h-0 flex-1">
       <div ref={box} className="flex flex-col gap-3 p-4">
         <div className="flex items-center gap-2 text-sm text-muted">
           <GitBranch size={14} />
-          <span className="text-fg">{detail.worktree.branch}</span>
+          <span className="text-fg">{branch ?? detail.worktree.branch}</span>
           <span>{`${changed.length} files changed`}</span>
           <span className="flex-1" />
-          <Segmented
-            value={against}
-            onChange={setAgainst}
-            options={[
-              ['head', 'Uncommitted'],
-              ['base', `vs ${diff.data?.against === 'base' ? (diff.data.base_ref ?? 'main') : 'main'}`],
-            ]}
-          />
+          {!branch && (
+            <Segmented
+              value={against}
+              onChange={setAgainst}
+              options={[
+                ['head', 'Uncommitted'],
+                ['base', `vs ${diff.data?.against === 'base' ? (diff.data.base_ref ?? 'main') : 'main'}`],
+              ]}
+            />
+          )}
         </div>
         {diff.isPending && <LinesLoading label="Loading the diff" />}
         {diff.isError && <p className="text-sm text-danger">The diff did not load.</p>}
