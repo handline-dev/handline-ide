@@ -125,6 +125,10 @@ test('story-review seeds a sub-task Ready for you with pictures and a video, and
 
   await assert.rejects(client.call('task.ok', { task: 9412, request_id: 'ok-9412' }), /not Ready/);
   await assert.rejects(client.call('task.redo', { task: 9411, note: ' ', request_id: 'redo-0' }), /note/);
+  await client.call('task.comment.add', { task: 9411, text: 'Why the yellow?', request_id: 'ask-9411' });
+  const asked = await client.call('task.get', { task: 9411 });
+  assert.deepEqual([asked.review?.ready, asked.turns], [true, ready.turns]); // a question to the assignee: still Ready
+  await assert.rejects(client.call('task.turn.pop', { task: 9411, outcome: 'pass', request_id: 'pop-9411' }), /OK, merge or Redo/);
   await client.call('task.redo', { task: 9411, note: 'Make the badge round.', request_id: 'redo-9411' });
   const back = await client.call('task.get', { task: 9411 });
   assert.deepEqual([back.review?.ready, back.review?.redo, back.turns?.length ?? 0], [false, 1, 0]);

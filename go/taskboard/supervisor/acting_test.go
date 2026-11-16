@@ -102,6 +102,26 @@ func TestACommentTellsTheAgentOnTop(t *testing.T) {
 	}
 }
 
+// The founder's question on a task Ready for them is told to the agent below their turn, which answers it in a comment; their turn stays.
+func TestTheFoundersQuestionOnAReadyTaskIsToldToItsAssignee(t *testing.T) {
+	r, tid := turnRig(t)
+	mid, err := db.AddMemo(r.DB, tid, r.k("alice"), "built it")
+	r.must(err)
+	r.must(db.AddReady(r.DB, tid, r.k("alice"), r.k("carol"), mid))
+	r.must(db.PushTurn(r.DB, tid, db.Turn{Agent: actor.OwnerKey, By: r.k("alice"), Since: r.clock, Memo: mid}))
+	if got, ok := r.MemoRecipients(tid, actor.OwnerKey, "why the yellow?", false); !ok || len(got) != 1 || got[0].Agent != r.k("alice") {
+		t.Fatalf("%+v", got)
+	}
+	r.turnCall("human", "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"why the yellow?","request_id":"c1"}`, tid))
+	says := fmt.Sprint(r.saysTo("alice"))
+	if !strings.Contains(says, "why the yellow?") || !strings.Contains(says, fmt.Sprintf("T%d stays Ready for", tid)) {
+		t.Fatalf("alice is not asked: %s", says)
+	}
+	if a := r.acting(tid); a != actor.OwnerKey {
+		t.Fatalf("the question passed the founder's turn to %s", a)
+	}
+}
+
 // The agent on top may start the task and keep progress on it; its owner may do neither.
 func TestTheAgentOnTopStartsTheTaskAndKeepsItsProgress(t *testing.T) {
 	r, tid := turnRig(t)

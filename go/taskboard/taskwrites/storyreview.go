@@ -51,6 +51,20 @@ func readyFor(tx *sql.Tx, tid int64, by, to string) (string, error) {
 	return to, nil
 }
 
+// readyNow is whether task tid is open and Ready for the founder now.
+func readyNow(tx *sql.Tx, tid int64) (bool, error) {
+	if t, err := getTask(tx, tid); err != nil || t == nil || t.done() || t.DiscardedBy.String != "" {
+		return false, err
+	}
+	r, err := db.TaskReview(tx, tid)
+	return r != nil && r.Ready, err
+}
+
+// readyRefusal is the founder's no to any answer of a Ready task but OK, merge or Redo.
+func readyRefusal(tid int64) string {
+	return fmt.Sprintf("T%d is Ready for you: answer it with OK, merge or Redo", tid)
+}
+
 // readyTask is task tid's review, refused unless the task is Ready now and by may answer the founder's turn on it.
 func readyTask(tx *sql.Tx, tid int64, by string) (*db.Review, error) {
 	t, err := openTask(tx, tid)
