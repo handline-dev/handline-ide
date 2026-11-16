@@ -13,7 +13,7 @@ export interface ChatSource {
 
 /** The time before which a source has not been read: its oldest line, when it has older ones; null when it was read to the start. */
 const readFrom = (lines: readonly { at: string }[], more: boolean): string | null =>
-  more && lines.length ? lines.reduce((a, l) => (l.at < a ? l.at : a), lines[0]!.at) : null;
+  more && lines.length ? lines.reduce((a, l) => (l.at < a ? l.at : a), lines[0].at) : null;
 
 /** The coverage watermark: the oldest time both sources have read, or null when both reached the start of the chat. */
 export function coverage(s: ChatSource): string | null {
