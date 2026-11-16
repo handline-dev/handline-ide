@@ -75,11 +75,12 @@ export function useAgentLayouts() {
   // Before any agent is picked the workspace still works, under no agent ('').
   const key = saved.agent ?? '';
   const layout = saved.layouts[key];
-  // Picking a workspace shows its main tab; its other tabs stay as they were left.
+  // Picking another workspace brings it back as it was left; picking the one shown again brings up its main tab.
   const open = (space: string, opens: string, title: string) => {
     step.current = 'push';
     setSaved((s) => {
       const e = ensured({ ...s, agent: space });
+      if ((s.agent ?? '') !== space) return e;
       return { ...e, layouts: { ...e.layouts, [space]: reduce(e.layouts[space], { type: 'show', opens, title }) } };
     });
   };
