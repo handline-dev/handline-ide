@@ -49,14 +49,16 @@ export function waitReason(t: Task, me: string, open: ReadonlySet<number>): stri
   return t.block_reason || t.hold_reason || null;
 }
 
-/** The open tasks, and with `closed` the done ones as well, laid out top to bottom along "holds". */
-export function taskGraph(tasks: readonly Task[], opts: { me: string; closed?: boolean }): TaskGraph {
+/** The open tasks, and with `closed` the done ones as well, laid out top to bottom along "holds"; `size` sets the boxes' (default
+ * NODE_W by NODE_H). */
+export function taskGraph(tasks: readonly Task[], opts: { me: string; closed?: boolean; size?: { w: number; h: number } }): TaskGraph {
+  const { w: W, h: H } = opts.size ?? { w: NODE_W, h: NODE_H };
   const list = tasks.filter((t) => opts.closed || !CLOSED.includes(t.state));
   const ids = new Set(list.map((t) => t.id));
   const g = new dagre.graphlib.Graph();
   g.setGraph({ rankdir: 'TB', nodesep: 24, ranksep: 56, marginx: 16, marginy: 16 });
   g.setDefaultEdgeLabel(() => ({}));
-  for (const t of list) g.setNode(String(t.id), { width: NODE_W, height: NODE_H });
+  for (const t of list) g.setNode(String(t.id), { width: W, height: H });
   const pairs: [number, number][] = [];
   for (const t of list) for (const h of t.blocked_by ?? []) if (ids.has(h) && h !== t.id) pairs.push([h, t.id]);
   for (const [h, w] of pairs) g.setEdge(String(h), String(w));
@@ -69,10 +71,10 @@ export function taskGraph(tasks: readonly Task[], opts: { me: string; closed?: b
       state: t.state,
       mine: t.to === opts.me,
       reason: waitReason(t, opts.me, ids),
-      x: n.x - NODE_W / 2,
-      y: n.y - NODE_H / 2,
-      w: NODE_W,
-      h: NODE_H,
+      x: n.x - W / 2,
+      y: n.y - H / 2,
+      w: W,
+      h: H,
     };
   });
   const edges = pairs.map(([from, to]): GraphEdge => {

@@ -149,6 +149,26 @@ export const SEEDS: Record<string, Seed> = {
     };
   },
 
+  /** A story: a lead task with comments and five draft sub-tasks. */
+  story: (d) => {
+    const LEAD = 'handline.lead';
+    d.tasks.seed({ id: 9140, from: ME, to: LEAD, title: 'Reviews go down as agents learn', state: 'doing' });
+    const talk: [string, string][] = [
+      [ME, 'Start with lots of review, then less as each agent gets better. Experience should build up without growing context.'],
+      [LEAD, 'Count it per role or per person?'],
+      [ME, 'Per role.'],
+      [LEAD, 'Drafted 5 tasks on the right. Two can start now; three wait for them.'],
+    ];
+    for (const [who, text] of talk) d.tasks.memo({ task: 9140, text }, 'add', who);
+    const sub = (id: number, to: string, title: string, after: number[] = []) =>
+      d.tasks.seed({ id, from: LEAD, to, title, state: 'draft', parent: 9140, blockers: after.map((task) => ({ task, reason: '' })) });
+    sub(9141, 'handline.ui', 'OK / Redo on answers');
+    sub(9142, 'handline.daemon-core', 'One playbook per role');
+    sub(9143, 'handline.daemon-tasks', 'Redo asks for one playbook line', [9141, 9142]);
+    sub(9144, 'handline.tools', 'Check reads the playbook before you see it', [9142]);
+    sub(9145, 'handline.daemon-tasks', 'First-answer OK rate per role', [9141]);
+  },
+
   /** 200 tasks, so a list has to scroll and page. */
   'tasks-200': (d) => {
     const states = ['queued', 'doing', 'done', 'draft'];
