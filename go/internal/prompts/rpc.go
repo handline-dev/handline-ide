@@ -2,6 +2,7 @@ package prompts
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/handline/handline/go/kit/paths"
@@ -35,13 +36,18 @@ func (e *Env) agentNamed(params map[string]any) (string, error) {
 	return "", err
 }
 
-// answerFor is what Answer takes for choice on this block: allow or deny, the two a hook's question offers; bad_request for anything else.
+// answerFor is what Answer takes for choice on this block: allow or deny, the two a hook's question offers, and always when it offers a
+// grant; bad_request for anything else.
 func answerFor(b *Block, choice any) (Choice, error) {
 	c, _ := choice.(string)
-	if !b.IsHook() || (c != "allow" && c != "deny") {
-		return Choice{}, bad(fmt.Sprintf("this prompt offers allow, deny, not %s", pyRepr(fmt.Sprint(choice))), "choice")
+	offers := "allow, deny"
+	if b.Grant() != nil {
+		offers += ", " + AlwaysKey
 	}
-	return Choice{Yes: c == "allow"}, nil
+	if !b.IsHook() || !slices.Contains(strings.Split(offers, ", "), c) {
+		return Choice{}, bad(fmt.Sprintf("this prompt offers %s, not %s", offers, pyRepr(fmt.Sprint(choice))), "choice")
+	}
+	return Choice{Yes: c != "deny", Always: c == AlwaysKey}, nil
 }
 
 func pyRepr(s string) string {
@@ -91,6 +97,9 @@ func (e *Env) answer(c *rpc.Conn, params map[string]any) (any, error) {
 	pick, err := answerFor(block, choice)
 	if err != nil {
 		return nil, err
+	}
+	if pick.Always && !c.Caller.Allows("owner") { // it is a grant, and only the owner grants (access.grant)
+		return nil, rpc.Refused("only the owner can allow always: it grants a read of every agent's memory and transcripts", "role", "")
 	}
 	if note, has := params["note"]; has {
 		text, ok := note.(string)

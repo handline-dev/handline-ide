@@ -305,9 +305,11 @@ func optionsOf(kind string, answerable bool, detail map[string]any) []any {
 			return []any{}
 		}
 		if detail["structured"] == true || detail["source"] == "hook" { // asked through a call: allow or deny, nothing on a screen to escape from
-			return []any{
-				map[string]any{"key": "allow", "label": "Allow", "answer": "yes", "highlighted": false},
-				map[string]any{"key": "deny", "label": "Deny", "answer": "no", "highlighted": false}}
+			out := []any{map[string]any{"key": "allow", "label": "Allow", "answer": "yes", "highlighted": false}}
+			if _, grants := detail["grant"]; grants { // a read of another agent's memory or transcripts (prompts.ReadGrant)
+				out = append(out, map[string]any{"key": "always", "label": "Allow always: every agent's memory and transcripts", "answer": "yes", "highlighted": false})
+			}
+			return append(out, map[string]any{"key": "deny", "label": "Deny", "answer": "no", "highlighted": false})
 		}
 		return []any{
 			map[string]any{"key": "yes", "label": "Yes", "answer": "yes", "highlighted": false},

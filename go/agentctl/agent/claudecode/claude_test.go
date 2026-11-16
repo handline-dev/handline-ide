@@ -223,6 +223,19 @@ func TestReadAllowAllowsThePathAndWhatIsUnderIt(t *testing.T) {
 	}
 }
 
+// A hidden folder in AskRead is still denied to Bash, but its Read tool asks; the rest of Hide is refused outright.
+func TestAskReadAsksForTheReadToolAndStillHidesFromBash(t *testing.T) {
+	argv := (Driver{}).LaunchArgv("/bin/claude", agent.LaunchArgs{Effort: "high", Disallowed: "Task",
+		Hide: []string{"/h/agents/b/memory", "/h/keys"}, AskRead: []string{"/h/agents/b/memory"}})
+	s := strings.ReplaceAll(argv[len(argv)-1], " ", "")
+	for _, want := range []string{`"denyRead":["/h/agents/b/memory","/h/keys"]`, `"ask":["Read(//h/agents/b/memory/**)"]`,
+		`"deny":["Bash(goclean:*)","Read(//h/keys/**)"]`} {
+		if !strings.Contains(s, want) {
+			t.Errorf("%s\nwant %s", s, want)
+		}
+	}
+}
+
 // Both keychain reads ask with keychainFind.
 func TestBothKeychainReadsUseKeychainFind(t *testing.T) {
 	t.Setenv("USER", "ron")
