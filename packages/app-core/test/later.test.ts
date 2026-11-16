@@ -1,14 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { laterChoices, laterHolds, laterKeyOf, laterWords } from '#src/later.ts';
-
-test('a task, a comment ask and the machine can be put off; a prompt and a dialog cannot', () => {
-  assert.equal(laterKeyOf({ kind: 'task', task: 42, memo: null }), 'task:42');
-  assert.equal(laterKeyOf({ kind: 'decision', task: 42, memo: 7 }), 'comment:7');
-  assert.equal(laterKeyOf({ kind: 'machine', task: null, memo: null }), 'machine:disk');
-  assert.equal(laterKeyOf({ kind: 'approval', task: null, memo: null }), null);
-  assert.equal(laterKeyOf({ kind: 'dialog', task: 3, memo: null }), null);
-});
+import { laterChoices, laterHolds, laterWords } from '#src/later.ts';
 
 test('a deferral holds until its time passes or its task ends', () => {
   const now = Date.parse('2026-10-30T12:00:00Z');

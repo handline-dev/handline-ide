@@ -74,18 +74,6 @@ export const REVIEW_TAG = 'review';
 /** What a review card closes its task with. */
 export const APPROVED = 'Approved';
 
-/** The pictures of a review: the images the first comment names, as attachment ids with the name to show. */
-export function reviewPictures(
-  memos: readonly { id: number; parts?: readonly object[]; files?: readonly { id: string; kind: string; name?: string }[] }[],
-) {
-  const first = memos.reduce<(typeof memos)[number] | undefined>((a, m) => (!a || m.id < a.id ? m : a), undefined);
-  const named = (first?.parts ?? []).flatMap((p) => {
-    const { image, gone } = p as { image?: { id: string; name?: string }; gone?: boolean };
-    return image && !gone ? [{ id: image.id, name: image.name ?? 'picture' }] : [];
-  });
-  if (named.length) return named;
-  return (first?.files ?? []).filter((f) => f.kind === 'image').map((f) => ({ id: f.id, name: f.name ?? 'picture' }));
-}
 const ms = (iso: string | null | undefined) => (iso ? Date.parse(iso) : NaN);
 const at = (iso: string | null | undefined) => (Number.isFinite(ms(iso)) ? ms(iso) : 0);
 
@@ -307,30 +295,4 @@ export function myTurn({ items, agents, tasks, titles, machine = [], me = '' }: 
       x.since - y.since ||
       x.key.localeCompare(y.key),
   );
-}
-
-/** An agent with messages for the person they have not seen: the Messages section of My turn, one row each. */
-export interface MessageRow {
-  agent: string;
-  /** The whole body of its newest request to the founder. */
-  line: string;
-  /** When it was written (ms). */
-  at: number;
-  unread: number;
-  /** The message to open the chat at (the first above the founder's cursor), absent from a daemon without founder_seen. */
-  from: number | null;
-}
-
-/** One row per agent with unread messages, newest first. */
-export function messageRows(agents: readonly AgentView[]): MessageRow[] {
-  return agents
-    .filter((a) => (a.founder_unread ?? 0) > 0)
-    .map((a) => ({
-      agent: a.key,
-      line: a.last_to_founder?.text ?? '',
-      at: at(a.last_to_founder?.at),
-      unread: a.founder_unread!,
-      from: a.founder_seen === undefined ? null : a.founder_seen + 1,
-    }))
-    .sort((x, y) => y.at - x.at || x.agent.localeCompare(y.agent));
 }

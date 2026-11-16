@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { Task } from '@handline/client';
-import { clip, edgePath, taskGraph, waitReason } from '#src/task-graph.ts';
+import { taskGraph, waitReason } from '#src/task-graph.ts';
 
 const task = (id: number, over: Partial<Task> = {}): Task => ({
   id,
@@ -58,19 +58,4 @@ test('mine marks the person looking', () => {
     [true, false, true],
   );
   assert.ok(g.width > 0 && g.height > 0);
-});
-
-test('an edge as path data and a clipped second line', () => {
-  const e = {
-    from: 1,
-    to: 2,
-    label: '',
-    points: [
-      { x: 1, y: 2 },
-      { x: 3, y: 4 },
-    ],
-  };
-  assert.equal(edgePath(e), 'M1 2 L3 4');
-  assert.equal(clip('abcdef', 4), 'abc…');
-  assert.equal(clip('abc', 4), 'abc');
 });

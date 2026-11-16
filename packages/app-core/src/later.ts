@@ -1,18 +1,9 @@
 // Later: the person puts an item of Requests off until a time or until a task is done (NavPrefs.later, by `kind:id` of the For you item). Pure.
 import type { PendingRequest } from '@handline/client';
-import type { Card } from '#src/my-turn.ts';
 import { taskRef } from '#src/tasks.ts';
 
 /** Why an item is out of its group and when it returns: at `until` (ISO time), or when the task `after_task` ends. */
 export type LaterAt = { until: string } | { after_task: number };
-
-/** The For you key of a card, or null for one that cannot be put off (a session's prompt, a proposal: an agent is stopped on them). */
-export function laterKeyOf(c: Pick<Card, 'kind' | 'task' | 'memo'>): string | null {
-  if (c.kind === 'approval' || c.kind === 'dialog') return null;
-  if (c.kind === 'machine') return 'machine:disk';
-  if (c.memo != null) return `comment:${c.memo}`;
-  return c.task != null ? `task:${c.task}` : null;
-}
 
 /** The same key of a row of the founder's turn (a row of requests.pending), or null for one that cannot be put off. */
 export const laterKey = (p: PendingRequest): string | null =>

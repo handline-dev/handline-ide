@@ -26,7 +26,7 @@ export const attachmentOf = (href: string): string | null => new RegExp(`^attach
 export function findImageRefs(text: string): ImageSpan[] {
   const out: ImageSpan[] = [];
   for (const m of text.matchAll(new RegExp(`!\\[([^\\]\\n]*)\\]\\(attachment:(${ID})\\)`, 'g'))) {
-    out.push({ start: m.index, end: m.index + m[0].length, caption: m[1]!, id: m[2]! });
+    out.push({ start: m.index, end: m.index + m[0].length, caption: m[1], id: m[2] });
   }
   return out;
 }

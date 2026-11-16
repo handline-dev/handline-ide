@@ -67,7 +67,7 @@ const GLYPH_H = 7;
 
 export function parseColor(hex: string): [number, number, number] {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex);
-  const n = m ? parseInt(m[1]!, 16) : 0;
+  const n = m ? parseInt(m[1], 16) : 0;
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
 
@@ -176,14 +176,14 @@ export function drawShapes(bitmap: Bitmap, shapes: readonly Shape[], scale = 1):
       arrow(bitmap, s.from, s.to, s.width, rgb);
     } else if (s.kind === 'ellipse') {
       const ring = ellipsePoints(s.from, s.to);
-      for (let i = 0; i < ring.length - 1; i++) line(bitmap, ring[i]!, ring[i + 1]!, s.width, rgb);
+      for (let i = 0; i < ring.length - 1; i++) line(bitmap, ring[i], ring[i + 1], s.width, rgb);
     } else if (s.kind === 'box') {
       const { from: f, to: t } = s;
       const corners = [f, { x: t.x, y: f.y }, t, { x: f.x, y: t.y }, f];
-      for (let i = 0; i < 4; i++) line(bitmap, corners[i]!, corners[i + 1]!, s.width, rgb);
+      for (let i = 0; i < 4; i++) line(bitmap, corners[i], corners[i + 1], s.width, rgb);
     } else if (s.kind === 'note') {
       const m = noteMark(s);
-      for (let i = 0; i < m.outline.length - 1; i++) line(bitmap, m.outline[i]!, m.outline[i + 1]!, s.width, rgb);
+      for (let i = 0; i < m.outline.length - 1; i++) line(bitmap, m.outline[i], m.outline[i + 1], s.width, rgb);
       text(bitmap, m.label, String(++n), m.size, rgb);
     } else {
       text(bitmap, s.at, s.text, s.size, rgb);
