@@ -107,14 +107,6 @@ func TestThePaceCountsANewWindowFromNothingAndAResetIsListedOnce(t *testing.T) {
 	}
 }
 
-// With no reading there are no accounts, and the average still has every point, with nothing in it.
-func TestHeadroomWithNoReadingHasNoAccountsAndEmptyPoints(t *testing.T) {
-	h := HeadroomOver(nil, 1_800_000_000, 1_800_000_000-3600, 1_800_000_000+3600, 900, nil, nil)
-	if len(h.Accounts) != 0 || len(h.Past) != 5 || len(h.Future) != 4 || h.Past[0].Left != nil {
-		t.Fatalf("%+v", h)
-	}
-}
-
 // fast spent 60 of its week in the last day, half way through it: guessed at its last day's use, it hits the wall in under a day.
 func TestTheGuessGoesAtTheLastDaysUse(t *testing.T) {
 	now := int64(1_800_000_000)
@@ -189,5 +181,13 @@ func TestHeadroomCountsALoggedOutAccountAsNothingLeft(t *testing.T) {
 	}
 	if *b.Future[0].Week != 0 || *b.Future[0].Five != 0 || len(b.Resets) != 0 && b.Resets[len(b.Resets)-1].At > now {
 		t.Fatalf("b out now has nothing left ahead and no reset guessed: %+v", b.Future[0])
+	}
+}
+
+// With no reading there are no accounts, and the average still has every point, with nothing in it.
+func TestHeadroomWithNoReadingHasNoAccountsAndEmptyPoints(t *testing.T) {
+	h := HeadroomOver(nil, 1_800_000_000, 1_800_000_000-3600, 1_800_000_000+3600, 900, nil, nil)
+	if len(h.Accounts) != 0 || len(h.Past) != 5 || len(h.Future) != 4 || h.Past[0].Left != nil {
+		t.Fatalf("%+v", h)
 	}
 }

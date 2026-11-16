@@ -2,9 +2,6 @@ package term
 
 import "time"
 
-// ExitOverWorkTitle is the title of the exit dialog over background work, lower-cased.
-const ExitOverWorkTitle = exitOverWorkTitle
-
 // ScreenCacheTTL is how old a cached screen read may be.
 const ScreenCacheTTL = 5 * time.Second
 

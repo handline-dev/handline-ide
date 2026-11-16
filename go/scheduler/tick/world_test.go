@@ -110,7 +110,6 @@ type wDelivery struct {
 func (d wDelivery) EnforceEdges(db.Q, string) error                           { d.w.call("edges"); return nil }
 func (d wDelivery) NoteFailure(a, why string)                                 { d.w.call("failure %q", why) }
 func (d wDelivery) TrackBackgroundWork(db.Q, string, *db.AgentState)          {}
-func (d wDelivery) DeliverAnswers(db.Q, string)                               { d.w.call("answers") }
 func (d wDelivery) DeliverQueued(db.Q, string) bool                           { d.w.call("queued"); return d.w.delivered }
 func (d wDelivery) NudgeForgottenResolve(db.Q, string, *db.AgentState, int64) { d.w.call("nudge") }
 func (d wDelivery) SessionPresent(string) bool                                { return d.w.present }

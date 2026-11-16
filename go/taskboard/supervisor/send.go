@@ -25,8 +25,6 @@ const (
 	EndPollS        = 1
 	// DialogStall begins the detail of an agent stalled on a dialog Handline cannot get past.
 	DialogStall = "cannot get past a dialog"
-	// MaxTypedLines is the most lines of text typed at an agent: Claude Code wraps a longer paste in <pasted_content>.
-	MaxTypedLines = 3
 )
 
 // TableListsSession is what the process table says: yes if it lists a session for the agent, no if not; known false when it could not be read.

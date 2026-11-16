@@ -2,7 +2,6 @@
 package states
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/handline/handline/go/agentctl/verdict"
@@ -59,21 +58,6 @@ func ParkReason(row *db.AgentState) verdict.ParkReason {
 	return verdict.ParseParkReason(row.ParkReason.String)
 }
 
-// ParkWakeable is park_wakeable: whether w does anything on this PARKED, THROTTLED or DEGRADED row, and why not.
-func ParkWakeable(row *db.AgentState) (bool, string) {
-	switch ParkReason(row) {
-	case verdict.ParkMoving:
-		return false, fmt.Sprintf("%s is moving accounts - it retries on its own shortly", row.Agent)
-	case verdict.ParkByHand:
-		return true, ""
-	}
-	when := "?"
-	if row.WakeAt.Valid && row.WakeAt.Int64 != 0 {
-		when = time.Unix(row.WakeAt.Int64, 0).Format("15:04")
-	}
-	return false, fmt.Sprintf("%s clears on its own - starts %s when the window rolls over", row.Agent, when)
-}
-
 // The timing constants, in seconds.
 const (
 	LimitSettleS           = 30
@@ -82,7 +66,6 @@ const (
 	LoginCheckCooldownS    = 300
 	UsagePollS             = 120
 	UsageMaxAgeS           = 900
-	UsageRefreshCooldownS  = 900
 	UsageFailBackoffCapS   = 1800
 	MaxFailedAttempts      = 3
 	MaxThrottleStreak      = 5

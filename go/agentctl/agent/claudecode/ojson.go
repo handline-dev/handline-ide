@@ -44,9 +44,6 @@ func (o *Object) Delete(k string) {
 	}
 }
 
-// Keys are the keys in order.
-func (o *Object) Keys() []string { return append([]string(nil), o.keys...) }
-
 // Len is how many keys there are.
 func (o *Object) Len() int { return len(o.keys) }
 

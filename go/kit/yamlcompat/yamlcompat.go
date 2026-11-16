@@ -715,21 +715,6 @@ func quoted(text string) string {
 	return `"` + strings.ReplaceAll(strings.ReplaceAll(text, `\`, `\\`), `"`, `\"`) + `"`
 }
 
-// RefuseUnsafeValues refuses a parsed map that carries a value Dump would have refused to write: the read side of the same rule.
-// Only top-level string values are checked.
-func RefuseUnsafeValues(data map[string]any, source string) error {
-	for k, v := range data {
-		s, ok := v.(string)
-		if !ok {
-			continue
-		}
-		if r, bad := firstUnsafe(s); bad {
-			return fail("%s: key %s carries a control character (0x%x) - refused, not read as though it were not there", source, pyRepr(k), r)
-		}
-	}
-	return nil
-}
-
 func firstUnsafe(s string) (rune, bool) {
 	for _, r := range s {
 		if textsafe.HasUnsafe(string(r)) {

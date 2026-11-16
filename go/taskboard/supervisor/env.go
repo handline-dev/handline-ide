@@ -14,8 +14,7 @@ import (
 
 // Bounds the telling layer waits by (infra/waits.py).
 const (
-	EndWaitS         = 60
-	WakeSessionWaitS = 15
+	EndWaitS = 60
 )
 
 // Env is what the telling layer runs on: the database, the home, a log and the ports. The process memory the Python modules kept in

@@ -4,7 +4,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"io"
-	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -417,8 +416,6 @@ func TestAttachingTwiceToOneTerminalAndFormatKeepsTheSecond(t *testing.T) {
 		t.Fatal("detached")
 	}
 }
-
-func mkdir(p string) error { return os.MkdirAll(p, 0o755) }
 
 func TestWidthFollowsPythonsRuleForEmojiAndCombiningMarks(t *testing.T) {
 	for r, want := range map[rune]int{'a': 1, '日': 2, '✅': 2, '❌': 2, '⚡': 2, '☕': 2, '⌚': 2, '🚀': 2, '🟢': 2, '́': 0, '‍': 1, '✓': 1} {

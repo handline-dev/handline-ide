@@ -118,19 +118,6 @@ func (e *Env) LoadCosts(q db.Q) (*Costs, error) {
 	return &Costs{pace: pace, factors: factors, kindOf: e.kindOf}, nil
 }
 
-// BurnNow is Costs.Burn of acct with the agents mid-turn on it now, exclude left out.
-func (e *Env) BurnNow(q db.Q, acct, exclude string) (float64, bool) {
-	costs, err := e.LoadCosts(q)
-	if err != nil {
-		return 0, false
-	}
-	by, err := e.ActiveByAccount(q)
-	if err != nil {
-		return 0, false
-	}
-	return costs.Burn(acct, without(by[acct], exclude))
-}
-
 func without(names []string, exclude string) []string {
 	var out []string
 	for _, n := range names {

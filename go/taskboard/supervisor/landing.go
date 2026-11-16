@@ -41,17 +41,6 @@ func (e *Env) typedRecently(rid, now int64) bool {
 	return now-at < LandingWaitS
 }
 
-// LandingState is landing.state: where a request is on its way into its target's session: queued (not typed), typed or delivered.
-func LandingState(r *db.Request) string {
-	switch {
-	case r.LandedAt.Valid && r.LandedAt.Int64 != 0:
-		return "delivered"
-	case !r.TypedAt.Valid || r.TypedAt.Int64 == 0:
-		return "queued"
-	}
-	return "typed"
-}
-
 // entryTexts is the text a transcript entry holds that a person or the daemon typed. Never a tool result: `hl inbox` prints the very header looked for.
 func entryTexts(entry map[string]any) []string {
 	var out []string

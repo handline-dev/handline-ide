@@ -8,7 +8,6 @@ import (
 	"github.com/handline/handline/go/kit/addr"
 
 	"github.com/handline/handline/go/data/db"
-	"github.com/handline/handline/go/data/states"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/textsafe"
@@ -20,9 +19,6 @@ import (
 //
 // Each writing function takes the Q it writes on (a transaction, when the caller needs the write to stand or fall with its own) and an
 // *After that collects what must wait for the commit: the telling.
-
-// TerminalStates are the states an agent may not move itself out of. STALLED is a task defect and only a human clears it (section 8.6).
-var TerminalStates = map[string]bool{states.Stalled: true}
 
 // CancelVerdict is what a cancelled request says, to the requester as its answer and to anyone who reads the row.
 const CancelVerdict = taskwrites.CancelVerdict
@@ -61,8 +57,6 @@ func firstLineTitle(text string) string {
 	}
 	return t
 }
-
-func ptr(s string) *string { return &s }
 
 // RaiseDecision puts something only a human can act on in front of them: a decision task of the founder's, opened by agent, with the
 // request that shows it as its card. agent is who it is about. Fire and forget, so nothing is typed back at agent when the human reads it.

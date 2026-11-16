@@ -233,38 +233,3 @@ func writeUsage(t *testing.T, home, acct string, raw map[string]any) {
 		t.Fatal(err)
 	}
 }
-
-// T9062: a move holds its slot under the same lock as a launch's choice, and a warm resume's or a handoff move's slot is asked again
-// under it.
-
-func (r *placeRig) manager() *Manager {
-	return &Manager{Q: r.q, Launch: LaunchPort{L: r.l}, Log: func(string, ...any) {}}
-}
-
-// raceEach runs one placement per agent at once, then lets every hold go, and returns where each landed ("" for nowhere).
-func (r *placeRig) raceEach(t *testing.T, places map[string]func() string) map[string]string {
-	t.Helper()
-	got := map[string]string{}
-	var mu sync.Mutex
-	var wg sync.WaitGroup
-	start := make(chan struct{})
-	for a, place := range places {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			<-start
-			acct := place()
-			mu.Lock()
-			got[a] = acct
-			mu.Unlock()
-		}()
-	}
-	close(start)
-	wg.Wait()
-	for a := range places {
-		if _, err := db.AddEvent(r.q, a, usage.HoldDroppedKind, db.KV{K: "why", V: "next round"}); err != nil {
-			t.Fatal(err)
-		}
-	}
-	return got
-}
