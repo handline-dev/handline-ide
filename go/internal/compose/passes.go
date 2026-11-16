@@ -182,9 +182,8 @@ func (t timeboxPorts) SendBatch(q db.Q, agent, text string) error {
 	_, err := t.env.Notice(q, agent, text, "timebox")
 	return err
 }
-func (t timeboxPorts) SayNow(q db.Q, agent, text string) error {
-	t.env.SayNowWithNotices(q, agent, text, "held doing task after close")
-	return nil
+func (t timeboxPorts) SayNow(q db.Q, agent, text string) (int64, error) {
+	return t.env.SayNowWithNotices(q, agent, text, "held doing task after close"), nil
 }
 func (t timeboxPorts) HandOffHeld(_ db.Q, tid int64, to, note string) error {
 	return taskwrites.HandOffAsDaemon(t.env.DB, t.home, t.env, tid, to, note)

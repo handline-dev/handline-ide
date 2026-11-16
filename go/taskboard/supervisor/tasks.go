@@ -457,12 +457,13 @@ func (e *Env) typeSay(q db.Q, owner, body, why string) int64 {
 func (e *Env) SayNow(q db.Q, owner, body, why string) { e.typeSay(q, owner, body, why) }
 
 // SayNowWithNotices is SayNow with the notices waiting for owner appended as their digest, so nothing batched waits past a say that wakes it.
-func (e *Env) SayNowWithNotices(q db.Q, owner, body, why string) {
+// It answers the say's request, 0 for none.
+func (e *Env) SayNowWithNotices(q db.Q, owner, body, why string) int64 {
 	if rows := must(db.PendingNotices(q, owner)); len(rows) > 0 {
 		body += "\n\n" + DigestText(q, rows)
 		check(db.MarkNoticesDigested(q, requestIDs(rows)))
 	}
-	e.typeSay(q, owner, body, why)
+	return e.typeSay(q, owner, body, why)
 }
 
 // queueSay writes the say, and does not tell the owner: that is Push's, which a caller in a transaction runs after the commit.

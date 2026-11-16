@@ -687,6 +687,31 @@ func CloseMemoAsks(q Q, state, where string, args ...any) (int64, error) {
 	return res.RowsAffected()
 }
 
+// TakeBackSay takes back say rid while it is queued and undelivered: withdrawn, or, when a notice digest was folded into it
+// (SayNowWithNotices), cut to that digest, which stays queued. It answers whether it changed the request.
+func TakeBackSay(q Q, rid int64) (bool, error) {
+	var body string
+	err := q.QueryRow("SELECT body FROM requests WHERE id = ? AND state = 'queued' AND delivered_at IS NULL", rid).Scan(&body)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	const open = "id = ? AND state = 'queued' AND delivered_at IS NULL"
+	var res sql.Result
+	if at := strings.Index(body, "\n\n"+DigestHead); at >= 0 {
+		res, err = q.Exec("UPDATE requests SET body = ? WHERE "+open, body[at+2:], rid)
+	} else {
+		res, err = q.Exec("UPDATE requests SET state = 'withdrawn', state_at = ?, queue_order = NULL WHERE "+open, Now(), rid)
+	}
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n > 0, err
+}
+
 // WithdrawMemoAsksOfEndedTasks closes, once (behind a cursor), the open asks that comments of a done or discarded task raised; it answers how many.
 func WithdrawMemoAsksOfEndedTasks(q Q) (int64, error) {
 	const key = "memo_asks_of_ended_tasks_withdrawn"

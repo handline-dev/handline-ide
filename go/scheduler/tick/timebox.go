@@ -2,6 +2,7 @@ package tick
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/handline/handline/go/agentctl/verdict"
@@ -49,8 +50,8 @@ type TimeboxPorts interface {
 	TellAbout(q db.Q, to, agent string, tid int64, text, reason string, now int64) error
 	// SendBatch writes text as a notice for the agent's next digest (delivery.ClassBatch).
 	SendBatch(q db.Q, agent, text string) error
-	// SayNow is a say to the agent that wakes its closed session, as a request delivered at once.
-	SayNow(q db.Q, agent, text string) error
+	// SayNow is a say to the agent that wakes its closed session, as a request delivered at once; it answers the request.
+	SayNow(q db.Q, agent, text string) (int64, error)
 	// HandOffHeld hands task tid to `to` as the daemon, with the note.
 	HandOffHeld(q db.Q, tid int64, to, note string) error
 	BgStale(q db.Q, agent string, now int64) bool
@@ -467,12 +468,35 @@ func (b *Timebox) SweepForgottenResolveCapped(t *Tick, now int64) {
 	}
 }
 
+// heldAskPrefix + <task id> is the cursor holding the request of that task's held ask (SweepHeldTaskAfterClose).
+const heldAskPrefix = "held_ask_rid:"
+
+// withdrawStaleHeldAsks takes back each held task's ask its agent has not been given yet once the task is no longer its doing task (done,
+// discarded, handed on or released), so an agent closed for days does not wake to asks about tasks long gone. The task then counts as
+// never asked, and notices folded into the ask stay queued without it.
+func (b *Timebox) withdrawStaleHeldAsks(t *Tick) {
+	for name, rid := range must(db.CursorsWithPrefix(t.Q, heldAskPrefix)) {
+		tid, err := strconv.ParseInt(strings.TrimPrefix(name, heldAskPrefix), 10, 64)
+		if req := must(db.GetRequest(t.Q, rid)); err == nil && req != nil && req.State == "queued" && !req.DeliveredAt.Valid {
+			if task := must(db.GetTask(t.Q, tid)); task != nil && task.Acting == req.Target && b.Ports.TaskDoing(t.Q, task) {
+				continue
+			}
+			if must(db.TakeBackSay(t.Q, rid)) {
+				check(db.ClearCursor(t.Q, fmt.Sprintf("held_asked:%d", tid)))
+				t.logf("  %s: T%d is no longer its doing task - its held ask %d taken back", req.Target, tid, rid)
+			}
+		}
+		check(db.ClearCursor(t.Q, name))
+	}
+}
+
 // SweepHeldTaskAfterClose: an agent whose session closed while it held a doing task that waits on nothing has no new delivery to wake it, so
 // nothing would ever tell it to act. It is woken once per task with a say that asks it to do the task, hand it on, mark what blocks it or put
 // the founder on it, and carries the notices waiting for it. If the session the ask woke closes with nothing done on the task (no memo, no
 // turn or command of its own beyond the ask's), the task goes to whom it answers to, so the tasks queued behind it move. An agent that did
-// work is asked anew at a later close.
+// work is asked anew at a later close. An ask still queued when its task is no longer the agent's doing task is taken back.
 func (b *Timebox) SweepHeldTaskAfterClose(t *Tick, now int64) {
+	b.withdrawStaleHeldAsks(t)
 	for _, agent := range t.Host.Agents() {
 		row := must(db.GetAgentState(t.Q, agent))
 		if row == nil || !row.ClosedAt.Valid || row.ClosedAt.Int64 == 0 {
@@ -494,8 +518,9 @@ func (b *Timebox) SweepHeldTaskAfterClose(t *Tick, now int64) {
 			text := fmt.Sprintf("You hold T%d (%s) and your session was closed.%s Do it, hand it on (`hl task handoff T%d <agent> \"<note>\"`), "+
 				"mark what blocks it (`hl task edit T%d --blocked-by T<n>`), or put the founder on it if only they can decide (`hl task comment T%d add \"<the decision, and what you recommend>\" --turn human`).",
 				tid, shortTitle(task.Title), behindLine(t, agent, tid), tid, tid, tid)
-			check(b.Ports.SayNow(t.Q, agent, text))
+			rid := must(b.Ports.SayNow(t.Q, agent, text))
 			check(db.SetCursor(t.Q, key, now))
+			check(db.SetCursor(t.Q, heldAskPrefix+strconv.FormatInt(tid, 10), rid))
 			t.logf("  %s: closed holding doing T%d - asked to act on it", agent, tid)
 			continue
 		}
