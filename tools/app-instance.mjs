@@ -75,6 +75,20 @@ export function startApp(appDir, env, log) {
   return child;
 }
 
+/** Ends the scratch root's processes on SIGINT, SIGTERM or SIGHUP, which skip every finally and never reach the detached app and daemon. `what` returns the dispose arguments; `then` runs after. */
+export function disposeOnSignal(what, then = () => {}) {
+  for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
+    process.once(sig, () => {
+      try {
+        dispose(what(), { keepFiles: true });
+        then();
+      } finally {
+        process.exit(128 + os.constants.signals[sig]);
+      }
+    });
+  }
+}
+
 /** Ends the scratch root's processes (the app, its daemon, any more in pids) and takes its files and the daemon's protected store away. */
 export function dispose({ root, home, debugPort, pids = [] }, { keepFiles = false } = {}) {
   for (const p of [...listening(debugPort), ...pids, ...daemonsOf(root)]) {
