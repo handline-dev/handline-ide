@@ -299,7 +299,7 @@ func taskBegin(c *hlclient.Client, args []string) (int, bool) {
 }
 
 func taskHandoff(c *hlclient.Client, args []string) (int, bool) {
-	p, ok := parse(args, []string{"--file"}, nil, nil)
+	p, ok := parse(args, []string{"--file", "--attach"}, nil, nil)
 	if !ok || len(p.pos) < 2 || len(p.pos) > 3 {
 		return 0, false
 	}
@@ -333,7 +333,20 @@ func taskHandoff(c *hlclient.Client, args []string) (int, bool) {
 	} else {
 		note = text
 	}
-	return said(c.Write("task.handoff", map[string]any{"task": tid, "to": p.pos[1], "note": note})), true
+	params := map[string]any{"task": tid, "to": p.pos[1], "note": note}
+	if attach := p.each["--attach"]; len(attach) > 0 {
+		params["files"] = absPaths(attach)
+	}
+	return said(c.Write("task.handoff", params)), true
+}
+
+// absPaths are the files as the daemon reads them, from its own cwd.
+func absPaths(files []string) []string {
+	out := make([]string, len(files))
+	for i, f := range files {
+		out[i], _ = filepath.Abs(f)
+	}
+	return out
 }
 
 func taskStart(c *hlclient.Client, args []string) (int, bool) {
@@ -455,11 +468,7 @@ func taskMemo(c *hlclient.Client, args []string) (int, bool) {
 			params["done"] = evidence
 		}
 		if len(attach) > 0 {
-			files := make([]string, len(attach))
-			for i, a := range attach {
-				files[i], _ = filepath.Abs(a) // the daemon reads it from its own cwd
-			}
-			params["files"] = files
+			params["files"] = absPaths(attach)
 		}
 		return said(c.Write("task.comment.add", params)), true
 	}

@@ -80,6 +80,27 @@ func (e *Env) selfDelivery(q db.Q, agent string, task *db.Task) int64 {
 	return must(db.AddRequest(q, db.NewRequest{Requester: db.NoticeRequester, Target: agent, Body: body, Kind: "task"}))
 }
 
+// queuedBody is what a queued task's delivery says: its title, or for a story's sub-task with a plan its brief and that plan (marked OK or
+// not, with its version, which plan answers; 0 for none), so the agent works to the plan the founder read.
+func queuedBody(q db.Q, t *db.Task) (body string, plan int) {
+	p := must(db.TaskPlan(q, t.ID))
+	if p == nil || !must(db.OpenedAsDraft(q, t.ID)) {
+		return t.Title, 0
+	}
+	brief := t.Title
+	rid, requester, body, err := db.TaskBrief(q, t.ID)
+	check(err)
+	if rid != 0 && requester == t.OpenedBy && strings.TrimSpace(body) != "" {
+		brief = body
+	}
+	mark := "not yet OK by the founder"
+	if p.OK != nil {
+		mark = "OK by the founder"
+	}
+	return fmt.Sprintf("%s\n\nPlan, version %d (%s):\n%s\n\nIn your result, say what you changed from the plan.", strings.TrimSpace(brief), len(p.Versions),
+		mark, strings.TrimSpace(p.Current().Text)), len(p.Versions)
+}
+
 // AdvanceCurrentTask moves the agent on to its next open task, by priority then age, once the current one stops being worth holding. True if
 // anything changed: the caller's cue to push a delivery now. The founder holds no current-task row, so this is a no-op for it. A candidate with
 // nothing out yet is delivered here, through the same Ask task_new used (on behalf of queued_by, read from our own db). A refusal is recorded and
@@ -116,13 +137,17 @@ func (e *Env) makeCurrent(q db.Q, agent string, w db.WaitingTask, refused map[in
 		e.Push(q, agent, rid)
 		return true
 	}
-	out, aerr := e.Ask(q, AskIn{Target: agent, Body: w.Task.Title, Requester: w.Task.QueuedBy.String, Kind: "task", OnBehalfOf: true, Notify: true,
+	body, plan := queuedBody(q, w.Task)
+	out, aerr := e.Ask(q, AskIn{Target: agent, Body: body, Requester: w.Task.QueuedBy.String, Kind: "task", OnBehalfOf: true, Notify: true,
 		Forward: Forward{Task: w.Task.ID, Carries: db.ForwardQueue}})
 	check(aerr)
 	msg := out.Finish()
 	if !out.OK {
 		e.noteRefusal(q, agent, w.Task.ID, msg, refused)
 		return false
+	}
+	if plan != 0 {
+		check(db.AddPlanSent(q, w.Task.ID, out.RID, plan))
 	}
 	e.linkDelivery(q, w.Task.ID, agent, out.RID)
 	check(db.SetCurrentTask(q, agent, w.Task.ID, true))

@@ -638,5 +638,20 @@ func planLines(t obj) []string {
 		}
 		out = append(out, "", line)
 	}
+	if r, ok := t["review"].(obj); ok {
+		line := ""
+		switch {
+		case r["ready"] == true:
+			line = fmt.Sprintf("Ready for the founder since %s (comment %d): OK, merge hands it to %s", stamp(r["at"]), num(r, "memo"), str(r, "land_by"))
+		case r["ok"] == true:
+			line = "OK by the founder: it goes to " + str(r, "land_by") + " to merge"
+		}
+		if n := num(r, "redo"); n > 0 {
+			line = strings.TrimPrefix(fmt.Sprintf("%s; Redo %d", line, n), "; ")
+		}
+		if line != "" {
+			out = append(out, "", line)
+		}
+	}
 	return out
 }

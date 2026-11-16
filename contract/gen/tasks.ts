@@ -179,6 +179,20 @@ export type TaskDetail = Task & {
     state: string;
     /** As TaskDetail.plan_state, for the sub-task. */
     plan_state: "none" | "asked" | "writing" | "written" | "ok";
+    /** As TaskDetail.review, for the sub-task. */
+    review: {
+      /** True while it waits for the founder's verdict: the founder's turn its Ready put on is still on top (a plain comment by the founder passes that turn, and the agent works on). */
+      ready: boolean;
+      /** The land_by agent "OK, merge" hands it to (task.ok). */
+      land_by: string;
+      /** The comment that carries the agent's result, with its files (pictures, a video and its poster), of the newest Ready. */
+      memo: number;
+      at: Timestamp;
+      /** How many times the founder sent it back (task.redo). */
+      redo: number;
+      /** True when the founder's newest verdict is OK: it went to land_by, and its next finish goes there as asked. */
+      ok: boolean;
+    } | null;
   } & TaskLook)[];
   /** What happened on the task as one list, oldest first: its memos, its handoffs (a handoff's note is its entry, not a second one), the requests linked to it, the edits of its brief, its marks done and each time it was sent back. Overlaps `events`, `memos`, `handoffs` and `deliveries`, which stay. */
   timeline: {
@@ -286,6 +300,20 @@ export type TaskDetail = Task & {
     /** Which part the founder asked for; null when none was given. */
     note: string | null;
   } | null;
+  /** How a story's sub-task (one opened as a draft) stands with the founder: when its assignee finishes it, by handing it to its workspace's land_by agent, it is Ready for the founder instead (a task_ready event); OK and Redo are task_verdict events. null when it was never Ready. */
+  review: {
+    /** True while it waits for the founder's verdict: the founder's turn its Ready put on is still on top (a plain comment by the founder passes that turn, and the agent works on). */
+    ready: boolean;
+    /** The land_by agent "OK, merge" hands it to (task.ok). */
+    land_by: string;
+    /** The comment that carries the agent's result, with its files (pictures, a video and its poster), of the newest Ready. */
+    memo: number;
+    at: Timestamp;
+    /** How many times the founder sent it back (task.redo). */
+    redo: number;
+    /** True when the founder's newest verdict is OK: it went to land_by, and its next finish goes there as asked. */
+    ok: boolean;
+  } | null;
 };
 
 /** An event as task.get lists it: the fields of Event but no cursor, because task events are not on the stream and have no position in it. */
@@ -337,13 +365,13 @@ export type TaskBoardRow = {
 /** What task.done must be given: sha, verdict, decision or report (default; decision when the owner is a person). */
 export type Expects = "sha" | "verdict" | "decision" | "report";
 
-/** A file a memo carries (task.memo.add files): an image or a Markdown text, kept on the daemon's machine like an attached image and read with attachment.get by its id. */
+/** A file a memo carries (task.memo.add files): an image, a Markdown text, or an MP4 or QuickTime video, kept on the daemon's machine like an attached image and read with attachment.get by its id. */
 export type MemoFile = {
   id: AttachmentId;
-  kind: "image" | "markdown";
+  kind: "image" | "markdown" | "video";
   /** The file's name as its writer gave it, with no folder. Shown to the person; never used as a path. */
   name: string;
-  mime: "image/png" | "image/jpeg" | "image/gif" | "image/webp" | "text/markdown";
+  mime: "image/png" | "image/jpeg" | "image/gif" | "image/webp" | "text/markdown" | "video/mp4" | "video/quicktime";
   bytes: number;
   /** Where the daemon keeps it; only in an agent's reads, which read it with their own file tool. */
   path?: string;
@@ -351,6 +379,8 @@ export type MemoFile = {
   gone?: boolean;
   /** true when the founder deleted the file (attachment.remove), always with gone: the client says it was deleted. */
   removed?: boolean;
+  /** For a video only: the image sent with it under the same name (demo.mp4 and demo.png), which a client shows as its thumbnail; null when none was. attachment.get serves no thumbnail of a video itself. */
+  poster?: AttachmentId | null;
 };
 
 /** One change to a task: who changed which field from what to what, and when. A field's change is one row; an edit of several fields is several rows with the same at. */
@@ -666,6 +696,8 @@ export interface TasksMethods {
   to: Who;
   /** Markdown. It may name images (x-attachments, texts); they are the task's while it is open. */
   note?: string;
+  /** As task.comment.add's files, carried by the comment the note becomes: only on a handoff to `human` or on a story's sub-task finished (Ready); on any other handoff they are bad_request (field files). */
+  files?: string[];
   request_id: RequestId;
 }; result: Accepted };
   "task.turn.pop": { params: {
@@ -783,7 +815,7 @@ export interface TasksMethods {
   turn?: Who;
   /** With turn naming an agent: the done evidence a pass of that turn closes the task with (a review of finished work). */
   done?: string;
-  /** Absolute paths of files the memo carries (Memo.files): PNG, JPEG, GIF or WebP images and .md Markdown, at most 10 MiB each. The daemon reads each and keeps a copy under its home. An agent may name only files under its worktree, its folder or the scratch folder; the founder any. A path outside those, a file of another type, an image whose first bytes do not match its ending, or a .md that is not text is bad_request (field files). */
+  /** Absolute paths of files the memo carries (Memo.files): PNG, JPEG, GIF or WebP images, .md Markdown, at most 10 MiB each, and MP4 or MOV videos, at most 100 MiB each (an image with the same name is the video's poster, MemoFile.poster). The daemon reads each and keeps a copy under its home. An agent may name only files under its worktree, its folder or the scratch folder; the founder any. A path outside those, a file of another type, an image or video whose first bytes do not match its ending, or a .md that is not text is bad_request (field files). */
   files?: string[];
   request_id: RequestId;
 }; result: Accepted & {
@@ -975,6 +1007,16 @@ export interface TasksMethods {
   version?: number;
   request_id: RequestId;
 }; result: Accepted };
+  "task.ok": { params: {
+  task: number;
+  request_id: RequestId;
+}; result: Accepted };
+  "task.redo": { params: {
+  task: number;
+  /** What to change. Markdown. */
+  note: string;
+  request_id: RequestId;
+}; result: Accepted };
   "task.plan_ask": { params: {
   task: number;
   request_id: RequestId;
@@ -1030,6 +1072,8 @@ export const TASKS_METHODS: { [K in keyof TasksMethods]: { role: Role; callers: 
   "task.ask": { role: "member", callers: null, write: true, since: 1 },
   "task.plan": { role: "agent", callers: null, write: true, since: 1 },
   "task.plan_ok": { role: "member", callers: null, write: true, since: 1 },
+  "task.ok": { role: "member", callers: null, write: true, since: 1 },
+  "task.redo": { role: "member", callers: null, write: true, since: 1 },
   "task.plan_ask": { role: "member", callers: null, write: true, since: 1 },
   "task.core_ask": { role: "member", callers: null, write: true, since: 1 },
 };
@@ -1050,7 +1094,7 @@ export const TASKS_APP_CACHE: { [K in "tasks.list" | "task.get" | "task.history"
 };
 
 /** x-app-write of each write (x-app in core.json). */
-export const TASKS_APP_WRITES: { [K in "task.new" | "task.handoff" | "task.turn.pop" | "task.done" | "task.reopen" | "task.progress" | "task.begin" | "task.start" | "task.seen" | "task.comment.add" | "task.memo.add" | "task.comment.edit" | "task.memo.edit" | "task.comment.delete" | "task.comment.send_now" | "task.send_now" | "task.memo.delete" | "task.view.save" | "task.view.delete" | "task.queue" | "task.draft" | "task.merge" | "task.release" | "task.request" | "task.wait" | "task.discard" | "task.withdraw" | "task.edit" | "task.ask" | "task.plan" | "task.plan_ok" | "task.plan_ask" | "task.core_ask"]: { kind: WriteKind; label: string } | false } = {
+export const TASKS_APP_WRITES: { [K in "task.new" | "task.handoff" | "task.turn.pop" | "task.done" | "task.reopen" | "task.progress" | "task.begin" | "task.start" | "task.seen" | "task.comment.add" | "task.memo.add" | "task.comment.edit" | "task.memo.edit" | "task.comment.delete" | "task.comment.send_now" | "task.send_now" | "task.memo.delete" | "task.view.save" | "task.view.delete" | "task.queue" | "task.draft" | "task.merge" | "task.release" | "task.request" | "task.wait" | "task.discard" | "task.withdraw" | "task.edit" | "task.ask" | "task.plan" | "task.plan_ok" | "task.ok" | "task.redo" | "task.plan_ask" | "task.core_ask"]: { kind: WriteKind; label: string } | false } = {
   "task.new": {"kind": "authored", "label": "new task"},
   "task.handoff": false,
   "task.turn.pop": {"kind": "decided", "label": "give back"},
@@ -1082,6 +1126,8 @@ export const TASKS_APP_WRITES: { [K in "task.new" | "task.handoff" | "task.turn.
   "task.ask": {"kind": "decided", "label": "ask"},
   "task.plan": {"kind": "decided", "label": "plan"},
   "task.plan_ok": {"kind": "decided", "label": "plan OK"},
+  "task.ok": {"kind": "decided", "label": "OK, merge"},
+  "task.redo": {"kind": "decided", "label": "Redo"},
   "task.plan_ask": {"kind": "decided", "label": "ask for a plan"},
   "task.core_ask": {"kind": "decided", "label": "ask for core logic"},
 };

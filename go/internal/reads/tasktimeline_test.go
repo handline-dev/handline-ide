@@ -97,8 +97,8 @@ func TestATasksPageNamesItsSubtasksParentMergeAndWhomToAsk(t *testing.T) {
 	}
 	d := got.(map[string]any)
 	subs, _ := json.Marshal(d["subtasks"])
-	if want := `[{"block_reason":null,"evidence":"sha","hold_reason":null,"id":3,"owner":"` + cy + `","plan_state":"none","state":"done","title":"b","waiting":null},` +
-		`{"block_reason":null,"evidence":null,"hold_reason":null,"id":4,"owner":"` + cy + `","plan_state":"none","state":"discarded","title":"c","waiting":null}]`; string(subs) != want {
+	if want := `[{"block_reason":null,"evidence":"sha","hold_reason":null,"id":3,"owner":"` + cy + `","plan_state":"none","review":null,"state":"done","title":"b","waiting":null},` +
+		`{"block_reason":null,"evidence":null,"hold_reason":null,"id":4,"owner":"` + cy + `","plan_state":"none","review":null,"state":"discarded","title":"c","waiting":null}]`; string(subs) != want {
 		t.Fatalf("subtasks %s, want %s", subs, want)
 	}
 	if d["parent_title"] != "the story" || d["merged_into"] != nil {

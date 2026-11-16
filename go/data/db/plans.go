@@ -360,3 +360,19 @@ func PlanWrites(q Q, n int) ([]PlanWrite, error) {
 	}
 	return out, rows.Err()
 }
+
+// PlanSentKind records that a task's delivery (request_id) carried its plan at a version, so its tell shows that delivery whole.
+const PlanSentKind = "task_plan_sent"
+
+// AddPlanSent records that request rid delivered task tid with its plan at version.
+func AddPlanSent(q Q, tid, rid int64, version int) error {
+	_, err := AddEvent(q, "", PlanSentKind, KV{"task_id", tid}, KV{"request_id", rid}, KV{"version", version})
+	return err
+}
+
+// CarriesPlan is whether request rid delivered its task with the task's plan.
+func CarriesPlan(q Q, rid int64) (bool, error) {
+	var n int
+	err := q.QueryRow("SELECT COUNT(*) FROM events WHERE kind = ? AND "+eventRequest+" = ?", PlanSentKind, rid).Scan(&n)
+	return n > 0, err
+}

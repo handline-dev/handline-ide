@@ -43,6 +43,8 @@ export type Row = Task &
     estimate?: number | null;
     /** What changed, oldest first; task.history answers it newest first. */
     history?: HistoryRow[];
+    /** How a story's sub-task stands with the founder (TaskDetail.review); a seed makes one Ready. */
+    review?: TaskDetail['review'];
   };
 
 /** `@human` in a comment: at the start or after a character that is not part of a name. */
@@ -257,6 +259,7 @@ export class TaskStore {
       ...this.view(t),
       body: t.body,
       ...planFields(t),
+      review: t.review ?? null,
       ...(bodyParts ? { body_parts: bodyParts } : {}),
       deliveries: t.delivered ? [{ at: t.delivered, how: 'typed', outcome: 'delivered' }] : [],
       events: [{ topic: 'tasks', type: 'task.opened', at: t.created, actor: null, agent: t.to, title: t.title, target: null, data: {} }],
@@ -276,7 +279,7 @@ export class TaskStore {
       parent_title: this.rows.find((r) => r.id === t.parent)?.title ?? null,
       subtasks: this.rows
         .filter((r) => r.parent === t.id)
-        .map((r) => ({ id: r.id, title: r.title, owner: r.to, plan_state: planState(r), ...this.look(r.id) })),
+        .map((r) => ({ id: r.id, title: r.title, owner: r.to, plan_state: planState(r), review: r.review ?? null, ...this.look(r.id) })),
       timeline: [
         ...(t.memos ?? []).map((m) =>
           withParts({ at: m.at, who: m.author, kind: 'memo' as const, text: m.text, memo: m.id, edited_at: m.edited_at ?? null }, m.text),

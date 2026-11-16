@@ -3,11 +3,11 @@
 import { invalidParams } from '#src/errors.ts';
 import { fieldsOf } from '#src/history.ts';
 import { TaskFailure, type Row } from '#src/taskstore.ts';
-import { TaskPlans } from '#src/taskplans.ts';
+import { TaskReviews } from '#src/taskreviews.ts';
 
 export { TaskFailure };
 
-export class FakeTasks extends TaskPlans {
+export class FakeTasks extends TaskReviews {
   /** The methods this fake answers: the basic ones, and the verbs of the daemon's plan (D3) only when asked for. */
   serves(method: string): boolean {
     return BASIC.has(method) || (this.verbs && VERBS.has(method));
@@ -115,6 +115,8 @@ const BASIC = new Set([
   'task.plan_ok',
   'task.plan_ask',
   'task.core_ask',
+  'task.ok',
+  'task.redo',
 ]);
 const VERBS = new Set([
   'task.done',
