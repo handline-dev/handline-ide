@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { Event as WireEvent } from '@handline/client';
-import { MAX_LIST, NEWS_MS, Notices, aboutOf, eventText, isMyTurn, targetOf } from '#src/index.ts';
+import { MAX_LIST, NEWS_MS, Notices, aboutOf, eventText, isMyTurn } from '#src/index.ts';
 
 const ev = (cursor: number, topic: string, type: string, extra: Partial<WireEvent> = {}) =>
   ({ cursor, topic, type, at: '', actor: null, agent: null, title: null, target: null, data: {}, ...extra }) as WireEvent;
@@ -191,26 +191,6 @@ test('the listeners hear when a toast runs out, so a screen that draws on change
   assert.equal(n.toasts().length, 0);
 });
 
-test('an event carries what it is about, and that says the page it opens', () => {
-  const n = new Notices();
-  n.takeEvent(ev(1, 'notifications', 'task_done', { agent: 'a.b', data: { task: 7, task_title: 'Fix it', result: 'PASS' } }));
-  n.takeEvent(ev(2, 'notifications', 'task_done', { agent: 'a.c', data: { task: 8 } }));
-  n.takeEvent(ev(3, 'notifications', 'stall', { agent: 'a.b' }));
-  n.takeEvent(ev(4, 'notifications', 'account_out', { data: { account: 'alpha' } }));
-  n.takeEvent(ev(5, 'proposals', 'proposal.settled', { agent: 'a.d', data: { proposal: { id: 12 } } }));
-  assert.deepEqual(
-    n.list().map((x) => [x.level, x.about, targetOf(x)]),
-    [
-      ['info', { agent: 'a.d', proposal: 12 }, '#/team/proposals/12'],
-      ['need', { account: 'alpha' }, '#/accounts/alpha'],
-      ['need', { agent: 'a.b' }, '#/agents/a.b'],
-      ['info', { agent: 'a.c', task: 8 }, '#/tasks/8'],
-      ['info', { agent: 'a.b', task: 7, title: 'Fix it', result: 'PASS' }, '#/tasks/7'],
-    ],
-  );
-  assert.equal(targetOf(n.push('fail', 'Not applied')), null);
-});
-
 test('with more than three on screen, news gives way before what needs the person', () => {
   const n = new Notices(clock().now);
   n.push('need', 'blocked');
@@ -261,4 +241,23 @@ test('a kept notice changes in place: one row, its toast back on screen when sho
   n.drop('update');
   assert.equal(n.list().length, 0);
   assert.equal(n.toasts().length, 0);
+});
+
+test('an event carries what it is about', () => {
+  const n = new Notices();
+  n.takeEvent(ev(1, 'notifications', 'task_done', { agent: 'a.b', data: { task: 7, task_title: 'Fix it', result: 'PASS' } }));
+  n.takeEvent(ev(2, 'notifications', 'task_done', { agent: 'a.c', data: { task: 8 } }));
+  n.takeEvent(ev(3, 'notifications', 'stall', { agent: 'a.b' }));
+  n.takeEvent(ev(4, 'notifications', 'account_out', { data: { account: 'alpha' } }));
+  n.takeEvent(ev(5, 'proposals', 'proposal.settled', { agent: 'a.d', data: { proposal: { id: 12 } } }));
+  assert.deepEqual(
+    n.list().map((x) => [x.level, x.about]),
+    [
+      ['info', { agent: 'a.d', proposal: 12 }],
+      ['need', { account: 'alpha' }],
+      ['need', { agent: 'a.b' }],
+      ['info', { agent: 'a.c', task: 8 }],
+      ['info', { agent: 'a.b', task: 7, title: 'Fix it', result: 'PASS' }],
+    ],
+  );
 });

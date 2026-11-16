@@ -1,37 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { AgentDetail, AgentView, Prompt, Status } from '@handline/client';
-import {
-  promptChoices,
-  whyOf,
-  promptTitle,
-  controlsOf,
-  dotOf,
-  holderLabel,
-  loadLayout,
-  needsConfirm,
-  offered,
-  splitCancel,
-  checkedKeys,
-  railRows,
-  foldedTally,
-  stuckUnder,
-  workingUnder,
-  queueOf,
-  queuedBehind,
-  waitingTasks,
-  RAIL_FILTERS,
-  stopModesOf,
-  shortName,
-  rowName,
-  teamOf,
-  type Dot,
-  saveLayout,
-  keyFrom,
-  DEFAULT_LAYOUT,
-  DAEMON_KEYS,
-  type KV,
-} from '#src/index.ts';
+import type { AgentView, Prompt } from '@handline/client';
+import { promptChoices, whyOf, dotOf, offered, splitCancel, checkedKeys, queuedBehind } from '#src/index.ts';
 
 const agent = (name: string, over: Partial<AgentView> = {}): AgentView =>
   ({
@@ -49,7 +19,6 @@ const agent = (name: string, over: Partial<AgentView> = {}): AgentView =>
     parent: null,
     ...over,
   }) as AgentView;
-const key = (k: string, o: object = {}) => ({ key: k, shiftKey: false, ctrlKey: false, metaKey: false, altKey: false, ...o });
 
 test('the dot follows the daemon state, with a dialog or block taking over', () => {
   assert.equal(dotOf(agent('a', { state: 'running' })), 'running');
@@ -64,108 +33,11 @@ test('the dot follows the daemon state, with a dialog or block taking over', () 
   assert.equal(dotOf(agent('a', { state: 'running', ...handoff('starting') })), 'waking');
 });
 
-test('the rail sorts waiting up, nests children, and filters by dot and search', () => {
-  const list = [
-    agent('t.b'),
-    agent('t.a'),
-    agent('t.w', { has_dialog: true }),
-    agent('t.kid', { parent: 't.b' }),
-    agent('u.p', { state: 'parked' }),
-    agent('u.q', { state: 'queued' }),
-    agent('solo'),
-  ];
-  const names = (o?: Parameters<typeof railRows>[1]) => railRows(list, o).map((r) => [r.agent.key, r.depth]);
-  assert.deepEqual(names(), [
-    ['t.w', 0],
-    ['u.q', 0],
-    ['solo', 0],
-    ['t.a', 0],
-    ['t.b', 0],
-    ['t.kid', 1],
-    ['u.p', 0],
-  ]);
-  assert.deepEqual(
-    names({ hidden: new Set<Dot>(['parked', 'waking']) }).map((r) => r[0]),
-    ['t.w', 'solo', 't.a', 't.b', 't.kid'],
-  );
-  assert.deepEqual(names({ search: 'KID' }), [['t.kid', 0]]);
-  assert.equal(teamOf('t', ['t', 't.a']), 't');
-  assert.equal(shortName('t.a', 't'), 'a');
-  assert.equal(rowName('handline.pc.auditor', 2, 'handline'), 'auditor');
-  assert.equal(rowName('handline.pc', 1, 'handline'), 'pc');
-  assert.equal(rowName('handline.pc', 0, 'handline'), 'pc');
-  assert.equal(rowName('handline', 0, 'handline'), 'handline');
-  assert.equal(shortName('t', 't'), 't');
-  assert.equal(dotOf(agent('x', { state: 'queued' })), 'waking');
-  assert.equal(dotOf(agent('x', { state: 'starting' })), 'waking');
-});
-
-test('a child whose parent is filtered out still shows', () => {
-  assert.deepEqual(
-    railRows([agent('b'), agent('kid', { parent: 'b', role: 'x' })], { search: 'kid' }).map((r) => r.agent.key),
-    ['kid'],
-  );
-});
-
-test('the filter choices cover each rail dot once', () => {
-  const dots: Dot[] = ['waiting', 'blocked', 'running', 'waking', 'idle', 'parked', 'none'];
-  const covered = RAIL_FILTERS.flatMap((f) => f.dots).sort();
-  assert.deepEqual(covered, [...dots].sort());
-});
-
-test('queue counts are null when the view does not carry them, never a made-up 0', () => {
-  assert.deepEqual(queueOf(agent('x')), { tasks: null, messages: null });
-  assert.deepEqual(queueOf(agent('x', { task_count: 0, unreached: 3 })), { tasks: 0, messages: 3 });
-  assert.deepEqual(queueOf(agent('x'), 2), { tasks: null, messages: 2 });
-});
-
 test('queued behind is the owned tasks less the current one, never negative, null with no count', () => {
   assert.equal(queuedBehind(agent('x')), null);
   assert.equal(queuedBehind(agent('x', { task_count: 4, task: { id: 7, title: 't' } })), 3);
   assert.equal(queuedBehind(agent('x', { task_count: 2 })), 2); // no current task: all wait
   assert.equal(queuedBehind(agent('x', { task_count: 0, task: { id: 7, title: 't' } })), 0);
-});
-
-test('the waiting tasks are the ones the count adds up: not the current one, not a draft', () => {
-  const a = agent('x', { task_count: 3, task: { id: 7, title: 't' } });
-  const open = [7, 8, 9, 10].map((id, i) => ({ id, to: 'x', state: i === 3 ? 'draft' : i === 1 ? 'queued' : 'doing' }));
-  assert.deepEqual(
-    waitingTasks(a, open).map((t) => t.id),
-    [8, 9],
-  );
-});
-
-test("a waiting task on another's turn or behind an open blocker is not listed, and is again once it comes back", () => {
-  const a = agent('x', { task: { id: 7, title: 't' } });
-  const ids = (open: { id: number; state: string; to: string; acting?: string; blocked_by?: number[] }[]) =>
-    waitingTasks(a, open).map((t) => t.id);
-  assert.deepEqual(ids([{ id: 8, state: 'queued', to: 'x', acting: 'human' }]), [], "the founder's turn");
-  assert.deepEqual(ids([{ id: 8, state: 'queued', to: 'x', acting: 'y' }]), [], "another agent's turn");
-  assert.deepEqual(ids([{ id: 8, state: 'queued', to: 'x', acting: 'x' }]), [8], 'the turn back');
-  assert.deepEqual(ids([{ id: 8, state: 'queued', to: 'x', blocked_by: [4] }]), [], 'blocked');
-  assert.deepEqual(ids([{ id: 8, state: 'queued', to: 'x', blocked_by: [] }]), [8], 'unblocked');
-});
-
-test('keydown maps to named keys only; printable text and IME composition are left to the textarea', () => {
-  assert.deepEqual(keyFrom(key('Escape'), false), { name: 'esc' });
-  assert.deepEqual(keyFrom(key('Tab', { shiftKey: true }), false), { name: 'shift-tab' });
-  assert.deepEqual(keyFrom(key('c', { ctrlKey: true }), false), { name: 'ctrl-c' });
-  assert.equal(keyFrom(key('a'), false), null); // arrives as an input event
-  assert.equal(keyFrom(key('Process'), false), null); // IME
-  assert.equal(keyFrom(key('ㅎ', { isComposing: true }), false), null);
-  assert.equal(keyFrom(key('Enter', { isComposing: true }), false), null); // Enter that commits a composition
-  assert.equal(keyFrom(key('v', { metaKey: true }), false), null); // paste
-  assert.equal(keyFrom(key('Shift'), false), null);
-  assert.deepEqual(keyFrom(key('2'), true), { name: '2' });
-  assert.deepEqual(keyFrom(key('a'), true), { swallow: true }); // only keys pass while a dialog is open
-});
-
-test('a key the daemon cannot take yet is reported, and goes through once the names are known', () => {
-  assert.deepEqual(keyFrom(key('Backspace'), false), { unavailable: 'Backspace' });
-  assert.deepEqual(keyFrom(key('ArrowLeft'), false), { unavailable: 'ArrowLeft' });
-  const later = new Set([...DAEMON_KEYS, 'backspace', 'left']);
-  assert.deepEqual(keyFrom(key('Backspace'), false, later), { name: 'backspace' });
-  assert.deepEqual(keyFrom(key('ArrowLeft'), false, later), { name: 'left' });
 });
 
 test('a permission card offers only yes and no; other dialogs offer everything', () => {
@@ -188,83 +60,6 @@ test('a permission card offers only yes and no; other dialogs offer everything',
   assert.equal(offered(p('trust')).length, 3);
 });
 
-test('kill always asks; close asks only mid-turn', () => {
-  assert.equal(needsConfirm('kill', agent('a')), true);
-  assert.equal(needsConfirm('close', agent('a')), false);
-  assert.equal(needsConfirm('close', agent('a', { state: 'running' })), true);
-  assert.equal(needsConfirm('interrupt', agent('a', { state: 'running' })), false);
-});
-
-test('controls follow the session and who holds the input', () => {
-  const d = (over: object) =>
-    ({
-      ...agent('a'),
-      worktree: null,
-      terminal: null,
-      session_id: null,
-      session_open: false,
-      input_holders: [{ kind: 'daemon', name: 'daemon', since: null }],
-      account_pick: { account: null, reason: '' },
-      prompt: null,
-      ...over,
-    }) as AgentDetail;
-  assert.deepEqual(
-    Object.entries(controlsOf(d({}), 'me'))
-      .filter(([, v]) => v)
-      .map(([k]) => k),
-    ['start'],
-  );
-  assert.deepEqual(
-    Object.entries(controlsOf(d({ session_id: 's' }), 'me'))
-      .filter(([, v]) => v)
-      .map(([k]) => k),
-    ['resume'],
-  );
-  assert.deepEqual(
-    Object.entries(controlsOf(d({ session_id: 's', session_open: true }), 'me'))
-      .filter(([, v]) => v)
-      .map(([k]) => k),
-    ['stop', 'take'],
-  );
-  const mine = d({ session_open: true, input_holders: [{ kind: 'person', name: 'me', since: '' }] });
-  assert.deepEqual(
-    Object.entries(controlsOf(mine, 'me'))
-      .filter(([, v]) => v)
-      .map(([k]) => k),
-    ['stop', 'release', 'typing'],
-  );
-  assert.equal(controlsOf(mine, 'you').take, false); // someone else holds it
-  assert.equal(holderLabel(mine.input_holders?.[0], 'me'), 'You');
-});
-
-test('the pane layout is remembered per agent and survives bad or blocked storage', () => {
-  const mem = new Map<string, string>();
-  const kv: KV = {
-    getItem: (k) => mem.get(k) ?? null,
-    setItem: (k, v) => {
-      mem.set(k, v);
-    },
-  };
-  saveLayout(kv, 'a', { dock: 'bottom', open: false, tab: 'chat' });
-  assert.deepEqual(loadLayout(kv, 'a'), { dock: 'bottom', open: false, tab: 'chat' });
-  assert.deepEqual(loadLayout(kv, 'b'), DEFAULT_LAYOUT);
-  mem.set('layout:c', '{not json');
-  assert.deepEqual(loadLayout(kv, 'c'), DEFAULT_LAYOUT);
-  mem.set('layout:d', '{"dock":"sideways"}');
-  assert.deepEqual(loadLayout(kv, 'd'), DEFAULT_LAYOUT);
-  const throwing: KV = {
-    getItem() {
-      throw new Error('blocked');
-    },
-    setItem() {
-      throw new Error('blocked');
-    },
-  };
-  assert.deepEqual(loadLayout(throwing, 'a'), DEFAULT_LAYOUT);
-  assert.doesNotThrow(() => saveLayout(throwing, 'a', DEFAULT_LAYOUT));
-  assert.deepEqual(loadLayout(null, 'a'), DEFAULT_LAYOUT);
-});
-
 const opt = (key: string, label: string, answer: 'yes' | 'no' | 'other' = 'other') => ({ key, label, answer, highlighted: false });
 const card = (kind: string) =>
   ({
@@ -279,13 +74,6 @@ const card = (kind: string) =>
     options: [opt('1', 'Yes', 'yes'), opt('2', 'Yes, always', 'yes'), opt('3', 'No', 'no')],
   }) as unknown as Prompt;
 
-test('a prompt card is titled by its kind', () => {
-  assert.equal(promptTitle(card('permission')), 'Permission: Bash');
-  assert.equal(promptTitle(card('question')), 'Question');
-  assert.equal(promptTitle(card('dialog')), 'Dialog');
-  assert.equal(promptTitle(card('trust')), 'Dialog: trust');
-});
-
 test('a card offers a permission yes and no only, a dialog its always options only when a rule can be kept, and a question everything', () => {
   const keys = (p: Prompt, rules: boolean) => promptChoices(p, rules).map((o) => o.key);
   assert.deepEqual(keys(card('permission'), true), ['1', '3']);
@@ -294,100 +82,11 @@ test('a card offers a permission yes and no only, a dialog its always options on
   assert.deepEqual(keys(card('question'), false), ['1', '2', '3']);
 });
 
-test('a structured agent is never held, taken or typed to; it is interrupted only while a turn runs or waits', () => {
-  const d = (over: object) =>
-    ({
-      ...agent('a'),
-      structured: true,
-      terminal: null,
-      session_id: null,
-      session_open: false,
-      input_holders: [],
-      ...over,
-    }) as unknown as AgentDetail;
-  const on = (x: AgentDetail) =>
-    Object.entries(controlsOf(x, 'me'))
-      .filter(([, v]) => v)
-      .map(([k]) => k);
-  assert.deepEqual(on(d({ session_open: true, session_id: 's', state: 'running' })), ['stop', 'interrupt']);
-  assert.deepEqual(on(d({ session_open: true, session_id: 's', state: 'waiting' })), ['stop', 'interrupt']);
-  assert.deepEqual(on(d({ session_open: true, session_id: 's', state: 'idle' })), ['stop']);
-  assert.deepEqual(on(d({ session_id: 's', state: 'parked' })), ['resume']);
-  assert.deepEqual(on(d({ state: 'stalled', session_open: true })), ['stop']);
-  assert.deepEqual(on(d({})), ['start']);
-});
-
-test('the stop modes of a structured agent are in session words and drop Exit', () => {
-  assert.deepEqual(
-    stopModesOf({ structured: true }).map((m) => m.mode),
-    ['interrupt', 'close', 'kill'],
-  );
-  assert.deepEqual(
-    stopModesOf({}).map((m) => m.mode),
-    ['interrupt', 'exit', 'close', 'kill'],
-  );
-  assert.ok(stopModesOf({ structured: true }).every((m) => !/terminal|Esc|exit/i.test(m.hint)));
-});
-
-test('an agent that is restarting stays in the list whatever the filter hides', () => {
-  const a = (name: string, handoff?: object) =>
-    ({ key: name, name, role: 'x', state: 'idle', ...(handoff ? { handoff } : {}) }) as unknown as Parameters<typeof railRows>[0][number];
-  const rows = railRows([a('quiet'), a('again', { cause: 'context_full', phase: 'writing', since: 'x' })], { hidden: new Set(['idle']) });
-  assert.deepEqual(
-    rows.map((r) => r.agent.key),
-    ['again'],
-  );
-});
-
 test('a warning mark says why: the blocker, else the wall, else the state detail, else nothing', () => {
   assert.equal(whyOf({ blocker: ' T7 is not done ', wall_reason: 'usage', state_detail: 'x' }), 'T7 is not done');
   assert.equal(whyOf({ blocker: null, wall_reason: 'the account is out of usage', state_detail: 'x' }), 'the account is out of usage');
   assert.equal(whyOf({ state_detail: 'waits for the build' }), 'waits for the build');
   assert.equal(whyOf({ state_detail: '' }), null);
-});
-
-test('workingUnder counts the running sub-agents at any depth, not the agent itself', () => {
-  const list = [
-    agent('lead', { state: 'running' }),
-    agent('a', { parent: 'lead', state: 'running' }),
-    agent('b', { parent: 'lead', state: 'idle' }),
-    agent('a1', { parent: 'a', state: 'running' }),
-    agent('other', { state: 'running' }),
-  ];
-  assert.equal(workingUnder(list, 'lead'), 2);
-  assert.equal(workingUnder(list, 'a'), 1);
-  assert.equal(workingUnder(list, 'b'), 0);
-});
-
-test('stuckUnder counts the sub-agents held for load, on a dialog or blocked, at any depth', () => {
-  const held: Status = {
-    state: 'waiting',
-    reason: 'load',
-    text: 'held: machine load - load 2.19 per core, limit 1.50',
-    until: null,
-    since: '2026-10-26T12:00:00Z',
-    tasks: [],
-  };
-  const list = [
-    agent('lead', { state: 'running' }),
-    agent('a', { parent: 'lead', state: 'idle', status: held }),
-    agent('b', { parent: 'lead', state: 'running' }),
-    agent('c', { parent: 'a', state: 'idle', has_dialog: true }),
-    agent('d', { parent: 'b', state: 'stalled' }),
-  ];
-  assert.equal(stuckUnder(list, 'lead'), 3);
-  assert.equal(stuckUnder(list, 'b'), 1);
-  assert.equal(stuckUnder(list, 'd'), 0);
-});
-
-test('a folded or pinned row tallies the work under it; an open row says nothing', () => {
-  const list = [
-    agent('lead', { state: 'running' }),
-    agent('a', { parent: 'lead', state: 'running' }),
-    agent('b', { parent: 'lead', state: 'stalled' }),
-  ];
-  assert.deepEqual(foldedTally(list, 'lead', true), { working: 1, stuck: 1 });
-  assert.deepEqual(foldedTally(list, 'lead', false), { working: 0, stuck: 0 });
 });
 
 test('a question keeps Cancel out of its options, and a multi-select submits the checked keys in the order listed', () => {

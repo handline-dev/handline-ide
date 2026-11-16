@@ -30,7 +30,7 @@ packages/
   client/           @handline/client      DaemonClient, Transport, memoryPair, webSocketTransport  (from web/src)
   client-node/      @handline/client-node unix-socket transport (Node only: tests, Electron main, tools)
   fake-daemon/      @handline/fake-daemon scripted daemon + ws server (Node only: tests, dev)
-  app-core/         @handline/app-core    Store, pure screen decisions, key tables; no React, no DOM, no RN
+  app-core/         @handline/app-core    Store, pure screen decisions; no React, no DOM, no RN
   app-react/        @handline/app-react   DaemonProvider, useStore and selector hooks; React only
   app-data/         @handline/app-data    React Query hooks over the client, event bridge, write table, Skeleton (§8); React + @tanstack/react-query
   tokens/           @handline/tokens      colors, spacing, type scale, breakpoints as TS constants

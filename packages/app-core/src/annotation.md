@@ -2,17 +2,9 @@
 
 Pure TypeScript, no DOM, no React Native. Coordinates are image pixels (origin top-left).
 
-## State and actions (`annotation.ts`)
-- `initialAnnotation()` → `AnnotationState { shapes, redo, draft, tool, color, width, next }`
-- `annotate(state, action)` is a reducer; use it with `useReducer` or the store.
-- Actions: `{type:'tool', tool:'pen'|'arrow'|'box'|'text'}`, `{type:'color', color:'#rrggbb'}`, `{type:'width', width}`,
-  `{type:'strokeStart'|'strokeMove'|'strokeEnd', x, y}`, `{type:'strokeCancel'}`,
-  `{type:'text', x, y, text}`, `{type:'undo'|'redo'|'clear'}`.
-- Gesture wiring is plain callbacks: PanResponder / gesture-handler / pointer events call the three stroke actions.
-  The text tool does not stroke: on a tap, ask for the words, then dispatch `text` with the tap point.
-- Draw `state.shapes`, then `state.draft` (the stroke in progress, or null).
-- `Shape` is `pen {points}` | `arrow {from,to}` | `box {from,to}` | `text {at,text,size}`, each with `id, color, width`.
-- The tool cannot change while a stroke is down; a box/arrow tap without a drag adds nothing.
+## Shapes (`annotation.ts`)
+- `Shape` is `pen {points}` | `arrow {from,to}` | `box {from,to}` | `ellipse {from,to}` | `text {at,text,size}` | `note {from,to,text}`,
+  each with `id, color, width`. `marks.ts` makes them from memo marks (`marksToShapes`).
 
 ## Export (`annotation-raster.ts`)
 - `Bitmap = { width, height, data: Uint8ClampedArray /* RGBA */ }`
@@ -30,5 +22,5 @@ or `text {x, y, fontSize, fill, text}` (top-left anchored). No SVG library impor
 ## Memo marks (`marks.ts`)
 The capture dialog's way of marking: no tools. `marksReducer(state, action)` with `down|move|up {x,y}` turns one gesture into one mark (a tap within `slop` is a `pin`
 circle, a loop that returns near its start is an `area`, any other drag is a `box`) and opens its memo; `memo`, `open`, `remove`, `undo`, `cancel`, `scale` (size
-of a tap and a pin for the picture). `keptMarks` drops marks with no words; `markText(note, marks)` is the message (note, `n. words` lines, a fenced `marks`
-JSON block of `{n, shape, x, y, w, h, text}` in picture pixels); `marksToShapes(marks, lineWidth)` gives shapes for `exportAnnotated`/`shapesToSvg`.
+of a tap and a pin for the picture). `keptMarks` drops marks with no words; `markData(marks)` gives each kept mark's
+`{n, shape, x, y, w, h, text}` in picture pixels; `marksToShapes(marks, lineWidth)` gives shapes for `exportAnnotated`/`shapesToSvg`.

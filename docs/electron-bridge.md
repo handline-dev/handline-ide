@@ -22,7 +22,7 @@ One object, `window.handline`, made by a preload with `contextBridge`. No other 
 - Each call is one `ipcRenderer.invoke` on its own channel. The main side checks **where it came from** (`event.senderFrame` is the window's top frame and its origin is the loopback origin `serveDir` returned) and **what it was given** (the exact keys and types below; an unknown key, a wrong type or an over-long string is `bad_request`) before it does anything. A call from any other sender gets `bad_request` too and does nothing.
 - **Every call returns a result, never throws**: `{ ok: true, ... }` or `{ ok: false, code, message }`. Errors do not cross `contextBridge` with their type, and the page must not parse a message to decide. `message` is a sentence for the person. In the signatures below `Fail<C>` is `{ ok: false; code: C; message: string }`.
 - **Detection.** `window.handline?.api === 1` says the shell is there. Each call is present only if this shell has it (`typeof handline.compose === 'function'`); the page checks the call it is about to use, never a version. New calls only add, so `api` stays 1; a change that breaks one makes it 2.
-- The types are one file, `packages/app-core/src/shell.ts` (types and the pure `routeOfTarget`, no DOM), imported by the preload and by `apps/web/src/shell.ts`, which holds the only reads of `window.handline`. Views get it through that module; a view that touches `window.handline` is a defect.
+- The types are one file, `packages/app-core/src/shell.ts` (types only, no DOM), imported by the preload and by `apps/web/src/shell.ts`, which holds the only reads of `window.handline`. Views get it through that module; a view that touches `window.handline` is a defect.
 
 | Call                                     | From         | Shell has it at                                                                                                                                                                                                                                                       | Plain browser                                             |
 | ---------------------------------------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
@@ -74,7 +74,7 @@ The daemon already puts one on each event: `Event.target = { screen, id }` (`str
 | `account_out`                         | `account`, the account name            | `#/accounts/<name>` (U14)                                                                                                                                 |
 | `proposal.raised` (`proposals` topic) | `proposals`, the proposal's id as text | `#/team/proposals/<id>`, that card in view (U15); a proposal that is no longer listed (older than the 7 days `proposal.list` serves) lands on `#/team`    |
 
-`routeOfTarget(target, eventType) → string | null` in `app-core` is the only table, and it returns `null` for an empty id or the string `None` (the daemon emits `task_done` with `str(tid)` even when the task id is missing; see §6); a click in the app on an inbox row uses it too. Ids are `encodeURIComponent`ed. The route strings belong to the web units; this table changes with them.
+This is the only table, and it returns `null` for an empty id or the string `None` (the daemon emits `task_done` with `str(tid)` even when the task id is missing; see §6); a click in the app on an inbox row uses it too. Ids are `encodeURIComponent`ed. The route strings belong to the web units; this table changes with them.
 
 ### 3.4 `onNavigate`
 
@@ -169,7 +169,7 @@ The shell tests run under node with the Electron side injected, as `Desk` and `U
 
 - The route strings in §3.3 are the web units' to fix (U10, U11, U14); change the table, not the shell.
 - The proposal notice follows the `proposals` topic of the proposals spec (`proposal.raised`; `target` `hr`, `agent` null for a bundle). The shell's `Desk` adds `hr` to its subscribe. It is not suppressed while the HR page itself is on screen; `screen` would need a second field for that, which nobody asked for.
-- The daemon emits `task_done` with `str(tid)` even when `task_id` is missing, which reads `None`; `routeOfTarget` guards it, and `stream.py` should stop sending it.
+- The daemon emits `task_done` with `str(tid)` even when `task_id` is missing, which reads `None`; the table guards it, and `stream.py` should stop sending it.
 - `terminal_editor` is the honest limit of a GUI app. Running the editor in the Terminal pane (a pty on the daemon) would lift it; it is a feature, not a fix, and not planned.
 
 ### 4.6 `openIn`, `openInApps`

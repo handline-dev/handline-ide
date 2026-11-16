@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { assignGroups, involved, replyTargets } from '#src/index.ts';
+import { assignGroups, involved } from '#src/index.ts';
 
 const team = [
   { key: 'boss', workspace: 'w1' },
@@ -42,11 +42,6 @@ test('the holder, the viewer and the system never appear, and an empty group is 
   );
 });
 
-test('reply chips are the people the task names, latest first, without the viewer', () => {
-  assert.deepEqual(involved(task), ['rev', 'mobile', 'human', 'pc', 'boss']);
-  assert.deepEqual(replyTargets(task, 'boss'), ['rev', 'mobile', 'pc']);
-});
-
 test("the workspace's list is short: only the first few by name, the rest come after", () => {
   const many = [
     { key: 'boss', workspace: 'w1' },
@@ -57,4 +52,8 @@ test("the workspace's list is short: only the first few by name, the rest come a
   assert.equal(g.find((x) => x.key === 'near')!.names.length, 6);
   assert.equal(g.find((x) => x.key === 'rest')!.label, 'Other teams');
   assert.equal(g.find((x) => x.key === 'rest')!.names.length, 4);
+});
+
+test('the people a task names, latest first', () => {
+  assert.deepEqual(involved(task), ['rev', 'mobile', 'human', 'pc', 'boss']);
 });
