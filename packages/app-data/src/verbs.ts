@@ -1,8 +1,6 @@
 // The writes and the in-flight mark of the agent verbs (wake, interrupt, restart, close, park, fold, move account, clear stall), shared by the web menu and the phone's.
-import { useMutation } from '@tanstack/react-query';
-import { useStore } from '@handline/app-react';
-import { callOf, VERBS, type Verb, type VerbId, type WorktreeAnswer } from '@handline/app-core';
-import { usePending, useWrite } from '#src/write.ts';
+import { callOf, type Verb, type WorktreeAnswer } from '@handline/app-core';
+import { useWrite } from '#src/write.ts';
 
 /** What a caller may ask to hear of a verb's write: it settled, or the daemon refused it. */
 export interface VerbDone {
@@ -43,27 +41,4 @@ export function useRetireAgent(agent: string) {
       () => on?.onSuccess?.(),
       (e: unknown) => on?.onError?.(e),
     );
-}
-
-/** The gerund of the verb in flight on this agent ("parking…"), for the state cell; null when none. `skip` leaves out verbs the caller marks itself. */
-export function useVerbMark(agent: string, skip: VerbId[] = []): string | null {
-  const mine = <T extends { agent: string }>(l: T[]) => l.filter((v) => v.agent === agent);
-  const hits: [boolean, VerbId][] = [
-    [mine(usePending('session.interrupt')).length > 0, 'interrupt'],
-    [mine(usePending('session.stop')).some((v) => v.mode === 'close'), 'close'],
-    [mine(usePending('session.restart')).length > 0, 'restart'],
-    [mine(usePending('session.park')).length > 0, 'park'],
-    [mine(usePending('agent.fold')).length > 0, 'fold'],
-    [mine(usePending('agent.move')).length > 0, 'move'],
-    [mine(usePending('agent.unstall')).length > 0, 'clear_stall'],
-    [mine(usePending('agent.force_start')).length > 0, 'force_start'],
-  ];
-  const hit = hits.find(([on, id]) => on && !skip.includes(id));
-  return hit ? VERBS[hit[1]].gerund : null;
-}
-
-/** Where an agent's terminal is and how to attach to it (`terminal.open`): a question, not a write, asked on each click. */
-export function useOpenTerminal(agent: string) {
-  const store = useStore();
-  return useMutation({ mutationFn: () => store.client.call('terminal.open', { agent }) });
 }

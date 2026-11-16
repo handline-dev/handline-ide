@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { setup } from '@handline/fake-daemon/helpers';
 import { Store } from '@handline/app-core';
 import { RpcError } from '@handline/client';
-import { SKELETON_DELAY_MS, Skeleton, useAgentDetail, useAgents, useChat, useServes, useTasks, viewState } from '#src/index.ts';
+import { useAgentDetail, useAgents, useChat, useServes, useTasks } from '#src/index.ts';
 import { openStore, mount, probe, sleep, stubClient, unmount, until } from '#test/harness.tsx';
 
 afterEach(unmount);
@@ -74,22 +74,6 @@ describe('a read', () => {
     expect(applied).not.toHaveBeenCalled();
   });
 
-  it('keeps the last data under an error, and is not retried when refused', async () => {
-    let n = 0;
-    const stub = stubClient(() => {
-      if (n++ === 0) return { agents: [{ name: 'a' }] };
-      throw new RpcError('refused', 'refused', { reason: 'the daemon is sealed', gate: 'role' });
-    });
-    const p = probe(() => useAgents());
-    await mount(openStore(stub), p.node);
-    await until(() => p.get().data, 'the first read');
-    stub.gap();
-    await until(() => p.get().isError, 'the refusal');
-    expect(p.get().data).toEqual({ agents: [{ name: 'a' }] });
-    expect(stub.count('agents.list')).toBe(2);
-    expect(viewState(p.get(), true)).toBe('error');
-  });
-
   it('waits the time a busy daemon names, then asks again', async () => {
     let n = 0;
     const stub = stubClient(() => {
@@ -102,24 +86,6 @@ describe('a read', () => {
     await until(() => p.get().data, 'the second try');
     expect(Date.now() - t0).toBeGreaterThanOrEqual(45);
     expect(stub.count('agents.list')).toBe(2);
-  });
-
-  it('does not run for a method the daemon does not list, or while the connection is not open', async () => {
-    const stub = stubClient();
-    const off = openStore(stub, ['agents.list']);
-    const p = probe(() => ({ detail: useAgentDetail('a'), serves: useServes('agent.get') }));
-    await mount(off, p.node);
-    await sleep(30);
-    expect(stub.count('agent.get')).toBe(0);
-    expect(p.get().serves.served).toBe(false);
-    expect(viewState(p.get().detail, p.get().serves.served)).toBe('not_served');
-    await unmount();
-    const closed = openStore(stub);
-    closed.conn = 'reconnecting';
-    const q = probe(() => useAgents());
-    await mount(closed, q.node);
-    await sleep(30);
-    expect(stub.count('agents.list')).toBe(0);
   });
 
   it('separates two daemons by their ids', async () => {
@@ -162,27 +128,36 @@ describe('a read', () => {
   });
 });
 
-describe('the skeleton', () => {
-  it('shows after the delay while a read waits, and is replaced by the content', async () => {
-    const { store, daemon } = await connected();
-    daemon.knobs.latency(500);
+describe('a read the daemon refuses or does not serve', () => {
+  it('keeps the last data under an error, and is not retried when refused', async () => {
+    let n = 0;
+    const stub = stubClient(() => {
+      if (n++ === 0) return { agents: [{ name: 'a' }] };
+      throw new RpcError('refused', 'refused', { reason: 'the daemon is sealed', gate: 'role' });
+    });
     const p = probe(() => useAgents());
-    const View = () => <Skeleton shape="agents" loading={useAgents().isPending} label="agents" />;
-    await mount(
-      store,
-      <>
-        {p.node}
-        <View />
-      </>,
-    );
-    expect(document.querySelector('.skeleton')).toBeNull();
-    await sleep(SKELETON_DELAY_MS + 100);
-    const sk = document.querySelector('.skeleton')!;
-    expect(sk.getAttribute('aria-busy')).toBe('true');
-    expect(sk.getAttribute('role')).toBe('status');
-    expect(sk.getAttribute('aria-label')).toBe('Loading agents');
-    expect(sk.querySelectorAll('.sk').length).toBeGreaterThan(0);
-    await until(() => p.get().data, 'the agents');
-    await until(() => !document.querySelector('.skeleton'), 'the skeleton to go');
+    await mount(openStore(stub), p.node);
+    await until(() => p.get().data, 'the first read');
+    stub.gap();
+    await until(() => p.get().isError, 'the refusal');
+    expect(p.get().data).toEqual({ agents: [{ name: 'a' }] });
+    expect(stub.count('agents.list')).toBe(2);
+  });
+
+  it('does not run for a method the daemon does not list, or while the connection is not open', async () => {
+    const stub = stubClient();
+    const off = openStore(stub, ['agents.list']);
+    const p = probe(() => ({ detail: useAgentDetail('a'), serves: useServes('agent.get') }));
+    await mount(off, p.node);
+    await sleep(30);
+    expect(stub.count('agent.get')).toBe(0);
+    expect(p.get().serves.served).toBe(false);
+    await unmount();
+    const closed = openStore(stub);
+    closed.conn = 'reconnecting';
+    const q = probe(() => useAgents());
+    await mount(closed, q.node);
+    await sleep(30);
+    expect(stub.count('agents.list')).toBe(0);
   });
 });

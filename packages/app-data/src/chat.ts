@@ -1,6 +1,6 @@
 // Chat of one agent on the data layer: the person's messages and the agent's transcript as paged queries, and send as a write whose
 // row shows at once and, if refused, stays with its text and a Retry.
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import {
   infiniteQueryOptions,
   replaceEqualDeep,
@@ -263,57 +263,5 @@ export function useChatActions(agent: string) {
     /** Takes the message back, delivered or not (a queued one of a structured agent leaves the conversation, with no confirm); one the agent already has needs `confirm`. Resolves when the daemon has done it, rejects when it refuses. */
     cancel: (request: number, confirm = false) => cancel.mutateAsync({ request, ...(confirm ? { confirm: true } : {}) }),
     sending: send.isPending,
-  };
-}
-
-export interface ChatWindow {
-  /** The message the window was opened on; null while the live tail is shown. */
-  target: number | null;
-  messages: ChatMessage[]; // oldest first
-  hasOlder: boolean;
-  hasNewer: boolean;
-  loading: boolean;
-  /** Opens a window around a message, from what chat.locate returned. */
-  open: (target: number, messages: ChatMessage[], moreOlder: boolean, moreNewer: boolean) => void;
-  loadOlder: () => void;
-  loadNewer: () => void;
-  /** Back to the live tail. */
-  close: () => void;
-}
-
-interface Held {
-  target: number;
-  messages: ChatMessage[];
-  older: boolean;
-  newer: boolean;
-}
-
-/** A stretch of one chat around an old message, read in both directions from it instead of paging up from the newest. `target` is null while the live tail is shown. */
-export function useChatWindow(agent: string, scope: ChatScope): ChatWindow {
-  const store = useStore();
-  const [held, setHeld] = useState<Held | null>(null);
-  const [loading, setLoading] = useState(false);
-  const read = (h: Held, params: { before: number } | { since: number }, edge: 'older' | 'newer') => {
-    setLoading(true);
-    void store.client
-      .call('chat.messages', { agent, scope, ...params, limit: PAGE })
-      .then((r) =>
-        setHeld((cur) => {
-          if (!cur || cur.target !== h.target) return cur;
-          return { ...cur, messages: byId([cur.messages, r.messages]).sort((a, b) => a.id - b.id), [edge]: r.more };
-        }),
-      )
-      .finally(() => setLoading(false));
-  };
-  return {
-    target: held?.target ?? null,
-    messages: held?.messages ?? [],
-    hasOlder: !!held?.older,
-    hasNewer: !!held?.newer,
-    loading,
-    open: (target, messages, older, newer) => setHeld({ target, messages: [...messages].sort((a, b) => a.id - b.id), older, newer }),
-    loadOlder: () => held && !loading && held.older && read(held, { before: Math.min(...held.messages.map((m) => m.id)) }, 'older'),
-    loadNewer: () => held && !loading && held.newer && read(held, { since: Math.max(...held.messages.map((m) => m.id)) }, 'newer'),
-    close: () => setHeld(null),
   };
 }
