@@ -55,4 +55,3 @@ export const provisionalId = () => -(Date.now() * 1000 + (provisional++ % 1000))
 /** The provisional id each numbered row took over: a list keys the row by it, so the swap is one row that stays, not one leaving and one arriving. */
 const taken = new Map<number, number>();
 export const takeOver = (id: number, provisional: number) => void taken.set(id, taken.get(provisional) ?? provisional);
-export const rowKey = (id: number) => taken.get(id) ?? id;

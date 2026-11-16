@@ -182,8 +182,6 @@ const urlOf = (call: Call, id: string, thumb: boolean): Promise<string | null> =
 
 const removedIds = new Set<string>();
 const onRemoved = new Set<(id: string) => void>();
-/** Whether this session saw the image deleted. */
-export const isRemoved = (id: string): boolean => removedIds.has(id);
 /** The founder deleted this image: what draws it from the cache goes blank at once and says it was deleted. */
 export function markRemoved(id: string): void {
   removedIds.add(id);
@@ -228,24 +226,4 @@ export function useAttachmentUrl(
     };
   }, [store, id, thumb, attempt]); // a higher `attempt` reads it again
   return { ...state, removed: removed && state.gone };
-}
-
-export type AttachmentRead =
-  { state: 'loading' } | { state: 'ready'; mime: ReadMime; bytes: Uint8Array } | { state: 'gone' } | { state: 'failed' };
-
-/** The bytes of an attachment, read on each mount (no cache, for an app that has no object URLs); `gone` when the daemon dropped it. */
-export function useAttachmentBytes(id: string, thumb: boolean): AttachmentRead {
-  const store = useStore();
-  const [read, setRead] = useState<AttachmentRead>({ state: 'loading' });
-  useEffect(() => {
-    let live = true;
-    setRead({ state: 'loading' });
-    readImage((m, p) => store.client.call(m as never, p as never), id, thumb)
-      .then(({ mime, bytes }) => live && setRead({ state: 'ready', mime, bytes }))
-      .catch((e) => live && setRead({ state: e instanceof RpcError && e.code === 'not_found' ? 'gone' : 'failed' }));
-    return () => {
-      live = false;
-    };
-  }, [store, id, thumb]);
-  return read;
 }
