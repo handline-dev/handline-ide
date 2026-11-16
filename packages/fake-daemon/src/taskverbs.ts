@@ -41,13 +41,15 @@ export class TaskVerbs extends TaskComments {
     const log = [...(t.turnLog ?? []), { at: turn.since, who: `${turn.by} → human`, text: '', turn: 'push' as const, memo }];
     this.change(t, { turns: [...(t.turns ?? []), turn], acting: 'human', turnLog: log });
   }
-  /** The founder's comment while their turn is on top passes it (docs/design/turns.md); a comment with turn human puts the founder on top. */
+  /** The founder's comment while their turn is on top passes it (docs/design/turns.md), unless the task is Ready for them: then it is a
+   * question to its assignee and the turn stays for OK or Redo. A comment with turn human puts the founder on top. */
   override memo(p: Record<string, unknown>, op: 'add' | 'edit' | 'delete', person: string, agent = false): number {
     if (op === 'add' && p.turn !== undefined && p.turn !== 'human')
       throw new TaskFailure('refused', 'the fake daemon hands turns to human only');
     const id = super.memo(p, op, person, agent);
     if (op === 'add' && p.turn === 'human') this.turnPush(p.task, id, String(p.text).trim(), agent ? person : '');
-    else if (op === 'add' && !agent && this.find(p.task).turns?.at(-1)?.agent === 'human') this.turnPop(p);
+    else if (op === 'add' && !agent && !this.find(p.task).review?.ready && this.find(p.task).turns?.at(-1)?.agent === 'human')
+      this.turnPop(p);
     return id;
   }
   /** The founder gives their turn back to whoever pushed it. */
@@ -55,6 +57,7 @@ export class TaskVerbs extends TaskComments {
     const t = this.find(p.task);
     const top = t.turns?.at(-1);
     if (top?.agent !== 'human') throw new TaskFailure('refused', `task ${t.id} is not the founder's turn`);
+    if (t.review?.ready) throw new TaskFailure('refused', `T${t.id} is Ready for you: answer it with OK, merge or Redo`);
     const log = [...(t.turnLog ?? []), { at: this.now(), who: `human → ${top.by}`, text: '', turn: 'pop' as const }];
     this.change(t, { turns: t.turns!.slice(0, -1), acting: top.by, turnLog: log });
   }

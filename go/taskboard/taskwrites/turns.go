@@ -135,6 +135,11 @@ func turnPopMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (an
 		}
 		var popped Popped
 		out, err := c.Effect(func(tx *sql.Tx) (map[string]any, error) {
+			if ready, err := readyNow(tx, tid); err != nil {
+				return nil, err
+			} else if ready && me == actor.OwnerKey {
+				return nil, refusal(readyRefusal(tid))
+			}
 			var err error
 			if popped, err = popTurn(tx, home, tell, tid, me, outcome, note, 0); err != nil {
 				return nil, err

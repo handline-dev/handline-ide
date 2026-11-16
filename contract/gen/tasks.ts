@@ -181,7 +181,7 @@ export type TaskDetail = Task & {
     plan_state: "none" | "asked" | "writing" | "written" | "ok";
     /** As TaskDetail.review, for the sub-task. */
     review: {
-      /** True while it waits for the founder's verdict: the founder's turn its Ready put on is still on top (a plain comment by the founder passes that turn, and the agent works on). */
+      /** True while it waits for the founder's verdict: the founder's turn its Ready put on is still on top. Only task.ok or task.redo takes it off: the founder's comment is a question its assignee is told, and their give back is refused. */
       ready: boolean;
       /** The land_by agent "OK, merge" hands it to (task.ok). */
       land_by: string;
@@ -302,7 +302,7 @@ export type TaskDetail = Task & {
   } | null;
   /** How a story's sub-task (one opened as a draft) stands with the founder: when its assignee finishes it, by handing it to its workspace's land_by agent, it is Ready for the founder instead (a task_ready event); OK and Redo are task_verdict events. null when it was never Ready. */
   review: {
-    /** True while it waits for the founder's verdict: the founder's turn its Ready put on is still on top (a plain comment by the founder passes that turn, and the agent works on). */
+    /** True while it waits for the founder's verdict: the founder's turn its Ready put on is still on top. Only task.ok or task.redo takes it off: the founder's comment is a question its assignee is told, and their give back is refused. */
     ready: boolean;
     /** The land_by agent "OK, merge" hands it to (task.ok). */
     land_by: string;

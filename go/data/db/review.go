@@ -24,7 +24,7 @@ const ReviewEventsSQL = "SELECT " + eventTask + ", COUNT(*), MAX(id) FROM events
 // Review is how a story's sub-task stands with the founder.
 type Review struct {
 	// Ready is whether it waits for the founder's verdict now: the newest Ready came after the newest verdict, and the founder's turn it put
-	// on, hung on its comment, is still on top (a plain comment by the founder passes that turn and the agent works on).
+	// on, hung on its comment, is still on top (only OK or Redo takes it off: the founder's comment is a question to the assignee).
 	Ready bool
 	// LandBy is who the newest Ready waits to go to; Memo the comment that carries the agent's result; At when it was made.
 	LandBy   string

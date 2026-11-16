@@ -262,20 +262,32 @@ func memoAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, err
 				if err = answerMemoAsks(tx, tid); err != nil {
 					return nil, err
 				}
-				// while the founder's turn is on top, their comment passes it, the comment its note
-				if acting, err := db.Acting(tx, tid); err != nil {
+				// while the founder's turn is on top, their comment passes it, the comment its note; on a task Ready for them it is a
+				// question to its assignee, and the turn stays for their verdict
+				acting, err := db.Acting(tx, tid)
+				if err != nil {
 					return nil, err
-				} else if turns, err := db.Turns(tx, tid); err != nil {
+				}
+				turns, err := db.Turns(tx, tid)
+				if err != nil {
 					return nil, err
-				} else if actor.IsPerson(acting) && len(turns) > 0 {
-					if to != "" {
-						return nil, refusal(fmt.Sprintf("T%d waits on you: answer with a comment and no turn, and it goes back to the agent that asked", tid))
-					}
-					p, err := popTurn(tx, home, tell, tid, c.Caller.Actor(), db.TurnPass, body, mid)
-					if err != nil {
+				}
+				if actor.IsPerson(acting) && len(turns) > 0 {
+					ready, err := readyNow(tx, tid)
+					switch {
+					case err != nil:
 						return nil, err
+					case ready && to != "":
+						return nil, refusal(readyRefusal(tid))
+					case to != "":
+						return nil, refusal(fmt.Sprintf("T%d waits on you: answer with a comment and no turn, and it goes back to the agent that asked", tid))
+					case !ready:
+						p, err := popTurn(tx, home, tell, tid, c.Caller.Actor(), db.TurnPass, body, mid)
+						if err != nil {
+							return nil, err
+						}
+						popped = &p
 					}
-					popped = &p
 				}
 			}
 			if err := store.AttachMemo(tx, mid, files); err != nil {

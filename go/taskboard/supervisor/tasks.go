@@ -515,14 +515,38 @@ func (e *Env) TellMemoSkipping(q db.Q, tid, mid int64, by, what, text, to string
 	if row == nil {
 		return nil
 	}
+	ready := false // the founder's question on a task Ready for them: told to the agent below their turn, which answers it
+	if what == "added" && actor.IsPerson(by) {
+		r := must(db.TaskReview(q, tid))
+		if ready = r != nil && r.Ready; ready {
+			check(toldBelow(q, row, by))
+		}
+	}
 	for _, r := range e.memoRecipients(row, by, text, to, now) {
 		if slices.Contains(skip, r.Agent) {
 			continue
 		}
-		rid := e.typeSay(q, r.Agent, memoLine(tid, mid, what, addr.For(q, r.Agent, by), text), "task memo")
+		who := addr.For(q, r.Agent, by)
+		line := memoLine(tid, mid, what, who, text)
+		if ready && r.Agent == row.Acting {
+			line += fmt.Sprintf("\nT%d stays Ready for %s: answer in a comment; only their OK, merge or Redo moves it on", tid, who)
+		}
+		rid := e.typeSay(q, r.Agent, line, "task memo")
 		e.linkMemoTell(q, mid, r.Agent, rid)
 	}
 	return nil
+}
+
+// toldBelow makes the agent below the founder's top turn row's holder, for telling the founder's (by) comment.
+func toldBelow(q db.Q, row *db.Task, by string) error {
+	if !actor.IsPerson(by) || !actor.IsPerson(row.Acting) {
+		return nil
+	}
+	turns, err := db.Turns(q, row.ID)
+	if len(turns) > 0 {
+		row.Acting = taskwrites.Below(turns, row.Owner)
+	}
+	return err
 }
 
 // memoRecipients is the one rule for whom a comment on row is told: an agent it names with @ or that was said it (to) is asked, and the

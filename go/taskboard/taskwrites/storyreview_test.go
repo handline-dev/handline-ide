@@ -107,18 +107,39 @@ func TestAStorysSubTaskWaitsForTheFoundersOKBeforeItGoesToLand(t *testing.T) {
 	if r := review(); !r.Ready || r.Redo != 0 || r.OK {
 		t.Fatalf("a refused verdict left its writes: %+v", r)
 	}
-	// The founder's plain comment passes the turn: no longer Ready, and a question to them later does not bring the old Ready back.
-	if as("", "task.comment.add", `"task":1,"text":"which badge is this?",`)["error"] != nil {
+	// The founder's comment on a Ready task is a question to its worker: still Ready, their turn still on the result. Only OK or Redo answers
+	// it: Give back and a comment that hands a turn are refused.
+	turns := func() string {
+		t.Helper()
+		ts, err := db.Turns(d, 1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return fmt.Sprint(ts)
+	}
+	before, memos := turns(), len(f.memos)
+	if as("", "task.comment.add", `"task":1,"text":"why the yellow?",`)["error"] != nil {
 		t.Fatal("the founder's comment")
 	}
-	if review().Ready || said(hand(1, "p1", "the round one: which color?")) == "" || review().Ready {
-		t.Fatal("an old Ready came back with the founder's turn")
+	if !review().Ready || turns() != before || len(f.memos) != memos+1 || !strings.Contains(f.memos[memos], `"why the yellow?"`) {
+		t.Fatalf("the question ended Ready or was not told: %v %v", turns(), f.memos)
 	}
-	if as("", "task.comment.add", `"task":1,"text":"blue",`)["error"] != nil {
-		t.Fatal("the founder's answer")
+	if acting, _ := db.Acting(d, 1); acting != "p1" {
+		t.Fatalf("the founder's question passed their turn to %s", acting)
 	}
-	if got := said(hand(1, lander, "built it in blue")); !strings.HasPrefix(got, "T1 is Ready for the founder") {
-		t.Fatalf("%q", got)
+	if as(worker, "task.comment.add", `"task":1,"text":"it marks the beta",`)["error"] != nil || !review().Ready {
+		t.Fatal("the worker's answer")
+	}
+	for _, refused := range []string{
+		errText(as("", "task.turn.pop", `"task":1,"outcome":"pass",`)),
+		errText(as("", "task.comment.add", fmt.Sprintf(`"task":1,"text":"ask the lander","turn":%q,`, lander))),
+	} {
+		if refused != "T1 is Ready for you: answer it with OK, merge or Redo" {
+			t.Fatalf("%q", refused)
+		}
+	}
+	if !review().Ready || turns() != before {
+		t.Fatal("a refused answer moved the Ready task")
 	}
 	if errCode(as(worker, "task.redo", `"task":1,"note":"x",`)) != "refused" || errCode(as(worker, "task.ok", `"task":1,`)) != "refused" {
 		t.Fatal("OK and Redo are the founder's")
