@@ -19,7 +19,7 @@ import (
 var titles = map[string]string{"permission": "Waiting for your OK", "question": "Asked you a question", "usage": "Usage limit: choose what to do",
 	"dialog": "Waiting at a dialog"}
 
-// movedOn is whether the agent's own turn went on past the prompt the wait file names (session.WaitOf's second path): it asked, reported or
+// movedOn is whether the agent's own turn went on past the prompt the wait file names: it asked, reported or
 // committed after the prompt was raised, so the prompt was answered. A wait that names no event is left showing rather than guessed at.
 func movedOn(q db.Q, agent string, w map[string]any) bool {
 	after, ok := hooks.WaitID(w)
@@ -56,9 +56,8 @@ func (p *Parts) switchOffer(agent string) *agentview.NeedsYou {
 // terminalSession, the one reader of a terminal agent's session), and the wait file the PermissionRequest hook writes. An agent that is not
 // there to wait (no row, closed, or no live session) needs nobody; a live session that says it is not waiting is past the prompt whatever a
 // wait file still says, since the file is taken away only by the call that ran or a hook that ends the turn, and the call may run for
-// minutes. The hook's file counts for an agent whose row is running (session.WaitOf): a session at a prompt sends no Stop, so its row stays
-// running, and one that died there leaves the file behind. With Config.NotifiedNeedsYou, a prompt Claude Code's Notification hook reports
-// as unanswered (hooks.Notified) needs a person too, at the terminal.
+// minutes. The hook's file counts for an agent whose row is running: a session at a prompt sends no Stop, so its row stays running, and one
+// that died there leaves the file behind. With Config.NotifiedNeedsYou, a prompt hooks.Notified reports unanswered counts too.
 func (p *Parts) needsYou() func(agent string) *agentview.NeedsYou {
 	home, q, notified := p.home, p.db, p.notified
 	return func(agent string) *agentview.NeedsYou {
