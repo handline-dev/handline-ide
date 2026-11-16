@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/handline/handline/go/agentctl/agent"
@@ -137,8 +138,14 @@ func (Driver) LaunchArgv(exe string, o agent.LaunchArgs) []string {
 	}
 	// go clean drops the cache every worktree builds from, and their builds fail on files that vanish under them.
 	deny := []string{"Bash(go clean:*)"}
+	var ask []string
 	for _, p := range o.Hide {
-		deny = append(deny, "Read(/"+strings.TrimRight(p, "/")+"/**)") // denyRead binds Bash; the Read tool is a permission
+		rule := "Read(/" + strings.TrimRight(p, "/") + "/**)" // denyRead binds Bash; the Read tool is a permission
+		if slices.Contains(o.AskRead, p) {
+			ask = append(ask, rule)
+		} else {
+			deny = append(deny, rule)
+		}
 	}
 	for _, p := range o.NoWrite {
 		deny = append(deny, "Edit(/"+p+")") // Claude Code matches only Edit rules for the file tools, and they cover Write
@@ -155,6 +162,9 @@ func (Driver) LaunchArgv(exe string, o agent.LaunchArgs) []string {
 	perms := NewObject()
 	if len(allow) > 0 {
 		perms.Set("allow", allow)
+	}
+	if len(ask) > 0 {
+		perms.Set("ask", ask)
 	}
 	perms.Set("deny", deny)
 	settings.Set("permissions", perms)

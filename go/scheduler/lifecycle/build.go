@@ -201,7 +201,7 @@ func (l *Launcher) Build(site *Site, agent string, extra []string, force bool, a
 	if err != nil {
 		return nil, nil, err
 	}
-	hide, noWrite, lifted, err := l.Confinement(agent, cwd, drv, granted)
+	confined, err := l.Confinement(agent, cwd, drv, granted)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -215,13 +215,13 @@ func (l *Launcher) Build(site *Site, agent string, extra []string, force bool, a
 	}
 	var trusted []string
 	if len(mode) > 0 && chosen == team.DefaultMode {
-		trusted = l.TrustedEnvironment(cwd, lifted)
+		trusted = l.TrustedEnvironment(cwd, confined.Lifted)
 	}
 	argv = drv.LaunchArgv(exe, cli.LaunchArgs{
 		Cwd: cwd, Model: modelOf(cfg), Effort: effort, Disallowed: l.disallowed(agent),
 		MCPArgs:  append(append([]string{}, mcpArg...), team.MCPConfigArgs(cfg)...),
-		Preamble: preamble, Hide: hide,
-		NoWrite:   noWrite,
+		Preamble: preamble, Hide: confined.Hide, AskRead: confined.AskRead,
+		NoWrite:   confined.NoWrite,
 		MemoryDir: memoryDir, Trusted: trusted, Chrome: team.Chrome(cfg),
 		SandboxOff:  !sandboxed,
 		MCPApproved: approved, ExtraDirs: extraDirs, ReadAllow: append([]string{filepath.Join(l.Home, "attachments")}, granted...),
