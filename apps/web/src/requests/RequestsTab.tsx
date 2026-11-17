@@ -241,20 +241,25 @@ const PAGE = 10;
 const EVER = new Date(0).toISOString();
 
 function Decided({ shown, onPick }: { shown: number | null; onPick?: (task: number) => void }) {
-  // One read that grows (the daemon's newest by id, at most 200): it stays live as decisions come, and Show more asks for more.
+  // One read that grows (the daemon's newest decisions first, at most 200): it stays live as decisions come, and Show more asks for
+  // ten more, which come below.
   const [limit, setLimit] = useState(PAGE);
-  const q = useTasks({ decided_since: EVER, limit });
+  const q = useTasks({ decided_since: EVER, order: 'decided', limit });
   // HR proposals the founder answered: each state read whole (proposal.list with a state has no 7-day bound).
   const approved = useProposals({ state: 'approved' }).data?.proposals ?? [];
   const rejected = useProposals({ state: 'rejected' }).data?.proposals ?? [];
   const failed = useProposals({ state: 'apply_failed' }).data?.proposals ?? [];
   const nameOf = useNameOf();
-  const all: Decision[] = [
-    ...(q.data?.items ?? []).filter(isDecided).map((t) => ({ kind: 'task' as const, at: t.decided.at, t })),
-    ...[...approved, ...rejected, ...failed].filter((x) => x.settled).map((x) => ({ kind: 'proposal' as const, at: x.settled!, x })),
+  const tasks = (q.data?.items ?? []).filter(isDecided);
+  // The proposals of the time the tasks read so far reach back to (all of them once every task is read), so Show more brings the
+  // older ones of both below.
+  const reach = q.data?.more ? tasks.at(-1)?.decided.at : undefined;
+  const items: Decision[] = [
+    ...tasks.map((t) => ({ kind: 'task' as const, at: t.decided.at, t })),
+    ...[...approved, ...rejected, ...failed]
+      .filter((x) => x.settled && (!reach || x.settled >= reach))
+      .map((x) => ({ kind: 'proposal' as const, at: x.settled!, x })),
   ].sort((a, b) => b.at.localeCompare(a.at));
-  // As many as the tasks read so far reach back to, so a page of tasks and the proposals of that time show together.
-  const items = all.slice(0, limit);
   if (!items.length) return <Section title="Decided" rows={[]} empty={q.isPending ? '' : 'Nothing decided yet.'} />;
   return (
     <section className="flex flex-col">
@@ -274,7 +279,7 @@ function Decided({ shown, onPick }: { shown: number | null; onPick?: (task: numb
           ),
         )}
       </Rows>
-      {(q.data?.more || all.length > limit) && limit < 200 && (
+      {q.data?.more && limit < 200 && (
         <Button variant="ghost" className="mt-2 self-center" onClick={() => setLimit((n) => Math.min(200, n + PAGE))}>
           Show more
         </Button>
