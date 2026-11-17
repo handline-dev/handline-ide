@@ -1040,6 +1040,11 @@ export interface CoreMethods {
   agent?: Who;
   request_id: RequestId;
 }; result: Accepted };
+  "warning.dismiss": { params: {
+  /** The warning's id: PendingRequest.id of a row whose source is machine. */
+  id: string;
+  request_id: RequestId;
+}; result: Accepted };
 }
 
 export const CORE_METHODS: { [K in keyof CoreMethods]: { role: Role; callers: Role[] | null; write: boolean; since: number } } = {
@@ -1064,6 +1069,7 @@ export const CORE_METHODS: { [K in keyof CoreMethods]: { role: Role; callers: Ro
   "connection.addresses": { role: "owner", callers: null, write: false, since: 1 },
   "settings.get": { role: "owner", callers: null, write: false, since: 1 },
   "settings.set": { role: "owner", callers: null, write: true, since: 1 },
+  "warning.dismiss": { role: "owner", callers: null, write: true, since: 1 },
 };
 
 /** x-app-cache of each read (x-app in core.json). */
@@ -1086,13 +1092,14 @@ export const CORE_APP_CACHE: { [K in "hello" | "whoami" | "subscribe" | "unsubsc
 };
 
 /** x-app-write of each write (x-app in core.json). */
-export const CORE_APP_WRITES: { [K in "daemon.pause" | "daemon.resume" | "prefs.set" | "hook.record" | "subagent.start" | "settings.set"]: { kind: WriteKind; label: string } | false } = {
+export const CORE_APP_WRITES: { [K in "daemon.pause" | "daemon.resume" | "prefs.set" | "hook.record" | "subagent.start" | "settings.set" | "warning.dismiss"]: { kind: WriteKind; label: string } | false } = {
   "daemon.pause": {"kind": "decided", "label": "pause new work"},
   "daemon.resume": {"kind": "decided", "label": "resume new work"},
   "prefs.set": {"kind": "authored", "label": "save view preferences"},
   "hook.record": false,
   "subagent.start": false,
   "settings.set": {"kind": "authored", "label": "save settings"},
+  "warning.dismiss": {"kind": "decided", "label": "dismiss a warning"},
 };
 
 export const PROTOCOL = 1;

@@ -2132,7 +2132,7 @@
    },
    "PendingWarning": {
     "type": "object",
-    "description": "What a warning row is about, so a client can draw it and open the right place. It is read from state each time and leaves by itself.",
+    "description": "What a warning row is about, so a client can draw it and open the right place. It is read from state each time and leaves by itself, or when the founder dismisses it (warning.dismiss).",
     "properties": {
      "kind": {
       "type": "string",

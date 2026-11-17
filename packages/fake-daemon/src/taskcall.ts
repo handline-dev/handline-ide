@@ -1,5 +1,5 @@
 // The fake daemon's task methods: which ones it serves and how one call is answered by the store.
-import { invalidParams, refused, storeFailure } from '#src/errors.ts';
+import { Failure, invalidParams, refused, storeFailure } from '#src/errors.ts';
 import { discardAll } from '#src/discardbatch.ts';
 import { timeOf } from '#src/history.ts';
 import { TaskFailure, type FakeTasks } from '#src/tasks.ts';
@@ -35,6 +35,10 @@ export function taskCall(
         return (tasks.seen(p), ok('Marked seen.'));
       case 'requests.pending':
         return tasks.pending();
+      case 'warning.dismiss':
+        if (typeof p.id !== 'string' || !p.id) throw invalidParams("id is a warning's id (a machine item's id)", 'id');
+        if (!tasks.dismissWarning(p.id)) throw new Failure('not_found', `no warning ${p.id}`, { what: 'warning', name: p.id });
+        return ok('Warning dismissed.');
       case 'task.comment.recipients':
         return tasks.recipients(p, person);
       case 'task.new':

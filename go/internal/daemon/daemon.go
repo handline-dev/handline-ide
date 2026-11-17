@@ -528,7 +528,10 @@ func (d *Daemon) writeRegistrars() []func(*rpc.Server) {
 		func(s *rpc.Server) { pausewrites.Register(s, nil, d.pauseChanged) },
 		func(s *rpc.Server) { proposalwrites.Register(s, d.proposalEnv()) },
 		func(s *rpc.Server) { prompts.Register(s, d.prompts) },
-		func(s *rpc.Server) { prefs.Register(s, d.cfg.Home) },
+		func(s *rpc.Server) {
+			prefs.Register(s, d.cfg.Home)
+			prefs.RegisterDismiss(s, (&reads.Env{DB: d.db, Home: d.cfg.Home}).WarningSinces)
+		},
 		func(s *rpc.Server) {
 			if d.cfg.Session != nil {
 				env := d.cfg.Session()

@@ -55,6 +55,7 @@ export const useDaemonPause = (target?: string) => useWrite("daemon.pause", targ
 export const useDaemonResume = (target?: string) => useWrite("daemon.resume", target);
 export const usePrefsSet = (target?: string) => useWrite("prefs.set", target);
 export const useSettingsSet = (target?: string) => useWrite("settings.set", target);
+export const useWarningDismiss = (target?: string) => useWrite("warning.dismiss", target);
 export const useAccountSet = (target?: string) => useWrite("account.set", target);
 export const useAccountWake = (target?: string) => useWrite("account.wake", target);
 export const useAccountReadUsage = (target?: string) => useWrite("account.read_usage", target);

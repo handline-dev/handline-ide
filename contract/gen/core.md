@@ -26,6 +26,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `connection.addresses` | owner |  | none | `ConnectionAddresses` |  |  | `addresses`, snapshot |
 | `settings.get` | owner |  | `agent?` | `Settings` | `bad_request`, `not_found` |  | `settings`, snapshot |
 | `settings.set` | owner | yes | `changes`, `agent?`, `request_id` | `Accepted` | `refused`, `bad_request` |  | authored: save settings |
+| `warning.dismiss` | owner | yes | `id`, `request_id` | `Accepted` | `not_found`, `bad_request` |  | decided: dismiss a warning |
 
 ### `hello`
 
@@ -110,4 +111,8 @@ Timings, terminal host, trust folders, hooks installed.
 ### `settings.set`
 
 Change settings: any keys of SettingsValues, globally or as one agent's override.
+
+### `warning.dismiss`
+
+Dismiss one of the daemon's warnings to the founder (a requests.pending row whose source is machine) for as long as its cause lasts. requests.pending leaves it out until its cause ends and begins again, or a login warning grows worse (cannot be used); daemon.status needs_you is unaffected. A warning the founder does not have now is not_found, data.what `warning`.
 

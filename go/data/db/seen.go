@@ -49,6 +49,9 @@ func SetLoginNeed(q Q, acct string, need LoginNeed) error {
 	return SetMeta(q, LoginNeedPrefix+acct, string(raw))
 }
 
+// DismissedPrefix keys the founder's dismissal of a warning (warning_dismissed:<its id>): it hides that warning while its since is the one kept.
+const DismissedPrefix = "warning_dismissed:"
+
 // A founder warning kept in meta until its state says it is over. Each is one JSON Undelivered, by the request or the task it is about.
 const (
 	LostMessagePrefix = "founder_message_lost:"

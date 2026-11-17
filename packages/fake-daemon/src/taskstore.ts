@@ -18,7 +18,7 @@ export class TaskFailure extends Error {
 
 /** What the tasks need of the daemon that hosts them: to emit on a topic, and to know the agents. */
 export interface Host {
-  emit(topic: 'tasks', type: string, f: { data: Record<string, unknown> }): void;
+  emit(topic: 'tasks' | 'for_you', type: string, f: { title?: string; data: Record<string, unknown> }): void;
   sessions: Map<string, unknown>;
   uploads: FakeAttachments;
   inbox: FakeInbox;
