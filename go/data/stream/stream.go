@@ -96,6 +96,18 @@ func (h *Hub) AccountChanged(account any) error {
 	return err
 }
 
+// Subscribed is whether some connection is subscribed to the topic.
+func (h *Hub) Subscribed(topic string) bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for s := range h.subs {
+		if s.topics[topic] {
+			return true
+		}
+	}
+	return false
+}
+
 // Run looks at the log for new rows every PollEvery (and when Append asks) until stop closes, and prunes it hourly.
 func (h *Hub) Run(stop <-chan struct{}, logf func(string, ...any)) {
 	if h.Log == nil {
