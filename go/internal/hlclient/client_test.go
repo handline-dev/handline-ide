@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/internal/contracttest"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/protected"
@@ -334,5 +335,19 @@ func TestAnAgentsSessionHoldsNoFounderKey(t *testing.T) {
 	t.Setenv("HANDLINE_AGENT", "a5")
 	if k := New().Key; k != "" {
 		t.Fatalf("an agent's session holds %q", k)
+	}
+}
+
+// HANDLINE_AGENT holds the agent's name; hl takes it back to the key. A key, from a session started before names, stays a key.
+func TestAgentIsTheKeyOfTheNameInTheEnvironment(t *testing.T) {
+	t.Setenv("HANDLINE_TEST_ROOT", t.TempDir())
+	home := paths.Home()
+	teamtest.Seed(t, home, "shop", "shop.quill")
+	ui := teamtest.Key(t, home, "shop.quill")
+	for env, want := range map[string]string{"quill": ui, "shop/quill": ui, ui: ui, "human": "human", "": "", "nobody": "nobody"} {
+		t.Setenv("HANDLINE_AGENT", env)
+		if got := Agent(); got != want {
+			t.Errorf("HANDLINE_AGENT=%q: %q, want %q", env, got, want)
+		}
 	}
 }
