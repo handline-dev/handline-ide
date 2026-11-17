@@ -602,6 +602,10 @@ func (c *Conn) resolveWho(method string, params map[string]any) error {
 		var refused *addr.Refusal
 		switch {
 		case err == nil:
+			if c.Typed() && k == w && actor.KindOf(w) == actor.Agent {
+				// counted until keys stop being taken (T9202)
+				c.srv.Log("  who by key: %s %s=%s from %s", method, param, w, c.Caller.Key)
+			}
 			return k
 		case !errors.As(err, &refused):
 			failed = err
@@ -695,8 +699,8 @@ func (c *Conn) writeOut(result any, err error) (any, error) {
 }
 
 // whoFields are the reply fields that hold a who's key, as the contract names them.
-var whoFields = map[string]bool{"acting": true, "agent": true, "agents": true, "assignee": true, "author": true, "by": true,
-	"discarded_by": true, "from": true, "opened_by": true, "owner": true, "pushed_by": true, "reporter": true, "requested_by": true,
+var whoFields = map[string]bool{"acting": true, "agent": true, "agents": true, "asker": true, "assignee": true, "author": true, "by": true,
+	"discarded_by": true, "edited_by": true, "from": true, "opened_by": true, "owner": true, "pushed_by": true, "reporter": true, "requested_by": true,
 	"requester": true, "target": true, "to": true, "who": true}
 
 // rewrap is err with inner, which it wraps, replaced by out: a wrapper the handler gave (CommitThen) stays around the written-out error.

@@ -39,7 +39,7 @@ func keyOf(home, who string, kind actor.Kind, lookup func(rowQ, string) (string,
 }
 
 // AgentKeyIn is AgentKey read through q, which may be the transaction that changed the agent's row: "" and no error when no agent
-// is who.
+// is who. who is a key, an old dotted name, "workspace/name", or a name no other agent has.
 func AgentKeyIn(q rowQ, who string) (string, error) {
 	var id int64
 	var err error
@@ -47,7 +47,9 @@ func AgentKeyIn(q rowQ, who string) (string, error) {
 		err = q.QueryRow("SELECT id FROM agents WHERE id = ?", n).Scan(&id)
 	} else {
 		err = q.QueryRow(`SELECT a.id FROM agents a JOIN workspaces w ON w.id = a.workspace
-			WHERE `+LegacyNameSQL+` = ?`, who).Scan(&id)
+			WHERE `+LegacyNameSQL+` = ?1 OR w.name || '/' || a.name = ?1
+				OR (a.name = ?1 AND (SELECT COUNT(*) FROM agents b WHERE b.name = a.name) = 1)
+			ORDER BY a.id LIMIT 1`, who).Scan(&id)
 	}
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", nil

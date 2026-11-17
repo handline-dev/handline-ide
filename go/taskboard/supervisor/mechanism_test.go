@@ -157,7 +157,7 @@ func TestNotifyCancelledNamesTheTaskStateAndReportsAFailedSend(t *testing.T) {
 	r.term.typed = nil
 	typed, why, err := r.NotifyCancelled(r.DB, row, "no longer needed")
 	r.must(err)
-	if !typed || why != "" || r.term.last() != "#1 from alice was cancelled: no longer needed. Stop work on it; it is closed and needs no resolve, and T1 is doing - `hl task list` shows what you hold. `hl read #1` shows it." {
+	if !typed || why != "" || r.term.last() != "#1 from alice/lead was cancelled: no longer needed. Stop work on it; it is closed and needs no resolve, and T1 is doing - `hl task list` shows what you hold. `hl read #1` shows it." {
 		t.Fatalf("%v %q %q", typed, why, r.term.last())
 	}
 	r.Agents.(*sessionAgents).live[r.k(("bob"))] = false
@@ -176,7 +176,7 @@ func TestTheExportedReadersAnswerTheirValueWhenNothingFails(t *testing.T) {
 	if yes, err := r.SessionPresent(r.k("bob")); err != nil || !yes {
 		t.Fatal(yes, err)
 	}
-	if v, err := states.AnswerVerb(r.DB, head); err != nil || r.ids(v) != "answer with `hl say alice --parent #1 \"<answer>\"`" {
+	if v, err := states.AnswerVerb(r.DB, head); err != nil || r.ids(v) != "answer with `hl say alice/lead --parent #1 \"<answer>\"`" {
 		t.Fatalf("%q %v", v, err)
 	}
 	// The founder's message: answered in chat, and a decision for them goes on its task, not in chat.
@@ -186,7 +186,7 @@ func TestTheExportedReadersAnswerTheirValueWhenNothingFails(t *testing.T) {
 		!strings.Contains(v, "goes on the task it is about with `--turn human`") {
 		t.Fatalf("%q %v", v, err)
 	}
-	if v, err := TellText(r.DB, head, 1, nil, false, nil, ""); err != nil || !strings.HasPrefix(r.ids(v), "#1 from alice, waiting for you:\nq\n") {
+	if v, err := TellText(r.DB, head, 1, nil, false, nil, ""); err != nil || !strings.HasPrefix(r.ids(v), "#1 from alice/lead, waiting for you:\nq\n") {
 		t.Fatalf("%q %v", v, err)
 	}
 	if v, err := r.EffectiveHead(r.DB, r.k(("bob"))); err != nil || v == nil || v.ID != rid {

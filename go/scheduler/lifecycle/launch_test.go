@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -620,13 +621,23 @@ func TestAnAgentIsToldItsTeamFromTheRoster(t *testing.T) {
 		}
 	}
 	// No one reports to anyone: the lead and a member are told the same, bar who the contact is and the contact's rule for a story.
-	contact := "The workspace's contact is `" + mgrK + "` (manager): work from another workspace comes to it, and it passes that work to the peer it fits."
+	contact := "The workspace's contact is `lead`: work from another workspace comes to it, and it passes that work to the peer it fits."
 	lead := "You are the workspace's contact: work from another workspace comes to you. Pass it to the peer it fits, and do your own work too.\n" +
 		team.Protocol("story") + "\n"
 	want := map[string]string{
-		mgrK:  "# Your team\nYour peers in workspace `manager`: `" + devK + "` (marina), `" + keeperK + "` (keeper).\n" + lead,
-		devK:  "# Your team\nYour peers in workspace `manager`: `" + mgrK + "` (manager), `" + keeperK + "` (keeper).\n" + contact + "\n",
+		mgrK:  "# Your team\nYour peers in workspace `manager`: `marina`, `keeper`.\n" + lead,
+		devK:  "# Your team\nYour peers in workspace `manager`: `lead`, `keeper`.\n" + contact + "\n",
 		loneK: "# Your team\n" + lead,
+	}
+	// The prompt names agents by name: no agent's key (aN) is in it.
+	keyRe := regexp.MustCompile(`\ba[0-9]+\b`)
+	for _, k := range []string{mgrK, devK, keeperK, loneK} {
+		if got := context(k); keyRe.MatchString(got) {
+			t.Errorf("%s: an agent's key in its prompt: %q", k, keyRe.FindAllString(got, -1))
+		}
+	}
+	if got := context(devK); !strings.Contains(got, "You are `marina`, one agent in a Handline team.") {
+		t.Errorf("marina is not told its name:\n%s", got)
 	}
 	for k, head := range want {
 		got := r.l.yourTeam(k)

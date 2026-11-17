@@ -72,7 +72,13 @@ func TestAgentKeyInTakesAKeyOrAName(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for who, want := range map[string]string{"a1": "a1", "a9": "", "w.x": "a1", "w": "a2", "w.nobody": ""} {
+	if _, err := d.Exec("INSERT INTO workspaces(id, name, folder, created_at) VALUES(2, 'v', '', 0); " +
+		"INSERT INTO agents(id, workspace, name, owner, created_at) VALUES(3, 2, 'lead', 'p1', 0)"); err != nil {
+		t.Fatal(err)
+	}
+	// its key, its old dotted name, "workspace/name", or a name no other agent has; "lead" is two agents' name
+	for who, want := range map[string]string{"a1": "a1", "a9": "", "w.x": "a1", "w": "a2", "w.nobody": "", "x": "a1", "w/x": "a1",
+		"w/lead": "a2", "v/lead": "a3", "lead": "", "v/x": ""} {
 		if got, err := AgentKeyIn(d, who); err != nil || got != want {
 			t.Errorf("AgentKeyIn(%s) = %q %v, want %q", who, got, err, want)
 		}
