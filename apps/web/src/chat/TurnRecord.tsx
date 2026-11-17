@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { ChevronRight } from 'lucide-react';
 import { useState } from 'react';
 import { clock } from '#src/format/time.ts';
+import { Ago } from '#src/ui/Ago.tsx';
 import { spring } from '#src/motion.ts';
 import { Markdown } from '#src/ui/Markdown.tsx';
 
@@ -40,10 +41,11 @@ export function TurnRecord({ r, fade }: { r: Turn; fade: boolean }) {
         )}
       </div>
       <time
-        dateTime={r.at}
+        dateTime={r.until}
+        title={clock(r.at) === clock(r.until) ? clock(r.at) : `${clock(r.at)} ~ ${clock(r.until)}`}
         className="mb-2 flex h-6 items-center text-xs text-muted opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
       >
-        {clock(r.at) === clock(r.until) ? clock(r.at) : `${clock(r.at)} ~ ${clock(r.until)}`}
+        <Ago at={r.until} />
       </time>
     </motion.div>
   );

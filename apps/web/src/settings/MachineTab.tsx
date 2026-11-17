@@ -1,3 +1,4 @@
+import { since } from '#src/format/time.ts';
 // Settings > This Mac: what the machine and the agents use, the simulator and browser limits, and keep-awake. Stop is the one change to an agent. Every write dims its control until the daemon answers; a refusal says why under it.
 import { useNameOf } from '@handline/app-data';
 import { Bot, Clock, Coffee, Cpu, Gauge, Globe, HardDrive, MemoryStick, Smartphone, TriangleAlert, Zap } from 'lucide-react';
@@ -14,14 +15,6 @@ import { Switch } from '#src/usage/UsageViews.tsx';
 
 const LEASE_KINDS = ['simulator', 'browser'] as const;
 const ordinal = (n: number) => `${n}${['th', 'st', 'nd', 'rd'][n % 100 >= 11 && n % 100 <= 13 ? 0 : n % 10 < 4 ? n % 10 : 0]}`;
-/** "since 14:02", or with the day when it is not today. */
-function sinceText(iso: string) {
-  const d = new Date(iso);
-  const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  return d.toDateString() === new Date().toDateString()
-    ? `since ${time}`
-    : `since ${d.toLocaleDateString([], { month: 'short', day: 'numeric' })} ${time}`;
-}
 const AWAKE = ['off', 'on', 'working'] as const;
 const AWAKE_WORD = { off: 'Off', on: 'On', working: 'While agents work' } as const;
 
@@ -161,7 +154,7 @@ export function MachineTab() {
               id: `h${h.lease}`,
               icon: <Bot size={12} />,
               who: nameOf(h.agent),
-              what: `in use ${sinceText(h.since)}`,
+              what: `in use, taken ${since(h.since)}`,
               title: undefined,
             })),
             ...[...k.queue]

@@ -8,6 +8,7 @@ import { useFeed, useNameOf, useTaskChanges, useTasks } from '@handline/app-data
 import { look } from '#src/ui/taskLook.tsx';
 import { spring } from '#src/motion.ts';
 import { clock, since, useNow } from '#src/format/time.ts';
+import { Ago } from '#src/ui/Ago.tsx';
 import { taskOf } from '#src/layout/kinds.tsx';
 import { useOpenable } from '#src/layout/openable.tsx';
 
@@ -68,9 +69,9 @@ export function TaskActivity({ events }: { events: TaskEvent[] }) {
   const folds = touched.length >= FOLD_FROM;
   const older = folds ? touched.slice(0, -SHOWN) : [];
   const recent = folds ? touched.slice(-SHOWN) : touched;
-  // On hover, the time under the card, in a row the size of the one under a message: one change's time, or the first to the last.
+  // On hover, under the card in a row the size of a message's: how long ago its last change was; the clock times on the time itself.
   const ats = events.flatMap((e) => (e.at ? [e.at] : []));
-  const when = ats.length ? (clock(ats[0]) === clock(ats.at(-1)!) ? clock(ats[0]) : `${clock(ats[0])} ~ ${clock(ats.at(-1)!)}`) : '';
+  const span = ats.length ? (clock(ats[0]) === clock(ats.at(-1)!) ? clock(ats[0]) : `${clock(ats[0])} ~ ${clock(ats.at(-1)!)}`) : '';
   return (
     <div className="group flex w-full min-w-0 flex-col items-start">
       <motion.div
@@ -121,10 +122,11 @@ export function TaskActivity({ events }: { events: TaskEvent[] }) {
         </AnimatePresence>
       </motion.div>
       <time
-        dateTime={ats[0]}
+        dateTime={ats.at(-1)}
+        title={span}
         className="mb-2 flex h-6 items-center text-xs text-muted opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
       >
-        {when}
+        {ats.length > 0 && <Ago at={ats.at(-1)!} />}
       </time>
     </div>
   );
