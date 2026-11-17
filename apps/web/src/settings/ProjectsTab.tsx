@@ -1,9 +1,10 @@
-// Settings > Projects: the git folders agents work in and the ones found on this Mac. A project is listed once an agent works in it, so every way to add one starts an agent.
+// Settings > Projects: the git folders agents work in, each with its worktree setup, and the ones found on this Mac. A project is listed once an agent works in it, so every way to add one starts an agent.
 import { classify, hooks, sentence, useRepos, useWrite } from '@handline/app-data';
 import { FolderGit2, Link, Plus } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { agentNameOf } from '#src/onboarding/firstTask.ts';
 import { Block } from '#src/settings/Meter.tsx';
+import { ProjectSetup, setupSummary } from '#src/settings/ProjectSetup.tsx';
 import { SettingsPage } from '#src/settings/SettingsPage.tsx';
 import { shell } from '#src/shell.ts';
 import { Button } from '#src/ui/Button.tsx';
@@ -33,6 +34,7 @@ export function ProjectsTab() {
   const found = (recent.data?.folders ?? []).filter((f) => !open.some((r) => r.path === f.path));
   const here = useStartIn();
   const [mode, setMode] = useState<'folder' | 'clone' | 'new' | null>(null);
+  const [editing, setEditing] = useState<string | null>(null);
   return (
     <SettingsPage
       keep="settings-projects"
@@ -41,11 +43,22 @@ export function ProjectsTab() {
     >
       <Block title="Your projects" note={open.length ? undefined : 'None yet.'}>
         {open.map((r) => (
-          <div key={r.path} data-repo={r.path} className="flex items-center gap-3 text-sm">
-            <FolderGit2 size={14} className="shrink-0 text-muted" />
-            <span className="font-medium text-fg">{r.name}</span>
-            <span className="min-w-0 flex-1 truncate text-xs text-muted">{r.path}</span>
-            <span className="text-xs text-muted">{r.default_branch}</span>
+          <div key={r.path} data-repo={r.path} className="flex flex-col gap-2">
+            <div className="flex items-center gap-3 text-sm">
+              <FolderGit2 size={14} className="shrink-0 text-muted" />
+              <span className="font-medium text-fg">{r.name}</span>
+              <span className="min-w-0 flex-1 truncate text-xs text-muted">{r.path}</span>
+              <span className={`text-xs ${r.setup.last && !r.setup.last.ok ? 'text-danger' : 'text-muted'}`}>{setupSummary(r.setup)}</span>
+              <Button
+                size="sm"
+                aria-label={`Setup for ${r.name}`}
+                aria-expanded={editing === r.path}
+                onClick={() => setEditing(editing === r.path ? null : r.path)}
+              >
+                Setup…
+              </Button>
+            </div>
+            {editing === r.path && <ProjectSetup repo={r} close={() => setEditing(null)} />}
           </div>
         ))}
       </Block>
