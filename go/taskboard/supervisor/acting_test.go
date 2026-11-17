@@ -79,7 +79,7 @@ func TestABodyEditIsToldToTheAgentOnTop(t *testing.T) {
 	r, tid := turnRig(t)
 	r.beginOnTop(tid)
 	r.turnCall("bob", "task.edit", fmt.Sprintf(`{"task":%d,"body":"check the cache too","request_id":"e1"}`, tid))
-	if !strings.Contains(r.term.last(), fmt.Sprintf("T%d body edited by @bob: check the cache too", tid)) {
+	if !strings.Contains(r.term.last(), fmt.Sprintf("T%d body edited by @bob/lead: check the cache too", tid)) {
 		t.Fatalf("alice is not told: %v", r.term.typed)
 	}
 	r.agentUp("erin")

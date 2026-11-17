@@ -90,11 +90,11 @@ func TestTheTextsOfAReply(t *testing.T) {
 	if got := r.ids(inReplyTo(r.DB, head)); got != "in reply to #"+itoa(q)+": first line of the question" {
 		t.Fatalf("%q", got)
 	}
-	if got := r.ids(tellText(r.DB, head, 1, nil, false, nil, "")); !strings.HasPrefix(r.named(got), "#2 from bob (in reply to #1: first line of the question), waiting for you:\nthe answer\n") {
+	if got := r.ids(tellText(r.DB, head, 1, nil, false, nil, "")); !strings.HasPrefix(r.named(got), "#2 from bob/lead (in reply to #1: first line of the question), waiting for you:\nthe answer\n") {
 		t.Fatalf("%q", got)
 	}
 	r.must(db.SetQuote(r.DB, out.RID, "first line"))
-	if got := r.ids(tellText(r.DB, mustReq(r, out.RID), 1, nil, false, nil, "")); !strings.HasPrefix(r.named(got), "#2 from bob (in reply to #1: first line of the question), waiting for you:\n> first line\n\nthe answer\n") {
+	if got := r.ids(tellText(r.DB, mustReq(r, out.RID), 1, nil, false, nil, "")); !strings.HasPrefix(r.named(got), "#2 from bob/lead (in reply to #1: first line of the question), waiting for you:\n> first line\n\nthe answer\n") {
 		t.Fatalf("the quote goes above the words: %q", got)
 	}
 	// parked and send-now tails
