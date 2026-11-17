@@ -52,10 +52,10 @@ export function useDirectory(): Directory {
   );
 }
 
-/** nameOf over the directory: what a screen shows for a key. */
-export function useNameOf(): (key: string) => string {
+/** nameOf over the directory: what a screen shows for a key; `here`, a workspace key, when the screen is that workspace's. */
+export function useNameOf(here?: string): (key: string) => string {
   const d = useDirectory();
-  return useCallback((key: string) => nameOf(d, key), [d]);
+  return useCallback((key: string) => nameOf(d, key, here), [d, here]);
 }
 export const useAgentDetail = (agent: string) => useRead('agent.get', { agent });
 

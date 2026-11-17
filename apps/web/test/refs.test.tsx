@@ -2,7 +2,7 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 
-// The daemon's names for the keys in its text: a lead reads as its workspace's name.
+// The daemon's names for the keys in its text: an agent reads by its name (T9201).
 vi.mock('@handline/app-data', () => ({
   useDirectory: () => ({
     agents: [
@@ -26,12 +26,12 @@ function render(node: React.ReactNode) {
 describe('daemon text with <@key> tokens', () => {
   it('reads as names in a plain-text spot', () => {
     const c = render(<Refs text="T9002: told <@a6>, no movement in 1h; ask <@a1>" />);
-    expect(c.textContent).toBe('T9002: told @daemon-tasks, no movement in 1h; ask @handline');
+    expect(c.textContent).toBe('T9002: told @daemon-tasks, no movement in 1h; ask @lead');
     expect(c.textContent).not.toContain('<@');
   });
   it('reads as names in a toast given a string', () => {
     const c = render(<ToastHost />);
     act(() => void toast('The switch did not start: <@a1> holds it'));
-    expect(c.textContent).toContain('The switch did not start: @handline holds it');
+    expect(c.textContent).toContain('The switch did not start: @lead holds it');
   });
 });

@@ -17,16 +17,23 @@ const dir: Directory = {
   ],
 };
 
-test('a key reads as a lead by its workspace, an agent by its name or workspace.name when two share it, a person by display name', () => {
+test('a key reads as an agent by its name, or workspace/name when two share it, a person by display name', () => {
   assert.deepEqual(
     ['a1', 'a2', 'a3', 'a4', 'a5', 'p1', 'w2', 'sys', 'a99'].map((k) => nameOf(dir, k)),
-    ['shop', 'shop.designer', 'site', 'site.designer', 'auditor', 'Sam', 'site', 'task-board', 'a99'],
+    ['shop/lead', 'shop/designer', 'site/lead', 'site/designer', 'auditor', 'Sam', 'site', 'task-board', 'a99'],
+  );
+});
+
+test('inside its own workspace an agent reads by its name alone', () => {
+  assert.deepEqual(
+    ['a1', 'a2', 'a3'].map((k) => nameOf(dir, k, 'w1')),
+    ['lead', 'designer', 'site/lead'],
   );
 });
 
 test('a stored mention reads as @name, and a typed @word that names someone is sent as its key', () => {
   assert.equal(renderRefs(dir, 'ask <@a5> and <@p1>, not <@zz>'), 'ask @auditor and @Sam, not @zz');
-  assert.equal(toRefs(dir, '@auditor and @site.designer. Mail a@b, @nobody'), '<@a5> and <@a4>. Mail a@b, @nobody');
+  assert.equal(toRefs(dir, '@auditor and @site/designer. Mail a@b, @nobody'), '<@a5> and <@a4>. Mail a@b, @nobody');
   assert.equal(toRefs(dir, renderRefs(dir, 'ping <@a3> and <@p1>')), 'ping <@a3> and <@p1>');
   assert.equal(toRefs(dir, 'at /work/@auditor/notes.md and ~@auditor'), 'at /work/@auditor/notes.md and ~@auditor');
 });
