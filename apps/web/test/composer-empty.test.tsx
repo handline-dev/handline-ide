@@ -26,7 +26,7 @@ afterEach(() => {
 const attach = (over: Partial<Attachments> = {}) =>
   ({ ids: [], sendable: true, uploads: [], folders: [], add() {}, clear() {}, remove() {}, ...over }) as unknown as Attachments;
 
-function box(draft: string, over: { attach?: Attachments; locked?: string } = {}) {
+function box(draft: string, over: { attach?: Attachments; locked?: boolean } = {}) {
   const on = { send: vi.fn(), empty: vi.fn() };
   act(() =>
     root.render(
@@ -62,7 +62,7 @@ it('a picture still going up, or a locked box, is not empty: nothing is given ba
   const going = box('', { attach: attach({ sendable: false }) });
   expect(going.send.textContent).toBe('Answer');
   expect(going.send.disabled).toBe(true);
-  const locked = box('', { locked: 'Giving it back' });
+  const locked = box('', { locked: true });
   expect(locked.send.disabled).toBe(true);
   act(() => locked.send.click());
   expect(locked.on.empty).not.toHaveBeenCalled();

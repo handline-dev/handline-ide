@@ -138,7 +138,7 @@ export function Chat({ agent }: { agent: string }) {
           leading={<ModelChip agent={agent} />}
           trailing={<ContextRing agent={agent} />}
           running={running}
-          locked={compacting ? COMPACTING_WORDS[compacting] : (switchLock ?? undefined)}
+          locked={!!compacting || !!switchLock}
           onStop={stop}
           commands={commands}
           focusOn={reply}
@@ -297,8 +297,11 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
   const view = useAgents().data?.agents.find((a) => a.key === agent);
   const doing = view?.doing?.text;
   const held = view?.task;
-  // A restart under way takes the turn's row, in the sidebar's words.
-  const restart = view?.handoff && restarting(view) ? restartingLine(view.handoff) : null;
+  // A compaction, a move or a restart under way takes the turn's row, in place of the box being locked.
+  const compacting = useCompacting(agent);
+  const switching = useSwitchLock(agent);
+  const restart =
+    (compacting ? COMPACTING_WORDS[compacting] : switching) ?? (view?.handoff && restarting(view) ? restartingLine(view.handoff) : null);
   const busy = chat.working.turn_running || !!restart;
   const now = useNow();
   const stream = useRef<HTMLDivElement>(null);

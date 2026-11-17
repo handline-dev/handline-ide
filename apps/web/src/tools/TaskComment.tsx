@@ -221,7 +221,7 @@ export function CommentBox({
         mentionFirst={parties(t)}
         sendLabel={answering ? 'Answer' : undefined}
         onEmpty={answering ? { label: 'Give back', run: () => void giveBack() } : undefined}
-        locked={back.pending ? 'Giving it back' : undefined}
+        locked={back.pending}
         focusOn={picked ?? (typing || undefined)}
         above={
           answering ? (
