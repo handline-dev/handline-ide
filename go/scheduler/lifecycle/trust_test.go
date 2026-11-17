@@ -103,3 +103,22 @@ func TestAStartupDialogNoTableRowAnswersIsLeftToThePersonWithNoTask(t *testing.T
 		t.Fatalf("met again, still no task: %v", r.ag.decisions)
 	}
 }
+
+// Seen live: a relaunch held at the trust screen (a locked account config left the folder unmarked) failed and retried, asking nobody.
+func TestALaunchThatStopsAtTheTrustScreenIsRaisedNotRetried(t *testing.T) {
+	r := trustManager(t)
+	db.SetClosed(r.m.Q, "a", "sess-1")
+	ok, why, err := r.m.WakeAgentLocked("a", WakeOpts{Force: true})
+	if err != nil || ok || !strings.Contains(why, TrustStall) {
+		t.Fatalf("%v %q %v", ok, why, err)
+	}
+	if len(r.ag.decisions) != 1 || !strings.HasPrefix(r.ag.decisions[0], TrustDecision) {
+		t.Fatalf("raised to the founder once: %v", r.ag.decisions)
+	}
+	if len(r.tm.relaunched) != 1 {
+		t.Fatalf("no second launch line typed into the trust screen: %v", r.tm.relaunched)
+	}
+	if row, _ := db.GetAgentState(r.m.Q, "a"); row.State != states.Stalled || row.WakeFailures != 0 {
+		t.Fatalf("stalled on the trust screen, not a failed wake: %+v", row)
+	}
+}
