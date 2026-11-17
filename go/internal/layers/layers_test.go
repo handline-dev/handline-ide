@@ -86,6 +86,7 @@ var layer = map[string]int{
 	"taskboard/watch":         3,
 	"accounts/weblogin":       3,
 	"scheduler/worktreepaths": 3,
+	"scheduler/worktreesetup": 3,
 	"scheduler/access":        3,
 	"worktreeprune":           3,
 	// L4 domain writes and reads
