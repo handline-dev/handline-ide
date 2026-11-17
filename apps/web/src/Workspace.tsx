@@ -9,7 +9,7 @@ import { TextTab } from '#src/tools/TextTab.tsx';
 import { TasksTab } from '#src/tools/TasksTab.tsx';
 import { RequestsTab } from '#src/requests/RequestsTab.tsx';
 import { ShellTab, TerminalTab } from '#src/tools/TerminalTab.tsx';
-import { useNameOf, useWrite } from '@handline/app-data';
+import { useAgents, useNameOf, useWrite } from '@handline/app-data';
 import { WebTab } from '#src/tools/WebTab.tsx';
 import { Usage } from '#src/usage/Usage.tsx';
 import { PaneOpen, setShownWorkspace, type How } from '#src/layout/openTab.tsx';
@@ -44,6 +44,9 @@ import { tabTarget, type TabTarget } from '@handline/app-core';
 const dotOf = (target: TabTarget) => (target ? <TabDot target={target} /> : null);
 
 export type Dispatch = (a: Action) => void;
+
+/** Names as the agent's workspace reads them: its own agents by name alone (T9201). */
+const useNamesHere = (agent: string | null) => useNameOf(useAgents().data?.agents.find((a) => a.key === agent)?.workspace);
 
 type Context = { root: Node; agent: string | null; dispatch: Dispatch; nameOf: (key: string) => string };
 
@@ -181,7 +184,7 @@ function PaneView({
   canClose: boolean;
   lead?: ReactNode;
 }) {
-  const nameOf = useNameOf();
+  const nameOf = useNamesHere(agent);
   const here = useContext(Space);
   const bar = useRef<HTMLDivElement>(null);
   const body = useRef<HTMLDivElement>(null);
@@ -353,7 +356,7 @@ export function Workspace({
   reopenClosed: (pane: string) => void;
   lead?: ReactNode;
 }) {
-  const nameOf = useNameOf();
+  const nameOf = useNamesHere(agent);
   const render = (node: Node, topLeft: boolean): ReactNode =>
     node.kind === 'pane' ? (
       <PaneView

@@ -14,22 +14,20 @@ export const EMPTY_DIRECTORY: Directory = { agents: [], people: [], workspaces: 
 /** The daemon's own sender. */
 const SYS = 'sys';
 
-/** The word for an agent: a lead by its workspace's name, another agent by its own name, or `workspace.name` when another workspace has
- * an agent of that name too. Agent names and workspace names never collide, so each word names one agent. */
-function agentWord(d: Directory, a: Pick<AgentView, 'key' | 'name' | 'workspace'>): string {
+/** The word for an agent, as the daemon names it (T9201): its name, or `workspace/name` when another agent has that name too (every lead
+ * is `lead`) and the reader is not in its workspace (`here`, a workspace key). */
+function agentWord(d: Directory, a: Pick<AgentView, 'key' | 'name' | 'workspace'>, here?: string): string {
+  if (a.workspace === here) return a.name;
   const ws = d.workspaces.find((w) => w.key === a.workspace);
-  if (ws?.lead === a.key) return ws.name;
-  const twin = d.agents.some(
-    (x) => x.key !== a.key && x.name === a.name && d.workspaces.find((w) => w.key === x.workspace)?.lead !== x.key,
-  );
-  return twin && ws ? `${ws.name}.${a.name}` : a.name;
+  const twin = d.agents.some((x) => x.key !== a.key && x.name === a.name);
+  return twin && ws ? `${ws.name}/${a.name}` : a.name;
 }
 
-/** What the screens show for a key: an agent's word, a person's display name, a workspace's name, `task-board` for the daemon. A key
- * the lists do not hold yet is shown as it is. */
-export function nameOf(d: Directory, key: string): string {
+/** What the screens show for a key: an agent's word (read from workspace `here` when the view is one workspace's), a person's display
+ * name, a workspace's name, `task-board` for the daemon. A key the lists do not hold yet is shown as it is. */
+export function nameOf(d: Directory, key: string, here?: string): string {
   const a = d.agents.find((x) => x.key === key);
-  if (a) return agentWord(d, a);
+  if (a) return agentWord(d, a, here);
   const p = d.people.find((x) => x.key === key);
   if (p) return p.display_name;
   const w = d.workspaces.find((x) => x.key === key);
@@ -46,15 +44,19 @@ export const refsIn = (text: string): string[] => [...text.matchAll(REF)].map((m
 export const renderRefs = (d: Directory, text: string): string =>
   text.includes('<@') ? text.replace(REF, (_, k: string) => `@${nameOf(d, k)}`) : text;
 
-/** Text as the app sends it: each `@word` that is an agent's word (a lead's is its workspace's name) or a person's becomes `<@key>`;
+/** Text as the app sends it: each `@word` that is an agent's word (`workspace/name`, or a name only one agent has) or a person's becomes `<@key>`;
  * any other `@word`, and one inside a path (`/@legacy/`), stays text. */
 export function toRefs(d: Directory, text: string): string {
   // A person by handle, or by a one-word display name as renderRefs writes them; an agent's word wins over either.
   const keys = new Map<string, string>();
   for (const p of d.people) for (const w of [p.display_name, p.handle]) if (w && /^[A-Za-z0-9][\w.-]*$/.test(w)) keys.set(w, p.key);
-  for (const a of d.agents) keys.set(agentWord(d, a), a.key);
-  return text.replace(/(^|[^A-Za-z0-9_.@</~-])@([A-Za-z0-9][A-Za-z0-9_.-]*)/g, (m, pre: string, word: string) => {
-    const w = word.replace(/[.-]+$/, ''); // a sentence's full stop is not part of the name
+  for (const a of d.agents) {
+    keys.set(agentWord(d, a), a.key);
+    const ws = d.workspaces.find((w) => w.key === a.workspace);
+    if (ws) keys.set(`${ws.name}/${a.name}`, a.key);
+  }
+  return text.replace(/(^|[^A-Za-z0-9_.@</~-])@([A-Za-z0-9][A-Za-z0-9_./-]*)/g, (m, pre: string, word: string) => {
+    const w = word.replace(/[./-]+$/, ''); // a sentence's full stop is not part of the name
     const k = keys.get(w);
     return k ? `${pre}<@${k}>${word.slice(w.length)}` : m;
   });

@@ -64,9 +64,10 @@ type Pick = {
 let dragged: { name: string; group: string } | null = null;
 
 /** The rows of one section. `onMove(names)` hears the section's new order after a drag within it. */
-function AgentRows({ agents, pick, onMove }: { agents: AgentView[]; pick: Pick; onMove: (names: string[]) => void }) {
+function AgentRows({ agents, pick, onMove, here }: { agents: AgentView[]; pick: Pick; onMove: (names: string[]) => void; here?: string }) {
   const now = useNow();
-  const nameOf = useNameOf();
+  // A workspace's section (`here`) names its agents as that workspace does; Pinned, which mixes workspaces, as from outside.
+  const nameOf = useNameOf(here);
   const names = agents.map((a) => a.key);
   const group = names.join('|');
   const [line, setLine] = useState<{ at: string; after: boolean } | null>(null);
@@ -231,7 +232,7 @@ function Agents({ pick, page, onNew }: { pick: Pick; page: string | null; onNew:
             </div>
           )}
           {i === 0 && list.isError && <p className="px-2 text-sm text-danger">Agents did not load.</p>}
-          <AgentRows agents={agents} pick={pick} onMove={reorder} />
+          <AgentRows agents={agents} pick={pick} onMove={reorder} here={workspace?.key} />
         </Section>
       ))}
     </>
