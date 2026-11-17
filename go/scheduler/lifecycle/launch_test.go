@@ -1197,3 +1197,30 @@ func TestAnAlwaysGrantChangesThePermissionsPartAndAOnceGrantDoesNot(t *testing.T
 		t.Fatal("an always grant left the permissions part as it was")
 	}
 }
+
+// An agent's live lessons ride in its next launch prompt, after the team rules and before its handoff; an add does not change the
+// fingerprint, so the running session is not restarted for it.
+func TestALaunchPromptCarriesTheAgentsLessons(t *testing.T) {
+	r := newLaunchRig(t)
+	before, err := r.l.Fingerprint("ann")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.AddLesson(r.l.Q, "ann", "show the screen in both themes", 0, "ann"); err != nil {
+		t.Fatal(err)
+	}
+	gone, _ := db.AddLesson(r.l.Q, "ann", "a removed one", 0, "ann")
+	_, _ = db.RemoveLesson(r.l.Q, gone, "p1")
+	_ = db.SetHandoff(r.l.Q, "ann", "left off here")
+	text, err := r.l.ContextFor("ann")
+	if err != nil {
+		t.Fatal(err)
+	}
+	at, handoff := strings.Index(text, "# What you learned (your lessons)\n"), strings.Index(text, "# Where you left off")
+	if at < 0 || handoff < at || !strings.Contains(text[at:handoff], "- show the screen in both themes") || strings.Contains(text, "a removed one") {
+		t.Fatalf("%s", text)
+	}
+	if after, _ := r.l.Fingerprint("ann"); after != before {
+		t.Error("a lesson changed the fingerprint")
+	}
+}

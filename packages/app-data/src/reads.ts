@@ -34,8 +34,9 @@ export const NOT_QUERIES = [
   'doc.open',
   'doc.pull',
   'doc.close',
-  // Reads no screen draws yet: the terminal's address (member).
+  // Reads no screen draws yet: the terminal's address (member), and an agent's lessons (`hl lesson list`).
   'terminal.open',
+  'lessons.list',
   // `hl inbox` and `hl read`: an agent's queue and one request whole. The app draws the founder's inbox from inbox.list.
   'inbox.queue',
   'request.read',

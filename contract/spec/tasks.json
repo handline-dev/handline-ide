@@ -2161,6 +2161,41 @@
     "required": [
      "kind"
     ]
+   },
+   "Lesson": {
+    "type": "object",
+    "description": "One thing an agent learned, carried in its launch prompt. Kept with who and when; a removed or merged one is no longer listed.",
+    "properties": {
+     "id": {
+      "type": "integer"
+     },
+     "agent": {
+      "type": "string",
+      "description": "The agent's key."
+     },
+     "text": {
+      "type": "string",
+      "description": "One line, at most 500 bytes."
+     },
+     "task": {
+      "type": "integer",
+      "description": "The task it was learned on; absent for none."
+     },
+     "created_at": {
+      "$ref": "#/components/schemas/Timestamp"
+     },
+     "created_by": {
+      "type": "string",
+      "description": "Who wrote it: the agent, or the agent that merged it."
+     }
+    },
+    "required": [
+     "id",
+     "agent",
+     "text",
+     "created_at",
+     "created_by"
+    ]
    }
   }
  },
@@ -4988,6 +5023,243 @@
     }
    ],
    "description": "Refused (`refused`): a task that has ended or that no agent works, and one with a core-logic ask that has not been sent yet."
+  },
+  {
+   "name": "lesson.add",
+   "summary": "An agent keeps one thing it learned (from a Redo, on task): its next sessions start with it in their launch prompt. Writes a `lesson` event on the task.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "text",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500,
+      "description": "The lesson: one line of plain text, at most 500 bytes."
+     }
+    },
+    {
+     "name": "task",
+     "required": true,
+     "schema": {
+      "type": "integer"
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "allOf": [
+      {
+       "$ref": "#/components/schemas/Accepted"
+      },
+      {
+       "type": "object",
+       "properties": {
+        "id": {
+         "type": "integer"
+        }
+       },
+       "required": [
+        "id"
+       ]
+      }
+     ]
+    }
+   },
+   "x-role": "agent",
+   "x-write": true,
+   "x-app-write": false,
+   "x-since": 1,
+   "x-callers": [
+    "agent"
+   ],
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "description": "Refused (`refused`) when the agent's lessons would pass their 3 KB limit (the prompt section): merge similar ones first with lesson.merge. Not found: no such task."
+  },
+  {
+   "name": "lesson.merge",
+   "summary": "An agent replaces two or more of its live lessons with one: they are kept, marked merged into it; its task is the newest source's that names one.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "ids",
+     "required": true,
+     "schema": {
+      "type": "array",
+      "items": {
+       "type": "integer"
+      },
+      "minItems": 2
+     }
+    },
+    {
+     "name": "text",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500,
+      "description": "The lesson: one line of plain text, at most 500 bytes."
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "allOf": [
+      {
+       "$ref": "#/components/schemas/Accepted"
+      },
+      {
+       "type": "object",
+       "properties": {
+        "id": {
+         "type": "integer"
+        }
+       },
+       "required": [
+        "id"
+       ]
+      }
+     ]
+    }
+   },
+   "x-role": "agent",
+   "x-write": true,
+   "x-app-write": false,
+   "x-since": 1,
+   "x-callers": [
+    "agent"
+   ],
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "description": "Refused (`refused`): an id that is not one of the caller's live lessons, or a merge still past the 3 KB limit."
+  },
+  {
+   "name": "lessons.list",
+   "summary": "An agent's live lessons, oldest first, as its launch prompt carries them, and how many of the limit's bytes they take.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "agent",
+     "required": false,
+     "schema": {
+      "$ref": "#/components/schemas/Who",
+      "description": "Whose; the caller when absent."
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "properties": {
+      "agent": {
+       "type": "string",
+       "description": "The agent's key."
+      },
+      "items": {
+       "type": "array",
+       "items": {
+        "$ref": "#/components/schemas/Lesson"
+       }
+      },
+      "bytes": {
+       "type": "integer",
+       "description": "The bytes the launch prompt's lessons section takes."
+      },
+      "cap": {
+       "type": "integer",
+       "description": "The most it may take (3072)."
+      }
+     },
+     "required": [
+      "agent",
+      "items",
+      "bytes",
+      "cap"
+     ]
+    }
+   },
+   "x-role": "agent",
+   "x-write": false,
+   "x-app-cache": false,
+   "x-since": 1
+  },
+  {
+   "name": "lesson.remove",
+   "summary": "The founder removes one of an agent's lessons; it is kept, marked removed with who and when.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "id",
+     "required": true,
+     "schema": {
+      "type": "integer"
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Accepted"
+    }
+   },
+   "x-role": "owner",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "remove a lesson"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "description": "Not found (`not_found`, data.what `lesson`): no live lesson of that id."
   }
  ]
 }

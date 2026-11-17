@@ -43,5 +43,10 @@
   "version": 108,
   "name": "drop_account_cap",
   "additive": false
+ },
+ {
+  "version": 109,
+  "name": "lessons",
+  "additive": true
  }
 ]

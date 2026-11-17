@@ -517,6 +517,20 @@ export type PendingWarning = {
   ref?: RequestRef;
 };
 
+/** One thing an agent learned, carried in its launch prompt. Kept with who and when; a removed or merged one is no longer listed. */
+export type Lesson = {
+  id: number;
+  /** The agent's key. */
+  agent: string;
+  /** One line, at most 500 bytes. */
+  text: string;
+  /** The task it was learned on; absent for none. */
+  task?: number;
+  created_at: Timestamp;
+  /** Who wrote it: the agent, or the agent that merged it. */
+  created_by: string;
+};
+
 export interface TasksMethods {
   "tasks.list": { params: {
   owner?: Who;
@@ -917,6 +931,38 @@ export interface TasksMethods {
   note?: string;
   request_id: RequestId;
 }; result: Accepted };
+  "lesson.add": { params: {
+  /** The lesson: one line of plain text, at most 500 bytes. */
+  text: string;
+  task: number;
+  request_id: RequestId;
+}; result: Accepted & {
+    id: number;
+  } };
+  "lesson.merge": { params: {
+  ids: number[];
+  /** The lesson: one line of plain text, at most 500 bytes. */
+  text: string;
+  request_id: RequestId;
+}; result: Accepted & {
+    id: number;
+  } };
+  "lessons.list": { params: {
+  /** Whose; the caller when absent. */
+  agent?: Who;
+}; result: {
+    /** The agent's key. */
+    agent: string;
+    items: Lesson[];
+    /** The bytes the launch prompt's lessons section takes. */
+    bytes: number;
+    /** The most it may take (3072). */
+    cap: number;
+  } };
+  "lesson.remove": { params: {
+  id: number;
+  request_id: RequestId;
+}; result: Accepted };
 }
 
 export const TASKS_METHODS: { [K in keyof TasksMethods]: { role: Role; callers: Role[] | null; write: boolean; since: number } } = {
@@ -955,10 +1001,14 @@ export const TASKS_METHODS: { [K in keyof TasksMethods]: { role: Role; callers: 
   "task.redo": { role: "member", callers: null, write: true, since: 1 },
   "task.plan_ask": { role: "member", callers: null, write: true, since: 1 },
   "task.core_ask": { role: "member", callers: null, write: true, since: 1 },
+  "lesson.add": { role: "agent", callers: ["agent"], write: true, since: 1 },
+  "lesson.merge": { role: "agent", callers: ["agent"], write: true, since: 1 },
+  "lessons.list": { role: "agent", callers: null, write: false, since: 1 },
+  "lesson.remove": { role: "owner", callers: null, write: true, since: 1 },
 };
 
 /** x-app-cache of each read (x-app in core.json). */
-export const TASKS_APP_CACHE: { [K in "tasks.list" | "task.get" | "task.history" | "task.time" | "requests.pending" | "task.comment.recipients" | "task.board"]: { resource: string; id?: string; feed: Topic | null } | false } = {
+export const TASKS_APP_CACHE: { [K in "tasks.list" | "task.get" | "task.history" | "task.time" | "requests.pending" | "task.comment.recipients" | "task.board" | "lessons.list"]: { resource: string; id?: string; feed: Topic | null } | false } = {
   "tasks.list": {"resource": "tasks", "feed": "tasks"},
   "task.get": {"resource": "task", "id": "task", "feed": "tasks"},
   "task.history": {"resource": "task-history", "id": "task", "feed": null},
@@ -966,10 +1016,11 @@ export const TASKS_APP_CACHE: { [K in "tasks.list" | "task.get" | "task.history"
   "requests.pending": {"resource": "requests-pending", "feed": "tasks"},
   "task.comment.recipients": {"resource": "comment-recipients", "feed": "tasks"},
   "task.board": {"resource": "board", "feed": "tasks"},
+  "lessons.list": false,
 };
 
 /** x-app-write of each write (x-app in core.json). */
-export const TASKS_APP_WRITES: { [K in "task.new" | "task.handoff" | "task.turn.pop" | "task.done" | "task.reopen" | "task.progress" | "task.begin" | "task.start" | "task.seen" | "task.comment.add" | "task.comment.edit" | "task.comment.delete" | "task.send_now" | "task.queue" | "task.draft" | "task.merge" | "task.release" | "task.request" | "task.wait" | "task.discard" | "task.withdraw" | "task.edit" | "task.plan" | "task.plan_ok" | "task.ok" | "task.redo" | "task.plan_ask" | "task.core_ask"]: { kind: WriteKind; label: string } | false } = {
+export const TASKS_APP_WRITES: { [K in "task.new" | "task.handoff" | "task.turn.pop" | "task.done" | "task.reopen" | "task.progress" | "task.begin" | "task.start" | "task.seen" | "task.comment.add" | "task.comment.edit" | "task.comment.delete" | "task.send_now" | "task.queue" | "task.draft" | "task.merge" | "task.release" | "task.request" | "task.wait" | "task.discard" | "task.withdraw" | "task.edit" | "task.plan" | "task.plan_ok" | "task.ok" | "task.redo" | "task.plan_ask" | "task.core_ask" | "lesson.add" | "lesson.merge" | "lesson.remove"]: { kind: WriteKind; label: string } | false } = {
   "task.new": {"kind": "authored", "label": "new task"},
   "task.handoff": false,
   "task.turn.pop": {"kind": "decided", "label": "give back"},
@@ -998,4 +1049,7 @@ export const TASKS_APP_WRITES: { [K in "task.new" | "task.handoff" | "task.turn.
   "task.redo": {"kind": "decided", "label": "Redo"},
   "task.plan_ask": {"kind": "decided", "label": "ask for a plan"},
   "task.core_ask": {"kind": "decided", "label": "ask for core logic"},
+  "lesson.add": false,
+  "lesson.merge": false,
+  "lesson.remove": {"kind": "decided", "label": "remove a lesson"},
 };

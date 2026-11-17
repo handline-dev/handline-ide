@@ -160,8 +160,9 @@ func redoMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, 
 			if err := db.AddVerdict(tx, tid, me, db.VerdictRedo, memo); err != nil {
 				return nil, err
 			}
-			told := fmt.Sprintf("T%d 대표님 Redo %d (댓글 %d): %s\n\nWork it again on your branch, then hand it to %s as before: it comes to the founder first again.",
-				tid, r.Redo+1, memo, note, addr.Ref(r.LandBy))
+			told := fmt.Sprintf("T%d 대표님 Redo %d (댓글 %d): %s\n\nFirst keep one lesson from this note, what to do differently from now on: "+
+				"`hl lesson add \"<the lesson>\" --task T%d`. Then work it again on your branch, and hand it to %s as before: it comes to the founder "+
+				"first again.", tid, r.Redo+1, memo, note, tid, addr.Ref(r.LandBy))
 			if popped, err = popTurnTold(tx, home, tell, tid, me, db.TurnSendBack, note, memo, told); err != nil {
 				return nil, err
 			}

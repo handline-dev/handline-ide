@@ -944,14 +944,20 @@ func (l *Launcher) staticPreamble(agent string) (string, error) {
 	return strings.Join(parts, "\n\n"), nil
 }
 
-// ContextFor is ROLE.md + base.md + the handoff waiting for it + the daemon's own record of where the agent was, as one system-prompt
-// appendix.
+// ContextFor is ROLE.md + base.md + the team rules + the agent's lessons + the handoff waiting for it + the daemon's own record of where the
+// agent was, as one system-prompt appendix.
 func (l *Launcher) ContextFor(agent string) (string, error) {
 	static, err := l.staticPreamble(agent)
 	if err != nil {
 		return "", err
 	}
 	parts := append([]string{static}, l.Ports.TeamRules(agent)...)
+	// Lessons are not in the static preamble: an add mid-session must not read as a changed start; the next session carries it.
+	lessons, err := db.LiveLessons(l.Q, agent)
+	if err != nil {
+		return "", err
+	}
+	parts = append(parts, db.LessonsSection(lessons))
 	text, err := db.GetHandoff(l.Q, agent)
 	if err != nil {
 		return "", err

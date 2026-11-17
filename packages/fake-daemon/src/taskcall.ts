@@ -35,6 +35,12 @@ export function taskCall(
         return (tasks.seen(p), ok('Marked seen.'));
       case 'requests.pending':
         return tasks.pending();
+      case 'lessons.list':
+        return tasks.lessonsOf(typeof p.agent === 'string' && p.agent ? p.agent : person);
+      case 'lesson.remove':
+        if (!Number.isInteger(p.id)) throw invalidParams('id is a lesson number', 'id');
+        if (!tasks.removeLesson(Number(p.id))) throw new Failure('not_found', `no lesson ${String(p.id)}`, { what: 'lesson' });
+        return ok(`Lesson ${String(p.id)} removed`);
       case 'warning.dismiss':
         if (typeof p.id !== 'string' || !p.id) throw invalidParams("id is a warning's id (a machine item's id)", 'id');
         if (!tasks.dismissWarning(p.id)) throw new Failure('not_found', `no warning ${p.id}`, { what: 'warning', name: p.id });
