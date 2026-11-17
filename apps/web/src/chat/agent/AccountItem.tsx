@@ -1,3 +1,4 @@
+import { since } from '#src/format/time.ts';
 import { useAccounts, useServes, useWrite } from '@handline/app-data';
 import { ArrowLeftRight, ChevronDown, ChevronRight, Gauge, TriangleAlert, UserRound } from 'lucide-react';
 import { useState } from 'react';
@@ -52,10 +53,7 @@ export function AccountItem({ agent, account, fire }: { agent: string; account: 
           <MenuRule />
           <MenuHeading>Last moves</MenuHeading>
           {moves.map((m) => (
-            <MenuFact
-              key={m.at}
-              name={new Date(m.at).toLocaleString([], { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-            >
+            <MenuFact key={m.at} name={since(m.at)}>
               {`${m.from ?? '—'} → ${m.to}, `}
               <Refs text={m.reason} />
             </MenuFact>
