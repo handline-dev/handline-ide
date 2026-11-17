@@ -1044,7 +1044,7 @@ func (l *Launcher) yourTeam(agent string) string {
 		talk = "The founder may type straight into your terminal. When the person types to you directly, answer with `hl say` too; your terminal " +
 			"text is not shown to them. A `... waiting for you:` delivery of a task comment is not typing: answer it on that task. " + talk
 	}
-	lines = append(lines, talk, team.Protocol("land"), team.Protocol("progress"),
+	lines = append(lines, talk, team.Protocol("land"), team.Protocol("legacy"), team.Protocol("progress"),
 		"`hl team` shows who you may reach and what each is doing now. "+team.Protocol("founder"))
 	return strings.Join(lines, "\n")
 }
