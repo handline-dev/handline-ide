@@ -9,6 +9,7 @@ import {
   CircleSlash,
   HardDrive,
   KeyRound,
+  ListChecks,
   Lightbulb,
   MailWarning,
   MessageCircleQuestion,
@@ -17,7 +18,9 @@ import {
   Signpost,
   X,
   SquareArrowOutUpRight,
+  UserRound,
 } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { useState, type MouseEvent, type ReactNode } from 'react';
 import { RowMenu, usePick, useRowActions } from '#src/requests/RowMenu.tsx';
 import { Button } from '#src/ui/Button.tsx';
@@ -33,6 +36,7 @@ import { openSettings } from '#src/settings/open.ts';
 import { goToTurnOf } from '#src/tools/TaskTurn.ts';
 import { failedLine } from '#src/ui/taskLook.tsx';
 import { useRefs } from '#src/ui/refs.tsx';
+import { spring } from '#src/motion.ts';
 
 const WARN: Record<NonNullable<PendingRequest['warning']>['kind'], typeof HardDrive> = {
   disk: HardDrive,
@@ -40,6 +44,15 @@ const WARN: Record<NonNullable<PendingRequest['warning']>['kind'], typeof HardDr
   delivery: MailWarning,
   undelivered: MailWarning,
   notice: Bell,
+};
+
+/** In Requests, beside the icon of a warning: what it is about. */
+const WARN_WORD: Record<NonNullable<PendingRequest['warning']>['kind'], string> = {
+  disk: 'Disk',
+  login: 'Account',
+  delivery: 'Delivery',
+  undelivered: 'Delivery',
+  notice: 'Notice',
 };
 
 const KIND: Record<PendingRequest['kind'], typeof HardDrive> = {
@@ -61,6 +74,14 @@ function turnIcon(p: PendingRequest): ReactNode {
   return <K size={16} className="text-muted" />;
 }
 
+/** In Requests, what a row is about: a task, an account, or the warning's own thing. */
+function subjectIcon(p: PendingRequest): ReactNode {
+  if (p.task !== null) return <ListChecks size={16} className="text-muted" />;
+  if (p.source === 'proposal') return <Lightbulb size={16} className="text-muted" />;
+  if (p.warning?.kind === 'login') return <UserRound size={16} className="text-warning" />;
+  return turnIcon(p);
+}
+
 const ASK: Record<PendingRequest['kind'], string> = {
   allow: 'Allow?',
   decide: 'Decide',
@@ -70,8 +91,9 @@ const ASK: Record<PendingRequest['kind'], string> = {
   note: 'Note',
 };
 
-const BOX_BESIDE = 'mt-2 ml-2';
-const BOX_OVER = 'absolute top-2 left-2 z-10 opacity-0 group-hover/line:opacity-100 focus-visible:opacity-100';
+// The box sits at the row's left: over the icon on hover, and while rows are picked in a gap that opens beside it.
+const BOX = 'absolute top-2 left-2 z-10';
+const BOX_HIDDEN = 'opacity-0 group-hover/line:opacity-100 focus-visible:opacity-100';
 
 /** One row. In Requests (not the bell) it can be picked: Shift+click, or its check box, over the icon on hover and left of it while
  * any row is picked, when a click picks more. A right-click opens its menu. A row dims while a write on it is on its way. */
@@ -139,9 +161,10 @@ function Line({
           aria-label={`Pick ${title}`}
           checked={picked}
           onChange={() => pick.toggle(row)}
-          className={`size-4 shrink-0 accent-accent ${picking ? BOX_BESIDE : BOX_OVER}`}
+          className={`size-4 shrink-0 accent-accent ${BOX} ${picking ? '' : BOX_HIDDEN}`}
         />
       )}
+      {pick && <motion.span aria-hidden initial={false} animate={{ width: picking ? 24 : 0 }} transition={spring} className="shrink-0" />}
       <button
         type="button"
         {...open}
@@ -154,26 +177,38 @@ function Line({
         onAuxClick={picking ? undefined : open.onAuxClick}
         onKeyDown={picking ? undefined : open.onKeyDown}
         title={hint}
-        className={`flex w-full gap-2.5 text-left ${lead !== undefined ? 'px-2 py-3' : 'px-2 py-1.5'}`}
+        className={`flex min-w-0 flex-1 gap-2.5 text-left ${lead !== undefined ? 'px-2 py-3' : 'px-2 py-1.5'}`}
       >
         {lead !== undefined ? (
-          <span className={`w-14 shrink-0 text-muted tabular-nums ${pick && !picking ? 'group-hover/line:invisible' : ''}`}>{lead}</span>
+          // A Requests row: the task number in the title's line, the text under both from the row's left edge.
+          <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <span className="flex min-w-0 items-baseline gap-2">
+              <span className={`grid h-lh w-4 shrink-0 self-start place-items-center ${pick && !picking ? 'group-hover/line:invisible' : ''}`}>{icon}</span>
+              {lead && <span className="shrink-0 text-muted tabular-nums">{lead}</span>}
+              <span className="truncate font-medium text-fg">{title}</span>
+              {who && <span className="shrink-0 text-muted">{who}</span>}
+              {wait && <span className="ml-auto shrink-0 pl-3 text-xs text-muted tabular-nums">{wait}</span>}
+            </span>
+            {meta && <span className="line-clamp-2 break-words text-muted">{meta}</span>}
+          </span>
         ) : (
-          <span
-            className={`relative mt-0.5 grid size-4 shrink-0 place-items-center ${pick && !picking ? 'group-hover/line:invisible' : ''}`}
-          >
-            {icon}
-            {mark && <span className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-accent" />}
-          </span>
+          <>
+            <span
+              className={`relative mt-0.5 grid size-4 shrink-0 place-items-center ${pick && !picking ? 'group-hover/line:invisible' : ''}`}
+            >
+              {icon}
+              {mark && <span className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-accent" />}
+            </span>
+            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+              <span className="flex min-w-0 items-baseline gap-2">
+                <span className="truncate text-fg">{title}</span>
+                {who && <span className="shrink-0 text-muted">{who}</span>}
+                {wait && <span className="ml-auto shrink-0 pl-3 text-xs text-muted tabular-nums">{wait}</span>}
+              </span>
+              <span className="line-clamp-2 break-words text-xs text-muted">{meta}</span>
+            </span>
+          </>
         )}
-        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <span className="flex min-w-0 items-baseline gap-2">
-            <span className={`truncate text-fg ${lead !== undefined ? 'font-medium' : ''}`}>{title}</span>
-            {who && <span className="shrink-0 text-muted">{who}</span>}
-            {wait && <span className="ml-auto shrink-0 pl-3 text-xs text-muted tabular-nums">{wait}</span>}
-          </span>
-          <span className={`line-clamp-2 break-words text-muted ${lead !== undefined ? '' : 'text-xs'}`}>{meta}</span>
-        </span>
       </button>
       {answers && <span className="absolute right-2 bottom-2 flex items-center gap-2">{answers}</span>}
       {(trailing || (opens && !picking)) && (
@@ -237,9 +272,9 @@ export function TurnLine({
       onPick={onPick}
       chosen={chosen}
       title={refs(p.title)}
-      icon={turnIcon(p)}
+      icon={full ? subjectIcon(p) : turnIcon(p)}
       {...(full && {
-        lead: p.source === 'proposal' ? 'HR' : p.task !== null ? `T${p.task}` : '',
+        lead: p.source === 'proposal' ? 'HR' : p.task !== null ? `T${p.task}` : p.warning ? WARN_WORD[p.warning.kind] : '',
         who: daemon ? 'daemon' : nameOf(p.agent!),
         wait: until ? `back ${until}` : ago(p.last_at),
         answers: p.source === 'proposal' ? <TurnQuick p={p} /> : undefined,
@@ -248,7 +283,9 @@ export function TurnLine({
         full
           ? p.ask
             ? refs(p.ask)
-            : ASK[p.kind]
+            : p.warning
+              ? '' // the icon and its word already say what it is
+              : ASK[p.kind]
           : [
               until ? `back ${until}` : ASK[p.kind],
               daemon ? 'daemon' : nameOf(p.agent!),
