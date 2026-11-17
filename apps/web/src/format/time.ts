@@ -28,3 +28,10 @@ export function useNow(ms: number | null = 60_000): number {
 
 /** The time of day, as hours and minutes in the reader's locale. */
 export const clock = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+/** How long ago `iso` was, in words: just now, 5m ago, 3h ago, 2d ago, then the date (ago). */
+export function since(iso: string, now: number = Date.now()): string {
+  const a = ago(iso, now);
+  if (a === 'now') return 'just now';
+  return /^\d+[mhd]$/.test(a) ? `${a} ago` : a;
+}

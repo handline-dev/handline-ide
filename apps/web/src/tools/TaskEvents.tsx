@@ -1,3 +1,4 @@
+import { Ago } from '#src/ui/Ago.tsx';
 import { Face, Name } from '#src/ui/Face.tsx';
 // An Activity line's parts: its round mark, its hover row, a comment (the founder's open turn among them), and a change in words.
 import type { ActivityItem } from '@handline/app-core';
@@ -45,8 +46,8 @@ export function HoverRow({
   return (
     <div className="mb-0.5 flex h-6 items-center gap-1.5 text-xs text-muted opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
       {children}
-      <time dateTime={at} title={at}>
-        {clock(at)}
+      <time dateTime={at} title={clock(at)}>
+        <Ago at={at} />
         {edited && !onEdited && ' · edited'}
       </time>
       {edited && onEdited && (
@@ -149,15 +150,23 @@ export function CommentRow({
     <div
       data-memo={i.memo}
       data-turn-open={turn ? '' : undefined}
-      className={`group relative flex gap-2.5 rounded-md pb-3 ring-warning ring-offset-4 ring-offset-bg transition-shadow duration-500 ${turn ? '-mx-3 mb-3 rounded-lg bg-warning/10 px-3 pt-2 pb-2' : ''}`}
+      className={`group relative isolate flex gap-2.5 rounded-md pb-3 ring-warning ring-offset-4 ring-offset-bg transition-shadow duration-500 ${turn ? '-mx-3 mb-3 rounded-lg bg-warning/10 px-3 pt-2 pb-2' : ''}`}
     >
+      {/* A new comment lights up over the same box a Waiting for you comment sits on: the face too, 12px out at the sides, 8px above
+          and below. Behind the words, over a turn's own ground. */}
+      {fresh && (
+        <span
+          aria-hidden
+          className={`pointer-events-none absolute -z-10 rounded-lg ${fresh} ${turn ? 'inset-0' : '-inset-x-3 -top-2 bottom-1'}`}
+        />
+      )}
       <Face who={i.who} mine={mine} />
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className={`flex flex-col rounded-md ${fresh}`}>
+        <div className="flex flex-col rounded-md">
           <span className="flex items-baseline gap-2 text-sm">
             <Name who={i.who} mine={mine} className="font-medium" />
-            <time dateTime={i.at} title={i.at} className="text-xs text-muted">
-              {clock(i.at)}
+            <time dateTime={i.at} title={clock(i.at)} className="text-xs text-muted">
+              <Ago at={i.at} />
             </time>
             {i.edited &&
               (onEdited ? (
@@ -171,10 +180,10 @@ export function CommentRow({
           </span>
           {i.replyTo != null && <Reference text={quoted} onClick={() => showMemo(i.replyTo!)} />}
           <div className="min-w-0">
-            {to && (
-              <span className="float-left mr-1.5 rounded bg-accent/10 px-1 text-sm text-accent">@{to === 'you' ? 'You' : nameOf(to)}</span>
-            )}
-            <Markdown text={i.toFounder ? noteText(i.note) : i.note} />
+            <Markdown
+              text={i.toFounder ? noteText(i.note) : i.note}
+              lead={to && <span className="mr-1.5 rounded bg-accent/10 px-1 text-accent">@{to === 'you' ? 'You' : nameOf(to)}</span>}
+            />
           </div>
           {i.images && i.images.length > 0 && (
             <div className="mt-2">

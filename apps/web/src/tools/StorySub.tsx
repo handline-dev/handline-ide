@@ -1,3 +1,4 @@
+import { Ago } from '#src/ui/Ago.tsx';
 // A story's sub-task opened from its node: back to the Plan, the next one for you, and its Plan, Code and Result with the founder's verdicts.
 import type { MemoFile, TaskDetail } from '@handline/client';
 import { MessageImages } from '#src/chat/MessageImages.tsx';
@@ -7,7 +8,6 @@ import { Check, ChevronLeft, ChevronRight, Play } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { playVideo } from '#src/viewer/VideoPlayer.tsx';
 import { Changes, diffCounts, useBranchDiff } from '#src/changes/Changes.tsx';
-import { clock } from '#src/format/time.ts';
 import { useTabState } from '#src/persist/tabState.ts';
 import { FaceName } from '#src/ui/Face.tsx';
 import { startsAfter, wordOf, type Sub } from '#src/tools/storyWords.ts';
@@ -198,8 +198,14 @@ function PlanTab({ t, open }: { t: TaskDetail; open: Set<number> }) {
         ) : (
           <>
             <p className="text-xs text-muted">
-              {changed ? `Version ${plan.version} · updated ${clock(plan.at)}` : `Written ${clock(plan.at)}`}
-              {plan.ok && ` · OK ${clock(plan.ok.at)}`}
+              {changed ? `Version ${plan.version} · updated ` : 'Written '}
+              <Ago at={plan.at} />
+              {plan.ok && (
+                <>
+                  {' · OK '}
+                  <Ago at={plan.ok.at} />
+                </>
+              )}
             </p>
             <div className="flex flex-col">
               {plan.text.split('\n').map((line, i) => {
@@ -222,7 +228,7 @@ function PlanTab({ t, open }: { t: TaskDetail; open: Set<number> }) {
         </p>
         {t.core_ask && (
           <p className="text-muted">
-            Core logic asked {clock(t.core_ask.at)}
+            Core logic asked <Ago at={t.core_ask.at} />
             {t.core_ask.sent_at ? '' : ', sent once the agent is free'}
             {t.core_ask.note && `: ${t.core_ask.note}`}
           </p>

@@ -3,7 +3,11 @@ import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 
 // Mentions are written out through the daemon's lists; here there are none.
-vi.mock('@handline/app-data', () => ({ useDirectory: () => ({ agents: [], people: [], workspaces: [] }) }));
+vi.mock('@handline/app-data', () => ({
+  useDirectory: () => ({ agents: [], people: [], workspaces: [] }),
+  useAgents: () => ({ data: { agents: [] } }),
+  useNameOf: () => (k: string) => k,
+}));
 
 // The thumbnail reads the attachment from the daemon; here it only says which one it would show.
 vi.mock('#src/chat/MessageImages.tsx', () => ({

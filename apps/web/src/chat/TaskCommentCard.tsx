@@ -1,3 +1,4 @@
+import { Ago } from '#src/ui/Ago.tsx';
 // What passes between an agent and the founder on a task, in the agent's chat: one card per task. It is answered in the task.
 import { foundersTurn, noteText, type TimelineEntry, type TurnRecord } from '@handline/app-core';
 import { useNameOf, useTask } from '@handline/app-data';
@@ -5,7 +6,6 @@ import { useMe } from '@handline/app-react';
 import type { TranscriptItem } from '@handline/client';
 import { motion } from 'framer-motion';
 import { Hand } from 'lucide-react';
-import { clock } from '#src/format/time.ts';
 import { taskOf } from '#src/layout/kinds.tsx';
 import type { TaskEvent, TaskEventKind } from '#src/chat/TaskActivity.tsx';
 import { useOpenable } from '#src/layout/openable.tsx';
@@ -73,9 +73,16 @@ export function TaskCommentCard({ last, change, fade }: { last: Said; change?: T
     last.task_comment.kind === 'answer'
       ? 'You commented'
       : `${nameOf(last.task_comment.who)} ${last.task_comment.kind === 'turn' ? 'asked you' : 'commented'}`;
-  const who = newer
-    ? `${DID[newer.kind]}${newer.to ? ` to ${nameOf(newer.to)}` : ''} · ${clock(newer.at!)}`
-    : `${said} · ${clock(last.at)}`;
+  const who = newer ? (
+    <>
+      {DID[newer.kind]}
+      {newer.to ? ` to ${nameOf(newer.to)}` : ''} · <Ago at={newer.at!} />
+    </>
+  ) : (
+    <>
+      {said} · <Ago at={last.at} />
+    </>
+  );
   return (
     <motion.div
       data-id={`taskcard:${task}`}
@@ -137,7 +144,7 @@ export function TaskCommentCard({ last, change, fade }: { last: Said; change?: T
         dateTime={last.at}
         className="mb-2 flex h-6 items-center text-xs text-muted opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
       >
-        {clock(last.at)}
+        <Ago at={last.at} />
       </time>
     </motion.div>
   );

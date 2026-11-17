@@ -1,7 +1,7 @@
+import { Ago } from '#src/ui/Ago.tsx';
 import { motion } from 'framer-motion';
 import { FoldVertical, RotateCw } from 'lucide-react';
 import { useState } from 'react';
-import { clock } from '#src/format/time.ts';
 import { spring } from '#src/motion.ts';
 import { Markdown } from '#src/ui/Markdown.tsx';
 import type { LineChange } from '@handline/client';
@@ -97,7 +97,7 @@ export function CompactionLine({
         transition={spring}
         className="overflow-hidden text-xs"
       >
-        {clock(at)}
+        <Ago at={at} />
       </motion.time>
     </>
   );

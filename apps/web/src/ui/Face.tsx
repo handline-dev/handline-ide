@@ -1,6 +1,7 @@
 // Someone in a task: their face (the initial in a circle) and name, the one look for a writer or an owner wherever a task shows one.
 // An agent's face carries its state as a dot at the bottom right; a person's has none.
-import { useAgents, useNameOf } from '@handline/app-data';
+import { nameOf } from '@handline/app-core';
+import { useAgents, useDirectory, useNameOf } from '@handline/app-data';
 import { activityOf, type Activity } from '#src/layout/agentList.ts';
 import { chatOf } from '#src/layout/kinds.tsx';
 import { useOpenable } from '#src/layout/openable.tsx';
@@ -79,6 +80,25 @@ function Mark({ who, mine }: { who: string; mine: boolean }) {
 }
 
 const nameText = (name: string, mine: boolean) => (mine ? 'You' : name);
+
+/** An agent's key from its name or key as written after an @, or null. */
+export function useAgentByName(): (word: string) => string | null {
+  const d = useDirectory();
+  return (word: string) => {
+    const w = word.toLowerCase();
+    return d.agents.find((a) => a.key.toLowerCase() === w || nameOf(d, a.key).toLowerCase() === w)?.key ?? null;
+  };
+}
+
+/** An agent named in text (@name): marked as a mention, and a link to it like its face. */
+export function Mention({ who }: { who: string }) {
+  const name = useNameOf()(who);
+  return (
+    <AgentLink who={who} mine={false} className="rounded bg-accent/10 px-1 text-accent">
+      @{name}
+    </AgentLink>
+  );
+}
 
 /** The face alone: `who` is an agent's key or a person's; `mine` paints it the founder's blue and names them You. */
 export function Face({ who, mine = false }: { who: string; mine?: boolean }) {
