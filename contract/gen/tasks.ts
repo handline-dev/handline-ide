@@ -505,7 +505,7 @@ export type TurnAsk = {
   at: Timestamp;
 };
 
-/** What a warning row is about, so a client can draw it and open the right place. It is read from state each time and leaves by itself. */
+/** What a warning row is about, so a client can draw it and open the right place. It is read from state each time and leaves by itself, or when the founder dismisses it (warning.dismiss). */
 export type PendingWarning = {
   /** When each leaves. disk: space is back. login: the account is logged in or woken; one past its end day never warns. delivery (a message of the founder's never seen to arrive): seen to arrive, withdrawn, or their next message to that agent is written. undelivered (a queued task whose delivery was refused, with no agent opener to tell): delivered, given to another or ended. notice (what the board tells the agent that opened a task, given to the founder when no agent opened it, or when the one told has not moved the task in an hour; and an agent's stale background work, which only the founder's idle setting can keep): the task moves or ends; with no task: the agent's stall is cleared, its repo fixed, or (any other) it acts again. */
   kind: "disk" | "login" | "delivery" | "undelivered" | "notice";

@@ -3,6 +3,7 @@ package reads
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -15,12 +16,55 @@ import (
 type founderWarning struct {
 	id, title string
 	since     any
-	task      int64 // the task it is about; 0 for none
+	task      int64  // the task it is about; 0 for none
+	worse     string // login: why the account cannot be used, so a warning grown worse is not hidden by its dismissal
 	view      map[string]any
 }
 
-// founderWarnings is PendingWarning's rows.
+// founderWarnings is PendingWarning's rows, less those the founder dismissed (warning.dismiss).
 func (e *Env) founderWarnings() ([]founderWarning, error) {
+	all, err := e.allFounderWarnings()
+	if err != nil {
+		return nil, err
+	}
+	dismissed, err := e.dismissed()
+	if err != nil {
+		return nil, err
+	}
+	return slices.DeleteFunc(all, func(w founderWarning) bool { return dismissed[w.id] == sinceKey(w) }), nil
+}
+
+// dismissed is the since of each dismissed warning, by its id.
+func (e *Env) dismissed() (map[string]string, error) {
+	rows, err := query(e.DB, "SELECT name, value FROM meta WHERE name LIKE ?", db.DismissedPrefix+"%")
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]string{}
+	for _, r := range rows {
+		out[strings.TrimPrefix(r.str("name"), db.DismissedPrefix)] = r.str("value")
+	}
+	return out, nil
+}
+
+// sinceKey is what a dismissal keeps of the warning it hides: its since, and how bad it is.
+func sinceKey(w founderWarning) string { return fmt.Sprint(w.since, " ", w.worse) }
+
+// WarningSinces is the since of each warning the founder has now, dismissed or not, as a dismissal keeps it, by id.
+func (e *Env) WarningSinces() (map[string]string, error) {
+	all, err := e.allFounderWarnings()
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]string, len(all))
+	for _, w := range all {
+		out[w.id] = sinceKey(w)
+	}
+	return out, nil
+}
+
+// allFounderWarnings is every warning the state holds now.
+func (e *Env) allFounderWarnings() ([]founderWarning, error) {
 	var out []founderWarning
 	for _, n := range e.machineNeeds() {
 		need := n.(map[string]any)
@@ -64,7 +108,7 @@ func (e *Env) loginWarnings() ([]founderWarning, error) {
 		if need.Unusable != "" {
 			title = fmt.Sprintf("Account %s cannot be used: %s.", a, need.Unusable)
 		}
-		out = append(out, founderWarning{id: "login:" + a, title: title, since: ts(need.Since), view: map[string]any{"kind": "login", "account": a}})
+		out = append(out, founderWarning{id: "login:" + a, title: title, since: ts(need.Since), worse: need.Unusable, view: map[string]any{"kind": "login", "account": a}})
 	}
 	return out, nil
 }

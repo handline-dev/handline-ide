@@ -103,6 +103,7 @@ const BASIC = new Set([
   'task.comment.recipients',
   'task.seen',
   'requests.pending',
+  'warning.dismiss',
   'task.history',
   'task.time',
   'task.new',

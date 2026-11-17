@@ -5187,6 +5187,50 @@
      "$ref": "#/components/errors/bad_request"
     }
    ]
+  },
+  {
+   "name": "warning.dismiss",
+   "summary": "Dismiss one of the daemon's warnings to the founder (a requests.pending row whose source is machine) for as long as its cause lasts.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "id",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "description": "The warning's id: PendingRequest.id of a row whose source is machine."
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Accepted"
+    }
+   },
+   "x-role": "owner",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "dismiss a warning"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "description": "requests.pending leaves it out until its cause ends and begins again, or a login warning grows worse (cannot be used); daemon.status needs_you is unaffected. A warning the founder does not have now is not_found, data.what `warning`."
   }
  ],
  "x-access": {

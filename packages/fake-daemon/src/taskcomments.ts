@@ -27,6 +27,8 @@ export interface Pending {
 export class TaskComments extends TaskStore {
   /** The daemon's own warnings in requests.pending (a login gone, weekly use about to be lost); a seed puts them in. */
   readonly warnings: Pending[] = [];
+  /** The warnings the founder dismissed, by id. */
+  private readonly dismissed = new Set<string>();
 
   /**
    * task.comment.recipients: who the daemon tells of a comment, and why, by its one rule. An agent named with `@` is asked and the assignee (the
@@ -58,6 +60,15 @@ export class TaskComments extends TaskStore {
       this.emit(this.view(t));
     }
     this.host.requests.markSeen(t.id);
+  }
+
+  /** warning.dismiss: the warning leaves requests.pending; false when there is no warning by that id. A second dismissal is accepted. */
+  dismissWarning(id: string): boolean {
+    const w = this.warnings.find((x) => x.id === id);
+    if (!w) return false;
+    if (!this.dismissed.has(id)) this.host.emit('for_you', 'for_you.closed', { title: w.title, data: { kind: 'machine', id } });
+    this.dismissed.add(id);
+    return true;
   }
 
   /** requests.pending: what waits on the founder by task, and the counts the badges show. */
@@ -152,12 +163,13 @@ export class TaskComments extends TaskStore {
         });
     }
     const newest = (a: Pending, b: Pending) => b.last_at.localeCompare(a.last_at);
+    const shown = this.warnings.filter((w) => !this.dismissed.has(w.id!));
     const open = this.rows.filter((r) => r.state !== 'done' && r.state !== 'discarded');
     return {
-      answer: [...answer.values(), ...this.warnings, ...notes].sort(newest),
+      answer: [...answer.values(), ...shown, ...notes].sort(newest),
       comments: comments.sort(newest),
       counts: {
-        answer: answer.size + this.warnings.length,
+        answer: answer.size + shown.length,
         notes: notes.length,
         comments: comments.length,
         needs_you: open.filter((r) => r.state !== 'draft' && (r.to === 'human' || this.waiting(r)?.on === 'founder')).length,

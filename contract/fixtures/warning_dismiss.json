@@ -1,0 +1,98 @@
+{
+ "fixtures": [
+  {
+   "name": "warning.dismiss_refuses_a_warning_the_founder_does_not_have",
+   "spec": "warning.dismiss",
+   "about": "An id that is no warning the founder has now is not_found, what warning; a missing id is bad_request naming it.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "warning.dismiss",
+      "params": {
+       "id": "login:no.such.account",
+       "request_id": "conf-dismiss-2"
+      }
+     },
+     "error": {
+      "code": -32001,
+      "data": {
+       "code": "not_found",
+       "what": "warning"
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "warning.dismiss",
+      "params": {
+       "request_id": "conf-dismiss-3"
+      }
+     },
+     "error": {
+      "code": -32602,
+      "data": {
+       "code": "bad_request",
+       "field": "id"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "warning.dismiss_is_the_founders",
+   "spec": "warning.dismiss",
+   "about": "An agent may not dismiss the founder's warnings: refused, gate role.",
+   "as": "agent",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "warning.dismiss",
+      "params": {
+       "id": "disk",
+       "request_id": "conf-dismiss-4"
+      }
+     },
+     "error": {
+      "code": -32002,
+      "data": {
+       "code": "refused",
+       "gate": "role"
+      }
+     }
+    }
+   ]
+  }
+ ]
+}

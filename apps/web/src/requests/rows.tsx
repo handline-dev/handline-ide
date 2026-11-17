@@ -321,11 +321,13 @@ export function RequestLine({ r, onOpened }: { r: TaskRequest; onOpened?: () => 
   );
 }
 
-/** A proposal's answer, Allow or Deny; else a dismiss until tomorrow 09:00 (Later). An Allow names the subject proposal.list showed; one the
- *  daemon refuses as changed since stays off on this row, so a changed proposal is opened and read before it is allowed. */
+/** A proposal's answer, Allow or Deny; a daemon warning's dismiss, kept by the daemon while its cause lasts; else a dismiss until tomorrow
+ *  09:00 (Later). An Allow names the subject proposal.list showed; one the daemon refuses as changed since stays off on this row, so a
+ *  changed proposal is opened and read before it is allowed. */
 function TurnQuick({ p }: { p: PendingRequest }) {
   const act = useRowActions();
   const decide = useWrite('proposal.decide');
+  const dismiss = useWrite('warning.dismiss');
   const listed = useProposals().data?.proposals.find((x) => String(x.id) === p.id);
   const [changed, setChanged] = useState(false);
   if (p.source === 'proposal' && p.id) {
@@ -356,6 +358,28 @@ function TurnQuick({ p }: { p: PendingRequest }) {
           Allow
         </Button>
       </>
+    );
+  }
+  if (p.source === 'machine' && p.id) {
+    const id = p.id;
+    return (
+      <IconButton
+        label="Dismiss"
+        disabled={dismiss.isPending}
+        onClick={() =>
+          dismiss.mutate(
+            { id },
+            {
+              onError: (e) => {
+                const s = sentence(classify(e));
+                if (s) toast(`Did not dismiss: ${s}`, { tone: 'warning' });
+              },
+            },
+          )
+        }
+      >
+        <X size={14} />
+      </IconButton>
     );
   }
   const later = laterKey(p);
