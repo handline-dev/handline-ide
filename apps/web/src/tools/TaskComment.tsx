@@ -62,6 +62,19 @@ function Readers({ names }: { names: string[] }) {
   );
 }
 
+/** A task's parties, for the @ list: who acts on it now, its turns, its owner, who it answers to, who opened it, then whoever wrote on
+ *  it, newest first. */
+const parties = (t: TaskDetail): string[] => [
+  ...new Set([
+    ...(t.acting ? [t.acting] : []),
+    ...[...(t.turns ?? [])].reverse().map((x) => x.agent),
+    t.to,
+    t.asker,
+    t.from,
+    ...[...t.memos].reverse().map((m) => m.author),
+  ]),
+];
+
 export function CommentBox({
   t,
   reply: asked,
@@ -205,6 +218,7 @@ export function CommentBox({
       <Composer
         agent={box}
         commands={commands}
+        mentionFirst={parties(t)}
         sendLabel={answering ? 'Answer' : undefined}
         onEmpty={answering ? { label: 'Give back', run: () => void giveBack() } : undefined}
         locked={back.pending ? 'Giving it back' : undefined}

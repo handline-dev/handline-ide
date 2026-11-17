@@ -1,6 +1,6 @@
 // The message box's two lists: `@` at the end of the text offers agents to name, `/` at the start of the line offers the box's commands.
 // Arrows move, Enter or Tab picks, Escape closes. A `/` line is never sent as words: it runs its command, or says there is none.
-import { useAgents, useNameOf } from '@handline/app-data';
+import { useAgents, useDirectory, useNameOf } from '@handline/app-data';
 import { AtSign, ChevronRight } from 'lucide-react';
 import { useState, type KeyboardEvent, type ReactNode } from 'react';
 
@@ -10,31 +10,49 @@ export type Command = { name: string; hint: string; takes?: string; icon?: React
 type Entry = { key: string; label: string; hint: string; icon: ReactNode; pick: () => void };
 
 const AT = /(?:^|\s)@([\w.-]*)$/;
+/** Whether a name starts with the typed letters, as a whole or at one of its parts (web-settings at settings). */
+const starts = (word: string, q: string) =>
+  word
+    .toLowerCase()
+    .split(/[-._]/)
+    .some((part) => part.startsWith(q));
 const SLASH = /^\/(\w*)$/;
 const LINE = /^\/(\w+)(?:\s+(.*))?$/;
 
-export function useSuggest(draft: string, setDraft: (v: string) => void, commands: Command[]) {
+/** `first`: agents offered before the rest, in this order (a task's parties in its comment box). */
+/** `home`: the agent whose box this is; an agent of another workspace is offered with that workspace's name. */
+export function useSuggest(draft: string, setDraft: (v: string) => void, commands: Command[], first: string[] = [], home?: string) {
   const [shut, setShut] = useState<string | null>(null); // not kept: the text Escape closed it on, closed until the text changes
   const [at, setAt] = useState(0);
   // Said for the text it was sent with; gone once the text changes.
   const [refused, setRefused] = useState<{ text: string; why: string } | null>(null);
   const agents = useAgents().data?.agents ?? [];
   const nameOf = useNameOf();
+  const dir = useDirectory();
+  const homeSpace = agents.find((a) => a.key === home)?.workspace;
 
   const mention = AT.exec(draft)?.[1];
   const slash = SLASH.exec(draft)?.[1];
   const q = (mention ?? slash ?? '').toLowerCase();
+  const rank = (key: string) => {
+    const i = first.indexOf(key);
+    return i < 0 ? first.length : i;
+  };
   const all: Entry[] =
     mention !== undefined
       ? agents
           .map((a) => ({ a, word: nameOf(a.key) }))
-          .filter(({ word }) => word.toLowerCase().includes(q))
-          .sort((x, y) => Number(!x.word.toLowerCase().startsWith(q)) - Number(!y.word.toLowerCase().startsWith(q)))
+          // A bare @ offers only the parties when there are any; a letter searches every agent, the parties first.
+          .filter(({ a, word }) => (q ? starts(word, q) : !first.length || first.includes(a.key)))
+          .sort(
+            (x, y) =>
+              rank(x.a.key) - rank(y.a.key) || Number(!x.word.toLowerCase().startsWith(q)) - Number(!y.word.toLowerCase().startsWith(q)),
+          )
           .slice(0, 8)
           .map(({ a, word }) => ({
             key: a.key,
-            label: `@${word}`,
-            hint: a.state,
+            label: word,
+            hint: homeSpace && a.workspace !== homeSpace ? (dir.workspaces.find((w) => w.key === a.workspace)?.name ?? a.workspace) : '',
             icon: <AtSign size={14} />,
             // The word is what the composer shows; the send writes it as the agent's key (app-core toRefs).
             pick: () => setDraft(draft.replace(/@[\w.-]*$/, `@${word} `)),

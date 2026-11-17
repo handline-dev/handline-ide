@@ -8,6 +8,7 @@ vi.mock('@handline/app-data', async (real) => ({
   ...(await real<object>()),
   useAgents: () => ({ data: { agents: [] } }),
   useNameOf: () => (k: string) => k,
+  useDirectory: () => ({ agents: [], people: [], workspaces: [] }),
 }));
 
 let root: Root;
