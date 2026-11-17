@@ -1,4 +1,4 @@
-import { outsideBlockers, subtaskCount } from '#src/tools/subtasks.ts';
+import { outsideBlockers } from '#src/tools/subtasks.ts';
 import { useLeaseWaits } from '#src/tools/leaseWait.ts';
 import { LeaseIcon } from '#src/tools/LeaseIcon.tsx';
 import { activityOf, foundersTurn, taskOutcome, isPerson, turnChain, isSystem, type ActivityItem } from '@handline/app-core';
@@ -20,10 +20,11 @@ import { Fields } from '#src/tools/TaskFields.tsx';
 import { GO_TURN, goToTurn, openTurnRow, takeTyping, type OpenTurn } from '#src/tools/TaskTurn.ts';
 import { showHistory } from '#src/tools/TaskDiff.tsx';
 import { CommentBox, type Reply } from '#src/tools/TaskComment.tsx';
-import { Story, storyChat } from '#src/tools/Story.tsx';
+import { PlanFlow, storyChat } from '#src/tools/Story.tsx';
 import { useAttachments } from '#src/chat/attachments.tsx';
 import { FileDropArea } from '#src/ui/fileDrop.tsx';
 import { Page } from '#src/ui/Page.tsx';
+import { Clamped } from '#src/ui/Clamped.tsx';
 import { ScrollFade } from '#src/ui/ScrollFade.tsx';
 import { keptScroll } from '#src/ui/keptScroll.ts';
 import { sayRefusal } from '#src/ui/refusal.tsx';
@@ -106,15 +107,6 @@ export function TaskTab({ id }: { id: number }) {
       onSent={() => toBottom(id)}
     />
   );
-  // A task with sub-tasks is a story: its comments as a chat beside the graph of its sub-tasks.
-  if (t.subtasks.length)
-    return (
-      <FileDropArea take={attach.add} className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <MarkReply.Provider value={{ add: addMarked, label: 'Add to comment' }}>
-          <Story t={t} chat={(n) => (n === id ? storyChat(activity(true), box, id) : <TaskChat key={n} id={n} />)} />
-        </MarkReply.Provider>
-      </FileDropArea>
-    );
   return (
     <FileDropArea take={attach.add} className="flex min-h-0 min-w-0 flex-1 flex-col">
       <MarkReply.Provider value={{ add: addMarked, label: 'Add to comment' }}>
@@ -170,16 +162,12 @@ export function TaskTab({ id }: { id: number }) {
             </header>
             {t.body && (
               <Flash text={t.body}>
-                <Markdown text={t.body} />
+                <Clamped>
+                  <Markdown text={t.body} />
+                </Clamped>
               </Flash>
             )}
-            {t.subtasks.length > 0 && (
-              <Section title={['Sub-tasks', subtaskCount(t.subtasks)].filter(Boolean).join(' · ')}>
-                {t.subtasks.map((c) => (
-                  <TaskLink key={c.id} id={c.id} title={c.title} state={c} />
-                ))}
-              </Section>
-            )}
+            {t.subtasks.length > 0 && <PlanFlow t={t} />}
             {t.evidence && (
               <Section title="Result">
                 <ResultChips evidence={t.evidence} title={t.title} />
@@ -197,8 +185,8 @@ export function TaskTab({ id }: { id: number }) {
   );
 }
 
-/** A sub-task's comments as the story's chat, opened from its node. */
-function TaskChat({ id }: { id: number }) {
+/** A sub-task's comments as a chat, beside it in the Plan tab. */
+export function TaskChat({ id }: { id: number }) {
   const t = hooks.useTaskGet({ task: id }).data;
   const me = useMe();
   const nameOf = useNameOf();

@@ -8,6 +8,7 @@ import {
   SlidersHorizontal,
   Settings,
   ListTodo,
+  Workflow,
   MessageSquare,
   Plus,
   Smartphone,
@@ -22,6 +23,7 @@ const kinds: Record<string, { label: string; icon: ReactNode }> = {
   newshell: { label: 'Terminal', icon: <SquareTerminal size={14} /> },
   diff: { label: 'Changes', icon: <FileDiff size={14} /> },
   tasks: { label: 'Tasks', icon: <ListTodo size={14} /> },
+  plan: { label: 'Plan', icon: <Workflow size={14} /> },
   markdown: { label: 'Markdown', icon: <FileText size={14} /> },
   web: { label: 'Web', icon: <Globe size={14} /> },
   android: { label: 'Android', icon: <Smartphone size={14} /> },
@@ -45,16 +47,20 @@ export const shellHandle = (kind: string) => (kind.startsWith('shell:') ? kind.s
 
 /** A tab on one thing, opened from a link: a task (`task:8503`), a page (`web:<address>`), a repo file (`file:<path>`). */
 export const taskOf = (id: number) => `task:${id}`;
+/** A task's sub-tasks as a graph (tools/Story): `plan:8503`. */
+export const planOf = (id: number) => `plan:${id}`;
 export const webOf = (url: string) => `web:${url}`;
 export const fileOf = (path: string) => `file:${path}`;
 /** A text kept in this browser (tools/TextTab): `text:<when>/<name>`, titled by its name. */
 export const textOf = (when: string, name: string) => `text:${when}/${name}`;
-export const opened = (kind: string, prefix: 'task' | 'web' | 'file' | 'text') =>
+export const opened = (kind: string, prefix: 'task' | 'plan' | 'web' | 'file' | 'text') =>
   kind.startsWith(`${prefix}:`) ? kind.slice(prefix.length + 1) : null;
 const onThing = (kind: string): { label: string; icon: ReactNode } | null => {
   if (shellHandle(kind)) return kinds.newshell;
   const task = opened(kind, 'task');
-  if (task) return { label: `T${task}`, icon: <ListTodo size={14} /> };
+  if (task) return { label: `T${task}`, icon: kinds.tasks.icon };
+  const plan = opened(kind, 'plan');
+  if (plan) return { label: `Plan · T${plan}`, icon: kinds.plan.icon };
   const web = opened(kind, 'web');
   if (web) {
     let host = web;

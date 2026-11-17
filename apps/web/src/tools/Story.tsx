@@ -1,11 +1,14 @@
-// A story: a task with sub-tasks. Left, its comments as a chat with whoever holds it; right, the graph of its sub-tasks and Run.
+// A task's sub-tasks: the Plan box on its page (PlanFlow), and the graph with Run in a tab of its own (PlanTab).
 import { taskGraph, type GraphNode } from '@handline/app-core';
-import { useNameOf, useTasks, useWrite } from '@handline/app-data';
+import { hooks, useNameOf, useTasks, useWrite } from '@handline/app-data';
 import { useMe } from '@handline/app-react';
 import type { Task, TaskDetail } from '@handline/client';
 import { Play } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTabState } from '#src/persist/tabState.ts';
+import { planOf, taskOf } from '#src/layout/kinds.tsx';
+import { useNewTab, useOpenable } from '#src/layout/openable.tsx';
+import { TaskChat } from '#src/tools/TaskTab.tsx';
 import { SubTask } from '#src/tools/StorySub.tsx';
 import { startsAfter, wordOf, type Sub, type Word } from '#src/tools/storyWords.ts';
 import { Button } from '#src/ui/Button.tsx';
@@ -17,24 +20,177 @@ import { Avatar } from '#src/tools/TaskEvents.tsx';
 
 const BOX = { w: 200, h: 128 };
 
-export function Story({ t, chat }: { t: TaskDetail; chat: (task: number) => ReactNode }) {
+/** A task's sub-tasks as a graph in a tab of its own (plan:<id>), opened from the task's Plan box; a node opens that sub-task beside
+ * its own chat. */
+export function PlanTab({ id }: { id: number }) {
+  const t = hooks.useTaskGet({ task: id }).data;
   const nameOf = useNameOf();
-  // The sub-task opened from its node; its comments take the chat's place.
   const [picked, setPicked] = useTabState<number | null>('sub', null);
+  if (!t) return <div className="flex-1" />;
   const sub = t.subtasks.find((x) => x.id === picked) ?? null;
-  const name = nameOf(sub ? sub.owner : t.to);
   return (
     <div className="flex min-h-0 min-w-0 flex-1">
-      <div className="flex min-h-0 min-w-0 basis-2/5 flex-col border-r border-border">
-        <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-4 text-sm font-semibold">
-          <Avatar name={name} mine={false} />
-          {name}
-          {sub && <span className="font-normal text-muted">on T{sub.id}</span>}
+      {sub && (
+        <div className="flex min-h-0 min-w-0 basis-2/5 flex-col border-r border-border">
+          <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-4 text-sm font-semibold">
+            <Avatar name={nameOf(sub.owner)} mine={false} />
+            {nameOf(sub.owner)}
+            <span className="font-normal text-muted">on T{sub.id}</span>
+          </div>
+          <TaskChat key={sub.id} id={sub.id} />
         </div>
-        {chat(sub?.id ?? t.id)}
-      </div>
+      )}
       {sub ? <SubTask key={sub.id} sub={sub} story={t} onPick={setPicked} /> : <Plan parent={t.id} subs={t.subtasks} onPick={setPicked} />}
     </div>
+  );
+}
+
+const ROW = 64; // a flow box's height and the gap under it
+const SHOWN = { now: 4, next: 3 };
+
+/** The task page's Plan box: a bar of where the sub-tasks stand, then three columns, done folded to a count, what is on now (the
+ * founder's first), and what waits directly on those, each with what it waits on and a line to it; more than fit fold to +N. */
+export function PlanFlow({ t }: { t: TaskDetail }) {
+  const me = useMe();
+  const kids = useTasks({ parent: t.id, all: true }).data?.items ?? [];
+  const [more, setMore] = useState({ now: false, next: false });
+  const newTab = useNewTab(planOf(t.id));
+  const graph = useOpenable(planOf(t.id));
+  const subOf = new Map(t.subtasks.map((x) => [x.id, x]));
+  const live = kids.filter((x) => x.state !== 'discarded');
+  const open = new Set(live.filter((x) => x.state !== 'done').map((x) => x.id));
+  const word = (x: Task) => wordOf(x, subOf.get(x.id), me, open);
+  const forYou = (x: Task) => word(x).kind === 'you';
+  const done = live.filter((x) => x.state === 'done').sort((a, b) => (b.done ?? '').localeCompare(a.done ?? ''));
+  const held = (x: Task) => x.state === 'draft' || startsAfter(x, open).length > 0;
+  const now = live
+    .filter((x) => x.state !== 'done' && !held(x))
+    .sort((a, b) => Number(word(b).kind === 'you') - Number(word(a).kind === 'you'));
+  const nowIds = new Set(now.map((x) => x.id));
+  const waits = live.filter((x) => x.state !== 'done' && held(x));
+  // What waits directly on what is on now, and anything that asks the founder, theirs first.
+  const next = waits
+    .filter((x) => forYou(x) || startsAfter(x, open).some((n) => nowIds.has(n)) || !startsAfter(x, open).length)
+    .sort((a, b) => Number(forYou(b)) - Number(forYou(a)));
+  const later = waits.length - next.length;
+  const nowShown = more.now ? now : now.slice(0, SHOWN.now);
+  const nextShown = more.next ? next : next.slice(0, SHOWN.next);
+  if (!live.length) return null;
+  const you = live.filter((x) => x.state !== 'done' && forYou(x)).length;
+  const working = now.filter((x) => !forYou(x)).length;
+  const waiting = waits.filter((x) => !forYou(x)).length;
+  const head = [
+    `${done.length} of ${live.length} merged`,
+    you && `${you} ready for you`,
+    working && `${working} working`,
+    waiting && `${waiting} waiting`,
+  ].filter(Boolean);
+  const bar = [
+    [done.length, 'bg-success'],
+    [you, 'bg-warning'],
+    [working, 'bg-accent'],
+    [waiting, 'bg-border'],
+  ] as const;
+  const rows = Math.max(1, nowShown.length, nextShown.length);
+  const lines = nextShown.flatMap((x, j) =>
+    startsAfter(x, open).flatMap((n) => {
+      const i = nowShown.findIndex((y) => y.id === n);
+      return i < 0 ? [] : [{ key: `${n}-${x.id}`, y1: i * ROW + 28, y2: j * ROW + 28 }];
+    }),
+  );
+  const column = (label: string) => <span className="text-xs text-muted">{label}</span>;
+  return (
+    <section className="flex flex-col gap-3 rounded-md border border-border p-4">
+      <p className="flex items-center gap-1.5 text-sm text-muted">
+        <span className="font-semibold text-fg">Plan</span>
+        {head.join(' · ')}
+        <button type="button" {...graph} onClick={newTab} className="ml-auto rounded-sm px-1 text-accent hover:bg-hover/30">
+          Open graph in new tab
+        </button>
+      </p>
+      <div className="flex h-2 gap-0.5 overflow-hidden rounded-full">
+        {bar.map(([n, tone]) => n > 0 && <span key={tone} className={tone} style={{ flex: n }} />)}
+      </div>
+      <div className="grid gap-y-2" style={{ gridTemplateColumns: '1fr 3rem 1fr 3rem 1fr' }}>
+        {column('Done')}
+        <span />
+        {column('Now')}
+        <span />
+        {column('Next up')}
+        <div className="flex flex-col gap-2">
+          {!done.length && <span className="px-3 text-xs text-muted">Nothing merged yet</span>}
+          {done.length > 0 && (
+            <div className="flex h-14 flex-col justify-center rounded-md border border-success/50 px-3 text-sm">
+              <span className="font-semibold text-success">✓ {done.length} merged</span>
+              <span className="truncate text-xs text-muted">
+                last: T{done[0].id} {done[0].title}
+              </span>
+            </div>
+          )}
+        </div>
+        <span />
+        <div className="flex flex-col gap-2">
+          {nowShown.map((x) => (
+            <FlowBox key={x.id} t={x} word={word(x)} />
+          ))}
+          {now.length > nowShown.length && (
+            <MoreButton n={now.length - nowShown.length} label="more" onClick={() => setMore({ ...more, now: true })} />
+          )}
+        </div>
+        <svg
+          className="h-full w-full text-border"
+          style={{ height: rows * ROW }}
+          preserveAspectRatio="none"
+          viewBox={`0 0 48 ${rows * ROW}`}
+          aria-hidden
+        >
+          {lines.map((l) => (
+            <path key={l.key} d={`M0 ${l.y1} C24 ${l.y1} 24 ${l.y2} 48 ${l.y2}`} fill="none" stroke="currentColor" strokeWidth={1.3} />
+          ))}
+        </svg>
+        <div className="flex flex-col gap-2">
+          {nextShown.map((x) => (
+            <FlowBox key={x.id} t={x} word={word(x)} />
+          ))}
+          {next.length > nextShown.length && (
+            <MoreButton n={next.length - nextShown.length} label="next" onClick={() => setMore({ ...more, next: true })} />
+          )}
+          {later > 0 && <span className="px-3 text-xs text-muted">{later} later</span>}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function FlowBox({ t, word }: { t: Task; word: Word }) {
+  const who = useNameOf()(t.to);
+  const you = word.kind === 'you';
+  const waiting = t.state === 'draft' || word.kind === 'waiting';
+  const s = look(t);
+  return (
+    <button
+      type="button"
+      {...useOpenable(taskOf(t.id))}
+      className={`flex h-14 min-w-0 flex-col justify-center rounded-md border px-3 text-left text-sm hover:bg-hover/30 ${
+        you ? 'border-2 border-warning bg-warning/10' : waiting ? 'border-dashed border-border' : 'border-accent'
+      }`}
+    >
+      <span className="truncate">
+        <span className="text-muted">T{t.id}</span> <span className="font-semibold">{t.title}</span>
+      </span>
+      <span className={`flex items-center gap-1 truncate text-xs ${you ? 'text-warning' : waiting ? 'text-muted' : 'text-accent'}`}>
+        {who} · {!waiting && t.state !== 'draft' && <s.icon size={12} />}
+        {word.text}
+      </span>
+    </button>
+  );
+}
+
+function MoreButton({ n, label, onClick }: { n: number; label: string; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} className="self-start rounded-sm px-3 text-xs text-accent hover:bg-hover/30">
+      +{n} {label}
+    </button>
   );
 }
 
@@ -52,7 +208,7 @@ export function storyChat(activity: ReactNode, box: ReactNode, id: number) {
 
 function Plan({ parent, subs, onPick }: { parent: number; subs: Sub[]; onPick: (id: number) => void }) {
   const me = useMe();
-  const kids = [...(useTasks({ parent }).data?.items ?? [])].sort((a, b) => a.id - b.id);
+  const kids = [...(useTasks({ parent, all: true }).data?.items ?? [])].sort((a, b) => a.id - b.id);
   const [box, fit] = useFit();
   const g = taskGraph(kids, { me, closed: true, size: BOX });
   const k = fit(g.width, g.height);
@@ -69,7 +225,7 @@ function Plan({ parent, subs, onPick }: { parent: number; subs: Sub[]; onPick: (
     return n ? `${n} ${label}` : null;
   };
   const head =
-    drafts.length === kids.length
+    drafts.length === kids.length && kids.length > 0
       ? [
           'Draft',
           `${kids.length} tasks`,
