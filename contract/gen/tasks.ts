@@ -536,15 +536,15 @@ export interface TasksMethods {
   request?: number;
   /** Only the founder's requests (Task.my_request); with the other filters, open only unless all or a closed state is asked. */
   my_requests?: boolean;
-  /** Only the tasks the founder decided on since then (a turn of his given back with a comment; Task.decided), open and closed alike (all is implied); within the caller's scope, newest first by id and paged as without it. */
+  /** Only the tasks the founder decided on since then (a turn of his given back with a comment; Task.decided), open and closed alike (all is implied); within the caller's scope, newest first by id and paged as without it, or by the decision with order decided. */
   decided_since?: Timestamp;
-  /** Only these tasks, at most 200, newest id first (all is implied; the caller's scope still holds). An id that is not found or out of scope is left out, never an error. limit defaults to the number of ids. Not with before, cursor or order closed: bad_request. */
+  /** Only these tasks, at most 200, newest id first (all is implied; the caller's scope still holds). An id that is not found or out of scope is left out, never an error. limit defaults to the number of ids. Not with before, cursor or order closed or decided: bad_request. */
   ids?: number[];
-  /** Return rows older than this id. Not with order closed: that pages by cursor. */
+  /** Return rows older than this id. Not with order closed or decided: those page by cursor. */
   before?: number;
-  /** id (the default): newest id first. closed: newest close first, by (the time it was done or discarded, id); only with state done, discarded or closed, else bad_request. A task old by id but closed today comes first. */
-  order?: "id" | "closed";
-  /** With order closed: the `next` of the previous page, in place of before. Opaque; a client never builds one. A cursor with any other order, or a garbled one, is bad_request. */
+  /** id (the default): newest id first. closed: newest close first, by (the time it was done or discarded, id); only with state done, discarded or closed, else bad_request. A task old by id but closed today comes first. decided: newest Task.decided first, in the order the decisions were made (ties by id); only with decided_since, else bad_request. */
+  order?: "id" | "closed" | "decided";
+  /** With order closed or decided: the `next` of the previous page, in place of before. Opaque; a client never builds one. A cursor with any other order, or a garbled one, is bad_request. */
   cursor?: string;
   /** Default 50, at most 200. Not applied to state open or draft, which return every row. */
   limit?: number;
@@ -567,7 +567,7 @@ export interface TasksMethods {
       closures_request: number;
       closures_reason: number;
     };
-    /** With order closed and more true: the cursor of the next page. Absent otherwise. */
+    /** With order closed or decided and more true: the cursor of the next page. Absent otherwise. */
     next?: string;
   } & ReadCursor };
   "task.get": { params: {

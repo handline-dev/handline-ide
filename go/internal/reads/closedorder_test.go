@@ -82,9 +82,9 @@ func TestClosedOrderRefusesWhatItCannotPage(t *testing.T) {
 		"an open state":       {"order": "closed", "state": "doing"},
 		"with before":         {"order": "closed", "state": "done", "before": json.Number("5")},
 		"an unknown order":    {"order": "oldest", "state": "done"},
-		"a cursor, id order":  {"state": "done", "cursor": closedCursor(5, 2)},
+		"a cursor, id order":  {"state": "done", "cursor": keyCursor(5, 2)},
 		"a garbled cursor":    {"order": "closed", "state": "done", "cursor": "!!"},
-		"a cursor of no task": {"order": "closed", "state": "done", "cursor": closedCursor(5, 0)},
+		"a cursor of no task": {"order": "closed", "state": "done", "cursor": keyCursor(5, 0)},
 	} {
 		if _, err := e.tasksList(asFounderConn, params); err == nil {
 			t.Errorf("%s: accepted", name)

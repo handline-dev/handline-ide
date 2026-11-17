@@ -223,11 +223,11 @@ func (e *Env) tasksList(c *rpc.Conn, params map[string]any) (any, error) {
 		if params["before"] != nil {
 			return nil, badParam("ids does not go with before", "before")
 		}
-		if params["order"] == "closed" {
-			return nil, badParam("ids does not go with order closed", "order")
+		if o := params["order"]; o == "closed" || o == "decided" {
+			return nil, badParam(fmt.Sprintf("ids does not go with order %v", o), "order")
 		}
 	}
-	byClose, closeAt, closeID, err := closedOrder(params, state, before)
+	byKey, keyAt, keyID, err := keyedOrder(params, state, before, decidedSince != nil)
 	if err != nil {
 		return nil, err
 	}
@@ -329,8 +329,8 @@ func (e *Env) tasksList(c *rpc.Conn, params map[string]any) (any, error) {
 	if before != nil {
 		cond("id < ?", *before)
 	}
-	if byClose && closeID != 0 {
-		cond("("+closedAtSQL+" < ? OR ("+closedAtSQL+" = ? AND id < ?))", closeAt, closeAt, closeID)
+	if keyID != 0 {
+		cond("("+byKey+" < ? OR ("+byKey+" = ? AND id < ?))", keyAt, keyAt, keyID)
 	}
 	for _, tag := range tags {
 		cond("EXISTS (SELECT 1 FROM task_tags g WHERE g.task_id = tasks.id AND g.tag = ?)", tag)
@@ -346,11 +346,11 @@ func (e *Env) tasksList(c *rpc.Conn, params map[string]any) (any, error) {
 	if sqlDecides { // SQL alone decides: it pages too
 		page = fmt.Sprintf(" LIMIT %d", limit+1)
 	}
-	order := "id DESC"
-	if byClose {
-		order = closedAtSQL + " DESC, id DESC"
+	order, key := "id DESC", "0"
+	if byKey != "" {
+		order, key = byKey+" DESC, id DESC", byKey
 	}
-	shown, err := query(e.DB, "SELECT *, "+taskActing+", "+closedAtSQL+" AS closed_at FROM tasks WHERE "+strings.Join(where, " AND ")+" ORDER BY "+order+page, args...)
+	shown, err := query(e.DB, "SELECT *, "+taskActing+", "+key+" AS order_key FROM tasks WHERE "+strings.Join(where, " AND ")+" ORDER BY "+order+page, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -396,8 +396,8 @@ func (e *Env) tasksList(c *rpc.Conn, params map[string]any) (any, error) {
 		last = r.t
 	}
 	out := map[string]any{"items": items, "more": len(rows) > limit}
-	if byClose && len(rows) > limit {
-		out["next"] = closedCursor(last.i("closed_at"), last.i("id"))
+	if byKey != "" && len(rows) > limit {
+		out["next"] = keyCursor(last.i("order_key"), last.i("id"))
 	}
 	return out, nil
 }
@@ -438,44 +438,61 @@ func optTaskIDs(params map[string]any, key string) ([]any, error) {
 // closedAtSQL is when a task was closed: the time it was discarded, else the time it was done.
 const closedAtSQL = "(CASE WHEN COALESCE(discarded_by, '') != '' THEN COALESCE(discarded_at, 0) ELSE COALESCE(done_at, 0) END)"
 
-func closedCursor(at, id int64) string {
+// decidedSQL is the founder's newest decision on a task (Task.decided) as the id of its event: events are numbered as they are written, so
+// the id orders decisions by time and, unlike the time, never ties.
+const decidedSQL = "(SELECT MAX(id) FROM events WHERE kind = 'task_turn_pop' AND agent = '" + actor.OwnerKey + "' AND " + eventTask +
+	" = tasks.id AND " + decisionSQL + ")"
+
+func keyCursor(at, id int64) string {
 	return base64.RawURLEncoding.EncodeToString([]byte(fmt.Sprintf("%d:%d", at, id)))
 }
 
-// closedOrder reads order and cursor: whether the list goes by close time, and where the cursor says to go on from (id 0 is the start).
-func closedOrder(params map[string]any, state *string, before *int64) (byClose bool, at, id int64, err error) {
+// keyedOrder reads order and cursor: the SQL a list goes by before id ("" for id alone: order closed by close time, order decided by
+// the founder's newest decision), and where the cursor says to go on from (id 0 is the start).
+func keyedOrder(params map[string]any, state *string, before *int64, decided bool) (key string, at, id int64, err error) {
 	order, err := optStr(params, "order")
 	if err != nil {
-		return false, 0, 0, err
+		return "", 0, 0, err
 	}
 	cursor, err := optStr(params, "cursor")
 	if err != nil {
-		return false, 0, 0, err
+		return "", 0, 0, err
 	}
-	if order != nil && *order != "id" && *order != "closed" {
-		return false, 0, 0, badParam("order is id or closed", "order")
+	by := "id"
+	if order != nil {
+		by = *order
 	}
-	byClose = order != nil && *order == "closed"
+	switch by {
+	case "id":
+	case "closed":
+		key = closedAtSQL
+	case "decided":
+		key = decidedSQL
+	default:
+		return "", 0, 0, badParam("order is id, closed or decided", "order")
+	}
 	switch {
-	case byClose && (state == nil || (*state != "done" && *state != "discarded" && *state != "closed")):
-		return false, 0, 0, badParam("order closed needs state done, discarded or closed", "order")
-	case !byClose && state != nil && *state == "closed":
-		return false, 0, 0, badParam("state closed needs order closed", "order")
-	case byClose && before != nil:
-		return false, 0, 0, badParam("order closed pages by cursor, not before", "before")
-	case !byClose && cursor != nil:
-		return false, 0, 0, badParam("cursor goes with order closed", "cursor")
+	case by == "closed" && (state == nil || (*state != "done" && *state != "discarded" && *state != "closed")):
+		return "", 0, 0, badParam("order closed needs state done, discarded or closed", "order")
+	case by == "decided" && !decided:
+		return "", 0, 0, badParam("order decided needs decided_since", "order")
+	case by != "closed" && state != nil && *state == "closed":
+		return "", 0, 0, badParam("state closed needs order closed", "order")
+	case key != "" && before != nil:
+		return "", 0, 0, badParam("order "+by+" pages by cursor, not before", "before")
+	case key == "" && cursor != nil:
+		return "", 0, 0, badParam("cursor goes with order closed or decided", "cursor")
 	case cursor == nil:
-		return byClose, 0, 0, nil
+		return key, 0, 0, nil
 	}
 	raw, err := base64.RawURLEncoding.DecodeString(*cursor)
 	if err == nil {
 		_, err = fmt.Sscanf(string(raw), "%d:%d", &at, &id)
 	}
 	if err != nil || id <= 0 {
-		return false, 0, 0, badParam("cursor is not one this daemon gave", "cursor")
+		return "", 0, 0, badParam("cursor is not one this daemon gave", "cursor")
 	}
-	return true, at, id, nil
+	return key, at, id, nil
 }
 
 func (e *Env) firstRequest(tid int64) (row, error) {
