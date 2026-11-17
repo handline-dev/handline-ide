@@ -43,7 +43,8 @@ export function Composer({
   running?: boolean;
   onStop?: () => void;
   /** Why the box takes no message now (a compaction under way), shown in its place; absent when it takes one. */
-  locked?: string;
+  /** Enter and the send button wait while it is set (a compaction or a move under way); the box stays open to write in. */
+  locked?: boolean;
   /** Takes the box's pictures marked up in the viewer; the marked copy replaces the picture. */
   onMarked?: (marked: MarkedPicture[]) => void;
   /** A row at the top of the box (what the message replies to); the box takes focus when it comes. */
@@ -182,9 +183,8 @@ export function Composer({
             }
           }}
           rows={1}
-          disabled={!!locked}
-          placeholder={locked ?? (bash ? `A command for ${word}'s terminal` : (placeholder ?? `Message ${word}`))}
-          className={`scrollbar-auto disabled:placeholder:animate-pulse max-h-60 min-h-7 flex-1 resize-none bg-transparent py-0.5 pr-2 text-fg outline-none placeholder:text-muted ${bash ? 'font-mono text-sm' : 'text-base'}`}
+          placeholder={bash ? `A command for ${word}'s terminal` : (placeholder ?? `Message ${word}`)}
+          className={`scrollbar-auto max-h-60 min-h-7 flex-1 resize-none bg-transparent py-0.5 pr-2 text-fg outline-none placeholder:text-muted ${bash ? 'font-mono text-sm' : 'text-base'}`}
         />
       </div>
       <div className="-ml-2 flex items-center gap-1">
