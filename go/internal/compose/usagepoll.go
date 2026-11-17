@@ -2,6 +2,7 @@ package compose
 
 import (
 	"context"
+	"time"
 
 	"github.com/handline/handline/go/accounts/usage"
 	"github.com/handline/handline/go/accounts/usagepoll"
@@ -14,7 +15,8 @@ import (
 func newPoller(ctx context.Context, cfg Config, uenv *usage.Env, q db.Q) *usagepoll.Poller {
 	meter := &usagepoll.Meter{Home: cfg.Home, Claude: cfg.CLI, Env: cfg.Env, Now: cfg.Now}
 	accounts := team.Accounts{Home: cfg.Home}
-	rec := &lifecycle.Recoverer{Home: cfg.Home, Ports: recoverPorts{ctx: ctx, home: cfg.Home, meter: meter, env: uenv, accounts: accounts}}
+	rec := &lifecycle.Recoverer{Home: cfg.Home, Ports: recoverPorts{ctx: ctx, home: cfg.Home, meter: meter, env: uenv, accounts: accounts,
+		q: q, now: nowOf(cfg.Now)}}
 	return &usagepoll.Poller{DB: q, Env: uenv, Home: cfg.Home, Meter: meter, Recover: rec.Recover, LoggedIn: accounts.LoggedIn,
 		Now: func() int64 { return nowOf(cfg.Now)().Unix() }, Log: cfg.Log}
 }
@@ -26,6 +28,8 @@ type recoverPorts struct {
 	meter    *usagepoll.Meter
 	env      *usage.Env
 	accounts team.Accounts
+	q        db.Q
+	now      func() time.Time
 }
 
 var _ lifecycle.RecoverPorts = recoverPorts{}
@@ -56,8 +60,18 @@ func (r recoverPorts) LongTrusted(acct string) (int, string, bool) {
 
 func (r recoverPorts) LongBlock() int { return usage.LongBlock }
 
-func (r recoverPorts) RunModel(prompt, acct, model string) (bool, string) {
+func (r recoverPorts) RunModel(prompt, acct, model string) (bool, string, string) {
 	return r.meter.RunModel(r.ctx, acct, prompt, model)
+}
+
+// Stall is the stall a failed agent turn raises (login.go), with no agent: the event is what tells the founder.
+func (r recoverPorts) Stall(acct, errType, why string) error {
+	first, err := r.accounts.StallAccount(acct, errType, why, r.now())
+	if err != nil || !first {
+		return err
+	}
+	_, err = db.AddEventFor(r.q, "", acct, "login_expired", db.KV{K: "account", V: acct}, db.KV{K: "error", V: errType}, db.KV{K: "why", V: why})
+	return err
 }
 
 // ReadUsage returns an untyped nil for no reading: the port's Reading is an interface, and a nil *usage.Reading in it is not nil.
