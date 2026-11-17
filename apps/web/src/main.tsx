@@ -1,4 +1,4 @@
-import { setPageGo } from '#src/layout/openTab.tsx';
+import { setAgentGo, setPageGo } from '#src/layout/openTab.tsx';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -32,6 +32,7 @@ function App() {
   // Settings covers the app instead of taking a tab.
   const goPage = (kind: string, title: string) => (kind === 'preferences' ? openSettings() : selectPage(kind, title));
   setPageGo(goPage);
+  setAgentGo(select);
   const toggle = () => setOpen((o) => !o);
   // Cmd+B (Ctrl+B off a Mac) toggles the sidebar; captured so a terminal does not take it, but left to the editor's bold.
   useEffect(() => {

@@ -9,7 +9,7 @@ import { playVideo } from '#src/viewer/VideoPlayer.tsx';
 import { Changes, diffCounts, useBranchDiff } from '#src/changes/Changes.tsx';
 import { clock } from '#src/format/time.ts';
 import { useTabState } from '#src/persist/tabState.ts';
-import { Avatar } from '#src/tools/TaskEvents.tsx';
+import { FaceName } from '#src/ui/Face.tsx';
 import { startsAfter, wordOf, type Sub } from '#src/tools/storyWords.ts';
 import { Button } from '#src/ui/Button.tsx';
 import { Markdown } from '#src/ui/Markdown.tsx';
@@ -23,7 +23,6 @@ const CLOSED = ['done', 'discarded'];
 export function SubTask({ sub, story, onPick }: { sub: Sub; story: TaskDetail; onPick: (id: number | null) => void }) {
   const t = hooks.useTaskGet({ task: sub.id }).data;
   const me = useMe();
-  const nameOf = useNameOf();
   const [tab, setTab] = useTabState<Tab | null>(`subtab:${sub.id}`, null);
   if (!t) return <div className="flex-1" />;
   const open = new Set(story.subtasks.filter((x) => !CLOSED.includes(x.state)).map((x) => x.id));
@@ -62,8 +61,7 @@ export function SubTask({ sub, story, onPick }: { sub: Sub; story: TaskDetail; o
       <div className="flex shrink-0 flex-col gap-2 px-6 pt-5">
         <h2 className="text-lg font-semibold text-fg">{t.title}</h2>
         <p className="flex items-center gap-2 text-sm text-muted">
-          <Avatar name={nameOf(t.to)} mine={false} />
-          <span className="text-fg">{nameOf(t.to)}</span>
+          <FaceName who={t.to} className="text-fg" />
           <span>· T{t.id}</span>
           <span className={word.kind === 'you' ? 'text-warning' : ''}>· {word.text}</span>
         </p>
