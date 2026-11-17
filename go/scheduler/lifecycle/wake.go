@@ -817,6 +817,15 @@ func (m *Manager) launchClosed(agent string, row *db.AgentState, wt, session str
 		_, statErr := os.Stat(pf)
 		taken = os.IsNotExist(statErr)
 		_ = os.Remove(pf)
+		// A session held at the folder-trust screen writes no session file, so its launch never reads as started, and the failed wake told
+		// nobody. Only that screen is read here: a shell's leftover numbered lines can read as another dialog.
+		if h := must(db.Terminal(m.Q, agent)); h != "" && m.Term.TrustPromptShowing(h) {
+			if taken && waiting.ok {
+				check(waiting.told(ifTrue(resume, session)))
+			}
+			_, w := m.raiseTrustPrompt(agent, m.Term.TrustPromptFolder(h), wt)
+			return false, w
+		}
 		// A resume of a long transcript can come up after the wait: a session inside the pane this launch used is this launch's own,
 		// and a fresh start over it would make a second one.
 		if late, pid := m.ownLateSession(agent); late {
