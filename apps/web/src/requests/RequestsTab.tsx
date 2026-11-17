@@ -123,14 +123,26 @@ function Requests() {
   const n = pick?.picked.size ?? 0;
   // The rows with a task, in list order: the split view steps through them.
   const withTask = [...r.turn, ...r.notes, ...r.later.map((x) => x.p)].filter((p) => p.task !== null);
-  const [{ key: chosenKey, at: lastAt }, setChosen] = useState<{ key: string | null; at: number }>({ key: null, at: 0 });
+  const [{ key: chosenKey, at: lastAt, task: chosenTask }, setChosen] = useState<{ key: string | null; at: number; task: number | null }>({
+    key: null,
+    at: 0,
+    task: null,
+  });
+  const choose = (p: PendingRequest, i: number) => setChosen({ key: turnKey(p), at: i, task: p.task });
   const found = withTask.findIndex((p) => turnKey(p) === chosenKey);
-  // A shown row that left the list (answered, put off) gives way to the one after it.
+  // A shown row that left the list (answered, put off) stays shown; until one is chosen, the first.
+  const left = found < 0 && chosenTask !== null;
   const at = found >= 0 ? found : Math.min(lastAt, Math.max(0, withTask.length - 1));
-  const chosen: PendingRequest | undefined = withTask[at];
+  const shown = left ? chosenTask : (withTask[at]?.task ?? null);
+  const chosen: PendingRequest | undefined = left ? undefined : withTask[at];
+  // The row shown first counts as chosen, so it too stays when answered (set while rendering: it adjusts state, no effect).
+  const first = withTask[0];
+  if (chosenKey === null && first) choose(first, 0);
+  // From a row that left, Next is the row now in its place and Previous the one above it.
   const step = (d: number) => {
-    const next = withTask[at + d];
-    if (next) setChosen({ key: turnKey(next), at: at + d });
+    const i = left ? lastAt + (d > 0 ? 0 : -1) : at + d;
+    const next = withTask[i];
+    if (next) choose(next, i);
   };
   const stepRef = useRef(step);
   useEffect(() => {
@@ -153,7 +165,7 @@ function Requests() {
       until={until}
       full
       chosen={chosen === p}
-      onPick={split && p.task !== null ? () => setChosen({ key: turnKey(p), at: withTask.indexOf(p) }) : undefined}
+      onPick={split && p.task !== null ? () => choose(p, withTask.indexOf(p)) : undefined}
     />
   );
   return (
@@ -191,20 +203,20 @@ function Requests() {
         </ScrollFade>
       </WithSelectionBar>
       <div className="hidden min-w-0 flex-1 flex-col @3xl:flex">
-        {chosen && chosen.task !== null ? (
+        {shown !== null ? (
           <>
             <div className="flex h-9 shrink-0 items-center justify-end gap-1 border-b border-border px-3 text-xs text-muted tabular-nums">
               <span className="mr-1">
-                {at + 1} / {withTask.length}
+                {left ? '–' : at + 1} / {withTask.length}
               </span>
-              <IconButton label="Previous (k)" onClick={() => step(-1)} disabled={at === 0}>
+              <IconButton label="Previous (k)" onClick={() => step(-1)} disabled={(left ? lastAt : at) === 0}>
                 <ChevronUp size={14} />
               </IconButton>
-              <IconButton label="Next (j)" onClick={() => step(1)} disabled={at === withTask.length - 1}>
+              <IconButton label="Next (j)" onClick={() => step(1)} disabled={(left ? lastAt : at + 1) >= withTask.length}>
                 <ChevronDown size={14} />
               </IconButton>
             </div>
-            <TaskTab key={chosen.task} id={chosen.task} />
+            <TaskTab key={shown} id={shown} />
           </>
         ) : (
           r.loaded && <p className="m-auto text-sm text-muted">No task to show.</p>
