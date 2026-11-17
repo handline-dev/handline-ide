@@ -174,12 +174,16 @@ export class TaskStore {
 
   list(p: Record<string, unknown>): { items: Task[]; more: boolean; next?: string } {
     const byClose = p.order === 'closed';
+    const byDecided = p.order === 'decided';
+    const keyed = byClose || byDecided;
+    const since = p.decided_since === undefined ? null : String(p.decided_since);
+    if (byDecided && since === null) throw invalidParams('order decided needs decided_since', 'order');
     let ids: Set<number> | null = null;
     if (p.ids !== undefined) {
       if (!Array.isArray(p.ids) || p.ids.length > 200 || !p.ids.every((n) => Number.isInteger(n)))
         throw invalidParams('ids is a list of at most 200 task numbers', 'ids');
       for (const k of ['before', 'cursor'] as const) if (p[k] !== undefined) throw invalidParams(`ids does not go with ${k}`, k);
-      if (byClose) throw invalidParams('ids does not go with order closed', 'order');
+      if (keyed) throw invalidParams(`ids does not go with order ${String(p.order)}`, 'order');
       ids = new Set(p.ids as number[]);
     }
     const limit = Math.min(Number(p.limit ?? (ids ? ids.size : 50)), 200);
@@ -187,13 +191,15 @@ export class TaskStore {
       throw invalidParams('order closed needs state done, discarded or closed', 'order');
     if (p.state === 'closed' && !byClose) throw invalidParams('state closed needs order closed', 'order');
     const whole = p.state === 'open' || p.state === 'draft';
-    if (byClose && p.before !== undefined) throw invalidParams('order closed pages by cursor, not before', 'before');
-    if (!byClose && p.cursor !== undefined) throw invalidParams('cursor goes with order closed', 'cursor');
-    const from = byClose && p.cursor !== undefined ? this.closedFrom(String(p.cursor)) : null;
+    if (keyed && p.before !== undefined) throw invalidParams(`order ${String(p.order)} pages by cursor, not before`, 'before');
+    if (!keyed && p.cursor !== undefined) throw invalidParams('cursor goes with order closed or decided', 'cursor');
+    const key = (r: Row) => (byDecided ? (r.decided?.at ?? '') : (r.done ?? ''));
+    const from = keyed && p.cursor !== undefined ? this.keyFrom(String(p.cursor)) : null;
     let rows = this.rows.filter(
       (r) =>
         (p.all === true ||
           ids !== null ||
+          since !== null ||
           p.under !== undefined ||
           p.state === 'done' ||
           p.state === 'discarded' ||
@@ -210,22 +216,23 @@ export class TaskStore {
         (p.parent === undefined || r.parent === p.parent) &&
         (p.under === undefined || this.below(Number(p.under), r)) &&
         (!ids || ids.has(r.id)) &&
+        (since === null || (r.decided !== undefined && r.decided !== null && r.decided.at >= since)) &&
         (p.before === undefined || r.id < Number(p.before)) &&
-        (!from || (r.done ?? '') < from.at || ((r.done ?? '') === from.at && r.id < from.id)),
+        (!from || key(r) < from.at || (key(r) === from.at && r.id < from.id)),
     );
-    rows = rows.sort((a, b) => (byClose ? (b.done ?? '').localeCompare(a.done ?? '') : 0) || b.id - a.id);
+    rows = rows.sort((a, b) => (keyed ? key(b).localeCompare(key(a)) : 0) || b.id - a.id);
     const page = whole ? rows : rows.slice(0, limit);
     const last = page[page.length - 1];
     const more = !whole && rows.length > limit;
     return {
       items: page.map((r) => this.view(r)),
       more,
-      ...(byClose && more && last ? { next: btoa(`${last.done ?? ''}|${last.id}`) } : {}),
+      ...(keyed && more && last ? { next: btoa(`${key(last)}|${last.id}`) } : {}),
     };
   }
 
-  /** The close time and id a closed-order cursor stands for. */
-  private closedFrom(cursor: string): { at: string; id: number } {
+  /** The close or decision time and id a closed- or decided-order cursor stands for. */
+  private keyFrom(cursor: string): { at: string; id: number } {
     try {
       const [at, id] = atob(cursor).split('|');
       if (at !== undefined && Number(id) > 0) return { at, id: Number(id) };

@@ -2255,7 +2255,7 @@
      "required": false,
      "schema": {
       "$ref": "#/components/schemas/Timestamp",
-      "description": "Only the tasks the founder decided on since then (a turn of his given back with a comment; Task.decided), open and closed alike (all is implied); within the caller's scope, newest first by id and paged as without it."
+      "description": "Only the tasks the founder decided on since then (a turn of his given back with a comment; Task.decided), open and closed alike (all is implied); within the caller's scope, newest first by id and paged as without it, or by the decision with order decided."
      }
     },
     {
@@ -2267,7 +2267,7 @@
        "type": "integer"
       },
       "maxItems": 200,
-      "description": "Only these tasks, at most 200, newest id first (all is implied; the caller's scope still holds). An id that is not found or out of scope is left out, never an error. limit defaults to the number of ids. Not with before, cursor or order closed: bad_request."
+      "description": "Only these tasks, at most 200, newest id first (all is implied; the caller's scope still holds). An id that is not found or out of scope is left out, never an error. limit defaults to the number of ids. Not with before, cursor or order closed or decided: bad_request."
      }
     },
     {
@@ -2275,7 +2275,7 @@
      "required": false,
      "schema": {
       "type": "integer",
-      "description": "Return rows older than this id. Not with order closed: that pages by cursor."
+      "description": "Return rows older than this id. Not with order closed or decided: those page by cursor."
      }
     },
     {
@@ -2285,9 +2285,10 @@
       "type": "string",
       "enum": [
        "id",
-       "closed"
+       "closed",
+       "decided"
       ],
-      "description": "id (the default): newest id first. closed: newest close first, by (the time it was done or discarded, id); only with state done, discarded or closed, else bad_request. A task old by id but closed today comes first."
+      "description": "id (the default): newest id first. closed: newest close first, by (the time it was done or discarded, id); only with state done, discarded or closed, else bad_request. A task old by id but closed today comes first. decided: newest Task.decided first, in the order the decisions were made (ties by id); only with decided_since, else bad_request."
      }
     },
     {
@@ -2295,7 +2296,7 @@
      "required": false,
      "schema": {
       "type": "string",
-      "description": "With order closed: the `next` of the previous page, in place of before. Opaque; a client never builds one. A cursor with any other order, or a garbled one, is bad_request."
+      "description": "With order closed or decided: the `next` of the previous page, in place of before. Opaque; a client never builds one. A cursor with any other order, or a garbled one, is bad_request."
      }
     },
     {
@@ -2385,7 +2386,7 @@
         },
         "next": {
          "type": "string",
-         "description": "With order closed and more true: the cursor of the next page. Absent otherwise."
+         "description": "With order closed or decided and more true: the cursor of the next page. Absent otherwise."
         }
        },
        "required": [
