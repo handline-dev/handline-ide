@@ -348,8 +348,8 @@ func contains(xs []string, x string) bool {
 }
 
 // SandboxOn is whether the sandbox is on: what its row's sandbox says when it is set, else the founder's
-// default, which is on once the protected switch sandbox_default reads "on" (an agent cannot write the store, and the roster files are in
-// every session's denyWrite) and off before.
+// default, which is on once the protected switch sandbox_default reads "on" (an agent cannot write the store, which holds its
+// instructions) and off before.
 func (r *Roster) SandboxOn(agent string, cfg Config) bool {
 	if v, ok := cfg["sandbox"].(bool); ok {
 		return v

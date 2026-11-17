@@ -68,6 +68,13 @@ func (p *Parts) Lifecycle(cfg Config, lc LifecycleConfig) *Lifecycle {
 	for _, err := range errs {
 		cfg.Log("  team rules: not moved to the peers wording: %v", err)
 	}
+	moved, errs := team.ImportInstructions(home, q) // after MigratePeerRules, which still rewrites the files
+	if len(moved) > 0 {
+		cfg.Log("  instructions: %d files moved into the database", len(moved))
+	}
+	for _, err := range errs {
+		cfg.Log("  instructions: a file not moved into the database: %v", err)
+	}
 	var founderTyped func(agent string) bool // the founder's words typed at the agents the peer inbox reaches
 	if cfg.FounderTyped {
 		founderTyped = p.Peer
@@ -99,10 +106,10 @@ func (p *Parts) Lifecycle(cfg Config, lc LifecycleConfig) *Lifecycle {
 		},
 		TeamRules: func(agent string) []string {
 			t := routing()
-			if err := team.SeedRules(home, t); err != nil {
+			if err := team.SeedRules(q, t, nowOf(cfg.Now)().Unix()); err != nil {
 				cfg.Log("  team rules: not seeded: %v", err)
 			}
-			return team.Rules(home, agent, t, keptRules.Block)
+			return team.Rules(q, agent, t, keptRules.Block)
 		},
 		Held: func(agent string) team.Held {
 			t := routing()

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/names"
 	"github.com/handline/handline/go/kit/paths"
@@ -95,9 +96,12 @@ func TestRegisterMakesTheWorkspaceAndItsLeadAndReadsBack(t *testing.T) {
 	if tm.ContactOf("shop") != k("shop") || tm.TeamOf(k("shop.ui")) != "shop" {
 		t.Fatalf("shop's contact %q, shop.ui's workspace %q", tm.ContactOf("shop"), tm.TeamOf(k("shop.ui")))
 	}
-	for _, f := range []string{"ROLE.md", "base.md", "memory"} {
-		if _, err := os.Stat(filepath.Join(paths.AgentDir(home, "shop.ui"), f)); err != nil {
-			t.Error(err)
+	if _, err := os.Stat(filepath.Join(paths.AgentDir(home, "shop.ui"), "memory")); err != nil {
+		t.Error(err)
+	}
+	for _, part := range []string{db.PartRole, db.PartBase} {
+		if in, err := db.CurrentInstruction(r.DB, k("shop.ui"), part); err != nil || in == nil || in.Actor != SeedActor {
+			t.Errorf("%s: %+v %v", part, in, err)
 		}
 	}
 	if got := paths.ListAgents(home); strings.Join(got, ",") != k("shop")+","+k("shop.ui") {

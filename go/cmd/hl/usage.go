@@ -51,7 +51,7 @@ var usages = map[string][2]string{
 	"propose retire":   {`hl propose retire <agent> --why "<why>" (refused when applied while a worktree of the agent holds work)`, `hl propose retire old.agent --why "its work moved to new.agent"`},
 	"propose rename":   {`hl propose rename <agent> --to <new name> --why "<why>" [--team T]`, `hl propose rename shop.sea --to shop.ocean --why "clearer name"`},
 	"propose team":     {`hl propose team <manager> --member <name> ... --repo PATH --why "<why>"`, `hl propose team shop --member sea --member shore --repo /code/shop --why "a storefront team"`},
-	"propose context":  {`hl propose context <agent> [--role-file PATH] [--base-file PATH] --why "<why>"`, `hl propose context shop.sea --role-file role.md --why "its role grew"`},
+	"propose context":  {`hl propose context <agent> [--role-file PATH] [--base-file PATH] [--rules-file PATH (its workspace's rules)] --why "<why>"`, `hl propose context shop.sea --role-file role.md --why "its role grew"`},
 	"propose schedule": {`hl propose schedule <agent> --cron "<expr>" --message "<text>" [--was "<old cron>" [--was-message "<old text>"]] | --remove --was "<cron>" --why "<why>"`, `hl propose schedule shop.sea --cron "0 9 * * 1" --message "Review last week's open PRs" --why "a weekly review nobody remembers"`},
 	"propose run":      {`hl propose run "<command>" [--cwd PATH] --why "<why>" (the founder's approve runs it once in a terminal window in PATH, default here; you are told how it ended)`, `hl propose run "rm -r build" --why "frees 2 GB"`},
 	"propose list":     {`hl propose list [--json] [--all]`, `hl propose list`},

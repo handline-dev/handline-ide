@@ -11,8 +11,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/addr"
 
+	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/internal/adminwrites"
 	"github.com/handline/handline/go/internal/prefs"
@@ -44,7 +46,8 @@ func (e *Env) roleOf(p step, with string) string {
 }
 
 func (e *Env) register(name string, p step, repo, role string) error {
-	_, err := e.rosterIn(p).Register(name, team.RegisterOpts{Role: role, Repo: repo, Model: strPtr(p.str("model")), Effort: strPtr(p.str("effort")),
+	_, err := e.rosterIn(p).Register(name, team.RegisterOpts{Role: role, Repo: repo, By: p.str("requested_by"), Approver: actor.OwnerKey,
+		Model: strPtr(p.str("model")), Effort: strPtr(p.str("effort")),
 		Vendor: strPtr(p.str("vendor")), Account: strPtr(team.PinFor(e.Home, p.str("vendor")))})
 	return err
 }
@@ -326,6 +329,15 @@ func (e *Env) doSettings(p step) (bool, string, error) {
 	}
 	r := e.rosterIn(p)
 	ok, said := r.SaveSettings(agent, changes, idleClose{e, r})
+	if ok { // the restart that applies it names the proposer
+		key, err := paths.AgentKeyIn(p.tx, agent)
+		if err == nil && key != "" {
+			err = db.SetMeta(p.tx, db.SettingsByMeta(key), p.str("requested_by"))
+		}
+		if err != nil {
+			return false, "", err
+		}
+	}
 	return ok, said, nil
 }
 
@@ -335,18 +347,16 @@ func (e *Env) SetByAgent(agent string, values map[string]string, speaker string)
 	return r.SetByAgent(e.DB, agent, values, speaker, "", idleMinutes, idleClose{e, r})
 }
 
-var contextFiles = map[string]bool{"ROLE.md": true, "base.md": true}
-
 func contextProblem(texts [][2]string) string {
 	if len(texts) == 0 {
-		return "name ROLE.md or base.md, with the whole new text"
+		return "name ROLE.md, base.md or rules, with the whole new text"
 	}
 	for _, t := range texts {
 		fn, text := t[0], t[1]
 		switch {
-		case !contextFiles[fn]:
-			return fmt.Sprintf("only ROLE.md and base.md can be changed this way, not %s", pyRepr(fn))
-		case strings.TrimSpace(text) == "":
+		case team.InstructionParts[fn] == "":
+			return fmt.Sprintf("only ROLE.md, base.md and rules can be changed this way, not %s", pyRepr(fn))
+		case strings.TrimSpace(text) == "" && fn != "rules": // a team may have no rules
 			return fn + " cannot be empty"
 		case textsafe.HasUnsafe(strings.NewReplacer("\t", "", "\n", "").Replace(text)):
 			return fn + " carries a control character"
@@ -355,7 +365,7 @@ func contextProblem(texts [][2]string) string {
 	return ""
 }
 
-// doContext writes exactly the files that were proposed, as the founder's own change.
+// doContext keeps exactly the texts that were proposed as new versions, by the proposer with the founder's OK.
 func (e *Env) doContext(p step) (bool, string, error) {
 	var texts [][2]string
 	for _, kv := range p.setPairs() {
@@ -373,18 +383,34 @@ func (e *Env) doContext(p step) (bool, string, error) {
 	if err != nil {
 		return false, "", err
 	}
-	dir := paths.AgentDir(e.Home, key)
-	if st, err := os.Stat(dir); key == "" || err != nil || !st.IsDir() {
+	if key == "" {
 		return false, agent + " is not an agent", nil
 	}
 	names := make([]string, len(texts))
 	for i, t := range texts {
-		if err := writeAtomic(filepath.Join(dir, t[0]), t[1]); err != nil {
+		// The proposer wrote it and the founder OK'd it: only the founder decides a proposal (decide).
+		owner := key
+		if t[0] == "rules" { // the rules of the agent's workspace
+			if owner, err = workspaceOfAgent(p.tx, key); err != nil {
+				return false, "", err
+			}
+		}
+		if _, err := db.SetInstruction(p.tx, owner, team.InstructionParts[t[0]], t[1], p.str("requested_by"), actor.OwnerKey, time.Now().Unix()); err != nil {
 			return false, "", err
 		}
 		names[i] = t[0]
 	}
 	return true, fmt.Sprintf("%s: %s replaced, from its next launch", addr.Ref(agent), strings.Join(names, ", ")), nil
+}
+
+// workspaceOfAgent is the key of the workspace the agent (its key) is in.
+func workspaceOfAgent(q db.Q, key string) (string, error) {
+	_, id, _ := actor.Parse(key)
+	var ws int64
+	if err := q.QueryRow("SELECT workspace FROM agents WHERE id = ?", id).Scan(&ws); err != nil {
+		return "", err
+	}
+	return actor.Key(actor.Workspace, ws), nil
 }
 
 // doSchedule makes exactly the schedule change that was proposed.
