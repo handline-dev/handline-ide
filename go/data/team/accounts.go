@@ -97,6 +97,13 @@ func StallWord(errType string) string {
 	return errType
 }
 
+// unusable are the errors a turn ends on that say the account itself cannot be used: one stalls it.
+var unusable = map[string]bool{"authentication_failed": true, "oauth_org_not_allowed": true, "account_on_hold": true,
+	"verification_required": true, "billing_error": true, "cloud_credential_error": true}
+
+// Unusable is whether a turn that ended on errType says the account itself cannot be used.
+func Unusable(errType string) bool { return unusable[errType] }
+
 // Stalled is the account's stall, when there is one (login_expired.json, Python's name for it). The credential is still there, so its
 // presence says nothing; its modification time does: a login writes it anew, and the stall then ends. A vendor that cannot give the
 // time keeps the stall until it is woken.

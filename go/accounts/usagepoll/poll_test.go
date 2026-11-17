@@ -134,12 +134,12 @@ func TestAFailingAccountBacksOffAndDoesNotTakeTheTick(t *testing.T) {
 		t.Errorf("first failure backs off %d", c-now)
 	}
 	// Second failure doubles; the streak caps.
-	r.p.backoff("a", now)
+	r.p.backoff("a", now, "")
 	if c, _ := db.Cursor(r.db, "usage-poll:a"); c != now+2*states.UsagePollS {
 		t.Errorf("second failure backs off %d", c-now)
 	}
 	for i := 0; i < 10; i++ {
-		r.p.backoff("a", now)
+		r.p.backoff("a", now, "")
 	}
 	if c, _ := db.Cursor(r.db, "usage-poll:a"); c != now+states.UsageFailBackoffCapS {
 		t.Errorf("cap: %d", c-now)
