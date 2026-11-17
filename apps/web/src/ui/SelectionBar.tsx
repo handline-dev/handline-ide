@@ -1,5 +1,5 @@
 import { X } from 'lucide-react';
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { IconButton } from '#src/ui/IconButton.tsx';
 
 /** What a list's scroll area keeps free under its last row while the bar floats over it, so no row stays hidden behind it. */
@@ -12,16 +12,19 @@ export function WithSelectionBar({
   onClear,
   actions,
   className = '',
+  style,
   children,
 }: {
   count: number;
   onClear: () => void;
   actions: ReactNode;
   className?: string;
+  style?: CSSProperties;
   children: ReactNode;
 }) {
   return (
     <div
+      style={style}
       className={`relative flex min-h-0 min-w-0 flex-col ${className}`}
       onKeyDown={(e) => {
         if (e.key !== 'Escape' || count === 0 || e.defaultPrevented) return;
