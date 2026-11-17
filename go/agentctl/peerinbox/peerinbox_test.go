@@ -513,6 +513,24 @@ func TestAPasteTheSessionCollapsedIsDeliveredByItsText(t *testing.T) {
 	}
 }
 
+// Words a person had left in the input box go ahead of the typed line, as one prompt: it was read.
+func TestATypedPromptAfterADraftInTheBoxIsDelivered(t *testing.T) {
+	r := newRig(t)
+	res := r.s.Type(context.Background(), r.sess, "이 부분만 서브에이전트에게 시킬수있을까?", func(text string) error {
+		return r.typed(false)("좋아 진행." + text)
+	})
+	if res.Kind != Delivered {
+		t.Fatalf("%+v", res)
+	}
+	r = newRig(t)
+	if res = r.s.Type(context.Background(), r.sess, "hi", func(string) error { return r.typed(false)("hi there") }); res.Kind != NotDelivered {
+		t.Fatalf("a prompt that only begins with it: %+v", res)
+	}
+	if line := `{"type":"user","origin":{"kind":"human"},"message":{"role":"user","content":"sushi"}}`; ShowsTyped(line, "hi") {
+		t.Fatal("a whole transcript's earlier prompt that ends with the words is not them")
+	}
+}
+
 func TestAPromptThatCouldNotBeTypedIsNotDelivered(t *testing.T) {
 	r := newRig(t)
 	res := r.s.Type(context.Background(), r.sess, "hi", func(string) error { return errors.New("a dialog is open on its screen") })
