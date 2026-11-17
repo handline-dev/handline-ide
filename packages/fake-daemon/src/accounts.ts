@@ -77,6 +77,14 @@ export class FakeAccounts {
     } = a;
     this.host.emit('accounts', 'account.changed', { title: a.label, data: row });
   }
+  /** The daemon's usage look finding the account's usage moved: account.changed carries the row with the usage and roster fields, as
+   * accounts.list {usage, roster} shows it, without the email every role would see. */
+  usageMoved(name: string, patch: Partial<Account>): void {
+    const r = this.find(name);
+    Object.assign(r, patch);
+    const { email: _e, ...row } = this.view(r);
+    this.host.emit('accounts', 'account.changed', { title: r.label, data: row });
+  }
   private agentsOn(account: string): string[] {
     return [...this.host.sessions.values()].filter((s) => s.fx.account === account).map((s) => s.fx.name);
   }

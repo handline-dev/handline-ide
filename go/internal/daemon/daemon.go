@@ -135,6 +135,7 @@ type Daemon struct {
 	acctMu    sync.Mutex        // one account.changed is made and published at a time, so the topic gets a login's moves in order
 	acctSeq   map[string]uint64 // the number of the last move published for each account
 	prompts   *prompts.Env
+	usageSeen map[string]string // the usage loop's own: each account's row as last told the accounts topic (usageKey); nil before the first look
 	tchan     *termchan.Env     // the terminal channel and the input hold
 	res       *sysres.Sampler   // what the machine and each agent use; nil when the daemon does not watch
 	load      *procload.Tracker // every process and whose it is; nil when the daemon does not watch
@@ -338,6 +339,8 @@ func Start(cfg Config) (*Daemon, error) {
 	}()
 	d.wg.Add(1)
 	go d.healthLoop()
+	d.wg.Add(1)
+	go d.usageLoop()
 	if cfg.Watch {
 		proposalSignature := watcher.ProposalSignature(cfg.Home)
 		emit := d.hub.Append

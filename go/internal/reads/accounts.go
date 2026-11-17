@@ -109,7 +109,20 @@ func (e *Env) accountsList(c *rpc.Conn, params map[string]any) (any, error) {
 		return nil, err
 	}
 	// The email is the founder's to see, never an agent's: it would reach their transcripts and what they send.
-	founder := c != nil && c.Caller.Role == "owner"
+	rows, err := e.accounts(withUsage, withRoster, c != nil && c.Caller.Role == "owner")
+	if err != nil {
+		return nil, err
+	}
+	accts := make([]any, len(rows))
+	for i, r := range rows {
+		accts[i] = r
+	}
+	return map[string]any{"accounts": accts}, nil
+}
+
+// accounts are accounts.list's rows; withEmail adds the email.
+func (e *Env) accounts(withUsage, withRoster, withEmail bool) ([]map[string]any, error) {
+	var err error
 	recorded := team.Accounts{Home: e.Home}
 	v := e.accountView()
 	var loads map[string]*usage.Load
@@ -131,15 +144,16 @@ func (e *Env) accountsList(c *rpc.Conn, params map[string]any) (any, error) {
 			return nil, err
 		}
 	}
-	var accts []any
-	for _, a := range paths.ListAccounts(e.Home) {
+	names := paths.ListAccounts(e.Home)
+	accts := make([]map[string]any, 0, len(names))
+	for _, a := range names {
 		acct := v.of(a)
 		if withRoster {
 			if err := v.addRoster(acct, a, midTurn); err != nil {
 				return nil, err
 			}
 		}
-		if founder {
+		if withEmail {
 			acct["email"] = nil
 			if email := recorded.Email(a); email != "" {
 				acct["email"] = email
@@ -151,11 +165,12 @@ func (e *Env) accountsList(c *rpc.Conn, params map[string]any) (any, error) {
 		}
 		accts = append(accts, acct)
 	}
-	if accts == nil {
-		accts = []any{}
-	}
-	return map[string]any{"accounts": accts}, nil
+	return accts, nil
 }
+
+// AccountsWithUsage is every account as accounts.list {usage, roster} shows it to anyone but the founder (no email): what the accounts
+// topic sends when an account's usage moves.
+func (e *Env) AccountsWithUsage() ([]map[string]any, error) { return e.accounts(true, true, false) }
 
 // addRoster adds agents_assigned, agents_running (ActiveByAccount) and agents_background (none mid-turn). An
 // agent mid-turn counts on the account it runs on, whatever its view says.
