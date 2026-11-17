@@ -405,7 +405,7 @@ func TestTeamGetIsTheCallersWorkspace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if a := keys(got, "agents"); len(a) != 3 || !slices.Contains(a, shop+"=shop") {
+	if a := keys(got, "agents"); len(a) != 3 || !slices.Contains(a, shop+"=shop/lead") {
 		t.Fatalf("the app's agents: %v", a)
 	}
 }

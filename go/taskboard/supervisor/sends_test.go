@@ -32,7 +32,7 @@ func TestSayVerbQueuesAndTypesAtOnce(t *testing.T) {
 	if !out.OK || r.ids(out.Msg) != "queued as #1 for bob" {
 		t.Fatalf("%+v", out)
 	}
-	if !strings.Contains(r.term.last(), "#1 from alice, waiting for you:\npsst") {
+	if !strings.Contains(r.term.last(), "#1 from alice/lead, waiting for you:\npsst") {
 		t.Fatalf("%q", r.term.last())
 	}
 	if out := r.say(SayVerbIn{Target: r.k(("bob")), Body: "x"}); out.OK || r.named(out.Msg) != noWho {
@@ -97,7 +97,7 @@ func TestNotifyCancelledVerbOnlyForADeliveredRequestClosedUnderIt(t *testing.T) 
 	}
 	r.term.typed = nil
 	ok, msg, _ := r.NotifyCancelledVerb(r.DB, rid)
-	if !ok || msg != Handed || !strings.Contains(r.term.last(), "#1 from alice was cancelled: withdrawn by the founder") {
+	if !ok || msg != Handed || !strings.Contains(r.term.last(), "#1 from alice/lead was cancelled: withdrawn by the founder") {
 		t.Fatalf("%v %q %q", ok, msg, r.term.typed)
 	}
 	_ = plan

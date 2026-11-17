@@ -22,6 +22,7 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/actor"
+	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/kit/gitrun"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/version"
@@ -893,7 +894,7 @@ func (l *Launcher) worktreesLine(agent string) (string, error) {
 // handoff, which is supposed to differ every time this agent is parked. Fingerprint hashes it; the rules follow it in ContextFor.
 func (l *Launcher) staticPreamble(agent string) (string, error) {
 	parts := []string{
-		fmt.Sprintf("You are `%s`, one agent in a Handline team. Your name is also in $HANDLINE_AGENT.", agent),
+		fmt.Sprintf("You are `%s`, one agent in a Handline team.", addr.For(l.Q, agent, agent)),
 		"Stay inside your own worktree. To read another branch's version of a file, use `git show <ref>:<path>` - it needs nothing outside the worktree. Copying a file out to /tmp to read it stops you on a permission prompt only a human can answer, and you will sit there until one does.",
 		"On a long request, keep `hl progress \"done: ... left: ...\"` current: your handoff carries it to the session that takes over.",
 	}
@@ -981,13 +982,7 @@ func (l *Launcher) yourTeam(agent string) string {
 	}
 	ws := t.TeamOf(agent)
 	contact := t.ContactOf(ws)
-	label := func(key string) string { // a lead is called by its workspace's name, as hl team shows it
-		m := t.Agents[key]
-		if m.Lead || m.Name == "" {
-			return "`" + key + "` (" + m.Workspace + ")"
-		}
-		return "`" + key + "` (" + m.Name + ")"
-	}
+	label := func(key string) string { return "`" + addr.For(l.Q, agent, key) + "`" } // by name, as hl team shows it
 	lines := []string{"# Your team"}
 	var peers []string
 	for _, n := range t.Members(ws) {

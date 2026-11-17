@@ -22,7 +22,7 @@ func TestTheTellerTypesTheMemoSayAndSendsAQueuedTaskToAFreeOwner(t *testing.T) {
 	}
 	r.term.typed = nil
 	r.MemoChanged(tid, 0, r.k(("alice")), "added", "mind the cache", true, nil)
-	if !strings.Contains(r.term.last(), "T1 comment by alice: mind the cache") {
+	if !strings.Contains(r.term.last(), "T1 comment by alice/lead: mind the cache") {
 		t.Fatalf("%q", r.term.last())
 	}
 	if msg := r.namedQ(9, r.k(("human")), true); r.named(msg) != "task T9 is queued (human)" {
@@ -230,7 +230,7 @@ func TestTheTellerSendsATaskThatAnEditGaveToANewOwnerAndTellsTheOldOneToStop(t *
 	if cur, _, _ := db.CurrentTask(r.DB, r.k(("alice"))); cur != tid {
 		t.Fatalf("alice holds %d", cur)
 	}
-	if !strings.Contains(strings.Join(r.term.typed, "\n"), "T1 moved to @alice by @human - stop work on it") {
+	if !strings.Contains(strings.Join(r.term.typed, "\n"), "T1 moved to @alice/lead by @human - stop work on it") {
 		t.Fatalf("the old owner is told to stop: %q", r.term.typed)
 	}
 }

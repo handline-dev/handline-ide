@@ -84,8 +84,8 @@ type Refusal struct{ Msg string }
 
 func (r *Refusal) Error() string { return r.Msg }
 
-// Resolve is the key word names for c, tried in this order: human (c's owner), a key that names a row, an agent of c's workspace, a
-// workspace (its lead), a handle. Anything else is a *Refusal.
+// Resolve is the key word names for c, tried in this order: human (c's owner), a key that names a row, an agent of c's workspace,
+// "workspace/agent", a workspace (its lead), an agent whose name no other agent has, a handle. Anything else is a *Refusal.
 func Resolve(q Q, c Who, word string) (string, error) {
 	if word == "human" {
 		return ownerOf(q, c)
@@ -101,7 +101,9 @@ func Resolve(q Q, c Who, word string) (string, error) {
 		kind  actor.Kind
 	}{
 		{"SELECT id FROM agents WHERE workspace = ? AND name = ?", []any{c.Workspace, word}, actor.Agent},
+		{"SELECT a.id FROM agents a JOIN workspaces w ON w.id = a.workspace WHERE w.name || '/' || a.name = ?", []any{word}, actor.Agent},
 		{"SELECT lead FROM workspaces WHERE name = ? AND lead IS NOT NULL", []any{word}, actor.Agent},
+		{"SELECT MIN(id) FROM agents WHERE name = ? HAVING COUNT(*) = 1", []any{word}, actor.Agent},
 		{"SELECT id FROM people WHERE handle = ?", []any{word}, actor.Person},
 	}
 	for _, t := range try {
@@ -194,9 +196,9 @@ func refusal(q Q, c Who, word string) error {
 	return &Refusal{fmt.Sprintf("%q names no one you can reach: use %s", word, strings.Join(parts, ", or "))}
 }
 
-// Name is the word r would use for key: an agent of r's workspace by its name, another workspace's lead by that workspace's name,
-// another workspace's agent as "name (workspace)" (display only: it does not resolve), r's owner or r itself as a person as human, any
-// other person by handle or display name. A key that names no row is written as it is.
+// Name is the word r would use for key: an agent by its name, as "workspace/name" when it is of another workspace than r's and another
+// agent has its name; r's owner or r itself as a person as human, any other person by handle or display name. Each resolves back for r.
+// A key that names no row is written as it is. A bare name resolves back because no agent may be named as a workspace (names.Check).
 func Name(q Q, r Who, key string) string {
 	k, id, ok := actor.Parse(key)
 	if !ok {
@@ -211,17 +213,12 @@ func Name(q Q, r Who, key string) string {
 		}
 		return key
 	case actor.Agent:
-		var ws, lead int64
+		var ws, same int64
 		var wsName string
-		err = q.QueryRow(`SELECT a.name, a.workspace, w.name, COALESCE(w.lead, 0) FROM agents a JOIN workspaces w ON w.id = a.workspace
-			WHERE a.id = ?`, id).Scan(&name, &ws, &wsName, &lead)
-		switch {
-		case err != nil:
-		case ws == r.Workspace:
-		case lead == id:
-			name = wsName
-		default:
-			name += " (" + wsName + ")"
+		err = q.QueryRow(`SELECT a.name, a.workspace, w.name, (SELECT COUNT(*) FROM agents b WHERE b.name = a.name)
+			FROM agents a JOIN workspaces w ON w.id = a.workspace WHERE a.id = ?`, id).Scan(&name, &ws, &wsName, &same)
+		if err == nil && ws != r.Workspace && same > 1 {
+			name = wsName + "/" + name
 		}
 	case actor.Person:
 		if owner, _ := ownerOf(q, r); owner == key {
@@ -241,8 +238,8 @@ func Name(q Q, r Who, key string) string {
 	return name
 }
 
-// Address is the word the reader whose key is reader can type for key: its Name when that resolves back to key, else the key itself (an
-// agent of another workspace, the daemon), which resolves too.
+// Address is the word the reader whose key is reader can type for key: its Name when that resolves back to key, else the key itself (the
+// daemon, a key with no row), which resolves too.
 func Address(q Q, reader, key string) string {
 	r, err := Of(q, reader, "")
 	if err != nil {
@@ -277,7 +274,7 @@ func For(q Q, reader, key string) string {
 var (
 	refRe = regexp.MustCompile(`<@([a-z]+[0-9]*)>`)
 	// MentionRe is an @word where a mention may start: not inside a word or an address like a@b.
-	MentionRe = regexp.MustCompile(`(^|[^A-Za-z0-9_.@<-])@([A-Za-z0-9][A-Za-z0-9_.-]*)`)
+	MentionRe = regexp.MustCompile(`(^|[^A-Za-z0-9_.@<-])@([A-Za-z0-9][A-Za-z0-9_.-]*(?:/[A-Za-z0-9][A-Za-z0-9_.-]*)?)`)
 )
 
 // Render is text for r: each <@key> becomes @ and the name r would use for that key.
@@ -311,6 +308,11 @@ func Mentions(q Q, writer Who, text string) (string, error) {
 		s := MentionRe.FindStringSubmatch(m)
 		word := strings.TrimRight(s[2], ".-") // a sentence's full stop is not part of the name
 		key, err := Resolve(q, writer, word)
+		// "@lead/x" with a path after the name: the name before it. Not a workspace's name, so a misspelt "@blog/desginer" stays text.
+		if before, _, slashed := strings.Cut(word, "/"); slashed && err != nil && !isWorkspace(q, before) {
+			word = before
+			key, err = Resolve(q, writer, word)
+		}
 		var refused *Refusal
 		if errors.As(err, &refused) || key == "" {
 			return m
@@ -322,6 +324,11 @@ func Mentions(q Q, writer Who, text string) (string, error) {
 		return s[1] + Ref(key) + s[2][len(word):]
 	})
 	return out, failed
+}
+
+func isWorkspace(q Q, name string) bool {
+	var n int
+	return q.QueryRow("SELECT COUNT(*) FROM workspaces WHERE name = ?", name).Scan(&n) == nil && n > 0
 }
 
 // Refs is each key text names with <@key>, once, in order.

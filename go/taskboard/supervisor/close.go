@@ -34,7 +34,7 @@ func (e *Env) WithdrawWrite(q db.Q, after *After, rid int64, requester, reason s
 		}
 	}
 	tooLate := fmt.Sprintf("%s was already delivered to %s - too late to withdraw; tell %s with a message (`hl say %s \"...\" --parent %s`)%s",
-		db.MsgName(q, rid), row.Target, row.Target, row.Target, db.MsgName(q, rid), release)
+		db.MsgName(q, rid), addr.Ref(row.Target), addr.Ref(row.Target), addr.Address(q, requester, row.Target), db.MsgName(q, rid), release)
 	if row.DeliveredAt.Valid {
 		return false, tooLate, nil
 	}

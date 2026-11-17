@@ -237,7 +237,7 @@ func TestStoppedAgentsAreToldToWhoeverWaitsOnThemOncePerSpell(t *testing.T) {
 	r.newTask(r.k("bob"), r.k(("alice")), "bob's job")
 	db.SetStalled(r.DB, r.k(("bob")), "send_dialog", "cannot get past a dialog: Trust?", nil)
 	r.must(r.SweepStopped(r.clock))
-	if got := r.term.last(); !strings.Contains(r.named(got), "bob is stalled: cannot get past a dialog: Trust?") {
+	if got := r.term.last(); !strings.Contains(r.named(got), "bob/lead is stalled: cannot get past a dialog: Trust?") {
 		t.Fatalf("%q", got)
 	}
 	r.term.typed = nil
@@ -249,7 +249,7 @@ func TestStoppedAgentsAreToldToWhoeverWaitsOnThemOncePerSpell(t *testing.T) {
 	r.must(r.SweepStopped(r.clock + 2))
 	db.SetAgentState(r.DB, r.k(("bob")), "STALLED", 0, "gone wrong")
 	r.must(r.SweepStopped(r.clock + 3))
-	if got := r.term.last(); !strings.Contains(r.named(got), "bob is FATAL: gone wrong") {
+	if got := r.term.last(); !strings.Contains(r.named(got), "bob/lead is FATAL: gone wrong") {
 		t.Fatalf("a new spell is told afresh: %q", got)
 	}
 }
