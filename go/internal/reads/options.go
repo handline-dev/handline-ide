@@ -1,11 +1,10 @@
 package reads
 
 import (
-	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 
+	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/protocol/rpc"
@@ -18,12 +17,12 @@ var validEfforts = []string{"low", "medium", "high", "xhigh", "max"}
 
 // optionsRole is rpc_options._role_line: the first line of ROLE.md that is not its own title, as one line of at most 200 characters.
 func (e *Env) optionsRole(name string) string {
-	b, err := os.ReadFile(filepath.Join(paths.AgentDir(e.Home, name), "ROLE.md"))
+	b, err := team.AgentInstruction(e.DB, name, db.PartRole)
 	if err != nil {
 		return ""
 	}
 	var lines []string
-	for _, ln := range strings.Split(string(b), "\n") {
+	for _, ln := range strings.Split(b, "\n") {
 		if strings.TrimSpace(ln) != "" {
 			lines = append(lines, strings.TrimSpace(strings.TrimLeft(strings.TrimSpace(ln), "#")))
 		}

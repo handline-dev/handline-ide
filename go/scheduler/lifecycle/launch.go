@@ -24,6 +24,7 @@ import (
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/gitrun"
 	"github.com/handline/handline/go/kit/paths"
+	"github.com/handline/handline/go/kit/version"
 	"github.com/handline/handline/go/protocol/sessiontoken"
 	"github.com/handline/handline/go/scheduler/access"
 	"github.com/handline/handline/go/scheduler/worktreepaths"
@@ -714,29 +715,6 @@ func (l *Launcher) MainRefFiles(worktree string) []string {
 	return []string{ref, ref + ".lock", packed, packed + ".lock"}
 }
 
-// RosterFiles are the files that say what each agent is told, which only the founder's path writes: every agent's ROLE.md and base.md.
-// Home is writable to a session, so these are denied by folder, plus globs so an agent made after this launch, and a name with no
-// agent (paths.Unregistered), are covered too.
-func (l *Launcher) RosterFiles() ([]string, error) {
-	keys, err := paths.AgentKeys(l.Home)
-	if err != nil {
-		return nil, err
-	}
-	dir := paths.AgentsDir(l.Home)
-	per := []string{"ROLE.md", "base.md"}
-	var out []string
-	for _, k := range keys {
-		for _, f := range per {
-			out = append(out, filepath.Join(dir, k, f))
-		}
-	}
-	for _, f := range per {
-		out = append(out, filepath.Join(dir, "*", f), filepath.Join(dir, paths.Unregistered, "*", f))
-	}
-	sort.Strings(out)
-	return out, nil
-}
-
 // HiddenMemories are the memory folders agent may not read: every other agent's, with no exception for its reports.
 func (l *Launcher) HiddenMemories(agent string) ([]string, error) {
 	keys, err := paths.AgentKeys(l.Home)
@@ -802,7 +780,7 @@ type Confined struct {
 	// Hide is what it may not read: other agents' transcripts and memories, and the key folders. AskRead is the part of Hide, the
 	// transcripts and memories, whose Read tool asks the founder instead of refusing.
 	Hide, AskRead []string
-	// NoWrite is the files that move the main branch or say who the agents are.
+	// NoWrite is the files that move the main branch.
 	NoWrite []string
 	// Lifted is the founder's grants that took a transcript or memory folder out of Hide.
 	Lifted []string
@@ -820,10 +798,6 @@ func (l *Launcher) Confinement(agent, worktree string, tr Transcripts, granted [
 	if err != nil {
 		return c, err
 	}
-	roster, err := l.RosterFiles()
-	if err != nil {
-		return c, err
-	}
 	hide = append(hide, memories...)
 	for _, g := range granted {
 		if len(access.Outside([]string{g}, hide)) < len(hide) {
@@ -832,7 +806,7 @@ func (l *Launcher) Confinement(agent, worktree string, tr Transcripts, granted [
 	}
 	c.AskRead = access.Outside(c.Lifted, hide)
 	c.Hide = append(append([]string{}, c.AskRead...), l.Tokens.HiddenFolders()...)
-	c.NoWrite = append(l.MainRefFiles(worktree), roster...)
+	c.NoWrite = l.MainRefFiles(worktree)
 	return c, nil
 }
 
@@ -918,7 +892,6 @@ func (l *Launcher) worktreesLine(agent string) (string, error) {
 // staticPreamble is the part of ContextFor that a rebuild reproduces byte for byte, but for the team rules: everything except the
 // handoff, which is supposed to differ every time this agent is parked. Fingerprint hashes it; the rules follow it in ContextFor.
 func (l *Launcher) staticPreamble(agent string) (string, error) {
-	d := paths.AgentDir(l.Home, agent)
 	parts := []string{
 		fmt.Sprintf("You are `%s`, one agent in a Handline team. Your name is also in $HANDLINE_AGENT.", agent),
 		"Stay inside your own worktree. To read another branch's version of a file, use `git show <ref>:<path>` - it needs nothing outside the worktree. Copying a file out to /tmp to read it stops you on a permission prompt only a human can answer, and you will sit there until one does.",
@@ -934,11 +907,10 @@ func (l *Launcher) staticPreamble(agent string) (string, error) {
 	if line := l.yourTeam(agent); line != "" {
 		parts = append(parts, line)
 	}
-	for _, f := range [][2]string{{"ROLE.md", "role"}, {"base.md", "standing context"}} {
-		if b, err := os.ReadFile(filepath.Join(d, f[0])); err == nil {
-			if text := strings.TrimSpace(string(b)); text != "" {
-				parts = append(parts, fmt.Sprintf("# Your %s (%s)\n%s", f[1], f[0], text))
-			}
+	// The headings name the files they came from, so that moving them into the database changed no session's fingerprint.
+	for _, f := range [][2]string{{db.PartRole, "# Your role (ROLE.md)"}, {db.PartBase, "# Your standing context (base.md)"}} {
+		if text := l.instruction(agent, f[0]); text != "" {
+			parts = append(parts, f[1]+"\n"+text)
 		}
 	}
 	return strings.Join(parts, "\n\n"), nil
@@ -1133,6 +1105,12 @@ var SandboxOffPart = sha256Hex("off")[:8]
 // even when both resume the same transcript.
 const LaunchedAt = "launched_at"
 
+// LaunchedBuild is beside the setting hashes too: the Handline build that launched it.
+const LaunchedBuild = "build"
+
+// LaunchedInstructions is beside the setting hashes too: the newest instruction version it launched with.
+const LaunchedInstructions = "instructions"
+
 // LaunchedValues is beside the setting hashes too: the settings whose value a person can read, for saying what a later launch changed.
 const LaunchedValues = "values"
 
@@ -1221,21 +1199,23 @@ func (l *Launcher) keptGrants(agent string) (string, error) {
 
 // texts are ROLE.md, base.md, the team instructions and the team rules as the next launch gives them, and the rules as read.
 func (l *Launcher) texts(agent string) (map[string]string, []string) {
-	d := paths.AgentDir(l.Home, agent)
-	file := func(name string) string {
-		b, err := os.ReadFile(filepath.Join(d, name))
-		if err != nil {
-			return ""
-		}
-		return strings.TrimSpace(string(b))
-	}
 	rules := l.Ports.TeamRules(agent)
-	return map[string]string{"ROLE.md": file("ROLE.md"), "base.md": file("base.md"), "team instructions": l.yourTeam(agent),
+	return map[string]string{"ROLE.md": l.instruction(agent, db.PartRole), "base.md": l.instruction(agent, db.PartBase), "team instructions": l.yourTeam(agent),
 		rulesPart: strings.Join(rules, "\n\n")}, rules
+}
+
+// instruction is the agent's part in force (db.PartRole, db.PartBase), "" for none or when it cannot be read.
+func (l *Launcher) instruction(agent, part string) string {
+	text, _ := team.AgentInstruction(l.Q, agent, part)
+	return text
 }
 
 // LaunchRecord is the parts as JSON, in order, with the launch's own stamp, as `launch_parts` keeps them.
 func (l *Launcher) LaunchRecord(agent string) (string, error) {
+	seen, err := db.LastInstructionID(l.Q, 0) // before the texts: a version written while they are read is one this launch may not have
+	if err != nil {
+		return "", err
+	}
 	texts, rules := l.texts(agent)
 	parts, err := l.partsOf(agent, texts, rules)
 	if err != nil {
@@ -1258,6 +1238,9 @@ func (l *Launcher) LaunchRecord(agent string) (string, error) {
 	delete(texts, rulesPart)
 	tx, _ := json.Marshal(texts)
 	items = append(items, `"`+LaunchedTexts+`": `+string(tx))
+	b, _ := json.Marshal(version.Sha)
+	items = append(items, `"`+LaunchedBuild+`": `+string(b))
+	items = append(items, `"`+LaunchedInstructions+`": `+strconv.FormatInt(seen, 10))
 	stamp := float64(l.now().UnixNano()) / 1e9
 	items = append(items, `"`+LaunchedAt+`": `+strconv.FormatFloat(stamp, 'f', -1, 64))
 	return "{" + strings.Join(items, ", ") + "}", nil
@@ -1340,6 +1323,9 @@ func (l *Launcher) whatChanged(agent string) (string, []LineChange, error) {
 			continue
 		}
 		words := k + " changed"
+		if by := l.changedBy(agent, k, old); by != "" {
+			words += " " + by
+		}
 		if before, ok := was[k]; ok {
 			words += " (" + readable(before) + " -> " + readable(now[k]) + ")"
 		} else if where := l.sourceOf(agent, k); where != "" {
@@ -1364,6 +1350,101 @@ func (l *Launcher) whatChanged(agent string) (string, []LineChange, error) {
 	return strings.Join(changed, ", "), lines, nil
 }
 
+// changedBy says who changed part since the launch old records, as "by <who>": the writers of its versions since then, a Handline update
+// for team instructions a newer build wrote, or who set a setting; "on disk" for model, effort or browser no one set through Handline.
+func (l *Launcher) changedBy(agent, part string, old map[string]json.RawMessage) string {
+	switch part {
+	case "ROLE.md", "base.md", rulesPart:
+		return l.versionsBy(agent, part, old)
+	case "team instructions":
+		var built string
+		if json.Unmarshal(old[LaunchedBuild], &built) == nil && built != version.Sha {
+			return "by Handline update " + version.Sha
+		}
+	case "model", "effort", "browser": // kept in agent.yaml alone
+		if by, _, _ := db.Meta(l.Q, db.SettingsByMeta(agent)); by != "" {
+			return "by " + l.personWords(by)
+		}
+		return "on disk"
+	}
+	return ""
+}
+
+// versionsBy is changedBy of an instruction part: who wrote each version after the launch, with the founder's OK where given. Handline's
+// own seeding of the house rules is no one's change.
+func (l *Launcher) versionsBy(agent, part string, old map[string]json.RawMessage) string {
+	var owners []string
+	if part == rulesPart {
+		if l.Ports.Routing != nil {
+			for _, ws := range team.RuleTeams(l.Q, agent, l.Ports.Routing()) {
+				if k, err := paths.WorkspaceKeyIn(l.Q, ws); err == nil && k != "" {
+					owners = append(owners, k)
+				}
+			}
+		}
+	} else if k, err := paths.AgentKeyIn(l.Q, agent); err == nil && k != "" {
+		owners = append(owners, k)
+	}
+	seen, err := launchedInstructions(l.Q, old)
+	if err != nil {
+		return ""
+	}
+	instr := team.InstructionParts[part]
+	if part == rulesPart {
+		instr = db.PartRules
+	}
+	var who []string
+	for _, o := range owners {
+		vs, err := db.InstructionsAfter(l.Q, o, instr, seen)
+		if err != nil {
+			return ""
+		}
+		for _, v := range vs {
+			if v.Actor == team.SeedActor {
+				continue
+			}
+			w := l.personWords(v.Actor)
+			if v.Approver != "" && v.Approver != v.Actor {
+				w += " with " + l.personWords(v.Approver) + "'s OK"
+			}
+			if !slices.Contains(who, w) {
+				who = append(who, w)
+			}
+		}
+	}
+	if len(who) == 0 {
+		return ""
+	}
+	return "by " + strings.Join(who, " and ")
+}
+
+// launchedInstructions is the newest instruction version the launch old records had seen: as it recorded it, or for a record from before
+// that was kept, the newest written before it launched.
+func launchedInstructions(q db.Q, old map[string]json.RawMessage) (int64, error) {
+	var seen int64
+	if json.Unmarshal(old[LaunchedInstructions], &seen) == nil {
+		return seen, nil
+	}
+	var since float64
+	_ = json.Unmarshal(old[LaunchedAt], &since)
+	return db.LastInstructionID(q, int64(since))
+}
+
+// personWords is who as the chat names it: an agent by its name, the founder as the founder, anything else as it is.
+func (l *Launcher) personWords(who string) string {
+	switch actor.KindOf(who) {
+	case actor.Agent:
+		if n, err := paths.AgentNameIn(l.Q, who); err == nil && n != "" {
+			return n
+		}
+	case actor.Person:
+		if who == actor.OwnerKey {
+			return "the founder"
+		}
+	}
+	return who
+}
+
 // sourceOf names where a person edits a part that has no value to show.
 func (l *Launcher) sourceOf(agent, part string) string {
 	switch part {
@@ -1371,7 +1452,9 @@ func (l *Launcher) sourceOf(agent, part string) string {
 		return "team.yaml, the agent list or a Handline update"
 	case rulesPart:
 		if l.Ports.Routing != nil {
-			return strings.Join(team.RuleFiles(l.Home, agent, l.Ports.Routing()), ", ")
+			if teams := team.RuleTeams(l.Q, agent, l.Ports.Routing()); len(teams) > 0 {
+				return strings.Join(teams, ", ")
+			}
 		}
 	}
 	return ""

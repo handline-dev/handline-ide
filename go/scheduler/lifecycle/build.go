@@ -283,6 +283,10 @@ func (l *Launcher) keepWhatItStartsWith(site *Site, agent string, extra []string
 	if err != nil {
 		site.warn("hl launch: could not read what changed for %s: %v", agent, err)
 	}
+	// who made the settings change is said once, by this start: a later change made on disk is not theirs
+	if err := db.SetMeta(l.Q, db.SettingsByMeta(agent), ""); err != nil {
+		site.warn("hl launch: could not clear who changed %s's settings: %v", agent, err)
+	}
 	changedLines := ""
 	if len(lines) > 0 {
 		b, _ := json.Marshal(lines)

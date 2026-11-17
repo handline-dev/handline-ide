@@ -1,11 +1,12 @@
 package team
 
 import (
-	"os"
-	"path/filepath"
+	"database/sql"
 	"reflect"
+	"strings"
 	"testing"
 
+	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/kit/storetest"
@@ -27,65 +28,80 @@ func workspaces(t *testing.T, home string, names ...string) {
 	t.Cleanup(func() { store.ForgetShared(paths.DBFile(home)) })
 }
 
-func TestTeamRulesAreTheTeamsTheAgentIsInWithText(t *testing.T) {
-	home := t.TempDir()
-	workspaces(t, home, "zeta", "alpha", "empty", "other", "nofile")
-	for name, text := range map[string]string{"zeta": "  last\n", "alpha": "\nfirst rule\n", "empty": " \n", "other": "not mine"} {
-		if err := os.MkdirAll(filepath.Dir(RulesFile(home, name)), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(RulesFile(home, name), []byte(text), 0o644); err != nil {
-			t.Fatal(err)
-		}
+// shared is home's database, as the daemon has it open.
+func shared(t *testing.T, home string) *sql.DB {
+	t.Helper()
+	d, err := store.SharedIfThere(paths.DBFile(home))
+	if err != nil || d == nil {
+		t.Fatalf("no database: %v", err)
 	}
-	tm := &Team{Teams: map[string][]string{"zeta": {"a"}, "alpha": {"b", "a"}, "empty": {"a"}, "other": {"b"}, "nofile": {"a"}}}
-	want := []string{"# Rules for team alpha\nfirst rule", "# Rules for team zeta\nlast"}
-	if got := Rules(home, "a", tm, noKept); !reflect.DeepEqual(got, want) {
-		t.Errorf("got %q", got)
+	return d
+}
+
+// setRules keeps text as the rules of workspace name, by its team.
+func setRules(t *testing.T, d *sql.DB, name, text string) {
+	t.Helper()
+	k, err := paths.WorkspaceKeyIn(d, name)
+	if err == nil {
+		_, err = db.SetInstruction(d, k, db.PartRules, text, "a1", "", 1)
 	}
-	if got := Rules(home, "a", nil, noKept); got != nil {
-		t.Errorf("no routing: %q", got)
-	}
-	if RulesFile(home, "alpha") != filepath.Join(home, "workspaces", paths.WorkspaceKey(home, "alpha"), "base.md") {
-		t.Error("a team's rules are its workspace's base.md, by key")
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 
-func TestSeedRulesWritesEachNewTeamTheDefaultOnce(t *testing.T) {
+func TestTeamRulesAreTheTeamsTheAgentIsInWithText(t *testing.T) {
+	home := t.TempDir()
+	workspaces(t, home, "zeta", "alpha", "empty", "other", "nofile")
+	d := shared(t, home)
+	for name, text := range map[string]string{"zeta": "  last\n", "alpha": "\nfirst rule\n", "empty": " \n", "other": "not mine"} {
+		setRules(t, d, name, text)
+	}
+	tm := &Team{Teams: map[string][]string{"zeta": {"a"}, "alpha": {"b", "a"}, "empty": {"a"}, "other": {"b"}, "nofile": {"a"}}}
+	want := []string{"# Rules for team alpha\nfirst rule", "# Rules for team zeta\nlast"}
+	if got := Rules(d, "a", tm, noKept); !reflect.DeepEqual(got, want) {
+		t.Errorf("got %q", got)
+	}
+	if got := Rules(d, "a", nil, noKept); got != nil {
+		t.Errorf("no routing: %q", got)
+	}
+	if got := RuleTeams(d, "a", tm); !reflect.DeepEqual(got, []string{"alpha", "zeta"}) {
+		t.Errorf("rule teams: %q", got)
+	}
+}
+
+func TestSeedRulesGivesEachNewTeamTheDefaultOnce(t *testing.T) {
 	home := t.TempDir()
 	workspaces(t, home, "a", "own", "b")
+	d := shared(t, home)
 	read := func(name string) (string, bool) {
-		b, err := os.ReadFile(RulesFile(home, name))
-		return string(b), err == nil
+		k, _ := paths.WorkspaceKeyIn(d, name)
+		in, err := db.CurrentInstruction(d, k, db.PartRules)
+		if err != nil || in == nil {
+			return "", false
+		}
+		return in.Text, true
 	}
-	if err := os.MkdirAll(filepath.Dir(RulesFile(home, "own")), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(RulesFile(home, "own"), []byte("our rule\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	setRules(t, d, "own", "our rule")
 	tm := &Team{Teams: map[string][]string{"a": {"x"}, "own": {"y"}, "nobody": {"q"}}}
-	if err := SeedRules(home, tm); err != nil {
+	if err := SeedRules(d, tm, 5); err != nil {
 		t.Fatal(err)
 	}
-	if got, _ := read("a"); got != DefaultRules {
+	if got, _ := read("a"); got != strings.TrimSpace(DefaultRules) {
 		t.Errorf("a new team is not seeded: %q", got)
 	}
-	if got, _ := read("own"); got != "our rule\n" {
+	if got, _ := read("own"); got != "our rule" {
 		t.Errorf("a team's own rules were overwritten: %q", got)
 	}
-	if _, err := os.Stat(filepath.Join(home, "workspaces", paths.Unregistered)); err == nil {
-		t.Error("a team with no workspace row was seeded under .unregistered")
-	}
-	os.Remove(RulesFile(home, "a"))
+	setRules(t, d, "a", "")
 	tm.Teams["b"] = []string{"z"}
-	if err := SeedRules(home, tm); err != nil {
+	if err := SeedRules(d, tm, 6); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := read("a"); ok {
-		t.Error("a team whose file was deleted was seeded again")
+	if got, _ := read("a"); got != "" {
+		t.Errorf("a team that emptied its rules was seeded again: %q", got)
 	}
-	if got, _ := read("b"); got != DefaultRules {
+	if got, _ := read("b"); got != strings.TrimSpace(DefaultRules) {
 		t.Errorf("a team added later is not seeded: %q", got)
 	}
 }

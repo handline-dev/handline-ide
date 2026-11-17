@@ -133,7 +133,7 @@ func (r *Roster) Create(name, folder string) (string, error) {
 		return "", err
 	}
 	key := actor.Key(actor.Workspace, ws)
-	return key, seedWorkspace(r.Home, key)
+	return key, seedWorkspace(r.DB, key, time.Now().Unix())
 }
 
 // RenameWorkspace gives workspace ws (its key) the name name. Its agents' dotted names follow it; their keys, folders and rows stay.
