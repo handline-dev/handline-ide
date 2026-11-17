@@ -553,10 +553,10 @@ func TestAMoveGoesToTheMostHeadroomPastWallsAndPausesNotPastAnyCount(t *testing.
 	db.SetAgentState(q, "ann", states.Idle, 0, "")
 	db.SetClosed(q, "ann", "s-ann")
 	row, _ := db.GetAgentState(q, "ann")
-	if got := r.l.SlowestPaced(q, "ann", row, "a"); got != "b" {
+	if got := r.l.SlowestPaced(q, "ann", "a"); got != "b" {
 		t.Fatalf("the most headroom among the others that can take it: %q", got)
 	}
-	if got, why := r.l.RoomNow(q, "ann", row, "a"); got != "b" {
+	if got, why := r.l.RoomNow(q, "ann", "a"); got != "b" {
 		t.Fatalf("a person's start: %q %s", got, why)
 	}
 	if why := r.l.RoomOn(q, "ann", row, "paused"); why != "is paused" {
@@ -565,7 +565,7 @@ func TestAMoveGoesToTheMostHeadroomPastWallsAndPausesNotPastAnyCount(t *testing.
 	for _, a := range []string{"b", "c"} {
 		os.RemoveAll(teamtest.AccountDir(t, home, a))
 	}
-	if got, why := r.l.RoomElsewhere(q, "ann", row, map[string]string{"a": ""}, false); got != "" || !strings.HasPrefix(why, "no account can take one more agent") {
+	if got, why := r.l.RoomElsewhere(q, "ann", map[string]string{"a": ""}, false); got != "" || !strings.HasPrefix(why, "no account can take one more agent") {
 		t.Fatalf("only walled and paused left: %q %s", got, why)
 	}
 }
@@ -782,30 +782,29 @@ func TestAMoveGoesWhereTheWeekRunsOutFirstAndAColdRepickNeedsAClearGain(t *testi
 	q := r.l.Q
 	db.SetAgentState(q, "ann", states.Idle, 0, "")
 	db.SetClosed(q, "ann", "s-ann")
-	row, _ := db.GetAgentState(q, "ann")
 	// a has the most headroom against its pace line but its week lasts longest; c's week runs out first.
 	r.l.Ports.Usage = fakeUsage{st: AccountStatus{Exists: true}, head: map[string]float64{"a": 0.3, "b": 0.1, "c": 0.05},
 		urgent: map[string]float64{"a": 0.8, "b": 1.5, "c": 2.4}}
-	if got, why := r.l.RoomElsewhere(q, "ann", row, map[string]string{"x": "not here"}, false); got != "c" {
+	if got, why := r.l.RoomElsewhere(q, "ann", map[string]string{"x": "not here"}, false); got != "c" {
 		t.Errorf("the account whose unused week runs out first: %q %q", got, why)
 	}
-	if got, _ := r.l.RoomElsewhere(q, "ann", row, map[string]string{"c": "full"}, false); got != "b" {
+	if got, _ := r.l.RoomElsewhere(q, "ann", map[string]string{"c": "full"}, false); got != "b" {
 		t.Errorf("then the next: %q", got)
 	}
 	// As a new start: c's week is the most urgent, but past the move lines it is not a first choice while b fits.
 	r.l.Ports.Usage = fakeUsage{st: AccountStatus{Exists: true}, urgent: map[string]float64{"a": 0.8, "b": 1.5, "c": 2.4},
 		unfit: map[string]int{"a": 20, "c": 5}}
-	if got, why := r.l.RoomElsewhere(q, "ann", row, nil, false); got != "b" {
+	if got, why := r.l.RoomElsewhere(q, "ann", nil, false); got != "b" {
 		t.Errorf("the one that fits, before a more urgent one that does not: %q %q", got, why)
 	}
-	if got, _ := r.l.RoomElsewhere(q, "ann", row, map[string]string{"b": "full"}, false); got != "a" {
+	if got, _ := r.l.RoomElsewhere(q, "ann", map[string]string{"b": "full"}, false); got != "a" {
 		t.Errorf("none fits: the most room under its wall: %q", got)
 	}
-	if got, why := r.l.RoomElsewhere(q, "ann", row, map[string]string{"b": "full"}, true); got != "" || !strings.Contains(why, "a: unfit") {
+	if got, why := r.l.RoomElsewhere(q, "ann", map[string]string{"b": "full"}, true); got != "" || !strings.Contains(why, "a: unfit") {
 		t.Errorf("a usage move with none that fits goes nowhere: %q %q", got, why)
 	}
 	r.l.Ports.Usage = fakeUsage{st: AccountStatus{Exists: true}, head: map[string]float64{"a": 0.3, "b": 0.1}}
-	if got, _ := r.l.RoomElsewhere(q, "ann", row, nil, false); got != "a" {
+	if got, _ := r.l.RoomElsewhere(q, "ann", nil, false); got != "a" {
 		t.Errorf("with no week readable, the most headroom as before: %q", got)
 	}
 	r.l.Ports.Usage = fakeUsage{st: AccountStatus{Exists: true}, urgent: map[string]float64{"a": 1.0, "b": 1.4, "c": 1.6}}

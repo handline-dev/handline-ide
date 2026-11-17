@@ -386,7 +386,7 @@ func (c *Conn) one(raw []byte) bool {
 			rid = v
 		}
 	}
-	call, err := c.route(msg, raw)
+	call, err := c.route(msg)
 	if err != nil {
 		return c.fail(rid, err)
 	}
@@ -448,7 +448,7 @@ type routed struct {
 	run   func() (any, error)
 }
 
-func (c *Conn) route(msg any, raw []byte) (routed, error) {
+func (c *Conn) route(msg any) (routed, error) {
 	if _, batch := msg.([]any); batch {
 		return routed{}, BadRequestError("batches are not accepted", "", BadRequest)
 	}

@@ -24,10 +24,10 @@ func TestManualSplitKeepsAnAgentOnItsAccount(t *testing.T) {
 	if got := r.l.FindRoom("ann"); got != "a" {
 		t.Fatalf("its own account, not the pick: %q", got)
 	}
-	if got := r.l.SlowestPaced(r.l.Q, "ann", nil, "a"); got != "" {
+	if got := r.l.SlowestPaced(r.l.Q, "ann", "a"); got != "" {
 		t.Fatalf("a full account sends it elsewhere: %q", got)
 	}
-	if got, _ := r.l.RoomNow(r.l.Q, "ann", nil, "a"); got != "b" {
+	if got, _ := r.l.RoomNow(r.l.Q, "ann", "a"); got != "b" {
 		t.Fatalf("a person's start off its account still goes: %q", got)
 	}
 	r.l.Ports.CurrentAccount = func(db.Q, string) string { return "gone" }
@@ -39,7 +39,7 @@ func TestManualSplitKeepsAnAgentOnItsAccount(t *testing.T) {
 	if got := r.l.FindRoom("ann"); got != "b" {
 		t.Fatalf("a paused account is not kept: %q", got)
 	}
-	if got := r.l.SlowestPaced(r.l.Q, "ann", nil, "a"); got != "b" {
+	if got := r.l.SlowestPaced(r.l.Q, "ann", "a"); got != "b" {
 		t.Fatalf("a full paused account still sends it elsewhere: %q", got)
 	}
 	walled := 100

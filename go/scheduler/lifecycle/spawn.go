@@ -127,38 +127,38 @@ func (s *Spawns) confirmSession(agent string) string {
 	return fmt.Sprintf("no session is running in it after %ds - the terminal is there and claude is not. Go and look (t): whatever it printed is on that shell.", StartedTimeoutS)
 }
 
-// git runs git as (exit code, stdout, stderr), each cleaned at the source so a caller that embeds them in a message it returns need not
+// git runs git as (exit code, stdout), stdout cleaned at the source so a caller that embeds it in a message it returns need not
 // sanitise it first. The error is git not running at all (not installed, no such directory, timed out), which Python's _run raises.
-func git(cwd string, args ...string) (int, string, string, error) {
+func git(cwd string, args ...string) (int, string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), gitTimeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Dir = cwd
-	var out, errb strings.Builder
-	cmd.Stdout, cmd.Stderr = &out, &errb
+	var out strings.Builder
+	cmd.Stdout = &out
 	code := 0
 	if err := cmd.Run(); err != nil {
 		if ctx.Err() != nil {
-			return 0, "", "", fmt.Errorf("git %s: timed out after %s", strings.Join(args, " "), gitTimeout)
+			return 0, "", fmt.Errorf("git %s: timed out after %s", strings.Join(args, " "), gitTimeout)
 		}
 		if ee, ok := err.(*exec.ExitError); ok {
 			code = ee.ExitCode()
 		} else {
-			return 0, "", "", fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
+			return 0, "", fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
 		}
 	}
-	return code, textsafe.Oneline(strings.TrimSpace(out.String())), textsafe.Oneline(strings.TrimSpace(errb.String())), nil
+	return code, textsafe.Oneline(strings.TrimSpace(out.String())), nil
 }
 
 func hasCommit(repo, ref string) (bool, error) {
-	code, _, _, err := git(repo, "rev-parse", "--verify", "--quiet", ref+"^{commit}")
+	code, _, err := git(repo, "rev-parse", "--verify", "--quiet", ref+"^{commit}")
 	return code == 0 && err == nil, err
 }
 
 // PickBase is the ref to branch from and why: origin/<base> once fetched, local <base> only when there is no origin/<base>. An empty ref
 // means there is nothing to branch from: a human has to act.
 func PickBase(repo, base string) (ref, why string, err error) {
-	if _, _, _, err := git(repo, "fetch", "-q", "origin"); err != nil {
+	if _, _, err := git(repo, "fetch", "-q", "origin"); err != nil {
 		return "", "", err
 	}
 	have, err := hasCommit(repo, base)
@@ -170,7 +170,7 @@ func PickBase(repo, base string) (ref, why string, err error) {
 		if have, err := hasCommit(repo, "origin/"+base); err != nil || have {
 			return "origin/" + base, fmt.Sprintf("no local %s; using origin/%s", base, base), err
 		}
-		_, head, _, err := git(repo, "symbolic-ref", "--short", "-q", "HEAD")
+		_, head, err := git(repo, "symbolic-ref", "--short", "-q", "HEAD")
 		if err != nil {
 			return "", "", err
 		}
@@ -185,7 +185,7 @@ func PickBase(repo, base string) (ref, why string, err error) {
 		return base, fmt.Sprintf("no origin/%s; using local %s", base, base), err
 	}
 	why = "fetched"
-	if code, out, _, err := git(repo, "rev-list", "--count", fmt.Sprintf("origin/%s..%s", base, base)); err != nil {
+	if code, out, err := git(repo, "rev-list", "--count", fmt.Sprintf("origin/%s..%s", base, base)); err != nil {
 		return "", "", err
 	} else if n, _ := strconv.Atoi(out); code == 0 && n > 0 {
 		why += fmt.Sprintf("; local %s has %d commit(s) not on it, left out", base, n)
@@ -296,7 +296,7 @@ func (s *Spawns) worktreeName(agent string) (string, error) { return paths.Agent
 
 // repoOf is the repository a worktree belongs to (the folder that holds its .git), "" when it cannot be told.
 func repoOf(worktree string) (string, error) {
-	code, out, _, err := git(worktree, "rev-parse", "--path-format=absolute", "--git-common-dir")
+	code, out, err := git(worktree, "rev-parse", "--path-format=absolute", "--git-common-dir")
 	if err != nil || code != 0 || out == "" {
 		return "", err
 	}

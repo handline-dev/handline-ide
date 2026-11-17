@@ -129,9 +129,9 @@ func linkRequest(tx *sql.Tx, tid, rid int64) error {
 	return refreshSent(tx, tid)
 }
 
-// addSay is db.add_request for a fire-and-forget say from `from` to `to` that starts its own chain. A notice is born landed: nothing
+// addSay is db.add_request for a fire-and-forget say from noticeFrom to `to` that starts its own chain. A notice is born landed: nothing
 // is owed on it and nothing wakes its target.
-func addSay(tx *sql.Tx, from, to, body string, notice bool) (int64, error) {
+func addSay(tx *sql.Tx, to, body string, notice bool) (int64, error) {
 	now := time.Now().Unix()
 	state := "queued"
 	var landedAt, noticeCol any
@@ -140,7 +140,7 @@ func addSay(tx *sql.Tx, from, to, body string, notice bool) (int64, error) {
 	}
 	res, err := tx.Exec("INSERT INTO requests(ts, requester, target, body, kind, chain_depth, "+
 		"state, edge_ok, landed_at, state_at, notice) VALUES(?,?,?,?,'say',0,?,1,?,?,?)",
-		now, from, to, body, state, landedAt, now, noticeCol)
+		now, noticeFrom, to, body, state, landedAt, now, noticeCol)
 	if err != nil {
 		return 0, err
 	}
@@ -226,7 +226,7 @@ func endTask(tx *sql.Tx, home string, tid int64, by string, t *task, text string
 		if skip[to] || !known[to] || (to != reporter && !isAlso[to] && !urgentResult) {
 			continue
 		}
-		rid, err := addSay(tx, noticeFrom, to, text, delivery.ClassOf(delivery.Result, to == reporter, urgentResult) == delivery.ClassBatch)
+		rid, err := addSay(tx, to, text, delivery.ClassOf(delivery.Result, to == reporter, urgentResult) == delivery.ClassBatch)
 		if err != nil {
 			return nil, err
 		}
@@ -320,7 +320,7 @@ func notifyUnblocked(tx *sql.Tx, dep int64, owner, closer string, closed int64, 
 	if evidence.String != "" && !(parent.Valid && parent.Int64 == dep) { // a child's result is told on its own
 		text += ": " + evidence.String
 	}
-	rid, err := addSay(tx, noticeFrom, owner, text, false)
+	rid, err := addSay(tx, owner, text, false)
 	if err != nil {
 		return told{}, err
 	}
@@ -377,7 +377,7 @@ func childResultNotice(tx *sql.Tx, dep *task, by string, child int64) (*told, er
 	if delivery.ClassOf(delivery.Result, false, delivery.Failed(evidence.String)) != delivery.ClassNow {
 		return nil, nil // a child's result that did not fail is on the parent's board, not in its owner's inbox
 	}
-	rid, err := addSay(tx, noticeFrom, dep.Acting, text, false)
+	rid, err := addSay(tx, dep.Acting, text, false)
 	if err != nil {
 		return nil, err
 	}

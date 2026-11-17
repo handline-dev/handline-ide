@@ -22,7 +22,7 @@ func tellTask(tx *sql.Tx, home, by, text string, to ...string) ([]told, error) {
 			continue
 		}
 		seen[who] = true
-		rid, err := addSay(tx, noticeFrom, who, text, delivery.ClassOf(delivery.TaskChange, false, false) == delivery.ClassBatch)
+		rid, err := addSay(tx, who, text, delivery.ClassOf(delivery.TaskChange, false, false) == delivery.ClassBatch)
 		if err != nil {
 			return nil, err
 		}

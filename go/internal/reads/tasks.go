@@ -601,7 +601,7 @@ func (e *Env) taskOf(t row, state string, b *board) (map[string]any, error) {
 		return nil, err
 	}
 	task["my_request"] = t.set("request") && t.i("request") == t.i("id")
-	task["mismatch"] = taskMismatch(t, state, reqs)
+	task["mismatch"] = taskMismatch(t, state)
 	if t.i("timeout_s") != 0 {
 		task["time_box"] = duration(t.i("timeout_s"))
 	}
@@ -753,7 +753,7 @@ func recInt(v any) (int64, bool) {
 }
 
 // taskMismatch is where a task's state and its delivery disagree, or nil, as actions.task_mismatch has it.
-func taskMismatch(t row, state string, reqs []row) any {
+func taskMismatch(t row, state string) any {
 	if state == "done" || state == "discarded" {
 		return nil
 	}

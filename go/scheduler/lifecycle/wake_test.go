@@ -204,12 +204,12 @@ func (fullLaunch) WakeWait(db.Q, string, *db.AgentState) *WakeWait {
 	return &WakeWait{Account: "a", Window: "slot", Slot: true, Paused: true}
 }
 func (fullLaunch) DescribeWakeWait(w *WakeWait) string                      { return DescribeWakeWait(w) }
-func (fullLaunch) SlowestPaced(db.Q, string, *db.AgentState, string) string { return "" }
+func (fullLaunch) SlowestPaced(db.Q, string, string) string { return "" }
 
 // slowLaunch has a slower-paced account with room.
 type slowLaunch struct{ fullLaunch }
 
-func (slowLaunch) SlowestPaced(db.Q, string, *db.AgentState, string) string { return "slow" }
+func (slowLaunch) SlowestPaced(db.Q, string, string) string { return "slow" }
 
 func TestAResumeOntoAFullAccountWaitsAndHoldsNothing(t *testing.T) {
 	m, d, tm := newManager(t)
@@ -284,7 +284,7 @@ func (wallLaunch) WakeWait(db.Q, string, *db.AgentState) *WakeWait {
 	return &WakeWait{Account: "a", Pct: 99, Window: "5h"}
 }
 func (wallLaunch) DescribeWakeWait(w *WakeWait) string { return DescribeWakeWait(w) }
-func (l wallLaunch) RoomNow(_ db.Q, _ string, _ *db.AgentState, _ string) (string, string) {
+func (l wallLaunch) RoomNow(_ db.Q, _ string, _ string) (string, string) {
 	return l.dest, l.why
 }
 
@@ -471,7 +471,7 @@ func (l headroomLaunch) WakeWait(q db.Q, agent string, row *db.AgentState) *Wake
 	return nil
 }
 
-func (l headroomLaunch) RoomElsewhere(_ db.Q, _ string, _ *db.AgentState, exclude map[string]string, _ bool) (string, string) {
+func (l headroomLaunch) RoomElsewhere(_ db.Q, _ string, exclude map[string]string, _ bool) (string, string) {
 	*l.asked++
 	if len(exclude) != 0 {
 		return "", "the cold pick leaves no account out"

@@ -61,7 +61,7 @@ func firstLineTitle(text string) string {
 // RaiseDecision puts something only a human can act on in front of them: a decision task of the founder's, opened by agent, with the
 // request that shows it as its card. agent is who it is about. Fire and forget, so nothing is typed back at agent when the human reads it.
 // Once per shape: exactly the same text still waiting from the same agent is that decision, not a second one.
-func (e *Env) raiseDecision(q db.Q, after *After, agent, text, reason, files string, chainID string, depth int64, parentID int64, extra ...db.KV) int64 {
+func (e *Env) raiseDecision(q db.Q, agent, text, reason, files string, chainID string, depth int64, parentID int64, extra ...db.KV) int64 {
 	title := firstLineTitle(text)
 	body := text
 	if same := must(db.OpenDecisionCardIDs(q, agent, "", &body)); len(same) > 0 {
@@ -78,15 +78,15 @@ func (e *Env) raiseDecision(q db.Q, after *After, agent, text, reason, files str
 }
 
 // Report tells the human something that asks nothing: a say, so nothing is typed back at agent and nothing waits on the human.
-func (e *Env) report(q db.Q, after *After, agent, text, reason string) int64 {
+func (e *Env) report(q db.Q, agent, text, reason string) int64 {
 	rid := must(db.AddRequest(q, db.NewRequest{Requester: agent, Target: actor.OwnerKey, Body: text, Kind: "say"}))
 	must(db.AddEvent(q, agent, "report", db.KV{K: "request_id", V: rid}, db.KV{K: "reason", V: reason}))
 	return rid
 }
 
-func (e *Env) stopRunaway(q db.Q, after *After, requester, target, body, files, chainID string, depth, parentID int64, reason string) int64 {
+func (e *Env) stopRunaway(q db.Q, requester, target, body, files, chainID string, depth, parentID int64, reason string) int64 {
 	text := fmt.Sprintf("[stopped] %s -> %s was stopped: %s\n\nOriginal request:\n%s", addr.Ref(requester), addr.Ref(target), reason, body)
-	return e.raiseDecision(q, after, requester, text, reason, files, chainID, depth, parentID, db.KV{K: "blocked_target", V: target})
+	return e.raiseDecision(q, requester, text, reason, files, chainID, depth, parentID, db.KV{K: "blocked_target", V: target})
 }
 
 // cycleInChain detects A->B->A inside one chain (team model section 6). A chain with the human at one end is exempt, and so is a say.
@@ -184,7 +184,7 @@ func (e *Env) Ask(q db.Q, in AskIn) (out *AskOut, err error) {
 	}
 	// A loop is stopped and raised to the founder, never silently dropped.
 	if detect := cycleInChain(q, chainID, requester, in.Target, in.Kind); detect != "" {
-		eid := e.stopRunaway(q, after, requester, in.Target, in.Body, in.Files, chainID, depth, in.ParentID, detect)
+		eid := e.stopRunaway(q, requester, in.Target, in.Body, in.Files, chainID, depth, in.ParentID, detect)
 		o := refuse(fmt.Sprintf("%s\nRaised to the founder as %s.", detect, db.MsgName(q, eid)))
 		o.After = after
 		return o, nil
@@ -205,7 +205,7 @@ func (e *Env) Ask(q db.Q, in AskIn) (out *AskOut, err error) {
 		}
 		// Hitting the depth limit is a runaway, not an ordinary refusal.
 		if strings.Contains(d.Reason, "chain depth") && !actor.IsPerson(in.Target) {
-			eid := e.stopRunaway(q, after, requester, in.Target, in.Body, in.Files, chainID, depth, in.ParentID, d.Reason)
+			eid := e.stopRunaway(q, requester, in.Target, in.Body, in.Files, chainID, depth, in.ParentID, d.Reason)
 			o := refuse(fmt.Sprintf("%s\nRaised to the founder as %s.", d.Reason, db.MsgName(q, eid)))
 			o.After = after
 			return o, nil

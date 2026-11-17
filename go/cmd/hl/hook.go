@@ -71,7 +71,8 @@ func hook(c *hlclient.Client, args []string) (int, bool) {
 		return 0, true
 	}
 	if event != "PreToolUse" && event != "PostToolUse" && event != "PostToolUseFailure" {
-		return capture(c, agent, event, raw), true
+		capture(c, agent, event, raw)
+		return 0, true
 	}
 	if event != "PreToolUse" {
 		env := &session.Env{Home: c.Home}
@@ -253,10 +254,10 @@ func askPermission(c *hlclient.Client, tool string, input any) string {
 
 // capture is the rest of record_from_stdin: the record of an event that is kept and the status snapshot on a turn's edge. Anything else is
 // answered and left alone.
-func capture(c *hlclient.Client, agent, event string, raw map[string]any) int {
+func capture(c *hlclient.Client, agent, event string, raw map[string]any) {
 	if !captured[event] {
 		fmt.Println("{}")
-		return 0
+		return
 	}
 	// Before the record: the agent's view the daemon writes for this event reads the snapshot.
 	if collected[event] {
@@ -273,5 +274,4 @@ func capture(c *hlclient.Client, agent, event string, raw map[string]any) int {
 		out = pyjson.PyJSON(map[string]any{"hookSpecificOutput": map[string]any{"hookEventName": "Stop", "additionalContext": nudge}}, true, true)
 	}
 	fmt.Println(out)
-	return 0
 }

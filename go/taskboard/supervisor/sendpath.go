@@ -319,24 +319,23 @@ func (e *Env) hasSession(agent string) bool {
 
 // tellNowStructured tells a structured agent about request row at once, joining the running turn.
 func (e *Env) tellNowStructured(q db.Q, row *db.Request) (what string, err error) {
-	what, _, err = e.tellStructured(q, row, delivery.Now)
-	return what, err
+	return e.tellStructured(q, row, delivery.Now)
 }
 
 // tellStructured tells a structured agent about request row. The row is marked delivered before the write (it closes withdraw and replace's
 // race) and owed again only when nothing was written; a message that was written is never written again. A Queue message held behind a
 // running turn is not delivered: the row is left as it was, and SessionWritten marks it when the session writes it.
-func (e *Env) tellStructured(q db.Q, row *db.Request, d delivery.Delivery) (what string, state SendState, err error) {
+func (e *Env) tellStructured(q db.Q, row *db.Request, d delivery.Delivery) (what string, err error) {
 	defer Catch(&err)
 	agent, rid := row.Target, row.ID
 	if !e.Agents.Live(agent) {
-		return "queued - no live session; told when it is up", NotSent, nil
+		return "queued - no live session; told when it is up", nil
 	}
 	if why := e.handingOff(q, agent, requestOp(rid)); why != "" {
-		return "queued - " + why, NotSent, nil
+		return "queued - " + why, nil
 	}
 	if !must(db.MarkDelivered(q, rid)) {
-		return "withdrawn first", NotSent, nil
+		return "withdrawn first", nil
 	}
 	folded := foldedNotices(q, agent)
 	text := tellText(q, row, 1, nil, false, folded, e.imageLines(q, row))
@@ -353,10 +352,10 @@ func (e *Env) tellStructured(q db.Q, row *db.Request, d delivery.Delivery) (what
 	switch state {
 	case NotSent:
 		check(db.ClearDelivered(q, rid))
-		return "queued - " + why, state, nil
+		return "queued - " + why, nil
 	case Held:
 		check(db.ClearDelivered(q, rid))
-		return "held behind the running turn", state, nil
+		return "held behind the running turn", nil
 	}
 	session := e.liveSession(q, agent)
 	check(db.MarkNoticesShown(q, requestIDs(folded), session))
@@ -369,7 +368,7 @@ func (e *Env) tellStructured(q db.Q, row *db.Request, d delivery.Delivery) (what
 		e.FinishSay(q, row) // a say that was only written can still be taken back, with its confirm
 	}
 	e.log("  %s: told about request %d at once", agent, rid)
-	return "sent", state, nil
+	return "sent", nil
 }
 
 // batchOps are the operations of the requests in a batch, one each.

@@ -25,13 +25,7 @@ const authStatusTimeout = 10 * time.Second
 type founderAsker struct{ env *supervisor.Env }
 
 func (a founderAsker) RaiseDecision(q db.Q, agent, text, reason string) (int64, error) {
-	var after supervisor.After
-	rid, err := a.env.RaiseDecision(q, &after, agent, text, reason, "", "", 0, 0)
-	if err != nil {
-		return 0, err
-	}
-	after.Run()
-	return rid, nil
+	return a.env.RaiseDecision(q, agent, text, reason, "", "", 0, 0)
 }
 
 // founderCloser is subscriptions.Tasks: a task marked done as the founder's own card, then told as any done is.

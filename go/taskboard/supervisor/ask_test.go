@@ -85,13 +85,12 @@ func TestACycleInAChainIsRaisedToTheFounderButASayBackIsNot(t *testing.T) {
 
 func TestTheDecisionRaisedForARunawayIsOneCardPerShape(t *testing.T) {
 	r := newRig(t)
-	after := &After{}
-	a := r.raiseDecision(r.DB, after, r.k("alice"), "need a call\nmore", "why", "", "", 0, 0)
-	b := r.raiseDecision(r.DB, after, r.k("alice"), "need a call\nmore", "why", "", "", 0, 0)
+	a := r.raiseDecision(r.DB, r.k("alice"), "need a call\nmore", "why", "", "", 0, 0)
+	b := r.raiseDecision(r.DB, r.k("alice"), "need a call\nmore", "why", "", "", 0, 0)
 	if a != b {
 		t.Fatalf("the same text still waiting is a second card: %d %d", a, b)
 	}
-	c := r.raiseDecision(r.DB, after, r.k("alice"), "a different call", "why", "", "", 0, 0)
+	c := r.raiseDecision(r.DB, r.k("alice"), "a different call", "why", "", "", 0, 0)
 	if c == a {
 		t.Fatal("a different text shares a card")
 	}
@@ -104,13 +103,11 @@ func TestTheDecisionRaisedForARunawayIsOneCardPerShape(t *testing.T) {
 	if task.Owner != r.k("human") || task.OpenedBy != r.k("alice") || task.Title != "need a call" || task.Expects.String != "decision" || task.QueuedBy.String != r.k("human") {
 		t.Fatalf("%+v", task)
 	}
-	after.Run()
 }
 
 func TestReportToTheFounderIsBornLandedAndAsksNothing(t *testing.T) {
 	r := newRig(t)
-	after := &After{}
-	rid := r.report(r.DB, after, r.k("alice"), "all quiet", "fyi")
+	rid := r.report(r.DB, r.k("alice"), "all quiet", "fyi")
 	row, _ := db.GetRequest(r.DB, rid)
 	if row.State != "landed" || row.Kind.String != "say" || row.ReadAt.Valid {
 		t.Fatalf("%+v", row)

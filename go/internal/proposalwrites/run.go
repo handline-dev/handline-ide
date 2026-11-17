@@ -208,9 +208,8 @@ type step struct {
 }
 
 // later runs fn (the terminal host's) after the last step, which has the database locked until then.
-func (s step) later(fn func() string) string {
+func (s step) later(fn func() string) {
 	*s.after = append(*s.after, fn)
-	return ""
 }
 
 // hostServed refuses a change that needs a terminal host this daemon does not reach: only tmux, which keeps no repos or labels, is served.

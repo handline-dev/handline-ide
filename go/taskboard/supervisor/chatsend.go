@@ -49,7 +49,7 @@ func (e *Env) SendChat(q db.Q, row *db.Request, d delivery.Delivery) (r ChatRece
 		return r, false, nil
 	}
 	if e.Agents.Live(row.Target) {
-		if _, _, err := e.tellStructured(q, row, d); err != nil {
+		if _, err := e.tellStructured(q, row, d); err != nil {
 			return r, false, err
 		}
 		row, err = db.GetRequest(q, row.ID)
