@@ -76,21 +76,24 @@ export function MessageImages({ images, small = false }: { images: Shown[]; smal
   const files = images.filter((a) => !isPicture(a.mime));
   const shown = images.filter((a) => isPicture(a.mime));
   return (
-    <div className="flex max-w-150 flex-col gap-2">
-      {files.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {files.map((a) => (
-            <FileChip key={a.id} id={a.id} name={a.name} mime={a.mime} bytes={a.size} />
-          ))}
-        </div>
-      )}
-      {shown.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {shown.map((a) => (
-            <Thumb key={a.id} a={a} small={small} onOpen={() => (a.video ? playVideo(a.video.id, a.video.name) : setOpen(a.id))} />
-          ))}
-        </div>
-      )}
+    // Never wider than the column it sits in: in a right-aligned message a wider row would run out on the left, where it is cut.
+    <div className="flex max-w-full min-w-0 flex-col gap-2">
+      <div className="flex max-w-150 min-w-0 flex-col gap-2">
+        {files.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {files.map((a) => (
+              <FileChip key={a.id} id={a.id} name={a.name} mime={a.mime} bytes={a.size} />
+            ))}
+          </div>
+        )}
+        {shown.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {shown.map((a) => (
+              <Thumb key={a.id} a={a} small={small} onOpen={() => (a.video ? playVideo(a.video.id, a.video.name) : setOpen(a.id))} />
+            ))}
+          </div>
+        )}
+      </div>
       {start >= 0 && (
         <ImageViewer pictures={pictures} start={start} onClose={() => setOpen(null)} onMarked={reply?.add} doneLabel={reply?.label} />
       )}
@@ -136,11 +139,12 @@ function Thumb({ a, small, onOpen }: { a: Shown; small: boolean; onOpen: () => v
       type="button"
       onClick={onOpen}
       title={a.name}
-      className={`relative ${url ? '' : small ? 'w-20' : 'w-40'} ${small ? 'h-20' : 'h-40'} overflow-hidden rounded-lg border border-border bg-surface outline-none focus-visible:ring-2 focus-visible:ring-accent`}
+      className={`relative max-w-full ${url ? '' : small ? 'w-20' : 'w-40'} ${small ? 'h-20' : 'h-40'} overflow-hidden rounded-lg border border-border bg-surface outline-none focus-visible:ring-2 focus-visible:ring-accent`}
     >
-      {/* The picture's own shape at one height, its width kept between 80 and 320: a long one shows its top. */}
+      {/* The picture's own shape at one height, its width kept between 80 and 320: a long one shows its top. In a column narrower
+          than that the button clips it, from the right. */}
       {url ? (
-        <img src={url} alt={a.name} className="h-full w-auto min-w-20 max-w-80 object-cover object-top" />
+        <img src={url} alt={a.name} className="h-full w-auto max-w-80 min-w-20 object-cover object-top" />
       ) : (
         <span className="grid size-full place-items-center text-xs text-muted">
           {failed ? 'Did not load' : removed ? 'Deleted' : gone ? 'Not kept' : ''}
