@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { ImagePlus } from 'lucide-react';
-import { createContext, useRef, useState, type DragEvent, type ReactNode } from 'react';
+import { createContext, type DragEvent, type ReactNode } from 'react';
+import { useDropTarget } from '#src/ui/dropTarget.tsx';
 
 /** Whether a drag carries files from outside the app (not a tab or a row dragged within it). */
 export const carriesFiles = (e: DragEvent) => e.dataTransfer.types.includes('Files');
@@ -39,36 +40,7 @@ export function readDropped(data: DataTransfer): Promise<Dropped[]> {
 /** An area that takes files dropped on it; `over` is true while files are held over it. A drag that is not
  * files (a tab, a row) passes through untouched. */
 export function useFileDrop(take: (dropped: Dropped[]) => void) {
-  const depth = useRef(0); // dragenter and dragleave also fire for the area's children
-  const [over, setOver] = useState(false);
-  return {
-    over,
-    handlers: {
-      onDragEnter: (e: DragEvent) => {
-        if (!carriesFiles(e)) return;
-        // Its own statement: React Compiler 1.0 turns a ref's `x.current++` inside a comparison into a pre-increment.
-        depth.current += 1;
-        if (depth.current === 1) setOver(true);
-      },
-      onDragOver: (e: DragEvent) => {
-        if (!carriesFiles(e)) return;
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'copy';
-      },
-      onDragLeave: (e: DragEvent) => {
-        if (!carriesFiles(e)) return;
-        depth.current -= 1;
-        if (depth.current === 0) setOver(false);
-      },
-      onDrop: (e: DragEvent) => {
-        if (!carriesFiles(e)) return;
-        e.preventDefault();
-        depth.current = 0;
-        setOver(false);
-        void readDropped(e.dataTransfer).then(take);
-      },
-    },
-  };
+  return useDropTarget({ accepts: carriesFiles, dropEffect: 'copy', onDrop: (e) => void readDropped(e.dataTransfer).then(take) });
 }
 
 /** True while files are held over the enclosing FileDropArea: its message box lights up and says so. */

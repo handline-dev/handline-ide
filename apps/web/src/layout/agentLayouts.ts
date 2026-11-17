@@ -1,13 +1,27 @@
 import { useEffect, useRef, useState } from 'react';
 import { read, write } from '#src/persist/kv.ts';
 import { sweepTabState, tabIds } from '#src/persist/tabState.ts';
-import { labelOf } from '#src/layout/kinds.tsx';
-import { CLOSED_KEPT, closedBy, initial, reduce, reopen, type Action, type Closed, type Node } from '#src/layout/tree.ts';
+import { canonical, labelOf } from '#src/layout/kinds.tsx';
+import {
+  CLOSED_KEPT,
+  closedBy,
+  initial,
+  putTabs,
+  reduce,
+  reopen,
+  takeTabs,
+  type Action,
+  type Closed,
+  type Node,
+  type Target,
+} from '#src/layout/tree.ts';
 
 /** Each agent, and each page (Tasks, Requests, Usage) under `page/<kind>`, has its own workspace layout:
  * picking one in the sidebar brings back its panes and tabs. Kept per browser (persist/kv.ts), so a reload keeps them. */
 const KEY = 'layouts';
 const PAGE = 'page/';
+/** A page's workspace key. */
+export const pageSpace = (kind: string) => PAGE + kind;
 /** `closed`: each workspace's closes, newest last, for Cmd+Shift+T. */
 type Saved = { agent: string | null; layouts: Record<string, Node>; closed?: Record<string, Closed[]> };
 
@@ -99,6 +113,25 @@ export function useAgentLayouts() {
         const gone = closedBy(s.layouts[k], after, action);
         const closed = gone ? { ...s.closed, [k]: [...(s.closed?.[k] ?? []), gone].slice(-CLOSED_KEPT) } : s.closed;
         return { ...s, closed, layouts: { ...s.layouts, [k]: after } };
+      });
+    },
+    /** The workspace on screen: an agent's key, or `page/<kind>`. */
+    space: key,
+    /** Moves tabs of pane `pane` in workspace `from` to workspace `to` (at `at`, else the end of its first pane) and goes there.
+     *  Pinned tabs stay; one already open there comes up instead. */
+    moveTabs: (from: string, pane: string, tabs: string[], shown: string, to: string, at?: Target) => {
+      if (from === to) return;
+      step.current = 'push';
+      setSaved((s) => {
+        const src = s.layouts[from];
+        if (!src) return s;
+        const taken = takeTabs(src, pane, tabs);
+        if (!taken.tabs.length) return s;
+        const e = ensured({ ...s, agent: to });
+        // Another agent's chat is that agent's own Chat in its workspace.
+        const agent = to.startsWith(PAGE) ? null : to;
+        const moved = taken.tabs.map((t) => ({ ...t, opens: canonical(t.opens!, agent) }));
+        return { ...e, layouts: { ...e.layouts, [from]: taken.root, [to]: putTabs(e.layouts[to], moved, shown, at) } };
       });
     },
     /** Opens the workspace's last close again; `pane` takes the tabs whose own pane is gone. */

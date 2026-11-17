@@ -4,14 +4,21 @@
 import type { DragEvent } from 'react';
 
 const MIME = 'application/x-handline-tab';
-export type TabDrag = { move: { pane: string; tab: string; tabs?: string[] } } | { open: { opens: string; title: string } };
+/** Also set on a tab that moves, so a place that takes only those can tell during dragover. */
+const MOVE = 'application/x-handline-tab-move';
+/** `space`: the workspace the moving tab is in (an agent's key, or `page/<kind>`). */
+export type TabMove = { space: string; pane: string; tab: string; tabs?: string[] };
+export type TabDrag = { move: TabMove } | { open: { opens: string; title: string } };
 
 export function startTabDrag(e: DragEvent, drag: TabDrag) {
   e.dataTransfer.setData(MIME, JSON.stringify(drag));
+  if ('move' in drag) e.dataTransfer.setData(MOVE, '');
   e.dataTransfer.effectAllowed = 'move' in drag ? 'move' : 'copy';
 }
 /** True during dragover too, when the payload itself cannot be read yet. */
 export const isTabDrag = (e: DragEvent) => e.dataTransfer.types.includes(MIME);
+/** A tab moving out of a pane, during dragover too. */
+export const isTabMove = (e: DragEvent) => e.dataTransfer.types.includes(MOVE);
 export function readTabDrag(e: DragEvent): TabDrag | null {
   const raw = e.dataTransfer.getData(MIME);
   return raw ? (JSON.parse(raw) as TabDrag) : null;
