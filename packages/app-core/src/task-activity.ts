@@ -20,7 +20,7 @@ export interface ActivityItem {
   /** For a founder's comment: where its tell stands with each agent it was told to. */
   readers?: TaskDetail['memos'][number]['readers'];
   /** A comment's pictures, still kept; on a video's poster, `video` names the video it plays. */
-  images?: { id: string; name: string; video?: { id: string; name: string } }[];
+  images?: { id: string; name: string; mime: string; size: number; video?: { id: string; name: string } }[];
   edited: boolean;
   /** For a turn passed: handed on (push) or given back (pop), and to whom; on a comment, the turn passed with it. */
   turn?: 'push' | 'pop';
@@ -100,12 +100,12 @@ export function activityOf(memos: TaskDetail['memos'], timeline: readonly Entry[
       memo: m.id,
       replyTo: m.reply_to ?? null,
       readers: m.readers,
-      // A picture the text names is drawn there, in the text: listed again under it, it would show twice.
+      // A file the text names is drawn there, in the text: listed again under it, it would show twice. A video is drawn as its poster.
       images: (m.files ?? [])
-        .filter((f) => f.kind === 'image' && !f.gone && !named.has(f.id))
+        .filter((f) => f.kind !== 'video' && !f.gone && !named.has(f.id))
         .map((f) => {
           const v = m.files?.find((x) => x.poster === f.id);
-          return { id: f.id, name: f.name, ...(v ? { video: { id: v.id, name: v.name } } : {}) };
+          return { id: f.id, name: f.name, mime: f.mime, size: f.bytes, ...(v ? { video: { id: v.id, name: v.name } } : {}) };
         }),
       edited: !!m.edited_at,
       toFounder: isNote(m.text),

@@ -187,7 +187,11 @@ export function CommentRow({
             )}
             <Markdown text={i.toFounder ? noteText(i.note) : i.note} />
           </div>
-          {i.images && <MessageImages images={i.images} small={turn && ready} />}
+          {i.images && i.images.length > 0 && (
+            <div className="mt-2">
+              <MessageImages images={i.images} small={turn && ready} />
+            </div>
+          )}
           <ReadBy readers={i.readers} />
         </div>
         <div

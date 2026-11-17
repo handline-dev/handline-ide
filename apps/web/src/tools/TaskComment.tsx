@@ -1,7 +1,18 @@
 // The box under a task: a comment (the chat's own box, with @ and / and files), who it will reach, and someone to hand the task to with it.
 import { foundersTurn, refsIn, renderRefs, toRefs, withImages } from '@handline/app-core';
 import type { TaskDetail } from '@handline/client';
-import { classify, hooks, sentence, useAgents, useDirectory, useGiveBack, useNameOf, useServes, useWrite } from '@handline/app-data';
+import {
+  classify,
+  hooks,
+  knownAttachments,
+  sentence,
+  useAgents,
+  useDirectory,
+  useGiveBack,
+  useNameOf,
+  useServes,
+  useWrite,
+} from '@handline/app-data';
 import { Who } from '#src/ui/Who.tsx';
 import { Check, CornerDownRight, Eye, Flag, Timer, Trash2, UserRound, X } from 'lucide-react';
 import { useState } from 'react';
@@ -154,13 +165,28 @@ export function CommentBox({
     },
   ];
   const failed = (what: string) => (e: unknown) => toast(`${what}: ${e instanceof Error ? e.message : String(e)}`, { tone: 'warning' });
+  /** A picture is named in the text, where it is drawn; any other file (or a folder) goes with the comment as a file of its own type. */
+  const split = (ids: string[]) => {
+    const known = knownAttachments(ids);
+    const picture = (id: string) => known.find((a) => a.id === id && a.mime.startsWith('image/'));
+    return {
+      pictures: ids.flatMap((id) => picture(id) ?? []).map((a) => ({ id: a.id, name: a.name })),
+      files: ids.filter((id) => !picture(id)),
+    };
+  };
   const send = (body: string, ids: string[] = []) => {
     // The comment first, then the handover: the new owner finds it waiting.
     // An answer to a comment that asked the founder ends the wait: the open asks are closed with it.
     const answers = reply?.text.includes(`<@${me}>`) ? openAsks(t, me).map((r) => r.id) : [];
     onSent();
+    const { pictures, files } = split(ids);
     add.mutate(
-      { task: t.id, text: withImages(toRefs(dir, body), ids), ...(reply?.id != null ? { reply: reply.id } : {}) },
+      {
+        task: t.id,
+        text: withImages(toRefs(dir, body), pictures),
+        ...(files.length ? { files } : {}),
+        ...(reply?.id != null ? { reply: reply.id } : {}),
+      },
       {
         onError: failed('Comment did not go'),
         onSuccess: () => {

@@ -30,18 +30,22 @@ test('entries become comments and events in words, a handoff one line with its n
   assert.equal(a[2]!.memo, 7);
 });
 
-test('a comment lists the image files its text does not name; one it names is drawn in place, not again', () => {
+test('a comment lists the files its text does not name, a text file too; one it names is drawn in place, not again', () => {
   const memo = {
     id: 1,
     author: 'human',
     at: '2026-11-06T00:00:00Z',
     text: 'look ![capture](attachment:aaa)',
     files: [
-      { id: 'aaa', name: 'capture.png', kind: 'image', gone: false },
-      { id: 'bbb', name: 'other.png', kind: 'image', gone: false },
+      { id: 'aaa', name: 'capture.png', kind: 'image', mime: 'image/png', bytes: 10, gone: false },
+      { id: 'bbb', name: 'other.png', kind: 'image', mime: 'image/png', bytes: 20, gone: false },
+      { id: 'ccc', name: 'notes.md', kind: 'markdown', mime: 'text/markdown', bytes: 30, gone: false },
     ],
   } as unknown as Parameters<typeof activityOf>[0][number];
-  assert.deepEqual(activityOf([memo], [])[0]!.images, [{ id: 'bbb', name: 'other.png' }]);
+  assert.deepEqual(activityOf([memo], [])[0]!.images, [
+    { id: 'bbb', name: 'other.png', mime: 'image/png', size: 20 },
+    { id: 'ccc', name: 'notes.md', mime: 'text/markdown', size: 30 },
+  ]);
 });
 
 test('a turn passed or a handoff reads by who it went to, the person as you; the person giving it back is no line; a delivery the daemon made says why', () => {

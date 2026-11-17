@@ -106,7 +106,8 @@ export function ChatLine({
               .join('')
               .trim()
           : e.message.body;
-  const images = e.kind === 'message' ? (e.message.attachments ?? []).filter((a) => a.mime.startsWith('image/')) : [];
+  const images =
+    e.kind === 'message' ? (e.message.attachments ?? []).map((a) => ({ id: a.id, name: a.name, mime: a.mime, size: a.bytes })) : [];
   if (!text && !images.length) return null;
   const mine = e.kind === 'message' && sideOf(e.message, agent, me) === 'person';
   const reply = (quote?: string) =>

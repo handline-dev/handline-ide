@@ -4,9 +4,9 @@
 /** The Markdown line that names an uploaded image in a task body or a memo. */
 export const imageRef = (id: string, alt = '') => `![${alt.replace(/[[\]\n]/g, ' ').trim()}](attachment:${id})`;
 
-/** A note, then one reference per image, each on its own line. */
-export const withImages = (note: string, ids: readonly string[], alt = 'capture'): string =>
-  [note.trim(), ...ids.map((id) => imageRef(id, alt))].filter(Boolean).join('\n');
+/** A note, then one reference per attached file under its name, each on its own line. */
+export const withImages = (note: string, files: readonly { id: string; name: string }[]): string =>
+  [note.trim(), ...files.map((f) => imageRef(f.id, f.name))].filter(Boolean).join('\n');
 
 /** An image reference in a text: where it sits, the caption and the attachment id. */
 export interface ImageSpan {
