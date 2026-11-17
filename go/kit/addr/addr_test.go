@@ -48,6 +48,7 @@ func TestResolve(t *testing.T) {
 		{shopAgent, "lead", "a1"},
 		{blogLead, "designer", "a4"}, // its own workspace's, not shop's
 		{shopAgent, "blog", "a3"},    // a workspace is its lead
+		{shopAgent, "blog/designer", "a4"},
 		{shopAgent, "shop", "a1"},
 		{shopAgent, "jisoo", "p2"},
 		{shopAgent, "a4", "a4"}, // a key that names a row
@@ -104,8 +105,8 @@ func TestName(t *testing.T) {
 	for key, want := range map[string]string{
 		"a1":  "lead",
 		"a2":  "designer",
-		"a3":  "blog", // another workspace's lead is that workspace, which resolves
-		"a4":  "designer (blog)",
+		"a3":  "blog/lead", // another workspace's agent whose name another agent has is qualified by its workspace
+		"a4":  "blog/designer",
 		"p1":  "human",
 		"p2":  "jisoo",
 		"w2":  "blog",
@@ -143,7 +144,7 @@ func TestMentionsAreStoredByKeyAndWrittenOutPerReader(t *testing.T) {
 		t.Errorf("a mention past the first token leads nothing: %q", got)
 	}
 	got := Render(db, Who{Key: "a4", Workspace: 2}, stored)
-	if want := "@human see @designer (shop)'s note, ask @lead. Not @nobody, a@b.c or `x@lead`."; got != want {
+	if want := "@human see @shop/designer's note, ask @lead. Not @nobody, a@b.c or `x@lead`."; got != want {
 		t.Errorf("blog's designer reads %q\nwant %q", got, want)
 	}
 }
@@ -151,20 +152,45 @@ func TestMentionsAreStoredByKeyAndWrittenOutPerReader(t *testing.T) {
 // A hint names a who by a word the reader can type back: the name when it resolves to the key, else the key.
 func TestAddressIsAWordThatResolvesBack(t *testing.T) {
 	db := seed(t)
-	for key, want := range map[string]string{"a1": "lead", "a3": "blog", "a4": "a4", "p1": "human", "sys": "sys"} {
+	for key, want := range map[string]string{"a1": "lead", "a3": "blog/lead", "a4": "blog/designer", "p1": "human", "sys": "sys"} {
 		if got := Address(db, "a2", key); got != want {
 			t.Errorf("%s: %q, want %q", key, got, want)
 		}
 	}
 }
 
-// RenderFor writes the refs out for the reader by its key: its own workspace's agents by name, another's lead by its workspace.
+// RenderFor writes the refs out for the reader by its key: its own workspace's agents by name, another's qualified by its workspace.
 func TestRenderForWritesRefsOutForOneReader(t *testing.T) {
 	db := seed(t)
 	if got := RenderFor(db, "a4", "blocked by T7 (<@a3>)"); got != "blocked by T7 (@lead)" {
 		t.Errorf("%q", got)
 	}
-	if got := RenderFor(db, "a1", "T7 (<@a3>)"); got != "T7 (@blog)" {
+	if got := RenderFor(db, "a1", "T7 (<@a3>)"); got != "T7 (@blog/lead)" {
 		t.Errorf("shop's lead: %q", got)
+	}
+}
+
+// An agent whose name no other agent has goes by that name alone, from any workspace and from outside every one, and resolves back.
+func TestAUniqueAgentNameNeedsNoWorkspace(t *testing.T) {
+	db := seed(t)
+	if _, err := db.Exec("INSERT INTO agents(workspace, name, owner, created_at) VALUES(2, 'writer', 'p1', 0)"); err != nil {
+		t.Fatal(err)
+	}
+	for _, who := range []Who{{Key: "a2", Workspace: 1}, {Key: "p1"}} {
+		if got := Name(db, who, "a5"); got != "writer" {
+			t.Errorf("%v names a5 %q", who, got)
+		}
+		if got, err := Resolve(db, who, "writer"); err != nil || got != "a5" {
+			t.Errorf("%v resolves writer to %q %v", who, got, err)
+		}
+	}
+}
+
+// @workspace/name is a mention; a path after a name keeps the name, and a misspelt workspace/name stays text.
+func TestAMentionTakesWorkspaceSlashName(t *testing.T) {
+	db := seed(t)
+	got, err := Mentions(db, Who{Key: "a1", Workspace: 1}, "@blog/designer see @lead/notes.md, not @blog/desginer")
+	if want := "<@a4> see <@a1>/notes.md, not @blog/desginer"; err != nil || got != want {
+		t.Fatalf("%q %v, want %q", got, err, want)
 	}
 }

@@ -322,7 +322,7 @@ func TestAMemoWithNoAtTellsTheAssigneeWhateverTheTaskState(t *testing.T) {
 	r.agentUp(r.k("bob"))
 	tid := r.newTask(r.k("bob"), r.k(("alice")), "job")
 	r.must(r.TellMemo(r.DB, tid, r.k(("alice")), "added", "check the cache", "", false))
-	if says := r.saysTo(r.k("bob")); len(says) != 1 || !strings.Contains(says[0], "T1 comment by alice: check the cache") {
+	if says := r.saysTo(r.k("bob")); len(says) != 1 || !strings.Contains(says[0], "T1 comment by alice/lead: check the cache") {
 		t.Fatalf("the assignee of a task not yet doing was not told of a memo with no @: %q", says)
 	}
 	r.AdvanceCurrentTask(r.DB, r.k(("bob")))
@@ -434,7 +434,7 @@ func TestAMemoReachesTheAgentsItNamesWhateverTheTaskState(t *testing.T) {
 	r.agentUp(r.k("bob"))
 	tid := r.newTask(r.k("bob"), r.k(("alice")), "job")
 	r.must(r.TellMemo(r.DB, tid, r.k(("bob")), "added", "@carol please discard T2, it duplicates this; mail x@dave.example and @nobody", "", false)) // local-ref-ok: an address names nobody
-	if says := r.saysTo(r.k("carol")); len(says) != 1 || !strings.Contains(says[0], "T1 comment by bob: @carol please discard T2") {
+	if says := r.saysTo(r.k("carol")); len(says) != 1 || !strings.Contains(says[0], "T1 comment by bob/lead: @carol please discard T2") {
 		t.Fatalf("the agent named was not told: %q", says)
 	}
 	for _, a := range []string{r.k(("alice")), r.k(("dave")), "nobody", actor.OwnerKey} {
@@ -465,12 +465,12 @@ func TestAMemoIsToldAtOnceOnlyToWhomItIsAimedAt(t *testing.T) {
 	}
 	r.term.typed = nil
 	r.must(r.TellMemo(r.DB, tid, r.k(("alice")), "added", "@carol look", "", false))
-	if len(r.term.typed) != 2 || !strings.Contains(r.term.last(), "T1 comment by alice: @carol look") {
+	if len(r.term.typed) != 2 || !strings.Contains(r.term.last(), "T1 comment by alice/lead: @carol look") {
 		t.Fatalf("the reader named with @ was not told at once: %q", r.term.typed)
 	}
 	r.term.typed = nil
 	r.must(r.TellMemo(r.DB, tid, r.k(("alice")), "added", "said", r.k(("bob")), false))
-	if len(r.term.typed) != 1 || !strings.Contains(r.term.last(), "T1 comment by alice: said") {
+	if len(r.term.typed) != 1 || !strings.Contains(r.term.last(), "T1 comment by alice/lead: said") {
 		t.Fatalf("the reader a say named was not told at once: %q", r.term.typed)
 	}
 	r.term.typed = nil

@@ -1,6 +1,7 @@
 package supervisor
 
 import (
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -8,6 +9,7 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
 	"github.com/handline/handline/go/kit/actor"
+	"github.com/handline/handline/go/kit/addr"
 )
 
 func (r *rig) ask(from, to, body, kind string) int64 {
@@ -27,7 +29,7 @@ func TestASayIsTypedWithItsLines(t *testing.T) {
 	out, err := r.Say(r.DB, SayIn{Target: r.k(("bob")), Body: "Done:\n\n- one\x07\n- two\n", Requester: r.k(("alice"))})
 	r.must(err)
 	head := mustReq(r, out.RID)
-	if got := r.ids(tellText(r.DB, head, 1, nil, false, nil, "")); !strings.HasPrefix(r.named(got), "#1 from alice, waiting for you:\nDone:\n\n- one\n- two\n`hl read #1`") {
+	if got := r.ids(tellText(r.DB, head, 1, nil, false, nil, "")); !strings.HasPrefix(r.named(got), "#1 from alice/lead, waiting for you:\nDone:\n\n- one\n- two\n`hl read #1`") {
 		t.Fatalf("%q", got)
 	}
 }
@@ -58,7 +60,7 @@ func TestDeliverQueuedTellsTheHeadTaskThenBatchesWhatArrivesBehindIt(t *testing.
 	if n, _ := db.Cursor(r.DB, "notify:"+r.k("bob")); n != head {
 		t.Fatalf("notify cursor %d", n)
 	}
-	if got := r.term.last(); !strings.HasPrefix(r.named(got), "#1 from alice, waiting for you:\nfirst job\n`hl read #1` shows it whole; you own T1 now: hand it on with ") {
+	if got := r.term.last(); !strings.HasPrefix(r.named(got), "#1 from alice/lead, waiting for you:\nfirst job\n`hl read #1` shows it whole; you own T1 now: hand it on with ") {
 		t.Fatalf("%q", got)
 	}
 	// two more arrive behind the open head: told as a batch, once a minute
@@ -70,7 +72,7 @@ func TestDeliverQueuedTellsTheHeadTaskThenBatchesWhatArrivesBehindIt(t *testing.
 	}
 	r.clock += BatchEveryS
 	sent, _ = r.DeliverQueued(r.DB, r.k(("bob")))
-	if !sent || !strings.HasPrefix(r.term.last(), "2 more tasks queued behind #1, which is still open:\n#2 from alice: second job\n#3 from alice: third job\n") {
+	if !sent || !strings.HasPrefix(r.term.last(), "2 more tasks queued behind #1, which is still open:\n#2 from alice/lead: second job\n#3 from alice/lead: third job\n") {
 		t.Fatalf("%v %q", sent, r.term.last())
 	}
 	if sent, _ := r.DeliverQueued(r.DB, r.k(("bob"))); sent {
@@ -84,7 +86,7 @@ func TestSeveralUntoldTasksGoOutAsOneBatchWithTheHeadFirst(t *testing.T) {
 	r.task(r.k("bob"), r.k(("alice")), "one")
 	r.task(r.k("bob"), r.k(("alice")), "two")
 	sent, _ := r.DeliverQueued(r.DB, r.k(("bob")))
-	if !sent || !strings.HasPrefix(r.term.last(), "2 tasks waiting for you:\n#1 from alice: one\n#2 from alice: two\n`hl read <id>` shows one whole.") {
+	if !sent || !strings.HasPrefix(r.term.last(), "2 tasks waiting for you:\n#1 from alice/lead: one\n#2 from alice/lead: two\n`hl read <id>` shows one whole.") {
 		t.Fatalf("%v %q", sent, r.term.last())
 	}
 	if n, _ := db.Cursor(r.DB, "notify:"+r.k("bob")); n != 1 {
@@ -217,7 +219,7 @@ func TestWaitingPromptIsTheTellTheNextTickWouldType(t *testing.T) {
 	rid := r.ask(r.k("alice"), r.k(("bob")), "wake up", "ask")
 	text, told, ok, err := r.WaitingPrompt(r.DB, r.k(("bob")))
 	r.must(err)
-	if !ok || !strings.HasPrefix(r.ids(text), "#1 from alice, waiting for you:\nwake up\n") {
+	if !ok || !strings.HasPrefix(r.ids(text), "#1 from alice/lead, waiting for you:\nwake up\n") {
 		t.Fatalf("%q", text)
 	}
 	if row, _ := db.GetRequest(r.DB, rid); !row.DeliveredAt.Valid {
@@ -378,5 +380,17 @@ func TestAnyPersonsMessageIsUrgentNotOnlyTheOwners(t *testing.T) {
 		if got := urgent(&db.Request{Requester: c.requester}); got != c.want {
 			t.Errorf("urgent(requester %s) = %v, want %v", c.requester, got, c.want)
 		}
+	}
+}
+
+// A delivery names agents by name, never by key: who sent it, and an agent its text mentions.
+func TestADeliveryNamesAgentsNotTheirKeys(t *testing.T) {
+	r := newRig(t)
+	r.agentUp(r.k("bob"))
+	out, err := r.Say(r.DB, SayIn{Target: r.k("bob"), Body: "ask " + addr.Ref(r.k("alice")) + " first", Requester: r.k("alice")})
+	r.must(err)
+	got := forReader(r.DB, r.k("bob"), tellText(r.DB, mustReq(r, out.RID), 1, nil, false, nil, "")) // as it is sent
+	if keyRe := regexp.MustCompile(`\ba[0-9]+\b`); keyRe.MatchString(got) || !strings.Contains(got, " from alice/lead, waiting for you:\nask @alice/lead first") {
+		t.Fatalf("%q", got)
 	}
 }

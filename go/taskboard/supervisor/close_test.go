@@ -30,7 +30,7 @@ func TestWithdrawTakesBackAnUndeliveredRequestOnlyForItsRequester(t *testing.T) 
 	rid2 := r.ask("alice", r.k("bob"), "second", "ask")
 	db.MarkDelivered(r.DB, rid2)
 	ok, msg, _ = r.WithdrawWrite(r.DB, after, rid2, r.k("alice"), "", nil)
-	if ok || !strings.Contains(r.ids(msg), "was already delivered to bob - too late to withdraw; tell bob with a message (`hl say bob \"...\" --parent #2`)") {
+	if ok || !strings.Contains(r.ids(msg), "was already delivered to bob - too late to withdraw; tell bob with a message (`hl say bob/lead \"...\" --parent #2`)") {
 		t.Fatalf("%s", msg)
 	}
 }
@@ -54,7 +54,7 @@ func TestCancelClosesADeliveredRequestAndTellsItsAgentToStop(t *testing.T) {
 	if !strings.HasPrefix(r.ids(out), "#1 to bob cancelled (bob was told to stop)\nrequest #1 -> rejected") {
 		t.Fatalf("%q", out)
 	}
-	if got := r.ids(r.term.last()); got != "#1 from alice was cancelled: withdrawn by the founder. Stop work on it; it is closed and needs no resolve. `hl read #1` shows it." {
+	if got := r.ids(r.term.last()); got != "#1 from alice/lead was cancelled: withdrawn by the founder. Stop work on it; it is closed and needs no resolve. `hl read #1` shows it." {
 		t.Fatalf("%q", got)
 	}
 	row, _ := db.GetRequest(r.DB, rid)
