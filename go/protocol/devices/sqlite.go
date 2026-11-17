@@ -84,15 +84,6 @@ func (s SQLStore) SetClient(id, client string) error {
 	return err
 }
 
-func (s SQLStore) Rename(id, name string) (bool, error) {
-	r, err := s.DB.Exec("UPDATE devices SET name = ? WHERE id = ?", name, id)
-	if err != nil {
-		return false, err
-	}
-	n, err := r.RowsAffected()
-	return n > 0, err
-}
-
 func (s SQLStore) SetPush(id string, p Push) (bool, error) {
 	r, err := s.DB.Exec("UPDATE devices SET push_platform = ?, push_token = ?, push_sandbox = ? WHERE id = ?", p.Platform, p.Token, p.Sandbox, id)
 	if err != nil {

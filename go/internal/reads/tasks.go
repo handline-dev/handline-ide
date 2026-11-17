@@ -1001,9 +1001,6 @@ func (e *Env) taskGet(c *rpc.Conn, params map[string]any) (any, error) {
 			task["parent_title"] = p.str("title")
 		}
 	}
-	if task["people"], err = e.askable(t.str("owner")); err != nil {
-		return nil, err
-	}
 	hands, err := query(e.DB, "SELECT ts, payload FROM events WHERE kind = 'task_handoff' AND "+eventTask+" = ? ORDER BY id", *tid)
 	if err != nil {
 		return nil, err
@@ -1138,60 +1135,6 @@ func memoReaders(q db.Q, mid int64) ([]any, error) {
 		out = append(out, one)
 	}
 	return out, nil
-}
-
-// task.memo.list: a task's memos, oldest first. With limit, the newest limit memos, or the limit just older than before.
-func (e *Env) taskMemoList(c *rpc.Conn, params map[string]any) (any, error) {
-	tid, err := optInt(params, "task")
-	if err != nil || tid == nil {
-		return nil, badParam("task is a task number", "task")
-	}
-	before, err := rangedInt(params, "before", 1, 0)
-	if err != nil {
-		return nil, err
-	}
-	limit, err := rangedInt(params, "limit", 1, maxLimit)
-	if err != nil {
-		return nil, err
-	}
-	if before != nil && limit == nil {
-		return nil, badParam("before needs limit", "limit")
-	}
-	t, err := queryOne(e.DB, "SELECT id FROM tasks WHERE id = ?", *tid)
-	if err != nil {
-		return nil, err
-	}
-	if t == nil {
-		nf := rpc.NotFoundError(fmt.Sprintf("no task T%d", *tid))
-		nf.Data = map[string]any{"what": "task", "id": *tid}
-		return nil, nf
-	}
-	var b, n any
-	if before != nil {
-		b = *before
-	}
-	n = -1
-	if limit != nil {
-		n = *limit + 1
-	}
-	rows, err := query(e.DB, "SELECT * FROM (SELECT * FROM task_memos WHERE task_id = ? AND (? IS NULL OR id < ?) ORDER BY id DESC LIMIT ?) ORDER BY id",
-		*tid, b, b, n)
-	if err != nil {
-		return nil, err
-	}
-	more := limit != nil && int64(len(rows)) > *limit
-	if more {
-		rows = rows[1:]
-	}
-	images, agent := attachments.New(e.Home), c != nil && c.Caller.Role == "agent"
-	parts := func(text string) []any { return images.Parts(text, agent) }
-	memos := make([]any, len(rows))
-	for i, m := range rows {
-		if memos[i], err = memoJSON(e.DB, m, parts, images, agent); err != nil {
-			return nil, err
-		}
-	}
-	return map[string]any{"memos": memos, "more": more}, nil
 }
 
 // taskActing and taskActingT are the acting column (db.ActingSQL) of a tasks row read whole, unaliased or as t.

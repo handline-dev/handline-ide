@@ -55,7 +55,6 @@ type Store interface {
 	List() ([]Device, error)
 	Touch(id string, ts int64) error
 	SetClient(id, client string) error
-	Rename(id, name string) (bool, error)
 	SetPush(id string, p Push) (bool, error)
 	DropPush(id, token string) error // only while token is still the device's: a newer one it gave since stays
 }
@@ -245,21 +244,6 @@ func (m *Manager) Revoke(id string) (bool, error) {
 		f()
 	}
 	return found, err
-}
-
-// Rename gives a device a new name and answers it as it is now. false when it is not paired.
-func (m *Manager) Rename(id, name string) (Device, bool, error) {
-	found, err := m.store.Rename(id, name)
-	if err != nil || !found {
-		return Device{}, found, err
-	}
-	ds, err := m.store.List()
-	for _, d := range ds {
-		if d.ID == id {
-			return d, true, err
-		}
-	}
-	return Device{}, false, err
 }
 
 // SetPush keeps the push token a device gave, in place of any it gave before. false when it is not paired.

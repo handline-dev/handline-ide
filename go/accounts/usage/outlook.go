@@ -271,15 +271,7 @@ func agentForCwd(cwd string, trees []worktreeOf) string {
 	return Unattributed
 }
 
-// DayCosts is stats.daily_cost: the list-price cost of each agent per local calendar day over (lo, hi], {"YYYY-MM-DD": {agent: USD}}, a
-// day with no call absent.
-func DayCosts(q db.Q, lo, hi int64, table []priceEntry) (map[string]map[string]float64, error) {
-	daily := map[string]map[string]float64{}
-	err := scanCalls(q, lo, hi, table, func(ts int64, k callKey, _ int64, cost float64) { addDay(daily, ts, k.agent, cost) })
-	return daily, err
-}
-
-// CallCosts is DayCosts over (dayLo, hi] and stats.agent_use over (useLo, hi] (agentUses), from one read of the calls.
+// CallCosts is the list-price cost of each agent per local day over (dayLo, hi] and stats.agent_use over (useLo, hi] (agentUses), from one read of the calls.
 func CallCosts(q db.Q, dayLo, useLo, hi int64, table []priceEntry, weekUsed map[string]float64) (map[string]map[string]float64, []AgentUse, error) {
 	daily := map[string]map[string]float64{}
 	per := tally{}

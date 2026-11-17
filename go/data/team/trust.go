@@ -1,10 +1,8 @@
 package team
 
 import (
-	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
-	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -14,13 +12,12 @@ import (
 
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/protected"
-	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/kit/yamlcompat"
 )
 
 // Standing consent for folders (handline/team/trust.py): which folders hl may answer the vendor's trust prompt for, on the
 // founder's own say-so, never inferred from the roster. The declared roots live in the protected store, which no agent can
-// write. Proposing raises the decision through the caller's Raise; the founder's answer is applied in trustapply.go.
+// write. The founder's answer to a proposal is applied in trustapply.go.
 
 const (
 	trustNS   = "trust"
@@ -60,33 +57,6 @@ func (t *Trust) ListRoots() []string {
 				out = append(out, s)
 			}
 		}
-	}
-	return out
-}
-
-// Declared is a declared root with why and who added it.
-type Declared struct{ Root, Why, AddedBy string }
-
-// Declared is every declared root with its why and who added it, in order (trust.list's declared).
-func (t *Trust) Declared() []Declared {
-	var out []Declared
-	for _, r := range t.roots() {
-		o, ok := r.(*jobj)
-		if !ok {
-			continue
-		}
-		root, ok := o.vals["root"].(string)
-		if !ok {
-			continue
-		}
-		d := Declared{Root: root, AddedBy: "?"}
-		if v, has := o.vals["why"]; has {
-			d.Why = pyStr(v)
-		}
-		if v, has := o.vals["added_by"]; has {
-			d.AddedBy = pyStr(v)
-		}
-		out = append(out, d)
 	}
 	return out
 }
@@ -358,12 +328,6 @@ func RootRead(body, requester string) (string, bool) {
 	return m[1], true
 }
 
-// DecisionText is what the founder reads when a proposal asks to add a root.
-func DecisionText(root, why, requestedBy, id string) string {
-	return fmt.Sprintf("[trust] add %s - asked by %s\n\n%s\n\nocp would press \"Yes, I trust this folder\" for this path and everything under it, without asking again.\n\nAnswer `approve` or `reject` (proposal %s).",
-		root, requestedBy, why, id)
-}
-
 // SubjectOf is what the founder is deciding on: the root as it will be matched.
 func SubjectOf(p Proposal) string {
 	root := pyStr(p.Get("root"))
@@ -371,46 +335,6 @@ func SubjectOf(p Proposal) string {
 		return r
 	}
 	return root
-}
-
-// Raise opens the founder's decision on a proposal and answers its card (the request) and its decision task; ok is false, with the
-// reason, when it could not be raised.
-type Raise func(title, text string) (ok bool, said string, request, task int64, err error)
-
-// Propose asks the founder to add root to standing consent: the decision is raised and the proposal saved; nothing changes yet. id is
-// the proposal's when one was raised.
-func (t *Trust) Propose(root, why, requester string, raise Raise) (ok bool, said, id string, err error) {
-	why = strings.TrimSpace(why)
-	if why == "" {
-		return false, "say why: the founder is deciding, not rubber-stamping", "", nil
-	}
-	res, resolvedOK := resolved(root)
-	if !resolvedOK {
-		res = expand(root)
-	}
-	if t.IsDeclared(res) {
-		return false, res + " is already inside a declared root", "", nil
-	}
-	b := make([]byte, 4)
-	if _, err := rand.Read(b); err != nil {
-		return false, "", "", err
-	}
-	id = hex.EncodeToString(b)
-	text := DecisionText(res, why, requester, id)
-	title := []rune(textsafe.Oneline(strings.SplitN(text, "\n", 2)[0]))
-	if len(title) > 80 {
-		title = title[:80]
-	}
-	raised, reason, rid, tid, err := raise(string(title), text)
-	if err != nil || !raised {
-		return false, "could not raise it: " + reason, "", err
-	}
-	p := Proposal{{Key: "id", Val: id}, {Key: "root", Val: res}, {Key: "why", Val: why}, {Key: "requested_by", Val: requester},
-		{Key: "created", Val: time.Now().Unix()}, {Key: "state", Val: "proposed"}, {Key: "request", Val: rid}, {Key: "task", Val: tid}}
-	if err := t.SaveProposal(p); err != nil {
-		return false, "", "", err
-	}
-	return true, fmt.Sprintf("proposal %s raised as T%d. Nothing changes until the founder answers it; an approve is applied then, and you are told how it went.", id, tid), id, nil
 }
 
 // Enact is the founder adding a root directly, with no proposal to approve.
@@ -435,45 +359,6 @@ func (t *Trust) Enact(root, why string) (bool, string) {
 		return false, err.Error()
 	}
 	return true, res + " is now a declared root"
-}
-
-// Remove takes a root off standing consent; this only shrinks what Handline may answer for.
-func (t *Trust) Remove(root string) (bool, string) {
-	res, ok := resolved(root)
-	if !ok {
-		res = expand(root)
-	}
-	rows := t.roots()
-	var kept []any
-	for _, r := range rows {
-		o, isObj := r.(*jobj)
-		var rr string
-		var has bool
-		if isObj {
-			rr, has = resolvedOf(o)
-		}
-		if !(has && rr == res) {
-			kept = append(kept, r)
-		}
-	}
-	if len(kept) == len(rows) {
-		return false, res + " is not a declared root"
-	}
-	if kept == nil {
-		kept = []any{}
-	}
-	if err := t.save(kept); err != nil {
-		return false, err.Error()
-	}
-	return true, res + " is no longer a declared root"
-}
-
-func resolvedOf(o *jobj) (string, bool) {
-	s, ok := o.vals["root"].(string)
-	if !ok {
-		return "", false
-	}
-	return resolved(s)
 }
 
 // SettleMoot settles each open proposal for a root the founder has already declared as withdrawn (never as approved), and

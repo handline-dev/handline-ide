@@ -138,23 +138,6 @@ func TestAnAgentSaysOnlyImagesAMessageOrTaskAlreadyShows(t *testing.T) {
 	r.result(r.one(alice, "say", fmt.Sprintf(`{"target":"bob","body":"the founder's ![x](attachment:%s)","request_id":"e3"}`, sent.ID)))
 }
 
-func TestAReplyNamesOnlyImagesThatAreThereAndTheAgentMayShow(t *testing.T) {
-	t.Parallel()
-	r := newRig(t)
-	alice := r.server("alice")
-	fresh := putImage(t, r)
-	item := r.request("bob", "alice", "question")
-	if d := r.errData(r.one(alice, "inbox.reply", fmt.Sprintf(`{"id":%d,"text":"![x](attachment:%s)","request_id":"f1"}`, item, fresh.ID))); d["gate"] != "role" {
-		t.Fatalf("an upload no one has sent: %v", d)
-	}
-	if d := r.errData(r.one(alice, "inbox.reply", fmt.Sprintf(`{"id":%d,"text":"![x](attachment:0000000000000000)","request_id":"f2"}`, item))); d["what"] != "attachment" {
-		t.Fatalf("a reference to an image that is not there: %v", d)
-	}
-	if n := r.count("SELECT COUNT(*) FROM requests WHERE settles = ?", item); n != 0 {
-		t.Fatalf("a refused reply wrote %d replies", n)
-	}
-}
-
 func TestAMessageThatOpensATaskIsRefusedForAGoneImage(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)

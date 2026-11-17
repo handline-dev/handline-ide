@@ -34,11 +34,9 @@ func Register(s *rpc.Server, e *supervisor.Env, tell taskwrites.Teller) {
 	s.Register("chat.cancel", rpc.Method{Handler: w.cancel})
 	s.Register("chat.seen", rpc.Method{Handler: w.seen})
 	s.Register("inbox.mark_read", rpc.Method{Handler: w.markRead})
-	s.Register("inbox.reply", rpc.Method{Waits: true, Handler: w.inboxReply})
 	w.registerMessages(s)
 	w.registerAnswers(s)
 	w.registerRequests(s)
-	w.registerTrust(s)
 }
 
 type writes struct {

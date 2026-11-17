@@ -208,21 +208,6 @@ export class ChatStore {
       transcript_more_newer: lo + 200 < span.length,
     };
   }
-  /** What a # can point at: the agent's newest requests, sent or received, as a line each (the first line, up to 60 characters). */
-  refs(p: Record<string, unknown>) {
-    const agent = String(p.agent);
-    const requests = this.messages
-      .filter((m) => m.agent === agent && m.landing !== 'withdrawn')
-      .sort((a, b) => b.id - a.id)
-      .slice(0, 30)
-      .map((m) => ({ request: m.id, from: m.from, to: m.to, line: [...(m.body.trim().split('\n')[0] ?? '')].slice(0, 60).join('') }));
-    return { requests };
-  }
-  /** Links a message to a task, as the daemon does for a question asked from the task's page. */
-  link(id: number, task: { id: number; title: string }) {
-    const m = this.find(id);
-    if (!m.tasks.some((t) => t.id === task.id)) this.change(m, { tasks: [...m.tasks, task] });
-  }
   /** Messages whose body holds the text, newest first, each with the agent and the chat (scope) that shows it. */
   search(p: Record<string, unknown>) {
     const hits = searchHits(this.messages, p, (m) => this.shownInMine(m));

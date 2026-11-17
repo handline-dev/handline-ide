@@ -1,15 +1,11 @@
 package reads
 
 import (
-	"os"
-	"path/filepath"
 	"reflect"
 	"testing"
-	"time"
 
 	"github.com/handline/handline/go/data/team/teamtest"
 
-	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
@@ -81,42 +77,5 @@ func TestTheBoardSaysWhoHoldsEachTask(t *testing.T) {
 	}
 	if _, err := e.taskBoard(&rpc.Conn{Caller: rpc.Caller{Role: "owner"}}, map[string]any{"everyone": "yes"}); err == nil {
 		t.Error("everyone yes was accepted")
-	}
-}
-
-// The index against its budget, and a topic file unused for four weeks by the hook's record or, never recorded, by its mtime.
-func TestMemoryStatusReadsTheIndexAndTheUnusedFiles(t *testing.T) {
-	t.Parallel()
-	e := testEnv(t)
-	addAgent(t, e, "amy", "")
-	addAgent(t, e, "bob", "")
-	dir := filepath.Join(paths.AgentDir(e.Home, "amy"), "memory")
-	os.MkdirAll(filepath.Join(dir, "deep"), 0o755)
-	index := "# memory\n- [one](one.md) - a\n- [two](two.md) - b\n"
-	os.WriteFile(filepath.Join(dir, "MEMORY.md"), []byte(index), 0o644)
-	for _, f := range []string{"one.md", "two.md", "deep/old.md"} {
-		os.WriteFile(filepath.Join(dir, f), []byte("x"), 0o644)
-	}
-	now := time.Unix(100*86400, 0)
-	old := now.Add(-40 * 24 * time.Hour)
-	os.Chtimes(filepath.Join(dir, "deep/old.md"), old, old) // never recorded: its mtime is old
-	os.Chtimes(filepath.Join(dir, "one.md"), old, old)      // recorded as read yesterday
-	os.Chtimes(filepath.Join(dir, "two.md"), now, now)      // recorded as read six weeks ago
-	use := `{"one.md": ` + itoa(now.Unix()-86400) + `, "two.md": ` + itoa(now.Unix()-42*86400) + `}`
-	os.WriteFile(filepath.Join(paths.AgentDir(e.Home, "amy"), "memory-use.json"), []byte(use), 0o644)
-	got := memoryOf(e.Home, "amy", now)
-	want := map[string]any{"agent": "amy", "bytes": len(index), "budget": memoryBudget, "entries": 2, "unused": []string{"deep/old.md", "two.md"}}
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("amy: %v, want %v", got, want)
-	}
-	if got := memoryOf(e.Home, "bob", now); got["bytes"] != 0 || got["entries"] != 0 || len(got["unused"].([]string)) != 0 {
-		t.Errorf("bob, no memory: %v", got)
-	}
-	all, err := e.memoryStatus(nil, map[string]any{})
-	if err != nil || len(all.(map[string]any)["agents"].([]any)) != 2 {
-		t.Fatalf("every agent: %v %v", all, err)
-	}
-	if _, err := e.memoryStatus(nil, map[string]any{"agent": "ghost"}); err == nil {
-		t.Error("an unknown agent was read")
 	}
 }

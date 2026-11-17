@@ -12,7 +12,7 @@ import (
 	"github.com/handline/handline/go/kit/yamlcompat"
 )
 
-// The schedules spec (handline/team/schedules.py): read, validated and numbered the way schedules.list shows them.
+// The schedules spec (handline/team/schedules.py): read, validated and numbered.
 
 // Schedule is one {cron, message}, as it is kept.
 type Schedule struct{ Cron, Message string }

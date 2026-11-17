@@ -63,9 +63,6 @@ func TestInboxMarkReadReadsAReportButNeverADecision(t *testing.T) {
 	if d := r.errData(r.one(s, "inbox.mark_read", fmt.Sprintf(`{"ids":[%d],"request_id":"i2"}`, report))); d["gate"] != "state" {
 		t.Fatalf("nothing behind a decision is read away: %v", d)
 	}
-	if d := r.errData(r.one(s, "inbox.reply", fmt.Sprintf(`{"id":%d,"text":"yes","request_id":"i4"}`, card))); d["gate"] != "state" {
-		t.Fatalf("a decision is not replied to: %v", d)
-	}
 	dbpkg.MarkTaskDone(r.db, tid, "yes", "reason")
 	dbpkg.CloseIfQueued(r.db, card, "done", "yes")
 	res := r.result(r.one(s, "inbox.mark_read", fmt.Sprintf(`{"ids":[%d],"request_id":"i5"}`, report)))
@@ -77,24 +74,7 @@ func TestInboxMarkReadReadsAReportButNeverADecision(t *testing.T) {
 	}
 }
 
-func TestAnAgentRepliesToItsOwnIncomingItemOnly(t *testing.T) {
-	t.Parallel()
-	r := newRig(t)
-	// an agent replies to its own incoming item
-	mine := r.request("bob", "alice", "question")
-	if res := r.result(r.one(r.server("alice"), "inbox.reply", fmt.Sprintf(`{"id":%d,"text":"answer","request_id":"n3"}`, mine))); res["accepted"] != true {
-		t.Fatal(res)
-	}
-	if r.count("SELECT COUNT(*) FROM requests WHERE parent_id = ? AND requester = ? AND kind = 'say'", mine, r.k("alice")) != 1 ||
-		r.count("SELECT COUNT(*) FROM requests WHERE id = ? AND state = 'queued'", mine) != 1 {
-		t.Fatal("the reply is a say in the item's thread and closes nothing")
-	}
-	if d := r.errData(r.one(r.server("alice"), "inbox.reply", fmt.Sprintf(`{"id":%d,"text":"x","request_id":"n4"}`, r.request("bob", "carol", "not yours")))); d["code"] != "not_found" {
-		t.Fatal(d)
-	}
-}
-
-func TestStandingAnswersAreAddedAndRemovedOnceAndARemovedOneIsNotFound(t *testing.T) {
+func TestAStandingAnswerIsAddedOnce(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
 	s := r.server("")
@@ -106,28 +86,18 @@ func TestStandingAnswersAreAddedAndRemovedOnceAndARemovedOneIsNotFound(t *testin
 	if res := r.result(r.one(s, "answer.add", add)); res["replayed"] != true {
 		t.Fatalf("a retry repeats nothing: %v", res)
 	}
-	rm := `{"kind":"trust","key":["` + folder + `"],"request_id":"r3"}`
-	if res := r.result(r.one(s, "answer.remove", rm)); res["accepted"] != true {
-		t.Fatal(res)
-	}
-	if d := r.errData(r.one(s, "answer.remove", `{"kind":"trust","key":["`+folder+`"],"request_id":"r4"}`)); d["code"] != "not_found" {
-		t.Fatalf("%v", d)
-	}
 	if r.count("SELECT COUNT(*) FROM cursors WHERE name LIKE 'intent:%'") != 0 {
 		t.Fatal("no intent is left behind")
 	}
 }
 
-// This daemon answers no dialog: a dialog rule is not saved, none is listed, and removing one finds nothing.
+// This daemon answers no dialog: a dialog rule is not saved.
 func TestADialogRuleIsRefusedAsUnsupportedAndNoneIsKept(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
 	s := r.server("")
 	d := r.errData(r.one(s, "answer.add", `{"vendor":"claude","title":"Trust this folder?","label":"Yes","request_id":"r1"}`))
 	if d["code"] != "refused" || d["gate"] != "unsupported" {
-		t.Fatalf("%v", d)
-	}
-	if d := r.errData(r.one(s, "answer.remove", `{"kind":"dialog","key":["claude","Trust this folder?","Yes"],"request_id":"r2"}`)); d["code"] != "not_found" {
 		t.Fatalf("%v", d)
 	}
 	if r.count("SELECT COUNT(*) FROM cursors WHERE name LIKE 'intent:%'") != 0 {
@@ -207,7 +177,7 @@ func TestTheCancelConfirmSaysYouForTheFoundersOwnMessage(t *testing.T) {
 	}
 }
 
-func TestAnAskFromACommentIsReadAwayOnlyByNamingItAndAReplyIsTheFoundersComment(t *testing.T) {
+func TestAnAskFromACommentIsReadAwayOnlyByNamingIt(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
 	s := r.server("")
@@ -238,12 +208,6 @@ func TestAnAskFromACommentIsReadAwayOnlyByNamingItAndAReplyIsTheFoundersComment(
 	r.result(r.one(s, "inbox.mark_read", fmt.Sprintf(`{"ids":[%d],"request_id":"s3"}`, a1)))
 	if r.count("SELECT COUNT(*) FROM requests WHERE id = ? AND state = 'landed'", a1) != 1 {
 		t.Fatal("naming the ask reads it")
-	}
-	a2, m2 := ask("@human other?")
-	r.result(r.one(s, "inbox.reply", fmt.Sprintf(`{"id":%d,"text":"B","request_id":"s4"}`, a2)))
-	if r.count("SELECT COUNT(*) FROM task_memos WHERE task_id = ? AND author = ? AND body = 'B' AND reply_to = ?", tid, actor.OwnerKey, m2) != 1 ||
-		r.count("SELECT COUNT(*) FROM requests WHERE id = ? AND state = 'landed'", a2) != 1 {
-		t.Fatal("the reply is the founder's comment on the task, and closes the ask")
 	}
 }
 
@@ -282,7 +246,7 @@ func TestAFounderMessageToAnAgentClosesAMemoAskOnlyAsAReplyToIt(t *testing.T) {
 		t.Fatal("a reply to the ask answers it")
 	}
 	if r.count("SELECT COUNT(*) FROM task_memos WHERE task_id = ? AND author = ? AND body = 'yes' AND reply_to = ?", tid, actor.OwnerKey, firstMemo) != 1 {
-		t.Fatal("a chat reply under the ask is the founder's comment on the task, as inbox.reply writes it")
+		t.Fatal("a chat reply under the ask is the founder's comment on the task")
 	}
 	if !open(second) || !open(other) {
 		t.Fatal("the reply closes only the ask it names")

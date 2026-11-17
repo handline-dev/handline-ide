@@ -179,19 +179,6 @@ func TestADeviceKeepsItsKindClientAndNewName(t *testing.T) {
 	if r := row(d.ID); r["client"] != "app/1.4.0" {
 		t.Fatalf("client %v", r["client"])
 	}
-	renamed, found, err := m.Rename(d.ID, "my phone")
-	if err != nil || !found || renamed.Name != "my phone" || renamed.Kind != "ios" {
-		t.Fatalf("%+v %v %v", renamed, found, err)
-	}
-	if r := row(d.ID); r["name"] != "my phone" {
-		t.Fatalf("%v", r)
-	}
-	if ev := m.Row(renamed); ev["current"] != false {
-		t.Fatalf("an event's row is current: %v", ev)
-	}
-	if _, found, _ := m.Rename("dev_none", "x"); found {
-		t.Fatal("renamed a device that is not paired")
-	}
 }
 
 // A device paired on this Mac is the owner's, and its login says so.

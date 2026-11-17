@@ -21,7 +21,6 @@ export interface CoreHost {
   readonly replyItems: boolean;
   readonly pairing: FakePairing;
   readonly log: EventLog;
-  readonly pullRequests: Set<number>;
   readonly unservedTopics: Set<Topic>;
   readonly serveChat: boolean;
   readonly serveBytes: boolean;
@@ -102,13 +101,6 @@ export function coreCall(
       return { people: PEOPLE };
     case 'agent.get':
       return detail(agent(), d.tasks);
-    case 'pr.exists': {
-      const repo = agent().fx.repo ?? null;
-      const nums = p.numbers;
-      if (!Array.isArray(nums) || nums.length > 20 || !nums.every((n) => Number.isInteger(n)))
-        throw badRequest('numbers must be at most 20 integers', 'numbers');
-      return { repo, found: repo ? (nums as number[]).filter((n) => d.pullRequests.has(n)) : [] };
-    }
     case 'subscribe': {
       c.topics = new Set(subscribeTopics(p, d.unservedTopics));
       return { cursor: d.log.head };

@@ -2,10 +2,12 @@ package daemon
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/taskboard/msgtest"
@@ -30,22 +32,36 @@ func trustDaemon(t *testing.T) (d *Daemon, id string, card int64, root string) {
 		t.Fatal(err)
 	}
 	alice := key(t, d, "alice")
-	raise := func(title, text string) (bool, string, int64, int64, error) {
-		rid, err := db.AddRequest(d.db, db.NewRequest{Requester: alice, Target: actor.OwnerKey, Body: text, Kind: "task"})
-		if err != nil {
-			return false, "", 0, 0, err
-		}
-		tid, err := db.NewTask(d.db, title, actor.OwnerKey, alice, 0, db.DefaultPriority, "decision", 0, "")
-		if err != nil {
-			return false, "", 0, 0, err
-		}
-		return true, "", rid, tid, db.LinkRequest(d.db, tid, rid)
+	// the proposal as an agent's trust request raised it, before that request was retired: its card and its decision task
+	id = "0a1b2c3d"
+	text := fmt.Sprintf("[trust] add %s - asked by %s\n\nthe repo\n\nAnswer `approve` or `reject` (proposal %s).", root, alice, id)
+	rid, err := db.AddRequest(d.db, db.NewRequest{Requester: alice, Target: actor.OwnerKey, Body: text, Kind: "task"})
+	if err != nil {
+		t.Fatal(err)
 	}
-	ok, said, id, err := team.NewTrust(d.cfg.Home).Propose(root, "the repo", alice, raise)
-	if err != nil || !ok {
-		t.Fatal(said, err)
+	tid, err := db.NewTask(d.db, "trust "+root, actor.OwnerKey, alice, 0, db.DefaultPriority, "decision", 0, "")
+	if err != nil || db.LinkRequest(d.db, tid, rid) != nil {
+		t.Fatal(err)
+	}
+	p := team.Proposal{{Key: "id", Val: id}, {Key: "root", Val: root}, {Key: "why", Val: "the repo"}, {Key: "requested_by", Val: alice},
+		{Key: "created", Val: time.Now().Unix()}, {Key: "state", Val: "proposed"}, {Key: "request", Val: rid}, {Key: "task", Val: tid}}
+	if err := team.NewTrust(d.cfg.Home).SaveProposal(p); err != nil {
+		t.Fatal(err)
 	}
 	return d, id, 1, root
+}
+
+// declared is every declared root as the protected store keeps it: root, why and added_by.
+func declared(t *testing.T, tr *team.Trust) []map[string]any {
+	t.Helper()
+	raw, _ := tr.Store.Get("trust", "roots.json")
+	var rows []map[string]any
+	if raw != "" {
+		if err := json.Unmarshal([]byte(raw), &rows); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return rows
 }
 
 // doneCard is the founder's task.done on the card's decision task, with text as the evidence: how the apps decide.
@@ -89,7 +105,7 @@ func TestTheFoundersApproveDeclaresTheProposedRoot(t *testing.T) {
 			d, id, card, root := trustDaemon(t)
 			decide(t, d, card, "approve")
 			tr := team.NewTrust(d.cfg.Home)
-			if got := tr.Declared(); len(got) != 1 || got[0].Root != root || got[0].Why != "the repo" || got[0].AddedBy != key(t, d, "alice") {
+			if got := declared(t, tr); len(got) != 1 || got[0]["root"] != root || got[0]["why"] != "the repo" || got[0]["added_by"] != key(t, d, "alice") {
 				t.Fatalf("%+v", got)
 			}
 			p, _, _ := tr.LoadProposal(id)
@@ -137,7 +153,7 @@ func TestAnApproveForARootDeclaredMeanwhileIsMoot(t *testing.T) {
 			tr := team.NewTrust(d.cfg.Home)
 			tr.Enact(root, "mine")
 			decide(t, d, card, "yes")
-			if got := tr.Declared(); len(got) != 1 || got[0].Why != "mine" {
+			if got := declared(t, tr); len(got) != 1 || got[0]["why"] != "mine" {
 				t.Fatalf("%+v", got)
 			}
 			if p, _, _ := tr.LoadProposal(id); p.Get("state") != "withdrawn" || p.Get("verdict") != "moot: that root is already declared" {
@@ -214,8 +230,8 @@ func TestAnApproveDeclaresNothingWhenTheCardNoLongerNamesTheRoot(t *testing.T) {
 	if err != nil || ok || !strings.Contains(msgtest.IDs(d.db, said), fmt.Sprintf("does not match what #%d asked the founder to approve", card)) {
 		t.Fatal(ok, said, err)
 	}
-	if len(tr.Declared()) != 0 {
-		t.Fatalf("%+v", tr.Declared())
+	if got := tr.ListRoots(); len(got) != 0 {
+		t.Fatalf("%+v", got)
 	}
 }
 
@@ -233,8 +249,8 @@ func TestAnApproveIsForTheDraftAndTaskTheFounderAnswered(t *testing.T) {
 	if ok, said, err := tr.Apply(d.db, id); err != nil || ok || !strings.Contains(said, fmt.Sprintf("is not for T%d", tid)) {
 		t.Fatal(ok, said, err)
 	}
-	if len(tr.Declared()) != 0 {
-		t.Fatalf("%+v", tr.Declared())
+	if got := tr.ListRoots(); len(got) != 0 {
+		t.Fatalf("%+v", got)
 	}
 	recordAnswer(t, tr, id, tid, root)
 	if ok, said, err := tr.Apply(d.db, id); err != nil || !ok || !tr.IsDeclared(root) {

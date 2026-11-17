@@ -535,82 +535,6 @@
    ]
   },
   {
-   "name": "terminal.close.unknown_agent_is_not_found",
-   "spec": "terminal.close",
-   "about": "An agent the team does not have is not_found.",
-   "as": "founder",
-   "steps": [
-    {
-     "send": {
-      "jsonrpc": "2.0",
-      "id": 1,
-      "method": "hello",
-      "params": {
-       "client": "conformance/1",
-       "protocol": 1,
-       "key": "{{founder_key}}"
-      }
-     },
-     "result": {}
-    },
-    {
-     "send": {
-      "jsonrpc": "2.0",
-      "id": 2,
-      "method": "terminal.close",
-      "params": {
-       "agent": "a999",
-       "request_id": "conf-s-2"
-      }
-     },
-     "error": {
-      "code": -32001,
-      "data": {
-       "code": "not_found"
-      }
-     }
-    }
-   ]
-  },
-  {
-   "name": "terminal.close.an_agent_session_is_refused_by_role",
-   "spec": "terminal.close",
-   "about": "Closing a terminal is a person's: a call from an agent session is refused, gate role.",
-   "as": "agent",
-   "steps": [
-    {
-     "send": {
-      "jsonrpc": "2.0",
-      "id": 1,
-      "method": "hello",
-      "params": {
-       "client": "conformance/1",
-       "protocol": 1
-      }
-     },
-     "result": {}
-    },
-    {
-     "send": {
-      "jsonrpc": "2.0",
-      "id": 2,
-      "method": "terminal.close",
-      "params": {
-       "agent": "a1",
-       "request_id": "conf-s-3"
-      }
-     },
-     "error": {
-      "code": -32002,
-      "data": {
-       "code": "refused",
-       "gate": "role"
-      }
-     }
-    }
-   ]
-  },
-  {
    "name": "session.stop.mode_is_exit_close_or_kill",
    "spec": "session.stop",
    "about": "A mode that is none of exit, close and kill is bad_request naming it.",
@@ -838,45 +762,6 @@
        "agent": "{{locked_agent}}",
        "mode": "exit",
        "request_id": "conf-s-9"
-      }
-     },
-     "error": {
-      "code": -32002,
-      "data": {
-       "code": "refused",
-       "gate": "terminal_lock"
-      }
-     }
-    }
-   ]
-  },
-  {
-   "name": "terminal.close.terminal_lock_gate",
-   "spec": "terminal.close",
-   "about": "Closing a terminal while its lock is held is refused at once with gate terminal_lock. Needs --var locked_agent.",
-   "as": "founder",
-   "steps": [
-    {
-     "send": {
-      "jsonrpc": "2.0",
-      "id": 1,
-      "method": "hello",
-      "params": {
-       "client": "conformance/1",
-       "protocol": 1,
-       "key": "{{founder_key}}"
-      }
-     },
-     "result": {}
-    },
-    {
-     "send": {
-      "jsonrpc": "2.0",
-      "id": 2,
-      "method": "terminal.close",
-      "params": {
-       "agent": "{{locked_agent}}",
-       "request_id": "conf-s-10"
       }
      },
      "error": {

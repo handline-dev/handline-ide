@@ -48,38 +48,3 @@ func TestTagsAreSetOnNewAndChangedByEditEachChangeKept(t *testing.T) {
 		}
 	}
 }
-
-func TestASavedViewIsKeptReplacedAndDeletedByName(t *testing.T) {
-	t.Parallel()
-	db, mk := discardEnv(t)
-	line := func(id int, method, params, rid string) string {
-		return fmt.Sprintf(`{"jsonrpc":"2.0","id":%d,"method":%q,"params":{%s"request_id":%q}}`, id, method, params, rid)
-	}
-	code := func(r map[string]any) any { return r["error"].(map[string]any)["data"].(map[string]any)["code"] }
-	r := call(t, mk(""),
-		line(2, "task.view.save", `"name":" fe work ","filter":{"tags":["FE"],"state":"doing"},`, "v1"),
-		line(3, "task.view.save", `"name":"fe work","filter":{"tags":["fe"],"owner":"worker"},`, "v2"),
-		line(4, "task.view.save", `"name":"x","filter":{"title":"y"},`, "v3"),
-		line(5, "task.view.save", `"name":"x","filter":{"state":"busy"},`, "v4"),
-		line(6, "task.view.save", `"name":"","filter":{},`, "v5"),
-		line(7, "task.view.delete", `"name":"nope",`, "v6"),
-		line(8, "task.view.save", `"name":"gone","filter":{},`, "v7"),
-		line(9, "task.view.delete", `"name":"gone",`, "v8"))
-	if r[0]["result"] == nil || r[1]["result"] == nil || r[6]["result"] == nil || r[7]["result"] == nil {
-		t.Fatalf("%v", r)
-	}
-	for i, want := range []string{"bad_request", "bad_request", "bad_request", "not_found"} {
-		if got := code(r[2+i]); got != want {
-			t.Errorf("call %d: %v, want %s", 4+i, got, want)
-		}
-	}
-	if got := count(t, db, `SELECT COUNT(*) FROM task_views WHERE name = 'fe work' AND filter = '{"owner":"worker","tags":["fe"]}' AND updated_by = 'p1'`); got != 1 {
-		t.Fatalf("the second save replaces the first under the trimmed name: %d", got)
-	}
-	if got := count(t, db, "SELECT COUNT(*) FROM task_views"); got != 1 {
-		t.Fatalf("views left: %d", got)
-	}
-	if r := call(t, mk("worker"), line(2, "task.view.save", `"name":"mine","filter":{},`, "a1")); r[0]["error"] == nil {
-		t.Fatalf("an agent saves no view: %v", r)
-	}
-}

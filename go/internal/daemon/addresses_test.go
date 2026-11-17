@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/handline/handline/go/protocol/devices"
 )
 
 func TestTheAddressListKeepsLANAndTailscaleAndLeavesLoopbackAndPublicOut(t *testing.T) {
@@ -103,10 +104,15 @@ func setAddresses(t *testing.T, c *client, list string) map[string]any {
 	return res
 }
 
-func listeners(t *testing.T, c *client) []any {
-	t.Helper()
-	res := call(t, c, "connection.get", `{}`)["result"].(map[string]any)
-	return res["listeners"].([]any)
+// listeners is the door open for each chosen host.
+func listeners(d *Daemon) []devices.Door {
+	var doors []devices.Door
+	for _, h := range d.net.hosts() {
+		if door, ok := d.net.door(h); ok {
+			doors = append(doors, door)
+		}
+	}
+	return doors
 }
 
 // fetch reads the page at the door: over TLS (returning the certificate's fingerprint) or plain.
@@ -146,8 +152,8 @@ func boundAddr(t *testing.T, d *Daemon, ip string) string {
 func TestChosenHostsAreServedLiveTLSOnTheLANPlainOnTailscaleAndDroppedWhenGone(t *testing.T) {
 	d, c := startDoors(t, true)
 	before := boundAddr(t, d, "127.0.0.1")
-	if before == "" || len(listeners(t, c)) != 1 {
-		t.Fatalf("unset network_addresses is not the -listen door: %v", listeners(t, c))
+	if before == "" || len(listeners(d)) != 1 {
+		t.Fatalf("unset network_addresses is not the -listen door: %v", listeners(d))
 	}
 	serveHosts(t, netAddress{Host: "127.0.0.1", Kind: kindLAN, Iface: "en0", IPs: loop})
 	if r := setAddresses(t, c, `["127.0.0.1"]`); !reflect.DeepEqual(r["unreachable_devices"], []any{}) {
@@ -158,14 +164,13 @@ func TestChosenHostsAreServedLiveTLSOnTheLANPlainOnTailscaleAndDroppedWhenGone(t
 	if !reflect.DeepEqual(read["addresses"], []any{want}) || !reflect.DeepEqual(read["network_addresses"], []any{"127.0.0.1"}) {
 		t.Fatalf("connection.addresses: %v", read)
 	}
-	ls := listeners(t, c)
-	l, _ := ls[0].(map[string]any)
+	ls := listeners(d)
 	addr := boundAddr(t, d, "127.0.0.1")
-	if len(ls) != 1 || l["encryption"] != "tls" || l["web"] != true || l["address"] != addr {
+	if len(ls) != 1 || !ls[0].TLS || !ls[0].Web || ls[0].Addr != addr {
 		t.Fatalf("a LAN host is not served over TLS: %v", ls)
 	}
 	body, fp, err := fetch(addr, true)
-	if err != nil || !strings.Contains(body, "<html>handline</html>") || fp != l["fingerprint"] {
+	if err != nil || !strings.Contains(body, "<html>handline</html>") || fp != ls[0].Fingerprint {
 		t.Fatalf("web page over TLS: %v %q fp %s", err, body, fp)
 	}
 	crt, _ := os.ReadFile(filepath.Join(d.cfg.Home, "network", "lan.crt"))
@@ -190,8 +195,8 @@ func TestChosenHostsAreServedLiveTLSOnTheLANPlainOnTailscaleAndDroppedWhenGone(t
 	if _, _, err := ws.ReadMessage(); err == nil || isTimeout(err) {
 		t.Fatalf("a connection through a dropped door stays open: %v", err)
 	}
-	if _, _, err := fetch(addr, true); err == nil || len(listeners(t, c)) != 0 {
-		t.Fatalf("a host the machine no longer has is still served: %v", listeners(t, c))
+	if _, _, err := fetch(addr, true); err == nil || len(listeners(d)) != 0 {
+		t.Fatalf("a host the machine no longer has is still served: %v", listeners(d))
 	}
 	if _, _, err := fetch(boundAddr(t, d, loopback), false); err != nil {
 		t.Fatalf("no loopback door for the app: %v", err)
@@ -200,16 +205,16 @@ func TestChosenHostsAreServedLiveTLSOnTheLANPlainOnTailscaleAndDroppedWhenGone(t
 	// It comes back as Tailscale's (the address list is read again on each round): served plain.
 	serveHosts(t, netAddress{Host: "127.0.0.1", Kind: kindTailscale, Iface: "utun3", IPs: loop})
 	d.net.relisten()
-	if l := listeners(t, c); len(l) != 1 || l[0].(map[string]any)["encryption"] != "none" || l[0].(map[string]any)["fingerprint"] != nil {
+	if l := listeners(d); len(l) != 1 || l[0].TLS || l[0].Fingerprint != "" {
 		t.Fatalf("a Tailscale host is not served plain: %v", l)
 	}
 
 	setAddresses(t, c, `[]`)
-	if len(listeners(t, c)) != 0 {
-		t.Fatalf("an empty choice still serves %v", listeners(t, c))
+	if len(listeners(d)) != 0 {
+		t.Fatalf("an empty choice still serves %v", listeners(d))
 	}
 	setAddresses(t, c, `null`)
-	if l := listeners(t, c); len(l) != 1 || l[0].(map[string]any)["address"] != boundAddr(t, d, loopback) {
+	if l := listeners(d); len(l) != 1 || l[0].Addr != boundAddr(t, d, loopback) {
 		t.Fatalf("clearing the choice does not bring back the -listen door: %v", l)
 	}
 }

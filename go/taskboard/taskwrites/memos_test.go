@@ -21,6 +21,14 @@ type auth struct{ agent string }
 func (a auth) AgentOf(int) string         { return a.agent }
 func (a auth) FounderKeyOK(k string) bool { return a.agent == "" && k == "founder" }
 
+// writesServer serves the task writes to agent ("" is the founder) over d, with tell as the teller.
+func writesServer(agent string, d *sql.DB, home string, tell Teller) *rpc.Server {
+	s := rpc.NewServer(auth{agent}, "x", store.LatestVersion(), "local", func(string, ...any) {})
+	s.DB = d
+	Register(s, home, tell, nil)
+	return s
+}
+
 // call serves one connection as agent `as` over db and returns its replies to the calls given.
 func call(t *testing.T, srv *rpc.Server, calls ...string) []map[string]any {
 	t.Helper()
@@ -77,10 +85,10 @@ func TestMemosAreAddedEditedAndDeletedByTheirAuthorOrTheFounder(t *testing.T) {
 		return s
 	}
 	r := call(t, mk("worker"),
-		`{"jsonrpc":"2.0","id":2,"method":"task.memo.add","params":{"task":1,"text":"first","request_id":"a1"}}`,
-		`{"jsonrpc":"2.0","id":3,"method":"task.memo.add","params":{"task":1,"text":"first","request_id":"a1"}}`,
-		`{"jsonrpc":"2.0","id":4,"method":"task.memo.edit","params":{"task":1,"memo":1,"text":"second","request_id":"a2"}}`,
-		`{"jsonrpc":"2.0","id":5,"method":"task.memo.add","params":{"task":9,"text":"x","request_id":"a3"}}`)
+		`{"jsonrpc":"2.0","id":2,"method":"task.comment.add","params":{"task":1,"text":"first","request_id":"a1"}}`,
+		`{"jsonrpc":"2.0","id":3,"method":"task.comment.add","params":{"task":1,"text":"first","request_id":"a1"}}`,
+		`{"jsonrpc":"2.0","id":4,"method":"task.comment.edit","params":{"task":1,"memo":1,"text":"second","request_id":"a2"}}`,
+		`{"jsonrpc":"2.0","id":5,"method":"task.comment.add","params":{"task":9,"text":"x","request_id":"a3"}}`)
 	res := r[0]["result"].(map[string]any)
 	if res["memo"].(float64) != 1 || res["said"] != "comment 1 added to T1" {
 		t.Fatalf("%v", r[0])
@@ -101,11 +109,11 @@ func TestMemosAreAddedEditedAndDeletedByTheirAuthorOrTheFounder(t *testing.T) {
 		t.Fatalf("%d %q", n, body)
 	}
 	other := call(t, mk("manager"),
-		`{"jsonrpc":"2.0","id":2,"method":"task.memo.delete","params":{"task":1,"memo":1,"request_id":"b1"}}`)
+		`{"jsonrpc":"2.0","id":2,"method":"task.comment.delete","params":{"task":1,"memo":1,"request_id":"b1"}}`)
 	if e := other[0]["error"].(map[string]any); e["data"].(map[string]any)["code"] != "refused" {
 		t.Fatalf("another agent may not delete it: %v", other[0])
 	}
-	if got := call(t, mk("worker"), `{"jsonrpc":"2.0","id":2,"method":"task.memo.delete","params":{"task":1,"memo":1,"request_id":"b2"}}`); got[0]["result"] == nil {
+	if got := call(t, mk("worker"), `{"jsonrpc":"2.0","id":2,"method":"task.comment.delete","params":{"task":1,"memo":1,"request_id":"b2"}}`); got[0]["result"] == nil {
 		t.Fatalf("the author deletes: %v", got[0])
 	}
 	db.QueryRow(keyed(db, "SELECT COUNT(*) FROM task_memos")).Scan(&n)
@@ -213,42 +221,3 @@ func TestStartMakesATaskTheOwnersCurrentOneAndPutsItsRequestFirst(t *testing.T) 
 }
 
 func (a auth) SessionsReadable() error { return nil }
-
-func TestSendNowTypesAHeldCommentTellOnlyWhileItIsHeld(t *testing.T) {
-	t.Parallel()
-	db, err := storetest.OpenAt(t, filepath.Join(t.TempDir(), "db.sqlite"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-	for _, q := range []string{
-		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 't', 'worker', 'p1', 1)",
-		"INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(1, 1, 'p1', 'hi', 1)",
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind, notice, landed_at) VALUES(5, 1, 'notices', 'worker', 'b', 'landed', 'say', 2, 1)",
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind, notice, landed_at, read_at) VALUES(6, 1, 'notices', 'amy', 'b', 'landed', 'say', 2, 1, 2)",
-		"INSERT INTO memo_tells(memo_id, reader, request_id) VALUES(1, 'worker', 5), (1, 'amy', 6)",
-	} {
-		if _, err := db.Exec(keyed(db, q)); err != nil {
-			t.Fatal(err)
-		}
-	}
-	tell := &fakeTeller{}
-	s := rpc.NewServer(auth{""}, "x", store.LatestVersion(), "local", func(string, ...any) {})
-	s.DB = db
-	Register(s, t.TempDir(), tell, nil)
-	send := func(id, agent string) map[string]any {
-		return call(t, s, fmt.Sprintf(`{"jsonrpc":"2.0","id":2,"method":"task.comment.send_now","params":{"memo":1,"agent":%q,"request_id":%q}}`, agent, id))[0]
-	}
-	if r := send("s1", "worker"); r["result"] == nil || fmt.Sprint(tell.sentMemo) != "[5]" {
-		t.Fatalf("a held tell goes now: %v %v", r, tell.sentMemo)
-	}
-	db.Exec(keyed(db, "UPDATE requests SET delivered_at = 9 WHERE id = 5")) // what the digest does
-	for i, agent := range []string{"worker", "amy", "nobody"} {             // already sent, already read, never told
-		if r := send(fmt.Sprintf("s%d", i+2), agent); r["error"] == nil {
-			t.Errorf("%s: only a held tell is sent now: %v", agent, r)
-		}
-	}
-	if len(tell.sentMemo) != 1 {
-		t.Fatalf("%v", tell.sentMemo)
-	}
-}

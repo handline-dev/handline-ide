@@ -6,7 +6,7 @@ import { EVENT_REQUIRED } from '#src/generated/reads.ts';
 
 describe('the generated hooks', () => {
   it('each read and cached write of the spec has a hook named from the method', () => {
-    const callers = [hooks.useAgentGet, hooks.useAgentsList, hooks.useTaskNew, hooks.useTaskGet, hooks.useTaskCommentList];
+    const callers = [hooks.useAgentGet, hooks.useAgentsList, hooks.useTaskNew, hooks.useTaskGet, hooks.useTaskCommentAdd];
     expect(callers.every((h) => typeof h === 'function')).toBe(true);
     for (const m of Object.keys(reads)) {
       const name =

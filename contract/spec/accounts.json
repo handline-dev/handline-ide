@@ -329,7 +329,15 @@
         "properties": {
          "kind": {
           "type": "string",
-          "enum": ["subscription_ended", "paused", "week_cap", "five_hour_cap", "login", "unfit", "other"],
+          "enum": [
+           "subscription_ended",
+           "paused",
+           "week_cap",
+           "five_hour_cap",
+           "login",
+           "unfit",
+           "other"
+          ],
           "description": "What keeps new work off it: its subscription end day has passed, the founder paused it, its weekly or 5-hour window is at the wall, it is not logged in (which wins over the rest), it may take work but another account fits a new start better, or something else (a stale, lost or unreadable reading)."
          },
          "text": {
@@ -337,7 +345,10 @@
           "description": "The daemon's reason in words, as `hl status` prints it. An ended account that is logged in with a fresh reading adds that its end day may be out of date."
          }
         },
-        "required": ["kind", "text"]
+        "required": [
+         "kind",
+         "text"
+        ]
        },
        {
         "type": "null"
@@ -1068,30 +1079,6 @@
      ]
     },
     "description": "What the agents cost per local calendar day, oldest first; a day with no calls is absent."
-   },
-   "CostPerDay": {
-    "type": "object",
-    "properties": {
-     "range": {
-      "type": "string",
-      "enum": [
-       "12h",
-       "24h",
-       "3d",
-       "7d",
-       "14d",
-       "30d"
-      ],
-      "description": "The range asked for."
-     },
-     "cost_per_day": {
-      "$ref": "#/components/schemas/DayCosts"
-     }
-    },
-    "required": [
-     "range",
-     "cost_per_day"
-    ]
    }
   }
  },
@@ -1154,96 +1141,6 @@
      "$ref": "#/components/errors/bad_request"
     }
    ]
-  },
-  {
-   "name": "status.pick",
-   "summary": "Which account the next agent would be placed on, each account's reason, and what one more agent costs by kind.",
-   "paramStructure": "by-name",
-   "params": [],
-   "result": {
-    "name": "result",
-    "schema": {
-     "type": "object",
-     "required": [
-      "picked",
-      "candidates",
-      "agent_costs"
-     ],
-     "properties": {
-      "picked": {
-       "oneOf": [
-        {
-         "type": "string"
-        },
-        {
-         "type": "null"
-        }
-       ],
-       "description": "The account to place the next agent on; null when none may take work (fail-closed)."
-      },
-      "candidates": {
-       "type": "array",
-       "items": {
-        "type": "object",
-        "required": [
-         "account",
-         "reason"
-        ],
-        "properties": {
-         "account": {
-          "type": "string"
-         },
-         "reason": {
-          "type": "string"
-         }
-        }
-       }
-      },
-      "agent_costs": {
-       "type": "array",
-       "items": {
-        "type": "string"
-       },
-       "description": "One line per agent kind: its price per minute of the 5h window and what the price rests on."
-      },
-      "agent_pace_usd": {
-       "type": "array",
-       "items": {
-        "type": "object",
-        "required": [
-         "model",
-         "usd_per_min",
-         "source",
-         "samples"
-        ],
-        "properties": {
-         "model": {
-          "type": "string",
-          "description": "The model, or \"all agents\" for the whole pool."
-         },
-         "usd_per_min": {
-          "type": "number",
-          "description": "Median API-equivalent dollars per minute of work of its latest samples."
-         },
-         "source": {
-          "type": "string",
-          "description": "What the figure rests on: the model, \"all agents\" or \"starting value\"."
-         },
-         "samples": {
-          "type": "integer",
-          "description": "Samples behind it; 0 for the starting value."
-         }
-        }
-       },
-       "description": "What one agent spends per minute of work, by model, pooled across accounts, then the whole pool."
-      }
-     }
-    }
-   },
-   "x-role": "agent",
-   "x-write": false,
-   "x-app-cache": false,
-   "x-since": 1
   },
   {
    "name": "account.set",
@@ -1999,47 +1896,6 @@
    "x-write": false,
    "x-app-cache": {
     "resource": "outlook",
-    "feed": null
-   },
-   "x-since": 1,
-   "errors": [
-    {
-     "$ref": "#/components/errors/bad_request"
-    }
-   ]
-  },
-  {
-   "name": "stats.cost",
-   "summary": "What the agents cost per day: stats.outlook's cost_per_day alone, without the headroom it computes, for a client that draws only the cost.",
-   "paramStructure": "by-name",
-   "params": [
-    {
-     "name": "range",
-     "required": true,
-     "schema": {
-      "type": "string",
-      "enum": [
-       "12h",
-       "24h",
-       "3d",
-       "7d",
-       "14d",
-       "30d"
-      ],
-      "description": "The last that many days (under 1 day counts as 1), as stats.outlook counts them."
-     }
-    }
-   ],
-   "result": {
-    "name": "result",
-    "schema": {
-     "$ref": "#/components/schemas/CostPerDay"
-    }
-   },
-   "x-role": "member",
-   "x-write": false,
-   "x-app-cache": {
-    "resource": "cost",
     "feed": null
    },
    "x-since": 1,

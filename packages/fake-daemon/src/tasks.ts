@@ -100,7 +100,6 @@ export class FakeTasks extends TaskReviews {
 const BASIC = new Set([
   'tasks.list',
   'task.get',
-  'task.comment.list',
   'task.comment.recipients',
   'task.seen',
   'requests.pending',
@@ -110,7 +109,6 @@ const BASIC = new Set([
   'task.edit',
   'task.withdraw',
   'task.discard',
-  'task.ask',
   'task.plan',
   'task.plan_ok',
   'task.plan_ask',
@@ -128,6 +126,5 @@ const VERBS = new Set([
   'task.comment.add',
   'task.comment.edit',
   'task.comment.delete',
-  'task.comment.send_now',
   'task.turn.pop',
 ]);

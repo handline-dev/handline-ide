@@ -40,8 +40,6 @@ export class FakeDaemon {
   readonly chat: FakeChat;
   /** The role a paired device gets: the founder's, as the real daemon gives it; a test that wants a restricted device sets 'member'. */
   deviceRole: Role = 'owner';
-  /** The numbers pr.exists reports as pull requests, for every agent. */
-  readonly pullRequests = new Set<number>();
   /** Puts a proposal in as an agent raised it (the proposals topic announces it); a demo or test uses this instead of reaching into the script. */
   raiseProposal(p: Parameters<Script['proposals']['raise']>[0]) {
     return this.script.proposals.raise(p);

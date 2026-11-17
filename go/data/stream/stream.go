@@ -445,11 +445,10 @@ func Register(srv *rpc.Server, h *Hub) {
 	}})
 }
 
-// Stamped are the reads that the events of a stream_log topic keep current (app-data's reads with a feed, but chat.requests,
-// which gives its own).
+// Stamped are the reads that the events of a stream_log topic keep current (app-data's reads with a feed).
 var Stamped = []string{"accounts.list", "agent.get", "agent.strip", "agent.timeline", "agents.list", "chat.messages", "chat.transcript",
 	"daemon.status", "proposal.list", "inbox.get", "inbox.list", "operation.get", "prefs.get", "prompt.list", "task.get",
-	"task.time", "tasks.list", "for_you.list"}
+	"task.time", "tasks.list"}
 
 // StampCursor gives each Stamped read of s a cursor: the newest when the read began, so an event after it may be in the answer already
 // (it is applied again, which changes nothing) and none at or before it is missing from the answer.

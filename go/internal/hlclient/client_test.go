@@ -225,7 +225,7 @@ func TestALargeRequestAfterALargeHelloReplyIsAnswered(t *testing.T) {
 	})
 	c := client(to)
 	c.Deadline = 3 * time.Second
-	got, err := c.Call("task.memo.add", map[string]any{"text": big})
+	got, err := c.Call("task.comment.add", map[string]any{"text": big})
 	if err != nil || got["got"] != float64(len(big)) {
 		t.Fatalf("%v %v", got, err)
 	}

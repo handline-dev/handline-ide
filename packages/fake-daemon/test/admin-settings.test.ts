@@ -62,32 +62,6 @@ test('settings.get serves every SettingsValues key, a load limit reads back, and
   client.close();
 });
 
-test('connection.get answers a TLS listener with a fingerprint and dev mode as set', async () => {
-  const { client } = setup();
-  await client.start();
-  const got = await client.call('connection.get', {});
-  assert.equal(got.listener?.encryption, 'tls');
-  assert.match(got.listener?.fingerprint ?? '', /^sha256:[0-9a-f]{64}$/);
-  assert.equal(got.dev_mode, false);
-  await client.call('settings.set', { changes: { dev_mode: true }, request_id: 'l1-c' });
-  assert.equal((await client.call('connection.get', {})).dev_mode, true);
-  client.close();
-});
-
-test('a member is refused connection.get, and a daemon without admin does not list it', async () => {
-  const member = setup({ role: 'member' });
-  await member.client.start();
-  await assert.rejects(member.client.call('connection.get', {}), (e: RpcError) => e.gate === 'role');
-  member.client.close();
-  const none = setup({ daemon: { admin: false } });
-  await none.client.start();
-  assert.equal(
-    none.client.hello?.methods.some((m) => m.name === 'connection.get'),
-    false,
-  );
-  none.client.close();
-});
-
 test('settings.get shows the built-in handoff prompt and who sets their own; a short prompt is refused and line breaks are joined', async () => {
   const { client } = setup();
   await client.start();

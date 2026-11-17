@@ -108,11 +108,11 @@ export type TranscriptItem = {
     task: number;
     request: number | null;
     evidence: string | null;
-    /** Who did it: the key of the agent or person that opened, changed, closed or withdrew the task, as ChatRequestItem.who. */
+    /** Who did it: the key of the agent or person that opened, changed, closed or withdrew the task. */
     who: string;
     /** unblocked only: the blocker whose close freed the task. */
     closed_task?: number;
-    /** What a `changed` event changed, as chat.requests words it: `assigned to X, priority 2 -> 1`, `title changed`, `handed to X`. Absent when the event word says it all. An open set: a client draws a word it does not know as text. */
+    /** What a `changed` event changed: `assigned to X, priority 2 -> 1`, `title changed`, `handed to X`. Absent when the event word says it all. An open set: a client draws a word it does not know as text. */
     change?: string;
   };
   /** For kind session: a conversation of this agent began here, or it was restarted into the same one. Listed for every session start that did not resume the old conversation, and for a resume whose cause is `restart`, `settings_applied` or `move` or that changed a setting, once its session id is known (a fresh launch has none for its first seconds). When one begins the daemon publishes the item as chat.transcript, as it does a reply. */
@@ -183,45 +183,6 @@ export type Working = {
   since: Timestamp | null;
 };
 
-export type StandingAnswer = {
-  /** trust: a folder trusted for every session; dialog: a rule that answers a vendor's dialog. */
-  kind: "trust" | "dialog";
-  /** What answer.remove takes: [folder] for trust, [vendor, title, label] for dialog. */
-  key: string[];
-  text: string;
-};
-
-export type ChatRequestItem = {
-  type: "request" | "task_event" | "session";
-  /** Where it sits in time: a request where its agent read it (landed_at) or else when it was made. */
-  at: Timestamp;
-  /** request only. */
-  message?: ChatMessage;
-  task_state?: string | null;
-  /** task_event only. */
-  task?: number;
-  /** task_event only: the task's title. */
-  title?: string;
-  /** task_event only: who did it. */
-  who?: string;
-  /** task_event only: `queued -> doing`, `handed to X`, `assigned to X`, `title changed`, `priority 2 -> 1`. An open set: a client draws a word it does not know as text. */
-  change?: string;
-  /** task_event only: the text typed with a handoff, else empty. Text from an agent. */
-  note?: string;
-  request?: number | null;
-  /** task_event only: the ref of the delivery in request. */
-  request_ref?: RequestRef | null;
-  /** session only: why a new conversation started or the session restarted (restart, wake, fresh close, move, handoff, launch). An open set. */
-  cause?: string;
-  /** session only: it went on with the same conversation. Absent means false. */
-  resumed?: boolean;
-  /** session only: what its settings changed, in words a person reads; empty when nothing did. Absent means empty. */
-  changed?: string;
-  /** session only: as the transcript session's changed_lines. Absent means none. */
-  changed_lines?: LineChange[];
-  handoff?: string | null;
-};
-
 /** Where a message to a structured agent is on its way into the CLI. Only for an agent whose AgentView.structured is true; see x-delivery. */
 export type Receipt = {
   /** queued: held by the daemon behind a running turn, not written to the CLI. sent: written to the CLI, not yet echoed. confirmed: the CLI echoed the message's uuid. unknown: written, and the daemon or the CLI ended before the echo; never written again. */
@@ -281,8 +242,6 @@ export type RequestRow = {
   open: number;
   /** Ended tasks under the request's own. */
   done: number;
-  /** PRs of the open tasks in the tree. */
-  prs: number[];
   /** The agent holding the open task with the latest activity under the request (the one at work now); null once done or when the founder holds the open one. */
   now: string | null;
   /** The open task named by `now` waits on another open task (task_blocks, not dormant). */
@@ -359,25 +318,6 @@ export interface ChatMethods {
     messages: ChatMessage[];
     more: boolean;
   } & ReadCursor };
-  "chat.requests": { params: {
-  agent: Who;
-  /** mine: person and this agent; all: everything it sent or received. */
-  scope: "mine" | "all";
-  /** Request id: read the page just older than it. */
-  before?: number;
-  /** Request id: read every request from it on (no `more`); how a window already drawn is brought up to date. Not with `before`. */
-  since?: number;
-  /** Requests in a page; default 10. */
-  limit?: number;
-}; result: {
-    items: ChatRequestItem[];
-    /** Older requests remain (never true with `since`). */
-    more: boolean;
-    /** Opaque: equal on two reads when nothing in the chat changed between them (a request made, closed, changed, delivered or landed, a task event, a session start). Cheap to compare; a client that sees it change reads again. */
-    version: string;
-    /** The newest stream cursor when this was read: subscribe with since=cursor and topics [chat] to hear what changes after it. */
-    cursor: number;
-  } };
   "chat.transcript": { params: {
   agent: Who;
   before?: number;
@@ -410,18 +350,6 @@ export interface ChatMethods {
     transcript_more_older: boolean;
     /** The span has newer items than transcript holds; continue with chat.transcript since the last item's id. */
     transcript_more_newer: boolean;
-  } };
-  "chat.refs": { params: {
-  agent: Who;
-}; result: {
-    /** Up to 30, newest first: every request the agent sent or received that was not withdrawn or turned away. */
-    requests: {
-      request: number;
-      from: string;
-      to: string;
-      /** The first line of the body, at most 60 characters. */
-      line: string;
-    }[];
   } };
   "chat.search": { params: {
   agent?: Who;
@@ -663,27 +591,8 @@ export interface ChatMethods {
     /** What was withdrawn, or why nothing was. */
     said: string;
   } };
-  "request.cancel": { params: {
-  id: RequestName;
-  /** Change nothing: answer `plan`. */
-  dry_run?: boolean;
-  request_id: RequestId;
-}; result: {
-    /** Dry run: whether the request can be cancelled. Otherwise: whether it was. */
-    ok: boolean;
-    /** Dry run only: what cancelling would do and who is told, or why it cannot be cancelled. */
-    plan?: string;
-    /** Without dry_run: what was cancelled and who was told, or `not cancelled - ` and the reason. */
-    said?: string;
-  } };
   "inbox.mark_read": { params: {
   ids: RequestName[];
-  request_id: RequestId;
-}; result: Accepted };
-  "inbox.reply": { params: {
-  id: RequestName;
-  /** Markdown. It may name images (x-attachments, texts). */
-  text: string;
   request_id: RequestId;
 }; result: Accepted };
   "requests.list": { params: {
@@ -697,9 +606,6 @@ export interface ChatMethods {
     items: RequestRow[];
     more: boolean;
   } };
-  "answers.list": { params: { [key: string]: unknown }; result: {
-    answers: StandingAnswer[];
-  } };
   "answer.add": { params: {
   /** A folder to trust; must exist. Give folder, or the three rule fields. */
   folder?: string;
@@ -710,19 +616,12 @@ export interface ChatMethods {
   label?: string;
   request_id: RequestId;
 }; result: Accepted };
-  "answer.remove": { params: {
-  kind: "trust" | "dialog";
-  key: string[];
-  request_id: RequestId;
-}; result: Accepted };
 }
 
 export const CHAT_METHODS: { [K in keyof ChatMethods]: { role: Role; callers: Role[] | null; write: boolean; since: number } } = {
   "chat.messages": { role: "member", callers: null, write: false, since: 1 },
-  "chat.requests": { role: "member", callers: null, write: false, since: 1 },
   "chat.transcript": { role: "member", callers: null, write: false, since: 1 },
   "chat.locate": { role: "member", callers: null, write: false, since: 1 },
-  "chat.refs": { role: "member", callers: null, write: false, since: 1 },
   "chat.search": { role: "agent", callers: null, write: false, since: 1 },
   "chat.send": { role: "member", callers: null, write: true, since: 1 },
   "chat.send_now": { role: "member", callers: null, write: true, since: 1 },
@@ -737,22 +636,16 @@ export const CHAT_METHODS: { [K in keyof ChatMethods]: { role: Role; callers: Ro
   "inbox.get": { role: "agent", callers: null, write: false, since: 1 },
   "request.read": { role: "agent", callers: null, write: false, since: 1 },
   "request.withdraw": { role: "agent", callers: null, write: true, since: 1 },
-  "request.cancel": { role: "owner", callers: null, write: true, since: 1 },
   "inbox.mark_read": { role: "agent", callers: null, write: true, since: 1 },
-  "inbox.reply": { role: "agent", callers: null, write: true, since: 1 },
   "requests.list": { role: "member", callers: null, write: false, since: 1 },
-  "answers.list": { role: "owner", callers: null, write: false, since: 1 },
   "answer.add": { role: "owner", callers: null, write: true, since: 1 },
-  "answer.remove": { role: "owner", callers: null, write: true, since: 1 },
 };
 
 /** x-app-cache of each read (x-app in core.json). */
-export const CHAT_APP_CACHE: { [K in "chat.messages" | "chat.requests" | "chat.transcript" | "chat.locate" | "chat.refs" | "chat.search" | "attachment.get" | "inbox.list" | "inbox.queue" | "inbox.get" | "request.read" | "requests.list" | "answers.list"]: { resource: string; id?: string; feed: Topic | null } | false } = {
+export const CHAT_APP_CACHE: { [K in "chat.messages" | "chat.transcript" | "chat.locate" | "chat.search" | "attachment.get" | "inbox.list" | "inbox.queue" | "inbox.get" | "request.read" | "requests.list"]: { resource: string; id?: string; feed: Topic | null } | false } = {
   "chat.messages": {"resource": "chat-messages", "feed": "chat"},
-  "chat.requests": {"resource": "chat-requests", "feed": null},
   "chat.transcript": {"resource": "chat-transcript", "id": "agent", "feed": "chat"},
   "chat.locate": {"resource": "chat-locate", "feed": null},
-  "chat.refs": {"resource": "chat-refs", "id": "agent", "feed": null},
   "chat.search": {"resource": "chat-search", "feed": null},
   "attachment.get": false,
   "inbox.list": {"resource": "inbox", "feed": "inbox"},
@@ -760,11 +653,10 @@ export const CHAT_APP_CACHE: { [K in "chat.messages" | "chat.requests" | "chat.t
   "inbox.get": {"resource": "inbox-item", "id": "id", "feed": "inbox"},
   "request.read": false,
   "requests.list": {"resource": "requests", "feed": "requests"},
-  "answers.list": {"resource": "answers", "feed": null},
 };
 
 /** x-app-write of each write (x-app in core.json). */
-export const CHAT_APP_WRITES: { [K in "chat.send" | "chat.send_now" | "chat.cancel" | "chat.seen" | "attachment.put" | "attachment.folder" | "attachment.remove" | "request.withdraw" | "request.cancel" | "inbox.mark_read" | "inbox.reply" | "answer.add" | "answer.remove"]: { kind: WriteKind; label: string } | false } = {
+export const CHAT_APP_WRITES: { [K in "chat.send" | "chat.send_now" | "chat.cancel" | "chat.seen" | "attachment.put" | "attachment.folder" | "attachment.remove" | "request.withdraw" | "inbox.mark_read" | "answer.add"]: { kind: WriteKind; label: string } | false } = {
   "chat.send": {"kind": "authored", "label": "send"},
   "chat.send_now": {"kind": "decided", "label": "send now"},
   "chat.cancel": {"kind": "decided", "label": "withdraw"},
@@ -773,9 +665,6 @@ export const CHAT_APP_WRITES: { [K in "chat.send" | "chat.send_now" | "chat.canc
   "attachment.folder": {"kind": "decided", "label": "attach folder"},
   "attachment.remove": {"kind": "decided", "label": "delete the photo"},
   "request.withdraw": false,
-  "request.cancel": false,
   "inbox.mark_read": {"kind": "authored", "label": "mark read"},
-  "inbox.reply": {"kind": "authored", "label": "reply"},
-  "answer.add": {"kind": "authored", "label": "add standing answer"},
-  "answer.remove": {"kind": "authored", "label": "remove standing answer"},
+  "answer.add": {"kind": "decided", "label": "add standing answer"},
 };

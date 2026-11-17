@@ -45,7 +45,6 @@ var layer = map[string]int{
 	"data/agenthost":     1,
 	"data/homeinit":      1,
 	"accounts/claudecli": 1,
-	"debugterm":          1,
 	"hooks":              1,
 	// L2 db
 	"data/db":           2,

@@ -1,5 +1,5 @@
 // The fake daemon's usage numbers: stats.get and stats.outlook, made from the clock it is given.
-import type { CostPerDay, Outlook, Stats, Timestamp } from '@handline/contract';
+import type { Outlook, Stats, Timestamp } from '@handline/contract';
 import { badRequest } from '#src/errors.ts';
 
 export const HOUR = 3_600_000;
@@ -93,17 +93,15 @@ export function statsOf(nowIso: Timestamp, window: '24h' | '7d'): Stats {
 
 const SPANS = { '12h': 12 * HOUR, '24h': DAY, '3d': 3 * DAY, '7d': 7 * DAY, '14d': 14 * DAY, '30d': 30 * DAY };
 
-/** stats.cost: the outlook's cost_per_day alone. */
-export function costOf(nowIso: Timestamp, range: Outlook['range']): CostPerDay {
-  if (!['12h', '24h', '3d', '7d', '14d', '30d'].includes(range)) throw badRequest(`no range ${range}`, 'range');
+/** The outlook's cost_per_day: one row per day of the range. */
+function costPerDay(nowIso: Timestamp, range: Outlook['range']): Outlook['cost_per_day'] {
   const now = Date.parse(nowIso);
   const span = SPANS[range];
   const days = Math.max(1, Math.min(30, Math.round(span / DAY)));
-  const cost_per_day = Array.from({ length: days }, (_, i) => ({
+  return Array.from({ length: days }, (_, i) => ({
     day: new Date(now - (days - 1 - i) * DAY).toISOString().slice(0, 10),
     agents: { [AGENTS[0]!]: 4 + (i % 3), [AGENTS[1]!]: 1 + (i % 2), [AGENTS[2]!]: i % 4 === 0 ? 0 : 2 },
   }));
-  return { range, cost_per_day };
 }
 
 export function outlookOf(nowIso: Timestamp, range: Outlook['range'], pick?: unknown): Outlook {
@@ -122,7 +120,7 @@ export function outlookOf(nowIso: Timestamp, range: Outlook['range'], pick?: unk
     left_pct: Math.max(0, 50 - ((i + 1) * 50) / steps),
   }));
   if (pick !== undefined && typeof pick !== 'string') throw badRequest('agent is a string', 'agent');
-  const { cost_per_day } = costOf(nowIso, range);
+  const cost_per_day = costPerDay(nowIso, range);
   return {
     range,
     now: at(now),

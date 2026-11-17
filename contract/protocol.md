@@ -12,7 +12,7 @@ OpenRPC-shaped. Source of contract/protocol.md and contract/protocol.ts: regener
 - **Concurrency:** Calls on one connection are served concurrently: a call that waits (inbox.list or inbox.get with wait_s, up to 600 s) does not hold up the calls after it, and replies come in the order they finish, matched by id. Calls on one connection that touch the same thing are not ordered by the connection: a client that needs the order waits for the first reply. Stream notifications are never held behind a waiting call.
 - **Network:** The network listener is the only way in for a phone, a browser or another machine, and only a paired device may use it. A connection on it is unpaired until its hello carries a valid device `token`. An unpaired connection may call device.redeem and nothing else: every other call, hello and an unknown method name included, is refused before any handler runs with the one reply `{code: -32002, message: "refused", data: {code: "refused", gate: "unpaired", reason: "not paired"}}`, the same words every time: no method list, no state, no version, no hint, nothing that says why. A token that is revoked or was never issued is the same refusal, so a reply does not say which. The Unix socket is not the network: its roles are proven as below. Conformance: the network transport is the WebSocket over TLS the listener speaks, and a client pins the certificate fingerprint from the pairing uri; fixtures with `as: unpaired` or `as: member` over the network are run against it with `--as unpaired=...` and `--as member=...` sockets that are already past TLS and the pinned check (a socket the harness is given, or a connector function); contract/README.md says what that does and does not show.
 - **Params:** By name only.
-- **Request id:** Every write takes request_id. The daemon keeps each successful reply for 24 hours; a retry with the same id and the same params returns it with replayed:true and repeats nothing. The same id with other params is bad_request. Refusals and errors are not stored: a retry is judged again. Exceptions: chat.send to a structured agent returns the receipt as it is now (see x-delivery); doc.push, account.remove, account.login_code, request.cancel, team.seal, attachment.remove, device.pair and device.redeem keep no reply, so a retry is judged again; account.login keeps its reply without device_code.
+- **Request id:** Every write takes request_id. The daemon keeps each successful reply for 24 hours; a retry with the same id and the same params returns it with replayed:true and repeats nothing. The same id with other params is bad_request. Refusals and errors are not stored: a retry is judged again. Exceptions: chat.send to a structured agent returns the receipt as it is now (see x-delivery); doc.push, account.remove, account.login_code, team.seal, attachment.remove, device.pair and device.redeem keep no reply, so a retry is judged again; account.login keeps its reply without device_code.
 
 ## Handshake and versions
 
@@ -20,7 +20,7 @@ The first call is hello. Compatibility: adding a method or field never changes p
 
 ## Roles
 
-Order: anonymous < agent < member < owner. x-role on a method is the lowest role that may call it. Roles are proven, not assumed. owner: the connection said hello with the founder key and it matches (a Unix-socket peer being the same user proves nothing, because agents run as that user). agent: the peer pid verifies against a recorded session. member: a person of team mode; no caller is given it before then. A paired device acts with its person's role, so the owner's local and paired callers are owner. Anything else is anonymous: on the Unix socket it may call only hello and device.redeem; on the network listener it is unpaired and may call only device.redeem (see Framing, network). A call below its role is refused, gate `role`. session.type and session.keys act at a shell prompt as they do anywhere in the pane: only a paired device can connect to the network listener and an unpaired caller gets no data, so a shell is within what a paired device may reach.
+Order: anonymous < agent < member < owner. x-role on a method is the lowest role that may call it. Roles are proven, not assumed. owner: the connection said hello with the founder key and it matches (a Unix-socket peer being the same user proves nothing, because agents run as that user). agent: the peer pid verifies against a recorded session. member: a person of team mode; no caller is given it before then. A paired device acts with its person's role, so the owner's local and paired callers are owner. Anything else is anonymous: on the Unix socket it may call only hello and device.redeem; on the network listener it is unpaired and may call only device.redeem (see Framing, network). A call below its role is refused, gate `role`. session.keys acts at a shell prompt as they do anywhere in the pane: only a paired device can connect to the network listener and an unpaired caller gets no data, so a shell is within what a paired device may reach.
 
 ## Errors
 
@@ -86,15 +86,15 @@ Every read has x-app-cache and every write x-app-write; false: the app does not 
 
 One file per group, generated from `spec/<group>.json`; field types are in `protocol.ts`.
 
-- [core](gen/core.md): 25 methods
-- [accounts](gen/accounts.md): 16 methods
-- [agents](gen/agents.md): 39 methods
-- [chat](gen/chat.md): 26 methods
-- [devices](gen/devices.md): 6 methods
-- [repos](gen/repos.md): 15 methods
-- [tasks](gen/tasks.md): 46 methods
-- [team](gen/team.md): 21 methods
-- [terminal](gen/terminal.md): 9 methods
+- [core](gen/core.md): 21 methods
+- [accounts](gen/accounts.md): 14 methods
+- [agents](gen/agents.md): 35 methods
+- [chat](gen/chat.md): 20 methods
+- [devices](gen/devices.md): 5 methods
+- [repos](gen/repos.md): 14 methods
+- [tasks](gen/tasks.md): 35 methods
+- [team](gen/team.md): 14 methods
+- [terminal](gen/terminal.md): 8 methods
 
 ## Who the caller is
 
@@ -124,7 +124,6 @@ Every `hl` command an agent runs today and the method that serves it.
 | `hl task board` | `task.board` |
 | `hl task show` | `task.get` |
 | `hl task list` | `tasks.list` |
-| `hl task comment list` | `task.comment.list` |
 | `hl task comment add` | `task.comment.add` |
 | `hl task comment edit` | `task.comment.edit` |
 | `hl task comment delete` | `task.comment.delete` |
@@ -145,15 +144,10 @@ Every `hl` command an agent runs today and the method that serves it.
 | `hl propose run` | `proposal.propose` |
 | `hl propose withdraw` | `proposal.withdraw` |
 | `hl propose list` | `proposal.list` |
-| `hl trust add` | `trust.propose` |
-| `hl trust list|proposals` | `trust.list` |
 | `hl team` | `team.get` |
 | `hl ps` | `agents.list` |
-| `hl status` | `status.pick` |
 | `hl events` | `events.feed` |
-| `hl triggers` | `agent.triggers` |
 | `hl account list` | `accounts.list` |
-| `hl memory status` | `memory.status` |
 | `hl task request` | `task.request` |
 | `hl task plan` | `task.plan` |
 
@@ -181,11 +175,11 @@ The `proposals` topic: proposal.raised: a proposal was raised (state open); one 
 | `notifications` | `task_done` ({task, task_title?, result?, reporter?, from_founder?}), `prompt_asked` (Prompt), `stall` ({agent, title?, text?}), `account_out` ({account}), `disk_low` ({free_bytes, total_bytes}) | `events.feed` |
 | `chat` | `chat.message` (ChatMessage), `chat.transcript` (TranscriptItem), `chat.working` (Working), `attachment.removed` (AttachmentRemoved) | `chat.transcript` |
 | `operations` | `operation.progress` (Operation) | `operation.get` |
-| `devices` | `device.paired` (Device), `device.revoked` ({device}), `device.renamed` (Device) | `devices.list` |
+| `devices` | `device.paired` (Device), `device.revoked` ({device}) | `devices.list` |
 | `proposals` | `proposal.raised` ({proposal}), `proposal.settled` ({proposal}) | `proposal.list` |
 | `prefs` | `prefs.changed` (Prefs) | `prefs.get` |
 | `requests` | `request.changed` (RequestRow) | `requests.list` |
-| `for_you` | `for_you.opened` (ForYouOpened), `for_you.closed` (ForYouClosed) | `for_you.list` |
+| `for_you` | `for_you.opened` (ForYouOpened), `for_you.closed` (ForYouClosed) | `requests.pending` |
 
 ## State words
 
@@ -294,7 +288,7 @@ Format `text` sends plain text rows (frame notices). Format `styled` sends the s
 - **Spans.** A run is `[from, to)` over the row's characters counted in Unicode code points of `text` (not UTF-16 units, not bytes; a client in JavaScript converts with `Array.from`), and may extend past the end of `text` for blank cells that have a background: past the end, each blank cell counts as one, so `to` is at most len(`text`) + (`cols` minus the display width of `text`), where a wide character (CJK) is one code point and two cells. A run boundary never falls inside a cell: a base character stays with its combining code points, and a wide character is one unit. Runs are sorted, never overlap, are never empty and are sent only for cells whose style is not the default; a cell no run covers is drawn default. Two neighbouring cells with the same style are one run. Style is `SpanStyle`: `fg`, `bg` (a palette index 0-255 or `#rrggbb`) and the flags `bold`, `dim`, `italic`, `underline`, `inverse`, `strike`, each left out when off. Palette indexes 0-15 are the client's theme colours, so a dark and a light client each draw them in their own tokens; the daemon does not resolve a colour it was given as an index.
 - **Cursor.** A frame's `cursor` (text and styled attaches; a bytes attach's is in cells) is `{x, y}` or null: null when the cursor is hidden or above the frame. `x` counts code points of the row's `text`, as spans do (a host that reads cells converts; a wide character is one), and may run past the end of `text` when the cursor sits in blank cells, each counting one. `y` is a row of the frame's `lines`, from 0, and may be len(lines) or more when the cursor is on a blank row the frame drops. A frame may carry `changed: []` for a cursor move alone.
 - **Size.** A row's spans are what its colours need and no more; `terminal.history` pages and the 1 MiB trim of a text page apply to the JSON as sent, spans included, and `more` says when it was trimmed. A frame for a screen of a few hundred runs is a few KiB; the slow-client rule of text is unchanged (`full: true`).
-- **Input.** `styled` is read-only like text: keys go by `terminal.input` where the host supports bytes in, and by `session.type` and `session.keys` as before.
+- **Input.** `styled` is read-only like text: keys go by `terminal.input` where the host supports bytes in, and by `session.keys` as before.
 - **Not in it.** No hyperlink, image, blink or font-weight beyond bold, no wide-character marker beyond what `text` has, no mouse or screen-mode state: a client that needs the real terminal asks for `bytes`.
 
 ## Delivery to a structured agent
@@ -316,4 +310,4 @@ Format `text` sends plain text rows (frame notices). Format `styled` sends the s
 - **Watch.** chat.transcript and chat.messages draw the conversation and each message's receipt. Both stay readable while its session is closed.
 - **Detail.** agent.get: terminal null, session_open true while its session is live, input_holders [].
 - **Controls.** session.start, wake, restart, park, stop (exit and close are the same; kill is for a person) and interrupt (refused, gate state, when no turn runs); prompt.answer takes allow or deny (or always, where offered); chat.send, chat.send_now and chat.cancel as in Delivery.
-- **Never.** A client does not send session.input, session.keys, session.type, input.take, input.release or terminal.attach for a structured agent, and shows no terminal tab, holder, key strip or Take control. The Go daemon does not serve the first five at all; a daemon that does refuses a structured agent (gate unsupported). terminal.attach with agent is not_found (terminal): it has no terminal.
+- **Never.** A client does not send session.input, session.keys, input.take, input.release or terminal.attach for a structured agent, and shows no terminal tab, holder, key strip or Take control. The Go daemon does not serve the first four at all; a daemon that does refuses a structured agent (gate unsupported). terminal.attach with agent is not_found (terminal): it has no terminal.

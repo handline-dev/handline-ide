@@ -84,7 +84,7 @@ def seed_states(home: Path, fakes: bool) -> dict[str, str]:
     con.commit()
     con.close()
     seeded = {**{f"state_{w}": n for w, n in names.items()}, "output_agent": output_agent, "session_agent": output_agent,
-            "ask_agent": ask_agent, "never_started_agent": NEVER_STARTED, "triggers_agent": names["idle"], "doing_agent": DOING_AGENT, "view_plain_agent": names["idle"], "retire_agent": RETIRE[0],
+            "ask_agent": ask_agent, "never_started_agent": NEVER_STARTED, "doing_agent": DOING_AGENT, "view_plain_agent": names["idle"], "retire_agent": RETIRE[0],
             "retire_parent": RETIRE[1], "files_agent": FILES_AGENT, **WORKROOM, **typing, **order, "order_rename_to": "o.new",
             **{f"turn_{k}": n for k, n in zip("abc", TURNS)}}
     # an agent's var is its key, as the daemon names it in what it answers; a name it has yet to take stays a name
@@ -105,10 +105,10 @@ def wait_served(conn: socket.socket, daemon: subprocess.Popen) -> None:
     conn.close()
 
 
-# What agent_create.json and worktree_status.json need: a repo (a git directory with a commit), an agent that works in it, and the
+# What agent_create.json needs: a repo (a git directory with a commit), an agent that works in it, and the
 # repo's path as that agent's worktree. create_name is not seeded: a new agent is started in a terminal, which this run has none of, so
 # the done, failed and retry fixtures are named in go/conformance-needvar.txt and the Go tests play them over a fake host.
-WORKROOM = {"create_repo": "", "create_parent": "w.parent", "status_worktree": ""}
+WORKROOM = {"create_repo": "", "create_parent": "w.parent"}
 
 
 def seed_account(home: Path, name: str) -> Path:
@@ -145,7 +145,7 @@ def seed_workroom(home: Path, con: sqlite3.Connection) -> None:
         extra.append(str(path.resolve()))
     con.execute("INSERT OR REPLACE INTO agent_state(agent, state, updated, worktree, extra_worktrees) VALUES(?, 'idle', 0, ?, ?)",
                 (WORKROOM["create_parent"], str(repo), json.dumps(extra)))
-    WORKROOM["create_repo"] = WORKROOM["status_worktree"] = str(repo.resolve())
+    WORKROOM["create_repo"] = str(repo.resolve())
 
 
 # What files_list.json needs: an agent whose worktree holds these files. build/out.js is ignored, notes/todo.md untracked.

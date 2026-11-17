@@ -461,7 +461,7 @@
        },
        "who": {
         "type": "string",
-        "description": "Who did it: the key of the agent or person that opened, changed, closed or withdrew the task, as ChatRequestItem.who."
+        "description": "Who did it: the key of the agent or person that opened, changed, closed or withdrew the task."
        },
        "closed_task": {
         "type": "integer",
@@ -469,7 +469,7 @@
        },
        "change": {
         "type": "string",
-        "description": "What a `changed` event changed, as chat.requests words it: `assigned to X, priority 2 -> 1`, `title changed`, `handed to X`. Absent when the event word says it all. An open set: a client draws a word it does not know as text."
+        "description": "What a `changed` event changed: `assigned to X, priority 2 -> 1`, `title changed`, `handed to X`. Absent when the event word says it all. An open set: a client draws a word it does not know as text."
        }
       },
       "required": [
@@ -713,142 +713,6 @@
      "since"
     ]
    },
-   "StandingAnswer": {
-    "type": "object",
-    "required": [
-     "kind",
-     "key",
-     "text"
-    ],
-    "properties": {
-     "kind": {
-      "type": "string",
-      "enum": [
-       "trust",
-       "dialog"
-      ],
-      "description": "trust: a folder trusted for every session; dialog: a rule that answers a vendor's dialog."
-     },
-     "key": {
-      "type": "array",
-      "items": {
-       "type": "string"
-      },
-      "description": "What answer.remove takes: [folder] for trust, [vendor, title, label] for dialog."
-     },
-     "text": {
-      "type": "string"
-     }
-    }
-   },
-   "ChatRequestItem": {
-    "type": "object",
-    "properties": {
-     "type": {
-      "type": "string",
-      "enum": [
-       "request",
-       "task_event",
-       "session"
-      ]
-     },
-     "at": {
-      "$ref": "#/components/schemas/Timestamp",
-      "description": "Where it sits in time: a request where its agent read it (landed_at) or else when it was made."
-     },
-     "message": {
-      "$ref": "#/components/schemas/ChatMessage",
-      "description": "request only."
-     },
-     "task_state": {
-      "oneOf": [
-       {
-        "type": "string",
-        "description": "request only: the live state of the task a task delivery carries, else null."
-       },
-       {
-        "type": "null"
-       }
-      ]
-     },
-     "task": {
-      "type": "integer",
-      "description": "task_event only."
-     },
-     "title": {
-      "type": "string",
-      "description": "task_event only: the task's title."
-     },
-     "who": {
-      "type": "string",
-      "description": "task_event only: who did it."
-     },
-     "change": {
-      "type": "string",
-      "description": "task_event only: `queued -> doing`, `handed to X`, `assigned to X`, `title changed`, `priority 2 -> 1`. An open set: a client draws a word it does not know as text."
-     },
-     "note": {
-      "type": "string",
-      "description": "task_event only: the text typed with a handoff, else empty. Text from an agent."
-     },
-     "request": {
-      "oneOf": [
-       {
-        "type": "integer",
-        "description": "task_event only: the delivery a handoff belongs to, when it has one."
-       },
-       {
-        "type": "null"
-       }
-      ]
-     },
-     "request_ref": {
-      "oneOf": [
-       {
-        "$ref": "#/components/schemas/RequestRef"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "description": "task_event only: the ref of the delivery in request."
-     },
-     "cause": {
-      "type": "string",
-      "description": "session only: why a new conversation started or the session restarted (restart, wake, fresh close, move, handoff, launch). An open set."
-     },
-     "resumed": {
-      "type": "boolean",
-      "description": "session only: it went on with the same conversation. Absent means false."
-     },
-     "changed": {
-      "type": "string",
-      "description": "session only: what its settings changed, in words a person reads; empty when nothing did. Absent means empty."
-     },
-     "changed_lines": {
-      "type": "array",
-      "items": {
-       "$ref": "#/components/schemas/LineChange"
-      },
-      "description": "session only: as the transcript session's changed_lines. Absent means none."
-     },
-     "handoff": {
-      "oneOf": [
-       {
-        "type": "string",
-        "description": "session only: the handoff record the session was given, else null."
-       },
-       {
-        "type": "null"
-       }
-      ]
-     }
-    },
-    "required": [
-     "type",
-     "at"
-    ]
-   },
    "Receipt": {
     "type": "object",
     "properties": {
@@ -1030,13 +894,6 @@
       "type": "integer",
       "description": "Ended tasks under the request's own."
      },
-     "prs": {
-      "type": "array",
-      "items": {
-       "type": "integer"
-      },
-      "description": "PRs of the open tasks in the tree."
-     },
      "now": {
       "oneOf": [
        {
@@ -1103,7 +960,6 @@
      "holders",
      "open",
      "done",
-     "prs",
      "now",
      "blocked",
      "progress",
@@ -1340,106 +1196,6 @@
    ]
   },
   {
-   "name": "chat.requests",
-   "summary": "A chat's threads for the screen that draws them: the requests of an agent's chat oldest first, with the task changes and the session starts among them, and one version that changes when anything in the chat does.",
-   "paramStructure": "by-name",
-   "params": [
-    {
-     "name": "agent",
-     "required": true,
-     "schema": {
-      "$ref": "#/components/schemas/Who"
-     }
-    },
-    {
-     "name": "scope",
-     "required": true,
-     "schema": {
-      "type": "string",
-      "enum": [
-       "mine",
-       "all"
-      ],
-      "description": "mine: person and this agent; all: everything it sent or received."
-     }
-    },
-    {
-     "name": "before",
-     "required": false,
-     "schema": {
-      "type": "integer",
-      "description": "Request id: read the page just older than it."
-     }
-    },
-    {
-     "name": "since",
-     "required": false,
-     "schema": {
-      "type": "integer",
-      "description": "Request id: read every request from it on (no `more`); how a window already drawn is brought up to date. Not with `before`."
-     }
-    },
-    {
-     "name": "limit",
-     "required": false,
-     "schema": {
-      "type": "integer",
-      "minimum": 1,
-      "maximum": 200,
-      "description": "Requests in a page; default 10."
-     }
-    }
-   ],
-   "result": {
-    "name": "result",
-    "schema": {
-     "type": "object",
-     "properties": {
-      "items": {
-       "type": "array",
-       "items": {
-        "$ref": "#/components/schemas/ChatRequestItem"
-       }
-      },
-      "more": {
-       "type": "boolean",
-       "description": "Older requests remain (never true with `since`)."
-      },
-      "version": {
-       "type": "string",
-       "description": "Opaque: equal on two reads when nothing in the chat changed between them (a request made, closed, changed, delivered or landed, a task event, a session start). Cheap to compare; a client that sees it change reads again."
-      },
-      "cursor": {
-       "type": "integer",
-       "description": "The newest stream cursor when this was read: subscribe with since=cursor and topics [chat] to hear what changes after it."
-      }
-     },
-     "required": [
-      "items",
-      "more",
-      "version",
-      "cursor"
-     ]
-    }
-   },
-   "x-role": "member",
-   "x-write": false,
-   "x-app-cache": {
-    "resource": "chat-requests",
-    "feed": null
-   },
-   "x-since": 1,
-   "errors": [
-    {
-     "$ref": "#/components/errors/not_found"
-    },
-    {
-     "$ref": "#/components/errors/bad_request"
-    }
-   ],
-   "description": "items are oldest first, each with a `type`: `request` is a chat.messages ChatMessage plus `task_state`; `task_event` is a change of a task delivered in the page, since the first request in it (the state it reached, a handoff, an edit), with `request` naming the delivery a handoff belongs to so a client can draw both as one card; `session` is the start of a new conversation of the agent since that request, or a restart into the same one (a resume that only woke a closed session, changing no setting, is not listed). Requests that no chat draws (withdrawn, never reached their target) are left out. HR cards are proposal.list's."
-  },
-  {
    "name": "chat.transcript",
    "summary": "The agent's replies, tool activity, prompt cards and task events as ordered items, plus its working state.",
    "paramStructure": "by-name",
@@ -1630,76 +1386,6 @@
     }
    ],
    "description": "not_found when the request does not exist or no chat draws it (withdrawn, or never reached its target). The page has up to `limit` messages, about half of them older than the one asked for. When the request exists and only no chat draws it, the not_found data also carries `from`, `to` and `body` of that request (body as typed, control characters stripped), so a client can say what it was; for a request that does not exist it carries none of them."
-  },
-  {
-   "name": "chat.refs",
-   "summary": "What a # in the composer can point at: the agent's newest requests.",
-   "paramStructure": "by-name",
-   "params": [
-    {
-     "name": "agent",
-     "required": true,
-     "schema": {
-      "$ref": "#/components/schemas/Who"
-     }
-    }
-   ],
-   "result": {
-    "name": "result",
-    "schema": {
-     "type": "object",
-     "required": [
-      "requests"
-     ],
-     "properties": {
-      "requests": {
-       "type": "array",
-       "items": {
-        "type": "object",
-        "required": [
-         "request",
-         "from",
-         "to",
-         "line"
-        ],
-        "properties": {
-         "request": {
-          "type": "integer"
-         },
-         "from": {
-          "type": "string"
-         },
-         "to": {
-          "type": "string"
-         },
-         "line": {
-          "type": "string",
-          "description": "The first line of the body, at most 60 characters."
-         }
-        }
-       },
-       "description": "Up to 30, newest first: every request the agent sent or received that was not withdrawn or turned away."
-      }
-     }
-    }
-   },
-   "x-role": "member",
-   "x-write": false,
-   "x-app-cache": {
-    "resource": "chat-refs",
-    "id": "agent",
-    "feed": null
-   },
-   "x-since": 1,
-   "errors": [
-    {
-     "$ref": "#/components/errors/not_found"
-    },
-    {
-     "$ref": "#/components/errors/bad_request"
-    }
-   ],
-   "description": "The agent's tasks are `tasks.list` with `owner` or `from`. A request that no chat shows is read with `chat.locate`, whose not_found carries from, to and body."
   },
   {
    "name": "chat.search",
@@ -3084,71 +2770,6 @@
    ]
   },
   {
-   "name": "request.cancel",
-   "summary": "The founder takes any request out of an agent's queue, as hl cancel does; dry_run names what would happen.",
-   "description": "Unlike chat.cancel it is not limited to messages the person sent, and it asks for no confirm: the call without `dry_run` is the go-ahead. A queued request is closed as rejected, delivered or not; its agent is told to stop when it was delivered, and its requester is told unless that is the founder. The founder's own request that was never delivered is withdrawn and nobody is told. A request that is gone or already closed is not an error: `ok` is false, with the reason in `plan` (dry run) or `said`. A dry run writes nothing and records nothing, and no reply is kept under the request_id.",
-   "paramStructure": "by-name",
-   "params": [
-    {
-     "name": "id",
-     "required": true,
-     "schema": {
-      "$ref": "#/components/schemas/RequestName"
-     }
-    },
-    {
-     "name": "dry_run",
-     "required": false,
-     "schema": {
-      "type": "boolean",
-      "description": "Change nothing: answer `plan`."
-     }
-    },
-    {
-     "name": "request_id",
-     "required": true,
-     "schema": {
-      "$ref": "#/components/schemas/RequestId"
-     }
-    }
-   ],
-   "result": {
-    "name": "result",
-    "schema": {
-     "type": "object",
-     "required": [
-      "ok"
-     ],
-     "properties": {
-      "ok": {
-       "type": "boolean",
-       "description": "Dry run: whether the request can be cancelled. Otherwise: whether it was."
-      },
-      "plan": {
-       "type": "string",
-       "description": "Dry run only: what cancelling would do and who is told, or why it cannot be cancelled."
-      },
-      "said": {
-       "type": "string",
-       "description": "Without dry_run: what was cancelled and who was told, or `not cancelled - ` and the reason."
-      }
-     }
-    }
-   },
-   "x-role": "owner",
-   "x-write": true,
-   "x-app-write": false,
-   "x-since": 1,
-   "errors": [
-    {
-     "$ref": "#/components/errors/refused"
-    },
-    {
-     "$ref": "#/components/errors/bad_request"
-    }
-   ]
-  },
-  {
    "name": "inbox.mark_read",
    "summary": "Mark items read; an id that is not yours is not_found.",
    "paramStructure": "by-name",
@@ -3196,60 +2817,6 @@
     }
    ],
    "description": "For the founder, every message of an agent up to the newest id named is read; a decision or a reply owed is never read away, so such an id, and what lies past it, stays unread (refused, gate state, when nothing could be read). For an agent only the head of its own queue can be read, as `hl inbox` does; another id of its own is refused, gate state. An ask raised by a task comment (InboxItem.memo) is read only by naming its own id: reading an agent's messages past it leaves it open."
-  },
-  {
-   "name": "inbox.reply",
-   "summary": "Reply to an item. From a person to a terminal agent it answers once the reply is typed, as chat.send does; an agent's reply is queued until the target takes it.",
-   "paramStructure": "by-name",
-   "params": [
-    {
-     "name": "id",
-     "required": true,
-     "schema": {
-      "$ref": "#/components/schemas/RequestName"
-     }
-    },
-    {
-     "name": "text",
-     "required": true,
-     "schema": {
-      "type": "string",
-      "description": "Markdown. It may name images (x-attachments, texts)."
-     }
-    },
-    {
-     "name": "request_id",
-     "required": true,
-     "schema": {
-      "$ref": "#/components/schemas/RequestId"
-     }
-    }
-   ],
-   "result": {
-    "name": "result",
-    "schema": {
-     "$ref": "#/components/schemas/Accepted"
-    }
-   },
-   "x-role": "agent",
-   "x-write": true,
-   "x-app-write": {
-    "kind": "authored",
-    "label": "reply"
-   },
-   "x-since": 1,
-   "errors": [
-    {
-     "$ref": "#/components/errors/refused"
-    },
-    {
-     "$ref": "#/components/errors/not_found"
-    },
-    {
-     "$ref": "#/components/errors/bad_request"
-    }
-   ],
-   "description": "A message to whoever sent the item, with the item as its parent link (`hl say --parent`); it settles nothing. An agent replies to its own incoming items; the founder to a mailbox item that is not a decision (a decision is a task, closed with task.done: refused, gate state). A reply to an ask raised by a task comment (InboxItem.memo) is also added to that task as the founder's comment, a reply to that comment, which closes the ask and is told to the task's readers at once."
   },
   {
    "name": "requests.list",
@@ -3328,37 +2895,6 @@
    }
   },
   {
-   "name": "answers.list",
-   "summary": "The founder's saved answers: trusted folders and dialog rules (Home settings).",
-   "paramStructure": "by-name",
-   "params": [],
-   "result": {
-    "name": "result",
-    "schema": {
-     "type": "object",
-     "properties": {
-      "answers": {
-       "type": "array",
-       "items": {
-        "$ref": "#/components/schemas/StandingAnswer"
-       }
-      }
-     },
-     "required": [
-      "answers"
-     ]
-    }
-   },
-   "x-role": "owner",
-   "x-write": false,
-   "x-app-cache": {
-    "resource": "answers",
-    "feed": null
-   },
-   "x-since": 1,
-   "description": "A daemon that answers no dialog lists no dialog rules (x-dialogs)."
-  },
-  {
    "name": "answer.add",
    "summary": "Save a standing answer: a folder to trust, or a dialog rule (vendor, title and label).",
    "paramStructure": "by-name",
@@ -3411,7 +2947,7 @@
    "x-role": "owner",
    "x-write": true,
    "x-app-write": {
-    "kind": "authored",
+    "kind": "decided",
     "label": "add standing answer"
    },
    "x-since": 1,
@@ -3426,65 +2962,6 @@
    "description": "Blank fields add nothing; a half-filled rule is refused. Founder because the dialog-rule store and trust are the founder's alone: an agent that could write them could answer its own dialogs. A dialog rule (vendor, title, label) is refused, gate unsupported, and nothing is saved, because the daemon answers no dialog (x-dialogs); a folder is saved.",
    "x-gates": [
     "unsupported"
-   ]
-  },
-  {
-   "name": "answer.remove",
-   "summary": "Remove a standing answer by the kind and key answers.list gave.",
-   "paramStructure": "by-name",
-   "params": [
-    {
-     "name": "kind",
-     "required": true,
-     "schema": {
-      "type": "string",
-      "enum": [
-       "trust",
-       "dialog"
-      ]
-     }
-    },
-    {
-     "name": "key",
-     "required": true,
-     "schema": {
-      "type": "array",
-      "items": {
-       "type": "string"
-      }
-     }
-    },
-    {
-     "name": "request_id",
-     "required": true,
-     "schema": {
-      "$ref": "#/components/schemas/RequestId"
-     }
-    }
-   ],
-   "result": {
-    "name": "result",
-    "schema": {
-     "$ref": "#/components/schemas/Accepted"
-    }
-   },
-   "x-role": "owner",
-   "x-write": true,
-   "x-app-write": {
-    "kind": "authored",
-    "label": "remove standing answer"
-   },
-   "x-since": 1,
-   "errors": [
-    {
-     "$ref": "#/components/errors/refused"
-    },
-    {
-     "$ref": "#/components/errors/not_found"
-    },
-    {
-     "$ref": "#/components/errors/bad_request"
-    }
    ]
   }
  ]

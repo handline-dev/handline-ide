@@ -9,7 +9,6 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `device.pair` | owner | yes | `name?`, `ttl_s?`, `address?`, `request_id` | `Accepted & {code, expires_at, fingerprint, uri, web_link}` | `refused` |  | decided: pair |
 | `device.redeem` | anonymous | yes | `code`, `name`, `kind?`, `request_id` | `Accepted & {token, device}` | `refused` | pairing_code, attempt_limit | not from the app |
 | `device.revoke` | owner | yes | `device`, `request_id` | `Accepted` | `refused`, `not_found` |  | decided: revoke |
-| `device.rename` | owner | yes | `device`, `name`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | decided: rename device |
 | `device.push_token` | owner | yes | `platform`, `token`, `sandbox?`, `request_id` | `Accepted` | `refused`, `not_found` | device | not from the app |
 
 ### `devices.list`
@@ -27,10 +26,6 @@ Trade a pairing code for a device token. The only method an unpaired network cal
 ### `device.revoke`
 
 Cancel a device and close its connections at once. Cancels the device's token. Its open connections and terminal attaches are closed at once, its next call is refused (gate `unpaired`), and a device.revoked event is sent on the devices topic. Revoking a device that is not paired is not_found.
-
-### `device.rename`
-
-Give a paired device a new name. A device.renamed event with the Device is sent on the devices topic. A device that is not paired is not_found.
 
 ### `device.push_token`
 

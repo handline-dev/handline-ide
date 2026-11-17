@@ -16,11 +16,9 @@ import (
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/internal/reads"
-	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/kit/storetest"
 	"github.com/handline/handline/go/protocol/rpc"
-	"github.com/handline/handline/go/scheduler/cronspec"
 )
 
 type auth struct{}
@@ -125,38 +123,6 @@ func (r *rig) account(acct string) map[string]any {
 		r.t.Fatal(err)
 	}
 	return rows[acct]
-}
-
-func TestSchedulesAreAddedEditedMovedAndRemovedByTheirId(t *testing.T) {
-	r := newRig(t)
-	add := `{"target":"alice","cron":"0  9 * * *","message":"morning   check","request_id":"s1"}`
-	res := r.result(r.one("schedule.add", add))
-	alice, bob := teamtest.Key(t, r.home, "alice"), teamtest.Key(t, r.home, "bob")
-	id := cronspec.ID(alice, cronspec.Schedule{Cron: "0 9 * * *", Message: "morning check"})
-	if res["schedule"] != float64(id) || res["said"] != addr.Ref(alice)+": scheduled 0 9 * * *" {
-		t.Fatalf("%v", res)
-	}
-	if r.result(r.one("schedule.add", add))["replayed"] != true || strings.Count(r.setting("alice", "schedules"), "morning check") != 1 {
-		t.Fatal("a retry adds no second schedule")
-	}
-	if r.code(r.one("schedule.add", `{"target":"alice","cron":"0 9 * * *","message":"morning check","request_id":"s2"}`)) != "refused" {
-		t.Fatal("the same schedule twice is refused")
-	}
-	if r.code(r.one("schedule.add", `{"target":"alice","cron":"nope","message":"x","request_id":"s3"}`)) != "bad_request" {
-		t.Fatal("a bad cron is bad_request")
-	}
-	moved := r.result(r.one("schedule.edit", fmt.Sprintf(`{"schedule":%d,"target":"bob","cron":"30 9 * * 1-5","request_id":"s4"}`, id)))
-	idBob := cronspec.ID(bob, cronspec.Schedule{Cron: "30 9 * * 1-5", Message: "morning check"})
-	if moved["schedule"] != float64(idBob) || r.setting("alice", "schedules") != "" || !strings.Contains(r.setting("bob", "schedules"), "30 9 * * 1-5") {
-		t.Fatalf("edited and moved to bob: %v\n%s", moved, r.setting("bob", "schedules"))
-	}
-	r.result(r.one("schedule.remove", fmt.Sprintf(`{"schedule":%d,"request_id":"s5"}`, idBob)))
-	if r.setting("bob", "schedules") != "" {
-		t.Fatal("removed")
-	}
-	if r.code(r.one("schedule.remove", fmt.Sprintf(`{"schedule":%d,"request_id":"s6"}`, idBob))) != "not_found" {
-		t.Fatal("a removed schedule is not found")
-	}
 }
 
 func TestSettingsSetWritesEveryKeyOrNoneAndClearsOnNull(t *testing.T) {

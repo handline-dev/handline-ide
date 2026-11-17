@@ -35,12 +35,6 @@ func boolJSON(b bool) string {
 	return "false"
 }
 
-// SubagentCount is how many subagents run now and how many started since the day began.
-type SubagentCount struct {
-	Running int `json:"running"`
-	Today   int `json:"today"`
-}
-
 // OpenSubagent is a recorded subagent start.
 type OpenSubagent struct {
 	Agent, Account string
@@ -122,33 +116,7 @@ func openSubagents(q Q, from int64) (starts, open []OpenSubagent, err error) {
 	return starts, open, nil
 }
 
-// SubagentCounts are the subagent counts per agent and per account (by the account each start was recorded on) at now (openSubagents).
-// The last day is read, so a start older than that counts as ended.
-func SubagentCounts(q Q, now time.Time) (agents, accounts map[string]SubagentCount, err error) {
-	y, m, d := now.Date()
-	midnight := time.Date(y, m, d, 0, 0, 0, 0, now.Location()).Unix()
-	starts, open, err := openSubagents(q, min(midnight, now.Unix()-86400))
-	if err != nil {
-		return nil, nil, err
-	}
-	agents, accounts = map[string]SubagentCount{}, map[string]SubagentCount{}
-	for _, s := range starts {
-		if s.At >= midnight {
-			a, c := agents[s.Agent], accounts[s.Account]
-			a.Today, c.Today = a.Today+1, c.Today+1
-			agents[s.Agent], accounts[s.Account] = a, c
-		}
-	}
-	for _, s := range open {
-		a, c := agents[s.Agent], accounts[s.Account]
-		a.Running, c.Running = a.Running+1, c.Running+1
-		agents[s.Agent], accounts[s.Account] = a, c
-	}
-	delete(accounts, "")
-	return agents, accounts, nil
-}
-
-// RunningSubagents are agent's subagents running at now, oldest first, read over the last day as SubagentCounts reads them.
+// RunningSubagents are agent's subagents running at now, oldest first, read over the last day.
 func RunningSubagents(q Q, agent string, now time.Time) ([]OpenSubagent, error) {
 	_, open, err := openSubagents(q, now.Unix()-86400)
 	var out []OpenSubagent

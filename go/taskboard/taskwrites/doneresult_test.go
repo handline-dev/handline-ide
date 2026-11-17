@@ -1,7 +1,7 @@
 package taskwrites
 
 import (
-	"encoding/base64"
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,7 +11,6 @@ import (
 	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/kit/paths"
 
-	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/kit/storetest"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/taskboard/taskresult"
@@ -51,13 +50,7 @@ func newResultRig(t *testing.T) (home, repo, onMain, offMain string, done func(a
 		t.Fatal(err)
 	}
 	f := &fakeTeller{}
-	srv := func(agent string) *rpc.Server {
-		s := rpc.NewServer(auth{agent}, "x", store.LatestVersion(), "local", func(string, ...any) {})
-		s.DB = d
-		Register(s, home, f, nil)
-		taskresult.Register(s, home, d)
-		return s
-	}
+	srv := func(agent string) *rpc.Server { return writesServer(agent, d, home, f) }
 	done = func(agent, rid string, task int, params string) map[string]any {
 		return call(t, srv(agent), fmt.Sprintf(`{"jsonrpc":"2.0","id":2,"method":"task.done","params":{"task":%d,"request_id":%q%s}}`, task, rid, params))[0]
 	}
@@ -73,16 +66,10 @@ func newResultRig(t *testing.T) (home, repo, onMain, offMain string, done func(a
 		}
 		return r
 	}
-	shotCall = func(agent string, task, n int) map[string]any {
-		return call(t, srv(agent), fmt.Sprintf(`{"jsonrpc":"2.0","id":2,"method":"task.shot","params":{"task":%d,"n":%d}}`, task, n))[0]
-	}
 	return
 }
 
-var (
-	resultOf func(task int) taskresult.Result
-	shotCall func(agent string, task, n int) map[string]any
-)
+var resultOf func(task int) taskresult.Result
 
 func TestDoneKeepsTheCommitItWasDoneAt(t *testing.T) {
 	t.Parallel()
@@ -162,21 +149,17 @@ func TestAUITaskIsDoneWithOrWithoutAScreenshot(t *testing.T) {
 	}
 }
 
-func TestADoneTasksScreenshotIsServedByTaskAndNumber(t *testing.T) {
+func TestADoneTasksScreenshotIsKeptUnderTheHome(t *testing.T) {
 	home, _, _, _, done, ui := newResultRig(t)
 	ui(2)
 	shot := pngFile(t, paths.AgentDir(home, "w"), "s.png", 5000)
 	want, _ := os.ReadFile(shot)
 	done("w", "s1", 2, fmt.Sprintf(`,"evidence":"built","shots":[%q]`, shot))
-	r, _ := shotCall("", 2, 1)["result"].(map[string]any)
-	if r == nil || r["mime"] != "image/png" || r["done"] != true || r["offset"] != float64(0) || r["bytes"] != float64(len(want)) || r["data"] != base64.StdEncoding.EncodeToString(want) {
-		t.Fatalf("%v", r)
+	if got := resultOf(2).Shots; len(got) != 1 || got[0].N != 1 || got[0].Bytes != int64(len(want)) {
+		t.Fatalf("%+v", got)
 	}
-	for _, c := range [][2]int{{2, 2}, {1, 1}, {99, 1}} {
-		e, _ := shotCall("", c[0], c[1])["error"].(map[string]any)
-		if e == nil || e["data"].(map[string]any)["code"] != "not_found" {
-			t.Errorf("T%d shot %d: %v", c[0], c[1], e)
-		}
+	if got, err := os.ReadFile(taskresult.ShotFile(home, 2, 1)); err != nil || !bytes.Equal(got, want) {
+		t.Fatalf("%v", err)
 	}
 }
 

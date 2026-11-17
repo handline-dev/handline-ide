@@ -41,17 +41,8 @@ func TestTrustRootsStandingConsent(t *testing.T) {
 	if got := tr.ListRoots(); len(got) != 1 {
 		t.Fatalf("%v", got)
 	}
-	if ok, _ := tr.Remove(filepath.Join(repo, "elsewhere")); ok {
-		t.Fatal("removed a root that is not declared")
-	}
-	if ok, said := tr.Remove(repo); !ok || tr.IsDeclared(repo) {
-		t.Fatalf("%v %s", ok, said)
-	}
-	if b, _ := tr.Store.Get("trust", "roots.json"); b != "[]" {
-		t.Fatalf("%q", b)
-	}
 	t.Setenv("HANDLINE_AGENT", "worker")
-	if ok, said := tr.Enact(repo, "x"); ok || !strings.Contains(said, "founder's to set") {
+	if ok, said := tr.Enact(t.TempDir(), "x"); ok || !strings.Contains(said, "founder's to set") {
 		t.Fatalf("an agent declared a root: %v %s", ok, said)
 	}
 }

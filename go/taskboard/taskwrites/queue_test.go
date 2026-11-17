@@ -32,12 +32,7 @@ func TestQueueAndDraftAreAllOrNone(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	mk := func(agent string) *rpc.Server {
-		s := rpc.NewServer(auth{agent}, "x", store.LatestVersion(), "local", func(string, ...any) {})
-		s.DB = db
-		Register(s, home, nil, nil)
-		return s
-	}
+	mk := func(agent string) *rpc.Server { return writesServer(agent, db, home, nil) }
 	line := func(id int, method, rid string, tasks ...int) string {
 		list, _ := json.Marshal(tasks)
 		return fmt.Sprintf(`{"jsonrpc":"2.0","id":%d,"method":%q,"params":{"tasks":%s,"request_id":%q}}`, id, method, list, rid)

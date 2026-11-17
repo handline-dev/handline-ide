@@ -19,7 +19,7 @@ var typeWait time.Duration
 // before that the telling is left to the tick, and the call is not held. A test sets it.
 var typesNow = func(e *supervisor.Env) bool { return e.Wired() }
 
-// awaitTyped holds a person's chat.send, chat.send_now or inbox.reply to a terminal agent, which takes the person's words mid-turn too,
+// awaitTyped holds a person's chat.send or chat.send_now to a terminal agent, which takes the person's words mid-turn too,
 // until the delivery has typed the message (delivered_at), and answers out once it has. Past the limit, or when the caller hangs up, a
 // message still untyped is taken back (withdrawn) and the call is refused, so nothing is typed later that the caller did not hear of.
 // Not held: an agent's call (its message is queued until the target takes it), and a message to a structured agent, whose receipt is

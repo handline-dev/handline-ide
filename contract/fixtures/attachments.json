@@ -1005,8 +1005,8 @@
    ]
   },
   {
-   "name": "task.memo.add.more_than_six_images_is_bad_request",
-   "spec": "task.memo.add",
+   "name": "task.comment.add.more_than_six_images_is_bad_request",
+   "spec": "task.comment.add",
    "about": "A text names at most 6 images; a memo naming 7 is bad_request, field text.",
    "as": "founder",
    "steps": [
@@ -1068,7 +1068,7 @@
      "send": {
       "jsonrpc": "2.0",
       "id": 4,
-      "method": "task.memo.add",
+      "method": "task.comment.add",
       "params": {
        "task": "{{tid}}",
        "text": "![the button](attachment:{{aid}})![the button](attachment:{{aid}})![the button](attachment:{{aid}})![the button](attachment:{{aid}})![the button](attachment:{{aid}})![the button](attachment:{{aid}})![the button](attachment:{{aid}})",
@@ -1086,8 +1086,8 @@
    ]
   },
   {
-   "name": "task.memo.add.a_put_image_is_named_in_a_brief_and_a_memo",
-   "spec": "task.memo.add",
+   "name": "task.comment.add.a_put_image_is_named_in_a_brief_and_a_memo",
+   "spec": "task.comment.add",
    "about": "An image put by the founder is named in a task's brief and in a memo; the texts are stored as written and read back cut into parts, with no path for a founder.",
    "as": "founder",
    "steps": [
@@ -1149,7 +1149,7 @@
      "send": {
       "jsonrpc": "2.0",
       "id": 4,
-      "method": "task.memo.add",
+      "method": "task.comment.add",
       "params": {
        "task": "{{tid}}",
        "text": "still ![the button](attachment:{{aid}})",
@@ -1231,8 +1231,8 @@
    ]
   },
   {
-   "name": "task.memo.add.an_agent_names_only_an_image_a_task_shows",
-   "spec": "task.memo.add",
+   "name": "task.comment.add.an_agent_names_only_an_image_a_task_shows",
+   "spec": "task.comment.add",
    "about": "An agent may not name an image no task shows (refused, gate role); once a founder's brief names it, the agent may carry it into its own text. Its task.get carries each image's path.",
    "as": "agent",
    "with": {
@@ -1312,7 +1312,7 @@
      "send": {
       "jsonrpc": "2.0",
       "id": 4,
-      "method": "task.memo.add",
+      "method": "task.comment.add",
       "params": {
        "task": "{{tid}}",
        "text": "![the button](attachment:{{aid}})",
@@ -1348,7 +1348,7 @@
      "send": {
       "jsonrpc": "2.0",
       "id": 6,
-      "method": "task.memo.add",
+      "method": "task.comment.add",
       "params": {
        "task": "{{tid}}",
        "text": "from the brief: ![the button](attachment:{{aid}})",

@@ -1,13 +1,8 @@
-// Package sessionrpc is the methods that drive an agent's session through the daemon: session.start, wake, stop, restart, park and
-// interrupt, and terminal.close (handline/daemon/rpc_session.py, rpc_typing.py's interrupt).
-//
-// The session methods are thin: validation, the verbs' own state checks, and the request_id effect, over the lifecycle's Controls. A success is recorded under the caller's request_id the moment the action returns, so a retry after a crash
-// that lost the reply replays it instead of acting again. A refusal names its gate: terminal_lock when whoever types at a terminal agent
-// holds the lock the tick takes, state for every other reason the action gives.
-//
-// session.input, keys and type and the input holder (typing.go) serve a terminal agent. Dropped with the design: the exit mode that typed
-// /exit, and the kill that ended a structured session's process group (a kill is refused). session.interrupt is Esc on the agent's pane.
-// A method whose port is nil is not registered, so hello never lists what cannot be served.
+// Package sessionrpc is the methods that drive an agent's session: session.start, wake, stop, restart, park and interrupt (Esc on the
+// pane), and session.input, keys and the input holder (typing.go) for a terminal agent. Each is validation, the verb's own state checks
+// and the request_id effect over the lifecycle's Controls: a success is recorded the moment the action returns, so a retry replays it. A
+// refusal names its gate: terminal_lock while the tick holds the agent's lock, state for any other reason. A method whose port is nil is
+// not registered, so hello never lists what cannot be served.
 package sessionrpc
 
 import (
@@ -61,9 +56,6 @@ type Env struct {
 	DB       *sql.DB
 	Home     string
 	Controls Controls
-	// Terminal agents only (frozen): the terminal's close, and whether a session still runs in it.
-	CloseTerminal  func(handle string) (ok bool, why string)
-	SessionPresent func(agent string) (bool, error)
 	// InterruptTerminal interrupts a terminal agent's turn (Env.PressEsc of the typing Env); nil serves no session.interrupt.
 	InterruptTerminal func(c *rpc.Conn, agent string) error
 	// Turns closes a turn an Esc ended on screen (turns.Tracker); nil leaves it to the transcript.
@@ -199,7 +191,7 @@ func done(ok bool, said string, err error) (map[string]any, error) {
 func callOf(c *rpc.Conn) Call { return Call{Person: c.Caller.Allows("member"), By: c.Caller.Actor()} }
 
 // run runs fn(agent) and records its result as the effect of this request_id. With hold the agent's terminal lock is held across it
-// (terminal.close); without, the lifecycle takes whatever lock it needs itself.
+// (agent.unstall); without, the lifecycle takes whatever lock it needs itself.
 func (e *Env) run(c *rpc.Conn, name string, params map[string]any, hold bool, fn func(call Call, agent string) (map[string]any, error)) (any, error) {
 	agent, err := e.agent(params)
 	if err != nil {
@@ -453,41 +445,5 @@ func (e *Env) interrupt(c *rpc.Conn, params map[string]any) (any, error) {
 			return nil, err
 		}
 		return done(true, agent+": interrupted", nil)
-	})
-}
-
-func (e *Env) terminalClose(c *rpc.Conn, params map[string]any) (any, error) {
-	return e.run(c, "terminal.close", params, true, func(_ Call, agent string) (map[string]any, error) {
-		if err := e.holderGate(c, agent); err != nil {
-			return nil, err
-		}
-		row, err := db.GetAgentState(e.DB, agent)
-		if err != nil {
-			return nil, err
-		}
-		if row == nil || row.Terminal.String == "" {
-			return nil, rpc.Refused(agent+" has no terminal", "state", "")
-		}
-		handle := row.Terminal.String
-		present, err := e.SessionPresent(agent)
-		if err != nil {
-			return nil, err
-		}
-		if row.ClosedAt.Int64 == 0 || present {
-			return nil, rpc.Refused(agent+" has a session running; stop it first", "state", "")
-		}
-		if ok, why := e.CloseTerminal(handle); !ok {
-			return nil, rpc.Refused(fmt.Sprintf("%s: its terminal would not close: %s", addr.Ref(agent), why), "state", "")
-		}
-		if err := db.SetTerminal(e.DB, agent, "", row.Worktree.String); err != nil {
-			return nil, err
-		}
-		if _, err := db.AddEvent(e.DB, agent, "terminal_closed", db.KV{K: "handle", V: handle}); err != nil {
-			return nil, err
-		}
-		if err := e.Holds.Release(agent); err != nil { // a hold on a terminal that is gone is over
-			return nil, err
-		}
-		return map[string]any{"accepted": true, "said": agent + ": terminal closed"}, nil
 	})
 }

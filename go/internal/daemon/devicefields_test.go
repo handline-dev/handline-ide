@@ -1,8 +1,6 @@
 package daemon
 
 import (
-	"fmt"
-	"strings"
 	"testing"
 	"time"
 )
@@ -24,8 +22,8 @@ func redeemAs(t *testing.T, d *Daemon, name, kind string) (token, id string) {
 }
 
 // A device lists as the kind it paired as (a kind this daemon does not know is none), with the client its hello named, and as current
-// to itself; the founder renames it, and the devices topic hears it.
-func TestDevicesListKindClientAndCurrentAndARenameIsTold(t *testing.T) {
+// to itself.
+func TestDevicesListKindClientAndCurrent(t *testing.T) {
 	d := startStream(t)
 	phone, phoneID := redeemAs(t, d, "phone", "ios")
 	_, fridgeID := redeemAs(t, d, "fridge", "fridge")
@@ -46,37 +44,4 @@ func TestDevicesListKindClientAndCurrentAndARenameIsTold(t *testing.T) {
 		t.Fatalf("fridge %v", r)
 	}
 
-	f := readAll(t, pipeTo(t, d, "k"), 2, 3, 4, 5, 6, 7)
-	f.ask(2, `{"jsonrpc":"2.0","id":2,"method":"subscribe","params":{"topics":["devices"]}}`)
-	for i, name := range []string{"  ", strings.Repeat("한", 65)} { // empty once trimmed; over 64 characters
-		id := float64(3 + i)
-		line := fmt.Sprintf(`{"jsonrpc":"2.0","id":%d,"method":"device.rename","params":{"device":%q,"name":%q,"request_id":"n%d"}}`, 3+i, phoneID, name, 3+i)
-		if _, code := errOf(t, f.ask(id, line)); code != "bad_request" {
-			t.Fatalf("name %q: %s", name, code)
-		}
-	}
-	if _, code := errOf(t, f.ask(5, `{"jsonrpc":"2.0","id":5,"method":"device.rename","params":{"device":"dev_none","name":"x","request_id":"n5"}}`)); code != "not_found" {
-		t.Fatalf("an unpaired device: %s", code)
-	}
-	long := strings.Repeat("한", 64) // 64 characters, 192 bytes: the limit is in characters
-	if r := f.ask(7, fmt.Sprintf(`{"jsonrpc":"2.0","id":7,"method":"device.rename","params":{"device":%q,"name":%q,"request_id":"n7"}}`, phoneID, long)); r["error"] != nil {
-		t.Fatalf("a 64-character name: %v", r["error"])
-	}
-	if ev := <-f.devices; ev["data"].(map[string]any)["name"] != long {
-		t.Fatalf("%v", ev)
-	}
-	if r := f.ask(6, `{"jsonrpc":"2.0","id":6,"method":"device.rename","params":{"device":"`+phoneID+`","name":"  My phone ","request_id":"n6"}}`); r["error"] != nil {
-		t.Fatal(r["error"])
-	}
-	select {
-	case ev := <-f.devices:
-		if ev["type"] != "device.renamed" {
-			t.Fatalf("%v", ev)
-		}
-		if dev := ev["data"].(map[string]any); dev["id"] != phoneID || dev["name"] != "My phone" || dev["current"] != false || dev["kind"] != "ios" {
-			t.Fatalf("%v", dev)
-		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("no device.renamed")
-	}
 }

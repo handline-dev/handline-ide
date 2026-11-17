@@ -87,16 +87,6 @@ export type Proposal = {
   };
 };
 
-export type Schedule = {
-  id: number;
-  target: Who;
-  cron: string;
-  message: string;
-  next_run: Timestamp | null;
-  last_run: Timestamp | null;
-  set_by: string;
-};
-
 /** What the proposal changes, by kind (hl propose). Every kind needs name. */
 export type ProposalArgs = {
   /** The agent the proposal is about (the new agent's name for add; a team's manager for team). */
@@ -130,12 +120,6 @@ export type ProposalArgs = {
   command?: string;
   /** run: the folder it runs in; it must be a directory when proposed. A relative one is taken from the agent's worktree; kept absolute. */
   cwd?: string;
-};
-
-export type ScheduleError = {
-  target: Who;
-  /** Why the agent's `schedules` value cannot be read. */
-  error: string;
 };
 
 export type Person = {
@@ -187,38 +171,6 @@ export interface TeamMethods {
   } };
   "proposal.withdraw": { params: {
   proposal: number;
-  request_id: RequestId;
-}; result: Accepted };
-  "trust.propose": { params: {
-  root: string;
-  why?: string;
-  request_id: RequestId;
-}; result: Accepted & {
-    proposal?: string;
-  } };
-  "trust.list": { params: {
-  proposals?: boolean;
-}; result: {
-    roots: string[];
-    /** Empty unless `proposals` is true. State is the store's word (proposed, applied, rejected...). */
-    proposals: {
-      id: string;
-      root: string;
-      state: string;
-      /** The decision request that asked the founder. */
-      request?: number;
-      requested_by?: string;
-    }[];
-    /** The same roots as `roots`, in the same order, with why and who added each. */
-    declared: {
-      root: string;
-      why: string;
-      /** An agent's key, or a person's. */
-      added_by: string;
-    }[];
-  } };
-  "trust.remove": { params: {
-  root: string;
   request_id: RequestId;
 }; result: Accepted };
   "people.list": { params: { [key: string]: unknown }; result: {
@@ -307,38 +259,11 @@ export interface TeamMethods {
   proposal: number;
   request_id: RequestId;
 }; result: Accepted };
-  "schedules.list": { params: { [key: string]: unknown }; result: {
-    schedules: Schedule[];
-    /** Present only when an agent's `schedules` value cannot be read: that agent, and why. */
-    errors?: ScheduleError[];
-  } };
-  "schedule.add": { params: {
-  target: Who;
-  cron: string;
-  message: string;
-  request_id: RequestId;
-}; result: Accepted & {
-    schedule: number;
-  } };
-  "schedule.edit": { params: {
-  schedule: number;
-  target?: Who;
-  cron?: string;
-  message?: string;
-  request_id: RequestId;
-}; result: Accepted };
-  "schedule.remove": { params: {
-  schedule: number;
-  request_id: RequestId;
-}; result: Accepted };
 }
 
 export const TEAM_METHODS: { [K in keyof TeamMethods]: { role: Role; callers: Role[] | null; write: boolean; since: number } } = {
   "proposal.propose": { role: "agent", callers: null, write: true, since: 1 },
   "proposal.withdraw": { role: "agent", callers: null, write: true, since: 1 },
-  "trust.propose": { role: "agent", callers: null, write: true, since: 1 },
-  "trust.list": { role: "agent", callers: null, write: false, since: 1 },
-  "trust.remove": { role: "owner", callers: null, write: true, since: 1 },
   "people.list": { role: "agent", callers: null, write: false, since: 1 },
   "workspaces.list": { role: "agent", callers: null, write: false, since: 1 },
   "workspace.create": { role: "owner", callers: null, write: true, since: 1 },
@@ -351,29 +276,21 @@ export const TEAM_METHODS: { [K in keyof TeamMethods]: { role: Role; callers: Ro
   "proposal.decide": { role: "member", callers: null, write: true, since: 1 },
   "proposal.apply_now": { role: "member", callers: null, write: true, since: 1 },
   "proposal.stop": { role: "member", callers: null, write: true, since: 1 },
-  "schedules.list": { role: "agent", callers: null, write: false, since: 1 },
-  "schedule.add": { role: "owner", callers: null, write: true, since: 1 },
-  "schedule.edit": { role: "owner", callers: null, write: true, since: 1 },
-  "schedule.remove": { role: "owner", callers: null, write: true, since: 1 },
 };
 
 /** x-app-cache of each read (x-app in core.json). */
-export const TEAM_APP_CACHE: { [K in "trust.list" | "people.list" | "workspaces.list" | "workspace.rules" | "team.get" | "proposal.list" | "schedules.list"]: { resource: string; id?: string; feed: Topic | null } | false } = {
-  "trust.list": {"resource": "trust", "feed": null},
+export const TEAM_APP_CACHE: { [K in "people.list" | "workspaces.list" | "workspace.rules" | "team.get" | "proposal.list"]: { resource: string; id?: string; feed: Topic | null } | false } = {
   "people.list": {"resource": "people", "feed": "people"},
   "workspaces.list": {"resource": "workspaces", "feed": "workspaces"},
   "workspace.rules": false,
   "team.get": {"resource": "team", "feed": null},
   "proposal.list": {"resource": "proposals", "feed": "proposals"},
-  "schedules.list": {"resource": "schedules", "feed": null},
 };
 
 /** x-app-write of each write (x-app in core.json). */
-export const TEAM_APP_WRITES: { [K in "proposal.propose" | "proposal.withdraw" | "trust.propose" | "trust.remove" | "workspace.create" | "workspace.set" | "workspace.delete" | "workspace.rule.set" | "proposal.decide" | "proposal.apply_now" | "proposal.stop" | "schedule.add" | "schedule.edit" | "schedule.remove"]: { kind: WriteKind; label: string } | false } = {
+export const TEAM_APP_WRITES: { [K in "proposal.propose" | "proposal.withdraw" | "workspace.create" | "workspace.set" | "workspace.delete" | "workspace.rule.set" | "proposal.decide" | "proposal.apply_now" | "proposal.stop"]: { kind: WriteKind; label: string } | false } = {
   "proposal.propose": false,
   "proposal.withdraw": {"kind": "decided", "label": "withdraw"},
-  "trust.propose": false,
-  "trust.remove": {"kind": "authored", "label": "remove folder"},
   "workspace.create": {"kind": "decided", "label": "create workspace"},
   "workspace.set": {"kind": "decided", "label": "rename workspace"},
   "workspace.delete": {"kind": "decided", "label": "delete workspace"},
@@ -381,7 +298,4 @@ export const TEAM_APP_WRITES: { [K in "proposal.propose" | "proposal.withdraw" |
   "proposal.decide": {"kind": "decided", "label": "decide"},
   "proposal.apply_now": {"kind": "decided", "label": "apply now"},
   "proposal.stop": {"kind": "decided", "label": "stop"},
-  "schedule.add": {"kind": "authored", "label": "add schedule"},
-  "schedule.edit": {"kind": "authored", "label": "edit schedule"},
-  "schedule.remove": {"kind": "authored", "label": "remove schedule"},
 };

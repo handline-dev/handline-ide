@@ -2,14 +2,6 @@
 task.begin
 task.board
 task.handoff
-task.memo.add
-task.memo.delete
-task.memo.edit
-task.memo.list
 task.progress
-task.shot
 task.start
-task.view.delete
-task.view.list
-task.view.save
 task.wait

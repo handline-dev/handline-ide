@@ -258,12 +258,6 @@ export type DayCosts = {
   agents: { [key: string]: number };
 }[];
 
-export type CostPerDay = {
-  /** The range asked for. */
-  range: "12h" | "24h" | "3d" | "7d" | "14d" | "30d";
-  cost_per_day: DayCosts;
-};
-
 export interface AccountsMethods {
   "accounts.list": { params: {
   /** Add each account's agents_assigned, agents_running, agents_background and agents_unplaced. Default false. */
@@ -273,27 +267,6 @@ export interface AccountsMethods {
 }; result: {
     accounts: Account[];
   } & ReadCursor };
-  "status.pick": { params: { [key: string]: unknown }; result: {
-    /** The account to place the next agent on; null when none may take work (fail-closed). */
-    picked: string | null;
-    candidates: {
-      account: string;
-      reason: string;
-    }[];
-    /** One line per agent kind: its price per minute of the 5h window and what the price rests on. */
-    agent_costs: string[];
-    /** What one agent spends per minute of work, by model, pooled across accounts, then the whole pool. */
-    agent_pace_usd?: {
-      /** The model, or "all agents" for the whole pool. */
-      model: string;
-      /** Median API-equivalent dollars per minute of work of its latest samples. */
-      usd_per_min: number;
-      /** What the figure rests on: the model, "all agents" or "starting value". */
-      source: string;
-      /** Samples behind it; 0 for the starting value. */
-      samples: number;
-    }[];
-  } };
   "account.set": { params: {
   account: string;
   /** Alias, one plain line; empty clears. */
@@ -393,10 +366,6 @@ export interface AccountsMethods {
   /** Also give `overlay` for this pick: an agent's name, or `grp:<name>` for the group of agents whose dotted names start with `<name>.` (and the agent `<name>` itself), the key of a row of the agents table a client draws. It rides on this call and not on a method of its own because the curve is read against `past` and must be sampled at the same moment as it; one pick costs one array, not one per agent. */
   agent?: Who;
 }; result: Outlook };
-  "stats.cost": { params: {
-  /** The last that many days (under 1 day counts as 1), as stats.outlook counts them. */
-  range: "12h" | "24h" | "3d" | "7d" | "14d" | "30d";
-}; result: CostPerDay };
   "stats.retro": { params: {
   task: number;
 }; result: Retro };
@@ -404,7 +373,6 @@ export interface AccountsMethods {
 
 export const ACCOUNTS_METHODS: { [K in keyof AccountsMethods]: { role: Role; callers: Role[] | null; write: boolean; since: number } } = {
   "accounts.list": { role: "agent", callers: null, write: false, since: 1 },
-  "status.pick": { role: "agent", callers: null, write: false, since: 1 },
   "account.set": { role: "owner", callers: null, write: true, since: 1 },
   "account.wake": { role: "owner", callers: null, write: true, since: 1 },
   "account.read_usage": { role: "owner", callers: null, write: true, since: 1 },
@@ -417,18 +385,15 @@ export const ACCOUNTS_METHODS: { [K in keyof AccountsMethods]: { role: Role; cal
   "account.remove": { role: "owner", callers: null, write: true, since: 1 },
   "stats.get": { role: "member", callers: null, write: false, since: 1 },
   "stats.outlook": { role: "member", callers: null, write: false, since: 1 },
-  "stats.cost": { role: "member", callers: null, write: false, since: 1 },
   "stats.retro": { role: "member", callers: null, write: false, since: 1 },
 };
 
 /** x-app-cache of each read (x-app in core.json). */
-export const ACCOUNTS_APP_CACHE: { [K in "accounts.list" | "status.pick" | "accounts.discover" | "stats.get" | "stats.outlook" | "stats.cost" | "stats.retro"]: { resource: string; id?: string; feed: Topic | null } | false } = {
+export const ACCOUNTS_APP_CACHE: { [K in "accounts.list" | "accounts.discover" | "stats.get" | "stats.outlook" | "stats.retro"]: { resource: string; id?: string; feed: Topic | null } | false } = {
   "accounts.list": {"resource": "accounts", "feed": "accounts"},
-  "status.pick": false,
   "accounts.discover": false,
   "stats.get": {"resource": "stats", "feed": null},
   "stats.outlook": {"resource": "outlook", "feed": null},
-  "stats.cost": {"resource": "cost", "feed": null},
   "stats.retro": {"resource": "retro", "feed": null},
 };
 

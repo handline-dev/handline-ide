@@ -13,7 +13,7 @@ import (
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
-// answer.add and answer.remove (handline/daemon/rpc_answers.py): the founder's standing answers, kept in the protected store.
+// answer.add (handline/daemon/rpc_answers.py): the founder's standing answers, kept in the protected store.
 //
 // The stores are files, so an effect and its write_effects record cannot be one transaction. A retry is told apart instead: the call leaves
 // an intent (a cursor named for its caller and request_id) before it writes and clears it once it has recorded its answer, so a retry that
@@ -22,7 +22,6 @@ import (
 
 func (w *writes) registerAnswers(s *rpc.Server) {
 	s.Register("answer.add", rpc.Method{Handler: w.answerAdd})
-	s.Register("answer.remove", rpc.Method{Handler: w.answerRemove})
 }
 
 func (w *writes) intent(c *rpc.Conn, p map[string]any, name string) string {
@@ -61,16 +60,6 @@ func pyRepr(s string) string {
 		return fmt.Sprintf("%q", s)
 	}
 	return "'" + s + "'"
-}
-
-// held says whether the folder is a trust root now.
-func (w *writes) held(folder string) bool {
-	for _, r := range team.NewTrust(w.e.Home).ListRoots() {
-		if r == folder {
-			return true
-		}
-	}
-	return false
 }
 
 func (w *writes) answerAdd(c *rpc.Conn, p map[string]any) (any, error) {
@@ -129,47 +118,4 @@ func isDir(path string) bool {
 	}
 	st, err := os.Stat(path)
 	return err == nil && st.IsDir()
-}
-
-func (w *writes) answerRemove(c *rpc.Conn, p map[string]any) (any, error) {
-	kind, _ := p["kind"].(string)
-	if kind != "trust" && kind != "dialog" {
-		return nil, badParam("kind is trust or dialog", "kind")
-	}
-	list, _ := p["key"].([]any)
-	want := 3
-	if kind == "trust" {
-		want = 1
-	}
-	var key []string
-	for _, k := range list {
-		if s, ok := k.(string); ok && s != "" {
-			key = append(key, s)
-		}
-	}
-	if len(key) != len(list) || len(key) != want {
-		return nil, badParam("key is [folder] for trust and [vendor, title, label] for dialog", "key")
-	}
-	if kind == "dialog" { // this daemon keeps no dialog rule
-		return nil, notFound("answer", strings.Join(key, " / "), "no rule "+strings.Join(key, " / "))
-	}
-	ik := w.intent(c, p, "answer.remove")
-	retry, err := w.begun(ik)
-	if err != nil {
-		return nil, err
-	}
-	ok, said := team.NewTrust(w.e.Home).Remove(key[0])
-	absent := !w.held(key[0])
-	gone := !ok && absent && (strings.Contains(said, "no rule") || strings.Contains(said, "not a declared root"))
-	if !ok && retry && absent {
-		ok, said = true, strings.Join(key, " / ")+" is already removed" // judged by the store: the key is not there
-	}
-	if !ok {
-		if gone {
-			e := notFound("answer", strings.Join(key, " / "), said)
-			return nil, w.failed(ik, e)
-		}
-		return nil, w.failed(ik, rpc.Refused(said, "", ""))
-	}
-	return w.finish(c, ik, said)
 }

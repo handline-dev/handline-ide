@@ -17,7 +17,7 @@
   "concurrency": "Calls on one connection are served concurrently: a call that waits (inbox.list or inbox.get with wait_s, up to 600 s) does not hold up the calls after it, and replies come in the order they finish, matched by id. Calls on one connection that touch the same thing are not ordered by the connection: a client that needs the order waits for the first reply. Stream notifications are never held behind a waiting call.",
   "network": "The network listener is the only way in for a phone, a browser or another machine, and only a paired device may use it. A connection on it is unpaired until its hello carries a valid device `token`. An unpaired connection may call device.redeem and nothing else: every other call, hello and an unknown method name included, is refused before any handler runs with the one reply `{code: -32002, message: \"refused\", data: {code: \"refused\", gate: \"unpaired\", reason: \"not paired\"}}`, the same words every time: no method list, no state, no version, no hint, nothing that says why. A token that is revoked or was never issued is the same refusal, so a reply does not say which. The Unix socket is not the network: its roles are proven as below. Conformance: the network transport is the WebSocket over TLS the listener speaks, and a client pins the certificate fingerprint from the pairing uri; fixtures with `as: unpaired` or `as: member` over the network are run against it with `--as unpaired=...` and `--as member=...` sockets that are already past TLS and the pinned check (a socket the harness is given, or a connector function); contract/README.md says what that does and does not show.",
   "params": "By name only.",
-  "request_id": "Every write takes request_id. The daemon keeps each successful reply for 24 hours; a retry with the same id and the same params returns it with replayed:true and repeats nothing. The same id with other params is bad_request. Refusals and errors are not stored: a retry is judged again. Exceptions: chat.send to a structured agent returns the receipt as it is now (see x-delivery); doc.push, account.remove, account.login_code, request.cancel, team.seal, attachment.remove, device.pair and device.redeem keep no reply, so a retry is judged again; account.login keeps its reply without device_code.",
+  "request_id": "Every write takes request_id. The daemon keeps each successful reply for 24 hours; a retry with the same id and the same params returns it with replayed:true and repeats nothing. The same id with other params is bad_request. Refusals and errors are not stored: a retry is judged again. Exceptions: chat.send to a structured agent returns the receipt as it is now (see x-delivery); doc.push, account.remove, account.login_code, team.seal, attachment.remove, device.pair and device.redeem keep no reply, so a retry is judged again; account.login keeps its reply without device_code.",
   "unknown_method": "A method the daemon does not know is JSON-RPC error -32601 with data.code `bad_request` and data.method; a method it knows but the caller's role may not call is `refused`, gate `role`.",
   "idle": "A line begun but not finished within 30 s is dropped with bad_request, and so is a connection that has not said hello within 30 s. After hello, a connection with nothing in flight is closed after 3600 s without a byte. A subscribed or terminal-attached connection has no idle limit (the daemon notices a dead peer by a failed write); the subscribe and terminal tasks must build that. A call that waits (inbox wait_s) is in flight."
  },
@@ -29,7 +29,7 @@
    "member",
    "owner"
   ],
-  "rule": "x-role on a method is the lowest role that may call it. Roles are proven, not assumed. owner: the connection said hello with the founder key and it matches (a Unix-socket peer being the same user proves nothing, because agents run as that user). agent: the peer pid verifies against a recorded session. member: a person of team mode; no caller is given it before then. A paired device acts with its person's role, so the owner's local and paired callers are owner. Anything else is anonymous: on the Unix socket it may call only hello and device.redeem; on the network listener it is unpaired and may call only device.redeem (see Framing, network). A call below its role is refused, gate `role`. session.type and session.keys act at a shell prompt as they do anywhere in the pane: only a paired device can connect to the network listener and an unpaired caller gets no data, so a shell is within what a paired device may reach."
+  "rule": "x-role on a method is the lowest role that may call it. Roles are proven, not assumed. owner: the connection said hello with the founder key and it matches (a Unix-socket peer being the same user proves nothing, because agents run as that user). agent: the peer pid verifies against a recorded session. member: a person of team mode; no caller is given it before then. A paired device acts with its person's role, so the owner's local and paired callers are owner. Anything else is anonymous: on the Unix socket it may call only hello and device.redeem; on the network listener it is unpaired and may call only device.redeem (see Framing, network). A call below its role is refused, gate `role`. session.keys acts at a shell prompt as they do anywhere in the pane: only a paired device can connect to the network listener and an unpaired caller gets no data, so a shell is within what a paired device may reach."
  },
  "x-gates": {
   "role": "Caller's role is agent: a person-at-the-terminal method.",
@@ -96,7 +96,6 @@
   "hl task board": "task.board",
   "hl task show": "task.get",
   "hl task list": "tasks.list",
-  "hl task comment list": "task.comment.list",
   "hl task comment add": "task.comment.add",
   "hl task comment edit": "task.comment.edit",
   "hl task comment delete": "task.comment.delete",
@@ -117,15 +116,10 @@
   "hl propose run": "proposal.propose",
   "hl propose withdraw": "proposal.withdraw",
   "hl propose list": "proposal.list",
-  "hl trust add": "trust.propose",
-  "hl trust list|proposals": "trust.list",
   "hl team": "team.get",
   "hl ps": "agents.list",
-  "hl status": "status.pick",
   "hl events": "events.feed",
-  "hl triggers": "agent.triggers",
   "hl account list": "accounts.list",
-  "hl memory status": "memory.status",
   "hl task request": "task.request",
   "hl task plan": "task.plan"
  },
@@ -243,8 +237,7 @@
    "snapshot": "devices.list",
    "data": {
     "device.paired": "Device",
-    "device.revoked": "{device}",
-    "device.renamed": "Device"
+    "device.revoked": "{device}"
    }
   },
   "proposals": {
@@ -267,7 +260,7 @@
    }
   },
   "for_you": {
-   "snapshot": "for_you.list",
+   "snapshot": "requests.pending",
    "data": {
     "for_you.opened": "ForYouOpened",
     "for_you.closed": "ForYouClosed"
@@ -319,7 +312,7 @@
    "turn": "A turn is running (agents); the owner has the task (tasks).",
    "watch": "A gate watches outside state; text names it (\"watching PR #412 CI\").",
    "handoff": "A hand-off to a new session is moving.",
-   "background": "Background work runs while the agent sits at its prompt. Status text names that work, the labels of AgentView.background joined by ' · ' ('check.sh · review subagent'), not a count.",
+   "background": "Background work runs while the agent sits at its prompt. Status text names that work, the labels of AgentView.background joined by ' \u00b7 ' ('check.sh \u00b7 review subagent'), not a count.",
    "you": "A person must answer: a dialog or prompt on the agent, an open request to the founder on the task, or a task the founder owns.",
    "opener": "A draft: waits on its opener to queue it.",
    "task": "Waits on other tasks; tasks lists them.",
@@ -376,7 +369,7 @@
     "kind": "dialog"
    }
   },
-  "retired": "Dialog rules (answer.add with vendor, title and label; the `dialog` entries of answers.list) answered a dialog by matching its screen. A daemon that never answers a dialog and reads no screen refuses to save one (gate unsupported), and lists none. Trust roots are not rules and stay."
+  "retired": "Dialog rules (answer.add with vendor, title and label) answered a dialog by matching its screen. A daemon that never answers a dialog and reads no screen refuses to save one (gate unsupported), and lists none. Trust roots are not rules and stay."
  },
  "x-notifications": {
   "event": {
@@ -749,7 +742,7 @@
   "spans": "A run is `[from, to)` over the row's characters counted in Unicode code points of `text` (not UTF-16 units, not bytes; a client in JavaScript converts with `Array.from`), and may extend past the end of `text` for blank cells that have a background: past the end, each blank cell counts as one, so `to` is at most len(`text`) + (`cols` minus the display width of `text`), where a wide character (CJK) is one code point and two cells. A run boundary never falls inside a cell: a base character stays with its combining code points, and a wide character is one unit. Runs are sorted, never overlap, are never empty and are sent only for cells whose style is not the default; a cell no run covers is drawn default. Two neighbouring cells with the same style are one run. Style is `SpanStyle`: `fg`, `bg` (a palette index 0-255 or `#rrggbb`) and the flags `bold`, `dim`, `italic`, `underline`, `inverse`, `strike`, each left out when off. Palette indexes 0-15 are the client's theme colours, so a dark and a light client each draw them in their own tokens; the daemon does not resolve a colour it was given as an index.",
   "cursor": "A frame's `cursor` (text and styled attaches; a bytes attach's is in cells) is `{x, y}` or null: null when the cursor is hidden or above the frame. `x` counts code points of the row's `text`, as spans do (a host that reads cells converts; a wide character is one), and may run past the end of `text` when the cursor sits in blank cells, each counting one. `y` is a row of the frame's `lines`, from 0, and may be len(lines) or more when the cursor is on a blank row the frame drops. A frame may carry `changed: []` for a cursor move alone.",
   "size": "A row's spans are what its colours need and no more; `terminal.history` pages and the 1 MiB trim of a text page apply to the JSON as sent, spans included, and `more` says when it was trimmed. A frame for a screen of a few hundred runs is a few KiB; the slow-client rule of text is unchanged (`full: true`).",
-  "input": "`styled` is read-only like text: keys go by `terminal.input` where the host supports bytes in, and by `session.type` and `session.keys` as before.",
+  "input": "`styled` is read-only like text: keys go by `terminal.input` where the host supports bytes in, and by `session.keys` as before.",
   "not_in_it": "No hyperlink, image, blink or font-weight beyond bold, no wide-character marker beyond what `text` has, no mouse or screen-mode state: a client that needs the real terminal asks for `bytes`."
  },
  "x-delivery": {
@@ -769,17 +762,17 @@
   "watch": "chat.transcript and chat.messages draw the conversation and each message's receipt. Both stay readable while its session is closed.",
   "detail": "agent.get: terminal null, session_open true while its session is live, input_holders [].",
   "controls": "session.start, wake, restart, park, stop (exit and close are the same; kill is for a person) and interrupt (refused, gate state, when no turn runs); prompt.answer takes allow or deny (or always, where offered); chat.send, chat.send_now and chat.cancel as in Delivery.",
-  "never": "A client does not send session.input, session.keys, session.type, input.take, input.release or terminal.attach for a structured agent, and shows no terminal tab, holder, key strip or Take control. The Go daemon does not serve the first five at all; a daemon that does refuses a structured agent (gate unsupported). terminal.attach with agent is not_found (terminal): it has no terminal."
+  "never": "A client does not send session.input, session.keys, input.take, input.release or terminal.attach for a structured agent, and shows no terminal tab, holder, key strip or Take control. The Go daemon does not serve the first four at all; a daemon that does refuses a structured agent (gate unsupported). terminal.attach with agent is not_found (terminal): it has no terminal."
  },
  "x-attachments": {
   "what": "Files a person attaches to a chat message, a task's brief, a memo or a note: images and any other file (a PDF, a text file, an archive), one path for all of them, and one mechanism for every agent, structured or terminal: the file is stored on the daemon's machine and the agent is told its path, which it reads with its own file tool.",
   "flow": "attachment.put sends the file in chunks and ends with the Attachment (an id). A text names it as `![caption](attachment:ID)` (texts); chat.send may also list up to 6 ids in `attachments`. A message's images are those its body names, in order, then the listed ids it does not name, each once, at most 6 in all. The message is delivered like any other, with one line per attachment (an image or any other file) added after the body, in that order: `[image N: /absolute/path.png (image/png, 184 KB)]`. ChatMessage.attachments and turn_start.attachments list every image of the message for a client to draw, and ChatMessage.parts cuts the body at its images; the body the client stored stays as typed (the path lines are added at delivery only), so a client that shows an agent's echo of a user turn may drop lines of that shape.",
-  "texts": "A text names an image with Markdown image syntax and the attachment: scheme, `![caption](attachment:ID)`, in chat.send and say `body`, inbox.reply `text`, task.new and task.edit `body`, task.memo.add and task.memo.edit `text`, and task.handoff `note`. The text is stored as written; only that exact form is a reference, anywhere in the text, anything else is plain text: a client draws the rest as Markdown. At most 6 per text. The write checks each image it names in its own transaction: a malformed id or an upload not yet finished is bad_request (the field, a reason naming the id); an image never put or no longer kept is not_found, what attachment; more than 6 is bad_request. chat.send's `attachments` are checked the same way, with field attachments. An edit that keeps a reference the text already had is never refused for it, even when the image is gone. A write that names an image claims it, as a message does; an image a task names (its brief, a memo or a handoff note) is not removed while that task is open, and is kept 30 days after the last such task is done or discarded. The id is the daemon's, not a device's: one device may upload it and another write the text that names it. task.get cuts each task text at its references so a client need not parse it: TaskDetail.body_parts, Memo.parts and a timeline row's parts; chat reads and request.read do the same for a message in `parts`. Each is a list of TextPart and ImagePart; an image no longer kept is a part with gone: true and only its id. Wherever the daemon types a message, a task's brief, a memo or a note to an agent, it adds the path lines after the text, the message's own images first, then those its task's memos name, numbered on; an agent's reads carry the path in each ImagePart, so hl task show and hl read print the same lines.",
+  "texts": "A text names an image with Markdown image syntax and the attachment: scheme, `![caption](attachment:ID)`, in chat.send and say `body`, task.new and task.edit `body`, task.comment.add and task.comment.edit `text`, and task.handoff `note`. The text is stored as written; only that exact form is a reference, anywhere in the text, anything else is plain text: a client draws the rest as Markdown. At most 6 per text. The write checks each image it names in its own transaction: a malformed id or an upload not yet finished is bad_request (the field, a reason naming the id); an image never put or no longer kept is not_found, what attachment; more than 6 is bad_request. chat.send's `attachments` are checked the same way, with field attachments. An edit that keeps a reference the text already had is never refused for it, even when the image is gone. A write that names an image claims it, as a message does; an image a task names (its brief, a memo or a handoff note) is not removed while that task is open, and is kept 30 days after the last such task is done or discarded. The id is the daemon's, not a device's: one device may upload it and another write the text that names it. task.get cuts each task text at its references so a client need not parse it: TaskDetail.body_parts, Memo.parts and a timeline row's parts; chat reads and request.read do the same for a message in `parts`. Each is a list of TextPart and ImagePart; an image no longer kept is a part with gone: true and only its id. Wherever the daemon types a message, a task's brief, a memo or a note to an agent, it adds the path lines after the text, the message's own images first, then those its task's memos name, numbered on; an agent's reads carry the path in each ImagePart, so hl task show and hl read print the same lines.",
   "limits": "Types: any. A file that says it is a PNG, JPEG, GIF or WebP (mime image/png, image/jpeg, image/gif or image/webp) is checked by its first bytes, not by the mime the client says (a mismatch is bad_request, field data); every other file is kept as sent, with the mime the client gave, and is never refused for its type, executables included: the daemon stores a file with mode 0600, never executable, and an agent only reads it. At most 10 MiB per file and 6 per message; chunks of at most 512 KiB of file (a 700 KiB base64 string) so a frame stays under the 1 MiB line. More than 20 unsent uploads open at once, or more than 100 MiB unsent, is refused, gate limit.",
   "storage": "The daemon's attachments folder under its home (mode 0700; files 0600, owner the daemon's user), one file per attachment named by its id and an extension: the type's for an image or Markdown, else the ending of the name the client gave when it is letters and digits, at most 8 long and not an image ending (png, jpg, jpeg, gif, webp: only an image's bytes are checked) and, for pdf, only when the file begins with %PDF-, else `bin`. The rest of the name the client gave is never part of the path. An upload not finished within 1 hour is dropped with its partial file; a finished image no message names is dropped after 24 hours; one a message names is kept 30 days after the last message naming it, and one a task names as texts says; then it is removed: attachment.get for it is not_found and the client shows the name without the picture. Removed by the founder (attachment.remove): the file goes at once, and reads say gone and removed.",
   "reach": "The daemon makes the folder readable by the agent without a prompt (a session setting that allows reads of that folder), so an agent in any worktree can Read the path. A client never sees the path.",
   "roles": "member and founder may put and get, and name any kept image in a text; an agent may not put or get (refused, gate role) in v1, and names only an image a task's text or a message already names or was sent with (else refused, gate role), so it can pass on a picture it was shown.",
-  "memo-files": "task.memo.add may also carry files by path (files): images and Markdown, read by the daemon, kept in the same store and linked to the memo, never named in its text. task.get and task.memo.list list them in Memo.files, each read with attachment.get (a Markdown file is served whole, never as a thumbnail). A memo's files are kept like the images its task names: while the task is open, then 30 days after it ends; deleting the memo unlinks them, and they go 30 days after the memo was added. An agent told of the memo reads one line per file after its text: `[file N: /absolute/path.md (text/markdown, 2 KB)]`.",
+  "memo-files": "task.comment.add may also carry files by path (files): images and Markdown, read by the daemon, kept in the same store and linked to the memo, never named in its text. task.get lists them in Memo.files, each read with attachment.get (a Markdown file is served whole, never as a thumbnail). A memo's files are kept like the images its task names: while the task is open, then 30 days after it ends; deleting the memo unlinks them, and they go 30 days after the memo was added. An agent told of the memo reads one line per file after its text: `[file N: /absolute/path.md (text/markdown, 2 KB)]`.",
   "folders": "A dropped folder is one attachment: attachment.folder opens it (mime inode/directory), then attachment.put sends each file with folder (that id) and rel_path (its path inside the folder, kept). Each file follows limits as a file put alone; the folder holds at most 2000 files, and its bytes count toward the unsent total, refused gate limit as other put limits. Attachment.bytes is the sum of the files finished so far and files their count. A message names the folder id like any attachment and it counts as 1 of the 6; the agent gets one line for it, the directory: `[folder N: /absolute/dir (12 files, 3 MB)]`. A folder no message names is dropped after 24 hours, as an image; a folder with no file finished, or with a file still uploading into it, is bad_request, field attachments, in chat.send; once sent it takes no more files (bad_request, field folder). It is stored as a directory named by its id, each file at its rel_path, and kept and removed as one attachment.",
   "refs": "A client that knows a file's path (the desktop app; a browser never does) may, for the founder, name files and folders on the daemon's machine by absolute path instead of uploading them (chat.send refs): nothing is copied, and the agent is told each path as it is, `[file N: /abs/path]` or `[folder N: /abs/dir]`, numbered after the message's attachments. A path that is not absolute or has a `..` part is bad_request, field refs; one that does not exist is not_found, what path. Whether the agent may read a ref is x-access."
  },
@@ -824,7 +817,7 @@
      "requests",
      "for_you"
     ],
-    "description": "chat is added for the chat view (the UI design update): messages, landing state, transcript items and working state of one agent; events carry `agent`. devices (founder, which includes a paired device; subscribed on its own, live only): pairing and revocation of devices. proposals: proposals, so a client's tab dot is live; any proven caller, as proposal.list. transcript: the per-agent event stream of a structured session (transcript.event), served only for an agent the daemon runs as a structured session; see the Transcript stream section. prefs (member, which includes the founder): the person's view preferences, so a pin made on one device shows on the others. requests (member, which includes the founder): the founder's requests (RequestRow), so a Requests page is live. for_you (member, which includes the founder): the set of open items waiting on the founder, as for_you.list; an event whenever the count's set changes, with the new count. A client that misses events reads for_you.list again."
+    "description": "chat is added for the chat view (the UI design update): messages, landing state, transcript items and working state of one agent; events carry `agent`. devices (founder, which includes a paired device; subscribed on its own, live only): pairing and revocation of devices. proposals: proposals, so a client's tab dot is live; any proven caller, as proposal.list. transcript: the per-agent event stream of a structured session (transcript.event), served only for an agent the daemon runs as a structured session; see the Transcript stream section. prefs (member, which includes the founder): the person's view preferences, so a pin made on one device shows on the others. requests (member, which includes the founder): the founder's requests (RequestRow), so a Requests page is live. for_you (member, which includes the founder): the set of open items waiting on the founder; an event whenever the count's set changes, with the new count. A client that misses events reads requests.pending again."
    },
    "Caller": {
     "type": "object",
@@ -2740,216 +2733,6 @@
     "pattern": "^[0-9a-f]{16}$",
     "description": "Chosen by the daemon when an upload completes."
    },
-   "DebugTerminalPane": {
-    "type": "object",
-    "description": "One pane of the terminal host, with what the daemon knows of it. A field the daemon does not know is null.",
-    "properties": {
-     "session": {
-      "type": "string"
-     },
-     "window": {
-      "type": "string",
-      "description": "The window's index in its session."
-     },
-     "window_name": {
-      "type": "string"
-     },
-     "terminal": {
-      "type": "string",
-      "description": "The pane's handle, as terminal.attach takes it."
-     },
-     "pid": {
-      "oneOf": [
-       {
-        "type": "integer"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "description": "The pane's own process (its shell)."
-     },
-     "command": {
-      "type": "string",
-      "description": "What the host says runs in the pane now."
-     },
-     "path": {
-      "oneOf": [
-       {
-        "type": "string"
-       },
-       {
-        "type": "null"
-       }
-      ]
-     },
-     "dead": {
-      "type": "boolean"
-     },
-     "last_activity": {
-      "oneOf": [
-       {
-        "$ref": "#/components/schemas/Timestamp"
-       },
-       {
-        "type": "null"
-       }
-      ]
-     },
-     "idle_s": {
-      "oneOf": [
-       {
-        "type": "integer"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "description": "Seconds since the pane's window last drew output."
-     },
-     "process": {
-      "type": "string",
-      "enum": [
-       "agent",
-       "shell",
-       "other",
-       "unknown"
-      ],
-      "description": "agent: an agent CLI (claude, codex, opencode) runs at or under the pane's process; shell: none does and the pane shows a shell; unknown: the process table could not be read and the pane's command says neither."
-     },
-     "agent_process": {
-      "oneOf": [
-       {
-        "type": "object",
-        "properties": {
-         "pid": {
-          "type": "integer"
-         },
-         "name": {
-          "type": "string"
-         }
-        },
-        "required": [
-         "pid",
-         "name"
-        ]
-       },
-       {
-        "type": "null"
-       }
-      ]
-     },
-     "agent": {
-      "oneOf": [
-       {
-        "$ref": "#/components/schemas/Who"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "description": "The agent whose current terminal this pane is."
-     },
-     "orphan": {
-      "type": "boolean",
-      "description": "No agent has this pane as its terminal."
-     },
-     "closed": {
-      "type": "boolean",
-      "description": "The agent is closed; it keeps the handle of the pane it had."
-     },
-     "recorded_agent": {
-      "oneOf": [
-       {
-        "$ref": "#/components/schemas/Who"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "description": "For an orphan: the agent the daemon opened the pane for."
-     },
-     "state": {
-      "oneOf": [
-       {
-        "type": "string"
-       },
-       {
-        "type": "null"
-       }
-      ]
-     },
-     "account": {
-      "oneOf": [
-       {
-        "type": "string"
-       },
-       {
-        "type": "null"
-       }
-      ]
-     },
-     "session_id": {
-      "oneOf": [
-       {
-        "type": "string"
-       },
-       {
-        "type": "null"
-       }
-      ]
-     },
-     "worktree": {
-      "oneOf": [
-       {
-        "type": "string"
-       },
-       {
-        "type": "null"
-       }
-      ]
-     },
-     "cache_until": {
-      "oneOf": [
-       {
-        "$ref": "#/components/schemas/Timestamp"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "description": "When the agent's prompt cache lapses, from its view."
-     },
-     "orca_terminal": {
-      "type": "null",
-      "description": "Always null: the daemon keeps no link from a tmux pane to an Orca terminal."
-     }
-    },
-    "required": [
-     "session",
-     "window",
-     "window_name",
-     "terminal",
-     "pid",
-     "command",
-     "path",
-     "dead",
-     "last_activity",
-     "idle_s",
-     "process",
-     "agent_process",
-     "agent",
-     "orphan",
-     "closed",
-     "recorded_agent",
-     "state",
-     "account",
-     "session_id",
-     "worktree",
-     "cache_until",
-     "orca_terminal"
-    ]
-   },
    "TextPart": {
     "type": "object",
     "description": "Words of a task's text between its image references.",
@@ -3015,90 +2798,6 @@
    "RequestRef": {
     "type": "string",
     "description": "The request's ref: 12 lowercase hex characters, unique and not guessable from another request's. The integer id stays the request's key everywhere else."
-   },
-   "ConnectionInfo": {
-    "type": "object",
-    "additionalProperties": false,
-    "properties": {
-     "listener": {
-      "oneOf": [
-       {
-        "type": "null"
-       },
-       {
-        "$ref": "#/components/schemas/ConnectionListener"
-       }
-      ],
-      "description": "The door a pairing names when device.pair gets no address; null when there is none."
-     },
-     "listeners": {
-      "type": "array",
-      "items": {
-       "$ref": "#/components/schemas/ConnectionListener"
-      },
-      "description": "Every host a door is open for now: the network_addresses served (a chosen host the machine has no address for is left out), or the -listen door while it is unset."
-     },
-     "dev_mode": {
-      "type": "boolean",
-      "description": "SettingsValues.dev_mode."
-     }
-    },
-    "required": [
-     "listener",
-     "listeners",
-     "dev_mode"
-    ],
-    "description": "How this process is reached, read only."
-   },
-   "ConnectionListener": {
-    "type": "object",
-    "additionalProperties": false,
-    "properties": {
-     "address": {
-      "type": "string",
-      "description": "The host:port a pairing names: this door's host, or -advertise for the default door while network_addresses is unset."
-     },
-     "encryption": {
-      "type": "string",
-      "enum": [
-       "tls",
-       "none"
-      ],
-      "description": "none on a Tailscale (or loopback) door: plain ws, the tailnet encrypts. tls on a LAN door: the certificate given with -cert, else one the daemon made."
-     },
-     "fingerprint": {
-      "oneOf": [
-       {
-        "type": "string"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "description": "sha256 of the certificate presented; null on a plain door."
-     },
-     "tailscale_host": {
-      "oneOf": [
-       {
-        "type": "string"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "description": "The address's host when it is a *.ts.net name, else null."
-     },
-     "web": {
-      "type": "boolean",
-      "description": "The web page is served on this door, so device.pair gives a web_link for it."
-     }
-    },
-    "required": [
-     "address",
-     "encryption",
-     "fingerprint",
-     "tailscale_host"
-    ]
    },
    "NetworkAddress": {
     "type": "object",
@@ -3495,7 +3194,7 @@
    },
    "Later": {
     "type": "object",
-    "description": "Why a For you item is out of its group and when it returns: at the time `until`, or when the task `after_task` is done or discarded; exactly one is present. The founder's choice, kept in NavPrefs.later under the item's `kind:id`; the daemon reads it in for_you.list and the apps hide and return the item on their clock and on task.changed.",
+    "description": "Why a For you item is out of its group and when it returns: at the time `until`, or when the task `after_task` is done or discarded; exactly one is present. The founder's choice, kept in NavPrefs.later under the item's `kind:id`; the daemon reads it in the for_you count and the apps hide and return the item on their clock and on task.changed.",
     "properties": {
      "until": {
       "$ref": "#/components/schemas/Timestamp"
@@ -3581,26 +3280,6 @@
      "title",
      "asks",
      "since"
-    ]
-   },
-   "ForYouList": {
-    "type": "object",
-    "properties": {
-     "items": {
-      "type": "array",
-      "items": {
-       "$ref": "#/components/schemas/ForYouItem"
-      },
-      "description": "Every open item, oldest `since` first (then kind and id), the deferred ones too."
-     },
-     "count": {
-      "type": "integer",
-      "description": "The items without `later`: what a badge and the Requests count show."
-     }
-    },
-    "required": [
-     "items",
-     "count"
     ]
    },
    "ForYouOpened": {
@@ -5160,55 +4839,6 @@
    ]
   },
   {
-   "name": "debug.terminals",
-   "summary": "Every pane of the terminal host with what the daemon knows of it, for the hidden debug window.",
-   "paramStructure": "by-name",
-   "params": [],
-   "result": {
-    "name": "result",
-    "schema": {
-     "type": "object",
-     "properties": {
-      "host": {
-       "type": "string"
-      },
-      "now": {
-       "$ref": "#/components/schemas/Timestamp"
-      },
-      "panes": {
-       "type": "array",
-       "items": {
-        "$ref": "#/components/schemas/DebugTerminalPane"
-       }
-      }
-     },
-     "required": [
-      "host",
-      "now",
-      "panes"
-     ]
-    }
-   },
-   "x-role": "member",
-   "x-write": false,
-   "x-app-cache": {
-    "resource": "debug-terminals",
-    "feed": null
-   },
-   "x-since": 1,
-   "errors": [
-    {
-     "$ref": "#/components/errors/refused"
-    }
-   ],
-   "x-gates": [
-    "role",
-    "unsupported",
-    "state"
-   ],
-   "description": "Lists every pane of the daemon's terminal server (tmux), whichever agent has it or none, to find panes kept open past their prompt cache and shells left behind after an agent's session exited. Reads only: the host's pane list, the process table and the daemon's own rows; of the agent's view only cache_until. A host that cannot list its panes is refused, gate unsupported; one that cannot be reached, gate state. Watching a listed pane is terminal.attach by its handle; a pane no agent has takes no input. Callers: the founder and a paired device (member); below that is refused, gate role."
-  },
-  {
    "name": "prefs.get",
    "summary": "The person's view preferences: the agent list's pins, filter, layout and folds.",
    "paramStructure": "by-name",
@@ -5379,7 +5009,7 @@
   {
    "name": "subagent.start",
    "summary": "The PreToolUse guard asks before an Agent call: refused when one more subagent would take the agent's account to its 5-hour or weekly limit before that window resets, else the start is recorded.",
-   "description": "The account's recorded burn plus the agent's own measured cost stands for the subagent's. Unread, stale or unmeasured figures refuse nothing. A start runs until a SubagentStop of the same session or until that session ends (subagents.counts). A hook the daemon does not answer in time lets the call through, unrecorded.",
+   "description": "The account's recorded burn plus the agent's own measured cost stands for the subagent's. Unread, stale or unmeasured figures refuse nothing. A start runs until a SubagentStop of the same session or until that session ends. A hook the daemon does not answer in time lets the call through, unrecorded.",
    "paramStructure": "by-name",
    "params": [
     {
@@ -5451,90 +5081,6 @@
    "x-callers": [
     "agent"
    ]
-  },
-  {
-   "name": "memory.status",
-   "summary": "Per-agent memory against its budget (hl memory status).",
-   "paramStructure": "by-name",
-   "params": [
-    {
-     "name": "agent",
-     "required": false,
-     "schema": {
-      "$ref": "#/components/schemas/Who"
-     }
-    }
-   ],
-   "result": {
-    "name": "result",
-    "schema": {
-     "type": "object",
-     "properties": {
-      "agents": {
-       "type": "array",
-       "items": {
-        "type": "object",
-        "properties": {
-         "agent": {
-          "$ref": "#/components/schemas/Who"
-         },
-         "bytes": {
-          "type": "integer"
-         },
-         "budget": {
-          "type": "integer"
-         },
-         "entries": {
-          "type": "integer"
-         },
-         "unused": {
-          "type": "array",
-          "items": {
-           "type": "string"
-          }
-         }
-        },
-        "required": [
-         "agent",
-         "bytes",
-         "budget",
-         "entries",
-         "unused"
-        ]
-       }
-      }
-     },
-     "required": [
-      "agents"
-     ]
-    }
-   },
-   "x-role": "agent",
-   "x-write": false,
-   "x-app-cache": {
-    "resource": "memory",
-    "feed": null
-   },
-   "x-since": 1
-  },
-  {
-   "name": "connection.get",
-   "summary": "How this process is reached: its doors and dev mode. Read only.",
-   "paramStructure": "by-name",
-   "params": [],
-   "result": {
-    "name": "result",
-    "schema": {
-     "$ref": "#/components/schemas/ConnectionInfo"
-    }
-   },
-   "x-role": "owner",
-   "x-write": false,
-   "x-app-cache": {
-    "resource": "connection",
-    "feed": null
-   },
-   "x-since": 1
   },
   {
    "name": "connection.addresses",
@@ -5641,32 +5187,6 @@
      "$ref": "#/components/errors/bad_request"
     }
    ]
-  },
-  {
-   "name": "for_you.list",
-   "summary": "Every open item waiting on the founder, whatever it is made of today (task rows, comment asks, prompts, proposals, the machine's needs), and the count of those not deferred.",
-   "paramStructure": "by-name",
-   "params": [],
-   "result": {
-    "name": "result",
-    "schema": {
-     "allOf": [
-      {
-       "$ref": "#/components/schemas/ForYouList"
-      },
-      {
-       "$ref": "#/components/schemas/ReadCursor"
-      }
-     ]
-    }
-   },
-   "x-role": "member",
-   "x-write": false,
-   "x-app-cache": {
-    "resource": "for-you",
-    "feed": "for_you"
-   },
-   "x-since": 1
   }
  ],
  "x-access": {

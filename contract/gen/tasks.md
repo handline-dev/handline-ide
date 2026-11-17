@@ -9,7 +9,6 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `task.get` | agent |  | `task` | `TaskDetail & ReadCursor` | `not_found` |  | `task` by task, fed by tasks |
 | `task.history` | agent |  | `task` | `{task, rows}` | `not_found`, `bad_request` |  | `task-history` by task, snapshot |
 | `task.time` | agent |  | `task` | `{task, start, end, segments, estimate, expected, box} & ReadCursor` | `not_found`, `bad_request` |  | `task-time` by task, fed by tasks |
-| `task.shot` | member |  | `task`, `n`, `offset?` | `{mime, bytes, offset, data, done}` | `not_found`, `bad_request` |  | not cached |
 | `task.new` | agent | yes | `owner`, `reporter?`, `title`, `body?`, `time_box?`, `parent?`, `no_parent?`, `request?`, `duplicate_ok?`, `blocked_by?`, `watch?`, `priority?`, `estimate?`, `tags?`, `expects?`, `ui?`, `draft?`, `request_id` | `Accepted & {task}` | `refused` | duplicate_title | authored: new task |
 | `task.handoff` | agent | yes | `task`, `to`, `note?`, `files?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | not from the app |
 | `task.turn.pop` | agent | yes | `task`, `outcome`, `note?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | decided: give back |
@@ -20,20 +19,11 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `task.start` | agent | yes | `task`, `request_id` | `Accepted` | `refused`, `not_found` |  | not from the app |
 | `task.seen` | member | yes | `task`, `upto?`, `request_id` | `Accepted` | `not_found`, `bad_request` |  | decided: mark seen |
 | `requests.pending` | member |  | none | `{answer, comments, counts} & ReadCursor` |  |  | `requests-pending`, fed by tasks |
-| `task.comment.list` | agent |  | `task`, `before?`, `limit?` | `{memos, more}` | `not_found` |  | `memos` by task, snapshot |
-| `task.memo.list` | agent |  | `task`, `before?`, `limit?` | `{memos, more}` | `not_found` |  | not cached |
 | `task.comment.add` | agent | yes | `task`, `text`, `now?`, `skip?`, `reply?`, `turn?`, `done?`, `files?`, `request_id` | `Accepted & {memo}` | `refused`, `not_found`, `bad_request` |  | authored: add comment |
 | `task.comment.recipients` | agent |  | `task`, `text`, `now?` | `{recipients}` | `not_found`, `bad_request` |  | `comment-recipients`, fed by tasks |
-| `task.memo.add` | agent | yes | `task`, `text`, `now?`, `skip?`, `files?`, `request_id` | `Accepted & {memo}` | `refused`, `not_found`, `bad_request` |  | not from the app |
 | `task.comment.edit` | agent | yes | `task`, `memo`, `text`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | authored: edit comment |
-| `task.memo.edit` | agent | yes | `task`, `memo`, `text`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | not from the app |
 | `task.comment.delete` | agent | yes | `task`, `memo`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | authored: delete comment |
-| `task.comment.send_now` | member | yes | `memo`, `agent`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | decided: send now |
 | `task.send_now` | member | yes | `task`, `request_id` | `Accepted` | `refused`, `not_found` |  | decided: run this one now |
-| `task.memo.delete` | agent | yes | `task`, `memo`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | not from the app |
-| `task.view.list` | member |  | none | `{views}` |  |  | `task-views`, snapshot |
-| `task.view.save` | member | yes | `name`, `filter`, `request_id` | `Accepted` | `bad_request` |  | decided: save view |
-| `task.view.delete` | member | yes | `name`, `request_id` | `Accepted` | `not_found`, `bad_request` |  | decided: delete view |
 | `task.queue` | agent | yes | `tasks`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | authored: queue |
 | `task.draft` | agent | yes | `tasks`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | authored: draft |
 | `task.merge` | agent | yes | `into`, `tasks`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | authored: merge |
@@ -44,7 +34,6 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `task.board` | agent |  | `everyone?` | `{mine, reports}` |  |  | `board`, fed by tasks |
 | `task.withdraw` | agent | yes | `task`, `request_id` | `Accepted` | `refused`, `not_found` |  | authored: withdraw |
 | `task.edit` | agent | yes | `task`, `owner?`, `reporter?`, `title?`, `body?`, `evidence?`, `time_box?`, `priority?`, `estimate?`, `blocked_by?`, `unblock?`, `parent?`, `no_parent?`, `add_tags?`, `remove_tags?`, `request_id`, `pr?` | `Accepted` | `refused`, `not_found` |  | authored: edit |
-| `task.ask` | member | yes | `task`, `to`, `text`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | decided: ask |
 | `task.plan` | agent | yes | `task`, `text`, `request_id` | `Accepted & {version}` | `refused`, `not_found`, `bad_request` |  | decided: plan |
 | `task.plan_ok` | member | yes | `task`, `ok?`, `version?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | decided: plan OK |
 | `task.ok` | member | yes | `task`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | decided: OK, merge |
@@ -67,10 +56,6 @@ Every change to a task, newest first: one row per field changed, with who made i
 ### `task.time`
 
 Where a task's time went, from its opening to its end (or now): segments in order that cover it with no gap or overlap, and the split of its time box. Read from what the daemon already records (the task's state events, its turns, its blockers and children, its asks of the founder, its acting agent's parks and starts); nothing is timed twice. Where two causes overlap, the stretch shows one, in this order: waiting on the founder, blocked by a task, waiting on another agent, queued, at an account's wall, starting, working.
-
-### `task.shot`
-
-A screenshot kept with a finished task. One screenshot of a task whose end recorded it, in chunks. A task or number the result does not hold is not_found.
 
 ### `task.new`
 
@@ -112,61 +97,25 @@ Record that the founder has a task in front of them: its comments up to a number
 
 What waits on the founder to act, in one read, and the counts the bell and the sidebar badges show. Agents' chat replies and the task board's notices are in neither list. A task the founder has read (task.seen) leaves comments on the next read and stays in answer. Refetch on the tasks, inbox, requests and for_you feed events.
 
-### `task.comment.list`
-
-Comments beside a task. The wire still calls a comment a memo (Memo, `memo`, `memos`); task.memo.list is its old name.
-
-### `task.memo.list`
-
-The old name of task.comment.list: the same params, result and errors. Kept for clients that call it.
-
 ### `task.comment.add`
 
-Add a comment; anyone may. It is told only to an agent that has to act on it: the task's assignee (its holder), each agent it names as @name, and, when the founder wrote it on a task no agent holds, who the task answers to (its reporter, else its opener); with now every one of those readers, mid-turn too. It is never told to its writer. task.comment.recipients says who will be told before posting; skip leaves some of them out. The founder is told by one inbox line per request (a task made from their message, task.request) while it stays unread, counting the agents' new comments. A reader at its prompt is told at once and a reader mid-turn at the end of its turn. comment.edit and comment.delete are told the same way. A comment asks the founder nothing unless it carries turn human: that is their turn on the task. One whose first word is `@human` is news for them: it moves no turn, and requests.pending lists it as a note until they read the task. The wire still calls a comment a memo (Memo, `memo`, `memos`); task.memo.add is its old name. An ask an agent's `@human` comment opened before comments stopped asking (InboxItem kind ask, `task` and `memo` set) stays open until (1) the founder replies to it (inbox.reply), (2) the founder adds any comment to that task, (3) the founder marks it read (inbox.mark_read naming its id), (4) its comment is deleted or edited so it no longer names `@human`, or (5) the task is done or discarded. An edit that keeps `@human` first keeps that ask and updates its body. While human is the top turn (Task.acting), the founder's comment passes that turn, the comment its note (task.turn.pop), except on a task Ready for them (TaskDetail.review.ready): there it is a question told to the agent below the turn, the task stays Ready, and a turn with it is refused. With turn, the comment also puts `turn` on top of the task in the same transaction and is that turn's message (Turn.memo): by the agent acting on the task or the founder, refused as a turn is when `turn` is the owner or already has a turn, the task carries 3 turns, or it is ended. An agent is delivered the task with the comment; human is not delivered to: the task waits on the founder (requests.pending, my_turn), no agent is alarmed and its time box starts again when the turn ends. While the founder's turn is on top, the agent below adding another comment with turn human moves that turn to the new comment.
+Add a comment; anyone may. It is told only to an agent that has to act on it: the task's assignee (its holder), each agent it names as @name, and, when the founder wrote it on a task no agent holds, who the task answers to (its reporter, else its opener); with now every one of those readers, mid-turn too. It is never told to its writer. task.comment.recipients says who will be told before posting; skip leaves some of them out. The founder is told by one inbox line per request (a task made from their message, task.request) while it stays unread, counting the agents' new comments. A reader at its prompt is told at once and a reader mid-turn at the end of its turn. comment.edit and comment.delete are told the same way. A comment asks the founder nothing unless it carries turn human: that is their turn on the task. One whose first word is `@human` is news for them: it moves no turn, and requests.pending lists it as a note until they read the task. The wire still calls a comment a memo (Memo, `memo`, `memos`). An ask an agent's `@human` comment opened before comments stopped asking (InboxItem kind ask, `task` and `memo` set) stays open until (1) the founder adds any comment to that task, (2) the founder marks it read (inbox.mark_read naming its id), (3) its comment is deleted or edited so it no longer names `@human`, or (4) the task is done or discarded. An edit that keeps `@human` first keeps that ask and updates its body. While human is the top turn (Task.acting), the founder's comment passes that turn, the comment its note (task.turn.pop), except on a task Ready for them (TaskDetail.review.ready): there it is a question told to the agent below the turn, the task stays Ready, and a turn with it is refused. With turn, the comment also puts `turn` on top of the task in the same transaction and is that turn's message (Turn.memo): by the agent acting on the task or the founder, refused as a turn is when `turn` is the owner or already has a turn, the task carries 3 turns, or it is ended. An agent is delivered the task with the comment; human is not delivered to: the task waits on the founder (requests.pending, my_turn), no agent is alarmed and its time box starts again when the turn ends. While the founder's turn is on top, the agent below adding another comment with turn human moves that turn to the new comment.
 
 ### `task.comment.recipients`
 
 Who a comment would be told to, before it is posted: the rule task.comment.add uses, computed without writing anything. Given the task, the comment text, and whether it would be sent now, returns one row per agent task.comment.add would tell, each with why: `asked` (the text names it as @name), `assignee` (the task's holder, told of every comment) or `owner` (who the task answers to, when the comment is sent now or is the founder's on a task no agent holds). An agent that fits several is named once, by the first of asked, assignee, owner. The caller is the writer and is never listed; one that names no one on a task an agent holds returns the holder only. The founder's comment that passes their turn is told by who holds the task after it. Passing the rows' agents as skip to task.comment.add tells exactly the others.
 
-### `task.memo.add`
-
-The old name of task.comment.add: the same params, result and errors. Kept for clients that call it.
-
 ### `task.comment.edit`
 
-Edit a comment: its author or the founder. An edit that drops `@human` withdraws an ask the comment opened (task.comment.add). The wire still calls a comment a memo (Memo, `memo`, `memos`); task.memo.edit is its old name.
-
-### `task.memo.edit`
-
-The old name of task.comment.edit: the same params, result and errors. Kept for clients that call it.
+Edit a comment: its author or the founder. An edit that drops `@human` withdraws an ask the comment opened (task.comment.add). The wire still calls a comment a memo (Memo, `memo`, `memos`).
 
 ### `task.comment.delete`
 
-Delete a comment: its author or the founder. Deleting a comment withdraws the ask it opened (task.comment.add). The wire still calls a comment a memo (Memo, `memo`, `memos`); task.memo.delete is its old name.
-
-### `task.comment.send_now`
-
-Send a founder's comment now to a reader whose tell waits for the reader's next digest. Refused when the tell is not held (already sent, read or never told).
+Delete a comment: its author or the founder. Deleting a comment withdraws the ask it opened (task.comment.add). The wire still calls a comment a memo (Memo, `memo`, `memos`).
 
 ### `task.send_now`
 
 While new work is paused (daemon.pause), give this one queued task to its agent now, as one the founder sent: it is told, and its agent starts or wakes for it as for a person's message. The pause stays and holds the rest. Refused when nothing is paused, or when the pause is not what holds the task: it is not queued, not for an agent, or already told.
-
-### `task.memo.delete`
-
-The old name of task.comment.delete: the same params, result and errors. Kept for clients that call it.
-
-### `task.view.list`
-
-The saved views of the task board, by name.
-
-### `task.view.save`
-
-Keep a filter of the task board under a name, replacing a view already kept under it.
-
-### `task.view.delete`
-
-Delete a saved view.
 
 ### `task.queue`
 
@@ -207,10 +156,6 @@ Withdraw a task the caller asked for; anyone else discards it with a reason.
 ### `task.edit`
 
 Change a task: owner (an agent giving it to `human` is refused, as task.handoff does), reporter, title, priority, body, result and time box, by anyone (the body at any state, a closed task included; the time box until it is delivered), except the result, which only the founder changes. Waiting on other tasks is added (blocked_by) or removed (unblock) with it. It moves under another task (parent) or to the top (no_parent). Never silent: the opener and assignee are told (a move tells the old and new parent's owners one line each), and the edit is kept with who made it. A new owner (assignee) moves who acts as task.handoff does: with turns open it replaces the top turn's agent; an agent's owner `human` puts the founder's turn on. blocked_by and unblock block the task whoever acts on it: the slot freed is the acting agent's (Task.acting).
-
-### `task.ask`
-
-The founder asks an agent a question about a task: a message linked to the task, whose holder does not change. The agent's reply joins the task.
 
 ### `task.plan`
 

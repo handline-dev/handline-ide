@@ -1,6 +1,6 @@
 // The core of what the scripted sessions do: the screen text, the turn script, the prompt and the session lifecycle. The daemon owns
 // the connections and the event log; this class reaches them through `Host`.
-import type { Actor, Caller, Notifications, Prompt, Schedule, Timestamp, Topic } from '@handline/contract';
+import type { Actor, Caller, Notifications, Prompt, Timestamp, Topic } from '@handline/contract';
 import { FakeProposals } from '#src/proposals.ts';
 import { Timeline } from '#src/timeline.ts';
 import { BANNER, PROMPT_LINES } from '#src/fixtures.ts';
@@ -26,11 +26,9 @@ type Who = { caller: Caller };
 
 export class ScriptCore {
   readonly timeline = new Timeline();
-  readonly schedules: Schedule[] = [];
   /** The shells shell.open started and shell.close has not ended, by handle. */
   readonly shells = new Map<string, Session>();
   shellCount = 0;
-  scheduleId = 0;
   readonly proposals: FakeProposals;
   protected host: Host;
   get sessions() {

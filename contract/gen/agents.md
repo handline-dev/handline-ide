@@ -7,8 +7,6 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 |---|---|---|---|---|---|---|---|
 | `agents.list` | agent |  | `status?` | `{agents} & ReadCursor` | `bad_request` |  | `agents`, fed by agents |
 | `agent.get` | agent |  | `agent` | `AgentDetail & ReadCursor` | `not_found` |  | `agent` by agent, fed by agents |
-| `subagents.counts` | agent |  | none | `{agents, accounts}` |  |  | `subagents`, snapshot |
-| `pr.exists` | member |  | `agent`, `numbers` | `{repo, found}` | `not_found`, `bad_request` |  | `pr-exists`, snapshot |
 | `agent.timeline` | member |  | `agent`, `before?`, `limit?` | `{items, more} & ReadCursor` | `not_found` |  | `timeline`, fed by agents |
 | `agent.options` | member |  | none | `AgentOptions` |  |  | `agent-options`, snapshot |
 | `agent.set` | agent (only agent, owner) | yes | `agent`, `values`, `speaker?`, `restart?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | not_self | authored: set |
@@ -29,7 +27,6 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `session.park` | agent | yes | `agent`, `request_id` | `Accepted` | `refused`, `not_found` | terminal_lock, state | decided: park |
 | `session.input` | member | yes | `agent`, `text`, `enter?`, `request_id` | `Accepted` | `refused`, `not_found` | role, terminal_lock, input_holder, wall, screen_blocker, unsupported | uncached: type |
 | `session.keys` | member | yes | `agent`, `keys`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | role, terminal_lock, input_holder, unsupported | uncached: key |
-| `session.type` | member | yes | `agent`, `text`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | role, terminal_lock, input_holder, unsupported | uncached: type |
 | `session.interrupt` | member | yes | `agent`, `request_id` | `Accepted` | `refused`, `not_found` | role, terminal_lock, input_holder | decided: interrupt |
 | `session.launch_prepare` | anonymous |  | `agent`, `cwd`, `extra?`, `force?`, `prompt_file?`, `account?`, `why?`, `by?`, `env?`, `binary?`, `hl_exe?`, `handle?`, `worktree_id?` | `{argv, env, warnings}` | `refused`, `not_found` | role, state | not cached |
 | `prompt.list` | member |  | `agent` | `{prompts} & ReadCursor` | `not_found` |  | `prompts` by agent, fed by notifications |
@@ -40,7 +37,6 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `agent.strip` | member |  | `agent` | `{agent, model, account, ctx_pct, ctx_used, ctx_limit, cache_left_s, screen_word, screen_detail} & ReadCursor` | `not_found`, `bad_request` |  | `strip` by agent, fed by agents |
 | `progress.get` | agent (only agent) |  | none | `{note}` |  |  | not cached |
 | `say` | agent | yes | `target`, `body`, `parent?`, `files?`, `request_id` | `Accepted` | `refused`, `bad_request` |  | not from the app |
-| `agent.triggers` | agent |  | `agent?` | `{agents}` |  |  | `triggers`, snapshot |
 | `access.grant` | owner | yes | `agent`, `path`, `scope`, `request_id` | `Accepted & {grant, applies_from}` | `refused`, `not_found`, `bad_request` | role | decided: allow access |
 | `access.revoke` | owner | yes | `agent`, `path`, `request_id` | `Accepted & {removed}` | `refused`, `not_found`, `bad_request` | role | decided: remove access |
 | `access.list` | owner |  | `agent` | `{grants}` | `refused`, `not_found` | role | `access` by agent, fed by agents |
@@ -52,14 +48,6 @@ The rail: the stored view of every agent.
 ### `agent.get`
 
 One agent: the view plus session and terminal facts.
-
-### `subagents.counts`
-
-How many subagents run now and how many started today, per agent and per account. A start counts as running until a SubagentStop of the same session, or until that session ends (its SessionEnd, a new session of the agent, or the agent's session closed). today counts starts since local midnight. An account is the one the start was recorded on. An agent or account with neither is absent.
-
-### `pr.exists`
-
-Which of the numbers are pull requests (open, merged or closed) in the repo of the agent's worktree. numbers holds at most 20 integers, else -32602 bad_request naming `numbers`. The daemon asks GitHub with its own gh login, so a private repo answers. repo is null, and found empty, when the agent has no worktree or its origin is not on GitHub. A number that is a PR is remembered for good, one that is not for about a minute. When gh fails, found is empty and nothing is remembered.
 
 ### `agent.timeline`
 
@@ -135,15 +123,11 @@ Park an agent.
 
 ### `session.input`
 
-Type text at the prompt; Enter optional. Refused at a shell prompt (gate state, reason 'nothing sent - a shell prompt is showing'): the daemon types nothing when the pane shows a shell, since a line there would run as a command. session.type and session.keys are not checked this way. Refused with gate screen_blocker while the screen shows a dialog or one the daemon does not recognise, which includes the moments right after a wake, before the screen has been read: nothing is typed; session.keys and terminal.input are the way through (they pass an open dialog), or call again once the screen reads. Each call is recorded as an event of the agent (kind type, key or input) whose actor is the caller: for a paired device, kind device with its id. A daemon that runs structured agents need not serve this method (the Go daemon does not: it is absent from hello, so a client never calls it for one). One that serves it refuses an agent run as a structured session, gate unsupported: it has no terminal to type at, so a client sends chat.send and watches the transcript.
+Type text at the prompt; Enter optional. Refused at a shell prompt (gate state, reason 'nothing sent - a shell prompt is showing'): the daemon types nothing when the pane shows a shell, since a line there would run as a command. session.keys is not checked this way. Refused with gate screen_blocker while the screen shows a dialog or one the daemon does not recognise, which includes the moments right after a wake, before the screen has been read: nothing is typed; session.keys and terminal.input are the way through (they pass an open dialog), or call again once the screen reads. Each call is recorded as an event of the agent (kind type, key or input) whose actor is the caller: for a paired device, kind device with its id. A daemon that runs structured agents need not serve this method (the Go daemon does not: it is absent from hello, so a client never calls it for one). One that serves it refuses an agent run as a structured session, gate unsupported: it has no terminal to type at, so a client sends chat.send and watches the transcript.
 
 ### `session.keys`
 
 Named keys for menus and dialogs. Each call is recorded as an event of the agent (kind type, key or input) whose actor is the caller: for a paired device, kind device with its id. A daemon that runs structured agents need not serve this method (the Go daemon does not: it is absent from hello, so a client never calls it for one). One that serves it refuses an agent run as a structured session, gate unsupported: it has no terminal to type at, so a client sends chat.send and watches the transcript.
-
-### `session.type`
-
-Plain typing into the pane: characters sent as typed, no Enter, no prompt checks. Which call sends text when: session.type is what a person typing in the pane uses, with input.take first; it passes the wall and any open dialog, as the keys would. session.keys sends named keys (menus, dialogs, ctrl-c). session.input sends a whole prompt line for the daemon's own flow and is refused (gates wall, screen_blocker) while a usage wall or a dialog is up, since a typed line would answer the dialog. Each call is recorded as an event of the agent (kind type, key or input) whose actor is the caller: for a paired device, kind device with its id. A daemon that runs structured agents need not serve this method (the Go daemon does not: it is absent from hello, so a client never calls it for one). One that serves it refuses an agent run as a structured session, gate unsupported: it has no terminal to type at, so a client sends chat.send and watches the transcript.
 
 ### `session.interrupt`
 
@@ -184,10 +168,6 @@ The caller's progress note: the one on its request in progress, else on the task
 ### `say`
 
 A message typed at once; needs no answer, starts no work, and carries no task: what is written on a task is a comment (task.comment.add).
-
-### `agent.triggers`
-
-What the daemon would decide for an agent right now (hl triggers). One row per agent the daemon knows, in name order; with `agent`, that agent's row alone, and an agent the home does not have is not_found. `fired` is whether the next tick would hand it off; `reason` is the trigger's reason, or for an agent whose triggers do not apply, what holds it (a walled wake, its state until its wake, or no session).
 
 ### `access.grant`
 

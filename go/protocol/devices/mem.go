@@ -78,17 +78,6 @@ func (s *MemStore) SetClient(id, client string) error {
 	return nil
 }
 
-func (s *MemStore) Rename(id, name string) (bool, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	d, ok := s.byID[id]
-	if ok {
-		d.Name = name
-		s.byID[id] = d
-	}
-	return ok, nil
-}
-
 func (s *MemStore) SetPush(id string, p Push) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

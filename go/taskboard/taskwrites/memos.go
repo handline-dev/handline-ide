@@ -48,8 +48,6 @@ type Teller interface {
 	// refusal's denial row too, which stands), then within once the ask is allowed. The ask's telling waits for the commit
 	// (Asked.After).
 	TaskAsk(tx *sql.Tx, in AskReq) (*Asked, error)
-	// TaskSay sends the founder's question about a task as a say to `to`, typed at once, in the transaction that links it to the task.
-	TaskSay(tx *sql.Tx, to, body string, within func(rid int64, note string) error) (*Asked, error)
 	// HandoffRetire closes a request of the old owner's quietly (done, nobody told, the decision task it is the card of not settled), in the
 	// transaction of the move. told, nil when the request was already closed, runs after the commit.
 	HandoffRetire(tx *sql.Tx, rid int64, verdict string) (told func(), err error)
@@ -61,8 +59,6 @@ type Teller interface {
 	Edited(ed Edited)
 	// Notified delivers the notices a write left for the people a task's change concerns (tellTask).
 	Notified(told []db.Notice)
-	// MemoTellSent sends request rid, a comment's tell that was held for its reader's digest, to the reader now in a digest of its own.
-	MemoTellSent(rid int64)
 }
 
 // Recipient is an agent a comment is told to, and why: asked (named with @), assignee or owner (sent now, or the founder's comment on a task no agent holds).
@@ -83,7 +79,6 @@ func Register(s *rpc.Server, home string, tell Teller, decide CardDecider) {
 	s.Register("task.turn.pop", rpc.Method{Handler: turnPopMethod(home, tell)})
 	s.Register("task.new", rpc.Method{Handler: newMethod(home, tell)})
 	s.Register("task.edit", rpc.Method{Handler: editMethod(home, tell)})
-	s.Register("task.ask", rpc.Method{Handler: askMethod(home, tell)})
 	s.Register("task.plan", rpc.Method{Handler: planMethod})
 	s.Register("task.plan_ok", rpc.Method{Handler: planOKMethod})
 	s.Register("task.ok", rpc.Method{Handler: okMethod(home, tell)})
@@ -97,17 +92,12 @@ func Register(s *rpc.Server, home string, tell Teller, decide CardDecider) {
 	s.Register("task.release", rpc.Method{Handler: releaseMethod(home, tell)})
 	s.Register("task.wait", rpc.Method{Handler: waitMethod(home, tell)})
 	s.Register("task.merge", rpc.Method{Handler: mergeMethod(home, tell)})
-	for _, verb := range []string{"task.comment.", "task.memo."} { // task.memo.* is the old name
-		s.Register(verb+"add", rpc.Method{Handler: memoAdd(home, tell)})
-		s.Register(verb+"edit", rpc.Method{Handler: memoEdit(home, tell)})
-		s.Register(verb+"delete", rpc.Method{Handler: memoDelete(tell)})
-	}
+	s.Register("task.comment.add", rpc.Method{Handler: memoAdd(home, tell)})
+	s.Register("task.comment.edit", rpc.Method{Handler: memoEdit(home, tell)})
+	s.Register("task.comment.delete", rpc.Method{Handler: memoDelete(tell)})
 	s.Register("task.comment.recipients", rpc.Method{Handler: memoRecipients(tell)})
 	s.Register("task.seen", rpc.Method{Handler: seenMethod})
-	s.Register("task.comment.send_now", rpc.Method{Handler: memoSendNow(tell)})
 	s.Register("task.send_now", rpc.Method{Handler: sendNow})
-	s.Register("task.view.save", rpc.Method{Handler: viewSave})
-	s.Register("task.view.delete", rpc.Method{Handler: viewDelete})
 }
 
 func claimImages(tx *sql.Tx, home, by, text, was, field string) error {
@@ -504,37 +494,6 @@ func memoDelete(tell Teller) func(*rpc.Conn, map[string]any) (any, error) {
 		})
 		if err == nil && tell != nil {
 			tell.MemoChanged(tid, mid, c.Caller.Actor(), "deleted", "", false, nil)
-		}
-		return out, err
-	}
-}
-
-// memoSendNow is task.comment.send_now: the tell of the founder's comment memo to one reader that waits for the reader's digest goes now.
-func memoSendNow(tell Teller) func(*rpc.Conn, map[string]any) (any, error) {
-	return func(c *rpc.Conn, p map[string]any) (any, error) {
-		mid, err := memoID(p)
-		if err != nil {
-			return nil, err
-		}
-		agent, err := text(p, "agent")
-		if err != nil {
-			return nil, err
-		}
-		var rid int64
-		out, err := c.Effect(func(tx *sql.Tx) (map[string]any, error) {
-			err := tx.QueryRow("SELECT r.id FROM memo_tells t JOIN requests r ON r.id = t.request_id "+
-				"WHERE t.memo_id = ? AND t.reader = ? AND "+db.Held("r."),
-				mid, agent).Scan(&rid)
-			if err == sql.ErrNoRows {
-				return nil, refusal(fmt.Sprintf("comment %d is not held for %s", mid, addr.Ref(agent)))
-			}
-			if err != nil {
-				return nil, err
-			}
-			return accepted(fmt.Sprintf("comment %d goes to %s now", mid, addr.Ref(agent)), nil), nil
-		})
-		if err == nil && tell != nil {
-			tell.MemoTellSent(rid)
 		}
 		return out, err
 	}

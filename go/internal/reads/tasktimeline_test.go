@@ -104,15 +104,6 @@ func TestATasksPageNamesItsSubtasksParentMergeAndWhomToAsk(t *testing.T) {
 	if d["parent_title"] != "the story" || d["merged_into"] != nil {
 		t.Fatalf("parent_title %v, merged_into %v", d["parent_title"], d["merged_into"])
 	}
-	people := map[string][]string{}
-	for k, keys := range d["people"].(map[string]any) {
-		for _, key := range keys.([]string) {
-			people[k] = append(people[k], nameOf[key])
-		}
-	}
-	if fmt.Sprint(people) != "map[others:[amy] recent:[eng.cy dee] team:[eng eng.bob]]" {
-		t.Fatalf("people %s", people)
-	}
 	if got, _ = e.taskGet(nil, map[string]any{"task": json.Number("4")}); got.(map[string]any)["merged_into"] != int64(3) {
 		t.Fatalf("merged_into %v", got.(map[string]any)["merged_into"])
 	}

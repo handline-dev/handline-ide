@@ -23,7 +23,6 @@ export const NOT_QUERIES = [
   'unsubscribe',
   'events.feed',
   'progress.get',
-  'task.memo.list', // the old name of task.comment.list; the screens read the new one
   // An image's bytes are read once per image into an object URL (attachments.ts), not kept as a cache entry.
   'attachment.get',
   // Logins found on this Mac are read when onboarding's AI step opens (useFoundLogins), not kept.
@@ -35,11 +34,8 @@ export const NOT_QUERIES = [
   'doc.open',
   'doc.pull',
   'doc.close',
-  // Reads no screen draws yet: the terminal's address (member) and the next account pick (agent).
+  // Reads no screen draws yet: the terminal's address (member).
   'terminal.open',
-  'status.pick',
-  // No screen draws a task screenshot yet.
-  'task.shot',
   // `hl inbox` and `hl read`: an agent's queue and one request whole. The app draws the founder's inbox from inbox.list.
   'inbox.queue',
   'request.read',
@@ -84,8 +80,6 @@ export const qk = {
   task: (d: string, task: number) => keyOf(d, 'task.get', { task }),
   taskHistory: (d: string, task: number) => keyOf(d, 'task.history', { task }),
   taskTime: (d: string, task: number) => keyOf(d, 'task.time', { task }),
-  memos: (d: string, task: number) => keyOf(d, 'task.comment.list', { task }),
-  taskViews: (d: string) => keyOf(d, 'task.view.list'),
   prefs: (d: string) => keyOf(d, 'prefs.get'),
   prompts: (d: string, agent: string) => keyOf(d, 'prompt.list', { agent }),
   operation: (d: string, operation: string) => keyOf(d, 'operation.get', { operation }),

@@ -323,23 +323,6 @@ export interface AgentsMethods {
   "agent.get": { params: {
   agent: Who;
 }; result: AgentDetail & ReadCursor };
-  "subagents.counts": { params: { [key: string]: unknown }; result: {
-    agents: { [key: string]: {
-      running: number;
-      today: number;
-    } };
-    accounts: { [key: string]: {
-      running: number;
-      today: number;
-    } };
-  } };
-  "pr.exists": { params: {
-  agent: Who;
-  numbers: number[];
-}; result: {
-    repo: string | null;
-    found: number[];
-  } };
   "agent.timeline": { params: {
   agent: Who;
   /** Return rows older than this id. */
@@ -457,12 +440,6 @@ export interface AgentsMethods {
   keys: string[];
   request_id: RequestId;
 }; result: Accepted };
-  "session.type": { params: {
-  agent: Who;
-  /** Printable characters and tab; no other control characters (those are session.keys). */
-  text: string;
-  request_id: RequestId;
-}; result: Accepted };
   "session.interrupt": { params: {
   agent: Who;
   request_id: RequestId;
@@ -572,15 +549,6 @@ export interface AgentsMethods {
   files?: string[];
   request_id: RequestId;
 }; result: Accepted };
-  "agent.triggers": { params: {
-  agent?: Who;
-}; result: {
-    agents: {
-      agent: Who;
-      fired: boolean;
-      reason: string;
-    }[];
-  } };
   "access.grant": { params: {
   agent: Who;
   /** An absolute path to a file or folder. */
@@ -610,8 +578,6 @@ export interface AgentsMethods {
 export const AGENTS_METHODS: { [K in keyof AgentsMethods]: { role: Role; callers: Role[] | null; write: boolean; since: number } } = {
   "agents.list": { role: "agent", callers: null, write: false, since: 1 },
   "agent.get": { role: "agent", callers: null, write: false, since: 1 },
-  "subagents.counts": { role: "agent", callers: null, write: false, since: 1 },
-  "pr.exists": { role: "member", callers: null, write: false, since: 1 },
   "agent.timeline": { role: "member", callers: null, write: false, since: 1 },
   "agent.options": { role: "member", callers: null, write: false, since: 1 },
   "agent.set": { role: "agent", callers: ["agent", "owner"], write: true, since: 1 },
@@ -632,7 +598,6 @@ export const AGENTS_METHODS: { [K in keyof AgentsMethods]: { role: Role; callers
   "session.park": { role: "agent", callers: null, write: true, since: 1 },
   "session.input": { role: "member", callers: null, write: true, since: 1 },
   "session.keys": { role: "member", callers: null, write: true, since: 1 },
-  "session.type": { role: "member", callers: null, write: true, since: 1 },
   "session.interrupt": { role: "member", callers: null, write: true, since: 1 },
   "session.launch_prepare": { role: "anonymous", callers: null, write: false, since: 1 },
   "prompt.list": { role: "member", callers: null, write: false, since: 1 },
@@ -643,18 +608,15 @@ export const AGENTS_METHODS: { [K in keyof AgentsMethods]: { role: Role; callers
   "agent.strip": { role: "member", callers: null, write: false, since: 1 },
   "progress.get": { role: "agent", callers: ["agent"], write: false, since: 1 },
   "say": { role: "agent", callers: null, write: true, since: 1 },
-  "agent.triggers": { role: "agent", callers: null, write: false, since: 1 },
   "access.grant": { role: "owner", callers: null, write: true, since: 1 },
   "access.revoke": { role: "owner", callers: null, write: true, since: 1 },
   "access.list": { role: "owner", callers: null, write: false, since: 1 },
 };
 
 /** x-app-cache of each read (x-app in core.json). */
-export const AGENTS_APP_CACHE: { [K in "agents.list" | "agent.get" | "subagents.counts" | "pr.exists" | "agent.timeline" | "agent.options" | "session.launch_prepare" | "prompt.list" | "permission.ask" | "agent.strip" | "progress.get" | "agent.triggers" | "access.list"]: { resource: string; id?: string; feed: Topic | null } | false } = {
+export const AGENTS_APP_CACHE: { [K in "agents.list" | "agent.get" | "agent.timeline" | "agent.options" | "session.launch_prepare" | "prompt.list" | "permission.ask" | "agent.strip" | "progress.get" | "access.list"]: { resource: string; id?: string; feed: Topic | null } | false } = {
   "agents.list": {"resource": "agents", "feed": "agents"},
   "agent.get": {"resource": "agent", "id": "agent", "feed": "agents"},
-  "subagents.counts": {"resource": "subagents", "feed": null},
-  "pr.exists": {"resource": "pr-exists", "feed": null},
   "agent.timeline": {"resource": "timeline", "feed": "agents"},
   "agent.options": {"resource": "agent-options", "feed": null},
   "session.launch_prepare": false,
@@ -662,12 +624,11 @@ export const AGENTS_APP_CACHE: { [K in "agents.list" | "agent.get" | "subagents.
   "permission.ask": false,
   "agent.strip": {"resource": "strip", "id": "agent", "feed": "agents"},
   "progress.get": false,
-  "agent.triggers": {"resource": "triggers", "feed": null},
   "access.list": {"resource": "access", "id": "agent", "feed": "agents"},
 };
 
 /** x-app-write of each write (x-app in core.json). */
-export const AGENTS_APP_WRITES: { [K in "agent.set" | "agent.fold" | "agent.move" | "agent.move_cancel" | "agent.move_now" | "agent.switch_now" | "agent.unstall" | "agent.force_start" | "agent.retire" | "agent.create" | "session.start" | "session.wake" | "session.stop" | "session.restart" | "session.compact" | "session.park" | "session.input" | "session.keys" | "session.type" | "session.interrupt" | "prompt.answer" | "input.take" | "input.release" | "say" | "access.grant" | "access.revoke"]: { kind: WriteKind; label: string } | false } = {
+export const AGENTS_APP_WRITES: { [K in "agent.set" | "agent.fold" | "agent.move" | "agent.move_cancel" | "agent.move_now" | "agent.switch_now" | "agent.unstall" | "agent.force_start" | "agent.retire" | "agent.create" | "session.start" | "session.wake" | "session.stop" | "session.restart" | "session.compact" | "session.park" | "session.input" | "session.keys" | "session.interrupt" | "prompt.answer" | "input.take" | "input.release" | "say" | "access.grant" | "access.revoke"]: { kind: WriteKind; label: string } | false } = {
   "agent.set": {"kind": "authored", "label": "set"},
   "agent.fold": {"kind": "decided", "label": "fold"},
   "agent.move": {"kind": "decided", "label": "move"},
@@ -686,7 +647,6 @@ export const AGENTS_APP_WRITES: { [K in "agent.set" | "agent.fold" | "agent.move
   "session.park": {"kind": "decided", "label": "park"},
   "session.input": {"kind": "uncached", "label": "type"},
   "session.keys": {"kind": "uncached", "label": "key"},
-  "session.type": {"kind": "uncached", "label": "type"},
   "session.interrupt": {"kind": "decided", "label": "interrupt"},
   "prompt.answer": {"kind": "decided", "label": "answer"},
   "input.take": {"kind": "decided", "label": "take control"},

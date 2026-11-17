@@ -6,7 +6,7 @@ import type { Call } from '#src/handlers.ts';
 type Handler = (h: Call) => unknown;
 
 /** Agent-addressed methods that need a terminal to type at. */
-const NO_TERMINAL = new Set(['session.input', 'session.keys', 'session.type', 'input.take', 'input.release']);
+const NO_TERMINAL = new Set(['session.input', 'session.keys', 'input.take', 'input.release']);
 const turnRuns = (state: string) => state === 'running' || state === 'waiting';
 
 function structuredHandler(method: string, fn: Handler): Handler {

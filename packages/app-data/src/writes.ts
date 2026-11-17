@@ -1,18 +1,7 @@
 // Every write method of the contract, once, with its kind and what it does to the cache (docs/turborepo-layout.md §8.5).
 // A method in none of the four lists fails the guard test, so a new write is decided by a person before it ships.
 import { navOf, taskAfter, type PageSettings, type TaskEdit, type TaskVerb } from '@handline/app-core';
-import type {
-  Account,
-  InboxItem,
-  Memo,
-  NavPrefsChanges,
-  Prefs,
-  Proposal,
-  Schedule,
-  Settings,
-  StandingAnswer,
-  Task,
-} from '@handline/client';
+import type { Account, InboxItem, Memo, NavPrefsChanges, Prefs, Proposal, Settings, Task } from '@handline/client';
 import { edit, provisionalId, upsert, type Ctx } from '#src/cache.ts';
 import { accountAfter, type AccountChange } from '#src/account-after.ts';
 import { accountRemove } from '#src/account-remove.ts';
@@ -77,15 +66,13 @@ const newTask = (c: Ctx, p: never): Task => {
   };
 };
 
-// A task's memos live in the memo list and in the task's detail; a memo write changes both, and adds a row to its history.
-const memoLists = (d: string, task: number) => [qk.memos(d, task), qk.task(d, task)];
+// A task's memos live in the task's detail; a memo write changes them, and adds a row to its history.
 const memoKeys = (d: string, p: never) => {
   const { task } = as<{ task: number }>(p);
-  return [...memoLists(d, task), qk.taskHistory(d, task)];
+  return [qk.task(d, task), qk.taskHistory(d, task)];
 };
-const changeMemos = (c: Ctx, task: number, f: (l: Memo[]) => Memo[]) => {
-  for (const key of memoLists(c.d, task)) edit<List<'memos', Memo>>(c.qc, key, listOf('memos', f));
-};
+const changeMemos = (c: Ctx, task: number, f: (l: Memo[]) => Memo[]) =>
+  edit<List<'memos', Memo>>(c.qc, qk.task(c.d, task), listOf('memos', f));
 
 const tasks: Record<string, Patch> = {
   'task.new': {
@@ -146,10 +133,6 @@ const tasks: Record<string, Patch> = {
       changeMemos(c, task, (l) => l.map((m) => (m.id === memo ? { ...m, text } : m)));
     },
   },
-  // The question is a message to the holder linked to the task; the task page reads it again for the event it leaves.
-  'task.ask': {
-    touches: (d, p) => [qk.task(d, as<{ task: number }>(p).task)],
-  },
   'task.comment.delete': {
     touches: memoKeys,
     patch: (c, p) => {
@@ -157,14 +140,9 @@ const tasks: Record<string, Patch> = {
       changeMemos(c, task, (l) => l.filter((m) => m.id !== memo));
     },
   },
-  // The tasks topic's event brings the task again; the params name no task, so the comment lists are read again here.
-  'task.comment.send_now': { touches: (d) => [qk.resource(d, 'task.comment.list')] },
-  // The event brings every place the image is named; the dry run only counts them.
-  'task.view.save': { touches: (d) => [qk.taskViews(d)] },
-  'task.view.delete': { touches: (d) => [qk.taskViews(d)] },
 };
 
-// ---- inbox, settings, accounts, schedules, standing answers ----
+// ---- inbox, settings, accounts ----
 
 const inboxKeys = (d: string) => [qk.inboxes(d)];
 const markItems = (c: Ctx, ids: number[], patch: Partial<InboxItem>) =>
@@ -180,10 +158,6 @@ const settings: Record<string, Patch> = {
     touches: inboxKeys,
     patch: (c, p) => markItems(c, as<{ ids: number[] }>(p).ids, { read: true }),
   },
-  'inbox.reply': {
-    touches: inboxKeys,
-    patch: (c, p) => markItems(c, [as<{ id: number }>(p).id], { read: true }),
-  },
   'agent.set': {
     touches: (d, p) => [qk.agent(d, as<{ agent: string }>(p).agent)],
     patch: (c, p) => {
@@ -194,13 +168,8 @@ const settings: Record<string, Patch> = {
     reconcile: (c, p) => void c.qc.invalidateQueries({ queryKey: keyOf(c.d, 'agent.strip', { agent: as<{ agent: string }>(p).agent }) }),
   },
   'settings.set': {
-    // network_addresses moves the doors: the addresses and the listeners are read again; the lease limits show on lease.get.
-    touches: (d) => [
-      qk.resource(d, 'settings.get'),
-      qk.resource(d, 'connection.addresses'),
-      qk.resource(d, 'connection.get'),
-      qk.resource(d, 'lease.get'),
-    ],
+    // network_addresses moves the doors: the addresses are read again; the lease limits show on lease.get.
+    touches: (d) => [qk.resource(d, 'settings.get'), qk.resource(d, 'connection.addresses'), qk.resource(d, 'lease.get')],
     // A per-agent override is not the shared value, so only the shared one is shown early; null is the default, which only the daemon knows.
     patch: (c, p) => {
       const { agent, changes } = as<{ agent?: string; changes: PageSettings }>(p);
@@ -221,15 +190,6 @@ const settings: Record<string, Patch> = {
         return { ...s, nav: { ...navOf(s), ...rest, ...(later && { later: merged }) } };
       });
     },
-  },
-  'trust.remove': {
-    touches: (d) => [qk.resource(d, 'trust.list')],
-    patch: (c, p) =>
-      edit<List<'roots', string>>(
-        c.qc,
-        qk.resource(c.d, 'trust.list'),
-        listOf('roots', (l) => l.filter((r) => r !== as<{ root: string }>(p).root)),
-      ),
   },
   'account.set': {
     touches: (d) => [qk.accounts(d)],
@@ -256,59 +216,6 @@ const settings: Record<string, Patch> = {
   },
 };
 
-const scheduleKeys = (d: string) => [qk.resource(d, 'schedules.list')];
-const editSchedules = (c: Ctx, f: (l: Schedule[]) => Schedule[]) =>
-  edit<List<'schedules', Schedule>>(c.qc, qk.resource(c.d, 'schedules.list'), listOf('schedules', f));
-const standing = (p: never): StandingAnswer => {
-  const { folder, vendor, title, label } = as<{ folder?: string; vendor?: string; title?: string; label?: string }>(p);
-  return folder
-    ? { kind: 'trust', key: [folder], text: folder }
-    : { kind: 'dialog', key: [vendor ?? '', title ?? '', label ?? ''], text: label ?? '' };
-};
-
-const schedules: Record<string, Patch> = {
-  'schedule.add': {
-    touches: scheduleKeys,
-    patch: (c, p) => {
-      const { target, cron, message } = as<{ target: string; cron: string; message: string }>(p);
-      editSchedules(c, (l) => [...l, { id: provisionalId(), target, cron, message, next_run: null, last_run: null, set_by: c.me }]);
-    },
-    reconcile: (c, _p, r) => editSchedules(c, (l) => renumber(l, (s) => s.id < 0, (r as { schedule: number }).schedule)),
-  },
-  'schedule.edit': {
-    touches: scheduleKeys,
-    patch: (c, p) => {
-      const { schedule, target, cron, message } = as<Partial<Schedule> & { schedule: number }>(p);
-      const set = { ...(target ? { target } : {}), ...(cron ? { cron } : {}), ...(message ? { message } : {}) };
-      editSchedules(c, (l) => l.map((s) => (s.id === schedule ? { ...s, ...set } : s)));
-    },
-  },
-  'schedule.remove': {
-    touches: scheduleKeys,
-    patch: (c, p) => editSchedules(c, (l) => l.filter((s) => s.id !== as<{ schedule: number }>(p).schedule)),
-  },
-  'answer.add': {
-    touches: (d) => [qk.resource(d, 'answers.list')],
-    patch: (c, p) =>
-      edit<List<'answers', StandingAnswer>>(
-        c.qc,
-        qk.resource(c.d, 'answers.list'),
-        listOf('answers', (l) => [...l, standing(p)]),
-      ),
-  },
-  'answer.remove': {
-    touches: (d) => [qk.resource(d, 'answers.list')],
-    patch: (c, p) => {
-      const { kind, key } = as<{ kind: string; key: string[] }>(p);
-      edit<List<'answers', StandingAnswer>>(
-        c.qc,
-        qk.resource(c.d, 'answers.list'),
-        listOf('answers', (l) => l.filter((a) => !(a.kind === kind && a.key.join('\0') === key.join('\0')))),
-      );
-    },
-  },
-};
-
 const askedDirty = (e: unknown) => {
   const f = classify(e);
   return f.kind === 'refused' && f.gate === 'dirty';
@@ -319,7 +226,6 @@ export const patches: Record<string, Patch> = {
   ...chatWrites,
   ...tasks,
   ...settings,
-  ...schedules,
   // A machine default changes every workspace's rules in force, so every workspace's entry is read again.
   'workspace.rule.set': { touches: (d) => [qk.allRules(d)] },
   'chat.seen': { quiet: true },

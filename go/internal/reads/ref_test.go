@@ -45,20 +45,6 @@ func TestEachReadOfARequestCarriesItsRef(t *testing.T) {
 		t.Errorf("chat.messages: %v", refs)
 	}
 
-	items, err := e.chatRequests(nil, map[string]any{"agent": bob, "scope": "mine"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	handoff := false
-	for _, it := range asJSON(items)["items"].([]any) {
-		if m := it.(map[string]any); m["type"] == "task_event" && m["request"] == float64(1) {
-			handoff = m["request_ref"] == "aaaaaaaaaaa1"
-		}
-	}
-	if !handoff {
-		t.Errorf("chat.requests: no handoff item with the delivery's ref: %v", asJSON(items))
-	}
-
 	inbox, err := e.FounderItems(0)
 	if err != nil {
 		t.Fatal(err)

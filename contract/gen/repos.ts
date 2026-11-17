@@ -169,11 +169,6 @@ export interface ReposMethods {
     /** The new file's etag. */
     etag: string;
   } };
-  "worktree.set_status": { params: {
-  path: string;
-  status: string;
-  request_id: RequestId;
-}; result: Accepted };
   "doc.open": { params: {
   agent: Who;
   /** As file.write's path, and a .md file: bad_request (field path) otherwise. */
@@ -233,7 +228,6 @@ export const REPOS_METHODS: { [K in keyof ReposMethods]: { role: Role; callers: 
   "files.list": { role: "member", callers: null, write: false, since: 1 },
   "file.read": { role: "owner", callers: null, write: false, since: 1 },
   "file.write": { role: "owner", callers: null, write: true, since: 1 },
-  "worktree.set_status": { role: "member", callers: null, write: true, since: 1 },
   "doc.open": { role: "owner", callers: null, write: false, since: 1 },
   "doc.push": { role: "owner", callers: null, write: true, since: 1 },
   "doc.pull": { role: "owner", callers: null, write: false, since: 1 },
@@ -255,10 +249,9 @@ export const REPOS_APP_CACHE: { [K in "repos.list" | "repos.recent" | "repo.fact
 };
 
 /** x-app-write of each write (x-app in core.json). */
-export const REPOS_APP_WRITES: { [K in "folder.init" | "folder.clone" | "file.write" | "worktree.set_status" | "doc.push"]: { kind: WriteKind; label: string } | false } = {
+export const REPOS_APP_WRITES: { [K in "folder.init" | "folder.clone" | "file.write" | "doc.push"]: { kind: WriteKind; label: string } | false } = {
   "folder.init": {"kind": "decided", "label": "start git"},
   "folder.clone": {"kind": "decided", "label": "clone"},
   "file.write": {"kind": "decided", "label": "save file"},
-  "worktree.set_status": {"kind": "decided", "label": "set status"},
   "doc.push": {"kind": "uncached", "label": "edit"},
 };
