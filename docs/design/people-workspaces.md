@@ -229,6 +229,5 @@ One table test per key: value on the workspace, on the machine only, on neither 
 
 ## Not now
 
-- Several Macs in one cluster.
 - An agent addressing another workspace's agent directly.
 - Per-agent folder grants (`go/scheduler/access`). Added folders on the workspace replace them.

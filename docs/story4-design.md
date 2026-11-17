@@ -1,207 +1,203 @@
-# Story 4 design: one daemon per app, one leader for shared state
+# Story 4 design: one master, lent machines, several people
 
-Design only; nothing is built. It builds on [the multi-machine research](story4-multi-machine-research.md)
-(section 5 for the Raft blocks). The founder decides the open questions at the end before any build.
+Design only; nothing is built. Decisions lists the founder's answers (11-17); Build slices orders the
+build. The earlier designs (a leader and replicas of the board on every machine, 10-16 and 11-17 morning) are
+replaced: the founder's direction is one master that keeps the board, machines people lend to it, and
+people who only connect.
 
-**Names used throughout:** a **node** is one daemon on one machine. Exactly one node is the **leader**;
-every other node is a **follower**. No other pair is used, in this doc, the code or the UI.
+**Names used throughout:** the **master** is the one daemon that keeps the board and decides. A **runner** is
+a machine lent to the master: it runs the agents the master sends it and keeps nothing of the board. The
+master's own machine is a runner too. A **person** connects with the app; a person may lend their machine,
+which makes it a runner, or only connect.
 
 ## The shape
 
-Every app runs its own daemon on its machine; there is no connect mode. Daemons talk to daemons. Each
-node owns its machine: its agents, their terminals, the account logins stored there, and its load
-numbers. None of that is replicated as truth. Shared state is the task board (tasks, memos, blockers),
-chat and requests, and the team (`team.yaml`, links, trust roots). The leader keeps it, and every
-follower holds a replica.
+The board (tasks, memos, blockers, turns, chat, requests, the team, agents' memory and handoffs, usage) lives
+in one SQLite database, on the master. Nothing replicates it: every runner and every app reads and writes it
+through the master's API, over the network the gateway already serves (Tailscale today). One writer, so
+SQLite stays; a second database server is needed only if the master itself must be two machines, which is
+later work.
 
-One mechanism carries shared state in both election modes: an ordered **write log**. A write method that
-changes shared state (`task.new`, `chat.send`, `task.memo.add`, and the rest) becomes a log entry with an
-index. The leader appends it, and every node applies the same entries in order to its own SQLite. An
-entry must replay the same on every node, so anything that touches a machine stays out of the log:
-spawning a session, a key, a clock reading. Only the result is a log entry, as a write (for example "agent
-X on node B is running").
+A runner is the daemon in **runner mode**: no board, a local socket for its own agents, and an API the master
+drives. The master decides everything that needs the board (which task, which agent, which account, which
+machine) and sends the runner one concrete step at a time: open this terminal with this command in this
+folder, press these keys, show me this pane, stop that session. The runner does it and reports what happened
+(hooks, transcript usage, the terminal's screen, its load).
 
-- **Reads** are served from the local replica. A caller that just wrote waits until its node has applied
-  that index, so it reads its own write.
-- **A shared write on a follower** is forwarded to the leader and answered once applied locally.
+- **An agent's calls** (`hl task ...`, `hl say`) on a runner go to the runner's local socket, as today. The
+  runner proves which agent is calling the way the daemon does now (the caller descends from a session it
+  launched) and forwards the call to the master, which answers as for a local agent.
+- **The master moves.** It copies its board to each of the owner's runners as it writes; when it is gone, one
+  of them takes its place by itself (section 4). Until then, runners finish the turn they are in and start
+  nothing new, and apps say the master is offline.
 
 ## Who does what
 
-Only the leader schedules. Every node keeps its own machine running. The last column says what a
-follower does with leader-only work while there is **no leader** (lost or released, until a new one is
-promoted or elected).
-
-| Duty | Who | With no leader |
-|---|---|---|
-| Pick the account for a launch | leader only | queue: the launch waits |
-| Start a turn: deliver a queued message or task into an agent | leader only | queue: it stays queued, delivered by the next leader |
-| Place work: which node and agent a new task goes to | leader only | queue: the task stays queued |
-| Triggers (scheduled and idle wakes) | leader only | queue at most one firing per trigger; the next leader runs it once |
-| Timeouts (task clocks, wake timers, the lost-node timer) | leader only | paused: no clock runs, none fires |
-| Shared writes from an app (`task.new`, `chat.send`, memos, edits) | leader applies | refuse, gate `no_leader`, so the app says why |
-| Prune and back up shared state | leader only | skip until there is a leader |
-| Keep its running agents and terminals alive | every node | as always |
-| Record hooks and transcripts; working and idle state | every node | as always; reports to the leader are buffered and sent on promotion |
-| Report its load (cores, memory, slots) | every node | buffered, as above |
-| Apply the write log to its replica | every node | nothing new to apply |
-| Serve its own app and the phone (reads, terminal attach) | every node | reads from the replica, which stops at the last entry |
-| The founder's direct actions on its own agents (keys, Esc, stop) | every node | as always: they touch only that machine |
-
-**A turn already running** on a follower's agent when the leader goes away **finishes, and then nothing
-new starts**. Freezing it mid-turn would cut a tool call in half and leave its worktree half-written. Its
-hooks and transcript are recorded locally as usual, and its end is reported when a leader exists again.
-Any message waiting for that agent stays queued (row 2 of the table).
-
-## 1. Joining as a follower
-
-A new node joins with `hl node join <leader address>` and a pairing code from the leader (the existing
-`device.pair` flow, issuing a node credential instead of a device token).
-
-1. **It must hold no shared data.** A node with tasks, chat or a team of its own is refused with
-   "has its own data: use import (section 2)". Nothing is merged.
-2. **It takes the leader's data:** a snapshot of the shared tables at index N, then the log from N+1,
-   kept streaming. Attachments come with the snapshot. Logins and agents do not.
-3. **It registers its own agents.** For each agent defined on it, the node writes
-   `node.agent.register {agent, node}` through the leader. A name already taken team-wide is refused,
-   and the founder renames it. Work and messages for the agent are applied everywhere but delivered only
-   by its own node, when the leader starts the turn.
-4. **It reports its load** as a heartbeat to the leader every few seconds: cores, memory, free slots and
-   tags (the story 2 numbers). A heartbeat is not a log entry: load is the machine's own and changes too
-   often.
-
-## 2. Importing a machine that has its own data
-
-For a node that already ran alone, with tasks and chat of its own:
-
-1. Its shared tables are set aside unchanged as a read-only **import source**, and it joins as in
-   section 1 with an empty shared store.
-2. The founder sees the source's open tasks in the app (`node.import.list`) and picks which to bring.
-3. Each picked task is created through the leader as a new task with a **new number**. Its body, memos
-   and attachments are copied, and a first memo says "imported from <node> T<old>". Blockers between
-   picked tasks are remapped. References to old numbers inside text are left as written.
-4. Chat history and closed tasks are not imported. They stay readable in the source until the founder
-   discards it (`node.import.discard`).
-
-No row is merged and no number is reused. The source records which tasks were already brought, so a
-second import does not duplicate them.
-
-## 3. What is replicated and what is not
-
-| Lives only on its own node | Shared, kept by the leader |
+| Duty | Who |
 |---|---|
-| Agent processes, terminals, tmux and structured sessions | Tasks, memos, blockers, task numbers |
-| Account logins and usage readings | Chat, requests, inbox, attachments |
-| Load: cores, memory, slots, the test lock | Team: agents and their node, links, trust roots |
-| The agent's worktrees and its repo mirror | Who is leader, the election mode, the node list |
+| Keep the board; every write and read of it | master |
+| Pick the task, the agent, the account and the machine for a session | master |
+| Triggers, timeouts, deliveries, the reclaim timer | master |
+| Build the launch: command, settings, prompt, MCP config | master |
+| Open and stop terminals, press keys, capture the screen | the runner the session is on, told by the master |
+| Make the agent's worktree from the project's remote; push its branch | that runner |
+| Bring the agent's memory down at launch and send its changes up | that runner, to and from the master |
+| Record hooks and transcript usage | that runner, sent to the master |
+| Its leases (simulator, browser, build slot, port) | that runner, from its own pools; the master sees them in the heartbeat |
+| Forward its agents' `hl` calls | that runner |
+| Keep a copy of the board, a second or two behind; take over when the master is gone | each of the owner's runners |
 
-The leader keeps a **node table** (name, address, tags, last heartbeat, lost or not). Agent state that
-apps show (`agent.changed`: running, idle, needs you) is the agent's own node's. That node sends it to
-the leader as compact state writes, so every app sees every agent. A terminal is attached through the
-agent's node, and the app's own daemon relays the bytes.
+## 1. Lending a machine
 
-## 4. The leader: chosen by the founder or elected
+A person lends a machine with the app ("Lend this Mac") or `hl node join <master address>`, using a pairing
+code from the master: the `device.pair` flow, issuing a **node credential** that belongs to that person.
 
-`node.election {mode: "manual" | "automatic"}` is a founder write. Manual is the default.
+1. The machine's daemon starts in runner mode. If it ran alone before, its own board is set aside unchanged
+   and not merged; bringing old tasks over is later work.
+2. **The project:** for each workspace, the runner clones the project's repo from its remote into its own
+   folder, at join and when a workspace is added. A workspace whose project has no remote runs only on the
+   machine that holds its folder.
+3. **Accounts:** the runner uses the Claude accounts logged in on it. The master's logins are never copied to
+   a runner. The master picks among every runner's accounts by the one-machine rule (5-hour window, week,
+   sessions already on it), counting the sessions each runner reports.
+4. **Heartbeat:** every few seconds the runner sends its load (cores, memory, free slots, free leases), its
+   accounts and their sessions, and the sessions it runs.
 
-**When the leader goes away**, it is either lost (missed heartbeats for 60 s) or released (the founder
-runs `node.leader.release`, or the leader's machine shuts down cleanly). Every follower stops scheduling
-at once (the table above).
-- **Manual:** every follower asks the founder, **"The leader <name> is gone. You are a follower now:
-  promote this daemon to leader?"** The question shows as a card in that machine's app, as a notice on
-  the phone (from whichever node it is paired with), and in `hl node status`, answered with
-  `hl node promote`. The first yes wins: that node becomes leader, and the others' cards close as its
-  first entry reaches them. Until a yes, nothing is scheduled anywhere.
-- **Automatic:** no question; the followers elect a leader among themselves. The card says "electing
-  a leader" and closes when the election completes. If no majority is up, no election can complete, and
-  the card offers the escape: switch to manual and promote this daemon.
+A lent machine runs code the master's agents write, so lending is the person's explicit act, shown in their
+app, and they can take the machine back at any time (it goes offline, section 3).
 
-A planned move skips the gap: `node.leader.set <node>` on the leader hands leadership straight to a
-follower that is caught up.
+## 2. Agents and sessions
 
-**Manual, the epoch.** Each leader holds an **epoch** that grows by one at every change, and every log
-entry carries it. A node that sees a higher epoch stops leading at once and follows. If a lost leader
-returns, or the founder said yes on two cut-off nodes, the higher epoch wins. The other node's entries
-that never reached it are set aside as an import source (section 2), not replayed. Without a third vote, manual
-is the only safe mode: two nodes cannot tell a dead leader from a cut network.
+An agent is a name, a role, a memory, a handoff and its place in the team: all on the master. It is **not
+pinned to a machine**. Each session is placed when it starts: on an online runner that holds the project, has
+a free slot and an account with room, and has the lease the work needs (a simulator for app work).
 
-**Automatic, Raft.** The leader is the leader of a `hashicorp/raft` group inside the daemon. The write
-log is the Raft log, the daemon's SQLite is the Raft state machine (FSM `Apply` runs the same entries),
-and snapshots are SQLite snapshots. Raft's own term plays the epoch's part.
+- **Worktree:** the runner keeps one worktree per agent per project, made from the remote and named as today.
+  A session placed on another runner starts from the branch's last pushed commit there.
+- **Push per commit:** an agent's branch is pushed after each commit, so a session moved elsewhere loses at
+  most uncommitted work.
+- **Memory:** brought down to the runner at launch, and each change is sent up as it is written. One session
+  per agent at a time, so there is one writer.
+- **Continuing:** a session that ends normally writes its handoff to the master. The next session, on any
+  runner, starts from the handoff, as a new session does today. A transcript is resumed only on the runner
+  that holds it.
+- **Terminal:** the app attaches through the master, which relays the bytes from the runner.
 
-**Refusing automatic with fewer than three nodes.** The write checks the node list:
-- fewer than 3 voters (a witness counts as a voter), or any data node not caught up and reachable
-  (a witness holds no data, so only its reachability is checked): refused with gate
-  `too_few_nodes` ("automatic election needs three or more nodes; you have 2"), and nothing changes;
-- under automatic, removing a node that would leave fewer than 3 voters is refused the same way;
-  switch to manual first. A node that is merely lost is not removed, so the group keeps its size and
-  waits for a majority.
+## 3. A runner goes offline
 
-**Two nodes: manual or a witness.** Manual (above) is the design for two nodes. The alternative is a
-**witness**: a tiny always-on process that only votes (a Raft non-data voter; no agents, no SQLite copy),
-making three votes.
-- *Manual:* no extra process. Loses time: a dead leader means nothing is scheduled until the founder
-  taps promote, and a wrong tap during a cut network splits the cluster (the epoch repairs it).
-- *Witness:* automatic failover in seconds, and no split from a cut network (the side without the
-  witness cannot lead). Loses simplicity: a third always-on machine or container to run and keep
-  reachable from both nodes; without it the cluster is back to two votes.
-Start with manual. The witness joins later as one more voter on the same Raft group, so nothing built
-for manual is thrown away.
+- **Offline:** 60 s without a heartbeat. Its agents show `offline: <machine> since <time>`; nothing new
+  starts there.
+- **Reclaim:** after 10 minutes offline (a setting), the master takes back every task in progress on that
+  runner. Each goes back to its queue with a memo naming the branch's last pushed commit, and is started on
+  another online runner by the usual placement.
+- **Return:** the runner comes back online. Sessions it still holds for reclaimed tasks are stopped, and any
+  uncommitted or unpushed work in their worktrees is committed to a `rescue/<agent>-<date>` branch and pushed,
+  so nothing is lost and nothing runs twice. Its other agents take new work as placement gives it.
+- A runner the person took back (left the master) is offline for good: its tasks are reclaimed at once.
 
-**Switching.**
-- *Manual to automatic:* the leader checks the rule above, takes a snapshot at index N, and bootstraps
-  the Raft group with every node as a voter and itself as the first leader, starting from N. It then
-  writes the new mode as the group's first entry. Followers attach to Raft from N.
-- *Automatic to manual:* the leader writes the mode change as a Raft entry, with the next epoch. Once that
-  entry commits, every node leaves Raft and follows this leader's log from that index. The Raft state is
-  dropped.
-Both switches need a leader; neither runs while there is none.
+## 4. The master dies
 
-## 5. Agents on a lost machine
+The board is copied as it is written, and when the master is gone another of the owner's machines takes its
+place by itself.
 
-A node that misses heartbeats for 60 s is marked **lost** by the leader. Agents do not move: a running
-agent is a process on that machine.
-- Its agents show the state `lost` with the reason "node <name> lost <time>". Messages to them stay
-  queued, and no turn is started.
-- Tasks they hold stay `doing`, flagged "agent on a lost node". The founder may hand a task to another
-  agent (`task.handoff`). The worktree's last pushed branch is named in the flag, or "unpushed".
-- No automatic re-queue: the founder decides, as with any held task.
-- On the lost machine itself, it is the leader that went away (section 4): its turns finish, nothing new
-  starts, and its own app asks the promote question in manual mode. If the founder promotes it there, the
-  epoch decides when the machines meet again.
-- On return, the node rejoins as a follower, catches up, and sends what it buffered. Its agents take new
-  turns again once the leader starts them.
+- **The copy:** Litestream, run as a library inside the master, writes each committed change of the board to
+  a folder on the master; each of the owner's runners mirrors that folder through the node API, a second or
+  two behind. Other people's runners get no copy, so no one else's machine holds the board's chats and memos.
+  The copy is only ever restored, never read from.
+- **Taking over:** an owner's runner that has not reached the master for 30 seconds, but does reach the
+  internet (`api.anthropic.com`, which its agents need anyway), restores its copy and starts as master the
+  way the daemon starts today, with timers and deliveries rebuilt from the board. It raises the **master
+  number** by one and tells every runner in the node table. Several runners take over in the order they
+  joined: the next one waits until the one before it has been unreachable for 30 seconds too. What the old
+  master wrote in its last second or two is lost.
+- **Why the internet check:** with two machines, a master that is off and a cut network look the same. A
+  machine without the internet does not take over, so a laptop on a plane stays a runner, and its agents,
+  which cannot work offline, wait. Two masters happen only when both machines reach the internet but not each
+  other, which Tailscale's relays make rare.
+- **One master:** runners and apps obey only the highest master number they have seen. An old master that
+  comes back learns the higher number from the first runner it reaches and becomes a runner. Its own board is
+  set aside unchanged, not merged, and its app says so. The sessions on its machine were reclaimed like any
+  offline runner's, and its return is handled as in section 3.
+- **A master cut off:** one that has owner runners but has reached neither them nor the internet for 30
+  seconds starts nothing new, and its app says that what is written there may be set aside.
+- **A planned move:** "Make this Mac the master" on a runner (or `hl node promote`). The master stops its
+  writes, waits until the copy has them all, and hands over, so nothing is lost.
+- **Apps** keep the list of machines and their device token. When the master is unreachable they ask the
+  others which one is master now and connect to it with the same token, which the copy carries.
+- **No vote:** a majority vote among three or more machines (Raft, as rqlite does) would also keep the last
+  second of writes and rule out two masters, for about 20 more hours. It is not built. If it is ever needed,
+  it replaces the copy and the takeover above for three or more machines and keeps everything else here; two
+  machines cannot hold a vote, so they keep this takeover.
 
-If the lost node was the leader, section 4 applies to every node.
+## 5. People
 
-## 6. What the Mac app's single mode needs from the daemon
+People and roles exist today (`people`, `devices`; the RPC roles `owner` and `member`). This story widens them.
 
-The app drops connect mode (`apps/electron/src/mode.ts`) and always starts its own daemon.
-The pc side changes the app; the daemon provides:
-1. **`node.status`**: this node's role (leader or follower), the leader's name, replication lag, the
-   node table, and the election mode, on a `nodes` topic.
-2. **The promote card:** the question of section 4 as an inbox item with a `node.promote` answer, also
-   pushed to the phone.
-3. **Write forwarding**, so every write the app sends works on a follower unchanged; and the
-   `no_leader` refusal, so the app can say why a write waits.
-4. **Agents of other nodes** in `agents.list` and `agent.changed`, with their node, and terminal attach
-   relayed through the agent's node.
-5. **Join and import methods** (`node.join`, `node.import.list`, `node.import.apply`,
-   `node.import.discard`) for the app's setup screen, replacing the remote pairing it does today.
-6. **The election setting** with its refusal (`too_few_nodes`), `node.leader.set` and
-   `node.leader.release`.
+- **Invite:** the owner invites a person with a pairing link; each person has their own devices and login.
+- **Roles:** the owner decides (trust, settings, people, gates); a member gives work, comments, chats and may
+  lend machines.
+- **Turns:** a turn that waits on a person names that person. Each person's Requests shows the turns that
+  wait on them; `--turn human` on a task means the task's owner.
+- **Connecting without lending** is the app's connect mode, which stays: the app talks to the master and
+  starts no daemon.
 
-The phone keeps pairing with one node's gateway, normally the leader's. It sees everything through that
-node's replica and forwarding.
+## 6. What the app needs from the daemon
 
-## Open questions for the founder
+1. `node.status` and a `nodes` topic: the master, each runner with its person, online or offline since when,
+   load, accounts, sessions.
+2. Lend and take back: `node.join`, `node.leave`, and the pairing code.
+3. Each agent's current machine in `agents.list` and `agent.changed`; terminal attach relayed.
+4. The reclaim time setting.
+5. People: invite, list, role, remove; each person's Requests.
+6. Each runner's copy and how far behind it is, in `node.status`; `node.promote`; the master number on every
+   reply, so an app notices a new master; a board set aside or cut off.
 
-1. Which machines are in scope first: this Mac plus one more Mac, or also a Linux box? With two
-   nodes and no witness, only manual election is possible.
-2. May one account's login live on two machines? The account cap would then be counted across nodes.
-3. Import: bring chat history as a read-only archive, or not at all?
-4. Is 60 s right before a node counts as lost? And should a long-lost node's tasks ever go back to
-   queued without the founder?
-5. Where the phone pairs: always the leader, or any node (following the leader when it changes)?
-6. With no leader, shared writes from an app are refused (`no_leader`). Should a follower instead queue
-   them locally and send them on promotion? That is friendlier, but each queued write could then
-   conflict with the new leader's state.
+## Decisions
+
+1. **Master:** one, this Mac to start. The board is copied to the owner's runners as it is written; when the
+   master has been gone for 30 seconds, the next of them that reaches the internet takes over by itself,
+   losing a second or two of writes. This works with two machines.
+2. **Reclaim:** offline after 60 s without a heartbeat; tasks reclaimed after 10 minutes (a setting) and
+   started on another online runner. Agents push their branch after each commit; a returning runner's leftover
+   work goes to a rescue branch.
+3. **Accounts:** a runner uses the Claude accounts logged in on it; the master's are not copied.
+4. **Project:** each runner clones the project from its remote.
+5. **Agents are not pinned:** an agent's memory and handoff are on the master; each session is placed on a
+   runner with room.
+6. **People:** an owner and members; a member may lend a machine; connecting without lending is the app's
+   connect mode.
+7. **Board:** SQLite on the master; the owner's runners hold a copy, through Litestream, only to restore from.
+   No replicated database: rqlite cannot run the daemon's transactions, dqlite does not run on macOS, and
+   younger replication libraries are not trusted with the board yet.
+
+## Build slices
+
+Phase 1 is one person and several machines (the founder's own Macs), including the master that moves; phase
+2 adds people. Each slice lands and
+is reviewed on its own; "after" names the slices it starts after. Most slices are tested with a master and a
+runner on one Mac (slice 3); the last check is two real Macs.
+
+| # | Slice | Area | Hours | After |
+|---|---|---|---|---|
+| 1 | Node identity and the node table on the master; `node.status` and the `nodes` topic | daemon | 6 | |
+| 2 | Lending: `device.pair` issues a node credential owned by a person; `hl node join` and `node.leave`; a joining machine's own board set aside | daemon, hl | 6 | 1 |
+| 3 | A master and a runner on one Mac for tests: two daemons with their own homes and ports, joined | tooling | 4 | 2 |
+| 4 | Runner mode: no board; the API the master drives (terminal open, keys, screen, stop, worktree make, push); the local socket forwards its agents' calls with the agent proven by process descent | daemon | 16 | 3 |
+| 5 | The machine seam on the master: launches, the terminal tick, key presses and stops go through one interface; this machine's own tmux behind it, and a runner's API | daemon | 12 | 4 |
+| 6 | Agent files on a runner: the launch's settings, MCP config and prompt written there; memory down at launch and each change up; the handoff written to the master | daemon | 8 | 5 |
+| 7 | Hooks and transcript usage recorded on the runner and sent to the master; working and idle state from them | daemon | 8 | 5 |
+| 8 | Projects on runners: each workspace's repo cloned from its remote at join and when a workspace is added; the branch pushed after each commit | daemon | 6 | 4 |
+| 9 | Heartbeats (load, leases, accounts and their sessions); offline after 60 s; reclaim after the setting's time, back to the queue with the last pushed commit named; a returning runner's leftovers to a rescue branch | daemon | 10 | 5, 8 |
+| 10 | Placement: each session on an online runner holding the project, with a slot, an account with room and the lease the work needs | daemon | 8 | 6, 9 |
+| 11 | Account choice across runners: the one-machine rule over every runner's accounts and sessions | daemon | 6 | 9, 10 |
+| 12 | Terminal attach relayed through the master to the runner | daemon | 6 | 5 |
+| 13 | The app's screens designed and shown: Machines in Settings (lend, take back, online or offline, reclaim time, "Make this Mac the master"), each agent's machine | app | 7 | 1 |
+| 14 | The app built to them, "Lend this Mac" starting runner mode | app | 10 | 10, 12, 13 |
+| 15 | People: invite by pairing link, list, roles, remove; a member may lend | daemon, app | 8 | 2 |
+| 16 | Turns per person: a turn names the person it waits on; each person's Requests | daemon, app | 10 | 15 |
+| 17 | The board's copy: Litestream inside the master writing to a folder; each of the owner's runners mirrors it; how far behind, in `node.status`; the copy and the takeover kept in one package, so a vote can replace them | daemon | 10 | 4 |
+| 18 | Taking over: after 30 s without the master and with the internet, the next runner in join order restores the copy and raises the master number; runners obey the highest; an old master that returns becomes a runner with its board set aside; a cut-off master starts nothing new; a planned move (`node.promote`) loses nothing; tested with a master and two runners on one Mac | daemon, hl | 14 | 9, 17 |
+| 19 | The app after a new master: the machine list and token kept, the new master found and joined; "Make this Mac the master"; a set-aside or cut-off board said so | app | 5 | 14, 18 |
+
+About 160 hours: phase 1 (slices 1 to 14 and 17 to 19) about 142, phase 2 about 18. Not in this list: a
+majority vote among three or more machines, bringing a set-aside board's tasks over, the phone.
