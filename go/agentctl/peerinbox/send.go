@@ -316,7 +316,6 @@ type tail struct {
 	sess   Session
 	path   string
 	offset int64
-	rest   string
 }
 
 func newTail(sess Session) *tail {

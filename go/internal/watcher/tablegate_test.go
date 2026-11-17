@@ -16,7 +16,6 @@ type counted struct {
 	tables  []string
 	runs    int
 	pending bool
-	untied  bool // not Tabled
 }
 
 func (c *counted) Name() string { return "counted" }

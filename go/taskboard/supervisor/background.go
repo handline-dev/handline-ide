@@ -237,10 +237,9 @@ func (e *Env) waitingOnAsk(q db.Q, agent string, head *db.Request) bool {
 
 // Forgotten is what the agent is holding when it looks like a resolve nobody wrote.
 type Forgotten struct {
-	Head    *db.Request
-	IdleS   int64
-	Behind  int
-	hasBack bool
+	Head   *db.Request
+	IdleS  int64
+	Behind int
 }
 
 // ForgottenResolve is the agent's next task (EffectiveTaskHead) when that was told and is still open: IDLE or QUEUED with a live terminal,

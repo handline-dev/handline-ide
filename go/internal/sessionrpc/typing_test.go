@@ -204,9 +204,9 @@ func TestATypingCallWhileTheTickHoldsTheTerminalLockIsRefusedAtOnce(t *testing.T
 }
 
 func TestInterruptPressesEscOnATerminalAgentsPaneBehindTheTypingGates(t *testing.T) {
-	r, h, c := typingRig(t)
+	r, h, _ := typingRig(t)
 	r.e.InterruptTerminal = r.e.PressEsc
-	c = r.dial(false)                                                                        // the method is registered on a dial that has the port
+	c := r.dial(false)                                                                       // the method is registered on a dial that has the port
 	result(t, c.call("input.take", map[string]any{"agent": "ann", "request_id": rid("t1")})) // the caller's own hold lets it through
 	got := result(t, c.call("session.interrupt", map[string]any{"agent": "ann", "request_id": rid("i1")}))
 	if got["said"] != r.ann+": interrupted" || strings.Join(h.sent, "|") != term.Escape {

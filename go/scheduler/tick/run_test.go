@@ -41,9 +41,10 @@ func TestCyclesAndRing(t *testing.T) {
 func TestGuardCatchesEveryPanic(t *testing.T) {
 	boom := errors.New("boom")
 	for name, f := range map[string]func(){
-		"check":  func() { check(boom) },
-		"error":  func() { panic(boom) },
-		"other":  func() { panic("odd") },
+		"check": func() { check(boom) },
+		"error": func() { panic(boom) },
+		"other": func() { panic("odd") },
+		//lint:ignore SA5000 the panic is the case under test
 		"nilmap": func() { var m map[string]int; m["a"] = 1 },
 	} {
 		if err := guard(f); err == nil {

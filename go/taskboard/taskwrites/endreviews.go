@@ -96,6 +96,7 @@ func EndReviews(d *sql.DB, home string, tell Teller) (said []string, err error) 
 		}
 		if err != nil {
 			tx.Rollback()
+			//lint:ignore ST1005 T<n> is the task's id
 			failed = errors.Join(failed, fmt.Errorf("T%d: %w", r.id, err))
 			continue
 		}
