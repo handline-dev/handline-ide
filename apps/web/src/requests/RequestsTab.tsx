@@ -36,7 +36,7 @@ function Section({
   return (
     <section className="flex flex-col">
       {/* The section's name stays under the tab bar while its rows pass below it. */}
-      <h2 className="sticky top-0 z-10 flex min-h-9 items-center gap-2.5 border-b border-border bg-bg px-2 text-sm font-medium text-fg">
+      <h2 className="sticky top-0 z-20 flex min-h-9 items-center gap-2.5 border-b border-border bg-bg px-2 text-sm font-medium text-fg">
         {pick && rows.length > 0 && (
           <input
             type="checkbox"
@@ -136,7 +136,7 @@ function Requests() {
         actions={<BulkButtons />}
         className="w-full shrink-0 @3xl:w-104 @3xl:border-r @3xl:border-border"
       >
-        <ScrollFade keep="requests" className={`min-h-0 flex-1 ${selectionRoom(n)}`}>
+        <ScrollFade keep="requests" fadeTop={false} className={`min-h-0 flex-1 ${selectionRoom(n)}`}>
           <div className="flex flex-col gap-6 px-3 py-4 text-sm">
             {r.failed && <p className="px-2 text-danger">Requests did not load.</p>}
             {!r.loaded && !r.failed && <ListLoading label="Loading requests" />}
@@ -198,7 +198,7 @@ function Decided() {
   if (!items.length) return <Section title="Decided today" rows={[]} empty={q.isPending ? '' : 'Nothing decided today.'} />;
   return (
     <section className="flex flex-col">
-      <h2 className="sticky top-0 z-10 flex min-h-9 items-center border-b border-border bg-bg px-2 text-sm font-medium text-fg">
+      <h2 className="sticky top-0 z-20 flex min-h-9 items-center border-b border-border bg-bg px-2 text-sm font-medium text-fg">
         Decided today
       </h2>
       <div className="flex flex-col">
