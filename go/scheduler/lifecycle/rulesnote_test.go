@@ -2,13 +2,13 @@ package lifecycle
 
 import (
 	"encoding/json"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/paths"
 )
 
@@ -19,11 +19,8 @@ func TestARulesChangeIsToldOnceAndIsNoDrift(t *testing.T) {
 	rules := "# Rules for team core\n- keep it short\n- reply in English"
 	r.l.Ports.TeamRules = func(string) []string { return []string{rules} }
 	r.l.Ports.Routing = func() *team.Team { return &team.Team{Teams: map[string][]string{"core": {"ann"}}} }
-	f := team.RulesFile(r.l.Home, "core")
-	if err := os.MkdirAll(filepath.Dir(f), 0o755); err != nil || os.WriteFile(f, []byte("x"), 0o644) != nil {
-		t.Fatal(err)
-	}
-	core, _ := filepath.Rel(r.l.Home, f)
+	r.rulesOf(t, "x", "core")
+	core := "core"
 	rec, err := r.l.LaunchRecord("ann")
 	if err != nil {
 		t.Fatal(err)
@@ -99,9 +96,7 @@ func TestTheFingerprintLeavesOutTheRulesAlone(t *testing.T) {
 	if after, _ := r.l.Fingerprint("ann"); after != before {
 		t.Fatal("the rules moved the fingerprint")
 	}
-	if err := os.WriteFile(filepath.Join(paths.AgentDir(r.l.Home, "ann"), "ROLE.md"), []byte("a new role"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	r.setPart(t, db.PartRole, "a new role")
 	if after, _ := r.l.Fingerprint("ann"); after == before {
 		t.Fatal("ROLE.md did not move the fingerprint")
 	}
@@ -114,5 +109,32 @@ func TestLineChangesKeepsOrderAndSkipsBlankLines(t *testing.T) {
 	added, removed := lineChanges("a\nb\n\nc", "a\nx\nc\n\ny")
 	if strings.Join(added, "|") != "x|y" || strings.Join(removed, "|") != "b" {
 		t.Fatalf("%q %q", added, removed)
+	}
+}
+
+// rulesOf gives each named team a workspace row with text as its rules.
+func (r *launchRig) rulesOf(t *testing.T, text string, names ...string) {
+	t.Helper()
+	for _, n := range names {
+		res, err := r.l.Q.Exec("INSERT INTO workspaces(name, folder, created_at) VALUES(?, '', 0)", n)
+		if err != nil {
+			t.Fatal(err)
+		}
+		id, _ := res.LastInsertId()
+		if _, err := db.SetInstruction(r.l.Q, actor.Key(actor.Workspace, id), db.PartRules, text, "p1", "", 1); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// setPart keeps text as ann's part, by the founder.
+func (r *launchRig) setPart(t *testing.T, part, text string) {
+	t.Helper()
+	key, err := paths.AgentKeyIn(r.l.Q, "ann")
+	if err == nil {
+		_, err = db.SetInstruction(r.l.Q, key, part, text, actor.OwnerKey, "", time.Now().Unix())
+	}
+	if err != nil {
+		t.Fatal(err)
 	}
 }

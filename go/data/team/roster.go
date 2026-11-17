@@ -273,7 +273,9 @@ func (r *Roster) RepoOf(name string) string {
 
 // RegisterOpts is what Register is asked to set; a nil field is left as it is.
 type RegisterOpts struct {
-	Role, Weight, RoleFile, Repo           string
+	Role, Weight, RoleFile, Repo string
+	// By and Approver are who asked for the agent and who OK'd it, kept on its first role and standing context; By "" is Handline.
+	By, Approver                           string
 	Model, Effort, Vendor, Mode, MCPConfig *string
 	// Account pins the agent to that account (PinFor).
 	Account                       *string
@@ -285,7 +287,7 @@ func strp(s string) *string { return &s }
 
 func present(p *string) bool { return p != nil && *p != "" }
 
-// Register creates or updates an agent: its row (and its workspace's, for a new workspace), its folders and its ROLE.md. A bare name
+// Register creates or updates an agent: its row (and its workspace's, for a new workspace), its folders and its role. A bare name
 // is a workspace's lead, which a new workspace gets as its first agent; ws.agent is an agent of workspace ws.
 func (r *Roster) Register(name string, o RegisterOpts) (string, error) {
 	if present(o.Effort) && !contains(ValidEffort, *o.Effort) {
@@ -328,7 +330,7 @@ func (r *Roster) Register(name string, o RegisterOpts) (string, error) {
 	if err != nil || made == 0 {
 		return d, err
 	}
-	return d, seedWorkspace(r.Home, actor.Key(actor.Workspace, made))
+	return d, seedWorkspace(r.DB, actor.Key(actor.Workspace, made), time.Now().Unix())
 }
 
 // register is Register's rows, in one transaction with the name checks. made is the id of the workspace it made, 0 when it made none.
@@ -451,7 +453,7 @@ func nilIfFalse(b bool) any {
 	return true
 }
 
-// folders makes the agent's folders and, when it has none, its ROLE.md and base.md. Its key is read through r.DB, which may be the
+// folders makes the agent's folders and, when it has none, its role and standing context. Its key is read through r.DB, which may be the
 // transaction that made its row.
 func (r *Roster) folders(name string, o RegisterOpts) (string, error) {
 	key, err := paths.AgentKeyIn(r.DB, name)
@@ -467,28 +469,32 @@ func (r *Roster) folders(name string, o RegisterOpts) (string, error) {
 			return "", err
 		}
 	}
-	rolePath := filepath.Join(d, "ROLE.md")
+	role := o.Role
+	if role == "" {
+		role = "(describe the role)"
+	}
+	role = "# " + name + "\n\n" + role
 	if o.RoleFile != "" {
 		b, err := os.ReadFile(expandUser(o.RoleFile))
 		if err != nil {
 			return "", refuse("--role-file not found: %s", expandUser(o.RoleFile))
 		}
-		if err := os.WriteFile(rolePath, b, 0o644); err != nil {
-			return "", err
-		}
-	} else if _, err := os.Stat(rolePath); err != nil {
-		role := o.Role
-		if role == "" {
-			role = "(describe the role)"
-		}
-		if err := os.WriteFile(rolePath, []byte("# "+name+"\n\n"+role+"\n"), 0o644); err != nil {
-			return "", err
-		}
+		role = string(b)
 	}
-	base := filepath.Join(d, "base.md")
-	if _, err := os.Stat(base); err != nil {
-		body := "# base - " + name + "\n\n(injected into every session, so it is fixed overhead.)\n"
-		if err := os.WriteFile(base, []byte(body), 0o644); err != nil {
+	by := o.By
+	if by == "" {
+		by = SeedActor
+	}
+	now := time.Now().Unix()
+	for _, p := range [][2]string{{db.PartRole, role}, {db.PartBase, "# base - " + name + "\n\n(injected into every session, so it is fixed overhead.)"}} {
+		was, err := db.CurrentInstruction(r.DB, key, p[0])
+		if err != nil {
+			return "", err
+		}
+		if was != nil && (p[0] == db.PartBase || o.RoleFile == "") {
+			continue // an agent made again keeps what it has, unless it is given a role
+		}
+		if _, err := db.SetInstruction(r.DB, key, p[0], p[1], by, o.Approver, now); err != nil {
 			return "", err
 		}
 	}

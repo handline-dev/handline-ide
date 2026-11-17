@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/handline/handline/go/data/db"
 	dbpkg "github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/data/team/teamtest"
@@ -294,6 +295,16 @@ func (r *rig) agentFile(agent, name string) string {
 	return string(b)
 }
 
+// agentPart is the agent's part in force (db.PartRole, db.PartBase), with who wrote it and who OK'd it.
+func (r *rig) agentPart(agent, part string) *db.Instruction {
+	key, _ := paths.AgentKeyIn(r.db, agent)
+	in, _ := db.CurrentInstruction(r.db, key, part)
+	if in == nil {
+		return &db.Instruction{}
+	}
+	return in
+}
+
 // strayFolders are the agent folders no agent row has, as a rolled-back add would leave.
 func (r *rig) strayFolders() []string {
 	entries, _ := os.ReadDir(paths.AgentsDir(r.home))
@@ -426,8 +437,8 @@ func TestAddRegistersTheAgentInItsWorkspace(t *testing.T) {
 	if !strings.Contains(r.rosterText(), "  eng.carol: {}") || team.NewRoster(r.home).RepoOf("eng.carol") != repo {
 		t.Fatalf("%s", r.rosterText())
 	}
-	if _, err := os.Stat(filepath.Join(paths.AgentDir(r.home, "eng.carol"), "ROLE.md")); err != nil {
-		t.Fatal("registered")
+	if in := r.agentPart("eng.carol", db.PartRole); in.Text == "" || in.Actor == team.SeedActor || in.Approver != actor.OwnerKey {
+		t.Fatalf("registered with a role by its proposer, with the founder's OK: %+v", in)
 	}
 	// the team named is the workspace its name says
 	p, id = r.propose("aaaa0013", "kind", "add", "agent", "dave", "team", "eng")
@@ -549,8 +560,8 @@ func TestContextScheduleGlobalAndSettingsAreAppliedAsProposed(t *testing.T) {
 	ctx, _ := json.Marshal("You are alice.\n")
 	p, id := r.propose("aaaa0007", "kind", "context", "agent", "alice", "set.ROLE.md", string(ctx))
 	r.decide(id, "approve", p.subject(), "f1")
-	if r.agentFile("alice", "ROLE.md") != "You are alice.\n" {
-		t.Fatalf("%q", r.agentFile("alice", "ROLE.md"))
+	if in := r.agentPart("alice", db.PartRole); in.Text != "You are alice." || in.Approver != actor.OwnerKey || in.Actor == "" {
+		t.Fatalf("%+v", in)
 	}
 	p, id = r.propose("aaaa0008", "kind", "schedule", "agent", "alice", "set.action", "add", "set.cron", "0 9 * * *", "set.message", "morning")
 	if res := r.decide(id, "approve", p.subject(), "f2"); !strings.Contains(r.settingsText("alice"), "morning") {
@@ -576,7 +587,7 @@ func TestAContextFileHasNoSizeLimit(t *testing.T) {
 	role := "# alice\n\n" + strings.Repeat("x", 3072) + "\n"
 	ctx, _ := json.Marshal(role)
 	p, id := r.propose("aaaa0010", "kind", "context", "agent", "alice", "set.ROLE.md", string(ctx))
-	if res := r.decide(id, "approve", p.subject(), "g1"); r.agentFile("alice", "ROLE.md") != role {
+	if res := r.decide(id, "approve", p.subject(), "g1"); r.agentPart("alice", db.PartRole).Text != strings.TrimSpace(role) {
 		t.Fatalf("a 3KB ROLE.md was not written: %v", res)
 	}
 }
@@ -969,7 +980,7 @@ func TestProposeWritesTheProposalFileAndRefusesWhatTheOldCLIRefused(t *testing.T
 		{`"kind":"add","args":{"name":"carol"},"why":"w"`, "carol needs a repo"},
 		{`"kind":"retire","args":{"name":"bob"},"why":" "`, "say why"},
 		{`"kind":"link","args":{"name":"alice","to":"bob"},"why":"w"`, `kind "link" is not raised this way`},
-		{`"kind":"context","args":{"name":"bob","sets":{"x.md":"t"}},"why":"w"`, "only ROLE.md and base.md"},
+		{`"kind":"context","args":{"name":"bob","sets":{"x.md":"t"}},"why":"w"`, "only ROLE.md, base.md and rules"},
 	} {
 		refusedWith(t, call(c.want[:3], c.params), c.want)
 	}

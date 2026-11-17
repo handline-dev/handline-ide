@@ -2,22 +2,21 @@ package reads
 
 import (
 	"database/sql"
-	"os"
-	"path/filepath"
 
+	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/addr"
-	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
-// fileInfo is a team.get file entry: its path and when it was last written, null when it cannot be read.
-func fileInfo(path string) map[string]any {
+// instructionInfo is a team.get role_file or base_file: no path (the text is in the database) and when its version in force was written,
+// null for none.
+func (e *Env) instructionInfo(key, part string) map[string]any {
 	var updated any
-	if st, err := os.Stat(path); err == nil {
-		updated = ts(st.ModTime().Unix())
+	if in, err := db.CurrentInstruction(e.DB, key, part); err == nil && in != nil {
+		updated = ts(in.At)
 	}
-	return map[string]any{"path": path, "updated": updated}
+	return map[string]any{"path": "", "updated": updated}
 }
 
 // teamGet is team.get: the agents of the caller's workspace (every agent for a person outside every workspace folder: the app), each
@@ -47,10 +46,9 @@ func (e *Env) teamGet(c *rpc.Conn, params map[string]any) (any, error) {
 	}
 	agents := []any{}
 	for _, k := range keys {
-		dir := paths.AgentDir(e.Home, k)
 		// reports_to stays null until clients stop reading it: agents are peers
 		agents = append(agents, map[string]any{"key": k, "name": addr.Name(e.DB, r, k), "role": e.roleLine(k), "reports_to": nil,
-			"role_file": fileInfo(filepath.Join(dir, "ROLE.md")), "base_file": fileInfo(filepath.Join(dir, "base.md"))})
+			"role_file": e.instructionInfo(k, db.PartRole), "base_file": e.instructionInfo(k, db.PartBase)})
 	}
 	people := []any{}
 	ids, err := e.DB.Query("SELECT id FROM people ORDER BY id")

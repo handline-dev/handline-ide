@@ -11,7 +11,7 @@ what changed and when.
   shared/mcp.json             optional MCP servers for every launch
   accounts/<name>/.claude/    one Claude config directory per account; credentials stay here
   accounts/<name>/status.json
-  agents/<name>/              ROLE.md  base.md  inbox/  journal/
+  agents/<key>/               inbox/  journal/  memory/
 ```
 
 `accounts/` and `logs/` are not tracked by git.
@@ -35,18 +35,24 @@ hl propose team shop --member sea --member shore --repo /Users/you/code/shop --w
 `hl propose` files a proposal for you to decide in the app's Proposals tab: an approve applies it at
 once and tells the agent that asked. `hl propose list` shows proposals and what became of them.
 
-## ROLE.md and base.md
+## Role, standing context and team rules
 
-Both are plain Markdown, and both have a size limit because they are sent with every session.
+An agent's role (ROLE.md) and standing context (base.md), and its workspace's rules, live in the daemon's
+database, one version per change with who wrote it, who OK'd it and when. Nothing edits them on disk: an
+agent proposes a whole new text with `hl propose context <agent> --role-file F`, `--base-file F` or
+`--rules-file F` (its workspace's rules), and the founder decides it. A running agent restarts with the
+new text at its next idle moment, and the chat's Restarted line says what changed and by whom.
 
-| File      | Limit | What goes in it                                                     |
-| --------- | ----- | ------------------------------------------------------------------- |
-| `ROLE.md` | 1 KB  | What this agent owns and what it does not. Start with one sentence. |
-| `base.md` | 2 KB  | Facts every session needs: paths, commands, conventions.            |
+Each has a size limit because it is sent with every session:
 
-The app warns when one is over its limit. If you are over, the content belongs in the repo's
-own docs, where the agent can read it when it needs it. Both files are loaded into every session,
-so everything in them costs usage every time.
+| Part              | Limit | What goes in it                                                     |
+| ----------------- | ----- | ------------------------------------------------------------------- |
+| role              | 1 KB  | What this agent owns and what it does not. Start with one sentence. |
+| standing context  | 2 KB  | Facts every session needs: paths, commands, conventions.            |
+| workspace rules   | 2 KB  | How the team works together.                                        |
+
+If you are over, the content belongs in the repo's own docs, where the agent can read it when it
+needs it.
 
 ## Accounts and limits
 

@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/handline/handline/go/accounts/usage"
 	cli "github.com/handline/handline/go/agentctl/agent"
@@ -19,7 +20,9 @@ import (
 	"github.com/handline/handline/go/data/states"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/data/team/teamtest"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/paths"
+	"github.com/handline/handline/go/kit/version"
 	"github.com/handline/handline/go/kit/yamlcompat"
 	"github.com/handline/handline/go/protocol/sessiontoken"
 	"github.com/handline/handline/go/scheduler/access"
@@ -584,10 +587,10 @@ func TestAnAgentIsToldItsTeamFromTheRoster(t *testing.T) {
 	}
 	r.l.Ports.Routing = func() *team.Team { return tm }
 	r.l.Ports.TeamRules = func(agent string) []string {
-		if err := team.SeedRules(home, tm); err != nil {
+		if err := team.SeedRules(r.l.Q, tm, 1); err != nil {
 			t.Fatal(err)
 		}
-		return team.Rules(home, agent, tm, func(string) string { return "" })
+		return team.Rules(r.l.Q, agent, tm, func(string) string { return "" })
 	}
 	context := func(agent string) string {
 		text, err := r.l.ContextFor(agent)
@@ -600,7 +603,8 @@ func TestAnAgentIsToldItsTeamFromTheRoster(t *testing.T) {
 		"Check main before you open work", "founder's own words"}
 	// A team that empties its rules file is not seeded again: it gets only the facts.
 	context(loneK)
-	if err := os.Remove(team.RulesFile(home, "lone")); err != nil {
+	lone, _ := paths.WorkspaceKeyIn(r.l.Q, "lone")
+	if _, err := db.SetInstruction(r.l.Q, lone, db.PartRules, "", "p1", "", 2); err != nil {
 		t.Fatal(err)
 	}
 	mgr, dev, scout := context(mgrK), context(devK), context(loneK)
@@ -854,8 +858,8 @@ func TestWhatChangedSaysOldAndNewValues(t *testing.T) {
 		}
 	}
 	set("claude-sonnet-5-5", "low")
-	os.WriteFile(filepath.Join(paths.AgentDir(r.l.Home, "ann"), "ROLE.md"), []byte("a new role"), 0o644)
-	if got, _, err := r.l.whatChanged("ann"); got != "model changed (m1 -> sonnet-5-5), effort changed (high -> low), ROLE.md changed" || err != nil {
+	r.setPart(t, db.PartRole, "a new role")
+	if got, _, err := r.l.whatChanged("ann"); got != "model changed on disk (m1 -> sonnet-5-5), effort changed on disk (high -> low), ROLE.md changed by the founder" || err != nil {
 		t.Fatalf("%q %v", got, err)
 	}
 	// A session recorded before values were kept: the hash says it changed, not from what.
@@ -867,11 +871,11 @@ func TestWhatChangedSaysOldAndNewValues(t *testing.T) {
 	b, _ := json.Marshal(old)
 	record(string(b))
 	set("m1", "high")
-	if got, _, _ := r.l.whatChanged("ann"); got != "ROLE.md changed" {
+	if got, _, _ := r.l.whatChanged("ann"); got != "ROLE.md changed by the founder" {
 		t.Fatalf("back to the old model and effort, only the role differs: %q", got)
 	}
 	set("m2", "high")
-	if got, _, _ := r.l.whatChanged("ann"); got != "model changed, ROLE.md changed" {
+	if got, _, _ := r.l.whatChanged("ann"); got != "model changed on disk, ROLE.md changed by the founder" {
 		t.Fatalf("%q", got)
 	}
 }
@@ -882,13 +886,8 @@ func TestWhatChangedNamesTheTeamRulesFile(t *testing.T) {
 	rules := "old rules"
 	r.l.Ports.TeamRules = func(string) []string { return []string{rules} }
 	r.l.Ports.Routing = func() *team.Team { return &team.Team{Teams: map[string][]string{"core": {"ann"}, "other": {"bob"}}} }
-	for _, name := range []string{"core", "other"} {
-		f := team.RulesFile(r.l.Home, name)
-		if err := os.MkdirAll(filepath.Dir(f), 0o755); err != nil || os.WriteFile(f, []byte("rules"), 0o644) != nil {
-			t.Fatal(err)
-		}
-	}
-	core, _ := filepath.Rel(r.l.Home, team.RulesFile(r.l.Home, "core"))
+	r.rulesOf(t, "rules", "core", "other")
+	core := "core"
 	rec, err := r.l.LaunchRecord("ann")
 	if err != nil {
 		t.Fatal(err)
@@ -922,8 +921,7 @@ func TestWhatChangedSaysTheLinesOfTheTextParts(t *testing.T) {
 	r := newLaunchRig(t)
 	rules := "# Rules\n- keep it short\n- reply in English"
 	r.l.Ports.TeamRules = func(string) []string { return []string{rules} }
-	role := filepath.Join(paths.AgentDir(r.l.Home, "ann"), "ROLE.md")
-	os.WriteFile(role, []byte("builds\nreviews"), 0o644)
+	r.setPart(t, db.PartRole, "builds\nreviews")
 	rec, err := r.l.LaunchRecord("ann")
 	if err != nil {
 		t.Fatal(err)
@@ -932,7 +930,7 @@ func TestWhatChangedSaysTheLinesOfTheTextParts(t *testing.T) {
 		t.Fatal(err)
 	}
 	rules = "# Rules\n- keep it short\n- reply in Korean"
-	os.WriteFile(role, []byte("builds\nreviews\ntests"), 0o644)
+	r.setPart(t, db.PartRole, "builds\nreviews\ntests")
 	_, lines, err := r.l.whatChanged("ann")
 	want := []LineChange{
 		{Part: "ROLE.md", Added: []string{"tests"}, Removed: []string{}, Text: "builds\nreviews\ntests"},
@@ -945,7 +943,7 @@ func TestWhatChangedSaysTheLinesOfTheTextParts(t *testing.T) {
 	// a whole text past textBytesMax is not kept, and the parts after it still are.
 	line := strings.Repeat("x", 1000)
 	n := textBytesMax/1000 + 1
-	os.WriteFile(filepath.Join(paths.AgentDir(r.l.Home, "ann"), "base.md"), []byte(strings.Repeat(line+"\n", n)), 0o644)
+	r.setPart(t, db.PartBase, strings.Repeat(line+"\n", n))
 	_, lines, _ = r.l.whatChanged("ann")
 	if len(lines) != 3 || lines[1].Part != "base.md" || len(lines[1].Added) != changedBytesMax/1000 || lines[1].More != n-changedBytesMax/1000 ||
 		len(lines[2].Added)+len(lines[2].Removed) != 0 || lines[2].More != 2 {
@@ -955,7 +953,7 @@ func TestWhatChangedSaysTheLinesOfTheTextParts(t *testing.T) {
 		t.Fatalf("texts kept: %q %d %q", lines[0].Text, len(lines[1].Text), lines[2].Text)
 	}
 	// Texts that fill textBytesMax exactly are all kept.
-	os.WriteFile(filepath.Join(paths.AgentDir(r.l.Home, "ann"), "base.md"), []byte(strings.Repeat("y", textBytesMax-len(lines[0].Text)-len(rules))), 0o644)
+	r.setPart(t, db.PartBase, strings.Repeat("y", textBytesMax-len(lines[0].Text)-len(rules)))
 	if _, lines, _ = r.l.whatChanged("ann"); lines[1].Text == "" || lines[2].Text != rules {
 		t.Fatalf("an exact fit: %d %q", len(lines[1].Text), lines[2].Text)
 	}
@@ -969,7 +967,7 @@ func TestWhatChangedSaysTheLinesOfTheTextParts(t *testing.T) {
 	if err := db.SetLaunchFingerprint(r.l.Q, "ann", "fp", string(b)); err != nil {
 		t.Fatal(err)
 	}
-	if got, lines, _ := r.l.whatChanged("ann"); got != "ROLE.md changed, base.md changed, team rules changed" || lines != nil {
+	if got, lines, _ := r.l.whatChanged("ann"); got != "ROLE.md changed by the founder, base.md changed by the founder, team rules changed" || lines != nil {
 		t.Fatalf("no texts kept: %q %+v", got, lines)
 	}
 }
@@ -984,7 +982,7 @@ func TestAStartKeepsWhatItsSettingsChanged(t *testing.T) {
 	if err := r.l.Roster.SetKeys("ann", []yamlcompat.Pair{{Key: "model", Val: "m2"}}); err != nil {
 		t.Fatal(err)
 	}
-	os.WriteFile(filepath.Join(paths.AgentDir(r.l.Home, "ann"), "base.md"), []byte("a new line"), 0o644)
+	r.setPart(t, db.PartBase, "a new line")
 	if err := r.l.keepWhatItStartsWith(&Site{}, "ann", []string{"--resume", "s1"}, "", "settings_applied", "the daemon"); err != nil {
 		t.Fatal(err)
 	}
@@ -993,7 +991,7 @@ func TestAStartKeepsWhatItsSettingsChanged(t *testing.T) {
 	if err := r.l.Q.QueryRow("SELECT changed, changed_lines, resumed FROM session_starts WHERE agent = 'ann'").Scan(&changed, &lines, &resumed); err != nil {
 		t.Fatal(err)
 	}
-	if changed != "model changed (m1 -> m2), base.md changed" || resumed != 1 ||
+	if changed != "model changed on disk (m1 -> m2), base.md changed by the founder" || resumed != 1 ||
 		lines != `[{"part":"base.md","added":["a new line"],"removed":[],"text":"a new line"}]` {
 		t.Fatalf("%q %q %d", changed, lines, resumed)
 	}
@@ -1222,5 +1220,46 @@ func TestALaunchPromptCarriesTheAgentsLessons(t *testing.T) {
 	}
 	if after, _ := r.l.Fingerprint("ann"); after != before {
 		t.Error("a lesson changed the fingerprint")
+	}
+}
+
+// A start names who changed each part: an agent's proposal the founder OK'd is one version with its diff, and the start says the part
+// and who; team instructions a newer build wrote are a Handline update.
+func TestAStartNamesWhoChangedEachPart(t *testing.T) {
+	r := newLaunchRig(t)
+	teamtest.Set(t, r.l.Home, "bob", "vendor", "claude")
+	r.setPart(t, db.PartRole, "builds")
+	rec, _ := r.l.LaunchRecord("ann")
+	if err := db.SetLaunchFingerprint(r.l.Q, "ann", "fp", rec); err != nil {
+		t.Fatal(err)
+	}
+	ann, bob := teamtest.Key(t, r.l.Home, "ann"), teamtest.Key(t, r.l.Home, "bob")
+	if _, err := db.SetInstruction(r.l.Q, ann, db.PartRole, "builds\nreviews", bob, actor.OwnerKey, time.Now().Unix()); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.l.keepWhatItStartsWith(&Site{}, "ann", []string{"--resume", "s1"}, "", "settings_applied", "the daemon"); err != nil {
+		t.Fatal(err)
+	}
+	var changed, lines string
+	if err := r.l.Q.QueryRow("SELECT changed, changed_lines FROM session_starts WHERE agent = 'ann'").Scan(&changed, &lines); err != nil {
+		t.Fatal(err)
+	}
+	if changed != "ROLE.md changed by bob with the founder's OK" || !strings.Contains(lines, `"added":["reviews"]`) {
+		t.Fatalf("%q %q", changed, lines)
+	}
+	hist, err := db.InstructionsAfter(r.l.Q, ann, db.PartRole, 0)
+	if err != nil || len(hist) != 2 || hist[1].Actor != bob || hist[1].Approver != actor.OwnerKey || hist[0].Text != "builds" || hist[1].Text != "builds\nreviews" {
+		t.Fatalf("history: %+v %v", hist, err)
+	}
+	var old map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(rec), &old); err != nil {
+		t.Fatal(err)
+	}
+	if got := r.l.changedBy("ann", "team instructions", old); got != "" {
+		t.Fatalf("the same build: %q", got)
+	}
+	old[LaunchedBuild] = json.RawMessage(`"0ldbuild"`)
+	if got := r.l.changedBy("ann", "team instructions", old); got != "by Handline update "+version.Sha {
+		t.Fatalf("a newer build: %q", got)
 	}
 }

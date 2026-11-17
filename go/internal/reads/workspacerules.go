@@ -3,8 +3,6 @@ package reads
 import (
 	"database/sql"
 	"errors"
-	"io/fs"
-	"os"
 
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/actor"
@@ -44,13 +42,11 @@ func (e *Env) workspaceRules(c *rpc.Conn, params map[string]any) (any, error) {
 	}
 	res := map[string]any{"rules": out}
 	if named {
-		size := int64(0)
-		if st, err := os.Stat(team.RulesFile(e.Home, actor.Key(actor.Workspace, ws))); err == nil {
-			size = st.Size()
-		} else if !errors.Is(err, fs.ErrNotExist) {
+		text, err := team.RulesText(e.DB, actor.Key(actor.Workspace, ws))
+		if err != nil {
 			return nil, err
 		}
-		res["text_bytes"], res["limit_bytes"] = size, team.RulesTextLimit
+		res["text_bytes"], res["limit_bytes"] = len(text), team.RulesTextLimit
 	}
 	return res, nil
 }

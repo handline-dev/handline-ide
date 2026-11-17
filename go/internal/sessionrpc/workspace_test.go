@@ -31,8 +31,8 @@ func TestWorkspaceCreateMakesItsLeadOnTheCheckoutTopAndStartsIt(t *testing.T) {
 	if team.NewRoster(r.e.Home).RepoOf("shop") != repo {
 		t.Fatalf("the workspace's folder is the top of its checkout")
 	}
-	if _, err := os.Stat(team.RulesFile(r.e.Home, paths.WorkspaceKey(r.e.Home, "shop"))); err != nil {
-		t.Fatalf("its rules are seeded: %v", err)
+	if text, err := team.RulesText(r.e.DB, "shop"); err != nil || text == "" {
+		t.Fatalf("its rules are seeded: %q %v", text, err)
 	}
 	if last := sn.got[len(sn.got)-1]; last["kind"] != "workspace.create" || last["agent"] != "shop" || last["state"] != "done" {
 		t.Fatalf("the operations topic tells it as workspace.create: %v", last)

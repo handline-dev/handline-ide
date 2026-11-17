@@ -66,7 +66,7 @@ task for the auditor, waits, and on a PASS opens a merge task. See
 
 ## Keep fixed text small
 
-`ROLE.md` (1 KB) and `base.md` (2 KB) go into every session. Put things that change or that only
+An agent's role (1 KB) and standing context (2 KB) go into every session. Put things that change or that only
 some tasks need in the repo's docs, and tell the agent where to look.
 
 ## Decisions that are yours

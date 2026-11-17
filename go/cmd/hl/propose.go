@@ -56,7 +56,7 @@ func proposalPropose(c *hlclient.Client, kind string, args []string) (int, bool)
 	case "add":
 		valued = append(valued, "--team", "--repo", "--model", "--effort", "--vendor")
 	case "context":
-		valued = append(valued, "--role-file", "--base-file")
+		valued = append(valued, "--role-file", "--base-file", "--rules-file")
 	case "rename":
 		valued = append(valued, "--to", "--team")
 	case "team":
@@ -119,7 +119,7 @@ func proposalPropose(c *hlclient.Client, kind string, args []string) (int, bool)
 	}
 	if kind == "context" {
 		sets := map[string]any{}
-		for _, f := range [][2]string{{"ROLE.md", "--role-file"}, {"base.md", "--base-file"}} {
+		for _, f := range [][2]string{{"ROLE.md", "--role-file"}, {"base.md", "--base-file"}, {"rules", "--rules-file"}} {
 			if path, ok := p.opt(f[1]); ok && path != "" {
 				path = expandHome(path)
 				b, err := os.ReadFile(path)
