@@ -107,7 +107,8 @@ func (p *Poller) Due(acct string, st *usage.AccountStatus, now int64) string {
 	return ""
 }
 
-func (p *Poller) backoff(acct string, now int64) {
+// backoff waits the account out longer after each failure in a row; why, when known, is what the failure said.
+func (p *Poller) backoff(acct string, now int64, why string) {
 	var streak int64
 	if v, _, err := db.Meta(p.DB, "usage-fail:"+acct); err == nil {
 		streak, _ = strconv.ParseInt(v, 10, 64)
@@ -122,7 +123,10 @@ func (p *Poller) backoff(acct string, now int64) {
 	}
 	_ = db.SetMeta(p.DB, "usage-fail:"+acct, strconv.FormatInt(streak, 10))
 	_ = db.SetCursor(p.DB, "usage-poll:"+acct, now+wait)
-	p.logf("  usage: %s: could not ask (next try in %ds)", acct, wait)
+	if why != "" {
+		why = ": " + why
+	}
+	p.logf("  usage: %s: could not ask (next try in %ds)%s", acct, wait, why)
 }
 
 func (p *Poller) succeeded(acct string, now int64) {
@@ -205,7 +209,7 @@ func (p *Poller) pollAccount(ctx context.Context, acct string, now int64) bool {
 	if r == nil {
 		// The real turn waits out the backoff, so pressing retry on a failing account does not spend one per press.
 		if backedOff {
-			p.backoff(acct, now)
+			p.backoff(acct, now, "")
 			return false
 		}
 		ok, msg := p.Recover(acct)
@@ -214,7 +218,7 @@ func (p *Poller) pollAccount(ctx context.Context, acct string, now int64) bool {
 			p.logf("  usage: %s", msg)
 			return true
 		}
-		p.backoff(acct, now)
+		p.backoff(acct, now, msg)
 		return false
 	}
 	if label, reset, ended := EndedWindow(st, r, now); ended {
@@ -223,12 +227,14 @@ func (p *Poller) pollAccount(ctx context.Context, acct string, now int64) bool {
 			// A stale reading can still report success right up to the boundary, and nothing else forces the account to roll over: spend
 			// the same real turn a dead token gets. A refusal is not a failure of this poll, the reading just fetched stands. Once per
 			// reset, so a server that keeps naming the old one does not get a turn on every poll.
-			if ok, msg := p.Recover(acct); ok {
+			ok, msg := p.Recover(acct)
+			if ok {
 				_ = db.SetMeta(p.DB, key, strconv.FormatInt(reset, 10))
 				p.succeeded(acct, now)
 				p.logf("  usage: %s", msg)
 				return true
 			}
+			p.logf("  usage: %s: the turn past the reset did not run: %s", acct, msg)
 		}
 	}
 	p.succeeded(acct, now)
