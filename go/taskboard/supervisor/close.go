@@ -297,11 +297,9 @@ func (e *Env) ResolveTell(q db.Q, r *Resolved) (string, error) {
 		}
 		applied = line
 		if report != "" {
-			after := &After{}
-			if _, err := e.Report(q, after, r.Row.Requester, report, "proposal approved, apply failed"); err != nil {
+			if _, err := e.Report(q, r.Row.Requester, report, "proposal approved, apply failed"); err != nil {
 				return "", err
 			}
-			after.Run()
 		}
 	}
 	msg, err := e.AfterClose(q, r.In.RID, r.Row, r.State)

@@ -201,7 +201,7 @@ func (p *Parts) Lifecycle(cfg Config, lc LifecycleConfig) *Lifecycle {
 			v.RefreshOne(agent)
 		}
 	}
-	p.LC.Mover = p.newMover(m, uenv, lc.Env, func() int64 { return nowOf(cfg.Now)().Unix() })
+	p.LC.Mover = p.newMover(m, uenv, lc.Env)
 	return p.LC
 }
 
@@ -375,12 +375,8 @@ func (a agentsPort) MeasureBegin(q db.Q, agent, account string) {
 
 // RaiseDecision puts a decision in front of the founder about an agent: a task of theirs with the request as its card.
 func (a agentsPort) RaiseDecision(q db.Q, agent, text, reason string) error {
-	var after supervisor.After
-	if _, err := a.env.RaiseDecision(q, &after, agent, text, reason, "", "", 0, 0); err != nil {
-		return err
-	}
-	after.Run()
-	return nil
+	_, err := a.env.RaiseDecision(q, agent, text, reason, "", "", 0, 0)
+	return err
 }
 
 func (a agentsPort) VendorName(agent string) string {

@@ -122,7 +122,8 @@ func inbox(c *hlclient.Client, args []string) (int, bool) {
 		return 0, true
 	}
 	if agent == hlclient.Human {
-		return humanInbox(got, all), true
+		humanInbox(got, all)
+		return 0, true
 	}
 	if all {
 		hist := list(got, "history")
@@ -169,11 +170,11 @@ func refusedListing() string {
 }
 
 // humanInbox is the founder's mailbox (cli/ask._human_inbox).
-func humanInbox(got map[string]any, showAll bool) int {
+func humanInbox(got map[string]any, showAll bool) {
 	lines := list(got, "lines")
 	if len(lines) == 0 && !showAll {
 		fmt.Println("nothing needs you")
-		return 0
+		return
 	}
 	fmt.Printf("%d waiting. `hl read <id>` shows one whole.\n", num(got, "waiting"))
 	for _, m := range lines {
@@ -199,7 +200,6 @@ func humanInbox(got map[string]any, showAll bool) int {
 			fmt.Printf("  %-12s %s %s %s %s\n", str(r, "name"), arrow, pad(str(r, "agent"), 12), pad(str(r, "state"), 9), textsafe.Oneline(str(r, "line")))
 		}
 	}
-	return 0
 }
 
 var neverAnswered = map[string]string{"denied": "refused", "withdrawn": "withdrawn", "replaced": "replaced"}
@@ -348,7 +348,7 @@ func teamCmd(c *hlclient.Client, args []string) (int, bool) {
 		if contacts[k] {
 			rel = "contact"
 		}
-		rows = append(rows, row{str(a, "name"), rel, doing(k, lines[k])})
+		rows = append(rows, row{str(a, "name"), rel, doing(lines[k])})
 		names = append(names, str(a, "name"))
 	}
 	w := nameCol(names)
@@ -383,7 +383,7 @@ func teamCmd(c *hlclient.Client, args []string) (int, bool) {
 }
 
 // doing is one line on what an agent is doing, from its agents.list status line ("?" when the daemon gave none).
-func doing(agent string, line map[string]any) string {
+func doing(line map[string]any) string {
 	if line == nil {
 		return "?"
 	}

@@ -71,7 +71,7 @@ func (e *Env) sendAsk(a *db.TaskAsk, t *db.Task) {
 			body += "\n\n" + DigestText(tx, rows)
 			check(db.MarkNoticesDigested(tx, requestIDs(rows)))
 		}
-		rid = e.queueSay(tx, a.To, body, a.Kind)
+		rid = e.queueSay(tx, a.To, body)
 		check(db.MarkAskSent(tx, a, rid))
 		check(tx.Commit())
 	}()

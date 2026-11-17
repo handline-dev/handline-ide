@@ -13,7 +13,7 @@ import (
 )
 
 // newMover is the handoff and the move over what the daemon owns: the usage readings, the note, and the structured sessions.
-func (p *Parts) newMover(m *lifecycle.Manager, uenv *usage.Env, env *supervisor.Env, now func() int64) *lifecycle.Mover {
+func (p *Parts) newMover(m *lifecycle.Manager, uenv *usage.Env, env *supervisor.Env) *lifecycle.Mover {
 	tu := tickUsage{p: p, u: uenv}
 	ho := func() interface {
 		Hold(agent string, now int64) (bool, error)

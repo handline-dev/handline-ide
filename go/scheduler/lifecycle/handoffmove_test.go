@@ -31,7 +31,7 @@ type moveLaunch struct {
 	fitOnly         []bool // what each RoomElsewhere was asked
 }
 
-func (l *moveLaunch) RoomElsewhere(_ db.Q, _ string, _ *db.AgentState, ex map[string]string, fitOnly bool) (string, string) {
+func (l *moveLaunch) RoomElsewhere(_ db.Q, _ string, ex map[string]string, fitOnly bool) (string, string) {
 	l.excluded = ex
 	l.fitOnly = append(l.fitOnly, fitOnly)
 	if l.asked++; l.asked > 1 && l.next != nil {

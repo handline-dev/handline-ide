@@ -203,7 +203,7 @@ func projects(text []byte) (top object, p *member, err error) {
 	if top, err = parseObject(text, skipWS(text, 0)); err != nil {
 		return
 	}
-	p = top.get(text, "projects")
+	p = top.get("projects")
 	if p != nil && text[p.valStart] != '{' {
 		err = errors.New("projects is not an object")
 	}
@@ -219,7 +219,7 @@ func isTrusted(text []byte, key string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	e := ps.get(text, key)
+	e := ps.get(key)
 	if e == nil || text[e.valStart] != '{' {
 		return false, nil
 	}
@@ -227,7 +227,7 @@ func isTrusted(text []byte, key string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	t := entry.get(text, trustKey)
+	t := entry.get(trustKey)
 	return t != nil && string(text[t.valStart:t.valEnd]) == "true", nil
 }
 
@@ -244,7 +244,7 @@ func trust(text []byte, key string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	e := ps.get(text, key)
+	e := ps.get(key)
 	if e == nil {
 		return ps.insert(text, key, fresh), nil
 	}
@@ -255,7 +255,7 @@ func trust(text []byte, key string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if t := entry.get(text, trustKey); t != nil {
+	if t := entry.get(trustKey); t != nil {
 		return splice(text, t.valStart, t.valEnd, "true"), nil
 	}
 	return entry.insert(text, trustKey, "true"), nil
@@ -274,7 +274,7 @@ type member struct {
 }
 
 // get is the member under key: the last one, as JSON.parse keeps it.
-func (o object) get(text []byte, key string) *member {
+func (o object) get(key string) *member {
 	for i := len(o.members) - 1; i >= 0; i-- {
 		if o.members[i].key == key {
 			return &o.members[i]
