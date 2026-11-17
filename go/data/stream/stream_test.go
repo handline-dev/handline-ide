@@ -371,3 +371,14 @@ func TestAStampedReadCarriesTheNewestFromBeforeItRan(t *testing.T) {
 		t.Fatalf("cursor %v, want %d (the newest before the read)", got, before)
 	}
 }
+
+func TestSubscribedIsWhetherAConnectionHasTheTopic(t *testing.T) {
+	h, _ := rig(t)
+	if h.Subscribed("accounts") {
+		t.Fatal("subscribed with no connection")
+	}
+	subscribe(t, h, []string{"tasks"}, "", nil, nil)
+	if h.Subscribed("accounts") || !h.Subscribed("tasks") {
+		t.Fatal("Subscribed does not follow the subscribers' topics")
+	}
+}

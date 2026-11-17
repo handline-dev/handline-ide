@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { type RpcError } from '@handline/client';
+import { type Event, type RpcError } from '@handline/client';
 import { setup } from '#src/helpers.ts';
 
 test('account.read_usage accepts a logged-in account, refuses one that needs a login or is STALLED (state), and an unknown one is not_found', async () => {
@@ -29,5 +29,29 @@ test('account.set paused lists the account paused, with no new agent and not pic
   await client.call('account.set', { account: 'alpha', paused: false, request_id: 'p2' });
   assert.equal(row().paused, false);
   assert.notEqual(row().not_picked?.kind, 'paused');
+  client.close();
+});
+
+test('a move in an account usage is an account.changed with the usage fields and no email', async () => {
+  const { client, daemon } = setup();
+  await client.start();
+  const seen: Event[] = [];
+  client.onEvent((e) => e.topic === 'accounts' && seen.push(e));
+  await client.subscribe(['accounts']);
+  daemon.accounts.usageMoved('alpha', {
+    five_hour: { used_pct: 93, resets_at: daemon.accounts.list().accounts[0]!.five_hour!.resets_at, source: 'measured' },
+    assignable: false,
+    assign_reason: '5h 93% at last reading',
+  });
+  await client.call('accounts.list', {}); // the event goes out before this reply
+  assert.equal(seen.length, 1);
+  const a = seen[0]!.data as Record<string, unknown>;
+  assert.equal(a.name, 'alpha');
+  assert.equal((a.five_hour as { used_pct: number }).used_pct, 93);
+  assert.equal(a.assignable, false);
+  assert.equal(a.plan, 'pro');
+  assert.equal(typeof a.agents_running, 'number');
+  assert.equal('email' in a, false);
+  assert.equal(daemon.accounts.list().accounts.find((x) => x.name === 'alpha')?.assignable, false);
   client.close();
 });
