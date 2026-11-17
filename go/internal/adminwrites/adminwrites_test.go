@@ -355,3 +355,20 @@ func TestAccountSetPausesAndResumesAnAccount(t *testing.T) {
 		t.Fatal("paused is true or false")
 	}
 }
+
+func TestTheDefaultModelAndEffortPerVendor(t *testing.T) {
+	r := newRig(t)
+	r.result(r.one("settings.set", `{"changes":{"default_model_claude":"opus","default_effort_codex":"xhigh","default_model_codex":"gpt-5.1-codex"},"request_id":"d1"}`))
+	if got := r.file("config.yaml"); !strings.Contains(got, "default_model_claude: opus") || !strings.Contains(got, "default_effort_codex: xhigh") {
+		t.Fatalf("%q", got)
+	}
+	for i, bad := range []string{`{"default_effort_claude":"huge"}`, `{"default_model_claude":"two words"}`, `{"default_model_codex":""}`, `{"default_model_codex":"--yolo"}`,
+		`{"default_model_opencode":"x"}`} {
+		if r.code(r.one("settings.set", `{"changes":`+bad+`,"request_id":"d`+strconv.Itoa(i+2)+`"}`)) != "bad_request" {
+			t.Fatalf("%s was taken", bad)
+		}
+	}
+	if r.code(r.one("settings.set", `{"changes":{"default_model_claude":"haiku"},"agent":"alice","request_id":"d9"}`)) != "bad_request" {
+		t.Fatal("a default for new agents has no per-agent value")
+	}
+}

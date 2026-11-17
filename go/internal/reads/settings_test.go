@@ -169,3 +169,17 @@ func TestTheLoadLimitsShowTheirDefaultsAndWhatIsSet(t *testing.T) {
 		t.Fatalf("set: %v %v %v %v", v["host_active_cap"], v["load_per_core_pct"], v["browser_max"], v["port_range"])
 	}
 }
+
+func TestTheDefaultModelAndEffortShowTheBuiltInsAndWhatIsSet(t *testing.T) {
+	t.Parallel()
+	e := &Env{Home: t.TempDir()}
+	v := e.settingsValues()
+	if v["default_model_claude"] != "sonnet" || v["default_effort_claude"] != "medium" || v["default_model_codex"] != "" ||
+		v["default_effort_codex"] != "medium" {
+		t.Fatalf("%v", v)
+	}
+	os.WriteFile(paths.ConfigFile(e.Home), []byte("default_model_codex: gpt-5.1-codex\ndefault_effort_claude: max\n"), 0o644)
+	if v := e.settingsValues(); v["default_model_codex"] != "gpt-5.1-codex" || v["default_effort_claude"] != "max" {
+		t.Fatalf("%v", v)
+	}
+}

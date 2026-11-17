@@ -424,6 +424,14 @@ export type SettingsValues = {
   port_range?: string | null;
   /** Hosts the network listener serves, from connection.addresses, each on the -listen port: a door on each of their addresses, made again within seconds when the setting or the interfaces change (no restart). The web page is served on each. null (the default) serves -listen alone; [] serves none. A host the machine has no address for now is served when it has one again. A write answers unreachable_devices: the paired devices whose host is no longer served. */
   network_addresses?: string[] | null;
+  /** The model a new claude agent gets when it is made without one: an agent.options model alias or a full model id, passed to the CLI as is. One word, not starting with -. Existing agents keep theirs. null puts back the default. */
+  default_model_claude?: string;
+  /** The effort a new claude agent gets when it is made without one. Existing agents keep theirs. null puts back the default. */
+  default_effort_claude?: "low" | "medium" | "high" | "xhigh" | "max";
+  /** The model a new codex agent (one hired by proposal; agent.create makes claude agents) gets when it is made without one, passed to codex as is. One word, not starting with -. Default "": codex's own default. Existing agents keep theirs. null puts back the default. */
+  default_model_codex?: string;
+  /** The effort a new codex agent gets when it is made without one; codex runs xhigh and max as high. Existing agents keep theirs. null puts back the default. */
+  default_effort_codex?: "low" | "medium" | "high" | "xhigh" | "max";
 };
 
 /** settings.set's changes: any of SettingsValues' keys; null removes one. */

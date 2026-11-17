@@ -47,7 +47,12 @@ const DEFAULTS: Settings['values'] = {
   network_addresses: null,
   keep_awake: 'off',
   reap_orphans: 'dry',
+  default_model_claude: 'sonnet',
+  default_effort_claude: 'medium',
+  default_model_codex: '',
+  default_effort_codex: 'medium',
 };
+const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'];
 
 export class FakeAdmin {
   readonly worktrees: FakeWorktrees;
@@ -271,6 +276,10 @@ export class FakeAdmin {
         throw badRequest('keep_awake is off, on or working', 'keep_awake');
       if (key === 'reap_orphans' && value !== null && value !== 'dry' && value !== 'on' && value !== 'off')
         throw badRequest('reap_orphans is dry, on or off', 'reap_orphans');
+      if (key.startsWith('default_effort_') && value !== null && !EFFORTS.includes(value as string))
+        throw badRequest(`${key} is one of ${EFFORTS.join(', ')}`, key);
+      if (key.startsWith('default_model_') && value !== null && (typeof value !== 'string' || !/^(?!-)[^\s'"]{1,100}$/.test(value)))
+        throw badRequest(`${key} is a model name of at most 100 characters, no spaces, not starting with -`, key);
       const values = this.values as Record<string, unknown>;
       if (value === null) {
         values[key] = structuredClone(DEFAULTS[key as keyof typeof DEFAULTS]);
