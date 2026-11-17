@@ -55,6 +55,7 @@ var settingKinds = map[string]string{"park_timeout_s": int0, "handoff_note": fla
 	settings.AttentionWaitKey: int1, settings.AttentionQuietKey: int1, settings.AttentionSentBackKey: int1,
 	settings.BlockerAlarmKey: flag_, settings.BlockerAlarmHoldKey: int1, settings.BlockerAlarmOpenerKey: int1, settings.PlansKey: split,
 	"push_prompt_asked": flag_, "push_task_done": flag_, "push_stall": flag_, "push_account_out": flag_,
+	"push_only_away": flag_, "push_sound": flag_,
 	keepawake.Key: awake, housekeeping.OrphansKey: reaper,
 	loadgate.AgentCapKey: int0, loadgate.LoadPctKey: int0, loadgate.RAMFreePctKey: pct, loadgate.DiskFreeGBKey: int0,
 	usage.PaceTargetKey: tgt, usage.PaceBurstKey: burst, usage.SubagentGuardKey: flag_, usage.MoveBeforeKey: pct, usage.SplitKey: split,

@@ -204,7 +204,7 @@ func TestThePortRangeIsWrittenAsLoHiAndRefusedOtherwise(t *testing.T) {
 }
 
 func TestEveryPushSwitchIsAFounderFlagForTheWholeTeam(t *testing.T) {
-	for _, key := range []string{"push_prompt_asked", "push_task_done", "push_stall", "push_account_out"} {
+	for _, key := range []string{"push_prompt_asked", "push_task_done", "push_stall", "push_account_out", "push_only_away", "push_sound"} {
 		r := newRig(t)
 		r.result(r.one("settings.set", `{"changes":{"`+key+`":false},"request_id":"p1"}`))
 		if !strings.Contains(r.file("config.yaml"), key+": false") {

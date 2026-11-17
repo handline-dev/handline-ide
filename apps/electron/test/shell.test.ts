@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { Event } from '@handline/client';
-import { setup, until } from '@handline/fake-daemon/helpers';
+import { flush, setup, until } from '@handline/fake-daemon/helpers';
 import { Desk, type Feed, type Ports } from '#src/desk.ts';
 import { badgeText, noticeFor, suppressed, type Notice } from '#src/notices.ts';
 import { serveDir } from '#src/serve.ts';
@@ -105,6 +105,7 @@ test('the desk subscribes to proposals and raises a notice for proposal.raised o
   handlers.event!(proposal({ cursor: 2 }));
   handlers.event!(proposal({ cursor: 3, type: 'proposal.settled' }));
   handlers.event!(proposal({ cursor: 2 })); // a replayed cursor is not raised twice
+  await flush();
   assert.deepEqual(log.notices, ['Proposal']);
   log.clicks[0]!();
   assert.deepEqual(
@@ -152,8 +153,8 @@ function ports() {
   };
   const p: Ports = {
     setBadge: (t, n) => log.badge.push(n === 0 || t === String(n) ? t : `${t}/${n}`),
-    notify: (n, click) => {
-      log.notices.push(n.title);
+    notify: (n, click, silent) => {
+      log.notices.push(silent ? `${n.title} (silent)` : n.title);
       log.clicks.push(click);
     },
     screen: () => log.screen,
@@ -312,6 +313,24 @@ test('a push switch that is off holds back that notice only, from the next event
   await client.call('settings.set', { changes: { push_task_done: true } });
   daemon.emit('notifications', 'task_done', { agent: 'handline.pc', data: { task: 3 } });
   await until(() => log.notices.length === 3, 'the switch back on');
+  desk.stop();
+  client.close();
+});
+
+test('only while away holds back every notice while the window is focused, and sound off makes the notice silent', async () => {
+  const { daemon, client } = setup();
+  const { log, p } = ports();
+  await client.start();
+  const desk = new Desk(client, p);
+  await desk.start();
+  await client.call('settings.set', { changes: { push_only_away: true, push_sound: false } });
+  log.screen = { focused: true, agent: 'handline.other' };
+  daemon.emit('notifications', 'task_done', { agent: 'handline.pc', data: { task: 1 } });
+  await flush();
+  log.screen = { focused: false, agent: null };
+  daemon.emit('notifications', 'task_done', { agent: 'handline.pc', data: { task: 2 } });
+  await until(() => log.notices.length === 1, 'the notice while away');
+  assert.deepEqual(log.notices, ['Task 2 done (silent)']);
   desk.stop();
   client.close();
 });

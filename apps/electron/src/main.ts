@@ -465,9 +465,9 @@ if (!app.requestSingleInstanceLock({ background })) {
         if (app.dock) app.dock.setBadge(t);
         else app.setBadgeCount(n);
       },
-      notify: (n, onClick) => {
+      notify: (n, onClick, silent) => {
         if (background) return;
-        const notice = new Notification({ title: n.title, body: n.body });
+        const notice = new Notification({ title: n.title, body: n.body, silent });
         notice.on('click', onClick);
         notice.show();
       },

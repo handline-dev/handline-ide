@@ -19,6 +19,8 @@ const KEYS = [
   'push_task_done',
   'push_stall',
   'push_account_out',
+  'push_only_away',
+  'push_sound',
   'account_split',
   'plans',
   'pace_target_pct',

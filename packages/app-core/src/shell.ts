@@ -17,6 +17,8 @@ export const PAGE_SETTINGS = [
   'push_task_done',
   'push_stall',
   'push_account_out',
+  'push_only_away',
+  'push_sound',
   // the status bar's resource area
   'host_active_cap',
   'keep_awake',

@@ -384,6 +384,10 @@ export type SettingsValues = {
   push_stall?: boolean;
   /** Whether a notifications `account_out` event (an account is out) raises a notice on the founder's devices. The event is on the topic and in events.feed either way; the shell that raises notices reads this. */
   push_account_out?: boolean;
+  /** Notices only while no Handline window is in front; off, the default, holds back only a notice about the agent on screen in a focused window. The shell that raises notices reads this. */
+  push_only_away?: boolean;
+  /** Whether a notice plays the system sound. The shell that raises notices reads this. */
+  push_sound?: boolean;
   /** Most agents mid-turn at once on this machine, over every account; 0 is no limit. Over it the daemon starts no new work (status reason load). */
   host_active_cap?: number;
   /** Most 1-minute load per core, in percent (150 is 1.5 per core); 0 is off, the default (the limits wait for a limit based on what an agent's processes use). Over it the daemon starts no new work. */
@@ -478,6 +482,10 @@ export type SettingsChanges = {
   push_stall?: boolean | null;
   /** Whether a notifications `account_out` event (an account is out) raises a notice on the founder's devices. The event is on the topic and in events.feed either way; the shell that raises notices reads this. null removes the key (back to the default). */
   push_account_out?: boolean | null;
+  /** Notices only while no Handline window is in front; off, the default, holds back only a notice about the agent on screen in a focused window. The shell that raises notices reads this. null removes the key (back to the default). */
+  push_only_away?: boolean | null;
+  /** Whether a notice plays the system sound. The shell that raises notices reads this. null removes the key (back to the default). */
+  push_sound?: boolean | null;
   /** Most agents mid-turn at once on this machine, over every account; 0 is no limit. Over it the daemon starts no new work (status reason load). null removes the key (back to the default). */
   host_active_cap?: number | null;
   /** Most 1-minute load per core, in percent (150 is 1.5 per core); 0 is off, the default (the limits wait for a limit based on what an agent's processes use). Over it the daemon starts no new work. null removes the key (back to the default). */

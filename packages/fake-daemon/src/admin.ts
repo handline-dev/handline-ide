@@ -32,6 +32,8 @@ const DEFAULTS: Settings['values'] = {
   push_task_done: true,
   push_stall: true,
   push_account_out: true,
+  push_only_away: false,
+  push_sound: true,
   account_split: 'auto',
   plans: 'auto',
   pace_target_pct: 98,

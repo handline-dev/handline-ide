@@ -66,9 +66,17 @@ describe('Settings > Notifications', () => {
   it('turns one kind off for every device, the others staying on by default', async () => {
     await mount(<NotificationsTab />);
     const sw = [...el.querySelectorAll('[role=switch]')];
-    expect(sw.map((s) => s.getAttribute('aria-checked'))).toEqual(['true', 'true', 'true', 'true']);
+    expect(sw.map((s) => s.getAttribute('aria-checked'))).toEqual(['true', 'true', 'true', 'true', 'false', 'true']);
     await act(async () => (sw[2] as HTMLElement).click());
     expect(set).toHaveBeenCalledWith({ changes: { push_stall: false } });
+  });
+  it('sets notices to show only when Handline is not in front, and turns the sound off', async () => {
+    await mount(<NotificationsTab />);
+    const sw = [...el.querySelectorAll('[role=switch]')];
+    await act(async () => (sw[4] as HTMLElement).click());
+    expect(set).toHaveBeenCalledWith({ changes: { push_only_away: true } });
+    await act(async () => (sw[5] as HTMLElement).click());
+    expect(set).toHaveBeenCalledWith({ changes: { push_sound: false } });
   });
   it('offers to allow the browser, and sends no test before it is allowed', async () => {
     await mount(<NotificationsTab />);

@@ -9,7 +9,8 @@ export type Feed = Pick<DaemonClient, 'onEvent' | 'onGap' | 'onState' | 'subscri
 export interface Ports {
   /** `text` is the badge ('99+' past two digits), `count` the exact number the tray line shows. */
   setBadge(text: string, count: number): void;
-  notify(n: Notice, onClick: () => void): void;
+  /** `silent`: no system sound. */
+  notify(n: Notice, onClick: () => void, silent: boolean): void;
   screen(): { focused: boolean; agent: string | null };
   /** A notice was clicked: show the window, and take the page to the notice's target if it has one. */
   open(n: Notice): void;
@@ -95,20 +96,22 @@ export class Desk {
     const n = noticeFor(e);
     if (!n || this.seen.has(e.cursor)) return;
     this.seen.add(e.cursor);
-    if (suppressed(n, this.ports.screen())) return;
+    const screen = this.ports.screen();
+    if (suppressed(n, screen)) return;
     const key = PUSH_KEY[n.event as keyof typeof PUSH_KEY];
-    const notify = () => this.ports.notify(n, () => this.ports.open(n));
-    if (!key) return notify();
-    void this.pushedOn(key).then((on) => on && notify());
+    void this.values().then((v) => {
+      if (key && v[key] === false) return;
+      if (v.push_only_away === true && screen.focused) return;
+      this.ports.notify(n, () => this.ports.open(n), v.push_sound === false);
+    });
   }
 
   /** Read at each notice, so a switch turned off in the page holds back the next one; a daemon that does not answer or has no key raises it as before. */
-  private async pushedOn(key: (typeof PUSH_KEY)[keyof typeof PUSH_KEY]): Promise<boolean> {
+  private async values(): Promise<Record<string, unknown>> {
     try {
-      const values = (await this.client.call('settings.get', {})).values as Record<string, unknown> | undefined;
-      return values?.[key] !== false;
+      return ((await this.client.call('settings.get', {})).values as Record<string, unknown> | undefined) ?? {};
     } catch {
-      return true;
+      return {};
     }
   }
 }
