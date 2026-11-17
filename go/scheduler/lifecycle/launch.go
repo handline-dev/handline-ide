@@ -890,11 +890,19 @@ func (l *Launcher) worktreesLine(agent string) (string, error) {
 		len(extra)+1, first, strings.Join(extra, ", "), verb), nil
 }
 
+// youAre is the prompt's first line: the agent's name, and its name as $HANDLINE_AGENT holds it when that is qualified by its workspace.
+func youAre(name, handle string) string {
+	if handle == name {
+		return fmt.Sprintf("You are `%s`, one agent in a Handline team. Your name is also in $HANDLINE_AGENT.", name)
+	}
+	return fmt.Sprintf("You are `%s`, one agent in a Handline team; outside your workspace you are `%s`, as $HANDLINE_AGENT holds it.", name, handle)
+}
+
 // staticPreamble is the part of ContextFor that a rebuild reproduces byte for byte, but for the team rules: everything except the
 // handoff, which is supposed to differ every time this agent is parked. Fingerprint hashes it; the rules follow it in ContextFor.
 func (l *Launcher) staticPreamble(agent string) (string, error) {
 	parts := []string{
-		fmt.Sprintf("You are `%s`, one agent in a Handline team.", addr.For(l.Q, agent, agent)),
+		youAre(addr.For(l.Q, agent, agent), paths.AgentHandle(l.Home, agent)),
 		"Stay inside your own worktree. To read another branch's version of a file, use `git show <ref>:<path>` - it needs nothing outside the worktree. Copying a file out to /tmp to read it stops you on a permission prompt only a human can answer, and you will sit there until one does.",
 		"On a long request, keep `hl progress \"done: ... left: ...\"` current: your handoff carries it to the session that takes over.",
 	}
