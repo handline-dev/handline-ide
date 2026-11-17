@@ -2,9 +2,10 @@
 
 True for any agent, whatever tool runs it. Your name is in `$HANDLINE_AGENT`.
 
-<!-- protocol: terminal ends progress wait review founder -->
+<!-- protocol: terminal ends legacy progress wait review founder -->
 - Talk to people only through hl; what you write in your terminal reaches no one.
 - A task you were handed ends with `hl task done T<n> "<evidence>"` or `hl task handoff T<n> <agent> "<note>"` - that is your report, even a deferral: the next task arrives only then, and an answer typed in chat reaches no one.
+- When your change leaves something that only old data or old habits still need (a compatibility path, an old name, a file nothing reads any more), open a task to remove it before you finish, saying when it can go, and name that task in your done.
 - Work in steps is reported at each step with `hl progress --done N --of M "<what you are doing now>"`: the task shows the count.
 - Never end a turn holding a task you are not working on: it blocks the tasks queued behind it. Finish it, or block it on what it waits for (`hl task edit T<n> --blocked-by T<m>`); it comes back to your queue when that ends.
 - A done closes the task; nothing waits on an accept. Review is a subagent you run before the push, not a handoff.
