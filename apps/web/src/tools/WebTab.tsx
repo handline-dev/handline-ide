@@ -122,6 +122,7 @@ export function WebTab({ tab, agent, start = '' }: { tab: string; agent: string 
           pictures={[{ url: shot, name: 'page.png' }]}
           onClose={closeShot}
           doneLabel="Send to chat"
+          sendBare
           onMarked={(marked) => {
             // The chat is brought up first, so a chat it mounts is the one that takes the picture.
             openTab('chat', 'here');
