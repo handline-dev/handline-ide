@@ -1,8 +1,9 @@
 // Settings: over the whole app so the founder can focus on it, its sections in a menu on the left; Back at the menu's top, or Escape, leaves.
 // The rest of legacy's Settings (schedules, saved answers, appearance) joins the menu as it is built.
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowLeft, Bell, FolderGit2, HardDrive, ListChecks, MonitorSmartphone, UserRound, Wrench } from 'lucide-react';
+import { ArrowLeft, Bell, Bot, FolderGit2, HardDrive, ListChecks, MonitorSmartphone, UserRound, Wrench } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
+import { AgentsTab } from '#src/settings/AgentsTab.tsx';
 import { DevicesTab } from '#src/settings/DevicesTab.tsx';
 import { MachineTab } from '#src/settings/MachineTab.tsx';
 import { AccountsTab } from '#src/usage/AccountsTab.tsx';
@@ -17,10 +18,11 @@ import { useBackCloses } from '#src/ui/backCloses.ts';
 import { closeSettings, isSection, settingsTarget, useSettingsOpen, type Section } from '#src/settings/open.ts';
 
 /** The menu's groups: the setup first, then the details of each part, then this machine. */
-const GROUPS: Section[][] = [['onboarding'], ['accounts', 'tools', 'notifications', 'projects'], ['machine', 'devices']];
+const GROUPS: Section[][] = [['onboarding'], ['accounts', 'agents', 'tools', 'notifications', 'projects'], ['machine', 'devices']];
 const MENU: Record<Section, { word: string; icon: ReactNode }> = {
   onboarding: { word: 'Onboarding', icon: <ListChecks size={14} /> },
   accounts: { word: 'Accounts', icon: <UserRound size={14} /> },
+  agents: { word: 'Agents', icon: <Bot size={14} /> },
   tools: { word: 'Tools', icon: <Wrench size={14} /> },
   notifications: { word: 'Notifications', icon: <Bell size={14} /> },
   projects: { word: 'Projects', icon: <FolderGit2 size={14} /> },
@@ -114,6 +116,7 @@ function Frame() {
           <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto pt-4">
             {section === 'onboarding' && <OnboardingTab go={setSection} />}
             {section === 'accounts' && <AccountsTab focus={to.account} />}
+            {section === 'agents' && <AgentsTab />}
             {section === 'tools' && <ToolsTab />}
             {section === 'notifications' && <NotificationsTab />}
             {section === 'projects' && <ProjectsTab />}

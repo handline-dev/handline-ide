@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 
 /** Where Settings opens: a section, and in Accounts one account's row. Without it, the section it was last on. */
-export const SECTIONS = ['onboarding', 'accounts', 'tools', 'notifications', 'projects', 'machine', 'devices'] as const;
+export const SECTIONS = ['onboarding', 'accounts', 'agents', 'tools', 'notifications', 'projects', 'machine', 'devices'] as const;
 export type Section = (typeof SECTIONS)[number];
 export const isSection = (s: unknown): s is Section => SECTIONS.some((x) => x === s);
 export type SettingsTarget = { section?: Section; account?: string };
