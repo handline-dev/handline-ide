@@ -423,12 +423,12 @@ func peerRecord(id string) matcher {
 }
 
 // ShowsTyped is whether a transcript line is text, typed at the session, as the session took it in.
-func ShowsTyped(line, text string) bool { return typedRecord(text)(line) == recSeen }
+func ShowsTyped(line, text string) bool { return typedRecord(text, same)(line) == recSeen }
 
 // typedRecord finds text typed at the session: seen as the person's user record, or a queued_command attachment that is not a peer's
-// (typed mid-turn, taken into it); queued by a queue-operation enqueue of it. A ! line is recorded as its command: wrapped in bash-input with
-// no origin when it runs, and bare in the enqueue when it is typed mid-turn.
-func typedRecord(text string) matcher {
+// (typed mid-turn, taken into it); queued by a queue-operation enqueue of it. is compares a record's prompt with text. A ! line is recorded
+// as its command: wrapped in bash-input with no origin when it runs, and bare in the enqueue when it is typed mid-turn.
+func typedRecord(text string, is func(v any, text string) bool) matcher {
 	text = strings.TrimSpace(text)
 	command, isBash := strings.CutPrefix(text, "!")
 	command = strings.TrimSpace(command)
@@ -438,11 +438,11 @@ func typedRecord(text string) matcher {
 			return recOther
 		}
 		switch {
-		case r.Type == "queue-operation" && r.Operation == "enqueue" && (same(r.Content, text) || same(r.Content, command)):
+		case r.Type == "queue-operation" && r.Operation == "enqueue" && (is(r.Content, text) || same(r.Content, command)):
 			return recQueued
-		case r.Type == "user" && r.Origin.Kind == "human" && same(r.Message.Content, text),
+		case r.Type == "user" && r.Origin.Kind == "human" && is(r.Message.Content, text),
 			isBash && r.Type == "user" && sameBashInput(r.Message.Content, command),
-			r.Type == "attachment" && r.Attachment.Type == "queued_command" && r.Attachment.Origin.Kind != "peer" && same(r.Attachment.Prompt, text):
+			r.Type == "attachment" && r.Attachment.Type == "queued_command" && r.Attachment.Origin.Kind != "peer" && is(r.Attachment.Prompt, text):
 			return recSeen
 		}
 		return recOther
@@ -467,6 +467,12 @@ func same(v any, text string) bool {
 	return ok && strings.TrimSpace(pasted.ReplaceAllString(s, "$1")) == text
 }
 
+// endsWith is same, or the recorded prompt ends with text after words a person had left in the input box, sent with it as one prompt.
+func endsWith(v any, text string) bool {
+	s, ok := v.(string)
+	return ok && text != "" && strings.HasSuffix(strings.TrimSpace(pasted.ReplaceAllString(s, "$1")), text)
+}
+
 // Type puts text into the session with typeIn and waits, as Deliver does, until the transcript shows it as the person's own prompt. It is
 // the one delivery made of keystrokes: whatever the inbox carries reaches the receiver as another session's. Typed mid-turn, the receiver
 // queues it and takes it into the running turn, so a queued one comes back Queued with Await, never typed again.
@@ -477,7 +483,7 @@ func (s *Sender) Type(ctx context.Context, sess Session, text string, typeIn fun
 		res.Kind, res.Why, res.Attempts = NotDelivered, err.Error(), 0
 		return res
 	}
-	match := typedRecord(text)
+	match := typedRecord(text, endsWith) // only records after the typing are read, so one that ends with it is it
 	seen, queued, err := s.wait(ctx, tr, match)
 	switch {
 	case err != nil:

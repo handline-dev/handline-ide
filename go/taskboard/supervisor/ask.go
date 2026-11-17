@@ -164,6 +164,14 @@ func (e *Env) Ask(q db.Q, in AskIn) (out *AskOut, err error) {
 	if requester == "" {
 		return refuse("cannot tell who is asking: the request named nobody. Agents are started by the daemon, which sets HANDLINE_AGENT."), nil
 	}
+	// The founder's line typed at an agent (typedRow) that opens with a command word would be run, not read.
+	if actor.IsPerson(requester) && !in.OnBehalfOf && !in.System && in.Kind == sayKind && !actor.IsPerson(in.Target) && e.FounderTyped != nil &&
+		e.FounderTyped(in.Target) {
+		if cmd := slashCommand(in.Body); cmd != "" {
+			return refuse(fmt.Sprintf("Not sent: %q starts with %s, which %s's session would take as a command and not read. Send it again "+
+				"so it does not start with /, e.g. with the word in backticks: `%s`.", clipText(in.Body, 60), cmd, in.Target, cmd)), nil
+		}
+	}
 	t, terr := team.LoadTeam(e.Home)
 	if terr != nil {
 		return nil, terr
@@ -267,4 +275,22 @@ func (e *Env) Say(q db.Q, in SayIn) (*AskOut, error) {
 		ask.Within = func(c db.Q, rid int64, note string) error { return in.Within(c, note, rid) }
 	}
 	return e.Ask(q, ask)
+}
+
+// slashCommand is the command a typed line's first word names, as an agent CLI reads it ("/chat-states"), or "" for none; a path of
+// two parts or more ("/root/x") is none.
+func slashCommand(body string) string {
+	f := strings.Fields(body)
+	if len(f) == 0 || len(f[0]) < 2 || f[0][0] != '/' || strings.Contains(f[0][1:], "/") {
+		return ""
+	}
+	return f[0]
+}
+
+func clipText(s string, n int) string {
+	s = strings.TrimSpace(s)
+	if r := []rune(s); len(r) > n {
+		return string(r[:n]) + "..."
+	}
+	return s
 }
