@@ -12,7 +12,7 @@ const ramp = (dir: string, start: boolean, end: boolean) =>
 
 /** The style that fades `ref`'s edges, on each of its four sides, while there is more to scroll that way.
  * For a scroll area that has its own ref; ScrollFade is the same as a plain box. */
-export function useScrollFade(ref: RefObject<HTMLElement | null>): CSSProperties {
+export function useScrollFade(ref: RefObject<HTMLElement | null>, fadeTop = true): CSSProperties {
   const [edges, setEdges] = useState(none);
   useEffect(() => {
     const el = ref.current;
@@ -46,22 +46,24 @@ export function useScrollFade(ref: RefObject<HTMLElement | null>): CSSProperties
   }, [ref]);
   // The two axes multiply: a corner fades where either does.
   return {
-    maskImage: `${ramp('to bottom', edges.top, edges.bottom)}, ${ramp('to right', edges.left, edges.right)}`,
+    maskImage: `${ramp('to bottom', fadeTop && edges.top, edges.bottom)}, ${ramp('to right', edges.left, edges.right)}`,
     maskComposite: 'intersect',
   };
 }
 
-/** A scroll area whose edges fade while there is more to scroll that way. With `keep`, it is found where it was left (ui/keptScroll); with `fromEnd`, first opened at its end. */
+/** A scroll area whose edges fade while there is more to scroll that way. With `keep`, it is found where it was left (ui/keptScroll); with `fromEnd`, first opened at its end.
+ *  `fadeTop={false}` keeps the top edge sharp, for content whose sticky headers sit there. */
 export function ScrollFade({
   className = '',
   style,
   children,
   keep,
   fromEnd,
+  fadeTop,
   ...props
-}: ComponentProps<'div'> & { keep?: string; fromEnd?: boolean }) {
+}: ComponentProps<'div'> & { keep?: string; fromEnd?: boolean; fadeTop?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
-  const fade = useScrollFade(ref);
+  const fade = useScrollFade(ref, fadeTop);
   useKeptScroll(ref, keep, fromEnd);
   return (
     <div ref={ref} className={`overflow-auto ${className}`} style={{ ...fade, ...style }} {...props}>
