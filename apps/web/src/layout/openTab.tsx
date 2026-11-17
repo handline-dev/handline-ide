@@ -36,6 +36,13 @@ export const setPageGo = (go: (kind: string, label: string) => void) => {
 };
 export const goPage = (kind: string, label: string) => toPage(kind, label);
 
+/** Brings up an agent's workspace, as its sidebar row does; set once by the app. */
+let toAgent: (key: string) => void = () => {};
+export const setAgentGo = (go: (key: string) => void) => {
+  toAgent = go;
+};
+export const goAgent = (key: string) => toAgent(key);
+
 /** Opens a tab: from the caller's own pane when it sits in one, else in the workspace on screen. */
 export function useOpenTab(): Open {
   const pane = useContext(PaneOpen);

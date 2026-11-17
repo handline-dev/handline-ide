@@ -1,3 +1,4 @@
+import { Face, Name } from '#src/ui/Face.tsx';
 // An Activity line's parts: its round mark, its hover row, a comment (the founder's open turn among them), and a change in words.
 import type { ActivityItem } from '@handline/app-core';
 import type { TaskDetail } from '@handline/client';
@@ -117,17 +118,6 @@ export function EventRow({ i, fresh, turn }: { i: ActivityItem; fresh: string; t
   );
 }
 
-/** A writer's initial in a circle: the founder's blue, an agent's gray. */
-export function Avatar({ name, mine }: { name: string; mine: boolean }) {
-  return (
-    <span
-      className={`grid size-6 shrink-0 place-items-center rounded-full text-xs font-semibold text-accent-fg ${mine ? 'bg-accent' : 'bg-muted'}`}
-    >
-      {(name[0] ?? '?').toUpperCase()}
-    </span>
-  );
-}
-
 /** A comment as a chat line, headed by its writer and time; whom it went to is an @mention before the text. While the founder's turn
  * passed with it is open, it sits on a soft warm ground marked Waiting for you. */
 export function CommentRow({
@@ -155,18 +145,17 @@ export function CommentRow({
   const toYou = !mine && (i.toFounder || (!!i.turn && isPerson(i.turnTo ?? '', me)));
   // Whom the comment went to: the turn passed with it, or the task's holder.
   const to = toYou ? 'you' : mine ? i.turnTo || holder : undefined;
-  const name = mine ? 'You' : nameOf(i.who);
   return (
     <div
       data-memo={i.memo}
       data-turn-open={turn ? '' : undefined}
       className={`group relative flex gap-2.5 rounded-md pb-3 ring-warning ring-offset-4 ring-offset-bg transition-shadow duration-500 ${turn ? '-mx-3 mb-3 rounded-lg bg-warning/10 px-3 pt-2 pb-2' : ''}`}
     >
-      <Avatar name={name} mine={mine} />
+      <Face who={i.who} mine={mine} />
       <div className="flex min-w-0 flex-1 flex-col">
         <div className={`flex flex-col rounded-md ${fresh}`}>
           <span className="flex items-baseline gap-2 text-sm">
-            <span className="font-medium">{name}</span>
+            <Name who={i.who} mine={mine} className="font-medium" />
             <time dateTime={i.at} title={i.at} className="text-xs text-muted">
               {clock(i.at)}
             </time>

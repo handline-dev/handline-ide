@@ -16,7 +16,7 @@ import { ModalFrame, openModal } from '#src/ui/modal.tsx';
 import { ScrollFade } from '#src/ui/ScrollFade.tsx';
 import { sayRefusal } from '#src/ui/refusal.tsx';
 import { look } from '#src/ui/taskLook.tsx';
-import { Avatar } from '#src/tools/TaskEvents.tsx';
+import { FaceName } from '#src/ui/Face.tsx';
 
 const BOX = { w: 200, h: 128 };
 
@@ -24,7 +24,6 @@ const BOX = { w: 200, h: 128 };
  * its own chat. */
 export function PlanTab({ id }: { id: number }) {
   const t = hooks.useTaskGet({ task: id }).data;
-  const nameOf = useNameOf();
   const [picked, setPicked] = useTabState<number | null>('sub', null);
   if (!t) return <div className="flex-1" />;
   const sub = t.subtasks.find((x) => x.id === picked) ?? null;
@@ -33,8 +32,7 @@ export function PlanTab({ id }: { id: number }) {
       {sub && (
         <div className="flex min-h-0 min-w-0 basis-2/5 flex-col border-r border-border">
           <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-4 text-sm font-semibold">
-            <Avatar name={nameOf(sub.owner)} mine={false} />
-            {nameOf(sub.owner)}
+            <FaceName who={sub.owner} />
             <span className="font-normal text-muted">on T{sub.id}</span>
           </div>
           <TaskChat key={sub.id} id={sub.id} />
@@ -287,7 +285,6 @@ function Plan({ parent, subs, onPick }: { parent: number; subs: Sub[]; onPick: (
 }
 
 function Node({ n, t, word, onPick }: { n: GraphNode; t: Task; word: Word; onPick: (id: number) => void }) {
-  const who = useNameOf()(t.to);
   const s = look(t);
   const draft = t.state === 'draft';
   const ready = word.kind === 'you';
@@ -301,8 +298,7 @@ function Node({ n, t, word, onPick }: { n: GraphNode; t: Task; word: Word; onPic
       <span className="text-xs text-muted">T{n.id}</span>
       <span className="line-clamp-2 shrink-0 text-sm font-semibold text-fg">{n.title}</span>
       <span className="flex items-center gap-1.5 text-xs text-fg">
-        <Avatar name={who} mine={false} />
-        {who}
+        <FaceName who={t.to} />
       </span>
       <span className={`mt-auto flex items-center gap-1 text-xs ${ready ? 'text-warning' : 'text-muted'}`}>
         {!draft && <s.icon size={12} />}
