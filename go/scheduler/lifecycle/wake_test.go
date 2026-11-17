@@ -89,7 +89,7 @@ func TestWakeAgentLockedWakesWithoutTakingTheTerminal(t *testing.T) {
 	}
 }
 
-type busyTyping struct{ fakeTyping }
+type busyTyping struct{}
 
 func (busyTyping) TakeTerminal(string) (func(), bool) { return nil, false }
 

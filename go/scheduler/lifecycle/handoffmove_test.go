@@ -57,7 +57,6 @@ type moveRig struct {
 	l  *moveLaunch
 	v  *Mover
 	bg string
-	h  map[string]bool
 }
 
 // newMoveRigOn is the mover over a manager that is already set up.

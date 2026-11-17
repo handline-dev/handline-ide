@@ -47,7 +47,7 @@ func (Driver) Binary() string {
 	return p
 }
 
-func (d Driver) Hooks() agent.Hooks { return Hooks{d.Host} }
+func (d Driver) Hooks() agent.Hooks { return Hooks(d) }
 
 func (Driver) AutoModeArgv() []string { return []string{"--permission-mode", "auto"} }
 

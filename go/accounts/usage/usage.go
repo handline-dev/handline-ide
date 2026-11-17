@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"math"
 	"os"
-	"regexp"
 	"sort"
 	"strings"
 
@@ -238,5 +237,3 @@ func ReadStatus(home, acct string) Status {
 	}
 	return st
 }
-
-var zoned = regexp.MustCompile(`(Z|[+-]\d\d:\d\d)$`)
