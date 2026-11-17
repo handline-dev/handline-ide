@@ -92,7 +92,10 @@ export class FakeWorkspaces {
     if (typeof p.folder !== 'string' || !p.folder) throw invalidParams('folder is an absolute path', 'folder');
     const folder = p.folder.replace(/^~(?=\/|$)/, HOME);
     const { repos, recent } = this.host.admin.worktrees;
-    const known = [...repos, ...recent.map((r): Repo => ({ name: r.name, path: r.path, default_branch: 'main' }))];
+    const known = [
+      ...repos,
+      ...recent.map((r): Repo => ({ name: r.name, path: r.path, default_branch: 'main', setup: { script: '', copy: [], last: null } })),
+    ];
     const repo = known.find((r) => folder === r.path || folder.startsWith(`${r.path}/`));
     if (!repo && PLAIN_FOLDERS.includes(folder)) throw refused('not_git', `${folder} is not in a git repository`);
     if (!repo) throw notFound(`${folder} is not a folder`, 'folder');

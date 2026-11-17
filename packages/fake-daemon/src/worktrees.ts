@@ -1,16 +1,34 @@
 // The fake daemon's repos and worktrees: read-only, as the Python and Go daemons serve them today.
 import { createHash } from 'node:crypto';
+import { posix } from 'node:path';
 import type { RecentFolder, Repo, Worktree } from '@handline/contract';
 import { Failure, invalidParams, refused } from '#src/errors.ts';
 import { AGENTS } from '#src/fixtures.ts';
 
 /** The methods this answers. */
 const WORKTREES =
-  /^(repos\.list|repos\.recent|repo\.facts|folder\.init|folder\.clone|worktrees\.list|worktree\.diff|worktree\.remove|files\.list|file\.read|file\.write)$/;
+  /^(repos\.list|repos\.recent|repo\.facts|repo\.set|folder\.init|folder\.clone|worktrees\.list|worktree\.diff|worktree\.remove|files\.list|file\.read|file\.write)$/;
 
 const REPOS: Repo[] = [
-  { name: 'handline', path: '/work/handline', default_branch: 'main' },
-  { name: 'docs-site', path: '/work/docs-site', default_branch: 'master' },
+  {
+    name: 'handline',
+    path: '/work/handline',
+    default_branch: 'main',
+    setup: {
+      script: 'pnpm install',
+      copy: ['.env'],
+      last: {
+        at: '2026-11-17T09:00:00Z',
+        worktree: '/work/handline.worktrees.noindex/handline.ui',
+        ok: true,
+        copied: ['.env'],
+        missing: [],
+        error: '',
+        output: 'Done in 4.2s',
+      },
+    },
+  },
+  { name: 'docs-site', path: '/work/docs-site', default_branch: 'master', setup: { script: '', copy: [], last: null } },
 ];
 
 const RECENT: RecentFolder[] = [
@@ -219,7 +237,7 @@ export class FakeWorktrees {
   call(method: string, p: Record<string, unknown>): unknown {
     switch (method) {
       case 'repos.list':
-        return { repos: this.repos.map((r) => ({ ...r })) };
+        return { repos: structuredClone(this.repos) };
       case 'repos.recent':
         return { folders: this.recent.map((f) => ({ ...f })) };
       case 'repo.facts': {
@@ -227,6 +245,30 @@ export class FakeWorktrees {
         if (![...this.repos, ...this.recent].some((r) => r.path === p.path))
           throw new Failure('not_found', `${p.path} is not a git folder`, { what: 'path', path: p.path });
         return { test_command: 'pnpm test', issues: [{ number: 42, title: 'Dark mode flickers on load' }], todos: 7, uncommitted: 2 };
+      }
+      case 'repo.set': {
+        const repo = this.repos.find((r) => r.path === p.path);
+        if (!repo)
+          throw new Failure('not_found', `"${String(p.path)}" is no repo an agent works in (repos.list)`, { what: 'repo', name: p.path });
+        if (p.script === undefined && p.copy === undefined) throw invalidParams('name script or copy', 'script');
+        if (p.script !== undefined && p.script !== null && typeof p.script !== 'string')
+          throw invalidParams('script is text, or null', 'script');
+        if (p.copy !== undefined && p.copy !== null && !(Array.isArray(p.copy) && p.copy.every((c) => typeof c === 'string')))
+          throw invalidParams('copy is a list of paths, or null', 'copy');
+        const copy = p.copy === undefined ? repo.setup.copy : ((p.copy as string[] | null) ?? []).map((c) => c.trim());
+        const bad = copy.find((c) => {
+          const clean = posix.normalize(c);
+          return !c || c.startsWith('/') || clean === '.' || clean === '..' || clean.startsWith('../') || clean.split('/')[0] === '.git';
+        });
+        if (bad !== undefined) throw invalidParams(`copy path "${bad}" is not a path inside the repo`, 'copy');
+        if (typeof p.script === 'string' && p.script.length > 4000)
+          throw invalidParams('script is text of at most 4000 characters', 'script');
+        repo.setup = {
+          ...repo.setup,
+          copy,
+          script: p.script === undefined ? repo.setup.script : ((p.script as string | null) ?? '').trim(),
+        };
+        return { accepted: true, said: `setup set for ${repo.path}` };
       }
       case 'folder.init': {
         // The fake makes no repository: the home folder and above are refused, a known repo is one already, anything else is not there.

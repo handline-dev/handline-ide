@@ -3,6 +3,7 @@ package lifecycle
 import (
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
@@ -11,7 +12,10 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/data/team/teamtest"
+	"github.com/handline/handline/go/kit/protected"
+	"github.com/handline/handline/go/scheduler/worktreesetup"
 )
 
 func gitIn(t *testing.T, dir string, args ...string) {
@@ -285,5 +289,40 @@ func TestGitThatTimesOutIsAnError(t *testing.T) {
 	defer func() { gitTimeout = saved }()
 	if _, _, err := git(t.TempDir(), "status"); err == nil || !strings.Contains(err.Error(), "timed out") {
 		t.Fatalf("a killed git is an error: %v", err)
+	}
+}
+
+// A worktree a spawn makes gets its repo's setup before the agent starts in it, and a failed setup is told without stopping the start.
+func TestASpawnedWorktreeGetsItsReposSetup(t *testing.T) {
+	t.Setenv("HANDLINE_AGENT", "")
+	t.Setenv("SHELL", "/bin/sh")
+	s, h, repo := spawnRig(t)
+	home := t.TempDir()
+	s.Q = teamtest.Seed(t, home, "a", "b")
+	s.Roster = team.NewRosterOn(s.Q, home)
+	s.Roster.Store = &protected.Store{Root: t.TempDir()}
+	os.WriteFile(filepath.Join(repo, ".env"), []byte("K=1"), 0o600)
+	if err := worktreesetup.Put(s.Roster.Store, repo, worktreesetup.Setup{Script: "test -f .env && touch ready", Copy: []string{".env"}}); err != nil {
+		t.Fatal(err)
+	}
+	ok, said, _ := s.Spawn("a", repo)
+	if !ok || !strings.Contains(said, "setup done: copied .env") {
+		t.Fatalf("%v %q", ok, said)
+	}
+	if _, err := os.Stat(filepath.Join(h.wtMade, "ready")); err != nil {
+		t.Fatal("the script did not run after the copy")
+	}
+	if last, _ := worktreesetup.Last(s.Q, repo); last == nil || !last.OK || last.Worktree != h.wtMade {
+		t.Fatalf("last %+v", last)
+	}
+
+	worktreesetup.Put(s.Roster.Store, repo, worktreesetup.Setup{Script: "exit 4"})
+	h.wtMade = t.TempDir()
+	ok, said, _ = s.Spawn("b", repo)
+	if !ok || !strings.Contains(said, "setup FAILED: script exited 4") {
+		t.Fatalf("a failed setup still starts the agent, and says so: %v %q", ok, said)
+	}
+	if last, _ := worktreesetup.Last(s.Q, repo); last == nil || last.OK {
+		t.Fatalf("last %+v", last)
 	}
 }
