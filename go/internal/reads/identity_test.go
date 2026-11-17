@@ -3,11 +3,9 @@ package reads
 import (
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"testing"
 
-	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/data/db"
 )
 
 func TestPeopleAndWorkspacesAreListedByKey(t *testing.T) {
@@ -64,15 +62,11 @@ func TestWorkspaceRulesListsTheRulesInForceAndWhereEachComesFrom(t *testing.T) {
 	if s := got(map[string]any{"workspace": "shop"}); !sameJSON(s, fmt.Sprintf(shop, 0)) {
 		t.Errorf("no base.md is no text: %s", s)
 	}
-	base := team.RulesFile(e.Home, "w5")
-	if err := os.MkdirAll(filepath.Dir(base), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(base, []byte("Keep messages short.\n"), 0o644); err != nil {
+	if _, err := db.SetInstruction(e.DB, "w5", db.PartRules, "Keep messages short. ", "p1", "", 1); err != nil {
 		t.Fatal(err)
 	}
 	for _, ws := range []string{"shop", "w5"} {
-		if s := got(map[string]any{"workspace": ws}); !sameJSON(s, fmt.Sprintf(shop, 21)) {
+		if s := got(map[string]any{"workspace": ws}); !sameJSON(s, fmt.Sprintf(shop, 20)) {
 			t.Errorf("%s: %s", ws, s)
 		}
 	}

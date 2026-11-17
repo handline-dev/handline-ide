@@ -104,7 +104,7 @@ Easy to get wrong:
   recorded answer counts.
 
 Your role and standing context are injected per
-agent (ROLE.md, base.md); this file does not repeat them.
+agent from the daemon's database; this file does not repeat them.
 
 ## How we work
 

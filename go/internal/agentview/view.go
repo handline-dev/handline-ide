@@ -4,8 +4,6 @@ package agentview
 
 import (
 	"encoding/json"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -14,9 +12,9 @@ import (
 	"github.com/handline/handline/go/agentctl/verdict"
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
+	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/internal/prompts"
 	"github.com/handline/handline/go/internal/status"
-	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/kit/timefmt"
 	"github.com/handline/handline/go/scheduler/procload"
@@ -187,11 +185,11 @@ func clip(s string, n int) string {
 
 // roleLine is the first line of the agent's ROLE.md that is not blank and not a heading, as one line.
 func (e *Env) roleLine(name string) string {
-	b, err := os.ReadFile(filepath.Join(paths.AgentDir(e.Home, name), "ROLE.md"))
+	b, err := team.AgentInstruction(e.Q, name, db.PartRole)
 	if err != nil {
 		return ""
 	}
-	for _, ln := range strings.Split(string(b), "\n") {
+	for _, ln := range strings.Split(b, "\n") {
 		if t := strings.TrimSpace(ln); t != "" && !strings.HasPrefix(strings.TrimLeft(ln, " \t"), "#") {
 			return clip(textsafe.Oneline(t), 160)
 		}

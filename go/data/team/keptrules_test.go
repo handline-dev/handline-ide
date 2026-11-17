@@ -2,7 +2,6 @@ package team
 
 import (
 	"database/sql"
-	"os"
 	"reflect"
 	"slices"
 	"strings"
@@ -127,12 +126,11 @@ func TestAWorkspacesNoRuleStillBeatsTheMachines(t *testing.T) {
 // The rules in force render under the team's text, in rule order, the ones that wait for a session start saying so; a change shows in
 // the text, so the rules hash tells running agents (RulesNote).
 func TestTheRulesInForceAreRenderedUnderTheTeamsText(t *testing.T) {
-	home, d := keptHome(t)
+	_, d := keptHome(t)
 	shop, _, _ := WorkspaceID(d, "shop")
-	must(t, os.MkdirAll(paths.WorkspaceDir(home, "shop"), 0o755))
-	must(t, os.WriteFile(RulesFile(home, "shop"), []byte("be kind\n"), 0o644))
+	setRules(t, d, "shop", "be kind\n")
 	tm := &Team{Teams: map[string][]string{"shop": {"a"}, "lab": {"b"}}}
-	before := Rules(home, "a", tm, (&KeptBlocks{Q: d}).Block)
+	before := Rules(d, "a", tm, (&KeptBlocks{Q: d}).Block)
 	if !reflect.DeepEqual(before, []string{"# Rules for team shop\nbe kind"}) {
 		t.Fatalf("no rule: the text alone, as before: %q", before)
 	}
@@ -143,11 +141,11 @@ func TestTheRulesInForceAreRenderedUnderTheTeamsText(t *testing.T) {
 	must(t, SetRule(d, MachineRules, RuleAccounts, []string{}, "p1", 1))
 	want := "# Rules for team shop\nbe kind\n\nKept rules (set by the owner): agent_cap 3; lease_max.simulator 1; " +
 		"tools_deny WebFetch, Bash (from the next session); review_required on."
-	if got := Rules(home, "a", tm, (&KeptBlocks{Q: d}).Block); !reflect.DeepEqual(got, []string{want}) {
+	if got := Rules(d, "a", tm, (&KeptBlocks{Q: d}).Block); !reflect.DeepEqual(got, []string{want}) {
 		t.Fatalf("got %q", got)
 	}
 	// lab has no text: the machine's rules alone make its part
-	if got := Rules(home, "b", tm, (&KeptBlocks{Q: d}).Block); len(got) != 1 || !strings.HasPrefix(got[0], "# Rules for team lab\nKept rules (set by the owner): agent_cap 3; lease_max.simulator 1.") {
+	if got := Rules(d, "b", tm, (&KeptBlocks{Q: d}).Block); len(got) != 1 || !strings.HasPrefix(got[0], "# Rules for team lab\nKept rules (set by the owner): agent_cap 3; lease_max.simulator 1.") {
 		t.Fatalf("lab: %q", got)
 	}
 }

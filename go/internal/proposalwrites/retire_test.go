@@ -48,7 +48,7 @@ func TestAgentRetireRefusesADependedOnAgentAndRetiresOneThatIsNot(t *testing.T) 
 	if res == nil || !strings.HasPrefix(res["said"].(string), "bob.kid is retired; its folder is at "+archive) {
 		t.Fatalf("%v", m)
 	}
-	if _, err := os.Stat(filepath.Join(archive, "ROLE.md")); err != nil {
+	if _, err := os.Stat(filepath.Join(archive, "memory")); err != nil {
 		t.Fatal("the folder is archived:", err)
 	}
 	var rows int

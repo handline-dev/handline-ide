@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/names"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/store"
@@ -27,12 +28,8 @@ func TestCreateMakesTheWorkspaceItsLeadAndItsRules(t *testing.T) {
 	if folder != repo || lead != names.Lead {
 		t.Fatalf("at %s, led by %s", folder, lead)
 	}
-	dir := paths.WorkspaceDir(home, key)
-	if b, err := os.ReadFile(filepath.Join(dir, "base.md")); err != nil || string(b) != DefaultRules {
-		t.Fatalf("base.md is the house rules: %q %v", b, err)
-	}
-	if _, err := os.Stat(filepath.Join(dir, ".seeded")); err != nil {
-		t.Fatal("seeded, so a team that empties its rules keeps them empty")
+	if in, err := db.CurrentInstruction(d, key, db.PartRules); err != nil || in == nil || in.Text != strings.TrimSpace(DefaultRules) || in.Actor != SeedActor {
+		t.Fatalf("its rules are the house rules: %+v %v", in, err)
 	}
 	if _, err := NewRoster(home).Create("shop", repo); err == nil || !strings.Contains(err.Error(), "exists already") {
 		t.Fatalf("a second Create of shop: %v", err)
