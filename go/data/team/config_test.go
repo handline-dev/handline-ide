@@ -77,7 +77,7 @@ func TestConfigReaders(t *testing.T) {
 	if v, m, e := Parts(Config{"model": int64(4), "effort": "", "vendor": nil}); v != "claude" || m != "4" || e != "medium" {
 		t.Errorf("%s %s %s", v, m, e)
 	}
-	if Kind(Config{"vendor": "opencode", "effort": "xhigh"}) != "opencode sonnet xhi" || Kind(Config{"effort": "odd"}) != "sonnet odd" {
+	if Kind(Config{"vendor": "opencode", "effort": "xhigh"}) != "opencode xhi" || Kind(Config{"effort": "odd"}) != "sonnet odd" {
 		t.Error("kind")
 	}
 	if got := MCPConfigArgs(Config{"mcp_config": `{"mcpServers": {}}`}); len(got) != 2 || got[1] != `{"mcpServers":{}}` {

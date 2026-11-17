@@ -68,9 +68,9 @@ func (r *Roster) SettingsOf(db *sql.DB, agent, modelID string, idleMinutes func(
 	if v, has := cfg["enabled"]; has {
 		enabled = truthy(v)
 	}
+	vendor, model, effort := Parts(cfg)
 	return Settings{"model_id": modelID, "session_account": account,
-		"vendor": orDefault(cfg, "vendor", DefaultVendor), "enabled": strconv.FormatBool(enabled),
-		"model": orDefault(cfg, "model", DefaultModel), "effort": orDefault(cfg, "effort", DefaultEffort),
+		"vendor": vendor, "enabled": strconv.FormatBool(enabled), "model": model, "effort": effort,
 		"weight": orDefault(cfg, "weight", "light"), "repo": orDefault(cfg, "repo", ""),
 		"sandbox": onOff(r.SandboxOn(agent, cfg)),
 		"mode":    r.ModeOf(agent, cfg), "browser": BrowserMode(cfg), "browser_sites": strings.Join(BrowserOrigins(cfg), " "),
