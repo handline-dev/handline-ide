@@ -321,3 +321,37 @@ func runGit(dir string, args ...string) (string, error) {
 	out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).CombinedOutput()
 	return string(out), err
 }
+
+// A new agent's model and effort, when it names none, are config.yaml's default for its vendor; an existing agent keeps its own.
+func TestANewAgentTakesItsVendorsDefaults(t *testing.T) {
+	home := newHome(t)
+	r := NewRoster(home)
+	repo := testfiles.GitCheckout(t)
+	if _, err := r.Register("shop", RegisterOpts{Repo: repo}); err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(paths.ConfigFile(home), []byte("default_model_claude: opus\ndefault_effort_claude: high\ndefault_model_codex: gpt-5.1-codex\n"+
+		"default_effort_codex: bogus\n"), 0o644)
+	if _, err := r.Register("shop.ui", RegisterOpts{}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.Register("shop.cx", RegisterOpts{Vendor: strp("codex")}); err != nil {
+		t.Fatal(err)
+	}
+	for agent, want := range map[string][2]string{"shop": {DefaultModel, DefaultEffort}, "shop.ui": {"opus", "high"},
+		"shop.cx": {"gpt-5.1-codex", DefaultEffort}} {
+		cfg, _ := r.Read(agent)
+		if cfg["model"] != want[0] || cfg["effort"] != want[1] {
+			t.Errorf("%s: %v %v, want %v", agent, cfg["model"], cfg["effort"], want)
+		}
+	}
+	if _, err := r.Register("shop.own", RegisterOpts{Model: strp("haiku")}); err != nil {
+		t.Fatal(err)
+	}
+	if cfg, _ := r.Read("shop.own"); cfg["model"] != "haiku" || cfg["effort"] != "high" {
+		t.Errorf("a model named at register beats the default: %v", cfg)
+	}
+	if m, e := NewAgentDefaults(t.TempDir(), "codex"); m != "" || e != DefaultEffort {
+		t.Errorf("codex unset: %q %q", m, e)
+	}
+}
