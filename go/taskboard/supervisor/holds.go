@@ -35,7 +35,6 @@ type holdRec struct {
 	Since     int64
 	AbleSince *int64
 	Warned    *int64
-	order     []string
 }
 
 // readHold parses the record a Python or Go sweep kept; nil when there is none or it is not an object.

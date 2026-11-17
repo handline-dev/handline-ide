@@ -91,8 +91,6 @@ func (c *wsClient) read() map[string]any {
 	return m
 }
 
-func (c *wsClient) send(msg string) { c.ws.WriteMessage(websocket.TextMessage, []byte(msg)) }
-
 func gate(m map[string]any) any {
 	if e, ok := m["error"].(map[string]any); ok {
 		return e["data"].(map[string]any)["gate"]

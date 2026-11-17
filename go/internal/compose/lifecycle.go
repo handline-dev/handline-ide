@@ -126,8 +126,7 @@ func (p *Parts) Lifecycle(cfg Config, lc LifecycleConfig) *Lifecycle {
 		McpApproved: team.NewTrust(home).MCPApproved,
 	}}
 	launchPort := lifecycle.LaunchPort{L: launcher}
-	var ho *handoff.Env
-	ho = &handoff.Env{DB: q, Home: home, Heads: lc.Env, Now: cfg.Now,
+	ho := &handoff.Env{DB: q, Home: home, Heads: lc.Env, Now: cfg.Now,
 		AgentSession: func(agent, account string) (string, string) {
 			st := uenv.ReadForAgent(agent, account)
 			return st.SessionID, st.Transcript

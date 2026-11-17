@@ -73,10 +73,7 @@ func (c *capConn) PrepareContext(ctx context.Context, q string) (driver.Stmt, er
 }
 
 func (c *capConn) BeginTx(ctx context.Context, o driver.TxOptions) (driver.Tx, error) {
-	if bt, ok := c.Conn.(driver.ConnBeginTx); ok {
-		return bt.BeginTx(ctx, o)
-	}
-	return c.Conn.Begin()
+	return c.Conn.(driver.ConnBeginTx).BeginTx(ctx, o)
 }
 
 var registerCapture sync.Once

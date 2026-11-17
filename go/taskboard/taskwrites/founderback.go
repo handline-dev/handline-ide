@@ -92,6 +92,7 @@ func ReturnFounderTasks(d *sql.DB, home string) (said []string, err error) {
 		}
 		if err != nil {
 			tx.Rollback()
+			//lint:ignore ST1005 T<n> is the task's id
 			failed = errors.Join(failed, fmt.Errorf("T%d: %w", b.id, err))
 			left = true
 			continue

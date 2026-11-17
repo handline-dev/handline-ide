@@ -306,12 +306,12 @@ func (l *ControlLink) read(p Proc) {
 				inBlock, block = true, nil
 			case bytes.HasPrefix(raw, []byte("%output ")):
 				parts := bytes.SplitN(raw, []byte(" "), 3)
-				pane, data := string(parts[1]), []byte(nil)
+				var data []byte
 				if len(parts) == 3 {
 					data = parts[2]
 				}
 				l.mu.Lock()
-				hs := append([]*Handler(nil), l.handlers[pane]...)
+				hs := append([]*Handler(nil), l.handlers[string(parts[1])]...)
 				l.mu.Unlock()
 				for _, h := range hs {
 					h.fn(UnescapeOutput(data), false)

@@ -36,7 +36,7 @@ func TestATasksClockRunsOnlyWhileItIsDoing(t *testing.T) {
 		t.Fatalf("%v %v", task["state"], c)
 	}
 	run(t, e, "UPDATE tasks SET done_evidence = 'x' WHERE id = 2")
-	if task, c = clockOf(t, e, 2); task["time"] != nil {
+	if task, _ = clockOf(t, e, 2); task["time"] != nil {
 		t.Fatalf("a done task has no clock: %v", task["time"])
 	}
 }
