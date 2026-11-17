@@ -7,11 +7,13 @@ import { marked, type Token, type Tokens } from 'marked';
 import { createContext, Fragment, useContext, type ReactNode } from 'react';
 import { useOpenable } from '#src/layout/openable.tsx';
 import { fileOf, taskOf, webOf } from '#src/layout/kinds.tsx';
+import { Mention, useAgentByName } from '#src/ui/Face.tsx';
 
 /** Markdown as the chat and notes show it: marked reads it (GFM), and each token is drawn as a React element, so no HTML in the
  * text is ever run. Lists keep the numbers as written (1. 2. or 1) 2)), not renumbered. In text, a task (T1234), a web address
  * and a repo path (apps/web/src/main.tsx:12) open in a tab: a click here. A stored mention (<@key>) reads as @name. */
-export function Markdown({ text }: { text: string }) {
+/** `lead`: drawn at the start of the first paragraph, in its line (a comment's @mention of whom it went to). */
+export function Markdown({ text, lead }: { text: string; lead?: ReactNode }) {
   const tokens = marked.lexer(renderRefs(useDirectory(), text), { gfm: true, breaks: true });
   // In a chat line, every code fence is numbered in order (app-core commandOf), and each inline `! ` span from BANG_FROM: a command's
   // run is named by that number.
@@ -35,7 +37,7 @@ export function Markdown({ text }: { text: string }) {
   }
   return (
     <Fences.Provider value={of && { of, n: fences }}>
-      <div className="flex flex-col gap-2 wrap-break-word">{blocks(tokens)}</div>
+      <div className="flex flex-col gap-2 wrap-break-word">{blocks(tokens, lead)}</div>
     </Fences.Provider>
   );
 }
@@ -80,8 +82,19 @@ function CodeSpan({ t }: { t: Tokens.Codespan }) {
 }
 const headings = ['text-lg', 'text-base', 'text-base', 'text-sm', 'text-sm', 'text-sm'];
 
-function blocks(tokens: Token[]): ReactNode {
-  return joinPictures(tokens).map((t, i) => <Fragment key={i}>{block(t)}</Fragment>);
+function blocks(tokens: Token[], lead?: ReactNode): ReactNode {
+  const all = joinPictures(tokens);
+  const first = all.findIndex((t) => t.type !== 'space');
+  // The lead goes in the first paragraph's line; before anything else (a list, a heading) it is a line of its own.
+  const inFirst = lead && all[first]?.type === 'paragraph';
+  return (
+    <>
+      {lead && !inFirst && <p>{lead}</p>}
+      {all.map((t, i) => (
+        <Fragment key={i}>{inFirst && i === first ? <Paragraph tokens={(t as Tokens.Paragraph).tokens} lead={lead} /> : block(t)}</Fragment>
+      ))}
+    </>
+  );
 }
 
 const isPicture = (t: Token): boolean => t.type === 'image' && attachmentOf(t.href) !== null;
@@ -142,7 +155,7 @@ function block(t: Token): ReactNode {
 }
 
 /** A paragraph's words, then the pictures pasted into it (`![caption](attachment:id)`) as one row of thumbnails sharing a viewer. */
-function Paragraph({ tokens }: { tokens: Token[] }) {
+function Paragraph({ tokens, lead }: { tokens: Token[]; lead?: ReactNode }) {
   const pictures = tokens
     .filter(isPicture)
     .map((t) => ({ id: attachmentOf((t as Tokens.Image).href)!, name: (t as Tokens.Image).text || 'picture' }));
@@ -152,7 +165,12 @@ function Paragraph({ tokens }: { tokens: Token[] }) {
   const said = words.length > 0;
   return (
     <>
-      {said && <p className="whitespace-pre-wrap">{inline(words)}</p>}
+      {(said || lead) && (
+        <p className="whitespace-pre-wrap">
+          {lead}
+          {inline(words)}
+        </p>
+      )}
       <MessageImages images={pictures} />
     </>
   );
@@ -243,7 +261,10 @@ function span(t: Token): ReactNode {
 // A task (T1234), a web address, or a path with a / and an extension, from its root (/, ~/) and with an @ in a folder name
 // (/Users/ron/workspaces/@legacy/notes.md); a :line after it is kept on the link.
 const PATH = String.raw`(?:~?\/)?(?:[\w.@-]+\/)+[\w.@-]+\.[A-Za-z]\w{0,7}(?::\d+)?`;
-const LINKS = new RegExp(String.raw`(\bT\d{2,}\b|https?:\/\/[^\s<>()]+[^\s<>().,;:!?'"]|(?<![\w/.@~-])${PATH})`, 'g');
+const LINKS = new RegExp(
+  String.raw`((?<![\w@/.-])@[\w.-]*\w|\bT\d{2,}\b|https?:\/\/[^\s<>()]+[^\s<>().,;:!?'"]|(?<![\w/.@~-])${PATH})`,
+  'g',
+);
 
 function linkOf(s: string): string | null {
   if (/^T\d{2,}$/.test(s)) return taskOf(Number(s.slice(1)));
@@ -253,10 +274,14 @@ function linkOf(s: string): string | null {
 }
 
 export function Linked({ text }: { text: string }) {
+  const agentOf = useAgentByName();
   // One span, so it is one item in a flex row.
   return (
     <span>
       {text.split(LINKS).map((p, i) => {
+        // An @name of an agent, written out in the text, is its mention; any other @word stays as written.
+        const agent = i % 2 && p.startsWith('@') ? agentOf(p.slice(1)) : null;
+        if (agent) return <Mention key={i} who={agent} />;
         const target = i % 2 ? linkOf(p) : null;
         return target ? (
           <Opens key={i} opens={target}>

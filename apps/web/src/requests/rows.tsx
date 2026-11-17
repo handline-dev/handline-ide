@@ -183,7 +183,11 @@ function Line({
           // A Requests row: the task number in the title's line, the text under both from the row's left edge.
           <span className="flex min-w-0 flex-1 flex-col gap-0.5">
             <span className="flex min-w-0 items-baseline gap-2">
-              <span className={`grid h-lh w-4 shrink-0 self-start place-items-center ${pick && !picking ? 'group-hover/line:invisible' : ''}`}>{icon}</span>
+              <span
+                className={`grid h-lh w-4 shrink-0 self-start place-items-center ${pick && !picking ? 'group-hover/line:invisible' : ''}`}
+              >
+                {icon}
+              </span>
               {lead && <span className="shrink-0 text-muted tabular-nums">{lead}</span>}
               <span className="truncate font-medium text-fg">{title}</span>
               {who && <span className="shrink-0 text-muted">{who}</span>}

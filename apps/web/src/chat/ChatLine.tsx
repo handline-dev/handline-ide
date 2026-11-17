@@ -1,3 +1,4 @@
+import { Ago } from '#src/ui/Ago.tsx';
 import { BASH_WATCH_MS, isPerson, isSystem, maybeRanNote, sideOf, tickLevel, type TimelineEntry } from '@handline/app-core';
 import type { TranscriptItem } from '@handline/client';
 import { motion } from 'framer-motion';
@@ -77,7 +78,9 @@ export function ChatLine({
       <motion.div data-id={key} {...fade} className="group flex flex-col items-end">
         <CommandBox command={command} bash={e.item} />
         <div className="mb-2 flex h-6 items-center gap-1.5 text-xs text-muted opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
-          <time dateTime={e.at}>{clock(e.at)}</time>
+          <time dateTime={e.at} title={clock(e.at)}>
+            <Ago at={e.at} />
+          </time>
           <CopyButton text={command} />
         </div>
       </motion.div>
@@ -154,13 +157,17 @@ export function ChatLine({
         {mine && e.kind === 'message' ? (
           <>
             <Ticks level={tickLevel(e.message)} />
-            <time dateTime={e.at}>{clock(e.at)}</time>
+            <time dateTime={e.at} title={clock(e.at)}>
+              <Ago at={e.at} />
+            </time>
             <Actions text={text} onQuote={() => reply()} />
           </>
         ) : (
           <>
             <Actions text={text} onQuote={() => reply()} />
-            <time dateTime={e.at}>{clock(e.at)}</time>
+            <time dateTime={e.at} title={clock(e.at)}>
+              <Ago at={e.at} />
+            </time>
           </>
         )}
       </div>

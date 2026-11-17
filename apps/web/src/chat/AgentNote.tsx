@@ -1,8 +1,8 @@
+import { Ago } from '#src/ui/Ago.tsx';
 import type { ChatMessage } from '@handline/client';
 import { motion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
 import { useState } from 'react';
-import { clock } from '#src/format/time.ts';
 import { spring } from '#src/motion.ts';
 import { Markdown } from '#src/ui/Markdown.tsx';
 import { Who } from '#src/ui/Who.tsx';
@@ -44,7 +44,7 @@ export function AgentNote({ m }: { m: ChatMessage }) {
         dateTime={m.at}
         className="h-5 text-xs leading-5 text-muted opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
       >
-        {clock(m.at)}
+        <Ago at={m.at} />
       </time>
     </div>
   );

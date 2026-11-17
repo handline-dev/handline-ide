@@ -7,7 +7,7 @@ import { useMe } from '@handline/app-react';
 import { useFeed, useNameOf, useTaskChanges, useTasks } from '@handline/app-data';
 import { look } from '#src/ui/taskLook.tsx';
 import { spring } from '#src/motion.ts';
-import { clock } from '#src/format/time.ts';
+import { clock, since, useNow } from '#src/format/time.ts';
 import { taskOf } from '#src/layout/kinds.tsx';
 import { useOpenable } from '#src/layout/openable.tsx';
 
@@ -135,8 +135,9 @@ function Row({ t, task, ruled }: { t: Touched; task?: Task; ruled: boolean }) {
   const nameOf = useNameOf();
   const me = useMe();
   const last = t.events.at(-1)!;
-  // Where it stands now, then the last thing done and when: "With web-data · handed 21:28 · 2 changes".
-  const did = [VERB[last.kind], last.at && clock(last.at)].filter(Boolean).join(' ');
+  // Where it stands now, then the last thing done and when: "With web-data · handed 5m ago · 2 changes".
+  const now = useNow();
+  const did = [VERB[last.kind], last.at && since(last.at, now)].filter(Boolean).join(' ');
   const line = [task ? holder(task, me, nameOf) : last.detail, did, t.events.length > 1 && `${t.events.length} changes`]
     .filter(Boolean)
     .join(' · ');
