@@ -17,10 +17,6 @@ const loginStallWords = "no other account can take it"
 // run of a service-side error on one account seen live is 3 (server_error), and one wake can fail twice in a second.
 const RepeatN = 4
 
-// unusable are the StopFailure errors that say the account itself cannot be used: one stalls it.
-var unusable = map[string]bool{"authentication_failed": true, "oauth_org_not_allowed": true, "account_on_hold": true,
-	"verification_required": true, "billing_error": true, "cloud_credential_error": true}
-
 // passing are the errors that never stall an account: rate_limit has the limit path, server_error and overloaded hit every account alike, and
 // invalid_request and max_output_tokens are the turn's own. Any other error stalls the account once it repeats RepeatN times.
 var passing = map[string]bool{"rate_limit": true, "server_error": true, "overloaded": true, "invalid_request": true, "max_output_tokens": true}
@@ -73,7 +69,7 @@ func (t *Tick) loginExpired(agent string, row *db.AgentState, acct string, actio
 			details = ": " + details
 		}
 		why = fmt.Sprintf("%s's turn ended on %s%s", agent, errType, details)
-		if !unusable[errType] {
+		if !team.Unusable(errType) {
 			n := l.Repeats(t.Q, acct, errType)
 			if n < RepeatN {
 				return false

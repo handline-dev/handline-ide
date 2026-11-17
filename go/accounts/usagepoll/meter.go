@@ -115,18 +115,26 @@ func refused(err error) bool {
 }
 
 // RunModel spends one real turn on the account (fold.run_model): the one thing that makes the CLI renew the token it is about to
-// spend. ok is whether the turn completed without an error.
-func (m *Meter) RunModel(ctx context.Context, acct, prompt, model string) (ok bool, out string) {
+// spend. ok is whether the turn completed without an error; errType is the error the CLI named on the turn's reply (oauth_org_not_allowed,
+// authentication_failed...), "" when it named none.
+func (m *Meter) RunModel(ctx context.Context, acct, prompt, model string) (ok bool, out, errType string) {
 	l, cleanup, err := m.launch(acct)
 	if err != nil {
-		return false, err.Error()
+		return false, err.Error(), ""
 	}
 	defer cleanup()
 	l.Model = model
 	done := make(chan map[string]any, 1)
+	named := make(chan string, 1)
 	c, cancel := context.WithTimeout(ctx, FoldTimeout)
 	defer cancel()
 	s, err := m.open(c, l, claudecli.Handlers{OnEvent: func(ev map[string]any) {
+		if e, _ := ev["error"].(string); e != "" && ev["type"] == "assistant" {
+			select {
+			case named <- e:
+			default:
+			}
+		}
 		if ev["type"] == "result" {
 			select {
 			case done <- ev:
@@ -135,21 +143,25 @@ func (m *Meter) RunModel(ctx context.Context, acct, prompt, model string) (ok bo
 		}
 	}})
 	if err != nil {
-		return false, err.Error()
+		return false, err.Error(), ""
 	}
 	defer s.Close()
 	if err := s.Send(prompt); err != nil {
-		return false, err.Error()
+		return false, err.Error(), ""
 	}
 	select {
 	case ev := <-done:
 		text, _ := ev["result"].(string)
 		if bad, _ := ev["is_error"].(bool); bad {
-			return false, oneLine(text)
+			select {
+			case errType = <-named:
+			default:
+			}
+			return false, oneLine(text), errType
 		}
-		return true, strings.TrimSpace(text)
+		return true, strings.TrimSpace(text), ""
 	case <-c.Done():
-		return false, fmt.Sprintf("fold timed out after %ds", int(FoldTimeout.Seconds()))
+		return false, fmt.Sprintf("fold timed out after %ds", int(FoldTimeout.Seconds())), ""
 	}
 }
 

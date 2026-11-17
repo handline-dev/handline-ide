@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/paths"
 )
 
@@ -28,8 +29,10 @@ type RecoverPorts interface {
 	// LongTrusted is the account's longest-window figure, the floor a stale reading carries; ok false when truly unknown. label names the window.
 	LongTrusted(acct string) (pct int, label string, ok bool)
 	LongBlock() int
-	// RunModel is fold.run_model: one real turn on the account's own credential.
-	RunModel(prompt, acct, model string) (ok bool, out string)
+	// RunModel is fold.run_model: one real turn on the account's own credential. errType is the error the CLI named for a failed turn.
+	RunModel(prompt, acct, model string) (ok bool, out, errType string)
+	// Stall marks the account unusable for errType until a login or a wake, as a failed agent turn does (team.Accounts.StallAccount).
+	Stall(acct, errType, why string) error
 	// ReadUsage is usage_api.read_detailed with no refresh: the reading, or whether the failure was an auth refusal (401/403).
 	ReadUsage(acct string) (reading Reading, authFailed bool)
 	Record(reading Reading)
@@ -94,8 +97,15 @@ func (r *Recoverer) Recover(acct string) (bool, string) {
 	if week, label, ok := p.LongTrusted(acct); ok && week >= p.LongBlock() {
 		return false, fmt.Sprintf("%s: %s %d%% is at the wall - not spending a turn on it", acct, label, week)
 	}
-	if ok, out := p.RunModel(RecoverPrompt, acct, RecoverModel); !ok {
-		return false, fmt.Sprintf("%s: recovery turn failed: %s", acct, out)
+	if ok, out, errType := p.RunModel(RecoverPrompt, acct, RecoverModel); !ok {
+		if !team.Unusable(errType) {
+			return false, fmt.Sprintf("%s: recovery turn failed: %s", acct, out)
+		}
+		// This turn may be the account's only witness (it may have no agents): stall it as a failed agent turn would.
+		if err := p.Stall(acct, errType, "the usage recovery turn ended on "+errType+": "+out); err != nil {
+			return false, fmt.Sprintf("%s: recovery turn ended on %s, and the account could not be stalled: %v", acct, errType, err)
+		}
+		return false, fmt.Sprintf("%s: recovery turn ended on %s - stalled until a login or a wake: %s", acct, errType, out)
 	}
 	reading, authFailed := p.ReadUsage(acct)
 	if reading == nil {

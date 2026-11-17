@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -19,6 +20,7 @@ type fakeCLI struct {
 	err    error
 	sent   string
 	result map[string]any
+	before []map[string]any // frames the CLI writes before the result, in order
 	h      claudecli.Handlers
 	closed bool
 }
@@ -28,7 +30,12 @@ func (f *fakeCLI) Close() error                                     { f.closed =
 func (f *fakeCLI) Send(text string) error {
 	f.sent = text
 	if f.result != nil {
-		go f.h.OnEvent(f.result)
+		go func() {
+			for _, ev := range f.before {
+				f.h.OnEvent(ev)
+			}
+			f.h.OnEvent(f.result)
+		}()
 	}
 	return nil
 }
@@ -115,13 +122,24 @@ func TestARefusedLoginIsToldApartFromATimeout(t *testing.T) {
 func TestRunModelIsOneTurnAndReadsTheResultFrame(t *testing.T) {
 	f := &fakeCLI{result: map[string]any{"type": "result", "result": "hello"}}
 	m, _ := meterWith(t, f, nil)
-	if ok, out := m.RunModel(context.Background(), "a", "hi", "haiku"); !ok || out != "hello" || f.sent != "hi" {
-		t.Errorf("run %v %q sent %q", ok, out, f.sent)
+	if ok, out, e := m.RunModel(context.Background(), "a", "hi", "haiku"); !ok || out != "hello" || e != "" || f.sent != "hi" {
+		t.Errorf("run %v %q %q sent %q", ok, out, e, f.sent)
 	}
 	f = &fakeCLI{result: map[string]any{"type": "result", "is_error": true, "result": "Not logged in"}}
 	m, _ = meterWith(t, f, nil)
-	if ok, out := m.RunModel(context.Background(), "a", "hi", "haiku"); ok || out != "Not logged in" {
-		t.Errorf("run %v %q", ok, out)
+	if ok, out, e := m.RunModel(context.Background(), "a", "hi", "haiku"); ok || out != "Not logged in" || e != "" {
+		t.Errorf("run %v %q %q", ok, out, e)
+	}
+}
+
+// TestRunModelNamesTheErrorTheTurnEndedOn: a subscription refused for Claude Code (403 oauth_not_allowed_for_organization, a payment
+// past due) comes back as the assistant frame's error, which recovery stalls the account on.
+func TestRunModelNamesTheErrorTheTurnEndedOn(t *testing.T) {
+	f := &fakeCLI{before: []map[string]any{{"type": "assistant", "error": "oauth_org_not_allowed", "api_error_status": 403.0}},
+		result: map[string]any{"type": "result", "is_error": true, "result": "Claude Code can't use your Claude subscription"}}
+	m, _ := meterWith(t, f, nil)
+	if ok, out, e := m.RunModel(context.Background(), "a", "hi", "haiku"); ok || e != "oauth_org_not_allowed" || !strings.Contains(out, "subscription") {
+		t.Errorf("run %v %q %q", ok, out, e)
 	}
 }
 
