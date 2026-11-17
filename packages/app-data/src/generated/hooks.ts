@@ -124,6 +124,7 @@ export const useTaskOk = (target?: string) => useWrite("task.ok", target);
 export const useTaskRedo = (target?: string) => useWrite("task.redo", target);
 export const useTaskPlanAsk = (target?: string) => useWrite("task.plan_ask", target);
 export const useTaskCoreAsk = (target?: string) => useWrite("task.core_ask", target);
+export const useLessonRemove = (target?: string) => useWrite("lesson.remove", target);
 export const useProposalWithdraw = (target?: string) => useWrite("proposal.withdraw", target);
 export const useWorkspaceCreate = (target?: string) => useWrite("workspace.create", target);
 export const useWorkspaceSet = (target?: string) => useWrite("workspace.set", target);

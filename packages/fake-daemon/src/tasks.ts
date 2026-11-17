@@ -5,7 +5,12 @@ import { fieldsOf } from '#src/history.ts';
 import { TaskFailure, type Row } from '#src/taskstore.ts';
 import { TaskReviews } from '#src/taskreviews.ts';
 
+import type { Lesson } from '@handline/contract';
+
 export { TaskFailure };
+
+/** The heading the daemon's launch prompt puts over an agent's lessons (db.LessonsSection), counted in its bytes. */
+const LESSONS_HEADING = "# What you learned (your lessons)\nFrom the founder's Redo notes. Apply them to every task.";
 
 export class FakeTasks extends TaskReviews {
   /** The methods this fake answers: the basic ones, and the verbs of the daemon's plan (D3) only when asked for. */
@@ -16,6 +21,26 @@ export class FakeTasks extends TaskReviews {
   lists(method: string): boolean {
     return !/^tasks?\./.test(method) || this.serves(method) || /^task\.(request|none|send_now)$/.test(method); // served by the requests and admin modules
   }
+  /** Each agent's live lessons by its key, oldest first; a test or seed puts them here. */
+  readonly lessons = new Map<string, Lesson[]>();
+
+  /** lessons.list: an agent's live lessons and the bytes the launch prompt's section takes. */
+  lessonsOf(agent: string): { agent: string; items: Lesson[]; bytes: number; cap: number } {
+    const items = this.lessons.get(agent) ?? [];
+    const lines = items.map((l) => `\n- ${l.text}${l.task ? ` (T${l.task})` : ''}`).join('');
+    const bytes = items.length ? new TextEncoder().encode(LESSONS_HEADING + lines).length : 0;
+    return { agent, items, bytes, cap: 3072 };
+  }
+
+  /** lesson.remove: false when no live lesson has that id. */
+  removeLesson(id: number): boolean {
+    for (const [agent, items] of this.lessons) {
+      const kept = items.filter((l) => l.id !== id);
+      if (kept.length !== items.length) return (this.lessons.set(agent, kept), true);
+    }
+    return false;
+  }
+
   create(p: Record<string, unknown>, person: string, agent = false): number {
     const owner = String(p.owner ?? '');
     if (owner !== 'human' && !this.isAgent(owner)) throw new TaskFailure('bad_request', `no agent ${owner}`);
@@ -104,6 +129,8 @@ const BASIC = new Set([
   'task.seen',
   'requests.pending',
   'warning.dismiss',
+  'lessons.list',
+  'lesson.remove',
   'task.history',
   'task.time',
   'task.new',

@@ -163,7 +163,7 @@ func TestAStorysSubTaskWaitsForTheFoundersOKBeforeItGoesToLand(t *testing.T) {
 	if got := errText(as(k("gp"), "task.handoff", fmt.Sprintf(`"task":1,"to":%q,"note":"ship it",`, lander))); !strings.Contains(got, "who works it, finishes it") {
 		t.Fatal("the lead skipped the founder")
 	}
-	if count(t, d, "SELECT COUNT(*) FROM requests WHERE target = 'gp.worker' AND body LIKE 'T1 대표님 Redo 1 (댓글 %): the badge overlaps on the phone%'") != 1 {
+	if count(t, d, "SELECT COUNT(*) FROM requests WHERE target = 'gp.worker' AND body LIKE 'T1 대표님 Redo 1 (댓글 %): the badge overlaps on the phone%First keep one lesson%hl lesson add \"<the lesson>\" --task T1%'") != 1 {
 		t.Fatal("the worker is not told the redo")
 	}
 

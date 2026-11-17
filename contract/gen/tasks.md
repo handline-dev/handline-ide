@@ -40,6 +40,10 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `task.redo` | member | yes | `task`, `note`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | decided: Redo |
 | `task.plan_ask` | member | yes | `task`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | decided: ask for a plan |
 | `task.core_ask` | member | yes | `task`, `note?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | decided: ask for core logic |
+| `lesson.add` | agent (only agent) | yes | `text`, `task`, `request_id` | `Accepted & {id}` | `refused`, `not_found`, `bad_request` |  | not from the app |
+| `lesson.merge` | agent (only agent) | yes | `ids`, `text`, `request_id` | `Accepted & {id}` | `refused`, `bad_request` |  | not from the app |
+| `lessons.list` | agent |  | `agent?` | `{agent, items, bytes, cap}` |  |  | not cached |
+| `lesson.remove` | owner | yes | `id`, `request_id` | `Accepted` | `not_found`, `bad_request` |  | decided: remove a lesson |
 
 ### `tasks.list`
 
@@ -180,4 +184,20 @@ Ask the task's assignee for its plan (the button of the plans setting manual, or
 ### `task.core_ask`
 
 Ask the task's assignee to write only its key function and that function's test, committed on a branch of the task's own in its worktree, not merged, and to say so in a comment. The ask waits as task.plan_ask's does (TaskDetail.core_ask). The code is read with worktree.diff; when the task is run its assignee carries on from that branch. Refused (`refused`): a task that has ended or that no agent works, and one with a core-logic ask that has not been sent yet.
+
+### `lesson.add`
+
+An agent keeps one thing it learned (from a Redo, on task): its next sessions start with it in their launch prompt. Writes a `lesson` event on the task. Refused (`refused`) when the agent's lessons would pass their 3 KB limit (the prompt section): merge similar ones first with lesson.merge. Not found: no such task.
+
+### `lesson.merge`
+
+An agent replaces two or more of its live lessons with one: they are kept, marked merged into it; its task is the newest source's that names one. Refused (`refused`): an id that is not one of the caller's live lessons, or a merge still past the 3 KB limit.
+
+### `lessons.list`
+
+An agent's live lessons, oldest first, as its launch prompt carries them, and how many of the limit's bytes they take.
+
+### `lesson.remove`
+
+The founder removes one of an agent's lessons; it is kept, marked removed with who and when. Not found (`not_found`, data.what `lesson`): no live lesson of that id.
 

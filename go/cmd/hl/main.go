@@ -24,6 +24,7 @@ var commands = map[string]command{
 	"init":            initCmd,
 	"inbox":           inbox,
 	"launch":          launch,
+	"lesson":          lesson,
 	"load":            loadCmd,
 	"notice-digest":   noticeDigest,
 	"progress":        progress,

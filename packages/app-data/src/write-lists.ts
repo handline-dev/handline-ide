@@ -20,4 +20,7 @@ export const NOT_FROM_UI = [
   'task.handoff',
   // `hl withdraw`: the app takes a message back through chat.cancel.
   'request.withdraw',
+  // `hl lesson add` and `hl lesson merge`: an agent keeps its own lessons; the founder only removes one (lesson.remove).
+  'lesson.add',
+  'lesson.merge',
 ] as const;

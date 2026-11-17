@@ -50,10 +50,10 @@ export const reads = {
 } as const satisfies Record<string, { resource: string; id?: string; feed?: Topic }>;
 
 /** The reads the app does not cache (x-app-cache false). */
-export const NOT_CACHED = ["hello", "whoami", "subscribe", "unsubscribe", "lease.take", "lease.release", "lease.extend", "events.feed", "accounts.discover", "session.launch_prepare", "permission.ask", "progress.get", "attachment.get", "inbox.queue", "request.read", "doc.open", "doc.pull", "doc.close", "workspace.rules", "terminal.attach", "terminal.history", "terminal.open", "terminal.detach"] as const;
+export const NOT_CACHED = ["hello", "whoami", "subscribe", "unsubscribe", "lease.take", "lease.release", "lease.extend", "events.feed", "accounts.discover", "session.launch_prepare", "permission.ask", "progress.get", "attachment.get", "inbox.queue", "request.read", "doc.open", "doc.pull", "doc.close", "lessons.list", "workspace.rules", "terminal.attach", "terminal.history", "terminal.open", "terminal.detach"] as const;
 
 /** The writes the app does not make from a screen (x-app-write false). */
-export const NOT_WRITTEN = ["hook.record", "subagent.start", "session.wake", "say", "request.withdraw", "device.redeem", "device.push_token", "task.handoff", "task.progress", "task.begin", "task.start", "task.wait", "proposal.propose"] as const;
+export const NOT_WRITTEN = ["hook.record", "subagent.start", "session.wake", "say", "request.withdraw", "device.redeem", "device.push_token", "task.handoff", "task.progress", "task.begin", "task.start", "task.wait", "lesson.add", "lesson.merge", "proposal.propose"] as const;
 
 /** What each event's data must carry (the schema's required fields); the bridge reads the topic again for one that does not. */
 export const EVENT_REQUIRED: Record<string, readonly string[]> = {
