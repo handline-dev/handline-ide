@@ -103,16 +103,22 @@ export function fontFor(widthPx: number, cols: number): number {
   if (!widthPx || !cols) return DEFAULT_FONT;
   return Math.max(MIN_FONT, Math.min(DEFAULT_FONT, Math.floor(widthPx / (cols * 0.62))));
 }
-export const clampGrid = (cols: number, rows: number) => ({
-  cols: Math.min(400, Math.max(20, cols)),
-  rows: Math.min(200, Math.max(5, rows)),
+/** The smallest grid the daemon resizes an agent's terminal to (go/internal/termchan/hold.go minCols, minRows): it reads its dialogs no narrower. */
+export const AGENT_MIN = { cols: 80, rows: 24 };
+export const clampGrid = (cols: number, rows: number, min = { cols: 20, rows: 5 }) => ({
+  cols: Math.min(400, Math.max(min.cols, cols)),
+  rows: Math.min(200, Math.max(min.rows, rows)),
 });
 
 /** The grid to ask the host for, or null while the pane has no size or already shows this one. */
-export function gridToSend(proposed: { cols: number; rows: number } | null, now: { cols: number; rows: number }) {
+export function gridToSend(
+  proposed: { cols: number; rows: number } | null,
+  now: { cols: number; rows: number },
+  min?: { cols: number; rows: number },
+) {
   if (!proposed || !Number.isFinite(proposed.cols) || !Number.isFinite(proposed.rows) || proposed.cols < 1 || proposed.rows < 1)
     return null;
-  const g = clampGrid(proposed.cols, proposed.rows);
+  const g = clampGrid(proposed.cols, proposed.rows, min);
   return g.cols === now.cols && g.rows === now.rows ? null : g;
 }
 

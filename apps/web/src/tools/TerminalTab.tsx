@@ -11,6 +11,7 @@ import {
   MAX_UNWRITTEN,
   fontFor,
   gridToSend,
+  AGENT_MIN,
   guard,
   isEscapeChord,
   keySender,
@@ -106,7 +107,7 @@ function BytesTab({ agent, shell, detail }: { agent: string; shell?: string; det
       const sizes = () => holding || !otherHolds;
       const sendSize = () => {
         const v = live.current?.view;
-        const g = v && v.state === 'live' && sizes() ? gridToSend(pane.propose(), v) : null;
+        const g = v && v.state === 'live' && sizes() ? gridToSend(pane.propose(), v, shell ? undefined : AGENT_MIN) : null;
         if (v && g) {
           traceResize('ask', `${g.cols}x${g.rows} (host ${v.cols}x${v.rows})`);
           void store.client.bytes.resize(v, g.cols, g.rows).catch(() => {}); // a refused size leaves the grid as it is
@@ -126,7 +127,8 @@ function BytesTab({ agent, shell, detail }: { agent: string; shell?: string; det
       const repaint = () => {
         const v = live.current?.view;
         if (!v) return;
-        const px = sizes() ? DEFAULT_FONT : fontFor(el.clientWidth, v.cols); // a font that tracked the host's grid would move the grid this pane proposes
+        // Following the host's grid would move what this pane proposes; an agent's pane shrinks its font to fit 80 cols.
+        const px = !sizes() ? fontFor(el.clientWidth, v.cols) : shell ? DEFAULT_FONT : fontFor(el.clientWidth, AGENT_MIN.cols);
         traceResize('host', `${v.cols}x${v.rows}, font ${px}, sizes ${sizes()} holders ${v.holders.map((h) => h.kind).join()}`);
         pane.setFontSize(px);
       };
