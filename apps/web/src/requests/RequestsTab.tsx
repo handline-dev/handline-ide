@@ -2,7 +2,7 @@
 // finished are in Tasks (My requests). The bell's popover previews the turn and the finished.
 import { ListLoading } from '#src/ui/Loading.tsx';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp, ListChecks } from 'lucide-react';
 import type { PendingRequest, Task } from '@handline/client';
 import { TaskTab } from '#src/tools/TaskTab.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
@@ -218,9 +218,10 @@ function DecidedLine({ t, who }: { t: DecidedTask; who: string }) {
   const after = t.state === 'done' ? 'done' : t.state === 'discarded' ? 'discarded' : `${who} is on it`;
   return (
     <button type="button" {...open} className="flex w-full gap-2.5 border-b border-border px-2 py-3 text-left hover:bg-hover/30">
-      <span className="w-14 shrink-0 text-muted tabular-nums">T{t.id}</span>
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className="flex min-w-0 items-baseline gap-2">
+          <span className="grid h-lh w-4 shrink-0 self-start place-items-center text-muted"><ListChecks size={16} /></span>
+          <span className="shrink-0 text-muted tabular-nums">T{t.id}</span>
           <span className="truncate font-medium text-fg">{t.title}</span>
           <span className="shrink-0 text-muted">{who}</span>
           <span className="ml-auto shrink-0 pl-3 text-xs text-muted tabular-nums">{clock(t.decided.at)}</span>
