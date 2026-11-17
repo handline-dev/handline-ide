@@ -1,22 +1,24 @@
-// Requests: what waits on the founder (their turn, notes, rows put off) and what they decided today. Their requests in progress and
+import { Ago } from '#src/ui/Ago.tsx';
+// Requests: what waits on the founder (their turn, notes, rows put off) and what they decided, newest first. Their requests in progress and
 // finished are in Tasks (My requests). The bell's popover previews the turn and the finished.
 import { ListLoading } from '#src/ui/Loading.tsx';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Children, isValidElement, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Children, isValidElement, useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react';
 import { spring } from '#src/motion.ts';
-import { ChevronDown, ChevronUp, ListChecks } from 'lucide-react';
-import type { PendingRequest, Task } from '@handline/client';
+import { Lightbulb, ListChecks } from 'lucide-react';
+import type { PendingRequest, Proposal, Task } from '@handline/client';
 import { TaskTab } from '#src/tools/TaskTab.tsx';
-import { IconButton } from '#src/ui/IconButton.tsx';
-import { useNameOf, useTasks } from '@handline/app-data';
-import { clock } from '#src/format/time.ts';
-import { taskOf } from '#src/layout/kinds.tsx';
+import { Button } from '#src/ui/Button.tsx';
+import { useNameOf, useProposals, useTasks } from '@handline/app-data';
+import { chatOf, taskOf } from '#src/layout/kinds.tsx';
 import { useOpenable } from '#src/layout/openable.tsx';
 import { laterWords, pickAllState, turnKey, turnRow, type Picked } from '@handline/app-core';
 import { useRequests } from '#src/requests/data.ts';
 import { BulkButtons, PickProvider, usePick } from '#src/requests/RowMenu.tsx';
 import { TurnLine } from '#src/requests/rows.tsx';
 import { ScrollFade } from '#src/ui/ScrollFade.tsx';
+import { Splitter } from '#src/ui/Splitter.tsx';
+import { useTabState } from '#src/persist/tabState.ts';
 import { selectionRoom, WithSelectionBar } from '#src/ui/SelectionBar.tsx';
 
 /** A section's rows: one that comes or goes opens or closes its height, and the rest move to their new places (a row whose time
@@ -96,15 +98,21 @@ export function RequestsTab() {
   );
 }
 
+/** The list keeps at least 320px, and leaves the task at least 360px. */
+const fitList = (px: number, size: number) => Math.max(320, Math.min(px, size - 360));
+
 function Requests() {
   const r = useRequests();
   // The task view shows beside the list only from 48rem (@3xl); narrower, a row opens its task the standard way.
   const box = useRef<HTMLDivElement>(null);
-  const [split, setSplit] = useState(true);
+  // The list's width beside the task, dragged on the handle between them; kept with the tab.
+  const [listWidth, setListWidth] = useTabState('list-width', 416);
+  const [boxWidth, setBoxWidth] = useState(Infinity);
+  const split = boxWidth >= 48 * parseFloat(getComputedStyle(document.documentElement).fontSize);
   useEffect(() => {
     const el = box.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => setSplit(el.clientWidth >= 48 * parseFloat(getComputedStyle(document.documentElement).fontSize)));
+    const ro = new ResizeObserver(() => setBoxWidth(el.clientWidth));
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
@@ -175,7 +183,8 @@ function Requests() {
         count={n}
         onClear={() => pick?.clear()}
         actions={<BulkButtons />}
-        className="w-full shrink-0 @3xl:w-104 @3xl:border-r @3xl:border-border"
+        className="w-full shrink-0"
+        style={split ? { width: fitList(listWidth, boxWidth) } : undefined}
       >
         <ScrollFade keep="requests" fadeTop={false} className={`min-h-0 flex-1 ${selectionRoom(n)}`}>
           <div className="flex flex-col gap-6 px-3 py-4 text-sm">
@@ -196,26 +205,26 @@ function Requests() {
                     {r.later.map(({ p, at: back }) => line(p, laterWords(back)))}
                   </Section>
                 )}
-                <Decided />
+                <Decided shown={shown} onPick={split ? (id) => setChosen({ key: `decided:${id}`, at: lastAt, task: id }) : undefined} />
               </>
             )}
           </div>
         </ScrollFade>
       </WithSelectionBar>
+      {/* The same handle as between panes and beside the sidebar. */}
+      {split && (
+        <Splitter
+          axis="x"
+          container={box}
+          percent={(listWidth / boxWidth) * 100}
+          onMove={(at, size) => setListWidth(fitList(at, size))}
+          onStep={(d) => setListWidth((w) => fitList(w + d * 16, boxWidth))}
+          label="Resize the list"
+        />
+      )}
       <div className="hidden min-w-0 flex-1 flex-col @3xl:flex">
         {shown !== null ? (
           <>
-            <div className="flex h-9 shrink-0 items-center justify-end gap-1 border-b border-border px-3 text-xs text-muted tabular-nums">
-              <span className="mr-1">
-                {left ? '–' : at + 1} / {withTask.length}
-              </span>
-              <IconButton label="Previous (k)" onClick={() => step(-1)} disabled={(left ? lastAt : at) === 0}>
-                <ChevronUp size={14} />
-              </IconButton>
-              <IconButton label="Next (j)" onClick={() => step(1)} disabled={(left ? lastAt : at + 1) >= withTask.length}>
-                <ChevronDown size={14} />
-              </IconButton>
-            </div>
             <TaskTab key={shown} id={shown} />
           </>
         ) : (
@@ -226,46 +235,111 @@ function Requests() {
   );
 }
 
-/** What the founder decided today, newest first: per task, the question, their answer, and what came of it. */
-function Decided() {
-  const [since] = useState(() => {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return d.toISOString();
-  });
-  const q = useTasks({ decided_since: since });
+/** What the founder decided, newest first: per task, the question, their answer, and what came of it. */
+/** Every decision so far, ten more at a time. */
+const PAGE = 10;
+const EVER = new Date(0).toISOString();
+
+function Decided({ shown, onPick }: { shown: number | null; onPick?: (task: number) => void }) {
+  // One read that grows (the daemon's newest by id, at most 200): it stays live as decisions come, and Show more asks for more.
+  const [limit, setLimit] = useState(PAGE);
+  const q = useTasks({ decided_since: EVER, limit });
+  // HR proposals the founder answered: each state read whole (proposal.list with a state has no 7-day bound).
+  const approved = useProposals({ state: 'approved' }).data?.proposals ?? [];
+  const rejected = useProposals({ state: 'rejected' }).data?.proposals ?? [];
+  const failed = useProposals({ state: 'apply_failed' }).data?.proposals ?? [];
   const nameOf = useNameOf();
-  const items = (q.data?.items ?? []).filter(isDecided).sort((a, b) => b.decided.at.localeCompare(a.decided.at));
-  if (!items.length) return <Section title="Decided today" rows={[]} empty={q.isPending ? '' : 'Nothing decided today.'} />;
+  const all: Decision[] = [
+    ...(q.data?.items ?? []).filter(isDecided).map((t) => ({ kind: 'task' as const, at: t.decided.at, t })),
+    ...[...approved, ...rejected, ...failed].filter((x) => x.settled).map((x) => ({ kind: 'proposal' as const, at: x.settled!, x })),
+  ].sort((a, b) => b.at.localeCompare(a.at));
+  // As many as the tasks read so far reach back to, so a page of tasks and the proposals of that time show together.
+  const items = all.slice(0, limit);
+  if (!items.length) return <Section title="Decided" rows={[]} empty={q.isPending ? '' : 'Nothing decided yet.'} />;
   return (
     <section className="flex flex-col">
-      <h2 className="sticky top-0 z-20 flex min-h-9 items-center border-b border-border bg-bg px-2 text-sm font-medium text-fg">
-        Decided today
-      </h2>
+      <h2 className="sticky top-0 z-20 flex min-h-9 items-center border-b border-border bg-bg px-2 text-sm font-medium text-fg">Decided</h2>
       <Rows>
-        {items.map((t) => (
-          <DecidedLine key={t.id} t={t} who={nameOf(t.to)} />
-        ))}
+        {items.map((d) =>
+          d.kind === 'task' ? (
+            <DecidedLine
+              key={`task:${d.t.id}`}
+              t={d.t}
+              who={nameOf(d.t.to)}
+              chosen={shown === d.t.id}
+              onPick={onPick && (() => onPick(d.t.id))}
+            />
+          ) : (
+            <DecidedProposal key={`hr:${d.x.id}`} x={d.x} />
+          ),
+        )}
       </Rows>
+      {(q.data?.more || all.length > limit) && limit < 200 && (
+        <Button variant="ghost" className="mt-2 self-center" onClick={() => setLimit((n) => Math.min(200, n + PAGE))}>
+          Show more
+        </Button>
+      )}
     </section>
   );
 }
 
 type DecidedTask = Task & { decided: NonNullable<Task['decided']> };
-const isDecided = (t: Task): t is DecidedTask => !!t.decided;
+type Decision = { kind: 'task'; at: string; t: DecidedTask } | { kind: 'proposal'; at: string; x: Proposal };
 
-function DecidedLine({ t, who }: { t: DecidedTask; who: string }) {
-  const open = useOpenable(taskOf(t.id));
-  const after = t.state === 'done' ? 'done' : t.state === 'discarded' ? 'discarded' : `${who} is on it`;
+const ANSWER: Record<string, string> = { approved: 'Allowed', rejected: 'Denied', apply_failed: 'Allowed, not applied' };
+
+/** An HR proposal the founder answered, drawn as a task decision is: what it asked, the answer, and when. It opens the asking agent's
+ *  chat, as its Your turn row did. */
+function DecidedProposal({ x }: { x: Proposal }) {
+  const nameOf = useNameOf();
+  const asker = x.requested_by ?? x.agent;
+  const open = useOpenable(chatOf(asker));
   return (
     <button type="button" {...open} className="flex w-full gap-2.5 border-b border-border px-2 py-3 text-left hover:bg-hover/30">
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className="flex min-w-0 items-baseline gap-2">
-          <span className="grid h-lh w-4 shrink-0 self-start place-items-center text-muted"><ListChecks size={16} /></span>
+          <span className="grid h-lh w-4 shrink-0 self-start place-items-center text-muted">
+            <Lightbulb size={16} />
+          </span>
+          <span className="shrink-0 text-muted">HR</span>
+          <span className="truncate font-medium text-fg">{x.title}</span>
+          <span className="shrink-0 text-muted">{nameOf(asker)}</span>
+          <span className="ml-auto shrink-0 pl-3 text-xs text-muted tabular-nums">
+            <Ago at={x.settled!} />
+          </span>
+        </span>
+        <span className="truncate text-muted">
+          You {ANSWER[x.state] ?? x.state}
+          {x.note ? ` “${x.note.replace(/\s+/g, ' ')}”` : ''}
+        </span>
+      </span>
+    </button>
+  );
+}
+const isDecided = (t: Task): t is DecidedTask => !!t.decided;
+
+/** A decision: a click shows its task beside the list as a Your turn row does (onPick), else opens it the standard way. */
+function DecidedLine({ t, who, chosen, onPick }: { t: DecidedTask; who: string; chosen: boolean; onPick?: () => void }) {
+  const open = useOpenable(taskOf(t.id));
+  const after = t.state === 'done' ? 'done' : t.state === 'discarded' ? 'discarded' : `${who} is on it`;
+  return (
+    <button
+      type="button"
+      {...open}
+      onClick={(e: MouseEvent) => (onPick && !e.metaKey && !e.ctrlKey && !e.altKey ? onPick() : open.onClick(e))}
+      className={`flex w-full gap-2.5 border-b border-border px-2 py-3 text-left ${chosen ? 'bg-selected' : 'hover:bg-hover/30'}`}
+    >
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="flex min-w-0 items-baseline gap-2">
+          <span className="grid h-lh w-4 shrink-0 self-start place-items-center text-muted">
+            <ListChecks size={16} />
+          </span>
           <span className="shrink-0 text-muted tabular-nums">T{t.id}</span>
           <span className="truncate font-medium text-fg">{t.title}</span>
           <span className="shrink-0 text-muted">{who}</span>
-          <span className="ml-auto shrink-0 pl-3 text-xs text-muted tabular-nums">{clock(t.decided.at)}</span>
+          <span className="ml-auto shrink-0 pl-3 text-xs text-muted tabular-nums">
+            <Ago at={t.decided.at} />
+          </span>
         </span>
         <span className="truncate text-muted">
           You “{t.decided.answer.replace(/\s+/g, ' ')}” → {after}
