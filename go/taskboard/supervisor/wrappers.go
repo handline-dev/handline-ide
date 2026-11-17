@@ -5,16 +5,16 @@ import "github.com/handline/handline/go/data/db"
 // Exported entry points over the readers that raise a failed statement internally (see Catch): each returns it as an error.
 
 // RaiseDecision is raiseDecision with a failed statement returned as the error.
-func (e *Env) RaiseDecision(q db.Q, after *After, agent, text, reason, files string, chainID string, depth int64, parentID int64, extra ...db.KV) (r0 int64, err error) {
+func (e *Env) RaiseDecision(q db.Q, agent, text, reason, files string, chainID string, depth int64, parentID int64, extra ...db.KV) (r0 int64, err error) {
 	defer Catch(&err)
-	r0 = e.raiseDecision(q, after, agent, text, reason, files, chainID, depth, parentID, extra...)
+	r0 = e.raiseDecision(q, agent, text, reason, files, chainID, depth, parentID, extra...)
 	return r0, nil
 }
 
 // Report is report with a failed statement returned as the error.
-func (e *Env) Report(q db.Q, after *After, agent, text, reason string) (r0 int64, err error) {
+func (e *Env) Report(q db.Q, agent, text, reason string) (r0 int64, err error) {
 	defer Catch(&err)
-	r0 = e.report(q, after, agent, text, reason)
+	r0 = e.report(q, agent, text, reason)
 	return r0, nil
 }
 

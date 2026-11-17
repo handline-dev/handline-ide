@@ -36,8 +36,8 @@ func points(series []usage.OutlookPoint) []any {
 
 // runsOut is rpc_outlook._runs_out: seconds until the window that runs out first does, as the runway's words pick it; nil when there is
 // no reading, no burn to go by, or the window resets first.
-func runsOut(e *usage.Env, st *usage.AccountStatus, acct string, now int64, ld *usage.Load) any {
-	in, _, ok := wallOf(e, st, acct, now, ld)
+func runsOut(st *usage.AccountStatus, now int64, ld *usage.Load) any {
+	in, _, ok := wallOf(st, now, ld)
 	if !ok {
 		return nil
 	}
@@ -46,7 +46,7 @@ func runsOut(e *usage.Env, st *usage.AccountStatus, acct string, now int64, ld *
 
 // wallOf is when the account reaches a limit, in seconds from now (0: it is at one), and when that limit's window resets; ok false when
 // there is no reading, no burn to go by, or the window resets first.
-func wallOf(e *usage.Env, st *usage.AccountStatus, acct string, now int64, ld *usage.Load) (in, reset int64, ok bool) {
+func wallOf(st *usage.AccountStatus, now int64, ld *usage.Load) (in, reset int64, ok bool) {
 	var burn *float64
 	if ld != nil {
 		burn = ld.Burn
@@ -184,7 +184,7 @@ func (e *Env) outlookAt(name string, hours int, clock time.Time, pick *string) (
 		st := ue.Read(a)
 		var runs any
 		if !st.Unmetered {
-			runs = runsOut(ue, st, a, now, loads[a])
+			runs = runsOut(st, now, loads[a])
 		}
 		var resets any
 		if st.Long.Reset != 0 {

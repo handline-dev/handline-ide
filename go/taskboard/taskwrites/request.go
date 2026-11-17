@@ -21,7 +21,7 @@ const titleMax = 80
 
 // founderMessage is the founder's message to an agent that task.request acts on: the one who may act on it is the founder or
 // that agent. A message that is not so is refused, naming why.
-func founderMessage(tx *sql.Tx, home string, c *rpc.Conn, p map[string]any) (int64, *db.Request, error) {
+func founderMessage(tx *sql.Tx, c *rpc.Conn, p map[string]any) (int64, *db.Request, error) {
 	me := c.Caller.Actor()
 	rid, err := requestref.Resolve(tx, p["request"], me, "request")
 	if name, missing := requestref.Missing(err); missing {
@@ -72,7 +72,7 @@ func requestMethod(home string) func(*rpc.Conn, map[string]any) (any, error) {
 			}
 		}
 		return c.Effect(func(tx *sql.Tx) (map[string]any, error) {
-			rid, req, err := founderMessage(tx, home, c, p)
+			rid, req, err := founderMessage(tx, c, p)
 			if err != nil {
 				return nil, err
 			}

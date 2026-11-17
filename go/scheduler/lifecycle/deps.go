@@ -114,10 +114,10 @@ type Launch interface {
 	Placing() func()
 	NoRoom(agent string) string
 	// SlowestPaced is the account other than skip that can take the agent and whose week runs out soonest, "" when none can.
-	SlowestPaced(q db.Q, agent string, row *db.AgentState, skip string) string
+	SlowestPaced(q db.Q, agent string, skip string) string
 	// RoomElsewhere is the same pick with every account in exclude left out (name -> why); the second result says why none has room.
 	// fitOnly takes only an account that fits, with no most-room fallback: a usage move does not go where it would not last.
-	RoomElsewhere(q db.Q, agent string, row *db.AgentState, exclude map[string]string, fitOnly bool) (account, why string)
+	RoomElsewhere(q db.Q, agent string, exclude map[string]string, fitOnly bool) (account, why string)
 	// RoomOn is why acct cannot take the agent, "" when it can.
 	RoomOn(q db.Q, agent string, row *db.AgentState, acct string) string
 	// ClosestRoom is, when no account has room, the account closest to it: no wall and not paused, only short of the room test. "" for none.
@@ -130,7 +130,7 @@ type Launch interface {
 	// ManualSplit is account_split manual: the daemon moves no agent off its account (a person's move still goes).
 	ManualSplit() bool
 	// RoomNow is a person's start off skip: the account with the most headroom, no older waiter ahead of it.
-	RoomNow(q db.Q, agent string, row *db.AgentState, skip string) (account, why string)
+	RoomNow(q db.Q, agent string, skip string) (account, why string)
 }
 
 // Spawner is team/spawn.py.

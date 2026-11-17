@@ -105,7 +105,7 @@ func (fakeLaunch) ManualSplit() bool                               { return fals
 func (fakeLaunch) WakeWait(db.Q, string, *db.AgentState) *WakeWait { return nil }
 func (fakeLaunch) WorkspaceWait(db.Q, string) *WakeWait            { return nil }
 func (fakeLaunch) ChooseAccount(db.Q, string) bool                 { return true }
-func (fakeLaunch) RoomElsewhere(db.Q, string, *db.AgentState, map[string]string, bool) (string, string) {
+func (fakeLaunch) RoomElsewhere(db.Q, string, map[string]string, bool) (string, string) {
 	return "", "no account can take one more agent"
 }
 func (fakeLaunch) WorthRepick(string, string) bool { return true }

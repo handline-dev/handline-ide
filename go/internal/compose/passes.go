@@ -86,12 +86,8 @@ func heldPorts(tk *tick.Tick, q db.Q, h healPorts) proposalwrites.HeldPorts {
 type waitDecider struct{ lc *Lifecycle }
 
 func (w waitDecider) RaiseDecision(q db.Q, who, text, source string) error {
-	var after supervisor.After
-	if _, err := w.lc.Env.RaiseDecision(q, &after, who, text, source, "", "", 0, 0); err != nil {
-		return err
-	}
-	after.Run()
-	return nil
+	_, err := w.lc.Env.RaiseDecision(q, who, text, source, "", "", 0, 0)
+	return err
 }
 
 // settingsPorts is tick.SettingsPorts: what the next launch would read, named, in the order a person reads them.

@@ -180,7 +180,7 @@ func (m *Manager) StartForWork(agent string) (said string, err error) {
 		return agent + ": a start or wake is under way - not starting twice", nil
 	}
 	defer release()
-	if row = must(db.GetAgentState(m.Q, agent)); m.hasSession(agent, row) || m.ResumableWithoutTerminal(row) {
+	if row = must(db.GetAgentState(m.Q, agent)); m.hasSession(row) || m.ResumableWithoutTerminal(row) {
 		return agent + ": started already - not starting twice", nil
 	}
 	if row != nil && row.WakeFailures >= states.MaxFailedAttempts {
@@ -343,7 +343,7 @@ func (m *Manager) wakeAgent(agent string, o WakeOpts) (bool, string) {
 	}
 	switch {
 	case closed:
-		return m.wakeClosed(agent, row, handle, wt, o)
+		return m.wakeClosed(agent, row, wt, o)
 	case must(db.GetHandoff(m.Q, agent)) == "":
 		return false, "no handoff to resume from"
 	}
@@ -394,7 +394,7 @@ func (m *Manager) freshFrom(agent, session string) {
 
 // wakeClosed brings a closed agent back: its shell is put back into the session, resuming the same one first (which is what makes
 // closing cheap) and a fresh start the fallback, not the plan.
-func (m *Manager) wakeClosed(agent string, row *db.AgentState, handle, wt string, o WakeOpts) (bool, string) {
+func (m *Manager) wakeClosed(agent string, row *db.AgentState, wt string, o WakeOpts) (bool, string) {
 	force, warm, cause, restartedBy, movedTo := o.Force, o.Warm, o.Cause, o.RestartedBy, o.MovedTo
 	// The load holds the daemon's own wakes; one a person asked for, a restart, or one that continues work already begun goes.
 	if !force && !o.Person && !m.continuesWork(agent, row) {
@@ -503,9 +503,9 @@ func (m *Manager) wakeClosed(agent string, row *db.AgentState, handle, wt string
 	if movedTo == "" && !warm && session != "" && m.cachePast(agent, session, m.now()) && !m.Launch.ManualSplit() {
 		// Past its cache's life the agent is on no account: it goes to the one whose unused week runs out soonest that has room (a clear
 		// gain, else it stays), its own included, taking the session along (so ignore_cache_expiry, which only keeps the session, does not hold it).
-		if to, _ := m.Launch.RoomElsewhere(m.Q, agent, row, nil, false); to != "" && to != row.Account.String && m.Launch.WorthRepick(row.Account.String, to) {
+		if to, _ := m.Launch.RoomElsewhere(m.Q, agent, nil, false); to != "" && to != row.Account.String && m.Launch.WorthRepick(row.Account.String, to) {
 			var kept string
-			if kept, rehomed = m.moveElsewhere(agent, session, row.Account.String, to, "its prompt cache has expired"); rehomed {
+			if kept, rehomed = m.moveElsewhere(agent, session, to, "its prompt cache has expired"); rehomed {
 				session, movedTo, moveFrom = kept, to, row.Account.String
 			}
 		}
@@ -517,10 +517,10 @@ func (m *Manager) wakeClosed(agent string, row *db.AgentState, handle, wt string
 	if o.Person && wait != nil && movedTo == "" {
 		// A person's start on a paused or walled account goes where there is room now (RoomNow).
 		if session != "" {
-			to, why := m.Launch.RoomNow(m.Q, agent, row, wait.Account)
+			to, why := m.Launch.RoomNow(m.Q, agent, wait.Account)
 			kept, moved := "", false
 			if to != "" {
-				if kept, moved = m.moveElsewhere(agent, session, wait.Account, to, "started by a person, "+wait.Account+" has no room"); !moved {
+				if kept, moved = m.moveElsewhere(agent, session, to, "started by a person, "+wait.Account+" has no room"); !moved {
 					why = "its handoff could not be read whole"
 				}
 			}
@@ -536,11 +536,11 @@ func (m *Manager) wakeClosed(agent string, row *db.AgentState, handle, wt string
 		// session along. With nowhere to go any wake waits.
 		to := ""
 		if movedTo == "" && session != "" {
-			to = m.Launch.SlowestPaced(m.Q, agent, row, wait.Account)
+			to = m.Launch.SlowestPaced(m.Q, agent, wait.Account)
 		}
 		kept, moved := "", false
 		if to != "" {
-			kept, moved = m.moveElsewhere(agent, session, wait.Account, to, fmt.Sprintf("%s cannot take it", wait.Account))
+			kept, moved = m.moveElsewhere(agent, session, to, fmt.Sprintf("%s cannot take it", wait.Account))
 		}
 		if !moved {
 			return false, m.Launch.DescribeWakeWait(wait)
@@ -564,7 +564,7 @@ func (m *Manager) wakeClosed(agent string, row *db.AgentState, handle, wt string
 		}
 		if elsewhere != "" {
 			why := fmt.Sprintf("pinned to %s at %d%% (%s)", acct, pct, wait.Window)
-			kept, moved := m.moveElsewhere(agent, session, acct, elsewhere, why)
+			kept, moved := m.moveElsewhere(agent, session, elsewhere, why)
 			if moved {
 				session, movedTo, moveFrom, rescued = kept, elsewhere, acct, true
 				m.noteSwitch(agent, kind, acct, elsewhere, db.SwitchStarting)
@@ -588,7 +588,7 @@ func (m *Manager) wakeClosed(agent string, row *db.AgentState, handle, wt string
 // session it returns (carried), else fresh from the handoff the close took. why is what the log says the agent was stuck on. moved is
 // false when the handoff could not be read whole: it is the fallback should the resume fail, so the agent stays and the wake goes on
 // waiting.
-func (m *Manager) moveElsewhere(agent, session, from, to, why string) (kept string, moved bool) {
+func (m *Manager) moveElsewhere(agent, session, to, why string) (kept string, moved bool) {
 	m.holdSlot(agent, to)
 	hid := newHandoffID()
 	check(db.StartHandoff(m.Q, hid, agent, session, "pinned", m.now()+states.HandoffDeadlineS))

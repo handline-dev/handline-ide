@@ -477,7 +477,7 @@ func (e *Env) typeSay(q db.Q, owner, body, why string) int64 {
 	if actor.IsPerson(owner) {
 		return 0
 	}
-	rid := e.queueSay(q, owner, body, why)
+	rid := e.queueSay(q, owner, body)
 	e.Push(q, owner, rid)
 	return rid
 }
@@ -496,7 +496,7 @@ func (e *Env) SayNowWithNotices(q db.Q, owner, body, why string) int64 {
 }
 
 // queueSay writes the say, and does not tell the owner: that is Push's, which a caller in a transaction runs after the commit.
-func (e *Env) queueSay(q db.Q, owner, body, why string) int64 {
+func (e *Env) queueSay(q db.Q, owner, body string) int64 {
 	rid := must(db.AddRequest(q, db.NewRequest{Requester: db.NoticeRequester, Target: owner, Body: body, Kind: "say"}))
 	must(db.MarkSendNow(q, rid))
 	return rid

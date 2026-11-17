@@ -224,7 +224,7 @@ func (e *Env) accountWall(acct string, now int64) (blocked, runsOutAt, resetsAt 
 		return e.AccountWall(acct, now)
 	}
 	ue := e.usageEnv()
-	in, reset, ok := wallOf(ue, ue.Read(acct), acct, now, nil)
+	in, reset, ok := wallOf(ue.Read(acct), now, nil)
 	switch {
 	case !ok:
 		return 0, 0, 0

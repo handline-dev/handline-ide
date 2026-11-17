@@ -283,7 +283,7 @@ func TestGitThatTimesOutIsAnError(t *testing.T) {
 	saved := gitTimeout
 	gitTimeout = time.Nanosecond
 	defer func() { gitTimeout = saved }()
-	if _, _, _, err := git(t.TempDir(), "status"); err == nil || !strings.Contains(err.Error(), "timed out") {
+	if _, _, err := git(t.TempDir(), "status"); err == nil || !strings.Contains(err.Error(), "timed out") {
 		t.Fatalf("a killed git is an error: %v", err)
 	}
 }
