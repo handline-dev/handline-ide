@@ -27,6 +27,7 @@ export function Composer({
   above,
   placeholder,
   commands = [],
+  mentionFirst,
   sendLabel,
   onEmpty,
   focusOn,
@@ -51,6 +52,8 @@ export function Composer({
   placeholder?: string;
   /** What `/` offers at the start of the line; `@` offers the agents always. */
   commands?: Command[];
+  /** Agents the @ list offers first, in this order. */
+  mentionFirst?: string[];
   /** A word on the send button beside its arrow (Answer while the box answers the founder's turn). */
   sendLabel?: string;
   /** Send with nothing written or going up runs this, with its label on the button, instead of staying disabled. */
@@ -73,7 +76,7 @@ export function Composer({
   useEffect(() => {
     if (focusOn) box.current?.focus();
   }, [focusOn]);
-  const suggest = useSuggest(draft, setDraft, commands);
+  const suggest = useSuggest(draft, setDraft, commands, mentionFirst, agent);
   const word = useNameOf()(agent);
   // A command keeps its `!` in the draft, first, whatever came before it; the box shows it as the chip.
   const bash = draft.startsWith('!');
