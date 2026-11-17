@@ -1,7 +1,9 @@
 // Requests: what waits on the founder (their turn, notes, rows put off) and what they decided today. Their requests in progress and
 // finished are in Tasks (My requests). The bell's popover previews the turn and the finished.
 import { ListLoading } from '#src/ui/Loading.tsx';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Children, isValidElement, useEffect, useRef, useState, type ReactNode } from 'react';
+import { spring } from '#src/motion.ts';
 import { ChevronDown, ChevronUp, ListChecks } from 'lucide-react';
 import type { PendingRequest, Task } from '@handline/client';
 import { TaskTab } from '#src/tools/TaskTab.tsx';
@@ -16,6 +18,32 @@ import { BulkButtons, PickProvider, usePick } from '#src/requests/RowMenu.tsx';
 import { TurnLine } from '#src/requests/rows.tsx';
 import { ScrollFade } from '#src/ui/ScrollFade.tsx';
 import { selectionRoom, WithSelectionBar } from '#src/ui/SelectionBar.tsx';
+
+/** A section's rows: one that comes or goes opens or closes its height, and the rest move to their new places (a row whose time
+ *  changed moves to its new place in the order). */
+function Rows({ children }: { children?: ReactNode }) {
+  return (
+    <div className="flex flex-col">
+      <AnimatePresence initial={false}>
+        {Children.map(children, (c) =>
+          isValidElement(c) ? (
+            <motion.div
+              key={c.key}
+              layout="position"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={spring}
+              className="overflow-hidden"
+            >
+              {c}
+            </motion.div>
+          ) : null,
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
 
 /** A section of the list. Its title holds a box that picks every row of it, beside picks in other sections. */
 function Section({
@@ -54,7 +82,8 @@ function Section({
         <span className="flex-1 text-muted tabular-nums">{rows.length > 0 ? rows.length : ''}</span>
         {action}
       </h2>
-      {rows.length > 0 ? <div className="flex flex-col">{children}</div> : <p className="px-2 py-3 text-muted">{empty}</p>}
+      <Rows>{children}</Rows>
+      {rows.length === 0 && <p className="px-2 py-3 text-muted">{empty}</p>}
     </section>
   );
 }
@@ -201,11 +230,11 @@ function Decided() {
       <h2 className="sticky top-0 z-20 flex min-h-9 items-center border-b border-border bg-bg px-2 text-sm font-medium text-fg">
         Decided today
       </h2>
-      <div className="flex flex-col">
+      <Rows>
         {items.map((t) => (
           <DecidedLine key={t.id} t={t} who={nameOf(t.to)} />
         ))}
-      </div>
+      </Rows>
     </section>
   );
 }
