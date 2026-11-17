@@ -98,6 +98,10 @@ func handoffMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (an
 		if err != nil {
 			return nil, err
 		}
+		rep, err := reportOf(p)
+		if err != nil {
+			return nil, err
+		}
 		me := c.Caller.Actor()
 		said := strings.TrimSpace(textsafe.Text(note))
 		toFounder := actor.IsPerson(to) && me != actor.OwnerKey // an agent's handoff to the founder is the founder's turn, hung on the note as a comment
@@ -115,6 +119,8 @@ func handoffMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (an
 			msg    string
 			memo   int64
 			landBy string // a story's sub-task held back from it: Ready for the founder
+			skip   bool   // ... or not held back: its review level lets it go on without the founder
+			level  string
 		)
 		out, err := c.Effect(func(tx *sql.Tx) (map[string]any, error) {
 			if err := claimImages(tx, home, me, said, "", "note"); err != nil {
@@ -127,6 +133,12 @@ func handoffMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (an
 			if landBy != "" && said == "" {
 				return nil, refusal(fmt.Sprintf("T%d is a story's sub-task: it goes to the founder before %s, so say in note what you did; they read it as its result",
 					tid, addr.Ref(landBy)))
+			}
+			maySkip := false
+			if landBy != "" {
+				if maySkip, skip, level, err = skipsFounder(tx, tid, me, rep); err != nil {
+					return nil, err
+				}
 			}
 			if len(files) > 0 && !toFounder && landBy == "" {
 				return nil, badParam("files go with a note the founder reads: a handoff to them, or a story's sub-task finished", "files")
@@ -144,8 +156,18 @@ func handoffMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (an
 				if err := store.AttachMemo(tx, memo, files); err != nil {
 					return nil, err
 				}
-				if h, asked, err = pushTurn(tx, tell, tid, me, actor.OwnerKey, said, memo, "", ""); err == nil && landBy != "" && asked.OK && !asked.Reask {
-					err = db.AddReady(tx, tid, me, landBy, memo)
+				switch {
+				case skip:
+					if err = db.AddReady(tx, tid, me, landBy, memo, rep.fields(true)...); err == nil {
+						err = db.AddVerdict(tx, tid, db.AutoVerdictBy, db.VerdictOK, 0)
+					}
+					if err == nil {
+						h, asked, err = handOff(tx, tell, tid, me, landBy, fmt.Sprintf("OK without the founder (review level %s). %s", level, said), agents, false)
+					}
+				default:
+					if h, asked, err = pushTurn(tx, tell, tid, me, actor.OwnerKey, said, memo, "", ""); err == nil && landBy != "" && asked.OK && !asked.Reask {
+						err = db.AddReady(tx, tid, me, landBy, memo, rep.fields(maySkip)...)
+					}
 				}
 			} else {
 				h, asked, err = handOff(tx, tell, tid, me, to, said, agents, false)
@@ -154,11 +176,18 @@ func handoffMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (an
 				return nil, err
 			}
 			if !asked.OK {
+				if skip { // all of it rolls back, the automatic OK too: the task stays the worker's, its finish to be tried again
+					return nil, refusal(asked.Msg)
+				}
 				return nil, &rpc.CommitThen{Err: refusal(asked.Msg)}
 			}
 			msg = asked.Msg
 			if asked.Reask { // already on the founder's turn: it moved to this note, nothing is handed over
 				return accepted(fmt.Sprintf("T%d: %s", tid, msg), nil), nil
+			}
+			if skip {
+				msg = fmt.Sprintf("T%d goes to %s without the founder (your review level is %s); the founder can still Redo it", tid, addr.Ref(landBy), level)
+				return accepted(msg, nil), nil
 			}
 			if landBy != "" {
 				msg = fmt.Sprintf("T%d is Ready for the founder (comment %d): \"OK, merge\" hands it to %s, \"Redo\" sends it back to you", tid, memo, addr.Ref(landBy))

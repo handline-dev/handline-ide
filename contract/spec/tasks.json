@@ -2141,9 +2141,10 @@
        "login",
        "delivery",
        "undelivered",
-       "notice"
+       "notice",
+       "review"
       ],
-      "description": "When each leaves. disk: space is back. login: the account is logged in or woken; one past its end day never warns. delivery (a message of the founder's never seen to arrive): seen to arrive, withdrawn, or their next message to that agent is written. undelivered (a queued task whose delivery was refused, with no agent opener to tell): delivered, given to another or ended. notice (what the board tells the agent that opened a task, given to the founder when no agent opened it, or when the one told has not moved the task in an hour; and an agent's stale background work, which only the founder's idle setting can keep): the task moves or ends; with no task: the agent's stall is cleared, its repo fixed, or (any other) it acts again."
+      "description": "When each leaves. disk: space is back. login: the account is logged in or woken; one past its end day never warns. delivery (a message of the founder's never seen to arrive): seen to arrive, withdrawn, or their next message to that agent is written. undelivered (a queued task whose delivery was refused, with no agent opener to tell): delivered, given to another or ended. notice (what the board tells the agent that opened a task, given to the founder when no agent opened it, or when the one told has not moved the task in an hour; and an agent's stale background work, which only the founder's idle setting can keep): the task moves or ends; with no task: the agent's stall is cleared, its repo fixed, or (any other) it acts again. review (an agent whose 8 of its last 10 story sub-tasks were OK at first look, at a level above auto): its level changes, or 5 more looks after a dismissal."
      },
      "account": {
       "type": "string",
@@ -2151,11 +2152,23 @@
      },
      "agent": {
       "type": "string",
-      "description": "delivery, undelivered: the agent it did not reach. notice: the agent to go to: the one told who did not move the task, else the one the notice is about."
+      "description": "delivery, undelivered: the agent it did not reach. notice: the agent to go to: the one told who did not move the task, else the one the notice is about. review: the agent."
      },
      "ref": {
       "$ref": "#/components/schemas/RequestRef",
       "description": "delivery: the message."
+     },
+     "line": {
+      "type": "string",
+      "description": "review: the notice's second line (its lessons and its record)."
+     },
+     "level": {
+      "type": "string",
+      "enum": [
+       "one_in_three",
+       "auto"
+      ],
+      "description": "review: the level it could be checked at (agent.review_set)."
      }
     },
     "required": [
@@ -3014,6 +3027,34 @@
        "type": "string"
       },
       "description": "As task.comment.add's files, carried by the comment the note becomes: only on a handoff to `human` or on a story's sub-task finished (Ready); on any other handoff they are bad_request (field files)."
+     }
+    },
+    {
+     "name": "checked",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "description": "A story's sub-task finished: the lessons the fresh check was given and found kept (lessons.list), in a line. With misses empty and tests pass, it may go on without the founder at the agent's review level (agent.review)."
+     }
+    },
+    {
+     "name": "misses",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "description": "What the fresh check found wrong or a lesson not kept; any miss sends the finish to the founder."
+     }
+    },
+    {
+     "name": "tests",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "enum": [
+       "pass",
+       "fail"
+      ],
+      "description": "Whether the tests passed; only pass may skip the founder."
      }
     },
     {

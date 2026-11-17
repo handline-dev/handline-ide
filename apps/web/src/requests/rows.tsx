@@ -44,6 +44,7 @@ const WARN: Record<NonNullable<PendingRequest['warning']>['kind'], typeof HardDr
   delivery: MailWarning,
   undelivered: MailWarning,
   notice: Bell,
+  review: ListChecks,
 };
 
 /** In Requests, beside the icon of a warning: what it is about. */
@@ -53,6 +54,7 @@ const WARN_WORD: Record<NonNullable<PendingRequest['warning']>['kind'], string> 
   delivery: 'Delivery',
   undelivered: 'Delivery',
   notice: 'Notice',
+  review: 'Review',
 };
 
 const KIND: Record<PendingRequest['kind'], typeof HardDrive> = {

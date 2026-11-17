@@ -3,6 +3,7 @@ package taskwrites
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
@@ -144,12 +145,24 @@ func redoMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, 
 			return nil, badParam("a redo says what to change in note", "note")
 		}
 		me := c.Caller.Actor()
-		var popped Popped
-		var memo int64
+		var (
+			popped Popped
+			memo   int64
+			// skipped: the task went on without the founder (an automatic OK), and is handed back from where it is now
+			skipped bool
+			h       Handover
+			asked   *Asked
+			to      string // whom the Redo goes to
+		)
 		out, err := c.Effect(func(tx *sql.Tx) (map[string]any, error) {
-			r, err := readyTask(tx, tid, me)
+			r, err := skippedTask(tx, tid, me)
 			if err != nil {
 				return nil, err
+			}
+			if skipped = r != nil; !skipped {
+				if r, err = readyTask(tx, tid, me); err != nil {
+					return nil, err
+				}
 			}
 			if err := claimImages(tx, home, me, note, "", "note"); err != nil {
 				return nil, err
@@ -160,9 +173,22 @@ func redoMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, 
 			if err := db.AddVerdict(tx, tid, me, db.VerdictRedo, memo); err != nil {
 				return nil, err
 			}
+			if err := redoLevelUp(tx, r.By, tid, me); err != nil {
+				return nil, err
+			}
 			told := fmt.Sprintf("T%d 대표님 Redo %d (댓글 %d): %s\n\nFirst keep one lesson from this note, what to do differently from now on: "+
 				"`hl lesson add \"<the lesson>\" --task T%d`. Then work it again on your branch, and hand it to %s as before: it comes to the founder "+
 				"first again.", tid, r.Redo+1, memo, note, tid, addr.Ref(r.LandBy))
+			if skipped {
+				if h, asked, err = handOff(tx, tell, tid, me, r.By, told, paths.ListAgents(home), false); err != nil {
+					return nil, err
+				}
+				if !asked.OK {
+					return nil, refusal(asked.Msg)
+				}
+				to = r.By
+				return accepted(fmt.Sprintf("T%d sent back to %s: Redo %d", tid, addr.Ref(r.By), r.Redo+1), map[string]any{"memo": memo}), nil
+			}
 			if popped, err = popTurnTold(tx, home, tell, tid, me, db.TurnSendBack, note, memo, told); err != nil {
 				return nil, err
 			}
@@ -174,8 +200,104 @@ func redoMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, 
 		if err != nil {
 			return nil, err
 		}
-		popped.tell(tell)
-		tell.MemoChanged(tid, memo, me, "added", note, false, []string{popped.To}) // the task's return carries the note
+		if skipped {
+			h.After = asked.After
+			tell.HandedOver(h)
+		} else {
+			popped.tell(tell)
+			to = popped.To
+		}
+		tell.MemoChanged(tid, memo, me, "added", note, false, []string{to}) // the task's return carries the note
 		return out, nil
 	}
+}
+
+// skippedTask is task tid's review when it went on without the founder (its newest verdict an automatic OK) and by is a person: the
+// founder may Redo it while its land_by agent still holds it. nil when it never skipped them.
+func skippedTask(tx *sql.Tx, tid int64, by string) (*db.Review, error) {
+	if !actor.IsPerson(by) {
+		return nil, nil
+	}
+	r, err := db.TaskReview(tx, tid)
+	if err != nil || r == nil || r.Ready || !r.OK || !r.Auto {
+		return nil, err
+	}
+	t, err := getTask(tx, tid)
+	switch {
+	case err != nil || t == nil:
+		return nil, err
+	case t.done() || t.DiscardedBy.String != "":
+		return nil, refusal(fmt.Sprintf("T%d went on without you and is closed now: open a new task for what to change", tid))
+	case t.Acting != r.LandBy:
+		return nil, refusal(fmt.Sprintf("T%d went on without you and %s holds it now: answer that first, or say what to change in a comment", tid, addr.Ref(t.Acting)))
+	}
+	return r, nil
+}
+
+// redoLevelUp moves the review level of the agent that finished the task one step toward every on a Redo, at once, with the task on
+// the row.
+func redoLevelUp(tx *sql.Tx, agent string, tid int64, by string) error {
+	l, err := db.ReviewLevel(tx, agent)
+	if err != nil || l.Level == db.LevelEvery {
+		return err
+	}
+	return db.SetReviewLevel(tx, agent, db.LevelUp(l.Level), by, "redo", tid)
+}
+
+// checkReport is what the assignee's handoff of a finished sub-task says of its own check: the lessons it checked, what the fresh look
+// missed, and whether the tests passed.
+type checkReport struct {
+	checked, misses, tests string
+}
+
+func reportOf(p map[string]any) (checkReport, error) {
+	var r checkReport
+	for _, f := range []struct {
+		key string
+		to  *string
+	}{{"checked", &r.checked}, {"misses", &r.misses}, {"tests", &r.tests}} {
+		v, err := optText(p, f.key)
+		if err != nil {
+			return r, err
+		}
+		*f.to = strings.TrimSpace(v)
+	}
+	if r.tests != "" && r.tests != "pass" && r.tests != "fail" {
+		return r, badParam("tests is pass or fail", "tests")
+	}
+	return r, nil
+}
+
+// fields are the report as the Ready event keeps it, with whether this finish could skip the founder.
+func (r checkReport) fields(maySkip bool) []db.KV {
+	out := []db.KV{{K: "may_skip", V: maySkip}}
+	for _, f := range [][2]string{{"checked", r.checked}, {"misses", r.misses}, {"tests", r.tests}} {
+		if f[1] != "" {
+			out = append(out, db.KV{K: f[0], V: f[1]})
+		}
+	}
+	return out
+}
+
+// skipsFounder is whether agent's finish of task tid goes on to its land_by agent without the founder, by its review level. Only a finish
+// with a clean check, passing tests and no Redo may (maySkip); at one_in_three the first of those since the level was set, and every
+// third after, still goes to the founder.
+func skipsFounder(tx *sql.Tx, tid int64, agent string, rep checkReport) (maySkip, skip bool, level string, err error) {
+	r, err := db.TaskReview(tx, tid)
+	if err != nil {
+		return false, false, "", err
+	}
+	maySkip = rep.checked != "" && rep.misses == "" && rep.tests == "pass" && (r == nil || r.Redo == 0)
+	l, err := db.ReviewLevel(tx, agent)
+	if err != nil || !maySkip {
+		return maySkip, false, l.Level, err
+	}
+	switch l.Level {
+	case db.LevelAuto:
+		return true, true, l.Level, nil
+	case db.LevelOneInThree:
+		n, err := db.MaySkipCount(tx, agent, l.After)
+		return true, n%3 != 0, l.Level, err
+	}
+	return true, false, l.Level, nil
 }

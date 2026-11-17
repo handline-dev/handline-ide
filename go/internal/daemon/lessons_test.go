@@ -25,3 +25,15 @@ func TestTheDaemonServesLessons(t *testing.T) {
 		t.Fatalf("still live: %v", live)
 	}
 }
+
+// The daemon serves review levels: the founder sets one and reads it back with its record.
+func TestTheDaemonServesReviewLevels(t *testing.T) {
+	_, c := startDoors(t, false)
+	if r := call(t, c, "agent.review_set", `{"agent":"a1","level":"auto"}`); r["result"] == nil {
+		t.Fatal(fmt.Sprint(r))
+	}
+	got := call(t, c, "agent.review", `{"agent":"a1"}`)["result"].(map[string]any)
+	if got["level"] != "auto" || got["looks"] != float64(0) {
+		t.Fatalf("%v", got)
+	}
+}

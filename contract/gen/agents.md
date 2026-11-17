@@ -40,6 +40,8 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `access.grant` | owner | yes | `agent`, `path`, `scope`, `request_id` | `Accepted & {grant, applies_from}` | `refused`, `not_found`, `bad_request` | role | decided: allow access |
 | `access.revoke` | owner | yes | `agent`, `path`, `request_id` | `Accepted & {removed}` | `refused`, `not_found`, `bad_request` | role | decided: remove access |
 | `access.list` | owner |  | `agent` | `{grants}` | `refused`, `not_found` | role | `access` by agent, fed by agents |
+| `agent.review_set` | owner | yes | `agent`, `level`, `request_id` | `Accepted` | `bad_request` |  | decided: set a review level |
+| `agent.review` | member |  | `agent` | `{agent, level, record, looks, suggested, lessons}` |  |  | not cached |
 
 ### `agents.list`
 
@@ -180,4 +182,12 @@ The founder takes back an agent's grant of a path. See x-access. A path never gr
 ### `access.list`
 
 The paths the founder granted an agent, newest first. See x-access. Only grants: the roots every session reads are not listed. An unknown agent is not_found, what agent; an agent or member caller is refused, gate role.
+
+### `agent.review_set`
+
+The founder sets how many of an agent's finished story sub-tasks come to them: every (the default), one_in_three (the others take an automatic OK and go to the land_by agent) or auto (none, unless it must). Each change is kept with who and when; a Redo moves it up one step by itself, and the daemon never lowers it. Only a finish whose check passed with no misses, whose tests passed and that was never sent back may skip the founder (task.handoff checked, misses, tests); at one_in_three every third of those still comes.
+
+### `agent.review`
+
+How the founder checks an agent's story work: its level, its record at that level (the founder's first verdict on each task it finished, the last ten, newest last), the level the record suggests, and its lesson count.
 

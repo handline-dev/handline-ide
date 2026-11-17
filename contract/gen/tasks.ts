@@ -507,14 +507,18 @@ export type TurnAsk = {
 
 /** What a warning row is about, so a client can draw it and open the right place. It is read from state each time and leaves by itself, or when the founder dismisses it (warning.dismiss). */
 export type PendingWarning = {
-  /** When each leaves. disk: space is back. login: the account is logged in or woken; one past its end day never warns. delivery (a message of the founder's never seen to arrive): seen to arrive, withdrawn, or their next message to that agent is written. undelivered (a queued task whose delivery was refused, with no agent opener to tell): delivered, given to another or ended. notice (what the board tells the agent that opened a task, given to the founder when no agent opened it, or when the one told has not moved the task in an hour; and an agent's stale background work, which only the founder's idle setting can keep): the task moves or ends; with no task: the agent's stall is cleared, its repo fixed, or (any other) it acts again. */
-  kind: "disk" | "login" | "delivery" | "undelivered" | "notice";
+  /** When each leaves. disk: space is back. login: the account is logged in or woken; one past its end day never warns. delivery (a message of the founder's never seen to arrive): seen to arrive, withdrawn, or their next message to that agent is written. undelivered (a queued task whose delivery was refused, with no agent opener to tell): delivered, given to another or ended. notice (what the board tells the agent that opened a task, given to the founder when no agent opened it, or when the one told has not moved the task in an hour; and an agent's stale background work, which only the founder's idle setting can keep): the task moves or ends; with no task: the agent's stall is cleared, its repo fixed, or (any other) it acts again. review (an agent whose 8 of its last 10 story sub-tasks were OK at first look, at a level above auto): its level changes, or 5 more looks after a dismissal. */
+  kind: "disk" | "login" | "delivery" | "undelivered" | "notice" | "review";
   /** login: the account. */
   account?: string;
-  /** delivery, undelivered: the agent it did not reach. notice: the agent to go to: the one told who did not move the task, else the one the notice is about. */
+  /** delivery, undelivered: the agent it did not reach. notice: the agent to go to: the one told who did not move the task, else the one the notice is about. review: the agent. */
   agent?: string;
   /** delivery: the message. */
   ref?: RequestRef;
+  /** review: the notice's second line (its lessons and its record). */
+  line?: string;
+  /** review: the level it could be checked at (agent.review_set). */
+  level?: "one_in_three" | "auto";
 };
 
 /** One thing an agent learned, carried in its launch prompt. Kept with who and when; a removed or merged one is no longer listed. */
@@ -675,6 +679,12 @@ export interface TasksMethods {
   note?: string;
   /** As task.comment.add's files, carried by the comment the note becomes: only on a handoff to `human` or on a story's sub-task finished (Ready); on any other handoff they are bad_request (field files). */
   files?: string[];
+  /** A story's sub-task finished: the lessons the fresh check was given and found kept (lessons.list), in a line. With misses empty and tests pass, it may go on without the founder at the agent's review level (agent.review). */
+  checked?: string;
+  /** What the fresh check found wrong or a lesson not kept; any miss sends the finish to the founder. */
+  misses?: string;
+  /** Whether the tests passed; only pass may skip the founder. */
+  tests?: "pass" | "fail";
   request_id: RequestId;
 }; result: Accepted };
   "task.turn.pop": { params: {

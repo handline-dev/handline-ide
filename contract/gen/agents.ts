@@ -149,6 +149,8 @@ export type AgentView = {
   founder_seen?: number;
   /** What it is doing and why (x-status). Absent from a daemon that does not send it. */
   status?: Status;
+  /** agents.list only: how many of the agent's finished story sub-tasks come to the founder (agent.review). Absent from a daemon that does not send it. */
+  review_level?: "every" | "one_in_three" | "auto";
 };
 
 export type AgentDetail = AgentView & {
@@ -573,6 +575,29 @@ export interface AgentsMethods {
 }; result: {
     grants: Grant[];
   } };
+  "agent.review_set": { params: {
+  agent: Who;
+  level: "every" | "one_in_three" | "auto";
+  request_id: RequestId;
+}; result: Accepted };
+  "agent.review": { params: {
+  agent: Who;
+}; result: {
+    agent: string;
+    level: "every" | "one_in_three" | "auto";
+    record: {
+      task: number;
+      /** The founder's first verdict on it was OK. */
+      ok_first: boolean;
+      at: Timestamp;
+    }[];
+    /** Every look at this level; record holds the last ten. */
+    looks: number;
+    /** The level one step less checked when 8 of the last 10 were OK at first look (the founder's notice says so); null otherwise. */
+    suggested: ("one_in_three" | "auto") | null;
+    /** Its live lessons (lessons.list). */
+    lessons: number;
+  } };
 }
 
 export const AGENTS_METHODS: { [K in keyof AgentsMethods]: { role: Role; callers: Role[] | null; write: boolean; since: number } } = {
@@ -611,10 +636,12 @@ export const AGENTS_METHODS: { [K in keyof AgentsMethods]: { role: Role; callers
   "access.grant": { role: "owner", callers: null, write: true, since: 1 },
   "access.revoke": { role: "owner", callers: null, write: true, since: 1 },
   "access.list": { role: "owner", callers: null, write: false, since: 1 },
+  "agent.review_set": { role: "owner", callers: null, write: true, since: 1 },
+  "agent.review": { role: "member", callers: null, write: false, since: 1 },
 };
 
 /** x-app-cache of each read (x-app in core.json). */
-export const AGENTS_APP_CACHE: { [K in "agents.list" | "agent.get" | "agent.timeline" | "agent.options" | "session.launch_prepare" | "prompt.list" | "permission.ask" | "agent.strip" | "progress.get" | "access.list"]: { resource: string; id?: string; feed: Topic | null } | false } = {
+export const AGENTS_APP_CACHE: { [K in "agents.list" | "agent.get" | "agent.timeline" | "agent.options" | "session.launch_prepare" | "prompt.list" | "permission.ask" | "agent.strip" | "progress.get" | "access.list" | "agent.review"]: { resource: string; id?: string; feed: Topic | null } | false } = {
   "agents.list": {"resource": "agents", "feed": "agents"},
   "agent.get": {"resource": "agent", "id": "agent", "feed": "agents"},
   "agent.timeline": {"resource": "timeline", "feed": "agents"},
@@ -625,10 +652,11 @@ export const AGENTS_APP_CACHE: { [K in "agents.list" | "agent.get" | "agent.time
   "agent.strip": {"resource": "strip", "id": "agent", "feed": "agents"},
   "progress.get": false,
   "access.list": {"resource": "access", "id": "agent", "feed": "agents"},
+  "agent.review": false,
 };
 
 /** x-app-write of each write (x-app in core.json). */
-export const AGENTS_APP_WRITES: { [K in "agent.set" | "agent.fold" | "agent.move" | "agent.move_cancel" | "agent.move_now" | "agent.switch_now" | "agent.unstall" | "agent.force_start" | "agent.retire" | "agent.create" | "session.start" | "session.wake" | "session.stop" | "session.restart" | "session.compact" | "session.park" | "session.input" | "session.keys" | "session.interrupt" | "prompt.answer" | "input.take" | "input.release" | "say" | "access.grant" | "access.revoke"]: { kind: WriteKind; label: string } | false } = {
+export const AGENTS_APP_WRITES: { [K in "agent.set" | "agent.fold" | "agent.move" | "agent.move_cancel" | "agent.move_now" | "agent.switch_now" | "agent.unstall" | "agent.force_start" | "agent.retire" | "agent.create" | "session.start" | "session.wake" | "session.stop" | "session.restart" | "session.compact" | "session.park" | "session.input" | "session.keys" | "session.interrupt" | "prompt.answer" | "input.take" | "input.release" | "say" | "access.grant" | "access.revoke" | "agent.review_set"]: { kind: WriteKind; label: string } | false } = {
   "agent.set": {"kind": "authored", "label": "set"},
   "agent.fold": {"kind": "decided", "label": "fold"},
   "agent.move": {"kind": "decided", "label": "move"},
@@ -654,4 +682,5 @@ export const AGENTS_APP_WRITES: { [K in "agent.set" | "agent.fold" | "agent.move
   "say": false,
   "access.grant": {"kind": "decided", "label": "allow access"},
   "access.revoke": {"kind": "decided", "label": "remove access"},
+  "agent.review_set": {"kind": "decided", "label": "set a review level"},
 };
