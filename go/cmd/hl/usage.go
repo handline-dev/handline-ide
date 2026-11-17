@@ -21,7 +21,7 @@ var usages = map[string][2]string{
 	"task list":  {`hl task list [--assign <agent>] [--owner <agent>] [--state <state>] [--tag T] [--all] [--everyone]`, `hl task list --state doing`},
 	"task board": {`hl task board [--everyone]`, `hl task board`},
 	"task done":  {`hl task done T<n> "<evidence>" [--request <msg>] [--repo PATH] [--commit SHA] [--shot FILE]`, `hl task done T12 "PR #400 (sha 1a2b3c4), tests green"`},
-	"task handoff": {`hl task handoff T<n> <agent> "<note>" [--file PATH] [--attach FILE] (gives the task away; the founder's decision is hl task comment T<n> add "..." --turn human;` +
+	"task handoff": {`hl task handoff T<n> <agent> "<note>" [--file PATH] [--attach FILE] [--checked "<lessons the fresh check kept>" --misses "<what it found>" --tests pass|fail] (gives the task away; the founder's decision is hl task comment T<n> add "..." --turn human;` +
 		` a story's sub-task handed to the land_by agent waits for the founder's OK first, the note and --attach files, pictures or an MP4/MOV video with a same-named picture as its poster, its result)`, `hl task handoff T12 builder "the parser half is yours"`},
 	"task turn": {`hl task turn ... is gone: hl task comment T<n> add "<text>" --turn <agent|human> [--done "<evidence>"]`,
 		`hl task comment T12 add "Ship to beta now, or after the fix? I recommend now." --turn human`},

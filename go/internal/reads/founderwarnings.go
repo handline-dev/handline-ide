@@ -19,7 +19,15 @@ type founderWarning struct {
 	task      int64  // the task it is about; 0 for none
 	worse     string // login: why the account cannot be used, so a warning grown worse is not hidden by its dismissal
 	view      map[string]any
+	// review: a "learned enough" notice, the level row it is about and the looks at that level; its dismissal hides it for reviewAgain
+	// more looks at that level
+	review bool
+	level  int64
+	looks  int
 }
+
+// reviewAgain is how many more looks at its level bring a dismissed "learned enough" notice back.
+const reviewAgain = 5
 
 // founderWarnings is PendingWarning's rows, less those the founder dismissed (warning.dismiss).
 func (e *Env) founderWarnings() ([]founderWarning, error) {
@@ -31,7 +39,16 @@ func (e *Env) founderWarnings() ([]founderWarning, error) {
 	if err != nil {
 		return nil, err
 	}
-	return slices.DeleteFunc(all, func(w founderWarning) bool { return dismissed[w.id] == sinceKey(w) }), nil
+	return slices.DeleteFunc(all, func(w founderWarning) bool {
+		kept, ok := dismissed[w.id]
+		if !ok || !w.review {
+			return ok && kept == sinceKey(w)
+		}
+		var level int64
+		var looks int
+		_, err := fmt.Sscanf(kept, "review %d %d", &level, &looks)
+		return err == nil && level == w.level && w.looks < looks+reviewAgain
+	}), nil
 }
 
 // dismissed is the since of each dismissed warning, by its id.
@@ -47,8 +64,13 @@ func (e *Env) dismissed() (map[string]string, error) {
 	return out, nil
 }
 
-// sinceKey is what a dismissal keeps of the warning it hides: its since, and how bad it is.
-func sinceKey(w founderWarning) string { return fmt.Sprint(w.since, " ", w.worse) }
+// sinceKey is what a dismissal keeps of the warning it hides: its since, and how bad it is; for a review notice, its level and looks.
+func sinceKey(w founderWarning) string {
+	if w.review {
+		return fmt.Sprintf("review %d %d", w.level, w.looks)
+	}
+	return fmt.Sprint(w.since, " ", w.worse)
+}
 
 // WarningSinces is the since of each warning the founder has now, dismissed or not, as a dismissal keeps it, by id.
 func (e *Env) WarningSinces() (map[string]string, error) {
@@ -88,7 +110,45 @@ func (e *Env) allFounderWarnings() ([]founderWarning, error) {
 	if err != nil {
 		return nil, err
 	}
-	return append(append(append(out, lost...), refused...), notices...), nil
+	reviews, err := e.reviewNotices()
+	if err != nil {
+		return nil, err
+	}
+	return append(append(append(append(out, lost...), refused...), notices...), reviews...), nil
+}
+
+// reviewNotices is, for each agent whose record says it has learned enough (db.LearnedEnough), the founder's notice that it could be
+// checked less. Only the founder lowers a level (agent.review_set).
+func (e *Env) reviewNotices() ([]founderWarning, error) {
+	agents, err := query(e.DB, "SELECT DISTINCT agent FROM events WHERE kind = ? ORDER BY agent", db.ReadyKind)
+	if err != nil {
+		return nil, err
+	}
+	var out []founderWarning
+	for _, r := range agents {
+		a := r.str("agent")
+		l, err := db.ReviewLevel(e.DB, a)
+		if err != nil {
+			return nil, err
+		}
+		rec, err := db.ReviewRecord(e.DB, a, l)
+		if err != nil {
+			return nil, err
+		}
+		yes, ok := db.LearnedEnough(l.Level, rec)
+		if !yes {
+			continue
+		}
+		lessons, err := db.LiveLessons(e.DB, a)
+		if err != nil {
+			return nil, err
+		}
+		line := fmt.Sprintf("%d lessons. %d of its last 10 tasks were OK at first look.", len(lessons), ok)
+		out = append(out, founderWarning{id: "review:" + a, title: addr.Ref(a) + " has learned enough to be checked less",
+			since: ts(rec[len(rec)-1].At), review: true, level: l.Row, looks: len(rec),
+			view: map[string]any{"kind": "review", "agent": a, "line": line, "level": db.LevelDown(l.Level)}})
+	}
+	return out, nil
 }
 
 // loginWarnings is each account the login watch says wants a login or stands stalled, from its rows alone: a read asks no keychain.

@@ -574,6 +574,15 @@
      "status": {
       "$ref": "#/components/schemas/Status",
       "description": "What it is doing and why (x-status). Absent from a daemon that does not send it."
+     },
+     "review_level": {
+      "type": "string",
+      "enum": [
+       "every",
+       "one_in_three",
+       "auto"
+      ],
+      "description": "agents.list only: how many of the agent's finished story sub-tasks come to the founder (agent.review). Absent from a daemon that does not send it."
      }
     },
     "required": [
@@ -3503,6 +3512,149 @@
     "role"
    ],
    "description": "See x-access. Only grants: the roots every session reads are not listed. An unknown agent is not_found, what agent; an agent or member caller is refused, gate role."
+  },
+  {
+   "name": "agent.review_set",
+   "summary": "The founder sets how many of an agent's finished story sub-tasks come to them: every (the default), one_in_three (the others take an automatic OK and go to the land_by agent) or auto (none, unless it must). Each change is kept with who and when; a Redo moves it up one step by itself, and the daemon never lowers it.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "agent",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/Who"
+     }
+    },
+    {
+     "name": "level",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "enum": [
+       "every",
+       "one_in_three",
+       "auto"
+      ]
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Accepted"
+    }
+   },
+   "x-role": "owner",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "set a review level"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "description": "Only a finish whose check passed with no misses, whose tests passed and that was never sent back may skip the founder (task.handoff checked, misses, tests); at one_in_three every third of those still comes."
+  },
+  {
+   "name": "agent.review",
+   "summary": "How the founder checks an agent's story work: its level, its record at that level (the founder's first verdict on each task it finished, the last ten, newest last), the level the record suggests, and its lesson count.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "agent",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/Who"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "properties": {
+      "agent": {
+       "type": "string"
+      },
+      "level": {
+       "type": "string",
+       "enum": [
+        "every",
+        "one_in_three",
+        "auto"
+       ]
+      },
+      "record": {
+       "type": "array",
+       "items": {
+        "type": "object",
+        "properties": {
+         "task": {
+          "type": "integer"
+         },
+         "ok_first": {
+          "type": "boolean",
+          "description": "The founder's first verdict on it was OK."
+         },
+         "at": {
+          "$ref": "#/components/schemas/Timestamp"
+         }
+        },
+        "required": [
+         "task",
+         "ok_first",
+         "at"
+        ]
+       }
+      },
+      "looks": {
+       "type": "integer",
+       "description": "Every look at this level; record holds the last ten."
+      },
+      "suggested": {
+       "oneOf": [
+        {
+         "type": "string",
+         "enum": [
+          "one_in_three",
+          "auto"
+         ]
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "The level one step less checked when 8 of the last 10 were OK at first look (the founder's notice says so); null otherwise."
+      },
+      "lessons": {
+       "type": "integer",
+       "description": "Its live lessons (lessons.list)."
+      }
+     },
+     "required": [
+      "agent",
+      "level",
+      "record",
+      "looks",
+      "suggested",
+      "lessons"
+     ]
+    }
+   },
+   "x-role": "member",
+   "x-write": false,
+   "x-app-cache": false,
+   "x-since": 1
   }
  ]
 }

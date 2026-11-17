@@ -123,6 +123,11 @@ func (e *Env) agentsList(c *rpc.Conn, params map[string]any) (any, error) {
 				return nil, err
 			}
 		}
+		l, err := db.ReviewLevel(e.DB, n)
+		if err != nil {
+			return nil, err
+		}
+		v["review_level"] = l.Level
 		agents = append(agents, v)
 	}
 	return map[string]any{"agents": agents}, nil

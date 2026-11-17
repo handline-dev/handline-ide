@@ -1,6 +1,7 @@
 package taskwrites
 
 import (
+	"database/sql"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -38,15 +39,7 @@ func TestAStorysSubTaskWaitsForTheFoundersOKBeforeItGoesToLand(t *testing.T) {
 		}
 	}
 	f := &fakeTeller{db: d}
-	n := 0
-	as := func(agent, method, params string) map[string]any {
-		t.Helper()
-		n++
-		s := rpc.NewServer(auth{agent}, "x", store.LatestVersion(), "local", func(string, ...any) {})
-		s.DB = d
-		Register(s, home, f, nil)
-		return call(t, s, fmt.Sprintf(`{"jsonrpc":"2.0","id":2,"method":%q,"params":{%s"request_id":"r%d"}}`, method, params, n))[0]
-	}
+	as := writesAs(t, d, home, f)
 	hand := func(task int, to, note string, files ...string) map[string]any {
 		t.Helper()
 		var abs []string
@@ -196,5 +189,18 @@ func TestAStorysSubTaskWaitsForTheFoundersOKBeforeItGoesToLand(t *testing.T) {
 	}
 	if errCode(hand(2, k("gp"), "x", "demo.png")) != "bad_request" {
 		t.Fatal("files went with a handoff nobody reads them in")
+	}
+}
+
+// writesAs calls one task write as an agent ("" is the founder) on a server of its own over d, each call with a request id of its own.
+func writesAs(t *testing.T, d *sql.DB, home string, f Teller) func(agent, method, params string) map[string]any {
+	n := 0
+	return func(agent, method, params string) map[string]any {
+		t.Helper()
+		n++
+		s := rpc.NewServer(auth{agent}, "x", store.LatestVersion(), "local", func(string, ...any) {})
+		s.DB = d
+		Register(s, home, f, nil)
+		return call(t, s, fmt.Sprintf(`{"jsonrpc":"2.0","id":2,"method":%q,"params":{%s"request_id":"r%d"}}`, method, params, n))[0]
 	}
 }

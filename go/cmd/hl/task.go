@@ -299,9 +299,12 @@ func taskBegin(c *hlclient.Client, args []string) (int, bool) {
 }
 
 func taskHandoff(c *hlclient.Client, args []string) (int, bool) {
-	p, ok := parse(args, []string{"--file", "--attach"}, nil, nil)
+	p, ok := parse(args, []string{"--file", "--attach", "--checked", "--misses", "--tests"}, nil, nil)
 	if !ok || len(p.pos) < 2 || len(p.pos) > 3 {
 		return 0, false
+	}
+	if t, given := p.opt("--tests"); given && t != "pass" && t != "fail" {
+		return wrongArgs("--tests is pass or fail")
 	}
 	tid, ok := taskRef(p.pos[0])
 	if !ok {
@@ -336,6 +339,11 @@ func taskHandoff(c *hlclient.Client, args []string) (int, bool) {
 	params := map[string]any{"task": tid, "to": p.pos[1], "note": note}
 	if attach := p.each["--attach"]; len(attach) > 0 {
 		params["files"] = absPaths(attach)
+	}
+	for _, k := range []string{"checked", "misses", "tests"} { // a story sub-task's own check, which may let it skip the founder
+		if v, given := p.opt("--" + k); given {
+			params[k] = v
+		}
 	}
 	return said(c.Write("task.handoff", params)), true
 }
