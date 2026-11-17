@@ -131,6 +131,7 @@ func (e *Env) settingsValues() map[string]any {
 		// Whether each notifications event raises a notice on the founder's devices; the event is on the topic either way.
 		"push_prompt_asked": s.Flag("push_prompt_asked", true), "push_task_done": s.Flag("push_task_done", true),
 		"push_stall": s.Flag("push_stall", true), "push_account_out": s.Flag("push_account_out", true),
+		"push_only_away": s.Flag("push_only_away", false), "push_sound": s.Flag("push_sound", true),
 		loadgate.AgentCapKey: limits.Agents, loadgate.LoadPctKey: limits.LoadPct, loadgate.RAMFreePctKey: limits.RAMFreePct, loadgate.DiskFreeGBKey: limits.DiskFreeGB,
 		keepawake.Key: keepawake.ModeOf(cfg), housekeeping.OrphansKey: housekeeping.OrphansModeOf(cfg),
 		usage.PaceTargetKey: pace.Target, usage.PaceBurstKey: pace.Burst,

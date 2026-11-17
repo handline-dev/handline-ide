@@ -126,6 +126,25 @@ func TestTheOffByDefaultSwitchesAreOffUntilTheFounderTurnsThemOn(t *testing.T) {
 	}
 }
 
+func TestNoticesPlayASoundAndShowInFrontByDefault(t *testing.T) {
+	t.Parallel()
+	e := testEnv(t)
+	out, err := e.settingsGet(nil, map[string]any{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	v := out.(map[string]any)["values"].(map[string]any)
+	if v["push_only_away"] != false || v["push_sound"] != true {
+		t.Fatalf("push_only_away %v, push_sound %v", v["push_only_away"], v["push_sound"])
+	}
+	os.WriteFile(paths.ConfigFile(e.Home), []byte("push_only_away: true\npush_sound: false\n"), 0o644)
+	out, _ = e.settingsGet(nil, map[string]any{})
+	v = out.(map[string]any)["values"].(map[string]any)
+	if v["push_only_away"] != true || v["push_sound"] != false {
+		t.Fatalf("set: push_only_away %v, push_sound %v", v["push_only_away"], v["push_sound"])
+	}
+}
+
 func TestEveryNotificationKindPushesUntilTheFounderTurnsItOff(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)

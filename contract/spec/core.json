@@ -2115,6 +2115,16 @@
       "default": true,
       "description": "Whether a notifications `account_out` event (an account is out) raises a notice on the founder's devices. The event is on the topic and in events.feed either way; the shell that raises notices reads this."
      },
+     "push_only_away": {
+      "type": "boolean",
+      "default": false,
+      "description": "Notices only while no Handline window is in front; off, the default, holds back only a notice about the agent on screen in a focused window. The shell that raises notices reads this."
+     },
+     "push_sound": {
+      "type": "boolean",
+      "default": true,
+      "description": "Whether a notice plays the system sound. The shell that raises notices reads this."
+     },
      "host_active_cap": {
       "type": "integer",
       "minimum": 0,
@@ -2546,6 +2556,28 @@
        }
       ],
       "description": "Whether a notifications `account_out` event (an account is out) raises a notice on the founder's devices. The event is on the topic and in events.feed either way; the shell that raises notices reads this. null removes the key (back to the default)."
+     },
+     "push_only_away": {
+      "oneOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Notices only while no Handline window is in front; off, the default, holds back only a notice about the agent on screen in a focused window. The shell that raises notices reads this. null removes the key (back to the default)."
+     },
+     "push_sound": {
+      "oneOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Whether a notice plays the system sound. The shell that raises notices reads this. null removes the key (back to the default)."
      },
      "host_active_cap": {
       "oneOf": [
