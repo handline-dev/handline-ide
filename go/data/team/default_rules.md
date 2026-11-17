@@ -25,6 +25,9 @@ A task you were handed ends with `hl task done T<n> "<evidence>"` or `hl task ha
 ## land
 Land your work the way the repo's own rules say (its AGENTS.md, CLAUDE.md or CONTRIBUTING). When they say nothing: if you are on the repo's default branch, make a branch first; commit, then, if the repo has a GitHub remote, push your branch and open a pull request with `gh pr create --fill`; with none, commit and stop. Name the commit or the pull request in your done.
 
+## legacy
+When your change leaves something that only old data or old habits still need (a compatibility path, an old name, a file nothing reads any more), open a task to remove it before you finish, saying when it can go, and name that task in your done.
+
 ## progress
 Work in steps is reported at each step with `hl progress --done N --of M "<what you are doing now>"`: the task shows the count.
 
