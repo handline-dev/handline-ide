@@ -497,7 +497,7 @@ func (a Accounts) EnvFrom(base map[string]string, acct, agent string) map[string
 	paths.Setenv(env, "HOME", a.Home)
 	paths.Setenv(env, "ACCOUNT", acct)
 	if agent != "" {
-		paths.Setenv(env, "AGENT", agent)
+		paths.Setenv(env, "AGENT", paths.AgentHandle(a.Home, agent)) // its name; hl takes it back to the key (hlclient.Agent)
 	}
 	return env
 }

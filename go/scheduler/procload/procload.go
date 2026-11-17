@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/scheduler/sysres"
 )
 
@@ -117,11 +118,19 @@ type Tracker struct {
 	lastPrun  int64
 }
 
+// agentOf is the key of the agent a process's HANDLINE_AGENT names (its name, or a key).
 func (t *Tracker) agentOf(pid int) (string, bool) {
+	read := agentOf
 	if t.AgentOf != nil {
-		return t.AgentOf(pid)
+		read = t.AgentOf
 	}
-	return agentOf(pid)
+	agent, ok := read(pid)
+	if agent != "" {
+		if k := paths.AgentKey(t.Home, agent); k != "" {
+			agent = k
+		}
+	}
+	return agent, ok
 }
 
 // Sample measures every process once; now is epoch seconds.

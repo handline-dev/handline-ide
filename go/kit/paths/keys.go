@@ -208,3 +208,38 @@ func WhoKey(home, word string) string {
 	}
 	return word
 }
+
+// AgentHandle is the agent's name anyone can type for it: its name when that resolves back to it (AgentKeyIn), else "workspace/name".
+// key may be any word AgentKeyIn takes; it comes back as it is when neither resolves back or the agents table cannot say.
+func AgentHandle(home, key string) string {
+	d, err := store.SharedIfThere(DBFile(home))
+	if d == nil || err != nil {
+		return key
+	}
+	k, err := AgentKeyIn(d, key)
+	_, id, ok := actor.Parse(k)
+	if err != nil || !ok {
+		return key
+	}
+	var name, ws string
+	if err := d.QueryRow(`SELECT a.name, w.name FROM agents a JOIN workspaces w ON w.id = a.workspace WHERE a.id = ?`, id).Scan(&name, &ws); err != nil {
+		return key
+	}
+	for _, h := range []string{name, ws + "/" + name} {
+		if back, err := AgentKeyIn(d, h); err == nil && back == k {
+			return h
+		}
+	}
+	return key
+}
+
+// AgentKeyReadOnly is AgentKeyIn on home's database opened read-only and closed after: for hl, which must not migrate the daemon's
+// database by asking who it is.
+func AgentKeyReadOnly(home, who string) (string, error) {
+	d, err := sql.Open("sqlite", "file:"+DBFile(home)+"?mode=ro")
+	if err != nil {
+		return "", err
+	}
+	defer d.Close()
+	return AgentKeyIn(d, who)
+}

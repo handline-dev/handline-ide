@@ -84,3 +84,23 @@ func TestAgentKeyInTakesAKeyOrAName(t *testing.T) {
 		}
 	}
 }
+
+// An agent's handle is its name when no other agent has it, else workspace/name, and AgentKeyIn takes it back.
+func TestAgentHandleIsANameThatResolvesBack(t *testing.T) {
+	home := t.TempDir()
+	seedAgents(t, home)
+	d, _ := store.Shared(DBFile(home))
+	if _, err := d.Exec("INSERT INTO workspaces(id, name, folder, created_at) VALUES(2, 'v', '', 0); " +
+		"INSERT INTO agents(id, workspace, name, owner, created_at) VALUES(3, 2, 'lead', 'p1', 0)"); err != nil {
+		t.Fatal(err)
+	}
+	for key, want := range map[string]string{"a1": "x", "a2": "w/lead", "a3": "v/lead", "w.x": "x", "a9": "a9"} {
+		got := AgentHandle(home, key)
+		if got != want {
+			t.Errorf("AgentHandle(%s) = %q, want %q", key, got, want)
+		}
+		if back, _ := AgentKeyIn(d, got); want != "a9" && back != AgentKey(home, key) {
+			t.Errorf("%s does not resolve back: %q", got, back)
+		}
+	}
+}
