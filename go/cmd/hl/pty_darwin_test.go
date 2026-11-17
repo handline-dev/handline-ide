@@ -19,6 +19,7 @@ func openPty() (master, slave *os.File, err error) {
 	}
 	var name [128]byte
 	if err == nil {
+		//lint:ignore SA1019 x/sys has no wrapper for TIOCPTYGNAME on darwin
 		if _, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), unix.TIOCPTYGNAME, uintptr(unsafe.Pointer(&name[0]))); errno != 0 {
 			err = errno
 		}

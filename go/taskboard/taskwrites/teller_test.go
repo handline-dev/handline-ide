@@ -24,7 +24,6 @@ type fakeTeller struct {
 	deny      string
 	after     func() string // the telling that follows the commit of an ask, when set
 	handed    []Handover
-	opened    []string
 	edited    []Edited
 	notified  []db.Notice
 	db        *sql.DB // the rig's task database: what is recorded is read by name (keys_test.go)

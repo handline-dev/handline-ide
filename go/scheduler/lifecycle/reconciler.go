@@ -446,9 +446,6 @@ func (r *Reconciler) Sweep(actions *[]string) error {
 			if err := db.ClearClosed(r.Q, agent); err != nil {
 				return err
 			}
-			if row, err = db.GetAgentState(r.Q, agent); err != nil {
-				return err
-			}
 			*actions = append(*actions, agent+": a session is running; the closed mark was wrong")
 			r.logf("  %s: running again (pid %d); cleared the closed mark", agent, *o.SessionPID)
 		case !alive && !closed && handle != "" && r.Ports.StillDrawn(handle):

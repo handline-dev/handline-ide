@@ -131,8 +131,10 @@ func TestAFailedCloseIsNotReportedAsDoneByTheNextCall(t *testing.T) {
 	s := open(t, launch(t), Handlers{})
 	proveGone = func(int) error { return errors.New("processes of the claude group are still running") }
 	t.Cleanup(func() { proveGone = groupGone })
-	if s.Close() == nil || s.Close() == nil {
-		t.Fatal("a group that is not gone was reported gone")
+	for range 2 {
+		if s.Close() == nil {
+			t.Fatal("a group that is not gone was reported gone")
+		}
 	}
 	proveGone = groupGone
 	if err := s.Close(); err != nil {

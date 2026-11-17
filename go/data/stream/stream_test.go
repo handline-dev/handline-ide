@@ -245,9 +245,9 @@ func TestAnAgentSessionIsSentWhatItsRoleMayRead(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []string{fmt.Sprintf("event:%d", i.Cursor), fmt.Sprintf("event:%d", k.Cursor), fmt.Sprintf("event:%d", n.Cursor)}
-	got := w.waitFor(t, 3)
+	w.waitFor(t, 3)
 	time.Sleep(50 * time.Millisecond)
-	if got = w.methods(); fmt.Sprint(got) != fmt.Sprint(want) {
+	if got := w.methods(); fmt.Sprint(got) != fmt.Sprint(want) {
 		t.Fatalf("%v, want %v", got, want)
 	}
 }

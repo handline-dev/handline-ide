@@ -28,7 +28,7 @@ func TestDrawableTakesOutWhatATerminalWouldObey(t *testing.T) {
 }
 
 func TestOneline(t *testing.T) {
-	if got := Oneline("a\nb\x07c​d"); got != "a bc d" {
+	if got := Oneline("a\nb\x07c\u200bd"); got != "a bc d" {
 		t.Errorf("%q", got)
 	}
 }
