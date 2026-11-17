@@ -8,6 +8,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `repos.list` | member |  | none | `{repos}` |  |  | `repos`, snapshot |
 | `repos.recent` | member |  | none | `{folders}` |  |  | `recent_repos`, snapshot |
 | `repo.facts` | member |  | `path` | `RepoFacts` | `not_found` |  | `repo_facts`, snapshot |
+| `repo.set` | owner | yes | `path`, `script?`, `copy?`, `request_id` | `Accepted` | `not_found`, `bad_request`, `refused` | state | decided: save project setup |
 | `folder.init` | owner | yes | `path`, `request_id` | `Accepted & {path}` | `refused`, `not_found`, `bad_request` | state | decided: start git |
 | `folder.clone` | owner | yes | `url`, `path?`, `request_id` | `Accepted & {path}` | `refused`, `bad_request` | state | decided: clone |
 | `worktrees.list` | member |  | `repo?`, `owner?` | `{worktrees}` |  |  | `worktrees`, snapshot |
@@ -31,6 +32,10 @@ Git folders under the person's home not in repos.list, for the first-run repo pi
 ### `repo.facts`
 
 Facts of a git folder for the first-run cards, within 4 s: a part not done by then is null or 0.
+
+### `repo.set`
+
+Set a repo's worktree setup (Repo.setup): the files copied into each new worktree and the script run there. Owner only. An omitted field is kept, null or empty clears it; naming neither is bad_request. Takes effect for worktrees made after it, never one already made. Kept in the protected store, which no agent can write.
 
 ### `folder.init`
 
