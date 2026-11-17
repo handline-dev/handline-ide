@@ -16,7 +16,9 @@ import (
 	"github.com/handline/handline/go/internal/worktreeprune"
 	"github.com/handline/handline/go/kit/gitrun"
 	"github.com/handline/handline/go/kit/paths"
+	"github.com/handline/handline/go/kit/protected"
 	"github.com/handline/handline/go/protocol/rpc"
+	"github.com/handline/handline/go/scheduler/worktreesetup"
 )
 
 const (
@@ -52,11 +54,15 @@ func (e *Env) repoOf(agent string) string {
 	return s
 }
 
-// repos is rpc_worktrees.repos: the repos the agents were told to work in, by path.
+// repos is rpc_worktrees.repos: the repos the agents were told to work in, by path, each with the setup its new worktrees get.
 func (e *Env) repos() []any {
 	out := []any{}
+	st := protected.New(e.Home)
 	for _, p := range worktreeprune.Repos(e.Home) {
-		out = append(out, map[string]any{"name": filepath.Base(p), "path": p, "default_branch": gitrun.DefaultBranch(p)})
+		setup := worktreesetup.Get(st, p)
+		last, _ := worktreesetup.Last(e.DB, p) // a last run that cannot be read is shown as none
+		out = append(out, map[string]any{"name": filepath.Base(p), "path": p, "default_branch": gitrun.DefaultBranch(p),
+			"setup": map[string]any{"script": setup.Script, "copy": setup.Copy, "last": last}})
 	}
 	return out
 }

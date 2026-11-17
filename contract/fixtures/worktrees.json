@@ -146,6 +146,85 @@
    ]
   },
   {
+   "name": "repo.set.an_agent_session_is_refused_by_role",
+   "spec": "repo.set",
+   "about": "The founder's write: an agent may never set the script the daemon runs outside any sandbox. Refused, gate role.",
+   "as": "agent",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "repo.set",
+      "params": {
+       "path": "/nonexistent/handline-conformance",
+       "script": "true",
+       "request_id": "conf-repo-set-1"
+      }
+     },
+     "error": {
+      "code": -32002,
+      "data": {
+       "code": "refused",
+       "gate": "role"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "repo.set.only_a_repo_agents_work_in",
+   "spec": "repo.set",
+   "about": "A path that is no repo of repos.list is not_found, what repo.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "repo.set",
+      "params": {
+       "path": "/nonexistent/handline-conformance",
+       "script": "true",
+       "request_id": "conf-repo-set-2"
+      }
+     },
+     "error": {
+      "code": -32001,
+      "data": {
+       "code": "not_found",
+       "what": "repo"
+      }
+     }
+    }
+   ]
+  },
+  {
    "name": "worktrees.list.an_agent_session_is_refused_by_role",
    "spec": "worktrees.list",
    "about": "A person's read: a call from an agent session is refused, gate role.",
