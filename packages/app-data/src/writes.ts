@@ -7,7 +7,7 @@ import { accountAfter, type AccountChange } from '#src/account-after.ts';
 import { accountRemove } from '#src/account-remove.ts';
 import { chatWrites } from '#src/chat-writes.ts';
 import { classify } from '#src/errors.ts';
-import { APP_WRITES, type WriteKind } from '@handline/client';
+import { APP_WRITES, RpcError, type WriteKind } from '@handline/client';
 import { keyOf, qk } from '#src/reads.ts';
 import type { Patch, WriteSpec } from '#src/write-spec.ts';
 
@@ -228,6 +228,11 @@ export const patches: Record<string, Patch> = {
   ...settings,
   // A machine default changes every workspace's rules in force, so every workspace's entry is read again.
   'workspace.rule.set': { touches: (d) => [qk.allRules(d)] },
+  // A project's setup is in repos.list, which has no feed; a refusal naming a field is shown under that field.
+  'repo.set': {
+    touches: (d) => [qk.resource(d, 'repos.list')],
+    asks: (e) => e instanceof RpcError && e.code === 'bad_request' && typeof e.data?.field === 'string',
+  },
   'chat.seen': { quiet: true },
   'task.seen': { quiet: true },
   // A worktree that holds work is refused until the person answers; the screen asks, so no error line is raised.
