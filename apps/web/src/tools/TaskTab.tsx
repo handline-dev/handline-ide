@@ -110,23 +110,24 @@ export function TaskTab({ id }: { id: number }) {
   return (
     <FileDropArea take={attach.add} className="flex min-h-0 min-w-0 flex-1 flex-col">
       <MarkReply.Provider value={{ add: addMarked, label: 'Add to comment' }}>
+        {/* The title line above the scroll area, the comment box below it: the page scrolls between them. */}
+        <Page className="flex shrink-0 items-start gap-3 pt-4 pb-2 text-base text-fg">
+          <h1 className="min-w-0 flex-1 text-lg font-semibold">
+            {/* The state said once, in the title's first line: its mark and its word on its colour; the title wraps after it. */}
+            <span
+              className={`mr-2 inline-flex h-6 items-center gap-1 rounded-md px-2 align-middle text-xs font-medium text-accent-fg ${s.tone}`}
+            >
+              <s.icon size={12} strokeWidth={3} />
+              {s.word}
+            </span>
+            <span className="mr-1.5 font-normal text-muted">T{t.id}</span>
+            <span className={t.state === 'discarded' ? 'text-muted line-through' : ''}>{t.title}</span>
+          </h1>
+          <Verbs id={t.id} open={open} state={t.state} />
+        </Page>
         <ScrollFade keep={`task:${id}`} fromEnd data-task-scroll={id} className="min-h-0 flex-1">
-          <Page className="flex flex-col gap-6 py-4 text-base text-fg">
+          <Page className="flex flex-col gap-6 pt-2 pb-4 text-base text-fg">
             <header className="flex flex-col gap-3">
-              <div className="flex items-start gap-3">
-                <h1 className="min-w-0 flex-1 text-lg font-semibold">
-                  {/* The state said once, in the title's first line: its mark and its word on its colour; the title wraps after it. */}
-                  <span
-                    className={`mr-2 inline-flex h-6 items-center gap-1 rounded-md px-2 align-middle text-xs font-medium text-accent-fg ${s.tone}`}
-                  >
-                    <s.icon size={12} strokeWidth={3} />
-                    {s.word}
-                  </span>
-                  <span className="mr-1.5 font-normal text-muted">T{t.id}</span>
-                  <span className={t.state === 'discarded' ? 'text-muted line-through' : ''}>{t.title}</span>
-                </h1>
-                <Verbs id={t.id} open={open} state={t.state} />
-              </div>
               <p className="text-xs text-muted">
                 Reports to {isPerson(t.asker, me) ? 'you' : t.asker} · <span title={t.created}>created {ago(t.created)}</span>
                 {open && chain && <> · {chain}</>}
