@@ -19,17 +19,13 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `load.get` | agent |  | `minutes?`, `agent?` | `{at, every_s, machine, total, agents, unowned, processes, sampling, series} \| null` | `bad_request` |  | `load`, snapshot |
 | `events.feed` | agent |  | `since?`, `topics?`, `limit?` | `{events, cursor, gap}` | `bad_request` |  | not cached |
 | `operation.get` | member |  | `operation` | `Operation & ReadCursor` | `not_found` |  | `operation` by operation, fed by operations |
-| `debug.terminals` | member |  | none | `{host, now, panes}` | `refused` | role, unsupported, state | `debug-terminals`, snapshot |
 | `prefs.get` | member (only member, owner) |  | none | `Prefs & ReadCursor` | `refused` |  | `prefs`, fed by prefs |
 | `prefs.set` | member (only member, owner) | yes | `changes`, `request_id` | `Accepted` | `bad_request`, `refused` |  | authored: save view preferences |
 | `hook.record` | agent (only agent) | yes | `agent`, `kind`, `at`, `data`, `request_id` | `Accepted & {nudge}` | `refused` | not_self | not from the app |
 | `subagent.start` | agent (only agent) | yes | `agent`, `session_id?`, `description?`, `subagent_type?`, `run_in_background?` | `{deny}` | `refused`, `bad_request` | not_self | not from the app |
-| `memory.status` | agent |  | `agent?` | `{agents}` |  |  | `memory`, snapshot |
-| `connection.get` | owner |  | none | `ConnectionInfo` |  |  | `connection`, snapshot |
 | `connection.addresses` | owner |  | none | `ConnectionAddresses` |  |  | `addresses`, snapshot |
 | `settings.get` | owner |  | `agent?` | `Settings` | `bad_request`, `not_found` |  | `settings`, snapshot |
 | `settings.set` | owner | yes | `changes`, `agent?`, `request_id` | `Accepted` | `refused`, `bad_request` |  | authored: save settings |
-| `for_you.list` | member |  | none | `ForYouList & ReadCursor` |  |  | `for-you`, fed by for_you |
 
 ### `hello`
 
@@ -87,10 +83,6 @@ Resumable feed of events with their deep-link targets; the polling twin of subsc
 
 A long-running operation's current state.
 
-### `debug.terminals`
-
-Every pane of the terminal host with what the daemon knows of it, for the hidden debug window. Lists every pane of the daemon's terminal server (tmux), whichever agent has it or none, to find panes kept open past their prompt cache and shells left behind after an agent's session exited. Reads only: the host's pane list, the process table and the daemon's own rows; of the agent's view only cache_until. A host that cannot list its panes is refused, gate unsupported; one that cannot be reached, gate state. Watching a listed pane is terminal.attach by its handle; a pane no agent has takes no input. Callers: the founder and a paired device (member); below that is refused, gate role.
-
 ### `prefs.get`
 
 The person's view preferences: the agent list's pins, filter, layout and folds.
@@ -105,15 +97,7 @@ A hook records an event; the spool replays it with the same request_id. A PostTo
 
 ### `subagent.start`
 
-The PreToolUse guard asks before an Agent call: refused when one more subagent would take the agent's account to its 5-hour or weekly limit before that window resets, else the start is recorded. The account's recorded burn plus the agent's own measured cost stands for the subagent's. Unread, stale or unmeasured figures refuse nothing. A start runs until a SubagentStop of the same session or until that session ends (subagents.counts). A hook the daemon does not answer in time lets the call through, unrecorded.
-
-### `memory.status`
-
-Per-agent memory against its budget (hl memory status).
-
-### `connection.get`
-
-How this process is reached: its doors and dev mode. Read only.
+The PreToolUse guard asks before an Agent call: refused when one more subagent would take the agent's account to its 5-hour or weekly limit before that window resets, else the start is recorded. The account's recorded burn plus the agent's own measured cost stands for the subagent's. Unread, stale or unmeasured figures refuse nothing. A start runs until a SubagentStop of the same session or until that session ends. A hook the daemon does not answer in time lets the call through, unrecorded.
 
 ### `connection.addresses`
 
@@ -126,8 +110,4 @@ Timings, terminal host, trust folders, hooks installed.
 ### `settings.set`
 
 Change settings: any keys of SettingsValues, globally or as one agent's override.
-
-### `for_you.list`
-
-Every open item waiting on the founder, whatever it is made of today (task rows, comment asks, prompts, proposals, the machine's needs), and the count of those not deferred.
 

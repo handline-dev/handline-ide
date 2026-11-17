@@ -110,7 +110,7 @@ func TestForceDoesNotTypeIntoAnAgentsTurn(t *testing.T) {
 	busy := lock.TakeTerminal(r.e.Home, r.ann) // the tick, mid-turn
 	defer busy.Release()
 	result(t, c.call("input.take", map[string]any{"agent": "ann", "force": true, "request_id": rid("f1")}))
-	if g := refused(c.call("session.type", map[string]any{"agent": "ann", "text": "x", "request_id": rid("f2")})); g != "terminal_lock" {
+	if g := refused(c.call("session.keys", map[string]any{"agent": "ann", "keys": []any{"enter"}, "request_id": rid("f2")})); g != "terminal_lock" {
 		t.Fatalf("gate %q", g)
 	}
 	if len(h.sent) != 0 {
@@ -118,16 +118,12 @@ func TestForceDoesNotTypeIntoAnAgentsTurn(t *testing.T) {
 	}
 }
 
-func TestKeysAndTypeSendWhatTheyNameAndSkipTheDialogCheck(t *testing.T) {
+func TestKeysSendWhatTheyNameAndSkipTheDialogCheck(t *testing.T) {
 	r, h, c := typingRig(t)
 	h.rows = []string{"Do you want to proceed?", "Enter to confirm · Esc to cancel"} // a dialog is open
 	result(t, c.call("session.keys", map[string]any{"agent": "ann", "keys": []any{"down", "enter", "esc", "2"}, "request_id": rid("k1")}))
 	if got := strings.Join(h.sent, "|"); got != "\x1b[B|<enter>|\x1b|2" {
 		t.Fatalf("sent %q", got)
-	}
-	result(t, c.call("session.type", map[string]any{"agent": "ann", "text": "ls\tx", "request_id": rid("y1")}))
-	if h.sent[len(h.sent)-1] != "ls\tx" {
-		t.Fatalf("sent %q", h.sent)
 	}
 	var typed int64
 	r.e.DB.QueryRow("SELECT row_id FROM cursors WHERE name = ?", "typed_at:"+r.ann).Scan(&typed)
@@ -142,9 +138,6 @@ func TestKeysAndTypeSendWhatTheyNameAndSkipTheDialogCheck(t *testing.T) {
 		if f := badField(c.call("session.keys", p)); f != "keys" {
 			t.Fatalf("%v: field %q", p, f)
 		}
-	}
-	if f := badField(c.call("session.type", map[string]any{"agent": "ann", "text": "a\x1b[A", "request_id": rid("y2")})); f != "text" {
-		t.Fatalf("Esc is a key, not text: field %q", f)
 	}
 }
 
@@ -202,7 +195,7 @@ func TestATypingCallWhileTheTickHoldsTheTerminalLockIsRefusedAtOnce(t *testing.T
 	r, h, c := typingRig(t)
 	busy := lock.TakeTerminal(r.e.Home, r.ann)
 	defer busy.Release()
-	if g := refused(c.call("session.type", map[string]any{"agent": "ann", "text": "x", "request_id": rid("l1")})); g != "terminal_lock" {
+	if g := refused(c.call("session.keys", map[string]any{"agent": "ann", "keys": []any{"enter"}, "request_id": rid("l1")})); g != "terminal_lock" {
 		t.Fatalf("gate %q", g)
 	}
 	if len(h.sent) != 0 {

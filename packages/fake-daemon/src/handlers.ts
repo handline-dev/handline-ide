@@ -10,7 +10,6 @@ import type { FakeChat } from '#src/chat.ts';
 import { replyOf, runParams, startRun, stopRun } from '#src/runs.ts';
 import { PROPOSAL_HANDLERS, teamOf } from '#src/proposals.ts';
 import { STRIP_HANDLERS } from '#src/strip.ts';
-import { DEBUG_HANDLERS } from '#src/debug.ts';
 import { DAEMON_HOLDER, newSession, row, scrolledOff, styledRow, tid, visible, type Attach, type Session } from '#src/session.ts';
 
 export interface Who {
@@ -39,7 +38,6 @@ const BASE: Record<string, (h: Call) => unknown> = {
   ...SETTINGS_HANDLERS,
   ...PROPOSAL_HANDLERS,
   ...STRIP_HANDLERS,
-  ...DEBUG_HANDLERS,
   'team.get': ({ script, iso }) => teamOf([...script.sessions.values()], iso()),
   'session.start': (h) => {
     const { actor, script, agent } = h;
@@ -257,14 +255,6 @@ const BASE: Record<string, (h: Call) => unknown> = {
     if (!script.shells.delete(p.terminal)) throw new Failure('not_found', `no shell ${p.terminal}`, { field: 'terminal' });
     stopRun(chat, p.terminal);
     return script.accepted('Shell closed.');
-  },
-  'terminal.close': ({ actor, script, agent }) => {
-    const s = agent();
-    if (s.open) throw refused('state', `${s.fx.name} has a session running: stop it first`);
-    if (!s.hasTerminal) throw refused('state', `${s.fx.name} has no terminal`);
-    s.hasTerminal = false;
-    script.setState(s, 'no_terminal', actor);
-    return script.accepted('Terminal closed.');
   },
   'terminal.detach': (h) => {
     const { c, p, script, byTerminal } = h;

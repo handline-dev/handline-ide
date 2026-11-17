@@ -41,7 +41,6 @@ export class FakeRequests {
       holders: [],
       open: 0,
       done: 0,
-      prs: [],
       now: null,
       blocked: false,
       progress: '',

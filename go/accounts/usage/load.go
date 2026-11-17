@@ -2,7 +2,6 @@ package usage
 
 import (
 	"database/sql"
-	"fmt"
 	"math"
 	"sort"
 
@@ -283,41 +282,4 @@ func (e *Env) ReadAll(q db.Q, exclude string) (map[string]*Load, error) {
 		out[a] = l
 	}
 	return out, nil
-}
-
-// ByKind is one line per kind among agents (sorted by model, then effort): what an agent of it spends per minute of work and what that
-// rests on.
-func (c *Costs) ByKind(agents []string) []string {
-	type kind struct{ model, effort string }
-	seen := map[kind]string{}
-	for _, n := range agents {
-		if c.kindOf == nil {
-			break
-		}
-		if m, e, ok := c.kindOf(n); ok {
-			if _, dup := seen[kind{m, e}]; !dup {
-				seen[kind{m, e}] = n
-			}
-		}
-	}
-	kinds := make([]kind, 0, len(seen))
-	for k := range seen {
-		kinds = append(kinds, k)
-	}
-	sort.Slice(kinds, func(i, j int) bool {
-		if kinds[i].model != kinds[j].model {
-			return kinds[i].model < kinds[j].model
-		}
-		return kinds[i].effort < kinds[j].effort
-	})
-	out := []string{}
-	for _, k := range kinds {
-		usd, source, count := c.USDPerMin(seen[k])
-		basis := source
-		if count > 0 {
-			basis = fmt.Sprintf("%d samples, %s", count, source)
-		}
-		out = append(out, fmt.Sprintf("%s %s $%.3f/min (%s)", k.model, k.effort, usd, basis))
-	}
-	return out
 }

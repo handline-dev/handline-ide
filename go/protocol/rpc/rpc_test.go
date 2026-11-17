@@ -5,12 +5,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/handline/handline/go/kit/storetest"
 	"io"
 	"net"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/handline/handline/go/kit/storetest"
 )
 
 type fakeAuth struct{ agent, key string }
@@ -471,13 +472,11 @@ func TestWhoParamsAreResolvedBeforeTheHandler(t *testing.T) {
 	srv.Names = db
 	c := &Conn{srv: srv, Caller: Caller{Kind: "person", Key: "p1"}}
 	p := map[string]any{"agent": "bob", "minutes": json.Number("5")}
-	f := map[string]any{"owner": "bob", "reporter": "human", "state": "doing"}
-	v := map[string]any{"name": "bob", "filter": f}
-	if c.resolveWho("load.get", p) != nil || c.resolveWho("task.view.save", v) != nil {
+	if c.resolveWho("load.get", p) != nil {
 		t.Fatal("refused")
 	}
-	if p["agent"] != "a1" || p["minutes"] != json.Number("5") || f["owner"] != "a1" || f["reporter"] != "p1" || f["state"] != "doing" || v["name"] != "bob" {
-		t.Fatalf("%v %v", p, v)
+	if p["agent"] != "a1" || p["minutes"] != json.Number("5") {
+		t.Fatalf("%v", p)
 	}
 	p = map[string]any{"agent": "nobody"}
 	if err := c.resolveWho("load.get", p); err != nil || p["agent"] != "nobody" {

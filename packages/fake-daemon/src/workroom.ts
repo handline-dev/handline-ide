@@ -1,5 +1,5 @@
-// The fake daemon's workroom: worktree.set_status, which labels a row of the admin surface's worktrees, and agent.create, a long-running
-// operation that registers an agent, makes its worktree and starts it, reported on the operations topic.
+// The fake daemon's workroom: agent.create, a long-running operation that registers an agent, makes its worktree and starts it,
+// reported on the operations topic.
 import type { AgentOptions, Operation, Repo, Timestamp } from '@handline/contract';
 import { AGENTS, type AgentFixture } from '#src/fixtures.ts';
 import { Failure, invalidParams, refused } from '#src/errors.ts';
@@ -26,7 +26,7 @@ const ROLE_NOTES: Record<string, string> = {
 /** Agents the team file names that have no session yet: what the form suggests as a name. */
 const TEAM_NAMES = ['handline.new-builder', 'handline.new-reviewer'];
 const STEPS = ['registering the agent', 'making its worktree', 'starting the agent'];
-const METHODS = /^(worktree\.set_status|agent\.create|agent\.options|operation\.get)$/;
+const METHODS = /^(agent\.create|agent\.options|operation\.get)$/;
 
 export class FakeWork {
   /** How long each step of agent.create takes; a test that wants to see a step sets it. */
@@ -53,8 +53,6 @@ export class FakeWork {
 
   call(method: string, p: Record<string, unknown>, accepted: Accepted): unknown {
     switch (method) {
-      case 'worktree.set_status':
-        return this.setStatus(p, accepted);
       case 'operation.get':
         return this.operation(p.operation);
       case 'agent.options':
@@ -62,16 +60,6 @@ export class FakeWork {
       default:
         return this.create(p, accepted);
     }
-  }
-
-  private setStatus(p: Record<string, unknown>, accepted: Accepted) {
-    if (typeof p.path !== 'string' || !p.path) throw invalidParams('path is a worktree path', 'path');
-    if (typeof p.status !== 'string' || !p.status || p.status.length > 40)
-      throw invalidParams('status is a label of 1 to 40 characters', 'status');
-    const row = this.host.admin.worktrees.rows.find((w) => w.path === p.path);
-    if (!row) throw notFound(`${p.path} is not a worktree an agent works in`, 'worktree');
-    row.status = p.status;
-    return accepted(`Status is ${p.status}.`);
   }
 
   /** agent.options: what the new-agent form offers, from the fake's repos, agents, accounts and the team's free names. */

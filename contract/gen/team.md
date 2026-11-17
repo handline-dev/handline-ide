@@ -7,9 +7,6 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 |---|---|---|---|---|---|---|---|
 | `proposal.propose` | agent | yes | `kind`, `args`, `why?`, `request_id` | `Accepted & {proposal}` | `refused`, `bad_request` |  | not from the app |
 | `proposal.withdraw` | agent | yes | `proposal`, `request_id` | `Accepted` | `refused`, `not_found` | proposal_settled | decided: withdraw |
-| `trust.propose` | agent | yes | `root`, `why?`, `request_id` | `Accepted & {proposal}` | `refused` |  | not from the app |
-| `trust.list` | agent |  | `proposals?` | `{roots, proposals, declared}` |  |  | `trust`, snapshot |
-| `trust.remove` | owner | yes | `root`, `request_id` | `Accepted` | `not_found` |  | authored: remove folder |
 | `people.list` | agent |  | none | `{people}` | `bad_request` |  | `people`, fed by people |
 | `workspaces.list` | agent |  | none | `{workspaces}` | `bad_request` |  | `workspaces`, fed by workspaces |
 | `workspace.create` | owner | yes | `name`, `folder`, `account?`, `request_id` | `OperationStarted` | `refused`, `not_found`, `bad_request` | state, not_git | decided: create workspace |
@@ -22,10 +19,6 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `proposal.decide` | member | yes | `proposal`, `decision`, `note?`, `subject?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | proposal_changed, proposal_settled | decided: decide |
 | `proposal.apply_now` | member | yes | `proposal`, `request_id` | `Accepted` | `refused`, `not_found` | proposal_settled | decided: apply now |
 | `proposal.stop` | member | yes | `proposal`, `request_id` | `Accepted` | `refused`, `not_found` |  | decided: stop |
-| `schedules.list` | agent |  | none | `{schedules, errors}` |  |  | `schedules`, snapshot |
-| `schedule.add` | owner | yes | `target`, `cron`, `message`, `request_id` | `Accepted & {schedule}` | `refused`, `bad_request`, `not_found` |  | authored: add schedule |
-| `schedule.edit` | owner | yes | `schedule`, `target?`, `cron?`, `message?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | authored: edit schedule |
-| `schedule.remove` | owner | yes | `schedule`, `request_id` | `Accepted` | `refused`, `not_found` |  | authored: remove schedule |
 
 ### `proposal.propose`
 
@@ -34,18 +27,6 @@ Propose a roster change; the founder decides (hl propose add, retire, rename, te
 ### `proposal.withdraw`
 
 Take back an undecided proposal: its author's own, or any for the founder; another agent is refused (gate role).
-
-### `trust.propose`
-
-Propose declaring a folder Handline may answer Claude's trust prompt in (hl trust add); the founder's own call declares it. Called by an agent it raises a decision for the founder, `why` required, and answers the proposal's id; called by the founder it declares the root directly, `why` optional (default `added by the founder`), and answers no proposal. A root already inside a declared one, a missing why or a decision that could not be raised is refused with the store's words. A paired device is refused, gate role. `root` must be an absolute path (bad_request, field `root`): the daemon would read a relative one, or `~`, against its own folder and home, so the client resolves it against its own.
-
-### `trust.list`
-
-Declared trust roots, and with proposals the proposals (hl trust list, hl trust proposals).
-
-### `trust.remove`
-
-Drop a declared root (hl trust remove); needs no approval. The founder's: the declared roots live in the protected store, which an agent session cannot write, so an agent calling `hl trust remove` is refused today and by this method (gate role). A root that is not declared is not_found. `root` must be an absolute path, as for trust.propose (bad_request, field `root`).
 
 ### `people.list`
 
@@ -94,20 +75,4 @@ Apply a waiting proposal now: for an applying proposal, interrupt the turn of ea
 ### `proposal.stop`
 
 The founder stops the running command of an approved run proposal: its window is closed and the run ends stopped; the proposing agent is told. Refused (gate role) for anyone else, and (gate state) when the proposal is not kind run, its command is not running, or its window is no longer the command's.
-
-### `schedules.list`
-
-Schedules. An agent whose `schedules` value is bad is listed in `errors` (target and the error text), not shown as an agent with no schedules.
-
-### `schedule.add`
-
-Add a schedule.
-
-### `schedule.edit`
-
-Edit a schedule.
-
-### `schedule.remove`
-
-Remove a schedule.
 

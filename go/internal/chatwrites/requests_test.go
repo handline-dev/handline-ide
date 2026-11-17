@@ -5,11 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/handline/handline/go/agentctl/delivery"
 	dbpkg "github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/taskboard/msgtest"
-	"github.com/handline/handline/go/taskboard/supervisor"
 )
 
 func (r *rig) state(rid int64) (state string) {
@@ -63,64 +61,6 @@ func TestWithdrawTakesBackTheCallersOwnUndeliveredRequestAndSaysWhyNot(t *testin
 		if data, _ := e["data"].(map[string]any); data["code"] != "bad_request" {
 			t.Fatalf("%s: %v", bad, e)
 		}
-	}
-}
-
-func TestCancelPlansWithoutWritingAndClosesAnyQueuedRequest(t *testing.T) {
-	t.Parallel()
-	r := newRig(t)
-	s := r.server("")
-	cancel := func(rid int64, more, key string) map[string]any {
-		t.Helper()
-		return r.result(r.one(s, "request.cancel", fmt.Sprintf(`{"id":%d%s,"request_id":%q}`, rid, more, key)))
-	}
-	rid := r.request("alice", "bob", "do the thing")
-	dbpkg.MarkDelivered(r.db, rid)
-	const written = "SELECT COUNT(*) FROM events WHERE kind != 'founder_key'" // each call's hello records its key; the call is what is checked
-	events := r.count(written)
-	plan := cancel(rid, `,"dry_run":true`, "c1")
-	if plan["ok"] != true || !strings.HasPrefix(msgtest.IDs(r.db, plan["plan"].(string)), fmt.Sprintf("cancel #%d (delivered to %s)", rid, addr.Ref(r.k("bob")))) {
-		t.Fatalf("%v", plan)
-	}
-	if r.state(rid) != "queued" || r.count(written) != events {
-		t.Fatal("a dry run writes nothing")
-	}
-	// the same request_id is not a kept reply: the dry run and the cancel may share one
-	res := cancel(rid, "", "c1")
-	if res["ok"] != true || r.state(rid) != "landed" || r.count("SELECT COUNT(*) FROM events WHERE kind = 'request_reason' AND json_extract(payload, '$.request_id') = ? AND json_extract(payload, '$.reason') = ?", rid, supervisor.CancelVerdict) != 1 {
-		t.Fatalf("an agent's delivered request is closed with the cancel verdict: %v %s", res, r.state(rid))
-	}
-	if r.count("SELECT COUNT(*) FROM events WHERE kind = 'rpc_write'") != 1 {
-		t.Fatal("the cancel is recorded as one write")
-	}
-	if res := cancel(rid, "", "c2"); res["ok"] != false || msgtest.IDs(r.db, res["said"].(string)) != fmt.Sprintf("not cancelled - #%d is already landed", rid) {
-		t.Fatalf("%v", res)
-	}
-	if plan := cancel(rid, `,"dry_run":true`, "c3"); plan["ok"] != false || msgtest.IDs(r.db, plan["plan"].(string)) != fmt.Sprintf("#%d is already landed", rid) {
-		t.Fatalf("%v", plan)
-	}
-	if res := cancel(999999, "", "c4"); res["ok"] != false || res["said"] != "not cancelled - that message is gone" {
-		t.Fatalf("%v", res)
-	}
-	own := r.request("human", "alice", "never mind")
-	if res := cancel(own, "", "c5"); res["ok"] != true || msgtest.IDs(r.db, res["said"].(string)) != fmt.Sprintf("request #%d to %s withdrawn", own, addr.Ref(r.k("alice"))) || r.state(own) != "withdrawn" {
-		t.Fatalf("the founder's own undelivered request is withdrawn: %v", res)
-	}
-	r.refusedWith(r.one(r.server("alice"), "request.cancel", fmt.Sprintf(`{"id":%d,"request_id":"c6"}`, r.request("alice", "bob", "x"))), "role")
-	e, _ := r.one(s, "request.cancel", `{"id":1,"dry_run":"yes","request_id":"c7"}`)["error"].(map[string]any)
-	if data, _ := e["data"].(map[string]any); data["field"] != "dry_run" {
-		t.Fatalf("%v", e)
-	}
-}
-
-func TestCancelTakesAHeldMessageBackFromTheSessionsQueue(t *testing.T) {
-	t.Parallel()
-	r, f, s := sessionRig(t)
-	f.busy = true
-	rid := int64(r.result(r.one(s, "chat.send", send("take me back", "d1", "")))["request"].(float64))
-	res := r.result(r.one(s, "request.cancel", fmt.Sprintf(`{"id":%d,"request_id":"c1"}`, rid)))
-	if op, _ := f.ledger(r.k("bob")).Get(supervisor.RequestOp(rid)); res["ok"] != true || r.state(rid) != "withdrawn" || op.State != delivery.Withdrawn {
-		t.Fatalf("withdrawn in the row and in the session, so the session never writes it: %v %s %v", res, r.state(rid), op)
 	}
 }
 

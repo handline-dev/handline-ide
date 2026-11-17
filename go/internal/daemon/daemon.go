@@ -23,7 +23,6 @@ import (
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/internal/adminwrites"
 	"github.com/handline/handline/go/internal/chatwrites"
-	"github.com/handline/handline/go/internal/debugterm"
 	"github.com/handline/handline/go/internal/filerw"
 	"github.com/handline/handline/go/internal/hooks"
 	"github.com/handline/handline/go/internal/inputhold"
@@ -55,7 +54,6 @@ import (
 	"github.com/handline/handline/go/scheduler/sysres"
 	"github.com/handline/handline/go/taskboard/attachments"
 	"github.com/handline/handline/go/taskboard/supervisor"
-	"github.com/handline/handline/go/taskboard/taskresult"
 	"github.com/handline/handline/go/taskboard/taskwrites"
 )
 
@@ -525,9 +523,6 @@ func (d *Daemon) writeRegistrars() []func(*rpc.Server) {
 			})
 		},
 		func(s *rpc.Server) { chatwrites.Register(s, d.env(), d.teller()) },
-		func(s *rpc.Server) {
-			debugterm.Register(s, &debugterm.Env{DB: d.db, Backend: d.tchan.Backend, Procs: debugterm.ReadProcs, Now: time.Now})
-		},
 		func(s *rpc.Server) { filerw.Register(s, d.files) },
 		func(s *rpc.Server) { d.hooks.Register(s) },
 		func(s *rpc.Server) { pausewrites.Register(s, nil, d.pauseChanged) },
@@ -550,7 +545,6 @@ func (d *Daemon) writeRegistrars() []func(*rpc.Server) {
 		func(s *rpc.Server) {
 			taskwrites.Register(s, d.cfg.Home, d.teller(), chatwrites.DecideCard(d.env(), d.teller()))
 		},
-		func(s *rpc.Server) { taskresult.Register(s, d.cfg.Home, d.db) },
 		func(s *rpc.Server) { termchan.Register(s, d.tchan) },
 	}
 }
@@ -563,8 +557,7 @@ func (d *Daemon) typing() *sessionrpc.Env {
 		t = term.New(d.cfg.Terminal, screens)
 	}
 	env := &sessionrpc.Env{DB: d.db, Home: d.cfg.Home, Holds: d.holds, Term: t, Marker: d.tchan.Marker,
-		Wall:          func(agent string) string { why, _ := d.env().WallReason(d.db, agent, nil); return why },
-		CloseTerminal: t.CloseTerminal, SessionPresent: func(agent string) (bool, error) { return d.env().SessionPresent(agent) }}
+		Wall: func(agent string) string { why, _ := d.env().WallReason(d.db, agent, nil); return why }}
 	if d.cfg.Turns != nil {
 		t.Turns = d.cfg.Turns
 		env.Turns = d.cfg.Turns
@@ -620,7 +613,6 @@ func (d *Daemon) newServer(transport string) *rpc.Server {
 	s.DeclareCapabilities(func() map[string]any { return map[string]any{"founder_typed": d.env().FounderTyped != nil} })
 	reads.Register(s, d.readsEnv())
 	leases.Register(s, d.leases)
-	s.Register("connection.get", rpc.Method{Handler: d.connectionGet})
 	s.Register("connection.addresses", rpc.Method{Handler: d.connectionAddresses, Read: true})
 	stream.StampCursor(s, d.hub.Log)
 	return s

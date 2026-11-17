@@ -212,14 +212,6 @@ export type TaskDetail = Task & {
     /** `text` cut at the images it names, for a memo, a handoff, an edit or a reject; present only when it names one. */
     parts?: (TextPart | ImagePart)[];
   }[];
-  /** Whom the founder can ask about the task (task.ask), each agent once. */
-  people: {
-    /** Who the founder last chatted with, latest first. */
-    recent: string[];
-    /** The rest of the holder's team, in the order its agents were added. */
-    team: string[];
-    others: string[];
-  };
   /** The task was opened as a ui task. Absent when it was not. */
   ui?: boolean;
   /** What the task's end kept beyond its evidence. Absent for a task without any. */
@@ -228,7 +220,7 @@ export type TaskDetail = Task & {
     commit?: string;
     /** Whether main reaches commit. */
     on_main?: boolean;
-    /** Fetch each with task.shot. */
+    /** Shot k is the file shots/T<n>/<k>.png under the daemon's home. */
     shots: {
       n: number;
       bytes: number;
@@ -372,7 +364,7 @@ export type TaskBoardRow = {
 /** What task.done must be given: sha, verdict, decision or report (default; decision when the owner is a person). */
 export type Expects = "sha" | "verdict" | "decision" | "report";
 
-/** A file a memo carries (task.memo.add files): an image, a Markdown text, or an MP4 or QuickTime video, kept on the daemon's machine like an attached image and read with attachment.get by its id. */
+/** A file a memo carries (task.comment.add files): an image, a Markdown text, or an MP4 or QuickTime video, kept on the daemon's machine like an attached image and read with attachment.get by its id. */
 export type MemoFile = {
   id: AttachmentId;
   kind: "image" | "markdown" | "video";
@@ -411,28 +403,6 @@ export type HistoryRow = {
 
 /** A free label on a task, such as fe or be: lowercase letters, digits, '.', '_' or '-', up to 32. A writer lowercases what it is given; a task carries at most 20. */
 export type Tag = string;
-
-/** What tasks.list narrows to: every key given must hold (AND). It is tasks.list's own params, so a saved view's filter is passed to tasks.list as it is. */
-export type TaskFilter = {
-  /** Tasks that carry every one of these tags. */
-  tags?: Tag[];
-  state?: "draft" | "queued" | "doing" | "done" | "discarded";
-  /** Who works the task (its assignee). */
-  owner?: Who;
-  /** Who the task answers to (its asker: hl's --owner). */
-  reporter?: Who;
-  /** Who opened it. */
-  from?: Who;
-};
-
-/** A saved view: a filter kept under a name, so it is picked, not typed again. One set for the founder's devices. */
-export type TaskView = {
-  name: string;
-  filter: TaskFilter;
-  /** Who saved it last. */
-  by: string;
-  at: Timestamp;
-};
 
 /** One stretch of a task's time: one block of the bar under its title, sized by seconds. */
 export type TimeSegment = {
@@ -474,7 +444,7 @@ export type MemoReader = {
   agent: string;
   /** The request that told the comment to this agent. */
   request: number;
-  /** held: waits for the agent's next digest (send it now with task.comment.send_now). sent: sent in a digest, not opened yet. read: typed to the agent at once and landed in its session, or opened with hl read. */
+  /** held: waits for the agent's next digest. sent: sent in a digest, not opened yet. read: typed to the agent at once and landed in its session, or opened with hl read. */
   state: "held" | "sent" | "read";
   /** held: when the tell began to wait. sent: when it was sent. read: when it was read. */
   at: Timestamp | null;
@@ -648,20 +618,6 @@ export interface TasksMethods {
       left_s: number;
     } | null;
   } & ReadCursor };
-  "task.shot": { params: {
-  task: number;
-  /** The screenshot's number in the task's result, from 1. */
-  n: number;
-  /** Where the chunk starts in the file; 0 when omitted. */
-  offset?: number;
-}; result: {
-    mime: "image/png";
-    bytes: number;
-    offset: number;
-    /** The chunk, in base64: at most 512 KiB of file. */
-    data: string;
-    done: boolean;
-  } };
   "task.new": { params: {
   /** An agent, human, or gate: a task the daemon holds that watches outside state (watch) and closes when it changes. */
   owner: Who;
@@ -726,7 +682,7 @@ export interface TasksMethods {
   reason?: boolean;
   /** The sha the work was done at; it must be a commit in repo (it need not be on main). The result says whether main reaches it. A sha given as evidence is a commit on main already. */
   commit?: string;
-  /** Absolute paths of PNG files, at most 10 MiB each. An agent names files under its worktree, its folder in the daemon's home or the scratch folder; the founder any file. The daemon copies them under its home (shots/T<n>/<k>.png, outside any repo) once the task's end has committed, and serves them with task.shot. */
+  /** Absolute paths of PNG files, at most 10 MiB each. An agent names files under its worktree, its folder in the daemon's home or the scratch folder; the founder any file. The daemon copies them under its home (shots/T<n>/<k>.png, outside any repo) once the task's end has committed. */
   shots?: string[];
   request_id: RequestId;
 }; result: Accepted };
@@ -786,28 +742,6 @@ export interface TasksMethods {
       notes: number;
     };
   } & ReadCursor };
-  "task.comment.list": { params: {
-  task: number;
-  /** With limit: the page just older than this memo id. */
-  before?: number;
-  /** 1 to 200. The newest limit memos, or the limit just older than before; absent: every memo. */
-  limit?: number;
-}; result: {
-    memos: Memo[];
-    /** There are older memos than the page. */
-    more: boolean;
-  } };
-  "task.memo.list": { params: {
-  task: number;
-  /** With limit: the page just older than this memo id. */
-  before?: number;
-  /** 1 to 200. The newest limit memos, or the limit just older than before; absent: every memo. */
-  limit?: number;
-}; result: {
-    memos: Memo[];
-    /** There are older memos than the page. */
-    more: boolean;
-  } };
   "task.comment.add": { params: {
   task: number;
   /** Markdown. It may name images (x-attachments, texts). Each @word that names someone the caller may reach is stored as <@key>, and reads give that token: a client writes it out as the reader's name. */
@@ -840,28 +774,7 @@ export interface TasksMethods {
       why: "asked" | "assignee" | "owner";
     }[];
   } };
-  "task.memo.add": { params: {
-  task: number;
-  /** Markdown. It may name images (x-attachments, texts). Each @word that names someone the caller may reach is stored as <@key>, and reads give that token: a client writes it out as the reader's name. */
-  text: string;
-  /** Tell every reader at once, even mid-turn. */
-  now?: boolean;
-  /** Agents not to tell of this comment, from the ones task.comment.recipients names. Skipping the assignee is allowed; the comment stays on the task either way. A name that would not have been told is ignored. */
-  skip?: Who[];
-  /** Absolute paths of files the memo carries (Memo.files): PNG, JPEG, GIF or WebP images and .md Markdown, at most 10 MiB each. The daemon reads each and keeps a copy under its home. An agent may name only files under its worktree, its folder or the scratch folder; the founder any. A path outside those, a file of another type, an image whose first bytes do not match its ending, or a .md that is not text is bad_request (field files). */
-  files?: string[];
-  request_id: RequestId;
-}; result: Accepted & {
-    memo: number;
-  } };
   "task.comment.edit": { params: {
-  task: number;
-  memo: number;
-  /** Markdown. It may name images (x-attachments, texts). Each @word that names someone the caller may reach is stored as <@key>, and reads give that token: a client writes it out as the reader's name. */
-  text: string;
-  request_id: RequestId;
-}; result: Accepted };
-  "task.memo.edit": { params: {
   task: number;
   memo: number;
   /** Markdown. It may name images (x-attachments, texts). Each @word that names someone the caller may reach is stored as <@key>, and reads give that token: a client writes it out as the reader's name. */
@@ -873,31 +786,8 @@ export interface TasksMethods {
   memo: number;
   request_id: RequestId;
 }; result: Accepted };
-  "task.comment.send_now": { params: {
-  memo: number;
-  agent: Who;
-  request_id: RequestId;
-}; result: Accepted };
   "task.send_now": { params: {
   task: number;
-  request_id: RequestId;
-}; result: Accepted };
-  "task.memo.delete": { params: {
-  task: number;
-  memo: number;
-  request_id: RequestId;
-}; result: Accepted };
-  "task.view.list": { params: { [key: string]: unknown }; result: {
-    views: TaskView[];
-  } };
-  "task.view.save": { params: {
-  /** One line, 1 to 60 characters. */
-  name: string;
-  filter: TaskFilter;
-  request_id: RequestId;
-}; result: Accepted };
-  "task.view.delete": { params: {
-  name: string;
   request_id: RequestId;
 }; result: Accepted };
   "task.queue": { params: {
@@ -991,13 +881,6 @@ export interface TasksMethods {
   /** The pull request the task's work merges in (`hl task edit T<n> --pr <n>`), on an open task. A link only: nothing waits on it. */
   pr?: number;
 }; result: Accepted };
-  "task.ask": { params: {
-  task: number;
-  to: Who;
-  /** The question; not empty. */
-  text: string;
-  request_id: RequestId;
-}; result: Accepted };
   "task.plan": { params: {
   task: number;
   /** The plan, Markdown; not empty. */
@@ -1041,7 +924,6 @@ export const TASKS_METHODS: { [K in keyof TasksMethods]: { role: Role; callers: 
   "task.get": { role: "agent", callers: null, write: false, since: 1 },
   "task.history": { role: "agent", callers: null, write: false, since: 1 },
   "task.time": { role: "agent", callers: null, write: false, since: 1 },
-  "task.shot": { role: "member", callers: null, write: false, since: 1 },
   "task.new": { role: "agent", callers: null, write: true, since: 1 },
   "task.handoff": { role: "agent", callers: null, write: true, since: 1 },
   "task.turn.pop": { role: "agent", callers: null, write: true, since: 1 },
@@ -1052,20 +934,11 @@ export const TASKS_METHODS: { [K in keyof TasksMethods]: { role: Role; callers: 
   "task.start": { role: "agent", callers: null, write: true, since: 1 },
   "task.seen": { role: "member", callers: null, write: true, since: 1 },
   "requests.pending": { role: "member", callers: null, write: false, since: 1 },
-  "task.comment.list": { role: "agent", callers: null, write: false, since: 1 },
-  "task.memo.list": { role: "agent", callers: null, write: false, since: 1 },
   "task.comment.add": { role: "agent", callers: null, write: true, since: 1 },
   "task.comment.recipients": { role: "agent", callers: null, write: false, since: 1 },
-  "task.memo.add": { role: "agent", callers: null, write: true, since: 1 },
   "task.comment.edit": { role: "agent", callers: null, write: true, since: 1 },
-  "task.memo.edit": { role: "agent", callers: null, write: true, since: 1 },
   "task.comment.delete": { role: "agent", callers: null, write: true, since: 1 },
-  "task.comment.send_now": { role: "member", callers: null, write: true, since: 1 },
   "task.send_now": { role: "member", callers: null, write: true, since: 1 },
-  "task.memo.delete": { role: "agent", callers: null, write: true, since: 1 },
-  "task.view.list": { role: "member", callers: null, write: false, since: 1 },
-  "task.view.save": { role: "member", callers: null, write: true, since: 1 },
-  "task.view.delete": { role: "member", callers: null, write: true, since: 1 },
   "task.queue": { role: "agent", callers: null, write: true, since: 1 },
   "task.draft": { role: "agent", callers: null, write: true, since: 1 },
   "task.merge": { role: "agent", callers: null, write: true, since: 1 },
@@ -1076,7 +949,6 @@ export const TASKS_METHODS: { [K in keyof TasksMethods]: { role: Role; callers: 
   "task.board": { role: "agent", callers: null, write: false, since: 1 },
   "task.withdraw": { role: "agent", callers: null, write: true, since: 1 },
   "task.edit": { role: "agent", callers: null, write: true, since: 1 },
-  "task.ask": { role: "member", callers: null, write: true, since: 1 },
   "task.plan": { role: "agent", callers: null, write: true, since: 1 },
   "task.plan_ok": { role: "member", callers: null, write: true, since: 1 },
   "task.ok": { role: "member", callers: null, write: true, since: 1 },
@@ -1086,22 +958,18 @@ export const TASKS_METHODS: { [K in keyof TasksMethods]: { role: Role; callers: 
 };
 
 /** x-app-cache of each read (x-app in core.json). */
-export const TASKS_APP_CACHE: { [K in "tasks.list" | "task.get" | "task.history" | "task.time" | "task.shot" | "requests.pending" | "task.comment.list" | "task.memo.list" | "task.comment.recipients" | "task.view.list" | "task.board"]: { resource: string; id?: string; feed: Topic | null } | false } = {
+export const TASKS_APP_CACHE: { [K in "tasks.list" | "task.get" | "task.history" | "task.time" | "requests.pending" | "task.comment.recipients" | "task.board"]: { resource: string; id?: string; feed: Topic | null } | false } = {
   "tasks.list": {"resource": "tasks", "feed": "tasks"},
   "task.get": {"resource": "task", "id": "task", "feed": "tasks"},
   "task.history": {"resource": "task-history", "id": "task", "feed": null},
   "task.time": {"resource": "task-time", "id": "task", "feed": "tasks"},
-  "task.shot": false,
   "requests.pending": {"resource": "requests-pending", "feed": "tasks"},
-  "task.comment.list": {"resource": "memos", "id": "task", "feed": null},
-  "task.memo.list": false,
   "task.comment.recipients": {"resource": "comment-recipients", "feed": "tasks"},
-  "task.view.list": {"resource": "task-views", "feed": null},
   "task.board": {"resource": "board", "feed": "tasks"},
 };
 
 /** x-app-write of each write (x-app in core.json). */
-export const TASKS_APP_WRITES: { [K in "task.new" | "task.handoff" | "task.turn.pop" | "task.done" | "task.reopen" | "task.progress" | "task.begin" | "task.start" | "task.seen" | "task.comment.add" | "task.memo.add" | "task.comment.edit" | "task.memo.edit" | "task.comment.delete" | "task.comment.send_now" | "task.send_now" | "task.memo.delete" | "task.view.save" | "task.view.delete" | "task.queue" | "task.draft" | "task.merge" | "task.release" | "task.request" | "task.wait" | "task.discard" | "task.withdraw" | "task.edit" | "task.ask" | "task.plan" | "task.plan_ok" | "task.ok" | "task.redo" | "task.plan_ask" | "task.core_ask"]: { kind: WriteKind; label: string } | false } = {
+export const TASKS_APP_WRITES: { [K in "task.new" | "task.handoff" | "task.turn.pop" | "task.done" | "task.reopen" | "task.progress" | "task.begin" | "task.start" | "task.seen" | "task.comment.add" | "task.comment.edit" | "task.comment.delete" | "task.send_now" | "task.queue" | "task.draft" | "task.merge" | "task.release" | "task.request" | "task.wait" | "task.discard" | "task.withdraw" | "task.edit" | "task.plan" | "task.plan_ok" | "task.ok" | "task.redo" | "task.plan_ask" | "task.core_ask"]: { kind: WriteKind; label: string } | false } = {
   "task.new": {"kind": "authored", "label": "new task"},
   "task.handoff": false,
   "task.turn.pop": {"kind": "decided", "label": "give back"},
@@ -1112,15 +980,9 @@ export const TASKS_APP_WRITES: { [K in "task.new" | "task.handoff" | "task.turn.
   "task.start": false,
   "task.seen": {"kind": "decided", "label": "mark seen"},
   "task.comment.add": {"kind": "authored", "label": "add comment"},
-  "task.memo.add": false,
   "task.comment.edit": {"kind": "authored", "label": "edit comment"},
-  "task.memo.edit": false,
   "task.comment.delete": {"kind": "authored", "label": "delete comment"},
-  "task.comment.send_now": {"kind": "decided", "label": "send now"},
   "task.send_now": {"kind": "decided", "label": "run this one now"},
-  "task.memo.delete": false,
-  "task.view.save": {"kind": "decided", "label": "save view"},
-  "task.view.delete": {"kind": "decided", "label": "delete view"},
   "task.queue": {"kind": "authored", "label": "queue"},
   "task.draft": {"kind": "authored", "label": "draft"},
   "task.merge": {"kind": "authored", "label": "merge"},
@@ -1130,7 +992,6 @@ export const TASKS_APP_WRITES: { [K in "task.new" | "task.handoff" | "task.turn.
   "task.discard": {"kind": "decided", "label": "discard"},
   "task.withdraw": {"kind": "authored", "label": "withdraw"},
   "task.edit": {"kind": "authored", "label": "edit"},
-  "task.ask": {"kind": "decided", "label": "ask"},
   "task.plan": {"kind": "decided", "label": "plan"},
   "task.plan_ok": {"kind": "decided", "label": "plan OK"},
   "task.ok": {"kind": "decided", "label": "OK, merge"},

@@ -84,16 +84,9 @@ const inboxItem = (id: number) => ({
   prompt: null,
 });
 const inboxSeed: [Key, unknown][] = [[qk.inbox(D), { items: [inboxItem(1), inboxItem(2)], more: false }]];
-const memoSeed: [Key, unknown][] = [[qk.memos(D, 7), { memos: [{ id: 1, task: 7, author: 'me', at: 't', text: 'old' }] }]];
+const memoSeed: [Key, unknown][] = [[qk.task(D, 7), { id: 7, memos: [{ id: 1, task: 7, author: 'me', at: 't', text: 'old' }] }]];
 const account = { name: 'x', label: 'x', recover: false };
 const settingsSeed: [Key, unknown][] = [[['d', D, 'settings'], { values: { idle_close: '5' }, trust_folders: [], overrides: {} }]];
-const schedSeed: [Key, unknown][] = [
-  [
-    ['d', D, 'schedules'],
-    { schedules: [{ id: 3, target: 'a', cron: '* * * * *', message: 'hi', next_run: null, last_run: null, set_by: 'me' }] },
-  ],
-];
-const answersSeed: [Key, unknown][] = [[['d', D, 'answers'], { answers: [{ kind: 'trust', key: ['/w'], text: '/w' }] }]];
 
 /** [method, params, the cache it starts from, whether the cache must differ at once]. A verb the daemon decides leaves it as it was. */
 const AUTHORED: [string, object, [Key, unknown][], boolean][] = [
@@ -111,11 +104,9 @@ const AUTHORED: [string, object, [Key, unknown][], boolean][] = [
   ['task.comment.edit', { task: 7, memo: 1, text: 'changed' }, memoSeed, true],
   ['task.comment.delete', { task: 7, memo: 1 }, memoSeed, true],
   ['inbox.mark_read', { ids: [1] }, inboxSeed, true],
-  ['inbox.reply', { id: 1, text: 'ok' }, inboxSeed, true],
   ['agent.set', { agent: 'a', values: { model: 'opus' } }, [[qk.agent(D, 'a'), { name: 'a', settings: { model: 'sonnet' } }]], true],
   ['settings.set', { changes: { idle_close: '9' } }, settingsSeed, true],
   ['prefs.set', { changes: { nav: { pins: ['a'] } } }, [[qk.prefs(D), { nav: DEFAULT_NAV }]], true],
-  ['trust.remove', { root: '/w' }, [[['d', D, 'trust'], { roots: ['/w'], proposals: [] }]], true],
   ['account.set', { account: 'x', label: 'Main', cap: 2 }, [[qk.accounts(D), { accounts: [account] }]], true],
   [
     'account.wake',
@@ -132,11 +123,6 @@ const AUTHORED: [string, object, [Key, unknown][], boolean][] = [
     ],
     true,
   ],
-  ['schedule.add', { target: 'a', cron: '0 * * * *', message: 'ping' }, schedSeed, true],
-  ['schedule.edit', { schedule: 3, message: 'changed' }, schedSeed, true],
-  ['schedule.remove', { schedule: 3 }, schedSeed, true],
-  ['answer.add', { folder: '/w3' }, answersSeed, true],
-  ['answer.remove', { kind: 'trust', key: ['/w'] }, answersSeed, true],
 ];
 
 const clone = <T,>(x: T): T => structuredClone(x);
@@ -197,12 +183,12 @@ describe('writes', () => {
     const stub = stubClient(() => ({ accepted: true }));
     const store = openStore(stub);
     store.fail('old');
-    const w = probe(() => useWrite('inbox.reply'));
+    const w = probe(() => useWrite('agent.set'));
     const { qc } = await mount(store, w.node);
-    qc.setQueryData(qk.inbox(D), { items: [inboxItem(1)], more: false });
-    act(() => w.get().mutate({ id: 1 } as never));
+    qc.setQueryData(qk.agent(D, 'a'), { name: 'a', settings: { model: 'sonnet' } });
+    act(() => w.get().mutate({ agent: 'a', values: { model: 'opus' } } as never));
     await until(() => w.get().isSuccess, 'success');
-    expect(qc.getQueryData<{ items: { read: boolean }[] }>(qk.inbox(D))!.items[0]!.read).toBe(true);
+    expect(qc.getQueryData<{ settings: { model: string } }>(qk.agent(D, 'a'))!.settings.model).toBe('opus');
     expect(store.error).toBeNull();
   });
 
@@ -283,17 +269,16 @@ describe('writes', () => {
     expect(stub.count('inbox.mark_read')).toBe(1);
   });
 
-  it('never sends a structured agent a terminal write: the five are refused before the wire, a terminal agent is not', async () => {
+  it('never sends a structured agent a terminal write: the four are refused before the wire, a terminal agent is not', async () => {
     const stub = stubClient();
     const qc = makeQueryClient();
     const row = (name: string, structured: boolean) => ({ key: name, name, structured });
     qc.setQueryData(qk.agents(D), { agents: [row('s.one', true), row('t.one', false)] });
-    const five = NOT_FOR_STRUCTURED;
-    expect(five).toEqual(['session.input', 'session.keys', 'session.type', 'input.take', 'input.release']);
+    const four = NOT_FOR_STRUCTURED;
+    expect(four).toEqual(['session.input', 'session.keys', 'input.take', 'input.release']);
     const w = probe(() => ({
       input: useWrite('session.input', 's.one'),
       keys: useWrite('session.keys', 's.one'),
-      type: useWrite('session.type', 's.one'),
       take: useWrite('input.take', 's.one'),
       release: useWrite('input.release', 's.one'),
       mine: useWrite('input.take', 't.one'),
@@ -302,13 +287,12 @@ describe('writes', () => {
     act(() => {
       w.get().input.mutate({ agent: 's.one', text: 'x' } as never);
       w.get().keys.mutate({ agent: 's.one', keys: ['Esc'] } as never);
-      w.get().type.mutate({ agent: 's.one', text: 'x' } as never);
       w.get().take.mutate({ agent: 's.one' } as never);
       w.get().release.mutate({ agent: 's.one' } as never);
       w.get().mine.mutate({ agent: 't.one' } as never);
     });
     await until(() => w.get().release.isError && w.get().mine.isSuccess, 'the guard');
-    for (const m of five) expect(stub.count(m)).toBe(m === 'input.take' ? 1 : 0); // the one take is the terminal agent's
+    for (const m of four) expect(stub.count(m)).toBe(m === 'input.take' ? 1 : 0); // the one take is the terminal agent's
     expect(w.get().take.isError).toBe(true);
   });
 

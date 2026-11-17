@@ -69,12 +69,12 @@ func TestATaskTextNamesOnlyFinishedImagesThatAreStillKept(t *testing.T) {
 		{"see " + ref(unfinished.Upload), "bad_request", "text", ""},
 		{seven, "bad_request", "text", ""},
 	} {
-		r := run("", "task.memo.add", fmt.Sprint("m", i), params(1, "text", c.text))
+		r := run("", "task.comment.add", fmt.Sprint("m", i), params(1, "text", c.text))
 		if d := errData(r); d["code"] != c.code || d["field"] != nil && d["field"] != c.field || c.what != "" && d["what"] != c.what {
 			t.Fatalf("%q: %v", c.text, r)
 		}
 	}
-	said(t, run("", "task.memo.add", "ok", params(1, "text", "cut off "+ref(img))))
+	said(t, run("", "task.comment.add", "ok", params(1, "text", "cut off "+ref(img))))
 	if r := run("", "task.new", "n1", `,"owner":"human","title":"x","body":"see `+ref("0000000000000000")+`"`); errData(r)["what"] != "attachment" {
 		t.Fatalf("task.new checks its body: %v", r)
 	}
@@ -84,14 +84,14 @@ func TestAnAgentNamesOnlyAnImageATaskAlreadyShows(t *testing.T) {
 	t.Parallel()
 	sdb, s, run := imagesEnv(t)
 	img := putImage(t, sdb, s)
-	r := run("w", "task.memo.add", "m1", params(2, "text", ref(img)))
+	r := run("w", "task.comment.add", "m1", params(2, "text", ref(img)))
 	if d := errData(r); d["code"] != "refused" || d["gate"] != "role" {
 		t.Fatalf("an image no task shows: %v", r)
 	}
 	if _, err := sdb.Exec("UPDATE requests SET body = ? WHERE id = 10", "a, as in "+ref(img)); err != nil { // the founder's brief of T1
 		t.Fatal(err)
 	}
-	said(t, run("w", "task.memo.add", "m2", params(2, "text", "carried from T1: "+ref(img))))
+	said(t, run("w", "task.comment.add", "m2", params(2, "text", "carried from T1: "+ref(img))))
 	if count(t, sdb, "SELECT COUNT(*) FROM task_memos WHERE task_id = 2 AND body = 'carried from T1: "+ref(img)+"'") != 1 {
 		t.Fatal("the memo is stored as written")
 	}
@@ -101,13 +101,13 @@ func TestAnEditThatKeepsAReferenceToAGoneImageIsNotRefusedForIt(t *testing.T) {
 	t.Parallel()
 	sdb, s, run := imagesEnv(t)
 	img := putImage(t, sdb, s)
-	said(t, run("", "task.memo.add", "m1", params(1, "text", "one "+ref(img))))
+	said(t, run("", "task.comment.add", "m1", params(1, "text", "one "+ref(img))))
 	said(t, run("boss", "task.edit", "e1", params(1, "body", "a "+ref(img))))
 	info, _ := s.Lookup(img)
 	os.Remove(s.Path(info))
-	said(t, run("", "task.memo.edit", "m2", `,"memo":1`+params(1, "text", "two "+ref(img))))
+	said(t, run("", "task.comment.edit", "m2", `,"memo":1`+params(1, "text", "two "+ref(img))))
 	said(t, run("boss", "task.edit", "e2", params(1, "body", "b "+ref(img))))
-	if r := run("", "task.memo.add", "m3", params(1, "text", "three "+ref(img))); errData(r)["code"] != "not_found" {
+	if r := run("", "task.comment.add", "m3", params(1, "text", "three "+ref(img))); errData(r)["code"] != "not_found" {
 		t.Fatalf("a new text naming it is refused: %v", r)
 	}
 }
@@ -125,7 +125,7 @@ func TestATaskWriteClaimsTheImagesItNames(t *testing.T) {
 	if claimed() != nil {
 		t.Fatal("a fresh upload is claimed by nothing")
 	}
-	said(t, run("", "task.memo.add", "m1", params(1, "text", "see "+ref(img))))
+	said(t, run("", "task.comment.add", "m1", params(1, "text", "see "+ref(img))))
 	if claimed() == nil {
 		t.Fatal("the memo claims the image it names")
 	}
@@ -138,7 +138,7 @@ func TestAHandoffNoteNamesImagesAsAMemoDoes(t *testing.T) {
 	if r := run("w", "task.handoff", "h1", `,"task":1,"to":"boss","note":"see `+ref(img)+`"`); errData(r)["gate"] != "role" {
 		t.Fatalf("an agent's note names only an image a task or message shows: %v", r)
 	}
-	said(t, run("", "task.memo.add", "m1", params(1, "text", "the founder's "+ref(img))))
+	said(t, run("", "task.comment.add", "m1", params(1, "text", "the founder's "+ref(img))))
 	said(t, run("w", "task.handoff", "h2", `,"task":1,"to":"boss","note":"see `+ref(img)+`"`))
 	sdb.Exec(keyed(sdb, "DELETE FROM task_memos"))
 	if held, _ := attachments.Held(sdb, 5); held[img] != 5 {
@@ -156,8 +156,8 @@ func TestAnAgentAttachesToAMemoOnlyFilesFromItsOwnPlaces(t *testing.T) {
 		os.WriteFile(p, []byte("# plan"), 0o644)
 	}
 	files := func(p string) string { b, _ := json.Marshal([]string{p}); return `,"files":` + string(b) }
-	if r := run("w", "task.memo.add", "m1", params(1, "text", "see")+files(outside)); errData(r)["field"] != "files" {
+	if r := run("w", "task.comment.add", "m1", params(1, "text", "see")+files(outside)); errData(r)["field"] != "files" {
 		t.Fatalf("a file outside the agent's places was read: %v", r)
 	}
-	said(t, run("w", "task.memo.add", "m2", params(1, "text", "see")+files(inside)))
+	said(t, run("w", "task.comment.add", "m2", params(1, "text", "see")+files(inside)))
 }

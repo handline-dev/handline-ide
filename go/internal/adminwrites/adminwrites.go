@@ -40,10 +40,6 @@ type Network interface {
 
 // Register adds the writes to the server's table.
 func Register(s *rpc.Server, e *Env) {
-	s.Register("schedule.add", rpc.Method{Handler: e.scheduleAdd})
-	s.Register("schedule.edit", rpc.Method{Handler: e.scheduleEdit})
-	s.Register("schedule.remove", rpc.Method{Handler: e.scheduleRemove})
-	s.Register("worktree.set_status", rpc.Method{Handler: e.worktreeSetStatus})
 	s.Register("folder.init", rpc.Method{Waits: true, Handler: e.folderInit})
 	s.Register("folder.clone", rpc.Method{Waits: true, Handler: e.folderClone})
 	s.Register("settings.set", rpc.Method{Handler: e.settingsSet})

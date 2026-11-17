@@ -15,7 +15,7 @@ import (
 
 // ForYou is the for_you topic: an item that joins the count of what waits on the founder (opened, or back from Later) and one that leaves
 // it (answered anywhere, closed, withdrawn, deferred in the founder's prefs), each with the count after it; a rewritten question opens
-// again. The first look says nothing: for_you.list shows what is there.
+// again. The first look says nothing: requests.pending shows what is there.
 type ForYou struct {
 	Reads *reads.Env
 	seen  map[string]map[string]any

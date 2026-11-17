@@ -103,22 +103,6 @@ func TestATagAddedOrRemovedIsARowOfTheHistory(t *testing.T) {
 	}
 }
 
-func TestSavedViewsAreListedByNameWithTheirFilters(t *testing.T) {
-	t.Parallel()
-	e := testEnv(t)
-	run(t, e, `INSERT INTO task_views(name, filter, updated_by, updated_at) VALUES('z', '{}', 'p1', 5), ('fe work', '{"tags":["fe"],"state":"doing"}', 'p1', 6)`)
-	got, err := e.taskViews(asFounder, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	b, _ := json.Marshal(got)
-	want := `{"views":[{"at":"1970-01-01T00:00:06Z","by":"p1","filter":{"state":"doing","tags":["fe"]},"name":"fe work"},` +
-		`{"at":"1970-01-01T00:00:05Z","by":"p1","filter":{},"name":"z"}]}`
-	if string(b) != want {
-		t.Fatalf("%s", b)
-	}
-}
-
 func TestWhoATaskAnswersToIsReadFromItsOwnRequestsNotTheFoundersAll(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)

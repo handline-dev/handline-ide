@@ -47,7 +47,7 @@ describe('guard 3: every read has a key', () => {
     expect(keyOf('a', 'agent.get', { agent: 'x' })).toEqual(['d', 'a', 'agent', 'x']);
     expect(keyOf('b', 'agents.list', {})).toEqual(['d', 'b', 'agents']);
     expect(keyOf('a', 'tasks.list', { state: 'doing' })).toEqual(['d', 'a', 'tasks', { state: 'doing' }]);
-    expect(keyOf('a', 'agent.triggers', { agent: undefined })).toEqual(['d', 'a', 'triggers']);
+    expect(keyOf('a', 'stats.outlook', { agent: undefined })).toEqual(['d', 'a', 'outlook']);
   });
 });
 

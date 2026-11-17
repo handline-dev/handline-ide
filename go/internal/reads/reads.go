@@ -46,8 +46,6 @@ type Env struct {
 	// LoginState is whether an account has credentials, known false when this process cannot tell; nil asks the machine
 	// (team.Accounts).
 	LoginState func(account string) (loggedIn, known bool)
-	// PullRequests answers which of the numbers are pull requests of a GitHub repo; nil asks gh.
-	PullRequests func(ctx context.Context, repo string, numbers []int) ([]int, error)
 	// Issues is the two newest open issues of the GitHub repo of a git folder, as {number, title}; nil asks gh.
 	Issues func(ctx context.Context, dir string) ([]any, error)
 	// Resources is the latest measure of what the machine and each agent use (sysres.Sampler.Latest); nil serves none.
@@ -71,7 +69,6 @@ type Env struct {
 	// BranchPR answers the pull request of a branch of a GitHub repo as worktrees.list gives it (number, url, verdict, failing), nil for
 	// none; nil asks gh.
 	BranchPR  func(ctx context.Context, repo, branch string) (map[string]any, error)
-	prs       *prCache
 	branchPRs *branchPRs
 	samples   *usage.SampleCache // the outlook's usage_samples, held between reads
 }
@@ -79,40 +76,29 @@ type Env struct {
 // Register adds the read methods to the server's table. Each is a Read, so a slow one does not hold up a connection's next calls.
 func Register(s *rpc.Server, env Env) {
 	e := &env
-	e.prs = newPRCache()
 	e.samples = &usage.SampleCache{}
 	e.branchPRs = newBranchPRs()
 	s.Register("load.get", rpc.Method{Handler: e.loadGet, Read: true})
 	s.Register("daemon.status", rpc.Method{Handler: e.status, Read: true})
 	s.Register("agents.list", rpc.Method{Handler: e.agentsList, Read: true})
 	s.Register("agent.get", rpc.Method{Handler: e.agentGet, Read: true})
-	s.Register("subagents.counts", rpc.Method{Handler: e.subagentCounts, Read: true})
-	s.Register("pr.exists", rpc.Method{Handler: e.prExists, Read: true})
 	s.Register("agent.strip", rpc.Method{Handler: e.agentStrip, Read: true})
 	s.Register("agent.timeline", rpc.Method{Handler: e.agentTimeline, Read: true})
 	s.Register("tasks.list", rpc.Method{Handler: e.tasksList, Read: true})
 	s.Register("requests.list", rpc.Method{Handler: e.requestsList, Read: true})
-	s.Register("for_you.list", rpc.Method{Handler: e.forYouList, Read: true})
 	s.Register("requests.pending", rpc.Method{Handler: e.requestsPending, Read: true})
 	s.Register("task.get", rpc.Method{Handler: e.taskGet, Read: true})
 	s.Register("task.board", rpc.Method{Handler: e.taskBoard, Read: true})
-	s.Register("memory.status", rpc.Method{Handler: e.memoryStatus, Read: true})
-	s.Register("task.view.list", rpc.Method{Handler: e.taskViews, Read: true})
 	s.Register("task.history", rpc.Method{Handler: e.taskHistory, Read: true})
 	s.Register("task.time", rpc.Method{Handler: e.taskTime, Read: true})
-	s.Register("task.comment.list", rpc.Method{Handler: e.taskMemoList, Read: true})
-	s.Register("task.memo.list", rpc.Method{Handler: e.taskMemoList, Read: true}) // the old name
 	s.Register("events.feed", rpc.Method{Handler: e.eventsFeed, Read: true})
 	s.Register("prompt.list", rpc.Method{Handler: e.promptList, Read: true})
 	s.Register("settings.get", rpc.Method{Verbatim: true, Handler: e.settingsGet, Read: true})
-	s.Register("answers.list", rpc.Method{Handler: e.answersList, Read: true})
 	s.Register("inbox.get", rpc.Method{Handler: e.inboxGet, Waits: true})
 	s.Register("request.read", rpc.Method{Handler: e.requestRead, Waits: true})
 	s.Register("chat.messages", rpc.Method{Handler: e.chatMessages, Read: true})
-	s.Register("chat.requests", rpc.Method{Handler: e.chatRequests, Read: true})
 	s.Register("chat.transcript", rpc.Method{Verbatim: true, Handler: e.chatTranscript, Read: true})
 	s.Register("chat.locate", rpc.Method{Handler: e.chatLocate, Read: true})
-	s.Register("chat.refs", rpc.Method{Handler: e.chatRefs, Read: true})
 	s.Register("chat.search", rpc.Method{Handler: e.chatSearch, Read: true})
 	s.Register("proposal.list", rpc.Method{Handler: e.proposalList, Read: true})
 	s.Register("repos.list", rpc.Method{Handler: e.reposList, Read: true})
@@ -123,17 +109,13 @@ func Register(s *rpc.Server, env Env) {
 	s.Register("agent.options", rpc.Method{Handler: e.agentOptions, Read: true})
 	s.Register("operation.get", rpc.Method{Handler: e.operationGet, Read: true})
 	s.Register("accounts.list", rpc.Method{Handler: e.accountsList, Read: true})
-	s.Register("status.pick", rpc.Method{Handler: e.statusPick, Read: true})
 	s.Register("stats.get", rpc.Method{Handler: e.statsGet, Read: true})
 	s.Register("stats.outlook", rpc.Method{Handler: e.statsOutlook, Read: true})
-	s.Register("stats.cost", rpc.Method{Handler: e.statsCost, Read: true})
 	s.Register("stats.retro", rpc.Method{Handler: e.statsRetro, Read: true})
 	s.Register("team.get", rpc.Method{Handler: e.teamGet, Read: true})
 	s.Register("people.list", rpc.Method{Handler: e.peopleList, Read: true})
 	s.Register("workspaces.list", rpc.Method{Handler: e.workspacesList, Read: true})
 	s.Register("workspace.rules", rpc.Method{Handler: e.workspaceRules, Read: true})
-	s.Register("agent.triggers", rpc.Method{Handler: e.agentTriggers, Read: true})
-	s.Register("schedules.list", rpc.Method{Handler: e.schedulesList, Read: true})
 	s.Register("inbox.list", rpc.Method{Handler: e.inboxList, Waits: true})
 	s.Register("inbox.queue", rpc.Method{Handler: e.inboxQueue, Waits: true})
 }

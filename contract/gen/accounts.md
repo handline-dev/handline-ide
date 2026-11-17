@@ -6,7 +6,6 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | Method | Role | Write | Params | Result | Errors | Gates | App |
 |---|---|---|---|---|---|---|---|
 | `accounts.list` | agent |  | `roster?`, `usage?` | `{accounts} & ReadCursor` | `bad_request` |  | `accounts`, fed by accounts |
-| `status.pick` | agent |  | none | `{picked, candidates, agent_costs, agent_pace_usd}` |  |  | not cached |
 | `account.set` | owner | yes | `account`, `label?`, `recover?`, `paused?`, `cycle?`, `cycle_end?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | authored: save account |
 | `account.wake` | owner | yes | `account`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | state | authored: wake |
 | `account.read_usage` | owner | yes | `account`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | state | decided: read usage |
@@ -19,16 +18,11 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `account.remove` | owner | yes | `account`, `dry_run?`, `confirm?`, `request_id` | `Accepted & {would_remove, plan}` | `refused`, `not_found`, `bad_request` |  | decided: remove |
 | `stats.get` | member |  | `window` | `Stats` | `bad_request` |  | `stats`, snapshot |
 | `stats.outlook` | member |  | `range`, `agent?` | `Outlook` | `bad_request` |  | `outlook`, snapshot |
-| `stats.cost` | member |  | `range` | `CostPerDay` | `bad_request` |  | `cost`, snapshot |
 | `stats.retro` | member |  | `task` | `Retro` | `not_found`, `bad_request` |  | `retro`, snapshot |
 
 ### `accounts.list`
 
 Accounts with login state, use, agents, recent moves.
-
-### `status.pick`
-
-Which account the next agent would be placed on, each account's reason, and what one more agent costs by kind.
 
 ### `account.set`
 
@@ -77,10 +71,6 @@ Counts over a window, and each agent's use of each account's weekly limit.
 ### `stats.outlook`
 
 The week left of the accounts together, recorded and guessed, each account's runway, and what the agents cost per day.
-
-### `stats.cost`
-
-What the agents cost per day: stats.outlook's cost_per_day alone, without the headroom it computes, for a client that draws only the cost.
 
 ### `stats.retro`
 

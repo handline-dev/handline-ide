@@ -12,7 +12,7 @@ export type Who = string;
 /** Ordered lowest to highest. A method's role is the lowest that may call it; every higher role may too. */
 export type Role = "anonymous" | "agent" | "member" | "owner";
 
-/** chat is added for the chat view (the UI design update): messages, landing state, transcript items and working state of one agent; events carry `agent`. devices (founder, which includes a paired device; subscribed on its own, live only): pairing and revocation of devices. proposals: proposals, so a client's tab dot is live; any proven caller, as proposal.list. transcript: the per-agent event stream of a structured session (transcript.event), served only for an agent the daemon runs as a structured session; see the Transcript stream section. prefs (member, which includes the founder): the person's view preferences, so a pin made on one device shows on the others. requests (member, which includes the founder): the founder's requests (RequestRow), so a Requests page is live. for_you (member, which includes the founder): the set of open items waiting on the founder, as for_you.list; an event whenever the count's set changes, with the new count. A client that misses events reads for_you.list again. */
+/** chat is added for the chat view (the UI design update): messages, landing state, transcript items and working state of one agent; events carry `agent`. devices (founder, which includes a paired device; subscribed on its own, live only): pairing and revocation of devices. proposals: proposals, so a client's tab dot is live; any proven caller, as proposal.list. transcript: the per-agent event stream of a structured session (transcript.event), served only for an agent the daemon runs as a structured session; see the Transcript stream section. prefs (member, which includes the founder): the person's view preferences, so a pin made on one device shows on the others. requests (member, which includes the founder): the founder's requests (RequestRow), so a Requests page is live. for_you (member, which includes the founder): the set of open items waiting on the founder; an event whenever the count's set changes, with the new count. A client that misses events reads requests.pending again. */
 export type Topic = "status" | "accounts" | "agents" | "people" | "workspaces" | "inbox" | "tasks" | "notifications" | "operations" | "chat" | "devices" | "proposals" | "transcript" | "prefs" | "requests" | "for_you";
 
 export type Caller = {
@@ -511,47 +511,6 @@ export type SpanStyle = {
 /** Chosen by the daemon when an upload completes. */
 export type AttachmentId = string;
 
-/** One pane of the terminal host, with what the daemon knows of it. A field the daemon does not know is null. */
-export type DebugTerminalPane = {
-  session: string;
-  /** The window's index in its session. */
-  window: string;
-  window_name: string;
-  /** The pane's handle, as terminal.attach takes it. */
-  terminal: string;
-  /** The pane's own process (its shell). */
-  pid: number | null;
-  /** What the host says runs in the pane now. */
-  command: string;
-  path: string | null;
-  dead: boolean;
-  last_activity: Timestamp | null;
-  /** Seconds since the pane's window last drew output. */
-  idle_s: number | null;
-  /** agent: an agent CLI (claude, codex, opencode) runs at or under the pane's process; shell: none does and the pane shows a shell; unknown: the process table could not be read and the pane's command says neither. */
-  process: "agent" | "shell" | "other" | "unknown";
-  agent_process: {
-    pid: number;
-    name: string;
-  } | null;
-  /** The agent whose current terminal this pane is. */
-  agent: Who | null;
-  /** No agent has this pane as its terminal. */
-  orphan: boolean;
-  /** The agent is closed; it keeps the handle of the pane it had. */
-  closed: boolean;
-  /** For an orphan: the agent the daemon opened the pane for. */
-  recorded_agent: Who | null;
-  state: string | null;
-  account: string | null;
-  session_id: string | null;
-  worktree: string | null;
-  /** When the agent's prompt cache lapses, from its view. */
-  cache_until: Timestamp | null;
-  /** Always null: the daemon keeps no link from a tmux pane to an IDE A terminal. */
-  ide_a_terminal: null;
-};
-
 /** Words of a task's text between its image references. */
 export type TextPart = {
   text: string;
@@ -579,29 +538,6 @@ export type ImagePart = {
 
 /** The request's ref: 12 lowercase hex characters, unique and not guessable from another request's. The integer id stays the request's key everywhere else. */
 export type RequestRef = string;
-
-/** How this process is reached, read only. */
-export type ConnectionInfo = {
-  /** The door a pairing names when device.pair gets no address; null when there is none. */
-  listener: null | ConnectionListener;
-  /** Every host a door is open for now: the network_addresses served (a chosen host the machine has no address for is left out), or the -listen door while it is unset. */
-  listeners: ConnectionListener[];
-  /** SettingsValues.dev_mode. */
-  dev_mode: boolean;
-};
-
-export type ConnectionListener = {
-  /** The host:port a pairing names: this door's host, or -advertise for the default door while network_addresses is unset. */
-  address: string;
-  /** none on a Tailscale (or loopback) door: plain ws, the tailnet encrypts. tls on a LAN door: the certificate given with -cert, else one the daemon made. */
-  encryption: "tls" | "none";
-  /** sha256 of the certificate presented; null on a plain door. */
-  fingerprint: string | null;
-  /** The address's host when it is a *.ts.net name, else null. */
-  tailscale_host: string | null;
-  /** The web page is served on this door, so device.pair gives a web_link for it. */
-  web?: boolean;
-};
 
 /** One host this machine can be reached on from another device. */
 export type NetworkAddress = {
@@ -721,7 +657,7 @@ export type AttachmentRemoved = {
   id: AttachmentId;
 };
 
-/** Why a For you item is out of its group and when it returns: at the time `until`, or when the task `after_task` is done or discarded; exactly one is present. The founder's choice, kept in NavPrefs.later under the item's `kind:id`; the daemon reads it in for_you.list and the apps hide and return the item on their clock and on task.changed. */
+/** Why a For you item is out of its group and when it returns: at the time `until`, or when the task `after_task` is done or discarded; exactly one is present. The founder's choice, kept in NavPrefs.later under the item's `kind:id`; the daemon reads it in the for_you count and the apps hide and return the item on their clock and on task.changed. */
 export type Later = unknown | unknown;
 
 /** One open item waiting on the founder. A task given to the founder (or the ask on it) is `task`, an agent's `@human` ask in a task comment is `comment`, an agent's open permission prompt or dialog is `prompt`, a proposal that waits is `proposal`, and something the machine needs is `machine`. A plain say is not an item: nothing is asked. */
@@ -739,13 +675,6 @@ export type ForYouItem = {
   since: Timestamp;
   /** Only while the founder has the item deferred and the deferral is not over (NavPrefs.later). */
   later?: Later;
-};
-
-export type ForYouList = {
-  /** Every open item, oldest `since` first (then kind and id), the deferred ones too. */
-  items: ForYouItem[];
-  /** The items without `later`: what a badge and the Requests count show. */
-  count: number;
 };
 
 /** The data of a for_you.opened event: an item joined the count (it opened, or came back from Later). */
@@ -1073,11 +1002,6 @@ export interface CoreMethods {
   "operation.get": { params: {
   operation: string;
 }; result: Operation & ReadCursor };
-  "debug.terminals": { params: { [key: string]: unknown }; result: {
-    host: string;
-    now: Timestamp;
-    panes: DebugTerminalPane[];
-  } };
   "prefs.get": { params: { [key: string]: unknown }; result: Prefs & ReadCursor };
   "prefs.set": { params: {
   changes: {
@@ -1105,18 +1029,6 @@ export interface CoreMethods {
     /** Why the subagent may not start, in plain words with the times; the hook denies the call with it. Absent when it may start, and then its start is recorded. */
     deny?: string;
   } };
-  "memory.status": { params: {
-  agent?: Who;
-}; result: {
-    agents: {
-      agent: Who;
-      bytes: number;
-      budget: number;
-      entries: number;
-      unused: string[];
-    }[];
-  } };
-  "connection.get": { params: { [key: string]: unknown }; result: ConnectionInfo };
   "connection.addresses": { params: { [key: string]: unknown }; result: ConnectionAddresses };
   "settings.get": { params: {
   /** Return that agent's own overrides in `overrides`. */
@@ -1128,7 +1040,6 @@ export interface CoreMethods {
   agent?: Who;
   request_id: RequestId;
 }; result: Accepted };
-  "for_you.list": { params: { [key: string]: unknown }; result: ForYouList & ReadCursor };
 }
 
 export const CORE_METHODS: { [K in keyof CoreMethods]: { role: Role; callers: Role[] | null; write: boolean; since: number } } = {
@@ -1146,21 +1057,17 @@ export const CORE_METHODS: { [K in keyof CoreMethods]: { role: Role; callers: Ro
   "load.get": { role: "agent", callers: null, write: false, since: 1 },
   "events.feed": { role: "agent", callers: null, write: false, since: 1 },
   "operation.get": { role: "member", callers: null, write: false, since: 1 },
-  "debug.terminals": { role: "member", callers: null, write: false, since: 1 },
   "prefs.get": { role: "member", callers: ["member", "owner"], write: false, since: 1 },
   "prefs.set": { role: "member", callers: ["member", "owner"], write: true, since: 1 },
   "hook.record": { role: "agent", callers: ["agent"], write: true, since: 1 },
   "subagent.start": { role: "agent", callers: ["agent"], write: true, since: 1 },
-  "memory.status": { role: "agent", callers: null, write: false, since: 1 },
-  "connection.get": { role: "owner", callers: null, write: false, since: 1 },
   "connection.addresses": { role: "owner", callers: null, write: false, since: 1 },
   "settings.get": { role: "owner", callers: null, write: false, since: 1 },
   "settings.set": { role: "owner", callers: null, write: true, since: 1 },
-  "for_you.list": { role: "member", callers: null, write: false, since: 1 },
 };
 
 /** x-app-cache of each read (x-app in core.json). */
-export const CORE_APP_CACHE: { [K in "hello" | "whoami" | "subscribe" | "unsubscribe" | "daemon.status" | "lease.take" | "lease.release" | "lease.extend" | "lease.get" | "load.get" | "events.feed" | "operation.get" | "debug.terminals" | "prefs.get" | "memory.status" | "connection.get" | "connection.addresses" | "settings.get" | "for_you.list"]: { resource: string; id?: string; feed: Topic | null } | false } = {
+export const CORE_APP_CACHE: { [K in "hello" | "whoami" | "subscribe" | "unsubscribe" | "daemon.status" | "lease.take" | "lease.release" | "lease.extend" | "lease.get" | "load.get" | "events.feed" | "operation.get" | "prefs.get" | "connection.addresses" | "settings.get"]: { resource: string; id?: string; feed: Topic | null } | false } = {
   "hello": false,
   "whoami": false,
   "subscribe": false,
@@ -1173,13 +1080,9 @@ export const CORE_APP_CACHE: { [K in "hello" | "whoami" | "subscribe" | "unsubsc
   "load.get": {"resource": "load", "feed": null},
   "events.feed": false,
   "operation.get": {"resource": "operation", "id": "operation", "feed": "operations"},
-  "debug.terminals": {"resource": "debug-terminals", "feed": null},
   "prefs.get": {"resource": "prefs", "feed": "prefs"},
-  "memory.status": {"resource": "memory", "feed": null},
-  "connection.get": {"resource": "connection", "feed": null},
   "connection.addresses": {"resource": "addresses", "feed": null},
   "settings.get": {"resource": "settings", "feed": null},
-  "for_you.list": {"resource": "for-you", "feed": "for_you"},
 };
 
 /** x-app-write of each write (x-app in core.json). */

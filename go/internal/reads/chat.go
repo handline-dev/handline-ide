@@ -1,9 +1,7 @@
 package reads
 
 import (
-	"crypto/sha256"
 	"database/sql"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -20,7 +18,7 @@ import (
 	"github.com/handline/handline/go/taskboard/requestref"
 )
 
-// chat.messages, chat.requests, chat.transcript, chat.locate and chat.search follow handline/daemon/rpc_chat.py and
+// chat.messages, chat.transcript, chat.locate and chat.search follow handline/daemon/rpc_chat.py and
 // handline/actions/chatreads.py: the requests between the founder and an agent (or all of an agent's), as pages.
 
 const (
@@ -483,9 +481,6 @@ func stateAfterEvent(kind string, p map[string]any) (string, bool) {
 	return s, ok
 }
 
-var chatEventKinds = []string{"draft_task", "queue_task", "task_begin", "task_start", "mark_task_done", "close_task", "discard_task",
-	"reopen_task", "task_handoff", "edit_task"}
-
 func placeholders(n int) string { return strings.TrimSuffix(strings.Repeat("?,", n), ",") }
 
 func anySlice[T any](xs []T) []any {
@@ -502,16 +497,6 @@ func when(r row) int64 {
 		return n
 	}
 	return r.i("ts")
-}
-
-func firstTask(r row) int64 {
-	first := int64(-1)
-	for _, s := range strings.Split(r.str("tasks"), ",") {
-		if n, err := strconv.ParseInt(s, 10, 64); err == nil && (first < 0 || n < first) {
-			first = n
-		}
-	}
-	return first
 }
 
 func jsonStr(v any) string {
@@ -533,124 +518,6 @@ func editNotes(p map[string]any) []string {
 		notes = append(notes, fmt.Sprintf("priority %s -> %s", jsonStr(o["old"]), jsonStr(o["new"])))
 	}
 	return notes
-}
-
-type step struct {
-	at      int64
-	task    int64
-	who     string
-	after   string
-	change  string
-	note    string
-	request any
-	ref     any
-}
-
-// taskEvents are the changes, since the first of rows, of the tasks delivered in them: a state it reached, a handoff, an edit.
-func (c *chat) taskEvents(rs []row) ([]map[string]any, error) {
-	cards := map[int64]string{}
-	var ids []any
-	for _, r := range rs {
-		if r.str("kind") == "task" && r.str("tasks") != "" {
-			t := firstTask(r)
-			if _, seen := cards[t]; !seen {
-				ids = append(ids, t)
-			}
-			cards[t] = r.str("task_title")
-		}
-	}
-	if len(cards) == 0 {
-		return nil, nil
-	}
-	since := int64(0)
-	for i, r := range rs {
-		if w := when(r); w != 0 && (i == 0 || since == 0 || w < since) {
-			since = w
-		}
-	}
-	evs, err := query(c.e.DB, "SELECT ts, agent, kind, payload, "+eventTask+" AS tid, "+
-		"(SELECT ref FROM requests WHERE id = json_extract(payload, '$.request_id')) AS request_ref FROM events WHERE kind IN ("+placeholders(len(chatEventKinds))+
-		") AND "+eventTask+" IN ("+placeholders(len(ids))+") ORDER BY id", append(anySlice(chatEventKinds), ids...)...)
-	if err != nil {
-		return nil, err
-	}
-	var steps []step
-	for _, e := range evs {
-		kind, p := e.str("kind"), decodeObject(e.str("payload"))
-		if after, ok := stateAfterEvent(kind, p); ok {
-			steps = append(steps, step{at: e.i("ts"), task: e.i("tid"), who: e.str("agent"), after: after})
-			continue
-		}
-		if kind == "task_handoff" {
-			steps = append(steps, step{at: e.i("ts"), task: e.i("tid"), who: e.str("agent"), change: "handed to " + jsonStr(p["to"]),
-				note: jsonStr(orEmpty(p["note"])), request: p["request_id"], ref: e["request_ref"]})
-			continue
-		}
-		for _, n := range editNotes(p) {
-			steps = append(steps, step{at: e.i("ts"), task: e.i("tid"), who: e.str("agent"), change: n})
-		}
-	}
-	for _, r := range rs {
-		if r.str("kind") == "task" && r.str("tasks") != "" && landingState(r) == "delivered" && when(r) != 0 {
-			steps = append(steps, step{at: when(r), task: firstTask(r), who: r.str("target"), after: "doing"})
-		}
-	}
-	sort.SliceStable(steps, func(i, j int) bool { return steps[i].at < steps[j].at })
-	state := map[int64]string{}
-	var out []map[string]any
-	for _, s := range steps {
-		change := s.change
-		if s.after != "" {
-			before := state[s.task]
-			if before == "" {
-				before = "queued"
-			}
-			state[s.task] = s.after
-			if before == s.after {
-				continue
-			}
-			change = before + " -> " + s.after
-		}
-		if s.at >= since {
-			out = append(out, map[string]any{"type": "task_event", "at": ts(s.at), "task": s.task, "title": cards[s.task], "who": s.who,
-				"change": change, "note": s.note, "request": s.request, "request_ref": s.ref, "_ts": s.at})
-		}
-	}
-	return out, nil
-}
-
-func landingState(r row) string {
-	if r.i("landed_at") != 0 {
-		return "delivered"
-	}
-	if r.i("typed_at") == 0 {
-		return "queued"
-	}
-	return "typed"
-}
-
-func (c *chat) sessions(agent string, rs []row) ([]map[string]any, error) {
-	since := int64(0)
-	for i, r := range rs {
-		if w := when(r); w != 0 && (i == 0 || since == 0 || w < since) {
-			since = w
-		}
-	}
-	starts, err := chatStarts(c.e.DB, "agent = ?", agent)
-	if err != nil {
-		return nil, err
-	}
-	var out []map[string]any
-	for _, s := range starts {
-		if s.i("ts") >= since {
-			m := map[string]any{"type": "session", "at": ts(s["ts"]), "_ts": s.i("ts")}
-			for k, v := range sessionFields(s) {
-				m[k] = v
-			}
-			out = append(out, m)
-		}
-	}
-	return out, nil
 }
 
 // chatStarts are the session starts a chat marks, of the session_starts rows where says, oldest first: each that began a conversation, and
@@ -681,103 +548,6 @@ func sessionItemOf(s row) (map[string]any, bool) {
 	session := sessionFields(s)
 	session["id"], session["started"] = s.str("session_id"), ts(s["ts"])
 	return map[string]any{"id": itemID(s.i("ts"), transcript.ItemSession, s.i("id")), "at": ts(s["ts"]), "kind": "session", "session": session}, true
-}
-
-// chatVersion is one string that changes whenever something in the chat does.
-func (c *chat) version(agent string, everyone bool) (string, error) {
-	where, args := chatScope(agent, everyone)
-	r, err := queryOne(c.e.DB, "SELECT COUNT(*) AS a, COALESCE(MAX(id), 0) AS b, "+
-		"COALESCE(MAX(state_at), 0) AS c, "+
-		"COALESCE(MAX(delivered_at), 0) AS d, COUNT(delivered_at) AS e, COALESCE(MAX(landed_at), 0) AS f, COUNT(landed_at) AS g, "+
-		"COALESCE(MAX(typed_at), 0) AS h, COALESCE(SUM(state = 'queued'), 0) AS i FROM requests WHERE state NOT IN "+neverReached+" AND "+where, args...)
-	if err != nil {
-		return "", err
-	}
-	ev, err := queryOne(c.e.DB, "SELECT COUNT(*) AS a, COALESCE(MAX(id), 0) AS b FROM events WHERE kind IN ("+placeholders(len(chatEventKinds))+")",
-		anySlice(chatEventKinds)...)
-	if err != nil {
-		return "", err
-	}
-	ss, err := queryOne(c.e.DB, "SELECT COUNT(*) AS a, COALESCE(MAX(id), 0) AS b FROM session_starts WHERE agent = ?", agent)
-	if err != nil {
-		return "", err
-	}
-	h := sha256.Sum256([]byte(fmt.Sprint(r, ev, ss)))
-	return hex.EncodeToString(h[:])[:24], nil
-}
-
-func (e *Env) chatRequests(c *rpc.Conn, params map[string]any) (any, error) {
-	q, err := readChatQuery(params, chatPage)
-	if err != nil {
-		return nil, err
-	}
-	agent, err := e.chatAgent(params, true)
-	if err != nil {
-		return nil, err
-	}
-	cursor, err := queryOne(e.DB, "SELECT COALESCE(MAX(id), 0) AS n FROM stream_log")
-	if err != nil {
-		return nil, err
-	}
-	ch := &chat{e: e, agent: isAgent(c)}
-	rs, more, err := ch.page(agent, q.everyone, q.before, q.since, q.limit)
-	if err != nil {
-		return nil, err
-	}
-	type item struct {
-		m  map[string]any
-		ts int64
-		id int64
-	}
-	var items []item
-	for _, r := range rs {
-		msg, err := ch.messageOf(r)
-		if err != nil {
-			return nil, err
-		}
-		items = append(items, item{map[string]any{"type": "request", "at": ts(when(r)), "message": msg,
-			"task_state": r["task_state"]}, when(r), r.i("id")})
-	}
-	evs, err := ch.taskEvents(rs)
-	if err != nil {
-		return nil, err
-	}
-	for _, m := range evs {
-		items = append(items, item{m, m["_ts"].(int64), 0})
-	}
-	ses, err := ch.sessions(agent, rs)
-	if err != nil {
-		return nil, err
-	}
-	for _, m := range ses {
-		items = append(items, item{m, m["_ts"].(int64), 0})
-	}
-	rank := func(it item) int {
-		if it.m["type"] == "request" {
-			return 0
-		}
-		return 1
-	}
-	sort.SliceStable(items, func(i, j int) bool {
-		a, b := items[i], items[j]
-		if a.ts != b.ts {
-			return a.ts < b.ts
-		}
-		if rank(a) != rank(b) {
-			return rank(a) < rank(b)
-		}
-		return a.id < b.id
-	})
-	out := make([]any, len(items))
-	for i, it := range items {
-		delete(it.m, "_ts")
-		out[i] = it.m
-	}
-	ver, err := ch.version(agent, q.everyone)
-	if err != nil {
-		return nil, err
-	}
-	return map[string]any{"items": out, "more": more, "version": ver, "cursor": cursor.i("n")}, nil
 }
 
 // ownerOfChat is the agent whose chat a request is part of when none is named: its non-person end, the target first.
@@ -1175,7 +945,7 @@ func inBatchCard(ev row, agent string) bool {
 	return ev.str("kind") == "discard_task" && ev.str("agent") == agent && text(decodeObject(ev.str("payload"))["batch"]) != ""
 }
 
-// changeOf is what a "changed" event changed, in the words chat.requests gives it: an edit's fields, "handed to X". "" for an event that says
+// changeOf is what a "changed" event changed, in the words a transcript item gives it: an edit's fields, "handed to X". "" for an event that says
 // no more than its event word does.
 func changeOf(kind string, p map[string]any) string {
 	switch kind {

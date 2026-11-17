@@ -57,12 +57,10 @@ func (c *controls) Compact(cl Call, a string) (bool, string, error) {
 }
 
 type rig struct {
-	e       *Env
-	ctl     *controls
-	closed  []string
-	present bool
-	t       *testing.T
-	ann     string // the key of the agent ann
+	e   *Env
+	ctl *controls
+	t   *testing.T
+	ann string // the key of the agent ann
 }
 
 func newRig(t *testing.T) *rig {
@@ -76,9 +74,7 @@ func newRig(t *testing.T) *rig {
 	}
 	t.Cleanup(func() { d.Close() })
 	r := &rig{t: t, ctl: &controls{ok: true, said: "done"}}
-	r.e = &Env{DB: d, Home: home, Controls: r.ctl, Now: func() time.Time { return time.Unix(1_000_000, 0) },
-		CloseTerminal:  func(h string) (bool, string) { r.closed = append(r.closed, h); return true, "" },
-		SessionPresent: func(string) (bool, error) { return r.present, nil }}
+	r.e = &Env{DB: d, Home: home, Controls: r.ctl, Now: func() time.Time { return time.Unix(1_000_000, 0) }}
 	teamtest.Seed(t, home, "ann")
 	r.ann = teamtest.Key(t, home, "ann")
 	if _, err := d.Exec("INSERT INTO agent_state(agent, state, updated, terminal, worktree) VALUES(?, 'IDLE', 0, '%1', '/w')", r.ann); err != nil {
@@ -291,37 +287,6 @@ func TestFoldRunsOnceForARequestIdAndARejectedFoldIsRefused(t *testing.T) {
 	r.e.Fold = nil
 	if r.dialHas(r.dial(false), "agent.fold") {
 		t.Fatal("with no fold port the method is not served")
-	}
-}
-
-func TestTerminalCloseNeedsAStoppedSessionAndRefusesWhileTyping(t *testing.T) {
-	r, _, c := typingRig(t)
-	if g := refused(c.call("terminal.close", map[string]any{"agent": "ann", "request_id": rid("1")})); g != "state" || len(r.closed) != 0 {
-		t.Fatalf("a session is running: %q", g)
-	}
-	r.e.DB.Exec("UPDATE agent_state SET closed_at = 5 WHERE agent = ?", r.ann)
-	h := lock.TakeTerminal(r.e.Home, r.ann)
-	if g := refused(c.call("terminal.close", map[string]any{"agent": "ann", "request_id": rid("2")})); g != "terminal_lock" {
-		t.Fatalf("typing elsewhere: %q", g)
-	}
-	h.Release()
-	r.e.Holds.Take(r.ann, "person", "sam")
-	if g := refused(c.call("terminal.close", map[string]any{"agent": "ann", "request_id": rid("4")})); g != "input_holder" || len(r.closed) != 0 {
-		t.Fatalf("another holds the input: %q", g)
-	}
-	r.e.Holds.Release(r.ann)
-	r.e.Holds.Take(r.ann, "person", c.name)
-	got := result(t, c.call("terminal.close", map[string]any{"agent": "ann", "request_id": rid("3")}))
-	row, _ := db.GetAgentState(r.e.DB, r.ann)
-	if got["said"] != r.ann+": terminal closed" || len(r.closed) != 1 || r.closed[0] != "%1" || row.Terminal.String != "" {
-		t.Fatalf("%v %v %+v", got, r.closed, row)
-	}
-	if held, _ := r.e.Holds.Holder(r.ann); held != nil {
-		t.Fatal("the hold on a closed terminal is over")
-	}
-	r.e.Holds = nil
-	if r.dialHas(r.dial(false), "terminal.close") {
-		t.Fatal("served with the typing methods, beside the input holds")
 	}
 }
 

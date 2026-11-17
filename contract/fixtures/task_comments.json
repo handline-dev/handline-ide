@@ -1,43 +1,6 @@
 {
  "fixtures": [
   {
-   "name": "task.comment.list.unknown_task_is_not_found",
-   "spec": "task.comment.list",
-   "about": "The comments of a task nobody opened are not_found.",
-   "as": "agent",
-   "steps": [
-    {
-     "send": {
-      "jsonrpc": "2.0",
-      "id": 1,
-      "method": "hello",
-      "params": {
-       "client": "conformance/1",
-       "protocol": 1
-      }
-     },
-     "result": {}
-    },
-    {
-     "send": {
-      "jsonrpc": "2.0",
-      "id": 2,
-      "method": "task.comment.list",
-      "params": {
-       "task": 999999
-      }
-     },
-     "error": {
-      "code": -32001,
-      "data": {
-       "code": "not_found",
-       "what": "task"
-      }
-     }
-    }
-   ]
-  },
-  {
    "name": "task.comment.add.unknown_task_is_not_found",
    "spec": "task.comment.add",
    "about": "A comment on a task nobody opened is not_found.",
@@ -371,7 +334,7 @@
      "send": {
       "jsonrpc": "2.0",
       "id": 6,
-      "method": "task.comment.list",
+      "method": "task.get",
       "params": {
        "task": "{{tid}}"
       }

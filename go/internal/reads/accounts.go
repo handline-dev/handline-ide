@@ -352,30 +352,3 @@ func (e *Env) loginOf(acct string) map[string]any {
 	}
 	return out
 }
-
-// statusPick is status.pick: the account the next agent would be placed on (null when none may take work), every candidate's reason,
-// and what one more agent costs by kind: what `hl status` prints.
-func (e *Env) statusPick(_ *rpc.Conn, _ map[string]any) (any, error) {
-	v := e.accountView()
-	picked, reasons, err := v.ue.Pick(e.DB, usage.PickOpts{})
-	if err != nil {
-		return nil, err
-	}
-	candidates := []any{}
-	for _, r := range reasons {
-		candidates = append(candidates, map[string]any{"account": r.Account, "reason": r.Why})
-	}
-	costs, err := v.ue.LoadCosts(e.DB)
-	if err != nil {
-		return nil, err
-	}
-	var pick any
-	if picked != "" {
-		pick = picked
-	}
-	pace, err := usage.LoadDollarPace(e.DB)
-	if err != nil {
-		return nil, err
-	}
-	return map[string]any{"picked": pick, "candidates": candidates, "agent_costs": costs.ByKind(paths.ListAgents(e.Home)), "agent_pace_usd": pace.ByModel()}, nil
-}

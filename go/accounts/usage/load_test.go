@@ -2,11 +2,9 @@ package usage
 
 import (
 	"encoding/json"
-	"fmt"
 	"math"
 	"os"
 	"path/filepath"
-	"reflect"
 	"testing"
 
 	"github.com/handline/handline/go/data/db"
@@ -270,18 +268,5 @@ func TestAClosedRunningAgentHoldingAReservationCountsOnTheReservedAccountOnly(t 
 	}
 	if len(by["a"]) != 0 || len(by["c"]) != 1 {
 		t.Fatalf("a closed session is not running on the account it last had: %v", by)
-	}
-}
-
-func TestByKindPricesEachKindOnceAndSaysWhatItRestsOn(t *testing.T) {
-	kinds := map[string][2]string{"a": {"opus", "high"}, "b": {"opus", "high"}, "c": {"haiku", "low"}}
-	c := &Costs{pace: &DollarPace{}, kindOf: func(n string) (string, string, bool) { k, ok := kinds[n]; return k[0], k[1], ok }}
-	got := c.ByKind([]string{"a", "b", "c", "gone"})
-	want := []string{
-		"haiku low " + fmt.Sprintf("$%.3f", TypicalAgentUSDPerMin) + "/min (starting value)",
-		"opus high " + fmt.Sprintf("$%.3f", TypicalAgentUSDPerMin) + "/min (starting value)",
-	}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("%q", got)
 	}
 }

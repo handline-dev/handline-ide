@@ -89,17 +89,7 @@ function removeAttachment(d: ModuleHost, p: Record<string, unknown>, ok: Ok): ob
 }
 
 function taskOf(d: ModuleHost, c: Conn, method: string, p: Record<string, unknown>): unknown {
-  const askAgent = (task: number, to: string, text: string) => {
-    const s = d.session(to);
-    if (!s.open) d.script.startSession(s, false, d.actor(c));
-    const body =
-      `Question on T${task} from the founder (the task keeps its holder): ${text}\n\n` +
-      "Answer by replying to this message: hl say human --parent <this message's #id> '<answer>'";
-    const { request } = d.chat.send({ agent: to, body, request_id: p.request_id }, c.caller.name);
-    d.chat.link(request, { id: task, title: d.tasks.find(task).title });
-    return request;
-  };
-  return taskCall(d.tasks, method, p, c.caller.name, c.role === ('agent' satisfies Role), d.script, askAgent);
+  return taskCall(d.tasks, method, p, c.caller.name, c.role === ('agent' satisfies Role), d.script);
 }
 
 /** The area's answer to the method; null for a method none of them owns. */

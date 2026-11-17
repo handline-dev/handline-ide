@@ -6,10 +6,8 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | Method | Role | Write | Params | Result | Errors | Gates | App |
 |---|---|---|---|---|---|---|---|
 | `chat.messages` | member |  | `agent`, `scope`, `before?`, `since?`, `limit?` | `{messages, more} & ReadCursor` | `not_found`, `bad_request` |  | `chat-messages`, fed by chat |
-| `chat.requests` | member |  | `agent`, `scope`, `before?`, `since?`, `limit?` | `{items, more, version, cursor}` | `not_found`, `bad_request` |  | `chat-requests`, snapshot |
 | `chat.transcript` | member |  | `agent`, `before?`, `since?`, `limit?` | `{items, more, working} & ReadCursor` | `not_found`, `bad_request` |  | `chat-transcript` by agent, fed by chat |
 | `chat.locate` | member |  | `request`, `agent?`, `limit?` | `{agent, scope, message, messages, more_older, more_newer, transcript, transcript_more_older, transcript_more_newer}` | `not_found`, `bad_request` |  | `chat-locate`, snapshot |
-| `chat.refs` | member |  | `agent` | `{requests}` | `not_found`, `bad_request` |  | `chat-refs` by agent, snapshot |
 | `chat.search` | agent |  | `agent?`, `query`, `scope?`, `with?`, `since?`, `limit?` | `{messages}` | `bad_request`, `not_found`, `refused` | role | `chat-search`, snapshot |
 | `chat.send` | member | yes | `agent`, `body`, `task?`, `parent?`, `quote?`, `attachments?`, `refs?`, `parent_item?`, `delivery?`, `request_id` | `Accepted & {request, receipt}` | `refused`, `not_found`, `bad_request` | access_needed, role, state | authored: send |
 | `chat.send_now` | member | yes | `request`, `request_id` | `Accepted & {receipt}` | `refused`, `not_found`, `bad_request` |  | decided: send now |
@@ -24,21 +22,13 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `inbox.get` | agent |  | `id`, `wait_s?` | `InboxItem & ReadCursor` | `not_found`, `bad_request` |  | `inbox-item` by id, fed by inbox |
 | `request.read` | agent |  | `id`, `wait_s?` | `{id, ref, requester, target, kind, state, created, chain_depth, parent, body, answer, parts, refs}` | `not_found`, `bad_request` |  | not cached |
 | `request.withdraw` | agent | yes | `id`, `reason?`, `request_id` | `{ok, said}` | `bad_request` |  | not from the app |
-| `request.cancel` | owner | yes | `id`, `dry_run?`, `request_id` | `{ok, plan, said}` | `refused`, `bad_request` |  | not from the app |
 | `inbox.mark_read` | agent | yes | `ids`, `request_id` | `Accepted` | `not_found`, `refused`, `bad_request` |  | authored: mark read |
-| `inbox.reply` | agent | yes | `id`, `text`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | authored: reply |
 | `requests.list` | member |  | `state?`, `unseen?`, `before?`, `limit?` | `{items, more}` | `bad_request` |  | `requests`, fed by requests |
-| `answers.list` | owner |  | none | `{answers}` |  |  | `answers`, snapshot |
-| `answer.add` | owner | yes | `folder?`, `vendor?`, `title?`, `label?`, `request_id` | `Accepted` | `refused`, `bad_request` | unsupported | authored: add standing answer |
-| `answer.remove` | owner | yes | `kind`, `key`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | authored: remove standing answer |
+| `answer.add` | owner | yes | `folder?`, `vendor?`, `title?`, `label?`, `request_id` | `Accepted` | `refused`, `bad_request` | unsupported | decided: add standing answer |
 
 ### `chat.messages`
 
 Messages of an agent's chat, newest first. Page with before (older) or since (newer).
-
-### `chat.requests`
-
-A chat's threads for the screen that draws them: the requests of an agent's chat oldest first, with the task changes and the session starts among them, and one version that changes when anything in the chat does. items are oldest first, each with a `type`: `request` is a chat.messages ChatMessage plus `task_state`; `task_event` is a change of a task delivered in the page, since the first request in it (the state it reached, a handoff, an edit), with `request` naming the delivery a handoff belongs to so a client can draw both as one card; `session` is the start of a new conversation of the agent since that request, or a restart into the same one (a resume that only woke a closed session, changing no setting, is not listed). Requests that no chat draws (withdrawn, never reached their target) are left out. HR cards are proposal.list's.
 
 ### `chat.transcript`
 
@@ -47,10 +37,6 @@ The agent's replies, tool activity, prompt cards and task events as ordered item
 ### `chat.locate`
 
 Where a message sits (its msg_ name, a bare hash or its number): its conversation, scope, the page of messages around it and the transcript of the same span. not_found when the request does not exist or no chat draws it (withdrawn, or never reached its target). The page has up to `limit` messages, about half of them older than the one asked for. When the request exists and only no chat draws it, the not_found data also carries `from`, `to` and `body` of that request (body as typed, control characters stripped), so a client can say what it was; for a request that does not exist it carries none of them.
-
-### `chat.refs`
-
-What a # in the composer can point at: the agent's newest requests. The agent's tasks are `tasks.list` with `owner` or `from`. A request that no chat shows is read with `chat.locate`, whose not_found carries from, to and body.
 
 ### `chat.search`
 
@@ -108,31 +94,15 @@ One request whole, as hl read prints it. Any caller may read any request, with b
 
 Take back a request of your own before it is delivered, as hl withdraw does. The caller is the requester: an agent's session withdraws that agent's request, and the founder's key withdraws the founder's own. A request that is not the caller's, one already delivered or closed, and an id that does not exist are not errors: the reply has `ok` false and `said` gives the reason.
 
-### `request.cancel`
-
-The founder takes any request out of an agent's queue, as hl cancel does; dry_run names what would happen. Unlike chat.cancel it is not limited to messages the person sent, and it asks for no confirm: the call without `dry_run` is the go-ahead. A queued request is closed as rejected, delivered or not; its agent is told to stop when it was delivered, and its requester is told unless that is the founder. The founder's own request that was never delivered is withdrawn and nobody is told. A request that is gone or already closed is not an error: `ok` is false, with the reason in `plan` (dry run) or `said`. A dry run writes nothing and records nothing, and no reply is kept under the request_id.
-
 ### `inbox.mark_read`
 
 Mark items read; an id that is not yours is not_found. For the founder, every message of an agent up to the newest id named is read; a decision or a reply owed is never read away, so such an id, and what lies past it, stays unread (refused, gate state, when nothing could be read). For an agent only the head of its own queue can be read, as `hl inbox` does; another id of its own is refused, gate state. An ask raised by a task comment (InboxItem.memo) is read only by naming its own id: reading an agent's messages past it leaves it open.
-
-### `inbox.reply`
-
-Reply to an item. From a person to a terminal agent it answers once the reply is typed, as chat.send does; an agent's reply is queued until the target takes it. A message to whoever sent the item, with the item as its parent link (`hl say --parent`); it settles nothing. An agent replies to its own incoming items; the founder to a mailbox item that is not a decision (a decision is a task, closed with task.done: refused, gate state). A reply to an ask raised by a task comment (InboxItem.memo) is also added to that task as the founder's comment, a reply to that comment, which closes the ask and is told to the task's readers at once.
 
 ### `requests.list`
 
 The founder's requests, newest activity first: the tasks they opened or that an agent opened in the turn of their message, each with a status read from its tree of tasks: the tasks under it and the tasks that serve it (Task.request). Done requests stay listed 30 days.
 
-### `answers.list`
-
-The founder's saved answers: trusted folders and dialog rules (Home settings). A daemon that answers no dialog lists no dialog rules (x-dialogs).
-
 ### `answer.add`
 
 Save a standing answer: a folder to trust, or a dialog rule (vendor, title and label). Blank fields add nothing; a half-filled rule is refused. Founder because the dialog-rule store and trust are the founder's alone: an agent that could write them could answer its own dialogs. A dialog rule (vendor, title, label) is refused, gate unsupported, and nothing is saved, because the daemon answers no dialog (x-dialogs); a folder is saved.
-
-### `answer.remove`
-
-Remove a standing answer by the kind and key answers.list gave.
 

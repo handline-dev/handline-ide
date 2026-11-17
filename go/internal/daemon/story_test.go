@@ -63,7 +63,7 @@ func TestAStoryTellsTheFounderOneNoticeAndAgentsOnlyWhatTheyMustActOn(t *testing
 	}
 	f := pipeTo(t, d, "")
 	for i, text := range []string{"first thought", "second thought", "third thought"} {
-		result(t, f.ask(fmt.Sprintf(`{"jsonrpc":"2.0","id":%d,"method":"task.memo.add","params":{"task":%d,"text":%q,"request_id":"story-m%d"}}`, 10+i, parent, text, i)))
+		result(t, f.ask(fmt.Sprintf(`{"jsonrpc":"2.0","id":%d,"method":"task.comment.add","params":{"task":%d,"text":%q,"request_id":"story-m%d"}}`, 10+i, parent, text, i)))
 	}
 	f = pipeTo(t, d, "k") // the founder marks both done: the callers of this fixture are told apart by pid or key
 	result(t, f.ask(fmt.Sprintf(`{"jsonrpc":"2.0","id":20,"method":"task.done","params":{"task":%d,"evidence":"built it","request_id":"story-c"}}`, child)))

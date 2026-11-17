@@ -111,10 +111,6 @@ export interface TerminalMethods {
   data: string;
   request_id: RequestId;
 }; result: Accepted };
-  "terminal.close": { params: {
-  agent: Who;
-  request_id: RequestId;
-}; result: Accepted };
   "terminal.open": { params: {
   agent: Who;
 }; result: TerminalOpening };
@@ -141,7 +137,6 @@ export const TERMINAL_METHODS: { [K in keyof TerminalMethods]: { role: Role; cal
   "terminal.history": { role: "member", callers: null, write: false, since: 1 },
   "terminal.resize": { role: "member", callers: null, write: true, since: 1 },
   "terminal.input": { role: "member", callers: null, write: true, since: 1 },
-  "terminal.close": { role: "member", callers: null, write: true, since: 1 },
   "terminal.open": { role: "member", callers: null, write: false, since: 1 },
   "shell.open": { role: "member", callers: null, write: true, since: 1 },
   "shell.close": { role: "member", callers: null, write: true, since: 1 },
@@ -157,10 +152,9 @@ export const TERMINAL_APP_CACHE: { [K in "terminal.attach" | "terminal.history" 
 };
 
 /** x-app-write of each write (x-app in core.json). */
-export const TERMINAL_APP_WRITES: { [K in "terminal.resize" | "terminal.input" | "terminal.close" | "shell.open" | "shell.close"]: { kind: WriteKind; label: string } | false } = {
+export const TERMINAL_APP_WRITES: { [K in "terminal.resize" | "terminal.input" | "shell.open" | "shell.close"]: { kind: WriteKind; label: string } | false } = {
   "terminal.resize": {"kind": "uncached", "label": "resize"},
   "terminal.input": {"kind": "uncached", "label": "key"},
-  "terminal.close": {"kind": "decided", "label": "close terminal"},
   "shell.open": {"kind": "uncached", "label": "open shell"},
   "shell.close": {"kind": "uncached", "label": "close shell"},
 };

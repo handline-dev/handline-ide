@@ -74,7 +74,7 @@ func (e *Env) RequestRows(clock int64) ([]map[string]any, error) {
 	for _, r := range roots {
 		id := r.i("id")
 		tree := nodes[id]
-		status, holders, prs := reqDoing, map[string]bool{}, map[int64]bool{}
+		status, holders := reqDoing, map[string]bool{}
 		open, done, last, waiting, review := 0, 0, r.i("created_at"), false, false
 		var now, rootNow *requestNode // now: the open task under the root with the latest activity; the root's own when nothing is under it
 		for i, n := range tree {
@@ -100,7 +100,7 @@ func (e *Env) RequestRows(clock int64) ([]map[string]any, error) {
 				}
 			}
 			if n.pr != 0 {
-				review, prs[n.pr] = true, true
+				review = true
 			}
 		}
 		switch {
@@ -120,7 +120,7 @@ func (e *Env) RequestRows(clock int64) ([]map[string]any, error) {
 			nowAgent, blocked = now.acting, now.blocked
 		}
 		row := map[string]any{"kind": "task", "task": id, "ref": nil, "title": r.str("title"), "status": status, "agent": agent,
-			"holders": sortedKeys(holders), "open": open, "done": done, "prs": sortedNums(prs), "now": nowAgent, "blocked": blocked,
+			"holders": sortedKeys(holders), "open": open, "done": done, "now": nowAgent, "blocked": blocked,
 			"progress": progressLine(status, open, done, nowAgent, blocked), "unread_comments": unread[id].n,
 			"created": ts(r["created_at"]), "last_activity": ts(last), "cursor": cursorOf(last, "t", id), "attention": nil, "ended": endedOf(r, seen)}
 		if r.set("discarded_by") {
@@ -292,15 +292,6 @@ func sortedKeys(m map[string]bool) []string {
 		out = append(out, k)
 	}
 	sort.Strings(out)
-	return out
-}
-
-func sortedNums(m map[int64]bool) []int64 {
-	out := []int64{}
-	for k := range m {
-		out = append(out, k)
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
 	return out
 }
 

@@ -10,28 +10,14 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/internal/prefs"
 	"github.com/handline/handline/go/kit/actor"
-	"github.com/handline/handline/go/protocol/rpc"
 )
-
-// for_you.list: every open item waiting on the founder, whatever it is made of, so a badge, a push and Later share one set.
-
-func (e *Env) forYouList(_ *rpc.Conn, _ map[string]any) (any, error) {
-	items, count, err := e.ForYou()
-	if err != nil {
-		return nil, err
-	}
-	out := make([]any, len(items))
-	for i, it := range items {
-		out[i] = it
-	}
-	return map[string]any{"items": out, "count": count}, nil
-}
 
 func forYouItem(kind, id string, agent any, title, asks string, since any) map[string]any {
 	return map[string]any{"kind": kind, "id": id, "agent": agent, "title": title, "asks": asks, "since": since}
 }
 
-// ForYou is the open items waiting on the founder, oldest first, and the count of those not deferred.
+// ForYou is the open items waiting on the founder, oldest first, whatever each is made of, so a badge, a push and Later share one set;
+// and the count of those not deferred.
 func (e *Env) ForYou() ([]map[string]any, int, error) {
 	var items []map[string]any
 	have := map[string]bool{}

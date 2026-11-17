@@ -30,7 +30,7 @@ export interface DevicesMethods {
   name?: string;
   /** Seconds the code lives; default 300. */
   ttl_s?: number;
-  /** A host a door serves (connection.get listeners); absent is the default door (listener). Any other is refused, gate address, with data.addresses the hosts served. */
+  /** A host a door serves; absent is the default door (listener). Any other is refused, gate address, with data.addresses the hosts served. */
   address?: string;
   request_id: RequestId;
 }; result: Accepted & {
@@ -57,12 +57,6 @@ export interface DevicesMethods {
   device: string;
   request_id: RequestId;
 }; result: Accepted };
-  "device.rename": { params: {
-  device: string;
-  /** Stored trimmed: not empty, at most 64 characters. */
-  name: string;
-  request_id: RequestId;
-}; result: Accepted };
   "device.push_token": { params: {
   platform: "apns" | "fcm";
   token: string;
@@ -77,7 +71,6 @@ export const DEVICES_METHODS: { [K in keyof DevicesMethods]: { role: Role; calle
   "device.pair": { role: "owner", callers: null, write: true, since: 1 },
   "device.redeem": { role: "anonymous", callers: null, write: true, since: 1 },
   "device.revoke": { role: "owner", callers: null, write: true, since: 1 },
-  "device.rename": { role: "owner", callers: null, write: true, since: 1 },
   "device.push_token": { role: "owner", callers: null, write: true, since: 1 },
 };
 
@@ -87,10 +80,9 @@ export const DEVICES_APP_CACHE: { [K in "devices.list"]: { resource: string; id?
 };
 
 /** x-app-write of each write (x-app in core.json). */
-export const DEVICES_APP_WRITES: { [K in "device.pair" | "device.redeem" | "device.revoke" | "device.rename" | "device.push_token"]: { kind: WriteKind; label: string } | false } = {
+export const DEVICES_APP_WRITES: { [K in "device.pair" | "device.redeem" | "device.revoke" | "device.push_token"]: { kind: WriteKind; label: string } | false } = {
   "device.pair": {"kind": "decided", "label": "pair"},
   "device.redeem": false,
   "device.revoke": {"kind": "decided", "label": "revoke"},
-  "device.rename": {"kind": "decided", "label": "rename device"},
   "device.push_token": false,
 };

@@ -156,7 +156,7 @@
      "send": {
       "jsonrpc": "2.0",
       "id": 4,
-      "method": "task.memo.add",
+      "method": "task.comment.add",
       "params": {
        "task": "{{tid}}",
        "text": "first words",
@@ -174,7 +174,7 @@
      "send": {
       "jsonrpc": "2.0",
       "id": 5,
-      "method": "task.memo.edit",
+      "method": "task.comment.edit",
       "params": {
        "task": "{{tid}}",
        "memo": "{{mid}}",

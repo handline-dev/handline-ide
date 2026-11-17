@@ -88,26 +88,6 @@ func (e *Env) statsOutlook(_ *rpc.Conn, params map[string]any) (any, error) {
 	return e.outlookAt(name, hours, time.Now(), pick)
 }
 
-// statsCost is stats.cost: stats.outlook's cost_per_day alone.
-func (e *Env) statsCost(_ *rpc.Conn, params map[string]any) (any, error) {
-	name, _ := params["range"].(string)
-	hours, ok := outlookHours[name]
-	if !ok {
-		return nil, badParam("range is one of "+outlookRanges, "range")
-	}
-	return e.costAt(name, hours, time.Now())
-}
-
-func (e *Env) costAt(name string, hours int, clock time.Time) (any, error) {
-	now := clock.Unix()
-	ue := &usage.Env{Home: e.Home, Now: func() float64 { return float64(now) }}
-	cost, err := usage.DayCosts(e.DB, firstDay(clock, hours), now, usage.PricesFromConfig(ue.CurrentConfig()))
-	if err != nil {
-		return nil, err
-	}
-	return map[string]any{"range": name, "cost_per_day": perDayOf(cost)}, nil
-}
-
 // agentUseOf is the spec's agent_use row.
 func agentUseOf(u usage.AgentUse) map[string]any {
 	var est any

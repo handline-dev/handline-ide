@@ -28,7 +28,7 @@ var keyBytes = map[string]string{"esc": term.Escape, "enter": "", "up": "\x1b[A"
 
 const keyNames = "esc, enter, up, down, tab, shift-tab, ctrl-c, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9"
 
-// RegisterTyping adds input.take and release, and session.input, keys and type when the Env has the terminal to type at. They stand on
+// RegisterTyping adds input.take and release, and session.input and keys when the Env has the terminal to type at. They stand on
 // their own: the daemon that serves them needs no structured sessions.
 func RegisterTyping(s *rpc.Server, e *Env) {
 	if e.Holds == nil {
@@ -38,11 +38,7 @@ func RegisterTyping(s *rpc.Server, e *Env) {
 	s.Register("input.release", rpc.Method{Handler: e.release})
 	if e.Term != nil {
 		s.Register("session.input", rpc.Method{Handler: e.sessionInput})
-		s.Register("session.type", rpc.Method{Handler: e.sessionType})
 		s.Register("session.keys", rpc.Method{Handler: e.sessionKeys})
-	}
-	if e.CloseTerminal != nil && e.SessionPresent != nil {
-		s.Register("terminal.close", rpc.Method{Handler: e.terminalClose})
 	}
 }
 
@@ -214,14 +210,6 @@ func (e *Env) sessionInput(c *rpc.Conn, params map[string]any) (any, error) {
 }
 
 func isBool(v any) bool { _, ok := v.(bool); return ok }
-
-func (e *Env) sessionType(c *rpc.Conn, params map[string]any) (any, error) {
-	t, err := text(params, "\t")
-	if err != nil {
-		return nil, err
-	}
-	return e.act(c, "session.type", params, false, func(handle string) (bool, string) { return e.Term.Send(handle, t, false) })
-}
 
 func (e *Env) sessionKeys(c *rpc.Conn, params map[string]any) (any, error) {
 	list, _ := params["keys"].([]any)

@@ -152,7 +152,7 @@
      "required": false,
      "schema": {
       "type": "string",
-      "description": "A host a door serves (connection.get listeners); absent is the default door (listener). Any other is refused, gate address, with data.addresses the hosts served."
+      "description": "A host a door serves; absent is the default door (listener). Any other is refused, gate address, with data.addresses the hosts served."
      }
     },
     {
@@ -342,60 +342,6 @@
     }
    ],
    "description": "Cancels the device's token. Its open connections and terminal attaches are closed at once, its next call is refused (gate `unpaired`), and a device.revoked event is sent on the devices topic. Revoking a device that is not paired is not_found."
-  },
-  {
-   "name": "device.rename",
-   "summary": "Give a paired device a new name.",
-   "paramStructure": "by-name",
-   "params": [
-    {
-     "name": "device",
-     "required": true,
-     "schema": {
-      "type": "string"
-     }
-    },
-    {
-     "name": "name",
-     "required": true,
-     "schema": {
-      "type": "string",
-      "description": "Stored trimmed: not empty, at most 64 characters."
-     }
-    },
-    {
-     "name": "request_id",
-     "required": true,
-     "schema": {
-      "$ref": "#/components/schemas/RequestId"
-     }
-    }
-   ],
-   "result": {
-    "name": "result",
-    "schema": {
-     "$ref": "#/components/schemas/Accepted"
-    }
-   },
-   "x-role": "owner",
-   "x-write": true,
-   "x-app-write": {
-    "kind": "decided",
-    "label": "rename device"
-   },
-   "x-since": 1,
-   "errors": [
-    {
-     "$ref": "#/components/errors/refused"
-    },
-    {
-     "$ref": "#/components/errors/not_found"
-    },
-    {
-     "$ref": "#/components/errors/bad_request"
-    }
-   ],
-   "description": "A device.renamed event with the Device is sent on the devices topic. A device that is not paired is not_found."
   },
   {
    "name": "device.push_token",

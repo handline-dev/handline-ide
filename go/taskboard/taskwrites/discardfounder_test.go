@@ -9,7 +9,6 @@ import (
 	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/addr"
-	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/kit/storetest"
 	"github.com/handline/handline/go/protocol/rpc"
 )
@@ -34,12 +33,7 @@ func TestTheFoundersDiscardWithdrawsTheRequestsOutOnTheTask(t *testing.T) {
 		}
 	}
 	f := &fakeTeller{}
-	mk := func(agent string) *rpc.Server {
-		s := rpc.NewServer(auth{agent}, "x", store.LatestVersion(), "local", func(string, ...any) {})
-		s.DB = db
-		Register(s, home, f, nil)
-		return s
-	}
+	mk := func(agent string) *rpc.Server { return writesServer(agent, db, home, f) }
 	discard := func(rid string, task int) map[string]any {
 		return call(t, mk(""), fmt.Sprintf(`{"jsonrpc":"2.0","id":2,"method":"task.discard","params":{"task":%d,"request_id":%q}}`, task, rid))[0]
 	}

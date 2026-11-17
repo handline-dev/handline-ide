@@ -12,7 +12,7 @@ import (
 	"github.com/handline/handline/go/taskboard/requestref"
 )
 
-// inbox.mark_read and inbox.reply (handline/daemon/rpc_inbox.py): the writes beside inbox.list.
+// inbox.mark_read (handline/daemon/rpc_inbox.py): the write beside inbox.list.
 
 const maxIDs = 200
 
@@ -225,58 +225,6 @@ func (w *writes) markRead(c *rpc.Conn, p map[string]any) (any, error) {
 		}
 		return map[string]any{"accepted": true, "said": said}, nil
 	})
-}
-
-func (w *writes) inboxReply(c *rpc.Conn, p map[string]any) (any, error) {
-	body, err := text(p, "text")
-	if err != nil {
-		return nil, err
-	}
-	rid, err := w.refParam(w.e.DB, c, p, "id", noItemNamed)
-	if err != nil {
-		return nil, err
-	}
-	me := c.Caller.Actor()
-	out, err := w.writeResult(c, refuse, func(tx *sql.Tx) (*Result, map[string]any, error) {
-		row, err := db.GetRequest(tx, rid)
-		if err != nil {
-			return nil, nil, err
-		}
-		var target string
-		if c.Caller.Role == "agent" {
-			if !aMailItem(row, me) {
-				return nil, nil, noItem(rid)
-			}
-			target = row.Requester
-		} else {
-			rows, err := mailbox(tx)
-			if err != nil {
-				return nil, nil, err
-			}
-			var found *mailRow
-			for i := range rows {
-				if rows[i].id == rid {
-					found, target = &rows[i], rows[i].from
-				}
-			}
-			if found == nil || row == nil {
-				return nil, nil, noItem(rid)
-			}
-			if found.gate {
-				return nil, nil, rpc.Refused("a decision is a task: close it with task.done, not a reply", "state", "")
-			}
-		}
-		if _, err := w.images.CheckMessage(tx, body, "text", nil, c.Caller.Role == "agent"); err != nil {
-			return nil, nil, err
-		}
-		res, err := SayWrite(w.e, tx, me, target, body, rid, nil)
-		if err != nil || !res.OK || c.Caller.Role == "agent" {
-			return res, nil, err
-		}
-		res, err = w.answerAsk(tx, res, me, rid, body)
-		return res, nil, err
-	})
-	return w.awaitTyped(c, out, err)
 }
 
 // answerAsk is the founder's reply to rid, once sent: when rid is an ask a task comment raised, the reply is the founder's comment on that task

@@ -293,7 +293,6 @@ export class TaskStore {
         ...(t.turnLog ?? []).map((n) => ({ ...n, kind: 'turn' as const, memo: n.memo ?? null, edited_at: null })),
         ...(t.handoffLog ?? []).map((n) => ({ ...n, kind: 'handoff' as const, memo: null, edited_at: null })),
       ].sort((a, b) => a.at.localeCompare(b.at)),
-      people: { recent: [], team: [], others: [] },
     };
   }
 }

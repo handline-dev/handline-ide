@@ -9,7 +9,6 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `terminal.history` | member |  | `terminal`, `before`, `limit`, `format?` | `HistoryPage \| HistoryBytesPage` | `not_found`, `refused`, `bad_request` | unsupported | not cached |
 | `terminal.resize` | member | yes | `terminal`, `cols`, `rows`, `request_id` | `Accepted` | `refused`, `not_found` | role, input_holder | uncached: resize |
 | `terminal.input` | member | yes | `terminal`, `data`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | role, terminal_lock, input_holder, unsupported | uncached: key |
-| `terminal.close` | member | yes | `agent`, `request_id` | `Accepted` | `refused`, `not_found` | role, terminal_lock, input_holder, state | decided: close terminal |
 | `terminal.open` | member |  | `agent` | `TerminalOpening` | `not_found`, `bad_request`, `refused` | role, unsupported | not cached |
 | `shell.open` | member | yes | `agent`, `command?`, `block?`, `request_id` | `ShellOpening` | `refused`, `not_found`, `bad_request` | unsupported, state | uncached: open shell |
 | `shell.close` | member | yes | `terminal`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | unsupported, state | uncached: close shell |
@@ -29,11 +28,7 @@ Resize, never under 80 by 24: the input holder's while there is one, any attache
 
 ### `terminal.input`
 
-Raw keystrokes or pasted bytes into the terminal, from the input holder only. For a client that is a terminal (xterm.js), as session.type is for a person typing: the same gates, and it passes the wall and an open dialog as session.type and session.keys do (the person sees the screen; session.input keeps both gates). Unlike them it is refused while the daemon holds the input, since a stream of keystrokes beside the daemon's own typing would corrupt both: take the input first. A terminal with no holder, a login terminal, refuses it too. A shell shell.open started has no holder and takes it from any caller. A pane showing a shell prompt takes it, as with session.type. Calls on one connection are applied in the order they were read, however many are waiting. It is recorded as an event of the agent (kind type) whose actor is the caller, a paired device by its id, with the byte count and never the bytes. Terminal hosts that cannot send keys refuse with gate unsupported.
-
-### `terminal.close`
-
-Close the host's terminal to free it (the web UI's Close terminal). Different from session.stop close, which ends the session and keeps the terminal: refused while a session runs.
+Raw keystrokes or pasted bytes into the terminal, from the input holder only. For a client that is a terminal (xterm.js), with the gates of session.keys, and it passes the wall and an open dialog as session.keys does (the person sees the screen; session.input keeps both gates). Unlike them it is refused while the daemon holds the input, since a stream of keystrokes beside the daemon's own typing would corrupt both: take the input first. A terminal with no holder, a login terminal, refuses it too. A shell shell.open started has no holder and takes it from any caller. A pane showing a shell prompt takes it, as with session.keys. Calls on one connection are applied in the order they were read, however many are waiting. It is recorded as an event of the agent (kind type) whose actor is the caller, a paired device by its id, with the byte count and never the bytes. Terminal hosts that cannot send keys refuse with gate unsupported.
 
 ### `terminal.open`
 

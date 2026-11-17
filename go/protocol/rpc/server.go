@@ -128,7 +128,6 @@ type SpecParam struct {
 	Name, Type string
 	Required   bool
 	Who        bool
-	WhoIn      []string // the properties of an object param that name a who
 }
 
 var specByName = func() map[string]SpecMethod {
@@ -582,7 +581,7 @@ func (c *Conn) Reader() (addr.Who, error) {
 	return addr.Of(c.srv.Names, c.Caller.Key, c.cwd)
 }
 
-// resolveWho puts the key in place of each who param's word (SpecParam.Who, and WhoIn inside an object), so a handler sees keys only.
+// resolveWho puts the key in place of each who param's word (SpecParam.Who), so a handler sees keys only.
 // A word addr.Resolve refuses is refused here for a Typed caller; for another it goes on as sent, for the handler to refuse.
 func (c *Conn) resolveWho(method string, params map[string]any) error {
 	names := c.srv.Names
@@ -614,13 +613,6 @@ func (c *Conn) resolveWho(method string, params map[string]any) error {
 		return w
 	}
 	for _, p := range sp.Params {
-		if m, ok := params[p.Name].(map[string]any); ok {
-			for _, k := range p.WhoIn {
-				if w, ok := m[k].(string); ok {
-					m[k] = key(p.Name+"."+k, w)
-				}
-			}
-		}
 		if !p.Who {
 			continue
 		}

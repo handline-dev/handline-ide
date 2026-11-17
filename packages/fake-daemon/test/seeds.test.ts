@@ -48,7 +48,7 @@ test('tasks-200 seeds 200 tasks, and all switches on every seed', () => {
 test('review: a task tagged review whose first comment names two pictures the daemon serves', () => {
   const daemon = new FakeDaemon();
   applySeeds(daemon, 'review');
-  const { memos } = daemon.tasks.comments({ task: 9301 });
+  const { memos } = daemon.tasks.get({ task: 9301 });
   const images = memos[0]!.parts!.flatMap((p) => ('image' in p ? [p.image.id] : []));
   assert.equal(images.length, 2);
   assert.equal(daemon.uploads.get({ id: images[0] }).mime, 'image/png');

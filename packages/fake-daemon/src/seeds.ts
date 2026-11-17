@@ -183,7 +183,6 @@ export const SEEDS: Record<string, Seed> = {
       holders: ['handline.pc'],
       open: 1,
       done: 2,
-      prs: [630],
     });
     d.requests.add({
       title: 'Which build is live?',
@@ -241,7 +240,6 @@ export const SEEDS: Record<string, Seed> = {
       done: 3,
       now: 'handline.daemon-core',
       holders: ['handline.daemon-core'],
-      prs: [884],
     });
     d.requests.add({
       title: '업데이트 준비 중 로딩 표시',

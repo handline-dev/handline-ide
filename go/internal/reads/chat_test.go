@@ -11,7 +11,6 @@ import (
 	"github.com/handline/handline/go/data/team/teamtest"
 
 	"github.com/handline/handline/go/internal/cmdruns"
-	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/taskboard/attachments"
 )
 
@@ -166,15 +165,6 @@ func TestChatTranscriptListsTheConversationsAnAgentBeganAmongItsItems(t *testing
 	}
 	if n := len(before.(map[string]any)["items"].([]any)); n != 2 {
 		t.Fatalf("the page before a session item holds what is older: %d", n)
-	}
-	// chat.requests' session items say the same, from the first request on.
-	if _, err := e.DB.Exec(`DELETE FROM session_starts WHERE id <> 6`); err != nil {
-		t.Fatal(err)
-	}
-	ch := &chat{e: e}
-	starts, err := ch.sessions(bob, nil)
-	if err != nil || len(starts) != 1 || starts[0]["resumed"] != true || starts[0]["handoff"] != nil || starts[0]["changed"] != "model changed (opus-5-5 -> sonnet-5-5)" {
-		t.Fatalf("%v %v", starts, err)
 	}
 }
 
@@ -399,43 +389,6 @@ func TestANoticeTheDigestListedIsNotDrawnAgainBesideTheDigest(t *testing.T) {
 	json.Unmarshal(b, &out)
 	if len(out.Messages) != 2 || out.Messages[0].ID != 3 || out.Messages[1].ID != 1 {
 		t.Fatalf("a notice still waiting for the digest and the digest are drawn; the digested one is not: %s", b)
-	}
-}
-
-func TestARequestDeliveredButNotYetTypedIsStillDrawn(t *testing.T) {
-	t.Parallel()
-	e := testEnv(t)
-	addAgent(t, e, "bob", "")
-	bob := teamtest.Key(t, e.Home, "bob")
-	for _, q := range []string{
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind, landed_at, delivered_at) VALUES(1, 1, 'p1', '" + bob + "', 'hello bob', 'landed', 'say', 1, 2)",
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind, notice, landed_at, delivered_at) VALUES(2, 3, 'sys', '" + bob + "', 'T3 done by x: ok', 'landed', 'say', 1, 3, 4)",
-	} {
-		if _, err := e.DB.Exec(q); err != nil {
-			t.Fatal(err)
-		}
-	}
-	for _, call := range []func(*rpc.Conn, map[string]any) (any, error){e.chatMessages, e.chatRequests} {
-		got, err := call(nil, map[string]any{"agent": bob, "scope": "all"})
-		if err != nil {
-			t.Fatal(err)
-		}
-		b, _ := json.Marshal(got)
-		var out struct {
-			Messages []struct{ ID int64 }
-			Items    []struct{ Message struct{ ID int64 } }
-		}
-		json.Unmarshal(b, &out)
-		ids := []int64{}
-		for _, m := range out.Messages {
-			ids = append(ids, m.ID)
-		}
-		for _, it := range out.Items {
-			ids = append(ids, it.Message.ID)
-		}
-		if len(ids) != 1 || ids[0] != 1 {
-			t.Fatalf("the plain request is drawn and the digested notice is not: %s", b)
-		}
 	}
 }
 

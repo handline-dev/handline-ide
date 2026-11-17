@@ -3,16 +3,12 @@ package devices
 import (
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
 // kinds are the Device.kind values a client may name at device.redeem.
 var kinds = map[string]bool{"ios": true, "android": true, "web": true, "desktop": true}
-
-// maxName is the longest name device.rename keeps, in characters.
-const maxName = 64
 
 // maxPushToken bounds a push token: an APNs token is 64 hex characters and an FCM one a few hundred, so this is room, not a format.
 const maxPushToken = 4096
@@ -100,29 +96,6 @@ func Register(s *rpc.Server, m *Manager, emit Emit) {
 		}
 		emit("device.revoked", map[string]any{"device": id}, c.Caller.ActorInfo(), "device "+id+" revoked")
 		return map[string]any{"accepted": true}, nil
-	}})
-	s.Register("device.rename", rpc.Method{Handler: func(c *rpc.Conn, p map[string]any) (any, error) {
-		id, ok := p["device"].(string)
-		if !ok {
-			return nil, rpc.BadRequestError("device is a string", "device", rpc.InvalidParams)
-		}
-		raw, _ := p["name"].(string)
-		name := strings.TrimSpace(raw)
-		if name == "" || utf8.RuneCountInString(name) > maxName {
-			return nil, rpc.BadRequestError("name is not empty and at most 64 characters", "name", rpc.InvalidParams)
-		}
-		if m == nil {
-			return nil, rpc.NotFoundError("no such device: " + id)
-		}
-		d, found, err := m.Rename(id, name)
-		if err != nil {
-			return nil, err
-		}
-		if !found {
-			return nil, rpc.NotFoundError("no such device: " + id)
-		}
-		emit("device.renamed", m.Row(d), c.Caller.ActorInfo(), "device "+id+" renamed "+name)
-		return map[string]any{"accepted": true, "said": "Renamed to " + name + "."}, nil
 	}})
 	s.Register("device.push_token", rpc.Method{Handler: func(c *rpc.Conn, p map[string]any) (any, error) {
 		id, _ := c.Caller.Info["device"].(string)

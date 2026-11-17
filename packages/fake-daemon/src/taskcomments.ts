@@ -258,16 +258,6 @@ export class TaskComments extends TaskStore {
     m.readers = readers;
   }
 
-  /** task.comment.send_now: a held tell goes to the agent now. */
-  sendNow(p: Record<string, unknown>): void {
-    const row = this.rows.find((t) => t.memos?.some((m) => m.id === p.memo && m.readers?.some((r) => r.agent === p.agent)));
-    const tell = row?.memos?.find((m) => m.id === p.memo)?.readers?.find((r) => r.agent === p.agent);
-    if (!row || !tell || tell.state !== 'held') throw new TaskFailure('refused', 'that comment is not held for this agent');
-    Object.assign(tell, { state: 'sent', at: this.now() });
-    delete tell.minutes;
-    this.emit(row);
-  }
-
   /** A memo that carries files, as `hl task comment add --file` leaves it. */
   memoWithFiles(task: number, author: string, text: string, files: MemoFile[]): number {
     const id = this.memo({ task, text }, 'add', author);
@@ -287,10 +277,5 @@ export class TaskComments extends TaskStore {
   /** Every memo's files through mark, so one the founder removed reads gone and removed. */
   remark(mark: (f: MemoFile) => MemoFile): void {
     for (const t of this.rows) for (const m of t.memos ?? []) if (m.files) m.files = m.files.map(mark);
-  }
-
-  /** The task's comments, each cut at the images its text names (one page: the fake keeps no more). */
-  comments(p: Record<string, unknown>, agent = false): { memos: Memo[]; more: boolean } {
-    return { memos: this.get(p, agent).memos, more: false };
   }
 }

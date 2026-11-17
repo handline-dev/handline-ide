@@ -5,8 +5,6 @@ import (
 	"math"
 	"testing"
 	"time"
-
-	"github.com/handline/handline/go/data/db"
 )
 
 func outlookRow(a string, ts int64, short, long int, reset int64) sampleRow {
@@ -63,43 +61,6 @@ func TestWeeklyOutlookWithNoReadingIsEmptyAndAWeekThatResetsStartsAgain(t *testi
 	}
 	if after == nil || math.Abs(*after-(100-10.0/7200*1800)) > 1e-9 {
 		t.Fatalf("%v", after)
-	}
-}
-
-func TestDayCostsAttributesCallsToTheWorktreeThatHoldsTheCwd(t *testing.T) {
-	_, q, _ := burnEnv(t)
-	for agent, tree := range map[string]string{"team.ui": "id1::/w/ui/", "team": "/w"} {
-		db.SetAgentState(q, agent, "IDLE", 0, "")
-		db.SetTerminal(q, agent, "", tree)
-	}
-	db.SetExtraWorktrees(q, "team", []string{"/x/extra/"})
-	day := time.Date(2026, 10, 8, 12, 0, 0, 0, time.Local).Unix()
-	ins := func(req string, ts int64, cwd string) {
-		if _, err := q.Exec("INSERT INTO token_calls(account, session, req, ts, model, cwd, side, inp, cc, cr, out, thinking) "+
-			"VALUES('a','s',?,?,'claude-sonnet-5',?,0,1000000,0,0,0,0)", req, ts, cwd); err != nil {
-			t.Fatal(err)
-		}
-	}
-	ins("1", day, "/w/ui/sub")
-	ins("2", day, "/w/other")
-	ins("3", day+86400, "/x/extra")
-	ins("4", day, "/wx")
-	ins("5", day-90*86400, "/w")
-	got, err := DayCosts(q, day-86400, day+2*86400, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	// a million sonnet-5 input tokens is $2.
-	want := map[string]map[string]float64{"2026-10-08": {"team.ui": 2, "team": 2, Unattributed: 2}, "2026-10-09": {"team": 2}}
-	if len(got) != 2 {
-		t.Fatalf("%v", got)
-	}
-	for d, per := range want {
-		for a, c := range per {
-			if math.Abs(got[d][a]-c) > 1e-9 {
-				t.Errorf("%s %s: %v, want %v", d, a, got[d][a], c)
-			}
-		}
 	}
 }
 

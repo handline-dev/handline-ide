@@ -7,7 +7,7 @@ import { CLOSED } from '#src/task-table.ts';
 export type CardKind = 'decision' | 'approval' | 'dialog' | 'attention' | 'machine' | 'task';
 
 export type CardAction =
-  /** A written reply to the item (inbox.reply). */
+  /** A written reply to the item. */
   | { type: 'answer'; id: number }
   | { type: 'allow' | 'deny'; agent: string; prompt: string; choice: string }
   | { type: 'done'; item: InboxItem }

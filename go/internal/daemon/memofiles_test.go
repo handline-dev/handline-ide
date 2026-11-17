@@ -23,7 +23,7 @@ func TestAMemoCarriesAnImageAndAMarkdownFileThroughTaskGet(t *testing.T) {
 	os.WriteFile(md, []byte("# Plan\n\nthree steps\n"), 0o644)
 	f := pipeTo(t, d, "k")
 	files, _ := json.Marshal([]string{png, md})
-	result(t, f.ask(`{"jsonrpc":"2.0","id":2,"method":"task.memo.add","params":{"task":1,"text":"@bob the proposal","files":`+string(files)+`,"request_id":"m1"}}`))
+	result(t, f.ask(`{"jsonrpc":"2.0","id":2,"method":"task.comment.add","params":{"task":1,"text":"@bob the proposal","files":`+string(files)+`,"request_id":"m1"}}`))
 
 	task := result(t, f.ask(`{"jsonrpc":"2.0","id":3,"method":"task.get","params":{"task":1}}`))
 	memo := task["memos"].([]any)[0].(map[string]any)
@@ -70,7 +70,7 @@ func TestAMemoFileOfAnotherTypeIsRefused(t *testing.T) {
 	f := pipeTo(t, d, "k")
 	for i, p := range []string{txt, fake, "relative.md"} {
 		files, _ := json.Marshal([]string{p})
-		r := f.ask(`{"jsonrpc":"2.0","id":2,"method":"task.memo.add","params":{"task":1,"text":"x","files":` + string(files) + `,"request_id":"r` + string(rune('0'+i)) + `"}}`)
+		r := f.ask(`{"jsonrpc":"2.0","id":2,"method":"task.comment.add","params":{"task":1,"text":"x","files":` + string(files) + `,"request_id":"r` + string(rune('0'+i)) + `"}}`)
 		e, _ := r["error"].(map[string]any)
 		if data, _ := e["data"].(map[string]any); data["field"] != "files" {
 			t.Fatalf("%s: %v", p, r)
@@ -89,13 +89,13 @@ func TestAMemosFileIsHeldWhileItsTaskIsOpenAndNotOnceTheMemoIsDeleted(t *testing
 	os.WriteFile(md, []byte("# plan"), 0o644)
 	f := pipeTo(t, d, "k")
 	files, _ := json.Marshal([]string{md})
-	result(t, f.ask(`{"jsonrpc":"2.0","id":2,"method":"task.memo.add","params":{"task":1,"text":"x","files":`+string(files)+`,"request_id":"m1"}}`))
+	result(t, f.ask(`{"jsonrpc":"2.0","id":2,"method":"task.comment.add","params":{"task":1,"text":"x","files":`+string(files)+`,"request_id":"m1"}}`))
 	task := result(t, f.ask(`{"jsonrpc":"2.0","id":3,"method":"task.get","params":{"task":1}}`))
 	id := task["memos"].([]any)[0].(map[string]any)["files"].([]any)[0].(map[string]any)["id"].(string)
 	if held, err := attachments.Held(d.db, 12345); err != nil || held[id] != 12345 {
 		t.Fatalf("held from %d (%v), want now", held[id], err)
 	}
-	result(t, f.ask(`{"jsonrpc":"2.0","id":4,"method":"task.memo.delete","params":{"task":1,"memo":1,"request_id":"m2"}}`))
+	result(t, f.ask(`{"jsonrpc":"2.0","id":4,"method":"task.comment.delete","params":{"task":1,"memo":1,"request_id":"m2"}}`))
 	if held, _ := attachments.Held(d.db, 12345); len(held) != 0 {
 		t.Fatalf("a deleted memo's file is still held: %v", held)
 	}
@@ -111,7 +111,7 @@ func TestTheFoundersMemoKeepsALinePerFileWhenTypedToTheHolder(t *testing.T) {
 	os.WriteFile(md, []byte("# Plan\n\nthree steps\n"), 0o644)
 	f := pipeTo(t, d, "k")
 	files, _ := json.Marshal([]string{png, md})
-	result(t, f.ask(`{"jsonrpc":"2.0","id":2,"method":"task.memo.add","params":{"task":1,"text":"the proposal `+strings.Repeat("x", 500)+`","files":`+string(files)+`,"request_id":"m1"}}`))
+	result(t, f.ask(`{"jsonrpc":"2.0","id":2,"method":"task.comment.add","params":{"task":1,"text":"the proposal `+strings.Repeat("x", 500)+`","files":`+string(files)+`,"request_id":"m1"}}`))
 	kept, _ := filepath.Glob(filepath.Join(d.cfg.Home, "attachments", "*.*"))
 	if len(kept) != 2 {
 		t.Fatalf("%v", kept)

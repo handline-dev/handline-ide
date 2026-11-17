@@ -39,7 +39,6 @@ const rules: Record<string, Rule> = {
     markRemoved(String(data<{ id: string }>(e).id));
     void qc.invalidateQueries({ queryKey: qk.resource(d, 'chat.messages') });
     void qc.invalidateQueries({ queryKey: qk.resource(d, 'task.get') });
-    void qc.invalidateQueries({ queryKey: qk.resource(d, 'task.comment.list') });
   },
   'agent.removed': ({ qc, d }, e) => {
     const name = e.agent ?? String(data<{ key: string }>(e).key);
@@ -98,7 +97,6 @@ const rules: Record<string, Rule> = {
   'proposal.settled': proposalChanged,
   'device.paired': ({ qc, d }) => void qc.invalidateQueries({ queryKey: qk.resource(d, 'devices.list') }),
   'device.revoked': ({ qc, d }) => void qc.invalidateQueries({ queryKey: qk.resource(d, 'devices.list') }),
-  'device.renamed': ({ qc, d }) => void qc.invalidateQueries({ queryKey: qk.resource(d, 'devices.list') }),
   'people.changed': ({ qc, d }) => void qc.invalidateQueries({ queryKey: qk.resource(d, 'people.list') }),
   'workspaces.changed': ({ qc, d }) => void qc.invalidateQueries({ queryKey: qk.resource(d, 'workspaces.list') }),
   'prefs.changed': ({ qc, d }, e) => put<Prefs>(qc, qk.prefs(d), data<Prefs>(e), e.cursor),

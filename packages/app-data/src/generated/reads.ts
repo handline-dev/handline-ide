@@ -7,38 +7,27 @@ export const reads = {
   "lease.get": { resource: "leases" },
   "load.get": { resource: "load" },
   "operation.get": { resource: "operation", id: "operation", feed: "operations" },
-  "debug.terminals": { resource: "debug-terminals" },
   "prefs.get": { resource: "prefs", feed: "prefs" },
-  "memory.status": { resource: "memory" },
-  "connection.get": { resource: "connection" },
   "connection.addresses": { resource: "addresses" },
   "settings.get": { resource: "settings" },
-  "for_you.list": { resource: "for-you", feed: "for_you" },
   "accounts.list": { resource: "accounts", feed: "accounts" },
   "stats.get": { resource: "stats" },
   "stats.outlook": { resource: "outlook" },
-  "stats.cost": { resource: "cost" },
   "stats.retro": { resource: "retro" },
   "agents.list": { resource: "agents", feed: "agents" },
   "agent.get": { resource: "agent", id: "agent", feed: "agents" },
-  "subagents.counts": { resource: "subagents" },
-  "pr.exists": { resource: "pr-exists" },
   "agent.timeline": { resource: "timeline", feed: "agents" },
   "agent.options": { resource: "agent-options" },
   "prompt.list": { resource: "prompts", id: "agent", feed: "notifications" },
   "agent.strip": { resource: "strip", id: "agent", feed: "agents" },
-  "agent.triggers": { resource: "triggers" },
   "access.list": { resource: "access", id: "agent", feed: "agents" },
   "chat.messages": { resource: "chat-messages", feed: "chat" },
-  "chat.requests": { resource: "chat-requests" },
   "chat.transcript": { resource: "chat-transcript", id: "agent", feed: "chat" },
   "chat.locate": { resource: "chat-locate" },
-  "chat.refs": { resource: "chat-refs", id: "agent" },
   "chat.search": { resource: "chat-search" },
   "inbox.list": { resource: "inbox", feed: "inbox" },
   "inbox.get": { resource: "inbox-item", id: "id", feed: "inbox" },
   "requests.list": { resource: "requests", feed: "requests" },
-  "answers.list": { resource: "answers" },
   "devices.list": { resource: "devices", feed: "devices" },
   "repos.list": { resource: "repos" },
   "repos.recent": { resource: "recent_repos" },
@@ -52,23 +41,19 @@ export const reads = {
   "task.history": { resource: "task-history", id: "task" },
   "task.time": { resource: "task-time", id: "task", feed: "tasks" },
   "requests.pending": { resource: "requests-pending", feed: "tasks" },
-  "task.comment.list": { resource: "memos", id: "task" },
   "task.comment.recipients": { resource: "comment-recipients", feed: "tasks" },
-  "task.view.list": { resource: "task-views" },
   "task.board": { resource: "board", feed: "tasks" },
-  "trust.list": { resource: "trust" },
   "people.list": { resource: "people", feed: "people" },
   "workspaces.list": { resource: "workspaces", feed: "workspaces" },
   "team.get": { resource: "team" },
   "proposal.list": { resource: "proposals", feed: "proposals" },
-  "schedules.list": { resource: "schedules" },
 } as const satisfies Record<string, { resource: string; id?: string; feed?: Topic }>;
 
 /** The reads the app does not cache (x-app-cache false). */
-export const NOT_CACHED = ["hello", "whoami", "subscribe", "unsubscribe", "lease.take", "lease.release", "lease.extend", "events.feed", "status.pick", "accounts.discover", "session.launch_prepare", "permission.ask", "progress.get", "attachment.get", "inbox.queue", "request.read", "doc.open", "doc.pull", "doc.close", "task.shot", "task.memo.list", "workspace.rules", "terminal.attach", "terminal.history", "terminal.open", "terminal.detach"] as const;
+export const NOT_CACHED = ["hello", "whoami", "subscribe", "unsubscribe", "lease.take", "lease.release", "lease.extend", "events.feed", "accounts.discover", "session.launch_prepare", "permission.ask", "progress.get", "attachment.get", "inbox.queue", "request.read", "doc.open", "doc.pull", "doc.close", "workspace.rules", "terminal.attach", "terminal.history", "terminal.open", "terminal.detach"] as const;
 
 /** The writes the app does not make from a screen (x-app-write false). */
-export const NOT_WRITTEN = ["hook.record", "subagent.start", "session.wake", "say", "request.withdraw", "request.cancel", "device.redeem", "device.push_token", "task.handoff", "task.progress", "task.begin", "task.start", "task.memo.add", "task.memo.edit", "task.memo.delete", "task.wait", "proposal.propose", "trust.propose"] as const;
+export const NOT_WRITTEN = ["hook.record", "subagent.start", "session.wake", "say", "request.withdraw", "device.redeem", "device.push_token", "task.handoff", "task.progress", "task.begin", "task.start", "task.wait", "proposal.propose"] as const;
 
 /** What each event's data must carry (the schema's required fields); the bridge reads the topic again for one that does not. */
 export const EVENT_REQUIRED: Record<string, readonly string[]> = {
@@ -238,15 +223,6 @@ export const EVENT_REQUIRED: Record<string, readonly string[]> = {
   "device.revoked": [
     "device"
   ],
-  "device.renamed": [
-    "id",
-    "name",
-    "role",
-    "created",
-    "last_seen",
-    "connected",
-    "push"
-  ],
   "proposal.raised": [
     "proposal"
   ],
@@ -266,7 +242,6 @@ export const EVENT_REQUIRED: Record<string, readonly string[]> = {
     "holders",
     "open",
     "done",
-    "prs",
     "now",
     "blocked",
     "progress",

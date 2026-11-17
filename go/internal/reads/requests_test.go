@@ -61,7 +61,7 @@ func TestRequestsAreReadFromTheirTreeOfTasks(t *testing.T) {
 		t.Errorf("a todo of the founder's own is not a request, and nothing is listed twice: %d rows", len(rows))
 	}
 	if r := by["T10"]; r["open"] != 1 || r["done"] != 1 || r["agent"] != "lead" || r["ref"] != "msg_aaaaaaaaaaa1" ||
-		len(r["holders"].([]string)) != 2 || len(r["prs"].([]int64)) != 1 {
+		len(r["holders"].([]string)) != 2 {
 		t.Errorf("a tree is counted: %v", r)
 	}
 	for k, want := range map[string]string{"T10": "sub 1/2 done, now dev, in review", "T20": "done", "T30": "sub 0/1 done, now lead, waiting on you",

@@ -36,10 +36,6 @@ export function chatMethod(
       checkRead(p, false);
       checkAgent();
       return chat.transcriptOf(p);
-    case 'chat.requests':
-      checkRead(p, true);
-      checkAgent();
-      throw refused('unsupported', `the fake daemon does not serve ${method}`);
     case 'chat.send':
       checkAgent();
       return chatCall(() => ok('Sent.', chat.send(p, person, attachments.message)));
@@ -53,10 +49,6 @@ export function chatMethod(
       return chatCall(() => chat.locate(p));
     case 'chat.search':
       return chat.search(p);
-    case 'chat.refs':
-      if (typeof p.agent !== 'string' || !p.agent) throw invalidParams('agent is an agent name', 'agent');
-      checkAgent();
-      return chat.refs(p);
     default:
       throw refused('unsupported', `the fake daemon does not serve ${method}`);
   }

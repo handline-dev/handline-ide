@@ -75,13 +75,6 @@ func TestOutlookStatesTheRunwayTheCostAndKeepsTheFutureApart(t *testing.T) {
 	if len(out.Cost) != 1 || out.Cost[0].Day != "2026-10-08" || out.Cost[0].Agents["(unattributed)"] != 2.4691 {
 		t.Fatalf("1.234567 M sonnet-5 input tokens at $2, rounded to four places: %s", b)
 	}
-	alone, err := e.costAt("24h", 24, clock)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if c, _ := json.Marshal(alone); string(c) != `{"cost_per_day":[{"agents":{"(unattributed)":2.4691},"day":"2026-10-08"}],"range":"24h"}` {
-		t.Fatalf("stats.cost is the outlook's cost_per_day: %s", c)
-	}
 }
 
 // flatWeeks is stats.outlook 24h over a at 20 of its week used and b at 60, both flat for the last hour and a half.

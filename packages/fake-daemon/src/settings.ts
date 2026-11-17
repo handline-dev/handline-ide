@@ -1,6 +1,5 @@
-// An agent's settings and the schedules: agent.set, schedules.list, schedule.add, schedule.edit, schedule.remove.
-import type { Schedule } from '@handline/contract';
-import { badRequest, Failure, refused } from '#src/errors.ts';
+// An agent's settings: agent.set.
+import { badRequest, refused } from '#src/errors.ts';
 import type { Call } from '#src/handlers.ts';
 
 /** What a new session starts with: every value a string, as `hl agent set` takes it. */
@@ -56,35 +55,5 @@ export const SETTINGS_HANDLERS: Record<string, (h: Call) => unknown> = {
     if (typeof values.model === 'string' && s.state !== 'running') s.fx.model = values.model; // a working agent takes it when the work ends
     script.control(s, actor, 'agent.set', `${actor.name} set ${Object.keys(values).join(', ')}`);
     return script.accepted('Saved.');
-  },
-  'schedules.list': (h) => ({ schedules: h.script.schedules }),
-  'schedule.add': (h) => {
-    const { p, script } = h;
-    for (const k of ['target', 'cron', 'message'] as const) if (typeof p[k] !== 'string' || !p[k]) throw badRequest(`${k} is needed`, k);
-    const schedule: Schedule = {
-      id: ++script.scheduleId,
-      target: p.target as string,
-      cron: p.cron as string,
-      message: p.message as string,
-      next_run: null,
-      last_run: null,
-      set_by: h.actor.name,
-    };
-    script.schedules.push(schedule);
-    return script.accepted('Added.', { schedule: schedule.id });
-  },
-  'schedule.edit': (h) => {
-    const { p, script } = h;
-    const found = script.schedules.find((x) => x.id === p.schedule);
-    if (!found) throw new Failure('not_found', 'no such schedule', { what: 'schedule' });
-    for (const k of ['target', 'cron', 'message'] as const) if (p[k] !== undefined) found[k] = String(p[k]);
-    return script.accepted('Saved.');
-  },
-  'schedule.remove': (h) => {
-    const { p, script } = h;
-    const at = script.schedules.findIndex((x) => x.id === p.schedule);
-    if (at < 0) throw new Failure('not_found', 'no such schedule', { what: 'schedule' });
-    script.schedules.splice(at, 1);
-    return script.accepted('Removed.');
   },
 };

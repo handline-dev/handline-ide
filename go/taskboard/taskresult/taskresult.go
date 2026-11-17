@@ -4,10 +4,8 @@
 package taskresult
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 
@@ -18,8 +16,7 @@ import (
 
 const (
 	MaxShots = 6
-	MaxShot  = 10 << 20  // bytes of one screenshot
-	MaxChunk = 512 << 10 // bytes of file in one task.shot reply
+	MaxShot  = 10 << 20 // bytes of one screenshot
 )
 
 // Shot is one stored screenshot of a task, numbered from 1.
@@ -134,57 +131,4 @@ func readPNG(p string, roots []string) ([]byte, error) {
 		return nil, bad(p+" is not a PNG", "shots")
 	}
 	return b, err
-}
-
-// Register adds task.shot to the server's table.
-func Register(s *rpc.Server, home string, q db.Q) {
-	s.Register("task.shot", rpc.Method{Handler: func(_ *rpc.Conn, p map[string]any) (any, error) {
-		return serve(home, q, p)
-	}})
-}
-
-func serve(home string, q db.Q, p map[string]any) (any, error) {
-	tid, ok := rpc.AsInt(p["task"])
-	if !ok {
-		return nil, bad("task is a task number", "task")
-	}
-	n, ok := rpc.AsInt(p["n"])
-	if !ok || n < 1 {
-		return nil, bad("n is the screenshot's number, from 1", "n")
-	}
-	var offset int64
-	if v := p["offset"]; v != nil {
-		if offset, ok = rpc.AsInt(v); !ok || offset < 0 {
-			return nil, bad("offset is where the chunk starts in the file", "offset")
-		}
-	}
-	res, err := Get(q, tid)
-	if err != nil {
-		return nil, err
-	}
-	if n > int64(len(res.Shots)) { // only a screenshot the task's end recorded is served
-		e := rpc.NotFoundError(fmt.Sprintf("T%d has no screenshot %d", tid, n))
-		e.Data = map[string]any{"what": "shot", "task": tid, "n": n}
-		return nil, e
-	}
-	f, err := os.Open(ShotFile(home, tid, int(n)))
-	if err != nil {
-		e := rpc.NotFoundError(fmt.Sprintf("the screenshot %d of T%d is no longer kept", n, tid))
-		e.Data = map[string]any{"what": "shot", "task": tid, "n": n}
-		return nil, e
-	}
-	defer f.Close()
-	st, err := f.Stat()
-	if err != nil {
-		return nil, err
-	}
-	if offset > st.Size() {
-		return nil, bad("offset is within the file", "offset")
-	}
-	buf := make([]byte, min(int64(MaxChunk), st.Size()-offset))
-	if _, err := f.ReadAt(buf, offset); err != nil && err != io.EOF {
-		return nil, err
-	}
-	return map[string]any{"mime": "image/png", "bytes": st.Size(), "offset": offset, "data": base64.StdEncoding.EncodeToString(buf),
-		"done": offset+int64(len(buf)) >= st.Size()}, nil
 }

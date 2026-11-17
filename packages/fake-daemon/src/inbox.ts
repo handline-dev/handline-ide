@@ -41,13 +41,6 @@ export class FakeInbox {
         return this.get(p.id);
       case 'inbox.mark_read':
         return (this.markRead(p), accepted('Marked read.'));
-      case 'inbox.reply': {
-        const item = this.find(p.id);
-        this.reply(p);
-        if (item.memo !== undefined && item.task !== null)
-          this.host.tasks.memo({ task: item.task, text: String(p.text), reply: item.memo }, 'add', 'human');
-        return accepted('Sent.');
-      }
       default:
         throw refused('unsupported', `the fake daemon does not serve ${method}`);
     }
@@ -94,10 +87,6 @@ export class FakeInbox {
   markRead(p: Record<string, unknown>): void {
     const ids = Array.isArray(p.ids) ? p.ids : [];
     for (const id of ids) this.change(this.find(id), { read: true });
-  }
-
-  reply(p: Record<string, unknown>): void {
-    this.change(this.find(p.id), { read: true });
   }
 
   /** The open ask the comment `memo` of `task` raised. */

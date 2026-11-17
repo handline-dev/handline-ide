@@ -117,27 +117,3 @@ test('only a founder creates an agent; a daemon that does not list it refuses it
   );
   client.close();
 });
-
-test('worktree.set_status sets a label that worktrees.list shows, and refuses a path that is no worktree', async () => {
-  const { client, daemon } = setup({ role: 'member' });
-  await client.start();
-  const path = '/work/handline.auditor';
-  assert.equal(daemon.admin.worktrees.rows.find((w) => w.path === path)?.status, 'todo');
-  await client.call('worktree.set_status', { path, status: 'in review', request_id: 'ws-1' });
-  const { worktrees } = await client.call('worktrees.list', { owner: 'handline.auditor' });
-  assert.deepEqual(
-    worktrees.map((w) => [w.path, w.status, w.parent]),
-    [[path, 'in review', null]],
-  );
-  assert.equal(daemon.admin.worktrees.rows.find((w) => w.path === path)?.status, 'in review');
-  await assert.rejects(
-    client.call('worktree.set_status', { path: '/', status: 'done', request_id: 'ws-2' }),
-    (e: RpcError) => e.data?.what === 'worktree',
-  );
-  await assert.rejects(
-    client.call('worktree.set_status', { path, status: 'x'.repeat(41), request_id: 'ws-3' }),
-    (e: RpcError) => e.data?.field === 'status',
-  );
-
-  client.close();
-});

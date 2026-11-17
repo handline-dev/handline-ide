@@ -12,9 +12,6 @@ export function taskCall(
   person: string,
   agent: boolean,
   script: { accepted(said: string, extra?: Record<string, unknown>): unknown },
-  ask: (task: number, to: string, text: string) => number = () => {
-    throw refused('unsupported', 'the fake daemon does not serve task.ask');
-  },
 ): unknown {
   const ok = (said: string, extra?: Record<string, unknown>) => script.accepted(said, extra);
   tasks.by = person;
@@ -38,8 +35,6 @@ export function taskCall(
         return (tasks.seen(p), ok('Marked seen.'));
       case 'requests.pending':
         return tasks.pending();
-      case 'task.comment.list':
-        return tasks.comments(p, agent);
       case 'task.comment.recipients':
         return tasks.recipients(p, person);
       case 'task.new':
@@ -48,12 +43,6 @@ export function taskCall(
         return (tasks.edit(p, agent), ok('Task changed.'));
       case 'task.withdraw':
         return (tasks.withdraw(p), ok('Task withdrawn.'));
-      case 'task.ask': {
-        if (!Number.isInteger(p.task)) throw invalidParams('task is a task number', 'task');
-        if (typeof p.to !== 'string' || !p.to) throw invalidParams("to is an agent's name", 'to');
-        if (typeof p.text !== 'string' || !p.text.trim()) throw invalidParams('text is the question, not empty', 'text');
-        return ok('Asked.', { request: ask(tasks.find(p.task).id, p.to, p.text.trim()) });
-      }
       case 'task.plan':
         return ok('The plan is kept.', { version: tasks.writePlan(p, person) });
       case 'task.plan_ok':
@@ -90,8 +79,6 @@ export function taskCall(
         return (tasks.memo(p, 'delete', person), ok('Comment deleted.'));
       case 'task.turn.pop':
         return (tasks.turnPop(p), ok('Turn given back.'));
-      case 'task.comment.send_now':
-        return (tasks.sendNow(p), ok('Sent.'));
       default:
         throw refused('unsupported', `the fake daemon does not serve ${method}`);
     }
