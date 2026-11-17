@@ -376,6 +376,89 @@
    ]
   },
   {
+   "name": "repo.set",
+   "summary": "Set a repo's worktree setup (Repo.setup): the files copied into each new worktree and the script run there. Owner only.",
+   "description": "An omitted field is kept, null or empty clears it; naming neither is bad_request. Takes effect for worktrees made after it, never one already made. Kept in the protected store, which no agent can write.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "path",
+     "required": true,
+     "schema": {
+      "type": "string"
+     },
+     "description": "The repo, as repos.list gives it in path; any other is not_found, what repo."
+    },
+    {
+     "name": "script",
+     "required": false,
+     "schema": {
+      "oneOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "description": "RepoSetup.script; trimmed. Longer than 4000 characters is bad_request, field script."
+    },
+    {
+     "name": "copy",
+     "required": false,
+     "schema": {
+      "oneOf": [
+       {
+        "type": "array",
+        "items": {
+         "type": "string"
+        }
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "description": "RepoSetup.copy, the whole list; each trimmed. One that breaks its rules is bad_request, field copy, naming it."
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Accepted"
+    }
+   },
+   "x-role": "owner",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "save project setup"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    },
+    {
+     "$ref": "#/components/errors/refused"
+    }
+   ],
+   "x-gates": [
+    "state"
+   ]
+  },
+  {
    "name": "folder.init",
    "summary": "Make a folder on this Mac a git repository, for the first-run folder pick: git init, then a first commit of everything it holds but secrets. The call answers once git is done; hanging up stops it. Owner only.",
    "description": "The branch is git's init.defaultBranch, main when none is set. Common secret files (.env, keys, certificates) are left out through .git/info/exclude, never a file of the folder. With no user.name or user.email set, the commit is the Mac user's. All or nothing: when the commit fails the .git made is removed. Refused (gate state), with the reason: the folder already holds a .git, sits inside another repository, is the home folder or above it, or git failed.",

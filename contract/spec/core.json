@@ -1527,12 +1527,96 @@
      },
      "default_branch": {
       "type": "string"
+     },
+     "setup": {
+      "$ref": "#/components/schemas/RepoSetup"
      }
     },
     "required": [
      "name",
      "path",
-     "default_branch"
+     "default_branch",
+     "setup"
+    ]
+   },
+   "RepoSetup": {
+    "type": "object",
+    "description": "What every worktree the daemon makes for the repo gets, set by repo.set. When a spawn makes a worktree (an agent's first, an extra one, or one made again from its branch), the daemon copies `copy` from the repo's own folder, then runs `script` in the new worktree; the agent starts after it. A failed copy runs no script. A failure is told in the spawn's report, as the agent's worktree_setup event and in `last`, never fatal: the agent still starts there. The founder's alone: kept in the protected store, which no agent can write, since the script runs outside any sandbox.",
+    "properties": {
+     "script": {
+      "type": "string",
+      "description": "Shell text, run as `$SHELL -lc` in the new worktree with HANDLINE_REPO (the repo's folder) and HANDLINE_WORKTREE set and nothing on stdin, for at most 5 minutes; \"\" runs nothing. At most 4000 characters."
+     },
+     "copy": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      },
+      "description": "Paths relative to the repo's folder, a glob each (`*`, `?`, `[...]`, no `**`), copied into the new worktree: a folder with what it holds. A file already in the worktree is kept, not overwritten. At most 50, each at most 300 characters, none absolute, above the repo or in .git."
+     },
+     "last": {
+      "oneOf": [
+       {
+        "$ref": "#/components/schemas/RepoSetupRun"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "The newest run of this setup in a new worktree; null before any."
+     }
+    },
+    "required": [
+     "script",
+     "copy",
+     "last"
+    ]
+   },
+   "RepoSetupRun": {
+    "type": "object",
+    "properties": {
+     "at": {
+      "type": "string",
+      "description": "When it ran, RFC 3339."
+     },
+     "worktree": {
+      "type": "string"
+     },
+     "ok": {
+      "type": "boolean",
+      "description": "Every copy made and the script exited 0."
+     },
+     "copied": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      },
+      "description": "The paths copied, relative to the repo."
+     },
+     "missing": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      },
+      "description": "Copy entries the repo's folder had nothing for: told, not a failure."
+     },
+     "error": {
+      "type": "string",
+      "description": "Why it failed in one line (`copying .env: ...`, `script exited 1`, `script stopped after 5m0s`); \"\" when ok."
+     },
+     "output": {
+      "type": "string",
+      "description": "The script's output, its last 4000 bytes."
+     }
+    },
+    "required": [
+     "at",
+     "worktree",
+     "ok",
+     "copied",
+     "missing",
+     "error",
+     "output"
     ]
    },
    "Operation": {

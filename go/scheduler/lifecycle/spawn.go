@@ -2,6 +2,7 @@ package lifecycle
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -18,6 +19,7 @@ import (
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/scheduler/worktreelock"
 	"github.com/handline/handline/go/scheduler/worktreepaths"
+	"github.com/handline/handline/go/scheduler/worktreesetup"
 )
 
 const (
@@ -281,7 +283,27 @@ func (s *Spawns) Recreate(agent, repo, recorded string) (string, string) {
 		return "", fmt.Sprintf("%s: its worktree %s is gone and could not be made again from branch %s: %s", addr.Ref(agent), path, branch,
 			strings.TrimSpace(r.Stderr))
 	}
+	s.prepare(agent, repo, path) // told through its event: Recreate's caller logs only that the worktree is back
 	return path, ""
+}
+
+// prepare runs repo's worktree setup (worktreesetup) in wt, a worktree just made for agent, and is what to tell of it: "" when the repo
+// asks for nothing. A failed setup is told and recorded, never fatal: the agent starts in the worktree and can finish the setup itself.
+func (s *Spawns) prepare(agent, repo, wt string) string {
+	if s.Roster == nil {
+		return ""
+	}
+	setup := worktreesetup.Get(s.Roster.Store, repo)
+	if setup.Empty() {
+		return ""
+	}
+	r := worktreesetup.Run(repo, wt, setup, s.now(), worktreesetup.ScriptLimit)
+	said := r.Said()
+	_, evErr := db.AddEvent(s.Q, agent, "worktree_setup", db.KV{K: "worktree", V: wt}, db.KV{K: "ok", V: strconv.FormatBool(r.OK)}, db.KV{K: "said", V: said})
+	if err := errors.Join(worktreesetup.Record(s.Q, repo, r), evErr); err != nil {
+		said += fmt.Sprintf(" (not recorded: %v)", err)
+	}
+	return said
 }
 
 // spawnBranch is whether branch is one a spawn names for the agent whose key is key: the key, or <key>-<n> when that was taken.
@@ -359,6 +381,9 @@ func (s *Spawns) EnsureExtras(agent, first, repo string) (have, told []string, e
 		}
 		have = append(have, wt)
 		told = append(told, fmt.Sprintf("%s: made worktree %s (branch %s-%d from %s)", addr.Ref(agent), wt, key, n, baseRef))
+		if said := s.prepare(agent, repo, wt); said != "" {
+			told = append(told, "  "+said)
+		}
 	}
 	if len(told) > 0 {
 		if err := db.SetExtraWorktrees(s.Q, agent, have); err != nil {
@@ -474,11 +499,13 @@ func (s *Spawns) SpawnWith(agent, repo string, o SpawnOpts) (bool, string, error
 		}
 		return true, text, nil
 	}
+	setupSaid := ""
 	if wt == "" {
 		var failed string
 		if wt, failed = s.Host.CreateWorktree(repo, key, baseRef); wt == "" {
 			return false, failed, nil
 		}
+		setupSaid = s.prepare(agent, repo, wt)
 	}
 	_, extraTold, err := s.EnsureExtras(agent, wt, repo)
 	if err != nil {
@@ -501,6 +528,9 @@ func (s *Spawns) SpawnWith(agent, repo string, o SpawnOpts) (bool, string, error
 		shown = "unknown"
 	}
 	lines := []string{fmt.Sprintf("%s: worktree %s", addr.Ref(agent), wt), fmt.Sprintf("  %s (%s)", from, why)}
+	if setupSaid != "" {
+		lines = append(lines, "  "+setupSaid)
+	}
 	for _, t := range extraTold {
 		lines = append(lines, "  "+t)
 	}
