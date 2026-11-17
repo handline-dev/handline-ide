@@ -33,7 +33,7 @@ func (a *AgentLocks) Lock(agent string) func() {
 }
 
 // hasSession: the agent has a terminal to talk to.
-func (m *Manager) hasSession(agent string, row *db.AgentState) bool {
+func (m *Manager) hasSession(row *db.AgentState) bool {
 	return row != nil && row.Terminal.String != ""
 }
 
@@ -61,6 +61,6 @@ func (m *Manager) recordClosed(agent, resume string, st SessionStatus) {
 }
 
 // waitIdle waits for the turn a forced close or restart must not cut off.
-func (m *Manager) waitIdle(agent, handle string) bool {
+func (m *Manager) waitIdle(handle string) bool {
 	return handle != "" && m.Term.WaitIdle(handle)
 }

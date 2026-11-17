@@ -715,13 +715,13 @@ func quoted(text string) string {
 	return `"` + strings.ReplaceAll(strings.ReplaceAll(text, `\`, `\\`), `"`, `\"`) + `"`
 }
 
-func firstUnsafe(s string) (rune, bool) {
+func anyUnsafe(s string) bool {
 	for _, r := range s {
 		if textsafe.HasUnsafe(string(r)) {
-			return r, true
+			return true
 		}
 	}
-	return 0, false
+	return false
 }
 
 // Pair is one key and value of a map Dump writes, in order.
@@ -773,7 +773,7 @@ func Dump(data []Pair) (string, error) {
 		switch v := value.(type) {
 		case []any:
 			for _, s := range list {
-				if _, bad := firstUnsafe(s); bad {
+				if anyUnsafe(s) {
 					return "", fail("dump does not write control characters (key %s)", pyRepr(p.Key))
 				}
 			}
@@ -793,7 +793,7 @@ func Dump(data []Pair) (string, error) {
 		default:
 			s := fmt.Sprint(v)
 			value = s
-			if _, bad := firstUnsafe(s); bad {
+			if anyUnsafe(s) {
 				return "", fail("dump does not write control characters (key %s)", pyRepr(p.Key))
 			}
 			low := strings.ToLower(s)

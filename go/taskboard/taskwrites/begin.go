@@ -25,7 +25,7 @@ func parsePriority(v any) (int64, error) {
 
 // begin is task.begin (actions.task_begin): the founder's own message to the caller is approval enough, so the caller opens a task for
 // itself and starts it. What stands in for the approval is the message linked to the task; why, when given, goes on the event.
-func begin(c *rpc.Conn, p map[string]any, home string) (any, error) {
+func begin(c *rpc.Conn, p map[string]any) (any, error) {
 	title, err := text(p, "title")
 	if err != nil {
 		return nil, err

@@ -74,7 +74,7 @@ func Register(s *rpc.Server, home string, tell Teller, decide CardDecider) {
 	s.Register("task.draft", rpc.Method{Handler: queueMethod(home, tell, false)})
 	s.Register("task.progress", rpc.Method{Handler: progress})
 	s.Register("progress.get", rpc.Method{Handler: progressGet})
-	s.Register("task.begin", rpc.Method{Handler: func(c *rpc.Conn, p map[string]any) (any, error) { return begin(c, p, home) }})
+	s.Register("task.begin", rpc.Method{Handler: func(c *rpc.Conn, p map[string]any) (any, error) { return begin(c, p) }})
 	s.Register("task.handoff", rpc.Method{Handler: handoffMethod(home, tell)})
 	s.Register("task.turn.pop", rpc.Method{Handler: turnPopMethod(home, tell)})
 	s.Register("task.new", rpc.Method{Handler: newMethod(home, tell)})

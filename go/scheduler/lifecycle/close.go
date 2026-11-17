@@ -104,7 +104,7 @@ func (m *Manager) ShouldClose(agent, state string, row *db.AgentState, now int64
 	defer catch(&err)
 	in := closeInput{
 		Busy:      state == states.Running || state == states.Handoff || state == states.Stalled,
-		NoSession: row == nil || (row.ClosedAt.Valid && row.ClosedAt.Int64 != 0) || !m.hasSession(agent, row),
+		NoSession: row == nil || (row.ClosedAt.Valid && row.ClosedAt.Int64 != 0) || !m.hasSession(row),
 		Parked:    state == states.Parked, SessionID: sessionID, Now: now, IdleCloseS: states.IdleCloseS,
 	}
 	if in.Busy || in.NoSession { // closeVerdict says no whatever else is read
@@ -223,7 +223,7 @@ func (m *Manager) StartOrWakeNeeded(agent string, row *db.AgentState) (kind, wha
 	if must(db.InFlightFor(m.Q, agent)) != nil {
 		return "", "", nil
 	}
-	if !m.hasSession(agent, row) && !m.ResumableWithoutTerminal(row) {
+	if !m.hasSession(row) && !m.ResumableWithoutTerminal(row) {
 		if len(must(db.QueuedFor(m.Q, agent))) > 0 || len(must(db.ListPending(m.Q, agent))) > 0 {
 			return "start", "work waiting", nil
 		}
@@ -610,7 +610,7 @@ func (m *Manager) closeAgent(agent string, st SessionStatus, o CloseOpts) (bool,
 	}
 	if row != nil && row.State == states.Running {
 		// Only a forced restart gets here: its handoff record is taken below, after the turn, so the turn's last work is in it.
-		if !m.waitIdle(agent, must(db.Terminal(m.Q, agent))) {
+		if !m.waitIdle(must(db.Terminal(m.Q, agent))) {
 			return false, "it is still mid-turn after waiting for it to finish; not closing"
 		}
 	}

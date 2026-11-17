@@ -73,9 +73,9 @@ func (e *Env) effectiveTaskHead(q db.Q, agent string) *db.Request {
 	return must(db.EffectiveTaskHead(q, agent))
 }
 
-// held says once per reason why head is not typed at the agent yet; always false, the delivery's answer.
-func (e *Env) holdBack(agent string, head *db.Request, why string, contestable bool) bool {
-	e.NoteHold(agent, why, contestable)
+// holdBack says once per reason why head is not typed at the agent yet; always false, the delivery's answer.
+func (e *Env) holdBack(agent string, head *db.Request, why string) bool {
+	e.NoteHold(agent, why, false)
 	e.mu.Lock()
 	same := e.held[agent] == why
 	e.held[agent] = why
@@ -162,7 +162,7 @@ func (e *Env) DeliverQueued(q db.Q, agent string) (sent bool, err error) {
 		return false, nil // collected; goes out when the minute is up
 	}
 	if why := e.handingOff(q, agent, batchOps(batch)...); why != "" {
-		return e.holdBack(agent, head, why, false), nil
+		return e.holdBack(agent, head, why), nil
 	}
 	// Only a structured or peer session takes a write; nothing is typed at a terminal.
 	if !e.structuredAgent(agent) || !e.Agents.Live(agent) {
@@ -170,7 +170,7 @@ func (e *Env) DeliverQueued(q db.Q, agent string) (sent bool, err error) {
 		if !e.structuredAgent(agent) && e.openSession(agent, stateOf(q, agent)) {
 			why = "peer_inbox is off for this agent; nothing types any more" // a terminal is up, but nothing here reaches it
 		}
-		return e.holdBack(agent, head, why, false), nil
+		return e.holdBack(agent, head, why), nil
 	}
 	// The founder's pause holds every task but those that pass it (db.PassesPause), mid-turn too: told, it is new work. Only those are
 	// told, and the load gate's word for the pause does not hold them; the gate says the pause before the load, so they skip the load
@@ -187,7 +187,7 @@ func (e *Env) DeliverQueued(q db.Q, agent string) (sent bool, err error) {
 			}
 		}
 		if len(going) == 0 {
-			return e.holdBack(agent, head, paused, false), nil
+			return e.holdBack(agent, head, paused), nil
 		}
 		batch, head = going, going[0]
 	}
@@ -195,7 +195,7 @@ func (e *Env) DeliverQueued(q db.Q, agent string) (sent bool, err error) {
 	if e.LoadHeld != nil {
 		if st := stateOf(q, agent); st == nil || st.State != states.Running {
 			if why := e.LoadHeld(agent); why != "" && why != paused {
-				return e.holdBack(agent, head, why, false), nil
+				return e.holdBack(agent, head, why), nil
 			}
 		}
 	}

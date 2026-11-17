@@ -359,18 +359,18 @@ func (l *Launcher) paused(acct string, assumed bool) *WakeWait {
 
 // SlowestPaced is the account a closed agent moves to when its own (skip) cannot take it: of the other accounts that may start, take this
 // vendor, fit and are not paused, the one whose week runs out soonest. "" when none can.
-func (l *Launcher) SlowestPaced(q db.Q, agent string, row *db.AgentState, skip string) string {
+func (l *Launcher) SlowestPaced(q db.Q, agent string, skip string) string {
 	if l.Ports.Usage.ManualSplit() && !l.Ports.Usage.Read(skip).Paused {
 		return ""
 	}
-	best, _ := l.RoomElsewhere(q, agent, row, map[string]string{skip: ""}, false)
+	best, _ := l.RoomElsewhere(q, agent, map[string]string{skip: ""}, false)
 	return best
 }
 
 // RoomElsewhere is SlowestPaced with a reason for each account passed over: exclude names the accounts left out and why. The second result
 // is why no account has room, "" when one does. A move to an account is held to this same test, so a wake and a handoff cannot disagree.
-func (l *Launcher) RoomElsewhere(q db.Q, agent string, row *db.AgentState, exclude map[string]string, fitOnly bool) (string, string) {
-	return l.roomElsewhere(q, agent, row, exclude, fitOnly)
+func (l *Launcher) RoomElsewhere(q db.Q, agent string, exclude map[string]string, fitOnly bool) (string, string) {
+	return l.roomElsewhere(q, agent, exclude, fitOnly)
 }
 
 // ClosestRoom is the account with the most headroom of those a person may choose: what a person is offered when no account has room. ""
@@ -426,11 +426,11 @@ func (l *Launcher) WorthRepick(own, to string) bool {
 }
 
 // RoomNow is a person's start off skip: RoomElsewhere.
-func (l *Launcher) RoomNow(q db.Q, agent string, row *db.AgentState, skip string) (string, string) {
-	return l.roomElsewhere(q, agent, row, map[string]string{skip: ""}, false)
+func (l *Launcher) RoomNow(q db.Q, agent string, skip string) (string, string) {
+	return l.roomElsewhere(q, agent, map[string]string{skip: ""}, false)
 }
 
-func (l *Launcher) roomElsewhere(q db.Q, agent string, row *db.AgentState, exclude map[string]string, fitOnly bool) (string, string) {
+func (l *Launcher) roomElsewhere(q db.Q, agent string, exclude map[string]string, fitOnly bool) (string, string) {
 	if pin := l.PinOf(agent); pin != "" {
 		return "", "it is pinned to " + pin
 	}
@@ -1471,12 +1471,12 @@ func (p LaunchPort) Placing() func() { return p.L.Placing() }
 
 func (p LaunchPort) ManualSplit() bool { return p.L.Ports.Usage.ManualSplit() }
 
-func (p LaunchPort) SlowestPaced(q db.Q, agent string, row *db.AgentState, skip string) string {
-	return p.L.SlowestPaced(q, agent, row, skip)
+func (p LaunchPort) SlowestPaced(q db.Q, agent string, skip string) string {
+	return p.L.SlowestPaced(q, agent, skip)
 }
 
-func (p LaunchPort) RoomElsewhere(q db.Q, agent string, row *db.AgentState, exclude map[string]string, fitOnly bool) (string, string) {
-	return p.L.RoomElsewhere(q, agent, row, exclude, fitOnly)
+func (p LaunchPort) RoomElsewhere(q db.Q, agent string, exclude map[string]string, fitOnly bool) (string, string) {
+	return p.L.RoomElsewhere(q, agent, exclude, fitOnly)
 }
 
 func (p LaunchPort) ClosestRoom(q db.Q, agent string, row *db.AgentState, exclude map[string]string) string {
@@ -1493,8 +1493,8 @@ func (p LaunchPort) RoomOn(q db.Q, agent string, row *db.AgentState, acct string
 
 func (p LaunchPort) WorthRepick(own, to string) bool { return p.L.WorthRepick(own, to) }
 
-func (p LaunchPort) RoomNow(q db.Q, agent string, row *db.AgentState, skip string) (string, string) {
-	return p.L.RoomNow(q, agent, row, skip)
+func (p LaunchPort) RoomNow(q db.Q, agent string, skip string) (string, string) {
+	return p.L.RoomNow(q, agent, skip)
 }
 
 var _ Launch = LaunchPort{}
