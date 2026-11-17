@@ -34,6 +34,10 @@ const KEYS = [
   'network_addresses',
   'keep_awake',
   'reap_orphans',
+  'default_model_claude',
+  'default_effort_claude',
+  'default_model_codex',
+  'default_effort_codex',
 ];
 
 test('settings.get serves every SettingsValues key, a load limit reads back, and null restores the default', async () => {

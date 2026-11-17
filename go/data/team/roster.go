@@ -369,8 +369,13 @@ func (r *Roster) register(q db.Q, name string, o RegisterOpts, mcp string) (made
 		if err := names.Check(q, names.Agent, agent, at.ws); err != nil {
 			return 0, err
 		}
+		vendor := DefaultVendor
+		if present(o.Vendor) {
+			vendor = *o.Vendor
+		}
+		model, effort := NewAgentDefaults(r.Home, vendor)
 		res, err := q.Exec(`INSERT INTO agents(workspace, name, owner, model, effort, weight, created_at)
-			VALUES(?, ?, ?, ?, ?, ?, ?)`, at.ws, agent, owner, DefaultModel, DefaultEffort, "light", now)
+			VALUES(?, ?, ?, ?, ?, ?, ?)`, at.ws, agent, owner, nilIf(model, ""), effort, "light", now)
 		if err != nil {
 			return 0, err
 		}

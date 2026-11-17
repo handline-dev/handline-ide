@@ -87,7 +87,8 @@ func orDefault(cfg Config, k, def string) string {
 
 // Parts is (vendor, model, effort) as configured, defaults filled in.
 func Parts(cfg Config) (vendor, model, effort string) {
-	return orDefault(cfg, "vendor", DefaultVendor), orDefault(cfg, "model", DefaultModel), orDefault(cfg, "effort", DefaultEffort)
+	vendor = orDefault(cfg, "vendor", DefaultVendor)
+	return vendor, orDefault(cfg, "model", builtinModel(vendor)), orDefault(cfg, "effort", DefaultEffort)
 }
 
 func positiveInt(v any) (int64, bool) {
@@ -318,11 +319,14 @@ func Kind(cfg Config) string {
 	if !ok {
 		short = effort
 	}
-	out := model + " " + short
-	if vendor == DefaultVendor {
-		return out
+	var parts []string
+	if vendor != DefaultVendor {
+		parts = append(parts, vendor)
 	}
-	return vendor + " " + out
+	if model != "" { // "" is the vendor's own default
+		parts = append(parts, model)
+	}
+	return strings.Join(append(parts, short), " ")
 }
 
 // ModeOf is the permission mode a launch will use: its row's mode when it names one, else auto. Anything else reads as the

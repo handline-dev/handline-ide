@@ -2,6 +2,7 @@ package adminwrites
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"unicode/utf8"
@@ -35,6 +36,8 @@ const (
 	split  = "auto or manual"
 	hosts  = "hosts"
 	ports  = "lo-hi"
+	model  = "model"
+	effort = "effort"
 )
 
 // HostsMax is how many hosts network_addresses may name.
@@ -57,7 +60,9 @@ var settingKinds = map[string]string{"park_timeout_s": int0, "handoff_note": fla
 	usage.PaceTargetKey: tgt, usage.PaceBurstKey: burst, usage.SubagentGuardKey: flag_, usage.MoveBeforeKey: pct, usage.SplitKey: split,
 	settings.ClearPastBackgroundKey: flag_, settings.TranscriptRowsKey: flag_, settings.RefsNeedGrantKey: flag_,
 	leases.HeavyMaxKey: int0, leases.SimulatorMaxKey: int0, leases.BrowserMaxKey: int0, leases.PortRangeKey: ports,
-	usage.NetworkAddressesKey: hosts}
+	usage.NetworkAddressesKey:      hosts,
+	team.DefaultModelKey("claude"): model, team.DefaultEffortKey("claude"): effort,
+	team.DefaultModelKey("codex"): model, team.DefaultEffortKey("codex"): effort}
 
 var perAgent = map[string]bool{"park_timeout_s": true, "ignore_cache_expiry": true, "bg_notice_s": true, "bg_grace_s": true, "bg_check_s": true,
 	"notice_digest_s": true, handoff.PromptKey: true}
@@ -129,6 +134,14 @@ func settingValue(key string, v any) (any, error) {
 				return fmt.Sprintf("%d-%d", lo, hi), nil
 			}
 		}
+	case model:
+		if s, ok := v.(string); ok && team.ValidModelName(s) {
+			return s, nil
+		}
+	case effort:
+		if s, ok := v.(string); ok && slices.Contains(team.ValidEffort, s) {
+			return s, nil
+		}
 	case line:
 		// config.yaml holds one line: a newline or another control character is refused, not written.
 		if s, ok := v.(string); ok && !textsafe.HasUnsafe(s) && utf8.RuneCountInString(s) <= LineMax {
@@ -145,7 +158,8 @@ func settingValue(key string, v any) (any, error) {
 		flag_: "true or false", awake: "off, on or working", reaper: "dry, on or off",
 		line:  fmt.Sprintf("one line of text, at most %d characters", LineMax),
 		hosts: fmt.Sprintf("a list of at most %d different hosts from connection.addresses", HostsMax),
-		ports: "a range of ports like 4000-4999, from 1 to 65535"}[kind]
+		ports: "a range of ports like 4000-4999, from 1 to 65535",
+		model: fmt.Sprintf("a model name of at most %d characters, no spaces, not starting with -", team.ModelMax), effort: "one of " + strings.Join(team.ValidEffort, ", ")}[kind]
 	return nil, badParam(fmt.Sprintf("%s is %s, or null", key, what), key)
 }
 
