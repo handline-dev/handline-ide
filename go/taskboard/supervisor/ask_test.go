@@ -164,3 +164,33 @@ func TestARequestSentOnBehalfOfSomeoneNamesWhatItForwards(t *testing.T) {
 		t.Fatalf("forward %q %v", carries, err)
 	}
 }
+
+// The founder's line that opens with a command word is refused at once, nothing queued: typed at the session it would run as a command.
+// A path, and words that go through the inbox (to an agent not typed at, or from an agent), go as usual.
+func TestAFounderLineOpeningWithASlashCommandIsRefusedUnsent(t *testing.T) {
+	r := newRig(t)
+	r.agentUp("bob")
+	r.FounderTyped = func(a string) bool { return a == r.k("bob") }
+	out, err := r.Ask(r.DB, AskIn{Target: r.k("bob"), Body: "/chat-states 는 커밋에 포함하지말자.", Requester: r.k("human"), Kind: "say"})
+	r.must(err)
+	if out.OK || out.RID != 0 || !strings.Contains(out.Message, `"/chat-states 는 커밋에 포함하지말자." starts with /chat-states`) ||
+		!strings.Contains(out.Message, "with the word in backticks: `/chat-states`") {
+		t.Fatalf("%+v", out)
+	}
+	var n int
+	r.must(r.DB.QueryRow("SELECT COUNT(*) FROM requests").Scan(&n))
+	if n != 0 {
+		t.Fatalf("a refused line was kept: %d rows", n)
+	}
+	for _, in := range []AskIn{
+		{Target: r.k("bob"), Body: "/root/ has no .cache", Requester: r.k("human"), Kind: "say"},
+		{Target: r.k("alice"), Body: "/chat-states is done", Requester: r.k("human"), Kind: "say"}, // alice reads the inbox
+		{Target: r.k("bob"), Body: "/chat-states is done", Requester: r.k("alice"), Kind: "say"},
+	} {
+		out, err := r.Ask(r.DB, in)
+		r.must(err)
+		if !out.OK {
+			t.Fatalf("%q from %s to %s: %+v", in.Body, in.Requester, in.Target, out)
+		}
+	}
+}
