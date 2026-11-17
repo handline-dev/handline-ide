@@ -69,6 +69,16 @@ export function RequestsTab() {
 
 function Requests() {
   const r = useRequests();
+  // The task view shows beside the list only from 48rem (@3xl); narrower, a row opens its task the standard way.
+  const box = useRef<HTMLDivElement>(null);
+  const [split, setSplit] = useState(true);
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setSplit(el.clientWidth >= 48 * parseFloat(getComputedStyle(document.documentElement).fontSize)));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   const pick = usePick();
   const rows = {
     turn: r.turn.map((p) => turnRow(p)),
@@ -114,12 +124,18 @@ function Requests() {
       until={until}
       full
       chosen={chosen === p}
-      onPick={p.task !== null ? () => setChosen({ key: turnKey(p), at: withTask.indexOf(p) }) : undefined}
+      onPick={split && p.task !== null ? () => setChosen({ key: turnKey(p), at: withTask.indexOf(p) }) : undefined}
     />
   );
   return (
-    <div className="flex min-h-0 flex-1">
-      <WithSelectionBar count={n} onClear={() => pick?.clear()} actions={<BulkButtons />} className="w-104 shrink-0 border-r border-border">
+    // A pane too narrow for both keeps the list alone.
+    <div ref={box} className="@container flex min-h-0 flex-1">
+      <WithSelectionBar
+        count={n}
+        onClear={() => pick?.clear()}
+        actions={<BulkButtons />}
+        className="w-full shrink-0 @3xl:w-104 @3xl:border-r @3xl:border-border"
+      >
         <ScrollFade keep="requests" className={`min-h-0 flex-1 ${selectionRoom(n)}`}>
           <div className="flex flex-col gap-6 px-3 py-4 text-sm">
             {r.failed && <p className="px-2 text-danger">Requests did not load.</p>}
@@ -145,7 +161,7 @@ function Requests() {
           </div>
         </ScrollFade>
       </WithSelectionBar>
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="hidden min-w-0 flex-1 flex-col @3xl:flex">
         {chosen && chosen.task !== null ? (
           <>
             <div className="flex h-9 shrink-0 items-center justify-end gap-1 border-b border-border px-3 text-xs text-muted tabular-nums">
