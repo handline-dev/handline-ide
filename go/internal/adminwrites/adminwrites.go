@@ -43,6 +43,7 @@ func Register(s *rpc.Server, e *Env) {
 	s.Register("folder.init", rpc.Method{Waits: true, Handler: e.folderInit})
 	s.Register("folder.clone", rpc.Method{Waits: true, Handler: e.folderClone})
 	s.Register("settings.set", rpc.Method{Handler: e.settingsSet})
+	s.Register("repo.set", rpc.Method{Handler: e.repoSet})
 	s.Register("account.set", rpc.Method{Handler: e.accountSet})
 	s.Register("account.wake", rpc.Method{Handler: e.accountWake})
 	s.Register("account.read_usage", rpc.Method{Handler: e.accountReadUsage})

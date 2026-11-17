@@ -103,6 +103,7 @@ var specMethods = []SpecMethod{
 	{Name: "repos.list", Role: "member", Write: false, Since: 1, Callers: nil, Params: []SpecParam{}, Result: ""},
 	{Name: "repos.recent", Role: "member", Write: false, Since: 1, Callers: nil, Params: []SpecParam{}, Result: ""},
 	{Name: "repo.facts", Role: "member", Write: false, Since: 1, Callers: nil, Params: []SpecParam{{Name: "path", Type: "string", Required: true}}, Result: "RepoFacts"},
+	{Name: "repo.set", Role: "owner", Write: true, Since: 1, Callers: nil, Params: []SpecParam{{Name: "path", Type: "string", Required: true}, {Name: "script", Type: "any", Required: false}, {Name: "copy", Type: "any", Required: false}, {Name: "request_id", Type: "string", Required: true}}, Result: "Accepted"},
 	{Name: "folder.init", Role: "owner", Write: true, Since: 1, Callers: nil, Params: []SpecParam{{Name: "path", Type: "string", Required: true}, {Name: "request_id", Type: "string", Required: true}}, Result: ""},
 	{Name: "folder.clone", Role: "owner", Write: true, Since: 1, Callers: nil, Params: []SpecParam{{Name: "url", Type: "string", Required: true}, {Name: "path", Type: "string", Required: false}, {Name: "request_id", Type: "string", Required: true}}, Result: ""},
 	{Name: "worktrees.list", Role: "member", Write: false, Since: 1, Callers: nil, Params: []SpecParam{{Name: "repo", Type: "string", Required: false}, {Name: "owner", Type: "string", Required: false, Who: true}}, Result: ""},
