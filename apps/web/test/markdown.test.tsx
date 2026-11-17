@@ -30,6 +30,14 @@ describe('Markdown', () => {
     const links = [...container.querySelectorAll('a')].map((a) => a.textContent);
     expect(links).toEqual(['T8520', 'https://example.com/a', 'apps/web/src/main.tsx:12']);
   });
+  it('links a whole path from its root, an @ in a folder name too, and leaves it to a drag to select', () => {
+    const { container } = render(
+      <Markdown text={'also at /Users/ron/orca/workspaces/@legacy/legacy/research-questions-v2.md and ~/notes/a.md.'} />,
+    );
+    const links = [...container.querySelectorAll('a')];
+    expect(links.map((a) => a.textContent)).toEqual(['/Users/ron/orca/workspaces/@legacy/legacy/research-questions-v2.md', '~/notes/a.md']);
+    expect(links.every((a) => a.getAttribute('draggable') === 'false')).toBe(true);
+  });
   it('draws a pasted picture (attachment: link) as its image, not as the raw reference', () => {
     const { container } = render(<Markdown text={'look\n![capture](attachment:aaa)\n![capture](attachment:bbb)'} />);
     // One row for the paragraph's pictures, after its words and outside the <p>.

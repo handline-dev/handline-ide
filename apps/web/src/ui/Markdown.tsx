@@ -240,13 +240,15 @@ function span(t: Token): ReactNode {
   }
 }
 
-// A task (T1234), a web address, or a repo path with a / and an extension (a :line after it is kept on the link).
-const LINKS = /(\bT\d{2,}\b|https?:\/\/[^\s<>()]+[^\s<>().,;:!?'"]|(?<![\w/.-])(?:[\w.-]+\/)+[\w.-]+\.[A-Za-z][\w]{0,7}(?::\d+)?)/g;
+// A task (T1234), a web address, or a path with a / and an extension, from its root (/, ~/) and with an @ in a folder name
+// (/Users/ron/workspaces/@legacy/notes.md); a :line after it is kept on the link.
+const PATH = String.raw`(?:~?\/)?(?:[\w.@-]+\/)+[\w.@-]+\.[A-Za-z]\w{0,7}(?::\d+)?`;
+const LINKS = new RegExp(String.raw`(\bT\d{2,}\b|https?:\/\/[^\s<>()]+[^\s<>().,;:!?'"]|(?<![\w/.@~-])${PATH})`, 'g');
 
 function linkOf(s: string): string | null {
   if (/^T\d{2,}$/.test(s)) return taskOf(Number(s.slice(1)));
   if (/^https?:\/\//i.test(s)) return webOf(s);
-  if (/^(?:[\w.-]+\/)+[\w.-]+\.[A-Za-z]\w{0,7}(?::\d+)?$/.test(s)) return fileOf(s.replace(/:\d+$/, ''));
+  if (new RegExp(`^${PATH}$`).test(s)) return fileOf(s.replace(/:\d+$/, ''));
   return null;
 }
 
@@ -277,9 +279,13 @@ function Opens({ opens, children }: { opens: string; children: ReactNode }) {
       role="link"
       tabIndex={0}
       {...open}
+      // Selected by a drag like the words around it, not dragged out as a tab.
+      draggable={false}
       onClick={(e) => {
-        // The href is for the browser's own link look and Copy; the app opens it.
+        // The href is for the browser's own link look and Copy; the app opens it. A click that ends a selection only selects.
         e.preventDefault();
+        const sel = window.getSelection();
+        if (sel && !sel.isCollapsed && sel.containsNode(e.currentTarget, true)) return;
         open.onClick(e);
       }}
       className="cursor-pointer text-accent hover:underline"
