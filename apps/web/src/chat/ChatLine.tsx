@@ -59,6 +59,8 @@ export function ChatLine({
   const key = `${e.kind}:${e.id}`;
   if (drawsNothing(e, agent, me)) return null;
   const fade = { initial: fades ? { opacity: 0 } : (false as const), animate: { opacity: 1 }, transition: spring };
+  // A session started by an account move is part of that move: its Moved to line says it.
+  if (e.kind === 'item' && e.item.session?.cause === 'move') return null;
   if (e.kind === 'item' && e.item.session)
     return (
       <motion.div data-id={key} {...fade}>
@@ -68,7 +70,7 @@ export function ChatLine({
   if (e.kind === 'item' && (e.item.account_moved || e.item.move_failed))
     return (
       <motion.div data-id={key} {...fade}>
-        <MoveLine at={e.at} moved={e.item.account_moved} failed={e.item.move_failed} />
+        <MoveLine agent={agent} at={e.at} moved={e.item.account_moved} failed={e.item.move_failed} />
       </motion.div>
     );
   // A command with no message to fold into: typed at the terminal, or sent before messages recorded their landing.
