@@ -55,6 +55,7 @@ export function ImageViewer({
   onClose,
   onMarked,
   doneLabel = 'Add to message',
+  sendBare = false,
 }: {
   pictures: Picture[];
   start?: number;
@@ -62,6 +63,8 @@ export function ImageViewer({
   /** Takes the marked pictures on Done; without it the viewer only shows. */
   onMarked?: (marked: MarkedPicture[]) => void;
   doneLabel?: string;
+  /** The done button shows with no mark too, and hands the pictures over as they are (a screenshot sent to the chat). */
+  sendBare?: boolean;
 }) {
   const [at, setAt] = useState(Math.min(start, pictures.length - 1));
   const pic = pictures[at];
@@ -99,6 +102,13 @@ export function ImageViewer({
       const blob = await drawn(img, states[i].marks, fromOf(i));
       if (blob) out.push({ picture: p, marks: m, image: blob, text: linesOf(states[i].marks, fromOf(i)) });
     }
+    // Nothing marked: each picture as it is, for a caller that takes them so (sendBare).
+    if (!out.length && sendBare)
+      for (const [i, p] of pictures.entries()) {
+        const img = images.current[i];
+        const blob = img && (await drawn(img, [], 0));
+        if (blob) out.push({ picture: p, marks: [], image: blob, text: '' });
+      }
     onMarked?.(out);
     onClose();
   };
@@ -240,9 +250,11 @@ export function ImageViewer({
         {at < pictures.length - 1 && <Side side="right" onClick={() => step(1)} />}
       </div>
       <div className="flex h-14 flex-none items-center justify-center gap-3 px-4 text-sm text-muted">
-        {canMark && kept > 0 ? (
+        {canMark && (kept > 0 || sendBare) ? (
           <>
-            <span className="tabular-nums">{`${kept} ${kept === 1 ? 'comment' : 'comments'}`}</span>
+            <span className="tabular-nums">
+              {kept > 0 ? `${kept} ${kept === 1 ? 'comment' : 'comments'}` : 'M to mark, or send it as it is'}
+            </span>
             <button
               type="button"
               onClick={() => void done()}
