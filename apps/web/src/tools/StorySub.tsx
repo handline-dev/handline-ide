@@ -1,5 +1,6 @@
 // A story's sub-task opened from its node: back to the Plan, the next one for you, and its Plan, Code and Result with the founder's verdicts.
 import type { MemoFile, TaskDetail } from '@handline/client';
+import { MessageImages } from '#src/chat/MessageImages.tsx';
 import { hooks, useAttachmentUrl, useNameOf, useWrite } from '@handline/app-data';
 import { useMe } from '@handline/app-react';
 import { Check, ChevronLeft, ChevronRight, Play } from 'lucide-react';
@@ -240,6 +241,7 @@ function ResultTab({ t, onCode }: { t: TaskDetail; onCode: () => void }) {
   const posters = new Set(files.map((f) => f.poster).filter(Boolean));
   const pictures = files.filter((f) => f.kind === 'image' && !posters.has(f.id));
   const videos = files.filter((f) => f.kind === 'video');
+  const others = files.filter((f) => f.kind !== 'image' && f.kind !== 'video');
   const diff = useBranchDiff(t.to, t.branch?.exists ? t.branch.name : null).data;
   const changed = diff ? diffCounts(diff.diff) : [];
   const sum = (k: 'added' | 'deleted') => changed.reduce((n, f) => n + f[k], 0);
@@ -254,6 +256,7 @@ function ResultTab({ t, onCode }: { t: TaskDetail; onCode: () => void }) {
             <Video key={f.id} f={f} />
           ))}
         </div>
+        <MessageImages images={others.map((f) => ({ id: f.id, name: f.name, mime: f.mime, size: f.bytes }))} />
         <button type="button" onClick={onCode} className="self-start text-muted hover:text-fg hover:underline">
           {changed.length} files · +{sum('added')} −{sum('deleted')}
         </button>

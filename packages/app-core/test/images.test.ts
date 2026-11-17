@@ -19,5 +19,11 @@ test('image references are found with their caption and id', () => {
 });
 
 test('a capture note carries one reference per image', () => {
-  assert.equal(withImages(' look ', ['a1', 'b2']), 'look\n![capture](attachment:a1)\n![capture](attachment:b2)');
+  assert.equal(
+    withImages(' look ', [
+      { id: 'a1', name: 'shot.png' },
+      { id: 'b2', name: 'notes.md' },
+    ]),
+    'look\n![shot.png](attachment:a1)\n![notes.md](attachment:b2)',
+  );
 });

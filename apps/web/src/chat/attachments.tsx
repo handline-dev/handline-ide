@@ -3,7 +3,8 @@
 // take folders holds it as a chip, and `sendable` is false while one is held or going up, so nothing is dropped unseen. `access` is
 // the state a path the agent may not read will take (access_needed).
 import { keptState, MAX_PER_MESSAGE, uploadFolder, useImageDrafts, useServes, useWrite, type ImageDraft } from '@handline/app-data';
-import { File as FileIcon, Folder, RotateCw, X } from 'lucide-react';
+import { FileKindIcon, formatSize } from '#src/chat/MessageImages.tsx';
+import { Folder, RotateCw, X } from 'lucide-react';
 import { useEffect, type ReactNode } from 'react';
 import { dropAll, dropEntry, keepEntry, takeKept } from '#src/chat/keptFiles.ts';
 import type { Dropped } from '#src/ui/fileDrop.tsx';
@@ -115,9 +116,6 @@ export function useAttachments(agent: string) {
 
 export type Attachments = ReturnType<typeof useAttachments>;
 
-const size = (bytes: number) =>
-  bytes < 1024 ? `${bytes} B` : bytes < 1024 ** 2 ? `${Math.round(bytes / 1024)} KB` : `${(bytes / 1024 ** 2).toFixed(1)} MB`;
-
 /** A file on its way with the message: an image as its picture (a click opens it to look or mark up), another file as its name; faded until it is up, with remove
  * and, after a failure, retry. */
 export function UploadChip({
@@ -154,8 +152,8 @@ export function UploadChip({
       </div>
     );
   return (
-    <Card icon={<FileIcon size={20} />} name={draft.name} title={draft.error ?? draft.name} faded={!up}>
-      <span className="truncate text-xs text-muted">{draft.error ?? (up ? size(draft.attachment!.bytes) : 'Uploading')}</span>
+    <Card icon={<FileKindIcon name={draft.name} />} name={draft.name} title={draft.error ?? draft.name} faded={!up}>
+      <span className="truncate text-xs text-muted">{draft.error ?? (up ? formatSize(draft.attachment!.bytes) : 'Uploading')}</span>
       {bar}
       {retry}
       <Remove onClick={onRemove} />
@@ -178,7 +176,7 @@ export function FolderChip({
   onAllow?: () => void;
 }) {
   const bytes = draft.files.reduce((n, f) => n + f.file.size, 0);
-  const facts = `${draft.files.length} files, ${size(bytes)}`;
+  const facts = `${draft.files.length} files, ${formatSize(bytes)}`;
   return (
     <Card icon={<Folder size={20} />} name={draft.name} title={draft.error ?? draft.name} faded={draft.state !== 'up'}>
       {draft.state === 'up' || draft.state === 'uploading' ? (

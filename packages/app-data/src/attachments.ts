@@ -26,8 +26,8 @@ export const knownAttachments = (ids: string[] = []): Attachment[] =>
 
 type Call = (method: string, params: Record<string, unknown>) => Promise<unknown>;
 type Mime = Attachment['mime'];
-/** What attachment.get can answer: a memo's Markdown file as well as an image. */
-type ReadMime = Mime | 'text/markdown';
+/** What attachment.get can answer: any file's type, as sent. */
+type ReadMime = string;
 
 /** Why a file cannot be attached, before anything is sent; null when it can. */
 export function whyNotImage(f: { type: string; size: number; name: string }): string | null {
@@ -140,12 +140,13 @@ export function useUploadImage() {
 }
 
 /** The bytes of an image: its small copy in one reply, or the original read to its end. */
-export async function readImage(call: Call, id: string, thumb: boolean): Promise<{ mime: ReadMime; bytes: Uint8Array }> {
+export async function readImage(call: Call, id: string, thumb: boolean): Promise<{ mime: ReadMime; bytes: Uint8Array; size: number }> {
   const parts: Uint8Array[] = [];
   let offset = 0;
   for (;;) {
     const r = (await call('attachment.get', { id, ...(thumb ? { thumb: true } : { offset }) })) as {
       mime: ReadMime;
+      bytes: number;
       offset: number;
       data: string;
       done: boolean;
@@ -156,19 +157,21 @@ export async function readImage(call: Call, id: string, thumb: boolean): Promise
     if (r.done || thumb || !chunk.length) {
       const all = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
       parts.reduce((at, p) => (all.set(p, at), at + p.length), 0);
-      return { mime: r.mime, bytes: all };
+      return { mime: r.mime, bytes: all, size: r.bytes };
     }
   }
 }
 
-const urls = new Map<string, Promise<string | null>>();
-/** An object URL for the image, read once per image and size; null when the daemon no longer has it. */
-const urlOf = (call: Call, id: string, thumb: boolean): Promise<string | null> => {
+/** An attachment read back: an object URL of its bytes, its type and the whole file's size. */
+export type ReadAttachment = { url: string; mime: string; size: number };
+const urls = new Map<string, Promise<ReadAttachment | null>>();
+/** An object URL for the attachment, read once per attachment and size; null when the daemon no longer has it. */
+const urlOf = (call: Call, id: string, thumb: boolean): Promise<ReadAttachment | null> => {
   const key = `${id}:${thumb ? 't' : 'o'}`;
   let p = urls.get(key);
   if (!p) {
     p = readImage(call, id, thumb).then(
-      ({ mime, bytes }) => URL.createObjectURL(new Blob([bytes as BlobPart], { type: mime })),
+      ({ mime, bytes, size }) => ({ url: URL.createObjectURL(new Blob([bytes as BlobPart], { type: mime })), mime, size }),
       (e) => {
         urls.delete(key); // a lost connection is tried again next time; a gone image stays null
         if (e instanceof RpcError && e.code === 'not_found') return null;
@@ -186,7 +189,7 @@ const onRemoved = new Set<(id: string) => void>();
 export function markRemoved(id: string): void {
   removedIds.add(id);
   for (const key of [`${id}:t`, `${id}:o`]) {
-    void urls.get(key)?.then((u) => u && URL.revokeObjectURL(u));
+    void urls.get(key)?.then((u) => u && URL.revokeObjectURL(u.url));
     urls.set(key, Promise.resolve(null));
   }
   onRemoved.forEach((f) => f(id));
@@ -195,35 +198,49 @@ export function markRemoved(id: string): void {
 /** Lets go of an image's object URL; the next use reads it again. */
 const release = (id: string, thumb: boolean) => {
   const key = `${id}:${thumb ? 't' : 'o'}`;
-  void urls.get(key)?.then((u) => u && URL.revokeObjectURL(u));
+  void urls.get(key)?.then((u) => u && URL.revokeObjectURL(u.url));
   urls.delete(key);
 };
 
-/** The picture of an attachment as a URL once read (`attempt` up reads it again after a failure): `gone` when the daemon has dropped it (the name is shown without the picture), `failed` when the read itself failed. */
+/** An attachment as a URL once read (`attempt` up reads it again after a failure), with its type and size: `gone` when the daemon has dropped it (the name is shown without the picture), `failed` when the read itself failed. */
 export function useAttachmentUrl(
   id: string,
   thumb: boolean,
   attempt = 0,
-): { url: string | null; gone: boolean; failed: boolean; removed: boolean } {
+): { url: string | null; mime: string | null; size: number | null; gone: boolean; failed: boolean; removed: boolean } {
   const store = useStore();
-  const [state, setState] = useState<{ url: string | null; gone: boolean; failed: boolean }>({ url: null, gone: false, failed: false });
+  const [state, setState] = useState<{ read: ReadAttachment | null; gone: boolean; failed: boolean }>({
+    read: null,
+    gone: false,
+    failed: false,
+  });
   const [removed, setRemoved] = useState(removedIds.has(id));
   useEffect(() => {
-    const f = (gone: string) => gone === id && (setRemoved(true), setState({ url: null, gone: true, failed: false }));
+    const f = (gone: string) => gone === id && (setRemoved(true), setState({ read: null, gone: true, failed: false }));
     onRemoved.add(f);
     return () => void onRemoved.delete(f);
   }, [id]);
   useEffect(() => {
     let live = true;
-    setState({ url: null, gone: false, failed: false });
+    setState({ read: null, gone: false, failed: false });
     urlOf((m, p) => store.client.call(m as never, p as never), id, thumb).then(
-      (url) => live && setState({ url, gone: url === null, failed: false }),
-      () => live && setState({ url: null, gone: false, failed: true }),
+      (read) => live && setState({ read, gone: read === null, failed: false }),
+      () => live && setState({ read: null, gone: false, failed: true }),
     );
     return () => {
       live = false;
       if (!thumb) release(id, false); // the original is large: kept only while it is open
     };
   }, [store, id, thumb, attempt]); // a higher `attempt` reads it again
-  return { ...state, removed: removed && state.gone };
+  const { read, gone, failed } = state;
+  return { url: read?.url ?? null, mime: read?.mime ?? null, size: read?.size ?? null, gone, failed, removed: removed && gone };
+}
+
+/** Reads an attachment's whole file, for saving it: its bytes as a Blob of its type. */
+export function useReadAttachment(): (id: string) => Promise<Blob> {
+  const store = useStore();
+  return async (id) => {
+    const { mime, bytes } = await readImage((m, p) => store.client.call(m as never, p as never), id, false);
+    return new Blob([bytes as BlobPart], { type: mime });
+  };
 }
