@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/kit/paths"
+	"github.com/handline/handline/go/kit/testfiles"
 	_ "modernc.org/sqlite"
 )
 
@@ -451,5 +452,27 @@ func TestACodexAccountLogsOutWithCodex(t *testing.T) {
 	argv, env := a.LogoutArgv("cx")
 	if strings.Join(argv, " ") != "codex logout" || env["CODEX_HOME"] != dir {
 		t.Fatalf("%v %v", argv, env)
+	}
+}
+
+// A launch's HANDLINE_AGENT is the agent's name, workspace/name when another agent has its name.
+func TestEnvForNamesTheAgentByItsName(t *testing.T) {
+	home := newHome(t)
+	account(t, home, "alpha")
+	r := NewRoster(home)
+	for _, n := range []string{"shop", "shop.quill", "blog"} {
+		o := RegisterOpts{}
+		if !strings.Contains(n, ".") { // a workspace's lead holds its folder
+			o.Repo = testfiles.GitCheckout(t)
+		}
+		if _, err := r.Register(n, o); err != nil {
+			t.Fatal(err)
+		}
+	}
+	a, k := Accounts{Home: home}, keyer(home)
+	for who, want := range map[string]string{"shop.quill": "quill", "shop": "shop/lead"} {
+		if got := a.EnvFor("alpha", k(who))["HANDLINE_AGENT"]; got != want {
+			t.Errorf("%s: %q, want %q", who, got, want)
+		}
 	}
 }

@@ -8,6 +8,7 @@ import (
 
 	_ "modernc.org/sqlite"
 
+	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/scheduler/sysres"
 )
 
@@ -211,5 +212,22 @@ func TestAChildStaysItsAgentsAfterItsParentEndsAndItIsReparented(t *testing.T) {
 	v, _ = tr.View()
 	if v.Unowned.Processes != 1 || v.Unowned.Top[0].PID != 102 {
 		t.Errorf("%+v", v.Unowned)
+	}
+}
+
+// HANDLINE_AGENT holds the agent's name: a process is owned by the agent's key, as one found by its pane is.
+func TestAProcessMarkedWithANameIsOwnedByTheKey(t *testing.T) {
+	home := t.TempDir()
+	teamtest.Seed(t, home, "shop", "shop.quill")
+	quill := teamtest.Key(t, home, "shop.quill")
+	rows := []Raw{{PID: 100, PPID: 1, Start: 1}}
+	tr := tracker(&rows, map[int]string{100: "quill"}, nil)
+	tr.Home = home
+	if err := tr.Sample(1000); err != nil {
+		t.Fatal(err)
+	}
+	v, _ := tr.View()
+	if p := find(v, 100); p.Agent != quill || p.Via != ViaEnv {
+		t.Fatalf("%+v", p)
 	}
 }

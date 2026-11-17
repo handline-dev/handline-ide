@@ -21,7 +21,14 @@ const devUsage = `usage: hl dev on <team> [--worktree PATH] [--listen ADDR] [--f
 // dev is a team's dev instance beside the live one (internal/devinstance). Python has no such command, so a line this
 // does not read is answered with the usage here.
 func dev(c *hlclient.Client, args []string) (int, bool) {
-	agent, _ := paths.Getenv("AGENT")
+	agent := hlclient.Agent()
+	if keys, err := paths.AgentKeys(c.Home); err == nil { // by its old dotted name, as a team is named here
+		for name, k := range keys {
+			if k == agent {
+				agent = name
+			}
+		}
+	}
 	return runDev(devinstance.System(c.Home), agent, args, os.Stdout, os.Stderr), true
 }
 
