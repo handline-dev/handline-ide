@@ -12,10 +12,12 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { activityOf, holdLine, ordered, splitPinned } from '#src/layout/agentList.ts';
 import { chatOf, footerPages, pages } from '#src/layout/kinds.tsx';
 import { useRequests } from '#src/requests/data.ts';
+import { pageSpace } from '#src/layout/agentLayouts.ts';
 import { Row } from '#src/sidebar/Row.tsx';
 import { SetupCard } from '#src/onboarding/SetupCard.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { useScrollFade } from '#src/ui/ScrollFade.tsx';
+import { DropArea, useDropTarget } from '#src/ui/dropTarget.tsx';
 import { useKeptScroll } from '#src/ui/keptScroll.ts';
 
 /** Top-left controls: collapse the sidebar, back, forward. They stay put when the sidebar is collapsed. */
@@ -77,7 +79,7 @@ function AgentRows({ agents, pick, onMove }: { agents: AgentView[]; pick: Pick; 
   return agents.map((agent) => {
     const opens = chatOf(agent.key);
     return (
-      <div
+      <DropArea
         key={agent.key}
         className="relative flex flex-col"
         onDragStart={(e) => {
@@ -88,22 +90,16 @@ function AgentRows({ agents, pick, onMove }: { agents: AgentView[]; pick: Pick; 
           dragged = null;
           setLine(null);
         }}
-        onDragOver={(e) => {
-          if (!dragged || dragged.group !== group) return;
-          e.preventDefault();
+        accepts={() => dragged?.group === group}
+        onOver={(e) => {
           e.stopPropagation();
           const r = e.currentTarget.getBoundingClientRect();
           setLine({ at: agent.key, after: e.clientY > r.top + Math.min(r.height, 32) / 2 });
         }}
-        onDragLeave={(e) => {
-          if (!e.currentTarget.contains(e.relatedTarget as globalThis.Node | null)) setLine(null);
-        }}
+        onLeave={() => setLine((l) => (l?.at === agent.key ? null : l))}
         onDrop={(e) => {
-          if (!dragged || dragged.group !== group) return;
-          e.preventDefault();
           e.stopPropagation();
           drop(agent.key, line?.after ?? false);
-          setLine(null);
         }}
       >
         {line?.at === agent.key && (
@@ -113,6 +109,7 @@ function AgentRows({ agents, pick, onMove }: { agents: AgentView[]; pick: Pick; 
           <AgentRowCard jobs={agent.background ?? []}>
             <Row
               opens={opens}
+              space={agent.key}
               menu={false}
               title={nameOf(agent.key)}
               selected={pick.agent === agent.key}
@@ -136,7 +133,7 @@ function AgentRows({ agents, pick, onMove }: { agents: AgentView[]; pick: Pick; 
             />
           </AgentRowCard>
         </AgentMenu>
-      </div>
+      </DropArea>
     );
   });
 }
@@ -158,24 +155,14 @@ function Section({
   onAgentDrop?: (name: string) => void;
   children: ReactNode;
 }) {
-  const [over, setOver] = useState(false);
+  const take = useDropTarget({
+    accepts: () => !!dragged && !!accepts?.(dragged.name),
+    onDrop: () => onAgentDrop?.(dragged!.name),
+  });
   return (
     <section
-      className={`-mx-2 flex flex-col gap-1 border-t border-border px-2 pt-3 transition-colors ${over ? 'bg-selected' : ''}`}
-      onDragOver={(e) => {
-        if (!dragged || !accepts?.(dragged.name)) return;
-        e.preventDefault();
-        setOver(true);
-      }}
-      onDragLeave={(e) => {
-        if (!e.currentTarget.contains(e.relatedTarget as globalThis.Node | null)) setOver(false);
-      }}
-      onDrop={(e) => {
-        setOver(false);
-        if (!dragged || !accepts?.(dragged.name)) return;
-        e.preventDefault();
-        onAgentDrop?.(dragged.name);
-      }}
+      className={`-mx-2 flex flex-col gap-1 border-t border-border px-2 pt-3 transition-colors ${take.over ? 'bg-selected' : ''}`}
+      {...take.handlers}
     >
       <div className="flex h-7 items-center justify-between pl-2">
         <h2 className="flex items-center gap-1.5 text-xs font-medium text-muted">
@@ -280,6 +267,7 @@ export function Sidebar({
           <Row
             key={p.kind}
             opens={p.kind}
+            space={pageSpace(p.kind)}
             title={p.label}
             icon={p.icon}
             selected={page === p.kind}

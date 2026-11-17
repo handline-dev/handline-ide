@@ -13,7 +13,8 @@ import { WebTab } from '#src/tools/WebTab.tsx';
 import { Usage } from '#src/usage/Usage.tsx';
 import { PaneOpen, setShownWorkspace, type How } from '#src/layout/openTab.tsx';
 import { ArrowDownToLine, ArrowLeftToLine, ArrowRightToLine, ArrowUpToLine, Columns2, LayoutGrid, X } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState, type DragEvent, type ReactNode } from 'react';
+import { useDropTarget } from '#src/ui/dropTarget.tsx';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type DragEvent, type ReactNode } from 'react';
 import { Boundary, brokenView } from '#src/ui/Boundary.tsx';
 import { canonical, choices, iconOf, labelOf, shellHandle, shellOf } from '#src/layout/kinds.tsx';
 import { toast } from '#src/ui/toast.tsx';
@@ -45,12 +46,27 @@ export type Dispatch = (a: Action) => void;
 
 type Context = { root: Node; agent: string | null; dispatch: Dispatch; nameOf: (key: string) => string };
 
+/** Moves tabs of a pane in workspace `from` to workspace `to`, at `at` (useAgentLayouts().moveTabs). */
+export type MoveTabs = (from: string, pane: string, tabs: string[], shown: string, to: string, at?: Target) => void;
+/** The workspace on screen and how a tab from another one moves in: a tab dragged to a sidebar row, held there, opens that
+ *  workspace and lands where it is dropped. */
+const Space = createContext<{ space: string; moveTabs: MoveTabs }>({ space: '', moveTabs: () => {} });
+
 /** Applies a drop of any tab source (a tab moving, or a thing to open) at `to`. Something already open
  * here is not opened twice: its tab comes up, and a toast says why. */
-function dropTo(e: DragEvent, to: Target, { root, agent, dispatch, nameOf }: Context) {
+function dropTo(
+  e: DragEvent,
+  to: Target,
+  { root, agent, dispatch, nameOf }: Context,
+  { space, moveTabs }: { space: string; moveTabs: MoveTabs },
+) {
   const drag = readTabDrag(e);
   if (!drag) return;
   e.preventDefault();
+  if ('move' in drag && drag.move.space !== space) {
+    const m = drag.move;
+    return moveTabs(m.space, m.pane, m.tabs ?? [m.tab], m.tab, space, to);
+  }
   if ('move' in drag) return dispatch({ type: 'move', from: drag.move.pane, tab: drag.move.tab, tabs: drag.move.tabs, to });
   const opens = canonical(drag.open.opens, agent);
   // A tab already open, pinned or not, moves to where it was dropped.
@@ -165,6 +181,7 @@ function PaneView({
   lead?: ReactNode;
 }) {
   const nameOf = useNameOf();
+  const here = useContext(Space);
   const bar = useRef<HTMLDivElement>(null);
   const body = useRef<HTMLDivElement>(null);
   const [line, setLine] = useState<number | null>(null);
@@ -185,9 +202,24 @@ function PaneView({
         .then((r) => place(shellOf(r.terminal)))
         .catch((e: Error) => toast(`The terminal did not open: ${e.message}`, { tone: 'warning' }));
   };
-  const leave = (e: DragEvent, clear: () => void) => {
-    if (!e.currentTarget.contains(e.relatedTarget as globalThis.Node | null)) clear();
-  };
+  // A tab, or a thing to open, dropped among the tabs or on the pane (its middle, or an edge to split there).
+  const onBar = useDropTarget({
+    accepts: isTabDrag,
+    onOver: (e) => bar.current && setLine(slotAt(e, bar.current).x),
+    onLeave: () => setLine(null),
+    onDrop: (e) =>
+      bar.current && dropTo(e, { pane: pane.id, index: slotAt(e, bar.current).index }, { root, agent, dispatch, nameOf }, here),
+  });
+  const onBody = useDropTarget({
+    accepts: isTabDrag,
+    onOver: (e) => body.current && setZone(zoneAt(e, body.current)),
+    onLeave: () => setZone(null),
+    onDrop: (e) => {
+      if (!body.current) return;
+      const z = zoneAt(e, body.current);
+      dropTo(e, z === 'center' ? { pane: pane.id } : { pane: pane.id, edge: z }, { root, agent, dispatch, nameOf }, here);
+    },
+  });
 
   return (
     <section
@@ -198,20 +230,7 @@ function PaneView({
     >
       <div className="app-drag flex items-center border-b border-border bg-surface pr-2">
         {lead}
-        <div
-          ref={bar}
-          className="relative min-w-0 flex-1 [&>[role=tablist]]:border-b-0"
-          onDragOver={(e) => {
-            if (!isTabDrag(e) || !bar.current) return;
-            e.preventDefault();
-            setLine(slotAt(e, bar.current).x);
-          }}
-          onDragLeave={(e) => leave(e, () => setLine(null))}
-          onDrop={(e) => {
-            setLine(null);
-            if (bar.current) dropTo(e, { pane: pane.id, index: slotAt(e, bar.current).index }, { root, agent, dispatch, nameOf });
-          }}
-        >
+        <div ref={bar} className="relative min-w-0 flex-1 [&>[role=tablist]]:border-b-0" {...onBar.handlers}>
           <TabBar
             tabs={pane.tabs.map((t) => ({
               ...t,
@@ -227,7 +246,7 @@ function PaneView({
             onAdd={
               agent ? (kind, how) => pick(kind, (opens) => openFrom({ root, agent, dispatch, nameOf }, pane.id, opens, how)) : undefined
             }
-            onTabDragStart={(tab, tabs, e) => startTabDrag(e, { move: { pane: pane.id, tab, tabs } })}
+            onTabDragStart={(tab, tabs, e) => startTabDrag(e, { move: { space: here.space, pane: pane.id, tab, tabs } })}
           />
           {line !== null && <InsertLine x={line} />}
         </div>
@@ -246,22 +265,7 @@ function PaneView({
           />
         )}
       </div>
-      <div
-        ref={body}
-        className="relative flex min-h-0 min-w-0 flex-1 bg-bg"
-        onDragOver={(e) => {
-          if (!isTabDrag(e) || !body.current) return;
-          e.preventDefault();
-          setZone(zoneAt(e, body.current));
-        }}
-        onDragLeave={(e) => leave(e, () => setZone(null))}
-        onDrop={(e) => {
-          setZone(null);
-          if (!body.current) return;
-          const z = zoneAt(e, body.current);
-          dropTo(e, z === 'center' ? { pane: pane.id } : { pane: pane.id, edge: z }, { root, agent, dispatch, nameOf });
-        }}
-      >
+      <div ref={body} className="relative flex min-h-0 min-w-0 flex-1 bg-bg" {...onBody.handlers}>
         <Boundary key={`${current?.id}:${current?.opens}`} loading={null} failed={brokenView('This tab')}>
           <TabId.Provider value={current?.id ?? null}>
             <PaneOpen.Provider value={(opens, how) => openFrom({ root, agent, dispatch, nameOf }, pane.id, opens, how)}>
@@ -331,12 +335,17 @@ function SplitView({ node, dispatch, children }: { node: Split; dispatch: Dispat
 export function Workspace({
   root,
   agent,
+  space,
+  moveTabs,
   dispatch,
   reopenClosed,
   lead,
 }: {
   root: Node;
   agent: string | null;
+  /** This workspace's key: the agent's, or `page/<kind>`. */
+  space: string;
+  moveTabs: MoveTabs;
   dispatch: Dispatch;
   /** Opens the last closed tab again; a tab whose pane is gone goes to this pane. */
   reopenClosed: (pane: string) => void;
@@ -398,7 +407,11 @@ export function Workspace({
   }, []);
   // Opened from outside a pane (the sidebar): from the first pane.
   useEffect(() => setShownWorkspace((opens, how) => openFrom({ root, agent, dispatch, nameOf }, panes(root)[0].id, opens, how)));
-  return <div className="flex min-h-0 min-w-0 flex-1">{render(root, true)}</div>;
+  return (
+    <Space.Provider value={{ space, moveTabs }}>
+      <div className="flex min-h-0 min-w-0 flex-1">{render(root, true)}</div>
+    </Space.Provider>
+  );
 }
 
 /** Closes the shells of tabs being closed (a pinned tab never closes). */

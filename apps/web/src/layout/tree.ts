@@ -197,6 +197,38 @@ function move(root: Node, from: string, ids: string[], shown: string, to: Target
   return group.reduce<Node>((n, t) => onPane(n, from, (p) => withoutTab(p, t.id)), placed);
 }
 
+/** Takes tabs out of pane `from` to move them to another workspace: pinned tabs and Empty ones stay. The last pane keeps a tab bar,
+ *  as a close leaves it. */
+export function takeTabs(root: Node, from: string, ids: string[]): { root: Node; tabs: Tab[] } {
+  const src = findPane(root, from);
+  const tabs = src?.tabs.filter((t) => ids.includes(t.id) && t.closable !== false && t.opens) ?? [];
+  if (!src || !tabs.length) return { root, tabs: [] };
+  const after = tabs.reduce<Node>((n, t) => {
+    const p = findPane(n, from);
+    if (p && p.tabs.length === 1 && n.kind === 'pane') {
+      const e = emptyTab();
+      return { ...p, tabs: [e], active: e.id };
+    }
+    return onPane(n, from, (x) => withoutTab(x, t.id));
+  }, root);
+  return { root: remember(root, after), tabs };
+}
+
+/** Puts tabs taken from another workspace at `to` (the end of the first pane when omitted), `shown` up front. A thing already open
+ *  here is not opened twice: its tab comes up instead. */
+export function putTabs(root: Node, tabs: Tab[], shown: string, to: Target = { pane: panes(root)[0].id }): Node {
+  const fresh = tabs.filter((t) => !isOpen(root, t.opens!));
+  const there = tabs.find((t) => t.id === shown) ?? tabs[tabs.length - 1];
+  if (!fresh.length) return there ? reduce(root, { type: 'show', opens: there.opens!, title: there.title }) : root;
+  if (!findPane(root, to.pane)) to = { pane: panes(root)[0].id };
+  const active = fresh.some((t) => t.id === shown) ? shown : fresh[fresh.length - 1].id;
+  const { edge, index } = to;
+  return remember(
+    root,
+    onPane(root, to.pane, (p) => (edge ? attach(p, edge, pane(fresh, active)) : insert(p, fresh, index, active))),
+  );
+}
+
 /** How many closes Cmd+Shift+T can bring back, per workspace. */
 export const CLOSED_KEPT = 20;
 /** One close: the tabs it took (one, or a whole pane's) and where they stood. */

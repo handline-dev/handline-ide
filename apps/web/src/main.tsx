@@ -13,6 +13,7 @@ import { ToastHost } from '#src/ui/toast.tsx';
 import { Splitter } from '#src/ui/Splitter.tsx';
 import { useAgentLayouts } from '#src/layout/agentLayouts.ts';
 import { Workspace } from '#src/Workspace.tsx';
+import { TabsTo } from '#src/sidebar/tabDrop.ts';
 import { StatusRow } from '#src/sidebar/StatusRow.tsx';
 import { Onboarding } from '#src/onboarding/Onboarding.tsx';
 import { Settings } from '#src/settings/Settings.tsx';
@@ -26,7 +27,7 @@ function App() {
   const [open, setOpen] = useState(true);
   const [width, setWidth] = useState(sidebarWidth.initial);
   const [dragging, setDragging] = useState(false);
-  const { agent, page, layout, select, selectPage, dispatch, reopenClosed } = useAgentLayouts();
+  const { agent, page, space, layout, select, selectPage, dispatch, reopenClosed, moveTabs } = useAgentLayouts();
   const root = useRef<HTMLDivElement>(null);
   // Settings covers the app instead of taking a tab.
   const goPage = (kind: string, title: string) => (kind === 'preferences' ? openSettings() : selectPage(kind, title));
@@ -55,17 +56,19 @@ function App() {
             className="flex shrink-0 flex-col overflow-hidden bg-surface"
           >
             <div className="app-drag shrink-0" style={{ height: 'max(40px, calc(var(--controls-top, 6px) + 34px))' }} />
-            <Sidebar
-              width={width}
-              agent={agent}
-              page={page}
-              onSelectPage={goPage}
-              onSelectAgent={select}
-              onAgentSettings={(name) => {
-                select(name);
-                dispatch({ type: 'show', opens: 'settings', title: 'Settings' });
-              }}
-            />
+            <TabsTo.Provider value={(m, to) => moveTabs(m.space, m.pane, m.tabs ?? [m.tab], m.tab, to)}>
+              <Sidebar
+                width={width}
+                agent={agent}
+                page={page}
+                onSelectPage={goPage}
+                onSelectAgent={select}
+                onAgentSettings={(name) => {
+                  select(name);
+                  dispatch({ type: 'show', opens: 'settings', title: 'Settings' });
+                }}
+              />
+            </TabsTo.Provider>
           </motion.div>
           {open && (
             <Splitter
@@ -81,6 +84,8 @@ function App() {
           <Workspace
             root={layout}
             agent={agent}
+            space={space}
+            moveTabs={moveTabs}
             dispatch={dispatch}
             reopenClosed={reopenClosed}
             lead={

@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { closedBy, findPane, initial, panes, reduce, reopen, type Action, type Node, type Pane } from '#src/layout/tree.ts';
+import {
+  closedBy,
+  findPane,
+  initial,
+  panes,
+  putTabs,
+  reduce,
+  reopen,
+  takeTabs,
+  type Action,
+  type Node,
+  type Pane,
+} from '#src/layout/tree.ts';
 
 const run = (root: Node, ...actions: Action[]) => actions.reduce(reduce, root);
 const only = (root: Node) => root as Pane;
@@ -297,5 +309,28 @@ describe('reopen closed', () => {
     after = reduce(after, { type: 'open', opens: 'task:2', title: 'T2', to: { pane: first } });
     const back = reopen(after, c, first);
     expect(opens(back)).toEqual([['chat', 'task:2', 'task:1']]);
+  });
+
+  it('moves a tab to another workspace: out of its pane, pinned tabs staying, into the other one, not twice', () => {
+    const a = only(initial());
+    const from = run(a, open(a.id, 'Tasks'), open(a.id, 'Diff'));
+    const tasks = only(from).tabs[1];
+    const pinned = only(from).tabs[0];
+    const taken = takeTabs(from, a.id, [tasks.id, pinned.id]);
+    expect(taken.tabs.map((t) => t.title)).toEqual(['Tasks']);
+    expect(titles(only(taken.root))).toEqual(['Chat', 'Diff']);
+
+    const b = only(initial());
+    const to = only(putTabs(b, taken.tabs, tasks.id));
+    expect(titles(to)).toEqual(['Chat', 'Tasks']);
+    expect(to.active).toBe(tasks.id);
+    // Already open there: its own tab comes up, no second one.
+    const again = only(putTabs(to, [{ ...tasks, id: 'other' }], 'other'));
+    expect(titles(again)).toEqual(['Chat', 'Tasks']);
+  });
+
+  it('a lone moved tab leaves an Empty tab in the last pane', () => {
+    const solo: Pane = { kind: 'pane', id: 'p', tabs: [{ id: 't', title: 'Tasks', opens: 'tasks' }], active: 't' };
+    expect(titles(only(takeTabs(solo, 'p', ['t']).root))).toEqual(['Empty']);
   });
 });

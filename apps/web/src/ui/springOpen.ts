@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState, type CSSProperties, type DragEvent } from 'react';
 import { carriesFiles } from '#src/ui/fileDrop.tsx';
 
-/** How long dragged files are held over a row or a tab before it opens, in ms. */
+/** How long a drag is held over a row or a tab before it opens, in ms. */
 export const HOLD = 700;
 
 /** Spring-loading, as a file manager does it: hold dragged files over a row or a tab for a moment and it opens, so the files can be
  * dropped where it leads. Spread `props` on it: while the hold runs it has data-spring, and an outline fills around it (styles.css). */
-export function useSpringOpen(open: () => void) {
+/** `holds`: which drags spring it open; dragged files by default. */
+export function useSpringOpen(open: () => void, holds: (e: DragEvent) => boolean = carriesFiles) {
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const depth = useRef(0); // dragenter and dragleave also fire for the row's children
   const [hovering, setHovering] = useState(false);
@@ -21,7 +22,7 @@ export function useSpringOpen(open: () => void) {
       'data-spring': hovering || undefined,
       style: { '--spring-hold': `${HOLD}ms` } as CSSProperties,
       onDragEnter: (e: DragEvent) => {
-        if (!carriesFiles(e)) return;
+        if (!holds(e)) return;
         // Its own statement: React Compiler 1.0 turns a ref's `x.current++` inside a comparison into a pre-increment.
         depth.current += 1;
         if (depth.current > 1) return;
@@ -32,7 +33,7 @@ export function useSpringOpen(open: () => void) {
         }, HOLD);
       },
       onDragLeave: (e: DragEvent) => {
-        if (!carriesFiles(e)) return;
+        if (!holds(e)) return;
         depth.current -= 1;
         if (depth.current <= 0) stop();
       },
