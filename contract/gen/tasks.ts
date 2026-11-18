@@ -636,6 +636,44 @@ export interface TasksMethods {
       left_s: number;
     } | null;
   } & ReadCursor };
+  "task.changes": { params: {
+  task: number;
+  /** One of the task's commits by its hex id or a prefix of it (at least 4); not one of them, or more than one: not_found, what commit. */
+  commit?: string;
+}; result: {
+    task: number;
+    /** Oldest first. */
+    commits: {
+      sha: string;
+      /** The repo's folder name, as repos.list names it. */
+      repo: string;
+      subject: string;
+      /** The agent whose worktree has a branch holding the commit checked out; null for a landed commit or when none does. */
+      agent: string | null;
+      /** Its commit time. */
+      at: Timestamp;
+      on_main: boolean;
+      files: number;
+      added: number;
+      deleted: number;
+    }[];
+    /** The full id of the commit asked for; null for the whole task. */
+    commit: string | null;
+    /** In the diff's order. */
+    files: {
+      path: string;
+      repo: string;
+      added: number;
+      deleted: number;
+      /** A binary file counts no lines. */
+      binary: boolean;
+    }[];
+    /** Unified diff, at most 2 MB: a file that would go past it is left out whole. */
+    diff: string;
+    truncated: boolean;
+    /** The paths of the files left out of diff; they stay in files. */
+    left_out: string[];
+  } };
   "task.new": { params: {
   /** An agent, human, or gate: a task the daemon holds that watches outside state (watch) and closes when it changes. */
   owner: Who;
@@ -980,6 +1018,7 @@ export const TASKS_METHODS: { [K in keyof TasksMethods]: { role: Role; callers: 
   "task.get": { role: "agent", callers: null, write: false, since: 1 },
   "task.history": { role: "agent", callers: null, write: false, since: 1 },
   "task.time": { role: "agent", callers: null, write: false, since: 1 },
+  "task.changes": { role: "member", callers: null, write: false, since: 1 },
   "task.new": { role: "agent", callers: null, write: true, since: 1 },
   "task.handoff": { role: "agent", callers: null, write: true, since: 1 },
   "task.turn.pop": { role: "agent", callers: null, write: true, since: 1 },
@@ -1018,11 +1057,12 @@ export const TASKS_METHODS: { [K in keyof TasksMethods]: { role: Role; callers: 
 };
 
 /** x-app-cache of each read (x-app in core.json). */
-export const TASKS_APP_CACHE: { [K in "tasks.list" | "task.get" | "task.history" | "task.time" | "requests.pending" | "task.comment.recipients" | "task.board" | "lessons.list"]: { resource: string; id?: string; feed: Topic | null } | false } = {
+export const TASKS_APP_CACHE: { [K in "tasks.list" | "task.get" | "task.history" | "task.time" | "task.changes" | "requests.pending" | "task.comment.recipients" | "task.board" | "lessons.list"]: { resource: string; id?: string; feed: Topic | null } | false } = {
   "tasks.list": {"resource": "tasks", "feed": "tasks"},
   "task.get": {"resource": "task", "id": "task", "feed": "tasks"},
   "task.history": {"resource": "task-history", "id": "task", "feed": null},
   "task.time": {"resource": "task-time", "id": "task", "feed": "tasks"},
+  "task.changes": {"resource": "task-changes", "id": "task", "feed": "tasks"},
   "requests.pending": {"resource": "requests-pending", "feed": "tasks"},
   "task.comment.recipients": {"resource": "comment-recipients", "feed": "tasks"},
   "task.board": {"resource": "board", "feed": "tasks"},

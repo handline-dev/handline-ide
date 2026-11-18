@@ -133,6 +133,7 @@ const BASIC = new Set([
   'lesson.remove',
   'task.history',
   'task.time',
+  'task.changes',
   'task.new',
   'task.edit',
   'task.withdraw',
