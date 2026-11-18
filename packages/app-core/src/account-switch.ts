@@ -7,7 +7,7 @@ export type SwitchPhase = 'saving' | 'switching' | 'starting' | 'waiting';
 
 /** The words the message box shows while it is locked for a switch; a wait does not lock it. */
 export function switchWords(s: { phase: SwitchPhase; to: string | null }): string | null {
-  if (s.phase === 'saving') return 'Saving progress…';
+  if (s.phase === 'saving') return 'Preparing to change accounts…';
   if (s.phase === 'switching') return `Switching to ${s.to ?? 'another account'}…`;
   if (s.phase === 'starting') return `Starting on ${s.to ?? 'the new account'}…`;
   return null;

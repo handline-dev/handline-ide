@@ -48,6 +48,7 @@ test('the offered account leads; an account with no reading comes after those re
 });
 
 test('the box is locked while saving, switching and starting, not while waiting', () => {
+  assert.equal(switchWords({ phase: 'saving', to: null }), 'Preparing to change accounts…');
   assert.equal(switchWords({ phase: 'switching', to: 'beta' }), 'Switching to beta…');
   assert.equal(switchWords({ phase: 'waiting', to: null }), null);
 });
