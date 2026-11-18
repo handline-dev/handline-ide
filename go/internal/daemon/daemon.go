@@ -53,6 +53,7 @@ import (
 	"github.com/handline/handline/go/scheduler/settings"
 	"github.com/handline/handline/go/scheduler/sysres"
 	"github.com/handline/handline/go/taskboard/attachments"
+	"github.com/handline/handline/go/taskboard/handoff"
 	"github.com/handline/handline/go/taskboard/supervisor"
 	"github.com/handline/handline/go/taskboard/taskwrites"
 )
@@ -209,6 +210,8 @@ func Start(cfg Config) (*Daemon, error) {
 	if cfg.OnOpen != nil {
 		cfg.OnOpen(db, d.env())
 	}
+	global, _ := usage.LoadConfig(cfg.Home)[handoff.PromptKey].(string)
+	handoff.LogCustomPrompts(cfg.Home, global, handoff.OwnPrompts(cfg.Home), cfg.Log)
 	d.hooks = &hooks.Recorder{DB: db, Home: cfg.Home, Log: cfg.Log, Turns: cfg.Turns}
 	hookEnv := &session.Env{DB: db, Home: cfg.Home}
 	d.hooks.Nudge = hookEnv.FounderNudge

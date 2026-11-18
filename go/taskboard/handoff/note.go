@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/textsafe"
 )
@@ -38,19 +39,65 @@ const (
 // PromptKey is the setting that replaces AskTemplate, globally (config.yaml) or for one agent (its row).
 const PromptKey = "handoff_prompt"
 
+// NoteItems is what a handoff note holds, in order: the agent's own ask (AskTemplate) and the note Handline writes from a transcript
+// when the agent cannot be asked both list exactly these, so the two never drift.
+var NoteItems = []string{
+	"the founder's words typed to you in the terminal this session that are on no task or message: verbatim, each with its time",
+	"the exact state of the work in hand: the files you changed and what is half done in them, what is not committed, and the branch",
+	"what you were deciding and why",
+	"the next step, only when it follows from the most recent request; otherwise write 'next: none'. Do not invent work",
+	"promises or doubts not yet on any task",
+	"who you wait on, as T<n>/#<n> numbers only",
+	"what slowed you down: one line each, starting with '" + SlowedPrefix + "', naming the command, tool, rule or T number and " +
+		"what it cost (retries, a wait, a refusal), or '" + SlowedPrefix + " none' if nothing did",
+}
+
+// NumberedItems is items as one line: "(1) ...; (2) ...".
+func NumberedItems(items []string) string {
+	parts := make([]string, len(items))
+	for i, item := range items {
+		parts[i] = "(" + strconv.Itoa(i+1) + ") " + item
+	}
+	return strings.Join(parts, "; ")
+}
+
 // AskTemplate is the built-in ask, and what an empty or unset handoff_prompt falls back to. {path} is the note's file and {max} its limit
 // in characters.
-const AskTemplate = "Write your handoff to {path} now, while your prompt cache is warm, with one Write " +
+var AskTemplate = "Write your handoff to {path} now, while your prompt cache is warm, with one Write " +
 	"(replace what is there), then stop and run nothing else. The next session of you, if " +
 	"it starts fresh, reads it first: copy yourself into it. At most {max} characters, about " +
-	"30 lines, only what `hl` and your memory cannot tell it: (1) what you were deciding " +
-	"and why; (2) what you meant to do next; (3) promises or doubts not yet on any task; " +
-	"(4) the founder's preferences and the pitfalls you learned this session; (5) who you " +
-	"wait on, as T<n>/#<n> numbers only; (6) what slowed you down: one line each, starting with " +
-	"'Slowed:', naming the command, tool, rule or T number and what it cost (retries, a wait, " +
-	"a refusal), or 'Slowed: none' if nothing did. Do not restate what a task or message holds; cite " +
-	"its T or # number. A lasting lesson or preference goes to your memory first, not here. " +
+	"30 lines, only what `hl` and your memory cannot tell it: " + NumberedItems(NoteItems) + ". " +
+	"Do not restate what a task or message holds; cite its T or # number instead. " +
+	"A lasting lesson goes to `hl lesson add`, not here. " +
 	"If there is nothing, write the single word: nothing."
+
+// OwnPrompts is the agents whose row sets a handoff prompt of their own, which the global one does not reach.
+func OwnPrompts(home string) []string {
+	roster := team.NewRoster(home)
+	own := []string{}
+	for _, a := range paths.ListAgents(home) {
+		cfg, _ := roster.Read(a) // a row that cannot be read sets no prompt of its own
+		if s, _ := cfg[PromptKey].(string); strings.TrimSpace(s) != "" {
+			own = append(own, a)
+		}
+	}
+	return own
+}
+
+// LogCustomPrompts says once, at the daemon's start, where a handoff prompt of its own replaces AskTemplate, so NoteItems do not reach
+// it. own is agent keys; the log names them.
+func LogCustomPrompts(home, global string, own []string, log func(format string, a ...any)) {
+	if strings.TrimSpace(global) != "" {
+		log("handoff: config.yaml sets its own handoff_prompt; the built-in ask's items do not reach it")
+	}
+	if len(own) > 0 {
+		names := make([]string, len(own))
+		for i, key := range own {
+			names[i] = paths.AgentHandle(home, key)
+		}
+		log("handoff: %s set their own handoff_prompt; the built-in ask's items do not reach them", strings.Join(names, ", "))
+	}
+}
 
 // AskText is the ask typed for a note at path, from template (AskTemplate when it is ""). The placeholders are replaced as plain text, so
 // nothing in a founder's text is read as a format verb. A template without {path} still names the file, on a line of its own.
