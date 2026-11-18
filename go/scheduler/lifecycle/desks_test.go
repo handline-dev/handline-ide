@@ -185,3 +185,42 @@ func TestAMoveSaysWhyItMoved(t *testing.T) {
 		t.Fatalf("%q", got)
 	}
 }
+
+type heldTyping struct{ fakeTyping }
+
+func (heldTyping) TakeTerminal(string) (func(), bool) { return nil, false }
+
+// A closed agent whose folder is about to move is let go of: its session's record is taken unless it has one, and its resume id goes;
+// one that is not closed, or whose terminal a wake holds, is not.
+func TestLetGoOfResumeTakesTheRecordAndForgetsTheSession(t *testing.T) {
+	m, _, _ := newManager(t)
+	h := &recordingHandoff{q: m.Q}
+	m.Handoff = h
+	db.SetTerminal(m.Q, "a", "t1", "/wt")
+	db.SetClosed(m.Q, "a", "sess-1")
+	m.Typing = heldTyping{}
+	if ok, err := m.LetGoOfResume("a"); err != nil || ok {
+		t.Fatalf("let go while a wake holds its terminal: %v %v", ok, err)
+	}
+	m.Typing = fakeTyping{}
+	if ok, err := m.LetGoOfResume("a"); err != nil || !ok {
+		t.Fatalf("%v %v", ok, err)
+	}
+	row, _ := db.GetAgentState(m.Q, "a")
+	if rec, _ := db.GetHandoff(m.Q, "a"); rec != "record of sess-1" || row.ResumeSession.String != "" {
+		t.Fatalf("record %q, resume %q", rec, row.ResumeSession.String)
+	}
+	db.SetClosed(m.Q, "a", "sess-2") // it has a record now: that one is kept
+	if ok, _ := m.LetGoOfResume("a"); !ok || len(h.calls) != 1 {
+		t.Fatalf("the record it had was taken again: %v", h.calls)
+	}
+	if ok, _ := m.LetGoOfResume("a"); !ok {
+		t.Fatal("an agent with no session to resume holds its folder")
+	}
+	if _, err := m.Q.Exec("INSERT INTO agent_state(agent, state, updated, resume_session) VALUES('b', 'IDLE', 1, 's')"); err != nil {
+		t.Fatal(err)
+	}
+	if ok, _ := m.LetGoOfResume("b"); ok {
+		t.Fatal("an agent that is not closed was let go of")
+	}
+}
