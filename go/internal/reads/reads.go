@@ -91,6 +91,7 @@ func Register(s *rpc.Server, env Env) {
 	s.Register("task.board", rpc.Method{Handler: e.taskBoard, Read: true})
 	s.Register("task.history", rpc.Method{Handler: e.taskHistory, Read: true})
 	s.Register("task.time", rpc.Method{Handler: e.taskTime, Read: true})
+	s.Register("task.changes", rpc.Method{Handler: e.taskChanges, Read: true})
 	s.Register("events.feed", rpc.Method{Handler: e.eventsFeed, Read: true})
 	s.Register("prompt.list", rpc.Method{Handler: e.promptList, Read: true})
 	s.Register("settings.get", rpc.Method{Verbatim: true, Handler: e.settingsGet, Read: true})

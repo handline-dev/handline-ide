@@ -1,5 +1,6 @@
 // The task rows a fresh fake daemon starts with.
 import type { TaskStore } from '#src/taskstore.ts';
+import { termBuildCommits } from '#src/seedcommits.ts';
 
 /** A small tree of tasks: a parent with two children, one running, one blocked, and a done one. */
 export function seedTasks(tasks: TaskStore, at: string): void {
@@ -79,6 +80,7 @@ export function seedTasks(tasks: TaskStore, at: string): void {
     delivered: ago(180),
     time_box: '4h',
     body: 'Build the pane.',
+    commits: termBuildCommits(ago),
   });
   tasks.seed({
     id: 1690,
