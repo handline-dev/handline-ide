@@ -9,6 +9,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `task.get` | agent |  | `task` | `TaskDetail & ReadCursor` | `not_found` |  | `task` by task, fed by tasks |
 | `task.history` | agent |  | `task` | `{task, rows}` | `not_found`, `bad_request` |  | `task-history` by task, snapshot |
 | `task.time` | agent |  | `task` | `{task, start, end, segments, estimate, expected, box} & ReadCursor` | `not_found`, `bad_request` |  | `task-time` by task, fed by tasks |
+| `task.changes` | member |  | `task`, `commit?` | `{task, commits, commit, files, diff, truncated, left_out}` | `not_found`, `bad_request` |  | `task-changes` by task, fed by tasks |
 | `task.new` | agent | yes | `owner`, `reporter?`, `title`, `body?`, `time_box?`, `parent?`, `no_parent?`, `request?`, `duplicate_ok?`, `blocked_by?`, `watch?`, `priority?`, `estimate?`, `tags?`, `expects?`, `ui?`, `draft?`, `request_id` | `Accepted & {task}` | `refused` | duplicate_title | authored: new task |
 | `task.handoff` | agent | yes | `task`, `to`, `note?`, `files?`, `checked?`, `misses?`, `tests?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | not from the app |
 | `task.turn.pop` | agent | yes | `task`, `outcome`, `note?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | decided: give back |
@@ -60,6 +61,10 @@ Every change to a task, newest first: one row per field changed, with who made i
 ### `task.time`
 
 Where a task's time went, from its opening to its end (or now): segments in order that cover it with no gap or overlap, and the split of its time box. Read from what the daemon already records (the task's state events, its turns, its blockers and children, its asks of the founder, its acting agent's parks and starts); nothing is timed twice. Where two causes overlap, the stretch shows one, in this order: waiting on the founder, blocked by a task, waiting on another agent, queued, at an account's wall, starting, working.
+
+### `task.changes`
+
+What a task changed in code: its commits, found by the task named in their subject's last parenthesis ("(T9201)" or "(T9139, T9140)", T<n> as a whole token) in the repo of its owner's workspace (every agent's repo when the owner is no agent): on origin/<default branch> (landed) and on any local branch not on it, so every agent's worktree branch is seen. A change that is on two branches (a rebased copy) shows once: the landed copy, else the newest. With `commit`, the files and diff are that commit's; without, the whole task's: one range when the commits follow each other in one repo, else each file's changes from each commit in turn.
 
 ### `task.new`
 
