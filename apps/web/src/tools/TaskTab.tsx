@@ -131,7 +131,7 @@ export function TaskTab({ id }: { id: number }) {
             <header className="flex flex-col gap-3">
               <ChangeSize task={t.id} />
               <p className="text-xs text-muted">
-                Reports to {isPerson(t.asker, me) ? 'you' : t.asker} · <span title={t.created}>created {ago(t.created)}</span>
+                Reports to {isPerson(t.asker, me) ? 'you' : nameOf(t.asker)} · <span title={t.created}>created {ago(t.created)}</span>
                 {open && chain && <> · {chain}</>}
                 {t.done && (
                   <>
