@@ -50,6 +50,7 @@ import (
 	"github.com/handline/handline/go/scheduler/leases"
 	"github.com/handline/handline/go/scheduler/leasestore"
 	"github.com/handline/handline/go/scheduler/procload"
+	"github.com/handline/handline/go/scheduler/runs"
 	"github.com/handline/handline/go/scheduler/session"
 	"github.com/handline/handline/go/scheduler/settings"
 	"github.com/handline/handline/go/scheduler/sysres"
@@ -141,7 +142,8 @@ type Daemon struct {
 	tchan     *termchan.Env     // the terminal channel and the input hold
 	res       *sysres.Sampler   // what the machine and each agent use; nil when the daemon does not watch
 	load      *procload.Tracker // every process and whose it is; nil when the daemon does not watch
-	leases    *leases.Manager   // the test or build run, simulator and browser leases
+	leases    *leases.Manager   // the port leases and the shared runs' turns
+	runs      *runs.Book        // the shared runs, as the leases and the hook read them
 	holds     *inputhold.Store  // who holds each terminal's input
 	single    *lock.Hold        // the daemon singleton, held while this daemon runs
 	stop      chan struct{}     // closed by Close: the spool loop ends
@@ -227,19 +229,14 @@ func Start(cfg Config) (*Daemon, error) {
 		return (&usage.Env{Home: cfg.Home}).StartSubagent(db, agent, session, time.Now().Unix(), m)
 	}
 	ls := leasestore.Store{DB: db}
-	d.leases = &leases.Manager{Log: cfg.Log, Max: func(kind string) int { return leases.Max(usage.LoadConfig(cfg.Home), kind) },
-		Store: ls, WorkspaceOf: ls.WorkspaceOf}
+	// The kinds heavy, simulator and browser limit nothing: a shared run is what takes turns (T9277).
+	d.leases = &leases.Manager{Log: cfg.Log, Store: ls, WorkspaceOf: ls.WorkspaceOf}
+	d.runs = &runs.Book{DB: db, Log: cfg.Log}
+	d.leases.Shared, d.leases.Named = d.runs.Shared, d.runs.Named
 	d.leases.Tasks = leaseTasks{d}
 	d.leases.Ports = func() (int, int, bool) { return leases.PortRange(usage.LoadConfig(cfg.Home)) }
 	d.leases.MaxHold = func(kind string) int64 { return leases.MaxHold(usage.LoadConfig(cfg.Home), kind) }
 	d.leases.Tell = d.tellLease
-	d.leases.WorkspaceMax = func(kind string) leases.WorkspaceLimits {
-		lim, err := ls.WorkspaceMax(kind)
-		if err != nil {
-			cfg.Log("lease: reading lease_max.%s: %v", kind, err)
-		}
-		return lim
-	}
 	d.hooks.TurnEnded = func(agent, kind string) {
 		// A hold lasts the turn; a session's end also ends the commands' leases its hl use processes did not give back.
 		if kind == "SessionEnd" {
@@ -627,6 +624,7 @@ func (d *Daemon) newServer(transport string) *rpc.Server {
 	s.DeclareCapabilities(func() map[string]any { return map[string]any{"founder_typed": d.env().FounderTyped != nil} })
 	reads.Register(s, d.readsEnv())
 	leases.Register(s, d.leases)
+	runs.Register(s, d.runs, d.leases.View)
 	s.Register("connection.addresses", rpc.Method{Handler: d.connectionAddresses, Read: true})
 	stream.StampCursor(s, d.hub.Log)
 	return s

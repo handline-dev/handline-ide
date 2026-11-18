@@ -54,7 +54,42 @@ func Noun(kind string) string {
 	if kind == Heavy {
 		return "test or build run"
 	}
+	if name, ok := SharedName(kind); ok {
+		return "turn at " + name
+	}
 	return kind
+}
+
+// SharedName is the name of the shared run whose lease kind is kind (scope:name), false for a fixed kind.
+func SharedName(kind string) (string, bool) {
+	_, name, ok := strings.Cut(kind, ":")
+	return name, ok
+}
+
+// heldNamed is the kind of a shared run named name that agent holds a lease of.
+func (m *Manager) heldNamed(agent, name string) (string, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, l := range m.held {
+		if n, ok := SharedName(l.Kind); ok && n == name && l.Agent == agent {
+			return l.Kind, true
+		}
+	}
+	return "", false
+}
+
+// Word is what hl use calls kind: a shared run by its name.
+func Word(kind string) string {
+	if name, ok := SharedName(kind); ok {
+		return name
+	}
+	return kind
+}
+
+// Shared is a shared run's lease kind (scope:name) and how many may hold one at once.
+type Shared struct {
+	Kind   string
+	AtOnce int
 }
 
 // MaxKey is kind's limit key.
@@ -159,6 +194,10 @@ type span struct {
 type Manager struct {
 	// Max is kind's limit now, 0 for none.
 	Max func(kind string) int
+	// Shared is the shared runs now, in the order asks take them; nil is none. Their limits are their AtOnce.
+	Shared func() []Shared
+	// Named is the lease kind of the shared run agent knows as name (This Mac's or its workspace's), false for none; nil knows none.
+	Named func(agent, name string) (kind string, ok bool)
 	// Alive is whether a process runs; nil asks the system.
 	Alive func(pid int) bool
 	// Started is when a running process began, in epoch seconds; nil asks the system.
@@ -288,7 +327,7 @@ func (m *Manager) logf(format string, args ...any) {
 	}
 }
 
-// limits is each kind's limit, read once.
+// limits is each kind's limit, the shared runs' too, read once.
 func (m *Manager) limits() map[string]int {
 	out := map[string]int{}
 	for _, kind := range Kinds {
@@ -296,10 +335,68 @@ func (m *Manager) limits() map[string]int {
 			out[kind] = m.Max(kind)
 		}
 	}
+	if m.Shared != nil {
+		for _, s := range m.Shared() {
+			out[s.Kind] = s.AtOnce
+		}
+	}
 	if lo, hi, ok := m.portRange(); ok {
 		out[Port] = hi - lo + 1
 	}
 	return out
+}
+
+// kinds is every kind in limits, held or in line, in the order asks take them: Kinds, then the shared runs by name. A run removed while
+// it is held or asked for is among them, with no limit. The caller holds mu.
+func (m *Manager) kinds(limits map[string]int) []string {
+	seen := map[string]bool{}
+	for _, k := range Kinds {
+		seen[k] = true
+	}
+	var more []string
+	add := func(k string) {
+		if !seen[k] {
+			seen[k] = true
+			more = append(more, k)
+		}
+	}
+	for k := range limits {
+		add(k)
+	}
+	for _, l := range m.held {
+		add(l.Kind)
+	}
+	for k, q := range m.queues {
+		if len(q) > 0 {
+			add(k)
+		}
+	}
+	sort.Slice(more, func(i, j int) bool { return before(more[i], more[j]) })
+	return append(slices.Clone(Kinds), more...)
+}
+
+// before is whether shared run a is asked before b: by name, then by kind.
+func before(a, b string) bool {
+	if na, nb := Noun(a), Noun(b); na != nb {
+		return na < nb
+	}
+	return a < b
+}
+
+// rank is kind's place in the order asks take them: Kinds, then the shared runs by name.
+func rank(kind string) int {
+	if i := slices.Index(Kinds, kind); i >= 0 {
+		return i
+	}
+	return len(Kinds)
+}
+
+// after is whether a lease of a comes after one of b in the order asks take them, so one held of a may not wait for b.
+func after(a, b string) bool {
+	if ra, rb := rank(a), rank(b); ra != rb || ra < len(Kinds) {
+		return ra > rb
+	}
+	return before(b, a)
 }
 
 // free is whether a lease of kind can be granted now, and for a port the port to grant.
@@ -440,7 +537,7 @@ func (m *Manager) promote() {
 		return
 	}
 	limits := m.limits()
-	for _, kind := range Kinds {
+	for _, kind := range m.kinds(limits) {
 		if len(m.queues[kind]) == 0 {
 			continue
 		}
@@ -498,9 +595,9 @@ func (m *Manager) holdAndWait(kind, agent string, pid int) string {
 				"Nothing ran.", Noun(kind), Noun(l.Kind), l.ID)
 		}
 		mine := pid != 0 && (l.PID == pid || slices.Contains(l.Pids, pid))
-		if mine && slices.Index(Kinds, l.Kind) > slices.Index(Kinds, kind) {
+		if mine && after(l.Kind, kind) {
 			return fmt.Sprintf("Refused: no %s is free, and this command runs under a %s (lease %d); ask for both in one hl use "+
-				"(hl use %s %s -- ...). Nothing ran.", Noun(kind), Noun(l.Kind), l.ID, kind, l.Kind)
+				"(hl use %s %s -- ...). Nothing ran.", Noun(kind), Noun(l.Kind), l.ID, Word(kind), Word(l.Kind))
 		}
 	}
 	return ""
@@ -632,7 +729,7 @@ func (m *Manager) block(kind, agent, ws string, task int64, full string) error {
 	m.logf("lease: %s's T%d waits for a %s (gate T%d)", agent, task, kind, gate)
 	var later []int64 // kept while the task waits, they would be hold-and-wait: they go to the next ask
 	for _, l := range m.held {
-		if l.Reserved() && l.Task == task && slices.Index(Kinds, l.Kind) > slices.Index(Kinds, kind) {
+		if l.Reserved() && l.Task == task && after(l.Kind, kind) {
 			later = append(later, l.ID)
 		}
 	}
@@ -841,8 +938,8 @@ func (m *Manager) dropEnded() {
 	if m.Tasks == nil {
 		return
 	}
-	for _, kind := range Kinds {
-		for _, w := range append([]*waiter{}, m.queues[kind]...) {
+	for kind, q := range m.queues {
+		for _, w := range append([]*waiter{}, q...) {
 			if w.got == nil && !m.Tasks.Open(w.agent, w.task) {
 				m.unqueue(w)
 				m.forget(w.id)
@@ -890,13 +987,14 @@ type Pool struct {
 	Queue []Waiting
 }
 
-// View is every kind, in Kinds' order.
+// View is every kind and shared run, in the order asks take them.
 func (m *Manager) View() []Pool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	limits := m.limits()
-	out := make([]Pool, 0, len(Kinds))
-	for _, kind := range Kinds {
+	kinds := m.kinds(limits)
+	out := make([]Pool, 0, len(kinds))
+	for _, kind := range kinds {
 		p := Pool{Kind: kind, Max: limits[kind], Held: []Lease{}, Queue: []Waiting{}}
 		var who []string
 		for _, l := range m.held {
@@ -908,7 +1006,7 @@ func (m *Manager) View() []Pool {
 			}
 		}
 		for i, w := range m.inLine(kind) {
-			says := fmt.Sprintf("waiting for a %s, %s in line", kind, ordinal(i+1))
+			says := fmt.Sprintf("waiting for a %s, %s in line", Noun(kind), ordinal(i+1))
 			if len(who) > 0 {
 				says += ", held by " + andList(who)
 			}

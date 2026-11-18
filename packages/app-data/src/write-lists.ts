@@ -23,4 +23,7 @@ export const NOT_FROM_UI = [
   // `hl lesson add` and `hl lesson merge`: an agent keeps its own lessons; the founder only removes one (lesson.remove).
   'lesson.add',
   'lesson.merge',
+  // `hl use add` and `hl use remove`: until the Shared runs screen (T9278) writes them too.
+  'run.set',
+  'run.remove',
 ] as const;

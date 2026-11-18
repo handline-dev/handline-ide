@@ -91,65 +91,96 @@ func TestLeaseStarter(t *testing.T) {
 	}
 }
 
-func TestLeaseGuardRefusesOnlyWithALimitAndNoHold(t *testing.T) {
-	in := map[string]any{"command": "npx playwright test"}
-	browsers := func(k string) int {
-		if k == "browser" {
-			return 2
+func TestCoversByWordPrefixPathAndPreset(t *testing.T) {
+	for _, c := range []struct {
+		cmd, line string
+		want      bool
+	}{
+		{"xcodebuild", "xcodebuild -scheme App build", true},
+		{"xcodebuild", "/usr/bin/xcodebuild build", true},
+		{"xcodebuild", "xcrun simctl boot X", false},
+		{"xcodebuild", "xcodebuild -version", false},
+		{"xcodebuild", "xcodebuild -list -project A.xcodeproj", false},
+		{"tools/check.sh", "bash -x tools/check.sh", true},
+		{"go test", "go test ./...", true},
+		{"go test", "go -C go test ./x", true},
+		{"go test", "go build ./...", false},
+		{"go test", "gofmt -l .", false},
+		{"pnpm test", "pnpm test --filter web", true},
+		{"tools/check.sh", "tools/check.sh origin/main", true},
+		{"tools/check.sh", "./tools/check.sh", true},
+		{"tools/check.sh", "bash tools/check.sh origin/main", true},
+		{"tools/check.sh", "/Users/x/repo/tools/check.sh", true},
+		{"tools/check.sh", "other/tools/check.sh.bak", false},
+		{"tools/check.sh", "cat tools/check.sh", false},
+		{"tools/check.sh origin/main", "tools/check.sh origin/main", true},
+		{"tools/check.sh origin/main", "tools/check.sh", false},
+		{"@browser", "npx playwright test", true},
+		{"@browser", "npx playwright install", false},
+		{"@simulator", "xcrun simctl boot X", true},
+		{"@build-test", "cargo test", true},
+		{"@build-test", "go version", false},
+	} {
+		cmds := Commands(c.line)
+		if len(cmds) != 1 {
+			t.Fatalf("%q: %d commands", c.line, len(cmds))
 		}
-		return 0
+		if got := Covers(c.cmd, cmds[0]); got != c.want {
+			t.Errorf("%q covers %q: %v, want %v", c.cmd, c.line, got, c.want)
+		}
 	}
+}
+
+func TestRunGuardRefusesOnlyACoveredCommandWithNoTurn(t *testing.T) {
+	xcode := Run{Kind: "mac:xcode", Name: "xcode", Cmds: []string{"xcodebuild"}, AtOnce: 1, SetBy: "a2", Why: "the fans"}
+	in := map[string]any{"command": "cd app && xcodebuild build"}
 	no := func(string) bool { return false }
-	if why := LeaseGuard("Bash", in, func(string) int { return 0 }, no); why != "" {
-		t.Fatalf("no limit refused: %s", why)
+	if why := RunGuard("Bash", in, nil, no); why != "" {
+		t.Fatalf("no runs refused: %s", why)
 	}
-	if why := LeaseGuard("Bash", in, browsers, no); why != "Refused: this starts a browser outside hl use while at most 2 may run at once; nothing ran. Run hl use browser -- npx playwright test." {
-		t.Fatalf("refusal: %s", why)
+	want := "Refused: xcodebuild build is a command the shared run xcode covers (at most 1 at once, set by a2: the fans), run outside hl use; " +
+		"nothing ran. Run hl use xcode -- xcodebuild build."
+	if why := RunGuard("Bash", in, []Run{xcode}, no); why != want {
+		t.Fatalf("refusal:\n got %s\nwant %s", why, want)
 	}
-	if why := LeaseGuard("Bash", in, browsers, func(k string) bool { return k == "browser" }); why != "" {
+	if why := RunGuard("Bash", in, []Run{xcode}, func(k string) bool { return k == "mac:xcode" }); why != "" {
 		t.Fatalf("refused under the agent's own hold: %s", why)
 	}
-	if why := LeaseGuard("Bash", map[string]any{"command": "xcrun simctl boot X"}, browsers, no); why != "" {
-		t.Fatalf("a simulator refused under a browser limit: %s", why)
+	if why := RunGuard("Bash", map[string]any{"command": "hl use xcode -- xcodebuild build"}, []Run{xcode}, no); why != "" {
+		t.Fatalf("refused through hl use: %s", why)
 	}
-	boot := LeaseGuard("Bash", map[string]any{"command": "xcrun simctl boot X"}, func(string) int { return 1 }, no)
-	if !strings.HasSuffix(boot, "Run hl use simulator --hold, then xcrun simctl boot X, then hl use --release.") {
-		t.Fatalf("a boot that returns at once: %s", boot)
+	if why := RunGuard("Bash", map[string]any{"command": "echo 'xcodebuild build'"}, []Run{xcode}, no); why != "" {
+		t.Fatalf("a quoted word refused: %s", why)
 	}
-	if why := LeaseGuard("Read", in, func(string) int { return 1 }, no); why != "" {
+	if why := RunGuard("Read", in, []Run{xcode}, no); why != "" {
 		t.Fatalf("another tool refused: %s", why)
 	}
-}
-
-func TestLeaseGuardNamesATestOrBuildRun(t *testing.T) {
-	heavy := func(k string) int {
-		if k == "heavy" {
-			return 1
-		}
-		return 0
+	sim := Run{Kind: "w3:sim", Name: "sim", Cmds: []string{"@simulator"}, AtOnce: 1}
+	boot := RunGuard("Bash", map[string]any{"command": "xcrun simctl boot X"}, []Run{xcode, sim}, no)
+	if !strings.HasSuffix(boot, "Run hl use sim --hold, then xcrun simctl boot X, then hl use --release.") {
+		t.Fatalf("a boot that returns at once: %s", boot)
 	}
-	got := LeaseGuard("Bash", map[string]any{"command": "go test ./..."}, heavy, func(string) bool { return false })
-	if got != "Refused: this starts a test or build run outside hl use while at most 1 may run at once; nothing ran. Run hl use heavy -- go test ./...." {
-		t.Fatalf("got %q", got)
+	both := Run{Kind: "mac:builds", Name: "builds", Cmds: []string{"@build-test"}, AtOnce: 2}
+	if why := RunGuard("Bash", in, []Run{both, xcode}, no); !strings.Contains(why, "the shared runs builds and xcode cover") ||
+		!strings.HasSuffix(why, "Run hl use builds xcode -- xcodebuild build.") {
+		t.Fatalf("two runs: %s", why)
 	}
 }
 
-func TestLeaseGuardReadsEveryStarterInAScript(t *testing.T) {
-	limits := map[string]int{"browser": 1}
+func TestRunGuardReadsEveryCommandInAScript(t *testing.T) {
+	runs := []Run{{Kind: "mac:b", Name: "b", Cmds: []string{"@browser"}, AtOnce: 1}, {Kind: "mac:t", Name: "t", Cmds: []string{"go test"}, AtOnce: 1}}
 	held := map[string]bool{}
 	guard := func(cmd string) string {
-		return LeaseGuard("Bash", map[string]any{"command": cmd}, func(k string) int { return limits[k] }, func(k string) bool { return held[k] })
+		return RunGuard("Bash", map[string]any{"command": cmd}, runs, func(k string) bool { return held[k] })
 	}
-	// heavy has no limit, so the build lets the script through only as far as the browser after it.
-	if got := guard("go build ./x && npx playwright test"); !strings.Contains(got, "starts a browser") {
-		t.Fatalf("no limit on heavy: %q", got)
+	if got := guard("go build ./x && npx playwright test"); !strings.Contains(got, "shared run b ") {
+		t.Fatalf("the browser after a build no run covers: %q", got)
 	}
-	limits["heavy"], held["heavy"] = 1, true
-	if got := guard("go build ./x && npx playwright test"); !strings.Contains(got, "starts a browser") {
-		t.Fatalf("heavy held: %q", got)
+	if got := guard("bash -c 'go test ./x'"); !strings.Contains(got, "shared run t ") {
+		t.Fatalf("bash -c: %q", got)
 	}
-	held["browser"] = true
+	held["mac:b"] = true
 	if got := guard("go build ./x && npx playwright test"); got != "" {
-		t.Fatalf("both held: %q", got)
+		t.Fatalf("held: %q", got)
 	}
 }
