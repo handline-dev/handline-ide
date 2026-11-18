@@ -13,6 +13,8 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `folder.clone` | owner | yes | `url`, `path?`, `request_id` | `Accepted & {path}` | `refused`, `bad_request` | state | decided: clone |
 | `worktrees.list` | member |  | `repo?`, `owner?` | `{worktrees}` |  |  | `worktrees`, snapshot |
 | `worktree.diff` | member |  | `path`, `file?`, `against?` | `{path, file, diff, truncated, against, base_ref}` | `not_found`, `bad_request`, `refused` |  | `worktree-diff`, snapshot |
+| `desks.list` | agent |  | `repo?` | `{desks}` |  |  | not cached |
+| `desk.pin` | owner | yes | `desk`, `to?`, `request_id` | `Accepted` | `bad_request` |  | decided: pin a desk |
 | `files.list` | member |  | `agent`, `query?`, `limit?` | `{files, more}` | `bad_request`, `not_found` |  | `files`, snapshot |
 | `file.read` | owner |  | `agent`, `path` | `{text, size, truncated, mtime, etag}` | `bad_request`, `not_found`, `refused` |  | `file`, snapshot |
 | `file.write` | owner | yes | `agent`, `path`, `text`, `etag`, `request_id` | `{size, mtime, etag}` | `bad_request`, `not_found`, `refused` | denied, stale, too_big | decided: save file |
@@ -52,6 +54,14 @@ Worktrees with status, changed files, what each holds beyond its base and its pu
 ### `worktree.diff`
 
 Read-only git diff run by the daemon. Without `file`: the changes to tracked files against HEAD (`against` head, the default), then a new-file diff of each untracked file that .gitignore does not ignore (at most 200; one too big for what is left of the size cap is listed as `(new file, N bytes: not shown)`, not diffed). With `file`: that file alone, untracked or not.
+
+### `desks.list`
+
+The worktree pool's desks: who holds each, who had it last and when, and its pin. A desk is a worktree folder of a project that an agent takes when its session starts and gives back when it closes; the oldest used comes first. `repo` narrows them by the repo's path.
+
+### `desk.pin`
+
+Keeps a desk for one agent or the founder, so no other agent takes it; without `to` it goes to anyone again.
 
 ### `files.list`
 

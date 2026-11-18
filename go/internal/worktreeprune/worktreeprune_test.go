@@ -1,6 +1,7 @@
 package worktreeprune
 
 import (
+	"github.com/handline/handline/go/kit/store"
 	"os"
 	"path/filepath"
 	"strings"
@@ -150,5 +151,20 @@ func TestSizeIsTheBytesUnderThePath(t *testing.T) {
 	}
 	if n, err := Size(dir); err != nil || n < 64<<10 || n > 1<<20 {
 		t.Fatalf("size %d %v, want 64 KiB or a little more", n, err)
+	}
+}
+
+func TestEveryDeskIsKeptWhoeverIsSkipped(t *testing.T) {
+	d, err := store.Open(filepath.Join(t.TempDir(), "h.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	desk := t.TempDir()
+	d.Exec("INSERT INTO worktree_folders(path, repo, last_used) VALUES(?, '/r', 1)", desk)
+	for _, skip := range []string{"", "a1"} {
+		if got, err := AgentWorktrees(d, skip); err != nil || !got[Real(desk)] {
+			t.Fatalf("skip %q: %v %v", skip, got, err)
+		}
 	}
 }

@@ -825,10 +825,19 @@ func (l *Launcher) HiddenTranscripts(agent string, drv Transcripts) ([]string, e
 			configs = append(configs, l.Ports.Vendors.ConfigDir(a))
 		}
 	}
+	mine := ""
+	for _, r := range rows {
+		if r.Agent == agent {
+			mine = worktreepaths.RecordedPath(r.Worktree.String)
+		}
+	}
 	var out []string
 	for _, r := range rows {
 		if r.Agent == agent || r.Worktree.String == "" {
 			continue
+		}
+		if mine != "" && realpath(worktreepaths.RecordedPath(r.Worktree.String)) == realpath(mine) {
+			continue // a desk it now holds that another agent held before: its own transcripts are kept there too
 		}
 		first := r.Worktree.String
 		if i := strings.Index(first, "::"); i >= 0 {

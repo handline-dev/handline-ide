@@ -76,7 +76,7 @@ func AgentWorktrees(q db.Q, skip string) (map[string]bool, error) {
 	out := map[string]bool{}
 	err := recorded(q, "SELECT agent, COALESCE(worktree, ''), COALESCE(extra_worktrees, '') FROM agent_state "+
 		"UNION ALL SELECT '', path, '' FROM worktree_folders", func(agent, path string) {
-		if agent != skip {
+		if agent == "" || agent != skip { // a desk ('') is kept whoever is skipped
 			out[path] = true
 		}
 	})

@@ -23,6 +23,7 @@ import (
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/internal/adminwrites"
 	"github.com/handline/handline/go/internal/chatwrites"
+	"github.com/handline/handline/go/internal/deskrpc"
 	"github.com/handline/handline/go/internal/filerw"
 	"github.com/handline/handline/go/internal/hooks"
 	"github.com/handline/handline/go/internal/inputhold"
@@ -556,6 +557,7 @@ func (d *Daemon) writeRegistrars() []func(*rpc.Server) {
 			taskwrites.Register(s, d.cfg.Home, d.teller(), chatwrites.DecideCard(d.env(), d.teller()))
 			taskwrites.RegisterLessons(s)
 			taskwrites.RegisterReviewLevels(s)
+			deskrpc.Register(s)
 		},
 		func(s *rpc.Server) { termchan.Register(s, d.tchan) },
 	}

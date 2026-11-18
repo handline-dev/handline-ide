@@ -211,10 +211,10 @@ func (m *Manager) StartForWork(agent string) (said string, err error) {
 		check(db.ResetCounter(m.Q, agent, "wake_failures"))
 		check(db.BumpCounter(m.Q, agent, "wake_failures", states.MaxFailedAttempts-1))
 	}
-	// Its own worktree if it still has one - a terminal can be closed by a human or lost when the terminal host restarts without anything happening to
-	// the branch or to what is uncommitted in it, and a second worktree would strand the first.
-	// One recorded and gone is made again from its branch, never replaced by a fresh one without a word: that is the failed start below,
-	// saying why, which a stall then tells the agent's lead.
+	// A desk from the pool, with its branch checked out (Desks). Without a pool: its own worktree if it still has one - a terminal can be
+	// closed by a human or lost when the terminal host restarts without anything happening to the branch or to what is uncommitted in it,
+	// and a second worktree would strand the first. One recorded and gone is made again from its branch, never replaced by a fresh one
+	// without a word: that is the failed start below, saying why, which a stall then tells the agent's lead.
 	wt, gone := "", ""
 	if m.Desks != nil {
 		recorded := ""
@@ -410,7 +410,6 @@ func (m *Manager) continuesWork(agent string, row *db.AgentState) bool {
 	return h != nil && h.Step == "released" && h.Updated+db.NoteWaitStaleS >= row.ClosedAt.Int64
 }
 
-// freshFrom takes the handoff record of the closed session and lets go of its id, so the wake starts a new session with the record.
 // takeDesk is the desk agent starts in (Desks.Take over its workspace's folder), whether it is not the folder it was last in (was), and
 // why there is none.
 func (m *Manager) takeDesk(agent, was string) (desk string, moved bool, why string) {
@@ -434,6 +433,7 @@ func (m *Manager) takeDesk(agent, was string) (desk string, moved bool, why stri
 	return t.Path, moved, ""
 }
 
+// freshFrom takes the handoff record of the closed session and lets go of its id, so the wake starts a new session with the record.
 func (m *Manager) freshFrom(agent, session string) {
 	if gaps := must(m.Handoff.Record(m.Q, agent, session)); len(gaps) > 0 {
 		m.Log("  %s: handoff with gaps (could not read %s)", agent, strings.Join(gaps, ", "))

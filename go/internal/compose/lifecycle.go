@@ -24,6 +24,7 @@ import (
 	"github.com/handline/handline/go/scheduler/loadgate"
 	"github.com/handline/handline/go/scheduler/pause"
 	"github.com/handline/handline/go/scheduler/settings"
+	"github.com/handline/handline/go/scheduler/worktreelock"
 	"github.com/handline/handline/go/scheduler/worktreepool"
 	"github.com/handline/handline/go/taskboard/handoff"
 	"github.com/handline/handline/go/taskboard/supervisor"
@@ -204,8 +205,9 @@ func (p *Parts) Lifecycle(cfg Config, lc LifecycleConfig) *Lifecycle {
 	lc.Env.LoadHeld = forWork
 	lc.Env.Paused = gate.Paused
 	desks := &worktreepool.Pool{DB: q, Setup: spawns.Prepare, Now: cfg.Now,
-		Base:   func(repo string) (string, string, error) { return lifecycle.PickBase(repo, gitrun.DefaultBranch(repo)) },
-		Branch: func(agent string) string { return paths.AgentHandle(home, agent) }}
+		Running: func(repo, desk string) bool { return worktreelock.Held(repo, desk, worktreelock.Running) != "" },
+		Base:    func(repo string) (string, string, error) { return lifecycle.PickBase(repo, gitrun.DefaultBranch(repo)) },
+		Branch:  func(agent string) string { return paths.AgentHandle(home, agent) }}
 	hp := &handoffPort{env: ho, q: q, now: nowOf(cfg.Now)}
 	m := &lifecycle.Manager{Q: q, Home: home, Log: cfg.Log, Settings: settings,
 		Delivery: lc.Env, Handoff: hp, Term: termPort{tm}, Blocked: noBlocked{}, Launch: launchPort, Spawn: spawns,
