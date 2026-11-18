@@ -20,7 +20,7 @@ const (
 	ArchiveLayout = "20060102-150405"
 	// ArchiveKeep is how long an archived record is kept.
 	ArchiveKeep = 90 * 24 * time.Hour
-	// SlowedPrefix starts each line of a note that says what slowed the agent down (item 6 of AskTemplate).
+	// SlowedPrefix starts each line of a note that says what slowed the agent down (the last of NoteItems).
 	SlowedPrefix = "Slowed:"
 )
 
