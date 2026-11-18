@@ -15,7 +15,7 @@ export function ordered<A extends AgentLike>(agents: readonly A[], order: readon
  * held (a wait by design), error (a real fault), or resting. */
 export type Activity = 'working' | 'waking' | 'asleep' | 'you' | 'held' | 'error' | 'resting';
 export function activityOf(a: Pick<AgentLike, keyof DotFacts>): Activity {
-  // From the rail dot, which reads AgentView.status first: an agent at its prompt with background work running is working.
+  // From the rail dot, which reads AgentView.status first: background work at the prompt is working only while the agent owes something.
   const dot = dotOf({ ...a, has_dialog: a.has_dialog ?? false });
   if (dot === 'running') return 'working';
   if (dot === 'waking') return 'waking';

@@ -14,7 +14,7 @@ import (
 )
 
 func TestEachAgentIsServedWithItsStateAndReason(t *testing.T) {
-	r := newRig(t, "run", "ask", "crash", "idle", "gone", "work", "nap", "move", "walled", "full", "held", "bg", "loaded")
+	r := newRig(t, "run", "ask", "crash", "idle", "gone", "work", "nap", "move", "walled", "full", "held", "bg", "bgowed", "loaded")
 	r.state(t, "run", states.Running, "")
 	r.sess.alive["run"], r.sess.busy["run"] = true, true
 	r.state(t, "ask", states.Idle, "")
@@ -34,6 +34,8 @@ func TestEachAgentIsServedWithItsStateAndReason(t *testing.T) {
 	r.sess.alive["held"] = true
 	r.state(t, "bg", states.Idle, "")
 	r.sess.alive["bg"], r.bg.work["bg"] = true, true
+	r.state(t, "bgowed", states.Idle, "")
+	r.sess.alive["bgowed"], r.bg.work["bgowed"], r.bg.owes["bgowed"] = true, true, true
 	r.state(t, "loaded", states.Queued, "")
 	r.env.LoadHeld = func(agent string) string {
 		if agent == "loaded" {
@@ -76,7 +78,8 @@ func TestEachAgentIsServedWithItsStateAndReason(t *testing.T) {
 		{"walled", "stopped", "wall", "waiting for a's 5h window (100%, rolls over 04:00)", "1970-01-01T02:00:00Z", nil},
 		{"full", "stopped", "full", "waiting for a: it is paused; resume it in the app's settings", nil, nil},
 		{"held", "waiting", "task", "blocked by T2 (other)", nil, []any{float64(2)}},
-		{"bg", "running", "background", "background work", nil, nil},
+		{"bg", "idle", "background", "background work", nil, nil},
+		{"bgowed", "running", "background", "waiting for background work", nil, nil}, // backgroundDetail with no clock read
 		{"loaded", "waiting", "load", "held: machine load - 9% of memory free, limit 10%", nil, nil},
 	} {
 		r.env.RefreshOne(c.agent)

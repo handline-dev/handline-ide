@@ -44,6 +44,8 @@ type Background interface {
 	BgSince(q db.Q, agent string) (int64, bool, error)
 	BgStale(q db.Q, agent string, now int64) (bool, error)
 	BgPromptedAt(q db.Q, agent string) (int64, error)
+	// BgOwesNothing: no queued request, no open ask, no task it is doing. Background work then leaves it idle, else it is working.
+	BgOwesNothing(q db.Q, agent string) (bool, error)
 	WallReason(q db.Q, agent string, row *db.AgentState) (string, error)
 }
 
@@ -279,7 +281,7 @@ func (e *Env) word(agent string, row *db.AgentState, now int64, needs *NeedsYou,
 			return "RUNNING", ""
 		}
 		if must(e.HasBackgroundWork(e.Q, agent)) {
-			return "IDLE", e.backgroundDetail(agent, now)
+			return e.backgroundWord(agent, now)
 		}
 		return "PENDING", ""
 	case states.Parked, states.Degraded, states.Throttled:
@@ -308,9 +310,18 @@ func (e *Env) word(agent string, row *db.AgentState, now int64, needs *NeedsYou,
 		return "PENDING", ""
 	}
 	if state == states.Idle && must(e.HasBackgroundWork(e.Q, agent)) {
-		return "IDLE", e.backgroundDetail(agent, now)
+		return e.backgroundWord(agent, now)
 	}
 	return "IDLE", ""
+}
+
+// backgroundWord is the screen word of an agent at its prompt with background work, with what runs: RUNNING while it owes something,
+// since it may be waiting on the work to carry on, else IDLE. The only RUNNING with a detail, which is how status tells it from a turn.
+func (e *Env) backgroundWord(agent string, now int64) (string, string) {
+	if !must(e.BgOwesNothing(e.Q, agent)) {
+		return "RUNNING", e.backgroundDetail(agent, now)
+	}
+	return "IDLE", e.backgroundDetail(agent, now)
 }
 
 // wire is the spec's lower-case word for a screen word. A PENDING row is parked when a wake time stands in the way and queued when
@@ -456,17 +467,20 @@ func (e *Env) Compute(agent string) (view map[string]any, err error) {
 			}
 		}
 	}
+	var parent any // agents are peers; parent stays null until clients stop reading it
+	st := e.status(agent, row, state, detail, handoff, now)
 	var doing any
-	if e.Doing != nil && state == "running" {
+	if e.Doing != nil && state == "running" && st.Reason != status.Background { // no turn runs: what it last did is not what it does
 		if text, at, ok := e.Doing(agent); ok {
 			doing = map[string]any{"text": text, "at": stamp(at)}
 		}
 	}
-	var parent any // agents are peers; parent stays null until clients stop reading it
-	st := e.status(agent, row, state, detail, handoff, now)
 	jobs := e.jobs(agent, now)
 	if st.Reason == status.Background && len(jobs) > 0 {
 		st.Text = jobsText(jobs)
+		if st.State == status.Running {
+			st.Text = "waiting for " + st.Text
+		}
 	}
 	return map[string]any{
 		"name": agent, "role": e.roleLine(agent), "model": model, "effort": effort,

@@ -50,6 +50,9 @@ func (e *Env) status(agent string, row *db.AgentState, state, detail string, han
 		if row != nil && row.State == states.Handoff {
 			return at(status.Running, status.Handoff, "handing off to a new session")
 		}
+		if detail != "" { // backgroundWord: at its prompt with background work, owing something
+			return at(status.Running, status.Background, "waiting for "+detail)
+		}
 		return at(status.Running, status.Turn, "working")
 	case "starting":
 		return at(status.Starting, status.Launch, "Starting")
@@ -99,8 +102,8 @@ func (e *Env) status(agent string, row *db.AgentState, state, detail string, han
 	case "no_terminal":
 		return at(status.Off, status.None, "no terminal")
 	}
-	if row != nil && must(e.HasBackgroundWork(e.Q, agent)) {
-		return at(status.Running, status.Background, detail)
+	if row != nil && must(e.HasBackgroundWork(e.Q, agent)) { // owes nothing (backgroundWord): it takes work
+		return at(status.Idle, status.Background, detail)
 	}
 	// At its prompt with tasks the pause holds: the load gate asks only before a start, so nothing above saw them.
 	if why := pause.Why(e.Q, time.Unix(now, 0)); why != "" && len(must(db.PauseHeldTasks(e.Q, agent, time.Unix(now, 0)))) > 0 {

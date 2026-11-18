@@ -30,9 +30,11 @@ type fakeBackground struct {
 	wall    map[string]string
 	wallErr map[string]error
 	work    map[string]bool
+	owes    map[string]bool
 }
 
 func (f fakeBackground) HasBackgroundWork(_ db.Q, a string) (bool, error) { return f.work[a], nil }
+func (f fakeBackground) BgOwesNothing(_ db.Q, a string) (bool, error)     { return !f.owes[a], nil }
 func (fakeBackground) BgSince(db.Q, string) (int64, bool, error)          { return 0, false, nil }
 func (fakeBackground) BgStale(db.Q, string, int64) (bool, error)          { return false, nil }
 func (fakeBackground) BgPromptedAt(db.Q, string) (int64, error)           { return 0, nil }
@@ -66,7 +68,7 @@ func newRig(t *testing.T, structured ...string) *rig {
 	t.Cleanup(func() { d.Close() })
 	r := &rig{
 		sess: fakeSessions{map[string]bool{}, map[string]bool{}, map[string]bool{}},
-		bg:   fakeBackground{wall: map[string]string{}, wallErr: map[string]error{}, work: map[string]bool{}},
+		bg:   fakeBackground{wall: map[string]string{}, wallErr: map[string]error{}, work: map[string]bool{}, owes: map[string]bool{}},
 		pr:   fakePrompts{open: map[string]*prompts.Block{}},
 		wake: fakeWakes{would: map[string]bool{}},
 	}
@@ -606,6 +608,20 @@ func TestAnAgentsBackgroundListsItsJobsAndItsStatusNamesThem(t *testing.T) {
 	if s, _ := v["status"].(map[string]any); s["reason"] != "background" || s["text"] != "check.sh · review" {
 		t.Fatalf("status %v", s)
 	}
+	if v["state"] != "idle" || v["doing"] != nil {
+		t.Fatalf("owing nothing it is idle: %v %v", v["state"], v["doing"])
+	}
+	r.bg.owes["bg"] = true // a task it is doing: it may wait on the work to carry on
+	r.env.Doing = func(string) (string, int64, bool) { return "Bash check.sh", 4000, true }
+	if err := r.env.Refresh(); err != nil {
+		t.Fatal(err)
+	}
+	if v := r.stored(t, "bg"); v["state"] != "running" || v["doing"] != nil {
+		t.Fatalf("owing something it is working, with no turn to show: %v %v", v["state"], v["doing"])
+	} else if s, _ := v["status"].(map[string]any); s["state"] != "running" || s["reason"] != "background" || s["text"] != "waiting for check.sh · review" {
+		t.Fatalf("owed status %v", s)
+	}
+	r.bg.owes["bg"], r.env.Doing = false, nil
 	if b, _ := json.Marshal(r.stored(t, "none")["background"]); string(b) != "[]" {
 		t.Fatalf("nothing running is an empty list: %s", b)
 	}

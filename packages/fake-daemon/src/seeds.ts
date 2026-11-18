@@ -74,7 +74,14 @@ export const SEEDS: Record<string, Seed> = {
     const ago = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
     s.fx.view = {
       ...s.fx.view,
-      status: { state: 'running', reason: 'background', text: 'tools/check.sh · Review the diff', until: null, since: ago(12), tasks: [] },
+      status: {
+        state: 'idle',
+        reason: 'background',
+        text: 'tools/check.sh · Watch the deploy log for errors · Review the diff · Explore',
+        until: null,
+        since: ago(12),
+        tasks: [],
+      },
       background: [
         { kind: 'shell', label: 'tools/check.sh', since: ago(12) },
         { kind: 'monitor', label: 'Watch the deploy log for errors', since: ago(9) },
@@ -85,6 +92,17 @@ export const SEEDS: Record<string, Seed> = {
         { port: 5173, address: '127.0.0.1', command: 'node node_modules/.bin/vite', pid: 4101, since: ago(40) },
         { port: 8080, address: '0.0.0.0', command: 'python3 -m http.server 8080', pid: 4177, since: ago(6) },
       ],
+    };
+  },
+
+  /** The architect at its prompt with a task in hand and check.sh running behind it: it waits on the run to carry on, so it is working. */
+  'background-owed': (d) => {
+    const s = d.sessions.get(ARCH)!;
+    const since = new Date(Date.now() - 4 * 60_000).toISOString();
+    s.fx.view = {
+      ...s.fx.view,
+      status: { state: 'running', reason: 'background', text: 'waiting for tools/check.sh', until: null, since, tasks: [] },
+      background: [{ kind: 'shell', label: 'tools/check.sh', since }],
     };
   },
 
