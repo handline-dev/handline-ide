@@ -15,7 +15,6 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
 	"github.com/handline/handline/go/data/team"
-	"github.com/handline/handline/go/internal/fold"
 	"github.com/handline/handline/go/internal/gates"
 	"github.com/handline/handline/go/internal/housekeeping"
 	"github.com/handline/handline/go/kit/paths"
@@ -138,8 +137,6 @@ func (p *Parts) Tick(cfg Config, tc TickConfig) *Tick {
 			CollectSnapshot: func(db.Q) error { return nil }, // no screen is read
 			PollUsage:       pollUsage,
 			RelinkAccounts:  func() (map[string][]string, error) { return team.RelinkAll(home, logLine), nil },
-			Rollover:        (&fold.Env{Home: home, Today: today(cfg)}).Rollover,
-			Today:           today(cfg),
 		},
 		Cost:    &tick.CostPilot{Ports: costPorts{}},
 		Observe: tickObserve{u: uenv, home: home, now: nowOf(cfg.Now), out: newLoginMemo(home)},
@@ -248,11 +245,6 @@ func (t *Tick) Start() (done <-chan struct{}) {
 		<-gatesDone
 	}()
 	return d
-}
-
-// today is fold.today: the date on the daemon's clock, which names the day's digest.
-func today(cfg Config) func() string {
-	return func() string { return nowOf(cfg.Now)().Format("2006-01-02") }
 }
 
 // tickAgents is the agents the tick supervises: every one when terminals is set, else none.

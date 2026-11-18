@@ -88,7 +88,7 @@ One file per group, generated from `spec/<group>.json`; field types are in `prot
 
 - [core](gen/core.md): 22 methods
 - [accounts](gen/accounts.md): 14 methods
-- [agents](gen/agents.md): 37 methods
+- [agents](gen/agents.md): 36 methods
 - [chat](gen/chat.md): 20 methods
 - [devices](gen/devices.md): 5 methods
 - [repos](gen/repos.md): 15 methods
@@ -134,7 +134,6 @@ Every `hl` command an agent runs today and the method that serves it.
 | `hl hook` | `hook.record` |
 | `hl agent set` | `agent.set` |
 | `hl agent move` | `agent.move` |
-| `hl fold` | `agent.fold` |
 | `hl close` | `session.stop` |
 | `hl restart` | `session.restart` |
 | `hl resume` | `session.wake` |

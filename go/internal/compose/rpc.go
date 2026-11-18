@@ -5,8 +5,6 @@ import (
 	"fmt"
 
 	"github.com/handline/handline/go/data/db"
-	"github.com/handline/handline/go/data/team"
-	"github.com/handline/handline/go/internal/fold"
 	"github.com/handline/handline/go/internal/sessionrpc"
 	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/scheduler/lifecycle"
@@ -17,9 +15,8 @@ import (
 // SessionRPC is the env of the session methods over the lifecycle: session.start, wake, stop, restart, park and interrupt.
 func (p *Parts) SessionRPC(cfg Config) *sessionrpc.Env {
 	c := controls{p: p, lc: p.LC}
-	f := &fold.Env{Home: cfg.Home, DB: p.db, InTx: func(fn func(db.Q) error) error { return inTx(p.db, fn) }, Usage: p.LC.usage, Accounts: team.Accounts{Home: cfg.Home}, Today: today(cfg)}
 	return &sessionrpc.Env{DB: p.db, Home: cfg.Home, Controls: c, Move: c.viaMover((*lifecycle.Mover).ForceMove), SwitchNow: c.viaMover((*lifecycle.Mover).SwitchNow),
-		MoveNow: c.moveNow, CancelMove: c.cancelMove, Now: cfg.Now, Fold: f.Fold, Roster: p.LC.roster,
+		MoveNow: c.moveNow, CancelMove: c.cancelMove, Now: cfg.Now, Roster: p.LC.roster,
 		ForceStart: c.ForceStart, Unpass: c.Unpass, Launch: p.LC.prepareLaunch}
 }
 

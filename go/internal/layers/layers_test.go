@@ -61,7 +61,6 @@ var layer = map[string]int{
 	"taskboard/attachments":   3,
 	"scheduler/cronspec":      3,
 	"scheduler/dangling":      3,
-	"fold":                    3,
 	"taskboard/handoff":       3,
 	"heal":                    3,
 	"housekeeping":            3,

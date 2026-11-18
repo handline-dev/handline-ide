@@ -60,8 +60,6 @@ type Env struct {
 	InterruptTerminal func(c *rpc.Conn, agent string) error
 	// Turns closes a turn an Esc ended on screen (turns.Tracker); nil leaves it to the transcript.
 	Turns TurnEnder
-	// Fold is control.fold: fold the day's events into the agent's digest, the one model call. nil serves no agent.fold.
-	Fold func(agent string) (ok bool, said string)
 	// Marker tells whoever watches the agent's terminal that a control call happened (termchan.Env.Marker); nil tells no one.
 	Marker func(agent, kind string, actor map[string]any, text string)
 	Now    func() time.Time
@@ -128,9 +126,6 @@ func Register(s *rpc.Server, e *Env) {
 	}
 	if e.ForceStart != nil {
 		s.Register("agent.force_start", rpc.Method{Waits: true, Handler: e.forceStart})
-	}
-	if e.Fold != nil {
-		s.Register("agent.fold", rpc.Method{Handler: e.fold})
 	}
 	if e.Launch != nil {
 		s.Register("session.launch_prepare", rpc.Method{Verbatim: true, Handler: e.launchPrepare})
@@ -388,13 +383,6 @@ func (e *Env) forceStart(c *rpc.Conn, params map[string]any) (any, error) {
 			return done(false, agent+": not started - "+why, nil)
 		}
 		return done(true, strings.Replace(said, "Starting "+agent+" now", agent+" has started", 1), nil)
-	})
-}
-
-func (e *Env) fold(c *rpc.Conn, params map[string]any) (any, error) {
-	return e.run(c, "agent.fold", params, false, func(_ Call, agent string) (map[string]any, error) {
-		ok, said := e.Fold(agent)
-		return done(ok, said, nil)
 	})
 }
 

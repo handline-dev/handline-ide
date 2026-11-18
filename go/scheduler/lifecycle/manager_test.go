@@ -379,15 +379,12 @@ func TestWakePromptByCase(t *testing.T) {
 	}
 	db.SetHandoff(m.Q, "a", "the record")
 	got, _ = m.WakePrompt("a", false, WakePromptIn{WasClosed: true, ContextFull: true})
-	if strings.Contains(got, "journal") {
-		t.Fatalf("pointed at the journal: %q", got)
-	}
 	if !strings.HasPrefix(got, "Your context was full, so this is a fresh session.") || strings.Contains(got, "could not be resumed") {
 		t.Fatalf("a context-full start says why it is fresh: %q", got)
 	}
 }
 
-// A fresh session with no record is pointed at its transcript, each open task it acts on and its inbox, never at the journal.
+// A fresh session with no record is pointed at its transcript, each open task it acts on and its inbox.
 func TestAFreshStartWithNoRecordIsToldItsTasksAndInbox(t *testing.T) {
 	m, _, _ := newManager(t)
 	t1, err := db.NewTask(m.Q, "first", "a", "lead", 0, 2, "", 3600, "")
@@ -398,7 +395,7 @@ func TestAFreshStartWithNoRecordIsToldItsTasksAndInbox(t *testing.T) {
 	for _, in := range []WakePromptIn{{WasClosed: true}, {Cold: true}, {}} {
 		got, _ := m.WakePrompt("a", false, in)
 		want := fmt.Sprintf("Run `hl task show T%d`, `hl task show T%d`, `hl inbox` to see where you were", t1, t2)
-		if !strings.Contains(got, want) || !strings.Contains(got, "recorded at /t/s0.jsonl") || strings.Contains(got, "journal") {
+		if !strings.Contains(got, want) || !strings.Contains(got, "recorded at /t/s0.jsonl") {
 			t.Errorf("%+v: %q", in, got)
 		}
 	}

@@ -124,10 +124,6 @@ type Sweeps struct {
 	CollectSnapshot func(q db.Q) error
 	PollUsage       func(q db.Q) error
 	RelinkAccounts  func() (map[string][]string, error)
-	// Rollover is fold.rollover for one agent: ok, and the message.
-	Rollover func(agent string) (bool, string)
-	// Today is fold.today.
-	Today func() string
 }
 
 // Observe is what the tick's last pass records and learns from: the usage samples, the token log, the dollar pace and the account factors.

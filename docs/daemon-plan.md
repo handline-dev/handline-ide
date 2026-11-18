@@ -15,7 +15,7 @@ reads it.
 
 ## Rules that do not change
 
-- Decisions stay deterministic and fail-closed. No model call outside the fold.
+- Decisions stay deterministic and fail-closed. The one model call is the handoff note Handline writes from a transcript, and nothing waits on it past its timeout.
 - Triggers are levels read from persisted state, never edges.
 - Nothing reads, writes or copies credentials.
 - With the daemon down there is no fallback path that acts on an agent (the standing decision for
@@ -346,7 +346,7 @@ work is paused, not the plan.
 | Startup: `reconcile`, `migrate_old_messages`, `start_waiting`, `reload_pending`, founder key, daemon singleton | `lifecycle/reconciler.go`, `supervisor/messaging.go`, `tick/evaluate.go`, `sessiontoken` | the units, `compose/tick_test.go` for the start order, `daemon/ownprompts_test.go` for the lock | done |
 | Loop extras: dev-mode restart, log rotation, fd check, scratch sweep, SIGUSR1 stack dump, account relink | `tick/devmode.go`, `housekeeping/` (log rotation, fd check, SIGUSR1 stack dump; the scratch sweep is not carried over), `Sweeps.RelinkAccounts` | `tick_test.go` `TestDevMode...`, the `housekeeping` tests | done |
 | Schedules runner (cron messages typed at agents) | `schedules/schedules.go`, `compose/passes.go`; writes in `adminwrites/schedules.go` | `schedules/schedules_test.go` | done |
-| Midnight rollover and `agent.fold` (the one model call) | `fold/fold.go`, `compose/tick.go` `Rollover`, `sessionrpc` `agent.fold` | `fold/fold_test.go`, the `agent.fold` fixtures | done |
+| Midnight rollover and `agent.fold` (the one model call) | removed with the journal (T9212) | - | removed |
 | Login expiry: mark the account, move its agents | `tick/login.go`, `compose/login.go`, `handoff.AuthFailed`; `team/accounts.go` marks; the reconciler lifts the stall | their tests, and `compose/termtick_test.go` for a terminal agent | done: a `StopFailure` with `authentication_failed` on the agent's account marks it and moves the agent (terminal agents too, under `-terminal-tick`); a refusal left on the account it was moved from marks nothing; a later `UserPromptSubmit` ends it |
 | Blocked sweep, auto-accept, screen snapshots, screen-based prompt watch, folder-trust and past-dialog presses | `session/blocked.go`, `prompts/watch.go`, `lifecycle/trust.go` | their tests | dropped (no dialog auto-answers) |
 | Peer inbox delivery proven live on a real terminal agent (the scratch rehearsal cannot show it) | | | human step |

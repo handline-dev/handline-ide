@@ -60,14 +60,6 @@ const BASE: Record<string, (h: Call) => unknown> = {
     const { actor, script, agent } = h;
     return script.stopSession(agent(), 'close', actor);
   },
-  'agent.fold': (h) => {
-    const { actor, script, agent } = h;
-    const s = agent();
-    script.stopSession(s, 'close', actor);
-    s.sessionId = null; // the next session starts from the handoff, not from this conversation
-    script.control(s, actor, 'agent.fold', `${actor.name} folded the session into its handoff`);
-    return script.accepted('Folded.');
-  },
   'agent.move': (h) => {
     const { p, actor, script, agent } = h;
     const s = agent();

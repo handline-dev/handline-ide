@@ -19,8 +19,8 @@ import (
 const (
 	FiveHourMinutes = 300
 	SevenDayMinutes = 10080
-	// FoldTimeout is how long the one real turn of a recovery may take (fold.FOLD_TIMEOUT_S).
-	FoldTimeout = 180 * time.Second
+	// TurnTimeout is how long the one real turn of a recovery may take.
+	TurnTimeout = 180 * time.Second
 	openTimeout = 60 * time.Second
 	askTimeout  = 60 * time.Second
 )
@@ -114,7 +114,7 @@ func refused(err error) bool {
 	return false
 }
 
-// RunModel spends one real turn on the account (fold.run_model): the one thing that makes the CLI renew the token it is about to
+// RunModel spends one real turn on the account: the one thing that makes the CLI renew the token it is about to
 // spend. ok is whether the turn completed without an error; errType is the error the CLI named on the turn's reply (oauth_org_not_allowed,
 // authentication_failed...), "" when it named none.
 func (m *Meter) RunModel(ctx context.Context, acct, prompt, model string) (ok bool, out, errType string) {
@@ -136,7 +136,7 @@ func (m *Meter) runTurn(ctx context.Context, acct, prompt, model string, args []
 	l.Args = append(l.Args, args...)
 	done := make(chan map[string]any, 1)
 	named := make(chan string, 1)
-	c, cancel := context.WithTimeout(ctx, FoldTimeout)
+	c, cancel := context.WithTimeout(ctx, TurnTimeout)
 	defer cancel()
 	s, err := m.open(c, l, claudecli.Handlers{OnEvent: func(ev map[string]any) {
 		if e, _ := ev["error"].(string); e != "" && ev["type"] == "assistant" {
@@ -171,7 +171,7 @@ func (m *Meter) runTurn(ctx context.Context, acct, prompt, model string, args []
 		}
 		return true, strings.TrimSpace(text), ""
 	case <-c.Done():
-		return false, fmt.Sprintf("fold timed out after %ds", int(FoldTimeout.Seconds())), ""
+		return false, fmt.Sprintf("the turn timed out after %ds", int(TurnTimeout.Seconds())), ""
 	}
 }
 

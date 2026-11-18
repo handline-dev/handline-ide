@@ -112,7 +112,7 @@ func newTick(t *testing.T, agents ...string) (*Tick, *fakeReconciler, *[]string)
 // quietSweeps is a tick's sweeps that do nothing.
 func quietSweeps() Sweeps {
 	return Sweeps{CollectSnapshot: func(db.Q) error { return nil }, PollUsage: func(db.Q) error { return nil },
-		Today: func() string { return "d" }, BlockedSweep: func(db.Q, int64) {}}
+		BlockedSweep: func(db.Q, int64) {}}
 }
 
 func TestRunStallsOnlyTheAgentWhosePortFailed(t *testing.T) {

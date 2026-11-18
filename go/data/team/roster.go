@@ -453,6 +453,23 @@ func nilIfFalse(b bool) any {
 	return true
 }
 
+// RemoveEmptyJournals removes each agent's journal folder, which nothing writes any more, when it is empty; one with files in it is
+// logged and left. Removed names the folders it removed.
+func RemoveEmptyJournals(home string, log func(format string, a ...any)) (removed []string) {
+	dirs, _ := filepath.Glob(filepath.Join(paths.AgentsDir(home), "*", "journal")) // a bad pattern is no folder to remove
+	for _, dir := range dirs {
+		if fi, err := os.Lstat(dir); err != nil || !fi.IsDir() {
+			continue // only a folder: a file or a link of that name is not ours to remove
+		}
+		if err := os.Remove(dir); err == nil {
+			removed = append(removed, dir)
+		} else if !os.IsNotExist(err) {
+			log("  agents: %s left as it is: %v", dir, err)
+		}
+	}
+	return removed
+}
+
 // folders makes the agent's folders and, when it has none, its role and standing context. Its key is read through r.DB, which may be the
 // transaction that made its row.
 func (r *Roster) folders(name string, o RegisterOpts) (string, error) {
@@ -464,7 +481,7 @@ func (r *Roster) folders(name string, o RegisterOpts) (string, error) {
 		return "", &NotRegistered{name}
 	}
 	d := paths.AgentDir(r.Home, key)
-	for _, sub := range []string{"inbox", "journal", "memory"} {
+	for _, sub := range []string{"inbox", "memory"} {
 		if err := os.MkdirAll(filepath.Join(d, sub), 0o755); err != nil {
 			return "", err
 		}

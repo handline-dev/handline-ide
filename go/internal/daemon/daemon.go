@@ -212,6 +212,7 @@ func Start(cfg Config) (*Daemon, error) {
 	}
 	global, _ := usage.LoadConfig(cfg.Home)[handoff.PromptKey].(string)
 	handoff.LogCustomPrompts(cfg.Home, global, handoff.OwnPrompts(cfg.Home), cfg.Log)
+	team.RemoveEmptyJournals(cfg.Home, cfg.Log)
 	d.hooks = &hooks.Recorder{DB: db, Home: cfg.Home, Log: cfg.Log, Turns: cfg.Turns}
 	hookEnv := &session.Env{DB: db, Home: cfg.Home}
 	d.hooks.Nudge = hookEnv.FounderNudge

@@ -196,10 +196,6 @@ export type AgentDetail = AgentView & {
       ok: boolean;
       why: string | null;
     };
-    fold: {
-      ok: boolean;
-      why: string | null;
-    };
     move: {
       ok: boolean;
       why: string | null;
@@ -341,10 +337,6 @@ export interface AgentsMethods {
   values: AgentSettingValues;
   speaker?: string;
   restart?: "resume" | "fresh";
-  request_id: RequestId;
-}; result: Accepted };
-  "agent.fold": { params: {
-  agent: Who;
   request_id: RequestId;
 }; result: Accepted };
   "agent.move": { params: {
@@ -606,7 +598,6 @@ export const AGENTS_METHODS: { [K in keyof AgentsMethods]: { role: Role; callers
   "agent.timeline": { role: "member", callers: null, write: false, since: 1 },
   "agent.options": { role: "member", callers: null, write: false, since: 1 },
   "agent.set": { role: "agent", callers: ["agent", "owner"], write: true, since: 1 },
-  "agent.fold": { role: "agent", callers: null, write: true, since: 1 },
   "agent.move": { role: "agent", callers: null, write: true, since: 1 },
   "agent.move_cancel": { role: "owner", callers: null, write: true, since: 1 },
   "agent.move_now": { role: "owner", callers: null, write: true, since: 1 },
@@ -656,9 +647,8 @@ export const AGENTS_APP_CACHE: { [K in "agents.list" | "agent.get" | "agent.time
 };
 
 /** x-app-write of each write (x-app in core.json). */
-export const AGENTS_APP_WRITES: { [K in "agent.set" | "agent.fold" | "agent.move" | "agent.move_cancel" | "agent.move_now" | "agent.switch_now" | "agent.unstall" | "agent.force_start" | "agent.retire" | "agent.create" | "session.start" | "session.wake" | "session.stop" | "session.restart" | "session.compact" | "session.park" | "session.input" | "session.keys" | "session.interrupt" | "prompt.answer" | "input.take" | "input.release" | "say" | "access.grant" | "access.revoke" | "agent.review_set"]: { kind: WriteKind; label: string } | false } = {
+export const AGENTS_APP_WRITES: { [K in "agent.set" | "agent.move" | "agent.move_cancel" | "agent.move_now" | "agent.switch_now" | "agent.unstall" | "agent.force_start" | "agent.retire" | "agent.create" | "session.start" | "session.wake" | "session.stop" | "session.restart" | "session.compact" | "session.park" | "session.input" | "session.keys" | "session.interrupt" | "prompt.answer" | "input.take" | "input.release" | "say" | "access.grant" | "access.revoke" | "agent.review_set"]: { kind: WriteKind; label: string } | false } = {
   "agent.set": {"kind": "authored", "label": "set"},
-  "agent.fold": {"kind": "decided", "label": "fold"},
   "agent.move": {"kind": "decided", "label": "move"},
   "agent.move_cancel": {"kind": "decided", "label": "cancel move"},
   "agent.move_now": {"kind": "decided", "label": "move now"},

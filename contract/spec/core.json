@@ -106,7 +106,6 @@
   "hl hook": "hook.record",
   "hl agent set": "agent.set",
   "hl agent move": "agent.move",
-  "hl fold": "agent.fold",
   "hl close": "session.stop",
   "hl restart": "session.restart",
   "hl resume": "session.wake",

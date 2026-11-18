@@ -28,8 +28,8 @@ describe('the agent verb hooks, against the fake daemon', () => {
     const { store, daemon } = await connected();
     const v = probe(() => ({ run: useVerbRun(ARCH) }));
     await mount(store, v.node);
-    daemon.knobs.refuse('agent.fold', 'state', 'it is mid-turn');
-    act(() => v.get().run(VERBS.fold));
+    daemon.knobs.refuse('session.park', 'state', 'it is mid-turn');
+    act(() => v.get().run(VERBS.park));
     await until(() => !!store.error?.includes('it is mid-turn'), 'the refusal');
   });
 
