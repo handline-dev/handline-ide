@@ -338,8 +338,25 @@ func WorktreePath(recorded string) string {
 	return ""
 }
 
-// agentNoteHeading heads the note the agent wrote itself.
+// agentNoteHeading heads the note the agent wrote itself; its lines follow, indented by two spaces.
 const agentNoteHeading = "written by the agent just before the close:"
+
+// NoteOf is the note the agent wrote in a record, without its heading and indent; "" when the record has none.
+func NoteOf(record string) string {
+	var note []string
+	in := false
+	for _, l := range strings.Split(record, "\n") {
+		switch {
+		case l == agentNoteHeading:
+			in = true
+		case in && strings.HasPrefix(l, "  "):
+			note = append(note, l[2:])
+		case in:
+			in = false
+		}
+	}
+	return strings.Join(note, "\n")
+}
 
 func (e *Env) noteLines(agent string) ([]string, error) {
 	body, err := e.NoteText(agent)

@@ -114,7 +114,7 @@ func TestChatTranscriptListsTheConversationsAnAgentBeganAmongItsItems(t *testing
 		`INSERT INTO session_starts(id, agent, ts, session_id, cause, resumed, text, prompt) VALUES(4, '` + bob + `', 1004, NULL, 'start', 0, '', '')`,
 		`INSERT INTO session_starts(id, agent, ts, session_id, cause, resumed, text, prompt) VALUES(5, 'ann', 1000, 's9', 'launch', 0, '', '')`,
 		`INSERT INTO session_starts(id, agent, ts, session_id, cause, resumed, text, prompt, changed, changed_lines) VALUES(6, '` + bob + `', 1005, 's2', 'settings_applied', 1, 'a record, not given to it', '', 'model changed (opus-5-5 -> sonnet-5-5)', '[{"part":"team rules","added":["- reply in Korean"],"removed":[],"text":"# Rules\n- reply in Korean"}]')`,
-		`INSERT INTO session_starts(id, agent, ts, session_id, cause, resumed, text, prompt) VALUES(7, '` + bob + `', 1006, 's2', 'restart', 1, '', '')`,
+		`INSERT INTO session_starts(id, agent, ts, session_id, cause, resumed, text, prompt) VALUES(7, '` + bob + `', 1006, 's2', 'restart', 1, '` + "# handoff · bob\nrequest: none in progress\nwritten by the agent just before the close:\n  done: the fix\n  next: none\n\nwhere: x" + `', '')`,
 		`INSERT INTO session_starts(id, agent, ts, session_id, cause, resumed, text, prompt) VALUES(8, '` + bob + `', 1007, 's2', 'move', 1, '', '')`,
 		`INSERT INTO session_starts(id, agent, ts, session_id, cause, resumed, text, prompt) VALUES(9, '` + bob + `', 1008, 's2', 'idle_close', 1, '', '')`,
 		`INSERT INTO session_starts(id, agent, ts, session_id, cause, resumed, text, prompt, changed) VALUES(10, '` + bob + `', 1009, 's2', 'wake', 1, '', '', 'effort changed (high -> low)')`,
@@ -145,6 +145,16 @@ func TestChatTranscriptListsTheConversationsAnAgentBeganAmongItsItems(t *testing
 	restart := sessions[2]["session"].(map[string]any)
 	if restart["cause"] != "settings_applied" || restart["resumed"] != true || restart["handoff"] != nil || restart["changed"] != "model changed (opus-5-5 -> sonnet-5-5)" {
 		t.Fatalf("%v", restart)
+	}
+	// A restart says what the agent handed over at its close: its note, or null when it wrote none.
+	if v, ok := restart["handoff_note"]; !ok || v != nil {
+		t.Fatalf("a restart with no note of the agent's: %v", restart)
+	}
+	if note := sessions[3]["session"].(map[string]any); note["cause"] != "restart" || note["handoff_note"] != "done: the fix\nnext: none" || note["handoff"] != nil {
+		t.Fatalf("a restart's note: %v", note)
+	}
+	if _, ok := sessions[1]["session"].(map[string]any)["handoff_note"]; ok {
+		t.Fatal("a new conversation shows its handoff, not a note of the resume")
 	}
 	if b, _ := json.Marshal(restart["changed_lines"]); string(b) != `[{"added":["- reply in Korean"],"part":"team rules","removed":[],"text":"# Rules\n- reply in Korean"}]` {
 		t.Fatalf("changed_lines: %s", b)

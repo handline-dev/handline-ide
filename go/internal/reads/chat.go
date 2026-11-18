@@ -15,6 +15,7 @@ import (
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/taskboard/attachments"
+	"github.com/handline/handline/go/taskboard/handoff"
 	"github.com/handline/handline/go/taskboard/requestref"
 )
 
@@ -526,13 +527,21 @@ func chatStarts(db *sql.DB, where string, args ...any) ([]row, error) {
 	return query(db, "SELECT id, agent, ts, session_id, cause, resumed, changed, changed_lines, text FROM session_starts WHERE (resumed = 0 OR cause IN ('restart', 'settings_applied', 'move') OR changed != '') AND "+where+" ORDER BY id", args...)
 }
 
-// sessionFields are what a chat says of a session start. A resume's line offers no handoff: it is the same conversation, not one started from the note.
+// sessionFields are what a chat says of a session start. A resume's line offers no handoff: it is the same conversation, not one started
+// from the note. It says instead what the agent wrote in the record its close took (handoff_note), null for nothing.
 func sessionFields(s row) map[string]any {
-	var handoff any
-	if t := s.str("text"); t != "" && s.i("resumed") == 0 {
-		handoff = t
+	resumed, text := s.i("resumed") != 0, s.str("text")
+	m := map[string]any{"cause": s.str("cause"), "handoff": nil, "resumed": resumed, "changed": s.str("changed")}
+	if !resumed && text != "" {
+		m["handoff"] = text
 	}
-	m := map[string]any{"cause": s.str("cause"), "handoff": handoff, "resumed": s.i("resumed") != 0, "changed": s.str("changed")}
+	if resumed {
+		var note any
+		if n := handoff.NoteOf(text); n != "" {
+			note = n
+		}
+		m["handoff_note"] = note
+	}
 	var lines []any
 	if json.Unmarshal([]byte(s.str("changed_lines")), &lines) == nil && len(lines) > 0 {
 		m["changed_lines"] = lines

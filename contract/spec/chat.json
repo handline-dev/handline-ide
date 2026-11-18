@@ -519,6 +519,18 @@
          "$ref": "#/components/schemas/LineChange"
         },
         "description": "Lines added and removed in each part `changed` names, for the parts whose earlier text the daemon kept. Absent means none."
+       },
+       "handoff_note": {
+        "oneOf": [
+         {
+          "type": "string",
+          "description": "The note, without its heading."
+         },
+         {
+          "type": "null"
+         }
+        ],
+        "description": "On a resumed start (resumed true): the handoff note the agent wrote in the record its close took; null when the record holds none. Absent on a new conversation, whose handoff is in `handoff`, and from a daemon that does not serve it."
        }
       },
       "required": [
