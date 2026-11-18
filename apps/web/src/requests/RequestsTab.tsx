@@ -12,7 +12,7 @@ import { Button } from '#src/ui/Button.tsx';
 import { useNameOf, useProposals, useTasks } from '@handline/app-data';
 import { chatOf, taskOf } from '#src/layout/kinds.tsx';
 import { useOpenable } from '#src/layout/openable.tsx';
-import { laterWords, pickAllState, turnKey, turnRow, type Picked } from '@handline/app-core';
+import { laterWords, pickAllState, pickGroup, turnKey, turnRow, type Picked } from '@handline/app-core';
 import { useRequests } from '#src/requests/data.ts';
 import { BulkButtons, PickProvider, usePick } from '#src/requests/RowMenu.tsx';
 import { TurnLine } from '#src/requests/rows.tsx';
@@ -62,7 +62,10 @@ function Section({
   children?: ReactNode;
 }) {
   const pick = usePick();
-  const all = pick ? pickAllState(rows, pick.picked) : 'none';
+  // The box stands for one kind: the kind picked, else the top row's. All of it picked is a full check, not a part one.
+  const kind = pick?.picked.values().next().value ?? rows[0];
+  const ofKind = kind ? rows.filter((r) => pickGroup(r) === pickGroup(kind)) : rows;
+  const all = pick ? pickAllState(ofKind, pick.picked) : 'none';
   return (
     <section className="flex flex-col">
       {/* The section's name stays under the tab bar while its rows pass below it. */}
@@ -76,7 +79,7 @@ function Section({
             ref={(box) => {
               if (box) box.indeterminate = all === 'some';
             }}
-            onChange={() => pick.pickAll(rows, all !== 'all')}
+            onChange={() => pick.pickAll(ofKind, all !== 'all')}
             className="size-4 accent-accent"
           />
         )}
@@ -187,7 +190,7 @@ function Requests() {
         style={split ? { width: fitList(listWidth, boxWidth) } : undefined}
       >
         <ScrollFade keep="requests" fadeTop={false} className={`min-h-0 flex-1 ${selectionRoom(n)}`}>
-          <div className="flex flex-col gap-6 px-3 py-4 text-sm">
+          <div className="flex flex-col gap-6 pb-4 text-sm">
             {r.failed && <p className="px-2 text-danger">Requests did not load.</p>}
             {!r.loaded && !r.failed && <ListLoading label="Loading requests" />}
             {r.loaded && (
