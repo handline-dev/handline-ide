@@ -43,7 +43,7 @@ function holder(t: Task, me: string, nameOf: (key: string) => string): string {
 /** Task cards with each task in one card only, the newest it is in, which takes its changes from the cards before it; a card left
  * with no task goes. */
 export function onePerTask<R extends object>(rows: R[]): R[] {
-  const eventsOf = (r: R) => ('events' in r ? (r.events as TaskEvent[]) : null);
+  const eventsOf = (r: R): TaskEvent[] | null => ('events' in r && Array.isArray(r.events) ? r.events : null);
   const lastIn = new Map<string, number>();
   rows.forEach((r, i) => eventsOf(r)?.forEach((e) => lastIn.set(e.id, i)));
   const moved = new Map<number, TaskEvent[]>();

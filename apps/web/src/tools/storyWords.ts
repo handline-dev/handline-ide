@@ -22,7 +22,8 @@ export function wordOf(x: Task, sub: Sub | undefined, me: string, open: Set<numb
     return { text, kind: plan === 'written' ? 'you' : 'other' };
   }
   const after = startsAfter(x, open);
-  if (x.state !== 'done' && x.state !== 'discarded' && after.length) return { text: `Waiting on ${after.map((n) => `T${n}`).join(', ')}`, kind: 'waiting' };
+  if (x.state !== 'done' && x.state !== 'discarded' && after.length)
+    return { text: `Waiting on ${after.map((n) => `T${n}`).join(', ')}`, kind: 'waiting' };
   if (x.state === 'doing' && sub?.review?.redo) return { text: `Working · Redo ${sub.review.redo}`, kind: 'other' };
   return { text: look(x).word, kind: 'other' };
 }
