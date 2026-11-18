@@ -63,6 +63,7 @@ type WakePromptIn struct {
 	Desk        string // the desk it starts in, when its own folder went to another agent
 	ContextFull bool   // the last session ended with its context full
 	Waiting     string // what was waiting for a resume, "" for none
+	Stopped     string // the background work the close before this start stopped, "" for none
 	WallCut     bool   // a wall closed the session mid-work with its conversation kept (wallCutKey)
 	RestartNote string
 }
@@ -90,15 +91,19 @@ func (m *Manager) WakePrompt(agent string, resumed bool, in WakePromptIn) (text 
 	if in.RestartNote != "" && !resumed {
 		parts = append(parts, in.RestartNote)
 	}
+	stopped := ""
+	if in.Stopped != "" {
+		stopped = fmt.Sprintf("The move stopped the background work your last session still ran (%s). Start again what you still need.", in.Stopped)
+	}
 	switch {
 	case resumed && in.WallCut:
 		where := "The limit has reset"
 		if in.MovedTo != "" {
 			where = "This conversation now runs on " + in.MovedTo
 		}
-		return joinNonEmpty(in.RestartNote, where+"; your last turn stopped at the usage limit. Carry on where you stopped.", in.Waiting), nil
+		return joinNonEmpty(in.RestartNote, where+"; your last turn stopped at the usage limit. Carry on where you stopped.", stopped, in.Waiting), nil
 	case resumed:
-		return joinNonEmpty(in.RestartNote, in.Waiting), nil
+		return joinNonEmpty(in.RestartNote, stopped, in.Waiting), nil
 	case in.MovedTo != "":
 		// A move is not a close. Its handoff was taken as its session ended, and the launch has already put it in this session's system prompt.
 		why := in.MoveWhy
@@ -110,6 +115,9 @@ func (m *Manager) WakePrompt(agent string, resumed bool, in WakePromptIn) (text 
 			line = deskLine(in.Desk) + " " + line
 		}
 		parts = append(parts, line+" Your handoff is in your system prompt above; carry on from there.")
+		if stopped != "" {
+			parts = append(parts, stopped)
+		}
 	case in.Cold:
 		// The handoff is in the system prompt, and carries the transcript's path: nothing more is appended for it below.
 		record = must(db.GetHandoff(m.Q, agent))
@@ -306,6 +314,7 @@ type WakeOpts struct {
 	RestartedBy string
 	Applying    []string
 	MovedTo     string
+	Stopped     string // WakePromptIn.Stopped
 }
 
 // WakeAgent hands a cleared agent back its own handoff so it can carry on. The agent kept its account across the park, and the handoff is
@@ -690,7 +699,7 @@ func (m *Manager) wakeClosed(agent string, row *db.AgentState, wt string, o Wake
 		}
 		wt = desk
 	}
-	c := closed2{force, warm, cause, restartedBy, movedTo, moveFrom, moveWhy, movedDesk, o.Applying}
+	c := closed2{force, warm, cause, restartedBy, movedTo, moveFrom, moveWhy, movedDesk, o.Stopped, o.Applying}
 	return m.launchClosed(agent, row, wt, session, c)
 }
 
@@ -761,6 +770,7 @@ type closed2 struct {
 	movedFrom          string // set when moveElsewhere moved it: its moved_account is written at the launch
 	moveWhy            string // WakePromptIn.MoveWhy
 	desk               string // WakePromptIn.Desk
+	stopped            string // WakePromptIn.Stopped
 	applying           []string
 }
 
@@ -927,7 +937,7 @@ func (m *Manager) launchClosed(agent string, row *db.AgentState, wt, session str
 			restartNote = RestartNotice(c.restartedBy, resume, c.applying, changed)
 		}
 		text, err := m.WakePrompt(agent, resume, WakePromptIn{WasClosed: closed, MovedTo: c.movedTo, MoveWhy: c.moveWhy, Desk: c.desk, Cold: cold, ContextFull: why0 == "context_full", Waiting: waiting.text,
-			WallCut:     m.wallCut(agent, must(db.GetAgentState(m.Q, agent))),
+			Stopped: c.stopped, WallCut: m.wallCut(agent, must(db.GetAgentState(m.Q, agent))),
 			RestartNote: restartNote})
 		check(err)
 		pf, err := m.writeWakePrompt(agent, text, "txt")

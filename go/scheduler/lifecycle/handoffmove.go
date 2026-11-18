@@ -35,6 +35,9 @@ func outTrigger(kind string) bool {
 
 func usageTrigger(kind string) bool { return kind == "usage" || kind == "usage_7d" }
 
+// wallTrigger is a usage wall or the early move ahead of one.
+func wallTrigger(kind string) bool { return usageTrigger(kind) || kind == states.EarlyUsageTrigger }
+
 // parkReason is why a handoff of kind parks its agent: by hand first, then a short retry is the move waiting, then a usage wall.
 func parkReason(kind string, shortRetry bool) verdict.ParkReason {
 	switch {
@@ -259,6 +262,7 @@ func (v *Mover) moveToRoom(agent string, t HandoffTrigger, dest string) (moved, 
 	}
 	waited := must(db.GetSwitch(m.Q, agent))
 	m.noteSwitch(agent, t.Kind, here, there, db.SwitchSwitching)
+	running := v.E.BackgroundWork(m.Q, agent) // the close stops it; the next session is told
 	if ok, why := v.closeFor(agent, t.Kind); !ok {
 		v.log("  %s: staying on %s - %s", agent, here, why)
 		if waited != nil && waited.Phase == db.SwitchWaiting { // the tick's try off a parked account: the wait goes on
@@ -270,7 +274,7 @@ func (v *Mover) moveToRoom(agent string, t HandoffTrigger, dest string) (moved, 
 	failed := map[string]string{}
 	for {
 		refusedBefore, _ := must2(db.LastEventID(m.Q, agent, LaunchRefusedKind))
-		ok, wakeWhy := v.land(agent, t, here, there, why, false)
+		ok, wakeWhy := v.land(agent, t, here, there, why, running, false)
 		if ok {
 			return true, false
 		}
@@ -289,14 +293,15 @@ func (v *Mover) moveToRoom(agent string, t HandoffTrigger, dest string) (moved, 
 }
 
 // land starts the next session of an agent whose last one has closed on there, and records the move. False when nothing started: the row
-// still says closed, and parking it with a deadline is what brings a closed agent back. pastFit is a person's choice past the room test.
-func (v *Mover) land(agent string, t HandoffTrigger, here, there, why string, pastFit bool) (bool, string) {
+// still says closed, and parking it with a deadline is what brings a closed agent back. stopped is the background work the close ended, ""
+// for none. pastFit is a person's choice past the room test.
+func (v *Mover) land(agent string, t HandoffTrigger, here, there, why, stopped string, pastFit bool) (bool, string) {
 	m := v.M
 	m.noteSwitch(agent, t.Kind, here, there, db.SwitchStarting)
 	// HANDOFF protects the session that just ended; it comes off before the wake so the new session's own first turn can set RUNNING.
 	check(db.SetParked(m.Q, agent, states.Queued, 0, string(verdict.ParkMoving), fmt.Sprintf("%s %s -> %s", states.MovingMark, here, there)))
 	m.Agents.MeasureBegin(m.Q, agent, there)
-	woke, wakeWhy := m.wakeAgent(agent, WakeOpts{MovedTo: there, PastFit: pastFit, Person: pastFit})
+	woke, wakeWhy := m.wakeAgent(agent, WakeOpts{MovedTo: there, PastFit: pastFit, Person: pastFit, Stopped: stopped})
 	landed := must(db.GetAgentState(m.Q, agent))
 	if !woke && landed != nil && landed.State != states.Running && isClosed(landed) {
 		v.E.MeasureForget(m.Q, agent)
@@ -330,7 +335,7 @@ func clip(s string, n int) string {
 func (v *Mover) MoveToRoom(agent string, t HandoffTrigger) (moved bool, err error) {
 	defer catch(&err)
 	defer v.M.lockAgent(agent)()
-	if v.M.sessionBusy(agent) {
+	if !wallTrigger(t.Kind) || v.M.wallBusy(agent) {
 		return false, nil
 	}
 	moved, _ = v.moveToRoom(agent, t, "")
@@ -359,7 +364,7 @@ func (v *Mover) performHandoff(agent string, t HandoffTrigger, dest string) (boo
 	if last != nil && t.Kind != "forced" && !outTrigger(t.Kind) && now-*last < states.MinHandoffIntervalS {
 		v.log("  %s: %s fired again %ds after the last handoff - too soon, skipping", agent, t.Kind, now-*last)
 		if usageTrigger(t.Kind) && m.sessionAlive(agent) {
-			v.saving(agent, t.Kind)
+			v.saving(agent, t.Kind, "")
 		}
 		return true, nil
 	}
@@ -373,14 +378,21 @@ func (v *Mover) performHandoff(agent string, t HandoffTrigger, dest string) (boo
 	settled := t.Kind == LoginTrigger || (stopped && now-stoppedAt >= states.LimitSettleS) ||
 		((usageTrigger(t.Kind) || t.Kind == "forced") && v.E.LimitDialogOpen(agent))
 	busy := m.sessionBusy
-	if t.Kind == "context" {
-		busy = m.turnBusy // only a context clear has its own wait for background work (reclaim)
+	switch {
+	case t.Kind == "context":
+		busy = m.turnBusy // a context clear has its own wait for background work (reclaim)
+	case wallTrigger(t.Kind):
+		busy = m.wallBusy // the move stops background work nothing waits on
 	}
 	if !settled && busy(agent) {
 		if t.Kind != "forced" {
-			v.log("  %s: %s fired but the agent is mid-turn - deferring", agent, t.Kind)
+			waits := "the turn to end"
+			if jobs := v.E.BackgroundWork(m.Q, agent); jobs != "" && m.TermRun.IdleWithBackground(agent) {
+				waits = "background: " + jobs
+			}
+			v.log("  %s: %s fired - deferring, waits for %s", agent, t.Kind, waits)
 			check(db.MarkDeferred(m.Q, agent, now))
-			v.saving(agent, t.Kind)
+			v.saving(agent, t.Kind, waits)
 			return true, nil
 		}
 		return false, fmt.Errorf("%s: the forced move did not happen: a terminal's turn cannot be interrupted without typing", agent)
@@ -390,7 +402,7 @@ func (v *Mover) performHandoff(agent string, t HandoffTrigger, dest string) (boo
 	if t.Kind != "forced" && t.Kind != LoginTrigger && !settled && v.E.NoteHold(m.Q, agent, now) {
 		v.log("  %s: %s fired - waiting for its handoff note", agent, t.Kind)
 		check(db.MarkNoteWait(m.Q, agent, t.Kind, now))
-		v.saving(agent, t.Kind)
+		v.saving(agent, t.Kind, "its handoff note")
 		return true, nil
 	}
 	// A person's kept move names where any handoff takes the agent; one that cannot go there says so rather than vanish.
@@ -410,7 +422,7 @@ func (v *Mover) perform(agent string, t HandoffTrigger, dest string) bool {
 	hid := newHandoffID()
 	check(db.ClearNoteWait(m.Q, agent))
 	check(db.ClearDeferred(m.Q, agent))
-	v.saving(agent, t.Kind)
+	v.saving(agent, t.Kind, "")
 	acct := m.Agents.CurrentAccount(m.Q, agent)
 	st := m.Status.ReadForAgent(agent, acct)
 	check(db.StartHandoff(m.Q, hid, agent, st.SessionID, t.Kind, m.now()+states.HandoffDeadlineS))
