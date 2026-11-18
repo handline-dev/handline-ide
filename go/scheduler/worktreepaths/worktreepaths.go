@@ -10,6 +10,11 @@ import (
 	"github.com/handline/handline/go/data/db"
 )
 
+// Dir is where repo's worktrees live: a sibling named <repo>.worktrees.noindex, because macOS Spotlight skips everything under a folder
+// with the .noindex suffix and would otherwise index every node_modules and build output the agents churn. Worktrees made before that
+// live in <repo>.worktrees and stay there.
+func Dir(repo string) string { return repo + ".worktrees.noindex" }
+
 // WorktreePath is the directory a worktree column records, "" when there is none or it is gone.
 func WorktreePath(recorded string) string {
 	path := RecordedPath(recorded)
