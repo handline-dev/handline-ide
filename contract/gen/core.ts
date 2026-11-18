@@ -436,6 +436,10 @@ export type SettingsValues = {
   default_model_codex?: string;
   /** The effort a new codex agent gets when it is made without one; codex runs xhigh and max as high. Existing agents keep theirs. null puts back the default. */
   default_effort_codex?: "low" | "medium" | "high" | "xhigh" | "max";
+  /** Free disk to keep on the volume the daemon home is on, in GB; 0 is off, the default. Under it the daemon removes free, unpinned desks of any project, oldest first, never one holding changes, until it is back over it. */
+  disk_keep_free_gb?: number;
+  /** Most memory the agents' processes may use together, in GB; 0 is off, the default. Over it the daemon closes the longest-idle sessions one at a time, never one mid-turn; their work stays and they wake from their handoff. */
+  agents_memory_max_gb?: number;
 };
 
 /** settings.set's changes: any of SettingsValues' keys; null removes one. */

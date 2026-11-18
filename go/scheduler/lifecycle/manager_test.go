@@ -218,6 +218,28 @@ func TestShouldCloseNeedsIdleLongEnoughAndASessionToResume(t *testing.T) {
 	}
 }
 
+// Over the founder's cap on the agents' memory an idle session may close before its idle window is over, never a working one, nor one
+// with nothing to resume.
+func TestShouldCloseForMemoryWaivesTheIdleWindowOnly(t *testing.T) {
+	m, d, _ := newManager(t)
+	db.SetTerminal(m.Q, "a", "t1", "/wt")
+	row, _ := db.GetAgentState(m.Q, "a")
+	now := m.now()
+	d.idle = now - 10
+	if yes, _ := m.ShouldClose("a", states.Idle, row, now, "sess"); yes {
+		t.Fatal("within its window ShouldClose keeps it")
+	}
+	if yes, idle, err := m.ShouldCloseForMemory("a", states.Idle, row, now, "sess"); err != nil || !yes || idle != now-10 {
+		t.Fatalf("for memory it may close: %v %d %v", yes, idle, err)
+	}
+	if yes, _, _ := m.ShouldCloseForMemory("a", states.Running, row, now, "sess"); yes {
+		t.Fatal("a working agent closed for memory")
+	}
+	if yes, _, _ := m.ShouldCloseForMemory("a", states.Idle, row, now, ""); yes {
+		t.Fatal("closed for memory with no session to resume")
+	}
+}
+
 func TestClosingRecordsTheResumeAndClosesThePane(t *testing.T) {
 	m, _, tm := newManager(t)
 	db.SetTerminal(m.Q, "a", "t1", "/wt")

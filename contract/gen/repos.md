@@ -13,8 +13,9 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `folder.clone` | owner | yes | `url`, `path?`, `request_id` | `Accepted & {path}` | `refused`, `bad_request` | state | decided: clone |
 | `worktrees.list` | member |  | `repo?`, `owner?` | `{worktrees}` |  |  | `worktrees`, snapshot |
 | `worktree.diff` | member |  | `path`, `file?`, `against?` | `{path, file, diff, truncated, against, base_ref}` | `not_found`, `bad_request`, `refused` |  | `worktree-diff`, snapshot |
-| `desks.list` | agent |  | `repo?` | `{desks}` |  |  | not cached |
+| `desks.list` | agent |  | `repo?` | `{desks, kept}` |  |  | not cached |
 | `desk.pin` | owner | yes | `desk`, `to?`, `request_id` | `Accepted` | `bad_request` |  | decided: pin a desk |
+| `desks.keep` | owner | yes | `repo`, `mode`, `value?`, `request_id` | `Accepted` | `not_found`, `bad_request` |  | decided: set desks kept |
 | `files.list` | member |  | `agent`, `query?`, `limit?` | `{files, more}` | `bad_request`, `not_found` |  | `files`, snapshot |
 | `file.read` | owner |  | `agent`, `path` | `{text, size, truncated, mtime, etag}` | `bad_request`, `not_found`, `refused` |  | `file`, snapshot |
 | `file.write` | owner | yes | `agent`, `path`, `text`, `etag`, `request_id` | `{size, mtime, etag}` | `bad_request`, `not_found`, `refused` | denied, stale, too_big | decided: save file |
@@ -62,6 +63,10 @@ The worktree pool's desks: who holds each, who had it last and when, and its pin
 ### `desk.pin`
 
 Keeps a desk for one agent or the founder, so no other agent takes it; without `to` it goes to anyone again.
+
+### `desks.keep`
+
+Set how many desks a project keeps: auto (the default) or manual with a value. Owner only; kept in the protected store, which no agent can write.
 
 ### `files.list`
 
