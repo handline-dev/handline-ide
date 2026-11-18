@@ -44,39 +44,77 @@ export function Connect({ children }: { children: ReactNode }) {
     (f) => store.subscribe(f),
     () => store.error,
   );
+  const unreachable = useSyncExternalStore(
+    (f) => store.subscribe(f),
+    () => store.unreachable,
+  );
 
-  // Refused before it starts, or a failure before the daemon has answered once: the reason, not a skeleton that waits for ever.
-  if (off || (error && store.served.size === 0)) return <Stopped text={error ?? failure ?? ''} />;
+  // Refused before it starts: the reason alone, as nothing will be tried.
+  if (off) return <Stopped text={error ?? failure ?? ''} />;
   if (needsToken(url) && !token && !shellSaidNone) return <AppSkeleton />;
   if (needsToken(url) && !token) return <Pair url={url} storage={storage} lost={lost} onPaired={setToken} />;
   return (
+    // The provider stays while the daemon has not answered yet, so it keeps trying: the frame, with why it waits. A daemon that
+    // refuses this client (it is not tried again) gets the reason alone.
     <DaemonProvider store={store} where={url} connect>
-      <DataProvider daemonId={url}>{children}</DataProvider>
+      {error && store.served.size === 0 && unreachable ? (
+        <AppSkeleton>
+          <Stopped text={error} waiting />
+        </AppSkeleton>
+      ) : error && store.served.size === 0 ? (
+        <Stopped text={error} />
+      ) : (
+        <DataProvider daemonId={url}>{children}</DataProvider>
+      )}
     </DaemonProvider>
   );
 }
 
-/** The app's frame drawn empty while the page waits to connect: sidebar, main pane, status bar. */
-function AppSkeleton() {
+/** The app's frame drawn empty while the page waits to connect; `children` (why it waits) sits in the main pane. */
+function AppSkeleton({ children }: { children?: ReactNode }) {
+  const bar = (w: number, h = 'h-3.5') => <div className={`${h} rounded-sm bg-border`} style={{ width: `${w}%` }} />;
   return (
-    <div aria-busy aria-label="Loading" className="flex h-full animate-pulse flex-col">
+    <div aria-busy aria-label="Loading" className="flex h-full flex-col">
       <div className="flex min-h-0 flex-1">
-        <div className="flex w-60 shrink-0 flex-col gap-3 bg-surface px-4 pt-14">
-          {[50, 60, 45, 0, 70, 55, 65, 50].map((w, i) =>
-            w ? <div key={i} className="h-3.5 rounded-sm bg-border" style={{ width: `${w}%` }} /> : <div key={i} className="h-3" />,
-          )}
+        <div className="flex w-60 shrink-0 animate-pulse flex-col gap-3 border-r border-border bg-surface px-4 pt-14">
+          {[45, 55, 40].map((w, i) => (
+            <div key={i}>{bar(w)}</div>
+          ))}
+          <div className="my-2 h-px bg-border" />
+          {[60, 70, 50, 65, 55, 60, 45].map((w, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <div className="size-3.5 shrink-0 rounded-full bg-border" />
+              {bar(w)}
+            </div>
+          ))}
         </div>
-        <div className="flex flex-1 flex-col">
-          <div className="h-10 border-b border-border bg-surface" />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div className="flex h-10 shrink-0 animate-pulse items-center gap-2 border-b border-border px-3">
+            <div className="h-6 w-20 rounded-md bg-border" />
+            <div className="h-6 w-16 rounded-md bg-border/60" />
+          </div>
+          <div className="relative flex min-h-0 flex-1 flex-col justify-end gap-4 px-8 pb-6">
+            <div className="flex animate-pulse flex-col gap-4">
+              <div className="ml-auto h-10 w-1/3 rounded-xl bg-border/60" />
+              <div className="flex flex-col gap-2">
+                {bar(70)}
+                {bar(55)}
+              </div>
+              <div className="ml-auto h-10 w-1/4 rounded-xl bg-border/60" />
+              <div className="h-24 rounded-xl border border-border" />
+            </div>
+            {children && <div className="absolute inset-x-0 top-1/4 flex justify-center">{children}</div>}
+          </div>
         </div>
       </div>
-      <div className="h-7 border-t border-border bg-surface" />
+      <div className="h-7 shrink-0 animate-pulse border-t border-border bg-surface" />
     </div>
   );
 }
 
 /** In place of the app when it will not connect: why, and Try again when the desktop app can start its daemon. */
-function Stopped({ text }: { text: string }) {
+/** `waiting`: it is still trying, so the words are not an error's. */
+function Stopped({ text, waiting = false }: { text: string; waiting?: boolean }) {
   const [daemon, setDaemon] = useState<ShellDaemon | null>(null);
   useEffect(() => shell()?.onDaemon?.(setDaemon), []);
   const [tried, setTried] = useState(false);
@@ -85,9 +123,9 @@ function Stopped({ text }: { text: string }) {
   }, [tried, daemon?.state]);
   const failed = daemon?.state === 'failed';
   return (
-    <div role="alert" className="mx-auto mt-32 flex max-w-sm flex-col gap-3 px-4 text-sm">
+    <div role="alert" className="mx-auto flex max-w-sm flex-col gap-3 rounded-lg border border-border bg-bg px-4 py-3 text-sm shadow-sm">
       {failed && <h1 className="text-lg font-semibold text-fg">Handline could not start</h1>}
-      <p className="text-danger">{failed && daemon.reason ? daemon.reason : text}</p>
+      <p className={waiting && !failed ? 'text-muted' : 'text-danger'}>{failed && daemon.reason ? daemon.reason : text}</p>
       {failed && daemon.canStart && (
         <Button
           variant="primary"
