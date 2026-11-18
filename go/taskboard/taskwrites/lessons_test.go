@@ -1,11 +1,13 @@
 package taskwrites
 
 import (
+	"database/sql"
 	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/handline/handline/go/data/team/teamtest"
+	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/protocol/rpc"
 )
@@ -17,15 +19,7 @@ func TestAnAgentKeepsItsLessonsAndTheFounderRemovesOne(t *testing.T) {
 	d := teamtest.Seed(t, home, "gp", "gp.worker", "gp.other")
 	worker := teamtest.Key(t, home, "gp.worker")
 	exec(t, d, fmt.Sprintf("INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'story part', %q, 'gp', 1), (2, 'not mine', 'gp.other', 'gp', 1)", worker))
-	n := 0
-	as := func(agent, method, params string) map[string]any {
-		t.Helper()
-		n++
-		s := rpc.NewServer(auth{agent}, "x", store.LatestVersion(), "local", func(string, ...any) {})
-		s.DB = d
-		RegisterLessons(s)
-		return call(t, s, fmt.Sprintf(`{"jsonrpc":"2.0","id":2,"method":%q,"params":{%s"request_id":"r%d"}}`, method, params, n))[0]
-	}
+	as := lessonCaller(t, d)
 	id := func(r map[string]any) float64 {
 		t.Helper()
 		res, _ := r["result"].(map[string]any)
@@ -49,7 +43,7 @@ func TestAnAgentKeepsItsLessonsAndTheFounderRemovesOne(t *testing.T) {
 	for i := 0; ; i++ {
 		r := as(worker, "lesson.add", fmt.Sprintf(`"text":%q,"task":1,`, long))
 		if got := errText(r); got != "" {
-			if !strings.Contains(got, "hl lesson merge") {
+			if !strings.Contains(got, "hl lesson merge") || strings.Contains(got, "--said") {
 				t.Fatalf("a full set: %q", got)
 			}
 			break
@@ -76,5 +70,82 @@ func TestAnAgentKeepsItsLessonsAndTheFounderRemovesOne(t *testing.T) {
 		if text := it.(map[string]any)["text"]; text != long {
 			t.Errorf("listed %v after its merge and removal", text)
 		}
+	}
+}
+
+// A lesson about the founder cites their own words (a comment or a message of theirs), is kept under their key by whichever agent adds
+// it, any agent may merge them, and their own cap is apart from each agent's.
+func TestALessonAboutTheFounderCitesTheirWordsAndHasItsOwnCap(t *testing.T) {
+	home := t.TempDir()
+	d := teamtest.Seed(t, home, "gp", "gp.worker", "gp.other")
+	worker, other := teamtest.Key(t, home, "gp.worker"), teamtest.Key(t, home, "gp.other")
+	founder, err := addr.OwnerOf(d, worker)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exec(t, d, fmt.Sprintf("INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'story part', %q, 'gp', 1)", worker))
+	exec(t, d, fmt.Sprintf("INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(7, 1, %q, 'in Korean, please', 1), (8, 1, %q, 'noted', 2)",
+		founder, worker))
+	exec(t, d, fmt.Sprintf("INSERT INTO requests(id, ts, requester, target, body, state, kind, ref) VALUES(5, 1, %q, %q, 'short, please', 'landed', 'say', 'abcdef123456')",
+		founder, worker))
+	as := lessonCaller(t, d)
+	if got := errText(as(worker, "lesson.add", `"text":"write in Korean","task":1,"about":"founder",`)); !strings.Contains(got, "said names the founder's own words") {
+		t.Errorf("no citation: %q", got)
+	}
+	if got := errText(as(worker, "lesson.add", `"text":"write in Korean","task":1,"about":"founder","said":8,`)); !strings.Contains(got, "comment 8 is not the founder's") {
+		t.Errorf("an agent's comment cited: %q", got)
+	}
+	for _, said := range []string{`7`, `"msg_abcdef1"`} {
+		if r := as(worker, "lesson.add", `"text":"write in Korean","task":1,"about":"founder","said":`+said+`,`); errText(r) != "" {
+			t.Fatalf("said %s: %v", said, r)
+		}
+	}
+	list := func(whose string) []any {
+		t.Helper()
+		return as(worker, "lessons.list", fmt.Sprintf(`"agent":%q,`, whose))["result"].(map[string]any)["items"].([]any)
+	}
+	items := list(founder)
+	if len(items) != 2 || items[0].(map[string]any)["text"] != "write in Korean (the founder, comment 7)" ||
+		items[1].(map[string]any)["text"] != "write in Korean (the founder, msg_abcdef1)" || items[0].(map[string]any)["created_by"] != worker {
+		t.Fatalf("the founder's lessons: %v", items)
+	}
+	if len(list(worker)) != 0 {
+		t.Error("a lesson about the founder is kept as the agent's own")
+	}
+	ids := fmt.Sprintf(`[%v,%v]`, items[0].(map[string]any)["id"], items[1].(map[string]any)["id"])
+	if r := as(other, "lesson.merge", `"ids":`+ids+`,"text":"write in Korean","about":"founder","said":7,`); errText(r) != "" {
+		t.Fatalf("another agent's merge of the founder's: %v", r)
+	}
+	if items := list(founder); len(items) != 1 || items[0].(map[string]any)["created_by"] != other {
+		t.Fatalf("after the merge: %v", items)
+	}
+	long := strings.Repeat("y", 460)
+	for i := 0; ; i++ {
+		got := errText(as(worker, "lesson.add", fmt.Sprintf(`"text":%q,"task":1,"about":"founder","said":7,`, long)))
+		if got != "" {
+			if !strings.Contains(got, "--about founder --said") {
+				t.Fatalf("the founder's full set: %q", got)
+			}
+			break
+		}
+		if i > 10 {
+			t.Fatal("never full")
+		}
+	}
+	if got := errText(as(worker, "lesson.add", `"text":"say what is left out","task":1,`)); got != "" {
+		t.Errorf("the founder's full set stopped the agent's own: %q", got)
+	}
+}
+
+// lessonCaller calls a lessons method on d as agent ("" for the founder), each call with a request id of its own.
+func lessonCaller(t *testing.T, d *sql.DB) func(agent, method, params string) map[string]any {
+	n := 0
+	return func(agent, method, params string) map[string]any {
+		t.Helper()
+		n++
+		s := rpc.NewServer(auth{agent}, "x", store.LatestVersion(), "local", func(string, ...any) {})
+		s.DB = d
+		RegisterLessons(s)
+		return call(t, s, fmt.Sprintf(`{"jsonrpc":"2.0","id":2,"method":%q,"params":{%s"request_id":"r%d"}}`, method, params, n))[0]
 	}
 }

@@ -41,8 +41,8 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `task.redo` | member | yes | `task`, `note`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | decided: Redo |
 | `task.plan_ask` | member | yes | `task`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | decided: ask for a plan |
 | `task.core_ask` | member | yes | `task`, `note?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | decided: ask for core logic |
-| `lesson.add` | agent (only agent) | yes | `text`, `task`, `request_id` | `Accepted & {id}` | `refused`, `not_found`, `bad_request` |  | not from the app |
-| `lesson.merge` | agent (only agent) | yes | `ids`, `text`, `request_id` | `Accepted & {id}` | `refused`, `bad_request` |  | not from the app |
+| `lesson.add` | agent (only agent) | yes | `text`, `task`, `about?`, `said?`, `request_id` | `Accepted & {id}` | `refused`, `not_found`, `bad_request` |  | not from the app |
+| `lesson.merge` | agent (only agent) | yes | `ids`, `text`, `about?`, `said?`, `request_id` | `Accepted & {id}` | `refused`, `bad_request` |  | not from the app |
 | `lessons.list` | agent |  | `agent?` | `{agent, items, bytes, cap}` |  |  | not cached |
 | `lesson.remove` | owner | yes | `id`, `request_id` | `Accepted` | `not_found`, `bad_request` |  | decided: remove a lesson |
 
@@ -192,15 +192,15 @@ Ask the task's assignee to write only its key function and that function's test,
 
 ### `lesson.add`
 
-An agent keeps one thing it learned (from a Redo, on task): its next sessions start with it in their launch prompt. Writes a `lesson` event on the task. Refused (`refused`) when the agent's lessons would pass their 3 KB limit (the prompt section): merge similar ones first with lesson.merge. Not found: no such task.
+An agent keeps one thing it learned (from a Redo, on task): its next sessions start with it in their launch prompt; with about founder, a preference of the founder's that every agent's next session starts with. Writes a `lesson` event on the task. Refused (`refused`) when the lessons would pass their 3 KB limit (the prompt section; the founder's have their own): merge similar ones first with lesson.merge; or when said is not the founder's. Not found: no such task.
 
 ### `lesson.merge`
 
-An agent replaces two or more of its live lessons with one: they are kept, marked merged into it; its task is the newest source's that names one. Refused (`refused`): an id that is not one of the caller's live lessons, or a merge still past the 3 KB limit.
+An agent replaces two or more of its live lessons (or with about founder, of the founder's) with one: they are kept, marked merged into it; its task is the newest source's that names one. Refused (`refused`): an id that is not one of the caller's live lessons, or a merge still past the 3 KB limit.
 
 ### `lessons.list`
 
-An agent's live lessons, oldest first, as its launch prompt carries them, and how many of the limit's bytes they take.
+An agent's live lessons (or the founder's preferences), oldest first, as the launch prompt carries them, and how many of the limit's bytes they take.
 
 ### `lesson.remove`
 

@@ -39,7 +39,8 @@ export function taskCall(
       case 'requests.pending':
         return tasks.pending();
       case 'lessons.list':
-        return tasks.lessonsOf(typeof p.agent === 'string' && p.agent ? p.agent : person);
+        // human is the founder, whose preferences are kept under their key (p1, as names.list has it)
+        return tasks.lessonsOf(p.agent === 'human' ? 'p1' : typeof p.agent === 'string' && p.agent ? p.agent : person);
       case 'lesson.remove':
         if (!Number.isInteger(p.id)) throw invalidParams('id is a lesson number', 'id');
         if (!tasks.removeLesson(Number(p.id))) throw new Failure('not_found', `no lesson ${String(p.id)}`, { what: 'lesson' });

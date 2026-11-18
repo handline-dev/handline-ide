@@ -9,14 +9,17 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/protocol/rpc"
+	"github.com/handline/handline/go/taskboard/requestref"
 )
 
 // lessonMost is the most bytes one lesson takes, so no one lesson fills the cap.
 const lessonMost = 500
 
-// RegisterLessons serves what agents learned: an agent adds and merges its own, anyone reads them, the owner removes one.
+// RegisterLessons serves what agents learned: an agent adds and merges its own and the founder's (about: founder), anyone reads them, the
+// owner removes one.
 func RegisterLessons(s *rpc.Server) {
 	s.Register("lesson.add", rpc.Method{Handler: lessonAdd})
 	s.Register("lesson.merge", rpc.Method{Handler: lessonMerge})
@@ -37,9 +40,64 @@ func lessonText(p map[string]any) (string, error) {
 }
 
 // fullRefusal is the add or merge past the cap, saying how to make room.
-func fullRefusal() error {
-	return refusal(fmt.Sprintf("your lessons are at their %d-byte limit: merge similar ones with `hl lesson merge <ids> \"<text>\"` "+
-		"(`hl lesson list` shows their ids), then add this one", db.LessonsCap))
+func fullRefusal(founder bool) error {
+	whose, merge, list := "your lessons are", `hl lesson merge <ids> "<text>"`, "hl lesson list"
+	if founder {
+		whose, merge, list = "the founder's preferences are", `hl lesson merge <ids> "<text>" --about founder --said <comment|msg>`, "hl lesson list founder"
+	}
+	return refusal(fmt.Sprintf("%s at their %d-byte limit: merge similar ones with `%s` (`%s` shows their ids), then add this one",
+		whose, db.LessonsCap, merge, list))
+}
+
+// aboutFounder is whether a lesson write is about the caller's founder (about: founder) rather than its own.
+func aboutFounder(p map[string]any) (bool, error) {
+	switch about, _ := p["about"].(string); about {
+	case "":
+		return false, nil
+	case "founder":
+		return true, nil
+	default:
+		return false, badParam("about is founder, or left out for your own lesson", "about")
+	}
+}
+
+// whose is the key a lesson write is kept under: the caller's, or its owner's for one about the founder.
+func whose(tx *sql.Tx, me string, founder bool) (string, error) {
+	if !founder {
+		return me, nil
+	}
+	return addr.OwnerOf(tx, me)
+}
+
+// cited is text with the founder's words it comes from named after it: said is one of their comments (its number) or messages (msg_<hash>).
+// Without said, or with one the founder did not write, a lesson about them is refused: who said it must be kept.
+func cited(tx *sql.Tx, p map[string]any, text, me, founder string) (string, error) {
+	v, ok := p["said"]
+	if !ok || v == nil {
+		return "", badParam("said names the founder's own words this comes from: a comment number or a msg_<hash>", "said")
+	}
+	if n, ok := rpc.AsInt(v); ok {
+		m, err := db.GetMemo(tx, n)
+		if err != nil {
+			return "", err
+		}
+		if m == nil || m.Author != founder {
+			return "", refusal(fmt.Sprintf("comment %d is not the founder's: cite a comment or message the founder wrote", n))
+		}
+		return fmt.Sprintf("%s (the founder, comment %d)", text, n), nil
+	}
+	rid, err := requestref.Resolve(tx, v, me, "said")
+	if err != nil {
+		return "", err
+	}
+	var requester string
+	if err := tx.QueryRow("SELECT requester FROM requests WHERE id = ?", rid).Scan(&requester); err != nil {
+		return "", err
+	}
+	if requester != founder {
+		return "", refusal(fmt.Sprintf("%v is not the founder's: cite a comment or message the founder wrote", v))
+	}
+	return fmt.Sprintf("%s (the founder, %s)", text, db.MsgName(tx, rid)), nil
 }
 
 func lessonAdd(c *rpc.Conn, p map[string]any) (any, error) {
@@ -52,7 +110,15 @@ func lessonAdd(c *rpc.Conn, p map[string]any) (any, error) {
 		return nil, err
 	}
 	me := c.Caller.Actor()
+	founder, err := aboutFounder(p)
+	if err != nil {
+		return nil, err
+	}
 	return c.Effect(func(tx *sql.Tx) (map[string]any, error) {
+		agent, err := whose(tx, me, founder)
+		if err != nil {
+			return nil, err
+		}
 		t, err := getTask(tx, tid)
 		if err != nil {
 			return nil, err
@@ -63,14 +129,23 @@ func lessonAdd(c *rpc.Conn, p map[string]any) (any, error) {
 		if t.Owner != me && t.Acting != me {
 			return nil, refusal(fmt.Sprintf("T%d is not your task: keep a lesson on a task you work", tid))
 		}
-		id, err := db.AddLesson(tx, me, s, tid, me)
+		if founder {
+			if s, err = cited(tx, p, s, me, agent); err != nil {
+				return nil, err
+			}
+		}
+		id, err := db.AddLesson(tx, agent, s, tid, me)
 		if errors.Is(err, db.ErrLessonsFull) {
-			return nil, fullRefusal()
+			return nil, fullRefusal(founder)
 		}
 		if err != nil {
 			return nil, err
 		}
-		return accepted(fmt.Sprintf("Lesson %d kept: your next session starts with it", id), map[string]any{"id": id}), nil
+		next := "your next session starts with it"
+		if founder {
+			next = "every agent's next session starts with it"
+		}
+		return accepted(fmt.Sprintf("Lesson %d kept: %s", id, next), map[string]any{"id": id}), nil
 	})
 }
 
@@ -91,15 +166,28 @@ func lessonMerge(c *rpc.Conn, p map[string]any) (any, error) {
 		}
 	}
 	if len(ids) < 2 {
-		return nil, badParam("ids are two or more different lessons of yours", "ids")
+		return nil, badParam("ids are two or more different lessons (yours, or the founder's with about)", "ids")
 	}
 	me := c.Caller.Actor()
+	founder, err := aboutFounder(p)
+	if err != nil {
+		return nil, err
+	}
 	return c.Effect(func(tx *sql.Tx) (map[string]any, error) {
-		id, err := db.MergeLessons(tx, me, ids, s, me)
+		agent, err := whose(tx, me, founder)
+		if err != nil {
+			return nil, err
+		}
+		if founder {
+			if s, err = cited(tx, p, s, me, agent); err != nil {
+				return nil, err
+			}
+		}
+		id, err := db.MergeLessons(tx, agent, ids, s, me)
 		var notLive db.NotLiveLesson
 		switch {
 		case errors.Is(err, db.ErrLessonsFull):
-			return nil, fullRefusal()
+			return nil, fullRefusal(founder)
 		case errors.As(err, &notLive):
 			return nil, refusal(err.Error())
 		case err != nil:
@@ -130,7 +218,7 @@ func lessonsList(c *rpc.Conn, p map[string]any) (any, error) {
 		}
 		items = append(items, it)
 	}
-	return map[string]any{"agent": agent, "items": items, "bytes": len(db.LessonsSection(live)), "cap": db.LessonsCap}, nil
+	return map[string]any{"agent": agent, "items": items, "bytes": len(db.Section(agent, live)), "cap": db.LessonsCap}, nil
 }
 
 func lessonRemove(c *rpc.Conn, p map[string]any) (any, error) {
