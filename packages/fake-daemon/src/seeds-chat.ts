@@ -30,6 +30,19 @@ function solidPng(w: number, h: number): Buffer {
   ]);
 }
 
+const sampleHandoff = [
+  '# handoff · architect',
+  'request: T9201 from human - 태스크 화면에 코드 탭을 붙여줘',
+  '',
+  'State: branch t9201 @ 4c1e2a0, one commit on origin/main; tests green.',
+  '- Code tab drawn from task.changes; All changes first.',
+  "- Waiting on the founder's OK at #7720.",
+  '',
+  'next: on OK, hand t9201 to lander.',
+  'Pitfalls: app-core tests are node:test (pnpm run test).',
+  'Slowed: lint max-lines on rows.tsx cost 3 rounds.',
+].join('\n');
+
 export const CHAT_SEEDS: Record<string, Seed> = {
   /** Two restarts back to back for changed team rules, as the daemon words them: the chat shows one line. */
   restarts: (d) => {
@@ -56,7 +69,7 @@ export const CHAT_SEEDS: Record<string, Seed> = {
       session: {
         id: 'r1',
         started: at,
-        handoff: null,
+        handoff: sampleHandoff,
         resumed: true,
         cause: 'restart',
         changed: `${team}, team rules changed, ${team}, team rules changed (workspaces/w1/base.md)`,
@@ -85,6 +98,15 @@ export const CHAT_SEEDS: Record<string, Seed> = {
         settings: ['team instructions', 'team rules'],
       },
     };
+  },
+  /** A restart with no change named: the dialog shows only the handoff the agent wrote (T9226). */
+  'restart-handoff': (d) => {
+    const at = new Date(Date.now() - 60_000).toISOString();
+    d.chat.seedItem(ARCH, {
+      at,
+      kind: 'session',
+      session: { id: 'rh', started: at, handoff: sampleHandoff, resumed: true, cause: 'restart' },
+    });
   },
   /** A person's move kept for the end of the turn, after one that landed without a note and one that could not run (T8905). */
   'move-scheduled': (d) => {

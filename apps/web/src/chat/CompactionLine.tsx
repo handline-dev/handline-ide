@@ -1,7 +1,7 @@
 import { Ago } from '#src/ui/Ago.tsx';
 import { motion } from 'framer-motion';
-import { FoldVertical, RotateCw } from 'lucide-react';
-import { useState } from 'react';
+import { ChevronRight, Clock, FileText, FoldVertical, RotateCw } from 'lucide-react';
+import { type ReactNode, useState } from 'react';
 import { spring } from '#src/motion.ts';
 import { Markdown } from '#src/ui/Markdown.tsx';
 import type { LineChange } from '@handline/client';
@@ -106,7 +106,7 @@ export function CompactionLine({
     void openModal((close) =>
       resumed ? (
         <ModalFrame title="Restarted" onClose={() => close()}>
-          <Restart at={at} changes={changes} lines={lines} close={() => close()} />
+          <Restart at={at} changes={changes} lines={lines} handoff={handoff} close={() => close()} />
         </ModalFrame>
       ) : (
         <ModalFrame title="Context compacted" size="xl" onClose={() => close()}>
@@ -119,7 +119,7 @@ export function CompactionLine({
     // holds the open box's height (label 20 + time 16 + padding 4), so the chat never moves; all is centred in it.
     <div className="my-3 flex h-10 items-center gap-4 text-sm text-muted">
       <div className="h-px flex-1 bg-border" />
-      {(resumed ? changes.length : handoff) ? (
+      {(resumed ? changes.length || handoff : handoff) ? (
         <button
           type="button"
           onClick={open}
@@ -156,53 +156,130 @@ function PartLines({ l, at, close }: { l: LineChange; at: string; close: () => v
   const rows = [...l.removed.map((t) => ({ t, add: false })), ...l.added.map((t) => ({ t, add: true }))];
   const shown = all ? rows : rows.slice(0, FIRST);
   const hidden = rows.length - shown.length;
+  const more =
+    l.text != null
+      ? { onClick: whole, label: 'Show all' }
+      : hidden > 0
+        ? { onClick: () => setAll(true), label: `Show all ${rows.length + (l.more ?? 0)} lines` }
+        : null;
   return (
-    <div className="flex flex-col gap-1">
-      <div className="text-sm font-medium text-fg">{l.part}</div>
-      <pre className="max-h-96 overflow-auto rounded-md bg-hover/40 px-3 py-2 font-mono text-xs leading-5 whitespace-pre-wrap">
+    <div className="overflow-hidden rounded-lg border border-border">
+      <div className="flex items-center gap-2 border-b border-border bg-hover/40 px-3 py-1.5 text-xs">
+        <FileText size={13} className="shrink-0 text-muted" />
+        <span className="min-w-0 flex-1 truncate font-mono text-fg">{l.part}</span>
+        <span className="font-mono text-success">+{l.added.length}</span>
+        <span className="font-mono text-danger">−{l.removed.length}</span>
+      </div>
+      <pre className="max-h-96 overflow-auto py-1 font-mono text-xs leading-5 whitespace-pre-wrap">
         {shown.map((r, i) => (
-          <div key={i} className={r.add ? 'text-success' : 'text-danger'}>
-            {r.add ? '+' : '−'} {r.t}
+          <div key={i} className={`flex px-3 ${r.add ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger'}`}>
+            <span className="w-4 shrink-0 select-none">{r.add ? '+' : '−'}</span>
+            <span className="min-w-0">{r.t}</span>
           </div>
         ))}
-        {!!l.more && <div className="text-muted">and {l.more} more lines, too many to keep</div>}
+        {!!l.more && <div className="px-3 text-muted">and {l.more} more lines, too many to keep</div>}
       </pre>
-      {l.text != null ? (
-        <button type="button" onClick={whole} className="self-start rounded px-1 text-xs text-accent hover:bg-hover">
-          Show all
+      {more && (
+        <button
+          type="button"
+          onClick={more.onClick}
+          className="w-full border-t border-border px-3 py-1.5 text-left text-xs text-accent hover:bg-hover/40"
+        >
+          {more.label}
         </button>
-      ) : (
-        hidden > 0 && (
-          <button type="button" onClick={() => setAll(true)} className="self-start rounded px-1 text-xs text-accent hover:bg-hover">
-            Show all {rows.length + (l.more ?? 0)} lines
-          </button>
-        )
       )}
     </div>
   );
 }
 
-/** What a restart changed, one change a line, under when it was. */
-function Restart({ at, changes, lines, close }: { at: string; changes: string[]; lines: LineChange[]; close: () => void }) {
+function Heading({ children }: { children: ReactNode }) {
+  return <h3 className="text-xs font-semibold tracking-wide text-muted uppercase">{children}</h3>;
+}
+
+/** What a restart changed, then the agent's handoff. */
+function Restart({
+  at,
+  changes,
+  lines,
+  handoff,
+  close,
+}: {
+  at: string;
+  changes: string[];
+  lines: LineChange[];
+  handoff: string | null;
+  close: () => void;
+}) {
   const shown = new Set(lines.map((l) => l.part));
+  // A change the daemon kept no lines for (a model, or an older daemon) stays a plain line.
+  const plain = changes.filter((c) => ![...shown].some((p) => c === `${p} changed` || c.startsWith(`${p} changed `)));
   return (
-    <div className="flex flex-col gap-5 pb-1">
-      <Facts rows={[['When', new Date(at).toLocaleString()]]} />
-      <section className="flex flex-col gap-3">
-        <h3 className="text-xs font-medium text-muted">What changed</h3>
-        {lines.map((l) => (
-          <PartLines key={l.part} l={l} at={at} close={close} />
-        ))}
-        {/* A change the daemon kept no lines for (a model, or an older daemon) stays a plain line. */}
-        <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-fg">
-          {changes
-            .filter((c) => ![...shown].some((p) => c === `${p} changed` || c.startsWith(`${p} changed `)))
-            .map((c, i) => (
-              <li key={i}>{c}</li>
-            ))}
-        </ul>
-      </section>
+    <div className="flex flex-col gap-6 pb-1">
+      <div className="flex items-center gap-2 text-sm text-muted">
+        <Clock size={14} className="shrink-0" />
+        <span>When</span>
+        <span className="text-fg">{new Date(at).toLocaleString()}</span>
+      </div>
+      {changes.length > 0 && (
+        <section className="flex flex-col gap-2">
+          <Heading>What changed</Heading>
+          {lines.map((l) => (
+            <PartLines key={l.part} l={l} at={at} close={close} />
+          ))}
+          {plain.length > 0 && (
+            <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border text-sm text-fg">
+              {plain.map((c, i) => (
+                <li key={i} className="px-3 py-2">
+                  {c}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+      {handoff && <HandoffLines text={handoff} folded={changes.length > 0} />}
     </div>
+  );
+}
+
+/** The handoff: folded when changes come first, else open; held to a few lines (whole Markdown, never cut mid-block) until Show all. */
+function HandoffLines({ text, folded }: { text: string; folded: boolean }) {
+  const [open, setOpen] = useState(!folded);
+  const [all, setAll] = useState(false);
+  const rows = text.split('\n');
+  const hidden = rows.length - FIRST;
+  return (
+    <section className="flex flex-col gap-2">
+      <Heading>Handoff</Heading>
+      <div className="overflow-hidden rounded-lg border border-border">
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={() => setOpen(!open)}
+          className={`flex w-full items-center gap-2 bg-hover/40 px-3 py-1.5 text-left text-xs text-fg hover:bg-hover/70 ${open ? 'border-b border-border' : ''}`}
+        >
+          <ChevronRight size={14} className={`shrink-0 text-muted transition-transform ${open ? 'rotate-90' : ''}`} />
+          <span className="flex-1">{open ? 'Hide handoff' : 'Show handoff'}</span>
+          <span className="text-muted">{rows.length} lines</span>
+        </button>
+        {open && (
+          <>
+            <div className={`px-4 py-3 text-sm text-fg ${all || hidden <= 0 ? 'max-h-96 overflow-auto' : 'max-h-48 overflow-hidden'}`}>
+              <Markdown text={text} />
+            </div>
+            {!all && hidden > 0 && (
+              <button
+                type="button"
+                onClick={() => setAll(true)}
+                className="w-full border-t border-border px-3 py-1.5 text-left text-xs text-accent hover:bg-hover/40"
+              >
+                Show all {rows.length} lines
+              </button>
+            )}
+          </>
+        )}
+      </div>
+    </section>
   );
 }
 
