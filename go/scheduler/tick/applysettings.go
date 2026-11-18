@@ -148,6 +148,13 @@ func (a *ApplySettings) apply(t *Tick, agent string, now int64) {
 	}
 	mode, _ := must2(db.Meta(t.Q, db.SettingsRestartMeta(agent)))
 	fresh := mode == "fresh"
+	// A new conversation starts from the handoff: the agent is asked for its note first, as before any other fresh start, and the
+	// restart waits for it (for at most handoff.AskWaitS). The next tick tries again.
+	if fresh && t.Handoff.NoteHold(t.Q, agent, now) {
+		check(db.SetSettingsOwed(t.Q, agent, names, now))
+		t.logf("  %s: changed settings (%s) wait for its handoff note before a new conversation", agent, strings.Join(names, ", "))
+		return
+	}
 	ok, said := t.Lifecycle.RestartAgent(t.Q, agent, st, by, names, "settings_applied", fresh)
 	if ok {
 		check(db.SetMeta(t.Q, SettingsApplied+agent, text))
