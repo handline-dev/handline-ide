@@ -17,6 +17,7 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/gitrun"
+	"github.com/handline/handline/go/scheduler/worktreelock"
 	"github.com/handline/handline/go/scheduler/worktreepaths"
 )
 
@@ -141,22 +142,7 @@ func (p *Pool) makeDesk(agent, repo, base string, folders []Folder) (desk string
 	if err != nil || ref == "" {
 		return "", nil, how, err
 	}
-	used := map[string]bool{}
-	for _, f := range folders {
-		used[filepath.Base(f.Path)] = true
-	}
-	dir := worktreepaths.Dir(repo)
-	for n := 1; ; n++ {
-		name := DeskPrefix + strconv.Itoa(n)
-		if used[name] {
-			continue
-		}
-		if _, err := os.Stat(filepath.Join(dir, name)); err == nil {
-			continue // a folder the pool does not know: never taken over
-		}
-		desk = filepath.Join(dir, name)
-		break
-	}
+	desk = p.freeDesk(repo, folders)
 	if r := gitrun.RunTimeout(repo, gitLimit, "worktree", "add", "--detach", desk, ref); r.RC != 0 {
 		return "", nil, fmt.Sprintf("could not make %s from %s: %s", desk, ref, strings.TrimSpace(r.Stderr)), nil
 	}
@@ -171,6 +157,25 @@ func (p *Pool) makeDesk(agent, repo, base string, folders []Folder) (desk string
 		}
 	}
 	return desk, said, "", nil
+}
+
+// freeDesk is the path of desk-<n> for repo, n the lowest number no folder of repo has and no folder there takes.
+func (p *Pool) freeDesk(repo string, folders []Folder) string {
+	used := map[string]bool{}
+	for _, f := range folders {
+		used[filepath.Base(f.Path)] = true
+	}
+	dir := worktreepaths.Dir(repo)
+	for n := 1; ; n++ {
+		name := DeskPrefix + strconv.Itoa(n)
+		if used[name] {
+			continue
+		}
+		if _, err := os.Stat(filepath.Join(dir, name)); err == nil {
+			continue // a folder the pool does not know: never taken over
+		}
+		return filepath.Join(dir, name)
+	}
 }
 
 // checkout puts agent's branch in desk: the one it has, else a new one from the base. A branch checked out in another desk is not
@@ -395,6 +400,103 @@ func (p *Pool) recorded() (map[string]string, error) {
 		}
 	}
 	return first, rows.Err()
+}
+
+// Rename moves each free desk of repo not named desk-<n> (from before the pool) to the lowest free desk-<n> with git worktree move; its
+// rows follow. A held, pinned, running or resumable one waits for a later round. renamed is old -> new.
+func (p *Pool) Rename(repo string) (renamed [][2]string, err error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	repo = canonical(repo)
+	folders, err := List(p.DB, repo)
+	if err != nil {
+		return nil, err
+	}
+	resumable, err := p.resumable()
+	if err != nil {
+		return nil, err
+	}
+	for _, f := range folders {
+		if isDeskName(filepath.Base(f.Path)) || f.Holder != "" || f.PinnedTo != "" || resumable[f.Path] || !exists(f.Path) ||
+			p.running(repo, f.Path) {
+			continue
+		}
+		desk := p.freeDesk(repo, folders)
+		// a lock left by a session that is gone refuses the move
+		if _, lerr := worktreelock.Release(repo, f.Path, worktreelock.Running); lerr != nil {
+			err = errors.Join(err, lerr)
+			continue
+		}
+		if r := gitrun.RunTimeout(repo, gitLimit, "worktree", "move", f.Path, desk); r.RC != 0 {
+			err = errors.Join(err, fmt.Errorf("%s: git worktree move to %s: %s", f.Path, desk, strings.TrimSpace(r.Stderr)))
+			continue
+		}
+		desk = canonical(desk)
+		if _, err := p.DB.Exec("UPDATE worktree_folders SET path = ? WHERE path = ?", desk, f.Path); err != nil {
+			return renamed, err
+		}
+		if err := p.moveRecorded(f.Path, desk); err != nil {
+			return renamed, err
+		}
+		folders = append(folders, Folder{Path: desk})
+		renamed = append(renamed, [2]string{f.Path, desk})
+	}
+	return renamed, err
+}
+
+// resumable is every folder a closed session may resume in, by real path.
+func (p *Pool) resumable() (map[string]bool, error) {
+	rows, err := p.DB.Query("SELECT COALESCE(worktree, '') FROM agent_state WHERE COALESCE(resume_session, '') != ''")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]bool{}
+	for rows.Next() {
+		var wt string
+		if err := rows.Scan(&wt); err != nil {
+			return nil, err
+		}
+		if path := worktreepaths.RecordedPath(wt); path != "" {
+			out[canonical(path)] = true
+		}
+	}
+	return out, rows.Err()
+}
+
+// moveRecorded points every agent that records from (its last folder) at to.
+func (p *Pool) moveRecorded(from, to string) error {
+	rows, err := p.DB.Query("SELECT agent, worktree FROM agent_state WHERE worktree IS NOT NULL")
+	if err != nil {
+		return err
+	}
+	var agents []string
+	for rows.Next() {
+		var agent, wt string
+		if err := rows.Scan(&agent, &wt); err != nil {
+			rows.Close()
+			return err
+		}
+		if path := worktreepaths.RecordedPath(wt); path != "" && canonical(path) == from {
+			agents = append(agents, agent)
+		}
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for _, a := range agents {
+		if _, err := p.DB.Exec("UPDATE agent_state SET worktree = ? WHERE agent = ?", to, a); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// isDeskName is whether name is desk-<n>.
+func isDeskName(name string) bool {
+	n, ok := strings.CutPrefix(name, DeskPrefix)
+	return ok && n != "" && strings.Trim(n, "0123456789") == ""
 }
 
 // forgetGone takes out of the pool every desk of repo whose folder is gone, and has git forget it, so its branch can be checked out
