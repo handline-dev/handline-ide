@@ -6,6 +6,7 @@ import { TaskTab } from '#src/tools/TaskTab.tsx';
 import { PlanTab } from '#src/tools/Story.tsx';
 import { CodeTab } from '#src/tools/TaskCode.tsx';
 import { DocTab } from '#src/tools/DocTab.tsx';
+import { ProposalView } from '#src/requests/ProposalView.tsx';
 import { TextTab } from '#src/tools/TextTab.tsx';
 import { TasksTab } from '#src/tools/TasksTab.tsx';
 import { RequestsTab } from '#src/requests/RequestsTab.tsx';
@@ -293,6 +294,7 @@ function PaneView({
                 <MarkdownTab key={current.id} agent={agent} tab={current.id} start={current.opens.slice(5)} />
               )}
               {current?.opens?.startsWith('text:') && <TextTab key={current.opens} id={current.opens.slice(5)} />}
+              {current?.opens?.startsWith('proposal:') && <ProposalView key={current.opens} id={Number(current.opens.slice(9))} />}
               {current?.opens?.startsWith('doc:') && <DocTab key={current.opens} at={current.opens.slice(4)} />}
               {current?.opens === 'usage' && <Usage />}
               {current?.opens === 'requests' && <RequestsTab />}

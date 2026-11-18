@@ -57,7 +57,9 @@ export const fileOf = (path: string) => `file:${path}`;
 export const textOf = (when: string, name: string) => `text:${when}/${name}`;
 /** A Markdown file attached to a message or a task (tools/DocTab): `doc:<attachment id>/<name>`, titled by its name. */
 export const docOf = (id: string, name: string) => `doc:${id}/${name}`;
-export const opened = (kind: string, prefix: 'task' | 'plan' | 'code' | 'web' | 'file' | 'text' | 'doc') =>
+/** An HR proposal's detail (requests/ProposalView): `proposal:41`. */
+export const proposalOf = (id: number) => `proposal:${id}`;
+export const opened = (kind: string, prefix: 'task' | 'plan' | 'code' | 'web' | 'file' | 'text' | 'doc' | 'proposal') =>
   kind.startsWith(`${prefix}:`) ? kind.slice(prefix.length + 1) : null;
 const onThing = (kind: string): { label: string; icon: ReactNode } | null => {
   if (shellHandle(kind)) return kinds.newshell;
@@ -79,6 +81,8 @@ const onThing = (kind: string): { label: string; icon: ReactNode } | null => {
   }
   const file = opened(kind, 'file');
   if (file) return { label: file.split('/').pop() ?? file, icon: kinds.markdown.icon };
+  const hr = opened(kind, 'proposal');
+  if (hr) return { label: `HR ${hr}`, icon: kinds.markdown.icon };
   const text = opened(kind, 'text') ?? opened(kind, 'doc');
   if (text) return { label: text.slice(text.indexOf('/') + 1), icon: kinds.markdown.icon };
   return null;
