@@ -109,7 +109,7 @@ export function PlanFlow({ t }: { t: TaskDetail }) {
       <div className="flex h-2 gap-0.5 overflow-hidden rounded-full">
         {bar.map(([n, tone]) => n > 0 && <span key={tone} className={tone} style={{ flex: n }} />)}
       </div>
-      <div className="grid gap-y-2" style={{ gridTemplateColumns: '1fr 3rem 1fr 3rem 1fr' }}>
+      <div className="grid gap-y-2" style={{ gridTemplateColumns: 'minmax(0,1fr) 3rem minmax(0,1fr) 3rem minmax(0,1fr)' }}>
         {column('Done')}
         <span />
         {column('Now')}
