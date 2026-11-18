@@ -44,7 +44,7 @@ func NewRoster(home string) *Roster {
 // settingKinds are the agent settings, each a column of the agents table under the same name: s text, i integer, b true or false.
 var settingKinds = map[string]byte{
 	"vendor": 's', "model": 's', "effort": 's', "weight": 's', "mode": 's', "enabled": 'b', "context_tokens": 'i',
-	"extra_worktrees": 'i', "handoff_note": 'b', "park_timeout_s": 'i', "sandbox": 'b', "sandbox_domains": 's', "chrome": 'b',
+	"handoff_note": 'b', "park_timeout_s": 'i', "sandbox": 'b', "sandbox_domains": 's', "chrome": 'b',
 	"mcp_config": 's', "schedules": 's', "peer_inbox": 'b', "account": 's', "ignore_cache_expiry": 'b', "bg_notice_s": 'i',
 	"bg_grace_s": 'i', "bg_check_s": 'i', "notice_digest_s": 'i', "handoff_prompt": 's', "cache_renewal": 'b', "idle_fold": 'b',
 	"idle_fold_tokens": 'i', "idle_fold_after_s": 'i', "fresh_after_task": 'b',
@@ -278,9 +278,9 @@ type RegisterOpts struct {
 	By, Approver                           string
 	Model, Effort, Vendor, Mode, MCPConfig *string
 	// Account pins the agent to that account (PinFor).
-	Account                       *string
-	ContextTokens, ExtraWorktrees *int64
-	Chrome, Sandbox               *bool
+	Account         *string
+	ContextTokens   *int64
+	Chrome, Sandbox *bool
 }
 
 func strp(s string) *string { return &s }
@@ -300,9 +300,6 @@ func (r *Roster) Register(name string, o RegisterOpts) (string, error) {
 	}
 	if o.Mode != nil && !contains(Modes, *o.Mode) {
 		return "", refuse("mode must be one of %s, not %s", strings.Join(Modes, ", "), pyQuote(*o.Mode))
-	}
-	if o.ExtraWorktrees != nil && (*o.ExtraWorktrees < 0 || *o.ExtraWorktrees > MaxExtraWorktrees) {
-		return "", refuse("extra_worktrees is 0 to %d, not %d", MaxExtraWorktrees, *o.ExtraWorktrees)
 	}
 	var mcp string
 	if present(o.MCPConfig) {
@@ -408,9 +405,6 @@ func (r *Roster) register(q db.Q, name string, o RegisterOpts, mcp string) (made
 	if o.ContextTokens != nil && *o.ContextTokens != 0 {
 		add("context_tokens", *o.ContextTokens)
 	}
-	if o.ExtraWorktrees != nil {
-		add("extra_worktrees", nilIfZero(*o.ExtraWorktrees))
-	}
 	if o.Mode != nil {
 		add("mode", nilIf(*o.Mode, DefaultMode))
 	}
@@ -437,13 +431,6 @@ func nilIf(s, def string) any {
 		return nil
 	}
 	return s
-}
-
-func nilIfZero(n int64) any {
-	if n == 0 {
-		return nil
-	}
-	return n
 }
 
 func nilIfFalse(b bool) any {

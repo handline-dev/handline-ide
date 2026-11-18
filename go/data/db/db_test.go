@@ -138,10 +138,6 @@ func TestAgentStateWritesCreateIdleRowsAndKeepRunning(t *testing.T) {
 	if _, ok, _ := CurrentTask(q, "a"); ok {
 		t.Fatal("not cleared")
 	}
-	SetExtraWorktrees(q, "a", []string{"/x", "é"})
-	if s, _ := GetAgentState(q, "a"); s.ExtraWorktrees.String != `["/x", "\u00e9"]` {
-		t.Fatal(s.ExtraWorktrees.String)
-	}
 }
 
 func TestEveryTerminalNamedForAnAgentIsKeptAfterTheAgentMoves(t *testing.T) {

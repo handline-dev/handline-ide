@@ -13,7 +13,7 @@ type fakeDesks struct {
 	asked     []string
 }
 
-func (f *fakeDesks) Take(agent, repo string) (worktreepool.Taken, string, error) {
+func (f *fakeDesks) TakeFrom(agent, repo, _ string) (worktreepool.Taken, string, error) {
 	f.asked = append(f.asked, agent+"@"+repo)
 	return worktreepool.Taken{Path: f.give, How: "free"}, f.why, nil
 }

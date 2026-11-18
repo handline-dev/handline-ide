@@ -39,7 +39,7 @@ func newRig(t *testing.T) *rig {
 	r.git(repo, "add", "a.txt")
 	r.git(repo, "commit", "-q", "-m", "first")
 	r.pool = &Pool{DB: d,
-		Base:   func(string) (string, string, error) { return "main", "local main", nil },
+		Base:   func(string, string) (string, string, error) { return "main", "local main", nil },
 		Branch: func(agent string) string { return agent + "-work" },
 		Now:    func() time.Time { r.at++; return time.Unix(r.at, 0) }}
 	return r
@@ -257,14 +257,12 @@ func TestAdoptKeepsTheOldFoldersAsTheyAreHeldByTheirAgents(t *testing.T) {
 	r.git(r.repo, "worktree", "add", "-q", "-b", "story4", old)
 	stray := filepath.Join(t.TempDir(), "elsewhere")
 	r.git(r.repo, "worktree", "add", "-q", "--detach", stray)
-	extra := filepath.Join(worktreepaths.Dir(r.repo), "handline.architect-2")
-	r.git(r.repo, "worktree", "add", "-q", "-b", "story4-2", extra)
 	mine := filepath.Join(worktreepaths.Dir(r.repo), "founders")
 	r.git(r.repo, "worktree", "add", "-q", "-b", "mine", mine)
-	old, extra, mine = canonical(old), canonical(extra), canonical(mine)
-	r.db.Exec("INSERT INTO agent_state(agent, state, updated, worktree, extra_worktrees) VALUES('a2','IDLE',1,?,?)", r.repo+"::"+old, `["`+extra+`"]`)
+	old, mine = canonical(old), canonical(mine)
+	r.db.Exec("INSERT INTO agent_state(agent, state, updated, worktree) VALUES('a2','IDLE',1,?)", r.repo+"::"+old)
 	n, err := r.pool.Adopt(r.repo)
-	if err != nil || n != 3 {
+	if err != nil || n != 2 {
 		t.Fatalf("adopted %d: %v (only the folders under the worktrees dir)", n, err)
 	}
 	if r.holder(old) != "a2" {
@@ -275,10 +273,10 @@ func TestAdoptKeepsTheOldFoldersAsTheyAreHeldByTheirAgents(t *testing.T) {
 		r.db.QueryRow("SELECT pinned_to FROM worktree_folders WHERE path = ?", path).Scan(&p)
 		return p.String
 	}
-	if pin(extra) != "a2" || pin(mine) != Founder || pin(old) != "" {
-		t.Fatalf("pins: extra %q, unrecorded %q, held %q", pin(extra), pin(mine), pin(old))
+	if pin(mine) != Founder || pin(old) != "" {
+		t.Fatalf("pins: unrecorded %q, held %q", pin(mine), pin(old))
 	}
-	if got := r.take("bob"); got.Path == extra || got.Path == mine {
+	if got := r.take("bob"); got.Path == mine {
 		t.Fatalf("bob was given someone's folder: %+v", got)
 	}
 	var branch string

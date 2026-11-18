@@ -2,12 +2,9 @@
 package worktreepaths
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/handline/handline/go/data/db"
 )
 
 // Dir is where repo's worktrees live: a sibling named <repo>.worktrees.noindex, because macOS Spotlight skips everything under a folder
@@ -35,36 +32,4 @@ func RecordedPath(recorded string) string {
 		return ""
 	}
 	return path
-}
-
-// ExtraPaths is the agent's further worktrees that are still there, out of what its row holds. A path gone is not listed (and
-// EnsureExtras makes it again).
-func ExtraPaths(row *db.AgentState) []string {
-	if row == nil || row.ExtraWorktrees.String == "" {
-		return nil
-	}
-	var listed []any
-	if json.Unmarshal([]byte(row.ExtraWorktrees.String), &listed) != nil {
-		return nil
-	}
-	var out []string
-	for _, x := range listed {
-		if p, ok := x.(string); ok {
-			if wt := WorktreePath(p); wt != "" {
-				out = append(out, wt)
-			}
-		}
-	}
-	return out
-}
-
-// AllPaths is every worktree the agent has: its first, then the others.
-func AllPaths(row *db.AgentState) []string {
-	var out []string
-	if row != nil {
-		if first := WorktreePath(row.Worktree.String); first != "" {
-			out = append(out, first)
-		}
-	}
-	return append(out, ExtraPaths(row)...)
 }

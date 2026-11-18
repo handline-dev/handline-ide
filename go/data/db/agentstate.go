@@ -13,12 +13,12 @@ type AgentState struct {
 	WakeAt, ClosedAt, CurrentTask                                       sql.NullInt64
 	Detail, Terminal, Worktree, Account, ResumeSession, Task            sql.NullString
 	Handoff, AccountSource, LaunchParts, LaunchFingerprint              sql.NullString
-	ExtraWorktrees, NotifiedSession, StallKind, ParkReason, StallArgs   sql.NullString
+	NotifiedSession, StallKind, ParkReason, StallArgs                   sql.NullString
 	Updated, FailedAttempts, Continuations, ThrottleCount, WakeFailures int64
 }
 
 const stateCols = "agent, state, wake_at, detail, updated, failed_attempts, continuations, throttle_count, wake_failures, terminal, worktree, " +
-	"account, closed_at, resume_session, task, handoff, account_source, launch_parts, launch_fingerprint, extra_worktrees, notified_session, current_task, stall_kind, park_reason, stall_args"
+	"account, closed_at, resume_session, task, handoff, account_source, launch_parts, launch_fingerprint, notified_session, current_task, stall_kind, park_reason, stall_args"
 
 type scanner interface{ Scan(...any) error }
 
@@ -26,7 +26,7 @@ func scanState(r scanner) (*AgentState, error) {
 	s := &AgentState{}
 	err := r.Scan(&s.Agent, &s.State, &s.WakeAt, &s.Detail, &s.Updated, &s.FailedAttempts, &s.Continuations, &s.ThrottleCount, &s.WakeFailures,
 		&s.Terminal, &s.Worktree, &s.Account, &s.ClosedAt, &s.ResumeSession, &s.Task, &s.Handoff, &s.AccountSource, &s.LaunchParts,
-		&s.LaunchFingerprint, &s.ExtraWorktrees, &s.NotifiedSession, &s.CurrentTask, &s.StallKind, &s.ParkReason, &s.StallArgs)
+		&s.LaunchFingerprint, &s.NotifiedSession, &s.CurrentTask, &s.StallKind, &s.ParkReason, &s.StallArgs)
 	return s, err
 }
 
@@ -178,21 +178,8 @@ func SetStateUnlessRunning(q Q, agent, state, detail string) (bool, error) {
 	return n > 0, nil
 }
 
-// WorktreeLeft is the event SetTerminal writes when an agent's worktree changes: the one it left (path) is judged on the tick, as a
-// retired agent's is (proposalwrites.SweepLeftWorktrees).
-const WorktreeLeft = "worktree_left"
-
-// SetTerminal is db.set_terminal: where an agent lives; a new agent is IDLE. A worktree that replaces another is told as WorktreeLeft.
+// SetTerminal is db.set_terminal: where an agent lives; a new agent is IDLE.
 func SetTerminal(q Q, agent, terminal, worktree string) error {
-	var was sql.NullString
-	if err := q.QueryRow("SELECT worktree FROM agent_state WHERE agent = ?", agent).Scan(&was); err != nil && err != sql.ErrNoRows {
-		return err
-	}
-	if worktree != "" && was.String != "" && was.String != worktree {
-		if _, err := AddEvent(q, agent, WorktreeLeft, KV{K: "path", V: was.String}); err != nil {
-			return err
-		}
-	}
 	_, err := q.Exec("INSERT INTO agent_state(agent, state, updated, terminal, worktree) VALUES(?,?,?,?,?) ON CONFLICT(agent) DO UPDATE SET terminal=excluded.terminal, worktree=excluded.worktree, updated=excluded.updated",
 		agent, "IDLE", Now(), nullStr(terminal), nullStr(worktree))
 	if err != nil || terminal == "" {
@@ -302,17 +289,6 @@ func ClearClosed(q Q, agent string) error {
 		}
 	}
 	_, err = q.Exec("UPDATE agent_state SET closed_at = NULL, resume_session = NULL, updated = ? WHERE agent = ?", Now(), agent)
-	return err
-}
-
-// SetExtraWorktrees is db.set_extra_worktrees; paths is stored as JSON, NULL when empty.
-func SetExtraWorktrees(q Q, agent string, paths []string) error {
-	var v any
-	if len(paths) > 0 {
-		v = jsonList(paths)
-	}
-	_, err := q.Exec("INSERT INTO agent_state(agent, state, updated, extra_worktrees) VALUES(?,?,?,?) ON CONFLICT(agent) DO UPDATE SET extra_worktrees=excluded.extra_worktrees",
-		agent, "IDLE", Now(), v)
 	return err
 }
 

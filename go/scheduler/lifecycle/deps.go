@@ -144,8 +144,6 @@ type Spawner interface {
 	// Trust marks worktree trusted for agent's vendor before a launch there.
 	Trust(agent, worktree string)
 	SpawnWith(agent, repo string, o SpawnOpts) (bool, string, error)
-	// Recreate makes the recorded worktree that is gone again from its branch in repo: its path, or "" and why it cannot be.
-	Recreate(agent, repo, recorded string) (path, why string)
 }
 
 // AgentsPort is team/agents.py, trust.py and measure as the lifecycle reads them.
@@ -181,9 +179,9 @@ type Typing interface {
 	TakeTerminal(agent string) (release func(), ok bool)
 }
 
-// Desks is the worktree pool as a start and a wake use it.
+// Desks is the worktree pool as a start and a wake use it (worktreepool.Pool.TakeFrom; base "" is the repo's default branch).
 type Desks interface {
-	Take(agent, repo string) (worktreepool.Taken, string, error)
+	TakeFrom(agent, repo, base string) (worktreepool.Taken, string, error)
 }
 
 // Manager is daemon/lifecycle.py: closing and waking an agent's session, and the folder-trust prompt a wake can meet.

@@ -9,7 +9,6 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/paths"
-	"github.com/handline/handline/go/scheduler/worktreepaths"
 )
 
 // Grant is a path the founder let an agent read. After is the agent's last session_starts id when it was granted: a once grant is the
@@ -166,7 +165,6 @@ func Roots(q db.Q, home, agent string) ([]string, error) {
 		if row.Worktree.Valid && row.Worktree.String != "" {
 			roots = append(roots, row.Worktree.String)
 		}
-		roots = append(roots, worktreepaths.ExtraPaths(row)...)
 	}
 	gs, err := Grants(q, agent)
 	if err != nil {

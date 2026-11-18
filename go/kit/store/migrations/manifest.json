@@ -63,5 +63,10 @@
   "version": 112,
   "name": "worktree_pool",
   "additive": true
+ },
+ {
+  "version": 113,
+  "name": "drop_extra_worktrees",
+  "additive": false
  }
 ]

@@ -206,7 +206,7 @@ func (e *Env) draft(actor, kind string, args map[string]any, why string, registe
 		return nil, fmt.Sprintf("%s needs a repo: --repo <path> (or --team of a manager that has one). Its worktree is made there; without one it never starts.", name)
 	}
 	if kind == "team" && repo == "" {
-		return nil, fmt.Sprintf("team %s needs --repo <path> for its workspace: every member works in that one folder, each in its own worktree.", name)
+		return nil, fmt.Sprintf("team %s needs --repo <path> for its workspace: every member works in a desk of that one folder.", name)
 	}
 	if kind == "add" || kind == "team" {
 		var why string

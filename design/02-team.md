@@ -54,7 +54,7 @@ Per account, for three reasons.
 
 | Original reason | Actual answer |
 |---|---|
-| Per-agent hook, permission and MCP settings | **The worktree's `.claude/settings.json`.** Each agent has its own worktree, so this is where it belongs. There are also the `--append-system-prompt` / `--permission-mode` / `--mcp-config` flags |
+| Per-agent hook, permission and MCP settings | **The desk's `.claude/settings.json`.** An agent works in one desk (worktree) at a time, so this is where it belongs. There are also the `--append-system-prompt` / `--permission-mode` / `--mcp-config` flags |
 | Separate history per agent | `agents/<name>/journal/`, already keyed by agent name |
 | Transcripts scattered | The statusLine's `transcript_path` always says where the current one is. We do not use `--resume`, so it does not matter |
 

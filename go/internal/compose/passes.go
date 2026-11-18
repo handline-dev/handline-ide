@@ -66,7 +66,6 @@ func (p *Parts) passes(cfg Config, tk *tick.Tick) []tick.NamedSweep {
 		{Name: "proposal-held", Run: func(q db.Q, now int64) error {
 			return held.SweepHeld(heldPorts(tk, q, healPorts{lc: lc, home: cfg.Home}))
 		}},
-		{Name: "left-worktrees", Run: func(db.Q, int64) error { return held.SweepLeftWorktrees() }},
 		{Name: "desks", Run: func(_ db.Q, now int64) error { return desks.Run(now) }},
 		{Name: "desk-prune", Run: func(_ db.Q, now int64) error { return prune.Run(now) }},
 	}

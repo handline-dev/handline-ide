@@ -70,10 +70,6 @@ func TestConfigReaders(t *testing.T) {
 	if ContextTokens != 300_000 {
 		t.Errorf("the default context-handoff limit is 300,000 tokens, not %d", ContextTokens)
 	}
-	if ExtraWorktrees(Config{"extra_worktrees": int64(9)}) != 2 || ExtraWorktrees(Config{"extra_worktrees": true}) != 0 ||
-		ExtraWorktrees(Config{"extra_worktrees": int64(1)}) != 1 {
-		t.Error("extra_worktrees")
-	}
 	if v, m, e := Parts(Config{"model": int64(4), "effort": "", "vendor": nil}); v != "claude" || m != "4" || e != "medium" {
 		t.Errorf("%s %s %s", v, m, e)
 	}

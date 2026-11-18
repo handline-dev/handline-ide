@@ -193,10 +193,6 @@ func (l *Launcher) Build(site *Site, agent string, extra []string, force bool, a
 	if p.McpApproved != nil {
 		approved = p.McpApproved(cwd)
 	}
-	extraDirs, err := l.ExtraWorktreesOf(agent, cfg)
-	if err != nil {
-		return nil, nil, err
-	}
 	granted, err := access.ForLaunch(l.Q, agent, resuming)
 	if err != nil {
 		return nil, nil, err
@@ -224,7 +220,7 @@ func (l *Launcher) Build(site *Site, agent string, extra []string, force bool, a
 		NoWrite:   confined.NoWrite,
 		MemoryDir: memoryDir, Trusted: trusted, Chrome: team.Chrome(cfg),
 		SandboxOff:  !sandboxed,
-		MCPApproved: approved, ExtraDirs: extraDirs, ReadAllow: append([]string{filepath.Join(l.Home, "attachments")}, granted...),
+		MCPApproved: approved, ReadAllow: append([]string{filepath.Join(l.Home, "attachments")}, granted...),
 		LandPush:   l.held(agent).LandBy == agent,
 		AllowWrite: allowWrite, AllowDomains: allowDomains, CacheDir: cacheDir,
 		WeakerNetwork: allowed.WeakerNetwork, Excluded: allowed.Excluded,

@@ -22,7 +22,6 @@ const (
 	// ContextTokens is the default context-handoff threshold: an absolute figure, so it means the same on every model.
 	ContextTokens = 300_000
 
-	MaxExtraWorktrees  = 2
 	BrowserServer      = "browser"
 	DefaultBrowserProf = "Profile 17"
 	DefaultMode        = "auto"
@@ -102,14 +101,6 @@ func ContextTokensOf(cfg Config) int64 {
 		return n
 	}
 	return ContextTokens
-}
-
-// ExtraWorktrees is how many worktrees an agent has besides its first, 0 to MaxExtraWorktrees. Only a real count turns one on.
-func ExtraWorktrees(cfg Config) int64 {
-	if n, ok := positiveInt(cfg["extra_worktrees"]); ok {
-		return min(n, MaxExtraWorktrees)
-	}
-	return 0
 }
 
 // Chrome is whether this agent's sessions start with the browser integration. Only a real true turns it on.

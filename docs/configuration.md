@@ -19,7 +19,8 @@ what changed and when.
 ## Workspaces and agents
 
 Workspaces and agents are rows in `db.sqlite`, written when you create them in the app. A workspace
-has one folder; each of its agents works there in its own worktree. Change an agent's settings in the
+has one folder; each of its agents works in a desk of it (desk-<n>, taken at start and given back at
+close; its branch stays its own). Change an agent's settings in the
 app: `vendor`, `model`, `effort`, `weight` (`light` or `heavy`), `chrome`, `mcp_config`, and the
 founder-only `mode` (`default`, `auto`, `acceptEdits` or `plan`; bypass is not supported) and sandbox.
 Which account an agent is on is recorded by the daemon and changed in the app's agent settings.

@@ -158,7 +158,7 @@ func (t *Trust) approvedMCP() map[string]bool {
 }
 
 // MCPApproved are the servers in a folder's .mcp.json a launch may enable without the vendor asking: the folder is under a
-// declared root and the founder approved that server's entry as it is now. An agent can write the file in its own worktree, so a
+// declared root and the founder approved that server's entry as it is now. An agent can write the file in its desk, so a
 // name alone is never enough.
 func (t *Trust) MCPApproved(folder string) []string {
 	out := []string{}

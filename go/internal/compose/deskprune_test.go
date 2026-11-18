@@ -33,7 +33,7 @@ func deskRig(t *testing.T) (*deskPrune, string, []string, *[]string) {
 		}
 	}
 	at := time.Date(2026, 11, 10, 9, 0, 0, 0, time.Local)
-	pool := &worktreepool.Pool{DB: d, Base: func(string) (string, string, error) { return "main", "", nil },
+	pool := &worktreepool.Pool{DB: d, Base: func(string, string) (string, string, error) { return "main", "", nil },
 		Branch: func(agent string) string { return agent + "-work" }, Now: func() time.Time { return at }}
 	var desks []string
 	for i := 1; i <= 4; i++ {

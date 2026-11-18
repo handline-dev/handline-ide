@@ -2,7 +2,6 @@ package reads
 
 import (
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -18,6 +17,7 @@ import (
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/protected"
 	"github.com/handline/handline/go/protocol/rpc"
+	"github.com/handline/handline/go/scheduler/worktreepool"
 	"github.com/handline/handline/go/scheduler/worktreesetup"
 )
 
@@ -94,44 +94,36 @@ func (k *known) put(path, agent string) {
 	k.who[path] = agent
 }
 
-func jsonList(text string) ([]any, bool) {
-	if text == "" {
-		return nil, true
-	}
-	var v any
-	if json.Unmarshal([]byte(text), &v) != nil {
-		return nil, false
-	}
-	l, ok := v.([]any)
-	return l, ok
-}
-
-// knownWorktrees is path -> the agent that works there, for every agent whose recorded worktree exists.
+// knownWorktrees is path -> the agent that works there, for every agent whose recorded worktree exists, then each desk pinned to an
+// agent (the folders kept for it).
 func (e *Env) knownWorktrees() (known, error) {
 	out := known{who: map[string]string{}}
 	for _, name := range paths.ListAgents(e.Home) {
-		row, err := queryOne(e.DB, "SELECT worktree, extra_worktrees FROM agent_state WHERE agent = ?", name)
+		row, err := queryOne(e.DB, "SELECT worktree FROM agent_state WHERE agent = ?", name)
 		if err != nil {
 			return known{}, err
 		}
-		var all []string
 		if p := worktreePath(row.str("worktree")); p != "" {
-			all = append(all, p)
-		}
-		if listed, ok := jsonList(row.str("extra_worktrees")); ok {
-			for _, x := range listed {
-				if s, ok := x.(string); ok {
-					if p := worktreePath(s); p != "" {
-						all = append(all, p)
-					}
-				}
-			}
-		}
-		for _, p := range all {
 			out.put(realpath(p), name)
 		}
 	}
-	return out, nil
+	rows, err := e.DB.Query("SELECT path, pinned_to FROM worktree_folders WHERE pinned_to IS NOT NULL AND pinned_to != ? ORDER BY path", worktreepool.Founder)
+	if err != nil {
+		return known{}, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var path, agent string
+		if err := rows.Scan(&path, &agent); err != nil {
+			return known{}, err
+		}
+		if p := realpath(path); isDir(p) {
+			if _, has := out.who[p]; !has {
+				out.put(p, agent)
+			}
+		}
+	}
+	return out, rows.Err()
 }
 
 func isDigits(s string) bool {

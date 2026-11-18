@@ -305,7 +305,7 @@ func worktreeLines(worktree string) (lines []string, gap string) {
 		return nil, "the worktree's branch, HEAD or git status"
 	}
 	lines = []string{"worktree: " + worktree, fmt.Sprintf("branch: %s @ %s", textsafe.Oneline(branch), textsafe.Oneline(head))}
-	// A status line names a path the agent's own worktree chose, the same class of text a filename is, and not one git quotes for
+	// A status line names a path chosen in the agent's desk, the same class of text a filename is, and not one git quotes for
 	// us here (`status --porcelain` is meant for scripts to parse, not shown to a terminal).
 	changed := textsafe.SplitLines(dirty)
 	if len(changed) == 0 {
