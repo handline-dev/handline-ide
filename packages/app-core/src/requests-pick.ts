@@ -8,6 +8,8 @@ export const turnKey = (p: PendingRequest) => `turn:${p.source ?? ''}:${p.id ?? 
 export const requestKey = (r: RequestRow) => `request:${r.cursor}`;
 export const turnRow = (p: PendingRequest): Picked => ({ key: turnKey(p), p });
 export const requestRow = (r: RequestRow): Picked => ({ key: requestKey(r), r });
+/** Which rows can be picked together: proposals (Allow or Deny) apart from everything else, so a pick holds one kind. */
+export const pickGroup = (x: Picked): 'proposal' | 'other' => (x.p?.source === 'proposal' && x.p.id ? 'proposal' : 'other');
 
 const NOUN: Record<PendingRequest['kind'], string> = {
   allow: 'permission',
@@ -55,6 +57,7 @@ export function bulkOf(rows: Picked[], mine: ReadonlySet<number>) {
       return p && later ? [{ keys: [key], later, p }] : [];
     }),
     seen: unseenOf(rows),
+    answer: rows.flatMap((x) => (x.p && pickGroup(x) === 'proposal' ? [{ keys: [x.key], proposal: Number(x.p.id) }] : [])),
     close: perTask(
       rows.flatMap((x) => (x.r && x.r.task !== null && !x.r.ended ? [{ keys: [x.key], task: x.r.task, title: x.r.title }] : [])),
     ),
@@ -69,6 +72,8 @@ export function bulkNames(b: ReturnType<typeof bulkOf>) {
     giveBack: `Give ${counted(rowsIn(b.giveBack), 'turn')} back`,
     done: `Mark ${counted(b.close.length, 'task')} done`,
     discard: `Discard ${counted(b.close.length, 'task')}`,
+    allow: `Allow ${b.answer.length}`,
+    deny: `Deny ${b.answer.length}`,
   };
 }
 

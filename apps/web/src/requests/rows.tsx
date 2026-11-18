@@ -1,6 +1,6 @@
 import { classify, sentence, useNameOf, useProposals, useTask, useWrite } from '@handline/app-data';
 import type { PendingRequest, RequestRow } from '@handline/client';
-import { isUnseen, laterKey, requestRow, tomorrowAt9, turnKey, turnRow, type Picked } from '@handline/app-core';
+import { isUnseen, laterKey, pickGroup, requestRow, tomorrowAt9, turnKey, turnRow, type Picked } from '@handline/app-core';
 import type { HardDrive } from 'lucide-react';
 import {
   CircleCheck,
@@ -130,20 +130,23 @@ function Line({
   else if (pick?.hint && picked) hinted = 'opacity-50';
   const busy = !!pick?.busy.has(row.key);
   const picking = !!pick?.picked.size;
+  // While one kind is picked, the other kind dims: it cannot join this pick.
+  const first = pick?.picked.values().next().value;
+  const apart = !!first && pickGroup(first) !== pickGroup(row);
   // In Requests the row has its own menu (RowMenu), with the open items at its top.
   const open = useOpenable(opens, { onOpen, focus, here, menu: !pick });
   const newTab = useNewTab(opens, { onOpen, focus, here });
   const line = (
     // The check box sits beside the row's button, not inside it: a box in a button is no box to the keyboard.
     <div
-      className={`group/line relative flex ${lead !== undefined ? 'border-b border-border' : 'rounded-md'} ${picked || chosen ? 'bg-selected' : 'hover:bg-hover/30'} ${hinted} ${busy ? 'pointer-events-none opacity-50' : ''}`}
+      className={`group/line relative flex ${lead !== undefined ? 'border-b border-border' : 'rounded-md'} ${picked || chosen ? 'bg-selected' : 'hover:bg-hover/30'} ${hinted} ${busy ? 'pointer-events-none opacity-50' : apart ? 'opacity-40' : ''}`}
     >
       {pick && (
         <input
           type="checkbox"
           aria-label={`Pick ${title}`}
           checked={picked}
-          onChange={() => pick.toggle(row)}
+          onChange={() => (apart ? toast(APART, { tone: 'warning' }) : pick.toggle(row))}
           className={`size-4 shrink-0 accent-accent ${BOX} ${picking ? '' : BOX_HIDDEN}`}
         />
       )}
@@ -153,6 +156,7 @@ function Line({
         {...open}
         // While rows are picked, a click picks more and the other ways to open wait.
         onClick={(e: MouseEvent<HTMLButtonElement>) => {
+          if (pick && apart) return void toast(APART, { tone: 'warning' });
           if (pick && (e.shiftKey || picking)) return pick.toggle(row);
           if (onPick && !e.metaKey && !e.ctrlKey && !e.altKey) return onPick();
           open.onClick(e);
@@ -344,6 +348,9 @@ export function RequestLine({ r, onOpened }: { r: TaskRequest; onOpened?: () => 
     />
   );
 }
+
+/** Said when a dimmed row is clicked while the other kind is picked. */
+const APART = 'Pick one kind at a time.';
 
 /** A proposal's answer, Allow or Deny; a daemon warning's dismiss, kept by the daemon while its cause lasts; else a dismiss until tomorrow
  *  09:00 (Later). An Allow names the subject proposal.list showed; one the daemon refuses as changed since stays off on this row, so a

@@ -1,7 +1,18 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { PendingRequest, RequestRow } from '@handline/client';
-import { bulkNames, bulkOf, refusalLine, pickAllState, requestRow, turnRow, turnsCounted, unseenOf, type Picked } from '#src/index.ts';
+import {
+  bulkNames,
+  bulkOf,
+  pickGroup,
+  refusalLine,
+  pickAllState,
+  requestRow,
+  turnRow,
+  turnsCounted,
+  unseenOf,
+  type Picked,
+} from '#src/index.ts';
 
 const req = (cursor: string, over: Partial<RequestRow> = {}): RequestRow =>
   ({ cursor, task: 1, title: `title ${cursor}`, ended: null, ...over }) as unknown as RequestRow;
@@ -86,4 +97,20 @@ test('a refusal for open sub-tasks reads as one line naming the first to open; a
     open: 4071,
   });
   assert.deepEqual(refusalLine('not found'), { text: 'not found', open: null });
+});
+
+test('proposals are picked apart from the rest and answered together', () => {
+  const hr = [
+    turnRow(turn({ source: 'proposal', id: '41', task: null, kind: 'allow' })),
+    turnRow(turn({ source: 'proposal', id: '42', task: null, kind: 'allow' })),
+  ];
+  const task = turnRow(turn({ id: 't', task: 9, kind: 'ask' }));
+  assert.deepEqual([...hr, task].map(pickGroup), ['proposal', 'proposal', 'other']);
+  const b = bulkOf(hr, new Set());
+  assert.deepEqual(
+    b.answer.map((x) => x.proposal),
+    [41, 42],
+  );
+  assert.equal(bulkNames(b).allow, 'Allow 2');
+  assert.equal(bulkOf([task], new Set([9])).answer.length, 0);
 });

@@ -1,9 +1,9 @@
 // What a right-click on a row of Requests offers, and what can be done to several picked rows at once. Only what is easy to undo
 // goes at once (seen, later, give back, done); a discard, of one row or several, is asked for one reason and confirmed.
-import { bulkNames, bulkOf, foundersTurn, laterChoices, laterKey, type Picked } from '@handline/app-core';
-import { useNameOf, useTaskActions, useTasks, useWrite } from '@handline/app-data';
+import { bulkNames, bulkOf, foundersTurn, laterChoices, laterKey, pickGroup, type Picked } from '@handline/app-core';
+import { useNameOf, useProposals, useTaskActions, useTasks, useWrite } from '@handline/app-data';
 import { useMe } from '@handline/app-react';
-import { Ban, Check, Clock, Eye, MessageSquare, Undo2 } from 'lucide-react';
+import { Ban, Check, Clock, Eye, MessageSquare, Undo2, X } from 'lucide-react';
 import { createContext, useContext, useEffect, useState, type ComponentProps, type ReactNode } from 'react';
 import { chatOf } from '#src/layout/kinds.tsx';
 import { OpenItems } from '#src/layout/openable.tsx';
@@ -41,6 +41,8 @@ export function PickProvider({ children }: { children: ReactNode }) {
     hint,
     toggle: (x) =>
       setPicked((m) => {
+        const first = m.values().next().value;
+        if (first && pickGroup(first) !== pickGroup(x)) return m; // the other kind is dimmed, not picked
         const n = new Map(m);
         if (!n.delete(x.key)) n.set(x.key, x);
         return n;
@@ -48,7 +50,9 @@ export function PickProvider({ children }: { children: ReactNode }) {
     pickAll: (rows, on) =>
       setPicked((m) => {
         const n = new Map(m);
-        for (const x of rows) {
+        // One kind at a time: the kind already picked, else the first row's.
+        const kind = m.values().next().value ?? rows[0];
+        for (const x of kind ? rows.filter((r) => pickGroup(r) === pickGroup(kind)) : []) {
           if (on) n.set(x.key, x);
           else n.delete(x.key);
         }
@@ -105,7 +109,21 @@ export function useRowActions() {
     return failed.flatMap((f) => f.r.keys);
   };
   type On = { keys: string[]; task: number };
+  const decide = useWrite('proposal.decide');
+  const listed = useProposals().data?.proposals ?? [];
   return {
+    /** Each proposal answered; an Allow names the subject proposal.list showed, as the row's own Allow does. */
+    answer: (on: { keys: string[]; proposal: number }[], decision: 'approve' | 'reject') =>
+      all(
+        decision === 'approve' ? 'allowed' : 'denied',
+        on.map((x) => {
+          const subject = listed.find((l) => Number(l.id) === x.proposal)?.subject;
+          return {
+            keys: x.keys,
+            run: () => decide.mutateAsync({ proposal: x.proposal, decision, ...(decision === 'approve' && subject ? { subject } : {}) }),
+          };
+        }),
+      ),
     giveBack: (on: On[]) =>
       all(
         'given back',
@@ -185,6 +203,8 @@ function useBulk() {
     giveBack: b.giveBack.length ? { label: name.giveBack, keys: keys(b.giveBack), run: () => then(act.giveBack(b.giveBack)) } : null,
     done: b.close.length ? { label: name.done, keys: keys(b.close), run: () => then(act.done(b.close)) } : null,
     discard: b.close.length ? { label: name.discard, keys: keys(b.close), run: () => then(act.discard(b.close)) } : null,
+    allow: b.answer.length ? { label: name.allow, keys: keys(b.answer), run: () => then(act.answer(b.answer, 'approve')) } : null,
+    deny: b.answer.length ? { label: name.deny, keys: keys(b.answer), run: () => then(act.answer(b.answer, 'reject')) } : null,
   };
 }
 
@@ -241,7 +261,7 @@ export function BulkButtons() {
     onFocus: () => setPointed(on),
     onBlur: () => setPointed(null),
   });
-  if (!b.seen && !b.later && !b.giveBack && !b.done && !b.discard)
+  if (!b.seen && !b.later && !b.giveBack && !b.done && !b.discard && !b.allow)
     return <span className="px-2 whitespace-nowrap text-muted">Nothing to do to all of these</span>;
   return (
     <>
@@ -280,6 +300,18 @@ export function BulkButtons() {
         <Button variant="ghost" {...hint('discard')} onClick={b.discard.run}>
           <Ban size={14} />
           {`${b.discard.label}…`}
+        </Button>
+      )}
+      {b.deny && (
+        <Button variant="ghost" {...hint('deny')} onClick={b.deny.run}>
+          <X size={14} />
+          {b.deny.label}
+        </Button>
+      )}
+      {b.allow && (
+        <Button variant="primary" {...hint('allow')} onClick={b.allow.run}>
+          <Check size={14} />
+          {b.allow.label}
         </Button>
       )}
     </>
