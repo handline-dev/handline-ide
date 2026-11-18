@@ -1270,7 +1270,7 @@
           "type": "null"
          }
         ],
-        "description": "The newest ask for the task's core logic (task.core_ask); null when none was made. Once it is sent, the assignee commits the code on the task's branch (TaskDetail.branch): worktree.diff with that branch shows it."
+        "description": "The newest ask for the task's core logic (task.core_ask); null when none was made. Once it is sent, the assignee commits the code on a branch of the task's own: task.changes shows it."
        },
        "review": {
         "oneOf": [
@@ -1316,31 +1316,6 @@
          }
         ],
         "description": "How a story's sub-task (one opened as a draft) stands with the founder: when its assignee finishes it, by handing it to its workspace's land_by agent, it is Ready for the founder instead (a task_ready event); OK and Redo are task_verdict events. null when it was never Ready."
-       },
-       "branch": {
-        "oneOf": [
-         {
-          "type": "object",
-          "properties": {
-           "name": {
-            "type": "string",
-            "description": "<assignee>-T<n> by the assignee's name (a lead by its workspace's), e.g. ui-T9132; it follows a new assignee. Its core ask and its delivery tell the agent to commit there."
-           },
-           "exists": {
-            "type": "boolean",
-            "description": "Whether the branch exists yet in the assignee's worktree repo."
-           }
-          },
-          "required": [
-           "name",
-           "exists"
-          ]
-         },
-         {
-          "type": "null"
-         }
-        ],
-        "description": "The branch a story's sub-task (one opened as a draft) is committed on: worktree.diff with it reads the task's code whatever the worktree has checked out. null for any other task, or one no agent owns."
        }
       },
       "required": [
@@ -1362,8 +1337,7 @@
        "plan",
        "plan_ask",
        "core_ask",
-       "review",
-       "branch"
+       "review"
       ]
      }
     ]
@@ -5186,7 +5160,7 @@
   },
   {
    "name": "task.core_ask",
-   "summary": "Ask the task's assignee to write only its key function and that function's test, committed on a branch of the task's own in its worktree, not merged, and to say so in a comment. The ask waits as task.plan_ask's does (TaskDetail.core_ask). The code is read with worktree.diff; when the task is run its assignee carries on from that branch.",
+   "summary": "Ask the task's assignee to write only its key function and that function's test, committed on a branch of the task's own in its worktree, not merged, and to say so in a comment. The ask waits as task.plan_ask's does (TaskDetail.core_ask). The code is read with task.changes; when the task is run its assignee carries on from that branch.",
    "paramStructure": "by-name",
    "params": [
     {

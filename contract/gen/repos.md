@@ -12,7 +12,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `folder.init` | owner | yes | `path`, `request_id` | `Accepted & {path}` | `refused`, `not_found`, `bad_request` | state | decided: start git |
 | `folder.clone` | owner | yes | `url`, `path?`, `request_id` | `Accepted & {path}` | `refused`, `bad_request` | state | decided: clone |
 | `worktrees.list` | member |  | `repo?`, `owner?` | `{worktrees}` |  |  | `worktrees`, snapshot |
-| `worktree.diff` | member |  | `path`, `file?`, `against?`, `branch?` | `{path, file, diff, truncated, against, base_ref}` | `not_found`, `bad_request`, `refused` |  | `worktree-diff`, snapshot |
+| `worktree.diff` | member |  | `path`, `file?`, `against?` | `{path, file, diff, truncated, against, base_ref}` | `not_found`, `bad_request`, `refused` |  | `worktree-diff`, snapshot |
 | `files.list` | member |  | `agent`, `query?`, `limit?` | `{files, more}` | `bad_request`, `not_found` |  | `files`, snapshot |
 | `file.read` | owner |  | `agent`, `path` | `{text, size, truncated, mtime, etag}` | `bad_request`, `not_found`, `refused` |  | `file`, snapshot |
 | `file.write` | owner | yes | `agent`, `path`, `text`, `etag`, `request_id` | `{size, mtime, etag}` | `bad_request`, `not_found`, `refused` | denied, stale, too_big | decided: save file |

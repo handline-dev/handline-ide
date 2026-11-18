@@ -671,14 +671,6 @@
       ],
       "description": "head (absent): against HEAD. base: against the merge-base with the base branch, so the branch's commits show too; no base ref answers as head."
      }
-    },
-    {
-     "name": "branch",
-     "required": false,
-     "schema": {
-      "type": "string",
-      "description": "A branch of the worktree's repo (TaskDetail.branch): the diff is its commits against their merge-base with the base branch, nothing uncommitted; against is base (head is bad_request). No such branch: not_found (what branch); no base ref: refused."
-     }
     }
    ],
    "result": {

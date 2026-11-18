@@ -396,13 +396,6 @@ func (e *Env) worktreeDiff(_ *rpc.Conn, params map[string]any) (any, error) {
 		}
 		against = s
 	}
-	branch, _ := params["branch"].(string)
-	if v, has := params["branch"]; has && v != nil && (branch == "" || strings.HasPrefix(branch, "-")) {
-		return nil, badParam("branch is a branch name", "branch")
-	}
-	if branch != "" && params["against"] == "head" {
-		return nil, badParam("a branch is read against base", "against")
-	}
 	kn, err := e.knownWorktrees()
 	if err != nil {
 		return nil, err
@@ -413,41 +406,24 @@ func (e *Env) worktreeDiff(_ *rpc.Conn, params map[string]any) (any, error) {
 		nf.Data = map[string]any{"what": "worktree", "path": path}
 		return nil, nf
 	}
-	if hasFile && branch == "" && throughALink(root, file) { // a branch's diff reads git's objects, not the checkout
+	if hasFile && throughALink(root, file) {
 		return nil, badParam("file goes through a link: only what lies inside the worktree is read", "file")
 	}
 	from, baseRef := "HEAD", any(nil)
 	args := []string{"diff", "--no-ext-diff", "--no-textconv", "--no-color"}
-	if branch != "" { // the branch's commits alone, whatever the worktree has checked out
-		tip := "refs/heads/" + branch
-		if ok, _ := git(root, "check-ref-format", "--branch", branch); !ok {
-			return nil, badParam("branch is a branch name", "branch")
+	if against == "base" {
+		if ref, mb := baseMergeBase(root, "HEAD"); mb != "" {
+			from, baseRef = mb, ref
+		} else {
+			against = "head"
 		}
-		if ok, _ := git(root, "rev-parse", "--verify", "--quiet", tip+"^{commit}"); !ok {
-			nf := rpc.NotFoundError("no branch " + branch + " in " + path)
-			nf.Data = map[string]any{"what": "branch", "name": branch}
-			return nil, nf
-		}
-		ref, mb := baseMergeBase(root, tip)
-		if mb == "" {
-			return nil, rpc.Refused("no base branch to read "+branch+" against", "", "")
-		}
-		against, baseRef, args = "base", ref, append(args, mb, tip)
-	} else {
-		if against == "base" {
-			if ref, mb := baseMergeBase(root, "HEAD"); mb != "" {
-				from, baseRef = mb, ref
-			} else {
-				against = "head"
-			}
-		}
-		args = append(args, from)
 	}
+	args = append(args, from)
 	if hasFile {
 		args = append(args, "--", file)
 	}
 	_, out := git(root, args...)
-	if hasFile && out == "" && branch == "" {
+	if hasFile && out == "" {
 		full := filepath.Join(root, file)
 		if st, err := os.Lstat(full); err == nil && st.Mode().IsRegular() {
 			if tracked, _ := git(root, "ls-files", "--error-unmatch", "--", file); !tracked {
@@ -455,7 +431,7 @@ func (e *Env) worktreeDiff(_ *rpc.Conn, params map[string]any) (any, error) {
 			}
 		}
 	}
-	if !hasFile && branch == "" {
+	if !hasFile {
 		out += untrackedDiffs(root)
 	}
 	shown, truncated := out, false

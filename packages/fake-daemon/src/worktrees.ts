@@ -220,8 +220,6 @@ export class FakeWorktrees {
   private on: boolean;
   /** What worktrees.list serves; a test replaces it. */
   rows: Worktree[] = seed();
-  /** The files each branch of a worktree's repo changed against base, by worktree path then branch: worktree.diff with branch reads them. */
-  branches: Record<string, Record<string, Worktree['changed']>> = {};
   repos: Repo[] = REPOS.map((r) => ({ ...r }));
   recent: RecentFolder[] = RECENT.map((f) => ({ ...f }));
 
@@ -307,19 +305,10 @@ export class FakeWorktrees {
           throw invalidParams('the file must stay inside the worktree', 'file');
         if (p.against !== undefined && p.against !== 'head' && p.against !== 'base')
           throw invalidParams('against is "head" or "base"', 'against');
-        if (p.branch != null && (typeof p.branch !== 'string' || !p.branch || p.branch.startsWith('-') || /\.\.|\s/.test(p.branch)))
-          throw invalidParams('branch is a branch name', 'branch');
-        if (p.branch != null && p.against === 'head') throw invalidParams('a branch is read against base', 'against');
         if (!this.rows.some((w) => w.path === p.path)) throw new Failure('not_found', `no worktree ${p.path}`, { what: 'path' });
         const row = this.rows.find((w) => w.path === p.path)!;
-        let changed = row.changed;
-        if (typeof p.branch === 'string') {
-          const of = this.branches[row.path]?.[p.branch];
-          if (!of) throw new Failure('not_found', `no branch ${p.branch} in ${p.path}`, { what: 'branch', name: p.branch });
-          changed = of;
-        }
-        const files = changed.filter((c) => (p.file === undefined ? c.status !== '?' : c.path === p.file));
-        const against = p.against === 'base' || p.branch != null ? 'base' : 'head';
+        const files = row.changed.filter((c) => (p.file === undefined ? c.status !== '?' : c.path === p.file));
+        const against = p.against === 'base' ? 'base' : 'head';
         return {
           path: p.path,
           file: p.file ?? null,
