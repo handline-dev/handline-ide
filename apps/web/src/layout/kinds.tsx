@@ -49,11 +49,13 @@ export const shellHandle = (kind: string) => (kind.startsWith('shell:') ? kind.s
 export const taskOf = (id: number) => `task:${id}`;
 /** A task's sub-tasks as a graph (tools/Story): `plan:8503`. */
 export const planOf = (id: number) => `plan:${id}`;
+/** A task's changes, whole and per commit (tools/TaskCode): `code:8503`. */
+export const codeOf = (id: number) => `code:${id}`;
 export const webOf = (url: string) => `web:${url}`;
 export const fileOf = (path: string) => `file:${path}`;
 /** A text kept in this browser (tools/TextTab): `text:<when>/<name>`, titled by its name. */
 export const textOf = (when: string, name: string) => `text:${when}/${name}`;
-export const opened = (kind: string, prefix: 'task' | 'plan' | 'web' | 'file' | 'text') =>
+export const opened = (kind: string, prefix: 'task' | 'plan' | 'code' | 'web' | 'file' | 'text') =>
   kind.startsWith(`${prefix}:`) ? kind.slice(prefix.length + 1) : null;
 const onThing = (kind: string): { label: string; icon: ReactNode } | null => {
   if (shellHandle(kind)) return kinds.newshell;
@@ -61,6 +63,8 @@ const onThing = (kind: string): { label: string; icon: ReactNode } | null => {
   if (task) return { label: `T${task}`, icon: kinds.tasks.icon };
   const plan = opened(kind, 'plan');
   if (plan) return { label: `Plan · T${plan}`, icon: kinds.plan.icon };
+  const code = opened(kind, 'code');
+  if (code) return { label: `T${code} Code`, icon: kinds.diff.icon };
   const web = opened(kind, 'web');
   if (web) {
     let host = web;

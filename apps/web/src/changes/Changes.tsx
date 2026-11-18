@@ -7,10 +7,10 @@ import { ScrollFade } from '#src/ui/ScrollFade.tsx';
 import { useTabState } from '#src/persist/tabState.ts';
 
 /** One file's part of a unified diff: its path and its lines, the file headers left out. */
-type FileDiff = { path: string; lines: string[] };
+export type FileDiff = { path: string; lines: string[] };
 
 /** Splits a unified diff (`git diff`) by file. */
-function byFile(diff: string): FileDiff[] {
+export function byFile(diff: string): FileDiff[] {
   const files: FileDiff[] = [];
   for (const line of diff.split('\n')) {
     const head = /^diff --git a\/.+ b\/(.+)$/.exec(line);
@@ -30,31 +30,16 @@ const tone = (line: string) =>
         ? 'bg-danger/10 text-fg'
         : 'text-fg';
 
-/** Each file of a diff with the lines it adds and removes, counted from the diff itself. */
-export const diffCounts = (diff: string) =>
-  byFile(diff).map((f) => ({
-    path: f.path,
-    added: f.lines.filter((l) => l.startsWith('+')).length,
-    deleted: f.lines.filter((l) => l.startsWith('-')).length,
-  }));
-
-/** A branch's commits in the agent's worktree repo against their merge-base with the base branch, whatever it has checked out. */
-export function useBranchDiff(agent: string, branch: string | null) {
-  const path = useAgentDetail(agent).data?.worktree?.path ?? '';
-  return useRead('worktree.diff', { path, against: 'base', branch: branch ?? '' }, { enabled: path !== '' && !!branch });
-}
-
 /** The agent's worktree changes against its base: the branch, each changed file with its lines added and removed, and the diff
- * under it, folded per file. With `branch`, that branch's commits alone (a task's code), with no Uncommitted view. */
-export function Changes({ agent, branch }: { agent: string; branch?: string }) {
+ * under it, folded per file. */
+export function Changes({ agent }: { agent: string }) {
   const detail = useAgentDetail(agent).data;
   const path = detail?.worktree?.path ?? '';
   const worktreeChanged = useWorktrees({ owner: agent }).data?.worktrees.find((w) => w.path === path)?.changed ?? [];
-  const [picked, setAgainst] = useTabState<'head' | 'base'>('against', 'base');
-  const against = branch ? 'base' : picked;
+  const [against, setAgainst] = useTabState<'head' | 'base'>('against', 'base');
   // The files folded shut; the rest are open. A fold drops the paths no longer in the diff, so the list never outgrows it.
   const [shut, setShut] = useTabState<string[]>('shut', []);
-  const diff = useRead('worktree.diff', { path, against, ...(branch ? { branch } : {}) }, { enabled: path !== '' });
+  const diff = useRead('worktree.diff', { path, against }, { enabled: path !== '' });
   const box = useRef<HTMLDivElement>(null);
   // A file asked for from the branch card comes to the top of the view, opened.
   const show = useCallback((file: string) => {
@@ -66,26 +51,23 @@ export function Changes({ agent, branch }: { agent: string; branch?: string }) {
   if (!detail) return <p className="p-4 text-sm text-muted">Loading…</p>;
   if (!detail.worktree) return <p className="p-4 text-sm text-muted">This agent has no worktree.</p>;
   const files = diff.data ? byFile(diff.data.diff) : [];
-  const changed = branch ? diffCounts(diff.data?.diff ?? '') : worktreeChanged;
-  const counts = new Map(changed.map((f) => [f.path, f]));
+  const counts = new Map(worktreeChanged.map((f) => [f.path, f]));
   return (
     <ScrollFade keep={`changes:${agent}`} className="min-h-0 flex-1">
       <div ref={box} className="flex flex-col gap-3 p-4">
         <div className="flex items-center gap-2 text-sm text-muted">
           <GitBranch size={14} />
-          <span className="text-fg">{branch ?? detail.worktree.branch}</span>
-          <span>{`${changed.length} files changed`}</span>
+          <span className="text-fg">{detail.worktree.branch}</span>
+          <span>{`${worktreeChanged.length} files changed`}</span>
           <span className="flex-1" />
-          {!branch && (
-            <Segmented
-              value={against}
-              onChange={setAgainst}
-              options={[
-                ['head', 'Uncommitted'],
-                ['base', `vs ${diff.data?.against === 'base' ? (diff.data.base_ref ?? 'main') : 'main'}`],
-              ]}
-            />
-          )}
+          <Segmented
+            value={against}
+            onChange={setAgainst}
+            options={[
+              ['head', 'Uncommitted'],
+              ['base', `vs ${diff.data?.against === 'base' ? (diff.data.base_ref ?? 'main') : 'main'}`],
+            ]}
+          />
         </div>
         {diff.isPending && <LinesLoading label="Loading the diff" />}
         {diff.isError && <p className="text-sm text-danger">The diff did not load.</p>}
@@ -126,7 +108,7 @@ function Segmented<T extends string>({ value, onChange, options }: { value: T; o
   );
 }
 
-function File({
+export function File({
   file,
   added,
   deleted,
