@@ -748,6 +748,125 @@
    ]
   },
   {
+   "name": "desks.list",
+   "summary": "The worktree pool's desks: who holds each, who had it last and when, and its pin.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "repo",
+     "required": false,
+     "schema": {
+      "type": "string"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "properties": {
+      "desks": {
+       "type": "array",
+       "items": {
+        "type": "object",
+        "properties": {
+         "path": {
+          "type": "string"
+         },
+         "name": {
+          "type": "string",
+          "description": "desk-<n>, or an older folder's own name"
+         },
+         "repo": {
+          "type": "string"
+         },
+         "holder": {
+          "type": "string",
+          "description": "the agent working in it now; empty when free"
+         },
+         "last_agent": {
+          "type": "string"
+         },
+         "last_used": {
+          "type": "integer",
+          "description": "unix seconds"
+         },
+         "pinned_to": {
+          "type": "string",
+          "description": "an agent, 'founder', or empty: nobody else takes a pinned desk"
+         }
+        },
+        "required": [
+         "path",
+         "name",
+         "repo",
+         "holder",
+         "last_agent",
+         "last_used",
+         "pinned_to"
+        ]
+       }
+      }
+     },
+     "required": [
+      "desks"
+     ]
+    }
+   },
+   "x-role": "agent",
+   "x-write": false,
+   "x-since": 1,
+   "description": "A desk is a worktree folder of a project that an agent takes when its session starts and gives back when it closes; the oldest used comes first. `repo` narrows them by the repo's path.",
+   "x-app-cache": false
+  },
+  {
+   "name": "desk.pin",
+   "summary": "Keeps a desk for one agent or the founder, so no other agent takes it; without `to` it goes to anyone again.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "desk",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "description": "the desk's path or name (desk-3)"
+     }
+    },
+    {
+     "name": "to",
+     "required": false,
+     "schema": {
+      "$ref": "#/components/schemas/Who"
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Accepted"
+    }
+   },
+   "x-role": "owner",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "pin a desk"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ]
+  },
+  {
    "name": "files.list",
    "summary": "The files of an agent's worktree, for the chat's @ menu.",
    "paramStructure": "by-name",

@@ -8,6 +8,7 @@ var usages = map[string][2]string{
 	"withdraw": {`hl withdraw <msg> [--reason "<why>"]`, `hl withdraw msg_1a2b3c4 --reason "sent to the wrong agent"`},
 	"progress": {`hl progress [--done N --of M] "<done: ... left: ...>"`, `hl progress --done 3 --of 5 "wiring the gate"`},
 	"load":     {`hl load [--agent <name>]`, `hl load`},
+	"desk":     {`hl desk list [<repo>]   |   hl desk pin <desk> <agent|founder>   |   hl desk unpin <desk>`, `hl desk pin desk-3 founder`},
 	"lesson":   {`hl lesson add "<what to do differently>" --task T<n> [--about founder --said <comment|msg>]   |   hl lesson merge <id> <id>... "<one lesson for them>" [--about founder --said <comment|msg>]   |   hl lesson list [<agent>|founder]`, `hl lesson add "show the screen in both themes" --task T12`}, // local-ref-ok: the usage example
 	"team":     {`hl team [--agent <name>]`, `hl team`},
 	"use":      {`hl use <heavy|simulator|browser|port>... -- <command...>   |   hl use <heavy|simulator|browser|port> --hold   |   hl use --release [<heavy|simulator|browser|port>]   |   hl use --extend [<heavy|simulator|browser|port>]`, `hl use simulator port -- npm run e2e`},

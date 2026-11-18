@@ -1,6 +1,7 @@
 package db
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
@@ -37,20 +38,10 @@ func (n NotLiveLesson) Error() string {
 
 // LiveLessons are agent's lessons not removed or merged, oldest first.
 func LiveLessons(q Q, agent string) ([]Lesson, error) {
-	rows, err := q.Query("SELECT id, agent, text, COALESCE(task, 0), created_at, created_by FROM lessons WHERE agent = ? AND removed_at IS NULL ORDER BY id", agent)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []Lesson
-	for rows.Next() {
-		var l Lesson
-		if err := rows.Scan(&l.ID, &l.Agent, &l.Text, &l.Task, &l.CreatedAt, &l.CreatedBy); err != nil {
-			return nil, err
-		}
-		out = append(out, l)
-	}
-	return out, rows.Err()
+	return Collect[Lesson](q.Query("SELECT id, agent, text, COALESCE(task, 0), created_at, created_by FROM lessons WHERE agent = ? AND removed_at IS NULL ORDER BY id", agent))(
+		func(rows *sql.Rows) (l Lesson, err error) {
+			return l, rows.Scan(&l.ID, &l.Agent, &l.Text, &l.Task, &l.CreatedAt, &l.CreatedBy)
+		})
 }
 
 // LessonsSection is the launch prompt's part that carries an agent's own lessons, "" for none.

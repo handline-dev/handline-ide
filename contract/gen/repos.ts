@@ -126,6 +126,29 @@ export interface ReposMethods {
     /** The ref `base` measured against, e.g. origin/main; null when against is head. */
     base_ref: string | null;
   } };
+  "desks.list": { params: {
+  repo?: string;
+}; result: {
+    desks: {
+      path: string;
+      /** desk-<n>, or an older folder's own name */
+      name: string;
+      repo: string;
+      /** the agent working in it now; empty when free */
+      holder: string;
+      last_agent: string;
+      /** unix seconds */
+      last_used: number;
+      /** an agent, 'founder', or empty: nobody else takes a pinned desk */
+      pinned_to: string;
+    }[];
+  } };
+  "desk.pin": { params: {
+  /** the desk's path or name (desk-3) */
+  desk: string;
+  to?: Who;
+  request_id: RequestId;
+}; result: Accepted };
   "files.list": { params: {
   agent: Who;
   /** Matched case-insensitively as a subsequence of the path: its letters appear in the path in order, not necessarily side by side. Absent, null or empty lists every file. Anything else that is not a string is bad_request (field query). */
@@ -230,6 +253,8 @@ export const REPOS_METHODS: { [K in keyof ReposMethods]: { role: Role; callers: 
   "folder.clone": { role: "owner", callers: null, write: true, since: 1 },
   "worktrees.list": { role: "member", callers: null, write: false, since: 1 },
   "worktree.diff": { role: "member", callers: null, write: false, since: 1 },
+  "desks.list": { role: "agent", callers: null, write: false, since: 1 },
+  "desk.pin": { role: "owner", callers: null, write: true, since: 1 },
   "files.list": { role: "member", callers: null, write: false, since: 1 },
   "file.read": { role: "owner", callers: null, write: false, since: 1 },
   "file.write": { role: "owner", callers: null, write: true, since: 1 },
@@ -240,12 +265,13 @@ export const REPOS_METHODS: { [K in keyof ReposMethods]: { role: Role; callers: 
 };
 
 /** x-app-cache of each read (x-app in core.json). */
-export const REPOS_APP_CACHE: { [K in "repos.list" | "repos.recent" | "repo.facts" | "worktrees.list" | "worktree.diff" | "files.list" | "file.read" | "doc.open" | "doc.pull" | "doc.close"]: { resource: string; id?: string; feed: Topic | null } | false } = {
+export const REPOS_APP_CACHE: { [K in "repos.list" | "repos.recent" | "repo.facts" | "worktrees.list" | "worktree.diff" | "desks.list" | "files.list" | "file.read" | "doc.open" | "doc.pull" | "doc.close"]: { resource: string; id?: string; feed: Topic | null } | false } = {
   "repos.list": {"resource": "repos", "feed": null},
   "repos.recent": {"resource": "recent_repos", "feed": null},
   "repo.facts": {"resource": "repo_facts", "feed": null},
   "worktrees.list": {"resource": "worktrees", "feed": null},
   "worktree.diff": {"resource": "worktree-diff", "feed": null},
+  "desks.list": false,
   "files.list": {"resource": "files", "feed": null},
   "file.read": {"resource": "file", "feed": null},
   "doc.open": false,
@@ -254,10 +280,11 @@ export const REPOS_APP_CACHE: { [K in "repos.list" | "repos.recent" | "repo.fact
 };
 
 /** x-app-write of each write (x-app in core.json). */
-export const REPOS_APP_WRITES: { [K in "repo.set" | "folder.init" | "folder.clone" | "file.write" | "doc.push"]: { kind: WriteKind; label: string } | false } = {
+export const REPOS_APP_WRITES: { [K in "repo.set" | "folder.init" | "folder.clone" | "desk.pin" | "file.write" | "doc.push"]: { kind: WriteKind; label: string } | false } = {
   "repo.set": {"kind": "decided", "label": "save project setup"},
   "folder.init": {"kind": "decided", "label": "start git"},
   "folder.clone": {"kind": "decided", "label": "clone"},
+  "desk.pin": {"kind": "decided", "label": "pin a desk"},
   "file.write": {"kind": "decided", "label": "save file"},
   "doc.push": {"kind": "uncached", "label": "edit"},
 };

@@ -257,14 +257,29 @@ func TestAdoptKeepsTheOldFoldersAsTheyAreHeldByTheirAgents(t *testing.T) {
 	r.git(r.repo, "worktree", "add", "-q", "-b", "story4", old)
 	stray := filepath.Join(t.TempDir(), "elsewhere")
 	r.git(r.repo, "worktree", "add", "-q", "--detach", stray)
-	old = canonical(old)
-	r.db.Exec("INSERT INTO agent_state(agent, state, updated, worktree) VALUES('a2','IDLE',1,?)", r.repo+"::"+old)
+	extra := filepath.Join(worktreepaths.Dir(r.repo), "handline.architect-2")
+	r.git(r.repo, "worktree", "add", "-q", "-b", "story4-2", extra)
+	mine := filepath.Join(worktreepaths.Dir(r.repo), "founders")
+	r.git(r.repo, "worktree", "add", "-q", "-b", "mine", mine)
+	old, extra, mine = canonical(old), canonical(extra), canonical(mine)
+	r.db.Exec("INSERT INTO agent_state(agent, state, updated, worktree, extra_worktrees) VALUES('a2','IDLE',1,?,?)", r.repo+"::"+old, `["`+extra+`"]`)
 	n, err := r.pool.Adopt(r.repo)
-	if err != nil || n != 1 {
-		t.Fatalf("adopted %d: %v (only the folder under the worktrees dir)", n, err)
+	if err != nil || n != 3 {
+		t.Fatalf("adopted %d: %v (only the folders under the worktrees dir)", n, err)
 	}
 	if r.holder(old) != "a2" {
 		t.Fatal("the agent working in it holds it")
+	}
+	pin := func(path string) string {
+		var p sql.NullString
+		r.db.QueryRow("SELECT pinned_to FROM worktree_folders WHERE path = ?", path).Scan(&p)
+		return p.String
+	}
+	if pin(extra) != "a2" || pin(mine) != Founder || pin(old) != "" {
+		t.Fatalf("pins: extra %q, unrecorded %q, held %q", pin(extra), pin(mine), pin(old))
+	}
+	if got := r.take("bob"); got.Path == extra || got.Path == mine {
+		t.Fatalf("bob was given someone's folder: %+v", got)
 	}
 	var branch string
 	r.db.QueryRow("SELECT branch FROM agent_state WHERE agent = 'a2'").Scan(&branch)
@@ -298,9 +313,10 @@ func TestTheSweepGivesBackAClosedAgentsDeskOnceItsSessionLetGoAndTheGraceIsOver(
 	d := r.take("ann").Path
 	taken := r.at
 	running := true
+	r.pool.Running = func(string, string) bool { return running }
 	sweep := func(now int64) {
 		t.Helper()
-		if err := r.pool.Sweep(now, func(string, string) bool { return running }, nil); err != nil {
+		if err := r.pool.Sweep(now, nil); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -320,8 +336,8 @@ func TestTheSweepGivesBackAClosedAgentsDeskOnceItsSessionLetGoAndTheGraceIsOver(
 	}
 	os.WriteFile(filepath.Join(d, "u.txt"), []byte("x"), 0o644)
 	var told []string
-	r.pool.Sweep(taken+GraceS+1, nil, func(agent, text string) { told = append(told, agent) })
-	r.pool.Sweep(taken+GraceS+2, nil, func(agent, text string) { told = append(told, agent) })
+	r.pool.Sweep(taken+GraceS+1, func(agent, text string) { told = append(told, agent) })
+	r.pool.Sweep(taken+GraceS+2, func(agent, text string) { told = append(told, agent) })
 	if r.holder(d) != "ann" || len(told) != 1 {
 		t.Fatalf("untracked: held and told once, got %v", told)
 	}
@@ -329,5 +345,84 @@ func TestTheSweepGivesBackAClosedAgentsDeskOnceItsSessionLetGoAndTheGraceIsOver(
 	sweep(taken + GraceS + 3)
 	if r.holder(d) != "" {
 		t.Fatal("given back")
+	}
+}
+
+func TestAHeldDeskOnADetachedHeadKeepsTheBranchOnRecord(t *testing.T) {
+	r := newRig(t)
+	d := r.take("ann").Path
+	r.git(d, "checkout", "-q", "--detach")
+	if got := r.take("ann"); got.How != "held" || got.Branch != "ann-work" {
+		t.Fatalf("%+v", got)
+	}
+	var branch string
+	r.db.QueryRow("SELECT branch FROM agent_state WHERE agent = 'ann'").Scan(&branch)
+	if branch != "ann-work" {
+		t.Fatalf("branch on record: %q", branch)
+	}
+}
+
+func TestAnAgentWithNoBranchOnRecordGetsTheOneItsKeyAlreadyHas(t *testing.T) {
+	r := newRig(t)
+	r.git(r.repo, "branch", "a7")
+	os.WriteFile(filepath.Join(r.repo, "a.txt"), []byte("on main\n"), 0o644)
+	if got := r.take("a7"); got.Branch != "a7" || head(got.Path) != "a7" {
+		t.Fatalf("the agent's old branch is left behind: %+v", got)
+	}
+}
+
+func TestAHalfDoneMergeKeepsTheDeskHeldAndIsToldNotCommitted(t *testing.T) {
+	r := newRig(t)
+	d := r.take("ann").Path
+	os.WriteFile(filepath.Join(d, "a.txt"), []byte("ann\n"), 0o644)
+	r.git(d, "commit", "-q", "-am", "ann's")
+	r.git(r.repo, "checkout", "-q", "-b", "other", "main")
+	os.WriteFile(filepath.Join(r.repo, "a.txt"), []byte("other\n"), 0o644)
+	r.git(r.repo, "commit", "-q", "-am", "other's")
+	r.git(r.repo, "checkout", "-q", "main")
+	if res := gitrun.Run(d, "merge", "other"); res.RC == 0 {
+		t.Fatal("the merge was meant to conflict")
+	}
+	g := r.give("ann")
+	if g.Freed || g.Committed != "" || !strings.Contains(g.Tell, "merge in progress") || r.holder(d) != "ann" {
+		t.Fatalf("%+v", g)
+	}
+}
+
+func TestAGoneDeskLeavesThePoolAndFreesItsBranch(t *testing.T) {
+	r := newRig(t)
+	d := r.take("ann").Path
+	os.RemoveAll(d)
+	got := r.take("ann")
+	if got.Path != d || got.How != "new" || head(got.Path) != "ann-work" { // desk-1 again: the lowest free number
+		t.Fatalf("%+v", got)
+	}
+	var n int
+	r.db.QueryRow("SELECT COUNT(*) FROM worktree_folders WHERE holder = 'ann'").Scan(&n)
+	if n != 1 {
+		t.Fatalf("ann holds %d desks", n)
+	}
+}
+
+func TestADeskASessionStillRunsInIsNeitherTakenNorGivenBack(t *testing.T) {
+	r := newRig(t)
+	d := r.take("ann").Path
+	r.pool.Running = func(_, desk string) bool { return desk == d }
+	r.db.Exec("UPDATE agent_state SET closed_at = 5 WHERE agent = 'ann'")
+	if g := r.give("ann"); g.Freed {
+		t.Fatal("given back under a running session")
+	}
+	r.db.Exec("UPDATE worktree_folders SET holder = NULL WHERE path = ?", d)
+	if got := r.take("bob"); got.Path == d {
+		t.Fatal("taken under a running session")
+	}
+}
+
+func TestAllDesksAreListedWhenNoRepoIsNamed(t *testing.T) {
+	r := newRig(t)
+	r.take("ann")
+	all, err := List(r.db, "")
+	if err != nil || len(all) != 1 {
+		t.Fatalf("%v %v", all, err)
 	}
 }

@@ -38,6 +38,8 @@ export const NOT_QUERIES = [
   'terminal.open',
   'lessons.list',
   'agent.review',
+  // `hl desk list`: the worktree pool's desks. Its screen is T9222's.
+  'desks.list',
   // `hl inbox` and `hl read`: an agent's queue and one request whole. The app draws the founder's inbox from inbox.list.
   'inbox.queue',
   'request.read',
