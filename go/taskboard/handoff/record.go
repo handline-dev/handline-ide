@@ -55,6 +55,8 @@ type Env struct {
 	Now        func() time.Time
 	// Note is what asking for and reading the agent's own note needs.
 	Note NoteEnv
+	// Summary writes the note from the transcript when the agent left none (summary.go); nil writes none.
+	Summary *Summarizer
 }
 
 func (e *Env) now() time.Time {
@@ -336,12 +338,15 @@ func WorktreePath(recorded string) string {
 	return ""
 }
 
+// agentNoteHeading heads the note the agent wrote itself.
+const agentNoteHeading = "written by the agent just before the close:"
+
 func (e *Env) noteLines(agent string) ([]string, error) {
 	body, err := e.NoteText(agent)
 	if err != nil || body == "" {
 		return nil, err
 	}
-	lines := []string{"written by the agent just before the close:"}
+	lines := []string{agentNoteHeading}
 	for _, l := range textsafe.SplitLines(body) {
 		lines = append(lines, "  "+l)
 	}

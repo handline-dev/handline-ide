@@ -142,6 +142,23 @@ func (m *Manager) WakePrompt(agent string, resumed bool, in WakePromptIn) (text 
 	return strings.Join(parts, "\n\n"), nil
 }
 
+// lookAtMax is how many of its open tasks a fresh session with no record is pointed at.
+const lookAtMax = 10
+
+// whereToLook is what a fresh session with no record runs to see where it was: each open task it acts on, then its inbox.
+func (m *Manager) whereToLook(agent string) string {
+	tasks := must(db.OpenTasksOf(m.Q, agent))
+	var cmds []string
+	for _, t := range tasks[:min(len(tasks), lookAtMax)] {
+		cmds = append(cmds, fmt.Sprintf("`hl task show T%d`", t.ID))
+	}
+	if more := len(tasks) - lookAtMax; more > 0 {
+		cmds = append(cmds, fmt.Sprintf("(%d more in `hl task list`)", more))
+	}
+	cmds = append(cmds, "`hl inbox`")
+	return "Run " + strings.Join(cmds, ", ") + " to see where you were before carrying on."
+}
+
 // StartCause is what a start for waiting work is recorded as: the contract's word for work arriving for a closed agent.
 const StartCause = "start"
 
@@ -721,6 +738,26 @@ func (m *Manager) launchClosed(agent string, row *db.AgentState, wt, session str
 	// Past the cache's life a resume reads the whole transcript again, worth it up to ResumeMaxContext; past that a fresh start costs the
 	// handoff, and the record stays on the row for the launch to inject.
 	cold := c.movedTo == "" && !c.warm && m.cacheExpiredAt(agent, session, m.now()) && m.carried(agent, session) == ""
+	// took is a record a wake took for this session and handed to no session yet, kept across the ticks a wake waits through.
+	tookFor, _ := must2(db.Meta(m.Q, coldTookKey(agent)))
+	took := cold && session != "" && tookFor == session
+	if cold && must(db.GetHandoff(m.Q, agent)) == "" {
+		// The close that would have taken it failed, and the snapshot no longer names the session; the id on the row still does.
+		gaps := must(m.Handoff.Record(m.Q, agent, session))
+		took = true
+		check(db.SetMeta(m.Q, coldTookKey(agent), session))
+		if len(gaps) > 0 {
+			w := "could not read " + strings.Join(gaps, ", ")
+			// "handoff" must stay out of the activity kinds: this is Handline's own bookkeeping about a failed take, not the agent doing
+			// anything, and counting it would read a dead cache warm.
+			must(db.AddEvent(m.Q, agent, "handoff", db.KV{K: "degraded", V: true}, db.KV{K: "session", V: nilIfEmpty(session)}, db.KV{K: "why", V: w}))
+			m.Log("  %s: cold wake handoff degraded (%s)", agent, w)
+		}
+	}
+	// A fresh start (not a move, which has reserved its slot already) waits for the note Handline writes into a record with none.
+	if c.movedTo == "" && (cold || session == "") && m.Handoff.NoteFromTranscript(agent) {
+		return false, "waiting for the handoff note Handline is writing from its transcript"
+	}
 	// A fresh start goes where there is room. With none, `hl launch` would refuse and the refusal would count against the agent's wake
 	// attempts, though it is the accounts that are full.
 	// The slot is held from the choice, under the one placement lock. A move moveElsewhere made holds it already.
@@ -743,19 +780,6 @@ func (m *Manager) launchClosed(agent string, row *db.AgentState, wt, session str
 	}()
 	if slot == "" {
 		return false, noRoom
-	}
-	took := false
-	if cold && must(db.GetHandoff(m.Q, agent)) == "" {
-		// The close that would have taken it failed, and the snapshot no longer names the session; the id on the row still does.
-		gaps := must(m.Handoff.Record(m.Q, agent, session))
-		took = true
-		if len(gaps) > 0 {
-			w := "could not read " + strings.Join(gaps, ", ")
-			// "handoff" must stay out of the activity kinds: this is Handline's own bookkeeping about a failed take, not the agent doing
-			// anything, and counting it would read a dead cache warm.
-			must(db.AddEvent(m.Q, agent, "handoff", db.KV{K: "degraded", V: true}, db.KV{K: "session", V: nilIfEmpty(session)}, db.KV{K: "why", V: w}))
-			m.Log("  %s: cold wake handoff degraded (%s)", agent, w)
-		}
 	}
 	attempts := []bool{false}
 	if session != "" && !cold {
@@ -898,12 +922,15 @@ func (m *Manager) wakeDropped(agent, why string) {
 	m.Log("  %s: wake dropped: %s", agent, why)
 }
 
+func coldTookKey(agent string) string { return "cold_took:" + agent }
+
 // wakeFailed records a wake that started nothing and returns what to say. foreign: a session it did not start is running, which is no
 // failed wake to count toward STALLED.
 func (m *Manager) wakeFailed(agent, session, why string, took, foreign bool) string {
 	if took {
 		// A record no session was handed would be typed at whichever live session the next wake finds, as if it had been parked.
 		check(db.ClearHandoff(m.Q, agent))
+		check(db.SetMeta(m.Q, coldTookKey(agent), ""))
 	}
 	// The closed mark and resume_session are the whole way back. A wake that started nothing leaves both alone: the next attempt -
 	// work arriving, or the next restart - has nothing else to use.
