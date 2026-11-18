@@ -7,7 +7,7 @@ import { useMe } from '@handline/app-react';
 import { Check, ChevronLeft, ChevronRight, Play } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { playVideo } from '#src/viewer/VideoPlayer.tsx';
-import { Changes, diffCounts, useBranchDiff } from '#src/changes/Changes.tsx';
+import { ChangeSize, TaskCode } from '#src/tools/TaskCode.tsx';
 import { useTabState } from '#src/persist/tabState.ts';
 import { FaceName } from '#src/ui/Face.tsx';
 import { startsAfter, wordOf, type Sub } from '#src/tools/storyWords.ts';
@@ -31,7 +31,7 @@ export function SubTask({ sub, story, onPick }: { sub: Sub; story: TaskDetail; o
   const rest = story.subtasks.filter((x) => x.id !== sub.id);
   const after = [...rest.filter((x) => x.id > sub.id), ...rest.filter((x) => x.id < sub.id)];
   const next = after.find((x) => x.review?.ready || (x.state === 'draft' && x.plan_state === 'written')) ?? after[0];
-  const code = !!t.branch?.exists;
+  const code = !!hooks.useTaskChanges({ task: sub.id }).data?.commits.length;
   const first: Tab = t.review ? 'result' : 'plan';
   const shown: Tab = tab === 'code' && !code ? first : (tab ?? first);
   return (
@@ -88,12 +88,12 @@ export function SubTask({ sub, story, onPick }: { sub: Sub; story: TaskDetail; o
         </div>
       </div>
       {shown === 'plan' && <PlanTab t={t} open={open} />}
-      {shown === 'code' && t.branch?.exists && (
-        <div className="flex min-h-0 flex-1 flex-col">
-          <Changes agent={t.to} branch={t.branch.name} />
-        </div>
+      {shown === 'code' && (
+        <ScrollFade keep={`subcode:${t.id}`} className="min-h-0 flex-1">
+          <TaskCode task={t.id} />
+        </ScrollFade>
       )}
-      {shown === 'result' && t.review && <ResultTab t={t} onCode={() => setTab('code')} />}
+      {shown === 'result' && t.review && <ResultTab t={t} />}
       {t.review?.ready ? <Verdict t={t} /> : t.state === 'draft' && <DraftButtons t={t} />}
     </div>
   );
@@ -238,7 +238,7 @@ function PlanTab({ t, open }: { t: TaskDetail; open: Set<number> }) {
   );
 }
 
-function ResultTab({ t, onCode }: { t: TaskDetail; onCode: () => void }) {
+function ResultTab({ t }: { t: TaskDetail }) {
   const review = t.review!;
   const memo = t.memos.find((m) => m.id === review.memo);
   const files = memo?.files ?? [];
@@ -246,9 +246,6 @@ function ResultTab({ t, onCode }: { t: TaskDetail; onCode: () => void }) {
   const pictures = files.filter((f) => f.kind === 'image' && !posters.has(f.id));
   const videos = files.filter((f) => f.kind === 'video');
   const others = files.filter((f) => f.kind !== 'image' && f.kind !== 'video');
-  const diff = useBranchDiff(t.to, t.branch?.exists ? t.branch.name : null).data;
-  const changed = diff ? diffCounts(diff.diff) : [];
-  const sum = (k: 'added' | 'deleted') => changed.reduce((n, f) => n + f[k], 0);
   return (
     <ScrollFade className="min-h-0 flex-1">
       <div className="flex flex-col gap-5 px-6 py-5 text-sm">
@@ -261,9 +258,7 @@ function ResultTab({ t, onCode }: { t: TaskDetail; onCode: () => void }) {
           ))}
         </div>
         <MessageImages images={others.map((f) => ({ id: f.id, name: f.name, mime: f.mime, size: f.bytes }))} />
-        <button type="button" onClick={onCode} className="self-start text-muted hover:text-fg hover:underline">
-          {changed.length} files · +{sum('added')} −{sum('deleted')}
-        </button>
+        <ChangeSize task={t.id} />
         {memo && (
           <div className="flex flex-col gap-1">
             <span className="text-xs text-muted">Changed from the plan</span>

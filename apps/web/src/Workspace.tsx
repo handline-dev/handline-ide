@@ -4,6 +4,7 @@ import { Changes } from '#src/changes/Changes.tsx';
 import { MarkdownTab } from '#src/tools/MarkdownTab.tsx';
 import { TaskTab } from '#src/tools/TaskTab.tsx';
 import { PlanTab } from '#src/tools/Story.tsx';
+import { CodeTab } from '#src/tools/TaskCode.tsx';
 import { TextTab } from '#src/tools/TextTab.tsx';
 import { TasksTab } from '#src/tools/TasksTab.tsx';
 import { RequestsTab } from '#src/requests/RequestsTab.tsx';
@@ -283,6 +284,7 @@ function PaneView({
               )}
               {current?.opens?.startsWith('task:') && <TaskTab key={current.opens} id={Number(current.opens.slice(5))} />}
               {current?.opens?.startsWith('plan:') && <PlanTab key={current.opens} id={Number(current.opens.slice(5))} />}
+              {current?.opens?.startsWith('code:') && <CodeTab key={current.opens} id={Number(current.opens.slice(5))} />}
               {current?.opens?.startsWith('file:') && agent && (
                 <MarkdownTab key={current.id} agent={agent} tab={current.id} start={current.opens.slice(5)} />
               )}

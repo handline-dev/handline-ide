@@ -20,6 +20,7 @@ import { Fields } from '#src/tools/TaskFields.tsx';
 import { GO_TURN, goToTurn, openTurnRow, takeTyping, type OpenTurn } from '#src/tools/TaskTurn.ts';
 import { showHistory } from '#src/tools/TaskDiff.tsx';
 import { CommentBox, type Reply } from '#src/tools/TaskComment.tsx';
+import { ChangeSize } from '#src/tools/TaskCode.tsx';
 import { PlanFlow, storyChat } from '#src/tools/Story.tsx';
 import { useAttachments } from '#src/chat/attachments.tsx';
 import { FileDropArea } from '#src/ui/fileDrop.tsx';
@@ -128,6 +129,7 @@ export function TaskTab({ id }: { id: number }) {
         <ScrollFade keep={`task:${id}`} fromEnd data-task-scroll={id} className="min-h-0 flex-1">
           <Page className="flex flex-col gap-6 pt-2 pb-4 text-base text-fg">
             <header className="flex flex-col gap-3">
+              <ChangeSize task={t.id} />
               <p className="text-xs text-muted">
                 Reports to {isPerson(t.asker, me) ? 'you' : t.asker} · <span title={t.created}>created {ago(t.created)}</span>
                 {open && chain && <> · {chain}</>}
