@@ -39,7 +39,6 @@ type LaunchArgs struct {
 	Chrome                    bool
 	SandboxOff                bool
 	MCPApproved               []string
-	ExtraDirs                 []string
 	// ReadAllow are files and folders the session may read with its file tools without asking: the attachments folder and the founder's grants.
 	ReadAllow []string
 	// LandPush lets the session run `git push origin HEAD:main` without asking: it is the workspace's land_by agent.

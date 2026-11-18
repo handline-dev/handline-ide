@@ -87,7 +87,7 @@ An agent uses three forms. `hl say`, `--assign`, `hl task handoff`, `hl task tur
 ```
 
 - Folders are named by key, so a rename moves nothing, and Claude's project history, which is keyed by the working directory, stays attached.
-- An agent works in its worktree of the workspace's project folder. The added folders reach Claude Code as `--add-dir`.
+- An agent works in a desk (worktree) of the workspace's project folder, taken at start and given back at close.
 - Runtime handles carry the key too: the tmux session and `HANDLINE_AGENT`. The launch prompt tells the agent its name and its workspace.
 
 ## Contract
