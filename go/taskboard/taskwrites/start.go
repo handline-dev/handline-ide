@@ -67,7 +67,7 @@ func start(c *rpc.Conn, p map[string]any) (any, error) {
 				back = fmt.Sprintf("; T%d goes back to queued (your `hl progress` note is kept)", held.Int64)
 			}
 		}
-		memos, err := db.MemoSummary(tx, tid, me, 0, 500)
+		memos, err := db.MemoSummary(tx, tid, me, 0, db.MemoCap)
 		if err != nil {
 			return nil, err
 		}

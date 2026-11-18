@@ -43,3 +43,43 @@ func TestAnAgentIsToldWhereTheImagesOfATasksTextsAre(t *testing.T) {
 		t.Fatalf("a long memo still names its image: %q", r.term.last())
 	}
 }
+
+func TestAnAnswerCarriesOnlyTheImagesOfTheCommentsItBrings(t *testing.T) {
+	r := newRig(t)
+	r.agentUp("bob")
+	s := attachments.New(r.home)
+	png, _ := base64.StdEncoding.DecodeString("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")
+	out, err := s.Put(r.DB, attachments.PutIn{Name: "a.png", Mime: "image/png", Bytes: int64(len(png)), Data: png})
+	if err != nil || out.Attachment == nil {
+		t.Fatalf("put: %v %v", out, err)
+	}
+	old := *out.Attachment
+	tid := r.newTask("bob", "alice", "job")
+	_, err = db.AddMemo(r.DB, tid, "p1", "look at this ![x](attachment:"+old.ID+")")
+	r.must(err)
+	_, err = db.AddMemo(r.DB, tid, r.k("bob"), "A, B or C?")
+	r.must(err)
+	answer, err := db.AddMemo(r.DB, tid, "p1", "OK")
+	r.must(err)
+	rid := r.ask("alice", "bob", "T1 댓글 2 질문에 대표님 댓글 3: OK", "task")
+	r.must(db.LinkRequest(r.DB, tid, rid))
+	r.must(db.LinkMemoTell(r.DB, answer, r.k("bob"), rid))
+	if got := r.imageLines(r.DB, mustReq(r, rid)); got != "" {
+		t.Fatalf("an answer with no image carries the older comment's: %q", got)
+	}
+	_, err = db.AddMemo(r.DB, tid, "p1", "and this ![x](attachment:"+old.ID+")")
+	r.must(err)
+	if got := r.imageLines(r.DB, mustReq(r, rid)); got != attachments.Line(1, s.Path(old), "image/png", int64(len(png))) {
+		t.Fatalf("a comment the delivery shows names its image: %q", got)
+	}
+	withImage, err := db.AddMemo(r.DB, tid, "p1", "this ![x](attachment:"+old.ID+")")
+	r.must(err)
+	rid = r.ask("alice", "bob", "T1 댓글 2 질문에 대표님 댓글 5: this", "task")
+	r.must(db.LinkRequest(r.DB, tid, rid))
+	r.must(db.LinkMemoTell(r.DB, withImage, r.k("bob"), rid))
+	_, err = db.AddMemo(r.DB, tid, r.k("bob"), "thanks")
+	r.must(err)
+	if got := r.imageLines(r.DB, mustReq(r, rid)); got != attachments.Line(1, s.Path(old), "image/png", int64(len(png))) {
+		t.Fatalf("the answer's own image is carried: %q", got)
+	}
+}

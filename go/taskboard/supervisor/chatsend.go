@@ -150,12 +150,12 @@ func (e *Env) ReopenConfirmed(q db.Q, row *db.Request) (reopened bool, err error
 }
 
 // imageLines is the path lines that follow a message's body when an agent is told of it: the images of the message (those its text names,
-// then those it was sent with), then for a task's request those the task's memos name.
+// then those it was sent with), then for a task's request those the comments it brings name.
 func (e *Env) imageLines(q db.Q, row *db.Request) string {
 	var memos []string
 	if row.Kind.String == "task" {
 		if t := taskOf(q, row); t != nil {
-			memos = must(db.MemoTexts(q, t.ID))
+			memos = must(db.DeliveryMemoTexts(q, t.ID, row.Target, row.ID, db.MemoCap))
 		}
 	}
 	return attachments.New(e.Home).MessageLines(q, row.ID, row.Body, memos...)
