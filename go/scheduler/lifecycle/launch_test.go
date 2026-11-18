@@ -24,7 +24,6 @@ import (
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/kit/paths"
-	"github.com/handline/handline/go/kit/version"
 	"github.com/handline/handline/go/kit/yamlcompat"
 	"github.com/handline/handline/go/protocol/sessiontoken"
 	"github.com/handline/handline/go/scheduler/access"
@@ -1295,15 +1294,47 @@ func TestAStartNamesWhoChangedEachPart(t *testing.T) {
 	if err != nil || len(hist) != 2 || hist[1].Actor != bob || hist[1].Approver != actor.OwnerKey || hist[0].Text != "builds" || hist[1].Text != "builds\nreviews" {
 		t.Fatalf("history: %+v %v", hist, err)
 	}
-	var old map[string]json.RawMessage
-	if err := json.Unmarshal([]byte(rec), &old); err != nil {
+}
+
+// Handline's own wording is no change to a running session: the fingerprint and the team part hash the team's facts, never the
+// sentences a build writes around them; a peer joining the team drifts the session and is named.
+func TestHandlinesWordingIsNoChangeButATeamChangeIs(t *testing.T) {
+	r := newLaunchRig(t)
+	ann := teamtest.Key(t, r.l.Home, "ann")
+	members := []string{ann}
+	r.l.Ports.Routing = func() *team.Team {
+		tm := &team.Team{Agents: map[string]team.Member{}, Teams: map[string][]string{"core": members}}
+		for _, m := range members {
+			tm.Agents[m] = team.Member{Workspace: "core"}
+		}
+		return tm
+	}
+	static, err := r.l.staticPreamble(ann)
+	if err != nil || !strings.Contains(static, team.Protocol("ends")) {
+		t.Fatalf("the preamble lacks the team section: %v", err)
+	}
+	for _, sentence := range []string{team.Protocol("ends"), "Stay inside", "# Your team"} {
+		if strings.Contains(r.l.preambleMaterial(ann), sentence) {
+			t.Fatalf("Handline's wording %q is in what the fingerprint hashes", sentence)
+		}
+	}
+	fp, err := r.l.Fingerprint(ann)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if got := r.l.changedBy("ann", "team instructions", old); got != "" {
-		t.Fatalf("the same build: %q", got)
+	rec, err := r.l.LaunchRecord(ann)
+	if err != nil {
+		t.Fatal(err)
 	}
-	old[LaunchedBuild] = json.RawMessage(`"0ldbuild"`)
-	if got := r.l.changedBy("ann", "team instructions", old); got != "by Handline update "+version.Sha {
-		t.Fatalf("a newer build: %q", got)
+	if err := db.SetLaunchFingerprint(r.l.Q, ann, fp, rec); err != nil {
+		t.Fatal(err)
+	}
+	row, _ := db.GetAgentState(r.l.Q, ann)
+	if r.l.Drifted(ann, row) || r.l.WhatChanged(ann) != "" {
+		t.Fatalf("drifted from itself: %q", r.l.WhatChanged(ann))
+	}
+	members = append(members, teamtest.Key(t, r.l.Home, "bob"))
+	if !r.l.Drifted(ann, row) || r.l.WhatChanged(ann) != "team instructions changed (team.yaml or the agent list)" {
+		t.Fatalf("a new peer is no change: %q", r.l.WhatChanged(ann))
 	}
 }

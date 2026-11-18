@@ -861,7 +861,8 @@ func youAre(name, handle string) string {
 }
 
 // staticPreamble is the part of ContextFor that a rebuild reproduces byte for byte, but for the team rules: everything except the
-// handoff, which is supposed to differ every time this agent is parked. Fingerprint hashes it; the rules follow it in ContextFor.
+// handoff, which is supposed to differ every time this agent is parked. The rules follow it in ContextFor; Fingerprint hashes its inputs
+// (preambleMaterial).
 func (l *Launcher) staticPreamble(agent string) (string, error) {
 	parts := []string{
 		youAre(addr.For(l.Q, agent, agent), paths.AgentHandle(l.Home, agent)),
@@ -945,39 +946,27 @@ func (l *Launcher) where(agent, text string) (string, error) {
 // a workspace is told the same: no one reports to anyone. Generated rather than written into each ROLE.md: a role that named its
 // colleagues by hand kept naming them after they were retired and renamed. How a team works together is its rules file (team.Rules).
 func (l *Launcher) yourTeam(agent string) string {
-	var t *team.Team
-	if l.Ports.Routing != nil {
-		t = l.Ports.Routing()
-	}
-	if t == nil {
+	f, ok := l.teamFacts(agent)
+	if !ok {
 		return ""
 	}
-	ws := t.TeamOf(agent)
-	contact := t.ContactOf(ws)
-	label := func(key string) string { return "`" + addr.For(l.Q, agent, key) + "`" } // by name, as hl team shows it
 	lines := []string{"# Your team"}
-	var peers []string
-	for _, n := range t.Members(ws) {
-		if n != agent {
-			peers = append(peers, label(n))
-		}
+	if len(f.peers) > 0 {
+		lines = append(lines, "Your peers in workspace `"+f.ws+"`: "+strings.Join(f.peers, ", ")+".")
 	}
-	if len(peers) > 0 {
-		lines = append(lines, "Your peers in workspace `"+ws+"`: "+strings.Join(peers, ", ")+".")
-	}
-	switch contact {
+	switch f.contact {
 	case "":
 	case agent:
 		lines = append(lines, "You are the workspace's contact: work from another workspace comes to you. Pass it to the peer it fits, and do your own work too.",
 			team.Protocol("story"))
 	default:
-		lines = append(lines, "The workspace's contact is "+label(contact)+": work from another workspace comes to it, and it passes that work to the peer it fits.")
+		lines = append(lines, "The workspace's contact is "+f.label(f.contact)+": work from another workspace comes to it, and it passes that work to the peer it fits.")
 	}
 	lines = append(lines, team.Protocol("ends"),
 		"Give anyone work with `hl task new --assign <name> -t <time> \"<title>\" \"<what to do, and what done looks like>\"`; its done goes back to "+
 			"whoever opened the task. Write about a task with `hl task comment T<n> add \"@<name> ...\"`; correct a task the same way, throw a "+
 			"stale one away with `hl task discard T<n> \"<why>\"`, and record a wait with `--blocked-by T<n>`.")
-	if contact != "" && contact != agent {
+	if f.contact != "" && f.contact != agent {
 		lines = append(lines, "Being blocked, or a decision someone else must make, is a task for the owner of the task you hold, or for the "+
 			"contact when you do not know who: `hl task new --assign <name> -t <time> \"<title>\" \"<body>\"`.")
 	} else {
@@ -985,13 +974,63 @@ func (l *Launcher) yourTeam(agent string) string {
 			"`hl task new --assign <name> -t <time> \"<title>\" \"<body>\"`.")
 	}
 	talk := team.Protocol("terminal")
-	if l.FounderTyped != nil && l.FounderTyped(agent) {
+	if f.founderTyped {
 		talk = "The founder may type straight into your terminal. When the person types to you directly, answer with `hl say` too; your terminal " +
 			"text is not shown to them. A `... waiting for you:` delivery of a task comment is not typing: answer it on that task. " + talk
 	}
 	lines = append(lines, talk, team.Protocol("land"), team.Protocol("legacy"), team.Protocol("memory"), team.Protocol("progress"),
 		"`hl team` shows who you may reach and what each is doing now. "+team.Protocol("founder"))
 	return strings.Join(lines, "\n")
+}
+
+// teamFacts are what the team section says of agent's team, apart from Handline's own wording: its workspace, contact, peers by name
+// and whether the founder types to it. ok is false with no team to read.
+type teamFacts struct {
+	ws, contact  string
+	peers        []string
+	founderTyped bool
+	label        func(key string) string
+}
+
+func (l *Launcher) teamFacts(agent string) (f teamFacts, ok bool) {
+	var t *team.Team
+	if l.Ports.Routing != nil {
+		t = l.Ports.Routing()
+	}
+	if t == nil {
+		return f, false
+	}
+	f.ws = t.TeamOf(agent)
+	f.contact = t.ContactOf(f.ws)
+	f.label = func(key string) string { return "`" + addr.For(l.Q, agent, key) + "`" } // by name, as hl team shows it
+	for _, n := range t.Members(f.ws) {
+		if n != agent {
+			f.peers = append(f.peers, f.label(n))
+		}
+	}
+	f.founderTyped = l.FounderTyped != nil && l.FounderTyped(agent)
+	return f, true
+}
+
+// teamMaterial is teamFacts as one string, "" with no team: what a launch's team section hashes, so a Handline update that only
+// rewords it is no change.
+func (l *Launcher) teamMaterial(agent string) string {
+	f, ok := l.teamFacts(agent)
+	if !ok {
+		return ""
+	}
+	contact := ""
+	if f.contact != "" {
+		contact = f.label(f.contact)
+	}
+	return strings.Join([]string{f.ws, contact, strings.Join(f.peers, ","), strconv.FormatBool(f.founderTyped)}, "\x1f")
+}
+
+// preambleMaterial is the static preamble's inputs a person or an agent changes (the agent's names, its team, ROLE.md and base.md),
+// without Handline's own sentences: a Handline update alone never makes a running session drift.
+func (l *Launcher) preambleMaterial(agent string) string {
+	return strings.Join([]string{addr.For(l.Q, agent, agent), paths.AgentHandle(l.Home, agent), l.teamMaterial(agent),
+		l.instruction(agent, db.PartRole), l.instruction(agent, db.PartBase)}, "\x1e")
 }
 
 func sha256Hex(s string) string {
@@ -1037,7 +1076,8 @@ func (l *Launcher) plainMode(agent string, cfg team.Config) bool {
 }
 
 // Fingerprint is what Build would launch this agent with right now, boiled down to the pieces a running session cannot pick up on its
-// own: the model, the effort level, the disallowed-tools list, the shared mcp.json, and the static preamble. Never the account or the handoff - the account is chosen fresh on every real launch, and the handoff is supposed to
+// own: the model, the effort level, the disallowed-tools list, the shared mcp.json, and what people change in the static preamble
+// (preambleMaterial). Never the account or the handoff - the account is chosen fresh on every real launch, and the handoff is supposed to
 // be different every time this agent is parked. Recorded at launch time and compared by Drifted before typing a handoff into a session
 // that is still open: a row with nothing recorded disagrees too.
 func (l *Launcher) Fingerprint(agent string) (string, error) {
@@ -1045,11 +1085,7 @@ func (l *Launcher) Fingerprint(agent string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	static, err := l.staticPreamble(agent)
-	if err != nil {
-		return "", err
-	}
-	material := strings.Join([]string{modelOf(cfg), l.effortOf(cfg), l.disallowed(agent), l.mcpConfigMaterial(), static}, "\x1e")
+	material := strings.Join([]string{modelOf(cfg), l.effortOf(cfg), l.disallowed(agent), l.mcpConfigMaterial(), l.preambleMaterial(agent)}, "\x1e")
 	if !l.plainMode(agent, cfg) {
 		material += "\x1emode:" + l.modeOf(agent, cfg) // only when not the default, like chrome
 	}
@@ -1144,7 +1180,7 @@ func (l *Launcher) partsOf(agent string, texts map[string]string, rules []string
 		"sandbox":           sandbox,
 		"ROLE.md":           h(texts["ROLE.md"]),
 		"base.md":           h(texts["base.md"]),
-		"team instructions": h(texts["team instructions"]),
+		"team instructions": h(l.teamMaterial(agent)),
 		rulesPart:           rulesHash(rules),
 	}, nil
 }
@@ -1323,11 +1359,6 @@ func (l *Launcher) changedBy(agent, part string, old map[string]json.RawMessage)
 	switch part {
 	case "ROLE.md", "base.md", rulesPart:
 		return l.versionsBy(agent, part, old)
-	case "team instructions":
-		var built string
-		if json.Unmarshal(old[LaunchedBuild], &built) == nil && built != version.Sha {
-			return "by Handline update " + version.Sha
-		}
 	case "model", "effort", "browser": // kept in agent.yaml alone
 		if by, _, _ := db.Meta(l.Q, db.SettingsByMeta(agent)); by != "" {
 			return "by " + l.personWords(by)
@@ -1416,7 +1447,7 @@ func (l *Launcher) personWords(who string) string {
 func (l *Launcher) sourceOf(agent, part string) string {
 	switch part {
 	case "team instructions":
-		return "team.yaml, the agent list or a Handline update"
+		return "team.yaml or the agent list"
 	case rulesPart:
 		if l.Ports.Routing != nil {
 			if teams := team.RuleTeams(l.Q, agent, l.Ports.Routing()); len(teams) > 0 {
