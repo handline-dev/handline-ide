@@ -4,7 +4,6 @@
 package worktreeprune
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -70,25 +69,27 @@ func Real(path string) string {
 	return filepath.Clean(path)
 }
 
-// AgentWorktrees are the real paths of every worktree an agent records (agent_state.worktree and extra_worktrees), but those of skip,
-// and every desk of the worktree pool: a desk is the project's, kept when its agent leaves it or is retired.
+// AgentWorktrees are the real paths of every worktree an agent records (agent_state.worktree), but those of skip, and every desk of
+// the worktree pool but one pinned to skip: a desk is the project's, kept when its agent leaves it or is retired; a pinned one is its
+// agent's.
 func AgentWorktrees(q db.Q, skip string) (map[string]bool, error) {
 	out := map[string]bool{}
-	err := recorded(q, "SELECT agent, COALESCE(worktree, ''), COALESCE(extra_worktrees, '') FROM agent_state "+
-		"UNION ALL SELECT '', path, '' FROM worktree_folders", func(agent, path string) {
-		if agent == "" || agent != skip { // a desk ('') is kept whoever is skipped
+	err := recorded(q, "SELECT agent, COALESCE(worktree, '') FROM agent_state "+
+		"UNION ALL SELECT COALESCE(pinned_to, ''), path FROM worktree_folders", func(agent, path string) {
+		if agent == "" || agent != skip {
 			out[path] = true
 		}
 	})
 	return out, err
 }
 
-// Of are the real paths of the worktrees agent records.
+// Of are the real paths of the worktree agent records and the desks pinned to it.
 func Of(q db.Q, agent string) ([]string, error) {
 	var out []string
-	err := recorded(q, "SELECT agent, COALESCE(worktree, ''), COALESCE(extra_worktrees, '') FROM agent_state WHERE agent = ?", func(_, path string) {
+	err := recorded(q, "SELECT agent, COALESCE(worktree, '') FROM agent_state WHERE agent = ? "+
+		"UNION ALL SELECT pinned_to, path FROM worktree_folders WHERE pinned_to = ?", func(_, path string) {
 		out = append(out, path)
-	}, agent)
+	}, agent, agent)
 	return out, err
 }
 
@@ -100,27 +101,17 @@ func recorded(q db.Q, query string, each func(agent, path string), args ...any) 
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var agent, first, extra string
-		if err := rows.Scan(&agent, &first, &extra); err != nil {
+		var agent, p string
+		if err := rows.Scan(&agent, &p); err != nil {
 			return err
 		}
-		paths := []string{first}
-		if extra != "" {
-			var more []string
-			if err := json.Unmarshal([]byte(extra), &more); err != nil {
-				return err
-			}
-			paths = append(paths, more...)
+		if p == "" {
+			continue
 		}
-		for _, p := range paths {
-			if p == "" {
-				continue
-			}
-			if _, path, ok := strings.Cut(p, "::"); ok {
-				p = path
-			}
-			each(agent, Real(p))
+		if _, path, ok := strings.Cut(p, "::"); ok {
+			p = path
 		}
+		each(agent, Real(p))
 	}
 	return rows.Err()
 }

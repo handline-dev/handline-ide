@@ -14,7 +14,9 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/data/team/teamtest"
+	"github.com/handline/handline/go/kit/gitrun"
 	"github.com/handline/handline/go/kit/protected"
+	"github.com/handline/handline/go/scheduler/worktreepool"
 	"github.com/handline/handline/go/scheduler/worktreesetup"
 )
 
@@ -120,8 +122,9 @@ func TestTheWorktreeIsTrustedBeforeItsTerminalOpens(t *testing.T) {
 		trusted = append(trusted, fmt.Sprintf("%s@%s, %d open", agent, folder, len(h.opened)))
 	}
 	s.Spawn("a", repo)
-	s.StartIn("a", h.wtMade, "x")
-	if want := []string{"a@" + h.wtMade + ", 0 open", "a@" + h.wtMade + ", 1 open"}; !slices.Equal(trusted, want) || len(h.opened) != 2 {
+	wt := deskOf(t, s, "a")
+	s.StartIn("a", wt, "x")
+	if want := []string{"a@" + wt + ", 0 open", "a@" + wt + ", 1 open"}; !slices.Equal(trusted, want) || len(h.opened) != 2 {
 		t.Fatalf("%q", trusted)
 	}
 }
@@ -142,7 +145,6 @@ func TestPromptLandedWaitsForTheAgentsOwnHook(t *testing.T) {
 
 type runHost struct {
 	fakeHost
-	wtMade     string
 	missing    string
 	current    string
 	exists     bool
@@ -150,20 +152,13 @@ type runHost struct {
 	used, runs []string
 }
 
-func (h *runHost) Available() bool { return h.missing == "" }
-func (h *runHost) Missing() string { return h.missing }
-func (h *runHost) HasRuns() bool   { return true }
-func (h *runHost) CreateWorktree(_, name, base string) (string, string) {
-	if h.wtMade == "" {
-		return "", "worktree create failed"
-	}
-	return h.wtMade, ""
-}
-func (h *runHost) Manual(wt, repo, name, base, cmd string) string { return "manual: " + cmd }
-func (h *runHost) RunCurrent() string                             { return h.current }
-func (h *runHost) RunExists(string) bool                          { return h.exists }
-func (h *runHost) RunUse(run string)                              { h.used = append(h.used, run) }
-func (h *runHost) RunCreate(string) string                        { h.runs = append(h.runs, h.created); return h.created }
+func (h *runHost) Available() bool         { return h.missing == "" }
+func (h *runHost) Missing() string         { return h.missing }
+func (h *runHost) HasRuns() bool           { return true }
+func (h *runHost) RunCurrent() string      { return h.current }
+func (h *runHost) RunExists(string) bool   { return h.exists }
+func (h *runHost) RunUse(run string)       { h.used = append(h.used, run) }
+func (h *runHost) RunCreate(string) string { h.runs = append(h.runs, h.created); return h.created }
 func (h *runHost) TaskCreate(_, title, _, run string) string {
 	return "task-" + title
 }
@@ -172,28 +167,46 @@ func (h *runHost) Dispatch(task, handle, run string) string { return task + "@" 
 func spawnRig(t *testing.T) (*Spawns, *runHost, string) {
 	t.Helper()
 	repo, _ := repoWithOrigin(t)
-	h := &runHost{fakeHost: fakeHost{handle: "t7"}, wtMade: t.TempDir(), created: "run-1"}
-	q := teamtest.Seed(t, t.TempDir(), "a") // a spawn names the worktree by the agent's key
+	h := &runHost{fakeHost: fakeHost{handle: "t7"}, created: "run-1"}
+	q := teamtest.Seed(t, t.TempDir(), "a")
 	s := &Spawns{Q: q, Host: h, Launch: fakeLaunch{}, Delivery: upDelivery{up: true}, Sleep: func(time.Duration) {}}
+	s.Desks = &worktreepool.Pool{DB: q, Setup: func(agent, repo, desk string) string { return s.Prepare(agent, repo, desk) },
+		Base: func(repo, branch string) (string, string, error) {
+			if branch == "" {
+				branch = gitrun.DefaultBranch(repo)
+			}
+			return PickBase(repo, branch)
+		},
+		Branch: func(agent string) string { return agent }}
 	return s, h, repo
 }
 
-func TestSpawnBranchesAWorktreeFromOriginAndOpensItsTerminal(t *testing.T) {
+// deskOf is the desk agent's row records.
+func deskOf(t *testing.T, s *Spawns, agent string) string {
+	t.Helper()
+	row, _ := db.GetAgentState(s.Q, agent)
+	if row == nil || row.Worktree.String == "" {
+		t.Fatalf("%s has no desk on record", agent)
+	}
+	return row.Worktree.String
+}
+
+func TestSpawnTakesADeskFromThePoolAndOpensItsTerminal(t *testing.T) {
 	s, h, repo := spawnRig(t)
 	ok, said, _ := s.Spawn("a", repo)
-	if !ok || !strings.Contains(said, "a: worktree "+h.wtMade) || !strings.Contains(said, "branched from origin/main (fetched)") || !strings.Contains(said, "terminal t7") {
+	wt := deskOf(t, s, "a")
+	if !ok || filepath.Base(wt) != "desk-1" || !strings.Contains(said, "a: desk "+wt+" (new, branch a)") ||
+		!strings.Contains(said, "from origin/main (fetched)") || !strings.Contains(said, "terminal t7") {
 		t.Fatalf("%v %q", ok, said)
 	}
-	row, _ := db.GetAgentState(s.Q, "a")
-	if row.Terminal.String != "t7" || row.Worktree.String != h.wtMade {
+	if row, _ := db.GetAgentState(s.Q, "a"); row.Terminal.String != "t7" {
 		t.Fatalf("%+v", row)
 	}
 	if len(h.opened) != 1 || !strings.HasPrefix(h.opened[0], "hl launch a") {
 		t.Fatalf("%v", h.opened)
 	}
-	// Its own worktree is kept: no second one is made.
-	h.wtMade = ""
-	if ok, said, _ := s.Spawn("a", repo); !ok || !strings.Contains(said, "kept (its own worktree, kept)") {
+	// The desk it holds is kept: no second one is made.
+	if ok, said, _ := s.Spawn("a", repo); !ok || !strings.Contains(said, "a: desk "+wt+" (held, branch a)") {
 		t.Fatalf("%v %q", ok, said)
 	}
 }
@@ -205,16 +218,16 @@ func TestSpawnWithSaysWhyItCannotAndWhatItWouldDo(t *testing.T) {
 		t.Fatalf("%v %q %v", ok, said, err)
 	}
 	h.missing = ""
-	if ok, said, _ := s.Spawn("a", t.TempDir()); ok || said == "" {
-		t.Fatalf("a directory that is no repo has nothing to branch from: %v %q", ok, said)
-	}
-	h.wtMade = ""
-	if ok, said, _ := s.Spawn("a", repo); ok || said != "worktree create failed" {
-		t.Fatalf("%v %q", ok, said)
+	if ok, said, err := s.Spawn("a", t.TempDir()); ok || said == "" && err == nil {
+		t.Fatalf("a directory that is no repo has nothing to branch from: %v %q %v", ok, said, err)
 	}
 	ok, said, err := s.SpawnWith("a", repo, SpawnOpts{DryRun: true})
-	if err != nil || !ok || !strings.HasPrefix(said, "would branch from origin/main (fetched)") || len(h.opened) != 0 {
+	if err != nil || !ok || !strings.HasPrefix(said, "would take a desk of "+repo) || len(h.opened) != 0 {
 		t.Fatalf("%v %q %v %v", ok, said, err, h.opened)
+	}
+	s.Desks = nil
+	if ok, said, _ := s.Spawn("a", repo); ok || said != "no worktree pool to take a desk from" {
+		t.Fatalf("%v %q", ok, said)
 	}
 }
 
@@ -227,8 +240,8 @@ func TestSpawnWithNoBaseBranchesFromTheRepositorysDefault(t *testing.T) {
 	repo := t.TempDir()
 	gitIn(t, repo, "clone", "-q", origin, ".")
 	gitIn(t, repo, "checkout", "-q", "-b", "feature")
-	ok, said, err := s.SpawnWith("a", repo, SpawnOpts{DryRun: true})
-	if err != nil || !ok || !strings.HasPrefix(said, "would branch from origin/master (fetched)") {
+	ok, said, err := s.SpawnWith("a", repo, SpawnOpts{})
+	if err != nil || !ok || !strings.Contains(said, "from origin/master (fetched)") {
 		t.Fatalf("%v %q %v", ok, said, err)
 	}
 }
@@ -296,7 +309,7 @@ func TestGitThatTimesOutIsAnError(t *testing.T) {
 func TestASpawnedWorktreeGetsItsReposSetup(t *testing.T) {
 	t.Setenv("HANDLINE_AGENT", "")
 	t.Setenv("SHELL", "/bin/sh")
-	s, h, repo := spawnRig(t)
+	s, _, repo := spawnRig(t)
 	home := t.TempDir()
 	s.Q = teamtest.Seed(t, home, "a", "b")
 	s.Roster = team.NewRosterOn(s.Q, home)
@@ -309,15 +322,15 @@ func TestASpawnedWorktreeGetsItsReposSetup(t *testing.T) {
 	if !ok || !strings.Contains(said, "setup done: copied .env") {
 		t.Fatalf("%v %q", ok, said)
 	}
-	if _, err := os.Stat(filepath.Join(h.wtMade, "ready")); err != nil {
+	wt := deskOf(t, s, "a")
+	if _, err := os.Stat(filepath.Join(wt, "ready")); err != nil {
 		t.Fatal("the script did not run after the copy")
 	}
-	if last, _ := worktreesetup.Last(s.Q, repo); last == nil || !last.OK || last.Worktree != h.wtMade {
+	if last, _ := worktreesetup.Last(s.Q, repo); last == nil || !last.OK || last.Worktree != wt {
 		t.Fatalf("last %+v", last)
 	}
 
 	worktreesetup.Put(s.Roster.Store, repo, worktreesetup.Setup{Script: "exit 4"})
-	h.wtMade = t.TempDir()
 	ok, said, _ = s.Spawn("b", repo)
 	if !ok || !strings.Contains(said, "setup FAILED: script exited 4") {
 		t.Fatalf("a failed setup still starts the agent, and says so: %v %q", ok, said)

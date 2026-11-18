@@ -844,60 +844,12 @@ func (l *Launcher) HiddenTranscripts(agent string, drv Transcripts) ([]string, e
 			first = first[i+2:]
 		}
 		for _, cfg := range configs {
-			for _, wt := range append([]string{first}, worktreepaths.ExtraPaths(r)...) {
-				if d, ok := drv.TranscriptDir(cfg, wt); ok {
-					out = append(out, d)
-				}
+			if d, ok := drv.TranscriptDir(cfg, first); ok {
+				out = append(out, d)
 			}
 		}
 	}
 	return out, nil
-}
-
-// ExtraWorktreesOf are the agent's further worktrees a session may work in: as many as its row asks for, and only ones that are there.
-func (l *Launcher) ExtraWorktreesOf(agent string, cfg team.Config) ([]string, error) {
-	n := int(team.ExtraWorktrees(cfg))
-	if n == 0 {
-		return nil, nil
-	}
-	row, err := db.GetAgentState(l.Q, agent)
-	if err != nil {
-		return nil, err
-	}
-	have := worktreepaths.ExtraPaths(row)
-	if len(have) > n {
-		have = have[:n]
-	}
-	return have, nil
-}
-
-// worktreesLine says which of the agent's worktrees is which, when it has more than one.
-func (l *Launcher) worktreesLine(agent string) (string, error) {
-	cfg, err := l.Roster.Read(agent)
-	if err != nil {
-		return "", nil // a config that cannot be read says nothing here
-	}
-	extra, err := l.ExtraWorktreesOf(agent, cfg)
-	if err != nil || len(extra) == 0 {
-		return "", nil
-	}
-	row, err := db.GetAgentState(l.Q, agent)
-	if err != nil {
-		return "", err
-	}
-	first := ""
-	if row != nil {
-		first = row.Worktree.String
-	}
-	if i := strings.Index(first, "::"); i >= 0 {
-		first = first[i+2:]
-	}
-	verb := "are"
-	if len(extra) == 1 {
-		verb = "is"
-	}
-	return fmt.Sprintf("You have %d worktrees of this repo, all yours: %s (where you were started) is for probes and checking out other shas; %s %s for suite runs, so a long run there is not disturbed when you check out something else in the first. Stay inside these.",
-		len(extra)+1, first, strings.Join(extra, ", "), verb), nil
 }
 
 // youAre is the prompt's first line: the agent's name, and its name as $HANDLINE_AGENT holds it when that is qualified by its workspace.
@@ -913,15 +865,8 @@ func youAre(name, handle string) string {
 func (l *Launcher) staticPreamble(agent string) (string, error) {
 	parts := []string{
 		youAre(addr.For(l.Q, agent, agent), paths.AgentHandle(l.Home, agent)),
-		"Stay inside your own worktree. To read another branch's version of a file, use `git show <ref>:<path>` - it needs nothing outside the worktree. Copying a file out to /tmp to read it stops you on a permission prompt only a human can answer, and you will sit there until one does.",
+		"Stay inside the folder you were started in. To read another branch's version of a file, use `git show <ref>:<path>` - it needs nothing outside the folder. Copying a file out to /tmp to read it stops you on a permission prompt only a human can answer, and you will sit there until one does.",
 		"On a long request, keep `hl progress \"done: ... left: ...\"` current: your handoff carries it to the session that takes over.",
-	}
-	where, err := l.worktreesLine(agent)
-	if err != nil {
-		return "", err
-	}
-	if where != "" {
-		parts = append(parts[:2], append([]string{where}, parts[2:]...)...)
 	}
 	if line := l.yourTeam(agent); line != "" {
 		parts = append(parts, line)

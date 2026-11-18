@@ -88,10 +88,11 @@ func (e *Env) declaredWorktrees() ([][2]string, error) {
 		if err != nil {
 			return nil, err
 		}
-		for _, wt := range worktreepaths.AllPaths(row) {
-			if trust.IsDeclared(wt) {
-				out = append(out, [2]string{name, wt})
-			}
+		if row == nil {
+			continue
+		}
+		if wt := worktreepaths.WorktreePath(row.Worktree.String); wt != "" && trust.IsDeclared(wt) {
+			out = append(out, [2]string{name, wt})
 		}
 	}
 	return out, nil

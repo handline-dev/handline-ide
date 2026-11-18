@@ -386,8 +386,8 @@ new vendor, because without context ocp cannot park.
 
 ### D10. The agent's preamble is a file in its worktree, not a flag.
 
-`--append-system-prompt` is replaced by one file ocp writes into the agent's
-own worktree at **launch** (not at worktree creation - the team line is
+`--append-system-prompt` is replaced by one file ocp writes into the desk the
+agent starts in at **launch** (not at worktree creation - the team line is
 generated from `team.yaml`, `hr` can edit ROLE.md and base.md, and the handoff
 must be consumed rather than persisted), kept out of git via
 `.git/info/exclude`, and covered by `launch.fingerprint` as it is today.

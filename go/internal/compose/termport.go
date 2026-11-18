@@ -1,18 +1,11 @@
 package compose
 
 import (
-	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
-	"time"
-
 	"github.com/handline/handline/go/agentctl/agent/claudecode"
 	"github.com/handline/handline/go/agentctl/term"
 	"github.com/handline/handline/go/data/agenthost"
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
-	"github.com/handline/handline/go/kit/gitrun"
 	"github.com/handline/handline/go/scheduler/lifecycle"
 	"github.com/handline/handline/go/taskboard/supervisor"
 )
@@ -68,43 +61,6 @@ func (h termHost) OpenTerminal(cmd, cwd, title, agent string) (string, string) {
 	return h.t.CreateTerminal(cmd, cwd, title, agent)
 }
 
-// CreateWorktree is a sibling directory `<repo>.worktrees.noindex/<name>` (lifecycle.WorktreesDir) on a new branch `<name>`; a name already taken becomes `<name>-2`,
-// as IDE A did, rather than touching the first.
-func (termHost) CreateWorktree(repo, name, baseRef string) (string, string) {
-	root, err := filepath.EvalSymlinks(repo)
-	if err != nil {
-		root = repo
-	}
-	root, _ = filepath.Abs(root)
-	parent := lifecycle.WorktreesDir(root)
-	for n := 1; n < 10; n++ {
-		leaf := name
-		if n > 1 {
-			leaf = fmt.Sprintf("%s-%d", name, n)
-		}
-		path := filepath.Join(parent, leaf)
-		if _, err := os.Lstat(path); err == nil {
-			continue
-		}
-		r := gitrun.RunTimeout(root, 120*time.Second, "worktree", "add", "--no-track", "-b", leaf, path, baseRef)
-		if r.RC == 0 {
-			return path, ""
-		}
-		why := strings.TrimSpace(r.Stderr)
-		if why == "" {
-			why = strings.TrimSpace(r.Stdout)
-		}
-		if strings.Contains(why, "already exists") { // the branch name is taken; try the next
-			continue
-		}
-		return "", "worktree create failed: " + why
-	}
-	return "", fmt.Sprintf("worktree create failed: %s through %s-9 are all taken", name, name)
-}
-
-func (termHost) Manual(wt, repo, name, baseRef, command string) string {
-	return fmt.Sprintf("git -C %s worktree add -b %s %s %s", repo, name, wt, baseRef)
-}
 func (h termHost) WaitIdle(handle string, ms int) bool { return h.t.WaitIdle(handle, ms) }
 
 // Submit would type the first prompt at the new session; it goes in through the session inbox, so none is typed here and the spawn reports

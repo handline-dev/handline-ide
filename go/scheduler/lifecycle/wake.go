@@ -211,10 +211,8 @@ func (m *Manager) StartForWork(agent string) (said string, err error) {
 		check(db.ResetCounter(m.Q, agent, "wake_failures"))
 		check(db.BumpCounter(m.Q, agent, "wake_failures", states.MaxFailedAttempts-1))
 	}
-	// A desk from the pool, with its branch checked out (Desks). Without a pool: its own worktree if it still has one - a terminal can be
-	// closed by a human or lost when the terminal host restarts without anything happening to the branch or to what is uncommitted in it,
-	// and a second worktree would strand the first. One recorded and gone is made again from its branch, never replaced by a fresh one
-	// without a word: that is the failed start below, saying why, which a stall then tells the agent's lead.
+	// A desk from the pool, with its branch checked out (Desks). Without a pool: the worktree its row records while it is there, else
+	// a spawn, which says why it cannot start.
 	wt, gone := "", ""
 	if m.Desks != nil {
 		recorded := ""
@@ -222,13 +220,8 @@ func (m *Manager) StartForWork(agent string) (said string, err error) {
 			recorded = m.Spawn.WorktreePath(row.Worktree.String)
 		}
 		wt, _, gone = m.takeDesk(agent, recorded)
-	} else if row != nil && row.Worktree.String != "" {
-		if wt = m.Spawn.WorktreePath(row.Worktree.String); wt == "" {
-			if wt, gone = m.Spawn.Recreate(agent, realpath(expandUser(repo)), row.Worktree.String); wt != "" {
-				must(db.AddEvent(m.Q, agent, "worktree_recreated", db.KV{K: "worktree", V: wt}))
-				m.Log("  %s: its worktree %s was gone; made again from its branch", agent, wt)
-			}
-		}
+	} else if row != nil {
+		wt = m.Spawn.WorktreePath(row.Worktree.String)
 	}
 	// ok is StartIn/Spawn's own answer, not re-derived from the row: they confirm a session actually started now, so a terminal left
 	// standing with nothing in it counts as the failed wake it is.
@@ -417,7 +410,7 @@ func (m *Manager) takeDesk(agent, was string) (desk string, moved bool, why stri
 	if repo == "" {
 		return was, false, ""
 	}
-	t, why, err := m.Desks.Take(agent, realpath(expandUser(repo)))
+	t, why, err := m.Desks.TakeFrom(agent, realpath(expandUser(repo)), "")
 	check(err)
 	if why != "" {
 		return "", false, fmt.Sprintf("%s: no desk to start in - %s", addr.Ref(agent), why)

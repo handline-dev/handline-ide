@@ -206,8 +206,14 @@ func (p *Parts) Lifecycle(cfg Config, lc LifecycleConfig) *Lifecycle {
 	lc.Env.Paused = gate.Paused
 	desks := &worktreepool.Pool{DB: q, Setup: spawns.Prepare, Now: cfg.Now,
 		Running: func(repo, desk string) bool { return worktreelock.Held(repo, desk, worktreelock.Running) != "" },
-		Base:    func(repo string) (string, string, error) { return lifecycle.PickBase(repo, gitrun.DefaultBranch(repo)) },
-		Branch:  func(agent string) string { return paths.AgentHandle(home, agent) }}
+		Base: func(repo, branch string) (string, string, error) {
+			if branch == "" {
+				branch = gitrun.DefaultBranch(repo)
+			}
+			return lifecycle.PickBase(repo, branch)
+		},
+		Branch: func(agent string) string { return paths.AgentHandle(home, agent) }}
+	spawns.Desks = desks
 	hp := &handoffPort{env: ho, q: q, now: nowOf(cfg.Now)}
 	m := &lifecycle.Manager{Q: q, Home: home, Log: cfg.Log, Settings: settings,
 		Delivery: lc.Env, Handoff: hp, Term: termPort{tm}, Blocked: noBlocked{}, Launch: launchPort, Spawn: spawns,

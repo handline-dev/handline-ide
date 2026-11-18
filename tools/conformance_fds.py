@@ -143,8 +143,11 @@ def seed_workroom(home: Path, con: sqlite3.Connection) -> None:
         for i in range(dirty):
             (path / ("c0.txt" if i == 0 else "loose.txt")).write_text("changed")
         extra.append(str(path.resolve()))
-    con.execute("INSERT OR REPLACE INTO agent_state(agent, state, updated, worktree, extra_worktrees) VALUES(?, 'idle', 0, ?, ?)",
-                (WORKROOM["create_parent"], str(repo), json.dumps(extra)))
+    con.execute("INSERT OR REPLACE INTO agent_state(agent, state, updated, worktree) VALUES(?, 'idle', 0, ?)",
+                (WORKROOM["create_parent"], str(repo)))
+    # the facts/* folders are desks kept for the agent (pinned to it), which worktrees.list shows as its
+    con.executemany("INSERT INTO worktree_folders(path, repo, pinned_to) VALUES(?, ?, ?)",
+                    [(p, str(repo.resolve()), WORKROOM["create_parent"]) for p in extra])
     WORKROOM["create_repo"] = str(repo.resolve())
 
 

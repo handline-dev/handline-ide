@@ -131,10 +131,8 @@ type fakeSpawn struct {
 	trusted            []string
 	ok                 bool
 	err                error
-	// gone are worktrees no longer there; Recreate answers recreate and recreateWhy, and records what it was asked in recreated
-	gone                  map[string]bool
-	recreated             []string
-	recreate, recreateWhy string
+	// gone are worktrees no longer there
+	gone map[string]bool
 }
 
 func (f *fakeSpawn) WorktreePath(w string) string {
@@ -142,10 +140,6 @@ func (f *fakeSpawn) WorktreePath(w string) string {
 		return ""
 	}
 	return w
-}
-func (f *fakeSpawn) Recreate(agent, repo, recorded string) (string, string) {
-	f.recreated = append(f.recreated, agent+"@"+recorded)
-	return f.recreate, f.recreateWhy
 }
 func (f *fakeSpawn) Trust(agent, wt string) { f.trusted = append(f.trusted, agent+"@"+wt) }
 func (f *fakeSpawn) StartIn(agent, wt, cmd string) (bool, string, error) {

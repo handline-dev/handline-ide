@@ -1,7 +1,6 @@
 package usage
 
 import (
-	"encoding/json"
 	"sort"
 	"strings"
 	"time"
@@ -213,23 +212,19 @@ type worktreeOf struct{ dir, agent string }
 const Unattributed = "(unattributed)"
 
 // worktrees are (directory, agent), longest directory first. The row may hold IDE A's id::path selector, of which only the path is the
-// directory; an agent's further worktrees are its too.
+// directory.
 func worktrees(q db.Q) ([]worktreeOf, error) {
-	rows, err := q.Query("SELECT agent, worktree, extra_worktrees FROM agent_state WHERE worktree IS NOT NULL AND worktree != ''")
+	rows, err := q.Query("SELECT agent, worktree FROM agent_state WHERE worktree IS NOT NULL AND worktree != ''")
 	if err != nil {
 		return nil, err
 	}
-	type r struct{ agent, tree, extra string }
+	type r struct{ agent, tree string }
 	var got []r
 	for rows.Next() {
 		var x r
-		var extra *string
-		if err := rows.Scan(&x.agent, &x.tree, &extra); err != nil {
+		if err := rows.Scan(&x.agent, &x.tree); err != nil {
 			rows.Close()
 			return nil, err
-		}
-		if extra != nil {
-			x.extra = *extra
 		}
 		got = append(got, x)
 	}
@@ -245,17 +240,6 @@ func worktrees(q db.Q) ([]worktreeOf, error) {
 			tree = tree[i+2:]
 		}
 		dirs = append(dirs, worktreeOf{strings.TrimRight(tree, "/"), x.agent})
-	}
-	for _, x := range got {
-		var extra []any
-		if x.extra != "" && json.Unmarshal([]byte(x.extra), &extra) != nil {
-			extra = nil
-		}
-		for _, v := range extra {
-			if s, ok := v.(string); ok && s != "" {
-				dirs = append(dirs, worktreeOf{strings.TrimRight(s, "/"), x.agent})
-			}
-		}
 	}
 	sort.SliceStable(dirs, func(i, j int) bool { return utf8.RuneCountInString(dirs[i].dir) > utf8.RuneCountInString(dirs[j].dir) })
 	return dirs, nil

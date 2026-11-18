@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -14,10 +13,7 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/addr"
-	"github.com/handline/handline/go/kit/gitrun"
-	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/textsafe"
-	"github.com/handline/handline/go/scheduler/worktreelock"
 	"github.com/handline/handline/go/scheduler/worktreepaths"
 	"github.com/handline/handline/go/scheduler/worktreesetup"
 )
@@ -41,11 +37,8 @@ var gitTimeout = 120 * time.Second
 type Host interface {
 	Available() bool
 	Missing() string
-	CreateWorktree(repo, name, baseRef string) (path, failed string)
 	// OpenTerminal runs cmd in a new terminal in cwd; handle "" with why "" is a terminal started whose handle could not be read.
 	OpenTerminal(cmd, cwd, title, agent string) (handle, why string)
-	// Manual is the host's own commands for the steps, for a dry run.
-	Manual(wt, repo, name, baseRef, command string) string
 	WaitIdle(handle string, timeoutMs int) bool
 	Submit(handle, prompt string, timeoutS int)
 	HasRuns() bool
@@ -57,18 +50,19 @@ type Host interface {
 	Dispatch(task, handle, run string) string
 }
 
-// Spawns is team/spawn.py: giving an agent its own worktree and starting it there. The agent name is the join key across every system:
-// the worktree name, the task label and the folder name are all the same string. A new worktree branches from the fetched origin/<base>:
-// work lands by push, so the checkout's local <base> may be stale or even another history.
+// Spawns is team/spawn.py: starting an agent in a desk it takes from its project's worktree pool (Desks). A new desk and a new branch
+// start from the fetched origin/<base>: work lands by push, so the checkout's local <base> may be stale or even another history.
 type Spawns struct {
 	Q        db.Q
 	Host     Host
 	Launch   Launch
 	Delivery Delivery
 	Roster   *team.Roster
-	Sleep    func(time.Duration)
-	Now      func() time.Time
-	Locks    *AgentLocks
+	// Desks is the project's worktree pool a spawn takes its desk from; nil refuses every spawn.
+	Desks Desks
+	Sleep func(time.Duration)
+	Now   func() time.Time
+	Locks *AgentLocks
 	// TrustFolder marks folder trusted in every account agent's vendor may start it on, so the session opens without the folder-trust
 	// dialog. nil: nothing is marked.
 	TrustFolder func(agent, folder string)
@@ -236,54 +230,8 @@ func (s *Spawns) Trust(agent, folder string) {
 // path finds nothing, so an agent that still had its worktree was given a second one beside it.
 func (s *Spawns) WorktreePath(recorded string) string { return worktreepaths.WorktreePath(recorded) }
 
-// WorktreesDir is where a spawn puts repo's worktrees (worktreepaths.Dir).
+// WorktreesDir is where repo's desks are (worktreepaths.Dir).
 func WorktreesDir(repo string) string { return worktreepaths.Dir(repo) }
-
-// inWorktreesDir is whether dir is one of repo's worktree folders, the current one or the one before the rename.
-func inWorktreesDir(dir, repo string) bool {
-	base := filepath.Base(repo)
-	return filepath.Base(dir) == base+".worktrees.noindex" || filepath.Base(dir) == base+".worktrees"
-}
-
-// Recreate is Spawner.Recreate: a spawn makes <repo>.worktrees.noindex/<branch>, the branch the agent's key or <key>-<n>, so a recorded one of
-// that shape that is gone is added again at its path on that branch, when the branch is still in repo. Any other is refused, saying why:
-// never a new worktree in its place, which would leave the branch's work behind, and never another agent's branch.
-func (s *Spawns) Recreate(agent, repo, recorded string) (string, string) {
-	path := worktreepaths.RecordedPath(recorded)
-	if path == "" {
-		return "", fmt.Sprintf("%s: its recorded worktree %q is not an absolute path", addr.Ref(agent), recorded)
-	}
-	key, err := s.worktreeName(agent)
-	if err != nil {
-		return "", fmt.Sprintf("%s: its key could not be read: %v", addr.Ref(agent), err)
-	}
-	if key == "" {
-		return "", addr.Ref(agent) + " is not registered"
-	}
-	branch := filepath.Base(path)
-	if !inWorktreesDir(filepath.Dir(path), repo) || !spawnBranch(key, branch) {
-		return "", fmt.Sprintf("%s: its worktree %s is gone and is not one a spawn made for it (%s.worktrees.noindex/%s) - not made again", addr.Ref(agent),
-			path, filepath.Base(repo), key)
-	}
-	// A lock left by a session that is gone outlives the folder and would refuse the prune and the add.
-	if who := worktreelock.Held(repo, path, worktreelock.Running); who != "" {
-		return "", fmt.Sprintf("%s: its worktree %s is gone, but %s's session that locked it still runs", addr.Ref(agent), path, addr.Ref(who))
-	}
-	if _, err := worktreelock.Release(repo, path, worktreelock.Running); err != nil {
-		return "", fmt.Sprintf("%s: its worktree %s is gone and its lock could not be let go: %v", addr.Ref(agent), path, err)
-	}
-	_ = gitrun.Run(repo, "worktree", "prune") // the gone worktree's entry, which would refuse the add
-	if r := gitrun.Run(repo, "rev-parse", "--verify", "--quiet", "refs/heads/"+branch); r.RC != 0 {
-		return "", fmt.Sprintf("%s: its worktree %s is gone and its branch %s is not in %s - not started in a new worktree, which would "+
-			"leave its work behind", addr.Ref(agent), path, branch, repo)
-	}
-	if r := gitrun.RunTimeout(repo, 120*time.Second, "worktree", "add", path, branch); r.RC != 0 {
-		return "", fmt.Sprintf("%s: its worktree %s is gone and could not be made again from branch %s: %s", addr.Ref(agent), path, branch,
-			strings.TrimSpace(r.Stderr))
-	}
-	s.Prepare(agent, repo, path) // told through its event: Recreate's caller logs only that the worktree is back
-	return path, ""
-}
 
 // Prepare runs repo's worktree setup (worktreesetup) in wt, a worktree just made for agent, and is what to tell of it: "" when the repo
 // asks for nothing. A failed setup is told and recorded, never fatal: the agent starts in the worktree and can finish the setup itself.
@@ -304,93 +252,6 @@ func (s *Spawns) Prepare(agent, repo, wt string) string {
 	return said
 }
 
-// spawnBranch is whether branch is one a spawn names for the agent whose key is key: the key, or <key>-<n> when that was taken.
-func spawnBranch(key, branch string) bool {
-	n, ok := strings.CutPrefix(branch, key+"-")
-	return branch == key || ok && n != "" && strings.Trim(n, "0123456789") == ""
-}
-
-// worktreeName is the name of the agent's worktrees and their branches, its key (docs/design/people-workspaces.md, Disk), so a
-// rename moves nothing; "" when it is not registered.
-func (s *Spawns) worktreeName(agent string) (string, error) { return paths.AgentKeyIn(s.Q, agent) }
-
-// repoOf is the repository a worktree belongs to (the folder that holds its .git), "" when it cannot be told.
-func repoOf(worktree string) (string, error) {
-	code, out, err := git(worktree, "rev-parse", "--path-format=absolute", "--git-common-dir")
-	if err != nil || code != 0 || out == "" {
-		return "", err
-	}
-	return filepath.Dir(out), nil
-}
-
-func (s *Spawns) wantedExtras(agent string) int {
-	if s.Roster == nil {
-		return 0
-	}
-	cfg, err := s.Roster.Read(agent)
-	if err != nil {
-		return 0 // a config that cannot be read asks for nothing here
-	}
-	return int(team.ExtraWorktrees(cfg))
-}
-
-// EnsureExtras makes the worktrees its row's extra_worktrees asks for and the agent has not got, beside its first, and records them:
-// its further worktrees, and what to tell. Each is `<agent>-2`, `<agent>-3` on a branch of that name from main, which is the host's own
-// way of making a worktree; the agent checks out what it wants there. One it has is kept as it is and never made twice, so a restart, a
-// wake or the reconciler's recovery cannot make a third or strand the first. Failing to make one is told, not fatal: the agent starts
-// with what it has.
-func (s *Spawns) EnsureExtras(agent, first, repo string) (have, told []string, err error) {
-	want := s.wantedExtras(agent)
-	row, err := db.GetAgentState(s.Q, agent)
-	if err != nil {
-		return nil, nil, err
-	}
-	have = worktreepaths.ExtraPaths(row)
-	if len(have) >= want {
-		return have[:want], nil, nil
-	}
-	if repo == "" {
-		if repo, err = repoOf(first); err != nil {
-			return have, nil, err
-		}
-	}
-	if repo == "" {
-		return have, []string{fmt.Sprintf("%s: could not tell which repository %s belongs to, so its extra worktree was not made", addr.Ref(agent), first)}, nil
-	}
-	baseRef, why, err := PickBase(repo, gitrun.DefaultBranch(repo))
-	if err != nil {
-		return have, nil, err
-	}
-	if baseRef == "" {
-		return have, []string{fmt.Sprintf("%s: no extra worktree made: %s", addr.Ref(agent), why)}, nil
-	}
-	key, err := s.worktreeName(agent)
-	if err != nil {
-		return have, nil, err
-	}
-	if key == "" {
-		return have, []string{agent + " is not registered"}, nil
-	}
-	for n := len(have) + 2; n < want+2; n++ {
-		wt, failed := s.Host.CreateWorktree(repo, fmt.Sprintf("%s-%d", key, n), baseRef)
-		if wt == "" {
-			told = append(told, fmt.Sprintf("%s: could not make %s-%d: %s", addr.Ref(agent), key, n, failed))
-			break
-		}
-		have = append(have, wt)
-		told = append(told, fmt.Sprintf("%s: made worktree %s (branch %s-%d from %s)", addr.Ref(agent), wt, key, n, baseRef))
-		if said := s.Prepare(agent, repo, wt); said != "" {
-			told = append(told, "  "+said)
-		}
-	}
-	if len(told) > 0 {
-		if err := db.SetExtraWorktrees(s.Q, agent, have); err != nil {
-			return have, told, err
-		}
-	}
-	return have, told, nil
-}
-
 // StartIn starts an agent in a worktree it already has. A terminal can be closed by a human, or lost when the host restarts, without
 // anything happening to the work: the branch, the checkout and whatever is uncommitted in it are all still there. Making a second
 // worktree for that agent would be the wrong repair - it would strand the first. cmd is what the terminal runs; a wake passes its launch
@@ -402,11 +263,8 @@ func (s *Spawns) StartIn(agent, worktree, cmd string) (bool, string, error) {
 	if _, err := os.Stat(worktree); err != nil {
 		return false, fmt.Sprintf("%s: its worktree %s is gone", addr.Ref(agent), worktree), nil
 	}
-	_, extraTold, err := s.EnsureExtras(agent, worktree, "")
-	if err != nil {
-		return false, "", err
-	}
 	if cmd == "" {
+		var err error
 		if cmd, err = s.Launch.CommandFor(agent, "", "", ""); err != nil {
 			return false, "", err
 		}
@@ -423,7 +281,7 @@ func (s *Spawns) StartIn(agent, worktree, cmd string) (bool, string, error) {
 	if shown == "" {
 		shown = "unknown"
 	}
-	said := strings.Join(append(extraTold, fmt.Sprintf("%s: started in %s (terminal %s)", addr.Ref(agent), worktree, shown)), "\n")
+	said := fmt.Sprintf("%s: started in %s (terminal %s)", addr.Ref(agent), worktree, shown)
 	if problem := s.confirmSession(agent); problem != "" {
 		return false, said + "\n  but " + problem, nil
 	}
@@ -436,12 +294,13 @@ type SpawnOpts struct {
 	DryRun            bool
 }
 
-// Spawn starts the agent in its worktree: the one it has, else a new one named after it.
+// Spawn starts the agent in a desk of repo (SpawnWith).
 func (s *Spawns) Spawn(agent, repo string) (bool, string, error) {
 	return s.SpawnWith(agent, repo, SpawnOpts{})
 }
 
-// SpawnWith is Spawn with its options.
+// SpawnWith starts the agent in the desk of repo the pool gives it (worktreepool.Pool.Take: the one it holds, else its pinned one,
+// else its last, else a free one, else a new desk-<n>), with its branch checked out there, a new one from o.Base.
 func (s *Spawns) SpawnWith(agent, repo string, o SpawnOpts) (bool, string, error) {
 	if !s.Host.Available() {
 		return false, s.Host.Missing(), nil
@@ -451,64 +310,24 @@ func (s *Spawns) SpawnWith(agent, repo string, o SpawnOpts) (bool, string, error
 			return false, err.Error(), nil
 		}
 	}
-	// The agent's own worktree if it still has one: `worktree create --name` on a name already in use makes <name>-2 beside it and
-	// strands the branch and whatever is uncommitted in the first.
-	row, err := db.GetAgentState(s.Q, agent)
-	if err != nil {
-		return false, "", err
-	}
-	wt := ""
-	if row != nil {
-		wt = worktreepaths.WorktreePath(row.Worktree.String)
-	}
-	baseRef, why := "", "its own worktree, kept"
-	if wt == "" {
-		if o.Base == "" {
-			o.Base = gitrun.DefaultBranch(repo)
-		}
-		if baseRef, why, err = PickBase(repo, o.Base); err != nil {
-			return false, "", err
-		} else if baseRef == "" {
-			return false, why, nil
-		}
+	if s.Desks == nil {
+		return false, "no worktree pool to take a desk from", nil
 	}
 	cmd, err := s.Launch.CommandFor(agent, "", o.Why, "")
 	if err != nil {
 		return false, "", err
 	}
-	key, err := s.worktreeName(agent)
-	if err != nil {
-		return false, "", err
-	}
-	if key == "" {
-		return false, agent + " is not registered", nil
-	}
 	if o.DryRun {
-		steps := "\n  " + s.Host.Manual(wt, repo, key, baseRef, cmd)
-		var text string
-		if wt != "" {
-			text = fmt.Sprintf("would start in its own worktree %s%s", wt, steps)
-		} else {
-			text = fmt.Sprintf("would branch from %s (%s)%s", baseRef, why, steps)
-		}
-		have := len(worktreepaths.ExtraPaths(row))
-		for n := have + 2; n < s.wantedExtras(agent)+2; n++ {
-			text += fmt.Sprintf("\n  would make %s-%d beside it (branch %s-%d from %s)", key, n, key, n, gitrun.DefaultBranch(repo))
-		}
-		return true, text, nil
+		return true, fmt.Sprintf("would take a desk of %s and run there:\n  %s", repo, cmd), nil
 	}
-	setupSaid := ""
-	if wt == "" {
-		var failed string
-		if wt, failed = s.Host.CreateWorktree(repo, key, baseRef); wt == "" {
-			return false, failed, nil
-		}
-		setupSaid = s.Prepare(agent, repo, wt)
-	}
-	_, extraTold, err := s.EnsureExtras(agent, wt, repo)
+	t, why, err := s.Desks.TakeFrom(agent, repo, o.Base)
 	if err != nil {
 		return false, "", err
 	}
+	if why != "" {
+		return false, fmt.Sprintf("%s: no desk to start in - %s", addr.Ref(agent), why), nil
+	}
+	wt := t.Path
 	s.Trust(agent, wt)
 	handle, failed := s.Host.OpenTerminal(cmd, wt, agent, agent)
 	if handle == "" && failed != "" {
@@ -517,20 +336,13 @@ func (s *Spawns) SpawnWith(agent, repo string, o SpawnOpts) (bool, string, error
 	if err := s.took(agent, handle, wt); err != nil {
 		return false, "", err
 	}
-	from := "kept"
-	if baseRef != "" {
-		from = "branched from " + baseRef
-	}
 	shown := handle
 	if shown == "" {
 		shown = "unknown"
 	}
-	lines := []string{fmt.Sprintf("%s: worktree %s", addr.Ref(agent), wt), fmt.Sprintf("  %s (%s)", from, why)}
-	if setupSaid != "" {
-		lines = append(lines, "  "+setupSaid)
-	}
-	for _, t := range extraTold {
-		lines = append(lines, "  "+t)
+	lines := []string{fmt.Sprintf("%s: desk %s (%s, branch %s)", addr.Ref(agent), wt, t.How, t.Branch)}
+	for _, said := range t.Said {
+		lines = append(lines, "  "+said)
 	}
 	lines = append(lines, "  terminal "+shown)
 	if problem := s.confirmSession(agent); problem != "" {

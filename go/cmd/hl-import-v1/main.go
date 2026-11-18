@@ -551,7 +551,7 @@ func (im *importer) nav(text string) (string, error) {
 // agentState brings each agent's worktrees, so a worktree made before keeps its name and its work; the rest of the state starts
 // over.
 func (im *importer) agentState() error {
-	rows, err := im.old.Query("SELECT agent, COALESCE(worktree, ''), extra_worktrees FROM agent_state")
+	rows, err := im.old.Query("SELECT agent, COALESCE(worktree, '') FROM agent_state")
 	if err != nil {
 		return err
 	}
@@ -559,16 +559,14 @@ func (im *importer) agentState() error {
 	now := time.Now().Unix()
 	for rows.Next() {
 		var name, wt string
-		var extra sql.NullString
-		if err := rows.Scan(&name, &wt, &extra); err != nil {
+		if err := rows.Scan(&name, &wt); err != nil {
 			return err
 		}
 		k, ok := im.keys[name]
-		if !ok || actor.KindOf(k) != actor.Agent || wt == "" && !extra.Valid {
+		if !ok || actor.KindOf(k) != actor.Agent || wt == "" {
 			continue
 		}
-		if _, err := im.tx.Exec("INSERT INTO agent_state(agent, state, updated, worktree, extra_worktrees) VALUES(?, 'IDLE', ?, NULLIF(?, ''), ?)",
-			k, now, wt, extra); err != nil {
+		if _, err := im.tx.Exec("INSERT INTO agent_state(agent, state, updated, worktree) VALUES(?, 'IDLE', ?, ?)", k, now, wt); err != nil {
 			return err
 		}
 	}

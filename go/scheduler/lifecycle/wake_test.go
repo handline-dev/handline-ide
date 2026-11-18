@@ -61,7 +61,7 @@ func TestStartForWorkNeedsARepoARoomAndCountsFailuresUntilItStalls(t *testing.T)
 		t.Fatalf("%q %v", said, sp.startedIn)
 	}
 	if last := sp.cmds[len(sp.cmds)-1]; last != "hl launch b --why 'start'" {
-		t.Fatalf("the start in its own worktree records its cause: %q", last)
+		t.Fatalf("the start in its worktree records its cause: %q", last)
 	}
 	var got int64
 	if err := m.Q.QueryRow("SELECT json_extract(payload, '$.request_id') FROM events WHERE agent = 'b' AND kind = 'started_for_work'").Scan(&got); err != nil || got != rid {
@@ -886,26 +886,16 @@ func TestASlowStartOpensOneTerminalWhoeverElseAsksMeanwhile(t *testing.T) {
 	}
 }
 
-// A recorded worktree that is gone is made again from its branch and started in; one that cannot be is a failed start that says why,
-// never a fresh worktree in its place.
-func TestAGoneWorktreeIsMadeAgainOrTheStartFailsWithWhy(t *testing.T) {
+// A recorded worktree that is gone is not made again under the agent's name: the start is a spawn, which takes a desk from the pool.
+func TestAGoneWorktreeStartsInADeskFromThePool(t *testing.T) {
 	m, _, _ := newManager(t)
 	sp := m.Spawn.(*fakeSpawn)
 	m.Agents = fakeAgents{repo: "/repo"}
 	db.AddPending(m.Q, "a", "x", 1)
 	db.SetTerminal(m.Q, "a", "", "/wt-a")
-	sp.gone, sp.recreate, sp.ok = map[string]bool{"/wt-a": true}, "/wt-a", true
-	if said, _ := m.StartForWork("a"); !strings.HasPrefix(said, "a: started for work waiting") || len(sp.startedIn) != 1 || sp.startedIn[0] != "a@/wt-a" {
-		t.Fatalf("made again and started in: %q %v", said, sp.startedIn)
-	}
-	db.SetTerminal(m.Q, "b", "", "/wt-b")
-	db.AddPending(m.Q, "b", "x", 1)
-	sp.gone["/wt-b"], sp.recreate, sp.recreateWhy = true, "", "b: its worktree /wt-b is gone and its branch wt-b is not in /repo"
-	if said, _ := m.StartForWork("b"); !strings.Contains(said, "its branch wt-b is not in /repo") || len(sp.spawned) != 0 {
-		t.Fatalf("a failed start that says why, no fresh worktree: %q %v", said, sp.spawned)
-	}
-	if row, _ := db.GetAgentState(m.Q, "b"); row.WakeFailures != 1 {
-		t.Fatalf("it counts toward the stall that tells the lead: %+v", row)
+	sp.gone, sp.ok = map[string]bool{"/wt-a": true}, true
+	if said, _ := m.StartForWork("a"); !strings.HasPrefix(said, "a: started for work waiting") || len(sp.startedIn) != 0 || len(sp.spawned) != 1 {
+		t.Fatalf("spawned, not started in the gone worktree: %q %v %v", said, sp.startedIn, sp.spawned)
 	}
 }
 
