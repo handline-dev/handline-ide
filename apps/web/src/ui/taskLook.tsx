@@ -1,16 +1,16 @@
-import { Check, Circle, CircleDot, Hand, Hourglass, Layers, X, type LucideProps } from 'lucide-react';
-import { isPerson, taskOutcome } from '@handline/app-core';
+import { Check, CircleDot, Hand, Hourglass, Layers, LoaderCircle, X, type LucideProps } from 'lucide-react';
+import { taskOutcome } from '@handline/app-core';
 import type { ReactNode } from 'react';
 
-/** Doing: a filled dot, smaller than the square's other icons. */
-const Dot = (p: LucideProps) => <Circle {...p} size={8} fill="currentColor" />;
+/** Doing: a circle turning slowly, the sidebar's working agent; still when motion is reduced. */
+const Turning = (p: LucideProps) => <LoaderCircle {...p} className={`spin-slow ${p.className ?? ''}`} />;
 
 /** Each state's look: the same coloured square the chat's task cards carry, and its word. */
 export const STATE: Record<string, { icon: (p: LucideProps) => ReactNode; tone: string; word: string }> = {
   draft: { icon: CircleDot, tone: 'bg-muted', word: 'Draft' },
   queued: { icon: Layers, tone: 'bg-muted', word: 'Up next' },
   pending: { icon: Hourglass, tone: 'bg-muted', word: 'Pending' },
-  doing: { icon: Dot, tone: 'bg-accent', word: 'Doing' },
+  doing: { icon: Turning, tone: 'bg-accent', word: 'Doing' },
   waiting: { icon: Hand, tone: 'bg-warning', word: 'Waiting' },
   blocked: { icon: Hourglass, tone: 'bg-muted', word: 'Blocked' },
   held: { icon: Hand, tone: 'bg-warning', word: 'Held' },
@@ -35,12 +35,10 @@ export type Lookable = {
   evidence?: string | null;
   title?: string;
 };
-/** The look of what the task is doing now, the same in the chat and the task lists. The hand is for the founder alone: a task
- * waiting on them, or one held. Waiting on anything else, a queued task reads as queued and another as blocked. A done one that
- * failed its check reads as failed. */
+/** The task's look, the same everywhere: the hand only when the founder is needed; other waits read as queued or blocked. */
 export const look = (t: Lookable) => {
   const open = !['done', 'discarded'].includes(t.state);
-  const onFounder = open && (t.waiting?.on === 'founder' || (!!t.turns?.length && isPerson(t.acting ?? '', '')));
+  const onFounder = open && (t.waiting?.on === 'founder' || (!!t.turns?.length && t.acting === 'human'));
   const held = open && !!t.hold_reason;
   const blocked = open && t.state !== 'queued' && !!(t.waiting || t.block_reason);
   const failed = t.state === 'done' && failedLine(t.evidence, t.title) !== null;

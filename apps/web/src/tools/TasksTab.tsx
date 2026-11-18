@@ -92,14 +92,7 @@ export function TasksTab({ agent }: { agent: string | null }) {
                 )}
                 <div className="flex flex-col overflow-hidden rounded-lg border border-border">
                   {g.items.map((t, i) => (
-                    <Row
-                      key={t.id}
-                      t={t}
-                      ruled={i > 0}
-                      owner={owner}
-                      dot={show === 'mine'}
-                      kids={all.filter((c) => c.parent === t.id).map((c) => c.id)}
-                    />
+                    <Row key={t.id} t={t} ruled={i > 0} owner={owner} kids={all.filter((c) => c.parent === t.id).map((c) => c.id)} />
                   ))}
                 </div>
               </section>
@@ -118,7 +111,7 @@ export function TasksTab({ agent }: { agent: string | null }) {
               {held ? (
                 <div className="flex flex-col overflow-hidden rounded-lg border border-border">
                   {hold.map((t, i) => (
-                    <Row key={t.id} t={t} ruled={i > 0} owner={owner} dot kids={[]} />
+                    <Row key={t.id} t={t} ruled={i > 0} owner={owner} kids={[]} />
                   ))}
                 </div>
               ) : (
@@ -158,7 +151,7 @@ function waitWords(t: Task, kids: number[]): string | null {
   return text ? text.split(/[,;(]/)[0].trim() : null;
 }
 
-function Row({ t, ruled, owner, kids, dot }: { t: Task; ruled: boolean; owner?: string; kids: number[]; dot?: boolean }) {
+function Row({ t, ruled, owner, kids }: { t: Task; ruled: boolean; owner?: string; kids: number[] }) {
   const nameOf = useNameOf();
   const me = useMe();
   const back = useGiveBack();
@@ -192,17 +185,9 @@ function Row({ t, ruled, owner, kids, dot }: { t: Task; ruled: boolean; owner?: 
   return (
     <div className={`flex items-center hover:bg-hover/30 ${ruled ? 'border-t border-border' : ''}`}>
       <button type="button" {...useOpenable(taskOf(t.id))} className="flex min-w-0 flex-1 gap-2.5 px-3 py-2 text-left text-sm">
-        {dot ? (
-          // Orange while it waits on the founder, blue while an agent is on it.
-          <span
-            className={`mt-1.5 size-2 shrink-0 rounded-full ${yours ? 'bg-warning' : 'bg-accent'}`}
-            aria-label={yours ? 'Waits on you' : 'In progress'}
-          />
-        ) : (
-          <span className={`mt-0.5 grid size-5 shrink-0 place-items-center rounded-md text-accent-fg ${s.tone}`}>
-            <s.icon size={12} strokeWidth={3} />
-          </span>
-        )}
+        <span className={`mt-0.5 grid size-5 shrink-0 place-items-center rounded-md text-accent-fg ${s.tone}`}>
+          <s.icon size={12} strokeWidth={3} />
+        </span>
         <div className="min-w-0">
           <div className="truncate">
             <span className="mr-1 text-muted">T{t.id}</span>
