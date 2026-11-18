@@ -153,7 +153,7 @@ Tasks done, agent time, account use over 24 h/7 d, moves and handoffs, blocks ra
 
 ### 3.11 L. Settings
 
-Terminal host (IDE A / tmux / socket) and its health; daemon (idle timeout, idle-background, notice digest, cache-expiry); notifications; appearance (theme, zoom, terminal font and theme); trust folders; connected devices (§7); privacy. Searchable, grouped left list like S12.
+Terminal host (IDE A / tmux / socket) and its health; daemon (idle timeout, background-work and notice-digest timings, cache-expiry); notifications; appearance (theme, zoom, terminal font and theme); trust folders; connected devices (§7); privacy. Searchable, grouped left list like S12.
 
 ### 3.12 M. Popups and toasts
 
