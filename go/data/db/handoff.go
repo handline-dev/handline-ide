@@ -23,6 +23,16 @@ func SetHandoff(q Q, agent, text string) error {
 	return err
 }
 
+// ReplaceHandoff sets the record to text only while it is still was; false when it changed or went first.
+func ReplaceHandoff(q Q, agent, was, text string) (bool, error) {
+	r, err := q.Exec("UPDATE agent_state SET handoff = ? WHERE agent = ? AND handoff = ?", text, agent, was)
+	if err != nil {
+		return false, err
+	}
+	n, err := r.RowsAffected()
+	return n == 1, err
+}
+
 // ClearHandoff is db.set_handoff with None.
 func ClearHandoff(q Q, agent string) error {
 	_, err := q.Exec("UPDATE agent_state SET handoff = NULL WHERE agent = ?", agent)

@@ -409,6 +409,65 @@ func TestAColdWakeUnderTheResumeLimitResumes(t *testing.T) {
 	}
 }
 
+// A cold wake takes its record before it asks for the note Handline writes into it, so the note is waited for, not raced.
+func TestAColdWakeTakesItsRecordThenWaitsForTheTranscriptNote(t *testing.T) {
+	m, d, tm := newManager(t)
+	d.waitingMsg, d.tookPrompt, tm.launchOK = "hi", true, true
+	h := &recordingHandoff{fakeHandoff: fakeHandoff{ctx: ResumeMaxContext, pending: true}}
+	m.Handoff = h
+	db.SetTerminal(m.Q, "a", "t1", "/wt")
+	db.SetClosed(m.Q, "a", "sess-1")
+	ok, said, err := m.WakeAgentLocked("a", WakeOpts{Force: true})
+	if err != nil || ok || !strings.Contains(said, "waiting for the handoff note") || len(tm.relaunched) != 0 {
+		t.Fatalf("%v %q %v %q", ok, said, err, tm.relaunched)
+	}
+	if strings.Join(h.calls, ",") != "record,note" {
+		t.Fatalf("the record was not taken before the note was asked: %q", h.calls)
+	}
+}
+
+// A record a cold wake took and then waited with is still that wake's: a launch that fails on a later tick clears it, as it would have.
+func TestARecordTakenBeforeTheWaitIsClearedWhenTheLaterLaunchFails(t *testing.T) {
+	m, d, tm := newManager(t)
+	d.waitingMsg, d.tookPrompt = "hi", true
+	h := &recordingHandoff{fakeHandoff: fakeHandoff{ctx: ResumeMaxContext, pending: true}, q: m.Q}
+	m.Handoff = h
+	db.SetTerminal(m.Q, "a", "t1", "/wt")
+	db.SetClosed(m.Q, "a", "sess-1")
+	if ok, said, _ := m.WakeAgentLocked("a", WakeOpts{Force: true}); ok || !strings.Contains(said, "waiting for the handoff note") {
+		t.Fatalf("%v %q", ok, said)
+	}
+	if rec, _ := db.GetHandoff(m.Q, "a"); rec == "" {
+		t.Fatal("no record taken")
+	}
+	h.pending, tm.launchOK = false, false
+	if ok, _, _ := m.WakeAgentLocked("a", WakeOpts{Force: true}); ok {
+		t.Fatal("launched")
+	}
+	if rec, _ := db.GetHandoff(m.Q, "a"); rec != "" {
+		t.Fatalf("the failed launch kept a record no session was handed: %q", rec)
+	}
+}
+
+// recordingHandoff names the record and note calls in their order; with q, Record keeps a record as the real one does.
+type recordingHandoff struct {
+	fakeHandoff
+	calls []string
+	q     db.Q
+}
+
+func (h *recordingHandoff) Record(_ db.Q, agent, session string) ([]string, error) {
+	h.calls = append(h.calls, "record")
+	if h.q != nil {
+		return nil, db.SetHandoff(h.q, agent, "record of "+session)
+	}
+	return nil, nil
+}
+func (h *recordingHandoff) NoteFromTranscript(string) bool {
+	h.calls = append(h.calls, "note")
+	return h.pending
+}
+
 func TestAColdWakeIsHandedWhatWokeItAsItsFirstPrompt(t *testing.T) {
 	m, d, tm := newManager(t)
 	d.waitingMsg, d.tookPrompt, tm.launchOK = "Here is your request.", true, true
@@ -1060,6 +1119,28 @@ func TestAWakeAfterACloseOverTheContextLimitStartsFresh(t *testing.T) {
 		}
 		if len(tm.relaunched) != 1 || strings.Contains(tm.relaunched[0], "--resume") == full {
 			t.Fatalf("full=%v: wrong launch: %q", full, tm.relaunched)
+		}
+	}
+}
+
+// A fresh start waits while Handline writes the note into the record it reads; a resume reads no record and does not wait.
+func TestAFreshWakeWaitsForTheNoteWrittenFromTheTranscript(t *testing.T) {
+	for _, full := range []bool{true, false} {
+		m, d, tm := newManager(t)
+		d.waitingMsg, d.tookPrompt, tm.launchOK = "hi", true, true
+		m.Handoff = fakeHandoff{full: full, pending: true}
+		db.SetTerminal(m.Q, "a", "t1", "/wt")
+		db.SetClosed(m.Q, "a", "sess-1")
+		ok, said, err := m.WakeAgentLocked("a", WakeOpts{Force: true})
+		if err != nil || ok == full || full && !strings.Contains(said, "waiting for the handoff note Handline is writing") {
+			t.Fatalf("full=%v: %v %q %v %q", full, ok, said, err, tm.relaunched)
+		}
+		if !full {
+			continue
+		}
+		m.Handoff = fakeHandoff{full: true}
+		if ok, said, err := m.WakeAgentLocked("a", WakeOpts{Force: true}); err != nil || !ok || len(tm.relaunched) != 1 {
+			t.Fatalf("the note in, the wake did not go: %v %q %v", ok, said, err)
 		}
 	}
 }

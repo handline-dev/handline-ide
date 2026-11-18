@@ -118,12 +118,22 @@ func refused(err error) bool {
 // spend. ok is whether the turn completed without an error; errType is the error the CLI named on the turn's reply (oauth_org_not_allowed,
 // authentication_failed...), "" when it named none.
 func (m *Meter) RunModel(ctx context.Context, acct, prompt, model string) (ok bool, out, errType string) {
+	return m.runTurn(ctx, acct, prompt, model, nil)
+}
+
+// AskModel is RunModel's one turn with no tools: a prompt that carries text the model must not act on (a transcript) is only read.
+func (m *Meter) AskModel(ctx context.Context, acct, prompt, model string) (ok bool, out, errType string) {
+	return m.runTurn(ctx, acct, prompt, model, []string{"--tools", ""})
+}
+
+func (m *Meter) runTurn(ctx context.Context, acct, prompt, model string, args []string) (ok bool, out, errType string) {
 	l, cleanup, err := m.launch(acct)
 	if err != nil {
 		return false, err.Error(), ""
 	}
 	defer cleanup()
 	l.Model = model
+	l.Args = append(l.Args, args...)
 	done := make(chan map[string]any, 1)
 	named := make(chan string, 1)
 	c, cancel := context.WithTimeout(ctx, FoldTimeout)
