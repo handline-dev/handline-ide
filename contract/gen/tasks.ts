@@ -280,7 +280,7 @@ export type TaskDetail = Task & {
     /** When it was typed to the agent; null while it waits behind what that agent was doing when asked. */
     sent_at: Timestamp | null;
   } | null;
-  /** The newest ask for the task's core logic (task.core_ask); null when none was made. Once it is sent, the assignee commits the code on the task's branch (TaskDetail.branch): worktree.diff with that branch shows it. */
+  /** The newest ask for the task's core logic (task.core_ask); null when none was made. Once it is sent, the assignee commits the code on a branch of the task's own: task.changes shows it. */
   core_ask: {
     at: Timestamp;
     /** Who asked: the founder's key, or `sys` for the plans setting's own ask. */
@@ -305,13 +305,6 @@ export type TaskDetail = Task & {
     redo: number;
     /** True when the founder's newest verdict is OK: it went to land_by, and its next finish goes there as asked. */
     ok: boolean;
-  } | null;
-  /** The branch a story's sub-task (one opened as a draft) is committed on: worktree.diff with it reads the task's code whatever the worktree has checked out. null for any other task, or one no agent owns. */
-  branch: {
-    /** <assignee>-T<n> by the assignee's name (a lead by its workspace's), e.g. ui-T9132; it follows a new assignee. Its core ask and its delivery tell the agent to commit there. */
-    name: string;
-    /** Whether the branch exists yet in the assignee's worktree repo. */
-    exists: boolean;
   } | null;
 };
 

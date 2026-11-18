@@ -120,10 +120,8 @@ test('story-review seeds a sub-task Ready for you with pictures and a video, and
     ['image', 'image', 'image', 'video'],
   );
   assert.equal(video?.poster, files[2]?.id);
-  assert.deepEqual(ready.branch, { name: 'term-build-T9411', exists: true });
-  const code = await client.call('worktree.diff', { path: '/work/handline.term-build', branch: 'term-build-T9411' });
-  assert.ok(code.diff.includes('unread.ts') && !code.diff.includes('Worktrees.tsx') && code.against === 'base', code.diff); // the branch, not what is checked out
-  await assert.rejects(client.call('worktree.diff', { path: '/work/handline.term-build', branch: 'nope' }), /no branch/);
+  const code = await client.call('task.changes', { task: 9411 });
+  assert.ok(code.diff.includes('unread.ts') && !code.diff.includes('Worktrees.tsx') && code.commits.length === 1, code.diff); // its commit, not what is checked out
   const got = await client.call('attachment.get', { id: video!.id });
   assert.equal(Buffer.from(got.data, 'base64').subarray(4, 8).toString(), 'ftyp');
 
