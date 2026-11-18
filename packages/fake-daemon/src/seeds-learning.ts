@@ -5,6 +5,7 @@ import type { FakeDaemon } from '#src/daemon.ts';
 type Seed = (d: FakeDaemon) => void;
 
 const ARCH = 'handline.architect'; // local-ref-ok
+const FOUNDER = 'p1'; // the founder's person key, where lessons.list for 'human' reads
 const DAY = 86_400_000;
 const at = (daysAgo: number) => new Date(Date.now() - daysAgo * DAY).toISOString();
 
@@ -17,11 +18,22 @@ const LESSONS: [string, number][] = [
   ['Put every state in the pictures: empty, loading, error, many.', 9132],
 ];
 
+/** The founder's preferences, which every agent reads. */
+const PREFERENCES: [string, number | undefined][] = [
+  ['Anything the founder reads is in Korean.', 9204],
+  ['Hover on a subtle row is a faint fill, never an underline.', 9204],
+  ['Show mockups and get a pick before building a new screen.', undefined],
+];
+
 export const LEARNING_SEEDS: Record<string, Seed> = {
   learning: (d) => {
     d.tasks.lessons.set(
       ARCH,
       LESSONS.map(([text, task], i) => ({ id: i + 1, agent: ARCH, text, task, created_at: at(10 - i), created_by: ARCH })),
+    );
+    d.tasks.lessons.set(
+      FOUNDER,
+      PREFERENCES.map(([text, task], i) => ({ id: 101 + i, agent: FOUNDER, text, task, created_at: at(5 - i), created_by: ARCH })),
     );
     const verdicts = [false, true, true, true, false, true, true, true, true, true];
     d.tasks.reviews.set(ARCH, { level: 'every', record: verdicts.map((ok_first, i) => ({ task: 9150 + i, ok_first, at: at(10 - i) })) });

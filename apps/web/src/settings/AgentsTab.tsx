@@ -1,10 +1,11 @@
 // Settings > Agents: the model and effort a new agent starts with, for Claude Code and for Codex (agents already made keep theirs), and
-// each agent with its review level, opening its page (AgentPage).
+// the founder's preferences (removable), and each agent with its review level, opening its page (AgentPage).
 import { classify, hooks, sentence, useAgents, useNameOf, useSettings, useWrite } from '@handline/app-data';
 import type { SettingsChanges } from '@handline/client';
 import { ChevronRight } from 'lucide-react';
 import { useState } from 'react';
-import { AgentPage, LEVEL_WORD } from '#src/settings/AgentPage.tsx';
+import { useMe } from '@handline/app-react';
+import { AgentPage, LEVEL_WORD, Lessons } from '#src/settings/AgentPage.tsx';
 import { Mark } from '#src/ui/Face.tsx';
 import { Block, Setting } from '#src/settings/Meter.tsx';
 import { SettingsPage } from '#src/settings/SettingsPage.tsx';
@@ -27,6 +28,7 @@ function AgentsList({ pick }: { pick: (agent: string) => void }) {
   const values = settings.data?.values;
   const opts = options.data;
   const busy = save.isPending;
+  const me = useMe();
   /** A select of `list`, the saved value kept in it even when the list lacks it. */
   const choose = (key: Key, label: string, list: string[]) => {
     const now = values?.[key] ?? '';
@@ -58,6 +60,7 @@ function AgentsList({ pick }: { pick: (agent: string) => void }) {
           </Setting>
         </Block>
       )}
+      {me && <Lessons agent={me} founder />}
       <AgentRows pick={pick} />
       {!!save.error && (
         <p className="text-xs text-danger" role="alert">
