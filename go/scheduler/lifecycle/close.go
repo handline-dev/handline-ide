@@ -2,7 +2,6 @@ package lifecycle
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/handline/handline/go/agentctl/term"
@@ -377,11 +376,9 @@ func (m *Manager) CloseFresh(agent string, st SessionStatus, o CloseOpts) (ok bo
 		if err != nil || !ok {
 			return false, said, err
 		}
-	} else if row.ResumeSession.String != "" && must(db.GetHandoff(m.Q, agent)) == "" {
+	} else if row.ResumeSession.String != "" {
 		// The session id was the only copy of its context; the record is what a new start is given.
-		if gaps := must(m.Handoff.Record(m.Q, agent, row.ResumeSession.String)); len(gaps) > 0 {
-			m.Log("  %s: fresh start with no handoff (could not read %s)", agent, strings.Join(gaps, ", "))
-		}
+		m.recordUnlessKept(agent, row.ResumeSession.String, "fresh start with no handoff")
 	}
 	check(db.ForgetResume(m.Q, agent))
 	was := row.ResumeSession.String

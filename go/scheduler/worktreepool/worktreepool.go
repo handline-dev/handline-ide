@@ -403,8 +403,9 @@ func (p *Pool) recorded() (map[string]string, error) {
 }
 
 // Rename moves each free desk of repo not named desk-<n> (from before the pool) to the lowest free desk-<n> with git worktree move; its
-// rows follow. A held, pinned, running or resumable one waits for a later round. renamed is old -> new.
-func (p *Pool) Rename(repo string) (renamed [][2]string, err error) {
+// rows follow. A closed session that may resume in it is let go first (letGo: false while it cannot be, and the folder waits), since
+// Claude keeps a session under its folder. A held, pinned or running one waits for a later round. renamed is old -> new.
+func (p *Pool) Rename(repo string, letGo func(agent string) (bool, error)) (renamed [][2]string, err error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	repo = canonical(repo)
@@ -417,8 +418,10 @@ func (p *Pool) Rename(repo string) (renamed [][2]string, err error) {
 		return nil, err
 	}
 	for _, f := range folders {
-		if isDeskName(filepath.Base(f.Path)) || f.Holder != "" || f.PinnedTo != "" || resumable[f.Path] || !exists(f.Path) ||
-			p.running(repo, f.Path) {
+		if isDeskName(filepath.Base(f.Path)) || f.Holder != "" || f.PinnedTo != "" || !exists(f.Path) || p.running(repo, f.Path) {
+			continue
+		}
+		if !lets(resumable[f.Path], letGo, &err) {
 			continue
 		}
 		desk := p.freeDesk(repo, folders)
@@ -444,24 +447,41 @@ func (p *Pool) Rename(repo string) (renamed [][2]string, err error) {
 	return renamed, err
 }
 
-// resumable is every folder a closed session may resume in, by real path.
-func (p *Pool) resumable() (map[string]bool, error) {
-	rows, err := p.DB.Query("SELECT COALESCE(worktree, '') FROM agent_state WHERE COALESCE(resume_session, '') != ''")
+// resumable is the agents whose closed session may resume in each folder, by real path.
+func (p *Pool) resumable() (map[string][]string, error) {
+	rows, err := p.DB.Query("SELECT agent, COALESCE(worktree, '') FROM agent_state WHERE COALESCE(resume_session, '') != ''")
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	out := map[string]bool{}
+	out := map[string][]string{}
 	for rows.Next() {
-		var wt string
-		if err := rows.Scan(&wt); err != nil {
+		var agent, wt string
+		if err := rows.Scan(&agent, &wt); err != nil {
 			return nil, err
 		}
 		if path := worktreepaths.RecordedPath(wt); path != "" {
-			out[canonical(path)] = true
+			out[canonical(path)] = append(out[canonical(path)], agent)
 		}
 	}
 	return out, rows.Err()
+}
+
+// lets is whether each of agents was let go (letGo; nil lets none go), joining what failed into err.
+func lets(agents []string, letGo func(string) (bool, error), err *error) bool {
+	for _, a := range agents {
+		if letGo == nil {
+			return false
+		}
+		ok, lerr := letGo(a)
+		if lerr != nil {
+			*err = errors.Join(*err, fmt.Errorf("%s: its session not let go: %w", a, lerr))
+		}
+		if !ok {
+			return false
+		}
+	}
+	return true
 }
 
 // moveRecorded points every agent that records from (its last folder) at to.

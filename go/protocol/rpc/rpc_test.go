@@ -533,3 +533,34 @@ func TestARepliesWhosAreWrittenOutForHlOnly(t *testing.T) {
 		t.Fatalf("the handler's value changed: %v", kept)
 	}
 }
+
+// A desk's holder, last agent and pin are whos: hl desk list prints the agent's name, the app keeps the key.
+func TestADesksWhosAreNamesForHl(t *testing.T) {
+	db := storetest.Open(t)
+	for _, q := range []string{
+		"INSERT INTO workspaces(name, folder, created_at) VALUES('shop', '/p/shop', 0)",
+		"INSERT INTO agents(workspace, name, owner, created_at) VALUES(1, 'designer', 'p1', 0)",
+	} {
+		if _, err := db.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	srv := NewServer(fakeAuth{key: "k"}, "abc1234", 7, "local", func(string, ...any) {})
+	srv.DB, srv.Names = db, db
+	srv.Register("test.desks", Method{Role: "owner", Read: true, Handler: func(*Conn, map[string]any) (any, error) {
+		return map[string]any{"desks": []any{map[string]any{"name": "desk-1", "holder": "a1", "last_agent": "a1", "pinned_to": "a1"}}}, nil
+	}})
+	read := func(client string) map[string]any {
+		c := connect(t, srv, `{"client":"`+client+`","protocol":1,"key":"k","cwd":"/p/shop/go"}`)
+		res := c.raw(t, `{"jsonrpc":"2.0","id":2,"method":"test.desks","params":{}}`)["result"].(map[string]any)
+		return res["desks"].([]any)[0].(map[string]any)
+	}
+	for _, f := range []string{"holder", "last_agent", "pinned_to"} {
+		if got := read("hl")[f]; got != "designer" {
+			t.Errorf("hl reads %s as %v", f, got)
+		}
+		if got := read("app")[f]; got != "a1" {
+			t.Errorf("the app reads %s as %v", f, got)
+		}
+	}
+}

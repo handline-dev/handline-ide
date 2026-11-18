@@ -446,7 +446,7 @@ func TestRenameMakesAFreeOldFolderADeskAndLeavesTheOthers(t *testing.T) {
 	r.db.Exec("INSERT INTO agent_state(agent, state, updated, worktree, resume_session) VALUES('a4','IDLE',1,?,'s4')", resumable)
 	r.pool.Running = func(_, desk string) bool { return desk == busy }
 
-	moved, err := r.pool.Rename(r.repo)
+	moved, err := r.pool.Rename(r.repo, func(string) (bool, error) { return false, nil })
 	desk := canonical(filepath.Join(dir, "desk-1"))
 	if err != nil || len(moved) != 1 || moved[0] != [2]string{free, desk} {
 		t.Fatalf("renamed %v: %v", moved, err)
@@ -464,11 +464,26 @@ func TestRenameMakesAFreeOldFolderADeskAndLeavesTheOthers(t *testing.T) {
 			t.Fatalf("%s was moved", kept)
 		}
 	}
-	if moved, _ := r.pool.Rename(r.repo); len(moved) != 0 {
+	if moved, _ := r.pool.Rename(r.repo, nil); len(moved) != 0 {
 		t.Fatalf("a second round moved %v", moved)
 	}
 	r.pool.Running = nil
-	if moved, _ := r.pool.Rename(r.repo); len(moved) != 1 || moved[0] != [2]string{busy, canonical(filepath.Join(dir, "desk-2"))} {
+	if moved, _ := r.pool.Rename(r.repo, nil); len(moved) != 1 || moved[0] != [2]string{busy, canonical(filepath.Join(dir, "desk-2"))} {
 		t.Fatalf("once let go it is renamed, to the next number: %v", moved)
+	}
+	// a closed session that may resume in it is let go of, and the folder follows
+	var asked []string
+	letGo := func(a string) (bool, error) {
+		asked = append(asked, a)
+		r.db.Exec("UPDATE agent_state SET resume_session = NULL WHERE agent = ?", a)
+		return true, nil
+	}
+	moved, err = r.pool.Rename(r.repo, letGo)
+	if err != nil || len(moved) != 1 || moved[0] != [2]string{resumable, canonical(filepath.Join(dir, "desk-3"))} || len(asked) != 1 || asked[0] != "a4" {
+		t.Fatalf("a folder a closed session may resume in is renamed once let go: %v %v %v", moved, asked, err)
+	}
+	r.db.QueryRow("SELECT worktree FROM agent_state WHERE agent = 'a4'").Scan(&wt)
+	if wt != canonical(filepath.Join(dir, "desk-3")) {
+		t.Fatalf("its agent records %q", wt)
 	}
 }

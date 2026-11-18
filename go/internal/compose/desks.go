@@ -43,7 +43,7 @@ func (d *deskSweep) Run(now int64) error {
 		}
 	}
 	for repo := range d.adopted {
-		moved, err := d.lc.Desks.Rename(repo)
+		moved, err := d.lc.Desks.Rename(repo, d.lc.Manager.LetGoOfResume)
 		for _, m := range moved {
 			d.log("  desks: %s is now %s", m[0], m[1])
 		}

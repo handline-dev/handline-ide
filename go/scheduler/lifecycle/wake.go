@@ -447,6 +447,38 @@ func (m *Manager) takeDesk(agent, was string) (desk string, moved bool, why stri
 	return t.Path, moved, ""
 }
 
+// LetGoOfResume has a closed agent's next wake start fresh, as its folder is about to move: the record of its session is taken unless
+// it has one, and its resume id goes. false, with nothing done, while a wake holds its terminal or it is not closed.
+func (m *Manager) LetGoOfResume(agent string) (ok bool, err error) {
+	defer catch(&err)
+	release, mine := m.Typing.TakeTerminal(agent)
+	if !mine {
+		return false, nil
+	}
+	defer release()
+	row := must(db.GetAgentState(m.Q, agent))
+	if row == nil || row.ResumeSession.String == "" {
+		return true, nil
+	}
+	if !isClosed(row) {
+		return false, nil
+	}
+	m.recordUnlessKept(agent, row.ResumeSession.String, "handoff with gaps")
+	check(db.ForgetResume(m.Q, agent))
+	m.Log("  %s: its folder moves, so its next wake starts fresh from its handoff", agent)
+	return true, nil
+}
+
+// recordUnlessKept takes the handoff record of session unless agent has one; gapped opens the log line for a record with gaps.
+func (m *Manager) recordUnlessKept(agent, session, gapped string) {
+	if must(db.GetHandoff(m.Q, agent)) != "" {
+		return
+	}
+	if gaps := must(m.Handoff.Record(m.Q, agent, session)); len(gaps) > 0 {
+		m.Log("  %s: %s (could not read %s)", agent, gapped, strings.Join(gaps, ", "))
+	}
+}
+
 // freshFrom takes the handoff record of the closed session and lets go of its id, so the wake starts a new session with the record.
 func (m *Manager) freshFrom(agent, session string) {
 	if gaps := must(m.Handoff.Record(m.Q, agent, session)); len(gaps) > 0 {
@@ -540,10 +572,8 @@ func (m *Manager) wakeClosed(agent string, row *db.AgentState, wt string, o Wake
 		if why := m.Launch.RoomOn(m.Q, agent, row, to); why != "" {
 			return false, fmt.Sprintf("%s %s - waiting to start %s there (moved by %s)", to, why, agent, by)
 		}
-		if row.ResumeSession.String != "" && must(db.GetHandoff(m.Q, agent)) == "" {
-			if gaps := must(m.Handoff.Record(m.Q, agent, row.ResumeSession.String)); len(gaps) > 0 {
-				m.Log("  %s: moved with no handoff (could not read %s)", agent, strings.Join(gaps, ", "))
-			}
+		if row.ResumeSession.String != "" {
+			m.recordUnlessKept(agent, row.ResumeSession.String, "moved with no handoff")
 		}
 		movedID, _ := must2(db.LastEventID(m.Q, agent, "moved_account"))
 		if owedID, _ := must2(db.LastEventID(m.Q, agent, MoveOwedKind)); movedID < owedID {
@@ -882,11 +912,7 @@ func (m *Manager) launchClosed(agent string, row *db.AgentState, wt, session str
 		if !resume && len(attempts) > 1 {
 			// The resume did not take, so this start is fresh and waits for the note like any other; the next wake does not try the
 			// resume again.
-			if must(db.GetHandoff(m.Q, agent)) == "" {
-				if gaps := must(m.Handoff.Record(m.Q, agent, session)); len(gaps) > 0 {
-					m.Log("  %s: handoff with gaps (could not read %s)", agent, strings.Join(gaps, ", "))
-				}
-			}
+			m.recordUnlessKept(agent, session, "handoff with gaps")
 			if m.Handoff.NoteFromTranscript(agent) {
 				check(db.ForgetResume(m.Q, agent))
 				return false, m.waitForNote(agent, true, c.movedTo != "")
