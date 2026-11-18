@@ -61,6 +61,7 @@ export function CompactionLine({
   at,
   cause,
   handoff,
+  handoff_note: note,
   resumed,
   changed,
   changed_lines: lines = [],
@@ -68,6 +69,7 @@ export function CompactionLine({
   at: string;
   cause?: string;
   handoff: string | null;
+  handoff_note?: string | null;
   resumed?: boolean;
   changed?: string;
   changed_lines?: LineChange[];
@@ -106,7 +108,7 @@ export function CompactionLine({
     void openModal((close) =>
       resumed ? (
         <ModalFrame title="Restarted" onClose={() => close()}>
-          <Restart at={at} changes={changes} lines={lines} handoff={handoff} close={() => close()} />
+          <Restart at={at} changes={changes} lines={lines} note={note} close={() => close()} />
         </ModalFrame>
       ) : (
         <ModalFrame title="Context compacted" size="xl" onClose={() => close()}>
@@ -119,7 +121,7 @@ export function CompactionLine({
     // holds the open box's height (label 20 + time 16 + padding 4), so the chat never moves; all is centred in it.
     <div className="my-3 flex h-10 items-center gap-4 text-sm text-muted">
       <div className="h-px flex-1 bg-border" />
-      {(resumed ? changes.length || handoff : handoff) ? (
+      {(resumed ? changes.length || note !== undefined : handoff) ? (
         <button
           type="button"
           onClick={open}
@@ -196,18 +198,18 @@ function Heading({ children }: { children: ReactNode }) {
   return <h3 className="text-xs font-semibold tracking-wide text-muted uppercase">{children}</h3>;
 }
 
-/** What a restart changed, then the agent's handoff. */
+/** What a restart changed, then the agent's handoff note, or that it wrote none. */
 function Restart({
   at,
   changes,
   lines,
-  handoff,
+  note,
   close,
 }: {
   at: string;
   changes: string[];
   lines: LineChange[];
-  handoff: string | null;
+  note: string | null | undefined;
   close: () => void;
 }) {
   const shown = new Set(lines.map((l) => l.part));
@@ -237,13 +239,24 @@ function Restart({
           )}
         </section>
       )}
-      {handoff && <HandoffLines text={handoff} folded={changes.length > 0} />}
+      {note !== undefined && <HandoffLines text={note} folded={changes.length > 0} />}
     </div>
   );
 }
 
 /** The handoff: folded when changes come first, else open; held to a few lines (whole Markdown, never cut mid-block) until Show all. */
-function HandoffLines({ text, folded }: { text: string; folded: boolean }) {
+function HandoffLines({ text, folded }: { text: string | null; folded: boolean }) {
+  if (text === null)
+    return (
+      <section className="flex flex-col gap-2">
+        <Heading>Handoff</Heading>
+        <p className="rounded-lg border border-border px-3 py-2 text-sm text-muted">None written</p>
+      </section>
+    );
+  return <HandoffNote text={text} folded={folded} />;
+}
+
+function HandoffNote({ text, folded }: { text: string; folded: boolean }) {
   const [open, setOpen] = useState(!folded);
   const [all, setAll] = useState(false);
   const rows = text.split('\n');
