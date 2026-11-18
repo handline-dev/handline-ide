@@ -2308,6 +2308,18 @@
       ],
       "default": "medium",
       "description": "The effort a new codex agent gets when it is made without one; codex runs xhigh and max as high. Existing agents keep theirs. null puts back the default."
+     },
+     "disk_keep_free_gb": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 0,
+      "description": "Free disk to keep on the volume the daemon home is on, in GB; 0 is off, the default. Under it the daemon removes free, unpinned desks of any project, oldest first, never one holding changes, until it is back over it."
+     },
+     "agents_memory_max_gb": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 0,
+      "description": "Most memory the agents' processes may use together, in GB; 0 is off, the default. Over it the daemon closes the longest-idle sessions one at a time, never one mid-turn; their work stays and they wake from their handoff."
      }
     },
     "description": "Every global setting by its config.yaml name, with its default; every one is the founder's to set. Per-account keys (label, usage recovery, cycle) are account.set; per-agent keys are agent.set and schedule.*; a key marked Per agent also takes `agent` in settings.set."

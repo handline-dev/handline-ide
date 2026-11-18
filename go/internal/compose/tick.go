@@ -26,6 +26,7 @@ import (
 	"github.com/handline/handline/go/scheduler/tick"
 	"github.com/handline/handline/go/scheduler/worktreelock"
 	"github.com/handline/handline/go/scheduler/worktreepaths"
+	"github.com/handline/handline/go/scheduler/worktreepool"
 	"github.com/handline/handline/go/taskboard/attachments"
 	"github.com/handline/handline/go/taskboard/handoff"
 	"github.com/handline/handline/go/taskboard/supervisor"
@@ -141,6 +142,9 @@ func (p *Parts) Tick(cfg Config, tc TickConfig) *Tick {
 		Cost:    &tick.CostPilot{Ports: costPorts{}},
 		Observe: tickObserve{u: uenv, home: home, now: nowOf(cfg.Now), out: newLoginMemo(home)},
 		Config:  tickConfig{roster: lc.roster, set: lc.Manager.Settings},
+	}
+	if cfg.AgentsMemory != nil {
+		t.Memory = &tickMemory{m: lc.Manager, home: home, read: cfg.AgentsMemory}
 	}
 	t.Passes = append(p.passes(cfg, t), agentViewPass(view))
 	if tc.Terminals {
@@ -780,3 +784,38 @@ func diskWarnFloor(gb int) int64 {
 	}
 	return housekeeping.DiskLow
 }
+
+// memoryCooldown is how long after a close for memory the next reading must be taken: the closed session's processes take a moment to go.
+const memoryCooldown = 60
+
+// tickMemory is tick.Memory: the founder's cap on the agents' memory over the sampler's readings.
+type tickMemory struct {
+	m        *lifecycle.Manager
+	home     string
+	read     func() (at int64, rss map[string]int64)
+	now      int64 // the tick Over was last asked in
+	closedAt int64 // when a session was last closed for memory
+}
+
+func (t *tickMemory) Over(now int64) (used, limit int64, ok bool) {
+	t.now = now
+	limit = worktreepool.GB(usage.LoadConfig(t.home), worktreepool.AgentsMemoryMaxKey)
+	if limit == 0 {
+		return 0, 0, false
+	}
+	at, rss := t.read()
+	if at == 0 || at < t.closedAt+memoryCooldown {
+		return 0, limit, false
+	}
+	for _, n := range rss {
+		used += n
+	}
+	return used, limit, used > limit
+}
+
+func (t *tickMemory) MayClose(_ db.Q, agent, state string, row *db.AgentState, now int64, st tick.Status) (bool, int64) {
+	ok, idle, err := t.m.ShouldCloseForMemory(agent, state, row, now, st.SessionID)
+	return ok && err == nil, idle
+}
+
+func (t *tickMemory) Acted() { t.closedAt = t.now }

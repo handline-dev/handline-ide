@@ -182,6 +182,20 @@ func (s *Sampler) LatestMachine() *Machine {
 	return &m
 }
 
+// AgentsMemory is when the latest snapshot was taken and each agent's resident bytes in it; 0 and nil before the first.
+func (s *Sampler) AgentsMemory() (at int64, rss map[string]int64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.last == nil {
+		return 0, nil
+	}
+	rss = make(map[string]int64, len(s.last.Agents))
+	for name, u := range s.last.Agents {
+		rss[name] = u.RSS
+	}
+	return s.last.At, rss
+}
+
 // Latest is the latest snapshot as daemon.status serves it; nil before the first.
 func (s *Sampler) Latest() map[string]any {
 	s.mu.Lock()

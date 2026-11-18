@@ -8,6 +8,7 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/internal/worktreeprune"
+	"github.com/handline/handline/go/scheduler/worktreepool"
 )
 
 // WorktreeSizes measures every worktree an agent records at most every worktreeprune.SizeEvery seconds, off the tick since a walk takes
@@ -71,11 +72,18 @@ func (w *WorktreeSizes) Check(q db.Q, now int64) error {
 	return nil
 }
 
-// WorktreePaths are the real paths of every worktree an agent records.
+// WorktreePaths are the real paths of every worktree an agent records, and of every desk.
 func WorktreePaths(q db.Q) ([]string, error) {
 	agents, err := worktreeprune.AgentWorktrees(q, "")
 	if err != nil {
 		return nil, err
+	}
+	desks, err := worktreepool.List(q, "") // a free desk is no agent's worktree, and is measured too
+	if err != nil {
+		return nil, err
+	}
+	for _, d := range desks {
+		agents[d.Path] = true
 	}
 	out := make([]string, 0, len(agents))
 	for p := range agents {

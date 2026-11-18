@@ -20,6 +20,7 @@ import (
 	"github.com/handline/handline/go/scheduler/keepawake"
 	"github.com/handline/handline/go/scheduler/leases"
 	"github.com/handline/handline/go/scheduler/loadgate"
+	"github.com/handline/handline/go/scheduler/worktreepool"
 	"github.com/handline/handline/go/taskboard/handoff"
 )
 
@@ -142,6 +143,8 @@ func (e *Env) settingsValues() map[string]any {
 		settings.TranscriptRowsKey:      s.Flag(settings.TranscriptRowsKey, false),
 		settings.RefsNeedGrantKey:       s.Flag(settings.RefsNeedGrantKey, false),
 		leases.HeavyMaxKey:              leases.Max(cfg, leases.Heavy),
+		worktreepool.DiskKeepFreeKey:    worktreepool.GB(cfg, worktreepool.DiskKeepFreeKey) >> 30,
+		worktreepool.AgentsMemoryMaxKey: worktreepool.GB(cfg, worktreepool.AgentsMemoryMaxKey) >> 30,
 		leases.SimulatorMaxKey:          leases.Max(cfg, leases.Simulator), leases.BrowserMaxKey: leases.Max(cfg, leases.Browser),
 		usage.NetworkAddressesKey: hostsSetting(cfg[usage.NetworkAddressesKey]),
 		leases.PortRangeKey:       portRangeSetting(cfg),
