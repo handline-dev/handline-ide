@@ -47,21 +47,20 @@ func TestHookDeniesAsPythonWritesIt(t *testing.T) {
 	}
 }
 
-// A browser started outside hl use is refused only while browser_max is set.
-func TestHookRefusesALeaseStarterOnlyWithALimit(t *testing.T) {
+// A command a shared run covers, started outside hl use, is refused naming the hl use line; with no run, or through hl use, it is not.
+func TestHookRefusesACommandASharedRunCovers(t *testing.T) {
 	r := hookRig(t, true)
 	r.daemon(nil)
 	in := preToolUse("Bash", map[string]any{"command": "npx playwright test"})
 	if out, _, _ := r.runIn(in, asAgent, "hook", "PreToolUse"); strings.TrimSpace(out) != "{}" {
-		t.Fatalf("no limit: %q", out)
+		t.Fatalf("no run: %q", out)
 	}
-	if err := os.WriteFile(filepath.Join(r.home, "config.yaml"), []byte("browser_max: 1\n"), 0o644); err != nil {
-		t.Fatal(err)
+	r.daemon(map[string]string{"run.list": `{"runs": [{"kind": "mac:shots", "name": "shots", "cmds": ["@browser"], "at_once": 1, ` +
+		`"set_by": "a2", "why": "one browser"}], "presets": []}`})
+	if out, _, _ := r.runIn(in, asAgent, "hook", "PreToolUse"); !strings.Contains(out, `"permissionDecision": "deny"`) || !strings.Contains(out, "hl use shots -- npx playwright test") {
+		t.Fatalf("covered: %q", out)
 	}
-	if out, _, _ := r.runIn(in, asAgent, "hook", "PreToolUse"); !strings.Contains(out, `"permissionDecision": "deny"`) || !strings.Contains(out, "hl use browser -- npx playwright test") {
-		t.Fatalf("limit: %q", out)
-	}
-	through := preToolUse("Bash", map[string]any{"command": "hl use browser -- npx playwright test"})
+	through := preToolUse("Bash", map[string]any{"command": "hl use shots -- npx playwright test"})
 	if out, _, _ := r.runIn(through, asAgent, "hook", "PreToolUse"); strings.TrimSpace(out) != "{}" {
 		t.Fatalf("through hl use: %q", out)
 	}

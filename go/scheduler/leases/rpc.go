@@ -2,6 +2,7 @@ package leases
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/handline/handline/go/protocol/rpc"
@@ -24,6 +25,23 @@ func Register(s *rpc.Server, m *Manager) {
 
 func bad(msg, field string) error { return rpc.BadRequestError(msg, field, rpc.InvalidParams) }
 
+// kindOf is the lease kind params name: heavy, simulator, browser, port or the name of a shared run agent takes; "" when none is named.
+func (m *Manager) kindOf(agent string, params map[string]any) (string, error) {
+	name, _ := params["kind"].(string)
+	if name == "" || Known(name) {
+		return name, nil
+	}
+	if m.Named != nil {
+		if kind, ok := m.Named(agent, name); ok {
+			return kind, nil
+		}
+	}
+	if kind, ok := m.heldNamed(agent, name); ok { // a run removed while the agent holds a turn at it
+		return kind, nil
+	}
+	return "", bad(fmt.Sprintf("%s is no lease kind (heavy, simulator, browser, port) and no shared run of yours (hl use list)", name), "kind")
+}
+
 func agentOf(c *rpc.Conn, params map[string]any) (string, error) {
 	agent, _ := params["agent"].(string)
 	if agent == "" {
@@ -38,9 +56,12 @@ func (m *Manager) take(c *rpc.Conn, params map[string]any) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	kind, _ := params["kind"].(string)
-	if !Known(kind) {
-		return nil, bad("kind is heavy, simulator, browser or port", "kind")
+	kind, err := m.kindOf(agent, params)
+	if err != nil {
+		return nil, err
+	}
+	if kind == "" {
+		return nil, bad("kind is heavy, simulator, browser, port or a shared run's name", "kind")
 	}
 	hold, _ := params["hold"].(bool)
 	pid := 0
@@ -83,9 +104,9 @@ func (m *Manager) release(c *rpc.Conn, params map[string]any) (any, error) {
 		}
 		return map[string]any{"released": n}, nil
 	}
-	kind, _ := params["kind"].(string)
-	if kind != "" && !Known(kind) {
-		return nil, bad("kind is heavy, simulator, browser or port", "kind")
+	kind, err := m.kindOf(agent, params)
+	if err != nil {
+		return nil, err
 	}
 	return map[string]any{"released": m.ReleaseAgent(agent, kind, false, "released")}, nil
 }
@@ -96,9 +117,9 @@ func (m *Manager) extend(c *rpc.Conn, params map[string]any) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	kind, _ := params["kind"].(string)
-	if kind != "" && !Known(kind) {
-		return nil, bad("kind is heavy, simulator, browser or port", "kind")
+	kind, err := m.kindOf(agent, params)
+	if err != nil {
+		return nil, err
 	}
 	ls, err := m.Extend(agent, kind)
 	var r *Refusal

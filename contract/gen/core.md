@@ -16,6 +16,9 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `lease.release` | agent |  | `agent`, `lease?`, `kind?` | `{released}` | `refused`, `bad_request` |  | not cached |
 | `lease.extend` | agent |  | `agent`, `kind?` | `{extended}` | `refused`, `bad_request` |  | not cached |
 | `lease.get` | agent |  | none | `{kinds}` |  |  | `leases`, snapshot |
+| `run.list` | agent |  | `agent?` | `{runs, presets}` |  |  | not cached |
+| `run.set` | agent | yes | `name`, `scope`, `workspace?`, `cmds`, `at_once?`, `why?`, `request_id` | `Accepted` | `bad_request` |  | not from the app |
+| `run.remove` | agent | yes | `name`, `scope`, `workspace?`, `request_id` | `Accepted` | `not_found`, `bad_request` |  | not from the app |
 | `load.get` | agent |  | `minutes?`, `agent?` | `{at, every_s, machine, total, agents, unowned, processes, sampling, series} \| null` | `bad_request` |  | `load`, snapshot |
 | `events.feed` | agent |  | `since?`, `topics?`, `limit?` | `{events, cursor, gap}` | `bad_request` |  | not cached |
 | `operation.get` | member |  | `operation` | `Operation & ReadCursor` | `not_found` |  | `operation` by operation, fed by operations |
@@ -70,7 +73,19 @@ hl use --extend: adds one max_hold period to each of the caller's leases of kind
 
 ### `lease.get`
 
-The simulator and browser leases: per kind its limit, who holds each lease (since when, its processes) and who waits, in order.
+The leases: per kind and per shared run its limit, who holds each lease (since when, its processes) and who waits, in order.
+
+### `run.list`
+
+The shared runs: each a name, the commands it covers, how many may run at once, its scope (This Mac or a workspace), who set it and why, who holds a turn and who waits. A Bash call with a command a run covers, made outside hl use while the agent holds no turn at it, is refused by the agent's hook, naming the hl use line. With no runs, nothing waits.
+
+### `run.set`
+
+Keeps a shared run, in place of the one of its name in its scope, applied at once with no approval: any agent for This Mac or its own workspace, the founder for any.
+
+### `run.remove`
+
+Drops a shared run; the turns held now run to their end, and nothing waits for it again.
 
 ### `load.get`
 

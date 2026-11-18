@@ -825,7 +825,8 @@ export interface CoreMethods {
 }; result: Accepted };
   "lease.take": { params: {
   agent: Who;
-  kind: "heavy" | "simulator" | "browser" | "port";
+  /** heavy, simulator, browser, port, or the name of a shared run the agent takes (run.list); heavy, simulator and browser limit nothing. */
+  kind: string;
   /** A lease kept across commands (hl use <kind> --hold) rather than one for the calling process. */
   hold?: boolean;
 }; result: {
@@ -839,14 +840,16 @@ export interface CoreMethods {
   "lease.release": { params: {
   agent: Who;
   lease?: number;
-  kind?: ("heavy" | "simulator" | "browser" | "port") | "";
+  /** heavy, simulator, browser, port, or the name of a shared run the agent takes (run.list); heavy, simulator and browser limit nothing. Empty or absent: every kind. */
+  kind?: string;
 }; result: {
     /** How many leases were given back. */
     released: number;
   } };
   "lease.extend": { params: {
   agent: Who;
-  kind?: ("heavy" | "simulator" | "browser" | "port") | "";
+  /** heavy, simulator, browser, port, or the name of a shared run the agent takes (run.list); heavy, simulator and browser limit nothing. Empty or absent: every kind. */
+  kind?: string;
 }; result: {
     /** The leases extended. */
     extended: {
@@ -858,8 +861,9 @@ export interface CoreMethods {
   } };
   "lease.get": { params: { [key: string]: unknown }; result: {
     kinds: {
-      kind: "heavy" | "simulator" | "browser" | "port";
-      /** heavy_max, simulator_max or browser_max; for port, the size of port_range, 0 when unset; 0 is no limit. */
+      /** heavy, simulator, browser or port, or a shared run's scope:name (mac:xcode, w3:xcode). */
+      kind: string;
+      /** A shared run's at_once; for port, the size of port_range, 0 when unset; 0 is no limit, as for heavy, simulator and browser. */
       max: number;
       held: {
         lease: number;
@@ -888,6 +892,52 @@ export interface CoreMethods {
       }[];
     }[];
   } };
+  "run.list": { params: {
+  agent?: Who;
+}; result: {
+    runs: {
+      /** Its lease kind, scope:name (lease.get). */
+      kind: string;
+      name: string;
+      /** mac, or the workspace's key (w3). */
+      scope: string;
+      /** A program (xcodebuild), a program and its first words after its flags (go test), a script path (tools/check.sh, also as ./, bash or an absolute path), or a preset. */
+      cmds: string[];
+      at_once: number;
+      why: string;
+      set_by: string;
+      set_at: Timestamp;
+      held: {
+        agent: string;
+        since: Timestamp;
+        hold: boolean;
+      }[];
+      waiting: {
+        agent: string;
+        since: Timestamp;
+        position: number;
+        /** The task the ask blocks; absent for a call held open. */
+        task?: number;
+      }[];
+    }[];
+    /** The patterns a run may cover that name what Handline already knows: @build-test (a test or build run), @simulator, @browser. */
+    presets: string[];
+  } };
+  "run.set": { params: {
+  name: string;
+  scope: "mac" | "workspace";
+  workspace?: string;
+  cmds: string[];
+  at_once?: number;
+  why?: string;
+  request_id: RequestId;
+}; result: Accepted };
+  "run.remove": { params: {
+  name: string;
+  scope: "mac" | "workspace";
+  workspace?: string;
+  request_id: RequestId;
+}; result: Accepted };
   "load.get": { params: {
   /** Also give `series` for that many minutes back (0 or absent: none). */
   minutes?: number;
@@ -1106,6 +1156,9 @@ export const CORE_METHODS: { [K in keyof CoreMethods]: { role: Role; callers: Ro
   "lease.release": { role: "agent", callers: null, write: false, since: 1 },
   "lease.extend": { role: "agent", callers: null, write: false, since: 1 },
   "lease.get": { role: "agent", callers: null, write: false, since: 1 },
+  "run.list": { role: "agent", callers: null, write: false, since: 1 },
+  "run.set": { role: "agent", callers: null, write: true, since: 1 },
+  "run.remove": { role: "agent", callers: null, write: true, since: 1 },
   "load.get": { role: "agent", callers: null, write: false, since: 1 },
   "events.feed": { role: "agent", callers: null, write: false, since: 1 },
   "operation.get": { role: "member", callers: null, write: false, since: 1 },
@@ -1120,7 +1173,7 @@ export const CORE_METHODS: { [K in keyof CoreMethods]: { role: Role; callers: Ro
 };
 
 /** x-app-cache of each read (x-app in core.json). */
-export const CORE_APP_CACHE: { [K in "hello" | "whoami" | "subscribe" | "unsubscribe" | "daemon.status" | "lease.take" | "lease.release" | "lease.extend" | "lease.get" | "load.get" | "events.feed" | "operation.get" | "prefs.get" | "connection.addresses" | "settings.get"]: { resource: string; id?: string; feed: Topic | null } | false } = {
+export const CORE_APP_CACHE: { [K in "hello" | "whoami" | "subscribe" | "unsubscribe" | "daemon.status" | "lease.take" | "lease.release" | "lease.extend" | "lease.get" | "run.list" | "load.get" | "events.feed" | "operation.get" | "prefs.get" | "connection.addresses" | "settings.get"]: { resource: string; id?: string; feed: Topic | null } | false } = {
   "hello": false,
   "whoami": false,
   "subscribe": false,
@@ -1130,6 +1183,7 @@ export const CORE_APP_CACHE: { [K in "hello" | "whoami" | "subscribe" | "unsubsc
   "lease.release": false,
   "lease.extend": false,
   "lease.get": {"resource": "leases", "feed": null},
+  "run.list": false,
   "load.get": {"resource": "load", "feed": null},
   "events.feed": false,
   "operation.get": {"resource": "operation", "id": "operation", "feed": "operations"},
@@ -1139,9 +1193,11 @@ export const CORE_APP_CACHE: { [K in "hello" | "whoami" | "subscribe" | "unsubsc
 };
 
 /** x-app-write of each write (x-app in core.json). */
-export const CORE_APP_WRITES: { [K in "daemon.pause" | "daemon.resume" | "prefs.set" | "hook.record" | "subagent.start" | "settings.set" | "warning.dismiss"]: { kind: WriteKind; label: string } | false } = {
+export const CORE_APP_WRITES: { [K in "daemon.pause" | "daemon.resume" | "run.set" | "run.remove" | "prefs.set" | "hook.record" | "subagent.start" | "settings.set" | "warning.dismiss"]: { kind: WriteKind; label: string } | false } = {
   "daemon.pause": {"kind": "decided", "label": "pause new work"},
   "daemon.resume": {"kind": "decided", "label": "resume new work"},
+  "run.set": false,
+  "run.remove": false,
   "prefs.set": {"kind": "authored", "label": "save view preferences"},
   "hook.record": false,
   "subagent.start": false,
