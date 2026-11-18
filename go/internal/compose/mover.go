@@ -2,6 +2,7 @@ package compose
 
 import (
 	"database/sql"
+	"strings"
 
 	"github.com/handline/handline/go/accounts/usage"
 	"github.com/handline/handline/go/data/db"
@@ -53,10 +54,15 @@ func (p *Parts) newMover(m *lifecycle.Manager, uenv *usage.Env, env *supervisor.
 		},
 		LimitDialogOpen: p.limitDialogOpen,
 		BackgroundWork: func(q db.Q, agent string) string {
-			if ok, _ := env.HasBackgroundWork(q, agent); ok {
-				return "background work"
+			if ok, _ := env.HasBackgroundWork(q, agent); !ok {
+				return ""
 			}
-			return ""
+			if p.turns != nil {
+				if jobs := p.turns.Running(agent); len(jobs) > 0 {
+					return strings.Join(jobs, ", ")
+				}
+			}
+			return "unnamed jobs"
 		},
 		ContextUse: func(q db.Q, agent string) (int, int) {
 			acct := m.Agents.CurrentAccount(q, agent)

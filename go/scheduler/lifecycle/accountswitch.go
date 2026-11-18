@@ -24,17 +24,25 @@ func (m *Manager) refreshView(agent string) {
 	}
 }
 
-// saving begins the switch a movable trigger starts. A trigger fires every tick until it is dealt with, so one under way keeps its step and since.
-func (v *Mover) saving(agent, kind string) {
+// saving begins the switch a movable trigger starts; waits is what it waits for before the move, "" for not known. A trigger fires every tick
+// until it is dealt with, so one under way keeps its step and since, and a saving one takes a newer waits.
+func (v *Mover) saving(agent, kind, waits string) {
 	if !MovableTrigger(kind) {
 		return
 	}
 	m := v.M
 	live := must(db.LiveSwitch(m.Q, must(db.GetAgentState(m.Q, agent)), m.now()))
-	if live != nil && live.Phase != db.SwitchWaiting {
+	switch {
+	case live == nil || live.Phase == db.SwitchWaiting:
+		check(db.SetSwitch(m.Q, db.AccountSwitch{Agent: agent, Cause: kind, From: m.Agents.CurrentAccount(m.Q, agent), Phase: db.SwitchSaving,
+			Waits: waits, Since: m.now()}))
+	case live.Phase == db.SwitchSaving && waits != "" && live.Waits != waits:
+		live.Waits = waits
+		check(db.SetSwitch(m.Q, *live))
+	default:
 		return
 	}
-	m.noteSwitch(agent, kind, m.Agents.CurrentAccount(m.Q, agent), "", db.SwitchSaving)
+	m.refreshView(agent)
 }
 
 // parkedSwitch is what a park does to the switch: a wait for the wall, none for a park that is no wall, and a move's short retry keeps the
@@ -115,7 +123,7 @@ func (v *Mover) SwitchNow(agent, dest, by string) (ok bool, said string, err err
 		}
 	}
 	reason := "switched now by " + by
-	landed, why := v.land(agent, HandoffTrigger{Kind: wait.Cause, Reason: reason}, wait.From, dest, reason, true)
+	landed, why := v.land(agent, HandoffTrigger{Kind: wait.Cause, Reason: reason}, wait.From, dest, reason, "", true)
 	if !landed {
 		return false, fmt.Sprintf("%s could not start on %s: %s", addr.Ref(agent), dest, clip(why, 120)), nil
 	}

@@ -486,6 +486,17 @@
            }
           ],
           "description": "When a wait ends, null for any other phase."
+         },
+         "waits": {
+          "oneOf": [
+           {
+            "type": "string"
+           },
+           {
+            "type": "null"
+           }
+          ],
+          "description": "While `saving`, what the move waits for before it begins, in words; null when nothing is known, and for any other phase."
          }
         },
         "required": [
