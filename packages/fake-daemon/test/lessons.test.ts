@@ -23,3 +23,18 @@ test('lessons.list shows an agent its live lessons, and lesson.remove takes one 
   );
   await assert.rejects(client.call('lesson.remove', { id: 1, request_id: 'r2' }), (e: RpcError) => e.data?.what === 'lesson');
 });
+
+test("task.get's timeline has a row for each lesson added on the task, removed later or not", async () => {
+  const { daemon, client } = setup();
+  await client.start();
+  const task = (await client.call('tasks.list', {})).items[0]!.id;
+  daemon.tasks.lessons.set('a3', [
+    { id: 1, agent: 'a3', text: 'show the screen in both themes', task, created_at: '2026-11-18T00:00:00Z', created_by: 'a3' },
+    { id: 2, agent: 'a3', text: 'on no task', created_at: '2026-11-18T00:01:00Z', created_by: 'a3' },
+  ]);
+  const rows = async () =>
+    (await client.call('task.get', { task })).timeline.filter((r) => r.kind === 'lesson').map((r) => [r.who, r.text]);
+  assert.deepEqual(await rows(), [['a3', 'show the screen in both themes']]);
+  await client.call('lesson.remove', { id: 1, request_id: 'r1' });
+  assert.deepEqual(await rows(), [['a3', 'show the screen in both themes']], 'a removed lesson stays in the history');
+});

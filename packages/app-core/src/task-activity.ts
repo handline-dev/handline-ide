@@ -139,6 +139,8 @@ export function activityOf(memos: TaskDetail['memos'], timeline: readonly Entry[
         return [{ ...base, line: `${nameOf(e.who)} sent it back`, note: e.text }];
       case 'request':
         return [{ ...base, line: requestLine(e, nameOf), note: e.text }];
+      case 'lesson':
+        return []; // drawn by T9200
     }
   });
   return [...comments, ...events].sort((a, b) => Date.parse(a.at) - Date.parse(b.at));

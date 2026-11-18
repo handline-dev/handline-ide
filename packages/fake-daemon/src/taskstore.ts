@@ -2,7 +2,7 @@
 import type { FakeInbox } from '#src/inbox.ts';
 import type { FakeRequests } from '#src/requests.ts';
 import { planFields, planState, type PlanRow } from '#src/planview.ts';
-import type { HistoryRow, Memo, Proposal, Task, TaskClock, TaskDetail, TaskLook, TimeSegment } from '@handline/contract';
+import type { HistoryRow, Lesson, Memo, Proposal, Task, TaskClock, TaskDetail, TaskLook, TimeSegment } from '@handline/contract';
 import { seedTasks } from '#src/seedtasks.ts';
 import { changes } from '#src/history.ts';
 import type { SeedCommit } from '#src/taskchanges.ts';
@@ -62,6 +62,10 @@ export class TaskStore {
   verbs = false;
   /** The founder's read marker per task (task.seen): the highest comment number in view. */
   protected seenUpto = new Map<number, number>();
+  /** Each agent's live lessons by its key, oldest first; a test or seed puts them here. */
+  readonly lessons = new Map<string, Lesson[]>();
+  /** Lessons removed since: still rows of their task's timeline, as the daemon's add events are. */
+  protected removedLessons: Lesson[] = [];
   /** Who the write now being answered is from, so the history can say who changed what. */
   by = 'founder';
 
@@ -302,6 +306,10 @@ export class TaskStore {
         ),
         ...(t.turnLog ?? []).map((n) => ({ ...n, kind: 'turn' as const, memo: n.memo ?? null, edited_at: null })),
         ...(t.handoffLog ?? []).map((n) => ({ ...n, kind: 'handoff' as const, memo: null, edited_at: null })),
+        ...[...this.lessons.values(), this.removedLessons]
+          .flat()
+          .filter((l) => l.task === t.id)
+          .map((l) => ({ at: l.created_at, who: l.created_by, kind: 'lesson' as const, text: l.text, memo: null, edited_at: null })),
       ].sort((a, b) => a.at.localeCompare(b.at)),
     };
   }

@@ -199,8 +199,8 @@ export type TaskDetail = Task & {
     at: Timestamp;
     /** The author, or `from → to` for a handoff or a turn. */
     who: string;
-    /** memo; handoff; a request linked to the task, except a memo's tell, the ask to the founder an @human memo opens, and a request that forwards a comment or a turn's return (any of them withdrawn too), which repeat their memo or turn; edit, the brief changed (text is the new brief); state, a change of state (text is `from -> done`); reject, the task sent back (text is the note), from before a review was a handoff; turn, a turn pushed (who is `by → to`, text its ask, empty when it was handed over with a comment: memo names that comment) or given back (who is `from → to`, text empty: a note is its comment). */
-    kind: "memo" | "handoff" | "request" | "edit" | "state" | "reject" | "turn";
+    /** memo; handoff; a request linked to the task, except a memo's tell, the ask to the founder an @human memo opens, and a request that forwards a comment or a turn's return (any of them withdrawn too), which repeat their memo or turn; edit, the brief changed (text is the new brief); state, a change of state (text is `from -> done`); reject, the task sent back (text is the note), from before a review was a handoff; turn, a turn pushed (who is `by → to`, text its ask, empty when it was handed over with a comment: memo names that comment) or given back (who is `from → to`, text empty: a note is its comment); lesson, a lesson added on the task (who added it, text the lesson as added; a later merge or removal does not change the row). */
+    kind: "memo" | "handoff" | "request" | "edit" | "state" | "reject" | "turn" | "lesson";
     /** Already stripped of control characters: a client draws it as it is. */
     text: string;
     /** On a turn row: push, the turn handed to `to` (text its ask, which may be empty); pop, given back to `to`. */

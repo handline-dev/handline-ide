@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team/teamtest"
 )
 
@@ -28,6 +29,9 @@ func TestATasksTimelineIsEverythingThatHappenedOnItInOrder(t *testing.T) {
 	} {
 		run(t, e, "INSERT INTO events(ts, agent, kind, payload) VALUES(?, ?, ?, ?)", ev.ts, ev.who, ev.kind, `{"task_id": 1, `+ev.at+`}`)
 	}
+	if _, err := db.AddLesson(e.DB, "bob", "say what is left out", 1, "bob"); err != nil { // its event is the row
+		t.Fatal(err)
+	}
 	got, err := e.taskGet(nil, map[string]any{"task": json.Number("1")})
 	if err != nil {
 		t.Fatal(err)
@@ -38,7 +42,7 @@ func TestATasksTimelineIsEverythingThatHappenedOnItInOrder(t *testing.T) {
 		rows = append(rows, fmt.Sprintf("%v|%v|%v", m["kind"], m["who"], m["text"]))
 	}
 	want := []string{"request|amy → bob|landed  the brief", "edit|amy|a new brief", "memo|amy|a memo", "handoff|bob → cy|yours",
-		"state|cy|doing -> done", "reject|amy|not yet"}
+		"state|cy|doing -> done", "reject|amy|not yet", "lesson|bob|say what is left out"}
 	if fmt.Sprint(rows) != fmt.Sprint(want) {
 		t.Fatalf("got  %q\nwant %q", rows, want)
 	}

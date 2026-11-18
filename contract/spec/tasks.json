@@ -895,9 +895,10 @@
             "edit",
             "state",
             "reject",
-            "turn"
+            "turn",
+            "lesson"
            ],
-           "description": "memo; handoff; a request linked to the task, except a memo's tell, the ask to the founder an @human memo opens, and a request that forwards a comment or a turn's return (any of them withdrawn too), which repeat their memo or turn; edit, the brief changed (text is the new brief); state, a change of state (text is `from -> done`); reject, the task sent back (text is the note), from before a review was a handoff; turn, a turn pushed (who is `by \u2192 to`, text its ask, empty when it was handed over with a comment: memo names that comment) or given back (who is `from \u2192 to`, text empty: a note is its comment)."
+           "description": "memo; handoff; a request linked to the task, except a memo's tell, the ask to the founder an @human memo opens, and a request that forwards a comment or a turn's return (any of them withdrawn too), which repeat their memo or turn; edit, the brief changed (text is the new brief); state, a change of state (text is `from -> done`); reject, the task sent back (text is the note), from before a review was a handoff; turn, a turn pushed (who is `by \u2192 to`, text its ask, empty when it was handed over with a comment: memo names that comment) or given back (who is `from \u2192 to`, text empty: a note is its comment); lesson, a lesson added on the task (who added it, text the lesson as added; a later merge or removal does not change the row)."
           },
           "text": {
            "type": "string",
