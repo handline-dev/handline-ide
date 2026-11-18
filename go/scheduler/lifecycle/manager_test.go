@@ -78,6 +78,7 @@ type fakeTerm struct {
 	relaunched []string
 	busy       bool
 	launchOK   bool
+	failResume bool // a resume never starts, a fresh start does as launchOK says
 	closedPane bool
 }
 
@@ -96,6 +97,9 @@ func (f *fakeTerm) CloseTerminal(string) (bool, string) {
 }
 func (f *fakeTerm) Relaunch(_, cmd string, started func() bool) (bool, string) {
 	f.relaunched = append(f.relaunched, cmd)
+	if f.failResume && strings.Contains(cmd, "--resume") {
+		return false, "the resume did not start"
+	}
 	if f.launchOK && started() {
 		return true, ""
 	}
