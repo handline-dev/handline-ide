@@ -16,18 +16,19 @@ import (
 
 type fakeDelivery struct {
 	Delivery
-	idle       int64
-	sessionUp  bool
-	gone       bool
-	waitingMsg string
-	tookPrompt bool
-	told       []string // the session each waiting message was recorded as told to
-	head       *db.Request
-	headOnce   bool // the head is gone after it has been read once: what was waiting is answered mid-wake
+	idle        int64
+	sessionUp   bool
+	gone        bool
+	waitingMsg  string
+	tookPrompt  bool
+	told        []string // the session each waiting message was recorded as told to
+	head        *db.Request
+	headOnce    bool // the head is gone after it has been read once: what was waiting is answered mid-wake
+	owesNothing bool // BgOwesNothing: no request, ask or task waits on its background work
 }
 
 func (f *fakeDelivery) BgHolds(db.Q, string, int64) (bool, error)   { return false, nil }
-func (f *fakeDelivery) BgOwesNothing(db.Q, string) (bool, error)    { return false, nil }
+func (f *fakeDelivery) BgOwesNothing(db.Q, string) (bool, error)    { return f.owesNothing, nil }
 func (f *fakeDelivery) BgMayStop(db.Q, string, int64) (bool, error) { return false, nil }
 func (f *fakeDelivery) IdleSince(db.Q, string) (int64, bool, error) { return f.idle, f.idle != 0, nil }
 func (f *fakeDelivery) EffectiveHead(db.Q, string) (*db.Request, error) {

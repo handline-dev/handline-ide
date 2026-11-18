@@ -49,6 +49,12 @@ func (m *Manager) turnBusy(agent string) bool {
 	return m.sessionBusy(agent) && !(m.Settings.Flag(settings.ClearPastBackgroundKey, false) && m.TermRun.IdleWithBackground(agent))
 }
 
+// wallBusy is sessionBusy for a move at a usage wall: a turn that has ended with only background work running, work nothing it owes waits on,
+// is not busy. The move stops that work and the next session is told what it stopped.
+func (m *Manager) wallBusy(agent string) bool {
+	return m.sessionBusy(agent) && !(m.TermRun.IdleWithBackground(agent) && must(m.Delivery.BgOwesNothing(m.Q, agent)))
+}
+
 func (m *Manager) termSession(agent string) (int, string) {
 	if m.TermRun == nil {
 		return 0, ""

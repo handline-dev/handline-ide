@@ -127,6 +127,8 @@ export type AgentView = {
     since: Timestamp;
     /** When a wait ends, null for any other phase. */
     until: Timestamp | null;
+    /** While `saving`, what the move waits for before it begins, in words; null when nothing is known, and for any other phase. */
+    waits?: string | null;
   } | null;
   /** A person's move (agent.move on an agent mid-turn, or agent.move_now) that has not begun; once it begins it is `account_switch`. It is stored, so it outlives a daemon restart. null when none. Absent from a daemon that does not serve it. */
   pending_move?: {
