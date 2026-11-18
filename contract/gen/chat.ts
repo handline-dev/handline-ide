@@ -128,6 +128,8 @@ export type TranscriptItem = {
     changed?: string;
     /** Lines added and removed in each part `changed` names, for the parts whose earlier text the daemon kept. Absent means none. */
     changed_lines?: LineChange[];
+    /** On a resumed start (resumed true): the handoff note the agent wrote in the record its close took; null when the record holds none. Absent on a new conversation, whose handoff is in `handoff`, and from a daemon that does not serve it. */
+    handoff_note?: string | null;
   };
   /** For kind bash: a person's ! line as it ran, without the !. */
   command?: string;

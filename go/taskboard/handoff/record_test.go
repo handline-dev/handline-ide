@@ -234,3 +234,13 @@ func TestRecordKeepsTheRecordWithTheNoteAndClearsTheAsk(t *testing.T) {
 		t.Error("the ask stayed")
 	}
 }
+
+func TestNoteOfIsTheAgentsOwnNoteOutOfARecord(t *testing.T) {
+	rec := "# handoff · a\nrequest: none\n" + agentNoteHeading + "\n  done: x\n    nested\n  next: none\nafter: y"
+	if got := NoteOf(rec); got != "done: x\n  nested\nnext: none" {
+		t.Errorf("%q", got)
+	}
+	if got := NoteOf("# handoff · a\nrequest: none"); got != "" {
+		t.Errorf("a record with no note: %q", got)
+	}
+}
