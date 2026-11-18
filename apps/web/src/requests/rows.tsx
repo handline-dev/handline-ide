@@ -1,14 +1,12 @@
 import { classify, sentence, useNameOf, useProposals, useTask, useWrite } from '@handline/app-data';
 import type { PendingRequest, RequestRow } from '@handline/client';
 import { isUnseen, laterKey, requestRow, tomorrowAt9, turnKey, turnRow, type Picked } from '@handline/app-core';
+import type { HardDrive } from 'lucide-react';
 import {
-  Bell,
   CircleCheck,
   CircleX,
   CircleDashed,
   CircleSlash,
-  HardDrive,
-  KeyRound,
   ListChecks,
   Lightbulb,
   MailWarning,
@@ -32,30 +30,13 @@ import type { TaskRequest } from '#src/requests/data.ts';
 import { chatOf, taskOf } from '#src/layout/kinds.tsx';
 import { useNewTab, useOpenable } from '#src/layout/openable.tsx';
 import type { Gesture } from '#src/layout/openTab.tsx';
-import { openSettings } from '#src/settings/open.ts';
+import { openSettingsFor } from '#src/settings/open.ts';
+import { OpenReview } from '#src/settings/AgentPage.tsx';
 import { goToTurnOf } from '#src/tools/TaskTurn.ts';
 import { failedLine } from '#src/ui/taskLook.tsx';
+import { WARN, WARN_WORD } from '#src/requests/warnings.ts';
 import { useRefs } from '#src/ui/refs.tsx';
 import { spring } from '#src/motion.ts';
-
-const WARN: Record<NonNullable<PendingRequest['warning']>['kind'], typeof HardDrive> = {
-  disk: HardDrive,
-  login: KeyRound,
-  delivery: MailWarning,
-  undelivered: MailWarning,
-  notice: Bell,
-  review: ListChecks,
-};
-
-/** In Requests, beside the icon of a warning: what it is about. */
-const WARN_WORD: Record<NonNullable<PendingRequest['warning']>['kind'], string> = {
-  disk: 'Disk',
-  login: 'Account',
-  delivery: 'Delivery',
-  undelivered: 'Delivery',
-  notice: 'Notice',
-  review: 'Review',
-};
 
 const KIND: Record<PendingRequest['kind'], typeof HardDrive> = {
   allow: ShieldQuestion,
@@ -239,13 +220,13 @@ function Line({
 }
 
 /** Where a row opens: its task; for a daemon warning, the account, the chat or the settings it is about; else the asking agent's
- * chat, or Requests. Null for the disk warning, which opens Settings. */
+ * chat, or Requests. Null for the disk and review warnings, which open Settings. */
 function turnOpens(p: PendingRequest): string | null {
   const w = p.warning;
   if (p.task !== null) return taskOf(p.task);
   if (w?.account && w.kind === 'login') return 'usage';
+  if (w?.kind === 'disk' || w?.kind === 'review') return null;
   if (w?.agent) return chatOf(w.agent);
-  if (w?.kind === 'disk') return null;
   // A permission or a question without a task is asked in the agent's chat.
   return p.agent ? chatOf(p.agent) : 'requests';
 }
@@ -290,7 +271,7 @@ export function TurnLine({
           ? p.ask
             ? refs(p.ask)
             : p.warning
-              ? '' // the icon and its word already say what it is
+              ? (p.warning.line ?? '') // the icon and its word already say what it is; a review notice adds its record
               : ASK[p.kind]
           : [
               until ? `back ${until}` : ASK[p.kind],
@@ -303,7 +284,7 @@ export function TurnLine({
               .join(' · ')
       }
       opens={opens}
-      here={opens ? undefined : openSettings}
+      here={opens ? undefined : () => openSettingsFor(p.warning)}
       trailing={full && p.source === 'proposal' ? undefined : <TurnQuick p={p} />}
       hint={
         p.task !== null && (p.kind === 'ask' || p.kind === 'decide')
@@ -403,6 +384,7 @@ function TurnQuick({ p }: { p: PendingRequest }) {
       </>
     );
   }
+  if (p.warning?.kind === 'review') return <OpenReview warning={p.warning} />;
   if (p.source === 'machine' && p.id) {
     const id = p.id;
     return (

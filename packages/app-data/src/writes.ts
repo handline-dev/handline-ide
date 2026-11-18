@@ -228,6 +228,9 @@ export const patches: Record<string, Patch> = {
   ...settings,
   // A machine default changes every workspace's rules in force, so every workspace's entry is read again.
   'workspace.rule.set': { touches: (d) => [qk.allRules(d)] },
+  // Lessons and review records have no feed: the agent page reads them again; a level shows in agents.list too.
+  'lesson.remove': { touches: (d) => [qk.allLessons(d), qk.allReviews(d)] },
+  'agent.review_set': { touches: (d) => [qk.allReviews(d), qk.agents(d)] },
   // A project's setup is in repos.list, which has no feed; a refusal naming a field is shown under that field.
   'repo.set': {
     touches: (d) => [qk.resource(d, 'repos.list')],

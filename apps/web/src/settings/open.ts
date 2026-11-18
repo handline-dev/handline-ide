@@ -1,10 +1,10 @@
 import { useSyncExternalStore } from 'react';
 
-/** Where Settings opens: a section, and in Accounts one account's row. Without it, the section it was last on. */
+/** Where Settings opens: a section, in Accounts one account's row, in Agents one agent's page. Without it, the section it was last on. */
 export const SECTIONS = ['onboarding', 'accounts', 'agents', 'tools', 'notifications', 'projects', 'machine', 'devices'] as const;
 export type Section = (typeof SECTIONS)[number];
 export const isSection = (s: unknown): s is Section => SECTIONS.some((x) => x === s);
-export type SettingsTarget = { section?: Section; account?: string };
+export type SettingsTarget = { section?: Section; account?: string; agent?: string };
 
 /** Whether Settings covers the app: opened from the sidebar or a link, closed by its X or Escape. */
 let open = false;
@@ -25,3 +25,8 @@ export const useSettingsOpen = () =>
     (l) => (listeners.add(l), () => listeners.delete(l)),
     () => open,
   );
+
+/** The Settings a warning without a place of its own opens: an agent's page for a review notice, else Settings as it was left. */
+export const settingsFor = (w: { kind: string; agent?: string } | null | undefined): SettingsTarget =>
+  w?.kind === 'review' && w.agent ? { section: 'agents', agent: w.agent } : {};
+export const openSettingsFor = (w: Parameters<typeof settingsFor>[0]) => openSettings(settingsFor(w));

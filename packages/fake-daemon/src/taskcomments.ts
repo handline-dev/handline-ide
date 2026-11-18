@@ -17,7 +17,13 @@ export interface Pending {
   id?: string;
   agent?: string | null;
   ask?: string | null;
-  warning?: { kind: 'disk' | 'login' | 'delivery' | 'undelivered' | 'notice'; account?: string; agent?: string } | null;
+  warning?: {
+    kind: 'disk' | 'login' | 'delivery' | 'undelivered' | 'notice' | 'review';
+    account?: string;
+    agent?: string;
+    line?: string;
+    level?: 'one_in_three' | 'auto';
+  } | null;
   items: number[];
   unread: number;
   first_unread: number | null;

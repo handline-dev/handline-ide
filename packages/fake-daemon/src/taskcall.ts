@@ -45,6 +45,14 @@ export function taskCall(
         if (!Number.isInteger(p.id)) throw invalidParams('id is a lesson number', 'id');
         if (!tasks.removeLesson(Number(p.id))) throw new Failure('not_found', `no lesson ${String(p.id)}`, { what: 'lesson' });
         return ok(`Lesson ${String(p.id)} removed`);
+      case 'agent.review':
+        if (typeof p.agent !== 'string' || !p.agent) throw invalidParams("agent is an agent's key", 'agent');
+        return tasks.reviewOf(p.agent);
+      case 'agent.review_set':
+        if (typeof p.agent !== 'string' || !p.agent) throw invalidParams("agent is an agent's key", 'agent');
+        if (p.level !== 'every' && p.level !== 'one_in_three' && p.level !== 'auto')
+          throw invalidParams('level is every, one_in_three or auto', 'level');
+        return (tasks.setReview(p.agent, p.level), ok('Review level set.'));
       case 'warning.dismiss':
         if (typeof p.id !== 'string' || !p.id) throw invalidParams("id is a warning's id (a machine item's id)", 'id');
         if (!tasks.dismissWarning(p.id)) throw new Failure('not_found', `no warning ${p.id}`, { what: 'warning', name: p.id });

@@ -1,7 +1,11 @@
-// Settings > Agents: the model and effort a new agent starts with, for Claude Code and for Codex. Agents already made keep theirs.
-import { classify, hooks, sentence, useSettings, useWrite } from '@handline/app-data';
+// Settings > Agents: the model and effort a new agent starts with, for Claude Code and for Codex (agents already made keep theirs), and
+// each agent with its review level, opening its page (AgentPage).
+import { classify, hooks, sentence, useAgents, useNameOf, useSettings, useWrite } from '@handline/app-data';
 import type { SettingsChanges } from '@handline/client';
+import { ChevronRight } from 'lucide-react';
 import { useState } from 'react';
+import { AgentPage, LEVEL_WORD } from '#src/settings/AgentPage.tsx';
+import { Mark } from '#src/ui/Face.tsx';
 import { Block, Setting } from '#src/settings/Meter.tsx';
 import { SettingsPage } from '#src/settings/SettingsPage.tsx';
 import { Input, Select } from '#src/ui/Field.tsx';
@@ -9,7 +13,13 @@ import { ToolLogo } from '#src/ui/ToolLogo.tsx';
 
 type Key = 'default_model_claude' | 'default_effort_claude' | 'default_model_codex' | 'default_effort_codex';
 
-export function AgentsTab() {
+/** The list, or one agent's page: `open` is the agent Settings was opened on (a review notice's Open). */
+export function AgentsTab({ open }: { open?: string }) {
+  const [agent, setAgent] = useState(open);
+  return agent ? <AgentPage agent={agent} back={() => setAgent(undefined)} /> : <AgentsList pick={setAgent} />;
+}
+
+function AgentsList({ pick }: { pick: (agent: string) => void }) {
   const settings = useSettings();
   const options = hooks.useAgentOptions();
   const save = useWrite('settings.set');
@@ -48,6 +58,7 @@ export function AgentsTab() {
           </Setting>
         </Block>
       )}
+      <AgentRows pick={pick} />
       {!!save.error && (
         <p className="text-xs text-danger" role="alert">
           {sentence(classify(save.error))}
@@ -79,5 +90,33 @@ function CodexModel({ value, disabled, save }: { value: string; disabled: boolea
         onKeyDown={(e) => e.key === 'Enter' && !e.nativeEvent.isComposing && done()}
       />
     </div>
+  );
+}
+
+/** Every agent, with how much of its finished work comes to the founder; a row opens its page. */
+function AgentRows({ pick }: { pick: (agent: string) => void }) {
+  const agents = useAgents().data?.agents ?? [];
+  const nameOf = useNameOf();
+  const rows = [...agents].sort((a, b) => nameOf(a.key).localeCompare(nameOf(b.key)));
+  if (!rows.length) return null;
+  return (
+    <Block title="Agents" note="What each has learned, and how much of its finished work you check.">
+      <ul className="-mx-2 flex flex-col">
+        {rows.map((a) => (
+          <li key={a.key}>
+            <button
+              type="button"
+              onClick={() => pick(a.key)}
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-fg hover:bg-hover/30"
+            >
+              <Mark who={a.key} />
+              <span className="min-w-0 flex-1 truncate">{nameOf(a.key)}</span>
+              <span className="text-xs text-muted">{LEVEL_WORD[a.review_level ?? 'every']}</span>
+              <ChevronRight size={14} className="text-muted" />
+            </button>
+          </li>
+        ))}
+      </ul>
+    </Block>
   );
 }

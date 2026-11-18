@@ -133,6 +133,29 @@ export function useWorkspaceRules(workspace?: string) {
     select: (r) => ({ rules: ruleRows(r.rules), textBytes: r.text_bytes ?? null, limitBytes: r.limit_bytes ?? null }),
   });
 }
+/** An agent's lessons, oldest first, as lessons.list gives them. No topic feeds them: read when the screen opens and after lesson.remove. */
+export function useLessons(agent: string) {
+  const store = useStore();
+  const { daemon } = useData();
+  const { served, open } = useServes('lessons.list');
+  return useQuery({
+    queryKey: qk.lessons(daemon, agent),
+    queryFn: () => store.client.call('lessons.list', { agent }),
+    enabled: served && open,
+  });
+}
+
+/** An agent's review level, its record at that level and the level it suggests. Read when the screen opens and after a level change. */
+export function useAgentReview(agent: string) {
+  const store = useStore();
+  const { daemon } = useData();
+  const { served, open } = useServes('agent.review');
+  return useQuery({
+    queryKey: qk.review(daemon, agent),
+    queryFn: () => store.client.call('agent.review', { agent }),
+    enabled: served && open,
+  });
+}
 export const useProposals = (filter: CallParams<'proposal.list'> = {}) => useRead('proposal.list', filter);
 export const usePrefs = () => useRead('prefs.get', {});
 export const useRepos = () => useRead('repos.list', {});
