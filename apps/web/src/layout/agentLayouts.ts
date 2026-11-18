@@ -33,11 +33,17 @@ const ensured = (s: Saved): Saved => {
   return { ...s, layouts: { ...s.layouts, [k]: page ? initial(page, labelOf(page)) : initial() } };
 };
 
-/** The Notifications page (inbox) became Requests: a saved tab or page of it opens Requests. */
+/** The Notifications page (inbox) became Requests: a saved tab or page of it opens Requests. An agent's Settings tab, which drew
+ * nothing, is now Settings › Agents › that agent: a saved one becomes an empty tab. */
 const renamed = (n: Node): Node =>
   n.kind === 'split'
     ? { ...n, a: renamed(n.a), b: renamed(n.b) }
-    : { ...n, tabs: n.tabs.map((t) => (t.opens === 'inbox' ? { ...t, opens: 'requests', title: 'Requests' } : t)) };
+    : {
+        ...n,
+        tabs: n.tabs.map((t) =>
+          t.opens === 'inbox' ? { ...t, opens: 'requests', title: 'Requests' } : t.opens === 'settings' ? { id: t.id, title: '' } : t,
+        ),
+      };
 const upgraded = (s: Saved): Saved => {
   const { [`${PAGE}inbox`]: _gone, ...layouts } = s.layouts;
   return {

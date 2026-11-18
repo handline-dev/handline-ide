@@ -65,10 +65,7 @@ function App() {
                 page={page}
                 onSelectPage={goPage}
                 onSelectAgent={select}
-                onAgentSettings={(name) => {
-                  select(name);
-                  dispatch({ type: 'show', opens: 'settings', title: 'Settings' });
-                }}
+                onAgentSettings={(name) => openSettings({ section: 'agents', agent: name })}
               />
             </TabsTo.Provider>
           </motion.div>
