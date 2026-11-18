@@ -3,6 +3,7 @@ package reads
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,7 +12,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/internal/cmdruns"
+	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/policy"
 	"github.com/handline/handline/go/kit/pyjson"
 	"github.com/handline/handline/go/protocol/rpc"
@@ -148,7 +152,50 @@ func (e *Env) proposalView(p proposal) map[string]any {
 	if p.text("kind") == "run" {
 		v["run"] = e.runView(p)
 	}
+	v["changes"] = e.changes(p)
 	return v
+}
+
+// changes is Proposal.changes: each step in the order it is applied, a context step once per file with the text it sets and, while the
+// proposal waits, the text in force now.
+func (e *Env) changes(p proposal) []any {
+	out := []any{}
+	for _, it := range p.steps() {
+		kind, agent, lines := it.text("kind"), it.text("agent"), changeLines(it)
+		keys, vals := it.sets()
+		if kind != "context" || len(keys) == 0 {
+			out = append(out, map[string]any{"kind": kind, "agent": agent, "diff": strings.Join(lines, "\n")})
+			continue
+		}
+		key := ""
+		if p.waits() {
+			key, _ = paths.AgentKeyIn(e.DB, agent) // "" for one the same bundle adds: it has no text yet
+		}
+		for i, file := range keys {
+			c := map[string]any{"kind": kind, "agent": agent, "file": file, "diff": lines[i]}
+			var after string
+			if json.Unmarshal([]byte(vals[file]), &after) == nil {
+				c["after"] = strings.TrimSpace(after) // as SetInstruction keeps it
+			}
+			if part := team.InstructionParts[file]; key != "" && part != "" {
+				if before, ok := e.instructionNow(key, part); ok {
+					c["before"] = before
+				}
+			}
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+// instructionNow is the text of the agent's (its key) part in force, "" for none; ok false when it cannot be read.
+func (e *Env) instructionNow(agent, part string) (string, bool) {
+	owner, err := db.InstructionOwner(e.DB, agent, part)
+	if err != nil {
+		return "", false
+	}
+	text, err := db.InstructionText(e.DB, owner, part)
+	return text, err == nil
 }
 
 // runView is a run proposal's run: its command, cwd and risk marks, and once the approve started it, the run.
