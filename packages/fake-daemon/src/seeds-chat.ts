@@ -276,6 +276,19 @@ export const CHAT_SEEDS: Record<string, Seed> = {
       });
     }
   },
+  /** A reply with a Markdown file attached, which opens in a tab of its own (T9241). */
+  'doc-attachment': (d) => {
+    const md = Buffer.from(
+      "# Memory scope\n\nWhere each kept line goes:\n\n- **repo**: into that repo's AGENTS.md\n- **agent**: stays, as its lessons\n- **task**: deleted once done\n\n| Kind | Count |\n| --- | --- |\n| repo | 76 |\n| agent | 50 |\n",
+    );
+    const doc = d.uploads.add('memory-scope.md', md, 'text/markdown');
+    d.chat.seed(ARCH, {
+      from: ARCH,
+      to: ME,
+      body: 'The classification is attached.',
+      attachments: [{ id: doc.id, name: doc.name, mime: 'text/markdown', bytes: md.length }],
+    });
+  },
   /** Command fences to run in the terminal (T8770): a reply with one never run and one that failed, and the person's own console lines. */
   commands: (d) => {
     const at = (min: number) => new Date(Date.now() - min * 60_000).toISOString();

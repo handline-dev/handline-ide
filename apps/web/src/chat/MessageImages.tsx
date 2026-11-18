@@ -2,6 +2,8 @@ import { useAttachmentUrl, useReadAttachment } from '@handline/app-data';
 import { File as FileIcon, FileArchive, FileAudio, FileCode, FileSpreadsheet, FileText, FileVideo, Play } from 'lucide-react';
 import { createContext, useContext, useState } from 'react';
 import type { Attachments } from '#src/chat/attachments.tsx';
+import { docOf } from '#src/layout/kinds.tsx';
+import { useOpenable } from '#src/layout/openable.tsx';
 import { toast } from '#src/ui/toast.tsx';
 import { playVideo } from '#src/viewer/VideoPlayer.tsx';
 import { ImageViewer, type MarkedPicture, type Picture } from '#src/viewer/ImageViewer.tsx';
@@ -101,24 +103,32 @@ export function MessageImages({ images, small = false }: { images: Shown[]; smal
   );
 }
 
-/** A file that is not a picture: an icon for its kind, its name, its extension and size; a click saves it. */
+/** Saves an attachment as a file in the browser's downloads. */
+export const saveAttachment = (read: (id: string) => Promise<Blob>) => async (id: string, name: string) => {
+  const blob = await read(id).catch(
+    (e: unknown) => void toast(`${name} did not save: ${e instanceof Error ? e.message : String(e)}`, { tone: 'warning' }),
+  );
+  if (!blob) return;
+  const url = URL.createObjectURL(blob);
+  Object.assign(document.createElement('a'), { href: url, download: name }).click();
+  setTimeout(() => URL.revokeObjectURL(url), 60_000); // a browser may still be starting the download
+};
+
+const isMarkdown = (name: string, mime?: string | null) => mime === 'text/markdown' || /\.(md|markdown)$/i.test(name);
+
+/** A file that is not a picture: an icon for its kind, its name, its extension and size. A click opens a Markdown file in a tab of
+ * its own (tools/DocTab) and saves any other. */
 function FileChip({ id, name, mime, bytes }: { id: string; name: string; mime?: string | null; bytes?: number | null }) {
   const read = useReadAttachment();
   const ext = name.includes('.') ? name.split('.').pop()!.toUpperCase() : '';
-  const save = async () => {
-    const blob = await read(id).catch(
-      (e: unknown) => void toast(`${name} did not save: ${e instanceof Error ? e.message : String(e)}`, { tone: 'warning' }),
-    );
-    if (!blob) return;
-    const url = URL.createObjectURL(blob);
-    Object.assign(document.createElement('a'), { href: url, download: name }).click();
-    setTimeout(() => URL.revokeObjectURL(url), 60_000); // a browser may still be starting the download
-  };
+  const md = isMarkdown(name, mime);
+  const open = useOpenable(md ? docOf(id, name) : null);
+  const save = saveAttachment(read);
   return (
     <button
       type="button"
-      onClick={() => void save()}
-      title={`Save ${name}`}
+      {...(md ? open : { onClick: () => void save(id, name) })}
+      title={md ? `Open ${name}` : `Save ${name}`}
       className="flex h-16 max-w-60 items-center gap-2 overflow-hidden rounded-md border border-border px-3 text-left outline-none hover:bg-hover focus-visible:ring-2 focus-visible:ring-accent"
     >
       <FileKindIcon name={name} mime={mime} />
