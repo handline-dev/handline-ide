@@ -55,7 +55,7 @@ export const CHAT_SEEDS: Record<string, Seed> = {
       d.chat.seedItem(ARCH, {
         at: iso(min),
         kind: 'session',
-        session: { id: `r${n}`, started: iso(min), handoff: null, resumed: true, cause: 'settings_applied', changed },
+        session: { id: `r${n}`, started: iso(min), handoff: null, handoff_note: null, resumed: true, cause: 'settings_applied', changed },
       });
   },
   /** A restart for team instructions and rules under way after one that is done, in the daemon's words (T9059): the done one is one short
@@ -69,7 +69,8 @@ export const CHAT_SEEDS: Record<string, Seed> = {
       session: {
         id: 'r1',
         started: at,
-        handoff: sampleHandoff,
+        handoff: null,
+        handoff_note: sampleHandoff,
         resumed: true,
         cause: 'restart',
         changed: `${team}, team rules changed, ${team}, team rules changed (workspaces/w1/base.md)`,
@@ -99,13 +100,13 @@ export const CHAT_SEEDS: Record<string, Seed> = {
       },
     };
   },
-  /** A restart with no change named: the dialog shows only the handoff the agent wrote (T9226). */
+  /** A restart with no change named: the dialog shows only the handoff note the agent wrote (T9227). */
   'restart-handoff': (d) => {
     const at = new Date(Date.now() - 60_000).toISOString();
     d.chat.seedItem(ARCH, {
       at,
       kind: 'session',
-      session: { id: 'rh', started: at, handoff: sampleHandoff, resumed: true, cause: 'restart' },
+      session: { id: 'rh', started: at, handoff: null, handoff_note: sampleHandoff, resumed: true, cause: 'restart' },
     });
   },
   /** A person's move kept for the end of the turn, after one that landed without a note and one that could not run (T8905). */
