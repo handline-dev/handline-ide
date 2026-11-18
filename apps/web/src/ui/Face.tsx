@@ -56,7 +56,7 @@ function AgentLink({ who, mine, className, children }: { who: string; mine: bool
 }
 
 /** The circle with the initial, and an agent's state dot. */
-function Mark({ who, mine }: { who: string; mine: boolean }) {
+export function Mark({ who, mine = false }: { who: string; mine?: boolean }) {
   const name = useNameOf()(who);
   const act = useActivity(who);
   return (

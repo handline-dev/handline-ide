@@ -116,7 +116,7 @@ function Frame() {
           <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto pt-4">
             {section === 'onboarding' && <OnboardingTab go={setSection} />}
             {section === 'accounts' && <AccountsTab focus={to.account} />}
-            {section === 'agents' && <AgentsTab />}
+            {section === 'agents' && <AgentsTab open={to.agent} />}
             {section === 'tools' && <ToolsTab />}
             {section === 'notifications' && <NotificationsTab />}
             {section === 'projects' && <ProjectsTab />}

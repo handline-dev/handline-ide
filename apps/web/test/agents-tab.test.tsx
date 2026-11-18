@@ -16,6 +16,8 @@ vi.mock('@handline/app-data', () => ({
   useWrite: () => ({ mutate, isPending: false, error: null }),
   classify: (e: unknown) => e,
   sentence: String,
+  useAgents: () => ok({ agents: [] }),
+  useNameOf: () => (k: string) => k,
 }));
 import { AgentsTab } from '#src/settings/AgentsTab.tsx';
 

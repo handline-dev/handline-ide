@@ -14,7 +14,7 @@ import { detail, loadReply, statusReply, view, type Session, type TaskCounter } 
 /** What these methods need of the daemon that hosts them. */
 export interface CoreHost {
   readonly sessions: Map<string, Session>;
-  readonly tasks: TaskCounter;
+  readonly tasks: TaskCounter & { reviewOf(agent: string): { level: 'every' | 'one_in_three' | 'auto' } };
   readonly inbox: FakeInbox;
   readonly admin: FakeAdmin;
   readonly accounts: FakeAccounts;
@@ -96,7 +96,9 @@ export function coreCall(
     case 'load.get':
       return loadReply(d.sessions, d.iso(), p);
     case 'agents.list':
-      return { agents: [...d.sessions.values()].map((s) => view(s, d.tasks)) };
+      return {
+        agents: [...d.sessions.values()].map((s) => view(s, d.tasks)).map((v) => ({ ...v, review_level: d.tasks.reviewOf(v.key).level })),
+      };
     case 'people.list':
       return { people: PEOPLE };
     case 'agent.get':

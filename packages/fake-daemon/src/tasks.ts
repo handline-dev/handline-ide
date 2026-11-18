@@ -8,6 +8,7 @@ import { TaskReviews } from '#src/taskreviews.ts';
 import type { Lesson } from '@handline/contract';
 
 export { TaskFailure };
+export type ReviewLevel = 'every' | 'one_in_three' | 'auto';
 
 /** The headings the daemon's launch prompt puts over an agent's lessons and a person's (db.Section), counted in their bytes. */
 const LESSONS_HEADING = "# What you learned (your lessons)\nFrom the founder's Redo notes. Apply them to every task.";
@@ -30,6 +31,31 @@ export class FakeTasks extends TaskReviews {
     const head = /^p\d+$/.test(agent) ? FOUNDER_HEADING : LESSONS_HEADING;
     const bytes = items.length ? new TextEncoder().encode(head + lines).length : 0;
     return { agent, items, bytes, cap: 3072 };
+  }
+
+  /** Each agent's review level and its record at that level (the founder's first verdict on each task, newest last); a seed puts them here. */
+  readonly reviews = new Map<string, { level: ReviewLevel; record: { task: number; ok_first: boolean; at: string }[] }>();
+
+  /** agent.review: its level (every when none was set), the last ten of its record, and one step less checked at 8 of 10 OK. */
+  reviewOf(agent: string) {
+    const r = this.reviews.get(agent) ?? { level: 'every' as const, record: [] };
+    const record = r.record.slice(-10);
+    const ok = record.filter((x) => x.ok_first).length;
+    const down = r.level === 'every' ? 'one_in_three' : r.level === 'one_in_three' ? 'auto' : null;
+    return {
+      agent,
+      level: r.level,
+      record,
+      looks: r.record.length,
+      suggested: record.length >= 10 && ok >= 8 ? down : null,
+      lessons: this.lessonsOf(agent).items.length,
+    };
+  }
+
+  /** agent.review_set: a new level starts a new record, and its notice leaves. */
+  setReview(agent: string, level: ReviewLevel) {
+    this.reviews.set(agent, { level, record: [] });
+    this.dismissWarning(`review:${agent}`);
   }
 
   /** lesson.remove: false when no live lesson has that id. */
@@ -139,6 +165,8 @@ const BASIC = new Set([
   'warning.dismiss',
   'lessons.list',
   'lesson.remove',
+  'agent.review',
+  'agent.review_set',
   'task.history',
   'task.time',
   'task.changes',
