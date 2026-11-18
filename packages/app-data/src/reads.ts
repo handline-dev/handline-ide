@@ -50,8 +50,6 @@ export const NOT_QUERIES = [
   'lease.take',
   'lease.release',
   'lease.extend',
-  // `hl use list` and the agent's hook read the shared runs; the Shared runs screen comes with T9278.
-  'run.list',
   // Read by useWorkspaceRules.
   'workspace.rules',
   // `hl launch` asks the daemon for the command it becomes; not a read of state, and no screen calls it.

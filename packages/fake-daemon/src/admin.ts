@@ -11,7 +11,7 @@ type Accepted = (said: string) => unknown;
 
 /** The methods this answers. */
 const ADMIN =
-  /^(stats\.|connection\.addresses|settings\.|lease\.get|answer\.add|devices?\.(list|revoke)|events\.feed|daemon\.(pause|resume)|task\.send_now)/;
+  /^(stats\.|connection\.addresses|settings\.|lease\.get|run\.(list|set|remove)|answer\.add|devices?\.(list|revoke)|events\.feed|daemon\.(pause|resume)|task\.send_now)/;
 /** The built-in handoff prompt (go/taskboard/handoff/note.go AskTemplate). */
 const BUILTIN_HANDOFF =
   "Write your handoff to {path} now, while your prompt cache is warm, with one Write (replace what is there), then stop and run nothing else. The next session of you, if it starts fresh, reads it first: copy yourself into it. At most {max} characters, about 30 lines, only what `hl` and your memory cannot tell it: (1) what you were deciding and why; (2) what you meant to do next; (3) promises or doubts not yet on any task; (4) the founder's preferences and the pitfalls you learned this session; (5) who you wait on, as T<n>/#<n> numbers only; (6) what slowed you down: one line each, starting with 'Slowed:', naming the command, tool, rule or T number and what it cost (retries, a wait, a refusal), or 'Slowed: none' if nothing did. Do not restate what a task or message holds; cite its T or # number. A lasting lesson or preference goes to your memory first, not here. If there is nothing, write the single word: nothing.";
@@ -140,6 +140,31 @@ export class FakeAdmin {
         return (this.set((p.changes ?? {}) as SettingsChanges), accepted('Saved.'));
       case 'lease.get':
         return this.leases();
+      case 'run.list':
+        return { runs: this.runs, presets: ['@build-test', '@simulator', '@browser'] };
+      case 'run.set': {
+        const scope = p.scope === 'workspace' ? String(p.workspace) : 'mac';
+        const old = this.runs.find((r) => r.name === p.name && r.scope === scope);
+        const run = {
+          kind: `${scope}:${String(p.name)}`,
+          name: String(p.name),
+          scope,
+          cmds: (p.cmds as string[]) ?? [],
+          at_once: Number(p.at_once ?? 1),
+          why: String(p.why ?? ''),
+          set_by: 'human',
+          set_at: this.now(),
+          held: old?.held ?? [],
+          waiting: old?.waiting ?? [],
+        };
+        this.runs = [...this.runs.filter((r) => r !== old), run];
+        return accepted('Kept.');
+      }
+      case 'run.remove': {
+        const scope = p.scope === 'workspace' ? String(p.workspace) : 'mac';
+        this.runs = this.runs.filter((r) => !(r.name === p.name && r.scope === scope));
+        return accepted('Removed.');
+      }
       case 'events.feed':
         return {
           events: [
@@ -217,6 +242,33 @@ export class FakeAdmin {
 
   /** The task each waiting agent's ask blocks; a waiter without one is a call held open. */
   private leaseTasks: Record<string, number> = {};
+  /** Shared runs (run.list): one of This Mac's held with one waiting, and one of a workspace's. */
+  private runs = [
+    {
+      kind: 'mac:ios-build',
+      name: 'ios-build',
+      scope: 'mac',
+      cmds: ['xcodebuild', '@simulator'],
+      at_once: 1,
+      why: 'One simulator build at a time keeps the fans down.',
+      set_by: AGENTS[0],
+      set_at: new Date(Date.now() - 3_600_000).toISOString(),
+      held: [{ agent: AGENTS[1], since: new Date(Date.now() - 300_000).toISOString(), hold: false }],
+      waiting: [{ agent: AGENTS[2], since: new Date(Date.now() - 120_000).toISOString(), position: 1, task: 9412 }],
+    },
+    {
+      kind: 'w1:check',
+      name: 'check',
+      scope: 'w1',
+      cmds: ['tools/check.sh'],
+      at_once: 2,
+      why: 'check.sh takes every core.',
+      set_by: AGENTS[0],
+      set_at: new Date(Date.now() - 7_200_000).toISOString(),
+      held: [] as { agent: string; since: string; hold: boolean }[],
+      waiting: [] as { agent: string; since: string; position: number; task?: number }[],
+    },
+  ];
   /** One simulator, held by the first agent, and `task` of the second waiting in line for it. */
   waitForSimulator(task: number): void {
     this.values.simulator_max = 1;
