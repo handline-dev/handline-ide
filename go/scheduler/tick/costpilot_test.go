@@ -174,3 +174,16 @@ func TestAFoldIsNotDueWhenTheAgentHoldsWorkOrHasNotBeenIdleLongEnough(t *testing
 		t.Error("the agent's own fold size and wait were not used")
 	}
 }
+
+// A fold starts a new conversation, so it waits while the agent's handoff note is asked for and not yet in.
+func TestAFoldWaitsForTheHandoffNote(t *testing.T) {
+	tk, w, _ := folding(t)
+	w.hold = true
+	if actions := supervise(tk, "a"); w.did("closefresh") || has(actions, "folded while idle") {
+		t.Fatalf("folded before the note: %v %v", w.calls, actions)
+	}
+	w.hold = false
+	if actions := supervise(tk, "a"); !w.did("closefresh a") {
+		t.Fatalf("the note in, the fold did not go: %v %v", w.calls, actions)
+	}
+}

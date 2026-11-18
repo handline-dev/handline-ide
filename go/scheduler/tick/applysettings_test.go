@@ -121,6 +121,34 @@ func TestARestartAskedFreshStartsANewConversationOnce(t *testing.T) {
 	}
 }
 
+// A fresh restart is a new conversation, so the agent is asked for its handoff note first; while it is out the restart waits, and once
+// it is in (or the ask gave up) the restart goes. A resumed restart keeps the conversation and asks nothing.
+func TestAFreshRestartForChangedSettingsWaitsForTheHandoffNote(t *testing.T) {
+	tk, w, a := settled(t)
+	if err := db.SetMeta(tk.Q, db.SettingsRestartMeta("a"), "fresh"); err != nil {
+		t.Fatal(err)
+	}
+	w.hold = true
+	a.Sweep(tk, 10_000)
+	if w.did("restart") || !w.logged("wait for its handoff note") {
+		t.Fatalf("restarted fresh before the note: %v %v", w.calls, w.logs)
+	}
+	if o, _ := db.GetSettingsOwed(tk.Q, "a"); o == nil {
+		t.Fatal("the held restart is not shown as owed")
+	}
+	w.hold = false
+	a.Sweep(tk, 10_030)
+	if !w.did("restart fresh a") {
+		t.Fatalf("the note in, the restart did not go: %v", w.calls)
+	}
+	tk, w, a = settled(t)
+	w.hold = true
+	a.Sweep(tk, 10_000)
+	if !w.did("restart a") {
+		t.Fatalf("a resumed restart waited for a note: %v", w.calls)
+	}
+}
+
 func TestAChangedSettingWaitsForAnIdleMomentAndAnOpenRunnableSession(t *testing.T) {
 	cases := map[string]func(tk *Tick, w *world){
 		"mid-turn or an open prompt": func(tk *Tick, w *world) { w.idle = false },
