@@ -236,10 +236,8 @@ func (s *Spawns) Trust(agent, folder string) {
 // path finds nothing, so an agent that still had its worktree was given a second one beside it.
 func (s *Spawns) WorktreePath(recorded string) string { return worktreepaths.WorktreePath(recorded) }
 
-// WorktreesDir is where a spawn puts repo's worktrees: a sibling named <repo>.worktrees.noindex, because macOS Spotlight skips everything under
-// a folder with the .noindex suffix (a .metadata_never_index marker in a subfolder it ignores) and would otherwise index every node_modules and
-// build output the agents churn. Worktrees made before that live in <repo>.worktrees and stay there.
-func WorktreesDir(repo string) string { return repo + ".worktrees.noindex" }
+// WorktreesDir is where a spawn puts repo's worktrees (worktreepaths.Dir).
+func WorktreesDir(repo string) string { return worktreepaths.Dir(repo) }
 
 // inWorktreesDir is whether dir is one of repo's worktree folders, the current one or the one before the rename.
 func inWorktreesDir(dir, repo string) bool {

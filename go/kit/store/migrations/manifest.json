@@ -58,5 +58,10 @@
   "version": 111,
   "name": "review_levels",
   "additive": true
+ },
+ {
+  "version": 112,
+  "name": "worktree_pool",
+  "additive": true
  }
 ]
