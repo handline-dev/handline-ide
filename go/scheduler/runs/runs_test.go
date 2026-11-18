@@ -240,3 +240,40 @@ func TestTheBookKeepsTheLastGoodReadAndReadsAgainAfterAWrite(t *testing.T) {
 		t.Fatalf("a failed read: %s", got)
 	}
 }
+
+// A run the founder set is his: an agent's change or remove of it is refused, while agents change and remove each other's and the
+// founder changes any.
+func TestOnlyTheFounderChangesOrRemovesARunHeSet(t *testing.T) {
+	home := t.TempDir()
+	d := teamtest.Seed(t, home, "gp", "gp.worker", "gp.dev")
+	worker, dev := teamtest.Key(t, home, "gp.worker"), teamtest.Key(t, home, "gp.dev")
+	gp := WorkspaceOf(d, worker)
+	run := runner(t, d, func() []leases.Pool { return nil })
+	ok := func(as, method, params, what string) {
+		t.Helper()
+		if got := errText(run(as, method, params)); got != "" {
+			t.Fatalf("%s: %q", what, got)
+		}
+	}
+	ok("", "run.set", `"name":"sim","scope":"mac","cmds":["@simulator"]`, "the founder's run")
+	for _, c := range []struct{ method, params string }{
+		{"run.set", `"name":"sim","scope":"mac","cmds":["@simulator"],"at_once":2,"why":"my build"`},
+		{"run.remove", `"name":"sim","scope":"mac"`},
+	} {
+		if got := errText(run(worker, c.method, c.params)); got != "set by the founder; ask him on your task" {
+			t.Fatalf("an agent's %s of the founder's run: %q", c.method, got)
+		}
+	}
+	ok(worker, "run.set", `"name":"e2e","scope":"workspace","cmds":["pnpm e2e"],"why":"one browser"`, "an agent's run")
+	ok(dev, "run.set", `"name":"e2e","scope":"workspace","cmds":["pnpm e2e"],"at_once":2,"why":"two fit"`, "another agent's change")
+	ok("", "run.set", fmt.Sprintf(`"name":"e2e","scope":"workspace","workspace":"w%d","cmds":["pnpm e2e"],"why":"x"`, gp),
+		"the founder's change of an agent's run")
+	if got := errText(run(dev, "run.remove", `"name":"e2e","scope":"workspace"`)); got != "set by the founder; ask him on your task" {
+		t.Fatalf("the run is the founder's once he changed it: %q", got)
+	}
+	ok("", "run.set", `"name":"sim","scope":"mac","cmds":["@simulator"],"at_once":2`, "the founder's change of his own")
+	ok("", "run.remove", `"name":"sim","scope":"mac"`, "the founder's remove")
+	if rs, _ := All(d); len(rs) != 1 || rs[0].Name != "e2e" || rs[0].AtOnce != 1 {
+		t.Fatalf("left: %+v", rs)
+	}
+}
