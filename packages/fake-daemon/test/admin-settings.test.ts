@@ -29,6 +29,8 @@ const KEYS = [
   'load_per_core_pct',
   'ram_free_min_pct',
   'disk_free_min_gb',
+  'disk_keep_free_gb',
+  'agents_memory_max_gb',
   'heavy_max',
   'simulator_max',
   'browser_max',

@@ -38,8 +38,13 @@ type Tick struct {
 	Observe   Observe
 	Config    Config
 	Cost      *CostPilot
+	Memory    Memory // nil: no cap on the agents' memory
 
 	said, saidClose map[string]string
+	memOver         bool // this tick's reading of the agents' memory is over the cap and not yet acted on
+	memUsed, memCap int64
+	memCands        []memoryCandidate
+	closedIdle      bool   // this tick closed a session idle past its window
 	spans           []span // this tick's stages and what each took (timed)
 }
 
@@ -351,11 +356,19 @@ func (t *Tick) supervise(agent string, now int64, actions *[]string, afterHandof
 		if ok {
 			*actions = append(*actions, fmt.Sprintf("%s: session closed while idle", agent))
 			row = must(db.GetAgentState(q, agent))
+			if t.Memory != nil {
+				t.Memory.Acted() // what this close gives back shows in a later reading: none is closed for memory before it
+				t.memOver = false
+			}
 		} else if t.saidClose[agent] != why {
 			// Once per reason: a refusal that leaves no close_failed behind comes round every tick.
 			t.saidClose[agent] = why
 			t.logf("  %s: idle but not closed - %s", agent, why)
 		}
+	}
+	// Over the founder's cap on the agents' memory, a session that may close is noted; the longest idle of them closes after every agent.
+	if t.memOver && atWall == nil && !closedAt(row) && !t.Handoff.NoteHold(q, agent, now) && compactAsked(q, agent) == "" {
+		t.noteForMemory(q, agent, state, row, now, st)
 	}
 
 	t.Usage.Settle(q, agent)
@@ -605,6 +618,10 @@ func (t *Tick) Run() (Result, error) {
 		return nil
 	})
 
+	t.memCands, t.memOver = nil, false
+	if t.Memory != nil {
+		t.memUsed, t.memCap, t.memOver = t.Memory.Over(now)
+	}
 	for _, agent := range t.Host.Agents() {
 		var err error
 		t.timed("supervise", func() { err = guard(func() { t.Supervise(agent, now, &actions) }) })
@@ -615,6 +632,7 @@ func (t *Tick) Run() (Result, error) {
 		}
 	}
 
+	t.closeForMemory(&actions)
 	t.timed("blocked sweep", func() { t.Sweeps.BlockedSweep(q, now) })
 	for _, s := range t.Passes {
 		s := s

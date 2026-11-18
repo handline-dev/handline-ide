@@ -793,7 +793,33 @@
          },
          "pinned_to": {
           "type": "string",
-          "description": "an agent, 'founder', or empty: nobody else takes a pinned desk"
+          "description": "an agent, 'founder', 'removing' while the prune deletes it, or empty: nobody else takes a pinned desk"
+         },
+         "size_bytes": {
+          "oneOf": [
+           {
+            "type": "integer"
+           },
+           {
+            "type": "null"
+           }
+          ],
+          "description": "what its files take, as last measured (hourly); null before the first"
+         },
+         "task": {
+          "oneOf": [
+           {
+            "type": "integer"
+           },
+           {
+            "type": "null"
+           }
+          ],
+          "description": "the task its holder works on; null when free or none"
+         },
+         "removed_tonight": {
+          "type": "boolean",
+          "description": "the next nightly prune would remove it if nothing changes until then (only with repo)"
          }
         },
         "required": [
@@ -803,13 +829,64 @@
          "holder",
          "last_agent",
          "last_used",
-         "pinned_to"
+         "pinned_to",
+         "size_bytes",
+         "task",
+         "removed_tonight"
         ]
        }
+      },
+      "kept": {
+       "oneOf": [
+        {
+         "type": "object",
+         "properties": {
+          "mode": {
+           "type": "string",
+           "enum": [
+            "auto",
+            "manual"
+           ]
+          },
+          "value": {
+           "oneOf": [
+            {
+             "type": "integer"
+            },
+            {
+             "type": "null"
+            }
+           ],
+           "description": "the number kept now: manual's, or auto's; null when auto has no week of load to go by, and then nothing is pruned"
+          },
+          "auto_value": {
+           "oneOf": [
+            {
+             "type": "integer"
+            },
+            {
+             "type": "null"
+            }
+           ],
+           "description": "what auto would keep: of the last 7 days the machine ran agents, each day's most of this project's agents at once, averaged, rounded up, plus one"
+          }
+         },
+         "required": [
+          "mode",
+          "value",
+          "auto_value"
+         ]
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "how many desks the project keeps (desks.keep); null without repo. Once a night from 3:00 its free, unpinned desks beyond it that went unused for 3 days are removed, oldest first, never one holding changes; their branches stay."
       }
      },
      "required": [
-      "desks"
+      "desks",
+      "kept"
      ]
     }
    },
@@ -861,6 +938,70 @@
    },
    "x-since": 1,
    "errors": [
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ]
+  },
+  {
+   "name": "desks.keep",
+   "summary": "Set how many desks a project keeps: auto (the default) or manual with a value. Owner only; kept in the protected store, which no agent can write.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "repo",
+     "required": true,
+     "schema": {
+      "type": "string"
+     },
+     "description": "The repo, as repos.list gives it in path; any other is not_found, what repo."
+    },
+    {
+     "name": "mode",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "enum": [
+       "auto",
+       "manual"
+      ]
+     }
+    },
+    {
+     "name": "value",
+     "required": false,
+     "schema": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 50
+     },
+     "description": "With manual: the number of desks, 1 to 50; else bad_request, field value."
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Accepted"
+    }
+   },
+   "x-role": "owner",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "set desks kept"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/not_found"
+    },
     {
      "$ref": "#/components/errors/bad_request"
     }
