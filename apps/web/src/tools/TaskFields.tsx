@@ -1,7 +1,7 @@
 // A task's fields that can be changed: assignee, priority and time box, each a label and its value; the value opens its choices.
 import { assignGroups } from '@handline/app-core';
 import type { TaskDetail } from '@handline/client';
-import { useAgents, useWrite } from '@handline/app-data';
+import { useAgents, useNameOf, useWrite } from '@handline/app-data';
 import { useMe } from '@handline/app-react';
 import { ChevronDown, Flag, Timer, User } from 'lucide-react';
 import { useState, type ComponentProps, type ReactElement, type ReactNode } from 'react';
@@ -78,6 +78,7 @@ function Assignee({ t, open }: { t: TaskDetail; open: boolean }) {
  * workspace, me, the owner now). A click or Enter picks; arrows move. Picking the owner now picks nothing. */
 export function AssignPicker({ t, trigger, onPick }: { t: TaskDetail; trigger: ReactElement; onPick: (to: string) => void }) {
   const me = useMe();
+  const nameOf = useNameOf();
   const agents = useAgents().data?.agents ?? [];
   const [shown, setShown] = useState(false);
   const [find, setFind] = useState('');
@@ -87,7 +88,7 @@ export function AssignPicker({ t, trigger, onPick }: { t: TaskDetail; trigger: R
   const everyone = [...new Set([...groups.flatMap((g) => g.names), me, t.to])];
   const q = find.trim().toLowerCase();
   const names = q
-    ? everyone.filter((n) => n.toLowerCase().includes(q) || (n === me && 'me'.includes(q))).slice(0, 8)
+    ? everyone.filter((n) => nameOf(n).toLowerCase().includes(q) || (n === me && 'me'.includes(q))).slice(0, 8)
     : [...new Set([...likely.slice(0, LIKELY - 2), me, t.to])];
   const pick = names[Math.min(at, names.length - 1)];
   const choose = (to = pick) => {
@@ -132,7 +133,7 @@ export function AssignPicker({ t, trigger, onPick }: { t: TaskDetail; trigger: R
                 onClick={() => choose(n)}
                 className={`flex h-7 w-full items-center justify-between gap-2 rounded-sm px-2 text-left ${n === pick ? 'bg-hover' : ''}`}
               >
-                <span className="truncate">{n === me ? 'Me' : n}</span>
+                <span className="truncate">{n === me ? 'Me' : nameOf(n)}</span>
                 {n === t.to && <span className="text-xs text-muted">Now</span>}
               </button>
             </li>
