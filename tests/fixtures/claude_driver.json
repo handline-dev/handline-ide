@@ -49,15 +49,11 @@
    ]
   },
   {
-   "name": "mcp_and_extra_dirs",
+   "name": "mcp",
    "mcp": [
     "--mcp-config",
     "/m.json",
     "--strict-mcp-config"
-   ],
-   "extra_dirs": [
-    "/w/two",
-    "/w/three"
    ],
    "argv": [
     "/bin/claude",
@@ -69,11 +65,8 @@
     "--mcp-config",
     "/m.json",
     "--strict-mcp-config",
-    "--add-dir",
-    "/w/two",
-    "/w/three",
     "--settings",
-    "{\"sandbox\": {\"filesystem\": {\"allowWrite\": [\"/w/two\", \"/w/three\"]}, \"enabled\": true}, \"permissions\": {\"deny\": [\"Bash(go clean:*)\"]}}"
+    "{\"sandbox\": {\"enabled\": true}, \"permissions\": {\"deny\": [\"Bash(go clean:*)\"]}}"
    ]
   },
   {
@@ -117,9 +110,6 @@
    "hide": [
     "/x"
    ],
-   "extra_dirs": [
-    "/w/2"
-   ],
    "argv": [
     "/bin/claude",
     "--disallowedTools",
@@ -127,10 +117,8 @@
     "--effort",
     "high",
     "--no-chrome",
-    "--add-dir",
-    "/w/2",
     "--settings",
-    "{\"sandbox\": {\"filesystem\": {\"denyRead\": [\"/x\"], \"allowWrite\": [\"/w/2\"]}, \"enabled\": false}, \"permissions\": {\"deny\": [\"Bash(go clean:*)\", \"Read(//x/**)\"]}}"
+    "{\"sandbox\": {\"filesystem\": {\"denyRead\": [\"/x\"]}, \"enabled\": false}, \"permissions\": {\"deny\": [\"Bash(go clean:*)\", \"Read(//x/**)\"]}}"
    ]
   },
   {
@@ -160,7 +148,6 @@
    "no_write": [],
    "trusted": [],
    "mcp_approved": [],
-   "extra_dirs": [],
    "argv": [
     "/bin/claude",
     "--disallowedTools",
@@ -213,10 +200,7 @@
    ]
   },
   {
-   "name": "allowances_beside_extra_dirs",
-   "extra_dirs": [
-    "/w/2"
-   ],
+   "name": "allowances_beside_hidden",
    "allow_write": [
     "/r/.git"
    ],
@@ -233,10 +217,8 @@
     "--effort",
     "high",
     "--no-chrome",
-    "--add-dir",
-    "/w/2",
     "--settings",
-    "{\"sandbox\": {\"filesystem\": {\"denyRead\": [\"/k\"], \"allowWrite\": [\"/w/2\", \"/r/.git\"]}, \"network\": {\"allowedDomains\": [\"sum.golang.org\"]}, \"enabled\": true}, \"permissions\": {\"deny\": [\"Bash(go clean:*)\", \"Read(//k/**)\"]}}"
+    "{\"sandbox\": {\"filesystem\": {\"denyRead\": [\"/k\"], \"allowWrite\": [\"/r/.git\"]}, \"network\": {\"allowedDomains\": [\"sum.golang.org\"]}, \"enabled\": true}, \"permissions\": {\"deny\": [\"Bash(go clean:*)\", \"Read(//k/**)\"]}}"
    ]
   },
   {
@@ -258,9 +240,6 @@
    "mcp_approved": [
     "s"
    ],
-   "extra_dirs": [
-    "/e"
-   ],
    "argv": [
     "/bin/claude",
     "--model",
@@ -270,12 +249,10 @@
     "--effort",
     "high",
     "--chrome",
-    "--add-dir",
-    "/e",
     "--append-system-prompt",
     "p",
     "--settings",
-    "{\"autoMemoryDirectory\": \"/m\", \"sandbox\": {\"filesystem\": {\"denyRead\": [\"/a/\"], \"denyWrite\": [\"/b\"], \"allowWrite\": [\"/e\"]}, \"enabled\": false}, \"permissions\": {\"deny\": [\"Bash(go clean:*)\", \"Read(//a/**)\", \"Edit(//b)\"]}, \"autoMode\": {\"environment\": [\"$defaults\", \"t\"]}, \"enabledMcpjsonServers\": [\"s\"]}"
+    "{\"autoMemoryDirectory\": \"/m\", \"sandbox\": {\"filesystem\": {\"denyRead\": [\"/a/\"], \"denyWrite\": [\"/b\"]}, \"enabled\": false}, \"permissions\": {\"deny\": [\"Bash(go clean:*)\", \"Read(//a/**)\", \"Edit(//b)\"]}, \"autoMode\": {\"environment\": [\"$defaults\", \"t\"]}, \"enabledMcpjsonServers\": [\"s\"]}"
    ]
   }
  ],
