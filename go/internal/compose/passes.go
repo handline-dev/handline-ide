@@ -43,6 +43,7 @@ func (p *Parts) passes(cfg Config, tk *tick.Tick) []tick.NamedSweep {
 	if lc.Env.Observer != nil {
 		held.Live = lc.Env.Observer.LiveSessions
 	}
+	desks := &deskSweep{lc: lc, home: cfg.Home, log: cfg.Log}
 	return []tick.NamedSweep{
 		{Name: "keep-awake", Run: func(q db.Q, now int64) error {
 			p.awake.Sync(keepawake.ModeOf(usage.LoadConfig(cfg.Home)), lc.Gate.Active() > 0)
@@ -65,6 +66,7 @@ func (p *Parts) passes(cfg Config, tk *tick.Tick) []tick.NamedSweep {
 			return held.SweepHeld(heldPorts(tk, q, healPorts{lc: lc, home: cfg.Home}))
 		}},
 		{Name: "left-worktrees", Run: func(db.Q, int64) error { return held.SweepLeftWorktrees() }},
+		{Name: "desks", Run: func(_ db.Q, now int64) error { return desks.Run(now) }},
 	}
 }
 

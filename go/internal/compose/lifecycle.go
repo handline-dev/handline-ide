@@ -16,6 +16,7 @@ import (
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/internal/claudetrust"
 	"github.com/handline/handline/go/kit/actor"
+	"github.com/handline/handline/go/kit/gitrun"
 	"github.com/handline/handline/go/kit/lock"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/protocol/sessiontoken"
@@ -23,6 +24,7 @@ import (
 	"github.com/handline/handline/go/scheduler/loadgate"
 	"github.com/handline/handline/go/scheduler/pause"
 	"github.com/handline/handline/go/scheduler/settings"
+	"github.com/handline/handline/go/scheduler/worktreepool"
 	"github.com/handline/handline/go/taskboard/handoff"
 	"github.com/handline/handline/go/taskboard/supervisor"
 )
@@ -39,6 +41,8 @@ type Lifecycle struct {
 	Env     *supervisor.Env
 	// Mover is the handoff and the move to another account.
 	Mover *lifecycle.Mover
+	// Desks is the worktree pool a start or a wake takes a desk from.
+	Desks *worktreepool.Pool
 
 	// Gate holds the daemon's own starts while the machine is over a load limit (agent.force_start passes it).
 	Gate *loadgate.Gate
@@ -199,14 +203,17 @@ func (p *Parts) Lifecycle(cfg Config, lc LifecycleConfig) *Lifecycle {
 	}
 	lc.Env.LoadHeld = forWork
 	lc.Env.Paused = gate.Paused
+	desks := &worktreepool.Pool{DB: q, Setup: spawns.Prepare, Now: cfg.Now,
+		Base:   func(repo string) (string, string, error) { return lifecycle.PickBase(repo, gitrun.DefaultBranch(repo)) },
+		Branch: func(agent string) string { return paths.AgentHandle(home, agent) }}
 	hp := &handoffPort{env: ho, q: q, now: nowOf(cfg.Now)}
 	m := &lifecycle.Manager{Q: q, Home: home, Log: cfg.Log, Settings: settings,
 		Delivery: lc.Env, Handoff: hp, Term: termPort{tm}, Blocked: noBlocked{}, Launch: launchPort, Spawn: spawns,
 		Agents: agentsPort{home: home, roster: roster, accounts: accounts, env: lc.Env, usage: uenv}, Status: &lifecycle.StatusAdapter{Env: uenv, Q: q},
-		Observe: observer{p: p}, Typing: terminalLock{home: p.home}, TermRun: termRun{p}, Locks: p.Locks, OnLaunch: onLaunch,
+		Observe: observer{p: p}, Typing: terminalLock{home: p.home}, TermRun: termRun{p}, Desks: desks, Locks: p.Locks, OnLaunch: onLaunch,
 		LoadHeld: forWork, OnStartStall: tellOpenerOfStall(lc.Env, cfg.Log), WhatChanged: launcher.WhatChanged,
 		Now: func() int64 { return nowOf(cfg.Now)().Unix() }}
-	p.LC = &Lifecycle{Manager: m, Spawns: spawns, Launch: launcher, Handoff: ho, Env: lc.Env, Gate: gate, usage: uenv, roster: roster, term: tm}
+	p.LC = &Lifecycle{Manager: m, Spawns: spawns, Desks: desks, Launch: launcher, Handoff: ho, Env: lc.Env, Gate: gate, usage: uenv, roster: roster, term: tm}
 	hp.limit = tickUsage{roster: roster}.ContextLimit
 	hp.mover = func() *lifecycle.Mover { return p.LC.Mover }
 	m.RefreshView = func(agent string) {
