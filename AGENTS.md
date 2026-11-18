@@ -167,11 +167,14 @@ agent from the daemon's database; this file does not repeat them.
   the log) or a typecheck (`Failed: ...#typecheck`).
 - Go: `go test ./...` in go/ skips the nested modules (each `go/*/go.mod`); `tools/test-go.sh` tests each, and a
   nested module cannot import the daemon's module (go/). Never `go clean` the shared build cache; on `could not import ... go-build ...
-  no such file`, rerun with a private `GOCACHE`. Timing knobs tests change live on Env, not package vars.
+  no such file`, rerun with a private `GOCACHE`. Agent sessions export `HANDLINE_HOME` (the live home): run tests and
+  `tools/check.sh` with `env -u HANDLINE_HOME`, since a test run on a branch with a new migration once migrated the live
+  database and the running daemon refused to start. Timing knobs tests change live on Env, not package vars.
 - Tests: a mutant that does not build or times out is not a kill. A change that shares a component tests each line
   that wires it. Before deleting a bound a mutant survived, send it extreme values (MaxInt64, negative). A stub script
   written per run is slow on its first exec under load (macOS checks it): check one in instead.
-- The database is `~/.handline/db.sqlite`; read it with `sqlite3 -readonly`. Cast `strftime('%s', ...)` to int before
+- The database is `~/.handline/db.sqlite`; read it with `sqlite3 -readonly`. The live daemon's log is
+  `~/Library/Application Support/Handline/daemon.log`. Cast `strftime('%s', ...)` to int before
   comparing it to an expression, or the filter silently matches nothing. A higher `events.id` is not a later time (a
   late hook keeps its own time), and stored hook payloads are slimmed: a field missing there says nothing about what
   Claude Code sent; read its binary (python mmap and a regex; `strings` is too slow). To hide a request from a view,
