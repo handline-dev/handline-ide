@@ -26,7 +26,7 @@ func seconds(v any) float64 {
 }
 
 // taskTimeline is TaskDetail.timeline, as actions.task_timeline: the task's memos, handoffs (a request that carried one is that handoff's
-// row), the other requests linked to it (not a memo's tell, the ask an @human memo opens or a return that told a memo, which repeat the memo), the edits of its brief, its marks done and the notes it was sent back with, oldest first to the
+// row), the other requests linked to it (not a memo's tell, the ask an @human memo opens or a return that told a memo, which repeat the memo), the edits of its brief, its marks done, the notes it was sent back with and the lessons added on it, oldest first to the
 // fraction of a second. parts cuts a text at the images it names; a memo, a handoff, an edit and a reject row carry them.
 func (e *Env) taskTimeline(tid int64, memos, reqs []row, parts func(string) []any) ([]any, error) {
 	type entry struct {
@@ -52,7 +52,7 @@ func (e *Env) taskTimeline(tid int64, memos, reqs []row, parts func(string) []an
 		add(seconds(m["created_at"]), m.str("author"), "memo", m.str("body"), m.i("id"), edited, true)
 	}
 	events, err := query(e.DB, "SELECT ts, agent, kind, payload FROM events WHERE kind IN ('task_handoff', 'edit_task', 'mark_task_done', "+
-		"'reject_task', 'task_turn_push', 'task_turn_pop', 'task_forward') AND "+eventTask+" = ? ORDER BY id", tid)
+		"'reject_task', 'task_turn_push', 'task_turn_pop', 'task_forward', '"+db.LessonKind+"') AND "+eventTask+" = ? ORDER BY id", tid)
 	if err != nil {
 		return nil, err
 	}
@@ -123,6 +123,8 @@ func (e *Env) taskTimeline(tid int64, memos, reqs []row, parts func(string) []an
 				add(at, fmt.Sprintf("%s → %s", text(p["agent"]), to), "turn", "", nil, nil, false)
 				out[len(out)-1].row["turn"] = "pop"
 			}
+		case db.LessonKind:
+			add(at, ev.str("agent"), "lesson", text(p["text"]), nil, nil, false)
 		}
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].at < out[j].at })

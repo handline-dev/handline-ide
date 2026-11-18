@@ -21,9 +21,6 @@ export class FakeTasks extends TaskReviews {
   lists(method: string): boolean {
     return !/^tasks?\./.test(method) || this.serves(method) || /^task\.(request|none|send_now)$/.test(method); // served by the requests and admin modules
   }
-  /** Each agent's live lessons by its key, oldest first; a test or seed puts them here. */
-  readonly lessons = new Map<string, Lesson[]>();
-
   /** lessons.list: an agent's live lessons and the bytes the launch prompt's section takes. */
   lessonsOf(agent: string): { agent: string; items: Lesson[]; bytes: number; cap: number } {
     const items = this.lessons.get(agent) ?? [];
@@ -35,8 +32,16 @@ export class FakeTasks extends TaskReviews {
   /** lesson.remove: false when no live lesson has that id. */
   removeLesson(id: number): boolean {
     for (const [agent, items] of this.lessons) {
-      const kept = items.filter((l) => l.id !== id);
-      if (kept.length !== items.length) return (this.lessons.set(agent, kept), true);
+      const gone = items.find((l) => l.id === id);
+      if (gone)
+        return (
+          this.lessons.set(
+            agent,
+            items.filter((l) => l !== gone),
+          ),
+          this.removedLessons.push(gone),
+          true
+        );
     }
     return false;
   }
