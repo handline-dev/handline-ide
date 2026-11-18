@@ -736,7 +736,13 @@ func TestTheViewCarriesTheAccountSwitchWhileItIsLive(t *testing.T) {
 	db.SetSwitch(r.env.Q, db.AccountSwitch{Agent: "a", Cause: "forced", From: "alpha", To: "beta", Phase: db.SwitchStarting, Since: 4990})
 	r.env.RefreshOne("a")
 	s := r.stored(t, "a")["account_switch"].(map[string]any)
-	if s["cause"] != "move" || s["phase"] != "starting" || s["from"] != "alpha" || s["to"] != "beta" || s["until"] != nil || s["since"] != "1970-01-01T01:23:10Z" {
+	if s["cause"] != "move" || s["phase"] != "starting" || s["from"] != "alpha" || s["to"] != "beta" || s["until"] != nil || s["since"] != "1970-01-01T01:23:10Z" ||
+		s["waits"] != nil {
+		t.Fatalf("%v", s)
+	}
+	db.SetSwitch(r.env.Q, db.AccountSwitch{Agent: "a", Cause: "usage", From: "alpha", Phase: db.SwitchSaving, Waits: "background: shell: vite dev", Since: 4990})
+	r.env.RefreshOne("a")
+	if s := r.stored(t, "a")["account_switch"].(map[string]any); s["phase"] != "saving" || s["waits"] != "background: shell: vite dev" {
 		t.Fatalf("%v", s)
 	}
 	db.SetParked(r.env.Q, "a", states.Parked, 9000, string(verdict.ParkWall), "usage")

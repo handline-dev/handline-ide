@@ -500,20 +500,25 @@ func causeWord(kind string) string {
 	return kind
 }
 
-// switchView is AgentView.account_switch, nil when the agent is in none. until is the wake of a wait.
+// switchView is AgentView.account_switch, nil when the agent is in none. until is the wake of a wait; waits is what a saving switch waits
+// for before its move.
 func (e *Env) switchView(row *db.AgentState, now int64) (any, error) {
 	s, err := db.LiveSwitch(e.Q, row, now)
 	if err != nil || s == nil || s.Pending() {
 		return nil, err
 	}
-	var to, until any
+	var to, until, waits any
 	if s.To != "" {
 		to = s.To
 	}
 	if s.Phase == db.SwitchWaiting {
 		until = stamp(row.WakeAt.Int64)
 	}
-	return map[string]any{"cause": causeWord(s.Cause), "phase": s.Phase, "from": s.From, "to": to, "since": stamp(s.Since), "until": until}, nil
+	if s.Waits != "" {
+		waits = s.Waits
+	}
+	return map[string]any{"cause": causeWord(s.Cause), "phase": s.Phase, "from": s.From, "to": to, "since": stamp(s.Since), "until": until,
+		"waits": waits}, nil
 }
 
 // pendingMove is AgentView.pending_move: a person's move waiting for the turn to end or for the note, nil when there is none.

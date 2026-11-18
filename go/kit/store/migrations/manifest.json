@@ -68,5 +68,10 @@
   "version": 113,
   "name": "drop_extra_worktrees",
   "additive": false
+ },
+ {
+  "version": 114,
+  "name": "switch_waits",
+  "additive": true
  }
 ]

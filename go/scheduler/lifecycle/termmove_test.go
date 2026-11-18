@@ -2,6 +2,8 @@ package lifecycle
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -452,5 +454,57 @@ func TestASecondSessionOutsideTheClosedPaneIsReportedAndDoesNotFailTheClose(t *t
 	}
 	if _, ok, _ := db.LastEventID(g.m.Q, "a", "close_failed"); ok {
 		t.Fatal("a stray session was counted as a failed close")
+	}
+}
+
+// At a usage wall, a turn that has ended with only background work running, work nothing it owes waits on, is no turn to wait for: the move
+// goes, and the next session is told what the close stopped. Work it owes, or a turn still running, holds the move, and the switch says which.
+func TestAWallMoveGoesPastBackgroundWorkNothingWaitsOnAndSaysWhatItWaitsFor(t *testing.T) {
+	for _, c := range []struct {
+		name                string
+		kind                string
+		bgIdle, owesNothing bool
+		moved               bool
+		waits               string
+	}{
+		{"idle, owes nothing", "usage_7d", true, true, true, ""},
+		{"idle, owes nothing, early", states.EarlyUsageTrigger, true, true, true, ""},
+		{"idle, owes a result", "usage", true, false, false, "background: shell: vite dev"},
+		{"mid-turn", "usage", false, true, false, "the turn to end"},
+	} {
+		g := newTermMoveRig(t)
+		g.run.status, g.run.bgIdle, g.d.owesNothing, g.bg = "busy", c.bgIdle, c.owesNothing, "shell: vite dev"
+		if ok, err := g.v.PerformHandoff("a", HandoffTrigger{Kind: c.kind, Reason: "wall"}, ""); !ok || err != nil {
+			t.Fatalf("%s: %v %v", c.name, ok, err)
+		}
+		if moved := len(g.sp.startedIn) == 1; moved != c.moved {
+			t.Fatalf("%s: moved %v, closed %v", c.name, moved, g.pane.handles)
+		}
+		if c.moved {
+			prompt, _ := os.ReadFile(filepath.Join(g.m.Home, "wake", "a.txt"))
+			if !strings.Contains(string(prompt), "The move stopped the background work your last session still ran (shell: vite dev)") {
+				t.Fatalf("%s: not told what stopped: %q", c.name, prompt)
+			}
+			continue
+		}
+		s, _ := db.GetSwitch(g.m.Q, "a")
+		if s == nil || s.Phase != db.SwitchSaving || s.Waits != c.waits {
+			t.Fatalf("%s: switch %+v", c.name, s)
+		}
+	}
+}
+
+func TestASwitchWaitingForTheNoteSaysSoAndTheMoveClearsIt(t *testing.T) {
+	g := newTermMoveRig(t)
+	hold := true
+	g.v.E.NoteHold = func(db.Q, string, int64) bool { return hold }
+	g.v.PerformHandoff("a", HandoffTrigger{Kind: "usage", Reason: "wall"}, "")
+	if s, _ := db.GetSwitch(g.m.Q, "a"); s == nil || s.Waits != "its handoff note" {
+		t.Fatalf("%+v", s)
+	}
+	hold = false
+	g.v.PerformHandoff("a", HandoffTrigger{Kind: "usage", Reason: "wall"}, "")
+	if s, _ := db.GetSwitch(g.m.Q, "a"); s == nil || s.Waits != "" {
+		t.Fatalf("%+v", s)
 	}
 }

@@ -102,7 +102,7 @@ func TestAStaleSavingStartsAgainWithItsOwnFacts(t *testing.T) {
 	g := newTermMoveRig(t)
 	db.SetSwitch(g.m.Q, db.AccountSwitch{Agent: "a", Cause: "usage", From: "old", Phase: db.SwitchSaving, Since: 1})
 	db.SetClosed(g.m.Q, "a", "")
-	g.v.saving("a", "usage_7d")
+	g.v.saving("a", "usage_7d", "")
 	if s := switchOf(t, g); s.From != "acct" || s.Since == 1 || s.Cause != "usage_7d" {
 		t.Fatalf("%+v", s)
 	}
@@ -464,7 +464,7 @@ func TestATickMoveThatCannotCloseKeepsTheWait(t *testing.T) {
 func TestSavingDoesNotPutAMoveUnderWayBack(t *testing.T) {
 	g := newTermMoveRig(t)
 	db.SetSwitch(g.m.Q, db.AccountSwitch{Agent: "a", Cause: "usage", From: "acct", To: "beta", Phase: db.SwitchStarting, Since: g.m.now()})
-	g.v.saving("a", "usage")
+	g.v.saving("a", "usage", "")
 	if s := switchOf(t, g); s.Phase != db.SwitchStarting {
 		t.Fatalf("%+v", s)
 	}
@@ -513,7 +513,7 @@ func TestASwitchNowLeavesASessionThatCameUpLate(t *testing.T) {
 
 func TestSavingReplacesAWaitThatHasEnded(t *testing.T) {
 	g := waitingRig(t)
-	g.v.saving("a", "usage")
+	g.v.saving("a", "usage", "")
 	if s := switchOf(t, g); s.Phase != db.SwitchSaving {
 		t.Fatalf("a wall hit again starts its own switch: %+v", s)
 	}

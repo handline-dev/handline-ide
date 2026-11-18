@@ -25,24 +25,25 @@ func (s *AccountSwitch) Pending() bool {
 	return s != nil && (s.Phase == SwitchScheduled || s.Phase == SwitchStopping)
 }
 
-// AccountSwitch is the account switch an agent is in. To is "" until an account is chosen. Since is when this phase began.
+// AccountSwitch is the account switch an agent is in. To is "" until an account is chosen. Since is when this phase began. Waits is what a
+// saving switch waits for before its move, "" for nothing.
 type AccountSwitch struct {
-	Agent, Cause, From, To, Phase string
-	Since                         int64
+	Agent, Cause, From, To, Phase, Waits string
+	Since                                int64
 }
 
 // SetSwitch writes the agent's switch: there is one per agent, and a later one replaces it.
 func SetSwitch(q Q, s AccountSwitch) error {
-	_, err := q.Exec("INSERT OR REPLACE INTO account_switch(agent, cause, from_account, to_account, phase, since) VALUES(?,?,?,?,?,?)",
-		s.Agent, s.Cause, s.From, s.To, s.Phase, s.Since)
+	_, err := q.Exec("INSERT OR REPLACE INTO account_switch(agent, cause, from_account, to_account, phase, since, waits) VALUES(?,?,?,?,?,?,?)",
+		s.Agent, s.Cause, s.From, s.To, s.Phase, s.Since, s.Waits)
 	return err
 }
 
 // GetSwitch is the row as written, over or not; nil for none.
 func GetSwitch(q Q, agent string) (*AccountSwitch, error) {
 	var s AccountSwitch
-	err := q.QueryRow("SELECT agent, cause, from_account, to_account, phase, since FROM account_switch WHERE agent = ?", agent).
-		Scan(&s.Agent, &s.Cause, &s.From, &s.To, &s.Phase, &s.Since)
+	err := q.QueryRow("SELECT agent, cause, from_account, to_account, phase, since, waits FROM account_switch WHERE agent = ?", agent).
+		Scan(&s.Agent, &s.Cause, &s.From, &s.To, &s.Phase, &s.Since, &s.Waits)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
