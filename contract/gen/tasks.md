@@ -188,7 +188,7 @@ Ask the task's assignee for its plan (the button of the plans setting manual, or
 
 ### `task.core_ask`
 
-Ask the task's assignee to write only its key function and that function's test, committed on a branch of the task's own in its worktree, not merged, and to say so in a comment. The ask waits as task.plan_ask's does (TaskDetail.core_ask). The code is read with worktree.diff; when the task is run its assignee carries on from that branch. Refused (`refused`): a task that has ended or that no agent works, and one with a core-logic ask that has not been sent yet.
+Ask the task's assignee to write only its key function and that function's test, committed on a branch of the task's own in its worktree, not merged, and to say so in a comment. The ask waits as task.plan_ask's does (TaskDetail.core_ask). The code is read with task.changes; when the task is run its assignee carries on from that branch. Refused (`refused`): a task that has ended or that no agent works, and one with a core-logic ask that has not been sent yet.
 
 ### `lesson.add`
 

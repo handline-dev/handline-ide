@@ -194,15 +194,39 @@ export const STORY_SEEDS: Record<string, Seed> = {
     const memo = d.tasks.memoWithFiles(ready, TERM, result, files);
     d.tasks.turnPush(ready, memo, result, TERM);
     d.tasks.find(ready).review = { ready: true, land_by: ARCH, memo, at: iso(5), redo: 0, ok: false };
-    // its code is on its own branch, whatever the worktree has checked out since
-    const branch = `term-build-T${ready}`;
-    d.tasks.find(ready).branch = { name: branch, exists: true };
-    d.admin.worktrees.branches['/work/handline.term-build'] = {
-      [branch]: [
-        { path: 'packages/app-data/src/unread.ts', status: 'A', added: 42, deleted: 0 },
-        { path: 'packages/app-data/src/chats.ts', status: 'M', added: 5, deleted: 2 },
-      ],
-    };
+    // its code: a commit on the agent's branch that names the task
+    const file = (path: string, added: number, deleted: number, diff: string) => ({
+      path,
+      repo: 'handline',
+      added,
+      deleted,
+      binary: false,
+      diff,
+    });
+    d.tasks.find(ready).commits = [
+      {
+        sha: '9411a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7',
+        repo: 'handline',
+        subject: `Unread count on each chat (T${ready})`,
+        agent: TERM,
+        at: iso(40),
+        on_main: false,
+        files: [
+          file(
+            'packages/app-data/src/chats.ts',
+            1,
+            0,
+            "diff --git a/packages/app-data/src/chats.ts b/packages/app-data/src/chats.ts\n--- a/packages/app-data/src/chats.ts\n+++ b/packages/app-data/src/chats.ts\n@@ -1 +1,2 @@\n export * from './list';\n+export { unread } from './unread';\n",
+          ),
+          file(
+            'packages/app-data/src/unread.ts',
+            1,
+            0,
+            'diff --git a/packages/app-data/src/unread.ts b/packages/app-data/src/unread.ts\nnew file mode 100644\n--- /dev/null\n+++ b/packages/app-data/src/unread.ts\n@@ -0,0 +1 @@\n+export const unread = (n: number) => Math.max(0, n);\n',
+          ),
+        ],
+      },
+    ];
 
     d.tasks.seed({ ...sub(redo, AUD, 'Draw the badge on the chat list', 140), state: 'doing' });
     const first = d.tasks.memo({ task: redo, text: 'Done: a red badge on each chat row.' }, 'add', AUD, true);
