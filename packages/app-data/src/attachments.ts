@@ -1,6 +1,6 @@
 // Images on a message: the upload in chunks (attachment.put) and the read back (attachment.get). The functions take the client's `call`
 // so they run in a test with no React; the hook draws the result as an object URL kept per image.
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { RpcError, type Attachment } from '@handline/client';
 import { useStore } from '@handline/app-react';
 import { newOperationId } from '#src/send-ops.ts';
@@ -239,8 +239,11 @@ export function useAttachmentUrl(
 /** Reads an attachment's whole file, for saving it: its bytes as a Blob of its type. */
 export function useReadAttachment(): (id: string) => Promise<Blob> {
   const store = useStore();
-  return async (id) => {
-    const { mime, bytes } = await readImage((m, p) => store.client.call(m as never, p as never), id, false);
-    return new Blob([bytes as BlobPart], { type: mime });
-  };
+  return useCallback(
+    async (id: string) => {
+      const { mime, bytes } = await readImage((m, p) => store.client.call(m as never, p as never), id, false);
+      return new Blob([bytes as BlobPart], { type: mime });
+    },
+    [store],
+  );
 }
