@@ -339,7 +339,8 @@ func (b *Timebox) SweepForgottenBackground(t *Tick, now int64) {
 
 // SweepBackgroundCheck: every bg_check_s while an agent has background work, at a turn's end, it is told what is running and asked
 // to stop what it no longer needs - a shell nobody stops holds off the context rollover. Not the idle close: busy or idle, owing or not, a
-// "never close" agent too. It waits out a notice already in flight.
+// "never close" agent too. It waits out a notice already in flight. A job is asked about once a stretch: a check names only jobs not
+// asked about since the work began, and with none it sends nothing.
 func (b *Timebox) SweepBackgroundCheck(t *Tick, now int64) {
 	for _, agent := range t.Host.Agents() {
 		key := "bg_check:" + agent
@@ -364,35 +365,20 @@ func (b *Timebox) SweepBackgroundCheck(t *Tick, now int64) {
 			continue
 		}
 		count := int(must(db.Cursor(t.Q, "bgcount:"+agent)))
-		jobs := b.Ports.BgJobs(t.Q, agent, count, now)
-		named := count
-		if named == 0 {
-			named = len(jobs)
+		jobs, unnamed := newBackgroundWork(t.Q, agent, since, b.Ports.BgJobs(t.Q, agent, count, now), count)
+		if len(jobs) == 0 && unnamed == 0 {
+			check(db.SetCursor(t.Q, key, now))
+			continue
 		}
-		unnamed := named - len(jobs)
-		if unnamed < 0 {
-			unnamed = 0
-		}
-		var lines []string
-		for i, j := range jobs {
-			lines = append(lines, fmt.Sprintf("%d. %s", i+1, j))
-		}
-		listing := strings.Join(lines, "; ")
-		if unnamed > 0 {
-			if listing != "" {
-				listing += "; "
-			}
-			listing += fmt.Sprintf("%d that Handline cannot name", unnamed)
-		}
-		if listing == "" {
-			listing = "something Handline cannot name"
-		}
+		listing := backgroundListing(jobs, unnamed)
 		text := fmt.Sprintf("Background work has been running for %s: %s. Stop what you no longer need, and for each one you keep say in a line why. "+
 			"If it watches for another task, stop it and set `--blocked-by T<n>` on your task instead. Only work this session started counts: "+
-			"a process you detached (nohup, &, PPID 1) is not asked about. You are asked again in %s while any runs.",
-			timefmt.Ago(now-since), listing, timefmt.Ago(every))
+			"a process you detached (nohup, &, PPID 1) is not asked about. Each is asked about once: you are asked again only about work started later.",
+			timefmt.Ago(now-since), listing)
 		// The event goes in before the send: its id is what separates the turn that ended before the check from the one that answers it.
-		checked := must(db.AddEvent(t.Q, agent, "background_checked", db.KV{K: "jobs", V: len(jobs)}, db.KV{K: "unnamed", V: unnamed}))
+		// It is stamped with the tick's time, which a test can set, as it sets since.
+		checked := must(db.AddEventAt(t.Q, now, agent, "background_checked", db.KV{K: "jobs", V: len(jobs)}, db.KV{K: "unnamed", V: unnamed},
+			db.KV{K: "names", V: jobs}))
 		told := false
 		func() {
 			defer func() {
@@ -407,6 +393,65 @@ func (b *Timebox) SweepBackgroundCheck(t *Tick, now int64) {
 			t.logf("  %s: background work for %s - asked which to stop", agent, timefmt.Ago(now-since))
 		}
 	}
+}
+
+// newBackgroundWork is the running work no check asked about since the work began: the jobs not named before, and the unnamed count
+// when it is more than was asked about (else 0). count is how many jobs the last Stop counted.
+func newBackgroundWork(q db.Q, agent string, since int64, jobs []string, count int) ([]string, int) {
+	unnamed := max(max(count, len(jobs))-len(jobs), 0)
+	if len(jobs) == 0 && unnamed == 0 {
+		unnamed = unnamedOnly
+	}
+	asked, askedUnnamed := askedThisStretch(q, agent, since)
+	var fresh []string
+	for _, j := range jobs {
+		if !asked[j] {
+			fresh = append(fresh, j)
+		}
+	}
+	if unnamed <= askedUnnamed {
+		unnamed = 0
+	}
+	return fresh, unnamed
+}
+
+// unnamedOnly is the unnamed count of work Handline can neither name nor count.
+const unnamedOnly = 1
+
+// backgroundListing numbers the jobs and adds the unnamed ones.
+func backgroundListing(jobs []string, unnamed int) string {
+	var lines []string
+	for i, j := range jobs {
+		lines = append(lines, fmt.Sprintf("%d. %s", i+1, j))
+	}
+	switch {
+	case len(jobs) == 0 && unnamed == unnamedOnly:
+		return "something Handline cannot name"
+	case unnamed > 0:
+		lines = append(lines, fmt.Sprintf("%d that Handline cannot name", unnamed))
+	}
+	return strings.Join(lines, "; ")
+}
+
+// askedThisStretch is what the background checks since the work began asked about: the jobs they named, and the most unnamed work.
+func askedThisStretch(q db.Q, agent string, since int64) (map[string]bool, int) {
+	asked := map[string]bool{}
+	rs, err := q.Query("SELECT COALESCE(j.value, ''), COALESCE(json_extract(e.payload, '$.unnamed'), 0) FROM events e "+
+		"LEFT JOIN json_each(e.payload, '$.names') j WHERE e.agent = ? AND e.kind = 'background_checked' AND e.ts >= ?", agent, since)
+	check(err)
+	defer rs.Close()
+	unnamed := 0
+	for rs.Next() {
+		var name string
+		var n int
+		check(rs.Scan(&name, &n))
+		if name != "" {
+			asked[name] = true
+		}
+		unnamed = max(unnamed, n)
+	}
+	check(rs.Err())
+	return asked, unnamed
 }
 
 // SweepForgottenResolveCapped: the nudge about a forgotten head stops once its schedule is used up rather than
