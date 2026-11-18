@@ -18,7 +18,9 @@ vi.mock('@handline/app-data', () => ({
   sentence: String,
   useAgents: () => ok({ agents: [] }),
   useNameOf: () => (k: string) => k,
+  useLessons: () => ok({ items: [] }),
 }));
+vi.mock('@handline/app-react', () => ({ useMe: () => 'human' }));
 import { AgentsTab } from '#src/settings/AgentsTab.tsx';
 
 let root: Root | undefined;

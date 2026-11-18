@@ -55,27 +55,39 @@ export function AgentPage({ agent, back }: { agent: string; back: () => void }) 
   );
 }
 
-function Lessons({ agent }: { agent: string }) {
+/** An agent's lessons, or the founder's preferences (`founder`, kept by the agents and read by every one), each removable. */
+export function Lessons({ agent, founder = false }: { agent: string; founder?: boolean }) {
   const lessons = useLessons(agent);
   const remove = useWrite('lesson.remove');
   const [all, setAll] = useState(false);
   const items = lessons.data?.items ?? [];
   const shown = all ? items : items.slice(0, SHOWN);
   return (
-    <Block title={`What it learned · ${items.length} ${items.length === 1 ? 'lesson' : 'lessons'}`}>
+    <Block
+      title={
+        founder ? `Your preferences · ${items.length}` : `What it learned · ${items.length} ${items.length === 1 ? 'lesson' : 'lessons'}`
+      }
+      note={founder ? 'What you said you want. Every agent follows these.' : undefined}
+    >
       {lessons.data && !items.length && (
-        <p className="text-sm text-muted">Nothing yet. When you Redo its work, it keeps one lesson from your note.</p>
+        <p className="text-sm text-muted">
+          {founder
+            ? 'None yet. When you tell an agent how you want something done, it keeps it here.'
+            : 'Nothing yet. When you Redo its work, it keeps one lesson from your note.'}
+        </p>
       )}
       {!!shown.length && (
         <ul className="-mx-2 flex flex-col">
           {shown.map((l) => (
             <li key={l.id} className="group flex items-center gap-3 border-t border-border px-2 py-2 first:border-t-0 hover:bg-hover/30">
-              <span className="min-w-0 flex-1 text-sm text-fg">{l.text}</span>
-              <span className="shrink-0 text-xs text-muted">
-                {[l.task != null && `Redo on T${l.task}`, day(l.created_at)].filter(Boolean).join(' · ')}
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className="text-sm text-fg">{l.text}</span>
+                <span className="text-xs text-muted">
+                  {[l.task != null && (founder ? `T${l.task}` : `Redo on T${l.task}`), day(l.created_at)].filter(Boolean).join(' · ')}
+                </span>
               </span>
               <IconButton
-                label="Remove this lesson"
+                label={founder ? 'Remove this preference' : 'Remove this lesson'}
                 className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
                 disabled={remove.isPending}
                 onClick={() =>
