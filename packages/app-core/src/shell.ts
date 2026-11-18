@@ -109,12 +109,10 @@ export interface ShellApi {
   captureWindow?(a: {
     id: string;
   }): Promise<{ ok: true; name: string; png: string } | Fail<'bad_request' | 'unavailable' | 'no_permission' | 'not_found' | 'too_large'>>;
-  /** Shows an address in a native view over the given rectangle of the window (CSS pixels), or removes the view with null. Absent in a shell that lacks it. */
-  preview?(a: { url: string; x: number; y: number; width: number; height: number } | null): Promise<{ ok: true } | Fail<'bad_request'>>;
-  /** Back, forward or reload in the preview's page. */
-  previewNav?(go: 'back' | 'forward' | 'reload'): Promise<{ ok: true } | Fail<'bad_request' | 'unavailable'>>;
-  /** The preview as it is on screen, a PNG (base64). */
-  capturePreview?(): Promise<{ ok: true; png: string } | Fail<'bad_request' | 'unavailable'>>;
+  /** The page can draw <webview> elements: a web tab shows any site in one (an iframe otherwise). */
+  webview?: boolean;
+  /** A web tab's <webview> page as it is on screen, a PNG (base64), by its getWebContentsId(). */
+  capturePreview?(id: number): Promise<{ ok: true; png: string } | Fail<'bad_request' | 'unavailable'>>;
   /** The booted iOS simulators and the Android devices adb sees, and whether idb is installed (a simulator is driven through it). */
   deviceList?(): Promise<
     { ok: true; devices: { kind: 'android' | 'ios'; id: string; name: string }[]; idb: boolean } | Fail<'bad_request' | 'unavailable'>

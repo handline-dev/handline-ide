@@ -16,7 +16,7 @@ import { gitView, scratch } from '#src/git-view.ts';
 import { Opener } from '#src/open.ts';
 import { handleOpenIn } from '#src/open-in-serve.ts';
 import { Devices } from '#src/devices.ts';
-import { Preview } from '#src/preview.ts';
+import { capturePage, guardWebviews } from '#src/preview.ts';
 import { followMain } from '#src/follow-app.ts';
 import { keepPlace, savedFrame, savedRoute, type Frame } from '#src/window-place.ts';
 import type { Follower } from '#src/follow.ts';
@@ -301,10 +301,12 @@ function createWindow(origin: string, onReady: () => void, frame: Frame | null):
       sandbox: true,
       nodeIntegration: false,
       preload: path.join(import.meta.dirname, 'preload.cjs'),
+      webviewTag: true, // the web tab's pages, each held to preview.ts's rules
       // A hidden window would be throttled; a background run's page must keep drawing for its checks and captures.
       backgroundThrottling: !background,
     },
   });
+  guardWebviews(w);
   // The traffic lights are gone in full screen: the page drops the room it keeps for them (shell.ts).
   const tellFull = () => w.webContents.send(CHANNELS.fullScreen, w.isFullScreen());
   w.on('enter-full-screen', tellFull);
@@ -402,10 +404,7 @@ if (!app.requestSingleInstanceLock({ background })) {
     handleCli(origin);
     ipcMain.handle(CHANNELS.screen, (e, arg) => page.screen(e, arg));
     ipcMain.handle(CHANNELS.unsent, (e, arg) => page.setUnsent(e, arg));
-    const preview = new Preview(origin, () => win);
-    ipcMain.handle(CHANNELS.preview, (e, arg) => preview.set(e, arg));
-    ipcMain.handle(CHANNELS.capturePreview, (e) => preview.capture(e));
-    ipcMain.handle(CHANNELS.previewNav, (e, go) => preview.nav(e, go));
+    ipcMain.handle(CHANNELS.capturePreview, (e, id) => capturePage(e, origin, id));
     handleDevices(origin);
     handleFounderCalls(origin, client, remote, app.getPath('temp'));
     // The worktree of an agent comes from the shell's own daemon connection, never from the page.
