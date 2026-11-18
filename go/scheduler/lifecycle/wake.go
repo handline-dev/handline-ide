@@ -216,7 +216,13 @@ func (m *Manager) StartForWork(agent string) (said string, err error) {
 	// One recorded and gone is made again from its branch, never replaced by a fresh one without a word: that is the failed start below,
 	// saying why, which a stall then tells the agent's lead.
 	wt, gone := "", ""
-	if row != nil && row.Worktree.String != "" {
+	if m.Desks != nil {
+		recorded := ""
+		if row != nil {
+			recorded = m.Spawn.WorktreePath(row.Worktree.String)
+		}
+		wt, _, gone = m.takeDesk(agent, recorded)
+	} else if row != nil && row.Worktree.String != "" {
 		if wt = m.Spawn.WorktreePath(row.Worktree.String); wt == "" {
 			if wt, gone = m.Spawn.Recreate(agent, realpath(expandUser(repo)), row.Worktree.String); wt != "" {
 				must(db.AddEvent(m.Q, agent, "worktree_recreated", db.KV{K: "worktree", V: wt}))
@@ -405,6 +411,29 @@ func (m *Manager) continuesWork(agent string, row *db.AgentState) bool {
 }
 
 // freshFrom takes the handoff record of the closed session and lets go of its id, so the wake starts a new session with the record.
+// takeDesk is the desk agent starts in (Desks.Take over its workspace's folder), whether it is not the folder it was last in (was), and
+// why there is none.
+func (m *Manager) takeDesk(agent, was string) (desk string, moved bool, why string) {
+	repo := m.Agents.RepoOf(agent)
+	if repo == "" {
+		return was, false, ""
+	}
+	t, why, err := m.Desks.Take(agent, realpath(expandUser(repo)))
+	check(err)
+	if why != "" {
+		return "", false, fmt.Sprintf("%s: no desk to start in - %s", addr.Ref(agent), why)
+	}
+	for _, s := range t.Said {
+		m.Log("  %s: %s", agent, s)
+	}
+	moved = was != "" && realpath(was) != realpath(t.Path)
+	if moved {
+		must(db.AddEvent(m.Q, agent, "desk_changed", db.KV{K: "from", V: was}, db.KV{K: "to", V: t.Path}))
+		m.Log("  %s: its desk %s went to another agent; starting in %s", agent, was, t.Path)
+	}
+	return t.Path, moved, ""
+}
+
 func (m *Manager) freshFrom(agent, session string) {
 	if gaps := must(m.Handoff.Record(m.Q, agent, session)); len(gaps) > 0 {
 		m.Log("  %s: handoff with gaps (could not read %s)", agent, strings.Join(gaps, ", "))
@@ -599,6 +628,18 @@ func (m *Manager) wakeClosed(agent string, row *db.AgentState, wt string, o Wake
 			}
 			return false, msg
 		}
+	}
+	if m.Desks != nil {
+		desk, moved, why := m.takeDesk(agent, wt)
+		if why != "" {
+			return false, why
+		}
+		if moved && session != "" {
+			// Claude keeps a session under its working folder: in another desk it cannot be resumed, so it starts fresh from its handoff.
+			m.freshFrom(agent, session)
+			session, row = "", must(db.GetAgentState(m.Q, agent))
+		}
+		wt = desk
 	}
 	c := closed2{force, warm, cause, restartedBy, movedTo, moveFrom, o.Applying}
 	return m.launchClosed(agent, row, wt, session, c)

@@ -8,6 +8,7 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/scheduler/pause"
 	"github.com/handline/handline/go/scheduler/settings"
+	"github.com/handline/handline/go/scheduler/worktreepool"
 	"github.com/handline/handline/go/taskboard/supervisor"
 )
 
@@ -180,6 +181,11 @@ type Typing interface {
 	TakeTerminal(agent string) (release func(), ok bool)
 }
 
+// Desks is the worktree pool as a start and a wake use it.
+type Desks interface {
+	Take(agent, repo string) (worktreepool.Taken, string, error)
+}
+
 // Manager is daemon/lifecycle.py: closing and waking an agent's session, and the folder-trust prompt a wake can meet.
 type Manager struct {
 	Q        db.Q
@@ -199,6 +205,9 @@ type Manager struct {
 	Typing   Typing
 	// TermRun is the terminal agents' sessions as their session files report them; nil keeps a handoff from finding one.
 	TermRun TermSessions
+	// Desks is the project's worktree pool (worktreepool.Pool): a start or a closed agent's wake takes a desk there. nil keeps each agent
+	// in the worktree its row records.
+	Desks Desks
 
 	// OnLaunch is told each time a wake's launch has begun (NoteLaunch); nil tells no one.
 	OnLaunch func(agent string)

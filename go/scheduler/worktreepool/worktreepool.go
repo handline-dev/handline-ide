@@ -6,6 +6,7 @@ package worktreepool
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -55,7 +56,8 @@ type Folder struct {
 	LastUsed                                int64
 }
 
-// Taken is the desk a take gave: How is "held" (it held it already), "pinned", "last", "free" or "new"; Said is what to tell.
+// Taken is the desk a take gave: How is "held" (it held it already), "pinned", "last", "free" or "new", or "own" for a folder outside
+// the pool the agent keeps; Said is what to tell.
 type Taken struct {
 	Path, Branch, How string
 	Said              []string
@@ -86,6 +88,10 @@ func (p *Pool) Take(agent, repo string) (t Taken, why string, err error) {
 		return false
 	}
 	free := func(f Folder) bool { return f.Holder == "" && (f.PinnedTo == "" || f.PinnedTo == agent) }
+	if last != "" && exists(last) && !known(folders, last) {
+		// a folder outside the pool (the repository's own checkout, or one elsewhere) stays the agent's: the pool hands out desks only
+		return Taken{Path: last, Branch: head(last), How: "own"}, "", nil
+	}
 	switch {
 	case pick("held", func(f Folder) bool { return f.Holder == agent }):
 	case pick("pinned", func(f Folder) bool { return f.Holder == "" && f.PinnedTo == agent }):
@@ -428,6 +434,15 @@ func exists(path string) bool {
 	return err == nil && st.IsDir()
 }
 
+func known(folders []Folder, path string) bool {
+	for _, f := range folders {
+		if samePath(f.Path, path) {
+			return true
+		}
+	}
+	return false
+}
+
 func samePath(a, b string) bool { return canonical(a) == canonical(b) }
 
 // canonical is p with its links resolved (macOS's /var is /private/var), or p as it is when it cannot be.
@@ -450,4 +465,50 @@ func nullStr(s string) any {
 		return nil
 	}
 	return s
+}
+
+// GraceS is how long after a take a closed agent keeps its desk: a wake takes the desk before its session starts, and the sweep must not
+// give it back in between.
+const GraceS = 600
+
+// Sweep gives back the desk of every agent whose session is closed, once its process has let go of the folder (git's lock, held while a
+// session runs there) and GraceS has passed since the take. tell is the one line for the agent when untracked files keep the desk.
+func (p *Pool) Sweep(now int64, running func(repo, desk string) bool, tell func(agent, text string)) error {
+	rows, err := p.DB.Query("SELECT f.path, f.repo, f.holder, COALESCE(s.current_task, 0) FROM worktree_folders f JOIN agent_state s ON s.agent = f.holder "+
+		"WHERE COALESCE(s.closed_at, 0) != 0 AND f.last_used < ?", now-GraceS)
+	if err != nil {
+		return err
+	}
+	type held struct {
+		desk, repo, agent string
+		task              int64
+	}
+	var all []held
+	for rows.Next() {
+		var h held
+		if err := rows.Scan(&h.desk, &h.repo, &h.agent, &h.task); err != nil {
+			rows.Close()
+			return err
+		}
+		all = append(all, h)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	var errs []error
+	for _, h := range all {
+		if running != nil && running(h.repo, h.desk) {
+			continue
+		}
+		g, err := p.GiveBack(h.agent, h.task)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("%s: %w", h.agent, err))
+			continue
+		}
+		if g.Tell != "" && tell != nil {
+			tell(h.agent, g.Tell)
+		}
+	}
+	return errors.Join(errs...)
 }

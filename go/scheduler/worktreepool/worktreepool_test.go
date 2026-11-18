@@ -83,7 +83,10 @@ func (r *rig) holder(desk string) string {
 func TestANewDeskIsTheLowestFreeNumberWithTheAgentsBranchAndSetup(t *testing.T) {
 	r := newRig(t)
 	var setups []string
-	r.pool.Setup = func(agent, repo, desk string) string { setups = append(setups, agent+" "+filepath.Base(desk)); return "set up" }
+	r.pool.Setup = func(agent, repo, desk string) string {
+		setups = append(setups, agent+" "+filepath.Base(desk))
+		return "set up"
+	}
 	a := r.take("ann")
 	if a.How != "new" || filepath.Base(a.Path) != "desk-1" || filepath.Dir(a.Path) != canonical(worktreepaths.Dir(r.repo)) {
 		t.Fatalf("first take: %+v", a)
@@ -273,5 +276,58 @@ func TestAdoptKeepsTheOldFoldersAsTheyAreHeldByTheirAgents(t *testing.T) {
 	}
 	if got := r.take("a2"); got.Path != old || got.How != "held" || head(old) != "story4" {
 		t.Fatalf("a2 resumes in its folder: %+v", got)
+	}
+}
+
+func TestAFolderOutsideThePoolStaysTheAgentsOwn(t *testing.T) {
+	r := newRig(t)
+	r.db.Exec("INSERT INTO agent_state(agent, state, updated, worktree) VALUES('ann','IDLE',1,?)", r.repo)
+	got := r.take("ann")
+	if got.Path != r.repo || got.How != "own" || head(r.repo) != "main" {
+		t.Fatalf("the repo's own checkout: %+v", got)
+	}
+	var n int
+	r.db.QueryRow("SELECT COUNT(*) FROM worktree_folders").Scan(&n)
+	if n != 0 {
+		t.Fatal("no desk was made or taken")
+	}
+}
+
+func TestTheSweepGivesBackAClosedAgentsDeskOnceItsSessionLetGoAndTheGraceIsOver(t *testing.T) {
+	r := newRig(t)
+	d := r.take("ann").Path
+	taken := r.at
+	running := true
+	sweep := func(now int64) {
+		t.Helper()
+		if err := r.pool.Sweep(now, func(string, string) bool { return running }, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	sweep(taken + GraceS + 1)
+	if r.holder(d) != "ann" {
+		t.Fatal("an open session keeps its desk")
+	}
+	r.db.Exec("UPDATE agent_state SET closed_at = 5 WHERE agent = 'ann'")
+	sweep(taken + GraceS + 1)
+	if r.holder(d) != "ann" {
+		t.Fatal("a process still in the folder keeps it")
+	}
+	running = false
+	sweep(taken + GraceS - 1)
+	if r.holder(d) != "ann" {
+		t.Fatal("a desk just taken by a wake is not given back before its session starts")
+	}
+	os.WriteFile(filepath.Join(d, "u.txt"), []byte("x"), 0o644)
+	var told []string
+	r.pool.Sweep(taken+GraceS+1, nil, func(agent, text string) { told = append(told, agent) })
+	r.pool.Sweep(taken+GraceS+2, nil, func(agent, text string) { told = append(told, agent) })
+	if r.holder(d) != "ann" || len(told) != 1 {
+		t.Fatalf("untracked: held and told once, got %v", told)
+	}
+	os.Remove(filepath.Join(d, "u.txt"))
+	sweep(taken + GraceS + 3)
+	if r.holder(d) != "" {
+		t.Fatal("given back")
 	}
 }
