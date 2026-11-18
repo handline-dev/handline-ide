@@ -4,6 +4,7 @@
 import { createContext, useContext, useState } from 'react';
 import { names, write } from '#src/persist/kv.ts';
 import { panes, type Node } from '#src/layout/tree.ts';
+import { dropWebPages } from '#src/tools/webPages.tsx';
 
 /** The id of the tab a view is drawn in (Workspace); none outside a tab, as in a popover or Settings. */
 export const TabId = createContext<string | null>(null);
@@ -45,4 +46,5 @@ export const tabIds = (layouts: Node[]) =>
 export function sweepTabState(tabs: ReadonlySet<string>) {
   for (const k of strayTabNames([...held.keys()], tabs)) held.delete(k);
   for (const n of strayTabNames(names('tab/'), tabs)) write(n, undefined);
+  dropWebPages(tabs);
 }
