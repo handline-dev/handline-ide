@@ -112,7 +112,7 @@ func (m *Manager) WakePrompt(agent string, resumed bool, in WakePromptIn) (text 
 		} else if record != "" {
 			parts = append(parts, "Your session could not be resumed, so this is a fresh one. Your handoff is in your system prompt above.")
 		} else {
-			parts = append(parts, "Your session could not be resumed, so this is a fresh one. There is no handoff. Read your journal and your inbox before carrying on.")
+			parts = append(parts, "Your session could not be resumed, so this is a fresh one. There is no handoff.")
 			if note := m.Handoff.MemoryLine(agent); note != "" {
 				parts = append(parts, note)
 			}
@@ -133,7 +133,10 @@ func (m *Manager) WakePrompt(agent string, resumed bool, in WakePromptIn) (text 
 		if path != "" {
 			parts = append(parts, fmt.Sprintf("Your previous session is %s, recorded at %s\nGrep it for what you need - do not read it whole, it is a JSONL transcript with every tool result in it, and reading it back would undo the point of parking you.", session, path))
 		} else if in.MovedTo == "" {
-			parts = append(parts, "Your previous session's transcript could not be found; read your journal and your inbox to see where you were.")
+			parts = append(parts, "Your previous session's transcript could not be found.")
+		}
+		if in.MovedTo == "" {
+			parts = append(parts, m.whereToLook(agent))
 		}
 	}
 	if in.Waiting != "" {
