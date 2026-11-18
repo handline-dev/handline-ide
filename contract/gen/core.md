@@ -17,8 +17,8 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `lease.extend` | agent |  | `agent`, `kind?` | `{extended}` | `refused`, `bad_request` |  | not cached |
 | `lease.get` | agent |  | none | `{kinds}` |  |  | `leases`, snapshot |
 | `run.list` | agent |  | `agent?` | `{runs, presets}` |  |  | not cached |
-| `run.set` | agent | yes | `name`, `scope`, `workspace?`, `cmds`, `at_once?`, `why?`, `request_id` | `Accepted` | `bad_request` |  | not from the app |
-| `run.remove` | agent | yes | `name`, `scope`, `workspace?`, `request_id` | `Accepted` | `not_found`, `bad_request` |  | not from the app |
+| `run.set` | agent | yes | `name`, `scope`, `workspace?`, `cmds`, `at_once?`, `why?`, `request_id` | `Accepted` | `bad_request`, `refused` |  | not from the app |
+| `run.remove` | agent | yes | `name`, `scope`, `workspace?`, `request_id` | `Accepted` | `not_found`, `bad_request`, `refused` |  | not from the app |
 | `load.get` | agent |  | `minutes?`, `agent?` | `{at, every_s, machine, total, agents, unowned, processes, sampling, series} \| null` | `bad_request` |  | `load`, snapshot |
 | `events.feed` | agent |  | `since?`, `topics?`, `limit?` | `{events, cursor, gap}` | `bad_request` |  | not cached |
 | `operation.get` | member |  | `operation` | `Operation & ReadCursor` | `not_found` |  | `operation` by operation, fed by operations |
@@ -81,11 +81,11 @@ The shared runs: each a name, the commands it covers, how many may run at once, 
 
 ### `run.set`
 
-Keeps a shared run, in place of the one of its name in its scope, applied at once with no approval: any agent for This Mac or its own workspace, the founder for any.
+Keeps a shared run, in place of the one of its name in its scope, applied at once with no approval: any agent for This Mac or its own workspace, the founder for any. An agent's change of a run the founder set is refused: set by the founder.
 
 ### `run.remove`
 
-Drops a shared run; the turns held now run to their end, and nothing waits for it again.
+Drops a shared run; the turns held now run to their end, and nothing waits for it again. An agent's remove of a run the founder set is refused: set by the founder.
 
 ### `load.get`
 
