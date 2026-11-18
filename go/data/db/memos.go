@@ -78,24 +78,6 @@ func DeleteMemo(q Q, mid int64, by string) error {
 	return err
 }
 
-// MemoTexts is the texts of T<tid>'s memos, oldest first.
-func MemoTexts(q Q, tid int64) ([]string, error) {
-	rows, err := q.Query("SELECT body FROM task_memos WHERE task_id = ? ORDER BY id", tid)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []string
-	for rows.Next() {
-		var body string
-		if err := rows.Scan(&body); err != nil {
-			return nil, err
-		}
-		out = append(out, body)
-	}
-	return out, rows.Err()
-}
-
 // LinkMemoTell keeps that request rid told reader of memo mid. A task's return that carried the comment stays its tell: an edit's later
 // tell does not replace it, or the return would show again as a request of its own; one closed before it reached the reader is none.
 func LinkMemoTell(q Q, mid int64, reader string, rid int64) error {

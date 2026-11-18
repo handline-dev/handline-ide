@@ -157,7 +157,7 @@ func tellText(q db.Q, head *db.Request, depth int, aheadOf *db.Request, parked b
 	}
 	if head.Kind.String == "task" {
 		if t := taskOf(q, head); t != nil {
-			if memos := must(db.MemoSummary(q, t.ID, head.Target, head.ID, 500)); memos != "" {
+			if memos := must(db.MemoSummary(q, t.ID, head.Target, head.ID, db.MemoCap)); memos != "" {
 				shown += "\n" + memos
 			}
 		}

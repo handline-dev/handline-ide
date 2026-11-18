@@ -331,17 +331,65 @@ func neverReached(state string) bool {
 	return false
 }
 
+// MemoCap is the runes of comments a delivery or a start shows when the receiver has none of its own on the task.
+const MemoCap = 500
+
 // MemoSummary is task tid's comments for a delivery to receiver or its start, one per line, each whole, newest last; "" when it has none.
 // They are the comments after receiver's own last one; with none of its own, the newest that fit cap runes (always the newest). The
 // comments left out are only counted. Comments that request told already carried to receiver are left out uncounted (told 0: none).
 func MemoSummary(q Q, tid int64, receiver string, told int64, cap int) (string, error) {
+	shown, earlier, err := memosShown(q, tid, receiver, told, cap)
+	if err != nil || len(shown) == 0 && earlier == 0 {
+		return "", err
+	}
+	lines := make([]string, len(shown))
+	for i, m := range shown {
+		lines[i] = m.line
+	}
+	return summary(tid, lines, earlier), nil
+}
+
+// DeliveryMemoTexts is the texts of the comments request told brings receiver on task tid: those it carries, then those MemoSummary shows
+// with the same cap.
+func DeliveryMemoTexts(q Q, tid int64, receiver string, told int64, cap int) ([]string, error) {
+	rows, err := q.Query("SELECT m.body FROM task_memos m JOIN memo_tells t ON t.memo_id = m.id WHERE m.task_id = ? AND t.reader = ? AND t.request_id = ? ORDER BY m.id",
+		tid, receiver, told)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var body string
+		if err := rows.Scan(&body); err != nil {
+			return nil, err
+		}
+		out = append(out, body)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	shown, _, err := memosShown(q, tid, receiver, told, cap)
+	if err != nil {
+		return nil, err
+	}
+	for _, m := range shown {
+		out = append(out, m.body)
+	}
+	return out, nil
+}
+
+type shownMemo struct{ line, body string }
+
+// memosShown is MemoSummary's comments, and how many earlier ones it leaves out.
+func memosShown(q Q, tid int64, receiver string, told int64, cap int) ([]shownMemo, int, error) {
 	rows, err := q.Query("SELECT id, author, body, created_at, edited_at FROM task_memos m WHERE task_id = ? AND NOT EXISTS "+
 		"(SELECT 1 FROM memo_tells WHERE memo_id = m.id AND reader = ? AND request_id = ?) ORDER BY id", tid, receiver, told)
 	if err != nil {
-		return "", err
+		return nil, 0, err
 	}
 	defer rows.Close()
-	var lines []string
+	var memos []shownMemo
 	own := -1 // the index of receiver's last comment
 	for rows.Next() {
 		var id int64
@@ -349,30 +397,30 @@ func MemoSummary(q Q, tid int64, receiver string, told int64, cap int) (string, 
 		var created float64 // a memo's stamp carries a fraction: Python writes time.time()
 		var edited sql.NullFloat64
 		if err := rows.Scan(&id, &author, &body, &created, &edited); err != nil {
-			return "", err
+			return nil, 0, err
 		}
 		at := created
 		if edited.Valid && edited.Float64 != 0 {
 			at = edited.Float64
 		}
 		if author == receiver {
-			own = len(lines)
+			own = len(memos)
 		}
-		lines = append(lines, fmt.Sprintf("comment %d %s %s: %s", id, author, time.Unix(int64(at), 0).Format("01-02 15:04"), textsafe.Oneline(body)))
+		memos = append(memos, shownMemo{fmt.Sprintf("comment %d %s %s: %s", id, author, time.Unix(int64(at), 0).Format("01-02 15:04"), textsafe.Oneline(body)), body})
 	}
-	if err := rows.Err(); err != nil || len(lines) == 0 {
-		return "", err
+	if err := rows.Err(); err != nil || len(memos) == 0 {
+		return nil, 0, err
 	}
 	from := own + 1
 	if own < 0 {
-		from = len(lines) - 1
-		for n := utf8.RuneCountInString(lines[from]); from > 0; from-- {
-			if n += utf8.RuneCountInString(lines[from-1]) + 1; n > cap {
+		from = len(memos) - 1
+		for n := utf8.RuneCountInString(memos[from].line); from > 0; from-- {
+			if n += utf8.RuneCountInString(memos[from-1].line) + 1; n > cap {
 				break
 			}
 		}
 	}
-	return summary(tid, lines[from:], from), nil
+	return memos[from:], from, nil
 }
 
 func summary(tid int64, shown []string, earlier int) string {
