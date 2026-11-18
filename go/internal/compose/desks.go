@@ -10,7 +10,8 @@ import (
 )
 
 // deskSweep is the worktree pool's pass: each workspace folder's worktrees already there become desks as they are (worktreepool.Adopt),
-// retried until that worked, then each closed agent's desk is given back once its session has let go of it.
+// retried until that worked, and renamed desk-<n> once free (worktreepool.Rename); then each closed agent's desk is given back once its
+// session has let go of it.
 type deskSweep struct {
 	lc      *Lifecycle
 	home    string
@@ -39,6 +40,15 @@ func (d *deskSweep) Run(now int64) error {
 		d.adopted[repo] = true
 		if n > 0 {
 			d.log("  desks: %d folder(s) of %s joined the pool as they are", n, repo)
+		}
+	}
+	for repo := range d.adopted {
+		moved, err := d.lc.Desks.Rename(repo)
+		for _, m := range moved {
+			d.log("  desks: %s is now %s", m[0], m[1])
+		}
+		if err != nil {
+			d.log("  desks: %s: %v", repo, err)
 		}
 	}
 	var errs []error

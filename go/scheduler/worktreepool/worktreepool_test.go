@@ -424,3 +424,51 @@ func TestAllDesksAreListedWhenNoRepoIsNamed(t *testing.T) {
 		t.Fatalf("%v %v", all, err)
 	}
 }
+
+// A free folder named before the pool becomes the lowest free desk-<n>, its branch and its last agent's record with it; one held,
+// pinned, in use or that a closed session may resume in keeps its name until a later round.
+func TestRenameMakesAFreeOldFolderADeskAndLeavesTheOthers(t *testing.T) {
+	r := newRig(t)
+	dir := worktreepaths.Dir(r.repo)
+	add := func(name string) string {
+		path := filepath.Join(dir, name)
+		r.git(r.repo, "worktree", "add", "-q", "-b", name, path)
+		return canonical(path)
+	}
+	free, held, pinned, busy, resumable := add("proj.ui"), add("proj.lead"), add("proj.qa"), add("proj.web"), add("proj.ops")
+	if n, err := r.pool.Adopt(r.repo); err != nil || n != 5 {
+		t.Fatalf("adopted %d: %v", n, err)
+	}
+	r.db.Exec("UPDATE worktree_folders SET pinned_to = NULL")
+	r.db.Exec("UPDATE worktree_folders SET holder = 'a1' WHERE path = ?", held)
+	r.db.Exec("UPDATE worktree_folders SET pinned_to = 'a2' WHERE path = ?", pinned)
+	r.db.Exec("INSERT INTO agent_state(agent, state, updated, worktree) VALUES('a3','IDLE',1,?)", r.repo+"::"+free)
+	r.db.Exec("INSERT INTO agent_state(agent, state, updated, worktree, resume_session) VALUES('a4','IDLE',1,?,'s4')", resumable)
+	r.pool.Running = func(_, desk string) bool { return desk == busy }
+
+	moved, err := r.pool.Rename(r.repo)
+	desk := canonical(filepath.Join(dir, "desk-1"))
+	if err != nil || len(moved) != 1 || moved[0] != [2]string{free, desk} {
+		t.Fatalf("renamed %v: %v", moved, err)
+	}
+	if exists(free) || r.git(desk, "branch", "--show-current") != "proj.ui" {
+		t.Fatal("the folder did not move with its branch")
+	}
+	var wt string
+	r.db.QueryRow("SELECT worktree FROM agent_state WHERE agent = 'a3'").Scan(&wt)
+	if wt != desk {
+		t.Fatalf("its last agent records %q", wt)
+	}
+	for _, kept := range []string{held, pinned, busy, resumable} {
+		if !exists(kept) {
+			t.Fatalf("%s was moved", kept)
+		}
+	}
+	if moved, _ := r.pool.Rename(r.repo); len(moved) != 0 {
+		t.Fatalf("a second round moved %v", moved)
+	}
+	r.pool.Running = nil
+	if moved, _ := r.pool.Rename(r.repo); len(moved) != 1 || moved[0] != [2]string{busy, canonical(filepath.Join(dir, "desk-2"))} {
+		t.Fatalf("once let go it is renamed, to the next number: %v", moved)
+	}
+}

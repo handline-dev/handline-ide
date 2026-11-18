@@ -69,9 +69,8 @@ func Real(path string) string {
 	return filepath.Clean(path)
 }
 
-// AgentWorktrees are the real paths of every worktree an agent records (agent_state.worktree), but those of skip, and every desk of
-// the worktree pool but one pinned to skip: a desk is the project's, kept when its agent leaves it or is retired; a pinned one is its
-// agent's.
+// AgentWorktrees are the real paths of every worktree an agent records, but skip's, and every desk but those pinned to skip: a desk is
+// the project's, kept when its agent leaves or is retired.
 func AgentWorktrees(q db.Q, skip string) (map[string]bool, error) {
 	out := map[string]bool{}
 	err := recorded(q, "SELECT agent, COALESCE(worktree, '') FROM agent_state "+
