@@ -389,11 +389,9 @@ func (e *Env) doContext(p step) (bool, string, error) {
 	names := make([]string, len(texts))
 	for i, t := range texts {
 		// The proposer wrote it and the founder OK'd it: only the founder decides a proposal (decide).
-		owner := key
-		if t[0] == "rules" { // the rules of the agent's workspace
-			if owner, err = workspaceOfAgent(p.tx, key); err != nil {
-				return false, "", err
-			}
+		owner, err := db.InstructionOwner(p.tx, key, team.InstructionParts[t[0]])
+		if err != nil {
+			return false, "", err
 		}
 		if _, err := db.SetInstruction(p.tx, owner, team.InstructionParts[t[0]], t[1], p.str("requested_by"), actor.OwnerKey, time.Now().Unix()); err != nil {
 			return false, "", err
@@ -401,16 +399,6 @@ func (e *Env) doContext(p step) (bool, string, error) {
 		names[i] = t[0]
 	}
 	return true, fmt.Sprintf("%s: %s replaced, from its next launch", addr.Ref(agent), strings.Join(names, ", ")), nil
-}
-
-// workspaceOfAgent is the key of the workspace the agent (its key) is in.
-func workspaceOfAgent(q db.Q, key string) (string, error) {
-	_, id, _ := actor.Parse(key)
-	var ws int64
-	if err := q.QueryRow("SELECT workspace FROM agents WHERE id = ?", id).Scan(&ws); err != nil {
-		return "", err
-	}
-	return actor.Key(actor.Workspace, ws), nil
 }
 
 // doSchedule makes exactly the schedule change that was proposed.
