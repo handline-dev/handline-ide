@@ -52,8 +52,8 @@ export function DaemonProvider(props: {
           if (done) return;
           const fatal = e instanceof RpcError && e.code === 'protocol';
           tries += 1;
+          store.setUnreachable(!fatal); // before the words, so a screen reading both never takes a retry for a refusal
           if (fatal || notify) store.fail(fatal ? (e.reason ?? e.message) : unreachableText(tries, where, e));
-          store.setUnreachable(!fatal);
           if (!fatal) timer = setTimeout(boot, retryMs);
         },
       );
