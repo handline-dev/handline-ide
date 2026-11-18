@@ -727,3 +727,16 @@ func TestChatTranscriptShowsAnAccountMoveAndAFailedOne(t *testing.T) {
 		}
 	}
 }
+
+// An agent at its prompt waiting on its background work reads as running, but no turn runs: the chat offers no Stop for it.
+func TestBackgroundWorkIsNoTurnToStop(t *testing.T) {
+	for _, c := range []struct {
+		reason string
+		turn   bool
+	}{{"turn", true}, {"background", false}} {
+		v := map[string]any{"state": "running", "status": map[string]any{"state": "running", "reason": c.reason}}
+		if got := workingFrom(v)["turn_running"]; got != c.turn {
+			t.Errorf("%s: turn_running %v", c.reason, got)
+		}
+	}
+}

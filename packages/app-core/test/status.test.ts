@@ -11,6 +11,9 @@ test('draws the dot from the state and reason', () => {
   assert.equal(dotOfStatus(st('waiting', 'task')), 'blocked');
   assert.equal(dotOfStatus(st('stopped', 'wall')), 'blocked');
   assert.equal(dotOfStatus(st('off', 'none')), 'none');
+  // background work: working while the agent owes something, resting when it takes work
+  assert.equal(dotOfStatus(st('running', 'background')), 'running');
+  assert.equal(dotOfStatus(st('idle', 'background')), 'idle');
   assert.equal(dotOfStatus(st('mystery', 'none')), null);
 });
 

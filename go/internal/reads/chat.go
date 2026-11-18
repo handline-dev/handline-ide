@@ -1162,5 +1162,7 @@ func workingFrom(view map[string]any) map[string]any {
 			break
 		}
 	}
-	return map[string]any{"turn_running": strings.EqualFold(pyStr(view["state"]), "running"), "line": line, "since": view["state_since"]}
+	st, _ := view["status"].(map[string]any)
+	turn := strings.EqualFold(pyStr(view["state"]), "running") && pyStr(st["reason"]) != "background" // at its prompt: no turn to stop
+	return map[string]any{"turn_running": turn, "line": line, "since": view["state_since"]}
 }

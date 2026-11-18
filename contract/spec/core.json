@@ -280,8 +280,8 @@
    "no_terminal": "Registered but with no terminal to show: never started or its terminal closed, and nothing waits for it. Checked before idle; a closed agent with work waiting is queued or parked."
   },
   "from_daemon": {
-   "RUNNING, HANDOFF": "running",
-   "IDLE, DONE, PARKED with no work behind it": "idle",
+   "RUNNING, HANDOFF, background work while the agent owes something": "running",
+   "IDLE, DONE, PARKED with no work behind it, background work while it owes nothing": "idle",
    "QUEUED, a restart retry (PENDING with no clock)": "queued",
    "a terminal launch in progress, before its session's first hook, with claude and not the shell in its pane (checked over idle, queued and no_terminal)": "starting",
    "PARKED, THROTTLED, DEGRADED with a wake time (PENDING with a clock); MOVING": "parked",
@@ -296,10 +296,10 @@
   "states": {
    "preparing": "Has work and the daemon starts or sends it at its next tick; nothing stands in the way. Reasons: work, restart, retry.",
    "starting": "A launch is in progress (agents). Reason: launch.",
-   "running": "Working: a turn runs, a hand-off is moving, background work runs, or a task is with an owner that has it. Reasons: turn, watch, handoff, background.",
+   "running": "Working: a turn runs, a hand-off is moving, background work runs while the agent owes something, or a task is with an owner that has it. Reasons: turn, watch, handoff, background.",
    "waiting": "Held by something the daemon names: a person, another task, the owner, a clock, an account move, the machine's load, the founder's pause. Reasons: you, opener, task, owner, clock, move, load, paused.",
    "stopped": "Will not go on by itself: no account has room (until the reset when it is known), nothing may start where it would run, or a person must unstall it. Reasons: wall, full, stalled.",
-   "idle": "At its prompt with nothing to do (agents). Reason: none.",
+   "idle": "At its prompt and takes work (agents). Reasons: none, background.",
    "off": "Registered with no terminal and nothing waiting for it (agents). Reason: none.",
    "done": "Closed (tasks). Reasons: done (its owner finished it), discarded."
   },
@@ -311,7 +311,7 @@
    "turn": "A turn is running (agents); the owner has the task (tasks).",
    "watch": "A gate watches outside state; text names it (\"watching PR #412 CI\").",
    "handoff": "A hand-off to a new session is moving.",
-   "background": "Background work runs while the agent sits at its prompt. Status text names that work, the labels of AgentView.background joined by ' \u00b7 ' ('check.sh \u00b7 review subagent'), not a count.",
+   "background": "Background work runs while the agent sits at its prompt. Running when the agent owes something (a queued request, an open ask, or a task it is doing): it may wait on the work to carry on, and text is 'waiting for' and the labels of AgentView.background joined by ' \u00b7 ' ('waiting for check.sh \u00b7 review subagent'). Idle when it owes nothing: it takes work, and text is the labels ('check.sh \u00b7 dev server'). Never a count.",
    "you": "A person must answer: a dialog or prompt on the agent, an open request to the founder on the task, or a task the founder owns.",
    "opener": "A draft: waits on its opener to queue it.",
    "task": "Waits on other tasks; tasks lists them.",
