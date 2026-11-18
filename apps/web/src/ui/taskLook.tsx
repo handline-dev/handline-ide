@@ -1,5 +1,5 @@
-import { Check, Circle, CircleDot, Hand, Hourglass, X, type LucideProps } from 'lucide-react';
-import { taskOutcome } from '@handline/app-core';
+import { Check, Circle, CircleDot, Hand, Hourglass, Layers, X, type LucideProps } from 'lucide-react';
+import { isPerson, taskOutcome } from '@handline/app-core';
 import type { ReactNode } from 'react';
 
 /** Doing: a filled dot, smaller than the square's other icons. */
@@ -8,11 +8,11 @@ const Dot = (p: LucideProps) => <Circle {...p} size={8} fill="currentColor" />;
 /** Each state's look: the same coloured square the chat's task cards carry, and its word. */
 export const STATE: Record<string, { icon: (p: LucideProps) => ReactNode; tone: string; word: string }> = {
   draft: { icon: CircleDot, tone: 'bg-muted', word: 'Draft' },
-  queued: { icon: Hourglass, tone: 'bg-muted', word: 'Up next' },
+  queued: { icon: Layers, tone: 'bg-muted', word: 'Up next' },
   pending: { icon: Hourglass, tone: 'bg-muted', word: 'Pending' },
   doing: { icon: Dot, tone: 'bg-accent', word: 'Doing' },
   waiting: { icon: Hand, tone: 'bg-warning', word: 'Waiting' },
-  blocked: { icon: Hand, tone: 'bg-warning', word: 'Blocked' },
+  blocked: { icon: Hourglass, tone: 'bg-muted', word: 'Blocked' },
   held: { icon: Hand, tone: 'bg-warning', word: 'Held' },
   done: { icon: Check, tone: 'bg-success', word: 'Done' },
   discarded: { icon: X, tone: 'bg-danger', word: 'Discarded' },
@@ -27,17 +27,25 @@ export const failedLine = (evidence: string | null | undefined, title?: string |
 };
 export type Lookable = {
   state: string;
-  waiting?: unknown;
+  waiting?: { on: string } | null;
+  turns?: unknown[] | null;
+  acting?: string | null;
   block_reason: string | null;
   hold_reason: string | null;
   evidence?: string | null;
   title?: string;
 };
-/** The look of what the task is doing now: an open task something holds reads as waiting, whatever its state says; a done one that failed its check reads as failed. */
+/** The look of what the task is doing now, the same in the chat and the task lists. The hand is for the founder alone: a task
+ * waiting on them, or one held. Waiting on anything else, a queued task reads as queued and another as blocked. A done one that
+ * failed its check reads as failed. */
 export const look = (t: Lookable) => {
-  const held = !['done', 'discarded'].includes(t.state) && !!(t.waiting || t.block_reason || t.hold_reason);
+  const open = !['done', 'discarded'].includes(t.state);
+  const onFounder = open && (t.waiting?.on === 'founder' || (!!t.turns?.length && isPerson(t.acting ?? '', '')));
+  const held = open && !!t.hold_reason;
+  const blocked = open && t.state !== 'queued' && !!(t.waiting || t.block_reason);
   const failed = t.state === 'done' && failedLine(t.evidence, t.title) !== null;
-  return STATE[held ? 'waiting' : failed ? 'failed' : t.state] ?? { icon: CircleDot, tone: 'bg-muted', word: t.state };
+  const key = onFounder ? 'waiting' : held ? 'held' : blocked ? 'blocked' : failed ? 'failed' : t.state;
+  return STATE[key] ?? { icon: CircleDot, tone: 'bg-muted', word: t.state };
 };
 
 /** Another task's state pill, from the TaskLook its row carries. */

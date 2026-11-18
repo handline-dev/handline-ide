@@ -36,7 +36,7 @@ import { HoldBar } from '#src/chat/agent/HoldBar.tsx';
 import { PauseCard } from '#src/chat/PauseCard.tsx';
 import { PromptCard } from '#src/chat/PromptCard.tsx';
 import { takeToChat } from '#src/chat/toChat.ts';
-import { TaskActivity, useTaskActivity, type TaskEvent } from '#src/chat/TaskActivity.tsx';
+import { onePerTask, TaskActivity, useTaskActivity, type TaskEvent } from '#src/chat/TaskActivity.tsx';
 import { useAttachments } from '#src/chat/attachments.tsx';
 import { ChatLine, drawsNothing, type Reply } from '#src/chat/ChatLine.tsx';
 import { CornerDownRight, FoldVertical, Square, SquareTerminal, X } from 'lucide-react';
@@ -345,7 +345,8 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
   const tasks = useTaskActivity(agent);
   // What passed between the agent and the founder on a task: one card per task, drawn at its newest line.
   const shown = taskCards(foldTurns(entries));
-  const folded = intoCards(runs(shown, agent, me, nameOf, tasks));
+  const cards = intoCards(runs(shown, agent, me, nameOf, tasks));
+  const folded = { ...cards, rows: onePerTask(cards.rows) }; // a task shows once, in the newest card it is in
   const top = useNearEnd<HTMLDivElement, HTMLDivElement>(stream, chat.loadOlder, chat.hasOlder && !chat.loadingOlder, {
     atTop: true,
     margin: 400,

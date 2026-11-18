@@ -1,13 +1,12 @@
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { ChevronDown } from 'lucide-react';
-import { useState, useSyncExternalStore, type ReactNode } from 'react';
+import { useSyncExternalStore, type ReactNode } from 'react';
 import type { HistoryRow, Task } from '@handline/client';
 import { isPerson } from '@handline/app-core';
 import { useMe } from '@handline/app-react';
 import { useFeed, useNameOf, useTaskChanges, useTasks } from '@handline/app-data';
 import { look } from '#src/ui/taskLook.tsx';
 import { spring } from '#src/motion.ts';
-import { clock, since, useNow } from '#src/format/time.ts';
+import { clock } from '#src/format/time.ts';
 import { Ago } from '#src/ui/Ago.tsx';
 import { taskOf } from '#src/layout/kinds.tsx';
 import { useOpenable } from '#src/layout/openable.tsx';
@@ -30,9 +29,6 @@ export type TaskEvent = {
   to?: string;
 };
 
-/** The last thing done, said after where the task stands: "handed 21:28". Done and discarded say it in the state. */
-const VERB: Record<TaskEventKind, string> = { add: 'created', edit: 'edited', done: '', handoff: 'handed', discard: '', start: 'given' };
-
 /** Where the task stands now and who holds it: "With web-data", "Queued for daemon-core", "Done". */
 function holder(t: Task, me: string, nameOf: (key: string) => string): string {
   const to = isPerson(t.to, me) ? 'you' : nameOf(t.to);
@@ -40,19 +36,34 @@ function holder(t: Task, me: string, nameOf: (key: string) => string): string {
   if (t.state === 'done' || t.state === 'discarded' || word === 'Failed') return word;
   if (t.state === 'queued') return `Queued for ${to}`;
   if (t.state === 'draft') return `Draft for ${to}`;
+  if (word === 'Waiting') return 'Waiting for you';
   return t.state === 'doing' && word === 'Doing' ? `With ${to}` : `${word} · with ${to}`;
+}
+
+/** Task cards with each task in one card only, the newest it is in, which takes its changes from the cards before it; a card left
+ * with no task goes. */
+export function onePerTask<R extends object>(rows: R[]): R[] {
+  const eventsOf = (r: R) => ('events' in r ? (r.events as TaskEvent[]) : null);
+  const lastIn = new Map<string, number>();
+  rows.forEach((r, i) => eventsOf(r)?.forEach((e) => lastIn.set(e.id, i)));
+  const moved = new Map<number, TaskEvent[]>();
+  for (const r of rows)
+    for (const e of eventsOf(r) ?? []) {
+      const to = lastIn.get(e.id)!;
+      moved.set(to, [...(moved.get(to) ?? []), e]);
+    }
+  return rows.flatMap((r, i) => {
+    if (!eventsOf(r)) return [r];
+    const events = moved.get(i);
+    return events ? [{ ...r, events }] : [];
+  });
 }
 
 /** One task the card touched, with its changes, oldest first. */
 type Touched = { id: string; events: TaskEvent[] };
 
-/** The tasks kept open; older ones fold into one line at the top. */
-const SHOWN = 2;
-const FOLD_FROM = 4;
-
 /** An agent's task changes in one card: one row per task, where it stands now; a task changed again changes its row in place. */
 export function TaskActivity({ events }: { events: TaskEvent[] }) {
-  const [open, setOpen] = useState(false);
   // Each task's state now, kept current by the tasks feed.
   const ids = [...new Set(events.map((e) => Number(e.id.slice(1))))];
   const tasks = useTasks({ ids }, { enabled: ids.length > 0 }).data?.items ?? [];
@@ -66,9 +77,6 @@ export function TaskActivity({ events }: { events: TaskEvent[] }) {
     byTask.set(e.id, t);
   }
   const touched = [...byTask.values()];
-  const folds = touched.length >= FOLD_FROM;
-  const older = folds ? touched.slice(0, -SHOWN) : [];
-  const recent = folds ? touched.slice(-SHOWN) : touched;
   // On hover, under the card in a row the size of a message's: how long ago its last change was; the clock times on the time itself.
   const ats = events.flatMap((e) => (e.at ? [e.at] : []));
   const span = ats.length ? (clock(ats[0]) === clock(ats.at(-1)!) ? clock(ats[0]) : `${clock(ats[0])} ~ ${clock(ats.at(-1)!)}`) : '';
@@ -81,43 +89,9 @@ export function TaskActivity({ events }: { events: TaskEvent[] }) {
         style={{ maxWidth: 'min(100%, 37.5rem)' }}
         className="overflow-hidden rounded-lg border border-border bg-bg text-sm"
       >
-        {older.length > 0 && (
-          <>
-            {/* The fold line stays put; a click opens the older rows under it, in this card, and closes them again. */}
-            <button
-              type="button"
-              aria-expanded={open}
-              onClick={() => setOpen(!open)}
-              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-muted hover:bg-hover/30"
-            >
-              <span className="flex">
-                {older.map((t) => (
-                  <span
-                    key={t.id}
-                    className={`-mr-0.5 size-2 rounded-full border border-bg transition-colors duration-500 motion-reduce:transition-none ${now.get(t.id) ? look(now.get(t.id)!).tone : 'bg-surface'}`}
-                  />
-                ))}
-              </span>
-              <span className="min-w-0 truncate">
-                Earlier {older.length} tasks · {older.map((t) => t.id).join(', ')}
-              </span>
-              <ChevronDown size={12} className={`shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
-            </button>
-            <motion.div
-              initial={false}
-              animate={open ? { height: 'auto', opacity: 1 } : { height: 0, opacity: 0 }}
-              transition={spring}
-              className="overflow-hidden"
-            >
-              {older.map((t) => (
-                <Row key={t.id} t={t} task={now.get(t.id)} ruled />
-              ))}
-            </motion.div>
-          </>
-        )}
         <AnimatePresence initial={false}>
-          {recent.map((t, i) => (
-            <Row key={t.id} t={t} task={now.get(t.id)} ruled={i > 0 || older.length > 0} />
+          {touched.map((t, i) => (
+            <Row key={t.id} t={t} task={now.get(t.id)} ruled={i > 0} />
           ))}
         </AnimatePresence>
       </motion.div>
@@ -137,10 +111,8 @@ function Row({ t, task, ruled }: { t: Touched; task?: Task; ruled: boolean }) {
   const nameOf = useNameOf();
   const me = useMe();
   const last = t.events.at(-1)!;
-  // Where it stands now, then the last thing done and when: "With web-data · handed 5m ago · 2 changes".
-  const now = useNow();
-  const did = [VERB[last.kind], last.at && since(last.at, now)].filter(Boolean).join(' ');
-  const line = [task ? holder(task, me, nameOf) : last.detail, did, t.events.length > 1 && `${t.events.length} changes`]
+  // Where it stands now, and how often it changed: "With web-data · 2 changes". The card's time shows on hover, under it.
+  const line = [task ? holder(task, me, nameOf) : last.detail, t.events.length > 1 && `${t.events.length} changes`]
     .filter(Boolean)
     .join(' · ');
   return (
