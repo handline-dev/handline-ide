@@ -11,7 +11,7 @@ what changed and when.
   shared/mcp.json             optional MCP servers for every launch
   accounts/<name>/.claude/    one Claude config directory per account; credentials stay here
   accounts/<name>/status.json
-  agents/<key>/               inbox/  journal/  memory/
+  agents/<key>/               inbox/  memory/
 ```
 
 `accounts/` and `logs/` are not tracked by git.

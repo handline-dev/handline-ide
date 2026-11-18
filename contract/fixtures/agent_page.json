@@ -108,21 +108,6 @@
          ]
         }
        },
-       "fold": {
-        "ok": {
-         "$type": "boolean"
-        },
-        "why": {
-         "$oneOf": [
-          {
-           "$type": "string"
-          },
-          {
-           "$type": "null"
-          }
-         ]
-        }
-       },
        "move": {
         "ok": {
          "$type": "boolean"

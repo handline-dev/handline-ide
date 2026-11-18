@@ -40,7 +40,6 @@ type Tick struct {
 	Cost      *CostPilot
 
 	said, saidClose map[string]string
-	rolloverDay     string
 	spans           []span // this tick's stages and what each took (timed)
 }
 
@@ -597,18 +596,6 @@ func (t *Tick) Run() (Result, error) {
 
 	// A handoff past its deadline must fail here, not only at startup.
 	actions = append(actions, t.Reconcile.ExpireHandoffs(q)...)
-
-	// Midnight rollover (section 5). Without it yesterday's "in progress" stays in progress forever.
-	day := t.Sweeps.Today()
-	if t.rolloverDay != "" && t.rolloverDay != day {
-		for _, agent := range t.Host.Agents() {
-			if ok, msg := t.Sweeps.Rollover(agent); ok && !strings.Contains(msg, "already exists") {
-				actions = append(actions, msg)
-				t.logf("  rollover: %s", msg)
-			}
-		}
-	}
-	t.rolloverDay = day
 
 	// The human is no agent, so no per-agent delivery checks the edges of what agents wrote to them.
 	t.guarded(actor.OwnerKey, func() error {

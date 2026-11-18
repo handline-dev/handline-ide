@@ -29,7 +29,7 @@ type RecoverPorts interface {
 	// LongTrusted is the account's longest-window figure, the floor a stale reading carries; ok false when truly unknown. label names the window.
 	LongTrusted(acct string) (pct int, label string, ok bool)
 	LongBlock() int
-	// RunModel is fold.run_model: one real turn on the account's own credential. errType is the error the CLI named for a failed turn.
+	// RunModel is one real turn on the account's own credential. errType is the error the CLI named for a failed turn.
 	RunModel(prompt, acct, model string) (ok bool, out, errType string)
 	// Stall marks the account unusable for errType until a login or a wake, as a failed agent turn does (team.Accounts.StallAccount).
 	Stall(acct, errType, why string) error

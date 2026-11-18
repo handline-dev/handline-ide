@@ -145,7 +145,7 @@ export function detail(s: Session, tasks: TaskCounter): AgentDetail {
     worktree: { path: s.fx.worktree, branch: s.fx.branch, repo: s.fx.repo ?? null },
     cwd: s.fx.worktree,
     can: Object.fromEntries(
-      ['terminal', 'wake', 'close', 'restart', 'park', 'fold', 'move'].map((k) => [k, { ok: true, why: null }]),
+      ['terminal', 'wake', 'close', 'restart', 'park', 'move'].map((k) => [k, { ok: true, why: null }]),
     ) as AgentDetail['can'],
     terminal: s.hasTerminal ? tid(s) : null,
     session_id: s.sessionId,

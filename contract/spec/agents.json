@@ -826,28 +826,6 @@
            "why"
           ]
          },
-         "fold": {
-          "type": "object",
-          "properties": {
-           "ok": {
-            "type": "boolean"
-           },
-           "why": {
-            "oneOf": [
-             {
-              "type": "string"
-             },
-             {
-              "type": "null"
-             }
-            ]
-           }
-          },
-          "required": [
-           "ok",
-           "why"
-          ]
-         },
          "move": {
           "type": "object",
           "properties": {
@@ -877,7 +855,6 @@
          "close",
          "restart",
          "park",
-         "fold",
          "move"
         ]
        }
@@ -1543,48 +1520,6 @@
    "x-callers": [
     "agent",
     "owner"
-   ]
-  },
-  {
-   "name": "agent.fold",
-   "summary": "Run hl fold for an agent.",
-   "paramStructure": "by-name",
-   "params": [
-    {
-     "name": "agent",
-     "required": true,
-     "schema": {
-      "$ref": "#/components/schemas/Who"
-     }
-    },
-    {
-     "name": "request_id",
-     "required": true,
-     "schema": {
-      "$ref": "#/components/schemas/RequestId"
-     }
-    }
-   ],
-   "result": {
-    "name": "result",
-    "schema": {
-     "$ref": "#/components/schemas/Accepted"
-    }
-   },
-   "x-role": "agent",
-   "x-write": true,
-   "x-app-write": {
-    "kind": "decided",
-    "label": "fold"
-   },
-   "x-since": 1,
-   "errors": [
-    {
-     "$ref": "#/components/errors/refused"
-    },
-    {
-     "$ref": "#/components/errors/not_found"
-    }
    ]
   },
   {

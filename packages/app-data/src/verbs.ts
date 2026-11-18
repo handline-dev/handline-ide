@@ -1,4 +1,4 @@
-// The writes of the agent verbs (wake, interrupt, restart, close, park, fold, move account, clear stall), shared by the web menu and the phone's.
+// The writes of the agent verbs (wake, interrupt, restart, close, park, move account, clear stall), shared by the web menu and the phone's.
 import { callOf, type Verb, type WorktreeAnswer } from '@handline/app-core';
 import { useWrite } from '#src/write.ts';
 
@@ -14,7 +14,6 @@ export function useVerbRun(agent: string) {
   const stop = useWrite('session.stop', agent);
   const restart = useWrite('session.restart', agent);
   const park = useWrite('session.park', agent);
-  const fold = useWrite('agent.fold', agent);
   const move = useWrite('agent.move', agent);
   const unstall = useWrite('agent.unstall', agent);
   const forceStart = useWrite('agent.force_start', agent);
@@ -24,7 +23,6 @@ export function useVerbRun(agent: string) {
     else if (v.method === 'session.stop') stop.mutate(p, on);
     else if (v.method === 'session.restart') restart.mutate(p, on);
     else if (v.method === 'session.park') park.mutate(p, on);
-    else if (v.method === 'agent.fold') fold.mutate(p, on);
     else if (v.method === 'agent.move') move.mutate(p, on);
     else if (v.method === 'agent.unstall') unstall.mutate(p, on);
     else if (v.method === 'agent.force_start') forceStart.mutate(p, on);
