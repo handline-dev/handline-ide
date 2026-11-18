@@ -8,6 +8,7 @@ type ReadOpts = NonNullable<Parameters<typeof useRead>[2]>;
 
 export const useDaemonStatus = (params: CallParams<"daemon.status"> = {}, opts?: ReadOpts) => useRead("daemon.status", params, opts);
 export const useLeaseGet = (params: CallParams<"lease.get"> = {}, opts?: ReadOpts) => useRead("lease.get", params, opts);
+export const useRunList = (params: CallParams<"run.list"> = {}, opts?: ReadOpts) => useRead("run.list", params, opts);
 export const useLoadGet = (params: CallParams<"load.get"> = {}, opts?: ReadOpts) => useRead("load.get", params, opts);
 export const useOperationGet = (params: CallParams<"operation.get">, opts?: ReadOpts) => useRead("operation.get", params, opts);
 export const usePrefsGet = (params: CallParams<"prefs.get"> = {}, opts?: ReadOpts) => useRead("prefs.get", params, opts);
@@ -54,6 +55,8 @@ export const useProposalList = (params: CallParams<"proposal.list"> = {}, opts?:
 
 export const useDaemonPause = (target?: string) => useWrite("daemon.pause", target);
 export const useDaemonResume = (target?: string) => useWrite("daemon.resume", target);
+export const useRunSet = (target?: string) => useWrite("run.set", target);
+export const useRunRemove = (target?: string) => useWrite("run.remove", target);
 export const usePrefsSet = (target?: string) => useWrite("prefs.set", target);
 export const useSettingsSet = (target?: string) => useWrite("settings.set", target);
 export const useWarningDismiss = (target?: string) => useWrite("warning.dismiss", target);

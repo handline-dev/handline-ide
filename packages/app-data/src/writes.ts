@@ -167,6 +167,9 @@ const settings: Record<string, Patch> = {
     // The strip's numbers (the context maximum among them) come from the settings but ride no event of their own: read them again.
     reconcile: (c, p) => void c.qc.invalidateQueries({ queryKey: keyOf(c.d, 'agent.strip', { agent: as<{ agent: string }>(p).agent }) }),
   },
+  // A shared run's turns show on lease.get as well as run.list.
+  'run.set': { touches: (d) => [qk.resource(d, 'run.list'), qk.resource(d, 'lease.get')] },
+  'run.remove': { touches: (d) => [qk.resource(d, 'run.list'), qk.resource(d, 'lease.get')] },
   'settings.set': {
     // network_addresses moves the doors: the addresses are read again; the lease limits show on lease.get.
     touches: (d) => [qk.resource(d, 'settings.get'), qk.resource(d, 'connection.addresses'), qk.resource(d, 'lease.get')],

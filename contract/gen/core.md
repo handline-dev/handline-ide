@@ -16,9 +16,9 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `lease.release` | agent |  | `agent`, `lease?`, `kind?` | `{released}` | `refused`, `bad_request` |  | not cached |
 | `lease.extend` | agent |  | `agent`, `kind?` | `{extended}` | `refused`, `bad_request` |  | not cached |
 | `lease.get` | agent |  | none | `{kinds}` |  |  | `leases`, snapshot |
-| `run.list` | agent |  | `agent?` | `{runs, presets}` |  |  | not cached |
-| `run.set` | agent | yes | `name`, `scope`, `workspace?`, `cmds`, `at_once?`, `why?`, `request_id` | `Accepted` | `bad_request`, `refused` |  | not from the app |
-| `run.remove` | agent | yes | `name`, `scope`, `workspace?`, `request_id` | `Accepted` | `not_found`, `bad_request`, `refused` |  | not from the app |
+| `run.list` | agent |  | `agent?` | `{runs, presets}` |  |  | `runs`, snapshot |
+| `run.set` | agent | yes | `name`, `scope`, `workspace?`, `cmds`, `at_once?`, `why?`, `request_id` | `Accepted` | `bad_request`, `refused` |  | decided: keep a shared run |
+| `run.remove` | agent | yes | `name`, `scope`, `workspace?`, `request_id` | `Accepted` | `not_found`, `bad_request`, `refused` |  | decided: remove a shared run |
 | `load.get` | agent |  | `minutes?`, `agent?` | `{at, every_s, machine, total, agents, unowned, processes, sampling, series} \| null` | `bad_request` |  | `load`, snapshot |
 | `events.feed` | agent |  | `since?`, `topics?`, `limit?` | `{events, cursor, gap}` | `bad_request` |  | not cached |
 | `operation.get` | member |  | `operation` | `Operation & ReadCursor` | `not_found` |  | `operation` by operation, fed by operations |

@@ -4455,7 +4455,10 @@
    "x-write": false,
    "x-since": 1,
    "description": "A Bash call with a command a run covers, made outside hl use while the agent holds no turn at it, is refused by the agent's hook, naming the hl use line. With no runs, nothing waits.",
-   "x-app-cache": false
+   "x-app-cache": {
+    "resource": "runs",
+    "feed": null
+   }
   },
   {
    "name": "run.set",
@@ -4538,7 +4541,10 @@
    },
    "x-role": "agent",
    "x-write": true,
-   "x-app-write": false,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "keep a shared run"
+   },
    "x-since": 1,
    "errors": [
     {
@@ -4597,7 +4603,10 @@
    },
    "x-role": "agent",
    "x-write": true,
-   "x-app-write": false,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "remove a shared run"
+   },
    "x-since": 1,
    "errors": [
     {

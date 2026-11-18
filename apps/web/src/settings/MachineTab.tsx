@@ -1,10 +1,10 @@
-import { since } from '#src/format/time.ts';
-// Settings > This Mac: what the machine and the agents use, the simulator and browser limits, and keep-awake. Stop is the one change to an agent. Every write dims its control until the daemon answers; a refusal says why under it.
+// Settings > This Mac: what the machine and the agents use, the shared runs, and keep-awake. Stop is the one change to an agent. Every write dims its control until the daemon answers; a refusal says why under it.
 import { useNameOf } from '@handline/app-data';
-import { Bot, Clock, Coffee, Cpu, Gauge, Globe, HardDrive, MemoryStick, Smartphone, TriangleAlert, Zap } from 'lucide-react';
+import { Bot, Coffee, Cpu, Gauge, HardDrive, MemoryStick, TriangleAlert, Zap } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { bytesText, loadFull, LOW_DISK_BYTES, memoryLow } from '@handline/app-core';
-import { Bar, Block, LineRow, Setting, toneOf } from '#src/settings/Meter.tsx';
+import { Bar, Block, Setting, toneOf } from '#src/settings/Meter.tsx';
+import { SharedRuns } from '#src/settings/SharedRuns.tsx';
 import { SettingsPage } from '#src/settings/SettingsPage.tsx';
 import { useMachine } from '#src/settings/data/machine.ts';
 import { useService } from '#src/settings/data/service.ts';
@@ -13,8 +13,6 @@ import { Button } from '#src/ui/Button.tsx';
 import { NumberStepper } from '#src/ui/NumberStepper.tsx';
 import { Switch } from '#src/usage/UsageViews.tsx';
 
-const LEASE_KINDS = ['simulator', 'browser'] as const;
-const ordinal = (n: number) => `${n}${['th', 'st', 'nd', 'rd'][n % 100 >= 11 && n % 100 <= 13 ? 0 : n % 10 < 4 ? n % 10 : 0]}`;
 const AWAKE = ['off', 'on', 'working'] as const;
 const AWAKE_WORD = { off: 'Off', on: 'On', working: 'While agents work' } as const;
 
@@ -189,70 +187,7 @@ export function MachineTab() {
         </div>
       </Block>
 
-      <Block
-        title="Simulators and browsers"
-        icon={<Smartphone size={16} />}
-        note="The most all agents hold together. Over it, an agent waits its turn. 0 means no limit."
-      >
-        {LEASE_KINDS.flatMap((kind) => m.leases.find((l) => l.kind === kind) ?? []).map((k) => {
-          const key = `${k.kind}_max`;
-          const word = k.kind === 'simulator' ? 'Simulators' : 'Browsers';
-          const rows = [
-            ...k.held.map((h) => ({
-              id: `h${h.lease}`,
-              icon: <Bot size={12} />,
-              who: nameOf(h.agent),
-              what: `in use, taken ${since(h.since)}`,
-              title: undefined,
-            })),
-            ...[...k.queue]
-              .sort((x, y) => x.position - y.position)
-              .map((w) => ({
-                id: `w${w.position}`,
-                icon: <Clock size={12} />,
-                who: nameOf(w.agent),
-                what: `waiting, ${ordinal(w.position)} in line`,
-                title: w.says,
-              })),
-          ];
-          const over = k.max > 0 && k.held.length > k.max;
-          return (
-            <Setting
-              key={k.kind}
-              title={word}
-              icon={k.kind === 'simulator' ? <Smartphone size={14} /> : <Globe size={14} />}
-              note={
-                <>
-                  {k.max === 0 ? 'Any number at once.' : `Up to ${k.max} at once.`}{' '}
-                  {k.held.length === 0 ? 'None in use.' : `${k.held.length} in use.`}
-                  {k.queue.length > 0 && ` ${k.queue.length} waiting.`}
-                  {over && ' Over the limit: they keep running and new asks wait.'}
-                </>
-              }
-              below={
-                rows.length > 0 || refused?.key === key ? (
-                  <>
-                    {rows.slice(0, 5).map((r) => (
-                      <LineRow key={r.id} icon={r.icon} who={r.who} what={r.what} title={r.title} />
-                    ))}
-                    {rows.length > 5 && <span className="text-xs text-muted">and {rows.length - 5} more</span>}
-                    {why(key)}
-                  </>
-                ) : undefined
-              }
-            >
-              <NumberStepper
-                value={k.max}
-                label={`${word} at once`}
-                stepLabels={[`Fewer ${word.toLowerCase()}`, `More ${word.toLowerCase()}`]}
-                zeroWord="No limit"
-                disabled={m.pending !== null}
-                onCommit={(n) => send(key, () => m.setLeaseMax(k.kind, n))}
-              />
-            </Setting>
-          );
-        })}
-      </Block>
+      <SharedRuns />
 
       <Block title="Power" icon={<Zap size={16} />}>
         <Setting title="Keep awake" icon={<Coffee size={14} />} note="Stops the Mac sleeping on its own. Closing the lid still sleeps it.">
