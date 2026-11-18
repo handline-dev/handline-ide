@@ -178,7 +178,12 @@ function proposalChanged({ qc, d }: Ctx, e: WireEvent) {
       edit<{ proposals: Proposal[] }>(
         qc,
         key,
-        (l) => ({ ...l, proposals: upsert(l.proposals, p, (x) => x.id === p.id, 'start') }),
+        // The event leaves out changes (whole file texts): a cached row keeps the ones proposal.list gave it.
+        (l) => {
+          const changes = p.changes ?? l.proposals.find((x) => x.id === p.id)?.changes;
+          const row = changes ? { ...p, changes } : p;
+          return { ...l, proposals: upsert(l.proposals, row, (x) => x.id === p.id, 'start') };
+        },
         e.cursor,
       );
     else void qc.invalidateQueries({ queryKey: key, exact: true });
