@@ -154,3 +154,35 @@ agent from the daemon's database; this file does not repeat them.
 - A message of more than a sentence goes in lines, in Markdown, through a
   quoted heredoc: `hl say <target> --file - <<'EOF'`, the body, then `EOF`.
   The receiver and the app see its lines.
+
+## Pitfalls when building
+
+- Git: if you squash, reset onto your merge base (`git reset --soft $(git merge-base HEAD origin/main)`), never
+  `origin/main`, which reverts what landed since. Before every push, `git diff --stat origin/main...HEAD`
+  lists only your files. Commit before any `git checkout -- <file>` (restoring a mutant, a before picture): it wipes
+  uncommitted edits. Add files by name, so a leftover probe test is not swept in.
+- Pass `origin/main` to `tools/check.sh` (it defaults to local `main`). Judge it by its own exit code with the
+  log in a file (`> log 2>&1; rc=$?`), never through a pipe, `tail` or a trailing `echo`: zsh has no `PIPESTATUS`, and a
+  wrapper exits 0. An exit 1 with every test passing is Prettier (`[warn]` in
+  the log) or a typecheck (`Failed: ...#typecheck`).
+- Go: `go test ./...` in go/ skips the nested modules (each `go/*/go.mod`); `tools/test-go.sh` tests each, and a
+  nested module cannot import the daemon's module (go/). Never `go clean` the shared build cache; on `could not import ... go-build ...
+  no such file`, rerun with a private `GOCACHE`. Timing knobs tests change live on Env, not package vars.
+- Tests: a mutant that does not build or times out is not a kill. A change that shares a component tests each line
+  that wires it. Before deleting a bound a mutant survived, send it extreme values (MaxInt64, negative). A stub script
+  written per run is slow on its first exec under load (macOS checks it): check one in instead.
+- The database is `~/.handline/db.sqlite`; read it with `sqlite3 -readonly`. Cast `strftime('%s', ...)` to int before
+  comparing it to an expression, or the filter silently matches nothing. A higher `events.id` is not a later time (a
+  late hook keeps its own time), and stored hook payloads are slimmed: a field missing there says nothing about what
+  Claude Code sent; read its binary (python mmap and a regex; `strings` is too slow). To hide a request from a view,
+  mark it; never change its requester, which routing reads.
+- Local runs: a scratch daemon home needs a short path (a unix socket path over about 104 characters fails with
+  `bind: invalid argument`). A port may be another agent's: check `lsof -iTCP:<port> -sTCP:LISTEN` first. Moving an
+  account folder logs it out (its Keychain login is keyed by the folder's path).
+- The live daemon is the app's: starting the app resets its checkout to main and rebuilds, so never swap a binary by
+  hand. A change to a path or name baked into code rebuilds hl and handlined and greps each binary for the old name.
+- Contract: edit `contract/spec/*.json`, then `python3 contract/generate.py`; never hand-edit a generated file.
+- Web: with React Compiler on, read changing state only through a hook's return value, or it goes stale silently.
+  One shortcut scheme app-wide: click opens here, Cmd-click, middle-click or Cmd-Enter a new tab, Option-click beside.
+- A check of code belongs in CI, not in the daemon, which only steers agents. The Claude path comes first: no work whose
+  only purpose is another agent CLI.
