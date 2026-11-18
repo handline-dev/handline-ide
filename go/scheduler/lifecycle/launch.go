@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -925,8 +926,8 @@ func (l *Launcher) staticPreamble(agent string) (string, error) {
 	return strings.Join(parts, "\n\n"), nil
 }
 
-// ContextFor is ROLE.md + base.md + the team rules + the agent's lessons + the handoff waiting for it + the daemon's own record of where the
-// agent was, as one system-prompt appendix.
+// ContextFor is ROLE.md + base.md + the team rules + its founder's preferences + the agent's lessons + the handoff waiting for it + the
+// daemon's own record of where the agent was, as one system-prompt appendix.
 func (l *Launcher) ContextFor(agent string) (string, error) {
 	static, err := l.staticPreamble(agent)
 	if err != nil {
@@ -934,11 +935,20 @@ func (l *Launcher) ContextFor(agent string) (string, error) {
 	}
 	parts := append([]string{static}, l.Ports.TeamRules(agent)...)
 	// Lessons are not in the static preamble: an add mid-session must not read as a changed start; the next session carries it.
-	lessons, err := db.LiveLessons(l.Q, agent)
-	if err != nil {
+	owner, err := addr.OwnerOf(l.Q, agent)
+	if err != nil && !errors.Is(err, actor.ErrNoOwner) {
 		return "", err
 	}
-	parts = append(parts, db.LessonsSection(lessons))
+	for _, whose := range []string{owner, agent} {
+		if whose == "" { // no owner yet
+			continue
+		}
+		lessons, err := db.LiveLessons(l.Q, whose)
+		if err != nil {
+			return "", err
+		}
+		parts = append(parts, db.Section(whose, lessons))
+	}
 	text, err := db.GetHandoff(l.Q, agent)
 	if err != nil {
 		return "", err
@@ -1025,7 +1035,7 @@ func (l *Launcher) yourTeam(agent string) string {
 		talk = "The founder may type straight into your terminal. When the person types to you directly, answer with `hl say` too; your terminal " +
 			"text is not shown to them. A `... waiting for you:` delivery of a task comment is not typing: answer it on that task. " + talk
 	}
-	lines = append(lines, talk, team.Protocol("land"), team.Protocol("legacy"), team.Protocol("progress"),
+	lines = append(lines, talk, team.Protocol("land"), team.Protocol("legacy"), team.Protocol("memory"), team.Protocol("progress"),
 		"`hl team` shows who you may reach and what each is doing now. "+team.Protocol("founder"))
 	return strings.Join(lines, "\n")
 }

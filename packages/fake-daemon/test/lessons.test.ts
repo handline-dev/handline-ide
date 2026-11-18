@@ -38,3 +38,17 @@ test("task.get's timeline has a row for each lesson added on the task, removed l
   await client.call('lesson.remove', { id: 1, request_id: 'r1' });
   assert.deepEqual(await rows(), [['a3', 'show the screen in both themes']], 'a removed lesson stays in the history');
 });
+
+test("lessons.list of human is the founder's preferences, measured under their own heading", async () => {
+  const { daemon, client } = setup();
+  await client.start();
+  daemon.tasks.lessons.set('p1', [
+    { id: 3, agent: 'p1', text: 'write in Korean (the founder, comment 7)', created_at: '2026-11-18T00:00:00Z', created_by: 'a3' },
+  ]);
+  const got = await client.call('lessons.list', { agent: 'human' });
+  assert.deepEqual(
+    got.items.map((l) => l.id),
+    [3],
+  );
+  assert.ok(got.bytes > "# The founder's preferences".length);
+});

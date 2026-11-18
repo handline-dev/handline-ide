@@ -119,6 +119,9 @@ func Resolve(q Q, c Who, word string) (string, error) {
 	return "", refusal(q, c, word)
 }
 
+// OwnerOf is the person who owns key: an agent's owner, a person themself, else the install's owner.
+func OwnerOf(q Q, key string) (string, error) { return ownerOf(q, Who{Key: key}) }
+
 // ownerOf is the person human names for c: an agent's owner, a person themselves.
 func ownerOf(q Q, c Who) (string, error) {
 	if k, id, _ := actor.Parse(c.Key); k == actor.Agent {

@@ -5240,7 +5240,7 @@
   },
   {
    "name": "lesson.add",
-   "summary": "An agent keeps one thing it learned (from a Redo, on task): its next sessions start with it in their launch prompt. Writes a `lesson` event on the task.",
+   "summary": "An agent keeps one thing it learned (from a Redo, on task): its next sessions start with it in their launch prompt; with about founder, a preference of the founder's that every agent's next session starts with. Writes a `lesson` event on the task.",
    "paramStructure": "by-name",
    "params": [
     {
@@ -5258,6 +5258,32 @@
      "required": true,
      "schema": {
       "type": "integer"
+     }
+    },
+    {
+     "name": "about",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "enum": [
+       "founder"
+      ],
+      "description": "founder: a lesson about the caller's owner (their preferences, kept under their key), which the launch prompt of every agent they own carries; absent: the caller's own."
+     }
+    },
+    {
+     "name": "said",
+     "required": false,
+     "schema": {
+      "oneOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "string"
+       }
+      ],
+      "description": "With about: the founder's own words it comes from, one of their comments (its number) or messages (msg_<hash>); named after the text as `(the founder, comment N)`. Required with about."
      }
     },
     {
@@ -5307,11 +5333,11 @@
      "$ref": "#/components/errors/bad_request"
     }
    ],
-   "description": "Refused (`refused`) when the agent's lessons would pass their 3 KB limit (the prompt section): merge similar ones first with lesson.merge. Not found: no such task."
+   "description": "Refused (`refused`) when the lessons would pass their 3 KB limit (the prompt section; the founder's have their own): merge similar ones first with lesson.merge; or when said is not the founder's. Not found: no such task."
   },
   {
    "name": "lesson.merge",
-   "summary": "An agent replaces two or more of its live lessons with one: they are kept, marked merged into it; its task is the newest source's that names one.",
+   "summary": "An agent replaces two or more of its live lessons (or with about founder, of the founder's) with one: they are kept, marked merged into it; its task is the newest source's that names one.",
    "paramStructure": "by-name",
    "params": [
     {
@@ -5333,6 +5359,32 @@
       "minLength": 1,
       "maxLength": 500,
       "description": "The lesson: one line of plain text, at most 500 bytes."
+     }
+    },
+    {
+     "name": "about",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "enum": [
+       "founder"
+      ],
+      "description": "founder: a lesson about the caller's owner (their preferences, kept under their key), which the launch prompt of every agent they own carries; absent: the caller's own."
+     }
+    },
+    {
+     "name": "said",
+     "required": false,
+     "schema": {
+      "oneOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "string"
+       }
+      ],
+      "description": "With about: the founder's own words it comes from, one of their comments (its number) or messages (msg_<hash>); named after the text as `(the founder, comment N)`. Required with about."
      }
     },
     {
@@ -5383,7 +5435,7 @@
   },
   {
    "name": "lessons.list",
-   "summary": "An agent's live lessons, oldest first, as its launch prompt carries them, and how many of the limit's bytes they take.",
+   "summary": "An agent's live lessons (or the founder's preferences), oldest first, as the launch prompt carries them, and how many of the limit's bytes they take.",
    "paramStructure": "by-name",
    "params": [
     {
@@ -5391,7 +5443,7 @@
      "required": false,
      "schema": {
       "$ref": "#/components/schemas/Who",
-      "description": "Whose; the caller when absent."
+      "description": "Whose; human (the caller's owner) for the founder's preferences; the caller when absent."
      }
     }
    ],

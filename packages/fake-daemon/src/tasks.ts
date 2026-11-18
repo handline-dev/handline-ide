@@ -9,8 +9,10 @@ import type { Lesson } from '@handline/contract';
 
 export { TaskFailure };
 
-/** The heading the daemon's launch prompt puts over an agent's lessons (db.LessonsSection), counted in its bytes. */
+/** The headings the daemon's launch prompt puts over an agent's lessons and a person's (db.Section), counted in their bytes. */
 const LESSONS_HEADING = "# What you learned (your lessons)\nFrom the founder's Redo notes. Apply them to every task.";
+const FOUNDER_HEADING =
+  "# The founder's preferences\nWhat the founder said they want, kept by the agents who work for them. Follow them on every task.";
 
 export class FakeTasks extends TaskReviews {
   /** The methods this fake answers: the basic ones, and the verbs of the daemon's plan (D3) only when asked for. */
@@ -25,7 +27,8 @@ export class FakeTasks extends TaskReviews {
   lessonsOf(agent: string): { agent: string; items: Lesson[]; bytes: number; cap: number } {
     const items = this.lessons.get(agent) ?? [];
     const lines = items.map((l) => `\n- ${l.text}${l.task ? ` (T${l.task})` : ''}`).join('');
-    const bytes = items.length ? new TextEncoder().encode(LESSONS_HEADING + lines).length : 0;
+    const head = /^p\d+$/.test(agent) ? FOUNDER_HEADING : LESSONS_HEADING;
+    const bytes = items.length ? new TextEncoder().encode(head + lines).length : 0;
     return { agent, items, bytes, cap: 3072 };
   }
 

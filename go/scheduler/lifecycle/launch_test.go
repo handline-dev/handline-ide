@@ -22,6 +22,7 @@ import (
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/kit/actor"
+	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/version"
 	"github.com/handline/handline/go/kit/yamlcompat"
@@ -1231,6 +1232,38 @@ func TestALaunchPromptCarriesTheAgentsLessons(t *testing.T) {
 	}
 	if after, _ := r.l.Fingerprint("ann"); after != before {
 		t.Error("a lesson changed the fingerprint")
+	}
+}
+
+// The founder's preferences (lessons kept under their key) ride in the launch prompt of every agent they own, before its own lessons.
+func TestEveryAgentsLaunchPromptCarriesItsFoundersPreferences(t *testing.T) {
+	r := newLaunchRig(t)
+	teamtest.Set(t, r.l.Home, "bo", "vendor", "claude", "model", "m1", "effort", "high")
+	if _, err := r.l.Q.Exec("INSERT INTO people(display_name, role, created_at) SELECT 'Ron', 'owner', 0 WHERE NOT EXISTS (SELECT 1 FROM people WHERE role = 'owner')"); err != nil {
+		t.Fatal(err)
+	}
+	founder, err := addr.OwnerOf(r.l.Q, "ann")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.AddLesson(r.l.Q, founder, "write to the founder in Korean (the founder, comment 7)", 0, "ann"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.AddLesson(r.l.Q, "ann", "show the screen in both themes", 0, "ann"); err != nil {
+		t.Fatal(err)
+	}
+	for _, agent := range []string{"ann", "bo"} {
+		text, err := r.l.ContextFor(agent)
+		if err != nil {
+			t.Fatal(err)
+		}
+		at := strings.Index(text, "# The founder's preferences\n")
+		if at < 0 || !strings.Contains(text[at:], "- write to the founder in Korean (the founder, comment 7)") {
+			t.Fatalf("%s: no founder's preferences\n%s", agent, text)
+		}
+		if own := strings.Index(text, "# What you learned"); agent == "ann" && own < at {
+			t.Fatalf("ann: the founder's preferences come before its own lessons\n%s", text)
+		}
 	}
 }
 

@@ -4,10 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/handline/handline/go/kit/actor"
 )
 
-// LessonsCap is the most bytes an agent's lessons take in its launch prompt (LessonsSection); an add past it is refused, and a merge
-// brings them back under it.
+// LessonsCap is the most bytes a section of lessons takes in a launch prompt (Section): an agent's own, or a person's; an add past it is
+// refused, and a merge brings them back under it.
 const LessonsCap = 3072
 
 // LessonKind is the task event a lesson's add writes, for the task's chat to show what was learned on it (the app's part comes later).
@@ -51,13 +53,30 @@ func LiveLessons(q Q, agent string) ([]Lesson, error) {
 	return out, rows.Err()
 }
 
-// LessonsSection is the launch prompt's part that carries lessons, "" for none.
+// LessonsSection is the launch prompt's part that carries an agent's own lessons, "" for none.
 func LessonsSection(lessons []Lesson) string {
+	return section("# What you learned (your lessons)\nFrom the founder's Redo notes. Apply them to every task.", lessons)
+}
+
+// FounderSection is the launch prompt's part that carries the founder's lessons (rows whose agent is their key), "" for none.
+func FounderSection(lessons []Lesson) string {
+	return section("# The founder's preferences\nWhat the founder said they want, kept by the agents who work for them. Follow them on every task.", lessons)
+}
+
+// Section is the launch prompt section lessons of agent's go in: a person's are the founder's preferences.
+func Section(agent string, lessons []Lesson) string {
+	if actor.IsPerson(agent) {
+		return FounderSection(lessons)
+	}
+	return LessonsSection(lessons)
+}
+
+func section(head string, lessons []Lesson) string {
 	if len(lessons) == 0 {
 		return ""
 	}
 	var b strings.Builder
-	b.WriteString("# What you learned (your lessons)\nFrom the founder's Redo notes. Apply them to every task.")
+	b.WriteString(head)
 	for _, l := range lessons {
 		b.WriteString("\n- " + l.Text)
 		if l.Task != 0 {
@@ -67,13 +86,13 @@ func LessonsSection(lessons []Lesson) string {
 	return b.String()
 }
 
-// AddLesson adds a lesson of agent's, by `by`, refused with ErrLessonsFull when the section would pass LessonsCap.
+// AddLesson adds a lesson of agent's (a person's: the founder's), by `by`, refused with ErrLessonsFull when the section would pass LessonsCap.
 func AddLesson(q Q, agent, text string, task int64, by string) (int64, error) {
 	live, err := LiveLessons(q, agent)
 	if err != nil {
 		return 0, err
 	}
-	if len(LessonsSection(append(live, Lesson{Text: text, Task: task}))) > LessonsCap {
+	if len(Section(agent, append(live, Lesson{Text: text, Task: task}))) > LessonsCap {
 		return 0, ErrLessonsFull
 	}
 	id, err := insertLesson(q, agent, text, task, by)
@@ -111,7 +130,7 @@ func MergeLessons(q Q, agent string, ids []int64, text, by string) (int64, error
 			return 0, NotLiveLesson(id)
 		}
 	}
-	if len(LessonsSection(append(kept, Lesson{Text: text, Task: task}))) > LessonsCap {
+	if len(Section(agent, append(kept, Lesson{Text: text, Task: task}))) > LessonsCap {
 		return 0, ErrLessonsFull
 	}
 	id, err := insertLesson(q, agent, text, task, by)

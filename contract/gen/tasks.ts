@@ -983,6 +983,10 @@ export interface TasksMethods {
   /** The lesson: one line of plain text, at most 500 bytes. */
   text: string;
   task: number;
+  /** founder: a lesson about the caller's owner (their preferences, kept under their key), which the launch prompt of every agent they own carries; absent: the caller's own. */
+  about?: "founder";
+  /** With about: the founder's own words it comes from, one of their comments (its number) or messages (msg_<hash>); named after the text as `(the founder, comment N)`. Required with about. */
+  said?: number | string;
   request_id: RequestId;
 }; result: Accepted & {
     id: number;
@@ -991,12 +995,16 @@ export interface TasksMethods {
   ids: number[];
   /** The lesson: one line of plain text, at most 500 bytes. */
   text: string;
+  /** founder: a lesson about the caller's owner (their preferences, kept under their key), which the launch prompt of every agent they own carries; absent: the caller's own. */
+  about?: "founder";
+  /** With about: the founder's own words it comes from, one of their comments (its number) or messages (msg_<hash>); named after the text as `(the founder, comment N)`. Required with about. */
+  said?: number | string;
   request_id: RequestId;
 }; result: Accepted & {
     id: number;
   } };
   "lessons.list": { params: {
-  /** Whose; the caller when absent. */
+  /** Whose; human (the caller's owner) for the founder's preferences; the caller when absent. */
   agent?: Who;
 }; result: {
     /** The agent's key. */

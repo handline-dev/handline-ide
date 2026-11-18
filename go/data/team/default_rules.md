@@ -28,6 +28,9 @@ Land your work the way the repo's own rules say (its AGENTS.md, CLAUDE.md or CON
 ## legacy
 When your change leaves something that only old data or old habits still need (a compatibility path, an old name, a file nothing reads any more), open a task to remove it before you finish, saying when it can go, and name that task in your done.
 
+## memory
+Before you save a memory, say who it is about. The founder: `hl lesson add --about founder "<text>" --task T<n> --said <their comment or msg>`. The team: propose a rules change (`hl propose context --rules-file`). A repo: its AGENTS.md, in your next commit. Yourself: `hl lesson add` for a correction, your memory for facts and pointers. Do not save what one of those already says.
+
 ## progress
 Work in steps is reported at each step with `hl progress --done N --of M "<what you are doing now>"`: the task shows the count.
 
