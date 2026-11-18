@@ -5,6 +5,7 @@ import { planFields, planState, type PlanRow } from '#src/planview.ts';
 import type { HistoryRow, Memo, Proposal, Task, TaskClock, TaskDetail, TaskLook, TimeSegment } from '@handline/contract';
 import { seedTasks } from '#src/seedtasks.ts';
 import { changes } from '#src/history.ts';
+import type { SeedCommit } from '#src/taskchanges.ts';
 import { invalidParams } from '#src/errors.ts';
 import { refs, type FakeAttachments } from '#src/attachments.ts';
 
@@ -45,6 +46,8 @@ export type Row = Task &
     history?: HistoryRow[];
     /** How a story's sub-task stands with the founder (TaskDetail.review); a seed makes one Ready. */
     review?: TaskDetail['review'];
+    /** The commits that name it in their subject (task.changes), oldest first; a seed sets them. */
+    commits?: SeedCommit[];
     /** A story's sub-task's branch (TaskDetail.branch); a seed sets it. */
     branch?: TaskDetail['branch'];
   };

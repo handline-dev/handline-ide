@@ -2791,6 +2791,178 @@
    ]
   },
   {
+   "name": "task.changes",
+   "summary": "What a task changed in code: its commits, found by the task named in their subject's last parenthesis (\"(T9201)\" or \"(T9139, T9140)\", T<n> as a whole token) in the repo of its owner's workspace (every agent's repo when the owner is no agent): on origin/<default branch> (landed) and on any local branch not on it, so every agent's worktree branch is seen. A change that is on two branches (a rebased copy) shows once: the landed copy, else the newest. With `commit`, the files and diff are that commit's; without, the whole task's: one range when the commits follow each other in one repo, else each file's changes from each commit in turn.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "task",
+     "required": true,
+     "schema": {
+      "type": "integer"
+     }
+    },
+    {
+     "name": "commit",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "description": "One of the task's commits by its hex id or a prefix of it (at least 4); not one of them, or more than one: not_found, what commit."
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "properties": {
+      "task": {
+       "type": "integer"
+      },
+      "commits": {
+       "type": "array",
+       "description": "Oldest first.",
+       "items": {
+        "type": "object",
+        "properties": {
+         "sha": {
+          "type": "string"
+         },
+         "repo": {
+          "type": "string",
+          "description": "The repo's folder name, as repos.list names it."
+         },
+         "subject": {
+          "type": "string"
+         },
+         "agent": {
+          "oneOf": [
+           {
+            "type": "string"
+           },
+           {
+            "type": "null"
+           }
+          ],
+          "description": "The agent whose worktree has a branch holding the commit checked out; null for a landed commit or when none does."
+         },
+         "at": {
+          "$ref": "#/components/schemas/Timestamp",
+          "description": "Its commit time."
+         },
+         "on_main": {
+          "type": "boolean"
+         },
+         "files": {
+          "type": "integer"
+         },
+         "added": {
+          "type": "integer"
+         },
+         "deleted": {
+          "type": "integer"
+         }
+        },
+        "required": [
+         "sha",
+         "repo",
+         "subject",
+         "agent",
+         "at",
+         "on_main",
+         "files",
+         "added",
+         "deleted"
+        ]
+       }
+      },
+      "commit": {
+       "oneOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "The full id of the commit asked for; null for the whole task."
+      },
+      "files": {
+       "type": "array",
+       "description": "In the diff's order.",
+       "items": {
+        "type": "object",
+        "properties": {
+         "path": {
+          "type": "string"
+         },
+         "repo": {
+          "type": "string"
+         },
+         "added": {
+          "type": "integer"
+         },
+         "deleted": {
+          "type": "integer"
+         },
+         "binary": {
+          "type": "boolean",
+          "description": "A binary file counts no lines."
+         }
+        },
+        "required": [
+         "path",
+         "repo",
+         "added",
+         "deleted",
+         "binary"
+        ]
+       }
+      },
+      "diff": {
+       "type": "string",
+       "description": "Unified diff, at most 2 MB: a file that would go past it is left out whole."
+      },
+      "truncated": {
+       "type": "boolean"
+      },
+      "left_out": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       },
+       "description": "The paths of the files left out of diff; they stay in files."
+      }
+     },
+     "required": [
+      "task",
+      "commits",
+      "commit",
+      "files",
+      "diff",
+      "truncated",
+      "left_out"
+     ]
+    }
+   },
+   "x-role": "member",
+   "x-write": false,
+   "x-app-cache": {
+    "resource": "task-changes",
+    "id": "task",
+    "feed": "tasks"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ]
+  },
+  {
    "name": "task.new",
    "summary": "Create a task. The founder or a member device opens one for an agent only, and it opens queued. An agent owning it to `human` is refused as task.handoff does; a task begun from the founder's message answers to the founder (task.begin).",
    "paramStructure": "by-name",
