@@ -375,6 +375,78 @@ func TestTheBackgroundCheckAsksAnIdleAgentWhichJobsToStopEveryCheckInterval(t *t
 	}
 }
 
+func TestTheBackgroundCheckAsksAboutEachJobOnceAStretchAndAgainOnlyAboutNewWork(t *testing.T) {
+	tk, w, b, p := timebox(t)
+	w.bgWork = true
+	setState(t, tk, "a", states.Idle, 0)
+	p.since, p.haveSince, p.checkS, p.jobs = 100, true, 600, []string{"npm run dev"}
+	b.SweepBackgroundCheck(tk, 800)
+	if len(p.sent) != 1 || !strings.Contains(p.sent[0], "1. npm run dev") || !strings.Contains(p.sent[0], "asked again only about work started later") {
+		t.Fatalf("%v", p.sent)
+	}
+	// The kept job is not asked about at the next due check: no message, no event.
+	b.SweepBackgroundCheck(tk, 1500)
+	if len(p.sent) != 1 || countEvents(t, tk, "a", "background_checked") != 1 {
+		t.Fatalf("a kept job was asked about again: %v", p.sent)
+	}
+	// A job that starts beside it is asked about, alone, once its check is due.
+	p.jobs = []string{"npm run dev", "go test ./..."}
+	b.SweepBackgroundCheck(tk, 1600)
+	if len(p.sent) != 1 {
+		t.Fatalf("asked inside the interval: %v", p.sent)
+	}
+	b.SweepBackgroundCheck(tk, 2200)
+	if len(p.sent) != 2 || !strings.Contains(p.sent[1], "1. go test ./...") || strings.Contains(p.sent[1], "npm run dev") {
+		t.Fatalf("%v", p.sent)
+	}
+	b.SweepBackgroundCheck(tk, 2900)
+	if len(p.sent) != 2 {
+		t.Fatalf("%v", p.sent)
+	}
+	// A new stretch (the work ended and began again) asks about the same job again.
+	p.since = 3000
+	b.SweepBackgroundCheck(tk, 3700)
+	if len(p.sent) != 3 || !strings.Contains(p.sent[2], "1. npm run dev") || !strings.Contains(p.sent[2], "2. go test ./...") {
+		t.Fatalf("%v", p.sent)
+	}
+}
+
+func TestTheBackgroundCheckAsksAboutUnnamedWorkOnceAndAgainOnlyWhenThereIsMore(t *testing.T) {
+	tk, w, b, p := timebox(t)
+	w.bgWork = true
+	setState(t, tk, "a", states.Idle, 0)
+	p.since, p.haveSince, p.checkS = 100, true, 600
+	b.SweepBackgroundCheck(tk, 800)
+	if len(p.sent) != 1 || !strings.Contains(p.sent[0], "something Handline cannot name") {
+		t.Fatalf("%v", p.sent)
+	}
+	b.SweepBackgroundCheck(tk, 1500)
+	if len(p.sent) != 1 {
+		t.Fatalf("nameless work was asked about again: %v", p.sent)
+	}
+	// Two jobs counted, none named: more than was asked about, so it is asked again.
+	if err := db.SetCursor(tk.Q, "bgcount:a", 2); err != nil {
+		t.Fatal(err)
+	}
+	b.SweepBackgroundCheck(tk, 2200)
+	if len(p.sent) != 2 || !strings.Contains(p.sent[1], "2 that Handline cannot name") {
+		t.Fatalf("%v", p.sent)
+	}
+	// A named job beside them is asked about alone, and the unnamed two are still not asked about after it.
+	p.jobs = []string{"npm run dev"}
+	if err := db.SetCursor(tk.Q, "bgcount:a", 3); err != nil {
+		t.Fatal(err)
+	}
+	b.SweepBackgroundCheck(tk, 2900)
+	if len(p.sent) != 3 || !strings.Contains(p.sent[2], "1. npm run dev") || strings.Contains(p.sent[2], "cannot name") {
+		t.Fatalf("%v", p.sent)
+	}
+	b.SweepBackgroundCheck(tk, 3600)
+	if len(p.sent) != 3 {
+		t.Fatalf("%v", p.sent)
+	}
+}
+
 func TestAHeadNobodyResolvedTellsItsTasksOpenerOnceItsNudgeScheduleIsUsedUp(t *testing.T) {
 	tk, _, b, p := timebox(t)
 	tid := newTask(t, tk, "a", "asker", 0)
