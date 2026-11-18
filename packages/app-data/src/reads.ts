@@ -37,7 +37,7 @@ export const NOT_QUERIES = [
   // Read by useLessons and useAgentReview.
   'lessons.list',
   'agent.review',
-  // `hl desk list`: the worktree pool's desks. Its screen is T9222's.
+  // The worktree pool's desks, read by useDesks.
   'desks.list',
   // The terminal's address (member); no screen reads it.
   'terminal.open',
@@ -101,6 +101,9 @@ export const qk = {
   /** Every agent's review level and record, and one agent's. */
   allReviews: (d: string) => ['d', d, 'agent.review'] as const,
   review: (d: string, agent: string) => [...qk.allReviews(d), agent] as const,
+  /** Every project's desks list. */
+  allDesks: (d: string) => ['d', d, 'desks.list'] as const,
+  desks: (d: string, repo: string) => [...qk.allDesks(d), repo] as const,
   /** Everything of this daemon, for a gap or a reconnect. */
   all: (d: string) => ['d', d] as const,
   resource: resourceKey,

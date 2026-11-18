@@ -236,6 +236,9 @@ export const patches: Record<string, Patch> = {
     touches: (d) => [qk.resource(d, 'repos.list')],
     asks: (e) => e instanceof RpcError && e.code === 'bad_request' && typeof e.data?.field === 'string',
   },
+  // Desks have no feed: their list is read again.
+  'desk.pin': { touches: (d) => [qk.allDesks(d)] },
+  'desks.keep': { touches: (d) => [qk.allDesks(d)] },
   'chat.seen': { quiet: true },
   'task.seen': { quiet: true },
   // A worktree that holds work is refused until the person answers; the screen asks, so no error line is raised.

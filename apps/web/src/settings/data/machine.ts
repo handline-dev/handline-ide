@@ -1,4 +1,4 @@
-// Settings > This Mac. Write keys: 'awake', 'record', 'load_per_core_pct', 'ram_free_min_pct', 'simulator_max', 'browser_max', 'stop:<name>'.
+// Settings > This Mac. Write keys: 'disk_keep_free_gb', 'agents_memory_max_gb', 'awake', 'record', 'load_per_core_pct', 'ram_free_min_pct', 'simulator_max', 'browser_max', 'stop:<name>'.
 import { DEFAULT_LIMITS, useRows, type Limits } from '@handline/app-core';
 import type { SettingsChanges } from '@handline/client';
 import { hooks } from '@handline/app-data';
@@ -40,6 +40,10 @@ export function useMachine() {
     setRecord: (on: boolean) => change('record', { chat_transcript_rows: on }),
     setAwake: (v: KeepAwake) => change('awake', { keep_awake: v }),
     setLimit: (key: keyof Limits, n: number) => change(key, { [key]: n }),
+    /** Free disk to keep and the agents' most memory together, in GB; 0 is off. */
+    diskKeepFree: values?.disk_keep_free_gb ?? 0,
+    agentsMemoryMax: values?.agents_memory_max_gb ?? 0,
+    setTarget: (key: 'disk_keep_free_gb' | 'agents_memory_max_gb', n: number) => change(key, { [key]: n }),
     stop: (name: string) => run(`stop:${name}`, () => stopAgent.mutateAsync({ agent: name, mode: 'close' })).then(() => {}),
     pending,
   };
