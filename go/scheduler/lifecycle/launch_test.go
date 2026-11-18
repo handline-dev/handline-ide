@@ -1338,3 +1338,22 @@ func TestHandlinesWordingIsNoChangeButATeamChangeIs(t *testing.T) {
 		t.Fatalf("a new peer is no change: %q", r.l.WhatChanged(ann))
 	}
 }
+
+// The fingerprint of a fixed agent is a fixed value: what it hashes changes only on purpose, since a new value restarts every running
+// session at its next idle on the build that brings it. A build that only rewords Handline's sentences must leave it alone.
+func TestFingerprintIsPinned(t *testing.T) {
+	r := newLaunchRig(t)
+	ann := teamtest.Key(t, r.l.Home, "ann")
+	bob := teamtest.Key(t, r.l.Home, "bob")
+	r.l.Ports.Routing = func() *team.Team {
+		return &team.Team{Agents: map[string]team.Member{ann: {Workspace: "core"}, bob: {Workspace: "core"}},
+			Teams: map[string][]string{"core": {ann, bob}}}
+	}
+	fp, err := r.l.Fingerprint(ann)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fp != "74b151da8541c48b" {
+		t.Fatalf("the fingerprint is %s: if its inputs changed on purpose, pin the new value; if only Handline's wording changed, it must not", fp)
+	}
+}
