@@ -2,20 +2,23 @@ package main
 
 // usages is each verb's form and one example, printed when its arguments are refused: "<verb> <sub>" first, then "<verb>".
 var usages = map[string][2]string{
-	"say":      {`hl say <target> "<text>" [--parent <msg>] [--file PATH] [--attach FILE] (chat, queued until the target takes it; on a task, write a comment)`, `hl say builder "the build machine is free again"`},
-	"read":     {`hl read <msg> [--wait] [--timeout <span>]`, `hl read msg_1a2b3c4`},
-	"inbox":    {`hl inbox [--all] [--wait] [--timeout <span>]`, `hl inbox --all`},
-	"withdraw": {`hl withdraw <msg> [--reason "<why>"]`, `hl withdraw msg_1a2b3c4 --reason "sent to the wrong agent"`},
-	"progress": {`hl progress [--done N --of M] "<done: ... left: ...>"`, `hl progress --done 3 --of 5 "wiring the gate"`},
-	"load":     {`hl load [--agent <name>]`, `hl load`},
-	"desk":     {`hl desk list [<repo>]   |   hl desk pin <desk> <agent|founder>   |   hl desk unpin <desk>`, `hl desk pin desk-3 founder`},
-	"lesson":   {`hl lesson add "<what to do differently>" --task T<n> [--about founder --said <comment|msg>]   |   hl lesson merge <id> <id>... "<one lesson for them>" [--about founder --said <comment|msg>]   |   hl lesson list [<agent>|founder]`, `hl lesson add "show the screen in both themes" --task T12`}, // local-ref-ok: the usage example
-	"team":     {`hl team [--agent <name>]`, `hl team`},
-	"use":      {`hl use <heavy|simulator|browser|port>... -- <command...>   |   hl use <heavy|simulator|browser|port> --hold   |   hl use --release [<heavy|simulator|browser|port>]   |   hl use --extend [<heavy|simulator|browser|port>]`, `hl use simulator port -- npm run e2e`},
-	"version":  {`hl version`, `hl version`},
-	"handoff":  {`hl handoff slow [--since <span>] [--agent <name>]`, `hl handoff slow --since 7d`},
-	"chat":     {`hl chat search "<text>" [--with <name>] [--since <span>] [--limit N]`, `hl chat search "nav order" --with handline --since 2d`},
-	"task":     {`hl task <new|show|list|board|done|handoff|pass|back|edit|comment|begin|start|reopen|release|discard|accept|reject|queue|draft|plan|merge|request> ...`, `hl task show T12`}, // local-ref-ok: the usage example
+	"say":        {`hl say <target> "<text>" [--parent <msg>] [--file PATH] [--attach FILE] (chat, queued until the target takes it; on a task, write a comment)`, `hl say builder "the build machine is free again"`},
+	"read":       {`hl read <msg> [--wait] [--timeout <span>]`, `hl read msg_1a2b3c4`},
+	"inbox":      {`hl inbox [--all] [--wait] [--timeout <span>]`, `hl inbox --all`},
+	"withdraw":   {`hl withdraw <msg> [--reason "<why>"]`, `hl withdraw msg_1a2b3c4 --reason "sent to the wrong agent"`},
+	"progress":   {`hl progress [--done N --of M] "<done: ... left: ...>"`, `hl progress --done 3 --of 5 "wiring the gate"`},
+	"load":       {`hl load [--agent <name>]`, `hl load`},
+	"desk":       {`hl desk list [<repo>]   |   hl desk pin <desk> <agent|founder>   |   hl desk unpin <desk>`, `hl desk pin desk-3 founder`},
+	"lesson":     {`hl lesson add "<what to do differently>" --task T<n> [--about founder --said <comment|msg>]   |   hl lesson merge <id> <id>... "<one lesson for them>" [--about founder --said <comment|msg>]   |   hl lesson list [<agent>|founder]`, `hl lesson add "show the screen in both themes" --task T12`}, // local-ref-ok: the usage example
+	"team":       {`hl team [--agent <name>]`, `hl team`},
+	"use":        {`hl use <run|port>... -- <command...>   |   hl use <run|port> --hold   |   hl use --release [<run|port>]   |   hl use --extend [<run|port>]   |   hl use add|remove|list`, `hl use xcode port -- npm run e2e`},
+	"use add":    {`hl use add <name> --cmd <command> [--cmd <command>]... [--at-once N] [--mac | --workspace <w>] --why "<why>" (a command: a program, a program and its first words, a script path, or @build-test, @simulator, @browser)`, `hl use add xcode --cmd xcodebuild --mac --why "one build at a time keeps the fans down"`},
+	"use remove": {`hl use remove <name> [--mac | --workspace <w>]`, `hl use remove xcode --mac`},
+	"use list":   {`hl use list`, `hl use list`},
+	"version":    {`hl version`, `hl version`},
+	"handoff":    {`hl handoff slow [--since <span>] [--agent <name>]`, `hl handoff slow --since 7d`},
+	"chat":       {`hl chat search "<text>" [--with <name>] [--since <span>] [--limit N]`, `hl chat search "nav order" --with handline --since 2d`},
+	"task":       {`hl task <new|show|list|board|done|handoff|pass|back|edit|comment|begin|start|reopen|release|discard|accept|reject|queue|draft|plan|merge|request> ...`, `hl task show T12`}, // local-ref-ok: the usage example
 	"task new": {`hl task new --assign <agent> -t <span> "<title>" "<body>" [--owner <agent>] [--parent T<n> | --no-parent (while your task is a request, a new task hangs under it unless you say this)] [--request T<n> (serve T<n>'s founder request)] [--blocked-by T<n>] [--priority 1-5] [--estimate N] [--expects report|decision] [--tag T] [--file PATH] [--draft (kept for its assignee's plan; nobody is asked until it is queued)]`,
 		`hl task new --assign pc -t 2h "Fix the sidebar" "The badge overlaps the name"`},
 	"task show":  {`hl task show T<n>`, `hl task show T12`},

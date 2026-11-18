@@ -32,8 +32,14 @@ func MaxHold(cfg usage.Config, kind string) int64 {
 			return n * 60
 		}
 	}
+	if _, ok := SharedName(kind); ok {
+		return SharedMaxHoldMin * 60
+	}
 	return int64(maxHoldMin[kind]) * 60
 }
+
+// SharedMaxHoldMin is a shared run's max_hold, in minutes.
+const SharedMaxHoldMin = 30
 
 // periods is each kind's max_hold in seconds, 0 for none, read once. It counts only while the kind has a limit: with none nobody waits
 // for one, so a lease is never warned or taken back.
@@ -42,8 +48,8 @@ func (m *Manager) periods(limits map[string]int) map[string]int64 {
 	if m.MaxHold == nil {
 		return out
 	}
-	for _, kind := range Kinds {
-		if limits[kind] > 0 {
+	for kind, n := range limits {
+		if n > 0 {
 			out[kind] = m.MaxHold(kind)
 		}
 	}
@@ -75,8 +81,8 @@ func (m *Manager) overTime(periods map[string]int64) {
 				(end-now+59)/60, m.howTaken(l), p/60, MaxExtends))
 		}
 	}
-	for _, kind := range Kinds {
-		if len(m.queues[kind]) == 0 {
+	for kind, q := range m.queues {
+		if len(q) == 0 {
 			continue
 		}
 		lim := m.wsLimits(kind)

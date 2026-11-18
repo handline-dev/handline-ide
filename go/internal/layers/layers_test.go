@@ -71,6 +71,7 @@ var layer = map[string]int{
 	"scheduler/loadgate":      3,
 	"scheduler/pause":         3,
 	"scheduler/procload":      3,
+	"scheduler/runs":          3,
 	"prefs":                   3,
 	"push":                    3,
 	"taskboard/requestref":    3,

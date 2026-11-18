@@ -126,6 +126,8 @@ Work happens on a branch, `base-v2`. It cannot land in parts, because the team r
 
 ## Resource leases
 
+**Shared runs (T9277) replace the counted kinds below.** A shared run is a name, the commands it covers (a program, a program and its first words, a script path, or a preset `@build-test`, `@simulator`, `@browser`), how many may run at once (default 1), and a scope: This Mac (every workspace takes turns) or one workspace (its agents only). It is a row of `workspace_settings` under `run.<name>` (workspace 0 is This Mac). Any agent adds, changes or removes one for This Mac or its own workspace with `hl use add|remove|list`, applied at once; the founder may change any (`run.set`, `run.remove`, `run.list`). The PreToolUse hook refuses a Bash command a run covers outside `hl use <name>`. Its lease kind is `scope:name`, asked after the fixed kinds, by name; queue, fairness, max_hold (30 min), gates and restart are as below. `heavy`, `simulator` and `browser` limit nothing now, and `lease_max.<kind>` is not read; their removal is T9279. `port` stays.
+
 Today: `hl use` and `go/scheduler/leases` lease `simulator` and `browser`, limits `simulator_max` and `browser_max` (0 = none), one FIFO per kind, 30 minutes to wait, state in memory. `heavy_slots` is only a proposal in `docs/story2-load-research.md`. This adds kinds, a time limit, fairness across workspaces and survival of a restart.
 
 ### What is leased

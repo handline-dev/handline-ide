@@ -75,7 +75,7 @@ func TestUseHoldAndRelease(t *testing.T) {
 	if got[0]["params"].(map[string]any)["hold"] != true || got[1]["method"] != "lease.release" || got[1]["params"].(map[string]any)["kind"] != "" {
 		t.Fatalf("calls %v", got)
 	}
-	for _, bad := range [][]string{{"use", "gpu", "--", "x"}, {"use", "browser"}, {"use", "--hold"}, {"use", "browser", "--hold", "--", "x"}, {"use", "--extend", "--hold"}, {"use", "--extend", "--", "x"}} {
+	for _, bad := range [][]string{{"use", "add", "x", "--cmd", "y"}, {"use", "add", "x", "--why", "w"}, {"use", "remove"}, {"use", "list", "x"}, {"use", "browser"}, {"use", "--hold"}, {"use", "browser", "--hold", "--", "x"}, {"use", "--extend", "--hold"}, {"use", "--extend", "--", "x"}} {
 		if _, _, code := r.run(asAgent, bad...); code != 2 {
 			t.Errorf("%v: %d", bad, code)
 		}
@@ -115,6 +115,65 @@ func TestUseTakesSeveralKindsInTheFixedOrderAndGivesAllBack(t *testing.T) {
 	}
 	if want := []string{"take heavy", "take port", "release 1", "release 2"}; !slices.Equal(seen, want) {
 		t.Fatalf("calls %q", seen)
+	}
+}
+
+// Shared runs come after the kinds, by name, so two agents asking for the same two never wait on each other.
+func TestUseTakesSharedRunsAfterTheKindsByName(t *testing.T) {
+	r := newRig(t)
+	calls := r.daemon(map[string]string{"lease.take": `{"lease":1,"waited_s":0}`, "lease.release": `{"released":1}`})
+	if _, _, code := r.run(asAgent, "use", "zz", "port", "aa", "zz", "--", "true"); code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+	var seen []string
+	for _, c := range calls() {
+		if c["method"] == "lease.take" {
+			seen = append(seen, c["params"].(map[string]any)["kind"].(string))
+		}
+	}
+	if want := []string{"port", "aa", "zz"}; !slices.Equal(seen, want) {
+		t.Fatalf("asked %q", seen)
+	}
+}
+
+func TestUseAddRemoveAndListSharedRuns(t *testing.T) {
+	r := newRig(t)
+	calls := r.daemon(map[string]string{"run.set": `{"accepted":true,"said":"xcode now takes turns"}`,
+		"run.remove": `{"accepted":true,"said":"xcode no longer takes turns"}`,
+		"run.list": `{"runs":[{"name":"xcode","scope":"w3","cmds":["xcodebuild","@simulator"],"at_once":1,"held":[{"agent":"a1"}],` +
+			`"waiting":[],"set_by":"a2","why":"the fans"}],"presets":["@build-test","@simulator","@browser"]}`})
+	if out, _, code := r.run(asAgent, "use", "add", "xcode", "--cmd", "xcodebuild", "--cmd", "@simulator", "--at-once", "2", "--mac",
+		"--why", "the fans"); code != 0 || !strings.Contains(out, "xcode now takes turns") {
+		t.Fatalf("add: %q %d", out, code)
+	}
+	if out, _, code := r.run(asAgent, "use", "remove", "xcode"); code != 0 || !strings.Contains(out, "no longer") {
+		t.Fatalf("remove: %q %d", out, code)
+	}
+	out, _, code := r.run(asAgent, "use", "list")
+	if code != 0 || !strings.Contains(out, "xcode (workspace w3): 1 at once, xcodebuild, @simulator; 1 held, 0 waiting\n    set by a2: the fans\n") ||
+		!strings.Contains(out, "Presets a run may cover: @build-test, @simulator, @browser") {
+		t.Fatalf("list: %q %d", out, code)
+	}
+	var set, rm, list map[string]any
+	for _, c := range calls() {
+		switch c["method"] {
+		case "run.set":
+			set = c["params"].(map[string]any)
+		case "run.remove":
+			rm = c["params"].(map[string]any)
+		case "run.list":
+			list = c["params"].(map[string]any)
+		}
+	}
+	if fmt.Sprint(set["cmds"]) != "[xcodebuild @simulator]" || set["at_once"] != float64(2) || set["scope"] != "mac" || set["why"] != "the fans" ||
+		set["name"] != "xcode" {
+		t.Fatalf("set %v", set)
+	}
+	if rm["name"] != "xcode" || rm["scope"] != "workspace" {
+		t.Fatalf("remove %v", rm)
+	}
+	if list["agent"] == nil {
+		t.Fatalf("list %v", list)
 	}
 }
 
