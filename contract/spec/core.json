@@ -130,7 +130,7 @@
    "hl propose approve|reject|apply|relabel|rehome|links",
    "hl trust remove|apply|mcp",
    "hl account add|remove|register|cycle|recover|wake (set; the cycle read is Account.cycle in accounts.list)",
-   "hl idle-timeout|idle-background|notice-digest|ignore-cache-expiry (set)",
+   "hl idle-timeout|ignore-cache-expiry (set)",
    "hl dev-mode",
    "hl device pair|list|revoke (device.pair, devices.list, device.revoke: the daemon's socket, from the founder's terminal)",
    "hl workspace new|rename|delete (workspace.create, workspace.set, workspace.delete; an agent proposes a team)"

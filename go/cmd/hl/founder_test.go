@@ -1,10 +1,28 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/handline/handline/go/kit/protected"
 )
+
+// founderRig is a rig whose terminal holds the founder key.
+func founderRig(t *testing.T) *rig {
+	r := newRig(t)
+	t.Setenv("HANDLINE_TEST_ROOT", r.root)
+	dir := filepath.Join(protected.RootFor(r.home), "founder-keys")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "key"), []byte("k\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return r
+}
 
 // device pair makes a code through the daemon; listing and revoking are the app's, so they are not understood here.
 func TestDevicePairGoesThroughTheDaemonAndNothingElseIsADeviceVerb(t *testing.T) {

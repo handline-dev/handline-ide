@@ -66,8 +66,6 @@ var usages = map[string][2]string{
 	"workspace rename": {`hl workspace rename <workspace> --to <new name>`, `hl workspace rename shop --to store`},
 	"workspace delete": {`hl workspace delete <workspace> [--worktree save|force] (retires its agents, lead last; the project folder stays)`, `hl workspace delete shop --worktree save`},
 	"dev":              {`hl dev on|off|rebuild <team> [--worktree PATH] [--listen ADDR] [--fresh]`, `hl dev on shop`},
-	"idle-background":  {`hl idle-background [--notice <span>] [--grace <span>] [--check <span>] [--clear]`, `hl idle-background --grace 10m`},
-	"notice-digest":    {`hl notice-digest [<span>] [--agent <name>] [--clear]`, `hl notice-digest 2m --agent shop.sea`},
 }
 
 // usageOf is the form and example for args to verb: its subverb's when it has one, else its own.
