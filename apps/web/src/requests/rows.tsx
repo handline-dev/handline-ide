@@ -1,6 +1,6 @@
 import { classify, sentence, useNameOf, useProposals, useTask, useWrite } from '@handline/app-data';
 import type { PendingRequest, RequestRow } from '@handline/client';
-import { isUnseen, laterKey, pickGroup, requestRow, tomorrowAt9, turnKey, turnRow, type Picked } from '@handline/app-core';
+import { isUnseen, laterKey, pickGroup, proposalTitle, requestRow, tomorrowAt9, turnKey, turnRow, type Picked } from '@handline/app-core';
 import type { HardDrive } from 'lucide-react';
 import {
   CircleCheck,
@@ -27,7 +27,7 @@ import { toast } from '#src/ui/toast.tsx';
 import { ago } from '#src/format/time.ts';
 import { focusIn } from '#src/layout/focus.ts';
 import type { TaskRequest } from '#src/requests/data.ts';
-import { chatOf, taskOf } from '#src/layout/kinds.tsx';
+import { chatOf, proposalOf, taskOf } from '#src/layout/kinds.tsx';
 import { useNewTab, useOpenable } from '#src/layout/openable.tsx';
 import type { Gesture } from '#src/layout/openTab.tsx';
 import { openSettingsFor } from '#src/settings/open.ts';
@@ -228,6 +228,7 @@ function Line({
 function turnOpens(p: PendingRequest): string | null {
   const w = p.warning;
   if (p.task !== null) return taskOf(p.task);
+  if (p.source === 'proposal' && p.id) return proposalOf(Number(p.id));
   if (w?.account && w.kind === 'login') return 'usage';
   if (w?.kind === 'disk' || w?.kind === 'review') return null;
   if (w?.agent) return chatOf(w.agent);
@@ -254,6 +255,8 @@ export function TurnLine({
   const nameOf = useNameOf();
   const refs = useRefs();
   const daemon = p.kind === 'warning' || p.agent === null;
+  // An HR proposal is called by what it does, under it its reason; the daemon's title is `<kind> <agent>`.
+  const proposal = useProposals().data?.proposals.find((x) => p.source === 'proposal' && String(x.id) === p.id);
   const opens = turnOpens(p);
   const login = p.warning?.kind === 'login' ? p.warning.account : undefined;
   return (
@@ -262,21 +265,23 @@ export function TurnLine({
       row={turnRow(p)}
       onPick={onPick}
       chosen={chosen}
-      title={refs(p.title)}
+      title={proposal ? proposalTitle(proposal, nameOf) : refs(p.title)}
       icon={full ? subjectIcon(p) : turnIcon(p)}
       {...(full && {
         lead: p.source === 'proposal' ? 'HR' : p.task !== null ? `T${p.task}` : p.warning ? WARN_WORD[p.warning.kind] : '',
-        who: daemon ? 'daemon' : nameOf(p.agent!),
+        who: proposal ? (proposal.requested_by ? nameOf(proposal.requested_by) : 'daemon') : daemon ? 'daemon' : nameOf(p.agent!),
         wait: until ? `back ${until}` : ago(p.last_at),
         answers: p.source === 'proposal' ? <TurnQuick p={p} /> : undefined,
       })}
       meta={
         full
-          ? p.ask
-            ? refs(p.ask)
-            : p.warning
-              ? (p.warning.line ?? '') // the icon and its word already say what it is; a review notice adds its record
-              : ASK[p.kind]
+          ? proposal?.reason
+            ? proposal.reason
+            : p.ask
+              ? refs(p.ask)
+              : p.warning
+                ? (p.warning.line ?? '') // the icon and its word already say what it is; a review notice adds its record
+                : ASK[p.kind]
           : [
               until ? `back ${until}` : ASK[p.kind],
               daemon ? 'daemon' : nameOf(p.agent!),
@@ -355,7 +360,7 @@ const APART = 'Pick one kind at a time.';
 /** A proposal's answer, Allow or Deny; a daemon warning's dismiss, kept by the daemon while its cause lasts; else a dismiss until tomorrow
  *  09:00 (Later). An Allow names the subject proposal.list showed; one the daemon refuses as changed since stays off on this row, so a
  *  changed proposal is opened and read before it is allowed. */
-function TurnQuick({ p }: { p: PendingRequest }) {
+export function TurnQuick({ p }: { p: PendingRequest }) {
   const act = useRowActions();
   const decide = useWrite('proposal.decide');
   const dismiss = useWrite('warning.dismiss');

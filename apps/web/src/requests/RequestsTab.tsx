@@ -7,6 +7,7 @@ import { Children, isValidElement, useEffect, useRef, useState, type MouseEvent,
 import { spring } from '#src/motion.ts';
 import { Lightbulb, ListChecks } from 'lucide-react';
 import type { PendingRequest, Proposal, Task } from '@handline/client';
+import { ProposalView } from '#src/requests/ProposalView.tsx';
 import { TaskTab } from '#src/tools/TaskTab.tsx';
 import { Button } from '#src/ui/Button.tsx';
 import { useNameOf, useProposals, useTasks } from '@handline/app-data';
@@ -62,7 +63,7 @@ function Section({
   children?: ReactNode;
 }) {
   const pick = usePick();
-  // The box stands for one kind: the kind picked, else the top row's. All of it picked is a full check, not a part one.
+  // The box stands for one kind: the kind picked, else the top row's.
   const kind = pick?.picked.values().next().value ?? rows[0];
   const ofKind = kind ? rows.filter((r) => pickGroup(r) === pickGroup(kind)) : rows;
   const all = pick ? pickAllState(ofKind, pick.picked) : 'none';
@@ -92,6 +93,9 @@ function Section({
     </section>
   );
 }
+
+/** An HR proposal waiting on the founder: the split view shows its detail, as it shows a task. */
+const isProposal = (p: PendingRequest) => p.source === 'proposal' && !!p.id;
 
 export function RequestsTab() {
   return (
@@ -132,27 +136,29 @@ function Requests() {
     .join('|');
   useEffect(() => pick?.keep(new Set(listed.split('|'))), [listed]); // eslint-disable-line react-hooks/exhaustive-deps
   const n = pick?.picked.size ?? 0;
-  // The rows with a task, in list order: the split view steps through them.
-  const withTask = [...r.turn, ...r.notes, ...r.later.map((x) => x.p)].filter((p) => p.task !== null);
-  const [{ key: chosenKey, at: lastAt, task: chosenTask }, setChosen] = useState<{ key: string | null; at: number; task: number | null }>({
+  // The rows the split view shows (a task's, or a proposal), in list order: it steps through them.
+  const showable = [...r.turn, ...r.notes, ...r.later.map((x) => x.p)].filter((p) => p.task !== null || isProposal(p));
+  type Chosen = { key: string | null; at: number; task: number | null; proposal?: number };
+  const [{ key: chosenKey, at: lastAt, task: chosenTask, proposal: chosenProposal }, setChosen] = useState<Chosen>({
     key: null,
     at: 0,
     task: null,
   });
-  const choose = (p: PendingRequest, i: number) => setChosen({ key: turnKey(p), at: i, task: p.task });
-  const found = withTask.findIndex((p) => turnKey(p) === chosenKey);
+  const choose = (p: PendingRequest, i: number) =>
+    setChosen({ key: turnKey(p), at: i, task: p.task, proposal: isProposal(p) ? Number(p.id) : undefined });
+  const found = showable.findIndex((p) => turnKey(p) === chosenKey);
   // A shown row that left the list (answered, put off) stays shown; until one is chosen, the first.
-  const left = found < 0 && chosenTask !== null;
-  const at = found >= 0 ? found : Math.min(lastAt, Math.max(0, withTask.length - 1));
-  const shown = left ? chosenTask : (withTask[at]?.task ?? null);
-  const chosen: PendingRequest | undefined = left ? undefined : withTask[at];
+  const left = found < 0 && (chosenTask !== null || chosenProposal !== undefined);
+  const at = found >= 0 ? found : Math.min(lastAt, Math.max(0, showable.length - 1));
+  const shown = left ? (chosenProposal !== undefined ? null : chosenTask) : (showable[at]?.task ?? null);
+  const chosen: PendingRequest | undefined = left ? undefined : showable[at];
   // The row shown first counts as chosen, so it too stays when answered (set while rendering: it adjusts state, no effect).
-  const first = withTask[0];
+  const first = showable[0];
   if (chosenKey === null && first) choose(first, 0);
   // From a row that left, Next is the row now in its place and Previous the one above it.
   const step = (d: number) => {
     const i = left ? lastAt + (d > 0 ? 0 : -1) : at + d;
-    const next = withTask[i];
+    const next = showable[i];
     if (next) choose(next, i);
   };
   const stepRef = useRef(step);
@@ -176,7 +182,7 @@ function Requests() {
       until={until}
       full
       chosen={chosen === p}
-      onPick={split && p.task !== null ? () => choose(p, withTask.indexOf(p)) : undefined}
+      onPick={split && (p.task !== null || isProposal(p)) ? () => choose(p, showable.indexOf(p)) : undefined}
     />
   );
   return (
@@ -226,10 +232,12 @@ function Requests() {
         />
       )}
       <div className="hidden min-w-0 flex-1 flex-col @3xl:flex">
-        {shown !== null ? (
-          <>
-            <TaskTab key={shown} id={shown} />
-          </>
+        {left && chosenProposal !== undefined ? (
+          <ProposalView key={chosenProposal} id={chosenProposal} />
+        ) : chosen && isProposal(chosen) ? (
+          <ProposalView key={chosen.id} id={Number(chosen.id)} />
+        ) : shown !== null ? (
+          <TaskTab key={shown} id={shown} />
         ) : (
           r.loaded && <p className="m-auto text-sm text-muted">No task to show.</p>
         )}

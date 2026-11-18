@@ -12,7 +12,7 @@ export interface Version {
   by: string;
 }
 
-type Line = { text: string; kind: 'same' | 'del' | 'add' };
+export type Line = { text: string; kind: 'same' | 'del' | 'add' };
 
 /** Line by line, as a plain-text diff: what stayed, what went, what came, in the order of the new text. */
 export function diffLines(a: string, b: string): Line[] {
@@ -36,6 +36,18 @@ export function diffLines(a: string, b: string): Line[] {
 
 const MARK = { same: ' ', del: '-', add: '+' } as const;
 const TONE = { same: 'text-fg', del: 'bg-danger/10 text-danger', add: 'bg-success/10 text-success' } as const;
+
+/** Diff lines drawn: removed in red with a minus, added in green with a plus, unchanged plain. */
+export function DiffLines({ lines }: { lines: Line[] }) {
+  return lines.map((l, k) => (
+    <span key={k} className={`flex whitespace-pre-wrap ${TONE[l.kind]}`}>
+      <span aria-hidden className="w-7 shrink-0 text-center select-none">
+        {MARK[l.kind]}
+      </span>
+      <span className="min-w-0 flex-1 pr-3">{l.text || ' '}</span>
+    </span>
+  ));
+}
 
 const labelOf = (v: Version, nameOf: (key: string) => string) => `${ago(v.at)} · ${nameOf(v.by)}`;
 
@@ -66,14 +78,7 @@ function History({ versions }: { versions: Version[] }) {
         {from === to ? (
           <span className="px-3 py-2 font-sans text-sm text-muted">Pick two different versions.</span>
         ) : (
-          diffLines(versions[from].text, versions[to].text).map((l, k) => (
-            <span key={k} className={`flex whitespace-pre-wrap ${TONE[l.kind]}`}>
-              <span aria-hidden className="w-7 shrink-0 text-center select-none">
-                {MARK[l.kind]}
-              </span>
-              <span className="min-w-0 flex-1 pr-3">{l.text || ' '}</span>
-            </span>
-          ))
+          <DiffLines lines={diffLines(versions[from].text, versions[to].text)} />
         )}
       </div>
     </div>

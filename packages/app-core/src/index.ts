@@ -38,3 +38,4 @@ export * from '#src/nav.ts';
 export * from '#src/notices.ts';
 export * from '#src/names.ts';
 export * from '#src/turns.ts';
+export * from '#src/proposal-words.ts';
