@@ -158,7 +158,7 @@ func main() {
 			ccfg.Turns = tracker
 		}
 		cfg.Resources = &sysres.Sampler{Home: homeDir, Log: func(s string) { log.Print(s) }}
-		ccfg.Machine = cfg.Resources.LatestMachine
+		ccfg.Machine, ccfg.AgentsMemory = cfg.Resources.LatestMachine, cfg.Resources.AgentsMemory
 		shareLoad(&cfg, &ccfg)
 		parts := compose.New(ccfg)
 		cfg.Watch = *terminalTick

@@ -4,10 +4,11 @@ import { posix } from 'node:path';
 import type { RecentFolder, Repo, Worktree } from '@handline/contract';
 import { Failure, invalidParams, refused } from '#src/errors.ts';
 import { AGENTS } from '#src/fixtures.ts';
+import { FakeDesks } from '#src/desks.ts';
 
 /** The methods this answers. */
 const WORKTREES =
-  /^(repos\.list|repos\.recent|repo\.facts|repo\.set|folder\.init|folder\.clone|worktrees\.list|worktree\.diff|worktree\.remove|files\.list|file\.read|file\.write)$/;
+  /^(repos\.list|repos\.recent|repo\.facts|repo\.set|folder\.init|folder\.clone|worktrees\.list|worktree\.diff|worktree\.remove|files\.list|file\.read|file\.write|desks\.list|desk\.pin|desks\.keep)$/;
 
 const REPOS: Repo[] = [
   {
@@ -221,6 +222,8 @@ export class FakeWorktrees {
   /** What worktrees.list serves; a test replaces it. */
   rows: Worktree[] = seed();
   repos: Repo[] = REPOS.map((r) => ({ ...r }));
+  /** The project's desks (desks.list, desk.pin, desks.keep). */
+  desks = new FakeDesks();
   recent: RecentFolder[] = RECENT.map((f) => ({ ...f }));
 
   /** `on` false is a daemon that lists none of these methods. */
@@ -233,6 +236,7 @@ export class FakeWorktrees {
   owns = (name: string): boolean => WORKTREES.test(name);
 
   call(method: string, p: Record<string, unknown>): unknown {
+    if (method.startsWith('desk')) return this.desks.call(method, p);
     switch (method) {
       case 'repos.list':
         return { repos: structuredClone(this.repos) };

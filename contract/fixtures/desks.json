@@ -1,0 +1,83 @@
+{
+ "fixtures": [
+  {
+   "name": "desks.keep.an_unknown_repo_is_not_found",
+   "spec": "desks.keep",
+   "about": "A repo no agent works in is not_found, what repo.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "desks.keep",
+      "params": {
+       "repo": "/nowhere/at/all",
+       "mode": "auto",
+       "request_id": "dk-1"
+      }
+     },
+     "error": {
+      "code": -32001,
+      "data": {
+       "code": "not_found",
+       "what": "repo"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "desks.keep.an_agent_session_is_refused_by_role",
+   "spec": "desks.keep",
+   "about": "The founder's setting: a call from an agent session is refused, gate role.",
+   "as": "agent",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "desks.keep",
+      "params": {
+       "repo": "/nowhere",
+       "mode": "auto",
+       "request_id": "dk-2"
+      }
+     },
+     "error": {
+      "code": -32002,
+      "data": {
+       "code": "refused",
+       "gate": "role"
+      }
+     }
+    }
+   ]
+  }
+ ]
+}

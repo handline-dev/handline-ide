@@ -139,14 +139,34 @@ export interface ReposMethods {
       last_agent: string;
       /** unix seconds */
       last_used: number;
-      /** an agent, 'founder', or empty: nobody else takes a pinned desk */
+      /** an agent, 'founder', 'removing' while the prune deletes it, or empty: nobody else takes a pinned desk */
       pinned_to: string;
+      /** what its files take, as last measured (hourly); null before the first */
+      size_bytes: number | null;
+      /** the task its holder works on; null when free or none */
+      task: number | null;
+      /** the next nightly prune would remove it if nothing changes until then (only with repo) */
+      removed_tonight: boolean;
     }[];
+    /** how many desks the project keeps (desks.keep); null without repo. Once a night from 3:00 its free, unpinned desks beyond it that went unused for 3 days are removed, oldest first, never one holding changes; their branches stay. */
+    kept: {
+      mode: "auto" | "manual";
+      /** the number kept now: manual's, or auto's; null when auto has no week of load to go by, and then nothing is pruned */
+      value: number | null;
+      /** what auto would keep: of the last 7 days the machine ran agents, each day's most of this project's agents at once, averaged, rounded up, plus one */
+      auto_value: number | null;
+    } | null;
   } };
   "desk.pin": { params: {
   /** the desk's path or name (desk-3) */
   desk: string;
   to?: Who;
+  request_id: RequestId;
+}; result: Accepted };
+  "desks.keep": { params: {
+  repo: string;
+  mode: "auto" | "manual";
+  value?: number;
   request_id: RequestId;
 }; result: Accepted };
   "files.list": { params: {
@@ -255,6 +275,7 @@ export const REPOS_METHODS: { [K in keyof ReposMethods]: { role: Role; callers: 
   "worktree.diff": { role: "member", callers: null, write: false, since: 1 },
   "desks.list": { role: "agent", callers: null, write: false, since: 1 },
   "desk.pin": { role: "owner", callers: null, write: true, since: 1 },
+  "desks.keep": { role: "owner", callers: null, write: true, since: 1 },
   "files.list": { role: "member", callers: null, write: false, since: 1 },
   "file.read": { role: "owner", callers: null, write: false, since: 1 },
   "file.write": { role: "owner", callers: null, write: true, since: 1 },
@@ -280,11 +301,12 @@ export const REPOS_APP_CACHE: { [K in "repos.list" | "repos.recent" | "repo.fact
 };
 
 /** x-app-write of each write (x-app in core.json). */
-export const REPOS_APP_WRITES: { [K in "repo.set" | "folder.init" | "folder.clone" | "desk.pin" | "file.write" | "doc.push"]: { kind: WriteKind; label: string } | false } = {
+export const REPOS_APP_WRITES: { [K in "repo.set" | "folder.init" | "folder.clone" | "desk.pin" | "desks.keep" | "file.write" | "doc.push"]: { kind: WriteKind; label: string } | false } = {
   "repo.set": {"kind": "decided", "label": "save project setup"},
   "folder.init": {"kind": "decided", "label": "start git"},
   "folder.clone": {"kind": "decided", "label": "clone"},
   "desk.pin": {"kind": "decided", "label": "pin a desk"},
+  "desks.keep": {"kind": "decided", "label": "set desks kept"},
   "file.write": {"kind": "decided", "label": "save file"},
   "doc.push": {"kind": "uncached", "label": "edit"},
 };

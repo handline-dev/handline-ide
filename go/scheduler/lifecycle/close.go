@@ -102,13 +102,29 @@ func (m *Manager) CacheExpired(agent, session string, now int64) (yes bool, err 
 // memory is recoverable the moment anything wants it, and a working context is not.
 func (m *Manager) ShouldClose(agent, state string, row *db.AgentState, now int64, sessionID string) (yes bool, err error) {
 	defer catch(&err)
-	in := closeInput{
+	in, read := m.closeInputs(agent, state, row, now, sessionID)
+	return read && closeVerdict(in), nil
+}
+
+// ShouldCloseForMemory is ShouldClose with the agent's idle window waived, for when the agents' memory is over the founder's cap
+// (agents_memory_max_gb): an agent working, waited on, running background work or set never to close still stays. idleSince orders
+// the ones that may close, the longest idle first.
+func (m *Manager) ShouldCloseForMemory(agent, state string, row *db.AgentState, now int64, sessionID string) (yes bool, idleSince int64, err error) {
+	defer catch(&err)
+	in, read := m.closeInputs(agent, state, row, now, sessionID)
+	in.Timeout = 0
+	return read && closeVerdict(in), in.IdleSince, nil
+}
+
+// closeInputs is what closeVerdict weighs; read is false when the first reasons already keep the session, and the rest was not read.
+func (m *Manager) closeInputs(agent, state string, row *db.AgentState, now int64, sessionID string) (in closeInput, read bool) {
+	in = closeInput{
 		Busy:      state == states.Running || state == states.Handoff || state == states.Stalled,
 		NoSession: row == nil || (row.ClosedAt.Valid && row.ClosedAt.Int64 != 0) || !m.hasSession(row),
 		Parked:    state == states.Parked, SessionID: sessionID, Now: now, IdleCloseS: states.IdleCloseS,
 	}
 	if in.Busy || in.NoSession { // closeVerdict says no whatever else is read
-		return false, nil
+		return in, false
 	}
 	in.BgHolds = must(m.Delivery.BgHolds(m.Q, agent, now))
 	in.Queued = len(must(db.QueuedFor(m.Q, agent))) > 0
@@ -120,7 +136,7 @@ func (m *Manager) ShouldClose(agent, state string, row *db.AgentState, now int64
 	in.AnsweredTurn = m.Handoff.AnsweredTurn(m.Q, agent)
 	in.BgOwesNothing = must(m.Delivery.BgOwesNothing(m.Q, agent))
 	in.BgMayStop = must(m.Delivery.BgMayStop(m.Q, agent, now))
-	return closeVerdict(in), nil
+	return in, true
 }
 
 // closeInput is what the close decision reads. The fields after SessionID are only read once the first ones leave it open.

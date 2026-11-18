@@ -42,6 +42,9 @@ type Config struct {
 	DiskFree func(path string) (free, total int64, err error)
 	// Machine is the machine's latest measure for the load gate (sysres.Sampler.LatestMachine); nil checks only the agent cap.
 	Machine func() *sysres.Machine
+	// AgentsMemory is when the agents' memory was last read and each agent's resident bytes (sysres.Sampler.AgentsMemory), for the
+	// founder's cap on it (agents_memory_max_gb); nil leaves the cap unchecked.
+	AgentsMemory func() (at int64, rss map[string]int64)
 	// Servers is the TCP servers an agent's processes listen on (procload.Tracker.ServersOf); nil is none.
 	Servers func(agent string) []procload.Server
 	// NotifiedNeedsYou has an unanswered prompt that Claude Code's Notification hook reports raise the needs-you card.
