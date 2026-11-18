@@ -1139,6 +1139,49 @@ func (l *Launcher) FingerprintParts(agent string) (map[string]string, error) {
 	return l.partsOf(agent, texts, rules)
 }
 
+// PartsSince is FingerprintParts as the agent's running session is held to: a part whose text the launch recorded and the next launch
+// gives unchanged keeps the recorded hash, since only how Handline hashes it moved (T9237 did, for team instructions), which a restart
+// would not change for the session.
+func (l *Launcher) PartsSince(agent string) (map[string]string, error) {
+	row, err := db.GetAgentState(l.Q, agent)
+	if err != nil {
+		return nil, err
+	}
+	var old map[string]json.RawMessage
+	if row != nil {
+		_ = json.Unmarshal([]byte(row.LaunchParts.String), &old)
+	}
+	texts, rules := l.texts(agent)
+	return l.partsSince(agent, old, texts, rules)
+}
+
+func (l *Launcher) partsSince(agent string, old map[string]json.RawMessage, texts map[string]string, rules []string) (map[string]string, error) {
+	parts, err := l.partsOf(agent, texts, rules)
+	if err != nil {
+		return nil, err
+	}
+	for k, before := range launchedTexts(old) {
+		var h string
+		if now, ok := texts[k]; ok && now == before && json.Unmarshal(old[k], &h) == nil {
+			parts[k] = h
+		}
+	}
+	return parts, nil
+}
+
+// launchedTexts is the part texts a launch record keeps (LaunchedTexts, and the team rules under LaunchedRules), by part.
+func launchedTexts(old map[string]json.RawMessage) map[string]string {
+	var texts map[string]string
+	if json.Unmarshal(old[LaunchedTexts], &texts) != nil || texts == nil { // "texts": null reads as a nil map
+		texts = map[string]string{}
+	}
+	var rules string
+	if json.Unmarshal(old[LaunchedRules], &rules) == nil {
+		texts[rulesPart] = rules
+	}
+	return texts
+}
+
 // partsOf is FingerprintParts of texts and rules read once, so a record's texts are of the version its hashes are.
 func (l *Launcher) partsOf(agent string, texts map[string]string, rules []string) (map[string]string, error) {
 	cfg, err := l.Roster.Read(agent)
@@ -1281,18 +1324,11 @@ func (l *Launcher) whatChanged(agent string) (string, []LineChange, error) {
 	if json.Unmarshal([]byte(row.LaunchParts.String), &old) != nil {
 		return "", nil, nil
 	}
-	var was, wasText map[string]string
+	var was map[string]string
 	_ = json.Unmarshal(old[LaunchedValues], &was)
-	_ = json.Unmarshal(old[LaunchedTexts], &wasText)
-	var wasRules string
-	if json.Unmarshal(old[LaunchedRules], &wasRules) == nil {
-		if wasText == nil {
-			wasText = map[string]string{}
-		}
-		wasText[rulesPart] = wasRules
-	}
+	wasText := launchedTexts(old)
 	nowText, rules := l.texts(agent)
-	parts, err := l.partsOf(agent, nowText, rules)
+	parts, err := l.partsSince(agent, old, nowText, rules)
 	if err != nil {
 		return "", nil, err
 	}

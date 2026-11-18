@@ -1302,13 +1302,7 @@ func TestHandlinesWordingIsNoChangeButATeamChangeIs(t *testing.T) {
 	r := newLaunchRig(t)
 	ann := teamtest.Key(t, r.l.Home, "ann")
 	members := []string{ann}
-	r.l.Ports.Routing = func() *team.Team {
-		tm := &team.Team{Agents: map[string]team.Member{}, Teams: map[string][]string{"core": members}}
-		for _, m := range members {
-			tm.Agents[m] = team.Member{Workspace: "core"}
-		}
-		return tm
-	}
+	r.l.Ports.Routing = coreTeam(&members)
 	static, err := r.l.staticPreamble(ann)
 	if err != nil || !strings.Contains(static, team.Protocol("ends")) {
 		t.Fatalf("the preamble lacks the team section: %v", err)
@@ -1355,5 +1349,58 @@ func TestFingerprintIsPinned(t *testing.T) {
 	}
 	if fp != "74b151da8541c48b" {
 		t.Fatalf("the fingerprint is %s: if its inputs changed on purpose, pin the new value; if only Handline's wording changed, it must not", fp)
+	}
+}
+
+// A launch recorded under another way of hashing the team section (before T9237) is held to its text: the same text is no change and
+// restarts nothing, while a peer joining changes the text, and the line that names the peers is what the restart shows.
+func TestARehashedPartWithTheSameTextIsNoChange(t *testing.T) {
+	r := newLaunchRig(t)
+	ann := teamtest.Key(t, r.l.Home, "ann")
+	members := []string{ann, "cat"}
+	r.l.Ports.Routing = coreTeam(&members)
+	fp, _ := r.l.Fingerprint(ann)
+	rec, err := r.l.LaunchRecord(ann)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var parts map[string]json.RawMessage
+	json.Unmarshal([]byte(rec), &parts)
+	parts["team instructions"], _ = json.Marshal("0ldsha1e") // hashed the old way: the whole section's text
+	b, _ := json.Marshal(parts)
+	if err := db.SetLaunchFingerprint(r.l.Q, ann, fp, string(b)); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := r.l.PartsSince(ann); got["team instructions"] != "0ldsha1e" {
+		t.Fatalf("the same text reads as changed: %q", got["team instructions"])
+	}
+	if w := r.l.WhatChanged(ann); w != "" {
+		t.Fatalf("named a change: %q", w)
+	}
+	members = append(members, "dan")
+	got, _ := r.l.PartsSince(ann)
+	words, lines, _ := r.l.whatChanged(ann)
+	if got["team instructions"] == "0ldsha1e" || !strings.HasPrefix(words, "team instructions changed") || len(lines) != 1 ||
+		len(lines[0].Added) != 1 || !strings.Contains(lines[0].Added[0], "`dan`") {
+		t.Fatalf("a new peer: %q %+v", words, lines)
+	}
+}
+
+// A record whose texts are null still reads its rules.
+func TestLaunchedTextsOfANullRecord(t *testing.T) {
+	old := map[string]json.RawMessage{LaunchedTexts: json.RawMessage("null"), LaunchedRules: json.RawMessage(`"r"`)}
+	if got := launchedTexts(old); got[rulesPart] != "r" {
+		t.Fatalf("%v", got)
+	}
+}
+
+// coreTeam is a routing of one workspace, core, whose members are *members as they are when it is read.
+func coreTeam(members *[]string) func() *team.Team {
+	return func() *team.Team {
+		tm := &team.Team{Agents: map[string]team.Member{}, Teams: map[string][]string{"core": *members}}
+		for _, m := range *members {
+			tm.Agents[m] = team.Member{Workspace: "core"}
+		}
+		return tm
 	}
 }

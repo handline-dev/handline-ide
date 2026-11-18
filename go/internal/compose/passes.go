@@ -96,7 +96,7 @@ func (w waitDecider) RaiseDecision(q db.Q, who, text, source string) error {
 // settingsPorts is tick.SettingsPorts: what the next launch would read, named, in the order a person reads them.
 type settingsPorts struct {
 	launcher interface {
-		FingerprintParts(agent string) (map[string]string, error)
+		PartsSince(agent string) (map[string]string, error)
 		RulesNote(agent string, row *db.AgentState) (string, string, error)
 		KeepRulesTold(q db.Q, agent, was, record string) error
 	}
@@ -133,7 +133,7 @@ func (s settingsPorts) TellRules(agent, note, was, record string) error {
 }
 
 func (s settingsPorts) FingerprintParts(agent string) ([]tick.Part, error) {
-	m, err := s.launcher.FingerprintParts(agent)
+	m, err := s.launcher.PartsSince(agent)
 	if err != nil {
 		return nil, err
 	}

@@ -29,7 +29,8 @@ type Part struct {
 
 // SettingsPorts are the foreign calls applying settings makes.
 type SettingsPorts interface {
-	// FingerprintParts is launch.fingerprint_parts: the settings the next launch would use, in launch order.
+	// FingerprintParts is the settings the next launch would use, in launch order, as the running session is held to them
+	// (lifecycle's PartsSince: a part whose text it launched with is unchanged keeps its recorded hash).
 	FingerprintParts(agent string) ([]Part, error)
 	// CurrentAccount is agents.current_account.
 	CurrentAccount(q db.Q, agent string) string
