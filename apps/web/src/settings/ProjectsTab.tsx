@@ -4,6 +4,7 @@ import { FolderGit2, Link, Plus } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { agentNameOf } from '#src/onboarding/firstTask.ts';
 import { Block } from '#src/settings/Meter.tsx';
+import { ProjectWorktrees } from '#src/settings/ProjectWorktrees.tsx';
 import { ProjectSetup, setupSummary } from '#src/settings/ProjectSetup.tsx';
 import { SettingsPage } from '#src/settings/SettingsPage.tsx';
 import { shell } from '#src/shell.ts';
@@ -58,7 +59,12 @@ export function ProjectsTab() {
                 Setup…
               </Button>
             </div>
-            {editing === r.path && <ProjectSetup repo={r} close={() => setEditing(null)} />}
+            {editing === r.path && (
+              <>
+                <ProjectSetup repo={r} close={() => setEditing(null)} />
+                <ProjectWorktrees repo={r} />
+              </>
+            )}
           </div>
         ))}
       </Block>

@@ -156,6 +156,18 @@ export function useAgentReview(agent: string) {
     enabled: served && open,
   });
 }
+/** A project's desks; no feed, so read each minute while open and again after desk.pin or desks.keep. */
+export function useDesks(repo: string) {
+  const store = useStore();
+  const { daemon } = useData();
+  const { served, open } = useServes('desks.list');
+  return useQuery({
+    queryKey: qk.desks(daemon, repo),
+    queryFn: () => store.client.call('desks.list', { repo }),
+    enabled: served && open,
+    refetchInterval: 60_000,
+  });
+}
 export const useProposals = (filter: CallParams<'proposal.list'> = {}) => useRead('proposal.list', filter);
 export const usePrefs = () => useRead('prefs.get', {});
 export const useRepos = () => useRead('repos.list', {});

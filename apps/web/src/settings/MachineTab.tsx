@@ -51,6 +51,30 @@ function Row({
   );
 }
 
+/** A GB target under the bars; 0 is Off. */
+function Target({
+  title,
+  note,
+  value,
+  disabled,
+  onCommit,
+}: {
+  title: string;
+  note: string;
+  value: number;
+  disabled: boolean;
+  onCommit: (n: number) => Promise<unknown>;
+}) {
+  return (
+    <Setting title={title} note={note}>
+      <span className="flex items-center gap-2 text-sm">
+        <NumberStepper value={value} max={4096} label={title} zeroWord="Off" disabled={disabled} onCommit={onCommit} />
+        GB
+      </span>
+    </Setting>
+  );
+}
+
 export function MachineTab() {
   const nameOf = useNameOf();
   const m = useMachine();
@@ -106,6 +130,30 @@ export function MachineTab() {
               {bytesText(mc.disk_total_bytes - mc.disk_free_bytes)} used{' '}
               <span className="text-muted">of {bytesText(mc.disk_total_bytes)}</span>
             </Row>
+            <Target
+              title="Disk: keep at least this much free"
+              note={
+                m.diskKeepFree
+                  ? `Under ${m.diskKeepFree} GB free, Handline removes free, unpinned worktree folders, oldest first, never one holding changes.`
+                  : 'Off: Handline removes no folder for disk space.'
+              }
+              value={m.diskKeepFree}
+              disabled={m.pending !== null}
+              onCommit={(n) => send('disk_keep_free_gb', () => m.setTarget('disk_keep_free_gb', n))}
+            />
+            {why('disk_keep_free_gb')}
+            <Target
+              title="Memory: agents use at most"
+              note={
+                m.agentsMemoryMax
+                  ? `Over ${m.agentsMemoryMax} GB together, Handline closes the longest-idle agent, never one mid-turn; it wakes later from its handoff.`
+                  : 'Off: Handline closes no agent for memory.'
+              }
+              value={m.agentsMemoryMax}
+              disabled={m.pending !== null}
+              onCommit={(n) => send('agents_memory_max_gb', () => m.setTarget('agents_memory_max_gb', n))}
+            />
+            {why('agents_memory_max_gb')}
           </div>
         ) : (
           <p className="text-sm text-muted">The daemon has not reported the machine yet.</p>
