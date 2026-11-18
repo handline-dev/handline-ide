@@ -1,8 +1,9 @@
 package session
 
 import (
+	"fmt"
 	"path"
-	"strconv"
+	"slices"
 	"strings"
 
 	"github.com/handline/handline/go/scheduler/leases"
@@ -266,18 +267,31 @@ type Starter struct {
 }
 
 // LeaseStarters are the commands in a shell script that start a test or build run, a simulator or a browser, in order; none when
-// there is none or the script cannot be parsed. It reads the script as shell, so words in quotes and heredoc bodies are not commands;
-// bash -c and sh -c are read one level deep. A command run through hl use is one call of hl, so what it runs is not read.
+// there is none or the script cannot be parsed.
 func LeaseStarters(script string) []Starter {
-	return leaseStarters(script, 0)
+	var out []Starter
+	for _, w := range Commands(script) {
+		if k := leaseKind(w); k != "" {
+			out = append(out, Starter{k, w})
+		}
+	}
+	return out
 }
 
-func leaseStarters(script string, depth int) []Starter {
+// Commands are the commands in a shell script, each as its words without the leading transparent words (dropRunners), in order; none
+// when the script cannot be parsed. It reads the script as shell, so words in quotes and heredoc bodies are not commands; bash -c and
+// sh -c are read one level deep, after the shell's own command. A command run through hl use is one call of hl, so what it runs is
+// not read.
+func Commands(script string) [][]string {
+	return commands(script, 0)
+}
+
+func commands(script string, depth int) [][]string {
 	file, err := syntax.NewParser(syntax.Variant(syntax.LangBash)).Parse(strings.NewReader(script), "")
 	if err != nil {
 		return nil
 	}
-	var out []Starter
+	var out [][]string
 	syntax.Walk(file, func(n syntax.Node) bool {
 		call, ok := n.(*syntax.CallExpr)
 		if !ok {
@@ -287,15 +301,14 @@ func leaseStarters(script string, depth int) []Starter {
 		for _, a := range call.Args {
 			w = append(w, literal(a))
 		}
-		if w = dropRunners(w); len(w) == 0 {
+		if w = dropRunners(w); len(w) == 0 || w[0] == "" {
 			return true
 		}
-		if k := leaseKind(w); k != "" {
-			out = append(out, Starter{k, w})
-		} else if shells[path.Base(w[0])] && depth == 0 {
+		out = append(out, w)
+		if shells[path.Base(w[0])] && depth == 0 && leaseKind(w) == "" {
 			for i, a := range w[1:] {
 				if a == "-c" && i+2 < len(w) {
-					out = append(out, leaseStarters(w[i+2], depth+1)...)
+					out = append(out, commands(w[i+2], depth+1)...)
 					break
 				}
 			}
@@ -305,28 +318,94 @@ func leaseStarters(script string, depth int) []Starter {
 	return out
 }
 
-// LeaseGuard is the reason to refuse a Bash call that starts a test or build run, a simulator or a browser outside hl use while that
-// kind has a limit (limit, 0 for none) and the agent holds none of it (holds), "" to let it through.
-func LeaseGuard(tool string, toolInput any, limit func(kind string) int, holds func(kind string) bool) string {
+// presets are the shared run patterns that name a kind leaseKind knows (runs.Presets).
+var presets = map[string]string{"@build-test": leases.Heavy, "@simulator": leases.Simulator, "@browser": leases.Browser}
+
+// Covers is whether a shared run's command cmd covers a command's words: a preset by what leaseKind knows; else the program by name
+// (xcodebuild covers /usr/bin/xcodebuild build) or by path (tools/check.sh covers bash -x ./tools/check.sh), with cmd's other words
+// first after the program's flags (go test covers go -C go test ./x). A version, help or listing call (xcodebuild -version) is not.
+func Covers(cmd string, words []string) bool {
+	if kind, ok := presets[cmd]; ok {
+		return leaseKind(words) == kind
+	}
+	fields := strings.Fields(cmd)
+	if len(fields) == 0 || len(words) == 0 {
+		return false
+	}
+	prog, args := words[0], words[1:]
+	if shells[path.Base(prog)] { // bash -x tools/check.sh
+		for len(args) > 0 && strings.HasPrefix(args[0], "-") && args[0] != "-c" {
+			args = args[1:]
+		}
+		if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+			prog, args = args[0], args[1:]
+		}
+	}
+	if slices.ContainsFunc(args, func(a string) bool { return asks[a] }) {
+		return false
+	}
+	if strings.Contains(fields[0], "/") {
+		want, got := path.Clean(fields[0]), path.Clean(prog)
+		if got != want && (strings.HasPrefix(want, "/") || !strings.HasSuffix(got, "/"+want)) {
+			return false
+		}
+	} else if path.Base(prog) != fields[0] {
+		return false
+	}
+	ops := operands(args, valueFlags[fields[0]])
+	return len(ops) >= len(fields)-1 && slices.Equal(ops[:len(fields)-1], fields[1:])
+}
+
+// asks are the flags of a call that only asks for a version, help or a listing.
+var asks = map[string]bool{"--version": true, "-version": true, "--help": true, "-help": true, "-h": true, "-list": true,
+	"-showsdks": true, "-showBuildSettings": true, "-showdestinations": true}
+
+// Run is a shared run as the guard reads it (run.list).
+type Run struct {
+	Kind   string // its lease kind, scope:name
+	Name   string
+	Cmds   []string
+	AtOnce int
+	SetBy  string
+	Why    string
+}
+
+// RunGuard is the reason to refuse a Bash call with a command one of runs covers while the agent holds no turn at it (holds, by lease
+// kind), "" to let it through. With no runs nothing is refused.
+func RunGuard(tool string, toolInput any, runs []Run, holds func(kind string) bool) string {
 	in, _ := toolInput.(map[string]any)
 	command, ok := in["command"].(string)
-	if tool != "Bash" || !ok {
+	if tool != "Bash" || !ok || len(runs) == 0 {
 		return ""
 	}
-	for _, st := range LeaseStarters(command) {
-		if limit(st.Kind) > 0 && !holds(st.Kind) {
-			return refusal(st, limit(st.Kind))
+	for _, w := range Commands(command) {
+		var by []Run
+		for _, r := range runs {
+			if slices.ContainsFunc(r.Cmds, func(c string) bool { return Covers(c, w) }) && !holds(r.Kind) {
+				by = append(by, r)
+			}
+		}
+		if len(by) > 0 {
+			return runRefusal(w, by)
 		}
 	}
 	return ""
 }
 
-func refusal(st Starter, limit int) string {
-	kind, words := st.Kind, st.Words
-	how := "hl use " + kind + " -- " + strings.Join(words, " ")
-	if name := path.Base(words[0]); name == "xcrun" || name == "open" { // they return at once and leave the simulator running
-		how = "hl use simulator --hold, then " + strings.Join(words, " ") + ", then hl use --release"
+func runRefusal(words []string, by []Run) string {
+	var names []string
+	for _, r := range by {
+		names = append(names, r.Name)
 	}
-	return "Refused: this starts a " + leases.Noun(kind) + " outside hl use while at most " + strconv.Itoa(limit) + " may run at once; nothing ran. Run " +
-		how + "."
+	use := "hl use " + strings.Join(names, " ")
+	cmd := strings.Join(words, " ")
+	how := use + " -- " + cmd
+	if name := path.Base(words[0]); name == "xcrun" || name == "open" { // they return at once and leave the simulator running
+		how = use + " --hold, then " + cmd + ", then hl use --release"
+	}
+	what := fmt.Sprintf("the shared run %s covers (at most %d at once, set by %s: %s)", by[0].Name, by[0].AtOnce, by[0].SetBy, by[0].Why)
+	if len(by) > 1 {
+		what = "the shared runs " + strings.Join(names, " and ") + " cover"
+	}
+	return "Refused: " + cmd + " is a command " + what + ", run outside hl use; nothing ran. Run " + how + "."
 }

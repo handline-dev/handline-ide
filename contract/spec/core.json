@@ -60,7 +60,7 @@
   "behind": "doc.push: the version is not the doc's current one. Nothing was taken; data.version is the current one.",
   "reopen": "doc.push, doc.pull: the doc id is not the loaded copy, or the version is older than the kept updates. Open the doc again.",
   "lease_ceiling": "lease.take: no lease came free in 30 minutes for a call held open (a shell with no current task); nothing ran.",
-  "lease_order": "lease.take: no lease is free, and the agent holds a hold, or the calling process runs under a lease of a kind after the asked one in the order heavy, simulator, browser, port; nothing waits and nothing ran.",
+  "lease_order": "lease.take: no lease is free, and the agent holds a hold, or the calling process runs under a lease of a kind after the asked one in the order heavy, simulator, browser, port, then the shared runs by name; nothing waits and nothing ran.",
   "lease_wait": "lease.take: no lease is free, so the agent's current task now waits on a gate task for one and comes back by itself when a lease is reserved for it; hl use exits 75 and nothing ran.",
   "not_git": "The folder is in no git checkout: a workspace's folder is one. The owner makes it one (folder.init) or chooses another folder."
  },
@@ -3983,12 +3983,8 @@
      "required": true,
      "schema": {
       "type": "string",
-      "enum": [
-       "heavy",
-       "simulator",
-       "browser",
-       "port"
-      ]
+      "minLength": 1,
+      "description": "heavy, simulator, browser, port, or the name of a shared run the agent takes (run.list); heavy, simulator and browser limit nothing."
      }
     },
     {
@@ -4069,23 +4065,8 @@
      "name": "kind",
      "required": false,
      "schema": {
-      "oneOf": [
-       {
-        "type": "string",
-        "enum": [
-         "heavy",
-         "simulator",
-         "browser",
-         "port"
-        ]
-       },
-       {
-        "type": "string",
-        "enum": [
-         ""
-        ]
-       }
-      ]
+      "type": "string",
+      "description": "heavy, simulator, browser, port, or the name of a shared run the agent takes (run.list); heavy, simulator and browser limit nothing. Empty or absent: every kind."
      }
     }
    ],
@@ -4136,23 +4117,8 @@
      "name": "kind",
      "required": false,
      "schema": {
-      "oneOf": [
-       {
-        "type": "string",
-        "enum": [
-         "heavy",
-         "simulator",
-         "browser",
-         "port"
-        ]
-       },
-       {
-        "type": "string",
-        "enum": [
-         ""
-        ]
-       }
-      ]
+      "type": "string",
+      "description": "heavy, simulator, browser, port, or the name of a shared run the agent takes (run.list); heavy, simulator and browser limit nothing. Empty or absent: every kind."
      }
     }
    ],
@@ -4216,7 +4182,7 @@
   },
   {
    "name": "lease.get",
-   "summary": "The simulator and browser leases: per kind its limit, who holds each lease (since when, its processes) and who waits, in order.",
+   "summary": "The leases: per kind and per shared run its limit, who holds each lease (since when, its processes) and who waits, in order.",
    "paramStructure": "by-name",
    "params": [],
    "result": {
@@ -4242,17 +4208,12 @@
         "properties": {
          "kind": {
           "type": "string",
-          "enum": [
-           "heavy",
-           "simulator",
-           "browser",
-           "port"
-          ]
+          "description": "heavy, simulator, browser or port, or a shared run's scope:name (mac:xcode, w3:xcode)."
          },
          "max": {
           "type": "integer",
           "minimum": 0,
-          "description": "heavy_max, simulator_max or browser_max; for port, the size of port_range, 0 when unset; 0 is no limit."
+          "description": "A shared run's at_once; for port, the size of port_range, 0 when unset; 0 is no limit, as for heavy, simulator and browser."
          },
          "held": {
           "type": "array",
@@ -4352,6 +4313,297 @@
     "feed": null
    },
    "x-since": 1
+  },
+  {
+   "name": "run.list",
+   "summary": "The shared runs: each a name, the commands it covers, how many may run at once, its scope (This Mac or a workspace), who set it and why, who holds a turn and who waits.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "agent",
+     "required": false,
+     "schema": {
+      "$ref": "#/components/schemas/Who"
+     },
+     "description": "Only the runs this agent takes turns at: This Mac's and its workspace's."
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "runs",
+      "presets"
+     ],
+     "properties": {
+      "runs": {
+       "type": "array",
+       "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+         "kind",
+         "name",
+         "scope",
+         "cmds",
+         "at_once",
+         "why",
+         "set_by",
+         "set_at",
+         "held",
+         "waiting"
+        ],
+        "properties": {
+         "kind": {
+          "type": "string",
+          "description": "Its lease kind, scope:name (lease.get)."
+         },
+         "name": {
+          "type": "string"
+         },
+         "scope": {
+          "type": "string",
+          "description": "mac, or the workspace's key (w3)."
+         },
+         "cmds": {
+          "type": "array",
+          "items": {
+           "type": "string"
+          },
+          "description": "A program (xcodebuild), a program and its first words after its flags (go test), a script path (tools/check.sh, also as ./, bash or an absolute path), or a preset."
+         },
+         "at_once": {
+          "type": "integer",
+          "minimum": 1
+         },
+         "why": {
+          "type": "string"
+         },
+         "set_by": {
+          "type": "string"
+         },
+         "set_at": {
+          "$ref": "#/components/schemas/Timestamp"
+         },
+         "held": {
+          "type": "array",
+          "items": {
+           "type": "object",
+           "additionalProperties": false,
+           "required": [
+            "agent",
+            "since",
+            "hold"
+           ],
+           "properties": {
+            "agent": {
+             "type": "string"
+            },
+            "since": {
+             "$ref": "#/components/schemas/Timestamp"
+            },
+            "hold": {
+             "type": "boolean"
+            }
+           }
+          }
+         },
+         "waiting": {
+          "type": "array",
+          "items": {
+           "type": "object",
+           "additionalProperties": false,
+           "required": [
+            "agent",
+            "since",
+            "position"
+           ],
+           "properties": {
+            "agent": {
+             "type": "string"
+            },
+            "since": {
+             "$ref": "#/components/schemas/Timestamp"
+            },
+            "position": {
+             "type": "integer",
+             "minimum": 1
+            },
+            "task": {
+             "type": "integer",
+             "description": "The task the ask blocks; absent for a call held open."
+            }
+           }
+          }
+         }
+        }
+       }
+      },
+      "presets": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       },
+       "description": "The patterns a run may cover that name what Handline already knows: @build-test (a test or build run), @simulator, @browser."
+      }
+     }
+    }
+   },
+   "x-role": "agent",
+   "x-write": false,
+   "x-since": 1,
+   "description": "A Bash call with a command a run covers, made outside hl use while the agent holds no turn at it, is refused by the agent's hook, naming the hl use line. With no runs, nothing waits.",
+   "x-app-cache": false
+  },
+  {
+   "name": "run.set",
+   "summary": "Keeps a shared run, in place of the one of its name in its scope, applied at once with no approval: any agent for This Mac or its own workspace, the founder for any.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "name",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{0,31}$"
+     },
+     "description": "Not add, remove, list, heavy, simulator, browser or port. This Mac's names and the workspaces' do not clash: refused, field name."
+    },
+    {
+     "name": "scope",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "enum": [
+       "mac",
+       "workspace"
+      ]
+     },
+     "description": "mac: every workspace on this Mac takes turns at it; workspace: only the agents of one workspace, the calling agent's own (an agent may set no other)."
+    },
+    {
+     "name": "workspace",
+     "required": false,
+     "schema": {
+      "type": "string"
+     },
+     "description": "With scope workspace, from the founder: the workspace's key (w3). An agent's call uses its own."
+    },
+    {
+     "name": "cmds",
+     "required": true,
+     "schema": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 20,
+      "items": {
+       "type": "string",
+       "minLength": 1
+      }
+     },
+     "description": "The commands it covers (run.list). A shell or core tool alone (bash, git, go, make ...) is refused: it would cover nearly every command."
+    },
+    {
+     "name": "at_once",
+     "required": false,
+     "schema": {
+      "type": "integer",
+      "minimum": 1
+     },
+     "description": "How many may run at once; 1 (the default) is in turns."
+    },
+    {
+     "name": "why",
+     "required": false,
+     "schema": {
+      "type": "string"
+     },
+     "description": "What it keeps from running at once. Required of an agent: bad_request, field why."
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Accepted"
+    }
+   },
+   "x-role": "agent",
+   "x-write": true,
+   "x-app-write": false,
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ]
+  },
+  {
+   "name": "run.remove",
+   "summary": "Drops a shared run; the turns held now run to their end, and nothing waits for it again.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "name",
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    },
+    {
+     "name": "scope",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "enum": [
+       "mac",
+       "workspace"
+      ]
+     },
+     "description": "mac: every workspace on this Mac takes turns at it; workspace: only the agents of one workspace, the calling agent's own (an agent may set no other)."
+    },
+    {
+     "name": "workspace",
+     "required": false,
+     "schema": {
+      "type": "string"
+     },
+     "description": "With scope workspace, from the founder: the workspace's key (w3). An agent's call uses its own."
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Accepted"
+    }
+   },
+   "x-role": "agent",
+   "x-write": true,
+   "x-app-write": false,
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ]
   },
   {
    "name": "load.get",

@@ -17,7 +17,6 @@ import (
 	"github.com/handline/handline/go/internal/hooks"
 	"github.com/handline/handline/go/kit/pyjson"
 	"github.com/handline/handline/go/protocol/sessiontoken"
-	"github.com/handline/handline/go/scheduler/leases"
 	"github.com/handline/handline/go/scheduler/session"
 )
 
@@ -91,8 +90,7 @@ func hook(c *hlclient.Client, args []string) (int, bool) {
 	}
 	why := session.Guard(tool, input)
 	if why == "" {
-		why = session.LeaseGuard(tool, input, func(kind string) int { return leases.Max(usage.LoadConfig(c.Home), kind) },
-			func(kind string) bool { return holds(c, agent, kind) })
+		why = session.RunGuard(tool, input, sharedRuns(c, agent, tool), func(kind string) bool { return holds(c, agent, kind) })
 	}
 	if why == "" && session.PushesToGit(tool, input) {
 		cwd, _ := raw["cwd"].(string)
@@ -182,6 +180,30 @@ func subagentStart(c *hlclient.Client, agent string, raw map[string]any) string 
 	}
 	why, _ := res["deny"].(string)
 	return why
+}
+
+// sharedRuns are the shared runs agent takes turns at, asked within 2s for a Bash call only; a daemon that does not answer says none.
+func sharedRuns(c *hlclient.Client, agent, tool string) []session.Run {
+	if tool != "Bash" {
+		return nil
+	}
+	quick := &hlclient.Client{Home: c.Home, Dial: hlclient.Dialer(c.Home, 2*time.Second), As: "hook", Deadline: 2 * time.Second}
+	got, err := quick.Call("run.list", map[string]any{"agent": agent})
+	if err != nil {
+		return nil
+	}
+	var out []session.Run
+	for _, r := range list(got, "runs") {
+		run := session.Run{Kind: str(r, "kind"), Name: str(r, "name"), AtOnce: int(num(r, "at_once")), SetBy: str(r, "set_by"), Why: str(r, "why")}
+		cmds, _ := r["cmds"].([]any)
+		for _, x := range cmds {
+			if s, ok := x.(string); ok {
+				run.Cmds = append(run.Cmds, s)
+			}
+		}
+		out = append(out, run)
+	}
+	return out
 }
 
 // holds is whether agent holds a lease of kind taken with --hold, asked within 2s; a daemon that does not answer says no.

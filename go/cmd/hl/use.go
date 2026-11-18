@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"slices"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -16,9 +17,20 @@ import (
 )
 
 // useCmd is hl use <kind...> -- <command...> (take each lease, run, give them back, exit as the command did), hl use <kind> --hold
-// hl use --release [<kind>] and hl use --extend [<kind>]. Several kinds are asked in the fixed order leases.Kinds, so no two asks wait on each other. A shell
-// that is not an agent's runs the command without a lease.
+// hl use --release [<kind>] and hl use --extend [<kind>], where a kind is port or a shared run's name; and hl use add, remove and list
+// for the shared runs. Several are asked in the fixed order (leases.Kinds, then the runs by name), so no two asks wait on each other.
+// A shell that is not an agent's runs the command without a lease.
 func useCmd(c *hlclient.Client, args []string) (int, bool) {
+	if len(args) > 0 {
+		switch args[0] {
+		case "add":
+			return useAdd(c, args[1:])
+		case "remove":
+			return useRemove(c, args[1:])
+		case "list":
+			return useList(c, args[1:])
+		}
+	}
 	var command []string
 	for i, a := range args {
 		if a == "--" {
@@ -30,17 +42,19 @@ func useCmd(c *hlclient.Client, args []string) (int, bool) {
 	if !ok {
 		return 0, false
 	}
-	for _, k := range p.pos {
-		if !leases.Known(k) {
-			return 0, false
-		}
-	}
-	var kinds []string // p.pos in the fixed order, once each
+	var kinds, named []string // p.pos in the fixed order, once each: the kinds, then the shared runs by name
 	for _, k := range leases.Kinds {
 		if slices.Contains(p.pos, k) {
 			kinds = append(kinds, k)
 		}
 	}
+	for _, k := range p.pos {
+		if !leases.Known(k) && !slices.Contains(named, k) {
+			named = append(named, k)
+		}
+	}
+	slices.Sort(named)
+	kinds = append(kinds, named...)
 	hold, release, extend := p.flags["--hold"], p.flags["--release"], p.flags["--extend"]
 	switch {
 	case extend && !hold && !release && command == nil && len(kinds) <= 1:
@@ -122,10 +136,13 @@ func useCmd(c *hlclient.Client, args []string) (int, bool) {
 		}
 		lease, port := num(got, "lease"), num(got, "port")
 		taken = append(taken, lease)
-		if w := num(got, "waited_s"); w > 0 {
-			fmt.Fprintf(os.Stderr, "hl use: waited %s for a %s\n", time.Duration(w)*time.Second, kind)
-		}
 		what := "a " + kind
+		if !leases.Known(kind) {
+			what = "a turn at " + kind
+		}
+		if w := num(got, "waited_s"); w > 0 {
+			fmt.Fprintf(os.Stderr, "hl use: waited %s for %s\n", time.Duration(w)*time.Second, what)
+		}
 		if kind == leases.Port {
 			what = fmt.Sprintf("port %d", port)
 			env = []string{fmt.Sprintf("HL_PORT=%d", port)}
@@ -188,7 +205,11 @@ func leaseText(got obj) string {
 		if len(held) == 0 && len(queue) == 0 && limit == 0 {
 			continue
 		}
-		line := fmt.Sprintf("%ss: %d held", leases.Noun(str(k, "kind")), len(held))
+		kind := str(k, "kind")
+		line := fmt.Sprintf("%ss: %d held", leases.Noun(kind), len(held))
+		if name, ok := leases.SharedName(kind); ok {
+			line = fmt.Sprintf("shared run %s: %d held", name, len(held))
+		}
 		if limit > 0 {
 			line += fmt.Sprintf(" of %d", limit)
 		} else {
@@ -203,7 +224,7 @@ func leaseText(got obj) string {
 		out += line + "\n"
 	}
 	if out != "" {
-		out = "\n" + out + "`hl use <heavy|simulator|browser|port> -- <command>` waits for one and gives it back when the command exits.\n"
+		out = "\n" + out + "`hl use <run|port> -- <command>` waits for a turn and gives it back when the command exits.\n"
 	}
 	return out
 }
@@ -214,4 +235,90 @@ func agentsOf(rows []obj) string {
 		who[i] = str(r, "agent")
 	}
 	return strings.Join(who, ", ")
+}
+
+// useAdd is hl use add <name> --cmd <command> [--cmd ...] [--at-once N] [--mac | --workspace <w>] --why "...": a shared run for this
+// agent's workspace (the founder's --workspace), or with --mac for This Mac, kept at once in place of the one of that name.
+func useAdd(c *hlclient.Client, args []string) (int, bool) {
+	p, ok := parse(args, []string{"--cmd", "--at-once", "--why", "--workspace"}, []string{"--mac"}, nil)
+	if !ok || len(p.pos) != 1 || len(p.each["--cmd"]) == 0 || (p.opts["--why"] == "" && c.CurrentAgent() != "") {
+		return 0, false
+	}
+	params := runParams(p)
+	params["why"] = p.opts["--why"]
+	cmds := []any{}
+	for _, x := range p.each["--cmd"] {
+		cmds = append(cmds, x)
+	}
+	params["cmds"] = cmds
+	if n := p.opts["--at-once"]; n != "" {
+		v, err := strconv.Atoi(n)
+		if err != nil {
+			return 0, false
+		}
+		params["at_once"] = v
+	}
+	return said(c.Write("run.set", params)), true
+}
+
+// useRemove is hl use remove <name> [--mac | --workspace <w>].
+func useRemove(c *hlclient.Client, args []string) (int, bool) {
+	p, ok := parse(args, []string{"--workspace"}, []string{"--mac"}, nil)
+	if !ok || len(p.pos) != 1 {
+		return 0, false
+	}
+	return said(c.Write("run.remove", runParams(p))), true
+}
+
+// runParams is a run's name and scope: This Mac with --mac, else a workspace, the agent's own or the founder's --workspace.
+func runParams(p parsed) map[string]any {
+	out := map[string]any{"name": p.pos[0], "scope": "workspace"}
+	if p.flags["--mac"] {
+		out["scope"] = "mac"
+	}
+	if w := p.opts["--workspace"]; w != "" {
+		out["workspace"] = w
+	}
+	return out
+}
+
+// useList is hl use list: the shared runs this agent takes turns at (every run from a shell that is no agent's), and the presets.
+func useList(c *hlclient.Client, args []string) (int, bool) {
+	if len(args) > 0 {
+		return 0, false
+	}
+	params := map[string]any{}
+	if agent := c.CurrentAgent(); agent != "" {
+		params["agent"] = agent
+	}
+	got, err := c.Call("run.list", params)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "hl use: %v\n", err)
+		return 1, true
+	}
+	runs := list(got, "runs")
+	if len(runs) == 0 {
+		fmt.Println("No shared runs: nothing waits for a turn.")
+	}
+	for _, r := range runs {
+		where := "This Mac"
+		if s := str(r, "scope"); s != "mac" {
+			where = "workspace " + s
+		}
+		fmt.Printf("%s (%s): %d at once, %s; %d held, %d waiting\n    set by %s: %s\n", str(r, "name"), where, num(r, "at_once"),
+			strings.Join(strs(r, "cmds"), ", "), len(list(r, "held")), len(list(r, "waiting")), str(r, "set_by"), str(r, "why"))
+	}
+	fmt.Printf("Presets a run may cover: %s\n", strings.Join(strs(got, "presets"), ", "))
+	return 0, true
+}
+
+func strs(o obj, k string) []string {
+	var out []string
+	xs, _ := o[k].([]any)
+	for _, x := range xs {
+		if s, ok := x.(string); ok {
+			out = append(out, s)
+		}
+	}
+	return out
 }
