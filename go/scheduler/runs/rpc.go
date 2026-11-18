@@ -191,6 +191,9 @@ func set(c *rpc.Conn, p map[string]any, book *Book) (any, error) {
 		if why := Clash(all, r); why != "" {
 			return nil, bad(why, "name")
 		}
+		if err := theFounders(c, all, ws, r.Name); err != nil {
+			return nil, err
+		}
 		if err := Set(tx, r); err != nil {
 			return nil, err
 		}
@@ -208,6 +211,13 @@ func remove(c *rpc.Conn, p map[string]any, book *Book) (any, error) {
 	}
 	name, _ := p["name"].(string)
 	return c.Effect(func(tx *sql.Tx) (map[string]any, error) {
+		all, err := All(tx)
+		if err != nil {
+			return nil, err
+		}
+		if err := theFounders(c, all, ws, name); err != nil {
+			return nil, err
+		}
 		gone, err := Remove(tx, ws, name)
 		if err != nil {
 			return nil, err
@@ -222,6 +232,19 @@ func remove(c *rpc.Conn, p map[string]any, book *Book) (any, error) {
 		c.Server().Log("run: %s removed %s", c.Caller.Actor(), r.Key())
 		return said(fmt.Sprintf("%s no longer takes turns for %s", name, where(r))), nil
 	})
+}
+
+// theFounders refuses an agent the run of name in ws that a person set: only the founder changes or removes his.
+func theFounders(c *rpc.Conn, all []Run, ws int64, name string) error {
+	if c.Caller.Kind != "agent" {
+		return nil
+	}
+	for _, o := range all {
+		if k, _, _ := actor.Parse(o.SetBy); o.Workspace == ws && o.Name == name && k == actor.Person {
+			return rpc.Refused("set by the founder; ask him on your task", "", "")
+		}
+	}
+	return nil
 }
 
 // where is the run's scope in words.

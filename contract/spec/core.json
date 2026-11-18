@@ -4459,7 +4459,7 @@
   },
   {
    "name": "run.set",
-   "summary": "Keeps a shared run, in place of the one of its name in its scope, applied at once with no approval: any agent for This Mac or its own workspace, the founder for any.",
+   "summary": "Keeps a shared run, in place of the one of its name in its scope, applied at once with no approval: any agent for This Mac or its own workspace, the founder for any. An agent's change of a run the founder set is refused: set by the founder.",
    "paramStructure": "by-name",
    "params": [
     {
@@ -4543,12 +4543,15 @@
    "errors": [
     {
      "$ref": "#/components/errors/bad_request"
+    },
+    {
+     "$ref": "#/components/errors/refused"
     }
    ]
   },
   {
    "name": "run.remove",
-   "summary": "Drops a shared run; the turns held now run to their end, and nothing waits for it again.",
+   "summary": "Drops a shared run; the turns held now run to their end, and nothing waits for it again. An agent's remove of a run the founder set is refused: set by the founder.",
    "paramStructure": "by-name",
    "params": [
     {
@@ -4602,6 +4605,9 @@
     },
     {
      "$ref": "#/components/errors/bad_request"
+    },
+    {
+     "$ref": "#/components/errors/refused"
     }
    ]
   },

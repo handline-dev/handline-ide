@@ -1,5 +1,6 @@
 // Package runs keeps the shared runs: a named set of commands that agents take in turns through hl use, at most AtOnce at a time,
-// across this Mac or within one workspace. Any agent sets one for this Mac or its own workspace, applied at once; the founder sets any.
+// across this Mac or within one workspace. Any agent sets one for this Mac or its own workspace, applied at once, but changes or
+// removes none the founder set; the founder sets any.
 // Each is a row of workspace_settings under the key run.<name>: workspace 0 is This Mac. No run, nothing waits.
 package runs
 
