@@ -14,3 +14,24 @@ describe('a done task whose evidence says FAIL', () => {
     expect(look(done('merged abc')).word).toBe('Done');
   });
 });
+
+describe('the hand is for the founder alone', () => {
+  const open = (state: string, waiting: { on: string } | null, block: string | null = null) => ({
+    state,
+    waiting,
+    block_reason: block,
+    hold_reason: null,
+  });
+  it('a task waiting on the founder shows the hand', () => expect(look(open('doing', { on: 'founder' })).word).toBe('Waiting'));
+  it('a queued task waiting on an agent or a task reads as queued', () => {
+    expect(look(open('queued', { on: 'agent' })).word).toBe('Up next');
+    expect(look(open('queued', { on: 'task' })).word).toBe('Up next');
+  });
+  it('a task under way waiting on another reads as blocked', () => {
+    expect(look(open('doing', { on: 'task' })).word).toBe('Blocked');
+    expect(look(open('doing', null, 'disk low')).word).toBe('Blocked');
+  });
+});
+
+it("a task on the founder's turn shows the hand", () =>
+  expect(look({ state: 'doing', block_reason: null, hold_reason: null, turns: [{}], acting: 'human' }).word).toBe('Waiting'));
