@@ -4,27 +4,87 @@ import { openSettings } from '#src/settings/open.ts';
 import { useOpenable } from '#src/layout/openable.tsx';
 import { Button, useAction } from '#src/ui/Button.tsx';
 import { ActivityIcon } from '#src/ui/activityIcon.tsx';
-import { Page } from '#src/ui/Page.tsx';
 import { toast } from '#src/ui/toast.tsx';
+import { Dots } from '#src/chat/Dots.tsx';
 
-/** At the chat's top while the agent stands still: the sidebar's mark, why in full, and the one button that gets it going. */
-export function HoldBar({ agent }: { agent: string }) {
-  const a = useAgents().data?.agents.find((x) => x.key === agent);
+/** Whether the agent's account needs a login: the card's Log in. */
+function useNeedsLogin(a: { account: string | null } | undefined, act: string | null) {
   const accounts = useAccounts().data?.accounts;
+  return act === 'error' && accounts?.find((x) => x.name === a?.account)?.login_state === 'needs_login';
+}
+
+/** A wait by design, for the foot's dots row while the turn is still: its mark and its line; null when the card says it. */
+export function useHoldLine(agent: string) {
+  const a = useAgents().data?.agents.find((x) => x.key === agent);
+  const act = a ? activityOf(a) : null;
+  const login = useNeedsLogin(a, act);
+  const line = a && !restarting(a) && holdLine(a); // a restart shows in the turn's row already
+  if (!a || !act || !line || login || a.needs_you?.source === 'daemon') return null;
+  return { act, line };
+}
+
+/** The chat foot's row, always there so nothing moves: while the turn runs, the dots with the restart, the held task and its minutes,
+ * and the newest tool call; while it is still, what the agent waits on, with its mark in the dots' place. */
+export function FootRow({
+  busy,
+  hold,
+  restart,
+  held,
+  doing,
+  turn,
+}: {
+  busy: boolean;
+  hold: ReturnType<typeof useHoldLine>;
+  restart: string | null;
+  held: { id: number } | null | undefined;
+  doing: string | undefined;
+  turn: string;
+}) {
+  return (
+    <div className={`h-5 transition-opacity ${busy || hold ? 'opacity-100' : 'opacity-0'}`} aria-hidden={!busy && !hold}>
+      {!busy && hold ? (
+        <span className="flex items-center gap-2 text-xs text-muted">
+          <span className="grid size-4 shrink-0 place-items-center">
+            <ActivityIcon act={hold.act} />
+          </span>
+          <span className="min-w-0 truncate">{hold.line}</span>
+        </span>
+      ) : (
+        <span className="flex items-center gap-2">
+          <Dots />
+          <span className="min-w-0 truncate text-xs text-muted">
+            {restart && <span className="font-medium text-fg">{restart}</span>}
+            {restart && (held || doing) && ' · '}
+            {held && (
+              <span className="font-medium text-fg">
+                T{held.id} · {turn}
+              </span>
+            )}
+            {held && doing && ' · '}
+            {doing}
+          </span>
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** At the chat's foot, beside the pause and prompt cards: a fault the daemon raised (or an account to log in to), why in full, and the
+ * one button that gets the agent going. */
+export function HoldCard({ agent }: { agent: string }) {
+  const a = useAgents().data?.agents.find((x) => x.key === agent);
   const unstall = useUnstall(agent);
   const terminal = useOpenable('shell');
   const wake = useAction();
-  const line = a && !restarting(a) && holdLine(a); // a restart shows at the chat's foot, in the turn's row
   const need = a?.needs_you?.source === 'daemon' ? a.needs_you : null;
-  if (!a || (!line && !need)) return null;
-  const act = activityOf(a);
-  const tone = act === 'error' ? 'bg-danger/10' : act === 'you' ? 'bg-warning/10' : 'bg-hover';
-  const needsLogin = act === 'error' && accounts?.find((x) => x.name === a.account)?.login_state === 'needs_login';
+  const act = a ? activityOf(a) : null;
+  const needsLogin = useNeedsLogin(a, act);
+  if (!a || !act || (!need && !needsLogin)) return null;
   const button =
     need?.kind === 'start_failed' || need?.kind === 'no_session' ? (
       <Button
         busy={wake.busy}
-        // A refused wake has cleared the stall all the same, so this bar may be gone by the answer: the reason is a toast.
+        // A refused wake has cleared the stall all the same, so this card may be gone by the answer: the reason is a toast.
         onClick={() => void wake.go(() => unstall().catch((e: unknown) => toast(sentence(classify(e)), { tone: 'warning' })))}
       >
         Try again
@@ -35,23 +95,17 @@ export function HoldBar({ agent }: { agent: string }) {
       <Button {...terminal}>Open terminal</Button>
     ) : null;
   return (
-    <Page>
-      <div role="status" className={`mt-2 flex items-start gap-2 rounded-lg px-3 py-2 text-sm ${tone}`}>
+    <div role="status" className="flex max-w-150 flex-col gap-3 rounded-lg border border-border p-3 text-sm">
+      <div className="flex gap-2.5">
         <span className="mt-0.5 grid size-4 shrink-0 place-items-center">
           <ActivityIcon act={act} />
         </span>
-        <div className="min-w-0 flex-1 break-words">
-          {need ? (
-            <>
-              <div className="font-medium">{need.title}</div>
-              {need.text && <div className="text-muted">{need.text}</div>}
-            </>
-          ) : (
-            line
-          )}
-          {button && <div className="mt-2 flex justify-end">{button}</div>}
+        <div className="flex min-w-0 flex-col gap-0.5 break-words">
+          <span className="font-medium">{need?.title ?? holdLine(a)}</span>
+          {need?.text && <span className="text-muted">{need.text}</span>}
         </div>
       </div>
-    </Page>
+      {button && <div className="flex justify-end">{button}</div>}
+    </div>
   );
 }
