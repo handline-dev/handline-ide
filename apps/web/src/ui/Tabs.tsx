@@ -5,7 +5,7 @@ import { clickPick, dragged, noPick, type Pick } from '#src/ui/tabPick.ts';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { useSpringOpen } from '#src/ui/springOpen.ts';
 import { useScrollFade } from '#src/ui/ScrollFade.tsx';
-import { ContextMenu, Menu, MenuItem, MenuSeparator } from '#src/ui/Menu.tsx';
+import { ContextMenu, Menu, MenuItem, MenuSeparator, SubMenu } from '#src/ui/Menu.tsx';
 
 /** `closable: false` pins a tab: no close button, and onClose is never called for it. `dot`: what marks it right of its label. */
 export type TabItem = { id: string; title: string; closable?: boolean; icon?: ReactNode; dot?: ReactNode };
@@ -101,9 +101,9 @@ export function TabBar({
   onClose: (id: string) => void;
   /** Right-click on a tab: Close others, Close tabs to the right, Close all (pinned tabs stay). */
   onCloseTabs?: (ids: string[]) => void;
-  /** What + can open: a menu of these; picking one calls onAdd with its kind. */
-  newTabKinds?: { kind: string; label: string; icon?: ReactNode }[];
-  onAdd?: (kind: string, how: How) => void;
+  /** What + can open: a menu of these; picking one calls onAdd with its kind. A kind with `agents` asks which first, in a submenu. */
+  newTabKinds?: { kind: string; label: string; icon?: ReactNode; agents?: { key: string; label: string }[] }[];
+  onAdd?: (kind: string, how: How, agent?: string) => void;
   /** A drag from tab `id`; `ids` is what it carries: the picked tabs when `id` is one of them, else `id` alone. */
   onTabDragStart?: (id: string, ids: string[], e: React.DragEvent) => void;
 }) {
@@ -223,11 +223,21 @@ export function TabBar({
             </IconButton>
           }
         >
-          {newTabKinds.map((k) => (
-            <MenuItem key={k.kind} icon={k.icon} onClick={(e) => onAdd(k.kind, inPane(howOf(e)))}>
-              {k.label}
-            </MenuItem>
-          ))}
+          {newTabKinds.map((k) =>
+            k.agents ? (
+              <SubMenu key={k.kind} icon={k.icon} label={k.label}>
+                {k.agents.map((a) => (
+                  <MenuItem key={a.key} onClick={(e) => onAdd(k.kind, inPane(howOf(e)), a.key)}>
+                    {a.label}
+                  </MenuItem>
+                ))}
+              </SubMenu>
+            ) : (
+              <MenuItem key={k.kind} icon={k.icon} onClick={(e) => onAdd(k.kind, inPane(howOf(e)))}>
+                {k.label}
+              </MenuItem>
+            ),
+          )}
         </Menu>
       )}
     </div>

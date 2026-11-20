@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { read, write } from '#src/persist/kv.ts';
 import { sweepTabState, tabIds } from '#src/persist/tabState.ts';
-import { canonical, labelOf } from '#src/layout/kinds.tsx';
+import { canonical, carry, labelOf } from '#src/layout/kinds.tsx';
 import {
   CLOSED_KEPT,
   closedBy,
@@ -136,7 +136,9 @@ export function useAgentLayouts() {
         const e = ensured({ ...s, agent: to });
         // Another agent's chat is that agent's own Chat in its workspace.
         const agent = to.startsWith(PAGE) ? null : to;
-        const moved = taken.tabs.map((t) => ({ ...t, opens: canonical(t.opens!, agent) }));
+        // A tab of the agent's own (its terminal, its changes) keeps naming it in another workspace.
+        const owner = from.startsWith(PAGE) ? null : from;
+        const moved = taken.tabs.map((t) => ({ ...t, opens: canonical(carry(t.opens!, owner), agent) }));
         return { ...e, layouts: { ...e.layouts, [from]: taken.root, [to]: putTabs(e.layouts[to], moved, shown, at) } };
       });
     },
