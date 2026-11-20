@@ -165,24 +165,13 @@ func TestTheLoadLimitsAreWholeNumbersForTheWholeMachine(t *testing.T) {
 	}
 }
 
-func TestTheLeaseLimitsAreSetAndClearedForTheWholeMachine(t *testing.T) {
+// The old per-kind limits are unknown keys now: a shared run is what takes turns.
+func TestTheOldLeaseLimitsAreRefused(t *testing.T) {
 	r := newRig(t)
-	r.result(r.one("settings.set", `{"changes":{"heavy_max":3,"simulator_max":1,"browser_max":2},"request_id":"m1"}`))
-	if got := r.file("config.yaml"); !strings.Contains(got, "heavy_max: 3") || !strings.Contains(got, "simulator_max: 1") ||
-		!strings.Contains(got, "browser_max: 2") {
-		t.Fatalf("%q", got)
-	}
-	for i, bad := range []string{`{"browser_max":-1}`, `{"simulator_max":"2"}`} {
-		if r.code(r.one("settings.set", `{"changes":`+bad+`,"request_id":"m`+strconv.Itoa(i+2)+`"}`)) != "bad_request" {
-			t.Fatalf("%s was taken", bad)
+	for i, key := range []string{"heavy_max", "simulator_max", "browser_max"} {
+		if r.code(r.one("settings.set", `{"changes":{"`+key+`":1},"request_id":"m`+strconv.Itoa(i)+`"}`)) != "bad_request" {
+			t.Fatalf("%s was taken", key)
 		}
-	}
-	if r.code(r.one("settings.set", `{"changes":{"browser_max":1},"agent":"alice","request_id":"m5"}`)) != "bad_request" {
-		t.Fatal("a lease limit has no per-agent value")
-	}
-	r.result(r.one("settings.set", `{"changes":{"simulator_max":null,"browser_max":0},"request_id":"m6"}`))
-	if got := r.file("config.yaml"); strings.Contains(got, "simulator_max") || !strings.Contains(got, "browser_max: 0") {
-		t.Fatalf("cleared: %q", got)
 	}
 }
 

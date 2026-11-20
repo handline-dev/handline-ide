@@ -23,8 +23,7 @@ func TestARuleValueIsOfItsKeysKind(t *testing.T) {
 		{RuleAgentCap, -1.0, nil, "whole number"},
 		{RuleAgentCap, 1.5, nil, "whole number"},
 		{RuleAgentCap, "3", nil, "whole number"},
-		{"lease_max.browser", 2.0, int64(2), ""},
-		{"lease_max.", 2.0, nil, "not a kept rule"},
+		{"lease_max.browser", 2.0, nil, "not a kept rule"},
 		{RuleAccounts, []any{"alpha", " gamma ", "alpha"}, []string{"alpha", "gamma"}, ""},
 		{RuleAccounts, []any{}, []string{}, ""},
 		{RuleAccounts, []any{""}, nil, "list of names"},
@@ -71,7 +70,6 @@ func TestAWorkspacesRuleBeatsTheMachineDefaultWhichBeatsNone(t *testing.T) {
 	}{
 		{RuleAccounts, []string{"alpha"}, []string{"gamma"}},
 		{RuleAgentCap, int64(3), int64(1)},
-		{"lease_max.simulator", int64(2), int64(1)},
 		{RuleToolsDeny, []string{"WebFetch"}, []string{"Bash"}},
 		{RuleModeMax, "acceptEdits", "plan"},
 		{RuleReviewRequired, false, true},
@@ -137,15 +135,14 @@ func TestTheRulesInForceAreRenderedUnderTheTeamsText(t *testing.T) {
 	must(t, SetRule(d, shop, RuleReviewRequired, true, "p1", 1))
 	must(t, SetRule(d, shop, RuleToolsDeny, []string{"WebFetch", "Bash"}, "p1", 1))
 	must(t, SetRule(d, MachineRules, RuleAgentCap, int64(3), "p1", 1))
-	must(t, SetRule(d, MachineRules, "lease_max.simulator", int64(1), "p1", 1))
 	must(t, SetRule(d, MachineRules, RuleAccounts, []string{}, "p1", 1))
-	want := "# Rules for team shop\nbe kind\n\nKept rules (set by the owner): agent_cap 3; lease_max.simulator 1; " +
+	want := "# Rules for team shop\nbe kind\n\nKept rules (set by the owner): agent_cap 3; " +
 		"tools_deny WebFetch, Bash (from the next session); review_required on."
 	if got := Rules(d, "a", tm, (&KeptBlocks{Q: d}).Block); !reflect.DeepEqual(got, []string{want}) {
 		t.Fatalf("got %q", got)
 	}
 	// lab has no text: the machine's rules alone make its part
-	if got := Rules(d, "b", tm, (&KeptBlocks{Q: d}).Block); len(got) != 1 || !strings.HasPrefix(got[0], "# Rules for team lab\nKept rules (set by the owner): agent_cap 3; lease_max.simulator 1.") {
+	if got := Rules(d, "b", tm, (&KeptBlocks{Q: d}).Block); len(got) != 1 || !strings.HasPrefix(got[0], "# Rules for team lab\nKept rules (set by the owner): agent_cap 3.") {
 		t.Fatalf("lab: %q", got)
 	}
 }

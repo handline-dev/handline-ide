@@ -96,12 +96,8 @@ const RULE_ORDER: Record<WorkspaceRule['key'], number> = {
   mode_max: 2,
   tools_deny: 3,
   review_required: 4,
-  'lease_max.heavy': 5,
-  'lease_max.simulator': 6,
-  'lease_max.browser': 7,
-  'lease_max.port': 8,
-  land_by: 9,
-  land_check: 10,
+  land_by: 5,
+  land_check: 6,
 };
 /** Every kept rule's key, in the order the rules column lists them. */
 export const RULE_KEYS = (Object.keys(RULE_ORDER) as WorkspaceRule['key'][]).sort((a, b) => RULE_ORDER[a] - RULE_ORDER[b]);

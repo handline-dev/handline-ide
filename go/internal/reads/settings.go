@@ -143,12 +143,10 @@ func (e *Env) settingsValues() map[string]any {
 		settings.ClearPastBackgroundKey: s.Flag(settings.ClearPastBackgroundKey, false),
 		settings.TranscriptRowsKey:      s.Flag(settings.TranscriptRowsKey, false),
 		settings.RefsNeedGrantKey:       s.Flag(settings.RefsNeedGrantKey, false),
-		leases.HeavyMaxKey:              leases.Max(cfg, leases.Heavy),
 		worktreepool.DiskKeepFreeKey:    worktreepool.GB(cfg, worktreepool.DiskKeepFreeKey) >> 30,
 		worktreepool.AgentsMemoryMaxKey: worktreepool.GB(cfg, worktreepool.AgentsMemoryMaxKey) >> 30,
-		leases.SimulatorMaxKey:          leases.Max(cfg, leases.Simulator), leases.BrowserMaxKey: leases.Max(cfg, leases.Browser),
-		usage.NetworkAddressesKey: hostsSetting(cfg[usage.NetworkAddressesKey]),
-		leases.PortRangeKey:       portRangeSetting(cfg),
+		usage.NetworkAddressesKey:       hostsSetting(cfg[usage.NetworkAddressesKey]),
+		leases.PortRangeKey:             portRangeSetting(cfg),
 	}
 	for _, v := range team.DefaultsVendors {
 		out[team.DefaultModelKey(v)], out[team.DefaultEffortKey(v)] = team.NewAgentDefaultsOf(cfg, v)

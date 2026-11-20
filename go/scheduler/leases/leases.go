@@ -1,14 +1,12 @@
-// Package leases is how many test or build runs, simulators and browsers run at once: an agent asks for a lease in its turn (hl use),
-// waits while every lease of the kind is held, and gives it back when its command exits, when it releases a held one, when its turn or
-// session ends, or when the processes behind it are gone. A freed lease goes to the workspace that held the kind least in the last
-// hour, first come first served inside it. With the kind's limit 0 (the default) every ask is granted at once: the leases are still
-// listed, and nothing waits. The leases are stored, so a restart keeps what is held (docs/design/people-workspaces.md, Resource
-// leases).
+// Package leases is how many agents run a shared run's commands at once, and which ports their servers get: an agent asks for a lease
+// in its turn (hl use), waits while every lease of the kind is held, and gives it back when its command exits, when it releases a held
+// one, when its turn or session ends, or when the processes behind it are gone. A freed lease goes to the workspace that held the kind
+// least in the last hour, first come first served inside it. The leases are stored, so a restart keeps what is held
+// (docs/design/people-workspaces.md, Resource leases).
 package leases
 
 import (
 	"fmt"
-	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -16,29 +14,17 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/handline/handline/go/accounts/usage"
 	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/kit/peer"
 	"github.com/handline/handline/go/scheduler/procload"
 )
 
-// The kinds of lease.
-const (
-	Heavy     = "heavy"     // a test or build run
-	Simulator = "simulator" // iOS Simulator, Android emulator
-	Browser   = "browser"   // Chrome or Chromium for shots, Playwright, CDP
-	Port      = "port"      // a TCP port for a server the command starts, given to it as $HL_PORT
-)
+// Port is the fixed kind of lease: a TCP port for a server the command starts, given to it as $HL_PORT. Every other kind is a shared
+// run's (scope:name).
+const Port = "port"
 
-// Kinds are every kind, in the order the read lists them.
-var Kinds = []string{Heavy, Simulator, Browser, Port}
-
-// The config.yaml keys of each kind's limit: the most leases held at once, 0 for no limit.
-const (
-	HeavyMaxKey     = "heavy_max"
-	SimulatorMaxKey = "simulator_max"
-	BrowserMaxKey   = "browser_max"
-)
+// Kinds are the fixed kinds, asked before the shared runs.
+var Kinds = []string{Port}
 
 // CeilingS is the longest an ask waits before it is refused.
 const CeilingS = 30 * 60
@@ -51,9 +37,6 @@ const ClaimS = 10 * 60
 
 // Noun is what a lease of kind is called in a sentence.
 func Noun(kind string) string {
-	if kind == Heavy {
-		return "test or build run"
-	}
 	if name, ok := SharedName(kind); ok {
 		return "turn at " + name
 	}
@@ -92,31 +75,8 @@ type Shared struct {
 	AtOnce int
 }
 
-// MaxKey is kind's limit key.
-func MaxKey(kind string) string { return kind + "_max" }
-
-// Known is whether kind is a kind of lease.
-func Known(kind string) bool {
-	return kind == Heavy || kind == Simulator || kind == Browser || kind == Port
-}
-
-// Max is kind's limit in cfg: 0 (no limit) when it is absent or not a whole number above 0.
-func Max(cfg usage.Config, kind string) int {
-	switch n := cfg[MaxKey(kind)].(type) {
-	case int:
-		return max(n, 0)
-	case int64:
-		return int(max(n, 0))
-	}
-	return 0
-}
-
-// procOf is what a hold's processes look like, shown on the read; a hold is not freed by them.
-var procOf = map[string]*regexp.Regexp{
-	Heavy:     regexp.MustCompile(`(?i)go test|\.test( |$)|cargo|xcodebuild|swift-(build|test)|vitest|jest|pytest|gradle|mvn|bazel`),
-	Simulator: regexp.MustCompile(`(?i)simulator|launchd_sim|qemu-system|/emulator`),
-	Browser:   regexp.MustCompile(`(?i)chrom|playwright|headless_shell`),
-}
+// Known is whether kind is a fixed kind of lease.
+func Known(kind string) bool { return kind == Port }
 
 // Lease is one held lease.
 type Lease struct {
@@ -192,8 +152,6 @@ type span struct {
 
 // Manager holds the leases and the queues.
 type Manager struct {
-	// Max is kind's limit now, 0 for none.
-	Max func(kind string) int
 	// Shared is the shared runs now, in the order asks take them; nil is none. Their limits are their AtOnce.
 	Shared func() []Shared
 	// Named is the lease kind of the shared run agent knows as name (This Mac's or its workspace's), false for none; nil knows none.
@@ -208,8 +166,6 @@ type Manager struct {
 	Store Store
 	// WorkspaceOf is agent's workspace key, "" for none; nil puts every agent in one.
 	WorkspaceOf func(agent string) string
-	// WorkspaceMax is the kept rule lease_max.<kind> of every workspace, read once per pass; nil is no rule.
-	WorkspaceMax func(kind string) WorkspaceLimits
 	// Tasks blocks an agent's current task while its ask waits; nil holds every ask's call open instead.
 	Tasks Tasks
 	// Ports is the range port leases are picked from (PortRange); nil or not ok, any free port the system gives.
@@ -266,6 +222,13 @@ func (m *Manager) Adopt() error {
 	m.next = max(m.next, last)
 	for _, a := range asks {
 		m.next = max(m.next, a.ID)
+		if m.gone(a.ID, a.Kind) {
+			if m.Tasks != nil {
+				gate := a.Gate
+				m.after = append(m.after, func() { m.Tasks.Dropped(gate, "its kind of lease is gone") })
+			}
+			continue
+		}
 		if m.Tasks == nil { // no task board to close its gate
 			m.forget(a.ID)
 			continue
@@ -274,6 +237,9 @@ func (m *Manager) Adopt() error {
 	}
 	for _, l := range stored {
 		m.next = max(m.next, l.ID)
+		if m.gone(l.ID, l.Kind) {
+			continue
+		}
 		if !l.Hold && !l.Reserved() && !m.ranSince(l.PID, l.Since) {
 			m.forget(l.ID)
 			m.logf("lease: %s's %s (lease %d) freed: its hl use process ended while the daemon was down", l.Agent, l.Kind, l.ID)
@@ -284,6 +250,16 @@ func (m *Manager) Adopt() error {
 		m.logf("lease: %s's %s (lease %d) kept across the restart", l.Agent, l.Kind, l.ID)
 	}
 	return nil
+}
+
+// gone forgets a stored lease or ask of a kind this build has not (heavy, simulator and browser before shared runs), logging it.
+func (m *Manager) gone(id int64, kind string) bool {
+	if _, shared := SharedName(kind); shared || Known(kind) {
+		return false
+	}
+	m.forget(id)
+	m.logf("lease: %d dropped: %s is no kind of lease now", id, kind)
+	return true
 }
 
 // forget removes lease id from the store, logging a failure: the leases in memory stay the truth.
@@ -330,11 +306,6 @@ func (m *Manager) logf(format string, args ...any) {
 // limits is each kind's limit, the shared runs' too, read once.
 func (m *Manager) limits() map[string]int {
 	out := map[string]int{}
-	for _, kind := range Kinds {
-		if m.Max != nil && kind != Port {
-			out[kind] = m.Max(kind)
-		}
-	}
 	if m.Shared != nil {
 		for _, s := range m.Shared() {
 			out[s.Kind] = s.AtOnce
@@ -417,65 +388,6 @@ func (m *Manager) free(kind string, limits map[string]int) (port int, ok bool) {
 	return 0, n < limits[kind]
 }
 
-// Limit is a kept rule lease_max.<kind>: the most leases of the kind a workspace holds at once (0 for none), and who set it.
-type Limit struct {
-	N     int
-	SetBy string
-}
-
-// WorkspaceLimits is lease_max.<kind> by workspace key, the machine's for a workspace with no row of its own.
-type WorkspaceLimits struct {
-	Machine Limit
-	Own     map[string]Limit
-}
-
-// of is ws's limit; none for an agent with no workspace.
-func (w WorkspaceLimits) of(ws string) Limit {
-	if ws == "" {
-		return Limit{}
-	}
-	if l, ok := w.Own[ws]; ok {
-		return l
-	}
-	return w.Machine
-}
-
-// wsLimits is kind's lease_max by workspace.
-func (m *Manager) wsLimits(kind string) WorkspaceLimits {
-	if m.WorkspaceMax == nil {
-		return WorkspaceLimits{}
-	}
-	return m.WorkspaceMax(kind)
-}
-
-// waitingAhead is whether a waiter for kind is in line that a free lease would go to, one not held back by its workspace's lease_max.
-// The caller holds mu.
-func (m *Manager) waitingAhead(kind string, lim WorkspaceLimits) bool {
-	return slices.ContainsFunc(m.queues[kind], func(w *waiter) bool { return m.wsFull(kind, w.ws, lim) == "" })
-}
-
-// wsFull is why ws may hold no more of kind, its lease_max rule as a clause; "" when it may. A reserved lease counts. The caller holds mu.
-func (m *Manager) wsFull(kind, ws string, lim WorkspaceLimits) string {
-	limit := lim.of(ws)
-	if limit.N <= 0 {
-		return ""
-	}
-	n := 0
-	for _, l := range m.held {
-		if l.Kind == kind && l.Workspace == ws {
-			n++
-		}
-	}
-	if n < limit.N {
-		return ""
-	}
-	by := ""
-	if limit.SetBy != "" {
-		by = " (set by " + limit.SetBy + ")"
-	}
-	return fmt.Sprintf("your workspace holds %d, its kept rule lease_max.%s %d%s", n, kind, limit.N, by)
-}
-
 // grant holds l under a new id from now. The caller holds mu.
 func (m *Manager) grant(l Lease) *Lease {
 	m.next++
@@ -541,11 +453,8 @@ func (m *Manager) promote() {
 		if len(m.queues[kind]) == 0 {
 			continue
 		}
-		granted, lim := map[*waiter]bool{}, m.wsLimits(kind)
+		granted := map[*waiter]bool{}
 		for _, w := range m.inLine(kind) {
-			if m.wsFull(kind, w.ws, lim) != "" { // its workspace is at its own limit; the next in line may not be
-				continue
-			}
 			port, ok := m.free(kind, limits)
 			if !ok {
 				break
@@ -616,7 +525,7 @@ func (b *Blocked) Error() string { return b.Why }
 // in line as a blocker on the task. One with none waits here: past ceiling it is a *Refusal naming the holders, and done closing (the
 // asker hung up) ends the wait with no lease.
 func (m *Manager) Take(done <-chan struct{}, kind, agent string, hold bool, pid int, ceiling time.Duration) (*Lease, error) {
-	ws, task, lim := m.workspaceOf(agent), int64(0), m.wsLimits(kind)
+	ws, task := m.workspaceOf(agent), int64(0)
 	if m.Tasks != nil {
 		task = m.Tasks.Current(agent)
 	}
@@ -632,13 +541,7 @@ func (m *Manager) Take(done <-chan struct{}, kind, agent string, hold bool, pid 
 		}
 	}
 	limits := m.limits()
-	full := m.wsFull(kind, ws, lim)
-	if full != "" && kind != Port {
-		if _, free := m.free(kind, limits); !free {
-			full += fmt.Sprintf(", and %s", m.heldBy(kind))
-		}
-	}
-	if full == "" && !m.waitingAhead(kind, lim) {
+	if len(m.queues[kind]) == 0 {
 		port, ok := m.free(kind, limits)
 		if !ok && m.revokeOne(kind, agent, m.periods(limits)[kind]) {
 			port, ok = m.free(kind, limits)
@@ -654,7 +557,7 @@ func (m *Manager) Take(done <-chan struct{}, kind, agent string, hold bool, pid 
 		return nil, &OutOfOrder{why}
 	}
 	if task != 0 {
-		return nil, m.block(kind, agent, ws, task, full)
+		return nil, m.block(kind, agent, ws, task)
 	}
 	w := &waiter{kind: kind, agent: agent, ws: ws, since: m.now(), hold: hold, pid: pid, got: make(chan *Lease, 1)}
 	m.enqueue(w)
@@ -686,24 +589,20 @@ func (m *Manager) Take(done <-chan struct{}, kind, agent string, hold bool, pid 
 		return nil, nil
 	default:
 	}
-	why := m.heldBy(kind)
-	if full = m.wsFull(kind, ws, lim); full != "" {
-		why = full + ", and " + why
-	}
-	return nil, &Refusal{fmt.Sprintf("Refused: no %s came free in %s; %s. Nothing ran.", Noun(kind), ceiling.Round(time.Minute), why)}
+	return nil, &Refusal{fmt.Sprintf("Refused: no %s came free in %s; %s. Nothing ran.", Noun(kind), ceiling.Round(time.Minute), m.heldBy(kind))}
 }
 
 // block puts task's ask for kind in line behind a new gate on the task, or answers the ask already there. Called holding mu; lets it go.
-func (m *Manager) block(kind, agent, ws string, task int64, full string) error {
+func (m *Manager) block(kind, agent, ws string, task int64) error {
 	for _, w := range m.queues[kind] {
 		if w.task == task {
 			m.unlock()
-			return m.blocked(kind, task, w.gate, full)
+			return m.blocked(kind, task, w.gate)
 		}
 	}
 	if m.asking[task] { // another hl use of this task is opening its gate
 		m.unlock()
-		return m.blocked(kind, task, 0, full)
+		return m.blocked(kind, task, 0)
 	}
 	if m.asking == nil {
 		m.asking = map[int64]bool{}
@@ -737,21 +636,17 @@ func (m *Manager) block(kind, agent, ws string, task int64, full string) error {
 		m.drop(id, fmt.Sprintf("T%d now waits for a %s, which comes first", task, Noun(kind)))
 	}
 	m.promote()
-	return m.blocked(kind, task, gate, full)
+	return m.blocked(kind, task, gate)
 }
 
-// blocked is the ask's answer while it waits; full is its workspace's lease_max clause when that is what holds it back.
-func (m *Manager) blocked(kind string, task, gate int64, full string) *Blocked {
+// blocked is the ask's answer while it waits.
+func (m *Manager) blocked(kind string, task, gate int64) *Blocked {
 	on := ""
 	if gate != 0 {
 		on = fmt.Sprintf(" (gate T%d)", gate)
 	}
-	none := fmt.Sprintf("No %s is free", Noun(kind))
-	if full != "" {
-		none = fmt.Sprintf("No %s for you yet: %s", Noun(kind), full)
-	}
-	return &Blocked{Task: task, Gate: gate, Why: fmt.Sprintf("%s: T%d now waits for one%s and comes back by itself once one "+
-		"is reserved for it; then run this hl use again. Take your next task. Nothing ran.", none, task, on)}
+	return &Blocked{Task: task, Gate: gate, Why: fmt.Sprintf("No %s is free: T%d now waits for one%s and comes back by itself once one "+
+		"is reserved for it; then run this hl use again. Take your next task. Nothing ran.", Noun(kind), task, on)}
 }
 
 // unqueue takes w out of its line. The caller holds mu.
@@ -889,14 +784,6 @@ func (m *Manager) Check(procs []procload.Proc) {
 			continue
 		}
 		if l.Hold {
-			l.Pids = nil
-			re := procOf[l.Kind] // nil for a port: no process looks like one
-			for _, p := range procs {
-				if !p.Gone && p.Agent == l.Agent && re != nil && re.MatchString(p.Cmd) {
-					l.Pids = append(l.Pids, p.PID)
-				}
-			}
-			sort.Ints(l.Pids)
 			continue
 		}
 		if m.alive(l.PID) {
@@ -976,7 +863,7 @@ type Waiting struct {
 	Task      int64 // the task the ask blocks; 0 for a call held open
 	Since     int64
 	Position  int    // 1 is next
-	Says      string // "waiting for a browser, 2nd in line, held by a and b"
+	Says      string // "waiting for a turn at sim, 2nd in line, held by a and b"
 }
 
 // Pool is one kind as the read serves it.

@@ -126,7 +126,7 @@ Work happens on a branch, `base-v2`. It cannot land in parts, because the team r
 
 ## Resource leases
 
-**Shared runs (T9277) replace the counted kinds below.** A shared run is a name, the commands it covers (a program, a program and its first words, a script path, or a preset `@build-test`, `@simulator`, `@browser`), how many may run at once (default 1), and a scope: This Mac (every workspace takes turns) or one workspace (its agents only). It is a row of `workspace_settings` under `run.<name>` (workspace 0 is This Mac). Any agent adds, changes or removes one for This Mac or its own workspace with `hl use add|remove|list`, applied at once; the founder may change any (`run.set`, `run.remove`, `run.list`). The PreToolUse hook refuses a Bash command a run covers outside `hl use <name>`. Its lease kind is `scope:name`, asked after the fixed kinds, by name; queue, fairness, max_hold (30 min), gates and restart are as below. `heavy`, `simulator` and `browser` limit nothing now, and `lease_max.<kind>` is not read; their removal is T9279. `port` stays.
+**Shared runs (T9277) replaced the counted kinds below; `heavy`, `simulator`, `browser` and `lease_max.<kind>` were removed (T9279).** A shared run is a name, the commands it covers (a program, a program and its first words, a script path, or a preset `@build-test`, `@simulator`, `@browser`), how many may run at once (default 1), and a scope: This Mac (every workspace takes turns) or one workspace (its agents only). It is a row of `workspace_settings` under `run.<name>` (workspace 0 is This Mac). Any agent adds, changes or removes one for This Mac or its own workspace with `hl use add|remove|list`, applied at once; the founder may change any (`run.set`, `run.remove`, `run.list`). The PreToolUse hook refuses a Bash command a run covers outside `hl use <name>`. Its lease kind is `scope:name`, asked after `port`, by name; queue, fairness, max_hold (30 min), gates and restart are as below. `port` stays.
 
 Today: `hl use` and `go/scheduler/leases` lease `simulator` and `browser`, limits `simulator_max` and `browser_max` (0 = none), one FIFO per kind, 30 minutes to wait, state in memory. `heavy_slots` is only a proposal in `docs/story2-load-research.md`. This adds kinds, a time limit, fairness across workspaces and survival of a restart.
 
@@ -162,7 +162,7 @@ Today's ends stay: the command exits, `--release`, turn end (holds), session end
 - **`max_hold`** per kind, config (simulator 60 min, browser 30, heavy 30, port none), counted from the grant, for commands and holds alike, so a wedged `go test` cannot keep its slot.
 - At 80 % the holder is told how long is left. `hl use --extend` adds one period, up to twice, and is refused while anyone waits.
 - At `max_hold` the lease is revoked when someone waits, else it only shows "over time" and goes the moment someone asks. A waiting ask has no time ceiling: it is a blocker, and it shows in the queue until granted or its task ends.
-- Revoking ends the lease and tells the holder. For a command the daemon signals the process group `hl use` started (TERM, then KILL after 10 s). For a hold there is no group to kill: the holder is told to stop and the lease is ended, never a process picked by name. `procOf` stays a display heuristic.
+- Revoking ends the lease and tells the holder. For a command the daemon signals the process group `hl use` started (TERM, then KILL after 10 s). For a hold there is no group to kill: the holder is told to stop and the lease is ended, never a process picked by name.
 
 ### Restart
 
@@ -197,7 +197,6 @@ Today (main, read from `go/scheduler/lifecycle/launch.go` and `rulesnote.go`): `
 |---|---|---|
 | `accounts` | accounts the workspace's agents may run on (empty = any) | `Admit` / `FindRoom` filter; a pin outside it is refused |
 | `agent_cap` | most agents of the workspace mid-turn at once (0 = none) | the start gate beside the account cap |
-| `lease_max.<kind>` | most leases of a kind the workspace holds at once | the lease grant (fair share, see Resource leases) |
 | `tools_deny` | tools its agents may not use, added to the global list | launch argv and the PreToolUse guard |
 | `mode_max` | strongest mode an agent of it may be given (`plan` < `default` < `acceptEdits` < `auto`) | agent create and settings write |
 | `review_required` | a done with commits (a sha or `--commit`) by an agent of the workspace needs a turn on the task answered with a comment by an agent that did not work it (not the one closing, its holder, or one that handed it on); a done in words only is not held | the task.done write |
@@ -218,7 +217,7 @@ One table test per key: value on the workspace, on the machine only, on neither 
 
 1. `workspace_settings` table, owner write rpc and contract, precedence resolve, rendering into the rules block (go/data, contract). First.
 2. `accounts` filter and `agent_cap` gate (needs 1; touches usage/pick and lifecycle launch).
-3. `lease_max.<kind>` (needs 1 and the leases manager task).
+3. `lease_max.<kind>` (removed by T9279: a workspace's shared run limits its own agents).
 4. `tools_deny` and `mode_max` (needs 1; launch argv and agent create).
 5. `review_required` at task.done (needs 1).
 6. The rules column for T8955: key, value, source (workspace or machine), the `base.md` size (needs 1).

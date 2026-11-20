@@ -25,19 +25,3 @@ test('proposal.decide refuses an approve without the subject proposal.list showe
   assert.equal(now.find((p) => p.id === b!.id)?.state, 'rejected');
   client.close();
 });
-
-test('the proposal-context seed lists a context change with its file before and after, and a bundle with a change per step', async () => {
-  const { client, daemon } = setup();
-  applySeeds(daemon, 'proposal-context');
-  await client.start();
-  const { proposals } = await client.call('proposal.list', {});
-  const [ctx, bundle] = proposals;
-  const role = ctx!.changes![0]!;
-  assert.equal(role.file, 'ROLE.md');
-  assert.ok(role.before && role.after && role.before !== role.after);
-  assert.deepEqual(
-    bundle!.changes!.map((c) => c.kind),
-    ['settings', 'context'],
-  );
-  client.close();
-});

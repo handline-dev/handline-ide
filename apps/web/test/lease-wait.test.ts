@@ -15,7 +15,7 @@ test('a task in line says which resource and who uses it now, and how many are a
   const m = leaseWaits(
     [
       {
-        kind: 'simulator',
+        kind: 'mac:ios-build',
         max: 1,
         held: [held('a5'), held('a6', 77)],
         queue: [
@@ -28,7 +28,7 @@ test('a task in line says which resource and who uses it now, and how many are a
     nameOf,
   );
   expect([...m]).toEqual([
-    [101, { kind: 'simulator', text: 'Waiting for a simulator · in use by daemon-core' }],
-    [102, { kind: 'simulator', text: 'Waiting for a simulator · in use by daemon-core · 1 ahead' }],
+    [101, { kind: 'mac:ios-build', text: 'Waiting for a turn at ios-build · in use by daemon-core' }],
+    [102, { kind: 'mac:ios-build', text: 'Waiting for a turn at ios-build · in use by daemon-core · 1 ahead' }],
   ]);
 });

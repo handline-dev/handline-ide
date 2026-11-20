@@ -6,7 +6,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/handline/handline/go/scheduler/leases"
 	"mvdan.cc/sh/v3/syntax"
 )
 
@@ -16,34 +15,34 @@ var transparent = map[string]bool{"exec": true, "time": true, "nice": true, "env
 
 var shells = map[string]bool{"bash": true, "sh": true, "zsh": true}
 
-// leaseKind is the lease a command starts ("heavy", "simulator" or "browser"), "" when it starts none. words is one command, its
-// leading assignments and transparent words already dropped.
-func leaseKind(words []string) string {
+// preset is the preset (runs.Presets) a command is one of: "@build-test", "@simulator" or "@browser", "" when none. words is one
+// command, its leading assignments and transparent words already dropped.
+func preset(words []string) string {
 	name := path.Base(words[0])
 	rest := words[1:]
 	switch {
 	case name == "xcrun":
 		if len(rest) >= 2 && rest[0] == "simctl" && rest[1] == "boot" {
-			return "simulator"
+			return "@simulator"
 		}
 	case name == "open":
 		for i, r := range rest {
 			if r == "-a" && i+1 < len(rest) && strings.HasPrefix(path.Base(strings.TrimSuffix(rest[i+1], "/")), "Simulator") {
-				return "simulator"
+				return "@simulator"
 			}
 		}
 	case name == "xcodebuild":
 		if has(rest, "test") || has(rest, "test-without-building") {
 			for i, r := range rest {
 				if r == "-destination" && i+1 < len(rest) && strings.Contains(rest[i+1], "Simulator") {
-					return "simulator"
+					return "@simulator"
 				}
 			}
 		}
 	case name == "emulator":
 		for _, r := range rest {
 			if r == "-avd" || strings.HasPrefix(r, "@") {
-				return "simulator"
+				return "@simulator"
 			}
 		}
 	case name == "playwright":
@@ -55,12 +54,12 @@ func leaseKind(words []string) string {
 	case strings.Contains(strings.ToLower(name), "chrom"):
 		for _, r := range rest {
 			if strings.HasPrefix(r, "--headless") {
-				return "browser"
+				return "@browser"
 			}
 		}
 	}
 	if heavy(name, rest) {
-		return "heavy"
+		return "@build-test"
 	}
 	return ""
 }
@@ -180,7 +179,7 @@ func operands(words []string, takesValue map[string]bool) []string {
 	return out
 }
 
-// playwright is "browser" unless playwright's arguments only install, list or describe.
+// playwright is "@browser" unless playwright's arguments only install, list or describe.
 func playwright(args []string) string {
 	if len(args) > 0 {
 		switch args[0] {
@@ -188,7 +187,7 @@ func playwright(args []string) string {
 			return ""
 		}
 	}
-	return "browser"
+	return "@browser"
 }
 
 // firstArg is the index of the program or script a package runner's arguments run, -1 for none: past the flags (and the values of
@@ -260,24 +259,6 @@ func dropRunners(w []string) []string {
 	return w
 }
 
-// Starter is one command in a shell script that starts a test or build run, a simulator or a browser: its kind and words.
-type Starter struct {
-	Kind  string
-	Words []string
-}
-
-// LeaseStarters are the commands in a shell script that start a test or build run, a simulator or a browser, in order; none when
-// there is none or the script cannot be parsed.
-func LeaseStarters(script string) []Starter {
-	var out []Starter
-	for _, w := range Commands(script) {
-		if k := leaseKind(w); k != "" {
-			out = append(out, Starter{k, w})
-		}
-	}
-	return out
-}
-
 // Commands are the commands in a shell script, each as its words without the leading transparent words (dropRunners), in order; none
 // when the script cannot be parsed. It reads the script as shell, so words in quotes and heredoc bodies are not commands; bash -c and
 // sh -c are read one level deep, after the shell's own command. A command run through hl use is one call of hl, so what it runs is
@@ -305,7 +286,7 @@ func commands(script string, depth int) [][]string {
 			return true
 		}
 		out = append(out, w)
-		if shells[path.Base(w[0])] && depth == 0 && leaseKind(w) == "" {
+		if shells[path.Base(w[0])] && depth == 0 && preset(w) == "" {
 			for i, a := range w[1:] {
 				if a == "-c" && i+2 < len(w) {
 					out = append(out, commands(w[i+2], depth+1)...)
@@ -318,15 +299,12 @@ func commands(script string, depth int) [][]string {
 	return out
 }
 
-// presets are the shared run patterns that name a kind leaseKind knows (runs.Presets).
-var presets = map[string]string{"@build-test": leases.Heavy, "@simulator": leases.Simulator, "@browser": leases.Browser}
-
-// Covers is whether a shared run's command cmd covers a command's words: a preset by what leaseKind knows; else the program by name
+// Covers is whether a shared run's command cmd covers a command's words: a preset by what preset knows; else the program by name
 // (xcodebuild covers /usr/bin/xcodebuild build) or by path (tools/check.sh covers bash -x ./tools/check.sh), with cmd's other words
 // first after the program's flags (go test covers go -C go test ./x). A version, help or listing call (xcodebuild -version) is not.
 func Covers(cmd string, words []string) bool {
-	if kind, ok := presets[cmd]; ok {
-		return leaseKind(words) == kind
+	if strings.HasPrefix(cmd, "@") {
+		return preset(words) == cmd
 	}
 	fields := strings.Fields(cmd)
 	if len(fields) == 0 || len(words) == 0 {

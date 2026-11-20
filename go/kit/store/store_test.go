@@ -248,3 +248,40 @@ func TestConcurrentOpensOfANewDatabaseMakeItOnce(t *testing.T) {
 		t.Fatalf("versions %v", got)
 	}
 }
+
+func TestTheLeaseMaxRuleIsDropped(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "db.sqlite")
+	db, err := Open(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, q := range []string{
+		"INSERT INTO workspace_settings(workspace, key, value, set_by, set_at) VALUES(0, 'lease_max.simulator', '1', 'p1', 1), (0, 'agent_cap', '3', 'p1', 1)",
+		"DELETE FROM schema_version WHERE version = 115", // as before the step
+	} {
+		if _, err := db.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	db.Close()
+	if db, err = Open(p); err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	var keys []string
+	rows, err := db.Query("SELECT key FROM workspace_settings ORDER BY key")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var k string
+		if err := rows.Scan(&k); err != nil {
+			t.Fatal(err)
+		}
+		keys = append(keys, k)
+	}
+	if strings.Join(keys, ",") != "agent_cap" {
+		t.Fatalf("kept %v", keys)
+	}
+}

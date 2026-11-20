@@ -60,7 +60,7 @@
   "behind": "doc.push: the version is not the doc's current one. Nothing was taken; data.version is the current one.",
   "reopen": "doc.push, doc.pull: the doc id is not the loaded copy, or the version is older than the kept updates. Open the doc again.",
   "lease_ceiling": "lease.take: no lease came free in 30 minutes for a call held open (a shell with no current task); nothing ran.",
-  "lease_order": "lease.take: no lease is free, and the agent holds a hold, or the calling process runs under a lease of a kind after the asked one in the order heavy, simulator, browser, port, then the shared runs by name; nothing waits and nothing ran.",
+  "lease_order": "lease.take: no lease is free, and the agent holds a hold, or the calling process runs under a lease of a kind after the asked one in the order port, then the shared runs by name; nothing waits and nothing ran.",
   "lease_wait": "lease.take: no lease is free, so the agent's current task now waits on a gate task for one and comes back by itself when a lease is reserved for it; hl use exits 75 and nothing ran.",
   "not_git": "The folder is in no git checkout: a workspace's folder is one. The owner makes it one (folder.init) or chooses another folder."
  },
@@ -2228,24 +2228,6 @@
       "default": "dry",
       "description": "What the daemon does with work its agents left running after its parent died (headless Chrome, vitest, vite, a go test binary, yes, Electron) that has run 30 minutes under a worktree: dry (the default) only logs and records an orphan_would_stop event every 10 minutes; on stops it and records orphan_stopped; off does nothing. Nothing outside a worktree is touched."
      },
-     "heavy_max": {
-      "type": "integer",
-      "minimum": 0,
-      "default": 0,
-      "description": "Most test or build runs (go test, cargo, xcodebuild, vitest and the like) held at once through hl use, over every agent; 0 is no limit, the default. Over it an agent's hl use heavy waits its turn (lease.take), and the PreToolUse guard refuses a test or build command run outside hl use unless the agent holds one; with 0 nothing waits or is refused. A script that runs tests inside (tools/check.sh) is not read."
-     },
-     "simulator_max": {
-      "type": "integer",
-      "minimum": 0,
-      "default": 0,
-      "description": "Most simulators (iOS Simulator, Android emulator) held at once through hl use, over every agent; 0 is no limit, the default. Over it an agent's hl use simulator waits its turn (lease.take), and the PreToolUse guard refuses a simulator started outside hl use unless the agent holds one; with 0 nothing waits or is refused."
-     },
-     "browser_max": {
-      "type": "integer",
-      "minimum": 0,
-      "default": 0,
-      "description": "Most browsers (headless Chrome or Chromium, Playwright) held at once through hl use, over every agent; 0 is no limit, the default. Over it an agent's hl use browser waits its turn (lease.take), and the PreToolUse guard refuses a browser started outside hl use unless the agent holds one; with 0 nothing waits or is refused."
-     },
      "port_range": {
       "oneOf": [
        {
@@ -2755,42 +2737,6 @@
        }
       ],
       "description": "What the daemon does with work its agents left running after its parent died (headless Chrome, vitest, vite, a go test binary, yes, Electron) that has run 30 minutes under a worktree: dry (the default) only logs and records an orphan_would_stop event every 10 minutes; on stops it and records orphan_stopped; off does nothing. Nothing outside a worktree is touched."
-     },
-     "heavy_max": {
-      "oneOf": [
-       {
-        "type": "integer",
-        "minimum": 0
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "description": "Most test or build runs (go test, cargo, xcodebuild, vitest and the like) held at once through hl use, over every agent; 0 is no limit, the default. Over it an agent's hl use heavy waits its turn (lease.take), and the PreToolUse guard refuses a test or build command run outside hl use unless the agent holds one; with 0 nothing waits or is refused. A script that runs tests inside (tools/check.sh) is not read. null removes the key (back to the default)."
-     },
-     "simulator_max": {
-      "oneOf": [
-       {
-        "type": "integer",
-        "minimum": 0
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "description": "Most simulators (iOS Simulator, Android emulator) held at once through hl use, over every agent; 0 is no limit, the default. Over it an agent's hl use simulator waits its turn (lease.take), and the PreToolUse guard refuses a simulator started outside hl use unless the agent holds one; with 0 nothing waits or is refused. null removes the key (back to the default)."
-     },
-     "browser_max": {
-      "oneOf": [
-       {
-        "type": "integer",
-        "minimum": 0
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "description": "Most browsers (headless Chrome or Chromium, Playwright) held at once through hl use, over every agent; 0 is no limit, the default. Over it an agent's hl use browser waits its turn (lease.take), and the PreToolUse guard refuses a browser started outside hl use unless the agent holds one; with 0 nothing waits or is refused. null removes the key (back to the default)."
      },
      "port_range": {
       "oneOf": [
@@ -3967,8 +3913,8 @@
   },
   {
    "name": "lease.take",
-   "summary": "hl use asks for a test or build run, simulator, browser or port lease. A free one with no ask ahead in line (per kind, the workspace that held the kind least in the last hour first, then first come first served), or one reserved for the agent's current task, is answered at once. Otherwise an agent with a current task is refused with gate lease_wait: its task waits in line on a gate task and comes back when a lease is reserved for it. A call with no current task is held until one is free, refused after 30 minutes naming who holds them.",
-   "description": "With the kind's limit 0 (heavy_max, simulator_max, browser_max; port: with no port_range) it is granted at once. A port is free when granted, not reserved against other programs: a command that gets 'address in use' asks again. A command needing several kinds asks for them in the order heavy, simulator, browser, port; one that would wait while its agent holds a hold, or while the calling process runs under a later kind, is refused (lease_order). A task that waits for a kind gives up the leases reserved for it of later kinds. A command's lease (hold false) belongs to the calling process, the hl use the command runs under: it is freed by lease.release, by the agent's session end, or within 5 s once that process and every process last seen under it are gone. A hold is freed by lease.release or the agent's turn or session end; the PreToolUse guard lets the agent's own starters of its kind through while it is held. An ask whose caller hangs up leaves the queue. Leases are stored: after a restart a hold is kept until its holder's turn ends, and a command's lease while the hl use process it was granted to runs. A lease reserved for a task waits 10 minutes (lease_claim) for its agent's hl use, then goes to the next ask; its task is not blocked again until its next hl use asks again; an ask or reservation whose task ends or leaves its agent is dropped and its gate closed. Reserved leases count toward the limit; turn and session ends leave them.",
+   "summary": "hl use asks for a turn at a shared run or a port lease. A free one with no ask ahead in line (per kind, the workspace that held the kind least in the last hour first, then first come first served), or one reserved for the agent's current task, is answered at once. Otherwise an agent with a current task is refused with gate lease_wait: its task waits in line on a gate task and comes back when a lease is reserved for it. A call with no current task is held until one is free, refused after 30 minutes naming who holds them.",
+   "description": "With the kind's limit 0 (a shared run's at_once; port: with no port_range) it is granted at once. A port is free when granted, not reserved against other programs: a command that gets 'address in use' asks again. A command needing several kinds asks for them in the order port, then the shared runs by name; one that would wait while its agent holds a hold, or while the calling process runs under a later kind, is refused (lease_order). A task that waits for a kind gives up the leases reserved for it of later kinds. A command's lease (hold false) belongs to the calling process, the hl use the command runs under: it is freed by lease.release, by the agent's session end, or within 5 s once that process and every process last seen under it are gone. A hold is freed by lease.release or the agent's turn or session end; the PreToolUse guard lets the agent's own starters of its kind through while it is held. An ask whose caller hangs up leaves the queue. Leases are stored: after a restart a hold is kept until its holder's turn ends, and a command's lease while the hl use process it was granted to runs. A lease reserved for a task waits 10 minutes (lease_claim) for its agent's hl use, then goes to the next ask; its task is not blocked again until its next hl use asks again; an ask or reservation whose task ends or leaves its agent is dropped and its gate closed. Reserved leases count toward the limit; turn and session ends leave them.",
    "paramStructure": "by-name",
    "params": [
     {
@@ -3984,7 +3930,7 @@
      "schema": {
       "type": "string",
       "minLength": 1,
-      "description": "heavy, simulator, browser, port, or the name of a shared run the agent takes (run.list); heavy, simulator and browser limit nothing."
+      "description": "port, or the name of a shared run the agent takes (run.list)."
      }
     },
     {
@@ -4066,7 +4012,7 @@
      "required": false,
      "schema": {
       "type": "string",
-      "description": "heavy, simulator, browser, port, or the name of a shared run the agent takes (run.list); heavy, simulator and browser limit nothing. Empty or absent: every kind."
+      "description": "port, or the name of a shared run the agent takes (run.list). Empty or absent: every kind."
      }
     }
    ],
@@ -4103,7 +4049,7 @@
   {
    "name": "lease.extend",
    "summary": "hl use --extend: adds one max_hold period to each of the caller's leases of kind (of every kind when kind is absent). Refused, changing nothing, when a lease of the named kind has no max_hold (with no kind, those are passed over), one was extended twice already, would still be past its max_hold, or has an ask of its kind waiting.",
-   "description": "A lease's max_hold (<kind>_max_hold_min in config.yaml; heavy 30, simulator 60, browser 30, port none) counts from its grant (time reserved for a task included) and only while its kind has a limit. At 80 % its agent is told; once past it, the lease is taken back as soon as an ask of its kind waits: a command's hl use gets TERM, which it passes on, and the command's processes are killed 10 s later; a hold's agent is told to stop.",
+   "description": "A lease's max_hold (<kind>_max_hold_min in config.yaml; a shared run 30, port none) counts from its grant (time reserved for a task included) and only while its kind has a limit. At 80 % its agent is told; once past it, the lease is taken back as soon as an ask of its kind waits: a command's hl use gets TERM, which it passes on, and the command's processes are killed 10 s later; a hold's agent is told to stop.",
    "paramStructure": "by-name",
    "params": [
     {
@@ -4118,7 +4064,7 @@
      "required": false,
      "schema": {
       "type": "string",
-      "description": "heavy, simulator, browser, port, or the name of a shared run the agent takes (run.list); heavy, simulator and browser limit nothing. Empty or absent: every kind."
+      "description": "port, or the name of a shared run the agent takes (run.list). Empty or absent: every kind."
      }
     }
    ],
@@ -4149,12 +4095,7 @@
          },
          "kind": {
           "type": "string",
-          "enum": [
-           "heavy",
-           "simulator",
-           "browser",
-           "port"
-          ]
+          "description": "port or a shared run's scope:name."
          },
          "max_hold_at": {
           "type": "string",
@@ -4208,12 +4149,12 @@
         "properties": {
          "kind": {
           "type": "string",
-          "description": "heavy, simulator, browser or port, or a shared run's scope:name (mac:xcode, w3:xcode)."
+          "description": "port, or a shared run's scope:name (mac:xcode, w3:xcode)."
          },
          "max": {
           "type": "integer",
           "minimum": 0,
-          "description": "A shared run's at_once; for port, the size of port_range, 0 when unset; 0 is no limit, as for heavy, simulator and browser."
+          "description": "A shared run's at_once; for port, the size of port_range, 0 when unset; 0 is no limit."
          },
          "held": {
           "type": "array",
@@ -4291,7 +4232,7 @@
             },
             "says": {
              "type": "string",
-             "description": "The wait in words, for the agent view: 'waiting for a browser, 2nd in line, held by a and b'."
+             "description": "The wait in words, for the agent view: 'waiting for a turn at xcode, 2nd in line, held by a and b'."
             },
             "task": {
              "type": "integer",
@@ -4472,7 +4413,7 @@
       "type": "string",
       "pattern": "^[a-z0-9][a-z0-9-]{0,31}$"
      },
-     "description": "Not add, remove, list, heavy, simulator, browser or port. This Mac's names and the workspaces' do not clash: refused, field name."
+     "description": "Not add, remove, list or port. This Mac's names and the workspaces' do not clash: refused, field name."
     },
     {
      "name": "scope",

@@ -1,13 +1,14 @@
 // A task waiting in line for a machine resource (lease.get): which kind, and who uses it now, said in one line.
 import { hooks, useNameOf } from '@handline/app-data';
 
-const NOUN: Record<string, string> = { heavy: 'a test or build run', simulator: 'a simulator', browser: 'a browser', port: 'a port' };
+/** A lease kind in a sentence: a port, or a turn at a shared run (scope:name). */
+const noun = (kind: string) => (kind === 'port' ? 'a port' : `a turn at ${kind.slice(kind.indexOf(':') + 1)}`);
 
 type Kinds = NonNullable<ReturnType<typeof hooks.useLeaseGet>['data']>['kinds'];
 
 export type LeaseWait = { kind: string; text: string };
 
-/** Each waiting task's line, by task number: "Waiting for a simulator · in use by builder". */
+/** Each waiting task's line, by task number: "Waiting for a turn at ios-build · in use by builder". */
 export function leaseWaits(kinds: Kinds, nameOf: (key: string) => string): Map<number, LeaseWait> {
   const out = new Map<number, LeaseWait>();
   for (const k of kinds) {
@@ -17,7 +18,7 @@ export function leaseWaits(kinds: Kinds, nameOf: (key: string) => string): Map<n
       const ahead = q.position > 1 ? ` · ${q.position - 1} ahead` : '';
       out.set(q.task, {
         kind: k.kind,
-        text: `Waiting for ${NOUN[k.kind] ?? k.kind}${users.length ? ` · in use by ${users.join(', ')}` : ''}${ahead}`,
+        text: `Waiting for ${noun(k.kind)}${users.length ? ` · in use by ${users.join(', ')}` : ''}${ahead}`,
       });
     }
   }

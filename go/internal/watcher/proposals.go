@@ -3,7 +3,6 @@ package watcher
 import (
 	"database/sql"
 	"fmt"
-	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -84,9 +83,6 @@ func (h *Proposals) Scan(_ *sql.DB, emit Emit) error {
 			agent, _ = w["agent"].(string)
 		}
 		title, _ := w["title"].(string)
-		// An event carries the proposal as Python wrote it: its changes, whole file texts, are proposal.list's alone.
-		w = maps.Clone(w)
-		delete(w, "changes")
 		if _, err := emit(stream.Entry{Topic: "proposals", Type: typ, Data: map[string]any{"proposal": w}, Agent: agent, Title: title,
 			Target: map[string]any{"screen": "proposals", "id": fmt.Sprint(id)}}); err != nil {
 			return err

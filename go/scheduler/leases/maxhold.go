@@ -11,16 +11,14 @@ import (
 // MaxHoldKey is the config.yaml key of kind's max_hold in minutes, 0 for none.
 func MaxHoldKey(kind string) string { return kind + "_max_hold_min" }
 
-// maxHoldMin is each kind's max_hold when config.yaml sets none.
-var maxHoldMin = map[string]int{Heavy: 30, Simulator: 60, Browser: 30, Port: 0}
-
 // MaxExtends is how many times hl use --extend may add a period to one lease.
 const MaxExtends = 2
 
 // killAfterS is how long a revoked command has after TERM before its processes are killed.
 const killAfterS = 10
 
-// MaxHold is kind's max_hold in cfg, in seconds: its key when a whole number of minutes from 0, else the kind's default.
+// MaxHold is kind's max_hold in cfg, in seconds: its key when a whole number of minutes from 0, else SharedMaxHoldMin for a shared run
+// and none for a port.
 func MaxHold(cfg usage.Config, kind string) int64 {
 	switch n := cfg[MaxHoldKey(kind)].(type) {
 	case int:
@@ -35,7 +33,7 @@ func MaxHold(cfg usage.Config, kind string) int64 {
 	if _, ok := SharedName(kind); ok {
 		return SharedMaxHoldMin * 60
 	}
-	return int64(maxHoldMin[kind]) * 60
+	return 0
 }
 
 // SharedMaxHoldMin is a shared run's max_hold, in minutes.
@@ -85,12 +83,8 @@ func (m *Manager) overTime(periods map[string]int64) {
 		if len(q) == 0 {
 			continue
 		}
-		lim := m.wsLimits(kind)
 		// One per waiter: a port or a slot a revoked command still holds frees only once it exits, so the line may not shrink at once.
-		for _, w := range m.queues[kind] {
-			if m.wsFull(kind, w.ws, lim) != "" { // its own workspace's limit holds it, not the pool
-				continue
-			}
+		for range q {
 			if !m.revokeOne(kind, "", periods[kind]) {
 				break
 			}
@@ -178,13 +172,6 @@ func (m *Manager) tell(agent, text string) {
 	}
 }
 
-// servesAsk is whether an ask in line would get l once it is given back: one its workspace's lease_max does not hold back, or one of
-// l's own workspace. The caller holds mu.
-func (m *Manager) servesAsk(l *Lease) bool {
-	lim := m.wsLimits(l.Kind)
-	return slices.ContainsFunc(m.queues[l.Kind], func(w *waiter) bool { return w.ws == l.Workspace || m.wsFull(l.Kind, w.ws, lim) == "" })
-}
-
 // Extend adds one period to each of agent's leases of kind (every kind with a max_hold when ""), as hl use --extend: refused, changing
 // nothing, when one has no max_hold, was extended MaxExtends times, would still be past it, or would serve an ask waiting. It answers
 // the leases extended.
@@ -205,7 +192,7 @@ func (m *Manager) Extend(agent, kind string) ([]Extension, error) {
 			return nil, &Refusal{fmt.Sprintf("Refused: your %s (lease %d) has no max_hold, so there is nothing to extend.", Noun(l.Kind), l.ID)}
 		case l.Extended >= MaxExtends:
 			return nil, &Refusal{fmt.Sprintf("Refused: your %s (lease %d) was extended %d times already, the most.", Noun(l.Kind), l.ID, MaxExtends)}
-		case m.servesAsk(l):
+		case len(m.queues[l.Kind]) > 0:
 			return nil, &Refusal{fmt.Sprintf("Refused: an ask waits for a %s, so lease %d is not extended; finish and give it back.", Noun(l.Kind), l.ID)}
 		case l.deadline(p)+p <= m.now():
 			return nil, &Refusal{fmt.Sprintf("Refused: your %s (lease %d) would still be past its max_hold; finish and give it back.", Noun(l.Kind), l.ID)}
