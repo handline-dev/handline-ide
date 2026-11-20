@@ -117,7 +117,7 @@ export const TURN_SEEDS: Record<string, Seed> = {
           id: 16,
           at: iso(2),
           author: ME,
-          text: '@architect Put the pause at the bottom right.',
+          text: '<@architect> Put the pause at the bottom right.',
           task: 8831,
           readers: [{ agent: ARCH, request: 2, state: 'read' as const, at: iso(1) }],
         },

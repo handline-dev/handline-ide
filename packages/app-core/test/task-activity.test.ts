@@ -91,6 +91,8 @@ test('addressText drops a leading mention of whom the comment went to, by id or 
   assert.equal(addressText('@a2 what is it?', ['a2', 'architect']), 'what is it?');
   assert.equal(addressText('@lead ask @architect', ['a2', 'architect']), '@lead ask @architect');
   assert.equal(addressText('see @architect', ['architect']), 'see @architect');
+  assert.equal(addressText('<@architect> what is it?', ['a2', 'architect']), 'what is it?');
+  assert.equal(addressText('<@lead> ask', ['a2', 'architect']), '<@lead> ask');
   assert.equal(noteText('@human OK?'), 'OK?');
 });
 
