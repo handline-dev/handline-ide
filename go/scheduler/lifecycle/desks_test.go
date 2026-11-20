@@ -146,6 +146,7 @@ func TestADeskMovedWakeWaitsForTheTranscriptNoteAndSaysTheFolderMoved(t *testing
 	}
 }
 
+// The move keeps where it goes through the note's wait: the slot is let go meanwhile, and the start after the note goes to b.
 func TestADeskMovedWakeThatMovesAccountWaitsForTheNoteAndLetsTheSlotGo(t *testing.T) {
 	m, tm, _ := closedWithDesk(t, "/desks/desk-2")
 	m.Launch = wallWhileResumable{}
@@ -155,11 +156,11 @@ func TestADeskMovedWakeThatMovesAccountWaitsForTheNoteAndLetsTheSlotGo(t *testin
 	if _, dropped, _ := db.LastEventID(m.Q, "a", "hold_dropped"); !dropped {
 		t.Fatal("the slot the move reserved was kept through the wait")
 	}
-	if sw, _ := db.GetSwitch(m.Q, "a"); sw != nil {
-		t.Fatalf("the switch to b still shows, though it started where there was room: %+v", sw)
+	if _, p, _, _ := db.LastEvent(m.Q, "a", "moved_account"); p["to"] != "b" || p["trigger"] != "usage" {
+		t.Fatalf("the start after the note is not the move to b: %v", p)
 	}
-	if strings.Contains(got, "usage limit") || !strings.Contains(got, "fresh session in desk-2") {
-		t.Fatalf("the wake does not say the real reason: %q", got)
+	if !strings.Contains(got, "fresh session in desk-2") {
+		t.Fatalf("the wake does not say the folder moved: %q", got)
 	}
 }
 

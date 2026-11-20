@@ -109,11 +109,12 @@ func (f *fakeTerm) Relaunch(_, cmd string, started func() bool) (bool, string) {
 
 type fakeLaunch struct{ Launch }
 
-func (fakeLaunch) Drifted(string, *db.AgentState) bool             { return false }
-func (fakeLaunch) ManualSplit() bool                               { return false }
-func (fakeLaunch) WakeWait(db.Q, string, *db.AgentState) *WakeWait { return nil }
-func (fakeLaunch) WorkspaceWait(db.Q, string) *WakeWait            { return nil }
-func (fakeLaunch) ChooseAccount(db.Q, string) bool                 { return true }
+func (fakeLaunch) Drifted(string, *db.AgentState) bool                { return false }
+func (fakeLaunch) ManualSplit() bool                                  { return false }
+func (fakeLaunch) WakeWait(db.Q, string, *db.AgentState) *WakeWait    { return nil }
+func (fakeLaunch) WorkspaceWait(db.Q, string) *WakeWait               { return nil }
+func (fakeLaunch) RoomOn(db.Q, string, *db.AgentState, string) string { return "" }
+func (fakeLaunch) ChooseAccount(db.Q, string) bool                    { return true }
 func (fakeLaunch) RoomElsewhere(db.Q, string, map[string]string, bool) (string, string) {
 	return "", "no account can take one more agent"
 }

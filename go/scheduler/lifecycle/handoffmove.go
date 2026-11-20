@@ -416,7 +416,7 @@ func (v *Mover) performHandoff(agent string, t HandoffTrigger, dest string) (boo
 	}
 	ok := v.perform(agent, t, kept.To)
 	if m.Agents.CurrentAccount(m.Q, agent) != kept.To {
-		v.moveFailed(agent, kept.To, fmt.Sprintf("a %s handoff came first and could not take it there", t.Kind))
+		m.moveFailed(agent, kept.To, fmt.Sprintf("a %s handoff came first and could not take it there", t.Kind))
 	}
 	return ok, nil
 }
@@ -617,9 +617,13 @@ func (v *Mover) park(agent string, t HandoffTrigger, hid string, ok, cleared, re
 	m := v.M
 	now := m.now()
 	acct, source, have := v.E.Reading(m.Q, agent)
-	shortRetry := !have || source == "assumed" || t.Kind == "forced" || retrySoon
+	// A move whose start waits for the handoff note is due now: each tick's wake goes on with it the moment the note is in.
+	noteMove := m.noteMove(must(db.GetAgentState(m.Q, agent))) != nil
+	shortRetry := noteMove || !have || source == "assumed" || t.Kind == "forced" || retrySoon
 	var wake int64
 	switch {
+	case noteMove:
+		wake = now
 	case shortRetry:
 		wake = now + states.AssumedAccountRecheckS
 	case usageTrigger(t.Kind) || t.Kind == states.ByHandMark:

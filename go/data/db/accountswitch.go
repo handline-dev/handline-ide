@@ -10,6 +10,7 @@ import (
 const (
 	SwitchSaving    = "saving"    // the record is being taken; where it goes is not decided
 	SwitchSwitching = "switching" // the old session is closing for To
+	SwitchNote      = "note"      // the old session has closed; the start on To waits for the handoff note written from its transcript
 	SwitchStarting  = "starting"  // the session on To is launching
 	SwitchWaiting   = "waiting"   // no move: it stays parked until From resets
 	// A person's move, before it begins: it waits for the turn to end (scheduled), then for the handoff note (stopping).
@@ -17,7 +18,7 @@ const (
 	SwitchStopping  = "stopping"
 )
 
-// MoveFailedKind is the event of a person's move that could not run when its turn ended or its note was in: a line in the agent's chat.
+// MoveFailedKind is the event of a move that could not run when its turn ended or its note was in: a line in the agent's chat.
 const MoveFailedKind = "move_failed"
 
 // Pending is whether the switch is a person's move that has not begun: AgentView.pending_move, not account_switch.

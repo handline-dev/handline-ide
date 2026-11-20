@@ -26,6 +26,7 @@ type moveLaunch struct {
 	pastFit         string
 	wait            *WakeWait
 	lastAccount     string
+	lastWhy         string // the start's cause, as CommandFor was given it
 	q               db.Q
 	asked           int
 	fitOnly         []bool // what each RoomElsewhere was asked
@@ -47,7 +48,7 @@ func (l *moveLaunch) RoomPastFit(db.Q, string, *db.AgentState, string) string { 
 func (l *moveLaunch) WakeWait(db.Q, string, *db.AgentState) *WakeWait         { return l.wait }
 func (l *moveLaunch) DescribeWakeWait(*WakeWait) string                       { return "held back" }
 func (l *moveLaunch) CommandFor(agent, account, why, by string) (string, error) {
-	l.lastAccount = account
+	l.lastAccount, l.lastWhy = account, why
 	return l.fakeLaunch.CommandFor(agent, account, why, by)
 }
 func (l *moveLaunch) RoomOn(db.Q, string, *db.AgentState, string) string { return l.roomOn }
