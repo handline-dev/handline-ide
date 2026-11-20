@@ -565,11 +565,22 @@ func ClearCursorsOfEndedTasks(q Q, prefix string) error {
 
 // TaskWaits is whether a task waits on something open: a task it is blocked by, or a child of its own.
 func TaskWaits(q Q, tid int64) (bool, error) {
-	if bs, err := TaskBlockers(q, tid); err != nil || len(bs) > 0 {
-		return len(bs) > 0, err
+	on, err := TaskWaitsOn(q, tid)
+	return len(on) > 0, err
+}
+
+// TaskWaitsOn is what a task waits on, open: the tasks it is blocked by, then its children.
+func TaskWaitsOn(q Q, tid int64) ([]int64, error) {
+	bs, err := TaskBlockers(q, tid)
+	if err != nil {
+		return nil, err
 	}
 	kids, err := OpenChildTasks(q, tid)
-	return len(kids) > 0, err
+	var out []int64
+	for _, t := range append(bs, kids...) {
+		out = append(out, t.ID)
+	}
+	return out, err
 }
 
 // Overdue is whether a task's holder was told it ran past its timeout and nobody has answered since: its clock runs over, and the box it

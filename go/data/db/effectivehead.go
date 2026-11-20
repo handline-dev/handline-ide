@@ -6,8 +6,8 @@ import (
 	"github.com/handline/handline/go/kit/actor"
 )
 
-// HeadTaskBlocked is delivery.head_task_blocked: is the head's own task on record as waited on, blocked by another open task or
-// held up on an ask the agent itself sent that is linked to the same task. A head with no task is never this, nor a person's answer not yet
+// HeadTaskBlocked is delivery.head_task_blocked: is the head's own task on record as waiting, on another open task (a blocker or a child
+// of its own, TaskWaits) or on an ask the agent itself sent that is linked to the same task. A head with no task is never this, nor a person's answer not yet
 // landed: the holder reads it now, whatever the task waits on.
 func HeadTaskBlocked(q Q, agent string, head *Request) (bool, error) {
 	if !head.LandedAt.Valid {
@@ -20,12 +20,8 @@ func HeadTaskBlocked(q Q, agent string, head *Request) (bool, error) {
 		return false, err
 	}
 	for _, t := range tasks {
-		blockers, err := TaskBlockers(q, t.ID)
-		if err != nil {
-			return false, err
-		}
-		if len(blockers) > 0 {
-			return true, nil
+		if waits, err := TaskWaits(q, t.ID); err != nil || waits {
+			return waits, err
 		}
 		reqs, err := TaskRequests(q, t.ID)
 		if err != nil {

@@ -35,6 +35,17 @@ func TestWithdrawReadAndInboxAnswerWithoutPython(t *testing.T) {
 	}
 }
 
+// Requests whose task waits on another are listed under the head, or alone when nothing can be acted on.
+func TestInboxListsWhatIsOnHoldAndWhatItWaitsOn(t *testing.T) {
+	r := newRig(t)
+	r.daemon(map[string]string{"inbox.queue": `{"newest":9,"head":null,"on_hold":[{"id":4,"name":"msg_0a0b0c0","task":12,"on":[13,14]},` +
+		`{"id":5,"name":"msg_0d0e0f0","task":15,"on":[]}]}`})
+	out, _, code := r.run(asAgent, "inbox")
+	if want := "a.one: nothing to act on now\nmsg_0a0b0c0 (T12) waits on T13, T14\nmsg_0d0e0f0 (T15) waits on an ask of yours\n"; code != 0 || out != want {
+		t.Errorf("inbox: %d %q", code, out)
+	}
+}
+
 func TestReadTakesAMessageByNameOrHashAndPassesAHashMarkOnToBeRefused(t *testing.T) {
 	r := newRig(t)
 	calls := r.daemon(map[string]string{"request.read": "error:#7 is PR 7; a message is named msg_<hash>"})

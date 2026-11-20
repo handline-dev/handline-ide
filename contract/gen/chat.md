@@ -18,7 +18,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `attachment.get` | member |  | `id`, `thumb?`, `offset?` | `{mime, bytes, offset, data, done}` | `refused`, `not_found`, `bad_request` | role | not cached |
 | `attachment.remove` | owner | yes | `id`, `dry_run?`, `request_id` | `Accepted & {removed_from}` | `refused`, `not_found`, `bad_request` | role | decided: delete the photo |
 | `inbox.list` | agent |  | `unread?`, `kind?`, `agent?`, `before?`, `limit?`, `wait_s?` | `{items, more} & ReadCursor` |  |  | `inbox`, fed by inbox |
-| `inbox.queue` | agent |  | `whose?`, `all?`, `since?`, `wait_s?` | `{whose, newest, head, history, waiting, lines, dealt}` | `refused`, `bad_request` | listing | not cached |
+| `inbox.queue` | agent |  | `whose?`, `all?`, `since?`, `wait_s?` | `{whose, newest, head, on_hold, history, waiting, lines, dealt}` | `refused`, `bad_request` | listing | not cached |
 | `inbox.get` | agent |  | `id`, `wait_s?` | `InboxItem & ReadCursor` | `not_found`, `bad_request` |  | `inbox-item` by id, fed by inbox |
 | `request.read` | agent |  | `id`, `wait_s?` | `{id, ref, requester, target, kind, state, created, chain_depth, parent, body, answer, parts, refs}` | `not_found`, `bad_request` |  | not cached |
 | `request.withdraw` | agent | yes | `id`, `reason?`, `request_id` | `{ok, said}` | `bad_request` |  | not from the app |

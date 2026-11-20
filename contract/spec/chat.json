@@ -2372,7 +2372,39 @@
          "type": "null"
         }
        ],
-       "description": "The head of an agent's queue; null when the queue is empty and for the founder's mailbox."
+       "description": "The head of an agent's queue: the first request it can act on; null when there is none and for the founder's mailbox."
+      },
+      "on_hold": {
+       "type": "array",
+       "description": "An agent's queued requests whose task waits on another task or on an ask it sent, oldest first; absent for the founder.",
+       "items": {
+        "type": "object",
+        "properties": {
+         "id": {
+          "type": "integer"
+         },
+         "name": {
+          "type": "string"
+         },
+         "task": {
+          "type": "integer",
+          "description": "The task it delivers, 0 for none."
+         },
+         "on": {
+          "type": "array",
+          "items": {
+           "type": "integer"
+          },
+          "description": "The open tasks it waits on: blockers, then children; empty when it waits on an ask."
+         }
+        },
+        "required": [
+         "id",
+         "name",
+         "task",
+         "on"
+        ]
+       }
       },
       "history": {
        "type": "array",

@@ -139,9 +139,27 @@ func TestInboxQueueOfAnAgentShowsFirstWhatItCanActOn(t *testing.T) {
 	if got := head(); got != int64(2) {
 		t.Fatalf("T1 waits on T9, so the head is T2's delivery: %v", got)
 	}
-	run(t, e, "INSERT INTO task_blocks(task_id, blocks_on, created_at) VALUES(2, 9, 1)")
-	if got := head(); got != int64(1) {
-		t.Fatalf("with everything blocked the oldest still shows: %v", got)
+	onHold := func(got map[string]any) string {
+		var out []string
+		for _, h := range got["on_hold"].([]any) {
+			m := h.(map[string]any)
+			out = append(out, fmt.Sprintf("T%v on %v", m["task"], m["on"]))
+		}
+		return strings.Join(out, ", ")
+	}
+	if held := onHold(queueOf(t, e, asBob, nil)); held != "T1 on [9]" {
+		t.Fatalf("T1's delivery is on hold behind T9: %s", held)
+	}
+	// A story waits on an open child of its own as on a blocker: with nothing else to act on there is no head, and when the child ends
+	// the story's delivery is the head again.
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, parent_task, created_at) VALUES(3, 'a child', 'amy', 'cy', 2, 1)")
+	got := queueOf(t, e, asBob, nil)
+	if got["head"] != nil || onHold(got) != "T1 on [9], T2 on [3]" {
+		t.Fatalf("with everything waiting there is no head: %v", got)
+	}
+	run(t, e, "UPDATE tasks SET done_evidence = 'sha' WHERE id = 3")
+	if got := head(); got != int64(2) {
+		t.Fatalf("the child done, the story's delivery is the head again: %v", got)
 	}
 }
 
