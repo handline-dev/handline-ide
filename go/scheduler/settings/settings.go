@@ -255,7 +255,7 @@ func (s *Settings) BgGraceS(agent string) int64 {
 	return s.SecondsSetting(agent, "bg_grace_s", BgGraceS)
 }
 
-// BgCheckS is how often, while it has background work, an agent is asked which of it to stop.
+// BgCheckS is how long a background job runs before its agent is asked whether to stop it.
 func (s *Settings) BgCheckS(agent string) int64 {
 	return s.SecondsSetting(agent, "bg_check_s", BgCheckS)
 }

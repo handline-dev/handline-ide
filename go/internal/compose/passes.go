@@ -1,6 +1,7 @@
 package compose
 
 import (
+	"database/sql"
 	"sort"
 
 	"github.com/handline/handline/go/accounts/subscriptions"
@@ -14,6 +15,7 @@ import (
 	"github.com/handline/handline/go/scheduler/cronspec"
 	"github.com/handline/handline/go/scheduler/keepawake"
 	"github.com/handline/handline/go/scheduler/schedules"
+	"github.com/handline/handline/go/scheduler/session"
 	"github.com/handline/handline/go/scheduler/settings"
 	"github.com/handline/handline/go/scheduler/tick"
 	"github.com/handline/handline/go/taskboard/supervisor"
@@ -234,14 +236,28 @@ func (t timeboxPorts) BgGraceS(agent string) int64        { return t.set.BgGrace
 func (t timeboxPorts) BgCheckS(agent string) int64        { return t.set.BgCheckS(agent) }
 func (t timeboxPorts) BlockerAlarm() (bool, int64, int64) { return t.set.BlockerAlarm() }
 
-// BgJobs names what the agent's last Stop said still runs, the last count of them when count is set.
-func (t timeboxPorts) BgJobs(_ db.Q, agent string, count int, _ int64) []string {
+// BgJobs is what the agent's last Stop said still runs, the last count of them when count is set, each started when this session first
+// recorded its id: its background_started event (a shell), else the first Stop that listed it. 0 when neither did.
+func (t timeboxPorts) BgJobs(q db.Q, agent string, count int, _ int64) []tick.BgJob {
 	if t.p.turns == nil {
 		return nil
 	}
-	jobs := t.p.turns.Running(agent)
-	if count > 0 && len(jobs) > count {
-		jobs = jobs[len(jobs)-count:]
+	running := t.p.turns.Running(agent)
+	if count > 0 && len(running) > count {
+		running = running[len(running)-count:]
+	}
+	from, _, _ := db.LastEventOfTS(q, agent, []string{"background_work_ended", "SessionStart"})
+	var jobs []tick.BgJob
+	for _, r := range running {
+		j := tick.BgJob{Name: r.Name}
+		if r.ID != "" {
+			var at sql.NullInt64
+			_ = q.QueryRow("SELECT MIN(ts) FROM events e WHERE agent = ?1 AND ts >= ?2 AND (kind = ?3 AND json_extract(payload, '$.job') = ?4 "+
+				"OR kind = 'Stop' AND EXISTS (SELECT 1 FROM json_each(e.payload, '$.background_tasks') WHERE json_extract(value, '$.id') = ?4))",
+				agent, from, session.BackgroundKind, r.ID).Scan(&at)
+			j.Started = at.Int64
+		}
+		jobs = append(jobs, j)
 	}
 	return jobs
 }

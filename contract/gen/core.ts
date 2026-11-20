@@ -354,7 +354,7 @@ export type SettingsValues = {
   bg_notice_s?: number;
   /** Seconds after that notice before the work is stopped. Per agent. */
   bg_grace_s?: number;
-  /** How often an agent with background work is asked which to stop. Per agent. */
+  /** How long a background job runs before its agent is asked whether to stop it. Per agent. */
   bg_check_s?: number;
   /** Seconds after the first waiting notice before the agent is typed one digest, at its prompt. Per agent. */
   notice_digest_s?: number;
@@ -450,7 +450,7 @@ export type SettingsChanges = {
   bg_notice_s?: number | null;
   /** Seconds after that notice before the work is stopped. Per agent. null removes the key (back to the default). */
   bg_grace_s?: number | null;
-  /** How often an agent with background work is asked which to stop. Per agent. null removes the key (back to the default). */
+  /** How long a background job runs before its agent is asked whether to stop it. Per agent. null removes the key (back to the default). */
   bg_check_s?: number | null;
   /** Seconds after the first waiting notice before the agent is typed one digest, at its prompt. Per agent. null removes the key (back to the default). */
   notice_digest_s?: number | null;

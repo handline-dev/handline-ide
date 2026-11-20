@@ -2031,7 +2031,7 @@
       "type": "integer",
       "minimum": 1,
       "default": 600,
-      "description": "How often an agent with background work is asked which to stop. Per agent."
+      "description": "How long a background job runs before its agent is asked whether to stop it. Per agent."
      },
      "notice_digest_s": {
       "type": "integer",
@@ -2389,7 +2389,7 @@
         "type": "null"
        }
       ],
-      "description": "How often an agent with background work is asked which to stop. Per agent. null removes the key (back to the default)."
+      "description": "How long a background job runs before its agent is asked whether to stop it. Per agent. null removes the key (back to the default)."
      },
      "notice_digest_s": {
       "oneOf": [
