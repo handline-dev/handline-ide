@@ -21,6 +21,8 @@ type Nav struct {
 	Hidden     []string `json:"hidden"`
 	Layout     string   `json:"layout"`
 	Order      []string `json:"order"`
+	// Folded is the workspaces whose section the list folds, by key.
+	Folded []string `json:"folded"`
 	// Later is the For you items put off, by "kind:id".
 	Later map[string]Later `json:"later,omitempty"`
 }
@@ -40,7 +42,7 @@ var (
 )
 
 func defaults() Nav {
-	return Nav{Pins: []string{}, Hidden: []string{}, Layout: "tree", Order: []string{}}
+	return Nav{Pins: []string{}, Hidden: []string{}, Layout: "tree", Order: []string{}, Folded: []string{}}
 }
 
 type querier interface {
@@ -131,6 +133,12 @@ func apply(n *Nav, changes map[string]any, agents []string, open func(int64) boo
 			} else {
 				n.Order = names
 			}
+		case "folded":
+			keys, ok := uniqueNames(v)
+			if !ok {
+				return bad(field+" is a list of workspace keys, none twice", field)
+			}
+			n.Folded = keys
 		case "hidden":
 			names, ok := uniqueNames(v)
 			for _, d := range names {

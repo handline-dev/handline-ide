@@ -22,3 +22,16 @@ test('nav.order is stored whole, refuses a name twice or no agent, and loses a r
   assert.deepEqual(await order(), ['handline.term-build']);
   client.close();
 });
+
+test('nav.folded is stored whole and refuses a workspace key twice', async () => {
+  const { client } = setup();
+  await client.start();
+  const folded = async () => (await client.call('prefs.get', {})).nav.folded;
+  assert.deepEqual(await folded(), []);
+  const set = (keys: string[], id: string) => client.call('prefs.set', { changes: { nav: { folded: keys } }, request_id: id });
+  await set(['w2', 'w1'], 'fold-1');
+  assert.deepEqual(await folded(), ['w2', 'w1']);
+  await assert.rejects(set(['w1', 'w1'], 'fold-2'), (e: RpcError) => e.data?.field === 'changes.nav.folded');
+  assert.deepEqual(await folded(), ['w2', 'w1']);
+  client.close();
+});
