@@ -6,12 +6,16 @@ import { clockTime, dateTime } from '#src/time.ts';
 export type SwitchPhase = 'saving' | 'switching' | 'starting' | 'waiting';
 
 /** The words the message box shows while it is locked for a switch; a wait does not lock it. */
-export function switchWords(s: { phase: SwitchPhase; to: string | null }): string | null {
-  if (s.phase === 'saving') return 'Preparing to change accounts…';
+export function switchWords(s: { phase: SwitchPhase; to: string | null; waits?: string | null }): string | null {
+  if (s.phase === 'saving') return s.waits ? `Preparing to change accounts… · ${waitsWords(s.waits)}` : 'Preparing to change accounts…';
   if (s.phase === 'switching') return `Switching to ${s.to ?? 'another account'}…`;
   if (s.phase === 'starting') return `Starting on ${s.to ?? 'the new account'}…`;
   return null;
 }
+
+/** What a saving switch waits for, from the daemon's words: the turn to end, its handoff note, or background: <jobs>. */
+const waitsWords = (w: string): string =>
+  w === 'the turn to end' ? 'after this turn' : w.startsWith('background: ') ? `after ${w.slice(12)} ends` : `after ${w}`;
 
 /** The wait's line: "Waiting until 21:30 (alpha resets)". */
 export const waitLine = (from: string, until: string | null): string =>
