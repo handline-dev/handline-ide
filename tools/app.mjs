@@ -188,7 +188,7 @@ const commands = {
         const wsPort = await freePort();
         const fake = spawn(
           'node',
-          ['packages/fake-daemon/src/serve.ts', '--seed', 'all', '--ws', String(wsPort), '--socket', path.join(s.root, 'fake.sock')],
+          ['packages/fake-daemon/src/serve.ts', '--seed', process.env.HANDLINE_FAKE_SEEDS ?? 'all', '--ws', String(wsPort), '--socket', path.join(s.root, 'fake.sock')],
           {
             cwd: top,
             stdio: 'ignore',
