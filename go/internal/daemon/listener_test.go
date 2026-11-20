@@ -258,7 +258,7 @@ func TestNothingIsServedWithoutAWebDirectoryAndASocketFromAnotherPageIsRefused(t
 	}
 }
 
-// startPlain is a daemon with no certificate (Tailscale mode) on loopback, where a test can reach it.
+// startPlain is a daemon with no certificate (plain) on loopback, where a test can reach it.
 func startPlain(t *testing.T, web string) *Daemon {
 	t.Helper()
 	dir := t.TempDir()

@@ -313,7 +313,7 @@ func (n *netDoors) listen(ip string, isTLS bool) (*networkListener, error) {
 	if isTLS {
 		n.cfg.Log("network listener on %s, certificate %s", l.ln.Addr(), l.Fingerprint())
 	} else {
-		n.cfg.Log("network listener on %s, plain HTTP (Tailscale)", l.ln.Addr())
+		n.cfg.Log("network listener on %s, plain HTTP (no certificate)", l.ln.Addr())
 	}
 	return l, nil
 }
@@ -336,10 +336,13 @@ func (n *netDoors) tlsSource() (*certSource, error) {
 }
 
 // door is the door that serves host. "" is the door a pairing names by default: -advertise (or the -listen door) while
-// network_addresses is unset, else the first chosen host served.
+// network_addresses is unset, else the first LAN host served, else the first chosen host served.
 func (n *netDoors) door(host string) (devices.Door, bool) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
+	if host == "" && n.chosen {
+		host = n.firstLAN()
+	}
 	for i, a := range n.served {
 		l := n.open[a.IPs[0].String()]
 		if l == nil {
@@ -364,6 +367,16 @@ func (n *netDoors) door(host string) (devices.Door, bool) {
 	return devices.Door{}, false
 }
 
+// firstLAN is the first served LAN host, "" when none is. The caller holds n.mu.
+func (n *netDoors) firstLAN() string {
+	for _, a := range n.served {
+		if a.Kind == kindLAN {
+			return a.Host
+		}
+	}
+	return ""
+}
+
 // hosts is every host a door is open for, the one a pairing names by default first.
 func (n *netDoors) hosts() []string {
 	n.mu.Lock()
@@ -374,8 +387,16 @@ func (n *netDoors) hosts() []string {
 			out = append(out, adv)
 		}
 	}
+	lan := ""
+	if n.chosen {
+		if lan = n.firstLAN(); lan != "" {
+			out = append(out, lan)
+		}
+	}
 	for _, a := range n.served {
-		out = append(out, a.Host)
+		if a.Host != lan {
+			out = append(out, a.Host)
+		}
 	}
 	return out
 }
@@ -413,7 +434,7 @@ func (n *netDoors) close() {
 	n.served = nil
 }
 
-// plain is Tailscale mode: a listener given no certificate serves plain HTTP/ws, and only on a Tailscale or loopback address.
+// plain is plain mode: a listener given no certificate serves plain HTTP/ws, and only on a Tailscale or loopback address.
 func (c Config) plain() bool { return c.CertFile == "" && c.KeyFile == "" }
 
 // ifaceAddr is one IPv4 address of one network interface.
@@ -458,7 +479,7 @@ func tailscaleIPs() ([]net.IP, error) {
 		}
 	}
 	if len(ips) == 0 {
-		return nil, errors.New("this machine's Tailscale interface has no address (100.64.0.0/10); Tailscale mode serves nowhere else")
+		return nil, errors.New("no VPN interface (utun*, tailscale*) has an address in 100.64.0.0/10; plain HTTP without -cert and -key serves nowhere else")
 	}
 	return ips, nil
 }
@@ -496,7 +517,7 @@ func checkPlainBind(addr string) error {
 			}
 		}
 	}
-	return fmt.Errorf("network listener address %q: without -cert and -key the listener serves plain HTTP, which only an address of the Tailscale interface or loopback may; any other address needs -cert and -key", addr)
+	return fmt.Errorf("network listener address %q: without -cert and -key the listener serves plain HTTP, which only a VPN interface address (100.64.0.0/10) or loopback may; any other address needs -cert and -key", addr)
 }
 
 // sameOrigin lets a call without an Origin through (a native client) and a browser's only from the page this
@@ -557,13 +578,13 @@ func checkBind(addr string) error {
 	ip := net.ParseIP(host)
 	switch {
 	case ip == nil:
-		return fmt.Errorf("network listener address %q: the host must be an IP address of this machine's LAN or Tailscale", addr)
+		return fmt.Errorf("network listener address %q: the host must be an IP address of this machine's LAN or VPN", addr)
 	case ip.IsUnspecified():
-		return fmt.Errorf("network listener address %q binds every interface; name the LAN or Tailscale address", addr)
+		return fmt.Errorf("network listener address %q binds every interface; name the LAN or VPN address", addr)
 	case ip.IsLoopback(), ip.IsPrivate(), ip.IsLinkLocalUnicast(), tailscaleV4.Contains(ip):
 		return nil
 	}
-	return fmt.Errorf("network listener address %q is a public address; only loopback, LAN and Tailscale are served", addr)
+	return fmt.Errorf("network listener address %q is a public address; only loopback, LAN and VPN (100.64.0.0/10) addresses are served", addr)
 }
 
 var _, tailscaleV4, _ = net.ParseCIDR("100.64.0.0/10")
