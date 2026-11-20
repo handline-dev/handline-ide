@@ -36,7 +36,7 @@ type tbPorts struct {
 	noticeS    int64
 	graceS     int64
 	checkS     int64
-	jobs       []string
+	jobs       []BgJob
 	forgotten  *Forgotten
 	alarmOn    bool // blocker_alarm, with 100 s for the holder and 400 s for the founder
 }
@@ -60,7 +60,7 @@ func (p *tbPorts) StaleBgVetoS() int64                         { return 600 }
 func (p *tbPorts) BgNoticeS(string) int64                      { return p.noticeS }
 func (p *tbPorts) BgGraceS(string) int64                       { return p.graceS }
 func (p *tbPorts) BgCheckS(string) int64                       { return p.checkS }
-func (p *tbPorts) BgJobs(db.Q, string, int, int64) []string    { return p.jobs }
+func (p *tbPorts) BgJobs(db.Q, string, int, int64) []BgJob     { return p.jobs }
 func (p *tbPorts) NudgeScheduleLen() int                       { return 3 }
 func (p *tbPorts) BlockerAlarm() (bool, int64, int64)          { return p.alarmOn, 100, 400 }
 func (p *tbPorts) ForgottenResolve(db.Q, string, *db.AgentState, int64) *Forgotten {
@@ -347,11 +347,11 @@ func TestForgottenBackgroundWorkIsToldToFinishOnceItsIdleWindowIsOver(t *testing
 	}
 }
 
-func TestTheBackgroundCheckAsksAnIdleAgentWhichJobsToStopEveryCheckInterval(t *testing.T) {
+func TestTheBackgroundCheckAsksAnIdleAgentWhichJobsToStopOnceTheyHaveRunTheCheckInterval(t *testing.T) {
 	tk, w, b, p := timebox(t)
 	w.bgWork = true
 	setState(t, tk, "a", states.Idle, 0)
-	p.since, p.haveSince, p.checkS, p.jobs = 100, true, 600, []string{"npm test"}
+	p.since, p.haveSince, p.checkS, p.jobs = 100, true, 600, []BgJob{{Name: "npm test"}} // no start recorded: counts from the stretch's start
 	b.SweepBackgroundCheck(tk, 500)
 	if len(p.sent) != 0 {
 		t.Fatalf("asked before the interval: %v", p.sent)
@@ -379,7 +379,7 @@ func TestTheBackgroundCheckAsksAboutEachJobOnceAStretchAndAgainOnlyAboutNewWork(
 	tk, w, b, p := timebox(t)
 	w.bgWork = true
 	setState(t, tk, "a", states.Idle, 0)
-	p.since, p.haveSince, p.checkS, p.jobs = 100, true, 600, []string{"npm run dev"}
+	p.since, p.haveSince, p.checkS, p.jobs = 100, true, 600, []BgJob{{Name: "npm run dev", Started: 100}}
 	b.SweepBackgroundCheck(tk, 800)
 	if len(p.sent) != 1 || !strings.Contains(p.sent[0], "1. npm run dev") || !strings.Contains(p.sent[0], "asked again only about work started later") {
 		t.Fatalf("%v", p.sent)
@@ -389,11 +389,11 @@ func TestTheBackgroundCheckAsksAboutEachJobOnceAStretchAndAgainOnlyAboutNewWork(
 	if len(p.sent) != 1 || countEvents(t, tk, "a", "background_checked") != 1 {
 		t.Fatalf("a kept job was asked about again: %v", p.sent)
 	}
-	// A job that starts beside it is asked about, alone, once its check is due.
-	p.jobs = []string{"npm run dev", "go test ./..."}
-	b.SweepBackgroundCheck(tk, 1600)
+	// A job that starts beside it is asked about, alone, once it has itself run the interval.
+	p.jobs = []BgJob{{Name: "npm run dev", Started: 100}, {Name: "go test ./...", Started: 1550}}
+	b.SweepBackgroundCheck(tk, 2100)
 	if len(p.sent) != 1 {
-		t.Fatalf("asked inside the interval: %v", p.sent)
+		t.Fatalf("asked about a job younger than the interval: %v", p.sent)
 	}
 	b.SweepBackgroundCheck(tk, 2200)
 	if len(p.sent) != 2 || !strings.Contains(p.sent[1], "1. go test ./...") || strings.Contains(p.sent[1], "npm run dev") {
@@ -404,7 +404,7 @@ func TestTheBackgroundCheckAsksAboutEachJobOnceAStretchAndAgainOnlyAboutNewWork(
 		t.Fatalf("%v", p.sent)
 	}
 	// A new stretch (the work ended and began again) asks about the same job again.
-	p.since = 3000
+	p.since, p.jobs = 3000, []BgJob{{Name: "npm run dev", Started: 3000}, {Name: "go test ./...", Started: 3000}}
 	b.SweepBackgroundCheck(tk, 3700)
 	if len(p.sent) != 3 || !strings.Contains(p.sent[2], "1. npm run dev") || !strings.Contains(p.sent[2], "2. go test ./...") {
 		t.Fatalf("%v", p.sent)
@@ -433,7 +433,7 @@ func TestTheBackgroundCheckAsksAboutUnnamedWorkOnceAndAgainOnlyWhenThereIsMore(t
 		t.Fatalf("%v", p.sent)
 	}
 	// A named job beside them is asked about alone, and the unnamed two are still not asked about after it.
-	p.jobs = []string{"npm run dev"}
+	p.jobs = []BgJob{{Name: "npm run dev", Started: 2250}}
 	if err := db.SetCursor(tk.Q, "bgcount:a", 3); err != nil {
 		t.Fatal(err)
 	}
@@ -444,6 +444,24 @@ func TestTheBackgroundCheckAsksAboutUnnamedWorkOnceAndAgainOnlyWhenThereIsMore(t
 	b.SweepBackgroundCheck(tk, 3600)
 	if len(p.sent) != 3 {
 		t.Fatalf("%v", p.sent)
+	}
+}
+
+// T9309: a stretch days old, one short job after another. A job is asked about only once it has itself run the interval, and "running for"
+// is that job's age, not the stretch's.
+func TestTheBackgroundCheckWaitsForAJobToRunTheIntervalInADaysOldStretch(t *testing.T) {
+	tk, w, b, p := timebox(t)
+	w.bgWork = true
+	setState(t, tk, "a", states.Idle, 0)
+	now := int64(200_000)
+	p.since, p.haveSince, p.checkS, p.jobs = now-2*86400, true, 600, []BgJob{{Name: "tools/check.sh", Started: now - 420}}
+	b.SweepBackgroundCheck(tk, now)
+	if len(p.sent) != 0 || countEvents(t, tk, "a", "background_checked") != 0 {
+		t.Fatalf("a 7-min job was asked about: %v", p.sent)
+	}
+	b.SweepBackgroundCheck(tk, now+180)
+	if len(p.sent) != 1 || !strings.Contains(p.sent[0], "running for 10m: 1. tools/check.sh") {
+		t.Fatalf("the job at 10 min: %v", p.sent)
 	}
 }
 

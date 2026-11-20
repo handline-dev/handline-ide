@@ -58,8 +58,12 @@ func (p *Parts) newMover(m *lifecycle.Manager, uenv *usage.Env, env *supervisor.
 				return ""
 			}
 			if p.turns != nil {
-				if jobs := p.turns.Running(agent); len(jobs) > 0 {
-					return strings.Join(jobs, ", ")
+				var names []string
+				for _, j := range p.turns.Running(agent) {
+					names = append(names, j.Name)
+				}
+				if len(names) > 0 {
+					return strings.Join(names, ", ")
 				}
 			}
 			return "unnamed jobs"

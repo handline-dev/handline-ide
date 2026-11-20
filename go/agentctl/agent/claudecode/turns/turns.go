@@ -82,7 +82,7 @@ func (t *Tracker) OnEnd(pid func(agent string) int, ended func(agent string)) {
 type turn struct {
 	state      State
 	at         int64 // when the hook that set state ran
-	background []string
+	background []Job
 	bgKnown    bool          // background is what the last Stop said; an interrupt, or a StopFailure (no list), leaves it unknown
 	settled    bool          // a Stop closed the turn and no prompt has been raised since
 	ended      bool          // SessionEnd or the process's exit ended the session, and no launch or SessionStart came since
@@ -246,10 +246,13 @@ func (t *Tracker) hook(tr *turn, agent, event string, raw map[string]any, at int
 	}
 }
 
-// runningTasks name the entries of Stop's background_tasks still running, "<type>: <description>" (a shell's command when it has none).
-func runningTasks(v any) []string {
+// Job is one entry of Stop's background_tasks: its id, and its name, "<type>: <description>" (a shell's command when it has none).
+type Job struct{ ID, Name string }
+
+// runningTasks are the entries of Stop's background_tasks still running.
+func runningTasks(v any) []Job {
 	list, _ := v.([]any)
-	var out []string
+	var out []Job
 	for _, e := range list {
 		m, _ := e.(map[string]any)
 		if m == nil || m["status"] != "running" {
@@ -262,7 +265,8 @@ func runningTasks(v any) []string {
 		if typ, _ := m["type"].(string); typ != "" {
 			d = typ + ": " + d
 		}
-		out = append(out, d)
+		id, _ := m["id"].(string)
+		out = append(out, Job{ID: id, Name: d})
 	}
 	return out
 }
@@ -452,15 +456,15 @@ func (t *Tracker) Session(handle string) (running, known bool) {
 	return false, false
 }
 
-// Running names the work the last Stop said agent still runs (runningTasks); nil when no Stop says, or there is none.
-func (t *Tracker) Running(agent string) []string {
+// Running is the work the last Stop said agent still runs (runningTasks); nil when no Stop says, or there is none.
+func (t *Tracker) Running(agent string) []Job {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	tr := t.get(agent)
 	if tr.state != Idle || !tr.bgKnown {
 		return nil
 	}
-	return append([]string(nil), tr.background...)
+	return append([]Job(nil), tr.background...)
 }
 
 // Background is the work the last Stop said still runs, as the footer would count it ("" is none).

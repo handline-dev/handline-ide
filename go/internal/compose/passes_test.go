@@ -10,26 +10,47 @@ import (
 	dbpkg "github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/kit/actor"
+	"github.com/handline/handline/go/scheduler/session"
 	"github.com/handline/handline/go/scheduler/settings"
+	"github.com/handline/handline/go/scheduler/tick"
 	"github.com/handline/handline/go/taskboard/supervisor"
 )
 
-func TestTheBackgroundCheckNamesWhatTheLastStopSaidRuns(t *testing.T) {
+func TestTheBackgroundCheckNamesWhatTheLastStopSaidRunsAndWhenEachStarted(t *testing.T) {
+	p, _ := rig(t)
 	tr := &turns.Tracker{Agent: func(string) string { return "alice" }}
 	tr.Hook("alice", "UserPromptSubmit", map[string]any{}, 10)
 	tr.Hook("alice", "Stop", map[string]any{"background_tasks": []any{
-		map[string]any{"type": "agent", "status": "running", "description": "review the diff"},
-		map[string]any{"type": "shell", "status": "running", "command": "go test ./..."},
+		map[string]any{"id": "a3", "type": "agent", "status": "running", "description": "review the diff"},
+		map[string]any{"id": "b7", "type": "shell", "status": "running", "command": "go test ./..."},
 	}}, 11)
-	ports := timeboxPorts{p: &Parts{turns: tr}}
-	if got := ports.BgJobs(nil, "alice", 0, 0); !slices.Equal(got, []string{"agent: review the diff", "shell: go test ./..."}) {
-		t.Fatalf("named %q", got)
+	// b7's start is its background_started event in this session, not one from before; a3, a subagent, has none: the first Stop that
+	// listed it.
+	for _, e := range []struct {
+		ts   int64
+		kind string
+		kv   dbpkg.KV
+	}{
+		{2, session.BackgroundKind, dbpkg.KV{K: "job", V: "b7"}},
+		{5, "SessionStart", dbpkg.KV{K: "source", V: "resume"}},
+		{8, "Stop", dbpkg.KV{K: "background_tasks", V: []any{map[string]any{"id": "a3"}}}},
+		{9, session.BackgroundKind, dbpkg.KV{K: "job", V: "b7"}},
+	} {
+		if _, err := dbpkg.AddEventAt(p.db, e.ts, "alice", e.kind, e.kv); err != nil {
+			t.Fatal(err)
+		}
 	}
-	if got := ports.BgJobs(nil, "alice", 1, 0); !slices.Equal(got, []string{"shell: go test ./..."}) {
-		t.Fatalf("with a count of 1: %q", got)
+	p.turns = tr
+	ports := timeboxPorts{p: p}
+	want := []tick.BgJob{{Name: "agent: review the diff", Started: 8}, {Name: "shell: go test ./...", Started: 9}}
+	if got := ports.BgJobs(p.db, "alice", 0, 0); !slices.Equal(got, want) {
+		t.Fatalf("named %v", got)
 	}
-	if got := (timeboxPorts{p: &Parts{}}).BgJobs(nil, "alice", 0, 0); got != nil {
-		t.Fatalf("no tracker named %q", got)
+	if got := ports.BgJobs(p.db, "alice", 1, 0); !slices.Equal(got, want[1:]) {
+		t.Fatalf("with a count of 1: %v", got)
+	}
+	if got := (timeboxPorts{p: &Parts{}}).BgJobs(p.db, "alice", 0, 0); got != nil {
+		t.Fatalf("no tracker named %v", got)
 	}
 }
 

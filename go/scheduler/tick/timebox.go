@@ -66,8 +66,8 @@ type TimeboxPorts interface {
 	BgCheckS(agent string) int64
 	// BlockerAlarm is the blocker_alarm setting and its holder and opener thresholds.
 	BlockerAlarm() (on bool, holderS, openerS int64)
-	// BgJobs names what still runs, one line per job, the last count of them when count is set.
-	BgJobs(q db.Q, agent string, count int, now int64) []string
+	// BgJobs is what still runs, one per job, the last count of them when count is set.
+	BgJobs(q db.Q, agent string, count int, now int64) []BgJob
 }
 
 // Timebox is the four notices.
@@ -337,44 +337,36 @@ func (b *Timebox) SweepForgottenBackground(t *Tick, now int64) {
 	}
 }
 
-// SweepBackgroundCheck: every bg_check_s while an agent has background work, at a turn's end, it is told what is running and asked
-// to stop what it no longer needs - a shell nobody stops holds off the context rollover. Not the idle close: busy or idle, owing or not, a
-// "never close" agent too. It waits out a notice already in flight. A job is asked about once a stretch: a check names only jobs not
-// asked about since the work began, and with none it sends nothing.
+// BgJob is a background job: its name, one line, and when it started (0 when that is not recorded).
+type BgJob struct {
+	Name    string
+	Started int64
+}
+
+// SweepBackgroundCheck: at a turn's end, an agent is told which of its background jobs have run bg_check_s or longer, and asked to stop
+// what it no longer needs - a shell nobody stops holds off the context rollover. Not the idle close: busy or idle, owing or not, a "never
+// close" agent too. It waits out a notice already in flight. A job is asked about once a stretch, once it has itself run bg_check_s; a job
+// whose start is not recorded, and work Handline cannot name, count from the stretch's start.
 func (b *Timebox) SweepBackgroundCheck(t *Tick, now int64) {
 	for _, agent := range t.Host.Agents() {
-		key := "bg_check:" + agent
 		row := must(db.GetAgentState(t.Q, agent))
-		if row == nil || !t.Delivery.HasBackgroundWork(t.Q, agent) {
-			check(db.ClearCursor(t.Q, key))
+		if row == nil || !t.Delivery.HasBackgroundWork(t.Q, agent) || row.State != states.Idle || b.Ports.BgPromptedAt(t.Q, agent) != 0 {
 			continue
 		}
-		if row.State != states.Idle || b.Ports.BgPromptedAt(t.Q, agent) != 0 {
-			continue
-		}
-		every := b.Ports.BgCheckS(agent)
 		since, have := b.Ports.BgSince(t.Q, agent)
 		if !have {
 			since = now
 		}
-		last := must(db.Cursor(t.Q, key))
-		if last < since {
-			last = since
-		}
-		if now-last < every {
-			continue
-		}
 		count := int(must(db.Cursor(t.Q, "bgcount:"+agent)))
-		jobs, unnamed := newBackgroundWork(t.Q, agent, since, b.Ports.BgJobs(t.Q, agent, count, now), count)
+		jobs, unnamed, oldest := newBackgroundWork(t.Q, agent, since, now-b.Ports.BgCheckS(agent), b.Ports.BgJobs(t.Q, agent, count, now), count)
 		if len(jobs) == 0 && unnamed == 0 {
-			check(db.SetCursor(t.Q, key, now))
 			continue
 		}
 		listing := backgroundListing(jobs, unnamed)
 		text := fmt.Sprintf("Background work has been running for %s: %s. Stop what you no longer need, and for each one you keep say in a line why. "+
 			"If it watches for another task, stop it and set `--blocked-by T<n>` on your task instead. Only work this session started counts: "+
 			"a process you detached (nohup, &, PPID 1) is not asked about. Each is asked about once: you are asked again only about work started later.",
-			timefmt.Ago(now-since), listing)
+			timefmt.Ago(now-oldest), listing)
 		// The event goes in before the send: its id is what separates the turn that ended before the check from the one that answers it.
 		// It is stamped with the tick's time, which a test can set, as it sets since.
 		checked := must(db.AddEventAt(t.Q, now, agent, "background_checked", db.KV{K: "jobs", V: len(jobs)}, db.KV{K: "unnamed", V: unnamed},
@@ -389,30 +381,43 @@ func (b *Timebox) SweepBackgroundCheck(t *Tick, now int64) {
 			told = b.tell(t, agent, agent, 0, "background_checked", text, now)
 		}()
 		if told {
-			check(db.SetCursor(t.Q, key, now))
-			t.logf("  %s: background work for %s - asked which to stop", agent, timefmt.Ago(now-since))
+			t.logf("  %s: background work for %s - asked which to stop", agent, timefmt.Ago(now-oldest))
 		}
 	}
 }
 
-// newBackgroundWork is the running work no check asked about since the work began: the jobs not named before, and the unnamed count
-// when it is more than was asked about (else 0). count is how many jobs the last Stop counted.
-func newBackgroundWork(q db.Q, agent string, since int64, jobs []string, count int) ([]string, int) {
+// newBackgroundWork is the running work no check asked about since the work began and that started by due: the names of the jobs not
+// asked about before, the unnamed count when it is more than was asked about (else 0), and when the oldest named one started (the
+// stretch's start when only unnamed work is new). count is how
+// many jobs the last Stop counted.
+func newBackgroundWork(q db.Q, agent string, since, due int64, jobs []BgJob, count int) ([]string, int, int64) {
 	unnamed := max(max(count, len(jobs))-len(jobs), 0)
 	if len(jobs) == 0 && unnamed == 0 {
 		unnamed = unnamedOnly
 	}
 	asked, askedUnnamed := askedThisStretch(q, agent, since)
 	var fresh []string
+	oldest := int64(0)
 	for _, j := range jobs {
-		if !asked[j] {
-			fresh = append(fresh, j)
+		started := j.Started
+		if started == 0 {
+			started = since
+		}
+		if asked[j.Name] || started > due {
+			continue
+		}
+		fresh = append(fresh, j.Name)
+		if oldest == 0 || started < oldest {
+			oldest = started
 		}
 	}
-	if unnamed <= askedUnnamed {
+	if unnamed <= askedUnnamed || since > due {
 		unnamed = 0
 	}
-	return fresh, unnamed
+	if unnamed > 0 && oldest == 0 {
+		oldest = since
+	}
+	return fresh, unnamed, oldest
 }
 
 // unnamedOnly is the unnamed count of work Handline can neither name nor count.
