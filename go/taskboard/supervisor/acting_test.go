@@ -102,6 +102,51 @@ func TestACommentTellsTheAgentOnTop(t *testing.T) {
 	}
 }
 
+// The founder's comment naming no one on a task they hold themselves (a story) is told to the last agent that commented there, the one who
+// spoke to them; one naming @x is told to x only; with no other writer it reaches no one.
+func TestTheFoundersCommentOnTheirOwnTaskGoesToTheLastAgentThatWroteThere(t *testing.T) {
+	r := newRig(t)
+	r.bigTeam()
+	tid, err := db.NewTask(r.DB, "the story", actor.OwnerKey, actor.OwnerKey, 0, db.DefaultPriority, "", 0, "")
+	r.must(err)
+	who := func(text string) string {
+		t.Helper()
+		got, ok := r.MemoRecipients(tid, actor.OwnerKey, text, false)
+		if !ok {
+			t.Fatal("no task")
+		}
+		var out []string
+		for _, g := range got {
+			out = append(out, g.Agent+":"+g.Why)
+		}
+		return strings.Join(out, " ")
+	}
+	if got := who("plain"); got != "" {
+		t.Fatalf("no one else wrote, yet %q", got)
+	}
+	for _, w := range []string{r.k("alice"), r.k("bob"), actor.OwnerKey} {
+		_, err := db.AddMemo(r.DB, tid, w, "a word")
+		r.must(err)
+	}
+	if got := who("plain"); got != r.k("bob")+":last_writer" {
+		t.Fatalf("%q", got)
+	}
+	if got := who("ask <@" + r.k("alice") + ">"); got != r.k("alice")+":asked" {
+		t.Fatalf("%q", got)
+	}
+	// An agent's comment on a task it holds stays the holder's to answer: its progress notes reach no one who once wrote there.
+	held := r.newTask("alice", r.k("carol"), "alice's work")
+	_, err = db.AddMemo(r.DB, held, r.k("bob"), "a word")
+	r.must(err)
+	if got, ok := r.MemoRecipients(held, r.k("alice"), "halfway", false); !ok || len(got) != 0 {
+		t.Fatalf("an agent's progress note was told: %+v", got)
+	}
+	r.turnCall("human", "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"why is it paused?","request_id":"c1"}`, tid))
+	if says := fmt.Sprint(r.saysTo("bob")); !strings.Contains(says, "why is it paused?") {
+		t.Fatalf("bob is not told: %s", says)
+	}
+}
+
 // The founder's question on a task Ready for them is told to the agent below their turn, which answers it in a comment; their turn stays.
 func TestTheFoundersQuestionOnAReadyTaskIsToldToItsAssignee(t *testing.T) {
 	r, tid := turnRig(t)

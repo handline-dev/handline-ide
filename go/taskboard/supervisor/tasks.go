@@ -519,14 +519,8 @@ func (e *Env) TellMemoSkipping(q db.Q, tid, mid int64, by, what, text, to string
 	if row == nil {
 		return nil
 	}
-	ready := false // the founder's question on a task Ready for them: told to the agent below their turn, which answers it
-	if what == "added" && actor.IsPerson(by) {
-		r := must(db.TaskReview(q, tid))
-		if ready = r != nil && r.Ready; ready {
-			check(toldBelow(q, row, by))
-		}
-	}
-	for _, r := range e.memoRecipients(row, by, text, to, now) {
+	ready := what == "added" && must(readyBelow(q, row, by)) // the founder's question on a task Ready for them: told to the agent below their turn
+	for _, r := range e.memoRecipients(q, row, by, text, to, now) {
 		if slices.Contains(skip, r.Agent) {
 			continue
 		}
@@ -539,6 +533,18 @@ func (e *Env) TellMemoSkipping(q db.Q, tid, mid int64, by, what, text, to string
 		e.linkMemoTell(q, mid, r.Agent, rid)
 	}
 	return nil
+}
+
+// readyBelow is whether row is Ready for the founder (by) now; then the agent below their turn is made its holder, which answers their comment.
+func readyBelow(q db.Q, row *db.Task, by string) (bool, error) {
+	if !actor.IsPerson(by) {
+		return false, nil
+	}
+	r, err := db.TaskReview(q, row.ID)
+	if err != nil || r == nil || !r.Ready {
+		return false, err
+	}
+	return true, toldBelow(q, row, by)
 }
 
 // toldBelow makes the agent below the founder's top turn row's holder, for telling the founder's (by) comment.
@@ -555,20 +561,30 @@ func toldBelow(q db.Q, row *db.Task, by string) error {
 
 // memoRecipients is the one rule for whom a comment on row is told: an agent it names with @ or that was said it (to) is asked, and the
 // task's holder (its assignee) is always told. Who the task answers to (owner) is told only when it is sent now, or when the founder wrote it
-// on a task no agent holds (the founder does, or the holder has retired): otherwise answering is the holder's.
-func (e *Env) memoRecipients(row *db.Task, by, text, to string, now bool) []taskwrites.Recipient {
+// on a task no agent holds (the founder does, or the holder has retired): otherwise answering is the holder's. The founder's comment that
+// names no one on a task they hold is told to the last agent that commented there (last_writer): the one who spoke to them.
+func (e *Env) memoRecipients(q db.Q, row *db.Task, by, text, to string, now bool) []taskwrites.Recipient {
 	named := e.mentioned(by, text)
 	unheld := actor.IsPerson(by) && !e.registered(row.Acting)
+	readers := e.memoReaders(row, by, named)
+	last := ""
+	if len(named) == 0 && actor.IsPerson(by) && row.Acting == by {
+		if last = e.lastWriter(q, row.ID, by); last != "" && !slices.Contains(readers, last) {
+			readers = append(readers, last)
+		}
+	}
 	var out []taskwrites.Recipient
-	for _, a := range e.memoReaders(row, by, named) {
+	for _, a := range readers {
 		asked := a == to || slices.Contains(named, a)
-		if delivery.ClassOf(delivery.Memo, now || asked || a == row.Acting || unheld, false) != delivery.ClassNow {
+		if delivery.ClassOf(delivery.Memo, now || asked || a == row.Acting || a == last || unheld, false) != delivery.ClassNow {
 			continue
 		}
 		why := "owner"
 		switch {
 		case asked:
 			why = "asked"
+		case a == last:
+			why = "last_writer"
 		case a == row.Acting:
 			why = "assignee"
 		}
@@ -600,6 +616,22 @@ func (e *Env) memoReaders(row *db.Task, by string, mentioned []string) []string 
 		}
 	}
 	return out
+}
+
+// lastWriter is the registered agent other than by that last commented on task tid, "" for none.
+func (e *Env) lastWriter(q db.Q, tid int64, by string) string {
+	rows := must(q.Query("SELECT author FROM task_memos WHERE task_id = ? AND author != ? ORDER BY id DESC", tid, by))
+	defer rows.Close()
+	agents := e.agents()
+	for rows.Next() {
+		var a string
+		check(rows.Scan(&a))
+		if slices.Contains(agents, a) {
+			return a
+		}
+	}
+	check(rows.Err())
+	return ""
 }
 
 // mentioned is the key of every registered agent text names with <@key>. A memo writer that tells before it stores (a handoff note, a
