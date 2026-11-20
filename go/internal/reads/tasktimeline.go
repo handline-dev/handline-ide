@@ -79,6 +79,9 @@ func (e *Env) taskTimeline(tid int64, memos, reqs []row, parts func(string) []an
 		if carried[r.i("id")] || r.i("notice") == 2 || r.set("memo_id") { // a memo's tell, or the ask an @human memo opened, repeats the memo row
 			continue
 		}
+		if r.str("requester") == db.NoticeRequester && r.str("kind") == "say" { // the board's notice to an agent belongs to its chat
+			continue
+		}
 		first := ""
 		if lines := textsafe.SplitLines(strings.TrimSpace(r.str("body"))); len(lines) > 0 {
 			first = lines[0]
