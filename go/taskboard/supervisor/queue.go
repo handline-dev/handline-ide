@@ -68,7 +68,8 @@ func (e *Env) SweepTaskQueue(now int64) (err error) {
 	return nil
 }
 
-// moveOffWaiting gives an idle agent with an overdue, unanswered current task its next one, or pings the holder once per overrun notice.
+// moveOffWaiting gives an idle agent with an overdue, unanswered current task its next one that has not run over too (two that had were
+// swapped every tick), or pings the holder once per overrun notice.
 func (e *Env) moveOffWaiting(q db.Q, agent string, now int64) {
 	tid, ok := ok2(db.CurrentTask(q, agent))
 	cur := must(db.GetTask(q, tid))
@@ -83,7 +84,7 @@ func (e *Env) moveOffWaiting(q db.Q, agent string, now int64) {
 	}
 	why := "past its timeout, unanswered"
 	for _, w := range must(db.WaitingTasks(q, agent)) {
-		if w.Task.ID != cur.ID && e.makeCurrent(q, agent, w, nil) {
+		if w.Task.ID != cur.ID && !must(db.RanOver(q, w.Task, now)) && e.makeCurrent(q, agent, w, nil) {
 			e.typeSay(q, agent, fmt.Sprintf("T%d is %s, so T%d (%s) is yours now: start it.", cur.ID, why, w.Task.ID, textsafe.Oneline(w.Task.Title)), "next task while current waits")
 			e.Push(q, agent, 0)
 			e.log("  %s: T%d is %s - delivered T%d", agent, cur.ID, why, w.Task.ID)
