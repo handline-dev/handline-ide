@@ -3,12 +3,13 @@
 import type { Window } from '@handline/client';
 import { clockTime, dateTime } from '#src/time.ts';
 
-export type SwitchPhase = 'saving' | 'switching' | 'starting' | 'waiting';
+export type SwitchPhase = 'saving' | 'switching' | 'note' | 'starting' | 'waiting';
 
 /** The words the message box shows while it is locked for a switch; a wait does not lock it. */
 export function switchWords(s: { phase: SwitchPhase; to: string | null; waits?: string | null }): string | null {
   if (s.phase === 'saving') return s.waits ? `Preparing to change accounts… · ${waitsWords(s.waits)}` : 'Preparing to change accounts…';
   if (s.phase === 'switching') return `Switching to ${s.to ?? 'another account'}…`;
+  if (s.phase === 'note') return `Switching to ${s.to ?? 'another account'}… · writing its handoff note`;
   if (s.phase === 'starting') return `Starting on ${s.to ?? 'the new account'}…`;
   return null;
 }
