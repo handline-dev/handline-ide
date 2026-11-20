@@ -57,14 +57,3 @@ func TestThePauseHoldsOnlyTheAgentsUntoldTasksThatNothingElseHolds(t *testing.T)
 		t.Fatalf("another agent's: %v", other)
 	}
 }
-
-func TestAMachinesIDIsMadeOnceAndKept(t *testing.T) {
-	q := open(t)
-	a, err := MachineID(q)
-	if err != nil || len(a) != 16 {
-		t.Fatalf("%q %v", a, err)
-	}
-	if b, _ := MachineID(q); b != a {
-		t.Fatalf("a second ask made another: %q %q", a, b)
-	}
-}

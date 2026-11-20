@@ -10,6 +10,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `device.redeem` | anonymous | yes | `code`, `name`, `kind?`, `request_id` | `Accepted & {token, device}` | `refused` | pairing_code, attempt_limit | not from the app |
 | `device.revoke` | owner | yes | `device`, `request_id` | `Accepted` | `refused`, `not_found` |  | decided: revoke |
 | `device.push_token` | owner | yes | `platform`, `token`, `sandbox?`, `request_id` | `Accepted` | `refused`, `not_found` | device | not from the app |
+| `node.status` | agent |  | none | `{master, nodes}` |  |  | `nodes`, fed by nodes |
 
 ### `devices.list`
 
@@ -30,4 +31,8 @@ Cancel a device and close its connections at once. Cancels the device's token. I
 ### `device.push_token`
 
 A paired device gives the push token its OS gave it. Called by the paired device itself, after pairing and whenever its OS gives it a new token; the token is kept on that device's row in place of the one before. A connection that is no paired device (the local socket) is refused, gate `device`. The token is dropped when the device is revoked. devices.list shows whether a device has one (`push`).
+
+### `node.status`
+
+The machines of this master, its own first. Read only. Today it lists only the master's own machine.
 

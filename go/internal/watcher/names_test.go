@@ -13,7 +13,7 @@ func TestARenameIsAgentChangedAndAWriteToPeopleOrWorkspacesIsTheirChanged(t *tes
 	exec(t, d, "INSERT INTO agents(id, workspace, name, owner, created_at) VALUES(7, 5, 'designer', 'p1', 0)")
 	exec(t, d, `INSERT INTO agent_view(agent, view, updated) VALUES('a7', '{"name":"a7","state":"idle"}', 0)`)
 	emit := func(e stream.Entry) (*stream.Event, error) { return l.Append(e) }
-	dets := []Detector{&Agents{}, People(), Workspaces()}
+	dets := []Detector{&Agents{}, People(), Workspaces(), Nodes()}
 	scan := func() {
 		for _, x := range dets {
 			if err := x.Scan(d, emit); err != nil {
@@ -22,7 +22,7 @@ func TestARenameIsAgentChangedAndAWriteToPeopleOrWorkspacesIsTheirChanged(t *tes
 		}
 	}
 	all := func() []*stream.Event {
-		got, err := l.Since(0, []string{"agents", "people", "workspaces"}, "", 100)
+		got, err := l.Since(0, []string{"agents", "people", "workspaces", "nodes"}, "", 100)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -46,5 +46,14 @@ func TestARenameIsAgentChangedAndAWriteToPeopleOrWorkspacesIsTheirChanged(t *tes
 	got = all()[1:]
 	if len(got) != 2 || got[0].Type != "people.changed" || got[1].Type != "workspaces.changed" || string(got[0].Data) != "{}" {
 		t.Fatalf("%+v", got)
+	}
+	exec(t, d, "INSERT INTO nodes(id, person, name, joined_at) VALUES('n1', 1, 'mac', 0)")
+	scan()
+	if got = all()[3:]; len(got) != 1 || got[0].Type != "nodes.changed" {
+		t.Fatalf("a node row: %+v", got)
+	}
+	scan()
+	if got = all()[4:]; len(got) != 0 {
+		t.Fatalf("no write said something: %+v", got)
 	}
 }
