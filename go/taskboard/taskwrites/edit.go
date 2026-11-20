@@ -398,7 +398,7 @@ func editMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, 
 		if hasEstimate {
 			estimate = &points
 		}
-		blocker, hasBlocker, err := optionalTask(p, "blocked_by")
+		blockers, err := blockersParam(p)
 		if err != nil {
 			return nil, err
 		}
@@ -436,7 +436,7 @@ func editMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, 
 			pr = n
 		}
 		fields := owner != nil || reporter != nil || title != nil || body != nil || evidence != nil || timeoutS != nil || priority != nil || estimate != nil
-		if !fields && !hasBlocker && !hasUnblock && !hasTags && pr == 0 && !moveParent {
+		if !fields && len(blockers) == 0 && !hasUnblock && !hasTags && pr == 0 && !moveParent {
 			return nil, badParam("edit needs an owner, a reporter, a title, a priority, an estimate, a body, an evidence, a time_box, blocked_by, unblock, add_tags, remove_tags, pr, parent or no_parent", "")
 		}
 		for _, who := range []*string{owner, reporter} {
@@ -517,7 +517,7 @@ func editMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, 
 				msgs = append(msgs, msg)
 				tellMsgs = append(tellMsgs, msg)
 			}
-			if hasBlocker {
+			for _, blocker := range blockers {
 				why, err := recordBlock(tx, tid, blocker, me)
 				if err != nil {
 					return nil, err

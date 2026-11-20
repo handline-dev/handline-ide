@@ -259,3 +259,27 @@ func TestAnOwnerEditThatMakesAPairDormantAgainOnTheSameDayLogsItOnce(t *testing.
 		t.Fatalf("dormant again, logged once: %v", r)
 	}
 }
+
+func TestSeveralBlockersAreRecordedTogetherOrNotAtAll(t *testing.T) {
+	t.Parallel()
+	db, mk := discardEnv(t)
+	exec(t, db,
+		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'held', 'worker', 'manager', 1), (2, 'dep', 'other', 'manager', 1), "+
+			"(3, 'dep2', 'other', 'manager', 1)")
+	rpcCall := func(id int, method, params string) string {
+		return fmt.Sprintf(`{"jsonrpc":"2.0","id":%d,"method":%q,"params":{%s,"request_id":"s%d"}}`, id, method, params, id)
+	}
+	r := call(t, mk("manager", &fakeTeller{}),
+		rpcCall(2, "task.edit", `"task":1,"blocked_by":[2,99]`),
+		rpcCall(3, "task.edit", `"task":1,"blocked_by":[2,3,2]`),
+		rpcCall(4, "task.new", `"owner":"worker","title":"drafted","body":"b","draft":true,"blocked_by":[2,3]`))
+	if r[0]["error"] == nil || r[1]["result"] == nil || r[2]["result"] == nil {
+		t.Fatalf("a missing second blocker refuses; a repeat is taken once; task.new takes a list: %v", r)
+	}
+	if n := count(t, db, "SELECT COUNT(*) FROM task_blocks WHERE task_id = 1 AND blocks_on IN (2, 3)"); n != 2 {
+		t.Fatalf("T1 waits on both once, the refused write left none: %d", n)
+	}
+	if n := count(t, db, "SELECT COUNT(*) FROM task_blocks WHERE task_id = (SELECT id FROM tasks WHERE title = 'drafted') AND blocks_on IN (2, 3)"); n != 2 {
+		t.Fatalf("the new task waits on both: %d", n)
+	}
+}

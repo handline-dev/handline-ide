@@ -684,8 +684,8 @@ export interface TasksMethods {
   request?: number;
   /** Open the task even when an open task under the same parent, or the parent itself, has nearly its title (gate duplicate_title). */
   duplicate_ok?: boolean;
-  /** Cannot be worked until this task closes. */
-  blocked_by?: number;
+  /** Cannot be worked until this task, or each of these tasks, closes. */
+  blocked_by?: number | number[];
   /** With owner gate, required, and refused with any other owner; a watch its vendor cannot take, or a vendor not set up, is refused. The gate is doing from the start; its time box (default 24h) is its deadline. The daemon marks it done with the vendor's evidence when the vendor answers passed or failed ("ci passed", "ci failed: <check names>", "merged <sha>", "closed unmerged", "no CI on this PR"), or "timed out" past its deadline. A task blocked by it (blocked_by) then comes back to its holder, who decides what follows. task.wait opens one and blocks a task on it in one write. */
   watch?: Watch;
   /** 1 high, 2 default, 3 low (written P1-P3). Absent means 2. */
@@ -920,8 +920,8 @@ export interface TasksMethods {
   priority?: 1 | 2 | 3;
   /** Story points (as task.new); null clears it. */
   estimate?: (1 | 2 | 3 | 5 | 8 | 13) | null;
-  /** A task number this one waits on, added in the same transaction as the other parts; a refusal of any part undoes all of them. A doing task goes back to queued. */
-  blocked_by?: number;
+  /** A task number this one waits on, or a list of them, added in the same transaction as the other parts; a refusal of any part undoes all of them. A doing task goes back to queued. */
+  blocked_by?: number | number[];
   /** A task number this one no longer waits on; clearing the last one lets its owner's current task advance. */
   unblock?: number;
   /** A task to move this one under: the old parent stops waiting on it, an open new parent waits on it while it is open (a done one takes it without the wait). Refused (`refused`, nothing changed): itself, a task under it, a discarded parent, its current parent, a wait loop. */

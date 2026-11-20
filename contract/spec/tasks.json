@@ -3016,8 +3016,18 @@
      "name": "blocked_by",
      "required": false,
      "schema": {
-      "type": "integer",
-      "description": "Cannot be worked until this task closes."
+      "oneOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "array",
+        "items": {
+         "type": "integer"
+        }
+       }
+      ],
+      "description": "Cannot be worked until this task, or each of these tasks, closes."
      }
     },
     {
@@ -4789,8 +4799,18 @@
      "name": "blocked_by",
      "required": false,
      "schema": {
-      "type": "integer",
-      "description": "A task number this one waits on, added in the same transaction as the other parts; a refusal of any part undoes all of them. A doing task goes back to queued."
+      "oneOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "array",
+        "items": {
+         "type": "integer"
+        }
+       }
+      ],
+      "description": "A task number this one waits on, or a list of them, added in the same transaction as the other parts; a refusal of any part undoes all of them. A doing task goes back to queued."
      }
     },
     {
