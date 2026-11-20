@@ -79,6 +79,73 @@
      "connected",
      "push"
     ]
+   },
+   "Node": {
+    "type": "object",
+    "description": "A machine of this master: its own, and later the ones people lend it.",
+    "properties": {
+     "id": {
+      "type": "string",
+      "description": "The machine's node id (DaemonStatus.machine.id on that machine)."
+     },
+     "person": {
+      "oneOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "The key of the person whose machine it is."
+     },
+     "name": {
+      "type": "string",
+      "description": "The machine's name, as it calls itself."
+     },
+     "joined_at": {
+      "$ref": "#/components/schemas/Timestamp"
+     },
+     "last_seen": {
+      "oneOf": [
+       {
+        "$ref": "#/components/schemas/Timestamp"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "When the master last heard from it: for its own row, the daemon's start."
+     },
+     "master_number": {
+      "type": "integer",
+      "description": "The master it belongs to; 1 until masters can change."
+     },
+     "master": {
+      "type": "boolean",
+      "description": "It is the master."
+     },
+     "self": {
+      "type": "boolean",
+      "description": "It is the machine this daemon runs on."
+     },
+     "online": {
+      "type": "boolean",
+      "description": "The master hears from it now; always true for the master's own row."
+     }
+    },
+    "required": [
+     "id",
+     "person",
+     "name",
+     "joined_at",
+     "last_seen",
+     "master_number",
+     "master",
+     "self",
+     "online"
+    ],
+    "additionalProperties": false
    }
   }
  },
@@ -406,6 +473,54 @@
     "device"
    ],
    "description": "Called by the paired device itself, after pairing and whenever its OS gives it a new token; the token is kept on that device's row in place of the one before. A connection that is no paired device (the local socket) is refused, gate `device`. The token is dropped when the device is revoked. devices.list shows whether a device has one (`push`)."
+  },
+  {
+   "name": "node.status",
+   "summary": "The machines of this master, its own first. Read only.",
+   "paramStructure": "by-name",
+   "params": [],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "properties": {
+      "master": {
+       "type": "object",
+       "properties": {
+        "id": {
+         "type": "string"
+        },
+        "number": {
+         "type": "integer"
+        }
+       },
+       "required": [
+        "id",
+        "number"
+       ],
+       "description": "The master's node id and its number."
+      },
+      "nodes": {
+       "type": "array",
+       "items": {
+        "$ref": "#/components/schemas/Node"
+       }
+      }
+     },
+     "required": [
+      "master",
+      "nodes"
+     ]
+    }
+   },
+   "x-role": "agent",
+   "x-write": false,
+   "x-app-cache": {
+    "resource": "nodes",
+    "feed": "nodes"
+   },
+   "x-since": 1,
+   "description": "Today it lists only the master's own machine."
   }
  ]
 }

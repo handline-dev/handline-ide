@@ -104,6 +104,11 @@ export function coreCall(
       };
     case 'people.list':
       return { people: PEOPLE };
+    case 'node.status': {
+      const at = d.iso();
+      const own = { id: 'm-fake', person: 'p1', name: 'mac', joined_at: at, last_seen: at, master_number: 1 };
+      return { master: { id: own.id, number: 1 }, nodes: [{ ...own, master: true, self: true, online: true }] };
+    }
     case 'agent.get':
       return detail(agent(), d.tasks);
     case 'subscribe': {

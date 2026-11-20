@@ -30,6 +30,7 @@ export const reads = {
   "inbox.get": { resource: "inbox-item", id: "id", feed: "inbox" },
   "requests.list": { resource: "requests", feed: "requests" },
   "devices.list": { resource: "devices", feed: "devices" },
+  "node.status": { resource: "nodes", feed: "nodes" },
   "repos.list": { resource: "repos" },
   "repos.recent": { resource: "recent_repos" },
   "repo.facts": { resource: "repo_facts" },

@@ -14,9 +14,10 @@ type Names struct {
 	seen         *int64
 }
 
-// The two Names topics.
+// The Names topics.
 func People() *Names     { return &Names{Table: "people", Topic: "people"} }
 func Workspaces() *Names { return &Names{Table: "workspaces", Topic: "workspaces"} }
+func Nodes() *Names      { return &Names{Table: "nodes", Topic: "nodes"} }
 
 func (n *Names) Name() string     { return n.Topic }
 func (n *Names) Tables() []string { return []string{n.Table} }
