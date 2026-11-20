@@ -64,7 +64,7 @@ func TestSavingShowsWhileTheHandoffWaitsAndKeepsItsSince(t *testing.T) {
 		setup func(g *termMoveRig)
 	}{
 		{"mid-turn", func(g *termMoveRig) { g.run.status = "busy" }},
-		{"note hold", func(g *termMoveRig) { g.v.E.NoteHold = func(db.Q, string, int64) bool { return true } }},
+		{"note hold", func(g *termMoveRig) { g.v.E.NoteHold = func(db.Q, string, string, int64) bool { return true } }},
 		{"too soon after the last", func(g *termMoveRig) {
 			db.StartHandoff(g.m.Q, "h0", "a", "s", "usage", 0)
 			db.AdvanceHandoff(g.m.Q, "h0", "released", "done", "")

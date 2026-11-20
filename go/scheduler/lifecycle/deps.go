@@ -70,7 +70,7 @@ type HandoffPort interface {
 	// ContextFull: the session's context is at or over the agent's context limit; false when it cannot be read.
 	ContextFull(q db.Q, agent, session string) bool
 	ClearNote(q db.Q, agent string)
-	// NoteFromTranscript: a fresh start waits while Handline writes the note into a record that has none, starting it once per session.
+	// NoteFromTranscript: a fresh start waits while Handline writes the note into a record that has none, trying each session up to handoff.SummaryTries times.
 	NoteFromTranscript(agent string) bool
 }
 
