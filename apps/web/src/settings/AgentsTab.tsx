@@ -11,6 +11,7 @@ import { Block, Setting } from '#src/settings/Meter.tsx';
 import { SettingsPage } from '#src/settings/SettingsPage.tsx';
 import { Input, Select } from '#src/ui/Field.tsx';
 import { ToolLogo } from '#src/ui/ToolLogo.tsx';
+import { Toggle } from '#src/ui/Toggle.tsx';
 
 type Key = 'default_model_claude' | 'default_effort_claude' | 'default_model_codex' | 'default_effort_codex';
 
@@ -57,6 +58,18 @@ function AgentsList({ pick }: { pick: (agent: string) => void }) {
               <CodexModel value={values.default_model_codex ?? ''} disabled={busy} save={(v) => put('default_model_codex', v || null)} />
               {choose('default_effort_codex', 'Codex effort', opts.efforts)}
             </div>
+          </Setting>
+        </Block>
+      )}
+      {values && (
+        <Block title="Review">
+          <Setting title="Check finished work before it lands">
+            <Toggle
+              label="Check finished work before it lands"
+              on={values.review_flow === true}
+              disabled={busy}
+              onChange={(on) => save.mutate({ changes: { review_flow: on } })}
+            />
           </Setting>
         </Block>
       )}
