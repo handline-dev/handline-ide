@@ -8,7 +8,8 @@ people who only connect.
 **Names used throughout:** the **master** is the one daemon that keeps the board and decides. A **runner** is
 a machine lent to the master: it runs the agents the master sends it and keeps nothing of the board. The
 master's own machine is a runner too. A **person** connects with the app; a person may lend their machine,
-which makes it a runner, or only connect.
+which makes it a runner, or only connect. Every Mac, server, phone and browser is a **device**, added the same
+way and listed in one Settings screen, Devices.
 
 ## The shape
 
@@ -49,10 +50,13 @@ folder, press these keys, show me this pane, stop that session. The runner does 
 
 ## 1. Lending a machine
 
-A person lends a machine with the app ("Lend this Mac") or `hl node join <master address>`, using a pairing
-code from the master: the `device.pair` flow, issuing a **node credential** that belongs to that person.
+A machine is added like any device: Settings > Devices > **Connect a device**, the same pairing code a phone or
+a browser uses (`device.pair`), or `hl device join <link>` on a machine without the app, such as a rented
+server. The device belongs to the person whose code it redeemed, and it comes in running nothing. A Mac's or a
+server's row in Devices has a **Run agents** switch (a phone's or a browser's has none); only the device's own
+person can turn it on, and turning it on lends the machine. The master's own Mac has it on, as today.
 
-1. The machine's daemon starts in runner mode. If it ran alone before, its own board is set aside unchanged
+1. The machine's daemon starts in runner mode, with its device token as its credential. If it ran alone before, its own board is set aside unchanged
    and not merged; bringing old tasks over is later work.
 2. **The project:** for each workspace, the runner clones the project's repo from its remote into its own
    folder, at join and when a workspace is added. A workspace whose project has no remote runs only on the
@@ -64,7 +68,7 @@ code from the master: the `device.pair` flow, issuing a **node credential** that
    accounts and their sessions, and the sessions it runs.
 
 A lent machine runs code the master's agents write, so lending is the person's explicit act, shown in their
-app, and they can take the machine back at any time (it goes offline, section 3).
+app, and they can take the machine back at any time by turning Run agents off (it goes offline, section 3).
 
 ## 2. Agents and sessions
 
@@ -145,7 +149,8 @@ People and roles exist today (`people`, `devices`; the RPC roles `owner` and `me
 
 1. `node.status` and a `nodes` topic: the master, each runner with its person, online or offline since when,
    load, accounts, sessions.
-2. Lend and take back: `node.join`, `node.leave`, and the pairing code.
+2. Lend and take back: a device's Run agents flag, set only by the device's own person; the pairing code is
+   the one Connect a device shows.
 3. Each agent's current machine in `agents.list` and `agent.changed`; terminal attach relayed.
 4. The reclaim time setting.
 5. People: invite, list, role, remove; each person's Requests.
@@ -169,6 +174,9 @@ People and roles exist today (`people`, `devices`; the RPC roles `owner` and `me
 7. **Board:** SQLite on the master; the owner's runners hold a copy, through Litestream, only to restore from.
    No replicated database: rqlite cannot run the daemon's transactions, dqlite does not run on macOS, and
    younger replication libraries are not trusted with the board yet.
+8. **One Devices screen (11-18):** Macs, servers, phones and browsers are all devices, added by Connect a
+   device. A Mac's row has Run agents, which is lending, and opens what This Mac shows today (resources,
+   agents, simulators, keep awake) for that Mac, so there is no This Mac or Machines screen of its own.
 
 ## Build slices
 
@@ -180,7 +188,7 @@ runner on one Mac (slice 3); the last check is two real Macs.
 | # | Slice | Area | Hours | After |
 |---|---|---|---|---|
 | 1 | Node identity and the node table on the master; `node.status` and the `nodes` topic | daemon | 6 | |
-| 2 | Lending: `device.pair` issues a node credential owned by a person; `hl node join` and `node.leave`; a joining machine's own board set aside | daemon, hl | 6 | 1 |
+| 2 | Lending: a device belongs to the person whose code it redeemed; a Mac's or a server's Run agents flag, set only by that person, makes it a runner and clearing it takes it back; `hl device join` for a machine without the app; a lending machine's own board set aside | daemon, hl | 6 | 1 |
 | 3 | A master and a runner on one Mac for tests: two daemons with their own homes and ports, joined | tooling | 4 | 2 |
 | 4 | Runner mode: no board; the API the master drives (terminal open, keys, screen, stop, worktree make, push); the local socket forwards its agents' calls with the agent proven by process descent | daemon | 16 | 3 |
 | 5 | The machine seam on the master: launches, the terminal tick, key presses and stops go through one interface; this machine's own tmux behind it, and a runner's API | daemon | 12 | 4 |
@@ -191,8 +199,8 @@ runner on one Mac (slice 3); the last check is two real Macs.
 | 10 | Placement: each session on an online runner holding the project, with a slot, an account with room and the lease the work needs | daemon | 8 | 6, 9 |
 | 11 | Account choice across runners: the one-machine rule over every runner's accounts and sessions | daemon | 6 | 9, 10 |
 | 12 | Terminal attach relayed through the master to the runner | daemon | 6 | 5 |
-| 13 | The app's screens designed and shown: Machines in Settings (lend, take back, online or offline, reclaim time, "Make this Mac the master"), each agent's machine | app | 7 | 1 |
-| 14 | The app built to them, "Lend this Mac" starting runner mode | app | 10 | 10, 12, 13 |
+| 13 | The app's screens designed and shown: Settings > Devices with one row per device; a Mac's row with Run agents, online or offline, and what This Mac shows today for that Mac; reclaim time; "Make this Mac the master"; each agent's machine | app | 7 | 1 |
+| 14 | The app built to them: This Mac folded into Devices, Run agents starting runner mode | app | 10 | 10, 12, 13 |
 | 15 | People: invite by pairing link, list, roles, remove; a member may lend | daemon, app | 8 | 2 |
 | 16 | Turns per person: a turn names the person it waits on; each person's Requests | daemon, app | 10 | 15 |
 | 17 | The board's copy: Litestream inside the master writing to a folder; each of the owner's runners mirrors it; how far behind, in `node.status`; the copy and the takeover kept in one package, so a vote can replace them | daemon | 10 | 4 |
