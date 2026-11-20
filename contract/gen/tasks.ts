@@ -252,7 +252,7 @@ export type TaskDetail = Task & {
   plan_state: "none" | "asked" | "writing" | "written" | "ok";
   /** The task's plan, written by its assignee (task.plan); null when it has none. Kept in the task's events, as the brief's edits are. */
   plan: {
-    /** The plan as it stands, Markdown: what will change, in which files, how it will be shown done, what is left out, what it starts after. */
+    /** The plan as it stands, Markdown: what changes for the founder, the core logic that decides it, a choice only the founder can make, what is left out and what it starts after. */
     text: string;
     by: string;
     at: Timestamp;

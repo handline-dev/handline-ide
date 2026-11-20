@@ -55,7 +55,8 @@ func TestADraftsPlanIsAskedOnceAndWaitsBehindWhatItsAssigneeIsDoing(t *testing.T
 	r.must(r.SweepTaskAsks(true))
 	says := r.planSays("bob")
 	if len(says) != 1 || !strings.HasPrefix(says[0], "Write the plan for T2 (the draft). Read its brief (`hl task show T2`)") ||
-		!strings.Contains(says[0], "`hl task plan T2 --file <path>`") {
+		!strings.Contains(says[0], "`hl task plan T2 --file <path>`") || !strings.Contains(says[0], "what changes for the founder") ||
+		!strings.Contains(says[0], "the core logic") || strings.Contains(says[0], "in which files") {
 		t.Fatalf("one ask once bob is done: %q", says)
 	}
 	if st, _, _, _ := db.PlanState(r.DB, tid); st != "writing" {

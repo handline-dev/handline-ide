@@ -97,10 +97,12 @@ func askText(a *db.TaskAsk, t *db.Task, branch string) string {
 	n, title := t.ID, shortTitle(t.Title)
 	if a.Kind == db.PlanAskKind {
 		return fmt.Sprintf("Write the plan for T%d (%s). Read its brief (`hl task show T%d`) and the code it touches, and change nothing: no edits, "+
-			"no commits, no branch. The plan says what you will change, in which files, how you will show it done, what you leave out, and what it "+
-			"starts after. Keep it with `hl task plan T%d --file <path>` (write the file outside the repo). A question only the founder can answer "+
-			"goes on the task: `hl task comment T%d add \"<question>\" --turn human`. Then go back to what you were doing; T%d itself comes to "+
-			"you when it is run.", n, title, n, n, n, n)
+			"no commits, no branch. The plan holds only, in a few lines each: what changes for the founder (what they will see, or what behaves "+
+			"differently); the core logic: the one rule or few lines of code the change rests on; a choice only the founder can make, if any; and "+
+			"what it leaves out and starts after. Files, components, names and tests are your call; the result review checks them. Keep it "+
+			"with `hl task plan T%d --file <path>` (write the file outside the repo). "+
+			"A question only the founder can answer goes on the task: `hl task comment T%d add \"<question>\" --turn human`. "+
+			"Then go back to what you were doing; T%d itself comes to you when it is run.", n, title, n, n, n, n)
 	}
 	where := fmt.Sprintf("Commit them on a branch of T%d's own, made from origin/main", n) // a task that is not a story's sub-task
 	if branch != "" {
