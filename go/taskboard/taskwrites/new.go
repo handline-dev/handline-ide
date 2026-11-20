@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/handline/handline/go/kit/addr"
@@ -74,6 +75,29 @@ func optionalTask(p map[string]any, key string) (int64, bool, error) {
 		return 0, false, badParam(key+" is a task number", key)
 	}
 	return n, true, nil
+}
+
+// blockersParam is blocked_by: one task number, or a list of them; the numbers in order, repeats once.
+func blockersParam(p map[string]any) ([]int64, error) {
+	raw, many := p["blocked_by"].([]any)
+	if !many {
+		n, has, err := optionalTask(p, "blocked_by")
+		if !has || err != nil {
+			return nil, err
+		}
+		return []int64{n}, nil
+	}
+	var out []int64
+	for _, v := range raw {
+		n, ok := rpc.AsInt(v)
+		if !ok {
+			return nil, badParam("blocked_by is a task number or a list of them", "blocked_by")
+		}
+		if !slices.Contains(out, n) {
+			out = append(out, n)
+		}
+	}
+	return out, nil
 }
 
 func agentNotFound(name string) error {
@@ -185,7 +209,7 @@ func newMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, e
 		if len(tags) > maxTags {
 			return nil, badParam(fmt.Sprintf("a task carries at most %d tags", maxTags), "tags")
 		}
-		blocker, hasBlocker, err := optionalTask(p, "blocked_by")
+		blockers, err := blockersParam(p)
 		if err != nil {
 			return nil, err
 		}
@@ -224,7 +248,7 @@ func newMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, e
 				hasParent = parent != 0
 			}
 			tid, asked, err = OpenTask(tx, tell, me, NewIn{Owner: owner, Title: clean, Body: body, Secs: secs, Prio: prio, Estimate: points, Expects: expects,
-				Parent: parent, HasParent: hasParent, Blocker: blocker, HasBlocker: hasBlocker, Reporter: reporter, UI: ui, DuplicateOK: duplicateOK, Tags: tags,
+				Parent: parent, HasParent: hasParent, Blockers: blockers, Reporter: reporter, UI: ui, DuplicateOK: duplicateOK, Tags: tags,
 				Watch: watched, Request: req, Draft: draft})
 			if err != nil {
 				return nil, err
@@ -294,9 +318,9 @@ type NewIn struct {
 	Secs, Prio         int64
 	Estimate           int64 // story points, 0 for none
 	Expects            string
-	Parent, Blocker    int64
+	Parent             int64
 	HasParent          bool
-	HasBlocker         bool
+	Blockers           []int64
 	UI                 bool          // the task shows something on a screen (a label; done never requires a screenshot)
 	DuplicateOK        bool          // open it even when an open task under the parent has nearly its title
 	Request            sql.NullInt64 // the founder request it serves, given (task.new request); else SetTaskRequest finds it
@@ -354,9 +378,9 @@ func watchReady(w *db.Watch) error {
 // the writes of the refusal standing, and the caller decides how to commit them. The caller calls tell.Opened once it has committed.
 func OpenTask(tx *sql.Tx, tell Teller, me string, in NewIn) (tid int64, asked *Asked, err error) {
 	owner, body, prio, expects, secs := in.Owner, in.Body, in.Prio, in.Expects, in.Secs
-	parent, hasParent, blocker, hasBlocker := in.Parent, in.HasParent, in.Blocker, in.HasBlocker
+	parent, hasParent := in.Parent, in.HasParent
 	clean := in.Title
-	if hasBlocker { // refused before anything is opened, as the command does
+	for _, blocker := range in.Blockers { // refused before anything is opened, as the command does
 		if why, err := blockerRefusal(tx, blocker); err != nil {
 			return 0, nil, err
 		} else if why != "" {
@@ -448,7 +472,7 @@ func OpenTask(tx *sql.Tx, tell Teller, me string, in NewIn) (tid int64, asked *A
 				return err
 			}
 		}
-		if hasBlocker {
+		for _, blocker := range in.Blockers {
 			if why, err := recordBlock(tx, tid, blocker, me); err != nil {
 				return err
 			} else if why != "" {

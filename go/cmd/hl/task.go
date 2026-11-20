@@ -88,6 +88,27 @@ func optTimeout(p parsed, name string) (int64, bool, bool) {
 	return optOf(p, name, "is a span like 30m or 2h", taskTimeout)
 }
 
+// optBlockers is every --blocked-by given, in order (the option repeats).
+func optBlockers(p parsed) (all []int, ok bool) {
+	for _, v := range p.each["--blocked-by"] {
+		n, good := taskRef(v)
+		if !good {
+			argProblem = fmt.Sprintf("--blocked-by wants a task, T<n>, not %q", v)
+			return nil, false
+		}
+		all = append(all, n)
+	}
+	return all, true
+}
+
+// blockedBy is the wire's blocked_by: the number alone for one blocker, the list for several.
+func blockedBy(all []int) any {
+	if len(all) == 1 {
+		return all[0]
+	}
+	return all
+}
+
 // optEstimate is --estimate: story points (the daemon says which), or none to clear it (nil). ok false for anything else.
 func optEstimate(p parsed) (points any, given, ok bool) {
 	v, given := p.opt("--estimate")
@@ -134,7 +155,7 @@ func taskNew(c *hlclient.Client, args []string) (int, bool) {
 	accountable, hasOwner := p.opt("--owner")
 	parent, hasParent, ok1 := optTask(p, "--parent")
 	serves, hasServes, ok6 := optTask(p, "--request")
-	blocked, hasBlocked, ok2 := optTask(p, "--blocked-by")
+	blockers, ok2 := optBlockers(p)
 	prio, hasPrio, ok3 := optPriority(p, "--priority")
 	timeout, hasTimeout, ok4 := optTimeout(p, "--timeout")
 	points, hasEstimate, ok5 := optEstimate(p)
@@ -175,8 +196,8 @@ func taskNew(c *hlclient.Client, args []string) (int, bool) {
 		if hasServes {
 			parts = append(parts, fmt.Sprintf("--request T%d", serves))
 		}
-		if hasBlocked {
-			parts = append(parts, fmt.Sprintf("--blocked-by T%d", blocked))
+		for _, b := range blockers {
+			parts = append(parts, fmt.Sprintf("--blocked-by T%d", b))
 		}
 		if hasPrio {
 			parts = append(parts, fmt.Sprintf("--priority P%d", prio))
@@ -237,8 +258,8 @@ func taskNew(c *hlclient.Client, args []string) (int, bool) {
 	if p.flags["--draft"] {
 		params["draft"] = true
 	}
-	if hasBlocked {
-		params["blocked_by"] = blocked
+	if len(blockers) > 0 {
+		params["blocked_by"] = blockedBy(blockers)
 	}
 	if hasPrio {
 		params["priority"] = prio
@@ -557,7 +578,7 @@ func taskEdit(c *hlclient.Client, args []string) (int, bool) {
 	}
 	tid, ok := taskRef(p.pos[0])
 	prio, hasPrio, ok1 := optPriority(p, "--priority")
-	blocked, hasBlocked, ok2 := optTask(p, "--blocked-by")
+	blockers, ok2 := optBlockers(p)
 	unblock, hasUnblock, ok3 := optTask(p, "--unblock")
 	timeout, hasTimeout, ok4 := optTimeout(p, "--timeout")
 	prText, hasPR := p.opt("--pr")
@@ -612,8 +633,8 @@ func taskEdit(c *hlclient.Client, args []string) (int, bool) {
 	if hasTimeout {
 		params["time_box"] = fmt.Sprintf("%ds", timeout)
 	}
-	if hasBlocked {
-		params["blocked_by"] = blocked
+	if len(blockers) > 0 {
+		params["blocked_by"] = blockedBy(blockers)
 	}
 	if hasPR {
 		params["pr"] = pr
