@@ -45,14 +45,16 @@
          "ios",
          "android",
          "web",
-         "desktop"
+         "desktop",
+         "mac",
+         "server"
         ]
        },
        {
         "type": "null"
        }
       ],
-      "description": "What the client said it is at device.redeem; null when it did not say. Absent on a daemon that does not serve it."
+      "description": "What the client said it is at device.redeem; null when it did not say. A mac or a server lends its machine. Absent on a daemon that does not serve it."
      },
      "current": {
       "type": "boolean",
@@ -68,6 +70,22 @@
        }
       ],
       "description": "The client its last hello named (hello's client); null before one. Absent on a daemon that does not serve it."
+     },
+     "lending": {
+      "oneOf": [
+       {
+        "type": "string",
+        "enum": [
+         "run",
+         "pause",
+         "off"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "A mac's or a server's Run · Pause · Off (device.set): run starts new work on that machine, pause starts nothing new and lets what runs there finish, off is not lent. null for a phone or a browser. Absent on a daemon that does not serve it."
      }
     },
     "required": [
@@ -82,7 +100,7 @@
    },
    "Node": {
     "type": "object",
-    "description": "A machine of this master: its own, and later the ones people lend it.",
+    "description": "A machine of this master: its own, and the ones people lend it.",
     "properties": {
      "id": {
       "type": "string",
@@ -132,6 +150,14 @@
      "online": {
       "type": "boolean",
       "description": "The master hears from it now; always true for the master's own row."
+     },
+     "lending": {
+      "type": "string",
+      "enum": [
+       "run",
+       "pause"
+      ],
+      "description": "run: the master starts new work there; pause: it starts nothing new there and what runs finishes. The master's own row is always run; a machine on off is not listed."
      }
     },
     "required": [
@@ -143,7 +169,8 @@
      "master_number",
      "master",
      "self",
-     "online"
+     "online",
+     "lending"
     ],
     "additionalProperties": false
    }
@@ -316,7 +343,15 @@
      "required": false,
      "schema": {
       "type": "string",
-      "description": "What the client is: ios, android, web or desktop, kept as Device.kind. Any other value is kept as null, so a newer client still pairs."
+      "description": "What the client is: ios, android, web, desktop, or mac or server for a machine that lends itself, kept as Device.kind. Any other value is kept as null, so a newer client still pairs."
+     }
+    },
+    {
+     "name": "node",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "description": "The machine's node id: required with kind mac or server, refused with any other. The device comes with that machine's node row, on off."
      }
     },
     {
@@ -363,9 +398,10 @@
    ],
    "x-gates": [
     "pairing_code",
-    "attempt_limit"
+    "attempt_limit",
+    "already_joined"
    ],
-   "description": "The only method an unpaired network caller may call. A code that is wrong, expired or already used is refused, gate `pairing_code`, without saying which; too many wrong tries are refused, gate `attempt_limit`. A code redeems once: the token is in this one reply and never again, and the daemon keeps only its hash. `name` is how the device is listed. It is not replayed by request_id either: a retry runs again, and a code that was redeemed stays used, so the retry is refused. The wrong-code count for a redeem over the local socket is kept under the host '' (the empty string), since it has no address."
+   "description": "The only method an unpaired network caller may call. A code that is wrong, expired or already used is refused, gate `pairing_code`, without saying which; too many wrong tries are refused, gate `attempt_limit`. A code redeems once: the token is in this one reply and never again, and the daemon keeps only its hash. `name` is how the device is listed. It is not replayed by request_id either: a retry runs again, and a code that was redeemed stays used, so the retry is refused. The wrong-code count for a redeem over the local socket is kept under the host '' (the empty string), since it has no address. A mac or a server whose node id this master already has is refused, gate `already_joined`. The device is the person's who made the code (device.pair)."
   },
   {
    "name": "device.revoke",
@@ -409,6 +445,65 @@
     }
    ],
    "description": "Cancels the device's token. Its open connections and terminal attaches are closed at once, its next call is refused (gate `unpaired`), and a device.revoked event is sent on the devices topic. Revoking a device that is not paired is not_found."
+  },
+  {
+   "name": "device.set",
+   "summary": "Set a lent machine's Run · Pause · Off.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "device",
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    },
+    {
+     "name": "lending",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "enum": [
+       "run",
+       "pause",
+       "off"
+      ]
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Accepted"
+    }
+   },
+   "x-role": "owner",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "set"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    }
+   ],
+   "x-gates": [
+    "person",
+    "kind"
+   ],
+   "description": "Only the device's own person sets it; anyone else is refused, gate `person`. A device that is no mac or server that joined is refused, gate `kind`. run lists the machine in node.status and lets the master start work there; pause lists it as paused and the master starts nothing new there; off takes it out of node.status. A device.changed event is sent on the devices topic, and the nodes feed changes."
   },
   {
    "name": "device.push_token",
@@ -520,7 +615,7 @@
     "feed": "nodes"
    },
    "x-since": 1,
-   "description": "Today it lists only the master's own machine."
+   "description": "The master's own machine and the machines lent to it on run or pause (device.set)."
   }
  ]
 }

@@ -3,6 +3,8 @@ package db
 import (
 	"os"
 	"testing"
+
+	"github.com/handline/handline/go/kit/joined"
 )
 
 func TestANodeIDIsMadeOnceKeptInItsFileAndSeededFromTheOldMetaRow(t *testing.T) {
@@ -14,7 +16,7 @@ func TestANodeIDIsMadeOnceKeptInItsFileAndSeededFromTheOldMetaRow(t *testing.T) 
 	if b, _ := NodeID(home, q); b != a {
 		t.Fatalf("a second ask made another: %q %q", a, b)
 	}
-	if st, err := os.Stat(NodeIDFile(home)); err != nil || st.Mode().Perm() != 0o600 {
+	if st, err := os.Stat(joined.NodeIDFile(home)); err != nil || st.Mode().Perm() != 0o600 {
 		t.Fatalf("%v %v", st, err)
 	}
 
@@ -26,10 +28,10 @@ func TestANodeIDIsMadeOnceKeptInItsFileAndSeededFromTheOldMetaRow(t *testing.T) 
 	if _, ok, _ := Meta(q, MachineIDKey); ok {
 		t.Fatal("the meta row that seeded it is still there")
 	}
-	if id := NodeIDOf(home); id != "abababababababab" {
+	if id := joined.NodeIDOf(home); id != "abababababababab" {
 		t.Fatalf("the file is not what is kept: %q", id)
 	}
-	if id := NodeIDOf(t.TempDir()); id != "" {
+	if id := joined.NodeIDOf(t.TempDir()); id != "" {
 		t.Fatalf("a home with none read as %q", id)
 	}
 }
