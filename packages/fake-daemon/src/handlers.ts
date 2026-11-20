@@ -111,8 +111,9 @@ const BASE: Record<string, (h: Call) => unknown> = {
     const { actor, script, agent } = h;
     const s = agent();
     if (s.state !== 'stalled') throw refused('state', `${s.fx.name} is ${s.state}, not stalled`);
-    script.setState(s, 'queued', actor);
-    return script.accepted(`${s.fx.name}: stalled -> queued`);
+    // The daemon answers once the start it owes has begun; the fake starts it at once.
+    script.setState(s, 'running', actor);
+    return script.accepted(`${s.fx.name}: stalled -> queued; it has started`);
   },
   'agent.force_start': (h) => {
     const { actor, script, agent } = h;

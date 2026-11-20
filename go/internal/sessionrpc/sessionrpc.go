@@ -84,10 +84,14 @@ type Env struct {
 	ForceStart func(agent string) (ok bool, said string, err error)
 	// Unpass takes back what ForceStart let past, when its start did not come in time; nil takes nothing back.
 	Unpass func(agent string)
+	// StartOwed is whether the daemon owes the agent a session (a start or a wake), which agent.unstall then waits on; nil owes none.
+	StartOwed func(agent string) bool
+	// StartFailed is why the tick could not start or wake the agent, noted since since (unix seconds); "" for none. nil notes none.
+	StartFailed func(agent string, since int64) string
 	// Launch is the launch hl launch execs, built and recorded here; nil serves no session.launch_prepare. A launch that must not go ahead
 	// is a *LaunchRefusal.
 	Launch func(LaunchRequest) (LaunchResult, error)
-	// Wait is how long a call that answers only with its outcome (agent.create, agent.force_start) waits for it; 0 is outcome.Limit.
+	// Wait is how long a call that answers only with its outcome (agent.create, agent.force_start, agent.unstall) waits for it; 0 is outcome.Limit.
 	Wait time.Duration
 }
 
@@ -122,7 +126,7 @@ func Register(s *rpc.Server, e *Env) {
 		s.Register("agent.switch_now", rpc.Method{Handler: e.switchNow})
 	}
 	if e.DB != nil {
-		s.Register("agent.unstall", rpc.Method{Handler: e.unstall})
+		s.Register("agent.unstall", rpc.Method{Waits: true, Handler: e.unstall})
 	}
 	if e.ForceStart != nil {
 		s.Register("agent.force_start", rpc.Method{Waits: true, Handler: e.forceStart})
@@ -185,9 +189,8 @@ func done(ok bool, said string, err error) (map[string]any, error) {
 
 func callOf(c *rpc.Conn) Call { return Call{Person: c.Caller.Allows("member"), By: c.Caller.Actor()} }
 
-// run runs fn(agent) and records its result as the effect of this request_id. With hold the agent's terminal lock is held across it
-// (agent.unstall); without, the lifecycle takes whatever lock it needs itself.
-func (e *Env) run(c *rpc.Conn, name string, params map[string]any, hold bool, fn func(call Call, agent string) (map[string]any, error)) (any, error) {
+// run runs fn(agent) and records its result as the effect of this request_id; fn takes whatever lock it needs itself.
+func (e *Env) run(c *rpc.Conn, name string, params map[string]any, fn func(call Call, agent string) (map[string]any, error)) (any, error) {
 	agent, err := e.agent(params)
 	if err != nil {
 		return nil, err
@@ -197,17 +200,7 @@ func (e *Env) run(c *rpc.Conn, name string, params map[string]any, hold bool, fn
 		return nil, err
 	}
 	defer release()
-	var result map[string]any
-	if hold {
-		h := lock.TakeTerminal(e.Home, agent)
-		if h == nil {
-			return nil, rpc.Refused(agent+": "+TypingElsewhere, "terminal_lock", "")
-		}
-		result, err = fn(callOf(c), agent)
-		h.Release()
-	} else {
-		result, err = fn(callOf(c), agent)
-	}
+	result, err := fn(callOf(c), agent)
 	if err != nil {
 		return nil, err
 	}
@@ -240,13 +233,13 @@ func (e *Env) start(c *rpc.Conn, params map[string]any) (any, error) {
 			base = s
 		}
 	}
-	return e.run(c, "session.start", params, false, func(call Call, agent string) (map[string]any, error) {
+	return e.run(c, "session.start", params, func(call Call, agent string) (map[string]any, error) {
 		return done(e.Controls.Start(call, agent, repo, base))
 	})
 }
 
 func (e *Env) wake(c *rpc.Conn, params map[string]any) (any, error) {
-	return e.run(c, "session.wake", params, false, func(call Call, agent string) (map[string]any, error) {
+	return e.run(c, "session.wake", params, func(call Call, agent string) (map[string]any, error) {
 		row, err := db.GetAgentState(e.DB, agent)
 		if err != nil {
 			return nil, err
@@ -294,7 +287,7 @@ func (e *Env) restart(c *rpc.Conn, params map[string]any) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return e.run(c, "session.restart", params, false, func(call Call, agent string) (map[string]any, error) {
+	return e.run(c, "session.restart", params, func(call Call, agent string) (map[string]any, error) {
 		return done(e.Controls.Restart(call, agent, fresh, force))
 	})
 }
@@ -308,7 +301,7 @@ func (e *Env) move(c *rpc.Conn, params map[string]any) (any, error) {
 	if account == "" {
 		return nil, bad("account is the account to move the agent to", "account")
 	}
-	return e.run(c, "agent.move", params, false, func(call Call, agent string) (map[string]any, error) {
+	return e.run(c, "agent.move", params, func(call Call, agent string) (map[string]any, error) {
 		return done(e.Move(call, agent, account))
 	})
 }
@@ -316,7 +309,7 @@ func (e *Env) move(c *rpc.Conn, params map[string]any) (any, error) {
 // moveNow is agent.move_now: the turn under way is stopped as session.interrupt stops it, and the move runs once the note is in.
 func (e *Env) moveNow(c *rpc.Conn, params map[string]any) (any, error) {
 	account, _ := params["account"].(string)
-	return e.run(c, "agent.move_now", params, false, func(call Call, agent string) (map[string]any, error) {
+	return e.run(c, "agent.move_now", params, func(call Call, agent string) (map[string]any, error) {
 		return done(e.MoveNow(call, agent, account, func() error {
 			if e.InterruptTerminal == nil {
 				return errors.New("no terminal to stop it in")
@@ -328,7 +321,7 @@ func (e *Env) moveNow(c *rpc.Conn, params map[string]any) (any, error) {
 
 // moveCancel is agent.move_cancel.
 func (e *Env) moveCancel(c *rpc.Conn, params map[string]any) (any, error) {
-	return e.run(c, "agent.move_cancel", params, false, func(call Call, agent string) (map[string]any, error) {
+	return e.run(c, "agent.move_cancel", params, func(call Call, agent string) (map[string]any, error) {
 		return done(e.CancelMove(call, agent))
 	})
 }
@@ -336,16 +329,41 @@ func (e *Env) moveCancel(c *rpc.Conn, params map[string]any) (any, error) {
 // switchNow is agent.switch_now. It ends a session, so it is the founder's (x-role).
 func (e *Env) switchNow(c *rpc.Conn, params map[string]any) (any, error) {
 	account, _ := params["account"].(string)
-	return e.run(c, "agent.switch_now", params, false, func(call Call, agent string) (map[string]any, error) {
+	return e.run(c, "agent.switch_now", params, func(call Call, agent string) (map[string]any, error) {
 		return done(e.SwitchNow(call, agent, account))
 	})
 }
 
-// unstall is agent.unstall: a stalled agent goes to queued (Unstall); one that is not is refused with the action's own words.
+// unstall is agent.unstall: a stalled agent goes to queued (Unstall); one that is not is refused with the action's own words. When the
+// daemon then owes it a session, the call answers once that start has begun, or with why it has not; the stall stays cleared either way.
 func (e *Env) unstall(c *rpc.Conn, params map[string]any) (any, error) {
-	return e.run(c, "agent.unstall", params, true, func(_ Call, agent string) (map[string]any, error) {
+	return e.run(c, "agent.unstall", params, func(_ Call, agent string) (map[string]any, error) {
+		before, err := e.lastEventID()
+		if err != nil {
+			return nil, err
+		}
+		h := lock.TakeTerminal(e.Home, agent)
+		if h == nil {
+			return nil, rpc.Refused(agent+": "+TypingElsewhere, "terminal_lock", "")
+		}
+		since := e.now().Unix()
 		cleared, said, err := e.Unstall(agent)
-		return done(err == nil && cleared, said, err)
+		h.Release()
+		if err != nil || !cleared || e.StartOwed == nil || !e.StartOwed(agent) {
+			return done(err == nil && cleared, said, err)
+		}
+		var failed func() string
+		if e.StartFailed != nil {
+			failed = func() string { return e.StartFailed(agent, since) }
+		}
+		started, why, err := e.startOutcome(c, agent, before, failed)
+		switch {
+		case started:
+			return done(true, said+"; it has started", nil)
+		case why == "" || err != nil:
+			return done(true, said+"; its start has not begun yet", nil)
+		}
+		return done(true, said+"; not started - "+why, nil)
 	})
 }
 
@@ -353,43 +371,65 @@ func (e *Env) unstall(c *rpc.Conn, params map[string]any) (any, error) {
 // The call answers once the start it let past has begun (a launch or a wake), or failed; past the limit the pass is taken back and the
 // call is refused, so no start comes later that the caller did not hear of.
 func (e *Env) forceStart(c *rpc.Conn, params map[string]any) (any, error) {
-	return e.run(c, "agent.force_start", params, false, func(_ Call, agent string) (map[string]any, error) {
-		var before int64
-		if err := e.DB.QueryRow("SELECT COALESCE(MAX(id), 0) FROM events").Scan(&before); err != nil {
+	return e.run(c, "agent.force_start", params, func(_ Call, agent string) (map[string]any, error) {
+		before, err := e.lastEventID()
+		if err != nil {
 			return nil, err
 		}
 		ok, said, err := e.ForceStart(agent)
 		if err != nil || !ok {
 			return done(ok, said, err)
 		}
-		var kind, why string
-		ended, err := outcome.Wait(e.Wait, c.Done(), func() (bool, error) {
-			err := e.DB.QueryRow("SELECT kind, COALESCE(json_extract(payload, '$.why'), '') FROM events WHERE agent = ? AND id > ? AND "+
-				"kind IN ('launching', 'wake', 'wake_failed', 'wake_dropped') ORDER BY id LIMIT 1", agent, before).Scan(&kind, &why)
-			if err == sql.ErrNoRows {
-				return false, nil
-			}
-			return err == nil, err
-		})
+		started, why, err := e.startOutcome(c, agent, before, nil)
 		switch {
 		case err != nil:
 			return nil, err
-		case !ended:
-			if e.Unpass != nil {
-				e.Unpass(agent)
-			}
-			return done(false, agent+" did not start in time, so what let it past is taken back and nothing was started", nil)
-		case kind == "wake_failed" || kind == "wake_dropped":
-			return done(false, agent+": not started - "+why, nil)
+		case started:
+			return done(true, strings.Replace(said, "Starting "+agent+" now", agent+" has started", 1), nil)
 		}
-		return done(true, strings.Replace(said, "Starting "+agent+" now", agent+" has started", 1), nil)
+		if e.Unpass != nil {
+			e.Unpass(agent)
+		}
+		if why == "" {
+			return done(false, agent+" did not start in time, so what let it past is taken back and nothing was started", nil)
+		}
+		return done(false, agent+": not started - "+why, nil)
 	})
+}
+
+func (e *Env) lastEventID() (id int64, err error) {
+	err = e.DB.QueryRow("SELECT COALESCE(MAX(id), 0) FROM events").Scan(&id)
+	return id, err
+}
+
+// startOutcome waits, up to e.Wait, for the agent's start after the event before: begun (a launching or wake event), or not, with why
+// (a wake_failed or wake_dropped event, or what failed says, when not nil). Neither in time, or the caller hung up, is (false, "").
+func (e *Env) startOutcome(c *rpc.Conn, agent string, before int64, failed func() string) (started bool, why string, err error) {
+	_, err = outcome.Wait(e.Wait, c.Done(), func() (bool, error) {
+		noted := ""
+		if failed != nil {
+			noted = failed() // read before the events, so a launch the tick writes before its note wins
+		}
+		var kind string
+		err := e.DB.QueryRow("SELECT kind, COALESCE(json_extract(payload, '$.why'), '') FROM events WHERE agent = ? AND id > ? AND "+
+			"kind IN ('launching', 'wake', 'wake_failed', 'wake_dropped') ORDER BY id LIMIT 1", agent, before).Scan(&kind, &why)
+		switch {
+		case err == nil:
+			started = kind == "launching" || kind == "wake"
+			return true, nil
+		case err != sql.ErrNoRows:
+			return false, err
+		}
+		why = noted
+		return why != "", nil
+	})
+	return started, why, err
 }
 
 // verb is a session method that takes only the agent and answers with act's words.
 func (e *Env) verb(name string, act func(Call, string) (bool, string, error)) func(*rpc.Conn, map[string]any) (any, error) {
 	return func(c *rpc.Conn, params map[string]any) (any, error) {
-		return e.run(c, name, params, false, func(call Call, agent string) (map[string]any, error) { return done(act(call, agent)) })
+		return e.run(c, name, params, func(call Call, agent string) (map[string]any, error) { return done(act(call, agent)) })
 	}
 }
 
@@ -411,11 +451,11 @@ func (e *Env) stop(c *rpc.Conn, params map[string]any) (any, error) {
 		if !c.Caller.Allows("member") {
 			return nil, rpc.Refused(fmt.Sprintf("session.stop kill is for a member or above; this caller is %s", c.Caller.Role), "role", "")
 		}
-		return e.run(c, "session.stop", params, false, func(_ Call, agent string) (map[string]any, error) {
+		return e.run(c, "session.stop", params, func(_ Call, agent string) (map[string]any, error) {
 			return nil, rpc.Refused(agent+" has no structured session to kill", "state", "")
 		})
 	}
-	return e.run(c, "session.stop", params, false, func(call Call, agent string) (map[string]any, error) {
+	return e.run(c, "session.stop", params, func(call Call, agent string) (map[string]any, error) {
 		return done(e.Controls.Close(call, agent, fresh))
 	})
 }
@@ -428,7 +468,7 @@ type TurnEnder interface {
 
 // interrupt stops the running turn by Esc on the agent's pane.
 func (e *Env) interrupt(c *rpc.Conn, params map[string]any) (any, error) {
-	return e.run(c, "session.interrupt", params, false, func(_ Call, agent string) (map[string]any, error) {
+	return e.run(c, "session.interrupt", params, func(_ Call, agent string) (map[string]any, error) {
 		if err := e.InterruptTerminal(c, agent); err != nil {
 			return nil, err
 		}
