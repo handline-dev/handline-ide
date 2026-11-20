@@ -3,6 +3,7 @@ import { useAgents, useDirectory, useNameOf, useNav } from '@handline/app-data';
 import { AgentMenu } from '#src/AgentMenu.tsx';
 import { newAgent } from '#src/NewAgent.tsx';
 import { workspaceFolders } from '#src/WorkspaceFolders.tsx';
+import { newWorkspace } from '#src/NewWorkspace.tsx';
 import type { AgentView, Workspace } from '@handline/client';
 import { JobList, type Job } from '#src/chat/agent/BackgroundItem.tsx';
 import { HoverCard } from '#src/ui/HoverCard.tsx';
@@ -166,12 +167,13 @@ function Section({
       className={`-mx-2 flex flex-col gap-1 border-t border-border px-2 pt-3 transition-colors ${take.over ? 'bg-selected' : ''}`}
       {...take.handlers}
     >
-      <div className="flex h-7 items-center justify-between pl-2">
+      {/* Its buttons show while the pointer is on the heading or one has focus; their room is kept, so nothing moves. */}
+      <div className="group flex h-7 items-center justify-between pl-2">
         <h2 className="flex items-center gap-1.5 text-xs font-medium text-muted">
           {icon}
           {title}
         </h2>
-        {action}
+        <span className="opacity-0 group-hover:opacity-100 focus-within:opacity-100">{action}</span>
       </div>
       {children}
     </section>
@@ -241,6 +243,14 @@ function Agents({ pick, page, onNew }: { pick: Pick; page: string | null; onNew:
           <AgentRows agents={agents} pick={pick} onMove={reorder} here={workspace?.key} />
         </Section>
       ))}
+      <button
+        type="button"
+        onClick={newWorkspace}
+        className="-mx-2 mt-1 flex h-9 items-center gap-1.5 border-t border-border px-4 text-left text-sm text-muted outline-none hover:text-fg focus-visible:text-fg"
+      >
+        <Plus size={14} />
+        Add workspace
+      </button>
     </>
   );
 }
