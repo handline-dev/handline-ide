@@ -44,9 +44,6 @@ const DEFAULTS: Settings['values'] = {
   disk_free_min_gb: 0,
   disk_keep_free_gb: 0,
   agents_memory_max_gb: 0,
-  heavy_max: 0,
-  simulator_max: 0,
-  browser_max: 0,
   port_range: null,
   network_addresses: null,
   keep_awake: 'off',
@@ -240,8 +237,6 @@ export class FakeAdmin {
     return this.values.keep_awake ?? 'off';
   }
 
-  /** The task each waiting agent's ask blocks; a waiter without one is a call held open. */
-  private leaseTasks: Record<string, number> = {};
   /** Shared runs (run.list): one of This Mac's held with one waiting, and one of a workspace's. */
   private runs = [
     {
@@ -254,7 +249,7 @@ export class FakeAdmin {
       set_by: AGENTS[0],
       set_at: new Date(Date.now() - 3_600_000).toISOString(),
       held: [{ agent: AGENTS[1], since: new Date(Date.now() - 300_000).toISOString(), hold: false }],
-      waiting: [{ agent: AGENTS[2], since: new Date(Date.now() - 120_000).toISOString(), position: 1, task: 9412 }],
+      waiting: [{ agent: AGENTS[2], since: new Date(Date.now() - 120_000).toISOString(), position: 1 }],
     },
     {
       kind: 'w1:check',
@@ -269,33 +264,21 @@ export class FakeAdmin {
       waiting: [] as { agent: string; since: string; position: number; task?: number }[],
     },
   ];
-  /** One simulator, held by the first agent, and `task` of the second waiting in line for it. */
-  waitForSimulator(task: number): void {
-    this.values.simulator_max = 1;
-    this.leaseTasks[AGENTS[1]!] = task;
+  /** ios-build: the architect holds it, and the second agent waits, its ask blocking `task`. */
+  waitForRun(task: number): void {
+    this.runs[0]!.held = [{ agent: AGENTS[0], since: this.now(), hold: false }];
+    this.runs[0]!.waiting = [{ agent: AGENTS[1], since: this.now(), position: 1, task }];
   }
 
-  /** Fixed holders and waiters; the limits are the settings'. */
+  /** The shared runs as lease pools: who holds a turn and who waits. */
   leases() {
-    const since = this.now();
-    const kind = (k: 'simulator' | 'browser', max: number, held: string[], queue: string[]) => ({
-      kind: k,
-      max,
-      held: held.map((agent, i) => ({ lease: i + 1, agent, since, hold: false, pids: [] })),
-      queue: queue.map((agent, i) => ({
-        agent,
-        since,
-        position: i + 1,
-        says: `waiting for a ${k}, number ${i + 1} in line`,
-        ...(this.leaseTasks[agent] ? { task: this.leaseTasks[agent] } : {}),
-      })),
-    });
-    const { simulator_max = 0, browser_max = 0 } = this.values;
     return {
-      kinds: [
-        kind('simulator', simulator_max, [AGENTS[0]], simulator_max === 1 ? [AGENTS[1]] : []),
-        kind('browser', browser_max, [AGENTS[1]], []),
-      ],
+      kinds: this.runs.map((r) => ({
+        kind: r.kind,
+        max: r.at_once,
+        held: r.held.map((h, i) => ({ lease: i + 1, agent: h.agent, since: h.since, hold: h.hold, pids: [] })),
+        queue: r.waiting.map((w) => ({ ...w, says: `waiting for a turn at ${r.name}, number ${w.position} in line` })),
+      })),
     };
   }
 

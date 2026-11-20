@@ -180,11 +180,11 @@ func TestTheLoadLimitsShowTheirDefaultsAndWhatIsSet(t *testing.T) {
 	if v["host_active_cap"] != 0 || v["load_per_core_pct"] != 0 || v["ram_free_min_pct"] != 0 || v["disk_free_min_gb"] != 0 {
 		t.Fatalf("defaults: %v %v %v", v["host_active_cap"], v["load_per_core_pct"], v["ram_free_min_pct"])
 	}
-	if v["heavy_max"] != 0 || v["simulator_max"] != 0 || v["browser_max"] != 0 || v["port_range"] != nil {
-		t.Fatalf("lease defaults: %v %v %v %v", v["heavy_max"], v["simulator_max"], v["browser_max"], v["port_range"])
+	if _, ok := v["browser_max"]; ok || v["port_range"] != nil {
+		t.Fatalf("lease defaults: %v %v", v["browser_max"], v["port_range"])
 	}
 	os.WriteFile(filepath.Join(home, "config.yaml"), []byte("host_active_cap: 4\nload_per_core_pct: 150\nbrowser_max: 1\nport_range: 4000-4999\n"), 0o644)
-	if v = e.settingsValues(); v["host_active_cap"] != 4 || v["load_per_core_pct"] != 150 || v["browser_max"] != 1 || v["port_range"] != "4000-4999" {
+	if v = e.settingsValues(); v["host_active_cap"] != 4 || v["load_per_core_pct"] != 150 || v["browser_max"] != nil || v["port_range"] != "4000-4999" {
 		t.Fatalf("set: %v %v %v %v", v["host_active_cap"], v["load_per_core_pct"], v["browser_max"], v["port_range"])
 	}
 }

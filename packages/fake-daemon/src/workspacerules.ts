@@ -23,10 +23,6 @@ const whole = (v: unknown) => Number.isInteger(v) && (v as number) >= 0;
 const KINDS: Record<Key, { valid: (v: unknown) => boolean; kind: string; on: (v: unknown) => boolean }> = {
   accounts: { valid: names, kind: 'a list of account names', on: (v) => (v as string[]).length > 0 },
   agent_cap: { valid: whole, kind: 'a whole number', on: (v) => v !== 0 },
-  'lease_max.heavy': { valid: whole, kind: 'a whole number', on: (v) => v !== 0 },
-  'lease_max.simulator': { valid: whole, kind: 'a whole number', on: (v) => v !== 0 },
-  'lease_max.browser': { valid: whole, kind: 'a whole number', on: (v) => v !== 0 },
-  'lease_max.port': { valid: whole, kind: 'a whole number', on: (v) => v !== 0 },
   tools_deny: { valid: names, kind: 'a list of tool names', on: (v) => (v as string[]).length > 0 },
   mode_max: { valid: (v) => v === '' || MODES.includes(v as string), kind: `empty or ${MODES.join(', ')}`, on: (v) => v !== '' },
   review_required: { valid: (v) => typeof v === 'boolean', kind: 'true or false', on: (v) => v === true },

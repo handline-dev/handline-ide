@@ -93,7 +93,7 @@ func useCmd(c *hlclient.Client, args []string) (int, bool) {
 			return 1, true
 		}
 		for _, l := range list(got, "extended") {
-			fmt.Printf("lease %d (%s) now runs to %s\n", num(l, "lease"), str(l, "kind"), str(l, "max_hold_at"))
+			fmt.Printf("lease %d (%s) now runs to %s\n", num(l, "lease"), leases.Word(str(l, "kind")), str(l, "max_hold_at"))
 		}
 		return 0, true
 	}

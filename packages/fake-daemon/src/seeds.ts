@@ -271,8 +271,8 @@ export const SEEDS: Record<string, Seed> = {
     d.requests.add({ title: '닫힌 태스크를 날짜별로 보기', task: 7133 });
   },
 
-  /** T1688 waits in line for the one simulator, which the architect uses (T8976). */
-  'lease-wait': (d) => d.admin.waitForSimulator(1688),
+  /** T1688 waits in line for a turn at ios-build, which the architect uses (T8976). */
+  'lease-wait': (d) => d.admin.waitForRun(1688),
 
   /** The architect is held back for the machine's load: its chat and row say so, and agent.force_start starts it. */
   'agent-held': (d) => {

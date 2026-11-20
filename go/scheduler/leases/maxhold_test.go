@@ -38,7 +38,7 @@ func (r *holdRig) at(t int64) { r.now = t; r.m.Check(nil) }
 
 func TestALeaseIsWarnedOnceAt80PercentOfItsMaxHold(t *testing.T) {
 	r := newHoldRig()
-	l, err := r.m.Take(nil, Browser, "a", true, 0, long)
+	l, err := r.m.Take(nil, Web, "a", true, 0, long)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,26 +48,26 @@ func TestALeaseIsWarnedOnceAt80PercentOfItsMaxHold(t *testing.T) {
 	}
 	r.at(1000 + 480)
 	r.at(1000 + 500)
-	if len(r.told) != 1 || !strings.Contains(r.told[0], fmt.Sprintf("a: Your browser (lease %d) reaches its max_hold in 2 min", l.ID)) {
+	if len(r.told) != 1 || !strings.Contains(r.told[0], fmt.Sprintf("a: Your turn at web (lease %d) reaches its max_hold in 2 min", l.ID)) {
 		t.Fatalf("%q", r.told)
 	}
 }
 
 func TestPastItsMaxHoldALeaseOnlyGoesWhenSomeoneAsks(t *testing.T) {
 	r := newHoldRig()
-	if _, err := r.m.Take(nil, Browser, "a", false, 7, long); err != nil {
+	if _, err := r.m.Take(nil, Web, "a", false, 7, long); err != nil {
 		t.Fatal(err)
 	}
 	r.m.Check(nil) // a's command has no process under it but 7
 	r.at(1000 + 900)
-	if h := pool(r.m, Browser).Held; len(h) != 1 || h[0].Agent != "a" {
+	if h := pool(r.m, Web).Held; len(h) != 1 || h[0].Agent != "a" {
 		t.Fatalf("taken back with nobody asking: %+v", h)
 	}
-	b, err := r.m.Take(nil, Browser, "b", false, 8, long) // b's ask takes it back and is granted at once
+	b, err := r.m.Take(nil, Web, "b", false, 8, long) // b's ask takes it back and is granted at once
 	if err != nil || b == nil || b.Agent != "b" {
 		t.Fatalf("%+v %v", b, err)
 	}
-	if !slices.Equal(r.signals, []string{"TERM 7"}) || !strings.Contains(r.told[len(r.told)-1], "a: Your browser (lease 1) was taken back") {
+	if !slices.Equal(r.signals, []string{"TERM 7"}) || !strings.Contains(r.told[len(r.told)-1], "a: Your turn at web (lease 1) was taken back") {
 		t.Fatalf("signals %q told %q", r.signals, r.told)
 	}
 	r.at(1000 + 909)
@@ -86,32 +86,32 @@ func TestPastItsMaxHoldALeaseOnlyGoesWhenSomeoneAsks(t *testing.T) {
 
 func TestAnAskNeverTakesBackTheAskersOwnLease(t *testing.T) {
 	r := newHoldRig()
-	if _, err := r.m.Take(nil, Browser, "a", true, 0, long); err != nil {
+	if _, err := r.m.Take(nil, Web, "a", true, 0, long); err != nil {
 		t.Fatal(err)
 	}
 	r.at(1000 + 900)
-	_, err := r.m.Take(nil, Browser, "a", false, 7, long) // a, holding it past max_hold, asks for another
+	_, err := r.m.Take(nil, Web, "a", false, 7, long) // a, holding it past max_hold, asks for another
 	var ooo *OutOfOrder
 	if !errors.As(err, &ooo) {
 		t.Fatalf("want the hold-and-wait refusal, got %v", err)
 	}
-	if h := pool(r.m, Browser).Held; len(h) != 1 || h[0].Agent != "a" || len(r.signals) != 0 {
+	if h := pool(r.m, Web).Held; len(h) != 1 || h[0].Agent != "a" || len(r.signals) != 0 {
 		t.Fatalf("a's own lease was taken back: %+v signals %q", h, r.signals)
 	}
 }
 
 func TestAWaitingTaskGetsAHoldPastItsMaxHoldAtTheNextCheck(t *testing.T) {
 	r := newHoldRig()
-	if _, err := r.m.Take(nil, Browser, "a", true, 0, long); err != nil {
+	if _, err := r.m.Take(nil, Web, "a", true, 0, long); err != nil {
 		t.Fatal(err)
 	}
-	blockedOn(t, second(r.m.Take(nil, Browser, "b", false, 8, long)))
+	blockedOn(t, second(r.m.Take(nil, Web, "b", false, 8, long)))
 	r.at(1000 + 599)
-	if h := pool(r.m, Browser).Held; len(h) != 1 || h[0].Agent != "a" {
+	if h := pool(r.m, Web).Held; len(h) != 1 || h[0].Agent != "a" {
 		t.Fatalf("too soon: %+v", h)
 	}
 	r.at(1000 + 600)
-	if h := pool(r.m, Browser).Held; len(h) != 1 || h[0].Task != 20 {
+	if h := pool(r.m, Web).Held; len(h) != 1 || h[0].Task != 20 {
 		t.Fatalf("not reserved for T20: %+v", h)
 	}
 	if len(r.signals) != 0 || !strings.Contains(r.told[len(r.told)-1], ": stop using it") {
@@ -121,7 +121,7 @@ func TestAWaitingTaskGetsAHoldPastItsMaxHoldAtTheNextCheck(t *testing.T) {
 
 func TestExtendAddsAPeriodTwiceAtMostAndNotWhileAnyoneWaits(t *testing.T) {
 	r := newHoldRig()
-	if _, err := r.m.Take(nil, Browser, "a", true, 0, long); err != nil {
+	if _, err := r.m.Take(nil, Web, "a", true, 0, long); err != nil {
 		t.Fatal(err)
 	}
 	r.at(1000 + 500) // warned
@@ -131,7 +131,7 @@ func TestExtendAddsAPeriodTwiceAtMostAndNotWhileAnyoneWaits(t *testing.T) {
 			t.Fatalf("extend %d: %+v %v", i, ls, err)
 		}
 	}
-	if _, err := r.m.Extend("a", Browser); err == nil || !strings.Contains(err.Error(), "extended 2 times") {
+	if _, err := r.m.Extend("a", Web); err == nil || !strings.Contains(err.Error(), "extended 2 times") {
 		t.Fatalf("a third: %v", err)
 	}
 	r.at(1000 + 1700) // warned again in the new period
@@ -139,10 +139,10 @@ func TestExtendAddsAPeriodTwiceAtMostAndNotWhileAnyoneWaits(t *testing.T) {
 		t.Fatalf("told %q", r.told)
 	}
 	r2 := newHoldRig()
-	if _, err := r2.m.Take(nil, Browser, "a", true, 0, long); err != nil {
+	if _, err := r2.m.Take(nil, Web, "a", true, 0, long); err != nil {
 		t.Fatal(err)
 	}
-	blockedOn(t, second(r2.m.Take(nil, Browser, "b", false, 8, long)))
+	blockedOn(t, second(r2.m.Take(nil, Web, "b", false, 8, long)))
 	if _, err := r2.m.Extend("a", ""); err == nil || !strings.Contains(err.Error(), "an ask waits") {
 		t.Fatalf("while b waits: %v", err)
 	}
@@ -153,8 +153,8 @@ func TestExtendAddsAPeriodTwiceAtMostAndNotWhileAnyoneWaits(t *testing.T) {
 
 func TestWithNoLimitALeaseHasNoMaxHold(t *testing.T) {
 	r := newHoldRig()
-	r.m.Max = func(string) int { return 0 }
-	if _, err := r.m.Take(nil, Heavy, "a", true, 0, long); err != nil {
+	r.m.Shared = fixed(0)
+	if _, err := r.m.Take(nil, Build, "a", true, 0, long); err != nil {
 		t.Fatal(err)
 	}
 	r.at(1000 + 10000)
@@ -167,37 +167,37 @@ func TestWithNoLimitALeaseHasNoMaxHold(t *testing.T) {
 }
 
 func TestMaxHoldReadsMinutesOrTheKindsDefault(t *testing.T) {
-	cfg := usage.Config{MaxHoldKey(Simulator): 5, MaxHoldKey(Browser): 0, MaxHoldKey(Heavy): -3}
-	for kind, want := range map[string]int64{Simulator: 300, Browser: 0, Heavy: 1800, Port: 0} {
+	cfg := usage.Config{MaxHoldKey(Sim): 5, MaxHoldKey(Web): 0, MaxHoldKey(Build): -3}
+	for kind, want := range map[string]int64{Sim: 300, Web: 0, Build: 1800, Port: 0} {
 		if got := MaxHold(cfg, kind); got != want {
 			t.Errorf("%s: %d", kind, got)
 		}
 	}
-	if MaxHold(nil, Simulator) != 3600 {
-		t.Error("simulator default")
+	if MaxHold(nil, Sim) != SharedMaxHoldMin*60 || MaxHold(nil, Port) != 0 {
+		t.Error("defaults")
 	}
 }
 
 func TestExtendWithNoKindPassesOverTheLeasesWithNoMaxHold(t *testing.T) {
 	r := newHoldRig()
-	r.m.MaxHold = func(kind string) int64 { return map[string]int64{Browser: 600}[kind] }
-	if _, err := r.m.Take(nil, Heavy, "a", false, 7, long); err != nil {
+	r.m.MaxHold = func(kind string) int64 { return map[string]int64{Web: 600}[kind] }
+	if _, err := r.m.Take(nil, Build, "a", false, 7, long); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := r.m.Take(nil, Browser, "a", false, 7, long); err != nil {
+	if _, err := r.m.Take(nil, Web, "a", false, 7, long); err != nil {
 		t.Fatal(err)
 	}
-	if ls, err := r.m.Extend("a", ""); err != nil || len(ls) != 1 || ls[0].Kind != Browser {
+	if ls, err := r.m.Extend("a", ""); err != nil || len(ls) != 1 || ls[0].Kind != Web {
 		t.Fatalf("%+v %v", ls, err)
 	}
-	if _, err := r.m.Extend("a", Heavy); err == nil || !strings.Contains(err.Error(), "no max_hold") {
+	if _, err := r.m.Extend("a", Build); err == nil || !strings.Contains(err.Error(), "no max_hold") {
 		t.Fatalf("named: %v", err)
 	}
 }
 
 func TestExtendIsRefusedWhenTheLeaseWouldStillBePastItsMaxHold(t *testing.T) {
 	r := newHoldRig()
-	if _, err := r.m.Take(nil, Browser, "a", true, 0, long); err != nil {
+	if _, err := r.m.Take(nil, Web, "a", true, 0, long); err != nil {
 		t.Fatal(err)
 	}
 	r.now = 1000 + 1200
@@ -208,12 +208,12 @@ func TestExtendIsRefusedWhenTheLeaseWouldStillBePastItsMaxHold(t *testing.T) {
 
 func TestAProcessThatBeganAfterItWasSeenIsNotSignalled(t *testing.T) {
 	r := newHoldRig()
-	if _, err := r.m.Take(nil, Browser, "a", false, 7, long); err != nil {
+	if _, err := r.m.Take(nil, Web, "a", false, 7, long); err != nil {
 		t.Fatal(err)
 	}
 	r.m.Started = func(int) (int64, bool) { return 1500, true } // 7 ended, and its pid went to a later process
 	r.now = 1000 + 900
-	if _, err := r.m.Take(nil, Browser, "b", false, 8, long); err != nil {
+	if _, err := r.m.Take(nil, Web, "b", false, 8, long); err != nil {
 		t.Fatal(err)
 	}
 	r.at(1000 + 920)
@@ -224,16 +224,16 @@ func TestAProcessThatBeganAfterItWasSeenIsNotSignalled(t *testing.T) {
 
 func TestOneLeaseIsTakenBackPerAskWaiting(t *testing.T) {
 	r := newHoldRig()
-	r.m.Max = func(string) int { return 2 }
+	r.m.Shared = fixed(2)
 	for _, a := range []string{"a", "c"} {
-		if _, err := r.m.Take(nil, Browser, a, true, 0, long); err != nil {
+		if _, err := r.m.Take(nil, Web, a, true, 0, long); err != nil {
 			t.Fatal(err)
 		}
 	}
-	r.m.Max = func(string) int { return 1 } // lowered: one revoke frees no slot
-	blockedOn(t, second(r.m.Take(nil, Browser, "b", false, 8, long)))
+	r.m.Shared = fixed(1) // lowered: one revoke frees no slot
+	blockedOn(t, second(r.m.Take(nil, Web, "b", false, 8, long)))
 	r.at(1000 + 600)
-	if h := pool(r.m, Browser).Held; len(h) != 1 || h[0].Reserved() { // one of a and c is left, b still waits
+	if h := pool(r.m, Web).Held; len(h) != 1 || h[0].Reserved() { // one of a and c is left, b still waits
 		t.Fatalf("held %+v", h)
 	}
 }

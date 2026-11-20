@@ -319,21 +319,16 @@ func changeLines(it flat) []string {
 // diff is what approving does, in words, one change per line (the spec's Proposal.diff; not a unified diff): the changes of a bundle in the
 // order they are applied.
 func (f flat) diff() string {
+	items := []flat{f}
+	if f.text("kind") == "bundle" {
+		items = f.items()
+		sort.SliceStable(items, func(i, j int) bool { return stepIndex(items[i].text("kind")) < stepIndex(items[j].text("kind")) })
+	}
 	var lines []string
-	for _, it := range f.steps() {
+	for _, it := range items {
 		lines = append(lines, changeLines(it)...)
 	}
 	return strings.Join(lines, "\n")
-}
-
-// steps are the proposal's changes in the order they are applied: itself, or a bundle's items.
-func (f flat) steps() []flat {
-	if f.text("kind") != "bundle" {
-		return []flat{f}
-	}
-	items := f.items()
-	sort.SliceStable(items, func(i, j int) bool { return stepIndex(items[i].text("kind")) < stepIndex(items[j].text("kind")) })
-	return items
 }
 
 // subject is decisions.digest of the fields that change what applying the proposal does: what proposal.decide checks back.

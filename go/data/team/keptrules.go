@@ -19,7 +19,6 @@ import (
 const (
 	RuleAccounts       = "accounts"
 	RuleAgentCap       = "agent_cap"
-	RuleLeaseMax       = "lease_max." // + a lease kind
 	RuleToolsDeny      = "tools_deny"
 	RuleModeMax        = "mode_max"
 	RuleReviewRequired = "review_required"
@@ -33,8 +32,8 @@ const MachineRules = 0
 // ModeOrder is Modes from weakest to strongest, the order mode_max caps by.
 var ModeOrder = []string{"plan", "default", "acceptEdits", "auto"}
 
-// ruleOrder is the order rules are listed and rendered in; lease_max.<kind> sorts by kind in its place.
-var ruleOrder = []string{RuleAccounts, RuleAgentCap, RuleLeaseMax, RuleToolsDeny, RuleModeMax, RuleReviewRequired, RuleLandBy, RuleLandCheck}
+// ruleOrder is the order rules are listed and rendered in.
+var ruleOrder = []string{RuleAccounts, RuleAgentCap, RuleToolsDeny, RuleModeMax, RuleReviewRequired, RuleLandBy, RuleLandCheck}
 
 // atNextStart are the rules a running session keeps until its next start.
 var atNextStart = []string{RuleToolsDeny, RuleModeMax}
@@ -57,24 +56,12 @@ func (r KeptRule) Words() string {
 	return fmt.Sprintf("%s %s (set by %s)", r.Key, v, addr.Ref(r.SetBy))
 }
 
-func ruleRank(key string) int {
-	if strings.HasPrefix(key, RuleLeaseMax) {
-		key = RuleLeaseMax
-	}
-	return slices.Index(ruleOrder, key)
-}
-
-// IsRuleKey is whether key names a kept rule; a lease_max key needs a kind after the dot.
-func IsRuleKey(key string) bool {
-	if strings.HasPrefix(key, RuleLeaseMax) {
-		return len(key) > len(RuleLeaseMax)
-	}
-	return slices.Contains(ruleOrder, key)
-}
+// IsRuleKey is whether key names a kept rule.
+func IsRuleKey(key string) bool { return slices.Contains(ruleOrder, key) }
 
 // NotARule is why key names no kept rule.
 func NotARule(key string) error {
-	return fmt.Errorf("%s is not a kept rule (%s, lease_max.<kind>)", key, strings.Join(slices.DeleteFunc(slices.Clone(ruleOrder), func(k string) bool { return k == RuleLeaseMax }), ", "))
+	return fmt.Errorf("%s is not a kept rule (%s)", key, strings.Join(ruleOrder, ", "))
 }
 
 // ParseRule is v (as JSON decodes it) as key's value, or why it cannot be.
@@ -82,7 +69,7 @@ func ParseRule(key string, v any) (any, error) {
 	switch {
 	case !IsRuleKey(key):
 		return nil, NotARule(key)
-	case key == RuleAgentCap || strings.HasPrefix(key, RuleLeaseMax):
+	case key == RuleAgentCap:
 		n, ok := wholeNumber(v)
 		if !ok || n < 0 {
 			return nil, fmt.Errorf("%s is a whole number, 0 for no rule", key)
@@ -220,12 +207,7 @@ func KeptRules(q db.Q, ws int64) ([]KeptRule, error) {
 	for _, r := range byKey {
 		out = append(out, r)
 	}
-	slices.SortFunc(out, func(a, b KeptRule) int {
-		if d := ruleRank(a.Key) - ruleRank(b.Key); d != 0 {
-			return d
-		}
-		return strings.Compare(a.Key, b.Key)
-	})
+	slices.SortFunc(out, func(a, b KeptRule) int { return slices.Index(ruleOrder, a.Key) - slices.Index(ruleOrder, b.Key) })
 	return out, nil
 }
 

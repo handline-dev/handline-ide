@@ -2,8 +2,6 @@ package daemon
 
 import (
 	"errors"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -13,23 +11,13 @@ import (
 )
 
 // The daemon's leases wait on its task board: with This Mac's one turn at a shared run held, a2's ask blocks its current task on a
-// gate, and the turn coming free reserves it for that task, closes the gate and lets a2 take it. browser_max limits nothing now.
+// gate, and the turn coming free reserves it for that task, closes the gate and lets a2 take it.
 func TestALeaseAskWaitsAsAGateOnTheAgentsTask(t *testing.T) {
 	d := start(t, fakeAuth{key: "k"}, "")
-	if err := os.WriteFile(filepath.Join(d.cfg.Home, "config.yaml"), []byte("browser_max: 1\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
 	if err := runs.Set(d.db, runs.Run{Name: "shots", Cmds: []string{"@browser"}, AtOnce: 1, SetBy: "a1"}); err != nil {
 		t.Fatal(err)
 	}
 	d.runs.Changed() // as run.set does
-	for _, agent := range []string{"a1", "a2"} {
-		if l, err := d.leases.Take(nil, leases.Browser, agent, true, 0, time.Minute); err != nil || l == nil {
-			t.Fatalf("a browser limits nothing: %v %v", l, err)
-		}
-	}
-	d.leases.ReleaseAgent("a1", "", true, "t")
-	d.leases.ReleaseAgent("a2", "", true, "t")
 	const shots = "mac:shots"
 	for _, q := range []string{
 		"INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(1, 'one', 'a1', 'p1', 1, 'p1'), (2, 'two', 'a2', 'p1', 1, 'p1')",
@@ -51,7 +39,7 @@ func TestALeaseAskWaitsAsAGateOnTheAgentsTask(t *testing.T) {
 		t.Fatalf("blockers %+v %v", bs, err)
 	}
 	d.leases.Check(nil) // the board still reads T2 as a2's, so the ask stays
-	if q := d.leases.View(); len(q) != 5 || q[4].Kind != shots || q[4].Max != 1 || len(q[4].Queue) != 1 || q[4].Queue[0].Task != 2 {
+	if q := d.leases.View(); len(q) != 2 || q[1].Kind != shots || q[1].Max != 1 || len(q[1].Queue) != 1 || q[1].Queue[0].Task != 2 {
 		t.Fatalf("after a check: %+v", q)
 	}
 	d.leases.ReleaseAgent("a1", "", false, "the session ended")

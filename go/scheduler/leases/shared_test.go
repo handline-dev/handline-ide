@@ -10,16 +10,15 @@ func sharedManager(t *testing.T) (*Manager, *board) {
 	t.Helper()
 	now := int64(1000)
 	m, b := boardManager(&now)
-	m.Max = nil
 	m.Shared = func() []Shared { return []Shared{{"mac:x", 1}, {"w1:y", 1}, {"w2:y", 1}} }
 	return m, b
 }
 
 // A shared run's turns are counted by its kind: This Mac's across every workspace, a workspace's among its own agents only, which no
-// other workspace's run of the same name holds back; heavy, simulator and browser limit nothing without Max.
+// other workspace's run of the same name holds back; a run not among them (web, build) limits nothing.
 func TestASharedRunWaitsOnlyForItsOwnTurns(t *testing.T) {
 	m, _ := sharedManager(t)
-	for _, k := range []struct{ kind, agent string }{{"w1:y", "a"}, {"w2:y", "b"}, {"mac:x", "a"}, {Browser, "b"}, {Browser, "c"}, {Heavy, "c"}} {
+	for _, k := range []struct{ kind, agent string }{{"w1:y", "a"}, {"w2:y", "b"}, {"mac:x", "a"}, {Web, "b"}, {Web, "c"}, {Build, "c"}} {
 		if l, err := m.Take(nil, k.kind, k.agent, false, 5, long); err != nil || l == nil {
 			t.Fatalf("%s for %s: %v %v", k.kind, k.agent, l, err)
 		}
@@ -33,7 +32,7 @@ func TestASharedRunWaitsOnlyForItsOwnTurns(t *testing.T) {
 	if p.Max != 1 || len(p.Held) != 1 || len(p.Queue) != 1 || p.Queue[0].Agent != "b" || !strings.Contains(p.Queue[0].Says, "waiting for a turn at x, 1st") {
 		t.Fatalf("mac:x %+v", p)
 	}
-	if got := len(m.View()); got != 7 {
+	if got := len(m.View()); got != 6 {
 		t.Fatalf("pools %d", got)
 	}
 }

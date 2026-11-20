@@ -418,12 +418,6 @@ export type SettingsValues = {
   keep_awake?: "off" | "on" | "working";
   /** What the daemon does with work its agents left running after its parent died (headless Chrome, vitest, vite, a go test binary, yes, Electron) that has run 30 minutes under a worktree: dry (the default) only logs and records an orphan_would_stop event every 10 minutes; on stops it and records orphan_stopped; off does nothing. Nothing outside a worktree is touched. */
   reap_orphans?: "dry" | "on" | "off";
-  /** Most test or build runs (go test, cargo, xcodebuild, vitest and the like) held at once through hl use, over every agent; 0 is no limit, the default. Over it an agent's hl use heavy waits its turn (lease.take), and the PreToolUse guard refuses a test or build command run outside hl use unless the agent holds one; with 0 nothing waits or is refused. A script that runs tests inside (tools/check.sh) is not read. */
-  heavy_max?: number;
-  /** Most simulators (iOS Simulator, Android emulator) held at once through hl use, over every agent; 0 is no limit, the default. Over it an agent's hl use simulator waits its turn (lease.take), and the PreToolUse guard refuses a simulator started outside hl use unless the agent holds one; with 0 nothing waits or is refused. */
-  simulator_max?: number;
-  /** Most browsers (headless Chrome or Chromium, Playwright) held at once through hl use, over every agent; 0 is no limit, the default. Over it an agent's hl use browser waits its turn (lease.take), and the PreToolUse guard refuses a browser started outside hl use unless the agent holds one; with 0 nothing waits or is refused. */
-  browser_max?: number;
   /** The ports a port lease (hl use port) is picked from, as lo-hi (e.g. 4000-4999) with 1024 <= lo <= hi <= 65535: a port no lease holds and that binds at grant time, given to the command as $HL_PORT; over the range an ask waits. Unset, the default, a port lease is any free port the system gives and none waits. */
   port_range?: string | null;
   /** Hosts the network listener serves, from connection.addresses, each on the -listen port: a door on each of their addresses, made again within seconds when the setting or the interfaces change (no restart). The web page is served on each. null (the default) serves -listen alone; [] serves none. A host the machine has no address for now is served when it has one again. A write answers unreachable_devices: the paired devices whose host is no longer served. */
@@ -520,12 +514,6 @@ export type SettingsChanges = {
   keep_awake?: ("off" | "on" | "working") | null;
   /** What the daemon does with work its agents left running after its parent died (headless Chrome, vitest, vite, a go test binary, yes, Electron) that has run 30 minutes under a worktree: dry (the default) only logs and records an orphan_would_stop event every 10 minutes; on stops it and records orphan_stopped; off does nothing. Nothing outside a worktree is touched. */
   reap_orphans?: ("dry" | "on" | "off") | null;
-  /** Most test or build runs (go test, cargo, xcodebuild, vitest and the like) held at once through hl use, over every agent; 0 is no limit, the default. Over it an agent's hl use heavy waits its turn (lease.take), and the PreToolUse guard refuses a test or build command run outside hl use unless the agent holds one; with 0 nothing waits or is refused. A script that runs tests inside (tools/check.sh) is not read. null removes the key (back to the default). */
-  heavy_max?: number | null;
-  /** Most simulators (iOS Simulator, Android emulator) held at once through hl use, over every agent; 0 is no limit, the default. Over it an agent's hl use simulator waits its turn (lease.take), and the PreToolUse guard refuses a simulator started outside hl use unless the agent holds one; with 0 nothing waits or is refused. null removes the key (back to the default). */
-  simulator_max?: number | null;
-  /** Most browsers (headless Chrome or Chromium, Playwright) held at once through hl use, over every agent; 0 is no limit, the default. Over it an agent's hl use browser waits its turn (lease.take), and the PreToolUse guard refuses a browser started outside hl use unless the agent holds one; with 0 nothing waits or is refused. null removes the key (back to the default). */
-  browser_max?: number | null;
   /** The ports a port lease (hl use port) is picked from, as lo-hi (e.g. 4000-4999) with 1024 <= lo <= hi <= 65535: a port no lease holds and that binds at grant time, given to the command as $HL_PORT; over the range an ask waits. Unset, the default, a port lease is any free port the system gives and none waits. Another value is bad_request (field port_range). null removes the key (back to the default). */
   port_range?: string | null;
   /** Hosts the network listener serves, from connection.addresses, each on the -listen port: a door on each of their addresses, made again within seconds when the setting or the interfaces change (no restart). The web page is served on each. null (the default) serves -listen alone; [] serves none. A host the machine has no address for now is served when it has one again. A write answers unreachable_devices: the paired devices whose host is no longer served. A host this machine cannot be reached on is refused, gate address. A client connected through a host it drops is cut off before the answer; its retry with the same request_id reads it. null removes the key (back to the default). */
@@ -825,7 +813,7 @@ export interface CoreMethods {
 }; result: Accepted };
   "lease.take": { params: {
   agent: Who;
-  /** heavy, simulator, browser, port, or the name of a shared run the agent takes (run.list); heavy, simulator and browser limit nothing. */
+  /** port, or the name of a shared run the agent takes (run.list). */
   kind: string;
   /** A lease kept across commands (hl use <kind> --hold) rather than one for the calling process. */
   hold?: boolean;
@@ -840,7 +828,7 @@ export interface CoreMethods {
   "lease.release": { params: {
   agent: Who;
   lease?: number;
-  /** heavy, simulator, browser, port, or the name of a shared run the agent takes (run.list); heavy, simulator and browser limit nothing. Empty or absent: every kind. */
+  /** port, or the name of a shared run the agent takes (run.list). Empty or absent: every kind. */
   kind?: string;
 }; result: {
     /** How many leases were given back. */
@@ -848,22 +836,23 @@ export interface CoreMethods {
   } };
   "lease.extend": { params: {
   agent: Who;
-  /** heavy, simulator, browser, port, or the name of a shared run the agent takes (run.list); heavy, simulator and browser limit nothing. Empty or absent: every kind. */
+  /** port, or the name of a shared run the agent takes (run.list). Empty or absent: every kind. */
   kind?: string;
 }; result: {
     /** The leases extended. */
     extended: {
       lease: number;
-      kind: "heavy" | "simulator" | "browser" | "port";
+      /** port or a shared run's scope:name. */
+      kind: string;
       /** When the lease now reaches its max_hold. */
       max_hold_at: string;
     }[];
   } };
   "lease.get": { params: { [key: string]: unknown }; result: {
     kinds: {
-      /** heavy, simulator, browser or port, or a shared run's scope:name (mac:xcode, w3:xcode). */
+      /** port, or a shared run's scope:name (mac:xcode, w3:xcode). */
       kind: string;
-      /** A shared run's at_once; for port, the size of port_range, 0 when unset; 0 is no limit, as for heavy, simulator and browser. */
+      /** A shared run's at_once; for port, the size of port_range, 0 when unset; 0 is no limit. */
       max: number;
       held: {
         lease: number;
@@ -885,7 +874,7 @@ export interface CoreMethods {
         since: string;
         /** 1 is next. */
         position: number;
-        /** The wait in words, for the agent view: 'waiting for a browser, 2nd in line, held by a and b'. */
+        /** The wait in words, for the agent view: 'waiting for a turn at xcode, 2nd in line, held by a and b'. */
         says: string;
         /** The task the ask blocks (its gate waits on this lease); absent for a call held open. */
         task?: number;

@@ -16,12 +16,12 @@ func outOfOrder(t *testing.T, err error) *OutOfOrder {
 }
 
 func TestACommandUnderALaterKindIsRefusedNotBlockedForAnEarlierOne(t *testing.T) {
-	m, b := cHasAHasUnder7(t, Heavy, Browser)                           // c has the one heavy slot
-	o := outOfOrder(t, second(m.Take(nil, Heavy, "a", false, 7, long))) // a nested hl use under the browser's
-	if !strings.Contains(o.Why, "hl use heavy browser") || len(b.waits) != 0 {
+	m, b := cHasAHasUnder7(t, Build, Web)                               // c has the one heavy slot
+	o := outOfOrder(t, second(m.Take(nil, Build, "a", false, 7, long))) // a nested hl use under the browser's
+	if !strings.Contains(o.Why, "hl use build web") || len(b.waits) != 0 {
 		t.Fatalf("%q waits %v", o.Why, b.waits)
 	}
-	if q := pool(m, Heavy).Queue; len(q) != 0 {
+	if q := pool(m, Build).Queue; len(q) != 0 {
 		t.Fatalf("queued: %+v", q)
 	}
 }
@@ -29,27 +29,27 @@ func TestACommandUnderALaterKindIsRefusedNotBlockedForAnEarlierOne(t *testing.T)
 func TestATaskThatWaitsForAKindGivesUpItsReservationsOfLaterOnes(t *testing.T) {
 	now := int64(1000)
 	m, _ := boardManager(&now)
-	sim, err := m.Take(nil, Simulator, "c", false, 5, long)
+	sim, err := m.Take(nil, Sim, "c", false, 5, long)
 	if err != nil {
 		t.Fatal(err)
 	}
-	br, err := m.Take(nil, Browser, "c", false, 5, long)
+	br, err := m.Take(nil, Web, "c", false, 5, long)
 	if err != nil {
 		t.Fatal(err)
 	}
-	blockedOn(t, second(m.Take(nil, Browser, "a", false, 7, long)))
+	blockedOn(t, second(m.Take(nil, Web, "a", false, 7, long)))
 	m.Release(br.ID, "c") // the browser is reserved for a's T10
-	if h := pool(m, Browser).Held; len(h) != 1 || h[0].Task != 10 {
+	if h := pool(m, Web).Held; len(h) != 1 || h[0].Task != 10 {
 		t.Fatalf("reserved: %+v", h)
 	}
-	blockedOn(t, second(m.Take(nil, Browser, "b", false, 8, long)))
+	blockedOn(t, second(m.Take(nil, Web, "b", false, 8, long)))
 	// a's hl use simulator browser comes back; the simulator is held, so T10 waits for it and lets the browser go to b's T20.
-	blockedOn(t, second(m.Take(nil, Simulator, "a", false, 9, long)))
-	if h := pool(m, Browser).Held; len(h) != 1 || h[0].Task != 20 {
+	blockedOn(t, second(m.Take(nil, Sim, "a", false, 9, long)))
+	if h := pool(m, Web).Held; len(h) != 1 || h[0].Task != 20 {
 		t.Fatalf("browser: %+v", h)
 	}
 	m.Release(sim.ID, "c")
-	if h := pool(m, Simulator).Held; len(h) != 1 || h[0].Task != 10 {
+	if h := pool(m, Sim).Held; len(h) != 1 || h[0].Task != 10 {
 		t.Fatalf("simulator: %+v", h)
 	}
 }
@@ -59,8 +59,8 @@ func TestAnAskThatCannotCloseACycleWaits(t *testing.T) {
 		busy, mine string
 		pid        int
 	}{
-		"another command of a, under a later kind": {Heavy, Browser, 8}, // a's dev server holds the browser
-		"the same command, under an earlier kind":  {Browser, Heavy, 7},
+		"another command of a, under a later kind": {Build, Web, 8}, // a's dev server holds the browser
+		"the same command, under an earlier kind":  {Web, Build, 7},
 	} {
 		m, b := cHasAHasUnder7(t, c.busy, c.mine)
 		if blockedOn(t, second(m.Take(nil, c.busy, "a", false, c.pid, long))).Task != 10 || len(b.waits) != 1 {
@@ -72,23 +72,23 @@ func TestAnAskThatCannotCloseACycleWaits(t *testing.T) {
 func TestAnAgentWithAHoldIsRefusedRatherThanBlocked(t *testing.T) {
 	now := int64(1000)
 	m, b := boardManager(&now)
-	if _, err := m.Take(nil, Browser, "c", false, 5, long); err != nil {
+	if _, err := m.Take(nil, Web, "c", false, 5, long); err != nil {
 		t.Fatal(err)
 	}
-	h, err := m.Take(nil, Heavy, "a", true, 0, long)
+	h, err := m.Take(nil, Build, "a", true, 0, long)
 	if err != nil {
 		t.Fatal(err)
 	}
-	o := outOfOrder(t, second(m.Take(nil, Browser, "a", false, 7, long)))
+	o := outOfOrder(t, second(m.Take(nil, Web, "a", false, 7, long)))
 	if !strings.Contains(o.Why, "--release") || len(b.waits) != 0 {
 		t.Fatalf("%q waits %v", o.Why, b.waits)
 	}
 	// A free lease is still granted beside the hold: only waiting is refused.
 	m.Release(h.ID, "a")
-	if _, err := m.Take(nil, Simulator, "a", true, 0, long); err != nil {
+	if _, err := m.Take(nil, Sim, "a", true, 0, long); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := m.Take(nil, Heavy, "a", false, 7, long); err != nil {
+	if _, err := m.Take(nil, Build, "a", false, 7, long); err != nil {
 		t.Fatalf("a free heavy beside a hold: %v", err)
 	}
 }

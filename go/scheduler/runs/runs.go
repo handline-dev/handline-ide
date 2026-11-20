@@ -34,7 +34,7 @@ const MaxCmds = 20
 var Presets = []string{"@build-test", "@simulator", "@browser"}
 
 // reserved are the words hl use takes for itself or for a lease kind.
-var reserved = []string{"add", "remove", "list", "heavy", "simulator", "browser", "port"}
+var reserved = []string{"add", "remove", "list", "port"}
 
 // tooBroad are the single words a run may not cover: nearly every command starts with one.
 var tooBroad = []string{"bash", "sh", "zsh", "git", "hl", "cat", "ls", "cd", "echo", "env", "sudo", "exec", "time", "timeout", "nice",

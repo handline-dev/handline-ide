@@ -20,8 +20,8 @@ func TestTheStoreKeepsLeasesAndNeverReusesAnID(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := Store{DB: db}
-	hold := leases.Lease{ID: 1, Kind: leases.Simulator, Agent: "a7", Workspace: "w4", Since: 100, Hold: true}
-	cmd := leases.Lease{ID: 2, Kind: leases.Browser, Agent: "a7", Workspace: "w4", Since: 200, PID: 55}
+	hold := leases.Lease{ID: 1, Kind: "mac:sim", Agent: "a7", Workspace: "w4", Since: 100, Hold: true}
+	cmd := leases.Lease{ID: 2, Kind: "mac:web", Agent: "a7", Workspace: "w4", Since: 200, PID: 55}
 	for _, l := range []leases.Lease{hold, cmd} {
 		if err := s.Put(l); err != nil {
 			t.Fatal(err)
@@ -30,7 +30,7 @@ func TestTheStoreKeepsLeasesAndNeverReusesAnID(t *testing.T) {
 	if err := s.Remove(2); err != nil {
 		t.Fatal(err)
 	}
-	ask := leases.Ask{ID: 3, Kind: leases.Browser, Agent: "a7", Workspace: "w4", Task: 40, Gate: 41, Since: 300}
+	ask := leases.Ask{ID: 3, Kind: "mac:web", Agent: "a7", Workspace: "w4", Task: 40, Gate: 41, Since: 300}
 	reserved := leases.Lease{ID: 4, Kind: leases.Port, Agent: "a7", Workspace: "w4", Since: 400, Task: 42, Until: 1000, Port: 4001}
 	if err := s.AddAsk(ask); err != nil {
 		t.Fatal(err)

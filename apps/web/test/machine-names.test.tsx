@@ -28,12 +28,10 @@ vi.mock('#src/settings/data/machine.ts', () => ({
   useMachine: () => ({
     resources: null,
     agents: [{ name: 'a-7', cpu_pct: 12, rss_bytes: 1e8 }],
-    leases: [],
     limits: { load_per_core_pct: 0, ram_free_min_pct: 0 },
     pending: null,
     stop: vi.fn(),
     setLimit: vi.fn(),
-    setLeaseMax: vi.fn(),
     setAwake: vi.fn(),
     setRecord: vi.fn(),
     awake: 'off',

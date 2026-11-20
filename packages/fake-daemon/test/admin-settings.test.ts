@@ -31,9 +31,6 @@ const KEYS = [
   'disk_free_min_gb',
   'disk_keep_free_gb',
   'agents_memory_max_gb',
-  'heavy_max',
-  'simulator_max',
-  'browser_max',
   'port_range',
   'network_addresses',
   'keep_awake',
@@ -104,14 +101,12 @@ test('daemon.status keep_awake under working is held only while a session runs',
   assert.equal((await client.call('daemon.status', {})).keep_awake?.held, true);
 });
 
-test('lease.get gives the simulator and browser limits as set, and a simulator limit of 1 makes the second agent wait', async () => {
+test('lease.get gives each shared run as a pool: its at_once, who holds a turn and who waits', async () => {
   const { client } = setup();
   await client.start();
-  const kinds = async () => Object.fromEntries((await client.call('lease.get', {})).kinds.map((k) => [k.kind, k]));
-  const before = await kinds();
-  assert.deepEqual([before.simulator?.max, before.browser?.max, before.simulator?.queue.length], [0, 0, 0]);
-  await client.call('settings.set', { changes: { simulator_max: 1, browser_max: 2 }, request_id: 'l2-a' });
-  const after = await kinds();
-  assert.deepEqual([after.simulator?.max, after.browser?.max, after.simulator?.queue.map((w) => w.position)], [1, 2, [1]]);
+  const kinds = Object.fromEntries((await client.call('lease.get', {})).kinds.map((k) => [k.kind, k]));
+  const build = kinds['mac:ios-build'];
+  assert.deepEqual([build?.max, build?.held.length, build?.queue.map((w) => w.agent)], [1, 1, ['handline.term-build']]);
+  assert.equal(kinds['w1:check']?.max, 2);
   client.close();
 });

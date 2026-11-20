@@ -10,7 +10,6 @@ import (
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/protocol/rpc"
-	"github.com/handline/handline/go/scheduler/leases"
 )
 
 // workspaceRuleSet is workspace.rule.set: a kept rule on a workspace, or with none the machine default; a null value clears it.
@@ -64,11 +63,8 @@ func (e *Env) workspaceRuleSet(c *rpc.Conn, params map[string]any) (any, error) 
 	})
 }
 
-// ruleNamesKnown refuses a lease kind there is none of and an account no login has.
+// ruleNamesKnown refuses an account no login has.
 func (e *Env) ruleNamesKnown(key string, value any) error {
-	if kind, ok := strings.CutPrefix(key, team.RuleLeaseMax); ok && !slices.Contains(leases.Kinds, kind) {
-		return rpc.BadRequestError(fmt.Sprintf("no lease kind %s (%s)", kind, strings.Join(leases.Kinds, ", ")), "key", rpc.InvalidParams)
-	}
 	if key == team.RuleAccounts && value != nil {
 		have := paths.ListAccounts(e.Home)
 		for _, a := range value.([]string) {

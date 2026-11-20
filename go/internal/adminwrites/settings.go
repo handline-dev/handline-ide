@@ -62,7 +62,7 @@ var settingKinds = map[string]string{"park_timeout_s": int0, "handoff_note": fla
 	usage.PaceTargetKey: tgt, usage.PaceBurstKey: burst, usage.SubagentGuardKey: flag_, usage.MoveBeforeKey: pct, usage.SplitKey: split,
 	settings.ClearPastBackgroundKey: flag_, settings.TranscriptRowsKey: flag_, settings.RefsNeedGrantKey: flag_,
 	worktreepool.DiskKeepFreeKey: int0, worktreepool.AgentsMemoryMaxKey: int0,
-	leases.HeavyMaxKey: int0, leases.SimulatorMaxKey: int0, leases.BrowserMaxKey: int0, leases.PortRangeKey: ports,
+	leases.PortRangeKey:            ports,
 	usage.NetworkAddressesKey:      hosts,
 	team.DefaultModelKey("claude"): model, team.DefaultEffortKey("claude"): effort,
 	team.DefaultModelKey("codex"): model, team.DefaultEffortKey("codex"): effort}

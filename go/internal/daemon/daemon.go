@@ -229,7 +229,6 @@ func Start(cfg Config) (*Daemon, error) {
 		return (&usage.Env{Home: cfg.Home}).StartSubagent(db, agent, session, time.Now().Unix(), m)
 	}
 	ls := leasestore.Store{DB: db}
-	// The kinds heavy, simulator and browser limit nothing: a shared run is what takes turns (T9277).
 	d.leases = &leases.Manager{Log: cfg.Log, Store: ls, WorkspaceOf: ls.WorkspaceOf}
 	d.runs = &runs.Book{DB: db, Log: cfg.Log}
 	d.leases.Shared, d.leases.Named = d.runs.Shared, d.runs.Named

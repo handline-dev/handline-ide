@@ -6,7 +6,6 @@
 # (CHECK_FULL=1: all). --plan prints kind=<none|docs|go> and apps=<no|app-data|turbo>, runs nothing.
 # app-smoke (local only, a Mac): tools/app-smoke.mjs, run unasked for a change to the app's main, owner or follow. A failing step does not stop the rest.
 cd "$(dirname "$0")/.." || exit 1
-args=("$@")
 group="" shard="" plan=""
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -41,17 +40,12 @@ if [ "${GITHUB_EVENT_NAME:-}" = push ]; then kind=go; [ "$apps" = turbo ] || app
 [ -z "${CHECK_FULL:-}" ] || kind=go # the whole Go suite, even with nothing changed (the nightly run)
 if [ -n "$plan" ]; then printf 'kind=%s\napps=%s\n' "$kind" "$apps"; exit 0; fi
 
-# A local run needs disk (a Go build is gigabytes) and, with `heavy_max` set, a heavy slot: the machine's runs queue instead of all
-# filling the disk and the cores at once. CHECK_MIN_FREE_GB (default 5) is the free space under which it does not start.
+# A local run needs disk (a Go build is gigabytes). CHECK_MIN_FREE_GB (default 5) is the free space under which it does not start.
 if [ "$kind" = go ] && [ -z "${GITHUB_ACTIONS:-}" ]; then
     free_gb="$(df -Pk "${TMPDIR:-/tmp}" | awk 'NR==2 {printf "%d", $4 / 1048576}')"
     if [ "${free_gb:-0}" -lt "${CHECK_MIN_FREE_GB:-5}" ]; then
         echo "tools/check.sh: only ${free_gb} GB free (floor ${CHECK_MIN_FREE_GB:-5} GB): not starting. Free space (tools/gocache_prune.py --cap-gb 10, old worktrees: tools/prune_worktrees.py) and run again." >&2
         exit 1
-    fi
-    if [ -z "${CHECK_HEAVY_HELD:-}" ] && command -v hl >/dev/null && hl use 2>&1 | grep -q heavy; then
-        export CHECK_HEAVY_HELD=1
-        exec hl use heavy -- "$0" "${args[@]}"
     fi
 fi
 

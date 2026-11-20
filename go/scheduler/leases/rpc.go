@@ -25,7 +25,7 @@ func Register(s *rpc.Server, m *Manager) {
 
 func bad(msg, field string) error { return rpc.BadRequestError(msg, field, rpc.InvalidParams) }
 
-// kindOf is the lease kind params name: heavy, simulator, browser, port or the name of a shared run agent takes; "" when none is named.
+// kindOf is the lease kind params name: port or the name of a shared run agent takes; "" when none is named.
 func (m *Manager) kindOf(agent string, params map[string]any) (string, error) {
 	name, _ := params["kind"].(string)
 	if name == "" || Known(name) {
@@ -39,7 +39,7 @@ func (m *Manager) kindOf(agent string, params map[string]any) (string, error) {
 	if kind, ok := m.heldNamed(agent, name); ok { // a run removed while the agent holds a turn at it
 		return kind, nil
 	}
-	return "", bad(fmt.Sprintf("%s is no lease kind (heavy, simulator, browser, port) and no shared run of yours (hl use list)", name), "kind")
+	return "", bad(fmt.Sprintf("%s is not port and no shared run of yours (hl use list)", name), "kind")
 }
 
 func agentOf(c *rpc.Conn, params map[string]any) (string, error) {
@@ -61,7 +61,7 @@ func (m *Manager) take(c *rpc.Conn, params map[string]any) (any, error) {
 		return nil, err
 	}
 	if kind == "" {
-		return nil, bad("kind is heavy, simulator, browser, port or a shared run's name", "kind")
+		return nil, bad("kind is port or a shared run's name", "kind")
 	}
 	hold, _ := params["hold"].(bool)
 	pid := 0
