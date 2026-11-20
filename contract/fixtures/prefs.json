@@ -45,6 +45,9 @@
        },
        "order": {
         "$type": "array"
+       },
+       "folded": {
+        "$type": "array"
        }
       }
      }
@@ -880,6 +883,52 @@
        "reason": {
         "$type": "string"
        }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "prefs.set.refuses_a_workspace_folded_twice",
+   "spec": "prefs.set",
+   "as": "founder",
+   "about": "folded is a list of workspace keys, none twice; a key twice is refused naming the field.",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "prefs.set",
+      "params": {
+       "changes": {
+        "nav": {
+         "folded": [
+          "w1",
+          "w1"
+         ]
+        }
+       },
+       "request_id": "conf-prefs-folded"
+      }
+     },
+     "error": {
+      "code": -32602,
+      "data": {
+       "code": "bad_request",
+       "field": "changes.nav.folded"
       }
      }
     }

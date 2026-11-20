@@ -3112,7 +3112,7 @@
    },
    "NavPrefs": {
     "type": "object",
-    "description": "How the person's agent list and dock show agents, the same on every device.",
+    "description": "How the person's agent list and dock show agents and workspaces, the same on every device.",
     "properties": {
      "pins": {
       "type": "array",
@@ -3154,6 +3154,13 @@
       },
       "description": "The person's order for the tree layout: agents under one parent, and the top-level agents, stand in this order; one not listed (a new agent) comes after the listed ones, by name. The flat layout ignores it. No name twice."
      },
+     "folded": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      },
+      "description": "The workspaces whose section the list shows folded, by key (Workspace.key). No key twice."
+     },
      "later": {
       "type": "object",
       "description": "For you items the founder put off, by `kind:id` (ForYouItem.kind and id, such as `task:42`). prefs.set merges this key entry by entry: an entry sets or replaces one item, null clears it; the other entries stay, so two devices deferring different items lose nothing. An entry whose time passed or whose task ended is dead and the daemon drops it at the next prefs.set that changes later. Absent entries mean not deferred.",
@@ -3174,7 +3181,8 @@
      "unread_only",
      "hidden",
      "layout",
-     "order"
+     "order",
+     "folded"
     ],
     "additionalProperties": false
    },
@@ -3221,6 +3229,13 @@
        "$ref": "#/components/schemas/Who"
       },
       "description": "The person's order for the tree layout: agents under one parent, and the top-level agents, stand in this order; one not listed (a new agent) comes after the listed ones, by name. The flat layout ignores it. No name twice."
+     },
+     "folded": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      },
+      "description": "The workspaces whose section the list shows folded, by key (Workspace.key). No key twice."
      },
      "later": {
       "type": "object",

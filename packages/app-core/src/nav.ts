@@ -1,7 +1,7 @@
 // Which agents the agent list shows, from the person's prefs. Pure.
 import type { NavPrefs, Prefs } from '@handline/client';
 
-export const DEFAULT_NAV: NavPrefs = { pins: [], unread_only: false, hidden: [], layout: 'tree', order: [] };
+export const DEFAULT_NAV: NavPrefs = { pins: [], unread_only: false, hidden: [], layout: 'tree', order: [], folded: [] };
 
 export const navOf = (p: Prefs | undefined): NavPrefs => ({ ...DEFAULT_NAV, ...p?.nav });
 
