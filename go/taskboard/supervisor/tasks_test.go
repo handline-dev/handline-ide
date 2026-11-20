@@ -548,6 +548,58 @@ func TestSweepPingsTheIdleHolderOfAnOverdueTaskOncePerNotice(t *testing.T) {
 	}
 }
 
+// overrun puts task tid past its timeout and records its overrun notice, as the timebox tick does.
+func (r *rig) overrun(tid int64) {
+	r.t.Helper()
+	_, err := r.DB.Exec(r.sql("UPDATE tasks SET timeout_at = ? WHERE id = ?"), r.clock-60, tid)
+	r.must(err)
+	_, err = db.AddEvent(r.DB, r.k("bob"), "task_timeout_exceeded", db.KV{K: "task_id", V: tid}, db.KV{K: "over_s", V: 60})
+	r.must(err)
+}
+
+// idleSweeps runs n queue sweeps ~35 s apart with bob idle at each.
+func (r *rig) idleSweeps(n int64) {
+	r.t.Helper()
+	for i := int64(0); i < n; i++ {
+		r.must(db.SetAgentState(r.DB, r.k("bob"), states.Idle, 0, ""))
+		r.must(r.SweepTaskQueue(r.clock + i*35))
+	}
+}
+
+// The lander got 3,557 notices in 25 h: its two overdue tasks were swapped every tick.
+func TestSweepNeverSwapsAnIdleHolderBetweenTwoOverdueTasks(t *testing.T) {
+	r := newRig(t)
+	r.agentUp(r.k("bob"))
+	cur := r.beginCurrent(r.k("bob"), r.k("alice"), "the long one")
+	other := r.newTask(r.k("bob"), r.k("alice"), "the other long one")
+	r.overrun(cur)
+	r.overrun(other)
+	r.must(db.PauseTaskTimeout(r.DB, other, r.clock)) // the timebox pauses a task that is not current
+	r.idleSweeps(10)
+	if now, _, _ := db.CurrentTask(r.DB, r.k("bob")); now != cur {
+		t.Fatalf("current is T%d, want T%d kept: the waiting one is overdue too", now, cur)
+	}
+	if says := r.saysTo(r.k("bob")); len(says) != 1 || !strings.HasPrefix(says[0], fmt.Sprintf("T%d (the long one) is past its timeout, unanswered. Do it", cur)) {
+		t.Fatalf("says to bob = %q, want one overdue ping", says)
+	}
+}
+
+// An overdue task moves its idle holder to a fresh one once, and then the sweep is quiet.
+func TestSweepMovesAnIdleHolderOffAnOverdueTaskOnce(t *testing.T) {
+	r := newRig(t)
+	r.agentUp(r.k("bob"))
+	cur := r.beginCurrent(r.k("bob"), r.k("alice"), "the long one")
+	next := r.newTask(r.k("bob"), r.k("alice"), "the next one")
+	r.overrun(cur)
+	r.idleSweeps(10)
+	if now, _, _ := db.CurrentTask(r.DB, r.k("bob")); now != next {
+		t.Fatalf("current is T%d, want the fresh T%d", now, next)
+	}
+	if says := r.saysTo(r.k("bob")); len(says) != 1 || !strings.HasPrefix(says[0], fmt.Sprintf("T%d is past its timeout, unanswered, so T%d", cur, next)) {
+		t.Fatalf("says to bob = %q, want one move", says)
+	}
+}
+
 func TestABlockedTaskFreesItsOwnerAndComesBackWithoutPreempting(t *testing.T) {
 	r := newRig(t)
 	r.agentUp(r.k("bob"))

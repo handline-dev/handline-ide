@@ -582,6 +582,16 @@ func Overdue(q Q, t *Task, now int64) (bool, error) {
 	return n.N > 0, err
 }
 
+// RanOver is Overdue for a task whose clock may be paused (one waiting behind the current task): past its box by what the pause left.
+func RanOver(q Q, t *Task, now int64) (bool, error) {
+	var past bool
+	if err := q.QueryRow("SELECT COALESCE(timeout_at <= ?, timeout_left <= 0, 0) FROM tasks WHERE id = ?", now, t.ID).Scan(&past); err != nil {
+		return false, err
+	}
+	n, err := TimeoutNotices(q, t.ID)
+	return past && n.N > 0, err
+}
+
 // AllTasks is db.all_tasks.
 func AllTasks(q Q) ([]*Task, error) {
 	return taskRows(q, "SELECT "+taskCols+" FROM tasks ORDER BY priority, id")
