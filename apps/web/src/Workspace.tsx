@@ -5,6 +5,7 @@ import { MarkdownTab } from '#src/tools/MarkdownTab.tsx';
 import { TaskTab } from '#src/tools/TaskTab.tsx';
 import { PlanTab } from '#src/tools/Story.tsx';
 import { CodeTab } from '#src/tools/TaskCode.tsx';
+import { useTabKeys } from '#src/layout/tabKeys.ts';
 import { DocTab } from '#src/tools/DocTab.tsx';
 import { ProposalView } from '#src/requests/ProposalView.tsx';
 import { TextTab } from '#src/tools/TextTab.tsx';
@@ -379,7 +380,11 @@ export function Workspace({
     );
   const closeShells = useCloseShells(agent);
   // Cmd+W (Ctrl+W elsewhere) closes the tab on screen in the pane last used, Cmd+Shift+T opens the last closed again; the desktop
-  // shell's menu items send the same keys.
+  // shell's menu items send the same keys. The tab keys move through its tabs (layout/tabKeys).
+  useTabKeys(
+    () => panes(root).find((x) => x.id === lastPane) ?? panes(root)[0],
+    (pane, tab) => dispatch({ type: 'select', pane, tab }),
+  );
   useEffect(() => {
     const close = (e: KeyboardEvent) => {
       if (!isCloseChord(e) || document.querySelector('[role="dialog"], [role="alertdialog"]')) return; // nothing closes behind a modal
