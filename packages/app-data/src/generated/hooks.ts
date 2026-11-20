@@ -33,6 +33,7 @@ export const useInboxList = (params: CallParams<"inbox.list"> = {}, opts?: ReadO
 export const useInboxGet = (params: CallParams<"inbox.get">, opts?: ReadOpts) => useRead("inbox.get", params, opts);
 export const useRequestsList = (params: CallParams<"requests.list"> = {}, opts?: ReadOpts) => useRead("requests.list", params, opts);
 export const useDevicesList = (params: CallParams<"devices.list"> = {}, opts?: ReadOpts) => useRead("devices.list", params, opts);
+export const useNodeStatus = (params: CallParams<"node.status"> = {}, opts?: ReadOpts) => useRead("node.status", params, opts);
 export const useReposList = (params: CallParams<"repos.list"> = {}, opts?: ReadOpts) => useRead("repos.list", params, opts);
 export const useReposRecent = (params: CallParams<"repos.recent"> = {}, opts?: ReadOpts) => useRead("repos.recent", params, opts);
 export const useRepoFacts = (params: CallParams<"repo.facts">, opts?: ReadOpts) => useRead("repo.facts", params, opts);

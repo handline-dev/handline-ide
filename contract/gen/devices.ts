@@ -20,6 +20,27 @@ export type Device = {
   client?: string | null;
 };
 
+/** A machine of this master: its own, and later the ones people lend it. */
+export type Node = {
+  /** The machine's node id (DaemonStatus.machine.id on that machine). */
+  id: string;
+  /** The key of the person whose machine it is. */
+  person: string | null;
+  /** The machine's name, as it calls itself. */
+  name: string;
+  joined_at: Timestamp;
+  /** When the master last heard from it: for its own row, the daemon's start. */
+  last_seen: Timestamp | null;
+  /** The master it belongs to; 1 until masters can change. */
+  master_number: number;
+  /** It is the master. */
+  master: boolean;
+  /** It is the machine this daemon runs on. */
+  self: boolean;
+  /** The master hears from it now; always true for the master's own row. */
+  online: boolean;
+};
+
 export interface DevicesMethods {
   "devices.list": { params: { [key: string]: unknown }; result: {
     devices: Device[];
@@ -64,6 +85,14 @@ export interface DevicesMethods {
   sandbox?: boolean;
   request_id: RequestId;
 }; result: Accepted };
+  "node.status": { params: { [key: string]: unknown }; result: {
+    /** The master's node id and its number. */
+    master: {
+      id: string;
+      number: number;
+    };
+    nodes: Node[];
+  } };
 }
 
 export const DEVICES_METHODS: { [K in keyof DevicesMethods]: { role: Role; callers: Role[] | null; write: boolean; since: number } } = {
@@ -72,11 +101,13 @@ export const DEVICES_METHODS: { [K in keyof DevicesMethods]: { role: Role; calle
   "device.redeem": { role: "anonymous", callers: null, write: true, since: 1 },
   "device.revoke": { role: "owner", callers: null, write: true, since: 1 },
   "device.push_token": { role: "owner", callers: null, write: true, since: 1 },
+  "node.status": { role: "agent", callers: null, write: false, since: 1 },
 };
 
 /** x-app-cache of each read (x-app in core.json). */
-export const DEVICES_APP_CACHE: { [K in "devices.list"]: { resource: string; id?: string; feed: Topic | null } | false } = {
+export const DEVICES_APP_CACHE: { [K in "devices.list" | "node.status"]: { resource: string; id?: string; feed: Topic | null } | false } = {
   "devices.list": {"resource": "devices", "feed": "devices"},
+  "node.status": {"resource": "nodes", "feed": "nodes"},
 };
 
 /** x-app-write of each write (x-app in core.json). */

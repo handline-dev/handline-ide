@@ -99,6 +99,7 @@ const rules: Record<string, Rule> = {
   'device.revoked': ({ qc, d }) => void qc.invalidateQueries({ queryKey: qk.resource(d, 'devices.list') }),
   'people.changed': ({ qc, d }) => void qc.invalidateQueries({ queryKey: qk.resource(d, 'people.list') }),
   'workspaces.changed': ({ qc, d }) => void qc.invalidateQueries({ queryKey: qk.resource(d, 'workspaces.list') }),
+  'nodes.changed': ({ qc, d }) => void qc.invalidateQueries({ queryKey: qk.resource(d, 'node.status') }),
   'prefs.changed': ({ qc, d }, e) => put<Prefs>(qc, qk.prefs(d), data<Prefs>(e), e.cursor),
   // A row replaces its task's row in every cached requests list; a new one goes on top (newest first). One without a task is a chat message.
   'request.changed': ({ qc, d }, e) => {
