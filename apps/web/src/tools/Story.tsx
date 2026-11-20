@@ -1,6 +1,6 @@
 // A task's sub-tasks: the Plan box on its page (PlanFlow), and the graph with Run in a tab of its own (PlanTab).
 import { taskGraph, type GraphNode } from '@handline/app-core';
-import { Hooks, useNameOf, useTasks, useWrite } from '@handline/app-data';
+import { Hooks, useNameOf, useTasks } from '@handline/app-data';
 import { useMe } from '@handline/app-react';
 import type { Task, TaskDetail } from '@handline/client';
 import { Play } from 'lucide-react';
@@ -10,11 +10,10 @@ import { planOf, taskOf } from '#src/layout/kinds.tsx';
 import { useNewTab, useOpenable } from '#src/layout/openable.tsx';
 import { TaskChat } from '#src/tools/TaskTab.tsx';
 import { SubTask } from '#src/tools/StorySub.tsx';
+import { run } from '#src/tools/RunPlan.tsx';
 import { startsAfter, wordOf, type Sub, type Word } from '#src/tools/storyWords.ts';
 import { Button } from '#src/ui/Button.tsx';
-import { ModalFrame, openModal } from '#src/ui/modal.tsx';
 import { ScrollFade } from '#src/ui/ScrollFade.tsx';
-import { sayRefusal } from '#src/ui/refusal.tsx';
 import { look } from '#src/ui/taskLook.tsx';
 import { FaceName } from '#src/ui/Face.tsx';
 
@@ -71,6 +70,7 @@ export function PlanFlow({ t }: { t: TaskDetail }) {
     .filter((x) => forYou(x) || startsAfter(x, open).some((n) => nowIds.has(n)) || !startsAfter(x, open).length)
     .sort((a, b) => Number(forYou(b)) - Number(forYou(a)));
   const later = waits.length - next.length;
+  const drafts = live.filter((x) => x.state === 'draft');
   const nowShown = more.now ? now : now.slice(0, SHOWN.now);
   const nextShown = more.next ? next : next.slice(0, SHOWN.next);
   if (!live.length) return null;
@@ -105,6 +105,12 @@ export function PlanFlow({ t }: { t: TaskDetail }) {
         <button type="button" {...graph} onClick={newTab} className="ml-auto rounded-sm px-1 text-accent hover:bg-hover/30">
           Open graph in new tab
         </button>
+        {drafts.length > 0 && (
+          <Button size="sm" variant="primary" onClick={() => run(t.id, drafts, open)}>
+            <Play size={12} />
+            Run
+          </Button>
+        )}
       </p>
       <div className="flex h-2 gap-0.5 overflow-hidden rounded-full">
         {bar.map(([n, tone]) => n > 0 && <span key={tone} className={tone} style={{ flex: n }} />)}
@@ -305,77 +311,6 @@ function Node({ n, t, word, onPick }: { n: GraphNode; t: Task; word: Word; onPic
         {word.text}
       </span>
     </button>
-  );
-}
-
-/** The Run window: each draft, who gets it and when it starts; Run N tasks queues them. */
-function run(parent: number, drafts: Task[], open: Set<number>) {
-  void openModal<boolean>((close) => <RunWindow parent={parent} drafts={drafts} open={open} close={close} />);
-}
-
-function RunWindow({ parent, drafts, open, close }: { parent: number; drafts: Task[]; open: Set<number>; close: (v?: boolean) => void }) {
-  const nameOf = useNameOf();
-  const queue = useWrite('task.queue');
-  const comment = useWrite('task.comment.add', String(parent));
-  const now = drafts.filter((d) => !startsAfter(d, open).length).length;
-  const go = () =>
-    queue.mutate(
-      { tasks: drafts.map((d) => d.id) },
-      {
-        onSuccess: () => {
-          comment.mutate(
-            { task: parent, text: `Ran ${drafts.length} tasks: ${drafts.map((d) => `T${d.id}`).join(', ')}` },
-            { onError: sayRefusal },
-          );
-          close(true);
-        },
-        onError: sayRefusal,
-      },
-    );
-  return (
-    <ModalFrame
-      title="Run this plan"
-      size="xl"
-      onClose={() => close()}
-      footer={
-        <>
-          <span className="mr-auto self-center text-sm text-muted">
-            {now} start now, {drafts.length - now} wait.
-          </span>
-          <Button onClick={() => close()}>Cancel</Button>
-          <Button variant="primary" autoFocus disabled={queue.isPending} onClick={go}>
-            <Play size={14} className="mr-1.5" />
-            Run {drafts.length} tasks
-          </Button>
-        </>
-      }
-    >
-      <table className="w-full text-sm">
-        <thead className="text-left text-xs text-muted">
-          <tr className="border-b border-border">
-            <th className="py-2 font-normal" />
-            <th className="py-2 font-normal">Task</th>
-            <th className="py-2 font-normal">Goes to</th>
-            <th className="py-2 font-normal">Starts</th>
-          </tr>
-        </thead>
-        <tbody>
-          {drafts.map((d) => {
-            const after = startsAfter(d, open);
-            return (
-              <tr key={d.id} className="border-b border-border">
-                <td className="py-2 pr-3 text-muted">T{d.id}</td>
-                <td className="py-2 pr-3">{d.title}</td>
-                <td className="py-2 pr-3">{nameOf(d.to)}</td>
-                <td className={`py-2 ${after.length ? 'text-muted' : ''}`}>
-                  {after.length ? `after ${after.map((x) => `T${x}`).join(', ')}` : 'now'}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </ModalFrame>
   );
 }
 

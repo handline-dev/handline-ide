@@ -22,6 +22,7 @@ import { showHistory } from '#src/tools/TaskDiff.tsx';
 import { CommentBox, type Reply } from '#src/tools/TaskComment.tsx';
 import { ChangeSize } from '#src/tools/TaskCode.tsx';
 import { PlanFlow, storyChat } from '#src/tools/Story.tsx';
+import { DraftRun } from '#src/tools/RunPlan.tsx';
 import { useAttachments } from '#src/chat/attachments.tsx';
 import { FileDropArea } from '#src/ui/fileDrop.tsx';
 import { Page } from '#src/ui/Page.tsx';
@@ -124,6 +125,7 @@ export function TaskTab({ id }: { id: number }) {
             <span className="mr-1.5 font-normal text-muted">T{t.id}</span>
             <span className={t.state === 'discarded' ? 'text-muted line-through' : ''}>{t.title}</span>
           </h1>
+          {t.state === 'draft' && <DraftRun t={t} />}
           <Verbs id={t.id} open={open} state={t.state} />
         </Page>
         <ScrollFade keep={`task:${id}`} fromEnd data-task-scroll={id} className="min-h-0 flex-1">
@@ -169,6 +171,13 @@ export function TaskTab({ id }: { id: number }) {
                   <Markdown text={t.body} />
                 </Clamped>
               </Flash>
+            )}
+            {t.state === 'draft' && t.plan && (
+              <Section title="Plan">
+                <Clamped>
+                  <Markdown text={t.plan.text} />
+                </Clamped>
+              </Section>
             )}
             {t.subtasks.length > 0 && <PlanFlow t={t} />}
             {t.evidence && (
