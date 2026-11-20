@@ -323,21 +323,42 @@ func TestAClearPastBackgroundWorkGoesOnlyWithTheSettingAndOnlyWhenTheTurnHasEnde
 	}
 }
 
-// A clear owed by a login move that found no room is not a context clear: the setting does not cut its background work off early.
-func TestAClearPastBackgroundWorkIsNotAClearOwedByAMoveWithNoRoom(t *testing.T) {
-	g := newTermMoveRig(t)
-	if err := g.m.Settings.SetFlag(settings.ClearPastBackgroundKey, true); err != nil {
-		t.Fatal(err)
-	}
-	g.l.dest = "" // no account has room
-	g.run.status, g.run.bgIdle, g.bg = "busy", true, "vite"
-	g.v.PerformHandoff("a", HandoffTrigger{Kind: LoginTrigger, Reason: "expired"}, "")
-	if g.v.clearOwed("a") == 0 {
-		t.Fatal("the clear is not owed")
-	}
-	db.SetCursor(g.m.Q, "clear_owed:a", g.m.now()-ClearWaitS-1)
-	if owed, _ := g.v.SettleOwedClear("a"); !owed || len(g.pane.handles) != 0 {
-		t.Fatalf("closed mid-turn: %v", g.pane.handles)
+// A clear owed at a usage wall with no room keeps the five minutes the agent was told: background work holds the close until then, not
+// after, also with the limit dialog in place of its prompt; a running turn still holds it. The close parks it to wake at the reset, its
+// note saying what was cut off.
+func TestAnOwedClearAtTheWallComesWhenItsMinutesAreUp(t *testing.T) {
+	for _, c := range []struct {
+		name           string
+		bgIdle, dialog bool
+		closes         bool
+	}{{"idle with background", true, false, true}, {"the limit dialog up", false, true, true}, {"mid-turn", false, false, false}} {
+		g := newTermMoveRig(t)
+		g.l.dest = "" // no account has room
+		g.v.E.LimitDialogOpen = func(string) bool { return true }
+		g.run.status, g.run.bgIdle, g.d.owesNothing, g.bg = "busy", true, false, "npm test"
+		g.v.PerformHandoff("a", HandoffTrigger{Kind: "usage", Reason: "wall"}, "")
+		if g.v.clearOwed("a") == 0 || len(g.pane.handles) != 0 {
+			t.Fatalf("%s: not owed (closed %v)", c.name, g.pane.handles)
+		}
+		if owed, _ := g.v.SettleOwedClear("a"); !owed || len(g.pane.handles) != 0 {
+			t.Fatalf("%s: closed before its time: %v", c.name, g.pane.handles)
+		}
+		g.run.bgIdle = c.bgIdle
+		g.v.E.LimitDialogOpen = func(string) bool { return c.dialog }
+		db.SetCursor(g.m.Q, "clear_owed:a", g.m.now()-ClearWaitS)
+		if owed, _ := g.v.SettleOwedClear("a"); !owed || (len(g.pane.handles) == 1) != c.closes {
+			t.Fatalf("%s: closed %v", c.name, g.pane.handles)
+		}
+		if !c.closes {
+			continue
+		}
+		row := g.row(t)
+		if row.State != states.Parked || !isClosed(row) || !row.WakeAt.Valid || row.WakeAt.Int64 != g.m.now()+1000 {
+			t.Fatalf("%s: not parked for the reset: %+v", c.name, row)
+		}
+		if rec, _ := db.GetHandoff(g.m.Q, "a"); !strings.Contains(rec, "Cut off by the clear") {
+			t.Fatalf("%s: the note does not say what was cut off: %q", c.name, rec)
+		}
 	}
 }
 
