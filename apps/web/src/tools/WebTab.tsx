@@ -29,6 +29,7 @@ export function WebTab({ tab, agent, start = '' }: { tab: string; agent: string 
   const [typed, setTyped] = useState(url);
   const page = webPage(tab);
   const canShoot = !!shell()?.capturePreview;
+  // eslint-disable-next-line no-restricted-syntax -- sending a marked picture brings the chat up; no link is clicked
   const openTab = useOpenTab();
   // The page as it is on screen, to mark up and send to the agent's chat (the shell's webview only: an iframe cannot be captured).
   const [shot, setShot] = useState<string | null>(null);

@@ -7,7 +7,7 @@ import { Markdown } from '#src/ui/Markdown.tsx';
 import type { LineChange } from '@handline/client';
 import { ModalFrame, openModal } from '#src/ui/modal.tsx';
 import { textOf } from '#src/layout/kinds.tsx';
-import { useOpenTab } from '#src/layout/openTab.tsx';
+import { useOpenable } from '#src/layout/openable.tsx';
 import { names, write } from '#src/persist/kv.ts';
 import { textKey } from '#src/tools/TextTab.tsx';
 
@@ -145,24 +145,24 @@ const FIRST = 8;
 /** One part's removed (−) and added (+) lines; Show all opens its whole text beside, or unfolds the rest here. */
 function PartLines({ l, at, close }: { l: LineChange; at: string; close: () => void }) {
   const [all, setAll] = useState(false);
-  const openTab = useOpenTab();
-  const whole = () => {
-    const opens = textOf(at, l.part);
-    const key = textKey(opens.slice(5));
-    // Keep only the latest whole text: each is up to 256 KiB.
-    for (const n of names(textKey(''))) if (n !== key) write(n, undefined);
-    write(key, l.text);
-    close();
-    openTab(opens, 'side');
-  };
+  const opens = textOf(at, l.part);
+  // Show all opens the whole text the way any link opens, after keeping it: only the latest, each up to 256 KiB.
+  const whole = useOpenable(opens, {
+    focus: () => {
+      const key = textKey(opens.slice(5));
+      for (const n of names(textKey(''))) if (n !== key) write(n, undefined);
+      write(key, l.text);
+    },
+    onOpen: close,
+  });
   const rows = [...l.removed.map((t) => ({ t, add: false })), ...l.added.map((t) => ({ t, add: true }))];
   const shown = all ? rows : rows.slice(0, FIRST);
   const hidden = rows.length - shown.length;
   const more =
     l.text != null
-      ? { onClick: whole, label: 'Show all' }
+      ? { open: whole, label: 'Show all' }
       : hidden > 0
-        ? { onClick: () => setAll(true), label: `Show all ${rows.length + (l.more ?? 0)} lines` }
+        ? { open: { onClick: () => setAll(true) }, label: `Show all ${rows.length + (l.more ?? 0)} lines` }
         : null;
   return (
     <div className="overflow-hidden rounded-lg border border-border">
@@ -184,7 +184,7 @@ function PartLines({ l, at, close }: { l: LineChange; at: string; close: () => v
       {more && (
         <button
           type="button"
-          onClick={more.onClick}
+          {...more.open}
           className="w-full border-t border-border px-3 py-1.5 text-left text-xs text-accent hover:bg-hover/40"
         >
           {more.label}

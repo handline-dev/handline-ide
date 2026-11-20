@@ -69,6 +69,7 @@ export function Chat({ agent }: { agent: string }) {
   const compacting = useCompacting(agent);
   const switchLock = useSwitchLock(agent);
   const compactNow = useCompactNow(agent);
+  // eslint-disable-next-line no-restricted-syntax -- the /terminal command has no click: it opens the terminal beside
   const openTab = useOpenTab();
   const stop = () =>
     run(VERBS.interrupt, undefined, {
