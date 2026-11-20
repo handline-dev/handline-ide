@@ -88,7 +88,7 @@ func (d Driver) LaunchArgv(exe string, o agent.LaunchArgs) []string {
 		// Without network this sandbox cannot connect to the daemon's socket either, and every hl in the session fails.
 		argv = append(argv, "-c", "sandbox_workspace_write.network_access=true")
 	}
-	dirs := append([]string{}, o.AllowWrite...)
+	dirs := append(append([]string{}, o.AllowWrite...), o.AddDirs...)
 	if o.CacheDir != "" && !o.SandboxOff {
 		dirs = append(dirs, o.CacheDir)
 	}

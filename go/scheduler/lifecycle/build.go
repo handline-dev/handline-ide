@@ -222,7 +222,7 @@ func (l *Launcher) Build(site *Site, agent string, extra []string, force bool, a
 		SandboxOff:  !sandboxed,
 		MCPApproved: approved, ReadAllow: append([]string{filepath.Join(l.Home, "attachments")}, granted...),
 		LandPush:   l.held(agent).LandBy == agent,
-		AllowWrite: allowWrite, AllowDomains: allowDomains, CacheDir: cacheDir,
+		AllowWrite: allowWrite, AllowDomains: allowDomains, CacheDir: cacheDir, AddDirs: l.Roster.OtherFolders(agent),
 		WeakerNetwork: allowed.WeakerNetwork, Excluded: allowed.Excluded,
 	})
 	// The pair goes whole or not at all: a caller's own mode wins, and a lone value left behind would be read as the opening prompt.

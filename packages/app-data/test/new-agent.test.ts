@@ -33,7 +33,7 @@ describe('the dotted name agent.create takes', () => {
       { key: 'a2', name: 'designer', workspace: 'w1' },
     ],
     people: [],
-    workspaces: [{ key: 'w1', name: 'shop', folder: '/s', added_folders: [], lead: 'a1' }],
+    workspaces: [{ key: 'w1', name: 'shop', folder: '/s', added_folders: [], folders: [], lead: 'a1' }],
   };
   it("is a lead's workspace, another agent's workspace.name, and a key the lists lack as it is", () => {
     expect(['a1', 'a2', 'a9'].map((k) => dottedName(dir, k))).toEqual(['shop', 'shop.designer', 'a9']);

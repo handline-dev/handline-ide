@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/internal/outcome"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/policy"
 	"github.com/handline/handline/go/kit/textsafe"
@@ -57,7 +59,15 @@ func (e *Env) create(c *rpc.Conn, params map[string]any) (any, error) {
 	if params["account"] != nil {
 		return nil, bad("a new agent's account is chosen when it starts; none can be named yet", "account")
 	}
-	repo, err := createText(params, "repo", true)
+	workspace, err := createText(params, "workspace", false)
+	if err != nil {
+		return nil, err
+	}
+	repo, err := createText(params, "repo", workspace == "")
+	if err != nil {
+		return nil, err
+	}
+	folder, err := createText(params, "folder", false)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +83,17 @@ func (e *Env) create(c *rpc.Conn, params map[string]any) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	if st, serr := os.Stat(repo); serr != nil || !st.IsDir() {
+	if workspace != "" { // the new shape: a plain name in that workspace, working in one of its folders
+		if strings.Contains(name, ".") {
+			return nil, bad("name is a plain name in its workspace, with no dot", "name")
+		}
+		if parent != "" {
+			return nil, bad("parent is the older shape: with workspace, name the workspace only", "parent")
+		}
+		if name, repo, err = e.inWorkspace(workspace, name, folder); err != nil {
+			return nil, err
+		}
+	} else if st, serr := os.Stat(repo); serr != nil || !st.IsDir() {
 		return nil, notFound("repo", repo, "no repo "+repo)
 	}
 	if parent != "" { // parent is a key (a who param); name is the new agent's dotted name
@@ -104,6 +124,43 @@ func (e *Env) create(c *rpc.Conn, params map[string]any) (any, error) {
 		_, err := e.Roster.Register(name, opts)
 		return err
 	})
+}
+
+// inWorkspace is the dotted name Register takes for agent name of workspace who (its key or name), and the folder of it the agent works
+// in: folder, one of the workspace's, or its default when "".
+func (e *Env) inWorkspace(who, name, folder string) (dotted, works string, err error) {
+	q, arg := "SELECT id, name FROM workspaces WHERE name = ?", any(who)
+	if k, n, ok := actor.Parse(who); ok && k == actor.Workspace {
+		q, arg = "SELECT id, name FROM workspaces WHERE id = ?", n
+	}
+	var id int64
+	var ws string
+	if err := e.DB.QueryRow(q, arg).Scan(&id, &ws); errors.Is(err, sql.ErrNoRows) {
+		return "", "", notFound("workspace", who, "no workspace "+who)
+	} else if err != nil {
+		return "", "", err
+	}
+	fs, err := team.Folders(e.DB, id)
+	if err != nil {
+		return "", "", err
+	}
+	if len(fs) == 0 {
+		return "", "", rpc.Refused("workspace "+ws+" has no folder to work in yet", "state", "")
+	}
+	works = fs[0]
+	if folder != "" {
+		works = ""
+		kept, _, ferr := team.Folder(folder) // as the workspace keeps it: a checkout's top, ~ expanded
+		for _, f := range fs {
+			if ferr == nil && f == kept {
+				works = f
+			}
+		}
+		if works == "" {
+			return "", "", bad("folder is one of workspace "+ws+"'s folders", "folder")
+		}
+	}
+	return ws + "." + name, works, nil
 }
 
 // operate runs register and then starts agent name as operation kind (agent.create, workspace.create), and answers once it ended.

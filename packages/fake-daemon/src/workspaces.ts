@@ -3,7 +3,7 @@
 import type { Actor, Repo, Topic, Workspace } from '@handline/contract';
 import { AGENTS } from '#src/fixtures.ts';
 import { Failure, invalidParams, refused } from '#src/errors.ts';
-import { PEOPLE, segment, workspacesOf } from '#src/names.ts';
+import { identOf, PEOPLE, segment, workspacesOf } from '#src/names.ts';
 import type { Session } from '#src/session.ts';
 import type { FakeWork } from '#src/workroom.ts';
 import type { FakeWorktrees } from '#src/worktrees.ts';
@@ -20,14 +20,19 @@ type Ok = (said: string, extra?: object) => object;
 const METHODS = /^(workspaces\.list|workspace\.(create|set|delete))$/;
 const NAME = /^[a-z][a-z0-9-]{0,31}$/;
 const HOME = '/Users/me';
-/** Folders that are there but in no git checkout: workspace.create refuses them with gate not_git. Any other unknown folder is not_found. */
+/** Folders that are there but in no git checkout: taken as plain folders (git false). Any other unknown folder is not_found. */
 const PLAIN_FOLDERS = [`${HOME}/Documents/recipe-site`];
+/** The seeded handline workspace holds a second repo and a plain folder beside its own. */
+const SEEDED_ADDED: [string, string[]][] = [['handline', ['/work/docs-site', PLAIN_FOLDERS[0]!]]];
 
 const notFound = (message: string, what: string) => new Failure('not_found', message, { what });
 
 export class FakeWorkspaces {
   private names = new Map<string, string>();
   private folders = new Map<string, string>();
+  private added = new Map<string, string[]>(SEEDED_ADDED);
+  /** The folder each agent works in, when it is not its workspace's default. */
+  private works = new Map<string, string>();
   /** Segments whose lead is being made: their name and folder are taken before the lead is registered. */
   private starting = new Set<string>();
   private host: Host;
@@ -39,7 +44,36 @@ export class FakeWorkspaces {
   owns = (method: string): boolean => METHODS.test(method);
 
   list(): Workspace[] {
-    return workspacesOf([...this.host.sessions.keys()], this.names, this.folderOf());
+    return workspacesOf([...this.host.sessions.keys()], this.names, this.folderOf(), this.added, (f) => PLAIN_FOLDERS.includes(f));
+  }
+
+  /** The folder agent key works in: its own, else its workspace's default. */
+  folderFor(key: string): string | null {
+    const ws = this.list().find((w) => w.key === identOf(key).workspace);
+    return this.works.get(key) ?? ws?.folder ?? null;
+  }
+
+  /** agent.create's workspace and folder: the dotted name it registers, and the folder of it (its default if none) as a repo. */
+  place(name: string, workspace: unknown, folder: unknown): { name: string; repo: Repo; git: boolean } {
+    if (name.includes('.')) throw invalidParams('name is a plain name in its workspace, with no dot', 'name');
+    const { seg, ws } = this.find(workspace);
+    if (!ws.folder) throw refused('state', `workspace ${ws.name} has no folder to work in yet`);
+    const f = folder === undefined ? ws.folders[0] : ws.folders.find((x) => x.path === folder);
+    if (!f) throw invalidParams(`folder is one of workspace ${ws.name}'s folders`, 'folder');
+    return { name: `${seg}.${name}`, repo: this.repoAt(f.path), git: f.git };
+  }
+
+  /** Agent works in folder from now on: kept only when it is not its workspace's default. */
+  settle(agent: string, folder: string): void {
+    if (folder === this.list().find((w) => w.key === identOf(agent).workspace)?.folder) this.works.delete(agent);
+    else this.works.set(agent, folder);
+  }
+
+  /** The repo a folder is: a known one, or a plain folder as one on main. */
+  private repoAt(path: string): Repo {
+    const { repos, recent } = this.host.admin.worktrees;
+    const known = [...repos, ...recent].find((r) => r.path === path);
+    return { default_branch: 'main', setup: { script: '', copy: [], last: null }, ...known, name: path.split('/').pop()!, path };
   }
 
   /** Each segment's folder: a seeded workspace's is the repo of its name. */
@@ -56,7 +90,7 @@ export class FakeWorkspaces {
       case 'workspace.create':
         return this.create(p, ok);
       case 'workspace.set':
-        return this.rename(p, ok);
+        return this.set(p, ok);
       default:
         return this.remove(p, ok, actor);
     }
@@ -92,13 +126,10 @@ export class FakeWorkspaces {
     if (typeof p.folder !== 'string' || !p.folder) throw invalidParams('folder is an absolute path', 'folder');
     const folder = p.folder.replace(/^~(?=\/|$)/, HOME);
     const { repos, recent } = this.host.admin.worktrees;
-    const known = [
-      ...repos,
-      ...recent.map((r): Repo => ({ name: r.name, path: r.path, default_branch: 'main', setup: { script: '', copy: [], last: null } })),
-    ];
-    const repo = known.find((r) => folder === r.path || folder.startsWith(`${r.path}/`));
-    if (!repo && PLAIN_FOLDERS.includes(folder)) throw refused('not_git', `${folder} is not in a git repository`);
-    if (!repo) throw notFound(`${folder} is not a folder`, 'folder');
+    const top = [...repos, ...recent].find((r) => folder === r.path || folder.startsWith(`${r.path}/`))?.path;
+    const at = top ?? (PLAIN_FOLDERS.includes(folder) ? folder : undefined);
+    if (!at) throw notFound(`${folder} is not a folder`, 'folder');
+    const repo = this.repoAt(at);
     const segs = this.segments();
     const other = [...this.folderOf()].find(([seg, f]) => f === repo.path && segs.has(seg))?.[0];
     this.names.delete(name);
@@ -120,15 +151,49 @@ export class FakeWorkspaces {
     return ok(`Creating workspace ${name}.`, { operation: id });
   }
 
-  /** workspace.set: the new name; refused while one of its agents has a session running. */
-  private rename(p: Record<string, unknown>, ok: Ok) {
+  /** workspace.set: a new name (refused while one of its agents has a session running), a folder added or one taken away. Every part
+   * is checked before any is made. */
+  private set(p: Record<string, unknown>, ok: Ok) {
     const { seg, ws } = this.find(p.workspace);
-    const name = this.checkName(p.name, ws.name);
-    if (name === ws.name) return ok(`${name} is its name already.`);
-    this.busy(seg);
-    this.names.set(seg, name);
-    this.host.emit('workspaces', 'workspaces.changed', { data: {} });
-    return ok(`${ws.name} is ${name} now.`);
+    for (const k of ['add_folder', 'remove_folder'] as const)
+      if (p[k] !== undefined && (typeof p[k] !== 'string' || !p[k])) throw invalidParams(`${k} is a non-empty string`, k);
+    const add = p.add_folder as string | undefined;
+    const gone = p.remove_folder as string | undefined;
+    if (p.name === undefined && !add && !gone) throw invalidParams('name, add_folder or remove_folder says what changes', 'name');
+    const name = p.name === undefined ? ws.name : this.checkName(p.name, ws.name);
+    if (name !== ws.name) this.busy(seg);
+    const paths = ws.folders.map((f) => f.path);
+    const adding = add !== undefined && !paths.includes(add);
+    if (adding) {
+      const { repos, recent } = this.host.admin.worktrees;
+      if (!PLAIN_FOLDERS.includes(add) && ![...repos, ...recent].some((r) => r.path === add))
+        throw refused('state', `${add} is not a folder`);
+      if (this.list().some((w) => w.key !== ws.key && w.folders.some((f) => f.path === add)))
+        throw refused('state', `${add} is another workspace's folder`);
+    }
+    if (gone !== undefined) {
+      if (!paths.includes(gone)) throw refused('state', `${gone} is not a folder of this workspace`);
+      const busy = this.agentsOf(seg).filter((a) => this.folderFor(a) === gone);
+      if (busy.length) throw refused('state', `${busy.length} of its agents work in ${gone}: give them another folder first`);
+    }
+    const said: string[] = [];
+    if (p.name !== undefined) said.push(name === ws.name ? `${name} is its name already.` : `${ws.name} is ${name} now.`);
+    if (name !== ws.name) this.names.set(seg, name);
+    let next = paths;
+    if (adding) {
+      next = [...next, add];
+      said.push(`Added ${add}.`);
+    }
+    if (gone !== undefined) {
+      next = next.filter((f) => f !== gone);
+      said.push(`Took ${gone} away.`);
+    }
+    if (next !== paths) {
+      this.folders.set(seg, next[0] ?? '');
+      this.added.set(seg, next.slice(1));
+    }
+    if (name !== ws.name || next !== paths) this.host.emit('workspaces', 'workspaces.changed', { data: {} });
+    return ok(said.join(' ') || `${add} is a folder of ${ws.name} already.`);
   }
 
   /** workspace.delete: every agent retired, the lead last, or nothing at all. */
@@ -147,6 +212,8 @@ export class FakeWorkspaces {
     }
     this.names.delete(seg);
     this.folders.delete(seg);
+    this.added.delete(seg);
+    for (const a of agents) this.works.delete(a);
     this.starting.delete(seg);
     this.host.emit('workspaces', 'workspaces.changed', { data: {} });
     return ok(`${ws.name} is deleted.`);

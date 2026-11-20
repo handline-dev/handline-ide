@@ -49,6 +49,8 @@ type LaunchArgs struct {
 	AllowWrite, AllowDomains []string
 	// CacheDir is a sandboxed session's own build caches (claude.CacheEnv), which it may write too.
 	CacheDir string
+	// AddDirs are the other folders of the agent's workspace, which the session gets beside its own (--add-dir), to read and write.
+	AddDirs []string
 	// WeakerNetwork and Excluded are what the founder allowed the session's repo (team.RepoAllowances).
 	WeakerNetwork bool
 	Excluded      []string

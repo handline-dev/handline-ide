@@ -1,13 +1,14 @@
 package team
 
 import (
-	"errors"
+	"database/sql"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/names"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/store"
@@ -68,18 +69,17 @@ func TestAFolderInACheckoutIsItsTop(t *testing.T) {
 	}
 }
 
-func TestAFolderInNoCheckoutIsNotGitAndMakesNothing(t *testing.T) {
+func TestAPlainFolderIsAWorkspacesFolderAsItIs(t *testing.T) {
 	home := newHome(t)
-	_, err := NewRoster(home).Create("shop", t.TempDir())
-	var ng *NotGit
-	if !errors.As(err, &ng) || !IsRefusal(err) {
-		t.Fatalf("%v", err)
+	plain := t.TempDir()
+	if _, err := NewRoster(home).Create("notes", plain); err != nil {
+		t.Fatal(err)
 	}
 	d, _ := store.Shared(paths.DBFile(home))
-	var n int
-	d.QueryRow("SELECT COUNT(*) FROM workspaces").Scan(&n)
-	if n != 0 {
-		t.Fatalf("%d workspaces left behind", n)
+	var folder string
+	d.QueryRow("SELECT folder FROM workspaces WHERE name = 'notes'").Scan(&folder)
+	if folder != filepath.Clean(plain) || IsGit(folder) {
+		t.Fatalf("%s, want the plain folder %s", folder, plain)
 	}
 }
 
@@ -108,5 +108,80 @@ func TestAFolderSharedWithAnotherWorkspaceIsRefused(t *testing.T) {
 	}
 	if _, err := r.Register("blog", RegisterOpts{Repo: repo}); err == nil || !strings.Contains(err.Error(), "shares it") {
 		t.Fatalf("a lead moved onto shop's folder: %v", err)
+	}
+}
+
+// A workspace holds several folders, git or plain, its first the default: each agent works in one, and a folder an agent works in
+// stays until it has another.
+func TestAWorkspaceHoldsSeveralFoldersAndEachAgentWorksInOne(t *testing.T) {
+	home := newHome(t)
+	r := NewRoster(home)
+	web, api, notes := testfiles.GitCheckout(t), testfiles.GitCheckout(t), t.TempDir()
+	ws, err := r.Create("shop", web)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range []string{api, notes, api} { // the same folder twice is one
+		kept, _, err := Folder(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := r.AddFolder(ws, kept); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_, id, _ := actor.Parse(ws)
+	if fs, err := Folders(r.DB, id); err != nil || strings.Join(fs, ",") != strings.Join([]string{web, api, filepath.Clean(notes)}, ",") {
+		t.Fatalf("the default first, then the added ones: %v %v", fs, err)
+	}
+	if _, err := r.Create("blog", testfiles.GitCheckout(t)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.Register("blog", RegisterOpts{Repo: api}); err == nil || !strings.Contains(err.Error(), "shares it") {
+		t.Fatalf("an added folder is the workspace's too: %v", err)
+	}
+	if _, err := r.Register("shop.server", RegisterOpts{Repo: api}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.Register("shop.ui", RegisterOpts{Repo: web}); err != nil {
+		t.Fatal(err)
+	}
+	if r.RepoOf("shop.server") != api || r.RepoOf("shop.ui") != web || r.RepoOf("shop") != web {
+		t.Fatalf("each in its folder: %q %q %q", r.RepoOf("shop.server"), r.RepoOf("shop.ui"), r.RepoOf("shop"))
+	}
+	if got := r.OtherFolders("shop.server"); strings.Join(got, ",") != web+","+filepath.Clean(notes) {
+		t.Fatalf("it reads the others: %v", got)
+	}
+	var own sql.NullString
+	r.DB.QueryRow("SELECT folder FROM agents WHERE name = 'ui'").Scan(&own)
+	if own.Valid {
+		t.Fatalf("an agent of the default keeps none of its own: %v", own)
+	}
+	if _, err := r.Register("shop.ui", RegisterOpts{Repo: testfiles.GitCheckout(t)}); err == nil || !strings.Contains(err.Error(), "not a folder of workspace shop") {
+		t.Fatalf("a folder the workspace does not hold: %v", err)
+	}
+	if err := r.RemoveFolder(ws, api); err == nil || !strings.Contains(err.Error(), "1 of its agents work in") {
+		t.Fatalf("a folder an agent works in stays: %v", err)
+	}
+	if err := r.RemoveFolder(ws, notes); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.RemoveFolder(ws, web); err == nil || !strings.Contains(err.Error(), "2 of its agents work in") {
+		t.Fatalf("the default stays while its agents work there: %v", err)
+	}
+	if fs, _ := Folders(r.DB, id); strings.Join(fs, ",") != web+","+api {
+		t.Fatalf("%v", fs)
+	}
+	if err := r.SetKeys("shop", []yamlcompat.Pair{{Key: "repo", Val: ""}}); err == nil || !strings.Contains(err.Error(), "has other folders") {
+		t.Fatalf("a default is not cleared under the other folders: %v", err)
+	}
+	// the lead working in api sets a new default: it works there, and so does every agent of the default
+	r.SetKeys("shop", []yamlcompat.Pair{{Key: "repo", Val: api}})
+	other := testfiles.GitCheckout(t)
+	if err := r.SetKeys("shop", []yamlcompat.Pair{{Key: "repo", Val: other}}); err != nil {
+		t.Fatal(err)
+	}
+	if r.RepoOf("shop") != other || r.RepoOf("shop.ui") != other || r.RepoOf("shop.server") != api {
+		t.Fatalf("%q %q %q", r.RepoOf("shop"), r.RepoOf("shop.ui"), r.RepoOf("shop.server"))
 	}
 }

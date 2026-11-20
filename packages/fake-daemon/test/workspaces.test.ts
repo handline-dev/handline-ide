@@ -28,13 +28,12 @@ test('workspace.create starts its lead as agent.create does, and the workspace i
   client.close();
 });
 
-test('workspace.create refuses a bad name, a taken one, a folder in no checkout and a missing one, before any operation', async () => {
+test('workspace.create refuses a bad name, a taken one and a missing folder, before any operation', async () => {
   const { client } = setup();
   await client.start();
   const make = (name: string, folder = '/work/handline') => client.call('workspace.create', { name, folder, request_id: `wc-${name}` });
   await assert.rejects(make('a.b'), (e: RpcError) => e.code === 'bad_request' && e.data?.field === 'name');
   await assert.rejects(make('handline'), refusedWith('refused', 'state'));
-  await assert.rejects(make('recipes', '/Users/me/Documents/recipe-site'), refusedWith('refused', 'not_git'));
   await assert.rejects(make('nothing', '/nowhere'), refusedWith('not_found'));
   client.close();
 });
@@ -112,5 +111,54 @@ test('workspace.delete refuses a running agent and held work, then retires every
   assert.equal(r.said, 'garden is deleted.');
   assert.equal(daemon.sessions.has('garden'), false);
   assert.ok(!(await names(client)).includes('garden'));
+  client.close();
+});
+
+test('a workspace holds several folders, git or plain, and agent.create puts an agent in one of them', async () => {
+  const { client } = setup();
+  await client.start();
+  const seen: Event[] = [];
+  client.onEvent((e) => e.topic === 'operations' && seen.push(e));
+  await client.subscribe(['operations']);
+  const ws = await named(client, 'handline');
+  assert.deepEqual(
+    ws.folders.map((f) => [f.name, f.git, f.default]),
+    [
+      ['handline', true, true],
+      ['docs-site', true, false],
+      ['recipe-site', false, false],
+    ],
+  );
+  const r = await client.call('agent.create', {
+    workspace: ws.key,
+    name: 'writer',
+    role: 'implementer',
+    folder: '/work/docs-site',
+    request_id: 'ac-1',
+  });
+  await until(
+    () => seen.some((e) => (e.data as { id: string; state: string }).id === r.operation && (e.data as { state: string }).state === 'done'),
+    'created',
+  );
+  await assert.rejects(
+    client.call('agent.create', {
+      workspace: ws.key,
+      name: 'auditor',
+      role: 'r',
+      folder: '/Users/me/Documents/recipe-site',
+      request_id: 'ac-2',
+    }),
+    refusedWith('refused', 'state'),
+  );
+  const agents = (await client.call('agents.list', {})).agents;
+  assert.equal(agents.find((a) => a.key === 'handline.writer')?.folder, '/work/docs-site');
+  assert.equal(agents.find((a) => a.key === 'handline.auditor')?.folder, '/work/handline', 'a refused create moves no one');
+  await assert.rejects(
+    client.call('workspace.set', { workspace: ws.key, remove_folder: '/work/docs-site', request_id: 'ws-f1' }),
+    refusedWith('refused', 'state'),
+  );
+  await client.call('workspace.set', { workspace: ws.key, remove_folder: '/Users/me/Documents/recipe-site', request_id: 'ws-f2' });
+  await client.call('workspace.set', { workspace: ws.key, add_folder: '/Users/me/Documents/recipe-site', request_id: 'ws-f3' });
+  assert.equal((await named(client, 'handline')).folders.length, 3);
   client.close();
 });

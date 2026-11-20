@@ -13,10 +13,10 @@ import (
 func TestLaunchArgv(t *testing.T) {
 	stubVersions(t, nil)
 	got := Driver{}.LaunchArgv("/bin/codex", agent.LaunchArgs{Cwd: "/w/a \"b\"", Model: "gpt-5.6-luna", Effort: "max",
-		Preamble: "rules:\n\t\"be brief\" \\ done\x01", AllowWrite: []string{"/w/y"}, CacheDir: "/c"})
+		Preamble: "rules:\n\t\"be brief\" \\ done\x01", AllowWrite: []string{"/w/y"}, CacheDir: "/c", AddDirs: []string{"/w/api"}})
 	want := []string{"/bin/codex", "--no-daemon", "-C", "/w/a \"b\"", "-m", "gpt-5.6-luna", "-c", `model_reasoning_effort="high"`,
 		"-s", "workspace-write", "-a", "on-request", "-c", "check_for_update_on_startup=false", "--dangerously-bypass-hook-trust",
-		"-c", "sandbox_workspace_write.network_access=true", "--add-dir", "/w/y", "--add-dir", "/c",
+		"-c", "sandbox_workspace_write.network_access=true", "--add-dir", "/w/y", "--add-dir", "/w/api", "--add-dir", "/c",
 		"-c", `projects={"/w/a \"b\""={trust_level="trusted"}}`,
 		"-c", `developer_instructions="rules:\n\t\"be brief\" \\ done\u0001"`}
 	if !slices.Equal(got, want) {

@@ -86,6 +86,9 @@ func (Driver) LaunchArgv(exe string, o agent.LaunchArgs) []string {
 		argv = append(argv, "--no-chrome")
 	}
 	argv = append(argv, o.MCPArgs...)
+	for _, d := range o.AddDirs {
+		argv = append(argv, "--add-dir", d)
+	}
 	if o.Preamble != "" {
 		argv = append(argv, "--append-system-prompt", o.Preamble)
 	}
@@ -93,7 +96,7 @@ func (Driver) LaunchArgv(exe string, o agent.LaunchArgs) []string {
 	if o.MemoryDir != "" {
 		settings.Set("autoMemoryDirectory", o.MemoryDir)
 	}
-	writable := append([]string{}, o.AllowWrite...)
+	writable := append(append([]string{}, o.AllowWrite...), o.AddDirs...)
 	if o.CacheDir != "" {
 		writable = append(writable, o.CacheDir)
 	}

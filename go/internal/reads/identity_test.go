@@ -23,7 +23,8 @@ func TestPeopleAndWorkspacesAreListedByKey(t *testing.T) {
 		return string(b)
 	}
 	ws := got(func() (any, error) { return e.workspacesList(nil, nil) })
-	if want := `{"key":"w5","lead":"a7","name":"shop","folder":"/p","added_folders":["/q"]}`; !sameJSON(ws, `{"workspaces":[`+want+`]}`) {
+	if want := `{"key":"w5","lead":"a7","name":"shop","folder":"/p","added_folders":["/q"],` +
+		`"folders":[{"path":"/p","name":"p","git":false,"default":true},{"path":"/q","name":"q","git":false,"default":false}]}`; !sameJSON(ws, `{"workspaces":[`+want+`]}`) {
 		t.Errorf("workspaces.list %s", ws)
 	}
 	people := got(func() (any, error) { return e.peopleList(nil, nil) })

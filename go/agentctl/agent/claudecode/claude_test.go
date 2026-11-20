@@ -314,3 +314,11 @@ func TestTranscriptsAreKeptSevenDaysByDefault(t *testing.T) {
 		}
 	}
 }
+
+// The other folders of the agent's workspace come as --add-dir, one each.
+func TestLaunchArgvAddsTheWorkspacesOtherFolders(t *testing.T) {
+	argv := (Driver{}).LaunchArgv("/bin/claude", agent.LaunchArgs{Effort: "high", AddDirs: []string{"/w/api", "/w/notes"}})
+	if s := strings.Join(argv, " "); !strings.Contains(s, " --add-dir /w/api --add-dir /w/notes") {
+		t.Fatalf("%q", argv)
+	}
+}

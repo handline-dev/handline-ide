@@ -70,6 +70,15 @@ type Taken struct {
 	Said              []string
 }
 
+// plain is whether folder is there and no git checkout's top.
+func plain(folder string) bool {
+	if fi, err := os.Stat(folder); err != nil || !fi.IsDir() {
+		return false
+	}
+	_, err := os.Stat(filepath.Join(folder, ".git"))
+	return errors.Is(err, os.ErrNotExist)
+}
+
 // Take gives agent a desk of repo and checks out its branch there: the desk it holds, else one pinned to it, else the one it used last
 // when free, else the free desk used longest ago, else a new desk-<n> with the lowest free number. A free desk with changes in it is
 // passed over. why is set, and the desk not taken, when the branch cannot be checked out (git says why).
@@ -77,7 +86,8 @@ func (p *Pool) Take(agent, repo string) (t Taken, why string, err error) {
 	return p.TakeFrom(agent, repo, "")
 }
 
-// TakeFrom is Take with a new desk and a new branch started from base ("" the repo's default branch).
+// TakeFrom is Take with a new desk and a new branch started from base ("" the repo's default branch). A plain folder (no git) is
+// no pool: it is taken as it is, with no branch, and base is not read.
 func (p *Pool) TakeFrom(agent, repo, base string) (t Taken, why string, err error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -106,6 +116,9 @@ func (p *Pool) TakeFrom(agent, repo, base string) (t Taken, why string, err erro
 	if last != "" && exists(last) && !known(folders, last) {
 		// a folder outside the pool (the repository's own checkout, or one elsewhere) stays the agent's: the pool hands out desks only
 		return Taken{Path: last, Branch: head(last), How: "own"}, "", nil
+	}
+	if plain(repo) { // no repo to make a desk of: the agent works in the folder itself, on no branch
+		return Taken{Path: repo, How: "plain folder"}, "", nil
 	}
 	switch {
 	case pick("held", func(f Folder) bool { return f.Holder == agent }):
