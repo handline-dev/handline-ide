@@ -13,7 +13,6 @@ export const STATE: Record<string, { icon: (p: LucideProps) => ReactNode; tone: 
   doing: { icon: Turning, tone: 'bg-accent', word: 'Doing' },
   waiting: { icon: Hand, tone: 'bg-warning', word: 'Waiting' },
   blocked: { icon: Hourglass, tone: 'bg-muted', word: 'Blocked' },
-  held: { icon: Hand, tone: 'bg-warning', word: 'Held' },
   done: { icon: Check, tone: 'bg-success', word: 'Done' },
   discarded: { icon: X, tone: 'bg-danger', word: 'Discarded' },
   failed: { icon: X, tone: 'bg-danger', word: 'Failed' },
@@ -39,10 +38,9 @@ export type Lookable = {
 export const look = (t: Lookable) => {
   const open = !['done', 'discarded'].includes(t.state);
   const onFounder = open && (t.waiting?.on === 'founder' || (!!t.turns?.length && t.acting === 'human'));
-  const held = open && !!t.hold_reason;
   const blocked = open && t.state !== 'queued' && !!(t.waiting || t.block_reason);
   const failed = t.state === 'done' && failedLine(t.evidence, t.title) !== null;
-  const key = onFounder ? 'waiting' : held ? 'held' : blocked ? 'blocked' : failed ? 'failed' : t.state;
+  const key = onFounder ? 'waiting' : blocked ? 'blocked' : failed ? 'failed' : t.state;
   return STATE[key] ?? { icon: CircleDot, tone: 'bg-muted', word: t.state };
 };
 
